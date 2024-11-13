@@ -114,7 +114,7 @@ UCharsTrie::Iterator::next(UErrorCode &errorCode) {
         pos=uchars_+stack_->elementAti(stackSize-2);
         stack_->setSize(stackSize-2);
         str_.truncate(length&0xffff);
-        length=(int32_t)((uint32_t)length>>16);
+        length = static_cast<int32_t>(static_cast<uint32_t>(length) >> 16);
         if(length>1) {
             pos=branchNext(pos, length, errorCode);
             if(pos==nullptr) {
@@ -138,7 +138,7 @@ UCharsTrie::Iterator::next(UErrorCode &errorCode) {
                 skipValue_=false;
             } else {
                 // Deliver value for the string so far.
-                UBool isFinal=(UBool)(node>>15);
+                UBool isFinal = static_cast<UBool>(node >> 15);
                 if(isFinal) {
                     value_=readValue(pos, node&0x7fff);
                 } else {
@@ -187,7 +187,7 @@ UCharsTrie::Iterator::branchNext(const char16_t *pos, int32_t length, UErrorCode
     while(length>kMaxBranchLinearSubNodeLength) {
         ++pos;  // ignore the comparison unit
         // Push state for the greater-or-equal edge.
-        stack_->addElement((int32_t)(skipDelta(pos)-uchars_), errorCode);
+        stack_->addElement(static_cast<int32_t>(skipDelta(pos) - uchars_), errorCode);
         stack_->addElement(((length-(length>>1))<<16)|str_.length(), errorCode);
         // Follow the less-than edge.
         length>>=1;
@@ -197,10 +197,10 @@ UCharsTrie::Iterator::branchNext(const char16_t *pos, int32_t length, UErrorCode
     // Read the first (key, value) pair.
     char16_t trieUnit=*pos++;
     int32_t node=*pos++;
-    UBool isFinal=(UBool)(node>>15);
+    UBool isFinal = static_cast<UBool>(node >> 15);
     int32_t value=readValue(pos, node&=0x7fff);
     pos=skipValue(pos, node);
-    stack_->addElement((int32_t)(pos-uchars_), errorCode);
+    stack_->addElement(static_cast<int32_t>(pos - uchars_), errorCode);
     stack_->addElement(((length-1)<<16)|str_.length(), errorCode);
     str_.append(trieUnit);
     if(isFinal) {

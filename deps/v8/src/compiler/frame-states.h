@@ -78,6 +78,8 @@ enum class FrameStateType {
                                    // JS to Wasm call.
   kWasmInlinedIntoJS,              // Represents a Wasm function inlined into a
                                    // JS function.
+  kLiftoffFunction,                // Represents an unoptimized (liftoff) wasm
+                                   // function.
 #endif                             // ↑ WebAssembly only
   kJavaScriptBuiltinContinuation,  // Represents a continuation to a JavaScipt
                                    // builtin.
@@ -88,18 +90,31 @@ enum class FrameStateType {
 
 class FrameStateFunctionInfo {
  public:
-  FrameStateFunctionInfo(FrameStateType type, int parameter_count,
-                         int local_count,
-                         Handle<SharedFunctionInfo> shared_info)
+  FrameStateFunctionInfo(FrameStateType type, uint16_t parameter_count,
+                         uint16_t max_arguments, int local_count,
+                         Handle<SharedFunctionInfo> shared_info,
+                         uint32_t wasm_liftoff_frame_size = 0,
+                         uint32_t wasm_function_index = -1)
       : type_(type),
         parameter_count_(parameter_count),
+        max_arguments_(max_arguments),
         local_count_(local_count),
-        shared_info_(shared_info) {}
+#if V8_ENABLE_WEBASSEMBLY
+        wasm_liftoff_frame_size_(wasm_liftoff_frame_size),
+        wasm_function_index_(wasm_function_index),
+#endif
+        shared_info_(shared_info) {
+  }
 
   int local_count() const { return local_count_; }
-  int parameter_count() const { return parameter_count_; }
+  uint16_t parameter_count() const { return parameter_count_; }
+  uint16_t max_arguments() const { return max_arguments_; }
   Handle<SharedFunctionInfo> shared_info() const { return shared_info_; }
   FrameStateType type() const { return type_; }
+  uint32_t wasm_liftoff_frame_size() const {
+    return wasm_liftoff_frame_size_;
+  }
+  uint32_t wasm_function_index() const { return wasm_function_index_; }
 
   static bool IsJSFunctionType(FrameStateType type) {
     // This must be in sync with TRANSLATION_JS_FRAME_OPCODE_LIST in
@@ -110,20 +125,29 @@ class FrameStateFunctionInfo {
   }
 
  private:
-  FrameStateType const type_;
-  int const parameter_count_;
-  int const local_count_;
-  Handle<SharedFunctionInfo> const shared_info_;
+  const FrameStateType type_;
+  const uint16_t parameter_count_;
+  const uint16_t max_arguments_;
+  const int local_count_;
+#if V8_ENABLE_WEBASSEMBLY
+  const uint32_t wasm_liftoff_frame_size_ = 0;
+  const uint32_t wasm_function_index_ = -1;
+#else
+  static constexpr uint32_t wasm_liftoff_frame_size_ = 0;
+  static constexpr uint32_t wasm_function_index_ = -1;
+#endif
+  const Handle<SharedFunctionInfo> shared_info_;
 };
 
 #if V8_ENABLE_WEBASSEMBLY
 class JSToWasmFrameStateFunctionInfo : public FrameStateFunctionInfo {
  public:
-  JSToWasmFrameStateFunctionInfo(FrameStateType type, int parameter_count,
+  JSToWasmFrameStateFunctionInfo(FrameStateType type, uint16_t parameter_count,
                                  int local_count,
                                  Handle<SharedFunctionInfo> shared_info,
                                  const wasm::FunctionSig* signature)
-      : FrameStateFunctionInfo(type, parameter_count, local_count, shared_info),
+      : FrameStateFunctionInfo(type, parameter_count, 0, local_count,
+                               shared_info),
         signature_(signature) {
     DCHECK_NOT_NULL(signature);
   }
@@ -154,8 +178,11 @@ class FrameStateInfo final {
     return info_ == nullptr ? MaybeHandle<SharedFunctionInfo>()
                             : info_->shared_info();
   }
-  int parameter_count() const {
+  uint16_t parameter_count() const {
     return info_ == nullptr ? 0 : info_->parameter_count();
+  }
+  uint16_t max_arguments() const {
+    return info_ == nullptr ? 0 : info_->max_arguments();
   }
   int local_count() const {
     return info_ == nullptr ? 0 : info_->local_count();

@@ -150,7 +150,8 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   let f3 = builder.addFunction('f3', t3).addBody([]);
   let tab0 = builder.addTable(wasmRefNullType(t2), 2).index;
   builder.addActiveElementSegment(
-      tab0, wasmI32Const(0), [f2.index, f3.index]);
+      tab0, wasmI32Const(0),
+      [[kExprRefFunc, f2.index], [kExprRefFunc, f3.index]], wasmRefType(t2));
 
   builder.addFunction('run', kSig_v_v).exportFunc().addBody([
     // The immediate type being a supertype of the table type (and hence

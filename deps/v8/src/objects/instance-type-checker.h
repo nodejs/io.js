@@ -24,9 +24,11 @@ class Map;
   V(BigInt, BIGINT_TYPE)                           \
   V(FixedArrayExact, FIXED_ARRAY_TYPE)
 
-#define INSTANCE_TYPE_CHECKERS_RANGE(V)           \
-  TORQUE_INSTANCE_CHECKERS_RANGE_FULLY_DEFINED(V) \
-  TORQUE_INSTANCE_CHECKERS_RANGE_ONLY_DECLARED(V)
+#define INSTANCE_TYPE_CHECKERS_RANGE(V)                  \
+  TORQUE_INSTANCE_CHECKERS_RANGE_FULLY_DEFINED(V)        \
+  TORQUE_INSTANCE_CHECKERS_RANGE_ONLY_DECLARED(V)        \
+  V(CallableJSFunction, FIRST_CALLABLE_JS_FUNCTION_TYPE, \
+    LAST_CALLABLE_JS_FUNCTION_TYPE)
 
 #define INSTANCE_TYPE_CHECKERS_CUSTOM(V) \
   V(AbstractCode)                        \
@@ -63,14 +65,16 @@ constexpr Tagged_t kNonJsReceiverMapLimit =
         RootIndex::kFirstJSReceiverMapRoot)] &
     ~0xFFF;
 
-// Maps for strings allocated as the first maps in r/o space. If we have a
-// receiver and need to distinguish whether it is a string or not, it suffices
-// to check whether it is less-than-equal to the following value.
-constexpr Tagged_t kLastStringMap =
-    StaticReadOnlyRoot::kSharedSeqOneByteStringMap;
+// Maps for strings allocated as the first maps in r/o space, so their lower
+// bound is zero.
+constexpr Tagged_t kStringMapLowerBound = 0;
+// If we have a receiver and need to distinguish whether it is a string or not,
+// it suffices to check whether it is less-than-equal to the following value.
+constexpr Tagged_t kStringMapUpperBound =
+    StaticReadOnlyRoot::kThinOneByteStringMap;
 
 #define ASSERT_IS_LAST_STRING_MAP(instance_type, size, name, Name) \
-  static_assert(StaticReadOnlyRoot::k##Name##Map <= kLastStringMap);
+  static_assert(StaticReadOnlyRoot::k##Name##Map <= kStringMapUpperBound);
 STRING_TYPE_LIST(ASSERT_IS_LAST_STRING_MAP)
 #undef ASSERT_IS_LAST_STRING_MAP
 

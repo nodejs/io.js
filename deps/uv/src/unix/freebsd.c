@@ -26,7 +26,12 @@
 #include <errno.h>
 
 #include <paths.h>
-#include <sys/user.h>
+#if defined(__DragonFly__)
+# include <sys/event.h>
+# include <sys/kinfo.h>
+#else
+# include <sys/user.h>
+#endif
 #include <sys/types.h>
 #include <sys/resource.h>
 #include <sys/sysctl.h>

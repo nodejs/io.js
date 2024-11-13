@@ -244,6 +244,7 @@ declare namespace Dispatcher {
     readonly bodyUsed: boolean;
     arrayBuffer(): Promise<ArrayBuffer>;
     blob(): Promise<Blob>;
+    bytes(): Promise<Uint8Array>;
     formData(): Promise<never>;
     json(): Promise<unknown>;
     text(): Promise<string>;

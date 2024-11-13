@@ -33,4 +33,3 @@ if (%Is64Bit()) {
 assertEquals(foo(1), 0);
 assertOptimized(foo);
 assertEquals(foo(2), 1);
-assertOptimized(foo);

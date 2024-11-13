@@ -12,8 +12,11 @@ namespace cppgc::internal {
 
 namespace {
 
-HeapObjectName GetHiddenName(const void*, HeapObjectNameForUnnamedObject) {
-  return {NameProvider::kHiddenName, true};
+HeapObjectName GetHiddenName(
+    const void*, HeapObjectNameForUnnamedObject name_retrieval_mode) {
+  return {
+      NameProvider::kHiddenName,
+      name_retrieval_mode == HeapObjectNameForUnnamedObject::kUseHiddenName};
 }
 
 }  // namespace

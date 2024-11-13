@@ -25,14 +25,24 @@ const keepalive = setTimeout(() => {
   throw new Error('timed out');
 }, common.platformTimeout(30_000));
 
-const watcher = watch(tmpDir, { recursive: true }, common.mustCall((eventType, _filename) => {
-  clearTimeout(keepalive);
-  watcher.close();
-  assert.strictEqual(eventType, 'rename');
-  assert.strictEqual(join(tmpDir, _filename), filename);
-}));
+function doWatch() {
+  const watcher = watch(tmpDir, { recursive: true }, common.mustCall((eventType, _filename) => {
+    clearTimeout(keepalive);
+    watcher.close();
+    assert.strictEqual(eventType, 'rename');
+    assert.strictEqual(join(tmpDir, _filename), filename);
+  }));
 
-// Do the write with a delay to ensure that the OS is ready to notify us.
-setTimeout(() => {
-  writeFileSync(filename, 'foobar2');
-}, common.platformTimeout(200));
+  // Do the write with a delay to ensure that the OS is ready to notify us.
+  setTimeout(() => {
+    writeFileSync(filename, 'foobar2');
+  }, common.platformTimeout(200));
+}
+
+if (common.isMacOS) {
+  // On macOS delay watcher start to avoid leaking previous events.
+  // Refs: https://github.com/libuv/libuv/pull/4503
+  setTimeout(doWatch, common.platformTimeout(100));
+} else {
+  doWatch();
+}

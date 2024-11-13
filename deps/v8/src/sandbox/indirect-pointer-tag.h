@@ -34,20 +34,35 @@ namespace internal {
 // guaranteed to work (similar for how we do it for ExternalPointerTags).
 
 constexpr int kIndirectPointerTagShift = 48;
-constexpr uint64_t kIndirectPointerTagMask = 0x3fff000000000000;
+constexpr uint64_t kIndirectPointerTagMask = 0x7fff000000000000;
 constexpr uint64_t kTrustedPointerTableMarkBit = 0x8000000000000000;
-constexpr uint64_t kTrustedPointerTableFreeEntryBit = 0x4000000000000000;
+// We use a reserved bit for the free entry tag so that the
+// kUnknownIndirectPointerTag cannot untag free entries. Due to that, not all
+// tags in the kAllTagsForAndBasedTypeChecking are usable here (which is
+// ensured by static asserts below, see VALIDATE_INDIRECT_POINTER_TAG).
+// However, in practice this would probably be fine since the payload is a
+// table index, and so would likely always crash when treated as a pointer. As
+// such, if there is ever need for more tags, this can be reconsidered.
+// Note that we use a bit in the 2nd most significant byte here due to top byte
+// ignore (TBI), which allows dereferencing pointers even if bits in the most
+// significant byte are set.
+constexpr uint64_t kTrustedPointerTableFreeEntryBit = 0x0080000000000000;
+constexpr uint64_t kIndirectPointerTagMaskWithoutFreeEntryBit =
+    0x7f7f000000000000;
 
-#define INDIRECT_POINTER_TAG_LIST(V)                           \
-  V(kCodeIndirectPointerTag, CODE_TYPE)                        \
-  V(kBytecodeArrayIndirectPointerTag, BYTECODE_ARRAY_TYPE)     \
-  V(kInterpreterDataIndirectPointerTag, INTERPRETER_DATA_TYPE) \
-  IF_WASM(V, kWasmTrustedInstanceDataIndirectPointerTag,       \
-          WASM_TRUSTED_INSTANCE_DATA_TYPE)                     \
-  IF_WASM(V, kWasmApiFunctionRefIndirectPointerTag, WASM_API_FUNCTION_REF_TYPE)
+// Format is (name, instance type, tag id)
+#define INDIRECT_POINTER_TAG_LIST(V)                        \
+  V(kCodeIndirectPointerTag, 1)                             \
+  V(kBytecodeArrayIndirectPointerTag, 2)                    \
+  V(kInterpreterDataIndirectPointerTag, 3)                  \
+  V(kUncompiledDataIndirectPointerTag, 4)                   \
+  V(kRegExpDataIndirectPointerTag, 5)                       \
+  IF_WASM(V, kWasmTrustedInstanceDataIndirectPointerTag, 6) \
+  IF_WASM(V, kWasmInternalFunctionIndirectPointerTag, 7)    \
+  IF_WASM(V, kWasmFunctionDataIndirectPointerTag, 8)
 
-#define MAKE_TAG(instance_type) \
-  (uint64_t{instance_type} << kIndirectPointerTagShift)
+#define MAKE_TAG(i) \
+  (kAllTagsForAndBasedTypeChecking[i] << kIndirectPointerTagShift)
 
 // TODO(saelo): consider renaming this to something like TypeTag or
 // InstanceTypeTag since that better captures what this represents.
@@ -66,12 +81,12 @@ enum IndirectPointerTag : uint64_t {
   //
   //     auto obj = LoadTrustedPointerField<kUnknownIndirectPointerTag>(...);
   //     if (IsFoo(obj)) {
-  //         Foo::cast(obj)->foo();
+  //         Cast<Foo>(obj)->foo();
   //     } else if (IsBar(obj)) {
-  //         Bar::cast(obj)->bar();
+  //         Cast<Bar>(obj)->bar();
   //     } else {
   //         // Potential type confusion here!
-  //         Baz::cast(obj)->baz();
+  //         Cast<Baz>(obj)->baz();
   //     }
   //
   // This is because an attacker can swap trusted pointers and thereby cause an
@@ -82,28 +97,34 @@ enum IndirectPointerTag : uint64_t {
   //     } else {
   //         // Must be a Baz object
   //         CHECK(IsBaz(obj));
-  //         Baz::cast(obj)->baz();
+  //         Cast<Baz>(obj)->baz();
   //    }
   //
-  kUnknownIndirectPointerTag = kIndirectPointerTagMask,
+  kUnknownIndirectPointerTag = kIndirectPointerTagMaskWithoutFreeEntryBit,
 
   // Tag used internally by the trusted pointer table to mark free entries.
+  // See also the comment above kTrustedPointerTableFreeEntryBit for why this
+  // uses a dedicated bit.
   kFreeTrustedPointerTableEntryTag = kTrustedPointerTableFreeEntryBit,
 
 // "Regular" tags. One per supported instance type.
-#define INDIRECT_POINTER_TAG_ENUM_DECL(name, instance_type) \
-  name = MAKE_TAG(instance_type),
+#define INDIRECT_POINTER_TAG_ENUM_DECL(name, tag_id) name = MAKE_TAG(tag_id),
   INDIRECT_POINTER_TAG_LIST(INDIRECT_POINTER_TAG_ENUM_DECL)
 #undef INDIRECT_POINTER_TAG_ENUM_DECL
 };
 
-#define VALIDATE_INDIRECT_POINTER_TAG(name, instance_type) \
-  static_assert((name & kIndirectPointerTagMask) == name);
+#define VALIDATE_INDIRECT_POINTER_TAG(name, tag_id)        \
+  static_assert((name & kIndirectPointerTagMask) == name); \
+  static_assert((name & kIndirectPointerTagMaskWithoutFreeEntryBit) == name);
 INDIRECT_POINTER_TAG_LIST(VALIDATE_INDIRECT_POINTER_TAG)
 #undef VALIDATE_INDIRECT_POINTER_TAG
+static_assert((kFreeTrustedPointerTableEntryTag & kIndirectPointerTagMask) ==
+              kFreeTrustedPointerTableEntryTag);
+static_assert((kFreeTrustedPointerTableEntryTag &
+               kIndirectPointerTagMaskWithoutFreeEntryBit) == 0);
 
 V8_INLINE constexpr bool IsValidIndirectPointerTag(IndirectPointerTag tag) {
-#define VALID_INDIRECT_POINTER_TAG_CASE(tag, instance_type) case tag:
+#define VALID_INDIRECT_POINTER_TAG_CASE(tag, tag_id) case tag:
   switch (tag) {
     INDIRECT_POINTER_TAG_LIST(VALID_INDIRECT_POINTER_TAG_CASE)
     return true;
@@ -130,15 +151,55 @@ static_assert(!IsValidIndirectPointerTag(kIndirectPointerNullTag));
 
 V8_INLINE IndirectPointerTag
 IndirectPointerTagFromInstanceType(InstanceType instance_type) {
-  auto tag = static_cast<IndirectPointerTag>(MAKE_TAG(instance_type));
-  DCHECK(IsValidIndirectPointerTag(tag));
-  return tag;
+  switch (instance_type) {
+    case CODE_TYPE:
+      return kCodeIndirectPointerTag;
+    case BYTECODE_ARRAY_TYPE:
+      return kBytecodeArrayIndirectPointerTag;
+    case INTERPRETER_DATA_TYPE:
+      return kInterpreterDataIndirectPointerTag;
+    case UNCOMPILED_DATA_WITHOUT_PREPARSE_DATA_TYPE:
+    case UNCOMPILED_DATA_WITH_PREPARSE_DATA_TYPE:
+    case UNCOMPILED_DATA_WITHOUT_PREPARSE_DATA_WITH_JOB_TYPE:
+    case UNCOMPILED_DATA_WITH_PREPARSE_DATA_AND_JOB_TYPE:
+      // TODO(saelo): Consider adding support for inheritance hierarchies in
+      // our tag checking mechanism.
+      return kUncompiledDataIndirectPointerTag;
+    case ATOM_REG_EXP_DATA_TYPE:
+    case IR_REG_EXP_DATA_TYPE:
+      // TODO(saelo): Consider adding support for inheritance hierarchies in
+      // our tag checking mechanism.
+      return kRegExpDataIndirectPointerTag;
+#if V8_ENABLE_WEBASSEMBLY
+    case WASM_TRUSTED_INSTANCE_DATA_TYPE:
+      return kWasmTrustedInstanceDataIndirectPointerTag;
+    case WASM_INTERNAL_FUNCTION_TYPE:
+      return kWasmInternalFunctionIndirectPointerTag;
+    case WASM_FUNCTION_DATA_TYPE:
+    case WASM_EXPORTED_FUNCTION_DATA_TYPE:
+    case WASM_JS_FUNCTION_DATA_TYPE:
+    case WASM_CAPI_FUNCTION_DATA_TYPE:
+      // TODO(saelo): Consider adding support for inheritance hierarchies in
+      // our tag checking mechanism.
+      return kWasmFunctionDataIndirectPointerTag;
+#endif  // V8_ENABLE_WEBASSEMBLY
+    default:
+      UNREACHABLE();
+  }
 }
 
 V8_INLINE InstanceType
 InstanceTypeFromIndirectPointerTag(IndirectPointerTag tag) {
   DCHECK(IsValidIndirectPointerTag(tag));
-  return static_cast<InstanceType>(tag >> kIndirectPointerTagShift);
+  switch (tag) {
+#define CASE(name, instance_type, tag_id) \
+  case MAKE_TAG(tag_id):                  \
+    return instance_type;                 \
+    break;
+#undef CASE
+    default:
+      UNREACHABLE();
+  }
 }
 
 #undef MAKE_TAG

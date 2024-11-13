@@ -90,7 +90,7 @@ class HeapSnapshotOutputStream final : public v8::OutputStream {
   explicit HeapSnapshotOutputStream(protocol::HeapProfiler::Frontend* frontend)
       : m_frontend(frontend) {}
   void EndOfStream() override {}
-  int GetChunkSize() override { return 102400; }
+  int GetChunkSize() override { return 1 * v8::internal::MB; }
   WriteResult WriteAsciiChunk(char* data, int size) override {
     m_frontend->addHeapSnapshotChunk(String16(data, size));
     m_frontend->flush();

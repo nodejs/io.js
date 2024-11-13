@@ -343,7 +343,8 @@ CallApiCallbackOptimizedDescriptor::ActualArgumentsCountRegister() {
   return rcx;
 }
 // static
-constexpr Register CallApiCallbackOptimizedDescriptor::CallDataRegister() {
+constexpr Register
+CallApiCallbackOptimizedDescriptor::FunctionTemplateInfoRegister() {
   return rbx;
 }
 // static

@@ -170,7 +170,8 @@ std::ostream& BytecodeDecoder::Decode(std::ostream& os,
            << DecodeUnsignedOperand(operand_start, op_type, operand_scale);
         break;
       case interpreter::OperandType::kReg:
-      case interpreter::OperandType::kRegOut: {
+      case interpreter::OperandType::kRegOut:
+      case interpreter::OperandType::kRegInOut: {
         Register reg =
             DecodeRegisterOperand(operand_start, op_type, operand_scale);
         os << reg.ToString();

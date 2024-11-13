@@ -101,5 +101,5 @@ const { sleep } = require('internal/util');
 }
 
 // Make sure that the histogram instances can be garbage-collected without
-// and not just implictly destroyed when the Environment is torn down.
+// and not just implicitly destroyed when the Environment is torn down.
 process.on('exit', global.gc);

@@ -40,6 +40,10 @@ proposal_flags = [
         'name': 'gc',
         'flags': []
     },
+    {
+        'name': 'jspi',
+        'flags': ['--experimental-wasm-jspi']
+    },
 ]
 
 

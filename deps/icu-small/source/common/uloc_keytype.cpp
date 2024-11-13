@@ -7,6 +7,8 @@
 **********************************************************************
 */
 #include <algorithm>
+#include <optional>
+#include <string_view>
 
 #include "unicode/utypes.h"
 #include "unicode/unistr.h"
@@ -18,6 +20,7 @@
 #include "uassert.h"
 #include "ucln_cmn.h"
 #include "uhash.h"
+#include "ulocimp.h"
 #include "umutex.h"
 #include "uresimp.h"
 #include "uvector.h"
@@ -35,20 +38,25 @@ typedef enum {
 } SpecialType;
 
 struct LocExtKeyData : public icu::UMemory {
-    const char*     legacyId;
-    const char*     bcpId;
+    std::string_view legacyId;
+    std::string_view bcpId;
     icu::LocalUHashtablePointer typeMap;
     uint32_t        specialTypes;
 };
 
 struct LocExtType : public icu::UMemory {
-    const char*     legacyId;
-    const char*     bcpId;
+    std::string_view legacyId;
+    std::string_view bcpId;
+};
+
+struct TypeAlias : public icu::UMemory {
+    std::string_view from;
 };
 
 static icu::MemoryPool<icu::CharString>* gKeyTypeStringPool = nullptr;
 static icu::MemoryPool<LocExtKeyData>* gLocExtKeyDataEntries = nullptr;
 static icu::MemoryPool<LocExtType>* gLocExtTypeEntries = nullptr;
+static icu::MemoryPool<TypeAlias>* gTypeAliasEntries = nullptr;
 
 U_CDECL_BEGIN
 
@@ -64,6 +72,9 @@ uloc_key_type_cleanup() {
 
     delete gLocExtTypeEntries;
     gLocExtTypeEntries = nullptr;
+
+    delete gTypeAliasEntries;
+    gTypeAliasEntries = nullptr;
 
     delete gKeyTypeStringPool;
     gKeyTypeStringPool = nullptr;
@@ -81,7 +92,7 @@ initFromResourceBundle(UErrorCode& sts) {
     U_NAMESPACE_USE
     ucln_common_registerCleanup(UCLN_COMMON_LOCALE_KEY_TYPE, uloc_key_type_cleanup);
 
-    gLocExtKeyMap = uhash_open(uhash_hashIChars, uhash_compareIChars, nullptr, &sts);
+    gLocExtKeyMap = uhash_open(uhash_hashIStringView, uhash_compareIStringView, nullptr, &sts);
 
     LocalUResourceBundlePointer keyTypeDataRes(ures_openDirect(nullptr, "keyTypeData", &sts));
     LocalUResourceBundlePointer keyMapRes(ures_getByKey(keyTypeDataRes.getAlias(), "keyMap", nullptr, &sts));
@@ -109,6 +120,11 @@ initFromResourceBundle(UErrorCode& sts) {
     }
     gLocExtTypeEntries = new icu::MemoryPool<LocExtType>;
     if (gLocExtTypeEntries == nullptr) {
+        sts = U_MEMORY_ALLOCATION_ERROR;
+        return;
+    }
+    gTypeAliasEntries = new icu::MemoryPool<TypeAlias>;
+    if (gTypeAliasEntries == nullptr) {
         sts = U_MEMORY_ALLOCATION_ERROR;
         return;
     }
@@ -144,7 +160,7 @@ initFromResourceBundle(UErrorCode& sts) {
 
         bool isTZ = uprv_strcmp(legacyKeyId, "timezone") == 0;
 
-        UHashtable* typeDataMap = uhash_open(uhash_hashIChars, uhash_compareIChars, nullptr, &sts);
+        UHashtable* typeDataMap = uhash_open(uhash_hashIStringView, uhash_compareIStringView, nullptr, &sts);
         if (U_FAILURE(sts)) {
             break;
         }
@@ -253,10 +269,10 @@ initFromResourceBundle(UErrorCode& sts) {
                 t->bcpId = bcpTypeId;
                 t->legacyId = legacyTypeId;
 
-                uhash_put(typeDataMap, (void*)legacyTypeId, t, &sts);
+                uhash_put(typeDataMap, &t->legacyId, t, &sts);
                 if (bcpTypeId != legacyTypeId) {
                     // different type value
-                    uhash_put(typeDataMap, (void*)bcpTypeId, t, &sts);
+                    uhash_put(typeDataMap, &t->bcpId, t, &sts);
                 }
                 if (U_FAILURE(sts)) {
                     break;
@@ -275,8 +291,14 @@ initFromResourceBundle(UErrorCode& sts) {
                             break;
                         }
                         // check if this is an alias of canonical legacy type
-                        if (uprv_compareInvWithUChar(nullptr, legacyTypeId, -1, to, toLen) == 0) {
+                        if (uprv_compareInvWithUChar(
+                                nullptr,
+                                t->legacyId.data(),
+                                static_cast<int32_t>(t->legacyId.size()),
+                                to,
+                                toLen) == 0) {
                             const char* from = ures_getKey(typeAliasDataEntry.getAlias());
+                            TypeAlias* alias = gTypeAliasEntries->create(TypeAlias{{}, from});
                             if (isTZ) {
                                 // replace colon with slash if necessary
                                 if (uprv_strchr(from, ':') != nullptr) {
@@ -293,10 +315,10 @@ initFromResourceBundle(UErrorCode& sts) {
                                             fromBuf->data(),
                                             fromBuf->data() + fromBuf->length(),
                                             ':', '/');
-                                    from = fromBuf->data();
+                                    alias->from = fromBuf->toStringPiece();
                                 }
                             }
-                            uhash_put(typeDataMap, (void*)from, t, &sts);
+                            uhash_put(typeDataMap, &alias->from, t, &sts);
                         }
                     }
                     if (U_FAILURE(sts)) {
@@ -316,9 +338,15 @@ initFromResourceBundle(UErrorCode& sts) {
                             break;
                         }
                         // check if this is an alias of bcp type
-                        if (uprv_compareInvWithUChar(nullptr, bcpTypeId, -1, to, toLen) == 0) {
+                        if (uprv_compareInvWithUChar(
+                                nullptr,
+                                t->bcpId.data(),
+                                static_cast<int32_t>(t->bcpId.size()),
+                                to,
+                                toLen) == 0) {
                             const char* from = ures_getKey(bcpTypeAliasDataEntry.getAlias());
-                            uhash_put(typeDataMap, (void*)from, t, &sts);
+                            TypeAlias* alias = gTypeAliasEntries->create(TypeAlias{{}, from});
+                            uhash_put(typeDataMap, &alias->from, t, &sts);
                         }
                     }
                     if (U_FAILURE(sts)) {
@@ -341,10 +369,10 @@ initFromResourceBundle(UErrorCode& sts) {
         keyData->specialTypes = specialTypes;
         keyData->typeMap.adoptInstead(typeDataMap);
 
-        uhash_put(gLocExtKeyMap, (void*)legacyKeyId, keyData, &sts);
+        uhash_put(gLocExtKeyMap, &keyData->legacyId, keyData, &sts);
         if (legacyKeyId != bcpKeyId) {
             // different key value
-            uhash_put(gLocExtKeyMap, (void*)bcpKeyId, keyData, &sts);
+            uhash_put(gLocExtKeyMap, &keyData->bcpId, keyData, &sts);
         }
         if (U_FAILURE(sts)) {
             break;
@@ -363,110 +391,96 @@ init() {
 }
 
 bool
-isSpecialTypeCodepoints(const char* val) {
+isSpecialTypeCodepoints(std::string_view val) {
     int32_t subtagLen = 0;
-    const char* p = val;
-    while (*p) {
-        if (*p == '-') {
+    for (char c : val) {
+        if (c == '-') {
             if (subtagLen < 4 || subtagLen > 6) {
                 return false;
             }
             subtagLen = 0;
-        } else if ((*p >= '0' && *p <= '9') ||
-                    (*p >= 'A' && *p <= 'F') || // A-F/a-f are contiguous
-                    (*p >= 'a' && *p <= 'f')) { // also in EBCDIC
+        } else if ((c >= '0' && c <= '9') ||
+                    (c >= 'A' && c <= 'F') || // A-F/a-f are contiguous
+                    (c >= 'a' && c <= 'f')) { // also in EBCDIC
             subtagLen++;
         } else {
             return false;
         }
-        p++;
     }
-    return (subtagLen >= 4 && subtagLen <= 6);
+    return subtagLen >= 4 && subtagLen <= 6;
 }
 
 bool
-isSpecialTypeReorderCode(const char* val) {
+isSpecialTypeReorderCode(std::string_view val) {
     int32_t subtagLen = 0;
-    const char* p = val;
-    while (*p) {
-        if (*p == '-') {
+    for (char c : val) {
+        if (c == '-') {
             if (subtagLen < 3 || subtagLen > 8) {
                 return false;
             }
             subtagLen = 0;
-        } else if (uprv_isASCIILetter(*p)) {
+        } else if (uprv_isASCIILetter(c)) {
             subtagLen++;
         } else {
             return false;
         }
-        p++;
     }
-    return (subtagLen >=3 && subtagLen <=8);
+    return subtagLen >= 3 && subtagLen <= 8;
 }
 
 bool
-isSpecialTypeRgKeyValue(const char* val) {
+isSpecialTypeRgKeyValue(std::string_view val) {
     int32_t subtagLen = 0;
-    const char* p = val;
-    while (*p) {
-        if ( (subtagLen < 2 && uprv_isASCIILetter(*p)) ||
-                    (subtagLen >= 2 && (*p == 'Z' || *p == 'z')) ) {
+    for (char c : val) {
+        if ((subtagLen < 2 && uprv_isASCIILetter(c)) ||
+            (subtagLen >= 2 && (c == 'Z' || c == 'z'))) {
             subtagLen++;
         } else {
             return false;
         }
-        p++;
     }
-    return (subtagLen == 6);
+    return subtagLen == 6;
 }
 
 }  // namespace
 
-U_EXPORT const char*
-ulocimp_toBcpKey(const char* key) {
+U_EXPORT std::optional<std::string_view>
+ulocimp_toBcpKey(std::string_view key) {
     if (!init()) {
-        return nullptr;
+        return std::nullopt;
     }
 
-    LocExtKeyData* keyData = (LocExtKeyData*)uhash_get(gLocExtKeyMap, key);
+    LocExtKeyData* keyData = static_cast<LocExtKeyData*>(uhash_get(gLocExtKeyMap, &key));
     if (keyData != nullptr) {
         return keyData->bcpId;
     }
-    return nullptr;
+
+    return std::nullopt;
 }
 
-U_EXPORT const char*
-ulocimp_toLegacyKey(const char* key) {
+U_EXPORT std::optional<std::string_view>
+ulocimp_toLegacyKey(std::string_view key) {
     if (!init()) {
-        return nullptr;
+        return std::nullopt;
     }
 
-    LocExtKeyData* keyData = (LocExtKeyData*)uhash_get(gLocExtKeyMap, key);
+    LocExtKeyData* keyData = static_cast<LocExtKeyData*>(uhash_get(gLocExtKeyMap, &key));
     if (keyData != nullptr) {
         return keyData->legacyId;
     }
-    return nullptr;
+
+    return std::nullopt;
 }
 
-U_EXPORT const char*
-ulocimp_toBcpType(const char* key, const char* type, bool* isKnownKey, bool* isSpecialType) {
-    if (isKnownKey != nullptr) {
-        *isKnownKey = false;
-    }
-    if (isSpecialType != nullptr) {
-        *isSpecialType = false;
-    }
-
+U_EXPORT std::optional<std::string_view>
+ulocimp_toBcpType(std::string_view key, std::string_view type) {
     if (!init()) {
-        return nullptr;
+        return std::nullopt;
     }
 
-    LocExtKeyData* keyData = (LocExtKeyData*)uhash_get(gLocExtKeyMap, key);
+    LocExtKeyData* keyData = static_cast<LocExtKeyData*>(uhash_get(gLocExtKeyMap, &key));
     if (keyData != nullptr) {
-        if (isKnownKey != nullptr) {
-            *isKnownKey = true;
-        }
-        LocExtType* t = (LocExtType*)uhash_get(keyData->typeMap.getAlias(), type);
+        LocExtType* t = static_cast<LocExtType*>(uhash_get(keyData->typeMap.getAlias(), &type));
         if (t != nullptr) {
             return t->bcpId;
         }
@@ -482,36 +496,24 @@ ulocimp_toBcpType(const char* key, const char* type, bool* isKnownKey, bool* isS
                 matched = isSpecialTypeRgKeyValue(type);
             }
             if (matched) {
-                if (isSpecialType != nullptr) {
-                    *isSpecialType = true;
-                }
                 return type;
             }
         }
     }
-    return nullptr;
+
+    return std::nullopt;
 }
 
 
-U_EXPORT const char*
-ulocimp_toLegacyType(const char* key, const char* type, bool* isKnownKey, bool* isSpecialType) {
-    if (isKnownKey != nullptr) {
-        *isKnownKey = false;
-    }
-    if (isSpecialType != nullptr) {
-        *isSpecialType = false;
-    }
-
+U_EXPORT std::optional<std::string_view>
+ulocimp_toLegacyType(std::string_view key, std::string_view type) {
     if (!init()) {
-        return nullptr;
+        return std::nullopt;
     }
 
-    LocExtKeyData* keyData = (LocExtKeyData*)uhash_get(gLocExtKeyMap, key);
+    LocExtKeyData* keyData = static_cast<LocExtKeyData*>(uhash_get(gLocExtKeyMap, &key));
     if (keyData != nullptr) {
-        if (isKnownKey != nullptr) {
-            *isKnownKey = true;
-        }
-        LocExtType* t = (LocExtType*)uhash_get(keyData->typeMap.getAlias(), type);
+        LocExtType* t = static_cast<LocExtType*>(uhash_get(keyData->typeMap.getAlias(), &type));
         if (t != nullptr) {
             return t->legacyId;
         }
@@ -527,12 +529,10 @@ ulocimp_toLegacyType(const char* key, const char* type, bool* isKnownKey, bool* 
                 matched = isSpecialTypeRgKeyValue(type);
             }
             if (matched) {
-                if (isSpecialType != nullptr) {
-                    *isSpecialType = true;
-                }
                 return type;
             }
         }
     }
-    return nullptr;
+
+    return std::nullopt;
 }

@@ -1,3 +1,3 @@
 
-*(node:*) Warning: The 'NODE_DISABLE_COLORS' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `* --trace-warnings ...` to show where the warning was created)*
+(node:*) Warning: The 'NODE_DISABLE_COLORS' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `* --trace-warnings ...` to show where the warning was created)

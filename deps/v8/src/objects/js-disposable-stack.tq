@@ -1,0 +1,33 @@
+// Copyright 2024 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+extern enum DisposableStackState extends uint31 { kDisposed, kPending }
+extern enum DisposeMethodCallType extends uint31 {
+  kValueIsReceiver,
+  kValueIsArgument
+}
+extern enum DisposeMethodHint extends uint31 { kSyncDispose, kAsyncDispose }
+extern enum DisposableStackResourcesType extends uint31 {
+  kAllSync,
+  kAtLeastOneAsync
+}
+
+bitfield struct DisposableStackStatus extends uint31 {
+  state: DisposableStackState: 1 bit;
+  length: int32: 30 bit;
+}
+
+extern class JSDisposableStackBase extends JSObject {
+  // In the stack, [i] is the value that the initializer evaluates to, [i+1]
+  // is dispose method, and [i+2] contains SmiTagged of an integer containing
+  // two CallTypeBit and HintBit bitfields. `disposablestack.prototype.adopt` is
+  // the only case that the value is the argument of method (CallType =
+  // `kValueIsArgument`).
+  stack: FixedArray;
+  status: SmiTagged<DisposableStackStatus>;
+}
+
+extern class JSSyncDisposableStack extends JSDisposableStackBase {}
+
+extern class JSAsyncDisposableStack extends JSDisposableStackBase {}

@@ -362,6 +362,7 @@ TARGET_TEST_F(InterpreterAssemblerTest, BytecodeOperand) {
           case interpreter::OperandType::kRegOutList:
           case interpreter::OperandType::kRegOutPair:
           case interpreter::OperandType::kRegOutTriple:
+          case interpreter::OperandType::kRegInOut:
             EXPECT_THAT(m.LoadRegisterAtOperandIndex(i),
                         m.IsLoadRegisterOperand(offset, operand_size));
             break;

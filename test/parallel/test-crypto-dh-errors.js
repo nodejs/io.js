@@ -43,7 +43,7 @@ for (const g of [-1, 1]) {
   const ex = {
     code: 'ERR_OSSL_DH_BAD_GENERATOR',
     name: 'Error',
-    message: /bad generator/,
+    message: /(?:bad[_ ]generator)/i,
   };
   assert.throws(() => crypto.createDiffieHellman('abcdef', g), ex);
   assert.throws(() => crypto.createDiffieHellman('abcdef', 'hex', g), ex);
@@ -55,7 +55,7 @@ for (const g of [Buffer.from([]),
   const ex = {
     code: 'ERR_OSSL_DH_BAD_GENERATOR',
     name: 'Error',
-    message: /bad generator/,
+    message: /(?:bad[_ ]generator)/i,
   };
   assert.throws(() => crypto.createDiffieHellman('abcdef', g), ex);
   assert.throws(() => crypto.createDiffieHellman('abcdef', 'hex', g), ex);

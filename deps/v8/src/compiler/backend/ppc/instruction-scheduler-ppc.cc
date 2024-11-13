@@ -105,6 +105,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kPPC_DoubleToFloat32:
     case kPPC_DoubleExtractLowWord32:
     case kPPC_DoubleExtractHighWord32:
+    case kPPC_DoubleFromWord32Pair:
     case kPPC_DoubleInsertLowWord32:
     case kPPC_DoubleInsertHighWord32:
     case kPPC_DoubleConstruct:

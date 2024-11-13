@@ -28,9 +28,11 @@ class V8_NODISCARD FlagScope {
 }  // namespace internal
 }  // namespace v8
 
-#define FLAG_VALUE_SCOPE(flag, value)                                \
-  ::v8::internal::FlagScope<bool> UNIQUE_IDENTIFIER(__scope_##flag)( \
-      &::v8::internal::v8_flags.flag, value)
+#define FLAG_VALUE_SCOPE(flag, value)                                    \
+  ::v8::internal::FlagScope<                                             \
+      typename decltype(::v8::internal::v8_flags.flag)::underlying_type> \
+  UNIQUE_IDENTIFIER(__scope_##flag)(&::v8::internal::v8_flags.flag, value)
+
 #define FLAG_SCOPE(flag) FLAG_VALUE_SCOPE(flag, true)
 
 #endif  // V8_TEST_COMMON_FLAG_UTILS_H

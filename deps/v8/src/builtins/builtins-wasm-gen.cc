@@ -38,7 +38,7 @@ TNode<NativeContext> WasmBuiltinsAssembler::LoadContextFromWasmOrJsFrame() {
   TNode<Uint16T> instance_type =
       LoadMapInstanceType(LoadMap(function_or_instance));
   GotoIf(IsJSFunctionInstanceType(instance_type), &js);
-  GotoIf(Word32Equal(instance_type, Int32Constant(WASM_API_FUNCTION_REF_TYPE)),
+  GotoIf(Word32Equal(instance_type, Int32Constant(WASM_IMPORT_DATA_TYPE)),
          &apifunc);
   context_result = LoadContextFromInstanceData(CAST(function_or_instance));
   Goto(&done);
@@ -51,9 +51,9 @@ TNode<NativeContext> WasmBuiltinsAssembler::LoadContextFromWasmOrJsFrame() {
   Goto(&done);
 
   BIND(&apifunc);
-  TNode<WasmApiFunctionRef> apiref = CAST(function_or_instance);
+  TNode<WasmImportData> apiref = CAST(function_or_instance);
   context_result = LoadObjectField<NativeContext>(
-      apiref, WasmApiFunctionRef::kNativeContextOffset);
+      apiref, WasmImportData::kNativeContextOffset);
   Goto(&done);
 
   BIND(&done);
@@ -66,6 +66,15 @@ TNode<NativeContext> WasmBuiltinsAssembler::LoadContextFromInstanceData(
       Load(MachineType::AnyTagged(), trusted_data,
            IntPtrConstant(WasmTrustedInstanceData::kNativeContextOffset -
                           kHeapObjectTag)));
+}
+
+TNode<WasmTrustedInstanceData>
+WasmBuiltinsAssembler::LoadSharedPartFromInstanceData(
+    TNode<WasmTrustedInstanceData> trusted_data) {
+  return CAST(LoadProtectedPointerFromObject(
+      trusted_data,
+      IntPtrConstant(WasmTrustedInstanceData::kProtectedSharedPartOffset -
+                     kHeapObjectTag)));
 }
 
 TNode<FixedArray> WasmBuiltinsAssembler::LoadTablesFromInstanceData(
@@ -100,6 +109,20 @@ TNode<Float64T> WasmBuiltinsAssembler::StringToFloat64(TNode<String> input) {
       CallRuntime(Runtime::kStringParseFloat, NoContextConstant(), input);
   return ChangeNumberToFloat64(CAST(result));
 #endif
+}
+
+TNode<Smi> WasmBuiltinsAssembler::SignatureCheckFail(
+    TNode<WasmInternalFunction> internal_function,
+    TNode<UintPtrT> expected_hash) {
+  TNode<ExternalReference> function =
+      ExternalConstant(ExternalReference::wasm_signature_check_fail());
+  // The C-side return type is "void", but "None()" isn't supported here.
+  // Since we ignore the result anyway, it doesn't matter to pretend there's
+  // a pointer in the return register.
+  CallCFunction(function, MachineType::Pointer(),
+                std::make_pair(MachineType::AnyTagged(), internal_function),
+                std::make_pair(MachineType::UintPtr(), expected_hash));
+  return SmiConstant(0);
 }
 
 TF_BUILTIN(WasmFloat32ToNumber, WasmBuiltinsAssembler) {
@@ -138,16 +161,16 @@ TF_BUILTIN(JSToWasmLazyDeoptContinuation, WasmBuiltinsAssembler) {
 
 TF_BUILTIN(WasmToJsWrapperCSA, WasmBuiltinsAssembler) {
   TorqueStructWasmToJSResult result = WasmToJSWrapper(
-      UncheckedParameter<WasmApiFunctionRef>(Descriptor::kWasmApiFunctionRef));
+      UncheckedParameter<WasmImportData>(Descriptor::kWasmImportData));
   PopAndReturn(result.popCount, result.result0, result.result1, result.result2,
                result.result3);
 }
 
 TF_BUILTIN(WasmToJsWrapperInvalidSig, WasmBuiltinsAssembler) {
-  TNode<WasmApiFunctionRef> ref =
-      UncheckedParameter<WasmApiFunctionRef>(Descriptor::kWasmApiFunctionRef);
+  TNode<WasmImportData> ref =
+      UncheckedParameter<WasmImportData>(Descriptor::kWasmImportData);
   TNode<Context> context =
-      LoadObjectField<Context>(ref, WasmApiFunctionRef::kNativeContextOffset);
+      LoadObjectField<Context>(ref, WasmImportData::kNativeContextOffset);
 
   CallRuntime(Runtime::kWasmThrowJSTypeError, context);
   Unreachable();

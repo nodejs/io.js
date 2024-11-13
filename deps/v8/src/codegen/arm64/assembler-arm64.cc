@@ -73,6 +73,11 @@ constexpr unsigned CpuFeaturesFromCompiler() {
 #if defined(__ARM_FEATURE_ATOMICS)
   features |= 1u << LSE;
 #endif
+// There is no __ARM_FEATURE_PMULL macro; instead, __ARM_FEATURE_AES
+// covers the FEAT_PMULL feature too.
+#if defined(__ARM_FEATURE_AES)
+  features |= 1u << PMULL1Q;
+#endif
   return features;
 }
 
@@ -84,6 +89,7 @@ constexpr unsigned CpuFeaturesFromTargetOS() {
   features |= 1u << JSCVT;
   features |= 1u << DOTPROD;
   features |= 1u << LSE;
+  features |= 1u << PMULL1Q;
 #endif
   return features;
 }
@@ -120,6 +126,12 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
   }
   if (cpu.has_lse()) {
     runtime |= 1u << LSE;
+  }
+  if (cpu.has_pmull1q()) {
+    runtime |= 1u << PMULL1Q;
+  }
+  if (cpu.has_fp16()) {
+    runtime |= 1u << FP16;
   }
 
   // Use the best of the features found by CPU detection and those inferred from
@@ -471,7 +483,9 @@ void Assembler::Align(int m) {
 
 void Assembler::CodeTargetAlign() {
   // Preferred alignment of jump targets on some ARM chips.
+#if !defined(V8_TARGET_OS_MACOS)
   Align(8);
+#endif
 }
 
 void Assembler::CheckLabelLinkChain(Label const* label) {
@@ -504,13 +518,14 @@ void Assembler::RemoveBranchFromLabelLinkChain(Instruction* branch,
   Instruction* link = InstructionAt(label->pos());
   Instruction* prev_link = link;
   Instruction* next_link;
-  bool end_of_chain = false;
 
-  while (link != branch && !end_of_chain) {
-    next_link = link->ImmPCOffsetTarget();
-    end_of_chain = (link == next_link);
-    prev_link = link;
-    link = next_link;
+  if (link != branch) {
+    int i = static_cast<int>(InstructionOffset(branch));
+    // Currently, we don't support adr instructions sharing labels with
+    // branches in the link chain.
+    DCHECK(branch_link_chain_back_edge_.contains(i));
+    prev_link = InstructionAt(branch_link_chain_back_edge_.at(i));
+    link = branch;
   }
 
   DCHECK(branch == link);
@@ -521,24 +536,43 @@ void Assembler::RemoveBranchFromLabelLinkChain(Instruction* branch,
     if (branch == next_link) {
       // It is also the last instruction in the chain, so it is the only branch
       // currently referring to this label.
+      //
+      // Label -> this branch -> start
       label->Unuse();
     } else {
+      // Label -> this branch -> 1+ branches -> start
       label->link_to(static_cast<int>(InstructionOffset(next_link)));
+      branch_link_chain_back_edge_.erase(
+          static_cast<int>(InstructionOffset(next_link)));
     }
-
   } else if (branch == next_link) {
     // The branch is the last (but not also the first) instruction in the chain.
+    //
+    // Label -> 1+ branches -> this branch -> start
     prev_link->SetImmPCOffsetTarget(options(), prev_link);
-
+    branch_link_chain_back_edge_.erase(
+        static_cast<int>(InstructionOffset(branch)));
   } else {
     // The branch is in the middle of the chain.
+    //
+    // Label -> 1+ branches -> this branch -> 1+ branches -> start
+    int n = static_cast<int>(InstructionOffset(next_link));
+    if (branch_link_chain_back_edge_.contains(n)) {
+      // Update back edge such that the branch after this branch points to the
+      // branch before it.
+      branch_link_chain_back_edge_[n] =
+          static_cast<int>(InstructionOffset(prev_link));
+      branch_link_chain_back_edge_.erase(
+          static_cast<int>(InstructionOffset(branch)));
+    }
+
     if (prev_link->IsTargetInImmPCOffsetRange(next_link)) {
       prev_link->SetImmPCOffsetTarget(options(), next_link);
     } else if (label_veneer != nullptr) {
       // Use the veneer for all previous links in the chain.
       prev_link->SetImmPCOffsetTarget(options(), prev_link);
 
-      end_of_chain = false;
+      bool end_of_chain = false;
       link = next_link;
       while (!end_of_chain) {
         next_link = link->ImmPCOffsetTarget();
@@ -637,6 +671,10 @@ void Assembler::bind(Label* label) {
     } else {
       link->SetImmPCOffsetTarget(options(),
                                  reinterpret_cast<Instruction*>(pc_));
+
+      // Discard back edge data for this link.
+      branch_link_chain_back_edge_.erase(
+          static_cast<int>(InstructionOffset(link)));
     }
 
     // Link the label to the previous link in the chain.
@@ -825,26 +863,30 @@ void Assembler::ret(const Register& xn) {
 
 void Assembler::b(int imm26) { Emit(B | ImmUncondBranch(imm26)); }
 
-void Assembler::b(Label* label) { b(LinkAndGetInstructionOffsetTo(label)); }
+void Assembler::b(Label* label) {
+  b(LinkAndGetBranchInstructionOffsetTo(label));
+}
 
 void Assembler::b(int imm19, Condition cond) {
   Emit(B_cond | ImmCondBranch(imm19) | cond);
 }
 
 void Assembler::b(Label* label, Condition cond) {
-  b(LinkAndGetInstructionOffsetTo(label), cond);
+  b(LinkAndGetBranchInstructionOffsetTo(label), cond);
 }
 
 void Assembler::bl(int imm26) { Emit(BL | ImmUncondBranch(imm26)); }
 
-void Assembler::bl(Label* label) { bl(LinkAndGetInstructionOffsetTo(label)); }
+void Assembler::bl(Label* label) {
+  bl(LinkAndGetBranchInstructionOffsetTo(label));
+}
 
 void Assembler::cbz(const Register& rt, int imm19) {
   Emit(SF(rt) | CBZ | ImmCmpBranch(imm19) | Rt(rt));
 }
 
 void Assembler::cbz(const Register& rt, Label* label) {
-  cbz(rt, LinkAndGetInstructionOffsetTo(label));
+  cbz(rt, LinkAndGetBranchInstructionOffsetTo(label));
 }
 
 void Assembler::cbnz(const Register& rt, int imm19) {
@@ -852,7 +894,7 @@ void Assembler::cbnz(const Register& rt, int imm19) {
 }
 
 void Assembler::cbnz(const Register& rt, Label* label) {
-  cbnz(rt, LinkAndGetInstructionOffsetTo(label));
+  cbnz(rt, LinkAndGetBranchInstructionOffsetTo(label));
 }
 
 void Assembler::tbz(const Register& rt, unsigned bit_pos, int imm14) {
@@ -861,7 +903,7 @@ void Assembler::tbz(const Register& rt, unsigned bit_pos, int imm14) {
 }
 
 void Assembler::tbz(const Register& rt, unsigned bit_pos, Label* label) {
-  tbz(rt, bit_pos, LinkAndGetInstructionOffsetTo(label));
+  tbz(rt, bit_pos, LinkAndGetBranchInstructionOffsetTo(label));
 }
 
 void Assembler::tbnz(const Register& rt, unsigned bit_pos, int imm14) {
@@ -870,7 +912,7 @@ void Assembler::tbnz(const Register& rt, unsigned bit_pos, int imm14) {
 }
 
 void Assembler::tbnz(const Register& rt, unsigned bit_pos, Label* label) {
-  tbnz(rt, bit_pos, LinkAndGetInstructionOffsetTo(label));
+  tbnz(rt, bit_pos, LinkAndGetBranchInstructionOffsetTo(label));
 }
 
 void Assembler::adr(const Register& rd, int imm21) {
@@ -1615,10 +1657,10 @@ ATOMIC_MEMORY_LOAD_MODES(DEFINE_ASM_SWP_FUNC, swp, SWP)
 
 void Assembler::sdot(const VRegister& vd, const VRegister& vn,
                      const VRegister& vm) {
-  DCHECK(CpuFeatures::IsSupported(DOTPROD));
-  DCHECK(vn.Is16B() && vd.Is4S());
+  DCHECK(IsEnabled(DOTPROD));
+  DCHECK((vn.Is16B() && vd.Is4S()) || (vn.Is8B() && vd.Is2S()));
   DCHECK(AreSameFormat(vn, vm));
-  Emit(NEON_Q | NEON_SDOT | Rm(vm) | Rn(vn) | Rd(vd));
+  Emit(VFormat(vd) | NEON_SDOT | Rm(vm) | Rn(vn) | Rd(vd));
 }
 
 void Assembler::NEON3DifferentL(const VRegister& vd, const VRegister& vn,
@@ -1657,8 +1699,6 @@ void Assembler::NEON3DifferentHN(const VRegister& vd, const VRegister& vn,
 }
 
 #define NEON_3DIFF_LONG_LIST(V)                                                \
-  V(pmull, NEON_PMULL, vn.IsVector() && vn.Is8B())                             \
-  V(pmull2, NEON_PMULL2, vn.IsVector() && vn.Is16B())                          \
   V(saddl, NEON_SADDL, vn.IsVector() && vn.IsD())                              \
   V(saddl2, NEON_SADDL2, vn.IsVector() && vn.IsQ())                            \
   V(sabal, NEON_SABAL, vn.IsVector() && vn.IsD())                              \
@@ -3063,6 +3103,10 @@ void Assembler::NEON3Same(const VRegister& vd, const VRegister& vn,
 void Assembler::NEONFP3Same(const VRegister& vd, const VRegister& vn,
                             const VRegister& vm, Instr op) {
   DCHECK(AreSameFormat(vd, vn, vm));
+  if (vd.Is4H() || vd.Is8H()) {
+    op |= NEON_sz;
+    op ^= NEON3SameHPMask;
+  }
   Emit(FPFormat(vd) | op | Rm(vm) | Rn(vn) | Rd(vd));
 }
 
@@ -3118,6 +3162,8 @@ void Assembler::NEONFP2RegMisc(const VRegister& vd, const VRegister& vn,
   if (vd.IsScalar()) {
     DCHECK(vd.Is1S() || vd.Is1D());
     op |= NEON_Q | NEONScalar;
+  } else if (vd.Is4H() || vd.Is8H()) {
+    op |= NEON_sz | NEON2RegMiscHPFixed;
   } else {
     DCHECK(vd.Is2S() || vd.Is2D() || vd.Is4S());
   }
@@ -3332,19 +3378,19 @@ NEON_3SAME_LIST(DEFINE_ASM_FUNC)
   V(fmaxnmp, NEON_FMAXNMP, 0)                   \
   V(fminnmp, NEON_FMINNMP, 0)
 
-#define DEFINE_ASM_FUNC(FN, VEC_OP, SCA_OP)                    \
-  void Assembler::FN(const VRegister& vd, const VRegister& vn, \
-                     const VRegister& vm) {                    \
-    Instr op;                                                  \
-    if ((SCA_OP != 0) && vd.IsScalar()) {                      \
-      DCHECK(vd.Is1S() || vd.Is1D());                          \
-      op = SCA_OP;                                             \
-    } else {                                                   \
-      DCHECK(vd.IsVector());                                   \
-      DCHECK(vd.Is2S() || vd.Is2D() || vd.Is4S());             \
-      op = VEC_OP;                                             \
-    }                                                          \
-    NEONFP3Same(vd, vn, vm, op);                               \
+#define DEFINE_ASM_FUNC(FN, VEC_OP, SCA_OP)                                  \
+  void Assembler::FN(const VRegister& vd, const VRegister& vn,               \
+                     const VRegister& vm) {                                  \
+    Instr op;                                                                \
+    if ((SCA_OP != 0) && vd.IsScalar()) {                                    \
+      DCHECK(vd.Is1S() || vd.Is1D());                                        \
+      op = SCA_OP;                                                           \
+    } else {                                                                 \
+      DCHECK(vd.IsVector());                                                 \
+      DCHECK(vd.Is2S() || vd.Is2D() || vd.Is4S() || vd.Is4H() || vd.Is8H()); \
+      op = VEC_OP;                                                           \
+    }                                                                        \
+    NEONFP3Same(vd, vn, vm, op);                                             \
   }
 NEON_FP3SAME_LIST_V2(DEFINE_ASM_FUNC)
 #undef DEFINE_ASM_FUNC
@@ -4173,6 +4219,22 @@ void Assembler::LoadStore(const CPURegister& rt, const MemOperand& addr,
   }
 }
 
+void Assembler::pmull(const VRegister& vd, const VRegister& vn,
+                      const VRegister& vm) {
+  DCHECK(AreSameFormat(vn, vm));
+  DCHECK((vn.Is8B() && vd.Is8H()) || (vn.Is1D() && vd.Is1Q()));
+  DCHECK(IsEnabled(PMULL1Q) || vd.Is8H());
+  Emit(VFormat(vn) | NEON_PMULL | Rm(vm) | Rn(vn) | Rd(vd));
+}
+
+void Assembler::pmull2(const VRegister& vd, const VRegister& vn,
+                       const VRegister& vm) {
+  DCHECK(AreSameFormat(vn, vm));
+  DCHECK((vn.Is16B() && vd.Is8H()) || (vn.Is2D() && vd.Is1Q()));
+  DCHECK(IsEnabled(PMULL1Q) || vd.Is8H());
+  Emit(VFormat(vn) | NEON_PMULL2 | Rm(vm) | Rn(vn) | Rd(vd));
+}
+
 bool Assembler::IsImmLSPair(int64_t offset, unsigned size) {
   bool offset_is_size_multiple =
       (static_cast<int64_t>(static_cast<uint64_t>(offset >> size) << size) ==
@@ -4389,10 +4451,6 @@ bool Assembler::IsImmLogical(uint64_t value, unsigned width, unsigned* n,
   *imm_r = r;
 
   return true;
-}
-
-bool Assembler::IsImmConditionalCompare(int64_t immediate) {
-  return is_uint5(immediate);
 }
 
 bool Assembler::IsImmFP32(uint32_t bits) {
@@ -4685,29 +4743,9 @@ void Assembler::EmitVeneers(bool force_emit, bool need_protection,
   const intptr_t max_pc_after_veneers =
       MaxPCOffsetAfterVeneerPoolIfEmittedNow(margin);
 
-  // The `unresolved_branches_` map is sorted by max-reachable-pc in ascending
-  // order. For efficiency reasons, we want to call
-  // RemoveBranchFromLabelLinkChain in descending order. The actual veneers are
-  // then generated in ascending order.
-  // TODO(jgruber): This is still inefficient in multiple ways, thoughts on how
-  // we could improve in the future:
-  // - Refactor s.t. RemoveBranchFromLabelLinkChain does not need the linear
-  //   lookup in the link chain.
-
-  class FarBranchInfo {
-   public:
-    FarBranchInfo(int offset, Label* label)
-        : pc_offset_(offset), label_(label) {}
-    // Offset of the branch in the code generation buffer.
-    int pc_offset_;
-    // The label branched to.
-    Label* label_;
-  };
-
-  static constexpr int kStaticTasksSize = 16;  // Arbitrary.
-  base::SmallVector<FarBranchInfo, kStaticTasksSize> tasks;
-
   {
+    // The `unresolved_branches_` map is sorted by max-reachable-pc in ascending
+    // order.
     auto it = unresolved_branches_.begin();
     while (it != unresolved_branches_.end()) {
       const int max_reachable_pc = it->first & ~1;
@@ -4727,21 +4765,20 @@ void Assembler::EmitVeneers(bool force_emit, bool need_protection,
                       Instruction::ImmBranchRange(CompareBranchType));
         pc_offset -= Instruction::ImmBranchRange(CondBranchType);
       }
-      tasks.emplace_back(FarBranchInfo{pc_offset, it->second});
+#ifdef DEBUG
+      Label veneer_size_check;
+      bind(&veneer_size_check);
+#endif
+      Label* label = it->second;
+      Instruction* veneer = reinterpret_cast<Instruction*>(pc_);
+      Instruction* branch = InstructionAt(pc_offset);
+      RemoveBranchFromLabelLinkChain(branch, label, veneer);
+      branch->SetImmPCOffsetTarget(options(), veneer);
+      b(label);  // This may end up pointing at yet another veneer later on.
+      DCHECK_EQ(SizeOfCodeGeneratedSince(&veneer_size_check),
+                static_cast<uint64_t>(kVeneerCodeSize));
       it = unresolved_branches_.erase(it);
     }
-  }
-
-  // Reminder: We iterate in reverse order to avoid duplicate linked-list
-  // iteration in RemoveBranchFromLabelLinkChain (which starts at the target
-  // label, and iterates backwards through linked branch instructions).
-
-  const int tasks_size = static_cast<int>(tasks.size());
-  for (int i = tasks_size - 1; i >= 0; i--) {
-    Instruction* branch = InstructionAt(tasks[i].pc_offset_);
-    Instruction* veneer = reinterpret_cast<Instruction*>(
-        reinterpret_cast<uintptr_t>(pc_) + i * kVeneerCodeSize);
-    RemoveBranchFromLabelLinkChain(branch, tasks[i].label_, veneer);
   }
 
   // Update next_veneer_pool_check_ (tightly coupled with unresolved_branches_).
@@ -4752,21 +4789,6 @@ void Assembler::EmitVeneers(bool force_emit, bool need_protection,
   } else {
     next_veneer_pool_check_ =
         unresolved_branches_first_limit() - kVeneerDistanceCheckMargin;
-  }
-
-  // Now emit the actual veneer and patch up the incoming branch.
-
-  for (const FarBranchInfo& info : tasks) {
-#ifdef DEBUG
-    Label veneer_size_check;
-    bind(&veneer_size_check);
-#endif
-    Instruction* branch = InstructionAt(info.pc_offset_);
-    Instruction* veneer = reinterpret_cast<Instruction*>(pc_);
-    branch->SetImmPCOffsetTarget(options(), veneer);
-    b(info.label_);  // This may end up pointing at yet another veneer later on.
-    DCHECK_EQ(SizeOfCodeGeneratedSince(&veneer_size_check),
-              static_cast<uint64_t>(kVeneerCodeSize));
   }
 
   // Record the veneer pool size.

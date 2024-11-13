@@ -16,18 +16,13 @@ transitioning javascript builtin SuppressedErrorConstructor(
   // else let newTarget be NewTarget.
   // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget,
   // "%SuppressedError.prototype%", « [[ErrorData]] »).
-  const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
-  const obj: JSObject = AllocateFastOrSlowJSObjectFromMap(map);
-
   // 3. If message is not undefined, then
   //    a. Let messageString be ? ToString(message).
   //    b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message",
   //    messageString).
-  if (message != Undefined) {
-    SetOwnPropertyIgnoreAttributes(
-        obj, MessageStringConstant(), message,
-        SmiConstant(PropertyAttributes::DONT_ENUM));
-  }
+  const obj: JSObject =
+      ConstructSuppressedError(context, target, newTarget, message);
+
   // 4. Perform CreateNonEnumerableDataPropertyOrThrow(O, "error", error).
   SetOwnPropertyIgnoreAttributes(
       obj, ErrorStringConstant(), error,
@@ -42,5 +37,8 @@ transitioning javascript builtin SuppressedErrorConstructor(
   // 6. Return O.
   return obj;
 }
+
+extern transitioning runtime ConstructSuppressedError(
+    Context, JSFunction, JSAny, Object): JSObject;
 
 }

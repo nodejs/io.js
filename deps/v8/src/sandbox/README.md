@@ -4,20 +4,21 @@ A low-overhead, in-process sandbox for V8.
 
 The sandbox limits the impact of typical V8 vulnerabilities by restricting the
 code executed by V8 to a subset of the process' virtual address space ("the
-sandbox"), thereby isolating it from the rest of the process. This works
-purely in software (with options for hardware support to e.g. improve
-performance) by effectively converting raw pointers either into offsets from
-the base of the sandbox or into indices into out-of-sandbox pointer tables. In
-principle, these mechanisms are very similar to the userland/kernel separation
-used by modern operating systems (e.g. the unix file descriptor table).
+sandbox"), thereby isolating it from the rest of the process. This works purely
+in software (with options for hardware support, see the respective design
+document linked below) by effectively converting raw pointers either into
+offsets from the base of the sandbox or into indices into out-of-sandbox
+pointer tables. In principle, these mechanisms are very similar to the
+userland/kernel separation used by modern operating systems (e.g. the unix file
+descriptor table).
 
-The sandbox assumes that an attacker is able to arbitrarily and concurrently
-modify any memory inside the sandbox address space as this primitive can be
+The sandbox assumes that an attacker can arbitrarily and concurrently modify
+any memory inside the sandbox address space as this primitive can be
 constructed from typical V8 vulnerabilities. Further, it is assumed that an
 attacker will be able to read memory outside of the sandbox, for example
 through hardware side channels. The sandbox then aims to protect the rest of
-the process from such an attacker, and therefore any corruption of memory
-outside of the sandbox address space is considered a sandbox violation.
+the process from such an attacker. As such, any corruption of memory outside of
+the sandbox address space is considered a sandbox violation.
 
 ## Usage
 
@@ -33,16 +34,21 @@ The sandbox is designed to be testable, both manually and automatically.
 To use a "sandbox testing" configurations, two steps are required:
 
 1. V8 needs to be build with `v8_enable_memory_corruption_api = true`. This
-   will, when sandbox testing mode is enabled, see below, expose a JavaScript
-   `Sandbox` object through which memory inside the sandbox can be arbitrarily
-   modified. This API effectively emulates common exploit primitives that can
-   be constructed from a typical V8 vulnerability.
+   will, when sandbox testing mode is enabled, expose a JavaScript `Sandbox`
+   object through which memory inside the sandbox can be arbitrarily modified.
+   This API effectively emulates common exploit primitives that can be
+   constructed from a typical V8 vulnerability.
 2. The sandbox testing mode needs to be enabled at runtime via
-   `--sandbox-fuzzing`. This will enable the sandbox crash filter, which will
-   filter out harmless crashes such as access violations inside the sandbox or
-   other, unexploitable crashes. As such, it effectively defines what
-   constitutes a sandbox violation bug. The sandbox crash filter is currently
-   only available on Linux and in d8.
+   `--sandbox-testing` or `--sandbox-fuzzing`. This will expose the memory
+   corruption API to JavaScript code and enable the sandbox crash filter, which
+   will filter out uninteresting (for the sandbox) crashes such as access
+   violations inside the sandbox or other unexploitable crashes.
+   `--sandbox-testing` is generally used for demonstrating and validating
+   sandbox bypasses and effectively defines what constitutes a sandbox bypass
+   (currently an arbitrary write primitive outside of the sandbox).
+   `--sandbox-fuzzing` is used when fuzzing the sandbox and will report any
+   memory corruption outside of the sandbox (a "sandbox violation").
+   The sandbox crash filter is currently only available on Linux and in d8.
 
 The following example demonstrates these two parts:
 
@@ -50,7 +56,7 @@ The following example demonstrates these two parts:
 // Create a DataView that can read and write inside the sandbox.
 let memory = new DataView(new Sandbox.MemoryView(0, 0x100000000));
 
-// Create an object to corrupt and obtain its address in the sandbox.
+// Create an object to corrupt and obtain its address inside the sandbox.
 let corruptMe = {};
 let addr = Sandbox.getAddressOf(corruptMe);
 
@@ -72,6 +78,10 @@ corruptMe.crash();
 The following list contains further resources about the sandbox, in particular
 various design documents related to it.
 
+* [Sandbox Blog Post](https://v8.dev/blog/sandbox):
+  Discusses the motivation behind the sandbox and its goals while also briefly
+  covering the high-level design, performance characteristics, and testability
+  aspects of the sandbox.
 * [High-Level Design Document](https://docs.google.com/document/d/1FM4fQmIhEqPG8uGp5o9A-mnPB5BOeScZYpkHjo0KKA8/edit?usp=sharing):
   Discusses the attacker model, goal, and basic design of the sandbox, while
   linking to the more specific design documents below where appropriate.

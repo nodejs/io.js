@@ -12,12 +12,12 @@ const bench = common.createBenchmark(main, {
     'test/fixtures/snapshot/typescript',
   ],
   mode: ['process', 'worker'],
-  count: [30],
+  n: [30],
 });
 
 function spawnProcess(script, bench, state) {
   const cmd = process.execPath || process.argv[0];
-  while (state.finished < state.count) {
+  while (state.finished < state.n) {
     const child = spawnSync(cmd, [script]);
     if (child.status !== 0) {
       console.log('---- STDOUT ----');
@@ -32,8 +32,8 @@ function spawnProcess(script, bench, state) {
       bench.start();
     }
 
-    if (state.finished === state.count) {
-      bench.end(state.count);
+    if (state.finished === state.n) {
+      bench.end(state.n);
     }
   }
 }
@@ -49,18 +49,18 @@ function spawnWorker(script, bench, state) {
       // Finished warmup.
       bench.start();
     }
-    if (state.finished < state.count) {
+    if (state.finished < state.n) {
       spawnWorker(script, bench, state);
     } else {
-      bench.end(state.count);
+      bench.end(state.n);
     }
   });
 }
 
-function main({ count, script, mode }) {
+function main({ n, script, mode }) {
   script = path.resolve(__dirname, '../../', `${script}.js`);
   const warmup = 3;
-  const state = { count, finished: -warmup };
+  const state = { n, finished: -warmup };
   if (mode === 'worker') {
     Worker = require('worker_threads').Worker;
     spawnWorker(script, bench, state);

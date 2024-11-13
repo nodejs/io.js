@@ -40,6 +40,12 @@ extern class WeakFixedArray extends HeapObject {
 }
 
 @cppObjectDefinition
+extern class TrustedWeakFixedArray extends TrustedObject {
+  const length: Smi;
+  objects[length]: MaybeObject;
+}
+
+@cppObjectDefinition
 extern class ByteArray extends FixedArrayBase {
   bytes[length]: uint8;
 }

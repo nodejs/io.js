@@ -24,7 +24,7 @@ V8_INLINE ParkedMutexGuard::ParkedMutexGuard(LocalHeap* local_heap,
     : mutex_(mutex) {
   DCHECK(AllowGarbageCollection::IsAllowed());
   if (!mutex_->TryLock()) {
-    local_heap->BlockWhileParked([this]() { mutex_->Lock(); });
+    local_heap->ExecuteWhileParked([this]() { mutex_->Lock(); });
   }
 }
 
@@ -37,7 +37,7 @@ V8_INLINE ParkedRecursiveMutexGuard::ParkedRecursiveMutexGuard(
     : mutex_(mutex) {
   DCHECK(AllowGarbageCollection::IsAllowed());
   if (!mutex_->TryLock()) {
-    local_heap->BlockWhileParked([this]() { mutex_->Lock(); });
+    local_heap->ExecuteWhileParked([this]() { mutex_->Lock(); });
   }
 }
 
@@ -53,11 +53,11 @@ ParkedSharedMutexGuardIf<kIsShared, Behavior>::ParkedSharedMutexGuardIf(
 
   if (kIsShared) {
     if (!mutex_->TryLockShared()) {
-      local_heap->BlockWhileParked([this]() { mutex_->LockShared(); });
+      local_heap->ExecuteWhileParked([this]() { mutex_->LockShared(); });
     }
   } else {
     if (!mutex_->TryLockExclusive()) {
-      local_heap->BlockWhileParked([this]() { mutex_->LockExclusive(); });
+      local_heap->ExecuteWhileParked([this]() { mutex_->LockExclusive(); });
     }
   }
 }
@@ -69,7 +69,7 @@ V8_INLINE void ParkingConditionVariable::ParkedWait(LocalIsolate* local_isolate,
 
 V8_INLINE void ParkingConditionVariable::ParkedWait(LocalHeap* local_heap,
                                                     base::Mutex* mutex) {
-  local_heap->BlockWhileParked(
+  local_heap->ExecuteWhileParked(
       [this, mutex](const ParkedScope& parked) { ParkedWait(parked, mutex); });
 }
 
@@ -83,7 +83,7 @@ V8_INLINE bool ParkingConditionVariable::ParkedWaitFor(
     LocalHeap* local_heap, base::Mutex* mutex,
     const base::TimeDelta& rel_time) {
   bool result;
-  local_heap->BlockWhileParked(
+  local_heap->ExecuteWhileParked(
       [this, mutex, rel_time, &result](const ParkedScope& parked) {
         result = ParkedWaitFor(parked, mutex, rel_time);
       });
@@ -95,7 +95,7 @@ V8_INLINE void ParkingSemaphore::ParkedWait(LocalIsolate* local_isolate) {
 }
 
 V8_INLINE void ParkingSemaphore::ParkedWait(LocalHeap* local_heap) {
-  local_heap->BlockWhileParked(
+  local_heap->ExecuteWhileParked(
       [this](const ParkedScope& parked) { ParkedWait(parked); });
 }
 
@@ -107,7 +107,7 @@ V8_INLINE bool ParkingSemaphore::ParkedWaitFor(
 V8_INLINE bool ParkingSemaphore::ParkedWaitFor(
     LocalHeap* local_heap, const base::TimeDelta& rel_time) {
   bool result;
-  local_heap->BlockWhileParked(
+  local_heap->ExecuteWhileParked(
       [this, rel_time, &result](const ParkedScope& parked) {
         result = ParkedWaitFor(parked, rel_time);
       });
@@ -119,7 +119,7 @@ V8_INLINE void ParkingThread::ParkedJoin(LocalIsolate* local_isolate) {
 }
 
 V8_INLINE void ParkingThread::ParkedJoin(LocalHeap* local_heap) {
-  local_heap->BlockWhileParked(
+  local_heap->ExecuteWhileParked(
       [this](const ParkedScope& parked) { ParkedJoin(parked); });
 }
 
@@ -134,7 +134,7 @@ template <typename ThreadCollection>
 // static
 V8_INLINE void ParkingThread::ParkedJoinAll(LocalHeap* local_heap,
                                             const ThreadCollection& threads) {
-  local_heap->BlockWhileParked([&threads](const ParkedScope& parked) {
+  local_heap->ExecuteWhileParked([&threads](const ParkedScope& parked) {
     ParkedJoinAll(parked, threads);
   });
 }

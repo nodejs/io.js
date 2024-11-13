@@ -38,7 +38,7 @@ async function test() {
   const events = [];
   let tracingComplete = false;
   session.on('NodeTracing.dataCollected', (n) => {
-    assert.ok(n && n.params && n.params.value);
+    assert.ok(n?.params?.value);
     events.push(...n.params.value);  // append the events.
   });
   session.on('NodeTracing.tracingComplete', () => tracingComplete = true);

@@ -31,7 +31,7 @@ TEST_F(DebugPropertyIteratorTest, WalksPrototypeChain) {
                   .FromMaybe(false));
 
   Local<Object> prototype = Object::New(isolate());
-  ASSERT_TRUE(object->SetPrototype(context(), prototype).FromMaybe(false));
+  ASSERT_TRUE(object->SetPrototypeV2(context(), prototype).FromMaybe(false));
   ASSERT_TRUE(prototype
                   ->CreateDataProperty(context(),
                                        String::NewFromUtf8Literal(

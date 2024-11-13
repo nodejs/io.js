@@ -8,10 +8,9 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void DecompressionOptimizationPhase::Run(Zone* temp_zone) {
+void DecompressionOptimizationPhase::Run(PipelineData* data, Zone* temp_zone) {
   if (!COMPRESS_POINTERS_BOOL) return;
-  turboshaft::RunDecompressionOptimization(PipelineData::Get().graph(),
-                                           temp_zone);
+  RunDecompressionOptimization(data->graph(), temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

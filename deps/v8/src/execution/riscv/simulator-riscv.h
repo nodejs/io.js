@@ -537,11 +537,53 @@ class Simulator : public SimulatorBase {
   // Executes RISC-V instructions until the PC reaches end_sim_pc.
   void Execute();
 
+  // Only arguments up to 64 bits in size are supported.
+  class CallArgument {
+   public:
+    template <typename T>
+    explicit CallArgument(T argument) {
+      bits_ = 0;
+      DCHECK(sizeof(argument) <= sizeof(bits_));
+      bits_ = ConvertArg(argument);
+      type_ = GP_ARG;
+    }
+    explicit CallArgument(double argument) {
+      DCHECK(sizeof(argument) == sizeof(bits_));
+      memcpy(&bits_, &argument, sizeof(argument));
+      type_ = FP_ARG;
+    }
+    explicit CallArgument(float argument) {
+      // TODO(all): CallArgument(float) is untested.
+      UNIMPLEMENTED();
+    }
+    // This indicates the end of the arguments list, so that CallArgument
+    // objects can be passed into varargs functions.
+    static CallArgument End() { return CallArgument(); }
+    int64_t bits() const { return bits_; }
+    bool IsEnd() const { return type_ == NO_ARG; }
+    bool IsGP() const { return type_ == GP_ARG; }
+    bool IsFP() const { return type_ == FP_ARG; }
+
+   private:
+    enum CallArgumentType { GP_ARG, FP_ARG, NO_ARG };
+    // All arguments are aligned to at least 64 bits and we don't support
+    // passing bigger arguments, so the payload size can be fixed at 64 bits.
+    int64_t bits_;
+    CallArgumentType type_;
+    CallArgument() { type_ = NO_ARG; }
+  };
+
   template <typename Return, typename... Args>
   Return Call(Address entry, Args... args) {
+#ifdef V8_TARGET_ARCH_RISCV64
+    // Convert all arguments to CallArgument.
+    CallArgument call_args[] = {CallArgument(args)..., CallArgument::End()};
+    CallImpl(entry, call_args);
+    return ReadReturn<Return>();
+#else
     return VariadicCall<Return>(this, &Simulator::CallImpl, entry, args...);
+#endif
   }
-
   // Alternative: call a 2-argument double function.
   double CallFP(Address entry, double d0, double d1);
 
@@ -581,9 +623,26 @@ class Simulator : public SimulatorBase {
     Unpredictable = 0xbadbeaf
   };
 
+#ifdef V8_TARGET_ARCH_RISCV64
+  V8_EXPORT_PRIVATE void CallImpl(Address entry, CallArgument* args);
+  void CallAnyCTypeFunction(Address target_address,
+                            const EncodedCSignature& signature);
+  // Read floating point return values.
+  template <typename T>
+  typename std::enable_if<std::is_floating_point<T>::value, T>::type
+  ReadReturn() {
+    return static_cast<T>(get_fpu_register_double(fa0));
+  }
+  // Read non-float return values.
+  template <typename T>
+  typename std::enable_if<!std::is_floating_point<T>::value, T>::type
+  ReadReturn() {
+    return ConvertReturn<T>(get_register(a0));
+  }
+#else
   V8_EXPORT_PRIVATE intptr_t CallImpl(Address entry, int argument_count,
                                       const intptr_t* arguments);
-
+#endif
   // Unsupported instructions use Format to print an error and stop execution.
   void Format(Instruction* instr, const char* format);
 
@@ -1113,7 +1172,7 @@ class Simulator : public SimulatorBase {
   static const size_t kStackProtectionSize = 256 * kSystemPointerSize;
   // This includes a protection margin at each end of the stack area.
   static size_t AllocatedStackSize() {
-#if V8_TARGET_ARCH_PPC64
+#if V8_TARGET_ARCH_RISCV64
     size_t stack_size = v8_flags.sim_stack_size * KB;
 #else
     size_t stack_size = 1 * MB;  // allocate 1MB for stack

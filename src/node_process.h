@@ -72,7 +72,8 @@ class BindingData : public SnapshotableObject {
   static BindingData* FromV8Value(v8::Local<v8::Value> receiver);
   static void NumberImpl(BindingData* receiver);
 
-  static void FastNumber(v8::Local<v8::Value> receiver) {
+  static void FastNumber(v8::Local<v8::Value> unused,
+                         v8::Local<v8::Value> receiver) {
     NumberImpl(FromV8Value(receiver));
   }
 
@@ -80,7 +81,8 @@ class BindingData : public SnapshotableObject {
 
   static void BigIntImpl(BindingData* receiver);
 
-  static void FastBigInt(v8::Local<v8::Value> receiver) {
+  static void FastBigInt(v8::Local<v8::Value> unused,
+                         v8::Local<v8::Value> receiver) {
     BigIntImpl(FromV8Value(receiver));
   }
 

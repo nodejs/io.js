@@ -425,9 +425,9 @@ TEST_F(WasmSubtypingTest, Subtyping) {
       INTERSECTION(type, type, type);
       if (type == kWasmStringViewIter || type == kWasmStringViewWtf8 ||
           type == kWasmStringViewWtf16) {
-        // String view and string iter aren't subtypes of any but have the same
-        // null sentinel nullref (ref null none).
-        INTERSECTION(type, kWasmAnyRef, kWasmNullRef);
+        // String views aren't subtypes of any nor supertypes of null.
+        INTERSECTION(type, kWasmAnyRef, kWasmBottom);
+        INTERSECTION(type, kWasmNullRef, kWasmBottom);
         continue;
       }
       if (type == kWasmFuncRef || type == kWasmNullFuncRef || type == ref(11) ||

@@ -4,7 +4,10 @@
 
 #include "src/compiler/turboshaft/late-load-elimination-reducer.h"
 
+#include "src/compiler/backend/instruction.h"
 #include "src/compiler/js-heap-broker.h"
+#include "src/compiler/turboshaft/operation-matcher.h"
+#include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/opmasks.h"
 #include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/representations.h"
@@ -172,10 +175,6 @@ void LateLoadEliminationAnalyzer::ProcessBlock(const Block& block,
         // Invalidate state (+ maybe invalidate aliases)
         ProcessCall(op_idx, op.Cast<CallOp>());
         break;
-      case Opcode::kPhi:
-        // Invalidate aliases
-        ProcessPhi(op_idx, op.Cast<PhiOp>());
-        break;
       case Opcode::kAssumeMap:
         // Update known maps
         ProcessAssumeMap(op_idx, op.Cast<AssumeMapOp>());
@@ -184,6 +183,35 @@ void LateLoadEliminationAnalyzer::ProcessBlock(const Block& block,
         // Check for tagged -> word32 load replacement
         ProcessChange(op_idx, op.Cast<ChangeOp>());
         break;
+
+      case Opcode::kWordBinop:
+        // A WordBinop should never invalidate aliases (since the only time when
+        // it should take a non-aliasing object as input is for Smi checks).
+        DcheckWordBinop(op_idx, op.Cast<WordBinopOp>());
+        break;
+
+      case Opcode::kFrameState:
+      case Opcode::kDeoptimizeIf:
+      case Opcode::kComparison:
+#ifdef V8_ENABLE_WEBASSEMBLY
+      case Opcode::kTrapIf:
+#endif
+        // We explicitly break for these opcodes so that we don't call
+        // InvalidateAllNonAliasingInputs on their inputs, since they don't
+        // really create aliases. (and also, they don't write so it's
+        // fine to break)
+        DCHECK(!op.Effects().can_write());
+        break;
+
+      case Opcode::kDeoptimize:
+      case Opcode::kReturn:
+        // We explicitly break for these opcodes so that we don't call
+        // InvalidateAllNonAliasingInputs on their inputs, since they are block
+        // terminators without successors, meaning that it's not useful for the
+        // rest of the analysis to invalidate anything here.
+        DCHECK(op.IsBlockTerminator() && SuccessorBlocks(op).empty());
+        break;
+
       case Opcode::kCatchBlockBegin:
       case Opcode::kRetain:
       case Opcode::kDidntThrow:
@@ -191,17 +219,18 @@ void LateLoadEliminationAnalyzer::ProcessBlock(const Block& block,
       case Opcode::kAtomicRMW:
       case Opcode::kAtomicWord32Pair:
       case Opcode::kMemoryBarrier:
-      case Opcode::kStackCheck:
       case Opcode::kParameter:
       case Opcode::kDebugBreak:
+      case Opcode::kJSStackCheck:
 #ifdef V8_ENABLE_WEBASSEMBLY
+      case Opcode::kWasmStackCheck:
       case Opcode::kSimd128LaneMemory:
       case Opcode::kGlobalSet:
       case Opcode::kArraySet:
       case Opcode::kStructSet:
       case Opcode::kSetStackPointer:
 #endif  // V8_ENABLE_WEBASSEMBLY
-        // We explicitely break for those operations that have can_write effects
+        // We explicitly break for those operations that have can_write effects
         // but don't actually write, or cannot interfere with load elimination.
         break;
       default:
@@ -209,6 +238,18 @@ void LateLoadEliminationAnalyzer::ProcessBlock(const Block& block,
         // operations should be already handled above, which means that we don't
         // need a `if (can_write) { Invalidate(); }` here.
         CHECK(!op.Effects().can_write());
+
+        // Even if the operation doesn't write, it could create an alias to its
+        // input by returning it. This happens for instance in Phis and in
+        // Change (although ChangeOp is already handled earlier by calling
+        // ProcessChange). We are conservative here by calling
+        // InvalidateAllNonAliasingInputs for all operations even though only
+        // few can actually create aliases to fresh allocations, the reason
+        // being that missing such a case would be a security issue, and it
+        // should be rare for fresh allocations to be used outside of
+        // Call/Store/Load/Change anyways.
+        InvalidateAllNonAliasingInputs(op);
+
         break;
     }
   }
@@ -316,15 +357,21 @@ void LateLoadEliminationAnalyzer::ProcessStore(OpIndex op_idx,
     return;
   }
 
-  OpIndex value = store.value();
-
   // Updating the known stored values.
   if (!invalidate_maybe_aliasing) memory_.Invalidate(store);
   memory_.Insert(store);
 
   // Updating aliases if the value stored was known as non-aliasing.
+  OpIndex value = store.value();
   if (non_aliasing_objects_.HasKeyFor(value)) {
     non_aliasing_objects_.Set(value, false);
+  }
+
+  // If we just stored a map, invalidate the maps for this base.
+  if (store.offset == HeapObject::kMapOffset && !store.index().valid()) {
+    if (object_maps_.HasKeyFor(store.base())) {
+      object_maps_.Set(store.base(), MapMaskAndOr{});
+    }
   }
 }
 
@@ -373,13 +420,41 @@ void LateLoadEliminationAnalyzer::ProcessCall(OpIndex op_idx,
   // Not a builtin call, or not a builtin that we know doesn't invalidate
   // memory.
 
-  for (OpIndex input : op.inputs()) {
-    InvalidateIfAlias(input);
-  }
+  InvalidateAllNonAliasingInputs(op);
 
   // The call could modify arbitrary memory, so we invalidate every
   // potentially-aliasing object.
   memory_.InvalidateMaybeAliasing();
+}
+
+// The only time an Allocate should flow into a WordBinop is for Smi checks
+// (which, by the way, should be removed by MachineOptimizationReducer (since
+// Allocate never returns a Smi), but there is no guarantee that this happens
+// before load elimination). So, there is no need to invalidate non-aliases, and
+// we just DCHECK in this function that indeed, nothing else than a Smi check
+// happens on non-aliasing objects.
+void LateLoadEliminationAnalyzer::DcheckWordBinop(OpIndex op_idx,
+                                                  const WordBinopOp& binop) {
+#ifdef DEBUG
+  auto check = [&](V<Word> left, V<Word> right) {
+    if (auto key = non_aliasing_objects_.TryGetKeyFor(left);
+        key.has_value() && non_aliasing_objects_.Get(*key)) {
+      int64_t cst;
+      DCHECK_EQ(binop.kind, WordBinopOp::Kind::kBitwiseAnd);
+      DCHECK(OperationMatcher(graph_).MatchSignedIntegralConstant(right, &cst));
+      DCHECK_EQ(cst, kSmiTagMask);
+    }
+  };
+  check(binop.left(), binop.right());
+  check(binop.right(), binop.left());
+#endif
+}
+
+void LateLoadEliminationAnalyzer::InvalidateAllNonAliasingInputs(
+    const Operation& op) {
+  for (OpIndex input : op.inputs()) {
+    InvalidateIfAlias(input);
+  }
 }
 
 void LateLoadEliminationAnalyzer::InvalidateIfAlias(OpIndex op_idx) {
@@ -407,18 +482,6 @@ void LateLoadEliminationAnalyzer::InvalidateIfAlias(OpIndex op_idx) {
 void LateLoadEliminationAnalyzer::ProcessAllocate(OpIndex op_idx,
                                                   const AllocateOp&) {
   non_aliasing_objects_.Set(op_idx, true);
-}
-
-void LateLoadEliminationAnalyzer::ProcessPhi(OpIndex op_idx, const PhiOp& phi) {
-  for (OpIndex input : phi.inputs()) {
-    if (auto key = non_aliasing_objects_.TryGetKeyFor(input)) {
-      non_aliasing_objects_.Set(*key, false);
-    }
-    // If {non_aliasing_objects_} has no key for {input}, then {input} was not
-    // known as non-aliasing (and is thus considered by default as
-    // maybe-aliasing), so there is no need to create an entry for it in
-    // {non_aliasing_objects_}.
-  }
 }
 
 void LateLoadEliminationAnalyzer::ProcessAssumeMap(
@@ -465,6 +528,8 @@ void LateLoadEliminationAnalyzer::ProcessChange(OpIndex op_idx,
                                   &load_idx)) {
     int32_truncated_loads_[load_idx][op_idx] = bitcast_idx;
   }
+
+  InvalidateIfAlias(change.input());
 }
 
 void LateLoadEliminationAnalyzer::FinishBlock(const Block* block) {

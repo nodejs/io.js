@@ -41,23 +41,23 @@ class JSDateTimeFormat
   enum class DefaultsOption { kDate, kTime, kAll };
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSDateTimeFormat> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
       Handle<Object> options, const char* service);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSDateTimeFormat>
-  CreateDateTimeFormat(Isolate* isolate, Handle<Map> map,
+  CreateDateTimeFormat(Isolate* isolate, DirectHandle<Map> map,
                        Handle<Object> locales, Handle<Object> options,
                        RequiredOption required, DefaultsOption defaults,
                        const char* service);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSObject> ResolvedOptions(
-      Isolate* isolate, Handle<JSDateTimeFormat> date_time_format);
+      Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format);
 
   V8_WARN_UNUSED_RESULT static Handle<String> Calendar(
-      Isolate* isolate, Handle<JSDateTimeFormat> date_time_format);
+      Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format);
 
   V8_WARN_UNUSED_RESULT static Handle<Object> TimeZone(
-      Isolate* isolate, Handle<JSDateTimeFormat> date_time_format);
+      Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format);
 
   // ecma402/#sec-unwrapdatetimeformat
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSDateTimeFormat>
@@ -70,12 +70,12 @@ class JSDateTimeFormat
   // ecma402/#sec-datetime-format-functions
   // DateTime Format Functions
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> DateTimeFormat(
-      Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+      Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
       Handle<Object> date, const char* method_name);
 
   // ecma402/#sec-Intl.DateTimeFormat.prototype.formatToParts
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatToParts(
-      Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+      Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
       Handle<Object> x, bool output_source, const char* method_name);
 
   // ecma402/#sec-intl.datetimeformat.prototype.formatRange

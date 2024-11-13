@@ -27,7 +27,7 @@ constexpr size_t kSpecMaxMemory64Pages = 262'144;  // 16GB
 // The following limits are imposed by V8 on WebAssembly modules.
 // The limits are agreed upon with other engines for consistency.
 constexpr size_t kV8MaxWasmTypes = 1'000'000;
-constexpr size_t kV8MaxWasmFunctions = 1'000'000;
+constexpr size_t kV8MaxWasmDefinedFunctions = 1'000'000;
 constexpr size_t kV8MaxWasmImports = 100'000;
 constexpr size_t kV8MaxWasmExports = 100'000;
 constexpr size_t kV8MaxWasmGlobals = 1'000'000;
@@ -76,6 +76,11 @@ constexpr uint64_t kWasmMaxHeapOffset =
     static_cast<uint64_t>(
         std::numeric_limits<uint32_t>::max())  // maximum base value
     + std::numeric_limits<uint32_t>::max();    // maximum index value
+
+// This limit is a result of the limits for defined functions and the maximum of
+// imported functions.
+constexpr size_t kV8MaxWasmTotalFunctions =
+    kV8MaxWasmDefinedFunctions + kV8MaxWasmImports;
 
 // The following functions are defined in wasm-engine.cc.
 

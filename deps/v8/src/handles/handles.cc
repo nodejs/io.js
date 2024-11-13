@@ -10,6 +10,7 @@
 #include "src/execution/isolate.h"
 #include "src/execution/thread-id.h"
 #include "src/handles/maybe-handles.h"
+#include "src/heap/base/stack.h"
 #include "src/objects/objects-inl.h"
 #include "src/roots/roots-inl.h"
 #include "src/utils/address-map.h"
@@ -57,7 +58,7 @@ bool HandleBase::IsDereferenceAllowed() const {
   DCHECK_NOT_NULL(location_);
   Tagged<Object> object(*location_);
   if (IsSmi(object)) return true;
-  Tagged<HeapObject> heap_object = HeapObject::cast(object);
+  Tagged<HeapObject> heap_object = Cast<HeapObject>(object);
   if (IsReadOnlyHeapObject(heap_object)) return true;
   Isolate* isolate = GetIsolateFromWritableObject(heap_object);
   RootIndex root_index;
@@ -106,7 +107,7 @@ bool DirectHandleBase::IsDereferenceAllowed() const {
   DCHECK_NE(obj_, kTaggedNullAddress);
   Tagged<Object> object(obj_);
   if (IsSmi(object)) return true;
-  Tagged<HeapObject> heap_object = HeapObject::cast(object);
+  Tagged<HeapObject> heap_object = Cast<HeapObject>(object);
   if (IsReadOnlyHeapObject(heap_object)) return true;
   Isolate* isolate = GetIsolateFromWritableObject(heap_object);
   if (!AllowHandleDereference::IsAllowed()) return false;
@@ -129,7 +130,8 @@ bool DirectHandleBase::IsDereferenceAllowed() const {
 
   // We are pretty strict with handle dereferences on background threads: A
   // background local heap is only allowed to dereference its own local handles.
-  if (!local_heap->is_main_thread()) return HandleHelper::IsOnStack(this);
+  if (!local_heap->is_main_thread())
+    return ::heap::base::Stack::IsOnStack(this);
 
   // If LocalHeap::Current() is null, we're on the main thread -- if we were to
   // check main thread HandleScopes here, we should additionally check the

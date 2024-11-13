@@ -42,6 +42,7 @@ class LookupIterator;
 class PropertyDescriptorObject;
 class ReadOnlyRoots;
 class RootVisitor;
+class PropertyKey;
 
 // UNSAFE_SKIP_WRITE_BARRIER skips the write barrier.
 // SKIP_WRITE_BARRIER skips the write barrier and asserts that this is safe in
@@ -135,8 +136,11 @@ class Object : public AllStatic {
   V8_INLINE
   V8_WARN_UNUSED_RESULT static Maybe<bool> IsArray(Handle<Object> object);
 
-  // Extract the number.
-  static inline double Number(Tagged<Object> obj);
+  // Extract the double value of a Number (Smi or HeapNumber).
+  static inline double NumberValue(Tagged<Number> obj);
+  static inline double NumberValue(Tagged<Object> obj);
+  static inline double NumberValue(Tagged<HeapNumber> obj);
+  static inline double NumberValue(Tagged<Smi> obj);
   V8_EXPORT_PRIVATE static bool ToInt32(Tagged<Object> obj, int32_t* value);
   static inline bool ToUint32(Tagged<Object> obj, uint32_t* value);
 
@@ -158,13 +162,14 @@ class Object : public AllStatic {
   static Handle<FieldType> OptimalType(Tagged<Object> obj, Isolate* isolate,
                                        Representation representation);
 
-  V8_EXPORT_PRIVATE static Handle<Object> NewStorageFor(
-      Isolate* isolate, Handle<Object> object, Representation representation);
+  V8_EXPORT_PRIVATE static Handle<UnionOf<JSAny, Hole>> NewStorageFor(
+      Isolate* isolate, Handle<UnionOf<JSAny, Hole>> object,
+      Representation representation);
 
   template <AllocationType allocation_type = AllocationType::kYoung,
             typename IsolateT>
-  static Handle<Object> WrapForRead(IsolateT* isolate, Handle<Object> object,
-                                    Representation representation);
+  static Handle<JSAny> WrapForRead(IsolateT* isolate, Handle<JSAny> object,
+                                   Representation representation);
 
   // Returns true if the object is of the correct type to be used as a
   // implementation of a JSObject's elements.
@@ -199,7 +204,7 @@ class Object : public AllStatic {
       Isolate* isolate, Handle<Object> object,
       const char* method_name = nullptr);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> ToObjectImpl(
-      Isolate* isolate, Handle<Object> object,
+      Isolate* isolate, DirectHandle<Object> object,
       const char* method_name = nullptr);
 
   // ES6 section 9.2.1.2, OrdinaryCallBindThis for sloppy callee.
@@ -216,33 +221,49 @@ class Object : public AllStatic {
       ToPrimitiveHint hint = ToPrimitiveHint::kDefault);
 
   // ES6 section 7.1.3 ToNumber
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToNumber(
+  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Number> ToNumber(
       Isolate* isolate, Handle<Object> input);
 
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToNumeric(
       Isolate* isolate, Handle<Object> input);
 
   // ES6 section 7.1.4 ToInteger
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToInteger(
+  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Number> ToInteger(
       Isolate* isolate, Handle<Object> input);
 
   // ES6 section 7.1.5 ToInt32
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToInt32(
+  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Number> ToInt32(
       Isolate* isolate, Handle<Object> input);
 
   // ES6 section 7.1.6 ToUint32
-  V8_WARN_UNUSED_RESULT inline static MaybeHandle<Object> ToUint32(
+  V8_WARN_UNUSED_RESULT inline static MaybeHandle<Number> ToUint32(
       Isolate* isolate, Handle<Object> input);
 
   // ES6 section 7.1.12 ToString
+  // TODO(b/42203211): ToString is templatized so that passing a Handle<T>
+  // is not ambiguous when T is a subtype of Object (it could be implicitly
+  // converted both to Handle<Object> and to DirectHandle<Object>). Here, T
+  // should be a subtype of Object, which is enforced by the second template
+  // argument and the similar restriction on Handle's constructor. When the
+  // migration to DirectHandle is complete, this function can accept simply
+  // a DirectHandle<Object>.
+  template <typename T, typename = std::enable_if_t<
+                            std::is_convertible_v<Handle<T>, Handle<Object>>>>
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<String> ToString(
-      Isolate* isolate, Handle<Object> input);
+      Isolate* isolate, Handle<T> input);
 
-  V8_EXPORT_PRIVATE static MaybeHandle<String> NoSideEffectsToMaybeString(
-      Isolate* isolate, Handle<Object> input);
+#ifdef V8_ENABLE_DIRECT_HANDLE
+  template <typename T, typename = std::enable_if_t<std::is_convertible_v<
+                            DirectHandle<T>, DirectHandle<Object>>>>
+  V8_WARN_UNUSED_RESULT static inline MaybeDirectHandle<String> ToString(
+      Isolate* isolate, DirectHandle<T> input);
+#endif
 
-  V8_EXPORT_PRIVATE static Handle<String> NoSideEffectsToString(
-      Isolate* isolate, Handle<Object> input);
+  V8_EXPORT_PRIVATE static MaybeDirectHandle<String> NoSideEffectsToMaybeString(
+      Isolate* isolate, DirectHandle<Object> input);
+
+  V8_EXPORT_PRIVATE static DirectHandle<String> NoSideEffectsToString(
+      Isolate* isolate, DirectHandle<Object> input);
 
   // ES6 section 7.1.14 ToPropertyKey
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToPropertyKey(
@@ -269,7 +290,7 @@ class Object : public AllStatic {
       Isolate* isolate, Handle<JSReceiver> object);
 
   // ES6 section 12.5.6 The typeof Operator
-  static Handle<String> TypeOf(Isolate* isolate, Handle<Object> object);
+  static Handle<String> TypeOf(Isolate* isolate, DirectHandle<Object> object);
 
   // ES6 section 12.7 Additive Operators
   V8_WARN_UNUSED_RESULT static MaybeHandle<Object> Add(Isolate* isolate,
@@ -326,26 +347,28 @@ class Object : public AllStatic {
 
   V8_WARN_UNUSED_RESULT static Maybe<bool> CannotCreateProperty(
       Isolate* isolate, Handle<Object> receiver, Handle<Object> name,
-      Handle<Object> value, Maybe<ShouldThrow> should_throw);
+      DirectHandle<Object> value, Maybe<ShouldThrow> should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> WriteToReadOnlyProperty(
-      LookupIterator* it, Handle<Object> value,
+      LookupIterator* it, DirectHandle<Object> value,
       Maybe<ShouldThrow> should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> WriteToReadOnlyProperty(
       Isolate* isolate, Handle<Object> receiver, Handle<Object> name,
-      Handle<Object> value, ShouldThrow should_throw);
+      DirectHandle<Object> value, ShouldThrow should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> RedefineIncompatibleProperty(
-      Isolate* isolate, Handle<Object> name, Handle<Object> value,
+      Isolate* isolate, Handle<Object> name, DirectHandle<Object> value,
       Maybe<ShouldThrow> should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetDataProperty(
       LookupIterator* it, Handle<Object> value);
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static Maybe<bool> AddDataProperty(
-      LookupIterator* it, Handle<Object> value, PropertyAttributes attributes,
-      Maybe<ShouldThrow> should_throw, StoreOrigin store_origin,
+      LookupIterator* it, DirectHandle<Object> value,
+      PropertyAttributes attributes, Maybe<ShouldThrow> should_throw,
+      StoreOrigin store_origin,
       EnforceDefineSemantics semantics = EnforceDefineSemantics::kSet);
 
   V8_WARN_UNUSED_RESULT static Maybe<bool> TransitionAndWriteDataProperty(
-      LookupIterator* it, Handle<Object> value, PropertyAttributes attributes,
-      Maybe<ShouldThrow> should_throw, StoreOrigin store_origin);
+      LookupIterator* it, DirectHandle<Object> value,
+      PropertyAttributes attributes, Maybe<ShouldThrow> should_throw,
+      StoreOrigin store_origin);
 
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> GetPropertyOrElement(
       Isolate* isolate, Handle<Object> object, Handle<Name> name);
@@ -354,13 +377,13 @@ class Object : public AllStatic {
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> GetProperty(
       Isolate* isolate, Handle<Object> object, Handle<Name> name);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> GetPropertyWithAccessor(
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithAccessor(
       LookupIterator* it);
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyWithAccessor(
       LookupIterator* it, Handle<Object> value,
       Maybe<ShouldThrow> should_throw);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> GetPropertyWithDefinedGetter(
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithDefinedGetter(
       Handle<Object> receiver, Handle<JSReceiver> getter);
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyWithDefinedSetter(
       Handle<Object> receiver, Handle<JSReceiver> setter, Handle<Object> value,
@@ -448,13 +471,6 @@ class Object : public AllStatic {
   // V8_EXTERNAL_CODE_SPACE mode.
   static void VerifyAnyTagged(Isolate* isolate, Tagged<Object> p);
 #endif
-
-  inline static constexpr Tagged<Object> cast(Tagged<Object> object) {
-    return object;
-  }
-  inline static constexpr Tagged<Object> unchecked_cast(Tagged<Object> object) {
-    return object;
-  }
 
   // Layout description.
   static const int kHeaderSize = 0;  // Object does not take up any space.
@@ -544,17 +560,19 @@ class Object : public AllStatic {
       Isolate* isolate, Handle<Object> value);
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<String>
   ConvertToString(Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> ConvertToNumberOrNumeric(
-      Isolate* isolate, Handle<Object> input, Conversion mode);
-  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object>
+  V8_WARN_UNUSED_RESULT static MaybeHandle<Number> ConvertToNumber(
+      Isolate* isolate, Handle<Object> input);
+  V8_WARN_UNUSED_RESULT static MaybeHandle<Numeric> ConvertToNumeric(
+      Isolate* isolate, Handle<Object> input);
+  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Number>
   ConvertToInteger(Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> ConvertToInt32(
+  V8_WARN_UNUSED_RESULT static MaybeHandle<Number> ConvertToInt32(
       Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> ConvertToUint32(
+  V8_WARN_UNUSED_RESULT static MaybeHandle<Number> ConvertToUint32(
       Isolate* isolate, Handle<Object> input);
-  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object>
+  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Number>
   ConvertToLength(Isolate* isolate, Handle<Object> input);
-  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object>
+  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Number>
   ConvertToIndex(Isolate* isolate, Handle<Object> input,
                  MessageTemplate error_index);
 };
@@ -659,6 +677,9 @@ V8_INLINE bool IsWasmObject(T obj, Isolate* = nullptr) {
 V8_INLINE bool IsJSObjectThatCanBeTrackedAsPrototype(Tagged<Object> obj);
 V8_INLINE bool IsJSObjectThatCanBeTrackedAsPrototype(Tagged<HeapObject> obj);
 
+V8_INLINE bool IsJSApiWrapperObject(Tagged<HeapObject> obj);
+V8_INLINE bool IsJSApiWrapperObject(Tagged<Map> map);
+
 #define DECL_STRUCT_PREDICATE(NAME, Name, name) \
   V8_INLINE bool Is##Name(Tagged<Object> obj);  \
   V8_INLINE bool Is##Name(Tagged<Object> obj, PtrComprCageBase cage_base);
@@ -679,10 +700,6 @@ V8_INLINE bool IsMinusZero(Tagged<Object> obj);
 // - JSSharedStructs
 // - JSSharedArrays
 inline bool IsShared(Tagged<Object> obj);
-
-#ifdef DEBUG
-inline bool IsApiCallResultType(Tagged<Object> obj);
-#endif  // DEBUG
 
 // Prints this object without details.
 V8_EXPORT_PRIVATE void ShortPrint(Tagged<Object> obj, FILE* out = stdout);

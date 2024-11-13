@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// TODO(saelo): Consider also moving this into trusted space as
+// UncompiledDataWithPreparseData is now in trusted space.
 extern class PreparseData extends HeapObject {
   // TODO(v8:8983): Add declaration for variable-sized region.
   data_length: int32;
@@ -9,14 +11,8 @@ extern class PreparseData extends HeapObject {
 }
 
 extern class InterpreterData extends ExposedTrustedObject {
-  // TODO(saelo): we should consider also moving InterpreterData out of the
-  // sandbox as it can often occur in places where BytecodeArrays are expected
-  // (which live outside of the sandbox). When we do this, this field can again
-  // always directly reference the BytecodeArray through a tagged pointer.
-  @if(V8_ENABLE_SANDBOX) bytecode_array: IndirectPointer<BytecodeArray>;
-  @ifnot(V8_ENABLE_SANDBOX) bytecode_array: BytecodeArray;
-  @if(V8_ENABLE_SANDBOX) interpreter_trampoline: IndirectPointer<Code>;
-  @ifnot(V8_ENABLE_SANDBOX) interpreter_trampoline: Code;
+  bytecode_array: ProtectedPointer<BytecodeArray>;
+  interpreter_trampoline: ProtectedPointer<Code>;
 }
 
 type FunctionKind extends uint8 constexpr 'FunctionKind';
@@ -48,28 +44,34 @@ bitfield struct SharedFunctionInfoFlags extends uint32 {
 bitfield struct SharedFunctionInfoFlags2 extends uint8 {
   class_scope_has_private_brand: bool: 1 bit;
   has_static_private_methods_or_accessors: bool: 1 bit;
+  // In case another bit is needed here it should be possible to combine
+  // is_sparkplug_compiling, sparkplug_compiled, cached_tiering_decision, and
+  // function_context_independent_compiled into a SharedTieringState enum
+  // using only 4 bits.
   is_sparkplug_compiling: bool: 1 bit;
   maglev_compilation_failed: bool: 1 bit;
   sparkplug_compiled: bool: 1 bit;
   cached_tiering_decision: CachedTieringDecision: 2 bit;
+  function_context_independent_compiled: bool: 1 bit;
 }
 
 extern class SharedFunctionInfo extends HeapObject {
-  // When the sandbox is enabled, the SFI's function data is split into a
-  // trusted and an untrusted part.
+  // For the sandbox, the SFI's function data is split into a trusted and an
+  // untrusted part.
   // The field is treated as a custom weak pointer. We visit this field as a
   // weak pointer if there is aged bytecode. If there is no bytecode or if the
   // bytecode is young then we treat it as a strong pointer. This is done to
   // support flushing of bytecode.
-  // TODO(chromium:1490564) in the future, this field could be replaced by a
-  // generic code reference, which contains all information needed to (safely)
-  // invoke the function (Code/BytecodeArray, number of parameters, etc.).
-  // Then, function_data would only contain metadata used by the invoked code.
-  // With that, the function_data field would no longer require custom weak
-  // marking as that is only required for (byte)code flushing.
-  @if(V8_ENABLE_SANDBOX)
-      @customWeakMarking trusted_function_data: IndirectPointer;
-  @customWeakMarking function_data: Object;
+  // TODO(chromium:1490564): we should see if these two fields can again be
+  // merged into a single field (when all possible data objects are moved into
+  // trusted space), or if we can turn this into a trusted code and an
+  // untrusted data field.
+  @customWeakMarking
+  trusted_function_data: TrustedPointer<ExposedTrustedObject>;
+  // TODO(chromium:1490564): if we cannot merge this field with the
+  // trusted_function_data in the future (see TODO above), then maybe consider
+  // renaming this field as untrusted_function_data may be a bit awkward.
+  untrusted_function_data: Object;
   name_or_scope_info: String|NoSharedNameSentinel|ScopeInfo;
   outer_scope_info_or_feedback_metadata: HeapObject;
   script: Script|Undefined;
@@ -104,6 +106,15 @@ extern class SharedFunctionInfo extends HeapObject {
   padding: uint16;
 }
 
+// A wrapper around a SharedFunctionInfo in trusted space.
+// Can be useful in cases where a protected pointer reference to a
+// SharedFunctionInfo is required, for example because it is stored inside an
+// ProtectedFixedArray.
+@cppObjectDefinition
+extern class SharedFunctionInfoWrapper extends TrustedObject {
+  shared_info: SharedFunctionInfo;
+}
+
 const kDontAdaptArgumentsSentinel: constexpr int32
     generates 'kDontAdaptArgumentsSentinel';
 
@@ -131,39 +142,33 @@ macro IsSharedFunctionInfoDontAdaptArguments(sfi: SharedFunctionInfo): bool {
 }
 
 @abstract
-extern class UncompiledData extends HeapObject {
+extern class UncompiledData extends ExposedTrustedObject {
   inferred_name: String;
   start_position: int32;
   end_position: int32;
 }
 
-@generateBodyDescriptor
 @generateUniqueMap
 @generateFactoryFunction
 extern class UncompiledDataWithoutPreparseData extends UncompiledData {}
 
-@generateBodyDescriptor
 @generateUniqueMap
 @generateFactoryFunction
 extern class UncompiledDataWithPreparseData extends UncompiledData {
   preparse_data: PreparseData;
 }
 
-@generateBodyDescriptor
 @generateUniqueMap
 @generateFactoryFunction
 extern class UncompiledDataWithoutPreparseDataWithJob extends
     UncompiledDataWithoutPreparseData {
-  // TODO(v8:10391): Define the field as ExternalPointer or move jobs into cage.
   job: RawPtr;
 }
 
-@generateBodyDescriptor
 @generateUniqueMap
 @generateFactoryFunction
 extern class UncompiledDataWithPreparseDataAndJob extends
     UncompiledDataWithPreparseData {
-  // TODO(v8:10391): Define the field as ExternalPointer or move jobs into cage.
   job: RawPtr;
 }
 

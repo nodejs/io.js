@@ -9,15 +9,12 @@
 #ifndef V8_WASM_WASM_IMPORT_WRAPPER_CACHE_H_
 #define V8_WASM_WASM_IMPORT_WRAPPER_CACHE_H_
 
+#include <unordered_map>
+
 #include "src/base/platform/mutex.h"
 #include "src/wasm/module-instantiate.h"
 
-namespace v8 {
-namespace internal {
-
-class Counters;
-
-namespace wasm {
+namespace v8::internal::wasm {
 
 class WasmCode;
 class WasmEngine;
@@ -92,8 +89,6 @@ class WasmImportWrapperCache {
   std::unordered_map<CacheKey, WasmCode*, CacheKeyHash> entry_map_;
 };
 
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm
 
 #endif  // V8_WASM_WASM_IMPORT_WRAPPER_CACHE_H_

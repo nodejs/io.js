@@ -6,6 +6,7 @@
 
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/marking-worklist-inl.h"
+#include "src/heap/marking.h"
 
 namespace v8 {
 namespace internal {
@@ -15,8 +16,6 @@ ConservativeTracedHandlesMarkingVisitor::
         Heap& heap, MarkingWorklists::Local& local_marking_worklist,
         cppgc::internal::CollectionType collection_type)
     : heap_(heap),
-      has_shared_space_(heap.isolate()->has_shared_space()),
-      is_shared_space_isolate_(heap.isolate()->is_shared_space_isolate()),
       marking_state_(*heap_.marking_state()),
       local_marking_worklist_(local_marking_worklist),
       traced_node_bounds_(heap.isolate()->traced_handles()->GetNodeBounds()),
@@ -45,23 +44,15 @@ void ConservativeTracedHandlesMarkingVisitor::VisitPointer(
       // object to mark.
       return;
     }
-    Tagged<HeapObject> heap_object = HeapObject::cast(object);
-    if (InReadOnlySpace(heap_object)) return;
-    if (marking_state_.TryMark(heap_object)) {
-      local_marking_worklist_.Push(heap_object);
-    }
-    if (V8_UNLIKELY(v8_flags.track_retaining_path)) {
-      heap_.AddRetainingRoot(Root::kTracedHandles, heap_object);
+    Tagged<HeapObject> heap_object = Cast<HeapObject>(object);
+    const auto target_worklist =
+        MarkingHelper::ShouldMarkObject(&heap_, heap_object);
+    if (target_worklist) {
+      MarkingHelper::TryMarkAndPush(&heap_, &local_marking_worklist_,
+                                    &marking_state_, target_worklist.value(),
+                                    heap_object);
     }
   }
-}
-
-bool ConservativeTracedHandlesMarkingVisitor::ShouldMarkObject(
-    Tagged<HeapObject> object) const {
-  // Keep up-to-date with MarkCompactCollector::ShouldMarkObject.
-  if (V8_LIKELY(!has_shared_space_)) return true;
-  if (is_shared_space_isolate_) return true;
-  return !InAnySharedSpace(object);
 }
 
 }  // namespace internal

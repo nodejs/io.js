@@ -1,13 +1,11 @@
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cctype>
-#include <cinttypes>
 #include <cstdarg>
 #include <cstdio>
 #include <functional>
-#include <iostream>
 #include <map>
-#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -72,26 +70,8 @@ size_t GetFileSize(const std::string& filename, int* error) {
   return result;
 }
 
-bool EndsWith(const std::string& str, std::string_view suffix) {
-  size_t suffix_len = suffix.length();
-  size_t str_len = str.length();
-  if (str_len < suffix_len) {
-    return false;
-  }
-  return str.compare(str_len - suffix_len, suffix_len, suffix) == 0;
-}
-
-bool StartsWith(const std::string& str, std::string_view prefix) {
-  size_t prefix_len = prefix.length();
-  size_t str_len = str.length();
-  if (str_len < prefix_len) {
-    return false;
-  }
-  return str.compare(0, prefix_len, prefix) == 0;
-}
-
-bool FilenameIsConfigGypi(const std::string& path) {
-  return path == "config.gypi" || EndsWith(path, "/config.gypi");
+constexpr bool FilenameIsConfigGypi(const std::string_view path) {
+  return path == "config.gypi" || path.ends_with("/config.gypi");
 }
 
 typedef std::vector<std::string> FileList;
@@ -99,7 +79,7 @@ typedef std::map<std::string, FileList> FileMap;
 
 bool SearchFiles(const std::string& dir,
                  FileMap* file_map,
-                 const std::string& extension) {
+                 std::string_view extension) {
   uv_fs_t scan_req;
   int result = uv_fs_scandir(nullptr, &scan_req, dir.c_str(), 0, nullptr);
   bool errored = false;
@@ -107,7 +87,7 @@ bool SearchFiles(const std::string& dir,
     PrintUvError("scandir", dir.c_str(), result);
     errored = true;
   } else {
-    auto it = file_map->insert({extension, FileList()}).first;
+    auto it = file_map->insert({std::string(extension), FileList()}).first;
     FileList& files = it->second;
     files.reserve(files.size() + result);
     uv_dirent_t dent;
@@ -124,7 +104,7 @@ bool SearchFiles(const std::string& dir,
       }
 
       std::string path = dir + '/' + dent.name;
-      if (EndsWith(path, extension)) {
+      if (path.ends_with(extension)) {
         files.emplace_back(path);
         continue;
       }
@@ -153,12 +133,11 @@ constexpr std::string_view kJsSuffix = ".js";
 constexpr std::string_view kGypiSuffix = ".gypi";
 constexpr std::string_view depsPrefix = "deps/";
 constexpr std::string_view libPrefix = "lib/";
-std::set<std::string_view> kAllowedExtensions{
-    kGypiSuffix, kJsSuffix, kMjsSuffix};
 
-std::string_view HasAllowedExtensions(const std::string& filename) {
-  for (const auto& ext : kAllowedExtensions) {
-    if (EndsWith(filename, ext)) {
+constexpr std::string_view HasAllowedExtensions(
+    const std::string_view filename) {
+  for (const auto& ext : {kGypiSuffix, kJsSuffix, kMjsSuffix}) {
+    if (filename.ends_with(ext)) {
       return ext;
     }
   }
@@ -350,17 +329,17 @@ std::string GetFileId(const std::string& filename) {
   size_t start = 0;
   std::string prefix;
   // Strip .mjs and .js suffix
-  if (EndsWith(filename, kMjsSuffix)) {
+  if (filename.ends_with(kMjsSuffix)) {
     end -= kMjsSuffix.size();
-  } else if (EndsWith(filename, kJsSuffix)) {
+  } else if (filename.ends_with(kJsSuffix)) {
     end -= kJsSuffix.size();
   }
 
   // deps/acorn/acorn/dist/acorn.js -> internal/deps/acorn/acorn/dist/acorn
-  if (StartsWith(filename, depsPrefix)) {
+  if (filename.starts_with(depsPrefix)) {
     start = depsPrefix.size();
     prefix = "internal/deps/";
-  } else if (StartsWith(filename, libPrefix)) {
+  } else if (filename.starts_with(libPrefix)) {
     // lib/internal/url.js -> internal/url
     start = libPrefix.size();
     prefix = "";
@@ -381,18 +360,52 @@ std::string GetVariableName(const std::string& id) {
   return result;
 }
 
-std::vector<std::string> GetCodeTable() {
-  size_t size = 1 << 16;
-  std::vector<std::string> code_table(size);
-  for (size_t i = 0; i < size; ++i) {
-    code_table[i] = std::to_string(i) + ',';
+// The function returns a string buffer and an array of
+// offsets. The string is just "0,1,2,3,...,65535,".
+// The second array contain the offsets indicating the
+// start of each substring ("0,", "1,", etc.) and the final
+// offset points just beyond the end of the string.
+// 382106 is the length of the string "0,1,2,3,...,65535,".
+// 65537 is 2**16 + 1
+// This function could be constexpr, but it might become too expensive to
+// compile.
+std::pair<std::array<char, 382106>, std::array<uint32_t, 65537>>
+precompute_string() {
+  // the string "0,1,2,3,...,65535,".
+  std::array<char, 382106> str;
+  // the offsets in the string pointing at the beginning of each substring
+  std::array<uint32_t, 65537> off;
+  off[0] = 0;
+  char* p = &str[0];
+  constexpr auto const_int_to_str = [](uint16_t value, char* s) -> uint32_t {
+    uint32_t index = 0;
+    do {
+      s[index++] = '0' + (value % 10);
+      value /= 10;
+    } while (value != 0);
+
+    for (uint32_t i = 0; i < index / 2; ++i) {
+      char temp = s[i];
+      s[i] = s[index - i - 1];
+      s[index - i - 1] = temp;
+    }
+    s[index] = ',';
+    return index + 1;
+  };
+  for (int i = 0; i < 65536; ++i) {
+    size_t offset = const_int_to_str(i, p);
+    p += offset;
+    off[i + 1] = off[i] + offset;
   }
-  return code_table;
+  return {str, off};
 }
 
-const std::string& GetCode(uint16_t index) {
-  static std::vector<std::string> table = GetCodeTable();
-  return table[index];
+const std::string_view GetCode(uint16_t index) {
+  // We use about 644254 bytes of memory. An array of 65536 strings might use
+  // 2097152 bytes so we save 3x the memory.
+  static auto [backing_string, offsets] = precompute_string();
+  return std::string_view(&backing_string[offsets[index]],
+                          offsets[index + 1] - offsets[index]);
 }
 
 #ifdef NODE_JS2C_USE_STRING_LITERALS
@@ -532,8 +545,7 @@ Fragment GetDefinitionImpl(const std::vector<char>& code,
   // Avoid using snprintf on large chunks of data because it's much slower.
   // It's fine to use it on small amount of data though.
   if constexpr (is_two_byte) {
-    std::vector<uint16_t> utf16_codepoints;
-    utf16_codepoints.resize(count);
+    std::vector<uint16_t> utf16_codepoints(count);
     size_t utf16_count = simdutf::convert_utf8_to_utf16(
         code.data(),
         code.size(),
@@ -542,8 +554,8 @@ Fragment GetDefinitionImpl(const std::vector<char>& code,
     utf16_codepoints.resize(utf16_count);
     Debug("static size %zu\n", utf16_count);
     for (size_t i = 0; i < utf16_count; ++i) {
-      const std::string& str = GetCode(utf16_codepoints[i]);
-      memcpy(result.data() + cur, str.c_str(), str.size());
+      std::string_view str = GetCode(utf16_codepoints[i]);
+      memcpy(result.data() + cur, str.data(), str.size());
       cur += str.size();
     }
   } else {
@@ -556,8 +568,8 @@ Fragment GetDefinitionImpl(const std::vector<char>& code,
               i,
               ch);
       }
-      const std::string& str = GetCode(ch);
-      memcpy(result.data() + cur, str.c_str(), str.size());
+      std::string_view str = GetCode(ch);
+      memcpy(result.data() + cur, str.data(), str.size());
       cur += str.size();
     }
   }
@@ -895,8 +907,8 @@ int Main(int argc, char* argv[]) {
     int error = 0;
     const std::string& file = args[i];
     if (IsDirectory(file, &error)) {
-      if (!SearchFiles(file, &file_map, std::string(kJsSuffix)) ||
-          !SearchFiles(file, &file_map, std::string(kMjsSuffix))) {
+      if (!SearchFiles(file, &file_map, kJsSuffix) ||
+          !SearchFiles(file, &file_map, kMjsSuffix)) {
         return 1;
       }
     } else if (error != 0) {

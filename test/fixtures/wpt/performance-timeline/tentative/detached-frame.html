@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<head>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
+</body>
+<script>
+promise_test(async () => {
+  performance.clearResourceTimings()
+
+  // Create child iframe.
+  const childFrame = document.createElement('iframe')
+  childFrame.src = "../resources/child-frame.html"
+  document.body.appendChild(childFrame)
+
+  // wait until the child frame's onload event fired
+  await new Promise(r => childFrame.addEventListener("load", r));
+
+  const childWindow = childFrame.contentWindow;
+  // Detach the child frame
+  document.body.removeChild(childFrame);
+
+  const entries = childWindow.performance.getEntries({ includeChildFrames: true });
+  const parent_entries = performance.getEntries({ includeChildFrames: true });
+}, "GetEntries of a detached parent frame does not crash");
+</script>

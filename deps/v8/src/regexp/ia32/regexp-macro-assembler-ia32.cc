@@ -535,13 +535,11 @@ void RegExpMacroAssemblerIA32::CallIsCharacterInRangeArray(
     const ZoneList<CharacterRange>* ranges) {
   PushCallerSavedRegisters();
 
-  static const int kNumArguments = 3;
+  static const int kNumArguments = 2;
   __ PrepareCallCFunction(kNumArguments, ecx);
 
   __ mov(Operand(esp, 0 * kSystemPointerSize), current_character());
   __ mov(Operand(esp, 1 * kSystemPointerSize), GetOrAddRangeArray(ranges));
-  __ mov(Operand(esp, 2 * kSystemPointerSize),
-         Immediate(ExternalReference::isolate_address(isolate())));
 
   {
     // We have a frame (set up in GetCode), but the assembler doesn't know.
@@ -1083,8 +1081,8 @@ Handle<HeapObject> RegExpMacroAssemblerIA32::GetCode(Handle<String> source) {
           .set_empty_source_position_table()
           .Build();
   PROFILE(masm_->isolate(),
-          RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
-  return Handle<HeapObject>::cast(code);
+          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+  return Cast<HeapObject>(code);
 }
 
 void RegExpMacroAssemblerIA32::GoTo(Label* to) { BranchOrBacktrack(to); }
@@ -1254,7 +1252,7 @@ int RegExpMacroAssemblerIA32::CheckStackGuardState(Address* return_address,
                                                    Address re_frame,
                                                    uintptr_t extra_space) {
   Tagged<InstructionStream> re_code =
-      InstructionStream::cast(Tagged<Object>(raw_code));
+      Cast<InstructionStream>(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       frame_entry<int>(re_frame, kStartIndexOffset),

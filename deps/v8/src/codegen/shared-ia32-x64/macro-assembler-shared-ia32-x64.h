@@ -5,6 +5,8 @@
 #ifndef V8_CODEGEN_SHARED_IA32_X64_MACRO_ASSEMBLER_SHARED_IA32_X64_H_
 #define V8_CODEGEN_SHARED_IA32_X64_MACRO_ASSEMBLER_SHARED_IA32_X64_H_
 
+#include <optional>
+
 #include "src/base/macros.h"
 #include "src/codegen/cpu-features.h"
 #include "src/codegen/external-reference.h"
@@ -102,7 +104,7 @@ class V8_EXPORT_PRIVATE SharedMacroAssemblerBase : public MacroAssemblerBase {
   template <typename Dst, typename Arg, typename... Args>
   struct AvxHelper {
     Assembler* assm;
-    base::Optional<CpuFeature> feature = base::nullopt;
+    std::optional<CpuFeature> feature = std::nullopt;
     // Call a method where the AVX version expects the dst argument to be
     // duplicated.
     // E.g. Andps(x, y) -> vandps(x, x, y)
@@ -189,36 +191,36 @@ class V8_EXPORT_PRIVATE SharedMacroAssemblerBase : public MacroAssemblerBase {
             dst, arg, args...);                                        \
   }
 
-#define AVX_OP_SSE3(macro_name, name)                                    \
+#define AVX_OP_SSE3(macro_name, name)                                   \
+  template <typename Dst, typename Arg, typename... Args>               \
+  void macro_name(Dst dst, Arg arg, Args... args) {                     \
+    AvxHelper<Dst, Arg, Args...>{this, std::optional<CpuFeature>(SSE3)} \
+        .template emit<&Assembler::v##name, &Assembler::name>(dst, arg, \
+                                                              args...); \
+  }
+
+#define AVX_OP_SSSE3(macro_name, name)                                   \
   template <typename Dst, typename Arg, typename... Args>                \
   void macro_name(Dst dst, Arg arg, Args... args) {                      \
-    AvxHelper<Dst, Arg, Args...>{this, base::Optional<CpuFeature>(SSE3)} \
+    AvxHelper<Dst, Arg, Args...>{this, std::optional<CpuFeature>(SSSE3)} \
         .template emit<&Assembler::v##name, &Assembler::name>(dst, arg,  \
                                                               args...);  \
   }
 
-#define AVX_OP_SSSE3(macro_name, name)                                    \
+#define AVX_OP_SSE4_1(macro_name, name)                                   \
   template <typename Dst, typename Arg, typename... Args>                 \
   void macro_name(Dst dst, Arg arg, Args... args) {                       \
-    AvxHelper<Dst, Arg, Args...>{this, base::Optional<CpuFeature>(SSSE3)} \
+    AvxHelper<Dst, Arg, Args...>{this, std::optional<CpuFeature>(SSE4_1)} \
         .template emit<&Assembler::v##name, &Assembler::name>(dst, arg,   \
                                                               args...);   \
   }
 
-#define AVX_OP_SSE4_1(macro_name, name)                                    \
-  template <typename Dst, typename Arg, typename... Args>                  \
-  void macro_name(Dst dst, Arg arg, Args... args) {                        \
-    AvxHelper<Dst, Arg, Args...>{this, base::Optional<CpuFeature>(SSE4_1)} \
-        .template emit<&Assembler::v##name, &Assembler::name>(dst, arg,    \
-                                                              args...);    \
-  }
-
-#define AVX_OP_SSE4_2(macro_name, name)                                    \
-  template <typename Dst, typename Arg, typename... Args>                  \
-  void macro_name(Dst dst, Arg arg, Args... args) {                        \
-    AvxHelper<Dst, Arg, Args...>{this, base::Optional<CpuFeature>(SSE4_2)} \
-        .template emit<&Assembler::v##name, &Assembler::name>(dst, arg,    \
-                                                              args...);    \
+#define AVX_OP_SSE4_2(macro_name, name)                                   \
+  template <typename Dst, typename Arg, typename... Args>                 \
+  void macro_name(Dst dst, Arg arg, Args... args) {                       \
+    AvxHelper<Dst, Arg, Args...>{this, std::optional<CpuFeature>(SSE4_2)} \
+        .template emit<&Assembler::v##name, &Assembler::name>(dst, arg,   \
+                                                              args...);   \
   }
 
   // Keep this list sorted by required extension, then instruction name.
@@ -504,7 +506,7 @@ class V8_EXPORT_PRIVATE SharedMacroAssemblerBase : public MacroAssemblerBase {
   void PinsrHelper(Assembler* assm, AvxFn<Op> avx, NoAvxFn<Op> noavx,
                    XMMRegister dst, XMMRegister src1, Op src2, uint8_t imm8,
                    uint32_t* load_pc_offset = nullptr,
-                   base::Optional<CpuFeature> feature = base::nullopt) {
+                   std::optional<CpuFeature> feature = std::nullopt) {
     if (CpuFeatures::IsSupported(AVX)) {
       CpuFeatureScope scope(assm, AVX);
       if (load_pc_offset) *load_pc_offset = assm->pc_offset();
@@ -558,6 +560,11 @@ class V8_EXPORT_PRIVATE SharedMacroAssembler : public SharedMacroAssemblerBase {
               ExternalReference::address_of_float_abs_constant());
   }
 
+  void Absph(XMMRegister dst, XMMRegister src, Register tmp) {
+    FloatUnop(dst, src, tmp, &SharedMacroAssemblerBase::Andps,
+              ExternalReference::address_of_fp16_abs_constant());
+  }
+
   void Negpd(XMMRegister dst, XMMRegister src, Register tmp) {
     FloatUnop(dst, src, tmp, &SharedMacroAssemblerBase::Xorps,
               ExternalReference::address_of_double_neg_constant());
@@ -566,6 +573,11 @@ class V8_EXPORT_PRIVATE SharedMacroAssembler : public SharedMacroAssemblerBase {
   void Negps(XMMRegister dst, XMMRegister src, Register tmp) {
     FloatUnop(dst, src, tmp, &SharedMacroAssemblerBase::Xorps,
               ExternalReference::address_of_float_neg_constant());
+  }
+
+  void Negph(XMMRegister dst, XMMRegister src, Register tmp) {
+    FloatUnop(dst, src, tmp, &SharedMacroAssemblerBase::Xorps,
+              ExternalReference::address_of_fp16_neg_constant());
   }
 #undef FLOAT_UNOP
 
@@ -593,7 +605,7 @@ class V8_EXPORT_PRIVATE SharedMacroAssembler : public SharedMacroAssemblerBase {
     if (CpuFeatures::IsSupported(SSE4_1)) {
       PinsrHelper(this, &Assembler::vpinsrd, &Assembler::pinsrd, dst, src1,
                   src2, imm8, load_pc_offset,
-                  base::Optional<CpuFeature>(SSE4_1));
+                  std::optional<CpuFeature>(SSE4_1));
     } else {
       if (dst != src1) {
         movaps(dst, src1);

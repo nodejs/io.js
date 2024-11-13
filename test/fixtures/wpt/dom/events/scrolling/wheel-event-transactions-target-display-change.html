@@ -1,0 +1,100 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<meta name="variant" content="?include=none"/>
+<meta name="variant" content="?include=contents"/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="/common/subset-tests-by-key.js"></script>
+<script src="scroll_support.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  height: 200vh;
+}
+
+.spacer {
+  width: 100%;
+  height: 25px;
+  padding: 0;
+  margin: 0;
+}
+
+</style>
+<head>
+<body onload=runTest()>
+<div id="initialTarget" class="spacer" style="background: red"></div>
+<div id="firstRootSpacer" class="spacer" style="background: green"></div>
+<div id="secondRootSpacer" class="spacer" style="background: blue"></div>
+</body>
+
+<script>
+
+let variants = [
+  "none",
+  "contents",
+]
+
+function runTest() {
+  async function testDisplayChange(display, t) {
+    await waitForCompositorReady();
+
+    await waitForCompositorCommit();
+
+    let wheelEventTargets = [];
+    let makeInitialTargetNone = false;
+
+    // Modify the initial element the wheel event is targetted at to
+    // display: <variant> once we fire the first wheel event, then log
+    // the subsequent wheel event targets.
+    function makeInitialElementNone(e) {
+      wheelEventTargets.push(e.target);
+      if (!makeInitialTargetNone) {
+        makeInitialTargetNone = true;
+        e.target.style.display = display;
+      }
+    }
+    window.addEventListener("wheel", makeInitialElementNone, {passive: true});
+
+    await waitForCompositorCommit();
+
+    await new test_driver.Actions()
+      .addWheel("wheel1")
+      .scroll(40, 2, 0, 30, {origin: "viewport"})
+      .pause(1)
+      .scroll(40, 2, 0, 30, {origin: "viewport"})
+      .send();
+
+    // TODO(dlrobertson): Use the scrollend event here to wait for the
+    // wheel scroll to finish instead of waitForAnimationEnd().
+    await waitForAnimationEnd(() => { return document.scrollingElement.scrollTop; });
+    await waitForCompositorCommit();
+
+    // The first wheel event should be targetted at the modified element.
+    assert_equals(wheelEventTargets.shift(), initialTarget,
+                  "Initial wheel event is has the modified element as the target");
+
+    wheelEventTargets.forEach((wheelEventTarget, i) => {
+      // TODO(dlrobertson): This assertion is pretty weak, but browsers seem to disagree
+      // on what element the event should target. Find out what the target should be here
+      // and make this assertion more restrictive.
+      assert_not_equals(wheelEventTarget, initialTarget,
+                        "Wheel event at index `" + i + "` targetted the initial element");
+    });
+
+    assert_greater_than(document.scrollingElement.scrollTop, 0, "The document has scrolled");
+  }
+
+  variants.forEach((variant) => {
+    subsetTestByKey(variant, promise_test, t => testDisplayChange(variant, t),
+                    "Modify the initial wheel event target to display:" + variant);
+  });
+}
+</script>
+</html>

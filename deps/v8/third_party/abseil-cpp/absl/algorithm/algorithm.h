@@ -53,8 +53,8 @@ using std::rotate;
 // n = (`last` - `first`) comparisons. A linear search over short containers
 // may be faster than a binary search, even when the container is sorted.
 template <typename InputIterator, typename EqualityComparable>
-bool linear_search(InputIterator first, InputIterator last,
-                   const EqualityComparable& value) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool linear_search(
+    InputIterator first, InputIterator last, const EqualityComparable& value) {
   return std::find(first, last, value) != last;
 }
 

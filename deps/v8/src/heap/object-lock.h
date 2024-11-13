@@ -5,37 +5,21 @@
 #ifndef V8_HEAP_OBJECT_LOCK_H_
 #define V8_HEAP_OBJECT_LOCK_H_
 
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/objects/heap-object.h"
 
 namespace v8::internal {
 
 class ExclusiveObjectLock final {
  public:
-  static void Lock(Tagged<HeapObject> heap_object) {
-    MutablePageMetadata::FromHeapObject(heap_object)
-        ->shared_mutex()
-        ->LockExclusive();
-  }
-  static void Unlock(Tagged<HeapObject> heap_object) {
-    MutablePageMetadata::FromHeapObject(heap_object)
-        ->shared_mutex()
-        ->UnlockExclusive();
-  }
+  V8_INLINE static void Lock(Tagged<HeapObject> heap_object);
+  V8_INLINE static void Unlock(Tagged<HeapObject> heap_object);
 };
 
 class SharedObjectLock final {
  public:
-  static void Lock(Tagged<HeapObject> heap_object) {
-    MutablePageMetadata::FromHeapObject(heap_object)
-        ->shared_mutex()
-        ->LockShared();
-  }
-  static void Unlock(Tagged<HeapObject> heap_object) {
-    MutablePageMetadata::FromHeapObject(heap_object)
-        ->shared_mutex()
-        ->UnlockShared();
-  }
+  V8_INLINE static void Lock(Tagged<HeapObject> heap_object);
+  V8_INLINE static void Unlock(Tagged<HeapObject> heap_object);
 };
 
 template <typename LockType>

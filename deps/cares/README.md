@@ -8,6 +8,14 @@
 [![Bugs](https://sonarcloud.io/api/project_badges/measure?project=c-ares_c-ares&metric=bugs)](https://sonarcloud.io/summary/new_code?id=c-ares_c-ares)
 [![Coverity Scan Status](https://scan.coverity.com/projects/c-ares/badge.svg)](https://scan.coverity.com/projects/c-ares)
 
+- [Overview](#overview)
+- [Code](#code)
+- [Communication](#communication)
+- [Release Keys](#release-keys)
+  - [Verifying signatures](#verifying-signatures)
+- [Features](#features)
+  - [RFCs and Proposals](#supported-rfcs-and-proposals)
+
 ## Overview
 [c-ares](https://c-ares.org) is a modern DNS (stub) resolver library, written in
 C. It provides interfaces for asynchronous queries while trying to abstract the
@@ -74,7 +82,7 @@ to sign releases):
 
 ```bash
 gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 27EDEAF22F3ABCEB50DB9A125CC908FDB71E12C2 # Daniel Stenberg
-gpg --keyserver hkps://keys.openpgp.org --recv-keys DA7D64E4C82C6294CB73A20E22E3D13B5411B7CA     # Brad House
+gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys DA7D64E4C82C6294CB73A20E22E3D13B5411B7CA # Brad House
 ```
 
 ### Verifying signatures
@@ -99,3 +107,52 @@ gpg:          There is no indication that the signature belongs to the owner.
 Primary key fingerprint: 27ED EAF2 2F3A BCEB 50DB  9A12 5CC9 08FD B71E 12C2
 gpg: binary signature, digest algorithm SHA512, key algorithm rsa2048
 ```
+
+## Features
+
+See [Features](FEATURES.md)
+
+### Supported RFCs and Proposals
+- [RFC1035](https://datatracker.ietf.org/doc/html/rfc1035).
+  Initial/Base DNS RFC
+- [RFC2671](https://datatracker.ietf.org/doc/html/rfc2671),
+  [RFC6891](https://datatracker.ietf.org/doc/html/rfc6891).
+  EDNS0 option (meta-RR)
+- [RFC3596](https://datatracker.ietf.org/doc/html/rfc3596).
+  IPv6 Address. `AAAA` Record.
+- [RFC2782](https://datatracker.ietf.org/doc/html/rfc2782).
+  Server Selection. `SRV` Record.
+- [RFC3403](https://datatracker.ietf.org/doc/html/rfc3403).
+  Naming Authority Pointer. `NAPTR` Record.
+- [RFC6698](https://datatracker.ietf.org/doc/html/rfc6698).
+  DNS-Based Authentication of Named Entities (DANE) Transport Layer Security (TLS) Protocol.
+  `TLSA` Record.
+- [RFC9460](https://datatracker.ietf.org/doc/html/rfc9460).
+  General Purpose Service Binding, Service Binding type for use with HTTPS.
+  `SVCB` and `HTTPS` Records.
+- [RFC7553](https://datatracker.ietf.org/doc/html/rfc7553).
+  Uniform Resource Identifier. `URI` Record.
+- [RFC6844](https://datatracker.ietf.org/doc/html/rfc6844).
+  Certification Authority Authorization. `CAA` Record.
+- [RFC2535](https://datatracker.ietf.org/doc/html/rfc2535),
+  [RFC2931](https://datatracker.ietf.org/doc/html/rfc2931).
+  `SIG0` Record. Only basic parser, not full implementation.
+- [RFC7873](https://datatracker.ietf.org/doc/html/rfc7873),
+  [RFC9018](https://datatracker.ietf.org/doc/html/rfc9018).
+  DNS Cookie off-path dns poisoning and amplification mitigation.
+- [draft-vixie-dnsext-dns0x20-00](https://datatracker.ietf.org/doc/html/draft-vixie-dnsext-dns0x20-00).
+  DNS 0x20 query name case randomization to prevent cache poisioning attacks.
+- [RFC7686](https://datatracker.ietf.org/doc/html/rfc7686).
+  Reject queries for `.onion` domain names with `NXDOMAIN`.
+- [RFC2606](https://datatracker.ietf.org/doc/html/rfc2606),
+  [RFC6761](https://datatracker.ietf.org/doc/html/rfc6761).
+  Special case treatment for `localhost`/`.localhost`.
+- [RFC2308](https://datatracker.ietf.org/doc/html/rfc2308),
+  [RFC9520](https://datatracker.ietf.org/doc/html/rfc9520).
+  Negative Caching of DNS Resolution Failures.
+- [RFC6724](https://datatracker.ietf.org/doc/html/rfc6724).
+  IPv6 address sorting as used by `ares_getaddrinfo()`.
+- [RFC7413](https://datatracker.ietf.org/doc/html/rfc7413).
+  TCP FastOpen (TFO) for 0-RTT TCP Connection Resumption.
+- [RFC3986](https://datatracker.ietf.org/doc/html/rfc3986).
+  Uniform Resource Identifier (URI). Used for server configuration.

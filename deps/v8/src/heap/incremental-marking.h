@@ -6,6 +6,7 @@
 #define V8_HEAP_INCREMENTAL_MARKING_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "src/base/functional.h"
 #include "src/base/logging.h"
@@ -15,7 +16,7 @@
 #include "src/heap/heap.h"
 #include "src/heap/incremental-marking-job.h"
 #include "src/heap/mark-compact.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/tasks/cancelable-task.h"
 
 namespace v8 {
@@ -92,13 +93,16 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
     return major_collection_requested_via_stack_guard_;
   }
 
-  bool CanBeStarted() const;
+  // Checks whether incremental marking is safe to be started and whether it
+  // should be started.
+  bool CanAndShouldBeStarted() const;
   void Start(GarbageCollector garbage_collector,
              GarbageCollectionReason gc_reason);
   // Returns true if incremental marking was running and false otherwise.
   bool Stop();
 
   void UpdateMarkingWorklistAfterScavenge();
+  void UpdateExternalPointerTableAfterScavenge();
   void UpdateMarkedBytesAfterScavenge(size_t dead_bytes_in_new_space);
 
   // Performs incremental marking step and finalizes marking if complete.
@@ -139,8 +143,6 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
   uint64_t current_trace_id() const { return current_trace_id_.value(); }
 
  private:
-  class IncrementalMarkingRootMarkingVisitor;
-
   class Observer final : public AllocationObserver {
    public:
     Observer(IncrementalMarking* incremental_marking, intptr_t step_size);
@@ -154,6 +156,9 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
   void StartMarkingMajor();
   void StartMarkingMinor();
 
+  // Checks whether incremental marking is safe to be started.
+  bool CanBeStarted() const;
+
   void StartBlackAllocation();
   void PauseBlackAllocation();
   void FinishBlackAllocation();
@@ -162,9 +167,7 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
   void StopPointerTableBlackAllocation();
 
   void MarkRoots();
-  // Returns true if the function succeeds in transitioning the object
-  // from white to grey.
-  bool WhiteToGreyAndPush(Tagged<HeapObject> obj);
+
   void PublishWriteBarrierWorklists();
 
   // Fetches marked byte counters from the concurrent marker.
@@ -214,7 +217,7 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
                      base::hash<MutablePageMetadata*>>
       background_live_bytes_;
   std::unique_ptr<::heap::base::IncrementalMarkingSchedule> schedule_;
-  base::Optional<uint64_t> current_trace_id_;
+  std::optional<uint64_t> current_trace_id_;
 
   friend class IncrementalMarkingJob;
 };

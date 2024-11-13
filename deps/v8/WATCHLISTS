@@ -73,6 +73,9 @@
     'maglev': {
       'filepath': 'src/maglev/',
     },
+    'compiler': {
+      'filepath': 'src/compiler',
+    },
     'parser': {
       'filepath': 'src/ast/' \
                   '|src/parsing/',
@@ -104,9 +107,6 @@
     'trap-handler': {
       'filepath': 'src/trap-handler/',
     },
-    'tests': {
-      'filepath': 'test/',
-    },
   },
 
   'WATCHLISTS': {
@@ -114,6 +114,9 @@
       'leszeks+watch@chromium.org',
       'verwaest+watch@chromium.org',
       'victorgomes+watch@chromium.org',
+    ],
+    'compiler': [
+      'dmercadier+watch@chromium.org',
     ],
     'snapshot': [
       'jgruber+watch@chromium.org',
@@ -179,9 +182,6 @@
       'clemensb@chromium.org',
       'mark@chromium.org',
       'mseaborn@chromium.org',
-    ],
-    'tests': [
-      'almuthanna+watch@chromium.org',
     ],
   },
 }

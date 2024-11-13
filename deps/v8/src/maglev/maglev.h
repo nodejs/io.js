@@ -12,6 +12,7 @@
 namespace v8 {
 namespace internal {
 
+class BytecodeOffset;
 class Isolate;
 class JSFunction;
 

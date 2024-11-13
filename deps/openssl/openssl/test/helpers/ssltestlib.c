@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -7,8 +7,17 @@
  * https://www.openssl.org/source/license.html
  */
 
+/*
+ * We need access to the deprecated low level ENGINE APIs for legacy purposes
+ * when the deprecated calls are not hidden
+ */
+#ifndef OPENSSL_NO_DEPRECATED_3_0
+# define OPENSSL_SUPPRESS_DEPRECATED
+#endif
+
 #include <string.h>
 
+#include <openssl/engine.h>
 #include "internal/nelem.h"
 #include "ssltestlib.h"
 #include "../testutil.h"
@@ -1181,4 +1190,28 @@ void shutdown_ssl_connection(SSL *serverssl, SSL *clientssl)
     SSL_shutdown(serverssl);
     SSL_free(serverssl);
     SSL_free(clientssl);
+}
+
+ENGINE *load_dasync(void)
+{
+#if !defined(OPENSSL_NO_TLS1_2) && !defined(OPENSSL_NO_DYNAMIC_ENGINE)
+    ENGINE *e;
+
+    if (!TEST_ptr(e = ENGINE_by_id("dasync")))
+        return NULL;
+
+    if (!TEST_true(ENGINE_init(e))) {
+        ENGINE_free(e);
+        return NULL;
+    }
+
+    if (!TEST_true(ENGINE_register_ciphers(e))) {
+        ENGINE_free(e);
+        return NULL;
+    }
+
+    return e;
+#else
+    return NULL;
+#endif
 }

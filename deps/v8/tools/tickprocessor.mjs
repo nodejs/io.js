@@ -117,7 +117,7 @@ class CppEntriesProvider {
       const funcInfo = this.parseNextLine();
       if (funcInfo === null) continue;
       if (funcInfo === false) break;
-      if (funcInfo.start < libStart - libASLRSlide &&
+      if (funcInfo.start < libStart &&
         funcInfo.start < libEnd - libStart) {
         funcInfo.start += libStart;
       } else {
@@ -173,7 +173,7 @@ class CppEntriesProvider {
 
 export class LinuxCppEntriesProvider extends CppEntriesProvider {
   constructor(
-        nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary,
+        nmExec, objdumpExec, readelfExec, targetRootFS, apkEmbeddedLibrary,
         useBigIntAddresses=false) {
     super(useBigIntAddresses);
     this.symbols = [];
@@ -183,6 +183,7 @@ export class LinuxCppEntriesProvider extends CppEntriesProvider {
     this.parsePos = 0;
     this.nmExec = nmExec;
     this.objdumpExec = objdumpExec;
+    this.readelfExec = readelfExec;
     this.targetRootFS = targetRootFS;
     this.apkEmbeddedLibrary = apkEmbeddedLibrary;
     this.FUNC_RE = /^([0-9a-fA-F]{8,16}) ([0-9a-fA-F]{8,16} )?[tTwW] (.*)$/;
@@ -213,6 +214,24 @@ export class LinuxCppEntriesProvider extends CppEntriesProvider {
         os.system(this.nmExec, ['-C', '-n', '-S', libName], -1, -1),
         os.system(this.nmExec, ['-C', '-n', '-S', '-D', libName], -1, -1)
       ];
+
+      try {
+        // Try to find separate debug symbols for the library in
+        // /usr/lib/debug/.build-id, getting the build-id from the binary
+        // notes using readelf.
+        const binaryNotes = os.system(this.readelfExec, ['-n', libName], -1, -1)
+        const buildId = /Build ID: ([a-zA-Z0-9]+)/.exec(binaryNotes)?.[1]?.toLowerCase() ?? null;
+
+        if (buildId) {
+          const debugLibName = `/usr/lib/debug/.build-id/${buildId.slice(0, 2)}/${buildId.slice(2)}.debug`;
+          this.symbols.push(
+            os.system(this.nmExec, ['-C', '-n', '-S', debugLibName], -1, -1),
+            os.system(this.nmExec, ['-C', '-n', '-S', '-D', debugLibName], -1, -1)
+          );
+        }
+      } catch {
+        // Ignore errors.
+      }
 
       const objdumpOutput = os.system(this.objdumpExec, ['-h', libName], -1, -1);
       for (const line of objdumpOutput.split('\n')) {
@@ -261,10 +280,10 @@ export class RemoteLinuxCppEntriesProvider extends LinuxCppEntriesProvider {
 
 export class MacOSCppEntriesProvider extends LinuxCppEntriesProvider {
   constructor(
-        nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary,
+        nmExec, objdumpExec, readelfExec, targetRootFS, apkEmbeddedLibrary,
         useBigIntAddresses=false) {
     super(
-        nmExec, objdumpExec, targetRootFS, apkEmbeddedLibrary,
+        nmExec, objdumpExec, readelfExec, targetRootFS, apkEmbeddedLibrary,
         useBigIntAddresses);
     // Note an empty group. It is required, as LinuxCppEntriesProvider expects 3 groups.
     this.FUNC_RE = /^([0-9a-fA-F]{8,16})() (.*)$/;
@@ -303,8 +322,8 @@ export class WindowsCppEntriesProvider extends CppEntriesProvider {
     /^\s+0000:00000000\s+___ImageBase\s+([0-9a-fA-F]{8}).*$/;
 
   constructor(
-        _ignored_nmExec, _ignored_objdumpExec, targetRootFS,
-        _ignored_apkEmbeddedLibrary, useBigIntAddresses) {
+        _ignored_nmExec, _ignored_objdumpExec, _ignored_readelfExec,
+        targetRootFS, _ignored_apkEmbeddedLibrary, useBigIntAddresses) {
     super(useBigIntAddresses);
     this.targetRootFS = targetRootFS;
     this.symbols = '';
@@ -418,6 +437,8 @@ export class ArgumentsProcessor extends BaseArgumentsProcessor {
         'Specify the \'nm\' executable to use (e.g. --nm=/my_dir/nm)'],
       '--objdump': ['objdump', 'objdump',
         'Specify the \'objdump\' executable to use (e.g. --objdump=/my_dir/objdump)'],
+      '--readelf': ['readelf', 'readelf',
+        'Specify the \'readelf\' executable to use (e.g. --readelf=/my_dir/readelf)'],
       '--target': ['targetRootFS', '',
         'Specify the target root directory for cross environment'],
       '--apk-embedded-library': ['apkEmbeddedLibrary', '',
@@ -468,6 +489,7 @@ export class ArgumentsProcessor extends BaseArgumentsProcessor {
       targetRootFS: '',
       nm: 'nm',
       objdump: 'objdump',
+      readelf: 'readelf',
       range: 'auto,auto',
       distortion: 0,
       timedRange: false,
@@ -491,7 +513,7 @@ export class TickProcessor extends LogReader {
   static fromParams(params, entriesProvider) {
     if (entriesProvider == undefined) {
       entriesProvider = new this.EntriesProvider[params.platform](
-          params.nm, params.objdump, params.targetRootFS,
+          params.nm, params.objdump, params.readelf, params.targetRootFS,
           params.apkEmbeddedLibrary);
     }
     return new TickProcessor(
@@ -740,7 +762,7 @@ export class TickProcessor extends LogReader {
   }
 
   processSharedLibrary(name, startAddr, endAddr, aslrSlide) {
-    const entry = this.profile_.addLibrary(name, startAddr, endAddr, aslrSlide);
+    const entry = this.profile_.addLibrary(name, startAddr, endAddr);
     this.setCodeType(entry.getName(), 'SHARED_LIB');
     this.cppEntriesProvider_.parseVmSymbols(
       name, startAddr, endAddr, aslrSlide, (fName, fStart, fEnd) => {

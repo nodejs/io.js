@@ -87,7 +87,7 @@ class V8_EXPORT_PRIVATE HandlerTable {
   // Lookup handler in a table based on ranges. The {pc_offset} is an offset to
   // the start of the potentially throwing instruction (using return addresses
   // for this value would be invalid).
-  int LookupRange(int pc_offset, int* data, CatchPrediction* prediction);
+  int LookupHandlerIndexForRange(int pc_offset) const;
 
   // Lookup handler in a table based on return addresses.
   int LookupReturn(int pc_offset);
@@ -101,12 +101,17 @@ class V8_EXPORT_PRIVATE HandlerTable {
   void HandlerTableReturnPrint(std::ostream& os);
 #endif
 
- private:
+  bool HandlerWasUsed(int index) const;
+  void MarkHandlerUsed(int index);
   // Getters for handler table based on ranges.
   CatchPrediction GetRangePrediction(int index) const;
 
+  static const int kNoHandlerFound = -1;
+
+ private:
   // Gets entry size based on mode.
   static int EntrySizeFromMode(EncodingMode mode);
+  int GetRangeHandlerBitfield(int index) const;
 
   // Getters for handler table based on return addresses.
   int GetReturnOffset(int index) const;
@@ -142,7 +147,11 @@ class V8_EXPORT_PRIVATE HandlerTable {
 
   // Encoding of the {handler} field.
   using HandlerPredictionField = base::BitField<CatchPrediction, 0, 3>;
-  using HandlerOffsetField = base::BitField<int, 3, 29>;
+  using HandlerWasUsedField = HandlerPredictionField::Next<bool, 1>;
+  using HandlerOffsetField = HandlerWasUsedField::Next<int, 28>;
+
+ public:
+  static const int kLazyDeopt = HandlerOffsetField::kMax;
 };
 
 }  // namespace internal

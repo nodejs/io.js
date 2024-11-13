@@ -46,7 +46,7 @@ Handle<WasmInstanceObject> WasmModuleDebug::GetFirstWasmInstance() {
     Tagged<MaybeObject> maybe_instance = weak_instance_list->Get(0);
     if (maybe_instance.IsWeak()) {
       Handle<WasmInstanceObject> instance(
-          WasmInstanceObject::cast(maybe_instance.GetHeapObjectAssumeWeak()),
+          Cast<WasmInstanceObject>(maybe_instance.GetHeapObjectAssumeWeak()),
           GetIsolate());
       return instance;
     }
@@ -111,7 +111,7 @@ std::vector<wasm_addr_t> WasmModuleDebug::GetCallStack(
             FrameSummary::JavaScriptFrameSummary const& java_script =
                 summary.AsJavaScript();
             offset = java_script.code_offset();
-            script = Handle<Script>::cast(java_script.script());
+            script = Cast<Script>(java_script.script());
           } else if (summary.IsWasm()) {
             FrameSummary::WasmFrameSummary const& wasm = summary.AsWasm();
             offset = GetWasmFunctionOffset(wasm.wasm_instance()->module(),
@@ -166,7 +166,11 @@ std::vector<FrameSummary> WasmModuleDebug::FindWasmFrame(
         DCHECK_GT(frame_count, 0);
 
         if (frame_count > *frame_index) {
+#if V8_ENABLE_DRUMBRAKE
+          if (frame_it->is_wasm() && !frame_it->is_wasm_interpreter_entry())
+#else   // V8_ENABLE_DRUMBRAKE
           if (frame_it->is_wasm())
+#endif  // V8_ENABLE_DRUMBRAKE
             return frames;
           else
             return {};

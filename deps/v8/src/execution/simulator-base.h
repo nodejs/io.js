@@ -7,10 +7,11 @@
 
 #include <type_traits>
 
-#if V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64
+#if V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64 || \
+    V8_TARGET_ARCH_RISCV64
 #include "include/v8-fast-api-calls.h"
 #endif  // V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || \
-        // V8_TARGET_ARCH_LOONG64
+        // V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV64
 #include "src/base/hashmap.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
@@ -76,7 +77,8 @@ class SimulatorBase {
     return Tagged<Object>(ret);
   }
 
-#if V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64
+#if V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64 || \
+    V8_TARGET_ARCH_RISCV64
   template <typename T>
   static typename std::enable_if<std::is_same<T, v8::AnyCType>::value, T>::type
   ConvertReturn(intptr_t ret) {
@@ -85,7 +87,7 @@ class SimulatorBase {
     return result;
   }
 #endif  // V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_MIPS64 || \
-        // V8_TARGET_ARCH_LOONG64
+        // V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV64
 
   // Convert back void return type (i.e. no return).
   template <typename T>

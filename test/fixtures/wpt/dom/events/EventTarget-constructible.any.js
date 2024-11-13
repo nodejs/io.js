@@ -24,6 +24,23 @@ test(() => {
 }, "A constructed EventTarget can be used as expected");
 
 test(() => {
+  const target = new EventTarget();
+  const event = new Event("foo");
+
+  function listener(e) {
+    assert_equals(e, event);
+    assert_equals(e.target, target);
+    assert_equals(e.currentTarget, target);
+    assert_array_equals(e.composedPath(), [target]);
+  }
+  target.addEventListener("foo", listener, { once: true });
+  target.dispatchEvent(event);
+  assert_equals(event.target, target);
+  assert_equals(event.currentTarget, null);
+  assert_array_equals(event.composedPath(), []);
+}, "A constructed EventTarget implements dispatch correctly");
+
+test(() => {
   class NicerEventTarget extends EventTarget {
     on(...args) {
       this.addEventListener(...args);

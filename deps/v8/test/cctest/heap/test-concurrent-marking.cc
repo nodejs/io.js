@@ -25,7 +25,7 @@ TEST(ConcurrentMarkingMarkedBytes) {
   // Store array in Global such that it is part of the root set when
   // starting incremental marking.
   v8::Global<Value> global_root(CcTest::isolate(),
-                                Utils::ToLocal(Handle<Object>::cast(root)));
+                                Utils::ToLocal(Cast<Object>(root)));
 
   heap::SimulateIncrementalMarking(heap, false);
   // Ensure that objects are published to the global marking worklist such that

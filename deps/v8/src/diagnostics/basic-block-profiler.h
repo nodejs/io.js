@@ -25,7 +25,8 @@ class BasicBlockProfilerData {
  public:
   explicit BasicBlockProfilerData(size_t n_blocks);
   V8_EXPORT_PRIVATE BasicBlockProfilerData(
-      Handle<OnHeapBasicBlockProfilerData> js_heap_data, Isolate* isolate);
+      DirectHandle<OnHeapBasicBlockProfilerData> js_heap_data,
+      Isolate* isolate);
   V8_EXPORT_PRIVATE BasicBlockProfilerData(
       Tagged<OnHeapBasicBlockProfilerData> js_heap_data);
 

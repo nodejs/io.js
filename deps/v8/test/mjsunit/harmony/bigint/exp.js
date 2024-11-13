@@ -50,3 +50,7 @@ assertEquals(-243n, (-3n) ** 5n);
 
 assertThrows(() => 3n ** -2n, RangeError);  // Negative exponent.
 assertThrows(() => 2n ** (1024n ** 4n), RangeError);  // Too big.
+
+// Mixed types
+assertThrows(() => 1n ** 1, TypeError);
+assertThrows(() => 1 ** 1n, TypeError);

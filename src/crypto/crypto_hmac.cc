@@ -18,7 +18,7 @@ using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
 using v8::HandleScope;
 using v8::Isolate;
-using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
@@ -103,7 +103,7 @@ void Hmac::HmacUpdate(const FunctionCallbackInfo<Value>& args) {
   Decode<Hmac>(args, [](Hmac* hmac, const FunctionCallbackInfo<Value>& args,
                         const char* data, size_t size) {
     Environment* env = Environment::GetCurrent(args);
-    if (UNLIKELY(size > INT_MAX))
+    if (size > INT_MAX) [[unlikely]]
       return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
     bool r = hmac->HmacUpdate(data, size);
     args.GetReturnValue().Set(r);
@@ -162,7 +162,7 @@ HmacConfig& HmacConfig::operator=(HmacConfig&& other) noexcept {
 }
 
 void HmacConfig::MemoryInfo(MemoryTracker* tracker) const {
-  tracker->TrackField("key", key.get());
+  tracker->TrackField("key", key);
   // If the job is sync, then the HmacConfig does not own the data
   if (job_mode == kCryptoJobAsync) {
     tracker->TrackFieldWithSize("data", data.size());
@@ -170,7 +170,7 @@ void HmacConfig::MemoryInfo(MemoryTracker* tracker) const {
   }
 }
 
-Maybe<bool> HmacTraits::AdditionalConfig(
+Maybe<void> HmacTraits::AdditionalConfig(
     CryptoJobMode mode,
     const FunctionCallbackInfo<Value>& args,
     unsigned int offset,
@@ -190,17 +190,17 @@ Maybe<bool> HmacTraits::AdditionalConfig(
   params->digest = EVP_get_digestbyname(*digest);
   if (params->digest == nullptr) {
     THROW_ERR_CRYPTO_INVALID_DIGEST(env, "Invalid digest: %s", *digest);
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
   KeyObjectHandle* key;
-  ASSIGN_OR_RETURN_UNWRAP(&key, args[offset + 2], Nothing<bool>());
-  params->key = key->Data();
+  ASSIGN_OR_RETURN_UNWRAP(&key, args[offset + 2], Nothing<void>());
+  params->key = key->Data().addRef();
 
   ArrayBufferOrViewContents<char> data(args[offset + 3]);
-  if (UNLIKELY(!data.CheckSizeInt32())) {
+  if (!data.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "data is too big");
-    return Nothing<bool>();
+    return Nothing<void>();
   }
   params->data = mode == kCryptoJobAsync
       ? data.ToCopy()
@@ -208,16 +208,16 @@ Maybe<bool> HmacTraits::AdditionalConfig(
 
   if (!args[offset + 4]->IsUndefined()) {
     ArrayBufferOrViewContents<char> signature(args[offset + 4]);
-    if (UNLIKELY(!signature.CheckSizeInt32())) {
+    if (!signature.CheckSizeInt32()) [[unlikely]] {
       THROW_ERR_OUT_OF_RANGE(env, "signature is too big");
-      return Nothing<bool>();
+      return Nothing<void>();
     }
     params->signature = mode == kCryptoJobAsync
         ? signature.ToCopy()
         : signature.ToByteSource();
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
 bool HmacTraits::DeriveBits(
@@ -226,13 +226,11 @@ bool HmacTraits::DeriveBits(
     ByteSource* out) {
   HMACCtxPointer ctx(HMAC_CTX_new());
 
-  if (!ctx ||
-      !HMAC_Init_ex(
-          ctx.get(),
-          params.key->GetSymmetricKey(),
-          params.key->GetSymmetricKeySize(),
-          params.digest,
-          nullptr)) {
+  if (!ctx || !HMAC_Init_ex(ctx.get(),
+                            params.key.GetSymmetricKey(),
+                            params.key.GetSymmetricKeySize(),
+                            params.digest,
+                            nullptr)) {
     return false;
   }
 
@@ -255,25 +253,19 @@ bool HmacTraits::DeriveBits(
   return true;
 }
 
-Maybe<bool> HmacTraits::EncodeOutput(
-    Environment* env,
-    const HmacConfig& params,
-    ByteSource* out,
-    Local<Value>* result) {
+MaybeLocal<Value> HmacTraits::EncodeOutput(Environment* env,
+                                           const HmacConfig& params,
+                                           ByteSource* out) {
   switch (params.mode) {
     case SignConfiguration::kSign:
-      *result = out->ToArrayBuffer(env);
-      break;
+      return out->ToArrayBuffer(env);
     case SignConfiguration::kVerify:
-      *result = Boolean::New(
+      return Boolean::New(
           env->isolate(),
           out->size() > 0 && out->size() == params.signature.size() &&
               memcmp(out->data(), params.signature.data(), out->size()) == 0);
-      break;
-    default:
-      UNREACHABLE();
   }
-  return Just(!result->IsEmpty());
+  UNREACHABLE();
 }
 
 }  // namespace crypto

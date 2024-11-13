@@ -700,23 +700,29 @@ local z_word_t crc_word_big(z_word_t data) {
 /* ========================================================================= */
 unsigned long ZEXPORT crc32_z(unsigned long crc, const unsigned char FAR *buf,
                               z_size_t len) {
+
+    /* If no optimizations are enabled, do it as canonical zlib. */
+#if !defined(CRC32_SIMD_SSE42_PCLMUL) && !defined(CRC32_ARMV8_CRC32) && \
+    !defined(RISCV_RVV) && !defined(CRC32_SIMD_AVX512_PCLMUL)
+    if (buf == Z_NULL) {
+        return 0UL;
+    }
+#else
     /*
      * zlib convention is to call crc32(0, NULL, 0); before making
      * calls to crc32(). So this is a good, early (and infrequent)
      * place to cache CPU features if needed for those later, more
      * interesting crc32() calls.
      */
-#if defined(CRC32_SIMD_SSE42_PCLMUL) || defined(CRC32_ARMV8_CRC32)
-    /*
-     * Since this routine can be freely used, check CPU features here.
-     */
     if (buf == Z_NULL) {
-        if (!len) /* Assume user is calling crc32(0, NULL, 0); */
+        if (!len)
             cpu_check_features();
         return 0UL;
     }
-
 #endif
+    /* If AVX-512 is enabled, we will use it for longer inputs and fallback
+     * to SSE4.2 and eventually the portable implementation to handle the tail.
+     */
 #if defined(CRC32_SIMD_AVX512_PCLMUL)
     if (x86_cpu_enable_avx512 && len >= Z_CRC32_AVX512_MINIMUM_LENGTH) {
         /* crc32 64-byte chunks */
@@ -729,7 +735,8 @@ unsigned long ZEXPORT crc32_z(unsigned long crc, const unsigned char FAR *buf,
         /* Fall into the default crc32 for the remaining data. */
         buf += chunk_size;
     }
-#elif defined(CRC32_SIMD_SSE42_PCLMUL)
+#endif
+#if defined(CRC32_SIMD_SSE42_PCLMUL)
     if (x86_cpu_enable_simd && len >= Z_CRC32_SSE42_MINIMUM_LENGTH) {
         /* crc32 16-byte chunks */
         z_size_t chunk_size = len & ~Z_CRC32_SSE42_CHUNKSIZE_MASK;
@@ -757,11 +764,8 @@ unsigned long ZEXPORT crc32_z(unsigned long crc, const unsigned char FAR *buf,
             buf += chunk_size;
         }
 #endif
-        return armv8_crc32_little(buf, len, crc); /* Armv8@32bit or tail. */
-    }
-#else
-    if (buf == Z_NULL) {
-        return 0UL;
+        /* This is scalar and self contained, used on Armv8@32bit or tail. */
+        return armv8_crc32_little(buf, len, crc);
     }
 #endif /* CRC32_SIMD */
 
@@ -1085,7 +1089,8 @@ unsigned long ZEXPORT crc32(unsigned long crc, const unsigned char FAR *buf,
     /* Some bots compile with optimizations disabled, others will emulate
      * ARM on x86 and other weird combinations.
      */
-#if defined(CRC32_SIMD_SSE42_PCLMUL) || defined(CRC32_ARMV8_CRC32)
+#if defined(CRC32_SIMD_SSE42_PCLMUL) || defined(CRC32_ARMV8_CRC32) \
+    || defined(RISCV_RVV)
     /* We got to verify CPU features, so exploit the common usage pattern
      * of calling this function with Z_NULL for an initial valid crc value.
      * This allows to cache the result of the feature check and avoid extraneous
@@ -1163,6 +1168,11 @@ ZLIB_INTERNAL void crc_reset(deflate_state *const s)
 
 ZLIB_INTERNAL void crc_finalize(deflate_state *const s)
 {
+#ifdef QAT_COMPRESSION_ENABLED
+    if (s->qat_s) {
+        return;
+    }
+#endif
 #ifdef CRC32_SIMD_SSE42_PCLMUL
     if (x86_cpu_enable_simd)
         s->strm->adler = crc_fold_512to32(s);

@@ -111,6 +111,30 @@ std::vector<Property> GetPropertiesAsVector(size_t num_properties,
   return result;
 }
 
+HRESULT GetMetadataPointerTableAddress(WRL::ComPtr<IDebugHostContext> context,
+                                       uintptr_t* result) {
+  WRL::ComPtr<IDebugHostType> memory_chunk_type =
+      Extension::Current()->GetTypeFromV8Module(context,
+                                                u"v8::internal::MemoryChunk");
+  if (memory_chunk_type == nullptr) return E_FAIL;
+  WRL::ComPtr<IModelObject> memory_chunk_instance;
+  // This is sort of awkward, but the most ergonomic way to get a static field
+  // is by creating a typed object at a made-up address and then getting its
+  // field. Essentially this is doing:
+  //   ((MemoryChunk*)0)->metadata_pointer_table_
+  RETURN_IF_FAIL(sp_data_model_manager->CreateTypedObject(
+      context.Get(), Location{0}, memory_chunk_type.Get(),
+      &memory_chunk_instance));
+  WRL::ComPtr<IModelObject> metadata_pointer_table;
+  RETURN_IF_FAIL(memory_chunk_instance->GetRawValue(
+      SymbolKind::SymbolField, L"metadata_pointer_table_", RawSearchNone,
+      &metadata_pointer_table));
+  Location location;
+  RETURN_IF_FAIL(metadata_pointer_table->GetLocation(&location));
+  *result = location.Offset;
+  return S_OK;
+}
+
 V8HeapObject GetHeapObject(WRL::ComPtr<IDebugHostContext> sp_context,
                            uint64_t tagged_ptr, uint64_t referring_pointer,
                            const char* type_name, bool is_compressed) {
@@ -119,11 +143,16 @@ V8HeapObject GetHeapObject(WRL::ComPtr<IDebugHostContext> sp_context,
   V8HeapObject obj;
   MemReaderScope reader_scope(sp_context);
 
-  d::HeapAddresses heap_addresses = {0, 0, 0, 0};
+  d::HeapAddresses heap_addresses = {0, 0, 0, 0, 0};
   // TODO ideally we'd provide real heap page pointers. For now, just testing
   // decompression based on the pointer to wherever we found this value,
   // which is likely (though not guaranteed) to be a heap pointer itself.
   heap_addresses.any_heap_pointer = referring_pointer;
+
+  // Ignore the return value; there is nothing useful we can do in case of
+  // failure.
+  GetMetadataPointerTableAddress(sp_context,
+                                 &heap_addresses.metadata_pointer_table);
 
   auto props = d::GetObjectProperties(tagged_ptr, reader_scope.GetReader(),
                                       heap_addresses, type_name);

@@ -10,11 +10,14 @@
   width: 200px;
   height: 200px;
   overflow: scroll;
+  position: absolute;
+  left: 150px;
+  top: 150px;
 }
 
 #innerDiv {
-  width: 400px;
-  height: 400px;
+  width: 250px;
+  height: 250px;
 }
 </style>
 
@@ -45,7 +48,7 @@ function runTest() {
     await waitForCompositorCommit();
 
     // Do a horizontal scroll and wait for overscroll event.
-    await touchScrollInTarget(300, scrolling_div , 'right');
+    await touchScrollInTarget(100, scrolling_div , 'right');
     await waitFor(() => { return overscrolled_x_delta > 0; },
         'Scroller did not receive overscroll event after horizontal scroll.');
     assert_equals(scrolling_div.scrollWidth - scrolling_div.scrollLeft,
@@ -55,7 +58,7 @@ function runTest() {
     overscrolled_y_delta = 0;
 
     // Do a vertical scroll and wait for overscroll event.
-    await touchScrollInTarget(300, scrolling_div, 'down');
+    await touchScrollInTarget(100, scrolling_div, 'down');
     await waitFor(() => { return overscrolled_y_delta > 0; },
         'Scroller did not receive overscroll event after vertical scroll.');
     assert_equals(scrolling_div.scrollHeight - scrolling_div.scrollTop,

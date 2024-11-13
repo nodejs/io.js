@@ -33,7 +33,8 @@ void BindingData::SlowGetLibuvNow(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(Number::New(args.GetIsolate(), now));
 }
 
-double BindingData::FastGetLibuvNow(Local<Object> receiver) {
+double BindingData::FastGetLibuvNow(Local<Object> unused,
+                                    Local<Object> receiver) {
   return GetLibuvNowImpl(FromJSObject<BindingData>(receiver));
 }
 
@@ -47,7 +48,9 @@ void BindingData::SlowScheduleTimer(const FunctionCallbackInfo<Value>& args) {
   ScheduleTimerImpl(Realm::GetBindingData<BindingData>(args), duration);
 }
 
-void BindingData::FastScheduleTimer(Local<Object> receiver, int64_t duration) {
+void BindingData::FastScheduleTimer(Local<Object> unused,
+                                    Local<Object> receiver,
+                                    int64_t duration) {
   ScheduleTimerImpl(FromJSObject<BindingData>(receiver), duration);
 }
 
@@ -61,7 +64,9 @@ void BindingData::SlowToggleTimerRef(
                      args[0]->IsTrue());
 }
 
-void BindingData::FastToggleTimerRef(Local<Object> receiver, bool ref) {
+void BindingData::FastToggleTimerRef(Local<Object> unused,
+                                     Local<Object> receiver,
+                                     bool ref) {
   ToggleTimerRefImpl(FromJSObject<BindingData>(receiver), ref);
 }
 
@@ -75,7 +80,9 @@ void BindingData::SlowToggleImmediateRef(
                          args[0]->IsTrue());
 }
 
-void BindingData::FastToggleImmediateRef(Local<Object> receiver, bool ref) {
+void BindingData::FastToggleImmediateRef(Local<Object> unused,
+                                         Local<Object> receiver,
+                                         bool ref) {
   ToggleImmediateRefImpl(FromJSObject<BindingData>(receiver), ref);
 }
 

@@ -529,13 +529,13 @@ class WasmGraphBuildingInterface {
   }
 
   void TableGet(FullDecoder* decoder, const Value& index, Value* result,
-                const IndexImmediate& imm) {
+                const TableIndexImmediate& imm) {
     SetAndTypeNode(
         result, builder_->TableGet(imm.index, index.node, decoder->position()));
   }
 
   void TableSet(FullDecoder* decoder, const Value& index, const Value& value,
-                const IndexImmediate& imm) {
+                const TableIndexImmediate& imm) {
     builder_->TableSet(imm.index, index.node, value.node, decoder->position());
   }
 
@@ -765,12 +765,12 @@ class WasmGraphBuildingInterface {
       // JS String Builtins proposal.
       case WKI::kStringCast:
         result = ExternRefToString(decoder, args[0]);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       case WKI::kStringTest: {
         WasmTypeCheckConfig config{args[0].type, kWasmRefExternString};
         result = builder_->RefTestAbstract(args[0].node, config);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringCharCodeAt: {
@@ -781,7 +781,7 @@ class WasmGraphBuildingInterface {
         result = builder_->StringViewWtf16GetCodeUnit(
             view, compiler::kWithoutNullCheck, args[1].node,
             decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringCodePointAt: {
@@ -791,7 +791,7 @@ class WasmGraphBuildingInterface {
         builder_->SetType(view, kWasmRefExternString);
         result = builder_->StringCodePointAt(view, compiler::kWithoutNullCheck,
                                              args[1].node, decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringCompare: {
@@ -800,7 +800,7 @@ class WasmGraphBuildingInterface {
         result = builder_->StringCompare(a_string, compiler::kWithoutNullCheck,
                                          b_string, compiler::kWithoutNullCheck,
                                          decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringConcat: {
@@ -810,7 +810,7 @@ class WasmGraphBuildingInterface {
             head_string, compiler::kWithoutNullCheck, tail_string,
             compiler::kWithoutNullCheck, decoder->position());
         builder_->SetType(result, kWasmRefExternString);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringEquals: {
@@ -821,25 +821,25 @@ class WasmGraphBuildingInterface {
         TFNode* b_string = ExternRefToString(decoder, args[1], kNullSucceeds);
         result = builder_->StringEqual(a_string, args[0].type, b_string,
                                        args[1].type, decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringFromCharCode:
         result = builder_->StringFromCharCode(args[0].node);
         builder_->SetType(result, kWasmRefExternString);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       case WKI::kStringFromCodePoint:
         result = builder_->StringFromCodePoint(args[0].node);
         builder_->SetType(result, kWasmRefExternString);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       case WKI::kStringFromWtf16Array:
         result = builder_->StringNewWtf16Array(
             args[0].node, NullCheckFor(args[0].type), args[1].node,
             args[2].node, decoder->position());
         builder_->SetType(result, kWasmRefExternString);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       case WKI::kStringFromUtf8Array:
         result = builder_->StringNewWtf8Array(
@@ -847,7 +847,7 @@ class WasmGraphBuildingInterface {
             NullCheckFor(args[0].type), args[1].node, args[2].node,
             decoder->position());
         builder_->SetType(result, kWasmRefExternString);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       case WKI::kStringIntoUtf8Array: {
         TFNode* string = ExternRefToString(decoder, args[0]);
@@ -855,7 +855,7 @@ class WasmGraphBuildingInterface {
             unibrow::Utf8Variant::kLossyUtf8, string,
             compiler::kWithoutNullCheck, args[1].node,
             NullCheckFor(args[1].type), args[2].node, decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringToUtf8Array: {
@@ -863,21 +863,21 @@ class WasmGraphBuildingInterface {
         result = builder_->StringToUtf8Array(
             string, compiler::kWithoutNullCheck, decoder->position());
         builder_->SetType(result, returns[0].type);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringLength: {
         TFNode* string = ExternRefToString(decoder, args[0]);
         result = builder_->StringMeasureWtf16(
             string, compiler::kWithoutNullCheck, decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringMeasureUtf8: {
         TFNode* string = ExternRefToString(decoder, args[0]);
         result = builder_->StringMeasureWtf8(string, compiler::kWithNullCheck,
                                              decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringSubstring: {
@@ -889,7 +889,7 @@ class WasmGraphBuildingInterface {
             view, compiler::kWithoutNullCheck, args[1].node, args[2].node,
             decoder->position());
         builder_->SetType(result, kWasmRefExternString);
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
       case WKI::kStringToWtf16Array: {
@@ -897,7 +897,7 @@ class WasmGraphBuildingInterface {
         result = builder_->StringEncodeWtf16Array(
             string, compiler::kWithoutNullCheck, args[1].node,
             NullCheckFor(args[1].type), args[2].node, decoder->position());
-        decoder->detected_->Add(kFeature_imported_strings);
+        decoder->detected_->add_imported_strings();
         break;
       }
 
@@ -911,13 +911,13 @@ class WasmGraphBuildingInterface {
       case WKI::kParseFloat:
         result = builder_->WellKnown_ParseFloat(args[0].node,
                                                 NullCheckFor(args[0].type));
-        decoder->detected_->Add(kFeature_stringref);
+        decoder->detected_->add_stringref();
         break;
       case WKI::kStringIndexOf:
         result = builder_->WellKnown_StringIndexOf(
             args[0].node, args[1].node, args[2].node,
             NullCheckFor(args[0].type), NullCheckFor(args[1].type));
-        decoder->detected_->Add(kFeature_stringref);
+        decoder->detected_->add_stringref();
         break;
       case WKI::kStringToLocaleLowerCaseStringref:
         // Temporarily ignored because of bugs (v8:13977, v8:13985).
@@ -925,12 +925,12 @@ class WasmGraphBuildingInterface {
         return false;
         // result = builder_->WellKnown_StringToLocaleLowerCaseStringref(
         //     args[0].node, args[1].node, NullCheckFor(args[0].type));
-        // decoder->detected_->Add(kFeature_stringref);
+        // decoder->detected_->add_stringref();
         // break;
       case WKI::kStringToLowerCaseStringref:
         result = builder_->WellKnown_StringToLowerCaseStringref(
             args[0].node, NullCheckFor(args[0].type));
-        decoder->detected_->Add(kFeature_stringref);
+        decoder->detected_->add_stringref();
         break;
         // Not implementing for Turbofan.
       case WKI::kStringIndexOfImported:
@@ -1206,8 +1206,6 @@ class WasmGraphBuildingInterface {
 
   void BrOnNonNull(FullDecoder* decoder, const Value& ref_object, Value* result,
                    uint32_t depth, bool /* drop_null_on_fallthrough */) {
-    result->node =
-        builder_->TypeGuard(ref_object.node, ref_object.type.AsNonNull());
     SsaEnv* false_env = ssa_env_;
     SsaEnv* true_env = Split(decoder->zone(), false_env);
     false_env->SetNotMerged();
@@ -1215,6 +1213,8 @@ class WasmGraphBuildingInterface {
         builder_->BrOnNull(ref_object.node, ref_object.type);
     builder_->SetControl(false_env->control);
     ScopedSsaEnv scoped_env(this, true_env);
+    // Make sure the TypeGuard has the right Control dependency.
+    SetAndTypeNode(result, builder_->TypeGuard(ref_object.node, result->type));
     BrOrRet(decoder, depth);
   }
 
@@ -1420,9 +1420,58 @@ class WasmGraphBuildingInterface {
     base::Vector<Value> values_without_exnref =
         catch_case.kind == kCatch ? values
                                   : values.SubVector(0, values.size() - 1);
-    CatchAndUnpackWasmException(decoder, block, exception,
-                                catch_case.maybe_tag.tag_imm.tag, caught_tag,
-                                expected_tag, values_without_exnref);
+
+    if (catch_case.maybe_tag.tag_imm.tag->sig->parameter_count() == 1 &&
+        catch_case.maybe_tag.tag_imm.tag->sig->GetParam(0) == kWasmExternRef) {
+      // Check for the special case where the tag is WebAssembly.JSTag and the
+      // exception is not a WebAssembly.Exception. In this case the exception is
+      // caught and pushed on the operand stack.
+      // Only perform this check if the tag signature is the same as
+      // the JSTag signature, i.e. a single externref, otherwise
+      // we know statically that it cannot be the JSTag.
+
+      TFNode* is_js_exn = builder_->IsExceptionTagUndefined(caught_tag);
+      auto [exn_is_js, exn_is_wasm] = builder_->BranchExpectFalse(is_js_exn);
+      SsaEnv* exn_is_js_env = Split(decoder->zone(), ssa_env_);
+      exn_is_js_env->control = exn_is_js;
+      SsaEnv* exn_is_wasm_env = Steal(decoder->zone(), ssa_env_);
+      exn_is_wasm_env->control = exn_is_wasm;
+
+      // Case 1: A wasm exception.
+      SetEnv(exn_is_wasm_env);
+      CatchAndUnpackWasmException(decoder, block, exception,
+                                  catch_case.maybe_tag.tag_imm.tag, caught_tag,
+                                  expected_tag, values_without_exnref);
+
+      // Case 2: A JS exception.
+      SetEnv(exn_is_js_env);
+      TFNode* js_tag = builder_->LoadJSTag();
+      TFNode* compare = builder_->ExceptionTagEqual(expected_tag, js_tag);
+      auto [if_catch, if_no_catch] = builder_->BranchNoHint(compare);
+      // Merge the wasm no-catch and JS no-catch paths.
+      SsaEnv* if_no_catch_env = Split(decoder->zone(), ssa_env_);
+      if_no_catch_env->control = if_no_catch;
+      SetEnv(if_no_catch_env);
+      Goto(decoder, block->try_info->catch_env);
+      // Merge the wasm catch and JS catch paths.
+      SsaEnv* if_catch_env = Steal(decoder->zone(), ssa_env_);
+      if_catch_env->control = if_catch;
+      SetEnv(if_catch_env);
+      Goto(decoder, block->block_env);
+
+      // The final env is a merge of case 1 and 2. The unpacked value is a Phi
+      // of the unpacked value (case 1) and the exception itself (case 2).
+      SetEnv(block->block_env);
+      TFNode* phi_inputs[] = {values[0].node, exception,
+                              block->block_env->control};
+      TFNode* ref = builder_->Phi(wasm::kWasmExternRef, 2, phi_inputs);
+      SetAndTypeNode(&values[0], ref);
+    } else {
+      CatchAndUnpackWasmException(decoder, block, exception,
+                                  catch_case.maybe_tag.tag_imm.tag, caught_tag,
+                                  expected_tag, values_without_exnref);
+    }
+
     if (catch_case.kind == kCatchRef) {
       DCHECK_EQ(values.last().type, kWasmExnRef);
       values.last().node = block->try_info->exception;
@@ -1475,10 +1524,9 @@ class WasmGraphBuildingInterface {
   }
 
   void TableInit(FullDecoder* decoder, const TableInitImmediate& imm,
-                 const Value* args) {
-    builder_->TableInit(imm.table.index, imm.element_segment.index,
-                        args[0].node, args[1].node, args[2].node,
-                        decoder->position());
+                 const Value& dst, const Value& src, const Value& size) {
+    builder_->TableInit(imm.table.index, imm.element_segment.index, dst.node,
+                        src.node, size.node, decoder->position());
   }
 
   void ElemDrop(FullDecoder* decoder, const IndexImmediate& imm) {
@@ -1486,25 +1534,27 @@ class WasmGraphBuildingInterface {
   }
 
   void TableCopy(FullDecoder* decoder, const TableCopyImmediate& imm,
-                 const Value args[]) {
-    builder_->TableCopy(imm.table_dst.index, imm.table_src.index, args[0].node,
-                        args[1].node, args[2].node, decoder->position());
+                 const Value& dst, const Value& src, const Value& size) {
+    builder_->TableCopy(imm.table_dst.index, imm.table_src.index, dst.node,
+                        src.node, size.node, decoder->position());
   }
 
-  void TableGrow(FullDecoder* decoder, const IndexImmediate& imm,
+  void TableGrow(FullDecoder* decoder, const TableIndexImmediate& imm,
                  const Value& value, const Value& delta, Value* result) {
     SetAndTypeNode(result,
-                   builder_->TableGrow(imm.index, value.node, delta.node));
+                   builder_->TableGrow(imm.index, value.node, delta.node,
+                                       decoder->position()));
   }
 
-  void TableSize(FullDecoder* decoder, const IndexImmediate& imm,
+  void TableSize(FullDecoder* decoder, const TableIndexImmediate& imm,
                  Value* result) {
     SetAndTypeNode(result, builder_->TableSize(imm.index));
   }
 
-  void TableFill(FullDecoder* decoder, const IndexImmediate& imm,
+  void TableFill(FullDecoder* decoder, const TableIndexImmediate& imm,
                  const Value& start, const Value& value, const Value& count) {
-    builder_->TableFill(imm.index, start.node, value.node, count.node);
+    builder_->TableFill(imm.index, start.node, value.node, count.node,
+                        decoder->position());
   }
 
   void StructNew(FullDecoder* decoder, const StructIndexImmediate& imm,
@@ -1803,13 +1853,19 @@ class WasmGraphBuildingInterface {
       case HeapType::kNone:
       case HeapType::kNoExtern:
       case HeapType::kNoFunc:
+      case HeapType::kNoExn:
         DCHECK(null_succeeds);
         // This is needed for BrOnNull. {value_on_branch} is on the value stack
         // and BrOnNull interacts with the values on the stack.
         // TODO(14034): The compiler shouldn't have to access the stack used by
         // the decoder ideally.
+        // Note: This TypeGuard doesn't add any new type information but we need
+        // a non-const Value that we can return to the decoder for
+        // value_on_branch. The clean solution would be to emit the TypeGuard
+        // with the branch-type in the effect edge of the branch and use
+        // value_on_branch->type as type there.
         SetAndTypeNode(value_on_branch,
-                       builder_->TypeGuard(object.node, value_on_branch->type));
+                       builder_->TypeGuard(object.node, object.type));
         return BrOnNull(decoder, object, br_depth, true, value_on_branch);
       case HeapType::kAny:
         // Any may never need a cast as it is either implicitly convertible or
@@ -1841,6 +1897,7 @@ class WasmGraphBuildingInterface {
       case HeapType::kNone:
       case HeapType::kNoExtern:
       case HeapType::kNoFunc:
+      case HeapType::kNoExn:
         DCHECK(null_succeeds);
         // We need to store a node in the stack where the decoder so far only
         // pushed a value and expects the `BrOnCastFailAbstract` to set it.
@@ -1941,8 +1998,9 @@ class WasmGraphBuildingInterface {
   void StringNewWtf8(FullDecoder* decoder, const MemoryIndexImmediate& memory,
                      const unibrow::Utf8Variant variant, const Value& offset,
                      const Value& size, Value* result) {
-    SetAndTypeNode(result, builder_->StringNewWtf8(memory.index, variant,
-                                                   offset.node, size.node));
+    SetAndTypeNode(result,
+                   builder_->StringNewWtf8(memory.memory, variant, offset.node,
+                                           size.node, decoder->position()));
   }
 
   void StringNewWtf8Array(FullDecoder* decoder,
@@ -1957,7 +2015,8 @@ class WasmGraphBuildingInterface {
   void StringNewWtf16(FullDecoder* decoder, const MemoryIndexImmediate& imm,
                       const Value& offset, const Value& size, Value* result) {
     SetAndTypeNode(result,
-                   builder_->StringNewWtf16(imm.index, offset.node, size.node));
+                   builder_->StringNewWtf16(imm.memory, offset.node, size.node,
+                                            decoder->position()));
   }
 
   void StringNewWtf16Array(FullDecoder* decoder, const Value& array,
@@ -2005,7 +2064,7 @@ class WasmGraphBuildingInterface {
                         const unibrow::Utf8Variant variant, const Value& str,
                         const Value& offset, Value* result) {
     SetAndTypeNode(
-        result, builder_->StringEncodeWtf8(memory.index, variant, str.node,
+        result, builder_->StringEncodeWtf8(memory.memory, variant, str.node,
                                            NullCheckFor(str.type), offset.node,
                                            decoder->position()));
   }
@@ -2023,7 +2082,7 @@ class WasmGraphBuildingInterface {
   void StringEncodeWtf16(FullDecoder* decoder, const MemoryIndexImmediate& imm,
                          const Value& str, const Value& offset, Value* result) {
     SetAndTypeNode(result, builder_->StringEncodeWtf16(
-                               imm.index, str.node, NullCheckFor(str.type),
+                               imm.memory, str.node, NullCheckFor(str.type),
                                offset.node, decoder->position()));
   }
 
@@ -2076,7 +2135,7 @@ class WasmGraphBuildingInterface {
                             const Value& view, const Value& addr,
                             const Value& pos, const Value& bytes,
                             Value* next_pos, Value* bytes_written) {
-    builder_->StringViewWtf8Encode(memory.index, variant, view.node,
+    builder_->StringViewWtf8Encode(memory.memory, variant, view.node,
                                    NullCheckFor(view.type), addr.node, pos.node,
                                    bytes.node, &next_pos->node,
                                    &bytes_written->node, decoder->position());
@@ -2111,7 +2170,7 @@ class WasmGraphBuildingInterface {
                              const Value& codeunits, Value* result) {
     SetAndTypeNode(
         result, builder_->StringViewWtf16Encode(
-                    imm.index, view.node, NullCheckFor(view.type), offset.node,
+                    imm.memory, view.node, NullCheckFor(view.type), offset.node,
                     pos.node, codeunits.node, decoder->position()));
   }
 
@@ -2729,7 +2788,6 @@ class WasmGraphBuildingInterface {
          it.has_next(); it.next()) {
       WasmOpcode opcode = it.current();
       constexpr bool kConservativelyAssumeMemory64 = true;
-      constexpr bool kConservativelyAssumeMultiMemory = true;
       switch (opcode) {
         default:
           break;
@@ -2737,9 +2795,9 @@ class WasmGraphBuildingInterface {
           FOREACH_LOAD_MEM_OPCODE(CASE)
           FOREACH_STORE_MEM_OPCODE(CASE)
 #undef CASE
-          MemoryAccessImmediate imm(
-              &it, it.pc() + 1, UINT32_MAX, kConservativelyAssumeMemory64,
-              kConservativelyAssumeMultiMemory, Decoder::kNoValidation);
+          MemoryAccessImmediate imm(&it, it.pc() + 1, UINT32_MAX,
+                                    kConservativelyAssumeMemory64,
+                                    Decoder::kNoValidation);
           return imm.mem_index;
       }
     }
@@ -2755,9 +2813,9 @@ class WasmGraphBuildingInterface {
 
 }  // namespace
 
-void BuildTFGraph(AccountingAllocator* allocator, WasmFeatures enabled,
+void BuildTFGraph(AccountingAllocator* allocator, WasmEnabledFeatures enabled,
                   const WasmModule* module, compiler::WasmGraphBuilder* builder,
-                  WasmFeatures* detected, const FunctionBody& body,
+                  WasmDetectedFeatures* detected, const FunctionBody& body,
                   std::vector<compiler::WasmLoopInfo>* loop_infos,
                   DanglingExceptions* dangling_exceptions,
                   compiler::NodeOriginTable* node_origins, int func_index,

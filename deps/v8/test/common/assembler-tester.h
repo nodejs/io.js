@@ -22,8 +22,11 @@ class TestingAssemblerBuffer : public AssemblerBuffer {
     size_t page_size = v8::internal::AllocatePageSize();
     size_t alloc_size = RoundUp(requested, page_size);
     CHECK_GE(kMaxInt, alloc_size);
-    reservation_ = VirtualMemory(GetPlatformPageAllocator(), alloc_size,
-                                 address, page_size, jit_permission);
+    reservation_ = VirtualMemory(
+        GetPlatformPageAllocator(), alloc_size, address, page_size,
+        jit_permission == JitPermission::kNoJit
+            ? v8::PageAllocator::Permission::kNoAccess
+            : v8::PageAllocator::Permission::kNoAccessWillJitLater);
     CHECK(reservation_.IsReserved());
     MakeWritable();
   }
@@ -75,6 +78,7 @@ class TestingAssemblerBuffer : public AssemblerBuffer {
     // changed anymore.
     protection_reconfiguration_is_allowed_ =
         !V8_HEAP_USE_PTHREAD_JIT_WRITE_PROTECT &&
+        !V8_HEAP_USE_BECORE_JIT_WRITE_PROTECT &&
         protection_reconfiguration_is_allowed_;
   }
 

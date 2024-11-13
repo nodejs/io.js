@@ -39,7 +39,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
     },
     {
       stderr(output) {
-        assert.match(output, /skipping cache because write permission for .* is not granted/);
+        assert.match(output, /Skipping compile cache because write permission for .* is not granted/);
         return true;
       }
     });
@@ -63,7 +63,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
     },
     {
       stderr(output) {
-        assert.match(output, /skipping cache because write permission for .* is not granted/);
+        assert.match(output, /Skipping compile cache because write permission for .* is not granted/);
         return true;
       }
     });
@@ -86,7 +86,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
     },
     {
       stderr(output) {
-        assert.match(output, /skipping cache because read permission for .* is not granted/);
+        assert.match(output, /Skipping compile cache because read permission for .* is not granted/);
         return true;
       }
     });

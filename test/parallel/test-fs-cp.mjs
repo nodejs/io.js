@@ -24,11 +24,19 @@ import tmpdir from '../common/tmpdir.js';
 tmpdir.refresh();
 
 let dirc = 0;
-function nextdir() {
-  return tmpdir.resolve(`copy_${++dirc}`);
+function nextdir(dirname) {
+  return tmpdir.resolve(dirname || `copy_%${++dirc}`);
 }
 
 // Synchronous implementation of copy.
+
+// It copies a nested folder containing UTF characters.
+{
+  const src = './test/fixtures/copy/utf/新建文件夹';
+  const dest = nextdir();
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+  assertDirEquivalent(src, dest);
+}
 
 // It copies a nested folder structure with files and folders.
 {
@@ -118,6 +126,23 @@ function nextdir() {
   assert(stat.isFile());
 }
 
+
+// It overrides target directory with what symlink points to, when dereference is true.
+{
+  const src = nextdir();
+  const symlink = nextdir();
+  const dest = nextdir();
+  mkdirSync(src, mustNotMutateObjectDeep({ recursive: true }));
+  writeFileSync(join(src, 'foo.js'), 'foo', 'utf8');
+  symlinkSync(src, symlink);
+
+  mkdirSync(dest, mustNotMutateObjectDeep({ recursive: true }));
+
+  cpSync(symlink, dest, mustNotMutateObjectDeep({ dereference: true, recursive: true }));
+  const destStat = lstatSync(dest);
+  assert(!destStat.isSymbolicLink());
+  assertDirEquivalent(src, dest);
+}
 
 // It throws error when verbatimSymlinks is not a boolean.
 {
@@ -295,6 +320,45 @@ function nextdir() {
   );
 }
 
+// It must not throw error if attempt is made to copy to dest
+// directory with same prefix as src directory
+// regression test for https://github.com/nodejs/node/issues/54285
+{
+  const src = nextdir('prefix');
+  const dest = nextdir('prefix-a');
+  mkdirSync(src);
+  mkdirSync(dest);
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+}
+
+// It must not throw error if attempt is made to copy to dest
+// directory if the parent of dest has same prefix as src directory
+// regression test for https://github.com/nodejs/node/issues/54285
+{
+  const src = nextdir('aa');
+  const destParent = nextdir('aaa');
+  const dest = nextdir('aaa/aabb');
+  mkdirSync(src);
+  mkdirSync(destParent);
+  mkdirSync(dest);
+  cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true }));
+}
+
+// It throws error if attempt is made to copy src to dest
+// when src is parent directory of the parent of dest
+{
+  const src = nextdir('a');
+  const destParent = nextdir('a/b');
+  const dest = nextdir('a/b/c');
+  mkdirSync(src);
+  mkdirSync(destParent);
+  mkdirSync(dest);
+  assert.throws(
+    () => cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true })),
+    { code: 'ERR_FS_CP_EINVAL' },
+  );
+}
+
 // It throws error if attempt is made to copy to subdirectory of self.
 {
   const src = './test/fixtures/copy/kitchen-sink';
@@ -399,6 +463,26 @@ if (!isWindows) {
   assert.throws(
     () => cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true })),
     { code: 'EEXIST' }
+  );
+}
+
+// It throws an error when attempting to copy a file with a name that is too long.
+{
+  const src = 'a'.repeat(5000);
+  const dest = nextdir();
+  assert.throws(
+    () => cpSync(src, dest),
+    { code: isWindows ? 'ENOENT' : 'ENAMETOOLONG' }
+  );
+}
+
+// It throws an error when attempting to copy a dir that does not exist.
+{
+  const src = nextdir();
+  const dest = nextdir();
+  assert.throws(
+    () => cpSync(src, dest, mustNotMutateObjectDeep({ recursive: true })),
+    { code: 'ENOENT' }
   );
 }
 

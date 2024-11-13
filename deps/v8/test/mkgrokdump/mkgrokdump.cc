@@ -53,7 +53,7 @@ static void DumpKnownMap(FILE* out, i::Heap* heap, const char* space_name,
 
   i::ReadOnlyRoots roots(heap);
   const char* root_name = nullptr;
-  i::Tagged<i::Map> map = i::Map::cast(object);
+  i::Tagged<i::Map> map = i::Cast<i::Map>(object);
   intptr_t root_ptr =
       static_cast<intptr_t>(map.ptr()) & (i::PageMetadata::kPageSize - 1);
 

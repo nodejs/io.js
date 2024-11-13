@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -1230,6 +1230,7 @@ static void list_provider_info(void)
     }
 
     if (OSSL_PROVIDER_do_all(NULL, &collect_providers, providers) != 1) {
+        sk_OSSL_PROVIDER_free(providers);
         BIO_printf(bio_err, "ERROR: Memory allocation\n");
         return;
     }

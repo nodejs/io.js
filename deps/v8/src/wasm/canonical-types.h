@@ -62,6 +62,10 @@ class TypeCanonicalizer {
   // it if an identical is found. Returns the canonical index of the added
   // signature.
   V8_EXPORT_PRIVATE uint32_t AddRecursiveGroup(const FunctionSig* sig);
+  // Signatures that were added with the above can be retrieved by their
+  // canonical index later.
+  V8_EXPORT_PRIVATE const FunctionSig* LookupSignature(
+      uint32_t canonical_index) const;
 
   // Returns if {canonical_sub_index} is a canonical subtype of
   // {canonical_super_index}.
@@ -75,10 +79,13 @@ class TypeCanonicalizer {
                                             const WasmModule* sub_module,
                                             const WasmModule* super_module);
 
-  // Deletes recursive groups. Used only by the Wasm compile fuzzer.
+  // Deletes recursive groups. Used by fuzzers to avoid accumulating memory, and
+  // used by specific tests e.g. for serialization / deserialization.
   V8_EXPORT_PRIVATE void EmptyStorageForTesting();
 
   size_t EstimateCurrentMemoryConsumption() const;
+
+  size_t GetCurrentNumberOfTypes() const;
 
  private:
   struct CanonicalType {
@@ -147,10 +154,11 @@ class TypeCanonicalizer {
     CanonicalType type;
   };
 
-  void AddPredefinedArrayType(uint32_t index, ValueType element_type);
+  void AddPredefinedArrayTypes();
 
   int FindCanonicalGroup(const CanonicalGroup&) const;
-  int FindCanonicalGroup(const CanonicalSingletonGroup&) const;
+  int FindCanonicalGroup(const CanonicalSingletonGroup&,
+                         const FunctionSig** out_sig = nullptr) const;
 
   // Canonicalize all types present in {type} (including supertype) according to
   // {CanonicalizeValueType}.
@@ -164,6 +172,8 @@ class TypeCanonicalizer {
   ValueType CanonicalizeValueType(const WasmModule* module, ValueType type,
                                   uint32_t recursive_group_start) const;
 
+  void CheckMaxCanonicalIndex() const;
+
   std::vector<uint32_t> canonical_supertypes_;
   // Maps groups of size >=2 to the canonical id of the first type.
   std::unordered_map<CanonicalGroup, uint32_t, base::hash<CanonicalGroup>>
@@ -172,6 +182,9 @@ class TypeCanonicalizer {
   std::unordered_map<CanonicalSingletonGroup, uint32_t,
                      base::hash<CanonicalSingletonGroup>>
       canonical_singleton_groups_;
+  // Maps canonical indices of signatures in groups of size 1 back to the
+  // signature.
+  std::unordered_map<uint32_t, const FunctionSig*> canonical_sigs_;
   AccountingAllocator allocator_;
   Zone zone_{&allocator_, "canonical type zone"};
   mutable base::Mutex mutex_;

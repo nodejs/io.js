@@ -2,9 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/torque/utils.h"
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
 
 #include "src/base/bits.h"
@@ -12,13 +15,10 @@
 #include "src/torque/ast.h"
 #include "src/torque/constants.h"
 #include "src/torque/declarable.h"
-#include "src/torque/utils.h"
 
 EXPORT_CONTEXTUAL_VARIABLE(v8::internal::torque::TorqueMessages)
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 std::string StringLiteralUnquote(const std::string& s) {
   DCHECK(('"' == s.front() && '"' == s.back()) ||
@@ -91,9 +91,9 @@ static int HexCharToInt(unsigned char c) {
   return c - 'a' + 10;
 }
 
-base::Optional<std::string> FileUriDecode(const std::string& uri) {
+std::optional<std::string> FileUriDecode(const std::string& uri) {
   // Abort decoding of URIs that don't start with "file://".
-  if (uri.rfind(kFileUriPrefix) != 0) return base::nullopt;
+  if (uri.rfind(kFileUriPrefix) != 0) return std::nullopt;
 
   const std::string path = uri.substr(kFileUriPrefixLength);
   std::ostringstream decoded;
@@ -108,11 +108,11 @@ base::Optional<std::string> FileUriDecode(const std::string& uri) {
     }
 
     // If '%' is not followed by at least two hex digits, we abort.
-    if (std::distance(iter, end) <= 2) return base::nullopt;
+    if (std::distance(iter, end) <= 2) return std::nullopt;
 
     unsigned char first = (*++iter);
     unsigned char second = (*++iter);
-    if (!isxdigit(first) || !isxdigit(second)) return base::nullopt;
+    if (!isxdigit(first) || !isxdigit(second)) return std::nullopt;
 
     // An escaped hex value needs converting.
     unsigned char value = HexCharToInt(first) * 16 + HexCharToInt(second);
@@ -124,7 +124,7 @@ base::Optional<std::string> FileUriDecode(const std::string& uri) {
 
 MessageBuilder::MessageBuilder(const std::string& message,
                                TorqueMessage::Kind kind) {
-  base::Optional<SourcePosition> position;
+  std::optional<SourcePosition> position;
   if (CurrentSourcePosition::HasScope()) {
     position = CurrentSourcePosition::Get();
   }
@@ -381,6 +381,4 @@ std::ostream& operator<<(std::ostream& os, const ResidueClass& a) {
   return os << "[" << a.value_ << " mod 2^" << a.modulus_log_2_ << "]";
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

@@ -12,7 +12,7 @@ namespace internal {
 BUILTIN(CallAsyncModuleFulfilled) {
   HandleScope handle_scope(isolate);
   Handle<SourceTextModule> module = Handle<SourceTextModule>(
-      SourceTextModule::cast(isolate->context()->get(
+      Cast<SourceTextModule>(isolate->context()->get(
           SourceTextModule::ExecuteAsyncModuleContextSlots::kModule)),
       isolate);
   if (SourceTextModule::AsyncModuleExecutionFulfilled(isolate, module)
@@ -28,8 +28,8 @@ BUILTIN(CallAsyncModuleFulfilled) {
 
 BUILTIN(CallAsyncModuleRejected) {
   HandleScope handle_scope(isolate);
-  Handle<SourceTextModule> module = Handle<SourceTextModule>(
-      SourceTextModule::cast(isolate->context()->get(
+  DirectHandle<SourceTextModule> module(
+      Cast<SourceTextModule>(isolate->context()->get(
           SourceTextModule::ExecuteAsyncModuleContextSlots::kModule)),
       isolate);
 

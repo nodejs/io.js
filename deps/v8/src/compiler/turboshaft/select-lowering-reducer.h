@@ -37,9 +37,9 @@ class SelectLoweringReducer : public Next {
  public:
   TURBOSHAFT_REDUCER_BOILERPLATE(SelectLowering)
 
-  OpIndex REDUCE(Select)(OpIndex cond, OpIndex vtrue, OpIndex vfalse,
-                         RegisterRepresentation rep, BranchHint hint,
-                         SelectOp::Implementation implem) {
+  V<Any> REDUCE(Select)(V<Word32> cond, V<Any> vtrue, V<Any> vfalse,
+                        RegisterRepresentation rep, BranchHint hint,
+                        SelectOp::Implementation implem) {
     if (implem == SelectOp::Implementation::kCMove) {
       // We do not lower Select operations that should be implemented with
       // CMove.

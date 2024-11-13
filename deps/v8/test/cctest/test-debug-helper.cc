@@ -121,6 +121,17 @@ class StringResource : public v8::String::ExternalStringResource {
 
 }  // namespace
 
+class TestDebugHelper {
+ public:
+  static Address MetadataTableAddress() {
+#ifdef V8_ENABLE_SANDBOX
+    return MemoryChunk::MetadataTableAddress();
+#else
+    return 0;
+#endif
+  }
+};
+
 TEST(GetObjectProperties) {
   CcTest::InitializeVM();
   v8::Isolate* isolate = CcTest::isolate();
@@ -129,7 +140,7 @@ TEST(GetObjectProperties) {
   v8::HandleScope scope(isolate);
   LocalContext context;
   // Claim we don't know anything about the heap layout.
-  d::HeapAddresses heap_addresses{0, 0, 0, 0};
+  d::HeapAddresses heap_addresses{0, 0, 0, 0, 0};
 
   v8::Local<v8::Value> v = CompileRun("42");
   Handle<Object> o = v8::Utils::OpenHandle(*v);
@@ -327,18 +338,21 @@ TEST(GetObjectProperties) {
   CHECK(Contains(props->brief, "\"" + std::string(80, 'a') + "...\""));
 
   // GetObjectProperties can read cacheable external strings.
+  heap_addresses.metadata_pointer_table =
+      TestDebugHelper::MetadataTableAddress();
   StringResource* string_resource = new StringResource(true);
-  auto external_string =
+  auto cachable_external_string =
       v8::String::NewExternalTwoByte(isolate, string_resource);
-  o = v8::Utils::OpenHandle(*external_string.ToLocalChecked());
+  o = v8::Utils::OpenHandle(*cachable_external_string.ToLocalChecked());
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK(Contains(props->brief, "\"abcde\""));
   CheckProp(*props->properties[5], "char16_t", "raw_characters",
             d::PropertyKind::kArrayOfKnownSize, string_resource->length());
   CHECK_EQ(props->properties[5]->address,
            reinterpret_cast<uintptr_t>(string_resource->data()));
+
   // GetObjectProperties cannot read uncacheable external strings.
-  external_string =
+  auto external_string =
       v8::String::NewExternalTwoByte(isolate, new StringResource(false));
   o = v8::Utils::OpenHandle(*external_string.ToLocalChecked());
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
@@ -413,9 +427,9 @@ TEST(GetObjectProperties) {
   CheckStructProp(*flags.struct_fields[2], "bool", "is_strict", 0, 1, 6);
 
   // Get data about a different bitfield struct which is contained within a smi.
-  Handle<i::JSFunction> function = Handle<i::JSFunction>::cast(o);
-  Handle<i::SharedFunctionInfo> shared(function->shared(), i_isolate);
-  Handle<i::DebugInfo> debug_info =
+  DirectHandle<i::JSFunction> function = Cast<i::JSFunction>(o);
+  DirectHandle<i::SharedFunctionInfo> shared(function->shared(), i_isolate);
+  DirectHandle<i::DebugInfo> debug_info =
       i_isolate->debug()->GetOrCreateDebugInfo(shared);
   props =
       d::GetObjectProperties(debug_info->ptr(), &ReadMemory, heap_addresses);
@@ -443,7 +457,7 @@ static void FrameIterationCheck(
                 "v8::internal::Tagged<v8::internal::JSFunction>",
                 "currently_executing_jsfunction", js_function.ptr());
       auto shared_function_info = js_function->shared();
-      auto script = i::Script::cast(shared_function_info->script());
+      auto script = i::Cast<i::Script>(shared_function_info->script());
       CheckProp(*props->properties[1],
                 "v8::internal::TaggedMember<v8::internal::Object>",
                 "script_name", static_cast<i::Tagged_t>(script->name().ptr()));
@@ -482,7 +496,7 @@ THREADED_TEST(GetFrameStack) {
   PtrComprCageAccessScope ptr_compr_cage_access_scope(i_isolate);
   v8::HandleScope scope(isolate);
   v8::Local<v8::ObjectTemplate> obj = v8::ObjectTemplate::New(isolate);
-  obj->SetAccessor(v8_str("xxx"), FrameIterationCheck);
+  obj->SetNativeDataProperty(v8_str("xxx"), FrameIterationCheck);
   CHECK(env->Global()
             ->Set(env.local(), v8_str("obj"),
                   obj->NewInstance(env.local()).ToLocalChecked())
@@ -503,14 +517,14 @@ TEST(SmallOrderedHashSetGetObjectProperties) {
   PtrComprCageAccessScope ptr_compr_cage_access_scope(isolate);
   HandleScope scope(isolate);
 
-  Handle<SmallOrderedHashSet> set = factory->NewSmallOrderedHashSet();
+  DirectHandle<SmallOrderedHashSet> set = factory->NewSmallOrderedHashSet();
   const size_t number_of_buckets = 2;
   CHECK_EQ(number_of_buckets, set->NumberOfBuckets());
   CHECK_EQ(0, set->NumberOfElements());
 
   // Verify with the definition of SmallOrderedHashSet in
   // src\objects\ordered-hash-table.tq.
-  d::HeapAddresses heap_addresses{0, 0, 0, 0};
+  d::HeapAddresses heap_addresses{0, 0, 0, 0, 0};
   d::ObjectPropertiesResultPtr props =
       d::GetObjectProperties(set->ptr(), &ReadMemory, heap_addresses);
   CHECK_EQ(props->type_check_result, d::TypeCheckResult::kUsedMap);

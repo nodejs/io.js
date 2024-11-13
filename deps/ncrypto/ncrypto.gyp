@@ -2,6 +2,7 @@
   'variables': {
     'ncrypto_sources': [
       'engine.cc',
+      'dh-primes.h',
       'ncrypto.cc',
       'ncrypto.h',
     ],

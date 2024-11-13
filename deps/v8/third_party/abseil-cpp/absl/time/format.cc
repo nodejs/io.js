@@ -16,6 +16,7 @@
 
 #include <cctype>
 #include <cstdint>
+#include <utility>
 
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
@@ -136,7 +137,7 @@ bool ParseTime(absl::string_view format, absl::string_view input,
   if (b) {
     *time = Join(parts);
   } else if (err != nullptr) {
-    *err = error;
+    *err = std::move(error);
   }
   return b;
 }

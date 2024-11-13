@@ -5,7 +5,6 @@
 
 #include "v8.h"
 
-#include <filesystem>
 #include <unordered_map>
 #include "permission/permission_base.h"
 #include "util.h"
@@ -107,7 +106,7 @@ class FSPermission final : public PermissionBase {
           // path = /home/subdirectory
           // child = subdirectory/*
           if (idx >= path.length() &&
-              child->prefix[i] == std::filesystem::path::preferred_separator) {
+              child->prefix[i] == node::kPathSeparator) {
             continue;
           }
 

@@ -113,8 +113,9 @@ TEST_F(SamplerTest, LibSamplerCollectSample) {
 
   TestApiCallbacks accessors;
   v8::Local<v8::External> data = v8::External::New(isolate(), &accessors);
-  instance_template->SetAccessor(NewString("foo"), &TestApiCallbacks::Getter,
-                                 &TestApiCallbacks::Setter, data);
+  instance_template->SetNativeDataProperty(NewString("foo"),
+                                           &TestApiCallbacks::Getter,
+                                           &TestApiCallbacks::Setter, data);
   v8::Local<v8::Function> func =
       func_template->GetFunction(context()).ToLocalChecked();
   v8::Local<v8::Object> instance =

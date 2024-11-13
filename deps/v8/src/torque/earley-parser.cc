@@ -2,18 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/torque/earley-parser.h"
+
 #include <algorithm>
+#include <optional>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "src/torque/ast.h"
-#include "src/torque/earley-parser.h"
 #include "src/torque/utils.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 namespace {
 
@@ -42,12 +42,12 @@ struct LineAndColumnTracker {
 
 }  // namespace
 
-base::Optional<ParseResult> Rule::RunAction(const Item* completed_item,
-                                            const LexerResult& tokens) const {
+std::optional<ParseResult> Rule::RunAction(const Item* completed_item,
+                                           const LexerResult& tokens) const {
   std::vector<ParseResult> results;
   for (const Item* child : completed_item->Children()) {
     if (!child) continue;
-    base::Optional<ParseResult> child_result =
+    std::optional<ParseResult> child_result =
         child->left()->RunAction(child, tokens);
     if (child_result) results.push_back(std::move(*child_result));
   }
@@ -316,6 +316,4 @@ bool Grammar::MatchAnyChar(InputPosition* pos) {
   return MatchChar([](char c) { return true; }, pos);
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

@@ -12,31 +12,31 @@ namespace v8::internal::compiler::turboshaft {
 struct CsaEarlyMachineOptimizationPhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(CsaEarlyMachineOptimization)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 struct CsaLoadEliminationPhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(CsaLoadElimination)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 struct CsaLateEscapeAnalysisPhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(CsaLateEscapeAnalysis)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 struct CsaBranchEliminationPhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(CsaBranchElimination)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 struct CsaOptimizePhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(CsaOptimize)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 }  // namespace v8::internal::compiler::turboshaft

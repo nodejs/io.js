@@ -9,6 +9,7 @@
 
 #include "src/base/functional.h"
 #include "src/base/macros.h"
+#include "src/base/numbers/double.h"
 #include "src/common/globals.h"
 
 namespace v8 {
@@ -73,6 +74,8 @@ class Float64 {
     // ia32.
     DCHECK(!std::isnan(value));
   }
+
+  explicit Float64(base::Double value) : bit_pattern_(value.AsUint64()) {}
 
   uint64_t get_bits() const { return bit_pattern_; }
   double get_scalar() const { return base::bit_cast<double>(bit_pattern_); }

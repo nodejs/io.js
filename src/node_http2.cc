@@ -208,6 +208,14 @@ Http2Options::Http2Options(Http2State* http2_state, SessionType type) {
         option,
         static_cast<size_t>(buffer[IDX_OPTIONS_MAX_SETTINGS]));
   }
+
+  if ((flags & (1 << IDX_OPTIONS_STREAM_RESET_BURST)) &&
+      (flags & (1 << IDX_OPTIONS_STREAM_RESET_RATE))) {
+    nghttp2_option_set_stream_reset_rate_limit(
+        option,
+        static_cast<uint64_t>(buffer[IDX_OPTIONS_STREAM_RESET_BURST]),
+        static_cast<uint64_t>(buffer[IDX_OPTIONS_STREAM_RESET_RATE]));
+  }
 }
 
 #define GRABSETTING(entries, count, name)                                      \
@@ -732,8 +740,9 @@ MaybeLocal<Object> Http2SessionPerformanceEntryTraits::GetDetails(
 
 void Http2Stream::EmitStatistics() {
   CHECK_NOT_NULL(session());
-  if (LIKELY(!HasHttp2Observer(env())))
+  if (!HasHttp2Observer(env())) [[likely]] {
     return;
+  }
 
   double start = statistics_.start_time / 1e6;
   double duration = (PERFORMANCE_NOW() / 1e6) - start;
@@ -752,9 +761,9 @@ void Http2Stream::EmitStatistics() {
 }
 
 void Http2Session::EmitStatistics() {
-  if (LIKELY(!HasHttp2Observer(env())))
+  if (!HasHttp2Observer(env())) [[likely]] {
     return;
-
+  }
   double start = statistics_.start_time / 1e6;
   double duration = (PERFORMANCE_NOW() / 1e6) - start;
 
@@ -944,7 +953,7 @@ void Http2Session::ConsumeHTTP2Data() {
   }
 
 done:
-  if (UNLIKELY(ret < 0)) {
+  if (ret < 0) [[unlikely]] {
     Isolate* isolate = env()->isolate();
     Debug(this,
         "fatal error receiving data: %d (%s)",
@@ -991,10 +1000,10 @@ int Http2Session::OnBeginHeadersCallback(nghttp2_session* handle,
   BaseObjectPtr<Http2Stream> stream = session->FindStream(id);
   // The common case is that we're creating a new stream. The less likely
   // case is that we're receiving a set of trailers
-  if (LIKELY(!stream)) {
-    if (UNLIKELY(!session->CanAddStream() ||
-                 Http2Stream::New(session, id, frame->headers.cat) ==
-                     nullptr)) {
+  if (!stream) [[likely]] {
+    if (!session->CanAddStream() ||
+        Http2Stream::New(session, id, frame->headers.cat) == nullptr)
+        [[unlikely]] {
       if (session->rejected_stream_count_++ >
           session->js_fields_->max_rejected_streams)
         return NGHTTP2_ERR_CALLBACK_FAILURE;
@@ -1029,7 +1038,7 @@ int Http2Session::OnHeaderCallback(nghttp2_session* handle,
   // If stream is null at this point, either something odd has happened
   // or the stream was closed locally while header processing was occurring.
   // either way, do not proceed and close the stream.
-  if (UNLIKELY(!stream))
+  if (!stream) [[unlikely]]
     return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
 
   // If the stream has already been destroyed, ignore.
@@ -1300,10 +1309,16 @@ int Http2Session::OnDataChunkReceived(nghttp2_session* handle,
     // Since it has access to the original socket buffer from which the data
     // was read in the first place, it can use that to minimize ArrayBuffer
     // allocations.
-    if (LIKELY(buf.base == nullptr))
+    if (buf.base == nullptr) [[likely]] {
       buf.base = reinterpret_cast<char*>(const_cast<uint8_t*>(data));
-    else
+    } else {
       memcpy(buf.base, data, avail);
+    }
+    if (buf.base == nullptr) [[likely]] {
+      buf.base = reinterpret_cast<char*>(const_cast<uint8_t*>(data));
+    } else {
+      memcpy(buf.base, data, avail);
+    }
     data += avail;
     len -= avail;
     stream->EmitRead(avail, buf);
@@ -1740,8 +1755,9 @@ void Http2Session::OnStreamAfterWrite(WriteWrap* w, int status) {
 // queue), but only if a write has not already been scheduled.
 void Http2Session::MaybeScheduleWrite() {
   CHECK(!is_write_scheduled());
-  if (UNLIKELY(!session_))
+  if (!session_) [[unlikely]] {
     return;
+  }
 
   if (nghttp2_session_want_write(session_.get())) {
     HandleScope handle_scope(env()->isolate());
@@ -1813,8 +1829,9 @@ void Http2Session::ClearOutgoing(int status) {
 
     for (int32_t stream_id : current_pending_rst_streams) {
       BaseObjectPtr<Http2Stream> stream = FindStream(stream_id);
-      if (LIKELY(stream))
+      if (stream) [[likely]] {
         stream->FlushRstStream();
+      }
     }
   }
 }
@@ -2002,8 +2019,9 @@ Http2Stream* Http2Session::SubmitRequest(
       *prov,
       nullptr);
   CHECK_NE(*ret, NGHTTP2_ERR_NOMEM);
-  if (LIKELY(*ret > 0))
+  if (*ret > 0) [[likely]] {
     stream = Http2Stream::New(this, *ret, NGHTTP2_HCAT_HEADERS, options);
+  }
   return stream;
 }
 
@@ -2032,8 +2050,8 @@ void Http2Session::OnStreamRead(ssize_t nread, const uv_buf_t& buf_) {
 
   statistics_.data_received += nread;
 
-  if (LIKELY(stream_buf_offset_ == 0 &&
-             static_cast<size_t>(nread) != bs->ByteLength())) {
+  if (stream_buf_offset_ == 0 && static_cast<size_t>(nread) != bs->ByteLength())
+      [[likely]] {
     // Shrink to the actual amount of used data.
     std::unique_ptr<BackingStore> old_bs = std::move(bs);
     bs = ArrayBuffer::NewBackingStore(env()->isolate(), nread);

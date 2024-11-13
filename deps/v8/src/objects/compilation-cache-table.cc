@@ -29,7 +29,7 @@ int SearchLiteralsMapEntry(Tagged<CompilationCacheTable> cache,
   // object used to be a FixedArray here).
   DCHECK(!IsFixedArray(obj));
   if (IsWeakFixedArray(obj)) {
-    Tagged<WeakFixedArray> literals_map = WeakFixedArray::cast(obj);
+    Tagged<WeakFixedArray> literals_map = Cast<WeakFixedArray>(obj);
     int length = literals_map->length();
     for (int i = 0; i < length; i += kLiteralEntryLength) {
       DCHECK(literals_map->get(i + kLiteralContextOffset).IsWeakOrCleared());
@@ -42,14 +42,14 @@ int SearchLiteralsMapEntry(Tagged<CompilationCacheTable> cache,
   return -1;
 }
 
-void AddToFeedbackCellsMap(Handle<CompilationCacheTable> cache,
+void AddToFeedbackCellsMap(DirectHandle<CompilationCacheTable> cache,
                            InternalIndex cache_entry,
-                           Handle<Context> native_context,
-                           Handle<FeedbackCell> feedback_cell) {
+                           DirectHandle<Context> native_context,
+                           DirectHandle<FeedbackCell> feedback_cell) {
   Isolate* isolate = native_context->GetIsolate();
   DCHECK(IsNativeContext(*native_context));
   static_assert(kLiteralEntryLength == 2);
-  Handle<WeakFixedArray> new_literals_map;
+  DirectHandle<WeakFixedArray> new_literals_map;
   int entry;
 
   Tagged<Object> obj = cache->EvalFeedbackValueAt(cache_entry);
@@ -57,12 +57,13 @@ void AddToFeedbackCellsMap(Handle<CompilationCacheTable> cache,
   // Check that there's no confusion between FixedArray and WeakFixedArray (the
   // object used to be a FixedArray here).
   DCHECK(!IsFixedArray(obj));
-  if (!IsWeakFixedArray(obj) || WeakFixedArray::cast(obj)->length() == 0) {
+  if (!IsWeakFixedArray(obj) || Cast<WeakFixedArray>(obj)->length() == 0) {
     new_literals_map = isolate->factory()->NewWeakFixedArray(
         kLiteralInitialLength, AllocationType::kOld);
     entry = 0;
   } else {
-    Handle<WeakFixedArray> old_literals_map(WeakFixedArray::cast(obj), isolate);
+    DirectHandle<WeakFixedArray> old_literals_map(Cast<WeakFixedArray>(obj),
+                                                  isolate);
     entry = SearchLiteralsMapEntry(*cache, cache_entry, *native_context);
     if (entry >= 0) {
       // Just set the code of the entry.
@@ -120,13 +121,13 @@ Tagged<FeedbackCell> SearchLiteralsMap(Tagged<CompilationCacheTable> cache,
   int entry = SearchLiteralsMapEntry(cache, cache_entry, native_context);
   if (entry >= 0) {
     Tagged<WeakFixedArray> literals_map =
-        WeakFixedArray::cast(cache->EvalFeedbackValueAt(cache_entry));
+        Cast<WeakFixedArray>(cache->EvalFeedbackValueAt(cache_entry));
     DCHECK_LE(entry + kLiteralEntryLength, literals_map->length());
     Tagged<MaybeObject> object =
         literals_map->get(entry + kLiteralLiteralsOffset);
 
     if (!object.IsCleared()) {
-      result = FeedbackCell::cast(object.GetHeapObjectAssumeWeak());
+      result = Cast<FeedbackCell>(object.GetHeapObjectAssumeWeak());
     }
   }
   DCHECK(result.is_null() || IsFeedbackCell(result));
@@ -159,10 +160,10 @@ class EvalCacheKey : public HashTableKey {
     DisallowGarbageCollection no_gc;
     if (!IsFixedArray(other)) {
       DCHECK(IsNumber(other));
-      uint32_t other_hash = static_cast<uint32_t>(Object::Number(other));
+      uint32_t other_hash = static_cast<uint32_t>(Object::NumberValue(other));
       return Hash() == other_hash;
     }
-    Tagged<FixedArray> other_array = FixedArray::cast(other);
+    Tagged<FixedArray> other_array = Cast<FixedArray>(other);
     DCHECK(IsSharedFunctionInfo(other_array->get(0)));
     if (*shared_ != other_array->get(0)) return false;
     int language_unchecked = Smi::ToInt(other_array->get(2));
@@ -171,7 +172,7 @@ class EvalCacheKey : public HashTableKey {
     if (language_mode != language_mode_) return false;
     int position = Smi::ToInt(other_array->get(3));
     if (position != position_) return false;
-    Tagged<String> source = String::cast(other_array->get(1));
+    Tagged<String> source = Cast<String>(other_array->get(1));
     return source->Equals(*source_);
   }
 
@@ -195,24 +196,27 @@ class EvalCacheKey : public HashTableKey {
 // RegExpKey carries the source and flags of a regular expression as key.
 class RegExpKey : public HashTableKey {
  public:
-  RegExpKey(Handle<String> string, JSRegExp::Flags flags)
+  RegExpKey(Isolate* isolate, Handle<String> string, JSRegExp::Flags flags)
       : HashTableKey(
             CompilationCacheShape::RegExpHash(*string, Smi::FromInt(flags))),
+        isolate_(isolate),
         string_(string),
-        flags_(Smi::FromInt(flags)) {}
+        flags_(flags) {}
 
   // Rather than storing the key in the hash table, a pointer to the
   // stored value is stored where the key should be.  IsMatch then
   // compares the search key to the found object, rather than comparing
   // a key to a key.
+  // TODO(pthier): Loading the data via TrustedPointerTable on every key check
+  // is not great.
   bool IsMatch(Tagged<Object> obj) override {
-    Tagged<FixedArray> val = FixedArray::cast(obj);
-    return string_->Equals(String::cast(val->get(JSRegExp::kSourceIndex))) &&
-           (flags_ == val->get(JSRegExp::kFlagsIndex));
+    Tagged<RegExpData> val = Cast<RegExpDataWrapper>(obj)->data(isolate_);
+    return string_->Equals(val->source()) && (flags_ == val->flags());
   }
 
+  Isolate* isolate_;
   Handle<String> string_;
-  Tagged<Smi> flags_;
+  JSRegExp::Flags flags_;
 };
 
 // CodeKey carries the SharedFunctionInfo key associated with a
@@ -236,7 +240,7 @@ Tagged<Smi> ScriptHash(Tagged<String> source, MaybeHandle<Object> maybe_name,
   if (Handle<Object> name;
       maybe_name.ToHandle(&name) && IsString(*name, isolate)) {
     hash =
-        base::hash_combine(hash, String::cast(*name)->EnsureHash(), line_offset,
+        base::hash_combine(hash, Cast<String>(*name)->EnsureHash(), line_offset,
                            column_offset, origin_options.Flags());
   }
   // The upper bits of the hash are discarded so that the value fits in a Smi.
@@ -268,7 +272,7 @@ bool ScriptCacheKey::MatchesScript(Tagged<Script> script) {
     return false;
   }
   // Compare the two name strings for equality.
-  if (!String::cast(*name)->Equals(String::cast(script->name()))) {
+  if (!Cast<String>(*name)->Equals(Cast<String>(script->name()))) {
     return false;
   }
 
@@ -288,7 +292,7 @@ bool ScriptCacheKey::MatchesScript(Tagged<Script> script) {
       Tagged<Object> other_arg = other_wrapped_arguments->get(i);
       DCHECK(IsString(arg));
       DCHECK(IsString(other_arg));
-      if (!String::cast(arg)->Equals(String::cast(other_arg))) {
+      if (!Cast<String>(arg)->Equals(Cast<String>(other_arg))) {
         return false;
       }
     }
@@ -309,9 +313,9 @@ bool ScriptCacheKey::MatchesScript(Tagged<Script> script) {
     maybe_host_defined_options = isolate_->factory()->empty_fixed_array();
   }
   Tagged<FixedArray> host_defined_options =
-      FixedArray::cast(*maybe_host_defined_options);
+      Cast<FixedArray>(*maybe_host_defined_options);
   Tagged<FixedArray> script_options =
-      FixedArray::cast(script->host_defined_options());
+      Cast<FixedArray>(script->host_defined_options());
   int length = host_defined_options->length();
   if (length != script_options->length()) return false;
 
@@ -370,7 +374,7 @@ ScriptCacheKey::ScriptCacheKey(Handle<String> source, MaybeHandle<Object> name,
 bool ScriptCacheKey::IsMatch(Tagged<Object> other) {
   DisallowGarbageCollection no_gc;
   DCHECK(IsWeakFixedArray(other));
-  Tagged<WeakFixedArray> other_array = WeakFixedArray::cast(other);
+  Tagged<WeakFixedArray> other_array = Cast<WeakFixedArray>(other);
   DCHECK_EQ(other_array->length(), kEnd);
 
   // A hash check can quickly reject many non-matches, even though this step
@@ -384,14 +388,14 @@ bool ScriptCacheKey::IsMatch(Tagged<Object> other) {
            .GetHeapObjectIfWeak(&other_script_object)) {
     return false;
   }
-  Tagged<Script> other_script = Script::cast(other_script_object);
-  Tagged<String> other_source = String::cast(other_script->source());
+  Tagged<Script> other_script = Cast<Script>(other_script_object);
+  Tagged<String> other_source = Cast<String>(other_script->source());
 
   return other_source->Equals(*source_) && MatchesScript(other_script);
 }
 
-Handle<Object> ScriptCacheKey::AsHandle(Isolate* isolate,
-                                        Handle<SharedFunctionInfo> shared) {
+Handle<Object> ScriptCacheKey::AsHandle(
+    Isolate* isolate, DirectHandle<SharedFunctionInfo> shared) {
   Handle<WeakFixedArray> array = isolate->factory()->NewWeakFixedArray(kEnd);
   // Any SharedFunctionInfo being stored in the script cache should have a
   // Script.
@@ -431,7 +435,7 @@ CompilationCacheScriptLookupResult::FromRawObjects(
 }
 
 CompilationCacheScriptLookupResult CompilationCacheTable::LookupScript(
-    Handle<CompilationCacheTable> table, Handle<String> src,
+    DirectHandle<CompilationCacheTable> table, Handle<String> src,
     const ScriptDetails& script_details, Isolate* isolate) {
   src = String::Flatten(isolate, src);
   ScriptCacheKey key(src, &script_details, isolate);
@@ -440,14 +444,14 @@ CompilationCacheScriptLookupResult CompilationCacheTable::LookupScript(
 
   DisallowGarbageCollection no_gc;
   Tagged<Object> key_in_table = table->KeyAt(entry);
-  Tagged<Script> script = Script::cast(WeakFixedArray::cast(key_in_table)
+  Tagged<Script> script = Cast<Script>(Cast<WeakFixedArray>(key_in_table)
                                            ->get(ScriptCacheKey::kWeakScript)
                                            .GetHeapObjectAssumeWeak());
 
   Tagged<Object> obj = table->PrimaryValueAt(entry);
   Tagged<SharedFunctionInfo> toplevel_sfi;
   if (!IsUndefined(obj, isolate)) {
-    toplevel_sfi = SharedFunctionInfo::cast(obj);
+    toplevel_sfi = Cast<SharedFunctionInfo>(obj);
     DCHECK_EQ(toplevel_sfi->script(), script);
   }
 
@@ -456,8 +460,8 @@ CompilationCacheScriptLookupResult CompilationCacheTable::LookupScript(
 }
 
 InfoCellPair CompilationCacheTable::LookupEval(
-    Handle<CompilationCacheTable> table, Handle<String> src,
-    Handle<SharedFunctionInfo> outer_info, Handle<Context> native_context,
+    DirectHandle<CompilationCacheTable> table, Handle<String> src,
+    Handle<SharedFunctionInfo> outer_info, DirectHandle<Context> native_context,
     LanguageMode language_mode, int position) {
   InfoCellPair empty_result;
   Isolate* isolate = native_context->GetIsolate();
@@ -474,14 +478,14 @@ InfoCellPair CompilationCacheTable::LookupEval(
   static_assert(CompilationCacheShape::kEntrySize == 3);
   Tagged<FeedbackCell> feedback_cell =
       SearchLiteralsMap(*table, entry, *native_context);
-  return InfoCellPair(isolate, SharedFunctionInfo::cast(obj), feedback_cell);
+  return InfoCellPair(isolate, Cast<SharedFunctionInfo>(obj), feedback_cell);
 }
 
 Handle<Object> CompilationCacheTable::LookupRegExp(Handle<String> src,
                                                    JSRegExp::Flags flags) {
   Isolate* isolate = GetIsolate();
   DisallowGarbageCollection no_gc;
-  RegExpKey key(src, flags);
+  RegExpKey key(isolate, src, flags);
   InternalIndex entry = FindEntry(isolate, &key);
   if (entry.is_not_found()) return isolate->factory()->undefined_value();
   return Handle<Object>(PrimaryValueAt(entry), isolate);
@@ -498,7 +502,7 @@ Handle<CompilationCacheTable> CompilationCacheTable::EnsureScriptTableCapacity(
     for (InternalIndex entry : cache->IterateEntries()) {
       Tagged<Object> key;
       if (!cache->ToKey(isolate, entry, &key)) continue;
-      if (WeakFixedArray::cast(key)
+      if (Cast<WeakFixedArray>(key)
               ->get(ScriptCacheKey::kWeakScript)
               .IsCleared()) {
         DCHECK(IsUndefined(cache->PrimaryValueAt(entry)));
@@ -513,9 +517,9 @@ Handle<CompilationCacheTable> CompilationCacheTable::EnsureScriptTableCapacity(
 Handle<CompilationCacheTable> CompilationCacheTable::PutScript(
     Handle<CompilationCacheTable> cache, Handle<String> src,
     MaybeHandle<FixedArray> maybe_wrapped_arguments,
-    Handle<SharedFunctionInfo> value, Isolate* isolate) {
+    DirectHandle<SharedFunctionInfo> value, Isolate* isolate) {
   src = String::Flatten(isolate, src);
-  Handle<Script> script = handle(Script::cast(value->script()), isolate);
+  DirectHandle<Script> script(Cast<Script>(value->script()), isolate);
   MaybeHandle<Object> script_name;
   if (IsString(script->name(), isolate)) {
     script_name = handle(script->name(), isolate);
@@ -525,7 +529,7 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutScript(
   ScriptCacheKey key(src, script_name, script->line_offset(),
                      script->column_offset(), script->origin_options(),
                      host_defined_options, maybe_wrapped_arguments, isolate);
-  Handle<Object> k = key.AsHandle(isolate, value);
+  DirectHandle<Object> k = key.AsHandle(isolate, value);
 
   // Check whether there is already a matching entry. If so, we must overwrite
   // it. This allows an entry whose value is undefined to upgrade to contain a
@@ -556,9 +560,10 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutScript(
 
 Handle<CompilationCacheTable> CompilationCacheTable::PutEval(
     Handle<CompilationCacheTable> cache, Handle<String> src,
-    Handle<SharedFunctionInfo> outer_info, Handle<SharedFunctionInfo> value,
-    Handle<Context> native_context, Handle<FeedbackCell> feedback_cell,
-    int position) {
+    Handle<SharedFunctionInfo> outer_info,
+    DirectHandle<SharedFunctionInfo> value,
+    DirectHandle<Context> native_context,
+    DirectHandle<FeedbackCell> feedback_cell, int position) {
   Isolate* isolate = native_context->GetIsolate();
   src = String::Flatten(isolate, src);
   EvalCacheKey key(src, outer_info, value->language_mode(), position);
@@ -566,7 +571,7 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutEval(
   // This block handles 'real' insertions, i.e. the initial dummy insert
   // (below) has already happened earlier.
   {
-    Handle<Object> k = key.AsHandle(isolate);
+    DirectHandle<Object> k = key.AsHandle(isolate);
     InternalIndex entry = cache->FindEntry(isolate, &key);
     if (entry.is_found()) {
       cache->SetKeyAt(entry, *k);
@@ -589,7 +594,7 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutEval(
   // Create a dummy entry to mark that this key has already been inserted once.
   cache = EnsureCapacity(isolate, cache);
   InternalIndex entry = cache->FindInsertionEntry(isolate, key.Hash());
-  Handle<Object> k =
+  DirectHandle<Object> k =
       isolate->factory()->NewNumber(static_cast<double>(key.Hash()));
   cache->SetKeyAt(entry, *k);
   cache->SetPrimaryValueAt(entry, Smi::FromInt(kHashGenerations));
@@ -599,14 +604,14 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutEval(
 
 Handle<CompilationCacheTable> CompilationCacheTable::PutRegExp(
     Isolate* isolate, Handle<CompilationCacheTable> cache, Handle<String> src,
-    JSRegExp::Flags flags, Handle<FixedArray> value) {
-  RegExpKey key(src, flags);
+    JSRegExp::Flags flags, DirectHandle<RegExpData> value) {
+  RegExpKey key(isolate, src, flags);
   cache = EnsureCapacity(isolate, cache);
   InternalIndex entry = cache->FindInsertionEntry(isolate, key.Hash());
   // We store the value in the key slot, and compare the search key
   // to the stored value with a custom IsMatch function during lookups.
-  cache->SetKeyAt(entry, *value);
-  cache->SetPrimaryValueAt(entry, *value);
+  cache->SetKeyAt(entry, value->wrapper());
+  cache->SetPrimaryValueAt(entry, value->wrapper());
   cache->ElementAdded();
   return cache;
 }

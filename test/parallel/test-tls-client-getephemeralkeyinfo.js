@@ -67,11 +67,15 @@ function test(size, type, name, cipher) {
   }));
 }
 
-test(undefined, undefined, undefined, 'AES128-SHA256');
-test('auto', 'DH', undefined, 'DHE-RSA-AES128-GCM-SHA256');
-test(1024, 'DH', undefined, 'DHE-RSA-AES128-GCM-SHA256');
-test(2048, 'DH', undefined, 'DHE-RSA-AES128-GCM-SHA256');
-test(256, 'ECDH', 'prime256v1', 'ECDHE-RSA-AES128-GCM-SHA256');
-test(521, 'ECDH', 'secp521r1', 'ECDHE-RSA-AES128-GCM-SHA256');
-test(253, 'ECDH', 'X25519', 'ECDHE-RSA-AES128-GCM-SHA256');
-test(448, 'ECDH', 'X448', 'ECDHE-RSA-AES128-GCM-SHA256');
+test(undefined, undefined, undefined, 'AES256-SHA256');
+test('auto', 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');
+if (!common.hasOpenSSL(3, 2)) {
+  test(1024, 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');
+} else {
+  test(3072, 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');
+}
+test(2048, 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');
+test(256, 'ECDH', 'prime256v1', 'ECDHE-RSA-AES256-GCM-SHA384');
+test(521, 'ECDH', 'secp521r1', 'ECDHE-RSA-AES256-GCM-SHA384');
+test(253, 'ECDH', 'X25519', 'ECDHE-RSA-AES256-GCM-SHA384');
+test(448, 'ECDH', 'X448', 'ECDHE-RSA-AES256-GCM-SHA384');

@@ -1,7 +1,7 @@
 // Flags: --expose-gc
 'use strict';
 const common = require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const assert = require('assert');
 const zlib = require('zlib');
 

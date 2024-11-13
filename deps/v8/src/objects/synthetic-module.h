@@ -29,17 +29,19 @@ class SyntheticModule
   // export_value.  An error will be thrown if export_name is not one
   // of the export_names that were supplied during module construction.
   // Returns Just(true) on success, Nothing<bool>() if an error was thrown.
-  static Maybe<bool> SetExport(Isolate* isolate, Handle<SyntheticModule> module,
+  static Maybe<bool> SetExport(Isolate* isolate,
+                               DirectHandle<SyntheticModule> module,
                                Handle<String> export_name,
-                               Handle<Object> export_value);
+                               DirectHandle<Object> export_value);
   // The following redundant method should be deleted when the deprecated
   // version of v8::SetSyntheticModuleExport is removed.  It differs from
   // SetExport in that it crashes rather than throwing an error if the caller
   // attempts to set an export_name that was not present during construction of
   // the module.
-  static void SetExportStrict(Isolate* isolate, Handle<SyntheticModule> module,
+  static void SetExportStrict(Isolate* isolate,
+                              DirectHandle<SyntheticModule> module,
                               Handle<String> export_name,
-                              Handle<Object> export_value);
+                              DirectHandle<Object> export_value);
 
   using BodyDescriptor =
       SubclassBodyDescriptor<Module::BodyDescriptor,
@@ -49,15 +51,15 @@ class SyntheticModule
   friend class Module;
 
   static V8_WARN_UNUSED_RESULT MaybeHandle<Cell> ResolveExport(
-      Isolate* isolate, Handle<SyntheticModule> module,
+      Isolate* isolate, DirectHandle<SyntheticModule> module,
       Handle<String> module_specifier, Handle<String> export_name,
       MessageLocation loc, bool must_resolve);
 
   static V8_WARN_UNUSED_RESULT bool PrepareInstantiate(
-      Isolate* isolate, Handle<SyntheticModule> module,
+      Isolate* isolate, DirectHandle<SyntheticModule> module,
       v8::Local<v8::Context> context);
   static V8_WARN_UNUSED_RESULT bool FinishInstantiate(
-      Isolate* isolate, Handle<SyntheticModule> module);
+      Isolate* isolate, DirectHandle<SyntheticModule> module);
 
   static V8_WARN_UNUSED_RESULT MaybeHandle<Object> Evaluate(
       Isolate* isolate, Handle<SyntheticModule> module);

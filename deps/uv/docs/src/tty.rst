@@ -98,7 +98,7 @@ API
 .. c:function:: int uv_tty_set_mode(uv_tty_t* handle, uv_tty_mode_t mode)
 
     .. versionchanged:: 1.2.0: the mode is specified as a
-                        :c:type:`uv_tty_mode_t` value.
+                        :c:enum:`uv_tty_mode_t` value.
 
     Set the TTY using the specified terminal mode.
 

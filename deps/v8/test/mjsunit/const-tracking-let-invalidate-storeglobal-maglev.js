@@ -6,7 +6,7 @@
 // Flags: --turbofan --no-always-turbofan --maglev --no-stress-maglev
 // Flags: --sparkplug --no-always-sparkplug
 
-load('test/mjsunit/const-tracking-let-other-script.js');
+d8.file.execute('test/mjsunit/const-tracking-let-other-script.js');
 
 // This will use the StoreGlobal bytecode.
 function write(newA) {

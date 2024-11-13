@@ -109,7 +109,17 @@ class BigUnsigned {
       size_ = (std::min)(size_ + word_shift, max_words);
       count %= 32;
       if (count == 0) {
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=warray-bounds
+// shows a lot of bogus -Warray-bounds warnings under GCC.
+// This is not the only one in Abseil.
+#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(14, 0)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#endif
         std::copy_backward(words_, words_ + size_ - word_shift, words_ + size_);
+#if ABSL_INTERNAL_HAVE_MIN_GNUC_VERSION(14, 0)
+#pragma GCC diagnostic pop
+#endif
       } else {
         for (int i = (std::min)(size_, max_words - 1); i > word_shift; --i) {
           words_[i] = (words_[i - word_shift] << count) |

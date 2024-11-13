@@ -18,7 +18,7 @@ namespace internal {
 #if defined(V8_EXTERNAL_CODE_SPACE) || defined(V8_ENABLE_SANDBOX)
 // When V8_EXTERNAL_CODE_SPACE or V8_ENABLE_SANDBOX is enabled, comparing
 // objects in the code- or trusted space with "regular" objects by looking only
-// at compressed values it not correct. Full pointers must be compared instead.
+// at compressed values is not correct. Full pointers must be compared instead.
 bool V8_EXPORT_PRIVATE CheckObjectComparisonAllowed(Address a, Address b);
 #endif
 
@@ -148,6 +148,12 @@ class TaggedImpl {
     return kCanBeWeak ? HAS_STRONG_HEAP_OBJECT_TAG(ptr_) : !IsSmi();
   }
 
+  // Returns true if this tagged value is a strong pointer to a HeapObject, or a
+  // Smi.
+  constexpr inline bool IsStrongOrSmi() const {
+    return !kCanBeWeak || !HAS_WEAK_HEAP_OBJECT_TAG(ptr_);
+  }
+
   // Returns true if this tagged value is a weak pointer to a HeapObject.
   constexpr inline bool IsWeak() const {
     return IsWeakOrCleared() && !IsCleared();
@@ -214,7 +220,7 @@ class TaggedImpl {
   Tagged<T> cast() const {
     CHECK(kIsFull);
     DCHECK(!HAS_WEAK_HEAP_OBJECT_TAG(ptr_));
-    return T::cast(Tagged<Object>(ptr_));
+    return Cast<T>(Tagged<Object>(ptr_));
   }
 
  protected:

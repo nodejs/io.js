@@ -4,10 +4,11 @@
 
 #include "src/asmjs/asm-js.h"
 
+#include <optional>
+
 #include "src/asmjs/asm-names.h"
 #include "src/asmjs/asm-parser.h"
 #include "src/ast/ast.h"
-#include "src/base/optional.h"
 #include "src/base/platform/elapsed-timer.h"
 #include "src/base/vector.h"
 #include "src/codegen/compiler.h"
@@ -44,7 +45,7 @@ Handle<Object> StdlibMathMember(Isolate* isolate, Handle<JSReceiver> stdlib,
       isolate->factory()->InternalizeString(base::StaticCharVector("Math")));
   Handle<Object> math = JSReceiver::GetDataProperty(isolate, stdlib, math_name);
   if (!IsJSReceiver(*math)) return isolate->factory()->undefined_value();
-  Handle<JSReceiver> math_receiver = Handle<JSReceiver>::cast(math);
+  Handle<JSReceiver> math_receiver = Cast<JSReceiver>(math);
   Handle<Object> value =
       JSReceiver::GetDataProperty(isolate, math_receiver, name);
   return value;
@@ -56,13 +57,16 @@ bool AreStdlibMembersValid(Isolate* isolate, Handle<JSReceiver> stdlib,
   if (members.contains(wasm::AsmJsParser::StandardMember::kInfinity)) {
     members.Remove(wasm::AsmJsParser::StandardMember::kInfinity);
     Handle<Name> name = isolate->factory()->Infinity_string();
-    Handle<Object> value = JSReceiver::GetDataProperty(isolate, stdlib, name);
-    if (!IsNumber(*value) || !std::isinf(Object::Number(*value))) return false;
+    DirectHandle<Object> value =
+        JSReceiver::GetDataProperty(isolate, stdlib, name);
+    if (!IsNumber(*value) || !std::isinf(Object::NumberValue(*value)))
+      return false;
   }
   if (members.contains(wasm::AsmJsParser::StandardMember::kNaN)) {
     members.Remove(wasm::AsmJsParser::StandardMember::kNaN);
     Handle<Name> name = isolate->factory()->NaN_string();
-    Handle<Object> value = JSReceiver::GetDataProperty(isolate, stdlib, name);
+    DirectHandle<Object> value =
+        JSReceiver::GetDataProperty(isolate, stdlib, name);
     if (!IsNaN(*value)) return false;
   }
 #define STDLIB_MATH_FUNC(fname, FName, ignore1, ignore2)                   \
@@ -72,8 +76,7 @@ bool AreStdlibMembersValid(Isolate* isolate, Handle<JSReceiver> stdlib,
         base::StaticCharVector(#fname)));                                  \
     Handle<Object> value = StdlibMathMember(isolate, stdlib, name);        \
     if (!IsJSFunction(*value)) return false;                               \
-    Tagged<SharedFunctionInfo> shared =                                    \
-        Handle<JSFunction>::cast(value)->shared();                         \
+    Tagged<SharedFunctionInfo> shared = Cast<JSFunction>(value)->shared(); \
     if (!shared->HasBuiltinId() ||                                         \
         shared->builtin_id() != Builtin::kMath##FName) {                   \
       return false;                                                        \
@@ -88,8 +91,8 @@ bool AreStdlibMembersValid(Isolate* isolate, Handle<JSReceiver> stdlib,
     members.Remove(wasm::AsmJsParser::StandardMember::kMath##cname);       \
     Handle<Name> name(isolate->factory()->InternalizeString(               \
         base::StaticCharVector(#cname)));                                  \
-    Handle<Object> value = StdlibMathMember(isolate, stdlib, name);        \
-    if (!IsNumber(*value) || Object::Number(*value) != const_value)        \
+    DirectHandle<Object> value = StdlibMathMember(isolate, stdlib, name);  \
+    if (!IsNumber(*value) || Object::NumberValue(*value) != const_value)   \
       return false;                                                        \
   }
   STDLIB_MATH_VALUE_LIST(STDLIB_MATH_CONST)
@@ -102,7 +105,7 @@ bool AreStdlibMembersValid(Isolate* isolate, Handle<JSReceiver> stdlib,
         base::StaticCharVector(#FName)));                                      \
     Handle<Object> value = JSReceiver::GetDataProperty(isolate, stdlib, name); \
     if (!IsJSFunction(*value)) return false;                                   \
-    Handle<JSFunction> func = Handle<JSFunction>::cast(value);                 \
+    Handle<JSFunction> func = Cast<JSFunction>(value);                         \
     if (!func.is_identical_to(isolate->fname())) return false;                 \
   }
   STDLIB_ARRAY_TYPE(int8_array_fun, Int8Array)
@@ -124,8 +127,9 @@ void Report(Handle<Script> script, int position, base::Vector<const char> text,
             v8::Isolate::MessageErrorLevel level) {
   Isolate* isolate = script->GetIsolate();
   MessageLocation location(script, position, position);
-  Handle<String> text_object = isolate->factory()->InternalizeUtf8String(text);
-  Handle<JSMessageObject> message = MessageHandler::MakeMessageObject(
+  DirectHandle<String> text_object =
+      isolate->factory()->InternalizeUtf8String(text);
+  DirectHandle<JSMessageObject> message = MessageHandler::MakeMessageObject(
       isolate, message_template, &location, text_object,
       Handle<FixedArray>::null());
   message->set_error_level(level);
@@ -232,7 +236,7 @@ UnoptimizedCompilationJob::Status AsmJsCompilationJob::ExecuteJobImpl() {
   Zone translate_zone(allocator_, ZONE_NAME);
 
   Utf16CharacterStream* stream = parse_info()->character_stream();
-  base::Optional<AllowHandleDereference> allow_deref;
+  std::optional<AllowHandleDereference> allow_deref;
   if (stream->can_access_heap()) {
     allow_deref.emplace();
   }
@@ -262,12 +266,12 @@ UnoptimizedCompilationJob::Status AsmJsCompilationJob::FinalizeJobImpl(
   base::ElapsedTimer compile_timer;
   compile_timer.Start();
 
-  Handle<HeapNumber> uses_bitset =
+  DirectHandle<HeapNumber> uses_bitset =
       isolate->factory()->NewHeapNumberFromBits(stdlib_uses_.ToIntegral());
 
   // The result is a compiled module and serialized standard library uses.
   wasm::ErrorThrower thrower(isolate, "AsmJs::Compile");
-  Handle<Script> script(Script::cast(shared_info->script()), isolate);
+  Handle<Script> script(Cast<Script>(shared_info->script()), isolate);
   Handle<AsmWasmData> result =
       wasm::GetWasmEngine()
           ->SyncCompileTranslatedAsmJs(
@@ -321,16 +325,14 @@ inline bool IsValidAsmjsMemorySize(size_t size) {
 }
 }  // namespace
 
-MaybeHandle<Object> AsmJs::InstantiateAsmWasm(Isolate* isolate,
-                                              Handle<SharedFunctionInfo> shared,
-                                              Handle<AsmWasmData> wasm_data,
-                                              Handle<JSReceiver> stdlib,
-                                              Handle<JSReceiver> foreign,
-                                              Handle<JSArrayBuffer> memory) {
+MaybeHandle<Object> AsmJs::InstantiateAsmWasm(
+    Isolate* isolate, DirectHandle<SharedFunctionInfo> shared,
+    DirectHandle<AsmWasmData> wasm_data, Handle<JSReceiver> stdlib,
+    Handle<JSReceiver> foreign, Handle<JSArrayBuffer> memory) {
   base::ElapsedTimer instantiate_timer;
   instantiate_timer.Start();
-  Handle<HeapNumber> uses_bitset(wasm_data->uses_bitset(), isolate);
-  Handle<Script> script(Script::cast(shared->script()), isolate);
+  DirectHandle<HeapNumber> uses_bitset(wasm_data->uses_bitset(), isolate);
+  Handle<Script> script(Cast<Script>(shared->script()), isolate);
   auto* wasm_engine = wasm::GetWasmEngine();
 
   // Allocate the WasmModuleObject.

@@ -517,12 +517,11 @@ void RegExpMacroAssemblerPPC::CheckCharacterNotInRange(base::uc16 from,
 
 void RegExpMacroAssemblerPPC::CallIsCharacterInRangeArray(
     const ZoneList<CharacterRange>* ranges) {
-  static const int kNumArguments = 3;
+  static const int kNumArguments = 2;
   __ PrepareCallCFunction(kNumArguments, r0);
 
   __ mr(r3, current_character());
   __ mov(r4, Operand(GetOrAddRangeArray(ranges)));
-  __ mov(r5, Operand(ExternalReference::isolate_address(isolate())));
 
   {
     // We have a frame (set up in GetCode), but the assembler doesn't know.
@@ -1075,8 +1074,8 @@ Handle<HeapObject> RegExpMacroAssemblerPPC::GetCode(Handle<String> source) {
           .set_empty_source_position_table()
           .Build();
   PROFILE(masm_->isolate(),
-          RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
-  return Handle<HeapObject>::cast(code);
+          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+  return Cast<HeapObject>(code);
 }
 
 
@@ -1291,7 +1290,7 @@ int RegExpMacroAssemblerPPC::CheckStackGuardState(Address* return_address,
                                                   Address re_frame,
                                                   uintptr_t extra_space) {
   Tagged<InstructionStream> re_code =
-      InstructionStream::cast(Tagged<Object>(raw_code));
+      Cast<InstructionStream>(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       frame_entry<intptr_t>(re_frame, kStartIndexOffset),

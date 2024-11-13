@@ -357,6 +357,65 @@ LiveObjectRange::iterator LiveObjectRange::begin() { return iterator(page_); }
 
 LiveObjectRange::iterator LiveObjectRange::end() { return iterator(); }
 
+// static
+std::optional<MarkingHelper::WorklistTarget> MarkingHelper::ShouldMarkObject(
+    Heap* heap, Tagged<HeapObject> object) {
+  const auto* chunk = MemoryChunk::FromHeapObject(object);
+  const auto flags = chunk->GetFlags();
+  if (flags & MemoryChunk::READ_ONLY_HEAP) {
+    return {};
+  }
+  if (V8_LIKELY(!(flags & MemoryChunk::IN_WRITABLE_SHARED_SPACE))) {
+    return {MarkingHelper::WorklistTarget::kRegular};
+  }
+  // Object in shared writable space. Only mark it if the Isolate is owning the
+  // shared space.
+  //
+  // TODO(340989496): Speed up check here by keeping the flag on Heap.
+  if (heap->isolate()->is_shared_space_isolate()) {
+    return {MarkingHelper::WorklistTarget::kRegular};
+  }
+  return {};
+}
+
+// static
+MarkingHelper::LivenessMode MarkingHelper::GetLivenessMode(
+    Heap* heap, Tagged<HeapObject> object) {
+  const auto* chunk = MemoryChunk::FromHeapObject(object);
+  const auto flags = chunk->GetFlags();
+  if (flags & MemoryChunk::READ_ONLY_HEAP) {
+    return MarkingHelper::LivenessMode::kAlwaysLive;
+  }
+  if (V8_LIKELY(!(flags & MemoryChunk::IN_WRITABLE_SHARED_SPACE))) {
+    return MarkingHelper::LivenessMode::kMarkbit;
+  }
+  // Object in shared writable space. Only mark it if the Isolate is owning the
+  // shared space.
+  //
+  // TODO(340989496): Speed up check here by keeping the flag on Heap.
+  if (heap->isolate()->is_shared_space_isolate()) {
+    return MarkingHelper::LivenessMode::kMarkbit;
+  }
+  return MarkingHelper::LivenessMode::kAlwaysLive;
+}
+
+// static
+template <typename MarkingState>
+bool MarkingHelper::TryMarkAndPush(Heap* heap,
+                                   MarkingWorklists::Local* marking_worklist,
+                                   MarkingState* marking_state,
+                                   WorklistTarget target_worklist,
+                                   Tagged<HeapObject> object) {
+  DCHECK(heap->Contains(object));
+  if (marking_state->TryMark(object)) {
+    if (V8_LIKELY(target_worklist == WorklistTarget::kRegular)) {
+      marking_worklist->Push(object);
+    }
+    return true;
+  }
+  return false;
+}
+
 }  // namespace v8::internal
 
 #endif  // V8_HEAP_MARKING_INL_H_

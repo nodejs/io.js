@@ -8,10 +8,10 @@
 #include <sys/types.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "src/base/base-export.h"
-#include "src/base/optional.h"
 #include "src/base/platform/platform.h"
 
 namespace v8 {
@@ -29,7 +29,7 @@ struct V8_BASE_EXPORT MemoryRegion {
   std::string pathname;
 
   // |line| must not contains the tail '\n'.
-  static base::Optional<MemoryRegion> FromMapsLine(const char* line);
+  static std::optional<MemoryRegion> FromMapsLine(const char* line);
 };
 
 // The |fp| parameter is for testing, to pass a fake /proc/self/maps file.

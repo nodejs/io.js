@@ -34,13 +34,14 @@ class JSSegmentIterator
  public:
   // ecma402 #sec-CreateSegmentIterator
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSSegmentIterator> Create(
-      Isolate* isolate, Handle<String> input_string,
+      Isolate* isolate, DirectHandle<String> input_string,
       icu::BreakIterator* icu_break_iterator,
       JSSegmenter::Granularity granularity);
 
   // ecma402 #sec-segment-iterator-prototype-next
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> Next(
-      Isolate* isolate, Handle<JSSegmentIterator> segment_iterator_holder);
+      Isolate* isolate,
+      DirectHandle<JSSegmentIterator> segment_iterator_holder);
 
   Handle<String> GranularityAsString(Isolate* isolate) const;
 
@@ -62,6 +63,21 @@ class JSSegmentIterator
   static_assert(JSSegmenter::Granularity::SENTENCE <= GranularityBits::kMax);
 
   TQ_OBJECT_CONSTRUCTORS(JSSegmentIterator)
+};
+
+class JSSegmentDataObject
+    : public TorqueGeneratedJSSegmentDataObject<JSSegmentDataObject, JSObject> {
+ public:
+ private:
+  TQ_OBJECT_CONSTRUCTORS(JSSegmentDataObject)
+};
+
+class JSSegmentDataObjectWithIsWordLike
+    : public TorqueGeneratedJSSegmentDataObjectWithIsWordLike<
+          JSSegmentDataObjectWithIsWordLike, JSSegmentDataObject> {
+ public:
+ private:
+  TQ_OBJECT_CONSTRUCTORS(JSSegmentDataObjectWithIsWordLike)
 };
 
 }  // namespace internal

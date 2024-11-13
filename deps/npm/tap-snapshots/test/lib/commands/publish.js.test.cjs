@@ -393,6 +393,10 @@ exports[`test/lib/commands/publish.js TAP workspaces all workspaces - some marke
 + workspace-a@1.2.3-a
 `
 
+exports[`test/lib/commands/publish.js TAP workspaces differet package spec > publish different package spec 1`] = `
++ pkg@1.2.3
+`
+
 exports[`test/lib/commands/publish.js TAP workspaces json > all workspaces in json 1`] = `
 {
   "workspace-a": {

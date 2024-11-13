@@ -14,7 +14,7 @@
 #include "src/heap/base/worklist.h"
 #include "src/heap/heap.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/paged-spaces.h"
 #include "src/heap/slot-set.h"
 #include "src/heap/spaces.h"
@@ -59,7 +59,7 @@ class RememberedSetOperations {
     if (slot_set != nullptr) {
       MemoryChunk* chunk = page->Chunk();
       uintptr_t start_offset = chunk->Offset(start);
-      uintptr_t end_offset = chunk->Offset(end);
+      uintptr_t end_offset = chunk->OffsetMaybeOutOfRange(end);
       DCHECK_LE(start_offset, end_offset);
       slot_set->RemoveRange(static_cast<int>(start_offset),
                             static_cast<int>(end_offset), page->buckets(),
@@ -74,8 +74,9 @@ class RememberedSetOperations {
       // Both 'end' and 'end_bucket' are exclusive limits, so do some index
       // juggling to make sure we get the right bucket even if the end address
       // is at the start of a bucket.
-      size_t end_bucket =
-          SlotSet::BucketForSlot(chunk->Offset(end) - kTaggedSize) + 1;
+      size_t end_bucket = SlotSet::BucketForSlot(
+                              chunk->OffsetMaybeOutOfRange(end) - kTaggedSize) +
+                          1;
       slot_set->Iterate(
           chunk->address(), start_bucket, end_bucket,
           [start, end](MaybeObjectSlot slot) {
@@ -129,6 +130,10 @@ class RememberedSet : public AllStatic {
       return;
     }
     typed_slot_set->Merge(&other_typed_slot_set);
+    delete &other_typed_slot_set;
+  }
+
+  static void DeleteTyped(TypedSlotSet&& other_typed_slot_set) {
     delete &other_typed_slot_set;
   }
 
@@ -248,8 +253,6 @@ class RememberedSet : public AllStatic {
                          std::unique_ptr<TypedSlots> other) {
     TypedSlotSet* slot_set = page->typed_slot_set<type>();
     if (slot_set == nullptr) {
-      CodePageHeaderModificationScope header_modification_scope(
-          "Allocating a typed slot set requires header write permissions.");
       slot_set = page->AllocateTypedSlotSet(type);
     }
     slot_set->Merge(other.get());
@@ -345,7 +348,7 @@ class UpdateTypedSlotHelper {
     DCHECK(!HasWeakHeapObjectTag(new_target));
     if (new_target != old_target) {
       rinfo->set_target_address(
-          InstructionStream::cast(new_target)->instruction_start());
+          Cast<InstructionStream>(new_target)->instruction_start());
     }
     return result;
   }
@@ -362,7 +365,7 @@ class UpdateTypedSlotHelper {
     SlotCallbackResult result = callback(FullMaybeObjectSlot(&new_target));
     DCHECK(!HasWeakHeapObjectTag(new_target));
     if (new_target != old_target) {
-      rinfo->set_target_object(HeapObject::cast(new_target));
+      rinfo->set_target_object(Cast<HeapObject>(new_target));
     }
     return result;
   }

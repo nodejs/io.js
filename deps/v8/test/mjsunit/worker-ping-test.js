@@ -74,7 +74,7 @@ function RunWorkerPingTest(config) {
      }
     }
 
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       BeforeReceive(msg);
       if (msg.thing !== undefined) {
         let reply = things[index];

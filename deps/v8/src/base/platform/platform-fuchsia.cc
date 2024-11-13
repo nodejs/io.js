@@ -9,6 +9,8 @@
 #include <lib/zx/vmar.h>
 #include <lib/zx/vmo.h>
 
+#include <optional>
+
 #include "src/base/bits.h"
 #include "src/base/macros.h"
 #include "src/base/platform/platform-posix-time.h"
@@ -322,7 +324,7 @@ bool OS::DecommitPages(void* address, size_t size) {
 bool OS::CanReserveAddressSpace() { return true; }
 
 // static
-Optional<AddressSpaceReservation> OS::CreateAddressSpaceReservation(
+std::optional<AddressSpaceReservation> OS::CreateAddressSpaceReservation(
     void* hint, size_t size, size_t alignment,
     MemoryPermission max_permission) {
   DCHECK_EQ(0, reinterpret_cast<Address>(hint) % alignment);
@@ -394,13 +396,14 @@ int OS::GetUserTime(uint32_t* secs, uint32_t* usecs) {
 
 void OS::AdjustSchedulingParams() {}
 
-std::vector<OS::MemoryRange> OS::GetFreeMemoryRangesWithin(
+std::optional<OS::MemoryRange> OS::GetFirstFreeMemoryRangeWithin(
     OS::Address boundary_start, OS::Address boundary_end, size_t minimum_size,
     size_t alignment) {
-  return {};
+  return std::nullopt;
 }
 
-Optional<AddressSpaceReservation> AddressSpaceReservation::CreateSubReservation(
+std::optional<AddressSpaceReservation>
+AddressSpaceReservation::CreateSubReservation(
     void* address, size_t size, OS::MemoryPermission max_permission) {
   DCHECK(Contains(address, size));
 

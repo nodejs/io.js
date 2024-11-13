@@ -1,6 +1,6 @@
 {
   "name": "@npmcli/git",
-  "version": "5.0.8",
+  "version": "6.0.1",
   "main": "lib/index.js",
   "files": [
     "bin/",
@@ -14,13 +14,14 @@
   "author": "GitHub Inc.",
   "license": "ISC",
   "scripts": {
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
     "snap": "tap",
     "test": "tap",
     "posttest": "npm run lint",
     "postlint": "template-oss-check",
-    "lintfix": "npm run lint -- --fix",
-    "template-oss-apply": "template-oss-apply --force"
+    "lintfix": "npm run eslint -- --fix",
+    "template-oss-apply": "template-oss-apply --force",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "tap": {
     "timeout": 600,
@@ -30,29 +31,29 @@
     ]
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.22.0",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "npm-package-arg": "^11.0.0",
     "slash": "^3.0.0",
     "tap": "^16.0.1"
   },
   "dependencies": {
-    "@npmcli/promise-spawn": "^7.0.0",
-    "ini": "^4.1.3",
+    "@npmcli/promise-spawn": "^8.0.0",
+    "ini": "^5.0.0",
     "lru-cache": "^10.0.1",
-    "npm-pick-manifest": "^9.0.0",
-    "proc-log": "^4.0.0",
+    "npm-pick-manifest": "^10.0.0",
+    "proc-log": "^5.0.0",
     "promise-inflight": "^1.0.1",
     "promise-retry": "^2.0.1",
     "semver": "^7.3.5",
-    "which": "^4.0.0"
+    "which": "^5.0.0"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.22.0",
+    "version": "4.23.3",
     "publish": true
   }
 }

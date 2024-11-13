@@ -139,16 +139,16 @@ class ContextEmbedderTag {
   }
 
   static inline bool IsNodeContext(v8::Local<v8::Context> context) {
-    if (UNLIKELY(context.IsEmpty())) {
+    if (context.IsEmpty()) [[unlikely]] {
       return false;
     }
-    if (UNLIKELY(context->GetNumberOfEmbedderDataFields() <=
-                 ContextEmbedderIndex::kContextTag)) {
+    if (context->GetNumberOfEmbedderDataFields() <=
+        ContextEmbedderIndex::kContextTag) [[unlikely]] {
       return false;
     }
-    if (UNLIKELY(context->GetAlignedPointerFromEmbedderData(
-                     ContextEmbedderIndex::kContextTag) !=
-                 ContextEmbedderTag::kNodeContextTagPtr)) {
+    if (context->GetAlignedPointerFromEmbedderData(
+            ContextEmbedderIndex::kContextTag) !=
+        ContextEmbedderTag::kNodeContextTagPtr) [[unlikely]] {
       return false;
     }
     return true;

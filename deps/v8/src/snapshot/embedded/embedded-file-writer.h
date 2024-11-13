@@ -89,7 +89,8 @@ class EmbeddedFileWriter : public EmbeddedFileWriterInterface {
   }
 
   static FILE* GetFileDescriptorOrDie(const char* filename) {
-    FILE* fp = v8::base::OS::FOpen(filename, "wb");
+    FILE* fp = v8::base::OS::FOpen(filename, "w");
+
     if (fp == nullptr) {
       i::PrintF("Unable to open file \"%s\" for writing.\n", filename);
       exit(1);
@@ -147,9 +148,12 @@ class EmbeddedFileWriter : public EmbeddedFileWriterInterface {
     w->SectionRoData();
     w->AlignToDataAlignment();
     w->DeclareSymbolGlobal(EmbeddedBlobDataSymbol().c_str());
+    w->DeclareLabelProlog(EmbeddedBlobDataSymbol().c_str());
     w->DeclareLabel(EmbeddedBlobDataSymbol().c_str());
 
     WriteBinaryContentsAsInlineAssembly(w, blob->data(), blob->data_size());
+    w->DeclareLabelEpilogue();
+    w->Newline();
   }
 
   void WriteBuiltin(PlatformEmbeddedFileWriterBase* w,

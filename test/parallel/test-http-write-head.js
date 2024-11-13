@@ -51,6 +51,12 @@ const s = http.createServer(common.mustCall((req, res) => {
     }
   );
 
+  assert.throws(() => {
+    res.writeHead(200, ['invalid', 'headers', 'args']);
+  }, {
+    code: 'ERR_INVALID_ARG_VALUE'
+  });
+
   res.writeHead(200, { Test: '2' });
 
   assert.throws(() => {
@@ -78,7 +84,9 @@ function runTest() {
 
 {
   const server = http.createServer(common.mustCall((req, res) => {
-    res.writeHead(200, [ 'test', '1' ]);
+    res.writeHead(220, [ 'test', '1' ]); // 220 is not a standard status code
+    assert.strictEqual(res.statusMessage, 'unknown');
+
     assert.throws(() => res.writeHead(200, [ 'test2', '2' ]), {
       code: 'ERR_HTTP_HEADERS_SENT',
       name: 'Error',

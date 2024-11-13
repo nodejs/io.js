@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iomanip>
+#include <optional>
 #include <set>
 #include <sstream>
 
@@ -67,6 +68,20 @@ int FlagHelpers::FlagNamesCmp(const char* a, const char* b) {
 
 bool FlagHelpers::EqualNames(const char* a, const char* b) {
   return FlagNamesCmp(a, b) == 0;
+}
+
+// Checks if two flag names are equal, allowing for the second name to have a
+// suffix starting with a white space character, e.g. "max_opt < 3". This is
+// used in flag implications.
+bool FlagHelpers::EqualNameWithSuffix(const char* a, const char* b) {
+  char ac, bc;
+  for (int i = 0; true; ++i) {
+    ac = NormalizeChar(a[i]);
+    bc = NormalizeChar(b[i]);
+    if (ac == '\0') break;
+    if (ac != bc) return false;
+  }
+  return bc == '\0' || std::isspace(bc);
 }
 
 std::ostream& operator<<(std::ostream& os, FlagName flag_name) {
@@ -141,13 +156,11 @@ bool Flag::CheckFlagChange(SetBy new_set_by, bool change_flag,
     // changes. So specifying the same flag with the same value multiple times
     // is allowed.
     // For other flags, we disallow specifying them explicitly or in the
-    // presence of an implication even if the value is the same.
+    // presence of an implication if the value is not the same.
     // This is to simplify the rules describing conflicts in variants.py: A
-    // repeated non-boolean flag is considered an error independently of its
-    // value.
+    // repeated non-boolean flag is considered an error.
     bool is_bool_flag = type_ == TYPE_MAYBE_BOOL || type_ == TYPE_BOOL;
     bool check_implications = change_flag;
-    bool check_command_line_flags = change_flag || !is_bool_flag;
     switch (set_by_) {
       case SetBy::kDefault:
         break;
@@ -168,7 +181,7 @@ bool Flag::CheckFlagChange(SetBy new_set_by, bool change_flag,
         }
         break;
       case SetBy::kCommandLine:
-        if (new_set_by == SetBy::kImplication && check_command_line_flags) {
+        if (new_set_by == SetBy::kImplication && check_implications) {
           // Exit instead of abort for certain testing situations.
           if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
           if (is_bool_flag) {
@@ -180,8 +193,7 @@ bool Flag::CheckFlagChange(SetBy new_set_by, bool change_flag,
                          << FlagName{implied_by}
                          << " but also specified explicitly";
           }
-        } else if (new_set_by == SetBy::kCommandLine &&
-                   check_command_line_flags) {
+        } else if (new_set_by == SetBy::kCommandLine && check_implications) {
           // Exit instead of abort for certain testing situations.
           if (v8_flags.exit_on_contradictory_flags) base::OS::ExitProcess(0);
           if (is_bool_flag) {
@@ -254,7 +266,7 @@ void Flag::Reset() {
       set_bool_variable(bool_default(), SetBy::kDefault);
       break;
     case TYPE_MAYBE_BOOL:
-      set_maybe_bool_variable(base::nullopt, SetBy::kDefault);
+      set_maybe_bool_variable(std::nullopt, SetBy::kDefault);
       break;
     case TYPE_INT:
       set_int_variable(int_default(), SetBy::kDefault);
@@ -293,9 +305,9 @@ struct FlagLess {
   }
 };
 
-struct FlagNameLess {
+struct FlagNameGreater {
   bool operator()(const Flag* a, const char* b) const {
-    return FlagHelpers::FlagNamesCmp(a->name(), b) < 0;
+    return FlagHelpers::FlagNamesCmp(a->name(), b) > 0;
   }
 };
 
@@ -311,10 +323,13 @@ class FlagMapByName {
     std::sort(flags_.begin(), flags_.end(), FlagLess());
   }
 
+  // Returns the greatest flag whose name is less than or equal to the given
+  // name (lexicographically). This allows for finding the right flag even if
+  // there is a suffix, as in the case of implications, e.g. "max_opt < 3".
   Flag* GetFlag(const char* name) {
-    auto it =
-        std::lower_bound(flags_.begin(), flags_.end(), name, FlagNameLess());
-    if (it == flags_.end()) return nullptr;
+    auto it = std::lower_bound(flags_.rbegin(), flags_.rend(), name,
+                               FlagNameGreater());
+    if (it == flags_.rend()) return nullptr;
     return *it;
   }
 
@@ -325,10 +340,11 @@ class FlagMapByName {
 DEFINE_LAZY_LEAKY_OBJECT_GETTER(FlagMapByName, GetFlagMap)
 
 // This should be used to look up flags that we know were defined.
+// It allows for suffixes used in implications, e.g. "max_opt < 3",
 Flag* FindImplicationFlagByName(const char* name) {
   Flag* flag = GetFlagMap()->GetFlag(name);
   CHECK(flag != nullptr);
-  DCHECK(FlagHelpers::EqualNames(flag->name(), name));
+  DCHECK(FlagHelpers::EqualNameWithSuffix(flag->name(), name));
   return flag;
 }
 
@@ -477,7 +493,9 @@ uint32_t ComputeFlagListHash() {
         flag.PointsTo(&v8_flags.memory_reducer) ||
         flag.PointsTo(&v8_flags.cppheap_concurrent_marking) ||
         flag.PointsTo(&v8_flags.cppheap_incremental_marking) ||
-        flag.PointsTo(&v8_flags.single_threaded_gc)) {
+        flag.PointsTo(&v8_flags.single_threaded_gc) ||
+        flag.PointsTo(&v8_flags.fuzzing_and_concurrent_recompilation) ||
+        flag.PointsTo(&v8_flags.predictable_and_random_seed_is_0)) {
 #ifdef DEBUG
       if (flag.ImpliedBy(&v8_flags.predictable)) {
         flags_ignored_because_of_predictable.insert(flag.name());

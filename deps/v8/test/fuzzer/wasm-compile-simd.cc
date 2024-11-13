@@ -10,7 +10,7 @@
 namespace v8::internal::wasm::fuzzing {
 
 // Fuzzer that may generate SIMD expressions.
-class WasmCompileFuzzer : public WasmExecutionFuzzer {
+class WasmCompileSIMDFuzzer : public WasmExecutionFuzzer {
   bool GenerateModule(Isolate* isolate, Zone* zone,
                       base::Vector<const uint8_t> data,
                       ZoneBuffer* buffer) override {
@@ -25,7 +25,7 @@ class WasmCompileFuzzer : public WasmExecutionFuzzer {
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   constexpr bool require_valid = true;
-  WasmCompileFuzzer().FuzzWasmModule({data, size}, require_valid);
+  WasmCompileSIMDFuzzer().FuzzWasmModule({data, size}, require_valid);
   return 0;
 }
 

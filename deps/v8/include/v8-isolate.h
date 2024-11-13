@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "cppgc/common.h"
@@ -17,6 +18,7 @@
 #include "v8-data.h"               // NOLINT(build/include_directory)
 #include "v8-debug.h"              // NOLINT(build/include_directory)
 #include "v8-embedder-heap.h"      // NOLINT(build/include_directory)
+#include "v8-exception.h"          // NOLINT(build/include_directory)
 #include "v8-function-callback.h"  // NOLINT(build/include_directory)
 #include "v8-internal.h"           // NOLINT(build/include_directory)
 #include "v8-local-handle.h"       // NOLINT(build/include_directory)
@@ -277,11 +279,6 @@ class V8_EXPORT Isolate {
     bool allow_atomics_wait = true;
 
     /**
-     * Termination is postponed when there is no active SafeForTerminationScope.
-     */
-    bool only_terminate_in_safe_scope = false;
-
-    /**
      * The following parameters describe the offsets for addressing type info
      * for wrapped API objects and are used by the fast C API
      * (for details see v8-fast-api-calls.h).
@@ -387,21 +384,6 @@ class V8_EXPORT Isolate {
     internal::Address previous_stack_height_;
 
     friend class internal::ThreadLocalTop;
-  };
-
-  /**
-   * This scope allows terminations inside direct V8 API calls and forbid them
-   * inside any recursive API calls without explicit SafeForTerminationScope.
-   */
-  class V8_EXPORT V8_NODISCARD SafeForTerminationScope {
-   public:
-    V8_DEPRECATE_SOON("All code should be safe for termination")
-    explicit SafeForTerminationScope(v8::Isolate* v8_isolate) {}
-    ~SafeForTerminationScope() {}
-
-    // Prevent copying of Scope objects.
-    SafeForTerminationScope(const SafeForTerminationScope&) = delete;
-    SafeForTerminationScope& operator=(const SafeForTerminationScope&) = delete;
   };
 
   /**
@@ -563,6 +545,9 @@ class V8_EXPORT Isolate {
     kWasmExnRef = 138,
     kWasmTypedFuncRef = 139,
     kInvalidatedStringWrapperToPrimitiveProtector = 140,
+    kDocumentAllLegacyCall = 141,
+    kDocumentAllLegacyConstruct = 142,
+    kConsoleContext = 143,
 
     // If you add new values here, you'll also need to update Chromium's:
     // web_feature.mojom, use_counter_callback.cc, and enums.xml. V8 changes to
@@ -578,6 +563,21 @@ class V8_EXPORT Isolate {
     kMessageWarning = (1 << 4),
     kMessageAll = kMessageLog | kMessageDebug | kMessageInfo | kMessageError |
                   kMessageWarning,
+  };
+
+  // The different priorities that an isolate can have.
+  enum class Priority {
+    // The isolate does not relate to content that is currently important
+    // to the user. Lowest priority.
+    kBestEffort,
+
+    // The isolate contributes to content that is visible to the user, like a
+    // visible iframe that's not interacted directly with. High priority.
+    kUserVisible,
+
+    // The isolate contributes to content that is of the utmost importance to
+    // the user, like visible content in the focused window. Highest priority.
+    kUserBlocking,
   };
 
   using UseCounterCallback = void (*)(Isolate* isolate,
@@ -690,6 +690,11 @@ class V8_EXPORT Isolate {
    * is accessed.
    */
   void SetPrepareStackTraceCallback(PrepareStackTraceCallback callback);
+
+  /**
+   * Get the stackTraceLimit property of Error.
+   */
+  int GetStackTraceLimit();
 
 #if defined(V8_OS_WIN)
   /**
@@ -931,6 +936,12 @@ class V8_EXPORT Isolate {
    * https://html.spec.whatwg.org/multipage/webappapis.html#incumbent
    */
   Local<Context> GetIncumbentContext();
+
+  /**
+   * Returns the host defined options set for currently running script or
+   * module, if available.
+   */
+  MaybeLocal<Data> GetCurrentHostDefinedOptions();
 
   /**
    * Schedules a v8::Exception::Error with the given message.
@@ -1274,6 +1285,15 @@ class V8_EXPORT Isolate {
   void SetPromiseRejectCallback(PromiseRejectCallback callback);
 
   /**
+   * This is a part of experimental Api and might be changed without further
+   * notice.
+   * Do not use it.
+   *
+   * Set callback to notify about a new exception being thrown.
+   */
+  void SetExceptionPropagationCallback(ExceptionPropagationCallback callback);
+
+  /**
    * Runs the default MicrotaskQueue until it gets empty and perform other
    * microtask checkpoint steps, such as calling ClearKeptObjects. Asserts that
    * the MicrotasksPolicy is not kScoped. Any exceptions thrown by microtask
@@ -1363,24 +1383,6 @@ class V8_EXPORT Isolate {
   void SetAddCrashKeyCallback(AddCrashKeyCallback);
 
   /**
-   * Optional notification that the embedder is idle.
-   * V8 uses the notification to perform garbage collection.
-   * This call can be used repeatedly if the embedder remains idle.
-   * Returns true if the embedder should stop calling IdleNotificationDeadline
-   * until real work has been done.  This indicates that V8 has done
-   * as much cleanup as it will be able to do.
-   *
-   * The deadline_in_seconds argument specifies the deadline V8 has to finish
-   * garbage collection work. deadline_in_seconds is compared with
-   * MonotonicallyIncreasingTime() and should be based on the same timebase as
-   * that function. There is no guarantee that the actual work will be done
-   * within the time limit.
-   */
-  V8_DEPRECATE_SOON(
-      "Use MemoryPressureNotification() to influence the GC schedule.")
-  bool IdleNotificationDeadline(double deadline_in_seconds);
-
-  /**
    * Optional notification that the system is running low on memory.
    * V8 uses these notifications to attempt to free memory.
    */
@@ -1401,13 +1403,21 @@ class V8_EXPORT Isolate {
    * Optional notification that the isolate switched to the foreground.
    * V8 uses these notifications to guide heuristics.
    */
+  V8_DEPRECATE_SOON("Use SetPriority(Priority::kUserBlocking) instead")
   void IsolateInForegroundNotification();
 
   /**
    * Optional notification that the isolate switched to the background.
    * V8 uses these notifications to guide heuristics.
    */
+  V8_DEPRECATE_SOON("Use SetPriority(Priority::kBestEffort) instead")
   void IsolateInBackgroundNotification();
+
+  /**
+   * Optional notification that the isolate changed `priority`.
+   * V8 uses the priority value to guide heuristics.
+   */
+  void SetPriority(Priority priority);
 
   /**
    * Optional notification to tell V8 the current performance requirements
@@ -1592,6 +1602,9 @@ class V8_EXPORT Isolate {
    * Register callback to control whether compile hints magic comments are
    * enabled.
    */
+  V8_DEPRECATED(
+      "Will be removed, use ScriptCompiler::CompileOptions for enabling the "
+      "compile hints magic comments")
   void SetJavaScriptCompileHintsMagicEnabledCallback(
       JavaScriptCompileHintsMagicEnabledCallback callback);
 
@@ -1656,7 +1669,7 @@ class V8_EXPORT Isolate {
    * heap.  GC is not invoked prior to iterating, therefore there is no
    * guarantee that visited objects are still alive.
    */
-  V8_DEPRECATE_SOON("Will be removed without replacement. crbug.com/v8/14172")
+  V8_DEPRECATED("Will be removed without replacement. crbug.com/v8/14172")
   void VisitExternalResources(ExternalResourceVisitor* visitor);
 
   /**
@@ -1710,6 +1723,12 @@ class V8_EXPORT Isolate {
    * the performance of locale operations.
    */
   void LocaleConfigurationChangeNotification();
+
+  /**
+   * Returns the default locale in a string if Intl support is enabled.
+   * Otherwise returns an empty string.
+   */
+  std::string GetDefaultLocale();
 
   Isolate() = delete;
   ~Isolate() = delete;

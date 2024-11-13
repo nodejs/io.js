@@ -31,7 +31,7 @@
 
 #include "ngtcp2_macro.h"
 
-#if defined(_MSC_VER) && !defined(__clang__) &&                                \
+#if defined(_MSC_VER) && _MSC_VER < 1941 && !defined(__clang__) &&                                \
     (defined(_M_ARM) || defined(_M_ARM64))
 static unsigned int __popcnt(unsigned int x) {
   unsigned int c = 0;

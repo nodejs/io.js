@@ -96,6 +96,10 @@ ares_status_t ares_dns_rr_set_opt(ares_dns_rr_t       *dns_rr,
                                   const unsigned char *val,
                                   size_t               val_len);
 
+ares_status_t ares_dns_rr_del_opt_byid(ares_dns_rr_t       *dns_rr,
+                                       ares_dns_rr_key_t    key,
+                                       unsigned short       opt);
+
 const struct in_addr *ares_dns_rr_get_addr(const ares_dns_rr_t *dns_rr,
                                            ares_dns_rr_key_t key);
 
@@ -553,7 +557,7 @@ parameter, and the index to remove is provided in the
 parameter.
 
 The \fIares_dns_rr_set_opt(3)\fP function is used to set option/parameter keys and
-values for the resource record when the datatype if \fIARES_DATATYPE_OPT\fP.  The
+values for the resource record when the datatype is \fIARES_DATATYPE_OPT\fP.  The
 resource record to be modified is provided in the
 .IR dns_rr
 parameter.  They key/parameter is provided in the
@@ -567,6 +571,18 @@ enumerations.  The value for the option is always provided in binary form in
 .IR val
 with length provided in
 .IR val_len.
+
+The \fIares_dns_rr_del_opt_byid(3)\fP function is used to delete option/parameter
+keys and values for the resource record when the datatype is
+\fIARES_DATATYPE_OPT\fP.  The resource record to be modified is provided in the
+.IR dns_rr
+parameter.  They key/parameter is provided in the
+.IR key
+parameter.  The option/parameter value specific to the resource record is provided
+in the
+.IR opt
+parameter.  This function returns \fIARES_SUCCESS\fP if the record is successfully
+removed, or \fIARES_ENOTFOUND\fP if the record could not be found.
 
 The \fIares_dns_rr_get_addr(3)\fP function is used to retrieve the IPv4 address
 from the resource record when the datatype is \fIARES_DATATYPE_INADDR\fP.  The
@@ -635,7 +651,7 @@ parameter and the key/parameter to retrieve is provided in the
 .IR key
 parameter.
 
-The \fIares_dns_rr_get_abin(3)\fP function is used to retrive binary data from
+The \fIares_dns_rr_get_abin(3)\fP function is used to retrieve binary data from
 the resource record array when the datatype is \fIARES_DATATYPE_ABINP\fP.
 The resource record is provided in the
 .IR dns_rr

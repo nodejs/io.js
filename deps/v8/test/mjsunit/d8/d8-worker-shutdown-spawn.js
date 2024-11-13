@@ -5,7 +5,7 @@
 // Flags: --expose-gc --stress-runs=1
 
 let script = `onmessage =
-   function(msg) {
+   function({data:msg}) {
      if (msg.depth > 0) {
         print("spawn");
         let w = new Worker(msg.script, {type : "string"});

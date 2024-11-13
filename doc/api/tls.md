@@ -1577,7 +1577,9 @@ protocol.
 ### `tlsSocket.setKeyCert(context)`
 
 <!-- YAML
-added: v22.5.0
+added:
+  - v22.5.0
+  - v20.17.0
 -->
 
 * `context` {Object|tls.SecureContext} An object containing at least `key` and
@@ -1855,6 +1857,11 @@ argument.
 added: v0.11.13
 changes:
   - version:
+    - v22.9.0
+    - v20.18.0
+    pr-url: https://github.com/nodejs/node/pull/54790
+    description: The `allowPartialTrustChain` option has been added.
+  - version:
     - v22.4.0
     - v20.16.0
     pr-url: https://github.com/nodejs/node/pull/53329
@@ -1910,6 +1917,8 @@ changes:
 -->
 
 * `options` {Object}
+  * `allowPartialTrustChain` {boolean} Treat intermediate (non-self-signed)
+    certificates in the trust CA certificate list as trusted.
   * `ca` {string|string\[]|Buffer|Buffer\[]} Optionally override the trusted CA
     certificates. Default is to trust the well-known CAs curated by Mozilla.
     Mozilla's CAs are completely replaced when CAs are explicitly specified
@@ -2203,7 +2212,7 @@ changes:
   * `pskIdentityHint` {string} optional hint to send to a client to help
     with selecting the identity during TLS-PSK negotiation. Will be ignored
     in TLS 1.3. Upon failing to set pskIdentityHint `'tlsClientError'` will be
-    emitted with `'ERR_TLS_PSK_SET_IDENTIY_HINT_FAILED'` code.
+    emitted with `'ERR_TLS_PSK_SET_IDENTITY_HINT_FAILED'` code.
   * ...: Any [`tls.createSecureContext()`][] option can be provided. For
     servers, the identity options (`pfx`, `key`/`cert`, or `pskCallback`)
     are usually required.

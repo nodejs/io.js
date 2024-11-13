@@ -31,6 +31,13 @@ void AstFunctionLiteralIdReindexer::VisitFunctionLiteral(FunctionLiteral* lit) {
   lit->set_function_literal_id(lit->function_literal_id() + delta_);
 }
 
+void AstFunctionLiteralIdReindexer::VisitCall(Call* expr) {
+  AstTraversalVisitor::VisitCall(expr);
+  if (expr->is_possibly_eval()) {
+    expr->adjust_eval_scope_info_index(delta_);
+  }
+}
+
 void AstFunctionLiteralIdReindexer::VisitClassLiteral(ClassLiteral* expr) {
   // Manually visit the class literal so that we can change the property walk.
   // This should be kept in-sync with AstTraversalVisitor::VisitClassLiteral.

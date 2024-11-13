@@ -16,8 +16,11 @@
 #include "absl/random/mocking_bit_gen.h"
 
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <numeric>
-#include <random>
+#include <vector>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest-spi.h"
@@ -176,12 +179,18 @@ TEST(BasicMocking, MultipleGenerators) {
   EXPECT_NE(get_value(mocked_with_11), 11);
 }
 
-TEST(BasicMocking, MocksNotTrigeredForIncorrectTypes) {
+TEST(BasicMocking, MocksNotTriggeredForIncorrectTypes) {
   absl::MockingBitGen gen;
-  EXPECT_CALL(absl::MockUniform<uint32_t>(), Call(gen)).WillOnce(Return(42));
+  EXPECT_CALL(absl::MockUniform<uint32_t>(), Call(gen))
+      .WillRepeatedly(Return(42));
 
-  EXPECT_NE(absl::Uniform<uint16_t>(gen), 42);  // Not mocked
-  EXPECT_EQ(absl::Uniform<uint32_t>(gen), 42);  // Mock triggered
+  bool uint16_always42 = true;
+  for (int i = 0; i < 10000; i++) {
+    EXPECT_EQ(absl::Uniform<uint32_t>(gen), 42);  // Mock triggered.
+    // uint16_t not mocked.
+    uint16_always42 = uint16_always42 && absl::Uniform<uint16_t>(gen) == 42;
+  }
+  EXPECT_FALSE(uint16_always42);
 }
 
 TEST(BasicMocking, FailsOnUnsatisfiedMocks) {
@@ -239,33 +248,33 @@ TEST(WillOnce, DistinctCounters) {
   absl::MockingBitGen gen;
   EXPECT_CALL(absl::MockUniform<int>(), Call(gen, 1, 1000000))
       .Times(3)
-      .WillRepeatedly(Return(0));
+      .WillRepeatedly(Return(1));
   EXPECT_CALL(absl::MockUniform<int>(), Call(gen, 1000001, 2000000))
       .Times(3)
-      .WillRepeatedly(Return(1));
-  EXPECT_EQ(absl::Uniform(gen, 1000001, 2000000), 1);
-  EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 0);
-  EXPECT_EQ(absl::Uniform(gen, 1000001, 2000000), 1);
-  EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 0);
-  EXPECT_EQ(absl::Uniform(gen, 1000001, 2000000), 1);
-  EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 0);
+      .WillRepeatedly(Return(1000001));
+  EXPECT_EQ(absl::Uniform(gen, 1000001, 2000000), 1000001);
+  EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 1);
+  EXPECT_EQ(absl::Uniform(gen, 1000001, 2000000), 1000001);
+  EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 1);
+  EXPECT_EQ(absl::Uniform(gen, 1000001, 2000000), 1000001);
+  EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 1);
 }
 
 TEST(TimesModifier, ModifierSaturatesAndExpires) {
   EXPECT_NONFATAL_FAILURE(
       []() {
         absl::MockingBitGen gen;
-        EXPECT_CALL(absl::MockUniform<int>(), Call(gen, 1, 1000000))
+        EXPECT_CALL(absl::MockUniform<int>(), Call(gen, 0, 1000000))
             .Times(3)
             .WillRepeatedly(Return(15))
             .RetiresOnSaturation();
 
-        EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 15);
-        EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 15);
-        EXPECT_EQ(absl::Uniform(gen, 1, 1000000), 15);
+        EXPECT_EQ(absl::Uniform(gen, 0, 1000000), 15);
+        EXPECT_EQ(absl::Uniform(gen, 0, 1000000), 15);
+        EXPECT_EQ(absl::Uniform(gen, 0, 1000000), 15);
         // Times(3) has expired - Should get a different value now.
 
-        EXPECT_NE(absl::Uniform(gen, 1, 1000000), 15);
+        EXPECT_NE(absl::Uniform(gen, 0, 1000000), 15);
       }(),
       "");
 }
@@ -387,7 +396,7 @@ TEST(MockingBitGen, StrictMock_TooMany) {
   EXPECT_EQ(absl::Uniform(gen, 1, 1000), 145);
 
   EXPECT_NONFATAL_FAILURE(
-      [&]() { EXPECT_EQ(absl::Uniform(gen, 10, 1000), 0); }(),
+      [&]() { EXPECT_EQ(absl::Uniform(gen, 0, 1000), 0); }(),
       "over-saturated and active");
 }
 

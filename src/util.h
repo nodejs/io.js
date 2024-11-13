@@ -38,8 +38,10 @@
 
 #include <array>
 #include <bit>
+#include <filesystem>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -55,6 +57,8 @@
 #endif
 
 namespace node {
+
+constexpr char kPathSeparator = std::filesystem::path::preferred_separator;
 
 #ifdef _WIN32
 /* MAX_PATH is in characters, not bytes. Make sure we have enough headroom. */
@@ -154,12 +158,8 @@ void DumpJavaScriptBacktrace(FILE* fp);
   } while (0)
 
 #ifdef __GNUC__
-#define LIKELY(expr) __builtin_expect(!!(expr), 1)
-#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #define PRETTY_FUNCTION_NAME __PRETTY_FUNCTION__
 #else
-#define LIKELY(expr) expr
-#define UNLIKELY(expr) expr
 #if defined(_MSC_VER)
 #define PRETTY_FUNCTION_NAME __FUNCSIG__
 #else
@@ -170,11 +170,11 @@ void DumpJavaScriptBacktrace(FILE* fp);
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
 
-#define CHECK(expr)                                                           \
-  do {                                                                        \
-    if (UNLIKELY(!(expr))) {                                                  \
-      ERROR_AND_ABORT(expr);                                                  \
-    }                                                                         \
+#define CHECK(expr)                                                            \
+  do {                                                                         \
+    if (!(expr)) [[unlikely]] {                                                \
+      ERROR_AND_ABORT(expr);                                                   \
+    }                                                                          \
   } while (0)
 
 #define CHECK_EQ(a, b) CHECK((a) == (b))
@@ -306,7 +306,7 @@ class KVStore {
 
   virtual v8::MaybeLocal<v8::String> Get(v8::Isolate* isolate,
                                          v8::Local<v8::String> key) const = 0;
-  virtual v8::Maybe<std::string> Get(const char* key) const = 0;
+  virtual std::optional<std::string> Get(const char* key) const = 0;
   virtual void Set(v8::Isolate* isolate,
                    v8::Local<v8::String> key,
                    v8::Local<v8::String> value) = 0;
@@ -317,9 +317,9 @@ class KVStore {
   virtual v8::Local<v8::Array> Enumerate(v8::Isolate* isolate) const = 0;
 
   virtual std::shared_ptr<KVStore> Clone(v8::Isolate* isolate) const;
-  virtual v8::Maybe<bool> AssignFromObject(v8::Local<v8::Context> context,
+  virtual v8::Maybe<void> AssignFromObject(v8::Local<v8::Context> context,
                                            v8::Local<v8::Object> entries);
-  v8::Maybe<bool> AssignToObject(v8::Isolate* isolate,
+  v8::Maybe<void> AssignToObject(v8::Isolate* isolate,
                                  v8::Local<v8::Context> context,
                                  v8::Local<v8::Object> object);
 
@@ -560,6 +560,10 @@ class BufferValue : public MaybeStackBuffer<char> {
   inline std::string ToString() const { return std::string(out(), length()); }
   inline std::string_view ToStringView() const {
     return std::string_view(out(), length());
+  }
+  inline std::u8string_view ToU8StringView() const {
+    return std::u8string_view(reinterpret_cast<const char8_t*>(out()),
+                              length());
   }
 };
 

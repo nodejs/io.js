@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html class=test-wait>
+  <head>
+    <title>AbortSignal::Any when source signal was garbage collected</title>
+    <link rel="help" href="https://bugzilla.mozilla.org/show_bug.cgi?id=1908466">
+    <link rel="author" title="Vincent Hilla" href="mailto:vhilla@mozilla.com">
+    <script src="/common/gc.js"></script>
+  </head>
+  <body>
+    <p>Test passes if the browser does not crash.</p>
+    <script>
+        async function test() {
+            let controller = new AbortController();
+            let signal = AbortSignal.any([controller.signal]);
+            controller = undefined;
+            await garbageCollect();
+            AbortSignal.any([signal]);
+            document.documentElement.classList.remove('test-wait');
+        }
+        test();
+    </script>
+  </body>
+</html>

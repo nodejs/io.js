@@ -4,6 +4,8 @@
 
 #include "src/compiler/graph-assembler.h"
 
+#include <optional>
+
 #include "src/base/container-utils.h"
 #include "src/codegen/callable.h"
 #include "src/codegen/machine-type.h"
@@ -44,7 +46,7 @@ class V8_NODISCARD GraphAssembler::BlockInlineReduction {
 
 GraphAssembler::GraphAssembler(
     MachineGraph* mcgraph, Zone* zone, BranchSemantics default_branch_semantics,
-    base::Optional<NodeChangedCallback> node_changed_callback,
+    std::optional<NodeChangedCallback> node_changed_callback,
     bool mark_loop_exits)
     : temp_zone_(zone),
       mcgraph_(mcgraph),
@@ -119,6 +121,10 @@ Node* GraphAssembler::ExternalConstant(ExternalReference ref) {
   return AddClonedNode(mcgraph()->ExternalConstant(ref));
 }
 
+Node* GraphAssembler::IsolateField(IsolateFieldId id) {
+  return ExternalConstant(ExternalReference::Create(id));
+}
+
 Node* GraphAssembler::Parameter(int index) {
   return AddNode(
       graph()->NewNode(common()->Parameter(index), graph()->start()));
@@ -132,15 +138,18 @@ Node* GraphAssembler::LoadFramePointer() {
   return AddNode(graph()->NewNode(machine()->LoadFramePointer()));
 }
 
+Node* GraphAssembler::LoadRootRegister() {
+  return AddNode(graph()->NewNode(machine()->LoadRootRegister()));
+}
+
 #if V8_ENABLE_WEBASSEMBLY
 Node* GraphAssembler::LoadStackPointer() {
   return AddNode(graph()->NewNode(machine()->LoadStackPointer(), effect()));
 }
 
-Node* GraphAssembler::SetStackPointer(Node* node,
-                                      wasm::FPRelativeScope fp_scope) {
+Node* GraphAssembler::SetStackPointer(Node* node) {
   return AddNode(
-      graph()->NewNode(machine()->SetStackPointer(fp_scope), node, effect()));
+      graph()->NewNode(machine()->SetStackPointer(), node, effect()));
 }
 #endif
 
@@ -476,6 +485,13 @@ Node* JSGraphAssembler::Assert(Node* cond, const char* condition_string,
       cond, effect(), control()));
 }
 
+void JSGraphAssembler::Assert(TNode<Word32T> cond, const char* condition_string,
+                              const char* file, int line) {
+  AddNode(graph()->NewNode(
+      common()->Assert(BranchSemantics::kMachine, condition_string, file, line),
+      cond, effect(), control()));
+}
+
 TNode<Boolean> JSGraphAssembler::NumberIsFloat64Hole(TNode<Number> value) {
   return AddNode<Boolean>(
       graph()->NewNode(simplified()->NumberIsFloat64Hole(), value));
@@ -545,28 +561,28 @@ class ArrayBufferViewAccessBuilder {
     });
   }
 
-  base::Optional<int> TryComputeStaticElementShift() {
+  std::optional<int> TryComputeStaticElementShift() {
     DCHECK(instance_type_ != JS_RAB_GSAB_DATA_VIEW_TYPE);
     if (instance_type_ == JS_DATA_VIEW_TYPE) return 0;
-    if (candidates_.empty()) return base::nullopt;
+    if (candidates_.empty()) return std::nullopt;
     int shift = ElementsKindToShiftSize(*candidates_.begin());
     if (!base::all_of(candidates_, [shift](auto e) {
           return ElementsKindToShiftSize(e) == shift;
         })) {
-      return base::nullopt;
+      return std::nullopt;
     }
     return shift;
   }
 
-  base::Optional<int> TryComputeStaticElementSize() {
+  std::optional<int> TryComputeStaticElementSize() {
     DCHECK(instance_type_ != JS_RAB_GSAB_DATA_VIEW_TYPE);
     if (instance_type_ == JS_DATA_VIEW_TYPE) return 1;
-    if (candidates_.empty()) return base::nullopt;
+    if (candidates_.empty()) return std::nullopt;
     int size = ElementsKindToByteSize(*candidates_.begin());
     if (!base::all_of(candidates_, [size](auto e) {
           return ElementsKindToByteSize(e) == size;
         })) {
-      return base::nullopt;
+      return std::nullopt;
     }
     return size;
   }
@@ -662,8 +678,7 @@ class ArrayBufferViewAccessBuilder {
       TNode<Number> temp = TNode<Number>::UncheckedCast(a.TypeGuard(
           TypeCache::Get()->kJSArrayBufferViewByteLengthType,
           a.JSCallRuntime1(Runtime::kGrowableSharedArrayBufferByteLength,
-                           buffer, context, base::nullopt,
-                           Operator::kNoWrite)));
+                           buffer, context, std::nullopt, Operator::kNoWrite)));
       TNode<UintPtrT> byte_length =
           a.EnterMachineGraph<UintPtrT>(temp, UseInfo::Word());
       TNode<UintPtrT> byte_offset = MachineLoadField<UintPtrT>(
@@ -793,8 +808,7 @@ class ArrayBufferViewAccessBuilder {
       TNode<Number> temp = TNode<Number>::UncheckedCast(a.TypeGuard(
           TypeCache::Get()->kJSArrayBufferViewByteLengthType,
           a.JSCallRuntime1(Runtime::kGrowableSharedArrayBufferByteLength,
-                           buffer, context, base::nullopt,
-                           Operator::kNoWrite)));
+                           buffer, context, std::nullopt, Operator::kNoWrite)));
       TNode<UintPtrT> byte_length =
           a.EnterMachineGraph<UintPtrT>(temp, UseInfo::Word());
       TNode<UintPtrT> byte_offset = MachineLoadField<UintPtrT>(
@@ -971,7 +985,7 @@ TNode<Uint32T> JSGraphAssembler::LookupByteSizeForElementsKind(
 
 TNode<Object> JSGraphAssembler::JSCallRuntime1(
     Runtime::FunctionId function_id, TNode<Object> arg0, TNode<Context> context,
-    base::Optional<FrameState> frame_state, Operator::Properties properties) {
+    std::optional<FrameState> frame_state, Operator::Properties properties) {
   return MayThrow([&]() {
     if (frame_state.has_value()) {
       return AddNode<Object>(graph()->NewNode(
@@ -1037,7 +1051,7 @@ TNode<RawPtrT> GraphAssembler::StackSlot(int size, int alignment,
 }
 
 Node* GraphAssembler::AdaptLocalArgument(Node* argument) {
-#ifdef V8_ENABLE_DIRECT_LOCAL
+#ifdef V8_ENABLE_DIRECT_HANDLE
   // With direct locals, the argument can be passed directly.
   return BitcastTaggedToWord(argument);
 #else

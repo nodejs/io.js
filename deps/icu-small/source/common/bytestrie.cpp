@@ -327,7 +327,7 @@ BytesTrie::findUniqueValueFromBranch(const uint8_t *pos, int32_t length,
         ++pos;  // ignore a comparison byte
         // handle its value
         int32_t node=*pos++;
-        UBool isFinal=(UBool)(node&kValueIsFinal);
+        UBool isFinal = static_cast<UBool>(node & kValueIsFinal);
         int32_t value=readValue(pos, node>>1);
         pos=skipValue(pos, node);
         if(isFinal) {
@@ -366,7 +366,7 @@ BytesTrie::findUniqueValue(const uint8_t *pos, UBool haveUniqueValue, int32_t &u
             // linear-match node
             pos+=node-kMinLinearMatch+1;  // Ignore the match bytes.
         } else {
-            UBool isFinal=(UBool)(node&kValueIsFinal);
+            UBool isFinal = static_cast<UBool>(node & kValueIsFinal);
             int32_t value=readValue(pos, node>>1);
             if(haveUniqueValue) {
                 if(value!=uniqueValue) {
@@ -434,7 +434,7 @@ BytesTrie::getNextBranchBytes(const uint8_t *pos, int32_t length, ByteSink &out)
 
 void
 BytesTrie::append(ByteSink &out, int c) {
-    char ch=(char)c;
+    char ch = static_cast<char>(c);
     out.Append(&ch, 1);
 }
 

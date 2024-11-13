@@ -18,9 +18,11 @@ template <typename TMixin>
 class WithInnerPointerResolutionMixin : public TMixin {
  public:
   Address ResolveInnerPointer(Address maybe_inner_ptr) {
+    // This can only resolve inner pointers in the regular cage.
+    PtrComprCageBase cage_base{this->isolate()};
     return ConservativeStackVisitor::ForTesting(
                this->isolate(), GarbageCollector::MARK_COMPACTOR)
-        .FindBasePtr(maybe_inner_ptr);
+        .FindBasePtr(maybe_inner_ptr, cage_base);
   }
 };
 
@@ -202,7 +204,7 @@ class InnerPointerResolutionTest
         Tagged<HeapObject> heap_object(HeapObject::FromAddress(object.address));
         heap_object->set_map_after_allocation(roots.unchecked_fixed_array_map(),
                                               SKIP_WRITE_BARRIER);
-        Tagged<FixedArray> arr(FixedArray::cast(heap_object));
+        Tagged<FixedArray> arr(Cast<FixedArray>(heap_object));
         arr->set_length((object.size - FixedArray::SizeFor(0)) / kTaggedSize);
         DCHECK_EQ(object.size, arr->AllocatedSize());
         break;
@@ -257,7 +259,7 @@ class InnerPointerResolutionTest
       RunTestInside(object, object.size - 1);
     }
     for (auto [id, page] : pages_) {
-      const Address outside_ptr = page->area_start() - 42;
+      const Address outside_ptr = page->ChunkAddress() + 1;
       DCHECK_LE(page->ChunkAddress(), outside_ptr);
       RunTestOutside(outside_ptr);
     }

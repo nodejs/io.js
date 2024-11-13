@@ -6,23 +6,23 @@
 #define V8_COMPILER_TURBOSHAFT_INDEX_H_
 
 #include <cstddef>
+#include <optional>
 #include <type_traits>
 
 #include "src/base/logging.h"
+#include "src/base/template-meta-programming/algorithm.h"
 #include "src/codegen/tnode.h"
 #include "src/compiler/turboshaft/fast-hash.h"
 #include "src/compiler/turboshaft/representations.h"
 #include "src/objects/heap-number.h"
+#include "src/objects/js-function.h"
 #include "src/objects/oddball.h"
 #include "src/objects/string.h"
 #include "src/objects/tagged.h"
 
-namespace v8::internal::compiler::turboshaft {
+#define TURBOSHAFT_ALLOW_IMPLICIT_OPINDEX_INITIALIZATION_FOR_V 1
 
-namespace detail {
-template <typename T>
-struct lazy_false : std::false_type {};
-}  // namespace detail
+namespace v8::internal::compiler::turboshaft {
 
 // Operations are stored in possibly muliple sequential storage slots.
 using OperationStorageSlot = std::aligned_storage_t<8, 8>;
@@ -52,7 +52,7 @@ class OpIndex {
   constexpr OpIndex() : offset_(std::numeric_limits<uint32_t>::max()) {}
   template <typename T, typename C>
   OpIndex(const ConstOrV<T, C>&) {  // NOLINT(runtime/explicit)
-    static_assert(detail::lazy_false<T>::value,
+    static_assert(base::tmp::lazy_false<T>::value,
                   "Cannot initialize OpIndex from ConstOrV<>. Did you forget "
                   "to resolve() it in the assembler?");
   }
@@ -167,7 +167,7 @@ class OptionalOpIndex : protected OpIndex {
   constexpr OptionalOpIndex(OpIndex other)  // NOLINT(runtime/explicit)
       : OpIndex(other) {}
 
-  static constexpr OptionalOpIndex Invalid() {
+  static constexpr OptionalOpIndex Nullopt() {
     return OptionalOpIndex{OpIndex::Invalid()};
   }
 
@@ -194,9 +194,24 @@ V8_INLINE std::ostream& operator<<(std::ostream& os, OptionalOpIndex idx) {
 // RegisterRepresentation.
 struct nullrep_t {};
 constexpr nullrep_t nullrep;
+constexpr inline bool operator==(nullrep_t, nullrep_t) { return true; }
+constexpr inline bool operator==(nullrep_t, RegisterRepresentation) {
+  return false;
+}
+constexpr inline bool operator==(RegisterRepresentation, nullrep_t) {
+  return false;
+}
+constexpr inline bool operator!=(nullrep_t, nullrep_t) { return false; }
+constexpr inline bool operator!=(nullrep_t, RegisterRepresentation) {
+  return true;
+}
+constexpr inline bool operator!=(RegisterRepresentation, nullrep_t) {
+  return true;
+}
 
 // Abstract tag classes for V<>.
 struct Any {};
+struct None {};
 
 template <size_t Bits>
 struct WordWithBits : public Any {
@@ -221,6 +236,22 @@ using Simd128 = WordWithBits<128>;
 using Simd256 = WordWithBits<256>;
 
 struct Compressed : public Any {};
+struct InternalTag : public Any {};
+struct FrameState : public InternalTag {};
+
+// A Union type for untagged values. For Tagged types use `Union` for now.
+// TODO(nicohartmann@): We should think about a more uniform solution some day.
+template <typename... Ts>
+struct UntaggedUnion : public Any {
+  using to_list_t = base::tmp::list<Ts...>;
+};
+
+template <typename... Ts>
+struct Tuple : public Any {
+  using to_list_t = base::tmp::list<Ts...>;
+  template <int Index>
+  using element_t = base::tmp::element_t<to_list_t, Index>;
+};
 
 // Traits classes `v_traits<T>` to provide additional T-specific information for
 // V<T> and ConstOrV<T>. If you need to provide non-default conversion behavior
@@ -231,151 +262,303 @@ struct v_traits;
 template <>
 struct v_traits<Any> {
   static constexpr bool is_abstract_tag = true;
+  using rep_type = RegisterRepresentation;
   static constexpr auto rep = nullrep;
-  static constexpr bool allows_representation(RegisterRepresentation rep) {
+  static constexpr bool allows_representation(RegisterRepresentation) {
     return true;
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_same_v<U, Any>> {};
+  struct implicitly_constructible_from : std::true_type {};
+};
+
+template <>
+struct v_traits<None> {
+  static constexpr bool is_abstract_tag = true;
+  using rep_type = nullrep_t;
+  static constexpr auto rep = nullrep;
+  static constexpr bool allows_representation(RegisterRepresentation) {
+    return false;
+  }
+
+  template <typename U>
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_same_v<U, None>> {};
 };
 
 template <>
 struct v_traits<Compressed> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr auto rep = nullrep;
+  using rep_type = RegisterRepresentation;
+  static constexpr auto rep = RegisterRepresentation::Compressed();
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Compressed();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Compressed>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Compressed, U>> {};
 };
 
 template <>
 struct v_traits<Word32> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr WordRepresentation rep = WordRepresentation::Word32();
+  using rep_type = WordRepresentation;
+  static constexpr auto rep = WordRepresentation::Word32();
   using constexpr_type = uint32_t;
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Word32();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Word32>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Word32, U>> {};
 };
 
 template <>
 struct v_traits<Word64> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr WordRepresentation rep = WordRepresentation::Word64();
+  using rep_type = WordRepresentation;
+  static constexpr auto rep = WordRepresentation::Word64();
   using constexpr_type = uint64_t;
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Word64();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Word64>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Word64, U>> {};
 };
 
 template <>
 struct v_traits<Float32> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr FloatRepresentation rep = FloatRepresentation::Float32();
+  using rep_type = FloatRepresentation;
+  static constexpr auto rep = FloatRepresentation::Float32();
   using constexpr_type = float;
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Float32();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Float32>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Float32, U>> {};
 };
 
 template <>
 struct v_traits<Float64> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr FloatRepresentation rep = FloatRepresentation::Float64();
+  using rep_type = FloatRepresentation;
+  static constexpr auto rep = FloatRepresentation::Float64();
   using constexpr_type = double;
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Float64();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Float64>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Float64, U>> {};
 };
 
 template <>
 struct v_traits<Simd128> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr RegisterRepresentation rep =
-      RegisterRepresentation::Simd128();
+  using rep_type = RegisterRepresentation;
+  static constexpr auto rep = RegisterRepresentation::Simd128();
   using constexpr_type = uint8_t[kSimd128Size];
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Simd128();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Simd128>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Simd128, U>> {};
 };
 
 template <>
 struct v_traits<Simd256> {
   static constexpr bool is_abstract_tag = true;
-  static constexpr RegisterRepresentation rep =
-      RegisterRepresentation::Simd256();
+  using rep_type = RegisterRepresentation;
+  static constexpr auto rep = RegisterRepresentation::Simd256();
   using constexpr_type = uint8_t[kSimd256Size];
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Simd256();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_base_of_v<U, Simd256>> {};
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_base_of_v<Simd256, U>> {};
 };
 
 template <typename T>
-struct v_traits<T, std::enable_if_t<is_taggable_v<T>>> {
+struct v_traits<T, std::enable_if_t<is_taggable_v<T> && !is_union_v<T>>> {
   static constexpr bool is_abstract_tag = false;
+  using rep_type = RegisterRepresentation;
   static constexpr auto rep = RegisterRepresentation::Tagged();
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return rep == RegisterRepresentation::Tagged();
   }
 
   template <typename U>
-  struct implicitly_convertible_to
-      : std::bool_constant<std::is_same_v<U, Any> || is_subtype<T, U>::value> {
-  };
+  struct implicitly_constructible_from
+      : std::bool_constant<is_subtype<U, T>::value> {};
+  template <typename... Us>
+  struct implicitly_constructible_from<UntaggedUnion<Us...>>
+      : std::bool_constant<(
+            v_traits<T>::template implicitly_constructible_from<Us>::value &&
+            ...)> {};
 };
 
-template <typename T1, typename T2>
-struct v_traits<UnionT<T1, T2>,
-                std::enable_if_t<is_taggable_v<UnionT<T1, T2>>>> {
-  static_assert(!v_traits<T1>::is_abstract_tag);
-  static_assert(!v_traits<T2>::is_abstract_tag);
+template <typename T, typename... Ts>
+struct v_traits<Union<T, Ts...>> {
+  static_assert(!v_traits<T>::is_abstract_tag);
+  static_assert((!v_traits<Ts>::is_abstract_tag && ...));
   static constexpr bool is_abstract_tag = false;
-  static_assert(v_traits<T1>::rep == v_traits<T2>::rep);
-  static constexpr auto rep = v_traits<T1>::rep;
+  static_assert(((v_traits<T>::rep == v_traits<Ts>::rep) && ...));
+  static_assert((std::is_same_v<typename v_traits<T>::rep_type,
+                                typename v_traits<Ts>::rep_type> &&
+                 ...));
+  using rep_type = typename v_traits<T>::rep_type;
+  static constexpr auto rep = v_traits<T>::rep;
   static constexpr bool allows_representation(RegisterRepresentation r) {
     return r == rep;
   }
 
   template <typename U>
-  struct implicitly_convertible_to
+  struct implicitly_constructible_from
       : std::bool_constant<(
-            v_traits<T1>::template implicitly_convertible_to<U>::value ||
-            v_traits<T2>::template implicitly_convertible_to<U>::value)> {};
+            v_traits<T>::template implicitly_constructible_from<U>::value ||
+            ... ||
+            v_traits<Ts>::template implicitly_constructible_from<U>::value)> {};
+  template <typename... Us>
+  struct implicitly_constructible_from<Union<Us...>>
+      : std::bool_constant<(implicitly_constructible_from<Us>::value && ...)> {
+  };
 };
 
-using BooleanOrNullOrUndefined = UnionT<UnionT<Boolean, Null>, Undefined>;
-using NumberOrString = UnionT<Number, String>;
-using PlainPrimitive = UnionT<NumberOrString, BooleanOrNullOrUndefined>;
+namespace detail {
+template <typename T, bool SameStaticRep>
+struct RepresentationForUnionBase {
+  static constexpr auto rep = nullrep;
+};
+template <typename T>
+struct RepresentationForUnionBase<T, true> {
+  static constexpr auto rep = v_traits<T>::rep;
+};
+template <typename T>
+struct RepresentationForUnion {};
+template <typename T, typename... Ts>
+struct RepresentationForUnion<UntaggedUnion<T, Ts...>>
+    : RepresentationForUnionBase<T, ((v_traits<T>::rep == v_traits<Ts>::rep) &&
+                                     ...)> {
+ private:
+  template <typename U>
+  struct to_rep_type {
+    using type = typename v_traits<U>::rep_type;
+  };
+  using rep_types = base::tmp::map_t<to_rep_type, base::tmp::list<T, Ts...>>;
+
+ public:
+  using rep_type =
+      std::conditional_t<base::tmp::contains_v<rep_types, nullrep_t>, nullrep_t,
+                         std::conditional_t<base::tmp::all_equal_v<rep_types>,
+                                            typename v_traits<T>::rep_type,
+                                            RegisterRepresentation>>;
+};
+
+}  // namespace detail
+
+template <typename... Ts>
+struct v_traits<UntaggedUnion<Ts...>> {
+  using rep_type =
+      typename detail::RepresentationForUnion<UntaggedUnion<Ts...>>::rep_type;
+  static constexpr auto rep =
+      detail::RepresentationForUnion<UntaggedUnion<Ts...>>::rep;
+  static constexpr bool allows_representation(RegisterRepresentation r) {
+    return (v_traits<Ts>::allows_representation(r) || ...);
+  }
+
+  template <typename U>
+  struct implicitly_constructible_from
+      : std::bool_constant<(
+            v_traits<Ts>::template implicitly_constructible_from<U>::value ||
+            ...)> {};
+  template <typename... Us>
+  struct implicitly_constructible_from<UntaggedUnion<Us...>>
+      : std::bool_constant<(implicitly_constructible_from<Us>::value && ...)> {
+  };
+};
+
+template <typename T>
+struct v_traits<T, std::enable_if_t<std::is_base_of_v<InternalTag, T>>> {
+  using rep_type = nullrep_t;
+  static constexpr auto rep = nullrep;
+
+  template <typename U>
+  struct implicitly_constructible_from
+      : std::bool_constant<std::is_same_v<T, U>> {};
+};
+
+template <typename... Ts>
+struct v_traits<Tuple<Ts...>> {
+  using rep_type = nullrep_t;
+  static constexpr auto rep = nullrep;
+  static constexpr bool allows_representation(RegisterRepresentation) {
+    return false;
+  }
+
+  template <typename U>
+  struct implicitly_constructible_from : std::false_type {};
+
+  // NOTE: If you end up here with a compiler error
+  // "pack expansion contains parameter packs 'Ts' and 'Us' that have different
+  // lengths" this is most likely because you tried to convert between Tuple<>
+  // types of different sizes.
+  template <typename... Us>
+  struct implicitly_constructible_from<Tuple<Us...>>
+      : std::bool_constant<(
+            v_traits<Ts>::template implicitly_constructible_from<Us>::value &&
+            ...)> {};
+};
+
+using Word = UntaggedUnion<Word32, Word64>;
+using Float = UntaggedUnion<Float32, Float64>;
+using Untagged = UntaggedUnion<Word, Float>;
+using BooleanOrNullOrUndefined = UnionOf<Boolean, Null, Undefined>;
+using NumberOrString = UnionOf<Number, String>;
+using PlainPrimitive = UnionOf<NumberOrString, BooleanOrNullOrUndefined>;
+using StringOrNull = UnionOf<String, Null>;
+using NumberOrUndefined = UnionOf<Number, Undefined>;
+
+using NonBigIntPrimitive = UnionOf<Symbol, PlainPrimitive>;
+using Primitive = UnionOf<BigInt, NonBigIntPrimitive>;
+using CallTarget = UntaggedUnion<WordPtr, Code, JSFunction>;
+using AnyOrNone = UntaggedUnion<Any, None>;
+
+#ifdef HAS_CPP_CONCEPTS
+template <typename T>
+concept IsUntagged =
+    !std::is_same_v<T, Any> &&
+    v_traits<Untagged>::implicitly_constructible_from<T>::value;
+
+template <typename T>
+concept IsTagged = !std::is_same_v<T, Any> &&
+                   v_traits<Object>::implicitly_constructible_from<T>::value;
+#endif
+
+#if V8_ENABLE_WEBASSEMBLY
+using WasmArrayNullable = Union<WasmArray, WasmNull>;
+using WasmStructNullable = Union<WasmStruct, WasmNull>;
+// The type for a nullable ref.string (stringref proposal). For imported strings
+// use StringOrNull instead.
+using WasmStringRefNullable = Union<String, WasmNull>;
+#endif
+
+template <typename T>
+constexpr bool IsWord() {
+  return std::is_same_v<T, Word32> || std::is_same_v<T, Word64> ||
+         std::is_same_v<T, Word>;
+}
 
 // V<> represents an SSA-value that is parameterized with the type of the value.
 // Types from the `Object` hierarchy can be provided as well as the abstract
@@ -388,17 +571,16 @@ class V : public OpIndex {
   static constexpr auto rep = v_traits<type>::rep;
   constexpr V() : OpIndex() {}
 
-  // V<T> is implicitly constructible from plain OpIndex.
-  template <typename U, typename = std::enable_if_t<std::is_same_v<U, OpIndex>>>
-  V(U index) : OpIndex(index) {}  // NOLINT(runtime/explicit)
-
   // V<T> is implicitly constructible from V<U> iff
-  // `v_traits<U>::implicitly_convertible_to<T>::value`. This is typically the
-  // case if T == U or T is a subclass of U. Different types may specify
+  // `v_traits<T>::implicitly_constructible_from<U>::value`. This is typically
+  // the case if T == U or T is a subclass of U. Different types may specify
   // different conversion rules in the corresponding `v_traits` when necessary.
-  template <typename U, typename = std::enable_if_t<v_traits<
-                            U>::template implicitly_convertible_to<T>::value>>
+  template <typename U,
+            typename = std::enable_if_t<
+                v_traits<T>::template implicitly_constructible_from<U>::value>>
   V(V<U> index) : OpIndex(index) {}  // NOLINT(runtime/explicit)
+
+  static V Invalid() { return V<T>(OpIndex::Invalid()); }
 
   template <typename U>
   static V<T> Cast(V<U> index) {
@@ -409,6 +591,14 @@ class V : public OpIndex {
   static constexpr bool allows_representation(RegisterRepresentation rep) {
     return v_traits<T>::allows_representation(rep);
   }
+
+#if !defined(TURBOSHAFT_ALLOW_IMPLICIT_OPINDEX_INITIALIZATION_FOR_V)
+
+ protected:
+#endif
+  // V<T> is implicitly constructible from plain OpIndex.
+  template <typename U, typename = std::enable_if_t<std::is_same_v<U, OpIndex>>>
+  V(U index) : OpIndex(index) {}  // NOLINT(runtime/explicit)
 };
 
 template <typename T>
@@ -418,23 +608,29 @@ class OptionalV : public OptionalOpIndex {
   static constexpr auto rep = v_traits<type>::rep;
   constexpr OptionalV() : OptionalOpIndex() {}
 
-  // OptionalV<T> is implicitly constructible from plain OptionalOpIndex.
-  template <typename U,
-            typename = std::enable_if_t<std::is_same_v<U, OptionalOpIndex> ||
-                                        std::is_same_v<U, OpIndex>>>
-  OptionalV(U index) : OptionalOpIndex(index) {}  // NOLINT(runtime/explicit)
-
   // OptionalV<T> is implicitly constructible from OptionalV<U> iff
-  // `v_traits<U>::implicitly_convertible_to<T>::value`. This is typically the
-  // case if T == U or T is a subclass of U. Different types may specify
+  // `v_traits<T>::implicitly_constructible_from<U>::value`. This is typically
+  // the case if T == U or T is a subclass of U. Different types may specify
   // different conversion rules in the corresponding `v_traits` when necessary.
-  template <typename U, typename = std::enable_if_t<v_traits<
-                            U>::template implicitly_convertible_to<T>::value>>
+  template <typename U,
+            typename = std::enable_if_t<
+                v_traits<T>::template implicitly_constructible_from<U>::value>>
   OptionalV(OptionalV<U> index)  // NOLINT(runtime/explicit)
       : OptionalOpIndex(index) {}
-  template <typename U, typename = std::enable_if_t<v_traits<
-                            U>::template implicitly_convertible_to<T>::value>>
+  template <typename U,
+            typename = std::enable_if_t<
+                v_traits<T>::template implicitly_constructible_from<U>::value>>
   OptionalV(V<U> index) : OptionalOpIndex(index) {}  // NOLINT(runtime/explicit)
+
+  static OptionalV Nullopt() { return OptionalV(OptionalOpIndex::Nullopt()); }
+
+  constexpr V<T> value() const {
+    DCHECK(has_value());
+    return V<T>::Cast(OptionalOpIndex::value());
+  }
+  constexpr V<T> value_or_invalid() const {
+    return V<T>::Cast(OptionalOpIndex::value_or_invalid());
+  }
 
   template <typename U>
   static OptionalV<T> Cast(OptionalV<U> index) {
@@ -443,7 +639,21 @@ class OptionalV : public OptionalOpIndex {
   static OptionalV<T> Cast(OptionalOpIndex index) {
     return OptionalV<T>(index);
   }
+
+#if !defined(TURBOSHAFT_ALLOW_IMPLICIT_OPINDEX_INITIALIZATION_FOR_V)
+
+ protected:
+#endif
+  // OptionalV<T> is implicitly constructible from plain OptionalOpIndex.
+  template <typename U,
+            typename = std::enable_if_t<std::is_same_v<U, OptionalOpIndex> ||
+                                        std::is_same_v<U, OpIndex>>>
+  OptionalV(U index) : OptionalOpIndex(index) {}  // NOLINT(runtime/explicit)
 };
+
+// Deduction guide for `OptionalV`.
+template <typename T>
+OptionalV(V<T>) -> OptionalV<T>;
 
 // ConstOrV<> is a generalization of V<> that allows constexpr values
 // (constants) to be passed implicitly. This allows reducers to write things
@@ -470,11 +680,6 @@ class ConstOrV {
   ConstOrV(constant_type value)  // NOLINT(runtime/explicit)
       : constant_value_(value), value_() {}
 
-  // ConstOrV<T> is implicitly constructible from plain OpIndex.
-  template <typename U, typename = std::enable_if_t<std::is_same_v<U, OpIndex>>>
-  ConstOrV(U index)  // NOLINT(runtime/explicit)
-      : constant_value_(), value_(index) {}
-
   // ConstOrV<T> is implicitly constructible from V<U> iff V<T> is
   // constructible from V<U>.
   template <typename U,
@@ -492,10 +697,23 @@ class ConstOrV {
     return value_;
   }
 
+#if !defined(TURBOSHAFT_ALLOW_IMPLICIT_OPINDEX_INITIALIZATION_FOR_V)
+
+ protected:
+#endif
+  // ConstOrV<T> is implicitly constructible from plain OpIndex.
+  template <typename U, typename = std::enable_if_t<std::is_same_v<U, OpIndex>>>
+  ConstOrV(U index)  // NOLINT(runtime/explicit)
+      : constant_value_(), value_(index) {}
+
  private:
-  base::Optional<constant_type> constant_value_;
+  std::optional<constant_type> constant_value_;
   V<type> value_;
 };
+
+// Deduction guide for `ConstOrV`.
+template <typename T>
+ConstOrV(V<T>) -> ConstOrV<T>;
 
 template <>
 struct fast_hash<OpIndex> {
@@ -525,6 +743,72 @@ using maybe_const_or_v_t = typename detail::ConstOrVTypeHelper<T>::type;
 template <typename T>
 constexpr bool const_or_v_exists_v = detail::ConstOrVTypeHelper<T>::exists;
 
+// `ShadowyOpIndex` is a wrapper around `OpIndex` that allows implicit
+// conversion to arbitrary `V<>`. This is required for generic code inside the
+// `Assembler` and `CopyingPhase`. Once implicit initialization of `V<>` from
+// `OpIndex` is disabled,
+//
+//   OpIndex new_index = ...
+//   ReduceWordUnary(new_index, ...)
+//
+// will no longer compile, because `ReduceWordUnary` expects a `V<Word>` input.
+// However,
+//
+//   OpIndex new_index = ...
+//   ReduceWordUnary(ShadowyOpIndex{new_index}, ...)
+//
+// will still compile. **Do not use ShadowyOpIndex directly** in any operations
+// or reducers.
+class ShadowyOpIndex : public OpIndex {
+ public:
+  explicit ShadowyOpIndex(OpIndex index) : OpIndex(index) {}
+
+  template <typename T>
+  operator V<T>() const {  // NOLINT(runtime/explicit)
+    return V<T>::Cast(*this);
+  }
+};
+
+// Similarly to how `ShadowyOpIndex` is a wrapper around `OpIndex` that allows
+// arbitrary conversion to `V<>`, `ShadowyOpIndexVectorWrapper` is a wrapper
+// around `base::Vector<const OpIndex>` that allows implicit conversion to
+// `base::Vector<const V<U>>` for any `U`.
+class ShadowyOpIndexVectorWrapper {
+ public:
+  template <typename T>
+  ShadowyOpIndexVectorWrapper(
+      base::Vector<const V<T>> indices)  // NOLINT(runtime/explicit)
+      : indices_(indices.data(), indices.size()) {}
+  ShadowyOpIndexVectorWrapper(
+      base::Vector<const OpIndex> indices)  // NOLINT(runtime/explicit)
+      : indices_(indices) {}
+  template <typename T>
+  ShadowyOpIndexVectorWrapper(
+      base::Vector<V<T>> indices)  // NOLINT(runtime/explicit)
+      : indices_(indices.data(), indices.size()) {}
+  ShadowyOpIndexVectorWrapper(
+      base::Vector<OpIndex> indices)  // NOLINT(runtime/explicit)
+      : indices_(indices) {}
+
+  operator base::Vector<const OpIndex>() const {  // NOLINT(runtime/explicit)
+    return indices_;
+  }
+  template <typename U>
+  operator base::Vector<V<U>>() const {  // NOLINT(runtime/explicit)
+    return base::Vector<V<U>>{indices_.data(), indices_.size()};
+  }
+  template <typename U>
+  operator base::Vector<const V<U>>() const {  // NOLINT(runtime/explicit)
+    return base::Vector<const V<U>>{static_cast<const V<U>*>(indices_.data()),
+                                    indices_.size()};
+  }
+
+  size_t size() const noexcept { return indices_.size(); }
+
+ private:
+  base::Vector<const OpIndex> indices_;
+};
+
 // `BlockIndex` is the index of a bound block.
 // A dominating block always has a smaller index.
 // It corresponds to the ordering of basic blocks in the operations buffer.
@@ -544,6 +828,11 @@ class BlockIndex {
   bool operator>(BlockIndex other) const { return id_ > other.id_; }
   bool operator<=(BlockIndex other) const { return id_ <= other.id_; }
   bool operator>=(BlockIndex other) const { return id_ >= other.id_; }
+
+  template <typename H>
+  friend H AbslHashValue(H h, const BlockIndex& idx) {
+    return H::combine(std::move(h), idx.id_);
+  }
 
  private:
   uint32_t id_;

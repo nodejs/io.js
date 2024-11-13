@@ -543,7 +543,7 @@ class GlobalHandles::Node final : public NodeBase<GlobalHandles::Node> {
                                                                 nullptr};
     if (weakness_type() == WeaknessType::kCallbackWithTwoEmbedderFields &&
         IsJSObject(object())) {
-      ExtractInternalFields(JSObject::cast(object()), embedder_fields,
+      ExtractInternalFields(Cast<JSObject>(object()), embedder_fields,
                             v8::kEmbedderFieldsInWeakCallback);
     }
 

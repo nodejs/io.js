@@ -50,7 +50,7 @@ class InterpreterCompilationJob final : public UnoptimizedCompilationJob {
   BytecodeGenerator* generator() { return &generator_; }
   template <typename IsolateT>
   void CheckAndPrintBytecodeMismatch(IsolateT* isolate, Handle<Script> script,
-                                     Handle<BytecodeArray> bytecode);
+                                     DirectHandle<BytecodeArray> bytecode);
 
   template <typename IsolateT>
   Status DoFinalizeJobImpl(Handle<SharedFunctionInfo> shared_info,
@@ -152,7 +152,7 @@ void MaybePrintAst(ParseInfo* parse_info,
 #endif  // DEBUG
 }
 
-bool ShouldPrintBytecode(Handle<SharedFunctionInfo> shared) {
+bool ShouldPrintBytecode(DirectHandle<SharedFunctionInfo> shared) {
   if (!v8_flags.print_bytecode) return false;
 
   // Checks whether function passed the filter.
@@ -195,9 +195,8 @@ InterpreterCompilationJob::Status InterpreterCompilationJob::ExecuteJobImpl() {
     MaybePrintAst(parse_info(), compilation_info());
   }
 
-  ParkedScopeIfOnBackground parked_scope(local_isolate_);
-
-  generator()->GenerateBytecode(stack_limit());
+  local_isolate_->ParkIfOnBackgroundAndExecute(
+      [this]() { generator()->GenerateBytecode(stack_limit()); });
 
   if (generator()->HasStackOverflow()) {
     return FAILED;
@@ -208,13 +207,14 @@ InterpreterCompilationJob::Status InterpreterCompilationJob::ExecuteJobImpl() {
 #ifdef DEBUG
 template <typename IsolateT>
 void InterpreterCompilationJob::CheckAndPrintBytecodeMismatch(
-    IsolateT* isolate, Handle<Script> script, Handle<BytecodeArray> bytecode) {
+    IsolateT* isolate, Handle<Script> script,
+    DirectHandle<BytecodeArray> bytecode) {
   int first_mismatch = generator()->CheckBytecodeMatches(*bytecode);
   if (first_mismatch >= 0) {
     parse_info()->ast_value_factory()->Internalize(isolate);
-    DeclarationScope::AllocateScopeInfos(parse_info(), isolate);
+    DeclarationScope::AllocateScopeInfos(parse_info(), script, isolate);
 
-    Handle<BytecodeArray> new_bytecode =
+    DirectHandle<BytecodeArray> new_bytecode =
         generator()->FinalizeBytecode(isolate, script);
 
     std::cerr << "Bytecode mismatch";
@@ -230,7 +230,7 @@ void InterpreterCompilationJob::CheckAndPrintBytecodeMismatch(
     Tagged<Object> script_name = script->GetNameOrSourceURL();
     if (IsString(script_name)) {
       std::cerr << " ";
-      String::cast(script_name)->PrintUC16(std::cerr);
+      Cast<String>(script_name)->PrintUC16(std::cerr);
       std::cerr << ":" << parse_info()->literal()->start_position();
     }
 #endif
@@ -267,7 +267,7 @@ InterpreterCompilationJob::Status InterpreterCompilationJob::DoFinalizeJobImpl(
   Handle<BytecodeArray> bytecodes = compilation_info_.bytecode_array();
   if (bytecodes.is_null()) {
     bytecodes = generator()->FinalizeBytecode(
-        isolate, handle(Script::cast(shared_info->script()), isolate));
+        isolate, handle(Cast<Script>(shared_info->script()), isolate));
     if (generator()->HasStackOverflow()) {
       return FAILED;
     }
@@ -276,7 +276,7 @@ InterpreterCompilationJob::Status InterpreterCompilationJob::DoFinalizeJobImpl(
 
   if (compilation_info()->SourcePositionRecordingMode() ==
       SourcePositionTableBuilder::RecordingMode::RECORD_SOURCE_POSITIONS) {
-    Handle<TrustedByteArray> source_position_table =
+    DirectHandle<TrustedByteArray> source_position_table =
         generator()->FinalizeSourcePositionTable(isolate);
     bytecodes->set_source_position_table(*source_position_table, kReleaseStore);
   }
@@ -293,8 +293,11 @@ InterpreterCompilationJob::Status InterpreterCompilationJob::DoFinalizeJobImpl(
   }
 
 #ifdef DEBUG
+  if (parse_info()->literal()->shared_function_info().is_null()) {
+    parse_info()->literal()->set_shared_function_info(shared_info);
+  }
   CheckAndPrintBytecodeMismatch(
-      isolate, handle(Script::cast(shared_info->script()), isolate), bytecodes);
+      isolate, handle(Cast<Script>(shared_info->script()), isolate), bytecodes);
 #endif
 
   return SUCCEEDED;
@@ -341,13 +344,13 @@ void Interpreter::Initialize() {
 
   // Set the interpreter entry trampoline entry point now that builtins are
   // initialized.
-  Handle<Code> code = BUILTIN_CODE(isolate_, InterpreterEntryTrampoline);
+  DirectHandle<Code> code = BUILTIN_CODE(isolate_, InterpreterEntryTrampoline);
   DCHECK(builtins->is_initialized());
   DCHECK(!code->has_instruction_stream());
   interpreter_entry_trampoline_instruction_start_ = code->instruction_start();
 
   // Initialize the dispatch table.
-  ForEachBytecode([=](Bytecode bytecode, OperandScale operand_scale) {
+  ForEachBytecode([=, this](Bytecode bytecode, OperandScale operand_scale) {
     Builtin builtin = BuiltinIndexFromBytecode(bytecode, operand_scale);
     Tagged<Code> handler = builtins->code(builtin);
     if (Bytecodes::BytecodeHasHandler(bytecode, operand_scale)) {
@@ -406,7 +409,8 @@ Handle<JSObject> Interpreter::GetDispatchCountersObject() {
       uintptr_t counter = GetDispatchCounter(from_bytecode, to_bytecode);
 
       if (counter > 0) {
-        Handle<Object> value = isolate_->factory()->NewNumberFromSize(counter);
+        DirectHandle<Object> value =
+            isolate_->factory()->NewNumberFromSize(counter);
         JSObject::AddProperty(isolate_, counters_row,
                               Bytecodes::ToString(to_bytecode), value, NONE);
       }

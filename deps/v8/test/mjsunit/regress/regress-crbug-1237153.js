@@ -4,7 +4,7 @@
 
 // Try to catch TSAN issues with access to SharedArrayBuffer.
 
-function onmessage([buf]) {
+function onmessage({data:[buf]}) {
     const arr = new Int32Array(buf);
     for (let val = 1; val < 100; ++val) arr.fill(val);
 }

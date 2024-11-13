@@ -374,10 +374,6 @@ enum OptionEnvvarSettings {
   // Disallow the options to be set via the environment variable, like
   // `NODE_OPTIONS`.
   kDisallowedInEnvvar = 1,
-  // Deprecated, use kAllowedInEnvvar instead.
-  kAllowedInEnvironment = kAllowedInEnvvar,
-  // Deprecated, use kDisallowedInEnvvar instead.
-  kDisallowedInEnvironment = kDisallowedInEnvvar,
 };
 
 // Process the arguments and set up the per-process options.
@@ -1023,44 +1019,38 @@ NODE_DEPRECATED("Use v8::Date::ValueOf() directly",
 })
 #define NODE_V8_UNIXTIME node::NODE_V8_UNIXTIME
 
-#define NODE_DEFINE_CONSTANT(target, constant)                                \
-  do {                                                                        \
-    v8::Isolate* isolate = target->GetIsolate();                              \
-    v8::Local<v8::Context> context = isolate->GetCurrentContext();            \
-    v8::Local<v8::String> constant_name =                                     \
-        v8::String::NewFromUtf8(isolate, #constant,                           \
-            v8::NewStringType::kInternalized).ToLocalChecked();               \
-    v8::Local<v8::Number> constant_value =                                    \
-        v8::Number::New(isolate, static_cast<double>(constant));              \
-    v8::PropertyAttribute constant_attributes =                               \
-        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete);    \
-    (target)->DefineOwnProperty(context,                                      \
-                                constant_name,                                \
-                                constant_value,                               \
-                                constant_attributes).Check();                 \
-  }                                                                           \
-  while (0)
+#define NODE_DEFINE_CONSTANT(target, constant)                                 \
+  do {                                                                         \
+    v8::Isolate* isolate = target->GetIsolate();                               \
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();             \
+    v8::Local<v8::String> constant_name = v8::String::NewFromUtf8Literal(      \
+        isolate, #constant, v8::NewStringType::kInternalized);                 \
+    v8::Local<v8::Number> constant_value =                                     \
+        v8::Number::New(isolate, static_cast<double>(constant));               \
+    v8::PropertyAttribute constant_attributes =                                \
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete);     \
+    (target)                                                                   \
+        ->DefineOwnProperty(                                                   \
+            context, constant_name, constant_value, constant_attributes)       \
+        .Check();                                                              \
+  } while (0)
 
-#define NODE_DEFINE_HIDDEN_CONSTANT(target, constant)                         \
-  do {                                                                        \
-    v8::Isolate* isolate = target->GetIsolate();                              \
-    v8::Local<v8::Context> context = isolate->GetCurrentContext();            \
-    v8::Local<v8::String> constant_name =                                     \
-        v8::String::NewFromUtf8(isolate, #constant,                           \
-                                v8::NewStringType::kInternalized)             \
-                                  .ToLocalChecked();                          \
-    v8::Local<v8::Number> constant_value =                                    \
-        v8::Number::New(isolate, static_cast<double>(constant));              \
-    v8::PropertyAttribute constant_attributes =                               \
-        static_cast<v8::PropertyAttribute>(v8::ReadOnly |                     \
-                                           v8::DontDelete |                   \
-                                           v8::DontEnum);                     \
-    (target)->DefineOwnProperty(context,                                      \
-                                constant_name,                                \
-                                constant_value,                               \
-                                constant_attributes).Check();                 \
-  }                                                                           \
-  while (0)
+#define NODE_DEFINE_HIDDEN_CONSTANT(target, constant)                          \
+  do {                                                                         \
+    v8::Isolate* isolate = target->GetIsolate();                               \
+    v8::Local<v8::Context> context = isolate->GetCurrentContext();             \
+    v8::Local<v8::String> constant_name = v8::String::NewFromUtf8Literal(      \
+        isolate, #constant, v8::NewStringType::kInternalized);                 \
+    v8::Local<v8::Number> constant_value =                                     \
+        v8::Number::New(isolate, static_cast<double>(constant));               \
+    v8::PropertyAttribute constant_attributes =                                \
+        static_cast<v8::PropertyAttribute>(v8::ReadOnly | v8::DontDelete |     \
+                                           v8::DontEnum);                      \
+    (target)                                                                   \
+        ->DefineOwnProperty(                                                   \
+            context, constant_name, constant_value, constant_attributes)       \
+        .Check();                                                              \
+  } while (0)
 
 // Used to be a macro, hence the uppercase name.
 inline void NODE_SET_METHOD(v8::Local<v8::Template> recv,
@@ -1552,24 +1542,14 @@ void RegisterSignalHandler(int signal,
                            bool reset_handler = false);
 #endif  // _WIN32
 
-// Configure the layout of the JavaScript object with a cppgc::GarbageCollected
-// instance so that when the JavaScript object is reachable, the garbage
-// collected instance would have its Trace() method invoked per the cppgc
-// contract. To make it work, the process must have called
-// cppgc::InitializeProcess() before, which is usually the case for addons
-// loaded by the stand-alone Node.js executable. Embedders of Node.js can use
-// either need to call it themselves or make sure that
-// ProcessInitializationFlags::kNoInitializeCppgc is *not* set for cppgc to
-// work.
-// If the CppHeap is owned by Node.js, which is usually the case for addon,
-// the object must be created with at least two internal fields available,
-// and the first two internal fields would be configured by Node.js.
-// This may be superseded by a V8 API in the future, see
-// https://bugs.chromium.org/p/v8/issues/detail?id=13960. Until then this
-// serves as a helper for Node.js isolates.
-NODE_EXTERN void SetCppgcReference(v8::Isolate* isolate,
-                                   v8::Local<v8::Object> object,
-                                   void* wrappable);
+// This is kept as a compatibility layer for addons to wrap cppgc-managed
+// objects on Node.js versions without v8::Object::Wrap(). Addons created to
+// work with only Node.js versions with v8::Object::Wrap() should use that
+// instead.
+NODE_DEPRECATED("Use v8::Object::Wrap()",
+                NODE_EXTERN void SetCppgcReference(v8::Isolate* isolate,
+                                                   v8::Local<v8::Object> object,
+                                                   void* wrappable));
 
 }  // namespace node
 

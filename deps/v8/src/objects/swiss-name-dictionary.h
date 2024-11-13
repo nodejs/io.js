@@ -6,9 +6,9 @@
 #define V8_OBJECTS_SWISS_NAME_DICTIONARY_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "src/base/export-template.h"
-#include "src/base/optional.h"
 #include "src/common/globals.h"
 #include "src/objects/fixed-array.h"
 #include "src/objects/internal-index.h"
@@ -19,8 +19,7 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 // A property backing store based on Swiss Tables/Abseil's flat_hash_map. The
 // implementation is heavily based on Abseil's raw_hash_set.h.
@@ -75,9 +74,9 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
 
   template <typename IsolateT>
   inline static Handle<SwissNameDictionary> Add(
-      IsolateT* isolate, Handle<SwissNameDictionary> table, Handle<Name> key,
-      Handle<Object> value, PropertyDetails details,
-      InternalIndex* entry_out = nullptr);
+      IsolateT* isolate, Handle<SwissNameDictionary> table,
+      DirectHandle<Name> key, DirectHandle<Object> value,
+      PropertyDetails details, InternalIndex* entry_out = nullptr);
 
   static Handle<SwissNameDictionary> Shrink(Isolate* isolate,
                                             Handle<SwissNameDictionary> table);
@@ -94,7 +93,7 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
   // for FindEntry keys due to its Key typedef, but that's also used
   // for adding, where we do need handles.
   template <typename IsolateT>
-  inline InternalIndex FindEntry(IsolateT* isolate, Handle<Object> key);
+  inline InternalIndex FindEntry(IsolateT* isolate, DirectHandle<Object> key);
 
   static inline bool IsKey(ReadOnlyRoots roots, Tagged<Object> key_candidate);
   inline bool ToKey(ReadOnlyRoots roots, InternalIndex entry,
@@ -104,7 +103,7 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
   inline Tagged<Name> NameAt(InternalIndex entry);
   inline Tagged<Object> ValueAt(InternalIndex entry);
   // Returns {} if we would be reading out of the bounds of the object.
-  inline base::Optional<Tagged<Object>> TryValueAt(InternalIndex entry);
+  inline std::optional<Tagged<Object>> TryValueAt(InternalIndex entry);
   inline PropertyDetails DetailsAt(InternalIndex entry);
 
   inline void ValueAtPut(InternalIndex entry, Tagged<Object> value);
@@ -136,9 +135,9 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
                   int capacity);
 
   template <typename IsolateT>
-  static Handle<SwissNameDictionary> Rehash(IsolateT* isolate,
-                                            Handle<SwissNameDictionary> table,
-                                            int new_capacity);
+  static Handle<SwissNameDictionary> Rehash(
+      IsolateT* isolate, DirectHandle<SwissNameDictionary> table,
+      int new_capacity);
   template <typename IsolateT>
   void Rehash(IsolateT* isolate);
 
@@ -265,7 +264,6 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
 #endif
   DECL_VERIFIER(SwissNameDictionary)
   DECL_PRINTER(SwissNameDictionary)
-  DECL_CAST(SwissNameDictionary)
   OBJECT_CONSTRUCTORS(SwissNameDictionary, HeapObject);
 
  private:
@@ -346,8 +344,7 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
                                       int field_index);
 };
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

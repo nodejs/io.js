@@ -1,5 +1,5 @@
 /*
- * Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -85,8 +85,12 @@ void ossl_asn1_item_embed_free(ASN1_VALUE **pval, const ASN1_ITEM *it, int embed
 
     case ASN1_ITYPE_NDEF_SEQUENCE:
     case ASN1_ITYPE_SEQUENCE:
-        if (ossl_asn1_do_lock(pval, -1, it) != 0) /* if error or ref-counter > 0 */
+        if (ossl_asn1_do_lock(pval, -1, it) != 0) {
+            /* if error or ref-counter > 0 */
+            OPENSSL_assert(embed == 0);
+            *pval = NULL;
             return;
+        }
         if (asn1_cb) {
             i = asn1_cb(ASN1_OP_FREE_PRE, pval, it, NULL);
             if (i == 2)

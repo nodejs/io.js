@@ -14,15 +14,13 @@
 namespace v8 {
 namespace internal {
 
-CAST_ACCESSOR(StringSet)
-
 StringSet::StringSet(Address ptr) : HashTable<StringSet, StringSetShape>(ptr) {
   SLOW_DCHECK(IsStringSet(*this));
 }
 
 bool StringSetShape::IsMatch(Tagged<String> key, Tagged<Object> value) {
   DCHECK(IsString(value));
-  return key->Equals(String::cast(value));
+  return key->Equals(Cast<String>(value));
 }
 
 uint32_t StringSetShape::Hash(ReadOnlyRoots roots, Tagged<String> key) {
@@ -31,7 +29,7 @@ uint32_t StringSetShape::Hash(ReadOnlyRoots roots, Tagged<String> key) {
 
 uint32_t StringSetShape::HashForObject(ReadOnlyRoots roots,
                                        Tagged<Object> object) {
-  return String::cast(object)->EnsureHash();
+  return Cast<String>(object)->EnsureHash();
 }
 
 }  // namespace internal

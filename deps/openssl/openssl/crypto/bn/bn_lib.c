@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -618,14 +618,29 @@ int BN_ucmp(const BIGNUM *a, const BIGNUM *b)
     int i;
     BN_ULONG t1, t2, *ap, *bp;
 
+    ap = a->d;
+    bp = b->d;
+
+    if (BN_get_flags(a, BN_FLG_CONSTTIME)
+            && a->top == b->top) {
+        int res = 0;
+
+        for (i = 0; i < b->top; i++) {
+            res = constant_time_select_int(constant_time_lt_bn(ap[i], bp[i]),
+                                           -1, res);
+            res = constant_time_select_int(constant_time_lt_bn(bp[i], ap[i]),
+                                           1, res);
+        }
+        return res;
+    }
+
     bn_check_top(a);
     bn_check_top(b);
 
     i = a->top - b->top;
     if (i != 0)
         return i;
-    ap = a->d;
-    bp = b->d;
+
     for (i = a->top - 1; i >= 0; i--) {
         t1 = ap[i];
         t2 = bp[i];
@@ -737,11 +752,10 @@ int BN_is_bit_set(const BIGNUM *a, int n)
     return (int)(((a->d[i]) >> j) & ((BN_ULONG)1));
 }
 
-int BN_mask_bits(BIGNUM *a, int n)
+int ossl_bn_mask_bits_fixed_top(BIGNUM *a, int n)
 {
     int b, w;
 
-    bn_check_top(a);
     if (n < 0)
         return 0;
 
@@ -755,8 +769,19 @@ int BN_mask_bits(BIGNUM *a, int n)
         a->top = w + 1;
         a->d[w] &= ~(BN_MASK2 << b);
     }
-    bn_correct_top(a);
+    a->flags |= BN_FLG_FIXED_TOP;
     return 1;
+}
+
+int BN_mask_bits(BIGNUM *a, int n)
+{
+    int ret;
+
+    bn_check_top(a);
+    ret = ossl_bn_mask_bits_fixed_top(a, n);
+    if (ret)
+        bn_correct_top(a);
+    return ret;
 }
 
 void BN_set_negative(BIGNUM *a, int b)
@@ -933,6 +958,22 @@ int BN_is_one(const BIGNUM *a)
 int BN_is_word(const BIGNUM *a, const BN_ULONG w)
 {
     return BN_abs_is_word(a, w) && (!w || !a->neg);
+}
+
+int ossl_bn_is_word_fixed_top(const BIGNUM *a, BN_ULONG w)
+{
+    int res, i;
+    const BN_ULONG *ap = a->d;
+
+    if (a->neg || a->top == 0)
+        return 0;
+
+    res = constant_time_select_int(constant_time_eq_bn(ap[0], w), 1, 0);
+
+    for (i = 1; i < a->top; i++)
+        res = constant_time_select_int(constant_time_is_zero_bn(ap[i]),
+                                       res, 0);
+    return res;
 }
 
 int BN_is_odd(const BIGNUM *a)

@@ -37,8 +37,6 @@ class SerializerDeserializer : public RootVisitor {
 
   // clang-format off
 #define UNUSED_SERIALIZER_BYTE_CODES(V)                           \
-  /* Free range 0x10..0x1f */                                     \
-  V(0x1f)                                                         \
   /* Free range 0x20..0x2f */                                     \
   V(0x20) V(0x21) V(0x22) V(0x23) V(0x24) V(0x25) V(0x26) V(0x27) \
   V(0x28) V(0x29) V(0x2a) V(0x2b) V(0x2c) V(0x2d) V(0x2e) V(0x2f) \
@@ -117,6 +115,8 @@ class SerializerDeserializer : public RootVisitor {
     kOffHeapResizableBackingStore,
     // Used for embedder-provided serialization data for embedder fields.
     kEmbedderFieldsData,
+    // Used for embedder-provided serialziation data for API wrappers.
+    kApiWrapperFieldsData,
     // Raw data of variable length.
     kVariableRawData,
     // Used to encode external references provided through the API.
@@ -276,26 +276,36 @@ class SerializerDeserializer : public RootVisitor {
 };
 
 struct SerializeEmbedderFieldsCallback {
-  SerializeEmbedderFieldsCallback(v8::SerializeInternalFieldsCallback js_cb =
-                                      v8::SerializeInternalFieldsCallback(),
-                                  v8::SerializeContextDataCallback context_cb =
-                                      v8::SerializeContextDataCallback())
-      : js_object_callback(js_cb), context_callback(context_cb) {}
+  explicit SerializeEmbedderFieldsCallback(
+      v8::SerializeInternalFieldsCallback js_cb =
+          v8::SerializeInternalFieldsCallback(),
+      v8::SerializeContextDataCallback context_cb =
+          v8::SerializeContextDataCallback(),
+      v8::SerializeAPIWrapperCallback api_wrapper_cb =
+          v8::SerializeAPIWrapperCallback())
+      : js_object_callback(js_cb),
+        context_callback(context_cb),
+        api_wrapper_callback(api_wrapper_cb) {}
   v8::SerializeInternalFieldsCallback js_object_callback;
   v8::SerializeContextDataCallback context_callback;
+  v8::SerializeAPIWrapperCallback api_wrapper_callback;
 };
 
 struct DeserializeEmbedderFieldsCallback {
-  DeserializeEmbedderFieldsCallback(
+  explicit DeserializeEmbedderFieldsCallback(
       v8::DeserializeInternalFieldsCallback js_cb =
           v8::DeserializeInternalFieldsCallback(),
       v8::DeserializeContextDataCallback context_cb =
-          v8::DeserializeContextDataCallback())
-      : js_object_callback(js_cb), context_callback(context_cb) {}
+          v8::DeserializeContextDataCallback(),
+      v8::DeserializeAPIWrapperCallback api_wrapper_cb =
+          v8::DeserializeAPIWrapperCallback())
+      : js_object_callback(js_cb),
+        context_callback(context_cb),
+        api_wrapper_callback(api_wrapper_cb) {}
   v8::DeserializeInternalFieldsCallback js_object_callback;
   v8::DeserializeContextDataCallback context_callback;
+  v8::DeserializeAPIWrapperCallback api_wrapper_callback;
 };
-
 }  // namespace internal
 }  // namespace v8
 

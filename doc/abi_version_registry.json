@@ -1,7 +1,11 @@
 {
   "NODE_MODULE_VERSION": [
-    { "modules": 128, "runtime":"electron", "variant": "electron",             "versions": "32" },
-    { "modules": 127, "runtime":"node",     "variant": "v8_12.4",              "versions": "22.0.0" },
+    { "modules": 132,"runtime": "electron", "variant": "electron",             "versions": "34" },
+    { "modules": 131,"runtime": "node",     "variant": "v8_12.9",              "versions": "23.0.0" },
+    { "modules": 130,"runtime": "electron", "variant": "electron",             "versions": "33" },
+    { "modules": 129,"runtime": "node",     "variant": "v8_12.8",              "versions": "23.0.0-pre" },
+    { "modules": 128,"runtime": "electron", "variant": "electron",             "versions": "32" },
+    { "modules": 127,"runtime": "node",     "variant": "v8_12.4",              "versions": "22.0.0" },
     { "modules": 126,"runtime": "node",     "variant": "v8_12.3",              "versions": "22.0.0-pre" },
     { "modules": 125,"runtime": "electron", "variant": "electron",             "versions": "31" },
     { "modules": 124,"runtime": "node",     "variant": "v8_12.2",              "versions": "22.0.0-pre" },

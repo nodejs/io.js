@@ -33,23 +33,6 @@ const modp2buf = Buffer.from([
   0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 ]);
 
-function testDH({ publicKey: alicePublicKey, privateKey: alicePrivateKey },
-                { publicKey: bobPublicKey, privateKey: bobPrivateKey },
-                expectedValue) {
-  const buf1 = crypto.diffieHellman({
-    privateKey: alicePrivateKey,
-    publicKey: bobPublicKey,
-  });
-  const buf2 = crypto.diffieHellman({
-    privateKey: bobPrivateKey,
-    publicKey: alicePublicKey,
-  });
-  assert.deepStrictEqual(buf1, buf2);
-
-  if (expectedValue !== undefined)
-    assert.deepStrictEqual(buf1, expectedValue);
-}
-
 // Asserts that the size of the given key (in chars or bytes) is within 10% of
 // the expected size.
 function assertApproximateSize(key, expectedSize) {
@@ -117,7 +100,6 @@ const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
 
 module.exports = {
   modp2buf,
-  testDH,
   assertApproximateSize,
   testEncryptDecrypt,
   testSignVerify,

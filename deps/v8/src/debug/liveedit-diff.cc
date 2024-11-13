@@ -6,10 +6,10 @@
 
 #include <cmath>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 
 namespace v8 {
 namespace internal {
@@ -154,22 +154,22 @@ class MyersDiffer {
     // `FindMiddleSnake`.
   }
 
-  base::Optional<Path> FindEditPath() {
+  std::optional<Path> FindEditPath() {
     return FindEditPath(Point{0, 0},
                         Point{input_->GetLength1(), input_->GetLength2()});
   }
 
   // Returns the path of the SES between `from` and `to`.
-  base::Optional<Path> FindEditPath(Point from, Point to) {
+  std::optional<Path> FindEditPath(Point from, Point to) {
     // Divide the area described by `from` and `to` by finding the
     // middle snake ...
-    base::Optional<Snake> snake = FindMiddleSnake(from, to);
+    std::optional<Snake> snake = FindMiddleSnake(from, to);
 
-    if (!snake) return base::nullopt;
+    if (!snake) return std::nullopt;
 
     // ... and then conquer the two resulting sub-areas.
-    base::Optional<Path> head = FindEditPath(from, snake->from);
-    base::Optional<Path> tail = FindEditPath(snake->to, to);
+    std::optional<Path> head = FindEditPath(from, snake->from);
+    std::optional<Path> tail = FindEditPath(snake->to, to);
 
     // Combine `head` and `tail` or use the snake start/end points for
     // zero-size areas.
@@ -198,9 +198,9 @@ class MyersDiffer {
   // If a step from a (d-1)-path to a d-path overlaps with a reverse path on
   // the same diagonal (or the other way around), then we consider that step
   // our middle snake and return it immediately.
-  base::Optional<Snake> FindMiddleSnake(Point from, Point to) {
+  std::optional<Snake> FindMiddleSnake(Point from, Point to) {
     EditGraphArea area{from, to};
-    if (area.size() == 0) return base::nullopt;
+    if (area.size() == 0) return std::nullopt;
 
     // Initialise the furthest reaching vectors with an "artificial" edge
     // from (0, -1) -> (0, 0) and (N, -M) -> (N, M) to serve as the initial
@@ -213,7 +213,7 @@ class MyersDiffer {
       if (auto snake = ShortestEditReverse(area, d)) return snake;
     }
 
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // Greedily calculates the furthest reaching `d`-paths for each k-diagonal
@@ -223,7 +223,7 @@ class MyersDiffer {
   // a deletion from the `k-1`-diagonal. Then we follow all possible diagonal
   // moves and finally record the result as the furthest reaching path on the
   // k-diagonal.
-  base::Optional<Snake> ShortestEditForward(const EditGraphArea& area, int d) {
+  std::optional<Snake> ShortestEditForward(const EditGraphArea& area, int d) {
     Point from, to;
     // We alternate between looking at odd and even k-diagonals. That is
     // because when we extend a `d-path` by a single move we can at most move
@@ -264,14 +264,14 @@ class MyersDiffer {
         return Snake{from, to};
       }
     }
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // Greedily calculates the furthest reaching reverse `d`-paths for each
   // l-diagonal where l is in [-d, d].
   // Works the same as `ShortestEditForward` but we move upwards and left
   // instead.
-  base::Optional<Snake> ShortestEditReverse(const EditGraphArea& area, int d) {
+  std::optional<Snake> ShortestEditReverse(const EditGraphArea& area, int d) {
     Point from, to;
     // We alternate between looking at odd and even l-diagonals. That is
     // because when we extend a `d-path` by a single move we can at most move
@@ -313,7 +313,7 @@ class MyersDiffer {
         return Snake{to, from};
       }
     }
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // Small helper class that converts a "shortest edit script" path into a
@@ -352,7 +352,7 @@ class MyersDiffer {
    private:
     Comparator::Output* output_;
     bool change_is_ongoing_ = false;
-    base::Optional<Point> change_start_;
+    std::optional<Point> change_start_;
   };
 
   // Takes an edit path and "fills in the blanks". That is we notify the

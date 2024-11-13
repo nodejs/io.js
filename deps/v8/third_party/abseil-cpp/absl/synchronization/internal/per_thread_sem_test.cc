@@ -162,7 +162,7 @@ TEST_F(PerThreadSemTest, Timeouts) {
   absl::Duration slop = absl::Milliseconds(1);
 #ifdef _MSC_VER
   // Use higher slop on MSVC due to flaky test failures.
-  slop = absl::Milliseconds(4);
+  slop = absl::Milliseconds(16);
 #endif
   EXPECT_LE(delay - slop, elapsed)
       << "Wait returned " << delay - elapsed

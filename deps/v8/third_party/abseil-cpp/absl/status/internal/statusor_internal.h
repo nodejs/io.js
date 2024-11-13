@@ -123,11 +123,70 @@ using IsForwardingAssignmentValid = absl::disjunction<
         std::is_same<absl::in_place_t, absl::remove_cvref_t<U>>,
         IsForwardingAssignmentAmbiguous<T, U>>>>;
 
+template <bool Value, typename T>
+using Equality = std::conditional_t<Value, T, absl::negation<T>>;
+
+template <bool Explicit, typename T, typename U, bool Lifetimebound>
+using IsConstructionValid = absl::conjunction<
+    Equality<Lifetimebound,
+             type_traits_internal::IsLifetimeBoundAssignment<T, U>>,
+    IsDirectInitializationValid<T, U&&>, std::is_constructible<T, U&&>,
+    Equality<!Explicit, std::is_convertible<U&&, T>>,
+    absl::disjunction<
+        std::is_same<T, absl::remove_cvref_t<U>>,
+        absl::conjunction<
+            std::conditional_t<
+                Explicit,
+                absl::negation<std::is_constructible<absl::Status, U&&>>,
+                absl::negation<std::is_convertible<U&&, absl::Status>>>,
+            absl::negation<
+                internal_statusor::HasConversionOperatorToStatusOr<T, U&&>>>>>;
+
+template <typename T, typename U, bool Lifetimebound>
+using IsAssignmentValid = absl::conjunction<
+    Equality<Lifetimebound,
+             type_traits_internal::IsLifetimeBoundAssignment<T, U>>,
+    std::is_constructible<T, U&&>, std::is_assignable<T&, U&&>,
+    absl::disjunction<
+        std::is_same<T, absl::remove_cvref_t<U>>,
+        absl::conjunction<
+            absl::negation<std::is_convertible<U&&, absl::Status>>,
+            absl::negation<HasConversionOperatorToStatusOr<T, U&&>>>>,
+    IsForwardingAssignmentValid<T, U&&>>;
+
+template <bool Explicit, typename T, typename U>
+using IsConstructionFromStatusValid = absl::conjunction<
+    absl::negation<std::is_same<absl::StatusOr<T>, absl::remove_cvref_t<U>>>,
+    absl::negation<std::is_same<T, absl::remove_cvref_t<U>>>,
+    absl::negation<std::is_same<absl::in_place_t, absl::remove_cvref_t<U>>>,
+    Equality<!Explicit, std::is_convertible<U, absl::Status>>,
+    std::is_constructible<absl::Status, U>,
+    absl::negation<HasConversionOperatorToStatusOr<T, U>>>;
+
+template <bool Explicit, typename T, typename U, bool Lifetimebound,
+          typename UQ>
+using IsConstructionFromStatusOrValid = absl::conjunction<
+    absl::negation<std::is_same<T, U>>,
+    Equality<Lifetimebound,
+             type_traits_internal::IsLifetimeBoundAssignment<T, U>>,
+    std::is_constructible<T, UQ>,
+    Equality<!Explicit, std::is_convertible<UQ, T>>,
+    absl::negation<IsConstructibleOrConvertibleFromStatusOr<T, U>>>;
+
+template <typename T, typename U, bool Lifetimebound>
+using IsStatusOrAssignmentValid = absl::conjunction<
+    absl::negation<std::is_same<T, absl::remove_cvref_t<U>>>,
+    Equality<Lifetimebound,
+             type_traits_internal::IsLifetimeBoundAssignment<T, U>>,
+    std::is_constructible<T, U>, std::is_assignable<T, U>,
+    absl::negation<IsConstructibleOrConvertibleOrAssignableFromStatusOr<
+        T, absl::remove_cvref_t<U>>>>;
+
 class Helper {
  public:
   // Move type-agnostic error handling to the .cc.
   static void HandleInvalidStatusCtorArg(absl::Nonnull<Status*>);
-  ABSL_ATTRIBUTE_NORETURN static void Crash(const absl::Status& status);
+  [[noreturn]] static void Crash(const absl::Status& status);
 };
 
 // Construct an instance of T in `p` through placement new, passing Args... to
@@ -379,7 +438,7 @@ struct MoveAssignBase<T, false> {
   MoveAssignBase& operator=(MoveAssignBase&&) = delete;
 };
 
-ABSL_ATTRIBUTE_NORETURN void ThrowBadStatusOrAccess(absl::Status status);
+[[noreturn]] void ThrowBadStatusOrAccess(absl::Status status);
 
 // Used to introduce jitter into the output of printing functions for
 // `StatusOr` (i.e. `AbslStringify` and `operator<<`).

@@ -15,7 +15,7 @@ namespace internal {
 class DebugScopeIterator final : public debug::ScopeIterator {
  public:
   DebugScopeIterator(Isolate* isolate, FrameInspector* frame_inspector);
-  DebugScopeIterator(Isolate* isolate, Handle<JSFunction> function);
+  DebugScopeIterator(Isolate* isolate, DirectHandle<JSFunction> function);
   DebugScopeIterator(Isolate* isolate, Handle<JSGeneratorObject> generator);
 
   bool Done() override;

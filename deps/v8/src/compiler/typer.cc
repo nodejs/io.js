@@ -912,6 +912,10 @@ Type Typer::Visitor::TypeHeapConstant(Node* node) {
 
 Type Typer::Visitor::TypeCompressedHeapConstant(Node* node) { UNREACHABLE(); }
 
+Type Typer::Visitor::TypeTrustedHeapConstant(Node* node) {
+  return TypeConstant(HeapConstantOf(node->op()));
+}
+
 Type Typer::Visitor::TypeExternalConstant(Node* node) {
   return Type::ExternalPointer();
 }
@@ -1489,6 +1493,10 @@ Type Typer::Visitor::TypeJSCreateKeyValueArray(Node* node) {
 
 Type Typer::Visitor::TypeJSCreateObject(Node* node) {
   return Type::OtherObject();
+}
+
+Type Typer::Visitor::TypeJSCreateStringWrapper(Node* node) {
+  return Type::StringWrapper();
 }
 
 Type Typer::Visitor::TypeJSCreatePromise(Node* node) {

@@ -160,7 +160,7 @@ struct Resolver {
       }
 
       if (llvm::isa<T>(decl)) {
-        return llvm::cast<T>(decl);
+        return Cast<llvm><T>(decl);
       }
 
       llvm::errs() << "Didn't match declaration template for " << n
@@ -793,7 +793,7 @@ class FunctionAnalyzer {
   bool IsRawPointerVar(clang::Expr* expr, std::string* var_name) {
     if (llvm::isa<clang::DeclRefExpr>(expr)) {
       *var_name =
-          llvm::cast<clang::DeclRefExpr>(expr)->getDecl()->getNameAsString();
+          Cast<llvm><clang::DeclRefExpr>(expr)->getDecl()->getNameAsString();
       return true;
     }
 
@@ -1246,9 +1246,9 @@ class FunctionAnalyzer {
     if (t == nullptr) {
       return nullptr;
     } else if (llvm::isa<clang::TagType>(t)) {
-      return llvm::cast<clang::TagType>(t);
+      return Cast<llvm><clang::TagType>(t);
     } else if (llvm::isa<clang::SubstTemplateTypeParmType>(t)) {
-      return ToTagType(llvm::cast<clang::SubstTemplateTypeParmType>(t)
+      return ToTagType(Cast<llvm><clang::SubstTemplateTypeParmType>(t)
                            ->getReplacementType()
                            .getTypePtr());
     } else {

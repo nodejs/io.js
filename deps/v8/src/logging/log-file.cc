@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/platform.h"
@@ -109,7 +110,7 @@ LogFile::MessageBuilder::MessageBuilder(LogFile* log)
     : log_(log), lock_guard_(&log_->mutex_) {}
 
 void LogFile::MessageBuilder::AppendString(Tagged<String> str,
-                                           base::Optional<int> length_limit) {
+                                           std::optional<int> length_limit) {
   if (str.is_null()) return;
 
   DisallowGarbageCollection no_gc;  // Ensure string stays valid.
@@ -197,7 +198,7 @@ void LogFile::MessageBuilder::AppendSymbolName(Tagged<Symbol> symbol) {
   os << "symbol(";
   if (!IsUndefined(symbol->description())) {
     os << "\"";
-    AppendSymbolNameDetails(String::cast(symbol->description()), false);
+    AppendSymbolNameDetails(Cast<String>(symbol->description()), false);
     os << "\" ";
   }
   os << "hash " << std::hex << symbol->hash() << std::dec << ")";
@@ -292,9 +293,9 @@ template <>
 LogFile::MessageBuilder& LogFile::MessageBuilder::operator<< <Tagged<Name>>(
     Tagged<Name> name) {
   if (IsString(name)) {
-    this->AppendString(String::cast(name));
+    this->AppendString(Cast<String>(name));
   } else {
-    this->AppendSymbolName(Symbol::cast(name));
+    this->AppendSymbolName(Cast<Symbol>(name));
   }
   return *this;
 }

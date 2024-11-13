@@ -4,6 +4,8 @@
 
 #include "src/parsing/rewriter.h"
 
+#include <optional>
+
 #include "src/ast/ast.h"
 #include "src/ast/scopes.h"
 #include "src/logging/runtime-call-stats-scope.h"
@@ -18,8 +20,7 @@
   Visit(param);                                   \
   if (CheckStackOverflow()) return;
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 class Processor final : public AstVisitor<Processor> {
  public:
@@ -35,20 +36,6 @@ class Processor final : public AstVisitor<Processor> {
         breakable_(false) {
     DCHECK_EQ(closure_scope, closure_scope->GetClosureScope());
     InitializeAstVisitor(stack_limit);
-  }
-
-  Processor(Parser* parser, DeclarationScope* closure_scope, Variable* result,
-            AstValueFactory* ast_value_factory, Zone* zone)
-      : result_(result),
-        replacement_(nullptr),
-        zone_(zone),
-        closure_scope_(closure_scope),
-        factory_(ast_value_factory, zone_),
-        result_assigned_(false),
-        is_set_(false),
-        breakable_(false) {
-    DCHECK_EQ(closure_scope, closure_scope->GetClosureScope());
-    InitializeAstVisitor(parser->stack_limit());
   }
 
   void Process(ZonePtrList<Statement>* statements);
@@ -372,6 +359,14 @@ void Processor::VisitInitializeClassStaticElementsStatement(
   replacement_ = node;
 }
 
+void Processor::VisitAutoAccessorGetterBody(AutoAccessorGetterBody* node) {
+  replacement_ = node;
+}
+
+void Processor::VisitAutoAccessorSetterBody(AutoAccessorSetterBody* node) {
+  replacement_ = node;
+}
+
 // Expressions are never visited.
 #define DEF_VISIT(type)                                         \
   void Processor::Visit##type(type* expr) { UNREACHABLE(); }
@@ -409,7 +404,7 @@ bool Rewriter::Rewrite(ParseInfo* info) {
   return RewriteBody(info, scope, body).has_value();
 }
 
-base::Optional<VariableProxy*> Rewriter::RewriteBody(
+std::optional<VariableProxy*> Rewriter::RewriteBody(
     ParseInfo* info, Scope* scope, ZonePtrList<Statement>* body) {
   DisallowGarbageCollection no_gc;
   DisallowHandleAllocation no_handles;
@@ -429,8 +424,17 @@ base::Optional<VariableProxy*> Rewriter::RewriteBody(
       VariableProxy* result_value =
           processor.factory()->NewVariableProxy(result, pos);
       if (!info->flags().is_repl_mode()) {
-        Statement* result_statement =
-            processor.factory()->NewReturnStatement(result_value, pos);
+        Statement* result_statement;
+        if (scope->is_module_scope() &&
+            IsModuleWithTopLevelAwait(
+                scope->AsDeclarationScope()->function_kind())) {
+          result_statement = processor.factory()->NewAsyncReturnStatement(
+              result_value, pos,
+              ReturnStatement::kFunctionLiteralReturnPosition);
+        } else {
+          result_statement =
+              processor.factory()->NewReturnStatement(result_value, pos);
+        }
         body->Add(result_statement, info->zone());
       }
       return result_value;
@@ -438,7 +442,7 @@ base::Optional<VariableProxy*> Rewriter::RewriteBody(
 
     if (processor.HasStackOverflow()) {
       info->pending_error_handler()->set_stack_overflow();
-      return base::nullopt;
+      return std::nullopt;
     }
   }
   return nullptr;
@@ -446,5 +450,4 @@ base::Optional<VariableProxy*> Rewriter::RewriteBody(
 
 #undef VISIT_AND_RETURN_IF_STACK_OVERFLOW
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

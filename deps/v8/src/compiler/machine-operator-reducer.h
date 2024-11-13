@@ -5,6 +5,8 @@
 #ifndef V8_COMPILER_MACHINE_OPERATOR_REDUCER_H_
 #define V8_COMPILER_MACHINE_OPERATOR_REDUCER_H_
 
+#include <optional>
+
 #include "src/base/compiler-specific.h"
 #include "src/common/globals.h"
 #include "src/compiler/graph-reducer.h"
@@ -168,7 +170,7 @@ class V8_EXPORT_PRIVATE MachineOperatorReducer final
   // Helper for ReduceConditional. Does not perform the actual reduction; just
   // returns a new Node that could be used as the input to the condition.
   template <typename WordNAdapter>
-  base::Optional<Node*> ReduceConditionalN(Node* node);
+  std::optional<Node*> ReduceConditionalN(Node* node);
 
   // Helper for finding a reduced equality condition. Does not perform the
   // actual reduction; just returns a new pair that could be compared for the
@@ -178,7 +180,7 @@ class V8_EXPORT_PRIVATE MachineOperatorReducer final
   // Word32Equal(TruncateInt64ToInt32(lhs), rhs).
   template <typename WordNAdapter, typename uintN_t,
             typename intN_t = typename std::make_signed<uintN_t>::type>
-  base::Optional<std::pair<Node*, uintN_t>> ReduceWordEqualForConstantRhs(
+  std::optional<std::pair<Node*, uintN_t>> ReduceWordEqualForConstantRhs(
       Node* lhs, uintN_t rhs);
 
   MachineGraph* mcgraph_;

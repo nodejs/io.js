@@ -17,8 +17,8 @@ export interface OptionsBinding {
     aliases: Map<string, string[]>;
   };
   envSettings: {
-    kAllowedInEnvironment: 0;
-    kDisallowedInEnvironment: 1;
+    kAllowedInEnvvar: 0;
+    kDisallowedInEnvvar: 1;
   };
   noGlobalSearchPaths: boolean;
   shouldNotRegisterESMLoader: boolean;

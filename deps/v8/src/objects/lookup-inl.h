@@ -24,49 +24,49 @@ namespace internal {
 
 LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
                                Handle<Name> name, Configuration configuration)
-    : LookupIterator(isolate, receiver, name, kInvalidIndex, receiver,
-                     configuration) {}
+    : LookupIterator(isolate, Cast<JSAny>(receiver), name, kInvalidIndex,
+                     Cast<JSAny>(receiver), configuration) {}
 
 LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
                                Handle<Name> name,
                                Handle<Object> lookup_start_object,
                                Configuration configuration)
-    : LookupIterator(isolate, receiver, name, kInvalidIndex,
-                     lookup_start_object, configuration) {}
+    : LookupIterator(isolate, Cast<JSAny>(receiver), name, kInvalidIndex,
+                     Cast<JSAny>(lookup_start_object), configuration) {}
 
 LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
                                size_t index, Configuration configuration)
-    : LookupIterator(isolate, receiver, Handle<Name>(), index, receiver,
-                     configuration) {
+    : LookupIterator(isolate, Cast<JSAny>(receiver), Handle<Name>(), index,
+                     Cast<JSAny>(receiver), configuration) {
   DCHECK_NE(index, kInvalidIndex);
 }
 
 LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
                                size_t index, Handle<Object> lookup_start_object,
                                Configuration configuration)
-    : LookupIterator(isolate, receiver, Handle<Name>(), index,
-                     lookup_start_object, configuration) {
+    : LookupIterator(isolate, Cast<JSAny>(receiver), Handle<Name>(), index,
+                     Cast<JSAny>(lookup_start_object), configuration) {
   DCHECK_NE(index, kInvalidIndex);
 }
 
 LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
                                const PropertyKey& key,
                                Configuration configuration)
-    : LookupIterator(isolate, receiver, key.name(), key.index(), receiver,
-                     configuration) {}
+    : LookupIterator(isolate, Cast<JSAny>(receiver), key.name(), key.index(),
+                     Cast<JSAny>(receiver), configuration) {}
 
 LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
                                const PropertyKey& key,
                                Handle<Object> lookup_start_object,
                                Configuration configuration)
-    : LookupIterator(isolate, receiver, key.name(), key.index(),
-                     lookup_start_object, configuration) {}
+    : LookupIterator(isolate, Cast<JSAny>(receiver), key.name(), key.index(),
+                     Cast<JSAny>(lookup_start_object), configuration) {}
 
 // This private constructor is the central bottleneck that all the other
 // constructors use.
-LookupIterator::LookupIterator(Isolate* isolate, Handle<Object> receiver,
+LookupIterator::LookupIterator(Isolate* isolate, Handle<JSAny> receiver,
                                Handle<Name> name, size_t index,
-                               Handle<Object> lookup_start_object,
+                               Handle<JSAny> lookup_start_object,
                                Configuration configuration)
     : configuration_(ComputeConfiguration(isolate, configuration, name)),
       isolate_(isolate),
@@ -117,13 +117,14 @@ LookupIterator::LookupIterator(Isolate* isolate, Configuration configuration,
     : configuration_(configuration),
       isolate_(isolate),
       name_(name),
-      receiver_(receiver),
-      lookup_start_object_(receiver),
+      receiver_(Cast<JSAny>(receiver)),
+      lookup_start_object_(Cast<JSAny>(receiver)),
       index_(kInvalidIndex) {
   // This is the only lookup configuration allowed by this constructor because
   // it's special case allowing lookup of the private symbols on the prototype
   // chain. Usually private symbols are limited to OWN_SKIP_INTERCEPTOR lookups.
-  DCHECK_EQ(*name_, *isolate->factory()->error_stack_symbol());
+  DCHECK(*name_ == *isolate->factory()->error_stack_symbol() ||
+         *name_ == *isolate->factory()->error_message_symbol());
   DCHECK_EQ(configuration, PROTOTYPE_CHAIN_SKIP_INTERCEPTOR);
   Start<false>();
 }
@@ -186,7 +187,7 @@ PropertyKey::PropertyKey(Isolate* isolate, Handle<Object> valid_key) {
     valid_key = isolate->factory()->NumberToString(valid_key);
   }
   DCHECK(IsName(*valid_key));
-  name_ = Handle<Name>::cast(valid_key);
+  name_ = Cast<Name>(valid_key);
   if (!name_->AsIntegerIndex(&index_)) {
     index_ = LookupIterator::kInvalidIndex;
     name_ = isolate->factory()->InternalizeName(name_);
@@ -238,18 +239,18 @@ bool LookupIterator::is_dictionary_holder() const {
 
 Handle<Map> LookupIterator::transition_map() const {
   DCHECK_EQ(TRANSITION, state_);
-  return Handle<Map>::cast(transition_);
+  return Cast<Map>(transition_);
 }
 
 Handle<PropertyCell> LookupIterator::transition_cell() const {
   DCHECK_EQ(TRANSITION, state_);
-  return Handle<PropertyCell>::cast(transition_);
+  return Cast<PropertyCell>(transition_);
 }
 
 template <class T>
 Handle<T> LookupIterator::GetHolder() const {
   DCHECK(IsFound());
-  return Handle<T>::cast(holder_);
+  return Cast<T>(holder_);
 }
 
 bool LookupIterator::ExtendingNonExtensible(Handle<JSReceiver> receiver) {
@@ -271,7 +272,7 @@ bool LookupIterator::IsCacheableTransition() {
 
 // static
 void LookupIterator::UpdateProtector(Isolate* isolate, Handle<Object> receiver,
-                                     Handle<Name> name) {
+                                     DirectHandle<Name> name) {
   RCS_SCOPE(isolate, RuntimeCallCounterId::kUpdateProtector);
   DCHECK(IsInternalizedString(*name) || IsSymbol(*name));
 
@@ -327,13 +328,13 @@ LookupIterator::Configuration LookupIterator::ComputeConfiguration(
 
 // static
 MaybeHandle<JSReceiver> LookupIterator::GetRoot(
-    Isolate* isolate, Handle<Object> lookup_start_object, size_t index,
+    Isolate* isolate, Handle<JSAny> lookup_start_object, size_t index,
     Configuration configuration) {
   if (IsJSReceiver(*lookup_start_object, isolate)) {
-    return Handle<JSReceiver>::cast(lookup_start_object);
+    return Cast<JSReceiver>(lookup_start_object);
   }
-  return GetRootForNonJSReceiver(isolate, lookup_start_object, index,
-                                 configuration);
+  return GetRootForNonJSReceiver(
+      isolate, Cast<JSPrimitive>(lookup_start_object), index, configuration);
 }
 
 template <class T>
@@ -341,12 +342,12 @@ Handle<T> LookupIterator::GetStoreTarget() const {
   DCHECK(IsJSReceiver(*receiver_, isolate_));
   if (IsJSGlobalProxy(*receiver_, isolate_)) {
     Tagged<HeapObject> prototype =
-        JSGlobalProxy::cast(*receiver_)->map(isolate_)->prototype(isolate_);
+        Cast<JSGlobalProxy>(*receiver_)->map(isolate_)->prototype(isolate_);
     if (IsJSGlobalObject(prototype, isolate_)) {
-      return handle(JSGlobalObject::cast(prototype), isolate_);
+      return handle(Cast<JSGlobalObject>(prototype), isolate_);
     }
   }
-  return Handle<T>::cast(receiver_);
+  return Cast<T>(receiver_);
 }
 
 template <bool is_element>
@@ -361,7 +362,7 @@ Tagged<InterceptorInfo> LookupIterator::GetInterceptor(
 
 inline Handle<InterceptorInfo> LookupIterator::GetInterceptor() const {
   DCHECK_EQ(INTERCEPTOR, state_);
-  Tagged<JSObject> holder = JSObject::cast(*holder_);
+  Tagged<JSObject> holder = Cast<JSObject>(*holder_);
   Tagged<InterceptorInfo> result = IsElement(holder)
                                        ? GetInterceptor<true>(holder)
                                        : GetInterceptor<false>(holder);

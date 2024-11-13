@@ -66,6 +66,51 @@ void MultiLineStringBuilder::ToDisassemblyCollector(
   }
 }
 
+void DisassembleFunctionImpl(const WasmModule* module, int func_index,
+                             base::Vector<const uint8_t> function_body,
+                             ModuleWireBytes module_bytes, NamesProvider* names,
+                             std::ostream& os, std::vector<uint32_t>* offsets) {
+  MultiLineStringBuilder sb;
+  const wasm::WasmFunction& func = module->functions[func_index];
+  AccountingAllocator allocator;
+  Zone zone(&allocator, "Wasm disassembler");
+  bool shared = module->types[func.sig_index].is_shared;
+  WasmDetectedFeatures detected;
+  FunctionBodyDisassembler d(&zone, module, func_index, shared, &detected,
+                             func.sig, function_body.begin(),
+                             function_body.end(), func.code.offset(),
+                             module_bytes, names);
+  d.DecodeAsWat(sb, {0, 2}, FunctionBodyDisassembler::kPrintHeader);
+  const bool print_offsets = false;
+  sb.WriteTo(os, print_offsets, offsets);
+}
+
+void DisassembleFunction(const WasmModule* module, int func_index,
+                         base::Vector<const uint8_t> wire_bytes,
+                         NamesProvider* names, std::ostream& os) {
+  DCHECK(func_index < static_cast<int>(module->functions.size()) &&
+         func_index >= static_cast<int>(module->num_imported_functions));
+  ModuleWireBytes module_bytes(wire_bytes);
+  base::Vector<const uint8_t> code =
+      module_bytes.GetFunctionBytes(&module->functions[func_index]);
+  std::vector<uint32_t>* collect_offsets = nullptr;
+  DisassembleFunctionImpl(module, func_index, code, module_bytes, names, os,
+                          collect_offsets);
+}
+
+void DisassembleFunction(const WasmModule* module, int func_index,
+                         base::Vector<const uint8_t> function_body,
+                         base::Vector<const uint8_t> maybe_wire_bytes,
+                         uint32_t function_body_offset, std::ostream& os,
+                         std::vector<uint32_t>* offsets) {
+  DCHECK(func_index < static_cast<int>(module->functions.size()) &&
+         func_index >= static_cast<int>(module->num_imported_functions));
+  NamesProvider fake_names(module, maybe_wire_bytes);
+  DisassembleFunctionImpl(module, func_index, function_body,
+                          ModuleWireBytes{nullptr, 0}, &fake_names, os,
+                          offsets);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Helpers.
 
@@ -467,7 +512,7 @@ class ImmediatesPrinter {
     names()->PrintGlobalName(out_, imm.index);
   }
 
-  void TableIndex(IndexImmediate& imm) {
+  void TableIndex(TableIndexImmediate& imm) {
     out_ << " ";
     names()->PrintTableName(out_, imm.index);
   }
@@ -576,6 +621,10 @@ class ImmediatesPrinter {
       out_ << " " << imm.index << " INVALID";
       return;
     }
+    if (owner_->wire_bytes_.start() == nullptr) {
+      out_ << " " << imm.index;
+      return;
+    }
     out_ << " \"";
     const WasmStringRefLiteral& lit =
         owner_->module_->stringref_literals[imm.index];
@@ -662,8 +711,8 @@ void OffsetsProvider::CollectOffsets(const WasmModule* module,
   data_offsets_.reserve(module->data_segments.size());
   recgroups_.reserve(4);  // We can't know, so this is just a guess.
 
-  ModuleDecoderImpl decoder{WasmFeatures::All(), wire_bytes, kWasmOrigin,
-                            kDoNotPopulateExplicitRecGroups, this};
+  ModuleDecoderImpl decoder{WasmEnabledFeatures::All(), wire_bytes, kWasmOrigin,
+                            this};
   constexpr bool kNoVerifyFunctions = false;
   decoder.DecodeModule(kNoVerifyFunctions);
 }
@@ -963,7 +1012,8 @@ void ModuleDisassembler::PrintModule(Indentation indentation, size_t max_mb) {
     if (elem.shared) out_ << "shared ";
     names_->PrintValueType(out_, elem.type);
 
-    ModuleDecoderImpl decoder(WasmFeatures::All(), wire_bytes_.module_bytes(),
+    ModuleDecoderImpl decoder(WasmEnabledFeatures::All(),
+                              wire_bytes_.module_bytes(),
                               ModuleOrigin::kWasmOrigin);
     decoder.consume_bytes(elem.elements_wire_bytes_offset);
     for (size_t i = 0; i < elem.element_count; i++) {
@@ -995,7 +1045,7 @@ void ModuleDisassembler::PrintModule(Indentation indentation, size_t max_mb) {
     PrintSignatureOneLine(out_, func->sig, i, names_, true, kIndicesAsComments);
     out_.NextLine(func->code.offset());
     bool shared = module_->types[func->sig_index].is_shared;
-    WasmFeatures detected;
+    WasmDetectedFeatures detected;
     base::Vector<const uint8_t> code = wire_bytes_.GetFunctionBytes(func);
     FunctionBodyDisassembler d(&zone_, module_, i, shared, &detected, func->sig,
                                code.begin(), code.end(), func->code.offset(),
@@ -1114,7 +1164,7 @@ void ModuleDisassembler::PrintInitExpression(const ConstantExpression& init,
       const uint8_t* end = start_ + ref.end_offset();
 
       auto sig = FixedSizeSignature<ValueType>::Returns(expected_type);
-      WasmFeatures detected;
+      WasmDetectedFeatures detected;
       FunctionBodyDisassembler d(&zone_, module_, 0, false, &detected, &sig,
                                  start, end, ref.offset(), wire_bytes_, names_);
       d.DecodeGlobalInitializer(out_);

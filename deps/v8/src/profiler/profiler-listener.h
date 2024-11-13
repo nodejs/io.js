@@ -96,7 +96,8 @@ class V8_EXPORT_PRIVATE ProfilerListener : public LogEventListener,
  private:
   const char* GetFunctionName(Tagged<SharedFunctionInfo>);
 
-  void AttachDeoptInlinedFrames(Handle<Code> code, CodeDeoptEventRecord* rec);
+  void AttachDeoptInlinedFrames(DirectHandle<Code> code,
+                                CodeDeoptEventRecord* rec);
   Tagged<Name> InferScriptName(Tagged<Name> name,
                                Tagged<SharedFunctionInfo> info);
   V8_INLINE void DispatchCodeEvent(const CodeEventsContainer& evt_rec) {

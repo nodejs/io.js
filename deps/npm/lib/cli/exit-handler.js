@@ -66,8 +66,9 @@ class ExitHandler {
   }
 
   #handleProcessExit (code) {
-    // Force exit code to a number if it has not been set
-    const exitCode = typeof code === 'number' ? code : (this.#exited ? 0 : 1)
+    const numCode = Number(code) || 0
+    // Always exit w/ a non-zero code if exit handler was not called
+    const exitCode = this.#exited ? numCode : (numCode || 1)
     this.#process.exitCode = exitCode
 
     if (this.#notLoadedOrExited) {

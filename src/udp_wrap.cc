@@ -56,7 +56,7 @@ using v8::Value;
 namespace {
 template <int (*fn)(uv_udp_t*, int)>
 void SetLibuvInt32(const FunctionCallbackInfo<Value>& args) {
-  UDPWrap* wrap = Unwrap<UDPWrap>(args.This());
+  UDPWrap* wrap = BaseObject::Unwrap<UDPWrap>(args.This());
   if (wrap == nullptr) {
     args.GetReturnValue().Set(UV_EBADF);
     return;
@@ -231,6 +231,7 @@ void UDPWrap::Initialize(Local<Object> target,
   Local<Object> constants = Object::New(isolate);
   NODE_DEFINE_CONSTANT(constants, UV_UDP_IPV6ONLY);
   NODE_DEFINE_CONSTANT(constants, UV_UDP_REUSEADDR);
+  NODE_DEFINE_CONSTANT(constants, UV_UDP_REUSEPORT);
   target->Set(context,
               env->constants_string(),
               constants).Check();
@@ -589,7 +590,7 @@ ssize_t UDPWrap::Send(uv_buf_t* bufs_ptr,
     msg_size += bufs_ptr[i].len;
 
   int err = 0;
-  if (!UNLIKELY(env()->options()->test_udp_no_try_send)) {
+  if (!env()->options()->test_udp_no_try_send) [[unlikely]] {
     err = uv_udp_try_send(&handle_, bufs_ptr, count, addr);
     if (err == UV_ENOSYS || err == UV_EAGAIN) {
       err = 0;

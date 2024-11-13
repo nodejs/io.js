@@ -796,7 +796,9 @@ void InterpreterAssembler::CallJSWithSpreadAndDispatch(
 
 #ifndef V8_JITLESS
   TNode<HeapObject> maybe_feedback_vector = LoadFeedbackVector();
-  LazyNode<Object> receiver = [=] { return LoadRegisterAtOperandIndex(1); };
+  LazyNode<Object> receiver = [=, this] {
+    return LoadRegisterAtOperandIndex(1);
+  };
   CollectCallFeedback(function, receiver, context, maybe_feedback_vector,
                       slot_id);
 #endif  // !V8_JITLESS
@@ -824,8 +826,10 @@ TNode<Object> InterpreterAssembler::Construct(
       construct_array(this, &var_site);
 
   TNode<Word32T> args_count = JSParameterCount(args.reg_count());
+  // TODO(42200059): Propagate TaggedIndex usage.
   CollectConstructFeedback(context, target, new_target, maybe_feedback_vector,
-                           slot_id, UpdateFeedbackMode::kOptionalFeedback,
+                           IntPtrToTaggedIndex(Signed(slot_id)),
+                           UpdateFeedbackMode::kOptionalFeedback,
                            &try_fast_construct, &construct_array, &var_site);
 
   BIND(&try_fast_construct);
@@ -1000,7 +1004,7 @@ TNode<Object> InterpreterAssembler::ConstructWithSpread(
 // (once here, and once again in construct stub).
 TNode<Object> InterpreterAssembler::ConstructForwardAllArgs(
     TNode<Object> target, TNode<Context> context, TNode<Object> new_target,
-    TNode<UintPtrT> slot_id) {
+    TNode<TaggedIndex> slot_id) {
   DCHECK(Bytecodes::MakesCallAlongCriticalPath(bytecode_));
   TVARIABLE(Object, var_result);
   TVARIABLE(AllocationSite, var_site);
@@ -1209,6 +1213,13 @@ TNode<WordT> InterpreterAssembler::LoadBytecode(
   TNode<Uint8T> bytecode =
       Load<Uint8T>(BytecodeArrayTaggedPointer(), bytecode_offset);
   return ChangeUint32ToWord(bytecode);
+}
+
+TNode<IntPtrT> InterpreterAssembler::LoadParameterCountWithoutReceiver() {
+  TNode<Int32T> parameter_count =
+      LoadBytecodeArrayParameterCountWithoutReceiver(
+          BytecodeArrayTaggedPointer());
+  return ChangeInt32ToIntPtr(parameter_count);
 }
 
 void InterpreterAssembler::StarDispatchLookahead(TNode<WordT> target_bytecode) {
@@ -1511,14 +1522,14 @@ bool InterpreterAssembler::TargetSupportsUnalignedAccess() {
 }
 
 void InterpreterAssembler::AbortIfRegisterCountInvalid(
-    TNode<FixedArray> parameters_and_registers,
-    TNode<IntPtrT> formal_parameter_count, TNode<UintPtrT> register_count) {
+    TNode<FixedArray> parameters_and_registers, TNode<IntPtrT> parameter_count,
+    TNode<UintPtrT> register_count) {
   TNode<IntPtrT> array_size =
       LoadAndUntagFixedArrayBaseLength(parameters_and_registers);
 
   Label ok(this), abort(this, Label::kDeferred);
-  Branch(UintPtrLessThanOrEqual(
-             IntPtrAdd(formal_parameter_count, register_count), array_size),
+  Branch(UintPtrLessThanOrEqual(IntPtrAdd(parameter_count, register_count),
+                                array_size),
          &ok, &abort);
 
   BIND(&abort);
@@ -1529,18 +1540,15 @@ void InterpreterAssembler::AbortIfRegisterCountInvalid(
 }
 
 TNode<FixedArray> InterpreterAssembler::ExportParametersAndRegisterFile(
-    TNode<FixedArray> array, const RegListNodePair& registers,
-    TNode<Int32T> formal_parameter_count) {
+    TNode<FixedArray> array, const RegListNodePair& registers) {
   // Store the formal parameters (without receiver) followed by the
   // registers into the generator's internal parameters_and_registers field.
-  TNode<IntPtrT> formal_parameter_count_intptr =
-      Signed(ChangeUint32ToWord(formal_parameter_count));
+  TNode<IntPtrT> parameter_count = LoadParameterCountWithoutReceiver();
   TNode<UintPtrT> register_count = ChangeUint32ToWord(registers.reg_count());
   if (v8_flags.debug_code) {
     CSA_DCHECK(this, IntPtrEqual(registers.base_reg_location(),
                                  RegisterLocation(Register(0))));
-    AbortIfRegisterCountInvalid(array, formal_parameter_count_intptr,
-                                register_count);
+    AbortIfRegisterCountInvalid(array, parameter_count, register_count);
   }
 
   {
@@ -1557,8 +1565,7 @@ TNode<FixedArray> InterpreterAssembler::ExportParametersAndRegisterFile(
     BIND(&loop);
     {
       TNode<IntPtrT> index = var_index.value();
-      GotoIfNot(UintPtrLessThan(index, formal_parameter_count_intptr),
-                &done_loop);
+      GotoIfNot(UintPtrLessThan(index, parameter_count), &done_loop);
 
       TNode<IntPtrT> reg_index = IntPtrAdd(reg_base, index);
       TNode<Object> value = LoadRegister(reg_index);
@@ -1589,8 +1596,7 @@ TNode<FixedArray> InterpreterAssembler::ExportParametersAndRegisterFile(
           IntPtrSub(IntPtrConstant(Register(0).ToOperand()), index);
       TNode<Object> value = LoadRegister(reg_index);
 
-      TNode<IntPtrT> array_index =
-          IntPtrAdd(formal_parameter_count_intptr, index);
+      TNode<IntPtrT> array_index = IntPtrAdd(parameter_count, index);
       StoreFixedArrayElement(array, array_index, value);
 
       var_index = IntPtrAdd(index, IntPtrConstant(1));
@@ -1603,16 +1609,13 @@ TNode<FixedArray> InterpreterAssembler::ExportParametersAndRegisterFile(
 }
 
 TNode<FixedArray> InterpreterAssembler::ImportRegisterFile(
-    TNode<FixedArray> array, const RegListNodePair& registers,
-    TNode<Int32T> formal_parameter_count) {
-  TNode<IntPtrT> formal_parameter_count_intptr =
-      Signed(ChangeUint32ToWord(formal_parameter_count));
+    TNode<FixedArray> array, const RegListNodePair& registers) {
+  TNode<IntPtrT> parameter_count = LoadParameterCountWithoutReceiver();
   TNode<UintPtrT> register_count = ChangeUint32ToWord(registers.reg_count());
   if (v8_flags.debug_code) {
     CSA_DCHECK(this, IntPtrEqual(registers.base_reg_location(),
                                  RegisterLocation(Register(0))));
-    AbortIfRegisterCountInvalid(array, formal_parameter_count_intptr,
-                                register_count);
+    AbortIfRegisterCountInvalid(array, parameter_count, register_count);
   }
 
   TVARIABLE(IntPtrT, var_index, IntPtrConstant(0));
@@ -1626,8 +1629,7 @@ TNode<FixedArray> InterpreterAssembler::ImportRegisterFile(
     TNode<IntPtrT> index = var_index.value();
     GotoIfNot(UintPtrLessThan(index, register_count), &done_loop);
 
-    TNode<IntPtrT> array_index =
-        IntPtrAdd(formal_parameter_count_intptr, index);
+    TNode<IntPtrT> array_index = IntPtrAdd(parameter_count, index);
     TNode<Object> value = LoadFixedArrayElement(array, array_index);
 
     TNode<IntPtrT> reg_index =

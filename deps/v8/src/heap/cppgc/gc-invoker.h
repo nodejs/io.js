@@ -5,6 +5,8 @@
 #ifndef V8_HEAP_CPPGC_GC_INVOKER_H_
 #define V8_HEAP_CPPGC_GC_INVOKER_H_
 
+#include <optional>
+
 #include "include/cppgc/common.h"
 #include "include/cppgc/heap.h"
 #include "src/base/macros.h"
@@ -41,7 +43,7 @@ class V8_EXPORT_PRIVATE GCInvoker final : public GarbageCollector {
   void set_override_stack_state(EmbedderStackState state) final;
   void clear_overridden_stack_state() final;
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  v8::base::Optional<int> UpdateAllocationTimeout() final;
+  std::optional<int> UpdateAllocationTimeout() final;
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
  private:

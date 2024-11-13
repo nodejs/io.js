@@ -74,6 +74,7 @@ module.exports = {
   meta: {
     messages: {
       error: 'Use `const { {{name}} } = primordials;` instead of the global.',
+      errorPolyfill: 'Use `const { {{name}} } = require("internal/util");` instead of the primordial.',
     },
     schema: {
       type: 'array',
@@ -88,6 +89,10 @@ module.exports = {
               items: { type: 'string' },
             },
             into: { type: 'string' },
+            polyfilled: {
+              type: 'array',
+              items: { type: 'string' },
+            },
           },
           additionalProperties: false,
         },
@@ -99,6 +104,7 @@ module.exports = {
 
     const nameMap = new Map();
     const renameMap = new Map();
+    const polyfilledSet = new Set();
 
     for (const option of context.options) {
       const names = option.ignore || [];
@@ -108,6 +114,11 @@ module.exports = {
       );
       if (option.into) {
         renameMap.set(option.name, option.into);
+      }
+      if (option.polyfilled) {
+        for (const propertyName of option.polyfilled) {
+          polyfilledSet.add(`${option.name}${propertyName[0].toUpperCase()}${propertyName.slice(1)}`);
+        }
       }
     }
 
@@ -186,6 +197,17 @@ module.exports = {
       },
       VariableDeclarator(node) {
         const name = node.init?.name;
+        if (name === 'primordials' && node.id.type === 'ObjectPattern') {
+          const name = node.id.properties.find(({ key }) => polyfilledSet.has(key.name))?.key.name;
+          if (name) {
+            context.report({
+              node,
+              messageId: 'errorPolyfill',
+              data: { name },
+            });
+            return;
+          }
+        }
         if (name !== undefined && isTarget(nameMap, name) &&
             node.id.type === 'Identifier' &&
             !globalScope.set.get(name)?.defs.length) {

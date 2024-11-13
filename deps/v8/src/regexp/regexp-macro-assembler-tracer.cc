@@ -346,12 +346,16 @@ bool RegExpMacroAssemblerTracer::CheckCharacterInRangeArray(
 
 bool RegExpMacroAssemblerTracer::CheckCharacterNotInRangeArray(
     const ZoneList<CharacterRange>* ranges, Label* on_not_in_range) {
-  PrintF(
-      " CheckCharacterNotInRangeArray(\n"
-      "        label[%08x]);\n",
-      LabelToInt(on_not_in_range));
-  PrintRangeArray(ranges);
-  return assembler_->CheckCharacterNotInRangeArray(ranges, on_not_in_range);
+  bool emitted =
+      assembler_->CheckCharacterNotInRangeArray(ranges, on_not_in_range);
+  if (emitted) {
+    PrintF(
+        " CheckCharacterNotInRangeArray(\n"
+        "        label[%08x]);\n",
+        LabelToInt(on_not_in_range));
+    PrintRangeArray(ranges);
+  }
+  return emitted;
 }
 
 void RegExpMacroAssemblerTracer::CheckBitInTable(

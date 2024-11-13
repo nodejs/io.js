@@ -44,6 +44,7 @@ class ProcessRunner {
   std::vector<std::string> env_vars_{};
   std::unique_ptr<char* []> env {};  // memory for options_.env
   std::unique_ptr<char* []> arg {};  // memory for options_.args
+  std::string cwd;
 
   // OnExit is the callback function that is called when the process exits.
   void OnExit(int64_t exit_status, int term_signal);
@@ -78,7 +79,7 @@ class ProcessRunner {
 std::optional<std::tuple<std::filesystem::path, std::string, std::string>>
 FindPackageJson(const std::filesystem::path& cwd);
 
-void RunTask(std::shared_ptr<InitializationResultImpl> result,
+void RunTask(const std::shared_ptr<InitializationResultImpl>& result,
              std::string_view command_id,
              const PositionalArgs& positional_args);
 PositionalArgs GetPositionalArgs(const std::vector<std::string>& args);

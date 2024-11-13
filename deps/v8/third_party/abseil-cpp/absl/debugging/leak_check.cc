@@ -43,7 +43,7 @@ bool LeakCheckerIsActive() {
 bool LeakCheckerIsActive() { return true; }
 #endif
 
-bool FindAndReportLeaks() { return __lsan_do_recoverable_leak_check(); }
+bool FindAndReportLeaks() { return __lsan_do_recoverable_leak_check() != 0; }
 void DoIgnoreLeak(const void* ptr) { __lsan_ignore_object(ptr); }
 void RegisterLivePointers(const void* ptr, size_t size) {
   __lsan_register_root_region(ptr, size);

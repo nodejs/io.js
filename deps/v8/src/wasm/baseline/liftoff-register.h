@@ -59,6 +59,7 @@ static inline constexpr RegClass reg_class_for(ValueKind kind) {
   constexpr auto kRegClasses =
       base::make_array<kNumValueKinds>([](std::size_t kind) {
         switch (kind) {
+          case kF16:
           case kF32:
           case kF64:
             return kFpReg;
@@ -88,7 +89,7 @@ static inline constexpr RegClass reg_class_for(ValueKind kind) {
 // Description of LiftoffRegister code encoding.
 // This example uses the ARM architecture, which as of writing has:
 // - 9 GP registers, requiring 4 bits
-// - 13 FP regitsters, requiring 5 bits
+// - 13 FP registers, requiring 5 bits
 // - kNeedI64RegPair is true
 // - kNeedS128RegPair is true
 // - thus, kBitsPerRegPair is 2 + 2 * 4 = 10
@@ -167,6 +168,16 @@ class LiftoffRegister {
     DCHECK(kLiftoffAssemblerFpCacheRegs.has(reg));
     DCHECK_EQ(reg, fp());
   }
+
+#if defined(V8_TARGET_ARCH_IA32)
+  // IA32 needs a fixed xmm0 register as a LiftoffRegister, however, xmm0 is not
+  // an allocatable double register (see register-ia32.h). This constructor
+  // allows bypassing the DCHECK that the LiftoffRegister has to be allocatable.
+  static LiftoffRegister from_uncached(DoubleRegister reg) {
+    DCHECK(!kLiftoffAssemblerFpCacheRegs.has(reg));
+    return LiftoffRegister(kAfterMaxLiftoffGpRegCode + reg.code());
+  }
+#endif
 
   static LiftoffRegister from_liftoff_code(int code) {
     LiftoffRegister reg{static_cast<storage_t>(code)};
@@ -423,8 +434,18 @@ class LiftoffRegList {
     return LiftoffRegList(regs_ & other.regs_);
   }
 
+  constexpr LiftoffRegList& operator&=(const LiftoffRegList other) {
+    regs_ &= other.regs_;
+    return *this;
+  }
+
   constexpr LiftoffRegList operator|(const LiftoffRegList other) const {
     return LiftoffRegList(regs_ | other.regs_);
+  }
+
+  constexpr LiftoffRegList& operator|=(const LiftoffRegList other) {
+    regs_ |= other.regs_;
+    return *this;
   }
 
   constexpr LiftoffRegList GetAdjacentFpRegsSet() const {

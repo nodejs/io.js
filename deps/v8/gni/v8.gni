@@ -6,6 +6,7 @@ import("//build/config/chrome_build.gni")
 import("//build/config/compiler/pgo/pgo.gni")
 import("//build/config/gclient_args.gni")
 import("//build/config/ios/config.gni")
+import("//build/config/ios/ios_sdk_overrides.gni")
 import("//build/config/sanitizers/sanitizers.gni")
 import("//build/config/v8_target_cpu.gni")
 import("//build_overrides/build.gni")
@@ -39,6 +40,10 @@ declare_args() {
   # Includes profiles to optimize builtins.
   v8_enable_builtins_optimization = ""
 
+  # Turns on all V8 debug features. Enables running V8 in a pseudo debug mode
+  # within a release Chrome.
+  v8_enable_debugging_features = is_debug
+
   # Enable ECMAScript Internationalization API. Enabling this feature will
   # add a dependency on the ICU library.
   v8_enable_i18n_support = true
@@ -69,6 +74,14 @@ declare_args() {
   # at the cost of performance.
   # Sets -DV8_LITE_MODE.
   v8_enable_lite_mode = false
+
+  # iOS executable code pages is in 17.4 SDK. We
+  # use target_os == "ios" here because it isn't equivalent
+  # to is_ios (is_ios is based on host_os).
+  if (target_os == "ios") {
+    # TODO(dtapuska): Change this to an assert.
+    v8_enable_lite_mode = ios_deployment_target != "17.4"
+  }
 
   # Enable the Turbofan compiler.
   # Sets -dV8_ENABLE_TURBOFAN.
@@ -105,11 +118,8 @@ declare_args() {
   # Scan the call stack conservatively during garbage collection.
   v8_enable_conservative_stack_scanning = false
 
-  # Use direct pointers in internal (direct) handles.
+  # Use direct pointers in handles (v8::internal::Handle and v8::Local).
   v8_enable_direct_handle = ""
-
-  # Use direct pointers in local handles.
-  v8_enable_direct_local = ""
 
   # Check for off-stack allocated local handles.
   v8_enable_local_off_stack_check = false
@@ -138,7 +148,7 @@ declare_args() {
   cppgc_enable_2gb_cage = false
 
   # Enable support for larger cages, up to 16GB.
-  cppgc_enable_larger_cage = false
+  cppgc_enable_larger_cage = true
 
   # Enable advanced BigInt algorithms, costing about 10-30 KB binary size
   # depending on platform. Disabled on Android to save binary size.
@@ -147,16 +157,16 @@ declare_args() {
   # TODO: macros for determining endian type are clang specific.
   v8_use_libm_trig_functions = is_clang
 
-  # iOS device does not support executable code pages. Not we
-  # use target_os == "ios" here because it isn't equivalent
-  # to is_ios (is_ios is based on host_os).
-  target_is_ios_device = target_os == "ios" && target_environment == "device"
-
   # Location of icu.
   v8_icu_path = "//third_party/icu"
 
   # Location of zlib.
   v8_zlib_path = "//third_party/zlib"
+
+  # Enable pointer compression (sets -dV8_COMPRESS_POINTERS).
+  v8_enable_pointer_compression = ""
+  v8_enable_pointer_compression_shared_cage = ""
+  v8_enable_31bit_smis_on_64bit_arch = false
 
   # Change code emission and runtime features to be CET shadow-stack compliant
   # (incomplete and experimental).
@@ -176,9 +186,9 @@ if (v8_enable_backtrace == "") {
   v8_enable_backtrace = is_debug && !v8_optimized_debug
 }
 
-# If chromium is configured to use the perfetto client library, v8 should also
+# Chromium is configured to use the perfetto client library, v8 should also
 # use perfetto for tracing.
-if (build_with_chromium && use_perfetto_client_library) {
+if (build_with_chromium) {
   v8_use_perfetto = true
 }
 
@@ -196,18 +206,26 @@ if (v8_enable_builtins_optimization == "") {
 # v8_jitless.
 # WebAssembly is enabled by default, except in lite mode.
 if (v8_enable_webassembly == "") {
-  # iOS (non-simulator) does not have executable pages for 3rd party
-  # applications yet so disable webassembly.
-  v8_enable_webassembly = !v8_enable_lite_mode && !target_is_ios_device
+  v8_enable_webassembly = !v8_enable_lite_mode
 }
 assert(!(v8_enable_webassembly && v8_enable_lite_mode),
        "Webassembly is not available in lite mode.")
 
+if (v8_enable_pointer_compression == "") {
+  v8_enable_pointer_compression =
+      v8_current_cpu == "arm64" || v8_current_cpu == "x64"
+}
+
+# The Wasm interpreter is currently supported only on arm64 and x64, on
+# Windows, Linux and MacOS.
+is_drumbrake_supported =
+    v8_enable_webassembly && v8_enable_pointer_compression &&
+    (v8_current_cpu == "x64" || v8_current_cpu == "arm64") &&
+    (target_os == "win" || target_os == "linux" || target_os == "mac")
+
 # Turbofan is enabled by default, except in lite mode.
 if (v8_enable_turbofan == "") {
-  # iOS (non-simulator) does not have executable pages for 3rd party
-  # applications yet so disable turbofan.
-  v8_enable_turbofan = !v8_enable_lite_mode && !target_is_ios_device
+  v8_enable_turbofan = !v8_enable_lite_mode
 }
 assert(v8_enable_turbofan || !v8_enable_webassembly,
        "Webassembly is not available when Turbofan is disabled.")
@@ -216,9 +234,6 @@ assert(v8_enable_turbofan || !v8_enable_webassembly,
 # conservative stack scanning is enabled.
 if (v8_enable_direct_handle == "") {
   v8_enable_direct_handle = v8_enable_conservative_stack_scanning
-}
-if (v8_enable_direct_local == "") {
-  v8_enable_direct_local = v8_enable_conservative_stack_scanning
 }
 
 # Points to // in v8 stand-alone or to //v8/ in chromium. We need absolute

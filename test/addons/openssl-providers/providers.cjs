@@ -13,7 +13,7 @@ const { getProviders } = require(`./build/${common.buildType}/binding`);
 
 // For the providers defined here, the expectation is that the listed ciphers
 // and hash algorithms are only provided by the named provider. These are for
-// basic checks and are not intended to list evey cipher or hash algorithm
+// basic checks and are not intended to list every cipher or hash algorithm
 // supported by the provider.
 const providers = {
   'default': {

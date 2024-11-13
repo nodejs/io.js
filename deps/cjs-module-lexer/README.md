@@ -10,6 +10,14 @@ Forked from https://github.com/guybedford/es-module-lexer.
 
 _Comprehensively handles the JS language grammar while remaining small and fast. - ~90ms per MB of JS cold and ~15ms per MB of JS warm, [see benchmarks](#benchmarks) for more info._
 
+### Project Status
+
+This project is used in Node.js core for detecting the named exports available when importing a CJS module into ESM, and is maintained for this purpose.
+
+PRs will be accepted and upstreamed for parser bugs, performance improvements or new syntax support only.
+
+_Detection patterns for this project are **frozen**_. This is because adding any new export detection patterns would result in fragmented backwards-compatibility. Specifically, it would be very difficult to figure out why an ES module named export for CommonJS might work in newer Node.js versions but not older versions. This problem would only be discovered downstream of module authors, with the fix for module authors being to then have to understand which patterns in this project provide full backwards-compatibily. Rather, by fully freezing the detected patterns, if it works in any Node.js version it will work in any other. Build tools can also reliably treat the supported syntax for this project as a part of their output target for ensuring syntax support.
+
 ### Usage
 
 ```
@@ -51,7 +59,8 @@ When using the ESM version, Wasm is supported instead:
 
 ```js
 import { parse, init } from 'cjs-module-lexer';
-// init needs to be called and waited upon
+// init() needs to be called and waited upon, or use initSync() to compile
+// Wasm blockingly and synchronously.
 await init();
 const { exports, reexports } = parse(source);
 ```

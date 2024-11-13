@@ -23,6 +23,7 @@
 
 #include "unicode/utypes.h"
 #include "unicode/uchar.h"
+#include "unicode/ucptrie.h"
 #include "unicode/uscript.h"
 #include "unicode/udata.h"
 #include "uassert.h"
@@ -67,9 +68,9 @@ _enumTypeValue(const void *context, uint32_t value) {
 static UBool U_CALLCONV
 _enumTypeRange(const void *context, UChar32 start, UChar32 end, uint32_t value) {
     /* just cast the value to UCharCategory */
-    return ((struct _EnumTypeCallback *)context)->
-        enumRange(((struct _EnumTypeCallback *)context)->context,
-                  start, end+1, (UCharCategory)value);
+    return static_cast<const _EnumTypeCallback*>(context)->
+        enumRange(static_cast<const _EnumTypeCallback*>(context)->context,
+                  start, end + 1, static_cast<UCharCategory>(value));
 }
 
 U_CAPI void U_EXPORT2
@@ -90,7 +91,7 @@ U_CAPI UBool U_EXPORT2
 u_islower(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(GET_CATEGORY(props)==U_LOWERCASE_LETTER);
+    return GET_CATEGORY(props)==U_LOWERCASE_LETTER;
 }
 
 /* Checks if ch is an upper case letter.*/
@@ -98,7 +99,7 @@ U_CAPI UBool U_EXPORT2
 u_isupper(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(GET_CATEGORY(props)==U_UPPERCASE_LETTER);
+    return GET_CATEGORY(props)==U_UPPERCASE_LETTER;
 }
 
 /* Checks if ch is a title case letter; usually upper case letters.*/
@@ -106,7 +107,7 @@ U_CAPI UBool U_EXPORT2
 u_istitle(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(GET_CATEGORY(props)==U_TITLECASE_LETTER);
+    return GET_CATEGORY(props)==U_TITLECASE_LETTER;
 }
 
 /* Checks if ch is a decimal digit. */
@@ -114,7 +115,7 @@ U_CAPI UBool U_EXPORT2
 u_isdigit(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(GET_CATEGORY(props)==U_DECIMAL_DIGIT_NUMBER);
+    return GET_CATEGORY(props)==U_DECIMAL_DIGIT_NUMBER;
 }
 
 U_CAPI UBool U_EXPORT2
@@ -130,7 +131,7 @@ u_isxdigit(UChar32 c) {
     }
 
     GET_PROPS(c, props);
-    return (UBool)(GET_CATEGORY(props)==U_DECIMAL_DIGIT_NUMBER);
+    return GET_CATEGORY(props)==U_DECIMAL_DIGIT_NUMBER;
 }
 
 /* Checks if the Unicode character is a letter.*/
@@ -138,7 +139,7 @@ U_CAPI UBool U_EXPORT2
 u_isalpha(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&U_GC_L_MASK)!=0);
+    return (CAT_MASK(props)&U_GC_L_MASK)!=0;
 }
 
 U_CAPI UBool U_EXPORT2
@@ -151,7 +152,7 @@ U_CAPI UBool U_EXPORT2
 u_isalnum(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&(U_GC_L_MASK|U_GC_ND_MASK))!=0);
+    return (CAT_MASK(props)&(U_GC_L_MASK|U_GC_ND_MASK))!=0;
 }
 
 /**
@@ -160,7 +161,7 @@ u_isalnum(UChar32 c) {
  */
 U_CFUNC UBool
 u_isalnumPOSIX(UChar32 c) {
-    return (UBool)(u_isUAlphabetic(c) || u_isdigit(c));
+    return u_isUAlphabetic(c) || u_isdigit(c);
 }
 
 /* Checks if ch is a unicode character with assigned character type.*/
@@ -168,7 +169,7 @@ U_CAPI UBool U_EXPORT2
 u_isdefined(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(GET_CATEGORY(props)!=0);
+    return GET_CATEGORY(props)!=0;
 }
 
 /* Checks if the Unicode character is a base form character that can take a diacritic.*/
@@ -176,7 +177,7 @@ U_CAPI UBool U_EXPORT2
 u_isbase(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&(U_GC_L_MASK|U_GC_N_MASK|U_GC_MC_MASK|U_GC_ME_MASK))!=0);
+    return (CAT_MASK(props)&(U_GC_L_MASK|U_GC_N_MASK|U_GC_MC_MASK|U_GC_ME_MASK))!=0;
 }
 
 /* Checks if the Unicode character is a control character.*/
@@ -184,7 +185,7 @@ U_CAPI UBool U_EXPORT2
 u_iscntrl(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&(U_GC_CC_MASK|U_GC_CF_MASK|U_GC_ZL_MASK|U_GC_ZP_MASK))!=0);
+    return (CAT_MASK(props)&(U_GC_CC_MASK|U_GC_CF_MASK|U_GC_ZL_MASK|U_GC_ZP_MASK))!=0;
 }
 
 U_CAPI UBool U_EXPORT2
@@ -205,14 +206,14 @@ U_CAPI UBool U_EXPORT2
 u_isspace(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&U_GC_Z_MASK)!=0 || IS_THAT_CONTROL_SPACE(c));
+    return (CAT_MASK(props)&U_GC_Z_MASK)!=0 || IS_THAT_CONTROL_SPACE(c);
 }
 
 U_CAPI UBool U_EXPORT2
 u_isJavaSpaceChar(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&U_GC_Z_MASK)!=0);
+    return (CAT_MASK(props)&U_GC_Z_MASK)!=0;
 }
 
 /* Checks if the Unicode character is a whitespace character.*/
@@ -220,11 +221,9 @@ U_CAPI UBool U_EXPORT2
 u_isWhitespace(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(
-                ((CAT_MASK(props)&U_GC_Z_MASK)!=0 &&
-                    c!=NBSP && c!=FIGURESP && c!=NNBSP) || /* exclude no-break spaces */
-                IS_THAT_ASCII_CONTROL_SPACE(c)
-           );
+    return ((CAT_MASK(props)&U_GC_Z_MASK)!=0 &&
+               c!=NBSP && c!=FIGURESP && c!=NNBSP) || /* exclude no-break spaces */
+           IS_THAT_ASCII_CONTROL_SPACE(c);
 }
 
 U_CAPI UBool U_EXPORT2
@@ -235,7 +234,7 @@ u_isblank(UChar32 c) {
         /* Zs */
         uint32_t props;
         GET_PROPS(c, props);
-        return (UBool)(GET_CATEGORY(props)==U_SPACE_SEPARATOR);
+        return GET_CATEGORY(props)==U_SPACE_SEPARATOR;
     }
 }
 
@@ -250,7 +249,7 @@ u_isprint(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
     /* comparing ==0 returns false for the categories mentioned */
-    return (UBool)((CAT_MASK(props)&U_GC_C_MASK)==0);
+    return (CAT_MASK(props)&U_GC_C_MASK)==0;
 }
 
 /**
@@ -266,7 +265,7 @@ u_isprintPOSIX(UChar32 c) {
      * The only cntrl character in graph+blank is TAB (in blank).
      * Here we implement (blank-TAB)=Zs instead of calling u_isblank().
      */
-    return (UBool)((GET_CATEGORY(props)==U_SPACE_SEPARATOR) || u_isgraphPOSIX(c));
+    return (GET_CATEGORY(props)==U_SPACE_SEPARATOR) || u_isgraphPOSIX(c);
 }
 
 U_CAPI UBool U_EXPORT2
@@ -274,9 +273,9 @@ u_isgraph(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
     /* comparing ==0 returns false for the categories mentioned */
-    return (UBool)((CAT_MASK(props)&
-                    (U_GC_CC_MASK|U_GC_CF_MASK|U_GC_CS_MASK|U_GC_CN_MASK|U_GC_Z_MASK))
-                   ==0);
+    return (CAT_MASK(props)&
+            (U_GC_CC_MASK|U_GC_CF_MASK|U_GC_CS_MASK|U_GC_CN_MASK|U_GC_Z_MASK))
+           ==0;
 }
 
 /**
@@ -292,16 +291,16 @@ u_isgraphPOSIX(UChar32 c) {
     GET_PROPS(c, props);
     /* \p{space}\p{gc=Control} == \p{gc=Z}\p{Control} */
     /* comparing ==0 returns false for the categories mentioned */
-    return (UBool)((CAT_MASK(props)&
-                    (U_GC_CC_MASK|U_GC_CS_MASK|U_GC_CN_MASK|U_GC_Z_MASK))
-                   ==0);
+    return (CAT_MASK(props)&
+            (U_GC_CC_MASK|U_GC_CS_MASK|U_GC_CN_MASK|U_GC_Z_MASK))
+           ==0;
 }
 
 U_CAPI UBool U_EXPORT2
 u_ispunct(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&U_GC_P_MASK)!=0);
+    return (CAT_MASK(props)&U_GC_P_MASK)!=0;
 }
 
 /*Checks if the Unicode character can be ignorable in a Java or Unicode identifier.*/
@@ -312,7 +311,7 @@ u_isIDIgnorable(UChar32 c) {
     } else {
         uint32_t props;
         GET_PROPS(c, props);
-        return (UBool)(GET_CATEGORY(props)==U_FORMAT_CHAR);
+        return GET_CATEGORY(props)==U_FORMAT_CHAR;
     }
 }
 
@@ -321,7 +320,7 @@ U_CAPI UBool U_EXPORT2
 u_isJavaIDStart(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)((CAT_MASK(props)&(U_GC_L_MASK|U_GC_SC_MASK|U_GC_PC_MASK))!=0);
+    return (CAT_MASK(props)&(U_GC_L_MASK|U_GC_SC_MASK|U_GC_PC_MASK))!=0;
 }
 
 /*Checks if the Unicode character can be a Java identifier part other than starting the
@@ -331,14 +330,13 @@ U_CAPI UBool U_EXPORT2
 u_isJavaIDPart(UChar32 c) {
     uint32_t props;
     GET_PROPS(c, props);
-    return (UBool)(
-           (CAT_MASK(props)&
+    return (CAT_MASK(props)&
             (U_GC_ND_MASK|U_GC_NL_MASK|
              U_GC_L_MASK|
              U_GC_SC_MASK|U_GC_PC_MASK|
              U_GC_MC_MASK|U_GC_MN_MASK)
            )!=0 ||
-           u_isIDIgnorable(c));
+           u_isIDIgnorable(c);
 }
 
 U_CAPI int32_t U_EXPORT2
@@ -515,6 +513,8 @@ uprv_getMaxValues(int32_t column) {
         return indexes[UPROPS_MAX_VALUES_INDEX];
     case 2:
         return indexes[UPROPS_MAX_VALUES_2_INDEX];
+    case UPROPS_MAX_VALUES_OTHER_INDEX:
+        return indexes[column];
     default:
         return 0;
     }
@@ -524,8 +524,8 @@ U_CAPI void U_EXPORT2
 u_charAge(UChar32 c, UVersionInfo versionArray) {
     if(versionArray!=nullptr) {
         uint32_t version=u_getUnicodeProperties(c, 0)>>UPROPS_AGE_SHIFT;
-        versionArray[0]=(uint8_t)(version>>4);
-        versionArray[1]=(uint8_t)(version&0xf);
+        versionArray[0]=(uint8_t)(version>>2);
+        versionArray[1]=(uint8_t)(version&3);
         versionArray[2]=versionArray[3]=0;
     }
 }
@@ -540,7 +540,7 @@ uscript_getScript(UChar32 c, UErrorCode *pErrorCode) {
         return USCRIPT_INVALID_CODE;
     }
     uint32_t scriptX=u_getUnicodeProperties(c, 0)&UPROPS_SCRIPT_X_MASK;
-    uint32_t codeOrIndex=uprops_mergeScriptCodeOrIndex(scriptX);
+    uint32_t codeOrIndex=scriptX&UPROPS_MAX_SCRIPT;
     if(scriptX<UPROPS_SCRIPT_X_WITH_COMMON) {
         return (UScriptCode)codeOrIndex;
     } else if(scriptX<UPROPS_SCRIPT_X_WITH_INHERITED) {
@@ -555,7 +555,7 @@ uscript_getScript(UChar32 c, UErrorCode *pErrorCode) {
 U_CAPI UBool U_EXPORT2
 uscript_hasScript(UChar32 c, UScriptCode sc) UPRV_NO_SANITIZE_UNDEFINED {
     uint32_t scriptX=u_getUnicodeProperties(c, 0)&UPROPS_SCRIPT_X_MASK;
-    uint32_t codeOrIndex=uprops_mergeScriptCodeOrIndex(scriptX);
+    uint32_t codeOrIndex=scriptX&UPROPS_MAX_SCRIPT;
     if(scriptX<UPROPS_SCRIPT_X_WITH_COMMON) {
         return sc==(UScriptCode)codeOrIndex;
     }
@@ -587,7 +587,7 @@ uscript_getScriptExtensions(UChar32 c,
         return 0;
     }
     uint32_t scriptX=u_getUnicodeProperties(c, 0)&UPROPS_SCRIPT_X_MASK;
-    uint32_t codeOrIndex=uprops_mergeScriptCodeOrIndex(scriptX);
+    uint32_t codeOrIndex=scriptX&UPROPS_MAX_SCRIPT;
     if(scriptX<UPROPS_SCRIPT_X_WITH_COMMON) {
         if(capacity==0) {
             *pErrorCode=U_BUFFER_OVERFLOW_ERROR;
@@ -618,7 +618,15 @@ uscript_getScriptExtensions(UChar32 c,
 
 U_CAPI UBlockCode U_EXPORT2
 ublock_getCode(UChar32 c) {
-    return (UBlockCode)((u_getUnicodeProperties(c, 0)&UPROPS_BLOCK_MASK)>>UPROPS_BLOCK_SHIFT);
+    // We store Block values indexed by the code point shifted right 4 bits
+    // and use a "small" UCPTrie=CodePointTrie for minimal data size.
+    // This works because blocks have xxx0..xxxF ranges.
+    uint32_t c4 = c;  // unsigned so that shifting right does not worry the compiler
+    // Shift unless out of range, in which case we fetch the trie's error value.
+    if (c4 <= 0x10ffff) {
+        c4 >>= 4;
+    }
+    return (UBlockCode)ucptrie_get(&block_trie, c4);
 }
 
 /* property starts for UnicodeSet ------------------------------------------- */
@@ -626,7 +634,7 @@ ublock_getCode(UChar32 c) {
 static UBool U_CALLCONV
 _enumPropertyStartsRange(const void *context, UChar32 start, UChar32 end, uint32_t value) {
     /* add the start code point to the USet */
-    const USetAdder *sa=(const USetAdder *)context;
+    const USetAdder* sa = static_cast<const USetAdder*>(context);
     sa->add(sa->set, start);
     (void)end;
     (void)value;
@@ -705,4 +713,19 @@ upropsvec_addPropertyStarts(const USetAdder *sa, UErrorCode *pErrorCode) {
 
     /* add the start code point of each same-value range of the properties vectors trie */
     utrie2_enum(&propsVectorsTrie, nullptr, _enumPropertyStartsRange, sa);
+}
+
+U_CFUNC void U_EXPORT2
+ublock_addPropertyStarts(const USetAdder *sa, UErrorCode & /*errorCode*/) {
+    // Add the start code point of each same-value range of the trie.
+    // We store Block values indexed by the code point shifted right 4 bits;
+    // see ublock_getCode().
+    UChar32 start = 0, end;
+    uint32_t value;
+    while (start < 0x11000 &&  // limit: (max code point + 1) >> 4
+            (end = ucptrie_getRange(&block_trie, start, UCPMAP_RANGE_NORMAL, 0,
+                                    nullptr, nullptr, &value)) >= 0) {
+        sa->add(sa->set, start << 4);
+        start = end + 1;
+    }
 }

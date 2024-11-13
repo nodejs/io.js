@@ -103,7 +103,7 @@ using ObjectWithIsolate = TestWithIsolate;
 
 TEST_F(ObjectWithIsolate, DictionaryGrowth) {
   Handle<NumberDictionary> dict = NumberDictionary::New(isolate(), 1);
-  Handle<Object> value = isolate()->factory()->null_value();
+  DirectHandle<Object> value = isolate()->factory()->null_value();
   PropertyDetails details = PropertyDetails::Empty();
 
   // This test documents the expected growth behavior of a dictionary getting
@@ -159,11 +159,11 @@ TEST_F(ObjectWithIsolate, DictionaryGrowth) {
 
 TEST_F(TestWithNativeContext, EmptyFunctionScopeInfo) {
   // Check that the empty_function has a properly set up ScopeInfo.
-  Handle<JSFunction> function = RunJS<JSFunction>("(function(){})");
+  DirectHandle<JSFunction> function = RunJS<JSFunction>("(function(){})");
 
-  Handle<ScopeInfo> scope_info(function->shared()->scope_info(),
-                               function->GetIsolate());
-  Handle<ScopeInfo> empty_function_scope_info(
+  DirectHandle<ScopeInfo> scope_info(function->shared()->scope_info(),
+                                     function->GetIsolate());
+  DirectHandle<ScopeInfo> empty_function_scope_info(
       isolate()->empty_function()->shared()->scope_info(),
       function->GetIsolate());
 
@@ -174,67 +174,30 @@ TEST_F(TestWithNativeContext, EmptyFunctionScopeInfo) {
             empty_function_scope_info->ContextLocalCount());
 }
 
-TEST_F(TestWithNativeContext, RecreateScopeInfoWithLocalsBlocklistWorks) {
-  // Create a JSFunction to get a {ScopeInfo} we can use for the test.
-  Handle<JSFunction> function = RunJS<JSFunction>("(function foo() {})");
-  Handle<ScopeInfo> original_scope_info(function->shared()->scope_info(),
-                                        isolate());
-  ASSERT_FALSE(original_scope_info->HasLocalsBlockList());
-
-  Handle<String> foo_string =
-      isolate()->factory()->NewStringFromStaticChars("foo");
-  Handle<String> bar_string =
-      isolate()->factory()->NewStringFromStaticChars("bar");
-
-  Handle<StringSet> blocklist = StringSet::New(isolate());
-  StringSet::Add(isolate(), blocklist, foo_string);
-
-  Handle<ScopeInfo> scope_info = ScopeInfo::RecreateWithBlockList(
-      isolate(), original_scope_info, blocklist);
-
-  DisallowGarbageCollection no_gc;
-  EXPECT_TRUE(scope_info->HasLocalsBlockList());
-  EXPECT_TRUE(scope_info->LocalsBlockList()->Has(isolate(), foo_string));
-  EXPECT_FALSE(scope_info->LocalsBlockList()->Has(isolate(), bar_string));
-
-  EXPECT_EQ(original_scope_info->length() + 1, scope_info->length());
-
-  // Check that all variable fields *before* the blocklist stayed the same.
-  for (int i = ScopeInfo::kVariablePartIndex;
-       i < scope_info->LocalsBlockListIndex(); ++i) {
-    EXPECT_EQ(original_scope_info->get(i), scope_info->get(i));
-  }
-
-  // Check that all variable fields *after* the blocklist stayed the same.
-  for (int i = scope_info->LocalsBlockListIndex() + 1; i < scope_info->length();
-       ++i) {
-    EXPECT_EQ(original_scope_info->get(i - 1), scope_info->get(i));
-  }
-}
-
 using ObjectTest = TestWithContext;
 
-static void CheckObject(Isolate* isolate, Handle<Object> obj,
+static void CheckObject(Isolate* isolate, DirectHandle<Object> obj,
                         const char* string) {
-  Handle<String> print_string = String::Flatten(
+  DirectHandle<String> print_string = String::Flatten(
       isolate,
-      Handle<String>::cast(Object::NoSideEffectsToString(isolate, obj)));
+      indirect_handle(Object::NoSideEffectsToString(isolate, obj), isolate));
   CHECK(print_string->IsOneByteEqualTo(base::CStrVector(string)));
 }
 
 static void CheckSmi(Isolate* isolate, int value, const char* string) {
-  Handle<Object> handle(Smi::FromInt(value), isolate);
+  DirectHandle<Object> handle(Smi::FromInt(value), isolate);
   CheckObject(isolate, handle, string);
 }
 
 static void CheckString(Isolate* isolate, const char* value,
                         const char* string) {
-  Handle<String> handle(isolate->factory()->NewStringFromAsciiChecked(value));
+  DirectHandle<String> handle(
+      isolate->factory()->NewStringFromAsciiChecked(value));
   CheckObject(isolate, handle, string);
 }
 
 static void CheckNumber(Isolate* isolate, double value, const char* string) {
-  Handle<Object> number = isolate->factory()->NewNumber(value);
+  DirectHandle<Object> number = isolate->factory()->NewNumber(value);
   CHECK(IsNumber(*number));
   CheckObject(isolate, number, string);
 }
@@ -305,13 +268,13 @@ TEST_F(ObjectTest, EnumCache) {
       "cc.b = 2;"
       "cc.cc = 4;");
 
-  Handle<JSObject> a = Handle<JSObject>::cast(v8::Utils::OpenHandle(
+  DirectHandle<JSObject> a = Cast<JSObject>(v8::Utils::OpenDirectHandle(
       *context()->Global()->Get(context(), NewString("a")).ToLocalChecked()));
-  Handle<JSObject> b = Handle<JSObject>::cast(v8::Utils::OpenHandle(
+  DirectHandle<JSObject> b = Cast<JSObject>(v8::Utils::OpenDirectHandle(
       *context()->Global()->Get(context(), NewString("b")).ToLocalChecked()));
-  Handle<JSObject> c = Handle<JSObject>::cast(v8::Utils::OpenHandle(
+  DirectHandle<JSObject> c = Cast<JSObject>(v8::Utils::OpenDirectHandle(
       *context()->Global()->Get(context(), NewString("c")).ToLocalChecked()));
-  Handle<JSObject> cc = Handle<JSObject>::cast(v8::Utils::OpenHandle(
+  DirectHandle<JSObject> cc = Cast<JSObject>(v8::Utils::OpenDirectHandle(
       *context()->Global()->Get(context(), NewString("cc")).ToLocalChecked()));
 
   // Check the transition tree.
@@ -386,12 +349,12 @@ TEST_F(ObjectTest, EnumCache) {
 
   // Creating the EnumCache for {c} will create a new EnumCache on the shared
   // DescriptorArray.
-  Handle<EnumCache> previous_enum_cache(
+  DirectHandle<EnumCache> previous_enum_cache(
       a->map()->instance_descriptors()->enum_cache(), a->GetIsolate());
-  Handle<FixedArray> previous_keys(previous_enum_cache->keys(),
-                                   a->GetIsolate());
-  Handle<FixedArray> previous_indices(previous_enum_cache->indices(),
-                                      a->GetIsolate());
+  DirectHandle<FixedArray> previous_keys(previous_enum_cache->keys(),
+                                         a->GetIsolate());
+  DirectHandle<FixedArray> previous_indices(previous_enum_cache->indices(),
+                                            a->GetIsolate());
   RunJS("var s = 0; for (let key in c) { s += c[key] };");
   {
     CHECK_EQ(a->map()->EnumLength(), 1);
@@ -465,7 +428,7 @@ TEST_F(ObjectTest, ObjectMethodsThatTruncateMinusZero) {
   Handle<Object> minus_zero = factory->NewNumber(-1.0 * 0.0);
   CHECK(IsMinusZero(*minus_zero));
 
-  Handle<Object> result =
+  DirectHandle<Object> result =
       Object::ToInteger(i_isolate(), minus_zero).ToHandleChecked();
   CHECK(IsZero(*result));
 
@@ -659,14 +622,14 @@ TEST_F(ObjectTest, ConstructorInstanceTypes) {
   i::v8_flags.js_float16array = true;
   v8::HandleScope scope(isolate());
 
-  Handle<NativeContext> context = i_isolate()->native_context();
+  DirectHandle<NativeContext> context = i_isolate()->native_context();
 
   DisallowGarbageCollection no_gc;
   for (int i = 0; i < Context::NATIVE_CONTEXT_SLOTS; i++) {
     Tagged<Object> value = context->get(i);
     if (!IsJSFunction(value)) continue;
     InstanceType instance_type =
-        JSFunction::cast(value)->map()->instance_type();
+        Cast<JSFunction>(value)->map()->instance_type();
 
     switch (i) {
       case Context::ARRAY_FUNCTION_INDEX:
@@ -703,8 +666,8 @@ TEST_F(ObjectTest, AddDataPropertyNameCollision) {
       factory->NewJSObject(i_isolate()->object_function());
 
   Handle<String> key = factory->NewStringFromStaticChars("key_string");
-  Handle<Object> value1(Smi::FromInt(0), i_isolate());
-  Handle<Object> value2 = factory->NewStringFromAsciiChecked("corrupt");
+  DirectHandle<Object> value1(Smi::FromInt(0), i_isolate());
+  DirectHandle<Object> value2 = factory->NewStringFromAsciiChecked("corrupt");
 
   LookupIterator outer_it(i_isolate(), object, key, object,
                           LookupIterator::OWN_SKIP_INTERCEPTOR);
@@ -734,15 +697,15 @@ TEST_F(ObjectTest, AddDataPropertyNameCollisionDeprecatedMap) {
       "a = {'regular_prop':5};"
       "b = {'regular_prop':5};");
 
-  Handle<JSObject> a = Handle<JSObject>::cast(v8::Utils::OpenHandle(
+  Handle<JSObject> a = Cast<JSObject>(v8::Utils::OpenHandle(
       *context()->Global()->Get(context(), NewString("a")).ToLocalChecked()));
-  Handle<JSObject> b = Handle<JSObject>::cast(v8::Utils::OpenHandle(
+  DirectHandle<JSObject> b = Cast<JSObject>(v8::Utils::OpenHandle(
       *context()->Global()->Get(context(), NewString("b")).ToLocalChecked()));
 
   CHECK(a->map() == b->map());
 
   Handle<String> key = factory->NewStringFromStaticChars("corrupted_prop");
-  Handle<Object> value = factory->NewStringFromAsciiChecked("corrupt");
+  DirectHandle<Object> value = factory->NewStringFromAsciiChecked("corrupt");
   LookupIterator it(i_isolate(), a, key, a,
                     LookupIterator::OWN_SKIP_INTERCEPTOR);
 

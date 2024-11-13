@@ -64,6 +64,10 @@ const server = createServer(
       res.write('BODY');
       res.end();
 
+      assert.throws(() => res.appendHeader(), {
+        code: 'ERR_HTTP_HEADERS_SENT',
+      });
+
       assert.deepStrictEqual(res.getHeader('X-Res-a'), ['AAA', 'BBB', 'CCC']);
       assert.deepStrictEqual(res.getHeader('x-res-a'), ['AAA', 'BBB', 'CCC']);
       assert.deepStrictEqual(

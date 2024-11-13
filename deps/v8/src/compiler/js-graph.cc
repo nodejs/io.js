@@ -158,6 +158,14 @@ Node* JSGraph::HeapConstantHole(Handle<HeapObject> value) {
   return *loc;
 }
 
+Node* JSGraph::TrustedHeapConstant(Handle<HeapObject> value) {
+  DCHECK(IsTrustedObject(*value));
+  // TODO(pthier): Consider also caching trusted constants. Right now they are
+  // only used for RegExp data as part of RegExp literals and it should be
+  // uncommon for the same literal to appear multiple times.
+  return graph()->NewNode(common()->TrustedHeapConstant(value));
+}
+
 void JSGraph::GetCachedNodes(NodeVector* nodes) {
   cache_.GetCachedNodes(nodes);
 #define DO_CACHED_FIELD(name, ...) \

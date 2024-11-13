@@ -21,9 +21,9 @@ bitfield struct JSDurationFormatStyleFlags extends uint31 {
   hours_style: JSDurationFormatFieldStyle: 3 bit;
   minutes_style: JSDurationFormatFieldStyle: 3 bit;
   seconds_style: JSDurationFormatFieldStyle: 3 bit;
-  milliseconds_style: JSDurationFormatFieldStyle: 2 bit;
-  microseconds_style: JSDurationFormatFieldStyle: 2 bit;
-  nanoseconds_style: JSDurationFormatFieldStyle: 2 bit;
+  milliseconds_style: JSDurationFormatFieldStyle: 3 bit;
+  microseconds_style: JSDurationFormatFieldStyle: 3 bit;
+  nanoseconds_style: JSDurationFormatFieldStyle: 3 bit;
   separator: JSDurationFormatSeparator: 2 bit;
 }
 bitfield struct JSDurationFormatDisplayFlags extends uint31 {

@@ -99,7 +99,7 @@ HEAP_TEST(StressHandles) {
   v8::HandleScope scope(CcTest::isolate());
   v8::Local<v8::Context> env = v8::Context::New(CcTest::isolate());
   env->Enter();
-  Handle<Object> o = TestAllocateAfterFailures();
+  DirectHandle<Object> o = TestAllocateAfterFailures();
   CHECK(IsTrue(*o, CcTest::i_isolate()));
   env->Exit();
 }
@@ -148,8 +148,8 @@ TEST(StressJS) {
   factory->NewJSObject(function);
 
   // Patch the map to have an accessor for "get".
-  Handle<Map> map(function->initial_map(), isolate);
-  Handle<DescriptorArray> instance_descriptors(
+  DirectHandle<Map> map(function->initial_map(), isolate);
+  DirectHandle<DescriptorArray> instance_descriptors(
       map->instance_descriptors(isolate), isolate);
   CHECK_EQ(0, instance_descriptors->number_of_descriptors());
 
@@ -158,7 +158,7 @@ TEST(StressJS) {
   Map::EnsureDescriptorSlack(isolate, map, 1);
 
   Descriptor d = Descriptor::AccessorConstant(
-      Handle<Name>(Name::cast(foreign->name()), isolate), foreign, attrs);
+      Handle<Name>(Cast<Name>(foreign->name()), isolate), foreign, attrs);
   map->AppendDescriptor(isolate, &d);
 
   // Add the Foo constructor the global object.

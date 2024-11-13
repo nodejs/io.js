@@ -10,7 +10,6 @@
 #include <type_traits>
 
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 
 namespace v8::base {
 

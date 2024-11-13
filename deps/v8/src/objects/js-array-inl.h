@@ -21,24 +21,24 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(JSArray)
 TQ_OBJECT_CONSTRUCTORS_IMPL(JSArrayIterator)
 TQ_OBJECT_CONSTRUCTORS_IMPL(TemplateLiteralObject)
 
-DEF_GETTER(JSArray, length, Tagged<Object>) {
-  return TaggedField<Object, kLengthOffset>::load(cage_base, *this);
+DEF_GETTER(JSArray, length, Tagged<Number>) {
+  return TaggedField<Number, kLengthOffset>::load(cage_base, *this);
 }
 
-void JSArray::set_length(Tagged<Object> value, WriteBarrierMode mode) {
+void JSArray::set_length(Tagged<Number> value, WriteBarrierMode mode) {
   // Note the relaxed atomic store.
-  TaggedField<Object, kLengthOffset>::Relaxed_Store(*this, value);
+  TaggedField<Number, kLengthOffset>::Relaxed_Store(*this, value);
   CONDITIONAL_WRITE_BARRIER(*this, kLengthOffset, value, mode);
 }
 
-Tagged<Object> JSArray::length(PtrComprCageBase cage_base,
+Tagged<Number> JSArray::length(PtrComprCageBase cage_base,
                                RelaxedLoadTag tag) const {
-  return TaggedField<Object, kLengthOffset>::Relaxed_Load(cage_base, *this);
+  return TaggedField<Number, kLengthOffset>::Relaxed_Load(cage_base, *this);
 }
 
 void JSArray::set_length(Tagged<Smi> length) {
   // Don't need a write barrier for a Smi.
-  set_length(Tagged<Object>(length.ptr()), SKIP_WRITE_BARRIER);
+  set_length(Tagged<Number>(length), SKIP_WRITE_BARRIER);
 }
 
 bool JSArray::SetLengthWouldNormalize(Heap* heap, uint32_t new_length) {
@@ -57,7 +57,7 @@ void JSArray::SetContent(Handle<JSArray> array,
   } else {
     DCHECK_NE(map, roots.fixed_double_array_map());
     if (IsSmiElementsKind(array->GetElementsKind())) {
-      auto elems = Handle<FixedArray>::cast(storage);
+      auto elems = Cast<FixedArray>(storage);
       Tagged<Object> the_hole = roots.the_hole_value();
       for (int i = 0; i < elems->length(); i++) {
         Tagged<Object> candidate = elems->get(i);
@@ -85,8 +85,6 @@ IterationKind JSArrayIterator::kind() const {
 void JSArrayIterator::set_kind(IterationKind kind) {
   set_raw_kind(static_cast<int>(kind));
 }
-
-CAST_ACCESSOR(TemplateLiteralObject)
 
 }  // namespace internal
 }  // namespace v8

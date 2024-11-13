@@ -41,9 +41,10 @@ TEST_F(GlobalObjectTest, StrictUndeclaredGlobalVariable) {
   Local<String> var_name = NewString("x");
   TryCatch try_catch(isolate());
   Local<Object> proto = Object::New(isolate());
-  Local<Object> global = context()->Global()->GetPrototype().As<Object>();
+  Local<Object> global = context()->Global();
   proto->Set(context(), var_name, Number::New(isolate(), 100)).FromJust();
-  global->SetPrototype(context(), proto).FromJust();
+  global->SetPrototypeV2(context(), proto).FromJust();
+  CHECK_EQ(global->GetPrototypeV2(), proto);
   CHECK(TryRunJS("\"use strict\"; x = 42;").IsEmpty());
   CHECK(try_catch.HasCaught());
   String::Utf8Value exception(isolate(), try_catch.Exception());
@@ -96,6 +97,10 @@ TEST_F(GlobalObjectTest, KeysGlobalObject_Regress2764) {
   CHECK_EQ(0u, result->Length());
 }
 
+// Allow usages of v8::Object::GetPrototype() for now.
+// TODO(https://crbug.com/333672197): remove.
+START_ALLOW_USE_DEPRECATED()
+
 TEST_F(GlobalObjectTest, KeysGlobalObject_SetPrototype) {
   Local<Context> env1 = context();
   // Create second environment.
@@ -108,11 +113,11 @@ TEST_F(GlobalObjectTest, KeysGlobalObject_SetPrototype) {
   env2->SetSecurityToken(token);
 
   // Create a reference to env2 global from env1 global.
-  env1->Global()
-      ->GetPrototype()
-      .As<Object>()
-      ->SetPrototype(env1, env2->Global()->GetPrototype())
-      .FromJust();
+  env1->Global()->SetPrototypeV2(env1, env2->Global()).FromJust();
+  CHECK_EQ(env1->Global()->GetPrototypeV2(), env2->Global());
+  CHECK_EQ(env1->Global()->GetPrototype().As<Object>()->GetPrototype(),
+           env2->Global());
+
   // Set some global variables in global2
   env2->Global()->Set(env2, NewString("a"), NewString("a")).FromJust();
   env2->Global()->Set(env2, NewString("42"), NewString("42")).FromJust();
@@ -120,5 +125,9 @@ TEST_F(GlobalObjectTest, KeysGlobalObject_SetPrototype) {
   // List all entries from global2.
   CHECK(RunJS("a == 'a'")->IsTrue());
 }
+
+// Allow usages of v8::Object::GetPrototype() for now.
+// TODO(https://crbug.com/333672197): remove.
+END_ALLOW_USE_DEPRECATED()
 
 }  // namespace v8

@@ -33,6 +33,7 @@ function CLI(usage, settings) {
   let mode = 'both'; // Possible states are: [both, option, item]
 
   for (const arg of process.argv.slice(2)) {
+    if (arg === '--help') this.abort(usage);
     if (arg === '--') {
       // Only items can follow --
       mode = 'item';

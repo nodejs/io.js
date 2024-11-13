@@ -4,6 +4,8 @@
 
 #include "src/builtins/growable-fixed-array-gen.h"
 
+#include <optional>
+
 #include "src/compiler/code-assembler.h"
 
 namespace v8 {
@@ -90,10 +92,10 @@ TNode<FixedArray> GrowableFixedArray::ResizeFixedArray(
 
   CodeStubAssembler::ExtractFixedArrayFlags flags;
   flags |= CodeStubAssembler::ExtractFixedArrayFlag::kFixedArrays;
-  TNode<FixedArray> to_array = CAST(ExtractFixedArray(
-      from_array, base::Optional<TNode<IntPtrT>>(base::nullopt),
-      base::Optional<TNode<IntPtrT>>(element_count),
-      base::Optional<TNode<IntPtrT>>(new_capacity), flags));
+  TNode<FixedArray> to_array = CAST(
+      ExtractFixedArray(from_array, std::optional<TNode<IntPtrT>>(std::nullopt),
+                        std::optional<TNode<IntPtrT>>(element_count),
+                        std::optional<TNode<IntPtrT>>(new_capacity), flags));
 
   return to_array;
 }

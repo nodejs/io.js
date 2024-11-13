@@ -6,15 +6,14 @@
 #define V8_TORQUE_INSTRUCTIONS_H_
 
 #include <memory>
+#include <optional>
 
 #include "src/torque/ast.h"
 #include "src/torque/source-positions.h"
 #include "src/torque/types.h"
 #include "src/torque/utils.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 class Block;
 class Builtin;
@@ -281,11 +280,11 @@ class Instruction {
 struct PeekInstruction : InstructionBase {
   TORQUE_INSTRUCTION_BOILERPLATE()
 
-  PeekInstruction(BottomOffset slot, base::Optional<const Type*> widened_type)
+  PeekInstruction(BottomOffset slot, std::optional<const Type*> widened_type)
       : slot(slot), widened_type(widened_type) {}
 
   BottomOffset slot;
-  base::Optional<const Type*> widened_type;
+  std::optional<const Type*> widened_type;
 };
 
 inline std::ostream& operator<<(std::ostream& os,
@@ -300,11 +299,11 @@ inline std::ostream& operator<<(std::ostream& os,
 struct PokeInstruction : InstructionBase {
   TORQUE_INSTRUCTION_BOILERPLATE()
 
-  PokeInstruction(BottomOffset slot, base::Optional<const Type*> widened_type)
+  PokeInstruction(BottomOffset slot, std::optional<const Type*> widened_type)
       : slot(slot), widened_type(widened_type) {}
 
   BottomOffset slot;
-  base::Optional<const Type*> widened_type;
+  std::optional<const Type*> widened_type;
 };
 
 inline std::ostream& operator<<(std::ostream& os,
@@ -474,7 +473,7 @@ struct CallCsaMacroInstruction : InstructionBase {
   TORQUE_INSTRUCTION_BOILERPLATE()
   CallCsaMacroInstruction(Macro* macro,
                           std::vector<std::string> constexpr_arguments,
-                          base::Optional<Block*> catch_block)
+                          std::optional<Block*> catch_block)
       : macro(macro),
         constexpr_arguments(constexpr_arguments),
         catch_block(catch_block) {}
@@ -482,13 +481,13 @@ struct CallCsaMacroInstruction : InstructionBase {
     if (catch_block) block_list->push_back(*catch_block);
   }
 
-  base::Optional<DefinitionLocation> GetExceptionObjectDefinition() const;
+  std::optional<DefinitionLocation> GetExceptionObjectDefinition() const;
   std::size_t GetValueDefinitionCount() const;
   DefinitionLocation GetValueDefinition(std::size_t index) const;
 
   Macro* macro;
   std::vector<std::string> constexpr_arguments;
-  base::Optional<Block*> catch_block;
+  std::optional<Block*> catch_block;
 };
 
 std::ostream& operator<<(std::ostream& os,
@@ -498,9 +497,9 @@ struct CallCsaMacroAndBranchInstruction : InstructionBase {
   TORQUE_INSTRUCTION_BOILERPLATE()
   CallCsaMacroAndBranchInstruction(Macro* macro,
                                    std::vector<std::string> constexpr_arguments,
-                                   base::Optional<Block*> return_continuation,
+                                   std::optional<Block*> return_continuation,
                                    std::vector<Block*> label_blocks,
-                                   base::Optional<Block*> catch_block)
+                                   std::optional<Block*> catch_block)
       : macro(macro),
         constexpr_arguments(constexpr_arguments),
         return_continuation(return_continuation),
@@ -519,13 +518,13 @@ struct CallCsaMacroAndBranchInstruction : InstructionBase {
                                              std::size_t index) const;
   std::size_t GetValueDefinitionCount() const;
   DefinitionLocation GetValueDefinition(std::size_t index) const;
-  base::Optional<DefinitionLocation> GetExceptionObjectDefinition() const;
+  std::optional<DefinitionLocation> GetExceptionObjectDefinition() const;
 
   Macro* macro;
   std::vector<std::string> constexpr_arguments;
-  base::Optional<Block*> return_continuation;
+  std::optional<Block*> return_continuation;
   std::vector<Block*> label_blocks;
-  base::Optional<Block*> catch_block;
+  std::optional<Block*> catch_block;
 };
 
 std::ostream& operator<<(std::ostream& os,
@@ -553,7 +552,7 @@ struct CallBuiltinInstruction : InstructionBase {
   TORQUE_INSTRUCTION_BOILERPLATE()
   bool IsBlockTerminator() const override { return is_tailcall; }
   CallBuiltinInstruction(bool is_tailcall, Builtin* builtin, size_t argc,
-                         base::Optional<Block*> catch_block)
+                         std::optional<Block*> catch_block)
       : is_tailcall(is_tailcall),
         builtin(builtin),
         argc(argc),
@@ -564,12 +563,12 @@ struct CallBuiltinInstruction : InstructionBase {
 
   std::size_t GetValueDefinitionCount() const;
   DefinitionLocation GetValueDefinition(std::size_t index) const;
-  base::Optional<DefinitionLocation> GetExceptionObjectDefinition() const;
+  std::optional<DefinitionLocation> GetExceptionObjectDefinition() const;
 
   bool is_tailcall;
   Builtin* builtin;
   size_t argc;
-  base::Optional<Block*> catch_block;
+  std::optional<Block*> catch_block;
 };
 
 std::ostream& operator<<(std::ostream& os,
@@ -605,7 +604,7 @@ struct CallRuntimeInstruction : InstructionBase {
   bool IsBlockTerminator() const override;
 
   CallRuntimeInstruction(bool is_tailcall, RuntimeFunction* runtime_function,
-                         size_t argc, base::Optional<Block*> catch_block)
+                         size_t argc, std::optional<Block*> catch_block)
       : is_tailcall(is_tailcall),
         runtime_function(runtime_function),
         argc(argc),
@@ -616,12 +615,12 @@ struct CallRuntimeInstruction : InstructionBase {
 
   std::size_t GetValueDefinitionCount() const;
   DefinitionLocation GetValueDefinition(std::size_t index) const;
-  base::Optional<DefinitionLocation> GetExceptionObjectDefinition() const;
+  std::optional<DefinitionLocation> GetExceptionObjectDefinition() const;
 
   bool is_tailcall;
   RuntimeFunction* runtime_function;
   size_t argc;
-  base::Optional<Block*> catch_block;
+  std::optional<Block*> catch_block;
 };
 
 std::ostream& operator<<(std::ostream& os,
@@ -770,8 +769,6 @@ inline std::ostream& operator<<(std::ostream& os,
   return os << "UnsafeCast " << *instruction.destination_type;
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque
 
 #endif  // V8_TORQUE_INSTRUCTIONS_H_

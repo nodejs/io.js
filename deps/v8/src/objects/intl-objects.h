@@ -2,15 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8_INTL_SUPPORT
-#error Internationalization is expected to be enabled.
-#endif  // V8_INTL_SUPPORT
-
 #ifndef V8_OBJECTS_INTL_OBJECTS_H_
 #define V8_OBJECTS_INTL_OBJECTS_H_
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 
@@ -21,19 +18,45 @@
 #include "unicode/locid.h"
 #include "unicode/uversion.h"
 
+#ifndef V8_INTL_SUPPORT
+#error Internationalization is expected to be enabled.
+#endif  // V8_INTL_SUPPORT
+
 #define V8_MINIMUM_ICU_VERSION 73
 
 namespace U_ICU_NAMESPACE {
 class BreakIterator;
+class Locale;
+class ListFormatter;
+class RelativeDateTimeFormatter;
+class SimpleDateFormat;
+class DateIntervalFormat;
+class PluralRules;
 class Collator;
 class FormattedValue;
 class StringEnumeration;
 class TimeZone;
 class UnicodeString;
+namespace number {
+class LocalizedNumberFormatter;
+}  //  namespace number
 }  // namespace U_ICU_NAMESPACE
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
+
+#define ICU_EXTERNAL_POINTER_TAG_LIST(V)                              \
+  V(icu::UnicodeString, kIcuUnicodeStringTag)                         \
+  V(icu::BreakIterator, kIcuBreakIteratorTag)                         \
+  V(icu::Locale, kIcuLocaleTag)                                       \
+  V(icu::SimpleDateFormat, kIcuSimpleDateFormatTag)                   \
+  V(icu::DateIntervalFormat, kIcuDateIntervalFormatTag)               \
+  V(icu::RelativeDateTimeFormatter, kIcuRelativeDateTimeFormatterTag) \
+  V(icu::ListFormatter, kIcuListFormatterTag)                         \
+  V(icu::Collator, kIcuCollatorTag)                                   \
+  V(icu::PluralRules, kIcuPluralRulesTag)                             \
+  V(icu::number::LocalizedNumberFormatter, kIcuLocalizedNumberFormatterTag)
+ICU_EXTERNAL_POINTER_TAG_LIST(ASSIGN_EXTERNAL_POINTER_TAG_FOR_MANAGED)
+#undef ICU_EXTERNAL_POINTER_TAG_LIST
 
 struct NumberFormatSpan {
   int32_t field_id;
@@ -122,7 +145,7 @@ class Intl {
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> ConvertToLower(
       Isolate* isolate, Handle<String> s);
 
-  V8_WARN_UNUSED_RESULT static base::Optional<int> StringLocaleCompare(
+  V8_WARN_UNUSED_RESULT static std::optional<int> StringLocaleCompare(
       Isolate* isolate, Handle<String> s1, Handle<String> s2,
       Handle<Object> locales, Handle<Object> options, const char* method_name);
 
@@ -132,7 +155,8 @@ class Intl {
   };
   template <class IsolateT>
   V8_EXPORT_PRIVATE static CompareStringsOptions CompareStringsOptionsFor(
-      IsolateT* isolate, Handle<Object> locales, Handle<Object> options);
+      IsolateT* isolate, DirectHandle<Object> locales,
+      DirectHandle<Object> options);
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static int CompareStrings(
       Isolate* isolate, const icu::Collator& collator, Handle<String> s1,
       Handle<String> s2,
@@ -222,8 +246,8 @@ class Intl {
   // A helper function to implement formatToParts which add element to array as
   // $array[$index] = { type: $field_type_string, value: $value }
   static void AddElement(Isolate* isolate, Handle<JSArray> array, int index,
-                         Handle<String> field_type_string,
-                         Handle<String> value);
+                         DirectHandle<String> field_type_string,
+                         DirectHandle<String> value);
 
   // A helper function to implement formatToParts which add element to array as
   // $array[$index] = {
@@ -231,15 +255,16 @@ class Intl {
   //   $additional_property_name: $additional_property_value
   // }
   static void AddElement(Isolate* isolate, Handle<JSArray> array, int index,
-                         Handle<String> field_type_string, Handle<String> value,
+                         DirectHandle<String> field_type_string,
+                         DirectHandle<String> value,
                          Handle<String> additional_property_name,
-                         Handle<String> additional_property_value);
+                         DirectHandle<String> additional_property_value);
 
   // A helper function to implement formatToParts which add element to array
   static Maybe<int> AddNumberElements(Isolate* isolate,
                                       const icu::FormattedValue& formatted,
                                       Handle<JSArray> result, int start_index,
-                                      Handle<String> unit);
+                                      DirectHandle<String> unit);
 
   // In ECMA 402 v1, Intl constructors supported a mode of operation
   // where calling them with an existing object as a receiver would
@@ -349,7 +374,7 @@ class Intl {
 
   // Convert a Handle<String> to icu::UnicodeString
   static icu::UnicodeString ToICUUnicodeString(Isolate* isolate,
-                                               Handle<String> string,
+                                               DirectHandle<String> string,
                                                int offset = 0);
 
   static const uint8_t* ToLatin1LowerTable();
@@ -381,8 +406,8 @@ class Intl {
       const icu::TimeZone& tz);
   V8_WARN_UNUSED_RESULT static bool IsValidTimeZoneName(Isolate* isolate,
                                                         const std::string& id);
-  V8_WARN_UNUSED_RESULT static bool IsValidTimeZoneName(Isolate* isolate,
-                                                        Handle<String> id);
+  V8_WARN_UNUSED_RESULT static bool IsValidTimeZoneName(
+      Isolate* isolate, DirectHandle<String> id);
 
   // Function to support Temporal
   V8_WARN_UNUSED_RESULT static std::string TimeZoneIdFromIndex(int32_t index);
@@ -390,7 +415,8 @@ class Intl {
   // Return the index of timezone which later could be used with
   // TimeZoneIdFromIndex. Returns -1 while the identifier is not a built-in
   // TimeZone name.
-  static int32_t GetTimeZoneIndex(Isolate* isolate, Handle<String> identifier);
+  static int32_t GetTimeZoneIndex(Isolate* isolate,
+                                  DirectHandle<String> identifier);
 
   enum class Transition { kNext, kPrevious };
 
@@ -427,14 +453,13 @@ class Intl {
   static Handle<String> DefaultTimeZone(Isolate* isolate);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> CanonicalizeTimeZoneName(
-      Isolate* isolate, Handle<String> identifier);
+      Isolate* isolate, DirectHandle<String> identifier);
 
   // ecma402/#sec-coerceoptionstoobject
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> CoerceOptionsToObject(
       Isolate* isolate, Handle<Object> options, const char* service);
 };
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #endif  // V8_OBJECTS_INTL_OBJECTS_H_

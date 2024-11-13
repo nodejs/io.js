@@ -6,6 +6,7 @@
 
 """ Unit tests for the ninja.py file. """
 
+from pathlib import Path
 import sys
 import unittest
 
@@ -49,6 +50,17 @@ class TestPrefixesAndSuffixes(unittest.TestCase):
         self.assertTrue(
             writer.ComputeOutputFileName(spec, "static_library").endswith(".a")
         )
+
+    def test_GenerateCompileDBWithNinja(self):
+        build_dir = (
+            Path(__file__).resolve().parent.parent.parent.parent / "data" / "ninja"
+        )
+        compile_db = ninja.GenerateCompileDBWithNinja(build_dir)
+        assert len(compile_db) == 1
+        assert compile_db[0]["directory"] == str(build_dir)
+        assert compile_db[0]["command"] == "cc my.in my.out"
+        assert compile_db[0]["file"] == "my.in"
+        assert compile_db[0]["output"] == "my.out"
 
 
 if __name__ == "__main__":

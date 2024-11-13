@@ -3,6 +3,7 @@ import * as fixtures from '../common/fixtures.mjs';
 import * as snapshot from '../common/assertSnapshot.js';
 import * as os from 'node:os';
 import { describe, it } from 'node:test';
+import { basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const skipForceColors =
@@ -20,13 +21,15 @@ function replaceForceColorsStackTrace(str) {
 
 describe('errors output', { concurrency: !process.env.TEST_PARALLEL }, () => {
   function normalize(str) {
+    const baseName = basename(process.argv0 || 'node', '.exe');
     return str.replaceAll(snapshot.replaceWindowsPaths(process.cwd()), '')
       .replaceAll(pathToFileURL(process.cwd()).pathname, '')
       .replaceAll('//', '*')
       .replaceAll(/\/(\w)/g, '*$1')
       .replaceAll('*test*', '*')
       .replaceAll('*fixtures*errors*', '*')
-      .replaceAll('file:**', 'file:*/');
+      .replaceAll('file:**', 'file:*/')
+      .replaceAll(`${baseName} --`, '* --');
   }
 
   function normalizeNoNumbers(str) {

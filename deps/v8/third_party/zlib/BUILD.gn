@@ -151,7 +151,13 @@ if (use_arm_neon_optimizations) {
     if (!is_win && !is_clang) {
       assert(!use_thin_lto,
              "ThinLTO fails mixing different module-level targets")
-      cflags_c = [ "-march=armv8-a+aes+crc" ]
+      if (current_cpu == "arm64") {
+        cflags_c = [ "-march=armv8-a+aes+crc" ]
+      } else if (current_cpu == "arm") {
+        cflags_c = [ "-march=armv8-a+crc" ]
+      } else {
+        assert(false, "Unexpected cpu: $current_cpu")
+      }
     }
 
     sources = [
@@ -441,6 +447,36 @@ executable("zlib_bench") {
   configs += [ "//build/config/compiler:no_chromium_code" ]
 }
 
+executable("minigzip") {
+  include_dirs = [ "." ]
+
+  sources = [ "test/minigzip.c" ]
+  if (!is_debug) {
+    configs -= [ "//build/config/compiler:default_optimization" ]
+    configs += [ "//build/config/compiler:optimize_speed" ]
+  }
+
+  deps = [ ":zlib" ]
+
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+}
+
+executable("zpipe") {
+  include_dirs = [ "." ]
+
+  sources = [ "examples/zpipe.c" ]
+  if (!is_debug) {
+    configs -= [ "//build/config/compiler:default_optimization" ]
+    configs += [ "//build/config/compiler:optimize_speed" ]
+  }
+
+  deps = [ ":zlib" ]
+
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+}
+
 if (!is_win || target_os != "winuwp") {
   executable("minizip_bin") {
     include_dirs = [ "." ]
@@ -448,9 +484,7 @@ if (!is_win || target_os != "winuwp") {
     sources = [ "contrib/minizip/minizip.c" ]
 
     if (is_clang) {
-      cflags = [
-        "-Wno-incompatible-pointer-types-discards-qualifiers",
-      ]
+      cflags = [ "-Wno-incompatible-pointer-types-discards-qualifiers" ]
     }
 
     if (!is_debug) {
@@ -470,9 +504,7 @@ if (!is_win || target_os != "winuwp") {
     sources = [ "contrib/minizip/miniunz.c" ]
 
     if (is_clang) {
-      cflags = [
-        "-Wno-incompatible-pointer-types-discards-qualifiers",
-      ]
+      cflags = [ "-Wno-incompatible-pointer-types-discards-qualifiers" ]
     }
 
     if (!is_debug) {

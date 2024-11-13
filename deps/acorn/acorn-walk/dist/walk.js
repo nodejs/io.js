@@ -215,16 +215,10 @@
   };
   base.SwitchStatement = function (node, st, c) {
     c(node.discriminant, st, "Expression");
-    for (var i$1 = 0, list$1 = node.cases; i$1 < list$1.length; i$1 += 1) {
-      var cs = list$1[i$1];
+    for (var i = 0, list = node.cases; i < list.length; i += 1) {
+      var cs = list[i];
 
-      if (cs.test) { c(cs.test, st, "Expression"); }
-      for (var i = 0, list = cs.consequent; i < list.length; i += 1)
-        {
-        var cons = list[i];
-
-        c(cons, st, "Statement");
-      }
+      c(cs, st);
     }
   };
   base.SwitchCase = function (node, st, c) {

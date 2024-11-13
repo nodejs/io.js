@@ -1356,7 +1356,7 @@ _charPtr_charAt(int32_t offset, void *context) {
     char16_t c16;
     /* It would be more efficient to access the invariant tables
      * directly but there is no API for that. */
-    u_charsToUChars(((char*) context) + offset, &c16, 1);
+    u_charsToUChars(static_cast<char*>(context) + offset, &c16, 1);
     return c16;
 }
 
@@ -1394,7 +1394,7 @@ u_unescape(const char *src, char16_t *dest, int32_t destCapacity) {
                 i += (int32_t)(src - segment);
             }
             ++src; /* advance past '\\' */
-            c32 = (UChar32)u_unescapeAt(_charPtr_charAt, &lenParsed, (int32_t)uprv_strlen(src), (void*)src);
+            c32 = u_unescapeAt(_charPtr_charAt, &lenParsed, (int32_t)uprv_strlen(src), const_cast<char*>(src));
             if (lenParsed == 0) {
                 goto err;
             }

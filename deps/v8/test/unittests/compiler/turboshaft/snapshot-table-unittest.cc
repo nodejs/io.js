@@ -4,7 +4,6 @@
 
 #include "src/compiler/turboshaft/snapshot-table.h"
 
-#include "src/base/optional.h"
 #include "src/base/vector.h"
 #include "test/unittests/test-utils.h"
 

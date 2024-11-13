@@ -34,12 +34,24 @@ class MinorGCJob::Task : public CancelableTask {
 };
 
 size_t MinorGCJob::YoungGenerationTaskTriggerSize(Heap* heap) {
-  return heap->new_space()->TotalCapacity() * v8_flags.minor_gc_task_trigger /
-         100;
+  size_t young_capacity = 0;
+  if (v8_flags.sticky_mark_bits) {
+    // TODO(333906585): Adjust parameters.
+    young_capacity = heap->sticky_space()->Capacity() -
+                     heap->sticky_space()->old_objects_size();
+  } else {
+    young_capacity = heap->new_space()->TotalCapacity();
+  }
+  return young_capacity * v8_flags.minor_gc_task_trigger / 100;
 }
 
 bool MinorGCJob::YoungGenerationSizeTaskTriggerReached(Heap* heap) {
-  return heap->new_space()->Size() >= YoungGenerationTaskTriggerSize(heap);
+  if (v8_flags.sticky_mark_bits) {
+    return heap->sticky_space()->young_objects_size() >=
+           YoungGenerationTaskTriggerSize(heap);
+  } else {
+    return heap->new_space()->Size() >= YoungGenerationTaskTriggerSize(heap);
+  }
 }
 
 void MinorGCJob::ScheduleTask() {

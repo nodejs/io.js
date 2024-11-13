@@ -60,19 +60,11 @@ using namespace pluralimpl;
 // Fallback
 #define REPLACEMENT ((UChar32) 0xFFFD)
 
-// MessageFormat2 uses four keywords: `.input`, `.local`, `.when`, and `.match`.
+// MessageFormat2 uses three keywords: `.input`, `.local`, and `.match`.
 
-static constexpr UChar32 ID_INPUT[] = {
-    0x2E, 0x69, 0x6E, 0x70, 0x75, 0x74, 0 /* ".input" */
-};
-
-static constexpr UChar32 ID_LOCAL[] = {
-    0x2E, 0x6C, 0x6F, 0x63, 0x61, 0x6C, 0 /* ".local" */
-};
-
-static constexpr UChar32 ID_MATCH[] = {
-    0x2E, 0x6D, 0x61, 0x74, 0x63, 0x68, 0 /* ".match" */
-};
+static constexpr std::u16string_view ID_INPUT = u".input";
+static constexpr std::u16string_view ID_LOCAL = u".local";
+static constexpr std::u16string_view ID_MATCH = u".match";
 
 // Returns immediately if `errorCode` indicates failure
 #define CHECK_ERROR(errorCode)                                                                          \

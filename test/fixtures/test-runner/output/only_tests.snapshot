@@ -155,12 +155,49 @@ ok 8 - describe only = true, with nested subtests
   duration_ms: *
   type: 'suite'
   ...
-1..8
-# tests 21
+# Subtest: nested tests with run only
+    # Subtest: running subtest - 1
+    ok 1 - running subtest - 1
+      ---
+      duration_ms: *
+      ...
+    # Subtest: this subtest is run  - 3
+        # Subtest: this subtest is run - 4
+        ok 1 - this subtest is run - 4
+          ---
+          duration_ms: *
+          ...
+        # Subtest: this subtest is run - 5
+        ok 2 - this subtest is run - 5
+          ---
+          duration_ms: *
+          ...
+        1..2
+    ok 2 - this subtest is run  - 3
+      ---
+      duration_ms: *
+      ...
+    # Subtest: this subtest is now run - 6
+    ok 3 - this subtest is now run - 6
+      ---
+      duration_ms: *
+      ...
+    # Subtest: skipped subtest - 8
+    ok 4 - skipped subtest - 8 # SKIP
+      ---
+      duration_ms: *
+      ...
+    1..4
+ok 9 - nested tests with run only
+  ---
+  duration_ms: *
+  ...
+1..9
+# tests 28
 # suites 7
-# pass 18
+# pass 24
 # fail 0
 # cancelled 0
-# skipped 3
+# skipped 4
 # todo 0
 # duration_ms *

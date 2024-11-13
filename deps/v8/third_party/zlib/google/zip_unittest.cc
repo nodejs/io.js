@@ -2,12 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "third_party/zlib/google/zip.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
 #include <iomanip>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -29,7 +32,6 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
-#include "third_party/zlib/google/zip.h"
 #include "third_party/zlib/google/zip_internal.h"
 #include "third_party/zlib/google/zip_reader.h"
 
@@ -61,8 +63,9 @@ bool CreateFile(const std::string& content,
   if (!base::CreateTemporaryFile(file_path))
     return false;
 
-  if (base::WriteFile(*file_path, content.data(), content.size()) == -1)
+  if (!base::WriteFile(*file_path, content)) {
     return false;
+  }
 
   *file = base::File(
       *file_path, base::File::Flags::FLAG_OPEN | base::File::Flags::FLAG_READ);
@@ -348,7 +351,7 @@ class ZipTest : public PlatformTest {
     base::Time now_time;
     EXPECT_TRUE(base::Time::FromUTCExploded(now_parts, &now_time));
 
-    EXPECT_EQ(1, base::WriteFile(src_file, "1", 1));
+    EXPECT_TRUE(base::WriteFile(src_file, "1"));
     EXPECT_TRUE(base::TouchFile(src_file, base::Time::Now(), test_mtime));
 
     EXPECT_TRUE(zip::Zip(src_dir, zip_file, true));
@@ -1290,7 +1293,7 @@ TEST_F(ZipTest, Compressed) {
   EXPECT_TRUE(base::CreateDirectory(src_dir));
 
   // Create some dummy source files.
-  for (const base::StringPiece s : {"foo", "bar.txt", ".hidden"}) {
+  for (const std::string_view s : {"foo", "bar.txt", ".hidden"}) {
     base::File f(src_dir.AppendASCII(s),
                  base::File::FLAG_CREATE | base::File::FLAG_WRITE);
     ASSERT_TRUE(f.SetLength(5000));

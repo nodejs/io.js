@@ -113,7 +113,7 @@ declare namespace InternalFSBinding {
   function futimes(fd: number, atime: number, mtime: number): void;
   function futimes(fd: number, atime: number, mtime: number, usePromises: typeof kUsePromises): Promise<void>;
 
-  function internalModuleStat(path: string): number;
+  function internalModuleStat(receiver: unknown, path: string): number;
 
   function lchown(path: string, uid: number, gid: number, req: FSReqCallback): void;
   function lchown(path: string, uid: number, gid: number, req: undefined, ctx: FSSyncContext): void;
@@ -291,6 +291,7 @@ export interface FsBinding {
   utimes: typeof InternalFSBinding.utimes;
   writeBuffer: typeof InternalFSBinding.writeBuffer;
   writeBuffers: typeof InternalFSBinding.writeBuffers;
+  writeFileUtf8: typeof InternalFSBinding.writeFileUtf8;
   writeString: typeof InternalFSBinding.writeString;
 
   getFormatOfExtensionlessFile: typeof InternalFSBinding.getFormatOfExtensionlessFile;

@@ -24,14 +24,8 @@ class ManualOptimizationTable {
   // This also holds on to the bytecode strongly, preventing the bytecode from
   // being flushed.
   static void MarkFunctionForManualOptimization(
-      Isolate* isolate, Handle<JSFunction> function,
+      Isolate* isolate, DirectHandle<JSFunction> function,
       IsCompiledScope* is_compiled_scope);
-
-  // This function should be called when the function is marked for optimization
-  // via the intrinsics. This will check whether
-  // MarkFunctionForManualOptimization was called with this function.
-  static void CheckMarkedForManualOptimization(Isolate* isolate,
-                                               Tagged<JSFunction> function);
 
   // Returns true if MarkFunctionForManualOptimization was called with this
   // function.

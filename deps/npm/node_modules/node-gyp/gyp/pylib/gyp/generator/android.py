@@ -740,8 +740,8 @@ class AndroidMkWriter:
                 )
             else:
                 path = (
-                    "$(call intermediates-dir-for,"
-                    f"{self.android_class},{self.android_module},,,$(GYP_VAR_PREFIX))"
+                    f"$(call intermediates-dir-for,{self.android_class},"
+                    f"{self.android_module},,,$(GYP_VAR_PREFIX))"
                 )
 
         assert spec.get("product_dir") is None  # TODO: not supported?

@@ -4,7 +4,7 @@
 // but aborting every connection that comes in.
 
 const common = require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const http = require('http');
 const os = require('os');
 

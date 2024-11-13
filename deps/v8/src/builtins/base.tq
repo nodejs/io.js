@@ -13,6 +13,7 @@
 #include 'src/objects/elements-kind.h'
 #include 'src/objects/free-space.h'
 #include 'src/objects/js-atomics-synchronization.h'
+#include 'src/objects/js-disposable-stack.h'
 #include 'src/objects/js-function.h'
 #include 'src/objects/js-generator.h'
 #include 'src/objects/js-iterator-helpers.h'
@@ -96,7 +97,7 @@ type JSPrimitive = Numeric|String|Symbol|Boolean|Null|Undefined;
 
 // A user-exposed JavaScript value, as opposed to V8-internal values like Holes
 // or a FixedArray.
-type JSAny = JSReceiver|JSPrimitive;
+type JSAny = JSPrimitive|JSReceiver;
 
 type JSAnyNotNumeric = String|Symbol|Boolean|Null|Undefined|JSReceiver;
 type JSAnyNotNumber = BigInt|JSAnyNotNumeric;
@@ -240,12 +241,12 @@ type RawPtr generates 'TNode<RawPtrT>' constexpr 'Address';
 type RawPtr<To: type> extends RawPtr;
 type ExternalPointer
     generates 'TNode<ExternalPointerT>' constexpr 'ExternalPointer_t';
-type IndirectPointer
-    generates 'TNode<IndirectPointerHandleT>'
-    constexpr 'IndirectPointerHandle';
-// TODO(saelo): implement accessors and type checkers for these fields.
-type IndirectPointer<To : type extends ExposedTrustedObject> extends
-    IndirectPointer;
+type CppHeapPointer
+    generates 'TNode<CppHeapPointerT>' constexpr 'CppHeapPointer_t';
+type TrustedPointer
+    generates 'TNode<TrustedPointerT>' constexpr 'TrustedPointer_t';
+type TrustedPointer<To : type extends ExposedTrustedObject> extends
+    TrustedPointer;
 type ProtectedPointer extends Tagged;
 type ProtectedPointer<To : type extends TrustedObject> extends ProtectedPointer;
 extern class InstructionStream extends TrustedObject;
@@ -558,6 +559,7 @@ type NumberOrUndefined = Number|Undefined;
 
 extern macro ConstructorStringConstant(): String;
 extern macro DefaultStringConstant(): String;
+extern macro DisposeSymbolConstant(): String;
 extern macro EmptyStringConstant(): EmptyString;
 extern macro ErrorStringConstant(): String;
 extern macro ErrorsStringConstant(): String;
@@ -636,7 +638,7 @@ extern class Filler extends HeapObject generates 'TNode<HeapObject>';
 // Like JSObject, but created from API function.
 @apiExposedInstanceTypeValue(0x422)
 @doNotGenerateCast
-extern class JSApiObject extends JSObjectWithEmbedderSlots
+extern class JSApiObject extends JSAPIObjectWithEmbedderSlots
     generates 'TNode<JSObject>';
 
 // TODO(gsathya): This only exists to make JSApiObject instance type into a
@@ -1009,10 +1011,10 @@ macro Float64IsNaN(n: float64): bool {
 // The type of all tagged values that can safely be compared with TaggedEqual.
 @if(V8_ENABLE_WEBASSEMBLY)
   type TaggedWithIdentity = JSReceiver|FixedArrayBase|Oddball|Hole|Map|WeakCell|
-      Context|EmptyString|Symbol|WasmFuncRef|WasmNull;
+      Context|EmptyString|Symbol|FunctionTemplateInfo|WasmFuncRef|WasmNull;
 @ifnot(V8_ENABLE_WEBASSEMBLY)
   type TaggedWithIdentity = JSReceiver|FixedArrayBase|Oddball|Hole|Map|WeakCell|
-      Context|EmptyString|Symbol;
+      Context|EmptyString|Symbol|FunctionTemplateInfo;
 
 extern operator '==' macro TaggedEqual(TaggedWithIdentity, Object): bool;
 extern operator '==' macro TaggedEqual(Object, TaggedWithIdentity): bool;
@@ -1405,6 +1407,7 @@ extern macro IsPrototypeTypedArrayPrototype(
     implicit context: Context)(Map): bool;
 extern macro IsSetIteratorProtectorCellInvalid(): bool;
 extern macro IsMapIteratorProtectorCellInvalid(): bool;
+extern macro InvalidateStringWrapperToPrimitiveProtector(): void;
 
 extern operator '.data_ptr' macro LoadJSTypedArrayDataPtr(JSTypedArray): RawPtr;
 
@@ -1479,6 +1482,9 @@ macro GetArrayBufferNoInitFunction(implicit context: Context)(): JSFunction {
 }
 macro GetIteratorFunction(implicit context: Context)(): JSFunction {
   return *NativeContextSlot(ContextSlot::ITERATOR_FUNCTION_INDEX);
+}
+macro GetStringFunction(implicit context: Context)(): JSFunction {
+  return *NativeContextSlot(ContextSlot::STRING_FUNCTION_INDEX);
 }
 macro GetFastPackedElementsJSArrayMap(implicit context: Context)(): Map {
   return *NativeContextSlot(ContextSlot::JS_ARRAY_PACKED_ELEMENTS_MAP_INDEX);
@@ -1579,26 +1585,12 @@ macro RequireObjectCoercible(
   return value;
 }
 
-extern macro BranchIfSameValue(JSAny, JSAny): never labels Taken, NotTaken;
-macro SameValue(a: JSAny, b: JSAny): bool {
+extern macro BranchIfSameValue(
+    JSAny|TaggedWithIdentity, JSAny|TaggedWithIdentity): never labels Taken,
+    NotTaken;
+macro SameValue(
+    a: JSAny|TaggedWithIdentity, b: JSAny|TaggedWithIdentity): bool {
   BranchIfSameValue(a, b) otherwise return true, return false;
-}
-macro SameValue(a: (JSAny|TheHole), b: (JSAny|TheHole)): bool {
-  typeswitch (a) {
-    case (a: TheHole): {
-      return UnsafeCast<TheHole>(b) == a;
-    }
-    case (a: JSAny): {
-      typeswitch (b) {
-        case (TheHole): {
-          return false;
-        }
-        case (b: JSAny): {
-          return SameValue(a, b);
-        }
-      }
-    }
-  }
 }
 
 // Does "if (index1 + index2 > limit) goto IfOverflow" in an uintptr overflow

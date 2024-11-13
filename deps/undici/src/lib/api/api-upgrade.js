@@ -50,9 +50,9 @@ class UpgradeHandler extends AsyncResource {
   }
 
   onUpgrade (statusCode, rawHeaders, socket) {
-    const { callback, opaque, context } = this
+    assert(statusCode === 101)
 
-    assert.strictEqual(statusCode, 101)
+    const { callback, opaque, context } = this
 
     removeSignal(this)
 

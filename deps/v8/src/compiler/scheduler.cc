@@ -5,6 +5,7 @@
 #include "src/compiler/scheduler.h"
 
 #include <iomanip>
+#include <optional>
 
 #include "src/base/iterator.h"
 #include "src/builtins/profile-data-reader.h"
@@ -166,7 +167,7 @@ void Scheduler::UpdatePlacement(Node* node, Placement placement) {
   // Reduce the use count of the node's inputs to potentially make them
   // schedulable. If all the uses of a node have been scheduled, then the node
   // itself can be scheduled.
-  base::Optional<int> coupled_control_edge = GetCoupledControlEdge(node);
+  std::optional<int> coupled_control_edge = GetCoupledControlEdge(node);
   for (Edge const edge : node->input_edges()) {
     DCHECK_EQ(node, edge.from());
     if (edge.index() != coupled_control_edge) {
@@ -176,7 +177,7 @@ void Scheduler::UpdatePlacement(Node* node, Placement placement) {
   data->placement_ = placement;
 }
 
-base::Optional<int> Scheduler::GetCoupledControlEdge(Node* node) {
+std::optional<int> Scheduler::GetCoupledControlEdge(Node* node) {
   if (GetPlacement(node) == kCoupled) {
     return NodeProperties::FirstControlIndex(node);
   }
@@ -353,6 +354,7 @@ class CFGBuilder : public ZoneObject {
 // JS opcodes are just like calls => fall through.
 #undef BUILD_BLOCK_JS_CASE
       case IrOpcode::kCall:
+      case IrOpcode::kFastApiCall:
         if (NodeProperties::IsExceptionalCall(node)) {
           BuildBlocksForSuccessors(node);
         }
@@ -397,6 +399,7 @@ class CFGBuilder : public ZoneObject {
 // JS opcodes are just like calls => fall through.
 #undef CONNECT_BLOCK_JS_CASE
       case IrOpcode::kCall:
+      case IrOpcode::kFastApiCall:
         if (NodeProperties::IsExceptionalCall(node)) {
           scheduler_->UpdatePlacement(node, Scheduler::kFixed);
           ConnectCall(node);
@@ -1339,7 +1342,7 @@ class PrepareUsesVisitor {
   void VisitInputs(Node* node) {
     DCHECK_NE(scheduler_->GetPlacement(node), Scheduler::kUnknown);
     bool is_scheduled = schedule_->IsScheduled(node);
-    base::Optional<int> coupled_control_edge =
+    std::optional<int> coupled_control_edge =
         scheduler_->GetCoupledControlEdge(node);
     for (auto edge : node->input_edges()) {
       Node* to = edge.to();
@@ -1815,7 +1818,7 @@ class ScheduleLateNodeVisitor {
 
   Node* CloneNode(Node* node) {
     int const input_count = node->InputCount();
-    base::Optional<int> coupled_control_edge =
+    std::optional<int> coupled_control_edge =
         scheduler_->GetCoupledControlEdge(node);
     for (int index = 0; index < input_count; ++index) {
       if (index != coupled_control_edge) {

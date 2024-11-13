@@ -29,7 +29,7 @@ bool SemiSpace::Contains(Tagged<HeapObject> o) const {
 }
 
 bool SemiSpace::Contains(Tagged<Object> o) const {
-  return IsHeapObject(o) && Contains(HeapObject::cast(o));
+  return IsHeapObject(o) && Contains(Cast<HeapObject>(o));
 }
 
 template <typename T>
@@ -49,7 +49,7 @@ bool SemiSpace::ContainsSlow(Address a) const {
 // NewSpace
 
 bool NewSpace::Contains(Tagged<Object> o) const {
-  return IsHeapObject(o) && Contains(HeapObject::cast(o));
+  return IsHeapObject(o) && Contains(Cast<HeapObject>(o));
 }
 
 bool NewSpace::Contains(Tagged<HeapObject> o) const {
@@ -74,6 +74,20 @@ Tagged<HeapObject> SemiSpaceObjectIterator::Next() {
     current_ += ALIGN_TO_ALLOCATION_ALIGNMENT(object->Size());
     if (!IsFreeSpaceOrFiller(object)) return object;
   }
+}
+
+void SemiSpaceNewSpace::IncrementAllocationTop(Address new_top) {
+  DCHECK_LE(allocation_top_, new_top);
+  DCHECK_EQ(PageMetadata::FromAllocationAreaAddress(allocation_top_),
+            PageMetadata::FromAllocationAreaAddress(new_top));
+  allocation_top_ = new_top;
+}
+
+void SemiSpaceNewSpace::DecrementAllocationTop(Address new_top) {
+  DCHECK_LE(new_top, allocation_top_);
+  DCHECK_EQ(PageMetadata::FromAllocationAreaAddress(allocation_top_),
+            PageMetadata::FromAllocationAreaAddress(new_top));
+  allocation_top_ = new_top;
 }
 
 }  // namespace internal

@@ -32,8 +32,8 @@
 //     continuously and independently at a constant average rate
 //   * `absl::Gaussian` (also known as "normal distributions") for continuous
 //     distributions using an associated quadratic function
-//   * `absl::LogUniform` for continuous uniform distributions where the log
-//     to the given base of all values is uniform
+//   * `absl::LogUniform` for discrete distributions where the log to the given
+//     base of all values is uniform
 //   * `absl::Poisson` for discrete probability distributions that express the
 //     probability of a given number of events occurring within a fixed interval
 //   * `absl::Zipf` for discrete probability distributions commonly used for
@@ -46,23 +46,23 @@
 #ifndef ABSL_RANDOM_DISTRIBUTIONS_H_
 #define ABSL_RANDOM_DISTRIBUTIONS_H_
 
-#include <algorithm>
-#include <cmath>
 #include <limits>
-#include <random>
 #include <type_traits>
 
+#include "absl/base/config.h"
 #include "absl/base/internal/inline_variable.h"
+#include "absl/meta/type_traits.h"
 #include "absl/random/bernoulli_distribution.h"
 #include "absl/random/beta_distribution.h"
 #include "absl/random/exponential_distribution.h"
 #include "absl/random/gaussian_distribution.h"
 #include "absl/random/internal/distribution_caller.h"  // IWYU pragma: export
+#include "absl/random/internal/traits.h"
 #include "absl/random/internal/uniform_helper.h"  // IWYU pragma: export
 #include "absl/random/log_uniform_int_distribution.h"
 #include "absl/random/poisson_distribution.h"
-#include "absl/random/uniform_int_distribution.h"
-#include "absl/random/uniform_real_distribution.h"
+#include "absl/random/uniform_int_distribution.h"  // IWYU pragma: export
+#include "absl/random/uniform_real_distribution.h"  // IWYU pragma: export
 #include "absl/random/zipf_distribution.h"
 
 namespace absl {
@@ -176,7 +176,7 @@ Uniform(TagType tag,
 
   return random_internal::DistributionCaller<gen_t>::template Call<
       distribution_t>(&urbg, tag, static_cast<return_t>(lo),
-                                static_cast<return_t>(hi));
+                      static_cast<return_t>(hi));
 }
 
 // absl::Uniform(bitgen, lo, hi)
@@ -200,7 +200,7 @@ Uniform(URBG&& urbg,  // NOLINT(runtime/references)
 
   return random_internal::DistributionCaller<gen_t>::template Call<
       distribution_t>(&urbg, static_cast<return_t>(lo),
-                                static_cast<return_t>(hi));
+                      static_cast<return_t>(hi));
 }
 
 // absl::Uniform<unsigned T>(bitgen)
@@ -208,7 +208,7 @@ Uniform(URBG&& urbg,  // NOLINT(runtime/references)
 // Overload of Uniform() using the minimum and maximum values of a given type
 // `T` (which must be unsigned), returning a value of type `unsigned T`
 template <typename R, typename URBG>
-typename absl::enable_if_t<!std::is_signed<R>::value, R>  //
+typename absl::enable_if_t<!std::numeric_limits<R>::is_signed, R>  //
 Uniform(URBG&& urbg) {  // NOLINT(runtime/references)
   using gen_t = absl::decay_t<URBG>;
   using distribution_t = random_internal::UniformDistributionWrapper<R>;
@@ -362,7 +362,7 @@ RealType Gaussian(URBG&& urbg,  // NOLINT(runtime/references)
 // If `lo` is nonzero then this distribution is shifted to the desired interval,
 // so LogUniform(lo, hi, b) is equivalent to LogUniform(0, hi-lo, b)+lo.
 //
-// See https://en.wikipedia.org/wiki/Log-normal_distribution
+// See https://en.wikipedia.org/wiki/Reciprocal_distribution
 //
 // Example:
 //

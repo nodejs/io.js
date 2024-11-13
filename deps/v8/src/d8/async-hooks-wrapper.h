@@ -29,6 +29,9 @@ struct AsyncContext {
 
 class AsyncHooksWrap {
  public:
+  static constexpr internal::ExternalPointerTag kManagedTag =
+      internal::kGenericManagedTag;
+
   explicit AsyncHooksWrap(Isolate* isolate)
       : isolate_(isolate), enabled_(false) {}
   void Enable();

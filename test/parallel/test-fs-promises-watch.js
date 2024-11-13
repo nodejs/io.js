@@ -8,6 +8,7 @@ const { watch } = require('fs/promises');
 const fs = require('fs');
 const assert = require('assert');
 const { join } = require('path');
+const { setTimeout } = require('timers/promises');
 const tmpdir = require('../common/tmpdir');
 
 class WatchTestCase {
@@ -49,6 +50,12 @@ for (const testCase of kCases) {
 
   let interval;
   async function test() {
+    if (common.isMacOS) {
+      // On macOS delay watcher start to avoid leaking previous events.
+      // Refs: https://github.com/libuv/libuv/pull/4503
+      await setTimeout(common.platformTimeout(100));
+    }
+
     const watcher = watch(testCase[testCase.field]);
     for await (const { eventType, filename } of watcher) {
       clearInterval(interval);

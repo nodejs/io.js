@@ -5,7 +5,8 @@ function run_test(algorithmNames, slowTest) {
     setup({explicit_timeout: true});
 
 // These tests check that generateKey successfully creates keys
-// when provided any of a wide set of correct parameters.
+// when provided any of a wide set of correct parameters
+// and that they can be exported afterwards.
 //
 // There are a lot of combinations of possible parameters,
 // resulting in a very large number of tests
@@ -68,9 +69,32 @@ function run_test(algorithmNames, slowTest) {
                 } else {
                     assert_goodCryptoKey(result, algorithm, extractable, usages, "secret");
                 }
+                return result;
             }, function(err) {
-                assert_unreached("Threw an unexpected error: " + err.toString());
-            });
+                assert_unreached("generateKey threw an unexpected error: " + err.toString());
+            })
+            .then(async function (result) {
+                if (resultType === "CryptoKeyPair") {
+                    await Promise.all([
+                        subtle.exportKey('jwk', result.publicKey),
+                        subtle.exportKey('spki', result.publicKey),
+                        result.publicKey.algorithm.name.startsWith('RSA') ? undefined : subtle.exportKey('raw', result.publicKey),
+                        ...(extractable ? [
+                            subtle.exportKey('jwk', result.privateKey),
+                            subtle.exportKey('pkcs8', result.privateKey),
+                        ] : [])
+                    ]);
+                } else {
+                    if (extractable) {
+                        await Promise.all([
+                            subtle.exportKey('raw', result),
+                            subtle.exportKey('jwk', result),
+                        ]);
+                    }
+                }
+            }, function(err) {
+                assert_unreached("exportKey threw an unexpected error: " + err.toString());
+            })
         }, testTag + ": generateKey" + parameterString(algorithm, extractable, usages));
     }
 

@@ -122,10 +122,10 @@ class RunTailCallsTest : public TestWithContextAndZone {
     Handle<Code> setup =
         BuildSetupFunction(isolate, caller_descriptor, callee_descriptor);
     FunctionTester ft(isolate, setup, 0);
-    Handle<Object> result = ft.Call().ToHandleChecked();
+    DirectHandle<Object> result = ft.Call().ToHandleChecked();
     int expected = 0;
     for (int i = 0; i < m; ++i) expected += (i + 1) * i;
-    CHECK_EQ(expected, Smi::cast(*result).value());
+    CHECK_EQ(expected, Cast<Smi>(*result).value());
   }
 };
 

@@ -561,7 +561,25 @@ void uv__process_fs_event_req(uv_loop_t* loop, uv_req_t* req,
     }
   } else {
     err = GET_REQ_ERROR(req);
-    handle->cb(handle, NULL, 0, uv_translate_sys_error(err));
+    /*
+     * Check whether the ERROR_ACCESS_DENIED is caused by the watched directory
+     * being actually deleted (not an actual error) or a legit error. Retrieve
+     * FileStandardInfo to check whether the directory is pending deletion.
+     */
+    FILE_STANDARD_INFO info;
+    if (err == ERROR_ACCESS_DENIED &&
+        handle->dirw != NULL &&
+        GetFileInformationByHandleEx(handle->dir_handle,
+                                     FileStandardInfo,
+                                     &info,
+                                     sizeof(info)) &&
+        info.Directory &&
+        info.DeletePending) {
+      uv__convert_utf16_to_utf8(handle->dirw, -1, &filename);
+      handle->cb(handle, filename, UV_RENAME, 0);
+    } else {
+      handle->cb(handle, NULL, 0, uv_translate_sys_error(err));
+    }
   }
 
   if (handle->flags & UV_HANDLE_CLOSING) {

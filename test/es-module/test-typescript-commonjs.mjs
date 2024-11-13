@@ -1,7 +1,9 @@
-import { spawnPromisified } from '../common/index.mjs';
+import { skip, spawnPromisified } from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
 import { match, strictEqual } from 'node:assert';
 import { test } from 'node:test';
+
+if (!process.config.variables.node_use_amaro) skip('Requires Amaro');
 
 test('require a .ts file with explicit extension succeeds', async () => {
   const result = await spawnPromisified(process.execPath, [
@@ -98,6 +100,7 @@ test('execute a .cts file importing a .ts file export', async () => {
 test('execute a .cts file importing a .mts file export', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
+    '--no-experimental-require-module',
     fixtures.path('typescript/cts/test-require-mts-module.cts'),
   ]);
 
@@ -118,7 +121,7 @@ test('execute a .cts file importing a .mts file export', async () => {
   strictEqual(result.code, 0);
 });
 
-test('expect failure of a .cts file with default type module', async () => {
+test('execute a .cts file with default type module', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
     '--experimental-default-type=module', // Keeps working with commonjs
@@ -156,6 +159,7 @@ test('expect failure of a .ts file in node_modules', async () => {
 test('expect failure of a .cts requiring esm without default type module', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--experimental-strip-types',
+    '--no-experimental-require-module',
     fixtures.path('typescript/cts/test-mts-node_modules.cts'),
   ]);
 

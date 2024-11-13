@@ -4,6 +4,8 @@
 
 #include "src/temporal/temporal-parser.h"
 
+#include <optional>
+
 #include "src/execution/isolate.h"
 #include "src/heap/factory-inl.h"
 #include "test/unittests/test-utils.h"
@@ -21,7 +23,7 @@ const int32_t kUndefined = kMinInt31;
 void CheckCalendar(Isolate* isolate, Handle<String> iso_string,
                    int32_t calendar_start, int32_t calendar_length,
                    const std::string& expected_calendar) {
-  Handle<String> actual_calendar = isolate->factory()->NewSubString(
+  DirectHandle<String> actual_calendar = isolate->factory()->NewSubString(
       iso_string, calendar_start, calendar_start + calendar_length);
   CHECK(expected_calendar == actual_calendar->ToCString().get());
 }
@@ -82,7 +84,7 @@ char asciitolower(char in) {
       const char* str, int32_t date_year, int32_t date_month,         \
       int32_t date_day, const char* calendar_name) {                  \
     Handle<String> input = MakeString(str);                           \
-    base::Optional<ParsedISO8601Result> result =                      \
+    std::optional<ParsedISO8601Result> result =                       \
         TemporalParser::ParseTemporal##R##String(i_isolate(), input); \
     CHECK(result.has_value());                                        \
     ParsedISO8601Result actual = *result;                             \
@@ -98,7 +100,7 @@ char asciitolower(char in) {
       int32_t time_second, int32_t time_nanosecond,                          \
       const char* calendar_name) {                                           \
     Handle<String> input = MakeString(str);                                  \
-    base::Optional<ParsedISO8601Result> result =                             \
+    std::optional<ParsedISO8601Result> result =                              \
         TemporalParser::ParseTemporal##R##String(i_isolate(), input);        \
     CHECK(result.has_value());                                               \
     ParsedISO8601Result actual = *result;                                    \
@@ -117,7 +119,7 @@ char asciitolower(char in) {
       int32_t tzuo_second, int32_t tzuo_nanosecond, bool utc_designator,       \
       const char* tzi_name) {                                                  \
     Handle<String> input = MakeString(str);                                    \
-    base::Optional<ParsedISO8601Result> result =                               \
+    std::optional<ParsedISO8601Result> result =                                \
         TemporalParser::ParseTemporal##R##String(i_isolate(), input);          \
     CHECK(result.has_value());                                                 \
     ParsedISO8601Result actual = *result;                                      \
@@ -147,7 +149,7 @@ class TemporalParserTest : public TestWithIsolate {
       int32_t tzuo_hour, int32_t tzuo_minute, int32_t tzuo_second,
       int32_t tzuo_nanosecond) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Result> result =
+    std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseTemporalInstantString(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Result actual = *result;
@@ -160,7 +162,7 @@ class TemporalParserTest : public TestWithIsolate {
 
   void VerifyParseCalendarNameSuccess(const char* str) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Result> result =
+    std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseCalendarName(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Result actual = *result;
@@ -173,7 +175,7 @@ class TemporalParserTest : public TestWithIsolate {
 
   void VerifyParseTimeZoneIdentifierSuccess(const char* str) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Result> result =
+    std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseTimeZoneIdentifier(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Result actual = *result;
@@ -210,7 +212,7 @@ class TemporalParserTest : public TestWithIsolate {
                                   int64_t whole_seconds,
                                   int64_t seconds_fraction) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Duration> result =
+    std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
     CheckDuration(*result, sign, years, months, weeks, days, whole_hours,
@@ -229,7 +231,7 @@ class TemporalParserTest : public TestWithIsolate {
 
   void VerifyParseDurationWithPositiveSign(const char* str) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Duration> result =
+    std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Duration expected = *result;
@@ -242,7 +244,7 @@ class TemporalParserTest : public TestWithIsolate {
     std::string with_sign("-");
     with_sign += str;
     Handle<String> input = MakeString(with_sign.c_str());
-    base::Optional<ParsedISO8601Duration> result =
+    std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Duration expected = *result;
@@ -253,7 +255,7 @@ class TemporalParserTest : public TestWithIsolate {
 
   void VerifyParseDurationWithLowerCase(const char* str) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Duration> result =
+    std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Duration expected = *result;
@@ -266,7 +268,7 @@ class TemporalParserTest : public TestWithIsolate {
     std::string period(str);
     std::transform(period.begin(), period.end(), period.begin(), commatoperiod);
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Duration> result =
+    std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
     ParsedISO8601Duration expected = *result;
@@ -277,7 +279,7 @@ class TemporalParserTest : public TestWithIsolate {
       const char* str, int32_t tzuo_sign, int32_t tzuo_hour,
       int32_t tzuo_minute, int32_t tzuo_second, int32_t tzuo_nanosecond) {
     Handle<String> input = MakeString(str);
-    base::Optional<ParsedISO8601Result> result =
+    std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseTimeZoneNumericUTCOffset(i_isolate(), input);
     CHECK(result.has_value());
     CheckTimeZoneNumericUTCOffset(*result, tzuo_sign, tzuo_hour, tzuo_minute,

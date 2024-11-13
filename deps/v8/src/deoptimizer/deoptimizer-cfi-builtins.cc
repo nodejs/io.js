@@ -6,6 +6,10 @@
 #include "src/deoptimizer/deoptimizer.h"
 #include "src/snapshot/embedded/embedded-data.h"
 
+#if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-engine.h"
+#endif
+
 extern "C" {
 void Builtins_InterpreterEnterAtBytecode();
 void Builtins_InterpreterEnterAtNextBytecode();
@@ -46,7 +50,18 @@ bool Deoptimizer::IsValidReturnAddress(Address address, Isolate* isolate) {
   EmbeddedData d = EmbeddedData::FromBlobForPc(isolate, address);
   Address code_start = reinterpret_cast<Address>(d.code());
   Address offset = address - code_start;
-  if (offset >= v8_Default_embedded_blob_code_size_) return false;
+  if (offset >= v8_Default_embedded_blob_code_size_) {
+#if V8_ENABLE_WEBASSEMBLY
+    if (v8_flags.wasm_deopt &&
+        wasm::GetWasmCodeManager()->LookupCode(isolate, address) != nullptr) {
+      // TODO(42204618): This does not check for the PC being a valid "deopt
+      // point" but could be any arbitrary address inside a wasm code object
+      // (including pointing into the middle of an instruction).
+      return true;
+    }
+#endif
+    return false;
+  }
   Address blob_start =
       reinterpret_cast<Address>(v8_Default_embedded_blob_code_);
   Address original_address = blob_start + offset;

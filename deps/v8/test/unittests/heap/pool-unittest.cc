@@ -302,7 +302,7 @@ class PoolTest : public                                     //
   PoolTest& operator=(const PoolTest&) = delete;
 
   static void FreeProcessWidePtrComprCageForTesting() {
-    IsolateAllocator::FreeProcessWidePtrComprCageForTesting();
+    IsolateGroup::ReleaseGlobal();
   }
 
   static void DoMixinSetUp() {
@@ -314,11 +314,11 @@ class PoolTest : public                                     //
              SetPlatformPageAllocatorForTesting(tracking_page_allocator_));
     old_sweeping_flag_ = i::v8_flags.concurrent_sweeping;
     i::v8_flags.concurrent_sweeping = false;
-#ifdef V8_COMPRESS_POINTERS_IN_SHARED_CAGE
+#ifndef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
     // Reinitialize the process-wide pointer cage so it can pick up the
     // TrackingPageAllocator.
     // The pointer cage must be destroyed before the sandbox.
-    IsolateAllocator::FreeProcessWidePtrComprCageForTesting();
+    FreeProcessWidePtrComprCageForTesting();
 #ifdef V8_ENABLE_SANDBOX
     // Reinitialze the sandbox so it uses the TrackingPageAllocator.
     GetProcessWideSandbox()->TearDown();
@@ -326,15 +326,15 @@ class PoolTest : public                                     //
     CHECK(GetProcessWideSandbox()->Initialize(
         tracking_page_allocator_, kSandboxMinimumSize, use_guard_regions));
 #endif
-    IsolateAllocator::InitializeOncePerProcess();
+    IsolateGroup::InitializeOncePerProcess();
 #endif
   }
 
   static void DoMixinTearDown() {
-#ifdef V8_COMPRESS_POINTERS_IN_SHARED_CAGE
+#ifndef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
     // Free the process-wide cage reservation, otherwise the pages won't be
     // freed until process teardown.
-    IsolateAllocator::FreeProcessWidePtrComprCageForTesting();
+    FreeProcessWidePtrComprCageForTesting();
 #endif
 #ifdef V8_ENABLE_SANDBOX
     GetProcessWideSandbox()->TearDown();

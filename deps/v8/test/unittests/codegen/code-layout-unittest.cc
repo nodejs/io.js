@@ -42,7 +42,7 @@ TEST_F(CodeLayoutTest, CodeLayoutWithoutUnwindingInfo) {
   code_desc.unwinding_info_size = 0;
   code_desc.origin = nullptr;
 
-  Handle<Code> code =
+  DirectHandle<Code> code =
       Factory::CodeBuilder(i_isolate(), code_desc, CodeKind::FOR_TESTING)
           .Build();
 
@@ -89,7 +89,7 @@ TEST_F(CodeLayoutTest, CodeLayoutWithUnwindingInfo) {
   code_desc.unwinding_info_size = unwinding_info_size;
   code_desc.origin = nullptr;
 
-  Handle<Code> code =
+  DirectHandle<Code> code =
       Factory::CodeBuilder(i_isolate(), code_desc, CodeKind::FOR_TESTING)
           .Build();
 

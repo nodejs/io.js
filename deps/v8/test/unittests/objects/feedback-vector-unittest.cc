@@ -18,7 +18,7 @@ class FeedbackVectorTest : public TestWithContext {
     v8::MaybeLocal<v8::Value> v8_f =
         v8_context()->Global()->Get(v8_context(), NewString(name));
     Handle<JSFunction> f =
-        Handle<JSFunction>::cast(v8::Utils::OpenHandle(*v8_f.ToLocalChecked()));
+        Cast<JSFunction>(v8::Utils::OpenHandle(*v8_f.ToLocalChecked()));
     return f;
   }
 };
@@ -81,7 +81,7 @@ TEST_F(FeedbackVectorTest, VectorStructure) {
   {
     FeedbackVectorSpec spec(&zone);
     spec.AddForInSlot();
-    spec.AddCreateClosureSlot();
+    spec.AddCreateClosureParameterCount(0);
     spec.AddForInSlot();
     vector = NewFeedbackVector(isolate, &spec);
     FeedbackVectorHelper helper(vector);
@@ -155,12 +155,12 @@ TEST_F(FeedbackVectorTest, VectorCallICStates) {
       "function foo() { return 17; };"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { a(); } f(foo);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(isolate, feedback_vector, slot);
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
 
   TryRunJS("f(function() { return 16; })");
@@ -186,12 +186,12 @@ TEST_F(FeedbackVectorTest, VectorCallICStateApply) {
       "function foo() { return F.apply(null, arguments); }"
       "F = Math.min;"
       "foo();");
-  Handle<JSFunction> foo = GetFunction("foo");
-  Handle<JSFunction> F = GetFunction("F");
+  DirectHandle<JSFunction> foo = GetFunction("foo");
+  DirectHandle<JSFunction> F = GetFunction("F");
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(foo->feedback_vector(), isolate);
   FeedbackSlot slot(4);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   CHECK_EQ(CallFeedbackContent::kReceiver, nexus.GetCallFeedbackContent());
   Tagged<HeapObject> heap_object;
@@ -224,13 +224,13 @@ TEST_F(FeedbackVectorTest, VectorCallFeedback) {
       "function foo() { return 17; }"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { a(); } f(foo);");
-  Handle<JSFunction> f = GetFunction("f");
-  Handle<JSFunction> foo = GetFunction("foo");
+  DirectHandle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> foo = GetFunction("foo");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
 
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   Tagged<HeapObject> heap_object;
@@ -256,13 +256,13 @@ TEST_F(FeedbackVectorTest, VectorPolymorphicCallFeedback) {
       "a_foo = foo_maker();"
       "function f(a) { a(); } f(foo_maker());"
       "f(foo_maker());");
-  Handle<JSFunction> f = GetFunction("f");
-  Handle<JSFunction> a_foo = GetFunction("a_foo");
+  DirectHandle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> a_foo = GetFunction("a_foo");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
 
   CHECK_EQ(InlineCacheState::POLYMORPHIC, nexus.ic_state());
   Tagged<HeapObject> heap_object;
@@ -285,12 +285,12 @@ TEST_F(FeedbackVectorTest, VectorCallFeedbackForArray) {
       "function f(a) { a(); };"
       "%EnsureFeedbackVectorForFunction(f);"
       "f(Array);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
 
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   Tagged<HeapObject> heap_object;
@@ -315,12 +315,12 @@ TEST_F(FeedbackVectorTest, VectorCallCounts) {
       "function foo() { return 17; }"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { a(); } f(foo);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
 
   TryRunJS("f(foo); f(foo);");
@@ -346,12 +346,12 @@ TEST_F(FeedbackVectorTest, VectorConstructCounts) {
       "function Foo() {}"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { new a(); } f(Foo);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
 
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
 
   CHECK(feedback_vector->Get(slot).IsWeak());
@@ -379,12 +379,12 @@ TEST_F(FeedbackVectorTest, VectorSpeculationMode) {
       "function Foo() {}"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { new a(); } f(Foo);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
 
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
   CHECK_EQ(SpeculationMode::kAllowSpeculation, nexus.GetSpeculationMode());
 
   TryRunJS("f(Foo); f(Foo);");
@@ -416,11 +416,11 @@ TEST_F(FeedbackVectorTest, VectorCallSpeculationModeAndFeedbackContent) {
       "%PrepareFunctionForOptimization(min);"
       "%PrepareFunctionForOptimization(f);"
       "f(1);");
-  Handle<JSFunction> min = GetFunction("min");
+  DirectHandle<JSFunction> min = GetFunction("min");
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(min->feedback_vector(), isolate);
   FeedbackSlot slot(6);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
 
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   CHECK_EQ(SpeculationMode::kAllowSpeculation, nexus.GetSpeculationMode());
@@ -448,19 +448,19 @@ TEST_F(FeedbackVectorTest, VectorLoadICStates) {
       "var o = { foo: 3 };"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { return a.foo; } f(o);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
 
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   // Verify that the monomorphic map is the one we expect.
   v8::MaybeLocal<v8::Value> v8_o =
       v8_context()->Global()->Get(v8_context(), NewString("o"));
-  Handle<JSObject> o =
-      Handle<JSObject>::cast(v8::Utils::OpenHandle(*v8_o.ToLocalChecked()));
+  DirectHandle<JSObject> o =
+      Cast<JSObject>(v8::Utils::OpenDirectHandle(*v8_o.ToLocalChecked()));
   CHECK_EQ(o->map(), nexus.GetFirstMap());
 
   // Now go polymorphic.
@@ -507,21 +507,29 @@ TEST_F(FeedbackVectorTest, VectorLoadGlobalICSlotSharing) {
       "}"
       "%EnsureFeedbackVectorForFunction(f);"
       "f();");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be two IC slots for {o} references outside and inside
   // typeof operator respectively.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackVectorHelper helper(feedback_vector);
-  CHECK_EQ(2, helper.slot_count());
+  CHECK_EQ(4, helper.slot_count());
   CHECK_SLOT_KIND(helper, 0, FeedbackSlotKind::kLoadGlobalNotInsideTypeof);
   CHECK_SLOT_KIND(helper, 1, FeedbackSlotKind::kLoadGlobalInsideTypeof);
+  CHECK_SLOT_KIND(helper, 2, FeedbackSlotKind::kTypeOf);
+  CHECK_SLOT_KIND(helper, 3, FeedbackSlotKind::kTypeOf);
   FeedbackSlot slot1 = helper.slot(0);
   FeedbackSlot slot2 = helper.slot(1);
+  FeedbackSlot slot3 = helper.slot(2);
+  FeedbackSlot slot4 = helper.slot(3);
   CHECK_EQ(InlineCacheState::MONOMORPHIC,
-           FeedbackNexus(feedback_vector, slot1).ic_state());
+           FeedbackNexus(i_isolate(), feedback_vector, slot1).ic_state());
   CHECK_EQ(InlineCacheState::MONOMORPHIC,
-           FeedbackNexus(feedback_vector, slot2).ic_state());
+           FeedbackNexus(i_isolate(), feedback_vector, slot2).ic_state());
+  CHECK_EQ(InlineCacheState::MONOMORPHIC,
+           FeedbackNexus(i_isolate(), feedback_vector, slot3).ic_state());
+  CHECK_EQ(InlineCacheState::MONOMORPHIC,
+           FeedbackNexus(i_isolate(), feedback_vector, slot4).ic_state());
 }
 
 TEST_F(FeedbackVectorTest, VectorLoadICOnSmi) {
@@ -538,12 +546,12 @@ TEST_F(FeedbackVectorTest, VectorLoadICOnSmi) {
       "var o = { foo: 3 };"
       "%EnsureFeedbackVectorForFunction(f);"
       "function f(a) { return a.foo; } f(34);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC.
   Handle<FeedbackVector> feedback_vector =
       Handle<FeedbackVector>(f->feedback_vector(), isolate);
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   // Verify that the monomorphic map is the one we expect.
   Tagged<Map> number_map = ReadOnlyRoots(heap).heap_number_map();
@@ -560,11 +568,11 @@ TEST_F(FeedbackVectorTest, VectorLoadICOnSmi) {
   // One of the maps should be the o map.
   v8::MaybeLocal<v8::Value> v8_o =
       v8_context()->Global()->Get(v8_context(), NewString("o"));
-  Handle<JSObject> o =
-      Handle<JSObject>::cast(v8::Utils::OpenHandle(*v8_o.ToLocalChecked()));
+  DirectHandle<JSObject> o =
+      Cast<JSObject>(v8::Utils::OpenDirectHandle(*v8_o.ToLocalChecked()));
   bool number_map_found = false;
   bool o_map_found = false;
-  for (Handle<Map> current : maps) {
+  for (DirectHandle<Map> current : maps) {
     if (*current == number_map)
       number_map_found = true;
     else if (*current == o->map())
@@ -599,7 +607,7 @@ TEST_F(FeedbackVectorTest, ReferenceContextAllocatesNoSlots) {
         "a = 3;"
         "testvar({});");
 
-    Handle<JSFunction> f = GetFunction("testvar");
+    DirectHandle<JSFunction> f = GetFunction("testvar");
 
     // There should be two LOAD_ICs, one for a and one for y at the end.
     Handle<FeedbackVector> feedback_vector =
@@ -620,7 +628,7 @@ TEST_F(FeedbackVectorTest, ReferenceContextAllocatesNoSlots) {
         "%EnsureFeedbackVectorForFunction(testprop);"
         "testprop({ blue: 3 });");
 
-    Handle<JSFunction> f = GetFunction("testprop");
+    DirectHandle<JSFunction> f = GetFunction("testprop");
 
     // There should be one LOAD_IC, for the load of a.
     Handle<FeedbackVector> feedback_vector(f->feedback_vector(), isolate);
@@ -640,7 +648,7 @@ TEST_F(FeedbackVectorTest, ReferenceContextAllocatesNoSlots) {
         "function makeresult() { return { blue: 3 }; }"
         "testpropfunc(makeresult);");
 
-    Handle<JSFunction> f = GetFunction("testpropfunc");
+    DirectHandle<JSFunction> f = GetFunction("testpropfunc");
 
     // There should be 1 LOAD_GLOBAL_IC to load x (in both cases), 2 CALL_ICs
     // to call x and a LOAD_IC to load blue.
@@ -663,7 +671,7 @@ TEST_F(FeedbackVectorTest, ReferenceContextAllocatesNoSlots) {
         "%EnsureFeedbackVectorForFunction(testkeyedprop);"
         "testkeyedprop([0, 1, 2]);");
 
-    Handle<JSFunction> f = GetFunction("testkeyedprop");
+    DirectHandle<JSFunction> f = GetFunction("testkeyedprop");
 
     // There should be 1 LOAD_GLOBAL_ICs for the load of a, and one
     // KEYED_LOAD_IC for the load of x[0] in the return statement.
@@ -685,7 +693,7 @@ TEST_F(FeedbackVectorTest, ReferenceContextAllocatesNoSlots) {
         "%EnsureFeedbackVectorForFunction(testkeyedprop);"
         "testkeyedprop([0, 1, 2]);");
 
-    Handle<JSFunction> f = GetFunction("testkeyedprop");
+    DirectHandle<JSFunction> f = GetFunction("testkeyedprop");
 
     // There should be 1 LOAD_GLOBAL_ICs for the load of a, and one
     // KEYED_LOAD_IC for the load of x[0] in the return statement.
@@ -707,7 +715,7 @@ TEST_F(FeedbackVectorTest, ReferenceContextAllocatesNoSlots) {
         "%EnsureFeedbackVectorForFunction(testcompound);"
         "testcompound({ old: 3, young: 3, in_between: 3 });");
 
-    Handle<JSFunction> f = GetFunction("testcompound");
+    DirectHandle<JSFunction> f = GetFunction("testcompound");
 
     // There should be 1 LOAD_GLOBAL_IC for load of a and 2 LOAD_ICs, for load
     // of x.old and x.young.
@@ -740,13 +748,13 @@ TEST_F(FeedbackVectorTest, VectorStoreICBasic) {
       "f(a);"
       "f(a);"
       "f(a);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC slot.
   Handle<FeedbackVector> feedback_vector(f->feedback_vector(), f->GetIsolate());
   FeedbackVectorHelper helper(feedback_vector);
   CHECK_EQ(1, helper.slot_count());
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(feedback_vector, slot);
+  FeedbackNexus nexus(i_isolate(), feedback_vector, slot);
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
 }
 
@@ -765,14 +773,14 @@ TEST_F(FeedbackVectorTest, DefineNamedOwnIC) {
       "f(1);"
       "f(2);"
       "f(3);");
-  Handle<JSFunction> f = GetFunction("f");
+  DirectHandle<JSFunction> f = GetFunction("f");
   // There should be one IC slot.
   Handle<FeedbackVector> feedback_vector(f->feedback_vector(), f->GetIsolate());
   FeedbackVectorHelper helper(feedback_vector);
   CHECK_EQ(2, helper.slot_count());
   CHECK_SLOT_KIND(helper, 0, FeedbackSlotKind::kLiteral);
   CHECK_SLOT_KIND(helper, 1, FeedbackSlotKind::kDefineNamedOwn);
-  FeedbackNexus nexus(feedback_vector, helper.slot(1));
+  FeedbackNexus nexus(i_isolate(), feedback_vector, helper.slot(1));
   CHECK_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
 }
 

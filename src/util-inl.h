@@ -247,7 +247,7 @@ T* UncheckedRealloc(T* pointer, size_t n) {
 
   void* allocated = realloc(pointer, full_size);
 
-  if (UNLIKELY(allocated == nullptr)) {
+  if (allocated == nullptr) [[unlikely]] {
     // Tell V8 that memory is low and retry.
     LowMemoryNotification();
     allocated = realloc(pointer, full_size);
@@ -326,7 +326,7 @@ v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
                                     std::string_view str,
                                     v8::Isolate* isolate) {
   if (isolate == nullptr) isolate = context->GetIsolate();
-  if (UNLIKELY(str.size() >= static_cast<size_t>(v8::String::kMaxLength))) {
+  if (str.size() >= static_cast<size_t>(v8::String::kMaxLength)) [[unlikely]] {
     // V8 only has a TODO comment about adding an exception when the maximum
     // string size is exceeded.
     ThrowErrStringTooLong(isolate);
@@ -540,25 +540,21 @@ constexpr std::string_view FastStringKey::as_string_view() const {
 // Inline so the compiler can fully optimize it away on Unix platforms.
 bool IsWindowsBatchFile(const char* filename) {
 #ifdef _WIN32
-  static constexpr bool kIsWindows = true;
-#else
-  static constexpr bool kIsWindows = false;
-#endif  // _WIN32
-  if (kIsWindows) {
-    std::string file_with_extension = filename;
-    // Regex to match the last extension part after the last dot, ignoring
-    // trailing spaces and dots
-    std::regex extension_regex(R"(\.([a-zA-Z0-9]+)\s*[\.\s]*$)");
-    std::smatch match;
-    std::string extension;
+  std::string file_with_extension = filename;
+  // Regex to match the last extension part after the last dot, ignoring
+  // trailing spaces and dots
+  std::regex extension_regex(R"(\.([a-zA-Z0-9]+)\s*[\.\s]*$)");
+  std::smatch match;
+  std::string extension;
 
-    if (std::regex_search(file_with_extension, match, extension_regex)) {
-      extension = ToLower(match[1].str());
-    }
-
-    return !extension.empty() && (extension == "cmd" || extension == "bat");
+  if (std::regex_search(file_with_extension, match, extension_regex)) {
+    extension = ToLower(match[1].str());
   }
+
+  return !extension.empty() && (extension == "cmd" || extension == "bat");
+#else
   return false;
+#endif  // _WIN32
 }
 
 }  // namespace node

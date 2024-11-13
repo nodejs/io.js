@@ -4,8 +4,9 @@
 
 #include "src/heap/main-allocator.h"
 
+#include <optional>
+
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/common/globals.h"
 #include "src/execution/vm-state-inl.h"
 #include "src/execution/vm-state.h"
@@ -16,14 +17,27 @@
 #include "src/heap/incremental-marking.h"
 #include "src/heap/main-allocator-inl.h"
 #include "src/heap/new-spaces.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/paged-spaces.h"
 #include "src/heap/spaces.h"
 
 namespace v8 {
 namespace internal {
 
+constexpr MainAllocator::BlackAllocation MainAllocator::ComputeBlackAllocation(
+    MainAllocator::IsNewGeneration is_new_generation) {
+  if (is_new_generation == IsNewGeneration::kYes) {
+    return BlackAllocation::kAlwaysDisabled;
+  }
+  if (v8_flags.sticky_mark_bits) {
+    // Allocate black on all non-young spaces.
+    return BlackAllocation::kAlwaysEnabled;
+  }
+  return BlackAllocation::kEnabledOnMarking;
+}
+
 MainAllocator::MainAllocator(LocalHeap* local_heap, SpaceWithLinearArea* space,
+                             IsNewGeneration is_new_generation,
                              LinearAllocationArea* allocation_info)
     : local_heap_(local_heap),
       isolate_heap_(local_heap->heap()),
@@ -31,7 +45,8 @@ MainAllocator::MainAllocator(LocalHeap* local_heap, SpaceWithLinearArea* space,
       allocation_info_(allocation_info != nullptr ? allocation_info
                                                   : &owned_allocation_info_),
       allocator_policy_(space->CreateAllocatorPolicy(this)),
-      supports_extending_lab_(allocator_policy_->SupportsExtendingLAB()) {
+      supports_extending_lab_(allocator_policy_->SupportsExtendingLAB()),
+      black_allocation_(ComputeBlackAllocation(is_new_generation)) {
   CHECK_NOT_NULL(local_heap_);
   if (local_heap_->is_main_thread()) {
     allocation_counter_.emplace();
@@ -45,7 +60,8 @@ MainAllocator::MainAllocator(Heap* heap, SpaceWithLinearArea* space, InGCTag)
       space_(space),
       allocation_info_(&owned_allocation_info_),
       allocator_policy_(space->CreateAllocatorPolicy(this)),
-      supports_extending_lab_(false) {
+      supports_extending_lab_(false),
+      black_allocation_(BlackAllocation::kAlwaysDisabled) {
   DCHECK(!allocation_counter_.has_value());
   DCHECK(!linear_area_original_data_.has_value());
 }
@@ -77,10 +93,10 @@ AllocationResult MainAllocator::AllocateRawForceAlignmentForTesting(
 }
 
 bool MainAllocator::IsBlackAllocationEnabled() const {
-  // Use the space heap to check whether black allocation is enabled. For shared
-  // space this might be different from the LocalHeap's heap.
-  return identity() != NEW_SPACE && !in_gc() &&
-         space_heap()->incremental_marking()->black_allocation();
+  if (black_allocation_ == BlackAllocation::kAlwaysDisabled) return false;
+  if (black_allocation_ == BlackAllocation::kAlwaysEnabled) return true;
+  DCHECK_EQ(black_allocation_, BlackAllocation::kEnabledOnMarking);
+  return space_heap()->incremental_marking()->black_allocation();
 }
 
 void MainAllocator::AddAllocationObserver(AllocationObserver* observer) {
@@ -303,13 +319,13 @@ bool MainAllocator::EnsureAllocation(int size_in_bytes,
                                      AllocationAlignment alignment,
                                      AllocationOrigin origin) {
 #ifdef V8_RUNTIME_CALL_STATS
-  base::Optional<RuntimeCallTimerScope> rcs_scope;
+  std::optional<RuntimeCallTimerScope> rcs_scope;
   if (is_main_thread()) {
     rcs_scope.emplace(isolate_heap()->isolate(),
                       RuntimeCallCounterId::kGC_Custom_SlowAllocateRaw);
   }
 #endif  // V8_RUNTIME_CALL_STATS
-  base::Optional<VMState<GC>> vmstate;
+  std::optional<VMState<GC>> vmstate;
   if (is_main_thread()) {
     vmstate.emplace(isolate_heap()->isolate());
   }
@@ -322,12 +338,6 @@ void MainAllocator::FreeLinearAllocationArea() {
 #if DEBUG
   Verify();
 #endif  // DEBUG
-
-  base::Optional<CodePageHeaderModificationScope> optional_scope;
-  if (identity() == CODE_SPACE) {
-    optional_scope.emplace(
-        "FreeLinearAllocationArea writes to the page header.");
-  }
 
   MemoryChunkMetadata::UpdateHighWaterMark(top());
   allocator_policy_->FreeLinearAllocationArea();
@@ -407,11 +417,6 @@ void MainAllocator::Verify() const {
 bool MainAllocator::EnsureAllocationForTesting(int size_in_bytes,
                                                AllocationAlignment alignment,
                                                AllocationOrigin origin) {
-  base::Optional<CodePageHeaderModificationScope> optional_scope;
-  if (identity() == CODE_SPACE) {
-    optional_scope.emplace("Slow allocation path writes to the page header.");
-  }
-
   return EnsureAllocation(size_in_bytes, alignment, origin);
 }
 
@@ -448,12 +453,12 @@ Heap* AllocatorPolicy::isolate_heap() const {
 
 bool SemiSpaceNewSpaceAllocatorPolicy::EnsureAllocation(
     int size_in_bytes, AllocationAlignment alignment, AllocationOrigin origin) {
-  base::Optional<base::MutexGuard> guard;
+  std::optional<base::MutexGuard> guard;
   if (allocator_->in_gc()) guard.emplace(space_->mutex());
 
   FreeLinearAllocationAreaUnsynchronized();
 
-  base::Optional<std::pair<Address, Address>> allocation_result =
+  std::optional<std::pair<Address, Address>> allocation_result =
       space_->Allocate(size_in_bytes, alignment);
   if (!allocation_result) return false;
 
@@ -495,7 +500,7 @@ void SemiSpaceNewSpaceAllocatorPolicy::FreeLinearAllocationArea() {
   allocator_->Verify();
 #endif  // DEBUG
 
-  base::Optional<base::MutexGuard> guard;
+  std::optional<base::MutexGuard> guard;
   if (allocator_->in_gc()) guard.emplace(space_->mutex());
 
   FreeLinearAllocationAreaUnsynchronized();
@@ -653,6 +658,25 @@ bool PagedSpaceAllocatorPolicy::RefillLab(int size_in_bytes,
   if (TryExtendLAB(size_in_bytes)) return true;
 
   if (TryAllocationFromFreeList(size_in_bytes, origin)) return true;
+
+  // Don't steal pages from the shared space of the main isolate if running as a
+  // client. The issue is that the concurrent marker may be running on the main
+  // isolate and may reach the page and read its flags, which will then end up
+  // in a race, when the page of the compaction space will be merged back to the
+  // main space. For the same reason, don't take swept pages from the main
+  // shared space.
+  const bool running_from_client_isolate_and_allocating_in_shared_space =
+      (allocator_->identity() == SHARED_SPACE) &&
+      !isolate_heap()->isolate()->is_shared_space_isolate();
+  if (running_from_client_isolate_and_allocating_in_shared_space) {
+    // Avoid OOM crash in the GC in order to invoke NearHeapLimitCallback after
+    // GC and give it a chance to increase the heap limit.
+    if (!isolate_heap()->force_oom() &&
+        TryExpandAndAllocate(size_in_bytes, origin)) {
+      return true;
+    }
+    return false;
+  }
 
   // Sweeping is still in progress.
   if (space_heap()->sweeping_in_progress()) {

@@ -163,7 +163,8 @@ class Deserializer : public SerializerDeserializer {
                        Handle<HeapObject> heap_object,
                        ReferenceDescriptor descr);
 
-  inline int WriteExternalPointer(ExternalPointerSlot dest, Address value);
+  inline int WriteExternalPointer(Tagged<HeapObject> host,
+                                  ExternalPointerSlot dest, Address value);
   inline int WriteIndirectPointer(IndirectPointerSlot dest,
                                   Tagged<HeapObject> value);
 
@@ -249,9 +250,9 @@ class Deserializer : public SerializerDeserializer {
   int ReadRepeatedObject(SlotGetter slot_getter, int repeat_count);
 
   // Special handling for serialized code like hooking up internalized strings.
-  void PostProcessNewObject(Handle<Map> map, Handle<HeapObject> obj,
+  void PostProcessNewObject(DirectHandle<Map> map, Handle<HeapObject> obj,
                             SnapshotSpace space);
-  void PostProcessNewJSReceiver(Tagged<Map> map, Handle<JSReceiver> obj,
+  void PostProcessNewJSReceiver(Tagged<Map> map, DirectHandle<JSReceiver> obj,
                                 InstanceType instance_type,
                                 SnapshotSpace space);
 
@@ -344,10 +345,10 @@ enum class DeserializingUserCodeOption {
 class StringTableInsertionKey final : public StringTableKey {
  public:
   explicit StringTableInsertionKey(
-      Isolate* isolate, Handle<String> string,
+      Isolate* isolate, DirectHandle<String> string,
       DeserializingUserCodeOption deserializing_user_code);
   explicit StringTableInsertionKey(
-      LocalIsolate* isolate, Handle<String> string,
+      LocalIsolate* isolate, DirectHandle<String> string,
       DeserializingUserCodeOption deserializing_user_code);
 
   template <typename IsolateT>
@@ -361,12 +362,12 @@ class StringTableInsertionKey final : public StringTableKey {
                DeserializingUserCodeOption::kIsDeserializingUserCode);
   }
   void PrepareForInsertion(LocalIsolate* isolate) {}
-  V8_WARN_UNUSED_RESULT Handle<String> GetHandleForInsertion() {
+  V8_WARN_UNUSED_RESULT DirectHandle<String> GetHandleForInsertion() {
     return string_;
   }
 
  private:
-  Handle<String> string_;
+  DirectHandle<String> string_;
 #ifdef DEBUG
   DeserializingUserCodeOption deserializing_user_code_;
 #endif

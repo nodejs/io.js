@@ -5,6 +5,7 @@
 #include "src/compiler/graph-visualizer.h"
 
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -28,9 +29,7 @@
 #include "src/utils/ostreams.h"
 
 #if V8_ENABLE_WEBASSEMBLY
-#include "src/wasm/function-body-decoder.h"
-#include "src/wasm/names-provider.h"
-#include "src/wasm/string-builder.h"
+#include "src/wasm/wasm-disassembler.h"
 #endif
 
 namespace v8 {
@@ -70,7 +69,7 @@ std::ostream& operator<<(std::ostream& out, const NodeOriginAsJSON& asJSON) {
 
 void JsonPrintBytecodeSource(std::ostream& os, int source_id,
                              std::unique_ptr<char[]> function_name,
-                             Handle<BytecodeArray> bytecode_array) {
+                             DirectHandle<BytecodeArray> bytecode_array) {
   os << "\"" << source_id << "\" : {";
   os << "\"sourceId\": " << source_id;
   os << ", \"functionName\": \"" << function_name.get() << "\"";
@@ -97,7 +96,7 @@ void JsonPrintFunctionSource(std::ostream& os, int source_id,
     os << ", \"sourceName\": \"";
     if (IsString(source_name)) {
       std::ostringstream escaped_name;
-      escaped_name << String::cast(source_name)->ToCString().get();
+      escaped_name << Cast<String>(source_name)->ToCString().get();
       os << JSONEscaped(escaped_name);
     }
     os << "\"";
@@ -108,7 +107,7 @@ void JsonPrintFunctionSource(std::ostream& os, int source_id,
       if (!IsUndefined(script->source())) {
         DisallowGarbageCollection no_gc;
         int len = shared->EndPosition() - start;
-        SubStringRange source(String::cast(script->source()), no_gc, start,
+        SubStringRange source(Cast<String>(script->source()), no_gc, start,
                               len);
         for (auto c : source) {
           os << AsEscapedUC16ForJSON(c);
@@ -117,34 +116,13 @@ void JsonPrintFunctionSource(std::ostream& os, int source_id,
       } else if (shared->HasWasmExportedFunctionData()) {
         Tagged<WasmExportedFunctionData> function_data =
             shared->wasm_exported_function_data();
-        Handle<WasmInstanceObject> instance(function_data->instance(), isolate);
-        const wasm::WasmModule* module = instance->module();
         wasm::NativeModule* native_module =
-            instance->module_object()->native_module();
-
-        // Add a comment with the wasm debug name as the sourceName above will
-        // be something like "wasm://wasm/5b5cdc9e:js-to-wasm:n:i".
+            function_data->instance_data()->native_module();
+        const wasm::WasmModule* module = native_module->module();
         std::ostringstream str;
-        wasm::StringBuilder sb;
-        sb << "// debug name: ";
-        native_module->GetNamesProvider()->PrintFunctionName(
-            sb, function_data->function_index(),
-            wasm::NamesProvider::kDevTools);
-        sb << '\n';
-        str.write(sb.start(), sb.length());
-
-        const wasm::WasmFunction& function =
-            module->functions[function_data->function_index()];
-        wasm::WireBytesRef wire_bytes_ref = function.code;
-        base::Vector<const uint8_t> bytes(native_module->wire_bytes().SubVector(
-            wire_bytes_ref.offset(), wire_bytes_ref.end_offset()));
-        bool is_shared = module->types[function.sig_index].is_shared;
-        wasm::FunctionBody func_body{function_data->sig(),
-                                     wire_bytes_ref.offset(), bytes.begin(),
-                                     bytes.end(), is_shared};
-        AccountingAllocator allocator;
-        wasm::PrintRawWasmCode(&allocator, func_body, module,
-                               wasm::kPrintLocals, str);
+        wasm::DisassembleFunction(module, function_data->function_index(),
+                                  native_module->wire_bytes(),
+                                  native_module->GetNamesProvider(), str);
         os << JSONEscaped(str);
 #endif  // V8_ENABLE_WEBASSEMBLY
       }
@@ -223,7 +201,7 @@ void JsonPrintAllSourceWithPositions(std::ostream& os,
       (info->shared_info().is_null() ||
        info->shared_info()->script() == Tagged<Object>())
           ? Handle<Script>()
-          : handle(Script::cast(info->shared_info()->script()), isolate);
+          : handle(Cast<Script>(info->shared_info()->script()), isolate);
   JsonPrintFunctionSource(os, -1,
                           info->shared_info().is_null()
                               ? std::unique_ptr<char[]>(new char[1]{0})
@@ -236,7 +214,7 @@ void JsonPrintAllSourceWithPositions(std::ostream& os,
     Handle<SharedFunctionInfo> shared = inlined[id].shared_info;
     const int source_id = id_assigner.GetIdFor(shared);
     JsonPrintFunctionSource(os, source_id, shared->DebugNameCStr(),
-                            handle(Script::cast(shared->script()), isolate),
+                            handle(Cast<Script>(shared->script()), isolate),
                             isolate, shared, true);
   }
   os << "}, ";
@@ -279,15 +257,14 @@ void JsonPrintAllSourceWithPositionsWasm(
     const wasm::WasmFunction& fct = module->functions[function_id];
     os << '"' << i << "\": {\"sourceId\": " << i << ", \"functionName\": \""
        << fct.func_index << "\", \"sourceName\": \"\", \"sourceText\": \"";
-    wasm::WireBytesRef wire_bytes_ref = fct.code;
-    base::Vector<const uint8_t> bytes = wire_bytes->GetCode(wire_bytes_ref);
-    bool is_shared = module->types[fct.sig_index].is_shared;
-    wasm::FunctionBody func_body{fct.sig, wire_bytes_ref.offset(),
-                                 bytes.begin(), bytes.end(), is_shared};
-    AccountingAllocator allocator;
+    base::Vector<const uint8_t> module_bytes{nullptr, 0};
+    std::optional<wasm::ModuleWireBytes> maybe_wire_bytes =
+        wire_bytes->GetModuleBytes();
+    if (maybe_wire_bytes) module_bytes = maybe_wire_bytes->module_bytes();
     std::ostringstream wasm_str;
-    wasm::PrintRawWasmCode(&allocator, func_body, module, wasm::kPrintLocals,
-                           wasm_str);
+    wasm::DisassembleFunction(module, function_id,
+                              wire_bytes->GetCode(fct.code), module_bytes,
+                              fct.code.offset(), wasm_str);
     os << JSONEscaped(wasm_str) << "\"}";
   }
   os << "},\n";
@@ -297,6 +274,7 @@ void JsonPrintAllSourceWithPositionsWasm(
   os << "\"inlinings\": {";
   for (size_t i = 0; i < positions.size(); ++i) {
     if (i != 0) os << ", ";
+    DCHECK(source_map.contains(positions[i].inlinee_func_index));
     size_t source_id = source_map.find(positions[i].inlinee_func_index)->second;
     SourcePosition inlining_pos = positions[i].caller_pos;
     os << '"' << i << "\": {\"inliningId\": " << i
@@ -334,9 +312,9 @@ std::unique_ptr<char[]> GetVisualizerLogFileName(OptimizedCompilationInfo* info,
   if (v8_flags.trace_file_names && info->has_shared_info() &&
       IsScript(info->shared_info()->script())) {
     Tagged<Object> source_name =
-        Script::cast(info->shared_info()->script())->name();
+        Cast<Script>(info->shared_info()->script())->name();
     if (IsString(source_name)) {
-      Tagged<String> str = String::cast(source_name);
+      Tagged<String> str = Cast<String>(source_name);
       if (str->length() > 0) {
         SNPrintF(source_file, "%s", str->ToCString().get());
         std::replace(source_file.begin(),
@@ -510,8 +488,8 @@ void JSONGraphWriter::PrintEdge(Node* from, int index, Node* to) {
       << ",\"index\":" << index << ",\"type\":\"" << edge_type << "\"}";
 }
 
-base::Optional<Type> JSONGraphWriter::GetType(Node* node) {
-  if (!NodeProperties::IsTyped(node)) return base::nullopt;
+std::optional<Type> JSONGraphWriter::GetType(Node* node) {
+  if (!NodeProperties::IsTyped(node)) return std::nullopt;
   return NodeProperties::GetType(node);
 }
 

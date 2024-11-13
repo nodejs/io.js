@@ -12,8 +12,11 @@ use OpenSSL::Test::Utils qw(anydisabled);
 
 our $fips_mode;
 
-my @curves = ("prime256v1", "secp384r1", "secp521r1", "X25519",
-              "X448");
+my @curves = ("prime256v1", "secp384r1", "secp521r1");
+
+my @curves_no_fips = ("X25519", "X448");
+
+push @curves, @curves_no_fips if !$fips_mode;
 
 #Curves *only* suitable for use in TLSv1.3
 my @curves_tls_1_3 = ("ffdhe2048", "ffdhe3072", "ffdhe4096", "ffdhe6144",

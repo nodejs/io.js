@@ -19,13 +19,15 @@
 
 #if V8_OS_DARWIN
 #include <malloc/malloc.h>
-#else  // !V8_OS_DARWIN
+#elif V8_OS_ZOS
+#include <stdlib.h>
+#else
 #include <malloc.h>
-#endif  // !V8_OS_DARWIN
+#endif
 
-#if (V8_OS_POSIX && !V8_OS_AIX && !V8_OS_SOLARIS) || V8_OS_WIN
+#if (V8_OS_POSIX && !V8_OS_AIX && !V8_OS_SOLARIS && !V8_OS_ZOS) || V8_OS_WIN
 #define V8_HAS_MALLOC_USABLE_SIZE 1
-#endif  // (V8_OS_POSIX && !V8_OS_AIX && !V8_OS_SOLARIS) || V8_OS_WIN
+#endif
 
 namespace v8::base {
 
@@ -83,6 +85,8 @@ inline void* AlignedAlloc(size_t size, size_t alignment) {
   // posix_memalign is not exposed in some Android versions, so we fall back to
   // memalign. See http://code.google.com/p/android/issues/detail?id=35391.
   return memalign(alignment, size);
+#elif V8_OS_ZOS
+  return __aligned_malloc(size, alignment);
 #else   // POSIX
   void* ptr;
   if (posix_memalign(&ptr, alignment, size)) ptr = nullptr;
@@ -93,6 +97,8 @@ inline void* AlignedAlloc(size_t size, size_t alignment) {
 inline void AlignedFree(void* ptr) {
 #if V8_OS_WIN
   _aligned_free(ptr);
+#elif V8_OS_ZOS
+  __aligned_free(ptr);
 #else
   // Using regular Free() is not correct in general. For most platforms,
   // including V8_LIBC_BIONIC, it is though.

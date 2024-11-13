@@ -1,6 +1,6 @@
 {
   "name": "@npmcli/installed-package-contents",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Get the list of files installed in a package in node_modules, including bundled dependencies",
   "author": "GitHub Inc.",
   "main": "lib/index.js",
@@ -11,35 +11,36 @@
   "scripts": {
     "test": "tap",
     "snap": "tap",
-    "lint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\"",
+    "lint": "npm run eslint",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
-    "lintfix": "npm run lint -- --fix",
-    "posttest": "npm run lint"
+    "lintfix": "npm run eslint -- --fix",
+    "posttest": "npm run lint",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.21.4",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.3.0"
   },
   "dependencies": {
-    "npm-bundled": "^3.0.0",
-    "npm-normalize-package-bin": "^3.0.0"
+    "npm-bundled": "^4.0.0",
+    "npm-normalize-package-bin": "^4.0.0"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/installed-package-contents.git"
+    "url": "git+https://github.com/npm/installed-package-contents.git"
   },
   "files": [
     "bin/",
     "lib/"
   ],
   "engines": {
-    "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.21.4",
+    "version": "4.23.3",
     "publish": true
   },
   "tap": {

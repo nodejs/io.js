@@ -318,11 +318,6 @@ usnum_setMaximumIntegerDigits(USimpleNumber* unumber, int32_t maximumIntegerDigi
 }
 
 U_CAPI void U_EXPORT2
-usnum_truncateStart(USimpleNumber* unumber, int32_t maximumIntegerDigits, UErrorCode* ec) {
-    usnum_setMaximumIntegerDigits(unumber, maximumIntegerDigits, ec);
-}
-
-U_CAPI void U_EXPORT2
 usnum_setSign(USimpleNumber* unumber, USimpleNumberSign sign, UErrorCode* ec) {
     auto* number = USimpleNumberData::validate(unumber, *ec);
     if (U_FAILURE(*ec)) {

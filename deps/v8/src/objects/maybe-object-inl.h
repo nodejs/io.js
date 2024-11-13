@@ -6,6 +6,7 @@
 #define V8_OBJECTS_MAYBE_OBJECT_INL_H_
 
 #include "src/common/ptr-compr-inl.h"
+#include "src/objects/casting.h"
 #include "src/objects/maybe-object.h"
 #include "src/objects/smi-inl.h"
 #include "src/objects/tagged-impl-inl.h"
@@ -45,7 +46,7 @@ void UpdateHeapObjectReferenceSlot(THeapObjectSlot slot,
   bool weak_before = HAS_WEAK_HEAP_OBJECT_TAG(old_value);
 #endif
 
-  slot.store(Tagged<HeapObjectReference>::cast(
+  slot.store(Cast<HeapObjectReference>(
       Tagged<MaybeObject>(new_value | (old_value & kWeakHeapObjectMask))));
 
 #ifdef DEBUG

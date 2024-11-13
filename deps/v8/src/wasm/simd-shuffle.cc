@@ -82,6 +82,35 @@ bool SimdShuffle::TryMatch32x4OneLaneSwizzle(const uint8_t* shuffle32x4,
   return false;
 }
 
+bool SimdShuffle::TryMatch64x2Shuffle(const uint8_t* shuffle,
+                                      uint8_t* shuffle64x2) {
+  constexpr std::array<uint64_t, 2> element_patterns = {
+      0x0706050403020100,  // 0
+      0x0f0e0d0c0b0a0908   // 1
+  };
+  uint64_t low_shuffle = reinterpret_cast<const uint64_t*>(shuffle)[0];
+  uint64_t high_shuffle = reinterpret_cast<const uint64_t*>(shuffle)[1];
+#ifdef V8_TARGET_BIG_ENDIAN
+  low_shuffle = base::bits::ReverseBytes(low_shuffle);
+  high_shuffle = base::bits::ReverseBytes(high_shuffle);
+#endif
+  if (element_patterns[0] == low_shuffle) {
+    shuffle64x2[0] = 0;
+  } else if (element_patterns[1] == low_shuffle) {
+    shuffle64x2[0] = 1;
+  } else {
+    return false;
+  }
+  if (element_patterns[0] == high_shuffle) {
+    shuffle64x2[1] = 0;
+  } else if (element_patterns[1] == high_shuffle) {
+    shuffle64x2[1] = 1;
+  } else {
+    return false;
+  }
+  return true;
+}
+
 bool SimdShuffle::TryMatch32x4Shuffle(const uint8_t* shuffle,
                                       uint8_t* shuffle32x4) {
   for (int i = 0; i < 4; ++i) {
@@ -151,6 +180,103 @@ bool SimdShuffle::TryMatchByteToDwordZeroExtend(const uint8_t* shuffle) {
   return true;
 }
 
+namespace {
+// Try to match the first step in a 32x4 pairwise shuffle.
+bool TryMatch32x4Pairwise(const uint8_t* shuffle) {
+  // Pattern to select 32-bit element 1.
+  constexpr uint8_t low_pattern_arr[4] = {4, 5, 6, 7};
+  // And we'll check that element 1 is shuffled into element 0.
+  uint32_t low_shuffle = reinterpret_cast<const uint32_t*>(shuffle)[0];
+  // Pattern to select 32-bit element 3.
+  constexpr uint8_t high_pattern_arr[4] = {12, 13, 14, 15};
+  // And we'll check that element 3 is shuffled into element 2.
+  uint32_t high_shuffle = reinterpret_cast<const uint32_t*>(shuffle)[2];
+  uint32_t low_pattern = *reinterpret_cast<const uint32_t*>(low_pattern_arr);
+  uint32_t high_pattern = *reinterpret_cast<const uint32_t*>(high_pattern_arr);
+  return low_shuffle == low_pattern && high_shuffle == high_pattern;
+}
+
+// Try to match the final step in a 32x4, now 32x2, pairwise shuffle.
+bool TryMatch32x2Pairwise(const uint8_t* shuffle) {
+  // Pattern to select 32-bit element 2.
+  constexpr uint8_t pattern_arr[4] = {8, 9, 10, 11};
+  // And we'll check that element 2 is shuffled to element 0.
+  uint32_t low_shuffle = reinterpret_cast<const uint32_t*>(shuffle)[0];
+  uint32_t pattern = *reinterpret_cast<const uint32_t*>(pattern_arr);
+  return low_shuffle == pattern;
+}
+
+// Try to match the first step in a upper-to-lower half shuffle.
+bool TryMatchUpperToLowerFirst(const uint8_t* shuffle) {
+  // There's 16 'active' bytes, so the pattern to select the upper half starts
+  // at byte 8.
+  constexpr uint8_t low_pattern_arr[8] = {8, 9, 10, 11, 12, 13, 14, 15};
+  // And we'll check that the top half is shuffled into the lower.
+  uint64_t low_shuffle = reinterpret_cast<const uint64_t*>(shuffle)[0];
+  uint64_t low_pattern = *reinterpret_cast<const uint64_t*>(low_pattern_arr);
+  return low_shuffle == low_pattern;
+}
+
+// Try to match the second step in a upper-to-lower half shuffle.
+bool TryMatchUpperToLowerSecond(const uint8_t* shuffle) {
+  // There's 8 'active' bytes, so the pattern to select the upper half starts
+  // at byte 4.
+  constexpr uint8_t low_pattern_arr[4] = {4, 5, 6, 7};
+  // And we'll check that the top half is shuffled into the lower.
+  uint32_t low_shuffle = reinterpret_cast<const uint32_t*>(shuffle)[0];
+  uint32_t low_pattern = *reinterpret_cast<const uint32_t*>(low_pattern_arr);
+  return low_shuffle == low_pattern;
+}
+
+// Try to match the third step in a upper-to-lower half shuffle.
+bool TryMatchUpperToLowerThird(const uint8_t* shuffle) {
+  // The vector now has 4 'active' bytes, select the top two.
+  constexpr uint8_t low_pattern_arr[2] = {2, 3};
+  // And check they're shuffled to the lower half.
+  uint16_t low_shuffle = reinterpret_cast<const uint16_t*>(shuffle)[0];
+  uint16_t low_pattern = *reinterpret_cast<const uint16_t*>(low_pattern_arr);
+  return low_shuffle == low_pattern;
+}
+
+// Try to match the fourth step in a upper-to-lower half shuffle.
+bool TryMatchUpperToLowerFourth(const uint8_t* shuffle) {
+  return shuffle[0] == 1;
+}
+}  // end namespace
+
+bool SimdShuffle::TryMatch8x16UpperToLowerReduce(const uint8_t* shuffle1,
+                                                 const uint8_t* shuffle2,
+                                                 const uint8_t* shuffle3,
+                                                 const uint8_t* shuffle4) {
+  return TryMatchUpperToLowerFirst(shuffle1) &&
+         TryMatchUpperToLowerSecond(shuffle2) &&
+         TryMatchUpperToLowerThird(shuffle3) &&
+         TryMatchUpperToLowerFourth(shuffle4);
+}
+
+bool SimdShuffle::TryMatch16x8UpperToLowerReduce(const uint8_t* shuffle1,
+                                                 const uint8_t* shuffle2,
+                                                 const uint8_t* shuffle3) {
+  return TryMatchUpperToLowerFirst(shuffle1) &&
+         TryMatchUpperToLowerSecond(shuffle2) &&
+         TryMatchUpperToLowerThird(shuffle3);
+}
+
+bool SimdShuffle::TryMatch32x4UpperToLowerReduce(const uint8_t* shuffle1,
+                                                 const uint8_t* shuffle2) {
+  return TryMatchUpperToLowerFirst(shuffle1) &&
+         TryMatchUpperToLowerSecond(shuffle2);
+}
+
+bool SimdShuffle::TryMatch32x4PairwiseReduce(const uint8_t* shuffle1,
+                                             const uint8_t* shuffle2) {
+  return TryMatch32x4Pairwise(shuffle1) && TryMatch32x2Pairwise(shuffle2);
+}
+
+bool SimdShuffle::TryMatch64x2Reduce(const uint8_t* shuffle64x2) {
+  return shuffle64x2[0] == 1;
+}
+
 uint8_t SimdShuffle::PackShuffle4(uint8_t* shuffle) {
   return (shuffle[0] & 3) | ((shuffle[1] & 3) << 2) | ((shuffle[2] & 3) << 4) |
          ((shuffle[3] & 3) << 6);
@@ -186,6 +312,45 @@ void SimdShuffle::Pack16Lanes(uint32_t* dst, const uint8_t* shuffle) {
     dst[i] = wasm::SimdShuffle::Pack4Lanes(shuffle + (i * 4));
   }
 }
+
+#ifdef V8_TARGET_ARCH_X64
+// static
+bool SimdShuffle::TryMatchVpshufd(const uint8_t* shuffle32x8,
+                                  uint8_t* control) {
+  *control = 0;
+  for (int i = 0; i < 4; ++i) {
+    uint8_t mask;
+    if (shuffle32x8[i] < 4 && shuffle32x8[i + 4] - shuffle32x8[i] == 4) {
+      mask = shuffle32x8[i];
+      *control |= mask << (2 * i);
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+// static
+bool SimdShuffle::TryMatchShufps256(const uint8_t* shuffle32x8,
+                                    uint8_t* control) {
+  *control = 0;
+  for (int i = 0; i < 4; ++i) {
+    // low 128-bits and high 128-bits should have the same shuffle order.
+    if (shuffle32x8[i + 4] - shuffle32x8[i] == 4) {
+      // [63:0]   bits select from SRC1,
+      // [127:64] bits select from SRC2
+      if ((i < 2 && shuffle32x8[i] < 4) ||
+          (i >= 2 && shuffle32x8[i] >= 8 && shuffle32x8[i] < 12)) {
+        *control |= (shuffle32x8[i] % 4) << (2 * i);
+        continue;
+      }
+      return false;
+    }
+    return false;
+  }
+  return true;
+}
+#endif  // V8_TARGET_ARCH_X64
 
 bool SimdSwizzle::AllInRangeOrTopBitSet(
     std::array<uint8_t, kSimd128Size> shuffle) {

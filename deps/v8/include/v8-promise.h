@@ -14,7 +14,7 @@ namespace v8 {
 class Context;
 
 #ifndef V8_PROMISE_INTERNAL_FIELD_COUNT
-// The number of required internal fields can be defined by embedder.
+// Defined using gn arg `v8_promise_internal_field_count`.
 #define V8_PROMISE_INTERNAL_FIELD_COUNT 0
 #endif
 
@@ -115,7 +115,7 @@ class V8_EXPORT Promise : public Object {
     return static_cast<Promise*>(value);
   }
 
-  static const int kEmbedderFieldCount = V8_PROMISE_INTERNAL_FIELD_COUNT;
+  static constexpr int kEmbedderFieldCount = V8_PROMISE_INTERNAL_FIELD_COUNT;
 
  private:
   Promise();

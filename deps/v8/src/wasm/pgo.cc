@@ -15,7 +15,7 @@ constexpr uint8_t kFunctionTieredUpBit = 1 << 1;
 class ProfileGenerator {
  public:
   ProfileGenerator(const WasmModule* module,
-                   const uint32_t* tiering_budget_array)
+                   const std::atomic<uint32_t>* tiering_budget_array)
       : module_(module),
         type_feedback_mutex_guard_(&module->type_feedback.mutex),
         tiering_budget_array_(tiering_budget_array) {}
@@ -81,7 +81,8 @@ class ProfileGenerator {
                      ? 0
                      : feedback_it->second.tierup_priority;
       DCHECK_LE(0, prio);
-      uint32_t remaining_budget = tiering_budget_array_[declared_index];
+      uint32_t remaining_budget =
+          tiering_budget_array_[declared_index].load(std::memory_order_relaxed);
       DCHECK_GE(initial_budget, remaining_budget);
 
       bool was_tiered_up = prio > 0;
@@ -98,7 +99,7 @@ class ProfileGenerator {
   AccountingAllocator allocator_;
   Zone zone_{&allocator_, "wasm::ProfileGenerator"};
   base::SharedMutexGuard<base::kShared> type_feedback_mutex_guard_;
-  const uint32_t* const tiering_budget_array_;
+  const std::atomic<uint32_t>* const tiering_budget_array_;
 };
 
 void DeserializeTypeFeedback(Decoder& decoder, const WasmModule* module) {
@@ -192,7 +193,7 @@ std::unique_ptr<ProfileInformation> RestoreProfileData(
 
 void DumpProfileToFile(const WasmModule* module,
                        base::Vector<const uint8_t> wire_bytes,
-                       uint32_t* tiering_budget_array) {
+                       std::atomic<uint32_t>* tiering_budget_array) {
   CHECK(!wire_bytes.empty());
   // File are named `profile-wasm-<hash>`.
   // We use the same hash as for reported scripts, to make it easier to

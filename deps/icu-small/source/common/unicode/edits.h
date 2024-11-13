@@ -508,7 +508,7 @@ private:
     Edits &copyArray(const Edits &other);
     Edits &moveArray(Edits &src) noexcept;
 
-    void setLastUnit(int32_t last) { array[length - 1] = (uint16_t)last; }
+    void setLastUnit(int32_t last) { array[length - 1] = static_cast<uint16_t>(last); }
     int32_t lastUnit() const { return length > 0 ? array[length - 1] : 0xffff; }
 
     void append(int32_t r);

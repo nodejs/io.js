@@ -72,9 +72,6 @@ class V8_EXPORT_PRIVATE AccountingAllocator {
 
   std::unique_ptr<VirtualMemory> reserved_area_;
   std::unique_ptr<base::BoundedPageAllocator> bounded_page_allocator_;
-
-  ZoneBackingAllocator::MallocFn zone_backing_malloc_ = nullptr;
-  ZoneBackingAllocator::FreeFn zone_backing_free_ = nullptr;
 };
 
 }  // namespace internal

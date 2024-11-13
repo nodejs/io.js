@@ -23,7 +23,7 @@ import re
 import sys
 
 # TODO(clemensb): Extend to tests.
-DEFAULT_INPUT = ['base', 'include', 'src']
+DEFAULT_INPUT = ['include', 'src']
 DEFAULT_GN_FILE = 'BUILD.gn'
 MY_DIR = os.path.dirname(os.path.realpath(__file__))
 V8_DIR = os.path.dirname(MY_DIR)

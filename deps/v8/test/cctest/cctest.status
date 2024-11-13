@@ -127,6 +127,11 @@
   'test-spaces/OldSpace': [PASS, HEAVY],
   'test-strings/StringOOMNewStringFromOneByte': [PASS, HEAVY],
   'test-strings/StringOOMNewStringFromUtf8': [PASS, HEAVY],
+
+  # TODO(nicohartmann@): Turboshaft's LateLoadElimination is currently not able
+  # to verify this tests assumptions (static_assert). We should improve it and
+  # reenable this test.
+  'test-torque/TestLoadEliminationVariable': [SKIP],
 }],  # ALWAYS
 
 ##############################################################################
@@ -212,6 +217,12 @@
   # Field representation tracking is disabled in nooptimization mode.
   'test-field-type-tracking/*': [SKIP],
 }],  # variant == nooptimization
+
+##############################################################################
+['variant == stress_concurrent_allocation', {
+  # https://crbug.com/42204548
+  'test-mark-compact/MarkCompactCollector': [PASS, SKIP],
+}],  # variant == stress_concurrent_allocation
 
 ##############################################################################
 ['asan == True', {
@@ -379,10 +390,6 @@
 
 
   # Some wasm functionality is not implemented yet.
-  'test-liftoff-for-fuzzing/NondeterminismUnopF64x2AllNaN': [SKIP],
-  'test-liftoff-for-fuzzing/NondeterminismUnopF64x2OneNaN': [SKIP],
-  'test-liftoff-for-fuzzing/NondeterminismUnopF32x4AllNaN': [SKIP],
-  'test-liftoff-for-fuzzing/NondeterminismUnopF32x4OneNaN': [SKIP],
 
   # According to riscv's NaN generation and propagation scheme, the payload
   # is not guaranteed. So the test fails when src bits has payload.
@@ -390,6 +397,8 @@
   'test-run-wasm/RunWasmTurbofan_F32ReinterpretI32': [SKIP],
 
   'test-serialize/StaticRootsPredictableSnapshot': ['pointer_compression', SKIP],
+
+  'test-run-wasm-f16/*': [SKIP],
 }],  # 'arch == riscv64 or (arch == riscv32)'
 ['arch == riscv32', {
   # Some wasm functionality is not implemented yet.
@@ -429,6 +438,16 @@
 }],  # 'system != android and arch in [arm, arm64] and not simulator_run'
 
 ##############################################################################
+['arch == ppc64', {
+  # Generated instructions could differ due to codegen non-determinism
+  # which periodically fails this test on ppc. Test is also only targeting
+  # builds with static-roots enabled which is off by default on ppc.
+  # BUG(v8:42204346)
+  'test-serialize/StaticRootsPredictableSnapshot': [SKIP]
+
+}],  # 'arch == ppc64'
+
+##############################################################################
 ['system == aix or (arch == ppc64 and byteorder == big)', {
 
   # TODO(ppc): Fix for platforms with function desciptors.
@@ -442,12 +461,20 @@
 }],  # 'system == aix or (arch == ppc64 and byteorder == big)'
 
 ##############################################################################
+['system == zos', {
+  # Currently no profiler support on z/OS:
+  'test-cpu-profiler/*': [SKIP],
+}],
+
+##############################################################################
 ['arch == ppc and simulator_run or arch == ppc64 and simulator_run', {
 
   # Pass but take too long with the simulator.
   'test-api/Threading*': [PASS, SLOW],
   'test-api/ExternalArrays': [PASS, SLOW],
   'test-debug/DebugBreakStackTrace': [PASS, SLOW],
+  'turboshaft-test-compare-combine/CombineCompareWord64Logic1': [PASS, SLOW],
+  'turboshaft-test-compare-combine/CombineCompareTwoLogicInputs': [PASS, SLOW],
 
 }],  # 'arch == ppc64 and simulator_run'
 
@@ -459,14 +486,6 @@
 
   'test-wasm-breakpoints/*' : [SKIP],
 }],  # 'arch == ppc or arch == ppc64 or arch == s390 or arch == s390x'
-
-##############################################################################
-['arch == s390 or arch == s390x', {
-
-  # Turboshaft not supported yet.
-  'turboshaft-test-branch-combine/*' : [SKIP],
-
-}],  # 'arch == s390 or arch == s390x'
 
 ##############################################################################
 ['variant == stress_incremental_marking', {
@@ -516,6 +535,7 @@
   'test-jump-table-assembler/*': [SKIP],
   'test-gc/*': [SKIP],
   'test-grow-memory/*': [SKIP],
+  'test-heap-profiler/HeapSnapshotWithWasmInstance': [SKIP],
   'test-js-to-wasm/*': [SKIP],
   'test-liftoff-for-fuzzing/*': [SKIP],
   'test-liftoff-inspection/*': [SKIP],
@@ -531,6 +551,19 @@
   'test-wasm-trap-position/*': [SKIP],
   'wasm-run-utils/*': [SKIP],
 }],  # not has_webassembly or variant == jitless
+
+##############################################################################
+['has_wasm_interpreter', {
+  # Skip tests that require Wasm experimental features not supported by the
+  # Wasm interpreter.
+
+  # --experimental-wasm-memory64
+  'test-run-wasm-memory64/*': [SKIP],
+
+  # --experimental-wasm-fp16
+  'test-run-wasm-f16/*': [SKIP],
+
+ }],  # has_wasm_interpreter
 
 ##############################################################################
 ['lite_mode or variant == jitless', {
@@ -569,6 +602,7 @@
   'test-sync-primitives-arm/*': [SKIP],
   'test-sync-primitives-arm64/*': [SKIP],
   'turboshaft-test-branch-combine/*': [SKIP],
+  'turboshaft-test-compare-combine/*': [SKIP],
   'turboshaft-test-select-combine/*': [SKIP],
 
   'test-unwinder-code-pages/PCIsInV8_LargeCodeObject_CodePagesAPI': [SKIP],
@@ -637,6 +671,10 @@
   'test-macro-assembler-arm/ReplaceLane': [PASS, ['arch == arm and not simulator_run', SKIP]],
 }], # variant == jitless
 
+##############################################################################
+['variant == stress_regexp_jit or variant == always_sparkplug_and_stress_regexp_jit', {
+  'test-regexp/InterruptAndTransitionSubjectFromTwoByteToOneByte': [SKIP],
+}],  # variant == stress_regexp_jit or variant == always_sparkplug_and_stress_regexp_jit
 
 ################################################################################
 ['variant == stress_snapshot', {
@@ -648,6 +686,7 @@
   'test-run-wasm-relaxed-simd/*': [SKIP],
   'test-run-wasm-simd-liftoff/*': [SKIP],
   'test-run-wasm-simd/*': [SKIP],
+  'test-run-wasm-f16/*': [SKIP],
   'test-gc/RunWasmLiftoff_RefTrivialCasts': [SKIP],
   'test-gc/RunWasmTurbofan_RefTrivialCasts': [SKIP],
   'test-gc/RunWasmLiftoff_RefTrivialCastsStatic': [SKIP],
@@ -897,17 +936,23 @@
   'test-debug/DebugStepForContinue': [SKIP],
   'test-debug/DebugStepForIn': [SKIP],
   'test-debug/DebugStepFunctionApply': [SKIP],
+  'test-debug/DebugCountFunctionApply': [SKIP],
   'test-debug/DebugStepFunctionCall': [SKIP],
+  'test-debug/DebugCountFunctionCall': [SKIP],
   'test-debug/DebugStepFunctionCallApply': [SKIP],
+  'test-debug/DebugCountFunctionCallApply': [SKIP],
   'test-debug/DebugStepIf': [SKIP],
   'test-debug/DebugStepKeyedLoadLoop': [SKIP],
   'test-debug/DebugStepKeyedStoreLoop': [SKIP],
   'test-debug/DebugStepLinear': [SKIP],
+  'test-debug/DebugCountLinear': [SKIP],
   'test-debug/DebugStepLinearMixedICs': [SKIP],
+  'test-debug/DebugCountLinearMixedICs': [SKIP],
   'test-debug/DebugStepLocals': [SKIP],
   'test-debug/DebugStepNamedLoadLoop': [SKIP],
   'test-debug/DebugStepNamedStoreLoop': [SKIP],
   'test-debug/DebugStepNatives': [SKIP],
+  'test-debug/DebugCountNatives': [SKIP],
   'test-debug/DebugStepSwitch': [SKIP],
   'test-debug/DebugStepWhile': [SKIP],
   'test-debug/DebugStepWith': [SKIP],
@@ -1039,7 +1084,7 @@
 }], # third_party_heap
 
 ################################################################################
-['variant == always_sparkplug', {
+['variant == always_sparkplug or variant == always_sparkplug_and_stress_regexp_jit', {
   # %ObserveNode tests rely on TurboFan.
   'test-calls-with-arraylike-or-spread/*': [SKIP],
 }],
@@ -1073,10 +1118,6 @@
 
 ##############################################################################
 ['variant == turboshaft', {
-  # TODO(v8:12783, nicohartmann@): FastApiCalls temporarily disabled on
-  # Turboshaft until support has been properly ported.
-  'test-api/FastApiCalls': [SKIP],
-
   # The 'turboshaft' variant sets the '--no-liftoff' flag, which means that Wasm
   # compiles directly to Turboshaft. This makes the cache no longer incremental,
   # and these tests don't make sense.
@@ -1087,13 +1128,21 @@
 }],  # variant == turboshaft
 
 ##############################################################################
-['variant == turboshaft or variant == future', {
-  # Revectorization is not supported yet in Turboshaft.
-  # TODO(14108): Remove once supported.
-  'test-run-wasm-simd/RunWasmTurbofan_F32x8SConvertI32x8': [SKIP],
-  'test-run-wasm-simd/RunWasmTurbofan_S256Const': [SKIP],
-  'test-run-wasm-simd/RunWasmTurbofan_ShuffleVpshufd': [SKIP],
-}],  # variant == turboshaft or variant == future
+['variant != turboshaft and variant != future', {
+  # Some ops' revectorization support only implemented in turboshaft.
+  'test-run-wasm-simd/RunWasmTurbofan_I16x16ExtMulI8x16S': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_I16x16ExtMulI8x16U': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_I32x8ExtMulI16x8S': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_I32x8ExtMulI16x8U': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_I64x4ExtMulI32x4S': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_I64x4ExtMulI32x4U': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I8x32RelaxedLaneSelect': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I16x16RelaxedLaneSelect': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I32x8RelaxedLaneSelect': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I64x4RelaxedLaneSelect': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I32x8DotI8x32I7x32AddS': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I16x16DotI8x32I7x32S': [SKIP],
+}],  # variant != turboshaft and variant != future
 
 ##############################################################################
 # Behavioural differences between Maglev and Turbofan when the former is used
@@ -1133,11 +1182,12 @@
   'test-verify-type/TestVerifyType': [FAIL],
   # Maglev doesn't support FastApi calls.
   'test-api/FastApiCalls': [FAIL],
-  'test-api/FastApiCallWithAllocationAndGC': [FAIL],
+  'test-api/FastApiCallWithAllocationAndGCInJS': [FAIL],
+  'test-api/FastApiCallWithAllocationAndGCInC': [FAIL],
   'test-api/FastApiSequenceOverloads': [FAIL],
-  # Maglev doesn't produce optimized enough code to match heap tests
-  # expectations.
-  'test-heap/EnsureAllocationSiteDependentCodesProcessed': [FAIL],
+  'test-api/FastApiCallRecursionNoException': [FAIL],
+  'test-api/FastApiCallRecursionWithException': [FAIL],
+  'test-api/FastApiCallWithThrowInReentrantCode': [FAIL],
 }],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
 
 ['conservative_stack_scanning', {

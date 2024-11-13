@@ -1082,7 +1082,7 @@ UnicodeString DecimalQuantity::toScientificString() const {
     result.append(u'E');
     int32_t _scale = upperPos + scale + exponent;
     if (_scale == INT32_MIN) {
-        result.append({u"-2147483648", -1});
+        result.append(u"-2147483648");
         return result;
     } else if (_scale < 0) {
         _scale *= -1;
@@ -1113,7 +1113,7 @@ int8_t DecimalQuantity::getDigitPos(int32_t position) const {
         return fBCD.bcdBytes.ptr[position];
     } else {
         if (position < 0 || position >= 16) { return 0; }
-        return (int8_t) ((fBCD.bcdLong >> (position * 4)) & 0xf);
+        return static_cast<int8_t>((fBCD.bcdLong >> (position * 4)) & 0xf);
     }
 }
 
@@ -1128,7 +1128,7 @@ void DecimalQuantity::setDigitPos(int32_t position, int8_t value) {
         fBCD.bcdBytes.ptr[position] = value;
     } else {
         int shift = position * 4;
-        fBCD.bcdLong = (fBCD.bcdLong & ~(0xfL << shift)) | ((long) value << shift);
+        fBCD.bcdLong = (fBCD.bcdLong & ~(0xfL << shift)) | (static_cast<long>(value) << shift);
     }
 }
 

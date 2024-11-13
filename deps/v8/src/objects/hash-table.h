@@ -326,8 +326,8 @@ class HashTableKey {
 
 class ObjectHashTableShape : public BaseShape<Handle<Object>> {
  public:
-  static inline bool IsMatch(Handle<Object> key, Tagged<Object> other);
-  static inline uint32_t Hash(ReadOnlyRoots roots, Handle<Object> key);
+  static inline bool IsMatch(DirectHandle<Object> key, Tagged<Object> other);
+  static inline uint32_t Hash(ReadOnlyRoots roots, DirectHandle<Object> key);
   static inline uint32_t HashForObject(ReadOnlyRoots roots,
                                        Tagged<Object> object);
   static inline Handle<Object> AsHandle(Handle<Object> key);
@@ -358,7 +358,7 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) ObjectHashTableBase
   static Handle<Derived> Put(Handle<Derived> table, Handle<Object> key,
                              Handle<Object> value);
   static Handle<Derived> Put(Isolate* isolate, Handle<Derived> table,
-                             Handle<Object> key, Handle<Object> value,
+                             Handle<Object> key, DirectHandle<Object> value,
                              int32_t hash);
 
   // Returns an ObjectHashTable (possibly |table|) where |key| has been removed.
@@ -393,7 +393,6 @@ EXTERN_DECLARE_OBJECT_BASE_HASH_TABLE(ObjectHashTable, ObjectHashTableShape)
 class V8_EXPORT_PRIVATE ObjectHashTable
     : public ObjectHashTableBase<ObjectHashTable, ObjectHashTableShape> {
  public:
-  DECL_CAST(ObjectHashTable)
   DECL_PRINTER(ObjectHashTable)
 
   OBJECT_CONSTRUCTORS(
@@ -412,7 +411,6 @@ class V8_EXPORT_PRIVATE EphemeronHashTable
  public:
   static inline Handle<Map> GetMap(ReadOnlyRoots roots);
 
-  DECL_CAST(EphemeronHashTable)
   DECL_PRINTER(EphemeronHashTable)
   class BodyDescriptor;
 
@@ -476,8 +474,6 @@ class ObjectMultiHashTableBase
 class ObjectTwoHashTable
     : public ObjectMultiHashTableBase<ObjectTwoHashTable, 2> {
  public:
-  DECL_CAST(ObjectTwoHashTable)
-
   OBJECT_CONSTRUCTORS(ObjectTwoHashTable,
                       ObjectMultiHashTableBase<ObjectTwoHashTable, 2>);
 };
@@ -499,16 +495,14 @@ class V8_EXPORT_PRIVATE ObjectHashSet
   inline bool Has(Isolate* isolate, Handle<Object> key, int32_t hash);
   inline bool Has(Isolate* isolate, Handle<Object> key);
 
-  DECL_CAST(ObjectHashSet)
-
   OBJECT_CONSTRUCTORS(ObjectHashSet,
                       HashTable<ObjectHashSet, ObjectHashSetShape>);
 };
 
 class NameToIndexShape : public BaseShape<Handle<Name>> {
  public:
-  static inline bool IsMatch(Handle<Name> key, Tagged<Object> other);
-  static inline uint32_t Hash(ReadOnlyRoots roots, Handle<Name> key);
+  static inline bool IsMatch(DirectHandle<Name> key, Tagged<Object> other);
+  static inline uint32_t Hash(ReadOnlyRoots roots, DirectHandle<Name> key);
   static inline uint32_t HashForObject(ReadOnlyRoots roots,
                                        Tagged<Object> object);
   static inline Handle<Object> AsHandle(Handle<Name> key);
@@ -533,13 +527,13 @@ class V8_EXPORT_PRIVATE NameToIndexHashTable
   template <typename IsolateT>
   static Handle<NameToIndexHashTable> Add(IsolateT* isolate,
                                           Handle<NameToIndexHashTable> table,
-                                          Handle<Name> key, int32_t value);
+                                          IndirectHandle<Name> key,
+                                          int32_t value);
 
   // Exposed for NameDictionaryLookupForwardedString slow path for forwarded
   // strings.
   using HashTable<NameToIndexHashTable, NameToIndexShape>::FindInsertionEntry;
 
-  DECL_CAST(NameToIndexHashTable)
   DECL_PRINTER(NameToIndexHashTable)
 
   OBJECT_CONSTRUCTORS(NameToIndexHashTable,
@@ -553,8 +547,8 @@ class V8_EXPORT_PRIVATE NameToIndexHashTable
 
 class RegisteredSymbolTableShape : public BaseShape<Handle<String>> {
  public:
-  static inline bool IsMatch(Handle<String> key, Tagged<Object> other);
-  static inline uint32_t Hash(ReadOnlyRoots roots, Handle<String> key);
+  static inline bool IsMatch(DirectHandle<String> key, Tagged<Object> other);
+  static inline uint32_t Hash(ReadOnlyRoots roots, DirectHandle<String> key);
   static inline uint32_t HashForObject(ReadOnlyRoots roots,
                                        Tagged<Object> object);
   static const int kPrefixSize = 0;
@@ -575,9 +569,9 @@ class RegisteredSymbolTable
 
   static Handle<RegisteredSymbolTable> Add(Isolate* isolate,
                                            Handle<RegisteredSymbolTable> table,
-                                           Handle<String> key, Handle<Symbol>);
+                                           IndirectHandle<String> key,
+                                           DirectHandle<Symbol>);
 
-  DECL_CAST(RegisteredSymbolTable)
   DECL_PRINTER(RegisteredSymbolTable)
   OBJECT_CONSTRUCTORS(
       RegisteredSymbolTable,

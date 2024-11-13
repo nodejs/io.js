@@ -21,7 +21,6 @@ namespace internal {
 TQ_OBJECT_CONSTRUCTORS_IMPL(JSPromise)
 
 BOOL_ACCESSORS(JSPromise, flags, has_handler, HasHandlerBit::kShift)
-BOOL_ACCESSORS(JSPromise, flags, handled_hint, HandledHintBit::kShift)
 BOOL_ACCESSORS(JSPromise, flags, is_silent, IsSilentBit::kShift)
 
 Tagged<Object> JSPromise::result() const {

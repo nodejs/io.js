@@ -14,14 +14,14 @@ namespace wasm {
 
 class V8_EXPORT_PRIVATE SyncStreamingDecoder : public StreamingDecoder {
  public:
-  SyncStreamingDecoder(Isolate* isolate, WasmFeatures enabled,
+  SyncStreamingDecoder(Isolate* isolate, WasmEnabledFeatures enabled,
                        CompileTimeImports compile_imports,
                        Handle<Context> context,
                        const char* api_method_name_for_errors,
                        std::shared_ptr<CompilationResultResolver> resolver)
       : isolate_(isolate),
         enabled_(enabled),
-        compile_imports_(compile_imports),
+        compile_imports_(std::move(compile_imports)),
         context_(context),
         api_method_name_for_errors_(api_method_name_for_errors),
         resolver_(resolver) {}
@@ -65,7 +65,7 @@ class V8_EXPORT_PRIVATE SyncStreamingDecoder : public StreamingDecoder {
     ModuleWireBytes wire_bytes(bytes.get(), bytes.get() + buffer_size_);
     ErrorThrower thrower(isolate_, api_method_name_for_errors_);
     MaybeHandle<WasmModuleObject> module_object = GetWasmEngine()->SyncCompile(
-        isolate_, enabled_, compile_imports_, &thrower, wire_bytes);
+        isolate_, enabled_, std::move(compile_imports_), &thrower, wire_bytes);
     if (thrower.error()) {
       resolver_->OnCompilationFailed(thrower.Reify());
       return;
@@ -89,8 +89,8 @@ class V8_EXPORT_PRIVATE SyncStreamingDecoder : public StreamingDecoder {
 
  private:
   Isolate* isolate_;
-  const WasmFeatures enabled_;
-  const CompileTimeImports compile_imports_;
+  const WasmEnabledFeatures enabled_;
+  CompileTimeImports compile_imports_;
   Handle<Context> context_;
   const char* api_method_name_for_errors_;
   std::shared_ptr<CompilationResultResolver> resolver_;
@@ -100,12 +100,13 @@ class V8_EXPORT_PRIVATE SyncStreamingDecoder : public StreamingDecoder {
 };
 
 std::unique_ptr<StreamingDecoder> StreamingDecoder::CreateSyncStreamingDecoder(
-    Isolate* isolate, WasmFeatures enabled, CompileTimeImports compile_imports,
-    Handle<Context> context, const char* api_method_name_for_errors,
+    Isolate* isolate, WasmEnabledFeatures enabled,
+    CompileTimeImports compile_imports, Handle<Context> context,
+    const char* api_method_name_for_errors,
     std::shared_ptr<CompilationResultResolver> resolver) {
   return std::make_unique<SyncStreamingDecoder>(
-      isolate, enabled, compile_imports, context, api_method_name_for_errors,
-      std::move(resolver));
+      isolate, enabled, std::move(compile_imports), context,
+      api_method_name_for_errors, std::move(resolver));
 }
 }  // namespace wasm
 }  // namespace internal

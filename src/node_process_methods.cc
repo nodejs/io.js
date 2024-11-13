@@ -73,7 +73,7 @@ static void Abort(const FunctionCallbackInfo<Value>& args) {
 // For internal testing only, not exposed to userland.
 static void CauseSegfault(const FunctionCallbackInfo<Value>& args) {
   // This should crash hard all platforms.
-  volatile void** d = static_cast<volatile void**>(nullptr);
+  void* volatile* d = static_cast<void* volatile*>(nullptr);
   *d = nullptr;
 }
 

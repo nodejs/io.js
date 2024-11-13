@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/builtins/builtins-utils-inl.h"
 #include "src/builtins/builtins.h"
 #include "src/heap/heap-inl.h"  // For ToBoolean. TODO(jkummerow): Drop.
@@ -28,12 +30,14 @@ bool IsValidCodePoint(Isolate* isolate, Handle<Object> value) {
     return false;
   }
 
-  if (Object::Number(*Object::ToInteger(isolate, value).ToHandleChecked()) !=
-      Object::Number(*value)) {
+  if (Object::NumberValue(
+          *Object::ToInteger(isolate, value).ToHandleChecked()) !=
+      Object::NumberValue(*value)) {
     return false;
   }
 
-  if (Object::Number(*value) < 0 || Object::Number(*value) > 0x10FFFF) {
+  if (Object::NumberValue(*value) < 0 ||
+      Object::NumberValue(*value) > 0x10FFFF) {
     return false;
   }
 
@@ -51,7 +55,7 @@ base::uc32 NextCodePoint(Isolate* isolate, BuiltinArguments args, int index) {
         MessageTemplate::kInvalidCodePoint, value));
     return kInvalidCodePoint;
   }
-  return DoubleToUint32(Object::Number(*value));
+  return DoubleToUint32(Object::NumberValue(*value));
 }
 
 }  // namespace
@@ -146,7 +150,7 @@ BUILTIN(StringPrototypeLocaleCompare) {
   Handle<String> str2;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, str2, Object::ToString(isolate, args.atOrUndefined(isolate, 1)));
-  base::Optional<int> result = Intl::StringLocaleCompare(
+  std::optional<int> result = Intl::StringLocaleCompare(
       isolate, str1, str2, args.atOrUndefined(isolate, 2),
       args.atOrUndefined(isolate, 3), kMethod);
   if (!result.has_value()) {
@@ -455,7 +459,7 @@ BUILTIN(StringRaw) {
   IncrementalStringBuilder result_builder(isolate);
   // Intentional spec violation: we ignore {length} values >= 2^32, because
   // assuming non-empty chunks they would generate too-long strings anyway.
-  const double raw_len_number = Object::Number(*raw_len);
+  const double raw_len_number = Object::NumberValue(*raw_len);
   const uint32_t length = raw_len_number > std::numeric_limits<uint32_t>::max()
                               ? std::numeric_limits<uint32_t>::max()
                               : static_cast<uint32_t>(raw_len_number);

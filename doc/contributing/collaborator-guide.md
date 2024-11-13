@@ -437,6 +437,23 @@ For pull requests introducing new core modules:
 * Land with a [Stability Index][] of Experimental. The module must remain
   Experimental until a semver-major release.
 
+### Introducing new APIs on the global scope
+
+Exposing new APIs to the global scope that are available without
+an `import` or `require` call, including introducing new interfaces on
+`globalThis` like `globalThis.navigator`, and adding new properties on
+interfaces on `globalThis` like well known symbols, could break feature
+detection and Node.js environment detection.
+
+Exposing new APIs to the global scope unconditionally without any CLI
+flags must always be labeled as `semver-major`. The `semver-major` label may
+be waived through the regular TSC consensus process.
+
+It is recommended to start with exposing APIs to the global scope with an
+experimental CLI flag `--experimental-<feature-name>`, without being labeled as
+`semver-major`. When the new APIs are feature complete, turn the flag on by
+default with a CLI flag `--no-experimental-<feature-name>` to opt-out.
+
 ### Additions to Node-API
 
 Node-API provides an ABI-stable API guaranteed for future Node.js versions.
@@ -957,10 +974,9 @@ need to be attached anymore, as only important bugfixes will be included.
 ### Other labels
 
 * Operating system labels
-  * `macos`, `windows`, `smartos`, `aix`
-  * No `linux` label because it is the implied default
+  * `macos`, `windows`, `smartos`, `aix`, `linux`, etc.
 * Architecture labels
-  * `arm`, `mips`, `s390`, `ppc`
+  * `arm`, `mips`, `s390`, `ppc`, etc.
   * No `x86{_64}` label because it is the implied default
 
 ["Merge pull request"]: https://help.github.com/articles/merging-a-pull-request/#merging-a-pull-request-on-github

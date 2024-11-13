@@ -20,7 +20,7 @@ if (process.argv[2] === 'child') {
 {
   // doesNotThrow
   childProcess.spawnSync(process.execPath, ['--version']);
-  childProcess.execSync(process.execPath, ['--version']);
+  childProcess.execSync(...common.escapePOSIXShell`"${process.execPath}" --version`);
   childProcess.fork(__filename, ['child']);
   childProcess.execFileSync(process.execPath, ['--version']);
 }

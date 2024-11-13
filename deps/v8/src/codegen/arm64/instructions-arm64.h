@@ -697,6 +697,13 @@ class NEONFormatDecoder {
     return &map;
   }
 
+  // The FP half-precision format map uses one Q bit to encode the
+  // NEON FP vector formats: NF_4H, NF_8H.
+  static const NEONFormatMap* FPHPFormatMap() {
+    static const NEONFormatMap map = {{30}, {NF_4H, NF_8H}};
+    return &map;
+  }
+
   // The load/store format map uses three bits (Q, 11, 10) to encode the
   // set of NEON vector formats.
   static const NEONFormatMap* LoadStoreFormatMap() {

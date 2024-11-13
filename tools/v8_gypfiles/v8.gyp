@@ -48,7 +48,7 @@
       'type': 'none',
       'toolsets': ['host', 'target'],
       'conditions': [
-        ['OS=="win" and clang==0', {
+        ['OS=="win"', {
           'direct_dependent_settings': {
             'msvs_precompiled_header': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.h',
             'msvs_precompiled_source': '<(V8_ROOT)/../../tools/msvs/pch/v8_pch.cc',
@@ -249,6 +249,7 @@
         'v8_initializers',
         'v8_maybe_icu',
         'v8_abseil',
+        'fp16',
       ],
       'sources': [
         '<(V8_ROOT)/src/init/setup-isolate-full.cc',
@@ -265,6 +266,7 @@
         'generate_bytecode_builtins_list',
         'run_torque',
         'v8_abseil',
+        'fp16',
       ],
       'cflags!': ['-O3'],
       'cflags': ['-O1'],
@@ -293,6 +295,7 @@
         'v8_shared_internal_headers',
         'v8_pch',
         'v8_abseil',
+        'fp16',
       ],
       'include_dirs': [
         '<(SHARED_INTERMEDIATE_DIR)',
@@ -504,6 +507,9 @@
               ],
             },
           ],
+        }],
+        ['OS in "aix os400"', {
+          'dependencies': ['fp16'],
         }],
       ],
     },  # v8_snapshot
@@ -916,6 +922,7 @@
         'v8_turboshaft',
         'v8_pch',
         'v8_abseil',
+        'fp16',
       ],
       'conditions': [
         ['v8_enable_turbofan==1', {
@@ -939,6 +946,7 @@
         'v8_shared_internal_headers',
         'v8_pch',
         'v8_abseil',
+        'fp16',
       ],
       'sources': [
         '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_source_set.\\"v8_turboshaft.*?sources = ")',
@@ -1581,33 +1589,7 @@
         'v8_libbase',
       ],
       'sources': [
-        '<(V8_ROOT)/base/trace_event/common/trace_event_common.h',
-        '<(V8_ROOT)/include/libplatform/libplatform-export.h',
-        '<(V8_ROOT)/include/libplatform/libplatform.h',
-        '<(V8_ROOT)/include/libplatform/v8-tracing.h',
-        '<(V8_ROOT)/src/libplatform/default-foreground-task-runner.cc',
-        '<(V8_ROOT)/src/libplatform/default-foreground-task-runner.h',
-        '<(V8_ROOT)/src/libplatform/default-job.cc',
-        '<(V8_ROOT)/src/libplatform/default-job.h',
-        '<(V8_ROOT)/src/libplatform/default-platform.cc',
-        '<(V8_ROOT)/src/libplatform/default-platform.h',
-        '<(V8_ROOT)/src/libplatform/default-thread-isolated-allocator.cc',
-        '<(V8_ROOT)/src/libplatform/default-thread-isolated-allocator.h',
-        '<(V8_ROOT)/src/libplatform/default-worker-threads-task-runner.cc',
-        '<(V8_ROOT)/src/libplatform/default-worker-threads-task-runner.h',
-        '<(V8_ROOT)/src/libplatform/delayed-task-queue.cc',
-        '<(V8_ROOT)/src/libplatform/delayed-task-queue.h',
-        '<(V8_ROOT)/src/libplatform/task-queue.cc',
-        '<(V8_ROOT)/src/libplatform/task-queue.h',
-        '<(V8_ROOT)/src/libplatform/tracing/trace-buffer.cc',
-        '<(V8_ROOT)/src/libplatform/tracing/trace-buffer.h',
-        '<(V8_ROOT)/src/libplatform/tracing/trace-config.cc',
-        '<(V8_ROOT)/src/libplatform/tracing/trace-object.cc',
-        '<(V8_ROOT)/src/libplatform/tracing/trace-writer.cc',
-        '<(V8_ROOT)/src/libplatform/tracing/trace-writer.h',
-        '<(V8_ROOT)/src/libplatform/tracing/tracing-controller.cc',
-        '<(V8_ROOT)/src/libplatform/worker-thread.cc',
-        '<(V8_ROOT)/src/libplatform/worker-thread.h',
+        '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_libplatform.*?sources = ")',
       ],
       'conditions': [
         ['component=="shared_library"', {
@@ -1618,15 +1600,10 @@
         }],
         ['v8_use_perfetto==1', {
           'sources!': [
-            '<(V8_ROOT)/base/trace_event/common/trace_event_common.h',
-            '<(V8_ROOT)/src/libplatform/tracing/trace-buffer.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/trace-buffer.h',
-            '<(V8_ROOT)/src/libplatform/tracing/trace-object.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/trace-writer.cc',
-            '<(V8_ROOT)/src/libplatform/tracing/trace-writer.h',
+            '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_libplatform.*?v8_use_perfetto.*?sources -= ")',
           ],
           'sources': [
-            '<(V8_ROOT)/src/libplatform/tracing/trace-event-listener.h',
+            '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_libplatform.*?v8_use_perfetto.*?sources += ")',
           ],
           'dependencies': [
             '<(V8_ROOT)/third_party/perfetto:libperfetto',
@@ -1705,11 +1682,30 @@
         'v8_turboshaft',
         'v8_pch',
         'v8_abseil',
+        'fp16',
         # "build/win:default_exe_manifest",
       ],
       'sources': [
         '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"mksnapshot.*?sources = ")',
       ],
+      'configurations': {
+        # We have to repeat the settings for each configuration because toochain.gypi
+        # defines the default EnableCOMDATFolding value in the configurations dicts.
+        'Debug': {
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'EnableCOMDATFolding': '1', # /OPT:NOICF
+            },
+          },
+        },
+        'Release': {
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'EnableCOMDATFolding': '1', # /OPT:NOICF
+            },
+          },
+        },
+      },
       'conditions': [
         ['want_separate_host_toolset', {
           'toolsets': ['host'],
@@ -1897,7 +1893,31 @@
           ['enable_lto=="true"', {
             'cflags_cc': [ '-fno-lto' ],
           }],
-          ['clang==1 or OS!="win"', {
+          # Changes in push_registers_asm.cc in V8 v12.8 requires using
+          # push_registers_masm on Windows even with ClangCL on x64
+          ['OS=="win"', {
+            'conditions': [
+              ['_toolset == "host" and host_arch == "x64" or _toolset == "target" and target_arch=="x64"', {
+                'sources': [
+                  '<(V8_ROOT)/src/heap/base/asm/x64/push_registers_masm.asm',
+                ],
+              }],
+              ['_toolset == "host" and host_arch == "arm64" or _toolset == "target" and target_arch=="arm64"', {
+                'conditions': [
+                  ['clang==1', {
+                    'sources': [
+                      '<(V8_ROOT)/src/heap/base/asm/arm64/push_registers_asm.cc',
+                    ],
+                  }],
+                  ['clang==0', {
+                    'sources': [
+                      '<(V8_ROOT)/src/heap/base/asm/arm64/push_registers_masm.S',
+                    ],
+                  }],
+                ],
+              }],
+            ],
+          }, { # 'OS!="win"'
             'conditions': [
               ['_toolset == "host" and host_arch == "x64" or _toolset == "target" and target_arch=="x64"', {
                 'sources': [
@@ -1945,20 +1965,6 @@
                 ],
               }],
             ]
-          }],
-          ['OS=="win" and clang==0', {
-            'conditions': [
-              ['_toolset == "host" and host_arch == "x64" or _toolset == "target" and target_arch=="x64"', {
-                'sources': [
-                  '<(V8_ROOT)/src/heap/base/asm/x64/push_registers_masm.asm',
-                ],
-              }],
-              ['_toolset == "host" and host_arch == "arm64" or _toolset == "target" and target_arch=="arm64"', {
-                'sources': [
-                  '<(V8_ROOT)/src/heap/base/asm/arm64/push_registers_masm.S',
-                ],
-              }],
-            ],
           }],
         ],
       },
@@ -2230,6 +2236,7 @@
         '<(ABSEIL_ROOT)/absl/base/internal/low_level_alloc.h',
         '<(ABSEIL_ROOT)/absl/base/internal/low_level_alloc.cc',
         '<(ABSEIL_ROOT)/absl/base/internal/low_level_scheduling.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/nullability_impl.h',
         '<(ABSEIL_ROOT)/absl/base/internal/per_thread_tls.h',
         '<(ABSEIL_ROOT)/absl/base/internal/raw_logging.h',
         '<(ABSEIL_ROOT)/absl/base/internal/raw_logging.cc',
@@ -2256,6 +2263,7 @@
         '<(ABSEIL_ROOT)/absl/base/log_severity.h',
         '<(ABSEIL_ROOT)/absl/base/log_severity.cc',
         '<(ABSEIL_ROOT)/absl/base/macros.h',
+        '<(ABSEIL_ROOT)/absl/base/nullability.h',
         '<(ABSEIL_ROOT)/absl/base/optimization.h',
         '<(ABSEIL_ROOT)/absl/base/options.h',
         '<(ABSEIL_ROOT)/absl/base/policy_checks.h',
@@ -2264,6 +2272,7 @@
         '<(ABSEIL_ROOT)/absl/base/thread_annotations.h',
         '<(ABSEIL_ROOT)/absl/container/flat_hash_map.h',
         '<(ABSEIL_ROOT)/absl/container/fixed_array.h',
+        '<(ABSEIL_ROOT)/absl/container/hash_container_defaults.h',
         '<(ABSEIL_ROOT)/absl/container/inlined_vector.h',
         '<(ABSEIL_ROOT)/absl/container/internal/common.h',
         '<(ABSEIL_ROOT)/absl/container/internal/common_policy_traits.h',
@@ -2297,8 +2306,13 @@
         '<(ABSEIL_ROOT)/absl/crc/internal/crc_x86_arm_combined.cc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/address_is_readable.h',
         '<(ABSEIL_ROOT)/absl/debugging/internal/address_is_readable.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/bounded_utf8_length_sequence.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/decode_rust_punycode.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/decode_rust_punycode.cc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/demangle.h',
         '<(ABSEIL_ROOT)/absl/debugging/internal/demangle.cc',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/demangle_rust.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/demangle_rust.cc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/elf_mem_image.h',
         '<(ABSEIL_ROOT)/absl/debugging/internal/elf_mem_image.cc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_aarch64-inl.inc',
@@ -2312,6 +2326,8 @@
         '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_win32-inl.inc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/stacktrace_x86-inl.inc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/symbolize.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/utf8_for_code_point.h',
+        '<(ABSEIL_ROOT)/absl/debugging/internal/utf8_for_code_point.cc',
         '<(ABSEIL_ROOT)/absl/debugging/internal/vdso_support.h',
         '<(ABSEIL_ROOT)/absl/debugging/internal/vdso_support.cc',
         '<(ABSEIL_ROOT)/absl/debugging/stacktrace.h',
@@ -2344,6 +2360,7 @@
         '<(ABSEIL_ROOT)/absl/profiling/internal/exponential_biased.h',
         '<(ABSEIL_ROOT)/absl/profiling/internal/exponential_biased.cc',
         '<(ABSEIL_ROOT)/absl/profiling/internal/sample_recorder.h',
+        '<(ABSEIL_ROOT)/absl/random/internal/mock_validators.h',
         '<(ABSEIL_ROOT)/absl/strings/ascii.h',
         '<(ABSEIL_ROOT)/absl/strings/ascii.cc',
         '<(ABSEIL_ROOT)/absl/strings/charconv.h',

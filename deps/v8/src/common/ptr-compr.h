@@ -10,6 +10,8 @@
 
 namespace v8::internal {
 
+class IsolateGroup;
+
 // This is just a collection of common compression scheme related functions.
 // Each pointer compression cage then has its own compression scheme, which
 // mainly differes in the cage base address they use.
@@ -140,6 +142,15 @@ class ExternalCodeCompressionScheme {
   V8_INLINE static void InitBase(Address base);
   V8_INLINE static Address base();
 
+  // Given a 64bit raw value, found on the stack, calls the callback function
+  // with all possible pointers that may be "contained" in compressed form in
+  // this value, either as complete compressed pointers or as intermediate
+  // (half-computed) results.
+  template <typename ProcessPointerCallback>
+  V8_INLINE static void ProcessIntermediatePointers(
+      PtrComprCageBase cage_base, Address raw_value,
+      ProcessPointerCallback callback);
+
  private:
   // These non-inlined accessors to base_ field are used in component builds
   // where cross-component access to thread local variables is not allowed.
@@ -198,7 +209,7 @@ static inline void WriteMaybeUnalignedValue(Address p, V value) {
 // For all other configurations this scope object is a no-op.
 class PtrComprCageAccessScope final {
  public:
-#ifdef V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
   V8_INLINE explicit PtrComprCageAccessScope(Isolate* isolate);
   V8_INLINE ~PtrComprCageAccessScope();
 #else
@@ -207,13 +218,13 @@ class PtrComprCageAccessScope final {
 #endif
 
  private:
-#ifdef V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
   const Address cage_base_;
 #ifdef V8_EXTERNAL_CODE_SPACE
-// In case this configuration is necessary the code cage base must be saved too.
-#error Multi-cage pointer compression with external code space is not supported
+  const Address code_cage_base_;
 #endif  // V8_EXTERNAL_CODE_SPACE
-#endif  // V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE
+  IsolateGroup* saved_current_isolate_group_;
+#endif  // V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
 };
 
 }  // namespace v8::internal

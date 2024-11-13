@@ -185,16 +185,15 @@ class WorkerThreadData {
       isolate->SetStackLimit(w->stack_base_);
 
       HandleScope handle_scope(isolate);
-      isolate_data_.reset(
-          CreateIsolateData(isolate,
-                            &loop_,
-                            w_->platform_,
-                            allocator.get(),
-                            w->snapshot_data()->AsEmbedderWrapper().get()));
+      isolate_data_.reset(IsolateData::CreateIsolateData(
+          isolate,
+          &loop_,
+          w_->platform_,
+          allocator.get(),
+          w->snapshot_data()->AsEmbedderWrapper().get(),
+          std::move(w_->per_isolate_opts_)));
       CHECK(isolate_data_);
       CHECK(!isolate_data_->is_building_snapshot());
-      if (w_->per_isolate_opts_)
-        isolate_data_->set_options(std::move(w_->per_isolate_opts_));
       isolate_data_->set_worker_context(w_);
       isolate_data_->max_young_gen_size =
           params.constraints.max_young_generation_size_in_bytes();
@@ -491,9 +490,8 @@ Worker::~Worker() {
 
 void Worker::New(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-  auto is_internal = args[5];
-  CHECK(is_internal->IsBoolean());
-  if (is_internal->IsFalse()) {
+  bool is_internal = args[5]->IsTrue();
+  if (!is_internal) {
     THROW_IF_INSUFFICIENT_PERMISSIONS(
         env, permission::PermissionScope::kWorkerThreads, "");
   }
@@ -533,8 +531,12 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
   } else if (args[1]->IsObject()) {
     // User provided env.
     env_vars = KVStore::CreateMapKVStore();
-    env_vars->AssignFromObject(isolate->GetCurrentContext(),
-                               args[1].As<Object>());
+    if (env_vars
+            ->AssignFromObject(isolate->GetCurrentContext(),
+                               args[1].As<Object>())
+            .IsNothing()) {
+      return;
+    }
   } else {
     // Env is shared.
     env_vars = env->env_vars();
@@ -544,21 +546,21 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
     per_isolate_opts.reset(new PerIsolateOptions());
 
     HandleEnvOptions(per_isolate_opts->per_env, [&env_vars](const char* name) {
-      return env_vars->Get(name).FromMaybe("");
+      return env_vars->Get(name).value_or("");
     });
 
 #ifndef NODE_WITHOUT_NODE_OPTIONS
-    std::string node_options;
-    if (env_vars->Get("NODE_OPTIONS").To(&node_options)) {
+    std::optional<std::string> node_options = env_vars->Get("NODE_OPTIONS");
+    if (node_options.has_value()) {
       std::vector<std::string> errors{};
       std::vector<std::string> env_argv =
-          ParseNodeOptionsEnvVar(node_options, &errors);
+          ParseNodeOptionsEnvVar(node_options.value(), &errors);
       // [0] is expected to be the program name, add dummy string.
       env_argv.insert(env_argv.begin(), "");
       std::vector<std::string> invalid_args{};
 
-      std::string parent_node_options;
-      USE(env->env_vars()->Get("NODE_OPTIONS").To(&parent_node_options));
+      std::optional<std::string> parent_node_options =
+          env->env_vars()->Get("NODE_OPTIONS");
 
       // If the worker code passes { env: { ...process.env, ... } } or
       // the NODE_OPTIONS is otherwise character-for-character equal to the
@@ -658,7 +660,19 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
       return;
     }
   } else {
+    // Copy the parent's execArgv.
     exec_argv_out = env->exec_argv();
+    per_isolate_opts = env->isolate_data()->options()->Clone();
+  }
+
+  // Internal workers should not wait for inspector frontend to connect or
+  // break on the first line of internal scripts. Module loader threads are
+  // essential to load user codes and must not be blocked by the inspector
+  // for internal scripts.
+  // Still, `--inspect-node` can break on the first line of internal scripts.
+  if (is_internal) {
+    per_isolate_opts->per_env->get_debug_options()
+        ->DisableWaitOrBreakFirstLine();
   }
 
   const SnapshotData* snapshot_data = env->isolate_data()->snapshot_data();

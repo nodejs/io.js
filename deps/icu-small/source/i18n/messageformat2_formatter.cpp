@@ -27,11 +27,30 @@ namespace message2 {
     // -------------------------------------
     // Creates a MessageFormat instance based on the pattern.
 
-    MessageFormatter::Builder& MessageFormatter::Builder::setPattern(const UnicodeString& pat, UParseError& parseError, UErrorCode& errorCode) {
+    void MessageFormatter::Builder::clearState() {
         normalizedInput.remove();
+        delete errors;
+        errors = nullptr;
+    }
+
+    MessageFormatter::Builder& MessageFormatter::Builder::setPattern(const UnicodeString& pat,
+                                                                     UParseError& parseError,
+                                                                     UErrorCode& errorCode) {
+        clearState();
+        // Create errors
+        errors = create<StaticErrors>(StaticErrors(errorCode), errorCode);
+        THIS_ON_ERROR(errorCode);
+
         // Parse the pattern
         MFDataModel::Builder tree(errorCode);
         Parser(pat, tree, *errors, normalizedInput).parse(parseError, errorCode);
+
+        // Fail on syntax errors
+        if (errors->hasSyntaxError()) {
+            errors->checkErrors(errorCode);
+            // Check that the checkErrors() method set the error code
+            U_ASSERT(U_FAILURE(errorCode));
+        }
 
         // Build the data model based on what was parsed
         dataModel = tree.build(errorCode);
@@ -55,14 +74,19 @@ namespace message2 {
     }
 
     MessageFormatter::Builder& MessageFormatter::Builder::setDataModel(MFDataModel&& newDataModel) {
-        normalizedInput.remove();
-        delete errors;
-        errors = nullptr;
+        clearState();
         hasPattern = false;
         hasDataModel = true;
         dataModel = std::move(newDataModel);
 
         return *this;
+    }
+
+    MessageFormatter::Builder&
+        MessageFormatter::Builder::setErrorHandlingBehavior(
+           MessageFormatter::UMFErrorHandlingBehavior type) {
+               signalErrors = type == U_MF_STRICT;
+               return *this;
     }
 
     /*
@@ -86,6 +110,7 @@ namespace message2 {
     MessageFormatter::Builder::~Builder() {
         if (errors != nullptr) {
             delete errors;
+            errors = nullptr;
         }
     }
 
@@ -116,6 +141,7 @@ namespace message2 {
         standardMFFunctionRegistry.checkStandard();
 
         normalizedInput = builder.normalizedInput;
+        signalErrors = builder.signalErrors;
 
         // Build data model
         // First, check that there is a data model
@@ -150,6 +176,7 @@ namespace message2 {
     void MessageFormatter::cleanup() noexcept {
         if (errors != nullptr) {
             delete errors;
+            errors = nullptr;
         }
     }
 
@@ -161,6 +188,7 @@ namespace message2 {
         customMFFunctionRegistry = other.customMFFunctionRegistry;
         dataModel = std::move(other.dataModel);
         normalizedInput = std::move(other.normalizedInput);
+        signalErrors = other.signalErrors;
         errors = other.errors;
         other.errors = nullptr;
         return *this;

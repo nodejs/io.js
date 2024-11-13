@@ -30,7 +30,6 @@ TEST(CPUTest, SuppressTagCheckingScope) {
   // Check that the scope restores TCO afterwards.
   asm volatile(".arch_extension memtag \n mrs %0, tco" : "=r" (val));
   EXPECT_EQ(val, 0u);
-
 }
 #endif
 

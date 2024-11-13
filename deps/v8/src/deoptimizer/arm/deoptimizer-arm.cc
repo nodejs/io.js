@@ -22,10 +22,22 @@ const int Deoptimizer::kEagerDeoptExitSize = 2 * kInstrSize;
 const int Deoptimizer::kLazyDeoptExitSize = 2 * kInstrSize;
 
 Float32 RegisterValues::GetFloatRegister(unsigned n) const {
-  const int kShift = n % 2 == 0 ? 0 : 32;
+  const Address start = reinterpret_cast<Address>(simd128_registers_);
+  const size_t offset = n * sizeof(Float32);
+  return base::ReadUnalignedValue<Float32>(start + offset);
+}
 
-  return Float32::FromBits(
-      static_cast<uint32_t>(double_registers_[n / 2].get_bits() >> kShift));
+Float64 RegisterValues::GetDoubleRegister(unsigned n) const {
+  const Address start = reinterpret_cast<Address>(simd128_registers_);
+  const size_t offset = n * sizeof(Float64);
+  return base::ReadUnalignedValue<Float64>(start + offset);
+}
+
+void RegisterValues::SetDoubleRegister(unsigned n, Float64 value) {
+  V8_ASSUME(n < 2 * arraysize(simd128_registers_));
+  const Address start = reinterpret_cast<Address>(simd128_registers_);
+  const size_t offset = n * sizeof(Float64);
+  base::WriteUnalignedValue(start + offset, value);
 }
 
 void FrameDescription::SetCallerPc(unsigned offset, intptr_t value) {

@@ -2,8 +2,6 @@ import { MessageEvent, ErrorEvent } from './websocket'
 import Dispatcher from './dispatcher'
 
 import {
-  EventTarget,
-  Event,
   EventListenerOptions,
   AddEventListenerOptions,
   EventListenerOrEventListenerObject

@@ -17,10 +17,14 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
-#include <random>
+#include <limits>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/meta/type_traits.h"
+#include "absl/numeric/int128.h"
 #include "absl/random/internal/distribution_test_util.h"
 #include "absl/random/random.h"
 
@@ -29,7 +33,6 @@ namespace {
 constexpr int kSize = 400000;
 
 class RandomDistributionsTest : public testing::Test {};
-
 
 struct Invalid {};
 
@@ -93,17 +96,18 @@ void CheckArgsInferType() {
 }
 
 template <typename A, typename B, typename ExplicitRet>
-auto ExplicitUniformReturnT(int) -> decltype(
-    absl::Uniform<ExplicitRet>(*std::declval<absl::InsecureBitGen*>(),
-                               std::declval<A>(), std::declval<B>()));
+auto ExplicitUniformReturnT(int) -> decltype(absl::Uniform<ExplicitRet>(
+                                     std::declval<absl::InsecureBitGen&>(),
+                                     std::declval<A>(), std::declval<B>()));
 
 template <typename, typename, typename ExplicitRet>
 Invalid ExplicitUniformReturnT(...);
 
 template <typename TagType, typename A, typename B, typename ExplicitRet>
-auto ExplicitTaggedUniformReturnT(int) -> decltype(absl::Uniform<ExplicitRet>(
-    std::declval<TagType>(), *std::declval<absl::InsecureBitGen*>(),
-    std::declval<A>(), std::declval<B>()));
+auto ExplicitTaggedUniformReturnT(int)
+    -> decltype(absl::Uniform<ExplicitRet>(
+        std::declval<TagType>(), std::declval<absl::InsecureBitGen&>(),
+        std::declval<A>(), std::declval<B>()));
 
 template <typename, typename, typename, typename ExplicitRet>
 Invalid ExplicitTaggedUniformReturnT(...);
@@ -134,6 +138,14 @@ void CheckArgsReturnExpectedType() {
                                         Expect>(0))>>::value,
       "");
 }
+
+// Takes the type of `absl::Uniform<R>(gen)` if valid or `Invalid` otherwise.
+template <typename R>
+auto UniformNoBoundsReturnT(int)
+    -> decltype(absl::Uniform<R>(std::declval<absl::InsecureBitGen&>()));
+
+template <typename>
+Invalid UniformNoBoundsReturnT(...);
 
 TEST_F(RandomDistributionsTest, UniformTypeInference) {
   // Infers common types.
@@ -221,6 +233,38 @@ TEST_F(RandomDistributionsTest, UniformNoBounds) {
   absl::Uniform<uint32_t>(gen);
   absl::Uniform<uint64_t>(gen);
   absl::Uniform<absl::uint128>(gen);
+
+  // Compile-time validity tests.
+
+  // Allows unsigned ints.
+  testing::StaticAssertTypeEq<uint8_t,
+                              decltype(UniformNoBoundsReturnT<uint8_t>(0))>();
+  testing::StaticAssertTypeEq<uint16_t,
+                              decltype(UniformNoBoundsReturnT<uint16_t>(0))>();
+  testing::StaticAssertTypeEq<uint32_t,
+                              decltype(UniformNoBoundsReturnT<uint32_t>(0))>();
+  testing::StaticAssertTypeEq<uint64_t,
+                              decltype(UniformNoBoundsReturnT<uint64_t>(0))>();
+  testing::StaticAssertTypeEq<
+      absl::uint128, decltype(UniformNoBoundsReturnT<absl::uint128>(0))>();
+
+  // Disallows signed ints.
+  testing::StaticAssertTypeEq<Invalid,
+                              decltype(UniformNoBoundsReturnT<int8_t>(0))>();
+  testing::StaticAssertTypeEq<Invalid,
+                              decltype(UniformNoBoundsReturnT<int16_t>(0))>();
+  testing::StaticAssertTypeEq<Invalid,
+                              decltype(UniformNoBoundsReturnT<int32_t>(0))>();
+  testing::StaticAssertTypeEq<Invalid,
+                              decltype(UniformNoBoundsReturnT<int64_t>(0))>();
+  testing::StaticAssertTypeEq<
+      Invalid, decltype(UniformNoBoundsReturnT<absl::int128>(0))>();
+
+  // Disallows float types.
+  testing::StaticAssertTypeEq<Invalid,
+                              decltype(UniformNoBoundsReturnT<float>(0))>();
+  testing::StaticAssertTypeEq<Invalid,
+                              decltype(UniformNoBoundsReturnT<double>(0))>();
 }
 
 TEST_F(RandomDistributionsTest, UniformNonsenseRanges) {

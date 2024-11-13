@@ -194,15 +194,16 @@ t.test('exit handler never called', async t => {
     const { logs, errors } = await mockExitHandler(t, {
       config: { loglevel: 'silent' },
     })
-    process.emit('exit', 1)
+    process.emit('exit', 0)
     t.strictSame(logs, [])
     t.strictSame(errors(), [''], 'one empty string')
+    t.equal(process.exitCode, 1)
   })
 
   t.test('loglevel notice', async (t) => {
     const { logs, errors } = await mockExitHandler(t)
-    process.emit('exit', 1)
-    t.equal(process.exitCode, 1)
+    process.emit('exit', 2)
+    t.equal(process.exitCode, 2)
     t.match(logs.error, [
       'Exit handler never called!',
       /error with npm itself/,

@@ -8,8 +8,8 @@
 #include "src/common/globals.h"
 #include "src/heap/free-list-inl.h"
 #include "src/heap/heap.h"
-#include "src/heap/mutable-page-inl.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/mutable-page-metadata-inl.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/objects/free-space-inl.h"
 
 namespace v8 {
@@ -82,7 +82,7 @@ Tagged<FreeSpace> FreeListCategory::SearchForNodeInList(size_t minimum_size,
 void FreeListCategory::Free(const WritableFreeSpace& writable_free_space,
                             FreeMode mode, FreeList* owner) {
   Tagged<FreeSpace> free_space =
-      FreeSpace::cast(HeapObject::FromAddress(writable_free_space.Address()));
+      Cast<FreeSpace>(HeapObject::FromAddress(writable_free_space.Address()));
   DCHECK_EQ(free_space->Size(), writable_free_space.Size());
   free_space->SetNext(writable_free_space, top());
   set_top(free_space);

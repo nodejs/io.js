@@ -30,7 +30,7 @@ t.test('logs timing events', async (t) => {
   timers.off()
   time.end('foo')
   t.equal(logs.timing.length, 1)
-  t.match(logs.timing[0], /^bar Completed in [0-9]ms/)
+  t.match(logs.timing[0], /^bar Completed in [0-9]+m?s/)
 })
 
 t.test('finish unstarted timer', async (t) => {

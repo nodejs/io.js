@@ -6,9 +6,6 @@
 
 d8.file.execute('test/mjsunit/wasm/gc-js-interop-helpers.js');
 
-// TODO(14034): Some operations can still trigger a deopt loop.
-const ignoreDeopts = true;
-
 let {struct, array} = CreateWasmObjects();
 for (const wasm_obj of [struct, array]) {
   repeated(() => assertSame(undefined, wasm_obj.foo));
@@ -57,9 +54,7 @@ for (const wasm_obj of [struct, array]) {
   repeated(() => assertSame(undefined, wasm_obj?.property));
 
   repeated(() => assertEquals(undefined, void wasm_obj));
-  // These deopt loops can also be triggered with JS only code, e.g.
-  // `2 == {valueOf: () => +2n}`.
-  testThrowsRepeated(() => 2 == wasm_obj, TypeError, ignoreDeopts);
+  testThrowsRepeated(() => 2 == wasm_obj, TypeError);
   repeated(() => assertFalse(2 === wasm_obj));
   repeated(() => assertFalse({} === wasm_obj));
   repeated(() => assertTrue(wasm_obj == wasm_obj));
@@ -68,11 +63,9 @@ for (const wasm_obj of [struct, array]) {
   repeated(() => assertFalse(wasm_obj !== wasm_obj));
   repeated(() => assertFalse(struct == array));
   repeated(() => assertTrue(struct != array));
-  // JS Symbols also have the issue of triggering deopt loops on relational
-  // comparisons, e.g. `2 < Symbol("test")`.
-  testThrowsRepeated(() => wasm_obj < wasm_obj, TypeError, ignoreDeopts);
-  testThrowsRepeated(() => wasm_obj <= wasm_obj, TypeError, ignoreDeopts);
-  testThrowsRepeated(() => wasm_obj >= wasm_obj, TypeError, ignoreDeopts);
+  testThrowsRepeated(() => wasm_obj < wasm_obj, TypeError);
+  testThrowsRepeated(() => wasm_obj <= wasm_obj, TypeError);
+  testThrowsRepeated(() => wasm_obj >= wasm_obj, TypeError);
 
   testThrowsRepeated(() => { let [] = wasm_obj; }, TypeError);
   testThrowsRepeated(() => { let [a, b] = wasm_obj; }, TypeError);

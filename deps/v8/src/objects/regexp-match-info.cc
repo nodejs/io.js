@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/objects/regexp-match-info-inl.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 // static
 Handle<RegExpMatchInfo> RegExpMatchInfo::New(Isolate* isolate,
@@ -13,7 +14,7 @@ Handle<RegExpMatchInfo> RegExpMatchInfo::New(Isolate* isolate,
                                              AllocationType allocation) {
   int capacity = JSRegExp::RegistersForCaptureCount(capture_count);
   DCHECK_GE(capacity, kMinCapacity);
-  base::Optional<DisallowGarbageCollection> no_gc;
+  std::optional<DisallowGarbageCollection> no_gc;
   Handle<RegExpMatchInfo> result =
       Allocate(isolate, capacity, &no_gc, allocation);
 
@@ -40,5 +41,4 @@ Handle<RegExpMatchInfo> RegExpMatchInfo::ReserveCaptures(
   return match_info;
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

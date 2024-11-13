@@ -25,7 +25,6 @@ if (v8_gcmole) {
       # The following contains all relevant source and build files.
       "../debug_helper/debug-helper.h",
       "../../BUILD.gn",
-      "../../base/",
       "../../include/",
       "../../src/",
       "../../test/cctest/",

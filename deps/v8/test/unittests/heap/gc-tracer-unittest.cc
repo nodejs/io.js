@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <limits>
+#include <optional>
 
 #include "src/base/platform/platform.h"
 #include "src/common/globals.h"
@@ -36,7 +37,7 @@ enum class StartTracingMode {
 
 void StartTracing(GCTracer* tracer, GarbageCollector collector,
                   StartTracingMode mode,
-                  base::Optional<base::TimeTicks> time = {}) {
+                  std::optional<base::TimeTicks> time = {}) {
   DCHECK_IMPLIES(mode != StartTracingMode::kAtomic,
                  !Heap::IsYoungGenerationCollector(collector));
   // Start the cycle for incremental marking.
@@ -65,7 +66,7 @@ void StartTracing(GCTracer* tracer, GarbageCollector collector,
 }
 
 void StopTracing(GCTracer* tracer, GarbageCollector collector,
-                 base::Optional<base::TimeTicks> time = {}) {
+                 std::optional<base::TimeTicks> time = {}) {
   tracer->StopAtomicPause();
   tracer->StopObservablePause(collector, time.value_or(base::TimeTicks::Now()));
   switch (collector) {

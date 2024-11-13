@@ -25,6 +25,7 @@
 
 #include "async_wrap-inl.h"
 #include "env-inl.h"
+#include "node_errors.h"
 #include "node_external_reference.h"
 #include "threadpoolwork-inl.h"
 #include "util-inl.h"
@@ -271,6 +272,8 @@ class CompressionStream : public AsyncWrap, public ThreadPoolWork {
     CHECK_EQ(unreported_allocations_, 0);
   }
 
+  Environment* env() const { return this->ThreadPoolWork::env(); }
+
   void Close() {
     if (write_in_progress_) {
       pending_close_ = true;
@@ -493,7 +496,9 @@ class CompressionStream : public AsyncWrap, public ThreadPoolWork {
     size += sizeof(size_t);
     CompressionStream* ctx = static_cast<CompressionStream*>(data);
     char* memory = UncheckedMalloc(size);
-    if (UNLIKELY(memory == nullptr)) return nullptr;
+    if (memory == nullptr) [[unlikely]] {
+      return nullptr;
+    }
     *reinterpret_cast<size_t*>(memory) = size;
     ctx->unreported_allocations_.fetch_add(size,
                                            std::memory_order_relaxed);
@@ -501,7 +506,9 @@ class CompressionStream : public AsyncWrap, public ThreadPoolWork {
   }
 
   static void FreeForZlib(void* data, void* pointer) {
-    if (UNLIKELY(pointer == nullptr)) return;
+    if (pointer == nullptr) [[unlikely]] {
+      return;
+    }
     CompressionStream* ctx = static_cast<CompressionStream*>(data);
     char* real_pointer = static_cast<char*>(pointer) - sizeof(size_t);
     size_t real_size = *reinterpret_cast<size_t*>(real_pointer);
@@ -694,7 +701,11 @@ class BrotliCompressionStream final :
           static_cast<CompressionStream<CompressionContext>*>(wrap));
     if (err.IsError()) {
       wrap->EmitError(err);
-      args.GetReturnValue().Set(false);
+      // TODO(addaleax): Sometimes we generate better error codes in C++ land,
+      // e.g. ERR_BROTLI_PARAM_SET_FAILED -- it's hard to access them with
+      // the current bindings setup, though.
+      THROW_ERR_ZLIB_INITIALIZATION_FAILED(wrap->env(),
+                                           "Initialization failed");
       return;
     }
 
@@ -708,12 +719,11 @@ class BrotliCompressionStream final :
       err = wrap->context()->SetParams(i, data[i]);
       if (err.IsError()) {
         wrap->EmitError(err);
-        args.GetReturnValue().Set(false);
+        THROW_ERR_ZLIB_INITIALIZATION_FAILED(wrap->env(),
+                                             "Initialization failed");
         return;
       }
     }
-
-    args.GetReturnValue().Set(true);
   }
 
   static void Params(const FunctionCallbackInfo<Value>& args) {

@@ -200,8 +200,10 @@ class ProcessWrap : public HandleWrap {
     // batch files directly but is potentially insecure because arguments
     // are not escaped (and sometimes cannot be unambiguously escaped),
     // hence why they are rejected here.
+#ifdef _WIN32
     if (IsWindowsBatchFile(options.file))
       err = UV_EINVAL;
+#endif
 
     // options.args
     Local<Value> argv_v =

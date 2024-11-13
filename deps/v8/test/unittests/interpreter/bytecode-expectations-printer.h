@@ -71,9 +71,10 @@ class BytecodeExpectationsPrinter final {
                            SourcePositionTableIterator* source_iterator,
                            int bytecode_offset) const;
   void PrintV8String(std::ostream* stream, i::Tagged<i::String> string) const;
-  void PrintConstant(std::ostream* stream, i::Handle<i::Object> constant) const;
+  void PrintConstant(std::ostream* stream,
+                     i::DirectHandle<i::Object> constant) const;
   void PrintFrameSize(std::ostream* stream,
-                      i::Handle<i::BytecodeArray> bytecode_array) const;
+                      i::DirectHandle<i::BytecodeArray> bytecode_array) const;
   void PrintBytecodeSequence(std::ostream* stream,
                              i::Handle<i::BytecodeArray> bytecode_array) const;
   void PrintConstantPool(std::ostream* stream,
@@ -82,7 +83,7 @@ class BytecodeExpectationsPrinter final {
   void PrintBytecodeArray(std::ostream* stream,
                           i::Handle<i::BytecodeArray> bytecode_array) const;
   void PrintHandlers(std::ostream* stream,
-                     i::Handle<i::BytecodeArray> bytecode_array) const;
+                     i::DirectHandle<i::BytecodeArray> bytecode_array) const;
 
   v8::Local<v8::String> V8StringFromUTF8(const char* data) const;
   std::string WrapCodeInFunction(const char* function_name,

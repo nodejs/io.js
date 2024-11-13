@@ -440,7 +440,7 @@ class Computer {
 
     {
       // constant mode.
-      Handle<Code> wrapper;
+      DirectHandle<Code> wrapper;
       {
         // Wrap the above code with a callable function that passes constants.
         Zone zone(isolate->allocator(), ZONE_NAME, kCompressGraphZone);
@@ -474,7 +474,7 @@ class Computer {
 
     {
       // buffer mode.
-      Handle<Code> wrapper;
+      DirectHandle<Code> wrapper;
       {
         // Wrap the above code with a callable function that loads from {input}.
         Zone zone(isolate->allocator(), ZONE_NAME, kCompressGraphZone);
@@ -535,7 +535,7 @@ static void TestInt32Sub(CallDescriptor* desc) {
   }
 
   Handle<Code> inner_code = CompileGraph("Int32Sub", desc, inner.graph());
-  Handle<Code> wrapper = WrapWithCFunction(isolate, inner_code, desc);
+  DirectHandle<Code> wrapper = WrapWithCFunction(isolate, inner_code, desc);
   MachineSignature* msig = desc->GetMachineSignature(&zone);
   CodeRunner<int32_t> runnable(isolate, wrapper,
                                CSignature::FromMachine(&zone, msig));
@@ -574,7 +574,7 @@ static void CopyTwentyInt32(CallDescriptor* desc) {
   }
 
   CSignatureOf<int32_t> csig;
-  Handle<Code> wrapper;
+  DirectHandle<Code> wrapper;
   {
     // Loads parameters from the input buffer and calls the above code.
     Zone zone(isolate->allocator(), ZONE_NAME, kCompressGraphZone);
@@ -1051,7 +1051,7 @@ void MixedParamTest(int start) {
 
     {
       // call the select.
-      Handle<Code> wrapper;
+      DirectHandle<Code> wrapper;
       int32_t expected_ret;
       char bytes[kDoubleSize];
       alignas(8) char output[kDoubleSize];

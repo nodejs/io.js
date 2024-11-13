@@ -21,14 +21,14 @@ RUNTIME_FUNCTION(Runtime_IsJSProxy) {
 RUNTIME_FUNCTION(Runtime_JSProxyGetHandler) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(1, args.length());
-  auto proxy = JSProxy::cast(args[0]);
+  auto proxy = Cast<JSProxy>(args[0]);
   return proxy->handler();
 }
 
 RUNTIME_FUNCTION(Runtime_JSProxyGetTarget) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(1, args.length());
-  auto proxy = JSProxy::cast(args[0]);
+  auto proxy = Cast<JSProxy>(args[0]);
   return proxy->target();
 }
 

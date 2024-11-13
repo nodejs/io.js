@@ -46,7 +46,12 @@ class Publish extends BaseCommand {
     await this.#publish(args)
   }
 
-  async execWorkspaces () {
+  async execWorkspaces (args) {
+    const useWorkspaces = args.length === 0 || args.includes('.')
+    if (!useWorkspaces) {
+      log.warn('Ignoring workspaces for specified package(s)')
+      return this.exec(args)
+    }
     await this.setWorkspaces()
 
     for (const [name, workspace] of this.workspaces.entries()) {

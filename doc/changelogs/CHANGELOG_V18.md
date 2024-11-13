@@ -9,6 +9,7 @@
 </tr>
 <tr>
 <td>
+<a href="#18.20.5">18.20.5</a><br/>
 <a href="#18.20.4">18.20.4</a><br/>
 <a href="#18.20.3">18.20.3</a><br/>
 <a href="#18.20.2">18.20.2</a><br/>
@@ -50,6 +51,7 @@
 </table>
 
 * Other Versions
+  * [23.x](CHANGELOG_V23.md)
   * [22.x](CHANGELOG_V22.md)
   * [21.x](CHANGELOG_V21.md)
   * [20.x](CHANGELOG_V20.md)
@@ -72,6 +74,92 @@
   * [0.10.x](CHANGELOG_V010.md)
   * [io.js](CHANGELOG_IOJS.md)
   * [Archive](CHANGELOG_ARCHIVE.md)
+
+<a id="18.20.5"></a>
+
+## 2024-11-12, Version 18.20.5 'Hydrogen' (LTS), @aduh95
+
+### Notable Changes
+
+* \[[`ac37e554a5`](https://github.com/nodejs/node/commit/ac37e554a5)] - **esm**: mark import attributes and JSON module as stable (Nicolò Ribaudo) [#55333](https://github.com/nodejs/node/pull/55333)
+
+### Commits
+
+* \[[`c2e6a8f215`](https://github.com/nodejs/node/commit/c2e6a8f215)] - **benchmark**: fix napi/ref addon (Michaël Zasso) [#53233](https://github.com/nodejs/node/pull/53233)
+* \[[`4c2e07aaac`](https://github.com/nodejs/node/commit/4c2e07aaac)] - **build**: pin doc workflow to Node.js 20 (Richard Lau) [#55755](https://github.com/nodejs/node/pull/55755)
+* \[[`6ba4ebd060`](https://github.com/nodejs/node/commit/6ba4ebd060)] - **build**: fix build with Python 3.12 (Luigi Pinca) [#50582](https://github.com/nodejs/node/pull/50582)
+* \[[`c50f01399e`](https://github.com/nodejs/node/commit/c50f01399e)] - **crypto**: ensure invalid SubtleCrypto JWK data import results in DataError (Filip Skokan) [#55041](https://github.com/nodejs/node/pull/55041)
+* \[[`5c46782137`](https://github.com/nodejs/node/commit/5c46782137)] - **crypto**: make deriveBits length parameter optional and nullable (Filip Skokan) [#53601](https://github.com/nodejs/node/pull/53601)
+* \[[`6e7274fa53`](https://github.com/nodejs/node/commit/6e7274fa53)] - **crypto**: reject dh,x25519,x448 in {Sign,Verify}Final (Huáng Jùnliàng) [#53774](https://github.com/nodejs/node/pull/53774)
+* \[[`d2442044db`](https://github.com/nodejs/node/commit/d2442044db)] - **crypto**: reject Ed25519/Ed448 in Sign/Verify prototypes (Filip Skokan) [#52340](https://github.com/nodejs/node/pull/52340)
+* \[[`93670de499`](https://github.com/nodejs/node/commit/93670de499)] - **deps**: upgrade npm to 10.8.2 (npm team) [#53799](https://github.com/nodejs/node/pull/53799)
+* \[[`8531c95587`](https://github.com/nodejs/node/commit/8531c95587)] - **deps**: upgrade npm to 10.8.1 (npm team) [#53207](https://github.com/nodejs/node/pull/53207)
+* \[[`fd9933ea0f`](https://github.com/nodejs/node/commit/fd9933ea0f)] - **deps**: upgrade npm to 10.8.0 (npm team) [#53014](https://github.com/nodejs/node/pull/53014)
+* \[[`03852495d7`](https://github.com/nodejs/node/commit/03852495d7)] - **deps**: update simdutf to 5.6.0 (Node.js GitHub Bot) [#55379](https://github.com/nodejs/node/pull/55379)
+* \[[`3597be4146`](https://github.com/nodejs/node/commit/3597be4146)] - **deps**: update simdutf to 5.5.0 (Node.js GitHub Bot) [#54434](https://github.com/nodejs/node/pull/54434)
+* \[[`52d2c03738`](https://github.com/nodejs/node/commit/52d2c03738)] - **deps**: update simdutf to 5.3.4 (Node.js GitHub Bot) [#54312](https://github.com/nodejs/node/pull/54312)
+* \[[`dd882ac483`](https://github.com/nodejs/node/commit/dd882ac483)] - **deps**: update simdutf to 5.3.1 (Node.js GitHub Bot) [#54196](https://github.com/nodejs/node/pull/54196)
+* \[[`5fb8e1b428`](https://github.com/nodejs/node/commit/5fb8e1b428)] - **deps**: update simdutf to 5.3.0 (Node.js GitHub Bot) [#53837](https://github.com/nodejs/node/pull/53837)
+* \[[`c952fd886d`](https://github.com/nodejs/node/commit/c952fd886d)] - **deps**: update simdutf to 5.2.8 (Node.js GitHub Bot) [#52727](https://github.com/nodejs/node/pull/52727)
+* \[[`a1ae050ed5`](https://github.com/nodejs/node/commit/a1ae050ed5)] - **deps**: update simdutf to 5.2.6 (Node.js GitHub Bot) [#52727](https://github.com/nodejs/node/pull/52727)
+* \[[`96ec48da7f`](https://github.com/nodejs/node/commit/96ec48da7f)] - **deps**: update brotli to 1.1.0 (Node.js GitHub Bot) [#50804](https://github.com/nodejs/node/pull/50804)
+* \[[`11242bcfb4`](https://github.com/nodejs/node/commit/11242bcfb4)] - **deps**: update zlib to 1.3.0.1-motley-71660e1 (Node.js GitHub Bot) [#53464](https://github.com/nodejs/node/pull/53464)
+* \[[`64f98a9869`](https://github.com/nodejs/node/commit/64f98a9869)] - **deps**: update zlib to 1.3.0.1-motley-c2469fd (Node.js GitHub Bot) [#53464](https://github.com/nodejs/node/pull/53464)
+* \[[`4b815550e0`](https://github.com/nodejs/node/commit/4b815550e0)] - **deps**: update zlib to 1.3.0.1-motley-68e57e6 (Node.js GitHub Bot) [#53464](https://github.com/nodejs/node/pull/53464)
+* \[[`f6b2f68ce7`](https://github.com/nodejs/node/commit/f6b2f68ce7)] - **deps**: update zlib to 1.3.0.1-motley-8b7eff8 (Node.js GitHub Bot) [#53464](https://github.com/nodejs/node/pull/53464)
+* \[[`e151ebef86`](https://github.com/nodejs/node/commit/e151ebef86)] - **deps**: update zlib to 1.3.0.1-motley-e432200 (Node.js GitHub Bot) [#53464](https://github.com/nodejs/node/pull/53464)
+* \[[`637a306e02`](https://github.com/nodejs/node/commit/637a306e02)] - **deps**: update zlib to 1.3.0.1-motley-887bb57 (Node.js GitHub Bot) [#53464](https://github.com/nodejs/node/pull/53464)
+* \[[`569a739569`](https://github.com/nodejs/node/commit/569a739569)] - **deps**: update zlib to 1.3.0.1-motley-209717d (Node.js GitHub Bot) [#53156](https://github.com/nodejs/node/pull/53156)
+* \[[`033f1e2ba5`](https://github.com/nodejs/node/commit/033f1e2ba5)] - **deps**: update zlib to 1.3.0.1-motley-4f653ff (Node.js GitHub Bot) [#53052](https://github.com/nodejs/node/pull/53052)
+* \[[`aaa857fc01`](https://github.com/nodejs/node/commit/aaa857fc01)] - **deps**: update ada to 2.8.0 (Node.js GitHub Bot) [#53254](https://github.com/nodejs/node/pull/53254)
+* \[[`d577321877`](https://github.com/nodejs/node/commit/d577321877)] - **deps**: update acorn to 8.13.0 (Node.js GitHub Bot) [#55558](https://github.com/nodejs/node/pull/55558)
+* \[[`55b3c8a41f`](https://github.com/nodejs/node/commit/55b3c8a41f)] - **deps**: update acorn-walk to 8.3.4 (Node.js GitHub Bot) [#54950](https://github.com/nodejs/node/pull/54950)
+* \[[`50a9456f1e`](https://github.com/nodejs/node/commit/50a9456f1e)] - **deps**: update acorn-walk to 8.3.3 (Node.js GitHub Bot) [#53466](https://github.com/nodejs/node/pull/53466)
+* \[[`f56cfe776b`](https://github.com/nodejs/node/commit/f56cfe776b)] - **deps**: update acorn to 8.12.1 (Node.js GitHub Bot) [#53465](https://github.com/nodejs/node/pull/53465)
+* \[[`fce3ab686d`](https://github.com/nodejs/node/commit/fce3ab686d)] - **deps**: update archs files for openssl-3.0.15+quic1 (Node.js GitHub Bot) [#55184](https://github.com/nodejs/node/pull/55184)
+* \[[`46c782486e`](https://github.com/nodejs/node/commit/46c782486e)] - **deps**: upgrade openssl sources to quictls/openssl-3.0.15+quic1 (Node.js GitHub Bot) [#55184](https://github.com/nodejs/node/pull/55184)
+* \[[`4a18581dc3`](https://github.com/nodejs/node/commit/4a18581dc3)] - **deps**: update corepack to 0.29.4 (Node.js GitHub Bot) [#54845](https://github.com/nodejs/node/pull/54845)
+* \[[`67e98831ab`](https://github.com/nodejs/node/commit/67e98831ab)] - **deps**: update archs files for openssl-3.0.14+quic1 (Node.js GitHub Bot) [#54336](https://github.com/nodejs/node/pull/54336)
+* \[[`c60c6630af`](https://github.com/nodejs/node/commit/c60c6630af)] - **deps**: upgrade openssl sources to quictls/openssl-3.0.14+quic1 (Node.js GitHub Bot) [#54336](https://github.com/nodejs/node/pull/54336)
+* \[[`935a506377`](https://github.com/nodejs/node/commit/935a506377)] - **deps**: update corepack to 0.29.3 (Node.js GitHub Bot) [#54072](https://github.com/nodejs/node/pull/54072)
+* \[[`dbdfdd0226`](https://github.com/nodejs/node/commit/dbdfdd0226)] - **deps**: update corepack to 0.29.2 (Node.js GitHub Bot) [#53838](https://github.com/nodejs/node/pull/53838)
+* \[[`395ee44608`](https://github.com/nodejs/node/commit/395ee44608)] - **deps**: update corepack to 0.28.2 (Node.js GitHub Bot) [#53253](https://github.com/nodejs/node/pull/53253)
+* \[[`6ba8bc0618`](https://github.com/nodejs/node/commit/6ba8bc0618)] - **deps**: update c-ares to 1.29.0 (Node.js GitHub Bot) [#53155](https://github.com/nodejs/node/pull/53155)
+* \[[`81c3260cd2`](https://github.com/nodejs/node/commit/81c3260cd2)] - **deps**: update corepack to 0.28.1 (Node.js GitHub Bot) [#52946](https://github.com/nodejs/node/pull/52946)
+* \[[`e4739e9aa6`](https://github.com/nodejs/node/commit/e4739e9aa6)] - **doc**: only apply content-visibility on all.html (Filip Skokan) [#53510](https://github.com/nodejs/node/pull/53510)
+* \[[`4d2ac5d98f`](https://github.com/nodejs/node/commit/4d2ac5d98f)] - **doc**: move release key for Myles Borins (Richard Lau) [#54059](https://github.com/nodejs/node/pull/54059)
+* \[[`1c4decc998`](https://github.com/nodejs/node/commit/1c4decc998)] - **doc**: add release key for aduh95 (Antoine du Hamel) [#55349](https://github.com/nodejs/node/pull/55349)
+* \[[`a4f6f0918f`](https://github.com/nodejs/node/commit/a4f6f0918f)] - **doc**: add names next to release key bash commands (Aviv Keller) [#52878](https://github.com/nodejs/node/pull/52878)
+* \[[`c679348f83`](https://github.com/nodejs/node/commit/c679348f83)] - **errors**: use `determineSpecificType` in more error messages (Antoine du Hamel) [#49580](https://github.com/nodejs/node/pull/49580)
+* \[[`3059262185`](https://github.com/nodejs/node/commit/3059262185)] - **esm**: fix broken assertion in `legacyMainResolve` (Antoine du Hamel) [#55708](https://github.com/nodejs/node/pull/55708)
+* \[[`ac37e554a5`](https://github.com/nodejs/node/commit/ac37e554a5)] - **esm**: mark import attributes and JSON module as stable (Nicolò Ribaudo) [#55333](https://github.com/nodejs/node/pull/55333)
+* \[[`84b0ead758`](https://github.com/nodejs/node/commit/84b0ead758)] - **esm**: fix hook name in error message (Bruce MacNaughton) [#50466](https://github.com/nodejs/node/pull/50466)
+* \[[`0092358d00`](https://github.com/nodejs/node/commit/0092358d00)] - **http**: handle multi-value content-disposition header (Arsalan Ahmad) [#50977](https://github.com/nodejs/node/pull/50977)
+* \[[`d814fe935c`](https://github.com/nodejs/node/commit/d814fe935c)] - **src**: account for OpenSSL unexpected version (Shelley Vohr) [#54038](https://github.com/nodejs/node/pull/54038)
+* \[[`6615fe5db1`](https://github.com/nodejs/node/commit/6615fe5db1)] - **src**: fix dynamically linked OpenSSL version (Richard Lau) [#53456](https://github.com/nodejs/node/pull/53456)
+* \[[`d6114cb2e2`](https://github.com/nodejs/node/commit/d6114cb2e2)] - **test**: fix test when compiled without engine support (Richard Lau) [#53232](https://github.com/nodejs/node/pull/53232)
+* \[[`ac3a39051c`](https://github.com/nodejs/node/commit/ac3a39051c)] - **test**: fix test-tls-junk-closes-server (Michael Dawson) [#55089](https://github.com/nodejs/node/pull/55089)
+* \[[`c8520ff7d2`](https://github.com/nodejs/node/commit/c8520ff7d2)] - **test**: fix OpenSSL version checks (Richard Lau) [#53503](https://github.com/nodejs/node/pull/53503)
+* \[[`9824827937`](https://github.com/nodejs/node/commit/9824827937)] - **test**: update tls test to support OpenSSL32 (Michael Dawson) [#55030](https://github.com/nodejs/node/pull/55030)
+* \[[`1a4d497936`](https://github.com/nodejs/node/commit/1a4d497936)] - **test**: adjust tls-set-ciphers for OpenSSL32 (Michael Dawson) [#55016](https://github.com/nodejs/node/pull/55016)
+* \[[`341496a5a2`](https://github.com/nodejs/node/commit/341496a5a2)] - **test**: add asserts to validate test assumptions (Michael Dawson) [#54997](https://github.com/nodejs/node/pull/54997)
+* \[[`37a2f7eaa4`](https://github.com/nodejs/node/commit/37a2f7eaa4)] - **test**: adjust key sizes to support OpenSSL32 (Michael Dawson) [#54972](https://github.com/nodejs/node/pull/54972)
+* \[[`75ff0cdf66`](https://github.com/nodejs/node/commit/75ff0cdf66)] - **test**: update test to support OpenSSL32 (Michael Dawson) [#54968](https://github.com/nodejs/node/pull/54968)
+* \[[`b097d85dfe`](https://github.com/nodejs/node/commit/b097d85dfe)] - **test**: adjust test-tls-junk-server for OpenSSL32 (Michael Dawson) [#54926](https://github.com/nodejs/node/pull/54926)
+* \[[`e9997388a6`](https://github.com/nodejs/node/commit/e9997388a6)] - **test**: adjust tls test for OpenSSL32 (Michael Dawson) [#54909](https://github.com/nodejs/node/pull/54909)
+* \[[`c7de027adb`](https://github.com/nodejs/node/commit/c7de027adb)] - **test**: fix test test-tls-dhe for OpenSSL32 (Michael Dawson) [#54903](https://github.com/nodejs/node/pull/54903)
+* \[[`68156cbae1`](https://github.com/nodejs/node/commit/68156cbae1)] - **test**: fix test-tls-client-mindhsize for OpenSSL32 (Michael Dawson) [#54739](https://github.com/nodejs/node/pull/54739)
+* \[[`d5b73e5683`](https://github.com/nodejs/node/commit/d5b73e5683)] - **test**: increase key size for ca2-cert.pem (Michael Dawson) [#54599](https://github.com/nodejs/node/pull/54599)
+* \[[`5316314755`](https://github.com/nodejs/node/commit/5316314755)] - **test**: update TLS test for OpenSSL 3.2 (Richard Lau) [#54612](https://github.com/nodejs/node/pull/54612)
+* \[[`a1f0c87859`](https://github.com/nodejs/node/commit/a1f0c87859)] - **test**: fix test-tls-client-auth test for OpenSSL32 (Michael Dawson) [#54610](https://github.com/nodejs/node/pull/54610)
+* \[[`e9e3306426`](https://github.com/nodejs/node/commit/e9e3306426)] - **test**: use assert.{s,deepS}trictEqual() (Sonny) [#54208](https://github.com/nodejs/node/pull/54208)
+* \[[`1320fb9475`](https://github.com/nodejs/node/commit/1320fb9475)] - **test**: update TLS trace tests for OpenSSL >= 3.2 (Richard Lau) [#53229](https://github.com/nodejs/node/pull/53229)
+* \[[`cc3cdf7cc0`](https://github.com/nodejs/node/commit/cc3cdf7cc0)] - **test**: check against run-time OpenSSL version (Richard Lau) [#53456](https://github.com/nodejs/node/pull/53456)
+* \[[`fc43c6803e`](https://github.com/nodejs/node/commit/fc43c6803e)] - **test**: update TLS tests for OpenSSL 3.2 (Richard Lau) [#53384](https://github.com/nodejs/node/pull/53384)
+* \[[`627d3993f0`](https://github.com/nodejs/node/commit/627d3993f0)] - **test**: fix unreliable assumption in js-native-api/test\_cannot\_run\_js (Joyee Cheung) [#51898](https://github.com/nodejs/node/pull/51898)
+* \[[`9f521f456e`](https://github.com/nodejs/node/commit/9f521f456e)] - **test**: update tests for OpenSSL 3.0.14 (Richard Lau) [#53373](https://github.com/nodejs/node/pull/53373)
+* \[[`0fb652eba9`](https://github.com/nodejs/node/commit/0fb652eba9)] - **tools**: update gyp-next to v0.16.1 (Michaël Zasso) [#50380](https://github.com/nodejs/node/pull/50380)
+* \[[`fa72b2c2de`](https://github.com/nodejs/node/commit/fa72b2c2de)] - **tools**: skip ruff on tools/gyp (Michaël Zasso) [#50380](https://github.com/nodejs/node/pull/50380)
 
 <a id="18.20.4"></a>
 

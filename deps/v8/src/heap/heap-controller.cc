@@ -6,6 +6,7 @@
 
 #include "src/execution/isolate-inl.h"
 #include "src/heap/spaces.h"
+#include "src/tracing/trace-event.h"
 
 namespace v8 {
 namespace internal {
@@ -33,23 +34,21 @@ double MemoryController<Trait>::MaxGrowingFactor(size_t max_heap_size) {
   constexpr double kMaxSmallFactor = 2.0;
   constexpr double kHighFactor = 4.0;
 
-  size_t max_size = max_heap_size;
-  max_size = std::max({max_size, Trait::kMinSize});
-
   // If we are on a device with lots of memory, we allow a high heap
   // growing factor.
-  if (max_size >= Trait::kMaxSize) {
+  if (max_heap_size >= Trait::kMaxSize) {
     return kHighFactor;
   }
+
+  size_t max_size = std::max({max_heap_size, Trait::kMinSize});
 
   DCHECK_GE(max_size, Trait::kMinSize);
   DCHECK_LT(max_size, Trait::kMaxSize);
 
-  // On smaller devices we linearly scale the factor: (X-A)/(B-A)*(D-C)+C
-  double factor = (max_size - Trait::kMinSize) *
-                      (kMaxSmallFactor - kMinSmallFactor) /
-                      (Trait::kMaxSize - Trait::kMinSize) +
-                  kMinSmallFactor;
+  // On smaller devices we linearly scale the factor: C+(D-C)*(X-A)/(B-A)
+  double factor = kMinSmallFactor + (kMaxSmallFactor - kMinSmallFactor) *
+                                        (max_size - Trait::kMinSize) /
+                                        (Trait::kMaxSize - Trait::kMinSize);
   return factor;
 }
 
@@ -108,7 +107,7 @@ double MemoryController<Trait>::DynamicGrowingFactor(double gc_speed,
 
   // The factor is a / b, but we need to check for small b first.
   double factor = (a < b * max_factor) ? a / b : max_factor;
-  factor = std::min(factor, max_factor);
+  DCHECK_LE(factor, max_factor);
   factor = std::max({factor, Trait::kMinGrowingFactor});
   return factor;
 }
@@ -152,24 +151,25 @@ size_t MemoryController<Trait>::CalculateAllocationLimit(
                static_cast<uint64_t>(current_size) +
                    MinimumAllocationLimitGrowingStep(growing_mode)) +
       new_space_capacity;
-  const uint64_t limit_above_min_size = std::max<uint64_t>(limit, min_size);
   const uint64_t halfway_to_the_max =
       (static_cast<uint64_t>(current_size) + max_size) / 2;
+  const uint64_t limit_or_halfway =
+      std::min<uint64_t>(limit, halfway_to_the_max);
   const size_t result =
-      static_cast<size_t>(std::min(limit_above_min_size, halfway_to_the_max));
+      static_cast<size_t>(std::max<uint64_t>(limit_or_halfway, min_size));
   if (v8_flags.trace_gc_verbose) {
     Isolate::FromHeap(heap)->PrintWithTimestamp(
         "[%s] Limit: old size: %zu KB, new limit: %zu KB (%.1f)\n",
         Trait::kName, current_size / KB, result / KB, factor);
   }
+#if defined(V8_USE_PERFETTO)
+  TRACE_COUNTER(TRACE_DISABLED_BY_DEFAULT("v8.gc"), Trait::kName, result);
+#endif
   return result;
 }
 
 template class V8_EXPORT_PRIVATE MemoryController<V8HeapTrait>;
 template class V8_EXPORT_PRIVATE MemoryController<GlobalMemoryTrait>;
-
-const char* V8HeapTrait::kName = "HeapController";
-const char* GlobalMemoryTrait::kName = "GlobalMemoryController";
 
 }  // namespace internal
 }  // namespace v8

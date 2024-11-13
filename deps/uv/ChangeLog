@@ -1,4 +1,237 @@
-2024.02.07, Version 1.48.0 (Stable)
+2024.10.11, Version 1.49.1 (Stable)
+
+Changes since version 1.49.0:
+
+* build: add darwin-syscalls.h to release tarball (Ben Noordhuis)
+
+* linux: use IORING_SETUP_NO_SQARRAY when available (Ben Noordhuis)
+
+* linux: use IORING_OP_FTRUNCATE when available (Ben Noordhuis)
+
+* win: fix pNtQueryDirectoryFile check (Rialbat)
+
+* win: fix WriteFile() error translation (Santiago Gimeno)
+
+* win,fs: uv_fs_rmdir() to return ENOENT on file (Santiago Gimeno)
+
+* win,pipe: ipc code does not support async read (Jameson Nash)
+
+* netbsd: fix build (Adam)
+
+* win,fs: fix bug in fs__readdir (Hüseyin Açacak)
+
+* unix: workaround gcc bug on armv7 (Santiago Gimeno)
+
+* unix: work around arm-linux-gnueabihf-gcc bug (Ben Noordhuis)
+
+* unix: fix uv_tcp_keepalive in smartOS (Santiago Gimeno)
+
+* unix: fix uv_getrusage ru_maxrss on solaris (Poul T Lomholt)
+
+
+2024.09.25, Version 1.49.0 (Stable), d2e56a5e8d3e39947b78405ca6e4727c70f5568a
+
+Changes since version 1.48.0:
+
+* test: fix -Wpointer-to-int-cast on 32 bits systems (Ben Noordhuis)
+
+* build: add alias for libuv to CMakeLists.txt (Anthony Alayo)
+
+* linux: create io_uring sqpoll ring lazily (Ben Noordhuis)
+
+* misc: run sample CI when code changes (Jameson Nash)
+
+* linux: fix uv_available_parallelism using cgroup (Thomas Walter)
+
+* doc: fix tty example segfault (hiiizxf)
+
+* udp,unix: fix sendmsg use-after-free (Geddy)
+
+* cygwin: implement uv_resident_set_memory (Farzin Monsef)
+
+* win: almost fix race detecting ESRCH in uv_kill (Santiago Gimeno)
+
+* test: disable env var test under win32+asan (Ben Noordhuis)
+
+* unix,fs: fix realpath calls that use the system allocator (Saúl Ibarra
+  Corretgé)
+
+* sunos: sync tcp keep-alive with other unices (Andy Pan)
+
+* linux: fix /proc/self/stat executable name parsing (Farzin Monsef)
+
+* test,ci: fix [AM]San, disable ASLR (Ben Noordhuis)
+
+* win: remove _alloca usage (Ben Noordhuis)
+
+* unix: reinstate preadv/pwritev fallback code (Ben Noordhuis)
+
+* linux: don't delay EPOLL_CTL_DEL operations (Ben Noordhuis)
+
+* doc: fix typos in ChangeLog (tgolang)
+
+* unix,win: error on zero delay tcp keepalive (Saúl Ibarra Corretgé)
+
+* win: simplify uv_once implementation (Saúl Ibarra Corretgé)
+
+* doc: correct udp socket options documentation (Ben Noordhuis)
+
+* linux: don't use sendmmsg() for single datagrams (Ben Noordhuis)
+
+* unix: fix fd leaks in SCM_RIGHTS error path (Ben Noordhuis)
+
+* win: robustify uv_os_getenv() error checking (Ben Noordhuis)
+
+* test: use newer ASSERT_MEM_EQ macro (Ben Noordhuis)
+
+* unix: de-duplicate conditions for using kqueue (Brad King)
+
+* darwin: simplify uv_hrtime (Saúl Ibarra Corretgé)
+
+* mailmap: update saghul's main email address (Saúl Ibarra Corretgé)
+
+* win: remove no longer needed define (Saúl Ibarra Corretgé)
+
+* doc: fix some typos (josedelinux)
+
+* linux,darwin: make `uv_fs_copyfile` behaves like `cp -r` (Juan José Arboleda)
+
+* dragonfly: disable SO_REUSEPORT for UDP socket bindings (Andy Pan)
+
+* test: remove the obsolete HAVE_KQUEUE macro (Andy Pan)
+
+* unix: use the presence of SOCK_* instead of OS macros for socketpair (Andy
+  Pan)
+
+* bsd: support pipe2() on *BSD (Andy Pan)
+
+* unix: support SO_REUSEPORT with load balancing for TCP (Andy Pan)
+
+* doc: add entries for extended getpw (Juan José Arboleda)
+
+* test: fix the flaky test-tcp-reuseport (Andy Pan)
+
+* aix,ibmi: fix compilation errors in fs_copyfile (Jeffrey H. Johnson)
+
+* unix: support SO_REUSEPORT with load balancing for UDP (Andy Pan)
+
+* tcpkeepalive: distinguish OS versions and use proper time units (Andy Pan)
+
+* win: map ERROR_BAD_EXE_FORMAT to UV_EFTYPE (Hüseyin Açacak)
+
+* doc: add instruction how to install with Conan (Uilian Ries)
+
+* unix,win: remove unused req parameter from macros (Viacheslav Muravyev)
+
+* build: fix android ci build (Ben Noordhuis)
+
+* unix,win: export wtf8 functions properly (Ben Noordhuis)
+
+* hurd: add includes and macro prerequisites (Olivier Valentin)
+
+* hurd: stub uv_thread_setpriority() (Olivier Valentin)
+
+* ci: use macOS 12 for macOS and iOS builds (Saúl Ibarra Corretgé)
+
+* darwin: fix crash on iOS(arm64) (郑苏波 (Super Zheng))
+
+* Create dependabot.yml for updating github-actions (Jameson Nash)
+
+* doc: correct names of Win32 APIs in fs.rst (zeertzjq)
+
+* ci: bump upload and download-artifact versions (dependabot[bot])
+
+* ci: bump actions/setup-python from 4 to 5 (dependabot[bot])
+
+* ci: bump KyleMayes/install-llvm-action from 1 to 2 (dependabot[bot])
+
+* win,error: remap ERROR_NO_DATA to EAGAIN (Jameson Nash)
+
+* test: handle zero-length udp datagram (Ben Noordhuis)
+
+* misc: remove splay trees macros (Viacheslav Muravyev)
+
+* test,openbsd: remove superfluous ifdef guard (Ben Noordhuis)
+
+* win,fs: use posix delete semantics, if supported (Ian Butterworth)
+
+* win: fix env var in uv_os_homedir and uv_os_tmpdir (Hüseyin Açacak)
+
+* fsevents: detect watched directory removal (Santiago Gimeno)
+
+* ci: bump actions/checkout to 4 (dependabot[bot])
+
+* linux: eliminate a read on eventfd per wakeup (Andy Pan)
+
+* test: pipe_overlong_path handle ENAMETOOLONG (Abdirahim Musse)
+
+* win,fs: use the new Windows fast stat API (Hüseyin Açacak)
+
+* win,pipe: fix race with concurrent readers (Jameson Nash)
+
+* win,signal: fix data race dispatching SIGWINCH (Jameson Nash)
+
+* build: ubsan fixes (Matheus Izvekov)
+
+* linux: disable SQPOLL io_uring by default (Santiago Gimeno)
+
+* win: fix fs.c ubsan failure (Matheus Izvekov)
+
+* test: rmdir can return `EEXIST` or `ENOTEMPTY` (Richard Lau)
+
+* test: check for `UV_CHANGE` or `UV_RENAME` event (Richard Lau)
+
+* unix,fs: silence -Wunused-result warning (Santiago Gimeno)
+
+* linux: support abstract unix socket autobinding (Ben Noordhuis)
+
+* kqueue: use EVFILT_USER for async if available (Andy Pan)
+
+* win: remove deprecated GetVersionExW call (Shelley Vohr)
+
+* doc: document uv_loop_option (握猫猫)
+
+* doc: fix the `uv_*_set_data` series of functions (握猫猫)
+
+* doc: properly label enumerations and types (握猫猫)
+
+* doc: document specific macOS fs_event behavior (Santiago Gimeno)
+
+* win,pipe: restore fallback handling for blocking pipes (Jameson Nash)
+
+* unix,win: remove unused rb-tree macro parameters (Viacheslav Muravyev)
+
+* win: compute parallelism from process cpu affinity (Ben Noordhuis)
+
+* win: use NtQueryInformationProcess in uv_os_getppid (Zuohui Yang)
+
+* win,pipe: fix missing assignment to success (Jameson Nash)
+
+* win: fix uv_available_parallelism on win32 (Ben Noordhuis)
+
+* win,pipe: fix another missing assignment to success (Jameson Nash)
+
+* kqueue: disallow ill-suited file descriptor kinds (Andy Pan)
+
+* unix: restore tty attributes on handle close (Ben Noordhuis)
+
+* test: delete test with invalid assumption (Ben Noordhuis)
+
+* dragonflybsd: fix compilation failure (Jeffrey H. Johnson)
+
+* test: run android tests on ci (Edigleysson Silva (Edy))
+
+* darwin: add udp mmsg support (Raihaan Shouhell)
+
+* unix: work around arm-linux-gnueabihf-gcc bug (Ben Noordhuis)
+
+* unix: expand uv_available_parallelism() to support more platforms (Ondřej
+  Surý)
+
+* doc: add known issue in armv7 (Santiago Gimeno)
+
+
+2024.02.07, Version 1.48.0 (Stable), e9f29cb984231524e3931aa0ae2c5dae1a32884e
 
 Changes since version 1.47.0:
 
@@ -911,7 +1144,7 @@ Changes since version 1.41.0:
 
 * zos: treat __rfim_utok as binary (Shuowang (Wayne) Zhang)
 
-* zos: use execvpe() to set environ explictly (Shuowang (Wayne) Zhang)
+* zos: use execvpe() to set environ explicitly (Shuowang (Wayne) Zhang)
 
 * zos: use custom proctitle implementation (Shuowang (Wayne) Zhang)
 
@@ -3417,7 +3650,7 @@ Changes since version 1.9.1:
 
 * zos: implement uv__io_check_fd (John Barboza)
 
-* unix: unneccessary use const qualifier in container_of (John Barboza)
+* unix: unnecessary use const qualifier in container_of (John Barboza)
 
 * win,tty: add support for ANSI codes in win10 v1511 (Imran Iqbal)
 
@@ -5520,7 +5753,7 @@ Changes since version 0.11.8:
   is an int64_t, and no longer an int. (Bert Belder)
 
 * process: make uv_spawn() return some types of errors immediately on windows,
-  instead of passing the error code the the exit callback. This brings it on
+  instead of passing the error code the exit callback. This brings it on
   par with libuv's behavior on unix. (Bert Belder)
 
 

@@ -27,8 +27,6 @@ namespace internal {
 // TODO(jgruber): Consider adding physical shrinking.
 class DependentCode : public WeakArrayList {
  public:
-  DECL_CAST(DependentCode)
-
   enum DependencyGroup {
     // Group of code objects that embed a transition to this map, and depend on
     // being deoptimized when the transition is replaced by a new version.
@@ -105,12 +103,12 @@ class DependentCode : public WeakArrayList {
   // Get/Set {object}'s {DependentCode}.
   static Tagged<DependentCode> GetDependentCode(Tagged<HeapObject> object);
   static void SetDependentCode(Handle<HeapObject> object,
-                               Handle<DependentCode> dep);
+                               DirectHandle<DependentCode> dep);
 
   static Handle<DependentCode> InsertWeakCode(Isolate* isolate,
                                               Handle<DependentCode> entries,
                                               DependencyGroups groups,
-                                              Handle<Code> code);
+                                              DirectHandle<Code> code);
 
   bool MarkCodeForDeoptimization(Isolate* isolate,
                                  DependencyGroups deopt_groups);

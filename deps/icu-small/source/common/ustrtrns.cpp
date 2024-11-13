@@ -771,19 +771,19 @@ static inline uint8_t *
 _appendUTF8(uint8_t *pDest, UChar32 c) {
     /* it is 0<=c<=0x10ffff and not a surrogate if called by a validating function */
     if((c)<=0x7f) {
-        *pDest++=(uint8_t)c;
+        *pDest++ = static_cast<uint8_t>(c);
     } else if(c<=0x7ff) {
-        *pDest++=(uint8_t)((c>>6)|0xc0);
-        *pDest++=(uint8_t)((c&0x3f)|0x80);
+        *pDest++ = static_cast<uint8_t>((c >> 6) | 0xc0);
+        *pDest++ = static_cast<uint8_t>((c & 0x3f) | 0x80);
     } else if(c<=0xffff) {
-        *pDest++=(uint8_t)((c>>12)|0xe0);
-        *pDest++=(uint8_t)(((c>>6)&0x3f)|0x80);
-        *pDest++=(uint8_t)(((c)&0x3f)|0x80);
+        *pDest++ = static_cast<uint8_t>((c >> 12) | 0xe0);
+        *pDest++ = static_cast<uint8_t>(((c >> 6) & 0x3f) | 0x80);
+        *pDest++ = static_cast<uint8_t>(((c) & 0x3f) | 0x80);
     } else /* if((uint32_t)(c)<=0x10ffff) */ {
-        *pDest++=(uint8_t)(((c)>>18)|0xf0);
-        *pDest++=(uint8_t)((((c)>>12)&0x3f)|0x80);
-        *pDest++=(uint8_t)((((c)>>6)&0x3f)|0x80);
-        *pDest++=(uint8_t)(((c)&0x3f)|0x80);
+        *pDest++ = static_cast<uint8_t>(((c) >> 18) | 0xf0);
+        *pDest++ = static_cast<uint8_t>((((c) >> 12) & 0x3f) | 0x80);
+        *pDest++ = static_cast<uint8_t>((((c) >> 6) & 0x3f) | 0x80);
+        *pDest++ = static_cast<uint8_t>(((c) & 0x3f) | 0x80);
     }
     return pDest;
 }

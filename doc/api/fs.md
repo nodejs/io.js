@@ -267,10 +267,8 @@ added: v16.11.0
   * `start` {integer}
   * `end` {integer} **Default:** `Infinity`
   * `highWaterMark` {integer} **Default:** `64 * 1024`
+  * `signal` {AbortSignal|undefined} **Default:** `undefined`
 * Returns: {fs.ReadStream}
-
-Unlike the 16 KiB default `highWaterMark` for a {stream.Readable}, the stream
-returned by this method has a default `highWaterMark` of 64 KiB.
 
 `options` can include `start` and `end` values to read a range of bytes from
 the file instead of the entire file. Both `start` and `end` are inclusive and
@@ -2549,9 +2547,6 @@ changes:
   * `fs` {Object|null} **Default:** `null`
   * `signal` {AbortSignal|null} **Default:** `null`
 * Returns: {fs.ReadStream}
-
-Unlike the 16 KiB default `highWaterMark` for a {stream.Readable}, the stream
-returned by this method has a default `highWaterMark` of 64 KiB.
 
 `options` can include `start` and `end` values to read a range of bytes from
 the file instead of the entire file. Both `start` and `end` are inclusive and
@@ -6810,7 +6805,7 @@ added:
   - v18.20.0
 -->
 
-> Stability: 1 – Experimental
+> Stability: 1 - Experimental
 
 * {string}
 
@@ -6827,7 +6822,10 @@ deprecated:
   - v20.12.0
   - v18.20.0
 changes:
-  - version: REPLACEME
+  - version: v23.2.0
+    pr-url: https://github.com/nodejs/node/pull/55547
+    description: The property is no longer read-only.
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/51050
     description: Accessing this property emits a warning. It is now read-only.
 -->
@@ -6836,7 +6834,7 @@ changes:
 
 * {string}
 
-Alias for `dirent.parentPath`. Read-only.
+Alias for `dirent.parentPath`.
 
 ### Class: `fs.FSWatcher`
 

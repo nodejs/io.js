@@ -5,18 +5,18 @@
 #ifndef V8_TORQUE_CC_GENERATOR_H_
 #define V8_TORQUE_CC_GENERATOR_H_
 
+#include <optional>
+
 #include "src/torque/torque-code-generator.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 class CCGenerator : public TorqueCodeGenerator {
  public:
   CCGenerator(const ControlFlowGraph& cfg, std::ostream& out,
               bool is_cc_debug = false)
       : TorqueCodeGenerator(cfg, out), is_cc_debug_(is_cc_debug) {}
-  base::Optional<Stack<std::string>> EmitGraph(Stack<std::string> parameters);
+  std::optional<Stack<std::string>> EmitGraph(Stack<std::string> parameters);
 
   static void EmitCCValue(VisitResult result, const Stack<std::string>& values,
                           std::ostream& out);
@@ -42,8 +42,6 @@ class CCGenerator : public TorqueCodeGenerator {
 #undef EMIT_INSTRUCTION_DECLARATION
 };
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque
 
 #endif  // V8_TORQUE_CC_GENERATOR_H_

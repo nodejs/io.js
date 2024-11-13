@@ -760,10 +760,19 @@ a `void* hint` argument.
 Inside these cleanup hooks, new asynchronous operations _may_ be started on the
 event loop, although ideally that is avoided as much as possible.
 
-Every [`BaseObject`][] has its own cleanup hook that deletes it. For
-[`ReqWrap`][] and [`HandleWrap`][] instances, cleanup of the associated libuv
-objects is performed automatically, i.e. handles are closed and requests
-are cancelled if possible.
+For every [`ReqWrap`][] and [`HandleWrap`][] instance, the cleanup of the
+associated libuv objects is performed automatically, i.e. handles are closed
+and requests are cancelled if possible.
+
+#### Cleanup realms and BaseObjects
+
+Realm cleanup depends on the realm types. All realms are destroyed when the
+[`Environment`][] is destroyed with the cleanup hook. A [`ShadowRealm`][] can
+also be destroyed by the garbage collection when there is no strong reference
+to it.
+
+Every [`BaseObject`][] is tracked with its creation realm and will be destroyed
+when the realm is tearing down.
 
 #### Closing libuv handles
 
@@ -975,6 +984,228 @@ overview over libuv handles managed by Node.js.
 
 <a id="callback-scopes"></a>
 
+### `CppgcMixin`
+
+V8 comes with a trace-based C++ garbage collection library called
+[Oilpan][], whose API is in headers under`deps/v8/include/cppgc`.
+In this document we refer to it as `cppgc` since that's the namespace
+of the library.
+
+C++ objects managed using `cppgc` are allocated in the V8 heap
+and traced by V8's garbage collector. The `cppgc` library provides
+APIs for embedders to create references between cppgc-managed objects
+and other objects in the V8 heap (such as JavaScript objects or other
+objects in the V8 C++ API that can be passed around with V8 handles)
+in a way that's understood by V8's garbage collector.
+This helps avoiding accidental memory leaks and use-after-frees coming
+from incorrect cross-heap reference tracking, especially when there are
+cyclic references. This is what powers the
+[unified heap design in Chromium][] to avoid cross-heap memory issues,
+and it's being rolled out in Node.js to reap similar benefits.
+
+For general guidance on how to use `cppgc`, see the
+[Oilpan documentation in Chromium][]. In Node.js there is a helper
+mixin `node::CppgcMixin` from `cppgc_helpers.h` to help implementing
+`cppgc`-managed wrapper objects with a [`BaseObject`][]-like interface.
+`cppgc`-manged objects in Node.js internals should extend this mixin,
+while non-`cppgc`-managed objects typically extend `BaseObject` - the
+latter are being migrated to be `cppgc`-managed wherever it's beneficial
+and practical. Typically `cppgc`-managed objects are more efficient to
+keep track of (which lowers initialization cost) and work better
+with V8's GC scheduling.
+
+A `cppgc`-managed native wrapper should look something like this:
+
+```cpp
+#include "cppgc_helpers.h"
+
+// CPPGC_MIXIN is a helper macro for inheriting from cppgc::GarbageCollected,
+// cppgc::NameProvider and public CppgcMixin. Per cppgc rules, it must be
+// placed at the left-most position in the class hierarchy.
+class MyWrap final : CPPGC_MIXIN(MyWrap) {
+ public:
+  SET_CPPGC_NAME(MyWrap)  // Sets the heap snapshot name to "Node / MyWrap"
+
+  // The constructor can only be called by `cppgc::MakeGarbageCollected()`.
+  MyWrap(Environment* env, v8::Local<v8::Object> object);
+
+  // Helper for constructing MyWrap via `cppgc::MakeGarbageCollected()`.
+  // Can be invoked by other C++ code outside of this class if necessary.
+  // In that case the raw pointer returned may need to be managed by
+  // cppgc::Persistent<> or cppgc::Member<> with corresponding tracing code.
+  static MyWrap* New(Environment* env, v8::Local<v8::Object> object);
+  // Binding method to help constructing MyWrap in JavaScript.
+  static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+
+  void Trace(cppgc::Visitor* visitor) const final;
+}
+```
+
+`cppgc::GarbageCollected` types are expected to implement a
+`void Trace(cppgc::Visitor* visitor) const` method. When they are the
+final class in the hierarchy, this method must be marked `final`. For
+classes extending `node::CppgcMixn`, this should typically dispatch a
+call to `CppgcMixin::Trace()` first, then trace any additional owned data
+it has. See `deps/v8/include/cppgc/garbage-collected.h` see what types of
+data can be traced.
+
+```cpp
+void MyWrap::Trace(cppgc::Visitor* visitor) const {
+  CppgcMixin::Trace(visitor);
+  visitor->Trace(...);  // Trace any additional data MyWrap has
+}
+```
+
+#### Constructing and wrapping `cppgc`-managed objects
+
+C++ objects subclassing `node::CppgcMixin` have a counterpart JavaScript object.
+The two references each other internally - this cycle is well-understood by V8's
+garbage collector and can be managed properly.
+
+Similar to `BaseObject`s, `cppgc`-managed wrappers objects must be created from
+object templates with at least `node::CppgcMixin::kInternalFieldCount` internal
+fields. To unify handling of the wrappers, the internal fields of
+`node::CppgcMixin` wrappers would have the same layout as `BaseObject`.
+
+```cpp
+// To create the v8::FunctionTemplate that can be used to instantiate a
+// v8::Function for that serves as the JavaScript constructor of MyWrap:
+Local<FunctionTemplate> ctor_template = NewFunctionTemplate(isolate, MyWrap::New);
+ctor_template->InstanceTemplate()->SetInternalFieldCount(
+    ContextifyScript::kInternalFieldCount);
+```
+
+`cppgc::GarbageCollected` objects should not be allocated with usual C++
+primitives (e.g. using `new` or `std::make_unique` is forbidden). Instead
+they must be allocated using `cppgc::MakeGarbageCollected` - this would
+allocate them in the V8 heap and allow V8's garbage collector to trace them.
+It's recommended to use a `New` method to wrap the `cppgc::MakeGarbageCollected`
+call so that external C++ code does not need to know about its memory management
+scheme to construct it.
+
+```cpp
+MyWrap* MyWrap::New(Environment* env, v8::Local<v8::Object> object) {
+  // Per cppgc rules, the constructor of MyWrap cannot be invoked directly.
+  // It's recommended to implement a New() static method that prepares
+  // and forwards the necessary arguments to cppgc::MakeGarbageCollected()
+  // and just return the raw pointer around - do not use any C++ smart
+  // pointer with this, as this is not managed by the native memory
+  // allocator but by V8.
+  return cppgc::MakeGarbageCollected<MyWrap>(
+      env->isolate()->GetCppHeap()->GetAllocationHandle(), env, object);
+}
+
+// Binding method to be invoked by JavaScript.
+void MyWrap::New(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+  Local<Context> context = env->context();
+
+  CHECK(args.IsConstructCall());
+
+  // Get more arguments from JavaScript land if necessary.
+  New(env, args.This());
+}
+```
+
+In the constructor of `node::CppgcMixin` types, use
+`node::CppgcMixin::Wrap()` to finish the wrapping so that
+V8 can trace the C++ object from the JavaScript object.
+
+```cpp
+MyWrap::MyWrap(Environment* env, v8::Local<v8::Object> object) {
+  // This cannot invoke the mixin constructor and has to invoke via a static
+  // method from it, per cppgc rules.
+  CppgcMixin::Wrap(this, env, object);
+}
+```
+
+#### Unwrapping `cppgc`-managed wrapper objects
+
+When given a `v8::Local<v8::Object>` that is known to be the JavaScript
+wrapper object for `MyWrap`, uses the `node::CppgcMixin::Unwrap()` to
+get the C++ object from it:
+
+```cpp
+v8::Local<v8::Object> object = ...;  // Obtain the JavaScript from somewhere.
+MyWrap* wrap = CppgcMixin::Unwrap<MyWrap>(object);
+```
+
+Similar to `ASSIGN_OR_RETURN_UNWRAP`, there is a `ASSIGN_OR_RETURN_UNWRAP_CPPGC`
+that can be used in binding methods to return early if the JavaScript object does
+not wrap the desired type.  And similar to `BaseObject`, `node::CppgcMixin`
+provides `env()` and `object()` methods to quickly access the associated
+`node::Environment` and its JavaScript wrapper object.
+
+```cpp
+ASSIGN_OR_RETURN_UNWRAP_CPPGC(&wrap, object);
+CHECK_EQ(wrap->object(), object);
+```
+
+#### Creating C++ to JavaScript references in cppgc-managed objects
+
+Unlike `BaseObject` which typically uses a `v8::Global` (either weak or strong)
+to reference an object from the V8 heap, cppgc-managed objects are expected to
+use `v8::TracedReference` (which supports any `v8::Data`). For example if the
+`MyWrap` object owns a `v8::UnboundScript`, in the class body the reference
+should be declared as
+
+```cpp
+class MyWrap : ... {
+ v8::TracedReference<v8::UnboundScript> script;
+}
+```
+
+V8's garbage collector traces the references from `MyWrap` through the
+`MyWrap::Trace()` method, which should call `cppgc::Visitor::Trace` on the
+`v8::TracedReference`.
+
+```cpp
+void MyWrap::Trace(cppgc::Visitor* visitor) const {
+  CppgcMixin::Trace(visitor);
+  visitor->Trace(script);  // v8::TracedReference is supported by cppgc::Visitor
+}
+```
+
+As long as a `MyWrap` object is alive, the `v8::UnboundScript` in its
+`v8::TracedReference` will be kept alive. When the `MyWrap` object is no longer
+reachable from the V8 heap, and there are no other references to the
+`v8::UnboundScript` it owns, the `v8::UnboundScript` will be garbage collected
+along with its owning `MyWrap`. The reference will also be automatically
+captured in the heap snapshots.
+
+#### Creating JavaScript to C++ references for cppgc-managed objects
+
+To create a reference from another JavaScript object to a C++ wrapper
+extending `node::CppgcMixin`, just create a JavaScript to JavaScript
+reference using the JavaScript side of the wrapper, which can be accessed
+using `node::CppgcMixin::object()`.
+
+```cpp
+MyWrap* wrap = ....;  // Obtain a reference to the cppgc-managed object.
+Local<Object> referrer = ...;  // This is the referrer object.
+// To reference the C++ wrap from the JavaScript referrer, simply creates
+// a usual JavaScript property reference - the key can be a symbol or a
+// number too if necessary, or it can be a private symbol property added
+// using SetPrivate(). wrap->object() can also be passed to the JavaScript
+// land, which can be referenced by any JavaScript objects in an invisible
+// manner using a WeakMap or being inside a closure.
+referrer->Set(
+  context, FIXED_ONE_BYTE_STRING(isolate, "ref"), wrap->object()
+).ToLocalChecked();
+```
+
+Typically, a newly created cppgc-managed wrapper object should be held alive
+by the JavaScript land (for example, by being returned by a method and
+staying alive in a closure). Long-lived cppgc objects can also
+be held alive from C++ using persistent handles (see
+`deps/v8/include/cppgc/persistent.h`) or as members of other living
+cppgc-managed objects (see `deps/v8/include/cppgc/member.h`) if necessary.
+Its destructor will be called when no other objects from the V8 heap reference
+it, this can happen at any time after the garbage collector notices that
+it's no longer reachable and before the V8 isolate is torn down.
+See the [Oilpan documentation in Chromium][] for more details.
+
 ### Callback scopes
 
 The public `CallbackScope` and the internally used `InternalCallbackScope`
@@ -1082,6 +1313,8 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
 [ECMAScript realm]: https://tc39.es/ecma262/#sec-code-realms
 [JavaScript value handles]: #js-handles
 [N-API]: https://nodejs.org/api/n-api.html
+[Oilpan]: https://v8.dev/blog/oilpan-library
+[Oilpan documentation in Chromium]: https://chromium.googlesource.com/v8/v8/+/main/include/cppgc/README.md
 [`BaseObject`]: #baseobject
 [`Context`]: #context
 [`Environment`]: #environment
@@ -1117,3 +1350,4 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
 [libuv handles]: #libuv-handles-and-requests
 [libuv requests]: #libuv-handles-and-requests
 [reference documentation for the libuv API]: http://docs.libuv.org/en/v1.x/
+[unified heap design in Chromium]: https://docs.google.com/document/d/1Hs60Zx1WPJ_LUjGvgzt1OQ5Cthu-fG-zif-vquUH_8c/edit

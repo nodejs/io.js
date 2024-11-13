@@ -276,7 +276,7 @@ def _ToolAppend(tools, tool_name, setting, value, only_if_unset=False):
 def _ToolSetOrAppend(tools, tool_name, setting, value, only_if_unset=False):
     # TODO(bradnelson): ugly hack, fix this more generally!!!
     if "Directories" in setting or "Dependencies" in setting:
-        if type(value) == str:
+        if isinstance(value, str):
             value = value.replace("/", "\\")
         else:
             value = [i.replace("/", "\\") for i in value]
@@ -288,7 +288,7 @@ def _ToolSetOrAppend(tools, tool_name, setting, value, only_if_unset=False):
     if tool.get(setting):
         if only_if_unset:
             return
-        if type(tool[setting]) == list and type(value) == list:
+        if isinstance(tool[setting], list) and isinstance(value, list):
             tool[setting] += value
         else:
             raise TypeError(
@@ -1423,7 +1423,7 @@ def _ConvertToolsToExpectedForm(tools):
         # Collapse settings with lists.
         settings_fixed = {}
         for setting, value in settings.items():
-            if type(value) == list:
+            if isinstance(value, list):
                 if (
                     tool == "VCLinkerTool" and setting == "AdditionalDependencies"
                 ) or setting == "AdditionalOptions":
@@ -1816,7 +1816,7 @@ def _DictsToFolders(base_path, bucket, flat):
     # Convert to folders recursively.
     children = []
     for folder, contents in bucket.items():
-        if type(contents) == dict:
+        if isinstance(contents, dict):
             folder_children = _DictsToFolders(
                 os.path.join(base_path, folder), contents, flat
             )
@@ -1838,9 +1838,10 @@ def _CollapseSingles(parent, node):
     # Recursively explorer the tree of dicts looking for projects which are
     # the sole item in a folder which has the same name as the project. Bring
     # such projects up one level.
-    if type(node) == dict and len(node) == 1 and next(iter(node)) == parent + ".vcproj":
+    if (isinstance(node, dict) and len(node) == 1 and
+        next(iter(node)) == parent + ".vcproj"):
         return node[next(iter(node))]
-    if type(node) != dict:
+    if not isinstance(node, dict):
         return node
     for child in node:
         node[child] = _CollapseSingles(child, node[child])
@@ -1860,7 +1861,7 @@ def _GatherSolutionFolders(sln_projects, project_objects, flat):
     # Walk down from the top until we hit a folder that has more than one entry.
     # In practice, this strips the top-level "src/" dir from the hierarchy in
     # the solution.
-    while len(root) == 1 and type(root[next(iter(root))]) == dict:
+    while len(root) == 1 and isinstance(root[next(iter(root))], dict):
         root = root[next(iter(root))]
     # Collapse singles.
     root = _CollapseSingles("", root)
@@ -3274,7 +3275,7 @@ def _GetMSBuildPropertyGroup(spec, label, properties):
     num_configurations = len(spec["configurations"])
 
     def GetEdges(node):
-        # Use a definition of edges such that user_of_variable -> used_varible.
+        # Use a definition of edges such that user_of_variable -> used_variable.
         # This happens to be easier in this case, since a variable's
         # definition contains all variables it references in a single string.
         edges = set()
@@ -3411,7 +3412,11 @@ def _FinalizeMSBuildSettings(spec, configuration):
     )
     # Turn on precompiled headers if appropriate.
     if precompiled_header:
-        precompiled_header = os.path.split(precompiled_header)[1]
+        # While MSVC works with just file name eg. "v8_pch.h", ClangCL requires
+        # the full path eg. "tools/msvs/pch/v8_pch.h" to find the file.
+        # P.S. Only ClangCL defines msbuild_toolset, for MSVC it is None.
+        if configuration.get("msbuild_toolset") != 'ClangCL':
+            precompiled_header = os.path.split(precompiled_header)[1]
         _ToolAppend(msbuild_settings, "ClCompile", "PrecompiledHeader", "Use")
         _ToolAppend(
             msbuild_settings, "ClCompile", "PrecompiledHeaderFile", precompiled_header
@@ -3441,7 +3446,7 @@ def _FinalizeMSBuildSettings(spec, configuration):
 
 
 def _GetValueFormattedForMSBuild(tool_name, name, value):
-    if type(value) == list:
+    if isinstance(value, list):
         # For some settings, VS2010 does not automatically extends the settings
         # TODO(jeanluc) Is this what we want?
         if name in [

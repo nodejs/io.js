@@ -27,10 +27,6 @@ Intl.NumberFormat-v3
 # https://github.com/tc39/proposal-regexp-legacy-features
 legacy-regexp
 
-# Atomics.waitAsync
-# https://github.com/tc39/proposal-atomics-wait-async
-Atomics.waitAsync
-
 # Import Attributes
 # https://github.com/tc39/proposal-import-attributes/
 import-attributes
@@ -45,14 +41,6 @@ import-assertions
 # https://github.com/tc39/proposal-json-modules
 json-modules
 
-# Resizable Arraybuffer
-# https://github.com/tc39/proposal-resizablearraybuffer
-resizable-arraybuffer
-
-# ArrayBuffer transfer
-# https://github.com/tc39/proposal-arraybuffer-transfer
-arraybuffer-transfer
-
 # Temporal
 # https://github.com/tc39/proposal-temporal
 Temporal
@@ -61,17 +49,9 @@ Temporal
 # https://github.com/tc39/proposal-realms
 ShadowRealm
 
-# Array.groupBy & Map.groupBy
-# https://github.com/tc39/proposal-array-grouping
-array-grouping
-
 # Intl.DurationFormat
 # https://github.com/tc39/proposal-intl-duration-format
 Intl.DurationFormat
-
-# RegExp set notation + properties of strings
-# https://github.com/tc39/proposal-regexp-set-notation
-regexp-v-flag
 
 # Decorators
 # https://github.com/tc39/proposal-decorators
@@ -84,14 +64,13 @@ regexp-duplicate-named-groups
 # https://tc39.es/proposal-array-from-async/
 Array.fromAsync
 
-# Well-formed Unicode strings
-# https://github.com/tc39/proposal-is-usv-string
-String.prototype.isWellFormed
-String.prototype.toWellFormed
-
 # JSON.parse with source
 # https://github.com/tc39/proposal-json-parse-with-source
 json-parse-with-source
+
+# RegExp.escape
+# https://github.com/tc39/proposal-regex-escaping
+RegExp.escape
 
 # Regular expression modifiers
 # https://github.com/tc39/proposal-regexp-modifiers
@@ -101,13 +80,35 @@ regexp-modifiers
 # https://github.com/tc39/proposal-iterator-helpers
 iterator-helpers
 
-# Promise.withResolvers
-# https://github.com/tc39/proposal-promise-with-resolvers
-promise-with-resolvers
+# Promise.try
+# https://github.com/tc39/proposal-promise-try
+promise-try
 
-# Set methods
-# https://github.com/tc39/proposal-set-methods
-set-methods
+# Explicit Resource Management
+# https://github.com/tc39/proposal-explicit-resource-management
+explicit-resource-management
+
+# Float16Array + Math.f16round
+# https://github.com/tc39/proposal-float16array
+Float16Array
+
+# Math.sumPrecise
+# https://github.com/tc39/proposal-math-sum
+Math.sumPrecise
+
+# Source Phase Imports
+## https://github.com/tc39/proposal-source-phase-imports
+source-phase-imports
+## test262 special specifier
+source-phase-imports-module-source
+
+# Uint8Array Base64
+# https://github.com/tc39/proposal-arraybuffer-base64
+uint8array-base64
+
+# Atomics.pause
+# https://github.com/tc39/proposal-atomics-microwait
+Atomics.pause
 
 ## Standard language features
 #
@@ -126,6 +127,9 @@ Array.prototype.flat
 Array.prototype.flatMap
 Array.prototype.includes
 Array.prototype.values
+Atomics.waitAsync
+array-grouping
+arraybuffer-transfer
 arrow-function
 async-iteration
 async-functions
@@ -205,6 +209,7 @@ Promise
 Promise.allSettled
 Promise.any
 Promise.prototype.finally
+promise-with-resolvers
 Proxy
 proxy-missing-checks  # https://github.com/tc39/ecma262/pull/666
 Reflect
@@ -216,18 +221,23 @@ regexp-lookbehind
 regexp-match-indices
 regexp-named-groups
 regexp-unicode-property-escapes
+regexp-v-flag
+resizable-arraybuffer
 rest-parameters
 Set
+set-methods
 SharedArrayBuffer
 string-trimming
 String.fromCodePoint
 String.prototype.at
 String.prototype.endsWith
 String.prototype.includes
+String.prototype.isWellFormed
 String.prototype.matchAll
 String.prototype.replaceAll
 String.prototype.trimEnd
 String.prototype.trimStart
+String.prototype.toWellFormed
 super
 Symbol
 symbols-as-weakmap-keys

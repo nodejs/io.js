@@ -75,6 +75,7 @@ absl_cc_library(
   SRCS
     "internal/nullability_impl.h"
   DEPS
+    absl::config
     absl::core_headers
     absl::type_traits
   COPTS
@@ -734,5 +735,74 @@ absl_cc_test(
   DEPS
     absl::core_headers
     absl::optional
+    GTest::gtest_main
+)
+
+absl_cc_library(
+  NAME
+    poison
+  SRCS
+    "internal/poison.cc"
+  HDRS
+    "internal/poison.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::core_headers
+    absl::malloc_internal
+)
+
+absl_cc_test(
+  NAME
+    poison_test
+  SRCS
+    "internal/poison_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::config
+    absl::poison
+    GTest::gtest_main
+)
+
+absl_cc_library(
+  NAME
+    tracing_internal
+  HDRS
+    "internal/tracing.h"
+  SRCS
+    "internal/tracing.cc"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  DEPS
+    absl::base
+)
+
+absl_cc_test(
+  NAME
+    tracing_internal_weak_test
+  SRCS
+    "internal/tracing_weak_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::tracing_internal
+    GTest::gtest_main
+)
+
+absl_cc_test(
+  NAME
+    tracing_internal_strong_test
+  SRCS
+    "internal/tracing_strong_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::base
+    absl::tracing_internal
     GTest::gtest_main
 )

@@ -6,6 +6,7 @@
 #define V8_SANDBOX_TESTING_H_
 
 #include "src/common/globals.h"
+#include "src/objects/instance-type.h"
 
 namespace v8 {
 namespace internal {
@@ -19,6 +20,12 @@ class SandboxTesting : public AllStatic {
   enum class Mode {
     // Sandbox testing is not active.
     kDisabled,
+    // Mode for demonstrating and validating sandbox bypasses.
+    // In this mode, a read-only page is allocated during startup at a random
+    // address outside of the sandbox. Only access violations on this page (the
+    // "target page") are treated as sandbox bypasses, everything else is
+    // filtered out by the crash filter.
+    kForTesting,
     // Mode for fuzzing the sandbox.
     // In this mode, the sandbox crash filter is installed and filters out all
     // crashes that do not represent sandbox violations.
@@ -53,8 +60,31 @@ class SandboxTesting : public AllStatic {
       Isolate* isolate);
 #endif  // V8_ENABLE_MEMORY_CORRUPTION_API
 
+  // The current sandbox testing mode.
+  static Mode mode() { return mode_; }
+
+  // If sandbox testing mode is enabled, returns the address of the target page
+  // that needs to be written to to demonstrate a sandbox bypass.
+  static Address target_page_base() { return target_page_base_; }
+
+  // If sandbox testing mode is enabled, returns the size of the target page
+  // that needs to be written to to demonstrate a sandbox bypass.
+  static Address target_page_size() { return target_page_size_; }
+
+  // Returns true if the access violation happened inside the target page.
+  static bool IsInsideTargetPage(Address faultaddr);
+
+  // Returns a mapping of instance types to known field offsets. This is useful
+  // mainly for the Sandbox.getFieldOffsetOf API which provides access to
+  // internal field offsets of HeapObject to JavaScript.
+  using FieldOffsets = std::unordered_map<std::string, int>;
+  using FieldOffsetMap = std::unordered_map<InstanceType, FieldOffsets>;
+  static FieldOffsetMap& GetFieldOffsetMap();
+
  private:
   static Mode mode_;
+  static Address target_page_base_;
+  static size_t target_page_size_;
 };
 
 #endif  // V8_ENABLE_SANDBOX

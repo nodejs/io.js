@@ -16,7 +16,6 @@ namespace v8 {
 namespace internal {
 
 OBJECT_CONSTRUCTORS_IMPL(DependentCode, WeakArrayList)
-CAST_ACCESSOR(DependentCode)
 
 // static
 template <typename ObjectT>

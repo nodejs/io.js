@@ -9,5 +9,5 @@ extern class TrustedObject extends HeapObject {}
 @abstract
 @cppObjectDefinition
 extern class ExposedTrustedObject extends TrustedObject {
-  @if(V8_ENABLE_SANDBOX) self_indirect_pointer: IndirectPointer;
+  @if(V8_ENABLE_SANDBOX) self_indirect_pointer: TrustedPointer;
 }

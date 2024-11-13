@@ -66,6 +66,18 @@ const filename = tmpdir.resolve('sync-write-stream.txt');
   assert.strictEqual(stream.fd, null);
 }
 
+// Verify that the file is not closed when autoClose=false
+{
+  const fd = fs.openSync(filename, 'w');
+  const stream = new SyncWriteStream(fd, { autoClose: false });
+
+  stream.on('close', common.mustCall());
+
+  assert.strictEqual(stream.destroy(), stream);
+  fs.fstatSync(fd); // Does not throw
+  fs.closeSync(fd);
+}
+
 // Verify that calling end() will also destroy the stream.
 {
   const fd = fs.openSync(filename, 'w');

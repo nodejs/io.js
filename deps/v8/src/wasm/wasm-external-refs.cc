@@ -12,8 +12,11 @@
 #include "src/base/ieee754.h"
 #include "src/base/safe_conversions.h"
 #include "src/common/assert-scope.h"
-#include "src/roots/roots.h"
+#include "src/numbers/conversions.h"
+#include "src/roots/roots-inl.h"
 #include "src/utils/memcopy.h"
+#include "src/wasm/float16.h"
+#include "src/wasm/wasm-engine.h"
 #include "src/wasm/wasm-objects-inl.h"
 
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER) || \
@@ -33,6 +36,7 @@
 #endif
 
 #include "src/base/memory.h"
+#include "src/base/overflowing-math.h"
 #include "src/utils/utils.h"
 #include "src/wasm/wasm-external-refs.h"
 
@@ -282,6 +286,14 @@ void float64_to_uint64_sat_wrapper(Address data) {
   WriteUnalignedValue<uint64_t>(data, 0);
 }
 
+void float16_to_float32_wrapper(Address data) {
+  WriteUnalignedValue<float>(data, Float16::Read(data).ToFloat32());
+}
+
+void float32_to_float16_wrapper(Address data) {
+  Float16::FromFloat32(ReadUnalignedValue<float>(data)).Write(data);
+}
+
 int32_t int64_div_wrapper(Address data) {
   int64_t dividend = ReadUnalignedValue<int64_t>(data);
   int64_t divisor = ReadUnalignedValue<int64_t>(data + sizeof(dividend));
@@ -396,6 +408,298 @@ void f32x4_nearest_int_wrapper(Address data) {
   simd_float_round_wrapper<float, &nearbyintf>(data);
 }
 
+Float16 f16_abs(Float16 a) {
+  return Float16::FromFloat32(std::abs(a.ToFloat32()));
+}
+
+void f16x8_abs_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_abs>(data);
+}
+
+Float16 f16_neg(Float16 a) { return Float16::FromFloat32(-(a.ToFloat32())); }
+
+void f16x8_neg_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_neg>(data);
+}
+
+Float16 f16_sqrt(Float16 a) {
+  return Float16::FromFloat32(std::sqrt(a.ToFloat32()));
+}
+
+void f16x8_sqrt_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_sqrt>(data);
+}
+
+Float16 f16_ceil(Float16 a) {
+  return Float16::FromFloat32(ceilf(a.ToFloat32()));
+}
+
+void f16x8_ceil_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_ceil>(data);
+}
+
+Float16 f16_floor(Float16 a) {
+  return Float16::FromFloat32(floorf(a.ToFloat32()));
+}
+
+void f16x8_floor_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_floor>(data);
+}
+
+Float16 f16_trunc(Float16 a) {
+  return Float16::FromFloat32(truncf(a.ToFloat32()));
+}
+
+void f16x8_trunc_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_trunc>(data);
+}
+
+Float16 f16_nearest_int(Float16 a) {
+  return Float16::FromFloat32(nearbyintf(a.ToFloat32()));
+}
+
+void f16x8_nearest_int_wrapper(Address data) {
+  simd_float_round_wrapper<Float16, &f16_nearest_int>(data);
+}
+
+template <typename R, R (*float_bin_op)(Float16, Float16)>
+void simd_float16_bin_wrapper(Address data) {
+  constexpr int n = kSimd128Size / sizeof(Float16);
+  for (int i = 0; i < n; i++) {
+    Float16 lhs = Float16::Read(data + (i * sizeof(Float16)));
+    Float16 rhs = Float16::Read(data + kSimd128Size + (i * sizeof(Float16)));
+    R value = float_bin_op(lhs, rhs);
+    WriteUnalignedValue<R>(data + (i * sizeof(R)), value);
+  }
+}
+
+int16_t f16_eq(Float16 a, Float16 b) {
+  return a.ToFloat32() == b.ToFloat32() ? -1 : 0;
+}
+
+void f16x8_eq_wrapper(Address data) {
+  simd_float16_bin_wrapper<int16_t, &f16_eq>(data);
+}
+
+int16_t f16_ne(Float16 a, Float16 b) {
+  return a.ToFloat32() != b.ToFloat32() ? -1 : 0;
+}
+
+void f16x8_ne_wrapper(Address data) {
+  simd_float16_bin_wrapper<int16_t, &f16_ne>(data);
+}
+
+int16_t f16_lt(Float16 a, Float16 b) {
+  return a.ToFloat32() < b.ToFloat32() ? -1 : 0;
+}
+
+void f16x8_lt_wrapper(Address data) {
+  simd_float16_bin_wrapper<int16_t, &f16_lt>(data);
+}
+
+int16_t f16_le(Float16 a, Float16 b) {
+  return a.ToFloat32() <= b.ToFloat32() ? -1 : 0;
+}
+
+void f16x8_le_wrapper(Address data) {
+  simd_float16_bin_wrapper<int16_t, &f16_le>(data);
+}
+
+Float16 f16_add(Float16 a, Float16 b) {
+  return Float16::FromFloat32(a.ToFloat32() + b.ToFloat32());
+}
+
+void f16x8_add_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_add>(data);
+}
+
+Float16 f16_sub(Float16 a, Float16 b) {
+  return Float16::FromFloat32(a.ToFloat32() - b.ToFloat32());
+}
+
+void f16x8_sub_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_sub>(data);
+}
+
+Float16 f16_mul(Float16 a, Float16 b) {
+  return Float16::FromFloat32(a.ToFloat32() * b.ToFloat32());
+}
+
+void f16x8_mul_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_mul>(data);
+}
+
+Float16 f16_div(Float16 a, Float16 b) {
+  return Float16::FromFloat32(base::Divide(a.ToFloat32(), b.ToFloat32()));
+}
+
+void f16x8_div_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_div>(data);
+}
+
+Float16 f16_min(Float16 a, Float16 b) {
+  return Float16::FromFloat32(JSMin(a.ToFloat32(), b.ToFloat32()));
+}
+
+void f16x8_min_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_min>(data);
+}
+
+Float16 f16_max(Float16 a, Float16 b) {
+  return Float16::FromFloat32(JSMax(a.ToFloat32(), b.ToFloat32()));
+}
+
+void f16x8_max_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_max>(data);
+}
+
+Float16 f16_pmin(Float16 a, Float16 b) {
+  return Float16::FromFloat32(std::min(a.ToFloat32(), b.ToFloat32()));
+}
+
+void f16x8_pmin_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_pmin>(data);
+}
+
+Float16 f16_pmax(Float16 a, Float16 b) {
+  return Float16::FromFloat32(std::max(a.ToFloat32(), b.ToFloat32()));
+}
+
+void f16x8_pmax_wrapper(Address data) {
+  simd_float16_bin_wrapper<Float16, &f16_pmax>(data);
+}
+
+template <typename T, typename R, R (*float_un_op)(T)>
+void simd_float_un_wrapper(Address data) {
+  constexpr int n = kSimd128Size / sizeof(T);
+  for (int i = 0; i < n; i++) {
+    T input = ReadUnalignedValue<T>(data + (i * sizeof(T)));
+    R value = float_un_op(input);
+    WriteUnalignedValue<R>(data + (i * sizeof(T)), value);
+  }
+}
+
+int16_t ConvertToIntS(Float16 val) {
+  float f32 = val.ToFloat32();
+  if (std::isnan(f32)) return 0;
+  if (f32 > float{kMaxInt16}) return kMaxInt16;
+  if (f32 < float{kMinInt16}) return kMinInt16;
+  return static_cast<int16_t>(f32);
+}
+
+uint16_t ConvertToIntU(Float16 val) {
+  float f32 = val.ToFloat32();
+  if (std::isnan(f32)) return 0;
+  if (f32 > float{kMaxUInt16}) return kMaxUInt16;
+  if (f32 < float{0}) return 0;
+  return static_cast<uint16_t>(f32);
+}
+
+void i16x8_sconvert_f16x8_wrapper(Address data) {
+  simd_float_un_wrapper<Float16, int16_t, &ConvertToIntS>(data);
+}
+
+void i16x8_uconvert_f16x8_wrapper(Address data) {
+  simd_float_un_wrapper<Float16, uint16_t, &ConvertToIntU>(data);
+}
+
+Float16 ConvertToF16S(int16_t val) { return Float16::FromFloat32(val); }
+
+void f16x8_sconvert_i16x8_wrapper(Address data) {
+  simd_float_un_wrapper<int16_t, Float16, &ConvertToF16S>(data);
+}
+
+Float16 ConvertToF16U(uint16_t val) { return Float16::FromFloat32(val); }
+
+void f16x8_uconvert_i16x8_wrapper(Address data) {
+  simd_float_un_wrapper<uint16_t, Float16, &ConvertToF16U>(data);
+}
+
+void f32x4_promote_low_f16x8_wrapper(Address data) {
+  // Result is stored in the same buffer, so read all values to local
+  // stack variables first.
+  Float16 a = Float16::Read(data);
+  Float16 b = Float16::Read(data + sizeof(Float16));
+  Float16 c = Float16::Read(data + 2 * sizeof(Float16));
+  Float16 d = Float16::Read(data + 3 * sizeof(Float16));
+
+  WriteUnalignedValue<float>(data, a.ToFloat32());
+  WriteUnalignedValue<float>(data + sizeof(float), b.ToFloat32());
+  WriteUnalignedValue<float>(data + (2 * sizeof(float)), c.ToFloat32());
+  WriteUnalignedValue<float>(data + (3 * sizeof(float)), d.ToFloat32());
+}
+
+void f16x8_demote_f32x4_zero_wrapper(Address data) {
+#if V8_TARGET_BIG_ENDIAN
+  for (int i = 3, j = 7; i >= 0; i--, j--) {
+    float input = ReadUnalignedValue<float>(data + (i * sizeof(float)));
+    Float16::FromFloat32(input).Write(data + (j * sizeof(Float16)));
+  }
+  for (int i = 0; i < 4; i++) {
+    WriteUnalignedValue<Float16>(data + (i * sizeof(Float16)),
+                                 Float16::FromFloat32(0));
+  }
+#else
+  for (int i = 0; i < 4; i++) {
+    float input = ReadUnalignedValue<float>(data + (i * sizeof(float)));
+    Float16::FromFloat32(input).Write(data + (i * sizeof(Float16)));
+  }
+  for (int i = 4; i < 8; i++) {
+    WriteUnalignedValue<Float16>(data + (i * sizeof(Float16)),
+                                 Float16::FromFloat32(0));
+  }
+#endif
+}
+
+void f16x8_demote_f64x2_zero_wrapper(Address data) {
+#if V8_TARGET_BIG_ENDIAN
+  for (int i = 1, j = 7; i >= 0; i--, j--) {
+    double input = ReadUnalignedValue<double>(data + (i * sizeof(double)));
+    WriteUnalignedValue<uint16_t>(data + (j * sizeof(uint16_t)),
+                                  DoubleToFloat16(input));
+  }
+  for (int i = 0; i < 6; i++) {
+    WriteUnalignedValue<Float16>(data + (i * sizeof(Float16)),
+                                 Float16::FromFloat32(0));
+  }
+#else
+  for (int i = 0; i < 2; i++) {
+    double input = ReadUnalignedValue<double>(data + (i * sizeof(double)));
+    WriteUnalignedValue<uint16_t>(data + (i * sizeof(uint16_t)),
+                                  DoubleToFloat16(input));
+  }
+  for (int i = 2; i < 8; i++) {
+    WriteUnalignedValue<Float16>(data + (i * sizeof(Float16)),
+                                 Float16::FromFloat32(0));
+  }
+#endif
+}
+
+template <float (*float_fma_op)(float, float, float)>
+void simd_float16_fma_wrapper(Address data) {
+  constexpr int n = kSimd128Size / sizeof(Float16);
+  for (int i = 0; i < n; i++) {
+    Address offset = data + i * sizeof(Float16);
+    Float16 a = Float16::Read(offset);
+    Float16 b = Float16::Read(offset + kSimd128Size);
+    Float16 c = Float16::Read(offset + 2 * kSimd128Size);
+    float value = float_fma_op(a.ToFloat32(), b.ToFloat32(), c.ToFloat32());
+    Float16::FromFloat32(value).Write(offset);
+  }
+}
+
+float Qfma(float a, float b, float c) { return a * b + c; }
+
+void f16x8_qfma_wrapper(Address data) {
+  return simd_float16_fma_wrapper<&Qfma>(data);
+}
+
+float Qfms(float a, float b, float c) { return -(a * b) + c; }
+
+void f16x8_qfms_wrapper(Address data) {
+  return simd_float16_fma_wrapper<&Qfms>(data);
+}
+
 namespace {
 class V8_NODISCARD ThreadNotInWasmScope {
 // Asan on Windows triggers exceptions to allocate shadow memory lazily. When
@@ -454,7 +758,7 @@ int32_t memory_init_wrapper(Address trusted_data_addr, uint32_t mem_index,
   ThreadNotInWasmScope thread_not_in_wasm_scope;
   DisallowGarbageCollection no_gc;
   Tagged<WasmTrustedInstanceData> trusted_data =
-      Tagged<WasmTrustedInstanceData>::cast(Tagged<Object>{trusted_data_addr});
+      Cast<WasmTrustedInstanceData>(Tagged<Object>{trusted_data_addr});
 
   uint64_t mem_size = trusted_data->memory_size(mem_index);
   if (!base::IsInBounds<uint64_t>(dst, size, mem_size)) return kOutOfBounds;
@@ -475,12 +779,13 @@ int32_t memory_copy_wrapper(Address trusted_data_addr, uint32_t dst_mem_index,
   ThreadNotInWasmScope thread_not_in_wasm_scope;
   DisallowGarbageCollection no_gc;
   Tagged<WasmTrustedInstanceData> trusted_data =
-      Tagged<WasmTrustedInstanceData>::cast(Tagged<Object>{trusted_data_addr});
+      Cast<WasmTrustedInstanceData>(Tagged<Object>{trusted_data_addr});
 
-  uint64_t dst_mem_size = trusted_data->memory_size(dst_mem_index);
-  uint64_t src_mem_size = trusted_data->memory_size(src_mem_index);
-  if (!base::IsInBounds<uint64_t>(dst, size, dst_mem_size)) return kOutOfBounds;
-  if (!base::IsInBounds<uint64_t>(src, size, src_mem_size)) return kOutOfBounds;
+  size_t dst_mem_size = trusted_data->memory_size(dst_mem_index);
+  size_t src_mem_size = trusted_data->memory_size(src_mem_index);
+  static_assert(std::is_same_v<size_t, uintptr_t>);
+  if (!base::IsInBounds<size_t>(dst, size, dst_mem_size)) return kOutOfBounds;
+  if (!base::IsInBounds<size_t>(src, size, src_mem_size)) return kOutOfBounds;
 
   // Use std::memmove, because the ranges can overlap.
   std::memmove(EffectiveAddress(trusted_data, dst_mem_index, dst),
@@ -494,7 +799,7 @@ int32_t memory_fill_wrapper(Address trusted_data_addr, uint32_t mem_index,
   DisallowGarbageCollection no_gc;
 
   Tagged<WasmTrustedInstanceData> trusted_data =
-      Tagged<WasmTrustedInstanceData>::cast(Tagged<Object>{trusted_data_addr});
+      Cast<WasmTrustedInstanceData>(Tagged<Object>{trusted_data_addr});
 
   uint64_t mem_size = trusted_data->memory_size(mem_index);
   if (!base::IsInBounds<uint64_t>(dst, size, mem_size)) return kOutOfBounds;
@@ -515,16 +820,14 @@ inline void* ArrayElementAddress(Tagged<WasmArray> array, uint32_t index,
 }
 }  // namespace
 
-void array_copy_wrapper(Address raw_trusted_data, Address raw_dst_array,
-                        uint32_t dst_index, Address raw_src_array,
-                        uint32_t src_index, uint32_t length) {
-  // TODO(clemensb): Remove the raw_trusted_data argument.
-  USE(raw_trusted_data);
+void array_copy_wrapper(Address raw_dst_array, uint32_t dst_index,
+                        Address raw_src_array, uint32_t src_index,
+                        uint32_t length) {
   DCHECK_GT(length, 0);
   ThreadNotInWasmScope thread_not_in_wasm_scope;
   DisallowGarbageCollection no_gc;
-  Tagged<WasmArray> dst_array = WasmArray::cast(Tagged<Object>(raw_dst_array));
-  Tagged<WasmArray> src_array = WasmArray::cast(Tagged<Object>(raw_src_array));
+  Tagged<WasmArray> dst_array = Cast<WasmArray>(Tagged<Object>(raw_dst_array));
+  Tagged<WasmArray> src_array = Cast<WasmArray>(Tagged<Object>(raw_src_array));
 
   bool overlapping_ranges =
       dst_array.ptr() == src_array.ptr() &&
@@ -593,6 +896,7 @@ void array_fill_wrapper(Address raw_array, uint32_t index, uint32_t length,
       base[0] = base[1] = static_cast<int32_t>(initial_value);
       break;
     }
+    case kF16:
     case kI16: {
       int16_t* base = reinterpret_cast<int16_t*>(initial_element_address);
       base[0] = base[1] = base[2] = base[3] =
@@ -639,7 +943,7 @@ void array_fill_wrapper(Address raw_array, uint32_t index, uint32_t length,
 
   if (emit_write_barrier) {
     DCHECK(type.is_reference());
-    Tagged<WasmArray> array = WasmArray::cast(Tagged<Object>(raw_array));
+    Tagged<WasmArray> array = Cast<WasmArray>(Tagged<Object>(raw_array));
     Isolate* isolate = array->GetIsolate();
     ObjectSlot start(reinterpret_cast<Address>(initial_element_address));
     ObjectSlot end(
@@ -649,7 +953,7 @@ void array_fill_wrapper(Address raw_array, uint32_t index, uint32_t length,
 }
 
 double flat_string_to_f64(Address string_address) {
-  Tagged<String> s = String::cast(Tagged<Object>(string_address));
+  Tagged<String> s = Cast<String>(Tagged<Object>(string_address));
   return FlatStringToDouble(s, ALLOW_TRAILING_JUNK,
                             std::numeric_limits<double>::quiet_NaN());
 }
@@ -657,6 +961,17 @@ double flat_string_to_f64(Address string_address) {
 void sync_stack_limit(Isolate* isolate) {
   DisallowGarbageCollection no_gc;
 
+  isolate->SyncStackLimit();
+}
+
+void return_switch(Isolate* isolate, Address raw_continuation) {
+  DisallowGarbageCollection no_gc;
+
+  Tagged<WasmContinuationObject> continuation =
+      Cast<WasmContinuationObject>(Tagged<Object>{raw_continuation});
+  wasm::StackMemory* stack =
+      reinterpret_cast<StackMemory*>(continuation->stack());
+  isolate->RetireWasmStack(stack);
   isolate->SyncStackLimit();
 }
 
@@ -693,16 +1008,14 @@ void switch_from_the_central_stack(Isolate* isolate) {
   stack_guard->SetStackLimitForStackSwitching(secondary_stack_limit);
 }
 
-intptr_t switch_to_the_central_stack_for_js(Address raw_receiver,
+intptr_t switch_to_the_central_stack_for_js(Isolate* isolate,
                                             uintptr_t* stack_limit_slot) {
-  Tagged<JSReceiver> receiver = JSReceiver::cast(Tagged<Object>(raw_receiver));
-  Isolate* isolate = receiver->GetIsolate();
   // Set the suspender's {has_js_frames} field. The suspender contains JS
   // frames iff it is currently on the central stack.
   // The wasm-to-js wrapper checks this field when calling a suspending import
   // and traps if the stack contains JS frames.
   auto active_suspender =
-      WasmSuspenderObject::cast(isolate->root(RootIndex::kActiveSuspender));
+      Cast<WasmSuspenderObject>(isolate->root(RootIndex::kActiveSuspender));
   active_suspender->set_has_js_frames(1);
   ThreadLocalTop* thread_local_top = isolate->thread_local_top();
   StackGuard* stack_guard = isolate->stack_guard();
@@ -713,13 +1026,11 @@ intptr_t switch_to_the_central_stack_for_js(Address raw_receiver,
   return thread_local_top->central_stack_sp_;
 }
 
-void switch_from_the_central_stack_for_js(Address raw_receiver,
+void switch_from_the_central_stack_for_js(Isolate* isolate,
                                           uintptr_t stack_limit) {
-  Tagged<JSReceiver> receiver = JSReceiver::cast(Tagged<Object>(raw_receiver));
-  Isolate* isolate = receiver->GetIsolate();
   // The stack only contains wasm frames after this JS call.
   auto active_suspender =
-      WasmSuspenderObject::cast(isolate->root(RootIndex::kActiveSuspender));
+      Cast<WasmSuspenderObject>(isolate->root(RootIndex::kActiveSuspender));
   active_suspender->set_has_js_frames(0);
   ThreadLocalTop* thread_local_top = isolate->thread_local_top();
   thread_local_top->is_on_central_stack_flag_ = false;

@@ -17,7 +17,7 @@
 #include "src/compiler/backend/instruction-codes.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/osr.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/utils/boxed-float.h"
 
 #if V8_ENABLE_WEBASSEMBLY
@@ -39,8 +39,10 @@ class ArmOperandConverter final : public InstructionOperandConverter {
   SBit OutputSBit() const {
     switch (instr_->flags_mode()) {
       case kFlags_branch:
+      case kFlags_conditional_branch:
       case kFlags_deoptimize:
       case kFlags_set:
+      case kFlags_conditional_set:
       case kFlags_trap:
       case kFlags_select:
         return SetCC;
@@ -125,12 +127,7 @@ class ArmOperandConverter final : public InstructionOperandConverter {
     Constant constant = ToConstant(operand);
     switch (constant.type()) {
       case Constant::kInt32:
-#if V8_ENABLE_WEBASSEMBLY
-        if (RelocInfo::IsWasmReference(constant.rmode())) {
-          return Operand(constant.ToInt32(), constant.rmode());
-        }
-#endif  // V8_ENABLE_WEBASSEMBLY
-        return Operand(constant.ToInt32());
+        return Operand(constant.ToInt32(), constant.rmode());
       case Constant::kFloat32:
         return Operand::EmbeddedNumber(constant.ToFloat32());
       case Constant::kFloat64:
@@ -791,8 +788,10 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     case kArchPrepareTailCall:
       AssemblePrepareTailCall();
       break;
+    case kArchCallCFunctionWithFrameState:
     case kArchCallCFunction: {
-      int const num_parameters = MiscField::decode(instr->opcode());
+      int const num_parameters = ParamField::decode(instr->opcode()) +
+                                 FPParamField::decode(instr->opcode());
       SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes;
       Label return_location;
 #if V8_ENABLE_WEBASSEMBLY
@@ -818,6 +817,13 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
                                      set_isolate_data_slots, &return_location);
       }
       RecordSafepoint(instr->reference_map(), pc_offset);
+
+      bool const needs_frame_state =
+          (arch_opcode == kArchCallCFunctionWithFrameState);
+      if (needs_frame_state) {
+        RecordDeoptInfo(instr, pc_offset);
+      }
+
       frame_access_state()->SetFrameAccessToDefault();
       // Ideally, we should decrement SP delta to match the change of stack
       // pointer in CallCFunction. However, for certain architectures (e.g.
@@ -3670,6 +3676,15 @@ void CodeGenerator::AssembleArchBoolean(Instruction* instr,
   __ mov(reg, Operand(1), LeaveCC, cc);
 }
 
+void CodeGenerator::AssembleArchConditionalBoolean(Instruction* instr) {
+  UNREACHABLE();
+}
+
+void CodeGenerator::AssembleArchConditionalBranch(Instruction* instr,
+                                                  BranchInfo* branch) {
+  UNREACHABLE();
+}
+
 void CodeGenerator::AssembleArchBinarySearchSwitch(Instruction* instr) {
   ArmOperandConverter i(this, instr);
   Register input = i.InputRegister(0);
@@ -3752,7 +3767,7 @@ void CodeGenerator::AssembleConstructFrame() {
           call_descriptor->IsWasmImportWrapper() ||
           call_descriptor->IsWasmCapiFunction()) {
         // For import wrappers and C-API functions, this stack slot is only used
-        // for printing stack traces in V8. Also, it holds a WasmApiFunctionRef
+        // for printing stack traces in V8. Also, it holds a WasmImportData
         // instead of the instance itself, which is taken care of in the frames
         // accessors.
         __ Push(kWasmInstanceRegister);
@@ -3948,8 +3963,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
       __ cmp(argc_reg, Operand(parameter_slots));
       __ mov(argc_reg, Operand(parameter_slots), LeaveCC, lt);
     }
-    __ DropArguments(argc_reg, MacroAssembler::kCountIsInteger,
-                     MacroAssembler::kCountIncludesReceiver);
+    __ DropArguments(argc_reg);
   } else if (additional_pop_count->IsImmediate()) {
     DCHECK_EQ(Constant::kInt32, g.ToConstant(additional_pop_count).type());
     int additional_count = g.ToConstant(additional_pop_count).ToInt32();

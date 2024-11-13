@@ -264,7 +264,7 @@ snippet: "
 "
 frame size: 6
 parameter count: 2
-bytecode array length: 72
+bytecode array length: 70
 bytecodes: [
   /*   34 S> */ B(CreateArrayLiteral), U8(0), U8(1), U8(37),
                 B(Star0),
@@ -274,14 +274,13 @@ bytecodes: [
   /*   35 E> */ B(ThrowReferenceErrorIfHole), U8(1),
                 B(StaInArrayLiteral), R(0), R(1), U8(2),
                 B(Ldar), R(0),
-                B(JumpIfUndefinedOrNull), U8(43),
+                B(JumpIfUndefinedOrNull), U8(41),
                 B(ToObject), R(0),
                 B(ForInEnumerate), R(0),
                 B(ForInPrepare), R(1), U8(0),
                 B(LdaZero),
                 B(Star4),
-  /*   29 S> */ B(ForInContinue), R(4), R(3),
-                B(JumpIfFalse), U8(29),
+  /*   29 S> */ B(JumpIfForInDone), U8(30), R(4), R(3),
                 B(ForInNext), R(0), R(4), R(1), U8(0),
                 B(JumpIfUndefined), U8(15),
                 B(Star5),
@@ -292,8 +291,7 @@ bytecodes: [
   /*   41 S> */ B(LdaImmutableCurrentContextSlot), U8(4),
                 B(ThrowReferenceErrorIfHole), U8(3),
                 B(ForInStep), R(4),
-                B(Star4),
-  /*   24 E> */ B(JumpLoop), U8(28), I8(0), U8(4),
+  /*   24 E> */ B(JumpLoop), U8(26), I8(0), U8(4),
   /*   46 S> */ B(LdaCurrentContextSlot), U8(2),
                 B(ThrowReferenceErrorIfHole), U8(2),
   /*   49 S> */ B(LdaImmutableCurrentContextSlot), U8(3),
@@ -322,9 +320,9 @@ snippet: "
     f();
   }
 "
-frame size: 9
+frame size: 10
 parameter count: 2
-bytecode array length: 145
+bytecode array length: 147
 bytecodes: [
   /*   34 S> */ B(CreateArrayLiteral), U8(0), U8(0), U8(37),
                 B(Star0),
@@ -339,22 +337,24 @@ bytecodes: [
                 B(Star0),
                 B(LdaFalse),
                 B(Star2),
-                B(Mov), R(context), R(5),
+                B(LdaTheHole),
+                B(Star5),
+                B(Mov), R(context), R(6),
                 B(LdaTrue),
                 B(Star2),
   /*   29 S> */ B(CallProperty0), R(0), R(1), U8(9),
-                B(Star6),
+                B(Star7),
                 B(JumpIfJSReceiver), U8(7),
-                B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(6), U8(1),
-                B(GetNamedProperty), R(6), U8(3), U8(11),
+                B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(7), U8(1),
+                B(GetNamedProperty), R(7), U8(3), U8(11),
                 B(JumpIfToBooleanTrue), U8(25),
-                B(GetNamedProperty), R(6), U8(4), U8(13),
-                B(Star6),
+                B(GetNamedProperty), R(7), U8(4), U8(13),
+                B(Star7),
                 B(LdaFalse),
                 B(Star2),
                 B(LdaCurrentContextSlot), U8(2),
                 B(ThrowReferenceErrorIfHole), U8(5),
-                B(Ldar), R(6),
+                B(Ldar), R(7),
                 B(StaCurrentContextSlot), U8(2),
   /*   41 S> */ B(LdaImmutableCurrentContextSlot), U8(4),
                 B(ThrowReferenceErrorIfHole), U8(6),
@@ -362,7 +362,7 @@ bytecodes: [
                 B(LdaSmi), I8(-1),
                 B(Star4),
                 B(Star3),
-                B(Jump), U8(5),
+                B(Jump), U8(8),
                 B(Star4),
                 B(LdaZero),
                 B(Star3),
@@ -371,26 +371,26 @@ bytecodes: [
                 B(Star5),
                 B(Ldar), R(2),
                 B(JumpIfToBooleanTrue), U8(35),
-                B(Mov), R(context), R(6),
+                B(Mov), R(context), R(7),
                 B(GetNamedProperty), R(1), U8(7), U8(16),
                 B(JumpIfUndefinedOrNull), U8(26),
-                B(Star7),
-                B(CallProperty0), R(7), R(1), U8(18),
-                B(JumpIfJSReceiver), U8(19),
                 B(Star8),
-                B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(8), U8(1),
+                B(CallProperty0), R(8), R(1), U8(18),
+                B(JumpIfJSReceiver), U8(19),
+                B(Star9),
+                B(CallRuntime), U16(Runtime::kThrowIteratorResultNotAnObject), R(9), U8(1),
                 B(Jump), U8(11),
-                B(Star6),
+                B(Star7),
                 B(LdaZero),
                 B(TestReferenceEqual), R(3),
                 B(JumpIfTrue), U8(5),
-                B(Ldar), R(6),
+                B(Ldar), R(7),
                 B(ReThrow),
-                B(Ldar), R(5),
-                B(SetPendingMessage),
                 B(LdaZero),
                 B(TestReferenceEqual), R(3),
-                B(JumpIfFalse), U8(5),
+                B(JumpIfFalse), U8(8),
+                B(Ldar), R(5),
+                B(SetPendingMessage),
                 B(Ldar), R(4),
                 B(ReThrow),
   /*   46 S> */ B(LdaCurrentContextSlot), U8(2),
@@ -412,8 +412,8 @@ constant pool: [
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["return"],
 ]
 handlers: [
-  [30, 73, 79],
-  [92, 111, 113],
+  [32, 75, 81],
+  [94, 113, 115],
 ]
 
 ---
@@ -427,30 +427,32 @@ snippet: "
     f();
   }
 "
-frame size: 5
+frame size: 6
 parameter count: 2
-bytecode array length: 74
+bytecode array length: 76
 bytecodes: [
-                B(Mov), R(context), R(2),
+                B(LdaTheHole),
+                B(Star2),
                 B(Mov), R(context), R(3),
+                B(Mov), R(context), R(4),
   /*   30 S> */ B(LdaImmutableCurrentContextSlot), U8(3),
                 B(ThrowReferenceErrorIfHole), U8(0),
                 B(Jump), U8(23),
+                B(Star5),
+                B(CreateCatchContext), R(5), U8(1),
                 B(Star4),
-                B(CreateCatchContext), R(4), U8(1),
-                B(Star3),
                 B(LdaTheHole),
                 B(SetPendingMessage),
-                B(Ldar), R(3),
-                B(PushContext), R(4),
+                B(Ldar), R(4),
+                B(PushContext), R(5),
   /*   47 S> */ B(LdaImmutableCurrentContextSlot), U8(2),
-  /*   50 S> */ B(LdaImmutableContextSlot), R(4), U8(5), U8(0),
+  /*   50 S> */ B(LdaImmutableContextSlot), R(5), U8(5), U8(0),
                 B(ThrowReferenceErrorIfHole), U8(2),
-                B(PopContext), R(4),
+                B(PopContext), R(5),
                 B(LdaSmi), I8(-1),
                 B(Star1),
                 B(Star0),
-                B(Jump), U8(5),
+                B(Jump), U8(8),
                 B(Star1),
                 B(LdaZero),
                 B(Star0),
@@ -459,11 +461,11 @@ bytecodes: [
                 B(Star2),
   /*   65 S> */ B(LdaImmutableCurrentContextSlot), U8(2),
                 B(ThrowReferenceErrorIfHole), U8(3),
-                B(Ldar), R(2),
-                B(SetPendingMessage),
                 B(LdaZero),
                 B(TestReferenceEqual), R(0),
-                B(JumpIfFalse), U8(5),
+                B(JumpIfFalse), U8(8),
+                B(Ldar), R(2),
+                B(SetPendingMessage),
                 B(Ldar), R(1),
                 B(ReThrow),
   /*   70 S> */ B(LdaImmutableCurrentContextSlot), U8(3),
@@ -483,8 +485,8 @@ constant pool: [
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["y"],
 ]
 handlers: [
-  [3, 33, 39],
-  [6, 10, 12],
+  [5, 35, 41],
+  [8, 12, 14],
 ]
 
 ---
@@ -1021,17 +1023,19 @@ snippet: "
     f();
   }
 "
-frame size: 3
+frame size: 4
 parameter count: 2
-bytecode array length: 40
+bytecode array length: 42
 bytecodes: [
-                B(Mov), R(context), R(2),
+                B(LdaTheHole),
+                B(Star2),
+                B(Mov), R(context), R(3),
   /*   32 S> */ B(LdaImmutableCurrentContextSlot), U8(2),
                 B(ThrowReferenceErrorIfHole), U8(0),
                 B(LdaSmi), I8(-1),
                 B(Star1),
                 B(Star0),
-                B(Jump), U8(5),
+                B(Jump), U8(8),
                 B(Star1),
                 B(LdaZero),
                 B(Star0),
@@ -1040,11 +1044,11 @@ bytecodes: [
                 B(Star2),
   /*   47 S> */ B(LdaImmutableCurrentContextSlot), U8(3),
                 B(ThrowReferenceErrorIfHole), U8(1),
-                B(Ldar), R(2),
-                B(SetPendingMessage),
                 B(LdaZero),
                 B(TestReferenceEqual), R(0),
-                B(JumpIfFalse), U8(5),
+                B(JumpIfFalse), U8(8),
+                B(Ldar), R(2),
+                B(SetPendingMessage),
                 B(Ldar), R(1),
                 B(ReThrow),
   /*   52 S> */ B(LdaImmutableCurrentContextSlot), U8(2),
@@ -1057,6 +1061,6 @@ constant pool: [
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["y"],
 ]
 handlers: [
-  [3, 7, 13],
+  [5, 9, 15],
 ]
 

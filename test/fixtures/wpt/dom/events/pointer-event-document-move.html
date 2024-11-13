@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<link rel="help" href="https://crbug.com/341104769">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+
+<template>
+  <p>TEST</p>
+</template>
+
+<body>
+<script>
+  const clone = document.querySelector("template").content.cloneNode(true);
+  const p = clone.querySelector("p");
+
+  let gotEvent = false;
+  p.addEventListener("pointerup", () => {
+    gotEvent = true;
+  });
+
+  document.body.append(clone);
+
+  promise_test(async () => {
+    await test_driver.click(document.querySelector("p"));
+    assert_true(gotEvent);
+  }, "Moving a node to new document should move the registered event listeners together");
+</script>

@@ -224,7 +224,7 @@ Reduction WasmGCLowering::ReduceWasmTypeCheckAbstract(Node* node) {
     // The none-types only perform a null check. They need no control flow.
     if (to_rep == wasm::HeapType::kNone ||
         to_rep == wasm::HeapType::kNoExtern ||
-        to_rep == wasm::HeapType::kNoFunc) {
+        to_rep == wasm::HeapType::kNoFunc || to_rep == wasm::HeapType::kNoExn) {
       result = IsNull(object, config.from);
       break;
     }
@@ -398,7 +398,7 @@ Reduction WasmGCLowering::ReduceWasmTypeCastAbstract(Node* node) {
     // The none-types only perform a null check.
     if (to_rep == wasm::HeapType::kNone ||
         to_rep == wasm::HeapType::kNoExtern ||
-        to_rep == wasm::HeapType::kNoFunc) {
+        to_rep == wasm::HeapType::kNoFunc || to_rep == wasm::HeapType::kNoExn) {
       gasm_.TrapUnless(IsNull(object, config.from), TrapId::kTrapIllegalCast);
       UpdateSourcePosition(gasm_.effect(), node);
       break;
@@ -868,7 +868,7 @@ Reduction WasmGCLowering::ReduceStringAsWtf16(Node* node) {
                                  gasm_.Int32Constant(kSeqStringTag)),
                &done, str);
   gasm_.Goto(&done, gasm_.CallBuiltin(Builtin::kWasmStringAsWtf16,
-                                      Operator::kPure, str));
+                                      Operator::kEliminatable, str));
   gasm_.Bind(&done);
   ReplaceWithValue(node, done.PhiAt(0), gasm_.effect(), gasm_.control());
   node->Kill();

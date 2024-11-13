@@ -71,6 +71,9 @@ cp "$DEPS_DIR/cares/"*.gn "$DEPS_DIR/cares/"*.gni "$WORKSPACE/cares"
 echo "Replacing existing c-ares"
 replace_dir "$DEPS_DIR/cares" "$WORKSPACE/cares"
 
+echo "Updating cares.gyp"
+"$NODE" "$ROOT/tools/dep_updaters/update-c-ares.mjs"
+
 # Update the version number on maintaining-dependencies.md
 # and print the new version as the last line of the script as we need
 # to add it to $GITHUB_ENV variable

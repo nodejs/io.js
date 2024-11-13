@@ -150,6 +150,7 @@ namespace compiler {
   V(Mips64BitcastLD)                  \
   V(Mips64Float64ExtractLowWord32)    \
   V(Mips64Float64ExtractHighWord32)   \
+  V(Mips64Float64FromWord32Pair)      \
   V(Mips64Float64InsertLowWord32)     \
   V(Mips64Float64InsertHighWord32)    \
   V(Mips64Float32Max)                 \

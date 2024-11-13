@@ -70,17 +70,6 @@ bind(
     actual = "@com_googlesource_chromium_icu//:icu",
 )
 
-new_local_repository(
-    name = "com_googlesource_chromium_base_trace_event_common",
-    build_file = "//:bazel/BUILD.trace_event_common",
-    path = "base/trace_event/common",
-)
-
-bind(
-    name = "base_trace_event_common",
-    actual = "@com_googlesource_chromium_base_trace_event_common//:trace_event_common",
-)
-
 http_archive(
     name = "intel_ittapi",
     add_prefix = "third_party/ittapi",

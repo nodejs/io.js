@@ -14,7 +14,7 @@
 }
 
 #innerDiv {
-  width: 500px;
+  width: 4000px;
   height: 4000px;
 }
 </style>
@@ -28,36 +28,64 @@
 
 <script>
 const target_div = document.getElementById('targetDiv');
-let scrollend_arrived = false;
-let scrollend_event_count = 0;
 
-function onScrollEnd(event) {
-  assert_false(event.cancelable);
-  assert_false(event.bubbles);
-  scrollend_arrived = true;
-  scrollend_event_count += 1;
+async function testWithMovePath(t, move_path) {
+  // Skip the test on a Mac as they do not support touch screens.
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC')>=0;
+  if (isMac)
+    return;
+
+  await resetTargetScrollState(t, target_div);
+  await waitForCompositorReady();
+
+  verifyNoScrollendOnDocument(t);
+
+  let scrollend_count = 0;
+  const scrollend_listener = () => { scrollend_count += 1; };
+  target_div.addEventListener("scrollend", scrollend_listener);
+  t.add_cleanup(() => { target_div.removeEventListener('scrollend', scrollend_listener); });
+
+  const pointercancel_listener = () => {
+    assert_equals(scrollend_count, 0, 'scrollend should happen after pointercancel.');
+  };
+  target_div.addEventListener("pointercancel", pointercancel_listener);
+  t.add_cleanup(() => { target_div.removeEventListener('pointercancel', pointercancel_listener); });
+
+  // Because we have several pointer moves, we choose bigger timeout.
+  const timeoutMs = 3000;
+  const targetPointercancelPromise = waitForPointercancelEvent(t, target_div, timeoutMs);
+  const targetScrollendPromise = createScrollendPromiseForTarget(t, target_div, timeoutMs);
+
+  await touchScrollInTargetSequentiallyWithPause(target_div, move_path);
+
+  // Because we start scrolling after pointerdown, there is no pointerup, instead the target
+  // will receive a pointercancel, so we wait for pointercancel, and then continue.
+  await targetPointercancelPromise;
+  await targetScrollendPromise;
+  await verifyScrollStopped(t, target_div);
+  assert_equals(scrollend_count, 1, 'Only one scrollend event should be fired');
 }
 
 function runTest() {
   promise_test (async (t) => {
-    // Make sure that no scrollend event is sent to document.
-    document.addEventListener("scrollend",
-        t.unreached_func("document got unexpected scrollend event."));
-    await waitForCompositorCommit();
-
     // Scroll down & up & down on target div and wait for the target_div to get scrollend event.
-    target_div.addEventListener("scrollend", onScrollEnd);
     const move_path = [
-      { x: 0, y: -300}, // down
-      { x: 0, y: -100}, // up
-      { x: 0, y: -400}, // down
-      { x: 0, y: -200}, // up
+      { x: 0, y: -80 }, // Scroll down
+      { x: 0, y: -40 }, // Scroll up
+      { x: 0, y: -80 }, // Scroll down
     ];
-    await touchScrollInTargetSequentiallyWithPause(target_div, move_path, 150);
-
-    await waitFor(() => {return scrollend_arrived;},
-        'target_div did not receive scrollend event after sequence of scrolls on target.');
-    assert_equals(scrollend_event_count, 1);
+    await testWithMovePath(t, move_path);
   }, "Move down, up and down again, receive scrollend event only once");
+
+  promise_test (async (t) => {
+    // Scroll right & left & right on target div and wait for the target_div to get scrollend event.
+    const move_path = [
+      { x: -80, y: 0 }, // Scroll right
+      { x: -40, y: 0 }, // Scroll left
+      { x: -80, y: 0 }, // Scroll right
+    ];
+    await testWithMovePath(t, move_path);
+  }, "Move right, left and right again, receive scrollend event only once");
+
 }
 </script>

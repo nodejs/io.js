@@ -50,7 +50,7 @@ class TestResolver : public CompilationResultResolver {
   void OnCompilationFailed(Handle<Object> error_reason) override {
     done_ = true;
     failed_ = true;
-    Handle<String> str =
+    DirectHandle<String> str =
         Object::ToString(isolate_, error_reason).ToHandleChecked();
     error_message_.assign(str->ToCString().get());
   }
@@ -74,7 +74,7 @@ class TestResolver : public CompilationResultResolver {
 };
 
 CompilationResult CompileStreaming(v8_fuzzer::FuzzerSupport* support,
-                                   WasmFeatures enabled_features,
+                                   WasmEnabledFeatures enabled_features,
                                    base::Vector<const uint8_t> data,
                                    uint8_t config) {
   v8::Isolate* isolate = support->GetIsolate();
@@ -124,7 +124,8 @@ CompilationResult CompileStreaming(v8_fuzzer::FuzzerSupport* support,
   return result;
 }
 
-CompilationResult CompileSync(Isolate* isolate, WasmFeatures enabled_features,
+CompilationResult CompileSync(Isolate* isolate,
+                              WasmEnabledFeatures enabled_features,
                               base::Vector<const uint8_t> data) {
   ErrorThrower thrower{isolate, "wasm-streaming-fuzzer"};
   Handle<WasmModuleObject> module_object;
@@ -134,7 +135,7 @@ CompilationResult CompileSync(Isolate* isolate, WasmFeatures enabled_features,
                          &thrower, ModuleWireBytes{data})
            .ToHandle(&module_object)) {
     Handle<Object> error = thrower.Reify();
-    Handle<String> error_msg =
+    DirectHandle<String> error_msg =
         Object::ToString(isolate, error).ToHandleChecked();
     return CompilationResult::ForFailure(error_msg->ToCString().get());
   }
@@ -160,7 +161,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   // Limit the maximum module size to avoid OOM.
   v8_flags.wasm_max_module_size = 256 * KB;
 
-  WasmFeatures enabled_features = WasmFeatures::FromIsolate(i_isolate);
+  WasmEnabledFeatures enabled_features =
+      WasmEnabledFeatures::FromIsolate(i_isolate);
 
   base::Vector<const uint8_t> data_vec{data, size - 1};
   uint8_t config = data[size - 1];

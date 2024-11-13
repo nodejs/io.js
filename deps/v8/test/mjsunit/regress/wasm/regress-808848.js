@@ -49,7 +49,7 @@ let m1 = new WebAssembly.Module(m1_bytes);
 // Serialize the module and postMessage it to another thread.
 let serialized_m1 = %SerializeWasmModule(m1);
 
-let worker_onmessage = function(msg) {
+let worker_onmessage = function({data:msg}) {
   let {serialized_m1, m1_bytes} = msg;
 
   let m1_clone = %DeserializeWasmModule(serialized_m1, m1_bytes);

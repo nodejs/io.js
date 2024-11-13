@@ -19,11 +19,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
-// This implementation of the proposed `any_invocable` uses an approach that  //
-// chooses between local storage and remote storage for the contained target  //
-// object based on the target object's size, alignment requirements, and      //
-// whether or not it has a nothrow move constructor. Additional optimizations //
-// are performed when the object is a trivially copyable type [basic.types].  //
+// This implementation chooses between local storage and remote storage for   //
+// the contained target object based on the target object's size, alignment   //
+// requirements, and whether or not it has a nothrow move constructor.        //
+// Additional optimizations are performed when the object is a trivially      //
+// copyable type [basic.types].                                               //
 //                                                                            //
 // There are three datamembers per `AnyInvocable` instance                    //
 //                                                                            //
@@ -39,7 +39,7 @@
 //    target object, directly returning the result.                           //
 //                                                                            //
 // When in the logically empty state, the manager function is an empty        //
-// function and the invoker function is one that would be undefined-behavior  //
+// function and the invoker function is one that would be undefined behavior  //
 // to call.                                                                   //
 //                                                                            //
 // An additional optimization is performed when converting from one           //
@@ -58,12 +58,12 @@
 #include <cstring>
 #include <exception>
 #include <functional>
-#include <initializer_list>
 #include <memory>
 #include <new>
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/internal/invoke.h"
 #include "absl/base/macros.h"

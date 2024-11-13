@@ -394,7 +394,7 @@ class WithInternalIsolateMixin : public TMixin {
 
   template <typename T = Object>
   Handle<T> RunJS(const char* source) {
-    return Handle<T>::cast(RunJSInternal(source));
+    return Cast<T>(RunJSInternal(source));
   }
 
   Handle<Object> RunJSInternal(const char* source) {
@@ -403,7 +403,7 @@ class WithInternalIsolateMixin : public TMixin {
 
   template <typename T = Object>
   Handle<T> RunJS(::v8::String::ExternalOneByteStringResource* source) {
-    return Handle<T>::cast(RunJSInternal(source));
+    return Cast<T>(RunJSInternal(source));
   }
 
   Handle<Object> RunJSInternal(
@@ -535,7 +535,7 @@ class TestTransitionsAccessor : public TransitionsAccessor {
  public:
   TestTransitionsAccessor(Isolate* isolate, Tagged<Map> map)
       : TransitionsAccessor(isolate, map) {}
-  TestTransitionsAccessor(Isolate* isolate, Handle<Map> map)
+  TestTransitionsAccessor(Isolate* isolate, DirectHandle<Map> map)
       : TransitionsAccessor(isolate, *map) {}
 
   // Expose internals for tests.
@@ -628,6 +628,9 @@ class FakeCodeEventLogger : public i::CodeEventLogger {
 #elif V8_HOST_ARCH_MIPS64
 #define GET_STACK_POINTER_TO(sp_addr) \
   __asm__ __volatile__("sd $sp, %0" : "=g"(sp_addr))
+#elif V8_OS_ZOS
+#define GET_STACK_POINTER_TO(sp_addr) \
+  __asm__ __volatile__(" stg 15,%0" : "=m"(sp_addr))
 #elif defined(__s390x__) || defined(_ARCH_S390X)
 #define GET_STACK_POINTER_TO(sp_addr) \
   __asm__ __volatile__("stg %%r15, %0" : "=m"(sp_addr))

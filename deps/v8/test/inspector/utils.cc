@@ -67,16 +67,5 @@ std::vector<uint16_t> ToVector(v8::Isolate* isolate,
   return buffer;
 }
 
-std::vector<uint16_t> ToVector(const v8_inspector::StringView& string) {
-  std::vector<uint16_t> buffer(string.length());
-  for (size_t i = 0; i < string.length(); i++) {
-    if (string.is8Bit())
-      buffer[i] = string.characters8()[i];
-    else
-      buffer[i] = string.characters16()[i];
-  }
-  return buffer;
-}
-
 }  // namespace internal
 }  // namespace v8

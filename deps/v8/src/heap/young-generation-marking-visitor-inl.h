@@ -8,10 +8,11 @@
 #include "src/common/globals.h"
 #include "src/heap/marking-worklist-inl.h"
 #include "src/heap/minor-mark-sweep.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/objects-visiting-inl.h"
 #include "src/heap/objects-visiting.h"
 #include "src/heap/pretenuring-handler-inl.h"
+#include "src/heap/remembered-set-inl.h"
 #include "src/heap/young-generation-marking-visitor.h"
 
 namespace v8 {
@@ -21,7 +22,7 @@ template <YoungGenerationMarkingVisitationMode marking_mode>
 YoungGenerationMarkingVisitor<marking_mode>::YoungGenerationMarkingVisitor(
     Heap* heap,
     PretenuringHandler::PretenuringFeedbackMap* local_pretenuring_feedback)
-    : Parent(heap->isolate()),
+    : Base(heap->isolate()),
       isolate_(heap->isolate()),
       marking_worklists_local_(
           heap->minor_mark_sweep_collector()->marking_worklists(),
@@ -50,78 +51,33 @@ YoungGenerationMarkingVisitor<marking_mode>::~YoungGenerationMarkingVisitor() {
 }
 
 template <YoungGenerationMarkingVisitationMode marking_mode>
-template <typename T>
-int YoungGenerationMarkingVisitor<marking_mode>::
-    VisitEmbedderTracingSubClassWithEmbedderTracing(Tagged<Map> map,
-                                                    Tagged<T> object) {
-  const int size = VisitJSObjectSubclass(map, object);
-  if (!marking_worklists_local_.SupportsExtractWrapper()) return size;
-  MarkingWorklists::Local::WrapperSnapshot wrapper_snapshot;
-  const bool valid_snapshot =
-      marking_worklists_local_.ExtractWrapper(map, object, wrapper_snapshot);
-  if (size && valid_snapshot) {
-    // Success: The object needs to be processed for embedder references.
-    marking_worklists_local_.PushExtractedWrapper(wrapper_snapshot);
+void YoungGenerationMarkingVisitor<marking_mode>::VisitCppHeapPointer(
+    Tagged<HeapObject> host, CppHeapPointerSlot slot) {
+  if (!marking_worklists_local_.cpp_marking_state()) return;
+
+  // The table is not reclaimed in the young generation, so we only need to mark
+  // through to the C++ pointer.
+
+  if (auto cpp_heap_pointer = slot.try_load(isolate_, kAnyCppHeapPointer)) {
+    marking_worklists_local_.cpp_marking_state()->MarkAndPush(
+        reinterpret_cast<void*>(cpp_heap_pointer));
   }
-  return size;
 }
 
 template <YoungGenerationMarkingVisitationMode marking_mode>
 int YoungGenerationMarkingVisitor<marking_mode>::VisitJSArrayBuffer(
     Tagged<Map> map, Tagged<JSArrayBuffer> object) {
   object->YoungMarkExtension();
-  return VisitEmbedderTracingSubClassWithEmbedderTracing(map, object);
-}
-
-template <YoungGenerationMarkingVisitationMode marking_mode>
-int YoungGenerationMarkingVisitor<marking_mode>::VisitJSApiObject(
-    Tagged<Map> map, Tagged<JSObject> object) {
-  return VisitEmbedderTracingSubClassWithEmbedderTracing(map, object);
-}
-
-template <YoungGenerationMarkingVisitationMode marking_mode>
-int YoungGenerationMarkingVisitor<marking_mode>::
-    VisitJSDataViewOrRabGsabDataView(
-        Tagged<Map> map, Tagged<JSDataViewOrRabGsabDataView> object) {
-  return VisitEmbedderTracingSubClassWithEmbedderTracing(map, object);
-}
-
-template <YoungGenerationMarkingVisitationMode marking_mode>
-int YoungGenerationMarkingVisitor<marking_mode>::VisitJSTypedArray(
-    Tagged<Map> map, Tagged<JSTypedArray> object) {
-  return VisitEmbedderTracingSubClassWithEmbedderTracing(map, object);
-}
-
-template <YoungGenerationMarkingVisitationMode marking_mode>
-int YoungGenerationMarkingVisitor<marking_mode>::VisitJSObject(
-    Tagged<Map> map, Tagged<JSObject> object) {
-  int result = Parent::VisitJSObject(map, object);
-  DCHECK_LT(0, result);
-  pretenuring_handler_->UpdateAllocationSite(map, object,
-                                             local_pretenuring_feedback_);
-  return result;
-}
-
-template <YoungGenerationMarkingVisitationMode marking_mode>
-int YoungGenerationMarkingVisitor<marking_mode>::VisitJSObjectFast(
-    Tagged<Map> map, Tagged<JSObject> object) {
-  int result = Parent::VisitJSObjectFast(map, object);
-  DCHECK_LT(0, result);
-  pretenuring_handler_->UpdateAllocationSite(map, object,
-                                             local_pretenuring_feedback_);
-  return result;
+  return Base::VisitJSArrayBuffer(map, object);
 }
 
 template <YoungGenerationMarkingVisitationMode marking_mode>
 template <typename T, typename TBodyDescriptor>
 int YoungGenerationMarkingVisitor<marking_mode>::VisitJSObjectSubclass(
     Tagged<Map> map, Tagged<T> object) {
-  int result =
-      Parent::template VisitJSObjectSubclass<T, TBodyDescriptor>(map, object);
-  DCHECK_LT(0, result);
   pretenuring_handler_->UpdateAllocationSite(map, object,
                                              local_pretenuring_feedback_);
-  return result;
+  return Base::template VisitJSObjectSubclass<T, TBodyDescriptor>(map, object);
 }
 
 template <YoungGenerationMarkingVisitationMode marking_mode>
@@ -138,6 +94,36 @@ int YoungGenerationMarkingVisitor<marking_mode>::VisitEphemeronHashTable(
   }
   return EphemeronHashTable::BodyDescriptor::SizeOf(map, table);
 }
+
+#ifdef V8_COMPRESS_POINTERS
+template <YoungGenerationMarkingVisitationMode marking_mode>
+void YoungGenerationMarkingVisitor<marking_mode>::VisitExternalPointer(
+    Tagged<HeapObject> host, ExternalPointerSlot slot) {
+  // With sticky mark-bits the host object was already marked (old).
+  DCHECK_IMPLIES(!v8_flags.sticky_mark_bits, Heap::InYoungGeneration(host));
+  DCHECK_NE(slot.tag(), kExternalPointerNullTag);
+  DCHECK(!IsSharedExternalPointerType(slot.tag()));
+
+  // TODO(chromium:337580006): Remove when pointer compression always uses
+  // EPT.
+  if (!slot.HasExternalPointerHandle()) return;
+
+  ExternalPointerHandle handle = slot.Relaxed_LoadHandle();
+  if (handle != kNullExternalPointerHandle) {
+    ExternalPointerTable& table = isolate_->external_pointer_table();
+    auto* space = isolate_->heap()->young_external_pointer_space();
+    table.Mark(space, handle, slot.address());
+  }
+
+  // Add to the remset whether the handle is null or not, as the slot could be
+  // set to a non-null value before the marking pause.
+  // TODO(342905179): Avoid adding null handle locations to the remset, and
+  // instead make external pointer writes invoke a marking barrier.
+  auto slot_chunk = MutablePageMetadata::FromHeapObject(host);
+  RememberedSet<SURVIVOR_TO_EXTERNAL_POINTER>::template Insert<
+      AccessMode::ATOMIC>(slot_chunk, slot_chunk->Offset(slot.address()));
+}
+#endif  // V8_COMPRESS_POINTERS
 
 template <YoungGenerationMarkingVisitationMode marking_mode>
 template <typename TSlot>
@@ -178,9 +164,13 @@ template <typename YoungGenerationMarkingVisitor<
           typename TSlot>
 V8_INLINE bool YoungGenerationMarkingVisitor<marking_mode>::VisitObjectViaSlot(
     TSlot slot) {
-  typename TSlot::TObject target =
-      slot.Relaxed_Load(ObjectVisitorWithCageBases::cage_base());
-#ifdef V8_ENABLE_DIRECT_LOCAL
+  const std::optional<Tagged<Object>> optional_object =
+      this->GetObjectFilterReadOnlyAndSmiFast(slot);
+  if (!optional_object) {
+    return false;
+  }
+  typename TSlot::TObject target = *optional_object;
+#ifdef V8_ENABLE_DIRECT_HANDLE
   if (target.ptr() == kTaggedNullAddress) return false;
 #endif
   Tagged<HeapObject> heap_object;
@@ -210,7 +200,7 @@ V8_INLINE bool YoungGenerationMarkingVisitor<marking_mode>::VisitObjectViaSlot(
   // atomics.
   if constexpr (visitation_mode == ObjectVisitationMode::kVisitDirectly) {
     Tagged<Map> map = heap_object->map(isolate_);
-    const int visited_size = Parent::Visit(map, heap_object);
+    const int visited_size = Base::Visit(map, heap_object);
     if (visited_size) {
       IncrementLiveBytesCached(
           MutablePageMetadata::cast(
@@ -241,7 +231,7 @@ V8_INLINE bool YoungGenerationMarkingVisitor<marking_mode>::ShortCutStrings(
                     ->map(ObjectVisitorWithCageBases::cage_base())
                     ->visitor_id(),
                 VisitorId::kVisitThinString);
-      *heap_object = ThinString::cast(*heap_object)->actual();
+      *heap_object = Cast<ThinString>(*heap_object)->actual();
       // ThinStrings always refer to internalized strings, which are always
       // in old space.
       DCHECK(!Heap::InYoungGeneration(*heap_object));
@@ -255,7 +245,7 @@ V8_INLINE bool YoungGenerationMarkingVisitor<marking_mode>::ShortCutStrings(
               ->map(ObjectVisitorWithCageBases::cage_base())
               ->visitor_id();
       if (visitor_id == VisitorId::kVisitShortcutCandidate) {
-        Tagged<ConsString> string = ConsString::cast(*heap_object);
+        Tagged<ConsString> string = Cast<ConsString>(*heap_object);
         if (static_cast<Tagged_t>(string->second().ptr()) ==
             StaticReadOnlyRoot::kempty_string) {
           *heap_object = string->first();

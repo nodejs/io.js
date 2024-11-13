@@ -1,6 +1,7 @@
 'use strict'
 
-const fs = require('graceful-fs').promises
+const gracefulFs = require('graceful-fs')
+const fs = gracefulFs.promises
 const path = require('path')
 const { glob } = require('glob')
 const log = require('./log')
@@ -85,59 +86,65 @@ async function build (gyp, argv) {
   async function findSolutionFile () {
     const files = await glob('build/*.sln')
     if (files.length === 0) {
-      throw new Error('Could not find *.sln file. Did you run "configure"?')
+      if (gracefulFs.existsSync('build/Makefile') || (await glob('build/*.mk')).length !== 0) {
+        command = makeCommand
+        await doWhich(false)
+        return
+      } else {
+        throw new Error('Could not find *.sln file or Makefile. Did you run "configure"?')
+      }
     }
     guessedSolution = files[0]
     log.verbose('found first Solution file', guessedSolution)
-    await doWhich()
+    await doWhich(true)
   }
 
   /**
    * Uses node-which to locate the msbuild / make executable.
    */
 
-  async function doWhich () {
+  async function doWhich (msvs) {
     // On Windows use msbuild provided by node-gyp configure
-    if (win) {
+    if (msvs) {
       if (!config.variables.msbuild_path) {
         throw new Error('MSBuild is not set, please run `node-gyp configure`.')
       }
       command = config.variables.msbuild_path
       log.verbose('using MSBuild:', command)
-      await doBuild()
+      await doBuild(msvs)
       return
     }
 
     // First make sure we have the build command in the PATH
     const execPath = await which(command)
     log.verbose('`which` succeeded for `' + command + '`', execPath)
-    await doBuild()
+    await doBuild(msvs)
   }
 
   /**
    * Actually spawn the process and compile the module.
    */
 
-  async function doBuild () {
+  async function doBuild (msvs) {
     // Enable Verbose build
     const verbose = log.logger.isVisible('verbose')
     let j
 
-    if (!win && verbose) {
+    if (!msvs && verbose) {
       argv.push('V=1')
     }
 
-    if (win && !verbose) {
+    if (msvs && !verbose) {
       argv.push('/clp:Verbosity=minimal')
     }
 
-    if (win) {
+    if (msvs) {
       // Turn off the Microsoft logo on Windows
       argv.push('/nologo')
     }
 
     // Specify the build type, Release by default
-    if (win) {
+    if (msvs) {
       // Convert .gypi config target_arch to MSBuild /Platform
       // Since there are many ways to state '32-bit Intel', default to it.
       // N.B. msbuild's Condition string equality tests are case-insensitive.
@@ -173,7 +180,7 @@ async function build (gyp, argv) {
       }
     }
 
-    if (win) {
+    if (msvs) {
       // did the user specify their own .sln file?
       const hasSln = argv.some(function (arg) {
         return path.extname(arg) === '.sln'

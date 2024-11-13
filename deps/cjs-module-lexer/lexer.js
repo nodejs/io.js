@@ -1149,6 +1149,10 @@ function codePointAtLast (bPos) {
   return ch;
 }
 
+function esmSyntaxErr (msg) {
+  return Object.assign(new Error(msg), { code: 'ERR_LEXER_ESM_SYNTAX' });
+}
+
 function throwIfImportStatement () {
   const startPos = pos;
   pos += 6;
@@ -1160,7 +1164,7 @@ function throwIfImportStatement () {
       return;
     // import.meta
     case 46/*.*/:
-      throw new Error('Unexpected import.meta in CJS module.');
+      throw esmSyntaxErr('Unexpected import.meta in CJS module.');
 
     default:
       // no space after "import" -> not an import keyword
@@ -1176,7 +1180,7 @@ function throwIfImportStatement () {
         return;
       }
       // import statements are a syntax error in CommonJS
-      throw new Error('Unexpected import statement in CJS module.');
+      throw esmSyntaxErr('Unexpected import statement in CJS module.');
   }
 }
 
@@ -1186,7 +1190,7 @@ function throwIfExportStatement () {
   const ch = commentWhitespace();
   if (pos === curPos && !isPunctuator(ch))
     return;
-  throw new Error('Unexpected export statement in CJS module.');
+  throw esmSyntaxErr('Unexpected export statement in CJS module.');
 }
 
 function commentWhitespace () {
@@ -1435,4 +1439,5 @@ function isExpressionTerminator (curPos) {
 const initPromise = Promise.resolve();
 
 module.exports.init = () => initPromise;
+module.exports.initSync = () => {};
 module.exports.parse = parseCJS;

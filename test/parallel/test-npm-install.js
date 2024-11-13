@@ -40,13 +40,15 @@ fs.writeFileSync(pkgPath, pkgContent);
 
 const env = { ...process.env,
               PATH: path.dirname(process.execPath),
+              NODE: process.execPath,
+              NPM: npmPath,
               NPM_CONFIG_PREFIX: path.join(npmSandbox, 'npm-prefix'),
               NPM_CONFIG_TMP: path.join(npmSandbox, 'npm-tmp'),
               NPM_CONFIG_AUDIT: false,
               NPM_CONFIG_UPDATE_NOTIFIER: false,
               HOME: homeDir };
 
-exec(`${process.execPath} ${npmPath} install`, {
+exec(`"${common.isWindows ? process.execPath : '$NODE'}" "${common.isWindows ? npmPath : '$NPM'}" install`, {
   cwd: installDir,
   env: env
 }, common.mustCall(handleExit));

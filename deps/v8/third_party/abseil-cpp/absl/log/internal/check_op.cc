@@ -16,6 +16,10 @@
 
 #include <string.h>
 
+#include <ostream>
+
+#include "absl/strings/string_view.h"
+
 #ifdef _MSC_VER
 #define strcasecmp _stricmp
 #else
@@ -112,6 +116,22 @@ DEFINE_CHECK_STROP_IMPL(CHECK_STRNE, strcmp, false)
 DEFINE_CHECK_STROP_IMPL(CHECK_STRCASEEQ, strcasecmp, true)
 DEFINE_CHECK_STROP_IMPL(CHECK_STRCASENE, strcasecmp, false)
 #undef DEFINE_CHECK_STROP_IMPL
+
+namespace detect_specialization {
+
+StringifySink::StringifySink(std::ostream& os) : os_(os) {}
+
+void StringifySink::Append(absl::string_view text) { os_ << text; }
+
+void StringifySink::Append(size_t length, char ch) {
+  for (size_t i = 0; i < length; ++i) os_.put(ch);
+}
+
+void AbslFormatFlush(StringifySink* sink, absl::string_view text) {
+  sink->Append(text);
+}
+
+}  // namespace detect_specialization
 
 }  // namespace log_internal
 ABSL_NAMESPACE_END

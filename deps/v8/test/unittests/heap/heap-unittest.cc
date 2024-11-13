@@ -15,11 +15,13 @@
 #include "src/heap/gc-tracer-inl.h"
 #include "src/heap/gc-tracer.h"
 #include "src/heap/marking-state-inl.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/minor-mark-sweep.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/remembered-set.h"
 #include "src/heap/safepoint.h"
 #include "src/heap/spaces-inl.h"
 #include "src/heap/trusted-range.h"
+#include "src/objects/js-array-buffer-inl.h"
 #include "src/objects/objects-inl.h"
 #include "test/unittests/heap/heap-utils.h"
 #include "test/unittests/test-utils.h"
@@ -370,6 +372,7 @@ TEST_F(HeapTest, OptimizedAllocationAlwaysInNewSpace) {
       v8_flags.stress_incremental_marking)
     return;
   v8::Isolate* iso = reinterpret_cast<v8::Isolate*>(isolate());
+  ManualGCScope manual_gc_scope(isolate());
   v8::HandleScope scope(iso);
   v8::Local<v8::Context> ctx = iso->GetCurrentContext();
   SimulateFullSpace(heap()->new_space());
@@ -393,8 +396,8 @@ TEST_F(HeapTest, OptimizedAllocationAlwaysInNewSpace) {
                   ->Int32Value(ctx)
                   .FromJust());
 
-  i::Handle<JSReceiver> o =
-      v8::Utils::OpenHandle(*v8::Local<v8::Object>::Cast(res));
+  i::DirectHandle<JSReceiver> o =
+      v8::Utils::OpenDirectHandle(*v8::Local<v8::Object>::Cast(res));
 
   CHECK(Heap::InYoungGeneration(*o));
 }
@@ -418,13 +421,14 @@ static size_t GetRememberedSetSize(Tagged<HeapObject> obj) {
 TEST_F(HeapTest, RememberedSet_InsertOnPromotingObjectToOld) {
   if (v8_flags.single_generation || v8_flags.stress_incremental_marking) return;
   v8_flags.stress_concurrent_allocation = false;  // For SealCurrentObjects.
+  ManualGCScope manual_gc_scope(isolate());
   Factory* factory = isolate()->factory();
   Heap* heap = isolate()->heap();
   SealCurrentObjects();
   HandleScope scope(isolate());
 
   // Create a young object and age it one generation inside the new space.
-  Handle<FixedArray> arr = factory->NewFixedArray(1);
+  DirectHandle<FixedArray> arr = factory->NewFixedArray(1);
   std::vector<Handle<FixedArray>> handles;
   if (v8_flags.minor_ms) {
     NewSpace* new_space = heap->new_space();
@@ -442,7 +446,7 @@ TEST_F(HeapTest, RememberedSet_InsertOnPromotingObjectToOld) {
   // Add into 'arr' a reference to an object one generation younger.
   {
     HandleScope scope_inner(isolate());
-    Handle<Object> number = factory->NewHeapNumber(42);
+    DirectHandle<Object> number = factory->NewHeapNumber(42);
     arr->set(0, *number);
   }
 
@@ -474,7 +478,7 @@ TEST_F(HeapTest, Regress978156) {
   std::vector<Handle<FixedArray>> arrays;
   SimulateFullSpace(heap->new_space(), &arrays);
   // 3. Trim the last array by one word thus creating a one-word filler.
-  Handle<FixedArray> last = arrays.back();
+  DirectHandle<FixedArray> last = arrays.back();
   CHECK_GT(last->length(), 0);
   heap->RightTrimArray(*last, last->length() - 1, last->length());
   // 4. Get the last filler on the page.
@@ -519,7 +523,7 @@ TEST_F(HeapTestWithRandomGCInterval, AllocationTimeout) {
   // Invoke major GC to cause the timeout to be updated.
   InvokeMajorGC();
   const int initial_allocation_timeout =
-      heap()->get_allocation_timeout_for_testing();
+      allocator->get_allocation_timeout_for_testing().value_or(0);
   ASSERT_GT(initial_allocation_timeout, 0);
 
   for (int i = 0; i < initial_allocation_timeout - 1; ++i) {
@@ -534,6 +538,62 @@ TEST_F(HeapTestWithRandomGCInterval, AllocationTimeout) {
   EXPECT_TRUE(allocation.IsFailure());
 }
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
+
+TEST_F(HeapTest, Regress341769455) {
+#ifdef V8_COMPRESS_POINTERS
+  if (!v8_flags.incremental_marking) return;
+  if (!v8_flags.minor_ms) return;
+  Isolate* iso = isolate();
+  bool original_concurrent_minor_ms_marking_value =
+      v8_flags.concurrent_minor_ms_marking;
+  ManualGCScope manual_gc_scope(iso);
+  v8_flags.concurrent_minor_ms_marking =
+      original_concurrent_minor_ms_marking_value;
+  Heap* heap = iso->heap();
+  HandleScope outer(iso);
+  DirectHandle<JSArrayBuffer> ab;
+  {
+    // Make sure new space is empty
+    InvokeAtomicMajorGC();
+    ab = iso->factory()
+             ->NewJSArrayBufferAndBackingStore(
+                 1, InitializedFlag::kZeroInitialized, AllocationType::kYoung)
+             .ToHandleChecked();
+    // Reset the EPT handle to null.
+    ab->init_extension();
+    // MinorMS promotes pages that haven't been allocated on since the last GC.
+    // Force a minor GC to reset the counter of bytes allocated on the page.
+    InvokeAtomicMinorGC();
+    // Set up a global to make sure the JSArrayBuffer is visited before the
+    // atomic pause.
+    Global<JSArrayBuffer> global(
+        v8_isolate(), Utils::Convert<JSArrayBuffer, JSArrayBuffer>(ab));
+    CHECK_EQ(Heap::HeapState::NOT_IN_GC, heap->gc_state());
+    CHECK(heap->incremental_marking()->IsStopped());
+    // Start incremental marking such that setting an extension (via
+    // `EnsureExtension`) triggers a write barrier.
+    v8_flags.incremental_marking = true;
+    heap->StartIncrementalMarking(GCFlag::kNoFlags,
+                                  GarbageCollectionReason::kTesting,
+                                  GCCallbackFlags::kNoGCCallbackFlags,
+                                  GarbageCollector::MINOR_MARK_SWEEPER);
+    CHECK(heap->incremental_marking()->IsMinorMarking());
+    heap->minor_mark_sweep_collector()->DrainMarkingWorklistForTesting();
+    ab->EnsureExtension();
+    heap->AppendArrayBufferExtension(*ab, ab->extension());
+  }
+  // Trigger a 2nd minor GC to promote the JSArrayBuffer to old space.
+  CHECK(Heap::InYoungGeneration(*ab));
+  InvokeAtomicMinorGC();
+  CHECK(!Heap::InYoungGeneration(*ab));
+  // If the EPT entry for the JSArrayBuffer wasn't promoted to the old table, a
+  // 3rd minor GC will observe it as unmarked (since the owning object is old)
+  // and free it. The major GC after it will then crash when trying to access
+  // the extension of the JSArrayBuffer although the entry has been freed.
+  InvokeAtomicMinorGC();
+  InvokeAtomicMajorGC();
+#endif  // V8_COMPRESS_POINTERS
+}
 
 }  // namespace internal
 }  // namespace v8

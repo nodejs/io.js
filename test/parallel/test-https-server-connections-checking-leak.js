@@ -10,7 +10,7 @@ if (!common.hasCrypto) {
   common.skip('missing crypto');
 }
 
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const Countdown = require('../common/countdown');
 
 const https = require('https');

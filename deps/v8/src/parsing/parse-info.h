@@ -328,10 +328,8 @@ class V8_EXPORT_PRIVATE ParseInfo {
     return flags().function_syntax_kind() == FunctionSyntaxKind::kWrapped;
   }
 
-  int max_function_literal_id() const { return max_function_literal_id_; }
-  void set_max_function_literal_id(int max_function_literal_id) {
-    max_function_literal_id_ = max_function_literal_id;
-  }
+  int max_info_id() const { return max_info_id_; }
+  void set_max_info_id(int max_info_id) { max_info_id_ = max_info_id; }
 
   void AllocateSourceRangeMap();
   SourceRangeMap* source_range_map() const { return source_range_map_; }
@@ -348,6 +346,9 @@ class V8_EXPORT_PRIVATE ParseInfo {
   bool is_streaming_compilation() const { return is_streaming_compilation_; }
 
   void set_is_streaming_compilation() { is_streaming_compilation_ = true; }
+
+  bool has_module_in_scope_chain() const { return has_module_in_scope_chain_; }
+  void set_has_module_in_scope_chain() { has_module_in_scope_chain_ = true; }
 
   void SetCompileHintCallbackAndData(CompileHintCallback callback, void* data) {
     DCHECK_NULL(compile_hint_callback_);
@@ -380,7 +381,7 @@ class V8_EXPORT_PRIVATE ParseInfo {
   DeclarationScope* script_scope_;
   uintptr_t stack_limit_;
   int parameters_end_pos_;
-  int max_function_literal_id_;
+  int max_info_id_;
 
   v8::CompileHintCallback compile_hint_callback_ = nullptr;
   void* compile_hint_callback_data_ = nullptr;
@@ -401,6 +402,7 @@ class V8_EXPORT_PRIVATE ParseInfo {
   LanguageMode language_mode_ : 1;
   bool is_background_compilation_ : 1;
   bool is_streaming_compilation_ : 1;
+  bool has_module_in_scope_chain_ : 1;
 };
 
 }  // namespace internal

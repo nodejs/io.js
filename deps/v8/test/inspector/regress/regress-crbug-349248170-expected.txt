@@ -1,0 +1,10 @@
+Don't crash when using non-zero line number to set WASM breakpoint
+Waiting for wasm script to be parsed.
+Setting breakpoint in wasm.
+{
+    error : {
+        code : -32000
+        message : Could not resolve breakpoint
+    }
+    id : <messageId>
+}

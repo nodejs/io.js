@@ -21,6 +21,7 @@
 #define HAVE_RECV                1
 #define HAVE_RECVFROM            1
 #define HAVE_SEND                1
+#define HAVE_SENDTO              1
 #define HAVE_STRDUP              1
 #define HAVE_STRICMP             1
 #define HAVE_STRUCT_IN6_ADDR     1

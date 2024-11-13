@@ -25,7 +25,7 @@ namespace testing {
 MaybeHandle<WasmModuleObject> CompileForTesting(Isolate* isolate,
                                                 ErrorThrower* thrower,
                                                 ModuleWireBytes bytes) {
-  auto enabled_features = WasmFeatures::FromIsolate(isolate);
+  auto enabled_features = WasmEnabledFeatures::FromIsolate(isolate);
   MaybeHandle<WasmModuleObject> module = GetWasmEngine()->SyncCompile(
       isolate, enabled_features, CompileTimeImports{}, thrower, bytes);
   DCHECK_EQ(thrower->error(), module.is_null());
@@ -68,6 +68,7 @@ base::OwnedVector<Handle<Object>> MakeDefaultArguments(Isolate* isolate,
       case kRtt:
       case kI8:
       case kI16:
+      case kF16:
       case kVoid:
       case kBottom:
         UNREACHABLE();
@@ -94,7 +95,7 @@ MaybeHandle<WasmExportedFunction> GetExportedFunction(
     Isolate* isolate, Handle<WasmInstanceObject> instance, const char* name) {
   Handle<JSObject> exports_object;
   Handle<Name> exports = isolate->factory()->InternalizeUtf8String("exports");
-  exports_object = Handle<JSObject>::cast(
+  exports_object = Cast<JSObject>(
       JSObject::GetProperty(isolate, instance, exports).ToHandleChecked());
 
   Handle<Name> main_name = isolate->factory()->NewStringFromAsciiChecked(name);
@@ -104,7 +105,7 @@ MaybeHandle<WasmExportedFunction> GetExportedFunction(
   if (!property_found.FromMaybe(false)) return {};
   if (!IsJSFunction(*desc.value())) return {};
 
-  return Handle<WasmExportedFunction>::cast(desc.value());
+  return Cast<WasmExportedFunction>(desc.value());
 }
 
 int32_t CallWasmFunctionForTesting(Isolate* isolate,
@@ -115,22 +116,22 @@ int32_t CallWasmFunctionForTesting(Isolate* isolate,
   DCHECK_IMPLIES(exception != nullptr, *exception == nullptr);
   MaybeHandle<WasmExportedFunction> maybe_export =
       GetExportedFunction(isolate, instance, name);
-  Handle<WasmExportedFunction> main_export;
-  if (!maybe_export.ToHandle(&main_export)) {
+  Handle<WasmExportedFunction> exported_function;
+  if (!maybe_export.ToHandle(&exported_function)) {
     return -1;
   }
 
   // Call the JS function.
   Handle<Object> undefined = isolate->factory()->undefined_value();
-  MaybeHandle<Object> retval = Execution::Call(isolate, main_export, undefined,
-                                               args.length(), args.begin());
+  MaybeHandle<Object> retval = Execution::Call(
+      isolate, exported_function, undefined, args.length(), args.begin());
 
   // The result should be a number.
   if (retval.is_null()) {
     DCHECK(isolate->has_exception());
     if (exception) {
-      Handle<String> exception_string = Object::NoSideEffectsToString(
-          isolate, handle(isolate->exception(), isolate));
+      DirectHandle<String> exception_string = Object::NoSideEffectsToString(
+          isolate, direct_handle(isolate->exception(), isolate));
       *exception = exception_string->ToCString();
     }
     isolate->clear_internal_exception();
@@ -140,7 +141,7 @@ int32_t CallWasmFunctionForTesting(Isolate* isolate,
 
   // Multi-value returns, get the first return value (see InterpretWasmModule).
   if (IsJSArray(*result)) {
-    auto receiver = Handle<JSReceiver>::cast(result);
+    auto receiver = Cast<JSReceiver>(result);
     result = JSObject::GetElement(isolate, receiver, 0).ToHandleChecked();
   }
 
@@ -148,10 +149,10 @@ int32_t CallWasmFunctionForTesting(Isolate* isolate,
     return Smi::ToInt(*result);
   }
   if (IsHeapNumber(*result)) {
-    return static_cast<int32_t>(HeapNumber::cast(*result)->value());
+    return static_cast<int32_t>(Cast<HeapNumber>(*result)->value());
   }
   if (IsBigInt(*result)) {
-    return static_cast<int32_t>(BigInt::cast(*result)->AsInt64());
+    return static_cast<int32_t>(Cast<BigInt>(*result)->AsInt64());
   }
   return -1;
 }

@@ -2,12 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "third_party/zlib/google/zip.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
 #include <iomanip>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -29,7 +32,6 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
-#include "third_party/zlib/google/zip.h"
 #include "third_party/zlib/google/zip_internal.h"
 #include "third_party/zlib/google/zip_reader.h"
 
@@ -1290,7 +1292,7 @@ TEST_F(ZipTest, Compressed) {
   EXPECT_TRUE(base::CreateDirectory(src_dir));
 
   // Create some dummy source files.
-  for (const base::StringPiece s : {"foo", "bar.txt", ".hidden"}) {
+  for (const std::string_view s : {"foo", "bar.txt", ".hidden"}) {
     base::File f(src_dir.AppendASCII(s),
                  base::File::FLAG_CREATE | base::File::FLAG_WRITE);
     ASSERT_TRUE(f.SetLength(5000));

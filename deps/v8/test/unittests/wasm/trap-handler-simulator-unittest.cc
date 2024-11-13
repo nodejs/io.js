@@ -25,7 +25,7 @@ class SimulatorTrapHandlerTest : public TestWithIsolate {
  public:
   ~SimulatorTrapHandlerTest() {
     if (inaccessible_memory_) {
-      auto* page_allocator = GetPlatformPageAllocator();
+      auto* page_allocator = GetArrayBufferPageAllocator();
       CHECK(page_allocator->FreePages(inaccessible_memory_,
                                       page_allocator->AllocatePageSize()));
     }
@@ -43,7 +43,7 @@ class SimulatorTrapHandlerTest : public TestWithIsolate {
 
   uintptr_t InaccessibleMemoryPtr() {
     if (!inaccessible_memory_) {
-      auto* page_allocator = GetPlatformPageAllocator();
+      auto* page_allocator = GetArrayBufferPageAllocator();
       size_t page_size = page_allocator->AllocatePageSize();
       inaccessible_memory_ =
           reinterpret_cast<uint8_t*>(page_allocator->AllocatePages(

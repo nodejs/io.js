@@ -12,6 +12,7 @@
 // it's not suitable for deoptimization fuzzing.
 // Flags: --deopt-every-n-times=0
 // Flags: --enable-sse4-1 --enable-sse4-2
+// Flags: --fast-api-allow-float-in-sim
 
 const fast_c_api = new d8.test.FastCAPI();
 

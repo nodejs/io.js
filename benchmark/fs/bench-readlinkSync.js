@@ -30,7 +30,7 @@ function main({ n, type }) {
         returnValue = fs.readlinkSync(tmpdir.resolve(`.readlink-sync-${i}`), { encoding: 'utf8' });
       }
       bench.end(n);
-      assert(returnValue);
+      assert.ok(returnValue);
       break;
     }
 
@@ -45,7 +45,7 @@ function main({ n, type }) {
         }
       }
       bench.end(n);
-      assert(hasError);
+      assert.ok(hasError);
       break;
     }
     default:

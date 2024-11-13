@@ -43,6 +43,21 @@ absl_source_set("span") {
   ]
 }
 
+absl_test("span_test") {
+  sources = [ "span_test.cc" ]
+  deps = [
+    ":span",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:exception_testing",
+    "//third_party/abseil-cpp/absl/container:fixed_array",
+    "//third_party/abseil-cpp/absl/container:inlined_vector",
+    "//third_party/abseil-cpp/absl/hash:hash_testing",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/strings",
+  ]
+}
+
 absl_source_set("optional") {
   sources = [ "internal/optional.h" ]
   public = [ "optional.h" ]

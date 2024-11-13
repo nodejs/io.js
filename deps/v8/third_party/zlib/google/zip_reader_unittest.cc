@@ -10,6 +10,7 @@
 
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/check.h"
@@ -22,7 +23,6 @@
 #include "base/i18n/time_formatting.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -72,7 +72,7 @@ class FileWrapper {
 // A mock that provides methods that can be used as callbacks in asynchronous
 // unzip functions.  Tracks the number of calls and number of bytes reported.
 // Assumes that progress callbacks will be executed in-order.
-class MockUnzipListener : public base::SupportsWeakPtr<MockUnzipListener> {
+class MockUnzipListener final {
  public:
   MockUnzipListener()
       : success_calls_(0),
@@ -98,12 +98,18 @@ class MockUnzipListener : public base::SupportsWeakPtr<MockUnzipListener> {
   int progress_calls() { return progress_calls_; }
   int current_progress() { return current_progress_; }
 
+  base::WeakPtr<MockUnzipListener> AsWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
  private:
   int success_calls_;
   int failure_calls_;
   int progress_calls_;
 
   int64_t current_progress_;
+
+  base::WeakPtrFactory<MockUnzipListener> weak_ptr_factory_{this};
 };
 
 class MockWriterDelegate : public zip::WriterDelegate {
@@ -166,7 +172,7 @@ class ZipReaderTest : public PlatformTest {
   }
 
   static Paths GetPaths(const base::FilePath& zip_path,
-                        base::StringPiece encoding = {}) {
+                        std::string_view encoding = {}) {
     Paths paths;
 
     if (ZipReader reader; reader.Open(zip_path)) {
@@ -416,7 +422,7 @@ TEST_F(ZipReaderTest, EncryptedFile_WrongPassword) {
     EXPECT_EQ("This is not encrypted.\n", contents);
   }
 
-  for (const base::StringPiece path : {
+  for (const std::string_view path : {
            "Encrypted AES-128.txt",
            "Encrypted AES-192.txt",
            "Encrypted AES-256.txt",
@@ -452,7 +458,7 @@ TEST_F(ZipReaderTest, EncryptedFile_RightPassword) {
   }
 
   // TODO(crbug.com/1296838) Support AES encryption.
-  for (const base::StringPiece path : {
+  for (const std::string_view path : {
            "Encrypted AES-128.txt",
            "Encrypted AES-192.txt",
            "Encrypted AES-256.txt",
@@ -707,12 +713,12 @@ TEST_F(ZipReaderTest, ExtractCurrentEntryToString) {
     if (i > 0) {
       // Exact byte read limit: must pass.
       EXPECT_TRUE(reader.ExtractCurrentEntryToString(i, &contents));
-      EXPECT_EQ(std::string(base::StringPiece("0123456", i)), contents);
+      EXPECT_EQ(std::string(std::string_view("0123456", i)), contents);
     }
 
     // More than necessary byte read limit: must pass.
     EXPECT_TRUE(reader.ExtractCurrentEntryToString(&contents));
-    EXPECT_EQ(std::string(base::StringPiece("0123456", i)), contents);
+    EXPECT_EQ(std::string(std::string_view("0123456", i)), contents);
   }
   reader.Close();
 }

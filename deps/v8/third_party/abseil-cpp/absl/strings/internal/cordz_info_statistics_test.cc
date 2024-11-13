@@ -152,7 +152,7 @@ size_t FairShare(CordRep* rep, size_t ref = 1) {
 // Samples the cord and returns CordzInfo::GetStatistics()
 CordzStatistics SampleCord(CordRep* rep) {
   InlineData cord(rep);
-  CordzInfo::TrackCord(cord, CordzUpdateTracker::kUnknown);
+  CordzInfo::TrackCord(cord, CordzUpdateTracker::kUnknown, 1);
   CordzStatistics stats = cord.cordz_info()->GetCordzStatistics();
   cord.cordz_info()->Untrack();
   return stats;
@@ -480,7 +480,7 @@ TEST(CordzInfoStatisticsTest, ThreadSafety) {
 
                 // 50/50 sample
                 if (coin_toss(gen) != 0) {
-                  CordzInfo::TrackCord(cord, CordzUpdateTracker::kUnknown);
+                  CordzInfo::TrackCord(cord, CordzUpdateTracker::kUnknown, 1);
                 }
               }
             }

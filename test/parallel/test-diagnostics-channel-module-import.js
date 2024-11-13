@@ -2,6 +2,7 @@
 const common = require('../common');
 const assert = require('assert');
 const dc = require('diagnostics_channel');
+const { pathToFileURL } = require('url');
 
 const trace = dc.tracingChannel('module.import');
 const events = [];
@@ -29,10 +30,7 @@ trace.subscribe({
 
 import('http').then(
   common.mustCall((result) => {
-    let expectedParentURL = module.filename.replaceAll('\\', '/');
-    expectedParentURL = common.isWindows ?
-      `file:///${expectedParentURL}` :
-      `file://${expectedParentURL}`;
+    const expectedParentURL = pathToFileURL(module.filename).href;
     // Verify order and contents of each event
     assert.deepStrictEqual(events, [
       {

@@ -155,7 +155,7 @@ Tagged<Object> Isolate::VerifyBuiltinsResult(Tagged<Object> result) {
   // might call this builtin).
   Isolate* isolate;
   if (!IsSmi(result) &&
-      GetIsolateFromHeapObject(HeapObject::cast(result), &isolate)) {
+      GetIsolateFromHeapObject(Cast<HeapObject>(result), &isolate)) {
     DCHECK(isolate == this || isolate == shared_space_isolate());
   }
 #endif
@@ -176,10 +176,10 @@ ObjectPair Isolate::VerifyBuiltinsResult(ObjectPair pair) {
   // the shared isolate), because that's the assumption in generated code (which
   // might call this builtin).
   Isolate* isolate;
-  if (!IsSmi(x) && GetIsolateFromHeapObject(HeapObject::cast(x), &isolate)) {
+  if (!IsSmi(x) && GetIsolateFromHeapObject(Cast<HeapObject>(x), &isolate)) {
     DCHECK(isolate == this || isolate == shared_space_isolate());
   }
-  if (!IsSmi(y) && GetIsolateFromHeapObject(HeapObject::cast(y), &isolate)) {
+  if (!IsSmi(y) && GetIsolateFromHeapObject(Cast<HeapObject>(y), &isolate)) {
     DCHECK(isolate == this || isolate == shared_space_isolate());
   }
 #endif
@@ -200,7 +200,7 @@ bool Isolate::is_catchable_by_wasm(Tagged<Object> exception) {
   if (!is_catchable_by_javascript(exception)) return false;
   if (!IsJSObject(exception)) return true;
   return !LookupIterator::HasInternalMarkerProperty(
-      this, JSReceiver::cast(exception), factory()->wasm_uncatchable_symbol());
+      this, Cast<JSReceiver>(exception), factory()->wasm_uncatchable_symbol());
 }
 
 void Isolate::FireBeforeCallEnteredCallback() {
@@ -231,42 +231,12 @@ bool Isolate::IsAnyInitialArrayPrototype(Tagged<JSArray> array) {
   return IsInAnyContext(array, Context::INITIAL_ARRAY_PROTOTYPE_INDEX);
 }
 
-void Isolate::DidFinishModuleAsyncEvaluation(unsigned ordinal) {
-  // To address overflow, the ordinal is reset when the async module with the
-  // largest vended ordinal finishes evaluating. Modules are evaluated in
-  // ascending order of their async_evaluating_ordinal.
-  //
-  // While the specification imposes a global total ordering, the intention is
-  // that for each async module, all its parents are totally ordered by when
-  // they first had their [[AsyncEvaluating]] bit set.
-  //
-  // The module with largest vended ordinal finishes evaluating implies that the
-  // async dependency as well as all other modules in that module's graph
-  // depending on async dependencies are finished evaluating.
-  //
-  // If the async dependency participates in other module graphs (e.g. via
-  // dynamic import, or other <script type=module> tags), those module graphs
-  // must have been evaluated either before or after the async dependency is
-  // settled, as the concrete Evaluate() method on cyclic module records is
-  // neither reentrant nor performs microtask checkpoints during its
-  // evaluation. If before, then all modules that depend on the async
-  // dependencies were given an ordinal that ensure they are relatively ordered,
-  // before the global ordinal was reset. If after, then the async evaluating
-  // ordering does not apply, as the dependency is no longer asynchronous.
-  //
-  // https://tc39.es/ecma262/#sec-moduleevaluation
-  if (ordinal + 1 == next_module_async_evaluating_ordinal_) {
-    next_module_async_evaluating_ordinal_ =
-        SourceTextModule::kFirstAsyncEvaluatingOrdinal;
-  }
-}
-
-#define NATIVE_CONTEXT_FIELD_ACCESSOR(index, type, name)     \
-  Handle<type> Isolate::name() {                             \
-    return Handle<type>(raw_native_context()->name(), this); \
-  }                                                          \
-  bool Isolate::is_##name(Tagged<type> value) {              \
-    return raw_native_context()->is_##name(value);           \
+#define NATIVE_CONTEXT_FIELD_ACCESSOR(index, type, name)              \
+  Handle<UNPAREN(type)> Isolate::name() {                             \
+    return Handle<UNPAREN(type)>(raw_native_context()->name(), this); \
+  }                                                                   \
+  bool Isolate::is_##name(Tagged<UNPAREN(type)> value) {              \
+    return raw_native_context()->is_##name(value);                    \
   }
 NATIVE_CONTEXT_FIELDS(NATIVE_CONTEXT_FIELD_ACCESSOR)
 #undef NATIVE_CONTEXT_FIELD_ACCESSOR

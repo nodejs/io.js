@@ -110,12 +110,12 @@ template <template <typename> typename Reducer, typename Next>
 class UniformReducerAdapter : public Next {
  public:
   template <Opcode opcode, typename Continuation, typename... Args>
-  OpIndex ReduceOperation(Args... args) {
+  auto ReduceOperation(Args... args) {
     return Continuation{this}.Reduce(args...);
   }
 
   template <typename Op, typename Continuation>
-  OpIndex ReduceInputGraphOperation(OpIndex ig_index, const Op& operation) {
+  auto ReduceInputGraphOperation(OpIndex ig_index, const Op& operation) {
     return Continuation{this}.ReduceInputGraph(ig_index, operation);
   }
 
@@ -123,23 +123,23 @@ class UniformReducerAdapter : public Next {
   struct Reduce##op##Continuation final {                                    \
     explicit Reduce##op##Continuation(Next* _this) : this_(_this) {}         \
     using Op = op##Op;                                                       \
-    OpIndex ReduceInputGraph(OpIndex ig_index, const op##Op& operation) {    \
+    auto ReduceInputGraph(OpIndex ig_index, const op##Op& operation) {       \
       return this_->ReduceInputGraph##op(ig_index, operation);               \
     }                                                                        \
     template <typename... Args>                                              \
-    OpIndex Reduce(Args... args) const {                                     \
+    auto Reduce(Args... args) const {                                        \
       return this_->Reduce##op(args...);                                     \
     }                                                                        \
     Next* this_;                                                             \
   };                                                                         \
-  OpIndex ReduceInputGraph##op(OpIndex ig_index, const op##Op& operation) {  \
+  auto ReduceInputGraph##op(OpIndex ig_index, const op##Op& operation) {     \
     return static_cast<Reducer<Next>*>(this)                                 \
         ->template ReduceInputGraphOperation<op##Op,                         \
                                              Reduce##op##Continuation>(      \
             ig_index, operation);                                            \
   }                                                                          \
   template <typename... Args>                                                \
-  OpIndex Reduce##op(Args... args) {                                         \
+  auto Reduce##op(Args... args) {                                            \
     return static_cast<Reducer<Next>*>(this)                                 \
         ->template ReduceOperation<Opcode::k##op, Reduce##op##Continuation>( \
             args...);                                                        \

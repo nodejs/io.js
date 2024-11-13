@@ -33,8 +33,8 @@ TEST_F(WasmCapiTest, StartupErrors) {
   EXPECT_EQ(nullptr, instance);
   EXPECT_NE(nullptr, trap);
   EXPECT_STREQ(
-      "Uncaught LinkError: instantiation: Import #0 module=\"\" "
-      "function=\"dummy\": imported function does not match the expected type",
+      "Uncaught LinkError: instantiation: Import #0 \"\" \"dummy\": "
+      "imported function does not match the expected type",
       trap->message().get());
   EXPECT_EQ(nullptr, trap->origin());
   // Don't crash if there is no {trap}.

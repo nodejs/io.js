@@ -727,7 +727,9 @@ public:
      *
      * @stable ICU 49
      */
-    void setKeywordValue(const char* keywordName, const char* keywordValue, UErrorCode &status);
+    void setKeywordValue(const char* keywordName, const char* keywordValue, UErrorCode &status) {
+        setKeywordValue(StringPiece{keywordName}, StringPiece{keywordValue}, status);
+    }
 
     /**
      * Sets or removes the value for a keyword.

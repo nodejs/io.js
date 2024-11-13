@@ -13,6 +13,7 @@
 #include "src/heap/cppgc/globals.h"
 #include "src/heap/cppgc/heap-base.h"
 #include "src/heap/cppgc/heap-object-header.h"
+#include "src/heap/cppgc/page-memory.h"
 #include "src/heap/cppgc/raw-heap.h"
 #include "src/heap/cppgc/stats-collector.h"
 
@@ -111,8 +112,15 @@ HeapStatistics HeapStatisticsCollector::CollectDetailedStatistics(
 
   // Resident set size may be smaller than the than the recorded size in
   // `StatsCollector` due to discarded memory that is tracked on page level.
+  // This only holds before we account for pooled memory.
   DCHECK_GE(heap->stats_collector()->allocated_memory_size(),
             stats.resident_size_bytes);
+
+  size_t pooled_memory = heap->page_backend()->page_pool().PooledMemory();
+  stats.committed_size_bytes += pooled_memory;
+  stats.resident_size_bytes += pooled_memory;
+  stats.pooled_memory_size_bytes = pooled_memory;
+
   return stats;
 }
 

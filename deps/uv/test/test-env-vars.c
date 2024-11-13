@@ -33,6 +33,11 @@ TEST_IMPL(env_vars) {
   int i, r, envcount, found, found_win_special;
   uv_env_item_t* envitems;
 
+#if defined(_WIN32) && defined(__ASAN__)
+  /* See investigation in https://github.com/libuv/libuv/issues/4338 */
+  RETURN_SKIP("Test does not currently work on Windows under ASAN");
+#endif
+
   /* Reject invalid inputs when setting an environment variable */
   r = uv_os_setenv(NULL, "foo");
   ASSERT_EQ(r, UV_EINVAL);

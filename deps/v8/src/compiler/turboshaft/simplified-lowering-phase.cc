@@ -9,8 +9,8 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void SimplifiedLoweringPhase::Run(Zone* temp_zone) {
-  CopyingPhase<SimplifiedLoweringReducer>::Run(temp_zone);
+void SimplifiedLoweringPhase::Run(PipelineData* data, Zone* temp_zone) {
+  CopyingPhase<SimplifiedLoweringReducer>::Run(data, temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

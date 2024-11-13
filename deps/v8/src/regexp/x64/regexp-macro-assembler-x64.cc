@@ -553,12 +553,11 @@ void RegExpMacroAssemblerX64::CallIsCharacterInRangeArray(
     const ZoneList<CharacterRange>* ranges) {
   PushCallerSavedRegisters();
 
-  static const int kNumArguments = 3;
+  static const int kNumArguments = 2;
   __ PrepareCallCFunction(kNumArguments);
 
   __ Move(kCArgRegs[0], current_character());
   __ Move(kCArgRegs[1], GetOrAddRangeArray(ranges));
-  __ LoadAddress(kCArgRegs[2], ExternalReference::isolate_address(isolate()));
 
   {
     // We have a frame (set up in GetCode), but the assembler doesn't know.
@@ -1143,9 +1142,8 @@ Handle<HeapObject> RegExpMacroAssemblerX64::GetCode(Handle<String> source) {
                           .set_self_reference(masm_.CodeObject())
                           .set_empty_source_position_table()
                           .Build();
-  PROFILE(isolate,
-          RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
-  return Handle<HeapObject>::cast(code);
+  PROFILE(isolate, RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+  return Cast<HeapObject>(code);
 }
 
 void RegExpMacroAssemblerX64::GoTo(Label* to) { BranchOrBacktrack(to); }
@@ -1331,7 +1329,7 @@ int RegExpMacroAssemblerX64::CheckStackGuardState(Address* return_address,
                                                   Address re_frame,
                                                   uintptr_t extra_space) {
   Tagged<InstructionStream> re_code =
-      InstructionStream::cast(Tagged<Object>(raw_code));
+      Cast<InstructionStream>(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       frame_entry<int>(re_frame, kStartIndexOffset),

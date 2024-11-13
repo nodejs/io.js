@@ -245,5 +245,13 @@ TEST_F(CompactorTest, InteriorSlotToNextObject) {
   EXPECT_EQ(references[1], holder->objects[1]->other);
 }
 
+TEST_F(CompactorTest, OnStackSlotShouldBeFiltered) {
+  StartGC();
+  const CompactableGCed* compactable_object =
+      MakeGarbageCollected<CompactableGCed>(GetAllocationHandle());
+  heap()->marker()->Visitor().RegisterMovableReference(&compactable_object);
+  EndGC();
+}
+
 }  // namespace internal
 }  // namespace cppgc

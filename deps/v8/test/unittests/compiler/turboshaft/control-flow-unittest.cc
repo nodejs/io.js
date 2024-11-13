@@ -122,10 +122,10 @@ TEST_F(ControlFlowTest, LoopPeelingSingleInputPhi) {
     Block *loop_body = __ NewBlock(), *outside = __ NewBlock();
     __ Goto(loop);
     __ Bind(loop);
-    OpIndex cst = __ Word32Constant(42);
+    V<Word32> cst = __ Word32Constant(42);
     __ Goto(loop_body);
     __ Bind(loop_body);
-    OpIndex phi = __ Phi({cst}, RegisterRepresentation::Word32());
+    V<Word32> phi = __ Phi({cst}, RegisterRepresentation::Word32());
     __ GotoIf(phi, outside);
     __ Goto(loop);
     __ Bind(outside);
@@ -168,6 +168,33 @@ TEST_F(ControlFlowTest, DCEGoto) {
   // eliminate the initial empty block, so we end up with 2 blocks rather than
   // 1; a subsequent optimization phase would remove the empty 1st block).
   ASSERT_LE(test.graph().block_count(), static_cast<size_t>(2));
+}
+
+TEST_F(ControlFlowTest, LoopVar) {
+  auto test = CreateFromGraph(1, [](auto& Asm) {
+    OpIndex p = Asm.GetParameter(0);
+    Variable v1 = __ NewVariable(RegisterRepresentation::Tagged());
+    Variable v2 = __ NewVariable(RegisterRepresentation::Tagged());
+    __ SetVariable(v1, p);
+    __ SetVariable(v2, p);
+    LoopLabel<Word32> loop(&Asm);
+    Label<Word32> end(&Asm);
+    GOTO(loop, 0);
+
+    BIND_LOOP(loop, iter) {
+      GOTO_IF(__ Word32Equal(iter, 42), end, 15);
+
+      __ SetVariable(v1, __ SmiConstant(Smi::FromInt(17)));
+
+      GOTO(loop, __ Word32Add(iter, 1));
+    }
+
+    BIND(end, ret);
+    OpIndex t = __ Word32Mul(ret, __ GetVariable(v1));
+    __ Return(__ Word32BitwiseAnd(t, __ GetVariable(v2)));
+  });
+
+  ASSERT_EQ(0u, test.CountOp(Opcode::kPendingLoopPhi));
 }
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

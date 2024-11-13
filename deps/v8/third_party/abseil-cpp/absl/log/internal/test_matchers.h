@@ -62,7 +62,7 @@ namespace log_internal {
     const ::testing::Matcher<absl::Time>& timestamp);
 // Matches if the `LogEntry`'s timestamp falls after the instantiation of this
 // matcher and before its execution, as is normal when used with EXPECT_CALL.
-::testing::Matcher<const absl::LogEntry&> TimestampInMatchWindow();
+::testing::Matcher<absl::Time> InMatchWindow();
 ::testing::Matcher<const absl::LogEntry&> ThreadID(
     const ::testing::Matcher<absl::LogEntry::tid_t>&);
 ::testing::Matcher<const absl::LogEntry&> TextMessageWithPrefixAndNewline(

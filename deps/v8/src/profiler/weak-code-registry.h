@@ -23,7 +23,7 @@ class V8_EXPORT_PRIVATE WeakCodeRegistry {
   explicit WeakCodeRegistry(Isolate* isolate) : isolate_(isolate) {}
   ~WeakCodeRegistry() { Clear(); }
 
-  void Track(CodeEntry* entry, Handle<AbstractCode> code);
+  void Track(CodeEntry* entry, DirectHandle<AbstractCode> code);
 
   // Removes all dead code objects from the registry, invoking the provided
   // listener for each new CodeEntry that is no longer referenced on the heap

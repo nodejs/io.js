@@ -92,18 +92,19 @@ namespace {
 // into that. Since we have two optional slots (preparse data and job), this
 // gets a little messy.
 void SetUncompiledDataJobPointer(LocalIsolate* isolate,
-                                 Handle<SharedFunctionInfo> shared_info,
+                                 DirectHandle<SharedFunctionInfo> shared_info,
                                  Address job_address) {
-  Tagged<UncompiledData> uncompiled_data = shared_info->uncompiled_data();
+  Tagged<UncompiledData> uncompiled_data =
+      shared_info->uncompiled_data(isolate);
   switch (uncompiled_data->map(isolate)->instance_type()) {
     // The easy cases -- we already have a job slot, so can write into it and
     // return.
     case UNCOMPILED_DATA_WITH_PREPARSE_DATA_AND_JOB_TYPE:
-      UncompiledDataWithPreparseDataAndJob::cast(uncompiled_data)
+      Cast<UncompiledDataWithPreparseDataAndJob>(uncompiled_data)
           ->set_job(job_address);
       break;
     case UNCOMPILED_DATA_WITHOUT_PREPARSE_DATA_WITH_JOB_TYPE:
-      UncompiledDataWithoutPreparseDataWithJob::cast(uncompiled_data)
+      Cast<UncompiledDataWithoutPreparseDataWithJob>(uncompiled_data)
           ->set_job(job_address);
       break;
 
@@ -113,10 +114,10 @@ void SetUncompiledDataJobPointer(LocalIsolate* isolate,
     case UNCOMPILED_DATA_WITH_PREPARSE_DATA_TYPE: {
       Handle<String> inferred_name(uncompiled_data->inferred_name(), isolate);
       Handle<PreparseData> preparse_data(
-          UncompiledDataWithPreparseData::cast(uncompiled_data)
+          Cast<UncompiledDataWithPreparseData>(uncompiled_data)
               ->preparse_data(),
           isolate);
-      Handle<UncompiledDataWithPreparseDataAndJob> new_uncompiled_data =
+      DirectHandle<UncompiledDataWithPreparseDataAndJob> new_uncompiled_data =
           isolate->factory()->NewUncompiledDataWithPreparseDataAndJob(
               inferred_name, uncompiled_data->start_position(),
               uncompiled_data->end_position(), preparse_data);
@@ -128,10 +129,11 @@ void SetUncompiledDataJobPointer(LocalIsolate* isolate,
     case UNCOMPILED_DATA_WITHOUT_PREPARSE_DATA_TYPE: {
       DCHECK(IsUncompiledDataWithoutPreparseData(uncompiled_data));
       Handle<String> inferred_name(uncompiled_data->inferred_name(), isolate);
-      Handle<UncompiledDataWithoutPreparseDataWithJob> new_uncompiled_data =
-          isolate->factory()->NewUncompiledDataWithoutPreparseDataWithJob(
-              inferred_name, uncompiled_data->start_position(),
-              uncompiled_data->end_position());
+      DirectHandle<UncompiledDataWithoutPreparseDataWithJob>
+          new_uncompiled_data =
+              isolate->factory()->NewUncompiledDataWithoutPreparseDataWithJob(
+                  inferred_name, uncompiled_data->start_position(),
+                  uncompiled_data->end_position());
 
       new_uncompiled_data->set_job(job_address);
       shared_info->set_uncompiled_data(*new_uncompiled_data);
@@ -181,16 +183,16 @@ void LazyCompileDispatcher::Enqueue(
 }
 
 bool LazyCompileDispatcher::IsEnqueued(
-    Handle<SharedFunctionInfo> shared) const {
+    DirectHandle<SharedFunctionInfo> shared) const {
   if (!shared->HasUncompiledData()) return false;
   Job* job = nullptr;
-  Tagged<UncompiledData> data = shared->uncompiled_data();
+  Tagged<UncompiledData> data = shared->uncompiled_data(isolate_);
   if (IsUncompiledDataWithPreparseDataAndJob(data)) {
     job = reinterpret_cast<Job*>(
-        UncompiledDataWithPreparseDataAndJob::cast(data)->job());
+        Cast<UncompiledDataWithPreparseDataAndJob>(data)->job());
   } else if (IsUncompiledDataWithoutPreparseDataWithJob(data)) {
     job = reinterpret_cast<Job*>(
-        UncompiledDataWithoutPreparseDataWithJob::cast(data)->job());
+        Cast<UncompiledDataWithoutPreparseDataWithJob>(data)->job());
   }
   return job != nullptr;
 }
@@ -248,7 +250,8 @@ void LazyCompileDispatcher::WaitForJobIfRunningOnBackground(
   job->state = Job::State::kFinalizingNow;
 }
 
-bool LazyCompileDispatcher::FinishNow(Handle<SharedFunctionInfo> function) {
+bool LazyCompileDispatcher::FinishNow(
+    DirectHandle<SharedFunctionInfo> function) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.compile"),
                "V8.LazyCompilerDispatcherFinishNow");
   RCS_SCOPE(isolate_, RuntimeCallCounterId::kCompileFinishNowOnDispatcher);
@@ -299,7 +302,8 @@ bool LazyCompileDispatcher::FinishNow(Handle<SharedFunctionInfo> function) {
   return success;
 }
 
-void LazyCompileDispatcher::AbortJob(Handle<SharedFunctionInfo> shared_info) {
+void LazyCompileDispatcher::AbortJob(
+    DirectHandle<SharedFunctionInfo> shared_info) {
   if (trace_compiler_dispatcher_) {
     PrintF("LazyCompileDispatcher: aborting job for ");
     ShortPrint(*shared_info);
@@ -374,15 +378,15 @@ void LazyCompileDispatcher::AbortAll() {
 }
 
 LazyCompileDispatcher::Job* LazyCompileDispatcher::GetJobFor(
-    Handle<SharedFunctionInfo> shared, const base::MutexGuard&) const {
+    DirectHandle<SharedFunctionInfo> shared, const base::MutexGuard&) const {
   if (!shared->HasUncompiledData()) return nullptr;
-  Tagged<UncompiledData> data = shared->uncompiled_data();
+  Tagged<UncompiledData> data = shared->uncompiled_data(isolate_);
   if (IsUncompiledDataWithPreparseDataAndJob(data)) {
     return reinterpret_cast<Job*>(
-        UncompiledDataWithPreparseDataAndJob::cast(data)->job());
+        Cast<UncompiledDataWithPreparseDataAndJob>(data)->job());
   } else if (IsUncompiledDataWithoutPreparseDataWithJob(data)) {
     return reinterpret_cast<Job*>(
-        UncompiledDataWithoutPreparseDataWithJob::cast(data)->job());
+        Cast<UncompiledDataWithoutPreparseDataWithJob>(data)->job());
   }
   return nullptr;
 }

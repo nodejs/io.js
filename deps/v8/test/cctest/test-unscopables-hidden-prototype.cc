@@ -13,9 +13,9 @@ namespace {
 static void Cleanup() {
   CompileRun(
       "delete object.x;"
-      "delete hidden_prototype.x;"
+      "delete prototype.x;"
       "delete object[Symbol.unscopables];"
-      "delete hidden_prototype[Symbol.unscopables];");
+      "delete prototype[Symbol.unscopables];");
 }
 
 
@@ -32,18 +32,18 @@ TEST(Unscopables) {
                                      .ToLocalChecked()
                                      ->NewInstance(current_context)
                                      .ToLocalChecked();
-  v8::Local<v8::Object> hidden_prototype = t1->GetFunction(current_context)
-                                               .ToLocalChecked()
-                                               ->NewInstance(current_context)
-                                               .ToLocalChecked();
+  v8::Local<v8::Object> prototype = t1->GetFunction(current_context)
+                                        .ToLocalChecked()
+                                        ->NewInstance(current_context)
+                                        .ToLocalChecked();
 
-  CHECK(object->SetPrototype(current_context, hidden_prototype).FromJust());
+  CHECK(object->SetPrototypeV2(current_context, prototype).FromJust());
 
   context->Global()
       ->Set(current_context, v8_str("object"), object)
       .FromMaybe(false);
   context->Global()
-      ->Set(current_context, v8_str("hidden_prototype"), hidden_prototype)
+      ->Set(current_context, v8_str("prototype"), prototype)
       .FromMaybe(false);
 
   CHECK_EQ(1, CompileRun("var result;"
@@ -59,7 +59,7 @@ TEST(Unscopables) {
   Cleanup();
   CHECK_EQ(2, CompileRun("var result;"
                          "var x = 0;"
-                         "hidden_prototype.x = 2;"
+                         "prototype.x = 2;"
                          "with (object) {"
                          "  result = x;"
                          "}"
@@ -82,8 +82,8 @@ TEST(Unscopables) {
   Cleanup();
   CHECK_EQ(0, CompileRun("var result;"
                          "var x = 0;"
-                         "hidden_prototype.x = 4;"
-                         "hidden_prototype[Symbol.unscopables] = {x: true};"
+                         "prototype.x = 4;"
+                         "prototype[Symbol.unscopables] = {x: true};"
                          "with (object) {"
                          "  result = x;"
                          "}"
@@ -95,7 +95,7 @@ TEST(Unscopables) {
   CHECK_EQ(0, CompileRun("var result;"
                          "var x = 0;"
                          "object.x = 5;"
-                         "hidden_prototype[Symbol.unscopables] = {x: true};"
+                         "prototype[Symbol.unscopables] = {x: true};"
                          "with (object) {"
                          "  result = x;"
                          "}"
@@ -106,7 +106,7 @@ TEST(Unscopables) {
   Cleanup();
   CHECK_EQ(0, CompileRun("var result;"
                          "var x = 0;"
-                         "hidden_prototype.x = 6;"
+                         "prototype.x = 6;"
                          "object[Symbol.unscopables] = {x: true};"
                          "with (object) {"
                          "  result = x;"

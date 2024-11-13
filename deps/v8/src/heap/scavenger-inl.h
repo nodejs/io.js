@@ -9,11 +9,12 @@
 #include "src/heap/evacuation-allocator-inl.h"
 #include "src/heap/incremental-marking-inl.h"
 #include "src/heap/marking-state-inl.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/new-spaces.h"
 #include "src/heap/objects-visiting-inl.h"
 #include "src/heap/pretenuring-handler-inl.h"
 #include "src/heap/scavenger.h"
+#include "src/objects/js-objects.h"
 #include "src/objects/map.h"
 #include "src/objects/objects-body-descriptors-inl.h"
 #include "src/objects/objects-inl.h"
@@ -166,17 +167,9 @@ CopyAndForwardResult Scavenger::PromoteObject(Tagged<Map> map,
                 "Only FullHeapObjectSlot and HeapObjectSlot are expected here");
   DCHECK_GE(object_size, Heap::kMinObjectSizeInTaggedWords * kTaggedSize);
   AllocationAlignment alignment = HeapObject::RequiredAlignment(map);
-  AllocationResult allocation;
-  switch (promotion_heap_choice) {
-    case kPromoteIntoLocalHeap:
-      allocation = allocator_.Allocate(OLD_SPACE, object_size, alignment);
-      break;
-    case kPromoteIntoSharedHeap:
-      DCHECK_NOT_NULL(shared_old_allocator_);
-      allocation = shared_old_allocator_->AllocateRaw(object_size, alignment,
-                                                      AllocationOrigin::kGC);
-      break;
-  }
+  AllocationResult allocation = allocator_.Allocate(
+      promotion_heap_choice == kPromoteIntoLocalHeap ? OLD_SPACE : SHARED_SPACE,
+      object_size, alignment);
 
   Tagged<HeapObject> target;
   if (allocation.To(&target)) {
@@ -184,14 +177,10 @@ CopyAndForwardResult Scavenger::PromoteObject(Tagged<Map> map,
     const bool self_success =
         MigrateObject(map, object, target, object_size, promotion_heap_choice);
     if (!self_success) {
-      switch (promotion_heap_choice) {
-        case kPromoteIntoLocalHeap:
-          allocator_.FreeLast(OLD_SPACE, target, object_size);
-          break;
-        case kPromoteIntoSharedHeap:
-          heap()->CreateFillerObjectAt(target.address(), object_size);
-          break;
-      }
+      allocator_.FreeLast(promotion_heap_choice == kPromoteIntoLocalHeap
+                              ? OLD_SPACE
+                              : SHARED_SPACE,
+                          target, object_size);
 
       MapWord map_word = object->map_word(kAcquireLoad);
       UpdateHeapObjectReferenceSlot(slot, map_word.ToForwardingAddress(object));
@@ -222,12 +211,9 @@ SlotCallbackResult Scavenger::RememberedSetEntryNeeded(
 
 bool Scavenger::HandleLargeObject(Tagged<Map> map, Tagged<HeapObject> object,
                                   int object_size, ObjectFields object_fields) {
-  // TODO(hpayer): Make this check size based, i.e.
-  // object_size > kMaxRegularHeapObjectSize
-  if (V8_UNLIKELY(
-          MemoryChunk::FromHeapObject(object)->InNewLargeObjectSpace())) {
-    DCHECK_EQ(NEW_LO_SPACE,
-              MutablePageMetadata::FromHeapObject(object)->owner_identity());
+  if (NEW_LO_SPACE ==
+      MutablePageMetadata::FromHeapObject(object)->owner_identity()) {
+    DCHECK(MemoryChunk::FromHeapObject(object)->InNewLargeObjectSpace());
     if (object->release_compare_and_swap_map_word_forwarded(
             MapWord::FromMap(map), object)) {
       surviving_new_large_objects_.insert({object, map});
@@ -325,7 +311,7 @@ SlotCallbackResult Scavenger::EvacuateShortcutCandidate(
 
   if (shortcut_strings_ &&
       object->unchecked_second() == ReadOnlyRoots(heap()).empty_string()) {
-    Tagged<HeapObject> first = HeapObject::cast(object->unchecked_first());
+    Tagged<HeapObject> first = Cast<HeapObject>(object->unchecked_first());
 
     UpdateHeapObjectReferenceSlot(slot, first);
 
@@ -385,29 +371,21 @@ SlotCallbackResult Scavenger::EvacuateObject(THeapObjectSlot slot,
     case kVisitThinString:
       // At the moment we don't allow weak pointers to thin strings.
       DCHECK(!(*slot).IsWeak());
-      return EvacuateThinString(map, slot, ThinString::unchecked_cast(source),
+      return EvacuateThinString(map, slot, UncheckedCast<ThinString>(source),
                                 size);
     case kVisitShortcutCandidate:
       DCHECK(!(*slot).IsWeak());
       // At the moment we don't allow weak pointers to cons strings.
-      return EvacuateShortcutCandidate(
-          map, slot, ConsString::unchecked_cast(source), size);
+      return EvacuateShortcutCandidate(map, slot,
+                                       UncheckedCast<ConsString>(source), size);
     case kVisitSeqOneByteString:
     case kVisitSeqTwoByteString:
       DCHECK(String::IsInPlaceInternalizable(map->instance_type()));
       static_assert(Map::ObjectFieldsFrom(kVisitSeqOneByteString) ==
                     Map::ObjectFieldsFrom(kVisitSeqTwoByteString));
       return EvacuateInPlaceInternalizableString(
-          map, slot, String::unchecked_cast(source), size,
+          map, slot, UncheckedCast<String>(source), size,
           Map::ObjectFieldsFrom(kVisitSeqOneByteString));
-    case kVisitDataObject:  // External strings have kVisitDataObject.
-      if (String::IsInPlaceInternalizableExcludingExternal(
-              map->instance_type())) {
-        return EvacuateInPlaceInternalizableString(
-            map, slot, String::unchecked_cast(source), size,
-            ObjectFields::kDataOnly);
-      }
-      [[fallthrough]];
     default:
       return EvacuateObjectDefault(map, slot, source, size,
                                    Map::ObjectFieldsFrom(visitor_id));
@@ -487,6 +465,12 @@ class ScavengeVisitor final : public NewSpaceVisitor<ScavengeVisitor> {
   V8_INLINE int VisitJSArrayBuffer(Tagged<Map> map,
                                    Tagged<JSArrayBuffer> object);
   V8_INLINE int VisitJSApiObject(Tagged<Map> map, Tagged<JSObject> object);
+  V8_INLINE void VisitExternalPointer(Tagged<HeapObject> host,
+                                      ExternalPointerSlot slot);
+
+  V8_INLINE static constexpr bool CanEncounterFillerOrFreeSpace() {
+    return false;
+  }
 
  private:
   template <typename TSlot>
@@ -524,7 +508,12 @@ template <typename TSlot>
 void ScavengeVisitor::VisitPointersImpl(Tagged<HeapObject> host, TSlot start,
                                         TSlot end) {
   for (TSlot slot = start; slot < end; ++slot) {
-    typename TSlot::TObject object = *slot;
+    const std::optional<Tagged<Object>> optional_object =
+        this->GetObjectFilterReadOnlyAndSmiFast(slot);
+    if (!optional_object) {
+      continue;
+    }
+    typename TSlot::TObject object = *optional_object;
     Tagged<HeapObject> heap_object;
     // Treat weak references as strong.
     if (object.GetHeapObject(&heap_object)) {
@@ -543,7 +532,36 @@ int ScavengeVisitor::VisitJSArrayBuffer(Tagged<Map> map,
 
 int ScavengeVisitor::VisitJSApiObject(Tagged<Map> map,
                                       Tagged<JSObject> object) {
-  return VisitJSObject(map, object);
+  int size = JSAPIObjectWithEmbedderSlots::BodyDescriptor::SizeOf(map, object);
+  JSAPIObjectWithEmbedderSlots::BodyDescriptor::IterateBody(map, object, size,
+                                                            this);
+  return size;
+}
+
+void ScavengeVisitor::VisitExternalPointer(Tagged<HeapObject> host,
+                                           ExternalPointerSlot slot) {
+#ifdef V8_COMPRESS_POINTERS
+  DCHECK_NE(slot.tag(), kExternalPointerNullTag);
+  DCHECK(!IsSharedExternalPointerType(slot.tag()));
+  DCHECK(Heap::InYoungGeneration(host));
+
+  // If an incremental mark is in progress, there is already a whole-heap trace
+  // running that will mark live EPT entries, and the scavenger won't sweep the
+  // young EPT space.  So, leave the tracing and sweeping work to the impending
+  // major GC.
+  //
+  // The EPT entry may or may not be marked already by the incremental marker.
+  if (scavenger_->is_incremental_marking_) return;
+
+  // TODO(chromium:337580006): Remove when pointer compression always uses
+  // EPT.
+  if (!slot.HasExternalPointerHandle()) return;
+
+  ExternalPointerHandle handle = slot.Relaxed_LoadHandle();
+  Heap* heap = scavenger_->heap();
+  ExternalPointerTable& table = heap->isolate()->external_pointer_table();
+  table.Mark(heap->young_external_pointer_space(), handle, slot.address());
+#endif  // V8_COMPRESS_POINTERS
 }
 
 int ScavengeVisitor::VisitEphemeronHashTable(Tagged<Map> map,

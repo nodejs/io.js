@@ -4,6 +4,8 @@
 
 #include "src/compiler/js-typed-lowering.h"
 
+#include <optional>
+
 #include "src/ast/modules.h"
 #include "src/builtins/builtins-utils.h"
 #include "src/codegen/code-factory.h"
@@ -1110,7 +1112,7 @@ Reduction JSTypedLowering::ReduceJSToNumberInput(Node* input) {
     HeapObjectMatcher m(input);
     if (m.HasResolvedValue() && m.Ref(broker()).IsString()) {
       StringRef input_value = m.Ref(broker()).AsString();
-      base::Optional<double> number = input_value.ToNumber(broker());
+      std::optional<double> number = input_value.ToNumber(broker());
       if (!number.has_value()) return NoChange();
       return Replace(jsgraph()->ConstantNoHole(number.value()));
     }
@@ -1504,56 +1506,55 @@ Reduction JSTypedLowering::ReduceJSHasContextExtension(Node* node) {
   DCHECK_EQ(IrOpcode::kJSHasContextExtension, node->opcode());
   size_t depth = OpParameter<size_t>(node->op());
   Node* effect = NodeProperties::GetEffectInput(node);
-  Node* context = NodeProperties::GetContextInput(node);
+  TNode<Context> context =
+      TNode<Context>::UncheckedCast(NodeProperties::GetContextInput(node));
   Node* control = graph()->start();
+
+  JSGraphAssembler gasm(broker(), jsgraph_, jsgraph_->zone(),
+                        BranchSemantics::kJS);
+  gasm.InitializeEffectControl(effect, control);
 
   for (size_t i = 0; i < depth; ++i) {
 #if DEBUG
     // Const tracking let data is stored in the extension slot of a
     // ScriptContext - however, it's unrelated to the sloppy eval variable
     // extension. We should never iterate through a ScriptContext here.
-    Node* const scope_info = effect = graph()->NewNode(
-        simplified()->LoadField(
-            AccessBuilder::ForContextSlot(Context::SCOPE_INFO_INDEX)),
-        context, effect, control);
-    Node* scope_info_flags = effect = graph()->NewNode(
-        simplified()->LoadField(AccessBuilder::ForScopeInfoFlags()), scope_info,
-        effect, control);
-    Node* scope_type = graph()->NewNode(
-        simplified()->NumberBitwiseAnd(), scope_info_flags,
-        jsgraph()->SmiConstant(ScopeInfo::ScopeTypeBits::kMask));
-    Node* is_script_scope =
-        graph()->NewNode(simplified()->NumberEqual(), scope_type,
-                         jsgraph()->SmiConstant(ScopeType::SCRIPT_SCOPE));
-    Node* is_not_script_scope =
-        graph()->NewNode(simplified()->BooleanNot(), is_script_scope);
-    JSGraphAssembler gasm(broker(), jsgraph_, jsgraph_->zone(),
-                          BranchSemantics::kJS);
-    gasm.InitializeEffectControl(effect, control);
+
+    TNode<ScopeInfo> scope_info = gasm.LoadField<ScopeInfo>(
+        AccessBuilder::ForContextSlot(Context::SCOPE_INFO_INDEX), context);
+    TNode<Word32T> scope_info_flags = gasm.EnterMachineGraph<Word32T>(
+        gasm.LoadField<Word32T>(AccessBuilder::ForScopeInfoFlags(), scope_info),
+        UseInfo::TruncatingWord32());
+    TNode<Word32T> scope_type = gasm.Word32And(
+        scope_info_flags, gasm.Uint32Constant(ScopeInfo::ScopeTypeBits::kMask));
+    TNode<Word32T> is_script_scope = gasm.Word32Equal(
+        scope_type, gasm.Uint32Constant(ScopeType::SCRIPT_SCOPE));
+    TNode<Word32T> is_not_script_scope =
+        gasm.Word32Equal(is_script_scope, gasm.Uint32Constant(0));
     gasm.Assert(is_not_script_scope, "we should no see a ScriptContext here",
                 __FILE__, __LINE__);
 #endif
 
-    context = effect = graph()->NewNode(
-        simplified()->LoadField(
-            AccessBuilder::ForContextSlotKnownPointer(Context::PREVIOUS_INDEX)),
-        context, effect, control);
+    context = gasm.LoadField<Context>(
+        AccessBuilder::ForContextSlotKnownPointer(Context::PREVIOUS_INDEX),
+        context);
   }
-  Node* const scope_info = effect = graph()->NewNode(
-      simplified()->LoadField(
-          AccessBuilder::ForContextSlot(Context::SCOPE_INFO_INDEX)),
-      context, effect, control);
-  Node* scope_info_flags = effect = graph()->NewNode(
-      simplified()->LoadField(AccessBuilder::ForScopeInfoFlags()), scope_info,
-      effect, control);
-  Node* flags_masked = graph()->NewNode(
-      simplified()->NumberBitwiseAnd(), scope_info_flags,
-      jsgraph()->SmiConstant(ScopeInfo::HasContextExtensionSlotBit::kMask));
-  Node* no_extension = graph()->NewNode(
-      simplified()->NumberEqual(), flags_masked, jsgraph()->SmiConstant(0));
-  Node* has_extension =
-      graph()->NewNode(simplified()->BooleanNot(), no_extension);
-  ReplaceWithValue(node, has_extension, effect, control);
+  TNode<ScopeInfo> scope_info = gasm.LoadField<ScopeInfo>(
+      AccessBuilder::ForContextSlot(Context::SCOPE_INFO_INDEX), context);
+  TNode<Word32T> scope_info_flags = gasm.EnterMachineGraph<Word32T>(
+      gasm.LoadField<Word32T>(AccessBuilder::ForScopeInfoFlags(), scope_info),
+      UseInfo::TruncatingWord32());
+  TNode<Word32T> flags_masked = gasm.Word32And(
+      scope_info_flags,
+      gasm.Uint32Constant(ScopeInfo::HasContextExtensionSlotBit::kMask));
+  TNode<Word32T> no_extension =
+      gasm.Word32Equal(flags_masked, gasm.Uint32Constant(0));
+  TNode<Word32T> has_extension =
+      gasm.Word32Equal(no_extension, gasm.Uint32Constant(0));
+  TNode<Boolean> has_extension_boolean = gasm.ExitMachineGraph<Boolean>(
+      has_extension, MachineRepresentation::kBit, Type::Boolean());
+
+  ReplaceWithValue(node, has_extension_boolean, gasm.effect(), gasm.control());
   return Changed(node);
 }
 

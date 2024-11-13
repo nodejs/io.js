@@ -30,7 +30,7 @@ BUILTIN(DataViewConstructor) {
   }
   // [[Construct]]
   Handle<JSFunction> target = args.target();
-  Handle<JSReceiver> new_target = Handle<JSReceiver>::cast(args.new_target());
+  Handle<JSReceiver> new_target = Cast<JSReceiver>(args.new_target());
   Handle<Object> buffer = args.atOrUndefined(isolate, 1);
   Handle<Object> byte_offset = args.atOrUndefined(isolate, 2);
   Handle<Object> byte_length = args.atOrUndefined(isolate, 3);
@@ -40,13 +40,13 @@ BUILTIN(DataViewConstructor) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kDataViewNotArrayBuffer));
   }
-  Handle<JSArrayBuffer> array_buffer = Handle<JSArrayBuffer>::cast(buffer);
+  auto array_buffer = Cast<JSArrayBuffer>(buffer);
 
   // 3. Let offset be ? ToIndex(byteOffset).
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, byte_offset,
       Object::ToIndex(isolate, byte_offset, MessageTemplate::kInvalidOffset));
-  size_t view_byte_offset = Object::Number(*byte_offset);
+  size_t view_byte_offset = Object::NumberValue(*byte_offset);
 
   // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
   if (array_buffer->was_detached()) {
@@ -86,12 +86,13 @@ BUILTIN(DataViewConstructor) {
         isolate, byte_length,
         Object::ToIndex(isolate, byte_length,
                         MessageTemplate::kInvalidDataViewLength));
-    if (view_byte_offset + Object::Number(*byte_length) > buffer_byte_length) {
+    if (view_byte_offset + Object::NumberValue(*byte_length) >
+        buffer_byte_length) {
       THROW_NEW_ERROR_RETURN_FAILURE(
           isolate,
           NewRangeError(MessageTemplate::kInvalidDataViewLength, byte_length));
     }
-    view_byte_length = Object::Number(*byte_length);
+    view_byte_length = Object::NumberValue(*byte_length);
   }
 
   bool is_backed_by_rab =
@@ -111,15 +112,16 @@ BUILTIN(DataViewConstructor) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, result,
         JSObject::NewWithMap(isolate, initial_map,
-                             Handle<AllocationSite>::null()));
+                             Handle<AllocationSite>::null(),
+                             NewJSObjectType::kAPIWrapper));
   } else {
     // Create a JSDataView.
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, result,
-        JSObject::New(target, new_target, Handle<AllocationSite>::null()));
+        JSObject::New(target, new_target, Handle<AllocationSite>::null(),
+                      NewJSObjectType::kAPIWrapper));
   }
-  Handle<JSDataViewOrRabGsabDataView> data_view =
-      Handle<JSDataViewOrRabGsabDataView>::cast(result);
+  auto data_view = Cast<JSDataViewOrRabGsabDataView>(result);
   {
     // Must fully initialize the JSDataViewOrRabGsabDataView here so that it
     // passes ObjectVerify, which may for example be triggered when allocating

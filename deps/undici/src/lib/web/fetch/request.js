@@ -2,7 +2,7 @@
 
 'use strict'
 
-const { extractBody, mixinBody, cloneBody } = require('./body')
+const { extractBody, mixinBody, cloneBody, bodyUnusable } = require('./body')
 const { Headers, fill: fillHeaders, HeadersList, setHeadersGuard, getHeadersGuard, setHeadersList, getHeadersList } = require('./headers')
 const { FinalizationRegistry } = require('./dispatcher-weakref')()
 const util = require('../../core/util')
@@ -557,7 +557,7 @@ class Request {
     // 40. If initBody is null and inputBody is non-null, then:
     if (initBody == null && inputBody != null) {
       // 1. If input is unusable, then throw a TypeError.
-      if (util.isDisturbed(inputBody.stream) || inputBody.stream.locked) {
+      if (bodyUnusable(input)) {
         throw new TypeError(
           'Cannot construct a Request with a Request object that has already been used.'
         )
@@ -759,7 +759,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // 1. If this is unusable, then throw a TypeError.
-    if (this.bodyUsed || this.body?.locked) {
+    if (bodyUnusable(this)) {
       throw new TypeError('unusable')
     }
 
@@ -877,7 +877,7 @@ function cloneRequest (request) {
   // 2. If request’s body is non-null, set newRequest’s body to the
   // result of cloning request’s body.
   if (request.body != null) {
-    newRequest.body = cloneBody(request.body)
+    newRequest.body = cloneBody(newRequest, request.body)
   }
 
   // 3. Return newRequest.

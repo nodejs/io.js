@@ -236,6 +236,8 @@ const customTypesMap = {
   'vm.SourceTextModule': 'vm.html#class-vmsourcetextmodule',
   'vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER':
       'vm.html#vmconstantsuse_main_context_default_loader',
+  'vm.constants.DONT_CONTEXTIFY':
+      'vm.html#vmconstantsdont_contextify',
 
   'MessagePort': 'worker_threads.html#class-messageport',
   'Worker': 'worker_threads.html#class-worker',

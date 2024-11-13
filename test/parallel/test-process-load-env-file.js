@@ -8,7 +8,7 @@ const { join } = require('node:path');
 
 const basicValidEnvFilePath = fixtures.path('dotenv/basic-valid.env');
 const validEnvFilePath = fixtures.path('dotenv/valid.env');
-const missingEnvFile = fixtures.path('dotenv/non-existent-file.env');
+const missingEnvFile = fixtures.path('dir%20with unusual"chars \'åß∂ƒ©∆¬…`/non-existent-file.env');
 
 describe('process.loadEnvFile()', () => {
 
@@ -85,7 +85,11 @@ describe('process.loadEnvFile()', () => {
     assert.match(child.stderr, /code: 'ERR_ACCESS_DENIED'/);
     assert.match(child.stderr, /permission: 'FileSystemRead'/);
     if (!common.isWindows) {
-      assert(child.stderr.includes(`resource: '${JSON.stringify(missingEnvFile).replaceAll('"', '')}'`));
+      const resource = /^\s+resource: (['"])(.+)\1$/m.exec(child.stderr);
+      assert(resource);
+      assert.strictEqual(resource[2], resource[1] === "'" ?
+        missingEnvFile.replaceAll("'", "\\'") :
+        JSON.stringify(missingEnvFile).slice(1, -1));
     }
     assert.strictEqual(child.code, 1);
   });

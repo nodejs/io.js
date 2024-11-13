@@ -8,8 +8,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+#include <optional>
 
-#include "src/base/optional.h"
 #include "src/base/platform/time.h"
 #include "src/base/ring-buffer.h"
 
@@ -33,7 +33,7 @@ using BytesAndDurationBuffer = v8::base::RingBuffer<BytesAndDuration>;
 // bound non-zero speeds.
 inline double AverageSpeed(
     const BytesAndDurationBuffer& buffer, const BytesAndDuration& initial,
-    v8::base::Optional<v8::base::TimeDelta> selected_duration,
+    std::optional<v8::base::TimeDelta> selected_duration,
     size_t min_non_empty_speed = 0,
     size_t max_speed = std::numeric_limits<size_t>::max()) {
   const BytesAndDuration sum = buffer.Reduce(

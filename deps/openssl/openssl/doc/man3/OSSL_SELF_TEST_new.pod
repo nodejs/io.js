@@ -32,6 +32,7 @@ The callback I<cb> may be triggered multiple times by a self test to indicate
 different phases.
 
 OSSL_SELF_TEST_free() frees the space allocated by OSSL_SELF_TEST_new().
+If the argument is NULL, nothing is done.
 
 OSSL_SELF_TEST_onbegin() may be inserted at the start of a block of self test
 code. It can be used for diagnostic purposes.
@@ -165,7 +166,7 @@ The functions described here were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

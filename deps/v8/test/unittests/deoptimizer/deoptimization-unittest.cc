@@ -55,7 +55,7 @@ class DeoptimizationTest : public TestWithContext {
             ->Global()
             ->Get(context(), NewString(property_name))
             .ToLocalChecked());
-    return i::Handle<i::JSFunction>::cast(v8::Utils::OpenHandle(*fun));
+    return i::Cast<i::JSFunction>(v8::Utils::OpenHandle(*fun));
   }
 };
 

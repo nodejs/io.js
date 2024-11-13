@@ -173,7 +173,7 @@ function testCompileStreamingRejectionUsingFetch(responseCallback, rejection) {
              "'application/octet-stream'"
   });
 
-  // HTTP status code indiciating an error.
+  // HTTP status code indicating an error.
   await testCompileStreamingRejectionUsingFetch((res) => {
     res.statusCode = 418;
     res.setHeader('Content-Type', 'application/wasm');
@@ -184,7 +184,7 @@ function testCompileStreamingRejectionUsingFetch(responseCallback, rejection) {
     message: /^WebAssembly response has status code 418$/
   });
 
-  // HTTP status code indiciating an error, but using a Response whose body is
+  // HTTP status code indicating an error, but using a Response whose body is
   // a Buffer instead of calling fetch().
   await testCompileStreamingSuccess(() => {
     return Promise.resolve(new Response(simpleWasmBytes, {

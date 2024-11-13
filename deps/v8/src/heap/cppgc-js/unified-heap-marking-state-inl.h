@@ -13,6 +13,7 @@
 #include "src/heap/cppgc-js/unified-heap-marking-state.h"
 #include "src/heap/heap.h"
 #include "src/heap/mark-compact.h"
+#include "src/heap/marking-inl.h"
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/marking-worklist-inl.h"
 #include "src/objects/objects-inl.h"
@@ -47,23 +48,14 @@ void UnifiedHeapMarkingState::MarkAndPush(
     // objects are just passed around as Smis.
     return;
   }
-  Tagged<HeapObject> heap_object = HeapObject::cast(object);
-  if (InReadOnlySpace(heap_object)) return;
-  if (!ShouldMarkObject(heap_object)) return;
-  if (marking_state_->TryMark(heap_object)) {
-    local_marking_worklist_->Push(heap_object);
+  Tagged<HeapObject> heap_object = Cast<HeapObject>(object);
+  const auto worklist_target =
+      MarkingHelper::ShouldMarkObject(heap_, heap_object);
+  if (worklist_target) {
+    MarkingHelper::TryMarkAndPush(heap_, local_marking_worklist_,
+                                  marking_state_, worklist_target.value(),
+                                  heap_object);
   }
-  if (V8_UNLIKELY(track_retaining_path_)) {
-    heap_->AddRetainingRoot(Root::kTracedHandles, heap_object);
-  }
-}
-
-bool UnifiedHeapMarkingState::ShouldMarkObject(
-    Tagged<HeapObject> object) const {
-  // Keep up-to-date with MarkCompactCollector::ShouldMarkObject.
-  if (V8_LIKELY(!has_shared_space_)) return true;
-  if (is_shared_space_isolate_) return true;
-  return !InAnySharedSpace(object);
 }
 
 }  // namespace internal

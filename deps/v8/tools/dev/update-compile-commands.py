@@ -60,7 +60,7 @@ def PrepareBuildDir(arch, mode):
     code = _Call(f"gn gen {build_dir}")
     if code != 0: raise Exception("gn gen failed")
   else:
-    _Call(f"ninja -C {build_dir} build.ninja")
+    _Call(f"autoninja -C {build_dir} build.ninja")
   return build_dir
 
 def AddTargetsForArch(arch, combined):

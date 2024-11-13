@@ -89,7 +89,7 @@ t.test('all clear', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -108,7 +108,7 @@ t.test('all clear in color', async t => {
     },
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -127,7 +127,7 @@ t.test('silent success', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -146,7 +146,7 @@ t.test('silent errors', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(404, '{}')
+    .get('/-/ping').reply(404, '{}')
   await t.rejects(npm.exec('doctor', ['ping']), {
     message: /Check logs/,
   })
@@ -161,7 +161,7 @@ t.test('ping 404', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(404, '{}')
+    .get('/-/ping').reply(404, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -182,7 +182,7 @@ t.test('ping 404 in color', async t => {
     },
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(404, '{}')
+    .get('/-/ping').reply(404, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -198,7 +198,7 @@ t.test('ping exception with code', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').replyWithError({ message: 'Test Error', code: 'TEST' })
+    .get('/-/ping').replyWithError({ message: 'Test Error', code: 'TEST' })
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -214,7 +214,7 @@ t.test('ping exception without code', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').replyWithError({ message: 'Test Error', code: false })
+    .get('/-/ping').replyWithError({ message: 'Test Error', code: false })
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -230,7 +230,7 @@ t.test('npm out of date', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest('2.0.0'))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -255,7 +255,7 @@ t.test('node out of date - lts', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -280,7 +280,7 @@ t.test('node out of date - current', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -297,7 +297,7 @@ t.test('non-default registry', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -318,7 +318,7 @@ t.test('missing git', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -344,7 +344,7 @@ t.test('windows skips permissions checks', async t => {
     globalPrefixDir: {},
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -361,7 +361,7 @@ t.test('missing global directories', async t => {
     globalPrefixDir: {},
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -377,7 +377,7 @@ t.test('missing local node_modules', async t => {
     globalPrefixDir: dirs.globalPrefixDir,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -406,7 +406,7 @@ t.test('incorrect owner', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -430,7 +430,7 @@ t.test('incorrect permissions', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -458,7 +458,7 @@ t.test('error reading directory', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -481,7 +481,7 @@ t.test('cacache badContent', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -504,7 +504,7 @@ t.test('cacache reclaimedCount', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -527,7 +527,7 @@ t.test('cacache missingContent', async t => {
     ...dirs,
   })
   tnock(t, npm.config.get('registry'))
-    .get('/-/ping?write=true').reply(200, '{}')
+    .get('/-/ping').reply(200, '{}')
     .get('/npm').reply(200, npmManifest(npm.version))
   tnock(t, 'https://nodejs.org')
     .get('/dist/index.json').reply(200, nodeVersions)
@@ -558,7 +558,7 @@ t.test('discrete checks', t => {
       ...dirs,
     })
     tnock(t, npm.config.get('registry'))
-      .get('/-/ping?write=true').reply(200, '{}')
+      .get('/-/ping').reply(200, '{}')
     await npm.exec('doctor', ['ping'])
     t.matchSnapshot(joinedOutput(), 'output')
     t.matchSnapshot({ info: logs.info, warn: logs.warn, error: logs.error }, 'logs')
@@ -586,7 +586,7 @@ t.test('discrete checks', t => {
       ...dirs,
     })
     tnock(t, npm.config.get('registry'))
-      .get('/-/ping?write=true').reply(200, '{}')
+      .get('/-/ping').reply(200, '{}')
     await npm.exec('doctor', ['registry'])
     t.matchSnapshot(joinedOutput(), 'output')
     t.matchSnapshot({ info: logs.info, warn: logs.warn, error: logs.error }, 'logs')

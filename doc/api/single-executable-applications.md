@@ -219,7 +219,7 @@ executable, users can retrieve the assets using the [`sea.getAsset()`][] and
 The single-executable application can access the assets as follows:
 
 ```cjs
-const { getAsset } = require('node:sea');
+const { getAsset, getAssetAsBlob, getRawAsset } = require('node:sea');
 // Returns a copy of the data in an ArrayBuffer.
 const image = getAsset('a.jpg');
 // Returns a string decoded from the asset as UTF8.
@@ -230,7 +230,7 @@ const blob = getAssetAsBlob('a.jpg');
 const raw = getRawAsset('a.jpg');
 ```
 
-See documentation of the [`sea.getAsset()`][] and [`sea.getAssetAsBlob()`][]
+See documentation of the [`sea.getAsset()`][], [`sea.getAssetAsBlob()`][] and [`sea.getRawAsset()`][]
 APIs for more information.
 
 ### Startup snapshot support
@@ -343,7 +343,7 @@ This method can be used to retrieve the assets configured to be bundled into the
 single-executable application at build time.
 An error is thrown when no matching asset can be found.
 
-Unlike `sea.getRawAsset()` or `sea.getAssetAsBlob()`, this method does not
+Unlike `sea.getAsset()` or `sea.getAssetAsBlob()`, this method does not
 return a copy. Instead, it returns the raw asset bundled inside the executable.
 
 For now, users should avoid writing to the returned array buffer. If the
@@ -429,6 +429,7 @@ to help us document them.
 [`require.main`]: modules.md#accessing-the-main-module
 [`sea.getAsset()`]: #seagetassetkey-encoding
 [`sea.getAssetAsBlob()`]: #seagetassetasblobkey-options
+[`sea.getRawAsset()`]: #seagetrawassetkey
 [`v8.startupSnapshot.setDeserializeMainFunction()`]: v8.md#v8startupsnapshotsetdeserializemainfunctioncallback-data
 [`v8.startupSnapshot` API]: v8.md#startup-snapshot-api
 [documentation about startup snapshot support in Node.js]: cli.md#--build-snapshot

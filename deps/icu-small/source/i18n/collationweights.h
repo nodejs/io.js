@@ -84,7 +84,7 @@ public:
 private:
     /** @return number of usable byte values for byte idx */
     inline int32_t countBytes(int32_t idx) const {
-        return (int32_t)(maxBytes[idx] - minBytes[idx] + 1);
+        return static_cast<int32_t>(maxBytes[idx] - minBytes[idx] + 1);
     }
 
     uint32_t incWeight(uint32_t weight, int32_t length) const;

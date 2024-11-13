@@ -211,7 +211,7 @@ class NodeSet {
   Vec<int32_t> table_;
   uint32_t occupied_;     // Count of non-empty slots (includes deleted slots)
 
-  static uint32_t Hash(int32_t a) { return static_cast<uint32_t>(a * 41); }
+  static uint32_t Hash(int32_t a) { return static_cast<uint32_t>(a) * 41; }
 
   // Return index for storing v.  May return an empty index or deleted index
   uint32_t FindIndex(int32_t v) const {
@@ -365,6 +365,14 @@ static Node* FindNode(GraphCycles::Rep* rep, GraphId id) {
   return (n->version == NodeVersion(id)) ? n : nullptr;
 }
 
+void GraphCycles::TestOnlyAddNodes(uint32_t n) {
+  uint32_t old_size = rep_->nodes_.size();
+  rep_->nodes_.resize(n);
+  for (auto i = old_size; i < n; ++i) {
+    rep_->nodes_[i] = nullptr;
+  }
+}
+
 GraphCycles::GraphCycles() {
   InitArenaIfNecessary();
   rep_ = new (base_internal::LowLevelAlloc::AllocWithArena(sizeof(Rep), arena))
@@ -373,6 +381,7 @@ GraphCycles::GraphCycles() {
 
 GraphCycles::~GraphCycles() {
   for (auto* node : rep_->nodes_) {
+    if (node == nullptr) { continue; }
     node->Node::~Node();
     base_internal::LowLevelAlloc::Free(node);
   }

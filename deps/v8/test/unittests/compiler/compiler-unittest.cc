@@ -20,6 +20,7 @@
 #include "src/objects/allocation-site-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/shared-function-info.h"
+#include "test/unittests/heap/heap-utils.h"  // For ManualGCScope.
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -74,7 +75,7 @@ static double Inc(Isolate* isolate, int x) {
   Execution::CallScript(isolate, fun, global,
                         isolate->factory()->empty_fixed_array())
       .Check();
-  return Object::Number(*GetGlobalProperty("result"));
+  return Object::NumberValue(*GetGlobalProperty("result"));
 }
 
 TEST_F(CompilerTest, Inc) {
@@ -92,7 +93,7 @@ static double Add(Isolate* isolate, int x, int y) {
   Execution::CallScript(isolate, fun, global,
                         isolate->factory()->empty_fixed_array())
       .Check();
-  return Object::Number(*GetGlobalProperty("result"));
+  return Object::NumberValue(*GetGlobalProperty("result"));
 }
 
 TEST_F(CompilerTest, Add) {
@@ -109,7 +110,7 @@ static double Abs(Isolate* isolate, int x) {
   Execution::CallScript(isolate, fun, global,
                         isolate->factory()->empty_fixed_array())
       .Check();
-  return Object::Number(*GetGlobalProperty("result"));
+  return Object::NumberValue(*GetGlobalProperty("result"));
 }
 
 TEST_F(CompilerTest, Abs) {
@@ -127,7 +128,7 @@ static double Sum(Isolate* isolate, int n) {
   Execution::CallScript(isolate, fun, global,
                         isolate->factory()->empty_fixed_array())
       .Check();
-  return Object::Number(*GetGlobalProperty("result"));
+  return Object::NumberValue(*GetGlobalProperty("result"));
 }
 
 TEST_F(CompilerTest, Sum) {
@@ -182,7 +183,7 @@ TEST_F(CompilerTest, Stuff) {
   Execution::CallScript(i_isolate(), fun, global,
                         i_isolate()->factory()->empty_fixed_array())
       .Check();
-  EXPECT_EQ(511.0, Object::Number(*GetGlobalProperty("r")));
+  EXPECT_EQ(511.0, Object::NumberValue(*GetGlobalProperty("r")));
 }
 
 TEST_F(CompilerTest, UncaughtThrow) {
@@ -196,7 +197,7 @@ TEST_F(CompilerTest, UncaughtThrow) {
   EXPECT_TRUE(Execution::CallScript(isolate, fun, global,
                                     isolate->factory()->empty_fixed_array())
                   .is_null());
-  EXPECT_EQ(42.0, Object::Number(isolate->exception()));
+  EXPECT_EQ(42.0, Object::NumberValue(isolate->exception()));
 }
 
 using CompilerC2JSFramesTest = WithPrintExtensionMixin<v8::TestWithIsolate>;
@@ -235,8 +236,8 @@ TEST_F(CompilerC2JSFramesTest, C2JSFrames) {
 
   Handle<Object> argv[] = {
       isolate->factory()->InternalizeString(base::StaticCharVector("hello"))};
-  Execution::Call(isolate, Handle<JSFunction>::cast(fun1), global,
-                  arraysize(argv), argv)
+  Execution::Call(isolate, Cast<JSFunction>(fun1), global, arraysize(argv),
+                  argv)
       .Check();
 }
 
@@ -246,7 +247,7 @@ TEST_F(CompilerTest, Regression236) {
   Factory* factory = i_isolate()->factory();
   v8::HandleScope scope(isolate());
 
-  Handle<Script> script = factory->NewScript(factory->undefined_value());
+  DirectHandle<Script> script = factory->NewScript(factory->undefined_value());
   EXPECT_EQ(-1, Script::GetLineNumber(script, 0));
   EXPECT_EQ(-1, Script::GetLineNumber(script, 100));
   EXPECT_EQ(-1, Script::GetLineNumber(script, -1));
@@ -289,14 +290,13 @@ TEST_F(CompilerTest, FeedbackVectorPreservedAcrossRecompiles) {
       "%PrepareFunctionForOptimization(f);"
       "function f(a) { a(); } f(fun1);");
 
-  Handle<JSFunction> f = Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-      *v8::Local<v8::Function>::Cast(context()
-                                         ->Global()
-                                         ->Get(context(), NewString("f"))
-                                         .ToLocalChecked())));
+  DirectHandle<JSFunction> f = Cast<
+      JSFunction>(v8::Utils::OpenDirectHandle(*v8::Local<v8::Function>::Cast(
+      context()->Global()->Get(context(), NewString("f")).ToLocalChecked())));
 
   // Verify that we gathered feedback.
-  Handle<FeedbackVector> feedback_vector(f->feedback_vector(), f->GetIsolate());
+  DirectHandle<FeedbackVector> feedback_vector(f->feedback_vector(),
+                                               f->GetIsolate());
   EXPECT_TRUE(!feedback_vector->is_empty());
   FeedbackSlot slot_for_a(0);
   Tagged<MaybeObject> object = feedback_vector->Get(slot_for_a);
@@ -339,8 +339,8 @@ TEST_F(CompilerTest, FeedbackVectorUnaffectedByScopeChanges) {
       "}"
       "morphing_call = builder();");
 
-  Handle<JSFunction> f = Handle<JSFunction>::cast(
-      v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+  DirectHandle<JSFunction> f = Cast<JSFunction>(
+      v8::Utils::OpenDirectHandle(*v8::Local<v8::Function>::Cast(
           context()
               ->Global()
               ->Get(context(), NewString("morphing_call"))
@@ -380,14 +380,14 @@ TEST_F(CompilerTest, OptimizedCodeSharing1) {
         "%DebugPrint(closure0());"
         "closure1();"
         "var closure2 = MakeClosure(); closure2();");
-    Handle<JSFunction> fun1 = Handle<JSFunction>::cast(
-        v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+    DirectHandle<JSFunction> fun1 = Cast<JSFunction>(
+        v8::Utils::OpenDirectHandle(*v8::Local<v8::Function>::Cast(
             context()
                 ->Global()
                 ->Get(context(), NewString("closure1"))
                 .ToLocalChecked())));
-    Handle<JSFunction> fun2 = Handle<JSFunction>::cast(
-        v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+    DirectHandle<JSFunction> fun2 = Cast<JSFunction>(
+        v8::Utils::OpenDirectHandle(*v8::Local<v8::Function>::Cast(
             context()
                 ->Global()
                 ->Get(context(), NewString("closure2"))
@@ -614,12 +614,13 @@ TEST_F(CompilerTest, CompileFunctionScriptOrigin) {
       v8::ScriptCompiler::CompileFunction(context(), &script_source)
           .ToLocalChecked();
   EXPECT_TRUE(!fun.IsEmpty());
-  auto fun_i = i::Handle<i::JSFunction>::cast(Utils::OpenHandle(*fun));
+  auto fun_i = i::Cast<i::JSFunction>(Utils::OpenHandle(*fun));
   EXPECT_TRUE(IsSharedFunctionInfo(fun_i->shared()));
-  EXPECT_TRUE(Utils::ToLocal(
-                  i::handle(i::Script::cast(fun_i->shared()->script())->name(),
-                            i_isolate()))
-                  ->StrictEquals(NewString("test")));
+  EXPECT_TRUE(
+      Utils::ToLocal(
+          i::handle(i::Cast<i::Script>(fun_i->shared()->script())->name(),
+                    i_isolate()))
+          ->StrictEquals(NewString("test")));
   v8::TryCatch try_catch(isolate());
   isolate()->SetCaptureStackTraceForUncaughtExceptions(true);
   EXPECT_TRUE(fun->Call(context(), context()->Global(), 0, nullptr).IsEmpty());
@@ -739,7 +740,7 @@ TEST_F(CompilerTest, InvocationCount) {
       "function foo() { return bar(); };"
       "%EnsureFeedbackVectorForFunction(foo);"
       "foo();");
-  Handle<JSFunction> foo = Handle<JSFunction>::cast(GetGlobalProperty("foo"));
+  DirectHandle<JSFunction> foo = Cast<JSFunction>(GetGlobalProperty("foo"));
   EXPECT_EQ(1, foo->feedback_vector()->invocation_count());
   RunJS("foo()");
   EXPECT_EQ(2, foo->feedback_vector()->invocation_count());
@@ -826,39 +827,46 @@ TEST_F(CompilerTest, DeepEagerCompilationPeakMemory) {
 
   v8::HeapStatistics heap_statistics;
   isolate()->GetHeapStatistics(&heap_statistics);
-  size_t peak_mem_1 = heap_statistics.peak_malloced_memory();
-  printf("peak memory after init:          %8zu\n", peak_mem_1);
+  size_t peak_mem_after_init = heap_statistics.peak_malloced_memory();
+  printf("peak memory after init:          %8zu\n", peak_mem_after_init);
 
-  v8::ScriptCompiler::Compile(context(), &script_source,
-                              v8::ScriptCompiler::kNoCompileOptions)
-      .ToLocalChecked();
+  // Peak memory during lazy compilation should converge to the same value
+  // (usually after 1-2 iterations).
+  std::vector<size_t> peak_mem_after_lazy_compile;
+  const int kNumLazyCompiles = 5;
+  for (int i = 0; i < kNumLazyCompiles; i++) {
+    v8::ScriptCompiler::Compile(context(), &script_source,
+                                v8::ScriptCompiler::kNoCompileOptions)
+        .ToLocalChecked();
 
-  isolate()->GetHeapStatistics(&heap_statistics);
-  size_t peak_mem_2 = heap_statistics.peak_malloced_memory();
-  printf("peak memory after lazy compile:  %8zu\n", peak_mem_2);
-
-  v8::ScriptCompiler::Compile(context(), &script_source,
-                              v8::ScriptCompiler::kNoCompileOptions)
-      .ToLocalChecked();
-
-  isolate()->GetHeapStatistics(&heap_statistics);
-  size_t peak_mem_3 = heap_statistics.peak_malloced_memory();
-  printf("peak memory after lazy compile:  %8zu\n", peak_mem_3);
+    isolate()->GetHeapStatistics(&heap_statistics);
+    size_t peak_mem = heap_statistics.peak_malloced_memory();
+    printf("peak memory after lazy compile:  %8zu\n", peak_mem);
+    peak_mem_after_lazy_compile.push_back(peak_mem);
+  }
+  size_t peak_mem_after_first_lazy_compile = peak_mem_after_lazy_compile[0];
+  size_t peak_mem_after_second_to_last_lazy_compile =
+      peak_mem_after_lazy_compile[kNumLazyCompiles - 2];
+  size_t peak_mem_after_last_lazy_compile =
+      peak_mem_after_lazy_compile[kNumLazyCompiles - 1];
 
   v8::ScriptCompiler::Compile(context(), &script_source,
                               v8::ScriptCompiler::kEagerCompile)
       .ToLocalChecked();
 
   isolate()->GetHeapStatistics(&heap_statistics);
-  size_t peak_mem_4 = heap_statistics.peak_malloced_memory();
-  printf("peak memory after eager compile: %8zu\n", peak_mem_4);
+  size_t peak_mem_after_eager_compile = heap_statistics.peak_malloced_memory();
+  printf("peak memory after eager compile: %8zu\n",
+         peak_mem_after_eager_compile);
 
-  EXPECT_LE(peak_mem_1, peak_mem_2);
-  EXPECT_EQ(peak_mem_2, peak_mem_3);
-  EXPECT_LE(peak_mem_3, peak_mem_4);
+  EXPECT_LE(peak_mem_after_init, peak_mem_after_first_lazy_compile);
+  EXPECT_EQ(peak_mem_after_second_to_last_lazy_compile,
+            peak_mem_after_last_lazy_compile);
+  EXPECT_LE(peak_mem_after_last_lazy_compile, peak_mem_after_eager_compile);
   // Check that eager compilation does not cause significantly higher (+100%)
   // peak memory than lazy compilation.
-  EXPECT_LE(peak_mem_4 - peak_mem_3, peak_mem_3);
+  EXPECT_LE(peak_mem_after_eager_compile - peak_mem_after_last_lazy_compile,
+            peak_mem_after_last_lazy_compile);
 }
 
 namespace {
@@ -920,11 +928,218 @@ TEST_F(CompilerTest, ProfilerEnabledDuringBackgroundCompile) {
                                   v8::ScriptOrigin(NewString("foo")))
           .ToLocalChecked();
 
-  i::Handle<i::Object> obj = Utils::OpenHandle(*script);
-  EXPECT_TRUE(i::JSFunction::cast(*obj)->shared()->AreSourcePositionsAvailable(
-      i_isolate()));
+  i::DirectHandle<i::Object> obj = Utils::OpenDirectHandle(*script);
+  EXPECT_TRUE(
+      i::Cast<i::JSFunction>(*obj)->shared()->AreSourcePositionsAvailable(
+          i_isolate()));
 
   cpu_profiler->StopProfiling(profile);
+}
+
+using BackgroundMergeTest = TestWithNativeContext;
+
+// Tests that a GC during merge doesn't break the merge.
+TEST_F(BackgroundMergeTest, GCDuringMerge) {
+  v8_flags.verify_code_merge = true;
+
+  HandleScope scope(isolate());
+  const char* source =
+      // f is compiled eagerly thanks to the IIFE hack.
+      "f = (function f(x) {"
+      "  let b = x;"
+      // f is compiled eagerly, so g's SFI exists. But, it is not compiled.
+      "  return function g() {"
+      // g isn't compiled, so h's SFI does not exist.
+      "    return function h() {"
+      "      return b;"
+      "    }"
+      "  }"
+      "})";
+  Handle<String> source_string =
+      isolate()
+          ->factory()
+          ->NewStringFromUtf8(base::CStrVector(source))
+          .ToHandleChecked();
+
+  const int kTopLevelId = 0;
+  const int kFId = 1;
+  const int kGId = 2;
+  const int kHId = 3;
+
+  // Compile the script once to warm up the compilation cache.
+  Handle<JSFunction> old_g;
+  IsCompiledScope old_g_bytecode_keepalive;
+  {
+    // Compile in a new handle scope, so that the script can die while the inner
+    // functions stay alive.
+    HandleScope scope(isolate());
+    ScriptCompiler::CompilationDetails compilation_details;
+    Handle<SharedFunctionInfo> top_level_sfi =
+        Compiler::GetSharedFunctionInfoForScript(
+            isolate(), source_string, ScriptDetails(),
+            v8::ScriptCompiler::kNoCompileOptions,
+            ScriptCompiler::kNoCacheNoReason, NOT_NATIVES_CODE,
+            &compilation_details)
+            .ToHandleChecked();
+
+    {
+      Tagged<Script> script = Cast<Script>(top_level_sfi->script());
+      CHECK(!script->infos()->get(kTopLevelId).IsCleared());
+      CHECK(!script->infos()->get(kFId).IsCleared());
+      CHECK(!script->infos()->get(kGId).IsCleared());
+      // h in the script infos list was never initialized by the compilation, so
+      // it's the default value for a WeakFixedArray, which is `undefined`.
+      CHECK(Is<Undefined>(script->infos()->get(kHId)));
+    }
+
+    Handle<JSFunction> top_level =
+        Factory::JSFunctionBuilder{isolate(), top_level_sfi,
+                                   isolate()->native_context()}
+            .Build();
+
+    Handle<JSObject> global(isolate()->context()->global_object(), isolate());
+    Execution::CallScript(isolate(), top_level, global,
+                          isolate()->factory()->empty_fixed_array())
+        .Check();
+
+    Handle<JSFunction> f = Cast<JSFunction>(
+        JSObject::GetProperty(isolate(), global, "f").ToHandleChecked());
+
+    CHECK(f->is_compiled(isolate()));
+
+    // Execute f to get g's SFI (no g bytecode yet)
+    Handle<JSFunction> g = Cast<JSFunction>(
+        Execution::Call(isolate(), f, global, 0, nullptr).ToHandleChecked());
+    CHECK(!g->is_compiled(isolate()));
+
+    // Execute g's SFI to initialize g's bytecode, and to get h.
+    Handle<JSFunction> h = Cast<JSFunction>(
+        Execution::Call(isolate(), g, global, 0, nullptr).ToHandleChecked());
+    CHECK(g->is_compiled(isolate()));
+    CHECK(!h->is_compiled(isolate()));
+
+    CHECK_EQ(top_level->shared()->function_literal_id(), kTopLevelId);
+    CHECK_EQ(f->shared()->function_literal_id(), kFId);
+    CHECK_EQ(g->shared()->function_literal_id(), kGId);
+    CHECK_EQ(h->shared()->function_literal_id(), kHId);
+
+    // Age everything so that subsequent GCs can pick it up if possible.
+    SharedFunctionInfo::EnsureOldForTesting(top_level->shared());
+    SharedFunctionInfo::EnsureOldForTesting(f->shared());
+    SharedFunctionInfo::EnsureOldForTesting(g->shared());
+    SharedFunctionInfo::EnsureOldForTesting(h->shared());
+    old_g = scope.CloseAndEscape(g);
+  }
+  Handle<Script> old_script(Cast<Script>(old_g->shared()->script()), isolate());
+
+  // Make sure bytecode is cleared...
+  for (int i = 0; i < 3; ++i) {
+    InvokeMajorGC();
+  }
+  CHECK(!old_g->is_compiled(isolate()));
+
+  // The top-level script should now be dead.
+  CHECK(old_script->infos()->get(kTopLevelId).IsCleared());
+  // f should still be alive by global reference.
+  CHECK(!old_script->infos()->get(kFId).IsCleared());
+  // g should be kept alive by our old_g handle.
+  CHECK(!old_script->infos()->get(kGId).IsCleared());
+  // h should be dead since g's bytecode was flushed.
+  CHECK(old_script->infos()->get(kHId).IsCleared());
+
+  // Copy the old_script_infos WeakFixedArray, so that we can inspect it after
+  // the merge mutated the original.
+  Handle<WeakFixedArray> unmutated_old_script_list =
+      isolate()->factory()->CopyWeakFixedArray(
+          direct_handle(old_script->infos(), isolate()));
+
+  {
+    HandleScope scope(isolate());
+    ScriptStreamingData streamed_source(
+        std::make_unique<DummySourceStream>(source),
+        v8::ScriptCompiler::StreamedSource::UTF8);
+    ScriptCompiler::CompilationDetails details;
+    streamed_source.task = std::make_unique<i::BackgroundCompileTask>(
+        &streamed_source, isolate(), ScriptType::kClassic,
+        ScriptCompiler::CompileOptions::kNoCompileOptions, &details);
+
+    streamed_source.task->RunOnMainThread(isolate());
+
+    Handle<SharedFunctionInfo> top_level_sfi;
+    {
+      // Use a manual GC scope, because we want to test a GC in a very precise
+      // spot in the merge.
+      ManualGCScope manual_gc(isolate());
+      // There's one more reference to the old_g -- clear it so that nothing is
+      // keeping it alive
+      CHECK(!old_script->infos()->get(kGId).IsCleared());
+      CHECK(!unmutated_old_script_list->get(kGId).IsCleared());
+      old_g.PatchValue({});
+      CHECK(!old_script->infos()->get(kFId).IsCleared());
+
+      BackgroundMergeTask::ForceGCDuringNextMergeForTesting();
+
+      top_level_sfi = streamed_source.task
+                          ->FinalizeScript(isolate(), source_string,
+                                           ScriptDetails(), old_script)
+                          .ToHandleChecked();
+      CHECK(!old_script->infos()->get(kFId).IsCleared());
+    }
+
+    CHECK_EQ(top_level_sfi->script(), *old_script);
+
+    Handle<JSFunction> top_level =
+        Factory::JSFunctionBuilder{isolate(), top_level_sfi,
+                                   isolate()->native_context()}
+            .Build();
+
+    Handle<JSObject> global(isolate()->context()->global_object(), isolate());
+
+    Handle<JSFunction> f = Cast<JSFunction>(
+        JSObject::GetProperty(isolate(), global, "f").ToHandleChecked());
+
+    // f should normally be compiled (with the old shared function info but the
+    // new bytecode). However, the extra GCs in finalization might cause it to
+    // be flushed, so we can't guarantee this check.
+    // CHECK(f->is_compiled(isolate()));
+
+    // Execute f to get g's SFI (no g bytecode yet)
+    Handle<JSFunction> g = Cast<JSFunction>(
+        Execution::Call(isolate(), f, global, 0, nullptr).ToHandleChecked());
+    CHECK(!g->is_compiled(isolate()));
+
+    // Execute g's SFI to initialize g's bytecode, and to get h.
+    Handle<JSFunction> h = Cast<JSFunction>(
+        Execution::Call(isolate(), g, global, 0, nullptr).ToHandleChecked());
+    CHECK(g->is_compiled(isolate()));
+    CHECK(!h->is_compiled(isolate()));
+
+    CHECK_EQ(top_level->shared()->function_literal_id(), kTopLevelId);
+    CHECK_EQ(f->shared()->function_literal_id(), kFId);
+    CHECK_EQ(g->shared()->function_literal_id(), kGId);
+    CHECK_EQ(h->shared()->function_literal_id(), kHId);
+
+    CHECK_EQ(top_level->shared()->script(), *old_script);
+    CHECK_EQ(f->shared()->script(), *old_script);
+    CHECK_EQ(g->shared()->script(), *old_script);
+    CHECK_EQ(h->shared()->script(), *old_script);
+
+    CHECK_EQ(MakeWeak(top_level->shared()),
+             old_script->infos()->get(kTopLevelId));
+    CHECK_EQ(MakeWeak(f->shared()), old_script->infos()->get(kFId));
+    CHECK_EQ(MakeWeak(g->shared()), old_script->infos()->get(kGId));
+    CHECK_EQ(MakeWeak(h->shared()), old_script->infos()->get(kHId));
+
+    // The old top-level died, so we have a new one.
+    CHECK_NE(MakeWeak(top_level->shared()),
+             unmutated_old_script_list->get(kTopLevelId));
+    // The old f was still alive, so it's the same.
+    CHECK_EQ(MakeWeak(f->shared()), unmutated_old_script_list->get(kFId));
+    // The old g was still alive, so it's the same.
+    CHECK_EQ(MakeWeak(g->shared()), unmutated_old_script_list->get(kGId));
+    // The old h died, so it's different.
+    CHECK_NE(MakeWeak(h->shared()), unmutated_old_script_list->get(kHId));
+  }
 }
 
 }  // namespace internal

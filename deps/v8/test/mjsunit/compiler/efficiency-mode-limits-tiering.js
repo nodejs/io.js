@@ -22,12 +22,12 @@ function g(iter) {
 
 if (!%IsTurbofanEnabled()) quit();
 
-%NotifyIsolateBackground();
+%SetPriorityBestEffort();
 // There is no hard guarantee that this does enable efficiency mode...
 if (%IsEfficiencyModeEnabled()) {
   g(10000);
   assertFalse(%ActiveTierIsTurbofan(f));
-  %NotifyIsolateForeground();
+  %SetPriorityUserBlocking();
   if (!%IsEfficiencyModeEnabled()) {
     g(10000000);
     assertTrue(%ActiveTierIsTurbofan(f));

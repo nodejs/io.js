@@ -4,7 +4,8 @@
 
 #include "src/compiler/typed-optimization.h"
 
-#include "src/base/optional.h"
+#include <optional>
+
 #include "src/compiler/compilation-dependencies.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/js-heap-broker.h"
@@ -426,7 +427,7 @@ Reduction TypedOptimization::ReduceReferenceEqual(Node* node) {
   }
   if (rhs_type.Is(Type::Boolean()) && rhs_type.IsHeapConstant() &&
       lhs_type.Is(Type::Boolean())) {
-    base::Optional<bool> maybe_result =
+    std::optional<bool> maybe_result =
         rhs_type.AsHeapConstant()->Ref().TryGetBooleanValue(broker());
     if (maybe_result.has_value()) {
       if (maybe_result.value()) {
@@ -851,7 +852,7 @@ Reduction TypedOptimization::ReduceJSToNumberInput(Node* input) {
     HeapObjectMatcher m(input);
     if (m.HasResolvedValue() && m.Ref(broker()).IsString()) {
       StringRef input_value = m.Ref(broker()).AsString();
-      base::Optional<double> number = input_value.ToNumber(broker());
+      std::optional<double> number = input_value.ToNumber(broker());
       if (!number.has_value()) return NoChange();
       return Replace(jsgraph()->ConstantNoHole(number.value()));
     }

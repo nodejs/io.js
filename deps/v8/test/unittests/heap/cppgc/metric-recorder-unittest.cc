@@ -266,7 +266,7 @@ TEST_F(MetricRecorderTest, CycleEndHistogramReportsCorrectValues) {
             kDurationComparisonTolerance);
   // Check collection rate and efficiency.
   EXPECT_DOUBLE_EQ(
-      0.3, MetricRecorderImpl::GCCycle_event.collection_rate_in_percent);
+      0.7, MetricRecorderImpl::GCCycle_event.collection_rate_in_percent);
   static constexpr double kEfficiencyComparisonTolerance = 0.0005;
   EXPECT_LT(
       std::abs(MetricRecorderImpl::GCCycle_event.efficiency_in_bytes_per_us -

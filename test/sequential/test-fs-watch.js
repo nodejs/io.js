@@ -95,24 +95,34 @@ function repeat(fn) {
   const testsubdir = fs.mkdtempSync(testDir + path.sep);
   const filepath = path.join(testsubdir, 'newfile.txt');
 
-  const watcher =
-    fs.watch(testsubdir, common.mustCall(function(event, filename) {
-      const renameEv = common.isSunOS || common.isAIX ? 'change' : 'rename';
-      assert.strictEqual(event, renameEv);
-      if (expectFilePath) {
-        assert.strictEqual(filename, 'newfile.txt');
-      } else {
-        assert.strictEqual(filename, null);
-      }
-      clearInterval(interval);
-      watcher.close();
-    }));
+  function doWatch() {
+    const watcher =
+      fs.watch(testsubdir, common.mustCall(function(event, filename) {
+        const renameEv = common.isSunOS || common.isAIX ? 'change' : 'rename';
+        assert.strictEqual(event, renameEv);
+        if (expectFilePath) {
+          assert.strictEqual(filename, 'newfile.txt');
+        } else {
+          assert.strictEqual(filename, null);
+        }
+        clearInterval(interval);
+        watcher.close();
+      }));
 
-  const interval = repeat(() => {
-    fs.rmSync(filepath, { force: true });
-    const fd = fs.openSync(filepath, 'w');
-    fs.closeSync(fd);
-  });
+    const interval = repeat(() => {
+      fs.rmSync(filepath, { force: true });
+      const fd = fs.openSync(filepath, 'w');
+      fs.closeSync(fd);
+    });
+  }
+
+  if (common.isMacOS) {
+    // On macOS delay watcher start to avoid leaking previous events.
+    // Refs: https://github.com/libuv/libuv/pull/4503
+    setTimeout(doWatch, common.platformTimeout(100));
+  } else {
+    doWatch();
+  }
 }
 
 // https://github.com/joyent/node/issues/2293 - non-persistent watcher should

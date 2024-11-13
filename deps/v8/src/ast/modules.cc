@@ -53,33 +53,34 @@ bool SourceTextModuleDescriptor::ModuleRequestComparer::operator()(
 
 void SourceTextModuleDescriptor::AddImport(
     const AstRawString* import_name, const AstRawString* local_name,
-    const AstRawString* module_request,
+    const AstRawString* specifier, const ModuleImportPhase import_phase,
     const ImportAttributes* import_attributes, const Scanner::Location loc,
     const Scanner::Location specifier_loc, Zone* zone) {
   Entry* entry = zone->New<Entry>(loc);
   entry->local_name = local_name;
   entry->import_name = import_name;
-  entry->module_request =
-      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
+  entry->module_request = AddModuleRequest(
+      specifier, import_phase, import_attributes, specifier_loc, zone);
   AddRegularImport(entry);
 }
 
 void SourceTextModuleDescriptor::AddStarImport(
-    const AstRawString* local_name, const AstRawString* module_request,
+    const AstRawString* local_name, const AstRawString* specifier,
     const ImportAttributes* import_attributes, const Scanner::Location loc,
     const Scanner::Location specifier_loc, Zone* zone) {
   Entry* entry = zone->New<Entry>(loc);
   entry->local_name = local_name;
   entry->module_request =
-      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
+      AddModuleRequest(specifier, ModuleImportPhase::kEvaluation,
+                       import_attributes, specifier_loc, zone);
   AddNamespaceImport(entry, zone);
 }
 
 void SourceTextModuleDescriptor::AddEmptyImport(
-    const AstRawString* module_request,
-    const ImportAttributes* import_attributes,
+    const AstRawString* specifier, const ImportAttributes* import_attributes,
     const Scanner::Location specifier_loc, Zone* zone) {
-  AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
+  AddModuleRequest(specifier, ModuleImportPhase::kEvaluation, import_attributes,
+                   specifier_loc, zone);
 }
 
 void SourceTextModuleDescriptor::AddExport(const AstRawString* local_name,
@@ -93,33 +94,35 @@ void SourceTextModuleDescriptor::AddExport(const AstRawString* local_name,
 
 void SourceTextModuleDescriptor::AddExport(
     const AstRawString* import_name, const AstRawString* export_name,
-    const AstRawString* module_request,
-    const ImportAttributes* import_attributes, const Scanner::Location loc,
-    const Scanner::Location specifier_loc, Zone* zone) {
+    const AstRawString* specifier, const ImportAttributes* import_attributes,
+    const Scanner::Location loc, const Scanner::Location specifier_loc,
+    Zone* zone) {
   DCHECK_NOT_NULL(import_name);
   DCHECK_NOT_NULL(export_name);
   Entry* entry = zone->New<Entry>(loc);
   entry->export_name = export_name;
   entry->import_name = import_name;
   entry->module_request =
-      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
+      AddModuleRequest(specifier, ModuleImportPhase::kEvaluation,
+                       import_attributes, specifier_loc, zone);
   AddSpecialExport(entry, zone);
 }
 
 void SourceTextModuleDescriptor::AddStarExport(
-    const AstRawString* module_request,
-    const ImportAttributes* import_attributes, const Scanner::Location loc,
-    const Scanner::Location specifier_loc, Zone* zone) {
+    const AstRawString* specifier, const ImportAttributes* import_attributes,
+    const Scanner::Location loc, const Scanner::Location specifier_loc,
+    Zone* zone) {
   Entry* entry = zone->New<Entry>(loc);
   entry->module_request =
-      AddModuleRequest(module_request, import_attributes, specifier_loc, zone);
+      AddModuleRequest(specifier, ModuleImportPhase::kEvaluation,
+                       import_attributes, specifier_loc, zone);
   AddSpecialExport(entry, zone);
 }
 
 namespace {
 template <typename IsolateT>
-Handle<PrimitiveHeapObject> ToStringOrUndefined(IsolateT* isolate,
-                                                const AstRawString* s) {
+Handle<UnionOf<String, Undefined>> ToStringOrUndefined(IsolateT* isolate,
+                                                       const AstRawString* s) {
   if (s == nullptr) return isolate->factory()->undefined_value();
   return s->string();
 }
@@ -149,7 +152,8 @@ Handle<ModuleRequest> SourceTextModuleDescriptor::AstModuleRequest::Serialize(
     }
   }
   return v8::internal::ModuleRequest::New(isolate, specifier()->string(),
-                                          import_attributes_array, position());
+                                          phase_, import_attributes_array,
+                                          position());
 }
 template Handle<ModuleRequest>
 SourceTextModuleDescriptor::AstModuleRequest::Serialize(Isolate* isolate) const;

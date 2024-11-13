@@ -43,7 +43,6 @@ using v8::Isolate;
 using v8::Local;
 using v8::Object;
 using v8::ObjectTemplate;
-using v8::ScriptCompiler;
 using v8::SnapshotCreator;
 using v8::StartupData;
 using v8::String;
@@ -542,7 +541,6 @@ SnapshotMetadata SnapshotDeserializer::Read() {
   result.node_version = ReadString();
   result.node_arch = ReadString();
   result.node_platform = ReadString();
-  result.v8_cache_version_tag = ReadArithmetic<uint32_t>();
   result.flags = static_cast<SnapshotFlags>(ReadArithmetic<uint32_t>());
 
   if (is_debug) {
@@ -570,9 +568,6 @@ size_t SnapshotSerializer::Write(const SnapshotMetadata& data) {
   written_total += WriteString(data.node_arch);
   Debug("Write Node.js platform %s\n", data.node_platform);
   written_total += WriteString(data.node_platform);
-  Debug("Write V8 cached data version tag %" PRIx32 "\n",
-        data.v8_cache_version_tag);
-  written_total += WriteArithmetic<uint32_t>(data.v8_cache_version_tag);
   Debug("Write snapshot flags %" PRIx32 "\n",
         static_cast<uint32_t>(data.flags));
   written_total += WriteArithmetic<uint32_t>(static_cast<uint32_t>(data.flags));
@@ -695,23 +690,6 @@ bool SnapshotData::Check() const {
             metadata.node_platform.c_str(),
             NODE_PLATFORM);
     return false;
-  }
-
-  if (metadata.type == SnapshotMetadata::Type::kFullyCustomized &&
-      !WithoutCodeCache(metadata.flags)) {
-    uint32_t current_cache_version = v8::ScriptCompiler::CachedDataVersionTag();
-    if (metadata.v8_cache_version_tag != current_cache_version) {
-      // For now we only do this check for the customized snapshots - we know
-      // that the flags we use in the default snapshot are limited and safe
-      // enough so we can relax the constraints for it.
-      fprintf(stderr,
-              "Failed to load the startup snapshot because it was built with "
-              "a different version of V8 or with different V8 configurations.\n"
-              "Expected tag %" PRIx32 ", read %" PRIx32 "\n",
-              current_cache_version,
-              metadata.v8_cache_version_tag);
-      return false;
-    }
   }
 
   // TODO(joyeecheung): check incompatible Node.js flags.
@@ -1180,7 +1158,6 @@ ExitCode SnapshotBuilder::CreateSnapshot(SnapshotData* out,
                                    per_process::metadata.versions.node,
                                    per_process::metadata.arch,
                                    per_process::metadata.platform,
-                                   v8::ScriptCompiler::CachedDataVersionTag(),
                                    config->flags};
 
   // We cannot resurrect the handles from the snapshot, so make sure that

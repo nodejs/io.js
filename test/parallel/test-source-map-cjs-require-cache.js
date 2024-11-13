@@ -6,7 +6,8 @@
  */
 
 'use strict';
-const common = require('../common');
+require('../common');
+const { gcUntil } = require('../common/gc');
 const assert = require('node:assert');
 const { findSourceMap } = require('node:module');
 
@@ -28,7 +29,7 @@ function run(moduleId) {
 run(moduleId);
 
 // Run until the source map is cleared by GC, or fail the test after determined iterations.
-common.gcUntil('SourceMap of deleted CJS module is cleared', () => {
+gcUntil('SourceMap of deleted CJS module is cleared', () => {
   // Repetitively load a second module with --max-old-space-size=10 to make GC more aggressive.
   run(moduleIdRepeat);
   // Verify that the source map is cleared.

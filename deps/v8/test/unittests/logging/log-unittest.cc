@@ -153,9 +153,19 @@ class V8_NODISCARD ScopedLoggerInitializer {
       size_t start = 0) {
     CHECK_GT(log_.size(), 0);
     for (auto& search_terms : all_line_search_terms) {
-      start = IndexOfLine(search_terms, start);
-      if (start == std::string::npos) return false;
-      ++start;  // Skip the found line.
+      size_t next = IndexOfLine(search_terms, start);
+      if (next == std::string::npos) {
+        for (size_t i = 0; i < search_terms.size(); ++i) {
+          printf("%s ", search_terms[i].c_str());
+        }
+        printf(" -- mismatch\n");
+        printf("Log contents:\n");
+        for (size_t i = start; i < log_.size(); ++i) {
+          printf("%s\n", log_.at(start).c_str());
+        }
+        return false;
+      }
+      start = next + 1;  // Skip the found line.
     }
     return true;
   }
@@ -315,8 +325,8 @@ TEST_F(TestWithIsolate, Issue23768) {
   v8::Local<v8::Script> evil_script = CompileWithOrigin(source, origin, false);
   CHECK(!evil_script.IsEmpty());
   CHECK(!evil_script->Run(env).IsEmpty());
-  i::Handle<i::ExternalTwoByteString> i_source(
-      i::ExternalTwoByteString::cast(*v8::Utils::OpenDirectHandle(*source)),
+  i::DirectHandle<i::ExternalTwoByteString> i_source(
+      i::Cast<i::ExternalTwoByteString>(*v8::Utils::OpenDirectHandle(*source)),
       i_isolate());
   // This situation can happen if source was an external string disposed
   // by its owner.
@@ -384,8 +394,8 @@ TEST_F(LogTest, LogAccessorCallbacks) {
         isolate(), v8::FunctionTemplate::New(isolate()));
     obj->SetClassName(NewString("Obj"));
     v8::Local<v8::ObjectTemplate> inst = obj->InstanceTemplate();
-    inst->SetAccessor(NewString("prop1"), Prop1Getter, Prop1Setter);
-    inst->SetAccessor(NewString("prop2"), Prop2Getter);
+    inst->SetNativeDataProperty(NewString("prop1"), Prop1Getter, Prop1Setter);
+    inst->SetNativeDataProperty(NewString("prop2"), Prop2Getter);
 
     logger.v8_file_logger()->LogAccessorCallbacks();
 
@@ -909,7 +919,7 @@ void ValidateMapDetailsLogging(v8::Isolate* isolate,
     uintptr_t address = obj.ptr();
     if (map_create_addresses.find(address) == map_create_addresses.end()) {
       // logger->PrintLog();
-      i::Print(i::Map::cast(obj));
+      i::Print(i::Cast<i::Map>(obj));
       FATAL(
           "Map (%p, #%zu) creation not logged during startup with "
           "--log-maps!"
@@ -919,7 +929,7 @@ void ValidateMapDetailsLogging(v8::Isolate* isolate,
     } else if (map_details_addresses.find(address) ==
                map_details_addresses.end()) {
       // logger->PrintLog();
-      i::Print(i::Map::cast(obj));
+      i::Print(i::Cast<i::Map>(obj));
       FATAL(
           "Map (%p, #%zu) details not logged during startup with "
           "--log-maps!"
@@ -1100,11 +1110,11 @@ TEST_F(LogTimerTest, ConsoleTimeEvents) {
     const char* source_text =
         "console.time();"
         "console.timeEnd();"
-        "console.timeStamp();"
+        "console.timeLog();"
         "console.time('timerEvent1');"
         "console.timeEnd('timerEvent1');"
-        "console.timeStamp('timerEvent2');"
-        "console.timeStamp('timerEvent3');";
+        "console.timeLog('timerEvent2');"
+        "console.timeLog('timerEvent3');";
     RunJS(source_text);
 
     logger.StopLogging();
@@ -1207,7 +1217,8 @@ TEST_F(LogTest, BuiltinsNotLoggedAsLazyCompile) {
     logger.StopLogging();
 
     i::Isolate* i_isolate = logger.i_isolate();
-    i::Handle<i::Code> builtin = BUILTIN_CODE(i_isolate, BooleanConstructor);
+    i::DirectHandle<i::Code> builtin =
+        BUILTIN_CODE(i_isolate, BooleanConstructor);
     v8::base::EmbeddedVector<char, 100> buffer;
 
     // Should only be logged as "Builtin" with a name, never as "Function".

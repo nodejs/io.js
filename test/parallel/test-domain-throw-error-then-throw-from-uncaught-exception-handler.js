@@ -50,7 +50,7 @@ if (process.argv[2] === 'child') {
 
 function runTestWithoutAbortOnUncaughtException() {
   child_process.exec(
-    createTestCmdLine(),
+    ...createTestCmdLine(),
     function onTestDone(err, stdout, stderr) {
       // When _not_ passing --abort-on-uncaught-exception, the process'
       // uncaughtException handler _must_ be called, and thus the error
@@ -70,7 +70,7 @@ function runTestWithoutAbortOnUncaughtException() {
 }
 
 function runTestWithAbortOnUncaughtException() {
-  child_process.exec(createTestCmdLine({
+  child_process.exec(...createTestCmdLine({
     withAbortOnUncaughtException: true
   }), function onTestDone(err, stdout, stderr) {
     assert.notStrictEqual(err.code, RAN_UNCAUGHT_EXCEPTION_HANDLER_EXIT_CODE,
@@ -82,21 +82,14 @@ function runTestWithAbortOnUncaughtException() {
 }
 
 function createTestCmdLine(options) {
-  let testCmd = '';
+  const escapedArgs = common.escapePOSIXShell`"${process.execPath}" ${
+    options?.withAbortOnUncaughtException ? '--abort-on-uncaught-exception' : ''
+  } "${__filename}" child`;
 
   if (!common.isWindows) {
     // Do not create core files, as it can take a lot of disk space on
     // continuous testing and developers' machines
-    testCmd += 'ulimit -c 0 && ';
+    escapedArgs[0] = 'ulimit -c 0 && ' + escapedArgs[0];
   }
-
-  testCmd += `"${process.argv[0]}"`;
-
-  if (options && options.withAbortOnUncaughtException) {
-    testCmd += ' --abort-on-uncaught-exception';
-  }
-
-  testCmd += ` "${process.argv[1]}" child`;
-
-  return testCmd;
+  return escapedArgs;
 }

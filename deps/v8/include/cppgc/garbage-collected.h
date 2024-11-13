@@ -94,6 +94,14 @@ class GarbageCollectedMixin {
  public:
   using IsGarbageCollectedMixinTypeMarker = void;
 
+  // Must use MakeGarbageCollected.
+  void* operator new(size_t) = delete;
+  void* operator new[](size_t) = delete;
+  // The garbage collector is taking care of reclaiming the object.
+  // Not override the non-array varaint of `delete` to not conflict with the
+  // operator in GarbageCollected above.
+  void operator delete[](void*) = delete;
+
   /**
    * This Trace method must be overriden by objects inheriting from
    * GarbageCollectedMixin.

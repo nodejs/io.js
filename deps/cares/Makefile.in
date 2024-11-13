@@ -322,9 +322,10 @@ EGREP = @EGREP@
 ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
-FILECMD = @FILECMD@
 GCOV = @GCOV@
 GENHTML = @GENHTML@
+GMOCK112_CFLAGS = @GMOCK112_CFLAGS@
+GMOCK112_LIBS = @GMOCK112_LIBS@
 GMOCK_CFLAGS = @GMOCK_CFLAGS@
 GMOCK_LIBS = @GMOCK_LIBS@
 GREP = @GREP@
@@ -435,7 +436,7 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = foreign nostdinc 1.9.6
 ACLOCAL_AMFLAGS = -I m4 --install
-MSVCFILES = msvc_ver.inc buildconf.bat
+MSVCFILES = buildconf.bat
 
 # adig and ahost are just sample programs and thus not mentioned with the
 # regular sources and headers

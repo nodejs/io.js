@@ -180,6 +180,7 @@ namespace internal {
   K(kSet, "set", 0)                                                           \
   K(kUsing, "using", 0)                                                       \
   K(kOf, "of", 0)                                                             \
+  K(kAccessor, "accessor", 0)                                                 \
   K(kAsync, "async", 0)                                                       \
   /* `await` is a reserved word in module code only */                        \
   K(kAwait, "await", 0)                                                       \

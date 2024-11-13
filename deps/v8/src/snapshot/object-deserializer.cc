@@ -27,9 +27,8 @@ ObjectDeserializer::DeserializeSharedFunctionInfo(
   d.AddAttachedObject(source);
 
   Handle<HeapObject> result;
-  return d.Deserialize().ToHandle(&result)
-             ? Handle<SharedFunctionInfo>::cast(result)
-             : MaybeHandle<SharedFunctionInfo>();
+  return d.Deserialize().ToHandle(&result) ? Cast<SharedFunctionInfo>(result)
+                                           : MaybeHandle<SharedFunctionInfo>();
 }
 
 MaybeHandle<HeapObject> ObjectDeserializer::Deserialize() {
@@ -68,7 +67,7 @@ void ObjectDeserializer::LinkAllocationSites() {
   Heap* heap = isolate()->heap();
   // Allocation sites are present in the snapshot, and must be linked into
   // a list at deserialization time.
-  for (Handle<AllocationSite> site : new_allocation_sites()) {
+  for (DirectHandle<AllocationSite> site : new_allocation_sites()) {
     if (!site->HasWeakNext()) continue;
     // TODO(mvstanton): consider treating the heap()->allocation_sites_list()
     // as a (weak) root. If this root is relocated correctly, this becomes
@@ -100,7 +99,7 @@ OffThreadObjectDeserializer::DeserializeSharedFunctionInfo(
   if (!d.Deserialize(deserialized_scripts).ToHandle(&result)) {
     return MaybeHandle<SharedFunctionInfo>();
   }
-  return Handle<SharedFunctionInfo>::cast(result);
+  return Cast<SharedFunctionInfo>(result);
 }
 
 MaybeHandle<HeapObject> OffThreadObjectDeserializer::Deserialize(

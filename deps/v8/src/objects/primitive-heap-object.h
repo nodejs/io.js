@@ -18,7 +18,6 @@ namespace internal {
 // classes to be identified in the type system.
 V8_OBJECT class PrimitiveHeapObject : public HeapObjectLayout {
  public:
-  DECL_CAST(PrimitiveHeapObject)
   DECL_VERIFIER(PrimitiveHeapObject)
 } V8_OBJECT_END;
 

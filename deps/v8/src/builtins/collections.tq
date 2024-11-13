@@ -341,10 +341,10 @@ macro CheckSetRecordHasJSSetMethods(setRecord: SetRecord):
       Cast<JSFunction>(setRecord.keys) otherwise HasUserProvidedMethods;
   const has = Cast<JSFunction>(setRecord.has) otherwise HasUserProvidedMethods;
   if (!(TaggedEqual(
-            keys.shared_function_info.function_data,
+            keys.shared_function_info.untrusted_function_data,
             SmiConstant(kSetPrototypeValues)) &&
         TaggedEqual(
-            has.shared_function_info.function_data,
+            has.shared_function_info.untrusted_function_data,
             SmiConstant(kSetPrototypeHas))))
     goto HasUserProvidedMethods;
 }
@@ -355,10 +355,10 @@ macro CheckSetRecordHasJSMapMethods(setRecord: SetRecord):
       Cast<JSFunction>(setRecord.keys) otherwise HasUserProvidedMethods;
   const has = Cast<JSFunction>(setRecord.has) otherwise HasUserProvidedMethods;
   if (!(TaggedEqual(
-            keys.shared_function_info.function_data,
+            keys.shared_function_info.untrusted_function_data,
             SmiConstant(kMapPrototypeKeys)) &&
         TaggedEqual(
-            has.shared_function_info.function_data,
+            has.shared_function_info.untrusted_function_data,
             SmiConstant(kMapPrototypeHas))))
     goto HasUserProvidedMethods;
 }

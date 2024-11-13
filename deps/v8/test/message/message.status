@@ -70,13 +70,32 @@
 
 ##############################################################################
 # TODO(v8:7777): Change this once wasm is supported in jitless mode.
-['not has_webassembly or variant == jitless', {
+['not has_webassembly or (variant == jitless and not has_wasm_interpreter)', {
   'mjsunit/fail/assert-promise-result-wasm-compile-fail': [SKIP],
   'mjsunit/fail/assert-in-promise-fail-recursive': [FAIL],
   'fail/wasm-*': [SKIP],
   'wasm-*': [SKIP],
   'asm-*': [SKIP],
-}],  # not has_webassembly or variant == jitless
+}],  # not has_webassembly or (variant == jitless and not has_wasm_interpreter)
+
+##############################################################################
+['has_wasm_interpreter and variant == jitless', {
+  # Skip tests that require Wasm experimental features not supported by the
+  # Wasm interpreter, or that explicitly require compilation.
+
+  # Tests that require compilation
+  'fail/wasm-async-compile-fail': [SKIP],
+  'wasm-speculative-inlining': [SKIP],
+  'wasm-trace-turbofan': [SKIP],
+
+  # --trace-wasm-memory
+  'wasm-trace-memory64': [SKIP],
+  'wasm-trace-memory': [SKIP], # also --experimental-wasm-memory64
+
+  # Different error message
+  'fail/wasm-async-instantiate-fail': [SKIP],
+
+}],  # has_webassembly and variant == jitless
 
 ################################################################################
 ['variant == stress_snapshot', {
@@ -134,16 +153,18 @@
 }],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
 
 ##############################################################################
+# On 32 bit platforms we have int64 lowering.
+['(arch != x64 and arch != arm64) or no_simd_hardware', {
+  'wasm-trace-deopt-64': [SKIP],
+}],
+['(arch != ia32 and arch != arm) or no_simd_hardware', {
+  'wasm-trace-deopt-32': [SKIP],
+}],
+
+##############################################################################
 ['verify_predictable', {
   # https://crbug.com/v8/14397
   'wasm-finish-compilation': [PASS, FAIL],
 }],  # 'verify_predictable'
-
-##############################################################################
-['variant == future', {
-  # Turboshaft and Turbofan outputs do not match.
-  # TODO(14108): Update output and reenable test.
-  'wasm-recognize-imports': [FAIL],
-}],  # variant == future
 
 ]

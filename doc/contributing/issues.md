@@ -60,5 +60,17 @@ activities, such as applying labels and closing/reopening/assigning issues.
 For more information on the roles and permissions, see ["Permission levels for
 repositories owned by an organization"](https://docs.github.com/en/github/setting-up-and-managing-organizations-and-teams/repository-permission-levels-for-an-organization#permission-levels-for-repositories-owned-by-an-organization).
 
+When triagging issues and PRs:
+
+* Show patience and empathy, especially to first-time contributors.
+* Show no patience towards spam or troll, close the issue without interacting with it and
+  report the user to the moderation repository.
+* If you're not able to reproduce an issue, leave a comment asking for more info and
+  add the `needs more info` label.
+* Ideally issues should be closed only when they have been fixed or answered (and
+  merged for pull requests). Closing an issue (or PR) earlier can be seen as
+  dismissive from the point of view of the reporter/author.
+  Always try to communicate the reason for closing the issue/PR.
+
 [Node.js help repository]: https://github.com/nodejs/help/issues
 [Technical Steering Committee (TSC) repository]: https://github.com/nodejs/TSC/issues

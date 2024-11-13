@@ -1,0 +1,23 @@
+# Copyright 2024 the V8 project authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# Override builder properties in V8's CI. This can be useful if a configuration
+# change is suspected to cause a regression, and should be aligned with a
+# specific V8 commit.
+
+# A typical scenario is a performance bot change. The perf bot itself is defined
+# on the recipe side and applied independent of the V8 revision. A regression
+# might falsely suspect the first revision using the new bot. Using this file,
+# the bot can be migrated in a three step approach:
+
+#   1. Add  {'buildername': {'swarming_bot_ids': ['new-bot']}} to this file.
+
+# It might take a while till all relevant CI bots have processed this revision.
+# Cherry-picks for branches might also be needed.
+
+#   2. Add the new bot to the recipe itself.
+#   3. Remove the override in this file again to ensure there is a single
+#      configuration only.
+
+{}

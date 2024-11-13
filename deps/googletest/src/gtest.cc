@@ -1660,10 +1660,25 @@ std::string GetBoolAssertionFailureMessage(
   return msg.GetString();
 }
 
-// Helper function for implementing ASSERT_NEAR.
+// Helper function for implementing ASSERT_NEAR. Treats infinity as a specific
+// value, such that comparing infinity to infinity is equal, the distance
+// between -infinity and +infinity is infinity, and infinity <= infinity is
+// true.
 AssertionResult DoubleNearPredFormat(const char* expr1, const char* expr2,
                                      const char* abs_error_expr, double val1,
                                      double val2, double abs_error) {
+  // We want to return success when the two values are infinity and at least
+  // one of the following is true:
+  //  * The values are the same-signed infinity.
+  //  * The error limit itself is infinity.
+  // This is done here so that we don't end up with a NaN when calculating the
+  // difference in values.
+  if (std::isinf(val1) && std::isinf(val2) &&
+      (std::signbit(val1) == std::signbit(val2) ||
+       (abs_error > 0.0 && std::isinf(abs_error)))) {
+    return AssertionSuccess();
+  }
+
   const double diff = fabs(val1 - val2);
   if (diff <= abs_error) return AssertionSuccess();
 

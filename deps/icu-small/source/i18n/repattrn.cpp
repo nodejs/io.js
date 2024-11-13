@@ -125,7 +125,7 @@ RegexPattern &RegexPattern::operator = (const RegexPattern &other) {
         if (U_FAILURE(fDeferredStatus)) {
             return *this;
         }
-        UnicodeSet *sourceSet = (UnicodeSet *)other.fSets->elementAt(i);
+        UnicodeSet* sourceSet = static_cast<UnicodeSet*>(other.fSets->elementAt(i));
         UnicodeSet *newSet    = new UnicodeSet(*sourceSet);
         if (newSet == nullptr) {
             fDeferredStatus = U_MEMORY_ALLOCATION_ERROR;
@@ -142,7 +142,7 @@ RegexPattern &RegexPattern::operator = (const RegexPattern &other) {
             if (U_FAILURE(fDeferredStatus)) {
                 break;
             }
-            const UnicodeString *name = (const UnicodeString *)hashEl->key.pointer;
+            const UnicodeString* name = static_cast<const UnicodeString*>(hashEl->key.pointer);
             UnicodeString *key = new UnicodeString(*name);
             int32_t val = hashEl->value.integer;
             if (key == nullptr) {
@@ -199,7 +199,7 @@ void RegexPattern::init() {
     }
 
     // Slot zero of the vector of sets is reserved.  Fill it here.
-    fSets->addElement((int32_t)0, fDeferredStatus);
+    fSets->addElement(static_cast<int32_t>(0), fDeferredStatus);
 }
 
 
@@ -232,7 +232,7 @@ void RegexPattern::zap() {
     int i;
     for (i=1; i<fSets->size(); i++) {
         UnicodeSet *s;
-        s = (UnicodeSet *)fSets->elementAt(i);
+        s = static_cast<UnicodeSet*>(fSets->elementAt(i));
         delete s;
     }
     delete fSets;

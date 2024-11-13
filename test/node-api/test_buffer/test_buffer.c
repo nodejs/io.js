@@ -7,17 +7,23 @@ static const char theText[] =
     "Lorem ipsum dolor sit amet, consectetur adipiscing elit.";
 
 static int deleterCallCount = 0;
-static void deleteTheText(napi_env env, void* data, void* finalize_hint) {
-  NODE_API_ASSERT_RETURN_VOID(
-      env, data != NULL && strcmp(data, theText) == 0, "invalid data");
+
+static void deleteTheText(node_api_basic_env env,
+                          void* data,
+                          void* finalize_hint) {
+  NODE_API_BASIC_ASSERT_RETURN_VOID(data != NULL && strcmp(data, theText) == 0,
+                                    "invalid data");
+
   (void)finalize_hint;
   free(data);
   deleterCallCount++;
 }
 
-static void noopDeleter(napi_env env, void* data, void* finalize_hint) {
-  NODE_API_ASSERT_RETURN_VOID(
-      env, data != NULL && strcmp(data, theText) == 0, "invalid data");
+static void noopDeleter(node_api_basic_env env,
+                        void* data,
+                        void* finalize_hint) {
+  NODE_API_BASIC_ASSERT_RETURN_VOID(data != NULL && strcmp(data, theText) == 0,
+                                    "invalid data");
   (void)finalize_hint;
   deleterCallCount++;
 }
@@ -42,9 +48,12 @@ static napi_value newExternalBuffer(napi_env env, napi_callback_info info) {
   NODE_API_ASSERT(
       env, theCopy, "Failed to copy static text for newExternalBuffer");
   NODE_API_CALL(env,
-      napi_create_external_buffer(
-          env, sizeof(theText), theCopy, deleteTheText,
-          NULL /* finalize_hint */, &theBuffer));
+                napi_create_external_buffer(env,
+                                            sizeof(theText),
+                                            theCopy,
+                                            deleteTheText,
+                                            NULL /* finalize_hint */,
+                                            &theBuffer));
 
   return theBuffer;
 }
@@ -101,9 +110,12 @@ static napi_value bufferInfo(napi_env env, napi_callback_info info) {
 static napi_value staticBuffer(napi_env env, napi_callback_info info) {
   napi_value theBuffer;
   NODE_API_CALL(env,
-      napi_create_external_buffer(
-          env, sizeof(theText), (void*)theText, noopDeleter,
-          NULL /* finalize_hint */, &theBuffer));
+                napi_create_external_buffer(env,
+                                            sizeof(theText),
+                                            (void*)theText,
+                                            noopDeleter,
+                                            NULL /* finalize_hint */,
+                                            &theBuffer));
   return theBuffer;
 }
 
@@ -123,6 +135,31 @@ static napi_value invalidObjectAsBuffer(napi_env env, napi_callback_info info) {
   return notTheBuffer;
 }
 
+static napi_value bufferFromArrayBuffer(napi_env env, napi_callback_info info) {
+  napi_status status;
+  napi_value arraybuffer;
+  napi_value buffer;
+  size_t byte_length = 1024;
+  void* data = NULL;
+  size_t buffer_length = 0;
+  void* buffer_data = NULL;
+
+  status = napi_create_arraybuffer(env, byte_length, &data, &arraybuffer);
+  NODE_API_ASSERT(env, status == napi_ok, "Failed to create arraybuffer");
+
+  status = node_api_create_buffer_from_arraybuffer(
+      env, arraybuffer, 0, byte_length, &buffer);
+  NODE_API_ASSERT(
+      env, status == napi_ok, "Failed to create buffer from arraybuffer");
+
+  status = napi_get_buffer_info(env, buffer, &buffer_data, &buffer_length);
+  NODE_API_ASSERT(env, status == napi_ok, "Failed to get buffer info");
+
+  NODE_API_ASSERT(env, buffer_length == byte_length, "Buffer length mismatch");
+
+  return buffer;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
   napi_value theValue;
 
@@ -140,6 +177,7 @@ static napi_value Init(napi_env env, napi_value exports) {
       DECLARE_NODE_API_PROPERTY("bufferInfo", bufferInfo),
       DECLARE_NODE_API_PROPERTY("staticBuffer", staticBuffer),
       DECLARE_NODE_API_PROPERTY("invalidObjectAsBuffer", invalidObjectAsBuffer),
+      DECLARE_NODE_API_PROPERTY("bufferFromArrayBuffer", bufferFromArrayBuffer),
   };
 
   NODE_API_CALL(env, napi_define_properties(

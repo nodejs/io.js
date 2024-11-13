@@ -24,7 +24,7 @@ const pkeyEncrypted =
   pair.privateKey.export({
     type: 'pkcs1',
     format: 'pem',
-    cipher: 'aes128',
+    cipher: 'aes-128-cbc',
     passphrase: 'secret',
   });
 

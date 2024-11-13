@@ -124,6 +124,7 @@
     'uv_sources_apple': [
       'src/unix/darwin.c',
       'src/unix/fsevents.c',
+      'src/unix/darwin-syscalls.h',
       'src/unix/darwin-proctitle.c',
       'src/unix/random-getentropy.c',
     ],

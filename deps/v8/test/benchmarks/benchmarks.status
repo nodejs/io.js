@@ -122,11 +122,15 @@
   # https://crbug.com/v8/8537
   'octane/typescript': [SKIP],
 
-  # https://crbug.com/v8/13234
+  # https://crbug.com/42203172
+  'kraken/stanford-crypto-aes': [SKIP],
+  'kraken/stanford-crypto-ccm': [SKIP],
   'octane/box2d': [SKIP],
+  'octane/crypto': [SKIP],
   'octane/earley-boyer': [SKIP],
   'octane/gbemu-part1': [SKIP],
   'octane/pdfjs': [SKIP],
+  'octane/regexp': [SKIP],
 
   # https://crbug.com/v8/14512
   'octane/raytrace': [SKIP],

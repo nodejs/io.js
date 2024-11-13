@@ -31,9 +31,8 @@ const testFile = path.join(testDirectory, 'file-1.txt');
 const watcher = fs.watch(testDirectory, { recursive: true });
 let watcherClosed = false;
 watcher.on('change', function(event, filename) {
-  assert.strictEqual(event, 'rename');
-
   if (filename === path.basename(testFile)) {
+    assert.strictEqual(event, 'rename');
     watcher.close();
     watcherClosed = true;
   }

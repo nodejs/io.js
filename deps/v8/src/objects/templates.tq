@@ -44,6 +44,10 @@ bitfield struct FunctionTemplateInfoFlags extends uint32 {
 @generateUniqueMap
 extern class FunctionTemplateInfo extends TemplateInfo {
   class_name: String|Undefined;
+  // Experimental exception preprocessing Api (https://crbug.com/328104148).
+  // This value is provided as contextual information for embedder
+  // exception preprocessing.
+  interface_name: String|Undefined;
   // If the signature is a FunctionTemplateInfo it is used to check whether the
   // receiver calling the associated JSFunction is a compatible receiver, i.e.
   // it is an instance of the signature FunctionTemplateInfo or any of the
@@ -75,6 +79,14 @@ extern class FunctionTemplateInfo extends TemplateInfo {
   // This will be set as the instance type of the objects that are created from
   // this FunctionTemplateInfo.
   instance_type: InstanceType;
+
+  // Experimental exception preprocessing Api (https://crbug.com/328104148).
+  // Provides information on the type of FunctionTemplate for embedder
+  // exception preprocessing.
+  exception_context: uint32;
+
+  @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
+  @ifnot(TAGGED_SIZE_8_BYTES) optional_padding: void;
 
   // A callback invoked when calling an instance of this FunctionTemplateInfo.
   // For simulator builds this field contains the address of the trampoline

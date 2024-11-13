@@ -136,6 +136,14 @@ To ensure the future compatibility, the engines should be turned to providers.
 To prefer the provider-based hardware offload, you can specify the default
 properties to prefer your provider.
 
+Setting engine-based or application-based default low-level crypto method such
+as B<RSA_METHOD> or B<EC_KEY_METHOD> is still possible and keys inside the
+default provider will use the engine-based implementation for the crypto
+operations. However B<EVP_PKEY>s created by decoding by using B<OSSL_DECODER>,
+B<PEM_> or B<d2i_> APIs will be provider-based. To create a fully legacy
+B<EVP_PKEY>s L<EVP_PKEY_set1_RSA(3)>, L<EVP_PKEY_set1_EC_KEY(3)> or similar
+functions must be used.
+
 =head3 Versioning Scheme
 
 The OpenSSL versioning scheme has changed with the OpenSSL 3.0 release. The new
@@ -1298,12 +1306,19 @@ d2i_DSAPrivateKey_bio(), d2i_DSAPrivateKey_fp(), d2i_DSA_PUBKEY(),
 d2i_DSA_PUBKEY_bio(), d2i_DSA_PUBKEY_fp(), d2i_DSAPublicKey(),
 d2i_ECParameters(), d2i_ECPrivateKey(), d2i_ECPrivateKey_bio(),
 d2i_ECPrivateKey_fp(), d2i_EC_PUBKEY(), d2i_EC_PUBKEY_bio(),
-d2i_EC_PUBKEY_fp(), o2i_ECPublicKey(), d2i_RSAPrivateKey(),
+d2i_EC_PUBKEY_fp(), d2i_RSAPrivateKey(),
 d2i_RSAPrivateKey_bio(), d2i_RSAPrivateKey_fp(), d2i_RSA_PUBKEY(),
 d2i_RSA_PUBKEY_bio(), d2i_RSA_PUBKEY_fp(), d2i_RSAPublicKey(),
 d2i_RSAPublicKey_bio(), d2i_RSAPublicKey_fp()
 
 See L</Deprecated i2d and d2i functions for low-level key types>
+
+=item *
+
+o2i_ECPublicKey()
+
+Use L<EVP_PKEY_set1_encoded_public_key(3)>.
+See L</Deprecated low-level key parameter setters>
 
 =item *
 
@@ -1857,10 +1872,17 @@ and L<d2i_RSAPrivateKey(3)/Migration>
 
 i2d_ECParameters(), i2d_ECPrivateKey(), i2d_ECPrivateKey_bio(),
 i2d_ECPrivateKey_fp(), i2d_EC_PUBKEY(), i2d_EC_PUBKEY_bio(),
-i2d_EC_PUBKEY_fp(), i2o_ECPublicKey()
+i2d_EC_PUBKEY_fp()
 
 See L</Deprecated low-level key reading and writing functions>
 and L<d2i_RSAPrivateKey(3)/Migration>
+
+=item *
+
+i2o_ECPublicKey()
+
+Use L<EVP_PKEY_get1_encoded_public_key(3)>.
+See L</Deprecated low-level key parameter getters>
 
 =item *
 
@@ -2462,7 +2484,7 @@ The migration guide was created for OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2021-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2021-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

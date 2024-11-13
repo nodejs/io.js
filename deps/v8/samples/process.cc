@@ -150,9 +150,10 @@ class JsHttpRequestProcessor : public HttpRequestProcessor {
                            const PropertyCallbackInfo<Value>& info);
 
   // Callbacks that access maps
-  static void MapGet(Local<Name> name, const PropertyCallbackInfo<Value>& info);
-  static void MapSet(Local<Name> name, Local<Value> value,
-                     const PropertyCallbackInfo<Value>& info);
+  static v8::Intercepted MapGet(Local<Name> name,
+                                const PropertyCallbackInfo<Value>& info);
+  static v8::Intercepted MapSet(Local<Name> name, Local<Value> value,
+                                const PropertyCallbackInfo<void>& info);
 
   // Utility methods for wrapping C++ objects as JavaScript objects,
   // and going back again.
@@ -399,13 +400,12 @@ string ObjectToString(v8::Isolate* isolate, Local<Value> value) {
   return string(*utf8_value);
 }
 
-
-void JsHttpRequestProcessor::MapGet(Local<Name> name,
-                                    const PropertyCallbackInfo<Value>& info) {
-  if (name->IsSymbol()) return;
+v8::Intercepted JsHttpRequestProcessor::MapGet(
+    Local<Name> name, const PropertyCallbackInfo<Value>& info) {
+  if (name->IsSymbol()) return v8::Intercepted::kNo;
 
   // Fetch the map wrapped by this object.
-  map<string, string>* obj = UnwrapMap(info.Holder());
+  map<string, string>* obj = UnwrapMap(info.HolderV2());
 
   // Convert the JavaScript string to a std::string.
   string key = ObjectToString(info.GetIsolate(), name.As<String>());
@@ -414,7 +414,7 @@ void JsHttpRequestProcessor::MapGet(Local<Name> name,
   map<string, string>::iterator iter = obj->find(key);
 
   // If the key is not present return an empty handle as signal
-  if (iter == obj->end()) return;
+  if (iter == obj->end()) return v8::Intercepted::kNo;
 
   // Otherwise fetch the value and wrap it in a JavaScript string
   const string& value = (*iter).second;
@@ -422,15 +422,16 @@ void JsHttpRequestProcessor::MapGet(Local<Name> name,
       String::NewFromUtf8(info.GetIsolate(), value.c_str(),
                           NewStringType::kNormal,
                           static_cast<int>(value.length())).ToLocalChecked());
+  return v8::Intercepted::kYes;
 }
 
-
-void JsHttpRequestProcessor::MapSet(Local<Name> name, Local<Value> value_obj,
-                                    const PropertyCallbackInfo<Value>& info) {
-  if (name->IsSymbol()) return;
+v8::Intercepted JsHttpRequestProcessor::MapSet(
+    Local<Name> name, Local<Value> value_obj,
+    const PropertyCallbackInfo<void>& info) {
+  if (name->IsSymbol()) return v8::Intercepted::kNo;
 
   // Fetch the map wrapped by this object.
-  map<string, string>* obj = UnwrapMap(info.Holder());
+  map<string, string>* obj = UnwrapMap(info.HolderV2());
 
   // Convert the key and value to std::strings.
   string key = ObjectToString(info.GetIsolate(), name.As<String>());
@@ -438,11 +439,8 @@ void JsHttpRequestProcessor::MapSet(Local<Name> name, Local<Value> value_obj,
 
   // Update the map.
   (*obj)[key] = value;
-
-  // Return the value; any non-empty handle will work.
-  info.GetReturnValue().Set(value_obj);
+  return v8::Intercepted::kYes;
 }
-
 
 Local<ObjectTemplate> JsHttpRequestProcessor::MakeMapTemplate(
     Isolate* isolate) {
@@ -510,7 +508,7 @@ HttpRequest* JsHttpRequestProcessor::UnwrapRequest(Local<Object> obj) {
 void JsHttpRequestProcessor::GetPath(Local<Name> name,
                                      const PropertyCallbackInfo<Value>& info) {
   // Extract the C++ request object from the JavaScript wrapper.
-  HttpRequest* request = UnwrapRequest(info.Holder());
+  HttpRequest* request = UnwrapRequest(info.HolderV2());
 
   // Fetch the path.
   const string& path = request->Path();
@@ -524,7 +522,7 @@ void JsHttpRequestProcessor::GetPath(Local<Name> name,
 
 void JsHttpRequestProcessor::GetReferrer(
     Local<Name> name, const PropertyCallbackInfo<Value>& info) {
-  HttpRequest* request = UnwrapRequest(info.Holder());
+  HttpRequest* request = UnwrapRequest(info.HolderV2());
   const string& path = request->Referrer();
   info.GetReturnValue().Set(
       String::NewFromUtf8(info.GetIsolate(), path.c_str(),
@@ -534,7 +532,7 @@ void JsHttpRequestProcessor::GetReferrer(
 
 void JsHttpRequestProcessor::GetHost(Local<Name> name,
                                      const PropertyCallbackInfo<Value>& info) {
-  HttpRequest* request = UnwrapRequest(info.Holder());
+  HttpRequest* request = UnwrapRequest(info.HolderV2());
   const string& path = request->Host();
   info.GetReturnValue().Set(
       String::NewFromUtf8(info.GetIsolate(), path.c_str(),
@@ -544,7 +542,7 @@ void JsHttpRequestProcessor::GetHost(Local<Name> name,
 
 void JsHttpRequestProcessor::GetUserAgent(
     Local<Name> name, const PropertyCallbackInfo<Value>& info) {
-  HttpRequest* request = UnwrapRequest(info.Holder());
+  HttpRequest* request = UnwrapRequest(info.HolderV2());
   const string& path = request->UserAgent();
   info.GetReturnValue().Set(
       String::NewFromUtf8(info.GetIsolate(), path.c_str(),
@@ -560,18 +558,20 @@ Local<ObjectTemplate> JsHttpRequestProcessor::MakeRequestTemplate(
   result->SetInternalFieldCount(1);
 
   // Add accessors for each of the fields of the request.
-  result->SetAccessor(
+  result->SetNativeDataProperty(
       String::NewFromUtf8Literal(isolate, "path", NewStringType::kInternalized),
       GetPath);
-  result->SetAccessor(String::NewFromUtf8Literal(isolate, "referrer",
-                                                 NewStringType::kInternalized),
-                      GetReferrer);
-  result->SetAccessor(
+  result->SetNativeDataProperty(
+      String::NewFromUtf8Literal(isolate, "referrer",
+                                 NewStringType::kInternalized),
+      GetReferrer);
+  result->SetNativeDataProperty(
       String::NewFromUtf8Literal(isolate, "host", NewStringType::kInternalized),
       GetHost);
-  result->SetAccessor(String::NewFromUtf8Literal(isolate, "userAgent",
-                                                 NewStringType::kInternalized),
-                      GetUserAgent);
+  result->SetNativeDataProperty(
+      String::NewFromUtf8Literal(isolate, "userAgent",
+                                 NewStringType::kInternalized),
+      GetUserAgent);
 
   // Again, return the result through the current handle scope.
   return handle_scope.Escape(result);

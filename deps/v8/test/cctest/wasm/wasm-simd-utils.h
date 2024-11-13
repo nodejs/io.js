@@ -12,11 +12,91 @@
 #include "src/wasm/wasm-opcodes.h"
 #include "test/cctest/wasm/wasm-run-utils.h"
 #include "test/common/wasm/wasm-macro-gen.h"
+#ifdef V8_ENABLE_WASM_SIMD256_REVEC
+#include "src/compiler/turboshaft/wasm-revec-phase.h"
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 
 namespace v8 {
 namespace internal {
 
 #ifdef V8_ENABLE_WASM_SIMD256_REVEC
+#define SKIP_TEST_IF_NO_TURBOSHAFT                                  \
+  do {                                                              \
+    if (!v8_flags.turboshaft_wasm ||                                \
+        !v8_flags.turboshaft_wasm_instruction_selection_staged) {   \
+      /* This pattern is only implemented for turboshaft_wasm and*/ \
+      /* turboshaft_wasm_instruction_selection*/                    \
+      return;                                                       \
+    }                                                               \
+  } while (0);
+
+class TSSimd256VerifyScope {
+ public:
+  static bool VerifyHaveAnySimd256Op(const compiler::turboshaft::Graph& graph) {
+    for (const compiler::turboshaft::Operation& op : graph.AllOperations()) {
+      switch (op.opcode) {
+#define CASE_SIMD256(name)                      \
+  case compiler::turboshaft::Opcode::k##name: { \
+    return true;                                \
+  }
+        TURBOSHAFT_SIMD256_OPERATION_LIST(CASE_SIMD256)
+        default:
+          break;
+      }
+#undef CASE_SIMD256
+    }
+    return false;
+  }
+
+  template <compiler::turboshaft::Opcode opcode>
+  static bool VerifyHaveOpcode(const compiler::turboshaft::Graph& graph) {
+    for (const compiler::turboshaft::Operation& op : graph.AllOperations()) {
+      if (op.opcode == opcode) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  template <typename TOp, TOp::Kind op_kind>
+  static bool VerifyHaveOpWithKind(const compiler::turboshaft::Graph& graph) {
+    for (const compiler::turboshaft::Operation& op : graph.AllOperations()) {
+      if (const TOp* t_op = op.TryCast<TOp>()) {
+        if (t_op->kind == op_kind) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  explicit TSSimd256VerifyScope(
+      Zone* zone,
+      std::function<bool(const compiler::turboshaft::Graph&)> raw_handler =
+          TSSimd256VerifyScope::VerifyHaveAnySimd256Op) {
+    SKIP_TEST_IF_NO_TURBOSHAFT;
+
+    std::function<void(const compiler::turboshaft::Graph&)> handler;
+
+    handler = [&](const compiler::turboshaft::Graph& graph) {
+      check_pass_ = raw_handler(graph);
+    };
+
+    auto* verifier =
+        zone->New<compiler::turboshaft::WasmRevecVerifier>(handler);
+
+    Isolate* isolate = CcTest::InitIsolateOnce();
+
+    isolate->set_wasm_revec_verifier_for_test(verifier);
+  }
+
+  ~TSSimd256VerifyScope() {
+    SKIP_TEST_IF_NO_TURBOSHAFT;
+    CHECK(check_pass_);
+  }
+
+  bool check_pass_ = false;
+};
 
 class SIMD256NodeObserver : public compiler::NodeObserver {
  public:
@@ -97,12 +177,16 @@ using Int32ShiftOp = int32_t (*)(int32_t, int);
 using Int64UnOp = int64_t (*)(int64_t);
 using Int64BinOp = int64_t (*)(int64_t, int64_t);
 using Int64ShiftOp = int64_t (*)(int64_t, int);
+using HalfUnOp = uint16_t (*)(uint16_t);
+using HalfBinOp = uint16_t (*)(uint16_t, uint16_t);
+using HalfCompareOp = int16_t (*)(uint16_t, uint16_t);
 using FloatUnOp = float (*)(float);
 using FloatBinOp = float (*)(float, float);
 using FloatCompareOp = int32_t (*)(float, float);
 using DoubleUnOp = double (*)(double);
 using DoubleBinOp = double (*)(double, double);
 using DoubleCompareOp = int64_t (*)(double, double);
+using ConvertToIntOp = int32_t (*)(double, bool);
 
 void RunI8x16UnOpTest(TestExecutionTier execution_tier, WasmOpcode opcode,
                       Int8UnOp expected_op);
@@ -212,17 +296,30 @@ bool PlatformCanRepresent(T x) {
 #endif
 }
 
+bool isnan(uint16_t f);
+bool IsCanonical(uint16_t actual);
 // Returns true for very small and very large numbers. We skip these test
 // values for the approximation instructions, which don't work at the extremes.
 bool IsExtreme(float x);
 bool IsCanonical(float actual);
 void CheckFloatResult(float x, float y, float expected, float actual,
                       bool exact = true);
+void CheckFloat16LaneResult(float x, float y, float z, uint16_t expected,
+                            uint16_t actual, bool exact = true);
+void CheckFloat16LaneResult(float x, float y, uint16_t expected,
+                            uint16_t actual, bool exact = true);
 
 bool IsExtreme(double x);
 bool IsCanonical(double actual);
 void CheckDoubleResult(double x, double y, double expected, double actual,
                        bool exact = true);
+
+void RunF16x8UnOpTest(TestExecutionTier execution_tier, WasmOpcode opcode,
+                      HalfUnOp expected_op, bool exact = true);
+void RunF16x8BinOpTest(TestExecutionTier execution_tier, WasmOpcode opcode,
+                       HalfBinOp expected_op);
+void RunF16x8CompareOpTest(TestExecutionTier execution_tier, WasmOpcode opcode,
+                           HalfCompareOp expected_op);
 
 void RunF32x4UnOpTest(TestExecutionTier execution_tier, WasmOpcode opcode,
                       FloatUnOp expected_op, bool exact = true);
@@ -278,8 +375,11 @@ void RunI32x8ShiftOpRevecTest(WasmOpcode opcode, Int32ShiftOp expected_op,
 void RunI64x4ShiftOpRevecTest(WasmOpcode opcode, Int64ShiftOp expected_op,
                               compiler::IrOpcode::Value revec_opcode);
 
-// TODO(yuhengwei): Add revec test for IGeU, IGeS, INe and IGtU
-#endif
+template <typename T>
+void RunI32x8ConvertF32x8RevecTest(WasmOpcode opcode,
+                                   ConvertToIntOp expected_op,
+                                   compiler::IrOpcode::Value revec_opcode);
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 
 }  // namespace wasm
 }  // namespace internal

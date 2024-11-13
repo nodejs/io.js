@@ -5,11 +5,12 @@
 #ifndef V8_HEAP_CPPGC_OBJECT_ALLOCATOR_H_
 #define V8_HEAP_CPPGC_OBJECT_ALLOCATOR_H_
 
+#include <optional>
+
 #include "include/cppgc/allocation.h"
 #include "include/cppgc/internal/gc-info.h"
 #include "include/cppgc/macros.h"
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/heap/cppgc/globals.h"
 #include "src/heap/cppgc/heap-object-header.h"
 #include "src/heap/cppgc/heap-page.h"
@@ -104,7 +105,7 @@ class V8_EXPORT_PRIVATE ObjectAllocator final : public cppgc::AllocationHandle {
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
   // Specifies how many allocations should be performed until triggering a
   // garbage collection.
-  v8::base::Optional<int> allocation_timeout_;
+  std::optional<int> allocation_timeout_;
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 };
 

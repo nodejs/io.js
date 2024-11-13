@@ -29,7 +29,7 @@ Environment variables can be replaced using `${VARIABLE_NAME}`. For
 example:
 
 ```bash
-prefix = ${HOME}/.npm-packages
+cache = ${HOME}/.npm-packages
 ```
 
 Each of these files is loaded, and config options are resolved in priority
@@ -120,10 +120,13 @@ _authToken=MYTOKEN
 @myorg:registry=https://somewhere-else.com/myorg
 @another:registry=https://somewhere-else.com/another
 //registry.npmjs.org/:_authToken=MYTOKEN
+
 ; would apply to both @myorg and @another
-; //somewhere-else.com/:_authToken=MYTOKEN
+//somewhere-else.com/:_authToken=MYTOKEN
+
 ; would apply only to @myorg
 //somewhere-else.com/myorg/:_authToken=MYTOKEN1
+
 ; would apply only to @another
 //somewhere-else.com/another/:_authToken=MYTOKEN2
 ```

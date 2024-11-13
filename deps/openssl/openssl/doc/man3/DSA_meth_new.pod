@@ -110,7 +110,7 @@ parameter. This might be useful for creating a new B<DSA_METHOD> based on an
 existing one, but with some differences.
 
 DSA_meth_free() destroys a B<DSA_METHOD> structure and frees up any memory
-associated with it.
+associated with it. If the argument is NULL, nothing is done.
 
 DSA_meth_get0_name() will return a pointer to the name of this DSA_METHOD. This
 is a pointer to the internal name string and so should not be freed by the
@@ -214,7 +214,7 @@ The functions described here were added in OpenSSL 1.1.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

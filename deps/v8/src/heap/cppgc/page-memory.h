@@ -84,6 +84,8 @@ class V8_EXPORT_PRIVATE PageMemoryRegion final {
                                               : nullptr;
   }
 
+  PageAllocator& allocator() const { return allocator_; }
+
   // Disallow copy/move.
   PageMemoryRegion(const PageMemoryRegion&) = delete;
   PageMemoryRegion& operator=(const PageMemoryRegion&) = delete;
@@ -125,15 +127,31 @@ class V8_EXPORT_PRIVATE NormalPageMemoryPool final {
 
   // Returns the number of entries pooled.
   size_t pooled() const { return pool_.size(); }
+  // Memory in the pool which is neither discarded nor decommitted, i.e. the
+  // actual cost of pooled memory.
+  size_t PooledMemory() const;
 
   void DiscardPooledPages(PageAllocator& allocator);
 
   auto& get_raw_pool_for_testing() { return pool_; }
 
+  void SetDecommitPooledPages(bool value) { decommit_pooled_pages_ = value; }
+  static constexpr bool kDefaultDecommitPooledPage = false;
+
  private:
   // The pool of pages that are not returned to the OS. Bounded by
   // `primary_pool_capacity_`.
-  std::vector<PageMemoryRegion*> pool_;
+  struct PooledPageMemoryRegion {
+    explicit PooledPageMemoryRegion(PageMemoryRegion* region)
+        : region(region) {}
+    PageMemoryRegion* region;
+    // When a page enters the pool, it's from the heap, so it's neither
+    // decommitted nor discarded.
+    bool is_decommitted = false;
+    bool is_discarded = false;
+  };
+  std::vector<PooledPageMemoryRegion> pool_;
+  bool decommit_pooled_pages_ = kDefaultDecommitPooledPage;
 };
 
 // A backend that is used for allocating and freeing normal and large pages.
@@ -178,7 +196,7 @@ class V8_EXPORT_PRIVATE PageBackend final {
     return page_memory_region_tree_;
   }
 
-  NormalPageMemoryPool& get_page_pool_for_testing() { return page_pool_; }
+  NormalPageMemoryPool& page_pool() { return page_pool_; }
 
  private:
   // Guards against concurrent uses of `Lookup()`.

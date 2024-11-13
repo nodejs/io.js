@@ -69,6 +69,22 @@ struct SerializeContextDataCallback {
 };
 
 /**
+ * Similar to `SerializeInternalFieldsCallback`, but is used exclusively to
+ * serialize API wrappers. The pointers for API wrappers always point into the
+ * CppHeap.
+ */
+struct SerializeAPIWrapperCallback {
+  using CallbackFunction = StartupData (*)(Local<Object> holder,
+                                           void* cpp_heap_pointer, void* data);
+  explicit SerializeAPIWrapperCallback(CallbackFunction function = nullptr,
+                                       void* data = nullptr)
+      : callback(function), data(data) {}
+
+  CallbackFunction callback;
+  void* data;
+};
+
+/**
  * Callback and supporting data used to implement embedder logic to deserialize
  * internal fields of v8::Objects.
  */
@@ -93,6 +109,17 @@ struct DeserializeContextDataCallback {
   DeserializeContextDataCallback(CallbackFunction function = nullptr,
                                  void* data_arg = nullptr)
       : callback(function), data(data_arg) {}
+  CallbackFunction callback;
+  void* data;
+};
+
+struct DeserializeAPIWrapperCallback {
+  using CallbackFunction = void (*)(Local<Object> holder, StartupData payload,
+                                    void* data);
+  explicit DeserializeAPIWrapperCallback(CallbackFunction function = nullptr,
+                                         void* data = nullptr)
+      : callback(function), data(data) {}
+
   CallbackFunction callback;
   void* data;
 };
@@ -187,13 +214,17 @@ class V8_EXPORT SnapshotCreator {
    * context embedder data set by
    * v8::Context::SetAlignedPointerInEmbedderData().
    *
+   * \param api_wrapper_serializer An optional callback used to serialize API
+   * wrapper references set via `v8::Object::Wrap()`.
    */
   void SetDefaultContext(
       Local<Context> context,
       SerializeInternalFieldsCallback internal_fields_serializer =
           SerializeInternalFieldsCallback(),
       SerializeContextDataCallback context_data_serializer =
-          SerializeContextDataCallback());
+          SerializeContextDataCallback(),
+      SerializeAPIWrapperCallback api_wrapper_serializer =
+          SerializeAPIWrapperCallback());
 
   /**
    * Add additional context to be included in the snapshot blob.
@@ -204,12 +235,17 @@ class V8_EXPORT SnapshotCreator {
    *
    * \param context_data_serializer Similar to context_data_serializer
    * in SetDefaultContext() but only applies to the context being added.
+   *
+   * \param api_wrapper_serializer Similar to api_wrapper_serializer
+   * in SetDefaultContext() but only applies to the context being added.
    */
   size_t AddContext(Local<Context> context,
                     SerializeInternalFieldsCallback internal_fields_serializer =
                         SerializeInternalFieldsCallback(),
                     SerializeContextDataCallback context_data_serializer =
-                        SerializeContextDataCallback());
+                        SerializeContextDataCallback(),
+                    SerializeAPIWrapperCallback api_wrapper_serializer =
+                        SerializeAPIWrapperCallback());
 
   /**
    * Attach arbitrary V8::Data to the context snapshot, which can be retrieved

@@ -17,6 +17,13 @@ for %%k in ( "HKCU\Software", "HKLM\SOFTWARE", "HKLM\Software\Wow6432Node") do (
   if not errorlevel 1 goto :found-python
 )
 
+:: Check for pyenv-win installation using pyenv which python
+for /f "tokens=*" %%i in ('pyenv which python 2^>nul') do set p=%%i
+if defined p (
+    for /f "tokens=*" %%j in ('"%p%" --version') do set python_version=%%j
+    goto :found-python
+)
+
 goto :no-python
 
 

@@ -1174,13 +1174,15 @@ class Typer {
   static Type TypeConstant(ConstantOp::Kind kind, ConstantOp::Storage value) {
     switch (kind) {
       case ConstantOp::Kind::kFloat32:
-        if (std::isnan(value.float32)) return Float32Type::NaN();
-        if (IsMinusZero(value.float32)) return Float32Type::MinusZero();
-        return Float32Type::Constant(value.float32);
+        if (value.float32.is_nan()) return Float32Type::NaN();
+        if (IsMinusZero(value.float32.get_scalar()))
+          return Float32Type::MinusZero();
+        return Float32Type::Constant(value.float32.get_scalar());
       case ConstantOp::Kind::kFloat64:
-        if (std::isnan(value.float64)) return Float64Type::NaN();
-        if (IsMinusZero(value.float64)) return Float64Type::MinusZero();
-        return Float64Type::Constant(value.float64);
+        if (value.float64.is_nan()) return Float64Type::NaN();
+        if (IsMinusZero(value.float64.get_scalar()))
+          return Float64Type::MinusZero();
+        return Float64Type::Constant(value.float64.get_scalar());
       case ConstantOp::Kind::kWord32:
         return Word32Type::Constant(static_cast<uint32_t>(value.integral));
       case ConstantOp::Kind::kWord64:

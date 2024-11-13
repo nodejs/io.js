@@ -10,9 +10,8 @@
 
 namespace node {
 
-class Environment;
+constexpr bool IsPathSeparator(const char c) noexcept;
 
-constexpr bool IsPathSeparator(char c) noexcept;
 std::string NormalizeString(const std::string_view path,
                             bool allowAboveRoot,
                             const std::string_view separator);

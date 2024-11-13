@@ -136,7 +136,7 @@ bool IntoTwoByte(int index, bool is_uri, int uri_length,
   return true;
 }
 
-bool IntoOneAndTwoByte(Handle<String> uri, bool is_uri,
+bool IntoOneAndTwoByte(DirectHandle<String> uri, bool is_uri,
                        std::vector<uint8_t>* one_byte_buffer,
                        std::vector<base::uc16>* two_byte_buffer) {
   DisallowGarbageCollection no_gc;
@@ -181,7 +181,7 @@ MaybeHandle<String> Uri::Decode(Isolate* isolate, Handle<String> uri,
   std::vector<base::uc16> two_byte_buffer;
 
   if (!IntoOneAndTwoByte(uri, is_uri, &one_byte_buffer, &two_byte_buffer)) {
-    THROW_NEW_ERROR(isolate, NewURIError(), String);
+    THROW_NEW_ERROR(isolate, NewURIError());
   }
 
   if (two_byte_buffer.empty()) {
@@ -193,8 +193,7 @@ MaybeHandle<String> Uri::Decode(Isolate* isolate, Handle<String> uri,
   int result_length =
       static_cast<int>(one_byte_buffer.size() + two_byte_buffer.size());
   ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, result, isolate->factory()->NewRawTwoByteString(result_length),
-      String);
+      isolate, result, isolate->factory()->NewRawTwoByteString(result_length));
 
   DisallowGarbageCollection no_gc;
   base::uc16* chars = result->GetChars(no_gc);
@@ -319,7 +318,7 @@ MaybeHandle<String> Uri::Encode(Isolate* isolate, Handle<String> uri,
     }
   }
 
-  if (throw_error) THROW_NEW_ERROR(isolate, NewURIError(), String);
+  if (throw_error) THROW_NEW_ERROR(isolate, NewURIError());
   return isolate->factory()->NewStringFromOneByte(base::VectorOf(buffer));
 }
 
@@ -466,8 +465,7 @@ static MaybeHandle<String> EscapePrivate(Isolate* isolate,
 
   Handle<SeqOneByteString> dest;
   ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, dest, isolate->factory()->NewRawOneByteString(escaped_length),
-      String);
+      isolate, dest, isolate->factory()->NewRawOneByteString(escaped_length));
   int dest_position = 0;
 
   {
@@ -507,7 +505,7 @@ static MaybeHandle<String> EscapePrivate(Isolate* isolate,
 }  // anonymous namespace
 
 MaybeHandle<String> Uri::Escape(Isolate* isolate, Handle<String> string) {
-  Handle<String> result;
+  DirectHandle<String> result;
   string = String::Flatten(isolate, string);
   return String::IsOneByteRepresentationUnderneath(*string)
              ? EscapePrivate<uint8_t>(isolate, string)
@@ -515,7 +513,7 @@ MaybeHandle<String> Uri::Escape(Isolate* isolate, Handle<String> string) {
 }
 
 MaybeHandle<String> Uri::Unescape(Isolate* isolate, Handle<String> string) {
-  Handle<String> result;
+  DirectHandle<String> result;
   string = String::Flatten(isolate, string);
   return String::IsOneByteRepresentationUnderneath(*string)
              ? UnescapePrivate<uint8_t>(isolate, string)

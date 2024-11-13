@@ -58,7 +58,8 @@ class V8_EXPORT_PRIVATE BytecodeArrayWriter final {
   template <typename IsolateT>
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
   Handle<BytecodeArray> ToBytecodeArray(IsolateT* isolate, int register_count,
-                                        int parameter_count,
+                                        uint16_t parameter_count,
+                                        uint16_t max_arguments,
                                         Handle<TrustedByteArray> handler_table);
 
   template <typename IsolateT>

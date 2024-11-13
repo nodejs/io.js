@@ -251,7 +251,7 @@ class GlobalHandleVector {
     bool operator==(const Iterator& that) const { return it_ == that.it_; }
     bool operator!=(const Iterator& that) const { return it_ != that.it_; }
 
-    Tagged<T> raw() { return T::cast(Tagged<Object>(*it_)); }
+    Tagged<T> raw() { return Cast<T>(Tagged<Object>(*it_)); }
 
    private:
     std::vector<Address, StrongRootAllocator<Address>>::iterator it_;

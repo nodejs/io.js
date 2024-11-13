@@ -75,7 +75,7 @@ UCharsTrieElement::setTo(const UnicodeString &s, int32_t val,
         return;
     }
     stringOffset=strings.length();
-    strings.append((char16_t)length);
+    strings.append(static_cast<char16_t>(length));
     value=val;
     strings.append(s);
 }
@@ -186,7 +186,7 @@ UCharsTrieBuilder::buildUChars(UStringTrieBuildOption buildOption, UErrorCode &e
             errorCode=U_MEMORY_ALLOCATION_ERROR;
             return;
         }
-        uprv_sortArray(elements, elementsLength, (int32_t)sizeof(UCharsTrieElement),
+        uprv_sortArray(elements, elementsLength, static_cast<int32_t>(sizeof(UCharsTrieElement)),
                       compareElementStrings, &strings,
                       false,  // need not be a stable sort
                       &errorCode);
@@ -351,7 +351,7 @@ UCharsTrieBuilder::write(int32_t unit) {
     int32_t newLength=ucharsLength+1;
     if(ensureCapacity(newLength)) {
         ucharsLength=newLength;
-        uchars[ucharsCapacity-ucharsLength]=(char16_t)unit;
+        uchars[ucharsCapacity - ucharsLength] = static_cast<char16_t>(unit);
     }
     return ucharsLength;
 }
@@ -379,19 +379,19 @@ UCharsTrieBuilder::writeValueAndFinal(int32_t i, UBool isFinal) {
     char16_t intUnits[3];
     int32_t length;
     if(i<0 || i>UCharsTrie::kMaxTwoUnitValue) {
-        intUnits[0]=(char16_t)(UCharsTrie::kThreeUnitValueLead);
-        intUnits[1]=(char16_t)((uint32_t)i>>16);
-        intUnits[2]=(char16_t)i;
+        intUnits[0] = static_cast<char16_t>(UCharsTrie::kThreeUnitValueLead);
+        intUnits[1] = static_cast<char16_t>(static_cast<uint32_t>(i) >> 16);
+        intUnits[2] = static_cast<char16_t>(i);
         length=3;
     // } else if(i<=UCharsTrie::kMaxOneUnitValue) {
     //     intUnits[0]=(char16_t)(i);
     //     length=1;
     } else {
-        intUnits[0]=(char16_t)(UCharsTrie::kMinTwoUnitValueLead+(i>>16));
-        intUnits[1]=(char16_t)i;
+        intUnits[0] = static_cast<char16_t>(UCharsTrie::kMinTwoUnitValueLead + (i >> 16));
+        intUnits[1] = static_cast<char16_t>(i);
         length=2;
     }
-    intUnits[0]=(char16_t)(intUnits[0]|(isFinal<<15));
+    intUnits[0] = static_cast<char16_t>(intUnits[0] | (isFinal << 15));
     return write(intUnits, length);
 }
 
@@ -403,19 +403,19 @@ UCharsTrieBuilder::writeValueAndType(UBool hasValue, int32_t value, int32_t node
     char16_t intUnits[3];
     int32_t length;
     if(value<0 || value>UCharsTrie::kMaxTwoUnitNodeValue) {
-        intUnits[0]=(char16_t)(UCharsTrie::kThreeUnitNodeValueLead);
-        intUnits[1]=(char16_t)((uint32_t)value>>16);
-        intUnits[2]=(char16_t)value;
+        intUnits[0] = static_cast<char16_t>(UCharsTrie::kThreeUnitNodeValueLead);
+        intUnits[1] = static_cast<char16_t>(static_cast<uint32_t>(value) >> 16);
+        intUnits[2] = static_cast<char16_t>(value);
         length=3;
     } else if(value<=UCharsTrie::kMaxOneUnitNodeValue) {
-        intUnits[0]=(char16_t)((value+1)<<6);
+        intUnits[0] = static_cast<char16_t>((value + 1) << 6);
         length=1;
     } else {
-        intUnits[0]=(char16_t)(UCharsTrie::kMinTwoUnitNodeValueLead+((value>>10)&0x7fc0));
-        intUnits[1]=(char16_t)value;
+        intUnits[0] = static_cast<char16_t>(UCharsTrie::kMinTwoUnitNodeValueLead + ((value >> 10) & 0x7fc0));
+        intUnits[1] = static_cast<char16_t>(value);
         length=2;
     }
-    intUnits[0]|=(char16_t)node;
+    intUnits[0] |= static_cast<char16_t>(node);
     return write(intUnits, length);
 }
 
@@ -429,14 +429,14 @@ UCharsTrieBuilder::writeDeltaTo(int32_t jumpTarget) {
     char16_t intUnits[3];
     int32_t length;
     if(i<=UCharsTrie::kMaxTwoUnitDelta) {
-        intUnits[0]=(char16_t)(UCharsTrie::kMinTwoUnitDeltaLead+(i>>16));
+        intUnits[0] = static_cast<char16_t>(UCharsTrie::kMinTwoUnitDeltaLead + (i >> 16));
         length=1;
     } else {
-        intUnits[0]=(char16_t)(UCharsTrie::kThreeUnitDeltaLead);
-        intUnits[1]=(char16_t)(i>>16);
+        intUnits[0] = static_cast<char16_t>(UCharsTrie::kThreeUnitDeltaLead);
+        intUnits[1] = static_cast<char16_t>(i >> 16);
         length=2;
     }
-    intUnits[length++]=(char16_t)i;
+    intUnits[length++] = static_cast<char16_t>(i);
     return write(intUnits, length);
 }
 

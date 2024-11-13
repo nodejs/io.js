@@ -93,7 +93,8 @@ void CheckComputeLocation(v8::internal::Isolate* i_isolate, Handle<Object> exc,
   MessageLocation loc;
   CHECK(i_isolate->ComputeLocationFromSimpleStackTrace(&loc, exc));
   printf("loc start: %d, end: %d\n", loc.start_pos(), loc.end_pos());
-  Handle<JSMessageObject> message = i_isolate->CreateMessage(exc, nullptr);
+  DirectHandle<JSMessageObject> message =
+      i_isolate->CreateMessage(exc, nullptr);
   JSMessageObject::EnsureSourcePositionsAvailable(i_isolate, message);
   printf("msg start: %d, end: %d, line: %d, col: %d\n",
          message->GetStartPosition(), message->GetEndPosition(),
@@ -126,9 +127,8 @@ WASM_COMPILED_EXEC_TEST(CollectDetailedWasmStack_ExplicitThrowFromJs) {
   HandleScope scope(CcTest::InitIsolateOnce());
   const char* source =
       "(function js() {\n function a() {\n throw new Error(); };\n a(); })";
-  Handle<JSFunction> js_function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-          *v8::Local<v8::Function>::Cast(CompileRun(source))));
+  Handle<JSFunction> js_function = Cast<JSFunction>(v8::Utils::OpenHandle(
+      *v8::Local<v8::Function>::Cast(CompileRun(source))));
   ManuallyImportedJSFunction import = {sigs.v_v(), js_function};
   uint32_t js_throwing_index = 0;
   WasmRunner<void> r(execution_tier, kWasmOrigin, &import);
@@ -143,8 +143,8 @@ WASM_COMPILED_EXEC_TEST(CollectDetailedWasmStack_ExplicitThrowFromJs) {
 
   Handle<JSFunction> js_wasm_wrapper = r.builder().WrapCode(wasm_index_2);
 
-  Handle<JSFunction> js_trampoline = Handle<JSFunction>::cast(
-      v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+  Handle<JSFunction> js_trampoline =
+      Cast<JSFunction>(v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
           CompileRun("(function callFn(fn) { fn(); })"))));
 
   Isolate* isolate = js_wasm_wrapper->GetIsolate();
@@ -183,8 +183,8 @@ WASM_COMPILED_EXEC_TEST(CollectDetailedWasmStack_WasmUrl) {
 
   Handle<JSFunction> js_wasm_wrapper = r.builder().WrapCode(wasm_index);
 
-  Handle<JSFunction> js_trampoline = Handle<JSFunction>::cast(
-      v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+  Handle<JSFunction> js_trampoline =
+      Cast<JSFunction>(v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
           CompileRun("(function callFn(fn) { fn(); })"))));
 
   Isolate* isolate = js_wasm_wrapper->GetIsolate();
@@ -193,7 +193,7 @@ WASM_COMPILED_EXEC_TEST(CollectDetailedWasmStack_WasmUrl) {
 
   // Set the wasm script source url.
   const char* url = "http://example.com/example.wasm";
-  const Handle<String> source_url =
+  const DirectHandle<String> source_url =
       isolate->factory()->InternalizeUtf8String(url);
   r.builder().instance_object()->module_object()->script()->set_source_url(
       *source_url);
@@ -210,16 +210,17 @@ WASM_COMPILED_EXEC_TEST(CollectDetailedWasmStack_WasmUrl) {
   Handle<Object> exception = maybe_exc.ToHandleChecked();
 
   // Extract stack trace from the exception.
-  Handle<FixedArray> stack_trace_object =
-      isolate->GetSimpleStackTrace(Handle<JSReceiver>::cast(exception));
+  DirectHandle<FixedArray> stack_trace_object =
+      isolate->GetSimpleStackTrace(Cast<JSReceiver>(exception));
   CHECK_NE(0, stack_trace_object->length());
-  Handle<CallSiteInfo> stack_frame(
-      CallSiteInfo::cast(stack_trace_object->get(0)), isolate);
+  DirectHandle<CallSiteInfo> stack_frame(
+      Cast<CallSiteInfo>(stack_trace_object->get(0)), isolate);
 
   MaybeHandle<String> maybe_stack_trace_str =
       SerializeCallSiteInfo(isolate, stack_frame);
   CHECK(!maybe_stack_trace_str.is_null());
-  Handle<String> stack_trace_str = maybe_stack_trace_str.ToHandleChecked();
+  DirectHandle<String> stack_trace_str =
+      maybe_stack_trace_str.ToHandleChecked();
 
   // Check if the source_url is part of the stack trace.
   CHECK_NE(std::string(stack_trace_str->ToCString().get()).find(url),
@@ -247,8 +248,8 @@ WASM_COMPILED_EXEC_TEST(CollectDetailedWasmStack_WasmError) {
 
     Handle<JSFunction> js_wasm_wrapper = r.builder().WrapCode(wasm_index_2);
 
-    Handle<JSFunction> js_trampoline = Handle<JSFunction>::cast(
-        v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+    Handle<JSFunction> js_trampoline =
+        Cast<JSFunction>(v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
             CompileRun("(function callFn(fn) { fn(); })"))));
 
     Isolate* isolate = js_wasm_wrapper->GetIsolate();

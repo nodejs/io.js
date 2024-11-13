@@ -199,6 +199,13 @@ void CountersVisitor::VisitHistograms() {
   HISTOGRAM_RANGE_LIST(HR)
 #undef HR
 
+#if V8_ENABLE_DRUMBRAKE
+#define HR(name, caption, min, max, num_buckets) \
+  Visit(&counters()->name##_, #caption, min, max, num_buckets);
+  HISTOGRAM_RANGE_LIST_SLOW(HR)
+#undef HR
+#endif  // V8_ENABLE_DRUMBRAKE
+
 #define HR(name, caption) Visit(&counters()->name##_, #caption);
   HISTOGRAM_PERCENTAGE_LIST(HR)
 #undef HR

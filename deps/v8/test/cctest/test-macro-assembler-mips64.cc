@@ -741,7 +741,7 @@ TEST(cvt_d_l_Trunc_l_ud) {
   CcTest::InitializeVM();
   FOR_INT64_INPUTS(i, cvt_trunc_int64_test_values) {
     int64_t input = *i;
-    uint64_t abs_input = (input < 0) ? -input : input;
+    uint64_t abs_input = (input >= 0 || input == INT64_MIN) ? input : -input;
     auto fn = [](MacroAssembler* masm) {
       __ dmtc1(a0, f4);
       __ cvt_d_l(f0, f4);

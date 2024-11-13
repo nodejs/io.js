@@ -22,6 +22,8 @@ using v8::Integer;
 using v8::Isolate;
 using v8::KeyCollectionMode;
 using v8::Local;
+using v8::LocalVector;
+using v8::Name;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::ONLY_CONFIGURABLE;
@@ -161,15 +163,6 @@ static void GetCallerLocation(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(Array::New(args.GetIsolate(), ret, arraysize(ret)));
 }
 
-static void IsArrayBufferDetached(const FunctionCallbackInfo<Value>& args) {
-  if (args[0]->IsArrayBuffer()) {
-    auto buffer = args[0].As<v8::ArrayBuffer>();
-    args.GetReturnValue().Set(buffer->WasDetached());
-    return;
-  }
-  args.GetReturnValue().Set(false);
-}
-
 static void PreviewEntries(const FunctionCallbackInfo<Value>& args) {
   if (!args[0]->IsObject())
     return;
@@ -254,12 +247,105 @@ static void ParseEnv(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(dotenv.ToObject(env));
 }
 
+static void GetCallSites(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+
+  CHECK_EQ(args.Length(), 1);
+  CHECK(args[0]->IsNumber());
+  const uint32_t frames = args[0].As<Uint32>()->Value();
+  DCHECK(frames >= 1 && frames <= 200);
+
+  // +1 for disregarding node:util
+  Local<StackTrace> stack = StackTrace::CurrentStackTrace(isolate, frames + 1);
+  const int frame_count = stack->GetFrameCount();
+  LocalVector<Value> callsite_objects(isolate);
+
+  // Frame 0 is node:util. It should be skipped.
+  for (int i = 1; i < frame_count; ++i) {
+    Local<StackFrame> stack_frame = stack->GetFrame(isolate, i);
+
+    Local<Value> function_name = stack_frame->GetFunctionName();
+    if (function_name.IsEmpty()) {
+      function_name = v8::String::Empty(isolate);
+    }
+
+    Local<Value> script_name = stack_frame->GetScriptName();
+    if (script_name.IsEmpty()) {
+      script_name = v8::String::Empty(isolate);
+    }
+
+    Local<Name> names[] = {
+        env->function_name_string(),
+        env->script_name_string(),
+        env->line_number_string(),
+        env->column_string(),
+    };
+    Local<Value> values[] = {
+        function_name,
+        script_name,
+        Integer::NewFromUnsigned(isolate, stack_frame->GetLineNumber()),
+        Integer::NewFromUnsigned(isolate, stack_frame->GetColumn()),
+    };
+    Local<Object> obj = Object::New(
+        isolate, v8::Null(isolate), names, values, arraysize(names));
+
+    callsite_objects.push_back(obj);
+  }
+
+  Local<Array> callsites =
+      Array::New(isolate, callsite_objects.data(), callsite_objects.size());
+  args.GetReturnValue().Set(callsites);
+}
+
+static void IsInsideNodeModules(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  CHECK_EQ(args.Length(), 2);
+  CHECK(args[0]->IsInt32());  // frame_limit
+  // The second argument is the default value.
+
+  int frames_limit = args[0].As<v8::Int32>()->Value();
+  Local<StackTrace> stack =
+      StackTrace::CurrentStackTrace(isolate, frames_limit);
+  int frame_count = stack->GetFrameCount();
+
+  // If the search requires looking into more than |frames_limit| frames, give
+  // up and return the specified default value.
+  if (frame_count == frames_limit) {
+    return args.GetReturnValue().Set(args[1]);
+  }
+
+  bool result = false;
+  for (int i = 0; i < frame_count; ++i) {
+    Local<StackFrame> stack_frame = stack->GetFrame(isolate, i);
+    Local<String> script_name = stack_frame->GetScriptName();
+
+    if (script_name.IsEmpty() || script_name->Length() == 0) {
+      continue;
+    }
+    Utf8Value script_name_utf8(isolate, script_name);
+    std::string_view script_name_str = script_name_utf8.ToStringView();
+    if (script_name_str.starts_with("node:")) {
+      continue;
+    }
+    if (script_name_str.find("/node_modules/") != std::string::npos ||
+        script_name_str.find("\\node_modules\\") != std::string::npos ||
+        script_name_str.find("/node_modules\\") != std::string::npos ||
+        script_name_str.find("\\node_modules/") != std::string::npos) {
+      result = true;
+      break;
+    }
+  }
+
+  args.GetReturnValue().Set(result);
+}
+
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GetPromiseDetails);
   registry->Register(GetProxyDetails);
   registry->Register(GetCallerLocation);
-  registry->Register(IsArrayBufferDetached);
   registry->Register(PreviewEntries);
+  registry->Register(GetCallSites);
   registry->Register(GetOwnNonIndexProperties);
   registry->Register(GetConstructorName);
   registry->Register(GetExternalValue);
@@ -269,6 +355,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(FastGuessHandleType);
   registry->Register(fast_guess_handle_type_.GetTypeInfo());
   registry->Register(ParseEnv);
+  registry->Register(IsInsideNodeModules);
 }
 
 void Initialize(Local<Object> target,
@@ -352,19 +439,19 @@ void Initialize(Local<Object> target,
     target->Set(context, env->constants_string(), constants).Check();
   }
 
+  SetMethod(context, target, "isInsideNodeModules", IsInsideNodeModules);
   SetMethodNoSideEffect(
       context, target, "getPromiseDetails", GetPromiseDetails);
   SetMethodNoSideEffect(context, target, "getProxyDetails", GetProxyDetails);
   SetMethodNoSideEffect(
       context, target, "getCallerLocation", GetCallerLocation);
-  SetMethodNoSideEffect(
-      context, target, "isArrayBufferDetached", IsArrayBufferDetached);
   SetMethodNoSideEffect(context, target, "previewEntries", PreviewEntries);
   SetMethodNoSideEffect(
       context, target, "getOwnNonIndexProperties", GetOwnNonIndexProperties);
   SetMethodNoSideEffect(
       context, target, "getConstructorName", GetConstructorName);
   SetMethodNoSideEffect(context, target, "getExternalValue", GetExternalValue);
+  SetMethodNoSideEffect(context, target, "getCallSites", GetCallSites);
   SetMethod(context, target, "sleep", Sleep);
   SetMethod(context, target, "parseEnv", ParseEnv);
 

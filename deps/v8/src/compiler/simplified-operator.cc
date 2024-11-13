@@ -589,7 +589,9 @@ BigIntOperationHint BigIntOperationHintOf(const Operator* op) {
          op->opcode() == IrOpcode::kSpeculativeBigIntEqual ||
          op->opcode() == IrOpcode::kSpeculativeBigIntLessThan ||
          op->opcode() == IrOpcode::kSpeculativeBigIntLessThanOrEqual);
-  return OpParameter<BigIntOperationHint>(op);
+  BigIntOperationHint hint = OpParameter<BigIntOperationHint>(op);
+  DCHECK_IMPLIES(hint == BigIntOperationHint::kBigInt64, Is64());
+  return hint;
 }
 
 bool operator==(NumberOperationParameters const& lhs,
@@ -2286,37 +2288,40 @@ const Operator* SimplifiedOperatorBuilder::FastApiCall(
 
   // All function overloads have the same number of arguments and options.
   const CFunctionInfo* signature = c_functions[0].signature;
-  const int argument_count = signature->ArgumentCount();
+  const int c_arg_count = signature->ArgumentCount();
   for (size_t i = 1; i < c_functions.size(); i++) {
     CHECK_NOT_NULL(c_functions[i].signature);
-    DCHECK_EQ(c_functions[i].signature->ArgumentCount(), argument_count);
+    DCHECK_EQ(c_functions[i].signature->ArgumentCount(), c_arg_count);
     DCHECK_EQ(c_functions[i].signature->HasOptions(),
               c_functions[0].signature->HasOptions());
   }
+  // Arguments for CallApiCallbackOptimizedXXX builtin (including context)
+  // plus JS arguments (including receiver).
+  int slow_arg_count = static_cast<int>(descriptor->ParameterCount());
 
   int value_input_count =
-      argument_count +
-      static_cast<int>(descriptor->ParameterCount()) +  // slow call
-      FastApiCallNode::kEffectAndControlInputCount;
+      FastApiCallNode::ArityForArgc(c_arg_count, slow_arg_count);
   return zone()->New<Operator1<FastApiCallParameters>>(
-      IrOpcode::kFastApiCall, Operator::kNoThrow, "FastApiCall",
-      value_input_count, 1, 1, 1, 1, 0,
+      IrOpcode::kFastApiCall, Operator::kNoProperties, "FastApiCall",
+      value_input_count, 1, 1, 1, 1, 2,
       FastApiCallParameters(c_functions, feedback, descriptor));
 }
 
-int FastApiCallNode::FastCallArgumentCount() const {
-  FastApiCallParameters p = FastApiCallParametersOf(node()->op());
+// static
+int FastApiCallNode::FastCallArgumentCount(Node* node) {
+  FastApiCallParameters p = FastApiCallParametersOf(node->op());
   const CFunctionInfo* signature = p.c_functions()[0].signature;
   CHECK_NOT_NULL(signature);
   return signature->ArgumentCount();
 }
 
-int FastApiCallNode::SlowCallArgumentCount() const {
-  FastApiCallParameters p = FastApiCallParametersOf(node()->op());
+// static
+int FastApiCallNode::SlowCallArgumentCount(Node* node) {
+  FastApiCallParameters p = FastApiCallParametersOf(node->op());
   CallDescriptor* descriptor = p.descriptor();
   CHECK_NOT_NULL(descriptor);
-  return static_cast<int>(descriptor->ParameterCount()) +
-         kContextAndFrameStateInputCount;
+  return kSlowCodeTarget + static_cast<int>(descriptor->ParameterCount()) +
+         kFrameState;
 }
 
 #undef PURE_OP_LIST

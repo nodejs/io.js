@@ -13,7 +13,7 @@ function addLibraryPath(env) {
     return;
   }
 
-  env = env || process.env;
+  env ||= process.env;
 
   env.LD_LIBRARY_PATH =
     (env.LD_LIBRARY_PATH ? env.LD_LIBRARY_PATH + path.delimiter : '') +

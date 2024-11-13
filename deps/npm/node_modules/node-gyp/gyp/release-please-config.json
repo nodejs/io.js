@@ -1,0 +1,11 @@
+{
+    "last-release-sha": "78756421b0d7bb335992a9c7d26ba3cc8b619708",
+    "packages": {
+        ".": {
+          "release-type": "python",
+          "package-name": "gyp-next",
+          "bump-minor-pre-major": true,
+          "include-component-in-tag": false
+        }
+    }
+}

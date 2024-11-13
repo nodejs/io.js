@@ -40,6 +40,13 @@
   'f32*': [PASS, HEAVY],
   'f64*': [PASS, HEAVY],
 
+  # TODO(https://issues.chromium.org/342316792) Failing test after spec test update
+  'proposals/tail-call/memory': [FAIL],
+  'proposals/js-types/memory': [FAIL],
+  'proposals/exception-handling/memory': [FAIL],
+  'proposals/extended-const/memory': [FAIL],
+  'proposals/js-promise-integration/memory': [FAIL],
+
   # The function-references spec tests haven't been updated to the final
   # binary encoding. We don't care, because the GC tests are up to date and
   # we'll ship both proposals together.
@@ -64,6 +71,7 @@
   'proposals/multi-memory/elem': [FAIL],
   'proposals/tail-call/elem': [FAIL],
   'proposals/exception-handling/elem': [FAIL],
+  'proposals/js-promise-integration/elem': [FAIL],
 
   'global': [FAIL],
   'proposals/extended-const/global': [FAIL],
@@ -85,6 +93,10 @@
   'proposals/tail-call/binary': [FAIL],
   'proposals/exception-handling/binary': [FAIL],
   'proposals/exception-handling/imports': [FAIL],
+
+  # The test is incorrect as it exports a function with an exnref in the
+  # signature, which is a runtime type error.
+  'proposals/exception-handling/ref_null': [FAIL]
 }],  # ALWAYS
 
 ['arch == arm and not simulator_run', {

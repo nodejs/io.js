@@ -68,7 +68,7 @@ SSL_use_certificate() loads B<x> into B<ssl>. The rest of the
 certificates needed to form the complete certificate chain can be
 specified using the
 L<SSL_CTX_add_extra_chain_cert(3)>
-function.
+function. On success the reference counter of the B<x> is incremented.
 
 SSL_CTX_use_certificate_ASN1() loads the ASN1 encoded certificate from
 the memory location B<d> (with length B<len>) into B<ctx>,
@@ -97,6 +97,7 @@ to the certificate an error is returned. To change a [certificate/private-key]
 pair, the new certificate needs to be set first with SSL_use_certificate() or
 SSL_CTX_use_certificate() before setting the private key with
 SSL_CTX_use_PrivateKey() or SSL_use_PrivateKey().
+On success the reference counter of the B<pkey>/B<rsa> is incremented.
 
 SSL_CTX_use_cert_and_key() and SSL_use_cert_and_key() assign the X.509
 certificate B<x>, private key B<key>, and certificate B<chain> onto the
@@ -195,7 +196,7 @@ L<SSL_CTX_add_extra_chain_cert(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

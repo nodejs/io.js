@@ -328,7 +328,7 @@ StringTrieBuilder::registerNode(Node *newNode, UErrorCode &errorCode) {
     const UHashElement *old=uhash_find(nodes, newNode);
     if(old!=nullptr) {
         delete newNode;
-        return (Node *)old->key.pointer;
+        return static_cast<Node*>(old->key.pointer);
     }
     // If uhash_puti() returns a non-zero value from an equivalent, previously
     // registered node, then uhash_find() failed to find that and we will leak newNode.
@@ -352,7 +352,7 @@ StringTrieBuilder::registerFinalValue(int32_t value, UErrorCode &errorCode) {
     FinalValueNode key(value);
     const UHashElement *old=uhash_find(nodes, &key);
     if(old!=nullptr) {
-        return (Node *)old->key.pointer;
+        return static_cast<Node*>(old->key.pointer);
     }
     Node *newNode=new FinalValueNode(value);
     if(newNode==nullptr) {
@@ -375,12 +375,12 @@ StringTrieBuilder::registerFinalValue(int32_t value, UErrorCode &errorCode) {
 
 int32_t
 StringTrieBuilder::hashNode(const void *node) {
-    return ((const Node *)node)->hashCode();
+    return static_cast<const Node*>(node)->hashCode();
 }
 
 UBool
 StringTrieBuilder::equalNodes(const void *left, const void *right) {
-    return *(const Node *)left==*(const Node *)right;
+    return *static_cast<const Node*>(left) == *static_cast<const Node*>(right);
 }
 
 bool

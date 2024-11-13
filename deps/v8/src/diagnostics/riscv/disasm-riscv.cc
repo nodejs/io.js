@@ -993,6 +993,12 @@ void Decoder::DecodeRType(Instruction* instr) {
     case RO_SH3ADDUW:
       Format(instr, "sh3add.uw 'rd, 'rs1, 'rs2");
       break;
+    case RO_ROLW:
+      Format(instr, "rolw     'rd, 'rs1, 'rs2");
+      break;
+    case RO_RORW:
+      Format(instr, "rorw     'rd, 'rs1, 'rs2");
+      break;
 #endif /*V8_TARGET_ARCH_64_BIT*/
     case RO_SH1ADD:
       Format(instr, "sh1add    'rd, 'rs1, 'rs2");
@@ -1018,6 +1024,12 @@ void Decoder::DecodeRType(Instruction* instr) {
     case RO_ZEXTH:
       Format(instr, "zext.h    'rd, 'rs1");
       break;
+    case RO_ROL:
+      Format(instr, "rol       'rd, 'rs1, 'rs2");
+      break;
+    case RO_ROR:
+      Format(instr, "ror       'rd, 'rs1, 'rs2");
+      break;
     case RO_BCLR:
       Format(instr, "bclr      'rd, 'rs1, 'rs2");
       break;
@@ -1029,6 +1041,12 @@ void Decoder::DecodeRType(Instruction* instr) {
       break;
     case RO_BSET:
       Format(instr, "bset      'rd, 'rs1, 'rs2");
+      break;
+    case RO_CZERO_EQZ:
+      Format(instr, "czero.eqz 'rd, 'rs1, 'rs2");
+      break;
+    case RO_CZERO_NEZ:
+      Format(instr, "czero.nez 'rd, 'rs1, 'rs2");
       break;
     // TODO(riscv): End Add RISCV M extension macro
     default: {
@@ -1590,6 +1608,17 @@ void Decoder::DecodeIType(Instruction* instr) {
         case RO_BEXTI:
           Format(instr, "bexti     'rd, 'rs1, 's64");
           break;
+        case RO_ORCB&(kFunct6Mask | OP_SHR):
+          Format(instr, "orc.b     'rd, 'rs1");
+          break;
+        case RO_RORI:
+#ifdef V8_TARGET_ARCH_64_BIT
+          Format(instr, "rori      'rd, 'rs1, 's64");
+          break;
+#elif defined(V8_TARGET_ARCH_RISCV32)
+          Format(instr, "rori      'rd, 'rs1, 's32");
+          break;
+#endif
         case RO_REV8: {
           if (instr->Imm12Value() == RO_REV8_IMM12) {
             Format(instr, "rev8      'rd, 'rs1");
@@ -1644,6 +1673,9 @@ void Decoder::DecodeIType(Instruction* instr) {
           break;
         case RO_SRAIW:
           Format(instr, "sraiw     'rd, 'rs1, 's32");
+          break;
+        case RO_RORIW:
+          Format(instr, "roriw     'rd, 'rs1, 's32");
           break;
         default:
           UNSUPPORTED_RISCV();

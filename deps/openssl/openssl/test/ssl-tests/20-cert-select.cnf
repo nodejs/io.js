@@ -19,12 +19,12 @@ test-13 = 13-Suite B P-256 Hash Algorithm Selection
 test-14 = 14-Suite B P-384 Hash Algorithm Selection
 test-15 = 15-Ed25519 CipherString and Signature Algorithm Selection
 test-16 = 16-Ed448 CipherString and Signature Algorithm Selection
-test-17 = 17-Ed25519 CipherString and Curves Selection
-test-18 = 18-Ed448 CipherString and Curves Selection
-test-19 = 19-TLS 1.2 Ed25519 Client Auth
-test-20 = 20-TLS 1.2 Ed448 Client Auth
-test-21 = 21-ECDSA Signature Algorithm Selection SHA1
-test-22 = 22-ECDSA with brainpool
+test-17 = 17-TLS 1.2 Ed25519 Client Auth
+test-18 = 18-TLS 1.2 Ed448 Client Auth
+test-19 = 19-ECDSA Signature Algorithm Selection SHA1
+test-20 = 20-ECDSA with brainpool
+test-21 = 21-Ed25519 CipherString and Curves Selection
+test-22 = 22-Ed448 CipherString and Curves Selection
 test-23 = 23-RSA-PSS Certificate CipherString Selection
 test-24 = 24-RSA-PSS Certificate Legacy Signature Algorithm Selection
 test-25 = 25-RSA-PSS Certificate Unified Signature Algorithm Selection
@@ -602,91 +602,21 @@ ExpectedServerSignType = Ed448
 
 # ===========================================================
 
-[17-Ed25519 CipherString and Curves Selection]
-ssl_conf = 17-Ed25519 CipherString and Curves Selection-ssl
+[17-TLS 1.2 Ed25519 Client Auth]
+ssl_conf = 17-TLS 1.2 Ed25519 Client Auth-ssl
 
-[17-Ed25519 CipherString and Curves Selection-ssl]
-server = 17-Ed25519 CipherString and Curves Selection-server
-client = 17-Ed25519 CipherString and Curves Selection-client
+[17-TLS 1.2 Ed25519 Client Auth-ssl]
+server = 17-TLS 1.2 Ed25519 Client Auth-server
+client = 17-TLS 1.2 Ed25519 Client Auth-client
 
-[17-Ed25519 CipherString and Curves Selection-server]
-Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
-CipherString = DEFAULT
-ECDSA.Certificate = ${ENV::TEST_CERTS_DIR}/server-ecdsa-cert.pem
-ECDSA.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ecdsa-key.pem
-Ed25519.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed25519-cert.pem
-Ed25519.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed25519-key.pem
-Ed448.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed448-cert.pem
-Ed448.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed448-key.pem
-MaxProtocol = TLSv1.2
-PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
-
-[17-Ed25519 CipherString and Curves Selection-client]
-CipherString = aECDSA
-Curves = X25519
-MaxProtocol = TLSv1.2
-SignatureAlgorithms = ECDSA+SHA256:ed25519
-VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
-VerifyMode = Peer
-
-[test-17]
-ExpectedResult = Success
-ExpectedServerCertType = Ed25519
-ExpectedServerSignType = Ed25519
-
-
-# ===========================================================
-
-[18-Ed448 CipherString and Curves Selection]
-ssl_conf = 18-Ed448 CipherString and Curves Selection-ssl
-
-[18-Ed448 CipherString and Curves Selection-ssl]
-server = 18-Ed448 CipherString and Curves Selection-server
-client = 18-Ed448 CipherString and Curves Selection-client
-
-[18-Ed448 CipherString and Curves Selection-server]
-Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
-CipherString = DEFAULT
-ECDSA.Certificate = ${ENV::TEST_CERTS_DIR}/server-ecdsa-cert.pem
-ECDSA.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ecdsa-key.pem
-Ed25519.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed25519-cert.pem
-Ed25519.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed25519-key.pem
-Ed448.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed448-cert.pem
-Ed448.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed448-key.pem
-MaxProtocol = TLSv1.2
-PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
-
-[18-Ed448 CipherString and Curves Selection-client]
-CipherString = aECDSA
-Curves = X448
-MaxProtocol = TLSv1.2
-SignatureAlgorithms = ECDSA+SHA256:ed448
-VerifyCAFile = ${ENV::TEST_CERTS_DIR}/root-ed448-cert.pem
-VerifyMode = Peer
-
-[test-18]
-ExpectedResult = Success
-ExpectedServerCertType = Ed448
-ExpectedServerSignType = Ed448
-
-
-# ===========================================================
-
-[19-TLS 1.2 Ed25519 Client Auth]
-ssl_conf = 19-TLS 1.2 Ed25519 Client Auth-ssl
-
-[19-TLS 1.2 Ed25519 Client Auth-ssl]
-server = 19-TLS 1.2 Ed25519 Client Auth-server
-client = 19-TLS 1.2 Ed25519 Client Auth-client
-
-[19-TLS 1.2 Ed25519 Client Auth-server]
+[17-TLS 1.2 Ed25519 Client Auth-server]
 Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
 CipherString = DEFAULT
 PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
 VerifyCAFile = ${ENV::TEST_CERTS_DIR}/root-cert.pem
 VerifyMode = Require
 
-[19-TLS 1.2 Ed25519 Client Auth-client]
+[17-TLS 1.2 Ed25519 Client Auth-client]
 CipherString = DEFAULT
 Ed25519.Certificate = ${ENV::TEST_CERTS_DIR}/client-ed25519-cert.pem
 Ed25519.PrivateKey = ${ENV::TEST_CERTS_DIR}/client-ed25519-key.pem
@@ -695,7 +625,7 @@ MinProtocol = TLSv1.2
 VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
 VerifyMode = Peer
 
-[test-19]
+[test-17]
 ExpectedClientCertType = Ed25519
 ExpectedClientSignType = Ed25519
 ExpectedResult = Success
@@ -703,21 +633,21 @@ ExpectedResult = Success
 
 # ===========================================================
 
-[20-TLS 1.2 Ed448 Client Auth]
-ssl_conf = 20-TLS 1.2 Ed448 Client Auth-ssl
+[18-TLS 1.2 Ed448 Client Auth]
+ssl_conf = 18-TLS 1.2 Ed448 Client Auth-ssl
 
-[20-TLS 1.2 Ed448 Client Auth-ssl]
-server = 20-TLS 1.2 Ed448 Client Auth-server
-client = 20-TLS 1.2 Ed448 Client Auth-client
+[18-TLS 1.2 Ed448 Client Auth-ssl]
+server = 18-TLS 1.2 Ed448 Client Auth-server
+client = 18-TLS 1.2 Ed448 Client Auth-client
 
-[20-TLS 1.2 Ed448 Client Auth-server]
+[18-TLS 1.2 Ed448 Client Auth-server]
 Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
 CipherString = DEFAULT
 PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
 VerifyCAFile = ${ENV::TEST_CERTS_DIR}/root-cert.pem
 VerifyMode = Require
 
-[20-TLS 1.2 Ed448 Client Auth-client]
+[18-TLS 1.2 Ed448 Client Auth-client]
 CipherString = DEFAULT
 Ed448.Certificate = ${ENV::TEST_CERTS_DIR}/client-ed448-cert.pem
 Ed448.PrivateKey = ${ENV::TEST_CERTS_DIR}/client-ed448-key.pem
@@ -726,7 +656,7 @@ MinProtocol = TLSv1.2
 VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
 VerifyMode = Peer
 
-[test-20]
+[test-18]
 ExpectedClientCertType = Ed448
 ExpectedClientSignType = Ed448
 ExpectedResult = Success
@@ -734,14 +664,14 @@ ExpectedResult = Success
 
 # ===========================================================
 
-[21-ECDSA Signature Algorithm Selection SHA1]
-ssl_conf = 21-ECDSA Signature Algorithm Selection SHA1-ssl
+[19-ECDSA Signature Algorithm Selection SHA1]
+ssl_conf = 19-ECDSA Signature Algorithm Selection SHA1-ssl
 
-[21-ECDSA Signature Algorithm Selection SHA1-ssl]
-server = 21-ECDSA Signature Algorithm Selection SHA1-server
-client = 21-ECDSA Signature Algorithm Selection SHA1-client
+[19-ECDSA Signature Algorithm Selection SHA1-ssl]
+server = 19-ECDSA Signature Algorithm Selection SHA1-server
+client = 19-ECDSA Signature Algorithm Selection SHA1-client
 
-[21-ECDSA Signature Algorithm Selection SHA1-server]
+[19-ECDSA Signature Algorithm Selection SHA1-server]
 Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
 CipherString = DEFAULT:@SECLEVEL=0
 ECDSA.Certificate = ${ENV::TEST_CERTS_DIR}/server-ecdsa-cert.pem
@@ -753,13 +683,13 @@ Ed448.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed448-key.pem
 MaxProtocol = TLSv1.2
 PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
 
-[21-ECDSA Signature Algorithm Selection SHA1-client]
+[19-ECDSA Signature Algorithm Selection SHA1-client]
 CipherString = DEFAULT:@SECLEVEL=0
 SignatureAlgorithms = ECDSA+SHA1
 VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
 VerifyMode = Peer
 
-[test-21]
+[test-19]
 ExpectedResult = Success
 ExpectedServerCertType = P-256
 ExpectedServerSignHash = SHA1
@@ -768,20 +698,20 @@ ExpectedServerSignType = EC
 
 # ===========================================================
 
-[22-ECDSA with brainpool]
-ssl_conf = 22-ECDSA with brainpool-ssl
+[20-ECDSA with brainpool]
+ssl_conf = 20-ECDSA with brainpool-ssl
 
-[22-ECDSA with brainpool-ssl]
-server = 22-ECDSA with brainpool-server
-client = 22-ECDSA with brainpool-client
+[20-ECDSA with brainpool-ssl]
+server = 20-ECDSA with brainpool-server
+client = 20-ECDSA with brainpool-client
 
-[22-ECDSA with brainpool-server]
+[20-ECDSA with brainpool-server]
 Certificate = ${ENV::TEST_CERTS_DIR}/server-ecdsa-brainpoolP256r1-cert.pem
 CipherString = DEFAULT
 Groups = brainpoolP256r1
 PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ecdsa-brainpoolP256r1-key.pem
 
-[22-ECDSA with brainpool-client]
+[20-ECDSA with brainpool-client]
 CipherString = aECDSA
 Groups = brainpoolP256r1
 MaxProtocol = TLSv1.2
@@ -789,11 +719,81 @@ RequestCAFile = ${ENV::TEST_CERTS_DIR}/root-cert.pem
 VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
 VerifyMode = Peer
 
-[test-22]
+[test-20]
 ExpectedResult = Success
 ExpectedServerCANames = empty
 ExpectedServerCertType = brainpoolP256r1
 ExpectedServerSignType = EC
+
+
+# ===========================================================
+
+[21-Ed25519 CipherString and Curves Selection]
+ssl_conf = 21-Ed25519 CipherString and Curves Selection-ssl
+
+[21-Ed25519 CipherString and Curves Selection-ssl]
+server = 21-Ed25519 CipherString and Curves Selection-server
+client = 21-Ed25519 CipherString and Curves Selection-client
+
+[21-Ed25519 CipherString and Curves Selection-server]
+Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
+CipherString = DEFAULT
+ECDSA.Certificate = ${ENV::TEST_CERTS_DIR}/server-ecdsa-cert.pem
+ECDSA.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ecdsa-key.pem
+Ed25519.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed25519-cert.pem
+Ed25519.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed25519-key.pem
+Ed448.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed448-cert.pem
+Ed448.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed448-key.pem
+MaxProtocol = TLSv1.2
+PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
+
+[21-Ed25519 CipherString and Curves Selection-client]
+CipherString = aECDSA
+Curves = X25519
+MaxProtocol = TLSv1.2
+SignatureAlgorithms = ECDSA+SHA256:ed25519
+VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
+VerifyMode = Peer
+
+[test-21]
+ExpectedResult = Success
+ExpectedServerCertType = Ed25519
+ExpectedServerSignType = Ed25519
+
+
+# ===========================================================
+
+[22-Ed448 CipherString and Curves Selection]
+ssl_conf = 22-Ed448 CipherString and Curves Selection-ssl
+
+[22-Ed448 CipherString and Curves Selection-ssl]
+server = 22-Ed448 CipherString and Curves Selection-server
+client = 22-Ed448 CipherString and Curves Selection-client
+
+[22-Ed448 CipherString and Curves Selection-server]
+Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
+CipherString = DEFAULT
+ECDSA.Certificate = ${ENV::TEST_CERTS_DIR}/server-ecdsa-cert.pem
+ECDSA.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ecdsa-key.pem
+Ed25519.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed25519-cert.pem
+Ed25519.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed25519-key.pem
+Ed448.Certificate = ${ENV::TEST_CERTS_DIR}/server-ed448-cert.pem
+Ed448.PrivateKey = ${ENV::TEST_CERTS_DIR}/server-ed448-key.pem
+MaxProtocol = TLSv1.2
+PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
+
+[22-Ed448 CipherString and Curves Selection-client]
+CipherString = aECDSA
+Curves = X448
+MaxProtocol = TLSv1.2
+SignatureAlgorithms = ECDSA+SHA256:ed448
+VerifyCAFile = ${ENV::TEST_CERTS_DIR}/root-ed448-cert.pem
+VerifyMode = Peer
+
+[test-22]
+ExpectedResult = Success
+ExpectedServerCertType = Ed448
+ExpectedServerSignType = Ed448
 
 
 # ===========================================================

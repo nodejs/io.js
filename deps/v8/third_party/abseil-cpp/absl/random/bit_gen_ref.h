@@ -111,20 +111,21 @@ class BitGenRef {
   BitGenRef& operator=(const BitGenRef&) = default;
   BitGenRef& operator=(BitGenRef&&) = default;
 
-  template <typename URBG, typename absl::enable_if_t<
-                               (!std::is_same<URBG, BitGenRef>::value &&
-                                random_internal::is_urbg<URBG>::value &&
-                                !HasInvokeMock<URBG>::value)>* = nullptr>
-  BitGenRef(URBG& gen ABSL_ATTRIBUTE_LIFETIME_BOUND)  // NOLINT
+  template <
+      typename URBGRef, typename URBG = absl::remove_cvref_t<URBGRef>,
+      typename absl::enable_if_t<(!std::is_same<URBG, BitGenRef>::value &&
+                                  random_internal::is_urbg<URBG>::value &&
+                                  !HasInvokeMock<URBG>::value)>* = nullptr>
+  BitGenRef(URBGRef&& gen ABSL_ATTRIBUTE_LIFETIME_BOUND)  // NOLINT
       : t_erased_gen_ptr_(reinterpret_cast<uintptr_t>(&gen)),
         mock_call_(NotAMock),
         generate_impl_fn_(ImplFn<URBG>) {}
 
-  template <typename URBG,
+  template <typename URBGRef, typename URBG = absl::remove_cvref_t<URBGRef>,
             typename absl::enable_if_t<(!std::is_same<URBG, BitGenRef>::value &&
                                         random_internal::is_urbg<URBG>::value &&
                                         HasInvokeMock<URBG>::value)>* = nullptr>
-  BitGenRef(URBG& gen ABSL_ATTRIBUTE_LIFETIME_BOUND)  // NOLINT
+  BitGenRef(URBGRef&& gen ABSL_ATTRIBUTE_LIFETIME_BOUND)  // NOLINT
       : t_erased_gen_ptr_(reinterpret_cast<uintptr_t>(&gen)),
         mock_call_(&MockCall<URBG>),
         generate_impl_fn_(ImplFn<URBG>) {}

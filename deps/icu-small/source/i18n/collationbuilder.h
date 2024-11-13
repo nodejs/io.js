@@ -185,9 +185,9 @@ private:
             // CE byte offsets, to ensure valid CE bytes, and case bits 11
             INT64_C(0x4040000006002000) +
             // index bits 19..13 -> primary byte 1 = CE bits 63..56 (byte values 40..BF)
-            ((int64_t)(index & 0xfe000) << 43) +
+            (static_cast<int64_t>(index & 0xfe000) << 43) +
             // index bits 12..6 -> primary byte 2 = CE bits 55..48 (byte values 40..BF)
-            ((int64_t)(index & 0x1fc0) << 42) +
+            (static_cast<int64_t>(index & 0x1fc0) << 42) +
             // index bits 5..0 -> secondary byte 1 = CE bits 31..24 (byte values 06..45)
             ((index & 0x3f) << 24) +
             // strength bits 1..0 -> tertiary byte 1 = CE bits 13..8 (byte values 20..23)
@@ -196,24 +196,24 @@ private:
     static inline int32_t indexFromTempCE(int64_t tempCE) {
         tempCE -= INT64_C(0x4040000006002000);
         return
-            ((int32_t)(tempCE >> 43) & 0xfe000) |
-            ((int32_t)(tempCE >> 42) & 0x1fc0) |
-            ((int32_t)(tempCE >> 24) & 0x3f);
+            (static_cast<int32_t>(tempCE >> 43) & 0xfe000) |
+            (static_cast<int32_t>(tempCE >> 42) & 0x1fc0) |
+            (static_cast<int32_t>(tempCE >> 24) & 0x3f);
     }
     static inline int32_t strengthFromTempCE(int64_t tempCE) {
-        return ((int32_t)tempCE >> 8) & 3;
+        return (static_cast<int32_t>(tempCE) >> 8) & 3;
     }
     static inline UBool isTempCE(int64_t ce) {
-        uint32_t sec = (uint32_t)ce >> 24;
+        uint32_t sec = static_cast<uint32_t>(ce) >> 24;
         return 6 <= sec && sec <= 0x45;
     }
 
     static inline int32_t indexFromTempCE32(uint32_t tempCE32) {
         tempCE32 -= 0x40400620;
         return
-            ((int32_t)(tempCE32 >> 11) & 0xfe000) |
-            ((int32_t)(tempCE32 >> 10) & 0x1fc0) |
-            ((int32_t)(tempCE32 >> 8) & 0x3f);
+            (static_cast<int32_t>(tempCE32 >> 11) & 0xfe000) |
+            (static_cast<int32_t>(tempCE32 >> 10) & 0x1fc0) |
+            (static_cast<int32_t>(tempCE32 >> 8) & 0x3f);
     }
     static inline UBool isTempCE32(uint32_t ce32) {
         return
@@ -242,13 +242,13 @@ private:
     static const int32_t IS_TAILORED = 8;
 
     static inline int64_t nodeFromWeight32(uint32_t weight32) {
-        return (int64_t)weight32 << 32;
+        return static_cast<int64_t>(weight32) << 32;
     }
     static inline int64_t nodeFromWeight16(uint32_t weight16) {
-        return (int64_t)weight16 << 48;
+        return static_cast<int64_t>(weight16) << 48;
     }
     static inline int64_t nodeFromPreviousIndex(int32_t previous) {
-        return (int64_t)previous << 28;
+        return static_cast<int64_t>(previous) << 28;
     }
     static inline int64_t nodeFromNextIndex(int32_t next) {
         return next << 8;
@@ -258,19 +258,19 @@ private:
     }
 
     static inline uint32_t weight32FromNode(int64_t node) {
-        return (uint32_t)(node >> 32);
+        return static_cast<uint32_t>(node >> 32);
     }
     static inline uint32_t weight16FromNode(int64_t node) {
-        return (uint32_t)(node >> 48) & 0xffff;
+        return static_cast<uint32_t>(node >> 48) & 0xffff;
     }
     static inline int32_t previousIndexFromNode(int64_t node) {
-        return (int32_t)(node >> 28) & MAX_INDEX;
+        return static_cast<int32_t>(node >> 28) & MAX_INDEX;
     }
     static inline int32_t nextIndexFromNode(int64_t node) {
-        return ((int32_t)node >> 8) & MAX_INDEX;
+        return (static_cast<int32_t>(node) >> 8) & MAX_INDEX;
     }
     static inline int32_t strengthFromNode(int64_t node) {
-        return (int32_t)node & 3;
+        return static_cast<int32_t>(node) & 3;
     }
 
     static inline UBool nodeHasBefore2(int64_t node) {

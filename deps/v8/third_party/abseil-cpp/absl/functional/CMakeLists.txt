@@ -129,6 +129,10 @@ absl_cc_test(
   COPTS
     ${ABSL_TEST_COPTS}
   DEPS
+    absl::config
+    absl::overload
+    absl::string_view
     absl::strings
+    absl::variant
     GTest::gmock_main
 )

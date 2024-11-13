@@ -40,10 +40,6 @@ class JSPromise
   // [has_handler]: Whether this promise has a reject handler or not.
   DECL_BOOLEAN_ACCESSORS(has_handler)
 
-  // [handled_hint]: Whether this promise will be handled by a catch
-  // block in an async function.
-  DECL_BOOLEAN_ACCESSORS(handled_hint)
-
   // [is_silent]: Whether this promise should cause the debugger to pause when
   // rejected.
   DECL_BOOLEAN_ACCESSORS(is_silent)
@@ -56,8 +52,8 @@ class JSPromise
   void set_status(Promise::PromiseState status);
 
   // ES section #sec-fulfillpromise
-  V8_EXPORT_PRIVATE static Handle<Object> Fulfill(Handle<JSPromise> promise,
-                                                  Handle<Object> value);
+  V8_EXPORT_PRIVATE static Handle<Object> Fulfill(
+      DirectHandle<JSPromise> promise, DirectHandle<Object> value);
   // ES section #sec-rejectpromise
   static Handle<Object> Reject(Handle<JSPromise> promise, Handle<Object> reason,
                                bool debug_event = true);
@@ -82,8 +78,8 @@ class JSPromise
  private:
   // ES section #sec-triggerpromisereactions
   static Handle<Object> TriggerPromiseReactions(Isolate* isolate,
-                                                Handle<Object> reactions,
-                                                Handle<Object> argument,
+                                                DirectHandle<Object> reactions,
+                                                DirectHandle<Object> argument,
                                                 PromiseReaction::Type type);
 
   TQ_OBJECT_CONSTRUCTORS(JSPromise)

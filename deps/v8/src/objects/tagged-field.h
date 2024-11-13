@@ -7,6 +7,7 @@
 
 #include "src/base/atomicops.h"
 #include "src/base/macros.h"
+#include "src/base/template-meta-programming/functional.h"
 #include "src/common/globals.h"
 #include "src/common/ptr-compr.h"
 #include "src/objects/tagged-value.h"
@@ -112,13 +113,25 @@ static_assert(sizeof(UnalignedDoubleMember) == sizeof(double));
 // GCC and clang allow zero length arrays in base classes. Return the zero
 // length array by reference, to avoid array-to-pointer decay which can lose
 // aliasing information.
-#define FLEXIBLE_ARRAY_MEMBER(Type, name)                                \
-  using FlexibleDataReturnType = Type[0];                                \
-  FlexibleDataReturnType& name() { return flexible_array_member_data_; } \
-  const FlexibleDataReturnType& name() const {                           \
-    return flexible_array_member_data_;                                  \
-  }                                                                      \
-  Type flexible_array_member_data_[0];                                   \
+#define FLEXIBLE_ARRAY_MEMBER(Type, name)                                  \
+  using FlexibleDataReturnType = Type[0];                                  \
+  FlexibleDataReturnType& name() { return flexible_array_member_data_; }   \
+  const FlexibleDataReturnType& name() const {                             \
+    return flexible_array_member_data_;                                    \
+  }                                                                        \
+  Type flexible_array_member_data_[0];                                     \
+                                                                           \
+ public:                                                                   \
+  template <typename Class>                                                \
+  static constexpr auto OffsetOfDataStart() {                              \
+    /* Produce a compiler error if {Class} is not this class */            \
+    static_assert(base::tmp::lazy_true<                                    \
+                  decltype(std::declval<Class>()                           \
+                               .flexible_array_member_data_)>::value);     \
+    return static_cast<int>(offsetof(Class, flexible_array_member_data_)); \
+  }                                                                        \
+                                                                           \
+ private:                                                                  \
   using FlexibleDataType = Type
 #endif
 
@@ -127,7 +140,7 @@ static_assert(sizeof(UnalignedDoubleMember) == sizeof(double));
 #if V8_CC_MSVC && !defined(__clang__)
 #define OFFSET_OF_DATA_START(Type) sizeof(Type)
 #else
-#define OFFSET_OF_DATA_START(Type) offsetof(Type, flexible_array_member_data_)
+#define OFFSET_OF_DATA_START(Type) Type::OffsetOfDataStart<Type>()
 #endif
 
 // This helper static class represents a tagged field of type T at offset

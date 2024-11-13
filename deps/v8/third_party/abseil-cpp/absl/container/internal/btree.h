@@ -53,11 +53,11 @@
 #include <functional>
 #include <iterator>
 #include <limits>
-#include <new>
 #include <string>
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/config.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/macros.h"
 #include "absl/container/internal/common.h"
@@ -70,7 +70,6 @@
 #include "absl/strings/cord.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/compare.h"
-#include "absl/utility/utility.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -78,9 +77,10 @@ namespace container_internal {
 
 #ifdef ABSL_BTREE_ENABLE_GENERATIONS
 #error ABSL_BTREE_ENABLE_GENERATIONS cannot be directly set
-#elif defined(ABSL_HAVE_ADDRESS_SANITIZER) || \
-    defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
-    defined(ABSL_HAVE_MEMORY_SANITIZER)
+#elif (defined(ABSL_HAVE_ADDRESS_SANITIZER) ||   \
+       defined(ABSL_HAVE_HWADDRESS_SANITIZER) || \
+       defined(ABSL_HAVE_MEMORY_SANITIZER)) &&   \
+    !defined(NDEBUG_SANITIZER)  // If defined, performance is important.
 // When compiled in sanitizer mode, we add generation integers to the nodes and
 // iterators. When iterators are used, we validate that the container has not
 // been mutated since the iterator was constructed.
@@ -475,7 +475,7 @@ struct SearchResult {
 // useful information.
 template <typename V>
 struct SearchResult<V, false> {
-  SearchResult() {}
+  SearchResult() = default;
   explicit SearchResult(V v) : value(v) {}
   SearchResult(V v, MatchKind /*match*/) : value(v) {}
 
@@ -580,14 +580,12 @@ class btree_node {
   using layout_type =
       absl::container_internal::Layout<btree_node *, uint32_t, field_type,
                                        slot_type, btree_node *>;
+  using leaf_layout_type = typename layout_type::template WithStaticSizes<
+      /*parent*/ 1,
+      /*generation*/ BtreeGenerationsEnabled() ? 1 : 0,
+      /*position, start, finish, max_count*/ 4>;
   constexpr static size_type SizeWithNSlots(size_type n) {
-    return layout_type(
-               /*parent*/ 1,
-               /*generation*/ BtreeGenerationsEnabled() ? 1 : 0,
-               /*position, start, finish, max_count*/ 4,
-               /*slots*/ n,
-               /*children*/ 0)
-        .AllocSize();
+    return leaf_layout_type(/*slots*/ n, /*children*/ 0).AllocSize();
   }
   // A lower bound for the overhead of fields other than slots in a leaf node.
   constexpr static size_type MinimumOverhead() {
@@ -619,27 +617,22 @@ class btree_node {
   constexpr static size_type kNodeSlots =
       kNodeTargetSlots >= kMinNodeSlots ? kNodeTargetSlots : kMinNodeSlots;
 
+  using internal_layout_type = typename layout_type::template WithStaticSizes<
+      /*parent*/ 1,
+      /*generation*/ BtreeGenerationsEnabled() ? 1 : 0,
+      /*position, start, finish, max_count*/ 4, /*slots*/ kNodeSlots,
+      /*children*/ kNodeSlots + 1>;
+
   // The node is internal (i.e. is not a leaf node) if and only if `max_count`
   // has this value.
   constexpr static field_type kInternalNodeMaxCount = 0;
 
-  constexpr static layout_type Layout(const size_type slot_count,
-                                      const size_type child_count) {
-    return layout_type(
-        /*parent*/ 1,
-        /*generation*/ BtreeGenerationsEnabled() ? 1 : 0,
-        /*position, start, finish, max_count*/ 4,
-        /*slots*/ slot_count,
-        /*children*/ child_count);
-  }
   // Leaves can have less than kNodeSlots values.
-  constexpr static layout_type LeafLayout(
+  constexpr static leaf_layout_type LeafLayout(
       const size_type slot_count = kNodeSlots) {
-    return Layout(slot_count, 0);
+    return leaf_layout_type(slot_count, 0);
   }
-  constexpr static layout_type InternalLayout() {
-    return Layout(kNodeSlots, kNodeSlots + 1);
-  }
+  constexpr static auto InternalLayout() { return internal_layout_type(); }
   constexpr static size_type LeafSize(const size_type slot_count = kNodeSlots) {
     return LeafLayout(slot_count).AllocSize();
   }

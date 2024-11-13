@@ -166,14 +166,14 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
   std::unique_ptr<PersistentHandles> ph = i_isolate()->NewPersistentHandles();
   HandleScope handle_scope(i_isolate());
 
-  Handle<HeapObject> o1 =
-      Handle<HeapObject>::cast(Utils::OpenHandle(*RunJS("o1 = { bar: {} };")));
-  Handle<HeapObject> o2 = Handle<HeapObject>::cast(
-      Utils::OpenHandle(*RunJS("o2 = { baz: 3, bar: 3 };")));
-  Handle<HeapObject> o3 = Handle<HeapObject>::cast(
-      Utils::OpenHandle(*RunJS("o3 = { blu: 3, baz: 3, bar: 3 };")));
-  Handle<HeapObject> o4 = Handle<HeapObject>::cast(
-      Utils::OpenHandle(*RunJS("o4 = { ble: 3, blu: 3, baz: 3, bar: 3 };")));
+  DirectHandle<HeapObject> o1 =
+      Cast<HeapObject>(Utils::OpenDirectHandle(*RunJS("o1 = { bar: {} };")));
+  DirectHandle<HeapObject> o2 = Cast<HeapObject>(
+      Utils::OpenDirectHandle(*RunJS("o2 = { baz: 3, bar: 3 };")));
+  DirectHandle<HeapObject> o3 = Cast<HeapObject>(
+      Utils::OpenDirectHandle(*RunJS("o3 = { blu: 3, baz: 3, bar: 3 };")));
+  DirectHandle<HeapObject> o4 = Cast<HeapObject>(Utils::OpenDirectHandle(
+      *RunJS("o4 = { ble: 3, blu: 3, baz: 3, bar: 3 };")));
   auto result = RunJS(
       "function foo(o) {"
       "  let a = o.bar;"
@@ -181,11 +181,11 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
       "}"
       "foo(o1);"
       "foo;");
-  Handle<JSFunction> function =
-      Handle<JSFunction>::cast(Utils::OpenHandle(*result));
+  DirectHandle<JSFunction> function =
+      Cast<JSFunction>(Utils::OpenDirectHandle(*result));
   Handle<FeedbackVector> vector(function->feedback_vector(), i_isolate());
   FeedbackSlot slot(0);
-  FeedbackNexus nexus(vector, slot);
+  FeedbackNexus nexus(i_isolate(), vector, slot);
   EXPECT_TRUE(IsLoadICKind(nexus.kind()));
   EXPECT_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
   nexus.ConfigureUninitialized();
@@ -195,7 +195,7 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
   base::Semaphore vector_ready(0);
   base::Semaphore vector_consumed(0);
   Handle<FeedbackVector> persistent_vector =
-      Handle<FeedbackVector>::cast(ph->NewHandle(vector));
+      Cast<FeedbackVector>(ph->NewHandle(vector));
   std::unique_ptr<FeedbackVectorExplorationThread> thread(
       new FeedbackVectorExplorationThread(i_isolate()->heap(), &sema_started,
                                           &vector_ready, &vector_consumed,

@@ -45,6 +45,7 @@
 #include "test/cctest/cctest.h"
 #include "test/cctest/heap/heap-utils.h"
 
+using ::v8::internal::DirectHandle;
 using ::v8::internal::Handle;
 using ::v8::internal::StepInto;  // From StepAction enum
 using ::v8::internal::StepNone;  // From StepAction enum
@@ -75,8 +76,8 @@ static v8::Local<v8::Function> CompileFunction(LocalContext* env,
 
 // Is there any debug info for the function?
 static bool HasBreakInfo(v8::Local<v8::Function> fun) {
-  Handle<v8::internal::JSFunction> f =
-      Handle<v8::internal::JSFunction>::cast(v8::Utils::OpenHandle(*fun));
+  DirectHandle<v8::internal::JSFunction> f =
+      Cast<v8::internal::JSFunction>(v8::Utils::OpenDirectHandle(*fun));
   return f->shared()->HasBreakInfo(f->GetIsolate());
 }
 
@@ -85,12 +86,12 @@ static bool HasBreakInfo(v8::Local<v8::Function> fun) {
 static i::Handle<i::BreakPoint> SetBreakPoint(v8::Local<v8::Function> fun,
                                               int position,
                                               const char* condition = nullptr) {
-  i::Handle<i::JSFunction> function =
-      i::Handle<i::JSFunction>::cast(v8::Utils::OpenHandle(*fun));
+  i::DirectHandle<i::JSFunction> function =
+      i::Cast<i::JSFunction>(v8::Utils::OpenDirectHandle(*fun));
   position += function->shared()->StartPosition();
   static int break_point_index = 0;
   i::Isolate* isolate = function->GetIsolate();
-  i::Handle<i::String> condition_string =
+  i::DirectHandle<i::String> condition_string =
       condition ? isolate->factory()->NewStringFromAsciiChecked(condition)
                 : isolate->factory()->empty_string();
   i::Debug* debug = isolate->debug();
@@ -102,13 +103,11 @@ static i::Handle<i::BreakPoint> SetBreakPoint(v8::Local<v8::Function> fun,
   return break_point;
 }
 
-
-static void ClearBreakPoint(i::Handle<i::BreakPoint> break_point) {
+static void ClearBreakPoint(i::DirectHandle<i::BreakPoint> break_point) {
   v8::internal::Isolate* isolate = CcTest::i_isolate();
   v8::internal::Debug* debug = isolate->debug();
   debug->ClearBreakPoint(break_point);
 }
-
 
 // Change break on exception.
 static void ChangeBreakOnException(v8::Isolate* isolate, bool caught,
@@ -141,7 +140,7 @@ Handle<FixedArray> GetDebuggedFunctions() {
   int i = 0;
   DebugInfoCollection::Iterator it(infos);
   for (; it.HasNext(); it.Advance()) {
-    Handle<DebugInfo> debug_info(it.Next(), isolate);
+    DirectHandle<DebugInfo> debug_info(it.Next(), isolate);
     debugged_functions->set(i++, *debug_info);
   }
 
@@ -303,12 +302,12 @@ TEST(DebugInfo) {
   CHECK(!HasBreakInfo(bar));
   EnableDebugger(env->GetIsolate());
   // One function (foo) is debugged.
-  i::Handle<i::BreakPoint> bp1 = SetBreakPoint(foo, 0);
+  i::DirectHandle<i::BreakPoint> bp1 = SetBreakPoint(foo, 0);
   CHECK_EQ(1, v8::internal::GetDebuggedFunctions()->length());
   CHECK(HasBreakInfo(foo));
   CHECK(!HasBreakInfo(bar));
   // Two functions are debugged.
-  i::Handle<i::BreakPoint> bp2 = SetBreakPoint(bar, 0);
+  i::DirectHandle<i::BreakPoint> bp2 = SetBreakPoint(bar, 0);
   CHECK_EQ(2, v8::internal::GetDebuggedFunctions()->length());
   CHECK(HasBreakInfo(foo));
   CHECK(HasBreakInfo(bar));
@@ -342,7 +341,7 @@ TEST(BreakPointICStore) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
   CHECK_EQ(1, break_point_hit_count);
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
@@ -373,7 +372,7 @@ TEST(BreakPointCondition) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0, "a == true");
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0, "a == true");
   CompileRun("foo()");
   CHECK_EQ(0, break_point_hit_count);
 
@@ -407,7 +406,7 @@ TEST(BreakPointICLoad) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint.
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
   CHECK_EQ(1, break_point_hit_count);
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
@@ -439,7 +438,7 @@ TEST(BreakPointICCall) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
   CHECK_EQ(1, break_point_hit_count);
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
@@ -475,7 +474,7 @@ TEST(BreakPointICCallWithGC) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint.
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
   CHECK_EQ(1, foo->Call(context, env->Global(), 0, nullptr)
                   .ToLocalChecked()
                   ->Int32Value(context)
@@ -517,7 +516,7 @@ TEST(BreakPointConstructCallWithGC) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint.
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
   CHECK_EQ(1, foo->Call(context, env->Global(), 0, nullptr)
                   .ToLocalChecked()
                   ->Int32Value(context)
@@ -547,7 +546,7 @@ TEST(BreakPointBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test simple builtin ===
   break_point_hit_count = 0;
@@ -681,7 +680,7 @@ TEST(BreakPointJSBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test JS builtin ===
   break_point_hit_count = 0;
@@ -712,7 +711,7 @@ TEST(BreakPointBoundBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test bound function from a builtin ===
   break_point_hit_count = 0;
@@ -745,7 +744,7 @@ TEST(BreakPointConstructorBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test Promise constructor ===
   break_point_hit_count = 0;
@@ -808,7 +807,7 @@ TEST(BreakPointInlinedBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test inlined builtin ===
   break_point_hit_count = 0;
@@ -852,7 +851,7 @@ TEST(BreakPointInlineBoundBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test inlined bound builtin ===
   break_point_hit_count = 0;
@@ -900,7 +899,7 @@ TEST(BreakPointInlinedConstructorBuiltin) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test inlined constructor builtin (regular construct builtin) ===
   break_point_hit_count = 0;
@@ -944,7 +943,7 @@ TEST(BreakPointBuiltinConcurrentOpt) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test concurrent optimization ===
   break_point_hit_count = 0;
@@ -985,7 +984,7 @@ TEST(BreakPointBuiltinTFOperator) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test builtin represented as operator ===
   break_point_hit_count = 0;
@@ -1028,9 +1027,9 @@ TEST(BreakPointBuiltinNewContext) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
-// === Test builtin from a new context ===
+  // === Test builtin from a new context ===
   break_point_hit_count = 0;
   builtin = CompileRun("String.prototype.repeat").As<v8::Function>();
   CompileRun("'a'.repeat(10)");
@@ -1073,7 +1072,7 @@ TEST(BreakPointApiFunction) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   v8::Local<v8::FunctionTemplate> function_template =
       v8::FunctionTemplate::New(env->GetIsolate(), NoOpFunctionCallback);
@@ -1115,7 +1114,7 @@ TEST(BreakPointApiConstructor) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   v8::Local<v8::FunctionTemplate> function_template =
       v8::FunctionTemplate::New(env->GetIsolate(), NoOpFunctionCallback);
@@ -1164,7 +1163,7 @@ TEST(BreakPointApiGetter) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   v8::Local<v8::FunctionTemplate> function_template =
       v8::FunctionTemplate::New(env->GetIsolate(), NoOpFunctionCallback);
@@ -1218,7 +1217,7 @@ TEST(BreakPointApiSetter) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   v8::Local<v8::FunctionTemplate> function_template =
       v8::FunctionTemplate::New(env->GetIsolate(), NoOpFunctionCallback);
@@ -1285,7 +1284,7 @@ TEST(BreakPointApiAccessor) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // Create 'foo' class, with a hidden property.
   v8::Local<v8::ObjectTemplate> obj_template =
@@ -1364,7 +1363,7 @@ TEST(Regress1163547) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   auto constructor_tmpl = v8::FunctionTemplate::New(env->GetIsolate());
   auto prototype_tmpl = constructor_tmpl->PrototypeTemplate();
@@ -1387,8 +1386,9 @@ TEST(Regress1163547) {
   // At this point, the C.prototype - which holds the "f" accessor - is in
   // dictionary mode.
   auto constructor_fun =
-      Handle<i::JSFunction>::cast(v8::Utils::OpenHandle(*constructor));
-  CHECK(!i::JSObject::cast(constructor_fun->prototype())->HasFastProperties());
+      Cast<i::JSFunction>(v8::Utils::OpenHandle(*constructor));
+  CHECK(
+      !i::Cast<i::JSObject>(constructor_fun->prototype())->HasFastProperties());
 
   // Run with breakpoint.
   bp = SetBreakPoint(function, 0);
@@ -1475,7 +1475,7 @@ TEST(BreakPointInlineApiFunction) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   v8::Local<v8::FunctionTemplate> function_template =
       v8::FunctionTemplate::New(env->GetIsolate(), NoOpFunctionCallback);
@@ -1521,7 +1521,7 @@ TEST(BreakPointConditionBuiltin) {
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
   v8::Local<v8::Function> builtin;
-  i::Handle<i::BreakPoint> bp;
+  i::DirectHandle<i::BreakPoint> bp;
 
   // === Test global variable ===
   break_point_hit_count = 0;
@@ -1662,7 +1662,7 @@ TEST(BreakPointInlining) {
   CHECK_EQ(0, break_point_hit_count);
 
   // Run with breakpoint.
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(inlinee, 0);
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(inlinee, 0);
   CompileRun("f(0.1);");
   CHECK_EQ(1, break_point_hit_count);
   CompileRun("test(0.2);");
@@ -1880,7 +1880,7 @@ TEST(DebuggerStatementBreakpoint) {
     foo->Call(context, env->Global(), 0, nullptr).ToLocalChecked();
     CHECK_EQ(1, break_point_hit_count);
 
-    i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
+    i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0);
 
     // Set breakpoint does not duplicate hits
     foo->Call(context, env->Global(), 0, nullptr).ToLocalChecked();
@@ -1951,6 +1951,18 @@ TEST(DebugStepLinear) {
 
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
+}
+
+TEST(DebugCountLinear) {
+  LocalContext env;
+  v8::HandleScope scope(env->GetIsolate());
+
+  // Create a function for testing stepping.
+  v8::Local<v8::Function> foo =
+      CompileFunction(&env, "function foo(){a=1;b=1;c=1;}", "foo");
+
+  // Run foo to allow it to get optimized.
+  CompileRun("a=0; b=0; c=0; foo();");
 
   // Register a debug event listener which just counts.
   DebugEventCounter delegate;
@@ -1958,6 +1970,7 @@ TEST(DebugStepLinear) {
 
   SetBreakPoint(foo, 3);
   break_point_hit_count = 0;
+  v8::Local<v8::Context> context = env.local();
   foo->Call(context, env->Global(), 0, nullptr).ToLocalChecked();
 
   // Without stepping only active break points are hit.
@@ -1966,7 +1979,6 @@ TEST(DebugStepLinear) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
 }
-
 
 // Test of the stepping mechanism for keyed load in a loop.
 TEST(DebugStepKeyedLoadLoop) {
@@ -2190,6 +2202,26 @@ TEST(DebugStepLinearMixedICs) {
 
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
+}
+
+TEST(DebugCountLinearMixedICs) {
+  LocalContext env;
+  v8::HandleScope scope(env->GetIsolate());
+
+  v8::Local<v8::Context> context = env.local();
+  // Create a function for testing stepping.
+  v8::Local<v8::Function> foo =
+      CompileFunction(&env,
+                      "function bar() {};"
+                      "function foo() {"
+                      "  var x;"
+                      "  var index='name';"
+                      "  var y = {};"
+                      "  a=1;b=2;x=a;y[index]=3;x=y[index];bar();}",
+                      "foo");
+
+  // Run functions to allow them to get optimized.
+  CompileRun("a=0; b=0; bar(); foo();");
 
   // Register a debug event listener which just counts.
   DebugEventCounter delegate;
@@ -2205,7 +2237,6 @@ TEST(DebugStepLinearMixedICs) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
 }
-
 
 TEST(DebugStepDeclarations) {
   LocalContext env;
@@ -2787,6 +2818,17 @@ TEST(DebugStepNatives) {
 
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
+}
+
+TEST(DebugCountNatives) {
+  LocalContext env;
+  v8::HandleScope scope(env->GetIsolate());
+
+  // Create a function for testing stepping.
+  v8::Local<v8::Function> foo =
+      CompileFunction(&env, "function foo(){debugger;Math.sin(1);}", "foo");
+
+  v8::Local<v8::Context> context = env.local();
 
   // Register a debug event listener which just counts.
   DebugEventCounter delegate;
@@ -2828,12 +2870,26 @@ TEST(DebugStepFunctionApply) {
 
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
+}
+
+// Test that step in works with function.apply.
+TEST(DebugCountFunctionApply) {
+  LocalContext env;
+  v8::HandleScope scope(env->GetIsolate());
+
+  // Create a function for testing stepping.
+  v8::Local<v8::Function> foo =
+      CompileFunction(&env,
+                      "function bar(x, y, z) { if (x == 1) { a = y; b = z; } }"
+                      "function foo(){ debugger; bar.apply(this, [1,2,3]); }",
+                      "foo");
 
   // Register a debug event listener which just counts.
   DebugEventCounter delegate;
   v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
 
   break_point_hit_count = 0;
+  v8::Local<v8::Context> context = env.local();
   foo->Call(context, env->Global(), 0, nullptr).ToLocalChecked();
 
   // Without stepping only the debugger statement is hit.
@@ -2842,7 +2898,6 @@ TEST(DebugStepFunctionApply) {
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
 }
-
 
 // Test that step in works with function.call.
 TEST(DebugStepFunctionCall) {
@@ -2883,6 +2938,26 @@ TEST(DebugStepFunctionCall) {
 
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
+}
+
+TEST(DebugCountFunctionCall) {
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+
+  v8::Local<v8::Context> context = env.local();
+  // Create a function for testing stepping.
+  v8::Local<v8::Function> foo =
+      CompileFunction(&env,
+                      "function bar(x, y, z) { if (x == 1) { a = y; b = z; } }"
+                      "function foo(a){ debugger;"
+                      "                 if (a) {"
+                      "                   bar.call(this, 1, 2, 3);"
+                      "                 } else {"
+                      "                   bar.call(this, 0);"
+                      "                 }"
+                      "}",
+                      "foo");
 
   // Register a debug event listener which just counts.
   DebugEventCounter delegate;
@@ -2897,7 +2972,6 @@ TEST(DebugStepFunctionCall) {
   v8::debug::SetDebugDelegate(isolate, nullptr);
   CheckDebuggerUnloaded();
 }
-
 
 // Test that step in works with Function.call.apply.
 TEST(DebugStepFunctionCallApply) {
@@ -2928,6 +3002,24 @@ TEST(DebugStepFunctionCallApply) {
 
   v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
   CheckDebuggerUnloaded();
+}
+
+TEST(DebugCountFunctionCallApply) {
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+
+  v8::Local<v8::Context> context = env.local();
+  // Create a function for testing stepping.
+  v8::Local<v8::Function> foo =
+      CompileFunction(&env,
+                      "function bar() { }"
+                      "function foo(){ debugger;"
+                      "                Function.call.apply(bar);"
+                      "                Function.call.apply(Function.call, "
+                      "[Function.call, bar]);"
+                      "}",
+                      "foo");
 
   // Register a debug event listener which just counts.
   DebugEventCounter delegate;
@@ -2942,7 +3034,6 @@ TEST(DebugStepFunctionCallApply) {
   v8::debug::SetDebugDelegate(isolate, nullptr);
   CheckDebuggerUnloaded();
 }
-
 
 // Tests that breakpoint will be hit if it's set in script.
 TEST(PauseInScript) {
@@ -2966,9 +3057,10 @@ TEST(PauseInScript) {
 
   // Set breakpoint in the script.
   i::Handle<i::Script> i_script(
-      i::Script::cast(v8::Utils::OpenDirectHandle(*script)->shared()->script()),
+      i::Cast<i::Script>(
+          v8::Utils::OpenDirectHandle(*script)->shared()->script()),
       isolate);
-  i::Handle<i::String> condition = isolate->factory()->empty_string();
+  i::DirectHandle<i::String> condition = isolate->factory()->empty_string();
   int position = 0;
   int id;
   isolate->debug()->SetBreakPointForScript(i_script, condition, &position, &id);
@@ -3056,7 +3148,7 @@ class DebugScopingListener : public v8::debug::DebugDelegate {
 
     auto scopes = stack_traces->GetScopeIterator();
     CHECK_EQ(v8::debug::ScopeIterator::ScopeTypeWith, scopes->GetType());
-    CHECK_EQ(20, scopes->GetStartLocation().GetColumnNumber());
+    CHECK_EQ(19, scopes->GetStartLocation().GetColumnNumber());
     CHECK_EQ(31, scopes->GetEndLocation().GetColumnNumber());
 
     scopes->Advance();
@@ -3343,7 +3435,7 @@ TEST(DebugScriptLineEndsAreAscending) {
           .ToLocalChecked();
   USE(script);
 
-  Handle<v8::internal::FixedArray> instances;
+  DirectHandle<v8::internal::FixedArray> instances;
   {
     v8::internal::Debug* debug = CcTest::i_isolate()->debug();
     instances = debug->GetLoadedScripts();
@@ -3351,12 +3443,13 @@ TEST(DebugScriptLineEndsAreAscending) {
 
   CHECK_GT(instances->length(), 0);
   for (int i = 0; i < instances->length(); i++) {
-    Handle<v8::internal::Script> new_script = Handle<v8::internal::Script>(
-        v8::internal::Script::cast(instances->get(i)), CcTest::i_isolate());
+    DirectHandle<v8::internal::Script> new_script(
+        v8::internal::Cast<v8::internal::Script>(instances->get(i)),
+        CcTest::i_isolate());
 
     v8::internal::Script::InitLineEnds(CcTest::i_isolate(), new_script);
     v8::internal::Tagged<v8::internal::FixedArray> ends =
-        v8::internal::FixedArray::cast(new_script->line_ends());
+        v8::internal::Cast<v8::internal::FixedArray>(new_script->line_ends());
     CHECK_GT(ends->length(), 0);
 
     int prev_end = -1;
@@ -4221,8 +4314,7 @@ class ArchiveRestoreThread : public v8::base::Thread,
       // This test on purpose unlocks the isolate without exiting and
       // re-entering. It must however update the stack start, which would have
       // been done automatically if the isolate was properly re-entered.
-      reinterpret_cast<i::Isolate*>(isolate_)->heap()->SetStackStart(
-          v8::base::Stack::GetStackStart());
+      reinterpret_cast<i::Isolate*>(isolate_)->heap()->SetStackStart();
     }
     isolate_->Enter();
   }
@@ -4286,7 +4378,7 @@ UNINITIALIZED_TEST(Bug1511649UnlockerRestoreDebug) {
 
     v8::Local<v8::Function> test =
         CompileFunction(isolate, "function test() {}", "test");
-    i::Handle<i::BreakPoint> bp = SetBreakPoint(test, 0);
+    i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(test, 0);
 
     {
       isolate->Exit();
@@ -4392,7 +4484,7 @@ TEST(BreakLocationIterator) {
       "}             \n"
       "f");
   Handle<i::Object> function_obj = v8::Utils::OpenHandle(*result);
-  Handle<i::JSFunction> function = Handle<i::JSFunction>::cast(function_obj);
+  DirectHandle<i::JSFunction> function = Cast<i::JSFunction>(function_obj);
   Handle<i::SharedFunctionInfo> shared(function->shared(), i_isolate);
 
   EnableDebugger(isolate);
@@ -4676,7 +4768,7 @@ TEST(DebugEvaluateNoSideEffect) {
     for (i::Tagged<i::HeapObject> obj = iterator.Next(); !obj.is_null();
          obj = iterator.Next()) {
       if (!IsJSFunction(obj)) continue;
-      i::Tagged<i::JSFunction> fun = i::JSFunction::cast(obj);
+      i::Tagged<i::JSFunction> fun = i::Cast<i::JSFunction>(obj);
       all_functions.emplace_back(fun, isolate);
     }
   }
@@ -4736,15 +4828,91 @@ TEST(DebugEvaluateLocalSharedCrossOrigin) {
   v8::debug::SetDebugDelegate(isolate, nullptr);
 }
 
+TEST(DebugEvaluateImportMetaInScript) {
+  struct BreakProgramDelegate : public v8::debug::DebugDelegate {
+    void BreakProgramRequested(v8::Local<v8::Context> context,
+                               std::vector<v8::debug::BreakpointId> const&,
+                               v8::debug::BreakReasons) final {
+      v8::Isolate* isolate = context->GetIsolate();
+      v8::TryCatch tryCatch(isolate);
+      tryCatch.SetCaptureMessage(true);
+      std::unique_ptr<v8::debug::StackTraceIterator> it =
+          v8::debug::StackTraceIterator::Create(isolate);
+      auto result =
+          it->Evaluate(v8_str(isolate, "import.meta"), false).ToLocalChecked();
+
+      // Within the context of a devtools evaluation, import.meta is
+      // always permitted, and will return `undefined` when outside of a
+      // module.
+      CHECK(result->IsUndefined());
+      CHECK(!tryCatch.HasCaught());
+    }
+  } delegate;
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  v8::debug::SetDebugDelegate(isolate, &delegate);
+  v8::Script::Compile(env.local(), v8_str(isolate, "debugger;"))
+      .ToLocalChecked()
+      ->Run(env.local())
+      .ToLocalChecked();
+  v8::debug::SetDebugDelegate(isolate, nullptr);
+}
+
+static v8::MaybeLocal<v8::Module> UnexpectedModuleResolveCallback(
+    v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
+    v8::Local<v8::FixedArray> import_assertions,
+    v8::Local<v8::Module> referrer) {
+  CHECK_WITH_MSG(false, "Unexpected call to resolve callback");
+}
+
+TEST(DebugEvaluateImportMetaInModule) {
+  struct BreakProgramDelegate : public v8::debug::DebugDelegate {
+    void BreakProgramRequested(v8::Local<v8::Context> context,
+                               std::vector<v8::debug::BreakpointId> const&,
+                               v8::debug::BreakReasons) final {
+      v8::Isolate* isolate = context->GetIsolate();
+      v8::TryCatch tryCatch(isolate);
+      tryCatch.SetCaptureMessage(true);
+      std::unique_ptr<v8::debug::StackTraceIterator> it =
+          v8::debug::StackTraceIterator::Create(isolate);
+      auto result =
+          it->Evaluate(v8_str(isolate, "import.meta"), false).ToLocalChecked();
+      CHECK(result->IsObject());
+      CHECK(!tryCatch.HasCaught());
+    }
+  } delegate;
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  v8::debug::SetDebugDelegate(isolate, &delegate);
+
+  v8::ScriptOrigin script_origin(v8_str("test"), 0, 0, false, -1,
+                                 v8::Local<v8::Value>(), false, false, true);
+  v8::ScriptCompiler::Source script_compiler_source(v8_str("debugger;"),
+                                                    script_origin);
+  v8::Local<v8::Module> module =
+      v8::ScriptCompiler::CompileModule(isolate, &script_compiler_source)
+          .ToLocalChecked();
+
+  CHECK_EQ(
+      module->InstantiateModule(env.local(), UnexpectedModuleResolveCallback)
+          .ToChecked(),
+      true);
+  module->Evaluate(env.local()).ToLocalChecked();
+
+  v8::debug::SetDebugDelegate(isolate, nullptr);
+}
+
 namespace {
 i::MaybeHandle<i::Script> FindScript(
     i::Isolate* isolate, const std::vector<i::Handle<i::Script>>& scripts,
     const char* name) {
-  Handle<i::String> i_name =
+  DirectHandle<i::String> i_name =
       isolate->factory()->NewStringFromAsciiChecked(name);
   for (const auto& script : scripts) {
     if (!IsString(script->name())) continue;
-    if (i_name->Equals(i::String::cast(script->name()))) return script;
+    if (i_name->Equals(i::Cast<i::String>(script->name()))) return script;
   }
   return i::MaybeHandle<i::Script>();
 }
@@ -4786,11 +4954,11 @@ UNINITIALIZED_TEST(LoadedAtStartupScripts) {
 #endif  // V8_ENABLE_WEBASSEMBLY
     CHECK_EQ(count_by_type[i::Script::Type::kInspector], 0);
 
-    i::Handle<i::Script> gc_script =
+    i::DirectHandle<i::Script> gc_script =
         FindScript(i_isolate, scripts, "v8/gc").ToHandleChecked();
     CHECK_EQ(gc_script->type(), i::Script::Type::kExtension);
 
-    i::Handle<i::Script> normal_script =
+    i::DirectHandle<i::Script> normal_script =
         FindScript(i_isolate, scripts, "normal.js").ToHandleChecked();
     CHECK_EQ(normal_script->type(), i::Script::Type::kNormal);
   }
@@ -4832,8 +5000,8 @@ TEST(SourceInfo) {
       "}\n";
   v8::Local<v8::Script> v8_script =
       v8::Script::Compile(env.local(), v8_str(source)).ToLocalChecked();
-  i::Handle<i::Script> i_script(
-      i::Script::cast(
+  i::DirectHandle<i::Script> i_script(
+      i::Cast<i::Script>(
           v8::Utils::OpenDirectHandle(*v8_script)->shared()->script()),
       CcTest::i_isolate());
   v8::Local<v8::debug::Script> script =
@@ -5465,6 +5633,177 @@ TEST(GetPrivateStaticAndInstanceMethodsAndAccessors) {
   }
 }
 
+TEST(GetPrivateAutoAccessors) {
+  i::v8_flags.js_decorators = true;
+  LocalContext env;
+  v8::Isolate* v8_isolate = CcTest::isolate();
+  v8::HandleScope scope(v8_isolate);
+  v8::Local<v8::Context> context = env.local();
+  v8::Local<v8::String> source = v8_str(
+      "var Y = class {\n"
+      "  static accessor #static_base_field = 4;\n"
+      "  accessor #base_field = 3;\n"
+      "}\n"
+      "var X = class extends Y{\n"
+      "  static accessor #static_field = 2\n;"
+      "  accessor #field = 1;\n"
+      "}\n"
+      "var y = new Y();\n"
+      "var x = new X();");
+  CompileRun(source);
+  int field_filter =
+      static_cast<int>(v8::debug::PrivateMemberFilter::kPrivateFields);
+  int accessor_filter =
+      static_cast<int>(v8::debug::PrivateMemberFilter::kPrivateAccessors);
+
+  v8::Local<v8::Object> object = v8::Local<v8::Object>::Cast(
+      env->Global()
+          ->Get(context, v8_str(env->GetIsolate(), "Y"))
+          .ToLocalChecked());
+  v8::LocalVector<v8::Value> names(v8_isolate);
+  v8::LocalVector<v8::Value> values(v8_isolate);
+  CHECK(v8::debug::GetPrivateMembers(context, object, field_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 1);
+  CHECK(names[0]->IsString());
+  {
+    std::string name_str = FromString(v8_isolate, names[0].As<v8::String>());
+    CHECK_EQ(name_str, ".accessor-storage-0");
+    CHECK(values[0]->Equals(context, v8_num(4)).FromJust());
+  }
+
+  names.clear();
+  values.clear();
+  CHECK(v8::debug::GetPrivateMembers(context, object, accessor_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 1);
+  CHECK(names[0]->IsString());
+  {
+    std::string name_str = FromString(v8_isolate, names[0].As<v8::String>());
+    CHECK(v8::debug::AccessorPair::IsAccessorPair(values[0]));
+    v8::Local<v8::debug::AccessorPair> accessors =
+        values[0].As<v8::debug::AccessorPair>();
+    CHECK_EQ(name_str, "#static_base_field");
+    CHECK(accessors->getter()->IsFunction());
+    CHECK(accessors->setter()->IsFunction());
+  }
+
+  object = v8::Local<v8::Object>::Cast(
+      env->Global()
+          ->Get(context, v8_str(env->GetIsolate(), "y"))
+          .ToLocalChecked());
+  names.clear();
+  values.clear();
+  CHECK(v8::debug::GetPrivateMembers(context, object, field_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 1);
+  CHECK(names[0]->IsString());
+  {
+    std::string name_str = FromString(v8_isolate, names[0].As<v8::String>());
+    CHECK_EQ(name_str, ".accessor-storage-1");
+    CHECK(values[0]->Equals(context, v8_num(3)).FromJust());
+  }
+
+  names.clear();
+  values.clear();
+  CHECK(v8::debug::GetPrivateMembers(context, object, accessor_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 1);
+  CHECK(names[0]->IsString());
+  {
+    std::string name_str = FromString(v8_isolate, names[0].As<v8::String>());
+    CHECK(v8::debug::AccessorPair::IsAccessorPair(values[0]));
+    v8::Local<v8::debug::AccessorPair> accessors =
+        values[0].As<v8::debug::AccessorPair>();
+    CHECK_EQ(name_str, "#base_field");
+    CHECK(accessors->getter()->IsFunction());
+    CHECK(accessors->setter()->IsFunction());
+  }
+
+  object = v8::Local<v8::Object>::Cast(
+      env->Global()
+          ->Get(context, v8_str(env->GetIsolate(), "X"))
+          .ToLocalChecked());
+  names.clear();
+  values.clear();
+
+  CHECK(v8::debug::GetPrivateMembers(context, object, field_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 1);
+  CHECK(names[0]->IsString());
+  {
+    std::string name_str = FromString(v8_isolate, names[0].As<v8::String>());
+    CHECK_EQ(name_str, ".accessor-storage-0");
+    CHECK(values[0]->Equals(context, v8_num(2)).FromJust());
+  }
+
+  names.clear();
+  values.clear();
+  CHECK(v8::debug::GetPrivateMembers(context, object, accessor_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 1);
+  CHECK(names[0]->IsString());
+  {
+    std::string name_str = FromString(v8_isolate, names[0].As<v8::String>());
+    CHECK(v8::debug::AccessorPair::IsAccessorPair(values[0]));
+    v8::Local<v8::debug::AccessorPair> accessors =
+        values[0].As<v8::debug::AccessorPair>();
+    CHECK_EQ(name_str, "#static_field");
+    CHECK(accessors->getter()->IsFunction());
+    CHECK(accessors->setter()->IsFunction());
+  }
+
+  object = v8::Local<v8::Object>::Cast(
+      env->Global()
+          ->Get(context, v8_str(env->GetIsolate(), "x"))
+          .ToLocalChecked());
+  names.clear();
+  values.clear();
+  CHECK(v8::debug::GetPrivateMembers(context, object, field_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 2);
+  int expected[2] = {/*#base_field=*/3, /*#field=*/1};
+  for (int i = 0; i < 2; i++) {
+    v8::Local<v8::Value> name = names[i];
+    v8::Local<v8::Value> value = values[i];
+    CHECK(name->IsString());
+    std::string name_str = FromString(v8_isolate, name.As<v8::String>());
+    CHECK_EQ(name_str, ".accessor-storage-1");
+    CHECK(value->Equals(context, v8_num(expected[i])).FromJust());
+  }
+
+  names.clear();
+  values.clear();
+  CHECK(v8::debug::GetPrivateMembers(context, object, accessor_filter, &names,
+                                     &values));
+
+  CHECK_EQ(names.size(), 2);
+  for (int i = 0; i < 2; i++) {
+    v8::Local<v8::Value> name = names[i];
+    v8::Local<v8::Value> value = values[i];
+    CHECK(name->IsString());
+    std::string name_str = FromString(v8_isolate, name.As<v8::String>());
+    CHECK(v8::debug::AccessorPair::IsAccessorPair(value));
+    v8::Local<v8::debug::AccessorPair> accessors =
+        value.As<v8::debug::AccessorPair>();
+    if (name_str == "#base_field") {
+      CHECK(accessors->getter()->IsFunction());
+      CHECK(accessors->setter()->IsFunction());
+    } else {
+      CHECK_EQ(name_str, "#field");
+      CHECK(accessors->getter()->IsFunction());
+      CHECK(accessors->setter()->IsFunction());
+    }
+  }
+}
+
 namespace {
 class SetTerminateOnResumeDelegate : public v8::debug::DebugDelegate {
  public:
@@ -6014,29 +6353,6 @@ class NoopDelegate : public v8::debug::DebugDelegate {};
 
 }  // namespace
 
-// Tests that the Isolate::Pop/Push leaves an empty stack for `await` when
-// the Debugger is active but the AsyncEventDelegate is not set.
-// Regression test for https://crbug.com/1225905
-TEST(AwaitCleansUpGlobalPromiseStack) {
-  LocalContext env;
-  v8::HandleScope scope(env->GetIsolate());
-
-  NoopDelegate delegate;
-  v8::debug::SetDebugDelegate(env->GetIsolate(), &delegate);
-  v8::debug::SetAsyncEventDelegate(env->GetIsolate(), nullptr);
-
-  v8::Local<v8::String> source = v8_str(
-      "(async () => {\n"
-      "  await Promise.resolve();\n"
-      "})();\n");
-  CompileRun(source);
-
-  CHECK(CcTest::i_isolate()->IsPromiseStackEmpty());
-
-  v8::debug::SetDebugDelegate(env->GetIsolate(), nullptr);
-  CheckDebuggerUnloaded();
-}
-
 TEST(CreateMessageFromOldException) {
   LocalContext context;
   v8::HandleScope scope(context->GetIsolate());
@@ -6233,7 +6549,7 @@ TEST(SuccessfulBreakpointConditionEvaluationEvent) {
   v8::Local<v8::Function> foo =
       CompileFunction(&env, "function foo() { const x = 5; }", "foo");
 
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0, "true");
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0, "true");
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
   CHECK_EQ(1, break_point_hit_count);
   CHECK_EQ(bp->id(), delegate.breakpoint_id);
@@ -6255,10 +6571,365 @@ TEST(FailedBreakpointConditoinEvaluationEvent) {
   v8::Local<v8::Function> foo =
       CompileFunction(&env, "function foo() { const x = 5; }", "foo");
 
-  i::Handle<i::BreakPoint> bp = SetBreakPoint(foo, 0, "bar().");
+  i::DirectHandle<i::BreakPoint> bp = SetBreakPoint(foo, 0, "bar().");
   foo->Call(env.local(), env->Global(), 0, nullptr).ToLocalChecked();
   CHECK_EQ(0, break_point_hit_count);
   CHECK_EQ(bp->id(), delegate.breakpoint_id);
   CHECK(delegate.exception_thrown);
   CHECK(!delegate.exception.IsEmpty());
+}
+
+class ExceptionCatchPredictionChecker : public v8::debug::DebugDelegate {
+ public:
+  void ExceptionThrown(v8::Local<v8::Context> paused_context,
+                       v8::Local<v8::Value> exception,
+                       v8::Local<v8::Value> promise, bool is_uncaught,
+                       v8::debug::ExceptionType) override {
+    exception_event_count++;
+    was_uncaught = is_uncaught;
+    // Check that exception is the string 'f' so we know that we are
+    // only throwing the intended exception.
+    CHECK(v8_str(paused_context->GetIsolate(), "f")
+              ->Equals(paused_context, exception)
+              .ToChecked());
+  }
+
+  int exception_event_count = 0;
+  bool was_uncaught = false;
+  int functions_checked = 0;
+};
+
+void RunExceptionCatchPredictionTest(bool predict_uncaught, const char* code) {
+  i::v8_flags.allow_natives_syntax = true;
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  ExceptionCatchPredictionChecker delegate;
+  v8::debug::SetDebugDelegate(isolate, &delegate);
+  ChangeBreakOnException(isolate, true, true);
+
+  CompileRun(code);
+  CHECK_EQ(0, delegate.exception_event_count);
+
+  CompileRun("%PrepareFunctionForOptimization(test);\n");
+  CompileRun("test();\n");
+  CHECK_EQ(1, delegate.exception_event_count);
+  CHECK_EQ(predict_uncaught, delegate.was_uncaught);
+
+  // Second time should be same result as first
+  delegate.exception_event_count = 0;
+  CompileRun("test();\n");
+  CHECK_EQ(1, delegate.exception_event_count);
+  CHECK_EQ(predict_uncaught, delegate.was_uncaught);
+
+  // Now ensure optimization doesn't change the reported exception
+  delegate.exception_event_count = 0;
+  CompileRun("%OptimizeFunctionOnNextCall(test);\n");
+  CompileRun("test();\n");
+  CHECK_EQ(1, delegate.exception_event_count);
+  CHECK_EQ(predict_uncaught, delegate.was_uncaught);
+}
+
+class FunctionBlackboxedCheckCounter : public v8::debug::DebugDelegate {
+ public:
+  void ExceptionThrown(v8::Local<v8::Context> paused_context,
+                       v8::Local<v8::Value> exception,
+                       v8::Local<v8::Value> promise, bool is_uncaught,
+                       v8::debug::ExceptionType) override {
+    // Should never happen due to consistent blackboxing
+    UNREACHABLE();
+  }
+  bool IsFunctionBlackboxed(v8::Local<v8::debug::Script> script,
+                            const v8::debug::Location& start,
+                            const v8::debug::Location& end) override {
+    functions_checked++;
+    // Return true to ensure it keeps walking the callstack
+    return true;
+  }
+  int functions_checked = 0;
+};
+
+void RunAndIgnore(v8::Local<v8::Script> script,
+                  v8::Local<v8::Context> context) {
+  auto result = script->Run(context);
+  if (!result.IsEmpty()) result.ToLocalChecked();
+}
+
+void RunExceptionBlackboxCheckTest(int functions_checked, const char* code) {
+  i::v8_flags.allow_natives_syntax = true;
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  FunctionBlackboxedCheckCounter delegate;
+  v8::debug::SetDebugDelegate(isolate, &delegate);
+  ChangeBreakOnException(isolate, true, true);
+
+  CompileRun(code);
+  CHECK_EQ(0, delegate.functions_checked);
+
+  CompileRun("%PrepareFunctionForOptimization(test);\n");
+
+  // Need to compile this script once and run it multiple times so the call
+  // stack doesn't change.
+  v8::Local<v8::Context> context = env.local();
+  v8::Local<v8::Script> test_script =
+      v8::Script::Compile(context, v8_str(isolate, "test();\n"))
+          .ToLocalChecked();
+  RunAndIgnore(test_script, context);
+  CHECK_EQ(functions_checked, delegate.functions_checked);
+
+  // Second time should not do any checks due to cached function debug info
+  delegate.functions_checked = 0;
+  RunAndIgnore(test_script, context);
+  CHECK_EQ(0, delegate.functions_checked);
+
+  // Now ensure optimization doesn't lead to additional frames being checked
+  delegate.functions_checked = 0;
+  CompileRun("%OptimizeFunctionOnNextCall(test);\n");
+  RunAndIgnore(test_script, context);
+  // Will fail if we iterate over more stack frames than expected. Would be
+  // nice to figure out how to use something like
+  // v8::debug::ResetBlackboxedStateCache so we can ensure the same functions
+  // are being checked.
+  CHECK_EQ(0, delegate.functions_checked);
+}
+
+void RunExceptionOptimizedCallstackWalkTest(bool predict_uncaught,
+                                            int functions_checked,
+                                            const char* code) {
+  RunExceptionCatchPredictionTest(predict_uncaught, code);
+  RunExceptionBlackboxCheckTest(functions_checked, code);
+}
+
+TEST(CatchPredictionWithLongStar) {
+  // Simple scan for catch method, but we first exhaust the short registers
+  // in the bytecode so that it doesn't use the short star instructions
+  RunExceptionOptimizedCallstackWalkTest(false, 1, R"javascript(
+    function test() {
+      let r1 = 1;
+      let r2 = 2;
+      let r3 = r1 + r2;
+      let r4 = r2 * 2;
+      let r5 = r2 + r3;
+      let r6 = r4 + r2;
+      let r7 = 7;
+      let r8 = r5 + r3;
+      let r9 = r7 + r2;
+      let r10 = r4 + r6;
+      let r11 = r8 + r3;
+      let r12 = r7 + r5;
+      let r13 = r11 + r2;
+      let r14 = r10 + r4;
+      let r15 = r9 + r6;
+      let r16 = r15 + r1;
+      let p = Promise.reject('f').catch(()=>17);
+      return {p, r16, r14, r13, r12};
+    }
+  )javascript");
+}
+
+TEST(CatchPredictionInlineExceptionCaught) {
+  // Simple throw and catch, but make sure inlined functions don't affect
+  // prediction.
+  RunExceptionOptimizedCallstackWalkTest(false, 3, R"javascript(
+    function thrower() {
+      throw 'f';
+    }
+
+    function throwerWrapper() {
+      thrower();
+    }
+
+    function catcher() {
+      try {
+        throwerWrapper();
+      } catch(e) {}
+    }
+
+    function test() {
+      catcher();
+    }
+
+    %PrepareFunctionForOptimization(catcher);
+    %PrepareFunctionForOptimization(throwerWrapper);
+    %PrepareFunctionForOptimization(thrower);
+  )javascript");
+}
+
+TEST(CatchPredictionInlineExceptionUncaught) {
+  // Simple uncaught throw, but make sure inlined functions don't affect
+  // prediction.
+  RunExceptionOptimizedCallstackWalkTest(true, 4, R"javascript(
+    function thrower() {
+      throw 'f';
+    }
+
+    function throwerWrapper() {
+      thrower();
+    }
+
+    function test() {
+      throwerWrapper();
+    }
+
+    %PrepareFunctionForOptimization(throwerWrapper);
+    %PrepareFunctionForOptimization(thrower);
+  )javascript");
+}
+
+TEST(CatchPredictionExceptionCaughtAsPromise) {
+  // Throw turns into promise rejection in async function, then caught
+  // by catch method. Multiple intermediate stack frames with decoy catches
+  // that won't actually catch and shouldn't be predicted to catch. Make sure
+  // we walk the correct number of frames and that inlining does not affect
+  // our behavior.
+  RunExceptionOptimizedCallstackWalkTest(false, 6, R"javascript(
+    function thrower() {
+      throw 'f';
+    }
+
+    function throwerWrapper() {
+      return thrower().catch(()=>{});
+    }
+
+    async function promiseWrapper() {
+      throwerWrapper();
+    }
+
+    function fakeCatcher() {
+      try {
+        return promiseWrapper();
+      } catch(e) {}
+    }
+
+    async function awaiter() {
+      await fakeCatcher();
+    }
+
+    function catcher() {
+      return awaiter().then(()=>{}).catch(()=>{});
+    }
+
+    function test() {
+      catcher();
+    }
+
+    %PrepareFunctionForOptimization(catcher);
+    %PrepareFunctionForOptimization(awaiter);
+    %PrepareFunctionForOptimization(fakeCatcher);
+    %PrepareFunctionForOptimization(promiseWrapper);
+    %PrepareFunctionForOptimization(throwerWrapper);
+    %PrepareFunctionForOptimization(thrower);
+  )javascript");
+}
+
+TEST(CatchPredictionExceptionCaughtAsPromiseInAsyncFunction) {
+  // Throw as promise rejection in async function, then caught
+  // by catch method. Ensure we scan for catch method in an async
+  // function.
+  RunExceptionOptimizedCallstackWalkTest(false, 3, R"javascript(
+    async function thrower() {
+      throw 'f';
+    }
+
+    function throwerWrapper() {
+      return thrower();
+    }
+
+    async function catcher() {
+      await throwerWrapper().catch(()=>{});
+    }
+
+    function test() {
+      catcher();
+    }
+
+    %PrepareFunctionForOptimization(catcher);
+    %PrepareFunctionForOptimization(throwerWrapper);
+    %PrepareFunctionForOptimization(thrower);
+  )javascript");
+}
+
+TEST(CatchPredictionExceptionCaughtAsPromiseInCatchingFunction) {
+  // Throw as promise rejection in async function, then caught
+  // by catch method. Ensure we scan for catch method in function
+  // with a (decoy) catch block.
+  RunExceptionOptimizedCallstackWalkTest(false, 3, R"javascript(
+    async function thrower() {
+      throw 'f';
+    }
+
+    function throwerWrapper() {
+      return thrower();
+    }
+
+    function catcher() {
+      try {
+        return throwerWrapper().catch(()=>{});
+      } catch (e) {}
+    }
+
+    function test() {
+      catcher();
+    }
+
+    %PrepareFunctionForOptimization(catcher);
+    %PrepareFunctionForOptimization(throwerWrapper);
+    %PrepareFunctionForOptimization(thrower);
+  )javascript");
+}
+
+TEST(CatchPredictionTopLevelEval) {
+  // Statement returning rejected promise is immediately followed by statement
+  // catching it in top level eval context.
+  RunExceptionCatchPredictionTest(false, R"javascript(
+    function test() {
+      eval(`let result = Promise.reject('f');
+      result.catch(()=>{});`);
+    }
+  )javascript");
+}
+
+TEST(CatchPredictionClosureCapture) {
+  // Statement returning rejected promise is immediately followed by statement
+  // catching it, but original promise is captured in a closure.
+  RunExceptionOptimizedCallstackWalkTest(false, 1, R"javascript(
+    function test() {
+      let result = Promise.reject('f');
+      result.catch(()=>{});
+      return (() => result);
+    }
+  )javascript");
+}
+
+TEST(CatchPredictionNestedContext) {
+  // Statement returning rejected promise stores in a variable in an outer
+  // context.
+  RunExceptionOptimizedCallstackWalkTest(false, 1, R"javascript(
+    function test() {
+      let result = null;
+      {
+        let otherObj = {};
+        result = Promise.reject('f');
+        result.catch(()=>otherObj);
+      }
+      return (() => result);
+    }
+  )javascript");
+}
+
+TEST(CatchPredictionWithContext) {
+  // Statement returning rejected promise stores in a variable outside a with
+  // context.
+  RunExceptionOptimizedCallstackWalkTest(false, 1, R"javascript(
+    function test() {
+      let result = null;
+      let otherObj = {};
+      with (otherObj) {
+        result = Promise.reject('f');
+        result.catch(()=>{});
+      }
+      return (() => result);
+    }
+  )javascript");
 }

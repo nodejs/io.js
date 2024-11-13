@@ -118,6 +118,7 @@ let kWasmF64 = 0x7c;
 let kWasmS128 = 0x7b;
 let kWasmI8 = 0x78;
 let kWasmI16 = 0x77;
+let kWasmF16 = 0x76;
 
 // These are defined as negative integers to distinguish them from positive type
 // indices.
@@ -133,6 +134,7 @@ let kWasmI31Ref = -0x14;
 let kWasmStructRef = -0x15;
 let kWasmArrayRef = -0x16;
 let kWasmExnRef = -0x17;
+let kWasmNullExnRef = -0x0c;
 let kWasmStringRef = -0x19;
 let kWasmStringViewWtf8 = -0x1a;
 let kWasmStringViewWtf16 = -0x1e;
@@ -151,6 +153,7 @@ let kNullFuncRefCode = kWasmNullFuncRef & kLeb128Mask;
 let kStructRefCode = kWasmStructRef & kLeb128Mask;
 let kArrayRefCode = kWasmArrayRef & kLeb128Mask;
 let kExnRefCode = kWasmExnRef & kLeb128Mask;
+let kNullExnRefCode = kWasmNullExnRef & kLeb128Mask;
 let kNullRefCode = kWasmNullRef & kLeb128Mask;
 let kStringRefCode = kWasmStringRef & kLeb128Mask;
 let kStringViewWtf8Code = kWasmStringViewWtf8 & kLeb128Mask;
@@ -184,9 +187,11 @@ let kSig_l_l = makeSig([kWasmI64], [kWasmI64]);
 let kSig_i_l = makeSig([kWasmI64], [kWasmI32]);
 let kSig_i_ii = makeSig([kWasmI32, kWasmI32], [kWasmI32]);
 let kSig_i_iii = makeSig([kWasmI32, kWasmI32, kWasmI32], [kWasmI32]);
+let kSig_i_iiii = makeSig([kWasmI32, kWasmI32, kWasmI32, kWasmI32], [kWasmI32]);
 let kSig_v_iiii = makeSig([kWasmI32, kWasmI32, kWasmI32, kWasmI32], []);
 let kSig_l_i = makeSig([kWasmI32], [kWasmI64]);
 let kSig_f_ff = makeSig([kWasmF32, kWasmF32], [kWasmF32]);
+let kSig_f_ffff = makeSig([kWasmF32, kWasmF32, kWasmF32, kWasmF32], [kWasmF32]);
 let kSig_d_dd = makeSig([kWasmF64, kWasmF64], [kWasmF64]);
 let kSig_l_ll = makeSig([kWasmI64, kWasmI64], [kWasmI64]);
 let kSig_i_dd = makeSig([kWasmF64, kWasmF64], [kWasmI32]);
@@ -523,10 +528,6 @@ let kExprRefCast = 0x16;
 let kExprRefCastNull = 0x17;
 let kExprBrOnCast = 0x18;
 let kExprBrOnCastFail = 0x19;
-// TODO(mliedtke): Drop by 07/2024 or later.
-// (Just keeping it temporarily for bisection.)
-let kExprBrOnCastGeneric = kExprBrOnCast;
-let kExprBrOnCastFailGeneric = kExprBrOnCastFail;
 let kExprAnyConvertExtern = 0x1a;
 let kExprExternConvertAny = 0x1b;
 let kExprRefI31 = 0x1c;
@@ -605,6 +606,7 @@ let kExprTableFill = 0x11;
 let kExprAtomicNotify = 0x00;
 let kExprI32AtomicWait = 0x01;
 let kExprI64AtomicWait = 0x02;
+let kExprAtomicFence = 0x03;
 let kExprI32AtomicLoad = 0x10;
 let kExprI32AtomicLoad8U = 0x12;
 let kExprI32AtomicLoad16U = 0x13;
@@ -1220,7 +1222,7 @@ function checkExpr(expr) {
 }
 
 class WasmTableBuilder {
-  constructor(module, type, initial_size, max_size, init_expr, is_shared) {
+  constructor(module, type, initial_size, max_size, init_expr, is_shared, is_table64) {
     // TODO(manoskouk): Add the table index.
     this.module = module;
     this.type = type;
@@ -1230,6 +1232,7 @@ class WasmTableBuilder {
     this.init_expr = init_expr;
     this.has_init = init_expr !== undefined;
     this.is_shared = is_shared;
+    this.is_table64 = is_table64;
   }
 
   exportAs(name) {
@@ -1410,6 +1413,8 @@ class WasmModuleBuilder {
     return this.types.length - 1;
   }
 
+  nextTypeIndex() { return this.types.length; }
+
   static defaultFor(type) {
     switch (type) {
       case kWasmI32:
@@ -1422,6 +1427,10 @@ class WasmModuleBuilder {
         return wasmF64Const(0.0);
       case kWasmS128:
         return [kSimdPrefix, kExprS128Const, ...(new Array(16).fill(0))];
+      case kWasmStringViewIter:
+      case kWasmStringViewWtf8:
+      case kWasmStringViewWtf16:
+        throw new Error("String views are non-defaultable");
       default:
         if ((typeof type) != 'number' && type.opcode != kWasmRefNull) {
           throw new Error("Non-defaultable type");
@@ -1440,18 +1449,26 @@ class WasmModuleBuilder {
     return glob;
   }
 
-  addTable(type, initial_size, max_size = undefined, init_expr = undefined,
-           is_shared = false) {
+  addTable(
+      type, initial_size, max_size = undefined, init_expr = undefined,
+      is_shared = false, is_table64 = false) {
     if (type == kWasmI32 || type == kWasmI64 || type == kWasmF32 ||
         type == kWasmF64 || type == kWasmS128 || type == kWasmVoid) {
       throw new Error('Tables must be of a reference type');
     }
     if (init_expr != undefined) checkExpr(init_expr);
     let table = new WasmTableBuilder(
-        this, type, initial_size, max_size, init_expr, is_shared);
+        this, type, initial_size, max_size, init_expr, is_shared, is_table64);
     table.index = this.tables.length + this.num_imported_tables;
     this.tables.push(table);
     return table;
+  }
+
+  addTable64(
+      type, initial_size, max_size = undefined, init_expr = undefined,
+      is_shared = false) {
+    return this.addTable(
+        type, initial_size, max_size, init_expr, is_shared, true);
   }
 
   addTag(type) {
@@ -1525,7 +1542,8 @@ class WasmModuleBuilder {
     return mem_index;
   }
 
-  addImportedTable(module, name, initial, maximum, type) {
+  addImportedTable(
+      module, name, initial, maximum, type = kWasmFuncRef, is_table64 = false) {
     if (this.tables.length != 0) {
       throw new Error('Imported tables must be declared before local ones');
     }
@@ -1535,7 +1553,8 @@ class WasmModuleBuilder {
       kind: kExternalTable,
       initial: initial,
       maximum: maximum,
-      type: type || kWasmFuncRef
+      type: type,
+      is_table64: !!is_table64
     };
     this.imports.push(o);
     return this.num_imported_tables++;
@@ -1789,8 +1808,13 @@ class WasmModuleBuilder {
             if (has_max) emit(imp.maximum);
           } else if (imp.kind == kExternalTable) {
             section.emit_type(imp.type);
-            var has_max = (typeof imp.maximum) != 'undefined';
-            section.emit_u8(has_max ? 1 : 0);             // flags
+            const has_max = (typeof imp.maximum) != 'undefined';
+            // TODO(manoskouk): Store sharedness as a property.
+            const is_shared = false
+            const is_table64 = !!imp.is_table64;
+            let limits_byte =
+                (is_table64 ? 4 : 0) | (is_shared ? 2 : 0) | (has_max ? 1 : 0);
+            section.emit_u8(limits_byte);                 // flags
             section.emit_u32v(imp.initial);               // initial
             if (has_max) section.emit_u32v(imp.maximum);  // maximum
           } else if (imp.kind == kExternalTag) {
@@ -1825,10 +1849,13 @@ class WasmModuleBuilder {
             section.emit_u8(0x00);  // Reserved byte.
           }
           section.emit_type(table.type);
-          section.emit_u8((table.has_max ? 1 : 0) |
-                          (table.is_shared ? 0b10 : 0));
-          section.emit_u32v(table.initial_size);
-          if (table.has_max) section.emit_u32v(table.max_size);
+          let limits_byte = (table.is_table64 ? 4 : 0) |
+              (table.is_shared ? 2 : 0) | (table.has_max ? 1 : 0);
+          section.emit_u8(limits_byte);
+          let emit = val => table.is_table64 ? section.emit_u64v(val) :
+                                               section.emit_u32v(val);
+          emit(table.initial_size);
+          if (table.has_max) emit(table.max_size);
           if (table.has_init) section.emit_init_expr(table.init_expr);
         }
       });
@@ -2293,16 +2320,10 @@ function getOpcodeName(opcode) {
   return globalThis.kWasmOpcodeNames?.[opcode] ?? 'unknown';
 }
 
-// Make a wasm export "promising" using JS Promise Integration.
-function ToPromising(wasm_export) {
-  let sig = wasm_export.type();
-  assertTrue(sig.parameters.length > 0);
-  assertEquals('externref', sig.parameters[0]);
-  let wrapper_sig = {
-    parameters: sig.parameters.slice(1),
-    results: ['externref']
-  };
-  return new WebAssembly.Function(
-      wrapper_sig, wasm_export, {promising: 'first'});
+function wasmF32ConstSignalingNaN() {
+  return [kExprF32Const, 0xb9, 0xa1, 0xa7, 0x7f];
+}
 
+function wasmF64ConstSignalingNaN() {
+  return [kExprF64Const, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf4, 0x7f];
 }

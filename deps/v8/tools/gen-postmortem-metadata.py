@@ -191,8 +191,8 @@ consts_misc = [
         'value': 'DeoptimizationData::kOptimizationIdIndex'
     },
     {
-        'name': 'DeoptimizationDataSharedFunctionInfoIndex',
-        'value': 'DeoptimizationData::kSharedFunctionInfoIndex'
+        'name': 'DeoptimizationDataSharedFunctionInfoWrapperIndex',
+        'value': 'DeoptimizationData::kSharedFunctionInfoWrapperIndex'
     },
     {
         'name': 'DeoptimizationDataInliningPositionsIndex',

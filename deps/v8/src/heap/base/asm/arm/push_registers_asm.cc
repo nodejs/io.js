@@ -36,4 +36,10 @@ asm(".globl PushAllRegistersAndIterateStack             \n"
     // Discard all the registers.
     "  add sp, sp, #36                                  \n"
     // Pop lr into pc which returns and switches mode if needed.
-    "  pop {pc}                                         \n");
+    "  pop {pc}                                         \n"
+#if !defined(__APPLE__)
+    ".Lfunc_end0:                                       \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack\n"
+#endif  // !defined(__APPLE__)
+    );

@@ -6,6 +6,7 @@
 #define V8_OBJECTS_COMPRESSED_SLOTS_H_
 
 #include "include/v8config.h"
+#include "src/common/globals.h"
 #include "src/common/ptr-compr.h"
 #include "src/objects/slots.h"
 #include "src/objects/tagged-field.h"
@@ -63,6 +64,9 @@ class CompressedObjectSlot : public SlotBase<CompressedObjectSlot, Tagged_t> {
   inline Tagged<Object> Acquire_Load() const;
   inline Tagged<Object> Relaxed_Load() const;
   inline Tagged<Object> Relaxed_Load(PtrComprCageBase cage_base) const;
+  inline Tagged_t Relaxed_Load_Raw() const;
+  static inline Tagged<Object> RawToTagged(PtrComprCageBase cage_base,
+                                           Tagged_t raw);
   inline void Relaxed_Store(Tagged<Object> value) const;
   inline void Release_Store(Tagged<Object> value) const;
   inline Tagged<Object> Release_CompareAndSwap(Tagged<Object> old,
@@ -100,6 +104,9 @@ class CompressedMaybeObjectSlot
 
   inline Tagged<MaybeObject> Relaxed_Load() const;
   inline Tagged<MaybeObject> Relaxed_Load(PtrComprCageBase cage_base) const;
+  inline Tagged_t Relaxed_Load_Raw() const;
+  static inline Tagged<Object> RawToTagged(PtrComprCageBase cage_base,
+                                           Tagged_t raw);
   inline void Relaxed_Store(Tagged<MaybeObject> value) const;
   inline void Release_CompareAndSwap(Tagged<MaybeObject> old,
                                      Tagged<MaybeObject> target) const;

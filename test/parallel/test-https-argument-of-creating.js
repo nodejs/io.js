@@ -45,3 +45,14 @@ const dftProtocol = {};
                      0);
   assert.strictEqual(server.listeners('request').length, 0);
 }
+
+
+// Validate that `createServer` only uses defaults when appropriate
+{
+  const ALPNCallback = () => {};
+  const server = https.createServer({
+    ALPNCallback,
+  });
+  assert.strictEqual(server.ALPNProtocols, undefined);
+  assert.strictEqual(server.ALPNCallback, ALPNCallback);
+}

@@ -6,7 +6,6 @@
 
 #include "base/check_op.h"
 #include "base/process/memory.h"
-#include "base/sys_byteorder.h"
 
 #include "third_party/zlib/google/compression_utils_portable.h"
 

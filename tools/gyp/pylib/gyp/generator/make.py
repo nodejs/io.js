@@ -208,7 +208,7 @@ cmd_solink_module = $(LINK.$(TOOLSET)) -o $@ -shared $(GYP_LDFLAGS) $(LDFLAGS.$(
 
 LINK_COMMANDS_MAC = """\
 quiet_cmd_alink = LIBTOOL-STATIC $@
-cmd_alink = rm -f $@ && ./gyp-mac-tool filter-libtool libtool $(GYP_LIBTOOLFLAGS) -static -o $@ $(filter %.o,$^)
+cmd_alink = rm -f $@ && %(python)s gyp-mac-tool filter-libtool libtool $(GYP_LIBTOOLFLAGS) -static -o $@ $(filter %%.o,$^)
 
 quiet_cmd_link = LINK($(TOOLSET)) $@
 cmd_link = $(LINK.$(TOOLSET)) $(GYP_LDFLAGS) $(LDFLAGS.$(TOOLSET)) -o "$@" $(LD_INPUTS) $(LIBS)
@@ -218,7 +218,7 @@ cmd_solink = $(LINK.$(TOOLSET)) -shared $(GYP_LDFLAGS) $(LDFLAGS.$(TOOLSET)) -o 
 
 quiet_cmd_solink_module = SOLINK_MODULE($(TOOLSET)) $@
 cmd_solink_module = $(LINK.$(TOOLSET)) -bundle $(GYP_LDFLAGS) $(LDFLAGS.$(TOOLSET)) -o $@ $(filter-out FORCE_DO_CMD, $^) $(LIBS)
-"""  # noqa: E501
+""" % {'python': sys.executable}  # noqa: E501
 
 LINK_COMMANDS_ANDROID = """\
 quiet_cmd_alink = AR($(TOOLSET)) $@
@@ -609,14 +609,14 @@ cmd_pch_mm = $(CC.$(TOOLSET)) $(GYP_PCH_OBJCXXFLAGS) $(DEPFLAGS) -c -o $@ $<
 # Use $(4) for the command, since $(2) and $(3) are used as flag by do_cmd
 # already.
 quiet_cmd_mac_tool = MACTOOL $(4) $<
-cmd_mac_tool = ./gyp-mac-tool $(4) $< "$@"
+cmd_mac_tool = %(python)s gyp-mac-tool $(4) $< "$@"
 
 quiet_cmd_mac_package_framework = PACKAGE FRAMEWORK $@
-cmd_mac_package_framework = ./gyp-mac-tool package-framework "$@" $(4)
+cmd_mac_package_framework = %(python)s gyp-mac-tool package-framework "$@" $(4)
 
 quiet_cmd_infoplist = INFOPLIST $@
 cmd_infoplist = $(CC.$(TOOLSET)) -E -P -Wno-trigraphs -x c $(INFOPLIST_DEFINES) "$<" -o "$@"
-"""  # noqa: E501
+""" % {'python': sys.executable}  # noqa: E501
 
 
 def WriteRootHeaderSuffixRules(writer):
@@ -1834,7 +1834,7 @@ $(obj).$(TOOLSET)/$(TARGET)/%%.o: $(obj)/%%%s FORCE_DO_CMD
             # Since this target depends on binary and resources which are in
             # nested subfolders, the framework directory will be older than
             # its dependencies usually. To prevent this rule from executing
-            # on every build (expensive, especially with postbuilds), expliclity
+            # on every build (expensive, especially with postbuilds), explicitly
             # update the time on the framework directory.
             self.WriteLn("\t@touch -c %s" % QuoteSpaces(self.output))
 
@@ -2498,7 +2498,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
         "PLI.host": PLI_host,
     }
     if flavor == "mac":
-        flock_command = "./gyp-mac-tool flock"
+        flock_command = "%s gyp-mac-tool flock" % sys.executable
         header_params.update(
             {
                 "flock": flock_command,
@@ -2548,7 +2548,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
         header_params.update(
             {
                 "copy_archive_args": copy_archive_arguments,
-                "flock": "./gyp-flock-tool flock",
+                "flock": "%s gyp-flock-tool flock" % sys.executable,
                 "flock_index": 2,
             }
         )
@@ -2564,7 +2564,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
             {
                 "copy_archive_args": copy_archive_arguments,
                 "link_commands": LINK_COMMANDS_AIX,
-                "flock": "./gyp-flock-tool flock",
+                "flock": "%s gyp-flock-tool flock" % sys.executable,
                 "flock_index": 2,
             }
         )
@@ -2574,7 +2574,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
             {
                 "copy_archive_args": copy_archive_arguments,
                 "link_commands": LINK_COMMANDS_OS400,
-                "flock": "./gyp-flock-tool flock",
+                "flock": "%s gyp-flock-tool flock" % sys.executable,
                 "flock_index": 2,
             }
         )

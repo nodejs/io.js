@@ -11,7 +11,7 @@
 // symbols from the DLL and redirects them back to the DLL.
 // This allows node.exe to export the same symbols as libnode.dll
 // when building Node.js as a shared library. This is conceptually
-// similary to the create_expfile.sh script used on AIX.
+// similar to the create_expfile.sh script used on AIX.
 //
 // Generating this .def file requires parsing data out of the 
 // PE32/PE32+ file format. Helper structs are defined in <Windows.h>

@@ -23,19 +23,19 @@ bool CachedTemplateMatches(Isolate* isolate,
   if (native_context->is_js_array_template_literal_object_map(
           entry->map(isolate))) {
     Tagged<TemplateLiteralObject> template_object =
-        TemplateLiteralObject::cast(entry);
+        Cast<TemplateLiteralObject>(entry);
     return template_object->function_literal_id() == function_literal_id &&
            template_object->slot_id() == slot_id;
   }
 
   Handle<JSArray> entry_handle(entry, isolate);
   Tagged<Smi> cached_function_literal_id =
-      Smi::cast(*JSReceiver::GetDataProperty(
+      Cast<Smi>(*JSReceiver::GetDataProperty(
           isolate, entry_handle,
           isolate->factory()->template_literal_function_literal_id_symbol()));
   if (cached_function_literal_id.value() != function_literal_id) return false;
 
-  Tagged<Smi> cached_slot_id = Smi::cast(*JSReceiver::GetDataProperty(
+  Tagged<Smi> cached_slot_id = Cast<Smi>(*JSReceiver::GetDataProperty(
       isolate, entry_handle,
       isolate->factory()->template_literal_slot_id_symbol()));
   if (cached_slot_id.value() != slot_id) return false;
@@ -46,13 +46,13 @@ bool CachedTemplateMatches(Isolate* isolate,
 
 // static
 Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
-    Isolate* isolate, Handle<NativeContext> native_context,
-    Handle<TemplateObjectDescription> description,
-    Handle<SharedFunctionInfo> shared_info, int slot_id) {
+    Isolate* isolate, DirectHandle<NativeContext> native_context,
+    DirectHandle<TemplateObjectDescription> description,
+    DirectHandle<SharedFunctionInfo> shared_info, int slot_id) {
   int function_literal_id = shared_info->function_literal_id();
 
   // Check the template weakmap to see if the template object already exists.
-  Handle<Script> script(Script::cast(shared_info->script(isolate)), isolate);
+  Handle<Script> script(Cast<Script>(shared_info->script(isolate)), isolate);
   int32_t hash =
       EphemeronHashTable::TodoShape::Hash(ReadOnlyRoots(isolate), script);
   MaybeHandle<ArrayList> maybe_cached_templates;
@@ -64,12 +64,12 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
     DisableGCMole no_gcmole;
     ReadOnlyRoots roots(isolate);
     Tagged<EphemeronHashTable> template_weakmap =
-        EphemeronHashTable::cast(native_context->template_weakmap());
+        Cast<EphemeronHashTable>(native_context->template_weakmap());
     Tagged<Object> cached_templates_lookup =
         template_weakmap->Lookup(isolate, script, hash);
     if (!IsTheHole(cached_templates_lookup, roots)) {
       Tagged<ArrayList> cached_templates =
-          ArrayList::cast(cached_templates_lookup);
+          Cast<ArrayList>(cached_templates_lookup);
       maybe_cached_templates = handle(cached_templates, isolate);
 
       // Linear search over the cached template array list for a template
@@ -77,7 +77,7 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
       // TODO(leszeks): Consider keeping this list sorted for faster lookup.
       for (int i = 0; i < cached_templates->length(); i++) {
         Tagged<JSArray> template_object =
-            JSArray::cast(cached_templates->get(i));
+            Cast<JSArray>(cached_templates->get(i));
         if (CachedTemplateMatches(isolate, *native_context, template_object,
                                   function_literal_id, slot_id, no_gc)) {
           return handle(template_object, isolate);
@@ -87,8 +87,9 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
   }
 
   // Create the raw object from the {raw_strings}.
-  Handle<FixedArray> raw_strings(description->raw_strings(), isolate);
-  Handle<FixedArray> cooked_strings(description->cooked_strings(), isolate);
+  DirectHandle<FixedArray> raw_strings(description->raw_strings(), isolate);
+  DirectHandle<FixedArray> cooked_strings(description->cooked_strings(),
+                                          isolate);
   Handle<JSArray> template_object =
       isolate->factory()->NewJSArrayForTemplateLiteralArray(
           cooked_strings, raw_strings, function_literal_id, slot_id);
@@ -112,7 +113,7 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
       template_weakmap = EphemeronHashTable::New(isolate, 1);
     } else {
       template_weakmap =
-          handle(EphemeronHashTable::cast(maybe_template_weakmap), isolate);
+          handle(Cast<EphemeronHashTable>(maybe_template_weakmap), isolate);
     }
     template_weakmap = EphemeronHashTable::Put(isolate, template_weakmap,
                                                script, cached_templates, hash);
@@ -121,7 +122,7 @@ Handle<JSArray> TemplateObjectDescription::GetTemplateObject(
 
   // Check that the list is in the appropriate location on the weakmap, and
   // that the appropriate entry is in the right location in this list.
-  DCHECK_EQ(EphemeronHashTable::cast(native_context->template_weakmap())
+  DCHECK_EQ(Cast<EphemeronHashTable>(native_context->template_weakmap())
                 ->Lookup(isolate, script, hash),
             *cached_templates);
   DCHECK_EQ(cached_templates->get(cached_templates->length() - 1),

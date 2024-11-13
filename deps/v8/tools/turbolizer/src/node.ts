@@ -6,10 +6,10 @@ import * as C from "./common/constants";
 import { measureText } from "./common/util";
 import { GraphEdge } from "./phases/graph-phase/graph-edge";
 import { TurboshaftGraphEdge } from "./phases/turboshaft-graph-phase/turboshaft-graph-edge";
-import { TurboshaftGraphNode } from "./phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "./phases/turboshaft-graph-phase/turboshaft-graph-operation";
 import { TurboshaftGraphBlock } from "./phases/turboshaft-graph-phase/turboshaft-graph-block";
 
-export abstract class Node<EdgeType extends GraphEdge | TurboshaftGraphEdge<TurboshaftGraphNode
+export abstract class Node<EdgeType extends GraphEdge | TurboshaftGraphEdge<TurboshaftGraphOperation
   | TurboshaftGraphBlock>> {
   id: number;
   displayLabel: string;
@@ -23,7 +23,7 @@ export abstract class Node<EdgeType extends GraphEdge | TurboshaftGraphEdge<Turb
   y: number;
   labelBox: { width: number, height: number };
 
-  public abstract getHeight(extendHeight: boolean): number;
+  public abstract getHeight(extendHeight: boolean, compactView: boolean): number;
   public abstract getWidth(): number;
 
   constructor(id: number, displayLabel?: string) {
@@ -93,7 +93,7 @@ export abstract class Node<EdgeType extends GraphEdge | TurboshaftGraphEdge<Turb
   }
 
   public getOutputApproach(extendHeight: boolean): number {
-    return this.y + this.outputApproach + this.getHeight(extendHeight) +
+    return this.y + this.outputApproach + this.getHeight(extendHeight, false) +
       + C.DEFAULT_NODE_BUBBLE_RADIUS;
   }
 

@@ -8,7 +8,7 @@
 public PushAllRegistersAndIterateStack
 
 .code
-PushAllRegistersAndIterateStack:
+PushAllRegistersAndIterateStack proc frame
     ;; Push all callee-saved registers to get them on the stack for conservative
     ;; stack scanning.
     ;;
@@ -19,16 +19,28 @@ PushAllRegistersAndIterateStack:
     ;;
     ;; rbp is callee-saved. Maintain proper frame pointer for debugging.
     push rbp
+    .pushreg rbp
     mov rbp, rsp
+    .setframe rbp, 0
     push 0CDCDCDh  ;; Dummy for alignment.
+    .allocstack 8
     push rsi
+    .pushreg rsi
     push rdi
+    .pushreg rdi
     push rbx
+    .pushreg rbx
     push r12
+    .pushreg r12
     push r13
+    .pushreg r13
     push r14
+    .pushreg r14
     push r15
+    .pushreg r15
     sub rsp, 160
+    .allocstack 160
+    .endprolog
     ;; Use aligned instrs as we are certain that the stack is properly aligned.
     movdqa  xmmword ptr [rsp + 144], xmm6
     movdqa  xmmword ptr [rsp + 128], xmm7
@@ -53,5 +65,6 @@ PushAllRegistersAndIterateStack:
     ;; Restore rbp as it was used as frame pointer.
     pop rbp
     ret
+    PushAllRegistersAndIterateStack endp
 
 end

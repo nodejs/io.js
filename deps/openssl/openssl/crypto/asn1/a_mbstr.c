@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -139,9 +139,7 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
     if (*out) {
         free_out = 0;
         dest = *out;
-        OPENSSL_free(dest->data);
-        dest->data = NULL;
-        dest->length = 0;
+        ASN1_STRING_set0(dest, NULL, 0);
         dest->type = str_type;
     } else {
         free_out = 1;
@@ -155,6 +153,10 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
     /* If both the same type just copy across */
     if (inform == outform) {
         if (!ASN1_STRING_set(dest, in, len)) {
+            if (free_out) {
+                ASN1_STRING_free(dest);
+                *out = NULL;
+            }
             ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
             return -1;
         }
@@ -185,8 +187,10 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
         break;
     }
     if ((p = OPENSSL_malloc(outlen + 1)) == NULL) {
-        if (free_out)
+        if (free_out) {
             ASN1_STRING_free(dest);
+            *out = NULL;
+        }
         ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
         return -1;
     }

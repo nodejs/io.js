@@ -4,6 +4,8 @@
 
 #include "src/heap/cppgc/gc-invoker.h"
 
+#include <optional>
+
 #include "include/cppgc/platform.h"
 #include "src/heap/cppgc/heap.h"
 #include "test/unittests/heap/cppgc/test-platform.h"
@@ -11,8 +13,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace cppgc {
-namespace internal {
+namespace cppgc::internal {
 
 namespace {
 
@@ -26,20 +27,26 @@ class MockGarbageCollector : public GarbageCollector {
   MOCK_METHOD(void, set_override_stack_state, (EmbedderStackState), (override));
   MOCK_METHOD(void, clear_overridden_stack_state, (), (override));
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  MOCK_METHOD(v8::base::Optional<int>, UpdateAllocationTimeout, (), (override));
+  MOCK_METHOD(std::optional<int>, UpdateAllocationTimeout, (), (override));
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 };
 
 class MockTaskRunner : public cppgc::TaskRunner {
  public:
-  MOCK_METHOD(void, PostTask, (std::unique_ptr<cppgc::Task>), (override));
-  MOCK_METHOD(void, PostNonNestableTask, (std::unique_ptr<cppgc::Task>),
+  MOCK_METHOD(void, PostTaskImpl,
+              (std::unique_ptr<cppgc::Task>, const SourceLocation&),
               (override));
-  MOCK_METHOD(void, PostDelayedTask, (std::unique_ptr<cppgc::Task>, double),
+  MOCK_METHOD(void, PostNonNestableTaskImpl,
+              (std::unique_ptr<cppgc::Task>, const SourceLocation&),
               (override));
-  MOCK_METHOD(void, PostNonNestableDelayedTask,
-              (std::unique_ptr<cppgc::Task>, double), (override));
-  MOCK_METHOD(void, PostIdleTask, (std::unique_ptr<cppgc::IdleTask>),
+  MOCK_METHOD(void, PostDelayedTaskImpl,
+              (std::unique_ptr<cppgc::Task>, double, const SourceLocation&),
+              (override));
+  MOCK_METHOD(void, PostNonNestableDelayedTaskImpl,
+              (std::unique_ptr<cppgc::Task>, double, const SourceLocation&),
+              (override));
+  MOCK_METHOD(void, PostIdleTaskImpl,
+              (std::unique_ptr<cppgc::IdleTask>, const SourceLocation&),
               (override));
 
   bool IdleTasksEnabled() override { return true; }
@@ -101,7 +108,7 @@ TEST(GCInvokerTest, ConservativeGCIsScheduledAsPreciseGCViaPlatform) {
                     cppgc::Heap::StackSupport::kNoConservativeStackScan);
   EXPECT_CALL(gc, epoch).WillOnce(::testing::Return(0));
   EXPECT_CALL(*static_cast<MockTaskRunner*>(runner.get()),
-              PostNonNestableTask(::testing::_));
+              PostNonNestableTaskImpl(::testing::_, ::testing::_));
   invoker.CollectGarbage(GCConfig::ConservativeAtomicConfig());
 }
 
@@ -141,5 +148,4 @@ TEST(GCInvokerTest, IncrementalGCIsStarted) {
       GCConfig::ConservativeIncrementalConfig());
 }
 
-}  // namespace internal
-}  // namespace cppgc
+}  // namespace cppgc::internal

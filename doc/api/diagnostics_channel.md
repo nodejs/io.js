@@ -872,7 +872,7 @@ channels.tracePromise(async () => {
 });
 ```
 
-#### `tracingChannel.traceCallback(fn, position, context, thisArg, ...args)`
+#### `tracingChannel.traceCallback(fn[, position[, context[, thisArg[, ...args]]]])`
 
 <!-- YAML
 added:
@@ -927,7 +927,7 @@ const channels = diagnostics_channel.tracingChannel('my-channel');
 channels.traceCallback((arg1, callback) => {
   // Do something
   callback(null, 'result');
-}, {
+}, 1, {
   some: 'thing',
 }, thisArg, arg1, callback);
 ```
@@ -1123,6 +1123,13 @@ independently.
 
 #### HTTP
 
+`http.client.request.created`
+
+* `request` {http.ClientRequest}
+
+Emitted when client creates a request object.
+Unlike `http.client.request.start`, this event is emitted before the request has been sent.
+
 `http.client.request.start`
 
 * `request` {http.ClientRequest}
@@ -1151,6 +1158,14 @@ Emitted when client receives a response.
 * `server` {http.Server}
 
 Emitted when server receives a request.
+
+`http.server.response.created`
+
+* `request` {http.IncomingMessage}
+* `response` {http.ServerResponse}
+
+Emitted when server creates a response.
+The event is emitted before the response is sent.
 
 `http.server.response.finish`
 

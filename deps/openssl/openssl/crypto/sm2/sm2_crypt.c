@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2017-2024 The OpenSSL Project Authors. All Rights Reserved.
  * Copyright 2017 Ribose Inc. All Rights Reserved.
  * Ported from Ribose contributions from Botan.
  *
@@ -65,6 +65,18 @@ static size_t ec_field_size(const EC_GROUP *group)
     BN_free(b);
 
     return field_size;
+}
+
+static int is_all_zeros(const unsigned char *msg, size_t msglen)
+{
+    unsigned char re = 0;
+    size_t i;
+
+    for (i = 0; i < msglen; i++) {
+        re |= msg[i];
+    }
+
+    return re == 0 ? 1 : 0;
 }
 
 int ossl_sm2_plaintext_size(const unsigned char *ct, size_t ct_size,
@@ -179,6 +191,13 @@ int ossl_sm2_encrypt(const EC_KEY *key,
 
     memset(ciphertext_buf, 0, *ciphertext_len);
 
+    msg_mask = OPENSSL_zalloc(msg_len);
+    if (msg_mask == NULL) {
+       ERR_raise(ERR_LIB_SM2, ERR_R_MALLOC_FAILURE);
+       goto done;
+    }
+
+again:
     if (!BN_priv_rand_range_ex(k, order, 0, ctx)) {
         ERR_raise(ERR_LIB_SM2, ERR_R_INTERNAL_ERROR);
         goto done;
@@ -198,17 +217,16 @@ int ossl_sm2_encrypt(const EC_KEY *key,
         goto done;
     }
 
-    msg_mask = OPENSSL_zalloc(msg_len);
-    if (msg_mask == NULL) {
-       ERR_raise(ERR_LIB_SM2, ERR_R_MALLOC_FAILURE);
-       goto done;
-   }
-
     /* X9.63 with no salt happens to match the KDF used in SM2 */
     if (!ossl_ecdh_kdf_X9_63(msg_mask, msg_len, x2y2, 2 * field_size, NULL, 0,
                              digest, libctx, propq)) {
         ERR_raise(ERR_LIB_SM2, ERR_R_EVP_LIB);
         goto done;
+    }
+
+    if (is_all_zeros(msg_mask, msg_len)) {
+        memset(x2y2, 0, 2 * field_size);
+        goto again;
     }
 
     for (i = 0; i != msg_len; ++i)
@@ -361,6 +379,11 @@ int ossl_sm2_decrypt(const EC_KEY *key,
             || !ossl_ecdh_kdf_X9_63(msg_mask, msg_len, x2y2, 2 * field_size,
                                     NULL, 0, digest, libctx, propq)) {
         ERR_raise(ERR_LIB_SM2, ERR_R_INTERNAL_ERROR);
+        goto done;
+    }
+
+    if (is_all_zeros(msg_mask, msg_len)) {
+        ERR_raise(ERR_LIB_SM2, SM2_R_INVALID_ENCODING);
         goto done;
     }
 

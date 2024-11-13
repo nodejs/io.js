@@ -40,7 +40,7 @@
 
 #if V8_TARGET_ARCH_S390
 
-#if V8_HOST_ARCH_S390
+#if V8_HOST_ARCH_S390 && !V8_OS_ZOS
 #include <elf.h>  // Required for auxv checks for STFLE support
 #include <sys/auxv.h>
 #endif
@@ -61,6 +61,14 @@ static unsigned CpuFeaturesImpliedByCompiler() {
 }
 
 static bool supportsCPUFeature(const char* feature) {
+#if V8_OS_ZOS
+  // TODO(gabylb): zos - use cpu_init() and cpu_supports() to test support of
+  // z/OS features when the current compiler supports them.
+  // Currently the only feature to be checked is Vector Extension Facility
+  // ("vector128" on z/OS, "vx" on LoZ) - hence the assert in case that changed.
+  assert(strcmp(feature, "vx") == 0);
+  return __is_vxf_available();
+#else
   static std::set<std::string>& features = *new std::set<std::string>();
   static std::set<std::string>& all_available_features =
       *new std::set<std::string>({"iesan3", "zarch", "stfle", "msa", "ldisp",
@@ -96,6 +104,7 @@ static bool supportsCPUFeature(const char* feature) {
   }
   USE(all_available_features);
   return features.find(feature) != features.end();
+#endif  // !V8_OS_ZOS
 }
 
 #undef CHECK_AVAILABILITY_FOR
@@ -104,7 +113,9 @@ static bool supportsCPUFeature(const char* feature) {
 // Check whether Store Facility STFLE instruction is available on the platform.
 // Instruction returns a bit vector of the enabled hardware facilities.
 static bool supportsSTFLE() {
-#if V8_HOST_ARCH_S390
+#if V8_OS_ZOS
+  return __is_stfle_available();
+#elif V8_HOST_ARCH_S390
   static bool read_tried = false;
   static uint32_t auxv_hwcap = 0;
 
@@ -191,6 +202,10 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
     //   Bit 45 - Distinct Operands for instructions like ARK, SRK, etc.
     // As such, we require only 1 double word
     int64_t facilities[3] = {0L};
+#if V8_OS_ZOS
+    int64_t reg0 = 2;
+    asm volatile(" stfle %0" : "=m"(facilities), __ZL_NR("+", r0)(reg0)::"cc");
+#else
     int16_t reg0;
     // LHI sets up GPR0
     // STFLE is specified as .insn, as opcode is not recognized.
@@ -201,6 +216,7 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
         : "=Q"(facilities), "=r"(reg0)
         :
         : "cc", "r0");
+#endif  // V8_OS_ZOS
 
     uint64_t one = static_cast<uint64_t>(1);
     // Test for Distinct Operands Facility - Bit 45
@@ -355,7 +371,9 @@ void Assembler::AllocateAndInstallRequestedHeapNumbers(LocalIsolate* isolate) {
 
 Assembler::Assembler(const AssemblerOptions& options,
                      std::unique_ptr<AssemblerBuffer> buffer)
-    : AssemblerBase(options, std::move(buffer)), scratch_register_list_({ip}) {
+    : AssemblerBase(options, std::move(buffer)),
+      scratch_register_list_(DefaultTmpList()),
+      scratch_double_register_list_(DefaultFPTmpList()) {
   reloc_info_writer.Reposition(buffer_start_ + buffer_->size(), pc_);
   last_bound_pos_ = 0;
   relocations_.reserve(128);
@@ -671,6 +689,17 @@ void Assembler::nop(int type) {
       // TODO(john.yan): Use a better NOP break
       oill(r3, Operand::Zero());
       break;
+#if V8_OS_ZOS
+    case BASR_CALL_TYPE_NOP:
+      emit2bytes(0x0000);
+      break;
+    case BRAS_CALL_TYPE_NOP:
+      emit2bytes(0x0001);
+      break;
+    case BRASL_CALL_TYPE_NOP:
+      emit2bytes(0x0011);
+      break;
+#endif
     default:
       UNIMPLEMENTED();
   }
@@ -784,6 +813,12 @@ void Assembler::db(uint8_t data) {
   pc_ += sizeof(uint8_t);
 }
 
+void Assembler::dh(uint16_t data) {
+  CheckBuffer();
+  *reinterpret_cast<uint16_t*>(pc_) = data;
+  pc_ += sizeof(uint16_t);
+}
+
 void Assembler::dd(uint32_t data) {
   CheckBuffer();
   *reinterpret_cast<uint32_t*>(pc_) = data;
@@ -841,6 +876,11 @@ void Assembler::EmitRelocations() {
 
     reloc_info_writer.Write(&rinfo);
   }
+}
+
+RegList Assembler::DefaultTmpList() { return {r1, ip}; }
+DoubleRegList Assembler::DefaultFPTmpList() {
+  return {kScratchDoubleReg, kDoubleRegZero};
 }
 
 }  // namespace internal

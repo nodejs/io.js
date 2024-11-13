@@ -39,8 +39,7 @@ class MaybeUtf8 {
         // strings, the bytes we get from SeqOneByteString are not. buf_ is
         // guaranteed to be null terminated.
         DisallowGarbageCollection no_gc;
-        memcpy(buf_, Handle<SeqOneByteString>::cast(string)->GetChars(no_gc),
-               len);
+        memcpy(buf_, Cast<SeqOneByteString>(string)->GetChars(no_gc), len);
       }
     } else {
       Local<v8::String> local = Utils::ToLocal(string);
@@ -105,17 +104,21 @@ const uint8_t* GetCategoryGroupEnabled(Isolate* isolate,
 BUILTIN(IsTraceCategoryEnabled) {
   HandleScope scope(isolate);
   Handle<Object> category = args.atOrUndefined(isolate, 1);
+  if (v8_flags.fuzzing) {
+    // Category handling has many CHECKs we don't want to hit.
+    return ReadOnlyRoots(isolate).false_value();
+  }
   if (!IsString(*category)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kTraceEventCategoryError));
   }
   bool enabled;
 #if defined(V8_USE_PERFETTO)
-  MaybeUtf8 category_str(isolate, Handle<String>::cast(category));
+  MaybeUtf8 category_str(isolate, Cast<String>(category));
   perfetto::DynamicCategory dynamic_category{*category_str};
   enabled = TRACE_EVENT_CATEGORY_ENABLED(dynamic_category);
 #else
-  enabled = *GetCategoryGroupEnabled(isolate, Handle<String>::cast(category));
+  enabled = *GetCategoryGroupEnabled(isolate, Cast<String>(category));
 #endif
   return isolate->heap()->ToBoolean(enabled);
 }
@@ -124,21 +127,30 @@ BUILTIN(IsTraceCategoryEnabled) {
 BUILTIN(Trace) {
   HandleScope handle_scope(isolate);
 
-  Handle<Object> phase_arg = args.atOrUndefined(isolate, 1);
+  DirectHandle<Object> phase_arg = args.atOrUndefined(isolate, 1);
   Handle<Object> category = args.atOrUndefined(isolate, 2);
   Handle<Object> name_arg = args.atOrUndefined(isolate, 3);
-  Handle<Object> id_arg = args.atOrUndefined(isolate, 4);
+  DirectHandle<Object> id_arg = args.atOrUndefined(isolate, 4);
   Handle<Object> data_arg = args.atOrUndefined(isolate, 5);
 
+  if (v8_flags.fuzzing) {
+    // Category handling has many CHECKs we don't want to hit.
+    return ReadOnlyRoots(isolate).false_value();
+  }
+
+  if (!IsString(*category)) {
+    THROW_NEW_ERROR_RETURN_FAILURE(
+        isolate, NewTypeError(MessageTemplate::kTraceEventCategoryError));
+  }
   // Exit early if the category group is not enabled.
 #if defined(V8_USE_PERFETTO)
-  MaybeUtf8 category_str(isolate, Handle<String>::cast(category));
+  MaybeUtf8 category_str(isolate, Cast<String>(category));
   perfetto::DynamicCategory dynamic_category{*category_str};
   if (!TRACE_EVENT_CATEGORY_ENABLED(dynamic_category))
     return ReadOnlyRoots(isolate).false_value();
 #else
   const uint8_t* category_group_enabled =
-      GetCategoryGroupEnabled(isolate, Handle<String>::cast(category));
+      GetCategoryGroupEnabled(isolate, Cast<String>(category));
   if (!*category_group_enabled) return ReadOnlyRoots(isolate).false_value();
 #endif
 
@@ -146,11 +158,8 @@ BUILTIN(Trace) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kTraceEventPhaseError));
   }
-  char phase = static_cast<char>(DoubleToInt32(Object::Number(*phase_arg)));
-  if (!IsString(*category)) {
-    THROW_NEW_ERROR_RETURN_FAILURE(
-        isolate, NewTypeError(MessageTemplate::kTraceEventCategoryError));
-  }
+  char phase = static_cast<char>(
+      DoubleToInt32(Object::NumberValue(Cast<Number>(*phase_arg))));
   if (!IsString(*name_arg)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kTraceEventNameError));
@@ -164,10 +173,10 @@ BUILTIN(Trace) {
           isolate, NewTypeError(MessageTemplate::kTraceEventIDError));
     }
     flags |= TRACE_EVENT_FLAG_HAS_ID;
-    id = DoubleToInt32(Object::Number(*id_arg));
+    id = DoubleToInt32(Object::NumberValue(Cast<Number>(*id_arg)));
   }
 
-  Handle<String> name_str = Handle<String>::cast(name_arg);
+  Handle<String> name_str = Cast<String>(name_arg);
   if (name_str->length() == 0) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kTraceEventNameLengthError));
@@ -196,7 +205,7 @@ BUILTIN(Trace) {
   // TODO(skyostil): Use interned names to reduce trace size.
   auto trace_args = [&](perfetto::EventContext ctx) {
     if (num_args) {
-      MaybeUtf8 arg_contents(isolate, Handle<String>::cast(arg_json));
+      MaybeUtf8 arg_contents(isolate, Cast<String>(arg_json));
       auto annotation = ctx.event()->add_debug_annotations();
       annotation->set_name(arg_name);
       annotation->set_legacy_json_value(*arg_contents);
@@ -229,7 +238,7 @@ BUILTIN(Trace) {
   uint64_t arg_value;
   if (num_args) {
     std::unique_ptr<JsonTraceValue> traced_value(
-        new JsonTraceValue(isolate, Handle<String>::cast(arg_json)));
+        new JsonTraceValue(isolate, Cast<String>(arg_json)));
     tracing::SetTraceValue(std::move(traced_value), &arg_type, &arg_value);
   }
 

@@ -20,7 +20,7 @@
 #include "src/maglev/maglev-graph-labeller.h"
 #include "src/maglev/maglev-graph-processor.h"
 #include "src/maglev/maglev-graph.h"
-#include "src/maglev/maglev-ir.h"
+#include "src/maglev/maglev-ir-inl.h"
 #include "src/objects/script-inl.h"
 #include "src/objects/shared-function-info-inl.h"
 #include "src/utils/utils.h"
@@ -313,7 +313,8 @@ void MaglevPrintingVisitor::PreProcessGraph(Graph* graph) {
                      [](BasicBlock* block) { return block == nullptr; }));
 }
 
-void MaglevPrintingVisitor::PreProcessBasicBlock(BasicBlock* block) {
+BlockProcessResult MaglevPrintingVisitor::PreProcessBasicBlock(
+    BasicBlock* block) {
   size_t loop_position = static_cast<size_t>(-1);
   if (loop_headers_.erase(block) > 0) {
     loop_position = AddTarget(targets_, block);
@@ -370,9 +371,21 @@ void MaglevPrintingVisitor::PreProcessBasicBlock(BasicBlock* block) {
   os_ << "\n";
 
   MaglevPrintingVisitorOstream::cast(os_for_additional_info_)->set_padding(1);
+  return BlockProcessResult::kContinue;
 }
 
 namespace {
+
+void PrintInputLocation(std::ostream& os, ValueNode* node,
+                        const compiler::InstructionOperand& location) {
+  if (InlinedAllocation* allocation = node->TryCast<InlinedAllocation>()) {
+    if (allocation->HasBeenAnalysed() && allocation->HasBeenElided()) {
+      os << "(elided)";
+      return;
+    }
+  }
+  os << location;
+}
 
 void PrintSingleDeoptFrame(
     std::ostream& os, MaglevGraphLabeller* graph_labeller,
@@ -392,7 +405,9 @@ void PrintSingleDeoptFrame(
       os << " : {";
       os << "<closure>:"
          << PrintNodeLabel(graph_labeller, frame.as_interpreted().closure())
-         << ":" << current_input_location->operand();
+         << ":";
+      PrintInputLocation(os, frame.as_interpreted().closure(),
+                         current_input_location->operand());
       current_input_location++;
       frame.as_interpreted().frame_state()->ForEachValue(
           frame.as_interpreted().unit(),
@@ -402,8 +417,8 @@ void PrintSingleDeoptFrame(
                 lazy_deopt_info_if_top_frame->IsResultRegister(reg)) {
               os << "<result>";
             } else {
-              os << PrintNodeLabel(graph_labeller, node) << ":"
-                 << current_input_location->operand();
+              os << PrintNodeLabel(graph_labeller, node) << ":";
+              PrintInputLocation(os, node, current_input_location->operand());
               current_input_location++;
             }
           });
@@ -416,11 +431,15 @@ void PrintSingleDeoptFrame(
       os << " : {";
       os << "<this>:"
          << PrintNodeLabel(graph_labeller, frame.as_construct_stub().receiver())
-         << ":" << current_input_location->operand();
+         << ":";
+      PrintInputLocation(os, frame.as_construct_stub().receiver(),
+                         current_input_location->operand());
       current_input_location++;
       os << ", <context>:"
          << PrintNodeLabel(graph_labeller, frame.as_construct_stub().context())
-         << ":" << current_input_location->operand();
+         << ":";
+      PrintInputLocation(os, frame.as_construct_stub().context(),
+                         current_input_location->operand());
       current_input_location++;
       os << "}";
       break;
@@ -431,16 +450,16 @@ void PrintSingleDeoptFrame(
       os << " : {";
       auto arguments = frame.as_inlined_arguments().arguments();
       DCHECK_GT(arguments.size(), 0);
-      os << "<this>:" << PrintNodeLabel(graph_labeller, arguments[0]) << ":"
-         << current_input_location->operand();
+      os << "<this>:" << PrintNodeLabel(graph_labeller, arguments[0]) << ":";
+      PrintInputLocation(os, arguments[0], current_input_location->operand());
       current_input_location++;
       if (arguments.size() > 1) {
         os << ", ";
       }
       for (size_t i = 1; i < arguments.size(); i++) {
         os << "a" << (i - 1) << ":"
-           << PrintNodeLabel(graph_labeller, arguments[i]) << ":"
-           << current_input_location->operand();
+           << PrintNodeLabel(graph_labeller, arguments[i]) << ":";
+        PrintInputLocation(os, arguments[i], current_input_location->operand());
         current_input_location++;
         os << ", ";
       }
@@ -454,7 +473,8 @@ void PrintSingleDeoptFrame(
       int arg_index = 0;
       for (ValueNode* node : frame.as_builtin_continuation().parameters()) {
         os << "a" << arg_index << ":" << PrintNodeLabel(graph_labeller, node)
-           << ":" << current_input_location->operand();
+           << ":";
+        PrintInputLocation(os, node, current_input_location->operand());
         arg_index++;
         current_input_location++;
         os << ", ";
@@ -462,12 +482,28 @@ void PrintSingleDeoptFrame(
       os << "<context>:"
          << PrintNodeLabel(graph_labeller,
                            frame.as_builtin_continuation().context())
-         << ":" << current_input_location->operand();
+         << ":";
+      PrintInputLocation(os, frame.as_builtin_continuation().context(),
+                         current_input_location->operand());
       current_input_location++;
       os << "}";
       break;
     }
   }
+}
+
+void PrintVirtualObjects(std::ostream& os, std::vector<BasicBlock*> targets,
+                         const DeoptFrame& frame,
+                         MaglevGraphLabeller* graph_labeller, int max_node_id) {
+  if (!v8_flags.trace_deopt_verbose) return;
+  PrintVerticalArrows(os, targets);
+  PrintPadding(os, graph_labeller, max_node_id, 0);
+  os << "  │       VOs : { ";
+  const VirtualObject::List& virtual_objects = GetVirtualObjects(frame);
+  for (auto vo : virtual_objects) {
+    os << PrintNodeLabel(graph_labeller, vo) << "; ";
+  }
+  os << "}\n";
 }
 
 void RecursivePrintEagerDeopt(std::ostream& os,
@@ -490,6 +526,7 @@ void RecursivePrintEagerDeopt(std::ostream& os,
   }
   PrintSingleDeoptFrame(os, graph_labeller, frame, current_input_location);
   os << "\n";
+  PrintVirtualObjects(os, targets, frame, graph_labeller, max_node_id);
 }
 
 void PrintEagerDeopt(std::ostream& os, std::vector<BasicBlock*> targets,
@@ -524,6 +561,7 @@ void RecursivePrintLazyDeopt(std::ostream& os, std::vector<BasicBlock*> targets,
   os << "  │      ";
   PrintSingleDeoptFrame(os, graph_labeller, frame, current_input_location);
   os << "\n";
+  PrintVirtualObjects(os, targets, frame, graph_labeller, max_node_id);
 }
 
 template <typename NodeT>
@@ -545,6 +583,7 @@ void PrintLazyDeopt(std::ostream& os, std::vector<BasicBlock*> targets,
   PrintSingleDeoptFrame(os, graph_labeller, top_frame, current_input_location,
                         deopt_info);
   os << "\n";
+  PrintVirtualObjects(os, targets, top_frame, graph_labeller, max_node_id);
 }
 
 template <typename NodeT>
@@ -554,7 +593,7 @@ void PrintExceptionHandlerPoint(std::ostream& os,
                                 int max_node_id) {
   // If no handler info, then we cannot throw.
   ExceptionHandlerInfo* info = node->exception_handler_info();
-  if (!info->HasExceptionHandler()) return;
+  if (!info->HasExceptionHandler() || info->ShouldLazyDeopt()) return;
 
   BasicBlock* block = info->catch_block.block_ptr();
   DCHECK(block->is_exception_handler_block());
@@ -643,7 +682,7 @@ void MaybePrintProvenance(std::ostream& os, std::vector<BasicBlock*> targets,
   if (provenance.position.IsKnown() &&
       (provenance.position != existing_provenance.position ||
        provenance.unit != existing_provenance.unit)) {
-    script = Script::cast(
+    script = Cast<Script>(
         provenance.unit->shared_function_info().object()->script());
     has_position_info = script->GetPositionInfo(
         provenance.position.ScriptOffset(), &position_info,
@@ -654,7 +693,7 @@ void MaybePrintProvenance(std::ostream& os, std::vector<BasicBlock*> targets,
   // Do the actual function + position print.
   if (needs_function_print) {
     if (script.is_null()) {
-      script = Script::cast(
+      script = Cast<Script>(
           provenance.unit->shared_function_info().object()->script());
     }
     PrintVerticalArrows(os, targets);
@@ -722,10 +761,14 @@ ProcessResult MaglevPrintingVisitor::Process(Phi* phi,
     case ValueRepresentation::kIntPtr:
       UNREACHABLE();
   }
+  if (phi->uses_require_31_bit_value()) {
+    os_ << "ⁱ";
+  }
   if (phi->input_count() == 0) {
-    os_ << "ₑ " << phi->owner().ToString();
+    os_ << "ₑ " << (phi->owner().is_valid() ? phi->owner().ToString() : "VO");
   } else {
-    os_ << " " << phi->owner().ToString() << " (";
+    os_ << " " << (phi->owner().is_valid() ? phi->owner().ToString() : "VO")
+        << " (";
     // Manually walk Phi inputs to print just the node labels, without
     // input locations (which are shown in the predecessor block's gap
     // moves).
@@ -743,6 +786,10 @@ ProcessResult MaglevPrintingVisitor::Process(Phi* phi,
     }
   }
   os_ << " → " << phi->result().operand();
+  if (phi->result().operand().IsAllocated() && phi->is_spilled() &&
+      phi->spill_slot() != phi->result().operand()) {
+    os_ << " (spilled: " << phi->spill_slot() << ")";
+  }
   if (phi->has_valid_live_range()) {
     os_ << ", live range: [" << phi->live_range().start << "-"
         << phi->live_range().end << "]";
@@ -894,8 +941,11 @@ ProcessResult MaglevPrintingVisitor::Process(ControlNode* control_node,
           case ValueRepresentation::kIntPtr:
             UNREACHABLE();
         }
-        os_ << " " << phi->owner().ToString() << " " << phi->result().operand()
-            << "\n";
+        if (phi->uses_require_31_bit_value()) {
+          os_ << "ⁱ";
+        }
+        os_ << " " << (phi->owner().is_valid() ? phi->owner().ToString() : "VO")
+            << " " << phi->result().operand() << "\n";
       }
 #ifdef V8_ENABLE_MAGLEV
       if (target->state()->register_state().is_initialized()) {

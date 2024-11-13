@@ -57,6 +57,8 @@ class BytecodeArray : public ExposedTrustedObject {
 
   DECL_INT32_ACCESSORS(frame_size)
 
+  inline int32_t max_frame_size() const;
+
   static constexpr int SizeFor(int length) {
     return OBJECT_POINTER_ALIGN(kHeaderSize + length);
   }
@@ -70,8 +72,10 @@ class BytecodeArray : public ExposedTrustedObject {
   inline int register_count() const;
 
   // Note: the parameter count includes the implicit 'this' receiver.
-  inline int32_t parameter_count() const;
-  inline void set_parameter_count(int32_t number_of_parameters);
+  inline uint16_t parameter_count() const;
+  inline void set_parameter_count(uint16_t number_of_parameters);
+  inline uint16_t max_arguments() const;
+  inline void set_max_arguments(uint16_t max_arguments);
 
   inline interpreter::Register incoming_new_target_or_generator_register()
       const;
@@ -79,6 +83,8 @@ class BytecodeArray : public ExposedTrustedObject {
       interpreter::Register incoming_new_target_or_generator_register);
 
   inline bool HasSourcePositionTable() const;
+  int SourcePosition(int offset) const;
+  int SourceStatementPosition(int offset) const;
 
   // If source positions have not been collected or an exception has been thrown
   // this will return the empty_trusted_byte_array.
@@ -103,7 +109,6 @@ class BytecodeArray : public ExposedTrustedObject {
   // bytecode, constant pool, source position table, and handler table.
   DECL_GETTER(SizeIncludingMetadata, int)
 
-  DECL_CAST(BytecodeArray)
   DECL_PRINTER(BytecodeArray)
   DECL_VERIFIER(BytecodeArray)
 
@@ -131,7 +136,8 @@ class BytecodeArray : public ExposedTrustedObject {
   V(kHandlerTableOffset, kTaggedSize)                                   \
   V(kConstantPoolOffset, kTaggedSize)                                   \
   V(kFrameSizeOffset, kInt32Size)                                       \
-  V(kParameterSizeOffset, kInt32Size)                                   \
+  V(kParameterSizeOffset, kUInt16Size)                                  \
+  V(kMaxArgumentsOffset, kUInt16Size)                                   \
   V(kIncomingNewTargetOrGeneratorRegisterOffset, kInt32Size)            \
   V(kOptionalPaddingOffset, 0)                                          \
   V(kUnalignedHeaderSize, OBJECT_POINTER_PADDING(kUnalignedHeaderSize)) \
@@ -153,25 +159,16 @@ class BytecodeWrapper : public Struct {
  public:
   DECL_TRUSTED_POINTER_ACCESSORS(bytecode, BytecodeArray)
 
-  DECL_CAST(BytecodeWrapper)
   DECL_PRINTER(BytecodeWrapper)
   DECL_VERIFIER(BytecodeWrapper)
 
-  // When flushing bytecode, we in-place convert the wrapper object to an
-  // UncompiledData object (we cannot convert the BytecodeArray itself as that
-  // lives in trusted space). As such, the wrapper object must be at least as
-  // large as an UncompiledData object and therefore requires padding.
 #define FIELD_LIST(V)                     \
   V(kBytecodeOffset, kTrustedPointerSize) \
-  V(kPadding1Offset, kInt32Size)          \
-  V(kPadding2Offset, kInt32Size)          \
   V(kHeaderSize, 0)                       \
   V(kSize, 0)
 
   DEFINE_FIELD_OFFSET_CONSTANTS(Struct::kHeaderSize, FIELD_LIST)
 #undef FIELD_LIST
-
-  inline void clear_padding();
 
   class BodyDescriptor;
 

@@ -1,3 +1,6 @@
 monorail: {
   component: "Internals"
 }
+buganizer_public: {
+  component_id: 1456292
+}

@@ -45,11 +45,11 @@ r.on('readable', function() {
   do {
     console.error(`  > read(${READSIZE})`);
     ret = r.read(READSIZE);
-    console.error(`  < ${ret && ret.length} (${rs.length} remain)`);
+    console.error(`  < ${ret?.length} (${rs.length} remain)`);
   } while (ret && ret.length === READSIZE);
 
   console.error('<< after read()',
-                ret && ret.length,
+                ret?.length,
                 rs.needReadable,
                 rs.length);
 });

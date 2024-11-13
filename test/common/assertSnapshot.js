@@ -25,7 +25,7 @@ function replaceWindowsPaths(str) {
 }
 
 function replaceFullPaths(str) {
-  return str.replaceAll(path.resolve(__dirname, '../..'), '');
+  return str.replaceAll('\\\'', "'").replaceAll(path.resolve(__dirname, '../..'), '');
 }
 
 function transform(...args) {
@@ -77,7 +77,11 @@ async function spawnAndAssert(filename, transform = (x) => x, { tty = false, ...
     test({ skip: 'Skipping pseudo-tty tests, as pseudo terminals are not available on Windows.' });
     return;
   }
-  const flags = common.parseTestFlags(filename);
+  let flags = common.parseTestFlags(filename);
+  if (options.flags) {
+    flags = [...options.flags, ...flags];
+  }
+
   const executable = tty ? (process.env.PYTHON || 'python3') : process.execPath;
   const args =
     tty ?

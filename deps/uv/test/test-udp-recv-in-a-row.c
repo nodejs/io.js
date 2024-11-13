@@ -50,11 +50,16 @@ static void sv_recv_cb(uv_udp_t* handle,
                        const uv_buf_t* rcvbuf,
                        const struct sockaddr* addr,
                        unsigned flags) {
-  if (++ recv_cnt < N) {
-    ASSERT_EQ(sizeof(send_data), nread);
-  } else {
-    ASSERT_OK(nread);
-  }
+  /* |nread| can be zero when the kernel drops an incoming datagram after
+   * marking the file descriptor as readable but before libuv has a chance
+   * to receive it. Libuv still invokes the uv_udp_recv_cb callback to give
+   * back the memory from the uv_alloc_cb callback.
+   *
+   * See https://github.com/libuv/libuv/issues/4219.
+   */
+  recv_cnt++;
+  if (nread > 0)
+    ASSERT_EQ(nread, sizeof(send_data));
 }
 
 static void check_cb(uv_check_t* handle) {
@@ -63,9 +68,11 @@ static void check_cb(uv_check_t* handle) {
   /**
    * sv_recv_cb() is called with nread set to zero to indicate
    * there is no more udp packet in the kernel, so the actual
-   * recv_cnt is one larger than N.
+   * recv_cnt is up to one larger than N. UDP being what it is,
+   * packets can get dropped so don't assume an exact count.
    */
-  ASSERT_EQ(N+1, recv_cnt);
+  ASSERT_GE(recv_cnt, 1);
+  ASSERT_LE(recv_cnt, N+1);
   check_cb_called = 1;
 
   /* we are done */

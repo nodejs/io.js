@@ -118,6 +118,7 @@ cc_test(
     srcs = ["statusor_test.cc"],
     deps = [
         ":status",
+        ":status_matchers",
         ":statusor",
         "//absl/base",
         "//absl/memory",
@@ -125,6 +126,41 @@ cc_test(
         "//absl/types:any",
         "//absl/types:variant",
         "//absl/utility",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "status_matchers",
+    testonly = 1,
+    srcs = [
+        "internal/status_matchers.cc",
+        "internal/status_matchers.h",
+    ],
+    hdrs = ["status_matchers.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":status",
+        ":statusor",
+        "//absl/base:config",
+        "//absl/strings:string_view",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "status_matchers_test",
+    size = "small",
+    srcs = ["status_matchers_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":status",
+        ":status_matchers",
+        ":statusor",
+        "//absl/strings",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
     ],

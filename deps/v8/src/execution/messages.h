@@ -13,7 +13,7 @@
 #include <memory>
 
 #include "include/v8-local-handle.h"
-#include "src/base/optional.h"
+#include "src/base/vector.h"
 #include "src/common/message-template.h"
 #include "src/handles/handles.h"
 #include "src/handles/maybe-handles.h"
@@ -78,25 +78,35 @@ class ErrorUtils : public AllStatic {
   static MaybeHandle<JSObject> Construct(Isolate* isolate,
                                          Handle<JSFunction> target,
                                          Handle<Object> new_target,
-                                         Handle<Object> message,
+                                         DirectHandle<Object> message,
                                          Handle<Object> options);
   static MaybeHandle<JSObject> Construct(
       Isolate* isolate, Handle<JSFunction> target, Handle<Object> new_target,
-      Handle<Object> message, Handle<Object> options, FrameSkipMode mode,
+      DirectHandle<Object> message, Handle<Object> options, FrameSkipMode mode,
       Handle<Object> caller, StackTraceCollection stack_trace_collection);
 
-  V8_EXPORT_PRIVATE static MaybeHandle<String> ToString(Isolate* isolate,
-                                                        Handle<Object> recv);
+  enum class ToStringMessageSource {
+    kPreferOriginalMessage,
+    kCurrentMessageProperty
+  };
+  V8_EXPORT_PRIVATE static MaybeHandle<String> ToString(
+      Isolate* isolate, Handle<Object> recv,
+      ToStringMessageSource message_source =
+          ToStringMessageSource::kCurrentMessageProperty);
 
   static Handle<JSObject> MakeGenericError(
       Isolate* isolate, Handle<JSFunction> constructor, MessageTemplate index,
-      base::Vector<const Handle<Object>> args, FrameSkipMode mode);
+      base::Vector<const DirectHandle<Object>> args, FrameSkipMode mode);
+
+  static Handle<JSObject> ShadowRealmConstructTypeErrorCopy(
+      Isolate* isolate, Handle<Object> original, MessageTemplate index,
+      base::Vector<const DirectHandle<Object>> args);
 
   // Formats a textual stack trace from the given structured stack trace.
   // Note that this can call arbitrary JS code through Error.prepareStackTrace.
   static MaybeHandle<Object> FormatStackTrace(Isolate* isolate,
                                               Handle<JSObject> error,
-                                              Handle<Object> stack_trace);
+                                              DirectHandle<Object> stack_trace);
 
   static Handle<JSObject> NewIteratorError(Isolate* isolate,
                                            Handle<Object> source);
@@ -109,9 +119,8 @@ class ErrorUtils : public AllStatic {
                                             MessageTemplate id,
                                             Handle<Object> object);
   // Returns the Exception sentinel.
-  static Tagged<Object> ThrowLoadFromNullOrUndefined(Isolate* isolate,
-                                                     Handle<Object> object,
-                                                     MaybeHandle<Object> key);
+  static Tagged<Object> ThrowLoadFromNullOrUndefined(
+      Isolate* isolate, Handle<Object> object, MaybeDirectHandle<Object> key);
 
   // Returns true if given object has own |error_stack_symbol| property.
   static bool HasErrorStackSymbolOwnProperty(Isolate* isolate,
@@ -146,10 +155,10 @@ class MessageFormatter {
 
   V8_EXPORT_PRIVATE static MaybeHandle<String> TryFormat(
       Isolate* isolate, MessageTemplate index,
-      base::Vector<const Handle<String>> args);
+      base::Vector<const DirectHandle<String>> args);
 
   static Handle<String> Format(Isolate* isolate, MessageTemplate index,
-                               base::Vector<const Handle<Object>> args);
+                               base::Vector<const DirectHandle<Object>> args);
 };
 
 // A message handler is a convenience interface for accessing the list
@@ -159,24 +168,24 @@ class MessageHandler {
   // Returns a message object for the API to use.
   V8_EXPORT_PRIVATE static Handle<JSMessageObject> MakeMessageObject(
       Isolate* isolate, MessageTemplate type, const MessageLocation* location,
-      Handle<Object> argument, Handle<FixedArray> stack_frames);
+      DirectHandle<Object> argument, DirectHandle<FixedArray> stack_frames);
 
   // Report a formatted message (needs JS allocation).
-  V8_EXPORT_PRIVATE static void ReportMessage(Isolate* isolate,
-                                              const MessageLocation* loc,
-                                              Handle<JSMessageObject> message);
+  V8_EXPORT_PRIVATE static void ReportMessage(
+      Isolate* isolate, const MessageLocation* loc,
+      DirectHandle<JSMessageObject> message);
 
   static void DefaultMessageReport(Isolate* isolate, const MessageLocation* loc,
-                                   Handle<Object> message_obj);
-  static Handle<String> GetMessage(Isolate* isolate, Handle<Object> data);
+                                   DirectHandle<Object> message_obj);
+  static Handle<String> GetMessage(Isolate* isolate, DirectHandle<Object> data);
   static std::unique_ptr<char[]> GetLocalizedMessage(Isolate* isolate,
-                                                     Handle<Object> data);
+                                                     DirectHandle<Object> data);
 
  private:
   static void ReportMessageNoExceptions(Isolate* isolate,
                                         const MessageLocation* loc,
-                                        Handle<Object> message_obj,
-                                        v8::Local<v8::Value> api_exception_obj);
+                                        DirectHandle<Object> message_obj,
+                                        Local<Value> api_exception_obj);
 };
 
 }  // namespace internal

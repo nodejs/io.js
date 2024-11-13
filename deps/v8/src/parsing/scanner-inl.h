@@ -560,6 +560,7 @@ void Scanner::Scan(TokenDesc* next_desc) {
   SanityCheckTokenDesc(current());
   SanityCheckTokenDesc(next());
   SanityCheckTokenDesc(next_next());
+  SanityCheckTokenDesc(next_next_next());
 #endif
 }
 

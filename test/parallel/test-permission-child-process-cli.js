@@ -31,13 +31,13 @@ if (process.argv[2] === 'child') {
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.exec(process.execPath, ['--version']);
+    childProcess.exec(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.execSync(process.execPath, ['--version']);
+    childProcess.execSync(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',
@@ -49,13 +49,13 @@ if (process.argv[2] === 'child') {
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.execFile(process.execPath, ['--version']);
+    childProcess.execFile(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',
   }));
   assert.throws(() => {
-    childProcess.execFileSync(process.execPath, ['--version']);
+    childProcess.execFileSync(...common.escapePOSIXShell`"${process.execPath}" --version`);
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'ChildProcess',

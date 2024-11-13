@@ -13,6 +13,10 @@ namespace node {
 class Dotenv {
  public:
   enum ParseResult { Valid, FileError, InvalidContent };
+  struct env_file_data {
+    std::string path;
+    bool is_optional;
+  };
 
   Dotenv() = default;
   Dotenv(const Dotenv& d) = delete;
@@ -27,7 +31,7 @@ class Dotenv {
   void SetEnvironment(Environment* env);
   v8::Local<v8::Object> ToObject(Environment* env) const;
 
-  static std::vector<std::string> GetPathFromArgs(
+  static std::vector<env_file_data> GetDataFromArgs(
       const std::vector<std::string>& args);
 
  private:

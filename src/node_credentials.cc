@@ -91,7 +91,10 @@ bool SafeGetenv(const char* key,
     env_vars = per_process::system_environment;
   }
 
-  return env_vars->Get(key).To(text);
+  std::optional<std::string> value = env_vars->Get(key);
+  if (!value.has_value()) return false;
+  *text = value.value();
+  return true;
 }
 
 static void SafeGetenv(const FunctionCallbackInfo<Value>& args) {
@@ -104,6 +107,31 @@ static void SafeGetenv(const FunctionCallbackInfo<Value>& args) {
   Local<Value> result =
       ToV8Value(isolate->GetCurrentContext(), text).ToLocalChecked();
   args.GetReturnValue().Set(result);
+}
+
+static void GetTempDir(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+
+  std::string dir;
+
+  // Let's wrap SafeGetEnv since it returns true for empty string.
+  auto get_env = [&dir, &env](std::string_view key) {
+    USE(SafeGetenv(key.data(), &dir, env->env_vars()));
+    return !dir.empty();
+  };
+
+  // Try TMPDIR, TMP, and TEMP in that order.
+  if (!get_env("TMPDIR") && !get_env("TMP") && !get_env("TEMP")) {
+    return;
+  }
+
+  if (dir.size() > 1 && dir.ends_with("/")) {
+    dir.pop_back();
+  }
+
+  args.GetReturnValue().Set(
+      ToV8Value(isolate->GetCurrentContext(), dir).ToLocalChecked());
 }
 
 #ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
@@ -200,31 +228,13 @@ static gid_t gid_by_name(Isolate* isolate, Local<Value> value) {
   }
 }
 
-#ifdef __linux__
-extern "C" {
-int uv__node_patch_is_using_io_uring(void);
-
-int uv__node_patch_is_using_io_uring(void) __attribute__((weak));
-
-typedef int (*is_using_io_uring_fn)(void);
-}
-#endif  // __linux__
-
 static bool UvMightBeUsingIoUring() {
 #ifdef __linux__
-  // Support for io_uring is only included in libuv 1.45.0 and later, and only
-  // on Linux (and Android, but there it is always disabled). The patch that we
-  // apply to libuv to work around the io_uring security issue adds a function
-  // that tells us whether io_uring is being used. If that function is not
-  // present, we assume that we are dynamically linking against an unpatched
-  // version.
-  static std::atomic<is_using_io_uring_fn> check =
-      uv__node_patch_is_using_io_uring;
-  if (check == nullptr) {
-    check = reinterpret_cast<is_using_io_uring_fn>(
-        dlsym(RTLD_DEFAULT, "uv__node_patch_is_using_io_uring"));
-  }
-  return uv_version() >= 0x012d00u && (check == nullptr || (*check)());
+  // Support for io_uring is only included in libuv 1.45.0 and later. Starting
+  // with 1.49.0 is disabled by default. Check the version in case Node.js is
+  // dynamically to an io_uring-enabled version of libuv.
+  unsigned int version = uv_version();
+  return version >= 0x012d00u && version < 0x013100u;
 #else
   return false;
 #endif
@@ -453,6 +463,7 @@ static void InitGroups(const FunctionCallbackInfo<Value>& args) {
 
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(SafeGetenv);
+  registry->Register(GetTempDir);
 
 #ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
   registry->Register(GetUid);
@@ -475,6 +486,7 @@ static void Initialize(Local<Object> target,
                        Local<Context> context,
                        void* priv) {
   SetMethod(context, target, "safeGetenv", SafeGetenv);
+  SetMethod(context, target, "getTempDir", GetTempDir);
 
 #ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
   Environment* env = Environment::GetCurrent(context);

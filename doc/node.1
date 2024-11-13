@@ -160,6 +160,9 @@ Requires Node.js to be built with
 .It Fl -enable-source-maps
 Enable Source Map V3 support for stack traces.
 .
+.It Fl -entry-url
+Interpret the entry point as a URL.
+.
 .It Fl -experimental-default-type Ns = Ns Ar type
 Interpret as either ES modules or CommonJS modules input via --eval or STDIN, when --input-type is unspecified;
 .js or extensionless files with no sibling or parent package.json;
@@ -185,6 +188,9 @@ Enable the experimental node:sqlite module.
 .It Fl -experimental-test-coverage
 Enable code coverage in the test runner.
 .
+.It Fl -experimental-test-isolation Ns = Ns Ar mode
+Configures the type of test isolation used in the test runner.
+.
 .It Fl -experimental-test-module-mocks
 Enable module mocking in the test runner.
 .
@@ -193,6 +199,9 @@ Enable snapshot testing in the test runner.
 .
 .It Fl -experimental-strip-types
 Enable experimental type-stripping for TypeScript files.
+.
+.It Fl -experimental-transform-types
+Enable transformation of TypeScript-only syntax into JavaScript code.
 .
 .It Fl -experimental-eventsource
 Enable experimental support for the EventSource Web API.
@@ -435,11 +444,20 @@ Starts the Node.js command line test runner.
 The maximum number of test files that the test runner CLI will execute
 concurrently.
 .
+.It Fl -test-coverage-branches Ns = Ns Ar threshold
+Require a minimum threshold for branch coverage (0 - 100).
+.
 .It Fl -test-coverage-exclude
 A glob pattern that excludes matching files from the coverage report
 .
+.It Fl -test-coverage-functions Ns = Ns Ar threshold
+Require a minimum threshold for function coverage (0 - 100).
+.
 .It Fl -test-coverage-include
 A glob pattern that only includes matching files in the coverage report
+.
+.It Fl -test-coverage-lines Ns = Ns Ar threshold
+Require a minimum threshold for line coverage (0 - 100).
 .
 .It Fl -test-force-exit
 Configures the test runner to exit the process once all known tests have

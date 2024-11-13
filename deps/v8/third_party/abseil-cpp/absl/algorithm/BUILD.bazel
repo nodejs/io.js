@@ -65,6 +65,7 @@ cc_library(
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
         ":algorithm",
+        "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/base:nullability",
         "//absl/meta:type_traits",
@@ -79,6 +80,7 @@ cc_test(
     deps = [
         ":container",
         "//absl/base",
+        "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/memory",
         "//absl/types:span",

@@ -21,6 +21,7 @@ namespace compiler {
   V(X64Movq)                                               \
   V(X64Movsd)                                              \
   V(X64Movss)                                              \
+  V(X64Movsh)                                              \
   V(X64Movsxbl)                                            \
   V(X64Movsxbq)                                            \
   V(X64Movsxlq)                                            \
@@ -61,6 +62,7 @@ namespace compiler {
   V(X64MovqDecompressTaggedSigned)                         \
   V(X64MovqDecompressTagged)                               \
   V(X64MovqCompressTagged)                                 \
+  V(X64MovqDecompressProtected)                            \
   V(X64S256Load8Splat)                                     \
   V(X64S256Load16Splat)                                    \
   V(X64S256Load32Splat)                                    \
@@ -70,7 +72,23 @@ namespace compiler {
   V(X64S256Load16x8S)                                      \
   V(X64S256Load16x8U)                                      \
   V(X64S256Load32x4S)                                      \
-  V(X64S256Load32x4U)
+  V(X64S256Load32x4U)                                      \
+  V(SSEFloat32Add)                                         \
+  V(SSEFloat32Sub)                                         \
+  V(SSEFloat32Mul)                                         \
+  V(SSEFloat32Div)                                         \
+  V(SSEFloat64Add)                                         \
+  V(SSEFloat64Sub)                                         \
+  V(SSEFloat64Mul)                                         \
+  V(SSEFloat64Div)                                         \
+  V(AVXFloat32Add)                                         \
+  V(AVXFloat32Sub)                                         \
+  V(AVXFloat32Mul)                                         \
+  V(AVXFloat32Div)                                         \
+  V(AVXFloat64Add)                                         \
+  V(AVXFloat64Sub)                                         \
+  V(AVXFloat64Mul)                                         \
+  V(AVXFloat64Div)
 
 #define TARGET_ARCH_OPCODE_LIST(V)                   \
   TARGET_ARCH_OPCODE_WITH_MEMORY_ACCESS_MODE_LIST(V) \
@@ -127,20 +145,12 @@ namespace compiler {
   V(X64MFence)                                       \
   V(X64LFence)                                       \
   V(SSEFloat32Cmp)                                   \
-  V(SSEFloat32Add)                                   \
-  V(SSEFloat32Sub)                                   \
-  V(SSEFloat32Mul)                                   \
-  V(SSEFloat32Div)                                   \
   V(SSEFloat32Sqrt)                                  \
   V(SSEFloat32ToFloat64)                             \
   V(SSEFloat32ToInt32)                               \
   V(SSEFloat32ToUint32)                              \
   V(SSEFloat32Round)                                 \
   V(SSEFloat64Cmp)                                   \
-  V(SSEFloat64Add)                                   \
-  V(SSEFloat64Sub)                                   \
-  V(SSEFloat64Mul)                                   \
-  V(SSEFloat64Div)                                   \
   V(SSEFloat64Mod)                                   \
   V(SSEFloat64Sqrt)                                  \
   V(SSEFloat64Round)                                 \
@@ -170,15 +180,7 @@ namespace compiler {
   V(SSEFloat64LoadLowWord32)                         \
   V(SSEFloat64SilenceNaN)                            \
   V(AVXFloat32Cmp)                                   \
-  V(AVXFloat32Add)                                   \
-  V(AVXFloat32Sub)                                   \
-  V(AVXFloat32Mul)                                   \
-  V(AVXFloat32Div)                                   \
   V(AVXFloat64Cmp)                                   \
-  V(AVXFloat64Add)                                   \
-  V(AVXFloat64Sub)                                   \
-  V(AVXFloat64Mul)                                   \
-  V(AVXFloat64Div)                                   \
   V(X64Float64Abs)                                   \
   V(X64Float64Neg)                                   \
   V(X64Float32Abs)                                   \
@@ -236,6 +238,17 @@ namespace compiler {
   V(X64F32x4Round)                                   \
   V(X64F32x4DemoteF64x2Zero)                         \
   V(X64F32x4DemoteF64x4)                             \
+  V(X64F16x8Round)                                   \
+  V(X64I16x8SConvertF16x8)                           \
+  V(X64I16x8UConvertF16x8)                           \
+  V(X64F16x8SConvertI16x8)                           \
+  V(X64F16x8UConvertI16x8)                           \
+  V(X64F16x8DemoteF32x4Zero)                         \
+  V(X64F32x4PromoteLowF16x8)                         \
+  V(X64F16x8Qfma)                                    \
+  V(X64F16x8Qfms)                                    \
+  V(X64Minph)                                        \
+  V(X64Maxph)                                        \
   V(X64ISplat)                                       \
   V(X64IExtractLane)                                 \
   V(X64IAbs)                                         \
@@ -262,6 +275,7 @@ namespace compiler {
   V(X64I64x2UConvertI32x4High)                       \
   V(X64I64x4UConvertI32x4)                           \
   V(X64I32x4SConvertF32x4)                           \
+  V(X64I32x8SConvertF32x8)                           \
   V(X64I32x4SConvertI16x8Low)                        \
   V(X64I32x4SConvertI16x8High)                       \
   V(X64I32x8SConvertI16x8)                           \
@@ -353,10 +367,12 @@ namespace compiler {
   V(X64S32x4UnpackHigh)                              \
   V(X64S16x8UnpackHigh)                              \
   V(X64S8x16UnpackHigh)                              \
+  V(X64S32x8UnpackHigh)                              \
   V(X64S64x2UnpackLow)                               \
   V(X64S32x4UnpackLow)                               \
   V(X64S16x8UnpackLow)                               \
   V(X64S8x16UnpackLow)                               \
+  V(X64S32x8UnpackLow)                               \
   V(X64S8x16TransposeLow)                            \
   V(X64S8x16TransposeHigh)                           \
   V(X64S8x8Reverse)                                  \
@@ -378,7 +394,15 @@ namespace compiler {
   V(X64F32x8Pmax)                                    \
   V(X64F64x4Pmin)                                    \
   V(X64F64x4Pmax)                                    \
-  V(X64ExtractF128)
+  V(X64ExtractF128)                                  \
+  V(X64F32x8Qfma)                                    \
+  V(X64F32x8Qfms)                                    \
+  V(X64F64x4Qfma)                                    \
+  V(X64F64x4Qfms)                                    \
+  V(X64InsertI128)                                   \
+  V(X64I32x8DotI8x32I7x32AddS)                       \
+  V(X64I16x16DotI8x32I7x32S)
+
 // Addressing modes represent the "shape" of inputs to an instruction.
 // Many instructions support multiple addressing modes. Addressing modes
 // are encoded into the InstructionCode of the instruction and tell the

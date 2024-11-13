@@ -111,15 +111,26 @@ struct TypedArrayAccessor {
     dcheck(result == kStoreSucceded);
   }
 
-  macro StoreJSAny(
+  macro StoreJSAnyInBounds(
       context: Context, array: JSTypedArray, index: uintptr,
-      value: JSAny): void labels IfDetachedOrOutOfBounds {
+      value: JSAny): void {
     const storefn: StoreJSAnyFn = this.storeJSAnyFn;
     const result = storefn(context, array, index, value);
-    if (result == kStoreFailureArrayDetachedOrOutOfBounds) {
-      goto IfDetachedOrOutOfBounds;
-    }
-    dcheck(result == kStoreSucceded);
+    check(result == kStoreSucceded);
+  }
+
+  macro StoreJSAny(
+      context: Context, array: JSTypedArray, index: uintptr,
+      value: JSAny): void {
+    const storefn: StoreJSAnyFn = this.storeJSAnyFn;
+    const result = storefn(context, array, index, value);
+    // ES#sec-typedarray-set
+    //
+    // A [[Set]] on a TypedArray with a detached or out-of-bounds
+    // underlying ArrayBuffer is a no-op.
+    dcheck(
+        result == kStoreSucceded ||
+        result == kStoreFailureArrayDetachedOrOutOfBounds);
   }
 
   loadNumericFn: LoadNumericFn;

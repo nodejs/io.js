@@ -5,24 +5,21 @@
 #ifndef V8_WASM_BASELINE_RISCV_LIFTOFF_ASSEMBLER_RISCV_INL_H_
 #define V8_WASM_BASELINE_RISCV_LIFTOFF_ASSEMBLER_RISCV_INL_H_
 
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/wasm/baseline/liftoff-assembler.h"
 #include "src/wasm/baseline/parallel-move-inl.h"
 #include "src/wasm/object-access.h"
+#include "src/wasm/wasm-linkage.h"
 #include "src/wasm/wasm-objects.h"
 
 namespace v8::internal::wasm {
 
 namespace liftoff {
 
-// fp-8 holds the stack marker, fp-16 is the instance parameter.
-constexpr int kInstanceDataOffset = 2 * kSystemPointerSize;
-constexpr int kFeedbackVectorOffset = 3 * kSystemPointerSize;
-
 inline MemOperand GetStackSlot(int offset) { return MemOperand(fp, -offset); }
 
 inline MemOperand GetInstanceDataOperand() {
-  return GetStackSlot(kInstanceDataOffset);
+  return GetStackSlot(WasmLiftoffFrameConstants::kInstanceDataOffset);
 }
 
 }  // namespace liftoff
@@ -174,7 +171,7 @@ void LiftoffAssembler::AbortCompilation() { AbortedCodeGeneration(); }
 
 // static
 constexpr int LiftoffAssembler::StaticStackFrameSize() {
-  return liftoff::kFeedbackVectorOffset;
+  return WasmLiftoffFrameConstants::kFeedbackVectorOffset;
 }
 
 int LiftoffAssembler::SlotSizeForType(ValueKind kind) {
@@ -203,7 +200,7 @@ void LiftoffAssembler::LoadInstanceDataFromFrame(Register dst) {
 void LiftoffAssembler::LoadTrustedPointer(Register dst, Register src_addr,
                                           int offset, IndirectPointerTag tag) {
   MemOperand src{src_addr, offset};
-  LoadTrustedPointerField(dst, src, kWasmTrustedInstanceDataIndirectPointerTag);
+  LoadTrustedPointerField(dst, src, tag);
 }
 
 void LiftoffAssembler::LoadFromInstance(Register dst, Register instance,
@@ -1474,6 +1471,7 @@ void LiftoffAssembler::emit_i32x4_dot_i8x16_i7x16_add_s(LiftoffRegister dst,
                                                         LiftoffRegister lhs,
                                                         LiftoffRegister rhs,
                                                         LiftoffRegister acc) {
+  DCHECK_NE(dst, acc);
   VU.set(kScratchReg, E8, m1);
   VRegister intermediate = kSimd128ScratchReg3;
   VRegister kSimd128ScratchReg4 =
@@ -2149,16 +2147,20 @@ void LiftoffAssembler::emit_s128_set_if_nan(Register dst, LiftoffRegister src,
                                             Register tmp_gp,
                                             LiftoffRegister tmp_s128,
                                             ValueKind lane_kind) {
-  DoubleRegister tmp_fp = tmp_s128.fp();
-  vfredmax_vs(kSimd128ScratchReg, src.fp().toV(), src.fp().toV());
-  vfmv_fs(tmp_fp, kSimd128ScratchReg);
+  ASM_CODE_COMMENT(this);
   if (lane_kind == kF32) {
-    feq_s(kScratchReg, tmp_fp, tmp_fp);  // scratch <- !IsNan(tmp_fp)
+    VU.set(kScratchReg, E32, m1);
+    vmfeq_vv(kSimd128ScratchReg, src.fp().toV(),
+             src.fp().toV());  // scratch <- !IsNan(tmp_fp)
   } else {
+    VU.set(kScratchReg, E64, m1);
     DCHECK_EQ(lane_kind, kF64);
-    feq_d(kScratchReg, tmp_fp, tmp_fp);  // scratch <- !IsNan(tmp_fp)
+    vmfeq_vv(kSimd128ScratchReg, src.fp().toV(),
+             src.fp().toV());  // scratch <- !IsNan(tmp_fp)
   }
+  vmv_xs(kScratchReg, kSimd128ScratchReg);
   not_(kScratchReg, kScratchReg);
+  andi(kScratchReg, kScratchReg, int32_t(lane_kind == kF32 ? 0xF : 0x3));
   Sw(kScratchReg, MemOperand(dst));
 }
 
@@ -2198,8 +2200,8 @@ void LiftoffAssembler::emit_f64x2_qfms(LiftoffRegister dst,
   vmv_vv(dst.fp().toV(), src1.fp().toV());
 }
 
-void LiftoffAssembler::set_trap_on_oob_mem64(Register index, int oob_shift,
-                                             MemOperand oob_offset) {
+void LiftoffAssembler::set_trap_on_oob_mem64(Register index, uint64_t oob_size,
+                                             uint64_t oob_index) {
   UNREACHABLE();
 }
 
@@ -2343,16 +2345,19 @@ void LiftoffAssembler::emit_set_if_nan(Register dst, FPURegister src,
     DCHECK_EQ(kind, kF64);
     feq_d(scratch, src, src);  // rd <- !isNan(src)
   }
-  not_(scratch, scratch);
+  seqz(scratch, scratch);
   Sw(scratch, MemOperand(dst));
 }
 
 void LiftoffAssembler::CallFrameSetupStub(int declared_function_index) {
-  // TODO(jkummerow): Enable this check when we have C++20.
-  // static_assert(std::find(std::begin(wasm::kGpParamRegisters),
-  //                         std::end(wasm::kGpParamRegisters),
-  //                         kLiftoffFrameSetupFunctionReg) ==
-  //                         std::end(wasm::kGpParamRegisters));
+// The standard library used by gcc tryjobs does not consider `std::find` to be
+// `constexpr`, so wrap it in a `#ifdef __clang__` block.
+#ifdef __clang__
+  static_assert(std::find(std::begin(wasm::kGpParamRegisters),
+                          std::end(wasm::kGpParamRegisters),
+                          kLiftoffFrameSetupFunctionReg) ==
+                std::end(wasm::kGpParamRegisters));
+#endif
 
   // On MIPS64, we must push at least {ra} before calling the stub, otherwise
   // it would get clobbered with no possibility to recover it. So just set
@@ -2361,6 +2366,144 @@ void LiftoffAssembler::CallFrameSetupStub(int declared_function_index) {
   LoadConstant(LiftoffRegister(kLiftoffFrameSetupFunctionReg),
                WasmValue(declared_function_index));
   CallBuiltin(Builtin::kWasmLiftoffFrameSetup);
+}
+
+bool LiftoffAssembler::emit_f16x8_splat(LiftoffRegister dst,
+                                        LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_extract_lane(LiftoffRegister dst,
+                                               LiftoffRegister lhs,
+                                               uint8_t imm_lane_idx) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_replace_lane(LiftoffRegister dst,
+                                               LiftoffRegister src1,
+                                               LiftoffRegister src2,
+                                               uint8_t imm_lane_idx) {
+  return false;
+}
+
+bool LiftoffAssembler::emit_f16x8_eq(LiftoffRegister dst, LiftoffRegister lhs,
+                                     LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_ne(LiftoffRegister dst, LiftoffRegister lhs,
+                                     LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_lt(LiftoffRegister dst, LiftoffRegister lhs,
+                                     LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_le(LiftoffRegister dst, LiftoffRegister lhs,
+                                     LiftoffRegister rhs) {
+  return false;
+}
+
+bool LiftoffAssembler::emit_f16x8_abs(LiftoffRegister dst,
+                                      LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_neg(LiftoffRegister dst,
+                                      LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_sqrt(LiftoffRegister dst,
+                                       LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_ceil(LiftoffRegister dst,
+                                       LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_floor(LiftoffRegister dst,
+                                        LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_trunc(LiftoffRegister dst,
+                                        LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_nearest_int(LiftoffRegister dst,
+                                              LiftoffRegister src) {
+  return false;
+}
+
+bool LiftoffAssembler::emit_f16x8_add(LiftoffRegister dst, LiftoffRegister lhs,
+                                      LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_sub(LiftoffRegister dst, LiftoffRegister lhs,
+                                      LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_mul(LiftoffRegister dst, LiftoffRegister lhs,
+                                      LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_div(LiftoffRegister dst, LiftoffRegister lhs,
+                                      LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_min(LiftoffRegister dst, LiftoffRegister lhs,
+                                      LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_max(LiftoffRegister dst, LiftoffRegister lhs,
+                                      LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_pmin(LiftoffRegister dst, LiftoffRegister lhs,
+                                       LiftoffRegister rhs) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_pmax(LiftoffRegister dst, LiftoffRegister lhs,
+                                       LiftoffRegister rhs) {
+  return false;
+}
+
+bool LiftoffAssembler::emit_i16x8_sconvert_f16x8(LiftoffRegister dst,
+                                                 LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_i16x8_uconvert_f16x8(LiftoffRegister dst,
+                                                 LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_sconvert_i16x8(LiftoffRegister dst,
+                                                 LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_uconvert_i16x8(LiftoffRegister dst,
+                                                 LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_demote_f32x4_zero(LiftoffRegister dst,
+                                                    LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f16x8_demote_f64x2_zero(LiftoffRegister dst,
+                                                    LiftoffRegister src) {
+  return false;
+}
+bool LiftoffAssembler::emit_f32x4_promote_low_f16x8(LiftoffRegister dst,
+                                                    LiftoffRegister src) {
+  return false;
+}
+
+bool LiftoffAssembler::emit_f16x8_qfma(LiftoffRegister dst,
+                                       LiftoffRegister src1,
+                                       LiftoffRegister src2,
+                                       LiftoffRegister src3) {
+  return false;
+}
+
+bool LiftoffAssembler::emit_f16x8_qfms(LiftoffRegister dst,
+                                       LiftoffRegister src1,
+                                       LiftoffRegister src2,
+                                       LiftoffRegister src3) {
+  return false;
 }
 
 }  // namespace v8::internal::wasm

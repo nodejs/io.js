@@ -45,14 +45,24 @@ class AssertTypesReducer
   template <typename Op, typename Continuation>
   OpIndex ReduceInputGraphOperation(OpIndex ig_index, const Op& operation) {
     OpIndex og_index = Continuation{this}.ReduceInputGraph(ig_index, operation);
+    if constexpr (std::is_same_v<Op, LoadRootRegisterOp>) {
+      // LoadRootRegister is a bit special and should never be materialized,
+      // hence we cannot assert its type.
+      return og_index;
+    }
+    if (std::is_same_v<Op, ConstantOp>) {
+      // Constants are constant by definition, so asserting their types doesn't
+      // seem super useful. Additionally, they can appear before Parameters in
+      // the graph, which leads to issues because asserting their types requires
+      // inserting a Call in the graph, which can overwrite the value of
+      // Parameters.
+      return og_index;
+    }
     if (!og_index.valid()) return og_index;
     if (!CanBeTyped(operation)) return og_index;
     // Unfortunately, we cannot insert assertions after block terminators, so we
     // skip them here.
     if (operation.IsBlockTerminator()) return og_index;
-    // LoadRootRegister is a bit special and should never be materialized, hence
-    // we cannot assert its type.
-    if constexpr (std::is_same_v<Op, LoadRootRegisterOp>) return og_index;
 
     auto reps = operation.outputs_rep();
     DCHECK_GT(reps.size(), 0);
@@ -144,7 +154,7 @@ class AssertTypesReducer
 
  private:
   Factory* factory() { return isolate_->factory(); }
-  Isolate* isolate_ = PipelineData::Get().isolate();
+  Isolate* isolate_ = __ data() -> isolate();
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

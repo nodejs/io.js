@@ -48,7 +48,7 @@ class OutProc(base.ExpectedOutProc):
         expected_lines, actual_lines, fillvalue=''):
       pattern = re.escape(expected.rstrip() % env)
       pattern = pattern.replace('\\*', '.*')
-      pattern = pattern.replace('\\{NUMBER\\}', '\d+(?:\.\d*)?')
+      pattern = pattern.replace('\\{NUMBER\\}', r'\d+(?:\.\d*)?')
       # Note: The character sequence for printing an address in C++ is
       # implementation defined.
       pattern = pattern.replace('\\{ADDRESS\\}', r'(0x)?[0-9A-Fa-f]+')
@@ -70,4 +70,5 @@ class OutProc(base.ExpectedOutProc):
         # Testing on Android devices mixes stderr into stdout.
         string ==
         "V8 is running with experimental features enabled. Stability and security will suffer."
-    )
+        or  #
+        string == "Concurrent maglev has been disabled for tracing.")

@@ -35,7 +35,7 @@ var workerScript =
 // context.
    foo = 100;
    var c = 0;
-   onmessage = function(m) {
+   onmessage = function({data:m}) {
      switch (c++) {
        case 0:
          if (m !== undefined) throw new Error('undefined');
@@ -188,4 +188,10 @@ if (this.Worker) {
   var w2 = new Worker('', {type: 'string'});
   var msg = w2.getMessage();
   assertEquals(undefined, msg);
+
+  // Test close (should send termination to worker isolate).
+  var close_worker = new Worker(
+      "postMessage('one'); close(); while(true) { postMessage('two'); }",
+      {type: "string"})
+  assertEquals("one", close_worker.getMessage());
 }

@@ -25,17 +25,7 @@ class AsyncBuiltinsAssembler : public PromiseBuiltinsAssembler {
                       TNode<JSGeneratorObject> generator, TNode<Object> value,
                       TNode<JSPromise> outer_promise,
                       TNode<SharedFunctionInfo> on_resolve_sfi,
-                      TNode<SharedFunctionInfo> on_reject_sfi,
-                      TNode<Boolean> is_predicted_as_caught);
-  TNode<Object> Await(TNode<Context> context,
-                      TNode<JSGeneratorObject> generator, TNode<Object> value,
-                      TNode<JSPromise> outer_promise,
-                      TNode<SharedFunctionInfo> on_resolve_sfi,
-                      TNode<SharedFunctionInfo> on_reject_sfi,
-                      bool is_predicted_as_caught) {
-    return Await(context, generator, value, outer_promise, on_resolve_sfi,
-                 on_reject_sfi, BooleanConstant(is_predicted_as_caught));
-  }
+                      TNode<SharedFunctionInfo> on_reject_sfi);
 
   // Return a new built-in function object as defined in
   // Async Iterator Value Unwrap Functions

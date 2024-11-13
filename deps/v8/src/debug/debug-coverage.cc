@@ -72,7 +72,7 @@ std::vector<CoverageBlock> GetSortedBlockData(
   DCHECK(shared->HasCoverageInfo(isolate));
 
   Tagged<CoverageInfo> coverage_info =
-      CoverageInfo::cast(shared->GetDebugInfo(isolate)->coverage_info());
+      Cast<CoverageInfo>(shared->GetDebugInfo(isolate)->coverage_info());
 
   std::vector<CoverageBlock> result;
   if (coverage_info->slot_count() == 0) return result;
@@ -384,7 +384,7 @@ void ResetAllBlockCounts(Isolate* isolate, Tagged<SharedFunctionInfo> shared) {
   DCHECK(shared->HasCoverageInfo(isolate));
 
   Tagged<CoverageInfo> coverage_info =
-      CoverageInfo::cast(shared->GetDebugInfo(isolate)->coverage_info());
+      Cast<CoverageInfo>(shared->GetDebugInfo(isolate)->coverage_info());
 
   for (int i = 0; i < coverage_info->slot_count(); i++) {
     coverage_info->ResetBlockCount(i);
@@ -512,10 +512,10 @@ void CollectAndMaybeResetCounts(Isolate* isolate,
       // Feedback vectors are already listed to prevent losing them to GC.
       DCHECK(IsArrayList(
           *isolate->factory()->feedback_vectors_for_profiling_tools()));
-      Handle<ArrayList> list = Handle<ArrayList>::cast(
+      auto list = Cast<ArrayList>(
           isolate->factory()->feedback_vectors_for_profiling_tools());
       for (int i = 0; i < list->length(); i++) {
-        Tagged<FeedbackVector> vector = FeedbackVector::cast(list->get(i));
+        Tagged<FeedbackVector> vector = Cast<FeedbackVector>(list->get(i));
         Tagged<SharedFunctionInfo> shared = vector->shared_function_info();
         DCHECK(shared->IsSubjectToDebugging());
         uint32_t count = static_cast<uint32_t>(vector->invocation_count());
@@ -533,7 +533,7 @@ void CollectAndMaybeResetCounts(Isolate* isolate,
       for (Tagged<HeapObject> current_obj = heap_iterator.Next();
            !current_obj.is_null(); current_obj = heap_iterator.Next()) {
         if (!IsJSFunction(current_obj)) continue;
-        Tagged<JSFunction> func = JSFunction::cast(current_obj);
+        Tagged<JSFunction> func = Cast<JSFunction>(current_obj);
         Tagged<SharedFunctionInfo> shared = func->shared();
         if (!shared->IsSubjectToDebugging()) continue;
         if (!(func->has_feedback_vector() ||
@@ -660,7 +660,7 @@ std::unique_ptr<Coverage> Coverage::Collect(
 
     // Use sorted list to reconstruct function nesting.
     for (const SharedFunctionInfoAndCount& v : sorted) {
-      Handle<SharedFunctionInfo> info = v.info;
+      DirectHandle<SharedFunctionInfo> info = v.info;
       int start = v.start;
       int end = v.end;
       uint32_t count = v.count;
@@ -786,7 +786,7 @@ void Coverage::SelectMode(Isolate* isolate, debug::CoverageMode mode) {
         for (Tagged<HeapObject> o = heap_iterator.Next(); !o.is_null();
              o = heap_iterator.Next()) {
           if (IsJSFunction(o)) {
-            Tagged<JSFunction> func = JSFunction::cast(o);
+            Tagged<JSFunction> func = Cast<JSFunction>(o);
             if (func->has_closure_feedback_cell_array()) {
               funcs_needing_feedback_vector.push_back(
                   Handle<JSFunction>(func, isolate));
@@ -795,16 +795,16 @@ void Coverage::SelectMode(Isolate* isolate, debug::CoverageMode mode) {
             // If collecting binary coverage, reset
             // SFI::has_reported_binary_coverage to avoid optimizing / inlining
             // functions before they have reported coverage.
-            Tagged<SharedFunctionInfo> shared = SharedFunctionInfo::cast(o);
+            Tagged<SharedFunctionInfo> shared = Cast<SharedFunctionInfo>(o);
             shared->set_has_reported_binary_coverage(false);
           } else if (IsFeedbackVector(o)) {
             // In any case, clear any collected invocation counts.
-            FeedbackVector::cast(o)->clear_invocation_count(kRelaxedStore);
+            Cast<FeedbackVector>(o)->clear_invocation_count(kRelaxedStore);
           }
         }
       }
 
-      for (Handle<JSFunction> func : funcs_needing_feedback_vector) {
+      for (DirectHandle<JSFunction> func : funcs_needing_feedback_vector) {
         IsCompiledScope is_compiled_scope(
             func->shared()->is_compiled_scope(isolate));
         CHECK(is_compiled_scope.is_compiled());

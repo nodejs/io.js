@@ -120,5 +120,12 @@ TF_BUILTIN(Typeof, CodeStubAssembler) {
   Return(Typeof(object));
 }
 
+TF_BUILTIN(Typeof_Baseline, CodeStubAssembler) {
+  auto object = Parameter<Object>(Descriptor::kValue);
+  auto slot = UncheckedParameter<UintPtrT>(Descriptor::kSlot);
+  auto feedback_vector = LoadFeedbackVectorFromBaseline();
+  Return(Typeof(object, slot, feedback_vector));
+}
+
 }  // namespace internal
 }  // namespace v8

@@ -71,6 +71,7 @@ class V8_EXPORT_PRIVATE DisassemblingDecoder : public DecoderVisitor {
 
   void ResetOutput();
   void AppendToOutput(const char* string, ...);
+  void DisassembleNEONPolynomialMul(Instruction* instr);
 
   char* buffer_;
   uint32_t buffer_pos_;

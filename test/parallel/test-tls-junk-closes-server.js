@@ -39,6 +39,22 @@ const server = tls.createServer(options, common.mustNotCall());
 server.listen(0, common.mustCall(function() {
   const c = net.createConnection(this.address().port);
 
+  c.on('data', function() {
+    // We must consume all data sent by the server. Otherwise the
+    // end event will not be sent and the test will hang.
+    // For example, when compiled with OpenSSL32 we see the
+    // following response '15 03 03 00 02 02 16' which
+    // decodes as a fatal (0x02) TLS error alert number 22 (0x16),
+    // which corresponds to TLS1_AD_RECORD_OVERFLOW which matches
+    // the error we see if NODE_DEBUG is turned on.
+    // Some earlier OpenSSL versions did not seem to send a response
+    // but the TLS spec seems to indicate there should be one
+    // https://datatracker.ietf.org/doc/html/rfc8446#page-85
+    // and error handling seems to have been re-written/improved
+    // in OpenSSL32. Consuming the data allows the test to pass
+    // either way.
+  });
+
   c.on('connect', common.mustCall(function() {
     c.write('blah\nblah\nblah\n');
   }));

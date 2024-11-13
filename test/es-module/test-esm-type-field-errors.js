@@ -2,6 +2,7 @@
 const common = require('../common');
 const assert = require('assert');
 const exec = require('child_process').execFile;
+const { describe, it } = require('node:test');
 
 const mjsFile = require.resolve('../fixtures/es-modules/mjs-file.mjs');
 const cjsFile = require.resolve('../fixtures/es-modules/cjs-file.cjs');
@@ -20,18 +21,36 @@ expect('', packageTypeCommonJsMain, 'package-type-commonjs');
 expect('', packageWithoutTypeMain, 'package-without-type');
 
 // Check that --input-type isn't allowed for files
-expect('--input-type=module', packageTypeModuleMain,
-       'ERR_INPUT_TYPE_NOT_ALLOWED', true);
+describe('ESM type field errors', { concurrency: true }, () => {
+  it('.cjs file', () => {
+    expect('', cjsFile, '.cjs file');
+  });
 
-try {
-  require('../fixtures/es-modules/package-type-module/index.js');
-  assert.fail('Expected CJS to fail loading from type: module package.');
-} catch (e) {
-  assert.strictEqual(e.name, 'Error');
-  assert.strictEqual(e.code, 'ERR_REQUIRE_ESM');
-  assert(e.toString().match(/require\(\) of ES Module/g));
-  assert(e.message.match(/require\(\) of ES Module/g));
-}
+  it('.mjs file', () => {
+    expect('', mjsFile, '.mjs file');
+  });
+
+  it('package.json with "type": "module"', () => {
+    expect('', packageTypeModuleMain, 'package-type-module');
+  });
+
+  it('package.json with "type": "commonjs"', () => {
+    expect('', packageTypeCommonJsMain, 'package-type-commonjs');
+  });
+
+  it('package.json with no "type" field', () => {
+    expect('', packageWithoutTypeMain, 'package-without-type');
+  });
+
+  it('--input-type=module disallowed for files', () => {
+    expect(
+      '--input-type=module',
+      packageTypeModuleMain,
+      'ERR_INPUT_TYPE_NOT_ALLOWED',
+      true,
+    );
+  });
+});
 
 function expect(opt = '', inputFile, want, wantsError = false) {
   const argv = [inputFile];

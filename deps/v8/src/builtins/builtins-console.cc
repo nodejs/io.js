@@ -27,8 +27,7 @@ namespace internal {
   V(Count, count)              \
   V(CountReset, countReset)    \
   V(Profile, profile)          \
-  V(ProfileEnd, profileEnd)    \
-  V(TimeLog, timeLog)
+  V(ProfileEnd, profileEnd)
 
 #define CONSOLE_METHOD_WITH_FORMATTER_LIST(V) \
   V(Debug, debug, 1)                          \
@@ -109,7 +108,7 @@ bool Formatter(Isolate* isolate, BuiltinArguments& args, int index) {
 
       // Recurse into string results from type conversions, as they
       // can themselves contain formatting specifiers.
-      states.push({Handle<String>::cast(current), 0});
+      states.push({Cast<String>(current), 0});
     } else if (specifier == 'c' || specifier == 'o' || specifier == 'O' ||
                specifier == '_') {
       // We leave the interpretation of %c (CSS), %o (optimally useful
@@ -140,6 +139,15 @@ bool Formatter(Isolate* isolate, BuiltinArguments& args, int index) {
   return true;
 }
 
+// The closures installed on objects returned from `console.context()`
+// get a special builtin context with 2 slots, to hold the unique ID of
+// the console context and its name.
+enum {
+  CONSOLE_CONTEXT_ID_INDEX = Context::MIN_CONTEXT_SLOTS,
+  CONSOLE_CONTEXT_NAME_INDEX,
+  CONSOLE_CONTEXT_SLOTS,
+};
+
 void ConsoleCall(
     Isolate* isolate, const internal::BuiltinArguments& args,
     void (debug::ConsoleDelegate::*func)(const v8::debug::ConsoleCallArguments&,
@@ -148,19 +156,17 @@ void ConsoleCall(
   CHECK(!isolate->has_exception());
   if (!isolate->console_delegate()) return;
   HandleScope scope(isolate);
-  debug::ConsoleCallArguments wrapper(isolate, args);
-  Handle<Object> context_id_obj = JSObject::GetDataProperty(
-      isolate, args.target(), isolate->factory()->console_context_id_symbol());
-  int context_id =
-      IsSmi(*context_id_obj) ? Smi::cast(*context_id_obj).value() : 0;
-  Handle<Object> context_name_obj = JSObject::GetDataProperty(
-      isolate, args.target(),
-      isolate->factory()->console_context_name_symbol());
-  Handle<String> context_name = IsString(*context_name_obj)
-                                    ? Handle<String>::cast(context_name_obj)
-                                    : isolate->factory()->anonymous_string();
+  int context_id = 0;
+  Handle<String> context_name = isolate->factory()->anonymous_string();
+  if (!IsNativeContext(args.target()->context())) {
+    DirectHandle<Context> context(args.target()->context(), isolate);
+    CHECK_EQ(CONSOLE_CONTEXT_SLOTS, context->length());
+    context_id = Cast<Smi>(context->get(CONSOLE_CONTEXT_ID_INDEX)).value();
+    context_name =
+        handle(Cast<String>(context->get(CONSOLE_CONTEXT_NAME_INDEX)), isolate);
+  }
   (isolate->console_delegate()->*func)(
-      wrapper,
+      debug::ConsoleCallArguments(isolate, args),
       v8::debug::ConsoleContext(context_id, Utils::ToLocal(context_name)));
 }
 
@@ -215,8 +221,14 @@ BUILTIN(ConsoleTimeEnd) {
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
+BUILTIN(ConsoleTimeLog) {
+  LogTimerEvent(isolate, args, v8::LogEventStatus::kLog);
+  ConsoleCall(isolate, args, &debug::ConsoleDelegate::TimeLog);
+  RETURN_FAILURE_IF_EXCEPTION(isolate);
+  return ReadOnlyRoots(isolate).undefined_value();
+}
+
 BUILTIN(ConsoleTimeStamp) {
-  LogTimerEvent(isolate, args, v8::LogEventStatus::kStamp);
   ConsoleCall(isolate, args, &debug::ConsoleDelegate::TimeStamp);
   RETURN_FAILURE_IF_EXCEPTION(isolate);
   return ReadOnlyRoots(isolate).undefined_value();
@@ -225,33 +237,24 @@ BUILTIN(ConsoleTimeStamp) {
 namespace {
 
 void InstallContextFunction(Isolate* isolate, Handle<JSObject> target,
-                            const char* name, Builtin builtin, int context_id,
-                            Handle<Object> context_name) {
+                            const char* name, Builtin builtin,
+                            Handle<Context> context) {
   Factory* const factory = isolate->factory();
 
-  Handle<NativeContext> context(isolate->native_context());
   Handle<Map> map = isolate->sloppy_function_without_prototype_map();
 
-  Handle<String> name_string =
-      Name::ToFunctionName(isolate, factory->InternalizeUtf8String(name))
-          .ToHandleChecked();
+  Handle<String> name_string = factory->InternalizeUtf8String(name);
+
   Handle<SharedFunctionInfo> info =
       factory->NewSharedFunctionInfoForBuiltin(name_string, builtin);
   info->set_language_mode(LanguageMode::kSloppy);
+  info->set_native(true);
+  info->DontAdaptArguments();
+  info->set_length(1);
 
-  Handle<JSFunction> fun =
+  DirectHandle<JSFunction> fun =
       Factory::JSFunctionBuilder{isolate, info, context}.set_map(map).Build();
 
-  fun->shared()->set_native(true);
-  fun->shared()->DontAdaptArguments();
-  fun->shared()->set_length(1);
-
-  JSObject::AddProperty(isolate, fun, factory->console_context_id_symbol(),
-                        handle(Smi::FromInt(context_id), isolate), NONE);
-  if (IsString(*context_name)) {
-    JSObject::AddProperty(isolate, fun, factory->console_context_name_symbol(),
-                          context_name, NONE);
-  }
   JSObject::AddProperty(isolate, target, name_string, fun, NONE);
 }
 
@@ -259,11 +262,23 @@ void InstallContextFunction(Isolate* isolate, Handle<JSObject> target,
 
 BUILTIN(ConsoleContext) {
   HandleScope scope(isolate);
-
   Factory* const factory = isolate->factory();
-  Handle<String> name = factory->InternalizeUtf8String("Context");
-  Handle<SharedFunctionInfo> info =
-      factory->NewSharedFunctionInfoForBuiltin(name, Builtin::kIllegal);
+
+  isolate->CountUsage(v8::Isolate::UseCounterFeature::kConsoleContext);
+
+  // Generate a unique ID for the new `console.context`
+  // and convert the parameter to a string (defaults to
+  // 'anonymous' if unspecified).
+  Handle<String> context_name = factory->anonymous_string();
+  if (args.length() > 1) {
+    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, context_name,
+                                       Object::ToString(isolate, args.at(1)));
+  }
+  int context_id = isolate->last_console_context_id() + 1;
+  isolate->set_last_console_context_id(context_id);
+
+  Handle<SharedFunctionInfo> info = factory->NewSharedFunctionInfoForBuiltin(
+      factory->InternalizeUtf8String("Context"), Builtin::kIllegal);
   info->set_language_mode(LanguageMode::kSloppy);
 
   Handle<JSFunction> cons =
@@ -273,25 +288,27 @@ BUILTIN(ConsoleContext) {
   Handle<JSObject> prototype = factory->NewJSObject(isolate->object_function());
   JSFunction::SetPrototype(cons, prototype);
 
-  Handle<JSObject> context = factory->NewJSObject(cons, AllocationType::kOld);
-  DCHECK(IsJSObject(*context));
-  int id = isolate->last_console_context_id() + 1;
-  isolate->set_last_console_context_id(id);
+  Handle<JSObject> console_context =
+      factory->NewJSObject(cons, AllocationType::kOld);
+  DCHECK(IsJSObject(*console_context));
 
-#define CONSOLE_BUILTIN_SETUP(call, name, ...)                                 \
-  InstallContextFunction(isolate, context, #name, Builtin::kConsole##call, id, \
-                         args.at(1));
+  Handle<Context> context = factory->NewBuiltinContext(
+      isolate->native_context(), CONSOLE_CONTEXT_SLOTS);
+  context->set(CONSOLE_CONTEXT_ID_INDEX, Smi::FromInt(context_id));
+  context->set(CONSOLE_CONTEXT_NAME_INDEX, *context_name);
+
+#define CONSOLE_BUILTIN_SETUP(call, name, ...)            \
+  InstallContextFunction(isolate, console_context, #name, \
+                         Builtin::kConsole##call, context);
   CONSOLE_METHOD_LIST(CONSOLE_BUILTIN_SETUP)
   CONSOLE_METHOD_WITH_FORMATTER_LIST(CONSOLE_BUILTIN_SETUP)
+  CONSOLE_BUILTIN_SETUP(Time, time)
+  CONSOLE_BUILTIN_SETUP(TimeLog, timeLog)
+  CONSOLE_BUILTIN_SETUP(TimeEnd, timeEnd)
+  CONSOLE_BUILTIN_SETUP(TimeStamp, timeStamp)
 #undef CONSOLE_BUILTIN_SETUP
-  InstallContextFunction(isolate, context, "time", Builtin::kConsoleTime, id,
-                         args.at(1));
-  InstallContextFunction(isolate, context, "timeEnd", Builtin::kConsoleTimeEnd,
-                         id, args.at(1));
-  InstallContextFunction(isolate, context, "timeStamp",
-                         Builtin::kConsoleTimeStamp, id, args.at(1));
 
-  return *context;
+  return *console_context;
 }
 
 #undef CONSOLE_METHOD_LIST

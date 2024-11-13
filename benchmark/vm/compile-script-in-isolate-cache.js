@@ -5,17 +5,17 @@
 const common = require('../common.js');
 const fs = require('fs');
 const vm = require('vm');
-const fixtures = require('../../test/common/fixtures.js');
-const scriptPath = fixtures.path('snapshot', 'typescript.js');
+const path = require('path');
 
 const bench = common.createBenchmark(main, {
   type: ['with-dynamic-import-callback', 'without-dynamic-import-callback'],
-  n: [100],
+  filename: ['test/fixtures/snapshot/typescript.js', 'test/fixtures/syntax/good_syntax.js'],
+  n: [1000],
 });
 
-const scriptSource = fs.readFileSync(scriptPath, 'utf8');
-
-function main({ n, type }) {
+function main({ n, type, filename }) {
+  const scriptPath = path.resolve(__dirname, '..', '..', filename);
+  const scriptSource = fs.readFileSync(scriptPath, 'utf8');
   let script;
   bench.start();
   const options = {};

@@ -28,6 +28,7 @@
 import importlib.machinery
 import sys
 
+from functools import cached_property
 from pathlib import Path
 
 from testrunner.local import statusfile
@@ -52,17 +53,20 @@ FEATURE_FLAGS = {
     'array-find-from-last': '--harmony-array-find-last',
     'ShadowRealm': '--harmony-shadow-realm',
     'regexp-v-flag': '--harmony-regexp-unicode-sets',
-    'array-grouping': '--harmony-array-grouping',
     'String.prototype.isWellFormed': '--harmony-string-is-well-formed',
     'String.prototype.toWellFormed': '--harmony-string-is-well-formed',
     'json-parse-with-source': '--harmony-json-parse-with-source',
     'iterator-helpers': '--harmony-iterator-helpers',
     'set-methods': '--harmony-set-methods',
-    'promise-with-resolvers': '--js-promise-withresolvers',
-    'Array.fromAsync': '--harmony-array-from-async',
     'import-attributes': '--harmony-import-attributes',
     'regexp-duplicate-named-groups': '--js-regexp-duplicate-named-groups',
+    'regexp-modifiers': '--js-regexp-modifiers',
     'Float16Array': '--js-float16array',
+    'explicit-resource-management': '--js_explicit_resource_management',
+    'decorators': '--js-decorators',
+    'promise-try': '--js-promise-try',
+    'Atomics.pause': '--js-atomics-pause',
+    'source-phase-imports': '--js-source-phase-imports --allow-natives-syntax',
 }
 
 SKIPPED_FEATURES = set([])
@@ -105,12 +109,20 @@ class VariantsGenerator(testsuite.VariantsGenerator):
 
 
 class TestLoader(testsuite.JSTestLoader):
+  @cached_property
+  def local_staging_implementations(self):
+    return set()
+
   @property
   def test_dirs(self):
+    self.reset_local_implementations_filtering()
     return [
       self.test_root,
       self.suite.root / TEST_262_LOCAL_TESTS_PATH,
     ]
+
+  def reset_local_implementations_filtering(self):
+    self.local_staging_implementations.clear()
 
   @property
   def excluded_suffixes(self):
@@ -121,6 +133,11 @@ class TestLoader(testsuite.JSTestLoader):
     return {"intl402", "Intl402"} if self.test_config.noi18n else set()
 
   def _should_filter_by_test(self, test):
+    if test.has_local_staging_implementation:
+      if test.path_js in self.local_staging_implementations:
+        print(f"Skipping test {test.path_js} as it has a local implementation")
+        return True
+      self.local_staging_implementations.add(test.path_js)
     features = test.test_record.get("features", [])
     return SKIPPED_FEATURES.intersection(features)
 
@@ -204,10 +221,14 @@ class TestCase(testcase.D8TestCase):
     harness_args = []
     if "raw" not in self.test_record.get("flags", []):
       harness_args = list(self.suite.harness)
-    return (harness_args + ([self.suite.root / "harness-agent.js"]
-                            if self.__needs_harness_agent() else []) +
+    return (harness_args +
+            ([self.suite.root /
+              "harness-agent.js"] if self.__needs_harness_agent() else []) +
             ([self.suite.root / "harness-ishtmldda.js"]
              if "IsHTMLDDA" in self.test_record.get("features", []) else []) +
+            ([self.suite.root /
+              "harness-abstractmodulesource.js"] if "source-phase-imports"
+             in self.test_record.get("features", []) else []) +
             ([self.suite.root / "harness-adapt-donotevaluate.js"]
              if self.fail_phase_only and not self._fail_phase_reverse else []) +
             ([self.suite.root / "harness-done.js"]
@@ -244,6 +265,12 @@ class TestCase(testcase.D8TestCase):
     if path.exists():
       return path
     return self.suite.test_root / self.path_js
+
+  @cached_property
+  def has_local_staging_implementation(self):
+    return  (str(self.path_js).startswith("staging")
+        and (self.suite.local_test_root / self.path_js).exists()
+    )
 
   @property
   def output_proc(self):

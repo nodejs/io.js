@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 namespace runtime {
-extern runtime TierUpWasmToJSWrapper(NoContext, WasmApiFunctionRef): JSAny;
+extern runtime TierUpWasmToJSWrapper(NoContext, WasmImportData): JSAny;
 extern runtime WasmThrowJSTypeError(Context): never;
 }  // namespace runtime
 
@@ -17,12 +17,8 @@ struct WasmToJSResult {
   result3: float64;
 }
 
-extern macro CallOnCentralStack(
-    Context,
-    JSAny,      // target
-    int32,      // number of arguments in the FixedArray
-    FixedArray  // arguments list
-    ): JSAny;
+extern macro SwitchToTheCentralStackIfNeeded(): RawPtr;
+extern macro SwitchFromTheCentralStack(RawPtr): void;
 
 extern builtin IterableToFixedArrayForWasm(Context, JSAny, Smi): FixedArray;
 
@@ -55,8 +51,9 @@ macro HandleF32Returns(
 }
 
 @export
-transitioning macro WasmToJSWrapper(ref: WasmApiFunctionRef): WasmToJSResult {
-  dcheck(Is<WasmApiFunctionRef>(ref));
+transitioning macro WasmToJSWrapper(ref: WasmImportData): WasmToJSResult {
+  const oldSP = SwitchToTheCentralStackIfNeeded();
+  dcheck(Is<WasmImportData>(ref));
   // Spill the signature on the stack so that it can be read by the GC. This is
   // done in the very beginning before a GC could be triggered.
   // Caller FP + return address.
@@ -190,8 +187,8 @@ transitioning macro WasmToJSWrapper(ref: WasmApiFunctionRef): WasmToJSResult {
   // scanned anymore.
   *GetRefAt<intptr>(sigSlot, 0) = 0;
 
-  const result = CallOnCentralStack(
-      context, target, Convert<int32>(numStackParams), outParams);
+  const result = CallVarargs(
+      context, target, 0, Convert<int32>(numStackParams), outParams);
 
   // Put a marker on the stack to indicate to the frame iterator that the call
   // to JavaScript is finished. For asm.js source positions it is important to
@@ -265,21 +262,22 @@ transitioning macro WasmToJSWrapper(ref: WasmApiFunctionRef): WasmToJSResult {
     } else {
       const retKind = retType & kValueTypeKindBitsMask;
       dcheck(retKind == ValueKind::kRef || retKind == ValueKind::kRefNull);
-      dcheck(ref.instance == Undefined || Is<WasmInstanceObject>(ref.instance));
-      const trustedData = ref.instance == Undefined ?
+      const trustedData = TaggedIsSmi(ref.instance_data) ?
           Undefined :
-          LoadTrustedDataFromInstance(
-              UnsafeCast<WasmInstanceObject>(ref.instance));
+          UnsafeCast<WasmTrustedInstanceData>(ref.instance_data);
       const converted = JSToWasmObject(context, trustedData, retType, retVal);
-      let toRef = locationAllocator.GetGPSlot();
       if (returnCount == 1) {
         // There are no other values, we can write the object directly into the
         // result buffer.
+        let toRef = locationAllocator.GetGPSlot();
         *toRef = BitcastTaggedToWord(converted);
       } else {
-        // There may be other parameters that could still trigger a GC when they
-        // get transformed. For now we just store the converted value back in
-        // the FixedArray.
+        // Storing the converted value back in the FixedArray serves two
+        // purposes:
+        // (1) There may be other parameters that could still trigger a GC when
+        //     they get transformed.
+        // (2) Tagged values are reordered to the end, so we can't assign their
+        //     locations yet.
         hasTagged = true;
         resultFixedArray.objects[nextIndex] = converted;
       }
@@ -287,26 +285,13 @@ transitioning macro WasmToJSWrapper(ref: WasmApiFunctionRef): WasmToJSResult {
     nextIndex++;
   }
   if (hasTagged) {
+    locationAllocator.StartRefs();
     returnIt = returnTypes.Iterator();
     nextIndex = 0;
-    locationAllocator =
-        LocationAllocatorForReturns(gpRegSlots, fpRegSlots, stackSlots);
     while (!returnIt.Empty()) {
       const retType = returnIt.NextNotEmpty();
-      if (retType == kWasmI32Type) {
-        locationAllocator.GetGPSlot();
-      } else if (retType == kWasmF32Type) {
-        locationAllocator.GetFP32Slot();
-      } else if (retType == kWasmF64Type) {
-        locationAllocator.GetFP64Slot();
-      } else if (retType == kWasmI64Type) {
-        if constexpr (Is64()) {
-          locationAllocator.GetGPSlot();
-        } else {
-          locationAllocator.GetGPSlot();
-          locationAllocator.GetGPSlot();
-        }
-      } else {
+      const retKind = retType & kValueTypeKindBitsMask;
+      if (retKind == ValueKind::kRef || retKind == ValueKind::kRefNull) {
         let toRef = locationAllocator.GetGPSlot();
         const value = resultFixedArray.objects[nextIndex];
         *toRef = BitcastTaggedToWord(value);
@@ -321,12 +306,16 @@ transitioning macro WasmToJSWrapper(ref: WasmApiFunctionRef): WasmToJSResult {
       numFixedSlots;
 
   ModifyThreadInWasmFlag(1);
-  return WasmToJSResult{
+  const wasmToJSResult = WasmToJSResult{
     popCount: popCount,
     result0: *GetRefAt<intptr>(gpRegSlots, 0),
     result1: *GetRefAt<intptr>(gpRegSlots, torque_internal::SizeOf<intptr>()),
     result2: *GetRefAt<float64>(fpRegSlots, 0),
     result3: *GetRefAt<float64>(fpRegSlots, torque_internal::SizeOf<float64>())
   };
+  if (Convert<uintptr>(oldSP) != 0) {
+    SwitchFromTheCentralStack(oldSP);
+  }
+  return wasmToJSResult;
 }
 }  // namespace wasm

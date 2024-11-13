@@ -47,7 +47,10 @@ bool TrustedRange::InitReservation(size_t requested) {
   params.page_size = kPageSize;
   params.base_alignment = base_alignment;
   params.requested_start_hint = requested_start_hint;
-  params.jit = JitPermission::kNoJit;
+  params.permissions = PageAllocator::Permission::kNoAccess;
+  params.page_initialization_mode =
+      base::PageInitializationMode::kAllocatedPagesCanBeUninitialized;
+  params.page_freeing_mode = base::PageFreeingMode::kMakeInaccessible;
   return VirtualMemoryCage::InitReservation(params);
 }
 

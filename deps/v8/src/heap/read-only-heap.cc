@@ -13,12 +13,13 @@
 #include "src/common/ptr-compr-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/heap/memory-chunk-metadata.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/read-only-spaces.h"
 #include "src/heap/third-party/heap-api.h"
 #include "src/objects/heap-object-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/smi.h"
+#include "src/sandbox/js-dispatch-table-inl.h"
 #include "src/snapshot/read-only-deserializer.h"
 #include "src/utils/allocation.h"
 
@@ -38,7 +39,7 @@ base::LazyInstance<std::weak_ptr<ReadOnlyArtifacts>>::type
 
 std::shared_ptr<ReadOnlyArtifacts> InitializeSharedReadOnlyArtifacts() {
   std::shared_ptr<ReadOnlyArtifacts> artifacts;
-  if (COMPRESS_POINTERS_IN_ISOLATE_CAGE_BOOL) {
+  if (COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL) {
     artifacts = std::make_shared<PointerCompressedReadOnlyArtifacts>();
   } else {
     artifacts = std::make_shared<SingleCopyReadOnlyArtifacts>();
@@ -51,6 +52,7 @@ std::shared_ptr<ReadOnlyArtifacts> InitializeSharedReadOnlyArtifacts() {
 ReadOnlyHeap::~ReadOnlyHeap() {
 #ifdef V8_ENABLE_SANDBOX
   GetProcessWideCodePointerTable()->TearDownSpace(&code_pointer_space_);
+  GetProcessWideJSDispatchTable()->TearDownSpace(&js_dispatch_table_space_);
 #endif
 }
 
@@ -170,7 +172,10 @@ void ReadOnlyHeap::OnCreateHeapObjectsComplete(Isolate* isolate) {
   InitFromIsolate(isolate);
 
 #ifdef VERIFY_HEAP
-  if (v8_flags.verify_heap) HeapVerifier::VerifyReadOnlyHeap(isolate->heap());
+  if (v8_flags.verify_heap) {
+    HeapVerifier::VerifyReadOnlyHeap(isolate->heap());
+    HeapVerifier::VerifyHeap(isolate->heap());
+  }
 #endif
 }
 
@@ -178,7 +183,7 @@ void ReadOnlyHeap::OnCreateHeapObjectsComplete(Isolate* isolate) {
 ReadOnlyHeap::ReadOnlyHeap(ReadOnlyHeap* ro_heap, ReadOnlySpace* ro_space)
     : read_only_space_(ro_space) {
   DCHECK(ReadOnlyHeap::IsReadOnlySpaceShared());
-  DCHECK(COMPRESS_POINTERS_IN_ISOLATE_CAGE_BOOL);
+  DCHECK(COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL);
 }
 
 // static
@@ -188,7 +193,7 @@ ReadOnlyHeap* ReadOnlyHeap::CreateInitialHeapForBootstrapping(
 
   std::unique_ptr<ReadOnlyHeap> ro_heap;
   auto* ro_space = new ReadOnlySpace(isolate->heap());
-  if (COMPRESS_POINTERS_IN_ISOLATE_CAGE_BOOL) {
+  if (COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL) {
     ro_heap.reset(new ReadOnlyHeap(ro_space));
   } else {
     std::unique_ptr<SoleReadOnlyHeap> sole_ro_heap(
@@ -241,6 +246,14 @@ ReadOnlyHeap::ReadOnlyHeap(ReadOnlySpace* ro_space)
     : read_only_space_(ro_space) {
 #ifdef V8_ENABLE_SANDBOX
   GetProcessWideCodePointerTable()->InitializeSpace(&code_pointer_space_);
+  GetProcessWideJSDispatchTable()->InitializeSpace(&js_dispatch_table_space_);
+  // To avoid marking trying to write to these read-only cells they are
+  // allocated black. Target code objects in the read-only dispatch table are
+  // read-only code objects.
+  js_dispatch_table_space_.set_allocate_black(true);
+  // TODO(olivf, 42204201): We should also `AttachSpaceToReadOnlySegment` here,
+  // however that requires a bit of a dance to initialize the dispatch table at
+  // the exact right momemnt in Isolate::Init.
 #endif
 }
 
@@ -283,11 +296,16 @@ bool ReadOnlyHeap::Contains(Address address) {
 
 // static
 bool ReadOnlyHeap::Contains(Tagged<HeapObject> object) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return third_party_heap::Heap::InReadOnlySpace(object.address());
-  } else {
-    return MemoryChunk::FromHeapObject(object)->InReadOnlySpace();
-  }
+  return Contains(object.address());
+}
+
+// static
+bool ReadOnlyHeap::SandboxSafeContains(Tagged<HeapObject> object) {
+#ifdef V8_ENABLE_SANDBOX
+  return MemoryChunk::FromHeapObject(object)->SandboxSafeInReadOnlySpace();
+#else
+  return Contains(object);
+#endif
 }
 
 ReadOnlyHeapObjectIterator::ReadOnlyHeapObjectIterator(

@@ -14,7 +14,11 @@ TCP or [IPC][] servers ([`net.createServer()`][]) and clients
 
 It can be accessed using:
 
-```js
+```mjs
+import net from 'node:net';
+```
+
+```cjs
 const net = require('node:net');
 ```
 
@@ -467,6 +471,9 @@ Listening on a file descriptor is not supported on Windows.
 <!-- YAML
 added: v0.11.14
 changes:
+  - version: v23.1.0
+    pr-url: https://github.com/nodejs/node/pull/55408
+    description: The `reusePort` option is supported.
   - version: v15.6.0
     pr-url: https://github.com/nodejs/node/pull/36623
     description: AbortSignal support was added.
@@ -483,6 +490,11 @@ changes:
   * `ipv6Only` {boolean} For TCP servers, setting `ipv6Only` to `true` will
     disable dual-stack support, i.e., binding to host `::` won't make
     `0.0.0.0` be bound. **Default:** `false`.
+  * `reusePort` {boolean} For TCP servers, setting `reusePort` to `true` allows
+    multiple sockets on the same host to bind to the same port. Incoming connections
+    are distributed by the operating system to listening sockets. This option is
+    available only on some platforms, such as Linux 3.9+, DragonFlyBSD 3.6+, FreeBSD 12.0+,
+    Solaris 11.4, and AIX 7.2.5+. **Default:** `false`.
   * `path` {string} Will be ignored if `port` is specified. See
     [Identifying paths for IPC connections][].
   * `port` {number}
@@ -599,11 +611,24 @@ changes:
 
 * {integer}
 
-Set this property to reject connections when the server's connection count gets
-high.
+When the number of connections reaches the `server.maxConnections` threshold:
+
+1. If the process is not running in cluster mode, Node.js will close the connection.
+
+2. If the process is running in cluster mode, Node.js will, by default, route the connection to another worker process. To close the connection instead, set \[`server.dropMaxConnection`]\[] to `true`.
 
 It is not recommended to use this option once a socket has been sent to a child
 with [`child_process.fork()`][].
+
+### `server.dropMaxConnection`
+
+<!-- YAML
+added: v23.1.0
+-->
+
+* {boolean}
+
+Set this property to `true` to begin closing connections once the number of connections reaches the \[`server.maxConnections`]\[] threshold. This setting is only effective in cluster mode.
 
 ### `server.ref()`
 
@@ -658,6 +683,9 @@ changes:
   - version: v15.14.0
     pr-url: https://github.com/nodejs/node/pull/37735
     description: AbortSignal support was added.
+  - version: v12.10.0
+    pr-url: https://github.com/nodejs/node/pull/25436
+    description: Added `onread` option.
 -->
 
 * `options` {Object} Available options are:
@@ -667,6 +695,19 @@ changes:
     `false`.
   * `fd` {number} If specified, wrap around an existing socket with
     the given file descriptor, otherwise a new socket will be created.
+  * `onread` {Object} If specified, incoming data is stored in a single `buffer`
+    and passed to the supplied `callback` when data arrives on the socket.
+    This will cause the streaming functionality to not provide any data.
+    The socket will emit events like `'error'`, `'end'`, and `'close'`
+    as usual. Methods like `pause()` and `resume()` will also behave as
+    expected.
+    * `buffer` {Buffer|Uint8Array|Function} Either a reusable chunk of memory to
+      use for storing incoming data or a function that returns such.
+    * `callback` {Function} This function is called for every chunk of incoming
+      data. Two arguments are passed to it: the number of bytes written to
+      `buffer` and a reference to `buffer`. Return `false` from this function to
+      implicitly `pause()` the socket. This function will be executed in the
+      global context.
   * `readable` {boolean} Allow reads on the socket when an `fd` is passed,
     otherwise ignored. **Default:** `false`.
   * `signal` {AbortSignal} An Abort signal that may be used to destroy the
@@ -973,9 +1014,6 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/41310
     description: The `noDelay`, `keepAlive`, and `keepAliveInitialDelay`
                  options are supported now.
-  - version: v12.10.0
-    pr-url: https://github.com/nodejs/node/pull/25436
-    description: Added `onread` option.
   - version: v6.0.0
     pr-url: https://github.com/nodejs/node/pull/6021
     description: The `hints` option defaults to `0` in all cases now.
@@ -1037,39 +1075,6 @@ For [IPC][] connections, available `options` are:
 * `path` {string} Required. Path the client should connect to.
   See [Identifying paths for IPC connections][]. If provided, the TCP-specific
   options above are ignored.
-
-For both types, available `options` include:
-
-* `onread` {Object} If specified, incoming data is stored in a single `buffer`
-  and passed to the supplied `callback` when data arrives on the socket.
-  This will cause the streaming functionality to not provide any data.
-  The socket will emit events like `'error'`, `'end'`, and `'close'`
-  as usual. Methods like `pause()` and `resume()` will also behave as
-  expected.
-  * `buffer` {Buffer|Uint8Array|Function} Either a reusable chunk of memory to
-    use for storing incoming data or a function that returns such.
-  * `callback` {Function} This function is called for every chunk of incoming
-    data. Two arguments are passed to it: the number of bytes written to
-    `buffer` and a reference to `buffer`. Return `false` from this function to
-    implicitly `pause()` the socket. This function will be executed in the
-    global context.
-
-Following is an example of a client using the `onread` option:
-
-```js
-const net = require('node:net');
-net.connect({
-  port: 80,
-  onread: {
-    // Reuses a 4KiB Buffer for every read from the socket.
-    buffer: Buffer.alloc(4 * 1024),
-    callback: function(nread, buf) {
-      // Received data is available in `buf` from 0 to `nread`.
-      console.log(buf.toString('utf8', 0, nread));
-    },
-  },
-});
-```
 
 #### `socket.connect(path[, connectListener])`
 
@@ -1551,7 +1556,23 @@ Additional options:
 Following is an example of a client of the echo server described
 in the [`net.createServer()`][] section:
 
-```js
+```mjs
+import net from 'node:net';
+const client = net.createConnection({ port: 8124 }, () => {
+  // 'connect' listener.
+  console.log('connected to server!');
+  client.write('world!\r\n');
+});
+client.on('data', (data) => {
+  console.log(data.toString());
+  client.end();
+});
+client.on('end', () => {
+  console.log('disconnected from server');
+});
+```
+
+```cjs
 const net = require('node:net');
 const client = net.createConnection({ port: 8124 }, () => {
   // 'connect' listener.
@@ -1571,6 +1592,42 @@ To connect on the socket `/tmp/echo.sock`:
 
 ```js
 const client = net.createConnection({ path: '/tmp/echo.sock' });
+```
+
+Following is an example of a client using the `port` and `onread`
+option. In this case, the `onread` option will be only used to call
+`new net.Socket([options])` and the `port` option will be used to
+call `socket.connect(options[, connectListener])`.
+
+```mjs
+import net from 'node:net';
+import { Buffer } from 'node:buffer';
+net.createConnection({
+  port: 8124,
+  onread: {
+    // Reuses a 4KiB Buffer for every read from the socket.
+    buffer: Buffer.alloc(4 * 1024),
+    callback: function(nread, buf) {
+      // Received data is available in `buf` from 0 to `nread`.
+      console.log(buf.toString('utf8', 0, nread));
+    },
+  },
+});
+```
+
+```cjs
+const net = require('node:net');
+net.createConnection({
+  port: 8124,
+  onread: {
+    // Reuses a 4KiB Buffer for every read from the socket.
+    buffer: Buffer.alloc(4 * 1024),
+    callback: function(nread, buf) {
+      // Received data is available in `buf` from 0 to `nread`.
+      console.log(buf.toString('utf8', 0, nread));
+    },
+  },
+});
 ```
 
 ### `net.createConnection(path[, connectListener])`
@@ -1684,7 +1741,26 @@ The server can be a TCP server or an [IPC][] server, depending on what it
 Here is an example of a TCP echo server which listens for connections
 on port 8124:
 
-```js
+```mjs
+import net from 'node:net';
+const server = net.createServer((c) => {
+  // 'connection' listener.
+  console.log('client connected');
+  c.on('end', () => {
+    console.log('client disconnected');
+  });
+  c.write('hello\r\n');
+  c.pipe(c);
+});
+server.on('error', (err) => {
+  throw err;
+});
+server.listen(8124, () => {
+  console.log('server bound');
+});
+```
+
+```cjs
 const net = require('node:net');
 const server = net.createServer((c) => {
   // 'connection' listener.
@@ -1743,7 +1819,9 @@ added: v19.4.0
 
 Sets the default value of the `autoSelectFamily` option of [`socket.connect(options)`][].
 
-* `value` {boolean} The new default value. The initial default value is `false`.
+* `value` {boolean} The new default value.
+  The initial default value is `true`, unless the command line option
+  `--no-network-family-autoselection` is provided.
 
 ## `net.getDefaultAutoSelectFamilyAttemptTimeout()`
 

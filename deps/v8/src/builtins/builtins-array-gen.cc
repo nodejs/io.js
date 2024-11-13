@@ -4,6 +4,10 @@
 
 #include "src/builtins/builtins-array-gen.h"
 
+#include <optional>
+
+#include "src/builtins/builtins-constructor-gen.h"
+#include "src/builtins/builtins-constructor.h"
 #include "src/builtins/builtins-iterator-gen.h"
 #include "src/builtins/builtins-string-gen.h"
 #include "src/builtins/builtins-typed-array-gen.h"
@@ -460,7 +464,7 @@ TF_BUILTIN(ArrayPrototypePush, CodeStubAssembler) {
   BIND(&default_label);
   {
     args.ForEach(
-        [=](TNode<Object> arg) {
+        [=, this](TNode<Object> arg) {
           TNode<Number> length = LoadJSArrayLength(array_receiver);
           SetPropertyStrict(context, array_receiver, length, arg);
         },
@@ -518,7 +522,7 @@ TF_BUILTIN(CloneFastJSArrayFillingHoles, ArrayBuiltinsAssembler) {
                           LoadElementsKind(array))),
                       Word32BinaryNot(IsNoElementsProtectorCellInvalid())));
 
-  Return(CloneFastJSArray(context, array, base::nullopt,
+  Return(CloneFastJSArray(context, array, std::nullopt,
                           HoleConversionMode::kConvertToUndefined));
 }
 
@@ -1598,7 +1602,7 @@ void ArrayBuiltinsAssembler::TailCallArrayConstructorStub(
 void ArrayBuiltinsAssembler::CreateArrayDispatchNoArgument(
     TNode<Context> context, TNode<JSFunction> target, TNode<Int32T> argc,
     AllocationSiteOverrideMode mode,
-    base::Optional<TNode<AllocationSite>> allocation_site) {
+    std::optional<TNode<AllocationSite>> allocation_site) {
   if (mode == DISABLE_ALLOCATION_SITES) {
     Callable callable = CodeFactory::ArrayNoArgumentConstructor(
         isolate(), GetInitialFastElementsKind(), mode);
@@ -1636,7 +1640,7 @@ void ArrayBuiltinsAssembler::CreateArrayDispatchNoArgument(
 void ArrayBuiltinsAssembler::CreateArrayDispatchSingleArgument(
     TNode<Context> context, TNode<JSFunction> target, TNode<Int32T> argc,
     AllocationSiteOverrideMode mode,
-    base::Optional<TNode<AllocationSite>> allocation_site) {
+    std::optional<TNode<AllocationSite>> allocation_site) {
   if (mode == DISABLE_ALLOCATION_SITES) {
     ElementsKind initial = GetInitialFastElementsKind();
     ElementsKind holey_initial = GetHoleyElementsKind(initial);
@@ -1706,7 +1710,7 @@ void ArrayBuiltinsAssembler::CreateArrayDispatchSingleArgument(
 void ArrayBuiltinsAssembler::GenerateDispatchToArrayStub(
     TNode<Context> context, TNode<JSFunction> target, TNode<Int32T> argc,
     AllocationSiteOverrideMode mode,
-    base::Optional<TNode<AllocationSite>> allocation_site) {
+    std::optional<TNode<AllocationSite>> allocation_site) {
   CodeStubArguments args(this, argc);
   Label check_one_case(this), fallthrough(this);
   GotoIfNot(IntPtrEqual(args.GetLengthWithoutReceiver(), IntPtrConstant(0)),
@@ -1797,7 +1801,7 @@ void ArrayBuiltinsAssembler::GenerateConstructor(
       TNode<JSArray> array = AllocateJSArray(
           elements_kind, array_map, array_size_smi, array_size_smi,
           mode == DONT_TRACK_ALLOCATION_SITE
-              ? base::Optional<TNode<AllocationSite>>(base::nullopt)
+              ? std::optional<TNode<AllocationSite>>(std::nullopt)
               : CAST(allocation_site));
       Return(array);
     }
@@ -1817,10 +1821,10 @@ void ArrayBuiltinsAssembler::GenerateArrayNoArgumentConstructor(
       Parameter<HeapObject>(Descriptor::kFunction), JSFunction::kContextOffset);
   bool track_allocation_site =
       AllocationSite::ShouldTrack(kind) && mode != DISABLE_ALLOCATION_SITES;
-  base::Optional<TNode<AllocationSite>> allocation_site =
+  std::optional<TNode<AllocationSite>> allocation_site =
       track_allocation_site
           ? Parameter<AllocationSite>(Descriptor::kAllocationSite)
-          : base::Optional<TNode<AllocationSite>>(base::nullopt);
+          : std::optional<TNode<AllocationSite>>(std::nullopt);
   TNode<Map> array_map = LoadJSArrayElementsMap(kind, native_context);
   TNode<JSArray> array = AllocateJSArray(
       kind, array_map, IntPtrConstant(JSArray::kPreallocatedArrayElements),
@@ -1924,6 +1928,321 @@ GENERATE_ARRAY_CTOR(SingleArgument, HoleyDouble, HOLEY_DOUBLE_ELEMENTS,
                     DisableAllocationSites, DISABLE_ALLOCATION_SITES)
 
 #undef GENERATE_ARRAY_CTOR
+
+class SlowBoilerplateCloneAssembler : public CodeStubAssembler {
+ public:
+  explicit SlowBoilerplateCloneAssembler(compiler::CodeAssemblerState* state)
+      : CodeStubAssembler(state) {}
+
+  // If `item` is an object or an array, deep-clone it and jump to `cloned`.
+  void CloneIfObjectOrArray(TNode<Object> item, TVariable<Object>& clone,
+                            TVariable<Object>& current_allocation_site,
+                            TNode<Context> context, Label* cloned,
+                            Label* not_cloned, Label* bailout) {
+    Label is_object(this, &current_allocation_site),
+        is_array(this, &current_allocation_site);
+
+    GotoIf(TaggedIsSmi(item), not_cloned);
+    GotoIf(IsJSArray(CAST(item)), &is_array);
+    GotoIf(IsJSObject(CAST(item)), &is_object);
+    Goto(not_cloned);
+
+    BIND(&is_array);
+    {
+      // Consume the next AllocationSite. All objects inside this array, as well
+      // as all sibling objects (until a new array is encountered) will use this
+      // AllocationSite. E.g., in [1, 2, {a: 3}, [4, 5], {b: 6}], the object {a:
+      // 3} uses the topmost AllocationSite, and the object {b: 6} uses the
+      // AllocationSite of [4, 5].
+      if (V8_ALLOCATION_SITE_TRACKING_BOOL) {
+        current_allocation_site =
+            LoadNestedAllocationSite(CAST(current_allocation_site.value()));
+
+        // Ensure we're consuming the AllocationSites in the correct order.
+        CSA_DCHECK(
+            this,
+            TaggedEqual(LoadBoilerplate(CAST(current_allocation_site.value())),
+                        item));
+      }
+
+      auto clone_and_next_allocation_site = CallBuiltin<PairT<Object, Object>>(
+          Builtin::kCreateArrayFromSlowBoilerplateHelper, context,
+          current_allocation_site.value(), item);
+
+      clone = Projection<0>(clone_and_next_allocation_site);
+      GotoIf(IsUndefined(clone.value()), bailout);
+      current_allocation_site = Projection<1>(clone_and_next_allocation_site);
+      Goto(cloned);
+    }
+
+    BIND(&is_object);
+    {
+      auto clone_and_next_allocation_site = CallBuiltin<PairT<Object, Object>>(
+          Builtin::kCreateObjectFromSlowBoilerplateHelper, context,
+          current_allocation_site.value(), item);
+      clone = Projection<0>(clone_and_next_allocation_site);
+      GotoIf(IsUndefined(clone.value()), bailout);
+      current_allocation_site = Projection<1>(clone_and_next_allocation_site);
+      Goto(cloned);
+    }
+  }
+
+  void CloneElementsOfFixedArray(TNode<FixedArrayBase> elements,
+                                 TNode<Smi> length, TNode<Int32T> elements_kind,
+                                 TVariable<Object>& current_allocation_site,
+                                 TNode<Context> context, Label* done,
+                                 Label* bailout) {
+    CSA_DCHECK(this, SmiNotEqual(length, SmiConstant(0)));
+
+    auto loop_body = [&](TNode<IntPtrT> index) {
+      TVARIABLE(Object, clone);
+      Label cloned(this, &clone),
+          done_with_element(this, &current_allocation_site);
+
+      TNode<Object> element = LoadFixedArrayElement(CAST(elements), index);
+      CloneIfObjectOrArray(element, clone, current_allocation_site, context,
+                           &cloned, &done_with_element, bailout);
+
+      BIND(&cloned);
+      {
+        StoreFixedArrayElement(CAST(elements), index, clone.value());
+        Goto(&done_with_element);
+      }
+
+      BIND(&done_with_element);
+    };
+    VariableList loop_vars({&current_allocation_site}, zone());
+    BuildFastLoop<IntPtrT>(loop_vars, IntPtrConstant(0),
+                           PositiveSmiUntag(length), loop_body, 1,
+                           LoopUnrollingMode::kYes, IndexAdvanceMode::kPost);
+    Goto(done);
+  }
+};
+
+TF_BUILTIN(CreateArrayFromSlowBoilerplate, SlowBoilerplateCloneAssembler) {
+  auto context = Parameter<Context>(Descriptor::kContext);
+  auto feedback_vector = Parameter<FeedbackVector>(Descriptor::kFeedbackVector);
+  auto slot = Parameter<TaggedIndex>(Descriptor::kSlot);
+
+  Label call_runtime(this);
+
+  TNode<Object> maybe_allocation_site =
+      CAST(LoadFeedbackVectorSlot(feedback_vector, slot));
+  GotoIfNot(HasBoilerplate(maybe_allocation_site), &call_runtime);
+
+  TNode<AllocationSite> allocation_site = CAST(maybe_allocation_site);
+  TNode<JSArray> boilerplate = CAST(LoadBoilerplate(allocation_site));
+
+  {
+    auto clone_and_next_allocation_site = CallBuiltin<PairT<Object, Object>>(
+        Builtin::kCreateArrayFromSlowBoilerplateHelper, context,
+        allocation_site, boilerplate);
+    TNode<Object> result = Projection<0>(clone_and_next_allocation_site);
+
+    GotoIf(IsUndefined(result), &call_runtime);
+    Return(result);
+  }
+
+  BIND(&call_runtime);
+  {
+    auto boilerplate_descriptor = Parameter<ArrayBoilerplateDescription>(
+        Descriptor::kBoilerplateDescriptor);
+    auto flags = Parameter<Smi>(Descriptor::kFlags);
+    TNode<Object> result =
+        CallRuntime(Runtime::kCreateArrayLiteral, context, feedback_vector,
+                    slot, boilerplate_descriptor, flags);
+    Return(result);
+  }
+}
+
+TF_BUILTIN(CreateObjectFromSlowBoilerplate, SlowBoilerplateCloneAssembler) {
+  auto context = Parameter<Context>(Descriptor::kContext);
+  auto feedback_vector = Parameter<FeedbackVector>(Descriptor::kFeedbackVector);
+  auto slot = Parameter<TaggedIndex>(Descriptor::kSlot);
+
+  Label call_runtime(this);
+
+  TNode<Object> maybe_allocation_site =
+      CAST(LoadFeedbackVectorSlot(feedback_vector, slot));
+  GotoIfNot(HasBoilerplate(maybe_allocation_site), &call_runtime);
+
+  TNode<AllocationSite> allocation_site = CAST(maybe_allocation_site);
+  TNode<JSObject> boilerplate = LoadBoilerplate(allocation_site);
+
+  {
+    auto clone_and_next_allocation_site = CallBuiltin<PairT<Object, Object>>(
+        Builtin::kCreateObjectFromSlowBoilerplateHelper, context,
+        allocation_site, boilerplate);
+    TNode<Object> result = Projection<0>(clone_and_next_allocation_site);
+
+    GotoIf(IsUndefined(result), &call_runtime);
+    Return(result);
+  }
+
+  BIND(&call_runtime);
+  {
+    auto boilerplate_descriptor = Parameter<ObjectBoilerplateDescription>(
+        Descriptor::kBoilerplateDescriptor);
+    auto flags = Parameter<Smi>(Descriptor::kFlags);
+    TNode<Object> result =
+        CallRuntime(Runtime::kCreateObjectLiteral, context, feedback_vector,
+                    slot, boilerplate_descriptor, flags);
+    Return(result);
+  }
+}
+
+TF_BUILTIN(CreateArrayFromSlowBoilerplateHelper,
+           SlowBoilerplateCloneAssembler) {
+  auto context = Parameter<Context>(Descriptor::kContext);
+  auto allocation_site = Parameter<AllocationSite>(Descriptor::kAllocationSite);
+  auto boilerplate = Parameter<JSArray>(Descriptor::kBoilerplate);
+
+  PerformStackCheck(context);
+
+  TNode<FixedArrayBase> boilerplate_elements = LoadElements(boilerplate);
+  TNode<Smi> length = LoadFixedArrayBaseLength(boilerplate_elements);
+
+  // If the array contains other arrays (either directly or inside objects),
+  // the AllocationSite tree is stored as a list (AllocationSite::nested_site)
+  // in pre-order. See AllocationSiteUsageContext.
+  TVARIABLE(Object, current_allocation_site);
+  current_allocation_site = allocation_site;
+
+  Label done(this, &current_allocation_site),
+      bailout(this, &current_allocation_site, Label::kDeferred);
+
+  // Keep in sync with ArrayLiteralBoilerplateBuilder::IsFastCloningSupported.
+  // TODO(42204675): Detect this in advance when constructing the boilerplate.
+  GotoIf(
+      SmiAboveOrEqual(
+          length,
+          SmiConstant(ConstructorBuiltins::kMaximumClonedShallowArrayElements)),
+      &bailout);
+
+  // First clone the array as if was a simple, shallow array:
+  TNode<JSArray> array;
+  if (V8_ALLOCATION_SITE_TRACKING_BOOL) {
+    array = CloneFastJSArray(context, boilerplate, allocation_site);
+  } else {
+    array = CloneFastJSArray(context, boilerplate);
+  }
+
+  // Then fix up each element by cloning it (if it's an object or an array).
+  TNode<FixedArrayBase> elements = LoadElements(array);
+
+  // If the boilerplate array is COW, it won't contain objects or arrays.
+  GotoIf(TaggedEqual(LoadMap(elements), FixedCOWArrayMapConstant()), &done);
+
+  // If the elements kind is not between PACKED_ELEMENTS and HOLEY_ELEMENTS, it
+  // cannot contain objects or arrays.
+  TNode<Int32T> elements_kind = LoadElementsKind(boilerplate);
+  GotoIf(Uint32GreaterThan(
+             Unsigned(Int32Sub(elements_kind, Int32Constant(PACKED_ELEMENTS))),
+             Uint32Constant(HOLEY_ELEMENTS - PACKED_ELEMENTS)),
+         &done);
+
+  GotoIf(SmiEqual(length, SmiConstant(0)), &done);
+  CloneElementsOfFixedArray(elements, length, elements_kind,
+                            current_allocation_site, context, &done, &bailout);
+  BIND(&done);
+  { Return(array, current_allocation_site.value()); }
+
+  BIND(&bailout);
+  { Return(UndefinedConstant(), UndefinedConstant()); }
+}
+
+TF_BUILTIN(CreateObjectFromSlowBoilerplateHelper,
+           SlowBoilerplateCloneAssembler) {
+  auto context = Parameter<Context>(Descriptor::kContext);
+  auto allocation_site = Parameter<AllocationSite>(Descriptor::kAllocationSite);
+  auto boilerplate = Parameter<JSObject>(Descriptor::kBoilerplate);
+
+  PerformStackCheck(context);
+
+  TVARIABLE(Object, current_allocation_site);
+  current_allocation_site = allocation_site;
+
+  Label bailout(this, &current_allocation_site);
+
+  // Keep in sync with ObjectLiteralBoilerplateBuilder::IsFastCloningSupported.
+  // The property count needs to be below
+  // ConstructorBuiltins::kMaximumClonedShallowObjectProperties.
+  // CreateShallowObjectLiteral already bails out if all properties don't fit
+  // in-object, so we don't need to check the property count here.
+  // TODO(42204675): Detect this in advance when constructing the boilerplate.
+  TNode<Int32T> elements_kind = LoadElementsKind(boilerplate);
+  GotoIf(
+      Int32GreaterThan(elements_kind, Int32Constant(LAST_FAST_ELEMENTS_KIND)),
+      &bailout);
+
+  constexpr bool kBailoutIfDictionaryPropertiesTrue = true;
+  ConstructorBuiltinsAssembler constructor_assembler(state());
+  TNode<JSObject> object =
+      CAST(constructor_assembler.CreateShallowObjectLiteral(
+          allocation_site, boilerplate, &bailout,
+          kBailoutIfDictionaryPropertiesTrue));
+
+  // Fix up the object properties and elements and consume the correct amount of
+  // AllocationSites. To iterate the AllocationSites in the correct order, we
+  // need to first iterate the in-object properties and then the elements.
+
+  // Assert that there aren't any out of object properties (if there are, we
+  // must have bailed out already):
+  CSA_DCHECK(this, IsEmptyFixedArray(LoadFastProperties(boilerplate)));
+
+  // In-object properties:
+  {
+    auto loop_body = [&](TNode<IntPtrT> offset) {
+      TVARIABLE(Object, clone);
+      Label cloned(this, &clone),
+          done_with_field(this, &current_allocation_site);
+
+      TNode<Object> field = LoadObjectField(object, offset);
+      CloneIfObjectOrArray(field, clone, current_allocation_site, context,
+                           &cloned, &done_with_field, &bailout);
+
+      BIND(&cloned);
+      {
+        StoreObjectField(object, offset, clone.value());
+        Goto(&done_with_field);
+      }
+
+      BIND(&done_with_field);
+    };
+
+    TNode<Map> boilerplate_map = LoadMap(boilerplate);
+    TNode<IntPtrT> instance_size =
+        TimesTaggedSize(LoadMapInstanceSizeInWords(boilerplate_map));
+    VariableList loop_vars({&current_allocation_site}, zone());
+    BuildFastLoop<IntPtrT>(loop_vars, IntPtrConstant(JSObject::kHeaderSize),
+                           instance_size, loop_body, kTaggedSize,
+                           LoopUnrollingMode::kYes, IndexAdvanceMode::kPost);
+  }
+
+  // Elements:
+  {
+    Label done_with_elements(this);
+    TNode<FixedArrayBase> elements = LoadElements(object);
+    GotoIf(IsEmptyFixedArray(elements), &done_with_elements);
+
+    TNode<Int32T> elements_kind = LoadElementsKind(object);
+    // Object elements are never COW and never SMI_ELEMENTS etc.
+    CloneElementsOfFixedArray(elements, LoadFixedArrayBaseLength(elements),
+                              elements_kind, current_allocation_site, context,
+                              &done_with_elements, &bailout);
+    BIND(&done_with_elements);
+  }
+
+  Return(object, current_allocation_site.value());
+
+  BIND(&bailout);
+  {
+    // We can't solve this case by calling into Runtime_CreateObjectLiteral,
+    // since it's currently not suitable for creating a nested objects (e.g.,
+    // doesn't return the next AllocationSite).
+    Return(UndefinedConstant(), UndefinedConstant());
+  }
+}
 
 }  // namespace internal
 }  // namespace v8

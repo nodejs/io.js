@@ -49,8 +49,8 @@ command.on('close', common.mustCall((code, signal) => {
 }));
 
 // Verify that the environment is properly inherited
-const env = cp.spawn(`"${process.execPath}" -pe process.env.BAZ`, {
-  env: { ...process.env, BAZ: 'buzz' },
+const env = cp.spawn(`"${common.isWindows ? process.execPath : '$NODE'}" -pe process.env.BAZ`, {
+  env: { ...process.env, BAZ: 'buzz', NODE: process.execPath },
   encoding: 'utf8',
   shell: true
 });

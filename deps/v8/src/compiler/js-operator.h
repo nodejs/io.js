@@ -955,6 +955,7 @@ class V8_EXPORT_PRIVATE JSOperatorBuilder final
   const Operator* CreateStringIterator();
   const Operator* CreateKeyValueArray();
   const Operator* CreateObject();
+  const Operator* CreateStringWrapper();
   const Operator* CreatePromise();
   const Operator* CreateTypedArray();
   const Operator* CreateLiteralArray(ArrayBoilerplateDescriptionRef constant,

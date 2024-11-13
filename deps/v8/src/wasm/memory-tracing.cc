@@ -10,11 +10,9 @@
 #include "src/base/strings.h"
 #include "src/base/vector.h"
 
-namespace v8 {
-namespace internal {
-namespace wasm {
+namespace v8::internal::wasm {
 
-void TraceMemoryOperation(base::Optional<ExecutionTier> tier,
+void TraceMemoryOperation(std::optional<ExecutionTier> tier,
                           const MemoryTracingInfo* info, int func_index,
                           int position, uint8_t* mem_start) {
   base::EmbeddedVector<char, 91> value;
@@ -55,6 +53,4 @@ void TraceMemoryOperation(base::Optional<ExecutionTier> tier,
          value.begin());
 }
 
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm

@@ -360,6 +360,7 @@ JSTypeHintLowering::LoweringResult JSTypeHintLowering::ReduceUnaryOperation(
   FeedbackSource feedback(feedback_vector(), slot);
 
   Node* node;
+  Node* check = nullptr;
   switch (op->opcode()) {
     case IrOpcode::kJSBitwiseNot: {
       // Lower to a speculative xor with -1 if we have some kind of Number
@@ -406,12 +407,44 @@ JSTypeHintLowering::LoweringResult JSTypeHintLowering::ReduceUnaryOperation(
       }
       break;
     }
+    case IrOpcode::kTypeOf: {
+      TypeOfFeedback::Result hint = broker()->GetFeedbackForTypeOf(feedback);
+      switch (hint) {
+        case TypeOfFeedback::kNumber:
+          check = jsgraph()->graph()->NewNode(
+              jsgraph()->simplified()->CheckNumber(FeedbackSource()), operand,
+              effect, control);
+          node = jsgraph()->ConstantNoHole(broker()->number_string(), broker());
+          break;
+        case TypeOfFeedback::kString:
+          check = jsgraph()->graph()->NewNode(
+              jsgraph()->simplified()->CheckString(FeedbackSource()), operand,
+              effect, control);
+          node = jsgraph()->ConstantNoHole(broker()->string_string(), broker());
+          break;
+        case TypeOfFeedback::kFunction: {
+          Node* condition = jsgraph()->graph()->NewNode(
+              jsgraph()->simplified()->ObjectIsDetectableCallable(), operand);
+          check = jsgraph()->graph()->NewNode(
+              jsgraph()->simplified()->CheckIf(
+                  DeoptimizeReason::kNotDetectableReceiver, FeedbackSource()),
+              condition, effect, control);
+          node =
+              jsgraph()->ConstantNoHole(broker()->function_string(), broker());
+          break;
+        }
+        default:
+          node = nullptr;
+          break;
+      }
+      break;
+    }
     default:
       UNREACHABLE();
   }
 
   if (node != nullptr) {
-    return LoweringResult::SideEffectFree(node, node, control);
+    return LoweringResult::SideEffectFree(node, check ? check : node, control);
   } else {
     return LoweringResult::NoChange();
   }

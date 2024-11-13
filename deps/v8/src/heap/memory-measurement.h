@@ -75,7 +75,6 @@ class V8_EXPORT_PRIVATE NativeContextInferrer {
   // context is the shared context.
   V8_INLINE bool Infer(PtrComprCageBase cage_base, Tagged<Map> map,
                        Tagged<HeapObject> object, Address* native_context);
-
 };
 
 // Maintains mapping from native contexts to their sizes.

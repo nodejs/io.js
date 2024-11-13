@@ -79,8 +79,10 @@ class TaskRunner {
    *
    * Embedders should override PostTaskImpl instead of this.
    */
-  virtual void PostTask(std::unique_ptr<Task> task) {
-    PostTaskImpl(std::move(task), SourceLocation::Current());
+  void PostTask(
+      std::unique_ptr<Task> task,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostTaskImpl(std::move(task), location);
   }
 
   /**
@@ -100,8 +102,10 @@ class TaskRunner {
    *
    * Embedders should override PostNonNestableTaskImpl instead of this.
    */
-  virtual void PostNonNestableTask(std::unique_ptr<Task> task) {
-    PostNonNestableTaskImpl(std::move(task), SourceLocation::Current());
+  void PostNonNestableTask(
+      std::unique_ptr<Task> task,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostNonNestableTaskImpl(std::move(task), location);
   }
 
   /**
@@ -111,10 +115,10 @@ class TaskRunner {
    *
    * Embedders should override PostDelayedTaskImpl instead of this.
    */
-  virtual void PostDelayedTask(std::unique_ptr<Task> task,
-                               double delay_in_seconds) {
-    PostDelayedTaskImpl(std::move(task), delay_in_seconds,
-                        SourceLocation::Current());
+  void PostDelayedTask(
+      std::unique_ptr<Task> task, double delay_in_seconds,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostDelayedTaskImpl(std::move(task), delay_in_seconds, location);
   }
 
   /**
@@ -135,10 +139,10 @@ class TaskRunner {
    *
    * Embedders should override PostNonNestableDelayedTaskImpl instead of this.
    */
-  virtual void PostNonNestableDelayedTask(std::unique_ptr<Task> task,
-                                          double delay_in_seconds) {
-    PostNonNestableDelayedTaskImpl(std::move(task), delay_in_seconds,
-                                   SourceLocation::Current());
+  void PostNonNestableDelayedTask(
+      std::unique_ptr<Task> task, double delay_in_seconds,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostNonNestableDelayedTaskImpl(std::move(task), delay_in_seconds, location);
   }
 
   /**
@@ -151,8 +155,10 @@ class TaskRunner {
    *
    * Embedders should override PostIdleTaskImpl instead of this.
    */
-  virtual void PostIdleTask(std::unique_ptr<IdleTask> task) {
-    PostIdleTaskImpl(std::move(task), SourceLocation::Current());
+  void PostIdleTask(
+      std::unique_ptr<IdleTask> task,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostIdleTaskImpl(std::move(task), location);
   }
 
   /**
@@ -389,7 +395,7 @@ class TracingController {
 
   /**
    * Adds a trace event to the platform tracing system. These function calls are
-   * usually the result of a TRACE_* macro from trace_event_common.h when
+   * usually the result of a TRACE_* macro from trace-event-no-perfetto.h when
    * tracing and the category of the particular trace are enabled. It is not
    * advisable to call these functions on their own; they are really only meant
    * to be used by the trace macros. The returned handle can be used by
@@ -1022,18 +1028,6 @@ class VirtualAddressSpace {
 };
 
 /**
- * V8 Allocator used for allocating zone backings.
- */
-class ZoneBackingAllocator {
- public:
-  using MallocFn = void* (*)(size_t);
-  using FreeFn = void (*)(void*);
-
-  virtual MallocFn GetMallocFn() const { return ::malloc; }
-  virtual FreeFn GetFreeFn() const { return ::free; }
-};
-
-/**
  * Observer used by V8 to notify the embedder about entering/leaving sections
  * with high throughput of malloc/free operations.
  */
@@ -1067,14 +1061,6 @@ class Platform {
    */
   virtual ThreadIsolatedAllocator* GetThreadIsolatedAllocator() {
     return nullptr;
-  }
-
-  /**
-   * Allows the embedder to specify a custom allocator used for zones.
-   */
-  virtual ZoneBackingAllocator* GetZoneBackingAllocator() {
-    static ZoneBackingAllocator default_allocator;
-    return &default_allocator;
   }
 
   /**

@@ -3,8 +3,9 @@
 // found in the LICENSE file.
 
 // Flags: --turbo-fast-api-calls --expose-fast-api
+// Flags: --fast-api-allow-float-in-sim
 
-load('test/mjsunit/wasm/wasm-module-builder.js');
+d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 assertThrows(() => d8.test.FastCAPI());
 const fast_c_api = new d8.test.FastCAPI();
@@ -15,7 +16,7 @@ function buildWasm(name, sig, body) {
     'fast_c_api',
     'add_all_no_options',
     makeSig(
-      [kWasmI32, kWasmI32, kWasmI32, kWasmI64, kWasmI64, kWasmF32, kWasmF64],
+      [kWasmI32, kWasmI32, kWasmI64, kWasmI64, kWasmF32, kWasmF64],
       [kWasmF64],
     ),
   );
@@ -23,7 +24,7 @@ function buildWasm(name, sig, body) {
     'fast_c_api',
     'add_all_no_options',
     makeSig(
-      [kWasmI32, kWasmI32, kWasmI32, kWasmI64, kWasmF32, kWasmI64, kWasmF64],
+      [kWasmI32, kWasmI32, kWasmI64, kWasmF32, kWasmI64, kWasmF64],
       [kWasmF64],
     ),
   );
@@ -31,7 +32,7 @@ function buildWasm(name, sig, body) {
     'fast_c_api',
     'add_all_nested_bound',
     makeSig(
-      [kWasmI32, kWasmI32, kWasmI32, kWasmI64, kWasmI64, kWasmF32, kWasmF64],
+      [kWasmI32, kWasmI32, kWasmI64, kWasmI64, kWasmF32, kWasmF64],
       [kWasmF64],
     ),
   );
@@ -39,7 +40,7 @@ function buildWasm(name, sig, body) {
     'fast_c_api',
     'overloaded_add_all_32bit_int',
     makeSig(
-      [kWasmI32, kWasmI32, kWasmI32, kWasmI32, kWasmI32, kWasmI32, kWasmI32],
+      [kWasmI32, kWasmI32, kWasmI32, kWasmI32, kWasmI32, kWasmI32],
       [kWasmI32],
     ),
   );
@@ -48,7 +49,12 @@ function buildWasm(name, sig, body) {
     'test_wasm_memory',
     makeSig([kWasmI32], [kWasmI32]),
   );
-  builder.addMemory(1, 1);
+
+  const throw_no_fallback = builder.addImport(
+      'fast_c_api', 'throw_no_fallback', makeSig([], [kWasmI32]));
+
+  const mem_index = builder.addMemory(1, 1);
+  builder.exportMemoryAs("memory", mem_index);
   builder.addFunction(name, sig)
       .addBody(body({
         add_all_no_options,
@@ -56,8 +62,10 @@ function buildWasm(name, sig, body) {
         add_all_nested_bound,
         overloaded_add_all_32bit_int,
         test_wasm_memory,
+        throw_no_fallback
       }))
       .exportFunc();
+
   const x = {};
   const module = builder.instantiate({
     fast_c_api: {
@@ -68,8 +76,10 @@ function buildWasm(name, sig, body) {
         .bind(x),
       overloaded_add_all_32bit_int: fast_c_api.overloaded_add_all_32bit_int_no_sig.bind(fast_c_api),
       test_wasm_memory: fast_c_api.test_wasm_memory.bind(fast_c_api),
+      throw_no_fallback: fast_c_api.throw_no_fallback.bind(fast_c_api),
     },
   });
+  fast_c_api.wasm_memory = module.exports.memory;
   return module.exports[name];
 }
 
@@ -85,7 +95,6 @@ const add_all_result = -42 + 45 + Number.MIN_SAFE_INTEGER + Number.MAX_SAFE_INTE
 const add_all_wasm = buildWasm(
   'add_all_wasm', makeSig([], [kWasmF64]),
   ({ add_all_no_options }) => [
-    ...wasmI32Const(0),
     ...wasmI32Const(-42),
     ...wasmI32Const(45),
     kExprI64Const, 0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x70, // Number.MIN_SAFE_INTEGER
@@ -116,7 +125,6 @@ if (fast_c_api.supports_fp_params) {
 const add_all_mismatch_wasm = buildWasm(
   'add_all_mismatch_wasm', makeSig([], [kWasmF64]),
   ({ add_all_no_options_mismatch }) => [
-    ...wasmI32Const(0),
     ...wasmI32Const(45),
     ...wasmI32Const(-42),
     kExprI64Const, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F, // Number.MAX_SAFE_INTEGER
@@ -139,7 +147,6 @@ assertEquals(1, fast_c_api.slow_call_count());
 const add_all_nested_bound_wasm = buildWasm(
   'add_all_nested_bound_wasm', makeSig([], [kWasmF64]),
   ({ add_all_nested_bound }) => [
-    ...wasmI32Const(0),
     ...wasmI32Const(-42),
     ...wasmI32Const(45),
     kExprI64Const, 0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x70, // Number.MIN_SAFE_INTEGER
@@ -159,9 +166,8 @@ assertEquals(1, fast_c_api.slow_call_count());
 
 // ----------- Test overloaded_add_all_32bit_int -----------
 const overloaded_add_all_32bit_int_wasm = buildWasm(
-  'overloaded_add_all_32bit_int_wasm', makeSig([kWasmI32], [kWasmI32]),
+  'overloaded_add_all_32bit_int_wasm', makeSig([], [kWasmI32]),
   ({ overloaded_add_all_32bit_int }) => [
-    kExprLocalGet, 0,
     ...wasmI32Const(1),
     ...wasmI32Const(2),
     ...wasmI32Const(3),
@@ -177,15 +183,9 @@ const overload_result = 1 + 2 + 3 + 4 + 5 + 6;
 
 // Test wasm hits fast path.
 fast_c_api.reset_counts();
-assertEquals(overload_result, overloaded_add_all_32bit_int_wasm(false));
+assertEquals(overload_result, overloaded_add_all_32bit_int_wasm());
 assertEquals(1, fast_c_api.fast_call_count());
 assertEquals(0, fast_c_api.slow_call_count());
-
-// Test wasm hits slow path.
-fast_c_api.reset_counts();
-assertEquals(overload_result, overloaded_add_all_32bit_int_wasm(true));
-assertEquals(1, fast_c_api.fast_call_count());
-assertEquals(1, fast_c_api.slow_call_count());
 
 // ------------- Test test_wasm_memory ---------------
 const test_wasm_memory_wasm = buildWasm(
@@ -202,5 +202,14 @@ const test_wasm_memory_wasm = buildWasm(
 // Test hits fast path.
 fast_c_api.reset_counts();
 assertEquals(42, test_wasm_memory_wasm())
+assertEquals(1, fast_c_api.fast_call_count());
+assertEquals(0, fast_c_api.slow_call_count());
+
+const test_throw_no_fallback = buildWasm(
+    'test_throw_no_fallback', makeSig([], [kWasmI32]),
+    ({throw_no_fallback}) => [kExprCallFunction, throw_no_fallback]);
+
+fast_c_api.reset_counts();
+assertThrows(test_throw_no_fallback, Error, 'Exception from fast callback');
 assertEquals(1, fast_c_api.fast_call_count());
 assertEquals(0, fast_c_api.slow_call_count());

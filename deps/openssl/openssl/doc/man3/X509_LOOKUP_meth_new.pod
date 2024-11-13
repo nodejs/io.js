@@ -110,6 +110,7 @@ be given a human-readable string containing a brief description of the lookup
 method.
 
 X509_LOOKUP_meth_free() destroys a B<X509_LOOKUP_METHOD> structure.
+If the argument is NULL, nothing is done.
 
 X509_LOOKUP_get_new_item() and X509_LOOKUP_set_new_item() get and set the
 function that is called when an B<X509_LOOKUP> object is created with
@@ -186,7 +187,7 @@ The functions described here were added in OpenSSL 1.1.0i.
 
 =head1 COPYRIGHT
 
-Copyright 2018-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2018-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

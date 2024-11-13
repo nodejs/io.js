@@ -5,6 +5,8 @@
 #include "src/torque/torque-compiler.h"
 
 #include <fstream>
+#include <optional>
+
 #include "src/torque/declarable.h"
 #include "src/torque/declaration-visitor.h"
 #include "src/torque/global-context.h"
@@ -12,15 +14,13 @@
 #include "src/torque/torque-parser.h"
 #include "src/torque/type-oracle.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 namespace {
 
-base::Optional<std::string> ReadFile(const std::string& path) {
+std::optional<std::string> ReadFile(const std::string& path) {
   std::ifstream file_stream(path);
-  if (!file_stream.good()) return base::nullopt;
+  if (!file_stream.good()) return std::nullopt;
 
   return std::string{std::istreambuf_iterator<char>(file_stream),
                      std::istreambuf_iterator<char>()};
@@ -59,7 +59,6 @@ void CompileCurrentAst(TorqueCompilerOptions options) {
   if (options.annotate_ir) {
     GlobalContext::SetAnnotateIR();
   }
-  TargetArchitecture::Scope target_architecture(options.force_32bit_output);
   TypeOracle::Scope type_oracle;
   CurrentScope::Scope current_namespace(GlobalContext::GetDefaultNamespace());
 
@@ -115,6 +114,7 @@ void CompileCurrentAst(TorqueCompilerOptions options) {
 
 TorqueCompilerResult CompileTorque(const std::string& source,
                                    TorqueCompilerOptions options) {
+  TargetArchitecture::Scope target_architecture(options.force_32bit_output);
   SourceFileMap::Scope source_map_scope(options.v8_root);
   CurrentSourceFile::Scope no_file_scope(
       SourceFileMap::AddSource("dummy-filename.tq"));
@@ -140,6 +140,7 @@ TorqueCompilerResult CompileTorque(const std::string& source,
 
 TorqueCompilerResult CompileTorque(std::vector<std::string> files,
                                    TorqueCompilerOptions options) {
+  TargetArchitecture::Scope target_architecture(options.force_32bit_output);
   SourceFileMap::Scope source_map_scope(options.v8_root);
   CurrentSourceFile::Scope unknown_source_file_scope(SourceId::Invalid());
   CurrentAst::Scope ast_scope;
@@ -167,6 +168,7 @@ TorqueCompilerResult CompileTorque(std::vector<std::string> files,
 TorqueCompilerResult CompileTorqueForKythe(
     std::vector<TorqueCompilationUnit> units, TorqueCompilerOptions options,
     KytheConsumer* consumer) {
+  TargetArchitecture::Scope target_architecture(options.force_32bit_output);
   SourceFileMap::Scope source_map_scope(options.v8_root);
   CurrentSourceFile::Scope unknown_source_file_scope(SourceId::Invalid());
   CurrentAst::Scope ast_scope;
@@ -196,6 +198,4 @@ TorqueCompilerResult CompileTorqueForKythe(
   return result;
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

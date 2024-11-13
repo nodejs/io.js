@@ -389,7 +389,7 @@ utrie2_close(UTrie2 *trie) {
 
 U_CAPI UBool U_EXPORT2
 utrie2_isFrozen(const UTrie2 *trie) {
-    return (UBool)(trie->newTrie==nullptr);
+    return trie->newTrie==nullptr;
 }
 
 U_CAPI int32_t U_EXPORT2
@@ -552,7 +552,7 @@ enumEitherTrie(const UTrie2 *trie,
             }
             for(; i2<i2Limit; ++i2) {
                 if(idx!=nullptr) {
-                    block=(int32_t)idx[i2Block+i2]<<UTRIE2_INDEX_SHIFT;
+                    block = static_cast<int32_t>(idx[i2Block + i2]) << UTRIE2_INDEX_SHIFT;
                 } else {
                     block=trie->newTrie->index2[i2Block+i2];
                 }

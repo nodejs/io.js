@@ -92,7 +92,7 @@ const crypto = require('crypto');
     assert.throws(() => {
       dh3.computeSecret('');
     }, { message: common.hasOpenSSL3 && !hasOpenSSL3WithNewErrorMessage ?
-      'error:02800080:Diffie-Hellman routines::invalid secret' :
+      'Unspecified validation error' :
       'Supplied key is too small' });
   }
 }

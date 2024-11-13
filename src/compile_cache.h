@@ -4,9 +4,9 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include <cinttypes>
-#include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include "v8.h"
 
@@ -29,15 +29,35 @@ struct CompileCacheEntry {
   std::string source_filename;
   CachedCodeType type;
   bool refreshed = false;
+  bool persisted = false;
+
   // Copy the cache into a new store for V8 to consume. Caller takes
   // ownership.
   v8::ScriptCompiler::CachedData* CopyCache() const;
 };
 
+#define COMPILE_CACHE_STATUS(V)                                                \
+  V(FAILED)          /* Failed to enable the cache */                          \
+  V(ENABLED)         /* Was not enabled before, and now enabled. */            \
+  V(ALREADY_ENABLED) /* Was already enabled. */                                \
+  V(DISABLED)        /* Has been disabled by NODE_DISABLE_COMPILE_CACHE. */
+
+enum class CompileCacheEnableStatus : uint8_t {
+#define V(status) status,
+  COMPILE_CACHE_STATUS(V)
+#undef V
+};
+
+struct CompileCacheEnableResult {
+  CompileCacheEnableStatus status;
+  std::string cache_directory;
+  std::string message;  // Set in case of failure.
+};
+
 class CompileCacheHandler {
  public:
   explicit CompileCacheHandler(Environment* env);
-  bool InitializeDirectory(Environment* env, const std::string& dir);
+  CompileCacheEnableResult Enable(Environment* env, const std::string& dir);
 
   void Persist();
 
@@ -50,6 +70,7 @@ class CompileCacheHandler {
   void MaybeSave(CompileCacheEntry* entry,
                  v8::Local<v8::Module> mod,
                  bool rejected);
+  std::string_view cache_dir() { return compile_cache_dir_; }
 
  private:
   void ReadCacheFile(CompileCacheEntry* entry);
@@ -62,19 +83,17 @@ class CompileCacheHandler {
   template <typename... Args>
   inline void Debug(const char* format, Args&&... args) const;
 
-  static constexpr size_t kCodeSizeOffset = 0;
-  static constexpr size_t kCacheSizeOffset = 1;
-  static constexpr size_t kCodeHashOffset = 2;
-  static constexpr size_t kCacheHashOffset = 3;
-  static constexpr size_t kHeaderCount = 4;
+  static constexpr size_t kMagicNumberOffset = 0;
+  static constexpr size_t kCodeSizeOffset = 1;
+  static constexpr size_t kCacheSizeOffset = 2;
+  static constexpr size_t kCodeHashOffset = 3;
+  static constexpr size_t kCacheHashOffset = 4;
+  static constexpr size_t kHeaderCount = 5;
 
   v8::Isolate* isolate_ = nullptr;
   bool is_debug_ = false;
 
-  std::filesystem::path compile_cache_dir_;
-  // The compile cache is stored in a directory whose name is the hex string of
-  // compiler_cache_key_.
-  uint32_t compiler_cache_key_ = 0;
+  std::string compile_cache_dir_;
   std::unordered_map<uint32_t, std::unique_ptr<CompileCacheEntry>>
       compiler_cache_store_;
 };

@@ -78,6 +78,7 @@ int uv_translate_sys_error(int sys_errno) {
     case WSAEADDRNOTAVAIL:                  return UV_EADDRNOTAVAIL;
     case WSAEAFNOSUPPORT:                   return UV_EAFNOSUPPORT;
     case WSAEWOULDBLOCK:                    return UV_EAGAIN;
+    case ERROR_NO_DATA:                     return UV_EAGAIN;
     case WSAEALREADY:                       return UV_EALREADY;
     case ERROR_INVALID_FLAGS:               return UV_EBADF;
     case ERROR_INVALID_HANDLE:              return UV_EBADF;
@@ -157,7 +158,6 @@ int uv_translate_sys_error(int sys_errno) {
     case ERROR_ACCESS_DENIED:               return UV_EPERM;
     case ERROR_PRIVILEGE_NOT_HELD:          return UV_EPERM;
     case ERROR_BAD_PIPE:                    return UV_EPIPE;
-    case ERROR_NO_DATA:                     return UV_EPIPE;
     case ERROR_PIPE_NOT_CONNECTED:          return UV_EPIPE;
     case WSAESHUTDOWN:                      return UV_EPIPE;
     case WSAEPROTONOSUPPORT:                return UV_EPROTONOSUPPORT;
@@ -168,6 +168,16 @@ int uv_translate_sys_error(int sys_errno) {
     case ERROR_INVALID_FUNCTION:            return UV_EISDIR;
     case ERROR_META_EXPANSION_TOO_LONG:     return UV_E2BIG;
     case WSAESOCKTNOSUPPORT:                return UV_ESOCKTNOSUPPORT;
+    case ERROR_BAD_EXE_FORMAT:              return UV_EFTYPE;
     default:                                return UV_UNKNOWN;
+  }
+}
+
+int uv_translate_write_sys_error(int sys_errno) {
+  switch (sys_errno) {
+    case ERROR_BROKEN_PIPE:                 return UV_EPIPE;
+    case ERROR_NO_DATA:                     return UV_EPIPE;
+    default:
+      return uv_translate_sys_error(sys_errno);
   }
 }

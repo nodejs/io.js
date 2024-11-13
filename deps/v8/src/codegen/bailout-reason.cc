@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 
 #include "src/codegen/bailout-reason.h"
+
 #include "src/base/logging.h"
+#include "src/sandbox/check.h"
 
 namespace v8 {
 namespace internal {

@@ -48,6 +48,8 @@
 #include <sys/types.h>
 #endif
 
+#include <simdutf.h>
+
 #include <atomic>
 #include <cstdio>
 #include <cstring>
@@ -100,11 +102,31 @@ static void MakeUtf8String(Isolate* isolate,
                            MaybeStackBuffer<T>* target) {
   Local<String> string;
   if (!value->ToString(isolate->GetCurrentContext()).ToLocal(&string)) return;
+  String::ValueView value_view(isolate, string);
 
-  size_t storage;
-  if (!StringBytes::StorageSize(isolate, string, UTF8).To(&storage)) return;
-  storage += 1;
+  auto value_length = value_view.length();
+
+  if (value_view.is_one_byte()) {
+    auto const_char = reinterpret_cast<const char*>(value_view.data8());
+    auto expected_length =
+        target->capacity() < (static_cast<size_t>(value_length) * 2 + 1)
+            ? simdutf::utf8_length_from_latin1(const_char, value_length)
+            : value_length * 2;
+
+    // Add +1 for null termination.
+    target->AllocateSufficientStorage(expected_length + 1);
+    const auto actual_length = simdutf::convert_latin1_to_utf8(
+        const_char, value_length, target->out());
+    target->SetLengthAndZeroTerminate(actual_length);
+    return;
+  }
+
+  // Add +1 for null termination.
+  size_t storage = (3 * value_length) + 1;
   target->AllocateSufficientStorage(storage);
+
+  // TODO(@anonrig): Use simdutf to speed up non-one-byte strings once it's
+  // implemented
   const int flags =
       String::NO_NULL_TERMINATION | String::REPLACE_INVALID_UTF8;
   const int length =
@@ -675,8 +697,9 @@ void SetConstructorFunction(Local<Context> context,
                             Local<String> name,
                             Local<FunctionTemplate> tmpl,
                             SetConstructorFunctionFlag flag) {
-  if (LIKELY(flag == SetConstructorFunctionFlag::SET_CLASS_NAME))
+  if (flag == SetConstructorFunctionFlag::SET_CLASS_NAME) [[likely]] {
     tmpl->SetClassName(name);
+  }
   that->Set(context, name, tmpl->GetFunction(context).ToLocalChecked()).Check();
 }
 
@@ -694,8 +717,9 @@ void SetConstructorFunction(Isolate* isolate,
                             Local<String> name,
                             Local<FunctionTemplate> tmpl,
                             SetConstructorFunctionFlag flag) {
-  if (LIKELY(flag == SetConstructorFunctionFlag::SET_CLASS_NAME))
+  if (flag == SetConstructorFunctionFlag::SET_CLASS_NAME) [[likely]] {
     tmpl->SetClassName(name);
+  }
   that->Set(name, tmpl);
 }
 

@@ -74,7 +74,7 @@ getCodesFromLocale(const char *locale,
     }
     // Explicit script code.
     if (!script.isEmpty()) {
-        UScriptCode scriptCode = (UScriptCode)u_getPropertyValueEnum(UCHAR_SCRIPT, script.data());
+        UScriptCode scriptCode = static_cast<UScriptCode>(u_getPropertyValueEnum(UCHAR_SCRIPT, script.data()));
         if(scriptCode != USCRIPT_INVALID_CODE) {
             if(scriptCode == USCRIPT_SIMPLIFIED_HAN || scriptCode == USCRIPT_TRADITIONAL_HAN) {
                 scriptCode = USCRIPT_HAN;

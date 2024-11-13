@@ -5,7 +5,13 @@
 #ifndef V8_COMPILER_TURBOSHAFT_INSTRUCTION_SELECTION_PHASE_H_
 #define V8_COMPILER_TURBOSHAFT_INSTRUCTION_SELECTION_PHASE_H_
 
+#include <optional>
+
 #include "src/compiler/turboshaft/phase.h"
+
+namespace v8::internal {
+class ProfileDataFromFile;
+}
 
 namespace v8::internal::compiler::turboshaft {
 
@@ -105,19 +111,27 @@ class V8_EXPORT_PRIVATE TurboshaftSpecialRPONumberer {
 
 V8_EXPORT_PRIVATE void PropagateDeferred(Graph& graph);
 
-struct InstructionSelectionPhase {
-  DECL_TURBOSHAFT_PHASE_CONSTANTS(InstructionSelection)
+struct ProfileApplicationPhase {
+  DECL_TURBOSHAFT_PHASE_CONSTANTS(ProfileApplication)
 
-  base::Optional<BailoutReason> Run(Zone* temp_zone,
-                                    const CallDescriptor* call_descriptor,
-                                    Linkage* linkage, CodeTracer* code_tracer);
+  void Run(PipelineData* data, Zone* temp_zone,
+           const ProfileDataFromFile* profile);
 };
 
-// Disable printing a default turboshaft graph as this phase produces an
-// instruction seqeuence rather than a new graph.
-template <>
-struct produces_printable_graph<InstructionSelectionPhase>
-    : public std::false_type {};
+struct SpecialRPOSchedulingPhase {
+  DECL_TURBOSHAFT_PHASE_CONSTANTS(SpecialRPOScheduling)
+
+  void Run(PipelineData* data, Zone* temp_zone);
+};
+
+struct InstructionSelectionPhase {
+  DECL_TURBOSHAFT_PHASE_CONSTANTS(InstructionSelection)
+  static constexpr bool kOutputIsTraceableGraph = false;
+
+  std::optional<BailoutReason> Run(PipelineData* data, Zone* temp_zone,
+                                   const CallDescriptor* call_descriptor,
+                                   Linkage* linkage, CodeTracer* code_tracer);
+};
 
 }  // namespace v8::internal::compiler::turboshaft
 

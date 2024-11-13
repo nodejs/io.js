@@ -258,6 +258,7 @@ V8_NOINLINE V8_EXPORT_PRIVATE bool IsSubtypeOfImpl(
   switch (subtype.kind()) {
     case kI32:
     case kI64:
+    case kF16:
     case kF32:
     case kF64:
     case kS128:

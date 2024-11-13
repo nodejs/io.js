@@ -233,13 +233,13 @@ void uv__threadpool_cleanup(void);
 #define uv__has_active_reqs(loop)                                             \
   ((loop)->active_reqs.count > 0)
 
-#define uv__req_register(loop, req)                                           \
+#define uv__req_register(loop)                                                \
   do {                                                                        \
     (loop)->active_reqs.count++;                                              \
   }                                                                           \
   while (0)
 
-#define uv__req_unregister(loop, req)                                         \
+#define uv__req_unregister(loop)                                              \
   do {                                                                        \
     assert(uv__has_active_reqs(loop));                                        \
     (loop)->active_reqs.count--;                                              \
@@ -349,7 +349,7 @@ void uv__threadpool_cleanup(void);
 #define uv__req_init(loop, req, typ)                                          \
   do {                                                                        \
     UV_REQ_INIT(req, typ);                                                    \
-    uv__req_register(loop, req);                                              \
+    uv__req_register(loop);                                                   \
   }                                                                           \
   while (0)
 
@@ -400,7 +400,6 @@ void uv__metrics_set_provider_entry_time(uv_loop_t* loop);
 struct uv__iou {
   uint32_t* sqhead;
   uint32_t* sqtail;
-  uint32_t* sqarray;
   uint32_t sqmask;
   uint32_t* sqflags;
   uint32_t* cqhead;
@@ -415,7 +414,6 @@ struct uv__iou {
   size_t sqelen;
   int ringfd;
   uint32_t in_flight;
-  uint32_t flags;
 };
 #endif  /* __linux__ */
 

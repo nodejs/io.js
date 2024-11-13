@@ -26,7 +26,7 @@ FrameInspector::FrameInspector(CommonFrame* frame, int inlined_frame_index,
 
   is_constructor_ = summary.is_constructor();
   source_position_ = summary.SourcePosition();
-  script_ = Handle<Script>::cast(summary.script());
+  script_ = Cast<Script>(summary.script());
   receiver_ = summary.receiver();
 
   if (summary.IsJavaScript()) {
@@ -77,9 +77,19 @@ Handle<Object> FrameInspector::GetContext() {
 Handle<String> FrameInspector::GetFunctionName() {
 #if V8_ENABLE_WEBASSEMBLY
   if (IsWasm()) {
+#if V8_ENABLE_DRUMBRAKE
+    if (IsWasmInterpreter()) {
+      auto wasm_frame = WasmInterpreterEntryFrame::cast(frame_);
+      auto instance_data =
+          handle(wasm_frame->trusted_instance_data(), isolate_);
+      return GetWasmFunctionDebugName(
+          isolate_, instance_data,
+          wasm_frame->function_index(inlined_frame_index_));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE
     auto wasm_frame = WasmFrame::cast(frame_);
-    auto wasm_instance = handle(wasm_frame->wasm_instance(), isolate_);
-    return GetWasmFunctionDebugName(isolate_, wasm_instance,
+    auto instance_data = handle(wasm_frame->trusted_instance_data(), isolate_);
+    return GetWasmFunctionDebugName(isolate_, instance_data,
                                     wasm_frame->function_index());
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -88,12 +98,17 @@ Handle<String> FrameInspector::GetFunctionName() {
 
 #if V8_ENABLE_WEBASSEMBLY
 bool FrameInspector::IsWasm() { return frame_->is_wasm(); }
+#if V8_ENABLE_DRUMBRAKE
+bool FrameInspector::IsWasmInterpreter() {
+  return frame_->is_wasm_interpreter_entry();
+}
+#endif  // V8_ENABLE_DRUMBRAKE
 #endif  // V8_ENABLE_WEBASSEMBLY
 
 bool FrameInspector::IsJavaScript() { return frame_->is_java_script(); }
 
 bool FrameInspector::ParameterIsShadowedByContextLocal(
-    Handle<ScopeInfo> info, Handle<String> parameter_name) {
+    DirectHandle<ScopeInfo> info, Handle<String> parameter_name) {
   return info->ContextSlotIndex(parameter_name) != -1;
 }
 

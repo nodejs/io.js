@@ -898,6 +898,10 @@ int DisassemblerX64::AVXInstruction(uint8_t* data) {
     int mod, regop, rm, vvvv = vex_vreg();
     get_modrm(*current, &mod, &regop, &rm);
     switch (opcode) {
+      case 0x13:
+        AppendToBuffer("vcvtph2ps %s,", NameOfAVXRegister(regop));
+        current += PrintRightXMMOperand(current);
+        break;
       case 0x18:
         AppendToBuffer("vbroadcastss %s,", NameOfAVXRegister(regop));
         current += PrintRightXMMOperand(current);
@@ -911,6 +915,11 @@ int DisassemblerX64::AVXInstruction(uint8_t* data) {
                        NameOfCPURegister(regop));
         current += PrintRightOperand(current);
         AppendToBuffer(",%s", NameOfCPURegister(vvvv));
+        break;
+      case 0x50:
+        AppendToBuffer("vpdpbusd %s,%s,", NameOfAVXRegister(regop),
+                       NameOfAVXRegister(vvvv));
+        current += PrintRightAVXOperand(current);
         break;
 #define DECLARE_SSE_AVX_DIS_CASE(instruction, notUsed1, notUsed2, notUsed3, \
                                  opcode)                                    \
@@ -946,7 +955,7 @@ int DisassemblerX64::AVXInstruction(uint8_t* data) {
 #undef DISASSEMBLE_AVX2_BROADCAST
 
       default: {
-#define DECLARE_FMA_DISASM(instruction, _1, _2, _3, _4, _5, code)    \
+#define DECLARE_FMA_DISASM(instruction, _1, _2, _3, _4, code)        \
   case 0x##code: {                                                   \
     AppendToBuffer(#instruction " %s,%s,", NameOfAVXRegister(regop), \
                    NameOfAVXRegister(vvvv));                         \
@@ -1046,6 +1055,11 @@ int DisassemblerX64::AVXInstruction(uint8_t* data) {
         break;
       case 0x19:
         AppendToBuffer("vextractf128 ");
+        current += PrintRightXMMOperand(current);
+        AppendToBuffer(",%s,0x%x", NameOfAVXRegister(regop), *current++);
+        break;
+      case 0x1D:
+        AppendToBuffer("vcvtps2ph ");
         current += PrintRightXMMOperand(current);
         AppendToBuffer(",%s,0x%x", NameOfAVXRegister(regop), *current++);
         break;

@@ -22,13 +22,6 @@ namespace internal {
 
 #include "torque-generated/src/objects/ordered-hash-table-tq-inl.inc"
 
-CAST_ACCESSOR(OrderedNameDictionary)
-CAST_ACCESSOR(SmallOrderedNameDictionary)
-CAST_ACCESSOR(OrderedHashMap)
-CAST_ACCESSOR(OrderedHashSet)
-CAST_ACCESSOR(SmallOrderedHashMap)
-CAST_ACCESSOR(SmallOrderedHashSet)
-
 template <class Derived, int entrysize>
 OrderedHashTable<Derived, entrysize>::OrderedHashTable(Address ptr)
     : FixedArray(ptr) {}
@@ -117,7 +110,7 @@ inline Tagged<Object> OrderedNameDictionary::ValueAt(InternalIndex entry) {
 }
 
 Tagged<Name> OrderedNameDictionary::NameAt(InternalIndex entry) {
-  return Name::cast(KeyAt(entry));
+  return Cast<Name>(KeyAt(entry));
 }
 
 // Parameter |roots| only here for compatibility with HashTable<...>::ToKey.
@@ -143,7 +136,7 @@ inline PropertyDetails OrderedNameDictionary::DetailsAt(InternalIndex entry) {
   DCHECK_LT(entry.as_int(), this->UsedCapacity());
   // TODO(gsathya): Optimize the cast away.
   return PropertyDetails(
-      Smi::cast(get(EntryToIndex(entry) + kPropertyDetailsOffset)));
+      Cast<Smi>(get(EntryToIndex(entry) + kPropertyDetailsOffset)));
 }
 
 inline void OrderedNameDictionary::DetailsAtPut(InternalIndex entry,
@@ -168,7 +161,7 @@ inline PropertyDetails SmallOrderedNameDictionary::DetailsAt(
     InternalIndex entry) {
   // TODO(gsathya): Optimize the cast away. And store this in the data table.
   return PropertyDetails(
-      Smi::cast(this->GetDataEntry(entry.as_int(), kPropertyDetailsIndex)));
+      Cast<Smi>(this->GetDataEntry(entry.as_int(), kPropertyDetailsIndex)));
 }
 
 // Set the details for entry.
@@ -178,27 +171,27 @@ inline void SmallOrderedNameDictionary::DetailsAtPut(InternalIndex entry,
   this->SetDataEntry(entry.as_int(), kPropertyDetailsIndex, value.AsSmi());
 }
 
-inline bool OrderedHashSet::Is(Handle<HeapObject> table) {
+inline bool OrderedHashSet::Is(DirectHandle<HeapObject> table) {
   return IsOrderedHashSet(*table);
 }
 
-inline bool OrderedHashMap::Is(Handle<HeapObject> table) {
+inline bool OrderedHashMap::Is(DirectHandle<HeapObject> table) {
   return IsOrderedHashMap(*table);
 }
 
-inline bool OrderedNameDictionary::Is(Handle<HeapObject> table) {
+inline bool OrderedNameDictionary::Is(DirectHandle<HeapObject> table) {
   return IsOrderedNameDictionary(*table);
 }
 
-inline bool SmallOrderedHashSet::Is(Handle<HeapObject> table) {
+inline bool SmallOrderedHashSet::Is(DirectHandle<HeapObject> table) {
   return IsSmallOrderedHashSet(*table);
 }
 
-inline bool SmallOrderedNameDictionary::Is(Handle<HeapObject> table) {
+inline bool SmallOrderedNameDictionary::Is(DirectHandle<HeapObject> table) {
   return IsSmallOrderedNameDictionary(*table);
 }
 
-inline bool SmallOrderedHashMap::Is(Handle<HeapObject> table) {
+inline bool SmallOrderedHashMap::Is(DirectHandle<HeapObject> table) {
   return IsSmallOrderedHashMap(*table);
 }
 
@@ -213,7 +206,7 @@ void SmallOrderedHashTable<Derived>::SetDataEntry(int entry, int relative_index,
 
 template <class Derived, class TableType>
 Tagged<Object> OrderedHashTableIterator<Derived, TableType>::CurrentKey() {
-  Tagged<TableType> table = TableType::cast(this->table());
+  Tagged<TableType> table = Cast<TableType>(this->table());
   int index = Smi::ToInt(this->index());
   DCHECK_LE(0, index);
   InternalIndex entry(index);

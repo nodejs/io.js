@@ -36,7 +36,7 @@ BUILTIN(ErrorCaptureStackTrace) {
         isolate, NewTypeError(MessageTemplate::kInvalidArgument, object_obj));
   }
 
-  Handle<JSObject> object = Handle<JSObject>::cast(object_obj);
+  Handle<JSObject> object = Cast<JSObject>(object_obj);
   Handle<Object> caller = args.atOrUndefined(isolate, 2);
   FrameSkipMode mode = IsJSFunction(*caller) ? SKIP_UNTIL_SEEN : SKIP_FIRST;
 

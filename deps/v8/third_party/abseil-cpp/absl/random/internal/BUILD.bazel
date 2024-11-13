@@ -527,6 +527,7 @@ cc_library(
     hdrs = ["mock_helpers.h"],
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
+        "//absl/base:config",
         "//absl/base:fast_type_id",
         "//absl/types:optional",
     ],
@@ -539,6 +540,7 @@ cc_library(
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
         ":mock_helpers",
+        "//absl/base:config",
         "//absl/random:mocking_bit_gen",
         "@com_google_googletest//:gtest",
     ],
@@ -712,7 +714,19 @@ cc_library(
         ":traits",
         "//absl/base:config",
         "//absl/meta:type_traits",
-        "//absl/numeric:int128",
+    ],
+)
+
+cc_library(
+    name = "mock_validators",
+    hdrs = ["mock_validators.h"],
+    deps = [
+        ":iostream_state_saver",
+        ":uniform_helper",
+        "//absl/base:config",
+        "//absl/base:raw_logging_internal",
+        "//absl/strings",
+        "//absl/strings:string_view",
     ],
 )
 

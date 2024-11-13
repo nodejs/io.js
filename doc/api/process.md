@@ -1101,7 +1101,6 @@ An example of the possible output looks like:
      node_shared_zlib: 'false',
      node_use_openssl: 'true',
      node_shared_openssl: 'false',
-     strict_aliasing: 'true',
      target_arch: 'x64',
      v8_use_snapshot: 1
    }
@@ -1896,6 +1895,125 @@ a code.
 
 Specifying a code to [`process.exit(code)`][`process.exit()`] will override any
 previous setting of `process.exitCode`.
+
+## `process.features.cached_builtins`
+
+<!-- YAML
+added: v12.0.0
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build is caching builtin modules.
+
+## `process.features.debug`
+
+<!-- YAML
+added: v0.5.5
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build is a debug build.
+
+## `process.features.inspector`
+
+<!-- YAML
+added: v11.10.0
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes the inspector.
+
+## `process.features.ipv6`
+
+<!-- YAML
+added: v0.5.3
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes support for IPv6.
+
+## `process.features.require_module`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build supports
+[loading ECMAScript modules using `require()`][].
+
+## `process.features.tls`
+
+<!-- YAML
+added: v0.5.3
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes support for TLS.
+
+## `process.features.tls_alpn`
+
+<!-- YAML
+added: v4.8.0
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes support for ALPN in TLS.
+
+## `process.features.tls_ocsp`
+
+<!-- YAML
+added: v0.11.13
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes support for OCSP in TLS.
+
+## `process.features.tls_sni`
+
+<!-- YAML
+added: v0.5.3
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes support for SNI in TLS.
+
+## `process.features.typescript`
+
+<!-- YAML
+added:
+ - v23.0.0
+ - v22.10.0
+-->
+
+> Stability: 1.1 - Active development
+
+* {boolean|string}
+
+A value that is `"strip"` if Node.js is run with `--experimental-strip-types`,
+`"transform"` if Node.js is run with `--experimental-transform-types`, and `false` otherwise.
+
+## `process.features.uv`
+
+<!-- YAML
+added: v0.5.3
+-->
+
+* {boolean}
+
+A boolean value that is `true` if the current Node.js build includes support for libuv.
+Since it's currently not possible to build Node.js without libuv, this value is always `true`.
 
 ## `process.finalization.register(ref, callback)`
 
@@ -2711,6 +2829,11 @@ console.log(memoryUsage.rss());
 <!-- YAML
 added: v0.1.26
 changes:
+  - version:
+    - v22.7.0
+    - v20.18.0
+    pr-url: https://github.com/nodejs/node/pull/51280
+    description: Changed stability to Legacy.
   - version: v18.0.0
     pr-url: https://github.com/nodejs/node/pull/41678
     description: Passing an invalid callback to the `callback` argument
@@ -2720,6 +2843,8 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/1077
     description: Additional arguments after `callback` are now supported.
 -->
+
+> Stability: 3 - Legacy: Use [`queueMicrotask()`][] instead.
 
 * `callback` {Function}
 * `...args` {any} Additional arguments to pass when invoking the `callback`
@@ -3368,6 +3493,16 @@ const { report } = require('node:process');
 
 console.log(`Report on exception: ${report.reportOnUncaughtException}`);
 ```
+
+### `process.report.excludeEnv`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* {boolean}
+
+If `true`, a diagnostic report is generated without the environment variables.
 
 ### `process.report.signal`
 
@@ -4264,7 +4399,7 @@ cases:
   code will be `128` + `6`, or `134`.
 
 [Advanced serialization for `child_process`]: child_process.md#advanced-serialization
-[Android building]: https://github.com/nodejs/node/blob/HEAD/BUILDING.md#androidandroid-based-devices-eg-firefox-os
+[Android building]: https://github.com/nodejs/node/blob/HEAD/BUILDING.md#android
 [Child Process]: child_process.md
 [Cluster]: cluster.md
 [Duplex]: stream.md#duplex-and-transform-streams
@@ -4321,6 +4456,7 @@ cases:
 [built-in modules with mandatory `node:` prefix]: modules.md#built-in-modules-with-mandatory-node-prefix
 [debugger]: debugger.md
 [deprecation code]: deprecations.md
+[loading ECMAScript modules using `require()`]: modules.md#loading-ecmascript-modules-using-require
 [note on process I/O]: #a-note-on-process-io
 [process.cpuUsage]: #processcpuusagepreviousvalue
 [process_emit_warning]: #processemitwarningwarning-type-code-ctor

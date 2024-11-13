@@ -59,8 +59,8 @@ TEST_F(WasmRegisterTest, SpreadSetBitsToAdjacentFpRegs) {
       LiftoffRegister::from_code(kFpReg, 4));
   // GP regs are left alone, FP regs are spread to adjacent pairs starting
   // at an even index: 1 → (0, 1) and 4 → (4, 5).
-#if V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
-  // RISCV don't have code 0 in kLiftoffAssemblerFpCacheRegs
+#if V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_IA32
+  // RISCV and ia32 don't have code 0 in kLiftoffAssemblerFpCacheRegs
   LiftoffRegList expected =
       input | LiftoffRegList(LiftoffRegister::from_code(kFpReg, 5));
 #else

@@ -6,8 +6,8 @@
 #define V8_COMPILER_BACKEND_CODE_GENERATOR_H_
 
 #include <memory>
+#include <optional>
 
-#include "src/base/optional.h"
 #include "src/codegen/macro-assembler.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/codegen/safepoint-table.h"
@@ -18,6 +18,7 @@
 #include "src/compiler/osr.h"
 #include "src/deoptimizer/deoptimizer.h"
 #include "src/objects/code-kind.h"
+#include "src/objects/deoptimization-data.h"
 
 #if V8_ENABLE_WEBASSEMBLY
 #include "src/trap-handler/trap-handler.h"
@@ -51,76 +52,6 @@ class InstructionOperandIterator {
   size_t pos_;
 };
 
-enum class DeoptimizationLiteralKind {
-  kObject,
-  kNumber,
-  kSignedBigInt64,
-  kUnsignedBigInt64,
-  kInvalid
-};
-
-// A non-null Handle<Object>, a double, an int64_t, or a uint64_t.
-class DeoptimizationLiteral {
- public:
-  DeoptimizationLiteral()
-      : kind_(DeoptimizationLiteralKind::kInvalid), object_() {}
-  explicit DeoptimizationLiteral(Handle<Object> object)
-      : kind_(DeoptimizationLiteralKind::kObject), object_(object) {
-    CHECK(!object_.is_null());
-  }
-  explicit DeoptimizationLiteral(double number)
-      : kind_(DeoptimizationLiteralKind::kNumber), number_(number) {}
-  explicit DeoptimizationLiteral(int64_t signed_bigint64)
-      : kind_(DeoptimizationLiteralKind::kSignedBigInt64),
-        signed_bigint64_(signed_bigint64) {}
-  explicit DeoptimizationLiteral(uint64_t unsigned_bigint64)
-      : kind_(DeoptimizationLiteralKind::kUnsignedBigInt64),
-        unsigned_bigint64_(unsigned_bigint64) {}
-
-  Handle<Object> object() const { return object_; }
-
-  bool operator==(const DeoptimizationLiteral& other) const {
-    if (kind_ != other.kind_) {
-      return false;
-    }
-    switch (kind_) {
-      case DeoptimizationLiteralKind::kObject:
-        return object_.equals(other.object_);
-      case DeoptimizationLiteralKind::kNumber:
-        return base::bit_cast<uint64_t>(number_) ==
-               base::bit_cast<uint64_t>(other.number_);
-      case DeoptimizationLiteralKind::kSignedBigInt64:
-        return signed_bigint64_ == other.signed_bigint64_;
-      case DeoptimizationLiteralKind::kUnsignedBigInt64:
-        return unsigned_bigint64_ == other.unsigned_bigint64_;
-      case DeoptimizationLiteralKind::kInvalid:
-        return true;
-    }
-    UNREACHABLE();
-  }
-
-  Handle<Object> Reify(Isolate* isolate) const;
-
-  void Validate() const {
-    CHECK_NE(kind_, DeoptimizationLiteralKind::kInvalid);
-  }
-
-  DeoptimizationLiteralKind kind() const {
-    Validate();
-    return kind_;
-  }
-
- private:
-  DeoptimizationLiteralKind kind_;
-
-  union {
-    Handle<Object> object_;
-    double number_;
-    int64_t signed_bigint64_;
-    uint64_t unsigned_bigint64_;
-  };
-};
-
 // These structs hold pc offsets for generated instructions and is only used
 // when tracing for turbolizer is enabled.
 struct TurbolizerCodeOffsetsInfo {
@@ -145,7 +76,7 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   explicit CodeGenerator(Zone* codegen_zone, Frame* frame, Linkage* linkage,
                          InstructionSequence* instructions,
                          OptimizedCompilationInfo* info, Isolate* isolate,
-                         base::Optional<OsrHelper> osr_helper,
+                         std::optional<OsrHelper> osr_helper,
                          int start_source_position,
                          JumpOptimizationInfo* jump_opt,
                          const AssemblerOptions& options, Builtin builtin,
@@ -158,6 +89,10 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   // FinalizeCode returns an empty MaybeHandle.
   void AssembleCode();  // Does not need to run on main thread.
   MaybeHandle<Code> FinalizeCode();
+
+#if V8_ENABLE_WEBASSEMBLY
+  base::OwnedVector<uint8_t> GenerateWasmDeoptimizationData();
+#endif
 
   base::OwnedVector<uint8_t> GetSourcePositionTable();
   base::OwnedVector<uint8_t> GetProtectedInstructionsData();
@@ -250,7 +185,8 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   // Compute branch info from given instruction. Returns a valid rpo number
   // if the branch is redundant, the returned rpo number point to the target
   // basic block.
-  RpoNumber ComputeBranchInfo(BranchInfo* branch, Instruction* instr);
+  RpoNumber ComputeBranchInfo(BranchInfo* branch, FlagsCondition condition,
+                              Instruction* instr);
 
   // Returns true if a instruction is a tail call that needs to adjust the stack
   // pointer before execution. The stack slot index to the empty slot above the
@@ -275,11 +211,13 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   void AssembleArchJump(RpoNumber target);
   void AssembleArchJumpRegardlessOfAssemblyOrder(RpoNumber target);
   void AssembleArchBranch(Instruction* instr, BranchInfo* branch);
+  void AssembleArchConditionalBranch(Instruction* instr, BranchInfo* branch);
 
   // Generates special branch for deoptimization condition.
   void AssembleArchDeoptBranch(Instruction* instr, BranchInfo* branch);
 
   void AssembleArchBoolean(Instruction* instr, FlagsCondition condition);
+  void AssembleArchConditionalBoolean(Instruction* instr);
   void AssembleArchSelect(Instruction* instr, FlagsCondition condition);
 #if V8_ENABLE_WEBASSEMBLY
   void AssembleArchTrap(Instruction* instr, FlagsCondition condition);
@@ -287,7 +225,7 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
 #if V8_TARGET_ARCH_X64
   void AssembleArchBinarySearchSwitchRange(
       Register input, RpoNumber def_block, std::pair<int32_t, Label*>* begin,
-      std::pair<int32_t, Label*>* end, base::Optional<int32_t>& last_cmp_value);
+      std::pair<int32_t, Label*>* end, std::optional<int32_t>& last_cmp_value);
 #else
   void AssembleArchBinarySearchSwitchRange(Register input, RpoNumber def_block,
                                            std::pair<int32_t, Label*>* begin,
@@ -413,6 +351,7 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   // ===========================================================================
 
   void RecordCallPosition(Instruction* instr);
+  void RecordDeoptInfo(Instruction* instr, int pc_offset);
   Handle<DeoptimizationData> GenerateDeoptimizationData();
   int DefineDeoptimizationLiteral(DeoptimizationLiteral literal);
   DeoptimizationEntry const& GetDeoptimizationEntry(Instruction* instr,
@@ -437,6 +376,7 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   // ===========================================================================
 
   struct HandlerInfo {
+    // {handler} is nullptr if the Call should lazy deopt on exceptions.
     Label* handler;
     int pc_offset;
   };
@@ -484,6 +424,10 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   const size_t max_unoptimized_frame_height_;
   const size_t max_pushed_argument_count_;
 
+  // The number of incoming parameters for code using JS linkage (i.e.
+  // JavaScript functions). Only computed during AssembleCode.
+  uint16_t parameter_count_ = 0;
+
   // kArchCallCFunction could be reached either:
   //   kArchCallCFunction;
   // or:
@@ -498,7 +442,7 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
 
   JumpTable* jump_tables_;
   OutOfLineCode* ools_;
-  base::Optional<OsrHelper> osr_helper_;
+  std::optional<OsrHelper> osr_helper_;
   int osr_pc_offset_;
   SourcePositionTableBuilder source_position_table_builder_;
 #if V8_ENABLE_WEBASSEMBLY

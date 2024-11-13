@@ -34,6 +34,11 @@ fuzzer_test("zlib_deflate_set_dictionary_fuzzer") {
   deps = [ "../../../:zlib" ]
 }
 
+fuzzer_test("zlib_compress_fuzzer") {
+  sources = [ "compress_fuzzer.cc" ]
+  deps = [ "../../../:zlib" ]
+}
+
 fuzzer_test("zlib_deflate_fuzzer") {
   sources = [ "deflate_fuzzer.cc" ]
   deps = [ "../../../:zlib" ]

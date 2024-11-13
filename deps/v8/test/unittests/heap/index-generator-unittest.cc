@@ -4,6 +4,8 @@
 
 #include "src/heap/index-generator.h"
 
+#include <optional>
+
 #include "test/unittests/test-utils.h"
 
 namespace v8 {
@@ -12,7 +14,7 @@ namespace internal {
 TEST(IndexGeneratorTest, Empty) {
   IndexGenerator gen(0);
 
-  EXPECT_EQ(base::nullopt, gen.GetNext());
+  EXPECT_EQ(std::nullopt, gen.GetNext());
 }
 
 TEST(IndexGeneratorTest, GetNext) {
@@ -29,7 +31,7 @@ TEST(IndexGeneratorTest, GetNext) {
   EXPECT_EQ(4U, gen.GetNext());
   EXPECT_EQ(7U, gen.GetNext());
   EXPECT_EQ(10U, gen.GetNext());
-  EXPECT_EQ(base::nullopt, gen.GetNext());
+  EXPECT_EQ(std::nullopt, gen.GetNext());
 }
 
 }  // namespace internal

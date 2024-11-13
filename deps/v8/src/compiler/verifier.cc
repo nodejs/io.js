@@ -458,6 +458,7 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
       break;
     case IrOpcode::kHeapConstant:
     case IrOpcode::kCompressedHeapConstant:
+    case IrOpcode::kTrustedHeapConstant:
       // Constants have no inputs.
       CHECK_EQ(0, input_count);
       CheckTypeIs(node, Type::Any());
@@ -733,6 +734,9 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
       break;
     case IrOpcode::kJSCreateObject:
       CheckTypeIs(node, Type::OtherObject());
+      break;
+    case IrOpcode::kJSCreateStringWrapper:
+      CheckTypeIs(node, Type::StringWrapper());
       break;
     case IrOpcode::kJSCreatePromise:
       CheckTypeIs(node, Type::OtherObject());

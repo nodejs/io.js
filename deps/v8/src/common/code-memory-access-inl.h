@@ -7,7 +7,6 @@
 
 #include "src/common/code-memory-access.h"
 #include "src/flags/flags.h"
-#include "src/objects/instruction-stream-inl.h"
 #include "src/objects/instruction-stream.h"
 #include "src/objects/slots-inl.h"
 #include "src/objects/tagged.h"
@@ -16,6 +15,9 @@
 #endif
 #if V8_HAS_PTHREAD_JIT_WRITE_PROTECT
 #include "src/base/platform/platform.h"
+#endif
+#if V8_HAS_BECORE_JIT_WRITE_PROTECT
+#include <BrowserEngineCore/BEMemory.h>
 #endif
 
 namespace v8 {
@@ -56,15 +58,6 @@ WritableJitAllocation::WritableJitAllocation(
 WritableJitAllocation WritableJitAllocation::ForNonExecutableMemory(
     Address addr, size_t size, ThreadIsolation::JitAllocationType type) {
   return WritableJitAllocation(addr, size, type);
-}
-
-// static
-WritableJitAllocation WritableJitAllocation::ForInstructionStream(
-    Tagged<InstructionStream> istream) {
-  return WritableJitAllocation(
-      istream->address(), istream->Size(),
-      ThreadIsolation::JitAllocationType::kInstructionStream,
-      JitAllocationSource::kLookup);
 }
 
 WritableJumpTablePair::WritableJumpTablePair(Address jump_table_address,
@@ -140,7 +133,9 @@ V8_INLINE void WritableJitAllocation::WriteHeaderSlot(Address address, T value,
                                                                          tag);
       break;
     case InstructionStream::kRelocationInfoOffset:
-      WriteHeaderSlot<T, InstructionStream::kRelocationInfoOffset>(tagged, tag);
+      WriteProtectedPointerHeaderSlot<T,
+                                      InstructionStream::kRelocationInfoOffset>(
+          tagged, tag);
       break;
     default:
       UNREACHABLE();
@@ -204,33 +199,32 @@ void WritableFreeSpace::WriteHeaderSlot(Tagged<T> value,
   }
 }
 
-template <size_t offset>
-void WritableFreeSpace::ClearTagged(size_t count) const {
-  base::Address start = address_ + offset;
-  // TODO(v8:13355): add validation before the write.
-  MemsetTagged(ObjectSlot(start), Tagged<Object>(kClearedFreeMemoryValue),
-               count);
-}
-
 #if V8_HAS_PTHREAD_JIT_WRITE_PROTECT
 
 // static
 bool RwxMemoryWriteScope::IsSupported() { return true; }
 
 // static
+void RwxMemoryWriteScope::SetWritable() { base::SetJitWriteProtected(0); }
+
+// static
+void RwxMemoryWriteScope::SetExecutable() { base::SetJitWriteProtected(1); }
+
+#elif V8_HAS_BECORE_JIT_WRITE_PROTECT
+
+// static
+bool RwxMemoryWriteScope::IsSupported() {
+  return be_memory_inline_jit_restrict_with_witness_supported() != 0;
+}
+
+// static
 void RwxMemoryWriteScope::SetWritable() {
-  if (code_space_write_nesting_level_ == 0) {
-    base::SetJitWriteProtected(0);
-  }
-  code_space_write_nesting_level_++;
+  be_memory_inline_jit_restrict_rwx_to_rw_with_witness();
 }
 
 // static
 void RwxMemoryWriteScope::SetExecutable() {
-  code_space_write_nesting_level_--;
-  if (code_space_write_nesting_level_ == 0) {
-    base::SetJitWriteProtected(1);
-  }
+  be_memory_inline_jit_restrict_rwx_to_rx_with_witness();
 }
 
 #elif V8_HAS_PKU_JIT_WRITE_PROTECT
@@ -248,28 +242,26 @@ bool RwxMemoryWriteScope::IsSupported() {
 void RwxMemoryWriteScope::SetWritable() {
   DCHECK(ThreadIsolation::initialized());
   if (!IsSupported()) return;
-  if (code_space_write_nesting_level_ == 0) {
-    DCHECK_NE(
-        base::MemoryProtectionKey::GetKeyPermission(ThreadIsolation::pkey()),
-        base::MemoryProtectionKey::kNoRestrictions);
-    base::MemoryProtectionKey::SetPermissionsForKey(
-        ThreadIsolation::pkey(), base::MemoryProtectionKey::kNoRestrictions);
-  }
-  code_space_write_nesting_level_++;
+
+  DCHECK_NE(
+      base::MemoryProtectionKey::GetKeyPermission(ThreadIsolation::pkey()),
+      base::MemoryProtectionKey::kNoRestrictions);
+
+  base::MemoryProtectionKey::SetPermissionsForKey(
+      ThreadIsolation::pkey(), base::MemoryProtectionKey::kNoRestrictions);
 }
 
 // static
 void RwxMemoryWriteScope::SetExecutable() {
   DCHECK(ThreadIsolation::initialized());
   if (!IsSupported()) return;
-  code_space_write_nesting_level_--;
-  if (code_space_write_nesting_level_ == 0) {
-    DCHECK_EQ(
-        base::MemoryProtectionKey::GetKeyPermission(ThreadIsolation::pkey()),
-        base::MemoryProtectionKey::kNoRestrictions);
-    base::MemoryProtectionKey::SetPermissionsForKey(
-        ThreadIsolation::pkey(), base::MemoryProtectionKey::kDisableWrite);
-  }
+
+  DCHECK_EQ(
+      base::MemoryProtectionKey::GetKeyPermission(ThreadIsolation::pkey()),
+      base::MemoryProtectionKey::kNoRestrictions);
+
+  base::MemoryProtectionKey::SetPermissionsForKey(
+      ThreadIsolation::pkey(), base::MemoryProtectionKey::kDisableWrite);
 }
 
 #else  // !V8_HAS_PTHREAD_JIT_WRITE_PROTECT && !V8_TRY_USE_PKU_JIT_WRITE_PROTECT

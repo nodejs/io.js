@@ -4,7 +4,7 @@
 // but using a net server/client instead
 
 require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const assert = require('assert');
 const net = require('net');
 const os = require('os');

@@ -15,12 +15,13 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void WasmLoweringPhase::Run(Zone* temp_zone) {
-  UnparkedScopeIfNeeded scope(PipelineData::Get().broker(),
+void WasmLoweringPhase::Run(PipelineData* data, Zone* temp_zone) {
+  UnparkedScopeIfNeeded scope(data->broker(),
                               v8_flags.turboshaft_trace_reduction);
   // Also run the MachineOptimizationReducer as it can help the late load
   // elimination that follows this phase eliminate more loads.
-  CopyingPhase<WasmLoweringReducer, MachineOptimizationReducer>::Run(temp_zone);
+  CopyingPhase<WasmLoweringReducer, MachineOptimizationReducer>::Run(data,
+                                                                     temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

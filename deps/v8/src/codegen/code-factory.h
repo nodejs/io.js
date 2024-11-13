@@ -8,7 +8,6 @@
 #include "src/codegen/callable.h"
 #include "src/codegen/interface-descriptors.h"
 #include "src/common/globals.h"
-#include "src/objects/type-hints.h"
 #include "src/utils/allocation.h"
 
 namespace v8 {

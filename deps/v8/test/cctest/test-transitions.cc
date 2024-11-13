@@ -30,12 +30,12 @@ TEST(TransitionArray_SimpleFieldTransitions) {
   PropertyAttributes attributes = NONE;
 
   Handle<Map> map0 = Map::Create(isolate, 0);
-  Handle<Map> map1 =
+  DirectHandle<Map> map1 =
       Map::CopyWithField(isolate, map0, name1, FieldType::Any(isolate),
                          attributes, PropertyConstness::kMutable,
                          Representation::Tagged(), OMIT_TRANSITION)
           .ToHandleChecked();
-  Handle<Map> map2 =
+  DirectHandle<Map> map2 =
       Map::CopyWithField(isolate, map0, name2, FieldType::Any(isolate),
                          attributes, PropertyConstness::kMutable,
                          Representation::Tagged(), OMIT_TRANSITION)
@@ -93,12 +93,12 @@ TEST(TransitionArray_FullFieldTransitions) {
   PropertyAttributes attributes = NONE;
 
   Handle<Map> map0 = Map::Create(isolate, 0);
-  Handle<Map> map1 =
+  DirectHandle<Map> map1 =
       Map::CopyWithField(isolate, map0, name1, FieldType::Any(isolate),
                          attributes, PropertyConstness::kMutable,
                          Representation::Tagged(), OMIT_TRANSITION)
           .ToHandleChecked();
-  Handle<Map> map2 =
+  DirectHandle<Map> map2 =
       Map::CopyWithField(isolate, map0, name2, FieldType::Any(isolate),
                          attributes, PropertyConstness::kMutable,
                          Representation::Tagged(), OMIT_TRANSITION)

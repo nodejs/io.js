@@ -34,7 +34,7 @@ import json
 import utils
 import signal
 import sys
-import xml.etree.ElementTree as xml
+import xml.etree.ElementTree as ET
 
 def IsExitCodeCrashing(exit_code):
   if utils.IsWindows():
@@ -44,22 +44,22 @@ def IsExitCodeCrashing(exit_code):
 
 class JUnitTestOutput:
   def __init__(self, test_suite_name):
-    self.root = xml.Element("testsuite")
+    self.root = ET.Element("testsuite")
     self.root.attrib["name"] = test_suite_name
 
   def HasRunTest(self, test_name, test_cmd, test_duration, test_failure):
-    test_case_element = xml.Element("testcase")
+    test_case_element = ET.Element("testcase")
     test_case_element.attrib["name"] = test_name
     test_case_element.attrib["cmd"] = test_cmd
     test_case_element.attrib["time"] = str(round(test_duration, 3))
     if test_failure is not None:
-      failure_element = xml.Element("failure")
+      failure_element = ET.Element("failure")
       failure_element.text = test_failure
       test_case_element.append(failure_element)
     self.root.append(test_case_element)
 
   def FinishAndWrite(self, f):
-    xml.ElementTree(self.root).write(f, "UTF-8")
+    ET.ElementTree(self.root).write(f, "UTF-8")
 
 
 def Main():

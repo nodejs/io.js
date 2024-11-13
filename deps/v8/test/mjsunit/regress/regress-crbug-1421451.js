@@ -15,5 +15,5 @@ function evilCtor() {
   return ta;
 }
 
-assertThrows(() => { Float64Array.from.call(evilCtor, [0, 1], evilMapper); });
-assertEquals(1, mapperCallCount);
+Float64Array.from.call(evilCtor, [0, 1], evilMapper);
+assertEquals(2, mapperCallCount);

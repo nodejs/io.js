@@ -132,6 +132,7 @@ function getDirentPath(dirent) {
 }
 
 function assertDirents(dirents) {
+  assert.strictEqual(dirents.length, expected.length);
   dirents.sort((a, b) => (getDirentPath(a) < getDirentPath(b) ? -1 : 1));
   assert.deepStrictEqual(
     dirents.map((dirent) => {
@@ -220,4 +221,22 @@ function processDirCb(dir, cb) {
   }
 
   test().then(common.mustCall());
+}
+
+// Issue https://github.com/nodejs/node/issues/48820 highlights that
+// opendir recursive does not properly handle the buffer size option.
+// This test asserts that the buffer size option is respected.
+{
+  const dir = fs.opendirSync(testDir, { bufferSize: 1, recursive: true });
+  processDirSync(dir);
+  dir.closeSync();
+}
+
+{
+  fs.opendir(testDir, { recursive: true, bufferSize: 1 }, common.mustSucceed((dir) => {
+    processDirCb(dir, common.mustSucceed((dirents) => {
+      assertDirents(dirents);
+      dir.close(common.mustSucceed());
+    }));
+  }));
 }

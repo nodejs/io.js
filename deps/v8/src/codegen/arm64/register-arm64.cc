@@ -11,7 +11,8 @@ namespace internal {
 
 VectorFormat VectorFormatHalfWidth(VectorFormat vform) {
   DCHECK(vform == kFormat8H || vform == kFormat4S || vform == kFormat2D ||
-         vform == kFormatH || vform == kFormatS || vform == kFormatD);
+         vform == kFormat1Q || vform == kFormatH || vform == kFormatS ||
+         vform == kFormatD);
   switch (vform) {
     case kFormat8H:
       return kFormat8B;
@@ -19,6 +20,8 @@ VectorFormat VectorFormatHalfWidth(VectorFormat vform) {
       return kFormat4H;
     case kFormat2D:
       return kFormat2S;
+    case kFormat1Q:
+      return kFormat1D;
     case kFormatH:
       return kFormatB;
     case kFormatS:
@@ -88,6 +91,8 @@ VectorFormat VectorFormatHalfWidthDoubleLanes(VectorFormat vform) {
       return kFormat2S;
     case kFormat2D:
       return kFormat4S;
+    case kFormat1Q:
+      return kFormat2D;
     default:
       UNREACHABLE();
   }
@@ -188,6 +193,8 @@ unsigned LaneSizeInBitsFromFormat(VectorFormat vform) {
     case kFormat1D:
     case kFormat2D:
       return 64;
+    case kFormat1Q:
+      return 128;
     default:
       UNREACHABLE();
   }
@@ -236,6 +243,7 @@ int LaneCountFromFormat(VectorFormat vform) {
     case kFormat2D:
       return 2;
     case kFormat1D:
+    case kFormat1Q:
     case kFormatB:
     case kFormatH:
     case kFormatS:

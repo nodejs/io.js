@@ -92,7 +92,7 @@ Builtin OffHeapInstructionStream::TryLookupCode(Isolate* isolate,
     // isolate uses it or knows about it or not (see
     // InstructionStream::OffHeapInstructionStart()).
     // So, this blob has to be checked too.
-    CodeRange* code_range = CodeRange::GetProcessWideCodeRange();
+    CodeRange* code_range = IsolateGroup::current()->GetCodeRange();
     if (code_range && code_range->embedded_blob_code_copy() != nullptr) {
       builtin = EmbeddedData::FromBlob(code_range).TryLookupCode(address);
     }

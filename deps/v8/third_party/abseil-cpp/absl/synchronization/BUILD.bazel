@@ -141,6 +141,7 @@ cc_library(
         "//absl/base:dynamic_annotations",
         "//absl/base:malloc_internal",
         "//absl/base:raw_logging_internal",
+        "//absl/base:tracing_internal",
         "//absl/debugging:stacktrace",
         "//absl/debugging:symbolize",
         "//absl/time",
@@ -177,6 +178,9 @@ cc_test(
     ],
     deps = [
         ":synchronization",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:tracing_internal",
         "//absl/time",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
@@ -320,6 +324,9 @@ cc_test(
     tags = ["no_test_lexan"],
     deps = [
         ":synchronization",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "//absl/base:tracing_internal",
         "//absl/time",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",

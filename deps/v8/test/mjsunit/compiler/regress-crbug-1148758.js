@@ -20,6 +20,8 @@ function runManyTimes(f) {
 let A = {
   get foo() {
     return 0;
+  },
+  set foo(v) {
   }
 };
 
@@ -29,14 +31,20 @@ let B = {
   aa() {
     "use strict";
     super.foo;
+  },
+  bb() {
+    "use strict";
+    super.foo = 55;
   }
 };
 
 var superAccessingFunc = B.aa;
+var superAccessingFunc2 = B.bb;
 
 runManyTimes(function () {
   try {
     superAccessingFunc();
+    superAccessingFunc2();
   } catch (e) {
     caught++;
   }

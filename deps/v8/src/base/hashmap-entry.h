@@ -57,6 +57,23 @@ struct TemplateHashMapEntry<Key*, Value> {
   void clear() { key = nullptr; }
 };
 
+// Specialization for Address-valued keys
+template <typename Value>
+struct TemplateHashMapEntry<Address, Value> {
+  static_assert((!std::is_same<Value, NoHashMapValue>::value));
+
+  Address key;
+  Value value;
+  uint32_t hash;  // The full hash value for key
+
+  TemplateHashMapEntry(Address key, Value value, uint32_t hash)
+      : key(key), value(value), hash(hash) {}
+
+  bool exists() const { return key != -1u; }
+
+  void clear() { key = -1u; }
+};
+
 // Specialization for no value.
 template <typename Key>
 struct TemplateHashMapEntry<Key, NoHashMapValue> {

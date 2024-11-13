@@ -17,36 +17,31 @@ namespace internal {
 RUNTIME_FUNCTION(Runtime_AtomicsNumWaitersForTesting) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSTypedArray> sta = args.at<JSTypedArray>(0);
+  DirectHandle<JSTypedArray> sta = args.at<JSTypedArray>(0);
   size_t index = NumberToSize(args[1]);
   CHECK(!sta->WasDetached());
   CHECK(sta->GetBuffer()->is_shared());
   CHECK_LT(index, sta->GetLength());
   CHECK_EQ(sta->type(), kExternalInt32Array);
 
-  Handle<JSArrayBuffer> array_buffer = sta->GetBuffer();
+  DirectHandle<JSArrayBuffer> array_buffer = sta->GetBuffer();
   size_t addr = (index << 2) + sta->byte_offset();
 
   return Smi::FromInt(
       FutexEmulation::NumWaitersForTesting(*array_buffer, addr));
 }
 
-RUNTIME_FUNCTION(Runtime_AtomicsNumAsyncWaitersForTesting) {
-  DCHECK_EQ(0, args.length());
-  return Smi::FromInt(FutexEmulation::NumAsyncWaitersForTesting(isolate));
-}
-
 RUNTIME_FUNCTION(Runtime_AtomicsNumUnresolvedAsyncPromisesForTesting) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSTypedArray> sta = args.at<JSTypedArray>(0);
+  DirectHandle<JSTypedArray> sta = args.at<JSTypedArray>(0);
   size_t index = NumberToSize(args[1]);
   CHECK(!sta->WasDetached());
   CHECK(sta->GetBuffer()->is_shared());
   CHECK_LT(index, sta->GetLength());
   CHECK_EQ(sta->type(), kExternalInt32Array);
 
-  Handle<JSArrayBuffer> array_buffer = sta->GetBuffer();
+  DirectHandle<JSArrayBuffer> array_buffer = sta->GetBuffer();
   size_t addr = (index << 2) + sta->byte_offset();
 
   return Smi::FromInt(FutexEmulation::NumUnresolvedAsyncPromisesForTesting(
@@ -56,7 +51,7 @@ RUNTIME_FUNCTION(Runtime_AtomicsNumUnresolvedAsyncPromisesForTesting) {
 RUNTIME_FUNCTION(Runtime_SetAllowAtomicsWait) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  bool set = Boolean::cast(args[0])->ToBool(isolate);
+  bool set = Cast<Boolean>(args[0])->ToBool(isolate);
 
   isolate->set_allow_atomics_wait(set);
   return ReadOnlyRoots(isolate).undefined_value();

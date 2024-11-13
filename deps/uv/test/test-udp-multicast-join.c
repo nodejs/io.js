@@ -126,7 +126,7 @@ static void cl_recv_cb(uv_udp_t* handle,
     r = uv_udp_set_membership(&server, MULTICAST_ADDR, NULL, UV_LEAVE_GROUP);
     ASSERT_OK(r);
 
-#if !defined(__OpenBSD__) && !defined(__NetBSD__)
+#if !defined(__NetBSD__)
     r = uv_udp_set_source_membership(&server, MULTICAST_ADDR, NULL, source_addr, UV_JOIN_GROUP);
     ASSERT_OK(r);
 #endif

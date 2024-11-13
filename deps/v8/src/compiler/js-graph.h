@@ -62,6 +62,11 @@ class V8_EXPORT_PRIVATE JSGraph : public MachineGraph {
   // only emit a Hole value.
   Node* HeapConstantHole(Handle<HeapObject> value);
 
+  // Createas a TrustedHeapConstant node.
+  // This is similar to HeapConstant, but for constants that live in trusted
+  // space (having a different cage base) and therefore shouldn't be compressed.
+  Node* TrustedHeapConstant(Handle<HeapObject> value);
+
   // Creates a Constant node of the appropriate type for
   // the given object.  Inspect the (serialized) object and determine whether
   // one of the canonicalized globals or a number constant should be returned.

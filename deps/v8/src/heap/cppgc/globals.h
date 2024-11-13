@@ -62,6 +62,12 @@ constexpr size_t kPageBaseMask = ~kPageOffsetMask;
 // of the first and last OS page, respectively. So they are really private dirty
 // memory which we never use.
 constexpr size_t kGuardPageSize = 0;
+#elif defined(V8_HOST_ARCH_PPC64)
+// PPC has 64K pages.
+constexpr size_t kGuardPageSize = 0;
+#elif defined(V8_HOST_ARCH_LOONG64) || defined(V8_HOST_ARCH_MIPS64)
+// LoongArch64 and MIPS64 have 16K pages.
+constexpr size_t kGuardPageSize = 0;
 #else
 // Guard pages are always put into memory. Whether they are actually protected
 // depends on the allocator provided to the garbage collector.

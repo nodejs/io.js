@@ -16,5 +16,5 @@ function main({ n, size }) {
     out += btoa(input).length;
   }
   bench.end(n);
-  assert(out > 0);
+  assert.ok(out > 0);
 }

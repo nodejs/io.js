@@ -18,6 +18,7 @@
 #include "src/objects/torque-defined-classes-inl.h"
 #include "src/strings/char-predicates.h"
 #include "test/cctest/compiler/function-tester.h"
+#include "test/cctest/heap/heap-utils.h"
 #include "test/common/code-assembler-tester.h"
 
 namespace v8 {
@@ -162,12 +163,12 @@ TEST(TestTernaryOperator) {
     m.Return(m.TestTernaryOperator(arg));
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
-  Handle<Object> result1 =
+  DirectHandle<Object> result1 =
       ft.Call(Handle<Smi>(Smi::FromInt(-5), isolate)).ToHandleChecked();
-  CHECK_EQ(-15, Smi::cast(*result1).value());
-  Handle<Object> result2 =
+  CHECK_EQ(-15, Cast<Smi>(*result1).value());
+  DirectHandle<Object> result2 =
       ft.Call(Handle<Smi>(Smi::FromInt(3), isolate)).ToHandleChecked();
-  CHECK_EQ(103, Smi::cast(*result2).value());
+  CHECK_EQ(103, Cast<Smi>(*result2).value());
 }
 
 TEST(TestFunctionPointerToGeneric) {
@@ -828,8 +829,8 @@ TEST(TestFullyGeneratedClassFromCpp) {
   TestTorqueAssembler m(asm_tester.state());
   { m.Return(m.TestFullyGeneratedClassFromCpp()); }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
-  Handle<ExportedSubClass> result =
-      Handle<ExportedSubClass>::cast(ft.Call().ToHandleChecked());
+  DirectHandle<ExportedSubClass> result =
+      Cast<ExportedSubClass>(ft.Call().ToHandleChecked());
   CHECK_EQ(result->c_field(), 7);
   CHECK_EQ(result->d_field(), 8);
   CHECK_EQ(result->e_field(), 9);
@@ -854,6 +855,7 @@ TEST(TestGeneratedCastOperators) {
 }
 
 TEST(TestNewPretenured) {
+  ManualGCScope manual_gc_scope;
   CcTest::InitializeVM();
   Isolate* isolate(CcTest::i_isolate());
   i::HandleScope scope(isolate);
@@ -937,8 +939,8 @@ TEST(TestRunLazyTwice) {
   }
   CHECK_EQ(lazyNumber, 5);
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
-  Handle<Object> result = ft.Call().ToHandleChecked();
-  CHECK_EQ(7, Smi::cast(*result).value());
+  DirectHandle<Object> result = ft.Call().ToHandleChecked();
+  CHECK_EQ(7, Cast<Smi>(*result).value());
 }
 
 TEST(TestCreateLazyNodeFromTorque) {
@@ -970,8 +972,8 @@ TEST(TestReturnNever_NotCalled) {
     m.Return(result);
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
-  Handle<Object> result = ft.Call().ToHandleChecked();
-  CHECK_EQ(42, Smi::cast(*result).value());
+  DirectHandle<Object> result = ft.Call().ToHandleChecked();
+  CHECK_EQ(42, Cast<Smi>(*result).value());
 }
 
 // Test calling a builtin that calls a runtime fct with return type {never}.

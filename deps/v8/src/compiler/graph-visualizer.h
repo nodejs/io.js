@@ -10,12 +10,12 @@
 #include <fstream>
 #include <iosfwd>
 #include <memory>
+#include <optional>
 #include <vector>
 
-#include "src/objects/code.h"
-#include "src/base/optional.h"
 #include "src/common/globals.h"
 #include "src/handles/handles.h"
+#include "src/objects/code.h"
 
 namespace v8 {
 namespace internal {
@@ -135,7 +135,7 @@ void JsonPrintAllBytecodeSources(std::ostream& os,
 
 void JsonPrintBytecodeSource(std::ostream& os, int source_id,
                              std::unique_ptr<char[]> function_name,
-                             Handle<BytecodeArray> bytecode_array);
+                             DirectHandle<BytecodeArray> bytecode_array);
 
 void JsonPrintAllSourceWithPositions(std::ostream& os,
                                      OptimizedCompilationInfo* info,
@@ -174,7 +174,7 @@ class JSONGraphWriter {
   void PrintNode(Node* node, bool is_live);
   void PrintEdges(Node* node);
   void PrintEdge(Node* from, int index, Node* to);
-  virtual base::Optional<Type> GetType(Node* node);
+  virtual std::optional<Type> GetType(Node* node);
 
  protected:
   std::ostream& os_;

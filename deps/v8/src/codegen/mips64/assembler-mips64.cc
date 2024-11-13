@@ -709,6 +709,13 @@ int Assembler::target_at(int pos, bool is_internal) {
     return AddBranchOffset(pos, instr);
   } else if (IsMov(instr, t8, ra)) {
     int32_t imm32;
+    if (IsAddImmediate(instr_at(pos + kInstrSize))) {
+      Instr instr_daddiu = instr_at(pos + kInstrSize);
+      imm32 = instr_daddiu & static_cast<int32_t>(kImm16Mask);
+      imm32 = (imm32 << 16) >> 16;
+      return imm32;
+    }
+
     Instr instr_lui = instr_at(pos + 2 * kInstrSize);
     Instr instr_ori = instr_at(pos + 3 * kInstrSize);
     DCHECK(IsLui(instr_lui));
@@ -857,6 +864,16 @@ void Assembler::target_at_put(int pos, int target_pos, bool is_internal) {
       instr_at_put(pos + 3 * kInstrSize, instr_ori2 | (imm & kImm16Mask));
     }
   } else if (IsMov(instr, t8, ra)) {
+    if (IsAddImmediate(instr_at(pos + kInstrSize))) {
+      Instr instr_daddiu = instr_at(pos + kInstrSize);
+      int32_t imm_short = target_pos - pos;
+      DCHECK(is_int16(imm_short));
+
+      instr_daddiu &= ~kImm16Mask;
+      instr_at_put(pos + kInstrSize, instr_daddiu | (imm_short & kImm16Mask));
+      return;
+    }
+
     Instr instr_lui = instr_at(pos + 2 * kInstrSize);
     Instr instr_ori = instr_at(pos + 3 * kInstrSize);
     DCHECK(IsLui(instr_lui));

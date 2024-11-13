@@ -36,8 +36,8 @@ const command = cp.spawnSync(cmd, { shell: true });
 assert.strictEqual(command.stdout.toString().trim(), 'bar');
 
 // Verify that the environment is properly inherited
-const env = cp.spawnSync(`"${process.execPath}" -pe process.env.BAZ`, {
-  env: { ...process.env, BAZ: 'buzz' },
+const env = cp.spawnSync(`"${common.isWindows ? process.execPath : '$NODE'}" -pe process.env.BAZ`, {
+  env: { ...process.env, BAZ: 'buzz', NODE: process.execPath },
   shell: true
 });
 

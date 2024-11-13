@@ -4,13 +4,6 @@
 
 import("../../gni/v8.gni")
 
-config("cctest_config") {
-  # Work around a bug in the gold linker.
-  if (use_gold && target_cpu == "x86") {
-    ldflags = [ "-Wl,--icf=none" ]
-  }
-}
-
 v8_executable("cctest") {
   testonly = true
 
@@ -35,7 +28,6 @@ v8_executable("cctest") {
     "../..:external_config",
     "../..:internal_config_base",
     "../..:v8_tracing_config",
-    ":cctest_config",
   ]
 
   ldflags = []
@@ -204,6 +196,7 @@ v8_source_set("cctest_sources") {
       "compiler/turboshaft-codegen-tester.cc",
       "compiler/turboshaft-codegen-tester.h",
       "compiler/turboshaft-test-branch-combine.cc",
+      "compiler/turboshaft-test-compare-combine.cc",
       "compiler/turboshaft-test-select-combine.cc",
       "setup-isolate-for-tests.cc",
       "setup-isolate-for-tests.h",
@@ -275,6 +268,13 @@ v8_source_set("cctest_sources") {
       ### gcmole(s390) ###
       "test-assembler-s390.cc",
     ]
+    if (current_os == "zos" && is_component_build) {
+      # for OpcodeFormatTable:
+      sources += [
+        "../../src/codegen/s390/constants-s390.cc",
+        "../../src/codegen/s390/constants-s390.h",
+      ]
+    }
   } else if (v8_current_cpu == "riscv64") {
     sources += [
       ### gcmole(riscv64) ###
@@ -343,6 +343,7 @@ v8_source_set("cctest_sources") {
       "wasm/test-run-wasm-atomics64.cc",
       "wasm/test-run-wasm-bulk-memory.cc",
       "wasm/test-run-wasm-exceptions.cc",
+      "wasm/test-run-wasm-f16.cc",
       "wasm/test-run-wasm-js.cc",
       "wasm/test-run-wasm-memory64.cc",
       "wasm/test-run-wasm-module.cc",

@@ -381,6 +381,8 @@ TEST(FlagInternalsTest, LookupAllFlagsByName) {
 TEST(FlagInternalsTest, LookupAllImplicationFlagsByName) {
   for (const Flag& flag : Flags()) {
     CHECK_EQ(&flag, FindImplicationFlagByName(flag.name()));
+    auto name_with_suffix = std::string(flag.name()) + " < 3";
+    CHECK_EQ(&flag, FindImplicationFlagByName(name_with_suffix.c_str()));
   }
 }
 

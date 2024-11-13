@@ -61,15 +61,15 @@ bool SerializerDeserializer::CanBeDeferred(Tagged<HeapObject> o,
   //   identify the object.
   // * ByteArray cannot be deferred as JSTypedArray needs the base_pointer
   //   ByteArray immediately if it's on heap.
-  //
+  // * Non-empty EmbdderDataArrays cannot be deferred because the serialize
+  //   and deserialize callbacks need the back reference immediately to
+  //   identify the object.
   // TODO(leszeks): Could we defer string serialization if forward references
   // were resolved after object post processing?
   return !IsInternalizedString(o) &&
-         !(IsJSObject(o) && JSObject::cast(o)->GetEmbedderFieldCount() > 0) &&
-         !IsByteArray(o) && !IsEmbedderDataArray(o) &&
-         !(IsNativeContext(o) &&
-           EmbedderDataArray::cast(Context::cast(o)->embedder_data())
-                   ->length() > 0);
+         !(IsJSObject(o) && Cast<JSObject>(o)->GetEmbedderFieldCount() > 0) &&
+         !IsByteArray(o) &&
+         !(IsEmbedderDataArray(o) && Cast<EmbedderDataArray>(o)->length() > 0);
 }
 
 void SerializerDeserializer::RestoreExternalReferenceRedirector(

@@ -30,6 +30,7 @@ class AstFunctionLiteralIdReindexer final
   // AstTraversalVisitor implementation.
   void VisitFunctionLiteral(FunctionLiteral* lit);
   void VisitClassLiteral(ClassLiteral* lit);
+  void VisitCall(Call* lit);
 
  private:
   int delta_;

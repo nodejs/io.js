@@ -67,7 +67,7 @@ function main(conf) {
 }
 
 function runTest(filesize, highWaterMark, encoding, n) {
-  assert(fs.statSync(filename).size === filesize * n);
+  assert.strictEqual(fs.statSync(filename).size, filesize * n);
   const rs = fs.createReadStream(filename, {
     highWaterMark,
     encoding,

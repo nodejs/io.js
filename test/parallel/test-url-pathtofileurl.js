@@ -13,10 +13,7 @@ const url = require('url');
 {
   const fileURL = url.pathToFileURL('test\\').href;
   assert.ok(fileURL.startsWith('file:///'));
-  if (isWindows)
-    assert.ok(fileURL.endsWith('/'));
-  else
-    assert.ok(fileURL.endsWith('%5C'));
+  assert.match(fileURL, isWindows ? /\/$/ : /%5C$/);
 }
 
 {
@@ -104,9 +101,20 @@ const windowsTestCases = [
   { path: 'C:\\€', expected: 'file:///C:/%E2%82%AC' },
   // Rocket emoji (non-BMP code point)
   { path: 'C:\\🚀', expected: 'file:///C:/%F0%9F%9A%80' },
+  // caret
+  { path: 'C:\\foo^bar', expected: 'file:///C:/foo%5Ebar' },
+  // left bracket
+  { path: 'C:\\foo[bar', expected: 'file:///C:/foo%5Bbar' },
+  // right bracket
+  { path: 'C:\\foo]bar', expected: 'file:///C:/foo%5Dbar' },
+  // Local extended path
+  { path: '\\\\?\\C:\\path\\to\\file.txt', expected: 'file:///C:/path/to/file.txt' },
   // UNC path (see https://docs.microsoft.com/en-us/archive/blogs/ie/file-uris-in-windows)
   { path: '\\\\nas\\My Docs\\File.doc', expected: 'file://nas/My%20Docs/File.doc' },
+  // Extended UNC path
+  { path: '\\\\?\\UNC\\server\\share\\folder\\file.txt', expected: 'file://server/share/folder/file.txt' },
 ];
+const alphabet = String.fromCharCode(...Array.from({ length: 26 }, (_, i) => 'a'.charCodeAt() + i));
 const posixTestCases = [
   // Lowercase ascii alpha
   { path: '/foo', expected: 'file:///foo' },
@@ -150,6 +158,33 @@ const posixTestCases = [
   { path: '/€', expected: 'file:///%E2%82%AC' },
   // Rocket emoji (non-BMP code point)
   { path: '/🚀', expected: 'file:///%F0%9F%9A%80' },
+  // "unsafe" chars
+  { path: '/foo\r\n\t<>"#%{}|^[\\~]`?bar', expected: 'file:///foo%0D%0A%09%3C%3E%22%23%25%7B%7D%7C%5E%5B%5C%7E%5D%60%3Fbar' },
+  // All of the 16-bit UTF-16 chars
+  {
+    path: `/${Array.from({ length: 0x7FFF }, (_, i) => String.fromCharCode(i)).join('')}`,
+    expected: `file:///${
+      Array.from({ length: 0x21 }, (_, i) => `%${i.toString(16).toUpperCase().padStart(2, '0')}`).join('')
+    }!%22%23$%25&'()*+,-./0123456789:;%3C=%3E%3F@${
+      alphabet.toUpperCase()
+    }%5B%5C%5D%5E_%60${alphabet}%7B%7C%7D%7E%7F${
+      Array.from({ length: 0x800 - 0x80 }, (_, i) => `%${
+        (Math.floor((i - 0x80) / 0x40) + 0xC4).toString(16).toUpperCase()
+      }%${
+        ((i % 0x40) + 0x80).toString(16).toUpperCase()
+      }`).join('')
+    }${
+      Array.from({ length: 0x7FFF - 0x800 }, (_, i) => i + 0x800).map((i) => `%E${
+        (i >> 12).toString(16).toUpperCase()
+      }%${
+        (((i >> 6) % 0x40) + 0x80).toString(16).toUpperCase()
+      }%${
+        ((i % 0x40) + 0x80).toString(16).toUpperCase()
+      }`).join('')
+    }`
+  },
+  // Trying with some pair of 16-bit surrogate pseudo-characters
+  { path: `/${String.fromCodePoint(0x1F303)}`, expected: 'file:///%F0%9F%8C%83' },
 ];
 
 for (const { path, expected } of windowsTestCases) {

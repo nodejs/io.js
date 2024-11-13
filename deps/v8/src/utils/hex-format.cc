@@ -21,7 +21,8 @@ void FormatBytesToHex(char* formatted, size_t size_of_formatted,
 
   for (size_t index = 0; index < size_of_val; index++) {
     size_t dest_index = index << 1;
-    snprintf(&formatted[dest_index], size_of_formatted - dest_index, "%02x", val[index]);
+    snprintf(&formatted[dest_index], size_of_formatted - dest_index, "%02x",
+             val[index]);
   }
 }
 

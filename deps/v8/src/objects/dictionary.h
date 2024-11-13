@@ -5,8 +5,9 @@
 #ifndef V8_OBJECTS_DICTIONARY_H_
 #define V8_OBJECTS_DICTIONARY_H_
 
+#include <optional>
+
 #include "src/base/export-template.h"
-#include "src/base/optional.h"
 #include "src/common/globals.h"
 #include "src/objects/hash-table.h"
 #include "src/objects/property-array.h"
@@ -16,8 +17,7 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #ifdef V8_ENABLE_SWISS_NAME_DICTIONARY
 class SwissNameDictionary;
@@ -41,7 +41,7 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) Dictionary
   inline Tagged<Object> ValueAt(PtrComprCageBase cage_base, InternalIndex entry,
                                 SeqCstAccessTag);
   // Returns {} if we would be reading out of the bounds of the object.
-  inline base::Optional<Tagged<Object>> TryValueAt(InternalIndex entry);
+  inline std::optional<Tagged<Object>> TryValueAt(InternalIndex entry);
 
   // Set the value for entry.
   inline void ValueAtPut(InternalIndex entry, Tagged<Object> value);
@@ -96,7 +96,7 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) Dictionary
                                        : AllocationType::kOld>
   V8_WARN_UNUSED_RESULT static Handle<Derived> Add(
       IsolateT* isolate, Handle<Derived> dictionary, Key key,
-      Handle<Object> value, PropertyDetails details,
+      DirectHandle<Object> value, PropertyDetails details,
       InternalIndex* entry_out = nullptr);
 
   // This method is only safe to use when it is guaranteed that the dictionary
@@ -108,7 +108,7 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) Dictionary
                                        ? AllocationType::kYoung
                                        : AllocationType::kOld>
   static void UncheckedAdd(IsolateT* isolate, Handle<Derived> dictionary,
-                           Key key, Handle<Object> value,
+                           Key key, DirectHandle<Object> value,
                            PropertyDetails details);
 
   static Handle<Derived> ShallowCopy(
@@ -149,8 +149,8 @@ class BaseDictionaryShape : public BaseShape<Key> {
 
 class BaseNameDictionaryShape : public BaseDictionaryShape<Handle<Name>> {
  public:
-  static inline bool IsMatch(Handle<Name> key, Tagged<Object> other);
-  static inline uint32_t Hash(ReadOnlyRoots roots, Handle<Name> key);
+  static inline bool IsMatch(DirectHandle<Name> key, Tagged<Object> other);
+  static inline uint32_t Hash(ReadOnlyRoots roots, DirectHandle<Name> key);
   static inline uint32_t HashForObject(ReadOnlyRoots roots,
                                        Tagged<Object> object);
   template <AllocationType allocation = AllocationType::kYoung>
@@ -230,7 +230,6 @@ class V8_EXPORT_PRIVATE NameDictionary
  public:
   static inline Handle<Map> GetMap(ReadOnlyRoots roots);
 
-  DECL_CAST(NameDictionary)
   DECL_PRINTER(NameDictionary)
 
   static const int kFlagsIndex = kObjectHashIndex + 1;
@@ -266,7 +265,7 @@ class V8_EXPORT_PRIVATE NameDictionary
 
 class V8_EXPORT_PRIVATE GlobalDictionaryShape : public BaseNameDictionaryShape {
  public:
-  static inline bool IsMatch(Handle<Name> key, Tagged<Object> other);
+  static inline bool IsMatch(DirectHandle<Name> key, Tagged<Object> other);
   static inline uint32_t HashForObject(ReadOnlyRoots roots,
                                        Tagged<Object> object);
 
@@ -292,7 +291,6 @@ class V8_EXPORT_PRIVATE GlobalDictionary
  public:
   static inline Handle<Map> GetMap(ReadOnlyRoots roots);
 
-  DECL_CAST(GlobalDictionary)
   DECL_PRINTER(GlobalDictionary)
 
   inline Tagged<Object> ValueAt(InternalIndex entry);
@@ -308,9 +306,9 @@ class V8_EXPORT_PRIVATE GlobalDictionary
   inline Tagged<Name> NameAt(PtrComprCageBase cage_base, InternalIndex entry);
   inline void ValueAtPut(InternalIndex entry, Tagged<Object> value);
 
-  base::Optional<Tagged<PropertyCell>>
+  std::optional<Tagged<PropertyCell>>
   TryFindPropertyCellForConcurrentLookupIterator(Isolate* isolate,
-                                                 Handle<Name> name,
+                                                 DirectHandle<Name> name,
                                                  RelaxedLoadTag tag);
 
   OBJECT_CONSTRUCTORS(
@@ -366,7 +364,6 @@ class SimpleNumberDictionary
  public:
   static inline Handle<Map> GetMap(ReadOnlyRoots roots);
 
-  DECL_CAST(SimpleNumberDictionary)
   // Type specific at put (default NONE attributes is used when adding).
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static Handle<SimpleNumberDictionary>
   Set(Isolate* isolate, Handle<SimpleNumberDictionary> dictionary, uint32_t key,
@@ -388,7 +385,6 @@ class NumberDictionary
  public:
   static inline Handle<Map> GetMap(ReadOnlyRoots roots);
 
-  DECL_CAST(NumberDictionary)
   DECL_PRINTER(NumberDictionary)
 
   // Type specific at put (default NONE attributes is used when adding).
@@ -457,8 +453,7 @@ struct EnumIndexComparator {
   Tagged<Dictionary> dict;
 };
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

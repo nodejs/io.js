@@ -81,6 +81,7 @@ subSystemLabels:
   /^deps\/nghttp2\/nghttp2\.gyp/: build, http2
   /^deps\/nghttp2\//: http2
   /^deps\/ngtcp2\//: quic
+  /^deps\/amaro\//: strip-types
   /^deps\/([^/]+)/: dependencies, $1
 
   ## JS subsystems
@@ -98,6 +99,7 @@ subSystemLabels:
   /^lib\/test.js$/: test_runner
   /^lib\/internal\/url\.js$/: whatwg-url
   /^lib\/internal\/modules\/esm/: esm
+  /^lib\/internal\/modules/: module
   /^lib\/internal\/webstreams/: web streams
   /^lib\/internal\/test_runner/: test_runner
 
@@ -122,6 +124,7 @@ exlusiveLabels:
   /^test\/fixtures\/es-module/: test, esm
   /^test\/es-module\//: test, esm
   /^test\/fixtures\/wpt\/streams\//: test, web streams
+  /^test\/fixtures\/typescript/: test, strip-types
 
   /^test\//: test
 
@@ -141,6 +144,8 @@ exlusiveLabels:
   # Add deprecations label to PRs that affect doc/api/deprecations.md
   /^doc\/api\/deprecations.md$/: doc, deprecations
   /^doc\/changelogs\//: release
+  # Specific map for typescript.md as it should be labeled 'strip-types'
+  /^doc\/api\/typescript.md$/: doc, strip-types
 
   /^doc\//: doc
 
@@ -190,6 +195,7 @@ allJsSubSystems:
   - sqlite
   - stream
   - string_decoder
+  - strip-types
   - timers
   - tls
   - trace_events

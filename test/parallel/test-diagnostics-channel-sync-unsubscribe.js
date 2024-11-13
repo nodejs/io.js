@@ -9,6 +9,7 @@ const published_data = 'some message';
 const onMessageHandler = common.mustCall(() => dc.unsubscribe(channel_name, onMessageHandler));
 
 dc.subscribe(channel_name, onMessageHandler);
+dc.subscribe(channel_name, common.mustCall());
 
 // This must not throw.
 dc.channel(channel_name).publish(published_data);

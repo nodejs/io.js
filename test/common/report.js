@@ -59,7 +59,12 @@ function _validateContent(report, fields = []) {
 
   // Verify that all sections are present as own properties of the report.
   const sections = ['header', 'nativeStack', 'javascriptStack', 'libuv',
-                    'environmentVariables', 'sharedObjects', 'resourceUsage', 'workers'];
+                    'sharedObjects', 'resourceUsage', 'workers'];
+
+  if (!process.report.excludeEnv) {
+    sections.push('environmentVariables');
+  }
+
   if (!isWindows)
     sections.push('userLimits');
 
@@ -105,7 +110,7 @@ function _validateContent(report, fields = []) {
                         'glibcVersionRuntime', 'glibcVersionCompiler', 'cwd',
                         'reportVersion', 'networkInterfaces', 'threadId'];
   checkForUnknownFields(header, headerFields);
-  assert.strictEqual(header.reportVersion, 3);  // Increment as needed.
+  assert.strictEqual(header.reportVersion, 4);  // Increment as needed.
   assert.strictEqual(typeof header.event, 'string');
   assert.strictEqual(typeof header.trigger, 'string');
   assert(typeof header.filename === 'string' || header.filename === null);
@@ -251,7 +256,7 @@ function _validateContent(report, fields = []) {
   assert(typeof usage.free_memory, 'string');
   assert(typeof usage.total_memory, 'string');
   assert(typeof usage.available_memory, 'string');
-  // This field may not exsit
+  // This field may not exist
   if (report.resourceUsage.constrained_memory) {
     assert(typeof report.resourceUsage.constrained_memory, 'string');
   }
@@ -294,10 +299,12 @@ function _validateContent(report, fields = []) {
                        resource.type === 'loop' ? 'undefined' : 'boolean');
   });
 
-  // Verify the format of the environmentVariables section.
-  for (const [key, value] of Object.entries(report.environmentVariables)) {
-    assert.strictEqual(typeof key, 'string');
-    assert.strictEqual(typeof value, 'string');
+  if (!process.report.excludeEnv) {
+    // Verify the format of the environmentVariables section.
+    for (const [key, value] of Object.entries(report.environmentVariables)) {
+      assert.strictEqual(typeof key, 'string');
+      assert.strictEqual(typeof value, 'string');
+    }
   }
 
   // Verify the format of the userLimits section on non-Windows platforms.

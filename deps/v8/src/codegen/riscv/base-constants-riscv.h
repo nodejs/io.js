@@ -90,7 +90,19 @@ enum VSew {
       kVsInvalid
 };
 
-constexpr size_t kMaxPCRelativeCodeRangeInMB = 4094;
+// RISC-V can perform PC-relative jumps within a 32-bit range using the
+// following two instructions:
+//   auipc   t6, imm20    ; t0 = PC + imm20 * 2^12
+//   jalr    ra, t6, imm12; ra = PC + 4, PC = t0 + imm12,
+// Both imm20 and imm12 are treated as two's-complement signed values, usually
+// calculated as:
+//   imm20 = (offset + 0x800) >> 12
+//   imm12 = offset & 0xfff
+// offset is the signed offset from the auipc instruction. Adding 0x800 handles
+// the offset, but if the offset is >= 2^31 - 2^11, it will overflow. Therefore,
+// the true 32-bit range is:
+//   [-2^31 - 2^11, 2^31 - 2^11)
+constexpr size_t kMaxPCRelativeCodeRangeInMB = 2047;
 
 // -----------------------------------------------------------------------------
 // Registers and FPURegisters.

@@ -8,7 +8,6 @@
 #include <optional>
 
 #include "include/cppgc/common.h"
-#include "src/base/optional.h"
 #include "src/heap/cppgc/heap-config.h"
 
 namespace cppgc {
@@ -34,7 +33,7 @@ class GarbageCollector {
   virtual void clear_overridden_stack_state() = 0;
 
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  virtual v8::base::Optional<int> UpdateAllocationTimeout() = 0;
+  virtual std::optional<int> UpdateAllocationTimeout() = 0;
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 };
 

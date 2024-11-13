@@ -35,8 +35,7 @@ if (process.env.TEST_INIT) {
 process.env.TEST_INIT = 1;
 
 function test(file, expected) {
-  const path = `"${process.execPath}" ${file}`;
-  child.exec(path, { env: process.env }, common.mustSucceed((out) => {
+  child.exec(...common.escapePOSIXShell`"${process.execPath}" "${file}"`, common.mustSucceed((out) => {
     assert.strictEqual(out, expected, `'node ${file}' failed!`);
   }));
 }

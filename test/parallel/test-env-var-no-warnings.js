@@ -7,14 +7,13 @@ if (process.argv[2] === 'child') {
   process.emitWarning('foo');
 } else {
   function test(newEnv) {
-    const env = { ...process.env, ...newEnv };
-    const cmd = `"${process.execPath}" "${__filename}" child`;
+    const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" "${__filename}" child`;
 
-    cp.exec(cmd, { env }, common.mustCall((err, stdout, stderr) => {
+    cp.exec(cmd, { ...opts, env: { ...opts?.env, ...newEnv } }, common.mustCall((err, stdout, stderr) => {
       assert.strictEqual(err, null);
       assert.strictEqual(stdout, '');
 
-      if (env.NODE_NO_WARNINGS === '1')
+      if (newEnv.NODE_NO_WARNINGS === '1')
         assert.strictEqual(stderr, '');
       else
         assert.match(stderr.trim(), /Warning: foo\n/);

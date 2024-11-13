@@ -19,7 +19,7 @@ private/public key pairs, but has had other uses as well.
 
 =for comment "uses" could as well be "abuses"...
 
-The private/public key pair that an B<EVP_PKEY> contains is refered to
+The private/public key pair that an B<EVP_PKEY> contains is referred to
 as its "internal key" or "origin" (the reason for "origin" is
 explained further down, in L</Export cache for provider operations>),
 and it can take one of the following forms:
@@ -202,7 +202,7 @@ L<provider-keymgmt(7)>
 
 =head1 COPYRIGHT
 
-Copyright 2020-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

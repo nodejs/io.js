@@ -6,6 +6,7 @@
 #define V8_BUILTINS_BUILTINS_INL_H_
 
 #include "src/builtins/builtins.h"
+#include "src/execution/isolate.h"
 
 namespace v8 {
 namespace internal {
@@ -196,6 +197,11 @@ constexpr Builtin Builtins::InterpreterPushArgsThenConstruct(
       return Builtin::kInterpreterPushArgsThenConstruct;
   }
   UNREACHABLE();
+}
+
+// static
+Address Builtins::EntryOf(Builtin builtin, Isolate* isolate) {
+  return isolate->builtin_entry_table()[Builtins::ToInt(builtin)];
 }
 
 // static

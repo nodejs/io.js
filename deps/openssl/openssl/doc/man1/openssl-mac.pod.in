@@ -123,26 +123,31 @@ To see the list of supported MAC's use the command C<openssl list
 
 =head1 EXAMPLES
 
-To create a hex-encoded HMAC-SHA1 MAC of a file and write to stdout: \
+To create a hex-encoded HMAC-SHA1 MAC of a file and write to stdout:
+
  openssl mac -digest SHA1 \
          -macopt hexkey:000102030405060708090A0B0C0D0E0F10111213 \
          -in msg.bin HMAC
 
-To create a SipHash MAC from a file with a binary file output: \
+To create a SipHash MAC from a file with a binary file output:
+
  openssl mac -macopt hexkey:000102030405060708090A0B0C0D0E0F \
          -in msg.bin -out out.bin -binary SipHash
 
-To create a hex-encoded CMAC-AES-128-CBC MAC from a file:\
+To create a hex-encoded CMAC-AES-128-CBC MAC from a file:
+
  openssl mac -cipher AES-128-CBC \
          -macopt hexkey:77A77FAF290C1FA30C683DF16BA7A77B \
          -in msg.bin CMAC
 
 To create a hex-encoded KMAC128 MAC from a file with a Customisation String
-'Tag' and output length of 16: \
+'Tag' and output length of 16:
+
  openssl mac -macopt custom:Tag -macopt hexkey:40414243444546 \
          -macopt size:16 -in msg.bin KMAC128
 
-To create a hex-encoded GMAC-AES-128-GCM with a IV from a file: \
+To create a hex-encoded GMAC-AES-128-GCM with a IV from a file:
+
  openssl mac -cipher AES-128-GCM -macopt hexiv:E0E00F19FED7BA0136A797F3 \
          -macopt hexkey:77A77FAF290C1FA30C683DF16BA7A77B -in msg.bin GMAC
 
@@ -165,7 +170,7 @@ L<EVP_MAC-Poly1305(7)>
 
 =head1 COPYRIGHT
 
-Copyright 2018-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2018-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

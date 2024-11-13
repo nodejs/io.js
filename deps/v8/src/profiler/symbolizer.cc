@@ -36,6 +36,7 @@ CodeEntry* EntryForVMState(StateTag tag) {
     // one bucket.
     case OTHER:
     case EXTERNAL:
+    case LOGGING:
       return CodeEntry::program_entry();
     case IDLE:
       return CodeEntry::idle_entry();

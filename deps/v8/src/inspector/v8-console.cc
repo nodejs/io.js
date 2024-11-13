@@ -9,6 +9,7 @@
 #include "include/v8-function.h"
 #include "include/v8-inspector.h"
 #include "include/v8-microtask-queue.h"
+#include "src/base/lazy-instance.h"
 #include "src/base/macros.h"
 #include "src/debug/debug-interface.h"
 #include "src/inspector/injected-script.h"
@@ -42,35 +43,35 @@ class ConsoleHelper {
                 V8InspectorImpl* inspector)
       : m_info(info),
         m_consoleContext(consoleContext),
-        m_isolate(inspector->isolate()),
-        m_context(m_isolate->GetCurrentContext()),
-        m_inspector(inspector),
-        m_contextId(InspectedContext::contextId(m_context)),
-        m_groupId(m_inspector->contextGroupId(m_contextId)) {}
+        m_inspector(inspector) {}
 
   ConsoleHelper(const ConsoleHelper&) = delete;
   ConsoleHelper& operator=(const ConsoleHelper&) = delete;
 
-  int contextId() const { return m_contextId; }
-  int groupId() const { return m_groupId; }
+  v8::Isolate* isolate() const { return m_inspector->isolate(); }
+  v8::Local<v8::Context> context() const {
+    return isolate()->GetCurrentContext();
+  }
+  int contextId() const { return InspectedContext::contextId(context()); }
+  int groupId() const { return m_inspector->contextGroupId(contextId()); }
 
   InjectedScript* injectedScript(int sessionId) {
-    InspectedContext* context = m_inspector->getContext(m_groupId, m_contextId);
+    InspectedContext* context = m_inspector->getContext(groupId(), contextId());
     if (!context) return nullptr;
     return context->getInjectedScript(sessionId);
   }
 
   V8InspectorSessionImpl* session(int sessionId) {
-    return m_inspector->sessionById(m_groupId, sessionId);
+    return m_inspector->sessionById(groupId(), sessionId);
   }
 
   V8ConsoleMessageStorage* consoleMessageStorage() {
-    return m_inspector->ensureConsoleMessageStorage(m_groupId);
+    return m_inspector->ensureConsoleMessageStorage(groupId());
   }
 
   void reportCall(ConsoleAPIType type) {
     if (!m_info.Length()) return;
-    v8::LocalVector<v8::Value> arguments(m_isolate);
+    v8::LocalVector<v8::Value> arguments(isolate());
     arguments.reserve(m_info.Length());
     for (int i = 0; i < m_info.Length(); ++i) arguments.push_back(m_info[i]);
     reportCall(type, {arguments.begin(), arguments.end()});
@@ -78,64 +79,103 @@ class ConsoleHelper {
 
   void reportCallWithDefaultArgument(ConsoleAPIType type,
                                      const String16& message) {
-    v8::LocalVector<v8::Value> arguments(m_isolate);
+    v8::LocalVector<v8::Value> arguments(isolate());
     arguments.reserve(m_info.Length());
     for (int i = 0; i < m_info.Length(); ++i) arguments.push_back(m_info[i]);
-    if (!m_info.Length()) arguments.push_back(toV8String(m_isolate, message));
+    if (!m_info.Length()) arguments.push_back(toV8String(isolate(), message));
     reportCall(type, {arguments.begin(), arguments.end()});
   }
 
   void reportCallAndReplaceFirstArgument(ConsoleAPIType type,
                                          const String16& message) {
-    v8::LocalVector<v8::Value> arguments(m_isolate);
-    arguments.push_back(toV8String(m_isolate, message));
+    v8::LocalVector<v8::Value> arguments(isolate());
+    arguments.push_back(toV8String(isolate(), message));
     for (int i = 1; i < m_info.Length(); ++i) arguments.push_back(m_info[i]);
     reportCall(type, {arguments.begin(), arguments.end()});
   }
 
   void reportCallWithArgument(ConsoleAPIType type, const String16& message) {
     auto arguments =
-        v8::to_array<v8::Local<v8::Value>>({toV8String(m_isolate, message)});
+        v8::to_array<v8::Local<v8::Value>>({toV8String(isolate(), message)});
     reportCall(type, arguments);
   }
 
   void reportCall(ConsoleAPIType type,
                   v8::MemorySpan<const v8::Local<v8::Value>> arguments) {
-    if (!m_groupId) return;
+    if (!groupId()) return;
+    // Depending on the type of the console message, we capture only parts of
+    // the stack trace, or no stack trace at all.
+    std::unique_ptr<V8StackTraceImpl> stackTrace;
+    switch (type) {
+      case ConsoleAPIType::kClear:
+        // The `console.clear()` API doesn't leave a trace in the DevTools'
+        // front-end and therefore doesn't need to have a stack trace attached
+        // to it.
+        break;
+
+      case ConsoleAPIType::kTrace:
+        // The purpose of `console.trace()` is to output a stack trace to the
+        // developer tools console, therefore we should always strive to
+        // capture a full stack trace, even before any debugger is attached.
+        stackTrace = m_inspector->debugger()->captureStackTrace(true);
+        break;
+
+      case ConsoleAPIType::kTimeEnd:
+        // The `console.time()` and `console.timeEnd()` APIs are meant for
+        // performance investigations, and therefore it's important to reduce
+        // the total overhead of these calls, but also make sure these APIs
+        // have consistent performance overhead. In order to guarantee that,
+        // we always capture only the top frame, otherwise the performance
+        // characteristics of `console.timeEnd()` would differ based on the
+        // current call depth, which would skew the results.
+        //
+        // See https://crbug.com/41433391 for more information.
+        stackTrace = V8StackTraceImpl::capture(m_inspector->debugger(), 1);
+        break;
+
+      default:
+        // All other APIs get a full stack trace only when the debugger is
+        // attached, otherwise record only the top frame.
+        stackTrace = m_inspector->debugger()->captureStackTrace(false);
+        break;
+    }
     std::unique_ptr<V8ConsoleMessage> message =
         V8ConsoleMessage::createForConsoleAPI(
-            m_context, m_contextId, m_groupId, m_inspector,
+            context(), contextId(), groupId(), m_inspector,
             m_inspector->client()->currentTimeMS(), type, arguments,
-            consoleContextToString(m_isolate, m_consoleContext),
-            m_inspector->debugger()->captureStackTrace(false));
+            consoleContextToString(isolate(), m_consoleContext),
+            std::move(stackTrace));
     consoleMessageStorage()->addMessage(std::move(message));
   }
 
   void reportDeprecatedCall(const char* id, const String16& message) {
-    if (!consoleMessageStorage()->shouldReportDeprecationMessage(m_contextId,
+    if (!consoleMessageStorage()->shouldReportDeprecationMessage(contextId(),
                                                                  id)) {
       return;
     }
     auto arguments =
-        v8::to_array<v8::Local<v8::Value>>({toV8String(m_isolate, message)});
+        v8::to_array<v8::Local<v8::Value>>({toV8String(isolate(), message)});
     reportCall(ConsoleAPIType::kWarning, arguments);
   }
 
   bool firstArgToBoolean(bool defaultValue) {
     if (m_info.Length() < 1) return defaultValue;
     if (m_info[0]->IsBoolean()) return m_info[0].As<v8::Boolean>()->Value();
-    return m_info[0]->BooleanValue(m_context->GetIsolate());
+    return m_info[0]->BooleanValue(m_inspector->isolate());
   }
 
-  String16 firstArgToString(const String16& defaultValue,
-                            bool allowUndefined = true) {
-    if (m_info.Length() < 1 || (!allowUndefined && m_info[0]->IsUndefined())) {
-      return defaultValue;
+  v8::Local<v8::String> firstArgToString() {
+    if (V8_LIKELY(m_info.Length() > 0)) {
+      v8::Local<v8::Value> arg = m_info[0];
+      if (V8_LIKELY(arg->IsString())) {
+        return arg.As<v8::String>();
+      }
+      v8::Local<v8::String> label;
+      if (!arg->IsUndefined() && arg->ToString(context()).ToLocal(&label)) {
+        return label;
+      }
     }
-    v8::Local<v8::String> titleValue;
-    if (!m_info[0]->ToString(m_context).ToLocal(&titleValue))
-      return defaultValue;
-    return toProtocolString(m_context->GetIsolate(), titleValue);
+    return toV8StringInternalized(isolate(), "default");
   }
 
   v8::MaybeLocal<v8::Object> firstArgAsObject() {
@@ -154,17 +194,13 @@ class ConsoleHelper {
   }
 
   void forEachSession(std::function<void(V8InspectorSessionImpl*)> callback) {
-    m_inspector->forEachSession(m_groupId, std::move(callback));
+    m_inspector->forEachSession(groupId(), std::move(callback));
   }
 
  private:
   const v8::debug::ConsoleCallArguments& m_info;
   const v8::debug::ConsoleContext& m_consoleContext;
-  v8::Isolate* m_isolate;
-  v8::Local<v8::Context> m_context;
-  V8InspectorImpl* m_inspector = nullptr;
-  int m_contextId;
-  int m_groupId;
+  V8InspectorImpl* m_inspector;
 };
 
 void createBoundFunctionProperty(
@@ -289,45 +325,20 @@ void V8Console::Clear(const v8::debug::ConsoleCallArguments& info,
                                        String16("console.clear"));
 }
 
-static String16 identifierFromTitleOrStackTrace(
-    const String16& title, const ConsoleHelper& helper,
-    const v8::debug::ConsoleContext& consoleContext,
-    V8InspectorImpl* inspector) {
-  String16 identifier;
-  if (title.isEmpty()) {
-    std::unique_ptr<V8StackTraceImpl> stackTrace =
-        V8StackTraceImpl::capture(inspector->debugger(), 1);
-    if (stackTrace && !stackTrace->isEmpty()) {
-      identifier = toString16(stackTrace->topSourceURL()) + ":" +
-                   String16::fromInteger(stackTrace->topLineNumber());
-    }
-  } else {
-    identifier = title + "@";
-  }
-  identifier = consoleContextToString(inspector->isolate(), consoleContext) +
-               "@" + identifier;
-
-  return identifier;
-}
-
 void V8Console::Count(const v8::debug::ConsoleCallArguments& info,
                       const v8::debug::ConsoleContext& consoleContext) {
   TRACE_EVENT_BEGIN0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
                      "V8Console::Count");
   ConsoleHelper helper(info, consoleContext, m_inspector);
-  String16 title = helper.firstArgToString(String16("default"), false);
-  String16 identifier = identifierFromTitleOrStackTrace(
-      title, helper, consoleContext, m_inspector);
-
-  int count =
-      helper.consoleMessageStorage()->count(helper.contextId(), identifier);
-  String16 countString = String16::fromInteger(count);
-  helper.reportCallWithArgument(
-      ConsoleAPIType::kCount,
-      title.isEmpty() ? countString : (title + ": " + countString));
+  String16 label =
+      toProtocolString(m_inspector->isolate(), helper.firstArgToString());
+  int count = helper.consoleMessageStorage()->count(helper.contextId(),
+                                                    consoleContext.id(), label);
+  helper.reportCallWithArgument(ConsoleAPIType::kCount,
+                                label + ": " + String16::fromInteger(count));
   TRACE_EVENT_END2(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
-                   "V8Console::Count", "title",
-                   TRACE_STR_COPY(title.utf8().c_str()), "count", count);
+                   "V8Console::Count", "label",
+                   TRACE_STR_COPY(label.utf8().c_str()), "count", count);
 }
 
 void V8Console::CountReset(const v8::debug::ConsoleCallArguments& info,
@@ -335,18 +346,16 @@ void V8Console::CountReset(const v8::debug::ConsoleCallArguments& info,
   TRACE_EVENT_BEGIN0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
                      "V8Console::CountReset");
   ConsoleHelper helper(info, consoleContext, m_inspector);
-  String16 title = helper.firstArgToString(String16("default"), false);
-  String16 identifier = identifierFromTitleOrStackTrace(
-      title, helper, consoleContext, m_inspector);
-
+  String16 label =
+      toProtocolString(m_inspector->isolate(), helper.firstArgToString());
   if (!helper.consoleMessageStorage()->countReset(helper.contextId(),
-                                                  identifier)) {
+                                                  consoleContext.id(), label)) {
     helper.reportCallWithArgument(ConsoleAPIType::kWarning,
-                                  "Count for '" + title + "' does not exist");
+                                  "Count for '" + label + "' does not exist");
   }
   TRACE_EVENT_END1(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
-                   "V8Console::CountReset", "title",
-                   TRACE_STR_COPY(title.utf8().c_str()));
+                   "V8Console::CountReset", "label",
+                   TRACE_STR_COPY(label.utf8().c_str()));
 }
 
 void V8Console::Assert(const v8::debug::ConsoleCallArguments& info,
@@ -370,7 +379,8 @@ void V8Console::Profile(const v8::debug::ConsoleCallArguments& info,
   TRACE_EVENT_BEGIN0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
                      "V8Console::Profile");
   ConsoleHelper helper(info, consoleContext, m_inspector);
-  String16 title = helper.firstArgToString(String16());
+  String16 title =
+      toProtocolString(m_inspector->isolate(), helper.firstArgToString());
   helper.forEachSession([&title](V8InspectorSessionImpl* session) {
     session->profilerAgent()->consoleProfile(title);
   });
@@ -384,7 +394,8 @@ void V8Console::ProfileEnd(const v8::debug::ConsoleCallArguments& info,
   TRACE_EVENT_BEGIN0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
                      "V8Console::ProfileEnd");
   ConsoleHelper helper(info, consoleContext, m_inspector);
-  String16 title = helper.firstArgToString(String16());
+  String16 title =
+      toProtocolString(m_inspector->isolate(), helper.firstArgToString());
   helper.forEachSession([&title](V8InspectorSessionImpl* session) {
     session->profilerAgent()->consoleProfileEnd(title);
   });
@@ -393,74 +404,59 @@ void V8Console::ProfileEnd(const v8::debug::ConsoleCallArguments& info,
                    TRACE_STR_COPY(title.utf8().c_str()));
 }
 
-static void timeFunction(const v8::debug::ConsoleCallArguments& info,
-                         const v8::debug::ConsoleContext& consoleContext,
-                         bool timelinePrefix, V8InspectorImpl* inspector) {
-  ConsoleHelper helper(info, consoleContext, inspector);
-  String16 protocolTitle = helper.firstArgToString("default", false);
-  if (timelinePrefix) protocolTitle = "Timeline '" + protocolTitle + "'";
-  const String16& timerId =
-      protocolTitle + "@" +
-      consoleContextToString(inspector->isolate(), consoleContext);
-  if (helper.consoleMessageStorage()->hasTimer(helper.contextId(), timerId)) {
-    helper.reportCallWithArgument(
-        ConsoleAPIType::kWarning,
-        "Timer '" + protocolTitle + "' already exists");
-    return;
-  }
-  inspector->client()->consoleTime(toStringView(protocolTitle));
-  helper.consoleMessageStorage()->time(helper.contextId(), timerId);
-}
-
-static void timeEndFunction(const v8::debug::ConsoleCallArguments& info,
-                            const v8::debug::ConsoleContext& consoleContext,
-                            bool timeLog, V8InspectorImpl* inspector) {
-  ConsoleHelper helper(info, consoleContext, inspector);
-  String16 protocolTitle = helper.firstArgToString("default", false);
-  const String16& timerId =
-      protocolTitle + "@" +
-      consoleContextToString(inspector->isolate(), consoleContext);
-  if (!helper.consoleMessageStorage()->hasTimer(helper.contextId(), timerId)) {
-    helper.reportCallWithArgument(
-        ConsoleAPIType::kWarning,
-        "Timer '" + protocolTitle + "' does not exist");
-    return;
-  }
-  inspector->client()->consoleTimeEnd(toStringView(protocolTitle));
-  String16 title = protocolTitle + "@" +
-                   consoleContextToString(inspector->isolate(), consoleContext);
-  double elapsed;
-  if (timeLog) {
-    elapsed =
-        helper.consoleMessageStorage()->timeLog(helper.contextId(), title);
-  } else {
-    elapsed =
-        helper.consoleMessageStorage()->timeEnd(helper.contextId(), title);
-  }
-  String16 message =
-      protocolTitle + ": " + String16::fromDouble(elapsed) + " ms";
-  if (timeLog)
-    helper.reportCallAndReplaceFirstArgument(ConsoleAPIType::kLog, message);
-  else
-    helper.reportCallWithArgument(ConsoleAPIType::kTimeEnd, message);
-}
-
 void V8Console::Time(const v8::debug::ConsoleCallArguments& info,
                      const v8::debug::ConsoleContext& consoleContext) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"), "V8Console::Time");
-  timeFunction(info, consoleContext, false, m_inspector);
+  ConsoleHelper helper(info, consoleContext, m_inspector);
+  v8::Local<v8::String> label = helper.firstArgToString();
+  String16 protocolLabel = toProtocolString(m_inspector->isolate(), label);
+  if (!helper.consoleMessageStorage()->time(
+          helper.contextId(), consoleContext.id(), protocolLabel)) {
+    helper.reportCallWithArgument(
+        ConsoleAPIType::kWarning,
+        "Timer '" + protocolLabel + "' already exists");
+    return;
+  }
+  m_inspector->client()->consoleTime(m_inspector->isolate(), label);
 }
 
 void V8Console::TimeLog(const v8::debug::ConsoleCallArguments& info,
                         const v8::debug::ConsoleContext& consoleContext) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"), "V8Console::TimeLog");
-  timeEndFunction(info, consoleContext, true, m_inspector);
+  ConsoleHelper helper(info, consoleContext, m_inspector);
+  v8::Local<v8::String> label = helper.firstArgToString();
+  String16 protocolLabel = toProtocolString(m_inspector->isolate(), label);
+  std::optional<double> elapsed = helper.consoleMessageStorage()->timeLog(
+      helper.contextId(), consoleContext.id(), protocolLabel);
+  if (!elapsed.has_value()) {
+    helper.reportCallWithArgument(
+        ConsoleAPIType::kWarning,
+        "Timer '" + protocolLabel + "' does not exist");
+    return;
+  }
+  String16 message =
+      protocolLabel + ": " + String16::fromDouble(elapsed.value()) + " ms";
+  helper.reportCallAndReplaceFirstArgument(ConsoleAPIType::kLog, message);
 }
 
 void V8Console::TimeEnd(const v8::debug::ConsoleCallArguments& info,
                         const v8::debug::ConsoleContext& consoleContext) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"), "V8Console::TimeEnd");
-  timeEndFunction(info, consoleContext, false, m_inspector);
+  ConsoleHelper helper(info, consoleContext, m_inspector);
+  v8::Local<v8::String> label = helper.firstArgToString();
+  String16 protocolLabel = toProtocolString(m_inspector->isolate(), label);
+  std::optional<double> elapsed = helper.consoleMessageStorage()->timeEnd(
+      helper.contextId(), consoleContext.id(), protocolLabel);
+  if (!elapsed.has_value()) {
+    helper.reportCallWithArgument(
+        ConsoleAPIType::kWarning,
+        "Timer '" + protocolLabel + "' does not exist");
+    return;
+  }
+  m_inspector->client()->consoleTimeEnd(m_inspector->isolate(), label);
+  String16 message =
+      protocolLabel + ": " + String16::fromDouble(elapsed.value()) + " ms";
+  helper.reportCallWithArgument(ConsoleAPIType::kTimeEnd, message);
 }
 
 void V8Console::TimeStamp(const v8::debug::ConsoleCallArguments& info,
@@ -468,8 +464,8 @@ void V8Console::TimeStamp(const v8::debug::ConsoleCallArguments& info,
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.inspector"),
                "V8Console::TimeStamp");
   ConsoleHelper helper(info, consoleContext, m_inspector);
-  String16 title = helper.firstArgToString(String16());
-  m_inspector->client()->consoleTimeStamp(toStringView(title));
+  v8::Local<v8::String> label = helper.firstArgToString();
+  m_inspector->client()->consoleTimeStamp(m_inspector->isolate(), label);
 }
 
 void V8Console::memoryGetterCallback(
@@ -839,8 +835,8 @@ v8::Local<v8::Object> V8Console::createCommandLineAPI(
                                       v8::MicrotasksScope::kDoNotRunMicrotasks);
 
   v8::Local<v8::Object> commandLineAPI = v8::Object::New(isolate);
-  bool success =
-      commandLineAPI->SetPrototype(context, v8::Null(isolate)).FromMaybe(false);
+  bool success = commandLineAPI->SetPrototypeV2(context, v8::Null(isolate))
+                     .FromMaybe(false);
   DCHECK(success);
   USE(success);
 
@@ -924,7 +920,7 @@ void V8Console::CommandLineAPIScope::accessorGetterCallback(
       info.Data().As<v8::ArrayBuffer>()->GetBackingStore()->Data());
   v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
   if (scope == nullptr) {
-    USE(info.Holder()->Delete(context, name).FromMaybe(false));
+    USE(info.HolderV2()->Delete(context, name).FromMaybe(false));
     return;
   }
 
@@ -951,8 +947,10 @@ void V8Console::CommandLineAPIScope::accessorSetterCallback(
       info.Data().As<v8::ArrayBuffer>()->GetBackingStore()->Data());
   if (scope == nullptr) return;
   v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
-  if (!info.Holder()->Delete(context, name).FromMaybe(false)) return;
-  if (!info.Holder()->CreateDataProperty(context, name, value).FromMaybe(false))
+  if (!info.HolderV2()->Delete(context, name).FromMaybe(false)) return;
+  if (!info.HolderV2()
+           ->CreateDataProperty(context, name, value)
+           .FromMaybe(false))
     return;
 
   v8::Local<v8::PrimitiveArray> methods = scope->installedMethods();
@@ -964,6 +962,24 @@ void V8Console::CommandLineAPIScope::accessorSetterCallback(
     break;
   }
 }
+
+namespace {
+
+// "get"-ting these functions from the global proxy is considered a side-effect.
+// Otherwise, malicious sites could stash references to these functions through
+// previews / ValueMirror and use them across origin isolation.
+DEFINE_LAZY_LEAKY_OBJECT_GETTER(std::set<std::string_view>,
+                                UnsafeCommandLineAPIFns,
+                                std::initializer_list<std::string_view>{
+                                    "debug", "undebug", "monitor", "unmonitor",
+                                    "inspect", "copy", "queryObjects"})
+
+bool IsUnsafeCommandLineAPIFn(v8::Local<v8::Value> name, v8::Isolate* isolate) {
+  std::string nameStr = toProtocolStringWithTypeCheck(isolate, name).utf8();
+  return UnsafeCommandLineAPIFns()->count(nameStr) > 0;
+}
+
+}  // namespace
 
 V8Console::CommandLineAPIScope::CommandLineAPIScope(
     v8::Local<v8::Context> context, v8::Local<v8::Object> commandLineAPI,
@@ -991,10 +1007,9 @@ V8Console::CommandLineAPIScope::CommandLineAPIScope(
     if (global->Has(context, name).FromMaybe(true)) continue;
 
     const v8::SideEffectType get_accessor_side_effect_type =
-        isCommandLineAPIGetter(
-            toProtocolStringWithTypeCheck(context->GetIsolate(), name))
-            ? v8::SideEffectType::kHasNoSideEffect
-            : v8::SideEffectType::kHasSideEffect;
+        IsUnsafeCommandLineAPIFn(name, context->GetIsolate())
+            ? v8::SideEffectType::kHasSideEffect
+            : v8::SideEffectType::kHasNoSideEffect;
     if (!global
              ->SetNativeDataProperty(
                  context, name.As<v8::Name>(),

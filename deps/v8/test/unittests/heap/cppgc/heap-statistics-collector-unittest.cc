@@ -23,6 +23,7 @@ TEST_F(HeapStatisticsCollectorTest, EmptyHeapBriefStatisitcs) {
   EXPECT_EQ(HeapStatistics::DetailLevel::kBrief, brief_stats.detail_level);
   EXPECT_EQ(0u, brief_stats.used_size_bytes);
   EXPECT_EQ(0u, brief_stats.used_size_bytes);
+  EXPECT_EQ(0u, brief_stats.pooled_memory_size_bytes);
   EXPECT_TRUE(brief_stats.space_stats.empty());
 }
 
@@ -33,6 +34,7 @@ TEST_F(HeapStatisticsCollectorTest, EmptyHeapDetailedStatisitcs) {
             detailed_stats.detail_level);
   EXPECT_EQ(0u, detailed_stats.used_size_bytes);
   EXPECT_EQ(0u, detailed_stats.used_size_bytes);
+  EXPECT_EQ(0u, detailed_stats.pooled_memory_size_bytes);
   EXPECT_EQ(RawHeap::kNumberOfRegularSpaces, detailed_stats.space_stats.size());
   for (HeapStatistics::SpaceStatistics& space_stats :
        detailed_stats.space_stats) {
@@ -74,6 +76,7 @@ TEST_F(HeapStatisticsCollectorTest, NonEmptyNormalPage) {
   EXPECT_EQ(kPageSize, detailed_stats.committed_size_bytes);
   EXPECT_EQ(kPageSize, detailed_stats.resident_size_bytes);
   EXPECT_EQ(used_size, detailed_stats.used_size_bytes);
+  EXPECT_EQ(0u, detailed_stats.pooled_memory_size_bytes);
   EXPECT_EQ(RawHeap::kNumberOfRegularSpaces, detailed_stats.space_stats.size());
   bool found_non_empty_space = false;
   for (const HeapStatistics::SpaceStatistics& space_stats :
@@ -112,6 +115,7 @@ TEST_F(HeapStatisticsCollectorTest, NonEmptyLargePage) {
   EXPECT_EQ(committed_size, detailed_stats.committed_size_bytes);
   EXPECT_EQ(committed_size, detailed_stats.resident_size_bytes);
   EXPECT_EQ(used_size, detailed_stats.used_size_bytes);
+  EXPECT_EQ(0u, detailed_stats.pooled_memory_size_bytes);
   EXPECT_EQ(RawHeap::kNumberOfRegularSpaces, detailed_stats.space_stats.size());
   bool found_non_empty_space = false;
   for (const HeapStatistics::SpaceStatistics& space_stats :
@@ -148,6 +152,46 @@ TEST_F(HeapStatisticsCollectorTest, BriefStatisticsWithDiscardingOnNormalPage) {
   // Do not enforce exact resident_size_bytes here as this is an implementation
   // detail of the sweeper.
   EXPECT_GT(brief_stats.committed_size_bytes, brief_stats.resident_size_bytes);
+  EXPECT_EQ(0u, brief_stats.pooled_memory_size_bytes);
+}
+
+TEST_F(HeapStatisticsCollectorTest,
+       BriefStatisticsWithoutDiscardingOnNormalPage) {
+  if (!Sweeper::CanDiscardMemory()) return;
+
+  MakeGarbageCollected<GCed<1>>(GetHeap()->GetAllocationHandle());
+
+  // kNoHeapPointers: make the test deterministic, not depend on what the
+  // compiler does with the stack.
+  internal::Heap::From(GetHeap())->CollectGarbage(
+      {CollectionType::kMinor, Heap::StackState::kNoHeapPointers,
+       cppgc::Heap::MarkingType::kAtomic, cppgc::Heap::SweepingType::kAtomic,
+       GCConfig::FreeMemoryHandling::kDoNotDiscard});
+
+  HeapStatistics brief_stats = Heap::From(GetHeap())->CollectStatistics(
+      HeapStatistics::DetailLevel::kBrief);
+  // Pooled memory, since it wasn't discarded by the sweeper.
+  EXPECT_NE(brief_stats.pooled_memory_size_bytes, 0u);
+  // Pooled memory is committed and resident.
+  EXPECT_EQ(brief_stats.pooled_memory_size_bytes,
+            brief_stats.resident_size_bytes);
+  EXPECT_EQ(brief_stats.pooled_memory_size_bytes,
+            brief_stats.committed_size_bytes);
+  // But not allocated.
+  EXPECT_EQ(brief_stats.used_size_bytes, 0u);
+
+  // Pooled memory goes away when discarding, and is not accounted for once
+  // discarded.
+  internal::Heap::From(GetHeap())->CollectGarbage(
+      {CollectionType::kMinor, Heap::StackState::kMayContainHeapPointers,
+       cppgc::Heap::MarkingType::kAtomic, cppgc::Heap::SweepingType::kAtomic,
+       GCConfig::FreeMemoryHandling::kDiscardWherePossible});
+  brief_stats = Heap::From(GetHeap())->CollectStatistics(
+      HeapStatistics::DetailLevel::kBrief);
+  EXPECT_EQ(0u, brief_stats.pooled_memory_size_bytes);
+  EXPECT_EQ(0u, brief_stats.resident_size_bytes);
+  EXPECT_EQ(0u, brief_stats.committed_size_bytes);
+  EXPECT_EQ(0u, brief_stats.used_size_bytes);
 }
 
 TEST_F(HeapStatisticsCollectorTest,
@@ -163,6 +207,7 @@ TEST_F(HeapStatisticsCollectorTest,
   // detail of the sweeper.
   EXPECT_GT(detailed_stats.committed_size_bytes,
             detailed_stats.resident_size_bytes);
+  EXPECT_EQ(0u, detailed_stats.pooled_memory_size_bytes);
   bool found_page = false;
   for (const auto& space_stats : detailed_stats.space_stats) {
     if (space_stats.committed_size_bytes == 0) continue;

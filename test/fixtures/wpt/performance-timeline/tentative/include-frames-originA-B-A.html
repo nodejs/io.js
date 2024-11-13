@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src=/common/get-host-info.sub.js></script>
+  <script src="../resources/include-frames-helper.js"></script>
+</head>
+
+<body>
+  <script>
+    const verifyMainFrameEntries = (entries, description = '') => {
+      let filterOptions = [
+        createFilterOption('include-frames-originA-B-A', 'navigation', 1, 'Main Frame', description),
+        createFilterOption('include-frames-subframe', 'resource', 1, 'Main Frame', description),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyChildFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('include-frames-subframe', 'navigation', 0, 'Child Frame'),
+        createFilterOption('child-frame.html', 'resource', 0, 'Child Frame'),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyGrandchildFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('child-frame.html', 'navigation', 1, 'Grandchild Frame'),
+        createFilterOption('mark_child_frame', 'mark', 1, 'Grandchild frame')
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    promise_test(async () => {
+
+      performance.clearResourceTimings();
+
+      // Load a child frame. The child frame upon loading would load a child frame of its own.
+      await loadChildFrameAndGrandchildFrame(get_host_info().REMOTE_ORIGIN +
+        '/performance-timeline/resources/include-frames-subframe.html?origin=' + get_host_info().ORIGIN);
+
+      const entries = performance.getEntries({ includeChildFrames: true });
+
+      const navigationEntries = performance.getEntries({ entryType: "navigation", includeChildFrames: true });
+
+      const markedEntries = performance.getEntries(
+        { name: 'mark_child_frame', includeChildFrames: true });
+
+      verifyMainFrameEntries(entries);
+
+      verifyChildFrameEntries(entries);
+
+      verifyGrandchildFrameEntries(entries);
+
+      // 1 entry for main frame, 1 for grandchild frame.
+      assert_equals(navigationEntries.length, 2, 'Navigation entries should be 2.');
+
+      // 1 entry for grandchild frame.
+      assert_equals(markedEntries.length, 1, 'Mark entries should be 1.');
+
+      // Test cases where includeChildFrames is false.
+      const entriesWithNoFitlerOptions = performance.getEntries();
+
+      const entriesWithoutIncludingChildFrames = performance.getEntries({ includeChildFrames: false });
+
+      const navigationEntriesWithoutIncludingChildFrames = performance.getEntries({ entryType: "navigation", includeChildFrames: false });
+
+      const markedEntriesWithoutIncludingChildFrames = performance.getEntries(
+        { name: 'mark_child_frame', includeChildFrames: false });
+
+      verifyMainFrameEntries(entriesWithNoFitlerOptions, 'with no filter options.');
+
+      verifyMainFrameEntries(entriesWithoutIncludingChildFrames, 'with includeChildFrame being false.');
+
+      // 1 entry for main frame.
+      assert_equals(navigationEntriesWithoutIncludingChildFrames.length, 1,
+        'Navigation entries with includeChildFrame being false should be 1.');
+
+      // 0 entry since grandchild frame is not included.
+      assert_equals(markedEntriesWithoutIncludingChildFrames.length, 0,
+        'Mark entries with includeChildFrame being false should be 0.');
+
+    }, 'GetEntries of a document of origin A, its child frame of origin B and \
+    its grandchild frame of origin A.');
+  </script>
+</body>

@@ -144,7 +144,7 @@ THREADED_TEST(ArrayBuffer_DisableDetach) {
   Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(isolate, 100);
   CHECK(ab->IsDetachable());
 
-  i::Handle<i::JSArrayBuffer> buf = v8::Utils::OpenHandle(*ab);
+  i::DirectHandle<i::JSArrayBuffer> buf = v8::Utils::OpenDirectHandle(*ab);
   buf->set_is_detachable(false);
 
   CHECK(!ab->IsDetachable());
@@ -757,6 +757,8 @@ TEST(BackingStore_ReleaseAllocator_NullptrBackingStore) {
   CHECK(allocator_weak.expired());
 }
 
+START_ALLOW_USE_DEPRECATED()
+
 TEST(BackingStore_ReallocateExpand) {
   LocalContext env;
   v8::Isolate* isolate = env->GetIsolate();
@@ -827,6 +829,8 @@ TEST(BackingStore_ReallocateShared) {
       v8::BackingStore::Reallocate(isolate, std::move(backing_store), 10);
   CHECK(new_backing_store->IsShared());
 }
+
+END_ALLOW_USE_DEPRECATED()
 
 TEST(ArrayBuffer_Resizable) {
   LocalContext env;

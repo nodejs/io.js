@@ -1,5 +1,3 @@
-# c-ares license
-
 MIT License
 
 Copyright (c) 1998 Massachusetts Institute of Technology  

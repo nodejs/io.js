@@ -62,31 +62,6 @@ inline uv_loop_t* IsolateData::event_loop() const {
   return event_loop_;
 }
 
-inline void IsolateData::SetCppgcReference(v8::Isolate* isolate,
-                                           v8::Local<v8::Object> object,
-                                           void* wrappable) {
-  v8::CppHeap* heap = isolate->GetCppHeap();
-  CHECK_NOT_NULL(heap);
-  v8::WrapperDescriptor descriptor = heap->wrapper_descriptor();
-  uint16_t required_size = std::max(descriptor.wrappable_instance_index,
-                                    descriptor.wrappable_type_index);
-  CHECK_GT(object->InternalFieldCount(), required_size);
-
-  uint16_t* id_ptr = nullptr;
-  {
-    Mutex::ScopedLock lock(isolate_data_mutex_);
-    auto it =
-        wrapper_data_map_.find(descriptor.embedder_id_for_garbage_collected);
-    CHECK_NE(it, wrapper_data_map_.end());
-    id_ptr = &(it->second->cppgc_id);
-  }
-
-  object->SetAlignedPointerInInternalField(descriptor.wrappable_type_index,
-                                           id_ptr);
-  object->SetAlignedPointerInInternalField(descriptor.wrappable_instance_index,
-                                           wrappable);
-}
-
 inline uint16_t* IsolateData::embedder_id_for_cppgc() const {
   return &(wrapper_data_->cppgc_id);
 }
@@ -133,7 +108,7 @@ inline AliasedFloat64Array& AsyncHooks::async_ids_stack() {
 }
 
 v8::Local<v8::Array> AsyncHooks::js_execution_async_resources() {
-  if (UNLIKELY(js_execution_async_resources_.IsEmpty())) {
+  if (js_execution_async_resources_.IsEmpty()) [[unlikely]] {
     js_execution_async_resources_.Reset(
         env()->isolate(), v8::Array::New(env()->isolate()));
   }
@@ -210,13 +185,14 @@ inline bool TickInfo::has_rejection_to_warn() const {
 }
 
 inline Environment* Environment::GetCurrent(v8::Isolate* isolate) {
-  if (UNLIKELY(!isolate->InContext())) return nullptr;
+  if (!isolate->InContext()) [[unlikely]]
+    return nullptr;
   v8::HandleScope handle_scope(isolate);
   return GetCurrent(isolate->GetCurrentContext());
 }
 
 inline Environment* Environment::GetCurrent(v8::Local<v8::Context> context) {
-  if (UNLIKELY(!ContextEmbedderTag::IsNodeContext(context))) {
+  if (!ContextEmbedderTag::IsNodeContext(context)) [[unlikely]] {
     return nullptr;
   }
   return static_cast<Environment*>(
@@ -258,12 +234,6 @@ inline uv_check_t* Environment::immediate_check_handle() {
 
 inline uv_idle_t* Environment::immediate_idle_handle() {
   return &immediate_idle_handle_;
-}
-
-inline void Environment::RegisterHandleCleanup(uv_handle_t* handle,
-                                               HandleCleanupCb cb,
-                                               void* arg) {
-  handle_cleanup_queue_.push_back(HandleCleanup{handle, cb, arg});
 }
 
 template <typename T, typename OnCloseCallback>
@@ -464,6 +434,10 @@ inline double Environment::get_default_trigger_async_id() {
   return default_trigger_async_id;
 }
 
+inline int64_t Environment::stack_trace_limit() const {
+  return isolate_data_->options()->stack_trace_limit;
+}
+
 inline std::shared_ptr<EnvironmentOptions> Environment::options() {
   return options_;
 }
@@ -590,11 +564,6 @@ inline std::shared_ptr<PerIsolateOptions> IsolateData::options() {
   return options_;
 }
 
-inline void IsolateData::set_options(
-    std::shared_ptr<PerIsolateOptions> options) {
-  options_ = std::move(options);
-}
-
 template <typename Fn>
 void Environment::SetImmediate(Fn&& cb, CallbackFlags::Flags flags) {
   auto callback = native_immediates_.CreateCallback(std::move(cb), flags);
@@ -675,7 +644,8 @@ inline bool Environment::owns_inspector() const {
 
 inline bool Environment::should_create_inspector() const {
   return (flags_ & EnvironmentFlags::kNoCreateInspector) == 0 &&
-         !options_->test_runner && !options_->watch_mode;
+         !(options_->test_runner && options_->test_isolation == "process") &&
+         !options_->watch_mode;
 }
 
 inline bool Environment::should_wait_for_inspector_frontend() const {
@@ -920,6 +890,10 @@ inline bool Environment::is_in_heapsnapshot_heap_limit_callback() const {
   return is_in_heapsnapshot_heap_limit_callback_;
 }
 
+inline bool Environment::report_exclude_env() const {
+  return options_->report_exclude_env;
+}
+
 inline void Environment::AddHeapSnapshotNearHeapLimitCallback() {
   DCHECK(!heapsnapshot_near_heap_limit_callback_added_);
   heapsnapshot_near_heap_limit_callback_added_ = true;
@@ -934,6 +908,26 @@ inline void Environment::RemoveHeapSnapshotNearHeapLimitCallback(
                                         heap_limit);
 }
 
+inline void Environment::SetAsyncResourceContextFrame(
+    std::uintptr_t async_resource_handle,
+    v8::Global<v8::Value>&& context_frame) {
+  async_resource_context_frames_.emplace(
+      std::make_pair(async_resource_handle, std::move(context_frame)));
+}
+
+inline const v8::Global<v8::Value>& Environment::GetAsyncResourceContextFrame(
+    std::uintptr_t async_resource_handle) {
+  auto&& async_resource_context_frame =
+      async_resource_context_frames_.find(async_resource_handle);
+  CHECK_NE(async_resource_context_frame, async_resource_context_frames_.end());
+
+  return async_resource_context_frame->second;
+}
+
+inline void Environment::RemoveAsyncResourceContextFrame(
+    std::uintptr_t async_resource_handle) {
+  async_resource_context_frames_.erase(async_resource_handle);
+}
 }  // namespace node
 
 // These two files depend on each other. Including base_object-inl.h after this

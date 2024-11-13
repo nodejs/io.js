@@ -20,12 +20,11 @@ bool FixedArrayBase::IsCowArray() const {
 
 Handle<FixedArray> FixedArray::SetAndGrow(Isolate* isolate,
                                           Handle<FixedArray> array, int index,
-                                          Handle<Object> value) {
+                                          DirectHandle<Object> value) {
   int len = array->length();
   if (index >= len) {
     int new_capacity = FixedArray::NewCapacityForIndex(index, len);
-    array = Handle<FixedArray>::cast(
-        FixedArray::Resize(isolate, array, new_capacity));
+    array = Cast<FixedArray>(FixedArray::Resize(isolate, array, new_capacity));
     // TODO(jgruber): This is somewhat subtle - other FixedArray methods
     // use `undefined` as a filler. Make this more explicit.
     array->FillWithHoles(len, new_capacity);
@@ -66,7 +65,7 @@ Handle<ArrayList> ArrayList::Add(Isolate* isolate, Handle<ArrayList> array,
 
 // static
 Handle<ArrayList> ArrayList::Add(Isolate* isolate, Handle<ArrayList> array,
-                                 Handle<Object> obj,
+                                 DirectHandle<Object> obj,
                                  AllocationType allocation) {
   int length = array->length();
   int new_length = length + 1;
@@ -81,7 +80,8 @@ Handle<ArrayList> ArrayList::Add(Isolate* isolate, Handle<ArrayList> array,
 
 // static
 Handle<ArrayList> ArrayList::Add(Isolate* isolate, Handle<ArrayList> array,
-                                 Handle<Object> obj0, Handle<Object> obj1,
+                                 DirectHandle<Object> obj0,
+                                 DirectHandle<Object> obj1,
                                  AllocationType allocation) {
   int length = array->length();
   int new_length = length + 2;
@@ -97,7 +97,7 @@ Handle<ArrayList> ArrayList::Add(Isolate* isolate, Handle<ArrayList> array,
 
 // static
 Handle<FixedArray> ArrayList::ToFixedArray(Isolate* isolate,
-                                           Handle<ArrayList> array,
+                                           DirectHandle<ArrayList> array,
                                            AllocationType allocation) {
   int length = array->length();
   if (length == 0) return isolate->factory()->empty_fixed_array();

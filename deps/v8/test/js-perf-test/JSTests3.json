@@ -302,7 +302,7 @@
     {
       "name": "BytecodeHandlers",
       "path": ["BytecodeHandlers"],
-      "flags": [ "--no-turbofan" ],
+      "flags": [ "--max-opt=0" ],
       "tests": [
         {
           "name": "Compare",
@@ -461,7 +461,7 @@
     {
       "name": "InterpreterEntryTrampoline",
       "path": ["InterpreterEntryTrampoline"],
-      "flags": ["--no-turbofan"],
+      "flags": ["--max-opt=0"],
       "tests": [
         {
           "name": "Arguments",

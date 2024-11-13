@@ -35,11 +35,11 @@ class JSDurationFormat
   // Creates duration format object with properties derived from input
   // locales and options.
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSDurationFormat> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
       Handle<Object> options);
 
   V8_WARN_UNUSED_RESULT static Handle<JSObject> ResolvedOptions(
-      Isolate* isolate, Handle<JSDurationFormat> format_holder);
+      Isolate* isolate, DirectHandle<JSDurationFormat> format_holder);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> Format(
       Isolate* isolate, Handle<JSDurationFormat> df, Handle<Object> duration);
@@ -85,10 +85,11 @@ class JSDurationFormat
     kNarrow,
     kNumeric,
     k2Digit,
+    kFractional,
     kUndefined,
 
     kStyle3Max = kNarrow,
-    kStyle4Max = kNumeric,
+    kStyle4Max = kFractional,
     kStyle5Max = k2Digit,
   };
 

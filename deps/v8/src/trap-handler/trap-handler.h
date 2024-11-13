@@ -114,6 +114,12 @@ int TH_EXPORT_PRIVATE RegisterHandlerData(
 /// kInvalidIndex.
 void TH_EXPORT_PRIVATE ReleaseHandlerData(int index);
 
+/// Sets the base and size of the V8 sandbox region. If set, these will be used
+/// by the trap handler: only faulting accesses to memory inside the V8 sandbox
+/// should be handled by the trap handler since all Wasm memory objects are
+/// located inside the sandbox.
+void TH_EXPORT_PRIVATE SetV8SandboxBaseAndSize(uintptr_t base, size_t size);
+
 // Initially false, set to true if when trap handlers are enabled. Never goes
 // back to false then.
 TH_EXPORT_PRIVATE extern bool g_is_trap_handler_enabled;

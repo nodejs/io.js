@@ -32,10 +32,15 @@ class HeapBase;
 // 1. StartMarking()
 // 2. AdvanceMarkingWithLimits() [Optional, depending on environment.]
 // 3. EnterAtomicPause()
-// 4. AdvanceMarkingWithLimits()
-// 5. LeaveAtomicPause()
+// 4. AdvanceMarkingWithLimits() [Optional]
+// 5. EnterProcessGlobalAtomicPause()
+// 6. AdvanceMarkingWithLimits()
+// 7. LeaveAtomicPause()
 //
-// Alternatively, FinishMarking combines steps 3.-5.
+// Alternatively, FinishMarking() combines steps 3.-7.
+//
+// The marker protects cross-thread roots from being created between 5.-7. This
+// currently requires entering a process-global atomic pause.
 class V8_EXPORT_PRIVATE MarkerBase {
  public:
   class IncrementalMarkingTask;
@@ -70,7 +75,18 @@ class V8_EXPORT_PRIVATE MarkerBase {
   // - stops incremental/concurrent marking;
   // - flushes back any in-construction worklists if needed;
   // - Updates the MarkingConfig if the stack state has changed;
+  // - marks local roots
   void EnterAtomicPause(StackState);
+
+  // Enters the process-global pause. The phase marks cross-thread roots and
+  // acquires a lock that prevents any cross-thread references from being
+  // created.
+  //
+  // The phase is ended with `LeaveAtomicPause()`.
+  void EnterProcessGlobalAtomicPause();
+
+  // Re-enable concurrent marking assuming it isn't enabled yet in GC cycle.
+  void ReEnableConcurrentMarking();
 
   // Makes marking progress.  A `marked_bytes_limit` of 0 means that the limit
   // is determined by the internal marking scheduler.
@@ -91,6 +107,7 @@ class V8_EXPORT_PRIVATE MarkerBase {
 
   // Combines:
   // - EnterAtomicPause()
+  // - EnterProcessGlobalAtomicPause()
   // - AdvanceMarkingWithLimits()
   // - ProcessWeakness()
   // - LeaveAtomicPause()
@@ -147,9 +164,8 @@ class V8_EXPORT_PRIVATE MarkerBase {
   bool ProcessWorklistsWithDeadline(size_t marked_bytes_deadline,
                                     v8::base::TimeTicks time_deadline);
 
-  void VisitRoots(StackState);
-
-  bool VisitCrossThreadPersistentsIfNeeded();
+  void VisitLocalRoots(StackState);
+  void VisitCrossThreadRoots();
 
   void MarkNotFullyConstructedObjects();
 

@@ -12,9 +12,6 @@ class NetworkInspector;
 
 namespace protocol {
 
-std::unique_ptr<Network::Request> Request(const String& url,
-                                          const String& method);
-
 class NetworkAgent : public Network::Backend {
  public:
   explicit NetworkAgent(NetworkInspector* inspector);
@@ -31,6 +28,8 @@ class NetworkAgent : public Network::Backend {
   void requestWillBeSent(std::unique_ptr<protocol::DictionaryValue> params);
 
   void responseReceived(std::unique_ptr<protocol::DictionaryValue> params);
+
+  void loadingFailed(std::unique_ptr<protocol::DictionaryValue> params);
 
   void loadingFinished(std::unique_ptr<protocol::DictionaryValue> params);
 

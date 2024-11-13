@@ -4,6 +4,7 @@
 
 #include "src/heap/cppgc/visitor.h"
 
+#include "src/base/sanitizer/asan.h"
 #include "src/base/sanitizer/msan.h"
 #include "src/heap/cppgc/gc-info-table.h"
 #include "src/heap/cppgc/heap-base.h"
@@ -31,18 +32,20 @@ ConservativeTracingVisitor::ConservativeTracingVisitor(
     HeapBase& heap, PageBackend& page_backend, cppgc::Visitor& visitor)
     : heap_(heap), page_backend_(page_backend), visitor_(visitor) {}
 
+// Conservative scanning of objects is not compatible with ASAN as we may scan
+// over objects reading poisoned memory. One such example was added to libc++
+// (June 2024) in the form of container annotations for short std::string.
+DISABLE_ASAN
 void ConservativeTracingVisitor::TraceConservatively(
     const HeapObjectHeader& header) {
   const auto object_view = ObjectView<>(header);
   uintptr_t* word = reinterpret_cast<uintptr_t*>(object_view.Start());
   for (size_t i = 0; i < (object_view.Size() / sizeof(uintptr_t)); ++i) {
     uintptr_t maybe_full_ptr = word[i];
-#if defined(MEMORY_SANITIZER)
     // |object| may be uninitialized by design or just contain padding bytes.
     // Copy into a local variable that is not poisoned for conservative marking.
     // Copy into a temporary variable to maintain the original MSAN state.
     MSAN_MEMORY_IS_INITIALIZED(&maybe_full_ptr, sizeof(maybe_full_ptr));
-#endif
     // First, check the full pointer.
     if (maybe_full_ptr > SentinelPointer::kSentinelValue)
       this->TraceConservativelyIfNeeded(

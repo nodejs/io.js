@@ -40,6 +40,7 @@ absl_source_set("nullability") {
   sources = [ "internal/nullability_impl.h" ]
   public = [ "nullability.h" ]
   deps = [
+    ":config",
     ":core_headers",
     "//third_party/abseil-cpp/absl/meta:type_traits",
   ]
@@ -189,6 +190,16 @@ absl_source_set("base") {
   ]
 }
 
+# This should be an executable() more than a test.
+# It cannot be enabled because it defines its own main() function.
+# absl_test("c_header_test") {
+#   sources = ["c_header_test.c"]
+#   deps = [
+#     ":config",
+#     ":core_headers",
+#   ]
+# }
+
 absl_source_set("throw_delegate") {
   sources = [ "internal/throw_delegate.cc" ]
   public = [ "internal/throw_delegate.h" ]
@@ -301,6 +312,50 @@ absl_source_set("prefetch") {
 absl_test("prefetch_test") {
   sources = [ "prefetch_test.cc" ]
   deps = [ ":prefetch" ]
+}
+
+absl_source_set("poison") {
+  public = [ "internal/poison.h" ]
+  sources = [ "internal/poison.cc" ]
+  deps = [
+    ":config",
+    ":core_headers",
+    ":malloc_internal",
+  ]
+}
+
+absl_test("poison_test") {
+  sources = [ "internal/poison_test.cc" ]
+  deps = [
+    ":config",
+    ":poison",
+  ]
+}
+
+
+absl_source_set("tracing_internal") {
+  public = [ "internal/tracing.h" ]
+  sources = [ "internal/tracing.cc" ]
+  deps = [
+    ":config",
+    ":core_headers",
+  ]
+}
+
+absl_test("tracing_internal_weak_test") {
+  sources = [ "internal/tracing_weak_test.cc" ]
+  deps = [
+    ":tracing_internal",
+  ]
+}
+
+absl_test("tracing_internal_strong_test") {
+  sources = [ "internal/tracing_strong_test.cc" ]
+  deps = [
+    ":config",
+    ":core_headers",
+    ":tracing_internal",
+  ]
 }
 
 absl_test("config_test") {

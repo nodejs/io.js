@@ -6,8 +6,6 @@
 """Script to generate V8's gn arguments based on common developer defaults
 or builder configurations.
 
-Goma is used by default if detected. The compiler proxy is assumed to run.
-
 This script can be added to the PATH and be used on other checkouts. It always
 runs for the checkout nesting the CWD.
 
@@ -22,14 +20,13 @@ Examples:
 # Generate the ia32.release config in out.gn/ia32.release.
 v8gen.py ia32.release
 
-# Generate into out.gn/foo without goma auto-detect.
-v8gen.py gen -b ia32.release foo --no-goma
+# Generate into out.gn/foo.
+v8gen.py gen -b ia32.release foo
 
 # Pass additional gn arguments after -- (don't use spaces within gn args).
 v8gen.py ia32.optdebug -- v8_enable_slow_dchecks=true
 
-# Generate gn arguments of 'V8 Linux64 - builder' from 'client.v8'. To switch
-# off goma usage here, the args.gn file must be edited manually.
+# Generate gn arguments of 'V8 Linux64 - builder' from 'client.v8'.
 v8gen.py -m client.v8 -b 'V8 Linux64 - builder'
 
 # Show available configurations.
@@ -48,7 +45,6 @@ import subprocess
 import sys
 
 CONFIG = os.path.join('infra', 'mb', 'mb_config.pyl')
-GOMA_DEFAULT = os.path.join(os.path.expanduser("~"), 'goma')
 OUT_DIR = 'out.gn'
 
 TOOLS_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -102,17 +98,6 @@ class GenerateGnArgs(object):
     gen_cmd.add_argument(
         '-p', '--pedantic', action='store_true',
         help='run gn over command-line gn args to catch errors early')
-
-    goma = gen_cmd.add_mutually_exclusive_group()
-    goma.add_argument(
-        '-g' , '--goma',
-        action='store_true', default=None, dest='goma',
-        help='force using goma')
-    goma.add_argument(
-        '--nogoma', '--no-goma',
-        action='store_false', default=None, dest='goma',
-        help='don\'t use goma auto detection - goma might still be used if '
-             'specified as a gn arg')
 
     # Command: list.
     list_cmd = subps.add_parser(
@@ -176,13 +161,6 @@ class GenerateGnArgs(object):
     modified = self._append_gn_args(
         'command-line', gn_args_path, '\n'.join(self._gn_args))
 
-    # Append goma args.
-    # TODO(machenbach): We currently can't remove existing goma args from the
-    # original config. E.g. to build like a bot that uses goma, but switch
-    # goma off.
-    modified |= self._append_gn_args(
-        'goma', gn_args_path, self._goma_args)
-
     # Regenerate ninja files to check for errors in the additional gn args.
     if modified and self._options.pedantic:
       self._call_cmd(['gn', 'gen', gn_outdir])
@@ -228,37 +206,6 @@ class GenerateGnArgs(object):
           'This appears to not be called from a recent v8 checkout')
     else:
       return self._find_work_dir(os.path.dirname(path))
-
-  @property
-  def _goma_dir(self):
-    return os.path.normpath(os.environ.get('GOMA_DIR') or GOMA_DEFAULT)
-
-  @property
-  def _need_goma_dir(self):
-    return self._goma_dir != GOMA_DEFAULT
-
-  @property
-  def _use_goma(self):
-    if self._options.goma is None:
-      # Auto-detect.
-      return os.path.exists(self._goma_dir) and os.path.isdir(self._goma_dir)
-    else:
-      return self._options.goma
-
-  @property
-  def _goma_args(self):
-    """Gn args for using goma."""
-    # Specify goma args if we want to use goma and if goma isn't specified
-    # via command line already. The command-line always has precedence over
-    # any other specification.
-    if (self._use_goma and
-        not any(re.match(r'use_goma\s*=.*', x) for x in self._gn_args)):
-      if self._need_goma_dir:
-        return 'use_goma=true\ngoma_dir="%s"' % self._goma_dir
-      else:
-        return 'use_goma=true'
-    else:
-      return ''
 
   def _append_gn_args(self, type, gn_args_path, more_gn_args):
     """Append extra gn arguments to the generated args.gn file."""

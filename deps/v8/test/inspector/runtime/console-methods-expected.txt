@@ -565,24 +565,6 @@ Checks console methods
             }
         ]
         executionContextId : <executionContextId>
-        stackTrace : {
-            callFrames : [
-                [0] : {
-                    columnNumber : 10
-                    functionName : testFunction
-                    lineNumber : 16
-                    scriptId : <scriptId>
-                    url : test.js
-                }
-                [1] : {
-                    columnNumber : 0
-                    functionName : 
-                    lineNumber : 0
-                    scriptId : <scriptId>
-                    url : 
-                }
-            ]
-        }
         timestamp : <timestamp>
         type : clear
     }
@@ -597,24 +579,6 @@ Checks console methods
             }
         ]
         executionContextId : <executionContextId>
-        stackTrace : {
-            callFrames : [
-                [0] : {
-                    columnNumber : 10
-                    functionName : testFunction
-                    lineNumber : 17
-                    scriptId : <scriptId>
-                    url : test.js
-                }
-                [1] : {
-                    columnNumber : 0
-                    functionName : 
-                    lineNumber : 0
-                    scriptId : <scriptId>
-                    url : 
-                }
-            ]
-        }
         timestamp : <timestamp>
         type : clear
     }

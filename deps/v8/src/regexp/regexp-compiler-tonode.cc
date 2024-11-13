@@ -1212,6 +1212,8 @@ RegExpNode* RegExpLookaround::Builder::ForMatch(RegExpNode* match) {
 
 RegExpNode* RegExpLookaround::ToNode(RegExpCompiler* compiler,
                                      RegExpNode* on_success) {
+  compiler->ToNodeMaybeCheckForStackOverflow();
+
   int stack_pointer_register = compiler->AllocateRegister();
   int position_register = compiler->AllocateRegister();
 

@@ -153,9 +153,9 @@ Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
     DCHECK(!HAS_SMI_TAG(compressed));
     Tagged<Object> obj(
         V8HeapCompressionScheme::DecompressTagged(cage_base, compressed));
-    return HeapObject::cast(obj);
+    return Cast<HeapObject>(obj);
   } else {
-    return HeapObject::cast(
+    return Cast<HeapObject>(
         Tagged<Object>(Assembler::target_address_at(pc_, constant_pool_)));
   }
 }
@@ -168,7 +168,7 @@ Handle<HeapObject> Assembler::compressed_embedded_object_handle_at(
 Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
   DCHECK(IsCodeTarget(rmode_) || IsEmbeddedObjectMode(rmode_));
   if (IsCodeTarget(rmode_)) {
-    return Handle<HeapObject>::cast(
+    return Cast<HeapObject>(
         origin->code_target_object_handle_at(pc_, constant_pool_));
   } else {
     if (IsCompressedEmbeddedObject(rmode_)) {
@@ -472,6 +472,52 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
     return;
   }
   UNREACHABLE();
+}
+
+uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
+  if (V8_EMBEDDED_CONSTANT_POOL_BOOL && constant_pool) {
+    ConstantPoolEntry::Access access;
+    CHECK(Assembler::IsConstantPoolLoadStart(pc, &access));
+    return Memory<uint32_t>(Assembler::target_constant_pool_address_at(
+        pc, constant_pool, access, ConstantPoolEntry::INTPTR));
+  }
+  Instr instr1 = instr_at(pc);
+  Instr instr2 = instr_at(pc + kInstrSize);
+  // Set by Assembler::mov.
+  CHECK(IsLis(instr1) && IsOri(instr2));
+  return static_cast<uint32_t>(((instr1 & kImm16Mask) << 16) |
+                               (instr2 & kImm16Mask));
+}
+
+void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
+                                       uint32_t new_constant,
+                                       ICacheFlushMode icache_flush_mode) {
+  if (V8_EMBEDDED_CONSTANT_POOL_BOOL && constant_pool) {
+    ConstantPoolEntry::Access access;
+    CHECK(Assembler::IsConstantPoolLoadStart(pc, &access));
+    Memory<uint32_t>(Assembler::target_constant_pool_address_at(
+        pc, constant_pool, access, ConstantPoolEntry::INTPTR)) = new_constant;
+    // Icache flushing not needed for Ldr via the constant pool.
+    return;
+  }
+  Instr instr1 = instr_at(pc);
+  Instr instr2 = instr_at(pc + kInstrSize);
+  // Set by Assembler::mov.
+  CHECK(IsLis(instr1) && IsOri(instr2));
+
+  uint32_t* p = reinterpret_cast<uint32_t*>(pc);
+  uint32_t lo_word = new_constant & kImm16Mask;
+  uint32_t hi_word = new_constant >> 16;
+  instr1 &= ~kImm16Mask;
+  instr1 |= hi_word;
+  instr2 &= ~kImm16Mask;
+  instr2 |= lo_word;
+
+  *p = instr1;
+  *(p + 1) = instr2;
+  if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
+    FlushInstructionCache(p, 2 * kInstrSize);
+  }
 }
 }  // namespace internal
 }  // namespace v8

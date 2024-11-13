@@ -5,10 +5,11 @@
 #ifndef V8_NUMBERS_CONVERSIONS_H_
 #define V8_NUMBERS_CONVERSIONS_H_
 
+#include <optional>
+
 #include "src/base/export-template.h"
 #include "src/base/logging.h"
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/base/strings.h"
 #include "src/base/vector.h"
 #include "src/common/globals.h"
@@ -121,25 +122,40 @@ inline uint32_t DoubleToUint32(double x);
 inline int64_t DoubleToInt64(double x);
 inline uint64_t DoubleToUint64(double x);
 
-// Enumeration for allowing octals and ignoring junk when converting
-// strings to numbers.
-enum ConversionFlags {
-  NO_CONVERSION_FLAGS = 0,
-  ALLOW_HEX = 1,
-  ALLOW_OCTAL = 2,
-  ALLOW_IMPLICIT_OCTAL = 4,
-  ALLOW_BINARY = 8,
-  ALLOW_TRAILING_JUNK = 16
+// Enumeration for allowing radix prefixes or ignoring junk when converting
+// strings to numbers. We never need to be able to allow both.
+enum ConversionFlag {
+  NO_CONVERSION_FLAG,
+  ALLOW_NON_DECIMAL_PREFIX,
+  ALLOW_TRAILING_JUNK
 };
 
 // Converts a string into a double value according to ECMA-262 9.3.1
-double StringToDouble(base::Vector<const uint8_t> str, int flags,
+double StringToDouble(base::Vector<const uint8_t> str, ConversionFlag flag,
                       double empty_string_val = 0);
-double StringToDouble(base::Vector<const base::uc16> str, int flags,
+double StringToDouble(base::Vector<const base::uc16> str, ConversionFlag flag,
                       double empty_string_val = 0);
 // This version expects a zero-terminated character array.
-double V8_EXPORT_PRIVATE StringToDouble(const char* str, int flags,
+double V8_EXPORT_PRIVATE StringToDouble(const char* str, ConversionFlag flag,
                                         double empty_string_val = 0);
+
+// Converts a binary string (of the form `0b[0-1]*`) into a double value
+// according to https://tc39.es/ecma262/#sec-numericvalue
+double V8_EXPORT_PRIVATE BinaryStringToDouble(base::Vector<const uint8_t> str);
+
+// Converts an octal string (of the form `0o[0-8]*`) into a double value
+// according to https://tc39.es/ecma262/#sec-numericvalue
+double V8_EXPORT_PRIVATE OctalStringToDouble(base::Vector<const uint8_t> str);
+
+// Converts a hex string (of the form `0x[0-9a-f]*`) into a double value
+// according to https://tc39.es/ecma262/#sec-numericvalue
+double V8_EXPORT_PRIVATE HexStringToDouble(base::Vector<const uint8_t> str);
+
+// Converts an implicit octal string (a.k.a. LegacyOctalIntegerLiteral, of the
+// form `0[0-7]*`) into a double value according to
+// https://tc39.es/ecma262/#sec-numericvalue
+double V8_EXPORT_PRIVATE
+ImplicitOctalStringToDouble(base::Vector<const uint8_t> str);
 
 double StringToInt(Isolate* isolate, Handle<String> string, int radix);
 
@@ -211,23 +227,22 @@ inline uint32_t NumberToUint32(Tagged<Object> number);
 inline int64_t NumberToInt64(Tagged<Object> number);
 inline uint64_t PositiveNumberToUint64(Tagged<Object> number);
 
-double StringToDouble(Isolate* isolate, Handle<String> string, int flags,
-                      double empty_string_val = 0.0);
-double FlatStringToDouble(Tagged<String> string, int flags,
+double StringToDouble(Isolate* isolate, Handle<String> string,
+                      ConversionFlag flags, double empty_string_val = 0.0);
+double FlatStringToDouble(Tagged<String> string, ConversionFlag flags,
                           double empty_string_val);
 
 // String to double helper without heap allocation.
-// Returns base::nullopt if the string is longer than
+// Returns std::nullopt if the string is longer than
 // {max_length_for_conversion}. 23 was chosen because any representable double
 // can be represented using a string of length 23.
-V8_EXPORT_PRIVATE base::Optional<double> TryStringToDouble(
-    LocalIsolate* isolate, Handle<String> object,
+V8_EXPORT_PRIVATE std::optional<double> TryStringToDouble(
+    LocalIsolate* isolate, DirectHandle<String> object,
     int max_length_for_conversion = 23);
 
-// Return base::nullopt if the string is longer than 20.
-V8_EXPORT_PRIVATE base::Optional<double> TryStringToInt(LocalIsolate* isolate,
-                                                        Handle<String> object,
-                                                        int radix);
+// Return std::nullopt if the string is longer than 20.
+V8_EXPORT_PRIVATE std::optional<double> TryStringToInt(
+    LocalIsolate* isolate, DirectHandle<String> object, int radix);
 
 inline bool TryNumberToSize(Tagged<Object> number, size_t* result);
 

@@ -8,11 +8,23 @@ console.timeEnd();
 console.time("abcd");
 console.timeEnd({ toString: () => "ab" + "cd" });
 
+console.timeLog('a');
+console.timeEnd('a');
 console.time("a");
-console.timeEnd("b");
+console.timeEnd('a');
 
 console.time("a", "b");
 console.timeEnd("a", "b");
+
+console.time('b');
+console.time('b');
+console.timeEnd('b');
+
+console.time('ab');
+console.timeLog('ab', {x: 1, y: 2});
+console.timeEnd('ab');
+
+console.timeStamp('stamp it baby!')
 
 console.log("log", "more");
 console.warn("warn", { toString: () => 2 });

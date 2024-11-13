@@ -4,6 +4,10 @@
 
 #include "src/objects/type-hints.h"
 
+#include <ostream>
+
+#include "src/base/logging.h"
+
 namespace v8 {
 namespace internal {
 

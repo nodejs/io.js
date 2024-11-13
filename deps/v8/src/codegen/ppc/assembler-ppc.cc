@@ -1455,6 +1455,13 @@ void Assembler::mov(Register dst, const Operand& src) {
   if (relocatable) {
     RecordRelocInfo(src.rmode_);
   }
+  if (src.rmode_ == RelocInfo::WASM_CANONICAL_SIG_ID) {
+    CHECK(is_int32(value));
+    // If this is changed then also change `uint32_constant_at` and
+    // `set_uint32_constant_at`.
+    bitwise_mov32(dst, value);
+    return;
+  }
   bitwise_mov(dst, value);
 }
 

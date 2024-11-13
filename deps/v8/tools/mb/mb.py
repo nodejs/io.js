@@ -127,16 +127,18 @@ class MetaBuildWrapper():
                         default=self.default_config,
                         help='path to config file '
                              '(default is %(default)s)')
-      subp.add_argument('-i', '--isolate-map-file', metavar='PATH',
-                        help='path to isolate map file '
-                             '(default is %(default)s)',
-                        default=[],
-                        action='append',
-                        dest='isolate_map_files')
-      subp.add_argument('-g', '--goma-dir',
-                        help='path to goma directory')
-      subp.add_argument('--android-version-code',
-                        help='Sets GN arg android_default_version_code')
+      subp.add_argument(
+          '-i',
+          '--isolate-map-file',
+          metavar='PATH',
+          help='path to isolate map file '
+          '(default is %(default)s)',
+          default=[],
+          action='append',
+          dest='isolate_map_files')
+      subp.add_argument(
+          '--android-version-code',
+          help='Sets GN arg android_default_version_code')
       subp.add_argument('--android-version-name',
                         help='Sets GN arg android_default_version_name')
       subp.add_argument('-n', '--dryrun', action='store_true',
@@ -167,11 +169,12 @@ class MetaBuildWrapper():
     subp = subps.add_parser('export',
                             help='print out the expanded configuration for'
                                  'each builder as a JSON object')
-    subp.add_argument('-f', '--config-file', metavar='PATH',
-                      default=self.default_config,
-                      help='path to config file (default is %(default)s)')
-    subp.add_argument('-g', '--goma-dir',
-                      help='path to goma directory')
+    subp.add_argument(
+        '-f',
+        '--config-file',
+        metavar='PATH',
+        default=self.default_config,
+        help='path to config file (default is %(default)s)')
     subp.set_defaults(func=self.CmdExport)
 
     subp = subps.add_parser('gen',
@@ -657,9 +660,9 @@ class MetaBuildWrapper():
         vals['cros_passthrough'] = mixin_vals['cros_passthrough']
       if 'args_file' in mixin_vals:
         if vals['args_file']:
-            raise MBErr('args_file specified multiple times in mixins '
-                        'for %s on %s' %
-                        (self.args.builder, self.args.builder_group))
+          raise MBErr('args_file specified multiple times in mixins '
+                      'for %s on %s' %
+                      (self.args.builder, self.args.builder_group))
         vals['args_file'] = mixin_vals['args_file']
       if 'gn_args' in mixin_vals:
         if vals['gn_args']:
@@ -701,7 +704,7 @@ class MetaBuildWrapper():
       isolate_map = self.ReadIsolateMap()
       err, labels = self.MapTargetsToLabels(isolate_map, swarming_targets)
       if err:
-          raise MBErr(err)
+        raise MBErr(err)
 
       gn_runtime_deps_path = self.ToAbsPath(build_dir, 'runtime_deps')
       self.WriteFile(gn_runtime_deps_path, '\n'.join(labels) + '\n')
@@ -709,13 +712,13 @@ class MetaBuildWrapper():
 
     ret, output, _ = self.Run(cmd)
     if ret:
-        if self.args.json_output:
-          # write errors to json.output
-          self.WriteJSON({'output': output}, self.args.json_output)
-        # If `gn gen` failed, we should exit early rather than trying to
-        # generate isolates. Run() will have already logged any error output.
-        self.Print('GN gen failed: %d' % ret)
-        return ret
+      if self.args.json_output:
+        # write errors to json.output
+        self.WriteJSON({'output': output}, self.args.json_output)
+      # If `gn gen` failed, we should exit early rather than trying to
+      # generate isolates. Run() will have already logged any error output.
+      self.Print('GN gen failed: %d' % ret)
+      return ret
 
     android = 'target_os="android"' in vals['gn_args']
     for target in swarming_targets:
@@ -860,9 +863,6 @@ class MetaBuildWrapper():
                     gn_args)
     else:
       gn_args = vals['gn_args']
-
-    if self.args.goma_dir:
-      gn_args += ' goma_dir="%s"' % self.args.goma_dir
 
     android_version_code = self.args.android_version_code
     if android_version_code:

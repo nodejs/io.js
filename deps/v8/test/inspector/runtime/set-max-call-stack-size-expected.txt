@@ -46,6 +46,24 @@ Test with max size 0.
         }
     ]
     executionContextId : <executionContextId>
+    stackTrace : {
+        callFrames : [
+            [0] : {
+                columnNumber : 12
+                functionName : bar
+                lineNumber : 7
+                scriptId : <scriptId>
+                url : test.js
+            }
+            [1] : {
+                columnNumber : 4
+                functionName : foo
+                lineNumber : 12
+                scriptId : <scriptId>
+                url : test.js
+            }
+        ]
+    }
     timestamp : <timestamp>
     type : trace
 }
@@ -64,6 +82,13 @@ Test with max size 1.
                 columnNumber : 12
                 functionName : bar
                 lineNumber : 7
+                scriptId : <scriptId>
+                url : test.js
+            }
+            [1] : {
+                columnNumber : 4
+                functionName : foo
+                lineNumber : 12
                 scriptId : <scriptId>
                 url : test.js
             }

@@ -22,18 +22,18 @@ const { PerformanceObserver, performance } = require('node:perf_hooks');
 
 const obs = new PerformanceObserver((items) => {
   console.log(items.getEntries()[0].duration);
-  performance.clearMarks();
 });
 obs.observe({ type: 'measure' });
 performance.measure('Start to Now');
 
 performance.mark('A');
-doSomeLongRunningProcess(() => {
+(async function doSomeLongRunningProcess() {
+  await new Promise(r => setTimeout(r, 5000));
   performance.measure('A to Now', 'A');
 
   performance.mark('B');
   performance.measure('A to B', 'A', 'B');
-});
+})();
 ```
 
 ## `perf_hooks.performance`
@@ -509,13 +509,16 @@ changes:
 
 The type of the performance entry. It may be one of:
 
-* `'node'` (Node.js only)
-* `'mark'` (available on the Web)
-* `'measure'` (available on the Web)
-* `'gc'` (Node.js only)
+* `'dns'` (Node.js only)
 * `'function'` (Node.js only)
+* `'gc'` (Node.js only)
 * `'http2'` (Node.js only)
 * `'http'` (Node.js only)
+* `'mark'` (available on the Web)
+* `'measure'` (available on the Web)
+* `'net'` (Node.js only)
+* `'node'` (Node.js only)
+* `'resource'` (available on the Web)
 
 ### `performanceEntry.name`
 
@@ -883,6 +886,42 @@ added: v8.5.0
 
 The high resolution millisecond timestamp at which the Node.js process was
 initialized.
+
+### `performanceNodeTiming.uvMetricsInfo`
+
+<!-- YAML
+added:
+  - v22.8.0
+  - v20.18.0
+-->
+
+* Returns: {Object}
+  * `loopCount` {number} Number of event loop iterations.
+  * `events` {number} Number of events that have been processed by the event handler.
+  * `eventsWaiting` {number} Number of events that were waiting to be processed when the event provider was called.
+
+This is a wrapper to the `uv_metrics_info` function.
+It returns the current set of event loop metrics.
+
+It is recommended to use this property inside a function whose execution was
+scheduled using `setImmediate` to avoid collecting metrics before finishing all
+operations scheduled during the current loop iteration.
+
+```cjs
+const { performance } = require('node:perf_hooks');
+
+setImmediate(() => {
+  console.log(performance.nodeTiming.uvMetricsInfo);
+});
+```
+
+```mjs
+import { performance } from 'node:perf_hooks';
+
+setImmediate(() => {
+  console.log(performance.nodeTiming.uvMetricsInfo);
+});
+```
 
 ### `performanceNodeTiming.v8Start`
 

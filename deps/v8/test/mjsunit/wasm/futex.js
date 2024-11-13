@@ -224,7 +224,7 @@ if (this.Worker) {
   let i32a = new Int32Array(memory.buffer);
   const numWorkers = 4;
 
-  let workerScript = `onmessage = function(msg) {
+  let workerScript = `onmessage = function({data:msg}) {
     d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
     ${WasmI32AtomicWait.toString()}
     ${WasmI64AtomicWait.toString()}

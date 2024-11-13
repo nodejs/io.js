@@ -17,9 +17,7 @@ promotecmd=dist-promote
 signcmd=dist-sign
 customsshkey="" # let ssh and scp use default key
 signversion=""
-cloudflare_bucket="dist-prod"
-cloudflare_endpoint=https://07be8d2fbc940503ca1be344714cb0d1.r2.cloudflarestorage.com # Node.js Cloudflare account
-cloudflare_profile="worker"
+cloudflare_bucket="r2:dist-prod"
 
 while getopts ":i:s:" option; do
     case "${option}" in
@@ -162,11 +160,11 @@ sign() {
 
       # Copy SHASUMS256.txt.asc
       # shellcheck disable=SC2086,SC2029
-      ssh ${customsshkey} "${webuser}@${webhost}" aws s3 cp "${shadir}/${shafile}.asc" "s3://${cloudflare_bucket}/${r2dir}/${shafile}.asc" --endpoint="${cloudflare_endpoint}" --profile=${cloudflare_profile}
+      ssh ${customsshkey} "${webuser}@${webhost}" rclone copyto "${shadir}/${shafile}.asc" "${cloudflare_bucket}/${r2dir}/${shafile}.asc"
 
       # Copy SHASUMS256.txt.sig
       # shellcheck disable=SC2086,SC2029
-      ssh ${customsshkey} "${webuser}@${webhost}" aws s3 cp "${shadir}/${shafile}.sig" "s3://${cloudflare_bucket}/${r2dir}/${shafile}.sig" --endpoint="${cloudflare_endpoint}" --profile=${cloudflare_profile}
+      ssh ${customsshkey} "${webuser}@${webhost}" rclone copyto "${shadir}/${shafile}.sig" "${cloudflare_bucket}/${r2dir}/${shafile}.sig"
       break
     fi
   done

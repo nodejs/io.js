@@ -21,7 +21,7 @@
      sub dependmagic {
          my $target = shift;
 
-         return "$target: build_generated\n\t\$(MAKE) depend && \$(MAKE) _$target\n_$target";
+         return "$target: build_generated\n\t\"\$(MAKE)\" depend && \"\$(MAKE)\" _$target\n_$target";
      }
 
      our $COLUMNS = $ENV{COLUMNS};
@@ -527,7 +527,7 @@ all: build_sw build_docs
 
 test: tests
 {- dependmagic('tests'); -}: build_programs_nodep build_modules_nodep link-utils
-	$(MAKE) run_tests
+	"$(MAKE)" run_tests
 run_tests: FORCE
 	@ : {- output_off() if $disabled{tests}; "" -}
 	( SRCTOP=$(SRCDIR) \
@@ -542,7 +542,7 @@ run_tests: FORCE
 
 list-tests:
 	@ : {- output_off() if $disabled{tests}; "" -}
-	$(MAKE) run_tests TESTS=list
+	"$(MAKE)" run_tests TESTS=list
 	@ : {- if ($disabled{tests}) { output_on(); } else { output_off(); } "" -}
 	@echo "Tests are not supported with your chosen Configure options"
 	@ : {- output_on() if !$disabled{tests}; "" -}
@@ -1193,12 +1193,12 @@ providers/fips.module.sources.new: configdata.pm
 	  cd sources-tmp \
 	  && $$srcdir/Configure --banner=Configured enable-fips -O0 \
 	  && ./configdata.pm --query 'get_sources("providers/fips")' > sources1 \
-	  && $(MAKE) -sj 4 build_generated providers/fips.so \
+	  && "$(MAKE)" -sj 4 build_generated providers/fips.so \
 	  && find . -name '*.d' | xargs cat > dep1 \
-          && $(MAKE) distclean \
+          && "$(MAKE)" distclean \
 	  && $$srcdir/Configure --banner=Configured enable-fips no-asm -O0 \
 	  && ./configdata.pm --query 'get_sources("providers/fips")' > sources2 \
-	  && $(MAKE) -sj 4 build_generated providers/fips.so \
+	  && "$(MAKE)" -sj 4 build_generated providers/fips.so \
 	  && find . -name '*.d' | xargs cat > dep2 \
 	  && cat sources1 sources2 \
 	     | grep -v ' : \\$$' | grep -v util/providers.num \
@@ -1332,7 +1332,7 @@ ordinals: build_generated
                 $(SSLHEADERS)
 
 test_ordinals:
-	$(MAKE) run_tests TESTS=test_ordinals
+	"$(MAKE)" run_tests TESTS=test_ordinals
 
 tags TAGS: FORCE
 	rm -f TAGS tags

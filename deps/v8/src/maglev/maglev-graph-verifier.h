@@ -28,7 +28,10 @@ class MaglevGraphVerifier {
 
   void PreProcessGraph(Graph* graph) {}
   void PostProcessGraph(Graph* graph) {}
-  void PreProcessBasicBlock(BasicBlock* block) {}
+  BlockProcessResult PreProcessBasicBlock(BasicBlock* block) {
+    return BlockProcessResult::kContinue;
+  }
+  void PostPhiProcessing() {}
 
   template <typename NodeT>
   ProcessResult Process(NodeT* node, const ProcessingState& state) {

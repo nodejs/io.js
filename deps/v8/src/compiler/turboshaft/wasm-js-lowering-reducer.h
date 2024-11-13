@@ -28,7 +28,7 @@ class WasmJSLoweringReducer : public Next {
  public:
   TURBOSHAFT_REDUCER_BOILERPLATE(WasmJSLowering)
 
-  OpIndex REDUCE(TrapIf)(OpIndex condition, OptionalOpIndex frame_state,
+  V<None> REDUCE(TrapIf)(V<Word32> condition, OptionalV<FrameState> frame_state,
                          bool negated, TrapId trap_id) {
     // All TrapIf nodes in JS need to have a FrameState.
     DCHECK(frame_state.valid());
@@ -40,19 +40,20 @@ class WasmJSLoweringReducer : public Next {
     const CallDescriptor* tf_descriptor = GetBuiltinCallDescriptor(
         trap, Asm().graph_zone(), StubCallMode::kCallBuiltinPointer,
         needs_frame_state, Operator::kNoProperties);
-    const TSCallDescriptor* ts_descriptor = TSCallDescriptor::Create(
-        tf_descriptor, CanThrow::kYes, Asm().graph_zone());
+    const TSCallDescriptor* ts_descriptor =
+        TSCallDescriptor::Create(tf_descriptor, CanThrow::kYes,
+                                 LazyDeoptOnThrow::kNo, Asm().graph_zone());
 
-    OpIndex new_frame_state =
+    V<FrameState> new_frame_state =
         CreateFrameStateWithUpdatedBailoutId(frame_state.value());
-    OpIndex should_trap = negated ? __ Word32Equal(condition, 0) : condition;
+    V<Word32> should_trap = negated ? __ Word32Equal(condition, 0) : condition;
     IF (UNLIKELY(should_trap)) {
       OpIndex call_target = __ NumberConstant(static_cast<int>(trap));
       __ Call(call_target, new_frame_state, {}, ts_descriptor);
       __ Unreachable();  // The trap builtin never returns.
     }
 
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 
  private:
@@ -64,7 +65,7 @@ class WasmJSLoweringReducer : public Next {
     const FrameStateData* data = frame_state_op.data;
     const FrameStateInfo& info = data->frame_state_info;
 
-    OpIndex origin = Asm().current_operation_origin();
+    V<AnyOrNone> origin = Asm().current_operation_origin();
     DCHECK(origin.valid());
     int offset = __ input_graph().source_positions()[origin].ScriptOffset();
 
@@ -78,9 +79,8 @@ class WasmJSLoweringReducer : public Next {
                          new_data);
   }
 
-  Isolate* isolate_ = PipelineData::Get().isolate();
-  SourcePositionTable* source_positions_ =
-      PipelineData::Get().source_positions();
+  Isolate* isolate_ = __ data() -> isolate();
+  SourcePositionTable* source_positions_ = __ data() -> source_positions();
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

@@ -63,10 +63,13 @@ V8_EXPORT_PRIVATE V8_INLINE void MemMove(void* dest, const void* src,
 const int kMinComplexConvertMemCopy = 12;
 #else
 #if defined(V8_OPTIMIZE_WITH_NEON)
+// We intentionally use misaligned read/writes for NEON intrinsics, disable
+// alignment sanitization explicitly.
 // Overlapping writes help to save instructions, e.g. doing 2 two-byte writes
 // instead 3 one-byte write for count == 3.
 template <typename IntType>
-V8_INLINE void OverlappingWrites(void* dst, const void* src, size_t count) {
+V8_INLINE V8_CLANG_NO_SANITIZE("alignment") void OverlappingWrites(
+    void* dst, const void* src, size_t count) {
   *reinterpret_cast<IntType*>(dst) = *reinterpret_cast<const IntType*>(src);
   *reinterpret_cast<IntType*>(static_cast<uint8_t*>(dst) + count -
                               sizeof(IntType)) =
@@ -74,6 +77,7 @@ V8_INLINE void OverlappingWrites(void* dst, const void* src, size_t count) {
                                         count - sizeof(IntType));
 }
 
+V8_CLANG_NO_SANITIZE("alignment")
 inline void MemCopy(void* dst, const void* src, size_t count) {
   auto* dst_u = static_cast<uint8_t*>(dst);
   const auto* src_u = static_cast<const uint8_t*>(src);

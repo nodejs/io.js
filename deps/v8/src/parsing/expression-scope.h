@@ -747,13 +747,14 @@ class ArrowHeadParsingScope : public ExpressionParsingScope<Types> {
   using ParserT = typename Types::Impl;
   using ScopeType = typename ExpressionScope<Types>::ScopeType;
 
-  ArrowHeadParsingScope(ParserT* parser, FunctionKind kind)
+  ArrowHeadParsingScope(ParserT* parser, FunctionKind kind,
+                        int function_literal_id)
       : ExpressionParsingScope<Types>(
             parser,
             kind == FunctionKind::kArrowFunction
                 ? ExpressionScope<Types>::kMaybeArrowParameterDeclaration
-                : ExpressionScope<
-                      Types>::kMaybeAsyncArrowParameterDeclaration) {
+                : ExpressionScope<Types>::kMaybeAsyncArrowParameterDeclaration),
+        function_literal_id_(function_literal_id) {
     DCHECK(kind == FunctionKind::kAsyncArrowFunction ||
            kind == FunctionKind::kArrowFunction);
     DCHECK(this->CanBeDeclaration());
@@ -825,6 +826,7 @@ class ArrowHeadParsingScope : public ExpressionParsingScope<Types> {
 
   void RecordNonSimpleParameter() { has_simple_parameter_list_ = false; }
   void RecordThisUse() { uses_this_ = true; }
+  int function_literal_id() const { return function_literal_id_; }
 
  private:
   FunctionKind kind() const {
@@ -835,6 +837,7 @@ class ArrowHeadParsingScope : public ExpressionParsingScope<Types> {
 
   Scanner::Location declaration_error_location = Scanner::Location::invalid();
   MessageTemplate declaration_error_message = MessageTemplate::kNone;
+  int function_literal_id_;
   bool has_simple_parameter_list_ = true;
   bool uses_this_ = false;
 };

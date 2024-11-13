@@ -68,9 +68,7 @@ struct alignas(8) Int128 {
 // int64_t is *not* 8-byte aligned on all platforms!
 struct alignas(8) Int64 {
   int64_t a;
-  friend bool operator==(Int64 lhs, Int64 rhs) {
-    return lhs.a == rhs.a;
-  }
+  friend bool operator==(Int64 lhs, Int64 rhs) { return lhs.a == rhs.a; }
 };
 
 // Properties of types that this test relies on.
@@ -271,6 +269,35 @@ TEST(Layout, Offsets) {
   }
 }
 
+TEST(Layout, StaticOffsets) {
+  using L = Layout<int8_t, int32_t, Int128>;
+  {
+    using SL = L::WithStaticSizes<>;
+    EXPECT_THAT(SL::Partial().Offsets(), ElementsAre(0));
+    EXPECT_THAT(SL::Partial(5).Offsets(), ElementsAre(0, 8));
+    EXPECT_THAT(SL::Partial(5, 3, 1).Offsets(), ElementsAre(0, 8, 24));
+    EXPECT_THAT(SL(5, 3, 1).Offsets(), ElementsAre(0, 8, 24));
+  }
+  {
+    using SL = L::WithStaticSizes<5>;
+    EXPECT_THAT(SL::Partial().Offsets(), ElementsAre(0, 8));
+    EXPECT_THAT(SL::Partial(3).Offsets(), ElementsAre(0, 8, 24));
+    EXPECT_THAT(SL::Partial(3, 1).Offsets(), ElementsAre(0, 8, 24));
+    EXPECT_THAT(SL(3, 1).Offsets(), ElementsAre(0, 8, 24));
+  }
+  {
+    using SL = L::WithStaticSizes<5, 3>;
+    EXPECT_THAT(SL::Partial().Offsets(), ElementsAre(0, 8, 24));
+    EXPECT_THAT(SL::Partial(1).Offsets(), ElementsAre(0, 8, 24));
+    EXPECT_THAT(SL(1).Offsets(), ElementsAre(0, 8, 24));
+  }
+  {
+    using SL = L::WithStaticSizes<5, 3, 1>;
+    EXPECT_THAT(SL::Partial().Offsets(), ElementsAre(0, 8, 24));
+    EXPECT_THAT(SL().Offsets(), ElementsAre(0, 8, 24));
+  }
+}
+
 TEST(Layout, AllocSize) {
   {
     using L = Layout<int32_t>;
@@ -292,6 +319,30 @@ TEST(Layout, AllocSize) {
     EXPECT_EQ(24, L::Partial(1, 1, 1).AllocSize());
     EXPECT_EQ(136, L::Partial(3, 5, 7).AllocSize());
     EXPECT_EQ(136, L(3, 5, 7).AllocSize());
+  }
+}
+
+TEST(Layout, StaticAllocSize) {
+  using L = Layout<int8_t, int32_t, Int128>;
+  {
+    using SL = L::WithStaticSizes<>;
+    EXPECT_EQ(136, SL::Partial(3, 5, 7).AllocSize());
+    EXPECT_EQ(136, SL(3, 5, 7).AllocSize());
+  }
+  {
+    using SL = L::WithStaticSizes<3>;
+    EXPECT_EQ(136, SL::Partial(5, 7).AllocSize());
+    EXPECT_EQ(136, SL(5, 7).AllocSize());
+  }
+  {
+    using SL = L::WithStaticSizes<3, 5>;
+    EXPECT_EQ(136, SL::Partial(7).AllocSize());
+    EXPECT_EQ(136, SL(7).AllocSize());
+  }
+  {
+    using SL = L::WithStaticSizes<3, 5, 7>;
+    EXPECT_EQ(136, SL::Partial().AllocSize());
+    EXPECT_EQ(136, SL().AllocSize());
   }
 }
 
@@ -367,6 +418,27 @@ TEST(Layout, Sizes) {
     EXPECT_THAT(L::Partial(3, 5).Sizes(), ElementsAre(3, 5));
     EXPECT_THAT(L::Partial(3, 5, 7).Sizes(), ElementsAre(3, 5, 7));
     EXPECT_THAT(L(3, 5, 7).Sizes(), ElementsAre(3, 5, 7));
+  }
+}
+
+TEST(Layout, StaticSize) {
+  using L = Layout<int8_t, int32_t, Int128>;
+  {
+    using SL = L::WithStaticSizes<>;
+    EXPECT_THAT(SL::Partial().Sizes(), ElementsAre());
+    EXPECT_THAT(SL::Partial(3).Size<0>(), 3);
+    EXPECT_THAT(SL::Partial(3).Size<int8_t>(), 3);
+    EXPECT_THAT(SL::Partial(3).Sizes(), ElementsAre(3));
+    EXPECT_THAT(SL::Partial(3, 5, 7).Size<0>(), 3);
+    EXPECT_THAT(SL::Partial(3, 5, 7).Size<int8_t>(), 3);
+    EXPECT_THAT(SL::Partial(3, 5, 7).Size<2>(), 7);
+    EXPECT_THAT(SL::Partial(3, 5, 7).Size<Int128>(), 7);
+    EXPECT_THAT(SL::Partial(3, 5, 7).Sizes(), ElementsAre(3, 5, 7));
+    EXPECT_THAT(SL(3, 5, 7).Size<0>(), 3);
+    EXPECT_THAT(SL(3, 5, 7).Size<int8_t>(), 3);
+    EXPECT_THAT(SL(3, 5, 7).Size<2>(), 7);
+    EXPECT_THAT(SL(3, 5, 7).Size<Int128>(), 7);
+    EXPECT_THAT(SL(3, 5, 7).Sizes(), ElementsAre(3, 5, 7));
   }
 }
 
@@ -720,6 +792,61 @@ TEST(Layout, MutablePointers) {
   }
 }
 
+TEST(Layout, StaticPointers) {
+  alignas(max_align_t) const unsigned char p[100] = {0};
+  using L = Layout<int8_t, int8_t, Int128>;
+  {
+    const auto x = L::WithStaticSizes<>::Partial();
+    EXPECT_EQ(std::make_tuple(x.Pointer<0>(p)),
+              Type<std::tuple<const int8_t*>>(x.Pointers(p)));
+  }
+  {
+    const auto x = L::WithStaticSizes<>::Partial(1);
+    EXPECT_EQ(std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p)),
+              (Type<std::tuple<const int8_t*, const int8_t*>>(x.Pointers(p))));
+  }
+  {
+    const auto x = L::WithStaticSizes<1>::Partial();
+    EXPECT_EQ(std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p)),
+              (Type<std::tuple<const int8_t*, const int8_t*>>(x.Pointers(p))));
+  }
+  {
+    const auto x = L::WithStaticSizes<>::Partial(1, 2, 3);
+    EXPECT_EQ(
+        std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p), x.Pointer<2>(p)),
+        (Type<std::tuple<const int8_t*, const int8_t*, const Int128*>>(
+            x.Pointers(p))));
+  }
+  {
+    const auto x = L::WithStaticSizes<1>::Partial(2, 3);
+    EXPECT_EQ(
+        std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p), x.Pointer<2>(p)),
+        (Type<std::tuple<const int8_t*, const int8_t*, const Int128*>>(
+            x.Pointers(p))));
+  }
+  {
+    const auto x = L::WithStaticSizes<1, 2>::Partial(3);
+    EXPECT_EQ(
+        std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p), x.Pointer<2>(p)),
+        (Type<std::tuple<const int8_t*, const int8_t*, const Int128*>>(
+            x.Pointers(p))));
+  }
+  {
+    const auto x = L::WithStaticSizes<1, 2, 3>::Partial();
+    EXPECT_EQ(
+        std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p), x.Pointer<2>(p)),
+        (Type<std::tuple<const int8_t*, const int8_t*, const Int128*>>(
+            x.Pointers(p))));
+  }
+  {
+    const L::WithStaticSizes<1, 2, 3> x;
+    EXPECT_EQ(
+        std::make_tuple(x.Pointer<0>(p), x.Pointer<1>(p), x.Pointer<2>(p)),
+        (Type<std::tuple<const int8_t*, const int8_t*, const Int128*>>(
+            x.Pointers(p))));
+  }
+}
+
 TEST(Layout, SliceByIndexSize) {
   alignas(max_align_t) const unsigned char p[100] = {0};
   {
@@ -769,7 +896,6 @@ TEST(Layout, SliceByTypeSize) {
     EXPECT_EQ(7, L(3, 5, 7).Slice<Int128>(p).size());
   }
 }
-
 TEST(Layout, MutableSliceByIndexSize) {
   alignas(max_align_t) unsigned char p[100] = {0};
   {
@@ -818,6 +944,39 @@ TEST(Layout, MutableSliceByTypeSize) {
     EXPECT_EQ(5, L(3, 5, 7).Slice<int32_t>(p).size());
     EXPECT_EQ(7, L(3, 5, 7).Slice<Int128>(p).size());
   }
+}
+
+TEST(Layout, StaticSliceSize) {
+  alignas(max_align_t) const unsigned char cp[100] = {0};
+  alignas(max_align_t) unsigned char p[100] = {0};
+  using L = Layout<int8_t, int32_t, Int128>;
+  using SL = L::WithStaticSizes<3, 5>;
+
+  EXPECT_EQ(3, SL::Partial().Slice<0>(cp).size());
+  EXPECT_EQ(3, SL::Partial().Slice<int8_t>(cp).size());
+  EXPECT_EQ(3, SL::Partial(7).Slice<0>(cp).size());
+  EXPECT_EQ(3, SL::Partial(7).Slice<int8_t>(cp).size());
+
+  EXPECT_EQ(5, SL::Partial().Slice<1>(cp).size());
+  EXPECT_EQ(5, SL::Partial().Slice<int32_t>(cp).size());
+  EXPECT_EQ(5, SL::Partial(7).Slice<1>(cp).size());
+  EXPECT_EQ(5, SL::Partial(7).Slice<int32_t>(cp).size());
+
+  EXPECT_EQ(7, SL::Partial(7).Slice<2>(cp).size());
+  EXPECT_EQ(7, SL::Partial(7).Slice<Int128>(cp).size());
+
+  EXPECT_EQ(3, SL::Partial().Slice<0>(p).size());
+  EXPECT_EQ(3, SL::Partial().Slice<int8_t>(p).size());
+  EXPECT_EQ(3, SL::Partial(7).Slice<0>(p).size());
+  EXPECT_EQ(3, SL::Partial(7).Slice<int8_t>(p).size());
+
+  EXPECT_EQ(5, SL::Partial().Slice<1>(p).size());
+  EXPECT_EQ(5, SL::Partial().Slice<int32_t>(p).size());
+  EXPECT_EQ(5, SL::Partial(7).Slice<1>(p).size());
+  EXPECT_EQ(5, SL::Partial(7).Slice<int32_t>(p).size());
+
+  EXPECT_EQ(7, SL::Partial(7).Slice<2>(p).size());
+  EXPECT_EQ(7, SL::Partial(7).Slice<Int128>(p).size());
 }
 
 TEST(Layout, SliceByIndexData) {
@@ -1230,6 +1389,39 @@ TEST(Layout, MutableSliceByTypeData) {
   }
 }
 
+TEST(Layout, StaticSliceData) {
+  alignas(max_align_t) const unsigned char cp[100] = {0};
+  alignas(max_align_t) unsigned char p[100] = {0};
+  using L = Layout<int8_t, int32_t, Int128>;
+  using SL = L::WithStaticSizes<3, 5>;
+
+  EXPECT_EQ(0, Distance(cp, SL::Partial().Slice<0>(cp).data()));
+  EXPECT_EQ(0, Distance(cp, SL::Partial().Slice<int8_t>(cp).data()));
+  EXPECT_EQ(0, Distance(cp, SL::Partial(7).Slice<0>(cp).data()));
+  EXPECT_EQ(0, Distance(cp, SL::Partial(7).Slice<int8_t>(cp).data()));
+
+  EXPECT_EQ(4, Distance(cp, SL::Partial().Slice<1>(cp).data()));
+  EXPECT_EQ(4, Distance(cp, SL::Partial().Slice<int32_t>(cp).data()));
+  EXPECT_EQ(4, Distance(cp, SL::Partial(7).Slice<1>(cp).data()));
+  EXPECT_EQ(4, Distance(cp, SL::Partial(7).Slice<int32_t>(cp).data()));
+
+  EXPECT_EQ(24, Distance(cp, SL::Partial(7).Slice<2>(cp).data()));
+  EXPECT_EQ(24, Distance(cp, SL::Partial(7).Slice<Int128>(cp).data()));
+
+  EXPECT_EQ(0, Distance(p, SL::Partial().Slice<0>(p).data()));
+  EXPECT_EQ(0, Distance(p, SL::Partial().Slice<int8_t>(p).data()));
+  EXPECT_EQ(0, Distance(p, SL::Partial(7).Slice<0>(p).data()));
+  EXPECT_EQ(0, Distance(p, SL::Partial(7).Slice<int8_t>(p).data()));
+
+  EXPECT_EQ(4, Distance(p, SL::Partial().Slice<1>(p).data()));
+  EXPECT_EQ(4, Distance(p, SL::Partial().Slice<int32_t>(p).data()));
+  EXPECT_EQ(4, Distance(p, SL::Partial(7).Slice<1>(p).data()));
+  EXPECT_EQ(4, Distance(p, SL::Partial(7).Slice<int32_t>(p).data()));
+
+  EXPECT_EQ(24, Distance(p, SL::Partial(7).Slice<2>(p).data()));
+  EXPECT_EQ(24, Distance(p, SL::Partial(7).Slice<Int128>(p).data()));
+}
+
 MATCHER_P(IsSameSlice, slice, "") {
   return arg.size() == slice.size() && arg.data() == slice.data();
 }
@@ -1339,6 +1531,43 @@ TEST(Layout, MutableSlices) {
   }
 }
 
+TEST(Layout, StaticSlices) {
+  alignas(max_align_t) const unsigned char cp[100] = {0};
+  alignas(max_align_t) unsigned char p[100] = {0};
+  using SL = Layout<int8_t, int8_t, Int128>::WithStaticSizes<1, 2>;
+  {
+    const auto x = SL::Partial();
+    EXPECT_THAT(
+        (Type<std::tuple<Span<const int8_t>, Span<const int8_t>>>(
+            x.Slices(cp))),
+        Tuple(IsSameSlice(x.Slice<0>(cp)), IsSameSlice(x.Slice<1>(cp))));
+    EXPECT_THAT((Type<std::tuple<Span<int8_t>, Span<int8_t>>>(x.Slices(p))),
+                Tuple(IsSameSlice(x.Slice<0>(p)), IsSameSlice(x.Slice<1>(p))));
+  }
+  {
+    const auto x = SL::Partial(3);
+    EXPECT_THAT((Type<std::tuple<Span<const int8_t>, Span<const int8_t>,
+                                 Span<const Int128>>>(x.Slices(cp))),
+                Tuple(IsSameSlice(x.Slice<0>(cp)), IsSameSlice(x.Slice<1>(cp)),
+                      IsSameSlice(x.Slice<2>(cp))));
+    EXPECT_THAT((Type<std::tuple<Span<int8_t>, Span<int8_t>, Span<Int128>>>(
+                    x.Slices(p))),
+                Tuple(IsSameSlice(x.Slice<0>(p)), IsSameSlice(x.Slice<1>(p)),
+                      IsSameSlice(x.Slice<2>(p))));
+  }
+  {
+    const SL x(3);
+    EXPECT_THAT((Type<std::tuple<Span<const int8_t>, Span<const int8_t>,
+                                 Span<const Int128>>>(x.Slices(cp))),
+                Tuple(IsSameSlice(x.Slice<0>(cp)), IsSameSlice(x.Slice<1>(cp)),
+                      IsSameSlice(x.Slice<2>(cp))));
+    EXPECT_THAT((Type<std::tuple<Span<int8_t>, Span<int8_t>, Span<Int128>>>(
+                    x.Slices(p))),
+                Tuple(IsSameSlice(x.Slice<0>(p)), IsSameSlice(x.Slice<1>(p)),
+                      IsSameSlice(x.Slice<2>(p))));
+  }
+}
+
 TEST(Layout, UnalignedTypes) {
   constexpr Layout<unsigned char, unsigned char, unsigned char> x(1, 2, 3);
   alignas(max_align_t) unsigned char p[x.AllocSize() + 1];
@@ -1377,6 +1606,36 @@ TEST(Layout, Alignment) {
   static_assert(Layout<int32_t, Int64, int8_t>::Alignment() == 8, "");
   static_assert(Layout<Int64, int8_t, int32_t>::Alignment() == 8, "");
   static_assert(Layout<Int64, int32_t, int8_t>::Alignment() == 8, "");
+  static_assert(Layout<Int64, int32_t, int8_t>::Alignment() == 8, "");
+  static_assert(
+      Layout<Aligned<int8_t, 64>>::WithStaticSizes<>::Alignment() == 64, "");
+  static_assert(
+      Layout<Aligned<int8_t, 64>>::WithStaticSizes<2>::Alignment() == 64, "");
+}
+
+TEST(Layout, StaticAlignment) {
+  static_assert(Layout<int8_t>::WithStaticSizes<>::Alignment() == 1, "");
+  static_assert(Layout<int8_t>::WithStaticSizes<0>::Alignment() == 1, "");
+  static_assert(Layout<int8_t>::WithStaticSizes<7>::Alignment() == 1, "");
+  static_assert(Layout<int32_t>::WithStaticSizes<>::Alignment() == 4, "");
+  static_assert(Layout<int32_t>::WithStaticSizes<0>::Alignment() == 4, "");
+  static_assert(Layout<int32_t>::WithStaticSizes<3>::Alignment() == 4, "");
+  static_assert(
+      Layout<Aligned<int8_t, 64>>::WithStaticSizes<>::Alignment() == 64, "");
+  static_assert(
+      Layout<Aligned<int8_t, 64>>::WithStaticSizes<0>::Alignment() == 64, "");
+  static_assert(
+      Layout<Aligned<int8_t, 64>>::WithStaticSizes<2>::Alignment() == 64, "");
+  static_assert(
+      Layout<int32_t, Int64, int8_t>::WithStaticSizes<>::Alignment() == 8, "");
+  static_assert(
+      Layout<int32_t, Int64, int8_t>::WithStaticSizes<0, 0, 0>::Alignment() ==
+          8,
+      "");
+  static_assert(
+      Layout<int32_t, Int64, int8_t>::WithStaticSizes<1, 1, 1>::Alignment() ==
+          8,
+      "");
 }
 
 TEST(Layout, ConstexprPartial) {
@@ -1384,6 +1643,15 @@ TEST(Layout, ConstexprPartial) {
   constexpr Layout<unsigned char, Aligned<unsigned char, 2 * M>> x(1, 3);
   static_assert(x.Partial(1).template Offset<1>() == 2 * M, "");
 }
+
+TEST(Layout, StaticConstexpr) {
+  constexpr size_t M = alignof(max_align_t);
+  using L = Layout<unsigned char, Aligned<unsigned char, 2 * M>>;
+  using SL = L::WithStaticSizes<1, 3>;
+  constexpr SL x;
+  static_assert(x.Offset<1>() == 2 * M, "");
+}
+
 // [from, to)
 struct Region {
   size_t from;
@@ -1458,6 +1726,41 @@ TEST(Layout, PoisonPadding) {
   }
 }
 
+TEST(Layout, StaticPoisonPadding) {
+  using L = Layout<int8_t, Int64, int32_t, Int128>;
+  using SL = L::WithStaticSizes<1, 2>;
+
+  constexpr size_t n = L::Partial(1, 2, 3, 4).AllocSize();
+  {
+    constexpr auto x = SL::Partial();
+    alignas(max_align_t) const unsigned char c[n] = {};
+    x.PoisonPadding(c);
+    EXPECT_EQ(x.Slices(c), x.Slices(c));
+    ExpectPoisoned(c, {{1, 8}});
+  }
+  {
+    constexpr auto x = SL::Partial(3);
+    alignas(max_align_t) const unsigned char c[n] = {};
+    x.PoisonPadding(c);
+    EXPECT_EQ(x.Slices(c), x.Slices(c));
+    ExpectPoisoned(c, {{1, 8}, {36, 40}});
+  }
+  {
+    constexpr auto x = SL::Partial(3, 4);
+    alignas(max_align_t) const unsigned char c[n] = {};
+    x.PoisonPadding(c);
+    EXPECT_EQ(x.Slices(c), x.Slices(c));
+    ExpectPoisoned(c, {{1, 8}, {36, 40}});
+  }
+  {
+    constexpr SL x(3, 4);
+    alignas(max_align_t) const unsigned char c[n] = {};
+    x.PoisonPadding(c);
+    EXPECT_EQ(x.Slices(c), x.Slices(c));
+    ExpectPoisoned(c, {{1, 8}, {36, 40}});
+  }
+}
+
 TEST(Layout, DebugString) {
   {
     constexpr auto x = Layout<int8_t, int32_t, int8_t, Int128>::Partial();
@@ -1492,6 +1795,62 @@ TEST(Layout, DebugString) {
   }
   {
     constexpr Layout<int8_t, int32_t, int8_t, Int128> x(1, 2, 3, 4);
+    EXPECT_EQ(
+        "@0<signed char>(1)[1]; @4<int>(4)[2]; @12<signed char>(1)[3]; "
+        "@16" +
+            Int128::Name() + "(16)[4]",
+        x.DebugString());
+  }
+}
+
+TEST(Layout, StaticDebugString) {
+  {
+    constexpr auto x =
+        Layout<int8_t, int32_t, int8_t, Int128>::WithStaticSizes<>::Partial();
+    EXPECT_EQ("@0<signed char>(1)", x.DebugString());
+  }
+  {
+    constexpr auto x =
+        Layout<int8_t, int32_t, int8_t, Int128>::WithStaticSizes<>::Partial(1);
+    EXPECT_EQ("@0<signed char>(1)[1]; @4<int>(4)", x.DebugString());
+  }
+  {
+    constexpr auto x =
+        Layout<int8_t, int32_t, int8_t, Int128>::WithStaticSizes<1>::Partial();
+    EXPECT_EQ("@0<signed char>(1)[1]; @4<int>(4)", x.DebugString());
+  }
+  {
+    constexpr auto x =
+        Layout<int8_t, int32_t, int8_t, Int128>::WithStaticSizes<>::Partial(1,
+                                                                            2);
+    EXPECT_EQ("@0<signed char>(1)[1]; @4<int>(4)[2]; @12<signed char>(1)",
+              x.DebugString());
+  }
+  {
+    constexpr auto x =
+        Layout<int8_t, int32_t, int8_t, Int128>::WithStaticSizes<1>::Partial(2);
+    EXPECT_EQ("@0<signed char>(1)[1]; @4<int>(4)[2]; @12<signed char>(1)",
+              x.DebugString());
+  }
+  {
+    constexpr auto x = Layout<int8_t, int32_t, int8_t,
+                              Int128>::WithStaticSizes<1, 2>::Partial();
+    EXPECT_EQ("@0<signed char>(1)[1]; @4<int>(4)[2]; @12<signed char>(1)",
+              x.DebugString());
+  }
+  {
+    constexpr auto x = Layout<int8_t, int32_t, int8_t,
+                              Int128>::WithStaticSizes<1, 2, 3, 4>::Partial();
+    EXPECT_EQ(
+        "@0<signed char>(1)[1]; @4<int>(4)[2]; @12<signed char>(1)[3]; "
+        "@16" +
+            Int128::Name() + "(16)[4]",
+        x.DebugString());
+  }
+  {
+    constexpr Layout<int8_t, int32_t, int8_t, Int128>::WithStaticSizes<1, 2, 3,
+                                                                       4>
+        x;
     EXPECT_EQ(
         "@0<signed char>(1)[1]; @4<int>(4)[2]; @12<signed char>(1)[3]; "
         "@16" +
@@ -1634,6 +1993,35 @@ class CompactString {
 
 TEST(CompactString, Works) {
   CompactString s = "hello";
+  EXPECT_EQ(5, s.size());
+  EXPECT_STREQ("hello", s.c_str());
+}
+
+// Same as the previous CompactString example, except we set the first array
+// size to 1 statically, since we know it is always 1. This allows us to compute
+// the offset of the character array at compile time.
+class StaticCompactString {
+ public:
+  StaticCompactString(const char* s = "") {  // NOLINT
+    const size_t size = strlen(s);
+    const SL layout(size + 1);
+    p_.reset(new unsigned char[layout.AllocSize()]);
+    layout.PoisonPadding(p_.get());
+    *layout.Pointer<size_t>(p_.get()) = size;
+    memcpy(layout.Pointer<char>(p_.get()), s, size + 1);
+  }
+
+  size_t size() const { return *SL::Partial().Pointer<size_t>(p_.get()); }
+
+  const char* c_str() const { return SL::Partial().Pointer<char>(p_.get()); }
+
+ private:
+  using SL = Layout<size_t, char>::WithStaticSizes<1>;
+  std::unique_ptr<unsigned char[]> p_;
+};
+
+TEST(StaticCompactString, Works) {
+  StaticCompactString s = "hello";
   EXPECT_EQ(5, s.size());
   EXPECT_STREQ("hello", s.c_str());
 }

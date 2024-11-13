@@ -46,8 +46,8 @@ extern class PropertyDescriptorObject extends Struct {
 
   flags: SmiTagged<PropertyDescriptorObjectFlags>;
   value: JSAny|TheHole;
-  get: JSAny|TheHole;
-  set: JSAny|TheHole;
+  get: JSAny|FunctionTemplateInfo|TheHole;
+  set: JSAny|FunctionTemplateInfo|TheHole;
 }
 
 macro IsCompatiblePropertyDescriptor(

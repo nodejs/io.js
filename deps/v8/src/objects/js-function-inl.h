@@ -5,6 +5,8 @@
 #ifndef V8_OBJECTS_JS_FUNCTION_INL_H_
 #define V8_OBJECTS_JS_FUNCTION_INL_H_
 
+#include <optional>
+
 #include "src/objects/js-function.h"
 
 // Include other inline headers *after* including js-function.h, such that e.g.
@@ -22,8 +24,7 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #include "torque-generated/src/objects/js-function-tq-inl.inc"
 
@@ -39,13 +40,13 @@ RELEASE_ACQUIRE_ACCESSORS(JSFunction, raw_feedback_cell, Tagged<FeedbackCell>,
 
 DEF_GETTER(JSFunction, feedback_vector, Tagged<FeedbackVector>) {
   DCHECK(has_feedback_vector(cage_base));
-  return FeedbackVector::cast(raw_feedback_cell(cage_base)->value(cage_base));
+  return Cast<FeedbackVector>(raw_feedback_cell(cage_base)->value(cage_base));
 }
 
 Tagged<ClosureFeedbackCellArray> JSFunction::closure_feedback_cell_array()
     const {
   DCHECK(has_closure_feedback_cell_array());
-  return ClosureFeedbackCellArray::cast(raw_feedback_cell()->value());
+  return Cast<ClosureFeedbackCellArray>(raw_feedback_cell()->value());
 }
 
 void JSFunction::reset_tiering_state() {
@@ -67,9 +68,9 @@ void JSFunction::CompleteInobjectSlackTrackingIfActive() {
 template <typename IsolateT>
 Tagged<AbstractCode> JSFunction::abstract_code(IsolateT* isolate) {
   if (ActiveTierIsIgnition(isolate)) {
-    return AbstractCode::cast(shared()->GetBytecodeArray(isolate));
+    return Cast<AbstractCode>(shared()->GetBytecodeArray(isolate));
   } else {
-    return AbstractCode::cast(code(isolate, kAcquireLoad));
+    return Cast<AbstractCode>(code(isolate, kAcquireLoad));
   }
 }
 
@@ -118,6 +119,21 @@ Tagged<Object> JSFunction::raw_code(IsolateForSandbox isolate,
 #endif  // V8_ENABLE_SANDBOX
 }
 
+#ifdef V8_ENABLE_LEAPTIERING
+void JSFunction::initialize_dispatch_handle(IsolateForSandbox isolate,
+                                            uint16_t parameter_count) {
+  InitJSDispatchHandleField(kDispatchHandleOffset, isolate, parameter_count);
+}
+
+void JSFunction::clear_dispatch_handle() {
+  WriteField<JSDispatchHandle>(kDispatchHandleOffset, kNullJSDispatchHandle);
+}
+
+JSDispatchHandle JSFunction::dispatch_handle() {
+  return ReadField<JSDispatchHandle>(kDispatchHandleOffset);
+}
+#endif  // V8_ENABLE_LEAPTIERING
+
 RELEASE_ACQUIRE_ACCESSORS(JSFunction, context, Tagged<Context>, kContextOffset)
 
 Address JSFunction::instruction_start(IsolateForSandbox isolate) const {
@@ -153,14 +169,14 @@ void JSFunction::set_tiering_state(IsolateForSandbox isolate,
   feedback_vector()->set_tiering_state(state);
 }
 
-TieringState JSFunction::osr_tiering_state() {
+bool JSFunction::osr_tiering_in_progress() {
   DCHECK(has_feedback_vector());
-  return feedback_vector()->osr_tiering_state();
+  return feedback_vector()->osr_tiering_in_progress();
 }
 
-void JSFunction::set_osr_tiering_state(TieringState marker) {
+void JSFunction::set_osr_tiering_in_progress(bool osr_in_progress) {
   DCHECK(has_feedback_vector());
-  feedback_vector()->set_osr_tiering_state(marker);
+  feedback_vector()->set_osr_tiering_in_progress(osr_in_progress);
 }
 
 DEF_GETTER(JSFunction, has_feedback_vector, bool) {
@@ -204,7 +220,7 @@ DEF_GETTER(JSFunction, has_prototype_slot, bool) {
 }
 
 DEF_GETTER(JSFunction, initial_map, Tagged<Map>) {
-  return Map::cast(prototype_or_initial_map(cage_base, kAcquireLoad));
+  return Cast<Map>(prototype_or_initial_map(cage_base, kAcquireLoad));
 }
 
 DEF_GETTER(JSFunction, has_initial_map, bool) {
@@ -242,7 +258,7 @@ DEF_GETTER(JSFunction, instance_prototype, Tagged<HeapObject>) {
   }
   // When there is no initial map and the prototype is a JSReceiver, the
   // initial map field is used for the prototype field.
-  return HeapObject::cast(prototype_or_initial_map(cage_base, kAcquireLoad));
+  return Cast<HeapObject>(prototype_or_initial_map(cage_base, kAcquireLoad));
 }
 
 DEF_GETTER(JSFunction, prototype, Tagged<Object>) {
@@ -275,9 +291,9 @@ bool JSFunction::NeedsResetDueToFlushedBytecode(IsolateForSandbox isolate) {
 
   Tagged<Object> maybe_code = raw_code(isolate, kAcquireLoad);
   if (!IsCode(maybe_code)) return false;
-  Tagged<Code> code = Code::cast(maybe_code);
+  Tagged<Code> code = Cast<Code>(maybe_code);
 
-  Tagged<SharedFunctionInfo> shared = SharedFunctionInfo::cast(maybe_shared);
+  Tagged<SharedFunctionInfo> shared = Cast<SharedFunctionInfo>(maybe_shared);
   return !shared->is_compiled() && code->builtin_id() != Builtin::kCompileLazy;
 }
 
@@ -288,8 +304,8 @@ bool JSFunction::NeedsResetDueToFlushedBaselineCode(IsolateForSandbox isolate) {
 
 void JSFunction::ResetIfCodeFlushed(
     IsolateForSandbox isolate,
-    base::Optional<std::function<void(
-        Tagged<HeapObject> object, ObjectSlot slot, Tagged<HeapObject> target)>>
+    std::optional<std::function<void(Tagged<HeapObject> object, ObjectSlot slot,
+                                     Tagged<HeapObject> target)>>
         gc_notify_updated_slot) {
   const bool kBytecodeCanFlush =
       v8_flags.flush_bytecode || v8_flags.stress_snapshot;
@@ -314,8 +330,7 @@ void JSFunction::ResetIfCodeFlushed(
   }
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

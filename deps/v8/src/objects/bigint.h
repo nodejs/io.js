@@ -114,7 +114,6 @@ V8_OBJECT class BigIntBase : public PrimitiveHeapObject {
   using LengthBits = SignBits::Next<int, kLengthFieldBits>;
   static_assert(LengthBits::kLastUsedBit < 32);
 
-  DECL_CAST(BigIntBase)
   DECL_VERIFIER(BigIntBase)
   DECL_PRINTER(BigIntBase)
 
@@ -170,23 +169,11 @@ V8_OBJECT class FreshlyAllocatedBigInt : public BigIntBase {
   //   (and no explicit operator is provided either).
 
  public:
-  inline static Tagged<FreshlyAllocatedBigInt> cast(Tagged<Object> object);
-  inline static Tagged<FreshlyAllocatedBigInt> unchecked_cast(
-      Tagged<Object> o) {
-    return Tagged<FreshlyAllocatedBigInt>::unchecked_cast(o);
-  }
-
   // Clear uninitialized padding space.
   inline void clear_padding() {
 #ifdef BIGINT_NEEDS_PADDING
     memset(padding_, 0, arraysize(padding_));
 #endif
-  }
-
- private:
-  // Only serves to make macros happy; other code should use IsBigInt.
-  static bool IsFreshlyAllocatedBigInt(Tagged<FreshlyAllocatedBigInt>) {
-    return true;
   }
 } V8_OBJECT_END;
 
@@ -197,40 +184,30 @@ V8_OBJECT class BigInt : public BigIntBase {
   // https://tc39.github.io/proposal-bigint/#sec-numeric-types
   // Sections 1.1.1 through 1.1.19.
   static Handle<BigInt> UnaryMinus(Isolate* isolate, Handle<BigInt> x);
-  static MaybeHandle<BigInt> BitwiseNot(Isolate* isolate, Handle<BigInt> x);
+  static MaybeHandle<BigInt> BitwiseNot(Isolate* isolate,
+                                        DirectHandle<BigInt> x);
   static MaybeHandle<BigInt> Exponentiate(Isolate* isolate, Handle<BigInt> base,
-                                          Handle<BigInt> exponent);
+                                          DirectHandle<BigInt> exponent);
   static MaybeHandle<BigInt> Multiply(Isolate* isolate, Handle<BigInt> x,
                                       Handle<BigInt> y);
   static MaybeHandle<BigInt> Divide(Isolate* isolate, Handle<BigInt> x,
-                                    Handle<BigInt> y);
+                                    DirectHandle<BigInt> y);
   static MaybeHandle<BigInt> Remainder(Isolate* isolate, Handle<BigInt> x,
-                                       Handle<BigInt> y);
+                                       DirectHandle<BigInt> y);
   static MaybeHandle<BigInt> Add(Isolate* isolate, Handle<BigInt> x,
                                  Handle<BigInt> y);
   static MaybeHandle<BigInt> Subtract(Isolate* isolate, Handle<BigInt> x,
                                       Handle<BigInt> y);
-  static MaybeHandle<BigInt> LeftShift(Isolate* isolate, Handle<BigInt> x,
-                                       Handle<BigInt> y);
-  static MaybeHandle<BigInt> SignedRightShift(Isolate* isolate,
-                                              Handle<BigInt> x,
-                                              Handle<BigInt> y);
-  static MaybeHandle<BigInt> UnsignedRightShift(Isolate* isolate,
-                                                Handle<BigInt> x,
-                                                Handle<BigInt> y);
   // More convenient version of "bool LessThan(x, y)".
-  static ComparisonResult CompareToBigInt(Handle<BigInt> x, Handle<BigInt> y);
+  static ComparisonResult CompareToBigInt(DirectHandle<BigInt> x,
+                                          DirectHandle<BigInt> y);
   static bool EqualToBigInt(Tagged<BigInt> x, Tagged<BigInt> y);
-  static MaybeHandle<BigInt> BitwiseAnd(Isolate* isolate, Handle<BigInt> x,
-                                        Handle<BigInt> y);
-  static MaybeHandle<BigInt> BitwiseXor(Isolate* isolate, Handle<BigInt> x,
-                                        Handle<BigInt> y);
-  static MaybeHandle<BigInt> BitwiseOr(Isolate* isolate, Handle<BigInt> x,
-                                       Handle<BigInt> y);
 
   // Other parts of the public interface.
-  static MaybeHandle<BigInt> Increment(Isolate* isolate, Handle<BigInt> x);
-  static MaybeHandle<BigInt> Decrement(Isolate* isolate, Handle<BigInt> x);
+  static MaybeHandle<BigInt> Increment(Isolate* isolate,
+                                       DirectHandle<BigInt> x);
+  static MaybeHandle<BigInt> Decrement(Isolate* isolate,
+                                       DirectHandle<BigInt> x);
 
   bool ToBoolean() { return !is_zero(); }
   uint32_t Hash() {
@@ -240,16 +217,17 @@ V8_OBJECT class BigInt : public BigIntBase {
 
   bool IsNegative() const { return sign(); }
 
-  static Maybe<bool> EqualToString(Isolate* isolate, Handle<BigInt> x,
+  static Maybe<bool> EqualToString(Isolate* isolate, DirectHandle<BigInt> x,
                                    Handle<String> y);
-  static bool EqualToNumber(Handle<BigInt> x, Handle<Object> y);
+  static bool EqualToNumber(DirectHandle<BigInt> x, Handle<Object> y);
   static Maybe<ComparisonResult> CompareToString(Isolate* isolate,
-                                                 Handle<BigInt> x,
+                                                 DirectHandle<BigInt> x,
                                                  Handle<String> y);
-  static ComparisonResult CompareToNumber(Handle<BigInt> x, Handle<Object> y);
+  static ComparisonResult CompareToNumber(DirectHandle<BigInt> x,
+                                          DirectHandle<Object> y);
   // Exposed for tests, do not call directly. Use CompareToNumber() instead.
-  V8_EXPORT_PRIVATE static ComparisonResult CompareToDouble(Handle<BigInt> x,
-                                                            double y);
+  V8_EXPORT_PRIVATE static ComparisonResult CompareToDouble(
+      DirectHandle<BigInt> x, double y);
 
   static Handle<BigInt> AsIntN(Isolate* isolate, uint64_t n, Handle<BigInt> x);
   static MaybeHandle<BigInt> AsUintN(Isolate* isolate, uint64_t n,
@@ -267,26 +245,26 @@ V8_OBJECT class BigInt : public BigIntBase {
   int Words64Count();
   void ToWordsArray64(int* sign_bit, int* words64_count, uint64_t* words);
 
-  DECL_CAST(BigInt)
   void BigIntShortPrint(std::ostream& os);
 
   inline static int SizeFor(int length) {
     return sizeof(BigInt) + length * kDigitSize;
   }
 
-  static MaybeHandle<String> ToString(Isolate* isolate, Handle<BigInt> bigint,
+  static MaybeHandle<String> ToString(Isolate* isolate,
+                                      DirectHandle<BigInt> bigint,
                                       int radix = 10,
                                       ShouldThrow should_throw = kThrowOnError);
   // Like the above, but adapted for the needs of producing error messages:
   // doesn't care about termination requests, and returns a default string
   // for inputs beyond a relatively low upper bound.
   static Handle<String> NoSideEffectsToString(Isolate* isolate,
-                                              Handle<BigInt> bigint);
+                                              DirectHandle<BigInt> bigint);
 
   // "The Number value for x", see:
   // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-number-type
   // Returns a Smi or HeapNumber.
-  static Handle<Object> ToNumber(Isolate* isolate, Handle<BigInt> x);
+  static Handle<Number> ToNumber(Isolate* isolate, DirectHandle<BigInt> x);
 
   // ECMAScript's NumberToBigInt
   V8_EXPORT_PRIVATE static MaybeHandle<BigInt> FromNumber(

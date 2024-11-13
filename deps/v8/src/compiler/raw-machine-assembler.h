@@ -6,6 +6,7 @@
 #define V8_COMPILER_RAW_MACHINE_ASSEMBLER_H_
 
 #include <initializer_list>
+#include <optional>
 #include <type_traits>
 
 #include "src/common/globals.h"
@@ -983,8 +984,8 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
   Node* I16x8Splat(Node* a) { return AddNode(machine()->I16x8Splat(), a); }
 
   Node* LoadStackPointer() { return AddNode(machine()->LoadStackPointer()); }
-  void SetStackPointer(Node* ptr, wasm::FPRelativeScope fp_scope) {
-    AddNode(machine()->SetStackPointer(fp_scope), ptr);
+  void SetStackPointer(Node* ptr) {
+    AddNode(machine()->SetStackPointer(), ptr);
   }
 #endif
 
@@ -1032,7 +1033,7 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
 
   // Call to a C function.
   template <class... CArgs>
-  Node* CallCFunction(Node* function, base::Optional<MachineType> return_type,
+  Node* CallCFunction(Node* function, std::optional<MachineType> return_type,
                       CArgs... cargs) {
     static_assert(
         std::conjunction_v<std::is_convertible<CArgs, CFunctionArg>...>,
@@ -1040,7 +1041,7 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
     return CallCFunction(function, return_type, {cargs...});
   }
 
-  Node* CallCFunction(Node* function, base::Optional<MachineType> return_type,
+  Node* CallCFunction(Node* function, std::optional<MachineType> return_type,
                       std::initializer_list<CFunctionArg> args);
 
   // Call to a C function without a function discriptor on AIX.

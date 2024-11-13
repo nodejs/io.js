@@ -10,6 +10,7 @@
 #define V8_WASM_COMPILATION_ENVIRONMENT_H_
 
 #include <memory>
+#include <optional>
 
 #include "src/wasm/wasm-features.h"
 #include "src/wasm/wasm-limits.h"
@@ -37,6 +38,16 @@ enum DynamicTiering : bool {
   kNoDynamicTiering = false
 };
 
+// Further information about a location for a deopt: A call_ref can either be
+// just an inline call (that didn't cause a deopt) with a deopt happening within
+// the inlinee or it could be the deopt point itself. This changes whether the
+// relevant stackstate is the one before the call or after the call.
+enum class LocationKindForDeopt : uint8_t {
+  kNone,
+  kEagerDeopt,   // The location is the point of an eager deopt.
+  kInlinedCall,  // The loation is an inlined call, not a deopt.
+};
+
 // The Arm architecture does not specify the results in memory of
 // partially-in-bound writes, which does not align with the wasm spec. This
 // affects when trap handlers can be used for OOB detection; however, Mac
@@ -56,13 +67,16 @@ struct CompilationEnv {
   const WasmModule* const module;
 
   // Features enabled for this compilation.
-  const WasmFeatures enabled_features;
+  const WasmEnabledFeatures enabled_features;
 
   const DynamicTiering dynamic_tiering;
 
   const std::atomic<Address>* fast_api_targets;
 
-  std::atomic<bool>* fast_api_return_is_bool;
+  std::atomic<const MachineSignature*>* fast_api_signatures;
+
+  uint32_t deopt_info_bytecode_offset = std::numeric_limits<uint32_t>::max();
+  LocationKindForDeopt deopt_location_kind = LocationKindForDeopt::kNone;
 
   // Create a {CompilationEnv} object for compilation. The caller has to ensure
   // that the {WasmModule} pointer stays valid while the {CompilationEnv} is
@@ -72,16 +86,15 @@ struct CompilationEnv {
   static constexpr CompilationEnv NoModuleAllFeatures();
 
  private:
-  constexpr CompilationEnv(const WasmModule* module,
-                           WasmFeatures enabled_features,
-                           DynamicTiering dynamic_tiering,
-                           std::atomic<Address>* fast_api_targets,
-                           std::atomic<bool>* fast_api_return_is_bool)
+  constexpr CompilationEnv(
+      const WasmModule* module, WasmEnabledFeatures enabled_features,
+      DynamicTiering dynamic_tiering, std::atomic<Address>* fast_api_targets,
+      std::atomic<const MachineSignature*>* fast_api_signatures)
       : module(module),
         enabled_features(enabled_features),
         dynamic_tiering(dynamic_tiering),
         fast_api_targets(fast_api_targets),
-        fast_api_return_is_bool(fast_api_return_is_bool) {}
+        fast_api_signatures(fast_api_signatures) {}
 };
 
 // The wire bytes are either owned by the StreamingDecoder, or (after streaming)
@@ -92,7 +105,7 @@ class WireBytesStorage {
   virtual base::Vector<const uint8_t> GetCode(WireBytesRef) const = 0;
   // Returns the ModuleWireBytes corresponding to the underlying module if
   // available. Not supported if the wire bytes are owned by a StreamingDecoder.
-  virtual base::Optional<ModuleWireBytes> GetModuleBytes() const = 0;
+  virtual std::optional<ModuleWireBytes> GetModuleBytes() const = 0;
 };
 
 // Callbacks will receive either {kFailedCompilation} or
@@ -172,6 +185,9 @@ class V8_EXPORT_PRIVATE CompilationState {
   CompilationState() = delete;
 
   size_t EstimateCurrentMemoryConsumption() const;
+
+  std::vector<WasmCode*> PublishCode(
+      base::Vector<std::unique_ptr<WasmCode>> unpublished_code);
 
  private:
   // NativeModule is allowed to call the static {New} method.

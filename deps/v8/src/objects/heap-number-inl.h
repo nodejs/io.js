@@ -24,11 +24,6 @@ void HeapNumber::set_value_as_bits(uint64_t bits) {
   value_.set_value_as_bits(bits);
 }
 
-Tagged<HeapNumber> HeapNumber::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsHeapNumber(object));
-  return HeapNumber::unchecked_cast(object);
-}
-
 }  // namespace internal
 }  // namespace v8
 

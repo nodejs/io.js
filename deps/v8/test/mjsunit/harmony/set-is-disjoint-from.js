@@ -216,3 +216,37 @@
 
   assertFalse(firstSet.isDisjointFrom(evil));
 })();
+
+(function TestIsDisjointFromSetLikeWithInfiniteSize() {
+  let setLike = {
+    size: Infinity,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  assertEquals(firstSet.isDisjointFrom(setLike), false);
+})();
+
+(function TestIsDisjointFromSetLikeWithNegativeInfiniteSize() {
+  let setLike = {
+    size: -Infinity,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  assertThrows(() => {
+    new Set().isDisjointFrom(setLike);
+  }, RangeError, '\'-Infinity\' is an invalid size');
+})();

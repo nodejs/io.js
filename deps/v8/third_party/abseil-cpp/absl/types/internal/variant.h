@@ -273,20 +273,7 @@ struct UnreachableSwitchCase {
   template <class Op>
   [[noreturn]] static VisitIndicesResultT<Op, std::size_t> Run(
       Op&& /*ignored*/) {
-#if ABSL_HAVE_BUILTIN(__builtin_unreachable) || \
-    (defined(__GNUC__) && !defined(__clang__))
-    __builtin_unreachable();
-#elif defined(_MSC_VER)
-    __assume(false);
-#else
-    // Try to use assert of false being identified as an unreachable intrinsic.
-    // NOTE: We use assert directly to increase chances of exploiting an assume
-    //       intrinsic.
-    assert(false);  // NOLINT
-
-    // Hack to silence potential no return warning -- cause an infinite loop.
-    return Run(std::forward<Op>(op));
-#endif  // Checks for __builtin_unreachable
+    ABSL_UNREACHABLE();
   }
 };
 

@@ -1,5 +1,34 @@
 # Changelog
 
+## [10.2.0](https://github.com/nodejs/node-gyp/compare/v10.1.0...v10.2.0) (2024-07-09)
+
+
+### Features
+
+* allow VCINSTALLDIR to specify a portable instance ([#3036](https://github.com/nodejs/node-gyp/issues/3036)) ([d38af2e](https://github.com/nodejs/node-gyp/commit/d38af2e0c2a81b12cd221b1f8517fb89e609d62c))
+* **gyp:** update gyp to v0.18.1 ([#3039](https://github.com/nodejs/node-gyp/issues/3039)) ([ea99fea](https://github.com/nodejs/node-gyp/commit/ea99fea83485dc5be04db01df9b2fdbe05319b8e))
+* support `rebuild` and `build` for cross-compiling Node-API module to wasm on Windows ([#2974](https://github.com/nodejs/node-gyp/issues/2974)) ([6318d2b](https://github.com/nodejs/node-gyp/commit/6318d2b210224415ff5932c2863e6cc14d4583dc))
+
+
+### Core
+
+* add an arch check to VS 2019 ([#3025](https://github.com/nodejs/node-gyp/issues/3025)) ([323957b](https://github.com/nodejs/node-gyp/commit/323957b74e9586fb3fbfb2acad5040379c778de6))
+* **deps:** bump seanmiddleditch/gha-setup-ninja from 4 to 5 ([#3041](https://github.com/nodejs/node-gyp/issues/3041)) ([10f6730](https://github.com/nodejs/node-gyp/commit/10f6730be660e7a38be8a12111937e37fcf74834))
+* proc-log@4.0.0 ([#3022](https://github.com/nodejs/node-gyp/issues/3022)) ([141aa6b](https://github.com/nodejs/node-gyp/commit/141aa6bf029e6f984be8ea98aaf985e5df894082))
+* tar@6.2.1 ([#3021](https://github.com/nodejs/node-gyp/issues/3021)) ([b22d5ee](https://github.com/nodejs/node-gyp/commit/b22d5eef861892c968052ffc1c71b551f738163b))
+
+
+### Doc
+
+* `node-pre-gyp` is no longer maintained ([#3015](https://github.com/nodejs/node-gyp/issues/3015)) ([93186f1](https://github.com/nodejs/node-gyp/commit/93186f10c966b4148fc500e48f8cbffacccdfa3c))
+* add the way to configuring Python dependency for Windows PowerShell ([#2996](https://github.com/nodejs/node-gyp/issues/2996)) ([9fd7936](https://github.com/nodejs/node-gyp/commit/9fd7936f0d7232a8a79e6a7b6cbfb814d9042b13))
+* Installation -- Python >= v3.12 requires `node-gyp` >= v10 ([#3010](https://github.com/nodejs/node-gyp/issues/3010)) ([a6b48fc](https://github.com/nodejs/node-gyp/commit/a6b48fca9993e54d757cd110f6b41f8200d99ca4))
+
+
+### Miscellaneous
+
+* fix ruff command ([#3044](https://github.com/nodejs/node-gyp/issues/3044)) ([b3916d5](https://github.com/nodejs/node-gyp/commit/b3916d5b25704a53e89be16b500036a14bdc5060))
+
 ## [10.1.0](https://github.com/nodejs/node-gyp/compare/v10.0.1...v10.1.0) (2024-03-13)
 
 

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <vector>
 
 #include "include/libplatform/libplatform.h"
@@ -220,7 +221,7 @@ class InstructionStatistics {
 class ExtendedFunctionDis : public FunctionBodyDisassembler {
  public:
   ExtendedFunctionDis(Zone* zone, const WasmModule* module, uint32_t func_index,
-                      bool shared, WasmFeatures* detected,
+                      bool shared, WasmDetectedFeatures* detected,
                       const FunctionSig* sig, const uint8_t* start,
                       const uint8_t* end, uint32_t offset,
                       const ModuleWireBytes wire_bytes, NamesProvider* names)
@@ -255,7 +256,7 @@ class ExtendedFunctionDis : public FunctionBodyDisassembler {
       auto [count, count_length] = read_u32v<ValidationTag>(pc_);
       auto [type, type_length] =
           value_type_reader::read_value_type<ValidationTag>(
-              this, pc_ + count_length, WasmFeatures::All());
+              this, pc_ + count_length, WasmEnabledFeatures::All());
       PrintHexBytes(out, count_length + type_length, pc_, 4);
       out << " // " << count << (count != 1 ? " locals" : " local")
           << " of type ";
@@ -572,7 +573,7 @@ class HexDumpModuleDis : public ITracer {
   // function body disassembler for initializers and functions.
   void InitializerExpression(const uint8_t* start, const uint8_t* end,
                              ValueType expected_type) override {
-    WasmFeatures detected;
+    WasmDetectedFeatures detected;
     auto sig = FixedSizeSignature<ValueType>::Returns(expected_type);
     uint32_t offset = decoder_->pc_offset();
     const WasmModule* module = module_;
@@ -585,7 +586,7 @@ class HexDumpModuleDis : public ITracer {
 
   void FunctionBody(const WasmFunction* func, const uint8_t* start) override {
     const uint8_t* end = start + func->code.length();
-    WasmFeatures detected;
+    WasmDetectedFeatures detected;
     DCHECK_EQ(start - wire_bytes_.start(), pc_offset());
     uint32_t offset = pc_offset();
     const WasmModule* module = module_;
@@ -809,10 +810,13 @@ class FormatConverter {
     DCHECK_EQ(status_, kModuleReady);
     const WasmModule* m = module();
     uint32_t num_functions = static_cast<uint32_t>(m->functions.size());
+    double small_function_percentage =
+        module_->num_small_functions * 100.0 / module_->num_declared_functions;
     out_ << "There are " << num_functions << " functions ("
          << m->num_imported_functions << " imported, "
-         << m->num_declared_functions
-         << " locally defined); the following have names:\n";
+         << m->num_declared_functions << " locally defined; "
+         << small_function_percentage
+         << "% of them \"small\"); the following have names:\n";
     for (uint32_t i = 0; i < num_functions; i++) {
       StringBuilder sb;
       names()->PrintFunctionName(sb, i);
@@ -919,7 +923,7 @@ class FormatConverter {
          i < module()->functions.size(); i++) {
       const WasmFunction* func = &module()->functions[i];
       bool shared = module()->types[func->sig_index].is_shared;
-      WasmFeatures detected;
+      WasmDetectedFeatures detected;
       base::Vector<const uint8_t> code = wire_bytes_.GetFunctionBytes(func);
       ExtendedFunctionDis d(&zone, module(), i, shared, &detected, func->sig,
                             code.begin(), code.end(), func->code.offset(),
@@ -955,7 +959,7 @@ class FormatConverter {
     const WasmFunction* func = &module()->functions[func_index];
     Zone zone(&allocator_, "disassembler");
     bool shared = module()->types[func->sig_index].is_shared;
-    WasmFeatures detected;
+    WasmDetectedFeatures detected;
     base::Vector<const uint8_t> code = wire_bytes_.GetFunctionBytes(func);
 
     ExtendedFunctionDis d(&zone, module(), func_index, shared, &detected,
@@ -1047,7 +1051,7 @@ class FormatConverter {
 
    private:
     enum Mode { kFile, kStdout, kError };
-    base::Optional<std::ofstream> filestream_;
+    std::optional<std::ofstream> filestream_;
     Mode mode_;
   };
 
@@ -1199,9 +1203,8 @@ class FormatConverter {
 
 DumpingModuleDecoder::DumpingModuleDecoder(ModuleWireBytes wire_bytes,
                                            HexDumpModuleDis* module_dis)
-    : ModuleDecoderImpl(WasmFeatures::All(), wire_bytes.module_bytes(),
-                        kWasmOrigin, kDoNotPopulateExplicitRecGroups,
-                        module_dis) {}
+    : ModuleDecoderImpl(WasmEnabledFeatures::All(), wire_bytes.module_bytes(),
+                        kWasmOrigin, module_dis) {}
 
 }  // namespace wasm
 }  // namespace internal

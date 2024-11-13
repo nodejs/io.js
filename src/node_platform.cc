@@ -245,11 +245,13 @@ void PerIsolatePlatformData::FlushTasks(uv_async_t* handle) {
   platform_data->FlushForegroundTasksInternal();
 }
 
-void PerIsolatePlatformData::PostIdleTask(std::unique_ptr<v8::IdleTask> task) {
+void PerIsolatePlatformData::PostIdleTaskImpl(
+    std::unique_ptr<v8::IdleTask> task, const v8::SourceLocation& location) {
   UNREACHABLE();
 }
 
-void PerIsolatePlatformData::PostTask(std::unique_ptr<Task> task) {
+void PerIsolatePlatformData::PostTaskImpl(std::unique_ptr<Task> task,
+                                          const v8::SourceLocation& location) {
   if (flush_tasks_ == nullptr) {
     // V8 may post tasks during Isolate disposal. In that case, the only
     // sensible path forward is to discard the task.
@@ -259,8 +261,10 @@ void PerIsolatePlatformData::PostTask(std::unique_ptr<Task> task) {
   uv_async_send(flush_tasks_);
 }
 
-void PerIsolatePlatformData::PostDelayedTask(
-    std::unique_ptr<Task> task, double delay_in_seconds) {
+void PerIsolatePlatformData::PostDelayedTaskImpl(
+    std::unique_ptr<Task> task,
+    double delay_in_seconds,
+    const v8::SourceLocation& location) {
   if (flush_tasks_ == nullptr) {
     // V8 may post tasks during Isolate disposal. In that case, the only
     // sensible path forward is to discard the task.
@@ -274,14 +278,16 @@ void PerIsolatePlatformData::PostDelayedTask(
   uv_async_send(flush_tasks_);
 }
 
-void PerIsolatePlatformData::PostNonNestableTask(std::unique_ptr<Task> task) {
-  PostTask(std::move(task));
+void PerIsolatePlatformData::PostNonNestableTaskImpl(
+    std::unique_ptr<Task> task, const v8::SourceLocation& location) {
+  PostTaskImpl(std::move(task), location);
 }
 
-void PerIsolatePlatformData::PostNonNestableDelayedTask(
+void PerIsolatePlatformData::PostNonNestableDelayedTaskImpl(
     std::unique_ptr<Task> task,
-    double delay_in_seconds) {
-  PostDelayedTask(std::move(task), delay_in_seconds);
+    double delay_in_seconds,
+    const v8::SourceLocation& location) {
+  PostDelayedTaskImpl(std::move(task), delay_in_seconds, location);
 }
 
 PerIsolatePlatformData::~PerIsolatePlatformData() {

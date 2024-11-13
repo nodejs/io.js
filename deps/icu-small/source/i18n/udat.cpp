@@ -162,7 +162,7 @@ udat_open(UDateFormatStyle  timeStyle,
         }
     }
     else {
-        UnicodeString pat((UBool)(patternLength == -1), pattern, patternLength);
+        UnicodeString pat(patternLength == -1, pattern, patternLength);
 
         if (locale == nullptr) {
             fmt = new SimpleDateFormat(pat, *status);
@@ -182,7 +182,7 @@ udat_open(UDateFormatStyle  timeStyle,
     }
 
     if (tzID != nullptr) {
-        TimeZone *zone = TimeZone::createTimeZone(UnicodeString((UBool)(tzIDLength == -1), tzID, tzIDLength));
+        TimeZone* zone = TimeZone::createTimeZone(UnicodeString(tzIDLength == -1, tzID, tzIDLength));
         if (zone == nullptr) {
             *status = U_MEMORY_ALLOCATION_ERROR;
             delete fmt;
@@ -359,7 +359,7 @@ udat_parse(    const    UDateFormat*        format,
 {
     if(U_FAILURE(*status)) return (UDate)0;
 
-    const UnicodeString src((UBool)(textLength == -1), text, textLength);
+    const UnicodeString src(textLength == -1, text, textLength);
     ParsePosition pp;
     int32_t stackParsePos = 0;
     UDate res;
@@ -392,7 +392,7 @@ udat_parseCalendar(const    UDateFormat*    format,
 {
     if(U_FAILURE(*status)) return;
 
-    const UnicodeString src((UBool)(textLength == -1), text, textLength);
+    const UnicodeString src(textLength == -1, text, textLength);
     ParsePosition pp;
     int32_t stackParsePos = 0;
 
@@ -581,7 +581,7 @@ udat_applyPattern(  UDateFormat     *format,
                     const   char16_t        *pattern,
                     int32_t         patternLength)
 {
-    const UnicodeString pat((UBool)(patternLength == -1), pattern, patternLength);
+    const UnicodeString pat(patternLength == -1, pattern, patternLength);
     UErrorCode status = U_ZERO_ERROR;
 
     verifyIsSimpleDateFormat(format, &status);
@@ -1355,8 +1355,8 @@ udat_applyPatternRelative(UDateFormat *format,
 {
     verifyIsRelativeDateFormat(format, status);
     if(U_FAILURE(*status)) return;
-    const UnicodeString datePat((UBool)(datePatternLength == -1), datePattern, datePatternLength);
-    const UnicodeString timePat((UBool)(timePatternLength == -1), timePattern, timePatternLength);
+    const UnicodeString datePat(datePatternLength == -1, datePattern, datePatternLength);
+    const UnicodeString timePat(timePatternLength == -1, timePattern, timePatternLength);
     ((RelativeDateFormat*)format)->applyPatterns(datePat, timePat, *status);
 }
 

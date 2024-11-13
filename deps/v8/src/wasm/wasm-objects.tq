@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// For wasm::FunctionSig.
+#include "src/wasm/value-type.h"
+
 @useParentTypeChecker
 type PodArrayOfWasmValueType extends ByteArray
     constexpr 'PodArray<wasm::ValueType>';
@@ -9,114 +12,124 @@ type PodArrayOfWasmValueType extends ByteArray
 type ManagedWasmNativeModule extends Foreign
     constexpr 'Managed<wasm::NativeModule>';
 
+type RawFunctionSigPtr extends RawPtr constexpr 'const wasm::FunctionSig*';
+
+// Trusted instance data, exposed via WasmInstanceObject::trusted_data.
 extern class WasmTrustedInstanceData extends ExposedTrustedObject;
 
 extern class WasmInstanceObject extends JSObject {
-  @if(V8_ENABLE_SANDBOX) trusted_data:
-      IndirectPointer<WasmTrustedInstanceData>;
-  @ifnot(V8_ENABLE_SANDBOX) trusted_data: WasmTrustedInstanceData;
+  trusted_data: TrustedPointer<WasmTrustedInstanceData>;
   module_object: WasmModuleObject;
   exports_object: JSObject;
 }
 
-// Represents the context of a function that is defined through the JS or C
-// APIs. Corresponds to the WasmInstanceObject passed to a Wasm function
-// reference.
-extern class WasmApiFunctionRef extends ExposedTrustedObject {
+// The WasmImportData is passed to non-wasm imports in place of the
+// WasmTrustedInstanceData.
+extern class WasmImportData extends TrustedObject {
+  // The instance data is used to load memory start/size for fast API calls, and
+  // for tier-up of wasm-to-js wrappers.
+  // Use the '.instance_data' macro to read this from torque code.
+  protected_instance_data: ProtectedPointer<WasmTrustedInstanceData>;
   native_context: NativeContext;
   callable: JSReceiver|Undefined;
-  // Present when compiling JSFastApiCall wrappers, needed
-  // to load memory start/size fields.
-  instance: WasmInstanceObject|Undefined;
   suspend: Smi;  // Boolean.
   wrapper_budget: Smi;
   call_origin: Smi|WasmFuncRef|Tuple2;
   // The signature is needed for the generic wasm-to-js wrapper.
   sig: PodArrayOfWasmValueType;
+  // This field is used by the WasmToOnHeapWasmToJSTrampoline.
+  code: TrustedPointer<Code>;
 }
+
+extern operator '.instance_data' macro LoadInstanceDataFromWasmImportData(
+    WasmImportData): WasmTrustedInstanceData|Smi;
 
 class WasmFastApiCallData extends HeapObject {
   signature: HeapObject;
+  callback_data: Object;
   cached_map: Weak<Map>|Null;
 }
 
 // This is the representation that is used internally by wasm to represent
-// function references.
-extern class WasmInternalFunction extends HeapObject {
-  // This is the "reference" value that must be passed along in the "instance"
-  // register when calling the given function. It is either the target instance
-  // data (for wasm functions), or a WasmApiFunctionRef object (for functions
-  // defined through the JS or C APIs). For imported functions, this value
-  // equals the respective entry in the module's imported_function_refs array.
-  // Note: torque code uses the "ref" macro defined below to load the reference.
-  // The indirect pointer currently uses the kUnknownIndirectPointerTag because
-  // it links to two different object types; this will be fixed once the
-  // WasmInternalFunction becomes a trusted object.
-  @if(V8_ENABLE_SANDBOX) indirect_ref:
-      IndirectPointer<WasmTrustedInstanceData|WasmApiFunctionRef>;
-  @ifnot(V8_ENABLE_SANDBOX) indirect_ref: WasmTrustedInstanceData
-      |WasmApiFunctionRef;
+// function references. It is "exposed" via the WasmFuncRef.
+extern class WasmInternalFunction extends ExposedTrustedObject {
+  // This is the implicit first argument that must be passed along in the
+  // "instance" register when calling the given function. It is either the
+  // target instance data (for wasm functions), or a WasmImportData object (for
+  // non-wasm imports). For imported functions, this value equals the respective
+  // entry in the module's dispatch_table_for_imports.
+  // Torque code should use the '.implicit_arg' macro to access the value.
+  protected_implicit_arg:
+      ProtectedPointer<WasmTrustedInstanceData|WasmImportData>;
   // The external (JS) representation of this function reference.
   external: JSFunction|Undefined;
-  // The function index if ref is a WasmInstanceObject, -1 otherwise.
+  // The function index if implicit_arg is a WasmTrustedInstanceData, -1
+  // otherwise.
   function_index: Smi;
-  // The object representing a function reference to this function.
-  // TODO(14564): Remove this field, or disallow undefined which is only allowed
-  // so we can construct the two objects subsequently and satify any in-between
-  // heap verification.
-  func_ref: WasmFuncRef|Undefined;
-  // This field is used when the call target is null.
-  @if(V8_ENABLE_SANDBOX) code: IndirectPointer<Code>;
-  @ifnot(V8_ENABLE_SANDBOX) code: Code;
-  // The call target. Tagged with the kWasmInternalFunctionCallTargetTag
-  call_target: ExternalPointer;
+  // The call target, stored as raw pointer in this trusted object.
+  call_target: RawPtr;
+  // The signature hash. See signature-hashing.h for background.
+  // The value stored here must be in sync with {call_target}!
+  // Ideally we'd type this as "uint64", but Torque doesn't support that,
+  // and we only enable the sandbox when uintptr == uint64 anyway.
+  @if(V8_ENABLE_SANDBOX) signature_hash: uintptr;
 }
 
-extern operator '.ref' macro LoadRefFromWasmInternalFunction(
-    WasmInternalFunction): WasmTrustedInstanceData|WasmApiFunctionRef;
-extern operator '.call_target_ptr' macro LoadWasmInternalFunctionCallTargetPtr(
-    WasmInternalFunction): RawPtr;
+extern operator '.implicit_arg' macro LoadImplicitArgFromWasmInternalFunction(
+    WasmInternalFunction): WasmTrustedInstanceData|WasmImportData;
 
 // WasmFuncRef is the type of function references. They are stored on-heap and
 // link to a WasmInternalFunction which contains the actual information.
-// TODO(14564): Actually use this for function references.
 extern class WasmFuncRef extends HeapObject {
-  // TODO(14564): Move the WasmInternalFunction to the trusted space and store a
-  // trusted (indirect) pointer here.
-  internal: WasmInternalFunction;
+  // Note: Torque code uses the '.internal' macro below to access the reference.
+  trusted_internal: TrustedPointer<WasmInternalFunction>;
 }
 
-extern class WasmFunctionData extends HeapObject {
+extern operator '.internal' macro LoadWasmInternalFunctionFromFuncRef(
+    WasmFuncRef): WasmInternalFunction;
+
+// Exposed via SharedFunctionInfo::trusted_function_data.
+extern class WasmFunctionData extends ExposedTrustedObject {
   // Used for calling this function from JavaScript.
-  @if(V8_ENABLE_SANDBOX) wrapper_code: IndirectPointer<Code>;
-  @ifnot(V8_ENABLE_SANDBOX) wrapper_code: Code;
-  // The wasm-internal representation of this function object.
-  internal: WasmInternalFunction;
+  wrapper_code: TrustedPointer<Code>;
+  // The function reference for this function object. This is used when
+  // converting a JS function back to the wasm-side func ref.
+  func_ref: WasmFuncRef;
   // Encode the {promising} and {suspending} flags in a single smi.
   js_promise_flags: Smi;
+  // Trusted-to-trusted pointer, to ensure that the pair of WasmFunctionData
+  // and WasmInternalFunction remains in an overall consistent state.
+  protected_internal: ProtectedPointer<WasmInternalFunction>;
 }
+
+extern operator '.internal' macro LoadWasmInternalFunctionFromFunctionData(
+    WasmFunctionData): WasmInternalFunction;
 
 extern class WasmExportedFunctionData extends WasmFunctionData {
   // This is the instance that exported the function (which in case of
   // imported and re-exported functions is different from the instance
-  // where the function is defined -- for the latter see WasmFunctionData::ref).
-  instance: WasmInstanceObject;
+  // where the function is defined).
+  protected_instance_data: ProtectedPointer<WasmTrustedInstanceData>;
   function_index: Smi;
-  wrapper_budget: Smi;
-  // The next two fields are for fast calling from C++. The contract is
-  // that they are lazily populated, and either all will be present or none.
-  packed_args_size: Smi;
+  // Contains a Smi; boxed so that generated code can update the value.
+  wrapper_budget: Cell;
   canonical_type_index: Smi;
-  @if(V8_ENABLE_SANDBOX) c_wrapper_code: IndirectPointer<Code>;
-  @ifnot(V8_ENABLE_SANDBOX) c_wrapper_code: Code;
-  sig: ExternalPointer;  // wasm::FunctionSig*
+
+  // {packed_args_size} and {c_wrapper_code} are for fast calling from C++.
+  // The contract is that they are lazily populated, and either both will be
+  // present or neither.
+  packed_args_size: Smi;
+  c_wrapper_code: TrustedPointer<Code>;
+
+  sig: RawFunctionSigPtr;
 }
 
-extern operator '.sig_ptr' macro LoadWasmExportedFunctionDataSigPtr(
-    WasmExportedFunctionData): RawPtr;
+extern operator '.instance_data' macro
+    LoadWasmTrustedInstanceDataFromWasmExportedFunctionData(
+        WasmExportedFunctionData): WasmTrustedInstanceData;
 
 extern class WasmJSFunctionData extends WasmFunctionData {
-  serialized_signature: PodArrayOfWasmValueType;
+  canonical_sig_index: Smi;
 }
 
 extern class WasmCapiFunctionData extends WasmFunctionData {
@@ -130,12 +143,12 @@ extern class WasmResumeData extends HeapObject {
 }
 
 extern class WasmContinuationObject extends HeapObject {
-  stack: Foreign;
   parent: WasmContinuationObject|Undefined;
+  stack: ExternalPointer;
   jmpbuf: ExternalPointer;  // Direct access to the stack's jump buffer.
 }
 
-extern class WasmSuspenderObject extends JSObject {
+extern class WasmSuspenderObject extends HeapObject {
   continuation: WasmContinuationObject|Undefined;
   parent: WasmSuspenderObject|Undefined;
   promise: JSPromise;
@@ -165,13 +178,9 @@ extern class WasmModuleObject extends JSObject {
 extern class WasmDispatchTable extends TrustedObject;
 
 extern class WasmTableObject extends JSObject {
-  // The instance in which this WasmTableObject is defined.
-  // This field is undefined if the table is defined outside any Wasm module,
-  // i.e., through the JS API (WebAssembly.Table).
-  instance: WasmInstanceObject|Undefined;
   // The entries array is at least as big as {current_length()}, but might be
   // bigger to make future growth more efficient.
-  // Each element is either
+  // If this is a function table, each element is either
   //   - a WasmFuncRef (Wasm function added from Wasm),
   //   - a WasmExportedFunction (exported Wasm function added from JS),
   //   - a WasmJSFunction (WebAssembly.Function created from JS), or
@@ -184,6 +193,11 @@ extern class WasmTableObject extends JSObject {
   // can update the instance's dispatch table when the table grows.
   uses: FixedArray;
   raw_type: Smi;
+  is_table64: Smi;  // Boolean
+  // The instance in which this WasmTableObject is defined.
+  // This field is undefined if the table is defined outside any Wasm module,
+  // i.e., through the JS API (WebAssembly.Table).
+  trusted_data: TrustedPointer<WasmTrustedInstanceData>;
 }
 
 extern class WasmMemoryObject extends JSObject {
@@ -197,8 +211,7 @@ extern class WasmGlobalObject extends JSObject {
   // The instance in which this WasmGlobalObject is defined.
   // This field is undefined if the global is defined outside any Wasm module,
   // i.e., through the JS API (WebAssembly.Global).
-  // Because it might be undefined, we declare it as a HeapObject.
-  instance: WasmInstanceObject|Undefined;
+  trusted_data: TrustedPointer<WasmTrustedInstanceData>;
   untagged_buffer: JSArrayBuffer|Undefined;
   tagged_buffer: FixedArray|Undefined;
   offset: Smi;
@@ -212,6 +225,7 @@ extern class WasmTagObject extends JSObject {
   serialized_signature: PodArrayOfWasmValueType;
   tag: HeapObject;
   canonical_type_index: Smi;
+  trusted_data: TrustedPointer<WasmTrustedInstanceData>;
 }
 
 type WasmExportedFunction extends JSFunction;
@@ -225,7 +239,7 @@ extern class WasmTypeInfo extends HeapObject {
   // We must make sure that the StructType/ArrayType, which is allocated in
   // the WasmModule's "signature_zone", stays around as long as there are
   // HeapObjects referring to it. Short term, we simply keep a reference to
-  // the instance, which in turn keeps the entire WasmModule alive.
+  // the trusted instance data, which in turn keeps the entire WasmModule alive.
   // TODO(jkummerow): Possible optimization: manage the "signature_zone"'s
   // lifetime separately by having WasmModule refer to it via std::shared_ptr,
   // and introduce a new link from here to just that zone using a Managed<...>.
@@ -235,7 +249,7 @@ extern class WasmTypeInfo extends HeapObject {
   @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
   @ifnot(TAGGED_SIZE_8_BYTES) optional_padding: void;
   // Is undefined for WasmExternalFunctions referring to WasmJSFunctions.
-  instance: WasmInstanceObject|Undefined;
+  trusted_data: TrustedPointer<WasmTrustedInstanceData>;
   const supertypes_length: Smi;
   supertypes[supertypes_length]: Object;
 }
@@ -270,3 +284,7 @@ extern class WasmNull extends HeapObject {}
 
 extern macro WasmNullConstant(): WasmNull;
 const kWasmNull: WasmNull = WasmNullConstant();
+
+extern class WasmSuspendingObject extends JSObject {
+  callable: JSReceiver;
+}

@@ -3,19 +3,23 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
-#include "cleanup_queue-inl.h"
+#include "node_context_data.h"
 #include "node_realm.h"
 
 namespace node {
 
 inline Realm* Realm::GetCurrent(v8::Isolate* isolate) {
-  if (UNLIKELY(!isolate->InContext())) return nullptr;
+  if (!isolate->InContext()) [[unlikely]] {
+    return nullptr;
+  }
   v8::HandleScope handle_scope(isolate);
   return GetCurrent(isolate->GetCurrentContext());
 }
 
 inline Realm* Realm::GetCurrent(v8::Local<v8::Context> context) {
-  if (UNLIKELY(!ContextEmbedderTag::IsNodeContext(context))) return nullptr;
+  if (!ContextEmbedderTag::IsNodeContext(context)) [[unlikely]] {
+    return nullptr;
+  }
   return static_cast<Realm*>(
       context->GetAlignedPointerFromEmbedderData(ContextEmbedderIndex::kRealm));
 }
@@ -75,7 +79,9 @@ inline T* Realm::GetBindingData() {
   constexpr size_t binding_index = static_cast<size_t>(T::binding_type_int);
   static_assert(binding_index < std::tuple_size_v<BindingDataStore>);
   auto ptr = binding_data_store_[binding_index];
-  if (UNLIKELY(!ptr)) return nullptr;
+  if (!ptr) [[unlikely]] {
+    return nullptr;
+  }
   T* result = static_cast<T*>(ptr.get());
   DCHECK_NOT_NULL(result);
   return result;
@@ -105,11 +111,9 @@ inline BindingDataStore* Realm::binding_data_store() {
 
 template <typename T>
 void Realm::ForEachBaseObject(T&& iterator) const {
-  cleanup_queue_.ForEachBaseObject(std::forward<T>(iterator));
-}
-
-void Realm::modify_base_object_count(int64_t delta) {
-  base_object_count_ += delta;
+  for (auto bo : base_object_list_) {
+    iterator(bo);
+  }
 }
 
 int64_t Realm::base_object_created_after_bootstrap() const {
@@ -120,16 +124,19 @@ int64_t Realm::base_object_count() const {
   return base_object_count_;
 }
 
-void Realm::AddCleanupHook(CleanupQueue::Callback fn, void* arg) {
-  cleanup_queue_.Add(fn, arg);
+void Realm::TrackBaseObject(BaseObject* bo) {
+  DCHECK_EQ(bo->realm(), this);
+  base_object_list_.PushBack(bo);
+  ++base_object_count_;
 }
 
-void Realm::RemoveCleanupHook(CleanupQueue::Callback fn, void* arg) {
-  cleanup_queue_.Remove(fn, arg);
+void Realm::UntrackBaseObject(BaseObject* bo) {
+  DCHECK_EQ(bo->realm(), this);
+  --base_object_count_;
 }
 
-bool Realm::HasCleanupHooks() const {
-  return !cleanup_queue_.empty();
+bool Realm::PendingCleanup() const {
+  return !base_object_list_.IsEmpty();
 }
 
 }  // namespace node

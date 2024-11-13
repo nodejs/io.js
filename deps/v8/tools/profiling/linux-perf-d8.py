@@ -13,6 +13,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 import psutil
@@ -39,6 +40,12 @@ parser.add_option(
     metavar="OUT_DIR",
     help="Output directory for linux perf profile files")
 parser.add_option("--timeout", type=float, help="Stop d8 after N seconds")
+parser.add_option(
+    "--scope-to-mark-measure",
+    action="store_true",
+    default=False,
+    help="Scope perf recording to start at performance.mark events and stop at performance.measure events"
+)
 parser.add_option(
     "--skip-pprof",
     action="store_true",
@@ -101,174 +108,207 @@ def log(*args):
   print("=" * 80)
 
 
-# ==============================================================================
-(options, args) = parser.parse_args()
+def main():
+  cleanup = []
+  try:
+    # ==========================================================================
+    (options, args) = parser.parse_args()
 
-if len(args) == 0:
-  parser.error("No d8 binary provided")
+    if len(args) == 0:
+      parser.error("No d8 binary provided")
 
-d8_bin = Path(args.pop(0)).absolute()
-if not d8_bin.exists():
-  parser.error(f"D8 '{d8_bin}' does not exist")
+    d8_bin = Path(args.pop(0)).absolute()
+    if not d8_bin.exists():
+      parser.error(f"D8 '{d8_bin}' does not exist")
 
-if options.perf_data_dir is None:
-  options.perf_data_dir = Path.cwd()
-else:
-  options.perf_data_dir = Path(options.perf_data_dir).absolute()
-options.perf_data_dir.mkdir(parents=True, exist_ok=True)
-if not options.perf_data_dir.is_dir():
-  parser.error(f"--perf-data-dir={options.perf_data_dir} "
-               "is not an directory or does not exist.")
+    if options.perf_data_dir is None:
+      options.perf_data_dir = Path.cwd()
+    else:
+      options.perf_data_dir = Path(options.perf_data_dir).absolute()
+    options.perf_data_dir.mkdir(parents=True, exist_ok=True)
+    if not options.perf_data_dir.is_dir():
+      parser.error(f"--perf-data-dir={options.perf_data_dir} "
+                   "is not an directory or does not exist.")
 
-if options.timeout and options.timeout < 0:
-  parser.error("--timeout should be a positive number")
+    if options.timeout and options.timeout < 0:
+      parser.error("--timeout should be a positive number")
 
+    # ==========================================================================
+    def make_path_absolute(maybe_path):
+      if maybe_path.startswith("-"):
+        return maybe_path
+      path = Path(maybe_path)
+      if path.exists():
+        return str(path.absolute())
+      return maybe_path
 
-# ==============================================================================
-def make_path_absolute(maybe_path):
-  if maybe_path.startswith("-"):
-    return maybe_path
-  path = Path(maybe_path)
-  if path.exists():
-    return str(path.absolute())
-  return maybe_path
+    def make_args_paths_absolute(args):
+      return list(map(make_path_absolute, args))
 
+    # Preprocess args if we change CWD to get cleaner output
+    if options.perf_data_dir != Path.cwd():
+      args = make_args_paths_absolute(args)
 
-def make_args_paths_absolute(args):
-  return list(map(make_path_absolute, args))
+    # ==========================================================================
+    old_cwd = Path.cwd()
+    os.chdir(options.perf_data_dir)
 
+    # ==========================================================================
 
-# Preprocess args if we change CWD to get cleaner output
-if options.perf_data_dir != Path.cwd():
-  args = make_args_paths_absolute(args)
+    cmd = [str(d8_bin), "--perf-prof"]
 
-# ==============================================================================
-old_cwd = Path.cwd()
-os.chdir(options.perf_data_dir)
+    if not options.no_interpreted_frames_native_stack:
+      cmd += ["--interpreted-frames-native-stack"]
+    if options.perf_prof_annotate_wasm:
+      cmd += ["--perf-prof-annotate-wasm"]
 
-# ==============================================================================
+    if options.scope_to_mark_measure:
+      tmp_fifo_dir = tempfile.mkdtemp()
+      cleanup.append(lambda: shutil.rmtree(tmp_fifo_dir))
 
-cmd = [str(d8_bin), "--perf-prof"]
+      perf_ctl_fifo_path = os.path.join(tmp_fifo_dir, "perf_ctl.fifo")
+      perf_ack_fifo_path = os.path.join(tmp_fifo_dir, "perf_ack.fifo")
+      os.mkfifo(perf_ctl_fifo_path)
+      os.mkfifo(perf_ack_fifo_path)
 
-if not options.no_interpreted_frames_native_stack:
-  cmd += ["--interpreted-frames-native-stack"]
-if options.perf_prof_annotate_wasm:
-  cmd += ["--perf-prof-annotate-wasm"]
+      perf_ctl_fd = os.open(perf_ctl_fifo_path, os.O_RDWR)
+      cleanup.append(lambda: os.close(perf_ctl_fd))
+      perf_ack_fd = os.open(perf_ack_fifo_path, os.O_RDWR)
+      cleanup.append(lambda: os.close(perf_ack_fd))
 
-cmd += args
-log("D8 CMD: ", shlex.join(cmd))
+      cmd += [
+          f"--perf-ctl-fd={perf_ctl_fd}", f"--perf-ack-fd={perf_ack_fd}",
+          "--scope-linux-perf-to-mark-measure"
+      ]
+      pass_fds = [perf_ctl_fd, perf_ack_fd]
+    else:
+      pass_fds = []
 
-datetime_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-perf_data_file = Path.cwd() / f"d8_{datetime_str}.perf.data"
-perf_cmd = [
-    "perf", "record", f"--call-graph={options.call_graph}",
-    f"--freq={options.freq}", "--clockid=mono", f"--output={perf_data_file}"
-]
-if options.count:
-  perf_cmd += [f"--count={options.count}"]
-if options.raw_samples:
-  perf_cmd += [f"--raw_samples={options.raw_samples}"]
-if options.event:
-  perf_cmd += [f"--event={options.event}"]
-if options.no_inherit:
-  perf_cmd += [f"--no-inherit"]
+    cmd += args
+    log("D8 CMD: ", shlex.join(cmd))
 
-cmd = perf_cmd + ["--"] + cmd
-log("LINUX PERF CMD: ", shlex.join(cmd))
+    datetime_str = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    perf_data_file = Path.cwd() / f"d8_{datetime_str}.perf.data"
+    perf_cmd = [
+        "perf", "record", f"--call-graph={options.call_graph}",
+        f"--freq={options.freq}", "--clockid=mono", f"--output={perf_data_file}"
+    ]
+    if options.count:
+      perf_cmd += [f"--count={options.count}"]
+    if options.raw_samples:
+      perf_cmd += [f"--raw_samples={options.raw_samples}"]
+    if options.event:
+      perf_cmd += [f"--event={options.event}"]
+    if options.no_inherit:
+      perf_cmd += [f"--no-inherit"]
 
+    if options.scope_to_mark_measure:
+      perf_cmd += [f"--control=fd:{perf_ctl_fd},{perf_ack_fd}", "--delay=-1"]
 
-def wait_for_process_timeout(process):
-  delta = timedelta(seconds=options.timeout)
-  start_time = datetime.now()
-  while True:
-    if (datetime.now() - start_time) >= delta:
+    cmd = perf_cmd + ["--"] + cmd
+    log("LINUX PERF CMD: ", shlex.join(cmd))
+
+    def wait_for_process_timeout(process):
+      delta = timedelta(seconds=options.timeout)
+      start_time = datetime.now()
+      while True:
+        if (datetime.now() - start_time) >= delta:
+          return False
+        processHasStopped = process.poll() is not None
+        if processHasStopped:
+          return True
+        time.sleep(0.1)
       return False
-    processHasStopped = process.poll() is not None
-    if processHasStopped:
-      return True
-    time.sleep(0.1)
-  return False
+
+    if options.timeout is None:
+      try:
+        subprocess.check_call(cmd, pass_fds=pass_fds)
+        log("Waiting for linux-perf to flush all perf data")
+        time.sleep(1)
+      except Exception as e:
+        log("ERROR running perf record: ", e)
+    else:
+      process = subprocess.Popen(cmd, pass_fds=pass_fds)
+      if not wait_for_process_timeout(process):
+        log(f"QUITING d8 processes after {options.timeout}s timeout")
+      current_process = psutil.Process()
+      children = current_process.children(recursive=True)
+      for child in children:
+        if "d8" in child.name():
+          print(f"  quitting PID={child.pid}")
+          child.send_signal(signal.SIGQUIT)
+      log("Waiting for linux-perf to flush all perf data")
+      time.sleep(1)
+      return_status = process.poll()
+      if return_status is None:
+        log("Force quitting linux-perf")
+        process.send_signal(signal.SIGQUIT)
+        process.wait()
+      elif return_status != 0:
+        log("ERROR running perf record")
+
+    # ==========================================================================
+    log("POST PROCESSING: Injecting JS symbols")
+
+    def inject_v8_symbols(perf_dat_file):
+      output_file = perf_dat_file.with_suffix(".data.jitted")
+      cmd = [
+          "perf", "inject", "--jit", f"--input={perf_dat_file.absolute()}",
+          f"--output={output_file.absolute()}"
+      ]
+      try:
+        subprocess.check_call(cmd)
+        print(f"Processed: {output_file}")
+      except:
+        print(shlex.join(cmd))
+        return None
+      return output_file
+
+    result = inject_v8_symbols(perf_data_file)
+    if result is None:
+      print(
+          "No perf files were successfully processed"
+          f" Check for errors or partial results in '{options.perf_data_dir}'")
+      return 1
+    log(f"RESULTS in '{options.perf_data_dir}'")
+    BYTES_TO_MIB = 1 / 1024 / 1024
+    print(f"{result.name:67}{(result.stat().st_size*BYTES_TO_MIB):10.2f}MiB")
+
+    # ==========================================================================
+    if not shutil.which('gcertstatus') or options.skip_pprof:
+      log("ANALYSIS")
+      print(f"perf report --input='{result}'")
+      print(f"pprof '{result}'")
+      return 0
+
+    log("PPROF")
+    has_gcert = False
+    try:
+      print("# Checking gcert status for googlers")
+      subprocess.check_call("gcertstatus >&/dev/null || gcert", shell=True)
+      has_gcert = True
+
+      cmd = [
+          "pprof", "-symbolize=local", "-flame",
+          f"-add_comment={shlex.join(sys.argv)}",
+          str(result.absolute())
+      ]
+      print("# Processing and uploading to pprofresult")
+      url = subprocess.check_output(cmd).decode('utf-8').strip()
+      print(url)
+    except subprocess.CalledProcessError as e:
+      if has_gcert:
+        raise Exception("Could not generate pprof results") from e
+      print("# Please run `gcert` for generating pprof results")
+      print(f"pprof -symbolize=local -flame {result}")
+    except KeyboardInterrupt:
+      return 1
+
+  finally:
+    for cleanup_func in reversed(cleanup):
+      cleanup_func()
+
+  return 0
 
 
-if options.timeout is None:
-  try:
-    subprocess.check_call(cmd)
-    log("Waiting for linux-perf to flush all perf data")
-    time.sleep(1)
-  except:
-    log("ERROR running perf record")
-else:
-  process = subprocess.Popen(cmd)
-  if not wait_for_process_timeout(process):
-    log(f"QUITING d8 processes after {options.timeout}s timeout")
-  current_process = psutil.Process()
-  children = current_process.children(recursive=True)
-  for child in children:
-    if "d8" in child.name():
-      print(f"  quitting PID={child.pid}")
-      child.send_signal(signal.SIGQUIT)
-  log("Waiting for linux-perf to flush all perf data")
-  time.sleep(1)
-  return_status = process.poll()
-  if return_status is None:
-    log("Force quitting linux-perf")
-    process.send_signal(signal.SIGQUIT)
-    process.wait()
-  elif return_status != 0:
-    log("ERROR running perf record")
-
-# ==============================================================================
-log("POST PROCESSING: Injecting JS symbols")
-
-def inject_v8_symbols(perf_dat_file):
-  output_file = perf_dat_file.with_suffix(".data.jitted")
-  cmd = [
-      "perf", "inject", "--jit", f"--input={perf_dat_file.absolute()}",
-      f"--output={output_file.absolute()}"
-  ]
-  try:
-    subprocess.check_call(cmd)
-    print(f"Processed: {output_file}")
-  except:
-    print(shlex.join(cmd))
-    return None
-  return output_file
-
-result = inject_v8_symbols(perf_data_file)
-if result is None:
-  print("No perf files were successfully processed"
-        f" Check for errors or partial results in '{options.perf_data_dir}'")
-  exit(1)
-log(f"RESULTS in '{options.perf_data_dir}'")
-BYTES_TO_MIB = 1 / 1024 / 1024
-print(f"{result.name:67}{(result.stat().st_size*BYTES_TO_MIB):10.2f}MiB")
-
-# ==============================================================================
-if not shutil.which('gcertstatus') or options.skip_pprof:
-  log("ANALYSIS")
-  print(f"perf report --input='{result}'")
-  print(f"pprof '{result}'")
-  exit(0)
-
-log("PPROF")
-has_gcert = False
-try:
-  print("# Checking gcert status for googlers")
-  subprocess.check_call("gcertstatus >&/dev/null || gcert", shell=True)
-  has_gcert = True
-
-  cmd = [
-      "pprof", "-symbolize=local", "-flame",
-      f"-add_comment={shlex.join(sys.argv)}",
-      str(result.absolute())
-  ]
-  print("# Processing and uploading to pprofresult")
-  url = subprocess.check_output(cmd).decode('utf-8').strip()
-  print(url)
-except subprocess.CalledProcessError as e:
-  if has_gcert:
-    raise Exception("Could not generate pprof results") from e
-  print("# Please run `gcert` for generating pprof results")
-  print(f"pprof -symbolize=local -flame {result}")
-except KeyboardInterrupt:
-  exit(1)
+sys.exit(main())

@@ -49,7 +49,6 @@ macro PromiseInit(promise: JSPromise): void {
   promise.flags = SmiTag(JSPromiseFlags{
     status: PromiseState::kPending,
     has_handler: false,
-    handled_hint: false,
     is_silent: false,
     async_task_id: 0
   });
@@ -69,7 +68,6 @@ macro InnerNewJSPromise(implicit context: Context)(): JSPromise {
   promise.flags = SmiTag(JSPromiseFlags{
     status: PromiseState::kPending,
     has_handler: false,
-    handled_hint: false,
     is_silent: false,
     async_task_id: 0
   });

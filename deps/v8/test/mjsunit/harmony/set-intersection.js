@@ -281,3 +281,40 @@
 
   assertEquals([43], Array.from(firstSet.intersection(evil)));
 })();
+
+(function TestIntersectionSetLikeWithInfiniteSize() {
+  let setLike = {
+    size: Infinity,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  const resultArray = [42, 43];
+  const intersectionArray = Array.from(firstSet.intersection(setLike));
+
+  assertEquals(resultArray, intersectionArray);
+})();
+
+(function TestIntersectionSetLikeWithNegativeInfiniteSize() {
+  let setLike = {
+    size: -Infinity,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  assertThrows(() => {
+    new Set().intersection(setLike);
+  }, RangeError, '\'-Infinity\' is an invalid size');
+})();

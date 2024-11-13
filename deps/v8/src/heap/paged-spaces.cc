@@ -7,7 +7,6 @@
 #include <atomic>
 
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/base/platform/mutex.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
@@ -23,8 +22,8 @@
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/memory-allocator.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/mutable-page-inl.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/mutable-page-metadata-inl.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/paged-spaces-inl.h"
 #include "src/heap/read-only-heap.h"
 #include "src/heap/safepoint.h"
@@ -83,8 +82,6 @@ PageMetadata* PagedSpaceBase::InitializePage(
       page->area_size());
   // Make sure that categories are initialized before freeing the area.
   page->ResetAllocationStatistics();
-  page->SetOldGenerationPageFlags(
-      heap()->incremental_marking()->marking_mode());
   page->AllocateFreeListCategories();
   page->InitializeFreeListCategories();
   page->list_node().Initialize();
@@ -144,9 +141,6 @@ size_t PagedSpaceBase::CommittedPhysicalMemory() const {
     DCHECK_EQ(0, committed_physical_memory());
     return CommittedMemory();
   }
-  CodePageHeaderModificationScope rwx_write_scope(
-      "Updating high water mark for Code pages requires write access to "
-      "the Code page headers");
   return committed_physical_memory();
 }
 
@@ -199,8 +193,13 @@ void PagedSpaceBase::RefineAllocatedBytesAfterSweeping(PageMetadata* page) {
     size_t counter_diff = old_counter - new_counter;
     if (identity() == NEW_SPACE) size_at_last_gc_ -= counter_diff;
     DecreaseAllocatedBytes(counter_diff, page);
+    DCHECK_EQ(new_counter, accounting_stats_.AllocatedOnPage(page));
+    AdjustDifferenceInAllocatedBytes(counter_diff);
   }
-  page->SetLiveBytes(0);
+  if (!v8_flags.sticky_mark_bits) {
+    // With sticky mark-bits the counter is reset on unmarking.
+    page->SetLiveBytes(0);
+  }
 }
 
 PageMetadata* PagedSpaceBase::RemovePageSafe(int size_in_bytes) {
@@ -279,11 +278,6 @@ void PagedSpaceBase::ResetFreeList() {
 }
 
 void PagedSpaceBase::ShrinkImmortalImmovablePages() {
-  base::Optional<CodePageHeaderModificationScope> optional_scope;
-  if (identity() == CODE_SPACE) {
-    optional_scope.emplace(
-        "ShrinkImmortalImmovablePages writes to the page header.");
-  }
   DCHECK(!heap()->deserialization_complete());
   ResetFreeList();
   for (PageMetadata* page : *this) {
@@ -294,10 +288,6 @@ void PagedSpaceBase::ShrinkImmortalImmovablePages() {
 
 bool PagedSpaceBase::TryExpand(LocalHeap* local_heap, AllocationOrigin origin) {
   DCHECK_EQ(!local_heap, origin == AllocationOrigin::kGC);
-  base::Optional<CodePageHeaderModificationScope> optional_scope;
-  if (identity() == CODE_SPACE) {
-    optional_scope.emplace("TryExpand writes to the page header.");
-  }
   const size_t accounted_size =
       MemoryChunkLayout::AllocatableMemoryInMemoryChunk(identity());
   if (origin != AllocationOrigin::kGC && identity() != NEW_SPACE) {
@@ -339,8 +329,12 @@ size_t PagedSpaceBase::Available() const {
   return free_list_->Available();
 }
 
+size_t PagedSpaceBase::Waste() const {
+  return free_list_->wasted_bytes();
+}
+
 void PagedSpaceBase::ReleasePage(PageMetadata* page) {
-  ReleasePageImpl(page, MemoryAllocator::FreeMode::kPostpone);
+  ReleasePageImpl(page, MemoryAllocator::FreeMode::kImmediately);
 }
 
 void PagedSpaceBase::ReleasePageImpl(PageMetadata* page,
@@ -407,7 +401,7 @@ void PagedSpaceBase::Verify(Isolate* isolate,
       end_of_previous_object = object.address() + size;
 
       if (IsExternalString(object, cage_base)) {
-        Tagged<ExternalString> external_string = ExternalString::cast(object);
+        Tagged<ExternalString> external_string = Cast<ExternalString>(object);
         size_t payload_size = external_string->ExternalPayloadSize();
         external_page_bytes[static_cast<int>(
             ExternalBackingStoreType::kExternalString)] += payload_size;
@@ -631,10 +625,14 @@ CompactionSpaceCollection::CompactionSpaceCollection(
                  compaction_space_kind),
       code_space_(heap, CODE_SPACE, Executability::EXECUTABLE,
                   compaction_space_kind),
-      shared_space_(heap, SHARED_SPACE, Executability::NOT_EXECUTABLE,
-                    compaction_space_kind),
       trusted_space_(heap, TRUSTED_SPACE, Executability::NOT_EXECUTABLE,
-                     compaction_space_kind) {}
+                     compaction_space_kind) {
+  if (heap->isolate()->has_shared_space()) {
+    shared_space_.emplace(heap->isolate()->shared_space_isolate()->heap(),
+                          SHARED_SPACE, Executability::NOT_EXECUTABLE,
+                          compaction_space_kind);
+  }
+}
 
 // -----------------------------------------------------------------------------
 // OldSpace implementation
@@ -654,6 +652,24 @@ void OldSpace::AddPromotedPage(PageMetadata* page) {
 
 void OldSpace::ReleasePage(PageMetadata* page) {
   ReleasePageImpl(page, MemoryAllocator::FreeMode::kPool);
+}
+
+// -----------------------------------------------------------------------------
+// StickySpace implementation
+
+void StickySpace::AdjustDifferenceInAllocatedBytes(size_t diff) {
+  DCHECK_GE(allocated_old_size_, diff);
+  allocated_old_size_ -= diff;
+}
+
+// -----------------------------------------------------------------------------
+// SharedSpace implementation
+
+void SharedSpace::ReleasePage(PageMetadata* page) {
+  // Old-to-new slots in old objects may be overwritten with references to
+  // shared objects. Postpone releasing empty pages so that updating old-to-new
+  // slots in dead old objects may access the dead shared objects.
+  ReleasePageImpl(page, MemoryAllocator::FreeMode::kPostpone);
 }
 
 }  // namespace internal

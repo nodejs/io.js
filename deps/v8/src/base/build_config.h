@@ -28,11 +28,19 @@
 #endif
 
 // pthread_jit_write_protect is only available on arm64 Mac.
-#if defined(V8_HOST_ARCH_ARM64) && \
-    (defined(V8_OS_MACOS) || (defined(V8_OS_IOS) && TARGET_OS_SIMULATOR))
+#if defined(V8_HOST_ARCH_ARM64) && defined(V8_OS_MACOS)
 #define V8_HAS_PTHREAD_JIT_WRITE_PROTECT 1
 #else
 #define V8_HAS_PTHREAD_JIT_WRITE_PROTECT 0
+#endif
+
+// BrowserEngineCore JIT write protect is only available on iOS 17.4 and later.
+#if defined(V8_HOST_ARCH_ARM64) && defined(V8_OS_IOS) && \
+    defined(__IPHONE_17_4) &&                            \
+    __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_17_4
+#define V8_HAS_BECORE_JIT_WRITE_PROTECT 1
+#else
+#define V8_HAS_BECORE_JIT_WRITE_PROTECT 0
 #endif
 
 #if defined(V8_OS_LINUX) && defined(V8_HOST_ARCH_X64)
@@ -67,6 +75,8 @@ constexpr int kPageSizeBits = kHugePageBits;
 // executable V8 page.
 constexpr int kPageSizeBits = 18;
 #endif
+
+constexpr int kRegularPageSize = 1 << kPageSizeBits;
 
 // The minimal supported page size by the operation system. Any region aligned
 // to that size needs to be individually protectable via

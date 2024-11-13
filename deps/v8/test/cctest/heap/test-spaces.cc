@@ -41,7 +41,7 @@
 #include "src/heap/large-spaces.h"
 #include "src/heap/main-allocator.h"
 #include "src/heap/memory-allocator.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/spaces-inl.h"
 #include "src/heap/spaces.h"
 #include "src/objects/free-space.h"
@@ -131,16 +131,13 @@ static void VerifyMemoryChunk(Isolate* isolate, Heap* heap,
 
   size_t allocatable_memory_area_offset =
       MemoryChunkLayout::ObjectStartOffsetInMemoryChunk(space->identity());
-  size_t guard_size =
-      (executable == EXECUTABLE) ? MemoryChunkLayout::CodePageGuardSize() : 0;
 
   MutablePageMetadata* memory_chunk =
       memory_allocator->AllocateLargePage(space, area_size, executable);
   size_t reserved_size =
       ((executable == EXECUTABLE))
           ? RoundUp(allocatable_memory_area_offset +
-                        RoundUp(area_size, page_allocator->CommitPageSize()) +
-                        guard_size,
+                        RoundUp(area_size, page_allocator->CommitPageSize()),
                     page_allocator->CommitPageSize())
           : RoundUp(allocatable_memory_area_offset + area_size,
                     page_allocator->CommitPageSize());
@@ -168,24 +165,34 @@ TEST(MutablePageMetadata) {
   v8::PageAllocator* page_allocator = GetPlatformPageAllocator();
   size_t area_size;
 
-  bool jitless = isolate->jitless();
-
   for (int i = 0; i < 100; i++) {
     area_size =
         RoundUp(PseudorandomAreaSize(), page_allocator->CommitPageSize());
 
-    // With CodeRange.
     const size_t code_range_size = 32 * MB;
+#ifdef V8_ENABLE_SANDBOX
+    // When the sandbox is enabled, the code assumes that there's only a single
+    // code range for easy metadata lookup, so use the process wide code range
+    // in this case.
+    CodeRange* code_range =
+        IsolateGroup::current()->EnsureCodeRange(code_range_size);
+    base::BoundedPageAllocator* page_allocator = code_range->page_allocator();
+#else
+    // With CodeRange.
+    bool jitless = isolate->jitless();
     VirtualMemory code_range_reservation(
         page_allocator, code_range_size, nullptr,
         MemoryChunk::GetAlignmentForAllocation(),
-        jitless ? JitPermission::kNoJit : JitPermission::kMapAsJittable);
+        jitless ? PageAllocator::Permission::kNoAccess
+                : PageAllocator::Permission::kNoAccessWillJitLater);
 
+    base::PageInitializationMode page_initialization_mode =
+        base::PageInitializationMode::kAllocatedPagesCanBeUninitialized;
     base::PageFreeingMode page_freeing_mode =
         base::PageFreeingMode::kMakeInaccessible;
 
-    // On MacOS on ARM64 the code range reservation must be committed as RWX.
-    if (V8_HEAP_USE_PTHREAD_JIT_WRITE_PROTECT && !jitless) {
+    if (!jitless) {
+      page_initialization_mode = base::PageInitializationMode::kRecommitOnly;
       page_freeing_mode = base::PageFreeingMode::kDiscard;
       void* base = reinterpret_cast<void*>(code_range_reservation.address());
       CHECK(page_allocator->SetPermissions(base, code_range_size,
@@ -198,17 +205,15 @@ TEST(MutablePageMetadata) {
     base::BoundedPageAllocator code_page_allocator(
         page_allocator, code_range_reservation.address(),
         code_range_reservation.size(), MemoryChunk::GetAlignmentForAllocation(),
-        base::PageInitializationMode::kAllocatedPagesCanBeUninitialized,
-        page_freeing_mode);
+        page_initialization_mode, page_freeing_mode);
+    base::BoundedPageAllocator* page_allocator = &code_page_allocator;
+#endif
 
-    // Modification of pages in code_range_reservation requires write access.
-    RwxMemoryWriteScopeForTesting rwx_write_scope;
+    VerifyMemoryChunk(isolate, heap, page_allocator, area_size, EXECUTABLE,
+                      PageSize::kLarge, heap->code_lo_space());
 
-    VerifyMemoryChunk(isolate, heap, &code_page_allocator, area_size,
-                      EXECUTABLE, PageSize::kLarge, heap->code_lo_space());
-
-    VerifyMemoryChunk(isolate, heap, &code_page_allocator, area_size,
-                      NOT_EXECUTABLE, PageSize::kLarge, heap->lo_space());
+    VerifyMemoryChunk(isolate, heap, page_allocator, area_size, NOT_EXECUTABLE,
+                      PageSize::kLarge, heap->lo_space());
   }
 }
 
@@ -304,6 +309,7 @@ TEST(SemiSpaceNewSpace) {
   auto new_space = std::make_unique<SemiSpaceNewSpace>(
       heap, heap->InitialSemiSpaceSize(), heap->InitialSemiSpaceSize());
   MainAllocator allocator(heap->main_thread_local_heap(), new_space.get(),
+                          MainAllocator::IsNewGeneration::kYes,
                           &allocation_info);
   CHECK(new_space->MaximumCapacity());
 
@@ -314,7 +320,7 @@ TEST(SemiSpaceNewSpace) {
     if (allocation.IsFailure()) break;
     successful_allocations++;
     Tagged<Object> obj = allocation.ToObjectChecked();
-    Tagged<HeapObject> ho = HeapObject::cast(obj);
+    Tagged<HeapObject> ho = Cast<HeapObject>(obj);
     CHECK(new_space->Contains(ho));
   }
   CHECK_LT(0, successful_allocations);
@@ -335,6 +341,7 @@ TEST(PagedNewSpace) {
   auto new_space = std::make_unique<PagedNewSpace>(
       heap, heap->InitialSemiSpaceSize(), heap->InitialSemiSpaceSize());
   MainAllocator allocator(heap->main_thread_local_heap(), new_space.get(),
+                          MainAllocator::IsNewGeneration::kYes,
                           &allocation_info);
   CHECK(new_space->MaximumCapacity());
   CHECK(new_space->EnsureCurrentCapacity());
@@ -347,7 +354,7 @@ TEST(PagedNewSpace) {
     if (allocation.IsFailure()) break;
     successful_allocations++;
     Tagged<Object> obj = allocation.ToObjectChecked();
-    Tagged<HeapObject> ho = HeapObject::cast(obj);
+    Tagged<HeapObject> ho = Cast<HeapObject>(obj);
     CHECK(new_space->Contains(ho));
   }
   CHECK_LT(0, successful_allocations);
@@ -371,6 +378,7 @@ TEST(OldSpace) {
 
   auto old_space = std::make_unique<OldSpace>(heap);
   MainAllocator allocator(heap->main_thread_local_heap(), old_space.get(),
+                          MainAllocator::IsNewGeneration::kNo,
                           &allocation_info);
   const int obj_size = kMaxRegularHeapObjectSize;
 
@@ -382,7 +390,7 @@ TEST(OldSpace) {
     if (allocation.IsFailure()) break;
     successful_allocations++;
     Tagged<Object> obj = allocation.ToObjectChecked();
-    Tagged<HeapObject> ho = HeapObject::cast(obj);
+    Tagged<HeapObject> ho = Cast<HeapObject>(obj);
     CHECK(old_space->Contains(ho));
   }
   CHECK_LT(0, successful_allocations);
@@ -414,7 +422,7 @@ TEST(OldLargeObjectSpace) {
     successful_allocations++;
     Tagged<Object> obj = allocation.ToObjectChecked();
     CHECK(IsHeapObject(obj));
-    Tagged<HeapObject> ho = HeapObject::cast(obj);
+    Tagged<HeapObject> ho = Cast<HeapObject>(obj);
     CHECK(lo->Contains(ho));
     CHECK_EQ(0, Heap::GetFillToAlign(ho.address(), kTaggedAligned));
     // All large objects have the same alignment because they start at the
@@ -422,7 +430,7 @@ TEST(OldLargeObjectSpace) {
     // alignment requirements.
     CHECK_EQ(0, Heap::GetFillToAlign(ho.address(),
                                      HeapObject::RequiredAlignment(map)));
-    Handle<HeapObject> keep_alive(ho, isolate);
+    DirectHandle<HeapObject> keep_alive(ho, isolate);
   }
   CHECK_LT(0, successful_allocations);
 
@@ -601,7 +609,7 @@ TEST(ShrinkPageToHighWaterMarkFreeSpaceEnd) {
 
   // Prepare page that only contains a single object and a trailing FreeSpace
   // filler.
-  Handle<FixedArray> array =
+  DirectHandle<FixedArray> array =
       isolate->factory()->NewFixedArray(128, AllocationType::kOld);
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
 
@@ -631,7 +639,7 @@ TEST(ShrinkPageToHighWaterMarkNoFiller) {
   const int kFillerSize = 0;
   std::vector<Handle<FixedArray>> arrays =
       heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize);
-  Handle<FixedArray> array = arrays.back();
+  DirectHandle<FixedArray> array = arrays.back();
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
   CHECK_EQ(page->area_end(), array->address() + array->Size() + kFillerSize);
 
@@ -655,7 +663,7 @@ TEST(ShrinkPageToHighWaterMarkOneWordFiller) {
   const int kFillerSize = kTaggedSize;
   std::vector<Handle<FixedArray>> arrays =
       heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize);
-  Handle<FixedArray> array = arrays.back();
+  DirectHandle<FixedArray> array = arrays.back();
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
   CHECK_EQ(page->area_end(), array->address() + array->Size() + kFillerSize);
 
@@ -684,7 +692,7 @@ TEST(ShrinkPageToHighWaterMarkTwoWordFiller) {
   const int kFillerSize = 2 * kTaggedSize;
   std::vector<Handle<FixedArray>> arrays =
       heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize);
-  Handle<FixedArray> array = arrays.back();
+  DirectHandle<FixedArray> array = arrays.back();
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
   CHECK_EQ(page->area_end(), array->address() + array->Size() + kFillerSize);
 

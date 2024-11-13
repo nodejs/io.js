@@ -54,7 +54,7 @@ if (eval { require Win32::API; 1; }) {
 }
 $ENV{OPENSSL_WIN32_UTF8}=1;
 
-plan tests => 17;
+plan tests => 20;
 
 # Test different PKCS#12 formats
 ok(run(test(["pkcs12_format_test"])), "test pkcs12 formats");
@@ -162,11 +162,23 @@ with({ exit_checker => sub { return shift == 1; } },
                     "-nomacver"])),
            "test bad pkcs12 file 1 (nomacver)");
 
+        ok(run(app(["openssl", "pkcs12", "-in", $bad1, "-password", "pass:",
+                    "-info"])),
+           "test bad pkcs12 file 1 (info)");
+
         ok(run(app(["openssl", "pkcs12", "-in", $bad2, "-password", "pass:"])),
            "test bad pkcs12 file 2");
 
+        ok(run(app(["openssl", "pkcs12", "-in", $bad2, "-password", "pass:",
+                    "-info"])),
+           "test bad pkcs12 file 2 (info)");
+
         ok(run(app(["openssl", "pkcs12", "-in", $bad3, "-password", "pass:"])),
            "test bad pkcs12 file 3");
+
+        ok(run(app(["openssl", "pkcs12", "-in", $bad3, "-password", "pass:",
+                    "-info"])),
+           "test bad pkcs12 file 3 (info)");
      });
 
 SetConsoleOutputCP($savedcp) if (defined($savedcp));

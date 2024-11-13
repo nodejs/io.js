@@ -106,7 +106,7 @@ Tagged<Object> NewError(Isolate* isolate, RuntimeArguments args,
   int message_id_smi = args.smi_value_at(0);
 
   constexpr int kMaxMessageArgs = 3;
-  Handle<Object> message_args[kMaxMessageArgs];
+  DirectHandle<Object> message_args[kMaxMessageArgs];
   int num_message_args = 0;
   while (num_message_args < kMaxMessageArgs &&
          args.length() > num_message_args + 1) {
@@ -182,7 +182,7 @@ const char* ElementsKindToType(ElementsKind fixed_elements_kind) {
 RUNTIME_FUNCTION(Runtime_ThrowInvalidTypedArrayAlignment) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<Map> map = args.at<Map>(0);
+  DirectHandle<Map> map = args.at<Map>(0);
   Handle<String> problem_string = args.at<String>(1);
 
   ElementsKind kind = map->elements_kind();
@@ -240,12 +240,6 @@ RUNTIME_FUNCTION(Runtime_NewError) {
   return *isolate->factory()->NewError(message_template, arg0);
 }
 
-RUNTIME_FUNCTION(Runtime_NewForeign) {
-  HandleScope scope(isolate);
-  DCHECK_EQ(0, args.length());
-  return *isolate->factory()->NewForeign(kNullAddress);
-}
-
 RUNTIME_FUNCTION(Runtime_NewTypeError) {
   return NewError(isolate, args, &Isolate::type_error_function);
 }
@@ -257,15 +251,6 @@ RUNTIME_FUNCTION(Runtime_NewReferenceError) {
   Handle<Object> arg0 = args.at(1);
   MessageTemplate message_template = MessageTemplateFromInt(template_index);
   return *isolate->factory()->NewReferenceError(message_template, arg0);
-}
-
-RUNTIME_FUNCTION(Runtime_NewSyntaxError) {
-  HandleScope scope(isolate);
-  DCHECK_EQ(2, args.length());
-  int template_index = args.smi_value_at(0);
-  Handle<Object> arg0 = args.at(1);
-  MessageTemplate message_template = MessageTemplateFromInt(template_index);
-  return *isolate->factory()->NewSyntaxError(message_template, arg0);
 }
 
 RUNTIME_FUNCTION(Runtime_ThrowInvalidStringLength) {
@@ -393,7 +378,7 @@ Tagged<Object> BytecodeBudgetInterruptWithStackCheck(Isolate* isolate,
                                                      CodeKind code_kind) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   TRACE_EVENT0("v8.execute", "V8.BytecodeBudgetInterruptWithStackCheck");
 
   // Check for stack interrupts here so that we can fold the interrupt check
@@ -419,7 +404,7 @@ Tagged<Object> BytecodeBudgetInterrupt(Isolate* isolate, RuntimeArguments& args,
                                        CodeKind code_kind) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   TRACE_EVENT0("v8.execute", "V8.BytecodeBudgetInterrupt");
 
   isolate->tiering_manager()->OnInterruptTick(function, code_kind);
@@ -533,28 +518,6 @@ RUNTIME_FUNCTION(Runtime_AllocateByteArray) {
   return *isolate->factory()->NewByteArray(length);
 }
 
-RUNTIME_FUNCTION(Runtime_AllocateSeqOneByteString) {
-  HandleScope scope(isolate);
-  DCHECK_EQ(1, args.length());
-  int length = args.smi_value_at(0);
-  if (length == 0) return ReadOnlyRoots(isolate).empty_string();
-  Handle<SeqOneByteString> result;
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, result, isolate->factory()->NewRawOneByteString(length));
-  return *result;
-}
-
-RUNTIME_FUNCTION(Runtime_AllocateSeqTwoByteString) {
-  HandleScope scope(isolate);
-  DCHECK_EQ(1, args.length());
-  int length = args.smi_value_at(0);
-  if (length == 0) return ReadOnlyRoots(isolate).empty_string();
-  Handle<SeqTwoByteString> result;
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, result, isolate->factory()->NewRawTwoByteString(length));
-  return *result;
-}
-
 RUNTIME_FUNCTION(Runtime_ThrowIteratorError) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
@@ -636,7 +599,7 @@ RUNTIME_FUNCTION(Runtime_GetAndResetTurboProfilingData) {
 
   std::stringstream stats_stream;
   BasicBlockProfiler::Get()->Log(isolate, stats_stream);
-  Handle<String> result =
+  DirectHandle<String> result =
       isolate->factory()->NewStringFromAsciiChecked(stats_stream.str().c_str());
   BasicBlockProfiler::Get()->ResetCounts(isolate);
   return *result;
@@ -663,7 +626,7 @@ RUNTIME_FUNCTION(Runtime_GetAndResetRuntimeCallStats) {
     // Without arguments, the result is returned as a string.
     std::stringstream stats_stream;
     isolate->counters()->runtime_call_stats()->Print(stats_stream);
-    Handle<String> result = isolate->factory()->NewStringFromAsciiChecked(
+    DirectHandle<String> result = isolate->factory()->NewStringFromAsciiChecked(
         stats_stream.str().c_str());
     isolate->counters()->runtime_call_stats()->Reset();
     return *result;
@@ -672,7 +635,7 @@ RUNTIME_FUNCTION(Runtime_GetAndResetRuntimeCallStats) {
   std::FILE* f;
   if (IsString(args[0])) {
     // With a string argument, the results are appended to that file.
-    Handle<String> filename = args.at<String>(0);
+    DirectHandle<String> filename = args.at<String>(0);
     f = std::fopen(filename->ToCString().get(), "a");
     DCHECK_NOT_NULL(f);
   } else {
@@ -683,7 +646,7 @@ RUNTIME_FUNCTION(Runtime_GetAndResetRuntimeCallStats) {
   }
   // The second argument (if any) is a message header to be printed.
   if (args.length() >= 2) {
-    Handle<String> message = args.at<String>(1);
+    DirectHandle<String> message = args.at<String>(1);
     message->PrintOn(f);
     std::fputc('\n', f);
     std::fflush(f);
@@ -719,14 +682,14 @@ RUNTIME_FUNCTION(Runtime_OrdinaryHasInstance) {
 RUNTIME_FUNCTION(Runtime_Typeof) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> object = args.at(0);
+  DirectHandle<Object> object = args.at(0);
   return *Object::TypeOf(isolate, object);
 }
 
 RUNTIME_FUNCTION(Runtime_AllowDynamicFunction) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFunction> target = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> target = args.at<JSFunction>(0);
   Handle<JSObject> global_proxy(target->global_proxy(), isolate);
   return *isolate->factory()->ToBoolean(
       Builtins::AllowDynamicFunction(isolate, target, global_proxy));
@@ -750,19 +713,19 @@ RUNTIME_FUNCTION(Runtime_CreateAsyncFromSyncIterator) {
                           isolate->factory()->next_string()));
 
   return *isolate->factory()->NewJSAsyncFromSyncIterator(
-      Handle<JSReceiver>::cast(sync_iterator), next);
+      Cast<JSReceiver>(sync_iterator), next);
 }
 
 RUNTIME_FUNCTION(Runtime_GetTemplateObject) {
   HandleScope scope(isolate);
   DCHECK_EQ(3, args.length());
-  Handle<TemplateObjectDescription> description =
+  DirectHandle<TemplateObjectDescription> description =
       args.at<TemplateObjectDescription>(0);
-  Handle<SharedFunctionInfo> shared_info = args.at<SharedFunctionInfo>(1);
+  DirectHandle<SharedFunctionInfo> shared_info = args.at<SharedFunctionInfo>(1);
   int slot_id = args.smi_value_at(2);
 
-  Handle<NativeContext> native_context(isolate->context()->native_context(),
-                                       isolate);
+  DirectHandle<NativeContext> native_context(
+      isolate->context()->native_context(), isolate);
   return *TemplateObjectDescription::GetTemplateObject(
       isolate, native_context, description, shared_info, slot_id);
 }
@@ -779,7 +742,7 @@ RUNTIME_FUNCTION(Runtime_ReportMessageFromMicrotask) {
   DCHECK(!isolate->has_exception());
   isolate->set_exception(*exception);
   MessageLocation* no_location = nullptr;
-  Handle<JSMessageObject> message =
+  DirectHandle<JSMessageObject> message =
       isolate->CreateMessageOrAbort(exception, no_location);
   MessageHandler::ReportMessage(isolate, no_location, message);
   isolate->clear_exception();
@@ -792,7 +755,7 @@ RUNTIME_FUNCTION(Runtime_GetInitializerFunction) {
 
   Handle<JSReceiver> constructor = args.at<JSReceiver>(0);
   Handle<Symbol> key = isolate->factory()->class_fields_symbol();
-  Handle<Object> initializer =
+  DirectHandle<Object> initializer =
       JSReceiver::GetDataProperty(isolate, constructor, key);
   return *initializer;
 }
@@ -805,7 +768,8 @@ RUNTIME_FUNCTION(Runtime_DoubleToStringWithRadix) {
   CHECK(Object::ToInt32(args[1], &radix));
 
   char* const str = DoubleToRadixCString(number, radix);
-  Handle<String> result = isolate->factory()->NewStringFromAsciiChecked(str);
+  DirectHandle<String> result =
+      isolate->factory()->NewStringFromAsciiChecked(str);
   DeleteArray(str);
   return *result;
 }
@@ -823,8 +787,8 @@ RUNTIME_FUNCTION(Runtime_SharedValueBarrierSlow) {
 RUNTIME_FUNCTION(Runtime_InvalidateDependentCodeForConstTrackingLet) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<ConstTrackingLetCell> const_tracking_let_cell =
-      Handle<ConstTrackingLetCell>::cast(args.at<HeapObject>(0));
+  auto const_tracking_let_cell =
+      Cast<ConstTrackingLetCell>(args.at<HeapObject>(0));
   DependentCode::DeoptimizeDependencyGroups(
       isolate, *const_tracking_let_cell,
       DependentCode::kConstTrackingLetChangedGroup);

@@ -9,6 +9,8 @@
 #ifndef V8_CODEGEN_ARM64_MACRO_ASSEMBLER_ARM64_H_
 #define V8_CODEGEN_ARM64_MACRO_ASSEMBLER_ARM64_H_
 
+#include <optional>
+
 #include "src/base/bits.h"
 #include "src/codegen/arm64/assembler-arm64.h"
 #include "src/codegen/bailout-reason.h"
@@ -228,6 +230,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void Mov(const Register& rd, const Operand& operand,
            DiscardMoveMode discard_mode = kDontDiscardForSameWReg);
   void Mov(const Register& rd, uint64_t imm);
+  void Mov(const Register& rd, ExternalReference reference);
+  void LoadIsolateField(const Register& rd, IsolateFieldId id);
   void Mov(const VRegister& vd, int vd_index, const VRegister& vn,
            int vn_index) {
     DCHECK(allow_macro_instructions());
@@ -764,6 +768,13 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   inline void Fcsel(const VRegister& fd, const VRegister& fn,
                     const VRegister& fm, Condition cond);
 
+  // Checks if value is in range [lower_limit, higher_limit] using a single
+  // comparison. Condition `ls` indicates the value is in the range.
+  void CompareRange(Register value, Register scratch, unsigned lower_limit,
+                    unsigned higher_limit);
+  void JumpIfIsInRange(Register value, Register scratch, unsigned lower_limit,
+                       unsigned higher_limit, Label* on_in_range);
+
   // Emits a runtime assert that the stack pointer is aligned.
   void AssertSpAligned() NOOP_UNLESS_DEBUG_CODE;
 
@@ -822,16 +833,11 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   inline void Drop(int64_t count, uint64_t unit_size = kXRegSize);
   inline void Drop(const Register& count, uint64_t unit_size = kXRegSize);
 
-  // Drop 'count' arguments from the stack, rounded up to a multiple of two,
-  // without actually accessing memory.
+  // Drop 'count' + 'extra_slots' arguments from the stack, rounded up to
+  // a multiple of two, without actually accessing memory.
   // We assume the size of the arguments is the pointer size.
-  // An optional mode argument is passed, which can indicate we need to
-  // explicitly add the receiver to the count.
-  enum ArgumentsCountMode { kCountIncludesReceiver, kCountExcludesReceiver };
-  inline void DropArguments(const Register& count,
-                            ArgumentsCountMode mode = kCountIncludesReceiver);
-  inline void DropArguments(int64_t count,
-                            ArgumentsCountMode mode = kCountIncludesReceiver);
+  inline void DropArguments(const Register& count, int extra_slots = 0);
+  inline void DropArguments(int64_t count);
 
   // Drop 'count' slots from stack, rounded up to a multiple of two, without
   // actually accessing memory.
@@ -1001,6 +1007,11 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   inline void JumpIfEqual(Register x, int32_t y, Label* dest);
   inline void JumpIfLessThan(Register x, int32_t y, Label* dest);
 
+  void JumpIfMarking(Label* is_marking,
+                     Label::Distance condition_met_distance = Label::kFar);
+  void JumpIfNotMarking(Label* not_marking,
+                        Label::Distance condition_met_distance = Label::kFar);
+
   void LoadMap(Register dst, Register object);
   void LoadCompressedMap(Register dst, Register object);
 
@@ -1040,6 +1051,9 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   // that is guaranteed not to be clobbered.
   MemOperand ExternalReferenceAsOperand(ExternalReference reference,
                                         Register scratch);
+  MemOperand ExternalReferenceAsOperand(IsolateFieldId id) {
+    return ExternalReferenceAsOperand(ExternalReference::Create(id), no_reg);
+  }
 
   void Jump(Register target, Condition cond = al);
   void Jump(Address target, RelocInfo::Mode rmode, Condition cond = al);
@@ -1542,6 +1556,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
                         const MemOperand& field_operand);
   void DecompressTagged(const Register& destination, const Register& source);
   void DecompressTagged(const Register& destination, Tagged_t immediate);
+  void DecompressProtected(const Register& destination,
+                           const MemOperand& field_operand);
 
   void AtomicDecompressTaggedSigned(const Register& destination,
                                     const Register& base, const Register& index,
@@ -1561,7 +1577,7 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   // to native instructions. These helpers allow us to define the optimal code
   // sequence, and be used in both TurboFan and Liftoff.
   void PopcntHelper(Register dst, Register src);
-  void I8x16BitMask(Register dst, VRegister src);
+  void I8x16BitMask(Register dst, VRegister src, VRegister temp = NoVReg);
   void I16x8BitMask(Register dst, VRegister src);
   void I32x4BitMask(Register dst, VRegister src);
   void I64x2BitMask(Register dst, VRegister src);
@@ -2087,6 +2103,12 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   // Neither map, nor type_reg might be set to any particular value.
   void IsObjectType(Register heap_object, Register scratch1, Register scratch2,
                     InstanceType type);
+  // Variant of the above, which compares against a type range rather than a
+  // single type (lower_limit and higher_limit are inclusive).
+  //
+  // Always use unsigned comparisons: ls for a positive result.
+  void IsObjectTypeInRange(Register heap_object, Register scratch,
+                           InstanceType lower_limit, InstanceType higher_limit);
 #if V8_STATIC_ROOTS_BOOL
   // Fast variant which is guaranteed to not actually load the instance type
   // from the map.
@@ -2515,9 +2537,9 @@ struct MoveCycleState {
   RegList scratch_regs;
   DoubleRegList scratch_fp_regs;
   // Available scratch registers during the move cycle resolution scope.
-  base::Optional<UseScratchRegisterScope> temps;
+  std::optional<UseScratchRegisterScope> temps;
   // Scratch register picked by {MoveToTempLocation}.
-  base::Optional<CPURegister> scratch_reg;
+  std::optional<CPURegister> scratch_reg;
 };
 
 // Provides access to exit frame parameters (GC-ed).
@@ -2527,14 +2549,16 @@ inline MemOperand ExitFrameStackSlotOperand(int offset);
 inline MemOperand ExitFrameCallerStackSlotOperand(int index);
 
 // Calls an API function. Allocates HandleScope, extracts returned value
-// from handle and propagates exceptions.  Restores context.  On return removes
-// *stack_space_operand * kSystemPointerSize or stack_space * kSystemPointerSize
+// from handle and propagates exceptions. Clobbers C argument registers
+// and C caller-saved registers. Restores context. On return removes
+//   (*argc_operand + slots_to_drop_on_return) * kSystemPointerSize
 // (GCed, includes the call JS arguments space and the additional space
 // allocated for the fast call).
 void CallApiFunctionAndReturn(MacroAssembler* masm, bool with_profiling,
                               Register function_address,
                               ExternalReference thunk_ref, Register thunk_arg,
-                              int stack_space, MemOperand* stack_space_operand,
+                              int slots_to_drop_on_return,
+                              MemOperand* argc_operand,
                               MemOperand return_value_operand);
 
 }  // namespace internal

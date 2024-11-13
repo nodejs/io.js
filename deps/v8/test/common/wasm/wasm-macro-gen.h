@@ -551,6 +551,10 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
   index, val,                                                                  \
       static_cast<uint8_t>(v8::internal::wasm::LoadStoreOpcodeOf(type, true)), \
       alignment, ZERO_OFFSET
+#define WASM_F16_LOAD_MEM(index) \
+  index, WASM_NUMERIC_OP(kExprF32LoadMemF16), ZERO_ALIGNMENT, ZERO_OFFSET
+#define WASM_F16_STORE_MEM(index, val) \
+  index, val, WASM_NUMERIC_OP(kExprF32StoreMemF16), ZERO_ALIGNMENT, ZERO_OFFSET
 #define WASM_RETHROW(index) kExprRethrow, static_cast<uint8_t>(index)
 
 #define WASM_CALL_FUNCTION0(index) \
@@ -865,8 +869,10 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 #define WASM_MEMORY_INIT(seg, dst, src, size) \
   dst, src, size, WASM_NUMERIC_OP(kExprMemoryInit), U32V_1(seg), MEMORY_ZERO
 #define WASM_DATA_DROP(seg) WASM_NUMERIC_OP(kExprDataDrop), U32V_1(seg)
-#define WASM_MEMORY_COPY(dst, src, size) \
+#define WASM_MEMORY0_COPY(dst, src, size) \
   dst, src, size, WASM_NUMERIC_OP(kExprMemoryCopy), MEMORY_ZERO, MEMORY_ZERO
+#define WASM_MEMORY_COPY(dst_index, src_index, dst, src, size) \
+  dst, src, size, WASM_NUMERIC_OP(kExprMemoryCopy), dst_index, src_index
 #define WASM_MEMORY_FILL(dst, val, size) \
   dst, val, size, WASM_NUMERIC_OP(kExprMemoryFill), MEMORY_ZERO
 #define WASM_TABLE_INIT(table, seg, dst, src, size)             \
@@ -981,6 +987,12 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 #define WASM_SIMD_F32x4_REPLACE_LANE(lane, x, y) \
   x, y, WASM_SIMD_OP(kExprF32x4ReplaceLane), TO_BYTE(lane)
 
+#define WASM_SIMD_F16x8_SPLAT(x) WASM_SIMD_SPLAT(F16x8, x)
+#define WASM_SIMD_F16x8_EXTRACT_LANE(lane, x) \
+  x, WASM_SIMD_OP(kExprF16x8ExtractLane), TO_BYTE(lane)
+#define WASM_SIMD_F16x8_REPLACE_LANE(lane, x, y) \
+  x, y, WASM_SIMD_OP(kExprF16x8ReplaceLane), TO_BYTE(lane)
+
 #define WASM_SIMD_I64x2_SPLAT(x) WASM_SIMD_SPLAT(I64x2, x)
 #define WASM_SIMD_I64x2_EXTRACT_LANE(lane, x) \
   x, WASM_SIMD_OP(kExprI64x2ExtractLane), TO_BYTE(lane)
@@ -1029,6 +1041,8 @@ inline uint16_t ExtractPrefixedOpcodeBytes(WasmOpcode opcode) {
 #define WASM_SIMD_F64x2_QFMS(a, b, c) a, b, c, WASM_SIMD_OP(kExprF64x2Qfms)
 #define WASM_SIMD_F32x4_QFMA(a, b, c) a, b, c, WASM_SIMD_OP(kExprF32x4Qfma)
 #define WASM_SIMD_F32x4_QFMS(a, b, c) a, b, c, WASM_SIMD_OP(kExprF32x4Qfms)
+#define WASM_SIMD_F16x8_QFMA(a, b, c) a, b, c, WASM_SIMD_OP(kExprF16x8Qfma)
+#define WASM_SIMD_F16x8_QFMS(a, b, c) a, b, c, WASM_SIMD_OP(kExprF16x8Qfms)
 
 // Like WASM_SIMD_LOAD_MEM but needs the load opcode.
 #define WASM_SIMD_LOAD_OP(opcode, index) \

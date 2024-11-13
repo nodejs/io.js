@@ -30,7 +30,7 @@ function main({ n, type }) {
       }
 
       bench.end(n);
-      assert(result);
+      assert.ok(result);
       fs.closeSync(fd);
       break;
     case 'invalid': {
@@ -46,7 +46,7 @@ function main({ n, type }) {
       }
 
       bench.end(n);
-      assert(hasError);
+      assert.ok(hasError);
       break;
     }
     default:

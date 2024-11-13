@@ -4,7 +4,7 @@
 
 // Flags: --experimental-wasm-type-reflection
 
-load("test/mjsunit/wasm/wasm-module-builder.js");
+d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 let testcases = [
 {types: {parameters:[]}, sig: kSig_v_v},

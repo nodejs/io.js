@@ -10,11 +10,12 @@ extern enum ScopeType extends uint32 {
   // in a way that it gets the first scope type in line, see
   // Heap::CreateInitialMaps(). It's always guarded with the IsEmpty
   // bit, so it doesn't matter what scope type it gets.
+  SCRIPT_SCOPE,
+  REPL_MODE_SCOPE,
   CLASS_SCOPE,
   EVAL_SCOPE,
   FUNCTION_SCOPE,
   MODULE_SCOPE,
-  SCRIPT_SCOPE,
   CATCH_SCOPE,
   BLOCK_SCOPE,
   WITH_SCOPE,
@@ -32,6 +33,7 @@ extern enum VariableMode extends uint32 {
   kLet,
   kConst,
   kUsing,
+  kAwaitUsing,
   kVar,
   kTemporary,
   kDynamic,
@@ -53,7 +55,7 @@ extern enum IsStaticFlag extends uint32 { kNotStatic, kStatic }
 extern enum MaybeAssignedFlag extends uint32 { kNotAssigned, kMaybeAssigned }
 
 // Properties of scopes.
-bitfield struct ScopeFlags extends uint31 {
+bitfield struct ScopeFlags extends uint32 {
   scope_type: ScopeType: 4 bit;
   sloppy_eval_can_extend_vars: bool: 1 bit;
   language_mode: LanguageMode: 1 bit;
@@ -77,9 +79,9 @@ bitfield struct ScopeFlags extends uint31 {
   force_context_allocation: bool: 1 bit;
   private_name_lookup_skips_outer_class: bool: 1 bit;
   has_context_extension_slot: bool: 1 bit;
-  is_repl_mode_scope: bool: 1 bit;
-  has_locals_block_list: bool: 1 bit;
+  is_hidden: bool: 1 bit;
   is_empty: bool: 1 bit;
+  is_wrapped_function: bool: 1 bit;
 }
 
 struct PositionInfo {
@@ -111,7 +113,10 @@ const kMaxInlinedLocalNamesSize:
 
 @generateBodyDescriptor
 extern class ScopeInfo extends HeapObject {
-  const flags: SmiTagged<ScopeFlags>;
+  const flags: ScopeFlags;
+
+  @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
+  @ifnot(TAGGED_SIZE_8_BYTES) optional_padding: void;
 
   // The number of parameters. For non-function scopes this is 0.
   parameter_count: Smi;
@@ -119,6 +124,9 @@ extern class ScopeInfo extends HeapObject {
   // The number of non-parameter and parameter variables allocated in the
   // context.
   const context_local_count: Smi;
+
+  // Contains two slots with a) the startPosition and b) the endPosition.
+  position_info: PositionInfo;
 
   // This value must be before any object values, so that the GC can correctly
   // determine the size of a partially initialized object during
@@ -159,23 +167,7 @@ extern class ScopeInfo extends HeapObject {
 
   inferred_function_name?[flags.has_inferred_function_name]: String|Undefined;
 
-  // Contains two slots with a) the startPosition and b) the endPosition if
-  // the scope belongs to a function or script.
-  position_info?
-      [flags.scope_type == ScopeType::FUNCTION_SCOPE ||
-       flags.scope_type == ScopeType::SCRIPT_SCOPE ||
-       flags.scope_type == ScopeType::EVAL_SCOPE ||
-       flags.scope_type == ScopeType::MODULE_SCOPE ||
-       flags.scope_type == ScopeType::SHADOW_REALM_SCOPE ||
-       (flags.is_empty ? false : flags.scope_type == ScopeType::CLASS_SCOPE)]:
-          PositionInfo;
-
   outer_scope_info?[flags.has_outer_scope_info]: ScopeInfo|TheHole;
-
-  // List of stack allocated local variables. Used by debug evaluate to properly
-  // abort variable lookup when a name clashes with a stack allocated local that
-  // can't be materialized.
-  locals_block_list?[flags.has_locals_block_list]: HashTable;
 
   // For a module scope, this part contains the SourceTextModuleInfo and the
   // metadata of module-allocated variables. For non-module scopes it is empty.

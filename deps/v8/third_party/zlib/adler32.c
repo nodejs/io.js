@@ -58,7 +58,7 @@
 #endif
 
 #include "cpu_features.h"
-#if defined(ADLER32_SIMD_SSSE3) || defined(ADLER32_SIMD_NEON)
+#if defined(ADLER32_SIMD_SSSE3) || defined(ADLER32_SIMD_NEON) || defined(ADLER32_SIMD_RVV)
 #include "adler32_simd.h"
 #endif
 
@@ -66,12 +66,16 @@
 uLong ZEXPORT adler32_z(uLong adler, const Bytef *buf, z_size_t len) {
     unsigned long sum2;
     unsigned n;
-
+    /* TODO(cavalcantii): verify if this lengths are optimal for current CPUs. */
+#if defined(ADLER32_SIMD_SSSE3) || defined(ADLER32_SIMD_NEON) \
+    || defined(ADLER32_SIMD_RVV)
 #if defined(ADLER32_SIMD_SSSE3)
     if (buf != Z_NULL && len >= 64 && x86_cpu_enable_ssse3)
-        return adler32_simd_(adler, buf, len);
 #elif defined(ADLER32_SIMD_NEON)
     if (buf != Z_NULL && len >= 64)
+#elif defined(ADLER32_SIMD_RVV)
+    if (buf != Z_NULL && len >= 32 && riscv_cpu_enable_rvv)
+#endif
         return adler32_simd_(adler, buf, len);
 #endif
 
@@ -90,7 +94,8 @@ uLong ZEXPORT adler32_z(uLong adler, const Bytef *buf, z_size_t len) {
         return adler | (sum2 << 16);
     }
 
-#if defined(ADLER32_SIMD_SSSE3) || defined(ADLER32_SIMD_NEON)
+#if defined(ADLER32_SIMD_SSSE3) || defined(ADLER32_SIMD_NEON) \
+    || defined(RISCV_RVV)
     /*
      * Use SIMD to compute the adler32. Since this function can be
      * freely used, check CPU features here. zlib convention is to

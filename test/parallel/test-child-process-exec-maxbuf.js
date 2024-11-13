@@ -10,12 +10,26 @@ function runChecks(err, stdio, streamName, expected) {
   assert.deepStrictEqual(stdio[streamName], expected);
 }
 
+// The execPath might contain chars that should be escaped in a shell context.
+// On non-Windows, we can pass the path via the env; `"` is not a valid char on
+// Windows, so we can simply pass the path.
+const execNode = (args, optionsOrCallback, callback) => {
+  const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" `;
+  let options = optionsOrCallback;
+  if (typeof optionsOrCallback === 'function') {
+    options = undefined;
+    callback = optionsOrCallback;
+  }
+  return cp.exec(
+    cmd + args,
+    { ...opts, ...options },
+    callback,
+  );
+};
+
 // default value
 {
-  const cmd =
-    `"${process.execPath}" -e "console.log('a'.repeat(1024 * 1024))"`;
-
-  cp.exec(cmd, common.mustCall((err) => {
+  execNode(`-e "console.log('a'.repeat(1024 * 1024))"`, common.mustCall((err) => {
     assert(err instanceof RangeError);
     assert.strictEqual(err.message, 'stdout maxBuffer length exceeded');
     assert.strictEqual(err.code, 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER');
@@ -24,20 +38,16 @@ function runChecks(err, stdio, streamName, expected) {
 
 // default value
 {
-  const cmd =
-    `${process.execPath} -e "console.log('a'.repeat(1024 * 1024 - 1))"`;
-
-  cp.exec(cmd, common.mustSucceed((stdout, stderr) => {
+  execNode(`-e "console.log('a'.repeat(1024 * 1024 - 1))"`, common.mustSucceed((stdout, stderr) => {
     assert.strictEqual(stdout.trim(), 'a'.repeat(1024 * 1024 - 1));
     assert.strictEqual(stderr, '');
   }));
 }
 
 {
-  const cmd = `"${process.execPath}" -e "console.log('hello world');"`;
   const options = { maxBuffer: Infinity };
 
-  cp.exec(cmd, options, common.mustSucceed((stdout, stderr) => {
+  execNode(`-e "console.log('hello world');"`, options, common.mustSucceed((stdout, stderr) => {
     assert.strictEqual(stdout.trim(), 'hello world');
     assert.strictEqual(stderr, '');
   }));
@@ -57,11 +67,8 @@ function runChecks(err, stdio, streamName, expected) {
 
 // default value
 {
-  const cmd =
-    `"${process.execPath}" -e "console.log('a'.repeat(1024 * 1024))"`;
-
-  cp.exec(
-    cmd,
+  execNode(
+    `-e "console.log('a'.repeat(1024 * 1024))"`,
     common.mustCall((err, stdout, stderr) => {
       runChecks(
         err,
@@ -75,10 +82,7 @@ function runChecks(err, stdio, streamName, expected) {
 
 // default value
 {
-  const cmd =
-    `"${process.execPath}" -e "console.log('a'.repeat(1024 * 1024 - 1))"`;
-
-  cp.exec(cmd, common.mustSucceed((stdout, stderr) => {
+  execNode(`-e "console.log('a'.repeat(1024 * 1024 - 1))"`, common.mustSucceed((stdout, stderr) => {
     assert.strictEqual(stdout.trim(), 'a'.repeat(1024 * 1024 - 1));
     assert.strictEqual(stderr, '');
   }));
@@ -87,10 +91,8 @@ function runChecks(err, stdio, streamName, expected) {
 const unicode = '中文测试'; // length = 4, byte length = 12
 
 {
-  const cmd = `"${process.execPath}" -e "console.log('${unicode}');"`;
-
-  cp.exec(
-    cmd,
+  execNode(
+    `-e "console.log('${unicode}');"`,
     { maxBuffer: 10 },
     common.mustCall((err, stdout, stderr) => {
       runChecks(err, { stdout, stderr }, 'stdout', '中文测试\n');
@@ -99,10 +101,8 @@ const unicode = '中文测试'; // length = 4, byte length = 12
 }
 
 {
-  const cmd = `"${process.execPath}" -e "console.error('${unicode}');"`;
-
-  cp.exec(
-    cmd,
+  execNode(
+    `-e "console.error('${unicode}');"`,
     { maxBuffer: 3 },
     common.mustCall((err, stdout, stderr) => {
       runChecks(err, { stdout, stderr }, 'stderr', '中文测');
@@ -111,10 +111,8 @@ const unicode = '中文测试'; // length = 4, byte length = 12
 }
 
 {
-  const cmd = `"${process.execPath}" -e "console.log('${unicode}');"`;
-
-  const child = cp.exec(
-    cmd,
+  const child = execNode(
+    `-e "console.log('${unicode}');"`,
     { encoding: null, maxBuffer: 10 },
     common.mustCall((err, stdout, stderr) => {
       runChecks(err, { stdout, stderr }, 'stdout', '中文测试\n');
@@ -125,10 +123,8 @@ const unicode = '中文测试'; // length = 4, byte length = 12
 }
 
 {
-  const cmd = `"${process.execPath}" -e "console.error('${unicode}');"`;
-
-  const child = cp.exec(
-    cmd,
+  const child = execNode(
+    `-e "console.error('${unicode}');"`,
     { encoding: null, maxBuffer: 3 },
     common.mustCall((err, stdout, stderr) => {
       runChecks(err, { stdout, stderr }, 'stderr', '中文测');
@@ -139,10 +135,8 @@ const unicode = '中文测试'; // length = 4, byte length = 12
 }
 
 {
-  const cmd = `"${process.execPath}" -e "console.error('${unicode}');"`;
-
-  cp.exec(
-    cmd,
+  execNode(
+    `-e "console.error('${unicode}');"`,
     { encoding: null, maxBuffer: 5 },
     common.mustCall((err, stdout, stderr) => {
       const buf = Buffer.from(unicode).slice(0, 5);

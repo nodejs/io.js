@@ -101,9 +101,9 @@ UNINITIALIZED_TEST(StackUnwindingWin64) {
 
     UnwindingWin64Callbacks accessors;
     v8::Local<v8::External> data = v8::External::New(isolate, &accessors);
-    instance_template->SetAccessor(v8_str("foo"),
-                                   &UnwindingWin64Callbacks::Getter,
-                                   &UnwindingWin64Callbacks::Setter, data);
+    instance_template->SetNativeDataProperty(
+        v8_str("foo"), &UnwindingWin64Callbacks::Getter,
+        &UnwindingWin64Callbacks::Setter, data);
     v8::Local<v8::Function> func =
         func_template->GetFunction(env.local()).ToLocalChecked();
     v8::Local<v8::Object> instance =

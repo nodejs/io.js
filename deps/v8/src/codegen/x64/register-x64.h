@@ -228,6 +228,10 @@ class YMMRegister : public XMMRegister {
     return YMMRegister(code);
   }
 
+  static constexpr YMMRegister from_xmm(XMMRegister xmm) {
+    return YMMRegister(xmm.code());
+  }
+
  private:
   friend class XMMRegister;
   explicit constexpr YMMRegister(int code) : XMMRegister(code) {}

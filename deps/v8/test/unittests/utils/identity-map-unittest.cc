@@ -27,8 +27,8 @@ class IdentityMapTester {
   IdentityMapTester(Heap* heap, Zone* zone)
       : map(heap, ZoneAllocationPolicy(zone)) {}
 
-  void TestInsertFind(Handle<Object> key1, void* val1, Handle<Object> key2,
-                      void* val2) {
+  void TestInsertFind(DirectHandle<Object> key1, void* val1,
+                      DirectHandle<Object> key2, void* val2) {
     CHECK_NULL(map.Find(key1));
     CHECK_NULL(map.Find(key2));
 
@@ -78,8 +78,8 @@ class IdentityMapTester {
     }
   }
 
-  void TestFindDelete(Handle<Object> key1, void* val1, Handle<Object> key2,
-                      void* val2) {
+  void TestFindDelete(DirectHandle<Object> key1, void* val1,
+                      DirectHandle<Object> key2, void* val2) {
     CHECK_NULL(map.Find(key1));
     CHECK_NULL(map.Find(key2));
 
@@ -143,26 +143,27 @@ class IdentityMapTester {
     for (int i = 0; i < map.capacity_; i++) {
       Address key = map.keys_[i];
       if (!Internals::HasHeapObjectTag(key)) {
-        map.keys_[i] = Internals::IntToSmi(Internals::SmiValue(key) + shift);
+        map.keys_[i] =
+            Internals::IntegralToSmi(Internals::SmiValue(key) + shift);
       }
     }
     map.gc_counter_ = -1;
   }
 
-  void CheckFind(Handle<Object> key, void* value) {
+  void CheckFind(DirectHandle<Object> key, void* value) {
     void** entry = map.Find(key);
     CHECK_NOT_NULL(entry);
     CHECK_EQ(value, *entry);
   }
 
-  void CheckFindOrInsert(Handle<Object> key, void* value) {
+  void CheckFindOrInsert(DirectHandle<Object> key, void* value) {
     auto find_result = map.FindOrInsert(key);
     CHECK(find_result.already_exists);
     CHECK_NOT_NULL(find_result.entry);
     CHECK_EQ(value, *find_result.entry);
   }
 
-  void CheckDelete(Handle<Object> key, void* value) {
+  void CheckDelete(DirectHandle<Object> key, void* value) {
     void* entry;
     CHECK(map.Delete(key, &entry));
     CHECK_NOT_NULL(entry);

@@ -20,8 +20,8 @@
 #include "src/heap/main-allocator.h"
 #include "src/heap/memory-chunk-layout.h"
 #include "src/heap/memory-chunk-metadata.h"
-#include "src/heap/mutable-page.h"
-#include "src/heap/page.h"
+#include "src/heap/mutable-page-metadata.h"
+#include "src/heap/page-metadata.h"
 #include "src/heap/slot-set.h"
 #include "src/objects/objects.h"
 #include "src/utils/allocation.h"
@@ -116,6 +116,9 @@ class V8_EXPORT_PRIVATE Space : public BaseSpace {
   virtual PageMetadata* InitializePage(MutablePageMetadata* chunk) {
     UNREACHABLE();
   }
+
+  virtual void NotifyBlackAreaCreated(size_t size) {}
+  virtual void NotifyBlackAreaDestroyed(size_t size) {}
 
   FreeList* free_list() { return free_list_.get(); }
 

@@ -56,6 +56,9 @@ namespace debugging_internal {
 //
 // See the unit test for more examples.
 //
+// Demangle also recognizes Rust mangled names by delegating the parsing of
+// anything that starts with _R to DemangleRustSymbolEncoding (demangle_rust.h).
+//
 // Note: we might want to write demanglers for ABIs other than Itanium
 // C++ ABI in the future.
 bool Demangle(const char* mangled, char* out, size_t out_size);

@@ -210,7 +210,7 @@ class BaselineAssembler {
   inline void StaModuleVariable(Register context, Register value,
                                 int cell_index, uint32_t depth);
 
-  inline void AddSmi(Register lhs, Tagged<Smi> rhs);
+  inline void IncrementSmi(MemOperand lhs);
   inline void SmiUntag(Register value);
   inline void SmiUntag(Register output, Register value);
 

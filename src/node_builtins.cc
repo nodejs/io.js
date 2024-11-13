@@ -50,6 +50,13 @@ BuiltinLoader::BuiltinLoader()
   AddExternalizedBuiltin("internal/deps/undici/undici",
                          STRINGIFY(NODE_SHARED_BUILTIN_UNDICI_UNDICI_PATH));
 #endif  // NODE_SHARED_BUILTIN_UNDICI_UNDICI_PATH
+
+#if HAVE_AMARO
+#ifdef NODE_SHARED_BUILTIN_AMARO_DIST_INDEX_PATH
+  AddExternalizedBuiltin("internal/deps/amaro/dist/index",
+                         STRINGIFY(NODE_SHARED_BUILTIN_AMARO_DIST_INDEX_PATH));
+#endif  // NODE_SHARED_BUILTIN_AMARO_DIST_INDEX_PATH
+#endif  // HAVE_AMARO
 }
 
 bool BuiltinLoader::Exists(const char* id) {
@@ -125,6 +132,9 @@ BuiltinLoader::BuiltinCategories BuiltinLoader::GetBuiltinCategories() const {
         "internal/http2/core", "internal/http2/compat",
         "internal/streams/lazy_transform",
 #endif           // !HAVE_OPENSSL
+#if !NODE_OPENSSL_HAS_QUIC
+        "internal/quic/quic",
+#endif             // !NODE_OPENSSL_HAS_QUIC
         "sqlite",  // Experimental.
         "sys",     // Deprecated.
         "wasi",    // Experimental.
@@ -178,7 +188,7 @@ MaybeLocal<String> BuiltinLoader::LoadBuiltinSource(Isolate* isolate,
   auto source = source_.read();
 #ifndef NODE_BUILTIN_MODULES_PATH
   const auto source_it = source->find(id);
-  if (UNLIKELY(source_it == source->end())) {
+  if (source_it == source->end()) [[unlikely]] {
     fprintf(stderr, "Cannot find native builtin: \"%s\".\n", id);
     ABORT();
   }

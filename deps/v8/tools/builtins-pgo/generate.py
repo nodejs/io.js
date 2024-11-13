@@ -50,15 +50,6 @@ def run(cmd, **kwargs):
   return subprocess.run(cmd, **kwargs, check=True)
 
 
-def try_start_goma():
-  res = run(["goma_ctl", "ensure_start"])
-  print(res.returncode)
-  has_goma = res.returncode == 0
-  print("Detected Goma:", has_goma)
-  return has_goma
-
-
-
 def build_d8(path, gn_args):
   if not path.exists():
     path.mkdir(parents=True, exist_ok=True)
@@ -76,7 +67,6 @@ if not args.benchmark_path.is_file() or args.benchmark_path.suffix != ".js":
   print(f"Invalid benchmark argument: {args.benchmark_path}")
   exit(1)
 
-has_goma_str = "true" if try_start_goma() else "false"
 cmd_prefix = []
 if args.use_qemu:
   if args.v8_target_cpu == "arm":
@@ -92,7 +82,6 @@ is_debug = false
 is_clang = true
 target_cpu = "{args.target_cpu}"
 v8_target_cpu = "{args.v8_target_cpu}"
-use_goma = {has_goma_str}
 v8_enable_builtins_profiling = true
 """
 
@@ -102,7 +91,6 @@ is_clang = false
 use_custom_libcxx = false
 target_cpu = "{args.target_cpu}"
 v8_target_cpu = "{args.v8_target_cpu}"
-use_goma = false
 v8_enable_builtins_profiling = true
 """
 

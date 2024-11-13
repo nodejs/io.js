@@ -36,7 +36,7 @@
 
     # Reset this number to 0 on major V8 upgrades.
     # Increment by one for each non-official patch applied to deps/v8.
-    'v8_embedder_string': '-node.18',
+    'v8_embedder_string': '-node.11',
 
     ##### V8 defaults for Node.js #####
 
@@ -489,7 +489,12 @@
       }],
       [ 'OS in "linux freebsd openbsd solaris android aix os400 cloudabi"', {
         'cflags': [ '-Wall', '-Wextra', '-Wno-unused-parameter', ],
-        'cflags_cc': [ '-fno-rtti', '-fno-exceptions', '-std=gnu++20' ],
+        'cflags_cc': [
+          '-fno-rtti',
+          '-fno-exceptions',
+          '-fno-strict-aliasing',
+          '-std=gnu++20',
+        ],
         'defines': [ '__STDC_FORMAT_MACROS' ],
         'ldflags': [ '-rdynamic' ],
         'target_conditions': [
@@ -620,12 +625,10 @@
           'GCC_ENABLE_CPP_EXCEPTIONS': 'NO',        # -fno-exceptions
           'GCC_ENABLE_CPP_RTTI': 'NO',              # -fno-rtti
           'GCC_ENABLE_PASCAL_STRINGS': 'NO',        # No -mpascal-strings
+          'GCC_STRICT_ALIASING': 'NO',              # -fno-strict-aliasing
           'PREBINDING': 'NO',                       # No -Wl,-prebind
           'MACOSX_DEPLOYMENT_TARGET': '11.0',       # -mmacosx-version-min=11.0
           'USE_HEADERMAP': 'NO',
-          'OTHER_CFLAGS': [
-            '-fno-strict-aliasing',
-          ],
           'WARNING_CFLAGS': [
             '-Wall',
             '-Wendif-labels',

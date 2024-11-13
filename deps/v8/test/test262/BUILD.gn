@@ -14,6 +14,7 @@ group("v8_test262") {
     "data/",
     "detachArrayBuffer.js",
     "../../third_party/test262-harness/",
+    "harness-abstractmodulesource.js",
     "harness-adapt.js",
     "harness-adapt-donotevaluate.js",
     "harness-agent.js",

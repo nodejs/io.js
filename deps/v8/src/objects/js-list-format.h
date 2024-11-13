@@ -36,22 +36,22 @@ class JSListFormat
  public:
   // Creates relative time format object with properties derived from input
   // locales and options.
-  static MaybeHandle<JSListFormat> New(Isolate* isolate, Handle<Map> map,
+  static MaybeHandle<JSListFormat> New(Isolate* isolate, DirectHandle<Map> map,
                                        Handle<Object> locales,
                                        Handle<Object> options);
 
-  static Handle<JSObject> ResolvedOptions(Isolate* isolate,
-                                          Handle<JSListFormat> format_holder);
+  static Handle<JSObject> ResolvedOptions(
+      Isolate* isolate, DirectHandle<JSListFormat> format_holder);
 
   // ecma402 #sec-formatlist
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> FormatList(
-      Isolate* isolate, Handle<JSListFormat> format_holder,
-      Handle<FixedArray> list);
+      Isolate* isolate, DirectHandle<JSListFormat> format_holder,
+      DirectHandle<FixedArray> list);
 
   // ecma42 #sec-formatlisttoparts
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatListToParts(
-      Isolate* isolate, Handle<JSListFormat> format_holder,
-      Handle<FixedArray> list);
+      Isolate* isolate, DirectHandle<JSListFormat> format_holder,
+      DirectHandle<FixedArray> list);
 
   V8_EXPORT_PRIVATE static const std::set<std::string>& GetAvailableLocales();
 

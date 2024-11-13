@@ -20,7 +20,8 @@ enum class ReportStatisticsMode { kYes, kNo };
 // Parses the top-level source code represented by the parse info and sets its
 // function literal. Returns false (and deallocates any allocated AST nodes) if
 // parsing failed.
-V8_EXPORT_PRIVATE bool ParseProgram(ParseInfo* info, Handle<Script> script,
+V8_EXPORT_PRIVATE bool ParseProgram(ParseInfo* info,
+                                    DirectHandle<Script> script,
                                     Isolate* isolate,
                                     ReportStatisticsMode mode);
 
@@ -28,7 +29,8 @@ V8_EXPORT_PRIVATE bool ParseProgram(ParseInfo* info, Handle<Script> script,
 // function literal. Allows passing an |outer_scope| for programs that exist in
 // another scope (e.g. eval). Returns false (and deallocates any allocated AST
 // nodes) if parsing failed.
-V8_EXPORT_PRIVATE bool ParseProgram(ParseInfo* info, Handle<Script> script,
+V8_EXPORT_PRIVATE bool ParseProgram(ParseInfo* info,
+                                    DirectHandle<Script> script,
                                     MaybeHandle<ScopeInfo> outer_scope,
                                     Isolate* isolate,
                                     ReportStatisticsMode mode);

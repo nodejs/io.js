@@ -130,7 +130,7 @@ class IdentityMap : public IdentityMapBase {
   // as the identity, returning:
   //    found => a pointer to the storage location for the value, true
   //    not found => a pointer to a new storage location for the value, false
-  IdentityMapFindResult<V> FindOrInsert(Handle<Object> key) {
+  IdentityMapFindResult<V> FindOrInsert(DirectHandle<Object> key) {
     return FindOrInsert(*key);
   }
   IdentityMapFindResult<V> FindOrInsert(Tagged<Object> key) {
@@ -142,19 +142,19 @@ class IdentityMap : public IdentityMapBase {
   // as the identity, returning:
   //    found => a pointer to the storage location for the value
   //    not found => {nullptr}
-  V* Find(Handle<Object> key) const { return Find(*key); }
+  V* Find(DirectHandle<Object> key) const { return Find(*key); }
   V* Find(Tagged<Object> key) const {
     return reinterpret_cast<V*>(FindEntry(key.ptr()));
   }
 
   // Insert the value for the given key. The key must not have previously
   // existed.
-  void Insert(Handle<Object> key, V v) { Insert(*key, v); }
+  void Insert(DirectHandle<Object> key, V v) { Insert(*key, v); }
   void Insert(Tagged<Object> key, V v) {
     *reinterpret_cast<V*>(InsertEntry(key.ptr())) = v;
   }
 
-  bool Delete(Handle<Object> key, V* deleted_value) {
+  bool Delete(DirectHandle<Object> key, V* deleted_value) {
     return Delete(*key, deleted_value);
   }
   bool Delete(Tagged<Object> key, V* deleted_value) {

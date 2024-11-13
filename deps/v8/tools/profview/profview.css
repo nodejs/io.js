@@ -116,3 +116,9 @@ div.active-mode-button {
 div.active-mode-button:hover {
   background-color: #0000ff;
 }
+
+#timeline-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, 11em);
+  gap: 0.2em 1em;
+}

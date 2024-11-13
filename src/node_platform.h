@@ -3,10 +3,10 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
+#include <functional>
 #include <queue>
 #include <unordered_map>
 #include <vector>
-#include <functional>
 
 #include "libplatform/libplatform.h"
 #include "node.h"
@@ -50,27 +50,20 @@ struct DelayedTask {
 };
 
 // This acts as the foreground task runner for a given Isolate.
-class PerIsolatePlatformData :
-    public IsolatePlatformDelegate,
-    public v8::TaskRunner,
-    public std::enable_shared_from_this<PerIsolatePlatformData> {
+class PerIsolatePlatformData
+    : public IsolatePlatformDelegate,
+      public v8::TaskRunner,
+      public std::enable_shared_from_this<PerIsolatePlatformData> {
  public:
   PerIsolatePlatformData(v8::Isolate* isolate, uv_loop_t* loop);
   ~PerIsolatePlatformData() override;
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner() override;
-  void PostTask(std::unique_ptr<v8::Task> task) override;
-  void PostIdleTask(std::unique_ptr<v8::IdleTask> task) override;
-  void PostDelayedTask(std::unique_ptr<v8::Task> task,
-                       double delay_in_seconds) override;
   bool IdleTasksEnabled() override { return false; }
 
   // Non-nestable tasks are treated like regular tasks.
   bool NonNestableTasksEnabled() const override { return true; }
   bool NonNestableDelayedTasksEnabled() const override { return true; }
-  void PostNonNestableTask(std::unique_ptr<v8::Task> task) override;
-  void PostNonNestableDelayedTask(std::unique_ptr<v8::Task> task,
-                                  double delay_in_seconds) override;
 
   void AddShutdownCallback(void (*callback)(void*), void* data);
   void Shutdown();
@@ -83,6 +76,21 @@ class PerIsolatePlatformData :
   const uv_loop_t* event_loop() const { return loop_; }
 
  private:
+  // v8::TaskRunner implementation.
+  void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                    const v8::SourceLocation& location) override;
+  void PostDelayedTaskImpl(std::unique_ptr<v8::Task> task,
+                           double delay_in_seconds,
+                           const v8::SourceLocation& location) override;
+  void PostIdleTaskImpl(std::unique_ptr<v8::IdleTask> task,
+                        const v8::SourceLocation& location) override;
+  void PostNonNestableTaskImpl(std::unique_ptr<v8::Task> task,
+                               const v8::SourceLocation& location) override;
+  void PostNonNestableDelayedTaskImpl(
+      std::unique_ptr<v8::Task> task,
+      double delay_in_seconds,
+      const v8::SourceLocation& location) override;
+
   void DeleteFromScheduledTasks(DelayedTask* task);
   void DecreaseHandleCount();
 
@@ -107,7 +115,7 @@ class PerIsolatePlatformData :
   TaskQueue<DelayedTask> foreground_delayed_tasks_;
 
   // Use a custom deleter because libuv needs to close the handle first.
-  typedef std::unique_ptr<DelayedTask, void(*)(DelayedTask*)>
+  typedef std::unique_ptr<DelayedTask, void (*)(DelayedTask*)>
       DelayedTaskPointer;
   std::vector<DelayedTaskPointer> scheduled_delayed_tasks_;
 };
@@ -118,8 +126,7 @@ class WorkerThreadsTaskRunner {
   explicit WorkerThreadsTaskRunner(int thread_pool_size);
 
   void PostTask(std::unique_ptr<v8::Task> task);
-  void PostDelayedTask(std::unique_ptr<v8::Task> task,
-                       double delay_in_seconds);
+  void PostDelayedTask(std::unique_ptr<v8::Task> task, double delay_in_seconds);
 
   void BlockingDrain();
   void Shutdown();
@@ -171,7 +178,8 @@ class NodePlatform : public MultiIsolatePlatform {
 
   void UnregisterIsolate(v8::Isolate* isolate) override;
   void AddIsolateFinishedCallback(v8::Isolate* isolate,
-                                  void (*callback)(void*), void* data) override;
+                                  void (*callback)(void*),
+                                  void* data) override;
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
       v8::Isolate* isolate) override;
@@ -184,8 +192,8 @@ class NodePlatform : public MultiIsolatePlatform {
   std::shared_ptr<PerIsolatePlatformData> ForNodeIsolate(v8::Isolate* isolate);
 
   Mutex per_isolate_mutex_;
-  using DelegatePair = std::pair<
-    IsolatePlatformDelegate*, std::shared_ptr<PerIsolatePlatformData>>;
+  using DelegatePair = std::pair<IsolatePlatformDelegate*,
+                                 std::shared_ptr<PerIsolatePlatformData>>;
   std::unordered_map<v8::Isolate*, DelegatePair> per_isolate_;
 
   v8::TracingController* tracing_controller_;

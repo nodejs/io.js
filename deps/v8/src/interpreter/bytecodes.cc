@@ -72,6 +72,25 @@ const OperandSize* const Bytecodes::kOperandSizes[3][kBytecodeCount] = {
   }
 };
 
+const int* const Bytecodes::kOperandOffsets[3][kBytecodeCount] = {
+  {
+#define ENTRY(Name, ...)  \
+    BytecodeTraits<__VA_ARGS__>::kSingleScaleOperandOffsets.data(),
+  BYTECODE_LIST(ENTRY)
+#undef ENTRY
+  }, {
+#define ENTRY(Name, ...)  \
+    BytecodeTraits<__VA_ARGS__>::kDoubleScaleOperandOffsets.data(),
+  BYTECODE_LIST(ENTRY)
+#undef ENTRY
+  }, {
+#define ENTRY(Name, ...)  \
+    BytecodeTraits<__VA_ARGS__>::kQuadrupleScaleOperandOffsets.data(),
+  BYTECODE_LIST(ENTRY)
+#undef ENTRY
+  }
+};
+
 const OperandSize
 Bytecodes::kOperandKindSizes[3][BytecodeOperands::kOperandTypeCount] = {
   {
@@ -145,37 +164,6 @@ Bytecode Bytecodes::GetDebugBreak(Bytecode bytecode) {
 }
 
 // static
-int Bytecodes::GetOperandOffset(Bytecode bytecode, int i,
-                                OperandScale operand_scale) {
-  DCHECK_LT(i, Bytecodes::NumberOfOperands(bytecode));
-  // TODO(oth): restore this to a statically determined constant.
-  int offset = 1;
-  for (int operand_index = 0; operand_index < i; ++operand_index) {
-    OperandSize operand_size =
-        GetOperandSize(bytecode, operand_index, operand_scale);
-    offset += static_cast<int>(operand_size);
-  }
-  return offset;
-}
-
-// static
-Bytecode Bytecodes::GetJumpWithoutToBoolean(Bytecode bytecode) {
-  switch (bytecode) {
-    case Bytecode::kJumpIfToBooleanTrue:
-      return Bytecode::kJumpIfTrue;
-    case Bytecode::kJumpIfToBooleanFalse:
-      return Bytecode::kJumpIfFalse;
-    case Bytecode::kJumpIfToBooleanTrueConstant:
-      return Bytecode::kJumpIfTrueConstant;
-    case Bytecode::kJumpIfToBooleanFalseConstant:
-      return Bytecode::kJumpIfFalseConstant;
-    default:
-      break;
-  }
-  UNREACHABLE();
-}
-
-// static
 bool Bytecodes::IsDebugBreak(Bytecode bytecode) {
   switch (bytecode) {
 #define CASE(Name, ...) case Bytecode::k##Name:
@@ -237,6 +225,7 @@ bool Bytecodes::IsRegisterInputOperandType(OperandType operand_type) {
   case OperandType::k##Name: \
     return true;
     REGISTER_INPUT_OPERAND_TYPE_LIST(CASE)
+    CASE(RegInOut, _)
 #undef CASE
 #define CASE(Name, _)        \
   case OperandType::k##Name: \
@@ -255,6 +244,7 @@ bool Bytecodes::IsRegisterOutputOperandType(OperandType operand_type) {
   case OperandType::k##Name: \
     return true;
     REGISTER_OUTPUT_OPERAND_TYPE_LIST(CASE)
+    CASE(RegInOut, _)
 #undef CASE
 #define CASE(Name, _)        \
   case OperandType::k##Name: \

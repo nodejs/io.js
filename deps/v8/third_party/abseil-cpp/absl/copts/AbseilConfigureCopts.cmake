@@ -3,7 +3,7 @@ include(GENERATED_AbseilCopts)
 
 set(ABSL_DEFAULT_LINKOPTS "")
 
-if (BUILD_SHARED_LIBS AND MSVC)
+if (BUILD_SHARED_LIBS AND (MSVC OR ABSL_BUILD_MONOLITHIC_SHARED_LIBS))
   set(ABSL_BUILD_DLL TRUE)
   set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 else()
@@ -42,7 +42,7 @@ if(APPLE AND CMAKE_CXX_COMPILER_ID MATCHES [[Clang]])
     string(TOUPPER "${_arch}" _arch_uppercase)
     string(REPLACE "X86_64" "X64" _arch_uppercase ${_arch_uppercase})
     foreach(_flag IN LISTS ABSL_RANDOM_HWAES_${_arch_uppercase}_FLAGS)
-      list(APPEND ABSL_RANDOM_RANDEN_COPTS "-Xarch_${_arch}" "${_flag}")
+      list(APPEND ABSL_RANDOM_RANDEN_COPTS "SHELL:-Xarch_${_arch} ${_flag}")
     endforeach()
   endforeach()
   # If a compiler happens to deal with an argument for a currently unused

@@ -142,7 +142,6 @@ TEST_F(DisasmRiscvTest, Arith) {
 TEST_F(DisasmRiscvTest, RVB) {
   SET_UP();
 
-#ifdef CAN_USE_ZBS_INSTRUCTIONS
   COMPARE(sh1add(s6, t1, t5), "21e32b33       sh1add    s6, t1, t5");
   COMPARE(sh2add(s7, t1, t2), "20734bb3       sh2add    s7, t1, t2");
   COMPARE(sh3add(s4, t1, t3), "21c36a33       sh3add    s4, t1, t3");
@@ -155,9 +154,7 @@ TEST_F(DisasmRiscvTest, RVB) {
   COMPARE(sh3adduw(s4, t1, t3), "21c36a3b       sh3add.uw s4, t1, t3");
   COMPARE(slliuw(s6, t1, 10), "08a31b1b       slli.uw   s6, t1, 10");
 #endif
-#endif
 
-#ifdef CAN_USE_ZBB_INSTRUCTIONS
   COMPARE(andn(a0, s3, s4), "4149f533       andn      a0, s3, s4");
   COMPARE(orn(a0, s3, s4), "4149e533       orn       a0, s3, s4");
   COMPARE(xnor(a0, s3, s4), "4149c533       xnor      a0, s3, s4");
@@ -182,9 +179,19 @@ TEST_F(DisasmRiscvTest, RVB) {
   COMPARE(zexth(a0, s2), "08094533       zext.h    a0, s2");
   COMPARE(rev8(a0, s2), "69895513       rev8      a0, s2");
 #endif
+
+  COMPARE(rol(a0, s3, s4), "61499533       rol       a0, s3, s4");
+  COMPARE(ror(a0, s3, s4), "6149d533       ror       a0, s3, s4");
+  COMPARE(orcb(a0, s3), "2879d513       orc.b     a0, s3");
+#ifdef V8_TARGET_ARCH_RISCV64
+  COMPARE(rori(a0, s3, 63), "63f9d513       rori      a0, s3, 63");
+  COMPARE(roriw(a0, s3, 31), "61f9d51b       roriw     a0, s3, 31");
+  COMPARE(rolw(a0, s3, s4), "6149953b       rolw     a0, s3, s4");
+  COMPARE(rorw(a0, s3, s4), "6149d53b       rorw     a0, s3, s4");
+#else
+  COMPARE(rori(a0, s3, 31), "61f9d513       rori      a0, s3, 31");
 #endif
 
-#ifdef CAN_USE_ZBS_INSTRUCTIONS
   COMPARE(bclr(a0, s2, s1), "48991533       bclr      a0, s2, s1");
   COMPARE(bclri(a0, s1, 3), "48349513       bclri     a0, s1, 3");
   COMPARE(bext(a0, s2, s1), "48995533       bext      a0, s2, s1");
@@ -193,7 +200,6 @@ TEST_F(DisasmRiscvTest, RVB) {
   COMPARE(binvi(a0, s1, 3), "68349513       binvi     a0, s1, 3");
   COMPARE(bset(a0, s2, s1), "28991533       bset      a0, s2, s1");
   COMPARE(bseti(a0, s1, 3), "28349513       bseti     a0, s1, 3");
-#endif
   VERIFY_RUN();
 }
 
@@ -265,6 +271,16 @@ TEST_F(DisasmRiscvTest, CSR) {
 
   VERIFY_RUN();
 }
+
+TEST_F(DisasmRiscvTest, ZICOND) {
+  SET_UP();
+
+  COMPARE(czero_eqz(a0, s1, t3), "0fc4d533       czero.eqz a0, s1, t3");
+  COMPARE(czero_nez(s3, a1, t1), "0e65f9b3       czero.nez s3, a1, t1");
+
+  VERIFY_RUN();
+}
+
 #ifdef V8_TARGET_ARCH_RISCV64
 TEST_F(DisasmRiscvTest, RV64I) {
   SET_UP();

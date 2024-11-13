@@ -10,16 +10,30 @@
 #include <type_traits>
 
 #include "src/base/utils/random-number-generator.h"
+#include "src/common/globals.h"
 #include "src/compiler/backend/instruction-selector.h"
+#include "src/compiler/globals.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/index.h"
+#include "src/compiler/turboshaft/instruction-selection-normalization-reducer.h"
+#include "src/compiler/turboshaft/load-store-simplification-reducer.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/representations.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8::internal::compiler::turboshaft {
 
+#if V8_ENABLE_WEBASSEMBLY
+#define SIMD_BINOP_LIST(V)          \
+  FOREACH_SIMD_128_BINARY_OPCODE(V) \
+  FOREACH_SIMD_128_SHIFT_OPCODE(V)
+#else
+#define SIMD_BINOP_LIST(V)
+#endif  // V8_ENABLE_WEBASSEMBLY
+
 #define BINOP_LIST(V)           \
+  SIMD_BINOP_LIST(V)            \
   V(Word32BitwiseAnd)           \
   V(Word64BitwiseAnd)           \
   V(Word32BitwiseOr)            \
@@ -32,10 +46,14 @@ namespace v8::internal::compiler::turboshaft {
   V(Word64Sub)                  \
   V(Word32Mul)                  \
   V(Word64Mul)                  \
+  V(Int32MulOverflownBits)      \
+  V(Int64MulOverflownBits)      \
   V(Int32Div)                   \
   V(Int64Div)                   \
   V(Int32Mod)                   \
   V(Int64Mod)                   \
+  V(Uint32MulOverflownBits)     \
+  V(Uint64MulOverflownBits)     \
   V(Uint32Div)                  \
   V(Uint64Div)                  \
   V(Uint32Mod)                  \
@@ -53,10 +71,35 @@ namespace v8::internal::compiler::turboshaft {
   V(Int32SubCheckOverflow)      \
   V(Int64SubCheckOverflow)      \
   V(Word32Equal)                \
+  V(Word64Equal)                \
+  V(Word32NotEqual)             \
+  V(Word64NotEqual)             \
   V(Int32LessThan)              \
   V(Int32LessThanOrEqual)       \
   V(Uint32LessThan)             \
-  V(Uint32LessThanOrEqual)
+  V(Uint32LessThanOrEqual)      \
+  V(Int32GreaterThanOrEqual)    \
+  V(Int32GreaterThan)           \
+  V(Uint32GreaterThanOrEqual)   \
+  V(Uint32GreaterThan)          \
+  V(Int64LessThan)              \
+  V(Int64LessThanOrEqual)       \
+  V(Uint64LessThan)             \
+  V(Uint64LessThanOrEqual)      \
+  V(Int64GreaterThanOrEqual)    \
+  V(Int64GreaterThan)           \
+  V(Uint64GreaterThanOrEqual)   \
+  V(Uint64GreaterThan)          \
+  V(Float64Add)                 \
+  V(Float64Sub)                 \
+  V(Float64Mul)                 \
+  V(Float64Div)                 \
+  V(Float64Equal)               \
+  V(Float64LessThan)            \
+  V(Float64LessThanOrEqual)     \
+  V(Float32Equal)               \
+  V(Float32LessThan)            \
+  V(Float32LessThanOrEqual)
 
 #define UNOP_LIST(V)          \
   V(ChangeFloat32ToFloat64)   \
@@ -78,18 +121,23 @@ enum class TSUnop { UNOP_LIST(DECL) };
 
 class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
  public:
+  using BaseAssembler = TSAssembler<LoadStoreSimplificationReducer,
+                                    InstructionSelectionNormalizationReducer>;
+
   TurboshaftInstructionSelectorTest();
   ~TurboshaftInstructionSelectorTest() override;
 
+  ZoneStats zone_stats_{this->zone()->allocator()};
+
   void SetUp() override {
-    pipeline_data_.emplace(TurboshaftPipelineKind::kJS, info_, schedule_,
-                           graph_zone_, this->zone(), broker_, isolate_,
-                           source_positions_, node_origins_, sequence_, frame_,
-                           assembler_options_, &max_unoptimized_frame_height_,
-                           &max_pushed_argument_count_, instruction_zone_);
+    pipeline_data_ = std::make_unique<PipelineData>(
+        &zone_stats_, TurboshaftPipelineKind::kJS, isolate_, nullptr,
+        AssemblerOptions::Default(isolate_));
+    pipeline_data_->InitializeGraphComponent(nullptr);
   }
   void TearDown() override { pipeline_data_.reset(); }
 
+  PipelineData* data() { return pipeline_data_.get(); }
   base::RandomNumberGenerator* rng() { return &rng_; }
 
   class Stream;
@@ -100,13 +148,12 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
     kAllExceptNopInstructions
   };
 
-  class StreamBuilder final : public TSAssembler<> {
-    using Assembler = TSAssembler<>;
-
+  class StreamBuilder final : public BaseAssembler {
    public:
     StreamBuilder(TurboshaftInstructionSelectorTest* test,
                   MachineType return_type)
-        : Assembler(test->graph(), test->graph(), test->zone()),
+        : BaseAssembler(test->data(), test->graph(), test->graph(),
+                        test->zone()),
           test_(test),
           call_descriptor_(MakeCallDescriptor(test->zone(), return_type)) {
       Init();
@@ -114,7 +161,8 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
 
     StreamBuilder(TurboshaftInstructionSelectorTest* test,
                   MachineType return_type, MachineType parameter0_type)
-        : Assembler(test->graph(), test->graph(), test->zone()),
+        : BaseAssembler(test->data(), test->graph(), test->graph(),
+                        test->zone()),
           test_(test),
           call_descriptor_(
               MakeCallDescriptor(test->zone(), return_type, parameter0_type)) {
@@ -124,7 +172,8 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
     StreamBuilder(TurboshaftInstructionSelectorTest* test,
                   MachineType return_type, MachineType parameter0_type,
                   MachineType parameter1_type)
-        : Assembler(test->graph(), test->graph(), test->zone()),
+        : BaseAssembler(test->data(), test->graph(), test->graph(),
+                        test->zone()),
           test_(test),
           call_descriptor_(MakeCallDescriptor(
               test->zone(), return_type, parameter0_type, parameter1_type)) {
@@ -134,7 +183,8 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
     StreamBuilder(TurboshaftInstructionSelectorTest* test,
                   MachineType return_type, MachineType parameter0_type,
                   MachineType parameter1_type, MachineType parameter2_type)
-        : Assembler(test->graph(), test->graph(), test->zone()),
+        : BaseAssembler(test->data(), test->graph(), test->graph(),
+                        test->zone()),
           test_(test),
           call_descriptor_(MakeCallDescriptor(test->zone(), return_type,
                                               parameter0_type, parameter1_type,
@@ -156,8 +206,8 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
                  InstructionSelector::SourcePositionMode source_position_mode =
                      InstructionSelector::kAllSourcePositions);
 
-    const FrameStateFunctionInfo* GetFrameStateFunctionInfo(int parameter_count,
-                                                            int local_count);
+    const FrameStateFunctionInfo* GetFrameStateFunctionInfo(
+        uint16_t parameter_count, int local_count);
 
     // Create a simple call descriptor for testing.
     static CallDescriptor* MakeSimpleCallDescriptor(Zone* zone,
@@ -206,6 +256,13 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
           "iselect-test-call");
     }
 
+    static const TSCallDescriptor* MakeSimpleTSCallDescriptor(
+        Zone* zone, MachineSignature* msig) {
+      return TSCallDescriptor::Create(MakeSimpleCallDescriptor(zone, msig),
+                                      CanThrow::kYes, LazyDeoptOnThrow::kNo,
+                                      zone);
+    }
+
     CallDescriptor* call_descriptor() { return call_descriptor_; }
 
     OpIndex Emit(TSUnop op, OpIndex input) {
@@ -228,14 +285,65 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
       }
     }
 
+    template <typename T>
+    V<T> Emit(TSBinop op, OpIndex left, OpIndex right) {
+      OpIndex result = Emit(op, left, right);
+      DCHECK_EQ(Get(result).outputs_rep().size(), 1);
+      DCHECK_EQ(Get(result).outputs_rep()[0], v_traits<T>::rep);
+      return V<T>::Cast(result);
+    }
+
     // Some helpers to have the same interface as the Turbofan instruction
     // selector test had.
     V<Word32> Int32Constant(int32_t c) { return Word32Constant(c); }
     V<Word64> Int64Constant(int64_t c) { return Word64Constant(c); }
-    using Assembler::Parameter;
+    V<Word32> Word32BinaryNot(V<Word32> a) { return Word32Equal(a, 0); }
+    V<Word32> Word32BitwiseNot(V<Word32> a) { return Word32BitwiseXor(a, -1); }
+    V<Word64> Word64BitwiseNot(V<Word64> a) { return Word64BitwiseXor(a, -1); }
+    V<Word32> Word32NotEqual(V<Word32> a, V<Word32> b) {
+      return Word32BinaryNot(Word32Equal(a, b));
+    }
+    V<Word32> Word64NotEqual(V<Word64> a, V<Word64> b) {
+      return Word32BinaryNot(Word64Equal(a, b));
+    }
+    V<Word32> Int32GreaterThanOrEqual(V<Word32> a, V<Word32> b) {
+      return Int32LessThanOrEqual(b, a);
+    }
+    V<Word32> Uint32GreaterThanOrEqual(V<Word32> a, V<Word32> b) {
+      return Uint32LessThanOrEqual(b, a);
+    }
+    V<Word32> Int32GreaterThan(V<Word32> a, V<Word32> b) {
+      return Int32LessThan(b, a);
+    }
+    V<Word32> Uint32GreaterThan(V<Word32> a, V<Word32> b) {
+      return Uint32LessThan(b, a);
+    }
+    V<Word32> Int64GreaterThanOrEqual(V<Word64> a, V<Word64> b) {
+      return Int64LessThanOrEqual(b, a);
+    }
+    V<Word32> Uint64GreaterThanOrEqual(V<Word64> a, V<Word64> b) {
+      return Uint64LessThanOrEqual(b, a);
+    }
+    V<Word32> Int64GreaterThan(V<Word64> a, V<Word64> b) {
+      return Int64LessThan(b, a);
+    }
+    V<Word32> Uint64GreaterThan(V<Word64> a, V<Word64> b) {
+      return Uint64LessThan(b, a);
+    }
     OpIndex Parameter(int index) {
-      return Parameter(index, RegisterRepresentation::FromMachineType(
-                                  call_descriptor()->GetParameterType(index)));
+      return Assembler::Parameter(
+          index, RegisterRepresentation::FromMachineType(
+                     call_descriptor()->GetParameterType(index)));
+    }
+    OpIndex Parameter(int index, RegisterRepresentation rep) {
+      return Assembler::Parameter(index, rep);
+    }
+    template <typename T>
+    V<T> Parameter(int index) {
+      RegisterRepresentation rep = RegisterRepresentation::FromMachineType(
+          call_descriptor()->GetParameterType(index));
+      DCHECK_EQ(rep, v_traits<T>::rep);
+      return Assembler::Parameter(index, rep);
     }
     using Assembler::Phi;
     template <typename... Args,
@@ -252,6 +360,24 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
       return Load(base, index, LoadOp::Kind::RawAligned(), mem_rep,
                   mem_rep.ToRegisterRepresentation());
     }
+    OpIndex Load(MachineType type, OpIndex base) {
+      MemoryRepresentation mem_rep =
+          MemoryRepresentation::FromMachineType(type);
+      return Load(base, LoadOp::Kind::RawAligned(), mem_rep);
+    }
+    OpIndex LoadImmutable(MachineType type, OpIndex base, OpIndex index) {
+      MemoryRepresentation mem_rep =
+          MemoryRepresentation::FromMachineType(type);
+      return Load(base, index, LoadOp::Kind::RawAligned().Immutable(), mem_rep);
+    }
+    using Assembler::Store;
+    void Store(MachineRepresentation rep, OpIndex base, OpIndex index,
+               OpIndex value, WriteBarrierKind write_barrier) {
+      MemoryRepresentation mem_rep =
+          MemoryRepresentation::FromMachineRepresentation(rep);
+      Store(base, index, value, StoreOp::Kind::RawAligned(), mem_rep,
+            write_barrier);
+    }
     using Assembler::Projection;
     OpIndex Projection(OpIndex input, int index) {
       const Operation& input_op = output_graph().Get(input);
@@ -262,6 +388,68 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
       DCHECK_LT(index, input_op.outputs_rep().size());
       return Projection(input, index, input_op.outputs_rep()[index]);
     }
+    V<Undefined> UndefinedConstant() {
+      return HeapConstant(test_->isolate_->factory()->undefined_value());
+    }
+
+#ifdef V8_ENABLE_WEBASSEMBLY
+
+#define DECL_SPLAT(Name)                                       \
+  V<Simd128> Name##Splat(OpIndex input) {                      \
+    return Simd128Splat(input, Simd128SplatOp::Kind::k##Name); \
+  }
+    FOREACH_SIMD_128_SPLAT_OPCODE(DECL_SPLAT)
+#undef DECL_SPLAT
+
+#define DECL_SIMD128_BINOP(Name)                                     \
+  V<Simd128> Name(V<Simd128> left, V<Simd128> right) {               \
+    return Simd128Binop(left, right, Simd128BinopOp::Kind::k##Name); \
+  }
+    FOREACH_SIMD_128_BINARY_OPCODE(DECL_SIMD128_BINOP)
+#undef DECL_SIMD128_BINOP
+
+#define DECL_SIMD128_UNOP(Name)                                \
+  V<Simd128> Name(V<Simd128> input) {                          \
+    return Simd128Unary(input, Simd128UnaryOp::Kind::k##Name); \
+  }
+    FOREACH_SIMD_128_UNARY_OPCODE(DECL_SIMD128_UNOP)
+#undef DECL_SIMD128_UNOP
+
+#define DECL_SIMD128_EXTRACT_LANE(Name, Suffix, Type)                 \
+  V<Type> Name##Suffix##ExtractLane(V<Simd128> input, uint8_t lane) { \
+    return V<Type>::Cast(Simd128ExtractLane(                          \
+        input, Simd128ExtractLaneOp::Kind::k##Name##Suffix, lane));   \
+  }
+    DECL_SIMD128_EXTRACT_LANE(I8x16, S, Word32)
+    DECL_SIMD128_EXTRACT_LANE(I8x16, U, Word32)
+    DECL_SIMD128_EXTRACT_LANE(I16x8, S, Word32)
+    DECL_SIMD128_EXTRACT_LANE(I16x8, U, Word32)
+    DECL_SIMD128_EXTRACT_LANE(I32x4, , Word32)
+    DECL_SIMD128_EXTRACT_LANE(I64x2, , Word64)
+    DECL_SIMD128_EXTRACT_LANE(F32x4, , Float32)
+    DECL_SIMD128_EXTRACT_LANE(F64x2, , Float64)
+#undef DECL_SIMD128_EXTRACT_LANE
+
+#define DECL_SIMD128_REDUCE(Name)                                           \
+  V<Simd128> Name##AddReduce(V<Simd128> input) {                            \
+    return Simd128Reduce(input, Simd128ReduceOp::Kind::k##Name##AddReduce); \
+  }
+    DECL_SIMD128_REDUCE(I8x16)
+    DECL_SIMD128_REDUCE(I16x8)
+    DECL_SIMD128_REDUCE(I32x4)
+    DECL_SIMD128_REDUCE(I64x2)
+    DECL_SIMD128_REDUCE(F32x4)
+    DECL_SIMD128_REDUCE(F64x2)
+#undef DECL_SIMD128_REDUCE
+
+#define DECL_SIMD128_SHIFT(Name)                                      \
+  V<Simd128> Name(V<Simd128> input, V<Word32> shift) {                \
+    return Simd128Shift(input, shift, Simd128ShiftOp::Kind::k##Name); \
+  }
+    FOREACH_SIMD_128_SHIFT_OPCODE(DECL_SIMD128_SHIFT)
+#undef DECL_SIMD128_SHIFT
+
+#endif  // V8_ENABLE_WEBASSEMBLY
 
    private:
     template <typename... ParamT>
@@ -409,25 +597,11 @@ class TurboshaftInstructionSelectorTest : public TestWithNativeContextAndZone {
 
   base::RandomNumberGenerator rng_;
 
-  Graph& graph() { return PipelineData::Get().graph(); }
+  Graph& graph() { return pipeline_data_->graph(); }
 
-  // We use some dummy data to initialize the PipelineData::Scope.
-  // TODO(nicohartmann@): Clean this up once PipelineData is reorganized.
-  OptimizedCompilationInfo* info_ = nullptr;
-  Schedule* schedule_ = nullptr;
-  Zone* graph_zone_ = this->zone();
-  JSHeapBroker* broker_ = nullptr;
   Isolate* isolate_ = this->isolate();
-  SourcePositionTable* source_positions_ = nullptr;
-  NodeOriginTable* node_origins_ = nullptr;
-  InstructionSequence* sequence_ = nullptr;
-  Frame* frame_ = nullptr;
-  AssemblerOptions assembler_options_;
-  size_t max_unoptimized_frame_height_ = 0;
-  size_t max_pushed_argument_count_ = 0;
-  Zone* instruction_zone_ = this->zone();
 
-  base::Optional<turboshaft::PipelineData::Scope> pipeline_data_;
+  std::unique_ptr<turboshaft::PipelineData> pipeline_data_;
 };
 
 template <typename T>

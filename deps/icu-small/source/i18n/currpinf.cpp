@@ -185,12 +185,12 @@ UnicodeString&
 CurrencyPluralInfo::getCurrencyPluralPattern(const UnicodeString&  pluralCount,
                                              UnicodeString& result) const {
     const UnicodeString* currencyPluralPattern = 
-        (UnicodeString*)fPluralCountToCurrencyUnitPattern->get(pluralCount);
+        static_cast<UnicodeString*>(fPluralCountToCurrencyUnitPattern->get(pluralCount));
     if (currencyPluralPattern == nullptr) {
         // fall back to "other"
         if (pluralCount.compare(gPluralCountOther, 5)) {
             currencyPluralPattern = 
-                (UnicodeString*)fPluralCountToCurrencyUnitPattern->get(UnicodeString(true, gPluralCountOther, 5));
+                static_cast<UnicodeString*>(fPluralCountToCurrencyUnitPattern->get(UnicodeString(true, gPluralCountOther, 5)));
         }
         if (currencyPluralPattern == nullptr) {
             // no currencyUnitPatterns defined, 
@@ -388,7 +388,7 @@ CurrencyPluralInfo::deleteHash(Hashtable* hTable) {
     const UHashElement* element = nullptr;
     while ( (element = hTable->nextElement(pos)) != nullptr ) {
         const UHashTok valueTok = element->value;
-        const UnicodeString* value = (UnicodeString*)valueTok.pointer;
+        const UnicodeString* value = static_cast<UnicodeString*>(valueTok.pointer);
         delete value;
     }
     delete hTable;
@@ -420,9 +420,9 @@ CurrencyPluralInfo::copyHash(const Hashtable* source,
     if (source) {
         while ( (element = source->nextElement(pos)) != nullptr ) {
             const UHashTok keyTok = element->key;
-            const UnicodeString* key = (UnicodeString*)keyTok.pointer;
+            const UnicodeString* key = static_cast<UnicodeString*>(keyTok.pointer);
             const UHashTok valueTok = element->value;
-            const UnicodeString* value = (UnicodeString*)valueTok.pointer;
+            const UnicodeString* value = static_cast<UnicodeString*>(valueTok.pointer);
             LocalPointer<UnicodeString> copy(new UnicodeString(*value), status);
             if (U_FAILURE(status)) {
                 return;

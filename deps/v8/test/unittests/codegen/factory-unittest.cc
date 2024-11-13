@@ -32,7 +32,7 @@ TEST_F(FactoryCodeBuilderTest, Factory_CodeBuilder) {
   desc.unwinding_info = nullptr;
   desc.unwinding_info_size = 0;
   desc.origin = nullptr;
-  Handle<Code> code =
+  DirectHandle<Code> code =
       Factory::CodeBuilder(i_isolate(), desc, CodeKind::FOR_TESTING).Build();
 
   CHECK(

@@ -19,6 +19,11 @@ class EntryFrameConstants : public AllStatic {
   static constexpr int kNextExitFrameFPOffset = V8_EMBEDDED_CONSTANT_POOL_BOOL
                                                     ? -4 * kSystemPointerSize
                                                     : -3 * kSystemPointerSize;
+
+  static constexpr int kNextFastCallFrameFPOffset =
+      kNextExitFrameFPOffset - kSystemPointerSize;
+  static constexpr int kNextFastCallFramePCOffset =
+      kNextFastCallFrameFPOffset - kSystemPointerSize;
 };
 
 class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
@@ -41,6 +46,14 @@ class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
   static constexpr int kWasmInstanceOffset = 2 * kSystemPointerSize;
   static constexpr int kDeclaredFunctionIndexOffset = 1 * kSystemPointerSize;
   static constexpr int kNativeModuleOffset = 0;
+};
+
+class WasmLiftoffFrameConstants : public TypedFrameConstants {
+ public:
+  static constexpr int kFeedbackVectorOffset =
+      (V8_EMBEDDED_CONSTANT_POOL_BOOL ? 4 : 3) * kSystemPointerSize;
+  static constexpr int32_t kInstanceDataOffset =
+      (V8_EMBEDDED_CONSTANT_POOL_BOOL ? 3 : 2) * kSystemPointerSize;
 };
 
 // Frame constructed by the {WasmDebugBreak} builtin.

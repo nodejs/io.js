@@ -40,15 +40,20 @@
 #define ABSL_CONTAINER_INTERNAL_HASHTABLEZ_SAMPLER_H_
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/internal/per_thread_tls.h"
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/profiling/internal/sample_recorder.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 #include "absl/utility/utility.h"
 
 namespace absl {
@@ -67,7 +72,9 @@ struct HashtablezInfo : public profiling_internal::Sample<HashtablezInfo> {
 
   // Puts the object into a clean state, fills in the logically `const` members,
   // blocking for any readers that are currently sampling the object.
-  void PrepareForSampling(int64_t stride, size_t inline_element_size_value)
+  void PrepareForSampling(int64_t stride, size_t inline_element_size_value,
+                          size_t key_size, size_t value_size,
+                          uint16_t soo_capacity_value)
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(init_mu);
 
   // These fields are mutated by the various Record* APIs and need to be
@@ -91,8 +98,15 @@ struct HashtablezInfo : public profiling_internal::Sample<HashtablezInfo> {
   static constexpr int kMaxStackDepth = 64;
   absl::Time create_time;
   int32_t depth;
+  // The SOO capacity for this table in elements (not bytes). Note that sampled
+  // tables are never SOO because we need to store the infoz handle on the heap.
+  // Tables that would be SOO if not sampled should have: soo_capacity > 0 &&
+  // size <= soo_capacity && max_reserve <= soo_capacity.
+  uint16_t soo_capacity;
   void* stack[kMaxStackDepth];
-  size_t inline_element_size;  // How big is the slot?
+  size_t inline_element_size;  // How big is the slot in bytes?
+  size_t key_size;             // sizeof(key_type)
+  size_t value_size;           // sizeof(value_type)
 };
 
 void RecordRehashSlow(HashtablezInfo* info, size_t total_probe_length);
@@ -117,7 +131,8 @@ struct SamplingState {
 };
 
 HashtablezInfo* SampleSlow(SamplingState& next_sample,
-                           size_t inline_element_size);
+                           size_t inline_element_size, size_t key_size,
+                           size_t value_size, uint16_t soo_capacity);
 void UnsampleSlow(HashtablezInfo* info);
 
 #if defined(ABSL_INTERNAL_HASHTABLEZ_SAMPLE)
@@ -204,16 +219,19 @@ class HashtablezInfoHandle {
 extern ABSL_PER_THREAD_TLS_KEYWORD SamplingState global_next_sample;
 #endif  // defined(ABSL_INTERNAL_HASHTABLEZ_SAMPLE)
 
-// Returns an RAII sampling handle that manages registration and unregistation
-// with the global sampler.
+// Returns a sampling handle.
 inline HashtablezInfoHandle Sample(
-    size_t inline_element_size ABSL_ATTRIBUTE_UNUSED) {
+    ABSL_ATTRIBUTE_UNUSED size_t inline_element_size,
+    ABSL_ATTRIBUTE_UNUSED size_t key_size,
+    ABSL_ATTRIBUTE_UNUSED size_t value_size,
+    ABSL_ATTRIBUTE_UNUSED uint16_t soo_capacity) {
 #if defined(ABSL_INTERNAL_HASHTABLEZ_SAMPLE)
   if (ABSL_PREDICT_TRUE(--global_next_sample.next_sample > 0)) {
     return HashtablezInfoHandle(nullptr);
   }
-  return HashtablezInfoHandle(
-      SampleSlow(global_next_sample, inline_element_size));
+  return HashtablezInfoHandle(SampleSlow(global_next_sample,
+                                         inline_element_size, key_size,
+                                         value_size, soo_capacity));
 #else
   return HashtablezInfoHandle(nullptr);
 #endif  // !ABSL_PER_THREAD_TLS

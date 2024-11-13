@@ -14,6 +14,7 @@
 #include "src/api/api-inl.h"
 #include "src/handles/global-handles.h"
 #include "src/wasm/wasm-features.h"
+#include "src/wasm/wasm-js.h"
 #include "test/common/flag-utils.h"
 #include "test/unittests/heap/heap-utils.h"
 #include "test/unittests/test-utils.h"
@@ -232,12 +233,12 @@ TEST_F(ApiWasmTest, WasmEnableDisableImportedStrings) {
   // Test enabling/disabling via callback.
   isolate()->SetWasmImportedStringsEnabledCallback([](auto) { return true; });
   EXPECT_TRUE(i_isolate()->IsWasmImportedStringsEnabled(context));
-  EXPECT_TRUE(
-      i::wasm::WasmFeatures::FromIsolate(i_isolate()).has_imported_strings());
+  EXPECT_TRUE(i::wasm::WasmEnabledFeatures::FromIsolate(i_isolate())
+                  .has_imported_strings());
   isolate()->SetWasmImportedStringsEnabledCallback([](auto) { return false; });
   EXPECT_FALSE(i_isolate()->IsWasmImportedStringsEnabled(context));
-  EXPECT_FALSE(
-      i::wasm::WasmFeatures::FromIsolate(i_isolate()).has_imported_strings());
+  EXPECT_FALSE(i::wasm::WasmEnabledFeatures::FromIsolate(i_isolate())
+                   .has_imported_strings());
 }
 
 TEST_F(ApiWasmTest, WasmEnableDisableJSPI) {
@@ -247,17 +248,45 @@ TEST_F(ApiWasmTest, WasmEnableDisableJSPI) {
   // Test enabling/disabling via flag.
   {
     i::FlagScope<bool> flag_strings(&i::v8_flags.experimental_wasm_jspi, true);
-    EXPECT_TRUE(i_isolate()->IsWasmJSPIEnabled(context));
+    EXPECT_TRUE(i_isolate()->IsWasmJSPIRequested(context));
   }
   {
     i::FlagScope<bool> flag_strings(&i::v8_flags.experimental_wasm_jspi, false);
-    EXPECT_FALSE(i_isolate()->IsWasmJSPIEnabled(context));
+    EXPECT_FALSE(i_isolate()->IsWasmJSPIRequested(context));
   }
   // Test enabling/disabling via callback.
   isolate()->SetWasmJSPIEnabledCallback([](auto) { return true; });
-  EXPECT_TRUE(i_isolate()->IsWasmJSPIEnabled(context));
+  EXPECT_TRUE(i_isolate()->IsWasmJSPIRequested(context));
   isolate()->SetWasmJSPIEnabledCallback([](auto) { return false; });
+  EXPECT_FALSE(i_isolate()->IsWasmJSPIRequested(context));
+}
+
+TEST_F(ApiWasmTest, WasmInstallJSPI) {
+  Local<Context> context_local = Context::New(isolate());
+  Context::Scope context_scope(context_local);
+  i::Handle<i::NativeContext> context = v8::Utils::OpenHandle(*context_local);
+
   EXPECT_FALSE(i_isolate()->IsWasmJSPIEnabled(context));
+  i::wasm::WasmEnabledFeatures features =
+      i::wasm::WasmEnabledFeatures::FromIsolate(i_isolate());
+  EXPECT_FALSE(features.has_jspi());
+  EXPECT_FALSE(features.has_type_reflection());
+
+  // Test installing JSPI via flag.
+  isolate()->SetWasmJSPIEnabledCallback([](auto) { return true; });
+
+  EXPECT_TRUE(i_isolate()->IsWasmJSPIRequested(context));
+  EXPECT_FALSE(i_isolate()->IsWasmJSPIEnabled(context));
+  features = i::wasm::WasmEnabledFeatures::FromIsolate(i_isolate());
+  EXPECT_FALSE(features.has_jspi());
+  EXPECT_FALSE(features.has_type_reflection());
+
+  i::WasmJs::InstallConditionalFeatures(i_isolate(), context);
+
+  EXPECT_TRUE(i_isolate()->IsWasmJSPIEnabled(context));
+  features = i::wasm::WasmEnabledFeatures::FromIsolate(i_isolate());
+  EXPECT_TRUE(features.has_jspi());
+  EXPECT_TRUE(features.has_type_reflection());
 }
 
 }  // namespace v8

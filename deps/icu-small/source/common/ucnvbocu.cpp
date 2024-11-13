@@ -338,7 +338,7 @@ packDiff(int32_t diff) {
              */
             result|=BOCU1_TRAIL_TO_BYTE(diff)<<16;
 
-            result|=((uint32_t)BOCU1_START_POS_4)<<24;
+            result |= static_cast<uint32_t>(BOCU1_START_POS_4) << 24;
         }
     } else {
         /* two- to four-byte negative differences */
@@ -405,13 +405,13 @@ _Bocu1FromUnicodeWithOffsets(UConverterFromUnicodeArgs *pArgs,
     cnv=pArgs->converter;
     source=pArgs->source;
     sourceLimit=pArgs->sourceLimit;
-    target=(uint8_t *)pArgs->target;
-    targetCapacity=(int32_t)(pArgs->targetLimit-pArgs->target);
+    target = reinterpret_cast<uint8_t*>(pArgs->target);
+    targetCapacity = static_cast<int32_t>(pArgs->targetLimit - pArgs->target);
     offsets=pArgs->offsets;
 
     /* get the converter state from UConverter */
     c=cnv->fromUChar32;
-    prev=(int32_t)cnv->fromUnicodeStatus;
+    prev = static_cast<int32_t>(cnv->fromUnicodeStatus);
     if(prev==0) {
         prev=BOCU1_ASCII_PREV;
     }
@@ -428,7 +428,7 @@ _Bocu1FromUnicodeWithOffsets(UConverterFromUnicodeArgs *pArgs,
 fastSingle:
     /* fast loop for single-byte differences */
     /* use only one loop counter variable, targetCapacity, not also source */
-    diff=(int32_t)(sourceLimit-source);
+    diff = static_cast<int32_t>(sourceLimit - source);
     if(targetCapacity>diff) {
         targetCapacity=diff;
     }
@@ -437,7 +437,7 @@ fastSingle:
             if(c!=0x20) {
                 prev=BOCU1_ASCII_PREV;
             }
-            *target++=(uint8_t)c;
+            *target++ = static_cast<uint8_t>(c);
             *offsets++=nextSourceIndex++;
             ++source;
             --targetCapacity;
@@ -445,7 +445,7 @@ fastSingle:
             diff=c-prev;
             if(DIFF_IS_SINGLE(diff)) {
                 prev=BOCU1_SIMPLE_PREV(c);
-                *target++=(uint8_t)PACK_SINGLE_DIFF(diff);
+                *target++ = static_cast<uint8_t>(PACK_SINGLE_DIFF(diff));
                 *offsets++=nextSourceIndex++;
                 ++source;
                 --targetCapacity;
@@ -455,7 +455,7 @@ fastSingle:
         }
     }
     /* restore real values */
-    targetCapacity=(int32_t)((const uint8_t *)pArgs->targetLimit-target);
+    targetCapacity = static_cast<int32_t>(reinterpret_cast<const uint8_t*>(pArgs->targetLimit) - target);
     sourceIndex=nextSourceIndex; /* wrong if offsets==nullptr but does not matter */
 
     /* regular loop for all cases */
@@ -473,7 +473,7 @@ fastSingle:
                 if(c!=0x20) {
                     prev=BOCU1_ASCII_PREV;
                 }
-                *target++=(uint8_t)c;
+                *target++ = static_cast<uint8_t>(c);
                 *offsets++=sourceIndex;
                 --targetCapacity;
 
@@ -510,7 +510,7 @@ getTrail:
             diff=c-prev;
             prev=BOCU1_PREV(c);
             if(DIFF_IS_SINGLE(diff)) {
-                *target++=(uint8_t)PACK_SINGLE_DIFF(diff);
+                *target++ = static_cast<uint8_t>(PACK_SINGLE_DIFF(diff));
                 *offsets++=sourceIndex;
                 --targetCapacity;
                 sourceIndex=nextSourceIndex;
@@ -531,8 +531,8 @@ getTrail:
                     NEGDIVMOD(diff, BOCU1_TRAIL_COUNT, m);
                     diff+=BOCU1_START_NEG_2;
                 }
-                *target++=(uint8_t)diff;
-                *target++=(uint8_t)BOCU1_TRAIL_TO_BYTE(m);
+                *target++ = static_cast<uint8_t>(diff);
+                *target++ = static_cast<uint8_t>(BOCU1_TRAIL_TO_BYTE(m));
                 *offsets++=sourceIndex;
                 *offsets++=sourceIndex;
                 targetCapacity-=2;
@@ -549,18 +549,18 @@ getTrail:
                     switch(length) {
                         /* each branch falls through to the next one */
                     case 4:
-                        *target++=(uint8_t)(diff>>24);
+                        *target++ = static_cast<uint8_t>(diff >> 24);
                         *offsets++=sourceIndex;
                         U_FALLTHROUGH;
                     case 3:
-                        *target++=(uint8_t)(diff>>16);
+                        *target++ = static_cast<uint8_t>(diff >> 16);
                         *offsets++=sourceIndex;
                         U_FALLTHROUGH;
                     case 2:
-                        *target++=(uint8_t)(diff>>8);
+                        *target++ = static_cast<uint8_t>(diff >> 8);
                         *offsets++=sourceIndex;
                     /* case 1: handled above */
-                        *target++=(uint8_t)diff;
+                        *target++ = static_cast<uint8_t>(diff);
                         *offsets++=sourceIndex;
                         U_FALLTHROUGH;
                     default:
@@ -584,34 +584,34 @@ getTrail:
                     switch(length) {
                         /* each branch falls through to the next one */
                     case 3:
-                        *charErrorBuffer++=(uint8_t)(diff>>16);
+                        *charErrorBuffer++ = static_cast<uint8_t>(diff >> 16);
                         U_FALLTHROUGH;
                     case 2:
-                        *charErrorBuffer++=(uint8_t)(diff>>8);
+                        *charErrorBuffer++ = static_cast<uint8_t>(diff >> 8);
                         U_FALLTHROUGH;
                     case 1:
-                        *charErrorBuffer=(uint8_t)diff;
+                        *charErrorBuffer = static_cast<uint8_t>(diff);
                         U_FALLTHROUGH;
                     default:
                         /* will never occur */
                         break;
                     }
-                    cnv->charErrorBufferLength=(int8_t)length;
+                    cnv->charErrorBufferLength = static_cast<int8_t>(length);
 
                     /* now output what fits into the regular target */
                     diff>>=8*length; /* length was reduced by targetCapacity */
                     switch(targetCapacity) {
                         /* each branch falls through to the next one */
                     case 3:
-                        *target++=(uint8_t)(diff>>16);
+                        *target++ = static_cast<uint8_t>(diff >> 16);
                         *offsets++=sourceIndex;
                         U_FALLTHROUGH;
                     case 2:
-                        *target++=(uint8_t)(diff>>8);
+                        *target++ = static_cast<uint8_t>(diff >> 8);
                         *offsets++=sourceIndex;
                         U_FALLTHROUGH;
                     case 1:
-                        *target++=(uint8_t)diff;
+                        *target++ = static_cast<uint8_t>(diff);
                         *offsets++=sourceIndex;
                         U_FALLTHROUGH;
                     default:
@@ -634,11 +634,11 @@ getTrail:
 
     /* set the converter state back into UConverter */
     cnv->fromUChar32= c<0 ? -c : 0;
-    cnv->fromUnicodeStatus=(uint32_t)prev;
+    cnv->fromUnicodeStatus = static_cast<uint32_t>(prev);
 
     /* write back the updated pointers */
     pArgs->source=source;
-    pArgs->target=(char *)target;
+    pArgs->target = reinterpret_cast<char*>(target);
     pArgs->offsets=offsets;
 }
 
@@ -663,12 +663,12 @@ _Bocu1FromUnicode(UConverterFromUnicodeArgs *pArgs,
     cnv=pArgs->converter;
     source=pArgs->source;
     sourceLimit=pArgs->sourceLimit;
-    target=(uint8_t *)pArgs->target;
-    targetCapacity=(int32_t)(pArgs->targetLimit-pArgs->target);
+    target = reinterpret_cast<uint8_t*>(pArgs->target);
+    targetCapacity = static_cast<int32_t>(pArgs->targetLimit - pArgs->target);
 
     /* get the converter state from UConverter */
     c=cnv->fromUChar32;
-    prev=(int32_t)cnv->fromUnicodeStatus;
+    prev = static_cast<int32_t>(cnv->fromUnicodeStatus);
     if(prev==0) {
         prev=BOCU1_ASCII_PREV;
     }
@@ -681,7 +681,7 @@ _Bocu1FromUnicode(UConverterFromUnicodeArgs *pArgs,
 fastSingle:
     /* fast loop for single-byte differences */
     /* use only one loop counter variable, targetCapacity, not also source */
-    diff=(int32_t)(sourceLimit-source);
+    diff = static_cast<int32_t>(sourceLimit - source);
     if(targetCapacity>diff) {
         targetCapacity=diff;
     }
@@ -690,12 +690,12 @@ fastSingle:
             if(c!=0x20) {
                 prev=BOCU1_ASCII_PREV;
             }
-            *target++=(uint8_t)c;
+            *target++ = static_cast<uint8_t>(c);
         } else {
             diff=c-prev;
             if(DIFF_IS_SINGLE(diff)) {
                 prev=BOCU1_SIMPLE_PREV(c);
-                *target++=(uint8_t)PACK_SINGLE_DIFF(diff);
+                *target++ = static_cast<uint8_t>(PACK_SINGLE_DIFF(diff));
             } else {
                 break;
             }
@@ -704,7 +704,7 @@ fastSingle:
         --targetCapacity;
     }
     /* restore real values */
-    targetCapacity=(int32_t)((const uint8_t *)pArgs->targetLimit-target);
+    targetCapacity = static_cast<int32_t>(reinterpret_cast<const uint8_t*>(pArgs->targetLimit) - target);
 
     /* regular loop for all cases */
     while(source<sourceLimit) {
@@ -720,7 +720,7 @@ fastSingle:
                 if(c!=0x20) {
                     prev=BOCU1_ASCII_PREV;
                 }
-                *target++=(uint8_t)c;
+                *target++ = static_cast<uint8_t>(c);
                 --targetCapacity;
                 continue;
             }
@@ -753,7 +753,7 @@ getTrail:
             diff=c-prev;
             prev=BOCU1_PREV(c);
             if(DIFF_IS_SINGLE(diff)) {
-                *target++=(uint8_t)PACK_SINGLE_DIFF(diff);
+                *target++ = static_cast<uint8_t>(PACK_SINGLE_DIFF(diff));
                 --targetCapacity;
                 if(c<0x3000) {
                     goto fastSingle;
@@ -772,8 +772,8 @@ getTrail:
                     NEGDIVMOD(diff, BOCU1_TRAIL_COUNT, m);
                     diff+=BOCU1_START_NEG_2;
                 }
-                *target++=(uint8_t)diff;
-                *target++=(uint8_t)BOCU1_TRAIL_TO_BYTE(m);
+                *target++ = static_cast<uint8_t>(diff);
+                *target++ = static_cast<uint8_t>(BOCU1_TRAIL_TO_BYTE(m));
                 targetCapacity-=2;
             } else {
                 int32_t length; /* will be 2..4 */
@@ -787,14 +787,14 @@ getTrail:
                     switch(length) {
                         /* each branch falls through to the next one */
                     case 4:
-                        *target++=(uint8_t)(diff>>24);
+                        *target++ = static_cast<uint8_t>(diff >> 24);
                         U_FALLTHROUGH;
                     case 3:
-                        *target++=(uint8_t)(diff>>16);
+                        *target++ = static_cast<uint8_t>(diff >> 16);
                     /* case 2: handled above */
-                        *target++=(uint8_t)(diff>>8);
+                        *target++ = static_cast<uint8_t>(diff >> 8);
                     /* case 1: handled above */
-                        *target++=(uint8_t)diff;
+                        *target++ = static_cast<uint8_t>(diff);
                         U_FALLTHROUGH;
                     default:
                         /* will never occur */
@@ -816,32 +816,32 @@ getTrail:
                     switch(length) {
                         /* each branch falls through to the next one */
                     case 3:
-                        *charErrorBuffer++=(uint8_t)(diff>>16);
+                        *charErrorBuffer++ = static_cast<uint8_t>(diff >> 16);
                         U_FALLTHROUGH;
                     case 2:
-                        *charErrorBuffer++=(uint8_t)(diff>>8);
+                        *charErrorBuffer++ = static_cast<uint8_t>(diff >> 8);
                         U_FALLTHROUGH;
                     case 1:
-                        *charErrorBuffer=(uint8_t)diff;
+                        *charErrorBuffer = static_cast<uint8_t>(diff);
                         U_FALLTHROUGH;
                     default:
                         /* will never occur */
                         break;
                     }
-                    cnv->charErrorBufferLength=(int8_t)length;
+                    cnv->charErrorBufferLength = static_cast<int8_t>(length);
 
                     /* now output what fits into the regular target */
                     diff>>=8*length; /* length was reduced by targetCapacity */
                     switch(targetCapacity) {
                         /* each branch falls through to the next one */
                     case 3:
-                        *target++=(uint8_t)(diff>>16);
+                        *target++ = static_cast<uint8_t>(diff >> 16);
                         U_FALLTHROUGH;
                     case 2:
-                        *target++=(uint8_t)(diff>>8);
+                        *target++ = static_cast<uint8_t>(diff >> 8);
                         U_FALLTHROUGH;
                     case 1:
-                        *target++=(uint8_t)diff;
+                        *target++ = static_cast<uint8_t>(diff);
                         U_FALLTHROUGH;
                     default:
                         /* will never occur */
@@ -863,11 +863,11 @@ getTrail:
 
     /* set the converter state back into UConverter */
     cnv->fromUChar32= c<0 ? -c : 0;
-    cnv->fromUnicodeStatus=(uint32_t)prev;
+    cnv->fromUnicodeStatus = static_cast<uint32_t>(prev);
 
     /* write back the updated pointers */
     pArgs->source=source;
-    pArgs->target=(char *)target;
+    pArgs->target = reinterpret_cast<char*>(target);
 }
 
 /* BOCU-1-to-Unicode conversion functions ----------------------------------- */
@@ -887,11 +887,11 @@ decodeBocu1LeadByte(int32_t b) {
         /* positive difference */
         if(b<BOCU1_START_POS_3) {
             /* two bytes */
-            diff=((int32_t)b-BOCU1_START_POS_2)*BOCU1_TRAIL_COUNT+BOCU1_REACH_POS_1+1;
+            diff = (b - BOCU1_START_POS_2) * BOCU1_TRAIL_COUNT + BOCU1_REACH_POS_1 + 1;
             count=1;
         } else if(b<BOCU1_START_POS_4) {
             /* three bytes */
-            diff=((int32_t)b-BOCU1_START_POS_3)*BOCU1_TRAIL_COUNT*BOCU1_TRAIL_COUNT+BOCU1_REACH_POS_2+1;
+            diff = (b - BOCU1_START_POS_3) * BOCU1_TRAIL_COUNT * BOCU1_TRAIL_COUNT + BOCU1_REACH_POS_2 + 1;
             count=2;
         } else {
             /* four bytes */
@@ -902,11 +902,11 @@ decodeBocu1LeadByte(int32_t b) {
         /* negative difference */
         if(b>=BOCU1_START_NEG_3) {
             /* two bytes */
-            diff=((int32_t)b-BOCU1_START_NEG_2)*BOCU1_TRAIL_COUNT+BOCU1_REACH_NEG_1;
+            diff = (b - BOCU1_START_NEG_2) * BOCU1_TRAIL_COUNT + BOCU1_REACH_NEG_1;
             count=1;
         } else if(b>BOCU1_MIN) {
             /* three bytes */
-            diff=((int32_t)b-BOCU1_START_NEG_3)*BOCU1_TRAIL_COUNT*BOCU1_TRAIL_COUNT+BOCU1_REACH_NEG_2;
+            diff = (b - BOCU1_START_NEG_3) * BOCU1_TRAIL_COUNT * BOCU1_TRAIL_COUNT + BOCU1_REACH_NEG_2;
             count=2;
         } else {
             /* four bytes */
@@ -916,7 +916,7 @@ decodeBocu1LeadByte(int32_t b) {
     }
 
     /* return the state for decoding the trail byte(s) */
-    return ((uint32_t)diff<<2)|count;
+    return (static_cast<uint32_t>(diff) << 2) | count;
 }
 
 /**
@@ -970,14 +970,14 @@ _Bocu1ToUnicodeWithOffsets(UConverterToUnicodeArgs *pArgs,
 
     /* set up the local pointers */
     cnv=pArgs->converter;
-    source=(const uint8_t *)pArgs->source;
-    sourceLimit=(const uint8_t *)pArgs->sourceLimit;
+    source = reinterpret_cast<const uint8_t*>(pArgs->source);
+    sourceLimit = reinterpret_cast<const uint8_t*>(pArgs->sourceLimit);
     target=pArgs->target;
     targetLimit=pArgs->targetLimit;
     offsets=pArgs->offsets;
 
     /* get the converter state from UConverter */
-    prev=(int32_t)cnv->toUnicodeStatus;
+    prev = static_cast<int32_t>(cnv->toUnicodeStatus);
     if(prev==0) {
         prev=BOCU1_ASCII_PREV;
     }
@@ -1000,8 +1000,8 @@ _Bocu1ToUnicodeWithOffsets(UConverterToUnicodeArgs *pArgs,
 fastSingle:
     /* fast loop for single-byte differences */
     /* use count as the only loop counter variable */
-    diff=(int32_t)(sourceLimit-source);
-    count=(int32_t)(pArgs->targetLimit-target);
+    diff = static_cast<int32_t>(sourceLimit - source);
+    count = static_cast<int32_t>(pArgs->targetLimit - target);
     if(count>diff) {
         count=diff;
     }
@@ -1009,7 +1009,7 @@ fastSingle:
         if(BOCU1_START_NEG_2<=(c=*source) && c<BOCU1_START_POS_2) {
             c=prev+(c-BOCU1_MIDDLE);
             if(c<0x3000) {
-                *target++=(char16_t)c;
+                *target++ = static_cast<char16_t>(c);
                 *offsets++=nextSourceIndex++;
                 prev=BOCU1_SIMPLE_PREV(c);
             } else {
@@ -1019,7 +1019,7 @@ fastSingle:
             if(c!=0x20) {
                 prev=BOCU1_ASCII_PREV;
             }
-            *target++=(char16_t)c;
+            *target++ = static_cast<char16_t>(c);
             *offsets++=nextSourceIndex++;
         } else {
             break;
@@ -1043,7 +1043,7 @@ fastSingle:
             /* Write a code point directly from a single-byte difference. */
             c=prev+(c-BOCU1_MIDDLE);
             if(c<0x3000) {
-                *target++=(char16_t)c;
+                *target++ = static_cast<char16_t>(c);
                 *offsets++=sourceIndex;
                 prev=BOCU1_SIMPLE_PREV(c);
                 sourceIndex=nextSourceIndex;
@@ -1057,22 +1057,22 @@ fastSingle:
             if(c!=0x20) {
                 prev=BOCU1_ASCII_PREV;
             }
-            *target++=(char16_t)c;
+            *target++ = static_cast<char16_t>(c);
             *offsets++=sourceIndex;
             sourceIndex=nextSourceIndex;
             continue;
         } else if(BOCU1_START_NEG_3<=c && c<BOCU1_START_POS_3 && source<sourceLimit) {
             /* Optimize two-byte case. */
             if(c>=BOCU1_MIDDLE) {
-                diff=((int32_t)c-BOCU1_START_POS_2)*BOCU1_TRAIL_COUNT+BOCU1_REACH_POS_1+1;
+                diff = (c - BOCU1_START_POS_2) * BOCU1_TRAIL_COUNT + BOCU1_REACH_POS_1 + 1;
             } else {
-                diff=((int32_t)c-BOCU1_START_NEG_2)*BOCU1_TRAIL_COUNT+BOCU1_REACH_NEG_1;
+                diff = (c - BOCU1_START_NEG_2) * BOCU1_TRAIL_COUNT + BOCU1_REACH_NEG_1;
             }
 
             /* trail byte */
             ++nextSourceIndex;
             c=decodeBocu1TrailByte(1, *source++);
-            if(c<0 || (uint32_t)(c=prev+diff+c)>0x10ffff) {
+            if (c < 0 || static_cast<uint32_t>(c = prev + diff + c) > 0x10ffff) {
                 bytes[0]=source[-2];
                 bytes[1]=source[-1];
                 byteIndex=2;
@@ -1090,7 +1090,7 @@ fastSingle:
              * with the partial difference value from the lead byte and
              * with the number of trail bytes.
              */
-            bytes[0]=(uint8_t)c;
+            bytes[0] = static_cast<uint8_t>(c);
             byteIndex=1;
 
             diff=decodeBocu1LeadByte(c);
@@ -1116,7 +1116,7 @@ getTrail:
                     /* final trail byte, deliver a code point */
                     byteIndex=0;
                     c=prev+diff;
-                    if((uint32_t)c>0x10ffff) {
+                    if (static_cast<uint32_t>(c) > 0x10ffff) {
                         *pErrorCode=U_ILLEGAL_CHAR_FOUND;
                         goto endloop;
                     }
@@ -1128,7 +1128,7 @@ getTrail:
         /* calculate the next prev and output c */
         prev=BOCU1_PREV(c);
         if(c<=0xffff) {
-            *target++=(char16_t)c;
+            *target++ = static_cast<char16_t>(c);
             *offsets++=sourceIndex;
         } else {
             /* output surrogate pair */
@@ -1156,13 +1156,13 @@ endloop:
         cnv->mode=0;
     } else {
         /* set the converter state back into UConverter */
-        cnv->toUnicodeStatus=(uint32_t)prev;
-        cnv->mode=(int32_t)((uint32_t)diff<<2)|count;
+        cnv->toUnicodeStatus = static_cast<uint32_t>(prev);
+        cnv->mode = static_cast<int32_t>(static_cast<uint32_t>(diff) << 2) | count;
     }
     cnv->toULength=byteIndex;
 
     /* write back the updated pointers */
-    pArgs->source=(const char *)source;
+    pArgs->source = reinterpret_cast<const char*>(source);
     pArgs->target=target;
     pArgs->offsets=offsets;
 }
@@ -1189,13 +1189,13 @@ _Bocu1ToUnicode(UConverterToUnicodeArgs *pArgs,
 
     /* set up the local pointers */
     cnv=pArgs->converter;
-    source=(const uint8_t *)pArgs->source;
-    sourceLimit=(const uint8_t *)pArgs->sourceLimit;
+    source = reinterpret_cast<const uint8_t*>(pArgs->source);
+    sourceLimit = reinterpret_cast<const uint8_t*>(pArgs->sourceLimit);
     target=pArgs->target;
     targetLimit=pArgs->targetLimit;
 
     /* get the converter state from UConverter */
-    prev=(int32_t)cnv->toUnicodeStatus;
+    prev = static_cast<int32_t>(cnv->toUnicodeStatus);
     if(prev==0) {
         prev=BOCU1_ASCII_PREV;
     }
@@ -1214,8 +1214,8 @@ _Bocu1ToUnicode(UConverterToUnicodeArgs *pArgs,
 fastSingle:
     /* fast loop for single-byte differences */
     /* use count as the only loop counter variable */
-    diff=(int32_t)(sourceLimit-source);
-    count=(int32_t)(pArgs->targetLimit-target);
+    diff = static_cast<int32_t>(sourceLimit - source);
+    count = static_cast<int32_t>(pArgs->targetLimit - target);
     if(count>diff) {
         count=diff;
     }
@@ -1223,7 +1223,7 @@ fastSingle:
         if(BOCU1_START_NEG_2<=(c=*source) && c<BOCU1_START_POS_2) {
             c=prev+(c-BOCU1_MIDDLE);
             if(c<0x3000) {
-                *target++=(char16_t)c;
+                *target++ = static_cast<char16_t>(c);
                 prev=BOCU1_SIMPLE_PREV(c);
             } else {
                 break;
@@ -1232,7 +1232,7 @@ fastSingle:
             if(c!=0x20) {
                 prev=BOCU1_ASCII_PREV;
             }
-            *target++=(char16_t)c;
+            *target++ = static_cast<char16_t>(c);
         } else {
             break;
         }
@@ -1253,7 +1253,7 @@ fastSingle:
             /* Write a code point directly from a single-byte difference. */
             c=prev+(c-BOCU1_MIDDLE);
             if(c<0x3000) {
-                *target++=(char16_t)c;
+                *target++ = static_cast<char16_t>(c);
                 prev=BOCU1_SIMPLE_PREV(c);
                 goto fastSingle;
             }
@@ -1265,19 +1265,19 @@ fastSingle:
             if(c!=0x20) {
                 prev=BOCU1_ASCII_PREV;
             }
-            *target++=(char16_t)c;
+            *target++ = static_cast<char16_t>(c);
             continue;
         } else if(BOCU1_START_NEG_3<=c && c<BOCU1_START_POS_3 && source<sourceLimit) {
             /* Optimize two-byte case. */
             if(c>=BOCU1_MIDDLE) {
-                diff=((int32_t)c-BOCU1_START_POS_2)*BOCU1_TRAIL_COUNT+BOCU1_REACH_POS_1+1;
+                diff = (c - BOCU1_START_POS_2) * BOCU1_TRAIL_COUNT + BOCU1_REACH_POS_1 + 1;
             } else {
-                diff=((int32_t)c-BOCU1_START_NEG_2)*BOCU1_TRAIL_COUNT+BOCU1_REACH_NEG_1;
+                diff = (c - BOCU1_START_NEG_2) * BOCU1_TRAIL_COUNT + BOCU1_REACH_NEG_1;
             }
 
             /* trail byte */
             c=decodeBocu1TrailByte(1, *source++);
-            if(c<0 || (uint32_t)(c=prev+diff+c)>0x10ffff) {
+            if (c < 0 || static_cast<uint32_t>(c = prev + diff + c) > 0x10ffff) {
                 bytes[0]=source[-2];
                 bytes[1]=source[-1];
                 byteIndex=2;
@@ -1294,7 +1294,7 @@ fastSingle:
              * with the partial difference value from the lead byte and
              * with the number of trail bytes.
              */
-            bytes[0]=(uint8_t)c;
+            bytes[0] = static_cast<uint8_t>(c);
             byteIndex=1;
 
             diff=decodeBocu1LeadByte(c);
@@ -1319,7 +1319,7 @@ getTrail:
                     /* final trail byte, deliver a code point */
                     byteIndex=0;
                     c=prev+diff;
-                    if((uint32_t)c>0x10ffff) {
+                    if (static_cast<uint32_t>(c) > 0x10ffff) {
                         *pErrorCode=U_ILLEGAL_CHAR_FOUND;
                         goto endloop;
                     }
@@ -1331,7 +1331,7 @@ getTrail:
         /* calculate the next prev and output c */
         prev=BOCU1_PREV(c);
         if(c<=0xffff) {
-            *target++=(char16_t)c;
+            *target++ = static_cast<char16_t>(c);
         } else {
             /* output surrogate pair */
             *target++=U16_LEAD(c);
@@ -1354,13 +1354,13 @@ endloop:
         cnv->mode=0;
     } else {
         /* set the converter state back into UConverter */
-        cnv->toUnicodeStatus=(uint32_t)prev;
-        cnv->mode=((uint32_t)diff<<2)|count;
+        cnv->toUnicodeStatus = static_cast<uint32_t>(prev);
+        cnv->mode = (static_cast<uint32_t>(diff) << 2) | count;
     }
     cnv->toULength=byteIndex;
 
     /* write back the updated pointers */
-    pArgs->source=(const char *)source;
+    pArgs->source = reinterpret_cast<const char*>(source);
     pArgs->target=target;
 }
 

@@ -11,7 +11,8 @@ const invalidArgTypeError = {
 };
 
 const waitCommand = common.isWindows ?
-  `${process.execPath} -e "setInterval(()=>{}, 99)"` :
+  // `"` is forbidden for Windows paths, no need for escaping.
+  `"${process.execPath}" -e "setInterval(()=>{}, 99)"` :
   'sleep 2m';
 
 {

@@ -31,6 +31,9 @@ namespace internal {
 #elif V8_HOST_ARCH_MIPS64
 #define GET_STACK_POINTER_TO(sp_addr) \
   __asm__ __volatile__("sd $sp, %0" : "=g"(sp_addr))
+#elif V8_OS_ZOS
+#define GET_STACK_POINTER_TO(sp_addr) \
+  __asm__ __volatile__(" stg 15,%0" : "=m"(sp_addr))
 #elif defined(__s390x__) || defined(_ARCH_S390X)
 #define GET_STACK_POINTER_TO(sp_addr) \
   __asm__ __volatile__("stg %%r15, %0" : "=m"(sp_addr))

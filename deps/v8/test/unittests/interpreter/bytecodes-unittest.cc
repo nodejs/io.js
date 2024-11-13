@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "src/init/v8.h"
-#include "src/interpreter/bytecode-flags.h"
+#include "src/interpreter/bytecode-flags-and-tokens.h"
 #include "src/interpreter/bytecode-register.h"
 #include "test/unittests/test-utils.h"
 

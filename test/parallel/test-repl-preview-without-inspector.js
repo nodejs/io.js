@@ -65,7 +65,7 @@ function runAndWait(cmds, repl) {
   return promise;
 }
 
-const repl = REPLServer({
+const repl = new REPLServer({
   prompt: PROMPT,
   stream: new REPLStream(),
   ignoreUndefined: true,

@@ -14,7 +14,7 @@ if (cluster.isPrimary) {
   server.listen();
   try {
     // Currently, we can call `listen` twice in cluster worker,
-    // if we can not call `listen` twice in the futrue,
+    // if we can not call `listen` twice in the future,
     // just skip this test.
     server.listen();
   } catch (e) {

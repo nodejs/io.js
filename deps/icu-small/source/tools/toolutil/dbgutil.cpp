@@ -62,10 +62,10 @@ static void udbg_setup() {
         //fflush(stderr);
         UnicodeString **newStrs = new UnicodeString*[UDBG_ENUM_COUNT+1];
         for(int t=0;t<UDBG_ENUM_COUNT;t++) {
-            int32_t c = udbg_enumCount((UDebugEnumType)t);
+            int32_t c = udbg_enumCount(static_cast<UDebugEnumType>(t));
             newStrs[t] = new UnicodeString[c+1];
             for(int f=0;f<=c;f++) {
-                _fieldString((UDebugEnumType)t, f, newStrs[t][f]);
+                _fieldString(static_cast<UDebugEnumType>(t), f, newStrs[t][f]);
             }
         }
         newStrs[UDBG_ENUM_COUNT] = new UnicodeString[1]; // empty string

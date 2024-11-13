@@ -6,6 +6,7 @@
 #define V8_TEST_CCTEST_TEST_SWISS_HASH_TABLE_SHARED_TESTS_H_
 
 #include <algorithm>
+#include <optional>
 #include <string>
 
 #include "test/cctest/test-swiss-name-dictionary-infra.h"
@@ -401,7 +402,7 @@ struct SharedSwissTableTests {
 
         // We don't know the indices where the new entries will land.
         s.CheckDataAtKey(Key{key, FakeH1{entry + kBigModulus}},
-                         base::Optional<InternalIndex>(), value, d);
+                         std::optional<InternalIndex>(), value, d);
         count++;
       }
 

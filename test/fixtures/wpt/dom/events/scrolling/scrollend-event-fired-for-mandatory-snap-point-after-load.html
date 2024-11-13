@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src="/resources/testdriver.js"></script>
+  <script src="/resources/testdriver-actions.js"></script>
+  <script src="/resources/testdriver-vendor.js"></script>
+  <script src="scroll_support.js"></script>
+  <title>scrollend + mandatory scroll snap test</title>
+
+  <style>
+    #root {
+      width: 400px;
+      height: 400px;
+      overflow: auto;
+      scroll-snap-type: y mandatory;
+      border: 1px solid black;
+      --page-height: 400px;
+    }
+
+    #scroller {
+      height: 200px;
+      width: 200px;
+      overflow: auto;
+      border: 1px solid black;
+      --page-height: 200px;
+    }
+
+    .page {
+      height: var(--page-height);
+      scroll-snap-align: start;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+
+<body onload="runTests()">
+<div id="root" class="hidden">
+  <h1>scrollend + mandatory scroll snap test</h1>
+  <div id="scroller">
+    <div class="page">
+      <p>Page 1</p>
+    </div>
+    <div class="page">
+      <p>Page 2</p>
+    </div>
+    <div class="page">
+      <p>Page 3</p>
+    </div>
+  </div>
+
+  <div class="page">
+    <p>Page A</p>
+  </div>
+  <div class="page">
+    <p>Page B</p>
+  </div>
+  <div class="page">
+    <p>Page C</p>
+  </div>
+</div>
+
+<script>
+  function runTests() {
+    const root_div = document.getElementById("root");
+
+    promise_test(async (t) => {
+      const targetScrollendPromise = createScrollendPromiseForTarget(t, root_div);
+
+      await waitForNextFrame();
+      root_div.classList.remove("hidden");
+      await waitForNextFrame();
+
+      await targetScrollendPromise;
+      await verifyScrollStopped(t, root_div);
+    }, "scrollend event fired after load for mandatory snap point");
+  }
+</script>
+</body>
+
+</html>

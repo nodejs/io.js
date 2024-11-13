@@ -6,6 +6,7 @@
 
 #include <cinttypes>
 
+#include "src/base/iterator.h"
 #include "src/flags/flags.h"
 #include "src/numbers/conversions.h"
 #include "src/parsing/scanner.h"
@@ -271,6 +272,13 @@ void AsmJsScanner::ConsumeIdentifier(base::uc32 ch) {
   }
 }
 
+namespace {
+bool IsValidImplicitOctal(std::string_view number) {
+  DCHECK_EQ(number[0], '0');
+  return std::all_of(number.begin() + 1, number.end(), IsOctalDigit);
+}
+}  // namespace
+
 void AsmJsScanner::ConsumeNumber(base::uc32 ch) {
   std::string number;
   number.assign(1, ch);
@@ -308,10 +316,40 @@ void AsmJsScanner::ConsumeNumber(base::uc32 ch) {
     token_ = '.';
     return;
   }
-  // Decode numbers.
-  double_value_ = StringToDouble(
-      base::Vector<const uint8_t>::cast(base::VectorOf(number)),
-      ALLOW_HEX | ALLOW_OCTAL | ALLOW_BINARY | ALLOW_IMPLICIT_OCTAL);
+  // Decode numbers, with seperate paths for prefixes and implicit octals.
+  if (has_prefix && number[0] == '0') {
+    // "0[xob]" by itself is a parse error.
+    if (number.size() <= 2) {
+      token_ = kParseError;
+      return;
+    }
+    switch (number[1]) {
+      case 'b':
+        double_value_ = BinaryStringToDouble(
+            base::Vector<const uint8_t>::cast(base::VectorOf(number)));
+        break;
+      case 'o':
+        double_value_ = OctalStringToDouble(
+            base::Vector<const uint8_t>::cast(base::VectorOf(number)));
+        break;
+      case 'x':
+        double_value_ = HexStringToDouble(
+            base::Vector<const uint8_t>::cast(base::VectorOf(number)));
+        break;
+      default:
+        // If there is a prefix character, but it's not the second character,
+        // then there's a parse error somewhere.
+        token_ = kParseError;
+        break;
+    }
+  } else if (number[0] == '0' && !has_prefix && IsValidImplicitOctal(number)) {
+    double_value_ = ImplicitOctalStringToDouble(
+        base::Vector<const uint8_t>::cast(base::VectorOf(number)));
+  } else {
+    double_value_ = StringToDouble(
+        base::Vector<const uint8_t>::cast(base::VectorOf(number)),
+        NO_CONVERSION_FLAG);
+  }
   if (std::isnan(double_value_)) {
     // Check if string to number conversion didn't consume all the characters.
     // This happens if the character filter let through something invalid

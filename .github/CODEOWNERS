@@ -15,7 +15,7 @@
 /.github/ISSUE_TEMPLATE/* @nodejs/tsc
 /CODE_OF_CONDUCT.md @nodejs/tsc
 /CONTRIBUTING.md @nodejs/tsc
-/doc/contributing/*.md @nodejs/tsc
+/doc/contributing/**/* @nodejs/tsc
 /GOVERNANCE.md @nodejs/tsc
 /SECURITY.md @nodejs/tsc
 /LICENSE @nodejs/tsc
@@ -68,6 +68,7 @@
 /lib/tls.js @nodejs/crypto @nodejs/net
 /src/crypto/* @nodejs/crypto
 /src/node_crypto* @nodejs/crypto
+/deps/ncrypto/* @nodejs/crypto
 
 # http
 
@@ -167,6 +168,7 @@
 /doc/api/permissions.md @nodejs/security-wg
 /lib/internal/process/permission.js @nodejs/security-wg
 /src/permission/* @nodejs/security-wg
+/test/parallel/test-permission-* @nodejs/security-wg
 
 # Dependency Update Tools
 
@@ -188,3 +190,6 @@
 /doc/api/typescript.md @nodejs/typescript
 /test/fixtures/typescript/ @nodejs/typescript
 /tools/dep_updaters/update-amaro.sh @nodejs/typescript
+
+# Performance
+/benchmark/* @nodejs/performance

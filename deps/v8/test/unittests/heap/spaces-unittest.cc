@@ -13,7 +13,7 @@
 #include "src/heap/heap.h"
 #include "src/heap/large-spaces.h"
 #include "src/heap/main-allocator.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/spaces-inl.h"
 #include "test/unittests/test-utils.h"
 
@@ -100,10 +100,10 @@ TEST_F(SpacesTest, WriteBarrierIsMarking) {
   MemoryChunk* chunk = reinterpret_cast<MemoryChunk*>(&memory);
   EXPECT_FALSE(chunk->IsFlagSet(MemoryChunk::INCREMENTAL_MARKING));
   EXPECT_FALSE(chunk->IsMarking());
-  chunk->SetFlag(MemoryChunk::INCREMENTAL_MARKING);
+  chunk->SetFlagNonExecutable(MemoryChunk::INCREMENTAL_MARKING);
   EXPECT_TRUE(chunk->IsFlagSet(MemoryChunk::INCREMENTAL_MARKING));
   EXPECT_TRUE(chunk->IsMarking());
-  chunk->ClearFlag(MemoryChunk::INCREMENTAL_MARKING);
+  chunk->ClearFlagNonExecutable(MemoryChunk::INCREMENTAL_MARKING);
   EXPECT_FALSE(chunk->IsFlagSet(MemoryChunk::INCREMENTAL_MARKING));
   EXPECT_FALSE(chunk->IsMarking());
 }
@@ -114,9 +114,9 @@ TEST_F(SpacesTest, WriteBarrierInYoungGenerationToSpace) {
   memset(&memory, 0, kSizeOfMemoryChunk);
   MemoryChunk* chunk = reinterpret_cast<MemoryChunk*>(&memory);
   EXPECT_FALSE(chunk->InYoungGeneration());
-  chunk->SetFlag(MemoryChunk::TO_PAGE);
+  chunk->SetFlagNonExecutable(MemoryChunk::TO_PAGE);
   EXPECT_TRUE(chunk->InYoungGeneration());
-  chunk->ClearFlag(MemoryChunk::TO_PAGE);
+  chunk->ClearFlagNonExecutable(MemoryChunk::TO_PAGE);
   EXPECT_FALSE(chunk->InYoungGeneration());
 }
 
@@ -126,9 +126,9 @@ TEST_F(SpacesTest, WriteBarrierInYoungGenerationFromSpace) {
   memset(&memory, 0, kSizeOfMemoryChunk);
   MemoryChunk* chunk = reinterpret_cast<MemoryChunk*>(&memory);
   EXPECT_FALSE(chunk->InYoungGeneration());
-  chunk->SetFlag(MemoryChunk::FROM_PAGE);
+  chunk->SetFlagNonExecutable(MemoryChunk::FROM_PAGE);
   EXPECT_TRUE(chunk->InYoungGeneration());
-  chunk->ClearFlag(MemoryChunk::FROM_PAGE);
+  chunk->ClearFlagNonExecutable(MemoryChunk::FROM_PAGE);
   EXPECT_FALSE(chunk->InYoungGeneration());
 }
 

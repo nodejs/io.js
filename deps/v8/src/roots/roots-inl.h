@@ -9,6 +9,7 @@
 #include "src/execution/isolate.h"
 #include "src/execution/local-isolate.h"
 #include "src/handles/handles.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/read-only-heap.h"
 #include "src/objects/api-callbacks.h"
 #include "src/objects/cell.h"
@@ -77,22 +78,22 @@ ReadOnlyRoots::ReadOnlyRoots(const Isolate* isolate)
 ReadOnlyRoots::ReadOnlyRoots(LocalIsolate* isolate)
     : ReadOnlyRoots(isolate->factory()->read_only_roots()) {}
 
-// We use unchecked_cast below because we trust our read-only roots to
+// We use UncheckedCast below because we trust our read-only roots to
 // have the right type, and to avoid the heavy #includes that would be
 // required for checked casts.
 
-#define ROOT_ACCESSOR(Type, name, CamelName)                                 \
-  Tagged<Type> ReadOnlyRoots::name() const {                                 \
-    DCHECK(CheckType_##name());                                              \
-    return unchecked_##name();                                               \
-  }                                                                          \
-  Tagged<Type> ReadOnlyRoots::unchecked_##name() const {                     \
-    return Tagged<Type>::unchecked_cast(object_at(RootIndex::k##CamelName)); \
-  }                                                                          \
-  Handle<Type> ReadOnlyRoots::name##_handle() const {                        \
-    DCHECK(CheckType_##name());                                              \
-    Address* location = GetLocation(RootIndex::k##CamelName);                \
-    return Handle<Type>(location);                                           \
+#define ROOT_ACCESSOR(Type, name, CamelName)                        \
+  Tagged<Type> ReadOnlyRoots::name() const {                        \
+    DCHECK(CheckType_##name());                                     \
+    return unchecked_##name();                                      \
+  }                                                                 \
+  Tagged<Type> ReadOnlyRoots::unchecked_##name() const {            \
+    return UncheckedCast<Type>(object_at(RootIndex::k##CamelName)); \
+  }                                                                 \
+  Handle<Type> ReadOnlyRoots::name##_handle() const {               \
+    DCHECK(CheckType_##name());                                     \
+    Address* location = GetLocation(RootIndex::k##CamelName);       \
+    return Handle<Type>(location);                                  \
   }
 
 READ_ONLY_ROOT_LIST(ROOT_ACCESSOR)

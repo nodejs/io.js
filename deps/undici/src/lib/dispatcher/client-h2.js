@@ -24,7 +24,9 @@ const {
   kOnError,
   kMaxConcurrentStreams,
   kHTTP2Session,
-  kResume
+  kResume,
+  kSize,
+  kHTTPContext
 } = require('../core/symbols.js')
 
 const kOpenStreams = Symbol('open streams')
@@ -160,11 +162,10 @@ async function connectH2 (client, socket) {
     version: 'h2',
     defaultPipelining: Infinity,
     write (...args) {
-      // TODO (fix): return
-      writeH2(client, ...args)
+      return writeH2(client, ...args)
     },
     resume () {
-
+      resumeH2(client)
     },
     destroy (err, callback) {
       if (closed) {
@@ -179,6 +180,20 @@ async function connectH2 (client, socket) {
     },
     busy () {
       return false
+    }
+  }
+}
+
+function resumeH2 (client) {
+  const socket = client[kSocket]
+
+  if (socket?.destroyed === false) {
+    if (client[kSize] === 0 && client[kMaxConcurrentStreams] === 0) {
+      socket.unref()
+      client[kHTTP2Session].unref()
+    } else {
+      socket.ref()
+      client[kHTTP2Session].ref()
     }
   }
 }
@@ -210,17 +225,32 @@ function onHttp2SessionEnd () {
  * along with the socket right away
  */
 function onHTTP2GoAway (code) {
-  const err = new RequestAbortedError(`HTTP/2: "GOAWAY" frame received with code ${code}`)
+  // We cannot recover, so best to close the session and the socket
+  const err = this[kError] || new SocketError(`HTTP/2: "GOAWAY" frame received with code ${code}`, util.getSocketInfo(this))
+  const client = this[kClient]
 
-  // We need to trigger the close cycle right away
-  // We need to destroy the session and the socket
-  // Requests should be failed with the error after the current one is handled
-  this[kSocket][kError] = err
-  this[kClient][kOnError](err)
+  client[kSocket] = null
+  client[kHTTPContext] = null
 
-  this.unref()
+  if (this[kHTTP2Session] != null) {
+    this[kHTTP2Session].destroy(err)
+    this[kHTTP2Session] = null
+  }
 
   util.destroy(this[kSocket], err)
+
+  // Fail head of pipeline.
+  const request = client[kQueue][client[kRunningIdx]]
+  client[kQueue][client[kRunningIdx]++] = null
+  util.errorRequest(client, request, err)
+
+  client[kPendingIdx] = client[kRunningIdx]
+
+  assert(client[kRunning] === 0)
+
+  client.emit('disconnect', client[kUrl], [client], err)
+
+  client[kResume]()
 }
 
 // https://www.rfc-editor.org/rfc/rfc7230#section-3.3.2
@@ -234,10 +264,6 @@ function writeH2 (client, request) {
 
   if (upgrade) {
     util.errorRequest(client, request, new Error('Upgrade not supported for H2'))
-    return false
-  }
-
-  if (request.aborted) {
     return false
   }
 
@@ -283,6 +309,8 @@ function writeH2 (client, request) {
     // We do not destroy the socket as we can continue using the session
     // the stream get's destroyed and the session remains to create new streams
     util.destroy(body, err)
+    client[kQueue][client[kRunningIdx]++] = null
+    client[kResume]()
   }
 
   try {
@@ -291,6 +319,10 @@ function writeH2 (client, request) {
     request.onConnect(abort)
   } catch (err) {
     util.errorRequest(client, request, err)
+  }
+
+  if (request.aborted) {
+    return false
   }
 
   if (method === 'CONNECT') {
@@ -304,10 +336,12 @@ function writeH2 (client, request) {
     if (stream.id && !stream.pending) {
       request.onUpgrade(null, null, stream)
       ++session[kOpenStreams]
+      client[kQueue][client[kRunningIdx]++] = null
     } else {
       stream.once('ready', () => {
         request.onUpgrade(null, null, stream)
         ++session[kOpenStreams]
+        client[kQueue][client[kRunningIdx]++] = null
       })
     }
 
@@ -428,17 +462,20 @@ function writeH2 (client, request) {
     // Present specially when using pipeline or stream
     if (stream.state?.state == null || stream.state.state < 6) {
       request.onComplete([])
-      return
     }
 
-    // Stream is closed or half-closed-remote (6), decrement counter and cleanup
-    // It does not have sense to continue working with the stream as we do not
-    // have yet RST_STREAM support on client-side
     if (session[kOpenStreams] === 0) {
+      // Stream is closed or half-closed-remote (6), decrement counter and cleanup
+      // It does not have sense to continue working with the stream as we do not
+      // have yet RST_STREAM support on client-side
+
       session.unref()
     }
 
     abort(new InformationalError('HTTP/2: stream half-closed (remote)'))
+    client[kQueue][client[kRunningIdx]++] = null
+    client[kPendingIdx] = client[kRunningIdx]
+    client[kResume]()
   })
 
   stream.once('close', () => {

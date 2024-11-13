@@ -21,7 +21,7 @@
 #include "src/heap/main-allocator-inl.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/read-only-heap.h"
 #include "src/heap/remembered-set.h"
 #include "src/heap/slot-set.h"

@@ -9,9 +9,7 @@
 #include "src/wasm/std-object-sizes.h"
 #include "src/wasm/wasm-code-manager.h"
 
-namespace v8 {
-namespace internal {
-namespace wasm {
+namespace v8::internal::wasm {
 
 WasmCode*& WasmImportWrapperCache::ModificationScope::operator[](
     const CacheKey& key) {
@@ -68,6 +66,4 @@ size_t WasmImportWrapperCache::EstimateCurrentMemoryConsumption() const {
   return sizeof(WasmImportWrapperCache) + ContentSize(entry_map_);
 }
 
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm

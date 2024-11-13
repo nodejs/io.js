@@ -123,7 +123,8 @@ class MultiLineStringBuilder : public StringBuilder {
   // Note: implemented in wasm-disassembler.cc (which is also the only user).
   void ToDisassemblyCollector(v8::debug::DisassemblyCollector* collector);
 
-  void WriteTo(std::ostream& out, bool print_offsets) {
+  void WriteTo(std::ostream& out, bool print_offsets,
+               std::vector<uint32_t>* collect_offsets = nullptr) {
     if (length() != 0) NextLine(0);
     if (lines_.size() == 0) return;
 
@@ -166,6 +167,12 @@ class MultiLineStringBuilder : public StringBuilder {
       }
     }
     out.write(last_start, len);
+    if (collect_offsets) {
+      collect_offsets->reserve(lines_.size());
+      for (const Line& l : lines_) {
+        collect_offsets->push_back(l.bytecode_offset);
+      }
+    }
   }
 
   size_t ApproximateSizeMB() { return approximate_size_mb(); }

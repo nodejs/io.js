@@ -81,6 +81,15 @@ int RECORD_LAYER_read_pending(const RECORD_LAYER *rl)
     return SSL3_BUFFER_get_left(&rl->rbuf) != 0;
 }
 
+int RECORD_LAYER_data_present(const RECORD_LAYER *rl)
+{
+    if (rl->rstate == SSL_ST_READ_BODY)
+        return 1;
+    if (RECORD_LAYER_processed_read_pending(rl))
+        return 1;
+    return 0;
+}
+
 /* Checks if we have decrypted unread record data pending */
 int RECORD_LAYER_processed_read_pending(const RECORD_LAYER *rl)
 {
@@ -219,6 +228,12 @@ int ssl3_read_n(SSL *s, size_t n, size_t max, int extend, int clearold,
         s->rlayer.packet = rb->buf + rb->offset;
         s->rlayer.packet_length = 0;
         /* ... now we can act as if 'extend' was set */
+    }
+
+    if (!ossl_assert(s->rlayer.packet != NULL)) {
+        /* does not happen */
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return -1;
     }
 
     len = s->rlayer.packet_length;

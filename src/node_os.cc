@@ -287,21 +287,29 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
     encoding = UTF8;
   }
 
-  const int err = uv_os_get_passwd(&pwd);
-
-  if (err) {
+  if (const int err = uv_os_get_passwd(&pwd)) {
     CHECK_GE(args.Length(), 2);
     env->CollectUVExceptionInfo(args[args.Length() - 1], err,
                                 "uv_os_get_passwd");
     return args.GetReturnValue().SetUndefined();
   }
 
-  auto free_passwd = OnScopeLeave([&]() { uv_os_free_passwd(&pwd); });
+  auto free_passwd = OnScopeLeave([&] { uv_os_free_passwd(&pwd); });
 
   Local<Value> error;
 
+#ifdef _WIN32
+  Local<Value> uid = Number::New(
+      env->isolate(),
+      static_cast<double>(static_cast<int32_t>(pwd.uid & 0xFFFFFFFF)));
+  Local<Value> gid = Number::New(
+      env->isolate(),
+      static_cast<double>(static_cast<int32_t>(pwd.gid & 0xFFFFFFFF)));
+#else
   Local<Value> uid = Number::New(env->isolate(), pwd.uid);
   Local<Value> gid = Number::New(env->isolate(), pwd.gid);
+#endif
+
   MaybeLocal<Value> username = StringBytes::Encode(env->isolate(),
                                                    pwd.username,
                                                    encoding,
@@ -323,21 +331,22 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  Local<Object> entry = Object::New(env->isolate());
-
-  entry->Set(env->context(), env->uid_string(), uid).Check();
-  entry->Set(env->context(), env->gid_string(), gid).Check();
-  entry->Set(env->context(),
-             env->username_string(),
-             username.ToLocalChecked()).Check();
-  entry->Set(env->context(),
-             env->homedir_string(),
-             homedir.ToLocalChecked()).Check();
-  entry->Set(env->context(),
-             env->shell_string(),
-             shell.ToLocalChecked()).Check();
-
-  args.GetReturnValue().Set(entry);
+  constexpr size_t kRetLength = 5;
+  std::array<Local<v8::Name>, kRetLength> names = {env->uid_string(),
+                                                   env->gid_string(),
+                                                   env->username_string(),
+                                                   env->homedir_string(),
+                                                   env->shell_string()};
+  std::array values = {uid,
+                       gid,
+                       username.ToLocalChecked(),
+                       homedir.ToLocalChecked(),
+                       shell.ToLocalChecked()};
+  args.GetReturnValue().Set(Object::New(env->isolate(),
+                                        Null(env->isolate()),
+                                        names.data(),
+                                        values.data(),
+                                        kRetLength));
 }
 
 

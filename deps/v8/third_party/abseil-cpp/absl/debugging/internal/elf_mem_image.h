@@ -22,6 +22,7 @@
 // Including this will define the __GLIBC__ macro if glibc is being
 // used.
 #include <climits>
+#include <cstdint>
 
 #include "absl/base/config.h"
 
@@ -82,10 +83,10 @@ class ElfMemImage {
     bool operator!=(const SymbolIterator &rhs) const;
     bool operator==(const SymbolIterator &rhs) const;
    private:
-    SymbolIterator(const void *const image, int index);
-    void Update(int incr);
+    SymbolIterator(const void *const image, uint32_t index);
+    void Update(uint32_t incr);
     SymbolInfo info_;
-    int index_;
+    uint32_t index_;
     const void *const image_;
   };
 
@@ -94,14 +95,14 @@ class ElfMemImage {
   void                 Init(const void *base);
   bool                 IsPresent() const { return ehdr_ != nullptr; }
   const ElfW(Phdr)*    GetPhdr(int index) const;
-  const ElfW(Sym)*     GetDynsym(int index) const;
-  const ElfW(Versym)*  GetVersym(int index) const;
+  const ElfW(Sym) * GetDynsym(uint32_t index) const;
+  const ElfW(Versym)*  GetVersym(uint32_t index) const;
   const ElfW(Verdef)*  GetVerdef(int index) const;
   const ElfW(Verdaux)* GetVerdefAux(const ElfW(Verdef) *verdef) const;
   const char*          GetDynstr(ElfW(Word) offset) const;
   const void*          GetSymAddr(const ElfW(Sym) *sym) const;
   const char*          GetVerstr(ElfW(Word) offset) const;
-  int                  GetNumSymbols() const;
+  uint32_t GetNumSymbols() const;
 
   SymbolIterator begin() const;
   SymbolIterator end() const;
@@ -124,8 +125,8 @@ class ElfMemImage {
   const ElfW(Sym) *dynsym_;
   const ElfW(Versym) *versym_;
   const ElfW(Verdef) *verdef_;
-  const ElfW(Word) *hash_;
   const char *dynstr_;
+  uint32_t num_syms_;
   size_t strsize_;
   size_t verdefnum_;
   ElfW(Addr) link_base_;     // Link-time base (p_vaddr of first PT_LOAD).

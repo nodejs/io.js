@@ -20,12 +20,13 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "crypto/crypto_tls.h"
-#include "crypto/crypto_context.h"
-#include "crypto/crypto_common.h"
-#include "crypto/crypto_util.h"
+#include <cstdio>
+#include "async_wrap-inl.h"
 #include "crypto/crypto_bio.h"
 #include "crypto/crypto_clienthello-inl.h"
-#include "async_wrap-inl.h"
+#include "crypto/crypto_common.h"
+#include "crypto/crypto_context.h"
+#include "crypto/crypto_util.h"
 #include "debug_utils-inl.h"
 #include "memory_tracker-inl.h"
 #include "node_buffer.h"
@@ -140,7 +141,7 @@ void KeylogCallback(const SSL* s, const char* line) {
   const size_t size = strlen(line);
   Local<Value> line_bf = Buffer::Copy(env, line, 1 + size)
       .FromMaybe(Local<Value>());
-  if (UNLIKELY(line_bf.IsEmpty()))
+  if (line_bf.IsEmpty()) [[unlikely]]
     return;
 
   char* data = Buffer::Data(line_bf);
@@ -159,12 +160,12 @@ int NewSessionCallback(SSL* s, SSL_SESSION* sess) {
 
   // Check if session is small enough to be stored
   int size = i2d_SSL_SESSION(sess, nullptr);
-  if (UNLIKELY(size > SecureContext::kMaxSessionSize))
+  if (size > SecureContext::kMaxSessionSize) [[unlikely]]
     return 0;
 
   // Serialize session
   Local<Object> session = Buffer::New(env, size).FromMaybe(Local<Object>());
-  if (UNLIKELY(session.IsEmpty()))
+  if (session.IsEmpty()) [[unlikely]]
     return 0;
 
   unsigned char* session_data =
@@ -180,7 +181,7 @@ int NewSessionCallback(SSL* s, SSL_SESSION* sess) {
       env,
       reinterpret_cast<const char*>(session_id_data),
       session_id_length).FromMaybe(Local<Object>());
-  if (UNLIKELY(session_id.IsEmpty()))
+  if (session_id.IsEmpty()) [[unlikely]]
     return 0;
 
   Local<Value> argv[] = {
@@ -255,7 +256,7 @@ int SelectALPNCallback(
     MaybeLocal<Value> maybe_callback_result =
         w->MakeCallback(env->alpn_callback_string(), 1, &callback_arg);
 
-    if (UNLIKELY(maybe_callback_result.IsEmpty())) {
+    if (maybe_callback_result.IsEmpty()) [[unlikely]] {
       // Implies the callback didn't return, because some exception was thrown
       // during processing, e.g. if callback returned an invalid ALPN value.
       return SSL_TLSEXT_ERR_ALERT_FATAL;
@@ -323,7 +324,7 @@ int TLSExtStatusCallback(SSL* s, void* arg) {
   // Outgoing response
   Local<ArrayBufferView> obj =
       w->ocsp_response().FromMaybe(Local<ArrayBufferView>());
-  if (UNLIKELY(obj.IsEmpty()))
+  if (obj.IsEmpty()) [[unlikely]]
     return SSL_TLSEXT_ERR_NOACK;
 
   size_t len = obj->ByteLength();
@@ -625,7 +626,7 @@ void TLSWrap::EncOut() {
     return;
   }
 
-  if (UNLIKELY(has_active_write_issued_by_prev_listener_)) {
+  if (has_active_write_issued_by_prev_listener_) [[unlikely]] {
     Debug(this,
           "Returning from EncOut(), "
           "has_active_write_issued_by_prev_listener_ is true");
@@ -703,7 +704,7 @@ void TLSWrap::EncOut() {
 void TLSWrap::OnStreamAfterWrite(WriteWrap* req_wrap, int status) {
   Debug(this, "OnStreamAfterWrite(status = %d)", status);
 
-  if (UNLIKELY(has_active_write_issued_by_prev_listener_)) {
+  if (has_active_write_issued_by_prev_listener_) [[unlikely]] {
     Debug(this, "Notify write finish to the previous_listener_");
     CHECK_EQ(write_size_, 0);  // we must have restrained writes
 
@@ -826,15 +827,19 @@ void TLSWrap::ClearOut() {
           unsigned long ssl_err = ERR_peek_error();  // NOLINT(runtime/int)
 
           Local<Context> context = env()->isolate()->GetCurrentContext();
-          if (UNLIKELY(context.IsEmpty())) return;
+          if (context.IsEmpty()) [[unlikely]]
+            return;
           const std::string error_str = GetBIOError();
           Local<String> message = OneByteString(
               env()->isolate(), error_str.c_str(), error_str.size());
-          if (UNLIKELY(message.IsEmpty())) return;
+          if (message.IsEmpty()) [[unlikely]]
+            return;
           error = Exception::Error(message);
-          if (UNLIKELY(error.IsEmpty())) return;
+          if (error.IsEmpty()) [[unlikely]]
+            return;
           Local<Object> obj;
-          if (UNLIKELY(!error->ToObject(context).ToLocal(&obj))) return;
+          if (!error->ToObject(context).ToLocal(&obj)) [[unlikely]]
+            return;
 
           const char* ls = ERR_lib_error_string(ssl_err);
           const char* fs = ERR_func_error_string(ssl_err);
@@ -1244,7 +1249,7 @@ void TLSWrap::EnableTrace(const FunctionCallbackInfo<Value>& args) {
 
 #if HAVE_SSL_TRACE
   if (wrap->ssl_) {
-    wrap->bio_trace_.reset(BIO_new_fp(stderr,  BIO_NOCLOSE | BIO_FP_TEXT));
+    wrap->bio_trace_ = BIOPointer::NewFp(stderr, BIO_NOCLOSE | BIO_FP_TEXT);
     SSL_set_msg_callback(wrap->ssl_.get(), [](int write_p, int version, int
           content_type, const void* buf, size_t len, SSL* ssl, void* arg)
         -> void {
@@ -1363,7 +1368,7 @@ int TLSWrap::SelectSNIContextCallback(SSL* s, int* ad, void* arg) {
   Local<Value> ctx = p->object()->Get(env->context(), env->sni_context_string())
       .FromMaybe(Local<Value>());
 
-  if (UNLIKELY(ctx.IsEmpty()) || !ctx->IsObject())
+  if (ctx.IsEmpty() || !ctx->IsObject()) [[unlikely]]
     return SSL_TLSEXT_ERR_NOACK;
 
   if (!env->secure_context_constructor_template()->HasInstance(ctx)) {
@@ -1412,7 +1417,7 @@ void TLSWrap::SetPskIdentityHint(const FunctionCallbackInfo<Value>& args) {
   Utf8Value hint(isolate, args[0].As<String>());
 
   if (!SSL_use_psk_identity_hint(p->ssl_.get(), *hint)) {
-    Local<Value> err = node::ERR_TLS_PSK_SET_IDENTIY_HINT_FAILED(isolate);
+    Local<Value> err = node::ERR_TLS_PSK_SET_IDENTITY_HINT_FAILED(isolate);
     p->MakeCallback(env->onerror_string(), 1, &err);
   }
 }
@@ -1438,7 +1443,7 @@ unsigned int TLSWrap::PskServerCallback(
 
   Local<String> identity_str =
       String::NewFromUtf8(env->isolate(), identity).FromMaybe(Local<String>());
-  if (UNLIKELY(identity_str.IsEmpty()))
+  if (identity_str.IsEmpty()) [[unlikely]]
     return 0;
 
   // Make sure there are no utf8 replacement symbols.
@@ -1453,7 +1458,7 @@ unsigned int TLSWrap::PskServerCallback(
   Local<Value> psk_val =
       p->MakeCallback(env->onpskexchange_symbol(), arraysize(argv), argv)
           .FromMaybe(Local<Value>());
-  if (UNLIKELY(psk_val.IsEmpty()) || !psk_val->IsArrayBufferView())
+  if (psk_val.IsEmpty() || !psk_val->IsArrayBufferView()) [[unlikely]]
     return 0;
 
   ArrayBufferViewContents<char> psk_buf(psk_val);
@@ -1486,7 +1491,7 @@ unsigned int TLSWrap::PskClientCallback(
   if (hint != nullptr) {
     Local<String> local_hint =
         String::NewFromUtf8(env->isolate(), hint).FromMaybe(Local<String>());
-    if (UNLIKELY(local_hint.IsEmpty()))
+    if (local_hint.IsEmpty()) [[unlikely]]
       return 0;
 
     argv[0] = local_hint;
@@ -1495,14 +1500,14 @@ unsigned int TLSWrap::PskClientCallback(
   Local<Value> ret =
       p->MakeCallback(env->onpskexchange_symbol(), arraysize(argv), argv)
           .FromMaybe(Local<Value>());
-  if (UNLIKELY(ret.IsEmpty()) || !ret->IsObject())
+  if (ret.IsEmpty() || !ret->IsObject()) [[unlikely]]
     return 0;
 
   Local<Object> obj = ret.As<Object>();
 
   Local<Value> psk_val = obj->Get(env->context(), env->psk_string())
       .FromMaybe(Local<Value>());
-  if (UNLIKELY(psk_val.IsEmpty()) || !psk_val->IsArrayBufferView())
+  if (psk_val.IsEmpty() || !psk_val->IsArrayBufferView()) [[unlikely]]
     return 0;
 
   ArrayBufferViewContents<char> psk_buf(psk_val);
@@ -1511,7 +1516,7 @@ unsigned int TLSWrap::PskClientCallback(
 
   Local<Value> identity_val = obj->Get(env->context(), env->identity_string())
       .FromMaybe(Local<Value>());
-  if (UNLIKELY(identity_val.IsEmpty()) || !identity_val->IsString())
+  if (identity_val.IsEmpty() || !identity_val->IsString()) [[unlikely]]
     return 0;
 
   Utf8Value identity_buf(env->isolate(), identity_val);
@@ -1560,7 +1565,7 @@ void TLSWrap::CertCbDone(const FunctionCallbackInfo<Value>& args) {
   Local<Object> object = w->object();
   Local<Value> ctx = object->Get(env->context(), env->sni_context_string())
       .FromMaybe(Local<Value>());
-  if (UNLIKELY(ctx.IsEmpty()))
+  if (ctx.IsEmpty()) [[unlikely]]
     return;
 
   Local<FunctionTemplate> cons = env->secure_context_constructor_template();
@@ -1626,7 +1631,8 @@ void TLSWrap::SetKeyCert(const FunctionCallbackInfo<Value>& args) {
     return env->ThrowTypeError("Must give a SecureContext as first argument");
 
   Local<Value> ctx = args[0];
-  if (UNLIKELY(ctx.IsEmpty())) return;
+  if (ctx.IsEmpty()) [[unlikely]]
+    return;
 
   Local<FunctionTemplate> cons = env->secure_context_constructor_template();
   if (cons->HasInstance(ctx)) {

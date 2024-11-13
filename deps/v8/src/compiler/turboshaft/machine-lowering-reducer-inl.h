@@ -5,8 +5,9 @@
 #ifndef V8_COMPILER_TURBOSHAFT_MACHINE_LOWERING_REDUCER_INL_H_
 #define V8_COMPILER_TURBOSHAFT_MACHINE_LOWERING_REDUCER_INL_H_
 
+#include <optional>
+
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/codegen/external-reference.h"
 #include "src/codegen/machine-type.h"
 #include "src/common/globals.h"
@@ -58,41 +59,46 @@ class MachineLoweringReducer : public Next {
     }
   }
 
-  OpIndex REDUCE(ChangeOrDeopt)(OpIndex input, OpIndex frame_state,
-                                ChangeOrDeoptOp::Kind kind,
-                                CheckForMinusZeroMode minus_zero_mode,
-                                const FeedbackSource& feedback) {
+  V<Untagged> REDUCE(ChangeOrDeopt)(V<Untagged> input,
+                                    V<FrameState> frame_state,
+                                    ChangeOrDeoptOp::Kind kind,
+                                    CheckForMinusZeroMode minus_zero_mode,
+                                    const FeedbackSource& feedback) {
     switch (kind) {
       case ChangeOrDeoptOp::Kind::kUint32ToInt32: {
-        __ DeoptimizeIf(__ Int32LessThan(input, 0), frame_state,
-                        DeoptimizeReason::kLostPrecision, feedback);
+        __ DeoptimizeIf(__ Int32LessThan(V<Word32>::Cast(input), 0),
+                        frame_state, DeoptimizeReason::kLostPrecision,
+                        feedback);
         return input;
       }
       case ChangeOrDeoptOp::Kind::kInt64ToInt32: {
-        V<Word32> i32 = __ TruncateWord64ToWord32(input);
-        __ DeoptimizeIfNot(__ Word64Equal(__ ChangeInt32ToInt64(i32), input),
-                           frame_state, DeoptimizeReason::kLostPrecision,
-                           feedback);
+        V<Word64> i64_input = V<Word64>::Cast(input);
+        V<Word32> i32 = __ TruncateWord64ToWord32(i64_input);
+        __ DeoptimizeIfNot(
+            __ Word64Equal(__ ChangeInt32ToInt64(i32), i64_input), frame_state,
+            DeoptimizeReason::kLostPrecision, feedback);
         return i32;
       }
       case ChangeOrDeoptOp::Kind::kUint64ToInt32: {
+        V<Word64> i64_input = V<Word64>::Cast(input);
         __ DeoptimizeIfNot(
-            __ Uint64LessThanOrEqual(input, static_cast<uint64_t>(kMaxInt)),
+            __ Uint64LessThanOrEqual(i64_input, static_cast<uint64_t>(kMaxInt)),
             frame_state, DeoptimizeReason::kLostPrecision, feedback);
-        return __ TruncateWord64ToWord32(input);
+        return __ TruncateWord64ToWord32(i64_input);
       }
       case ChangeOrDeoptOp::Kind::kUint64ToInt64: {
-        __ DeoptimizeIfNot(__ Uint64LessThanOrEqual(
-                               input, std::numeric_limits<int64_t>::max()),
-                           frame_state, DeoptimizeReason::kLostPrecision,
-                           feedback);
+        __ DeoptimizeIfNot(
+            __ Uint64LessThanOrEqual(V<Word64>::Cast(input),
+                                     std::numeric_limits<int64_t>::max()),
+            frame_state, DeoptimizeReason::kLostPrecision, feedback);
         return input;
       }
       case ChangeOrDeoptOp::Kind::kFloat64ToInt32: {
-        V<Word32> i32 = __ TruncateFloat64ToInt32OverflowUndefined(input);
-        __ DeoptimizeIfNot(__ Float64Equal(__ ChangeInt32ToFloat64(i32), input),
-                           frame_state, DeoptimizeReason::kLostPrecisionOrNaN,
-                           feedback);
+        V<Float64> f64_input = V<Float64>::Cast(input);
+        V<Word32> i32 = __ TruncateFloat64ToInt32OverflowUndefined(f64_input);
+        __ DeoptimizeIfNot(
+            __ Float64Equal(__ ChangeInt32ToFloat64(i32), f64_input),
+            frame_state, DeoptimizeReason::kLostPrecisionOrNaN, feedback);
 
         if (minus_zero_mode == CheckForMinusZeroMode::kCheckForMinusZero) {
           // Check if {value} is -0.
@@ -100,7 +106,7 @@ class MachineLoweringReducer : public Next {
             // In case of 0, we need to check the high bits for the IEEE -0
             // pattern.
             V<Word32> check_negative =
-                __ Int32LessThan(__ Float64ExtractHighWord32(input), 0);
+                __ Int32LessThan(__ Float64ExtractHighWord32(f64_input), 0);
             __ DeoptimizeIf(check_negative, frame_state,
                             DeoptimizeReason::kMinusZero, feedback);
           }
@@ -108,11 +114,33 @@ class MachineLoweringReducer : public Next {
 
         return i32;
       }
+      case ChangeOrDeoptOp::Kind::kFloat64ToUint32: {
+        V<Float64> f64_input = V<Float64>::Cast(input);
+        V<Word32> ui32 = __ TruncateFloat64ToUint32OverflowUndefined(f64_input);
+        __ DeoptimizeIfNot(
+            __ Float64Equal(__ ChangeUint32ToFloat64(ui32), f64_input),
+            frame_state, DeoptimizeReason::kLostPrecisionOrNaN, feedback);
+
+        if (minus_zero_mode == CheckForMinusZeroMode::kCheckForMinusZero) {
+          // Check if {value} is -0.
+          IF (UNLIKELY(__ Word32Equal(ui32, 0))) {
+            // In case of 0, we need to check the high bits for the IEEE -0
+            // pattern.
+            V<Word32> check_negative =
+                __ Int32LessThan(__ Float64ExtractHighWord32(f64_input), 0);
+            __ DeoptimizeIf(check_negative, frame_state,
+                            DeoptimizeReason::kMinusZero, feedback);
+          }
+        }
+
+        return ui32;
+      }
       case ChangeOrDeoptOp::Kind::kFloat64ToInt64: {
-        V<Word64> i64 = __ TruncateFloat64ToInt64OverflowToMin(input);
-        __ DeoptimizeIfNot(__ Float64Equal(__ ChangeInt64ToFloat64(i64), input),
-                           frame_state, DeoptimizeReason::kLostPrecisionOrNaN,
-                           feedback);
+        V<Float64> f64_input = V<Float64>::Cast(input);
+        V<Word64> i64 = __ TruncateFloat64ToInt64OverflowToMin(f64_input);
+        __ DeoptimizeIfNot(
+            __ Float64Equal(__ ChangeInt64ToFloat64(i64), f64_input),
+            frame_state, DeoptimizeReason::kLostPrecisionOrNaN, feedback);
 
         if (minus_zero_mode == CheckForMinusZeroMode::kCheckForMinusZero) {
           // Check if {value} is -0.
@@ -120,7 +148,7 @@ class MachineLoweringReducer : public Next {
             // In case of 0, we need to check the high bits for the IEEE -0
             // pattern.
             V<Word32> check_negative =
-                __ Int32LessThan(__ Float64ExtractHighWord32(input), 0);
+                __ Int32LessThan(__ Float64ExtractHighWord32(f64_input), 0);
             __ DeoptimizeIf(check_negative, frame_state,
                             DeoptimizeReason::kMinusZero, feedback);
           }
@@ -129,11 +157,12 @@ class MachineLoweringReducer : public Next {
         return i64;
       }
       case ChangeOrDeoptOp::Kind::kFloat64NotHole: {
+        V<Float64> f64_input = V<Float64>::Cast(input);
         // First check whether {value} is a NaN at all...
-        IF_NOT (LIKELY(__ Float64Equal(input, input))) {
+        IF_NOT (LIKELY(__ Float64Equal(f64_input, f64_input))) {
           // ...and only if {value} is a NaN, perform the expensive bit
           // check. See http://crbug.com/v8/8264 for details.
-          __ DeoptimizeIf(__ Word32Equal(__ Float64ExtractHighWord32(input),
+          __ DeoptimizeIf(__ Word32Equal(__ Float64ExtractHighWord32(f64_input),
                                          kHoleNanUpper32),
                           frame_state, DeoptimizeReason::kHole, feedback);
         }
@@ -144,7 +173,7 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(DeoptimizeIf)(OpIndex condition, OpIndex frame_state,
+  V<None> REDUCE(DeoptimizeIf)(V<Word32> condition, V<FrameState> frame_state,
                                bool negated,
                                const DeoptimizeParameters* parameters) {
     LABEL_BLOCK(no_change) {
@@ -257,6 +286,22 @@ class MachineLoweringReducer : public Next {
           GOTO_IF(UNLIKELY(__ IsSmi(input)), done, 0);
         }
 
+#if V8_STATIC_ROOTS_BOOL
+        // Fast check for NullOrUndefined before loading the map, if helpful.
+        V<Word32> is_null_or_undefined;
+        if (kind == ObjectIsOp::Kind::kReceiverOrNullOrUndefined) {
+          static_assert(StaticReadOnlyRoot::kFirstAllocatedRoot ==
+                        StaticReadOnlyRoot::kUndefinedValue);
+          static_assert(StaticReadOnlyRoot::kUndefinedValue +
+                            sizeof(Undefined) ==
+                        StaticReadOnlyRoot::kNullValue);
+          is_null_or_undefined = __ Uint32LessThanOrEqual(
+              __ TruncateWordPtrToWord32(
+                  __ BitcastHeapObjectToWordPtr(V<HeapObject>::Cast(input))),
+              __ Word32Constant(StaticReadOnlyRoot::kNullValue));
+        }
+#endif  // V8_STATIC_ROOTS_BOOL
+
         // Load bitfield from map.
         V<Map> map = __ LoadMapField(input);
         V<Word32> bitfield =
@@ -295,13 +340,9 @@ class MachineLoweringReducer : public Next {
             break;
           case ObjectIsOp::Kind::kReceiverOrNullOrUndefined: {
 #if V8_STATIC_ROOTS_BOOL
-            V<Word32> check0 = JSAnyIsNotPrimitiveHeapObject(input, map);
-            V<Word32> check1 = __ TaggedEqual(
-                input, __ HeapConstant(factory_->undefined_value()));
-            V<Word32> check2 =
-                __ TaggedEqual(input, __ HeapConstant(factory_->null_value()));
-            check =
-                __ Word32BitwiseOr(check0, __ Word32BitwiseOr(check1, check2));
+            V<Word32> is_non_primitive =
+                JSAnyIsNotPrimitiveHeapObject(input, map);
+            check = __ Word32BitwiseOr(is_null_or_undefined, is_non_primitive);
 #else
             static_assert(LAST_PRIMITIVE_HEAP_OBJECT_TYPE == ODDBALL_TYPE);
             static_assert(LAST_TYPE == LAST_JS_RECEIVER_TYPE);
@@ -354,6 +395,25 @@ class MachineLoweringReducer : public Next {
         BIND(done, result);
         return result;
       }
+      case ObjectIsOp::Kind::kNumberOrBigInt: {
+        Label<Word32> done(this);
+        DCHECK_NE(input_assumptions, ObjectIsOp::InputAssumptions::kBigInt);
+
+        // Check for Smi if necessary.
+        if (NeedsHeapObjectCheck(input_assumptions)) {
+          GOTO_IF(__ IsSmi(input), done, 1);
+        }
+
+        V<Map> map = __ LoadMapField(input);
+        GOTO_IF(
+            __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map())),
+            done, 1);
+        GOTO(done,
+             __ TaggedEqual(map, __ HeapConstant(factory_->bigint_map())));
+
+        BIND(done, result);
+        return result;
+      }
 
 #if V8_STATIC_ROOTS_BOOL
       case ObjectIsOp::Kind::kString: {
@@ -368,7 +428,7 @@ class MachineLoweringReducer : public Next {
         GOTO(done,
              __ Uint32LessThanOrEqual(
                  __ TruncateWordPtrToWord32(__ BitcastHeapObjectToWordPtr(map)),
-                 __ Word32Constant(InstanceTypeChecker::kLastStringMap)));
+                 __ Word32Constant(InstanceTypeChecker::kStringMapUpperBound)));
 
         BIND(done, result);
         return result;
@@ -482,9 +542,7 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  V<Word32> REDUCE(FloatIs)(V<Float64> value, NumericKind kind,
-                            FloatRepresentation input_rep) {
-    DCHECK_EQ(input_rep, FloatRepresentation::Float64());
+  V<Word32> REDUCE(Float64Is)(V<Float64> value, NumericKind kind) {
     switch (kind) {
       case NumericKind::kFloat64Hole: {
         Label<Word32> done(this);
@@ -532,8 +590,8 @@ class MachineLoweringReducer : public Next {
         if constexpr (SmiValuesAre32Bits()) {
           GOTO(done, 1);
         } else {
-          OpIndex add = __ Int32AddCheckOverflow(v32, v32);
-          V<Word32> overflow = __ template Projection<Word32>(add, 1);
+          V<Tuple<Word32, Word32>> add = __ Int32AddCheckOverflow(v32, v32);
+          V<Word32> overflow = __ template Projection<1>(add);
           GOTO_IF(overflow, done, 0);
           GOTO(done, 1);
         }
@@ -591,9 +649,8 @@ class MachineLoweringReducer : public Next {
         __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map())), done,
         0);
 
-    V<Float64> value = __ template LoadField<Float64>(
-        input, AccessBuilder::ForHeapNumberValue());
-    GOTO(done, __ FloatIs(value, kind, input_rep));
+    V<Float64> value = __ LoadHeapNumberValue(V<HeapNumber>::Cast(input));
+    GOTO(done, __ Float64Is(value, kind));
 
     BIND(done, result);
     return result;
@@ -637,8 +694,8 @@ class MachineLoweringReducer : public Next {
     }
   }
 
-  V<Object> REDUCE(ConvertUntaggedToJSPrimitive)(
-      OpIndex input, ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind kind,
+  V<JSPrimitive> REDUCE(ConvertUntaggedToJSPrimitive)(
+      V<Untagged> input, ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind kind,
       RegisterRepresentation input_rep,
       ConvertUntaggedToJSPrimitiveOp::InputInterpretation input_interpretation,
       CheckForMinusZeroMode minus_zero_mode) {
@@ -646,10 +703,11 @@ class MachineLoweringReducer : public Next {
       case ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind::kBigInt: {
         DCHECK(Is64());
         DCHECK_EQ(input_rep, RegisterRepresentation::Word64());
-        Label<Object> done(this);
+        V<Word64> input_w64 = V<Word64>::Cast(input);
+        Label<BigInt> done(this);
 
         // BigInts with value 0 must be of size 0 (canonical form).
-        GOTO_IF(__ Word64Equal(input, int64_t{0}), done,
+        GOTO_IF(__ Word64Equal(input_w64, int64_t{0}), done,
                 AllocateBigInt(OpIndex::Invalid(), OpIndex::Invalid()));
 
         // The GOTO_IF above could have been changed to an unconditional GOTO,
@@ -661,21 +719,22 @@ class MachineLoweringReducer : public Next {
           V<Word32> bitfield = __ Word32BitwiseOr(
               BigInt::LengthBits::encode(1),
               __ TruncateWord64ToWord32(__ Word64ShiftRightLogical(
-                  input, static_cast<int32_t>(63 - BigInt::SignBits::kShift))));
+                  input_w64,
+                  static_cast<int32_t>(63 - BigInt::SignBits::kShift))));
 
           // We use (value XOR (value >> 63)) - (value >> 63) to compute the
           // absolute value, in a branchless fashion.
           V<Word64> sign_mask =
-              __ Word64ShiftRightArithmetic(input, int32_t{63});
-          V<Word64> absolute_value =
-              __ Word64Sub(__ Word64BitwiseXor(input, sign_mask), sign_mask);
+              __ Word64ShiftRightArithmetic(input_w64, int32_t{63});
+          V<Word64> absolute_value = __ Word64Sub(
+              __ Word64BitwiseXor(input_w64, sign_mask), sign_mask);
           GOTO(done, AllocateBigInt(bitfield, absolute_value));
         } else {
           DCHECK_EQ(
               input_interpretation,
               ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kUnsigned);
           const auto bitfield = BigInt::LengthBits::encode(1);
-          GOTO(done, AllocateBigInt(__ Word32Constant(bitfield), input));
+          GOTO(done, AllocateBigInt(__ Word32Constant(bitfield), input_w64));
         }
 
         BIND(done, result);
@@ -683,21 +742,22 @@ class MachineLoweringReducer : public Next {
       }
       case ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind::kNumber: {
         if (input_rep == RegisterRepresentation::Word32()) {
+          V<Word32> input_w32 = V<Word32>::Cast(input);
           switch (input_interpretation) {
             case ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned: {
               if (SmiValuesAre32Bits()) {
-                return __ TagSmi(input);
+                return __ TagSmi(input_w32);
               }
               DCHECK(SmiValuesAre31Bits());
 
-              Label<Object> done(this);
+              Label<Number> done(this);
               Label<> overflow(this);
 
-              TagSmiOrOverflow(input, &overflow, &done);
+              TagSmiOrOverflow(input_w32, &overflow, &done);
 
               if (BIND(overflow)) {
                 GOTO(done, AllocateHeapNumberWithValue(
-                               __ ChangeInt32ToFloat64(input)));
+                               __ ChangeInt32ToFloat64(input_w32)));
               }
 
               BIND(done, result);
@@ -705,12 +765,12 @@ class MachineLoweringReducer : public Next {
             }
             case ConvertUntaggedToJSPrimitiveOp::InputInterpretation::
                 kUnsigned: {
-              Label<Object> done(this);
+              Label<Number> done(this);
 
-              GOTO_IF(__ Uint32LessThanOrEqual(input, Smi::kMaxValue), done,
-                      __ TagSmi(input));
+              GOTO_IF(__ Uint32LessThanOrEqual(input_w32, Smi::kMaxValue), done,
+                      __ TagSmi(input_w32));
               GOTO(done, AllocateHeapNumberWithValue(
-                             __ ChangeUint32ToFloat64(input)));
+                             __ ChangeUint32ToFloat64(input_w32)));
 
               BIND(done, result);
               return result;
@@ -721,24 +781,25 @@ class MachineLoweringReducer : public Next {
               UNREACHABLE();
           }
         } else if (input_rep == RegisterRepresentation::Word64()) {
+          V<Word64> input_w64 = V<Word64>::Cast(input);
           switch (input_interpretation) {
             case ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned: {
-              Label<Object> done(this);
+              Label<Number> done(this);
               Label<> outside_smi_range(this);
 
-              V<Word32> v32 = __ TruncateWord64ToWord32(input);
+              V<Word32> v32 = __ TruncateWord64ToWord32(input_w64);
               V<Word64> v64 = __ ChangeInt32ToInt64(v32);
-              GOTO_IF_NOT(__ Word64Equal(v64, input), outside_smi_range);
+              GOTO_IF_NOT(__ Word64Equal(v64, input_w64), outside_smi_range);
 
               if constexpr (SmiValuesAre32Bits()) {
-                GOTO(done, __ TagSmi(input));
+                GOTO(done, __ TagSmi(v32));
               } else {
                 TagSmiOrOverflow(v32, &outside_smi_range, &done);
               }
 
               if (BIND(outside_smi_range)) {
                 GOTO(done, AllocateHeapNumberWithValue(
-                               __ ChangeInt64ToFloat64(input)));
+                               __ ChangeInt64ToFloat64(input_w64)));
               }
 
               BIND(done, result);
@@ -746,12 +807,12 @@ class MachineLoweringReducer : public Next {
             }
             case ConvertUntaggedToJSPrimitiveOp::InputInterpretation::
                 kUnsigned: {
-              Label<Object> done(this);
+              Label<Number> done(this);
 
-              GOTO_IF(__ Uint64LessThanOrEqual(input, Smi::kMaxValue), done,
-                      __ TagSmi(__ TruncateWord64ToWord32(input)));
-              GOTO(done,
-                   AllocateHeapNumberWithValue(__ ChangeInt64ToFloat64(input)));
+              GOTO_IF(__ Uint64LessThanOrEqual(input_w64, Smi::kMaxValue), done,
+                      __ TagSmi(__ TruncateWord64ToWord32(input_w64)));
+              GOTO(done, AllocateHeapNumberWithValue(
+                             __ ChangeInt64ToFloat64(input_w64)));
 
               BIND(done, result);
               return result;
@@ -763,19 +824,21 @@ class MachineLoweringReducer : public Next {
           }
         } else {
           DCHECK_EQ(input_rep, RegisterRepresentation::Float64());
-          Label<Object> done(this);
+          V<Float64> input_f64 = V<Float64>::Cast(input);
+          Label<Number> done(this);
           Label<> outside_smi_range(this);
 
-          V<Word32> v32 = __ TruncateFloat64ToInt32OverflowUndefined(input);
-          GOTO_IF_NOT(__ Float64Equal(input, __ ChangeInt32ToFloat64(v32)),
+          V<Word32> v32 = __ TruncateFloat64ToInt32OverflowUndefined(input_f64);
+          GOTO_IF_NOT(__ Float64Equal(input_f64, __ ChangeInt32ToFloat64(v32)),
                       outside_smi_range);
 
           if (minus_zero_mode == CheckForMinusZeroMode::kCheckForMinusZero) {
             // In case of 0, we need to check the high bits for the IEEE -0
             // pattern.
             IF (__ Word32Equal(v32, 0)) {
-              GOTO_IF(__ Int32LessThan(__ Float64ExtractHighWord32(input), 0),
-                      outside_smi_range);
+              GOTO_IF(
+                  __ Int32LessThan(__ Float64ExtractHighWord32(input_f64), 0),
+                  outside_smi_range);
             }
           }
 
@@ -786,7 +849,7 @@ class MachineLoweringReducer : public Next {
           }
 
           if (BIND(outside_smi_range)) {
-            GOTO(done, AllocateHeapNumberWithValue(input));
+            GOTO(done, AllocateHeapNumberWithValue(input_f64));
           }
 
           BIND(done, result);
@@ -799,21 +862,22 @@ class MachineLoweringReducer : public Next {
         DCHECK_EQ(input_rep, RegisterRepresentation::Float64());
         DCHECK_EQ(input_interpretation,
                   ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned);
-        return AllocateHeapNumberWithValue(input);
+        return AllocateHeapNumberWithValue(V<Float64>::Cast(input));
       }
       case ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind::
           kHeapNumberOrUndefined: {
         DCHECK_EQ(input_rep, RegisterRepresentation::Float64());
+        V<Float64> input_f64 = V<Float64>::Cast(input);
         DCHECK_EQ(input_interpretation,
                   ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned);
-        Label<Object> done(this);
+        Label<Union<HeapNumber, Undefined>> done(this);
         Label<> allocate_heap_number(this);
 
         // First check whether {input} is a NaN at all...
-        IF (UNLIKELY(__ Float64IsNaN(input))) {
+        IF (UNLIKELY(__ Float64IsNaN(input_f64))) {
           // ...and only if {input} is a NaN, perform the expensive signaling
           // NaN bit check. See http://crbug.com/v8/8264 for details.
-          GOTO_IF_NOT(__ Word32Equal(__ Float64ExtractHighWord32(input),
+          GOTO_IF_NOT(__ Word32Equal(__ Float64ExtractHighWord32(input_f64),
                                      kHoleNanUpper32),
                       allocate_heap_number);
           GOTO(done, __ HeapConstant(factory_->undefined_value()));
@@ -822,7 +886,7 @@ class MachineLoweringReducer : public Next {
         }
 
         if (BIND(allocate_heap_number)) {
-          GOTO(done, AllocateHeapNumberWithValue(input));
+          GOTO(done, AllocateHeapNumberWithValue(input_f64));
         }
 
         BIND(done, result);
@@ -832,15 +896,15 @@ class MachineLoweringReducer : public Next {
         DCHECK_EQ(input_rep, RegisterRepresentation::Word32());
         DCHECK_EQ(input_interpretation,
                   ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned);
-        return __ TagSmi(input);
+        return __ TagSmi(V<Word32>::Cast(input));
       }
       case ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind::kBoolean: {
         DCHECK_EQ(input_rep, RegisterRepresentation::Word32());
         DCHECK_EQ(input_interpretation,
                   ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned);
-        Label<Object> done(this);
+        Label<Boolean> done(this);
 
-        IF (input) {
+        IF (V<Word32>::Cast(input)) {
           GOTO(done, __ HeapConstant(factory_->true_value()));
         } ELSE {
           GOTO(done, __ HeapConstant(factory_->false_value()));
@@ -850,121 +914,28 @@ class MachineLoweringReducer : public Next {
         return result;
       }
       case ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind::kString: {
-        Label<Word32> single_code(this);
-        Label<Object> done(this);
+        DCHECK_EQ(input_rep, RegisterRepresentation::Word32());
+        V<Word32> input_w32 = V<Word32>::Cast(input);
 
-        if (input_interpretation ==
-            ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kCharCode) {
-          GOTO(single_code, __ Word32BitwiseAnd(input, 0xFFFF));
-        } else {
-          DCHECK_EQ(
-              input_interpretation,
-              ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kCodePoint);
-          // Check if the input is a single code unit.
-          GOTO_IF(LIKELY(__ Uint32LessThanOrEqual(input, 0xFFFF)), single_code,
-                  input);
-
-          // Generate surrogate pair string.
-
-          // Convert UTF32 to UTF16 code units and store as a 32 bit word.
-          V<Word32> lead_offset = __ Word32Constant(0xD800 - (0x10000 >> 10));
-
-          // lead = (codepoint >> 10) + LEAD_OFFSET
-          V<Word32> lead =
-              __ Word32Add(__ Word32ShiftRightLogical(input, 10), lead_offset);
-
-          // trail = (codepoint & 0x3FF) + 0xDC00
-          V<Word32> trail =
-              __ Word32Add(__ Word32BitwiseAnd(input, 0x3FF), 0xDC00);
-
-          // codepoint = (trail << 16) | lead
-#if V8_TARGET_BIG_ENDIAN
-          V<Word32> code =
-              __ Word32BitwiseOr(__ Word32ShiftLeft(lead, 16), trail);
-#else
-          V<Word32> code =
-              __ Word32BitwiseOr(__ Word32ShiftLeft(trail, 16), lead);
-#endif
-
-          // Allocate a new SeqTwoByteString for {code}.
-          auto string = __ template Allocate<String>(
-              __ IntPtrConstant(SeqTwoByteString::SizeFor(2)),
-              AllocationType::kYoung);
-          // Set padding to 0.
-          __ Initialize(string, __ IntPtrConstant(0),
-                        MemoryRepresentation::TaggedSigned(),
-                        WriteBarrierKind::kNoWriteBarrier,
-                        SeqTwoByteString::SizeFor(2) - kObjectAlignment);
-          __ InitializeField(
-              string, AccessBuilder::ForMap(),
-              __ HeapConstant(factory_->seq_two_byte_string_map()));
-          __ InitializeField(string, AccessBuilder::ForNameRawHashField(),
-                             __ Word32Constant(Name::kEmptyHashField));
-          __ InitializeField(string, AccessBuilder::ForStringLength(),
-                             __ Word32Constant(2));
-          // Write the code as a single 32-bit value by adapting the elements
-          // access to SeqTwoByteString characters.
-          ElementAccess char_access =
-              AccessBuilder::ForSeqTwoByteStringCharacter();
-          char_access.machine_type = MachineType::Uint32();
-          __ InitializeNonArrayBufferElement(string, char_access,
-                                             __ IntPtrConstant(0), code);
-          GOTO(done, __ FinishInitialization(std::move(string)));
-        }
-
-        if (BIND(single_code, code)) {
-          // Check if the {code} is a one byte character.
-          IF (LIKELY(__ Uint32LessThanOrEqual(code,
-                                              String::kMaxOneByteCharCode))) {
-            // Load the isolate wide single character string table.
-            V<Object> table =
-                __ HeapConstant(factory_->single_character_string_table());
-
-            // Compute the {table} index for {code}.
-            V<WordPtr> index = __ ChangeUint32ToUintPtr(code);
-
-            // Load the string for the {code} from the single character string
-            // table.
-            OpIndex entry = __ LoadNonArrayBufferElement(
-                table, AccessBuilder::ForFixedArrayElement(), index);
-
-            // Use the {entry} from the {table}.
-            GOTO(done, entry);
-          } ELSE {
-            // Allocate a new SeqTwoBytesString for {code}.
-            auto string = __ template Allocate<String>(
-                __ IntPtrConstant(SeqTwoByteString::SizeFor(1)),
-                AllocationType::kYoung);
-
-            // Set padding to 0.
-            __ Initialize(string, __ IntPtrConstant(0),
-                          MemoryRepresentation::TaggedSigned(),
-                          WriteBarrierKind::kNoWriteBarrier,
-                          SeqTwoByteString::SizeFor(1) - kObjectAlignment);
-            __ InitializeField(
-                string, AccessBuilder::ForMap(),
-                __ HeapConstant(factory_->seq_two_byte_string_map()));
-            __ InitializeField(string, AccessBuilder::ForNameRawHashField(),
-                               __ Word32Constant(Name::kEmptyHashField));
-            __ InitializeField(string, AccessBuilder::ForStringLength(),
-                               __ Word32Constant(1));
-            __ InitializeNonArrayBufferElement(
-                string, AccessBuilder::ForSeqTwoByteStringCharacter(),
-                __ IntPtrConstant(0), code);
-            GOTO(done, __ FinishInitialization(std::move(string)));
+        switch (input_interpretation) {
+          case ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kCharCode:
+            return StringFromSingleCharCode(
+                __ Word32BitwiseAnd(input_w32, 0xFFFF));
+          case ConvertUntaggedToJSPrimitiveOp::InputInterpretation::
+              kCodePoint: {
+            return StringFromSingleCodePoint(input_w32, UnicodeEncoding::UTF32);
           }
+          default:
+            UNREACHABLE();
         }
-
-        BIND(done, result);
-        return result;
       }
     }
 
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(ConvertUntaggedToJSPrimitiveOrDeopt)(
-      OpIndex input, OpIndex frame_state,
+  V<JSPrimitive> REDUCE(ConvertUntaggedToJSPrimitiveOrDeopt)(
+      V<Untagged> input, V<FrameState> frame_state,
       ConvertUntaggedToJSPrimitiveOrDeoptOp::JSPrimitiveKind kind,
       RegisterRepresentation input_rep,
       ConvertUntaggedToJSPrimitiveOrDeoptOp::InputInterpretation
@@ -973,56 +944,59 @@ class MachineLoweringReducer : public Next {
     DCHECK_EQ(kind,
               ConvertUntaggedToJSPrimitiveOrDeoptOp::JSPrimitiveKind::kSmi);
     if (input_rep == RegisterRepresentation::Word32()) {
+      V<Word32> input_w32 = V<Word32>::Cast(input);
       if (input_interpretation ==
           ConvertUntaggedToJSPrimitiveOrDeoptOp::InputInterpretation::kSigned) {
         if constexpr (SmiValuesAre32Bits()) {
-          return __ TagSmi(input);
+          return __ TagSmi(input_w32);
         } else {
-          OpIndex test = __ Int32AddCheckOverflow(input, input);
-          __ DeoptimizeIf(__ template Projection<Word32>(test, 1), frame_state,
+          V<Tuple<Word32, Word32>> test =
+              __ Int32AddCheckOverflow(input_w32, input_w32);
+          __ DeoptimizeIf(__ template Projection<1>(test), frame_state,
                           DeoptimizeReason::kLostPrecision, feedback);
-          return __ BitcastWord32ToSmi(__ template Projection<Word32>(test, 0));
+          return __ BitcastWord32ToSmi(__ template Projection<0>(test));
         }
       } else {
         DCHECK_EQ(input_interpretation, ConvertUntaggedToJSPrimitiveOrDeoptOp::
                                             InputInterpretation::kUnsigned);
-        V<Word32> check = __ Uint32LessThanOrEqual(input, Smi::kMaxValue);
+        V<Word32> check = __ Uint32LessThanOrEqual(input_w32, Smi::kMaxValue);
         __ DeoptimizeIfNot(check, frame_state, DeoptimizeReason::kLostPrecision,
                            feedback);
-        return __ TagSmi(input);
+        return __ TagSmi(input_w32);
       }
     } else {
       DCHECK_EQ(input_rep, RegisterRepresentation::Word64());
+      V<Word64> input_w64 = V<Word64>::Cast(input);
       if (input_interpretation ==
           ConvertUntaggedToJSPrimitiveOrDeoptOp::InputInterpretation::kSigned) {
-        V<Word32> i32 = __ TruncateWord64ToWord32(input);
-        V<Word32> check = __ Word64Equal(__ ChangeInt32ToInt64(i32), input);
+        V<Word32> i32 = __ TruncateWord64ToWord32(input_w64);
+        V<Word32> check = __ Word64Equal(__ ChangeInt32ToInt64(i32), input_w64);
         __ DeoptimizeIfNot(check, frame_state, DeoptimizeReason::kLostPrecision,
                            feedback);
         if constexpr (SmiValuesAre32Bits()) {
-          return __ TagSmi(input);
+          return __ TagSmi(i32);
         } else {
-          OpIndex test = __ Int32AddCheckOverflow(i32, i32);
-          __ DeoptimizeIf(__ template Projection<Word32>(test, 1), frame_state,
+          V<Tuple<Word32, Word32>> test = __ Int32AddCheckOverflow(i32, i32);
+          __ DeoptimizeIf(__ template Projection<1>(test), frame_state,
                           DeoptimizeReason::kLostPrecision, feedback);
-          return __ BitcastWord32ToSmi(__ template Projection<Word32>(test, 0));
+          return __ BitcastWord32ToSmi(__ template Projection<0>(test));
         }
       } else {
         DCHECK_EQ(input_interpretation, ConvertUntaggedToJSPrimitiveOrDeoptOp::
                                             InputInterpretation::kUnsigned);
         V<Word32> check = __ Uint64LessThanOrEqual(
-            input, static_cast<uint64_t>(Smi::kMaxValue));
+            input_w64, static_cast<uint64_t>(Smi::kMaxValue));
         __ DeoptimizeIfNot(check, frame_state, DeoptimizeReason::kLostPrecision,
                            feedback);
-        return __ TagSmi(input);
+        return __ TagSmi(__ TruncateWord64ToWord32(input_w64));
       }
     }
 
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(ConvertJSPrimitiveToUntagged)(
-      V<Object> object, ConvertJSPrimitiveToUntaggedOp::UntaggedKind kind,
+  V<Untagged> REDUCE(ConvertJSPrimitiveToUntagged)(
+      V<JSPrimitive> object, ConvertJSPrimitiveToUntaggedOp::UntaggedKind kind,
       ConvertJSPrimitiveToUntaggedOp::InputAssumptions input_assumptions) {
     switch (kind) {
       case ConvertJSPrimitiveToUntaggedOp::UntaggedKind::kInt32:
@@ -1052,9 +1026,9 @@ class MachineLoweringReducer : public Next {
                   __ UntagSmi(V<Smi>::Cast(object)));
           V<Number> number =
               __ ConvertPlainPrimitiveToNumber(V<PlainPrimitive>::Cast(object));
-          GOTO_IF(__ ObjectIsSmi(number), done, __ UntagSmi(number));
-          V<Float64> f64 = __ template LoadField<Float64>(
-              V<HeapNumber>::Cast(number), AccessBuilder::ForHeapNumberValue());
+          GOTO_IF(__ ObjectIsSmi(number), done,
+                  __ UntagSmi(V<Smi>::Cast(number)));
+          V<Float64> f64 = __ LoadHeapNumberValue(V<HeapNumber>::Cast(number));
           GOTO(done, __ JSTruncateFloat64ToWord32(f64));
           BIND(done, result);
           return result;
@@ -1128,9 +1102,8 @@ class MachineLoweringReducer : public Next {
           V<Number> number =
               __ ConvertPlainPrimitiveToNumber(V<PlainPrimitive>::Cast(object));
           GOTO_IF(__ ObjectIsSmi(number), done,
-                  __ ChangeInt32ToFloat64(__ UntagSmi(number)));
-          V<Float64> f64 = __ template LoadField<Float64>(
-              V<HeapNumber>::Cast(number), AccessBuilder::ForHeapNumberValue());
+                  __ ChangeInt32ToFloat64(__ UntagSmi(V<Smi>::Cast(number))));
+          V<Float64> f64 = __ LoadHeapNumberValue(V<HeapNumber>::Cast(number));
           GOTO(done, f64);
           BIND(done, result);
           return result;
@@ -1140,7 +1113,7 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(ConvertJSPrimitiveToUntaggedOrDeopt)(
+  V<Untagged> REDUCE(ConvertJSPrimitiveToUntaggedOrDeopt)(
       V<Object> object, OpIndex frame_state,
       ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind from_kind,
       ConvertJSPrimitiveToUntaggedOrDeoptOp::UntaggedKind to_kind,
@@ -1166,8 +1139,8 @@ class MachineLoweringReducer : public Next {
                 __ TaggedEqual(map,
                                __ HeapConstant(factory_->heap_number_map())),
                 frame_state, DeoptimizeReason::kNotAHeapNumber, feedback);
-            V<Float64> heap_number_value = __ template LoadField<Float64>(
-                object, AccessBuilder::ForHeapNumberValue());
+            V<Float64> heap_number_value =
+                __ LoadHeapNumberValue(V<HeapNumber>::Cast(object));
 
             GOTO(done,
                  __ ChangeFloat64ToInt32OrDeopt(heap_number_value, frame_state,
@@ -1191,8 +1164,8 @@ class MachineLoweringReducer : public Next {
           __ DeoptimizeIfNot(
               __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map())),
               frame_state, DeoptimizeReason::kNotAHeapNumber, feedback);
-          V<Float64> heap_number_value = __ template LoadField<Float64>(
-              object, AccessBuilder::ForHeapNumberValue());
+          V<Float64> heap_number_value =
+              __ LoadHeapNumberValue(V<HeapNumber>::Cast(object));
           GOTO(done,
                __ ChangeFloat64ToInt64OrDeopt(heap_number_value, frame_state,
                                               minus_zero_mode, feedback));
@@ -1229,8 +1202,8 @@ class MachineLoweringReducer : public Next {
           V<Map> map = __ LoadMapField(object);
           IF (LIKELY(__ TaggedEqual(
                   map, __ HeapConstant(factory_->heap_number_map())))) {
-            V<Float64> heap_number_value = __ template LoadField<Float64>(
-                object, AccessBuilder::ForHeapNumberValue());
+            V<Float64> heap_number_value =
+                __ LoadHeapNumberValue(V<HeapNumber>::Cast(object));
             // Perform Turbofan's "CheckedFloat64ToIndex"
             {
               if constexpr (Is64()) {
@@ -1268,7 +1241,7 @@ class MachineLoweringReducer : public Next {
 #if V8_STATIC_ROOTS_BOOL
             V<Word32> is_string_map = __ Uint32LessThanOrEqual(
                 __ TruncateWordPtrToWord32(__ BitcastHeapObjectToWordPtr(map)),
-                __ Word32Constant(InstanceTypeChecker::kLastStringMap));
+                __ Word32Constant(InstanceTypeChecker::kStringMapUpperBound));
 #else
             V<Word32> instance_type = __ LoadInstanceTypeField(map);
             V<Word32> is_string_map =
@@ -1284,13 +1257,13 @@ class MachineLoweringReducer : public Next {
             builder.AddParam(MachineType::TaggedPointer());
             auto desc = Linkage::GetSimplifiedCDescriptor(__ graph_zone(),
                                                           builder.Build());
-            auto ts_desc =
-                TSCallDescriptor::Create(desc, CanThrow::kNo, __ graph_zone());
+            auto ts_desc = TSCallDescriptor::Create(
+                desc, CanThrow::kNo, LazyDeoptOnThrow::kNo, __ graph_zone());
             OpIndex callee = __ ExternalConstant(
                 ExternalReference::string_to_array_index_function());
             // NOTE: String::ToArrayIndex() currently returns int32_t.
-            V<WordPtr> index =
-                __ ChangeInt32ToIntPtr(__ Call(callee, {object}, ts_desc));
+            V<WordPtr> index = __ ChangeInt32ToIntPtr(
+                V<Word32>::Cast(__ Call(callee, {object}, ts_desc)));
             __ DeoptimizeIf(__ WordPtrEqual(index, -1), frame_state,
                             DeoptimizeReason::kNotAnArrayIndex, feedback);
             GOTO(done, index);
@@ -1304,8 +1277,8 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(TruncateJSPrimitiveToUntagged)(
-      V<Object> object, TruncateJSPrimitiveToUntaggedOp::UntaggedKind kind,
+  V<Word> REDUCE(TruncateJSPrimitiveToUntagged)(
+      V<JSPrimitive> object, TruncateJSPrimitiveToUntaggedOp::UntaggedKind kind,
       TruncateJSPrimitiveToUntaggedOp::InputAssumptions input_assumptions) {
     switch (kind) {
       case TruncateJSPrimitiveToUntaggedOp::UntaggedKind::kInt32: {
@@ -1371,6 +1344,8 @@ class MachineLoweringReducer : public Next {
         // Undefined is the first root, so it's the smallest possible pointer
         // value, which means we don't have to subtract it for the range check.
         ReadOnlyRoots roots(isolate_);
+        static_assert(StaticReadOnlyRoot::kFirstAllocatedRoot ==
+                      StaticReadOnlyRoot::kUndefinedValue);
         static_assert(StaticReadOnlyRoot::kUndefinedValue + sizeof(Undefined) ==
                       StaticReadOnlyRoot::kNullValue);
         static_assert(StaticReadOnlyRoot::kNullValue + sizeof(Null) ==
@@ -1433,8 +1408,8 @@ class MachineLoweringReducer : public Next {
                 map, __ HeapConstant(factory_->heap_number_map())))) {
           // For HeapNumber {object}, just check that its value is not 0.0, -0.0
           // or NaN.
-          V<Float64> number_value = __ template LoadField<Float64>(
-              object, AccessBuilder::ForHeapNumberValue());
+          V<Float64> number_value =
+              __ LoadHeapNumberValue(V<HeapNumber>::Cast(object));
           GOTO(done, __ Float64LessThan(0.0, __ Float64Abs(number_value)));
         }
 
@@ -1457,8 +1432,8 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(TruncateJSPrimitiveToUntaggedOrDeopt)(
-      V<Object> input, OpIndex frame_state,
+  V<Word> REDUCE(TruncateJSPrimitiveToUntaggedOrDeopt)(
+      V<JSPrimitive> input, V<FrameState> frame_state,
       TruncateJSPrimitiveToUntaggedOrDeoptOp::UntaggedKind kind,
       TruncateJSPrimitiveToUntaggedOrDeoptOp::InputRequirement
           input_requirement,
@@ -1501,14 +1476,13 @@ class MachineLoweringReducer : public Next {
 #endif
   }
 
-  OpIndex REDUCE(ConvertJSPrimitiveToObject)(V<Object> value,
-                                             V<Object> native_context,
-                                             OptionalV<Object> global_proxy,
-                                             ConvertReceiverMode mode) {
+  V<Object> REDUCE(ConvertJSPrimitiveToObject)(V<JSPrimitive> value,
+                                               V<Context> native_context,
+                                               V<JSGlobalProxy> global_proxy,
+                                               ConvertReceiverMode mode) {
     switch (mode) {
       case ConvertReceiverMode::kNullOrUndefined:
-        DCHECK(global_proxy.valid());
-        return global_proxy.value();
+        return global_proxy;
       case ConvertReceiverMode::kNotNullOrUndefined:
       case ConvertReceiverMode::kAny: {
         Label<Object> done(this);
@@ -1523,17 +1497,15 @@ class MachineLoweringReducer : public Next {
         // Wrap the primitive {value} into a JSPrimitiveWrapper.
         if (BIND(convert_to_object)) {
           if (mode != ConvertReceiverMode::kNotNullOrUndefined) {
-            DCHECK(global_proxy.valid());
             // Replace the {value} with the {global_proxy}.
             GOTO_IF(UNLIKELY(__ TaggedEqual(
                         value, __ HeapConstant(factory_->undefined_value()))),
-                    done, global_proxy.value());
+                    done, global_proxy);
             GOTO_IF(UNLIKELY(__ TaggedEqual(
                         value, __ HeapConstant(factory_->null_value()))),
-                    done, global_proxy.value());
+                    done, global_proxy);
           }
-          GOTO(done, __ CallBuiltin_ToObject(
-                         isolate_, V<Context>::Cast(native_context), value));
+          GOTO(done, __ CallBuiltin_ToObject(isolate_, native_context, value));
         }
 
         BIND(done, result);
@@ -1543,14 +1515,15 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  OpIndex REDUCE(NewConsString)(OpIndex length, OpIndex first, OpIndex second) {
+  V<ConsString> REDUCE(NewConsString)(V<Word32> length, V<String> first,
+                                      V<String> second) {
     // Determine the instance types of {first} and {second}.
     V<Map> first_map = __ LoadMapField(first);
     V<Word32> first_type = __ LoadInstanceTypeField(first_map);
     V<Map> second_map = __ LoadMapField(second);
     V<Word32> second_type = __ LoadInstanceTypeField(second_map);
 
-    Label<Object> allocate_string(this);
+    Label<Map> allocate_string(this);
     // Determine the proper map for the resulting ConsString.
     // If both {first} and {second} are one-byte strings, we
     // create a new ConsOneByteString, otherwise we create a
@@ -1570,7 +1543,7 @@ class MachineLoweringReducer : public Next {
 
     // Allocate the resulting ConsString.
     BIND(allocate_string, map);
-    auto string = __ template Allocate<String>(
+    auto string = __ template Allocate<ConsString>(
         __ IntPtrConstant(sizeof(ConsString)), AllocationType::kYoung);
     __ InitializeField(string, AccessBuilder::ForMap(), map);
     __ InitializeField(string, AccessBuilder::ForNameRawHashField(),
@@ -1760,8 +1733,7 @@ class MachineLoweringReducer : public Next {
             __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map())),
             done, field);
 
-        V<Float64> value = __ template LoadField<Float64>(
-            field, AccessBuilder::ForHeapNumberValue());
+        V<Float64> value = __ LoadHeapNumberValue(V<HeapNumber>::Cast(field));
         GOTO(done, AllocateHeapNumberWithValue(value));
       }
     }
@@ -1770,45 +1742,46 @@ class MachineLoweringReducer : public Next {
     return result;
   }
 
-  OpIndex REDUCE(WordBinopDeoptOnOverflow)(
-      OpIndex left, OpIndex right, OpIndex frame_state,
+  V<Word> REDUCE(WordBinopDeoptOnOverflow)(
+      V<Word> left, V<Word> right, V<FrameState> frame_state,
       WordBinopDeoptOnOverflowOp::Kind kind, WordRepresentation rep,
       FeedbackSource feedback, CheckForMinusZeroMode mode) {
     switch (kind) {
       case WordBinopDeoptOnOverflowOp::Kind::kSignedAdd: {
         DCHECK_EQ(mode, CheckForMinusZeroMode::kDontCheckForMinusZero);
-        OpIndex result = __ IntAddCheckOverflow(left, right, rep);
+        V<Tuple<Word, Word32>> result =
+            __ IntAddCheckOverflow(left, right, rep);
 
-        V<Word32> overflow =
-            __ Projection(result, 1, RegisterRepresentation::Word32());
+        V<Word32> overflow = __ template Projection<1>(result);
         __ DeoptimizeIf(overflow, frame_state, DeoptimizeReason::kOverflow,
                         feedback);
-        return __ Projection(result, 0, rep);
+        return __ template Projection<0>(result, rep);
       }
       case WordBinopDeoptOnOverflowOp::Kind::kSignedSub: {
         DCHECK_EQ(mode, CheckForMinusZeroMode::kDontCheckForMinusZero);
-        OpIndex result = __ IntSubCheckOverflow(left, right, rep);
+        V<Tuple<Word, Word32>> result =
+            __ IntSubCheckOverflow(left, right, rep);
 
-        V<Word32> overflow =
-            __ Projection(result, 1, RegisterRepresentation::Word32());
+        V<Word32> overflow = __ template Projection<1>(result);
         __ DeoptimizeIf(overflow, frame_state, DeoptimizeReason::kOverflow,
                         feedback);
-        return __ Projection(result, 0, rep);
+        return __ template Projection<0>(result, rep);
       }
       case WordBinopDeoptOnOverflowOp::Kind::kSignedMul:
         if (rep == WordRepresentation::Word32()) {
-          OpIndex result = __ Int32MulCheckOverflow(left, right);
-          V<Word32> overflow =
-              __ Projection(result, 1, RegisterRepresentation::Word32());
+          V<Word32> left_w32 = V<Word32>::Cast(left);
+          V<Word32> right_w32 = V<Word32>::Cast(right);
+          V<Tuple<Word32, Word32>> result =
+              __ Int32MulCheckOverflow(left_w32, right_w32);
+          V<Word32> overflow = __ template Projection<1>(result);
           __ DeoptimizeIf(overflow, frame_state, DeoptimizeReason::kOverflow,
                           feedback);
-          V<Word32> value =
-              __ Projection(result, 0, RegisterRepresentation::Word32());
+          V<Word32> value = __ template Projection<0>(result);
 
           if (mode == CheckForMinusZeroMode::kCheckForMinusZero) {
             IF (__ Word32Equal(value, 0)) {
               __ DeoptimizeIf(
-                  __ Int32LessThan(__ Word32BitwiseOr(left, right), 0),
+                  __ Int32LessThan(__ Word32BitwiseOr(left_w32, right_w32), 0),
                   frame_state, DeoptimizeReason::kMinusZero, feedback);
             }
           }
@@ -1817,58 +1790,60 @@ class MachineLoweringReducer : public Next {
         } else {
           DCHECK_EQ(rep, WordRepresentation::Word64());
           DCHECK_EQ(mode, CheckForMinusZeroMode::kDontCheckForMinusZero);
-          OpIndex result = __ Int64MulCheckOverflow(left, right);
+          V<Tuple<Word64, Word32>> result = __ Int64MulCheckOverflow(
+              V<Word64>::Cast(left), V<Word64>::Cast(right));
 
-          V<Word32> overflow =
-              __ Projection(result, 1, RegisterRepresentation::Word32());
+          V<Word32> overflow = __ template Projection<1>(result);
           __ DeoptimizeIf(overflow, frame_state, DeoptimizeReason::kOverflow,
                           feedback);
-          return __ Projection(result, 0, RegisterRepresentation::Word64());
+          return __ template Projection<0>(result);
         }
       case WordBinopDeoptOnOverflowOp::Kind::kSignedDiv:
         if (rep == WordRepresentation::Word32()) {
+          V<Word32> left_w32 = V<Word32>::Cast(left);
+          V<Word32> right_w32 = V<Word32>::Cast(right);
           // Check if the {rhs} is a known power of two.
           int32_t divisor;
-          if (__ matcher().MatchPowerOfTwoWord32Constant(right, &divisor)) {
+          if (__ matcher().MatchPowerOfTwoWord32Constant(right_w32, &divisor)) {
             // Since we know that {rhs} is a power of two, we can perform a fast
             // check to see if the relevant least significant bits of the {lhs}
             // are all zero, and if so we know that we can perform a division
             // safely (and fast by doing an arithmetic - aka sign preserving -
             // right shift on {lhs}).
             V<Word32> check =
-                __ Word32Equal(__ Word32BitwiseAnd(left, divisor - 1), 0);
+                __ Word32Equal(__ Word32BitwiseAnd(left_w32, divisor - 1), 0);
             __ DeoptimizeIfNot(check, frame_state,
                                DeoptimizeReason::kLostPrecision, feedback);
             return __ Word32ShiftRightArithmeticShiftOutZeros(
-                left, base::bits::WhichPowerOfTwo(divisor));
+                left_w32, base::bits::WhichPowerOfTwo(divisor));
           } else {
             Label<Word32> done(this);
 
             // Check if {rhs} is positive (and not zero).
-            IF (__ Int32LessThan(0, right)) {
-              GOTO(done, __ Int32Div(left, right));
+            IF (__ Int32LessThan(0, right_w32)) {
+              GOTO(done, __ Int32Div(left_w32, right_w32));
             } ELSE {
               // Check if {rhs} is zero.
-              __ DeoptimizeIf(__ Word32Equal(right, 0), frame_state,
+              __ DeoptimizeIf(__ Word32Equal(right_w32, 0), frame_state,
                               DeoptimizeReason::kDivisionByZero, feedback);
 
               // Check if {lhs} is zero, as that would produce minus zero.
-              __ DeoptimizeIf(__ Word32Equal(left, 0), frame_state,
+              __ DeoptimizeIf(__ Word32Equal(left_w32, 0), frame_state,
                               DeoptimizeReason::kMinusZero, feedback);
 
               // Check if {lhs} is kMinInt and {rhs} is -1, in which case we'd
               // have to return -kMinInt, which is not representable as Word32.
-              IF (UNLIKELY(__ Word32Equal(left, kMinInt))) {
-                __ DeoptimizeIf(__ Word32Equal(right, -1), frame_state,
+              IF (UNLIKELY(__ Word32Equal(left_w32, kMinInt))) {
+                __ DeoptimizeIf(__ Word32Equal(right_w32, -1), frame_state,
                                 DeoptimizeReason::kOverflow, feedback);
               }
 
-              GOTO(done, __ Int32Div(left, right));
+              GOTO(done, __ Int32Div(left_w32, right_w32));
             }
 
             BIND(done, value);
             V<Word32> lossless =
-                __ Word32Equal(left, __ Word32Mul(value, right));
+                __ Word32Equal(left_w32, __ Word32Mul(value, right_w32));
             __ DeoptimizeIfNot(lossless, frame_state,
                                DeoptimizeReason::kLostPrecision, feedback);
             return value;
@@ -1876,21 +1851,25 @@ class MachineLoweringReducer : public Next {
         } else {
           DCHECK_EQ(rep, WordRepresentation::Word64());
           DCHECK(Is64());
+          V<Word64> left_w64 = V<Word64>::Cast(left);
+          V<Word64> right_w64 = V<Word64>::Cast(right);
 
-          __ DeoptimizeIf(__ Word64Equal(right, 0), frame_state,
+          __ DeoptimizeIf(__ Word64Equal(right_w64, 0), frame_state,
                           DeoptimizeReason::kDivisionByZero, feedback);
           // Check if {lhs} is kMinInt64 and {rhs} is -1, in which case we'd
           // have to return -kMinInt64, which is not representable as Word64.
-          IF (UNLIKELY(
-                  __ Word64Equal(left, std::numeric_limits<int64_t>::min()))) {
-            __ DeoptimizeIf(__ Word64Equal(right, int64_t{-1}), frame_state,
+          IF (UNLIKELY(__ Word64Equal(left_w64,
+                                      std::numeric_limits<int64_t>::min()))) {
+            __ DeoptimizeIf(__ Word64Equal(right_w64, int64_t{-1}), frame_state,
                             DeoptimizeReason::kOverflow, feedback);
           }
 
-          return __ Int64Div(left, right);
+          return __ Int64Div(left_w64, right_w64);
         }
       case WordBinopDeoptOnOverflowOp::Kind::kSignedMod:
         if (rep == WordRepresentation::Word32()) {
+          V<Word32> left_w32 = V<Word32>::Cast(left);
+          V<Word32> right_w32 = V<Word32>::Cast(right);
           // General case for signed integer modulus, with optimization for
           // (unknown) power of 2 right hand side.
           //
@@ -1913,27 +1892,27 @@ class MachineLoweringReducer : public Next {
           Label<Word32> done(this);
 
           // Check if {rhs} is not strictly positive.
-          IF (__ Int32LessThanOrEqual(right, 0)) {
+          IF (__ Int32LessThanOrEqual(right_w32, 0)) {
             // Negate {rhs}, might still produce a negative result in case of
             // -2^31, but that is handled safely below.
-            V<Word32> temp = __ Word32Sub(0, right);
+            V<Word32> temp = __ Word32Sub(0, right_w32);
 
             // Ensure that {rhs} is not zero, otherwise we'd have to return NaN.
             __ DeoptimizeIfNot(temp, frame_state,
                                DeoptimizeReason::kDivisionByZero, feedback);
             GOTO(rhs_checked, temp);
           } ELSE {
-            GOTO(rhs_checked, right);
+            GOTO(rhs_checked, right_w32);
           }
 
           BIND(rhs_checked, rhs_value);
 
-          IF (__ Int32LessThan(left, 0)) {
+          IF (__ Int32LessThan(left_w32, 0)) {
             // The {lhs} is a negative integer. This is very unlikely and
             // we intentionally don't use the BuildUint32Mod() here, which
             // would try to figure out whether {rhs} is a power of two,
             // since this is intended to be a slow-path.
-            V<Word32> temp = __ Uint32Mod(__ Word32Sub(0, left), rhs_value);
+            V<Word32> temp = __ Uint32Mod(__ Word32Sub(0, left_w32), rhs_value);
 
             // Check if we would have to return -0.
             __ DeoptimizeIf(__ Word32Equal(temp, 0), frame_state,
@@ -1941,7 +1920,7 @@ class MachineLoweringReducer : public Next {
             GOTO(done, __ Word32Sub(0, temp));
           } ELSE {
             // The {lhs} is a non-negative integer.
-            GOTO(done, BuildUint32Mod(left, rhs_value));
+            GOTO(done, BuildUint32Mod(left_w32, rhs_value));
           }
 
           BIND(done, result);
@@ -1949,47 +1928,52 @@ class MachineLoweringReducer : public Next {
         } else {
           DCHECK_EQ(rep, WordRepresentation::Word64());
           DCHECK(Is64());
+          V<Word64> left_w64 = V<Word64>::Cast(left);
+          V<Word64> right_w64 = V<Word64>::Cast(right);
 
-          __ DeoptimizeIf(__ Word64Equal(right, 0), frame_state,
+          __ DeoptimizeIf(__ Word64Equal(right_w64, 0), frame_state,
                           DeoptimizeReason::kDivisionByZero, feedback);
 
           // While the mod-result cannot overflow, the underlying instruction is
           // `idiv` and will trap when the accompanying div-result overflows.
-          IF (UNLIKELY(
-                  __ Word64Equal(left, std::numeric_limits<int64_t>::min()))) {
-            __ DeoptimizeIf(__ Word64Equal(right, int64_t{-1}), frame_state,
+          IF (UNLIKELY(__ Word64Equal(left_w64,
+                                      std::numeric_limits<int64_t>::min()))) {
+            __ DeoptimizeIf(__ Word64Equal(right_w64, int64_t{-1}), frame_state,
                             DeoptimizeReason::kOverflow, feedback);
           }
 
-          return __ Int64Mod(left, right);
+          return __ Int64Mod(left_w64, right_w64);
         }
       case WordBinopDeoptOnOverflowOp::Kind::kUnsignedDiv: {
         DCHECK_EQ(rep, WordRepresentation::Word32());
+        V<Word32> left_w32 = V<Word32>::Cast(left);
+        V<Word32> right_w32 = V<Word32>::Cast(right);
 
         // Check if the {rhs} is a known power of two.
         int32_t divisor;
-        if (__ matcher().MatchPowerOfTwoWord32Constant(right, &divisor)) {
+        if (__ matcher().MatchPowerOfTwoWord32Constant(right_w32, &divisor)) {
           // Since we know that {rhs} is a power of two, we can perform a fast
           // check to see if the relevant least significant bits of the {lhs}
           // are all zero, and if so we know that we can perform a division
           // safely (and fast by doing a logical - aka zero extending - right
           // shift on {lhs}).
           V<Word32> check =
-              __ Word32Equal(__ Word32BitwiseAnd(left, divisor - 1), 0);
+              __ Word32Equal(__ Word32BitwiseAnd(left_w32, divisor - 1), 0);
           __ DeoptimizeIfNot(check, frame_state,
                              DeoptimizeReason::kLostPrecision, feedback);
           return __ Word32ShiftRightLogical(
-              left, base::bits::WhichPowerOfTwo(divisor));
+              left_w32, base::bits::WhichPowerOfTwo(divisor));
         } else {
           // Ensure that {rhs} is not zero, otherwise we'd have to return NaN.
-          __ DeoptimizeIf(__ Word32Equal(right, 0), frame_state,
+          __ DeoptimizeIf(__ Word32Equal(right_w32, 0), frame_state,
                           DeoptimizeReason::kDivisionByZero, feedback);
 
           // Perform the actual unsigned integer division.
-          V<Word32> value = __ Uint32Div(left, right);
+          V<Word32> value = __ Uint32Div(left_w32, right_w32);
 
           // Check if the remainder is non-zero.
-          V<Word32> lossless = __ Word32Equal(left, __ Word32Mul(right, value));
+          V<Word32> lossless =
+              __ Word32Equal(left_w32, __ Word32Mul(right_w32, value));
           __ DeoptimizeIfNot(lossless, frame_state,
                              DeoptimizeReason::kLostPrecision, feedback);
           return value;
@@ -1997,17 +1981,21 @@ class MachineLoweringReducer : public Next {
       }
       case WordBinopDeoptOnOverflowOp::Kind::kUnsignedMod: {
         DCHECK_EQ(rep, WordRepresentation::Word32());
+        V<Word32> left_w32 = V<Word32>::Cast(left);
+        V<Word32> right_w32 = V<Word32>::Cast(right);
+
         // Ensure that {rhs} is not zero, otherwise we'd have to return NaN.
-        __ DeoptimizeIf(__ Word32Equal(right, 0), frame_state,
+        __ DeoptimizeIf(__ Word32Equal(right_w32, 0), frame_state,
                         DeoptimizeReason::kDivisionByZero, feedback);
 
-        return BuildUint32Mod(left, right);
+        return BuildUint32Mod(left_w32, right_w32);
       }
     }
   }
 
-  OpIndex REDUCE(BigIntBinop)(V<Object> left, V<Object> right,
-                              OpIndex frame_state, BigIntBinopOp::Kind kind) {
+  V<BigInt> REDUCE(BigIntBinop)(V<BigInt> left, V<BigInt> right,
+                                V<FrameState> frame_state,
+                                BigIntBinopOp::Kind kind) {
     const Builtin builtin = GetBuiltinForBigIntBinop(kind);
     switch (kind) {
       case BigIntBinopOp::Kind::kAdd:
@@ -2016,18 +2004,18 @@ class MachineLoweringReducer : public Next {
       case BigIntBinopOp::Kind::kBitwiseXor:
       case BigIntBinopOp::Kind::kShiftLeft:
       case BigIntBinopOp::Kind::kShiftRightArithmetic: {
-        V<Object> result = CallBuiltinForBigIntOp(builtin, {left, right});
+        V<Numeric> result = CallBuiltinForBigIntOp(builtin, {left, right});
 
         // Check for exception sentinel: Smi 0 is returned to signal
         // BigIntTooBig.
         __ DeoptimizeIf(__ ObjectIsSmi(result), frame_state,
                         DeoptimizeReason::kBigIntTooBig, FeedbackSource{});
-        return result;
+        return V<BigInt>::Cast(result);
       }
       case BigIntBinopOp::Kind::kMul:
       case BigIntBinopOp::Kind::kDiv:
       case BigIntBinopOp::Kind::kMod: {
-        V<Object> result = CallBuiltinForBigIntOp(builtin, {left, right});
+        V<Numeric> result = CallBuiltinForBigIntOp(builtin, {left, right});
 
         // Check for exception sentinel: Smi 1 is returned to signal
         // TerminationRequested.
@@ -2043,7 +2031,7 @@ class MachineLoweringReducer : public Next {
                             ? DeoptimizeReason::kBigIntTooBig
                             : DeoptimizeReason::kDivisionByZero,
                         FeedbackSource{});
-        return result;
+        return V<BigInt>::Cast(result);
       }
       case BigIntBinopOp::Kind::kBitwiseOr: {
         return CallBuiltinForBigIntOp(builtin, {left, right});
@@ -2054,7 +2042,7 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  V<Boolean> REDUCE(BigIntComparison)(V<Object> left, V<Object> right,
+  V<Boolean> REDUCE(BigIntComparison)(V<BigInt> left, V<BigInt> right,
                                       BigIntComparisonOp::Kind kind) {
     switch (kind) {
       case BigIntComparisonOp::Kind::kEqual:
@@ -2067,7 +2055,7 @@ class MachineLoweringReducer : public Next {
     }
   }
 
-  V<Object> REDUCE(BigIntUnary)(V<Object> input, BigIntUnaryOp::Kind kind) {
+  V<BigInt> REDUCE(BigIntUnary)(V<BigInt> input, BigIntUnaryOp::Kind kind) {
     DCHECK_EQ(kind, BigIntUnaryOp::Kind::kNegate);
     return CallBuiltinForBigIntOp(Builtin::kBigIntUnaryMinus, {input});
   }
@@ -2101,6 +2089,8 @@ class MachineLoweringReducer : public Next {
         }
       }
 
+      Label<> seq_string(this), external_string(this), cons_string(this),
+          sliced_string(this), thin_string(this);
       // TODO(dmercadier): the runtime label should be deferred, and because
       // Labels/Blocks don't have deferred annotation, we achieve this by
       // marking all branches to this Label as UNLIKELY, but 1) it's easy to
@@ -2117,85 +2107,142 @@ class MachineLoweringReducer : public Next {
 
       BIND_LOOP(loop) {
         V<Map> map = __ LoadMapField(receiver);
+#if V8_STATIC_ROOTS_BOOL
+        V<Word32> map_bits =
+            __ TruncateWordPtrToWord32(__ BitcastTaggedToWordPtr(map));
+
+        using StringTypeRange =
+            InstanceTypeChecker::kUniqueMapRangeOfStringType;
+        // Check the string map ranges in dense increasing order, to avoid
+        // needing to subtract away the lower bound.
+        static_assert(StringTypeRange::kSeqString.first == 0);
+        GOTO_IF(__ Uint32LessThanOrEqual(map_bits,
+                                         StringTypeRange::kSeqString.second),
+                seq_string);
+
+        static_assert(StringTypeRange::kSeqString.second + Map::kSize ==
+                      StringTypeRange::kExternalString.first);
+        GOTO_IF(__ Uint32LessThanOrEqual(
+                    map_bits, StringTypeRange::kExternalString.second),
+                external_string);
+
+        static_assert(StringTypeRange::kExternalString.second + Map::kSize ==
+                      StringTypeRange::kConsString.first);
+        GOTO_IF(__ Uint32LessThanOrEqual(map_bits,
+                                         StringTypeRange::kConsString.second),
+                cons_string);
+
+        static_assert(StringTypeRange::kConsString.second + Map::kSize ==
+                      StringTypeRange::kSlicedString.first);
+        GOTO_IF(__ Uint32LessThanOrEqual(map_bits,
+                                         StringTypeRange::kSlicedString.second),
+                sliced_string);
+
+        static_assert(StringTypeRange::kSlicedString.second + Map::kSize ==
+                      StringTypeRange::kThinString.first);
+        GOTO_IF(__ Uint32LessThanOrEqual(map_bits,
+                                         StringTypeRange::kThinString.second),
+                thin_string);
+#else
         V<Word32> instance_type = __ LoadInstanceTypeField(map);
         V<Word32> representation =
             __ Word32BitwiseAnd(instance_type, kStringRepresentationMask);
 
-        IF (__ Int32LessThanOrEqual(representation, kConsStringTag)) {
-          {
-            // if_lessthanoreq_cons
-            IF (__ Word32Equal(representation, kConsStringTag)) {
-              // if_consstring
-              V<String> second = __ template LoadField<String>(
-                  receiver, AccessBuilder::ForConsStringSecond());
-              GOTO_IF_NOT(
-                  LIKELY(__ TaggedEqual(
-                      second, __ HeapConstant(factory_->empty_string()))),
-                  runtime);
-              receiver = __ template LoadField<String>(
-                  receiver, AccessBuilder::ForConsStringFirst());
-              GOTO(loop);
-            } ELSE {
-              // if_seqstring
-              V<Word32> onebyte = __ Word32Equal(
-                  __ Word32BitwiseAnd(instance_type, kStringEncodingMask),
-                  kOneByteStringTag);
-              GOTO(done, LoadFromSeqString(receiver, position, onebyte));
-            }
-          }
-        } ELSE {
-          // if_greaterthan_cons
-          {
-            IF (__ Word32Equal(representation, kThinStringTag)) {
-              // if_thinstring
-              receiver = __ template LoadField<String>(
-                  receiver, AccessBuilder::ForThinStringActual());
-              GOTO(loop);
-            } ELSE IF (__ Word32Equal(representation, kExternalStringTag)) {
-              // if_externalstring
-              // We need to bailout to the runtime for uncached external
-              // strings.
-              GOTO_IF(UNLIKELY(__ Word32Equal(
-                          __ Word32BitwiseAnd(instance_type,
-                                              kUncachedExternalStringMask),
-                          kUncachedExternalStringTag)),
-                      runtime);
+        GOTO_IF(__ Word32Equal(representation, kSeqStringTag), seq_string);
+        GOTO_IF(__ Word32Equal(representation, kExternalStringTag),
+                external_string);
+        GOTO_IF(__ Word32Equal(representation, kConsStringTag), cons_string);
+        GOTO_IF(__ Word32Equal(representation, kSlicedStringTag),
+                sliced_string);
+        GOTO_IF(__ Word32Equal(representation, kThinStringTag), thin_string);
+#endif
 
-              OpIndex data = __ LoadField(
-                  receiver, AccessBuilder::ForExternalStringResourceData());
-              IF (__ Word32Equal(
-                      __ Word32BitwiseAnd(instance_type, kStringEncodingMask),
-                      kTwoByteStringTag)) {
-                // if_twobyte
-                constexpr uint8_t twobyte_size_log2 = 1;
-                V<Word32> value = __ Load(
-                    data, position,
-                    LoadOp::Kind::Aligned(BaseTaggedness::kUntaggedBase),
-                    MemoryRepresentation::Uint16(), 0, twobyte_size_log2);
-                GOTO(done, value);
-              } ELSE {
-                // if_onebyte
-                constexpr uint8_t onebyte_size_log2 = 0;
-                V<Word32> value = __ Load(
-                    data, position,
-                    LoadOp::Kind::Aligned(BaseTaggedness::kUntaggedBase),
-                    MemoryRepresentation::Uint8(), 0, onebyte_size_log2);
-                GOTO(done, value);
-              }
-            } ELSE IF (LIKELY(
-                          __ Word32Equal(representation, kSlicedStringTag))) {
-              // if_slicedstring
-              V<Smi> offset = __ template LoadField<Smi>(
-                  receiver, AccessBuilder::ForSlicedStringOffset());
-              receiver = __ template LoadField<String>(
-                  receiver, AccessBuilder::ForSlicedStringParent());
-              position = __ WordPtrAdd(
-                  position, __ ChangeInt32ToIntPtr(__ UntagSmi(offset)));
-              GOTO(loop);
-            } ELSE {
-              GOTO(runtime);
-            }
+        __ Unreachable();
+
+        if (BIND(seq_string)) {
+#if V8_STATIC_ROOTS_BOOL
+          V<Word32> is_one_byte = __ Word32Equal(
+              __ Word32BitwiseAnd(map_bits,
+                                  InstanceTypeChecker::kStringMapEncodingMask),
+              InstanceTypeChecker::kOneByteStringMapBit);
+#else
+          V<Word32> is_one_byte = __ Word32Equal(
+              __ Word32BitwiseAnd(instance_type, kStringEncodingMask),
+              kOneByteStringTag);
+#endif
+          GOTO(done, LoadFromSeqString(receiver, position, is_one_byte));
+        }
+
+        if (BIND(external_string)) {
+          // We need to bailout to the runtime for uncached external
+          // strings.
+#if V8_STATIC_ROOTS_BOOL
+          V<Word32> is_uncached_external_string = __ Uint32LessThanOrEqual(
+              __ Word32Sub(map_bits,
+                           StringTypeRange::kUncachedExternalString.first),
+              StringTypeRange::kUncachedExternalString.second -
+                  StringTypeRange::kUncachedExternalString.first);
+#else
+          V<Word32> is_uncached_external_string = __ Word32Equal(
+              __ Word32BitwiseAnd(instance_type, kUncachedExternalStringMask),
+              kUncachedExternalStringTag);
+#endif
+          GOTO_IF(UNLIKELY(is_uncached_external_string), runtime);
+
+          OpIndex data = __ LoadField(
+              receiver, AccessBuilder::ForExternalStringResourceData());
+#if V8_STATIC_ROOTS_BOOL
+          V<Word32> is_two_byte = __ Word32Equal(
+              __ Word32BitwiseAnd(map_bits,
+                                  InstanceTypeChecker::kStringMapEncodingMask),
+              InstanceTypeChecker::kTwoByteStringMapBit);
+#else
+          V<Word32> is_two_byte = __ Word32Equal(
+              __ Word32BitwiseAnd(instance_type, kStringEncodingMask),
+              kTwoByteStringTag);
+#endif
+          IF (is_two_byte) {
+            constexpr uint8_t twobyte_size_log2 = 1;
+            V<Word32> value =
+                __ Load(data, position,
+                        LoadOp::Kind::Aligned(BaseTaggedness::kUntaggedBase),
+                        MemoryRepresentation::Uint16(), 0, twobyte_size_log2);
+            GOTO(done, value);
+          } ELSE {
+            constexpr uint8_t onebyte_size_log2 = 0;
+            V<Word32> value =
+                __ Load(data, position,
+                        LoadOp::Kind::Aligned(BaseTaggedness::kUntaggedBase),
+                        MemoryRepresentation::Uint8(), 0, onebyte_size_log2);
+            GOTO(done, value);
           }
+        }
+
+        if (BIND(cons_string)) {
+          V<String> second = __ template LoadField<String>(
+              receiver, AccessBuilder::ForConsStringSecond());
+          GOTO_IF_NOT(LIKELY(__ TaggedEqual(
+                          second, __ HeapConstant(factory_->empty_string()))),
+                      runtime);
+          receiver = __ template LoadField<String>(
+              receiver, AccessBuilder::ForConsStringFirst());
+          GOTO(loop);
+        }
+
+        if (BIND(sliced_string)) {
+          V<Smi> offset = __ template LoadField<Smi>(
+              receiver, AccessBuilder::ForSlicedStringOffset());
+          receiver = __ template LoadField<String>(
+              receiver, AccessBuilder::ForSlicedStringParent());
+          position = __ WordPtrAdd(position,
+                                   __ ChangeInt32ToIntPtr(__ UntagSmi(offset)));
+          GOTO(loop);
+        }
+
+        if (BIND(thin_string)) {
+          receiver = __ template LoadField<String>(
+              receiver, AccessBuilder::ForThinStringActual());
+          GOTO(loop);
         }
 
         if (BIND(runtime)) {
@@ -2211,31 +2258,7 @@ class MachineLoweringReducer : public Next {
       return result;
     } else {
       DCHECK_EQ(kind, StringAtOp::Kind::kCodePoint);
-      Label<Word32> done(this);
-
-      V<Word32> first_code_unit = __ StringCharCodeAt(string, pos);
-      GOTO_IF_NOT(UNLIKELY(__ Word32Equal(
-                      __ Word32BitwiseAnd(first_code_unit, 0xFC00), 0xD800)),
-                  done, first_code_unit);
-      V<WordPtr> length =
-          __ ChangeUint32ToUintPtr(__ template LoadField<Word32>(
-              string, AccessBuilder::ForStringLength()));
-      V<WordPtr> next_index = __ WordPtrAdd(pos, 1);
-      GOTO_IF_NOT(__ IntPtrLessThan(next_index, length), done, first_code_unit);
-
-      V<Word32> second_code_unit = __ StringCharCodeAt(string, next_index);
-      GOTO_IF_NOT(
-          __ Word32Equal(__ Word32BitwiseAnd(second_code_unit, 0xFC00), 0xDC00),
-          done, first_code_unit);
-
-      const int32_t surrogate_offset = 0x10000 - (0xD800 << 10) - 0xDC00;
-      V<Word32> value =
-          __ Word32Add(__ Word32ShiftLeft(first_code_unit, 10),
-                       __ Word32Add(second_code_unit, surrogate_offset));
-      GOTO(done, value);
-
-      BIND(done, result);
-      return result;
+      return LoadSurrogatePairAt(string, {}, pos, UnicodeEncoding::UTF32);
     }
 
     UNREACHABLE();
@@ -2372,9 +2395,22 @@ class MachineLoweringReducer : public Next {
   }
 
   V<Object> REDUCE(LoadStackArgument)(V<WordPtr> base, V<WordPtr> index) {
-    V<WordPtr> argument = __ template LoadNonArrayBufferElement<WordPtr>(
-        base, AccessBuilder::ForStackArgument(), index);
-    return __ BitcastWordPtrToTagged(argument);
+    // Note that this is a load of a Tagged value
+    // (MemoryRepresentation::TaggedPointer()), but since it's on the stack
+    // where stack slots are all kSystemPointerSize, we use kSystemPointerSize
+    // for element_size_log2. On 64-bit plateforms with pointer compression,
+    // this means that we're kinda loading a 32-bit value from an array of
+    // 64-bit values.
+#if V8_COMPRESS_POINTERS && V8_TARGET_BIG_ENDIAN
+    constexpr int offset =
+        CommonFrameConstants::kFixedFrameSizeAboveFp - kSystemPointerSize + 4;
+#else
+    constexpr int offset =
+        CommonFrameConstants::kFixedFrameSizeAboveFp - kSystemPointerSize;
+#endif
+    return __ Load(base, index, LoadOp::Kind::RawAligned(),
+                   MemoryRepresentation::TaggedPointer(), offset,
+                   kSystemPointerSizeLog2);
   }
 
   OpIndex REDUCE(StoreTypedElement)(OpIndex buffer, V<Object> base,
@@ -2493,9 +2529,8 @@ class MachineLoweringReducer : public Next {
                 elements, AccessBuilder::ForFixedDoubleArrayElement(), index,
                 float_value);
           } ELSE {
-            V<Float64> float_value = __ template LoadField<Float64>(
-                V<HeapObject>::Cast(value),
-                AccessBuilder::ForHeapNumberValue());
+            V<Float64> float_value =
+                __ LoadHeapNumberValue(V<HeapNumber>::Cast(value));
             __ StoreNonArrayBufferElement(
                 elements, AccessBuilder::ForFixedDoubleArrayElement(), index,
                 __ Float64SilenceNaN(float_value));
@@ -2649,12 +2684,13 @@ class MachineLoweringReducer : public Next {
     return CompareMapAgainstMultipleMaps(__ LoadMapField(heap_object), maps);
   }
 
-  OpIndex REDUCE(CheckMaps)(V<HeapObject> heap_object, OpIndex frame_state,
+  V<None> REDUCE(CheckMaps)(V<HeapObject> heap_object,
+                            V<FrameState> frame_state,
                             const ZoneRefSet<Map>& maps, CheckMapsFlags flags,
                             const FeedbackSource& feedback) {
     if (maps.is_empty()) {
       __ Deoptimize(frame_state, DeoptimizeReason::kWrongMap, feedback);
-      return OpIndex::Invalid();
+      return {};
     }
 
     if (flags & CheckMapsFlag::kTryMigrateInstance) {
@@ -2674,11 +2710,11 @@ class MachineLoweringReducer : public Next {
     // Inserting a AssumeMap so that subsequent optimizations know the map of
     // this object.
     __ AssumeMap(heap_object, maps);
-    return OpIndex::Invalid();
+    return {};
   }
 
-  OpIndex REDUCE(FloatUnary)(OpIndex input, FloatUnaryOp::Kind kind,
-                             FloatRepresentation rep) {
+  V<Float> REDUCE(FloatUnary)(V<Float> input, FloatUnaryOp::Kind kind,
+                              FloatRepresentation rep) {
     LABEL_BLOCK(no_change) { return Next::ReduceFloatUnary(input, kind, rep); }
     switch (kind) {
       case FloatUnaryOp::Kind::kRoundUp:
@@ -2690,6 +2726,7 @@ class MachineLoweringReducer : public Next {
           goto no_change;
         }
         DCHECK_EQ(rep, FloatRepresentation::Float64());
+        V<Float64> input_f64 = V<Float64>::Cast(input);
         if (FloatUnaryOp::IsSupported(kind, rep)) {
           // If we have a fast machine operation for this, we can just keep it.
           goto no_change;
@@ -2723,19 +2760,20 @@ class MachineLoweringReducer : public Next {
 
           Label<Float64> done(this);
 
-          IF (LIKELY(__ Float64LessThan(0.0, input))) {
-            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(two_52, input)), done,
-                    input);
+          IF (LIKELY(__ Float64LessThan(0.0, input_f64))) {
+            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(two_52, input_f64)),
+                    done, input_f64);
             V<Float64> temp1 =
-                __ Float64Sub(__ Float64Add(two_52, input), two_52);
-            GOTO_IF_NOT(__ Float64LessThan(temp1, input), done, temp1);
+                __ Float64Sub(__ Float64Add(two_52, input_f64), two_52);
+            GOTO_IF_NOT(__ Float64LessThan(temp1, input_f64), done, temp1);
             GOTO(done, __ Float64Add(temp1, 1.0));
-          } ELSE IF (UNLIKELY(__ Float64Equal(input, 0.0))) {
-            GOTO(done, input);
-          } ELSE IF (UNLIKELY(__ Float64LessThanOrEqual(input, minus_two_52))) {
-            GOTO(done, input);
+          } ELSE IF (UNLIKELY(__ Float64Equal(input_f64, 0.0))) {
+            GOTO(done, input_f64);
+          } ELSE IF (UNLIKELY(
+                        __ Float64LessThanOrEqual(input_f64, minus_two_52))) {
+            GOTO(done, input_f64);
           } ELSE {
-            V<Float64> temp1 = __ Float64Sub(-0.0, input);
+            V<Float64> temp1 = __ Float64Sub(-0.0, input_f64);
             V<Float64> temp2 =
                 __ Float64Sub(__ Float64Add(two_52, temp1), two_52);
             GOTO_IF_NOT(__ Float64LessThan(temp1, temp2), done,
@@ -2773,19 +2811,20 @@ class MachineLoweringReducer : public Next {
 
           Label<Float64> done(this);
 
-          IF (LIKELY(__ Float64LessThan(0.0, input))) {
-            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(two_52, input)), done,
-                    input);
+          IF (LIKELY(__ Float64LessThan(0.0, input_f64))) {
+            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(two_52, input_f64)),
+                    done, input_f64);
             V<Float64> temp1 =
-                __ Float64Sub(__ Float64Add(two_52, input), two_52);
-            GOTO_IF_NOT(__ Float64LessThan(input, temp1), done, temp1);
+                __ Float64Sub(__ Float64Add(two_52, input_f64), two_52);
+            GOTO_IF_NOT(__ Float64LessThan(input_f64, temp1), done, temp1);
             GOTO(done, __ Float64Sub(temp1, 1.0));
-          } ELSE IF (UNLIKELY(__ Float64Equal(input, 0.0))) {
-            GOTO(done, input);
-          } ELSE IF (UNLIKELY(__ Float64LessThanOrEqual(input, minus_two_52))) {
-            GOTO(done, input);
+          } ELSE IF (UNLIKELY(__ Float64Equal(input_f64, 0.0))) {
+            GOTO(done, input_f64);
+          } ELSE IF (UNLIKELY(
+                        __ Float64LessThanOrEqual(input_f64, minus_two_52))) {
+            GOTO(done, input_f64);
           } ELSE {
-            V<Float64> temp1 = __ Float64Sub(-0.0, input);
+            V<Float64> temp1 = __ Float64Sub(-0.0, input_f64);
             V<Float64> temp2 =
                 __ Float64Sub(__ Float64Add(two_52, temp1), two_52);
             GOTO_IF_NOT(__ Float64LessThan(temp2, temp1), done,
@@ -2813,8 +2852,8 @@ class MachineLoweringReducer : public Next {
 
           Label<Float64> done(this);
 
-          V<Float64> value = __ Float64RoundDown(input);
-          V<Float64> temp1 = __ Float64Sub(input, value);
+          V<Float64> value = __ Float64RoundDown(input_f64);
+          V<Float64> temp1 = __ Float64Sub(input_f64, value);
           GOTO_IF(__ Float64LessThan(temp1, 0.5), done, value);
           GOTO_IF(__ Float64LessThan(0.5, temp1), done,
                   __ Float64Add(value, 1.0));
@@ -2852,21 +2891,22 @@ class MachineLoweringReducer : public Next {
 
           Label<Float64> done(this);
 
-          IF (__ Float64LessThan(0.0, input)) {
-            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(two_52, input)), done,
-                    input);
+          IF (__ Float64LessThan(0.0, input_f64)) {
+            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(two_52, input_f64)),
+                    done, input_f64);
 
             V<Float64> temp1 =
-                __ Float64Sub(__ Float64Add(two_52, input), two_52);
-            GOTO_IF(__ Float64LessThan(input, temp1), done,
+                __ Float64Sub(__ Float64Add(two_52, input_f64), two_52);
+            GOTO_IF(__ Float64LessThan(input_f64, temp1), done,
                     __ Float64Sub(temp1, 1.0));
             GOTO(done, temp1);
           } ELSE {
-            GOTO_IF(UNLIKELY(__ Float64Equal(input, 0.0)), done, input);
-            GOTO_IF(UNLIKELY(__ Float64LessThanOrEqual(input, minus_two_52)),
-                    done, input);
+            GOTO_IF(UNLIKELY(__ Float64Equal(input_f64, 0.0)), done, input_f64);
+            GOTO_IF(
+                UNLIKELY(__ Float64LessThanOrEqual(input_f64, minus_two_52)),
+                done, input_f64);
 
-            V<Float64> temp1 = __ Float64Sub(-0.0, input);
+            V<Float64> temp1 = __ Float64Sub(-0.0, input_f64);
             V<Float64> temp2 =
                 __ Float64Sub(__ Float64Add(two_52, temp1), two_52);
 
@@ -2889,7 +2929,7 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
-  V<Object> REDUCE(CheckedClosure)(V<Object> input, OpIndex frame_state,
+  V<Object> REDUCE(CheckedClosure)(V<Object> input, V<FrameState> frame_state,
                                    Handle<FeedbackCell> feedback_cell) {
     // Check that {input} is actually a JSFunction.
     V<Map> map = __ LoadMapField(input);
@@ -2910,9 +2950,9 @@ class MachineLoweringReducer : public Next {
     return input;
   }
 
-  OpIndex REDUCE(CheckEqualsInternalizedString)(V<Object> expected,
+  V<None> REDUCE(CheckEqualsInternalizedString)(V<Object> expected,
                                                 V<Object> value,
-                                                OpIndex frame_state) {
+                                                V<FrameState> frame_state) {
     Label<> done(this);
     // Check if {expected} and {value} are the same, which is the likely case.
     GOTO_IF(LIKELY(__ TaggedEqual(expected, value)), done);
@@ -2950,12 +2990,13 @@ class MachineLoweringReducer : public Next {
       OpIndex try_string_to_index_or_lookup_existing = __ ExternalConstant(
           ExternalReference::try_string_to_index_or_lookup_existing());
       OpIndex isolate_ptr =
-          __ ExternalConstant(ExternalReference::isolate_address(isolate_));
-      V<String> value_internalized = __ Call(
+          __ ExternalConstant(ExternalReference::isolate_address());
+      V<String> value_internalized = V<String>::Cast(__ Call(
           try_string_to_index_or_lookup_existing, {isolate_ptr, value},
           TSCallDescriptor::Create(Linkage::GetSimplifiedCDescriptor(
                                        __ graph_zone(), builder.Build()),
-                                   CanThrow::kNo, __ graph_zone()));
+                                   CanThrow::kNo, LazyDeoptOnThrow::kNo,
+                                   __ graph_zone())));
 
       // Now see if the results match.
       __ DeoptimizeIfNot(__ TaggedEqual(expected, value_internalized),
@@ -2966,7 +3007,7 @@ class MachineLoweringReducer : public Next {
     GOTO(done);
 
     BIND(done);
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 
   V<Object> REDUCE(LoadMessage)(V<WordPtr> offset) {
@@ -2974,10 +3015,10 @@ class MachineLoweringReducer : public Next {
         offset, AccessBuilder::ForExternalIntPtr()));
   }
 
-  OpIndex REDUCE(StoreMessage)(V<WordPtr> offset, V<Object> object) {
+  V<None> REDUCE(StoreMessage)(V<WordPtr> offset, V<Object> object) {
     __ StoreField(offset, AccessBuilder::ForExternalIntPtr(),
                   __ BitcastTaggedToWordPtr(object));
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 
   V<Boolean> REDUCE(SameValue)(OpIndex left, OpIndex right,
@@ -2990,7 +3031,7 @@ class MachineLoweringReducer : public Next {
     }
   }
 
-  V<Word32> REDUCE(Float64SameValue)(OpIndex left, OpIndex right) {
+  V<Word32> REDUCE(Float64SameValue)(V<Float64> left, V<Float64> right) {
     Label<Word32> done(this);
 
     IF (__ Float64Equal(left, right)) {
@@ -3040,7 +3081,7 @@ class MachineLoweringReducer : public Next {
   V<Object> REDUCE(MaybeGrowFastElements)(V<Object> object, V<Object> elements,
                                           V<Word32> index,
                                           V<Word32> elements_length,
-                                          OpIndex frame_state,
+                                          V<FrameState> frame_state,
                                           GrowFastElementsMode mode,
                                           const FeedbackSource& feedback) {
     Label<Object> done(this);
@@ -3138,10 +3179,9 @@ class MachineLoweringReducer : public Next {
           } ELSE IF (__ TaggedEqual(
                         __ LoadMapField(candidate_key),
                         __ HeapConstant(factory_->heap_number_map()))) {
-            GOTO_IF(__ Float64Equal(
-                        __ template LoadField<Float64>(
-                            candidate_key, AccessBuilder::ForHeapNumberValue()),
-                        __ ChangeInt32ToFloat64(key)),
+            GOTO_IF(__ Float64Equal(__ LoadHeapNumberValue(
+                                        V<HeapNumber>::Cast(candidate_key)),
+                                    __ ChangeInt32ToFloat64(key)),
                     done, candidate);
           }
 
@@ -3164,22 +3204,171 @@ class MachineLoweringReducer : public Next {
     }
   }
 
-#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
-  V<Object> REDUCE(GetContinuationPreservedEmbedderData)() {
-    return __ Load(
-        __ ExternalConstant(
-            ExternalReference::continuation_preserved_embedder_data(isolate_)),
-        LoadOp::Kind::RawAligned(), MemoryRepresentation::TaggedPointer());
+  // Loads a surrogate pair from {string} starting at {index} and returns the
+  // result encode in {encoding}. Note that UTF32 encoding is identical to the
+  // code point. If the string's {length} is already available, it can be
+  // passed, otherwise it will be loaded when required.
+  V<Word32> LoadSurrogatePairAt(V<String> string, OptionalV<WordPtr> length,
+                                V<WordPtr> index, UnicodeEncoding encoding) {
+    Label<Word32> done(this);
+
+    V<Word32> first_code_unit = __ StringCharCodeAt(string, index);
+    GOTO_IF_NOT(UNLIKELY(__ Word32Equal(
+                    __ Word32BitwiseAnd(first_code_unit, 0xFC00), 0xD800)),
+                done, first_code_unit);
+    if (!length.has_value()) {
+      length = __ ChangeUint32ToUintPtr(__ template LoadField<Word32>(
+          string, AccessBuilder::ForStringLength()));
+    }
+    V<WordPtr> next_index = __ WordPtrAdd(index, 1);
+    GOTO_IF_NOT(__ IntPtrLessThan(next_index, length.value()), done,
+                first_code_unit);
+
+    V<Word32> second_code_unit = __ StringCharCodeAt(string, next_index);
+    GOTO_IF_NOT(
+        __ Word32Equal(__ Word32BitwiseAnd(second_code_unit, 0xFC00), 0xDC00),
+        done, first_code_unit);
+
+    switch (encoding) {
+      case UnicodeEncoding::UTF16: {
+// Need to swap the order for big-endian platforms
+#if V8_TARGET_BIG_ENDIAN
+        V<Word32> value = __ Word32BitwiseOr(
+            __ Word32ShiftLeft(first_code_unit, 16), second_code_unit);
+#else
+        V<Word32> value = __ Word32BitwiseOr(
+            __ Word32ShiftLeft(second_code_unit, 16), first_code_unit);
+#endif
+        GOTO(done, value);
+        break;
+      }
+      case UnicodeEncoding::UTF32: {
+        const int32_t surrogate_offset = 0x10000 - (0xD800 << 10) - 0xDC00;
+        V<Word32> value =
+            __ Word32Add(__ Word32ShiftLeft(first_code_unit, 10),
+                         __ Word32Add(second_code_unit, surrogate_offset));
+        GOTO(done, value);
+        break;
+      }
+    }
+
+    BIND(done, result);
+    return result;
   }
 
-  OpIndex REDUCE(SetContinuationPreservedEmbedderData)(V<Object> data) {
-    __ Store(
-        __ ExternalConstant(
-            ExternalReference::continuation_preserved_embedder_data(isolate_)),
-        data, StoreOp::Kind::RawAligned(),
-        MemoryRepresentation::TaggedPointer(),
-        WriteBarrierKind::kNoWriteBarrier);
-    return OpIndex::Invalid();
+  V<String> StringFromSingleCharCode(V<Word32> code) {
+    Label<String> done(this);
+
+    // Check if the {code} is a one byte character.
+    IF (LIKELY(__ Uint32LessThanOrEqual(code, String::kMaxOneByteCharCode))) {
+      // Load the isolate wide single character string table.
+      V<FixedArray> table = __ SingleCharacterStringTableConstant();
+
+      // Compute the {table} index for {code}.
+      V<WordPtr> index = __ ChangeUint32ToUintPtr(code);
+
+      // Load the string for the {code} from the single character string
+      // table.
+      V<String> entry = __ LoadElement(
+          table, AccessBuilderTS::ForFixedArrayElement<String>(), index);
+
+      // Use the {entry} from the {table}.
+      GOTO(done, entry);
+    } ELSE {
+      Uninitialized<SeqTwoByteString> string =
+          AllocateSeqTwoByteString(1, AllocationType::kYoung);
+      __ InitializeElement(
+          string, AccessBuilderTS::ForSeqTwoByteStringCharacter(), 0, code);
+      GOTO(done, __ FinishInitialization(std::move(string)));
+    }
+
+    BIND(done, result);
+    return result;
+  }
+
+  V<String> StringFromSingleCodePoint(V<Word32> codepoint,
+                                      UnicodeEncoding encoding) {
+    Label<String> done(this);
+    // Check if the input is a single code unit.
+    GOTO_IF(LIKELY(__ Uint32LessThan(codepoint, 0x10000)), done,
+            StringFromSingleCharCode(codepoint));
+
+    V<Word32> code;
+    switch (encoding) {
+      case UnicodeEncoding::UTF16:
+        code = codepoint;
+        break;
+      case UnicodeEncoding::UTF32: {
+        // Convert UTF32 to UTF16 code units and store as a 32 bit word.
+        V<Word32> lead_offset = __ Word32Constant(0xD800 - (0x10000 >> 10));
+
+        // lead = (codepoint >> 10) + LEAD_OFFSET
+        V<Word32> lead = __ Word32Add(__ Word32ShiftRightLogical(codepoint, 10),
+                                      lead_offset);
+
+        // trail = (codepoint & 0x3FF) + 0xDC00
+        V<Word32> trail =
+            __ Word32Add(__ Word32BitwiseAnd(codepoint, 0x3FF), 0xDC00);
+
+        // codepoint = (trail << 16) | lead
+#if V8_TARGET_BIG_ENDIAN
+        code = __ Word32BitwiseOr(__ Word32ShiftLeft(lead, 16), trail);
+#else
+        code = __ Word32BitwiseOr(__ Word32ShiftLeft(trail, 16), lead);
+#endif
+        break;
+      }
+    }
+
+    Uninitialized<SeqTwoByteString> string =
+        AllocateSeqTwoByteString(2, AllocationType::kYoung);
+    // Write the code as a single 32-bit value by adapting the elements
+    // access to SeqTwoByteString characters.
+    auto access = AccessBuilderTS::ForSeqTwoByteStringCharacter();
+    access.machine_type = MachineType::Uint32();
+    __ InitializeElement(string, access, 0, code);
+    GOTO(done, __ FinishInitialization(std::move(string)));
+
+    BIND(done, result);
+    return result;
+  }
+
+  Uninitialized<SeqTwoByteString> AllocateSeqTwoByteString(
+      uint32_t length, AllocationType type) {
+    __ CodeComment("AllocateSeqTwoByteString");
+    DCHECK_GT(length, 0);
+    // Allocate a new string object.
+    Uninitialized<SeqTwoByteString> string =
+        __ template Allocate<SeqTwoByteString>(
+            SeqTwoByteString::SizeFor(length), type);
+    // Set padding to 0.
+    __ Initialize(string, __ IntPtrConstant(0),
+                  MemoryRepresentation::TaggedSigned(),
+                  WriteBarrierKind::kNoWriteBarrier,
+                  SeqTwoByteString::SizeFor(length) - kObjectAlignment);
+    // Initialize remaining fields.
+    __ InitializeField(string, AccessBuilderTS::ForMap(),
+                       __ SeqTwoByteStringMapConstant());
+    __ InitializeField(string, AccessBuilderTS::ForStringLength(), length);
+    __ InitializeField(string, AccessBuilderTS::ForNameRawHashField(),
+                       Name::kEmptyHashField);
+    // Do not finish allocation here, because the caller has to initialize
+    // characters.
+    return string;
+  }
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  V<Object> REDUCE(GetContinuationPreservedEmbedderData)() {
+    return __ LoadOffHeap(
+        __ IsolateField(IsolateFieldId::kContinuationPreservedEmbedderData),
+        MemoryRepresentation::UncompressedTaggedPointer());
+  }
+
+  V<None> REDUCE(SetContinuationPreservedEmbedderData)(V<Object> data) {
+    __ StoreOffHeap(
+        __ IsolateField(IsolateFieldId::kContinuationPreservedEmbedderData),
+        data, MemoryRepresentation::UncompressedTaggedPointer());
+    return {};
   }
 #endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 
@@ -3225,7 +3414,7 @@ class MachineLoweringReducer : public Next {
     // BigInts have no padding on 64 bit architectures with pointer compression.
 #ifdef BIGINT_NEEDS_PADDING
     __ InitializeField(bigint, AccessBuilder::ForBigIntOptionalPadding(),
-                       __ IntPtrConstant(0));
+                       __ Word32Constant(0));
 #endif
     if (digit.valid()) {
       __ InitializeField(
@@ -3235,16 +3424,16 @@ class MachineLoweringReducer : public Next {
   }
 
   void TagSmiOrOverflow(V<Word32> input, Label<>* overflow,
-                        Label<Object>* done) {
+                        Label<Number>* done) {
     DCHECK(SmiValuesAre31Bits());
 
     // Check for overflow at the same time that we are smi tagging.
     // Since smi tagging shifts left by one, it's the same as adding value
     // twice.
-    OpIndex add = __ Int32AddCheckOverflow(input, input);
-    V<Word32> check = __ template Projection<Word32>(add, 1);
+    V<Tuple<Word32, Word32>> add = __ Int32AddCheckOverflow(input, input);
+    V<Word32> check = __ template Projection<1>(add);
     GOTO_IF(UNLIKELY(check), *overflow);
-    GOTO(*done, __ BitcastWord32ToSmi(__ template Projection<Word32>(add, 0)));
+    GOTO(*done, __ BitcastWord32ToSmi(__ template Projection<0>(add)));
   }
 
   // `IsNonZero` converts any non-0 value into 1.
@@ -3252,45 +3441,73 @@ class MachineLoweringReducer : public Next {
     return __ Word32Equal(__ Word32Equal(value, 0), 0);
   }
 
-  V<Object> AllocateHeapNumberWithValue(V<Float64> value) {
-    auto result = __ template Allocate<HeapNumber>(
-        __ IntPtrConstant(sizeof(HeapNumber)), AllocationType::kYoung);
-    __ InitializeField(result, AccessBuilder::ForMap(),
-                       __ HeapConstant(factory_->heap_number_map()));
-    __ InitializeField(result, AccessBuilder::ForHeapNumberValue(), value);
-    return __ FinishInitialization(std::move(result));
+  V<HeapNumber> AllocateHeapNumberWithValue(V<Float64> value) {
+    return __ AllocateHeapNumberWithValue(value, factory_);
   }
 
   V<Float64> ConvertHeapObjectToFloat64OrDeopt(
-      V<Object> heap_object, OpIndex frame_state,
+      V<Object> heap_object, V<FrameState> frame_state,
       ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind input_kind,
       const FeedbackSource& feedback) {
     V<Map> map = __ LoadMapField(heap_object);
-    V<Word32> check_number =
-        __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map()));
     switch (input_kind) {
       case ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind::kSmi:
       case ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind::
           kNumberOrString:
         UNREACHABLE();
       case ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind::kNumber: {
-        __ DeoptimizeIfNot(check_number, frame_state,
+        V<Word32> is_number =
+            __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map()));
+        __ DeoptimizeIfNot(is_number, frame_state,
                            DeoptimizeReason::kNotAHeapNumber, feedback);
         break;
       }
       case ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind::
           kNumberOrBoolean: {
-        IF_NOT(check_number) {
+#if V8_STATIC_ROOTS_BOOL
+        // TODO(leszeks): Consider checking the boolean oddballs by value,
+        // before loading the map.
+        static_assert(StaticReadOnlyRoot::kBooleanMap + Map::kSize ==
+                      StaticReadOnlyRoot::kHeapNumberMap);
+        V<Word32> map_int32 =
+            __ TruncateWordPtrToWord32(__ BitcastHeapObjectToWordPtr(map));
+        V<Word32> is_in_range = __ Uint32LessThanOrEqual(
+            __ Word32Sub(map_int32,
+                         __ Word32Constant(StaticReadOnlyRoot::kBooleanMap)),
+            __ Word32Constant(StaticReadOnlyRoot::kHeapNumberMap -
+                              StaticReadOnlyRoot::kBooleanMap));
+        __ DeoptimizeIfNot(is_in_range, frame_state,
+                           DeoptimizeReason::kNotANumberOrBoolean, feedback);
+#else
+        IF_NOT (__ TaggedEqual(map,
+                               __ HeapConstant(factory_->heap_number_map()))) {
           __ DeoptimizeIfNot(
               __ TaggedEqual(map, __ HeapConstant(factory_->boolean_map())),
               frame_state, DeoptimizeReason::kNotANumberOrBoolean, feedback);
         }
+#endif
 
         break;
       }
       case ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind::
           kNumberOrOddball: {
-        IF_NOT(check_number) {
+#if V8_STATIC_ROOTS_BOOL
+        constexpr auto kNumberOrOddballRange =
+            InstanceTypeChecker::UniqueMapRangeOfInstanceTypeRange(
+                HEAP_NUMBER_TYPE, ODDBALL_TYPE)
+                .value();
+        V<Word32> map_int32 =
+            __ TruncateWordPtrToWord32(__ BitcastHeapObjectToWordPtr(map));
+        V<Word32> is_in_range = __ Uint32LessThanOrEqual(
+            __ Word32Sub(map_int32,
+                         __ Word32Constant(kNumberOrOddballRange.first)),
+            __ Word32Constant(kNumberOrOddballRange.second -
+                              kNumberOrOddballRange.first));
+        __ DeoptimizeIfNot(is_in_range, frame_state,
+                           DeoptimizeReason::kNotANumberOrOddball, feedback);
+#else
+        IF_NOT (__ TaggedEqual(map,
+                               __ HeapConstant(factory_->heap_number_map()))) {
           // For oddballs also contain the numeric value, let us just check that
           // we have an oddball here.
           V<Word32> instance_type = __ LoadInstanceTypeField(map);
@@ -3298,6 +3515,7 @@ class MachineLoweringReducer : public Next {
                              frame_state,
                              DeoptimizeReason::kNotANumberOrOddball, feedback);
         }
+#endif
 
         break;
       }
@@ -3325,7 +3543,7 @@ class MachineLoweringReducer : public Next {
   }
 
   void MigrateInstanceOrDeopt(V<HeapObject> heap_object, V<Map> heap_object_map,
-                              OpIndex frame_state,
+                              V<FrameState> frame_state,
                               const FeedbackSource& feedback) {
     // If {heap_object_map} is not deprecated, the migration attempt does not
     // make sense.
@@ -3357,8 +3575,8 @@ class MachineLoweringReducer : public Next {
         __ graph_zone(), callable.descriptor(),
         callable.descriptor().GetStackParameterCount(),
         CallDescriptor::kNoFlags, Operator::kFoldable | Operator::kNoThrow);
-    auto ts_descriptor =
-        TSCallDescriptor::Create(descriptor, CanThrow::kNo, __ graph_zone());
+    auto ts_descriptor = TSCallDescriptor::Create(
+        descriptor, CanThrow::kNo, LazyDeoptOnThrow::kNo, __ graph_zone());
     return __ Call(__ HeapConstant(callable.code()), OpIndex::Invalid(),
                    base::VectorOf(args), ts_descriptor);
   }
@@ -3458,10 +3676,10 @@ class MachineLoweringReducer : public Next {
     return *undetectable_objects_protector_;
   }
 
-  Isolate* isolate_ = PipelineData::Get().isolate();
+  Isolate* isolate_ = __ data() -> isolate();
   Factory* factory_ = isolate_ ? isolate_->factory() : nullptr;
-  JSHeapBroker* broker_ = PipelineData::Get().broker();
-  base::Optional<bool> undetectable_objects_protector_ = {};
+  JSHeapBroker* broker_ = __ data() -> broker();
+  std::optional<bool> undetectable_objects_protector_ = {};
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

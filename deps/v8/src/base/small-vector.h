@@ -191,6 +191,10 @@ class SmallVector {
     return pos;
   }
 
+  T* insert(T* pos, std::initializer_list<T> values) {
+    return insert(pos, values.begin(), values.end());
+  }
+
   void resize_no_init(size_t new_size) {
     // Resizing without initialization is safe if T is trivially copyable.
     ASSERT_TRIVIALLY_COPYABLE(T);

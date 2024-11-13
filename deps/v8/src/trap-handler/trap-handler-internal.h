@@ -54,6 +54,9 @@ struct CodeProtectionInfoListEntry {
 extern size_t gNumCodeObjects;
 extern CodeProtectionInfoListEntry* gCodeObjects;
 
+extern uintptr_t gV8SandboxBase;
+extern uintptr_t gV8SandboxSize;
+
 extern std::atomic_size_t gRecoveredTrapCount;
 
 extern std::atomic<uintptr_t> gLandingPad;
@@ -61,6 +64,12 @@ extern std::atomic<uintptr_t> gLandingPad;
 // Searches the fault location table for an entry matching fault_addr. If found,
 // returns true, otherwise, returns false.
 bool IsFaultAddressCovered(uintptr_t fault_addr);
+
+// Checks whether the accessed memory is covered by the trap handler. In
+// particular, when the V8 sandbox is enabled, only faulting accesses to memory
+// inside the sandbox are handled by the trap handler since all Wasm memory
+// objects are inside the sandbox.
+bool IsAccessedMemoryCovered(uintptr_t accessed_addr);
 
 }  // namespace trap_handler
 }  // namespace internal

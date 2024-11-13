@@ -27,7 +27,7 @@ bytecodes: [
                 B(Star3),
                 B(LdaZero),
                 B(Star7),
-                B(LdaSmi), I8(30),
+                B(LdaSmi), I8(2),
                 B(Star8),
                 B(LdaSmi), I8(41),
                 B(Star9),

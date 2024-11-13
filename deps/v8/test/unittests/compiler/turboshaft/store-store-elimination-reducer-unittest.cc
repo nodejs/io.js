@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/compiler/turboshaft/store-store-elimination-reducer.h"
-
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/copying-phase.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/store-store-elimination-reducer-inl.h"
 #include "test/unittests/compiler/turboshaft/reducer-test.h"
 namespace v8::internal::compiler::turboshaft {
 

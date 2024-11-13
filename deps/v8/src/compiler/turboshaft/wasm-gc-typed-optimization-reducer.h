@@ -42,8 +42,8 @@ namespace v8::internal::compiler::turboshaft {
 
 class WasmGCTypeAnalyzer {
  public:
-  WasmGCTypeAnalyzer(Graph& graph, Zone* zone)
-      : graph_(graph), phase_zone_(zone) {}
+  WasmGCTypeAnalyzer(PipelineData* data, Graph& graph, Zone* zone)
+      : data_(data), graph_(graph), phase_zone_(zone) {}
 
   void Run();
 
@@ -71,6 +71,7 @@ class WasmGCTypeAnalyzer {
   void ProcessParameter(const ParameterOp& parameter);
   void ProcessStructGet(const StructGetOp& struct_get);
   void ProcessStructSet(const StructSetOp& struct_set);
+  void ProcessArrayGet(const ArrayGetOp& array_get);
   void ProcessArrayLength(const ArrayLengthOp& array_length);
   void ProcessGlobalGet(const GlobalGetOp& global_get);
   void ProcessRefFunc(const WasmRefFuncOp& ref_func);
@@ -95,10 +96,11 @@ class WasmGCTypeAnalyzer {
 
   bool IsReachable(const Block& block) const;
 
+  PipelineData* data_;
   Graph& graph_;
   Zone* phase_zone_;
-  const wasm::WasmModule* module_ = PipelineData::Get().wasm_module();
-  const wasm::FunctionSig* signature_ = PipelineData::Get().wasm_sig();
+  const wasm::WasmModule* module_ = data_->wasm_module();
+  const wasm::FunctionSig* signature_ = data_->wasm_sig();
   // Contains the snapshots for all blocks in the CFG.
   TypeSnapshotTable types_table_{phase_zone_};
   // Maps the block id to a snapshot in the table defining the type knowledge
@@ -129,8 +131,8 @@ class WasmGCTypedOptimizationReducer : public Next {
     Next::Analyze();
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(WasmTypeCast)(OpIndex op_idx,
-                                           const WasmTypeCastOp& cast_op) {
+  V<Object> REDUCE_INPUT_GRAPH(WasmTypeCast)(V<Object> op_idx,
+                                             const WasmTypeCastOp& cast_op) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphWasmTypeCast(op_idx, cast_op);
     }
@@ -165,8 +167,7 @@ class WasmGCTypedOptimizationReducer : public Next {
                                                               cast_op.object()),
                                                           type)
                                               : __ Word32Constant(0);
-        __ TrapIfNot(non_trapping_condition, OpIndex::Invalid(),
-                     TrapId::kTrapIllegalCast);
+        __ TrapIfNot(non_trapping_condition, TrapId::kTrapIllegalCast);
         if (!to_nullable) {
           __ Unreachable();
         }
@@ -184,8 +185,8 @@ class WasmGCTypedOptimizationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(WasmTypeCheck)(OpIndex op_idx,
-                                            const WasmTypeCheckOp& type_check) {
+  V<Word32> REDUCE_INPUT_GRAPH(WasmTypeCheck)(
+      V<Word32> op_idx, const WasmTypeCheckOp& type_check) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphWasmTypeCheck(op_idx, type_check);
     }
@@ -232,8 +233,8 @@ class WasmGCTypedOptimizationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(AssertNotNull)(
-      OpIndex op_idx, const AssertNotNullOp& assert_not_null) {
+  V<Object> REDUCE_INPUT_GRAPH(AssertNotNull)(
+      V<Object> op_idx, const AssertNotNullOp& assert_not_null) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphAssertNotNull(op_idx, assert_not_null);
     }
@@ -246,7 +247,8 @@ class WasmGCTypedOptimizationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(IsNull)(OpIndex op_idx, const IsNullOp& is_null) {
+  V<Word32> REDUCE_INPUT_GRAPH(IsNull)(V<Word32> op_idx,
+                                       const IsNullOp& is_null) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphIsNull(op_idx, is_null);
     }
@@ -263,14 +265,14 @@ class WasmGCTypedOptimizationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(WasmTypeAnnotation)(
-      OpIndex op_idx, const WasmTypeAnnotationOp& type_annotation) {
+  V<Object> REDUCE_INPUT_GRAPH(WasmTypeAnnotation)(
+      V<Object> op_idx, const WasmTypeAnnotationOp& type_annotation) {
     // Remove type annotation operations as they are not needed any more.
     return __ MapToNewGraph(type_annotation.value());
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(StructGet)(OpIndex op_idx,
-                                        const StructGetOp& struct_get) {
+  V<Any> REDUCE_INPUT_GRAPH(StructGet)(V<Any> op_idx,
+                                       const StructGetOp& struct_get) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphStructGet(op_idx, struct_get);
     }
@@ -287,7 +289,7 @@ class WasmGCTypedOptimizationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(StructSet)(OpIndex op_idx,
+  V<None> REDUCE_INPUT_GRAPH(StructSet)(V<None> op_idx,
                                         const StructSetOp& struct_set) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphStructSet(op_idx, struct_set);
@@ -306,8 +308,8 @@ class WasmGCTypedOptimizationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(ArrayLength)(OpIndex op_idx,
-                                          const ArrayLengthOp& array_length) {
+  V<Word32> REDUCE_INPUT_GRAPH(ArrayLength)(V<Word32> op_idx,
+                                            const ArrayLengthOp& array_length) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphArrayLength(op_idx, array_length);
     }
@@ -324,7 +326,7 @@ class WasmGCTypedOptimizationReducer : public Next {
 
   // TODO(14108): This isn't a type optimization and doesn't fit well into this
   // reducer.
-  OpIndex REDUCE(AnyConvertExtern)(V<Object> object) {
+  V<Object> REDUCE(AnyConvertExtern)(V<Object> object) {
     LABEL_BLOCK(no_change) { return Next::ReduceAnyConvertExtern(object); }
     if (ShouldSkipOptimizationStep()) goto no_change;
 
@@ -342,8 +344,8 @@ class WasmGCTypedOptimizationReducer : public Next {
 
  private:
   Graph& graph_ = __ modifiable_input_graph();
-  const wasm::WasmModule* module_ = PipelineData::Get().wasm_module();
-  WasmGCTypeAnalyzer analyzer_{graph_, __ phase_zone()};
+  const wasm::WasmModule* module_ = __ data() -> wasm_module();
+  WasmGCTypeAnalyzer analyzer_{__ data(), graph_, __ phase_zone()};
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"

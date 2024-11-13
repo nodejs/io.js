@@ -319,7 +319,7 @@ void PerfettoLogger::CodeCreateEvent(CodeTag tag,
                                      Handle<Name> name) {
   DisallowGarbageCollection no_gc;
   if (!IsString(*name)) return;
-  CodeCreateEvent(tag, abstract_code, String::cast(*name)->ToCString().get());
+  CodeCreateEvent(tag, abstract_code, Cast<String>(*name)->ToCString().get());
 }
 
 void PerfettoLogger::CodeCreateEvent(CodeTag tag,
@@ -345,7 +345,7 @@ void PerfettoLogger::CodeCreateEvent(CodeTag tag,
         code_proto->set_v8_isolate_iid(ctx.InternIsolate(isolate_));
         code_proto->set_v8_js_function_iid(ctx.InternJsFunction(
             isolate_, info,
-            ctx.InternJsScript(isolate_, Script::cast(info->script())), line,
+            ctx.InternJsScript(isolate_, Cast<Script>(info->script())), line,
             column));
         WriteJsCode(ctx, *abstract_code, *code_proto);
       });

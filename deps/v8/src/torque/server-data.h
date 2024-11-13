@@ -7,18 +7,16 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/torque/declarable.h"
 #include "src/torque/global-context.h"
 #include "src/torque/source-positions.h"
 #include "src/torque/type-oracle.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 // The definition of the token in the first element, can be found at the second.
 using DefinitionMapping = std::pair<SourcePosition, SourcePosition>;
@@ -43,7 +41,7 @@ class LanguageServerData : public base::ContextualClass<LanguageServerData> {
   V8_EXPORT_PRIVATE static void AddDefinition(SourcePosition token,
                                               SourcePosition definition);
 
-  V8_EXPORT_PRIVATE static base::Optional<SourcePosition> FindDefinition(
+  V8_EXPORT_PRIVATE static std::optional<SourcePosition> FindDefinition(
       SourceId source, LineAndColumn pos);
 
   static void SetGlobalContext(GlobalContext global_context) {
@@ -70,8 +68,6 @@ class LanguageServerData : public base::ContextualClass<LanguageServerData> {
   std::unique_ptr<TypeOracle> type_oracle_;
 };
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque
 
 #endif  // V8_TORQUE_SERVER_DATA_H_

@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <ios>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -67,7 +68,14 @@ namespace log_internal {
 namespace {
 // message `logging.proto.Event`
 enum EventTag : uint8_t {
+  kFileName = 2,
+  kFileLine = 3,
+  kTimeNsecs = 4,
+  kSeverity = 5,
+  kThreadId = 6,
   kValue = 7,
+  kSequenceNumber = 9,
+  kThreadName = 10,
 };
 
 // message `logging.proto.Value`
@@ -98,6 +106,23 @@ bool PrintValue(absl::Span<char>& dst, absl::Span<const char> buf) {
     }
   }
   return true;
+}
+
+// See `logging.proto.Severity`
+int32_t ProtoSeverity(absl::LogSeverity severity, int verbose_level) {
+  switch (severity) {
+    case absl::LogSeverity::kInfo:
+      if (verbose_level == absl::LogEntry::kNoVerbosityLevel) return 800;
+      return 600 - verbose_level;
+    case absl::LogSeverity::kWarning:
+      return 900;
+    case absl::LogSeverity::kError:
+      return 950;
+    case absl::LogSeverity::kFatal:
+      return 1100;
+    default:
+      return 800;
+  }
 }
 
 absl::string_view Basename(absl::string_view filepath) {
@@ -145,26 +170,37 @@ struct LogMessage::LogMessageData final {
 
   // A `logging.proto.Event` proto message is built into `encoded_buf`.
   std::array<char, kLogMessageBufferSize> encoded_buf;
-  // `encoded_remaining` is the suffix of `encoded_buf` that has not been filled
-  // yet.  If a datum to be encoded does not fit into `encoded_remaining` and
-  // cannot be truncated to fit, the size of `encoded_remaining` will be zeroed
-  // to prevent encoding of any further data.  Note that in this case its data()
-  // pointer will not point past the end of `encoded_buf`.
-  absl::Span<char> encoded_remaining;
+  // `encoded_remaining()` is the suffix of `encoded_buf` that has not been
+  // filled yet.  If a datum to be encoded does not fit into
+  // `encoded_remaining()` and cannot be truncated to fit, the size of
+  // `encoded_remaining()` will be zeroed to prevent encoding of any further
+  // data.  Note that in this case its `data()` pointer will not point past the
+  // end of `encoded_buf`.
+  // The first use of `encoded_remaining()` is our chance to record metadata
+  // after any modifications (e.g. by `AtLocation()`) but before any data have
+  // been recorded.  We want to record metadata before data so that data are
+  // preferentially truncated if we run out of buffer.
+  absl::Span<char>& encoded_remaining() {
+    if (encoded_remaining_actual_do_not_use_directly.data() == nullptr) {
+      encoded_remaining_actual_do_not_use_directly =
+          absl::MakeSpan(encoded_buf);
+      InitializeEncodingAndFormat();
+    }
+    return encoded_remaining_actual_do_not_use_directly;
+  }
+  absl::Span<char> encoded_remaining_actual_do_not_use_directly;
 
   // A formatted string message is built in `string_buf`.
   std::array<char, kLogMessageBufferSize> string_buf;
 
+  void InitializeEncodingAndFormat();
   void FinalizeEncodingAndFormat();
 };
 
 LogMessage::LogMessageData::LogMessageData(const char* file, int line,
                                            absl::LogSeverity severity,
                                            absl::Time timestamp)
-    : extra_sinks_only(false),
-      manipulated(nullptr),
-      // This `absl::MakeSpan` silences spurious -Wuninitialized from GCC:
-      encoded_remaining(absl::MakeSpan(encoded_buf)) {
+    : extra_sinks_only(false), manipulated(nullptr) {
   // Legacy defaults for LOG's ostream:
   manipulated.setf(std::ios_base::showbase | std::ios_base::boolalpha);
   entry.full_filename_ = file;
@@ -177,13 +213,25 @@ LogMessage::LogMessageData::LogMessageData(const char* file, int line,
   entry.tid_ = absl::base_internal::GetCachedTID();
 }
 
+void LogMessage::LogMessageData::InitializeEncodingAndFormat() {
+  EncodeStringTruncate(EventTag::kFileName, entry.source_filename(),
+                       &encoded_remaining());
+  EncodeVarint(EventTag::kFileLine, entry.source_line(), &encoded_remaining());
+  EncodeVarint(EventTag::kTimeNsecs, absl::ToUnixNanos(entry.timestamp()),
+               &encoded_remaining());
+  EncodeVarint(EventTag::kSeverity,
+               ProtoSeverity(entry.log_severity(), entry.verbosity()),
+               &encoded_remaining());
+  EncodeVarint(EventTag::kThreadId, entry.tid(), &encoded_remaining());
+}
+
 void LogMessage::LogMessageData::FinalizeEncodingAndFormat() {
-  // Note that `encoded_remaining` may have zero size without pointing past the
-  // end of `encoded_buf`, so the difference between `data()` pointers is used
-  // to compute the size of `encoded_data`.
+  // Note that `encoded_remaining()` may have zero size without pointing past
+  // the end of `encoded_buf`, so the difference between `data()` pointers is
+  // used to compute the size of `encoded_data`.
   absl::Span<const char> encoded_data(
       encoded_buf.data(),
-      static_cast<size_t>(encoded_remaining.data() - encoded_buf.data()));
+      static_cast<size_t>(encoded_remaining().data() - encoded_buf.data()));
   // `string_remaining` is the suffix of `string_buf` that has not been filled
   // yet.
   absl::Span<char> string_remaining(string_buf);
@@ -211,7 +259,6 @@ void LogMessage::LogMessageData::FinalizeEncodingAndFormat() {
         if (PrintValue(string_remaining, field.bytes_value())) continue;
         break;
     }
-    break;
   }
   auto chars_written =
       static_cast<size_t>(string_remaining.data() - string_buf.data());
@@ -413,7 +460,7 @@ void LogMessage::Flush() {
   data_->FinalizeEncodingAndFormat();
   data_->entry.encoding_ =
       absl::string_view(data_->encoded_buf.data(),
-                        static_cast<size_t>(data_->encoded_remaining.data() -
+                        static_cast<size_t>(data_->encoded_remaining().data() -
                                             data_->encoded_buf.data()));
   SendToLog();
 }
@@ -421,7 +468,7 @@ void LogMessage::Flush() {
 void LogMessage::SetFailQuietly() { data_->fail_quietly = true; }
 
 LogMessage::OstreamView::OstreamView(LogMessageData& message_data)
-    : data_(message_data), encoded_remaining_copy_(data_.encoded_remaining) {
+    : data_(message_data), encoded_remaining_copy_(data_.encoded_remaining()) {
   // This constructor sets the `streambuf` up so that streaming into an attached
   // ostream encodes string data in-place.  To do that, we write appropriate
   // headers into the buffer using a copy of the buffer view so that we can
@@ -444,8 +491,8 @@ LogMessage::OstreamView::~OstreamView() {
   if (!string_start_.data()) {
     // The second field header didn't fit.  Whether the first one did or not, we
     // shouldn't commit `encoded_remaining_copy_`, and we also need to zero the
-    // size of `data_->encoded_remaining` so that no more data are encoded.
-    data_.encoded_remaining.remove_suffix(data_.encoded_remaining.size());
+    // size of `data_->encoded_remaining()` so that no more data are encoded.
+    data_.encoded_remaining().remove_suffix(data_.encoded_remaining().size());
     return;
   }
   const absl::Span<const char> contents(pbase(),
@@ -454,7 +501,7 @@ LogMessage::OstreamView::~OstreamView() {
   encoded_remaining_copy_.remove_prefix(contents.size());
   EncodeMessageLength(string_start_, &encoded_remaining_copy_);
   EncodeMessageLength(message_start_, &encoded_remaining_copy_);
-  data_.encoded_remaining = encoded_remaining_copy_;
+  data_.encoded_remaining() = encoded_remaining_copy_;
 }
 
 std::ostream& LogMessage::OstreamView::stream() { return data_.manipulated; }
@@ -521,13 +568,13 @@ void LogMessage::LogBacktraceIfNeeded() {
   view.stream() << ") ";
 }
 
-// Encodes into `data_->encoded_remaining` a partial `logging.proto.Event`
+// Encodes into `data_->encoded_remaining()` a partial `logging.proto.Event`
 // containing the specified string data using a `Value` field appropriate to
 // `str_type`.  Truncates `str` if necessary, but emits nothing and marks the
 // buffer full if  even the field headers do not fit.
 template <LogMessage::StringType str_type>
 void LogMessage::CopyToEncodedBuffer(absl::string_view str) {
-  auto encoded_remaining_copy = data_->encoded_remaining;
+  auto encoded_remaining_copy = data_->encoded_remaining();
   auto start = EncodeMessageStart(
       EventTag::kValue, BufferSizeFor(WireType::kLengthDelimited) + str.size(),
       &encoded_remaining_copy);
@@ -540,11 +587,11 @@ void LogMessage::CopyToEncodedBuffer(absl::string_view str) {
                            str, &encoded_remaining_copy)) {
     // The string may have been truncated, but the field header fit.
     EncodeMessageLength(start, &encoded_remaining_copy);
-    data_->encoded_remaining = encoded_remaining_copy;
+    data_->encoded_remaining() = encoded_remaining_copy;
   } else {
-    // The field header(s) did not fit; zero `encoded_remaining` so we don't
+    // The field header(s) did not fit; zero `encoded_remaining()` so we don't
     // write anything else later.
-    data_->encoded_remaining.remove_suffix(data_->encoded_remaining.size());
+    data_->encoded_remaining().remove_suffix(data_->encoded_remaining().size());
   }
 }
 template void LogMessage::CopyToEncodedBuffer<LogMessage::StringType::kLiteral>(
@@ -553,7 +600,7 @@ template void LogMessage::CopyToEncodedBuffer<
     LogMessage::StringType::kNotLiteral>(absl::string_view str);
 template <LogMessage::StringType str_type>
 void LogMessage::CopyToEncodedBuffer(char ch, size_t num) {
-  auto encoded_remaining_copy = data_->encoded_remaining;
+  auto encoded_remaining_copy = data_->encoded_remaining();
   auto value_start = EncodeMessageStart(
       EventTag::kValue, BufferSizeFor(WireType::kLengthDelimited) + num,
       &encoded_remaining_copy);
@@ -566,17 +613,24 @@ void LogMessage::CopyToEncodedBuffer(char ch, size_t num) {
     log_internal::AppendTruncated(ch, num, encoded_remaining_copy);
     EncodeMessageLength(str_start, &encoded_remaining_copy);
     EncodeMessageLength(value_start, &encoded_remaining_copy);
-    data_->encoded_remaining = encoded_remaining_copy;
+    data_->encoded_remaining() = encoded_remaining_copy;
   } else {
-    // The field header(s) did not fit; zero `encoded_remaining` so we don't
+    // The field header(s) did not fit; zero `encoded_remaining()` so we don't
     // write anything else later.
-    data_->encoded_remaining.remove_suffix(data_->encoded_remaining.size());
+    data_->encoded_remaining().remove_suffix(data_->encoded_remaining().size());
   }
 }
 template void LogMessage::CopyToEncodedBuffer<LogMessage::StringType::kLiteral>(
     char ch, size_t num);
 template void LogMessage::CopyToEncodedBuffer<
     LogMessage::StringType::kNotLiteral>(char ch, size_t num);
+
+// We intentionally don't return from these destructors. Disable MSVC's warning
+// about the destructor never returning as we do so intentionally here.
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma warning(push)
+#pragma warning(disable : 4722)
+#endif
 
 LogMessageFatal::LogMessageFatal(const char* file, int line)
     : LogMessage(file, line, absl::LogSeverity::kFatal) {}
@@ -587,19 +641,29 @@ LogMessageFatal::LogMessageFatal(const char* file, int line,
   *this << "Check failed: " << failure_msg << " ";
 }
 
-// ABSL_ATTRIBUTE_NORETURN doesn't seem to work on destructors with msvc, so
-// disable msvc's warning about the d'tor never returning.
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma warning(push)
-#pragma warning(disable : 4722)
-#endif
 LogMessageFatal::~LogMessageFatal() {
   Flush();
   FailWithoutStackTrace();
 }
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma warning(pop)
-#endif
+
+LogMessageDebugFatal::LogMessageDebugFatal(const char* file, int line)
+    : LogMessage(file, line, absl::LogSeverity::kFatal) {}
+
+LogMessageDebugFatal::~LogMessageDebugFatal() {
+  Flush();
+  FailWithoutStackTrace();
+}
+
+LogMessageQuietlyDebugFatal::LogMessageQuietlyDebugFatal(const char* file,
+                                                         int line)
+    : LogMessage(file, line, absl::LogSeverity::kFatal) {
+  SetFailQuietly();
+}
+
+LogMessageQuietlyDebugFatal::~LogMessageQuietlyDebugFatal() {
+  Flush();
+  FailQuietly();
+}
 
 LogMessageQuietlyFatal::LogMessageQuietlyFatal(const char* file, int line)
     : LogMessage(file, line, absl::LogSeverity::kFatal) {
@@ -608,17 +672,10 @@ LogMessageQuietlyFatal::LogMessageQuietlyFatal(const char* file, int line)
 
 LogMessageQuietlyFatal::LogMessageQuietlyFatal(const char* file, int line,
                                                absl::string_view failure_msg)
-    : LogMessage(file, line, absl::LogSeverity::kFatal) {
-  SetFailQuietly();
-  *this << "Check failed: " << failure_msg << " ";
+    : LogMessageQuietlyFatal(file, line) {
+    *this << "Check failed: " << failure_msg << " ";
 }
 
-// ABSL_ATTRIBUTE_NORETURN doesn't seem to work on destructors with msvc, so
-// disable msvc's warning about the d'tor never returning.
-#if defined(_MSC_VER) && !defined(__clang__)
-#pragma warning(push)
-#pragma warning(disable : 4722)
-#endif
 LogMessageQuietlyFatal::~LogMessageQuietlyFatal() {
   Flush();
   FailQuietly();

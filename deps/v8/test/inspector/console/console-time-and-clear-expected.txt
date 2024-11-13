@@ -1,0 +1,13 @@
+Tests console.clear() does not clear timers
+{
+    type : string
+    value : console.clear
+}
+{
+    type : string
+    value : a: <number> ms
+}
+{
+    type : string
+    value : End of test
+}

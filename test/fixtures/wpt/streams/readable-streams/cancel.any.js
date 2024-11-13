@@ -234,3 +234,28 @@ promise_test(() => {
   return Promise.all([rs.cancel(), rs.getReader().closed]);
 
 }, 'ReadableStream cancellation: cancelling before start finishes should prevent pull() from being called');
+
+promise_test(async () => {
+
+  const events = [];
+
+  const pendingPromise = new Promise(() => {});
+
+  const rs = new ReadableStream({
+    pull() {
+      events.push('pull');
+      return pendingPromise;
+    },
+    cancel() {
+      events.push('cancel');
+    }
+  });
+
+  const reader = rs.getReader();
+  reader.read().catch(() => {}); // No await.
+  await delay(0);
+  await Promise.all([reader.cancel(), reader.closed]);
+
+  assert_array_equals(events, ['pull', 'cancel'], 'cancel should have been called');
+
+}, 'ReadableStream cancellation: underlyingSource.cancel() should called, even with pending pull');

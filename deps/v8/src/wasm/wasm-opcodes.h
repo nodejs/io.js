@@ -21,7 +21,6 @@ namespace internal {
 
 namespace wasm {
 
-class WasmFeatures;
 struct WasmModule;
 
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
@@ -98,7 +97,8 @@ V8_EXPORT_PRIVATE bool IsJSCompatibleSignature(const FunctionSig* sig);
   V(I64LoadMem16S, 0x32, l_i, "i64.load16_s") \
   V(I64LoadMem16U, 0x33, l_i, "i64.load16_u") \
   V(I64LoadMem32S, 0x34, l_i, "i64.load32_s") \
-  V(I64LoadMem32U, 0x35, l_i, "i64.load32_u")
+  V(I64LoadMem32U, 0x35, l_i, "i64.load32_u") \
+  V(F32LoadMemF16, 0xfc30, f_i, "f32.load_f16")
 
 // Store memory expressions.
 #define FOREACH_STORE_MEM_OPCODE(V)           \
@@ -110,7 +110,8 @@ V8_EXPORT_PRIVATE bool IsJSCompatibleSignature(const FunctionSig* sig);
   V(I32StoreMem16, 0x3b, v_ii, "i32.store16") \
   V(I64StoreMem8, 0x3c, v_il, "i64.store8")   \
   V(I64StoreMem16, 0x3d, v_il, "i64.store16") \
-  V(I64StoreMem32, 0x3e, v_il, "i64.store32")
+  V(I64StoreMem32, 0x3e, v_il, "i64.store32") \
+  V(F32StoreMemF16, 0xfc31, v_if, "f32.store_f16")
 
 // Miscellaneous memory expressions
 #define FOREACH_MISC_MEM_OPCODE(V)        \
@@ -526,29 +527,60 @@ V8_EXPORT_PRIVATE bool IsJSCompatibleSignature(const FunctionSig* sig);
   V(F64x2ConvertLowI32x4S, 0xfdfe, s_s, "f64x2.convert_low_i32x4_s")         \
   V(F64x2ConvertLowI32x4U, 0xfdff, s_s, "f64x2.convert_low_i32x4_u")
 
-#define FOREACH_RELAXED_SIMD_OPCODE(V)                                    \
-  V(I8x16RelaxedSwizzle, 0xfd100, s_ss, "i8x16.relaxed_swizzle")          \
-  V(I32x4RelaxedTruncF32x4S, 0xfd101, s_s, "i32x4.relaxed_trunc_f32x4_s") \
-  V(I32x4RelaxedTruncF32x4U, 0xfd102, s_s, "i32x4.relaxed_trunc_f32x4_u") \
-  V(I32x4RelaxedTruncF64x2SZero, 0xfd103, s_s,                            \
-    "i32x4.relaxed_trunc_f64x2_s_zero")                                   \
-  V(I32x4RelaxedTruncF64x2UZero, 0xfd104, s_s,                            \
-    "i32x4.relaxed_trunc_f64x2_u_zero")                                   \
-  V(F32x4Qfma, 0xfd105, s_sss, "f32x4.qfma")                              \
-  V(F32x4Qfms, 0xfd106, s_sss, "f32x4.qfms")                              \
-  V(F64x2Qfma, 0xfd107, s_sss, "f64x2.qfma")                              \
-  V(F64x2Qfms, 0xfd108, s_sss, "f64x2.qfms")                              \
-  V(I8x16RelaxedLaneSelect, 0xfd109, s_sss, "i8x16.relaxed_laneselect")   \
-  V(I16x8RelaxedLaneSelect, 0xfd10a, s_sss, "i16x8.relaxed_laneselect")   \
-  V(I32x4RelaxedLaneSelect, 0xfd10b, s_sss, "i32x4.relaxed_laneselect")   \
-  V(I64x2RelaxedLaneSelect, 0xfd10c, s_sss, "i64x2.relaxed_laneselect")   \
-  V(F32x4RelaxedMin, 0xfd10d, s_ss, "f32x4.relaxed_min")                  \
-  V(F32x4RelaxedMax, 0xfd10e, s_ss, "f32x4.relaxed_max")                  \
-  V(F64x2RelaxedMin, 0xfd10f, s_ss, "f64x2.relaxed_min")                  \
-  V(F64x2RelaxedMax, 0xfd110, s_ss, "f64x2.relaxed_max")                  \
-  V(I16x8RelaxedQ15MulRS, 0xfd111, s_ss, "i16x8.relaxed_q15mulr_s")       \
-  V(I16x8DotI8x16I7x16S, 0xfd112, s_ss, "i16x8.dot_i8x16_i7x16_s")        \
-  V(I32x4DotI8x16I7x16AddS, 0xfd113, s_sss, "i32x4.dot_i8x16_i7x16_add_s")
+#define FOREACH_RELAXED_SIMD_OPCODE(V)                                     \
+  V(I8x16RelaxedSwizzle, 0xfd100, s_ss, "i8x16.relaxed_swizzle")           \
+  V(I32x4RelaxedTruncF32x4S, 0xfd101, s_s, "i32x4.relaxed_trunc_f32x4_s")  \
+  V(I32x4RelaxedTruncF32x4U, 0xfd102, s_s, "i32x4.relaxed_trunc_f32x4_u")  \
+  V(I32x4RelaxedTruncF64x2SZero, 0xfd103, s_s,                             \
+    "i32x4.relaxed_trunc_f64x2_s_zero")                                    \
+  V(I32x4RelaxedTruncF64x2UZero, 0xfd104, s_s,                             \
+    "i32x4.relaxed_trunc_f64x2_u_zero")                                    \
+  V(F32x4Qfma, 0xfd105, s_sss, "f32x4.qfma")                               \
+  V(F32x4Qfms, 0xfd106, s_sss, "f32x4.qfms")                               \
+  V(F64x2Qfma, 0xfd107, s_sss, "f64x2.qfma")                               \
+  V(F64x2Qfms, 0xfd108, s_sss, "f64x2.qfms")                               \
+  V(I8x16RelaxedLaneSelect, 0xfd109, s_sss, "i8x16.relaxed_laneselect")    \
+  V(I16x8RelaxedLaneSelect, 0xfd10a, s_sss, "i16x8.relaxed_laneselect")    \
+  V(I32x4RelaxedLaneSelect, 0xfd10b, s_sss, "i32x4.relaxed_laneselect")    \
+  V(I64x2RelaxedLaneSelect, 0xfd10c, s_sss, "i64x2.relaxed_laneselect")    \
+  V(F32x4RelaxedMin, 0xfd10d, s_ss, "f32x4.relaxed_min")                   \
+  V(F32x4RelaxedMax, 0xfd10e, s_ss, "f32x4.relaxed_max")                   \
+  V(F64x2RelaxedMin, 0xfd10f, s_ss, "f64x2.relaxed_min")                   \
+  V(F64x2RelaxedMax, 0xfd110, s_ss, "f64x2.relaxed_max")                   \
+  V(I16x8RelaxedQ15MulRS, 0xfd111, s_ss, "i16x8.relaxed_q15mulr_s")        \
+  V(I16x8DotI8x16I7x16S, 0xfd112, s_ss, "i16x8.dot_i8x16_i7x16_s")         \
+  V(I32x4DotI8x16I7x16AddS, 0xfd113, s_sss, "i32x4.dot_i8x16_i7x16_add_s") \
+  V(F16x8Splat, 0xfd120, s_f, "f16x8.splat")                               \
+  V(F16x8Abs, 0xfd130, s_s, "f16x8.abs")                                   \
+  V(F16x8Neg, 0xfd131, s_s, "f16x8.neg")                                   \
+  V(F16x8Sqrt, 0xfd132, s_s, "f16x8.sqrt")                                 \
+  V(F16x8Ceil, 0xfd133, s_s, "f16x8.ceil")                                 \
+  V(F16x8Floor, 0xfd134, s_s, "f16x8.floor")                               \
+  V(F16x8Trunc, 0xfd135, s_s, "f16x8.trunc")                               \
+  V(F16x8NearestInt, 0xfd136, s_s, "f16x8.nearest")                        \
+  V(F16x8Eq, 0xfd137, s_ss, "f16x8.eq")                                    \
+  V(F16x8Ne, 0xfd138, s_ss, "f16x8.ne")                                    \
+  V(F16x8Lt, 0xfd139, s_ss, "f16x8.lt")                                    \
+  V(F16x8Gt, 0xfd13a, s_ss, "f16x8.gt")                                    \
+  V(F16x8Le, 0xfd13b, s_ss, "f16x8.le")                                    \
+  V(F16x8Ge, 0xfd13c, s_ss, "f16x8.ge")                                    \
+  V(F16x8Add, 0xfd13d, s_ss, "f16x8.add")                                  \
+  V(F16x8Sub, 0xfd13e, s_ss, "f16x8.sub")                                  \
+  V(F16x8Mul, 0xfd13f, s_ss, "f16x8.mul")                                  \
+  V(F16x8Div, 0xfd140, s_ss, "f16x8.div")                                  \
+  V(F16x8Min, 0xfd141, s_ss, "f16x8.min")                                  \
+  V(F16x8Max, 0xfd142, s_ss, "f16x8.max")                                  \
+  V(F16x8Pmin, 0xfd143, s_ss, "f16x8.pmin")                                \
+  V(F16x8Pmax, 0xfd144, s_ss, "f16x8.pmax")                                \
+  V(I16x8SConvertF16x8, 0xfd145, s_s, "i16x8.trunc_sat_f16x8_s")           \
+  V(I16x8UConvertF16x8, 0xfd146, s_s, "i16x8.trunc_sat_f16x8_u")           \
+  V(F16x8SConvertI16x8, 0xfd147, s_s, "f16x8.convert_i16x8_s")             \
+  V(F16x8UConvertI16x8, 0xfd148, s_s, "f16x8.convert_i16x8_u")             \
+  V(F16x8DemoteF32x4Zero, 0xfd149, s_s, "f16x8.demote_f32x4_zero")         \
+  V(F16x8DemoteF64x2Zero, 0xfd14a, s_s, "f16x8.demote_f64x2_zero")         \
+  V(F32x4PromoteLowF16x8, 0xfd14b, s_s, "f32x4.promote_low_f16x8")         \
+  V(F16x8Qfma, 0xfd14e, s_sss, "f16x8.madd")                               \
+  V(F16x8Qfms, 0xfd14f, s_sss, "f16x8.nmadd")
 
 #define FOREACH_SIMD_1_OPERAND_1_PARAM_OPCODE(V)          \
   V(I8x16ExtractLaneS, 0xfd15, _, "i8x16.extract_lane_s") \
@@ -558,7 +590,8 @@ V8_EXPORT_PRIVATE bool IsJSCompatibleSignature(const FunctionSig* sig);
   V(I32x4ExtractLane, 0xfd1b, _, "i32x4.extract_lane")    \
   V(I64x2ExtractLane, 0xfd1d, _, "i64x2.extract_lane")    \
   V(F32x4ExtractLane, 0xfd1f, _, "f32x4.extract_lane")    \
-  V(F64x2ExtractLane, 0xfd21, _, "f64x2.extract_lane")
+  V(F64x2ExtractLane, 0xfd21, _, "f64x2.extract_lane")    \
+  V(F16x8ExtractLane, 0xfd121, _, "f16x8.extract_lane")
 
 #define FOREACH_SIMD_1_OPERAND_2_PARAM_OPCODE(V)       \
   V(I8x16ReplaceLane, 0xfd17, _, "i8x16.replace_lane") \
@@ -566,7 +599,8 @@ V8_EXPORT_PRIVATE bool IsJSCompatibleSignature(const FunctionSig* sig);
   V(I32x4ReplaceLane, 0xfd1c, _, "i32x4.replace_lane") \
   V(I64x2ReplaceLane, 0xfd1e, _, "i64x2.replace_lane") \
   V(F32x4ReplaceLane, 0xfd20, _, "f32x4.replace_lane") \
-  V(F64x2ReplaceLane, 0xfd22, _, "f64x2.replace_lane")
+  V(F64x2ReplaceLane, 0xfd22, _, "f64x2.replace_lane") \
+  V(F16x8ReplaceLane, 0xfd122, _, "f16x8.replace_lane")
 
 #define FOREACH_SIMD_0_OPERAND_OPCODE(V) \
   FOREACH_SIMD_MVP_0_OPERAND_OPCODE(V)   \
@@ -905,6 +939,7 @@ class V8_EXPORT_PRIVATE WasmOpcodes {
   static constexpr bool IsExternRefOpcode(WasmOpcode);
   static constexpr bool IsThrowingOpcode(WasmOpcode);
   static constexpr bool IsRelaxedSimdOpcode(WasmOpcode);
+  static constexpr bool IsFP16SimdOpcode(WasmOpcode);
 #if DEBUG
   static constexpr bool IsMemoryAccessOpcode(WasmOpcode);
 #endif  // DEBUG

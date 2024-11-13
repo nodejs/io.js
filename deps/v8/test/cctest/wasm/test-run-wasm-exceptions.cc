@@ -350,9 +350,8 @@ WASM_COMPILED_EXEC_TEST(TryCatchCallExternal) {
   TestSignatures sigs;
   HandleScope scope(CcTest::InitIsolateOnce());
   const char* source = "(function() { throw 'ball'; })";
-  Handle<JSFunction> js_function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-          *v8::Local<v8::Function>::Cast(CompileRun(source))));
+  Handle<JSFunction> js_function = Cast<JSFunction>(v8::Utils::OpenHandle(
+      *v8::Local<v8::Function>::Cast(CompileRun(source))));
   ManuallyImportedJSFunction import = {sigs.i_ii(), js_function};
   WasmRunner<uint32_t, uint32_t> r(execution_tier, kWasmOrigin, &import);
   constexpr uint32_t kResult0 = 23;
@@ -378,9 +377,8 @@ WASM_COMPILED_EXEC_TEST(TryCatchAllCallExternal) {
   TestSignatures sigs;
   HandleScope scope(CcTest::InitIsolateOnce());
   const char* source = "(function() { throw 'ball'; })";
-  Handle<JSFunction> js_function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-          *v8::Local<v8::Function>::Cast(CompileRun(source))));
+  Handle<JSFunction> js_function = Cast<JSFunction>(v8::Utils::OpenHandle(
+      *v8::Local<v8::Function>::Cast(CompileRun(source))));
   ManuallyImportedJSFunction import = {sigs.i_ii(), js_function};
   WasmRunner<uint32_t, uint32_t> r(execution_tier, kWasmOrigin, &import);
   constexpr uint32_t kResult0 = 23;

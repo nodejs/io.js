@@ -43,6 +43,12 @@ class ObjectAccess : public AllStatic {
     return ToTagged(FixedAddressArray::OffsetOfElementAt(index));
   }
 
+  // Get the offset into a trusted fixed address array for a given {index}.
+  static constexpr int ElementOffsetInTaggedTrustedFixedAddressArray(
+      int index) {
+    return ToTagged(TrustedFixedAddressArray::OffsetOfElementAt(index));
+  }
+
   // Get the offset into a external pointer array for a given {index}.
   static constexpr int ElementOffsetInTaggedExternalPointerArray(int index) {
     return ToTagged(ExternalPointerArray::OffsetOfElementAt(index));

@@ -305,9 +305,9 @@ test('t.assert.snapshot()', async (t) => {
 
     t.assert.strictEqual(child.code, 1);
     t.assert.strictEqual(child.signal, null);
-    t.assert.match(child.stdout, /# tests 5/);
-    t.assert.match(child.stdout, /# pass 0/);
-    t.assert.match(child.stdout, /# fail 5/);
+    t.assert.match(child.stdout, /tests 5/);
+    t.assert.match(child.stdout, /pass 0/);
+    t.assert.match(child.stdout, /fail 5/);
     t.assert.match(child.stdout, /Missing snapshots/);
   });
 
@@ -336,6 +336,78 @@ test('t.assert.snapshot()', async (t) => {
     t.assert.strictEqual(child.signal, null);
     t.assert.match(child.stdout, /tests 5/);
     t.assert.match(child.stdout, /pass 5/);
+    t.assert.match(child.stdout, /fail 0/);
+  });
+});
+
+test('snapshots from multiple files (isolation=none)', async (t) => {
+  tmpdir.refresh();
+
+  const fixture = fixtures.path('test-runner', 'snapshots', 'unit.js');
+  const fixture2 = fixtures.path('test-runner', 'snapshots', 'unit-2.js');
+
+  await t.test('fails prior to snapshot generation', async (t) => {
+    const args = [
+      '--test',
+      '--experimental-test-isolation=none',
+      '--experimental-test-snapshots',
+      fixture,
+      fixture2,
+    ];
+    const child = await common.spawnPromisified(
+      process.execPath,
+      args,
+      { cwd: tmpdir.path },
+    );
+
+    t.assert.strictEqual(child.code, 1);
+    t.assert.strictEqual(child.signal, null);
+    t.assert.match(child.stdout, /tests 6/);
+    t.assert.match(child.stdout, /pass 0/);
+    t.assert.match(child.stdout, /fail 6/);
+    t.assert.match(child.stdout, /Missing snapshots/);
+  });
+
+  await t.test('passes when regenerating snapshots', async (t) => {
+    const args = [
+      '--test',
+      '--experimental-test-isolation=none',
+      '--experimental-test-snapshots',
+      '--test-update-snapshots',
+      fixture,
+      fixture2,
+    ];
+    const child = await common.spawnPromisified(
+      process.execPath,
+      args,
+      { cwd: tmpdir.path },
+    );
+
+    t.assert.strictEqual(child.code, 0);
+    t.assert.strictEqual(child.signal, null);
+    t.assert.match(child.stdout, /tests 6/);
+    t.assert.match(child.stdout, /pass 6/);
+    t.assert.match(child.stdout, /fail 0/);
+  });
+
+  await t.test('passes when snapshots exist', async (t) => {
+    const args = [
+      '--test',
+      '--experimental-test-isolation=none',
+      '--experimental-test-snapshots',
+      fixture,
+      fixture2,
+    ];
+    const child = await common.spawnPromisified(
+      process.execPath,
+      args,
+      { cwd: tmpdir.path },
+    );
+
+    t.assert.strictEqual(child.code, 0);
+    t.assert.strictEqual(child.signal, null);
+    t.assert.match(child.stdout, /tests 6/);
+    t.assert.match(child.stdout, /pass 6/);
     t.assert.match(child.stdout, /fail 0/);
   });
 });

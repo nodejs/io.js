@@ -5,6 +5,7 @@
 #include "src/heap/cppgc/gc-invoker.h"
 
 #include <memory>
+#include <optional>
 
 #include "include/cppgc/common.h"
 #include "include/cppgc/platform.h"
@@ -34,9 +35,7 @@ class GCInvoker::GCInvokerImpl final : public GarbageCollector {
     collector_->clear_overridden_stack_state();
   }
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  v8::base::Optional<int> UpdateAllocationTimeout() final {
-    return v8::base::nullopt;
-  }
+  std::optional<int> UpdateAllocationTimeout() final { return std::nullopt; }
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
  private:
@@ -164,7 +163,7 @@ void GCInvoker::clear_overridden_stack_state() {
 }
 
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-v8::base::Optional<int> GCInvoker::UpdateAllocationTimeout() {
+std::optional<int> GCInvoker::UpdateAllocationTimeout() {
   return impl_->UpdateAllocationTimeout();
 }
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT

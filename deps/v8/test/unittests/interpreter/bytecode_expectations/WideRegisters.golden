@@ -2649,7 +2649,7 @@ snippet: "
 "
 frame size: 163
 parameter count: 1
-bytecode array length: 608
+bytecode array length: 604
 bytecodes: [
   /*   43 S> */ B(LdaZero),
                 B(Star0),
@@ -2970,14 +2970,13 @@ bytecodes: [
   /* 2146 S> */ B(LdaZero),
                 B(Star1),
   /* 2162 S> */ B(Ldar), R(0),
-                B(JumpIfUndefinedOrNull), U8(71),
+                B(JumpIfUndefinedOrNull), U8(67),
                 B(Wide), B(ToObject), R16(157),
                 B(Wide), B(ForInEnumerate), R16(157),
                 B(Wide), B(ForInPrepare), R16(158), U16(0),
                 B(LdaZero),
                 B(Wide), B(Star), R16(161),
-  /* 2154 S> */ B(Wide), B(ForInContinue), R16(161), R16(160),
-                B(JumpIfFalse), U8(44),
+  /* 2154 S> */ B(Wide), B(JumpIfForInDone), U16(45), R16(161), R16(160),
                 B(Wide), B(ForInNext), R16(157), R16(161), R16(158), U16(0),
                 B(JumpIfUndefined), U8(20),
                 B(Wide), B(Star), R16(128),
@@ -2986,8 +2985,7 @@ bytecodes: [
                 B(Wide), B(Mov), R16(1), R16(162),
                 B(Star1),
   /* 2172 E> */ B(Wide), B(ForInStep), R16(161),
-                B(Wide), B(Star), R16(161),
-  /* 2149 E> */ B(JumpLoop), U8(46), I8(0), U8(2),
+  /* 2149 E> */ B(JumpLoop), U8(42), I8(0), U8(2),
   /* 2181 S> */ B(Ldar), R(1),
   /* 2191 S> */ B(Return),
 ]

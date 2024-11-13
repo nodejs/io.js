@@ -66,7 +66,8 @@ static void RunVariableTests(const char* source, const char* tests[]) {
 
     // Check function with non-falsey parameter.
     if (tests[i + 1] != throws) {
-      Handle<Object> r = v8::Utils::OpenHandle(*CompileRun(tests[i + 1]));
+      DirectHandle<Object> r =
+          v8::Utils::OpenDirectHandle(*CompileRun(tests[i + 1]));
       T.CheckCall(r, T.Val(123), T.Val("result"));
     } else {
       T.CheckThrows(T.Val(123), T.Val("result"));
@@ -74,7 +75,8 @@ static void RunVariableTests(const char* source, const char* tests[]) {
 
     // Check function with falsey parameter.
     if (tests[i + 2] != throws) {
-      Handle<Object> r = v8::Utils::OpenHandle(*CompileRun(tests[i + 2]));
+      DirectHandle<Object> r =
+          v8::Utils::OpenDirectHandle(*CompileRun(tests[i + 2]));
       T.CheckCall(r, T.Val(0.0), T.Val("result"));
     } else {
       T.CheckThrows(T.Val(0.0), T.Val("result"));

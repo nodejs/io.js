@@ -137,7 +137,7 @@ void Assembler::deserialization_set_target_internal_reference_at(
 
 Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
   DCHECK(IsCodeTarget(rmode_) || IsFullEmbeddedObject(rmode_));
-  return HeapObject::cast(
+  return Cast<HeapObject>(
       Tagged<Object>(Assembler::target_address_at(pc_, constant_pool_)));
 }
 
@@ -190,6 +190,46 @@ Builtin RelocInfo::target_builtin_at(Assembler* origin) { UNREACHABLE(); }
 Address RelocInfo::target_off_heap_target() {
   DCHECK(IsOffHeapTarget(rmode_));
   return Assembler::target_address_at(pc_, constant_pool_);
+}
+
+uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
+  Instr instr0 = instr_at(pc);
+  Instr instr1 = instr_at(pc + 1 * kInstrSize);
+
+  DCHECK((GetOpcodeField(instr0) == LUI) && (GetOpcodeField(instr1) == ORI));
+
+  // Assemble the 32 bit value.
+  uint32_t upper16 = GetImmediate16(instr0) << 16;
+  uint32_t lower16 = GetImmediate16(instr1);
+  uint32_t addr = upper16 | lower16;
+
+  return addr;
+}
+
+void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
+                                       uint32_t new_constant,
+                                       ICacheFlushMode icache_flush_mode) {
+  Instr instr1 = instr_at(pc + kInstrSize);
+  uint32_t rt_code = GetRt(instr1);
+  uint32_t* p = reinterpret_cast<uint32_t*>(pc);
+
+#ifdef DEBUG
+  // Check we have the result from a li macro-instruction.
+  Instr instr0 = instr_at(pc);
+  DCHECK((GetOpcodeField(instr0) == LUI) && (GetOpcodeField(instr1) == ORI) &&
+         (GetRt(instr0) == rt_code));
+#endif
+
+  // Must use 2 instructions to insure patchable 32-bit value.
+  // lui rt, upper-16.
+  // ori rt, rt, lower-16.
+  *p = LUI | (rt_code << kRtShift) | ((new_constant >> 16) & kImm16Mask);
+  *(p + 1) = ORI | (rt_code << kRtShift) | (rt_code << kRsShift) |
+             (new_constant & kImm16Mask);
+
+  if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
+    FlushInstructionCache(pc, 2 * kInstrSize);
+  }
 }
 
 // -----------------------------------------------------------------------------

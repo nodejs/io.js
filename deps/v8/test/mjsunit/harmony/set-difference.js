@@ -305,4 +305,43 @@
   assertThrows(() => {
     new Set().difference(setLike);
   }, RangeError, "'-1' is an invalid size");
-})()
+})();
+
+(function TestDifferenceSetLikeWithInfiniteSize() {
+  let setLike = {
+    size: Infinity,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  const resultSet = new Set();
+
+  const resultArray = Array.from(resultSet);
+  const differenceArray = Array.from(firstSet.difference(setLike));
+
+  assertEquals(resultArray, differenceArray);
+})();
+
+(function TestDifferenceSetLikeWithNegativeInfiniteSize() {
+  let setLike = {
+    size: -Infinity,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  assertThrows(() => {
+    new Set().difference(setLike);
+  }, RangeError, '\'-Infinity\' is an invalid size');
+})();

@@ -384,8 +384,10 @@ class U_I18N_API FormattedRelativeDateTime : public UMemory, public FormattedVal
  * </pre>
  * </blockquote>
  * <p>
- * In the future, we may add more forms, such as abbreviated/short forms
- * (3 secs ago), and relative day periods ("yesterday afternoon"), etc.
+ * The UDateRelativeDateTimeFormatterStyle parameter allows selection of
+ * different length styles: LONG ("3 seconds ago"), SHORT ("3 sec. ago"),
+ * NARROW ("3s ago"). In the future, we may add more forms, such as
+ * relative day periods ("yesterday afternoon"), etc.
  *
  * The RelativeDateTimeFormatter class is not intended for public subclassing.
  *

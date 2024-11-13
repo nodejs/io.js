@@ -19,9 +19,9 @@ class String;
 class RegExpUtils : public AllStatic {
  public:
   // Last match info accessors.
-  static Handle<String> GenericCaptureGetter(Isolate* isolate,
-                                             Handle<RegExpMatchInfo> match_info,
-                                             int capture, bool* ok = nullptr);
+  static Handle<String> GenericCaptureGetter(
+      Isolate* isolate, DirectHandle<RegExpMatchInfo> match_info, int capture,
+      bool* ok = nullptr);
   // Checks if the capture group referred to by index |capture| is part of the
   // match.
   static bool IsMatchedCapture(Tagged<RegExpMatchInfo> match_info, int capture);
@@ -43,14 +43,14 @@ class RegExpUtils : public AllStatic {
   //
   // Note: This check is limited may only be used in situations where the only
   // relevant property is 'exec'.
-  static bool IsUnmodifiedRegExp(Isolate* isolate, Handle<Object> obj);
+  static bool IsUnmodifiedRegExp(Isolate* isolate, DirectHandle<Object> obj);
 
   // ES#sec-advancestringindex
   // AdvanceStringIndex ( S, index, unicode )
-  static uint64_t AdvanceStringIndex(Handle<String> string, uint64_t index,
-                                     bool unicode);
+  static uint64_t AdvanceStringIndex(DirectHandle<String> string,
+                                     uint64_t index, bool unicode);
   static V8_WARN_UNUSED_RESULT MaybeHandle<Object> SetAdvancedStringIndex(
-      Isolate* isolate, Handle<JSReceiver> regexp, Handle<String> string,
+      Isolate* isolate, Handle<JSReceiver> regexp, DirectHandle<String> string,
       bool unicode);
 };
 

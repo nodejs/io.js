@@ -1,5 +1,10 @@
 Looking for latest roll CL...
-Found: Update V8 to version 1.2.3
+Found roll CL:
+> V8 roll from 123abc to 456def
+>
+> https://chromium.googlesource.com/v8/v8.git/+log/123abc..456def
+>
+> 2038-01-19 v8-ci-autoroll-builder@chops-service-accounts.iam.gserviceaccount.com Version 1.2.3
 Cherry-picking deadbeef onto 1.2.3
 Created cherry-pick: https://chromium-review.googlesource.com/c/42
 Extracting target version...

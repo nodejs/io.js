@@ -793,6 +793,8 @@ _MSBuildOnly(
     _compile, "CompileAsManaged", _Enumeration([], new=["false", "true"])
 )  # /clr
 _MSBuildOnly(_compile, "CreateHotpatchableImage", _boolean)  # /hotpatch
+_MSBuildOnly(_compile, "LanguageStandard", _string)
+_MSBuildOnly(_compile, "LanguageStandard_C", _string)
 _MSBuildOnly(_compile, "MultiProcessorCompilation", _boolean)  # /MP
 _MSBuildOnly(_compile, "PreprocessOutputPath", _string)  # /Fi
 _MSBuildOnly(_compile, "ProcessorNumber", _integer)  # the number of processors

@@ -233,7 +233,7 @@ MetricRecorder::GCCycle GetCycleEventForMetricRecorder(
     event.collection_rate_in_percent = 0;
   } else {
     event.collection_rate_in_percent =
-        static_cast<double>(event.objects.after_bytes) /
+        static_cast<double>(event.objects.freed_bytes) /
         event.objects.before_bytes;
   }
   // Efficiency:

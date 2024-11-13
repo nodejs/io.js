@@ -26,28 +26,29 @@ class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
                                                         Handle<Object>);
 
   V8_INLINE bool IsRevoked() const;
-  static void Revoke(Handle<JSProxy> proxy);
+  static void Revoke(DirectHandle<JSProxy> proxy);
 
   // ES6 9.5.1
-  static MaybeHandle<HeapObject> GetPrototype(Handle<JSProxy> receiver);
+  static MaybeHandle<HeapObject> GetPrototype(DirectHandle<JSProxy> receiver);
 
   // ES6 9.5.2
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPrototype(
-      Isolate* isolate, Handle<JSProxy> proxy, Handle<Object> value,
+      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Object> value,
       bool from_javascript, ShouldThrow should_throw);
   // ES6 9.5.3
-  V8_WARN_UNUSED_RESULT static Maybe<bool> IsExtensible(Handle<JSProxy> proxy);
+  V8_WARN_UNUSED_RESULT static Maybe<bool> IsExtensible(
+      DirectHandle<JSProxy> proxy);
 
   // ES6, #sec-isarray.  NOT to be confused with %_IsArray.
   V8_WARN_UNUSED_RESULT static Maybe<bool> IsArray(Handle<JSProxy> proxy);
 
   // ES6 9.5.4 (when passed kDontThrow)
   V8_WARN_UNUSED_RESULT static Maybe<bool> PreventExtensions(
-      Handle<JSProxy> proxy, ShouldThrow should_throw);
+      DirectHandle<JSProxy> proxy, ShouldThrow should_throw);
 
   // ES6 9.5.5
   V8_WARN_UNUSED_RESULT static Maybe<bool> GetOwnPropertyDescriptor(
-      Isolate* isolate, Handle<JSProxy> proxy, Handle<Name> name,
+      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Name> name,
       PropertyDescriptor* desc);
 
   // ES6 9.5.6
@@ -56,9 +57,8 @@ class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
       PropertyDescriptor* desc, Maybe<ShouldThrow> should_throw);
 
   // ES6 9.5.7
-  V8_WARN_UNUSED_RESULT static Maybe<bool> HasProperty(Isolate* isolate,
-                                                       Handle<JSProxy> proxy,
-                                                       Handle<Name> name);
+  V8_WARN_UNUSED_RESULT static Maybe<bool> HasProperty(
+      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Name> name);
 
   // This function never returns false.
   // It returns either true or throws.
@@ -70,26 +70,27 @@ class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
       Isolate* isolate, Handle<Name> name, Handle<JSReceiver> target);
 
   // ES6 9.5.8
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> GetProperty(
-      Isolate* isolate, Handle<JSProxy> proxy, Handle<Name> name,
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetProperty(
+      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Name> name,
       Handle<Object> receiver, bool* was_found);
 
   enum AccessKind { kGet, kSet };
 
-  static MaybeHandle<Object> CheckGetSetTrapResult(Isolate* isolate,
-                                                   Handle<Name> name,
-                                                   Handle<JSReceiver> target,
-                                                   Handle<Object> trap_result,
-                                                   AccessKind access_kind);
+  static MaybeHandle<JSAny> CheckGetSetTrapResult(Isolate* isolate,
+                                                  Handle<Name> name,
+                                                  Handle<JSReceiver> target,
+                                                  Handle<Object> trap_result,
+                                                  AccessKind access_kind);
 
   // ES6 9.5.9
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetProperty(
-      Handle<JSProxy> proxy, Handle<Name> name, Handle<Object> value,
+      DirectHandle<JSProxy> proxy, Handle<Name> name, Handle<Object> value,
       Handle<Object> receiver, Maybe<ShouldThrow> should_throw);
 
   // ES6 9.5.10 (when passed LanguageMode::kSloppy)
   V8_WARN_UNUSED_RESULT static Maybe<bool> DeletePropertyOrElement(
-      Handle<JSProxy> proxy, Handle<Name> name, LanguageMode language_mode);
+      DirectHandle<JSProxy> proxy, Handle<Name> name,
+      LanguageMode language_mode);
 
   // ES6 9.5.12
   V8_WARN_UNUSED_RESULT static Maybe<bool> OwnPropertyKeys(

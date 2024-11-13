@@ -64,13 +64,6 @@ ObjectTwoHashTable::ObjectTwoHashTable(Address ptr)
   SLOW_DCHECK(IsObjectTwoHashTable(*this));
 }
 
-CAST_ACCESSOR(ObjectHashTable)
-CAST_ACCESSOR(RegisteredSymbolTable)
-CAST_ACCESSOR(EphemeronHashTable)
-CAST_ACCESSOR(ObjectHashSet)
-CAST_ACCESSOR(NameToIndexHashTable)
-CAST_ACCESSOR(ObjectTwoHashTable)
-
 void EphemeronHashTable::set_key(int index, Tagged<Object> value) {
   DCHECK_NE(GetReadOnlyRoots().fixed_cow_array_map(), map());
   DCHECK(IsEphemeronHashTable(*this));
@@ -93,15 +86,15 @@ void EphemeronHashTable::set_key(int index, Tagged<Object> value,
 }
 
 int HashTableBase::NumberOfElements() const {
-  return Smi::cast(get(kNumberOfElementsIndex)).value();
+  return Cast<Smi>(get(kNumberOfElementsIndex)).value();
 }
 
 int HashTableBase::NumberOfDeletedElements() const {
-  return Smi::cast(get(kNumberOfDeletedElementsIndex)).value();
+  return Cast<Smi>(get(kNumberOfDeletedElementsIndex)).value();
 }
 
 int HashTableBase::Capacity() const {
-  return Smi::cast(get(kCapacityIndex)).value();
+  return Cast<Smi>(get(kCapacityIndex)).value();
 }
 
 InternalIndex::Range HashTableBase::IterateEntries() const {
@@ -297,40 +290,42 @@ bool ObjectHashSet::Has(Isolate* isolate, Handle<Object> key) {
       .is_found();
 }
 
-bool ObjectHashTableShape::IsMatch(Handle<Object> key, Tagged<Object> other) {
+bool ObjectHashTableShape::IsMatch(DirectHandle<Object> key,
+                                   Tagged<Object> other) {
   return Object::SameValue(*key, other);
 }
 
-bool RegisteredSymbolTableShape::IsMatch(Handle<String> key,
+bool RegisteredSymbolTableShape::IsMatch(DirectHandle<String> key,
                                          Tagged<Object> value) {
   DCHECK(IsString(value));
-  return key->Equals(String::cast(value));
+  return key->Equals(Cast<String>(value));
 }
 
 uint32_t RegisteredSymbolTableShape::Hash(ReadOnlyRoots roots,
-                                          Handle<String> key) {
+                                          DirectHandle<String> key) {
   return key->EnsureHash();
 }
 
 uint32_t RegisteredSymbolTableShape::HashForObject(ReadOnlyRoots roots,
                                                    Tagged<Object> object) {
-  return String::cast(object)->EnsureHash();
+  return Cast<String>(object)->EnsureHash();
 }
 
-bool NameToIndexShape::IsMatch(Handle<Name> key, Tagged<Object> other) {
+bool NameToIndexShape::IsMatch(DirectHandle<Name> key, Tagged<Object> other) {
   return *key == other;
 }
 
 uint32_t NameToIndexShape::HashForObject(ReadOnlyRoots roots,
                                          Tagged<Object> other) {
-  return Name::cast(other)->hash();
+  return Cast<Name>(other)->hash();
 }
 
-uint32_t NameToIndexShape::Hash(ReadOnlyRoots roots, Handle<Name> key) {
+uint32_t NameToIndexShape::Hash(ReadOnlyRoots roots, DirectHandle<Name> key) {
   return key->hash();
 }
 
-uint32_t ObjectHashTableShape::Hash(ReadOnlyRoots roots, Handle<Object> key) {
+uint32_t ObjectHashTableShape::Hash(ReadOnlyRoots roots,
+                                    DirectHandle<Object> key) {
   return Smi::ToInt(Object::GetHash(*key));
 }
 
@@ -341,8 +336,8 @@ uint32_t ObjectHashTableShape::HashForObject(ReadOnlyRoots roots,
 
 template <typename IsolateT>
 Handle<NameToIndexHashTable> NameToIndexHashTable::Add(
-    IsolateT* isolate, Handle<NameToIndexHashTable> table, Handle<Name> key,
-    int32_t index) {
+    IsolateT* isolate, Handle<NameToIndexHashTable> table,
+    IndirectHandle<Name> key, int32_t index) {
   DCHECK_GE(index, 0);
   // Validate that the key is absent.
   SLOW_DCHECK(table->FindEntry(isolate, key).is_not_found());

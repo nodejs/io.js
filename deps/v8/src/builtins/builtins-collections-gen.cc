@@ -347,8 +347,8 @@ TNode<JSObject> BaseCollectionsAssembler::AllocateJSCollection(
 
   return Select<JSObject>(
       is_target_unmodified,
-      [=] { return AllocateJSCollectionFast(constructor); },
-      [=] {
+      [=, this] { return AllocateJSCollectionFast(constructor); },
+      [=, this] {
         return AllocateJSCollectionSlow(context, constructor, new_target);
       });
 }
@@ -531,8 +531,9 @@ TNode<BoolT> BaseCollectionsAssembler::HasInitialCollectionPrototype(
 TNode<Object> BaseCollectionsAssembler::LoadAndNormalizeFixedArrayElement(
     TNode<FixedArray> elements, TNode<IntPtrT> index) {
   TNode<Object> element = UnsafeLoadFixedArrayElement(elements, index);
-  return Select<Object>(IsTheHole(element), [=] { return UndefinedConstant(); },
-                        [=] { return element; });
+  return Select<Object>(
+      IsTheHole(element), [=, this] { return UndefinedConstant(); },
+      [=] { return element; });
 }
 
 TNode<Object> BaseCollectionsAssembler::LoadAndNormalizeFixedDoubleArrayElement(
@@ -772,7 +773,7 @@ TNode<Smi> CollectionsBuiltinsAssembler::CallGetOrCreateHashRaw(
   const TNode<ExternalReference> function_addr =
       ExternalConstant(ExternalReference::get_or_create_hash_raw());
   const TNode<ExternalReference> isolate_ptr =
-      ExternalConstant(ExternalReference::isolate_address(isolate()));
+      ExternalConstant(ExternalReference::isolate_address());
 
   MachineType type_ptr = MachineType::Pointer();
   MachineType type_tagged = MachineType::AnyTagged();
@@ -789,7 +790,7 @@ TNode<Uint32T> CollectionsBuiltinsAssembler::CallGetHashRaw(
   const TNode<ExternalReference> function_addr =
       ExternalConstant(ExternalReference::orderedhashmap_gethash_raw());
   const TNode<ExternalReference> isolate_ptr =
-      ExternalConstant(ExternalReference::isolate_address(isolate()));
+      ExternalConstant(ExternalReference::isolate_address());
 
   MachineType type_ptr = MachineType::Pointer();
   MachineType type_tagged = MachineType::AnyTagged();
@@ -2619,7 +2620,7 @@ TNode<Smi> WeakCollectionsBuiltinsAssembler::CreateIdentityHash(
   TNode<ExternalReference> function_addr =
       ExternalConstant(ExternalReference::jsreceiver_create_identity_hash());
   TNode<ExternalReference> isolate_ptr =
-      ExternalConstant(ExternalReference::isolate_address(isolate()));
+      ExternalConstant(ExternalReference::isolate_address());
 
   MachineType type_ptr = MachineType::Pointer();
   MachineType type_tagged = MachineType::AnyTagged();

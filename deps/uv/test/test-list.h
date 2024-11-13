@@ -153,6 +153,7 @@ TEST_DECLARE   (tcp_write_to_half_open_connection)
 TEST_DECLARE   (tcp_unexpected_read)
 TEST_DECLARE   (tcp_read_stop)
 TEST_DECLARE   (tcp_read_stop_start)
+TEST_DECLARE   (tcp_reuseport)
 TEST_DECLARE   (tcp_rst)
 TEST_DECLARE   (tcp_bind6_error_addrinuse)
 TEST_DECLARE   (tcp_bind6_error_addrnotavail)
@@ -189,6 +190,7 @@ TEST_DECLARE   (udp_open_twice)
 TEST_DECLARE   (udp_open_bound)
 TEST_DECLARE   (udp_open_connect)
 TEST_DECLARE   (udp_recv_in_a_row)
+TEST_DECLARE   (udp_reuseport)
 #ifndef _WIN32
 TEST_DECLARE   (udp_send_unix)
 #endif
@@ -207,6 +209,7 @@ TEST_DECLARE   (pipe_connect_to_file)
 TEST_DECLARE   (pipe_connect_on_prepare)
 TEST_DECLARE   (pipe_getsockname)
 TEST_DECLARE   (pipe_getsockname_abstract)
+TEST_DECLARE   (pipe_getsockname_autobind)
 TEST_DECLARE   (pipe_getsockname_blocking)
 TEST_DECLARE   (pipe_pending_instances)
 TEST_DECLARE   (pipe_sendmsg)
@@ -352,6 +355,7 @@ TEST_DECLARE   (fs_file_nametoolong)
 TEST_DECLARE   (fs_file_loop)
 TEST_DECLARE   (fs_file_async)
 TEST_DECLARE   (fs_file_sync)
+TEST_DECLARE   (fs_posix_delete)
 TEST_DECLARE   (fs_file_write_null_buffer)
 TEST_DECLARE   (fs_async_dir)
 TEST_DECLARE   (fs_async_sendfile)
@@ -393,6 +397,7 @@ TEST_DECLARE   (fs_stat_missing_path)
 TEST_DECLARE   (fs_read_bufs)
 TEST_DECLARE   (fs_read_file_eof)
 TEST_DECLARE   (fs_event_watch_dir)
+TEST_DECLARE   (fs_event_watch_delete_dir)
 TEST_DECLARE   (fs_event_watch_dir_recursive)
 #ifdef _WIN32
 TEST_DECLARE   (fs_event_watch_dir_short_path)
@@ -412,7 +417,6 @@ TEST_DECLARE   (fs_event_close_with_pending_event)
 TEST_DECLARE   (fs_event_close_with_pending_delete_event)
 TEST_DECLARE   (fs_event_close_in_callback)
 TEST_DECLARE   (fs_event_start_and_close)
-TEST_DECLARE   (fs_event_error_reporting)
 TEST_DECLARE   (fs_event_getpath)
 TEST_DECLARE   (fs_event_stop_in_cb)
 TEST_DECLARE   (fs_scandir_empty_dir)
@@ -424,6 +428,9 @@ TEST_DECLARE   (fs_readdir_empty_dir)
 TEST_DECLARE   (fs_readdir_file)
 TEST_DECLARE   (fs_readdir_non_empty_dir)
 TEST_DECLARE   (fs_readdir_non_existing_dir)
+#ifdef _WIN32
+TEST_DECLARE   (fs_readdir_symlink)
+#endif
 TEST_DECLARE   (fs_rename_to_existing_file)
 TEST_DECLARE   (fs_write_multiple_bufs)
 TEST_DECLARE   (fs_read_write_null_arguments)
@@ -562,6 +569,8 @@ TEST_DECLARE  (fork_fs_events_file_parent_child)
 TEST_DECLARE  (fork_threadpool_queue_work_simple)
 #endif
 #endif
+
+TEST_DECLARE  (iouring_pollhup)
 
 TEST_DECLARE  (idna_toascii)
 TEST_DECLARE  (utf8_decode1)
@@ -763,6 +772,8 @@ TASK_LIST_START
 
   TEST_ENTRY  (tcp_read_stop_start)
 
+  TEST_ENTRY  (tcp_reuseport)
+
   TEST_ENTRY  (tcp_rst)
   TEST_HELPER (tcp_rst, tcp4_echo_server)
 
@@ -799,6 +810,7 @@ TASK_LIST_START
   TEST_ENTRY  (udp_sendmmsg_error)
   TEST_ENTRY  (udp_try_send)
   TEST_ENTRY  (udp_recv_in_a_row)
+  TEST_ENTRY  (udp_reuseport)
 
   TEST_ENTRY  (udp_open)
   TEST_ENTRY  (udp_open_twice)
@@ -818,6 +830,7 @@ TASK_LIST_START
   TEST_ENTRY  (pipe_overlong_path)
   TEST_ENTRY  (pipe_getsockname)
   TEST_ENTRY  (pipe_getsockname_abstract)
+  TEST_ENTRY  (pipe_getsockname_autobind)
   TEST_ENTRY  (pipe_getsockname_blocking)
   TEST_ENTRY  (pipe_pending_instances)
   TEST_ENTRY  (pipe_sendmsg)
@@ -1055,6 +1068,7 @@ TASK_LIST_START
   TEST_ENTRY  (fs_file_loop)
   TEST_ENTRY  (fs_file_async)
   TEST_ENTRY  (fs_file_sync)
+  TEST_ENTRY  (fs_posix_delete)
   TEST_ENTRY  (fs_file_write_null_buffer)
   TEST_ENTRY  (fs_async_dir)
   TEST_ENTRY  (fs_async_sendfile)
@@ -1096,6 +1110,7 @@ TASK_LIST_START
   TEST_ENTRY  (fs_read_file_eof)
   TEST_ENTRY  (fs_file_open_append)
   TEST_ENTRY  (fs_event_watch_dir)
+  TEST_ENTRY  (fs_event_watch_delete_dir)
   TEST_ENTRY  (fs_event_watch_dir_recursive)
 #ifdef _WIN32
   TEST_ENTRY  (fs_event_watch_dir_short_path)
@@ -1115,7 +1130,6 @@ TASK_LIST_START
   TEST_ENTRY  (fs_event_close_with_pending_delete_event)
   TEST_ENTRY  (fs_event_close_in_callback)
   TEST_ENTRY  (fs_event_start_and_close)
-  TEST_ENTRY_CUSTOM (fs_event_error_reporting, 0, 0, 60000)
   TEST_ENTRY  (fs_event_getpath)
   TEST_ENTRY  (fs_event_stop_in_cb)
   TEST_ENTRY  (fs_scandir_empty_dir)
@@ -1127,6 +1141,9 @@ TASK_LIST_START
   TEST_ENTRY  (fs_readdir_file)
   TEST_ENTRY  (fs_readdir_non_empty_dir)
   TEST_ENTRY  (fs_readdir_non_existing_dir)
+#ifdef _WIN32
+  TEST_ENTRY  (fs_readdir_symlink)
+#endif
   TEST_ENTRY  (fs_rename_to_existing_file)
   TEST_ENTRY  (fs_write_multiple_bufs)
   TEST_ENTRY  (fs_write_alotof_bufs)
@@ -1203,6 +1220,8 @@ TASK_LIST_START
   TEST_ENTRY  (fork_threadpool_queue_work_simple)
 #endif
 #endif
+
+  TEST_ENTRY  (iouring_pollhup)
 
   TEST_ENTRY  (utf8_decode1)
   TEST_ENTRY  (utf8_decode1_overrun)

@@ -34,8 +34,8 @@ extern macro ResolveStringConstant(): String;
 const kResolveString: String = ResolveStringConstant();
 extern macro IsPromiseResolveProtectorCellInvalid(): bool;
 
-extern macro AllocateFunctionWithMapAndContext(
-    Map, SharedFunctionInfo, FunctionContext): JSFunction;
+extern macro AllocateRootFunctionWithContext(
+    constexpr intptr, FunctionContext): JSFunction;
 
 extern macro PromiseReactionMapConstant(): Map;
 extern macro PromiseFulfillReactionJobTaskMapConstant(): Map;
@@ -316,27 +316,31 @@ struct PromiseResolvingFunctions {
   context: Context;
 }
 
+const kPromiseCapabilityDefaultResolveSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseCapabilityDefaultResolveSharedFun';
+const kPromiseCapabilityDefaultRejectSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseCapabilityDefaultRejectSharedFun';
+
 @export
 macro CreatePromiseResolvingFunctions(
     implicit context: Context)(promise: JSPromise, debugEvent: Boolean,
     nativeContext: NativeContext): PromiseResolvingFunctions {
   const promiseContext = CreatePromiseResolvingFunctionsContext(
       promise, debugEvent, nativeContext);
-  const map = *NativeContextSlot(
-      nativeContext, ContextSlot::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX);
-  const resolveInfo = PromiseCapabilityDefaultResolveSharedFunConstant();
 
-  const resolve: JSFunction =
-      AllocateFunctionWithMapAndContext(map, resolveInfo, promiseContext);
-  const rejectInfo = PromiseCapabilityDefaultRejectSharedFunConstant();
-  const reject: JSFunction =
-      AllocateFunctionWithMapAndContext(map, rejectInfo, promiseContext);
+  const resolve: JSFunction = AllocateRootFunctionWithContext(
+      kPromiseCapabilityDefaultResolveSharedFun, promiseContext);
+  const reject: JSFunction = AllocateRootFunctionWithContext(
+      kPromiseCapabilityDefaultRejectSharedFun, promiseContext);
   return PromiseResolvingFunctions{
     resolve: resolve,
     reject: reject,
     context: promiseContext
   };
 }
+
+const kPromiseGetCapabilitiesExecutorSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseGetCapabilitiesExecutorSharedFun';
 
 transitioning macro InnerNewPromiseCapability(
     implicit context: Context)(constructor: HeapObject,
@@ -356,14 +360,8 @@ transitioning macro InnerNewPromiseCapability(
     const capability = CreatePromiseCapability(Undefined, Undefined, Undefined);
     const executorContext =
         CreatePromiseCapabilitiesExecutorContext(nativeContext, capability);
-
-    const executorInfo = PromiseGetCapabilitiesExecutorSharedFunConstant();
-    const functionMap =
-        *NativeContextSlot(
-        nativeContext,
-        ContextSlot::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX);
-    const executor = AllocateFunctionWithMapAndContext(
-        functionMap, executorInfo, executorContext);
+    const executor = AllocateRootFunctionWithContext(
+        kPromiseGetCapabilitiesExecutorSharedFun, executorContext);
 
     const promiseConstructor = UnsafeCast<Constructor>(constructor);
     const promise = Construct(promiseConstructor, executor);

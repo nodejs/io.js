@@ -5,11 +5,13 @@
 #ifndef V8_COMPILER_TURBOSHAFT_STACK_CHECK_LOWERING_REDUCER_H_
 #define V8_COMPILER_TURBOSHAFT_STACK_CHECK_LOWERING_REDUCER_H_
 
+#include "src/compiler/globals.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/graph.h"
 #include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/phase.h"
+#include "src/compiler/turboshaft/representations.h"
 #include "src/compiler/turboshaft/uniform-reducer-adapter.h"
 
 namespace v8::internal::compiler::turboshaft {
@@ -21,71 +23,104 @@ class StackCheckLoweringReducer : public Next {
  public:
   TURBOSHAFT_REDUCER_BOILERPLATE(StackCheckLowering)
 
-  OpIndex REDUCE(StackCheck)(StackCheckOp::CheckOrigin origin,
-                             StackCheckOp::CheckKind kind) {
-#ifdef V8_ENABLE_WEBASSEMBLY
-    if (origin == StackCheckOp::CheckOrigin::kFromWasm &&
-        kind == StackCheckOp::CheckKind::kFunctionHeaderCheck &&
-        __ IsLeafFunction()) {
-      return OpIndex::Invalid();
+  V<None> REDUCE(JSStackCheck)(V<Context> context,
+                               OptionalV<FrameState> frame_state,
+                               JSStackCheckOp::Kind kind) {
+    switch (kind) {
+      case JSStackCheckOp::Kind::kFunctionEntry: {
+        // Loads of the stack limit should not be load-eliminated as it can be
+        // modified by another thread.
+        V<WordPtr> limit =
+            __ Load(__ ExternalConstant(
+                        ExternalReference::address_of_jslimit(isolate())),
+                    LoadOp::Kind::RawAligned().NotLoadEliminable(),
+                    MemoryRepresentation::UintPtr());
+
+        IF_NOT (LIKELY(__ StackPointerGreaterThan(
+                    limit, StackCheckKind::kJSFunctionEntry))) {
+          __ CallRuntime_StackGuardWithGap(isolate(), frame_state.value(),
+                                           context, __ StackCheckOffset());
+        }
+        break;
+      }
+      case JSStackCheckOp::Kind::kBuiltinEntry: {
+        V<WordPtr> stack_limit = __ LoadOffHeap(
+            __ ExternalConstant(
+                ExternalReference::address_of_jslimit(isolate())),
+            MemoryRepresentation::UintPtr());
+        IF_NOT (LIKELY(__ StackPointerGreaterThan(
+                    stack_limit, StackCheckKind::kCodeStubAssembler))) {
+          __ CallRuntime_StackGuard(isolate(), context);
+        }
+        break;
+      }
+      case JSStackCheckOp::Kind::kLoop: {
+        V<Word32> limit = __ Load(
+            __ ExternalConstant(
+                ExternalReference::address_of_no_heap_write_interrupt_request(
+                    isolate())),
+            LoadOp::Kind::RawAligned().NotLoadEliminable(),
+            MemoryRepresentation::Uint8());
+
+        IF_NOT (LIKELY(__ Word32Equal(limit, 0))) {
+          __ CallRuntime_HandleNoHeapWritesInterrupts(
+              isolate(), frame_state.value(), context);
+        }
+        break;
+      }
     }
-#endif  // V8_ENABLE_WEBASSEMBLY
+
+    return V<None>::Invalid();
+  }
+
+#ifdef V8_ENABLE_WEBASSEMBLY
+  V<None> REDUCE(WasmStackCheck)(WasmStackCheckOp::Kind kind) {
+    if (kind == WasmStackCheckOp::Kind::kFunctionEntry && __ IsLeafFunction()) {
+      return V<None>::Invalid();
+    }
+
     // Loads of the stack limit should not be load-eliminated as it can be
     // modified by another thread.
     V<WordPtr> limit = __ Load(
         __ LoadRootRegister(), LoadOp::Kind::RawAligned().NotLoadEliminable(),
         MemoryRepresentation::UintPtr(), IsolateData::jslimit_offset());
-    compiler::StackCheckKind check_kind =
-        origin == StackCheckOp::CheckOrigin::kFromJS
-            ? compiler::StackCheckKind::kJSFunctionEntry
-            : compiler::StackCheckKind::kWasm;
-    V<Word32> check = __ StackPointerGreaterThan(limit, check_kind);
-    IF_NOT (LIKELY(check)) {
-      if (origin == StackCheckOp::CheckOrigin::kFromJS) {
-        if (kind == StackCheckOp::CheckKind::kLoopCheck) {
-          UNIMPLEMENTED();
-        }
-        DCHECK_EQ(kind, StackCheckOp::CheckKind::kFunctionHeaderCheck);
 
-        if (!isolate_) isolate_ = PipelineData::Get().isolate();
-        __ CallRuntime_StackGuardWithGap(isolate_, __ NoContextConstant(),
-                                         __ StackCheckOffset());
-      }
-#ifdef V8_ENABLE_WEBASSEMBLY
-      else if (origin == StackCheckOp::CheckOrigin::kFromWasm) {
-        // TODO(14108): Cache descriptor.
-        V<WordPtr> builtin =
-            __ RelocatableWasmBuiltinCallTarget(Builtin::kWasmStackGuard);
-        const CallDescriptor* call_descriptor =
-            compiler::Linkage::GetStubCallDescriptor(
-                __ graph_zone(),                      // zone
-                NoContextDescriptor{},                // descriptor
-                0,                                    // stack parameter count
-                CallDescriptor::kNoFlags,             // flags
-                Operator::kNoProperties,              // properties
-                StubCallMode::kCallWasmRuntimeStub);  // stub call mode
-        const TSCallDescriptor* ts_call_descriptor = TSCallDescriptor::Create(
-            call_descriptor, compiler::CanThrow::kNo, __ graph_zone());
-        // Pass custom effects to the `Call` node to mark it as non-writing.
-        __ Call(builtin, {}, ts_call_descriptor,
-                OpEffects()
-                    .CanReadMemory()
-                    .RequiredWhenUnused()
-                    .CanCreateIdentity());
-      }
-#endif  // V8_ENABLE_WEBASSEMBLY
+    IF_NOT (LIKELY(__ StackPointerGreaterThan(limit, StackCheckKind::kWasm))) {
+      // TODO(14108): Cache descriptor.
+      V<WordPtr> builtin =
+          __ RelocatableWasmBuiltinCallTarget(Builtin::kWasmStackGuard);
+      const CallDescriptor* call_descriptor =
+          compiler::Linkage::GetStubCallDescriptor(
+              __ graph_zone(),                      // zone
+              NoContextDescriptor{},                // descriptor
+              0,                                    // stack parameter count
+              CallDescriptor::kNoFlags,             // flags
+              Operator::kNoProperties,              // properties
+              StubCallMode::kCallWasmRuntimeStub);  // stub call mode
+      const TSCallDescriptor* ts_call_descriptor =
+          TSCallDescriptor::Create(call_descriptor, compiler::CanThrow::kNo,
+                                   LazyDeoptOnThrow::kNo, __ graph_zone());
+      // Pass custom effects to the `Call` node to mark it as non-writing.
+      __ Call(
+          builtin, {}, ts_call_descriptor,
+          OpEffects().CanReadMemory().RequiredWhenUnused().CanCreateIdentity());
     }
 
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
  private:
+  Isolate* isolate() {
+    if (!isolate_) isolate_ = __ data() -> isolate();
+    return isolate_;
+  }
+
   Isolate* isolate_ = nullptr;
-  // We cache the instance because we need it to load the limit_address used to
-  // lower stack checks.
 };
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"
 
 }  // namespace v8::internal::compiler::turboshaft
+
 #endif  // V8_COMPILER_TURBOSHAFT_STACK_CHECK_LOWERING_REDUCER_H_

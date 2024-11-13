@@ -33,11 +33,11 @@ class JSFinalizationRegistry
   class BodyDescriptor;
 
   inline static void RegisterWeakCellWithUnregisterToken(
-      Handle<JSFinalizationRegistry> finalization_registry,
+      DirectHandle<JSFinalizationRegistry> finalization_registry,
       Handle<WeakCell> weak_cell, Isolate* isolate);
   inline static bool Unregister(
-      Handle<JSFinalizationRegistry> finalization_registry,
-      Handle<HeapObject> unregister_token, Isolate* isolate);
+      DirectHandle<JSFinalizationRegistry> finalization_registry,
+      DirectHandle<HeapObject> unregister_token, Isolate* isolate);
 
   // RemoveUnregisterToken is called from both Unregister and during GC. Since
   // it modifies slots in key_map and WeakCells and the normal write barrier is

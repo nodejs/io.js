@@ -63,7 +63,7 @@ LoadedNormalizer2Impl::isAcceptable(void * /*context*/,
         pInfo->dataFormat[1]==0x72 &&
         pInfo->dataFormat[2]==0x6d &&
         pInfo->dataFormat[3]==0x32 &&
-        pInfo->formatVersion[0]==4
+        pInfo->formatVersion[0]==5
     ) {
         // Normalizer2Impl *me=(Normalizer2Impl *)context;
         // uprv_memcpy(me->dataVersion, pInfo->dataVersion, 4);
@@ -82,8 +82,8 @@ LoadedNormalizer2Impl::load(const char *packageName, const char *name, UErrorCod
     if(U_FAILURE(errorCode)) {
         return;
     }
-    const uint8_t *inBytes=(const uint8_t *)udata_getMemory(memory);
-    const int32_t *inIndexes=(const int32_t *)inBytes;
+    const uint8_t* inBytes = static_cast<const uint8_t*>(udata_getMemory(memory));
+    const int32_t* inIndexes = reinterpret_cast<const int32_t*>(inBytes);
     int32_t indexesLength=inIndexes[IX_NORM_TRIE_OFFSET]/4;
     if(indexesLength<=IX_MIN_LCCC_CP) {
         errorCode=U_INVALID_FORMAT_ERROR;  // Not enough indexes.
@@ -101,7 +101,7 @@ LoadedNormalizer2Impl::load(const char *packageName, const char *name, UErrorCod
 
     offset=nextOffset;
     nextOffset=inIndexes[IX_SMALL_FCD_OFFSET];
-    const uint16_t *inExtraData=(const uint16_t *)(inBytes+offset);
+    const uint16_t* inExtraData = reinterpret_cast<const uint16_t*>(inBytes + offset);
 
     // smallFCD: new in formatVersion 2
     offset=nextOffset;
@@ -311,7 +311,7 @@ Normalizer2::getInstance(const char *packageName,
         {
             Mutex lock;
             if(cache!=nullptr) {
-                allModes=(Norm2AllModes *)uhash_get(cache, name);
+                allModes = static_cast<Norm2AllModes*>(uhash_get(cache, name));
             }
         }
         if(allModes==nullptr) {
@@ -331,7 +331,7 @@ Normalizer2::getInstance(const char *packageName,
                 void *temp=uhash_get(cache, name);
                 if(temp==nullptr) {
                     int32_t keyLength= static_cast<int32_t>(uprv_strlen(name)+1);
-                    char *nameCopy=(char *)uprv_malloc(keyLength);
+                    char* nameCopy = static_cast<char*>(uprv_malloc(keyLength));
                     if(nameCopy==nullptr) {
                         errorCode=U_MEMORY_ALLOCATION_ERROR;
                         return nullptr;
@@ -341,7 +341,7 @@ Normalizer2::getInstance(const char *packageName,
                     uhash_put(cache, nameCopy, localAllModes.orphan(), &errorCode);
                 } else {
                     // race condition
-                    allModes=(Norm2AllModes *)temp;
+                    allModes = static_cast<Norm2AllModes*>(temp);
                 }
             }
         }

@@ -1,4 +1,4 @@
-// Copyright 2023 the V8 project authors. All rights reserved.
+// Copyright 2024 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,30 +11,22 @@ builder.addFunction('f1', kSig_i_i).addBody([kExprLocalGet, 0]).exportFunc();
 builder.addFunction('f2', kSig_i_i).addBody([kExprLocalGet, 0]).exportFunc();
 builder.addFunction('f3', kSig_i_i).addBody([kExprLocalGet, 0]).exportFunc();
 
-const instance = builder.instantiate();
+const exports = builder.instantiate().exports;
 
-instance.exports.f1(1);
-instance.exports.f2(2);
-instance.exports.f3(3);
+exports.f1(1);
+exports.f2(2);
+exports.f3(3);
 
-assertTrue(%IsLiftoffFunction(instance.exports.f1));
-assertTrue(%IsLiftoffFunction(instance.exports.f2));
-assertTrue(%IsLiftoffFunction(instance.exports.f3));
+%FlushLiftoffCode();
 
-%FlushWasmCode();
+exports.f1(1);
+exports.f2(2);
+exports.f3(3);
 
-assertTrue(%IsUncompiledWasmFunction(instance.exports.f1));
-assertTrue(%IsUncompiledWasmFunction(instance.exports.f2));
-assertTrue(%IsUncompiledWasmFunction(instance.exports.f3));
+%WasmTierUpFunction(exports.f3);
 
-instance.exports.f1(1);
-instance.exports.f2(2);
-instance.exports.f3(3);
+%FlushLiftoffCode();
 
-%WasmTierUpFunction(instance.exports.f3);
-
-%FlushWasmCode();
-
-assertTrue(%IsUncompiledWasmFunction(instance.exports.f1));
-assertTrue(%IsUncompiledWasmFunction(instance.exports.f2));
-assertTrue(%IsTurboFanFunction(instance.exports.f3));
+exports.f1(1);
+exports.f2(2);
+exports.f3(3);

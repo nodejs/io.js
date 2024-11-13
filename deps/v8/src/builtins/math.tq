@@ -394,50 +394,118 @@ transitioning javascript builtin MathTanh(
   return Convert<Number>(Float64Tanh(value));
 }
 
+// Fast path for few arguments to avoid loop comparison.
+transitioning macro FastMathHypot(
+    implicit context: Context)(arguments: Arguments): Number labels Slow {
+  const length = arguments.length;
+
+  if (length > 3) {
+    goto Slow;
+  }
+
+  if (length == 0) {
+    return 0;
+  }
+
+  const a = Float64Abs(Convert<float64>(ToNumber_Inline(arguments[0])));
+
+  if (length == 1) {
+    return Convert<Number>(a);
+  }
+
+  let max: float64 = 0;
+  const b = Float64Abs(Convert<float64>(ToNumber_Inline(arguments[1])));
+
+  if (length == 2) {
+    if (a == V8_INFINITY || b == V8_INFINITY) {
+      return V8_INFINITY;
+    }
+
+    max = Float64Max(a, b);
+
+    if (Float64IsNaN(max)) {
+      return kNaN;
+    }
+
+    if (max == 0) {
+      return 0;
+    }
+
+    return Convert<Number>(
+        Float64Sqrt((a / max) * (a / max) + (b / max) * (b / max)) * max);
+  }
+
+  if (length == 3) {
+    const c = Float64Abs(Convert<float64>(ToNumber_Inline(arguments[2])));
+    if (a == V8_INFINITY || b == V8_INFINITY || c == V8_INFINITY) {
+      return V8_INFINITY;
+    }
+
+    max = Float64Max(Float64Max(a, b), c);
+
+    if (Float64IsNaN(max)) {
+      return kNaN;
+    }
+
+    if (max == 0) {
+      return 0;
+    }
+
+    const powerA: float64 = (a / max) * (a / max);
+    const powerB: float64 = (b / max) * (b / max);
+    const compensation: float64 = (powerA + powerB) - powerA - powerB;
+    const powerC: float64 = (c / max) * (c / max) - compensation;
+
+    return Convert<Number>(Float64Sqrt(powerA + powerB + powerC) * max);
+  }
+  unreachable;
+}
+
 // ES6 #sec-math.hypot
 transitioning javascript builtin MathHypot(
     js-implicit context: NativeContext, receiver: JSAny)(
     ...arguments): Number {
-  const length = arguments.length;
-  if (length == 0) {
-    return 0;
-  }
-  const absValues = AllocateZeroedFixedDoubleArray(length);
-  let oneArgIsNaN: bool = false;
-  let max: float64 = 0;
-  for (let i: intptr = 0; i < length; ++i) {
-    const value = Convert<float64>(ToNumber_Inline(arguments[i]));
-    if (Float64IsNaN(value)) {
-      oneArgIsNaN = true;
-    } else {
-      const absValue = Float64Abs(value);
-      absValues.floats[i] = Convert<float64_or_hole>(absValue);
-      if (absValue > max) {
-        max = absValue;
+  try {
+    return FastMathHypot(arguments) otherwise Slow;
+  } label Slow {
+    const length = arguments.length;
+    const absValues = AllocateZeroedFixedDoubleArray(length);
+    let oneArgIsNaN: bool = false;
+    let max: float64 = 0;
+    for (let i: intptr = 0; i < length; ++i) {
+      const value = Convert<float64>(ToNumber_Inline(arguments[i]));
+      if (Float64IsNaN(value)) {
+        oneArgIsNaN = true;
+      } else {
+        const absValue = Float64Abs(value);
+        absValues.floats[i] = Convert<float64_or_hole>(absValue);
+        if (absValue > max) {
+          max = absValue;
+        }
       }
     }
-  }
-  if (max == V8_INFINITY) {
-    return V8_INFINITY;
-  } else if (oneArgIsNaN) {
-    return kNaN;
-  } else if (max == 0) {
-    return 0;
-  }
-  dcheck(max > 0);
+    if (max == V8_INFINITY) {
+      return V8_INFINITY;
+    } else if (oneArgIsNaN) {
+      return kNaN;
+    } else if (max == 0) {
+      return 0;
+    }
+    dcheck(max > 0);
 
-  // Kahan summation to avoid rounding errors.
-  // Normalize the numbers to the largest one to avoid overflow.
-  let sum: float64 = 0;
-  let compensation: float64 = 0;
-  for (let i: intptr = 0; i < length; ++i) {
-    const n = absValues.floats[i].ValueUnsafeAssumeNotHole() / max;
-    const summand = n * n - compensation;
-    const preliminary = sum + summand;
-    compensation = (preliminary - sum) - summand;
-    sum = preliminary;
+    // Kahan summation to avoid rounding errors.
+    // Normalize the numbers to the largest one to avoid overflow.
+    let sum: float64 = 0;
+    let compensation: float64 = 0;
+    for (let i: intptr = 0; i < length; ++i) {
+      const n = absValues.floats[i].ValueUnsafeAssumeNotHole() / max;
+      const summand = n * n - compensation;
+      const preliminary = sum + summand;
+      compensation = (preliminary - sum) - summand;
+      sum = preliminary;
+    }
+    return Convert<Number>(Float64Sqrt(sum) * max);
   }
-  return Convert<Number>(Float64Sqrt(sum) * max);
 }
 
 // ES6 #sec-math.random

@@ -12,7 +12,7 @@ const bench = common.createBenchmark(main, {
 
 function main({ n }) {
   tmpdir.refresh();
-  const options = { force: true, recursive: true };
+  const options = { recursive: true };
   const src = path.join(__dirname, '../../test/fixtures/copy');
   const dest = tmpdir.resolve(`${process.pid}/subdir/cp-bench-${process.pid}`);
   bench.start();

@@ -138,6 +138,13 @@ class ConcurrentSweeperTest : public testing::TestWithHeap {
 
     return true;
   }
+
+  void MarkObject(void* payload) {
+    HeapObjectHeader& header = HeapObjectHeader::FromObject(payload);
+    header.TryMarkAtomic();
+    BasePage::FromPayload(&header)->IncrementMarkedBytes(
+        header.AllocatedSize());
+  }
 };
 
 TEST_F(ConcurrentSweeperTest, BackgroundSweepOfNormalPage) {
@@ -146,7 +153,7 @@ TEST_F(ConcurrentSweeperTest, BackgroundSweepOfNormalPage) {
 
   auto* unmarked_object = MakeGarbageCollected<GCedType>(GetAllocationHandle());
   auto* marked_object = MakeGarbageCollected<GCedType>(GetAllocationHandle());
-  HeapObjectHeader::FromObject(marked_object).TryMarkAtomic();
+  MarkObject(marked_object);
 
   auto* page = BasePage::FromPayload(unmarked_object);
   auto& space = page->space();
@@ -187,7 +194,7 @@ TEST_F(ConcurrentSweeperTest, BackgroundSweepOfLargePage) {
 
   auto* unmarked_object = MakeGarbageCollected<GCedType>(GetAllocationHandle());
   auto* marked_object = MakeGarbageCollected<GCedType>(GetAllocationHandle());
-  HeapObjectHeader::FromObject(marked_object).TryMarkAtomic();
+  MarkObject(marked_object);
 
   auto* unmarked_page = BasePage::FromPayload(unmarked_object);
   auto* marked_page = BasePage::FromPayload(marked_object);
@@ -331,8 +338,8 @@ TEST_F(ConcurrentSweeperTest, IncrementalSweeping) {
       HeapObjectHeader::FromObject(marked_normal_object);
   auto& marked_large_header = HeapObjectHeader::FromObject(marked_large_object);
 
-  marked_normal_header.TryMarkAtomic();
-  marked_large_header.TryMarkAtomic();
+  MarkObject(marked_normal_object);
+  MarkObject(marked_large_object);
 
   StartSweeping();
 

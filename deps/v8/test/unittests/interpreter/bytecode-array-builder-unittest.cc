@@ -271,7 +271,7 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
   // Emit unary operator invocations.
   builder.LogicalNot(ToBooleanMode::kConvertToBoolean)
       .LogicalNot(ToBooleanMode::kAlreadyBoolean)
-      .TypeOf();
+      .TypeOf(1);
 
   // Emit delete
   builder.Delete(reg, LanguageMode::kSloppy).Delete(reg, LanguageMode::kStrict);
@@ -316,7 +316,7 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
     BytecodeLoopHeader loop_header;
     BytecodeLabel after_jump1, after_jump2, after_jump3, after_jump4,
         after_jump5, after_jump6, after_jump7, after_jump8, after_jump9,
-        after_jump10, after_jump11, after_loop;
+        after_jump10, after_jump11, after_jump12, after_loop;
     builder.JumpIfNull(&after_loop)
         .Bind(&loop_header)
         .Jump(&after_jump1)
@@ -333,19 +333,21 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
         .Bind(&after_jump6)
         .JumpIfJSReceiver(&after_jump7)
         .Bind(&after_jump7)
-        .JumpIfTrue(ToBooleanMode::kConvertToBoolean, &after_jump8)
+        .JumpIfForInDone(&after_jump8, reg, reg)
         .Bind(&after_jump8)
-        .JumpIfTrue(ToBooleanMode::kAlreadyBoolean, &after_jump9)
+        .JumpIfTrue(ToBooleanMode::kConvertToBoolean, &after_jump9)
         .Bind(&after_jump9)
-        .JumpIfFalse(ToBooleanMode::kConvertToBoolean, &after_jump10)
+        .JumpIfTrue(ToBooleanMode::kAlreadyBoolean, &after_jump10)
         .Bind(&after_jump10)
-        .JumpIfFalse(ToBooleanMode::kAlreadyBoolean, &after_jump11)
+        .JumpIfFalse(ToBooleanMode::kConvertToBoolean, &after_jump11)
         .Bind(&after_jump11)
+        .JumpIfFalse(ToBooleanMode::kAlreadyBoolean, &after_jump12)
+        .Bind(&after_jump12)
         .JumpLoop(&loop_header, 0, 0, 0)
         .Bind(&after_loop);
   }
 
-  BytecodeLabel end[11];
+  BytecodeLabel end[12];
   {
     // Longer jumps with constant operands
     BytecodeLabel after_jump;
@@ -362,7 +364,8 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
         .JumpIfNotUndefined(&end[8])
         .JumpIfUndefinedOrNull(&end[9])
         .LoadLiteral(ast_factory.prototype_string())
-        .JumpIfJSReceiver(&end[10]);
+        .JumpIfJSReceiver(&end[10])
+        .JumpIfForInDone(&end[11], reg, reg);
   }
 
   // Emit Smi table switch bytecode.
@@ -380,7 +383,6 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
 
   builder.ForInEnumerate(reg)
       .ForInPrepare(triple, 1)
-      .ForInContinue(reg, reg)
       .ForInNext(reg, reg, pair, 1)
       .ForInStep(reg);
 
@@ -482,10 +484,12 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
   scope_info->set_flags(flags);
   scope_info->set_context_local_count(0);
   scope_info->set_parameter_count(0);
+  scope_info->set_position_info_start(0);
+  scope_info->set_position_info_end(0);
   scope.SetScriptScopeInfo(scope_info);
 
   ast_factory.Internalize(isolate());
-  Handle<BytecodeArray> the_array = builder.ToBytecodeArray(isolate());
+  DirectHandle<BytecodeArray> the_array = builder.ToBytecodeArray(isolate());
   CHECK_EQ(the_array->frame_size(),
            builder.total_register_count() * kSystemPointerSize);
 
@@ -549,7 +553,8 @@ TEST_F(BytecodeArrayBuilderTest, FrameSizesLookGood) {
       }
       builder.Return();
 
-      Handle<BytecodeArray> the_array = builder.ToBytecodeArray(isolate());
+      DirectHandle<BytecodeArray> the_array =
+          builder.ToBytecodeArray(isolate());
       int total_registers = locals + temps;
       CHECK_EQ(the_array->frame_size(), total_registers * kSystemPointerSize);
     }
@@ -598,7 +603,7 @@ TEST_F(BytecodeArrayBuilderTest, Constants) {
       .Return();
 
   ast_factory.Internalize(isolate());
-  Handle<BytecodeArray> array = builder.ToBytecodeArray(isolate());
+  DirectHandle<BytecodeArray> array = builder.ToBytecodeArray(isolate());
   // Should only have one entry for each identical constant.
   EXPECT_EQ(4, array->constant_pool()->length());
 }

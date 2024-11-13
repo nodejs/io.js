@@ -59,6 +59,14 @@ class PrivateHandleAccessor;
 //   // Now you can get flag info from that reflection handle.
 //   std::string flag_location = my_flag_data->Filename();
 //   ...
+
+// These are only used as constexpr global objects.
+// They do not use a virtual destructor to simplify their implementation.
+// They are not destroyed except at program exit, so leaks do not matter.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
+#endif
 class CommandLineFlag {
  public:
   constexpr CommandLineFlag() = default;
@@ -193,6 +201,9 @@ class CommandLineFlag {
   // flag's value type.
   virtual void CheckDefaultValueParsingRoundtrip() const = 0;
 };
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 ABSL_NAMESPACE_END
 }  // namespace absl

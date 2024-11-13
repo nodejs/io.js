@@ -1,9 +1,72 @@
 'use strict';
 
 const wait = require('timers/promises').setTimeout;
+const assert = require('assert');
+const common = require('../common');
+const gcTrackerMap = new WeakMap();
+const gcTrackerTag = 'NODE_TEST_COMMON_GC_TRACKER';
 
-// TODO(joyeecheung): merge ongc.js and gcUntil from common/index.js
-// into this.
+/**
+ * Installs a garbage collection listener for the specified object.
+ * Uses async_hooks for GC tracking, which may affect test functionality.
+ * A full setImmediate() invocation passes between a global.gc() call and the listener being invoked.
+ * @param {object} obj - The target object to track for garbage collection.
+ * @param {object} gcListener - The listener object containing the ongc callback.
+ * @param {Function} gcListener.ongc - The function to call when the target object is garbage collected.
+ */
+function onGC(obj, gcListener) {
+  const async_hooks = require('async_hooks');
+
+  const onGcAsyncHook = async_hooks.createHook({
+    init: common.mustCallAtLeast(function(id, type) {
+      if (this.trackedId === undefined) {
+        assert.strictEqual(type, gcTrackerTag);
+        this.trackedId = id;
+      }
+    }),
+    destroy(id) {
+      assert.notStrictEqual(this.trackedId, -1);
+      if (id === this.trackedId) {
+        this.gcListener.ongc();
+        onGcAsyncHook.disable();
+      }
+    },
+  }).enable();
+  onGcAsyncHook.gcListener = gcListener;
+
+  gcTrackerMap.set(obj, new async_hooks.AsyncResource(gcTrackerTag));
+  obj = null;
+}
+
+/**
+ * Repeatedly triggers garbage collection until a specified condition is met or a maximum number of attempts is reached.
+ * @param {string|Function} [name] - Optional name, used in the rejection message if the condition is not met.
+ * @param {Function} condition - A function that returns true when the desired condition is met.
+ * @returns {Promise} A promise that resolves when the condition is met, or rejects after 10 failed attempts.
+ */
+function gcUntil(name, condition) {
+  if (typeof name === 'function') {
+    condition = name;
+    name = undefined;
+  }
+  return new Promise((resolve, reject) => {
+    let count = 0;
+    function gcAndCheck() {
+      setImmediate(() => {
+        count++;
+        global.gc();
+        if (condition()) {
+          resolve();
+        } else if (count < 10) {
+          gcAndCheck();
+        } else {
+          reject(name === undefined ? undefined : 'Test ' + name + ' failed');
+        }
+      });
+    }
+    gcAndCheck();
+  });
+}
 
 // This function can be used to check if an object factor leaks or not,
 // but it needs to be used with care:
@@ -124,4 +187,6 @@ module.exports = {
   checkIfCollectable,
   runAndBreathe,
   checkIfCollectableByCounting,
+  onGC,
+  gcUntil,
 };

@@ -93,7 +93,7 @@ int RelocInfo::target_address_size() { return kPointerSize; }
 
 Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
   DCHECK(IsCodeTarget(rmode_) || IsFullEmbeddedObject(rmode_));
-  return HeapObject::cast(
+  return Cast<HeapObject>(
       Tagged<Object>(Assembler::target_address_at(pc_, constant_pool_)));
 }
 
@@ -290,6 +290,20 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
       FlushInstructionCache(pc, kInstrSize);
     }
   }
+}
+
+uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
+  CHECK(is_constant_pool_load(pc));
+  return Memory<uint32_t>(constant_pool_entry_address(pc, constant_pool));
+}
+
+void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
+                                       uint32_t new_constant,
+                                       ICacheFlushMode icache_flush_mode) {
+  CHECK(is_constant_pool_load(pc));
+  Memory<uint32_t>(constant_pool_entry_address(pc, constant_pool)) =
+      new_constant;
+  // Icache flushing not needed for Ldr via the constant pool.
 }
 
 EnsureSpace::EnsureSpace(Assembler* assembler) { assembler->CheckBuffer(); }

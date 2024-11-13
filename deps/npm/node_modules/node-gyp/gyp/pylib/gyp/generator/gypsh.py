@@ -51,7 +51,7 @@ def GenerateOutput(target_list, target_dicts, data, params):
     # locals are available, and identify gypsh.
     banner = (
         f"Python {sys.version} on {sys.platform}\nlocals.keys() = "
-        f"{repr(sorted(locals.keys()))}\ngypsh"
+        f"{sorted(locals.keys())!r}\ngypsh"
     )
 
     code.interact(banner, local=locals)

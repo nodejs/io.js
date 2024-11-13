@@ -32,62 +32,15 @@ class CppHeap;
 
 class CustomSpaceStatisticsReceiver;
 
-/**
- * Describes how V8 wrapper objects maintain references to garbage-collected C++
- * objects.
- */
-struct WrapperDescriptor final {
-  /**
-   * The index used on `v8::Ojbect::SetAlignedPointerFromInternalField()` and
-   * related APIs to add additional data to an object which is used to identify
-   * JS->C++ references.
-   */
-  using InternalFieldIndex = int;
-
-  /**
-   * Unknown embedder id. The value is reserved for internal usages and must not
-   * be used with `CppHeap`.
-   */
-  static constexpr uint16_t kUnknownEmbedderId = UINT16_MAX;
-
-  constexpr WrapperDescriptor(InternalFieldIndex wrappable_type_index,
-                              InternalFieldIndex wrappable_instance_index,
-                              uint16_t embedder_id_for_garbage_collected)
-      : wrappable_type_index(wrappable_type_index),
-        wrappable_instance_index(wrappable_instance_index),
-        embedder_id_for_garbage_collected(embedder_id_for_garbage_collected) {}
-
-  /**
-   * Index of the wrappable type.
-   */
-  InternalFieldIndex wrappable_type_index;
-
-  /**
-   * Index of the wrappable instance.
-   */
-  InternalFieldIndex wrappable_instance_index;
-
-  /**
-   * Embedder id identifying instances of garbage-collected objects. It is
-   * expected that the first field of the wrappable type is a uint16_t holding
-   * the id. Only references to instances of wrappables types with an id of
-   * `embedder_id_for_garbage_collected` will be considered by CppHeap.
-   */
-  uint16_t embedder_id_for_garbage_collected;
-};
-
 struct V8_EXPORT CppHeapCreateParams {
-  CppHeapCreateParams(
-      std::vector<std::unique_ptr<cppgc::CustomSpaceBase>> custom_spaces,
-      WrapperDescriptor wrapper_descriptor)
-      : custom_spaces(std::move(custom_spaces)),
-        wrapper_descriptor(wrapper_descriptor) {}
+  explicit CppHeapCreateParams(
+      std::vector<std::unique_ptr<cppgc::CustomSpaceBase>> custom_spaces)
+      : custom_spaces(std::move(custom_spaces)) {}
 
   CppHeapCreateParams(const CppHeapCreateParams&) = delete;
   CppHeapCreateParams& operator=(const CppHeapCreateParams&) = delete;
 
   std::vector<std::unique_ptr<cppgc::CustomSpaceBase>> custom_spaces;
-  WrapperDescriptor wrapper_descriptor;
   /**
    * Specifies which kind of marking are supported by the heap. The type may be
    * further reduced via runtime flags when attaching the heap to an Isolate.
@@ -176,11 +129,6 @@ class V8_EXPORT CppHeap {
    */
   void CollectGarbageInYoungGenerationForTesting(
       cppgc::EmbedderStackState stack_state);
-
-  /**
-   * \returns the wrapper descriptor of this CppHeap.
-   */
-  v8::WrapperDescriptor wrapper_descriptor() const;
 
  private:
   CppHeap() = default;

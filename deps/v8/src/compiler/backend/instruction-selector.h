@@ -6,6 +6,7 @@
 #define V8_COMPILER_BACKEND_INSTRUCTION_SELECTOR_H_
 
 #include <map>
+#include <optional>
 
 #include "src/codegen/cpu-features.h"
 #include "src/codegen/machine-type.h"
@@ -111,7 +112,7 @@ class V8_EXPORT_PRIVATE InstructionSelector final {
 
   ~InstructionSelector();
 
-  base::Optional<BailoutReason> SelectInstructions();
+  std::optional<BailoutReason> SelectInstructions();
 
   bool IsSupported(CpuFeature feature) const;
 
@@ -148,6 +149,18 @@ class FlagsContinuationT final {
   using node_t = typename Adapter::node_t;
   using id_t = typename Adapter::id_t;
 
+  struct ConditionalCompare {
+    InstructionCode code;
+    FlagsCondition compare_condition;
+    FlagsCondition default_flags;
+    node_t lhs;
+    node_t rhs;
+  };
+  // This limit covered almost all the opportunities when compiling the debug
+  // builtins.
+  static constexpr size_t kMaxCompareChainSize = 4;
+  using compare_chain_t = std::array<ConditionalCompare, kMaxCompareChainSize>;
+
   FlagsContinuationT() : mode_(kFlags_none) {}
 
   // Creates a new flags continuation from the given condition and true/false
@@ -156,6 +169,16 @@ class FlagsContinuationT final {
                                       block_t true_block, block_t false_block) {
     return FlagsContinuationT(kFlags_branch, condition, true_block,
                               false_block);
+  }
+
+  // Creates a new flags continuation from the given conditional compare chain
+  // and true/false blocks.
+  static FlagsContinuationT ForConditionalBranch(
+      compare_chain_t& compares, uint32_t num_conditional_compares,
+      FlagsCondition branch_condition, block_t true_block,
+      block_t false_block) {
+    return FlagsContinuationT(compares, num_conditional_compares,
+                              branch_condition, true_block, false_block);
   }
 
   // Creates a new flags continuation for an eager deoptimization exit.
@@ -180,6 +203,15 @@ class FlagsContinuationT final {
     return FlagsContinuationT(condition, result);
   }
 
+  // Creates a new flags continuation for a conditional boolean value.
+  static FlagsContinuationT ForConditionalSet(compare_chain_t& compares,
+                                              uint32_t num_conditional_compares,
+                                              FlagsCondition set_condition,
+                                              node_t result) {
+    return FlagsContinuationT(compares, num_conditional_compares, set_condition,
+                              result);
+  }
+
   // Creates a new flags continuation for a wasm trap.
   static FlagsContinuationT ForTrap(FlagsCondition condition, TrapId trap_id) {
     return FlagsContinuationT(condition, trap_id);
@@ -192,13 +224,21 @@ class FlagsContinuationT final {
 
   bool IsNone() const { return mode_ == kFlags_none; }
   bool IsBranch() const { return mode_ == kFlags_branch; }
+  bool IsConditionalBranch() const {
+    return mode_ == kFlags_conditional_branch;
+  }
   bool IsDeoptimize() const { return mode_ == kFlags_deoptimize; }
   bool IsSet() const { return mode_ == kFlags_set; }
+  bool IsConditionalSet() const { return mode_ == kFlags_conditional_set; }
   bool IsTrap() const { return mode_ == kFlags_trap; }
   bool IsSelect() const { return mode_ == kFlags_select; }
   FlagsCondition condition() const {
     DCHECK(!IsNone());
     return condition_;
+  }
+  FlagsCondition final_condition() const {
+    DCHECK(IsConditionalSet() || IsConditionalBranch());
+    return final_condition_;
   }
   DeoptimizeReason reason() const {
     DCHECK(IsDeoptimize());
@@ -217,7 +257,7 @@ class FlagsContinuationT final {
     return frame_state_or_result_;
   }
   node_t result() const {
-    DCHECK(IsSet() || IsSelect());
+    DCHECK(IsSet() || IsConditionalSet() || IsSelect());
     return frame_state_or_result_;
   }
   TrapId trap_id() const {
@@ -225,11 +265,11 @@ class FlagsContinuationT final {
     return trap_id_;
   }
   block_t true_block() const {
-    DCHECK(IsBranch());
+    DCHECK(IsBranch() || IsConditionalBranch());
     return true_block_;
   }
   block_t false_block() const {
-    DCHECK(IsBranch());
+    DCHECK(IsBranch() || IsConditionalBranch());
     return false_block_;
   }
   node_t true_value() const {
@@ -240,27 +280,42 @@ class FlagsContinuationT final {
     DCHECK(IsSelect());
     return false_value_;
   }
+  const compare_chain_t& compares() const {
+    DCHECK(IsConditionalSet() || IsConditionalBranch());
+    return compares_;
+  }
+  uint32_t num_conditional_compares() const {
+    DCHECK(IsConditionalSet() || IsConditionalBranch());
+    return num_conditional_compares_;
+  }
 
   void Negate() {
     DCHECK(!IsNone());
+    DCHECK(!IsConditionalSet() && !IsConditionalBranch());
     condition_ = NegateFlagsCondition(condition_);
   }
 
   void Commute() {
     DCHECK(!IsNone());
+    DCHECK(!IsConditionalSet() && !IsConditionalBranch());
     condition_ = CommuteFlagsCondition(condition_);
   }
 
-  void Overwrite(FlagsCondition condition) { condition_ = condition; }
+  void Overwrite(FlagsCondition condition) {
+    DCHECK(!IsConditionalSet() && !IsConditionalBranch());
+    condition_ = condition;
+  }
 
   void OverwriteAndNegateIfEqual(FlagsCondition condition) {
     DCHECK(condition_ == kEqual || condition_ == kNotEqual);
+    DCHECK(!IsConditionalSet() && !IsConditionalBranch());
     bool negate = condition_ == kEqual;
     condition_ = condition;
     if (negate) Negate();
   }
 
   void OverwriteUnsignedIfSigned() {
+    DCHECK(!IsConditionalSet() && !IsConditionalBranch());
     switch (condition_) {
       case kSignedLessThan:
         condition_ = kUnsignedLessThan;
@@ -300,6 +355,21 @@ class FlagsContinuationT final {
     DCHECK_NOT_NULL(false_block);
   }
 
+  FlagsContinuationT(compare_chain_t& compares,
+                     uint32_t num_conditional_compares,
+                     FlagsCondition branch_condition, block_t true_block,
+                     block_t false_block)
+      : mode_(kFlags_conditional_branch),
+        condition_(compares.front().compare_condition),
+        final_condition_(branch_condition),
+        num_conditional_compares_(num_conditional_compares),
+        compares_(compares),
+        true_block_(true_block),
+        false_block_(false_block) {
+    DCHECK_NOT_NULL(true_block);
+    DCHECK_NOT_NULL(false_block);
+  }
+
   FlagsContinuationT(FlagsMode mode, FlagsCondition condition,
                      DeoptimizeReason reason, id_t node_id,
                      FeedbackSource const& feedback, node_t frame_state)
@@ -316,6 +386,18 @@ class FlagsContinuationT final {
   FlagsContinuationT(FlagsCondition condition, node_t result)
       : mode_(kFlags_set),
         condition_(condition),
+        frame_state_or_result_(result) {
+    DCHECK(Adapter::valid(result));
+  }
+
+  FlagsContinuationT(compare_chain_t& compares,
+                     uint32_t num_conditional_compares,
+                     FlagsCondition set_condition, node_t result)
+      : mode_(kFlags_conditional_set),
+        condition_(compares.front().compare_condition),
+        final_condition_(set_condition),
+        num_conditional_compares_(num_conditional_compares),
+        compares_(compares),
         frame_state_or_result_(result) {
     DCHECK(Adapter::valid(result));
   }
@@ -337,6 +419,11 @@ class FlagsContinuationT final {
 
   FlagsMode const mode_;
   FlagsCondition condition_;
+  FlagsCondition final_condition_;     // Only valid if mode_ ==
+                                       // kFlags_conditional_set.
+  uint32_t num_conditional_compares_;  // Only valid if mode_ ==
+                                       // kFlags_conditional_set.
+  compare_chain_t compares_;  // Only valid if mode_ == kFlags_conditional_set.
   DeoptimizeReason reason_;         // Only valid if mode_ == kFlags_deoptimize*
   id_t node_id_;                    // Only valid if mode_ == kFlags_deoptimize*
   FeedbackSource feedback_;         // Only valid if mode_ == kFlags_deoptimize*
@@ -406,7 +493,7 @@ class InstructionSelectorT final : public Adapter {
           InstructionSelector::kDisableTraceTurboJson);
 
   // Visit code for the entire graph with the included schedule.
-  base::Optional<BailoutReason> SelectInstructions();
+  std::optional<BailoutReason> SelectInstructions();
 
   void StartBlock(RpoNumber rpo);
   void EndBlock(RpoNumber rpo);
@@ -538,11 +625,19 @@ class InstructionSelectorT final : public Adapter {
   bool IsDefined(node_t node) const;
 
   // Checks if {node} has any uses, and therefore code has to be generated for
-  // it.
+  // it. Always returns {true} if the node has effect IsRequiredWhenUnused.
   bool IsUsed(node_t node) const;
+  // Checks if {node} has any uses, and therefore code has to be generated for
+  // it. Ignores the IsRequiredWhenUnused effect.
+  bool IsReallyUsed(node_t node) const;
 
   // Checks if {node} is currently live.
   bool IsLive(node_t node) const { return !IsDefined(node) && IsUsed(node); }
+  // Checks if {node} is currently live, ignoring the IsRequiredWhenUnused
+  // effect.
+  bool IsReallyLive(node_t node) const {
+    return !IsDefined(node) && IsReallyUsed(node);
+  }
 
   // Gets the effect level of {node}.
   int GetEffectLevel(node_t node) const;
@@ -568,6 +663,28 @@ class InstructionSelectorT final : public Adapter {
   }
 
   node_t FindProjection(node_t node, size_t projection_index);
+
+  // Records that this ProtectedLoad node can be deleted if not used, even
+  // though it has a required_when_unused effect.
+  void SetProtectedLoadToRemove(node_t node) {
+    if constexpr (Adapter::IsTurboshaft) {
+      DCHECK(this->IsProtectedLoad(node));
+      protected_loads_to_remove_->Add(this->id(node));
+    } else {
+      UNREACHABLE();
+    }
+  }
+
+  // Records that this node embeds a ProtectedLoad as operand, and so it is
+  // itself a "protected" instruction, for which we'll need to record the source
+  // position.
+  void MarkAsProtected(node_t node) {
+    if constexpr (Adapter::IsTurboshaft) {
+      additional_protected_instructions_->Add(this->id(node));
+    } else {
+      UNREACHABLE();
+    }
+  }
 
  private:
   friend class OperandGeneratorT<Adapter>;
@@ -982,6 +1099,9 @@ class InstructionSelectorT final : public Adapter {
   void AddOutputToSelectContinuation(OperandGenerator* g, int first_input_index,
                                      node_t node);
 
+  void ConsumeEqualZero(turboshaft::OpIndex* user, turboshaft::OpIndex* value,
+                        FlagsContinuation* cont);
+
   // ===========================================================================
   // ============= Vector instruction (SIMD) helper fns. =======================
   // ===========================================================================
@@ -1026,7 +1146,18 @@ class InstructionSelectorT final : public Adapter {
 
 #if V8_ENABLE_WASM_SIMD256_REVEC
   void VisitSimd256LoadTransform(node_t node);
+
+#ifdef V8_TARGET_ARCH_X64
+  void VisitSimd256Shufd(node_t node);
+  void VisitSimd256Shufps(node_t node);
+  void VisitSimd256Unpack(node_t node);
+  void VisitSimdPack128To256(node_t node);
+#endif  // V8_TARGET_ARCH_X64
 #endif  // V8_ENABLE_WASM_SIMD256_REVEC
+
+#ifdef V8_TARGET_ARCH_X64
+  bool CanOptimizeF64x2PromoteLowF32x4(node_t node);
+#endif
 
 #endif  // V8_ENABLE_WEBASSEMBLY
 
@@ -1146,7 +1277,9 @@ class InstructionSelectorT final : public Adapter {
   size_t* max_pushed_argument_count_;
 
   // Turboshaft-adapter only.
-  base::Optional<turboshaft::UseMap> turboshaft_use_map_;
+  std::optional<turboshaft::UseMap> turboshaft_use_map_;
+  std::optional<BitVector> protected_loads_to_remove_;
+  std::optional<BitVector> additional_protected_instructions_;
 
 #if V8_TARGET_ARCH_64_BIT
   // Holds lazily-computed results for whether phi nodes guarantee their upper

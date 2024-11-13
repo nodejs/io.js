@@ -66,7 +66,7 @@ async function stepOverConsoleStatement(session) {
 }
 
 async function runTests() {
-  // NOTE(mmarchini): Use --inspect-brk to improve avoid undeterministic
+  // NOTE(mmarchini): Use --inspect-brk to improve avoid indeterministic
   // behavior.
   const child = new NodeInstance(['--inspect-brk=0'], undefined, script);
   const session = await child.connectInspectorSession();

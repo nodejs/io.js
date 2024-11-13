@@ -49,12 +49,12 @@ TEST_F(MaglevTest, NodeTypeApproximationIsConsistent) {
   for (auto idx = RootIndex::kFirstRoot; idx <= RootIndex::kLastRoot; ++idx) {
     Tagged<Object> obj = isolate()->roots_table().slot(idx).load(isolate());
     if (obj.ptr() == kNullAddress || !IsMap(obj)) continue;
-    Tagged<Map> map = Map::cast(obj);
+    Tagged<Map> map = Cast<Map>(obj);
     compiler::MapRef map_ref = MakeRef(broker(), map);
 
     for (NodeType a : kAllNodeTypes) {
       bool isInstance = IsInstanceOfNodeType(map_ref, a, broker());
-      bool isSubtype = NodeTypeIs(StaticTypeForMap(map_ref), a);
+      bool isSubtype = NodeTypeIs(StaticTypeForMap(map_ref, broker()), a);
       CHECK_IMPLIES(isSubtype, isInstance);
       CHECK_IMPLIES(!isInstance, !isSubtype);
     }
@@ -66,7 +66,7 @@ TEST_F(MaglevTest, NodeTypeCombineIsConsistent) {
   for (auto idx = RootIndex::kFirstRoot; idx <= RootIndex::kLastRoot; ++idx) {
     Tagged<Object> obj = isolate()->roots_table().slot(idx).load(isolate());
     if (obj.ptr() == kNullAddress || !IsMap(obj)) continue;
-    Tagged<Map> map = Map::cast(obj);
+    Tagged<Map> map = Cast<Map>(obj);
     compiler::MapRef map_ref = MakeRef(broker(), map);
 
     for (NodeType a : kAllNodeTypes) {

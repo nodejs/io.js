@@ -1,0 +1,7 @@
+Checks that console.timeEnd() always attached exactly one stack frame
+
+Running test: top
+Stack depth: 1
+
+Running test: deep
+Stack depth: 1

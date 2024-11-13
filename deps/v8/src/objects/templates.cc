@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 
 #include "src/api/api-inl.h"
 #include "src/base/macros.h"
@@ -22,26 +23,25 @@
 #include "src/objects/shared-function-info-inl.h"
 #include "src/objects/string-inl.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 bool FunctionTemplateInfo::HasInstanceType() {
   return instance_type() != kNoJSApiObjectType;
 }
 
 Handle<SharedFunctionInfo> FunctionTemplateInfo::GetOrCreateSharedFunctionInfo(
-    Isolate* isolate, Handle<FunctionTemplateInfo> info,
-    MaybeHandle<Name> maybe_name) {
+    Isolate* isolate, DirectHandle<FunctionTemplateInfo> info,
+    MaybeDirectHandle<Name> maybe_name) {
   Tagged<Object> current_info = info->shared_function_info();
   if (IsSharedFunctionInfo(current_info)) {
-    return handle(SharedFunctionInfo::cast(current_info), isolate);
+    return handle(Cast<SharedFunctionInfo>(current_info), isolate);
   }
-  Handle<Name> name;
-  Handle<String> name_string;
+  DirectHandle<Name> name;
+  DirectHandle<String> name_string;
   if (maybe_name.ToHandle(&name) && IsString(*name)) {
-    name_string = Handle<String>::cast(name);
+    name_string = Cast<String>(name);
   } else if (IsString(info->class_name())) {
-    name_string = handle(String::cast(info->class_name()), isolate);
+    name_string = direct_handle(Cast<String>(info->class_name()), isolate);
   } else {
     name_string = isolate->factory()->empty_string();
   }
@@ -90,11 +90,11 @@ bool FunctionTemplateInfo::IsTemplateFor(Tagged<Map> map) const {
   Tagged<Object> cons_obj = map->GetConstructor();
   Tagged<Object> type;
   if (IsJSFunction(cons_obj)) {
-    Tagged<JSFunction> fun = JSFunction::cast(cons_obj);
+    Tagged<JSFunction> fun = Cast<JSFunction>(cons_obj);
     if (!fun->shared()->IsApiFunction()) return false;
     type = fun->shared()->api_func_data();
   } else if (IsFunctionTemplateInfo(cons_obj)) {
-    type = FunctionTemplateInfo::cast(cons_obj);
+    type = Cast<FunctionTemplateInfo>(cons_obj);
   } else {
     return false;
   }
@@ -103,7 +103,7 @@ bool FunctionTemplateInfo::IsTemplateFor(Tagged<Map> map) const {
   // see if the required one occurs.
   while (IsFunctionTemplateInfo(type)) {
     if (type == *this) return true;
-    type = FunctionTemplateInfo::cast(type)->GetParentTemplate();
+    type = Cast<FunctionTemplateInfo>(type)->GetParentTemplate();
   }
   // Didn't find the required type in the inheritance chain.
   return false;
@@ -118,10 +118,10 @@ bool FunctionTemplateInfo::IsLeafTemplateForApiObject(
   }
 
   bool result = false;
-  Tagged<Map> map = HeapObject::cast(object)->map();
+  Tagged<Map> map = Cast<HeapObject>(object)->map();
   Tagged<Object> constructor_obj = map->GetConstructor();
   if (IsJSFunction(constructor_obj)) {
-    Tagged<JSFunction> fun = JSFunction::cast(constructor_obj);
+    Tagged<JSFunction> fun = Cast<JSFunction>(constructor_obj);
     result = (*this == fun->shared()->api_func_data());
   } else if (IsFunctionTemplateInfo(constructor_obj)) {
     result = (*this == constructor_obj);
@@ -133,59 +133,63 @@ bool FunctionTemplateInfo::IsLeafTemplateForApiObject(
 // static
 Tagged<FunctionTemplateRareData>
 FunctionTemplateInfo::AllocateFunctionTemplateRareData(
-    Isolate* isolate, Handle<FunctionTemplateInfo> function_template_info) {
+    Isolate* isolate,
+    DirectHandle<FunctionTemplateInfo> function_template_info) {
   DCHECK(IsUndefined(function_template_info->rare_data(kAcquireLoad), isolate));
-  Handle<FunctionTemplateRareData> rare_data =
+  DirectHandle<FunctionTemplateRareData> rare_data =
       isolate->factory()->NewFunctionTemplateRareData();
   function_template_info->set_rare_data(*rare_data, kReleaseStore);
   return *rare_data;
 }
 
-base::Optional<Tagged<Name>> FunctionTemplateInfo::TryGetCachedPropertyName(
+std::optional<Tagged<Name>> FunctionTemplateInfo::TryGetCachedPropertyName(
     Isolate* isolate, Tagged<Object> getter) {
   DisallowGarbageCollection no_gc;
   if (!IsFunctionTemplateInfo(getter)) {
     if (!IsJSFunction(getter)) return {};
-    Tagged<SharedFunctionInfo> info = JSFunction::cast(getter)->shared();
+    Tagged<SharedFunctionInfo> info = Cast<JSFunction>(getter)->shared();
     if (!info->IsApiFunction()) return {};
     getter = info->api_func_data();
   }
   // Check if the accessor uses a cached property.
   Tagged<Object> maybe_name =
-      FunctionTemplateInfo::cast(getter)->cached_property_name();
+      Cast<FunctionTemplateInfo>(getter)->cached_property_name();
   if (IsTheHole(maybe_name, isolate)) return {};
-  return Name::cast(maybe_name);
+  return Cast<Name>(maybe_name);
 }
 
 int FunctionTemplateInfo::GetCFunctionsCount() const {
   i::DisallowHeapAllocation no_gc;
-  return FixedArray::cast(GetCFunctionOverloads())->length() /
+  return Cast<FixedArray>(GetCFunctionOverloads())->length() /
          kFunctionOverloadEntrySize;
 }
 
-Address FunctionTemplateInfo::GetCFunction(int index) const {
+Address FunctionTemplateInfo::GetCFunction(Isolate* isolate, int index) const {
   i::DisallowHeapAllocation no_gc;
-  return v8::ToCData<Address>(FixedArray::cast(GetCFunctionOverloads())
-                                  ->get(index * kFunctionOverloadEntrySize));
+  return v8::ToCData<kCFunctionTag>(
+      isolate, Cast<FixedArray>(GetCFunctionOverloads())
+                   ->get(index * kFunctionOverloadEntrySize));
 }
 
-const CFunctionInfo* FunctionTemplateInfo::GetCSignature(int index) const {
+const CFunctionInfo* FunctionTemplateInfo::GetCSignature(Isolate* isolate,
+                                                         int index) const {
   i::DisallowHeapAllocation no_gc;
-  return v8::ToCData<CFunctionInfo*>(
-      FixedArray::cast(GetCFunctionOverloads())
-          ->get(index * kFunctionOverloadEntrySize + 1));
+  return v8::ToCData<CFunctionInfo*, kCFunctionInfoTag>(
+      isolate, Cast<FixedArray>(GetCFunctionOverloads())
+                   ->get(index * kFunctionOverloadEntrySize + 1));
 }
 
 // static
 Handle<DictionaryTemplateInfo> DictionaryTemplateInfo::Create(
     Isolate* isolate, const v8::MemorySpan<const std::string_view>& names) {
-  Handle<FixedArray> property_names = isolate->factory()->NewFixedArray(
+  DirectHandle<FixedArray> property_names = isolate->factory()->NewFixedArray(
       static_cast<int>(names.size()), AllocationType::kOld);
   int index = 0;
   uint32_t unused_array_index;
   for (const std::string_view& name : names) {
-    Handle<String> internalized_name = isolate->factory()->InternalizeString(
-        base::Vector<const char>(name.data(), name.length()));
+    DirectHandle<String> internalized_name =
+        isolate->factory()->InternalizeString(
+            base::Vector<const char>(name.data(), name.length()));
     // Check that property name cannot be used as index.
     CHECK(!internalized_name->AsArrayIndex(&unused_array_index));
     property_names->set(index, *internalized_name);
@@ -197,7 +201,7 @@ Handle<DictionaryTemplateInfo> DictionaryTemplateInfo::Create(
 namespace {
 
 Handle<JSObject> CreateSlowJSObjectWithProperties(
-    Isolate* isolate, Handle<FixedArray> property_names,
+    Isolate* isolate, DirectHandle<FixedArray> property_names,
     const MemorySpan<MaybeLocal<Value>>& property_values,
     int num_properties_set) {
   Handle<JSObject> object = isolate->factory()->NewSlowJSObjectFromMap(
@@ -210,8 +214,8 @@ Handle<JSObject> CreateSlowJSObjectWithProperties(
       continue;
     }
     properties = PropertyDictionary::Add(
-        isolate, Handle<PropertyDictionary>::cast(properties),
-        Handle<String>::cast(handle(property_names->get(i), isolate)),
+        isolate, Cast<PropertyDictionary>(properties),
+        Cast<String>(handle(property_names->get(i), isolate)),
         Utils::OpenHandle(*property_value), PropertyDetails::Empty());
   }
   object->set_raw_properties_or_hash(*properties);
@@ -226,7 +230,7 @@ Handle<JSObject> DictionaryTemplateInfo::NewInstance(
     DirectHandle<DictionaryTemplateInfo> self,
     const MemorySpan<MaybeLocal<Value>>& property_values) {
   Isolate* isolate = context->GetIsolate();
-  Handle<FixedArray> property_names = handle(self->property_names(), isolate);
+  DirectHandle<FixedArray> property_names(self->property_names(), isolate);
 
   const int property_names_len = property_names->length();
   CHECK_EQ(property_names_len, static_cast<int>(property_values.size()));
@@ -254,8 +258,8 @@ Handle<JSObject> DictionaryTemplateInfo::NewInstance(
       // Verify that the cached map can be reused.
       auto descriptors = handle(cached_map->instance_descriptors(), isolate);
       for (int i = 0; i < static_cast<int>(property_values.size()); ++i) {
-        Handle<Object> value =
-            Utils::OpenHandle(*property_values[i].ToLocalChecked());
+        DirectHandle<Object> value =
+            Utils::OpenDirectHandle(*property_values[i].ToLocalChecked());
         InternalIndex descriptor{static_cast<size_t>(i)};
         const auto details = descriptors->GetDetails(descriptor);
 
@@ -270,8 +274,9 @@ Handle<JSObject> DictionaryTemplateInfo::NewInstance(
         if (details.representation().Equals(Representation::Double())) {
           // We allowed coercion in `FitsRepresentation` above which means that
           // we may deal with a Smi here.
-          property_values[i] = ToApiHandle<v8::Object>(
-              isolate->factory()->NewHeapNumber(Object::Number(*value)));
+          property_values[i] =
+              ToApiHandle<v8::Object>(isolate->factory()->NewHeapNumber(
+                  Object::NumberValue(Cast<Number>(*value))));
         }
       }
       if (V8_LIKELY(can_use_cached_map)) {
@@ -283,7 +288,7 @@ Handle<JSObject> DictionaryTemplateInfo::NewInstance(
         DisallowGarbageCollection no_gc;
         for (int i = 0; i < static_cast<int>(property_values.size()); ++i) {
           Local<Value> property_value = property_values[i].ToLocalChecked();
-          Handle<Object> value = Utils::OpenHandle(*property_value);
+          DirectHandle<Object> value = Utils::OpenDirectHandle(*property_value);
           const FieldIndex index = FieldIndex::ForPropertyIndex(
               *cached_map, i, Representation::Tagged());
           object->FastPropertyAtPut(index, *value,
@@ -310,9 +315,8 @@ Handle<JSObject> DictionaryTemplateInfo::NewInstance(
     if (!property_values[i].ToLocal(&property_value)) {
       continue;
     }
-    Handle<String> name =
-        Handle<String>::cast(handle(property_names->get(i), isolate));
-    Handle<Object> value = Utils::OpenHandle(*property_value);
+    auto name = Cast<String>(handle(property_names->get(i), isolate));
+    DirectHandle<Object> value = Utils::OpenDirectHandle(*property_value);
     constexpr PropertyAttributes attributes = PropertyAttributes::NONE;
     constexpr PropertyConstness constness = PropertyConstness::kConst;
     current_map = Map::TransitionToDataProperty(isolate, current_map, name,
@@ -336,5 +340,4 @@ Handle<JSObject> DictionaryTemplateInfo::NewInstance(
   return object;
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

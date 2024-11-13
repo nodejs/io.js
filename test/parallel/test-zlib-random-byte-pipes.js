@@ -41,17 +41,17 @@ class RandomReadStream extends Stream {
     this._processing = false;
 
     this._hasher = crypto.createHash('sha1');
-    opt = opt || {};
+    opt ||= {};
 
     // base block size.
-    opt.block = opt.block || 256 * 1024;
+    opt.block ||= 256 * 1024;
 
     // Total number of bytes to emit
-    opt.total = opt.total || 256 * 1024 * 1024;
+    opt.total ||= 256 * 1024 * 1024;
     this._remaining = opt.total;
 
     // How variable to make the block sizes
-    opt.jitter = opt.jitter || 1024;
+    opt.jitter ||= 1024;
 
     this._opt = opt;
 

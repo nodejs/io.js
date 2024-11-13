@@ -56,7 +56,7 @@ static bool IsAddressWithinFuncCode(v8::Local<v8::Context> context,
       context->Global()->Get(context, v8_str(func_name)).ToLocalChecked();
   CHECK(func->IsFunction());
   Tagged<JSFunction> js_func =
-      JSFunction::cast(*v8::Utils::OpenDirectHandle(*func));
+      Cast<JSFunction>(*v8::Utils::OpenDirectHandle(*func));
   return IsAddressWithinFuncCode(js_func, isolate, addr);
 }
 

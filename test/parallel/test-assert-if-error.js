@@ -2,90 +2,93 @@
 
 require('../common');
 const assert = require('assert');
+const { test } = require('node:test');
 
-// Test that assert.ifError has the correct stack trace of both stacks.
-
-let err;
-// Create some random error frames.
-(function a() {
-  (function b() {
-    (function c() {
-      err = new Error('test error');
+test('Test that assert.ifError has the correct stack trace of both stacks', () => {
+  let err;
+  // Create some random error frames.
+  (function a() {
+    (function b() {
+      (function c() {
+        err = new Error('test error');
+      })();
     })();
   })();
-})();
 
-const msg = err.message;
-const stack = err.stack;
+  const msg = err.message;
+  const stack = err.stack;
 
-(function x() {
-  (function y() {
-    (function z() {
-      let threw = false;
-      try {
-        assert.ifError(err);
-      } catch (e) {
-        assert.strictEqual(e.message,
-                           'ifError got unwanted exception: test error');
-        assert.strictEqual(err.message, msg);
-        assert.strictEqual(e.actual, err);
-        assert.strictEqual(e.actual.stack, stack);
-        assert.strictEqual(e.expected, null);
-        assert.strictEqual(e.operator, 'ifError');
-        threw = true;
-      }
-      assert(threw);
+  (function x() {
+    (function y() {
+      (function z() {
+        let threw = false;
+        try {
+          assert.ifError(err);
+        } catch (e) {
+          assert.strictEqual(e.message,
+                             'ifError got unwanted exception: test error');
+          assert.strictEqual(err.message, msg);
+          assert.strictEqual(e.actual, err);
+          assert.strictEqual(e.actual.stack, stack);
+          assert.strictEqual(e.expected, null);
+          assert.strictEqual(e.operator, 'ifError');
+          threw = true;
+        }
+        assert(threw);
+      })();
     })();
   })();
-})();
+});
 
-assert.throws(
-  () => {
-    const error = new Error();
-    error.stack = 'Error: containing weird stack\nYes!\nI am part of a stack.';
-    assert.ifError(error);
-  },
-  (error) => {
-    assert(!error.stack.includes('Yes!'));
-    return true;
-  }
-);
+test('General ifError tests', () => {
+  assert.throws(
+    () => {
+      const error = new Error();
+      error.stack = 'Error: containing weird stack\nYes!\nI am part of a stack.';
+      assert.ifError(error);
+    },
+    (error) => {
+      assert(!error.stack.includes('Yes!'));
+      return true;
+    }
+  );
 
-assert.throws(
-  () => assert.ifError(new TypeError()),
-  {
-    message: 'ifError got unwanted exception: TypeError'
-  }
-);
+  assert.throws(
+    () => assert.ifError(new TypeError()),
+    {
+      message: 'ifError got unwanted exception: TypeError'
+    }
+  );
 
-assert.throws(
-  () => assert.ifError({ stack: false }),
-  {
-    message: 'ifError got unwanted exception: { stack: false }'
-  }
-);
+  assert.throws(
+    () => assert.ifError({ stack: false }),
+    {
+      message: 'ifError got unwanted exception: { stack: false }'
+    }
+  );
 
-assert.throws(
-  () => assert.ifError({ constructor: null, message: '' }),
-  {
-    message: 'ifError got unwanted exception: '
-  }
-);
+  assert.throws(
+    () => assert.ifError({ constructor: null, message: '' }),
+    {
+      message: 'ifError got unwanted exception: '
+    }
+  );
 
-assert.throws(
-  () => { assert.ifError(false); },
-  {
-    message: 'ifError got unwanted exception: false'
-  }
-);
+  assert.throws(
+    () => { assert.ifError(false); },
+    {
+      message: 'ifError got unwanted exception: false'
+    }
+  );
+});
 
-// Should not throw.
-assert.ifError(null);
-assert.ifError();
-assert.ifError(undefined);
+test('Should not throw', () => {
+  assert.ifError(null);
+  assert.ifError();
+  assert.ifError(undefined);
+});
 
-// https://github.com/nodejs/node-v0.x-archive/issues/2893
-{
+test('https://github.com/nodejs/node-v0.x-archive/issues/2893', () => {
   let threw = false;
   try {
     // eslint-disable-next-line no-restricted-syntax
@@ -98,4 +101,4 @@ assert.ifError(undefined);
     assert(!e.stack.includes('throws'), e);
   }
   assert(threw);
-}
+});

@@ -24,9 +24,11 @@
 
 #include <stdint.h>
 
+#include <cstddef>
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include "absl/base/attributes.h"
@@ -35,6 +37,8 @@
 #include "absl/log/internal/nullguard.h"
 #include "absl/log/internal/nullstream.h"
 #include "absl/log/internal/strip.h"
+#include "absl/strings/has_absl_stringify.h"
+#include "absl/strings/string_view.h"
 
 // `ABSL_LOG_INTERNAL_STRIP_STRING_LITERAL` wraps string literals that
 // should be stripped when `ABSL_MIN_LOG_LEVEL` exceeds `kFatal`.
@@ -58,13 +62,13 @@
 #endif
 
 #define ABSL_LOG_INTERNAL_CHECK_OP(name, op, val1, val1_text, val2, val2_text) \
-  while (                                                                      \
-      ::std::string* absl_log_internal_check_op_result ABSL_ATTRIBUTE_UNUSED = \
-          ::absl::log_internal::name##Impl(                                    \
-              ::absl::log_internal::GetReferenceableValue(val1),               \
-              ::absl::log_internal::GetReferenceableValue(val2),               \
-              ABSL_LOG_INTERNAL_STRIP_STRING_LITERAL(val1_text                 \
-                                                     " " #op " " val2_text)))  \
+  while (::std::string* absl_log_internal_check_op_result                      \
+             ABSL_LOG_INTERNAL_ATTRIBUTE_UNUSED_IF_STRIP_LOG =                 \
+                 ::absl::log_internal::name##Impl(                             \
+                     ::absl::log_internal::GetReferenceableValue(val1),        \
+                     ::absl::log_internal::GetReferenceableValue(val2),        \
+                     ABSL_LOG_INTERNAL_STRIP_STRING_LITERAL(                   \
+                         val1_text " " #op " " val2_text)))                    \
     ABSL_LOG_INTERNAL_CONDITION_FATAL(STATELESS, true)                         \
   ABSL_LOG_INTERNAL_CHECK(*absl_log_internal_check_op_result).InternalStream()
 #define ABSL_LOG_INTERNAL_QCHECK_OP(name, op, val1, val1_text, val2, \
@@ -287,6 +291,44 @@ decltype(detect_specialization::operator<<(std::declval<std::ostream&>(),
                                            std::declval<const T&>()))
 Detect(char);
 
+// A sink for AbslStringify which redirects everything to a std::ostream.
+class StringifySink {
+ public:
+  explicit StringifySink(std::ostream& os ABSL_ATTRIBUTE_LIFETIME_BOUND);
+
+  void Append(absl::string_view text);
+  void Append(size_t length, char ch);
+  friend void AbslFormatFlush(StringifySink* sink, absl::string_view text);
+
+ private:
+  std::ostream& os_;
+};
+
+// Wraps a type implementing AbslStringify, and implements operator<<.
+template <typename T>
+class StringifyToStreamWrapper {
+ public:
+  explicit StringifyToStreamWrapper(const T& v ABSL_ATTRIBUTE_LIFETIME_BOUND)
+      : v_(v) {}
+
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const StringifyToStreamWrapper& wrapper) {
+    StringifySink sink(os);
+    AbslStringify(sink, wrapper.v_);
+    return os;
+  }
+
+ private:
+  const T& v_;
+};
+
+// This overload triggers when T implements AbslStringify.
+// StringifyToStreamWrapper is used to allow MakeCheckOpString to use
+// operator<<.
+template <typename T>
+std::enable_if_t<HasAbslStringify<T>::value,
+                 StringifyToStreamWrapper<T>>
+Detect(...);  // Ellipsis has lowest preference when int passed.
 }  // namespace detect_specialization
 
 template <typename T>
@@ -342,20 +384,20 @@ ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING_EXTERN(const void*);
 // `(int, int)` override works around the issue that the compiler will not
 // instantiate the template version of the function on values of unnamed enum
 // type.
-#define ABSL_LOG_INTERNAL_CHECK_OP_IMPL(name, op)                        \
-  template <typename T1, typename T2>                                    \
-  inline constexpr ::std::string* name##Impl(const T1& v1, const T2& v2, \
-                                             const char* exprtext) {     \
-    using U1 = CheckOpStreamType<T1>;                                    \
-    using U2 = CheckOpStreamType<T2>;                                    \
-    return ABSL_PREDICT_TRUE(v1 op v2)                                   \
-               ? nullptr                                                 \
-               : ABSL_LOG_INTERNAL_CHECK_OP_IMPL_RESULT(U1, U2, v1, v2,  \
-                                                        exprtext);       \
-  }                                                                      \
-  inline constexpr ::std::string* name##Impl(int v1, int v2,             \
-                                             const char* exprtext) {     \
-    return name##Impl<int, int>(v1, v2, exprtext);                       \
+#define ABSL_LOG_INTERNAL_CHECK_OP_IMPL(name, op)                          \
+  template <typename T1, typename T2>                                      \
+  inline constexpr ::std::string* name##Impl(const T1& v1, const T2& v2,   \
+                                             const char* exprtext) {       \
+    using U1 = CheckOpStreamType<T1>;                                      \
+    using U2 = CheckOpStreamType<T2>;                                      \
+    return ABSL_PREDICT_TRUE(v1 op v2)                                     \
+               ? nullptr                                                   \
+               : ABSL_LOG_INTERNAL_CHECK_OP_IMPL_RESULT(U1, U2, U1(v1),    \
+                                                        U2(v2), exprtext); \
+  }                                                                        \
+  inline constexpr ::std::string* name##Impl(int v1, int v2,               \
+                                             const char* exprtext) {       \
+    return name##Impl<int, int>(v1, v2, exprtext);                         \
   }
 
 ABSL_LOG_INTERNAL_CHECK_OP_IMPL(Check_EQ, ==)

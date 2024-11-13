@@ -96,7 +96,8 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
   // Creates a reserved entry in the constant pool and returns
   // the size of the operand that'll be required to hold the entry
   // when committed.
-  OperandSize CreateReservedEntry();
+  OperandSize CreateReservedEntry(
+      OperandSize minimum_operand_size = OperandSize::kNone);
 
   // Commit reserved entry and returns the constant pool index for the
   // SMI value.

@@ -435,6 +435,7 @@ void CompactSpace(NormalPageSpace* space, MovableReferences& movable_references,
 
   CompactionState compaction_state(space, movable_references);
   for (BasePage* page : pages) {
+    page->ResetMarkedBytes();
     // Large objects do not belong to this arena.
     CompactPage(NormalPage::From(page), compaction_state, sticky_bits);
   }

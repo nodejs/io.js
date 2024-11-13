@@ -69,20 +69,20 @@ v8::Local<v8::Message> FunctionTester::CheckThrowsReturnMessage(
   return try_catch.Message();
 }
 
-void FunctionTester::CheckCall(Handle<Object> expected, Handle<Object> a,
+void FunctionTester::CheckCall(DirectHandle<Object> expected, Handle<Object> a,
                                Handle<Object> b, Handle<Object> c,
                                Handle<Object> d) {
-  Handle<Object> result = Call(a, b, c, d).ToHandleChecked();
+  DirectHandle<Object> result = Call(a, b, c, d).ToHandleChecked();
   CHECK(Object::SameValue(*expected, *result));
 }
 
 Handle<JSFunction> FunctionTester::NewFunction(const char* source) {
-  return Handle<JSFunction>::cast(v8::Utils::OpenHandle(
+  return Cast<JSFunction>(v8::Utils::OpenHandle(
       *v8::Local<v8::Function>::Cast(CompileRun(source))));
 }
 
 Handle<JSObject> FunctionTester::NewObject(const char* source) {
-  return Handle<JSObject>::cast(
+  return Cast<JSObject>(
       v8::Utils::OpenHandle(*v8::Local<v8::Object>::Cast(CompileRun(source))));
 }
 

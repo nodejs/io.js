@@ -208,7 +208,7 @@ class V8FileLogger : public LogEventListener {
                            Tagged<AbstractCode> code);
   void WeakCodeClearEvent() override {}
 
-  void ProcessDeoptEvent(Handle<Code> code, SourcePosition position,
+  void ProcessDeoptEvent(DirectHandle<Code> code, SourcePosition position,
                          const char* kind, const char* reason);
 
   // Emits a code line info record event.
@@ -223,7 +223,7 @@ class V8FileLogger : public LogEventListener {
   void CodeNameEvent(Address addr, int pos, const char* code_name);
 
   void ICEvent(const char* type, bool keyed, Handle<Map> map,
-               Handle<Object> key, char old_state, char new_state,
+               DirectHandle<Object> key, char old_state, char new_state,
                const char* modifier, const char* slow_stub_reason);
 
   void MapEvent(const char* type, Handle<Map> from, Handle<Map> to,
@@ -308,7 +308,7 @@ class V8FileLogger : public LogEventListener {
   void ProfilerBeginEvent();
 
   // Emits callback event messages.
-  void CallbackEventInternal(const char* prefix, Handle<Name> name,
+  void CallbackEventInternal(const char* prefix, DirectHandle<Name> name,
                              Address entry_point);
 
   // Internal configurable move event.
@@ -329,8 +329,8 @@ class V8FileLogger : public LogEventListener {
   bool EnsureLogScriptSource(Tagged<Script> script);
 
   void LogSourceCodeInformation(Handle<AbstractCode> code,
-                                Handle<SharedFunctionInfo> shared);
-  void LogCodeDisassemble(Handle<AbstractCode> code);
+                                DirectHandle<SharedFunctionInfo> shared);
+  void LogCodeDisassemble(DirectHandle<AbstractCode> code);
 
   void WriteApiSecurityCheck();
   void WriteApiNamedPropertyAccess(const char* tag, Tagged<JSObject> holder,

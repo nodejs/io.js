@@ -5,7 +5,7 @@
 #ifndef V8_WASM_BASELINE_RISCV_LIFTOFF_ASSEMBLER_RISCV64_INL_H_
 #define V8_WASM_BASELINE_RISCV_LIFTOFF_ASSEMBLER_RISCV64_INL_H_
 
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/wasm/baseline/liftoff-assembler.h"
 #include "src/wasm/baseline/riscv/liftoff-assembler-riscv-inl.h"
 #include "src/wasm/wasm-objects.h"
@@ -44,35 +44,29 @@ namespace liftoff {
 inline MemOperand GetMemOp(LiftoffAssembler* assm, Register addr,
                            Register offset, uintptr_t offset_imm,
                            bool i64_offset = false, unsigned shift_amount = 0) {
-  DCHECK_NE(addr, kScratchReg2);
-  DCHECK_NE(offset, kScratchReg2);
-  if (!i64_offset && offset != no_reg) {
-    // extract bit[0:31] without sign extend
-    assm->ExtractBits(kScratchReg2, offset, 0, 32, false);
-    offset = kScratchReg2;
-  }
-  if (is_uint31(offset_imm)) {
-    int32_t offset_imm32 = static_cast<int32_t>(offset_imm);
-    if (offset == no_reg) return MemOperand(addr, offset_imm32);
+  if (offset != no_reg) {
+    if (!i64_offset) {
+      // extract bit[0:31] without sign extend
+      assm->ExtractBits(kScratchReg2, offset, 0, 32, false);
+      offset = kScratchReg2;
+    }
     if (shift_amount != 0) {
       assm->CalcScaledAddress(kScratchReg2, addr, offset, shift_amount);
     } else {
       assm->Add64(kScratchReg2, offset, addr);
     }
-    return MemOperand(kScratchReg2, offset_imm32);
+    addr = kScratchReg2;
   }
-  // Offset immediate does not fit in 31 bits.
-  assm->li(kScratchReg2, offset_imm);
-  assm->Add64(kScratchReg2, kScratchReg2, addr);
-  if (offset != no_reg) {
-    if (shift_amount != 0) {
-      assm->CalcScaledAddress(kScratchReg2, kScratchReg2, offset, shift_amount);
-    } else {
-      assm->Add64(kScratchReg2, kScratchReg2, offset);
-    }
+  if (is_int31(offset_imm)) {
+    int32_t offset_imm32 = static_cast<int32_t>(offset_imm);
+    return MemOperand(addr, offset_imm32);
+  } else {
+    assm->li(kScratchReg, Operand(offset_imm));
+    assm->Add64(kScratchReg2, addr, kScratchReg);
+    return MemOperand(kScratchReg2, 0);
   }
-  return MemOperand(kScratchReg2, 0);
 }
+
 inline void Load(LiftoffAssembler* assm, LiftoffRegister dst, MemOperand src,
                  ValueKind kind) {
   switch (kind) {
@@ -244,22 +238,6 @@ inline void StoreToMemory(LiftoffAssembler* assm, MemOperand dst,
 
 }  // namespace liftoff
 
-void LiftoffAssembler::LoadExternalPointer(Register dst, Register src_addr,
-                                           int offset, ExternalPointerTag tag,
-                                           Register /* scratch */) {
-  LoadExternalPointerField(dst, MemOperand(src_addr, offset), tag,
-                           kRootRegister);
-}
-
-void LiftoffAssembler::LoadExternalPointer(Register dst, Register src_addr,
-                                           int offset, Register index,
-                                           ExternalPointerTag tag,
-                                           Register /* scratch */) {
-  MemOperand src_op = liftoff::GetMemOp(this, src_addr, index, offset, false,
-                                        V8_ENABLE_SANDBOX_BOOL ? 2 : 3);
-  LoadExternalPointerField(dst, src_op, tag, kRootRegister);
-}
-
 void LiftoffAssembler::LoadConstant(LiftoffRegister reg, WasmValue value) {
   switch (value.type().kind()) {
     case kI32:
@@ -421,6 +399,9 @@ void LiftoffAssembler::Load(LiftoffRegister dst, Register src_addr,
       vl(dst.fp().toV(), src_reg, 0, E8);
       break;
     }
+    case LoadType::kF32LoadF16:
+      UNIMPLEMENTED();
+      break;
     default:
       UNREACHABLE();
   }
@@ -890,6 +871,7 @@ void LiftoffAssembler::MoveStackValue(uint32_t dst_offset, uint32_t src_offset,
     case kI8:
     case kI16:
     case kBottom:
+    case kF16:
       UNREACHABLE();
   }
 }
@@ -1294,6 +1276,12 @@ void LiftoffAssembler::emit_u32_to_uintptr(Register dst, Register src) {
   ZeroExtendWord(dst, src);
 }
 
+void LiftoffAssembler::clear_i32_upper_half(Register dst) {
+  // Don't need to clear the upper halves of i32 values for sandbox on riscv64,
+  // because we'll explicitly zero-extend their lower halves before using them
+  // for memory accesses anyway.
+}
+
 #define FP_UNOP_RETURN_TRUE(name, instruction)                                 \
   bool LiftoffAssembler::emit_##name(DoubleRegister dst, DoubleRegister src) { \
     instruction(dst, src, kScratchDoubleReg);                                  \
@@ -1520,6 +1508,12 @@ void LiftoffAssembler::emit_i32_cond_jumpi(Condition cond, Label* label,
                                            Register lhs, int32_t imm,
                                            const FreezeCacheState& frozen) {
   MacroAssembler::CompareTaggedAndBranch(label, cond, lhs, Operand(imm));
+}
+
+void LiftoffAssembler::emit_ptrsize_cond_jumpi(Condition cond, Label* label,
+                                               Register lhs, int32_t imm,
+                                               const FreezeCacheState& frozen) {
+  MacroAssembler::Branch(label, cond, lhs, Operand(imm));
 }
 
 void LiftoffAssembler::emit_i32_eqz(Register dst, Register src) {
@@ -1934,6 +1928,8 @@ void LiftoffStackSlots::Construct(int param_slots) {
     }
   }
 }
+
+bool LiftoffAssembler::supports_f16_mem_access() { return false; }
 
 }  // namespace v8::internal::wasm
 

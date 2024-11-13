@@ -85,7 +85,8 @@ transitioning javascript builtin SetPrototypeDifference(
     }
   } label SlowPath {
     // 6. If thisSize ≤ otherRec.[[Size]], then
-    if (thisSize <= Convert<int32>(otherRec.size)) {
+    if (otherRec.size == V8_INFINITY ||
+        thisSize <= Convert<int32>(otherRec.size)) {
       // a. Let index be 0.
       let thisIter = collections::NewOrderedHashSetIterator(table.GetTable());
 

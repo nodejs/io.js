@@ -1,26 +1,27 @@
 {
   "name": "npm-normalize-package-bin",
-  "version": "3.0.1",
+  "version": "4.0.0",
   "description": "Turn any flavor of allowable package.json bin into a normalized object",
   "main": "lib/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/npm-normalize-package-bin.git"
+    "url": "git+https://github.com/npm/npm-normalize-package-bin.git"
   },
   "author": "GitHub Inc.",
   "license": "ISC",
   "scripts": {
     "test": "tap",
     "snap": "tap",
-    "lint": "eslint \"**/*.js\"",
+    "lint": "npm run eslint",
     "postlint": "template-oss-check",
     "template-oss-apply": "template-oss-apply --force",
-    "lintfix": "npm run lint -- --fix",
-    "posttest": "npm run lint"
+    "lintfix": "npm run eslint -- --fix",
+    "posttest": "npm run lint",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
   },
   "devDependencies": {
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.14.1",
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
     "tap": "^16.3.0"
   },
   "files": [
@@ -28,11 +29,11 @@
     "lib/"
   ],
   "engines": {
-    "node": "^14.17.0 || ^16.13.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.14.1",
+    "version": "4.23.3",
     "publish": "true"
   },
   "tap": {

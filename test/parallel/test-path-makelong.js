@@ -79,7 +79,7 @@ assert.strictEqual(path.win32.toNamespacedPath('\\\\foo\\bar'),
                    '\\\\?\\UNC\\foo\\bar\\');
 assert.strictEqual(path.win32.toNamespacedPath('//foo//bar'),
                    '\\\\?\\UNC\\foo\\bar\\');
-assert.strictEqual(path.win32.toNamespacedPath('\\\\?\\foo'), '\\\\?\\foo\\');
+assert.strictEqual(path.win32.toNamespacedPath('\\\\?\\foo'), '\\\\?\\foo');
 assert.strictEqual(path.win32.toNamespacedPath('\\\\?\\c:\\Windows/System'), '\\\\?\\c:\\Windows\\System');
 assert.strictEqual(path.win32.toNamespacedPath(null), null);
 assert.strictEqual(path.win32.toNamespacedPath(true), true);

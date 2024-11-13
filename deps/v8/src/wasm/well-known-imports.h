@@ -144,7 +144,7 @@ class WellKnownImportsList {
 
  private:
   // This mutex guards {statuses_}, for operations that need to ensure that
-  // they see a consistent view of {statutes_} for some period of time.
+  // they see a consistent view of {statuses_} for some period of time.
   base::Mutex mutex_;
   std::unique_ptr<std::atomic<WellKnownImport>[]> statuses_;
 

@@ -5,6 +5,8 @@
 #ifndef V8_HEAP_CPPGC_HEAP_H_
 #define V8_HEAP_CPPGC_HEAP_H_
 
+#include <optional>
+
 #include "include/cppgc/heap.h"
 #include "include/cppgc/liveness-broker.h"
 #include "include/cppgc/macros.h"
@@ -48,9 +50,7 @@ class V8_EXPORT_PRIVATE Heap final : public HeapBase,
   void clear_overridden_stack_state() final { override_stack_state_.reset(); }
 
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  v8::base::Optional<int> UpdateAllocationTimeout() final {
-    return v8::base::nullopt;
-  }
+  std::optional<int> UpdateAllocationTimeout() final { return std::nullopt; }
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
   void EnableGenerationalGC();

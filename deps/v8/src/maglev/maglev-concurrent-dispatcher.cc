@@ -135,6 +135,7 @@ CompilationJob::Status MaglevCompilationJob::ExecuteJobImpl(
   BeginPhaseKind("V8.MaglevExecuteJob");
   LocalIsolateScope scope{info(), local_isolate};
   if (!maglev::MaglevCompiler::Compile(local_isolate, info())) {
+    EndPhaseKind();
     return CompilationJob::FAILED;
   }
   EndPhaseKind();
@@ -146,7 +147,15 @@ CompilationJob::Status MaglevCompilationJob::FinalizeJobImpl(Isolate* isolate) {
   BeginPhaseKind("V8.MaglevFinalizeJob");
   Handle<Code> code;
   if (!maglev::MaglevCompiler::GenerateCode(isolate, info()).ToHandle(&code)) {
+    EndPhaseKind();
     return CompilationJob::FAILED;
+  }
+  // Functions with many inline candidates are sensitive to correct call
+  // frequency feedback and should therefore not be tiered up early.
+  if (v8_flags.profile_guided_optimization &&
+      info()->could_not_inline_all_candidates()) {
+    info()->toplevel_function()->shared()->set_cached_tiering_decision(
+        CachedTieringDecision::kNormal);
   }
   info()->set_code(code);
   GlobalHandleVector<Map> maps = CollectRetainedMaps(isolate, code);
@@ -158,7 +167,7 @@ CompilationJob::Status MaglevCompilationJob::FinalizeJobImpl(Isolate* isolate) {
 }
 
 GlobalHandleVector<Map> MaglevCompilationJob::CollectRetainedMaps(
-    Isolate* isolate, Handle<Code> code) {
+    Isolate* isolate, DirectHandle<Code> code) {
   if (v8_flags.maglev_build_code_on_background) {
     return info()->code_generator()->RetainedMaps(isolate);
   }
@@ -383,12 +392,15 @@ void MaglevConcurrentDispatcher::AwaitCompileJobs() {
   // Use Join to wait until there are no more queued or running jobs.
   {
     AllowGarbageCollection allow_before_parking;
-    isolate_->main_thread_local_isolate()->BlockMainThreadWhileParked(
+    isolate_->main_thread_local_isolate()->ExecuteMainThreadWhileParked(
         [this]() { job_handle_->Join(); });
   }
   // Join kills the job handle, so drop it and post a new one.
+  TaskPriority priority = v8_flags.concurrent_maglev_high_priority_threads
+                              ? TaskPriority::kUserBlocking
+                              : TaskPriority::kUserVisible;
   job_handle_ = V8::GetCurrentPlatform()->PostJob(
-      TaskPriority::kUserVisible, std::make_unique<JobTask>(this));
+      priority, std::make_unique<JobTask>(this));
   DCHECK(incoming_queue_.IsEmpty());
 }
 

@@ -330,6 +330,10 @@ namespace internal {
   T(ResolverNotAFunction, "Promise resolver % is not a function")              \
   T(ReturnMethodNotCallable, "The iterator's 'return' method is not callable") \
   T(SizeIsNaN, "The .size property is NaN")                                    \
+  T(ShadowRealmErrorStackNonString,                                            \
+    "Error stack is not a string in ShadowRealm (%)")                          \
+  T(ShadowRealmErrorStackThrows,                                               \
+    "Error stack getter threw in ShadowRealm (%)")                             \
   T(SharedArrayBufferTooShort,                                                 \
     "Derived SharedArrayBuffer constructor created a buffer which was too "    \
     "small")                                                                   \
@@ -359,6 +363,7 @@ namespace internal {
   T(ThrowMethodMissing, "The iterator does not provide a 'throw' method.")     \
   T(TopLevelAwaitStalled, "Top-level await promise never resolved")            \
   T(UndefinedOrNullToObject, "Cannot convert undefined or null to object")     \
+  T(UsingAssign, "Assignment to using variable.")                              \
   T(ValueAndAccessor,                                                          \
     "Invalid property descriptor. Cannot both specify accessors and a value "  \
     "or writable attribute, %")                                                \
@@ -373,6 +378,8 @@ namespace internal {
   T(AccessedUninitializedVariable, "Cannot access '%' before initialization")  \
   T(UnsupportedSuper, "Unsupported reference to 'super'")                      \
   T(AccessedUnavailableVariable, "Cannot access '%' from debugger")            \
+  T(DisposableStackIsDisposed,                                                 \
+    "Cannot call % on an already-disposed DisposableStack")                    \
   /* RangeError */                                                             \
   T(BigIntDivZero, "Division by zero")                                         \
   T(BigIntTooBig, "Maximum BigInt size exceeded")                              \
@@ -436,6 +443,8 @@ namespace internal {
   T(ValueOutOfRange, "Value % out of range for % options property %")          \
   T(CollectionGrowFailed, "% maximum size exceeded")                           \
   T(MustBePositive, "% must be positive")                                      \
+  T(ArgumentIsNotUndefinedOrNonNegativeInteger,                                \
+    "% argument must be undefined or a non-negative integer")                  \
   /* SyntaxError */                                                            \
   T(AmbiguousExport,                                                           \
     "The requested module '%' contains conflicting star exports for name '%'") \
@@ -690,7 +699,8 @@ namespace internal {
   T(WasmTrapStringInvalidUtf8, "invalid UTF-8 string")                         \
   T(WasmTrapStringInvalidWtf8, "invalid WTF-8 string")                         \
   T(WasmTrapStringOffsetOutOfBounds, "string offset out of bounds")            \
-  T(WasmTrapBadSuspender, "invalid suspender object for suspend")              \
+  T(WasmTrapBadSuspender,                                                      \
+    "attempting to suspend without a WebAssembly.promising export")            \
   T(WasmTrapStringIsolatedSurrogate,                                           \
     "Failed to encode string as UTF-8: contains unpaired surrogate")           \
   T(WasmTrapSuspendJSFrames, "trying to suspend JS frames")                    \
@@ -738,7 +748,12 @@ namespace internal {
   /* AggregateError */                                                         \
   T(AllPromisesRejected, "All promises were rejected")                         \
   T(CannotDeepFreezeObject, "Cannot DeepFreeze object of type %")              \
-  T(CannotDeepFreezeValue, "Cannot DeepFreeze non-const value %")
+  T(CannotDeepFreezeValue, "Cannot DeepFreeze non-const value %")              \
+  /* SuppressedError */                                                        \
+  T(SuppressedErrorDuringDisposal, "An error was suppressed during disposal")  \
+  T(ExpectAnObjectWithUsing,                                                   \
+    "An object is expected with `using` "                                      \
+    "declarations")
 
 enum class MessageTemplate {
 #define TEMPLATE(NAME, STRING) k##NAME,

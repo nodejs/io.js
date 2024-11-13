@@ -27,7 +27,7 @@ BUILTIN(BigIntConstructor) {
   if (IsJSReceiver(*value)) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, value,
-        JSReceiver::ToPrimitive(isolate, Handle<JSReceiver>::cast(value),
+        JSReceiver::ToPrimitive(isolate, Cast<JSReceiver>(value),
                                 ToPrimitiveHint::kNumber));
   }
 
@@ -53,7 +53,7 @@ BUILTIN(BigIntAsUintN) {
                                      BigInt::FromObject(isolate, bigint_obj));
 
   RETURN_RESULT_OR_FAILURE(
-      isolate, BigInt::AsUintN(isolate, Object::Number(*bits), bigint));
+      isolate, BigInt::AsUintN(isolate, Object::NumberValue(*bits), bigint));
 }
 
 BUILTIN(BigIntAsIntN) {
@@ -70,7 +70,7 @@ BUILTIN(BigIntAsIntN) {
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, bigint,
                                      BigInt::FromObject(isolate, bigint_obj));
 
-  return *BigInt::AsIntN(isolate, Object::Number(*bits), bigint);
+  return *BigInt::AsIntN(isolate, Object::NumberValue(*bits), bigint);
 }
 
 namespace {
@@ -78,21 +78,20 @@ namespace {
 MaybeHandle<BigInt> ThisBigIntValue(Isolate* isolate, Handle<Object> value,
                                     const char* caller) {
   // 1. If Type(value) is BigInt, return value.
-  if (IsBigInt(*value)) return Handle<BigInt>::cast(value);
+  if (IsBigInt(*value)) return Cast<BigInt>(value);
   // 2. If Type(value) is Object and value has a [[BigIntData]] internal slot:
   if (IsJSPrimitiveWrapper(*value)) {
     // 2a. Assert: value.[[BigIntData]] is a BigInt value.
     // 2b. Return value.[[BigIntData]].
-    Tagged<Object> data = JSPrimitiveWrapper::cast(*value)->value();
-    if (IsBigInt(data)) return handle(BigInt::cast(data), isolate);
+    Tagged<Object> data = Cast<JSPrimitiveWrapper>(*value)->value();
+    if (IsBigInt(data)) return handle(Cast<BigInt>(data), isolate);
   }
   // 3. Throw a TypeError exception.
   THROW_NEW_ERROR(
       isolate,
       NewTypeError(MessageTemplate::kNotGeneric,
                    isolate->factory()->NewStringFromAsciiChecked(caller),
-                   isolate->factory()->BigInt_string()),
-      BigInt);
+                   isolate->factory()->BigInt_string()));
 }
 
 Tagged<Object> BigIntToStringImpl(Handle<Object> receiver, Handle<Object> radix,
@@ -108,7 +107,7 @@ Tagged<Object> BigIntToStringImpl(Handle<Object> receiver, Handle<Object> radix,
     // 4. Else, let radixNumber be ? ToInteger(radix).
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, radix,
                                        Object::ToInteger(isolate, radix));
-    double radix_double = Object::Number(*radix);
+    double radix_double = Object::NumberValue(*radix);
     // 5. If radixNumber < 2 or radixNumber > 36, throw a RangeError exception.
     if (radix_double < 2 || radix_double > 36) {
       THROW_NEW_ERROR_RETURN_FAILURE(

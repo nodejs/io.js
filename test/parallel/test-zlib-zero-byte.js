@@ -20,24 +20,31 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const common = require('../common');
-const assert = require('assert');
-const zlib = require('zlib');
 
-for (const Compressor of [ zlib.Gzip, zlib.BrotliCompress ]) {
-  const gz = Compressor();
-  const emptyBuffer = Buffer.alloc(0);
-  let received = 0;
-  gz.on('data', function(c) {
-    received += c.length;
-  });
+require('../common');
 
-  gz.on('end', common.mustCall(function() {
-    const expected = Compressor === zlib.Gzip ? 20 : 1;
-    assert.strictEqual(received, expected,
-                       `${received}, ${expected}, ${Compressor.name}`);
-  }));
-  gz.on('finish', common.mustCall());
-  gz.write(emptyBuffer);
-  gz.end();
-}
+const assert = require('node:assert');
+const zlib = require('node:zlib');
+const { test } = require('node:test');
+
+test('zlib should properly handle zero byte input', async () => {
+  for (const Compressor of [zlib.Gzip, zlib.BrotliCompress]) {
+    const { promise, resolve, reject } = Promise.withResolvers();
+    const gz = Compressor();
+    const emptyBuffer = Buffer.alloc(0);
+    let received = 0;
+    gz.on('data', function(c) {
+      received += c.length;
+    });
+    gz.on('error', reject);
+    gz.on('end', function() {
+      const expected = Compressor === zlib.Gzip ? 20 : 1;
+      assert.strictEqual(received, expected,
+                         `${received}, ${expected}, ${Compressor.name}`);
+      resolve();
+    });
+    gz.write(emptyBuffer);
+    gz.end();
+    await promise;
+  }
+});

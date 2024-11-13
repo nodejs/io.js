@@ -56,8 +56,10 @@ Handle<Object> InterpreterTester::NewObject(const char* script) {
   return v8::Utils::OpenHandle(*CompileRun(script));
 }
 
-Handle<String> InterpreterTester::GetName(Isolate* isolate, const char* name) {
-  Handle<String> result = isolate->factory()->NewStringFromAsciiChecked(name);
+DirectHandle<String> InterpreterTester::GetName(Isolate* isolate,
+                                                const char* name) {
+  DirectHandle<String> result =
+      isolate->factory()->NewStringFromAsciiChecked(name);
   return isolate->string_table()->LookupString(isolate, result);
 }
 

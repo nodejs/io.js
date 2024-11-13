@@ -4,7 +4,7 @@
 
 (function TransferArrayBuffer() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const ab = msg.data;
       postMessage(ab.byteLength + ' ' + ab.maxByteLength);
       postMessage(ab.resizable + ' ' + ab.growable);
@@ -36,7 +36,7 @@
 
 (function TransferLengthTrackingRabBackedTypedArray() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       postMessage(msg.data.length);
       msg.data.buffer.resize(150);
       postMessage(msg.data.length);
@@ -53,7 +53,7 @@
 
 (function TransferLengthTrackingGsabBackedTypedArray() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       postMessage(msg.data.length);
       msg.data.buffer.grow(150);
       postMessage(msg.data.length);
@@ -70,7 +70,7 @@
 
 (function TransferFixedLengthRabBackedTypedArray() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const ta = msg.data;
       postMessage(`${ta.length} ${ta[0]} ${ta[1]} ${ta[2]}`);
       ta.buffer.resize(2);
@@ -102,7 +102,7 @@
 
 (function TransferGsabBackedFixedLengthTypedArray() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const ta = msg.data;
       postMessage(`${ta.length} ${ta[0]} ${ta[1]} ${ta[2]}`);
       ta.buffer.grow(20);
@@ -124,7 +124,7 @@
 
 (function TransferLengthTrackingDataView() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const dv = msg.data;
       postMessage(dv.byteLength);
       dv.buffer.resize(150);
@@ -142,7 +142,7 @@
 
 (function TransferFixedLengthDataView() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const dv = msg.data;
       postMessage(`${dv.byteLength} ${dv.getUint8(0)} ${dv.getUint8(1)}`);
       dv.buffer.resize(2);
@@ -186,7 +186,7 @@
 
 (function TransferZeroLengthDataView1() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const dv = msg.data;
       postMessage(`${dv.byteLength}`);
     }
@@ -201,7 +201,7 @@
 
 (function TransferZeroLengthDataView2() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const dv = msg.data;
       postMessage(`${dv.byteLength}`);
     }
@@ -216,7 +216,7 @@
 
 (function TransferZeroLengthDataView3() {
   function workerCode() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const dv = msg.data;
       postMessage(`${dv.byteLength}`);
     }

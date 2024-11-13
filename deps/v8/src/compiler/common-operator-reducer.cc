@@ -5,6 +5,7 @@
 #include "src/compiler/common-operator-reducer.h"
 
 #include <algorithm>
+#include <optional>
 
 #include "src/compiler/common-operator.h"
 #include "src/compiler/graph.h"
@@ -79,7 +80,7 @@ Decision CommonOperatorReducer::DecideCondition(
         return Decision::kTrue;
       }
       HeapObjectMatcher m(unwrapped);
-      base::Optional<bool> maybe_result =
+      std::optional<bool> maybe_result =
           m.Ref(broker_).TryGetBooleanValue(broker());
       if (!maybe_result.has_value()) return Decision::kUnknown;
       return *maybe_result ? Decision::kTrue : Decision::kFalse;

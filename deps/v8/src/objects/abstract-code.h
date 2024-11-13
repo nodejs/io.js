@@ -50,14 +50,10 @@ class AbstractCode : public HeapObject {
 
   inline bool has_instruction_stream(PtrComprCageBase cage_base);
 
-  DECL_CAST(AbstractCode)
-
   inline Tagged<Code> GetCode();
   inline Tagged<BytecodeArray> GetBytecodeArray();
 
  private:
-  inline Tagged<TrustedByteArray> SourcePositionTableInternal(Isolate* isolate);
-
   OBJECT_CONSTRUCTORS(AbstractCode, HeapObject);
 };
 

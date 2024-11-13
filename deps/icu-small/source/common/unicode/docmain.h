@@ -138,6 +138,11 @@
  *     <td>icu::DateFormat</td>
  *   </tr>
  *   <tr>
+ *     <td>Relative Date and Time Formatting</td>
+ *     <td>ureldatefmt.h</td>
+ *     <td>icu::RelativeDateTimeFormatter</td>
+ *   </tr>
+ *   <tr>
  *     <td>Message Formatting</td>
  *     <td>umsg.h</td>
  *     <td>icu::MessageFormat</td>

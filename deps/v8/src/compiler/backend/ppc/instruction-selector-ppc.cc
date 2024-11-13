@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/base/iterator.h"
 #include "src/compiler/backend/instruction-selector-impl.h"
 #include "src/compiler/node-matchers.h"
@@ -206,12 +208,144 @@ void InstructionSelectorT<Adapter>::VisitAbortCSADcheck(node_t node) {
   }
 }
 
-template <typename Adapter>
-static void VisitLoadCommon(InstructionSelectorT<Adapter>* selector,
-                            typename Adapter::node_t node,
+static void VisitLoadCommon(InstructionSelectorT<TurboshaftAdapter>* selector,
+                            TurboshaftAdapter::node_t node,
                             LoadRepresentation load_rep) {
-  using node_t = typename Adapter::node_t;
-  PPCOperandGeneratorT<Adapter> g(selector);
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  using node_t = TurboshaftAdapter::node_t;
+  PPCOperandGeneratorT<TurboshaftAdapter> g(selector);
+  auto load_view = selector->load_view(node);
+  MemoryRepresentation loaded_rep = load_view.ts_loaded_rep();
+  RegisterRepresentation result_rep = load_view.ts_result_rep();
+  node_t base = load_view.base();
+  node_t offset = load_view.index();
+
+  InstructionCode opcode = kArchNop;
+  ImmediateMode mode;
+  if (CpuFeatures::IsSupported(PPC_10_PLUS)) {
+    mode = kInt34Imm;
+  } else {
+    mode = kInt16Imm;
+  }
+  // NOTE: The meaning of `loaded_rep` = `MemoryRepresentation::AnyTagged()` is
+  // we are loading a compressed tagged field, while `result_rep` =
+  // `RegisterRepresentation::Tagged()` refers to an uncompressed tagged value.
+  switch (loaded_rep) {
+    case MemoryRepresentation::Int8():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      opcode = kPPC_LoadWordS8;
+      break;
+    case MemoryRepresentation::Uint8():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      opcode = kPPC_LoadWordU8;
+      break;
+    case MemoryRepresentation::Int16():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      opcode = kPPC_LoadWordS16;
+      break;
+    case MemoryRepresentation::Uint16():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      opcode = kPPC_LoadWordU16;
+      break;
+    case MemoryRepresentation::Int32():
+    case MemoryRepresentation::Uint32():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      opcode = kPPC_LoadWordU32;
+      break;
+    case MemoryRepresentation::Int64():
+    case MemoryRepresentation::Uint64():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word64());
+      if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+      opcode = kPPC_LoadWord64;
+      break;
+    case MemoryRepresentation::Float16():
+      UNIMPLEMENTED();
+    case MemoryRepresentation::Float32():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Float32());
+      opcode = kPPC_LoadFloat32;
+      break;
+    case MemoryRepresentation::Float64():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Float64());
+      opcode = kPPC_LoadDouble;
+      break;
+#ifdef V8_COMPRESS_POINTERS
+    case MemoryRepresentation::AnyTagged():
+    case MemoryRepresentation::TaggedPointer():
+      if (result_rep == RegisterRepresentation::Compressed()) {
+        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_LoadWordS32;
+        break;
+      }
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      opcode = kPPC_LoadDecompressTagged;
+      break;
+    case MemoryRepresentation::TaggedSigned():
+      if (result_rep == RegisterRepresentation::Compressed()) {
+        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_LoadWordS32;
+        break;
+      }
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      opcode = kPPC_LoadDecompressTaggedSigned;
+      break;
+#else
+      USE(result_rep);
+    case MemoryRepresentation::AnyTagged():
+    case MemoryRepresentation::TaggedPointer():
+    case MemoryRepresentation::TaggedSigned():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+      opcode = kPPC_LoadWord64;
+      break;
+#endif
+    case MemoryRepresentation::AnyUncompressedTagged():
+    case MemoryRepresentation::UncompressedTaggedPointer():
+    case MemoryRepresentation::UncompressedTaggedSigned():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+      opcode = kPPC_LoadWord64;
+      break;
+    case MemoryRepresentation::SandboxedPointer():
+      opcode = kPPC_LoadDecodeSandboxedPointer;
+      break;
+    case MemoryRepresentation::Simd128():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Simd128());
+      opcode = kPPC_LoadSimd128;
+      // Vectors do not support MRI mode, only MRR is available.
+      mode = kNoImmediate;
+      break;
+    case MemoryRepresentation::ProtectedPointer():
+    case MemoryRepresentation::IndirectPointer():
+    case MemoryRepresentation::Simd256():
+      UNREACHABLE();
+  }
+
+  bool is_atomic = load_view.is_atomic();
+
+  if (selector->is_load_root_register(base)) {
+    selector->Emit(opcode |= AddressingModeField::encode(kMode_Root),
+                   g.DefineAsRegister(node), g.UseRegister(offset),
+                   g.UseImmediate(is_atomic));
+  } else if (g.CanBeImmediate(offset, mode)) {
+    selector->Emit(opcode | AddressingModeField::encode(kMode_MRI),
+                   g.DefineAsRegister(node), g.UseRegister(base),
+                   g.UseImmediate(offset), g.UseImmediate(is_atomic));
+  } else if (g.CanBeImmediate(base, mode)) {
+    selector->Emit(opcode | AddressingModeField::encode(kMode_MRI),
+                   g.DefineAsRegister(node), g.UseRegister(offset),
+                   g.UseImmediate(base), g.UseImmediate(is_atomic));
+  } else {
+    selector->Emit(opcode | AddressingModeField::encode(kMode_MRR),
+                   g.DefineAsRegister(node), g.UseRegister(base),
+                   g.UseRegister(offset), g.UseImmediate(is_atomic));
+  }
+}
+
+static void VisitLoadCommon(InstructionSelectorT<TurbofanAdapter>* selector,
+                            TurbofanAdapter::node_t node,
+                            LoadRepresentation load_rep) {
+  using node_t = TurbofanAdapter::node_t;
+  PPCOperandGeneratorT<TurbofanAdapter> g(selector);
   auto load_view = selector->load_view(node);
   node_t base = load_view.base();
   node_t offset = load_view.index();
@@ -243,8 +377,8 @@ static void VisitLoadCommon(InstructionSelectorT<Adapter>* selector,
     case MachineRepresentation::kCompressedPointer:  // Fall through.
     case MachineRepresentation::kCompressed:
 #ifdef V8_COMPRESS_POINTERS
-      opcode = kPPC_LoadWordS32;
       if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+      opcode = kPPC_LoadWordS32;
       break;
 #else
       UNREACHABLE();
@@ -270,14 +404,17 @@ static void VisitLoadCommon(InstructionSelectorT<Adapter>* selector,
       case MachineRepresentation::kTagged:         // Fall through.
 #endif
       case MachineRepresentation::kWord64:
-        opcode = kPPC_LoadWord64;
         if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_LoadWord64;
         break;
       case MachineRepresentation::kSimd128:
         opcode = kPPC_LoadSimd128;
         // Vectors do not support MRI mode, only MRR is available.
         mode = kNoImmediate;
         break;
+      case MachineRepresentation::kFloat16:
+        UNIMPLEMENTED();
+      case MachineRepresentation::kProtectedPointer:  // Fall through.
       case MachineRepresentation::kSimd256:  // Fall through.
       case MachineRepresentation::kMapWord:  // Fall through.
       case MachineRepresentation::kNone:
@@ -318,13 +455,183 @@ void InstructionSelectorT<Adapter>::VisitProtectedLoad(node_t node) {
   UNIMPLEMENTED();
 }
 
-template <typename Adapter>
-void VisitStoreCommon(InstructionSelectorT<Adapter>* selector,
-                      typename Adapter::node_t node,
+void VisitStoreCommon(InstructionSelectorT<TurboshaftAdapter>* selector,
+                      TurboshaftAdapter::node_t node,
                       StoreRepresentation store_rep,
-                      base::Optional<AtomicMemoryOrder> atomic_order) {
-  using node_t = typename Adapter::node_t;
-  PPCOperandGeneratorT<Adapter> g(selector);
+                      std::optional<AtomicMemoryOrder> atomic_order) {
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  using node_t = TurboshaftAdapter::node_t;
+  PPCOperandGeneratorT<TurboshaftAdapter> g(selector);
+  auto store_view = selector->store_view(node);
+  node_t base = store_view.base();
+  node_t offset = selector->value(store_view.index());
+  node_t value = store_view.value();
+  bool is_atomic = store_view.is_atomic();
+
+  MachineRepresentation rep = store_rep.representation();
+  WriteBarrierKind write_barrier_kind = kNoWriteBarrier;
+
+  if (!is_atomic) {
+    write_barrier_kind = store_rep.write_barrier_kind();
+  }
+
+  if (v8_flags.enable_unconditional_write_barriers &&
+      CanBeTaggedOrCompressedOrIndirectPointer(rep)) {
+    write_barrier_kind = kFullWriteBarrier;
+  }
+
+  if (write_barrier_kind != kNoWriteBarrier &&
+      !v8_flags.disable_write_barriers) {
+    DCHECK(CanBeTaggedOrCompressedOrIndirectPointer(rep));
+    // Uncompressed stores should not happen if we need a write barrier.
+    CHECK((store_view.ts_stored_rep() !=
+           MemoryRepresentation::AnyUncompressedTagged()) &&
+          (store_view.ts_stored_rep() !=
+           MemoryRepresentation::UncompressedTaggedPointer()) &&
+          (store_view.ts_stored_rep() !=
+           MemoryRepresentation::UncompressedTaggedPointer()));
+    AddressingMode addressing_mode;
+    InstructionOperand inputs[4];
+    size_t input_count = 0;
+    inputs[input_count++] = g.UseUniqueRegister(base);
+    // OutOfLineRecordWrite uses the offset in an 'add' instruction as well as
+    // for the store itself, so we must check compatibility with both.
+    if (g.CanBeImmediate(offset, kInt16Imm)
+#if V8_TARGET_ARCH_PPC64
+        && g.CanBeImmediate(offset, kInt16Imm_4ByteAligned)
+#endif
+    ) {
+      inputs[input_count++] = g.UseImmediate(offset);
+      addressing_mode = kMode_MRI;
+    } else {
+      inputs[input_count++] = g.UseUniqueRegister(offset);
+      addressing_mode = kMode_MRR;
+    }
+    inputs[input_count++] = g.UseUniqueRegister(value);
+    RecordWriteMode record_write_mode =
+        WriteBarrierKindToRecordWriteMode(write_barrier_kind);
+    InstructionOperand temps[] = {g.TempRegister(), g.TempRegister()};
+    size_t const temp_count = arraysize(temps);
+    InstructionCode code;
+    if (rep == MachineRepresentation::kIndirectPointer) {
+      DCHECK_EQ(write_barrier_kind, kIndirectPointerWriteBarrier);
+      // In this case we need to add the IndirectPointerTag as additional input.
+      code = kArchStoreIndirectWithWriteBarrier;
+      IndirectPointerTag tag = store_view.indirect_pointer_tag();
+      inputs[input_count++] = g.UseImmediate(static_cast<int64_t>(tag));
+    } else {
+      code = kArchStoreWithWriteBarrier;
+    }
+    code |= AddressingModeField::encode(addressing_mode);
+    code |= RecordWriteModeField::encode(record_write_mode);
+    CHECK_EQ(is_atomic, false);
+    selector->Emit(code, 0, nullptr, input_count, inputs, temp_count, temps);
+  } else {
+    ArchOpcode opcode;
+    ImmediateMode mode;
+    if (CpuFeatures::IsSupported(PPC_10_PLUS)) {
+      mode = kInt34Imm;
+    } else {
+      mode = kInt16Imm;
+    }
+    switch (store_view.ts_stored_rep()) {
+      case MemoryRepresentation::Int8():
+      case MemoryRepresentation::Uint8():
+        opcode = kPPC_StoreWord8;
+        break;
+      case MemoryRepresentation::Int16():
+      case MemoryRepresentation::Uint16():
+        opcode = kPPC_StoreWord16;
+        break;
+      case MemoryRepresentation::Int32():
+      case MemoryRepresentation::Uint32(): {
+        opcode = kPPC_StoreWord32;
+        const Operation& reverse_op = selector->Get(value);
+        if (reverse_op.Is<Opmask::kWord32ReverseBytes>()) {
+          opcode = kPPC_StoreByteRev32;
+          value = selector->input_at(value, 0);
+          mode = kNoImmediate;
+        }
+        break;
+      }
+      case MemoryRepresentation::Int64():
+      case MemoryRepresentation::Uint64(): {
+        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_StoreWord64;
+        const Operation& reverse_op = selector->Get(value);
+        if (reverse_op.Is<Opmask::kWord64ReverseBytes>()) {
+          opcode = kPPC_StoreByteRev64;
+          value = selector->input_at(value, 0);
+          mode = kNoImmediate;
+        }
+        break;
+      }
+      case MemoryRepresentation::Float16():
+        UNIMPLEMENTED();
+      case MemoryRepresentation::Float32():
+        opcode = kPPC_StoreFloat32;
+        break;
+      case MemoryRepresentation::Float64():
+        opcode = kPPC_StoreDouble;
+        break;
+      case MemoryRepresentation::AnyTagged():
+      case MemoryRepresentation::TaggedPointer():
+      case MemoryRepresentation::TaggedSigned():
+        if (mode != kInt34Imm) mode = kInt16Imm;
+        opcode = kPPC_StoreCompressTagged;
+        break;
+      case MemoryRepresentation::AnyUncompressedTagged():
+      case MemoryRepresentation::UncompressedTaggedPointer():
+      case MemoryRepresentation::UncompressedTaggedSigned():
+        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_StoreWord64;
+        break;
+      case MemoryRepresentation::ProtectedPointer():
+        // We never store directly to protected pointers from generated code.
+        UNREACHABLE();
+      case MemoryRepresentation::IndirectPointer():
+        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_StoreIndirectPointer;
+        break;
+      case MemoryRepresentation::SandboxedPointer():
+        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
+        opcode = kPPC_StoreEncodeSandboxedPointer;
+        break;
+      case MemoryRepresentation::Simd128():
+        opcode = kPPC_StoreSimd128;
+        // Vectors do not support MRI mode, only MRR is available.
+        mode = kNoImmediate;
+        break;
+      case MemoryRepresentation::Simd256():
+        UNREACHABLE();
+    }
+
+    if (selector->is_load_root_register(base)) {
+      selector->Emit(opcode | AddressingModeField::encode(kMode_Root),
+                     g.NoOutput(), g.UseRegister(offset), g.UseRegister(value),
+                     g.UseImmediate(is_atomic));
+    } else if (g.CanBeImmediate(offset, mode)) {
+      selector->Emit(opcode | AddressingModeField::encode(kMode_MRI),
+                     g.NoOutput(), g.UseRegister(base), g.UseImmediate(offset),
+                     g.UseRegister(value), g.UseImmediate(is_atomic));
+    } else if (g.CanBeImmediate(base, mode)) {
+      selector->Emit(opcode | AddressingModeField::encode(kMode_MRI),
+                     g.NoOutput(), g.UseRegister(offset), g.UseImmediate(base),
+                     g.UseRegister(value), g.UseImmediate(is_atomic));
+    } else {
+      selector->Emit(opcode | AddressingModeField::encode(kMode_MRR),
+                     g.NoOutput(), g.UseRegister(base), g.UseRegister(offset),
+                     g.UseRegister(value), g.UseImmediate(is_atomic));
+    }
+  }
+}
+
+void VisitStoreCommon(InstructionSelectorT<TurbofanAdapter>* selector,
+                      TurbofanAdapter::node_t node,
+                      StoreRepresentation store_rep,
+                      std::optional<AtomicMemoryOrder> atomic_order) {
+  using node_t = TurbofanAdapter::node_t;
+  PPCOperandGeneratorT<TurbofanAdapter> g(selector);
   auto store_view = selector->store_view(node);
   node_t base = store_view.base();
   node_t offset = selector->value(store_view.index());
@@ -373,8 +680,8 @@ void VisitStoreCommon(InstructionSelectorT<Adapter>* selector,
       DCHECK_EQ(write_barrier_kind, kIndirectPointerWriteBarrier);
       // In this case we need to add the IndirectPointerTag as additional input.
       code = kArchStoreIndirectWithWriteBarrier;
-      node_t tag = store_view.indirect_pointer_tag();
-      inputs[input_count++] = g.UseImmediate(tag);
+      IndirectPointerTag tag = store_view.indirect_pointer_tag();
+      inputs[input_count++] = g.UseImmediate(static_cast<int64_t>(tag));
     } else {
       code = kArchStoreWithWriteBarrier;
     }
@@ -406,20 +713,12 @@ void VisitStoreCommon(InstructionSelectorT<Adapter>* selector,
         break;
       case MachineRepresentation::kWord32: {
         opcode = kPPC_StoreWord32;
-        bool is_w32_reverse_bytes = false;
-        if constexpr (Adapter::IsTurboshaft) {
-          using namespace turboshaft;  // NOLINT(build/namespaces)
-          const Operation& reverse_op = selector->Get(value);
-          is_w32_reverse_bytes = reverse_op.Is<Opmask::kWord32ReverseBytes>();
-        } else {
           NodeMatcher m(value);
-          is_w32_reverse_bytes = m.IsWord32ReverseBytes();
-        }
-        if (is_w32_reverse_bytes) {
-          opcode = kPPC_StoreByteRev32;
-          value = selector->input_at(value, 0);
-          mode = kNoImmediate;
-        }
+          if (m.IsWord32ReverseBytes()) {
+            opcode = kPPC_StoreByteRev32;
+            value = selector->input_at(value, 0);
+            mode = kNoImmediate;
+          }
         break;
       }
       case MachineRepresentation::kCompressedPointer:  // Fall through.
@@ -447,17 +746,11 @@ void VisitStoreCommon(InstructionSelectorT<Adapter>* selector,
         break;
       case MachineRepresentation::kWord64: {
         opcode = kPPC_StoreWord64;
-        if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
-        bool is_w64_reverse_bytes = false;
-        if constexpr (Adapter::IsTurboshaft) {
-          using namespace turboshaft;  // NOLINT(build/namespaces)
-          const Operation& reverse_op = selector->Get(value);
-          is_w64_reverse_bytes = reverse_op.Is<Opmask::kWord64ReverseBytes>();
-        } else {
-          NodeMatcher m(value);
-          is_w64_reverse_bytes = m.IsWord64ReverseBytes();
+        if (mode != kInt34Imm) {
+          mode = kInt16Imm_4ByteAligned;
         }
-        if (is_w64_reverse_bytes) {
+        NodeMatcher m(value);
+        if (m.IsWord64ReverseBytes()) {
           opcode = kPPC_StoreByteRev64;
           value = selector->input_at(value, 0);
           mode = kNoImmediate;
@@ -469,6 +762,9 @@ void VisitStoreCommon(InstructionSelectorT<Adapter>* selector,
         // Vectors do not support MRI mode, only MRR is available.
         mode = kNoImmediate;
         break;
+      case MachineRepresentation::kFloat16:
+        UNIMPLEMENTED();
+      case MachineRepresentation::kProtectedPointer:  // Fall through.
       case MachineRepresentation::kSimd256:  // Fall through.
       case MachineRepresentation::kMapWord:  // Fall through.
       case MachineRepresentation::kNone:
@@ -503,7 +799,7 @@ void InstructionSelectorT<Adapter>::VisitStorePair(node_t node) {
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitStore(node_t node) {
   VisitStoreCommon(this, node, this->store_view(node).stored_rep(),
-                   base::nullopt);
+                   std::nullopt);
 }
 
 template <typename Adapter>
@@ -976,43 +1272,6 @@ void InstructionSelectorT<Adapter>::VisitWord64Xor(node_t node) {
 }
 #endif
 
-template <>
-Node* InstructionSelectorT<TurbofanAdapter>::FindProjection(
-    Node* node, size_t projection_index) {
-  return NodeProperties::FindProjection(node, projection_index);
-}
-
-template <>
-TurboshaftAdapter::node_t
-InstructionSelectorT<TurboshaftAdapter>::FindProjection(
-    node_t node, size_t projection_index) {
-  using namespace turboshaft;  // NOLINT(build/namespaces)
-  const turboshaft::Graph* graph = this->turboshaft_graph();
-  // Projections are always emitted right after the operation.
-  for (OpIndex next = graph->NextIndex(node); next.valid();
-       next = graph->NextIndex(next)) {
-    const ProjectionOp* projection = graph->Get(next).TryCast<ProjectionOp>();
-    if (projection == nullptr) break;
-    if (projection->index == projection_index) return next;
-  }
-
-  // If there is no Projection with index {projection_index} following the
-  // operation, then there shouldn't be any such Projection in the graph. We
-  // verify this in Debug mode.
-#ifdef DEBUG
-  for (turboshaft::OpIndex use : turboshaft_uses(node)) {
-    if (const turboshaft::ProjectionOp* projection =
-            this->Get(use).TryCast<turboshaft::ProjectionOp>()) {
-      DCHECK_EQ(projection->input(), node);
-      if (projection->index == projection_index) {
-        UNREACHABLE();
-      }
-    }
-  }
-#endif  // DEBUG
-  return turboshaft::OpIndex::Invalid();
-}
-
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord32Shl(node_t node) {
   PPCOperandGeneratorT<Adapter> g(this);
@@ -1348,8 +1607,39 @@ void InstructionSelectorT<Adapter>::VisitWord32Sar(node_t node) {
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord64Sar(node_t node) {
     PPCOperandGeneratorT<Adapter> g(this);
-    // TODO(miladfarca): Implement for Turboshaft.
-    if constexpr (!Adapter::IsTurboshaft) {
+    if constexpr (Adapter::IsTurboshaft) {
+      using namespace turboshaft;  // NOLINT(build/namespaces)
+      DCHECK(this->Get(node).template Cast<ShiftOp>().IsRightShift());
+      const ShiftOp& shift = this->Get(node).template Cast<ShiftOp>();
+      const Operation& lhs = this->Get(shift.left());
+      int64_t constant_rhs;
+
+      if (lhs.Is<LoadOp>() &&
+          this->MatchIntegralWord64Constant(shift.right(), &constant_rhs) &&
+          constant_rhs == 32 && this->CanCover(node, shift.left())) {
+        // Just load and sign-extend the interesting 4 bytes instead. This
+        // happens, for example, when we're loading and untagging SMIs.
+        const LoadOp& load = lhs.Cast<LoadOp>();
+        int64_t offset = 0;
+        if (load.index().has_value()) {
+          int64_t index_constant;
+          if (this->MatchIntegralWord64Constant(load.index().value(),
+                                                &index_constant)) {
+            DCHECK_EQ(load.element_size_log2, 0);
+            offset = index_constant;
+          }
+        } else {
+          offset = load.offset;
+        }
+        offset = SmiWordOffset(offset);
+        if (g.CanBeImmediate(offset, kInt16Imm_4ByteAligned)) {
+          Emit(kPPC_LoadWordS32 | AddressingModeField::encode(kMode_MRI),
+               g.DefineAsRegister(node), g.UseRegister(load.base()),
+               g.TempImmediate(offset), g.UseImmediate(0));
+          return;
+        }
+      }
+    } else {
       Int64BinopMatcher m(node);
       if (CanCover(m.node(), m.left().node()) && m.left().IsLoad() &&
           m.right().Is(32)) {
@@ -1959,7 +2249,6 @@ void InstructionSelectorT<Adapter>::VisitTruncateFloat32ToUint32(node_t node) {
     Emit(opcode, g.DefineAsRegister(node),
          g.UseRegister(this->input_at(node, 0)));
   } else {
-
     InstructionCode opcode = kPPC_Float32ToUint32;
     TruncateKind kind = OpParameter<TruncateKind>(node->op());
     if (kind == TruncateKind::kSetOverflowToMin) {
@@ -2499,15 +2788,7 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitWordCompareZero(
     node_t user, node_t value, FlagsContinuation* cont) {
   using namespace turboshaft;  // NOLINT(build/namespaces)
   // Try to combine with comparisons against 0 by simply inverting the branch.
-  while (const ComparisonOp* equal =
-             this->TryCast<Opmask::kWord32Equal>(value)) {
-    if (!CanCover(user, value)) break;
-    if (!MatchIntegralZero(equal->right())) break;
-
-    user = value;
-    value = equal->left();
-    cont->Negate();
-  }
+  ConsumeEqualZero(&user, &value, cont);
 
   if (CanCover(user, value)) {
     const Operation& value_op = Get(value);
@@ -2709,7 +2990,7 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitWord32Equal(
     // HeapConstants and CompressedHeapConstants can be treated the same when
     // using them as an input to a 32-bit comparison. Check whether either is
     // present.
-    if (MatchTaggedConstant(node, &right) && !right.is_null() &&
+    if (MatchHeapConstant(node, &right) && !right.is_null() &&
         roots_table.IsRootHandle(right, &root_index)) {
       if (RootsTable::IsReadOnly(root_index)) {
         Tagged_t ptr =
@@ -2894,6 +3175,20 @@ void InstructionSelectorT<Adapter>::VisitFloat64ExtractHighWord32(node_t node) {
        g.UseRegister(this->input_at(node, 0)));
 }
 
+template <>
+void InstructionSelectorT<TurboshaftAdapter>::VisitBitcastWord32PairToFloat64(
+    node_t node) {
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  PPCOperandGeneratorT<TurboshaftAdapter> g(this);
+  const auto& bitcast = this->Cast<BitcastWord32PairToFloat64Op>(node);
+  node_t hi = bitcast.high_word32();
+  node_t lo = bitcast.low_word32();
+
+  InstructionOperand temps[] = {g.TempRegister()};
+  Emit(kPPC_DoubleFromWord32Pair, g.DefineAsRegister(node), g.UseRegister(hi),
+       g.UseRegister(lo), arraysize(temps), temps);
+}
+
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitFloat64InsertLowWord32(node_t node) {
   if constexpr (Adapter::IsTurboshaft) {
@@ -2942,7 +3237,6 @@ void InstructionSelectorT<Adapter>::VisitMemoryBarrier(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord32AtomicLoad(node_t node) {
-  OperandGeneratorT<Adapter> g(this);
   auto load = this->load_view(node);
   LoadRepresentation load_rep = load.loaded_rep();
   VisitLoadCommon(this, node, load_rep);
@@ -2950,7 +3244,6 @@ void InstructionSelectorT<Adapter>::VisitWord32AtomicLoad(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord64AtomicLoad(node_t node) {
-  OperandGeneratorT<Adapter> g(this);
   auto load = this->load_view(node);
   LoadRepresentation load_rep = load.loaded_rep();
   VisitLoadCommon(this, node, load_rep);
@@ -3006,16 +3299,16 @@ void InstructionSelectorT<Adapter>::VisitWord32AtomicExchange(node_t node) {
   if constexpr (Adapter::IsTurboshaft) {
     using namespace turboshaft;  // NOLINT(build/namespaces)
     const AtomicRMWOp& atomic_op = this->Get(node).template Cast<AtomicRMWOp>();
-    if (atomic_op.input_rep == MemoryRepresentation::Int8()) {
+    if (atomic_op.memory_rep == MemoryRepresentation::Int8()) {
       opcode = kAtomicExchangeInt8;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint8()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint8()) {
       opcode = kPPC_AtomicExchangeUint8;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int16()) {
       opcode = kAtomicExchangeInt16;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint16()) {
       opcode = kPPC_AtomicExchangeUint16;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int32() ||
-               atomic_op.input_rep == MemoryRepresentation::Uint32()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int32() ||
+               atomic_op.memory_rep == MemoryRepresentation::Uint32()) {
       opcode = kPPC_AtomicExchangeWord32;
     } else {
       UNREACHABLE();
@@ -3045,13 +3338,13 @@ void InstructionSelectorT<Adapter>::VisitWord64AtomicExchange(node_t node) {
   if constexpr (Adapter::IsTurboshaft) {
     using namespace turboshaft;  // NOLINT(build/namespaces)
     const AtomicRMWOp& atomic_op = this->Get(node).template Cast<AtomicRMWOp>();
-    if (atomic_op.input_rep == MemoryRepresentation::Uint8()) {
+    if (atomic_op.memory_rep == MemoryRepresentation::Uint8()) {
       opcode = kPPC_AtomicExchangeUint8;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint16()) {
       opcode = kPPC_AtomicExchangeUint16;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint32()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint32()) {
       opcode = kPPC_AtomicExchangeWord32;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint64()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint64()) {
       opcode = kPPC_AtomicExchangeWord64;
     } else {
       UNREACHABLE();
@@ -3109,16 +3402,16 @@ void InstructionSelectorT<Adapter>::VisitWord32AtomicCompareExchange(
   ArchOpcode opcode;
   if constexpr (Adapter::IsTurboshaft) {
     const AtomicRMWOp& atomic_op = this->Get(node).template Cast<AtomicRMWOp>();
-    if (atomic_op.input_rep == MemoryRepresentation::Int8()) {
+    if (atomic_op.memory_rep == MemoryRepresentation::Int8()) {
       opcode = kAtomicCompareExchangeInt8;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint8()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint8()) {
       opcode = kPPC_AtomicCompareExchangeUint8;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int16()) {
       opcode = kAtomicCompareExchangeInt16;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint16()) {
       opcode = kPPC_AtomicCompareExchangeUint16;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int32() ||
-               atomic_op.input_rep == MemoryRepresentation::Uint32()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int32() ||
+               atomic_op.memory_rep == MemoryRepresentation::Uint32()) {
       opcode = kPPC_AtomicCompareExchangeWord32;
     } else {
       UNREACHABLE();
@@ -3149,13 +3442,13 @@ void InstructionSelectorT<Adapter>::VisitWord64AtomicCompareExchange(
   if constexpr (Adapter::IsTurboshaft) {
     using namespace turboshaft;  // NOLINT(build/namespaces)
     const AtomicRMWOp& atomic_op = this->Get(node).template Cast<AtomicRMWOp>();
-    if (atomic_op.input_rep == MemoryRepresentation::Uint8()) {
+    if (atomic_op.memory_rep == MemoryRepresentation::Uint8()) {
       opcode = kPPC_AtomicCompareExchangeUint8;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint16()) {
       opcode = kPPC_AtomicCompareExchangeUint16;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint32()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint32()) {
       opcode = kPPC_AtomicCompareExchangeWord32;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint64()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint64()) {
       opcode = kPPC_AtomicCompareExchangeWord64;
     } else {
       UNREACHABLE();
@@ -3196,21 +3489,21 @@ void VisitAtomicBinaryOperation(InstructionSelectorT<Adapter>* selector,
     using namespace turboshaft;  // NOLINT(build/namespaces)
     const AtomicRMWOp& atomic_op =
         selector->Get(node).template Cast<AtomicRMWOp>();
-    if (atomic_op.input_rep == MemoryRepresentation::Int8()) {
+    if (atomic_op.memory_rep == MemoryRepresentation::Int8()) {
       opcode = int8_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint8()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint8()) {
       opcode = uint8_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int16()) {
       opcode = int16_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint16()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint16()) {
       opcode = uint16_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int32()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int32()) {
       opcode = int32_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint32()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint32()) {
       opcode = uint32_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Int64()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Int64()) {
       opcode = int64_op;
-    } else if (atomic_op.input_rep == MemoryRepresentation::Uint64()) {
+    } else if (atomic_op.memory_rep == MemoryRepresentation::Uint64()) {
       opcode = uint64_op;
     } else {
       UNREACHABLE();
@@ -3606,6 +3899,48 @@ SIMD_VISIT_QFMOP(F32x4Qfms)
 SIMD_RELAXED_OP_LIST(SIMD_VISIT_RELAXED_OP)
 #undef SIMD_VISIT_RELAXED_OP
 #undef SIMD_RELAXED_OP_LIST
+
+#define F16_OP_LIST(V)    \
+  V(F16x8Splat)           \
+  V(F16x8ExtractLane)     \
+  V(F16x8ReplaceLane)     \
+  V(F16x8Abs)             \
+  V(F16x8Neg)             \
+  V(F16x8Sqrt)            \
+  V(F16x8Floor)           \
+  V(F16x8Ceil)            \
+  V(F16x8Trunc)           \
+  V(F16x8NearestInt)      \
+  V(F16x8Add)             \
+  V(F16x8Sub)             \
+  V(F16x8Mul)             \
+  V(F16x8Div)             \
+  V(F16x8Min)             \
+  V(F16x8Max)             \
+  V(F16x8Pmin)            \
+  V(F16x8Pmax)            \
+  V(F16x8Eq)              \
+  V(F16x8Ne)              \
+  V(F16x8Lt)              \
+  V(F16x8Le)              \
+  V(F16x8SConvertI16x8)   \
+  V(F16x8UConvertI16x8)   \
+  V(I16x8SConvertF16x8)   \
+  V(I16x8UConvertF16x8)   \
+  V(F32x4PromoteLowF16x8) \
+  V(F16x8DemoteF32x4Zero) \
+  V(F16x8DemoteF64x2Zero) \
+  V(F16x8Qfma)            \
+  V(F16x8Qfms)
+
+#define VISIT_F16_OP(name)                                       \
+  template <typename Adapter>                                    \
+  void InstructionSelectorT<Adapter>::Visit##name(node_t node) { \
+    UNIMPLEMENTED();                                             \
+  }
+F16_OP_LIST(VISIT_F16_OP)
+#undef VISIT_F16_OP
+#undef F16_OP_LIST
 #undef SIMD_TYPES
 
 #if V8_ENABLE_WEBASSEMBLY
@@ -3760,12 +4095,10 @@ template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitLoadLane(node_t node) {
   PPCOperandGeneratorT<Adapter> g(this);
   InstructionCode opcode = kArchNop;
-  int32_t lane;
   if constexpr (Adapter::IsTurboshaft) {
     using namespace turboshaft;  // NOLINT(build/namespaces)
     const Simd128LaneMemoryOp& load =
         this->Get(node).template Cast<Simd128LaneMemoryOp>();
-    lane = load.lane;
     switch (load.lane_kind) {
       case Simd128LaneMemoryOp::LaneKind::k8:
         opcode = kPPC_S128Load8Lane;
@@ -3783,10 +4116,9 @@ void InstructionSelectorT<Adapter>::VisitLoadLane(node_t node) {
     Emit(opcode | AddressingModeField::encode(kMode_MRR),
          g.DefineSameAsFirst(node), g.UseRegister(load.value()),
          g.UseRegister(load.base()), g.UseRegister(load.index()),
-         g.UseImmediate(lane));
+         g.UseImmediate(load.lane));
   } else {
     LoadLaneParameters params = LoadLaneParametersOf(node->op());
-    lane = params.laneidx;
     if (params.rep == MachineType::Int8()) {
       opcode = kPPC_S128Load8Lane;
     } else if (params.rep == MachineType::Int16()) {

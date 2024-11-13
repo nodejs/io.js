@@ -34,7 +34,7 @@ TurboshaftInstructionSelectorTest::StreamBuilder::Build(
     StdoutStream{} << "=== Graph before instruction selection ===" << std::endl
                    << output_graph();
   }
-  size_t const node_count = output_graph().number_of_operations();
+  size_t const node_count = output_graph().NumberOfOperationsForDebugging();
   EXPECT_NE(0u, node_count);
   Linkage linkage(call_descriptor());
 
@@ -168,10 +168,11 @@ bool TurboshaftInstructionSelectorTest::Stream::IsUsedAtStart(
 
 const FrameStateFunctionInfo*
 TurboshaftInstructionSelectorTest::StreamBuilder::GetFrameStateFunctionInfo(
-    int parameter_count, int local_count) {
+    uint16_t parameter_count, int local_count) {
+  const uint16_t max_arguments = 0;
   return test_->zone()->New<FrameStateFunctionInfo>(
-      FrameStateType::kUnoptimizedFunction, parameter_count, local_count,
-      Handle<SharedFunctionInfo>());
+      FrameStateType::kUnoptimizedFunction, parameter_count, max_arguments,
+      local_count, Handle<SharedFunctionInfo>());
 }
 
 // -----------------------------------------------------------------------------

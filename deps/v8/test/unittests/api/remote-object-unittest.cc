@@ -23,8 +23,10 @@ bool AccessCheck(Local<Context> accessing_context,
   return false;
 }
 
-void NamedGetter(Local<Name> property,
-                 const PropertyCallbackInfo<Value>& info) {}
+v8::Intercepted NamedGetter(Local<Name> property,
+                            const PropertyCallbackInfo<Value>& info) {
+  return v8::Intercepted::kNo;
+}
 
 void Constructor(const FunctionCallbackInfo<Value>& info) {
   ASSERT_TRUE(info.IsConstructCall());

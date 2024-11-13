@@ -83,7 +83,7 @@ absl_cc_library(
     Threads::Threads
     # TODO(#1495): Use $<LINK_LIBRARY:FRAMEWORK,CoreFoundation> once our
     # minimum CMake version >= 3.24
-    $<$<PLATFORM_ID:Darwin>:-Wl,-framework,CoreFoundation>
+    $<$<PLATFORM_ID:Darwin,iOS,tvOS,visionOS,watchOS>:-Wl,-framework,CoreFoundation>
 )
 
 # Internal-only target, do not depend on directly.

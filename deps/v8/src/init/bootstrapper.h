@@ -34,7 +34,7 @@ class SourceCodeCache final {
               Handle<SharedFunctionInfo>* handle);
 
   void Add(Isolate* isolate, base::Vector<const char> name,
-           Handle<SharedFunctionInfo> shared);
+           DirectHandle<SharedFunctionInfo> shared);
 
  private:
   Script::Type type_;

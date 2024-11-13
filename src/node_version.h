@@ -22,7 +22,7 @@
 #ifndef SRC_NODE_VERSION_H_
 #define SRC_NODE_VERSION_H_
 
-#define NODE_MAJOR_VERSION 23
+#define NODE_MAJOR_VERSION 24
 #define NODE_MINOR_VERSION 0
 #define NODE_PATCH_VERSION 0
 
@@ -95,7 +95,7 @@
 #if defined(NODE_EMBEDDER_MODULE_VERSION)
 #define NODE_MODULE_VERSION NODE_EMBEDDER_MODULE_VERSION
 #else
-#define NODE_MODULE_VERSION 127
+#define NODE_MODULE_VERSION 131
 #endif
 
 // The NAPI_VERSION supported by the runtime. This is the inclusive range of

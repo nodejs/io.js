@@ -264,7 +264,7 @@ private:
         return (fFlagAndLength >= 0) ? fUnion.fStackBuffer : fUnion.fFields.fBytes;
     }
     int32_t getCapacity() const {
-        return (fFlagAndLength >= 0) ? (int32_t)sizeof(fUnion) : fUnion.fFields.fCapacity;
+        return fFlagAndLength >= 0 ? static_cast<int32_t>(sizeof(fUnion)) : fUnion.fFields.fCapacity;
     }
     int32_t getLength() const { return fFlagAndLength & 0x7fffffff; }
 

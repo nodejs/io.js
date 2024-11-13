@@ -22,6 +22,8 @@ template <YoungGenerationMarkingVisitationMode marking_mode>
 class YoungGenerationMarkingVisitor final
     : public NewSpaceVisitor<YoungGenerationMarkingVisitor<marking_mode>> {
  public:
+  using Base = NewSpaceVisitor<YoungGenerationMarkingVisitor<marking_mode>>;
+
   enum class ObjectVisitationMode {
     kVisitDirectly,
     kPushToWorklist,
@@ -63,21 +65,21 @@ class YoungGenerationMarkingVisitor final
   }
 
   // Visitation specializations used for unified heap young gen marking.
-  V8_INLINE int VisitJSApiObject(Tagged<Map> map, Tagged<JSObject> object);
   V8_INLINE int VisitJSArrayBuffer(Tagged<Map> map,
                                    Tagged<JSArrayBuffer> object);
-  V8_INLINE int VisitJSDataViewOrRabGsabDataView(
-      Tagged<Map> map, Tagged<JSDataViewOrRabGsabDataView> object);
-  V8_INLINE int VisitJSTypedArray(Tagged<Map> map, Tagged<JSTypedArray> object);
-
   // Visitation specializations used for collecting pretenuring feedback.
-  V8_INLINE int VisitJSObject(Tagged<Map> map, Tagged<JSObject> object);
-  V8_INLINE int VisitJSObjectFast(Tagged<Map> map, Tagged<JSObject> object);
   template <typename T, typename TBodyDescriptor = typename T::BodyDescriptor>
   V8_INLINE int VisitJSObjectSubclass(Tagged<Map> map, Tagged<T> object);
 
   V8_INLINE int VisitEphemeronHashTable(Tagged<Map> map,
                                         Tagged<EphemeronHashTable> table);
+
+#ifdef V8_COMPRESS_POINTERS
+  V8_INLINE void VisitExternalPointer(Tagged<HeapObject> host,
+                                      ExternalPointerSlot slot) final;
+#endif  // V8_COMPRESS_POINTERS
+  V8_INLINE void VisitCppHeapPointer(Tagged<HeapObject> host,
+                                     CppHeapPointerSlot slot) override;
 
   template <ObjectVisitationMode visitation_mode,
             SlotTreatmentMode slot_treatment_mode, typename TSlot>
@@ -98,9 +100,11 @@ class YoungGenerationMarkingVisitor final
     ephemeron_table_list_local_.Publish();
   }
 
- private:
-  using Parent = NewSpaceVisitor<YoungGenerationMarkingVisitor<marking_mode>>;
+  V8_INLINE static constexpr bool CanEncounterFillerOrFreeSpace() {
+    return false;
+  }
 
+ private:
   bool TryMark(Tagged<HeapObject> obj) {
     return MarkBit::From(obj).Set<AccessMode::ATOMIC>();
   }
@@ -113,10 +117,6 @@ class YoungGenerationMarkingVisitor final
   V8_INLINE bool ShortCutStrings(HeapObjectSlot slot,
                                  Tagged<HeapObject>* heap_object);
 #endif  // V8_MINORMS_STRING_SHORTCUTTING
-
-  template <typename T>
-  int VisitEmbedderTracingSubClassWithEmbedderTracing(Tagged<Map> map,
-                                                      Tagged<T> object);
 
   static constexpr size_t kNumEntries = 128;
   static constexpr size_t kEntriesMask = kNumEntries - 1;

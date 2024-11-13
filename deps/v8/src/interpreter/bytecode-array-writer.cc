@@ -39,8 +39,8 @@ BytecodeArrayWriter::BytecodeArrayWriter(
 
 template <typename IsolateT>
 Handle<BytecodeArray> BytecodeArrayWriter::ToBytecodeArray(
-    IsolateT* isolate, int register_count, int parameter_count,
-    Handle<TrustedByteArray> handler_table) {
+    IsolateT* isolate, int register_count, uint16_t parameter_count,
+    uint16_t max_arguments, Handle<TrustedByteArray> handler_table) {
   DCHECK_EQ(0, unbound_jumps_);
 
   int bytecode_size = static_cast<int>(bytecodes()->size());
@@ -49,18 +49,18 @@ Handle<BytecodeArray> BytecodeArrayWriter::ToBytecodeArray(
       constant_array_builder()->ToFixedArray(isolate);
   Handle<BytecodeArray> bytecode_array = isolate->factory()->NewBytecodeArray(
       bytecode_size, &bytecodes()->front(), frame_size, parameter_count,
-      constant_pool, handler_table);
+      max_arguments, constant_pool, handler_table);
   return bytecode_array;
 }
 
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
     Handle<BytecodeArray> BytecodeArrayWriter::ToBytecodeArray(
-        Isolate* isolate, int register_count, int parameter_count,
-        Handle<TrustedByteArray> handler_table);
+        Isolate* isolate, int register_count, uint16_t parameter_count,
+        uint16_t max_arguments, Handle<TrustedByteArray> handler_table);
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
     Handle<BytecodeArray> BytecodeArrayWriter::ToBytecodeArray(
-        LocalIsolate* isolate, int register_count, int parameter_count,
-        Handle<TrustedByteArray> handler_table);
+        LocalIsolate* isolate, int register_count, uint16_t parameter_count,
+        uint16_t max_arguments, Handle<TrustedByteArray> handler_table);
 
 template <typename IsolateT>
 Handle<TrustedByteArray> BytecodeArrayWriter::ToSourcePositionTable(
@@ -341,6 +341,8 @@ Bytecode GetJumpWithConstantOperand(Bytecode jump_bytecode) {
       return Bytecode::kJumpIfUndefinedOrNullConstant;
     case Bytecode::kJumpIfJSReceiver:
       return Bytecode::kJumpIfJSReceiverConstant;
+    case Bytecode::kJumpIfForInDone:
+      return Bytecode::kJumpIfForInDoneConstant;
     default:
       UNREACHABLE();
   }
@@ -510,7 +512,8 @@ void BytecodeArrayWriter::EmitJump(BytecodeNode* node, BytecodeLabel* label) {
   unbound_jumps_++;
   label->set_referrer(current_offset);
   OperandSize reserved_operand_size =
-      constant_array_builder()->CreateReservedEntry();
+      constant_array_builder()->CreateReservedEntry(
+          static_cast<OperandSize>(node->operand_scale()));
   DCHECK_NE(Bytecode::kJumpLoop, node->bytecode());
   switch (reserved_operand_size) {
     case OperandSize::kNone:

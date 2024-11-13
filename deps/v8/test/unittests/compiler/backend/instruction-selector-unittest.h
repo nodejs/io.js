@@ -85,8 +85,8 @@ class InstructionSelectorTest : public TestWithNativeContextAndZone {
                  InstructionSelector::SourcePositionMode source_position_mode =
                      InstructionSelector::kAllSourcePositions);
 
-    const FrameStateFunctionInfo* GetFrameStateFunctionInfo(int parameter_count,
-                                                            int local_count);
+    const FrameStateFunctionInfo* GetFrameStateFunctionInfo(
+        uint16_t parameter_count, int local_count);
 
     // Create a simple call descriptor for testing.
     static CallDescriptor* MakeSimpleCallDescriptor(Zone* zone,

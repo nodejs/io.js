@@ -11,6 +11,7 @@
 #include "src/ast/ast-value-factory.h"
 #include "src/base/platform/elapsed-timer.h"
 #include "src/base/small-vector.h"
+#include "src/base/threaded-list.h"
 #include "src/codegen/background-merge-task.h"
 #include "src/codegen/bailout-reason.h"
 #include "src/common/globals.h"
@@ -27,6 +28,11 @@
 #include "src/zone/zone.h"
 
 namespace v8 {
+
+namespace tracing {
+class TracedValue;
+}  // namespace tracing
+
 namespace internal {
 
 // Forward declarations.
@@ -92,7 +98,8 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
                                         Handle<SharedFunctionInfo> shared,
                                         ClearExceptionFlag flag,
                                         IsCompiledScope* is_compiled_scope);
-  static bool CompileBaseline(Isolate* isolate, Handle<JSFunction> function,
+  static bool CompileBaseline(Isolate* isolate,
+                              DirectHandle<JSFunction> function,
                               ClearExceptionFlag flag,
                               IsCompiledScope* is_compiled_scope);
 
@@ -137,7 +144,8 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
   // Give the compiler a chance to perform low-latency initialization tasks of
   // the given {function} on its instantiation. Note that only the runtime will
   // offer this chance, optimized closure instantiation will not call this.
-  static void PostInstantiation(Handle<JSFunction> function,
+  static void PostInstantiation(Isolate* isolate,
+                                DirectHandle<JSFunction> function,
                                 IsCompiledScope* is_compiled_scope);
 
   // ===========================================================================
@@ -153,8 +161,7 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSFunction> GetFunctionFromEval(
       Handle<String> source, Handle<SharedFunctionInfo> outer_info,
       Handle<Context> context, LanguageMode language_mode,
-      ParseRestriction restriction, int parameters_end_pos,
-      int eval_scope_position, int eval_position,
+      ParseRestriction restriction, int parameters_end_pos, int eval_position,
       ParsingWhileDebugging parsing_while_debugging =
           ParsingWhileDebugging::kNo);
 
@@ -169,7 +176,7 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
   // Create a (bound) function for a String source within a context for eval.
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSFunction> GetFunctionFromString(
       Handle<NativeContext> context, Handle<i::Object> source,
-      ParseRestriction restriction, int parameters_end_pos, bool is_code_like);
+      int parameters_end_pos, bool is_code_like);
 
   // Decompose GetFunctionFromString into two functions, to allow callers to
   // deal seperately with a case of object not handled by the embedder.
@@ -258,7 +265,7 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
 
   static void LogFunctionCompilation(Isolate* isolate,
                                      LogEventListener::CodeTag code_type,
-                                     Handle<Script> script,
+                                     DirectHandle<Script> script,
                                      Handle<SharedFunctionInfo> shared,
                                      Handle<FeedbackVector> vector,
                                      Handle<AbstractCode> abstract_code,
@@ -267,6 +274,12 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
   static void InstallInterpreterTrampolineCopy(
       Isolate* isolate, Handle<SharedFunctionInfo> shared_info,
       LogEventListener::CodeTag log_tag);
+
+ private:
+  static std::unique_ptr<v8::tracing::TracedValue> AddScriptCompiledTrace(
+      Isolate* isolate, DirectHandle<SharedFunctionInfo> shared);
+  static void EmitScriptSourceTextTrace(
+      Isolate* isolate, DirectHandle<SharedFunctionInfo> shared);
 };
 
 // A base class for compilation jobs intended to run concurrent to the main
@@ -428,10 +441,10 @@ class OptimizedCompilationJob : public CompilationJob {
 
   // Register weak object to optimized code dependencies.
   GlobalHandleVector<Map> CollectRetainedMaps(Isolate* isolate,
-                                              Handle<Code> code);
+                                              DirectHandle<Code> code);
   void RegisterWeakObjectsInOptimizedCode(Isolate* isolate,
-                                          Handle<NativeContext> context,
-                                          Handle<Code> code,
+                                          DirectHandle<NativeContext> context,
+                                          DirectHandle<Code> code,
                                           GlobalHandleVector<Map> maps);
 
   base::TimeDelta time_taken_to_prepare_;
@@ -519,7 +532,7 @@ using FinalizeUnoptimizedCompilationDataList =
 class DeferredFinalizationJobData {
  public:
   DeferredFinalizationJobData(Isolate* isolate,
-                              Handle<SharedFunctionInfo> function_handle,
+                              DirectHandle<SharedFunctionInfo> function_handle,
                               std::unique_ptr<UnoptimizedCompilationJob> job) {
     UNREACHABLE();
   }
@@ -586,7 +599,7 @@ class V8_EXPORT_PRIVATE BackgroundCompileTask {
            ReusableUnoptimizedCompileState* reusable_state);
 
   MaybeHandle<SharedFunctionInfo> FinalizeScript(
-      Isolate* isolate, Handle<String> source,
+      Isolate* isolate, DirectHandle<String> source,
       const ScriptDetails& script_details,
       MaybeHandle<Script> maybe_cached_script);
 
@@ -636,7 +649,7 @@ class V8_EXPORT_PRIVATE BackgroundCompileTask {
 
 // Contains all data which needs to be transmitted between threads for
 // background parsing and compiling and finalizing it on the main thread.
-struct ScriptStreamingData {
+struct V8_EXPORT_PRIVATE ScriptStreamingData {
   ScriptStreamingData(
       std::unique_ptr<ScriptCompiler::ExternalSourceStream> source_stream,
       ScriptCompiler::StreamedSource::Encoding encoding);
@@ -681,7 +694,7 @@ class V8_EXPORT_PRIVATE BackgroundDeserializeTask {
   void MergeWithExistingScript();
 
   MaybeHandle<SharedFunctionInfo> Finish(Isolate* isolate,
-                                         Handle<String> source,
+                                         DirectHandle<String> source,
                                          const ScriptDetails& script_details);
 
   bool rejected() const { return cached_data_.rejected(); }

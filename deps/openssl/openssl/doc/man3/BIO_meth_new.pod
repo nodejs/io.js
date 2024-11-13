@@ -76,7 +76,7 @@ additionally have the "descriptor" bit set (B<BIO_TYPE_DESCRIPTOR>). See the
 L<BIO_find_type(3)> page for more information.
 
 BIO_meth_free() destroys a B<BIO_METHOD> structure and frees up any memory
-associated with it.
+associated with it. If the argument is NULL, nothing is done.
 
 BIO_meth_get_write_ex() and BIO_meth_set_write_ex() get and set the function
 used for writing arbitrary length data to the BIO respectively. This function
@@ -157,7 +157,7 @@ The functions described here were added in OpenSSL 1.1.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

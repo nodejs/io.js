@@ -36,9 +36,45 @@ int uv_uptime(double* uptime) {
 }
 
 int uv_resident_set_memory(size_t* rss) {
-  /* FIXME: read /proc/meminfo? */
-  *rss = 0;
+  char buf[1024];
+  const char* s;
+  long val;
+  int rc;
+  int i;
+  struct sysinfo si;
+
+  /* rss: 24th element */
+  rc = uv__slurp("/proc/self/stat", buf, sizeof(buf));
+  if (rc < 0)
+    return rc;
+
+  /* find the last ')' */
+  s = strrchr(buf, ')');
+  if (s == NULL)
+    goto err;
+
+  for (i = 1; i <= 22; i++) {
+    s = strchr(s + 1, ' ');
+    if (s == NULL)
+      goto err;
+  }
+
+  errno = 0;
+  val = strtol(s, NULL, 10);
+  if (val < 0 || errno != 0)
+    goto err;
+
+  do
+    rc = sysinfo(&si);
+  while (rc == -1 && errno == EINTR);
+  if (rc == -1)
+    return UV__ERR(errno);
+
+  *rss = val * si.mem_unit;
   return 0;
+
+err:
+  return UV_EINVAL;
 }
 
 int uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {

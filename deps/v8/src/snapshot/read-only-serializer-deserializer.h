@@ -17,8 +17,12 @@ enum Bytecode {
   // kAllocatePage parameters:
   //   Uint30 page_index
   //   Uint30 area_size_in_bytes
-  //   IF_STATIC_ROOTS(Uint32 compressed_page_address)
   kAllocatePage,
+  // kAllocatePageAt parameters:
+  //   Uint30 page_index
+  //   Uint30 area_size_in_bytes
+  //   Uint32 compressed_page_address
+  kAllocatePageAt,
   //
   // kSegment parameters:
   //   Uint30 page_index

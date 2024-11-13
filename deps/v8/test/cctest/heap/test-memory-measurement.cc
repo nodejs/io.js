@@ -16,7 +16,7 @@ namespace heap {
 namespace {
 Handle<NativeContext> GetNativeContext(Isolate* isolate,
                                        v8::Local<v8::Context> v8_context) {
-  Handle<Context> context = v8::Utils::OpenHandle(*v8_context);
+  DirectHandle<Context> context = v8::Utils::OpenDirectHandle(*v8_context);
   return handle(context->native_context(), isolate);
 }
 }  // anonymous namespace
@@ -25,9 +25,9 @@ TEST(NativeContextInferrerGlobalObject) {
   LocalContext env;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope handle_scope(isolate);
-  Handle<NativeContext> native_context = GetNativeContext(isolate, env.local());
-  Handle<JSGlobalObject> global =
-      handle(native_context->global_object(), isolate);
+  DirectHandle<NativeContext> native_context =
+      GetNativeContext(isolate, env.local());
+  DirectHandle<JSGlobalObject> global(native_context->global_object(), isolate);
   NativeContextInferrer inferrer;
   Address inferred_context = 0;
   CHECK(inferrer.Infer(isolate, global->map(), *global, &inferred_context));
@@ -38,10 +38,11 @@ TEST(NativeContextInferrerJSFunction) {
   LocalContext env;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
-  Handle<NativeContext> native_context = GetNativeContext(isolate, env.local());
+  DirectHandle<NativeContext> native_context =
+      GetNativeContext(isolate, env.local());
   v8::Local<v8::Value> result = CompileRun("(function () { return 1; })");
   Handle<Object> object = Utils::OpenHandle(*result);
-  Handle<HeapObject> function = Handle<HeapObject>::cast(object);
+  DirectHandle<HeapObject> function = Cast<HeapObject>(object);
   NativeContextInferrer inferrer;
   Address inferred_context = 0;
   CHECK(inferrer.Infer(isolate, function->map(), *function, &inferred_context));
@@ -52,10 +53,11 @@ TEST(NativeContextInferrerJSObject) {
   LocalContext env;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
-  Handle<NativeContext> native_context = GetNativeContext(isolate, env.local());
+  DirectHandle<NativeContext> native_context =
+      GetNativeContext(isolate, env.local());
   v8::Local<v8::Value> result = CompileRun("({a : 10})");
   Handle<Object> object = Utils::OpenHandle(*result);
-  Handle<HeapObject> function = Handle<HeapObject>::cast(object);
+  DirectHandle<HeapObject> function = Cast<HeapObject>(object);
   NativeContextInferrer inferrer;
   Address inferred_context = 0;
   CHECK(inferrer.Infer(isolate, function->map(), *function, &inferred_context));
@@ -66,10 +68,11 @@ TEST(NativeContextStatsMerge) {
   LocalContext env;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
-  Handle<NativeContext> native_context = GetNativeContext(isolate, env.local());
+  DirectHandle<NativeContext> native_context =
+      GetNativeContext(isolate, env.local());
   v8::Local<v8::Value> result = CompileRun("({a : 10})");
-  Handle<HeapObject> object =
-      Handle<HeapObject>::cast(Utils::OpenHandle(*result));
+  DirectHandle<HeapObject> object =
+      Cast<HeapObject>(Utils::OpenDirectHandle(*result));
   NativeContextStats stats1, stats2;
   stats1.IncrementSize(native_context->ptr(), object->map(), *object, 10);
   stats2.IncrementSize(native_context->ptr(), object->map(), *object, 20);
@@ -81,10 +84,12 @@ TEST(NativeContextStatsArrayBuffers) {
   LocalContext env;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
-  Handle<NativeContext> native_context = GetNativeContext(isolate, env.local());
+  DirectHandle<NativeContext> native_context =
+      GetNativeContext(isolate, env.local());
   v8::Local<v8::ArrayBuffer> array_buffer =
       v8::ArrayBuffer::New(CcTest::isolate(), 1000);
-  Handle<JSArrayBuffer> i_array_buffer = Utils::OpenHandle(*array_buffer);
+  DirectHandle<JSArrayBuffer> i_array_buffer =
+      Utils::OpenDirectHandle(*array_buffer);
   NativeContextStats stats;
   stats.IncrementSize(native_context->ptr(), i_array_buffer->map(),
                       *i_array_buffer, 10);
@@ -116,14 +121,15 @@ TEST(NativeContextStatsExternalString) {
   LocalContext env;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
-  Handle<NativeContext> native_context = GetNativeContext(isolate, env.local());
+  DirectHandle<NativeContext> native_context =
+      GetNativeContext(isolate, env.local());
   const char* c_source = "0123456789";
   uint16_t* two_byte_source = AsciiToTwoByteString(c_source);
   TestResource* resource = new TestResource(two_byte_source);
   Local<v8::String> string =
       v8::String::NewExternalTwoByte(CcTest::isolate(), resource)
           .ToLocalChecked();
-  Handle<String> i_string = Utils::OpenHandle(*string);
+  DirectHandle<String> i_string = Utils::OpenDirectHandle(*string);
   NativeContextStats stats;
   stats.IncrementSize(native_context->ptr(), i_string->map(), *i_string, 10);
   CHECK_EQ(10 + 10 * 2, stats.Get(native_context->ptr()));
@@ -149,15 +155,18 @@ class MockPlatform : public TestPlatform {
  private:
   class MockTaskRunner : public v8::TaskRunner {
    public:
-    void PostTask(std::unique_ptr<v8::Task> task) override {}
+    void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                      const SourceLocation&) override {}
 
-    void PostDelayedTask(std::unique_ptr<Task> task,
-                         double delay_in_seconds) override {
+    void PostDelayedTaskImpl(std::unique_ptr<Task> task,
+                             double delay_in_seconds,
+                             const SourceLocation&) override {
       task_ = std::move(task);
       delay_ = delay_in_seconds;
     }
 
-    void PostIdleTask(std::unique_ptr<IdleTask> task) override {
+    void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                          const SourceLocation&) override {
       UNREACHABLE();
     }
 
@@ -222,9 +231,9 @@ TEST(PartiallyInitializedJSFunction) {
   Isolate* isolate = CcTest::i_isolate();
   Factory* factory = isolate->factory();
   HandleScope scope(isolate);
-  Handle<JSFunction> js_function = factory->NewFunctionForTesting(
+  DirectHandle<JSFunction> js_function = factory->NewFunctionForTesting(
       factory->NewStringFromAsciiChecked("test"));
-  Handle<Context> context = handle(js_function->context(), isolate);
+  DirectHandle<Context> context(js_function->context(), isolate);
 
   // 1. Start simulating deserializaiton.
   isolate->RegisterDeserializerStarted();
@@ -250,12 +259,12 @@ TEST(PartiallyInitializedContext) {
   Isolate* isolate = CcTest::i_isolate();
   Factory* factory = isolate->factory();
   HandleScope scope(isolate);
-  Handle<ScopeInfo> scope_info =
+  DirectHandle<ScopeInfo> scope_info =
       ReadOnlyRoots(isolate).global_this_binding_scope_info_handle();
-  Handle<Context> context = factory->NewScriptContext(
+  DirectHandle<Context> context = factory->NewScriptContext(
       GetNativeContext(isolate, env.local()), scope_info);
-  Handle<Map> map = handle(context->map(), isolate);
-  Handle<NativeContext> native_context = handle(map->native_context(), isolate);
+  DirectHandle<Map> map(context->map(), isolate);
+  DirectHandle<NativeContext> native_context(map->native_context(), isolate);
   // 1. Start simulating deserializaiton.
   isolate->RegisterDeserializerStarted();
   // 2. Set the native context field to the uninitialized sentintel.

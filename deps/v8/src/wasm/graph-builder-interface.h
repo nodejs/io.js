@@ -28,7 +28,8 @@ namespace wasm {
 
 class AssumptionsJournal;
 struct FunctionBody;
-class WasmFeatures;
+class WasmDetectedFeatures;
+class WasmEnabledFeatures;
 struct WasmModule;
 
 enum InlinedStatus {
@@ -57,9 +58,9 @@ struct DanglingExceptions {
 };
 
 V8_EXPORT_PRIVATE void BuildTFGraph(
-    AccountingAllocator* allocator, WasmFeatures enabled,
+    AccountingAllocator* allocator, WasmEnabledFeatures enabled,
     const WasmModule* module, compiler::WasmGraphBuilder* builder,
-    WasmFeatures* detected, const FunctionBody& body,
+    WasmDetectedFeatures* detected, const FunctionBody& body,
     std::vector<compiler::WasmLoopInfo>* loop_infos,
     DanglingExceptions* dangling_exceptions,
     compiler::NodeOriginTable* node_origins, int func_index,

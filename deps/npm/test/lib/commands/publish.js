@@ -700,6 +700,48 @@ t.test('workspaces', t => {
     await npm.exec('publish', [])
     t.matchSnapshot(joinedOutput(), 'all workspaces in json')
   })
+
+  t.test('differet package spec', async t => {
+    const testDir = {
+      'package.json': JSON.stringify(
+        {
+          ...pkgJson,
+          workspaces: ['workspace-a'],
+        }, null, 2),
+      'workspace-a': {
+        'package.json': JSON.stringify({
+          name: 'workspace-a',
+          version: '1.2.3-a',
+        }),
+      },
+      'dir/pkg': {
+        'package.json': JSON.stringify({
+          name: 'pkg',
+          version: '1.2.3',
+        }),
+      },
+    }
+
+    const { npm, joinedOutput } = await loadMockNpm(t, {
+      config: {
+        ...auth,
+      },
+      prefixDir: testDir,
+      chdir: ({ prefix }) => path.resolve(prefix, './workspace-a'),
+    })
+    const registry = new MockRegistry({
+      tap: t,
+      registry: npm.config.get('registry'),
+      authorization: token,
+    })
+    registry.nock
+      .put('/pkg', body => {
+        return t.match(body, { name: 'pkg' })
+      }).reply(200, {})
+    await npm.exec('publish', ['../dir/pkg'])
+    t.matchSnapshot(joinedOutput(), 'publish different package spec')
+  })
+
   t.end()
 })
 

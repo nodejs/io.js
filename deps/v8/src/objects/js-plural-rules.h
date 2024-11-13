@@ -39,17 +39,19 @@ class JSPluralRules
     : public TorqueGeneratedJSPluralRules<JSPluralRules, JSObject> {
  public:
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSPluralRules> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
       Handle<Object> options);
 
-  static Handle<JSObject> ResolvedOptions(Isolate* isolate,
-                                          Handle<JSPluralRules> plural_rules);
+  static Handle<JSObject> ResolvedOptions(
+      Isolate* isolate, DirectHandle<JSPluralRules> plural_rules);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> ResolvePlural(
-      Isolate* isolate, Handle<JSPluralRules> plural_rules, double number);
+      Isolate* isolate, DirectHandle<JSPluralRules> plural_rules,
+      double number);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> ResolvePluralRange(
-      Isolate* isolate, Handle<JSPluralRules> plural_rules, double x, double y);
+      Isolate* isolate, DirectHandle<JSPluralRules> plural_rules, double x,
+      double y);
 
   V8_EXPORT_PRIVATE static const std::set<std::string>& GetAvailableLocales();
 

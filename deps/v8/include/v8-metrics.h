@@ -55,6 +55,10 @@ struct GarbageCollectionFullCycle {
   double efficiency_cpp_in_bytes_per_us = -1.0;
   double main_thread_efficiency_in_bytes_per_us = -1.0;
   double main_thread_efficiency_cpp_in_bytes_per_us = -1.0;
+  double collection_weight_in_percent = -1.0;
+  double collection_weight_cpp_in_percent = -1.0;
+  double main_thread_collection_weight_in_percent = -1.0;
+  double main_thread_collection_weight_cpp_in_percent = -1.0;
   int64_t incremental_marking_start_stop_wall_clock_duration_in_us = -1;
 };
 

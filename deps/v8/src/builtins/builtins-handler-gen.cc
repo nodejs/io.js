@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/base/optional.h"
 #include "src/builtins/builtins-utils-gen.h"
 #include "src/builtins/builtins.h"
 #include "src/codegen/code-stub-assembler-inl.h"
@@ -159,7 +158,7 @@ void HandlerBuiltinsAssembler::Generate_ElementsTransitionAndStore(
     // TODO(v8:8481): Pass from_kind and to_kind in feedback vector slots.
     DispatchForElementsKindTransition(
         LoadElementsKind(receiver), LoadMapElementsKind(map),
-        [=, &miss](ElementsKind from_kind, ElementsKind to_kind) {
+        [=, this, &miss](ElementsKind from_kind, ElementsKind to_kind) {
           TransitionElementsKind(receiver, map, from_kind, to_kind, &miss);
           EmitElementStore(receiver, key, value, to_kind, store_mode, &miss,
                            context, nullptr);
@@ -305,7 +304,7 @@ void HandlerBuiltinsAssembler::Generate_StoreFastElementIC(
   // TODO(v8:8481): Pass elements_kind in feedback vector slots.
   DispatchByElementsKind(
       LoadElementsKind(receiver),
-      [=, &miss, &maybe_converted_value](ElementsKind elements_kind) {
+      [=, this, &miss, &maybe_converted_value](ElementsKind elements_kind) {
         EmitElementStore(receiver, key, value, elements_kind, store_mode, &miss,
                          context, &maybe_converted_value);
       },

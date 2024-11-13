@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+function createIframe(t, srcdoc = '') {
+  let iframe = document.createElement('iframe');
+  iframe.srcdoc = srcdoc;
+  t.add_cleanup(() => iframe.remove());
+  return new Promise((resolve, reject) => {
+    iframe.addEventListener('load', () => resolve(iframe.contentWindow));
+    document.body.appendChild(iframe);
+  });
+}
+
+// Returns a promise which will resolve with the next error event fired at any
+// of `windows`, after the invocation of this function. Once one does, this
+// function removes its listeners and produces that error event so that it can
+// be examined (most notably for which global proxy it was targeted at).
+async function nextErrorEvent(windows) {
+  let listener;
+  let p = new Promise((resolve, reject) => {
+    listener = (event) => { resolve(event); event.preventDefault(); };
+  });
+  for (let w of windows) {
+    w.addEventListener('error', listener);
+  }
+  try {
+    return await p;
+  } finally {
+    for (let w of windows) {
+      w.removeEventListener('error', listener);
+    }
+  }
+}
+
+promise_test(async t => {
+  let w = await createIframe(t, `<script>function listener() { throw new Error(); }<`+`/script>`);
+  let w2 = await createIframe(t);
+
+  let target = new w2.EventTarget();
+  target.addEventListener('party', w.listener);
+  let nextErrorPromise = nextErrorEvent([self, w, w2]);
+  target.dispatchEvent(new Event('party'));
+  let errorEvent = await nextErrorPromise;
+  if (errorEvent.error) {
+    assert_true(errorEvent.error instanceof w.Error, 'error should be an instance created inside the listener function');
+  }
+  assert_equals(errorEvent.target, w, `error event should target listener's global but instead targets ${event.currentTarget === w2 ? 'target\'s global' : 'test harness global'}`);
+}, 'exception thrown in event listener function should result in error event on listener\'s global');
+
+promise_test(async t => {
+  let w = await createIframe(t, `<script>listener = {};<`+`/script>`);
+  let w2 = await createIframe(t, `<script>handleEvent = () => { throw new Error; };<`+`/script>`);
+  let w3 = await createIframe(t);
+  w.listener.handleEvent = w2.handleEvent;
+
+  let target = new w3.EventTarget();
+  target.addEventListener('party', w.listener);
+  let nextErrorPromise = nextErrorEvent([self, w, w2, w3]);
+  target.dispatchEvent(new Event('party'));
+  let errorEvent = await nextErrorPromise;
+  if (errorEvent.error) {
+    assert_true(errorEvent.error instanceof w2.Error, 'error should be an instance created inside the listener function');
+  }
+  assert_equals(errorEvent.target, w, `error event should target listener's global but instead targets ${event.currentTarget === w2 ? 'target\'s global' : event.currentTarget === w3 ? 'function\'s global' : 'test harness global'}`);
+}, 'exception thrown in event listener interface object should result in error event on listener\'s global');
+</script>
+</body>

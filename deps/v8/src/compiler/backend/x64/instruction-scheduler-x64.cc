@@ -152,6 +152,8 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64FLe:
     case kX64F64x2Qfma:
     case kX64F64x2Qfms:
+    case kX64F64x4Qfma:
+    case kX64F64x4Qfms:
     case kX64Minpd:
     case kX64Maxpd:
     case kX64F32x8Pmin:
@@ -169,11 +171,24 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64F32x8UConvertI32x8:
     case kX64F32x4Qfma:
     case kX64F32x4Qfms:
+    case kX64F32x8Qfma:
+    case kX64F32x8Qfms:
     case kX64Minps:
     case kX64Maxps:
     case kX64F32x4Round:
     case kX64F32x4DemoteF64x2Zero:
     case kX64F32x4DemoteF64x4:
+    case kX64F16x8Round:
+    case kX64I16x8SConvertF16x8:
+    case kX64I16x8UConvertF16x8:
+    case kX64F16x8SConvertI16x8:
+    case kX64F16x8UConvertI16x8:
+    case kX64F16x8DemoteF32x4Zero:
+    case kX64F32x4PromoteLowF16x8:
+    case kX64F16x8Qfma:
+    case kX64F16x8Qfms:
+    case kX64Minph:
+    case kX64Maxph:
     case kX64ISplat:
     case kX64IExtractLane:
     case kX64IAbs:
@@ -202,6 +217,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64I64x2UConvertI32x4High:
     case kX64I64x4UConvertI32x4:
     case kX64I32x4SConvertF32x4:
+    case kX64I32x8SConvertF32x8:
     case kX64I32x4SConvertI16x8Low:
     case kX64I32x4SConvertI16x8High:
     case kX64I32x8SConvertI16x8:
@@ -219,6 +235,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64I32x4DotI16x8S:
     case kX64I32x8DotI16x16S:
     case kX64I32x4DotI8x16I7x16AddS:
+    case kX64I32x8DotI8x32I7x32AddS:
     case kX64I32x4ExtMulLowI16x8S:
     case kX64I32x4ExtMulHighI16x8S:
     case kX64I32x8ExtMulI16x8S:
@@ -261,6 +278,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64I16x8Q15MulRSatS:
     case kX64I16x8RelaxedQ15MulRS:
     case kX64I16x8DotI8x16I7x16S:
+    case kX64I16x16DotI8x32I7x32S:
     case kX64I8x16SConvertI16x8:
     case kX64I8x32SConvertI16x16:
     case kX64I8x16UConvertI16x8:
@@ -298,10 +316,12 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64S32x4UnpackHigh:
     case kX64S16x8UnpackHigh:
     case kX64S8x16UnpackHigh:
+    case kX64S32x8UnpackHigh:
     case kX64S64x2UnpackLow:
     case kX64S32x4UnpackLow:
     case kX64S16x8UnpackLow:
     case kX64S8x16UnpackLow:
+    case kX64S32x8UnpackLow:
     case kX64S8x16TransposeLow:
     case kX64S8x16TransposeHigh:
     case kX64S8x8Reverse:
@@ -312,6 +332,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64Blendvps:
     case kX64Pblendvb:
     case kX64ExtractF128:
+    case kX64InsertI128:
       return (instr->addressing_mode() == kMode_None)
                  ? kNoOpcodeFlags
                  : kIsLoadOperation | kHasSideEffect;
@@ -356,6 +377,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
 
     case kX64MovqDecompressTaggedSigned:
     case kX64MovqDecompressTagged:
+    case kX64MovqDecompressProtected:
     case kX64MovqCompressTagged:
     case kX64MovqStoreIndirectPointer:
     case kX64MovqDecodeSandboxedPointer:
@@ -363,6 +385,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kX64Movq:
     case kX64Movsd:
     case kX64Movss:
+    case kX64Movsh:
     case kX64Movdqu:
     case kX64Movdqu256:
     case kX64S128Load8Splat:

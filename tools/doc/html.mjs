@@ -428,8 +428,8 @@ export function buildToc({ filename, apilinks }) {
       const isDeprecationHeading =
         DEPRECATION_HEADING_PATTERN.test(headingText);
       if (isDeprecationHeading) {
-        if (!node.data) node.data = {};
-        if (!node.data.hProperties) node.data.hProperties = {};
+        node.data ||= {};
+        node.data.hProperties ||= {};
         node.data.hProperties.id =
           headingText.substring(0, headingText.indexOf(':'));
       }

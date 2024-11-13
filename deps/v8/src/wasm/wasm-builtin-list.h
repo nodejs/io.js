@@ -58,6 +58,7 @@ namespace v8::internal::wasm {
   V(BigIntToI32Pair)                                                           \
   V(BigIntToI64)                                                               \
   V(CallRefIC)                                                                 \
+  V(CallIndirectIC)                                                            \
   V(DoubleToI)                                                                 \
   V(I32PairToBigInt)                                                           \
   V(I64ToBigInt)                                                               \
@@ -92,7 +93,6 @@ namespace v8::internal::wasm {
   IF_TSAN(V, TSANRelaxedLoad64SaveFP)                                          \
   V(WasmAllocateArray_Uninitialized)                                           \
   V(WasmArrayCopy)                                                             \
-  V(WasmArrayCopyWithChecks)                                                   \
   V(WasmArrayNewSegment)                                                       \
   V(WasmArrayInitSegment)                                                      \
   V(WasmAllocateStructWithRtt)                                                 \
@@ -140,7 +140,10 @@ namespace v8::internal::wasm {
   V(WasmAllocateInOldGeneration)                                               \
   V(IterableToFixedArrayForWasm)                                               \
   V(WasmAllocateZeroedFixedArray)                                              \
-  V(WasmFastApiCallTypeCheckAndUpdateIC)
+  V(WasmFastApiCallTypeCheckAndUpdateIC)                                       \
+  V(DeoptimizationEntry_Eager)                                                 \
+  V(WasmLiftoffDeoptFinish)                                                    \
+  V(WasmPropagateException)
 
 namespace detail {
 constexpr std::array<uint8_t, static_cast<int>(Builtin::kFirstBytecodeHandler)>

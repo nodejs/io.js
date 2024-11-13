@@ -243,14 +243,30 @@ added: v0.3.4
 * `requestListener` {Function} A listener to be added to the `'request'` event.
 * Returns: {https.Server}
 
-```js
+```mjs
+// curl -k https://localhost:8000/
+import { createServer } from 'node:https';
+import { readFileSync } from 'node:fs';
+
+const options = {
+  key: readFileSync('private-key.pem'),
+  cert: readFileSync('certificate.pem'),
+};
+
+createServer(options, (req, res) => {
+  res.writeHead(200);
+  res.end('hello world\n');
+}).listen(8000);
+```
+
+```cjs
 // curl -k https://localhost:8000/
 const https = require('node:https');
 const fs = require('node:fs');
 
 const options = {
-  key: fs.readFileSync('test/fixtures/keys/agent2-key.pem'),
-  cert: fs.readFileSync('test/fixtures/keys/agent2-cert.pem'),
+  key: fs.readFileSync('private-key.pem'),
+  cert: fs.readFileSync('certificate.pem'),
 };
 
 https.createServer(options, (req, res) => {
@@ -261,12 +277,27 @@ https.createServer(options, (req, res) => {
 
 Or
 
-```js
+```mjs
+import { createServer } from 'node:https';
+import { readFileSync } from 'node:fs';
+
+const options = {
+  pfx: readFileSync('test_cert.pfx'),
+  passphrase: 'sample',
+};
+
+createServer(options, (req, res) => {
+  res.writeHead(200);
+  res.end('hello world\n');
+}).listen(8000);
+```
+
+```cjs
 const https = require('node:https');
 const fs = require('node:fs');
 
 const options = {
-  pfx: fs.readFileSync('test/fixtures/test_cert.pfx'),
+  pfx: fs.readFileSync('test_cert.pfx'),
   passphrase: 'sample',
 };
 
@@ -274,6 +305,20 @@ https.createServer(options, (req, res) => {
   res.writeHead(200);
   res.end('hello world\n');
 }).listen(8000);
+```
+
+To generate the certificate and key for this example, run:
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' \
+  -keyout private-key.pem -out certificate.pem
+```
+
+Then, to generate the `pfx` certificate for this example, run:
+
+```bash
+openssl pkcs12 -certpbe AES-256-CBC -export -out test_cert.pfx \
+  -inkey private-key.pem -in certificate.pem -passout pass:sample
 ```
 
 ## `https.get(options[, callback])`
@@ -303,7 +348,24 @@ Like [`http.get()`][] but for HTTPS.
 string, it is automatically parsed with [`new URL()`][]. If it is a [`URL`][]
 object, it will be automatically converted to an ordinary `options` object.
 
-```js
+```mjs
+import { get } from 'node:https';
+import process from 'node:process';
+
+get('https://encrypted.google.com/', (res) => {
+  console.log('statusCode:', res.statusCode);
+  console.log('headers:', res.headers);
+
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+
+}).on('error', (e) => {
+  console.error(e);
+});
+```
+
+```cjs
 const https = require('node:https');
 
 https.get('https://encrypted.google.com/', (res) => {
@@ -396,7 +458,33 @@ object, it will be automatically converted to an ordinary `options` object.
 class. The `ClientRequest` instance is a writable stream. If one needs to
 upload a file with a POST request, then write to the `ClientRequest` object.
 
-```js
+```mjs
+import { request } from 'node:https';
+import process from 'node:process';
+
+const options = {
+  hostname: 'encrypted.google.com',
+  port: 443,
+  path: '/',
+  method: 'GET',
+};
+
+const req = request(options, (res) => {
+  console.log('statusCode:', res.statusCode);
+  console.log('headers:', res.headers);
+
+  res.on('data', (d) => {
+    process.stdout.write(d);
+  });
+});
+
+req.on('error', (e) => {
+  console.error(e);
+});
+req.end();
+```
+
+```cjs
 const https = require('node:https');
 
 const options = {
@@ -429,8 +517,8 @@ const options = {
   port: 443,
   path: '/',
   method: 'GET',
-  key: fs.readFileSync('test/fixtures/keys/agent2-key.pem'),
-  cert: fs.readFileSync('test/fixtures/keys/agent2-cert.pem'),
+  key: fs.readFileSync('private-key.pem'),
+  cert: fs.readFileSync('certificate.pem'),
 };
 options.agent = new https.Agent(options);
 
@@ -447,8 +535,8 @@ const options = {
   port: 443,
   path: '/',
   method: 'GET',
-  key: fs.readFileSync('test/fixtures/keys/agent2-key.pem'),
-  cert: fs.readFileSync('test/fixtures/keys/agent2-cert.pem'),
+  key: fs.readFileSync('private-key.pem'),
+  cert: fs.readFileSync('certificate.pem'),
   agent: false,
 };
 
@@ -470,7 +558,80 @@ const req = https.request(options, (res) => {
 Example pinning on certificate fingerprint, or the public key (similar to
 `pin-sha256`):
 
-```js
+```mjs
+import { checkServerIdentity } from 'node:tls';
+import { Agent, request } from 'node:https';
+import { createHash } from 'node:crypto';
+
+function sha256(s) {
+  return createHash('sha256').update(s).digest('base64');
+}
+const options = {
+  hostname: 'github.com',
+  port: 443,
+  path: '/',
+  method: 'GET',
+  checkServerIdentity: function(host, cert) {
+    // Make sure the certificate is issued to the host we are connected to
+    const err = checkServerIdentity(host, cert);
+    if (err) {
+      return err;
+    }
+
+    // Pin the public key, similar to HPKP pin-sha256 pinning
+    const pubkey256 = 'SIXvRyDmBJSgatgTQRGbInBaAK+hZOQ18UmrSwnDlK8=';
+    if (sha256(cert.pubkey) !== pubkey256) {
+      const msg = 'Certificate verification error: ' +
+        `The public key of '${cert.subject.CN}' ` +
+        'does not match our pinned fingerprint';
+      return new Error(msg);
+    }
+
+    // Pin the exact certificate, rather than the pub key
+    const cert256 = 'FD:6E:9B:0E:F3:98:BC:D9:04:C3:B2:EC:16:7A:7B:' +
+      '0F:DA:72:01:C9:03:C5:3A:6A:6A:E5:D0:41:43:63:EF:65';
+    if (cert.fingerprint256 !== cert256) {
+      const msg = 'Certificate verification error: ' +
+        `The certificate of '${cert.subject.CN}' ` +
+        'does not match our pinned fingerprint';
+      return new Error(msg);
+    }
+
+    // This loop is informational only.
+    // Print the certificate and public key fingerprints of all certs in the
+    // chain. Its common to pin the public key of the issuer on the public
+    // internet, while pinning the public key of the service in sensitive
+    // environments.
+    let lastprint256;
+    do {
+      console.log('Subject Common Name:', cert.subject.CN);
+      console.log('  Certificate SHA256 fingerprint:', cert.fingerprint256);
+
+      const hash = createHash('sha256');
+      console.log('  Public key ping-sha256:', sha256(cert.pubkey));
+
+      lastprint256 = cert.fingerprint256;
+      cert = cert.issuerCertificate;
+    } while (cert.fingerprint256 !== lastprint256);
+
+  },
+};
+
+options.agent = new Agent(options);
+const req = request(options, (res) => {
+  console.log('All OK. Server matched our pinned cert or public key');
+  console.log('statusCode:', res.statusCode);
+
+  res.on('data', (d) => {});
+});
+
+req.on('error', (e) => {
+  console.error(e.message);
+});
+req.end();
+```
+
+```cjs
 const tls = require('node:tls');
 const https = require('node:https');
 const crypto = require('node:crypto');
@@ -491,7 +652,7 @@ const options = {
     }
 
     // Pin the public key, similar to HPKP pin-sha256 pinning
-    const pubkey256 = 'pL1+qb9HTMRZJmuC/bB/ZI9d302BYrrqiVuRyW+DGrU=';
+    const pubkey256 = 'SIXvRyDmBJSgatgTQRGbInBaAK+hZOQ18UmrSwnDlK8=';
     if (sha256(cert.pubkey) !== pubkey256) {
       const msg = 'Certificate verification error: ' +
         `The public key of '${cert.subject.CN}' ` +
@@ -500,8 +661,8 @@ const options = {
     }
 
     // Pin the exact certificate, rather than the pub key
-    const cert256 = '25:FE:39:32:D9:63:8C:8A:FC:A1:9A:29:87:' +
-      'D8:3E:4C:1D:98:DB:71:E4:1A:48:03:98:EA:22:6A:BD:8B:93:16';
+    const cert256 = 'FD:6E:9B:0E:F3:98:BC:D9:04:C3:B2:EC:16:7A:7B:' +
+      '0F:DA:72:01:C9:03:C5:3A:6A:6A:E5:D0:41:43:63:EF:65';
     if (cert.fingerprint256 !== cert256) {
       const msg = 'Certificate verification error: ' +
         `The certificate of '${cert.subject.CN}' ` +
@@ -532,8 +693,6 @@ options.agent = new https.Agent(options);
 const req = https.request(options, (res) => {
   console.log('All OK. Server matched our pinned cert or public key');
   console.log('statusCode:', res.statusCode);
-  // Print the HPKP values
-  console.log('headers:', res.headers['public-key-pins']);
 
   res.on('data', (d) => {});
 });
@@ -548,17 +707,19 @@ Outputs for example:
 
 ```text
 Subject Common Name: github.com
-  Certificate SHA256 fingerprint: 25:FE:39:32:D9:63:8C:8A:FC:A1:9A:29:87:D8:3E:4C:1D:98:DB:71:E4:1A:48:03:98:EA:22:6A:BD:8B:93:16
-  Public key ping-sha256: pL1+qb9HTMRZJmuC/bB/ZI9d302BYrrqiVuRyW+DGrU=
-Subject Common Name: DigiCert SHA2 Extended Validation Server CA
-  Certificate SHA256 fingerprint: 40:3E:06:2A:26:53:05:91:13:28:5B:AF:80:A0:D4:AE:42:2C:84:8C:9F:78:FA:D0:1F:C9:4B:C5:B8:7F:EF:1A
-  Public key ping-sha256: RRM1dGqnDFsCJXBTHky16vi1obOlCgFFn/yOhI/y+ho=
-Subject Common Name: DigiCert High Assurance EV Root CA
-  Certificate SHA256 fingerprint: 74:31:E5:F4:C3:C1:CE:46:90:77:4F:0B:61:E0:54:40:88:3B:A9:A0:1E:D0:0B:A6:AB:D7:80:6E:D3:B1:18:CF
-  Public key ping-sha256: WoiWRyIOVNa9ihaBciRSC7XHjliYS9VwUGOIud4PB18=
+  Certificate SHA256 fingerprint: FD:6E:9B:0E:F3:98:BC:D9:04:C3:B2:EC:16:7A:7B:0F:DA:72:01:C9:03:C5:3A:6A:6A:E5:D0:41:43:63:EF:65
+  Public key ping-sha256: SIXvRyDmBJSgatgTQRGbInBaAK+hZOQ18UmrSwnDlK8=
+Subject Common Name: Sectigo ECC Domain Validation Secure Server CA
+  Certificate SHA256 fingerprint: 61:E9:73:75:E9:F6:DA:98:2F:F5:C1:9E:2F:94:E6:6C:4E:35:B6:83:7C:E3:B9:14:D2:24:5C:7F:5F:65:82:5F
+  Public key ping-sha256: Eep0p/AsSa9lFUH6KT2UY+9s1Z8v7voAPkQ4fGknZ2g=
+Subject Common Name: USERTrust ECC Certification Authority
+  Certificate SHA256 fingerprint: A6:CF:64:DB:B4:C8:D5:FD:19:CE:48:89:60:68:DB:03:B5:33:A8:D1:33:6C:62:56:A8:7D:00:CB:B3:DE:F3:EA
+  Public key ping-sha256: UJM2FOhG9aTNY0Pg4hgqjNzZ/lQBiMGRxPD5Y2/e0bw=
+Subject Common Name: AAA Certificate Services
+  Certificate SHA256 fingerprint: D7:A7:A0:FB:5D:7E:27:31:D7:71:E9:48:4E:BC:DE:F7:1D:5F:0C:3E:0A:29:48:78:2B:C8:3E:E0:EA:69:9E:F4
+  Public key ping-sha256: vRU+17BDT2iGsXvOi76E7TQMcTLXAqj0+jGPdW7L1vM=
 All OK. Server matched our pinned cert or public key
 statusCode: 200
-headers: max-age=0; pin-sha256="WoiWRyIOVNa9ihaBciRSC7XHjliYS9VwUGOIud4PB18="; pin-sha256="RRM1dGqnDFsCJXBTHky16vi1obOlCgFFn/yOhI/y+ho="; pin-sha256="k2v657xBsOVe1PQRwOsHsw3bsGT2VzIqz5K+59sNQws="; pin-sha256="K87oWBWM9UZfyddvDfoxL+8lpNyoUB2ptGtn0fv6G2Q="; pin-sha256="IQBnNBEiFuhj+8x6X8XLgh01V9Ic5/V3IRQLNFFc7v4="; pin-sha256="iie1VXtL7HzAMF+/PVPR9xzT80kQxdZeJ+zduCB3uj0="; pin-sha256="LvRiGEjRqfzurezaWuj8Wie2gyHMrW5Q06LspMnox7A="; includeSubDomains
 ```
 
 [`Agent`]: #class-httpsagent

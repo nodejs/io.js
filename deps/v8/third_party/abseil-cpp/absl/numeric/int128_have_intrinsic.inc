@@ -220,6 +220,20 @@ constexpr bool operator>=(int128 lhs, int128 rhs) {
   return static_cast<__int128>(lhs) >= static_cast<__int128>(rhs);
 }
 
+#ifdef __cpp_impl_three_way_comparison
+constexpr absl::strong_ordering operator<=>(int128 lhs, int128 rhs) {
+  if (auto lhs_128 = static_cast<__int128>(lhs),
+      rhs_128 = static_cast<__int128>(rhs);
+      lhs_128 < rhs_128) {
+    return absl::strong_ordering::less;
+  } else if (lhs_128 > rhs_128) {
+    return absl::strong_ordering::greater;
+  } else {
+    return absl::strong_ordering::equal;
+  }
+}
+#endif
+
 // Unary operators.
 
 constexpr int128 operator-(int128 v) { return -static_cast<__int128>(v); }

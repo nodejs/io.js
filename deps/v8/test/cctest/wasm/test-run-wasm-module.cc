@@ -351,6 +351,7 @@ TEST(Run_WasmModule_ReadLoadedDataSegment) {
     TestSignatures sigs;
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
 
     ExportAsMain(f);
@@ -372,6 +373,7 @@ TEST(Run_WasmModule_CheckMemoryIsZero) {
     TestSignatures sigs;
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
 
     uint16_t localIndex = f->AddLocal(kWasmI32);
@@ -397,6 +399,7 @@ TEST(Run_WasmModule_CallMain_recursive) {
     TestSignatures sigs;
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
 
     uint16_t localIndex = f->AddLocal(kWasmI32);
@@ -448,6 +451,7 @@ TEST(MemorySize) {
     Zone zone(&allocator, ZONE_NAME);
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
     ExportAsMain(f);
     uint8_t code[] = {WASM_MEMORY_SIZE};
@@ -466,6 +470,7 @@ TEST(Run_WasmModule_MemSize_GrowMem) {
     Zone zone(&allocator, ZONE_NAME);
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
     ExportAsMain(f);
     uint8_t code[] = {WASM_MEMORY_GROW(WASM_I32V_1(10)), WASM_DROP,
@@ -485,6 +490,7 @@ TEST(MemoryGrowZero) {
     Zone zone(&allocator, ZONE_NAME);
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
     ExportAsMain(f);
     uint8_t code[] = {WASM_MEMORY_GROW(WASM_I32V(0))};
@@ -548,6 +554,7 @@ TEST(TestInterruptLoop) {
     Zone zone(&allocator, ZONE_NAME);
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
     ExportAsMain(f);
     uint8_t code[] = {
@@ -571,7 +578,7 @@ TEST(TestInterruptLoop) {
             isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()))
             .ToHandleChecked();
 
-    Handle<JSArrayBuffer> memory(
+    DirectHandle<JSArrayBuffer> memory(
         instance->trusted_data(isolate)->memory_object(0)->array_buffer(),
         isolate);
     std::atomic<int32_t>* memory_array =
@@ -594,6 +601,7 @@ TEST(Run_WasmModule_MemoryGrowInIf) {
     v8::internal::AccountingAllocator allocator;
     Zone zone(&allocator, ZONE_NAME);
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
     ExportAsMain(f);
     uint8_t code[] = {WASM_IF_ELSE_I(
@@ -637,6 +645,7 @@ TEST(Run_WasmModule_GrowMemOobFixedIndex) {
     Zone zone(isolate->allocator(), ZONE_NAME);
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_i());
     ExportAsMain(f);
     uint8_t code[] = {WASM_MEMORY_GROW(WASM_LOCAL_GET(0)), WASM_DROP,
@@ -685,6 +694,7 @@ TEST(Run_WasmModule_GrowMemOobVariableIndex) {
     Zone zone(&allocator, ZONE_NAME);
 
     WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
+    builder->AddMemory(16);
     WasmFunctionBuilder* f = builder->AddFunction(sigs.i_i());
     ExportAsMain(f);
     uint8_t code[] = {WASM_MEMORY_GROW(WASM_I32V_1(1)), WASM_DROP,

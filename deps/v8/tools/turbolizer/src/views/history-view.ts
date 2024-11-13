@@ -12,11 +12,11 @@ import { GraphNode } from "../phases/graph-phase/graph-node";
 import { HistoryHandler } from "../selection/selection-handler";
 import { GraphPhase } from "../phases/graph-phase/graph-phase";
 import { SelectionStorage } from "../selection/selection-storage";
-import { TurboshaftGraphNode } from "../phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "../phases/turboshaft-graph-phase/turboshaft-graph-operation";
 import { TurboshaftGraphPhase } from "../phases/turboshaft-graph-phase/turboshaft-graph-phase";
 import { PhaseType } from "../phases/phase";
 
-type GNode = GraphNode | TurboshaftGraphNode;
+type GNode = GraphNode | TurboshaftGraphOperation;
 type GPhase = GraphPhase | TurboshaftGraphPhase;
 
 export class HistoryView extends View {
@@ -432,7 +432,7 @@ export class HistoryView extends View {
     if (!first || !second) return false;
     if ((first instanceof GraphNode && second instanceof GraphNode)) {
       return first.equals(second);
-    } else if (first instanceof TurboshaftGraphNode && second instanceof TurboshaftGraphNode) {
+    } else if (first instanceof TurboshaftGraphOperation && second instanceof TurboshaftGraphOperation) {
       return first.equals(second);
     }
     return first.getHistoryLabel() == second.getHistoryLabel();

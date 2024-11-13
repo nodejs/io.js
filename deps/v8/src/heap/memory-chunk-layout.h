@@ -30,6 +30,8 @@ enum RememberedSetType {
   OLD_TO_SHARED,
   OLD_TO_CODE,
   TRUSTED_TO_TRUSTED,
+  TRUSTED_TO_SHARED_TRUSTED,
+  SURVIVOR_TO_EXTERNAL_POINTER,
   NUMBER_OF_REMEMBERED_SET_TYPES
 };
 
@@ -44,19 +46,33 @@ class V8_EXPORT_PRIVATE MemoryChunkLayout {
 #define FIELD(Type, Name) \
   k##Name##Offset, k##Name##End = k##Name##Offset + sizeof(Type) - 1
   enum Header {
-    // MemoryChunk fields:
     FIELD(uintptr_t, Flags),
+#ifdef V8_ENABLE_SANDBOX
+    FIELD(uint32_t, MetadataIndex),
+#else
     FIELD(MemoryChunkMetadata*, Metadata),
+#endif
+    kEndOfMetadataPointer,
+    kMemoryChunkHeaderSize =
+        kEndOfMetadataPointer +
+        ((kEndOfMetadataPointer % kMemoryChunkAlignment) == 0
+             ? 0
+             : kMemoryChunkAlignment -
+                   (kEndOfMetadataPointer % kMemoryChunkAlignment)),
+  };
+  // Note that the order of the fields is performance sensitive. Often accessed
+  // fields should be on the same cache line.
+  enum Metadata {
     // MemoryChunkMetadata fields:
-    FIELD(size_t, Size),
-    FIELD(Heap*, Heap),
-    FIELD(Address, AreaStart),
-    FIELD(Address, AreaEnd),
+    FIELD(VirtualMemory, Reservation),
     FIELD(size_t, AllocatedBytes),
     FIELD(size_t, WastedMemory),
     FIELD(std::atomic<intptr_t>, HighWaterMark),
+    FIELD(size_t, Size),
+    FIELD(Address, AreaEnd),
+    FIELD(Heap*, Heap),
+    FIELD(Address, AreaStart),
     FIELD(Address, Owner),
-    FIELD(VirtualMemory, Reservation),
     // MutablePageMetadata fields:
     FIELD(SlotSet* [kNumSets], SlotSet),
     FIELD(TypedSlotsSet* [kNumSets], TypedSlotSet),
@@ -75,25 +91,20 @@ class V8_EXPORT_PRIVATE MemoryChunkLayout {
     FIELD(size_t, AgeInNewSpace),
     FIELD(MarkingBitmap, MarkingBitmap),
     kEndOfMarkingBitmap,
-    kMemoryChunkHeaderSize =
+    kMutablePageMetadataStart = kSlotSetOffset,
+    kMemoryChunkMetadataSize = kMutablePageMetadataStart,
+    kMutablePageMetadataSize =
         kEndOfMarkingBitmap +
         ((kEndOfMarkingBitmap % kMemoryChunkAlignment) == 0
              ? 0
              : kMemoryChunkAlignment -
                    (kEndOfMarkingBitmap % kMemoryChunkAlignment)),
-    kMemoryChunkHeaderStart = kSlotSetOffset,
-    kBasicMemoryChunkHeaderSize = kMemoryChunkHeaderStart,
-    kBasicMemoryChunkHeaderStart = 0,
   };
 #undef FIELD
 
-  static size_t CodePageGuardStartOffset();
-  static size_t CodePageGuardSize();
   // Code pages have padding on the first page for code alignment, so the
   // ObjectStartOffset will not be page aligned.
-  static intptr_t ObjectPageOffsetInCodePage();
   static intptr_t ObjectStartOffsetInCodePage();
-  static intptr_t ObjectEndOffsetInCodePage();
   static size_t AllocatableMemoryInCodePage();
   static size_t ObjectStartOffsetInDataPage();
   static size_t AllocatableMemoryInDataPage();

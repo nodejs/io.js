@@ -247,6 +247,10 @@ class Npm {
       execWorkspaces = true
     }
 
+    if (command.checkDevEngines && !this.global) {
+      await command.checkDevEngines()
+    }
+
     return time.start(`command:${cmd}`, () =>
       execWorkspaces ? command.execWorkspaces(args) : command.exec(args))
   }

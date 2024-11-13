@@ -45,4 +45,7 @@ asm(".text                                               \n"
     "  ld.d $fp, $sp, 16                                 \n"
     // Discard all callee-saved registers.
     "  addi.d $sp, $sp, 96                               \n"
-    "  jirl $zero, $ra, 0                                \n");
+    "  jirl $zero, $ra, 0                                \n"
+    ".Lfunc_end0:                                        \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack         \n");

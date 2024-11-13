@@ -43,13 +43,21 @@ function writeFloat64(offset, value, little_endian) {
   dataview.setFloat64(offset, value, little_endian);
 }
 
-function warmup(f) {
+function writeBigInt64(offset, value, little_endian) {
+  dataview.setBigInt64(offset, value, little_endian);
+}
+
+function writeBigUint64(offset, value, little_endian) {
+  dataview.setBigUint64(offset, value, little_endian);
+}
+
+function warmup(f, v = 0) {
   %PrepareFunctionForOptimization(f);
-  f(0, 0);
-  f(0, 1);
+  f(0, v++);
+  f(0, v++);
   %OptimizeFunctionOnNextCall(f);
-  f(0, 2);
-  f(0, 3);
+  f(0, v++);
+  f(0, v++);
 }
 
 // TurboFan valid setUint8.
@@ -117,6 +125,22 @@ writeFloat64(8, b4);
 assertEquals(b4, dataview.getFloat64(8));
 writeFloat64(8, b4, true);
 assertEquals(b4, dataview.getFloat64(8, true));
+
+// TurboFan valid setBigInt64.
+warmup(writeBigInt64, 0n);
+assertOptimized(writeBigInt64);
+writeBigInt64(0, -2401053088876216593n);
+assertEquals(0xdeadbeefdeadbeefn, dataview.getBigUint64(0));
+writeBigInt64(0, -1171307680053154338n, true);
+assertEquals(0xdeadbeefdeadbeefn, dataview.getBigUint64(0));
+
+// TurboFan valid setBigUint64.
+warmup(writeBigUint64, 0n);
+assertOptimized(writeBigUint64);
+writeBigUint64(0, 0xdeadbeefdeadbeefn);
+assertEquals(0xdeadbeefdeadbeefn, dataview.getBigUint64(0));
+writeBigUint64(0, 0xdeadbeefdeadbeefn, true);
+assertEquals(0xdeadbeefdeadbeefn, dataview.getBigUint64(0, true));
 
 // TurboFan out of bounds read, deopt.
 assertOptimized(writeInt8Handled);

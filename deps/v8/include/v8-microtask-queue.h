@@ -118,11 +118,6 @@ class V8_EXPORT V8_NODISCARD MicrotasksScope {
  public:
   enum Type { kRunMicrotasks, kDoNotRunMicrotasks };
 
-  V8_DEPRECATE_SOON(
-      "May be incorrect if context was created with non-default microtask "
-      "queue")
-  MicrotasksScope(Isolate* isolate, Type type);
-
   MicrotasksScope(Local<Context> context, Type type);
   MicrotasksScope(Isolate* isolate, MicrotaskQueue* microtask_queue, Type type);
   ~MicrotasksScope();

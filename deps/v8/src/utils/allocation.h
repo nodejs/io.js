@@ -7,6 +7,7 @@
 
 #include "include/v8-platform.h"
 #include "src/base/address-region.h"
+#include "src/base/bounded-page-allocator.h"
 #include "src/base/compiler-specific.h"
 #include "src/base/platform/memory.h"
 #include "src/init/v8.h"
@@ -198,9 +199,10 @@ class VirtualMemory final {
   // aligned per |alignment| rounded up to the |page_allocator|'s allocate page
   // size. The |size| must be aligned with |page_allocator|'s commit page size.
   // This may not be at the position returned by address().
-  V8_EXPORT_PRIVATE VirtualMemory(v8::PageAllocator* page_allocator,
-                                  size_t size, void* hint, size_t alignment = 1,
-                                  JitPermission jit = JitPermission::kNoJit);
+  V8_EXPORT_PRIVATE VirtualMemory(
+      v8::PageAllocator* page_allocator, size_t size, void* hint,
+      size_t alignment = 1,
+      PageAllocator::Permission permissions = PageAllocator::kNoAccess);
 
   // Construct a virtual memory by assigning it some already mapped address
   // and size.
@@ -386,7 +388,9 @@ class VirtualMemoryCage {
     size_t base_alignment;
     size_t page_size;
     Address requested_start_hint;
-    JitPermission jit;
+    PageAllocator::Permission permissions;
+    base::PageInitializationMode page_initialization_mode;
+    base::PageFreeingMode page_freeing_mode;
 
     static constexpr size_t kAnyBaseAlignment = 1;
   };

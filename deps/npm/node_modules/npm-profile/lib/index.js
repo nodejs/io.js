@@ -119,7 +119,7 @@ const webAuthCheckLogin = async (doneUrl, opts, { signal } = {}) => {
   if (res.status === 202) {
     const retry = +res.headers.get('retry-after') * 1000
     if (retry > 0) {
-      await timers.setTimeout(retry, null, { ref: false, signal })
+      await timers.setTimeout(retry, null, { signal })
     }
     return webAuthCheckLogin(doneUrl, opts, { signal })
   }

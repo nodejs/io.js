@@ -46,12 +46,12 @@
 // Files which do not match any pattern in `--vmodule` use the value of `--v` as
 // their effective verbosity level.  The default is 0.
 //
-// SetVLOGLevel helper function is provided to do limited dynamic control over
+// SetVLogLevel helper function is provided to do limited dynamic control over
 // V-logging by appending to `--vmodule`. Because these go at the beginning of
 // the list, they take priority over any globs previously added.
 //
 // Resetting --vmodule will override all previous modifications to `--vmodule`,
-// including via SetVLOGLevel.
+// including via SetVLogLevel.
 
 #ifndef ABSL_LOG_ABSL_VLOG_IS_ON_H_
 #define ABSL_LOG_ABSL_VLOG_IS_ON_H_
@@ -77,7 +77,7 @@
 // Each ABSL_VLOG_IS_ON call site gets its own VLogSite that registers with the
 // global linked list of sites to asynchronously update its verbosity level on
 // changes to --v or --vmodule. The verbosity can also be set by manually
-// calling SetVLOGLevel.
+// calling SetVLogLevel.
 //
 // ABSL_VLOG_IS_ON is not async signal safe, but it is guaranteed not to
 // allocate new memory.

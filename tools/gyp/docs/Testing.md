@@ -392,7 +392,7 @@ fails the test if it does.
 
 Verifies that the output string contains all of the "lines" in the specified
 list of lines.  In practice, the lines can be any substring and need not be
-`\n`-terminaed lines per se.  If any line is missing, the test fails.
+`\n`-terminated lines per se.  If any line is missing, the test fails.
 
 ```
   test.must_not_contain_any_lines(output, lines)
@@ -400,7 +400,7 @@ list of lines.  In practice, the lines can be any substring and need not be
 
 Verifies that the output string does _not_ contain any of the "lines" in the
 specified list of lines.  In practice, the lines can be any substring and need
-not be `\n`-terminaed lines per se.  If any line exists in the output string,
+not be `\n`-terminated lines per se.  If any line exists in the output string,
 the test fails.
 
 ```
@@ -409,7 +409,7 @@ the test fails.
 
 Verifies that the output string contains at least one of the "lines" in the
 specified list of lines.  In practice, the lines can be any substring and need
-not be `\n`-terminaed lines per se.  If none of the specified lines is present,
+not be `\n`-terminated lines per se.  If none of the specified lines is present,
 the test fails.
 
 ### Reading file contents

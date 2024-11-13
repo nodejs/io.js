@@ -94,7 +94,7 @@ done
 # Generate the proposal tests.
 ###############################################################################
 
-repos='exception-handling js-types tail-call memory64 extended-const multi-memory function-references gc'
+repos='js-promise-integration exception-handling js-types tail-call memory64 extended-const multi-memory function-references gc'
 
 for repo in ${repos}; do
   echo "Process ${repo}"

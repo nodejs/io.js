@@ -153,10 +153,6 @@ FeedbackSlot BytecodeArrayIterator::GetSlotOperand(int operand_index) const {
   return FeedbackVector::ToSlot(index);
 }
 
-Register BytecodeArrayIterator::GetReceiver() const {
-  return Register::FromParameterIndex(0);
-}
-
 Register BytecodeArrayIterator::GetParameter(int parameter_index) const {
   DCHECK_GE(parameter_index, 0);
   // The parameter indices are shifted by 1 (receiver is the
@@ -173,6 +169,19 @@ Register BytecodeArrayIterator::GetRegisterOperand(int operand_index) const {
                                   current_operand_scale());
   return BytecodeDecoder::DecodeRegisterOperand(operand_start, operand_type,
                                                 current_operand_scale());
+}
+
+Register BytecodeArrayIterator::GetStarTargetRegister() const {
+  Bytecode bytecode = current_bytecode();
+  DCHECK(Bytecodes::IsAnyStar(bytecode));
+  if (Bytecodes::IsShortStar(bytecode)) {
+    return Register::FromShortStar(bytecode);
+  } else {
+    DCHECK_EQ(bytecode, Bytecode::kStar);
+    DCHECK_EQ(Bytecodes::NumberOfOperands(bytecode), 1);
+    DCHECK_EQ(Bytecodes::GetOperandTypes(bytecode)[0], OperandType::kRegOut);
+    return GetRegisterOperand(0);
+  }
 }
 
 std::pair<Register, Register> BytecodeArrayIterator::GetRegisterPairOperand(
@@ -241,7 +250,7 @@ bool BytecodeArrayIterator::IsConstantAtIndexSmi(int index) const {
 }
 
 Tagged<Smi> BytecodeArrayIterator::GetConstantAtIndexAsSmi(int index) const {
-  return Smi::cast(bytecode_array()->constant_pool()->get(index));
+  return Cast<Smi>(bytecode_array()->constant_pool()->get(index));
 }
 
 template <typename IsolateT>

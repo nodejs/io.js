@@ -9,23 +9,12 @@
 namespace v8 {
 namespace internal {
 
-RUNTIME_FUNCTION(Runtime_BigIntCompareToBigInt) {
-  SealHandleScope shs(isolate);
-  DCHECK_EQ(3, args.length());
-  int mode = args.smi_value_at(0);
-  Handle<BigInt> lhs = args.at<BigInt>(1);
-  Handle<BigInt> rhs = args.at<BigInt>(2);
-  bool result = ComparisonResultToBool(static_cast<Operation>(mode),
-                                       BigInt::CompareToBigInt(lhs, rhs));
-  return *isolate->factory()->ToBoolean(result);
-}
-
 RUNTIME_FUNCTION(Runtime_BigIntCompareToNumber) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(3, args.length());
   int mode = args.smi_value_at(0);
-  Handle<BigInt> lhs = args.at<BigInt>(1);
-  Handle<Object> rhs = args.at(2);
+  DirectHandle<BigInt> lhs = args.at<BigInt>(1);
+  DirectHandle<Object> rhs = args.at(2);
   bool result = ComparisonResultToBool(static_cast<Operation>(mode),
                                        BigInt::CompareToNumber(lhs, rhs));
   return *isolate->factory()->ToBoolean(result);
@@ -35,7 +24,7 @@ RUNTIME_FUNCTION(Runtime_BigIntCompareToString) {
   HandleScope scope(isolate);
   DCHECK_EQ(3, args.length());
   int mode = args.smi_value_at(0);
-  Handle<BigInt> lhs = args.at<BigInt>(1);
+  DirectHandle<BigInt> lhs = args.at<BigInt>(1);
   Handle<String> rhs = args.at<String>(2);
   Maybe<ComparisonResult> maybe_result =
       BigInt::CompareToString(isolate, lhs, rhs);
@@ -48,8 +37,8 @@ RUNTIME_FUNCTION(Runtime_BigIntCompareToString) {
 RUNTIME_FUNCTION(Runtime_BigIntEqualToBigInt) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<BigInt> lhs = args.at<BigInt>(0);
-  Handle<BigInt> rhs = args.at<BigInt>(1);
+  DirectHandle<BigInt> lhs = args.at<BigInt>(0);
+  DirectHandle<BigInt> rhs = args.at<BigInt>(1);
   bool result = BigInt::EqualToBigInt(*lhs, *rhs);
   return *isolate->factory()->ToBoolean(result);
 }
@@ -57,7 +46,7 @@ RUNTIME_FUNCTION(Runtime_BigIntEqualToBigInt) {
 RUNTIME_FUNCTION(Runtime_BigIntEqualToNumber) {
   SealHandleScope shs(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<BigInt> lhs = args.at<BigInt>(0);
+  DirectHandle<BigInt> lhs = args.at<BigInt>(0);
   Handle<Object> rhs = args.at(1);
   bool result = BigInt::EqualToNumber(lhs, rhs);
   return *isolate->factory()->ToBoolean(result);
@@ -66,24 +55,17 @@ RUNTIME_FUNCTION(Runtime_BigIntEqualToNumber) {
 RUNTIME_FUNCTION(Runtime_BigIntEqualToString) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<BigInt> lhs = args.at<BigInt>(0);
+  DirectHandle<BigInt> lhs = args.at<BigInt>(0);
   Handle<String> rhs = args.at<String>(1);
   Maybe<bool> maybe_result = BigInt::EqualToString(isolate, lhs, rhs);
   MAYBE_RETURN(maybe_result, ReadOnlyRoots(isolate).exception());
   return *isolate->factory()->ToBoolean(maybe_result.FromJust());
 }
 
-RUNTIME_FUNCTION(Runtime_BigIntToBoolean) {
-  SealHandleScope shs(isolate);
-  DCHECK_EQ(1, args.length());
-  Handle<BigInt> bigint = args.at<BigInt>(0);
-  return *isolate->factory()->ToBoolean(bigint->ToBoolean());
-}
-
 RUNTIME_FUNCTION(Runtime_BigIntToNumber) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<BigInt> x = args.at<BigInt>(0);
+  DirectHandle<BigInt> x = args.at<BigInt>(0);
   return *BigInt::ToNumber(isolate, x);
 }
 
@@ -102,7 +84,7 @@ RUNTIME_FUNCTION(Runtime_ToBigIntConvertNumber) {
   if (IsJSReceiver(*x)) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, x,
-        JSReceiver::ToPrimitive(isolate, Handle<JSReceiver>::cast(x),
+        JSReceiver::ToPrimitive(isolate, Cast<JSReceiver>(x),
                                 ToPrimitiveHint::kNumber));
   }
 
@@ -113,62 +95,19 @@ RUNTIME_FUNCTION(Runtime_ToBigIntConvertNumber) {
   }
 }
 
-RUNTIME_FUNCTION(Runtime_BigIntBinaryOp) {
+RUNTIME_FUNCTION(Runtime_BigIntExponentiate) {
   HandleScope scope(isolate);
-  DCHECK_EQ(3, args.length());
+  DCHECK_EQ(2, args.length());
   Handle<Object> left_obj = args.at(0);
-  Handle<Object> right_obj = args.at(1);
-  int opcode = args.smi_value_at(2);
-  Operation op = static_cast<Operation>(opcode);
+  DirectHandle<Object> right_obj = args.at(1);
 
   if (!IsBigInt(*left_obj) || !IsBigInt(*right_obj)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kBigIntMixedTypes));
   }
-  Handle<BigInt> left(Handle<BigInt>::cast(left_obj));
-  Handle<BigInt> right(Handle<BigInt>::cast(right_obj));
-  MaybeHandle<BigInt> result;
-  switch (op) {
-    case Operation::kAdd:
-      result = BigInt::Add(isolate, left, right);
-      break;
-    case Operation::kSubtract:
-      result = BigInt::Subtract(isolate, left, right);
-      break;
-    case Operation::kMultiply:
-      result = BigInt::Multiply(isolate, left, right);
-      break;
-    case Operation::kDivide:
-      result = BigInt::Divide(isolate, left, right);
-      break;
-    case Operation::kModulus:
-      result = BigInt::Remainder(isolate, left, right);
-      break;
-    case Operation::kExponentiate:
-      result = BigInt::Exponentiate(isolate, left, right);
-      break;
-    case Operation::kBitwiseAnd:
-      result = BigInt::BitwiseAnd(isolate, left, right);
-      break;
-    case Operation::kBitwiseOr:
-      result = BigInt::BitwiseOr(isolate, left, right);
-      break;
-    case Operation::kBitwiseXor:
-      result = BigInt::BitwiseXor(isolate, left, right);
-      break;
-    case Operation::kShiftLeft:
-      result = BigInt::LeftShift(isolate, left, right);
-      break;
-    case Operation::kShiftRight:
-      result = BigInt::SignedRightShift(isolate, left, right);
-      break;
-    case Operation::kShiftRightLogical:
-      result = BigInt::UnsignedRightShift(isolate, left, right);
-      break;
-    default:
-      UNREACHABLE();
-  }
-  RETURN_RESULT_OR_FAILURE(isolate, result);
+  auto left = Cast<BigInt>(left_obj);
+  auto right = Cast<BigInt>(right_obj);
+  RETURN_RESULT_OR_FAILURE(isolate, BigInt::Exponentiate(isolate, left, right));
 }
 
 RUNTIME_FUNCTION(Runtime_BigIntUnaryOp) {

@@ -5,6 +5,8 @@
 #ifndef V8_COMPILER_TURBOSHAFT_TYPE_PARSER_H_
 #define V8_COMPILER_TURBOSHAFT_TYPE_PARSER_H_
 
+#include <optional>
+
 #include "src/compiler/turboshaft/types.h"
 
 namespace v8::internal::compiler::turboshaft {
@@ -20,26 +22,26 @@ class TypeParser {
   explicit TypeParser(const std::string_view& str, Zone* zone)
       : str_(str), zone_(zone) {}
 
-  base::Optional<Type> Parse() {
-    base::Optional<Type> type = ParseType();
+  std::optional<Type> Parse() {
+    std::optional<Type> type = ParseType();
     // Skip trailing whitespace.
     while (pos_ < str_.length() && str_[pos_] == ' ') ++pos_;
-    if (pos_ < str_.length()) return base::nullopt;
+    if (pos_ < str_.length()) return std::nullopt;
     return type;
   }
 
  private:
-  base::Optional<Type> ParseType();
+  std::optional<Type> ParseType();
 
   template <typename T>
-  base::Optional<T> ParseRange() {
-    if (!ConsumeIf("[")) return base::nullopt;
+  std::optional<T> ParseRange() {
+    if (!ConsumeIf("[")) return std::nullopt;
     auto from = ReadValue<typename T::value_type>();
-    if (!from) return base::nullopt;
-    if (!ConsumeIf(",")) return base::nullopt;
+    if (!from) return std::nullopt;
+    if (!ConsumeIf(",")) return std::nullopt;
     auto to = ReadValue<typename T::value_type>();
-    if (!to) return base::nullopt;
-    if (!ConsumeIf("]")) return base::nullopt;
+    if (!to) return std::nullopt;
+    if (!ConsumeIf("]")) return std::nullopt;
     if constexpr (!std::is_same_v<T, Word32Type> &&
                   !std::is_same_v<T, Word64Type>) {
       CHECK_LE(*from, *to);
@@ -48,27 +50,27 @@ class TypeParser {
   }
 
   template <typename T>
-  base::Optional<T> ParseSet() {
-    if (!ConsumeIf("{")) return base::nullopt;
+  std::optional<T> ParseSet() {
+    if (!ConsumeIf("{")) return std::nullopt;
     auto elements = ParseSetElements<typename T::value_type>();
-    if (!elements) return base::nullopt;
-    if (!ConsumeIf("}")) return base::nullopt;
+    if (!elements) return std::nullopt;
+    if (!ConsumeIf("}")) return std::nullopt;
     CHECK_LT(0, elements->size());
     CHECK_LE(elements->size(), T::kMaxSetSize);
     return T::Set(*elements, zone_);
   }
 
   template <typename T>
-  base::Optional<std::vector<T>> ParseSetElements() {
+  std::optional<std::vector<T>> ParseSetElements() {
     std::vector<T> elements;
     if (IsNext("}")) return elements;
     while (true) {
       auto element_opt = ReadValue<T>();
-      if (!element_opt) return base::nullopt;
+      if (!element_opt) return std::nullopt;
       elements.push_back(*element_opt);
 
       if (IsNext("}")) break;
-      if (!ConsumeIf(",")) return base::nullopt;
+      if (!ConsumeIf(",")) return std::nullopt;
     }
     base::sort(elements);
     elements.erase(std::unique(elements.begin(), elements.end()),
@@ -94,7 +96,7 @@ class TypeParser {
   }
 
   template <typename T>
-  base::Optional<T> ReadValue() {
+  std::optional<T> ReadValue() {
     T result;
     size_t read = 0;
     // TODO(nicohartmann@): Ideally we want to avoid this string construction
@@ -109,7 +111,7 @@ class TypeParser {
     } else if constexpr (std::is_same_v<T, double>) {
       result = std::stod(s, &read);
     }
-    if (read == 0) return base::nullopt;
+    if (read == 0) return std::nullopt;
     pos_ += read;
     return result;
   }

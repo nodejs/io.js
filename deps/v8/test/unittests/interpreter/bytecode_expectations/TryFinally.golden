@@ -10,19 +10,21 @@ snippet: "
   var a = 1;
   try { a = 2; } finally { a = 3; }
 "
-frame size: 4
+frame size: 5
 parameter count: 1
-bytecode array length: 37
+bytecode array length: 39
 bytecodes: [
   /*   42 S> */ B(LdaSmi), I8(1),
                 B(Star0),
-                B(Mov), R(context), R(3),
+                B(LdaTheHole),
+                B(Star3),
+                B(Mov), R(context), R(4),
   /*   51 S> */ B(LdaSmi), I8(2),
                 B(Star0),
                 B(LdaSmi), I8(-1),
                 B(Star2),
                 B(Star1),
-                B(Jump), U8(5),
+                B(Jump), U8(8),
                 B(Star2),
                 B(LdaZero),
                 B(Star1),
@@ -31,11 +33,11 @@ bytecodes: [
                 B(Star3),
   /*   70 S> */ B(LdaSmi), I8(3),
                 B(Star0),
-                B(Ldar), R(3),
-  /*   72 E> */ B(SetPendingMessage),
                 B(LdaZero),
                 B(TestReferenceEqual), R(1),
-                B(JumpIfFalse), U8(5),
+                B(JumpIfFalse), U8(8),
+                B(Ldar), R(3),
+  /*   72 E> */ B(SetPendingMessage),
                 B(Ldar), R(2),
                 B(ReThrow),
                 B(LdaUndefined),
@@ -44,7 +46,7 @@ bytecodes: [
 constant pool: [
 ]
 handlers: [
-  [6, 9, 15],
+  [8, 11, 17],
 ]
 
 ---
@@ -52,31 +54,33 @@ snippet: "
   var a = 1;
   try { a = 2; } catch(e) { a = 20 } finally { a = 3; }
 "
-frame size: 6
+frame size: 7
 parameter count: 1
-bytecode array length: 58
+bytecode array length: 60
 bytecodes: [
   /*   42 S> */ B(LdaSmi), I8(1),
                 B(Star0),
-                B(Mov), R(context), R(3),
+                B(LdaTheHole),
+                B(Star3),
                 B(Mov), R(context), R(4),
+                B(Mov), R(context), R(5),
   /*   51 S> */ B(LdaSmi), I8(2),
                 B(Star0),
                 B(Jump), U8(18),
+                B(Star6),
+  /*   53 E> */ B(CreateCatchContext), R(6), U8(0),
                 B(Star5),
-  /*   53 E> */ B(CreateCatchContext), R(5), U8(0),
-                B(Star4),
                 B(LdaTheHole),
                 B(SetPendingMessage),
-                B(Ldar), R(4),
-                B(PushContext), R(5),
+                B(Ldar), R(5),
+                B(PushContext), R(6),
   /*   71 S> */ B(LdaSmi), I8(20),
                 B(Star0),
-                B(PopContext), R(5),
+                B(PopContext), R(6),
                 B(LdaSmi), I8(-1),
                 B(Star2),
                 B(Star1),
-                B(Jump), U8(5),
+                B(Jump), U8(8),
                 B(Star2),
                 B(LdaZero),
                 B(Star1),
@@ -85,11 +89,11 @@ bytecodes: [
                 B(Star3),
   /*   90 S> */ B(LdaSmi), I8(3),
                 B(Star0),
-                B(Ldar), R(3),
-  /*   92 E> */ B(SetPendingMessage),
                 B(LdaZero),
                 B(TestReferenceEqual), R(1),
-                B(JumpIfFalse), U8(5),
+                B(JumpIfFalse), U8(8),
+                B(Ldar), R(3),
+  /*   92 E> */ B(SetPendingMessage),
                 B(Ldar), R(2),
                 B(ReThrow),
                 B(LdaUndefined),
@@ -99,8 +103,8 @@ constant pool: [
   SCOPE_INFO_TYPE,
 ]
 handlers: [
-  [6, 30, 36],
-  [9, 12, 14],
+  [8, 32, 38],
+  [11, 14, 16],
 ]
 
 ---
@@ -109,41 +113,43 @@ snippet: "
     try { a = 1 } catch(e) { a = 2 }
   } catch(e) { a = 20 } finally { a = 3; }
 "
-frame size: 7
+frame size: 8
 parameter count: 1
-bytecode array length: 76
+bytecode array length: 78
 bytecodes: [
-                B(Mov), R(context), R(3),
+                B(LdaTheHole),
+                B(Star3),
                 B(Mov), R(context), R(4),
                 B(Mov), R(context), R(5),
+                B(Mov), R(context), R(6),
   /*   55 S> */ B(LdaSmi), I8(1),
                 B(Star0),
                 B(Jump), U8(18),
+                B(Star7),
+  /*   57 E> */ B(CreateCatchContext), R(7), U8(0),
                 B(Star6),
-  /*   57 E> */ B(CreateCatchContext), R(6), U8(0),
+                B(LdaTheHole),
+                B(SetPendingMessage),
+                B(Ldar), R(6),
+                B(PushContext), R(7),
+  /*   74 S> */ B(LdaSmi), I8(2),
+                B(Star0),
+                B(PopContext), R(7),
+                B(Jump), U8(18),
+                B(Star6),
+  /*   76 E> */ B(CreateCatchContext), R(6), U8(1),
                 B(Star5),
                 B(LdaTheHole),
                 B(SetPendingMessage),
                 B(Ldar), R(5),
                 B(PushContext), R(6),
-  /*   74 S> */ B(LdaSmi), I8(2),
-                B(Star0),
-                B(PopContext), R(6),
-                B(Jump), U8(18),
-                B(Star5),
-  /*   76 E> */ B(CreateCatchContext), R(5), U8(1),
-                B(Star4),
-                B(LdaTheHole),
-                B(SetPendingMessage),
-                B(Ldar), R(4),
-                B(PushContext), R(5),
   /*   95 S> */ B(LdaSmi), I8(20),
                 B(Star0),
-                B(PopContext), R(5),
+                B(PopContext), R(6),
                 B(LdaSmi), I8(-1),
                 B(Star2),
                 B(Star1),
-                B(Jump), U8(5),
+                B(Jump), U8(8),
                 B(Star2),
                 B(LdaZero),
                 B(Star1),
@@ -152,11 +158,11 @@ bytecodes: [
                 B(Star3),
   /*  114 S> */ B(LdaSmi), I8(3),
                 B(Star0),
-                B(Ldar), R(3),
-  /*  116 E> */ B(SetPendingMessage),
                 B(LdaZero),
                 B(TestReferenceEqual), R(1),
-                B(JumpIfFalse), U8(5),
+                B(JumpIfFalse), U8(8),
+                B(Ldar), R(3),
+  /*  116 E> */ B(SetPendingMessage),
                 B(Ldar), R(2),
                 B(ReThrow),
                 B(LdaUndefined),
@@ -167,8 +173,8 @@ constant pool: [
   SCOPE_INFO_TYPE,
 ]
 handlers: [
-  [3, 48, 54],
-  [6, 30, 32],
-  [9, 12, 14],
+  [5, 50, 56],
+  [8, 32, 34],
+  [11, 14, 16],
 ]
 

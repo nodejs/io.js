@@ -22,6 +22,7 @@ Checks data model errors
 
 The following are checked here:
 Variant Key Mismatch
+Duplicate Variant
 Missing Fallback Variant (called NonexhaustivePattern here)
 Missing Selector Annotation
 Duplicate Declaration
@@ -135,9 +136,7 @@ void Checker::addFreeVars(TypeEnvironment& t, const OptionMap& opts, UErrorCode&
 void Checker::addFreeVars(TypeEnvironment& t, const Operator& rator, UErrorCode& status) {
     CHECK_ERROR(status);
 
-    if (!rator.isReserved()) {
-        addFreeVars(t, rator.getOptionsInternal(), status);
-    }
+    addFreeVars(t, rator.getOptionsInternal(), status);
 }
 
 void Checker::addFreeVars(TypeEnvironment& t, const Expression& rhs, UErrorCode& status) {
@@ -162,6 +161,7 @@ void Checker::checkVariants(UErrorCode& status) {
 
     // Check that one variant includes only wildcards
     bool defaultExists = false;
+    bool duplicatesExist = false;
 
     for (int32_t i = 0; i < dataModel.numVariants(); i++) {
         const SelectorKeys& k = variants[i].getKeys();
@@ -173,10 +173,35 @@ void Checker::checkVariants(UErrorCode& status) {
             return;
         }
         defaultExists |= areDefaultKeys(keys, len);
+
+        // Check if this variant's keys are duplicated by any other variant's keys
+        if (!duplicatesExist) {
+            // This check takes quadratic time, but it can be optimized if checking
+            // this property turns out to be a bottleneck.
+            for (int32_t j = 0; j < i; j++) {
+                const SelectorKeys& k1 = variants[j].getKeys();
+                const Key* keys1 = k1.getKeysInternal();
+                bool allEqual = true;
+                // This variant was already checked,
+                // so we know keys1.len == len
+                for (int32_t kk = 0; kk < len; kk++) {
+                    if (!(keys[kk] == keys1[kk])) {
+                        allEqual = false;
+                        break;
+                    }
+                }
+                if (allEqual) {
+                    duplicatesExist = true;
+                }
+            }
+        }
+    }
+
+    if (duplicatesExist) {
+        errors.addError(StaticErrorType::DuplicateVariant, status);
     }
     if (!defaultExists) {
         errors.addError(StaticErrorType::NonexhaustivePattern, status);
-        return;
     }
 }
 
@@ -186,12 +211,10 @@ void Checker::requireAnnotated(const TypeEnvironment& t, const Expression& selec
     if (selectorExpr.isFunctionCall()) {
         return; // No error
     }
-    if (!selectorExpr.isReserved()) {
-        const Operand& rand = selectorExpr.getOperand();
-        if (rand.isVariable()) {
-            if (t.get(rand.asVariable()) == TypeEnvironment::Type::Annotated) {
-                return; // No error
-            }
+    const Operand& rand = selectorExpr.getOperand();
+    if (rand.isVariable()) {
+        if (t.get(rand.asVariable()) == TypeEnvironment::Type::Annotated) {
+            return; // No error
         }
     }
     // If this code is reached, an error was detected
@@ -212,9 +235,6 @@ void Checker::checkSelectors(const TypeEnvironment& t, UErrorCode& status) {
 TypeEnvironment::Type typeOf(TypeEnvironment& t, const Expression& expr) {
     if (expr.isFunctionCall()) {
         return TypeEnvironment::Type::Annotated;
-    }
-    if (expr.isReserved()) {
-        return TypeEnvironment::Type::Unannotated;
     }
     const Operand& rand = expr.getOperand();
     U_ASSERT(!rand.isNull());
@@ -268,11 +288,6 @@ void Checker::checkDeclarations(TypeEnvironment& t, UErrorCode& status) {
         }
         // Next, extend the type environment with a binding from lhs to its type
         t.extend(lhs, typeOf(t, rhs), status);
-    }
-
-    // Check for unsupported statements
-    if (dataModel.unsupportedStatementsLen > 0) {
-        errors.addError(StaticErrorType::UnsupportedStatementError, status);
     }
 }
 

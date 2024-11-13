@@ -30,37 +30,34 @@ AllocationResult LocalHeap::AllocateRaw(int size_in_bytes, AllocationType type,
   return heap_allocator_.AllocateRaw(size_in_bytes, type, origin, alignment);
 }
 
-template <typename LocalHeap::AllocationRetryMode mode>
+template <typename HeapAllocator::AllocationRetryMode mode>
 Tagged<HeapObject> LocalHeap::AllocateRawWith(int object_size,
                                               AllocationType type,
                                               AllocationOrigin origin,
                                               AllocationAlignment alignment) {
   object_size = ALIGN_TO_ALLOCATION_ALIGNMENT(object_size);
   DCHECK(!v8_flags.enable_third_party_heap);
-  AllocationResult result = AllocateRaw(object_size, type, origin, alignment);
-  Tagged<HeapObject> object;
-  if (result.To(&object)) return object;
-  result =
-      PerformCollectionAndAllocateAgain(object_size, type, origin, alignment);
-  if (result.To(&object)) return object;
-
-  switch (mode) {
-    case kRetryOrFail:
-      heap_->FatalProcessOutOfMemory("LocalHeap: allocation failed");
-    case kLightRetry:
-      return HeapObject();
-  }
+  return heap_allocator_.AllocateRawWith<mode>(object_size, type, origin,
+                                               alignment);
 }
 
 Address LocalHeap::AllocateRawOrFail(int object_size, AllocationType type,
                                      AllocationOrigin origin,
                                      AllocationAlignment alignment) {
-  return AllocateRawWith<kRetryOrFail>(object_size, type, origin, alignment)
+  return AllocateRawWith<HeapAllocator::kRetryOrFail>(object_size, type, origin,
+                                                      alignment)
       .address();
 }
 
 template <typename Callback>
 V8_INLINE void LocalHeap::ParkAndExecuteCallback(Callback callback) {
+  // This method is given as a callback to the stack trampoline, when the stack
+  // marker has just been set.
+#if defined(V8_ENABLE_DIRECT_HANDLE) && defined(DEBUG)
+  // Reset the number of direct handles that are below the stack marker.
+  // It will be restored before the method returns.
+  DirectHandleBase::ResetNumberOfHandlesScope scope;
+#endif  // V8_ENABLE_DIRECT_HANDLE && DEBUG
   ParkedScope parked(this);
   // Provide the parked scope as a witness, if the callback expects it.
   if constexpr (std::is_invocable_v<Callback, const ParkedScope&>) {
@@ -73,7 +70,7 @@ V8_INLINE void LocalHeap::ParkAndExecuteCallback(Callback callback) {
 template <typename Callback>
 V8_INLINE void LocalHeap::ExecuteWithStackMarker(Callback callback) {
   if (is_main_thread()) {
-    heap()->stack().SetMarkerIfNeededAndCallback(callback);
+    heap()->stack().SetMarkerAndCallback(callback);
   } else {
     heap()->stack().SetMarkerForBackgroundThreadAndCallback(
         ThreadId::Current().ToInteger(), callback);
@@ -81,24 +78,34 @@ V8_INLINE void LocalHeap::ExecuteWithStackMarker(Callback callback) {
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::BlockWhileParked(Callback callback) {
+V8_INLINE void LocalHeap::ExecuteWhileParked(Callback callback) {
   ExecuteWithStackMarker(
       [this, callback]() { ParkAndExecuteCallback(callback); });
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::BlockMainThreadWhileParked(Callback callback) {
+V8_INLINE void LocalHeap::ExecuteMainThreadWhileParked(Callback callback) {
   DCHECK(is_main_thread());
-  heap()->stack().SetMarkerIfNeededAndCallback(
+  heap()->stack().SetMarkerAndCallback(
       [this, callback]() { ParkAndExecuteCallback(callback); });
 }
 
 template <typename Callback>
-V8_INLINE void LocalHeap::BlockBackgroundThreadWhileParked(Callback callback) {
+V8_INLINE void LocalHeap::ExecuteBackgroundThreadWhileParked(
+    Callback callback) {
   DCHECK(!is_main_thread());
   heap()->stack().SetMarkerForBackgroundThreadAndCallback(
       ThreadId::Current().ToInteger(),
       [this, callback]() { ParkAndExecuteCallback(callback); });
+}
+
+V8_INLINE bool LocalHeap::is_in_trampoline() const {
+  if (is_main_thread()) {
+    return heap_->stack().IsMarkerSet();
+  } else {
+    return heap_->stack().IsMarkerSetForBackgroundThread(
+        ThreadId::Current().ToInteger());
+  }
 }
 
 }  // namespace internal

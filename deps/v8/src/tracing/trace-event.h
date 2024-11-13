@@ -15,7 +15,7 @@
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "src/tracing/trace-categories.h"
 #else
-#include "base/trace_event/common/trace_event_common.h"
+#include "src/tracing/trace-event-no-perfetto.h"
 #endif  // !defined(V8_USE_PERFETTO)
 
 #include "include/v8-platform.h"
@@ -23,7 +23,7 @@
 #include "src/base/macros.h"
 
 // This header file defines implementation details of how the trace macros in
-// trace_event_common.h collect and store trace events. Anything not
+// trace-event-no-perfetto.h collect and store trace events. Anything not
 // implementation-specific should go in trace_macros_common.h instead of here.
 
 

@@ -52,14 +52,23 @@ Metadata metadata;
 
 #if HAVE_OPENSSL
 static constexpr size_t search(const char* s, char c, size_t n = 0) {
-  return *s == c ? n : search(s + 1, c, n + 1);
+  return *s == '\0' ? n : (*s == c ? n : search(s + 1, c, n + 1));
 }
 
 static inline std::string GetOpenSSLVersion() {
   // sample openssl version string format
   // for reference: "OpenSSL 1.1.0i 14 Aug 2018"
   const char* version = OpenSSL_version(OPENSSL_VERSION);
-  const size_t start = search(version, ' ') + 1;
+  const size_t first_space = search(version, ' ');
+
+  // When Node.js is linked to an alternative library implementing the
+  // OpenSSL API e.g. BoringSSL, the version string may not match the
+  //  expected pattern. In this case just return “0.0.0” as placeholder.
+  if (version[first_space] == '\0') {
+    return "0.0.0";
+  }
+
+  const size_t start = first_space + 1;
   const size_t len = search(&version[start], ' ');
   return std::string(version, start, len);
 }
@@ -117,7 +126,12 @@ Metadata::Versions::Versions() {
   acorn = ACORN_VERSION;
   cjs_module_lexer = CJS_MODULE_LEXER_VERSION;
   uvwasi = UVWASI_VERSION_STRING;
+
+#ifndef NODE_SHARED_BUILTIN_AMARO_DIST_INDEX_PATH
+#if HAVE_AMARO
   amaro = AMARO_VERSION;
+#endif
+#endif
 
 #if HAVE_OPENSSL
   openssl = GetOpenSSLVersion();

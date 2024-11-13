@@ -13,8 +13,7 @@
 #include "defs.h"
 #include "sessionticket.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 class Session;
 class TLSContext;
@@ -29,7 +28,7 @@ class TLSSession final : public MemoryRetainer {
  public:
   static const TLSSession& From(const SSL* ssl);
 
-  // The constructor is public in order to satisify the call to std::make_unique
+  // The constructor is public in order to satisfy the call to std::make_unique
   // in TLSContext::NewSession. It should not be called directly.
   TLSSession(Session* session,
              std::shared_ptr<TLSContext> context,
@@ -147,7 +146,7 @@ class TLSContext final : public MemoryRetainer,
 
     // The TLS private key(s) to use for this session.
     // JavaScript option name "keys"
-    std::vector<std::shared_ptr<crypto::KeyObjectData>> keys;
+    std::vector<crypto::KeyObjectData> keys;
 
     // Collection of certificates to use for this session.
     // JavaScript option name "certs"
@@ -221,8 +220,7 @@ class TLSContext final : public MemoryRetainer,
   friend class TLSSession;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

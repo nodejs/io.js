@@ -1,3 +1,4 @@
+#include "async_context_frame.h"
 #include "async_wrap-inl.h"
 #include "env-inl.h"
 #define NAPI_EXPERIMENTAL
@@ -121,9 +122,9 @@ namespace {
 class BufferFinalizer : private Finalizer {
  public:
   static BufferFinalizer* New(napi_env env,
-                              napi_finalize finalize_callback = nullptr,
-                              void* finalize_data = nullptr,
-                              void* finalize_hint = nullptr) {
+                              napi_finalize finalize_callback,
+                              void* finalize_data,
+                              void* finalize_hint) {
     return new BufferFinalizer(
         env, finalize_callback, finalize_data, finalize_hint);
   }
@@ -131,13 +132,8 @@ class BufferFinalizer : private Finalizer {
   static void FinalizeBufferCallback(char* data, void* hint) {
     std::unique_ptr<BufferFinalizer, Deleter> finalizer{
         static_cast<BufferFinalizer*>(hint)};
-    finalizer->finalize_data_ = data;
-
     // It is safe to call into JavaScript at this point.
-    if (finalizer->finalize_callback_ == nullptr) return;
-    finalizer->env_->CallFinalizer(finalizer->finalize_callback_,
-                                   finalizer->finalize_data_,
-                                   finalizer->finalize_hint_);
+    finalizer->CallFinalizer();
   }
 
   struct Deleter {
@@ -150,10 +146,10 @@ class BufferFinalizer : private Finalizer {
                   void* finalize_data,
                   void* finalize_hint)
       : Finalizer(env, finalize_callback, finalize_data, finalize_hint) {
-    env_->Ref();
+    env->Ref();
   }
 
-  ~BufferFinalizer() { env_->Unref(); }
+  ~BufferFinalizer() { env()->Unref(); }
 };
 
 void ThrowNodeApiVersionError(node::Environment* node_env,
@@ -545,7 +541,9 @@ class AsyncContext {
       : env_(env) {
     async_id_ = node_env()->new_async_id();
     trigger_async_id_ = node_env()->get_default_trigger_async_id();
-    resource_.Reset(node_env()->isolate(), resource_object);
+    v8::Isolate* isolate = node_env()->isolate();
+    resource_.Reset(isolate, resource_object);
+    context_frame_.Reset(isolate, node::async_context_frame::current(isolate));
     lost_reference_ = false;
     if (externally_managed_resource) {
       resource_.SetWeak(
@@ -571,13 +569,15 @@ class AsyncContext {
       int argc,
       v8::Local<v8::Value> argv[]) {
     EnsureReference();
-    return node::InternalMakeCallback(node_env(),
-                                      resource(),
-                                      recv,
-                                      callback,
-                                      argc,
-                                      argv,
-                                      {async_id_, trigger_async_id_});
+    return node::InternalMakeCallback(
+        node_env(),
+        resource(),
+        recv,
+        callback,
+        argc,
+        argv,
+        {async_id_, trigger_async_id_},
+        context_frame_.Get(node_env()->isolate()));
   }
 
   inline napi_callback_scope OpenCallbackScope() {
@@ -633,6 +633,7 @@ class AsyncContext {
   double trigger_async_id_;
   v8::Global<v8::Object> resource_;
   bool lost_reference_;
+  v8::Global<v8::Value> context_frame_;
 };
 
 }  // end of anonymous namespace
@@ -1058,7 +1059,7 @@ napi_create_external_buffer(napi_env env,
 
   // The finalizer object will delete itself after invoking the callback.
   v8impl::BufferFinalizer* finalizer =
-      v8impl::BufferFinalizer::New(env, finalize_cb, nullptr, finalize_hint);
+      v8impl::BufferFinalizer::New(env, finalize_cb, data, finalize_hint);
 
   v8::MaybeLocal<v8::Object> maybe =
       node::Buffer::New(isolate,
@@ -1426,3 +1427,38 @@ napi_status NAPI_CDECL node_api_get_module_file_name(
   *result = static_cast<node_napi_env>(env)->GetFilename();
   return napi_clear_last_error(env);
 }
+
+#ifdef NAPI_EXPERIMENTAL
+
+napi_status NAPI_CDECL
+node_api_create_buffer_from_arraybuffer(napi_env env,
+                                        napi_value arraybuffer,
+                                        size_t byte_offset,
+                                        size_t byte_length,
+                                        napi_value* result) {
+  NAPI_PREAMBLE(env);
+  CHECK_ARG(env, arraybuffer);
+  CHECK_ARG(env, result);
+
+  v8::Local<v8::Value> arraybuffer_value =
+      v8impl::V8LocalValueFromJsValue(arraybuffer);
+  if (!arraybuffer_value->IsArrayBuffer()) {
+    return napi_invalid_arg;
+  }
+
+  v8::Local<v8::ArrayBuffer> arraybuffer_obj =
+      arraybuffer_value.As<v8::ArrayBuffer>();
+  if (byte_offset + byte_length > arraybuffer_obj->ByteLength()) {
+    return napi_throw_range_error(
+        env, "ERR_OUT_OF_RANGE", "The byte offset + length is out of range");
+  }
+
+  v8::Local<v8::Object> buffer =
+      node::Buffer::New(env->isolate, arraybuffer_obj, byte_offset, byte_length)
+          .ToLocalChecked();
+
+  *result = v8impl::JsValueFromV8LocalValue(buffer);
+  return napi_ok;
+}
+
+#endif

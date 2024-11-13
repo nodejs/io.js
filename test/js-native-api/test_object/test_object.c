@@ -656,7 +656,7 @@ TypeTaggedInstance(napi_env env, napi_callback_info info) {
   return instance;
 }
 
-// V8 will not allowe us to construct an external with a NULL data value.
+// V8 will not allow us to construct an external with a NULL data value.
 #define IN_LIEU_OF_NULL ((void*)0x1)
 
 static napi_value PlainExternal(napi_env env, napi_callback_info info) {

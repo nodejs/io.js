@@ -136,6 +136,10 @@ constexpr bool WasmOpcodes::IsRelaxedSimdOpcode(WasmOpcode opcode) {
   return (opcode & 0xfff00) == 0xfd100;
 }
 
+constexpr bool WasmOpcodes::IsFP16SimdOpcode(WasmOpcode opcode) {
+  return opcode >= kExprF16x8Splat && opcode <= kExprF16x8Qfms;
+}
+
 #if DEBUG
 // static
 constexpr bool WasmOpcodes::IsMemoryAccessOpcode(WasmOpcode opcode) {

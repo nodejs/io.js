@@ -14,6 +14,7 @@
 #include "src/execution/isolate.h"
 #include "src/handles/handles.h"
 #include "src/heap/local-factory-inl.h"
+#include "src/interpreter/bytecode-operands.h"
 #include "src/objects/objects-inl.h"
 
 namespace v8 {
@@ -202,7 +203,7 @@ Handle<TrustedFixedArray> ConstantArrayBuilder::ToFixedArray(
 #endif
     // Copy objects from slice into array.
     for (size_t i = 0; i < slice->size(); ++i) {
-      Handle<Object> value =
+      DirectHandle<Object> value =
           slice->At(slice->start_index() + i).ToHandle(isolate);
       fixed_array->set(array_index++, *value);
     }
@@ -334,9 +335,11 @@ void ConstantArrayBuilder::SetJumpTableSmi(size_t index, Tagged<Smi> smi) {
   return slice->At(index).SetJumpTableSmi(smi);
 }
 
-OperandSize ConstantArrayBuilder::CreateReservedEntry() {
+OperandSize ConstantArrayBuilder::CreateReservedEntry(
+    OperandSize minimum_operand_size) {
   for (size_t i = 0; i < arraysize(idx_slice_); ++i) {
-    if (idx_slice_[i]->available() > 0) {
+    if (idx_slice_[i]->available() > 0 &&
+        idx_slice_[i]->operand_size() >= minimum_operand_size) {
       idx_slice_[i]->Reserve();
       return idx_slice_[i]->operand_size();
     }

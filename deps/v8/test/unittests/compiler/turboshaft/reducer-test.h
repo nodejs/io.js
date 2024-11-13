@@ -8,13 +8,14 @@
 #include "src/compiler/graph-visualizer.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/phase.h"
+#include "src/compiler/turboshaft/variable-reducer.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8::internal::compiler::turboshaft {
 
 class TestInstance {
  public:
-  using Assembler = TSAssembler<>;
+  using Assembler = TSAssembler<VariableReducer>;
 
   struct CapturedOperation {
     TestInstance* instance;
@@ -54,11 +55,11 @@ class TestInstance {
   };
 
   template <typename Builder>
-  static TestInstance CreateFromGraph(int parameter_count,
+  static TestInstance CreateFromGraph(PipelineData* data, int parameter_count,
                                       const Builder& builder, Isolate* isolate,
                                       Zone* zone) {
     auto graph = std::make_unique<Graph>(zone);
-    TestInstance instance(std::move(graph), isolate, zone);
+    TestInstance instance(data, std::move(graph), isolate, zone);
     // Generate a function prolog
     Block* start_block = instance.Asm().NewBlock();
     instance.Asm().Bind(start_block);
@@ -75,13 +76,14 @@ class TestInstance {
   Assembler& Asm() { return assembler_; }
   Graph& graph() { return *graph_; }
   Factory& factory() { return *isolate_->factory(); }
+  Zone* zone() { return zone_; }
 
   Assembler& operator()() { return Asm(); }
 
   template <template <typename> typename... Reducers>
   void Run(bool trace_reductions = v8_flags.turboshaft_trace_reduction) {
     TSAssembler<GraphVisitor, Reducers...> phase(
-        graph(), graph().GetOrCreateCompanion(), zone_);
+        data_, graph(), graph().GetOrCreateCompanion(), zone_);
 #ifdef DEBUG
     if (trace_reductions) {
       phase.template VisitGraph<true>();
@@ -116,7 +118,7 @@ class TestInstance {
 
     FrameStateFunctionInfo* function_info =
         zone_->template New<FrameStateFunctionInfo>(
-            FrameStateType::kUnoptimizedFunction, 0, 0,
+            FrameStateType::kUnoptimizedFunction, 0, 0, 0,
             Handle<SharedFunctionInfo>{});
     const FrameStateInfo* frame_state_info =
         zone_->template New<FrameStateInfo>(BytecodeOffset(0),
@@ -189,13 +191,16 @@ class TestInstance {
   }
 
  private:
-  TestInstance(std::unique_ptr<Graph> graph, Isolate* isolate, Zone* zone)
-      : assembler_(*graph, *graph, zone),
+  TestInstance(PipelineData* data, std::unique_ptr<Graph> graph,
+               Isolate* isolate, Zone* zone)
+      : data_(data),
+        assembler_(data, *graph, *graph, zone),
         graph_(std::move(graph)),
         isolate_(isolate),
         zone_(zone) {}
 
-  TSAssembler<> assembler_;
+  PipelineData* data_;
+  Assembler assembler_;
   std::unique_ptr<Graph> graph_;
   std::unique_ptr<std::ofstream> stream_;
   Isolate* isolate_;
@@ -208,36 +213,19 @@ class ReducerTest : public TestWithNativeContextAndZone {
  public:
   template <typename Builder>
   TestInstance CreateFromGraph(int parameter_count, const Builder& builder) {
-    return TestInstance::CreateFromGraph(parameter_count, builder, isolate(),
-                                         zone());
+    return TestInstance::CreateFromGraph(pipeline_data_.get(), parameter_count,
+                                         builder, isolate(), zone());
   }
 
   void SetUp() override {
-    pipeline_data_.emplace(TurboshaftPipelineKind::kJS, info_, schedule_,
-                           graph_zone_, this->zone(), broker_, isolate_,
-                           source_positions_, node_origins_, sequence_, frame_,
-                           assembler_options_, &max_unoptimized_frame_height_,
-                           &max_pushed_argument_count_, instruction_zone_);
+    pipeline_data_.reset(new turboshaft::PipelineData(
+        &zone_stats_, TurboshaftPipelineKind::kJS, this->isolate(), nullptr,
+        AssemblerOptions::Default(this->isolate())));
   }
   void TearDown() override { pipeline_data_.reset(); }
 
-  // We use some dummy data to initialize the PipelineData::Scope.
-  // TODO(nicohartmann@): Clean this up once PipelineData is reorganized.
-  OptimizedCompilationInfo* info_ = nullptr;
-  Schedule* schedule_ = nullptr;
-  Zone* graph_zone_ = this->zone();
-  JSHeapBroker* broker_ = nullptr;
-  Isolate* isolate_ = this->isolate();
-  SourcePositionTable* source_positions_ = nullptr;
-  NodeOriginTable* node_origins_ = nullptr;
-  InstructionSequence* sequence_ = nullptr;
-  Frame* frame_ = nullptr;
-  AssemblerOptions assembler_options_;
-  size_t max_unoptimized_frame_height_ = 0;
-  size_t max_pushed_argument_count_ = 0;
-  Zone* instruction_zone_ = this->zone();
-
-  base::Optional<turboshaft::PipelineData::Scope> pipeline_data_;
+  ZoneStats zone_stats_{this->zone()->allocator()};
+  std::unique_ptr<turboshaft::PipelineData> pipeline_data_;
 };
 
 }  // namespace v8::internal::compiler::turboshaft

@@ -15,8 +15,10 @@ namespace {
 
 using InterceptorTest = TestWithContext;
 
-void NamedGetter(Local<Name> property,
-                 const PropertyCallbackInfo<Value>& info) {}
+v8::Intercepted NamedGetter(Local<Name> property,
+                            const PropertyCallbackInfo<Value>& info) {
+  return v8::Intercepted::kNo;
+}
 
 TEST_F(InterceptorTest, FreezeApiObjectWithInterceptor) {
   TryCatch try_catch(isolate());
@@ -43,24 +45,29 @@ class InterceptorLoggingTest : public TestWithNativeContext {
 
   static const int kTestIndex = 0;
 
-  static void NamedPropertyGetter(Local<v8::Name> name,
-                                  const v8::PropertyCallbackInfo<Value>& info) {
+  static v8::Intercepted NamedPropertyGetter(
+      Local<v8::Name> name, const v8::PropertyCallbackInfo<Value>& info) {
     LogCallback(info, "named getter");
+    return v8::Intercepted::kNo;
   }
 
-  static void NamedPropertySetter(Local<v8::Name> name, Local<v8::Value> value,
-                                  const v8::PropertyCallbackInfo<Value>& info) {
+  static v8::Intercepted NamedPropertySetter(
+      Local<v8::Name> name, Local<v8::Value> value,
+      const v8::PropertyCallbackInfo<void>& info) {
     LogCallback(info, "named setter");
+    return v8::Intercepted::kNo;
   }
 
-  static void NamedPropertyQuery(
+  static v8::Intercepted NamedPropertyQuery(
       Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Integer>& info) {
     LogCallback(info, "named query");
+    return v8::Intercepted::kNo;
   }
 
-  static void NamedPropertyDeleter(
+  static v8::Intercepted NamedPropertyDeleter(
       Local<v8::Name> name, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
     LogCallback(info, "named deleter");
+    return v8::Intercepted::kNo;
   }
 
   static void NamedPropertyEnumerator(
@@ -68,36 +75,42 @@ class InterceptorLoggingTest : public TestWithNativeContext {
     LogCallback(info, "named enumerator");
   }
 
-  static void NamedPropertyDefiner(
+  static v8::Intercepted NamedPropertyDefiner(
       Local<v8::Name> name, const v8::PropertyDescriptor& desc,
-      const v8::PropertyCallbackInfo<Value>& info) {
+      const v8::PropertyCallbackInfo<void>& info) {
     LogCallback(info, "named definer");
+    return v8::Intercepted::kNo;
   }
 
-  static void NamedPropertyDescriptor(
+  static v8::Intercepted NamedPropertyDescriptor(
       Local<v8::Name> name, const v8::PropertyCallbackInfo<Value>& info) {
     LogCallback(info, "named descriptor");
+    return v8::Intercepted::kNo;
   }
 
-  static void IndexedPropertyGetter(
+  static v8::Intercepted IndexedPropertyGetter(
       uint32_t index, const v8::PropertyCallbackInfo<Value>& info) {
     LogCallback(info, "indexed getter");
+    return v8::Intercepted::kNo;
   }
 
-  static void IndexedPropertySetter(
+  static v8::Intercepted IndexedPropertySetter(
       uint32_t index, Local<v8::Value> value,
-      const v8::PropertyCallbackInfo<Value>& info) {
+      const v8::PropertyCallbackInfo<void>& info) {
     LogCallback(info, "indexed setter");
+    return v8::Intercepted::kNo;
   }
 
-  static void IndexedPropertyQuery(
+  static v8::Intercepted IndexedPropertyQuery(
       uint32_t index, const v8::PropertyCallbackInfo<v8::Integer>& info) {
     LogCallback(info, "indexed query");
+    return v8::Intercepted::kNo;
   }
 
-  static void IndexedPropertyDeleter(
+  static v8::Intercepted IndexedPropertyDeleter(
       uint32_t index, const v8::PropertyCallbackInfo<v8::Boolean>& info) {
     LogCallback(info, "indexed deleter");
+    return v8::Intercepted::kNo;
   }
 
   static void IndexedPropertyEnumerator(
@@ -105,15 +118,17 @@ class InterceptorLoggingTest : public TestWithNativeContext {
     LogCallback(info, "indexed enumerator");
   }
 
-  static void IndexedPropertyDefiner(
+  static v8::Intercepted IndexedPropertyDefiner(
       uint32_t index, const v8::PropertyDescriptor& desc,
-      const v8::PropertyCallbackInfo<Value>& info) {
+      const v8::PropertyCallbackInfo<void>& info) {
     LogCallback(info, "indexed definer");
+    return v8::Intercepted::kNo;
   }
 
-  static void IndexedPropertyDescriptor(
+  static v8::Intercepted IndexedPropertyDescriptor(
       uint32_t index, const v8::PropertyCallbackInfo<Value>& info) {
     LogCallback(info, "indexed descriptor");
+    return v8::Intercepted::kNo;
   }
 
   template <class T>

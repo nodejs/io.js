@@ -50,8 +50,7 @@ if (cluster.isWorker) {
     checks.setupEvent = true;
 
     settings = cluster.settings;
-    if (settings &&
-        settings.args && settings.args[0] === 'custom argument' &&
+    if (settings?.args && settings.args[0] === 'custom argument' &&
         settings.silent === true &&
         settings.exec === process.argv[1]) {
       checks.settingsObject = true;

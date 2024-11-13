@@ -31,14 +31,12 @@ const filePath = path.join(testDirectory, 'folder-3');
 const childrenFile = 'file-4.txt';
 const childrenAbsolutePath = path.join(filePath, childrenFile);
 const childrenRelativePath = path.join(path.basename(filePath), childrenFile);
+let watcherClosed = false;
 
 const watcher = fs.watch(testDirectory, { recursive: true });
-let watcherClosed = false;
 watcher.on('change', function(event, filename) {
-  assert.strictEqual(event, 'rename');
-  assert.ok(filename === path.basename(filePath) || filename === childrenRelativePath);
-
   if (filename === childrenRelativePath) {
+    assert.strictEqual(event, 'rename');
     watcher.close();
     watcherClosed = true;
   }

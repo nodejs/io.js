@@ -245,9 +245,9 @@ static void AsyncTaskScheduledWrapper(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   CHECK(args[0]->IsString());
-  Local<String> task_name = args[0].As<String>();
-  String::Value task_name_value(args.GetIsolate(), task_name);
-  StringView task_name_view(*task_name_value, task_name_value.length());
+
+  TwoByteValue task_name_buffer(args.GetIsolate(), args[0]);
+  StringView task_name_view(*task_name_buffer, task_name_buffer.length());
 
   CHECK(args[1]->IsNumber());
   int64_t task_id = args[1]->IntegerValue(env->context()).FromJust();

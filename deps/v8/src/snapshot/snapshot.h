@@ -94,7 +94,7 @@ class Snapshot : public AllStatic {
   // a new isolate and context, and finally runs VerifyHeap on the fresh
   // isolate.
   V8_EXPORT_PRIVATE static void SerializeDeserializeAndVerifyForTesting(
-      Isolate* isolate, Handle<Context> default_context);
+      Isolate* isolate, DirectHandle<Context> default_context);
 
   // ---------------- Helper methods ------------------------------------------
 
@@ -173,7 +173,7 @@ class SnapshotCreatorImpl final {
   size_t AddContext(Handle<NativeContext> context,
                     SerializeEmbedderFieldsCallback callback);
 
-  size_t AddData(Handle<NativeContext> context, Address object);
+  size_t AddData(DirectHandle<NativeContext> context, Address object);
   size_t AddData(Address object);
 
   StartupData CreateBlob(

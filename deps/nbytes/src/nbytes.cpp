@@ -43,7 +43,7 @@ namespace {
 #endif
 }  // namespace
 
-bool SwapBytes16(void *data, size_t nbytes) {
+bool SwapBytes16(char *data, size_t nbytes) {
   if (nbytes % sizeof(uint16_t) != 0) return false;
 
 #if defined(_MSC_VER)
@@ -59,17 +59,16 @@ bool SwapBytes16(void *data, size_t nbytes) {
 #endif
 
   uint16_t temp;
-  uint8_t *ptr = reinterpret_cast<uint8_t *>(data);
-  for (size_t i = 0; i < nbytes; i += sizeof(uint16_t)) {
-    memcpy(&temp, &ptr[i], sizeof(uint16_t));
+  for (size_t i = 0; i < nbytes; i += sizeof(temp)) {
+    memcpy(&temp, &data[i], sizeof(temp));
     temp = BSWAP_2(temp);
-    memcpy(&ptr[i], &temp, sizeof(uint16_t));
+    memcpy(&data[i], &temp, sizeof(temp));
   }
 
   return true;
 }
 
-bool SwapBytes32(void *data, size_t nbytes) {
+bool SwapBytes32(char *data, size_t nbytes) {
   if (nbytes % sizeof(uint32_t) != 0) return false;
 
 #if defined(_MSC_VER)
@@ -84,18 +83,17 @@ bool SwapBytes32(void *data, size_t nbytes) {
   }
 #endif
 
-  uint32_t temp = 0;
-  uint8_t *ptr = reinterpret_cast<uint8_t *>(data);
-  for (size_t i = 0; i < nbytes; i += sizeof(uint32_t)) {
-    memcpy(&temp, &ptr[i], sizeof(uint32_t));
+  uint32_t temp;
+  for (size_t i = 0; i < nbytes; i += sizeof(temp)) {
+    memcpy(&temp, &data[i], sizeof(temp));
     temp = BSWAP_4(temp);
-    memcpy(&ptr[i], &temp, sizeof(uint32_t));
+    memcpy(&data[i], &temp, sizeof(temp));
   }
 
   return true;
 }
 
-bool SwapBytes64(void *data, size_t nbytes) {
+bool SwapBytes64(char *data, size_t nbytes) {
   if (nbytes % sizeof(uint64_t) != 0) return false;
 
 #if defined(_MSC_VER)
@@ -110,12 +108,11 @@ bool SwapBytes64(void *data, size_t nbytes) {
   }
 #endif
 
-  uint64_t temp = 0;
-  uint8_t *ptr = reinterpret_cast<uint8_t *>(data);
-  for (size_t i = 0; i < nbytes; i += sizeof(uint64_t)) {
-    memcpy(&temp, &ptr[i], sizeof(uint64_t));
+  uint64_t temp;
+  for (size_t i = 0; i < nbytes; i += sizeof(temp)) {
+    memcpy(&temp, &data[i], sizeof(temp));
     temp = BSWAP_8(temp);
-    memcpy(&ptr[i], &temp, sizeof(uint64_t));
+    memcpy(&data[i], &temp, sizeof(temp));
   }
 
   return true;

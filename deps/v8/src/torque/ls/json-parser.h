@@ -5,26 +5,21 @@
 #ifndef V8_TORQUE_LS_JSON_PARSER_H_
 #define V8_TORQUE_LS_JSON_PARSER_H_
 
+#include <optional>
+
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/torque/ls/json.h"
 #include "src/torque/utils.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
-namespace ls {
+namespace v8::internal::torque::ls {
 
 struct JsonParserResult {
   JsonValue value;
-  base::Optional<TorqueMessage> error;
+  std::optional<TorqueMessage> error;
 };
 
 V8_EXPORT_PRIVATE JsonParserResult ParseJson(const std::string& input);
 
-}  // namespace ls
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque::ls
 
 #endif  // V8_TORQUE_LS_JSON_PARSER_H_

@@ -112,6 +112,33 @@ Creates a 10 MiB file of all null characters.
 
 Indicates if there is more than 1gb of total memory.
 
+### ``escapePOSIXShell`shell command` ``
+
+Escapes values in a string template literal to pass them as env variable. On Windows, this function
+does not escape anything (which is fine for most paths, as `"` is not a valid
+char in a path on Windows), so for tests that must pass on Windows, you should
+use it only to escape paths, inside double quotes.
+This function is meant to be used for tagged template strings.
+
+```js
+const { escapePOSIXShell } = require('../common');
+const fixtures = require('../common/fixtures');
+const { execSync } = require('node:child_process');
+const origin = fixtures.path('origin');
+const destination = fixtures.path('destination');
+
+execSync(...escapePOSIXShell`cp "${origin}" "${destination}"`);
+
+// When you need to specify specific options, and/or additional env variables:
+const [cmd, opts] = escapePOSIXShell`cp "${origin}" "${destination}"`;
+console.log(typeof cmd === 'string'); // true
+console.log(opts === undefined || typeof opts.env === 'object'); // true
+execSync(cmd, { ...opts, stdio: 'ignore' });
+execSync(cmd, { stdio: 'ignore', env: { ...opts?.env, KEY: 'value' } });
+```
+
+When possible, avoid using a shell; that way, there's no need to escape values.
+
 ### `expectsError(validator[, exact])`
 
 * `validator` [\<Object>][<Object>] | [\<RegExp>][<RegExp>] |
@@ -186,13 +213,6 @@ Returns an instance of all possible `ArrayBufferView`s of the provided Buffer.
 
 Returns an instance of all possible `BufferSource`s of the provided Buffer,
 consisting of all `ArrayBufferView` and an `ArrayBuffer`.
-
-### `getCallSite(func)`
-
-* `func` [\<Function>][<Function>]
-* return [\<string>][<string>]
-
-Returns the file name and line number for the provided Function.
 
 ### `getTTYfd()`
 
@@ -853,24 +873,6 @@ socket.write(frame.data);
 
 The serialized `Buffer` may be retrieved using the `frame.data` property.
 
-### Class: DataFrame extends Frame
-
-The `http2.DataFrame` is a subclass of `http2.Frame` that serializes a `DATA`
-frame.
-
-<!-- eslint-disable no-undef, node-core/require-common-first, node-core/required-modules -->
-
-```js
-// id is the 32-bit stream identifier
-// payload is a Buffer containing the DATA payload
-// padlen is an 8-bit integer giving the number of padding bytes to include
-// final is a boolean indicating whether the End-of-stream flag should be set,
-// defaults to false.
-const frame = new http2.DataFrame(id, payload, padlen, final);
-
-socket.write(frame.data);
-```
-
 ### Class: HeadersFrame
 
 The `http2.HeadersFrame` is a subclass of `http2.Frame` that serializes a
@@ -982,7 +984,7 @@ module exports a single `onGC()` function.
 
 ```js
 require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 
 onGC({}, { ongc() { console.log('collected'); } });
 ```
@@ -1137,19 +1139,6 @@ Returns `true` if the available blocks of the file system underlying `path`
 are likely sufficient to hold a single file of `size` bytes. This is useful for
 skipping tests that require hundreds of megabytes or even gigabytes of temporary
 files, but it is inaccurate and susceptible to race conditions.
-
-## UDP pair helper
-
-The `common/udppair` module exports a function `makeUDPPair` and a class
-`FakeUDPWrap`.
-
-`FakeUDPWrap` emits `'send'` events when data is to be sent on it, and provides
-an `emitReceived()` API for actin as if data has been received on it.
-
-`makeUDPPair` returns an object `{ clientSide, serverSide }` where each side
-is an `FakeUDPWrap` connected to the other side.
-
-There is no difference between client or server side beyond their names.
 
 ## WPT module
 

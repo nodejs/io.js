@@ -330,50 +330,6 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
                          InstructionSelectorLogicalTest,
                          ::testing::ValuesIn(kLogicalInstructions));
 
-TEST_F(InstructionSelectorTest, Word32XorMinusOneWithParameter) {
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Parameter(0), m.Int32Constant(-1)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Int32Constant(-1), m.Parameter(0)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-}
-
-TEST_F(InstructionSelectorTest, Word32XorMinusOneWithWord32Or) {
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Word32Or(m.Parameter(0), m.Parameter(0)),
-                         m.Int32Constant(-1)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Int32Constant(-1),
-                         m.Word32Or(m.Parameter(0), m.Parameter(0))));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-}
-
 TEST_F(InstructionSelectorTest, Word32ShlWithWord32And) {
   TRACED_FORRANGE(int32_t, shift, 0, 30) {
     StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());

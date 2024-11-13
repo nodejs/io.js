@@ -1,6 +1,7 @@
 /**
  * @fileoverview Ensure modules are not required twice at top level of a module
  * @author devsnek
+ * @author RedYetiDev
  */
 'use strict';
 
@@ -10,20 +11,18 @@ const { isRequireCall, isString } = require('./rules-utils.js');
 // Rule Definition
 //------------------------------------------------------------------------------
 
-const secondLevelTypes = [
+const topLevelTypes = new Set([
   'FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression',
   'ClassBody', 'MethodDefinition',
-];
+]);
 
-function isTopLevel(node) {
-  while (!secondLevelTypes.includes(node.type)) {
+const isTopLevel = (node) => {
+  while (node) {
+    if (topLevelTypes.has(node.type)) return false;
     node = node.parent;
-    if (!node) {
-      return true;
-    }
   }
-  return false;
-}
+  return true;
+};
 
 module.exports = {
   create(context) {
@@ -31,37 +30,25 @@ module.exports = {
       return {};
     }
 
-    function getRequiredModuleNameFromCall(node) {
-      // Node has arguments and first argument is string
-      if (node.arguments.length && isString(node.arguments[0])) {
-        return node.arguments[0].value.trim();
-      }
+    const requiredModules = new Set();
 
-      return undefined;
-    }
-
-    const required = new Set();
-
-    const rules = {
-      CallExpression: (node) => {
-        if (isRequireCall(node) && isTopLevel(node)) {
-          const moduleName = getRequiredModuleNameFromCall(node);
-          if (moduleName === undefined) {
-            return;
-          }
-          if (required.has(moduleName)) {
-            context.report(
-              node,
-              '\'{{moduleName}}\' require is duplicated.',
-              { moduleName },
-            );
-          } else {
-            required.add(moduleName);
+    return {
+      CallExpression(node) {
+        if (isRequireCall(node)) {
+          const [firstArg] = node.arguments;
+          if (isString(firstArg)) {
+            const moduleName = firstArg.value.trim();
+            if (requiredModules.has(moduleName)) {
+              context.report({
+                node,
+                message: `'${moduleName}' require is duplicated.`,
+              });
+            } else if (isTopLevel(node)) {
+              requiredModules.add(moduleName);
+            }
           }
         }
       },
     };
-
-    return rules;
   },
 };

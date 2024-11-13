@@ -22,8 +22,8 @@ std::shared_ptr<NativeModule> NewModule(Isolate* isolate) {
   auto module = std::make_shared<WasmModule>(kWasmOrigin);
   constexpr size_t kCodeSizeEstimate = 16384;
   auto native_module = GetWasmEngine()->NewNativeModule(
-      isolate, WasmFeatures::All(), CompileTimeImports{}, std::move(module),
-      kCodeSizeEstimate);
+      isolate, WasmEnabledFeatures::All(), CompileTimeImports{},
+      std::move(module), kCodeSizeEstimate);
   native_module->SetWireBytes({});
   return native_module;
 }

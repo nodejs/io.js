@@ -126,7 +126,7 @@ std::shared_ptr<wasm::NativeModule> AllocateNativeModule(Isolate* isolate,
   // WasmCallDescriptor assumes that code is on the native heap and not
   // within a code object.
   auto native_module = wasm::GetWasmEngine()->NewNativeModule(
-      isolate, wasm::WasmFeatures::All(), wasm::CompileTimeImports{},
+      isolate, wasm::WasmEnabledFeatures::All(), wasm::CompileTimeImports{},
       std::move(module), code_size);
   native_module->SetWireBytes({});
   return native_module;
@@ -164,11 +164,12 @@ void TestReturnMultipleValues(MachineType type, int min_count, int max_count) {
       OptimizedCompilationInfo info(base::ArrayVector("testing"),
                                     handles.main_zone(),
                                     CodeKind::WASM_FUNCTION);
-      Handle<Code> code = Pipeline::GenerateCodeForTesting(
-                              &info, handles.main_isolate(), desc, m.graph(),
-                              AssemblerOptions::Default(handles.main_isolate()),
-                              m.ExportForTest())
-                              .ToHandleChecked();
+      DirectHandle<Code> code =
+          Pipeline::GenerateCodeForTesting(
+              &info, handles.main_isolate(), desc, m.graph(),
+              AssemblerOptions::Default(handles.main_isolate()),
+              m.ExportForTest())
+              .ToHandleChecked();
 #ifdef ENABLE_DISASSEMBLER
       if (v8_flags.print_code) {
         StdoutStream os;
@@ -219,7 +220,7 @@ void TestReturnMultipleValues(MachineType type, int min_count, int max_count) {
 #ifdef ENABLE_DISASSEMBLER
       if (v8_flags.print_code) {
         StdoutStream os;
-        Handle<Code> code2 = mt.GetCode();
+        DirectHandle<Code> code2 = mt.GetCode();
         code2->Disassemble("multi_value_call", os, handles.main_isolate());
       }
 #endif
@@ -276,11 +277,12 @@ void ReturnLastValue(MachineType type) {
 
     OptimizedCompilationInfo info(base::ArrayVector("testing"),
                                   handles.main_zone(), CodeKind::WASM_FUNCTION);
-    Handle<Code> code = Pipeline::GenerateCodeForTesting(
-                            &info, handles.main_isolate(), desc, m.graph(),
-                            AssemblerOptions::Default(handles.main_isolate()),
-                            m.ExportForTest())
-                            .ToHandleChecked();
+    DirectHandle<Code> code =
+        Pipeline::GenerateCodeForTesting(
+            &info, handles.main_isolate(), desc, m.graph(),
+            AssemblerOptions::Default(handles.main_isolate()),
+            m.ExportForTest())
+            .ToHandleChecked();
 
     std::shared_ptr<wasm::NativeModule> module =
         AllocateNativeModule(handles.main_isolate(), code->instruction_size());
@@ -340,11 +342,12 @@ void ReturnSumOfReturns(MachineType type) {
 
     OptimizedCompilationInfo info(base::ArrayVector("testing"),
                                   handles.main_zone(), CodeKind::WASM_FUNCTION);
-    Handle<Code> code = Pipeline::GenerateCodeForTesting(
-                            &info, handles.main_isolate(), desc, m.graph(),
-                            AssemblerOptions::Default(handles.main_isolate()),
-                            m.ExportForTest())
-                            .ToHandleChecked();
+    DirectHandle<Code> code =
+        Pipeline::GenerateCodeForTesting(
+            &info, handles.main_isolate(), desc, m.graph(),
+            AssemblerOptions::Default(handles.main_isolate()),
+            m.ExportForTest())
+            .ToHandleChecked();
 
     std::shared_ptr<wasm::NativeModule> module =
         AllocateNativeModule(handles.main_isolate(), code->instruction_size());

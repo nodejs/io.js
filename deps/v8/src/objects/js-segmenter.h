@@ -35,11 +35,11 @@ class JSSegmenter : public TorqueGeneratedJSSegmenter<JSSegmenter, JSObject> {
   // Creates segmenter object with properties derived from input locales and
   // options.
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSSegmenter> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
       Handle<Object> options);
 
   V8_WARN_UNUSED_RESULT static Handle<JSObject> ResolvedOptions(
-      Isolate* isolate, Handle<JSSegmenter> segmenter_holder);
+      Isolate* isolate, DirectHandle<JSSegmenter> segmenter_holder);
 
   V8_EXPORT_PRIVATE static const std::set<std::string>& GetAvailableLocales();
 

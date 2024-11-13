@@ -6,6 +6,7 @@
 #define V8_OBJECTS_SHARED_FUNCTION_INFO_H_
 
 #include <memory>
+#include <optional>
 
 #include "src/base/bit-field.h"
 #include "src/builtins/builtins.h"
@@ -14,6 +15,7 @@
 #include "src/objects/compressed-slots.h"
 #include "src/objects/function-kind.h"
 #include "src/objects/function-syntax-kind.h"
+#include "src/objects/name.h"
 #include "src/objects/objects.h"
 #include "src/objects/script.h"
 #include "src/objects/slots.h"
@@ -26,9 +28,7 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-
-namespace internal {
+namespace v8::internal {
 
 class AsmWasmData;
 class BytecodeArray;
@@ -116,10 +116,12 @@ class PreparseData
 // Abstract class representing extra data for an uncompiled function, which is
 // not stored in the SharedFunctionInfo.
 class UncompiledData
-    : public TorqueGeneratedUncompiledData<UncompiledData, HeapObject> {
+    : public TorqueGeneratedUncompiledData<UncompiledData,
+                                           ExposedTrustedObject> {
  public:
   inline void InitAfterBytecodeFlush(
-      Tagged<String> inferred_name, int start_position, int end_position,
+      IsolateForSandbox isolate, Tagged<String> inferred_name,
+      int start_position, int end_position,
       std::function<void(Tagged<HeapObject> object, ObjectSlot slot,
                          Tagged<HeapObject> target)>
           gc_notify_updated_slot);
@@ -188,6 +190,8 @@ class InterpreterData
   TQ_OBJECT_CONSTRUCTORS(InterpreterData)
 };
 
+using NameOrScopeInfoT = UnionOf<Smi, String, ScopeInfo>;
+
 // SharedFunctionInfo describes the JSFunction information that can be
 // shared by multiple instances of the function.
 class SharedFunctionInfo
@@ -219,7 +223,8 @@ class SharedFunctionInfo
 
   // Set up the link between shared function info and the script. The shared
   // function info is added to the list on the script.
-  V8_EXPORT_PRIVATE void SetScript(ReadOnlyRoots roots,
+  V8_EXPORT_PRIVATE void SetScript(IsolateForSandbox isolate,
+                                   ReadOnlyRoots roots,
                                    Tagged<HeapObject> script_object,
                                    int function_literal_id,
                                    bool reset_preparsed_scope_data = true);
@@ -264,7 +269,7 @@ class SharedFunctionInfo
   V8_EXPORT_PRIVATE int StartPosition() const;
 
   V8_EXPORT_PRIVATE void UpdateFromFunctionLiteralForLiveEdit(
-      FunctionLiteral* lit);
+      IsolateForSandbox isolate, FunctionLiteral* lit);
 
   // [outer scope info | feedback metadata] Shared storage for outer scope info
   // (on uncompiled functions) and feedback metadata (on compiled functions).
@@ -305,6 +310,11 @@ class SharedFunctionInfo
   // For subclass constructors, also includes new.target.
   // The size of function's frame is
   // internal_formal_parameter_count_with_receiver.
+  //
+  // NOTE: this API should be considered DEPRECATED. Please obtain the
+  // parameter count from the Code/BytecodeArray or another trusted source
+  // instead. See also crbug.com/40931165.
+  // TODO(saelo): mark as V8_DEPRECATE_SOON once the remaining users are fixed.
   inline void set_internal_formal_parameter_count(int value);
   inline uint16_t internal_formal_parameter_count_with_receiver() const;
   inline uint16_t internal_formal_parameter_count_without_receiver() const;
@@ -319,7 +329,7 @@ class SharedFunctionInfo
   inline void DontAdaptArguments();
   inline bool IsDontAdaptArguments() const;
 
-  // Returns the data associated with this SFI.
+  // Accessors for the data associated with this SFI.
   //
   // Currently it can be one of:
   //  - a FunctionTemplateInfo to make benefit the API [IsApiFunction()].
@@ -333,67 +343,48 @@ class SharedFunctionInfo
   //  - a UncompiledDataWithPreparseData for lazy compilation
   //    [HasUncompiledDataWithPreparseData()]
   //  - a WasmExportedFunctionData for Wasm [HasWasmExportedFunctionData()]
+  //  - a WasmJSFunctionData for functions created with WebAssembly.Function
+  //  - a WasmCapiFunctionData for Wasm C-API functions
+  //  - a WasmResumeData for JSPI Wasm functions
   //
   // If the (expected) type of data is known, prefer to use the specialized
   // accessors (e.g. bytecode_array(), uncompiled_data(), etc.).
-  //
-  // TODO(chromium:1490564): it might be nice if we could split this into a
-  // "code" and a "data" field. The code field is a trusted pointer to
-  // executable code (bytecode or machine code) to run when invoking the
-  // function. The "data" field on the other hand should only contain metadata
-  // about the function and might be empty. GetCode() would then always return
-  // the Code object based on the code field (and possibly lazily compute that
-  // based on the data field, e.g. the builtin id), and GetData() would always
-  // return the additional data, but never any code. This requires going
-  // through the callers of this method to see if they want the code or the
-  // data of the SFI (or both) and making them call GetCode() instead if that's
-  // what they are interested in. It would also mean that for code flushing,
-  // we'd then only have to load the code field, but then had to check if we're
-  // bytecode, baseline code, or builtin code (which is never flushed).
-  inline Tagged<Object> GetData(IsolateForSandbox isolate) const;
+  inline Tagged<Object> GetTrustedData(IsolateForSandbox isolate) const;
+  inline Tagged<Object> GetUntrustedData() const;
+
+  // Helper function for use when a specific data type is expected.
+  template <typename T, IndirectPointerTag tag>
+  inline Tagged<T> GetTrustedData(IsolateForSandbox isolate) const;
+
+  // Helper function when no Isolate is available. Prefer to use the variant
+  // with an isolate parameter if possible.
+  inline Tagged<Object> GetTrustedData() const;
 
  private:
-  // When the sandbox is enabled, the function's data is split across two
-  // fields, with the "trusted" part containing a trusted pointer and the
-  // regular/untrusted part containing a tagged pointer. In that case, code
-  // accessing the data field will first load the trusted data field. If that
-  // is empty (i.e. kNullIndirectPointerHandle), it will then load the regular
-  // field. With that, the only racy transition would be a tagged -> trusted
-  // transition (one thread may first read the empty trusted pointer, then
-  // another thread transitions to the trusted field, clearing the tagged
-  // field, and then the first thread continues to load the tagged field). As
-  // such, this transition is only allowed on the main thread. From a GC
-  // perspective, both fields always contain a valid value and so can be
-  // processed unconditionally.
+  // For the sandbox, the function's data is split across two fields, with the
+  // "trusted" part containing a trusted pointer and the regular/untrusted part
+  // containing a tagged pointer. In that case, code accessing the data field
+  // will first load the trusted data field. If that is empty (i.e.
+  // kNullIndirectPointerHandle), it will then load the regular field. With
+  // that, the only racy transition would be a tagged -> trusted transition
+  // (one thread may first read the empty trusted pointer, then another thread
+  // transitions to the trusted field, clearing the tagged field, and then the
+  // first thread continues to load the tagged field). As such, this transition
+  // is only allowed on the main thread. From a GC perspective, both fields
+  // always contain a valid value and so can be processed unconditionally.
   // Only one of these two fields should be in use at any time and the other
-  // field should be cleared. As such, when setting these fields prefer to use
-  // SetData() which automatically clears the inactive field.
-  // TODO(chromium:1490564): if we decide to do the refactoring described
-  // above, the trusted part would become the code field.
-#ifdef V8_ENABLE_SANDBOX
-  inline Tagged<ExposedTrustedObject> trusted_function_data(
-      IsolateForSandbox isolate, AcquireLoadTag) const;
-  inline void set_trusted_function_data(
-      Tagged<ExposedTrustedObject> value, ReleaseStoreTag,
-      WriteBarrierMode = UPDATE_WRITE_BARRIER);
+  // field should be cleared. As such, when setting these fields use
+  // SetTrustedData() and SetUntrustedData() which automatically clear the
+  // inactive field.
+  // TODO(chromium:1490564): try to merge these two fields back together, for
+  // example by moving all data objects into trusted space.
+  inline void SetTrustedData(Tagged<ExposedTrustedObject> value,
+                             WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+  inline void SetUntrustedData(Tagged<Object> value,
+                               WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
-  // Direct access to the indirect pointer handle referencing the trusted
-  // object.
-  inline IndirectPointerHandle trusted_function_data_handle(
-      AcquireLoadTag) const;
-#endif
-  DECL_RELEASE_ACQUIRE_ACCESSORS(function_data, Tagged<Object>)
-
-  enum class DataType { kRegular, kTrusted };
-  inline void SetData(Tagged<Object> value, ReleaseStoreTag,
-                      DataType type = DataType::kRegular,
-                      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
-
-#ifdef V8_ENABLE_SANDBOX
-  inline void clear_function_data(ReleaseStoreTag);
-  inline void clear_trusted_function_data(ReleaseStoreTag);
-  inline bool has_trusted_function_data() const;
-#endif
+  inline bool HasTrustedData() const;
+  inline bool HasUntrustedData() const;
 
  public:
   inline bool IsApiFunction() const;
@@ -434,8 +425,8 @@ class SharedFunctionInfo
   inline bool HasWasmResumeData() const;
   DECL_ACCESSORS(asm_wasm_data, Tagged<AsmWasmData>)
 
-  DECL_GETTER(wasm_exported_function_data, Tagged<WasmExportedFunctionData>)
   DECL_GETTER(wasm_function_data, Tagged<WasmFunctionData>)
+  DECL_GETTER(wasm_exported_function_data, Tagged<WasmExportedFunctionData>)
   DECL_GETTER(wasm_js_function_data, Tagged<WasmJSFunctionData>)
   DECL_GETTER(wasm_capi_function_data, Tagged<WasmCapiFunctionData>)
   DECL_GETTER(wasm_resume_data, Tagged<WasmResumeData>)
@@ -450,16 +441,22 @@ class SharedFunctionInfo
   DECL_PRIMITIVE_ACCESSORS(builtin_id, Builtin)
 
   inline bool HasUncompiledData() const;
-  DECL_ACCESSORS(uncompiled_data, Tagged<UncompiledData>)
+  inline Tagged<UncompiledData> uncompiled_data(
+      IsolateForSandbox isolate) const;
+  inline void set_uncompiled_data(Tagged<UncompiledData> data,
+                                  WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
   inline bool HasUncompiledDataWithPreparseData() const;
-  DECL_ACCESSORS(uncompiled_data_with_preparse_data,
-                 Tagged<UncompiledDataWithPreparseData>)
+  inline Tagged<UncompiledDataWithPreparseData>
+  uncompiled_data_with_preparse_data(IsolateForSandbox isolate) const;
+  inline void set_uncompiled_data_with_preparse_data(
+      Tagged<UncompiledDataWithPreparseData> data,
+      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
   inline bool HasUncompiledDataWithoutPreparseData() const;
-  inline void ClearUncompiledDataJobPointer();
+  inline void ClearUncompiledDataJobPointer(IsolateForSandbox isolate);
 
   // Clear out pre-parsed scope data from UncompiledDataWithPreparseData,
   // turning it into UncompiledDataWithoutPreparseData.
-  inline void ClearPreparseData();
+  inline void ClearPreparseData(IsolateForSandbox isolate);
 
   // The inferred_name is inferred from variable or property assignment of this
   // function. It is used to facilitate debugging and profiling of JavaScript
@@ -472,7 +469,7 @@ class SharedFunctionInfo
   // objects in a sidetable.
   bool HasDebugInfo(Isolate* isolate) const;
   V8_EXPORT_PRIVATE Tagged<DebugInfo> GetDebugInfo(Isolate* isolate) const;
-  V8_EXPORT_PRIVATE base::Optional<Tagged<DebugInfo>> TryGetDebugInfo(
+  V8_EXPORT_PRIVATE std::optional<Tagged<DebugInfo>> TryGetDebugInfo(
       Isolate* isolate) const;
   V8_EXPORT_PRIVATE bool HasBreakInfo(Isolate* isolate) const;
   bool BreakAtEntry(Isolate* isolate) const;
@@ -482,7 +479,7 @@ class SharedFunctionInfo
   // The function's name if it is non-empty, otherwise the inferred name.
   std::unique_ptr<char[]> DebugNameCStr() const;
   static Handle<String> DebugName(Isolate* isolate,
-                                  Handle<SharedFunctionInfo> shared);
+                                  DirectHandle<SharedFunctionInfo> shared);
 
   // Used for flags such as --turbo-filter.
   bool PassesFilter(const char* raw_filter);
@@ -538,6 +535,8 @@ class SharedFunctionInfo
   CachedTieringDecision cached_tiering_decision();
   void set_cached_tiering_decision(CachedTieringDecision decision);
 
+  DECL_BOOLEAN_ACCESSORS(function_context_independent_compiled)
+
   // Is this function a top-level function (scripts, evals).
   DECL_BOOLEAN_ACCESSORS(is_toplevel)
 
@@ -586,6 +585,8 @@ class SharedFunctionInfo
 
   inline FunctionKind kind() const;
 
+  int UniqueIdInScript() const;
+
   // Defines the index in a native context of closure's map instantiated using
   // this shared function info.
   DECL_INT_ACCESSORS(function_map_index)
@@ -618,9 +619,9 @@ class SharedFunctionInfo
   // [source code]: Source code for the function.
   bool HasSourceCode() const;
   static Handle<Object> GetSourceCode(Isolate* isolate,
-                                      Handle<SharedFunctionInfo> shared);
-  static Handle<Object> GetSourceCodeHarmony(Isolate* isolate,
-                                             Handle<SharedFunctionInfo> shared);
+                                      DirectHandle<SharedFunctionInfo> shared);
+  static Handle<Object> GetSourceCodeHarmony(
+      Isolate* isolate, DirectHandle<SharedFunctionInfo> shared);
 
   // Tells whether this function should be subject to debugging, e.g. for
   // - scope inspection
@@ -639,7 +640,7 @@ class SharedFunctionInfo
   // Flush compiled data from this function, setting it back to CompileLazy and
   // clearing any compiled metadata.
   V8_EXPORT_PRIVATE static void DiscardCompiled(
-      Isolate* isolate, Handle<SharedFunctionInfo> shared_info);
+      Isolate* isolate, DirectHandle<SharedFunctionInfo> shared_info);
 
   // Discard the compiled metadata. If called during GC then
   // |gc_notify_updated_slot| should be used to record any slot updates.
@@ -685,12 +686,10 @@ class SharedFunctionInfo
   // literal.
   template <typename IsolateT>
   static void InitFromFunctionLiteral(IsolateT* isolate,
-                                      Handle<SharedFunctionInfo> shared_info,
                                       FunctionLiteral* lit, bool is_toplevel);
 
   template <typename IsolateT>
   static void CreateAndSetUncompiledData(IsolateT* isolate,
-                                         Handle<SharedFunctionInfo> shared_info,
                                          FunctionLiteral* lit);
 
   // Updates the expected number of properties based on estimate from parser.
@@ -749,7 +748,7 @@ class SharedFunctionInfo
   class ScriptIterator {
    public:
     V8_EXPORT_PRIVATE ScriptIterator(Isolate* isolate, Tagged<Script> script);
-    explicit ScriptIterator(Handle<WeakFixedArray> shared_function_infos);
+    explicit ScriptIterator(Handle<WeakFixedArray> infos);
     ScriptIterator(const ScriptIterator&) = delete;
     ScriptIterator& operator=(const ScriptIterator&) = delete;
     V8_EXPORT_PRIVATE Tagged<SharedFunctionInfo> Next();
@@ -759,7 +758,7 @@ class SharedFunctionInfo
     void Reset(Isolate* isolate, Tagged<Script> script);
 
    private:
-    Handle<WeakFixedArray> shared_function_infos_;
+    Handle<WeakFixedArray> infos_;
     int index_;
   };
 
@@ -783,7 +782,7 @@ class SharedFunctionInfo
   // Sets the bytecode in {shared}'s DebugInfo as the bytecode to
   // be returned by following calls to GetActiveBytecodeArray. Stores a
   // reference to the original bytecode in the DebugInfo.
-  static void InstallDebugBytecode(Handle<SharedFunctionInfo> shared,
+  static void InstallDebugBytecode(DirectHandle<SharedFunctionInfo> shared,
                                    Isolate* isolate);
   // Removes the debug bytecode and restores the original bytecode to be
   // returned by following calls to GetActiveBytecodeArray.
@@ -803,7 +802,7 @@ class SharedFunctionInfo
 
   // [name_or_scope_info]: Function name string, kNoSharedNameSentinel or
   // ScopeInfo.
-  DECL_RELEASE_ACQUIRE_ACCESSORS(name_or_scope_info, Tagged<Object>)
+  DECL_RELEASE_ACQUIRE_ACCESSORS(name_or_scope_info, Tagged<NameOrScopeInfoT>)
 
   // [outer scope info] The outer scope info, needed to lazily parse this
   // function.
@@ -830,13 +829,30 @@ class SharedFunctionInfo
   TQ_OBJECT_CONSTRUCTORS(SharedFunctionInfo)
 };
 
-#ifdef V8_ENABLE_SANDBOX
-// When the sandbox is enabled, the data field is split into a trusted pointer
-// part and a tagged part.
+// A SharedFunctionInfoWrapper wraps a SharedFunctionInfo from trusted space.
+// It can be useful when a protected pointer reference to a SharedFunctionInfo
+// is needed, for example for a ProtectedFixedArray.
+class SharedFunctionInfoWrapper : public TrustedObject {
+ public:
+  DECL_ACCESSORS(shared_info, Tagged<SharedFunctionInfo>)
+
+  DECL_PRINTER(SharedFunctionInfoWrapper)
+  DECL_VERIFIER(SharedFunctionInfoWrapper)
+
+#define FIELD_LIST(V)               \
+  V(kSharedInfoOffset, kTaggedSize) \
+  V(kHeaderSize, 0)                 \
+  V(kSize, 0)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(TrustedObject::kHeaderSize, FIELD_LIST)
+#undef FIELD_LIST
+
+  class BodyDescriptor;
+
+  OBJECT_CONSTRUCTORS(SharedFunctionInfoWrapper, TrustedObject);
+};
+
 static constexpr int kStaticRootsSFISize = 48;
-#else
-static constexpr int kStaticRootsSFISize = 44;
-#endif
 #ifdef V8_STATIC_ROOTS
 static_assert(SharedFunctionInfo::kSize == kStaticRootsSFISize);
 #endif  // V8_STATIC_ROOTS
@@ -869,8 +885,7 @@ class V8_NODISCARD IsCompiledScope {
 
 std::ostream& operator<<(std::ostream& os, const SourceCodeOf& v);
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

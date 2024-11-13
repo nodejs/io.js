@@ -9,19 +9,19 @@
 #ifndef V8_COMPILER_WASM_COMPILER_DEFINITIONS_H_
 #define V8_COMPILER_WASM_COMPILER_DEFINITIONS_H_
 
-#include <cstdint>
 #include <ostream>
 
 #include "src/base/functional.h"
 #include "src/base/vector.h"
-#include "src/compiler/linkage.h"
+#include "src/codegen/linkage-location.h"
+#include "src/codegen/register.h"
+#include "src/codegen/signature.h"
+#include "src/wasm/signature-hashing.h"
 #include "src/wasm/value-type.h"
-#include "src/wasm/wasm-linkage.h"
 #include "src/zone/zone.h"
 
 namespace v8 {
 namespace internal {
-class LinkageLocation;
 
 namespace wasm {
 struct WasmModule;
@@ -93,10 +93,6 @@ V8_EXPORT_PRIVATE CallDescriptor* GetWasmCallDescriptor(
     Zone* zone, const wasm::FunctionSig* signature,
     WasmCallKind kind = kWasmFunction, bool need_frame_state = false);
 
-MachineRepresentation GetMachineRepresentation(wasm::ValueType type);
-
-MachineRepresentation GetMachineRepresentation(MachineType type);
-
 template <typename T>
 LocationSignature* BuildLocations(Zone* zone, const Signature<T>* sig,
                                   bool extra_callable_param,
@@ -104,65 +100,11 @@ LocationSignature* BuildLocations(Zone* zone, const Signature<T>* sig,
   int extra_params = extra_callable_param ? 2 : 1;
   LocationSignature::Builder locations(zone, sig->return_count(),
                                        sig->parameter_count() + extra_params);
-
-  // Add register and/or stack parameter(s).
-  wasm::LinkageLocationAllocator params(
-      wasm::kGpParamRegisters, wasm::kFpParamRegisters, 0 /* no slot offset */);
-
-  // The instance object.
-  locations.AddParam(params.Next(MachineRepresentation::kTaggedPointer));
-  const size_t param_offset = 1;  // Actual params start here.
-
-  // Parameters are separated into two groups (first all untagged, then all
-  // tagged parameters). This allows for easy iteration of tagged parameters
-  // during frame iteration.
-  const size_t parameter_count = sig->parameter_count();
-  bool has_tagged_param = false;
-  for (size_t i = 0; i < parameter_count; i++) {
-    MachineRepresentation param = GetMachineRepresentation(sig->GetParam(i));
-    // Skip tagged parameters (e.g. any-ref).
-    if (IsAnyTagged(param)) {
-      has_tagged_param = true;
-      continue;
-    }
-    auto l = params.Next(param);
-    locations.AddParamAt(i + param_offset, l);
-  }
-
-  // End the untagged area, so tagged slots come after.
-  params.EndSlotArea();
-
-  if (has_tagged_param) {
-    for (size_t i = 0; i < parameter_count; i++) {
-      MachineRepresentation param = GetMachineRepresentation(sig->GetParam(i));
-      // Skip untagged parameters.
-      if (!IsAnyTagged(param)) continue;
-      auto l = params.Next(param);
-      locations.AddParamAt(i + param_offset, l);
-    }
-  }
-
-  // Import call wrappers have an additional (implicit) parameter, the callable.
-  // For consistency with JS, we use the JSFunction register.
-  if (extra_callable_param) {
-    locations.AddParam(LinkageLocation::ForRegister(
-        kJSFunctionRegister.code(), MachineType::TaggedPointer()));
-  }
-
-  *parameter_slots = AddArgumentPaddingSlots(params.NumStackSlots());
-
-  // Add return location(s).
-  wasm::LinkageLocationAllocator rets(
-      wasm::kGpReturnRegisters, wasm::kFpReturnRegisters, *parameter_slots);
-
-  const size_t return_count = locations.return_count_;
-  for (size_t i = 0; i < return_count; i++) {
-    MachineRepresentation ret = GetMachineRepresentation(sig->GetReturn(i));
-    locations.AddReturn(rets.Next(ret));
-  }
-
-  *return_slots = rets.NumStackSlots();
-
+  int untagged_parameter_slots;  // Unused.
+  int untagged_return_slots;     // Unused.
+  wasm::IterateSignatureImpl(sig, extra_callable_param, locations,
+                             &untagged_parameter_slots, parameter_slots,
+                             &untagged_return_slots, return_slots);
   return locations.Get();
 }
 }  // namespace compiler

@@ -1,9 +1,9 @@
 [import 0 is well-known built-in String.toLowerCase]
-[function 1: call_ref #0 inlineable (monomorphic)]
+[function 1: call #0 inlineable (monomorphic)]
+[function 1: expanding topmost caller... budget=min(50, 7000), size 6->6 queueing callees]
+[function 1: in function 1, considering call #0, case #0, to function 0 (count=0, size=0, score=0)... imported function]
 [function 1: call to 0 is well-known String.toLowerCase]
-[function 1: node {NUMBER}: not a relocatable constant]
-[function 1: node {NUMBER}: not a relocatable constant]
-[function 1 (wasm-function#1): no inlining candidates]
+[function 1: emitted {NUMBER} nodes]
 Second instance.
 [import 0 is well-known built-in String.toLowerCase]
 Still optimized: true

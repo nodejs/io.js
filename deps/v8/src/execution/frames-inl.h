@@ -5,6 +5,8 @@
 #ifndef V8_EXECUTION_FRAMES_INL_H_
 #define V8_EXECUTION_FRAMES_INL_H_
 
+#include <optional>
+
 #include "src/base/memory.h"
 #include "src/execution/frame-constants.h"
 #include "src/execution/frames.h"
@@ -19,7 +21,7 @@ class InnerPointerToCodeCache final {
  public:
   struct InnerPointerToCodeCacheEntry {
     Address inner_pointer;
-    base::Optional<Tagged<GcSafeCode>> code;
+    std::optional<Tagged<GcSafeCode>> code;
     union {
       SafepointEntry safepoint_entry;
       MaglevSafepointEntry maglev_safepoint_entry;
@@ -71,11 +73,6 @@ inline StackHandler* StackFrame::top_handler() const {
   return iterator_->handler();
 }
 
-inline Address StackFrame::callee_pc() const {
-  return state_.callee_pc_address ? ReadPC(state_.callee_pc_address)
-                                  : kNullAddress;
-}
-
 inline Address StackFrame::pc() const { return ReadPC(pc_address()); }
 
 inline Address StackFrame::unauthenticated_pc() const {
@@ -88,12 +85,13 @@ inline Address StackFrame::unauthenticated_pc(Address* pc_address) {
 }
 
 inline Address StackFrame::maybe_unauthenticated_pc() const {
-  if (!InFastCCall()) {
+  if (!InFastCCall() && !is_profiler_entry_frame()) {
     // Here the pc_address() is on the stack and properly authenticated.
     return pc();
   } else {
     // For fast C calls pc_address() points into IsolateData and the pc in there
-    // is unauthenticated.
+    // is unauthenticated. For the profiler, the pc_address of the first visited
+    // frame is also not written by a call instruction.
     return unauthenticated_pc(pc_address());
   }
 }
@@ -171,27 +169,77 @@ inline ApiCallbackExitFrame::ApiCallbackExitFrame(
     StackFrameIteratorBase* iterator)
     : ExitFrame(iterator) {}
 
-inline FullObjectSlot ApiCallbackExitFrame::receiver_slot() const {
-  // The receiver is the first argument on the frame.
-  return FullObjectSlot(fp() +
-                        ApiCallbackExitFrameConstants::kFirstArgumentOffset);
-}
-
-inline FullObjectSlot ApiCallbackExitFrame::argc_slot() const {
-  return FullObjectSlot(fp() + ApiCallbackExitFrameConstants::kArgcOffset);
-}
-
-inline FullObjectSlot ApiCallbackExitFrame::context_slot() const {
-  return FullObjectSlot(fp() + ApiCallbackExitFrameConstants::kContextOffset);
+inline Tagged<Object> ApiCallbackExitFrame::context() const {
+  return Tagged<Object>(base::Memory<Address>(
+      fp() + ApiCallbackExitFrameConstants::kContextOffset));
 }
 
 inline FullObjectSlot ApiCallbackExitFrame::target_slot() const {
   return FullObjectSlot(fp() + ApiCallbackExitFrameConstants::kTargetOffset);
 }
 
-inline FullObjectSlot ApiCallbackExitFrame::new_target_slot() const {
-  return FullObjectSlot(fp() + ApiCallbackExitFrameConstants::kNewTargetOffset);
+Tagged<Object> ApiCallbackExitFrame::receiver() const {
+  return Tagged<Object>(base::Memory<Address>(
+      fp() + ApiCallbackExitFrameConstants::kReceiverOffset));
 }
+
+Tagged<HeapObject> ApiCallbackExitFrame::target() const {
+  Tagged<Object> function = *target_slot();
+  DCHECK(IsJSFunction(function) || IsFunctionTemplateInfo(function));
+  return Cast<HeapObject>(function);
+}
+
+void ApiCallbackExitFrame::set_target(Tagged<HeapObject> function) const {
+  DCHECK(IsJSFunction(function) || IsFunctionTemplateInfo(function));
+  target_slot().store(function);
+}
+
+int ApiCallbackExitFrame::ComputeParametersCount() const {
+  int argc = static_cast<int>(base::Memory<Address>(
+      fp() + ApiCallbackExitFrameConstants::kFCIArgcOffset));
+  DCHECK_GE(argc, 0);
+  return argc;
+}
+
+Tagged<Object> ApiCallbackExitFrame::GetParameter(int i) const {
+  DCHECK(i >= 0 && i < ComputeParametersCount());
+  int offset = ApiCallbackExitFrameConstants::kFirstArgumentOffset +
+               i * kSystemPointerSize;
+  return Tagged<Object>(base::Memory<Address>(fp() + offset));
+}
+
+bool ApiCallbackExitFrame::IsConstructor() const {
+  Tagged<Object> new_context(base::Memory<Address>(
+      fp() + ApiCallbackExitFrameConstants::kNewTargetOffset));
+  return !IsUndefined(new_context, isolate());
+}
+
+inline ApiAccessorExitFrame::ApiAccessorExitFrame(
+    StackFrameIteratorBase* iterator)
+    : ExitFrame(iterator) {}
+
+inline FullObjectSlot ApiAccessorExitFrame::property_name_slot() const {
+  return FullObjectSlot(fp() +
+                        ApiAccessorExitFrameConstants::kPropertyNameOffset);
+}
+
+inline FullObjectSlot ApiAccessorExitFrame::receiver_slot() const {
+  return FullObjectSlot(fp() + ApiAccessorExitFrameConstants::kReceiverOffset);
+}
+
+inline FullObjectSlot ApiAccessorExitFrame::holder_slot() const {
+  return FullObjectSlot(fp() + ApiAccessorExitFrameConstants::kHolderOffset);
+}
+
+Tagged<Name> ApiAccessorExitFrame::property_name() const {
+  return Cast<Name>(*property_name_slot());
+}
+
+Tagged<Object> ApiAccessorExitFrame::receiver() const {
+  return *receiver_slot();
+}
+
+Tagged<Object> ApiAccessorExitFrame::holder() const { return *holder_slot(); }
 
 inline CommonFrame::CommonFrame(StackFrameIteratorBase* iterator)
     : StackFrame(iterator) {}
@@ -285,6 +333,12 @@ inline WasmFrame::WasmFrame(StackFrameIteratorBase* iterator)
 inline WasmExitFrame::WasmExitFrame(StackFrameIteratorBase* iterator)
     : WasmFrame(iterator) {}
 
+#if V8_ENABLE_DRUMBRAKE
+inline WasmInterpreterEntryFrame::WasmInterpreterEntryFrame(
+    StackFrameIteratorBase* iterator)
+    : WasmFrame(iterator) {}
+#endif  // V8_ENABLE_DRUMBRAKE
+
 inline WasmDebugBreakFrame::WasmDebugBreakFrame(
     StackFrameIteratorBase* iterator)
     : TypedFrame(iterator) {}
@@ -358,6 +412,13 @@ bool DebuggableStackFrameIterator::is_javascript() const {
 bool DebuggableStackFrameIterator::is_wasm() const {
   return frame()->is_wasm();
 }
+
+#if V8_ENABLE_DRUMBRAKE
+bool DebuggableStackFrameIterator::is_wasm_interpreter_entry() const {
+  return frame()->is_wasm_interpreter_entry();
+}
+#endif  // V8_ENABLE_DRUMBRAKE
+
 #endif  // V8_ENABLE_WEBASSEMBLY
 
 JavaScriptFrame* DebuggableStackFrameIterator::javascript_frame() const {
@@ -367,12 +428,19 @@ JavaScriptFrame* DebuggableStackFrameIterator::javascript_frame() const {
 // static
 inline bool StackFrameIteratorForProfiler::IsValidFrameType(
     StackFrame::Type type) {
+#if V8_ENABLE_WEBASSEMBLY
+  DCHECK_NE(type, StackFrame::C_WASM_ENTRY);
+#endif  // V8_ENABLE_WEBASSEMBLY
   return StackFrame::IsJavaScript(type) || type == StackFrame::EXIT ||
          type == StackFrame::BUILTIN_EXIT ||
+         type == StackFrame::API_ACCESSOR_EXIT ||
          type == StackFrame::API_CALLBACK_EXIT ||
 #if V8_ENABLE_WEBASSEMBLY
          type == StackFrame::WASM || type == StackFrame::WASM_TO_JS ||
          type == StackFrame::JS_TO_WASM ||
+#if V8_ENABLE_DRUMBRAKE
+         type == StackFrame::WASM_INTERPRETER_ENTRY ||
+#endif  // V8_ENABLE_DRUMBRAKE
 #endif  // V8_ENABLE_WEBASSEMBLY
          false;
 }

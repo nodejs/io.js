@@ -47,6 +47,8 @@ std::ostream& operator<<(std::ostream& os, MemoryRepresentation rep) {
       return os << "Int64";
     case MemoryRepresentation::Uint64():
       return os << "Uint64";
+    case MemoryRepresentation::Float16():
+      return os << "Float16";
     case MemoryRepresentation::Float32():
       return os << "Float32";
     case MemoryRepresentation::Float64():
@@ -57,6 +59,14 @@ std::ostream& operator<<(std::ostream& os, MemoryRepresentation rep) {
       return os << "TaggedPointer";
     case MemoryRepresentation::TaggedSigned():
       return os << "TaggedSigned";
+    case MemoryRepresentation::AnyUncompressedTagged():
+      return os << "AnyUncompressedTagged";
+    case MemoryRepresentation::UncompressedTaggedPointer():
+      return os << "UncompressedTaggedPointer";
+    case MemoryRepresentation::UncompressedTaggedSigned():
+      return os << "UncompressedTaggedSigned";
+    case MemoryRepresentation::ProtectedPointer():
+      return os << "ProtectedPointer";
     case MemoryRepresentation::IndirectPointer():
       return os << "IndirectPointer";
     case MemoryRepresentation::SandboxedPointer():

@@ -4,36 +4,58 @@
 
 #include "src/compiler/turboshaft/phase.h"
 
-#include "src/codegen/optimized-compilation-info.h"
+#include "src/compiler/backend/register-allocator.h"
 #include "src/compiler/graph-visualizer.h"
 #include "src/compiler/js-heap-broker.h"
 #include "src/compiler/turboshaft/graph-visualizer.h"
 #include "src/diagnostics/code-tracer.h"
 #include "src/utils/ostreams.h"
+#ifdef V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-engine.h"
+#endif
 
 namespace v8::internal::compiler::turboshaft {
 
-void PrintTurboshaftGraph(Zone* temp_zone, CodeTracer* code_tracer,
-                          const char* phase_name) {
-  const PipelineData& data = PipelineData::Get();
-  if (data.info()->trace_turbo_json()) {
-    UnparkedScopeIfNeeded scope(data.broker());
-    AllowHandleDereference allow_deref;
-    turboshaft::Graph& graph = data.graph();
+void PipelineData::InitializeRegisterComponent(
+    const RegisterConfiguration* config, CallDescriptor* call_descriptor) {
+  DCHECK(!register_component_.has_value());
+  register_component_.emplace(zone_stats());
+  auto& zone = register_component_->zone;
+  register_component_->allocation_data = zone.New<RegisterAllocationData>(
+      config, zone, frame(), sequence(), &info()->tick_counter(),
+      debug_name_.get());
+}
 
-    TurboJsonFile json_of(data.info(), std::ios_base::app);
+AccountingAllocator* PipelineData::allocator() const {
+  if (isolate_) return isolate_->allocator();
+#ifdef V8_ENABLE_WEBASSEMBLY
+  if (auto e = wasm::GetWasmEngine()) {
+    return e->allocator();
+  }
+#endif
+  return nullptr;
+}
+
+void PrintTurboshaftGraph(PipelineData* data, Zone* temp_zone,
+                          CodeTracer* code_tracer, const char* phase_name) {
+  if (data->info()->trace_turbo_json()) {
+    UnparkedScopeIfNeeded scope(data->broker());
+    AllowHandleDereference allow_deref;
+    turboshaft::Graph& graph = data->graph();
+
+    TurboJsonFile json_of(data->info(), std::ios_base::app);
     PrintTurboshaftGraphForTurbolizer(json_of, graph, phase_name,
-                                      data.node_origins(), temp_zone);
+                                      data->node_origins(), temp_zone);
   }
 
-  if (data.info()->trace_turbo_graph()) {
+  if (data->info()->trace_turbo_graph()) {
     DCHECK(code_tracer);
-    UnparkedScopeIfNeeded scope(data.broker());
+    UnparkedScopeIfNeeded scope(data->broker());
     AllowHandleDereference allow_deref;
 
     CodeTracer::StreamScope tracing_scope(code_tracer);
     tracing_scope.stream() << "\n----- " << phase_name << " -----\n"
-                           << data.graph();
+                           << data->graph();
   }
 }
 
@@ -97,6 +119,14 @@ void PrintTurboshaftGraphForTurbolizer(std::ofstream& stream,
 #endif  // DEBUG
 }
 
-}  // namespace v8::internal::compiler::turboshaft
+CodeTracer* PipelineData::GetCodeTracer() const {
+#if V8_ENABLE_WEBASSEMBLY
+  if (info_->IsWasm() || info_->IsWasmBuiltin()) {
+    return wasm::GetWasmEngine()->GetCodeTracer();
+  }
+#endif  // V8_ENABLE_WEBASSEMBLY
+  DCHECK_NOT_NULL(isolate_);
+  return isolate_->GetCodeTracer();
+}
 
-EXPORT_CONTEXTUAL_VARIABLE(v8::internal::compiler::turboshaft::PipelineData)
+}  // namespace v8::internal::compiler::turboshaft

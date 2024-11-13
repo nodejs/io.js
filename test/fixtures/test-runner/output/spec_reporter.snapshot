@@ -185,15 +185,11 @@
       *
 
  callback async throw after done (*ms)
- only is set but not in only mode
+ only is set on subtests but not in only mode
    running subtest 1 (*ms)
-   running subtest 2 (*ms)
-   'only' and 'runOnly' require the --test-only command-line option.
    running subtest 3 (*ms)
-   'only' and 'runOnly' require the --test-only command-line option.
    running subtest 4 (*ms)
- only is set but not in only mode (*ms)
- 'only' and 'runOnly' require the --test-only command-line option.
+ only is set on subtests but not in only mode (*ms)
  custom inspect symbol fail (*ms)
   customized
 
@@ -304,9 +300,9 @@
  Error: Test "immediate reject - passes but warns" at test/fixtures/test-runner/output/output.js:86:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from immediate reject fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
  Error: Test "callback called twice in different ticks" at test/fixtures/test-runner/output/output.js:251:1 generated asynchronous activity after the test ended. This activity created the error "Error [ERR_TEST_FAILURE]: callback invoked multiple times" and would have caused the test to fail, but instead triggered an uncaughtException event.
  Error: Test "callback async throw after done" at test/fixtures/test-runner/output/output.js:269:1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event.
- tests 76
+ tests 75
  suites 0
- pass 35
+ pass 34
  fail 25
  cancelled 3
  skipped 9

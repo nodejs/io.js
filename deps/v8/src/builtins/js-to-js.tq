@@ -71,11 +71,12 @@ transitioning javascript builtin JSToJSWrapperInvalidSig(
 transitioning javascript builtin JSToJSWrapper(
     js-implicit context: NativeContext, receiver: JSAny, target: JSFunction)(
     ...arguments): JSAny {
-  const functionData =
-      UnsafeCast<WasmFunctionData>(target.shared_function_info.function_data);
-  const ref = UnsafeCast<WasmApiFunctionRef>(functionData.internal.ref);
+  const functionData = target.shared_function_info.wasm_js_function_data;
 
-  const signaturePod = &ref.sig.bytes;
+  const importData =
+      UnsafeCast<WasmImportData>(functionData.internal.implicit_arg);
+
+  const signaturePod = &importData.sig.bytes;
   const serializedSig = torque_internal::unsafe::NewConstSlice<int32>(
       signaturePod.object, signaturePod.offset,
       signaturePod.length / torque_internal::SizeOf<int32>());
@@ -106,7 +107,7 @@ transitioning javascript builtin JSToJSWrapper(
 
   dcheck(nextIndex == numOutParams);
   const calleeResult = CallVarargs(
-      context, ref.callable, 0, Convert<int32>(numOutParams), outParams);
+      context, importData.callable, 0, Convert<int32>(numOutParams), outParams);
 
   let result: JSAny;
   if (returnCount == 0) {

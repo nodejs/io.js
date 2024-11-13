@@ -159,6 +159,7 @@ void EmbeddedFileWriter::WriteCodeSection(PlatformEmbeddedFileWriterBase* w,
 
   w->AlignToCodeAlignment();
   w->DeclareSymbolGlobal(EmbeddedBlobCodeSymbol().c_str());
+  w->DeclareLabelProlog(EmbeddedBlobCodeSymbol().c_str());
   w->DeclareLabel(EmbeddedBlobCodeSymbol().c_str());
 
   static_assert(Builtins::kAllBuiltinsAreIsolateIndependent);
@@ -168,6 +169,7 @@ void EmbeddedFileWriter::WriteCodeSection(PlatformEmbeddedFileWriterBase* w,
     WriteBuiltin(w, blob, builtin);
   }
   w->AlignToPageSizeIfNeeded();
+  w->DeclareLabelEpilogue();
   w->Newline();
 }
 
@@ -213,6 +215,21 @@ void EmbeddedFileWriter::WriteFileEpilogue(PlatformEmbeddedFileWriterBase* w,
 // static
 void EmbeddedFileWriter::WriteBinaryContentsAsInlineAssembly(
     PlatformEmbeddedFileWriterBase* w, const uint8_t* data, uint32_t size) {
+#if V8_OS_ZOS
+  // HLASM source must end at column 71 (followed by an optional
+  // line-continuation char on column 72), so write the binary data
+  // in 32 byte chunks (length 64):
+  uint32_t chunks = (size + 31) / 32;
+  uint32_t i, j;
+  uint32_t offset = 0;
+  for (i = 0; i < chunks; ++i) {
+    fprintf(w->fp(), " DC x'");
+    for (j = 0; offset < size && j < 32; ++j) {
+      fprintf(w->fp(), "%02x", data[offset++]);
+    }
+    fprintf(w->fp(), "'\n");
+  }
+#else
   int current_line_length = 0;
   uint32_t i = 0;
 
@@ -238,6 +255,7 @@ void EmbeddedFileWriter::WriteBinaryContentsAsInlineAssembly(
   }
 
   if (current_line_length != 0) w->Newline();
+#endif  // V8_OS_ZOS
 }
 
 int EmbeddedFileWriter::LookupOrAddExternallyCompiledFilename(

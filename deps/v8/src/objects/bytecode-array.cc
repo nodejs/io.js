@@ -8,6 +8,7 @@
 
 #include "src/codegen/handler-table.h"
 #include "src/codegen/source-position-table.h"
+#include "src/common/globals.h"
 #include "src/interpreter/bytecode-array-iterator.h"
 #include "src/interpreter/bytecode-decoder.h"
 #include "src/objects/bytecode-array-inl.h"
@@ -15,6 +16,31 @@
 
 namespace v8 {
 namespace internal {
+
+int BytecodeArray::SourcePosition(int offset) const {
+  int position = 0;
+  if (!HasSourcePositionTable()) return position;
+  for (SourcePositionTableIterator it(
+           source_position_table(kAcquireLoad),
+           SourcePositionTableIterator::kJavaScriptOnly,
+           SourcePositionTableIterator::kDontSkipFunctionEntry);
+       !it.done() && it.code_offset() <= offset; it.Advance()) {
+    position = it.source_position().ScriptOffset();
+  }
+  return position;
+}
+
+int BytecodeArray::SourceStatementPosition(int offset) const {
+  int position = 0;
+  if (!HasSourcePositionTable()) return position;
+  for (SourcePositionTableIterator it(source_position_table(kAcquireLoad));
+       !it.done() && it.code_offset() <= offset; it.Advance()) {
+    if (it.is_statement()) {
+      position = it.source_position().ScriptOffset();
+    }
+  }
+  return position;
+}
 
 void BytecodeArray::PrintJson(std::ostream& os) {
   DisallowGarbageCollection no_gc;

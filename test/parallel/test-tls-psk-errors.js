@@ -17,7 +17,7 @@ const tls = require('tls');
   });
   server.on('tlsClientError', (err) => {
     assert.ok(err instanceof Error);
-    assert.strictEqual(err.code, 'ERR_TLS_PSK_SET_IDENTIY_HINT_FAILED');
+    assert.strictEqual(err.code, 'ERR_TLS_PSK_SET_IDENTITY_HINT_FAILED');
     server.close();
   });
   server.listen(0, () => {

@@ -7,6 +7,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "include/v8-callbacks.h"
@@ -940,7 +941,7 @@ class CodeDescription {
     return !shared_info_.is_null() && IsScript(shared_info_->script());
   }
 
-  Tagged<Script> script() { return Script::cast(shared_info_->script()); }
+  Tagged<Script> script() { return Cast<Script>(shared_info_->script()); }
 
   bool IsLineInfoAvailable() { return lineinfo_ != nullptr; }
 
@@ -960,7 +961,7 @@ class CodeDescription {
 
   std::unique_ptr<char[]> GetFilename() {
     if (!shared_info_.is_null() && IsString(script()->name())) {
-      return String::cast(script()->name())->ToCString();
+      return Cast<String>(script()->name())->ToCString();
     } else {
       std::unique_ptr<char[]> result(new char[1]);
       result[0] = 0;
@@ -1916,7 +1917,7 @@ static void AddUnwindInfo(CodeDescription* desc) {
 
 static base::LazyMutex mutex = LAZY_MUTEX_INITIALIZER;
 
-static base::Optional<std::pair<CodeMap::iterator, CodeMap::iterator>>
+static std::optional<std::pair<CodeMap::iterator, CodeMap::iterator>>
 GetOverlappingRegions(CodeMap* map, const base::AddressRegion region) {
   DCHECK_LT(region.begin(), region.end());
 

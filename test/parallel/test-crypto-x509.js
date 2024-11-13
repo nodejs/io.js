@@ -96,6 +96,8 @@ const der = Buffer.from(
   assert.strictEqual(x509.infoAccess, infoAccessCheck);
   assert.strictEqual(x509.validFrom, 'Sep  3 21:40:37 2022 GMT');
   assert.strictEqual(x509.validTo, 'Jun 17 21:40:37 2296 GMT');
+  assert.deepStrictEqual(x509.validFromDate, new Date('2022-09-03T21:40:37Z'));
+  assert.deepStrictEqual(x509.validToDate, new Date('2296-06-17T21:40:37Z'));
   assert.strictEqual(
     x509.fingerprint,
     '8B:89:16:C4:99:87:D2:13:1A:64:94:36:38:A5:32:01:F0:95:3B:53');
@@ -358,4 +360,79 @@ UcXd/5qu2GhokrKU2cPttU+XAN2Om6a0
   });
 
   assert.strictEqual(cert.checkIssued(cert), false);
+}
+
+{
+  // Test date parsing of `validFromDate` and `validToDate` fields, according to RFC 5280.
+
+  // Validity dates up until the year 2049 are encoded as UTCTime.
+  // The formatting of UTCTime changes from the year ~1949 to 1950~.
+  const certPemUTCTime = `-----BEGIN CERTIFICATE-----
+MIIE/TCCAuWgAwIBAgIUHbXPaFnjeBehMvdHkXZ+E3a78QswDQYJKoZIhvcNAQEL
+BQAwDTELMAkGA1UEBhMCS1IwIBgPMTk0OTEyMjUyMzU5NThaFw01MDAxMDEyMzU5
+NThaMA0xCzAJBgNVBAYTAktSMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKC
+AgEAtFfV2DB2dZFFaR1PPZMmyo0mSDAxGReoixxlhQTFZZymU71emWV/6gR8MxAE
+L5+uzpgBvOZWgEbELWeV/gzZGU/x1Cki0dSJ0B8Qwr5HvKX6oOZrJ8t+wn4SRceq
+r6MRPskDpTjnvelt+VURGmawtKKHll5fSqfjRWkQC8WQHdogXylRjd3oIh9p1D5P
+hphK/jKddxsRkLhJKQWqTjAy2v8hsJAxvpCPnlqMCXxjbQV41UTY8+kY3RPG3d6c
+yHBGM7dzM7XWVc79V9z/rjdRcxE2eBqrJT/yR3Cok8wWVVfQEgBfpolHUZxA8K4N
+tubTez9zsJy7xUG7udf91wXWVHMBHXg6m/u5nIW0fAXGMtnG/H6FMyyBDbJoUlqm
+VRTG71DzvBXpd/qx2P5LkU1JjWY3U8HSn6Q1DJzMIrbOmWpdlFYXxzLlXU2vG8Q3
+PmdAHDDYW3M2YBVCdKqOtsuL2dMDuqRWdi3iCCPSR2UCm4HzAVYSe2FP8SPcY3xs
+1NX+oDSpTxXruJYHGUp10/pXoqMrGT1IBgv2Dhsm3jcfRLSXkaBDJIKLO6dXmLBt
+rlxM0DphiKnP6lDjpv7EDMdwsakz0zib3JrTmSLSbwZXR4abITmtbYbTpY3XAq7c
+adO8YCMTCtb50ZbYEpGDAjOcWFHUlQQMsgZM2zc8ZHPY4EkCAwEAAaNTMFEwHQYD
+VR0OBBYEFExDmZyzdo8ccjX7iFIwU7JYMV+qMB8GA1UdIwQYMBaAFExDmZyzdo8c
+cjX7iFIwU7JYMV+qMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggIB
+ADEF/JIH+Ku9NqrO47Q/CEn9qpIgmqX10d1joDjchPY3OHIIyt8Xpo845mPBTM7L
+dnMJSlkzJEk0ep9qAGGdKpBnLq8B/1mgCWQ81jwrwdYSsY+4xark+7+y0fij6qAt
+L4T6aA37nbV5q5/DMOwZucFwRTf9ZI1IjC+MaQmnV01vGCogqqfLQ9v26bVBRE1K
+UIixH0r3f/LWtuo0KaebZbb+oq6Zb8ljKJaUlt5OB8Zy5NrcP69r29QJUR57ukT6
+rt7fk5mOj2NBLMCErLHa7E6+GAUG94QEgdKzZ4yr2aduhMAfnOnK/HfuXO8TVa8/
++oYENr47M8x139+yu92C8Be1MRk0VHteBaScUL+IaY3HgGbYR1lT0azvIyBN/DCN
+bYczI7JQGYVitLuaUYFw/RtK7Qg1957/ZmGeGa+86aTLXbqsGjI951D81EIzdqod
+1QW/Jn3yMNeVIzF9eYVEy2DIJjGgM2A8NWbqfWGUAUMRgyTxH1j42tnWG3eRnMsX
+UnQfpY8i3v6gYoNNgEZktrqgpmukTWgl08TlDtBCjXTBkcBt4dxDApeoy7XWKq+/
+qBY/+uIsG30BRgJhAwApjdnCs7l5xpwtqluXFwOxyTWNV5IfChO7QFqWPlSVIHML
+UidvpWWipVLZgK+oDks+bKTobcoXGW9oXobiIYqslXPy
+-----END CERTIFICATE-----`.trim();
+  const c1 = new X509Certificate(certPemUTCTime);
+
+  assert.deepStrictEqual(c1.validFromDate, new Date('1949-12-25T23:59:58Z'));
+  assert.deepStrictEqual(c1.validToDate, new Date('1950-01-01T23:59:58Z'));
+
+  // The GeneralizedTime format is used for dates in 2050 or later.
+  const certPemGeneralizedTime = `-----BEGIN CERTIFICATE-----
+MIIE/TCCAuWgAwIBAgIUYHPUNd6S5xlNMjrWSaekgCBrbDQwDQYJKoZIhvcNAQEL
+BQAwDTELMAkGA1UEBhMCS1IwIBcNNDkxMjI2MDAwMDAxWhgPMjA1MDAxMDIwMDAw
+MDFaMA0xCzAJBgNVBAYTAktSMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKC
+AgEAlBPjQXHTzQWflvq6Lc01E0gVSSUQd5XnfK9K8TEN8ic/6iJVBWK8OwTmwh6u
+KdSO+DrTpoTA3Wo4T7oSL89xsyJN5JHiIT2VdZvgcXkv+ZL+rZ2INzYSSXbPQ8V+
+Md5A7tNWGJOvneD1Pb+AKrVXn6N1+xiKuv08U+d6ZCcv8P2cGUJCQr5BSg6eXPm2
+ZIoFhNLDaqleci0P/Bs7uMwKjVr2IP99bCMwTS2STxexEmYf4J3wgNXBOHxspLcS
+p7Yt3JgezvzRn5kijQi7ceS24q/fsGCCwB706mOKdYLCfEL1DhhEr27+XICw7zOF
+Q8tSe33IfSdxejEVV+lf/jGW5zFH5m+lDTJC0VAUCBG5E7q57yFaoQ44CQWtbMHZ
++dtodKx4B0lzWXJs8xkGo0rl9/1CuY2iPX3lB6xxlX50ruj8stccMwarRzUvfkjw
+AhnbUs9X1ooFyVXmVYXWzR0gP1/q05Zob03khX1NipGbMf0RBI4WlItkiRsrEl9x
+08YPbrUyd7JnFkgG0O5TcmTzHr9cTJHg5BzclQA9/V0HuslSVOkKMMlKHky2zcqY
+dDBmWtfTrvowaB7hTGD6YK4R9JCDUy7oeeK4ZUxRNCnJY698HodE9lQu+F0cJpbY
+uZExFapE/AWA8ftlw2/fXoK0L3DhYsOVQkHd2YbrvzZEHVMCAwEAAaNTMFEwHQYD
+VR0OBBYEFNptaIzozylFlD0+JKULue+5gvfZMB8GA1UdIwQYMBaAFNptaIzozylF
+lD0+JKULue+5gvfZMA8GA1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQELBQADggIB
+AFXP4SCP6VFMINaKE/rLJOaFiVVuS4qDfpGRjuBryNxey4ErBFsXcPi/D0LIsNkb
+c3qsex1cJadZdg3sqdkyliyYgzjJn1fSsiPT8GMiMnckw9awIwqtucGf+6SPdL6o
+9jp0xg6KsRHWjN0GetCz89hy9HwSiSwiLpTxVYOMLjQ+ey8KXPk0LNaXve/++hrr
+gN+cvcPKkspAE5SMTSKqHwVUD4MRJgdQqYDqB6demCq9Yl+kyQg9gVnuzkpKeNBT
+qNVeeA6gczCpYV4rUMqT0UVVPbPOcygwZP2o7tUyNk6fmYzyLpi5R+FYD/PoowFp
+LOrIaG426QaXhLr4U0i+HD/LhHZ4AWWt0OYAvbkk/xrhmagUcyeOxUrcYl6tA3NQ
+sjPV2FNGitX+zOyxfMxcjf0RpaBbyMsO6DSfQidDchFvPR9VFX4THs/0mP02IK27
+MpsZj8AG2/jjPz6ytnWBJGuLeIt2sWnluZyldX+V9QEEhEmrEweUolacKF5ESODG
+SHyZZVSUCK0bJfDfk5rXCQokWCIe+jHbW3CSWWmBRz6blZDeO/wI8nN4TWHDMCu6
+lawls1QdAwfP4CWIq4T7gsn/YqxMs74zDCXIF0tfuPmw5FMeCYVgnXQ7et8HBfeE
+CWwQO8JZjJqFtqtuzy2n+gLCvqePgG/gmSqHOPm2ZbLW
+-----END CERTIFICATE-----`.trim();
+  const c2 = new X509Certificate(certPemGeneralizedTime);
+
+  assert.deepStrictEqual(c2.validFromDate, new Date('2049-12-26T00:00:01Z'));
+  assert.deepStrictEqual(c2.validToDate, new Date('2050-01-02T00:00:01Z'));
 }

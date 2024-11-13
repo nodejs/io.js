@@ -59,7 +59,7 @@ class OptimizingCompileDispatcher::CompileTask : public v8::JobTask {
   }
 
   size_t GetMaxConcurrency(size_t worker_count) const override {
-    size_t num_tasks = dispatcher_->InputQueueLength() + worker_count;
+    size_t num_tasks = dispatcher_->input_queue_.Length() + worker_count;
     size_t max_threads = v8_flags.concurrent_turbofan_max_threads;
     if (max_threads > 0) {
       return std::min(max_threads, num_tasks);
@@ -74,24 +74,17 @@ class OptimizingCompileDispatcher::CompileTask : public v8::JobTask {
 };
 
 OptimizingCompileDispatcher::~OptimizingCompileDispatcher() {
-  DCHECK_EQ(0, input_queue_length_);
+  DCHECK_EQ(0, input_queue_.Length());
   if (job_handle_ && job_handle_->IsValid()) {
     // Wait for the job handle to complete, so that we know the queue
     // pointers are safe.
     job_handle_->Cancel();
   }
-  DeleteArray(input_queue_);
 }
 
 TurbofanCompilationJob* OptimizingCompileDispatcher::NextInput(
     LocalIsolate* local_isolate) {
-  base::MutexGuard access_input_queue_(&input_queue_mutex_);
-  if (input_queue_length_ == 0) return nullptr;
-  TurbofanCompilationJob* job = input_queue_[InputQueueIndex(0)];
-  DCHECK_NOT_NULL(job);
-  input_queue_shift_ = InputQueueIndex(1);
-  input_queue_length_--;
-  return job;
+  return input_queue_.Dequeue();
 }
 
 void OptimizingCompileDispatcher::CompileNext(TurbofanCompilationJob* job,
@@ -129,22 +122,25 @@ void OptimizingCompileDispatcher::FlushOutputQueue(bool restore_function_code) {
   }
 }
 
-void OptimizingCompileDispatcher::FlushInputQueue() {
-  base::MutexGuard access_input_queue_(&input_queue_mutex_);
-  while (input_queue_length_ > 0) {
-    std::unique_ptr<TurbofanCompilationJob> job(
-        input_queue_[InputQueueIndex(0)]);
+void OptimizingCompileDispatcherQueue::Flush(Isolate* isolate) {
+  base::MutexGuard access(&mutex_);
+  while (length_ > 0) {
+    std::unique_ptr<TurbofanCompilationJob> job(queue_[QueueIndex(0)]);
     DCHECK_NOT_NULL(job);
-    input_queue_shift_ = InputQueueIndex(1);
-    input_queue_length_--;
-    Compiler::DisposeTurbofanCompilationJob(isolate_, job.get(), true);
+    shift_ = QueueIndex(1);
+    length_--;
+    Compiler::DisposeTurbofanCompilationJob(isolate, job.get(), true);
   }
+}
+
+void OptimizingCompileDispatcher::FlushInputQueue() {
+  input_queue_.Flush(isolate_);
 }
 
 void OptimizingCompileDispatcher::AwaitCompileTasks() {
   {
     AllowGarbageCollection allow_before_parking;
-    isolate_->main_thread_local_isolate()->BlockMainThreadWhileParked(
+    isolate_->main_thread_local_isolate()->ExecuteMainThreadWhileParked(
         [this]() { job_handle_->Join(); });
   }
   // Join kills the job handle, so drop it and post a new one.
@@ -152,8 +148,7 @@ void OptimizingCompileDispatcher::AwaitCompileTasks() {
       kTaskPriority, std::make_unique<CompileTask>(isolate_, this));
 
 #ifdef DEBUG
-  base::MutexGuard access_input_queue(&input_queue_mutex_);
-  CHECK_EQ(input_queue_length_, 0);
+  CHECK_EQ(input_queue_.Length(), 0);
 #endif  // DEBUG
 }
 
@@ -179,7 +174,7 @@ void OptimizingCompileDispatcher::Stop() {
   FlushQueues(BlockingBehavior::kBlock, false);
   // At this point the optimizing compiler thread's event loop has stopped.
   // There is no need for a mutex when reading input_queue_length_.
-  DCHECK_EQ(input_queue_length_, 0);
+  DCHECK_EQ(input_queue_.Length(), 0);
 }
 
 void OptimizingCompileDispatcher::InstallOptimizedFunctions() {
@@ -194,7 +189,7 @@ void OptimizingCompileDispatcher::InstallOptimizedFunctions() {
       output_queue_.pop();
     }
     OptimizedCompilationInfo* info = job->compilation_info();
-    Handle<JSFunction> function(*info->closure(), isolate_);
+    DirectHandle<JSFunction> function(*info->closure(), isolate_);
 
     // If another racing task has already finished compiling and installing the
     // requested code kind on the function, throw out the current job.
@@ -220,29 +215,39 @@ bool OptimizingCompileDispatcher::HasJobs() {
 
 void OptimizingCompileDispatcher::QueueForOptimization(
     TurbofanCompilationJob* job) {
-  DCHECK(IsQueueAvailable());
-  {
-    // Add job to the back of the input queue.
-    base::MutexGuard access_input_queue(&input_queue_mutex_);
-    DCHECK_LT(input_queue_length_, input_queue_capacity_);
-    input_queue_[InputQueueIndex(input_queue_length_)] = job;
-    input_queue_length_++;
-  }
+  DCHECK(input_queue_.IsAvailable());
+  input_queue_.Enqueue(job);
   if (job_handle_->UpdatePriorityEnabled()) {
-    job_handle_->UpdatePriority(isolate_->UseEfficiencyModeForTiering()
+    job_handle_->UpdatePriority(isolate_->EfficiencyModeEnabledForTiering()
                                     ? kEfficiencyTaskPriority
                                     : kTaskPriority);
   }
   job_handle_->NotifyConcurrencyIncrease();
 }
 
+void OptimizingCompileDispatcherQueue::Prioritize(
+    Tagged<SharedFunctionInfo> function) {
+  base::MutexGuard access(&mutex_);
+  if (length_ > 1) {
+    for (int i = length_ - 1; i > 1; --i) {
+      if (*queue_[QueueIndex(i)]->compilation_info()->shared_info() ==
+          function) {
+        std::swap(queue_[QueueIndex(i)], queue_[QueueIndex(0)]);
+        return;
+      }
+    }
+  }
+}
+
+void OptimizingCompileDispatcher::Prioritize(
+    Tagged<SharedFunctionInfo> function) {
+  input_queue_.Prioritize(function);
+}
+
 OptimizingCompileDispatcher::OptimizingCompileDispatcher(Isolate* isolate)
     : isolate_(isolate),
-      input_queue_capacity_(v8_flags.concurrent_recompilation_queue_length),
-      input_queue_length_(0),
-      input_queue_shift_(0),
+      input_queue_(v8_flags.concurrent_recompilation_queue_length),
       recompilation_delay_(v8_flags.concurrent_recompilation_delay) {
-  input_queue_ = NewArray<TurbofanCompilationJob*>(input_queue_capacity_);
   if (v8_flags.concurrent_recompilation) {
     job_handle_ = V8::GetCurrentPlatform()->PostJob(
         kTaskPriority, std::make_unique<CompileTask>(isolate, this));

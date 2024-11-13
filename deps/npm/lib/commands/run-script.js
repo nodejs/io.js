@@ -21,6 +21,7 @@ class RunScript extends BaseCommand {
   static workspaces = true
   static ignoreImplicitWorkspace = false
   static isShellout = true
+  static checkDevEngines = true
 
   static async completion (opts, npm) {
     const argv = opts.conf.argv.remain
@@ -165,8 +166,10 @@ class RunScript extends BaseCommand {
       return
     }
 
-    // TODO this is missing things like prepare, prepublishOnly, and dependencies
     const cmdList = [
+      'prepare', 'prepublishOnly',
+      'prepack', 'postpack',
+      'dependencies',
       'preinstall', 'install', 'postinstall',
       'prepublish', 'publish', 'postpublish',
       'prerestart', 'restart', 'postrestart',

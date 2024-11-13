@@ -14,7 +14,7 @@ struct MyFakeOp;
 // We reuse `Opcode::kConstant` because extending the opcode enum is hard from
 // within the test.
 template <>
-struct operation_to_opcode_map<MyFakeOp>
+struct operation_to_opcode<MyFakeOp>
     : std::integral_constant<Opcode, Opcode::kConstant> {};
 
 struct MyFakeOp : FixedArityOperationT<0, MyFakeOp> {

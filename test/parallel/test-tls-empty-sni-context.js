@@ -16,7 +16,7 @@ const options = {
 const server = tls.createServer(options, (c) => {
   assert.fail('Should not be called');
 }).on('tlsClientError', common.mustCall((err, c) => {
-  assert.match(err.message, /passed a null parameter/i);
+  assert.match(err.message, /no suitable signature algorithm/i);
   server.close();
 })).listen(0, common.mustCall(() => {
   const c = tls.connect({

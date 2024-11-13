@@ -198,7 +198,6 @@
 #define ABSL_LOG_LOG_H_
 
 #include "absl/log/internal/log_impl.h"
-#include "absl/log/vlog_is_on.h"  // IWYU pragma: export
 
 // LOG()
 //
@@ -234,6 +233,11 @@
 //
 // See vlog_is_on.h for further documentation, including the usage of the
 // --vmodule flag to log at different levels in different source files.
+//
+// `VLOG` does not produce any output when verbose logging is not enabled.
+// However, simply testing whether verbose logging is enabled can be expensive.
+// If you don't intend to enable verbose logging in non-debug builds, consider
+// using `DVLOG` instead.
 #define VLOG(severity) ABSL_LOG_INTERNAL_VLOG_IMPL(severity)
 
 // `DVLOG` behaves like `VLOG` in debug mode (i.e. `#ifndef NDEBUG`).

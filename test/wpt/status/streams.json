@@ -40,6 +40,9 @@
       ]
     }
   },
+  "readable-streams/read-task-handling.window.js": {
+    "skip": "Browser-specific test"
+  },
   "transferable/deserialize-error.window.js": {
     "skip": "Browser-specific test"
   },
@@ -55,9 +58,6 @@
     }
   },
   "transform-streams/invalid-realm.tentative.window.js": {
-    "skip": "Browser-specific test"
-  },
-  "readable-streams/read-task-handling.window.js": {
     "skip": "Browser-specific test"
   }
 }

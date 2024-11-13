@@ -298,13 +298,13 @@ function* GetTestConfigs() {
 
   // Test wait / notify.
   let worker = new Worker(function() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       if (msg.action == 'wait') {
         let ta = new Int32Array(msg.buf);
         postMessage(Atomics.wait(ta, msg.index, msg.value, msg.timeout));
         return;
       }
-      postMessage(`Unknown action: ${msg.action}`);
+      postMessage(`Unknown action: ${msg.data.action}`);
     }
   }, {type: 'function'});
 

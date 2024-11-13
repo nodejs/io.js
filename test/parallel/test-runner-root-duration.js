@@ -10,6 +10,7 @@ test('root duration is longer than test duration', async () => {
     stderr,
     stdout,
   } = await spawnPromisified(process.execPath, [
+    '--test-reporter=tap',
     fixtures.path('test-runner/root-duration.mjs'),
   ]);
 

@@ -1,0 +1,19 @@
+{
+  "name": "@swc/wasm-typescript",
+  "collaborators": [
+    "강동윤 <kdy1997.dev@gmail.com>"
+  ],
+  "description": "wasm module for swc",
+  "version": "1.7.40",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/swc-project/swc.git"
+  },
+  "files": [
+    "wasm.js",
+    "wasm.d.ts"
+  ],
+  "main": "wasm.js",
+  "types": "wasm.d.ts"
+}

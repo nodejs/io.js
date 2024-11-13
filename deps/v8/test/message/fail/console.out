@@ -1,16 +1,23 @@
 console.timeEnd: default, {NUMBER}
 console.timeEnd: abcd, {NUMBER}
-console.timeEnd: b, {NUMBER}
+console.timeLog: Timer 'a' does not exist
+console.timeEnd: Timer 'a' does not exist
 console.timeEnd: a, {NUMBER}
+console.timeEnd: a, {NUMBER}
+console.time: Timer 'b' already exists
+console.timeEnd: b, {NUMBER}
+console.timeLog: ab, {NUMBER}
+console.timeEnd: ab, {NUMBER}
+console.timeStamp: stamp it baby!, {NUMBER}
 log more
 console.warn: warn 2
 console.debug: debug
 console.info: info
-console.info: *%(basename)s:22: Error: exception
+console.info: *%(basename)s:34: Error: exception
 console.info({ toString: () => {throw new Error("exception");} })
                                 ^
 Error: exception
-    at Object.toString (*%(basename)s:22:39)
+    at Object.toString (*%(basename)s:34:39)
     at console.info (<anonymous>)
-    at *%(basename)s:22:9
+    at *%(basename)s:34:9
 

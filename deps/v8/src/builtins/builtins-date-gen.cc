@@ -19,54 +19,58 @@ class DateBuiltinsAssembler : public CodeStubAssembler {
       : CodeStubAssembler(state) {}
 
  protected:
+  void Generate_IsDateCheck(TNode<Context> context, TNode<Object> receiver);
   void Generate_DatePrototype_GetField(TNode<Context> context,
                                        TNode<Object> receiver, int field_index);
 };
 
-void DateBuiltinsAssembler::Generate_DatePrototype_GetField(
-    TNode<Context> context, TNode<Object> receiver, int field_index) {
-  Label receiver_not_date(this, Label::kDeferred);
+void DateBuiltinsAssembler::Generate_IsDateCheck(TNode<Context> context,
+                                                 TNode<Object> receiver) {
+  Label ok(this), receiver_not_date(this, Label::kDeferred);
 
   GotoIf(TaggedIsSmi(receiver), &receiver_not_date);
   TNode<Uint16T> receiver_instance_type = LoadInstanceType(CAST(receiver));
-  GotoIfNot(InstanceTypeEqual(receiver_instance_type, JS_DATE_TYPE),
-            &receiver_not_date);
-
-  TNode<JSDate> date_receiver = CAST(receiver);
-  // Load the specified date field, falling back to the runtime as necessary.
-  if (field_index == JSDate::kDateValue) {
-    Return(LoadObjectField(date_receiver, JSDate::kValueOffset));
-  } else {
-    if (field_index < JSDate::kFirstUncachedField) {
-      Label stamp_mismatch(this, Label::kDeferred);
-      TNode<Object> date_cache_stamp = Load<Object>(
-          ExternalConstant(ExternalReference::date_cache_stamp(isolate())));
-
-      TNode<Object> cache_stamp =
-          LoadObjectField(date_receiver, JSDate::kCacheStampOffset);
-      GotoIf(TaggedNotEqual(date_cache_stamp, cache_stamp), &stamp_mismatch);
-      Return(LoadObjectField(date_receiver,
-                             JSDate::kValueOffset + field_index * kTaggedSize));
-
-      BIND(&stamp_mismatch);
-    }
-
-    TNode<ExternalReference> isolate_ptr =
-        ExternalConstant(ExternalReference::isolate_address(isolate()));
-    TNode<Smi> field_index_smi = SmiConstant(field_index);
-    TNode<ExternalReference> function =
-        ExternalConstant(ExternalReference::get_date_field_function());
-    TNode<Object> result = CAST(CallCFunction(
-        function, MachineType::AnyTagged(),
-        std::make_pair(MachineType::Pointer(), isolate_ptr),
-        std::make_pair(MachineType::AnyTagged(), date_receiver),
-        std::make_pair(MachineType::AnyTagged(), field_index_smi)));
-    Return(result);
-  }
+  Branch(InstanceTypeEqual(receiver_instance_type, JS_DATE_TYPE), &ok,
+         &receiver_not_date);
 
   // Raise a TypeError if the receiver is not a date.
   BIND(&receiver_not_date);
   { ThrowTypeError(context, MessageTemplate::kNotDateObject); }
+
+  BIND(&ok);
+}
+
+void DateBuiltinsAssembler::Generate_DatePrototype_GetField(
+    TNode<Context> context, TNode<Object> receiver, int field_index) {
+  Generate_IsDateCheck(context, receiver);
+
+  TNode<JSDate> date_receiver = CAST(receiver);
+  // Load the specified date field, falling back to the runtime as necessary.
+  if (field_index < JSDate::kFirstUncachedField) {
+    Label stamp_mismatch(this, Label::kDeferred);
+    TNode<Object> date_cache_stamp = Load<Object>(
+        ExternalConstant(ExternalReference::date_cache_stamp(isolate())));
+
+    TNode<Object> cache_stamp =
+        LoadObjectField(date_receiver, JSDate::kCacheStampOffset);
+    GotoIf(TaggedNotEqual(date_cache_stamp, cache_stamp), &stamp_mismatch);
+    Return(LoadObjectField(date_receiver,
+                           JSDate::kYearOffset + field_index * kTaggedSize));
+
+    BIND(&stamp_mismatch);
+  }
+
+  TNode<ExternalReference> isolate_ptr =
+      ExternalConstant(ExternalReference::isolate_address(isolate()));
+  TNode<Smi> field_index_smi = SmiConstant(field_index);
+  TNode<ExternalReference> function =
+      ExternalConstant(ExternalReference::get_date_field_function());
+  TNode<Object> result = CAST(
+      CallCFunction(function, MachineType::AnyTagged(),
+                    std::make_pair(MachineType::Pointer(), isolate_ptr),
+                    std::make_pair(MachineType::AnyTagged(), date_receiver),
+                    std::make_pair(MachineType::AnyTagged(), field_index_smi)));
+  Return(result);
 }
 
 TF_BUILTIN(DatePrototypeGetDate, DateBuiltinsAssembler) {
@@ -120,7 +124,10 @@ TF_BUILTIN(DatePrototypeGetSeconds, DateBuiltinsAssembler) {
 TF_BUILTIN(DatePrototypeGetTime, DateBuiltinsAssembler) {
   auto context = Parameter<Context>(Descriptor::kContext);
   auto receiver = Parameter<Object>(Descriptor::kReceiver);
-  Generate_DatePrototype_GetField(context, receiver, JSDate::kDateValue);
+  Generate_IsDateCheck(context, receiver);
+  TNode<JSDate> date_receiver = CAST(receiver);
+  Return(ChangeFloat64ToTagged(
+      LoadObjectField<Float64T>(date_receiver, JSDate::kValueOffset)));
 }
 
 TF_BUILTIN(DatePrototypeGetTimezoneOffset, DateBuiltinsAssembler) {
@@ -180,7 +187,10 @@ TF_BUILTIN(DatePrototypeGetUTCSeconds, DateBuiltinsAssembler) {
 TF_BUILTIN(DatePrototypeValueOf, DateBuiltinsAssembler) {
   auto context = Parameter<Context>(Descriptor::kContext);
   auto receiver = Parameter<Object>(Descriptor::kReceiver);
-  Generate_DatePrototype_GetField(context, receiver, JSDate::kDateValue);
+  Generate_IsDateCheck(context, receiver);
+  TNode<JSDate> date_receiver = CAST(receiver);
+  Return(ChangeFloat64ToTagged(
+      LoadObjectField<Float64T>(date_receiver, JSDate::kValueOffset)));
 }
 
 TF_BUILTIN(DatePrototypeToPrimitive, CodeStubAssembler) {

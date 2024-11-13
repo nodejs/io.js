@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "v8-internal.h"      // NOLINT(build/include_directory)
 #include "v8-local-handle.h"  // NOLINT(build/include_directory)
 #include "v8-primitive.h"     // NOLINT(build/include_directory)
 #include "v8config.h"         // NOLINT(build/include_directory)
@@ -31,6 +32,11 @@ namespace debug {
 class ConsoleCallArguments;
 }  // namespace debug
 
+namespace api_internal {
+V8_EXPORT v8::Local<v8::Value> GetFunctionTemplateData(
+    v8::Isolate* isolate, v8::Local<v8::Data> raw_target);
+}  // namespace api_internal
+
 template <typename T>
 class ReturnValue {
  public:
@@ -38,7 +44,7 @@ class ReturnValue {
   V8_INLINE ReturnValue(const ReturnValue<S>& that) : value_(that.value_) {
     static_assert(std::is_base_of<T, S>::value, "type check");
   }
-  // Local setters
+  // Handle-based setters.
   template <typename S>
   V8_INLINE void Set(const Global<S>& handle);
   template <typename S>
@@ -51,15 +57,19 @@ class ReturnValue {
   V8_INLINE void Set(const Local<S> handle);
   template <typename S>
   V8_INLINE void SetNonEmpty(const Local<S> handle);
-  // Fast primitive setters
+  // Fast primitive number setters.
   V8_INLINE void Set(bool value);
   V8_INLINE void Set(double i);
+  V8_INLINE void Set(int16_t i);
   V8_INLINE void Set(int32_t i);
+  V8_INLINE void Set(int64_t i);
+  V8_INLINE void Set(uint16_t i);
   V8_INLINE void Set(uint32_t i);
-  V8_INLINE void Set(uint16_t);
+  V8_INLINE void Set(uint64_t i);
   // Fast JS primitive setters
   V8_INLINE void SetNull();
   V8_INLINE void SetUndefined();
+  V8_INLINE void SetFalse();
   V8_INLINE void SetEmptyString();
   // Convenience getter for Isolate
   V8_INLINE Isolate* GetIsolate() const;
@@ -83,14 +93,13 @@ class ReturnValue {
   template <class F, class G, class H>
   friend class PersistentValueMapBase;
   V8_INLINE void SetInternal(internal::Address value);
-  // Setting the hole value has different meanings depending on the usage:
-  //  - for function template callbacks it means that the callback returns
-  //    the undefined value,
-  //  - for property getter callbacks is means that the callback returns
-  //    the undefined value (for property setter callbacks the value returned
-  //    is ignored),
-  //  - for interceptor callbacks it means that the request was not handled.
-  V8_INLINE void SetTheHole();
+  // Default value depends on <T>:
+  //  - <void> -> true_value,
+  //  - <v8::Boolean> -> true_value,
+  //  - <v8::Integer> -> 0,
+  //  - <v8::Value> -> undefined_value,
+  //  - <v8::Array> -> undefined_value.
+  V8_INLINE void SetDefaultValue();
   V8_INLINE explicit ReturnValue(internal::Address* slot);
 
   // See FunctionCallbackInfo.
@@ -127,6 +136,12 @@ class FunctionCallbackInfo {
    * referencing this callback was found (which in V8 internally is often
    * referred to as holder [sic]).
    */
+  V8_DEPRECATED(
+      "V8 will stop providing access to hidden prototype (i.e. "
+      "JSGlobalObject). Use This() instead. \n"
+      "DO NOT try to workaround this by accessing JSGlobalObject via "
+      "v8::Object::GetPrototype() - it'll be deprecated soon too. \n"
+      "See http://crbug.com/333672197. ")
   V8_INLINE Local<Object> Holder() const;
   /** For construct calls, this returns the "new.target" value. */
   V8_INLINE Local<Value> NewTarget() const;
@@ -139,16 +154,22 @@ class FunctionCallbackInfo {
   /** The ReturnValue for the call. */
   V8_INLINE ReturnValue<T> GetReturnValue() const;
 
+  // This is a temporary replacement for Holder() added just for the purpose
+  // of testing the deprecated Holder() machinery until it's removed for real.
+  // DO NOT use it.
+  V8_INLINE Local<Object> HolderSoonToBeDeprecated() const;
+
  private:
   friend class internal::FunctionCallbackArguments;
   friend class internal::CustomArguments<FunctionCallbackInfo>;
   friend class debug::ConsoleCallArguments;
+  friend void internal::PrintFunctionCallbackInfo(void*);
 
   static constexpr int kHolderIndex = 0;
   static constexpr int kIsolateIndex = 1;
-  static constexpr int kUnusedIndex = 2;
+  static constexpr int kContextIndex = 2;
   static constexpr int kReturnValueIndex = 3;
-  static constexpr int kDataIndex = 4;
+  static constexpr int kTargetIndex = 4;
   static constexpr int kNewTargetIndex = 5;
   static constexpr int kArgsLength = 6;
 
@@ -168,9 +189,13 @@ class FunctionCallbackInfo {
 
   V8_INLINE FunctionCallbackInfo(internal::Address* implicit_args,
                                  internal::Address* values, int length);
+
+  // TODO(https://crbug.com/326505377): flatten the v8::FunctionCallbackInfo
+  // object to avoid indirect loads through values_ and implicit_args_ and
+  // reduce the number of instructions in the CallApiCallback builtin.
   internal::Address* implicit_args_;
   internal::Address* values_;
-  int length_;
+  internal::Address length_;
 };
 
 /**
@@ -244,7 +269,22 @@ class PropertyCallbackInfo {
    *
    * \note For security reasons, do not pass the object back into the runtime.
    */
+  V8_DEPRECATE_SOON(
+      "V8 will stop providing access to hidden prototype (i.e. "
+      "JSGlobalObject). Use HolderV2() instead. \n"
+      "DO NOT try to workaround this by accessing JSGlobalObject via "
+      "v8::Object::GetPrototype() - it'll be deprecated soon too. \n"
+      "See http://crbug.com/333672197. ")
   V8_INLINE Local<Object> Holder() const;
+
+  /**
+   * \return The object in the prototype chain of the receiver that has the
+   * interceptor. Suppose you have `x` and its prototype is `y`, and `y`
+   * has an interceptor. Then `info.This()` is `x` and `info.Holder()` is `y`.
+   * In case the property is installed on the global object the Holder()
+   * would return the global proxy.
+   */
+  V8_INLINE Local<Object> HolderV2() const;
 
   /**
    * \return The return value of the callback.
@@ -266,24 +306,28 @@ class PropertyCallbackInfo {
   V8_INLINE bool ShouldThrowOnError() const;
 
  private:
+  template <typename U>
+  friend class PropertyCallbackInfo;
   friend class MacroAssembler;
   friend class internal::PropertyCallbackArguments;
   friend class internal::CustomArguments<PropertyCallbackInfo>;
-  static constexpr int kShouldThrowOnErrorIndex = 0;
-  static constexpr int kHolderIndex = 1;
-  static constexpr int kIsolateIndex = 2;
-  static constexpr int kUnusedIndex = 3;
-  static constexpr int kReturnValueIndex = 4;
-  static constexpr int kDataIndex = 5;
-  static constexpr int kThisIndex = 6;
-  static constexpr int kArgsLength = 7;
+  friend void internal::PrintPropertyCallbackInfo(void*);
 
-  static constexpr int kSize = 1 * internal::kApiSystemPointerSize;
+  static constexpr int kPropertyKeyIndex = 0;
+  static constexpr int kShouldThrowOnErrorIndex = 1;
+  static constexpr int kHolderIndex = 2;
+  static constexpr int kIsolateIndex = 3;
+  static constexpr int kHolderV2Index = 4;
+  static constexpr int kReturnValueIndex = 5;
+  static constexpr int kDataIndex = 6;
+  static constexpr int kThisIndex = 7;
+  static constexpr int kArgsLength = 8;
 
-  V8_INLINE explicit PropertyCallbackInfo(internal::Address* args)
-      : args_(args) {}
+  static constexpr int kSize = kArgsLength * internal::kApiSystemPointerSize;
 
-  internal::Address* args_;
+  PropertyCallbackInfo() = default;
+
+  mutable internal::Address args_[kArgsLength];
 };
 
 using FunctionCallback = void (*)(const FunctionCallbackInfo<Value>& info);
@@ -312,7 +356,7 @@ template <typename S>
 void ReturnValue<T>::Set(const Global<S>& handle) {
   static_assert(std::is_base_of<T, S>::value, "type check");
   if (V8_UNLIKELY(handle.IsEmpty())) {
-    SetTheHole();
+    SetDefaultValue();
   } else {
     SetInternal(handle.ptr());
   }
@@ -333,7 +377,7 @@ template <typename S>
 void ReturnValue<T>::Set(const BasicTracedReference<S>& handle) {
   static_assert(std::is_base_of<T, S>::value, "type check");
   if (V8_UNLIKELY(handle.IsEmpty())) {
-    SetTheHole();
+    SetDefaultValue();
   } else {
     SetInternal(handle.ptr());
   }
@@ -352,10 +396,25 @@ void ReturnValue<T>::SetNonEmpty(const BasicTracedReference<S>& handle) {
 template <typename T>
 template <typename S>
 void ReturnValue<T>::Set(const Local<S> handle) {
-  static_assert(std::is_void<T>::value || std::is_base_of<T, S>::value,
-                "type check");
+  // "V8_DEPRECATE_SOON" this method if |T| is |void|.
+#ifdef V8_IMMINENT_DEPRECATION_WARNINGS
+  static constexpr bool is_allowed_void = false;
+  static_assert(!std::is_void<T>::value,
+                "ReturnValue<void>::Set(const Local<S>) is deprecated. "
+                "Do nothing to indicate that the operation succeeded or use "
+                "SetFalse() to indicate that the operation failed (don't "
+                "forget to handle info.ShouldThrowOnError()). "
+                "See http://crbug.com/348660658 for details.");
+#else
+  static constexpr bool is_allowed_void = std::is_void<T>::value;
+#endif  // V8_IMMINENT_DEPRECATION_WARNINGS
+  static_assert(is_allowed_void || std::is_base_of<T, S>::value, "type check");
   if (V8_UNLIKELY(handle.IsEmpty())) {
-    SetTheHole();
+    SetDefaultValue();
+  } else if constexpr (is_allowed_void) {
+    // Simulate old behaviour for "v8::AccessorSetterCallback" for which
+    // it was possible to set the return value even for ReturnValue<void>.
+    Set(handle->BooleanValue(GetIsolate()));
   } else {
     SetInternal(handle.ptr());
   }
@@ -364,12 +423,29 @@ void ReturnValue<T>::Set(const Local<S> handle) {
 template <typename T>
 template <typename S>
 void ReturnValue<T>::SetNonEmpty(const Local<S> handle) {
-  static_assert(std::is_void<T>::value || std::is_base_of<T, S>::value,
-                "type check");
+  // "V8_DEPRECATE_SOON" this method if |T| is |void|.
+#ifdef V8_IMMINENT_DEPRECATION_WARNINGS
+  static constexpr bool is_allowed_void = false;
+  static_assert(!std::is_void<T>::value,
+                "ReturnValue<void>::SetNonEmpty(const Local<S>) is deprecated. "
+                "Do nothing to indicate that the operation succeeded or use "
+                "SetFalse() to indicate that the operation failed (don't "
+                "forget to handle info.ShouldThrowOnError()). "
+                "See http://crbug.com/348660658 for details.");
+#else
+  static constexpr bool is_allowed_void = std::is_void<T>::value;
+#endif  // V8_IMMINENT_DEPRECATION_WARNINGS
+  static_assert(is_allowed_void || std::is_base_of<T, S>::value, "type check");
 #ifdef V8_ENABLE_CHECKS
   internal::VerifyHandleIsNonEmpty(handle.IsEmpty());
 #endif  // V8_ENABLE_CHECKS
-  SetInternal(handle.ptr());
+  if constexpr (is_allowed_void) {
+    // Simulate old behaviour for "v8::AccessorSetterCallback" for which
+    // it was possible to set the return value even for ReturnValue<void>.
+    Set(handle->BooleanValue(GetIsolate()));
+  } else {
+    SetInternal(handle.ptr());
+  }
 }
 
 template <typename T>
@@ -379,26 +455,32 @@ void ReturnValue<T>::Set(double i) {
 }
 
 template <typename T>
-void ReturnValue<T>::Set(int32_t i) {
+void ReturnValue<T>::Set(int16_t i) {
   static_assert(std::is_base_of<T, Integer>::value, "type check");
   using I = internal::Internals;
-  if (V8_LIKELY(I::IsValidSmi(i))) {
-    SetInternal(I::IntToSmi(i));
+  static_assert(I::IsValidSmi(std::numeric_limits<int16_t>::min()));
+  static_assert(I::IsValidSmi(std::numeric_limits<int16_t>::max()));
+  SetInternal(I::IntegralToSmi(i));
+}
+
+template <typename T>
+void ReturnValue<T>::Set(int32_t i) {
+  static_assert(std::is_base_of<T, Integer>::value, "type check");
+  if (const auto result = internal::Internals::TryIntegralToSmi(i)) {
+    SetInternal(*result);
     return;
   }
   SetNonEmpty(Integer::New(GetIsolate(), i));
 }
 
 template <typename T>
-void ReturnValue<T>::Set(uint32_t i) {
+void ReturnValue<T>::Set(int64_t i) {
   static_assert(std::is_base_of<T, Integer>::value, "type check");
-  // Can't simply use INT32_MAX here for whatever reason.
-  bool fits_into_int32_t = (i & (1U << 31)) == 0;
-  if (V8_LIKELY(fits_into_int32_t)) {
-    Set(static_cast<int32_t>(i));
+  if (const auto result = internal::Internals::TryIntegralToSmi(i)) {
+    SetInternal(*result);
     return;
   }
-  SetNonEmpty(Integer::NewFromUnsigned(GetIsolate(), i));
+  SetNonEmpty(Number::New(GetIsolate(), static_cast<double>(i)));
 }
 
 template <typename T>
@@ -407,12 +489,33 @@ void ReturnValue<T>::Set(uint16_t i) {
   using I = internal::Internals;
   static_assert(I::IsValidSmi(std::numeric_limits<uint16_t>::min()));
   static_assert(I::IsValidSmi(std::numeric_limits<uint16_t>::max()));
-  SetInternal(I::IntToSmi(i));
+  SetInternal(I::IntegralToSmi(i));
+}
+
+template <typename T>
+void ReturnValue<T>::Set(uint32_t i) {
+  static_assert(std::is_base_of<T, Integer>::value, "type check");
+  if (const auto result = internal::Internals::TryIntegralToSmi(i)) {
+    SetInternal(*result);
+    return;
+  }
+  SetNonEmpty(Integer::NewFromUnsigned(GetIsolate(), i));
+}
+
+template <typename T>
+void ReturnValue<T>::Set(uint64_t i) {
+  static_assert(std::is_base_of<T, Integer>::value, "type check");
+  if (const auto result = internal::Internals::TryIntegralToSmi(i)) {
+    SetInternal(*result);
+    return;
+  }
+  SetNonEmpty(Number::New(GetIsolate(), static_cast<double>(i)));
 }
 
 template <typename T>
 void ReturnValue<T>::Set(bool value) {
-  static_assert(std::is_base_of<T, Boolean>::value, "type check");
+  static_assert(std::is_void<T>::value || std::is_base_of<T, Boolean>::value,
+                "type check");
   using I = internal::Internals;
 #if V8_STATIC_ROOTS_BOOL
 #ifdef V8_ENABLE_CHECKS
@@ -433,13 +536,20 @@ void ReturnValue<T>::Set(bool value) {
 }
 
 template <typename T>
-void ReturnValue<T>::SetTheHole() {
+void ReturnValue<T>::SetDefaultValue() {
   using I = internal::Internals;
+  if constexpr (std::is_same_v<void, T> || std::is_same_v<v8::Boolean, T>) {
+    Set(true);
+  } else if constexpr (std::is_same_v<v8::Integer, T>) {
+    SetInternal(I::IntegralToSmi(0));
+  } else {
+    static_assert(std::is_same_v<v8::Value, T> || std::is_same_v<v8::Array, T>);
 #if V8_STATIC_ROOTS_BOOL
-  SetInternal(I::StaticReadOnlyRoot::kTheHoleValue);
+    SetInternal(I::StaticReadOnlyRoot::kUndefinedValue);
 #else
-  *value_ = I::GetRoot(GetIsolate(), I::kTheHoleValueRootIndex);
+    *value_ = I::GetRoot(GetIsolate(), I::kUndefinedValueRootIndex);
 #endif  // V8_STATIC_ROOTS_BOOL
+  }
 }
 
 template <typename T>
@@ -473,6 +583,22 @@ void ReturnValue<T>::SetUndefined() {
 }
 
 template <typename T>
+void ReturnValue<T>::SetFalse() {
+  static_assert(std::is_void<T>::value || std::is_base_of<T, Boolean>::value,
+                "type check");
+  using I = internal::Internals;
+#if V8_STATIC_ROOTS_BOOL
+#ifdef V8_ENABLE_CHECKS
+  internal::PerformCastCheck(
+      internal::ValueHelper::SlotAsValue<Value, true>(value_));
+#endif  // V8_ENABLE_CHECKS
+  SetInternal(I::StaticReadOnlyRoot::kFalseValue);
+#else
+  *value_ = I::GetRoot(GetIsolate(), I::kFalseValueRootIndex);
+#endif  // V8_STATIC_ROOTS_BOOL
+}
+
+template <typename T>
 void ReturnValue<T>::SetEmptyString() {
   static_assert(std::is_base_of<T, String>::value, "type check");
   using I = internal::Internals;
@@ -494,14 +620,6 @@ Isolate* ReturnValue<T>::GetIsolate() const {
 
 template <typename T>
 Local<Value> ReturnValue<T>::Get() const {
-  using I = internal::Internals;
-#if V8_STATIC_ROOTS_BOOL
-  if (I::is_identical(*value_, I::StaticReadOnlyRoot::kTheHoleValue)) {
-#else
-  if (*value_ == I::GetRoot(GetIsolate(), I::kTheHoleValueRootIndex)) {
-#endif  // V8_STATIC_ROOTS_BOOL
-    return Undefined(GetIsolate());
-  }
   return Local<Value>::New(GetIsolate(),
                            internal::ValueHelper::SlotAsValue<Value>(value_));
 }
@@ -521,7 +639,7 @@ FunctionCallbackInfo<T>::FunctionCallbackInfo(internal::Address* implicit_args,
 template <typename T>
 Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
   // values_ points to the first argument (not the receiver).
-  if (i < 0 || length_ <= i) return Undefined(GetIsolate());
+  if (i < 0 || Length() <= i) return Undefined(GetIsolate());
   return Local<Value>::FromSlot(values_ + i);
 }
 
@@ -532,8 +650,13 @@ Local<Object> FunctionCallbackInfo<T>::This() const {
 }
 
 template <typename T>
-Local<Object> FunctionCallbackInfo<T>::Holder() const {
+Local<Object> FunctionCallbackInfo<T>::HolderSoonToBeDeprecated() const {
   return Local<Object>::FromSlot(&implicit_args_[kHolderIndex]);
+}
+
+template <typename T>
+Local<Object> FunctionCallbackInfo<T>::Holder() const {
+  return HolderSoonToBeDeprecated();
 }
 
 template <typename T>
@@ -543,7 +666,8 @@ Local<Value> FunctionCallbackInfo<T>::NewTarget() const {
 
 template <typename T>
 Local<Value> FunctionCallbackInfo<T>::Data() const {
-  return Local<Value>::FromSlot(&implicit_args_[kDataIndex]);
+  auto target = Local<v8::Data>::FromSlot(&implicit_args_[kTargetIndex]);
+  return api_internal::GetFunctionTemplateData(GetIsolate(), target);
 }
 
 template <typename T>
@@ -563,7 +687,7 @@ bool FunctionCallbackInfo<T>::IsConstructCall() const {
 
 template <typename T>
 int FunctionCallbackInfo<T>::Length() const {
-  return length_;
+  return static_cast<int>(length_);
 }
 
 template <typename T>
@@ -586,6 +710,23 @@ Local<Object> PropertyCallbackInfo<T>::Holder() const {
   return Local<Object>::FromSlot(&args_[kHolderIndex]);
 }
 
+namespace api_internal {
+// Returns JSGlobalProxy if holder is JSGlobalObject or unmodified holder
+// otherwise.
+V8_EXPORT internal::Address ConvertToJSGlobalProxyIfNecessary(
+    internal::Address holder);
+}  // namespace api_internal
+
+template <typename T>
+Local<Object> PropertyCallbackInfo<T>::HolderV2() const {
+  using I = internal::Internals;
+  if (!I::HasHeapObjectTag(args_[kHolderV2Index])) {
+    args_[kHolderV2Index] =
+        api_internal::ConvertToJSGlobalProxyIfNecessary(args_[kHolderIndex]);
+  }
+  return Local<Object>::FromSlot(&args_[kHolderV2Index]);
+}
+
 template <typename T>
 ReturnValue<T> PropertyCallbackInfo<T>::GetReturnValue() const {
   return ReturnValue<T>(&args_[kReturnValueIndex]);
@@ -595,8 +736,8 @@ template <typename T>
 bool PropertyCallbackInfo<T>::ShouldThrowOnError() const {
   using I = internal::Internals;
   if (args_[kShouldThrowOnErrorIndex] !=
-      I::IntToSmi(I::kInferShouldThrowMode)) {
-    return args_[kShouldThrowOnErrorIndex] != I::IntToSmi(I::kDontThrow);
+      I::IntegralToSmi(I::kInferShouldThrowMode)) {
+    return args_[kShouldThrowOnErrorIndex] != I::IntegralToSmi(I::kDontThrow);
   }
   return v8::internal::ShouldThrowOnError(
       reinterpret_cast<v8::internal::Isolate*>(GetIsolate()));

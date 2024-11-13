@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 
 #include "src/base/logging.h"
 #include "src/base/strings.h"
@@ -22,8 +23,7 @@
 #include "src/strings/unicode.h"
 #include "src/utils/allocation.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 class AstRawString;
 class AstValueFactory;
@@ -205,7 +205,7 @@ class Utf16CharacterStream {
   const uint16_t* buffer_cursor_;
   const uint16_t* buffer_end_;
   size_t buffer_pos_;
-  RuntimeCallStats* runtime_call_stats_;
+  RuntimeCallStats* runtime_call_stats_ = nullptr;
   bool has_parser_error_ = false;
 };
 
@@ -288,6 +288,8 @@ class V8_EXPORT_PRIVATE Scanner {
   Token::Value Next();
   // Returns the token following peek()
   Token::Value PeekAhead();
+  // Returns the token following PeekAhead()
+  Token::Value PeekAheadAhead();
   // Returns the current token again.
   Token::Value current_token() const { return current().token; }
 
@@ -384,7 +386,7 @@ class V8_EXPORT_PRIVATE Scanner {
   MessageTemplate octal_message() const { return octal_message_; }
 
   // Returns the value of the last smi that was scanned.
-  uint32_t smi_value() const { return current().smi_value_; }
+  uint32_t smi_value() const { return current().smi_value; }
 
   // Seek forward to the given position.  This operation does not
   // work in general, for instance when there are pushed back
@@ -404,11 +406,17 @@ class V8_EXPORT_PRIVATE Scanner {
     return next_next().after_line_terminator;
   }
 
+  bool HasLineTerminatorAfterNextNext() {
+    Token::Value ensure_next_next_next = PeekAheadAhead();
+    USE(ensure_next_next_next);
+    return next_next_next().after_line_terminator;
+  }
+
   // Scans the input as a regular expression pattern, next token must be /(=).
   // Returns true if a pattern is scanned.
   bool ScanRegExpPattern();
   // Scans the input as regular expression flags. Returns the flags on success.
-  base::Optional<RegExpFlags> ScanRegExpFlags();
+  std::optional<RegExpFlags> ScanRegExpFlags();
 
   // Scans the input as a template literal
   Token::Value ScanTemplateContinuation() {
@@ -440,7 +448,16 @@ class V8_EXPORT_PRIVATE Scanner {
   // escape sequences are allowed.
   class ErrorState;
 
-  // The current and look-ahead token.
+  enum NumberKind {
+    IMPLICIT_OCTAL,
+    BINARY,
+    OCTAL,
+    HEX,
+    DECIMAL,
+    DECIMAL_WITH_LEADING_ZERO
+  };
+
+  // The current and look-ahead tokens.
   struct TokenDesc {
     Location location = {0, 0};
     LiteralBuffer literal_chars;
@@ -448,7 +465,8 @@ class V8_EXPORT_PRIVATE Scanner {
     Token::Value token = Token::kUninitialized;
     MessageTemplate invalid_template_escape_message = MessageTemplate::kNone;
     Location invalid_template_escape_location;
-    uint32_t smi_value_ = 0;
+    NumberKind number_kind;
+    uint32_t smi_value = 0;
     bool after_line_terminator = false;
 
 #ifdef DEBUG
@@ -465,15 +483,6 @@ class V8_EXPORT_PRIVATE Scanner {
              base::IsInRange(token, Token::kTemplateSpan, Token::kTemplateTail);
     }
 #endif  // DEBUG
-  };
-
-  enum NumberKind {
-    IMPLICIT_OCTAL,
-    BINARY,
-    OCTAL,
-    HEX,
-    DECIMAL,
-    DECIMAL_WITH_LEADING_ZERO
   };
 
   inline bool IsValidBigIntKind(NumberKind kind) {
@@ -500,6 +509,7 @@ class V8_EXPORT_PRIVATE Scanner {
     current_ = &token_storage_[0];
     next_ = &token_storage_[1];
     next_next_ = &token_storage_[2];
+    next_next_next_ = &token_storage_[3];
 
     found_html_comment_ = false;
     scanner_error_ = MessageTemplate::kNone;
@@ -728,12 +738,15 @@ class V8_EXPORT_PRIVATE Scanner {
   const TokenDesc& current() const { return *current_; }
   const TokenDesc& next() const { return *next_; }
   const TokenDesc& next_next() const { return *next_next_; }
+  const TokenDesc& next_next_next() const { return *next_next_next_; }
 
   UnoptimizedCompileFlags flags_;
 
   TokenDesc* current_;    // desc for current token (as returned by Next())
   TokenDesc* next_;       // desc for next token (one token look-ahead)
-  TokenDesc* next_next_;  // desc for the token after next (after PeakAhead())
+  TokenDesc* next_next_;  // desc for the token after next (after peek())
+  TokenDesc* next_next_next_;  // desc for the token after next of next (after
+                               // PeekAhead())
 
   // Input stream. Must be initialized to an Utf16CharacterStream.
   Utf16CharacterStream* const source_;
@@ -741,7 +754,7 @@ class V8_EXPORT_PRIVATE Scanner {
   // One Unicode character look-ahead; c0_ < 0 at the end of the input.
   base::uc32 c0_;
 
-  TokenDesc token_storage_[3];
+  TokenDesc token_storage_[4];
 
   // Whether this scanner encountered an HTML comment.
   bool found_html_comment_;
@@ -760,7 +773,6 @@ class V8_EXPORT_PRIVATE Scanner {
   Location scanner_error_location_;
 };
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #endif  // V8_PARSING_SCANNER_H_

@@ -22,43 +22,43 @@ var b1, b2, b3;
 //   y = [B1]2;
 //   z = [B2]3;
 // }
-b1 = Debug.setBreakPoint(initializer, 1, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") > 0);
+b1 = Debug.setBreakPoint(initializer, 0, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") >= 0);
 Debug.clearBreakPoint(b1);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") === -1);
 
-b2 = Debug.setBreakPoint(initializer, 2, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B0]2;") > 0);
+b2 = Debug.setBreakPoint(initializer, 1, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B0]2;") >= 0);
 Debug.clearBreakPoint(b2);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B0]2;") === -1);
 
-b3 = Debug.setBreakPoint(initializer, 3, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B0]3") > 0);
+b3 = Debug.setBreakPoint(initializer, 2, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B0]3") >= 0);
 Debug.clearBreakPoint(b3);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B0]3") === -1);
 
-b1 = Debug.setBreakPoint(initializer, 1, 0);
-b2 = Debug.setBreakPoint(initializer, 2, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") > 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B1]2;") > 0);
+b1 = Debug.setBreakPoint(initializer, 0, 0);
+b2 = Debug.setBreakPoint(initializer, 1, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") >= 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B1]2;") >= 0);
 Debug.clearBreakPoint(b1);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") === -1);
 Debug.clearBreakPoint(b2);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B1]2;") === -1);
 
-b1 = Debug.setBreakPoint(initializer, 1, 0);
-b3 = Debug.setBreakPoint(initializer, 3, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") > 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B1]3") > 0);
+b1 = Debug.setBreakPoint(initializer, 0, 0);
+b3 = Debug.setBreakPoint(initializer, 2, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") >= 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B1]3") >= 0);
 Debug.clearBreakPoint(b1);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("x = [B0]1;") === -1);
 Debug.clearBreakPoint(b3);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B1]3") === -1);
 
-b2 = Debug.setBreakPoint(initializer, 2, 0);
-b3 = Debug.setBreakPoint(initializer, 3, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B0]2;") > 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B1]3") > 0);
+b2 = Debug.setBreakPoint(initializer, 1, 0);
+b3 = Debug.setBreakPoint(initializer, 2, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B0]2;") >= 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf("z = [B1]3") >= 0);
 Debug.clearBreakPoint(b2);
 assertTrue(Debug.showBreakPoints(initializer).indexOf("y = [B0]2;") === -1);
 Debug.clearBreakPoint(b3);
@@ -83,12 +83,12 @@ class X {
 // }
 
 initializer = %GetInitializerFunction(X);
-b1 = Debug.setBreakPoint(initializer, 1, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf('[foo()] = 1;') > 0);
+b1 = Debug.setBreakPoint(initializer, 0, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf('[foo()] = 1;') >= 0);
 Debug.clearBreakPoint(b1);
 
-b1 = Debug.setBreakPoint(initializer, 2, 0);
-assertTrue(Debug.showBreakPoints(initializer).indexOf('baz = [B0]foo()') > 0);
+b1 = Debug.setBreakPoint(initializer, 1, 0);
+assertTrue(Debug.showBreakPoints(initializer).indexOf('baz = [B0]foo()') >= 0);
 Debug.clearBreakPoint(b1);
 
 function t() {
@@ -106,23 +106,23 @@ function t() {
 // }
 
 b1 = Debug.setBreakPoint(t, 2, 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') > 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') >= 0);
 Debug.clearBreakPoint(b1);
 assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') === -1);
 
 b2 = Debug.setBreakPoint(t, 3, 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]bar] = 2;') > 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]bar] = 2;') >= 0);
 Debug.clearBreakPoint(b2);
 assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]bar] = [B0]2;') === -1);
 
 b3 = Debug.setBreakPoint(t, 4, 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('baz = foo()') > 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('baz = foo()') >= 0);
 Debug.clearBreakPoint(b3);
 
 b1 = Debug.setBreakPoint(t, 2, 0);
 b2 = Debug.setBreakPoint(t, 3, 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') > 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('[[B1]bar] = 2;') > 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') >= 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('[[B1]bar] = 2;') >= 0);
 Debug.clearBreakPoint(b1);
 assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') === -1);
 Debug.clearBreakPoint(b2);
@@ -130,16 +130,16 @@ assertTrue(Debug.showBreakPoints(t).indexOf('[[B1]bar] = 2;') === -1);
 
 b1 = Debug.setBreakPoint(t, 2, 0);
 b3 = Debug.setBreakPoint(initializer, 4, 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') > 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('baz = foo()') > 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') >= 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('baz = foo()') >= 0);
 Debug.clearBreakPoint(b1);
 assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]foo()] = 1;') === -1);
 Debug.clearBreakPoint(b3);
 
 b2 = Debug.setBreakPoint(t, 3, 0);
 b3 = Debug.setBreakPoint(t, 4, 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]bar] = 2;') > 0);
-assertTrue(Debug.showBreakPoints(t).indexOf('baz = foo()') > 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]bar] = 2;') >= 0);
+assertTrue(Debug.showBreakPoints(t).indexOf('baz = foo()') >= 0);
 Debug.clearBreakPoint(b2);
 assertTrue(Debug.showBreakPoints(t).indexOf('[[B0]bar] = 2;') === -1);
 Debug.clearBreakPoint(b3);

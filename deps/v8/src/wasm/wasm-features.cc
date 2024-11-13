@@ -7,48 +7,55 @@
 #include "src/execution/isolate-inl.h"
 #include "src/flags/flags.h"
 #include "src/handles/handles-inl.h"
+#include "src/objects/string.h"
 
 namespace v8 {
 namespace internal {
 namespace wasm {
 
 // static
-WasmFeatures WasmFeatures::FromFlags() {
-  WasmFeatures features = WasmFeatures::None();
-#define FLAG_REF(feat, ...) \
-  if (v8_flags.experimental_wasm_##feat) features.Add(kFeature_##feat);
-  FOREACH_WASM_FEATURE_FLAG(FLAG_REF)
-#undef FLAG_REF
-#define NON_FLAG_REF(feat, ...) features.Add(kFeature_##feat);
-  FOREACH_WASM_NON_FLAG_FEATURE(NON_FLAG_REF)
-#undef NON_FLAG_REF
+WasmEnabledFeatures WasmEnabledFeatures::FromFlags() {
+  WasmEnabledFeatures features = WasmEnabledFeatures::None();
+
+#if V8_ENABLE_DRUMBRAKE
+  // The only Wasm experimental features supported by DrumBrake is the legacy
+  // exception handling.
+  if (v8_flags.wasm_jitless) {
+    features.Add(WasmEnabledFeature::legacy_eh);
+  }
+#endif  // V8_ENABLE_DRUMBRAKE
+
+#define CHECK_FEATURE_FLAG(feat, ...)                              \
+  if (!v8_flags.wasm_jitless && v8_flags.experimental_wasm_##feat) \
+    features.Add(WasmEnabledFeature::feat);
+  FOREACH_WASM_FEATURE_FLAG(CHECK_FEATURE_FLAG)
+#undef CHECK_FEATURE_FLAG
   return features;
 }
 
 // static
-WasmFeatures WasmFeatures::FromIsolate(Isolate* isolate) {
+WasmEnabledFeatures WasmEnabledFeatures::FromIsolate(Isolate* isolate) {
   return FromContext(isolate, isolate->native_context());
 }
 
 // static
-WasmFeatures WasmFeatures::FromContext(Isolate* isolate,
-                                       Handle<NativeContext> context) {
-  WasmFeatures features = WasmFeatures::FromFlags();
-  if (isolate->IsWasmStringRefEnabled(context)) {
-    features.Add(kFeature_stringref);
-  }
-  if (isolate->IsWasmInliningEnabled(context)) {
-    features.Add(kFeature_inlining);
-  }
-  if (isolate->IsWasmImportedStringsEnabled(context)) {
-    features.Add(kFeature_imported_strings);
-  }
-  if (isolate->IsWasmJSPIEnabled(context)) {
-    features.Add(kFeature_jspi);
-    features.Add(kFeature_type_reflection);
-  }
-  if (v8_flags.experimental_wasm_type_reflection) {
-    features.Add(kFeature_type_reflection);
+WasmEnabledFeatures WasmEnabledFeatures::FromContext(
+    Isolate* isolate, Handle<NativeContext> context) {
+  WasmEnabledFeatures features = WasmEnabledFeatures::FromFlags();
+  if (!v8_flags.wasm_jitless) {
+    if (isolate->IsWasmStringRefEnabled(context)) {
+      features.Add(WasmEnabledFeature::stringref);
+    }
+    if (isolate->IsWasmInliningEnabled(context)) {
+      features.Add(WasmEnabledFeature::inlining);
+    }
+    if (isolate->IsWasmImportedStringsEnabled(context)) {
+      features.Add(WasmEnabledFeature::imported_strings);
+    }
+    if (isolate->IsWasmJSPIEnabled(context)) {
+      features.Add(WasmEnabledFeature::jspi);
+      features.Add(WasmEnabledFeature::type_reflection);
+    }
   }
   // This space intentionally left blank for future Wasm origin trials.
   return features;

@@ -66,7 +66,7 @@ void CheckDescriptorArrayLookups(Isolate* isolate, Handle<Map> map,
   // Test CSA implementation.
   if (!v8_flags.jitless) {
     for (size_t i = 0; i < names.size(); ++i) {
-      Handle<Object> name_index =
+      DirectHandle<Object> name_index =
           Call(isolate, csa_lookup, map, names[i]).ToHandleChecked();
       CHECK(IsSmi(*name_index));
       CHECK_EQ(DescriptorArray::ToKeyIndex(static_cast<int>(i)),
@@ -99,12 +99,12 @@ void CheckTransitionArrayLookups(Isolate* isolate,
   // Test CSA implementation.
   if (!v8_flags.jitless) {
     for (size_t i = 0; i < maps.size(); ++i) {
-      Handle<Map> expected_map = maps[i];
+      DirectHandle<Map> expected_map = maps[i];
       Handle<Name> name(expected_map->instance_descriptors(isolate)->GetKey(
                             expected_map->LastAdded()),
                         isolate);
 
-      Handle<Object> transition_map =
+      DirectHandle<Object> transition_map =
           Call(isolate, csa_lookup, transitions, name).ToHandleChecked();
       CHECK(IsMap(*transition_map));
       CHECK_EQ(*expected_map, *transition_map);

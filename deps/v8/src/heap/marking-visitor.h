@@ -5,16 +5,16 @@
 #ifndef V8_HEAP_MARKING_VISITOR_H_
 #define V8_HEAP_MARKING_VISITOR_H_
 
+#include "src/base/logging.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
-#include "src/heap/ephemeron-remembered-set.h"
 #include "src/heap/marking-state.h"
 #include "src/heap/marking-worklist.h"
+#include "src/heap/marking.h"
 #include "src/heap/objects-visiting.h"
 #include "src/heap/pretenuring-handler.h"
 #include "src/heap/spaces.h"
 #include "src/heap/weak-object-worklists.h"
-#include "src/objects/string.h"
 
 namespace v8 {
 namespace internal {
@@ -33,10 +33,8 @@ struct EphemeronMarking {
 // - CanUpdateValuesInHeap
 // - AddStrongReferenceForReferenceSummarizer
 // - AddWeakReferenceForReferenceSummarizer
-// - TryMark
-// - IsMarked
+// - marking_state
 // - MarkPointerTableEntry
-// - retaining_path_mode
 // - RecordSlot
 // - RecordRelocSlot
 //
@@ -48,11 +46,12 @@ struct EphemeronMarking {
 template <typename ConcreteVisitor>
 class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
  public:
+  using Base = ConcurrentHeapVisitor<int, ConcreteVisitor>;
+
   MarkingVisitorBase(MarkingWorklists::Local* local_marking_worklists,
                      WeakObjects::Local* local_weak_objects, Heap* heap,
                      unsigned mark_compact_epoch,
                      base::EnumSet<CodeFlushMode> code_flush_mode,
-                     bool trace_embedder_fields,
                      bool should_keep_ages_unchanged,
                      uint16_t code_flushing_increase)
       : ConcurrentHeapVisitor<int, ConcreteVisitor>(heap->isolate()),
@@ -61,25 +60,25 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
         heap_(heap),
         mark_compact_epoch_(mark_compact_epoch),
         code_flush_mode_(code_flush_mode),
-        trace_embedder_fields_(trace_embedder_fields),
         should_keep_ages_unchanged_(should_keep_ages_unchanged),
-        should_mark_shared_heap_(heap->isolate()->is_shared_space_isolate()),
         code_flushing_increase_(code_flushing_increase),
-        isolate_in_background_(heap->isolate()->IsIsolateInBackground())
-#ifdef V8_ENABLE_SANDBOX
+        isolate_in_background_(heap->isolate()->is_backgrounded())
+#ifdef V8_COMPRESS_POINTERS
         ,
         external_pointer_table_(&heap->isolate()->external_pointer_table()),
         shared_external_pointer_table_(
             &heap->isolate()->shared_external_pointer_table()),
         shared_external_pointer_space_(
             heap->isolate()->shared_external_pointer_space()),
+        cpp_heap_pointer_table_(&heap->isolate()->cpp_heap_pointer_table())
+#endif  // V8_COMPRESS_POINTERS
+#ifdef V8_ENABLE_SANDBOX
+        ,
         trusted_pointer_table_(&heap->isolate()->trusted_pointer_table())
 #endif  // V8_ENABLE_SANDBOX
   {
   }
 
-  V8_INLINE int VisitBytecodeArray(Tagged<Map> map,
-                                   Tagged<BytecodeArray> object);
   V8_INLINE int VisitDescriptorArrayStrongly(Tagged<Map> map,
                                              Tagged<DescriptorArray> object);
   V8_INLINE int VisitDescriptorArray(Tagged<Map> map,
@@ -87,13 +86,9 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
   V8_INLINE int VisitEphemeronHashTable(Tagged<Map> map,
                                         Tagged<EphemeronHashTable> object);
   V8_INLINE int VisitFixedArray(Tagged<Map> map, Tagged<FixedArray> object);
-  V8_INLINE int VisitJSApiObject(Tagged<Map> map, Tagged<JSObject> object);
   V8_INLINE int VisitJSArrayBuffer(Tagged<Map> map,
                                    Tagged<JSArrayBuffer> object);
-  V8_INLINE int VisitJSDataViewOrRabGsabDataView(
-      Tagged<Map> map, Tagged<JSDataViewOrRabGsabDataView> object);
   V8_INLINE int VisitJSFunction(Tagged<Map> map, Tagged<JSFunction> object);
-  V8_INLINE int VisitJSTypedArray(Tagged<Map> map, Tagged<JSTypedArray> object);
   V8_INLINE int VisitJSWeakRef(Tagged<Map> map, Tagged<JSWeakRef> object);
   V8_INLINE int VisitMap(Tagged<Map> map, Tagged<Map> object);
   V8_INLINE int VisitSharedFunctionInfo(Tagged<Map> map,
@@ -137,13 +132,18 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
   }
 
   V8_INLINE void VisitExternalPointer(Tagged<HeapObject> host,
-                                      ExternalPointerSlot slot) final;
+                                      ExternalPointerSlot slot) override;
+  V8_INLINE void VisitCppHeapPointer(Tagged<HeapObject> host,
+                                     CppHeapPointerSlot slot) override;
   V8_INLINE void VisitIndirectPointer(Tagged<HeapObject> host,
                                       IndirectPointerSlot slot,
                                       IndirectPointerMode mode) final;
 
   void VisitTrustedPointerTableEntry(Tagged<HeapObject> host,
                                      IndirectPointerSlot slot) final;
+
+  void VisitJSDispatchTableEntry(Tagged<HeapObject> host,
+                                 JSDispatchHandle handle) override;
 
   V8_INLINE void VisitProtectedPointer(Tagged<TrustedObject> host,
                                        ProtectedPointerSlot slot) final {
@@ -158,23 +158,22 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
 #endif
   }
 
-  bool ShouldMarkObject(Tagged<HeapObject> object) const {
-    if (InReadOnlySpace(object)) return false;
-    if (should_mark_shared_heap_) return true;
-    return !InAnySharedSpace(object);
-  }
-
-  // Marks the object grey and pushes it on the marking work list.
-  V8_INLINE void MarkObject(Tagged<HeapObject> host, Tagged<HeapObject> obj);
+  // Marks the object  and pushes it on the marking work list. The `host` is
+  // used for the reference summarizer to valide that the heap snapshot is in
+  // sync with the marker.
+  V8_INLINE bool MarkObject(Tagged<HeapObject> host, Tagged<HeapObject> obj,
+                            MarkingHelper::WorklistTarget target_worklist);
 
   V8_INLINE static constexpr bool ShouldVisitReadOnlyMapPointer() {
     return false;
   }
 
-  // Convenience method.
-  bool IsUnmarked(Tagged<HeapObject> obj) const {
-    return !concrete_visitor()->IsMarked(obj);
+  V8_INLINE static constexpr bool CanEncounterFillerOrFreeSpace() {
+    return false;
   }
+
+  V8_INLINE static constexpr bool IsTrivialWeakReferenceValue(
+      Tagged<HeapObject> host, Tagged<HeapObject> heap_object);
 
  protected:
   using ConcurrentHeapVisitor<int, ConcreteVisitor>::concrete_visitor;
@@ -195,20 +194,9 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
 
   V8_INLINE void VisitDescriptorsForMap(Tagged<Map> map);
 
-  template <typename T>
-  int VisitEmbedderTracingSubclass(Tagged<Map> map, Tagged<T> object);
-  template <typename T>
-  int VisitEmbedderTracingSubClassWithEmbedderTracing(Tagged<Map> map,
-                                                      Tagged<T> object);
-  template <typename T>
-  int VisitEmbedderTracingSubClassNoEmbedderTracing(Tagged<Map> map,
-                                                    Tagged<T> object);
-
   V8_INLINE int VisitFixedArrayWithProgressBar(Tagged<Map> map,
                                                Tagged<FixedArray> object,
                                                ProgressBar& progress_bar);
-  V8_INLINE int VisitFixedArrayRegularly(Tagged<Map> map,
-                                         Tagged<FixedArray> object);
 
   // Methods needed for supporting code flushing.
   bool ShouldFlushCode(Tagged<SharedFunctionInfo> sfi) const;
@@ -223,15 +211,16 @@ class MarkingVisitorBase : public ConcurrentHeapVisitor<int, ConcreteVisitor> {
   Heap* const heap_;
   const unsigned mark_compact_epoch_;
   const base::EnumSet<CodeFlushMode> code_flush_mode_;
-  const bool trace_embedder_fields_;
   const bool should_keep_ages_unchanged_;
-  const bool should_mark_shared_heap_;
   const uint16_t code_flushing_increase_;
   const bool isolate_in_background_;
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_COMPRESS_POINTERS
   ExternalPointerTable* const external_pointer_table_;
   ExternalPointerTable* const shared_external_pointer_table_;
   ExternalPointerTable::Space* const shared_external_pointer_space_;
+  CppHeapPointerTable* const cpp_heap_pointer_table_;
+#endif  // V8_COMPRESS_POINTERS
+#ifdef V8_ENABLE_SANDBOX
   TrustedPointerTable* const trusted_pointer_table_;
 #endif  // V8_ENABLE_SANDBOX
 };
@@ -246,13 +235,13 @@ class FullMarkingVisitorBase : public MarkingVisitorBase<ConcreteVisitor> {
                          WeakObjects::Local* local_weak_objects, Heap* heap,
                          unsigned mark_compact_epoch,
                          base::EnumSet<CodeFlushMode> code_flush_mode,
-                         bool trace_embedder_fields,
                          bool should_keep_ages_unchanged,
                          uint16_t code_flushing_increase)
       : MarkingVisitorBase<ConcreteVisitor>(
             local_marking_worklists, local_weak_objects, heap,
-            mark_compact_epoch, code_flush_mode, trace_embedder_fields,
-            should_keep_ages_unchanged, code_flushing_increase) {}
+            mark_compact_epoch, code_flush_mode, should_keep_ages_unchanged,
+            code_flushing_increase),
+        marking_state_(heap->marking_state()) {}
 
   V8_INLINE void AddStrongReferenceForReferenceSummarizer(
       Tagged<HeapObject> host, Tagged<HeapObject> obj) {}
@@ -262,14 +251,12 @@ class FullMarkingVisitorBase : public MarkingVisitorBase<ConcreteVisitor> {
 
   constexpr bool CanUpdateValuesInHeap() { return true; }
 
-  bool TryMark(Tagged<HeapObject> obj) {
-    return MarkBit::From(obj).Set<AccessMode::ATOMIC>();
-  }
-  bool IsMarked(Tagged<HeapObject> obj) const {
-    return MarkBit::From(obj).Get<AccessMode::ATOMIC>();
-  }
+  MarkingState* marking_state() const { return marking_state_; }
 
   void MarkPointerTableEntry(Tagged<HeapObject> obj, IndirectPointerSlot slot);
+
+ private:
+  MarkingState* marking_state_;
 };
 
 }  // namespace internal

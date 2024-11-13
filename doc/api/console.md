@@ -19,7 +19,11 @@ The module exports two specific components:
 
 _**Warning**_: The global console object's methods are neither consistently
 synchronous like the browser APIs they resemble, nor are they consistently
-asynchronous like all other Node.js streams. See the [note on process I/O][] for
+asynchronous like all other Node.js streams. Programs that desire to depend
+on the synchronous / asynchronous behavior of the console functions should
+first figure out the nature of console's backing stream. This is because the
+stream is dependent on the underlying platform and standard stream
+configuration of the current process. See the [note on process I/O][] for
 more information.
 
 Example using the global `console`:
@@ -80,7 +84,11 @@ The `Console` class can be used to create a simple logger with configurable
 output streams and can be accessed using either `require('node:console').Console`
 or `console.Console` (or their destructured counterparts):
 
-```js
+```mjs
+import { Console } from 'node:console';
+```
+
+```cjs
 const { Console } = require('node:console');
 ```
 
@@ -132,7 +140,28 @@ Creates a new `Console` with one or two writable stream instances. `stdout` is a
 writable stream to print log or info output. `stderr` is used for warning or
 error output. If `stderr` is not provided, `stdout` is used for `stderr`.
 
-```js
+```mjs
+import { createWriteStream } from 'node:fs';
+import { Console } from 'node:console';
+// Alternatively
+// const { Console } = console;
+
+const output = createWriteStream('./stdout.log');
+const errorOutput = createWriteStream('./stderr.log');
+// Custom simple logger
+const logger = new Console({ stdout: output, stderr: errorOutput });
+// use it like console
+const count = 5;
+logger.log('count: %d', count);
+// In stdout.log: count 5
+```
+
+```cjs
+const fs = require('node:fs');
+const { Console } = require('node:console');
+// Alternatively
+// const { Console } = console;
+
 const output = fs.createWriteStream('./stdout.log');
 const errorOutput = fs.createWriteStream('./stderr.log');
 // Custom simple logger

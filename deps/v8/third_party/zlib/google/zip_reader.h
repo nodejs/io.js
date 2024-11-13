@@ -10,6 +10,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "base/files/file.h"
 #include "base/files/file_path.h"
@@ -281,7 +282,7 @@ class ZipReader {
 
   // Normalizes the given path passed as UTF-16 string piece. Sets entry_.path,
   // entry_.is_directory and entry_.is_unsafe.
-  void Normalize(base::StringPiece16 in);
+  void Normalize(std::u16string_view in);
 
   // Runs the ListenerCallback at a throttled rate.
   void ReportProgress(ListenerCallback listener_callback, uint64_t bytes) const;

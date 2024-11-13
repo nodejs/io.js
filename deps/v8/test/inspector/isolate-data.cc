@@ -4,6 +4,8 @@
 
 #include "test/inspector/isolate-data.h"
 
+#include <optional>
+
 #include "include/v8-context.h"
 #include "include/v8-exception.h"
 #include "include/v8-microtask-queue.h"
@@ -56,7 +58,6 @@ InspectorIsolateData::InspectorIsolateData(
       v8::ArrayBuffer::Allocator::NewDefaultAllocator());
   params.array_buffer_allocator = array_buffer_allocator_.get();
   params.snapshot_blob = startup_data;
-  params.only_terminate_in_safe_scope = true;
   isolate_.reset(v8::Isolate::New(params));
   v8::Isolate::Scope isolate_scope(isolate_.get());
   isolate_->SetMicrotasksPolicy(v8::MicrotasksPolicy::kScoped);
@@ -186,10 +187,10 @@ v8::MaybeLocal<v8::Module> InspectorIsolateData::ModuleResolveCallback(
   return maybe_module;
 }
 
-base::Optional<int> InspectorIsolateData::ConnectSession(
+std::optional<int> InspectorIsolateData::ConnectSession(
     int context_group_id, const v8_inspector::StringView& state,
     std::unique_ptr<FrontendChannelImpl> channel, bool is_fully_trusted) {
-  if (contexts_.find(context_group_id) == contexts_.end()) return base::nullopt;
+  if (contexts_.find(context_group_id) == contexts_.end()) return std::nullopt;
 
   v8::SealHandleScope seal_handle_scope(isolate());
   int session_id = ++last_session_id_;

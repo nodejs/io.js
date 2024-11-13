@@ -30,7 +30,7 @@ class ObjectPreProcessor final {
     const InstanceType itype = o->map(isolate_)->instance_type();
 #define V(TYPE)                               \
   if (InstanceTypeChecker::Is##TYPE(itype)) { \
-    return PreProcess##TYPE(TYPE::cast(o));   \
+    return PreProcess##TYPE(Cast<TYPE>(o));   \
   }
     PRE_PROCESS_TYPE_LIST(V)
 #undef V
@@ -118,7 +118,7 @@ struct ReadOnlySegmentForSerialization {
       size_t o_offset = o.ptr() - segment_start;
       Address o_dst = reinterpret_cast<Address>(contents.get()) + o_offset;
       pre_processor->PreProcessIfNeeded(
-          HeapObject::cast(Tagged<Object>(o_dst)));
+          Cast<HeapObject>(Tagged<Object>(o_dst)));
     }
   }
 
@@ -320,7 +320,11 @@ class ReadOnlyHeapImageSerializer {
 
   void EmitAllocatePage(const ReadOnlyPageMetadata* page,
                         const std::vector<MemoryRegion>& unmapped_regions) {
-    sink_->Put(Bytecode::kAllocatePage, "page begin");
+    if (V8_STATIC_ROOTS_BOOL) {
+      sink_->Put(Bytecode::kAllocatePageAt, "fixed page begin");
+    } else {
+      sink_->Put(Bytecode::kAllocatePage, "page begin");
+    }
     sink_->PutUint30(IndexOf(page), "page index");
     sink_->PutUint30(
         static_cast<uint32_t>(page->HighWaterMark() - page->area_start()),
@@ -383,7 +387,7 @@ class ReadOnlyHeapImageSerializer {
       ReadOnlyRoots roots(isolate_);
       for (size_t i = 0; i < ReadOnlyRoots::kEntriesCount; i++) {
         RootIndex rudi = static_cast<RootIndex>(i);
-        Tagged<HeapObject> rudolf = HeapObject::cast(roots.object_at(rudi));
+        Tagged<HeapObject> rudolf = Cast<HeapObject>(roots.object_at(rudi));
         ro::EncodedTagged encoded = Encode(isolate_, rudolf);
         sink_->PutUint32(encoded.ToUint32(), "read only roots entry");
       }

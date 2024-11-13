@@ -27,6 +27,8 @@ namespace v8::internal::compiler::turboshaft {
 template <class Reducers>
 class Assembler;
 
+class LoopUnrollingAnalyzer;
+
 // `OperationBuffer` is a growable, Zone-allocated buffer to store Turboshaft
 // operations. It is part of a `Graph`.
 // The buffer can be seen as an array of 8-byte `OperationStorageSlot` values.
@@ -359,6 +361,8 @@ class Block : public RandomAccessStackDominatorNode<Block> {
   }
 #endif
 
+  static constexpr int kInvalidPredecessorIndex = -1;
+
   // Returns the index of {target} in the predecessors of the current Block.
   // If {target} is not a direct predecessor, returns -1.
   int GetPredecessorIndex(const Block* target) const {
@@ -373,7 +377,7 @@ class Block : public RandomAccessStackDominatorNode<Block> {
       pred_count++;
     }
     if (pred_reverse_index == -1) {
-      return -1;
+      return kInvalidPredecessorIndex;
     }
     return pred_count - pred_reverse_index - 1;
   }
@@ -386,6 +390,16 @@ class Block : public RandomAccessStackDominatorNode<Block> {
   }
   void ResetLastPredecessor() {
     last_predecessor_ = nullptr;
+    predecessor_count_ = 0;
+  }
+  void ResetAllPredecessors() {
+    Block* pred = last_predecessor_;
+    last_predecessor_ = nullptr;
+    while (pred->neighboring_predecessor_) {
+      Block* tmp = pred->neighboring_predecessor_;
+      pred->neighboring_predecessor_ = nullptr;
+      pred = tmp;
+    }
     predecessor_count_ = 0;
   }
 
@@ -557,12 +571,11 @@ class Graph {
         graph_zone_(graph_zone),
         source_positions_(graph_zone, this),
         operation_origins_(graph_zone, this),
-        operation_types_(graph_zone, this)
+        operation_types_(graph_zone, this),
 #ifdef DEBUG
-        ,
-        block_type_refinement_(graph_zone)
+        block_type_refinement_(graph_zone),
 #endif
-  {
+        stack_checks_to_remove_(graph_zone) {
   }
 
   // Reset the graph to recycle its memory.
@@ -580,6 +593,8 @@ class Graph {
     dominator_tree_depth_ = 0;
 #ifdef DEBUG
     block_type_refinement_.Reset();
+    // Do not reset of graph_created_from_turbofan_ as it is propagated along
+    // the phases.
 #endif
   }
 
@@ -606,7 +621,7 @@ class Graph {
     return *ptr;
   }
 
-  void MarkAsUnused(OpIndex i) { Get(i).saturated_use_count.SetToZero(); }
+  void KillOperation(OpIndex i) { Replace<DeadOp>(i); }
 
   Block& StartBlock() { return Get(BlockIndex(0)); }
   const Block& StartBlock() const { return Get(BlockIndex(0)); }
@@ -693,15 +708,6 @@ class Graph {
     Op& op = Op::New(this, args...);
     IncrementInputUses(op);
 
-    if (op.IsRequiredWhenUnused()) {
-      // Once the graph is built, an operation with a `saturated_use_count` of 0
-      // is guaranteed to be unused and can be removed. Thus, to avoid removing
-      // operations that never have uses (such as Goto or Branch), we set the
-      // `saturated_use_count` of Operations that are `IsRequiredWhenUnused()`
-      // to 1.
-      op.saturated_use_count.SetToOne();
-    }
-
     DCHECK_EQ(result, Index(op));
 #ifdef DEBUG
     for (OpIndex input : op.inputs()) {
@@ -731,7 +737,9 @@ class Graph {
       OperationBuffer::ReplaceScope replace_scope(&operations_, replaced);
       new_op = &Op::New(this, args...);
     }
-    new_op->saturated_use_count = old_uses;
+    if (!std::is_same_v<Op, DeadOp>) {
+      new_op->saturated_use_count = old_uses;
+    }
     IncrementInputUses(*new_op);
   }
 
@@ -769,7 +777,13 @@ class Graph {
 
 #ifdef DEBUG
     if (v8_flags.turboshaft_trace_emitted) {
-      std::cout << "\nBound: " << block->index() << "\n";
+      std::cout << "\nBound: " << block->index() << " [predecessors: ";
+      auto preds = block->Predecessors();
+      if (preds.size() >= 1) std::cout << preds[0]->index();
+      for (size_t i = 1; i < preds.size(); i++) {
+        std::cout << ", " << preds[i]->index();
+      }
+      std::cout << "]\n";
     }
 #endif
 
@@ -812,7 +826,7 @@ class Graph {
   uint32_t op_id_count() const {
     return (operations_.size() + (kSlotsPerId - 1)) / kSlotsPerId;
   }
-  uint32_t number_of_operations() const {
+  uint32_t NumberOfOperationsForDebugging() const {
     uint32_t number_of_operations = 0;
     for ([[maybe_unused]] auto& op : AllOperations()) {
       ++number_of_operations;
@@ -1017,6 +1031,7 @@ class Graph {
       companion_ = graph_zone_->New<Graph>(graph_zone_, operations_.size());
 #ifdef DEBUG
       companion_->generation_ = generation_ + 1;
+      if (IsCreatedFromTurbofan()) companion_->SetCreatedFromTurbofan();
 #endif  // DEBUG
     }
     return *companion_;
@@ -1042,6 +1057,9 @@ class Graph {
     DCHECK_EQ(generation_ + 1, companion.generation_);
     generation_ = companion.generation_++;
 #endif  // DEBUG
+    // Reseting phase-specific fields.
+    loop_unrolling_analyzer_ = nullptr;
+    stack_checks_to_remove_.clear();
   }
 
 #ifdef DEBUG
@@ -1051,7 +1069,34 @@ class Graph {
   bool BelongsToThisGraph(OpIndex idx) const {
     return idx.generation_mod2() == generation_mod2();
   }
+
+  void SetCreatedFromTurbofan() { graph_created_from_turbofan_ = true; }
+  bool IsCreatedFromTurbofan() const { return graph_created_from_turbofan_; }
 #endif  // DEBUG
+
+  void set_loop_unrolling_analyzer(
+      LoopUnrollingAnalyzer* loop_unrolling_analyzer) {
+    DCHECK_NULL(loop_unrolling_analyzer_);
+    loop_unrolling_analyzer_ = loop_unrolling_analyzer;
+  }
+  void clear_loop_unrolling_analyzer() { loop_unrolling_analyzer_ = nullptr; }
+  LoopUnrollingAnalyzer* loop_unrolling_analyzer() const {
+    DCHECK_NOT_NULL(loop_unrolling_analyzer_);
+    return loop_unrolling_analyzer_;
+  }
+#ifdef DEBUG
+  bool has_loop_unrolling_analyzer() const {
+    return loop_unrolling_analyzer_ != nullptr;
+  }
+#endif
+
+  void clear_stack_checks_to_remove() { stack_checks_to_remove_.clear(); }
+  ZoneAbslFlatHashSet<uint32_t>& stack_checks_to_remove() {
+    return stack_checks_to_remove_;
+  }
+  const ZoneAbslFlatHashSet<uint32_t>& stack_checks_to_remove() const {
+    return stack_checks_to_remove_;
+  }
 
  private:
   bool InputsValid(const Operation& op) const {
@@ -1064,6 +1109,9 @@ class Graph {
   template <class Op>
   void IncrementInputUses(const Op& op) {
     for (OpIndex input : op.inputs()) {
+      // Tuples should never be used as input, except in other tuples (which is
+      // used for instance in Int64Lowering::LowerCall).
+      DCHECK_IMPLIES(Get(input).Is<TupleOp>(), op.template Is<TupleOp>());
       Get(input).saturated_use_count.Incr();
     }
   }
@@ -1071,6 +1119,9 @@ class Graph {
   template <class Op>
   void DecrementInputUses(const Op& op) {
     for (OpIndex input : op.inputs()) {
+      // Tuples should never be used as input, except in other tuples (which is
+      // used for instance in Int64Lowering::LowerCall).
+      DCHECK_IMPLIES(Get(input).Is<TupleOp>(), op.template Is<TupleOp>());
       Get(input).saturated_use_count.Decr();
     }
   }
@@ -1126,12 +1177,30 @@ class Graph {
   GrowingOpIndexSidetable<Type> operation_types_;
 #ifdef DEBUG
   GrowingBlockSidetable<TypeRefinements> block_type_refinement_;
+  bool graph_created_from_turbofan_ = false;
 #endif
 
   Graph* companion_ = nullptr;
 #ifdef DEBUG
   size_t generation_ = 1;
 #endif  // DEBUG
+
+  // Phase specific data.
+  // For some reducers/phases, we use the graph to pass data around. These data
+  // should always be invalidated at the end of the graph copy.
+
+  LoopUnrollingAnalyzer* loop_unrolling_analyzer_ = nullptr;
+
+  // {stack_checks_to_remove_} contains the BlockIndex of loop headers whose
+  // stack checks should be removed.
+  // TODO(dmercadier): using the Zone for a resizable structure is not great
+  // (because it tends to waste memory), but using a newed/malloced structure in
+  // the Graph means that we have to remember to delete/free it, which isn't
+  // convenient, because Zone memory typically isn't manually deleted (and the
+  // Graph thus isn't). Still, it's probably not a big deal, because
+  // {stack_checks_to_remove_} should never contain more than a handful of
+  // items, and thus shouldn't waste too much memory.
+  ZoneAbslFlatHashSet<uint32_t> stack_checks_to_remove_;
 };
 
 V8_INLINE OperationStorageSlot* AllocateOpStorage(Graph* graph,

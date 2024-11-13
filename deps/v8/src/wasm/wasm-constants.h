@@ -33,6 +33,7 @@ enum ValueTypeCode : uint8_t {
   kS128Code = 0x7b,             // -0x05
   kI8Code = 0x78,               // -0x08, packed type
   kI16Code = 0x77,              // -0x09, packed type
+  kF16Code = 0x76,              // -0x0a, packed type
   kNoExnCode = 0x74,            // -0x0c
   kNoFuncCode = 0x73,           // -0x0d
   kNoExternCode = 0x72,         // -0x0e
@@ -72,15 +73,16 @@ enum ImportExportKindCode : uint8_t {
   kExternalTag = 4
 };
 
+// The limits structure: valid for both memory and table limits.
 enum LimitsFlags : uint8_t {
-  kNoMaximum = 0x00,                 // Also valid for table limits.
-  kWithMaximum = 0x01,               // Also valid for table limits.
-  kSharedNoMaximum = 0x02,           // Only valid for memory limits.
-  kSharedWithMaximum = 0x03,         // Only valid for memory limits.
-  kMemory64NoMaximum = 0x04,         // Only valid for memory limits.
-  kMemory64WithMaximum = 0x05,       // Only valid for memory limits.
-  kMemory64SharedNoMaximum = 0x06,   // Only valid for memory limits.
-  kMemory64SharedWithMaximum = 0x07  // Only valid for memory limits.
+  kNoMaximum = 0x00,
+  kWithMaximum = 0x01,
+  kSharedNoMaximum = 0x02,
+  kSharedWithMaximum = 0x03,
+  kMemory64NoMaximum = 0x04,
+  kMemory64WithMaximum = 0x05,
+  kMemory64SharedNoMaximum = 0x06,
+  kMemory64SharedWithMaximum = 0x07
 };
 
 // Flags for data and element segments.
@@ -168,6 +170,13 @@ constexpr uint32_t kExceptionAttribute = 0;
 
 constexpr int kAnonymousFuncIndex = -1;
 
+// This needs to survive round-tripping through a Smi without changing
+// its value.
+constexpr uint32_t kInvalidCanonicalIndex = static_cast<uint32_t>(-1);
+static_assert(static_cast<uint32_t>(Internals::SmiValue(Internals::IntToSmi(
+                  static_cast<int>(kInvalidCanonicalIndex)))) ==
+              kInvalidCanonicalIndex);
+
 // The number of calls to an exported Wasm function that will be handled
 // by the generic wrapper. Once the budget is exhausted, a specific wrapper
 // is to be compiled for the function's signature.
@@ -197,11 +206,6 @@ constexpr int kMaxStructFieldIndexForImplicitNullCheck = 4000;
 #if V8_TARGET_ARCH_X64
 constexpr int32_t kOSRTargetOffset = 4 * kSystemPointerSize;
 #endif
-
-enum FPRelativeScope {
-  kEnterFPRelativeOnlyScope,
-  kLeaveFPRelativeOnlyScope,
-};
 
 }  // namespace wasm
 }  // namespace internal

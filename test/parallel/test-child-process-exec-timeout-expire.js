@@ -18,9 +18,10 @@ if (process.argv[2] === 'child') {
   return;
 }
 
-const cmd = `"${process.execPath}" "${__filename}" child`;
+const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" "${__filename}" child`;
 
 cp.exec(cmd, {
+  ...opts,
   timeout: kExpiringParentTimer,
 }, common.mustCall((err, stdout, stderr) => {
   console.log('[stdout]', stdout.trim());

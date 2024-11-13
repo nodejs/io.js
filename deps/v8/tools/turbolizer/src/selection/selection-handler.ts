@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import { TurboshaftGraphNode } from "../phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "../phases/turboshaft-graph-phase/turboshaft-graph-operation";
 import { GraphNode } from "../phases/graph-phase/graph-node";
 import { TurboshaftGraphBlock } from "../phases/turboshaft-graph-phase/turboshaft-graph-block";
 import { GenericPosition } from "../source-resolver";
@@ -13,11 +13,11 @@ export interface ClearableHandler {
 }
 
 export interface HistoryHandler {
-  showNodeHistory(node: GraphNode | TurboshaftGraphNode, phaseName: string): void;
+  showNodeHistory(node: GraphNode | TurboshaftGraphOperation, phaseName: string): void;
 }
 
 export interface NodeSelectionHandler {
-  select(nodes: Iterable<TurboshaftGraphNode | GraphNode | string | number>, selected: boolean,
+  select(nodes: Iterable<TurboshaftGraphOperation | GraphNode | string | number>, selected: boolean,
          scrollIntoView: boolean): void;
   clear(): void;
   brokeredNodeSelect(nodeIds: Set<string>, selected: boolean): void;

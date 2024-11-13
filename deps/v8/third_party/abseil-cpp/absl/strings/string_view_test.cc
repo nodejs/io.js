@@ -32,6 +32,7 @@
 
 #include "gtest/gtest.h"
 #include "absl/base/config.h"
+#include "absl/meta/type_traits.h"
 
 #if defined(ABSL_HAVE_STD_STRING_VIEW) || defined(__ANDROID__)
 // We don't control the death messaging when using std::string_view.
@@ -45,6 +46,14 @@
 #endif
 
 namespace {
+
+static_assert(!absl::type_traits_internal::IsOwner<absl::string_view>::value &&
+                  absl::type_traits_internal::IsView<absl::string_view>::value,
+              "string_view is a view, not an owner");
+
+static_assert(absl::type_traits_internal::IsLifetimeBoundAssignment<
+                  absl::string_view, std::string>::value,
+              "lifetimebound assignment not detected");
 
 // A minimal allocator that uses malloc().
 template <typename T>

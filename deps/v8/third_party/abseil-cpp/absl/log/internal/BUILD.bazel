@@ -266,6 +266,7 @@ cc_library(
     deps = [
         ":log_message",
         ":nullstream",
+        "//absl/base:core_headers",
         "//absl/base:log_severity",
     ],
 )
@@ -384,7 +385,9 @@ cc_library(
     hdrs = ["vlog_config.h"],
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    visibility = ["//absl/log:__subpackages__"],
+    visibility = [
+        "//absl/log:__subpackages__",
+    ],
     deps = [
         "//absl/base",
         "//absl/base:config",
@@ -424,6 +427,7 @@ cc_binary(
 cc_test(
     name = "stderr_log_sink_test",
     size = "small",
+    timeout = "moderate",
     srcs = ["stderr_log_sink_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -432,6 +436,7 @@ cc_test(
         "no_test:os:ios",
         "no_test_android",
         "no_test_darwin_x86_64",
+        "no_test_fuchsia_x64",
         "no_test_ios",
         "no_test_wasm",
     ],

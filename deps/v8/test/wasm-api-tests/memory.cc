@@ -12,8 +12,7 @@ using ::wasm::Limits;
 using ::wasm::MemoryType;
 
 TEST_F(WasmCapiTest, Memory) {
-  builder()->SetMinMemorySize(2);
-  builder()->SetMaxMemorySize(3);
+  builder()->AddMemory(2, 3);
   builder()->AddExport(base::CStrVector("memory"), kExternalMemory, 0);
 
   ValueType i32_type[] = {kWasmI32, kWasmI32};

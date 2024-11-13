@@ -17,7 +17,7 @@ function getMethod(url, property) {
 
 function main({ searchParams, property, n }) {
   const url = new URL('https://nodejs.org');
-  if (searchParams === 'true') assert(url.searchParams);
+  if (searchParams === 'true') assert.ok(url.searchParams);
 
   const method = getMethod(url, property);
 

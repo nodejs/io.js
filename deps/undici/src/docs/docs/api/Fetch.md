@@ -28,6 +28,7 @@ This API is implemented as per the standard, you can find documentation on [MDN]
 
 - [`.arrayBuffer()`](https://fetch.spec.whatwg.org/#dom-body-arraybuffer)
 - [`.blob()`](https://fetch.spec.whatwg.org/#dom-body-blob)
+- [`.bytes()`](https://fetch.spec.whatwg.org/#dom-body-bytes)
 - [`.formData()`](https://fetch.spec.whatwg.org/#dom-body-formdata)
 - [`.json()`](https://fetch.spec.whatwg.org/#dom-body-json)
 - [`.text()`](https://fetch.spec.whatwg.org/#dom-body-text)

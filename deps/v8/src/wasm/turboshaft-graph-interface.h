@@ -28,25 +28,28 @@ namespace compiler {
 class NodeOriginTable;
 namespace turboshaft {
 class Graph;
+class PipelineData;
 }
 }  // namespace compiler
 
 namespace wasm {
 class AssumptionsJournal;
 struct FunctionBody;
-class WasmFeatures;
+class WasmDetectedFeatures;
 struct WasmModule;
 class WireBytesStorage;
 class TurboshaftGraphBuildingInterface;
 struct CompilationEnv;
 
 V8_EXPORT_PRIVATE bool BuildTSGraph(
-    AccountingAllocator* allocator, CompilationEnv* env, WasmFeatures* detected,
+    compiler::turboshaft::PipelineData* data, AccountingAllocator* allocator,
+    CompilationEnv* env, WasmDetectedFeatures* detected,
     compiler::turboshaft::Graph& graph, const FunctionBody& func_body,
     const WireBytesStorage* wire_bytes, AssumptionsJournal* assumptions,
     ZoneVector<WasmInliningPosition>* inlining_positions, int func_index);
 
-void BuildWasmWrapper(AccountingAllocator* allocator,
+void BuildWasmWrapper(compiler::turboshaft::PipelineData* data,
+                      AccountingAllocator* allocator,
                       compiler::turboshaft::Graph& graph,
                       const wasm::FunctionSig* sig, WrapperCompilationInfo,
                       const WasmModule* module);
@@ -80,6 +83,8 @@ class V8_EXPORT_PRIVATE WasmGraphBuilderBase {
   using Word32 = compiler::turboshaft::Word32;
   using Word64 = compiler::turboshaft::Word64;
   using WordPtr = compiler::turboshaft::WordPtr;
+  using Word = compiler::turboshaft::Word;
+  using Any = compiler::turboshaft::Any;
 
   template <typename T>
   using V = compiler::turboshaft::V<T>;
@@ -97,14 +102,23 @@ class V8_EXPORT_PRIVATE WasmGraphBuilderBase {
   OpIndex GetBuiltinPointerTarget(Builtin builtin);
   V<WordPtr> GetTargetForBuiltinCall(Builtin builtin, StubCallMode stub_mode);
   V<BigInt> BuildChangeInt64ToBigInt(V<Word64> input, StubCallMode stub_mode);
-  std::pair<V<WordPtr>, V<HeapObject>> BuildImportedFunctionTargetAndRef(
+
+  std::pair<V<WordPtr>, V<HeapObject>>
+  BuildImportedFunctionTargetAndImplicitArg(
       ConstOrV<Word32> func_index,
       V<WasmTrustedInstanceData> trusted_instance_data);
+
+  std::pair<V<WordPtr>, V<ExposedTrustedObject>>
+  BuildFunctionTargetAndImplicitArg(V<WasmInternalFunction> internal_function,
+                                    uint64_t expected_sig_hash);
+
   RegisterRepresentation RepresentationFor(ValueType type);
   V<WasmTrustedInstanceData> LoadTrustedDataFromInstanceObject(
       V<HeapObject> instance_object);
 
   OpIndex CallC(const MachineSignature* sig, ExternalReference ref,
+                std::initializer_list<OpIndex> args);
+  OpIndex CallC(const MachineSignature* sig, OpIndex function,
                 std::initializer_list<OpIndex> args);
   OpIndex CallC(const MachineSignature* sig, ExternalReference ref,
                 OpIndex arg) {

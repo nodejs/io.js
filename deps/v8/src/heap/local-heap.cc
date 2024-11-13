@@ -6,9 +6,9 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/base/platform/mutex.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
@@ -52,7 +52,7 @@ LocalHeap::LocalHeap(Heap* heap, ThreadKind kind,
       is_main_thread_(kind == ThreadKind::kMain),
       state_(ThreadState::Parked()),
       allocation_failed_(false),
-      main_thread_parked_(false),
+      nested_parked_scopes_(0),
       prev_(nullptr),
       next_(nullptr),
       handles_(new LocalHandles),
@@ -364,7 +364,7 @@ void LocalHeap::SleepInSafepoint() {
 
     heap_->safepoint()->WaitInSafepoint();
 
-    base::Optional<IgnoreLocalGCRequests> ignore_gc_requests;
+    std::optional<IgnoreLocalGCRequests> ignore_gc_requests;
     if (is_main_thread()) ignore_gc_requests.emplace(heap());
     Unpark();
   });
@@ -372,16 +372,22 @@ void LocalHeap::SleepInSafepoint() {
 
 #ifdef DEBUG
 bool LocalHeap::IsSafeForConservativeStackScanning() const {
-  if (is_main_thread()) {
-    // The main thread of a client isolate must be in the trampoline.
-    if (heap()->isolate()->has_shared_space() && !is_in_trampoline())
-      return false;
 #ifdef V8_ENABLE_DIRECT_HANDLE
-  } else {
-    // Background threads must not use direct handles.
-    if (DirectHandleBase::NumberOfHandles() > 0) return false;
+  // There must be no direct handles on the stack below the stack marker.
+  if (DirectHandleBase::NumberOfHandles() > 0) return false;
 #endif
+  // Check if we are inside at least one ParkedScope.
+  if (nested_parked_scopes_ > 0) {
+    // The main thread can avoid the trampoline, if it's not the main thread of
+    // a client isolate.
+    if (is_main_thread() && (heap()->isolate()->is_shared_space_isolate() ||
+                             !heap()->isolate()->has_shared_space()))
+      return true;
+    // Otherwise, require that we're inside the trampoline.
+    return is_in_trampoline();
   }
+  // Otherwise, we are reaching the initial parked state and the stack should
+  // not be interesting.
   return true;
 }
 #endif  // DEBUG
@@ -418,53 +424,6 @@ void LocalHeap::UnmarkSharedLinearAllocationsArea() {
   if (heap_allocator_.shared_space_allocator()) {
     heap_allocator_.shared_space_allocator()->UnmarkLinearAllocationArea();
   }
-}
-
-AllocationResult LocalHeap::PerformCollectionAndAllocateAgain(
-    int object_size, AllocationType type, AllocationOrigin origin,
-    AllocationAlignment alignment) {
-  // All allocation tries in this method should have this flag enabled.
-  CHECK(!allocation_failed_);
-  allocation_failed_ = true;
-  static const int kMaxNumberOfRetries = 3;
-  int failed_allocations = 0;
-  int parked_allocations = 0;
-
-  for (int i = 0; i < kMaxNumberOfRetries; i++) {
-    // This flag needs to be reset for each iteration.
-    CHECK(!main_thread_parked_);
-
-    if (!heap_->CollectGarbageFromAnyThread(this)) {
-      main_thread_parked_ = true;
-      parked_allocations++;
-    }
-
-    AllocationResult result = AllocateRaw(object_size, type, origin, alignment);
-
-    main_thread_parked_ = false;
-
-    if (!result.IsFailure()) {
-      CHECK(allocation_failed_);
-      allocation_failed_ = false;
-      CHECK(!main_thread_parked_);
-      return result;
-    }
-
-    failed_allocations++;
-  }
-
-  if (v8_flags.trace_gc) {
-    heap_->isolate()->PrintWithTimestamp(
-        "Background allocation failure: "
-        "allocations=%d"
-        "allocations.parked=%d",
-        failed_allocations, parked_allocations);
-  }
-
-  CHECK(allocation_failed_);
-  allocation_failed_ = false;
-  CHECK(!main_thread_parked_);
-  return AllocationResult::Failure();
 }
 
 void LocalHeap::AddGCEpilogueCallback(GCEpilogueCallback* callback, void* data,

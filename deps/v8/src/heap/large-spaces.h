@@ -15,8 +15,8 @@
 #include "src/common/globals.h"
 #include "src/heap/heap-verifier.h"
 #include "src/heap/heap.h"
-#include "src/heap/large-page.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/large-page-metadata.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/spaces.h"
 #include "src/objects/heap-object.h"
 
@@ -166,6 +166,12 @@ class SharedLargeObjectSpace : public OldLargeObjectSpace {
 class TrustedLargeObjectSpace : public OldLargeObjectSpace {
  public:
   explicit TrustedLargeObjectSpace(Heap* heap);
+};
+
+// Similar to the TrustedLargeObjectSpace, but for shared objects.
+class SharedTrustedLargeObjectSpace : public OldLargeObjectSpace {
+ public:
+  explicit SharedTrustedLargeObjectSpace(Heap* heap);
 };
 
 class NewLargeObjectSpace : public LargeObjectSpace {

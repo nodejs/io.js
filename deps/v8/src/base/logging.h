@@ -7,8 +7,11 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "src/base/abort-mode.h"
 #include "src/base/base-export.h"
@@ -82,6 +85,10 @@ V8_BASE_EXPORT void SetPrintStackTrace(void (*print_stack_trace_)());
 V8_BASE_EXPORT void SetDcheckFunction(void (*dcheck_Function)(const char*, int,
                                                               const char*));
 
+// Override the default function invoked during V8_Fatal.
+V8_BASE_EXPORT void SetFatalFunction(void (*fatal_Function)(const char*, int,
+                                                            const char*));
+
 enum class OOMType {
   // We ran out of memory in the JavaScript heap.
   kJavaScript,
@@ -118,12 +125,20 @@ enum class OOMType {
 
 #ifdef DEBUG
 
+#define DCHECK_WITH_MSG_AND_LOC(condition, message, loc)                \
+  do {                                                                  \
+    if (V8_UNLIKELY(!(condition))) {                                    \
+      V8_Dcheck(loc.FileName(), static_cast<int>(loc.Line()), message); \
+    }                                                                   \
+  } while (false)
 #define DCHECK_WITH_MSG(condition, message)   \
   do {                                        \
     if (V8_UNLIKELY(!(condition))) {          \
       V8_Dcheck(__FILE__, __LINE__, message); \
     }                                         \
   } while (false)
+#define DCHECK_WITH_LOC(condition, loc) \
+  DCHECK_WITH_MSG_AND_LOC(condition, #condition, loc)
 #define DCHECK(condition) DCHECK_WITH_MSG(condition, #condition)
 
 // Helper macro for binary operators.
@@ -188,6 +203,18 @@ auto GetUnderlyingEnumTypeForPrinting(T val) {
                          uint16_t> >;
   return static_cast<int_t>(static_cast<underlying_t>(val));
 }
+
+template <typename T, typename Enable = void>
+struct is_forward_iterable : public std::false_type {};
+template <typename T>
+struct is_forward_iterable<
+    T, std::enable_if_t<std::is_convertible_v<
+           typename std::iterator_traits<
+               decltype(std::declval<T>().begin())>::iterator_category,
+           std::forward_iterator_tag>>> : public std::true_type {};
+
+static_assert(is_forward_iterable<const std::vector<int>&>::value);
+
 }  // namespace detail
 
 // Define PrintCheckOperand<T> for each T which defines operator<< for ostream.
@@ -247,10 +274,33 @@ PrintCheckOperand(T val) {
 // Define default PrintCheckOperand<T> for non-printable types.
 template <typename T>
 typename std::enable_if<!has_output_operator<T, CheckMessageStream>::value &&
-                            !std::is_enum<T>::value,
+                            !std::is_enum<T>::value &&
+                            !detail::is_forward_iterable<T>::value,
                         std::string>::type
 PrintCheckOperand(T val) {
   return "<unprintable>";
+}
+
+// Define PrintCheckOperand<T> for forward iterable containers without an output
+// operator.
+template <typename T>
+typename std::enable_if<detail::is_forward_iterable<T>::value &&
+                            !has_output_operator<T, CheckMessageStream>::value,
+                        std::string>::type
+PrintCheckOperand(T container) {
+  CheckMessageStream oss;
+  oss << "{";
+  bool first = true;
+  for (const auto& val : container) {
+    if (!first) {
+      oss << ",";
+    } else {
+      first = false;
+    }
+    oss << PrintCheckOperand(val);
+  }
+  oss << "}";
+  return oss.str();
 }
 
 // Define specializations for character types, defined in logging.cc.
@@ -374,6 +424,12 @@ DEFINE_SIGNED_MISMATCH_COMP(is_unsigned_vs_signed, GE, CmpLEImpl(rhs, lhs))
 #undef MAKE_UNSIGNED
 #undef DEFINE_SIGNED_MISMATCH_COMP
 
+// For CHECK_BOUNDS, define to-unsigned conversion helpers.
+template <typename T>
+constexpr std::make_unsigned_t<T> ToUnsigned(T val) {
+  return static_cast<std::make_unsigned_t<T>>(val);
+}
+
 // Helper functions for CHECK_OP macro.
 // The (float, float) and (double, double) instantiations are explicitly
 // externalized to ensure proper 32/64-bit comparisons on x86.
@@ -417,6 +473,10 @@ DEFINE_CHECK_OP_IMPL(GT, > )
 #define CHECK_NOT_NULL(val) CHECK((val) != nullptr)
 #define CHECK_IMPLIES(lhs, rhs) \
   CHECK_WITH_MSG(!(lhs) || (rhs), #lhs " implies " #rhs)
+// Performs a single (unsigned) comparison to check that {index} is
+// in range [0, limit).
+#define CHECK_BOUNDS(index, limit) \
+  CHECK_LT(v8::base::ToUnsigned(index), v8::base::ToUnsigned(limit))
 
 }  // namespace base
 }  // namespace v8
@@ -435,8 +495,12 @@ DEFINE_CHECK_OP_IMPL(GT, > )
 #define DCHECK_NOT_NULL(val) DCHECK((val) != nullptr)
 #define DCHECK_IMPLIES(lhs, rhs) \
   DCHECK_WITH_MSG(!(lhs) || (rhs), #lhs " implies " #rhs)
+#define DCHECK_BOUNDS(index, limit) \
+  DCHECK_LT(v8::base::ToUnsigned(index), v8::base::ToUnsigned(limit))
 #else
 #define DCHECK(condition)      ((void) 0)
+#define DCHECK_WITH_LOC(condition, location) ((void)0)
+#define DCHECK_WITH_MSG_AND_LOC(condition, message, location) ((void)0)
 #define DCHECK_EQ(v1, v2)      ((void) 0)
 #define DCHECK_NE(v1, v2)      ((void) 0)
 #define DCHECK_GT(v1, v2)      ((void) 0)
@@ -446,37 +510,7 @@ DEFINE_CHECK_OP_IMPL(GT, > )
 #define DCHECK_NULL(val)       ((void) 0)
 #define DCHECK_NOT_NULL(val)   ((void) 0)
 #define DCHECK_IMPLIES(v1, v2) ((void) 0)
-#endif
-
-// When the sandbox is enabled, a SBXCHECK behaves exactly like a CHECK, but
-// indicates that the check is required for the sandbox, i.e. prevents a
-// sandbox bypass. When the sandbox is off, it becomes a DCHECK.
-//
-// As an example, consider a scenario where an in-sandbox object stores an
-// index into an out-of-sandbox array (or a similar data structure). While
-// under normal circumstances it can be guaranteed that the index will always
-// be in bounds, with the sandbox attacker model, we have to assume that the
-// in-sandbox object can be corrupted by an attacker and so the access can go
-// out-of-bounds. In that case, a SBXCHECK can be used to both prevent memory
-// corruption outside of the sandbox and document that there is a
-// security-critical invariant that may be violated when an attacker can
-// corrupt memory inside the sandbox, but otherwise holds true.
-#ifdef V8_ENABLE_SANDBOX
-#define SBXCHECK(condition) CHECK(condition)
-#define SBXCHECK_EQ(lhs, rhs) CHECK_EQ(lhs, rhs)
-#define SBXCHECK_NE(lhs, rhs) CHECK_NE(lhs, rhs)
-#define SBXCHECK_GT(lhs, rhs) CHECK_GT(lhs, rhs)
-#define SBXCHECK_GE(lhs, rhs) CHECK_GE(lhs, rhs)
-#define SBXCHECK_LT(lhs, rhs) CHECK_LT(lhs, rhs)
-#define SBXCHECK_LE(lhs, rhs) CHECK_LE(lhs, rhs)
-#else
-#define SBXCHECK(condition) DCHECK(condition)
-#define SBXCHECK_EQ(lhs, rhs) DCHECK_EQ(lhs, rhs)
-#define SBXCHECK_NE(lhs, rhs) DCHECK_NE(lhs, rhs)
-#define SBXCHECK_GT(lhs, rhs) DCHECK_GT(lhs, rhs)
-#define SBXCHECK_GE(lhs, rhs) DCHECK_GE(lhs, rhs)
-#define SBXCHECK_LT(lhs, rhs) DCHECK_LT(lhs, rhs)
-#define SBXCHECK_LE(lhs, rhs) DCHECK_LE(lhs, rhs)
+#define DCHECK_BOUNDS(index, limit) ((void)0)
 #endif
 
 #endif  // V8_BASE_LOGGING_H_

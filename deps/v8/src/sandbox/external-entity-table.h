@@ -12,7 +12,9 @@
 #include "src/base/atomicops.h"
 #include "src/base/memory.h"
 #include "src/base/platform/mutex.h"
+#include "src/common/code-memory-access.h"
 #include "src/common/globals.h"
+#include "src/common/segmented-table.h"
 
 #ifdef V8_COMPRESS_POINTERS
 
@@ -38,90 +40,22 @@ class Isolate;
  * logic for reclaiming entries such as garbage collection. This must be done
  * by the child classes.
  *
- * The Entry type defines how the freelist is represented. For that, it must
- * implement the following methods:
- * - void MakeFreelistEntry(uint32_t next_entry_index)
- * - uint32_t GetNextFreelistEntry()
+ * For the purpose of memory management, the table is partitioned into Segments
+ * (for example 64kb memory chunks) that are grouped together in "Spaces". All
+ * segments in a space share a freelist, and so entry allocation and garbage
+ * collection happen on the level of spaces.
  */
 template <typename Entry, size_t size>
-class V8_EXPORT_PRIVATE ExternalEntityTable {
+class V8_EXPORT_PRIVATE ExternalEntityTable
+    : public SegmentedTable<Entry, size> {
  protected:
-  static constexpr int kEntrySize = sizeof(Entry);
-  static constexpr size_t kReservationSize = size;
-  static constexpr size_t kMaxCapacity = kReservationSize / kEntrySize;
-
-  // For managing the table's backing memory, the table is partitioned into
-  // segments of this size. Segments can then be allocated and freed using the
-  // AllocateTableSegment() and FreeTableSegment() routines.
-  static constexpr size_t kSegmentSize = 64 * KB;
-  static constexpr size_t kEntriesPerSegment = kSegmentSize / kEntrySize;
-
-  // Struct representing a segment of the table.
-  struct Segment {
-   public:
-    // Initialize a segment given its number.
-    explicit Segment(uint32_t number) : number_(number) {}
-
-    // Returns the segment starting at the specified offset from the base of the
-    // table.
-    static Segment At(uint32_t offset);
-
-    // Returns the segment containing the entry at the given index.
-    static Segment Containing(uint32_t entry_index);
-
-    // The segments of a table are numbered sequentially. This method returns
-    // the number of this segment.
-    uint32_t number() const { return number_; }
-
-    // Returns the offset of this segment from the table base.
-    uint32_t offset() const { return number_ * kSegmentSize; }
-
-    // Returns the index of the first entry in this segment.
-    uint32_t first_entry() const { return number_ * kEntriesPerSegment; }
-
-    // Return the index of the last entry in this segment.
-    uint32_t last_entry() const {
-      return first_entry() + kEntriesPerSegment - 1;
-    }
-
-    // Segments are ordered by their id/offset.
-    bool operator<(const Segment& other) const {
-      return number_ < other.number_;
-    }
-
-   private:
-    // A segment is identified by its number, which is its offset from the base
-    // of the table divided by the segment size.
-    const uint32_t number_;
-  };
-
-  // Struct representing the head of the freelist.
-  //
-  // An external entity table uses simple, singly-linked lists to manage free
-  // entries. Each entry on the freelist contains the 32-bit index of the next
-  // entry. The last entry points to zero.
-  struct FreelistHead {
-    constexpr FreelistHead() : next_(0), length_(0) {}
-    constexpr FreelistHead(uint32_t next, uint32_t length)
-        : next_(next), length_(length) {}
-
-    // Returns the index of the next entry on the freelist.
-    // If the freelist is empty, this returns zero.
-    uint32_t next() const { return next_; }
-
-    // Returns the total length of the freelist.
-    uint32_t length() const { return length_; }
-
-    bool is_empty() const { return length_ == 0; }
-
-   private:
-    uint32_t next_;
-    uint32_t length_;
-  };
-
-  // We expect the FreelistHead struct to fit into a single atomic word.
-  // Otherwise, access to it would be slow.
-  static_assert(std::atomic<FreelistHead>::is_always_lock_free);
+  using Base = SegmentedTable<Entry, size>;
+  using FreelistHead = Base::FreelistHead;
+  using Segment = Base::Segment;
+  using WriteIterator = Base::WriteIterator;
+  static constexpr size_t kSegmentSize = Base::kSegmentSize;
+  static constexpr size_t kEntriesPerSegment = Base::kEntriesPerSegment;
+  static constexpr size_t kEntrySize = Base::kEntrySize;
 
   // A collection of segments in an external entity table.
   //
@@ -174,7 +108,7 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
 
 #ifdef DEBUG
     // Check whether this space belongs to the given external entity table.
-    bool BelongsTo(void* table) { return owning_table_ == table; }
+    bool BelongsTo(const void* table) const { return owning_table_ == table; }
 #endif  // DEBUG
 
    protected:
@@ -223,16 +157,6 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
   ExternalEntityTable(const ExternalEntityTable&) = delete;
   ExternalEntityTable& operator=(const ExternalEntityTable&) = delete;
 
-  // Access the entry at the specified index.
-  Entry& at(uint32_t index);
-  const Entry& at(uint32_t index) const;
-
-  // Returns true if this table has been initialized.
-  bool is_initialized() const;
-
-  // Returns the base address of this table.
-  Address base() const;
-
   // Allocates a new entry in the given space and return its index.
   //
   // If there are no free entries, then this will extend the space by
@@ -274,17 +198,6 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
   //
   // Returns the number of live entries after sweeping.
   uint32_t GenericSweep(Space* space);
-
-  // Allocate a new segment in this table.
-  //
-  // The memory of the newly allocated segment is guaranteed to be
-  // zero-initialized.
-  Segment AllocateTableSegment();
-
-  // Free the specified segment of this table.
-  //
-  // The memory of this segment will afterwards be inaccessible.
-  void FreeTableSegment(Segment segment);
 
   // Iterate over all entries in the given space.
   //
@@ -348,18 +261,7 @@ class V8_EXPORT_PRIVATE ExternalEntityTable {
   void SealReadOnlySegment();
 
   // Extends the given space with the given segment.
-  FreelistHead Extend(Space* space, Segment segment);
-
-  // The pointer to the base of the virtual address space backing this table.
-  // All entry accesses happen through this pointer.
-  // It is equivalent to |vas_->base()| and is effectively const after
-  // initialization since the backing memory is never reallocated.
-  Entry* base_ = nullptr;
-
-  // The virtual address space backing this table.
-  // This is used to manage the underlying OS pages, in particular to allocate
-  // and free the segments that make up the table.
-  VirtualAddressSpace* vas_ = nullptr;
+  void Extend(Space* space, Segment segment, FreelistHead freelist);
 };
 
 }  // namespace internal

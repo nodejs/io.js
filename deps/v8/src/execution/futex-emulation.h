@@ -201,10 +201,6 @@ class FutexEmulation : public AllStatic {
   static int NumWaitersForTesting(Tagged<JSArrayBuffer> array_buffer,
                                   size_t addr);
 
-  // Return the number of async waiters (which belong to |isolate|) waiting.
-  // Should only be used for testing.
-  static int NumAsyncWaitersForTesting(Isolate* isolate);
-
   // Return the number of async waiters which were waiting for |addr| and are
   // now waiting for the Promises to be resolved. Should only be used for
   // testing.
@@ -236,7 +232,7 @@ class FutexEmulation : public AllStatic {
 
   template <typename T>
   static Tagged<Object> WaitAsync(Isolate* isolate,
-                                  Handle<JSArrayBuffer> array_buffer,
+                                  DirectHandle<JSArrayBuffer> array_buffer,
                                   size_t addr, T value, bool use_timeout,
                                   int64_t rel_timeout_ns, CallType call_type);
 

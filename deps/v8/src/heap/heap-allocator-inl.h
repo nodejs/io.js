@@ -6,6 +6,7 @@
 #define V8_HEAP_HEAP_ALLOCATOR_INL_H_
 
 #include "src/base/logging.h"
+#include "src/common/assert-scope.h"
 #include "src/common/globals.h"
 #include "src/heap/heap-allocator.h"
 #include "src/heap/large-spaces.h"
@@ -60,6 +61,10 @@ OldLargeObjectSpace* HeapAllocator::trusted_lo_space() const {
   return static_cast<OldLargeObjectSpace*>(spaces_[TRUSTED_LO_SPACE]);
 }
 
+OldLargeObjectSpace* HeapAllocator::shared_trusted_lo_space() const {
+  return shared_trusted_lo_space_;
+}
+
 bool HeapAllocator::CanAllocateInReadOnlySpace() const {
   return read_only_space()->writable();
 }
@@ -70,6 +75,7 @@ V8_WARN_UNUSED_RESULT V8_INLINE AllocationResult HeapAllocator::AllocateRaw(
   DCHECK(!heap_->IsInGC());
   DCHECK(AllowHandleAllocation::IsAllowed());
   DCHECK(AllowHeapAllocation::IsAllowed());
+  CHECK(AllowHeapAllocationInRelease::IsAllowed());
   DCHECK(local_heap_->IsRunning());
 #if DEBUG
   local_heap_->VerifyCurrent();
@@ -80,10 +86,9 @@ V8_WARN_UNUSED_RESULT V8_INLINE AllocationResult HeapAllocator::AllocateRaw(
   }
 
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  if (allocation_timeout_ > 0) {
-    if (!heap_->always_allocate() && --allocation_timeout_ <= 0) {
-      return AllocationResult::Failure();
-    }
+  if (V8_UNLIKELY(allocation_timeout_.has_value()) &&
+      ReachedAllocationTimeout()) {
+    return AllocationResult::Failure();
   }
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
@@ -118,12 +123,13 @@ V8_WARN_UNUSED_RESULT V8_INLINE AllocationResult HeapAllocator::AllocateRaw(
         case AllocationType::kOld:
           allocation = old_space_allocator_->AllocateRaw(size_in_bytes,
                                                          alignment, origin);
+          DCHECK_IMPLIES(
+              v8_flags.sticky_mark_bits && !allocation.IsFailure(),
+              heap_->marking_state()->IsMarked(allocation.ToObject()));
           break;
         case AllocationType::kCode: {
           DCHECK_EQ(alignment, AllocationAlignment::kTaggedAligned);
           DCHECK(AllowCodeAllocation::IsAllowed());
-          CodePageHeaderModificationScope header_modification_scope(
-              "Code allocation needs header access.");
           allocation = code_space_allocator_->AllocateRaw(
               size_in_bytes, AllocationAlignment::kTaggedAligned, origin);
           break;
@@ -141,6 +147,10 @@ V8_WARN_UNUSED_RESULT V8_INLINE AllocationResult HeapAllocator::AllocateRaw(
         case AllocationType::kTrusted:
           allocation = trusted_space_allocator_->AllocateRaw(size_in_bytes,
                                                              alignment, origin);
+          break;
+        case AllocationType::kSharedTrusted:
+          allocation = shared_trusted_space_allocator_->AllocateRaw(
+              size_in_bytes, alignment, origin);
           break;
       }
     }
@@ -191,6 +201,9 @@ AllocationResult HeapAllocator::AllocateRaw(int size_in_bytes,
     case AllocationType::kTrusted:
       return AllocateRaw<AllocationType::kTrusted>(size_in_bytes, origin,
                                                    alignment);
+    case AllocationType::kSharedTrusted:
+      return AllocateRaw<AllocationType::kSharedTrusted>(size_in_bytes, origin,
+                                                         alignment);
   }
   UNREACHABLE();
 }
@@ -212,6 +225,7 @@ AllocationResult HeapAllocator::AllocateRawData(int size_in_bytes,
     case AllocationType::kSharedMap:
     case AllocationType::kSharedOld:
     case AllocationType::kTrusted:
+    case AllocationType::kSharedTrusted:
       UNREACHABLE();
   }
   UNREACHABLE();

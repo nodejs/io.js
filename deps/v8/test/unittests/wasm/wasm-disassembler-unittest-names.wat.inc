@@ -9,7 +9,7 @@
   (memory $memory_with_name (;0;) 0)
   (global $global_with_name (;1;) i32 (i32.const 0))
   (global $exported_global_with_name (;2;) (export "exported_global") i32 (i32.const 0))
-  (elem $elem_with_name (;0;) funcref (ref.func $function_with_name))
+  (elem $elem_with_name (;0;) (ref func) (ref.func $function_with_name))
   (func $function_with_name (;1;) (param $param_with_name_1 (;0;) i32) (param $param_with_name_2 (;1;) i32) (param $param_with_name_3 (;2;) i64)
     local.get $param_with_name_1
     drop

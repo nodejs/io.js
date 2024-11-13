@@ -80,39 +80,39 @@ class UnaryOpAssemblerImpl final : public CodeStubAssembler {
                        TNode<UintPtrT> slot,
                        TNode<HeapObject> maybe_feedback_vector,
                        UpdateFeedbackMode update_feedback_mode) {
-    SmiOperation smi_op = [=](TNode<Smi> smi_value,
-                              TVariable<Smi>* var_feedback, Label* do_float_op,
-                              TVariable<Float64T>* var_float) {
-      TVARIABLE(Number, var_result);
-      Label if_zero(this), if_min_smi(this), end(this);
-      // Return -0 if operand is 0.
-      GotoIf(SmiEqual(smi_value, SmiConstant(0)), &if_zero);
+    SmiOperation smi_op =
+        [=, this](TNode<Smi> smi_value, TVariable<Smi>* var_feedback,
+                  Label* do_float_op, TVariable<Float64T>* var_float) {
+          TVARIABLE(Number, var_result);
+          Label if_zero(this), if_min_smi(this), end(this);
+          // Return -0 if operand is 0.
+          GotoIf(SmiEqual(smi_value, SmiConstant(0)), &if_zero);
 
-      // Special-case the minimum Smi to avoid overflow.
-      GotoIf(SmiEqual(smi_value, SmiConstant(Smi::kMinValue)), &if_min_smi);
+          // Special-case the minimum Smi to avoid overflow.
+          GotoIf(SmiEqual(smi_value, SmiConstant(Smi::kMinValue)), &if_min_smi);
 
-      // Else simply subtract operand from 0.
-      CombineFeedback(var_feedback, BinaryOperationFeedback::kSignedSmall);
-      var_result = SmiSub(SmiConstant(0), smi_value);
-      Goto(&end);
+          // Else simply subtract operand from 0.
+          CombineFeedback(var_feedback, BinaryOperationFeedback::kSignedSmall);
+          var_result = SmiSub(SmiConstant(0), smi_value);
+          Goto(&end);
 
-      BIND(&if_zero);
-      CombineFeedback(var_feedback, BinaryOperationFeedback::kNumber);
-      var_result = MinusZeroConstant();
-      Goto(&end);
+          BIND(&if_zero);
+          CombineFeedback(var_feedback, BinaryOperationFeedback::kNumber);
+          var_result = MinusZeroConstant();
+          Goto(&end);
 
-      BIND(&if_min_smi);
-      *var_float = SmiToFloat64(smi_value);
-      Goto(do_float_op);
+          BIND(&if_min_smi);
+          *var_float = SmiToFloat64(smi_value);
+          Goto(do_float_op);
 
-      BIND(&end);
-      return var_result.value();
-    };
-    FloatOperation float_op = [=](TNode<Float64T> float_value) {
+          BIND(&end);
+          return var_result.value();
+        };
+    FloatOperation float_op = [=, this](TNode<Float64T> float_value) {
       return Float64Neg(float_value);
     };
-    BigIntOperation bigint_op = [=](TNode<Context> context,
-                                    TNode<HeapObject> bigint_value) {
+    BigIntOperation bigint_op = [=, this](TNode<Context> context,
+                                          TNode<HeapObject> bigint_value) {
       return CAST(CallRuntime(Runtime::kBigIntUnaryOp, context, bigint_value,
                               SmiConstant(Operation::kNegate)));
     };
@@ -245,9 +245,10 @@ class UnaryOpAssemblerImpl final : public CodeStubAssembler {
     static constexpr int kAddValue =
         (kOperation == Operation::kIncrement) ? 1 : -1;
 
-    SmiOperation smi_op = [=](TNode<Smi> smi_value,
-                              TVariable<Smi>* var_feedback, Label* do_float_op,
-                              TVariable<Float64T>* var_float) {
+    SmiOperation smi_op = [=, this](TNode<Smi> smi_value,
+                                    TVariable<Smi>* var_feedback,
+                                    Label* do_float_op,
+                                    TVariable<Float64T>* var_float) {
       Label if_overflow(this), out(this);
       TNode<Smi> result =
           TrySmiAdd(smi_value, SmiConstant(kAddValue), &if_overflow);
@@ -261,11 +262,11 @@ class UnaryOpAssemblerImpl final : public CodeStubAssembler {
       BIND(&out);
       return result;
     };
-    FloatOperation float_op = [=](TNode<Float64T> float_value) {
+    FloatOperation float_op = [=, this](TNode<Float64T> float_value) {
       return Float64Add(float_value, Float64Constant(kAddValue));
     };
-    BigIntOperation bigint_op = [=](TNode<Context> context,
-                                    TNode<HeapObject> bigint_value) {
+    BigIntOperation bigint_op = [=, this](TNode<Context> context,
+                                          TNode<HeapObject> bigint_value) {
       return CAST(CallRuntime(Runtime::kBigIntUnaryOp, context, bigint_value,
                               SmiConstant(kOperation)));
     };

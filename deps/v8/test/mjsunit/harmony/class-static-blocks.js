@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-class-static-blocks
-
 {
   // Basic functionality
   let log = [];
@@ -154,4 +152,13 @@ for (let [s, e] of [['', ''],
   assertDoesntParse('return 0;', s, e);
   assertDoesntParse('{ return; }', s, e);
   assertDoesntParse('{ return 0; }', s, e);
+  // lets that hoist over vars inside blocks are redeclaration errors.
+  //
+  // At the static block top level this is actually allowed, because
+  // LexicallyDeclaredNames recurs into ClassStaticBlockStatementList using
+  // TopLevelLexicallyDeclaredNames, which regards function declarations as var
+  // names, not lexical.
+  assertDoesntParse('{ var f; function f() {} }', s, e);
+  assertDoesntParse('{ var f; let f; }', s, e);
+  assertDoesntParse('{ var f; const f; }', s, e);
 }

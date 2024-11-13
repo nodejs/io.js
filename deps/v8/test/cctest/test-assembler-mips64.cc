@@ -1583,7 +1583,7 @@ TEST(seleqz_selnez) {
       18446744073709551621.0, -18446744073709551621.0};
     float tests_S[test_size*2] = {2.9, 2.8, -2.9, -2.8,
       18446744073709551616.0, 18446746272732807168.0};
-    for (int j=0; j < test_size; j+=2) {
+    for (int j = 0; j < test_size; j += 2) {
       for (int i=0; i < input_size; i++) {
         test.e = inputs_D[i];
         test.f = tests_D[j];
@@ -1846,7 +1846,7 @@ TEST(sel) {
       18446744073709551616.0, 18446744073709555712.0};
     float tests_S[test_size*2] = {2.9, 2.8, -2.9, -2.8,
       18446744073709551616.0, 18446746272732807168.0};
-    for (int j=0; j < test_size; j+=2) {
+    for (int j = 0; j < test_size; j += 2) {
       for (int i=0; i < input_size; i++) {
         test.dt = inputs_dt[i];
         test.dd = tests_D[j];

@@ -43,7 +43,7 @@ class JSCallReducerTest : public TypedGraphTest {
   JSOperatorBuilder* javascript() { return &javascript_; }
 
   Node* GlobalFunction(const char* name) {
-    Handle<JSFunction> f = Handle<JSFunction>::cast(
+    Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked(name))
@@ -57,7 +57,7 @@ class JSCallReducerTest : public TypedGraphTest {
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked("Math"))
             .ToHandleChecked();
-    Handle<JSFunction> f = Handle<JSFunction>::cast(
+    Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), m,
             isolate()->factory()->NewStringFromAsciiChecked(name.c_str()))
@@ -71,7 +71,7 @@ class JSCallReducerTest : public TypedGraphTest {
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked("String"))
             .ToHandleChecked();
-    Handle<JSFunction> f = Handle<JSFunction>::cast(
+    Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), m, isolate()->factory()->NewStringFromAsciiChecked(name))
             .ToHandleChecked());
@@ -84,7 +84,7 @@ class JSCallReducerTest : public TypedGraphTest {
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked("Number"))
             .ToHandleChecked();
-    Handle<JSFunction> f = Handle<JSFunction>::cast(
+    Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), m, isolate()->factory()->NewStringFromAsciiChecked(name))
             .ToHandleChecked());

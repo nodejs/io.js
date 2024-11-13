@@ -66,6 +66,7 @@ using v8::Int32;
 using v8::Integer;
 using v8::Isolate;
 using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::Nothing;
@@ -144,14 +145,10 @@ void ares_sockstate_cb(void* data, ares_socket_t sock, int read, int write) {
                   ares_poll_cb);
 
   } else {
-    /* read == 0 and write == 0 this is c-ares's way of notifying us that */
-    /* the socket is now closed. We must free the data associated with */
-    /* socket. */
-    CHECK(task &&
-          "When an ares socket is closed we should have a handle for it");
-
-    channel->task_list()->erase(it);
-    channel->env()->CloseHandle(&task->poll_watcher, ares_poll_close_cb);
+    if (task != nullptr) {
+      channel->task_list()->erase(it);
+      channel->env()->CloseHandle(&task->poll_watcher, ares_poll_close_cb);
+    }
 
     if (channel->task_list()->empty()) {
       channel->CloseTimer();
@@ -682,7 +679,6 @@ GetNameInfoReqWrap::GetNameInfoReqWrap(
 void ChannelWrap::AresTimeout(uv_timer_t* handle) {
   ChannelWrap* channel = static_cast<ChannelWrap*>(handle->data);
   CHECK_EQ(channel->timer_handle(), handle);
-  CHECK_EQ(false, channel->task_list()->empty());
   ares_process_fd(channel->cares_channel(), ARES_SOCKET_BAD, ARES_SOCKET_BAD);
 }
 
@@ -829,70 +825,71 @@ void ChannelWrap::EnsureServers() {
 }
 
 int AnyTraits::Send(QueryWrap<AnyTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_any);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_ANY);
   return ARES_SUCCESS;
 }
 
 int ATraits::Send(QueryWrap<ATraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_a);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_A);
   return ARES_SUCCESS;
 }
 
 int AaaaTraits::Send(QueryWrap<AaaaTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_aaaa);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_AAAA);
   return ARES_SUCCESS;
 }
 
 int CaaTraits::Send(QueryWrap<CaaTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, T_CAA);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_CAA);
   return ARES_SUCCESS;
 }
 
 int CnameTraits::Send(QueryWrap<CnameTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_cname);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_CNAME);
   return ARES_SUCCESS;
 }
 
 int MxTraits::Send(QueryWrap<MxTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_mx);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_MX);
   return ARES_SUCCESS;
 }
 
 int NsTraits::Send(QueryWrap<NsTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_ns);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_NS);
   return ARES_SUCCESS;
 }
 
 int TxtTraits::Send(QueryWrap<TxtTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_txt);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_TXT);
   return ARES_SUCCESS;
 }
 
 int SrvTraits::Send(QueryWrap<SrvTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_srv);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_SRV);
   return ARES_SUCCESS;
 }
 
 int PtrTraits::Send(QueryWrap<PtrTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_ptr);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_PTR);
   return ARES_SUCCESS;
 }
 
 int NaptrTraits::Send(QueryWrap<NaptrTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_naptr);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_NAPTR);
   return ARES_SUCCESS;
 }
 
 int SoaTraits::Send(QueryWrap<SoaTraits>* wrap, const char* name) {
-  wrap->AresQuery(name, ns_c_in, ns_t_soa);
+  wrap->AresQuery(name, ARES_CLASS_IN, ARES_REC_TYPE_SOA);
   return ARES_SUCCESS;
 }
 
 int AnyTraits::Parse(
     QueryAnyWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1058,8 +1055,9 @@ int AnyTraits::Parse(
 int ATraits::Parse(
     QueryAWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1092,8 +1090,9 @@ int ATraits::Parse(
 int AaaaTraits::Parse(
     QueryAaaaWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1126,8 +1125,9 @@ int AaaaTraits::Parse(
 int CaaTraits::Parse(
     QueryCaaWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1148,8 +1148,9 @@ int CaaTraits::Parse(
 int CnameTraits::Parse(
     QueryCnameWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1171,8 +1172,9 @@ int CnameTraits::Parse(
 int MxTraits::Parse(
     QueryMxWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1194,8 +1196,9 @@ int MxTraits::Parse(
 int NsTraits::Parse(
     QueryNsWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1217,8 +1220,9 @@ int NsTraits::Parse(
 int TxtTraits::Parse(
     QueryTxtWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1239,8 +1243,9 @@ int TxtTraits::Parse(
 int SrvTraits::Parse(
     QuerySrvWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
+  }
 
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
@@ -1261,9 +1266,9 @@ int SrvTraits::Parse(
 int PtrTraits::Parse(
     QueryPtrWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
-
+  }
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
 
@@ -1285,9 +1290,9 @@ int PtrTraits::Parse(
 int NaptrTraits::Parse(
     QueryNaptrWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
-
+  }
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
 
@@ -1307,9 +1312,9 @@ int NaptrTraits::Parse(
 int SoaTraits::Parse(
     QuerySoaWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(response->is_host))
+  if (response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
-
+  }
   unsigned char* buf = response->buf.data;
   int len = response->buf.size;
 
@@ -1387,9 +1392,9 @@ int ReverseTraits::Send(GetHostByAddrWrap* wrap, const char* name) {
 int ReverseTraits::Parse(
     GetHostByAddrWrap* wrap,
     const std::unique_ptr<ResponseData>& response) {
-  if (UNLIKELY(!response->is_host))
+  if (!response->is_host) [[unlikely]] {
     return ARES_EBADRESP;
-
+  }
   struct hostent* host = response->host.get();
 
   Environment* env = wrap->env();
@@ -1450,7 +1455,7 @@ void AfterGetAddrInfo(uv_getaddrinfo_t* req, int status, struct addrinfo* res) {
   if (status == 0) {
     Local<Array> results = Array::New(env->isolate());
 
-    auto add = [&] (bool want_ipv4, bool want_ipv6) -> Maybe<bool> {
+    auto add = [&](bool want_ipv4, bool want_ipv6) -> Maybe<void> {
       for (auto p = res; p != nullptr; p = p->ai_next) {
         CHECK_EQ(p->ai_socktype, SOCK_STREAM);
 
@@ -1471,21 +1476,21 @@ void AfterGetAddrInfo(uv_getaddrinfo_t* req, int status, struct addrinfo* res) {
 
         Local<String> s = OneByteString(env->isolate(), ip);
         if (results->Set(env->context(), n, s).IsNothing())
-          return Nothing<bool>();
+          return Nothing<void>();
         n++;
       }
-      return Just(true);
+      return JustVoid();
     };
 
     switch (order) {
       case DNS_ORDER_IPV4_FIRST:
-        if (add(true, false).IsNothing()) return;
-        if (add(false, true).IsNothing()) return;
+        if (add(true, false).IsNothing() || add(false, true).IsNothing())
+          return;
 
         break;
       case DNS_ORDER_IPV6_FIRST:
-        if (add(false, true).IsNothing()) return;
-        if (add(true, false).IsNothing()) return;
+        if (add(false, true).IsNothing() || add(true, false).IsNothing())
+          return;
 
         break;
       default:
@@ -1564,6 +1569,24 @@ void CanonicalizeIP(const FunctionCallbackInfo<Value>& args) {
   Local<String> val = String::NewFromUtf8(isolate, canonical_ip)
       .ToLocalChecked();
   args.GetReturnValue().Set(val);
+}
+
+void ConvertIpv6StringToBuffer(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  node::Utf8Value ip(isolate, args[0]);
+  unsigned char dst[16];  // IPv6 addresses are 128 bits (16 bytes)
+
+  if (uv_inet_pton(AF_INET6, *ip, dst) != 0) {
+    isolate->ThrowException(v8::Exception::Error(
+        String::NewFromUtf8(isolate, "Invalid IPv6 address").ToLocalChecked()));
+    return;
+  }
+
+  Local<Object> buffer =
+      node::Buffer::Copy(
+          isolate, reinterpret_cast<const char*>(dst), sizeof(dst))
+          .ToLocalChecked();
+  args.GetReturnValue().Set(buffer);
 }
 
 void GetAddrInfo(const FunctionCallbackInfo<Value>& args) {
@@ -1902,6 +1925,8 @@ void Initialize(Local<Object> target,
   SetMethod(context, target, "getaddrinfo", GetAddrInfo);
   SetMethod(context, target, "getnameinfo", GetNameInfo);
   SetMethodNoSideEffect(context, target, "canonicalizeIP", CanonicalizeIP);
+  SetMethodNoSideEffect(
+      context, target, "convertIpv6StringToBuffer", ConvertIpv6StringToBuffer);
 
   SetMethod(context, target, "strerror", StrError);
 
@@ -1935,16 +1960,6 @@ void Initialize(Local<Object> target,
       ->Set(env->context(),
             FIXED_ONE_BYTE_STRING(env->isolate(), "DNS_ORDER_IPV6_FIRST"),
             Integer::New(env->isolate(), DNS_ORDER_IPV6_FIRST))
-      .Check();
-  target
-      ->Set(env->context(),
-            FIXED_ONE_BYTE_STRING(env->isolate(), "AF_INET"),
-            Integer::New(env->isolate(), AF_INET))
-      .Check();
-  target
-      ->Set(env->context(),
-            FIXED_ONE_BYTE_STRING(env->isolate(), "AF_INET"),
-            Integer::New(env->isolate(), AF_INET))
       .Check();
 
   Local<FunctionTemplate> aiw =
@@ -1995,6 +2010,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GetAddrInfo);
   registry->Register(GetNameInfo);
   registry->Register(CanonicalizeIP);
+  registry->Register(ConvertIpv6StringToBuffer);
   registry->Register(StrError);
   registry->Register(ChannelWrap::New);
 

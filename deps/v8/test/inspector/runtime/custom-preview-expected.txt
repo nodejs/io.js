@@ -114,6 +114,26 @@ Dump custom previews..
         ]
     ]
 }
+{
+    bodyGetterId : <bodyGetterId>
+    header : [
+        [0] : span
+        [1] : {
+        }
+        [2] : Null body: 
+        [3] : nullBodyTest
+    ]
+}
+{
+    id : <messageId>
+    result : {
+        result : {
+            subtype : null
+            type : object
+            value : null
+        }
+    }
+}
 Change formatters order and dump again..
 {
     bodyGetterId : <bodyGetterId>
@@ -219,6 +239,26 @@ Change formatters order and dump again..
             }
         ]
     ]
+}
+{
+    bodyGetterId : <bodyGetterId>
+    header : [
+        [0] : span
+        [1] : {
+        }
+        [2] : Null body: 
+        [3] : nullBodyTest
+    ]
+}
+{
+    id : <messageId>
+    result : {
+        result : {
+            subtype : null
+            type : object
+            value : null
+        }
+    }
 }
 Test Runtime.getProperties
 {

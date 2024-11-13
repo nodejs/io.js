@@ -33,7 +33,7 @@ Tagged<Object> CauseGCRaw(Tagged<Object> obj, Isolate* isolate) {
 Tagged<Managed<int>> CauseGCManaged(int i, Isolate* isolate) {
   isolate->heap()->CollectGarbage(OLD_SPACE, GarbageCollectionReason::kTesting);
 
-  return Managed<int>::cast(Smi::FromInt(i));
+  return Cast<Managed<int>>(Smi::FromInt(i));
 }
 
 void TwoArgumentsFunction(Tagged<Object> a, Tagged<Object> b) {
@@ -67,8 +67,6 @@ class SomeObject : public HeapObject {
  public:
   void Method(Tagged<Object> a) { Print(a); }
 
-  DECL_CAST(SomeObject)
-
   OBJECT_CONSTRUCTORS(SomeObject, HeapObject);
 };
 
@@ -86,7 +84,7 @@ void TestOperatorCall(Isolate* isolate) {
   Tagged<SomeObject> obj;
   Handle<JSObject> obj1 = isolate->factory()->NewJSObjectWithNullProto();
   // Should not cause warning.
-  obj = Tagged<SomeObject>::unchecked_cast(*CauseGC(obj1, isolate));
+  obj = UncheckedCast<SomeObject>(*CauseGC(obj1, isolate));
 }
 
 // --------- Test for templated sub-classes of Object ----------

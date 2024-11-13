@@ -14,14 +14,15 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void LoopPeelingPhase::Run(Zone* temp_zone) {
+void LoopPeelingPhase::Run(PipelineData* data, Zone* temp_zone) {
   // Note that for wasm-gc it is relevant that the MachineOptimizationReducer is
   // run prior to other phases. Any attempt to skip the loop peeling phase (e.g.
   // if no loops are present) should evaluate how to run the
   // MachineOptimizationReducer then.
   turboshaft::CopyingPhase<turboshaft::LoopPeelingReducer,
                            turboshaft::MachineOptimizationReducer,
-                           turboshaft::ValueNumberingReducer>::Run(temp_zone);
+                           turboshaft::ValueNumberingReducer>::Run(data,
+                                                                   temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

@@ -13,7 +13,7 @@
 #include "src/compiler/backend/gap-resolver.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/osr.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata.h"
 
 namespace v8 {
 namespace internal {
@@ -792,6 +792,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     case kArchPrepareTailCall:
       AssemblePrepareTailCall();
       break;
+    case kArchCallCFunctionWithFrameState:
     case kArchCallCFunction: {
       int const num_gp_parameters = ParamField::decode(instr->opcode());
       int const num_fp_parameters = FPParamField::decode(instr->opcode());
@@ -817,6 +818,12 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
                                      set_isolate_data_slots, &return_location);
       }
       RecordSafepoint(instr->reference_map(), pc_offset);
+
+      bool const needs_frame_state =
+          (arch_opcode == kArchCallCFunctionWithFrameState);
+      if (needs_frame_state) {
+        RecordDeoptInfo(instr, pc_offset);
+      }
 
       frame_access_state()->SetFrameAccessToDefault();
       // Ideally, we should decrement SP delta to match the change of stack
@@ -1645,6 +1652,10 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     case kLoong64Float64ExtractHighWord32:
       __ movfrh2gr_s(i.OutputRegister(), i.InputDoubleRegister(0));
       break;
+    case kLoong64Float64FromWord32Pair:
+      __ movgr2fr_w(i.OutputDoubleRegister(), i.InputRegister(1));
+      __ movgr2frh_w(i.OutputDoubleRegister(), i.InputRegister(0));
+      break;
     case kLoong64Float64InsertLowWord32:
       __ FmoveLow(i.OutputDoubleRegister(), i.InputRegister(1));
       break;
@@ -1722,6 +1733,10 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     case kLoong64LoadDecompressTagged:
       RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
       __ DecompressTagged(i.OutputRegister(), i.MemoryOperand());
+      break;
+    case kLoong64LoadDecompressProtected:
+      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
+      __ DecompressProtected(i.OutputRegister(), i.MemoryOperand());
       break;
     case kLoong64StoreCompressTagged: {
       size_t index = 0;
@@ -1836,11 +1851,11 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       break;
     }
     case kLoong64ByteSwap64: {
-      __ ByteSwapSigned(i.OutputRegister(0), i.InputRegister(0), 8);
+      __ ByteSwap(i.OutputRegister(0), i.InputRegister(0), 8);
       break;
     }
     case kLoong64ByteSwap32: {
-      __ ByteSwapSigned(i.OutputRegister(0), i.InputRegister(0), 4);
+      __ ByteSwap(i.OutputRegister(0), i.InputRegister(0), 4);
       break;
     }
     case kAtomicLoadInt8:
@@ -2237,6 +2252,11 @@ void CodeGenerator::AssembleArchBranch(Instruction* instr, BranchInfo* branch) {
                          branch->fallthru);
 }
 
+void CodeGenerator::AssembleArchConditionalBranch(Instruction* instr,
+                                                  BranchInfo* branch) {
+  UNREACHABLE();
+}
+
 #undef UNSUPPORTED_COND
 
 void CodeGenerator::AssembleArchDeoptBranch(Instruction* instr,
@@ -2343,6 +2363,10 @@ void CodeGenerator::AssembleArchBoolean(Instruction* instr,
   }
 }
 
+void CodeGenerator::AssembleArchConditionalBoolean(Instruction* instr) {
+  UNREACHABLE();
+}
+
 void CodeGenerator::AssembleArchBinarySearchSwitch(Instruction* instr) {
   Loong64OperandConverter i(this, instr);
   Register input = i.InputRegister(0);
@@ -2426,7 +2450,7 @@ void CodeGenerator::AssembleConstructFrame() {
           call_descriptor->IsWasmImportWrapper() ||
           call_descriptor->IsWasmCapiFunction()) {
         // For import wrappers and C-API functions, this stack slot is only used
-        // for printing stack traces in V8. Also, it holds a WasmApiFunctionRef
+        // for printing stack traces in V8. Also, it holds a WasmImportData
         // instead of the instance itself, which is taken care of in the frames
         // accessors.
         __ Push(kWasmInstanceRegister);
@@ -2877,18 +2901,13 @@ void CodeGenerator::AssembleMove(InstructionOperand* source,
           destination->IsRegister() ? g.ToRegister(destination) : scratch;
       switch (src.type()) {
         case Constant::kInt32:
-          __ li(dst, Operand(src.ToInt32()));
+          __ li(dst, Operand(src.ToInt32(), src.rmode()));
           break;
         case Constant::kFloat32:
           __ li(dst, Operand::EmbeddedNumber(src.ToFloat32()));
           break;
         case Constant::kInt64:
-#if V8_ENABLE_WEBASSEMBLY
-          if (RelocInfo::IsWasmReference(src.rmode()))
-            __ li(dst, Operand(src.ToInt64(), src.rmode()));
-          else
-#endif  // V8_ENABLE_WEBASSEMBLY
-            __ li(dst, Operand(src.ToInt64()));
+          __ li(dst, Operand(src.ToInt64(), src.rmode()));
           break;
         case Constant::kFloat64:
           __ li(dst, Operand::EmbeddedNumber(src.ToFloat64().value()));

@@ -44,8 +44,10 @@ transitioning javascript builtin WebAssemblyStringFromUtf8Array(
       WasmCastToSpecialPrimitiveArray(context, arguments[0], SmiConstant(8));
   const start = NumberToUint32(ToNumber_Inline(arguments[1]));
   const end = NumberToUint32(ToNumber_Inline(arguments[2]));
-  return wasm::WasmStringNewWtf8Array(
-      start, end, array, SmiConstant(kLossyUtf8));
+  const result =
+      wasm::WasmStringNewWtf8Array(start, end, array, SmiConstant(kLossyUtf8));
+  dcheck(Is<String>(result));
+  return %RawDownCast<String>(result);
 }
 
 transitioning javascript builtin WebAssemblyStringIntoUtf8Array(

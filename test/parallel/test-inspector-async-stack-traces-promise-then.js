@@ -31,7 +31,7 @@ async function runTests() {
       'params': { 'patterns': [] } },
     { 'method': 'Runtime.runIfWaitingForDebugger' },
   ]);
-  session.send({ method: 'NodeRuntime.disable' });
+  await session.send({ method: 'NodeRuntime.disable' });
 
   await session.waitForBreakOnLine(0, '[eval]');
   await session.send({ 'method': 'Debugger.resume' });

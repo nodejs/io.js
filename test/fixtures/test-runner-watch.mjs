@@ -6,6 +6,12 @@ const options = {
   file: {
     type: 'string',
   },
+  cwd: {
+    type: 'string',
+  },
+  isolation: {
+    type: 'string',
+  },
 };
 const {
   values,
@@ -13,12 +19,24 @@ const {
 } = parseArgs({ args: process.argv.slice(2), options });
 
 let files;
+let cwd;
+let isolation;
 
 if (values.file) {
   files = [values.file];
 }
 
+if (values.cwd) {
+  cwd = values.cwd;
+}
+
+if (values.isolation) {
+  isolation = values.isolation;
+}
+
 run({
   files,
-  watch: true
+  watch: true,
+  cwd,
+  isolation,
 }).compose(tap).pipe(process.stdout);

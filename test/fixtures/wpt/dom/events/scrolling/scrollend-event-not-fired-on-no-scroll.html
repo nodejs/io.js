@@ -1,0 +1,114 @@
+<!DOCTYPE HTML>
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="scroll_support.js"></script>
+<style>
+  #spacer {
+    height: 100vh;
+    width: 100px;
+    position: relative;
+  }
+
+  #targetDiv {
+    width: 200px;
+    height: 200px;
+    overflow: scroll;
+  }
+
+  #innerDiv {
+    width: 400px;
+    height: 400px;
+  }
+</style>
+
+<body style="margin:0" onload=runTest()>
+  <div id="targetDiv">
+    <!-- This test uses button elements as a consistent mechanism for
+      ensuring that focus is on the correct scrolling element when
+      scrolling via keys -->
+    <button id="targetButton">target</button>
+    <div id="innerDiv"></div>
+  </div>
+  <button id="docButton">doc</button>
+  <div id="spacer"></div>
+</body>
+
+<script>
+  var target_div = document.getElementById('targetDiv');
+
+  async function resetScrollers(test) {
+    await waitForScrollReset(test, target_div);
+    await waitForScrollReset(test, document.scrollingElement);
+  }
+
+  function getBoundingClientRect(element) {
+    if (element == document) {
+      return document.documentElement.getBoundingClientRect();
+    }
+    return element.getBoundingClientRect();
+  }
+
+  async function upwardScroll(scrolling_element, button_element, scroll_type) {
+    if (scroll_type == "wheel") {
+      let x = 0;
+      let y = 0;
+      let delta_x = 0;
+      let delta_y = -50;
+      let actions = new test_driver.Actions()
+      .scroll(x, y, delta_x, delta_y, {origin: scrolling_element});
+      await actions.send();
+    } else if (scroll_type == "keys") {
+      const num_keydowns = 5;
+      const arrowUp = '\uE013';
+      for (let i = 0; i < num_keydowns; i++) {
+        await test_driver.send_keys(button_element, arrowUp);
+      }
+    }
+  }
+
+  async function testScrollendNotFiredOnNoScroll(test, scrolling_element,
+                                                 listening_element,
+                                                 button_element, scroll_type) {
+    await resetScrollers(test);
+    await waitForCompositorCommit();
+
+    assert_greater_than(scrolling_element.scrollHeight,
+                        scrolling_element.clientHeight);
+    assert_equals(scrolling_element.scrollTop, 0);
+
+    let scrollend_promise = waitForScrollendEvent(test, listening_element).then(
+      (/*resolve*/) => {
+        assert_true(false, "no scroll, so no scrollend expected");
+      },
+      (/*reject*/) => { /* Did not see scrollend, which is okay. */ }
+    );
+    await upwardScroll(scrolling_element, button_element, scroll_type);
+    await scrollend_promise;
+  }
+
+  function runTest() {
+    promise_test(async (t) => {
+      await testScrollendNotFiredOnNoScroll(t, target_div, target_div,
+                                            targetButton, "wheel");
+    }, "No scroll via wheel on div shouldn't fire scrollend.");
+
+    promise_test(async (t) => {
+      await testScrollendNotFiredOnNoScroll(t, target_div, target_div,
+                                            targetButton, "keys");
+    }, "No scroll via keys on div shouldn't fire scrollend.");
+
+    promise_test(async (t) => {
+      await testScrollendNotFiredOnNoScroll(t, document.scrollingElement,
+                                            document, docButton, "wheel");
+    }, "No scroll via wheel on document shouldn't fire scrollend.");
+
+    promise_test(async (t) => {
+      await testScrollendNotFiredOnNoScroll(t, document.scrollingElement,
+                                            document, docButton, "keys");
+    }, "No scroll via keys on document shouldn't fire scrollend.")
+  }
+</script>

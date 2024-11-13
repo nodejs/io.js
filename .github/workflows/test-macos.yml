@@ -44,17 +44,17 @@ jobs:
       CXX: sccache g++
       SCCACHE_GHA_ENABLED: 'true'
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           persist-credentials: false
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d  # v5.1.0
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up sccache
-        uses: mozilla-actions/sccache-action@89e9040de88b577a072e3760aaf59f585da083af  # v0.0.5
+        uses: mozilla-actions/sccache-action@9e326ebed976843c9932b3aa0e021c6f50310eb4  # v0.0.6
         with:
-          version: v0.8.0
+          version: v0.8.1
       - name: Environment Information
         run: npx envinfo
       # The `npm ci` for this step fails a lot as part of the Test step. Run it
@@ -65,7 +65,23 @@ jobs:
       # information.)
       - name: tools/doc/node_modules workaround
         run: make tools/doc/node_modules
+      # This is needed due to https://github.com/nodejs/build/issues/3878
+      - name: Cleanup
+        run: |
+          echo "::group::Free space before cleanup"
+          df -h
+          echo "::endgroup::"
+          echo "::group::Cleaned Files"
+
+          sudo rm -rf /Users/runner/Library/Android/sdk
+
+          echo "::endgroup::"
+          echo "::group::Free space after cleanup"
+          df -h
+          echo "::endgroup::"
       - name: Build
         run: make build-ci -j$(getconf _NPROCESSORS_ONLN) V=1 CONFIG_FLAGS="--error-on-warn"
+      - name: Free Space After Build
+        run: df -h
       - name: Test
         run: make run-ci -j$(getconf _NPROCESSORS_ONLN) V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"

@@ -18,25 +18,30 @@ static constexpr uint32_t kContinueBit = 1 << kContinueShift;
 static constexpr uint32_t kDataMask = kContinueBit - 1;
 
 // Encodes an unsigned value using variable-length encoding and stores it using
-// the passed process_byte function. The function should return a pointer to
-// the byte that was written, so that VLQEncodeUnsigned can mutate it after
-// writing it.
+// the passed process_byte function.
 template <typename Function>
-inline typename std::enable_if<
-    std::is_same<decltype(std::declval<Function>()(0)), uint8_t*>::value,
-    void>::type
-VLQEncodeUnsigned(Function&& process_byte, uint32_t value) {
-  uint8_t* written_byte = process_byte(value);
-  if (value <= kDataMask) {
-    // Value fits in first byte, early return.
-    return;
-  }
-  do {
-    // Turn on continuation bit in the byte we just wrote.
-    *written_byte |= kContinueBit;
-    value >>= kContinueShift;
-    written_byte = process_byte(value);
-  } while (value > kDataMask);
+inline void VLQEncodeUnsigned(Function&& process_byte, uint32_t value) {
+  // Write as many bytes as necessary to encode the value, with 7 bits of data
+  // per byte (leaving space for one continuation bit).
+  static constexpr uint32_t kDataBitsPerByte = kContinueShift;
+  if (value < 1 << (kDataBitsPerByte)) goto write_one_byte;
+  if (value < 1 << (2 * kDataBitsPerByte)) goto write_two_bytes;
+  if (value < 1 << (3 * kDataBitsPerByte)) goto write_three_bytes;
+  if (value < 1 << (4 * kDataBitsPerByte)) goto write_four_bytes;
+  process_byte(value | kContinueBit);
+  value >>= kContinueShift;
+write_four_bytes:
+  process_byte(value | kContinueBit);
+  value >>= kContinueShift;
+write_three_bytes:
+  process_byte(value | kContinueBit);
+  value >>= kContinueShift;
+write_two_bytes:
+  process_byte(value | kContinueBit);
+  value >>= kContinueShift;
+write_one_byte:
+  // The last value written doesn't need a continuation bit.
+  process_byte(value);
 }
 
 inline uint32_t VLQConvertToUnsigned(int32_t value) {
@@ -52,10 +57,7 @@ inline uint32_t VLQConvertToUnsigned(int32_t value) {
 // Encodes value using variable-length encoding and stores it using the passed
 // process_byte function.
 template <typename Function>
-inline typename std::enable_if<
-    std::is_same<decltype(std::declval<Function>()(0)), uint8_t*>::value,
-    void>::type
-VLQEncode(Function&& process_byte, int32_t value) {
+inline void VLQEncode(Function&& process_byte, int32_t value) {
   uint32_t bits = VLQConvertToUnsigned(value);
   VLQEncodeUnsigned(std::forward<Function>(process_byte), bits);
 }
@@ -63,23 +65,13 @@ VLQEncode(Function&& process_byte, int32_t value) {
 // Wrapper of VLQEncode for std::vector backed storage containers.
 template <typename A>
 inline void VLQEncode(std::vector<uint8_t, A>* data, int32_t value) {
-  VLQEncode(
-      [data](uint8_t value) {
-        data->push_back(value);
-        return &data->back();
-      },
-      value);
+  VLQEncode([data](uint8_t value) { data->push_back(value); }, value);
 }
 
 // Wrapper of VLQEncodeUnsigned for std::vector backed storage containers.
 template <typename A>
 inline void VLQEncodeUnsigned(std::vector<uint8_t, A>* data, uint32_t value) {
-  VLQEncodeUnsigned(
-      [data](uint8_t value) {
-        data->push_back(value);
-        return &data->back();
-      },
-      value);
+  VLQEncodeUnsigned([data](uint8_t value) { data->push_back(value); }, value);
 }
 
 // Decodes a variable-length encoded unsigned value from bytes returned by
@@ -106,13 +98,13 @@ VLQDecodeUnsigned(GetNextFunction&& get_next) {
 // Decodes a variable-length encoded unsigned value stored in contiguous memory
 // starting at data_start + index, updating index to where the next encoded
 // value starts.
-inline uint32_t VLQDecodeUnsigned(uint8_t* data_start, int* index) {
+inline uint32_t VLQDecodeUnsigned(const uint8_t* data_start, int* index) {
   return VLQDecodeUnsigned([&] { return data_start[(*index)++]; });
 }
 
 // Decodes a variable-length encoded value stored in contiguous memory starting
 // at data_start + index, updating index to where the next encoded value starts.
-inline int32_t VLQDecode(uint8_t* data_start, int* index) {
+inline int32_t VLQDecode(const uint8_t* data_start, int* index) {
   uint32_t bits = VLQDecodeUnsigned(data_start, index);
   bool is_negative = (bits & 1) == 1;
   int32_t result = bits >> 1;

@@ -27,6 +27,12 @@ struct SingleThreadedHandle {
     *is_cancelled_ = true;
   }
 
+  void CancelIfNonEmpty() {
+    if (is_cancelled_) {
+      *is_cancelled_ = true;
+    }
+  }
+
   bool IsCanceled() const {
     DCHECK(is_cancelled_);
     return *is_cancelled_;

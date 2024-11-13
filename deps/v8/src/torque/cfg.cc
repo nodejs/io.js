@@ -4,11 +4,11 @@
 
 #include "src/torque/cfg.h"
 
+#include <optional>
+
 #include "src/torque/type-oracle.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 void Block::SetInputTypes(const Stack<const Type*>& input_types) {
   if (!input_types_) {
@@ -41,8 +41,8 @@ void Block::SetInputTypes(const Stack<const Type*>& input_types) {
   error << "incompatible types at branch:\n";
   for (intptr_t i = std::max(input_types_->Size(), input_types.Size()) - 1;
        i >= 0; --i) {
-    base::Optional<const Type*> left;
-    base::Optional<const Type*> right;
+    std::optional<const Type*> left;
+    std::optional<const Type*> right;
     if (static_cast<size_t>(i) < input_types.Size()) {
       left = input_types.Peek(BottomOffset{static_cast<size_t>(i)});
     }
@@ -112,7 +112,7 @@ void CfgAssembler::DropTo(BottomOffset new_level) {
 }
 
 StackRange CfgAssembler::Peek(StackRange range,
-                              base::Optional<const Type*> type) {
+                              std::optional<const Type*> type) {
   std::vector<const Type*> lowered_types;
   if (type) {
     lowered_types = LowerType(*type);
@@ -121,13 +121,13 @@ StackRange CfgAssembler::Peek(StackRange range,
   for (size_t i = 0; i < range.Size(); ++i) {
     Emit(PeekInstruction{
         range.begin() + i,
-        type ? lowered_types[i] : base::Optional<const Type*>{}});
+        type ? lowered_types[i] : std::optional<const Type*>{}});
   }
   return TopRange(range.Size());
 }
 
 void CfgAssembler::Poke(StackRange destination, StackRange origin,
-                        base::Optional<const Type*> type) {
+                        std::optional<const Type*> type) {
   DCHECK_EQ(destination.Size(), origin.Size());
   DCHECK_LE(destination.end(), origin.begin());
   DCHECK_EQ(origin.end(), CurrentStack().AboveTop());
@@ -139,7 +139,7 @@ void CfgAssembler::Poke(StackRange destination, StackRange origin,
   for (intptr_t i = origin.Size() - 1; i >= 0; --i) {
     Emit(PokeInstruction{
         destination.begin() + i,
-        type ? lowered_types[i] : base::Optional<const Type*>{}});
+        type ? lowered_types[i] : std::optional<const Type*>{}});
   }
 }
 
@@ -237,6 +237,4 @@ void CfgAssembler::ComputeInputDefinitions() {
   }
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

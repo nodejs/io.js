@@ -274,6 +274,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   inline Handle<HeapObject> embedded_object_handle_at(Address pc,
                                                       Address constant_pool);
 
+  // Read/modify the uint32 constant used at pc.
+  static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
+  static inline void set_uint32_constant_at(
+      Address pc, Address constant_pool, uint32_t new_constant,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+
   // Here we are patching the address in the LUI/ORI instruction pair.
   // These values are used in the serialization process and must be zero for
   // LOONG platform, as InstructionStream, Embedded Object or External-reference

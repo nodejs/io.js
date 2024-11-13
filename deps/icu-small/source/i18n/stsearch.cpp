@@ -38,7 +38,7 @@ StringSearch::StringSearch(const UnicodeString &pattern,
 
     m_strsrch_ = usearch_open(m_pattern_.getBuffer(), m_pattern_.length(),
                               m_text_.getBuffer(), m_text_.length(),
-                              locale.getName(), (UBreakIterator *)breakiter,
+                              locale.getName(), reinterpret_cast<UBreakIterator*>(breakiter),
                               &status);
     uprv_free(m_search_);
     m_search_ = nullptr;
@@ -70,7 +70,7 @@ StringSearch::StringSearch(const UnicodeString     &pattern,
                                           m_pattern_.length(),
                                           m_text_.getBuffer(),
                                           m_text_.length(), coll->toUCollator(),
-                                          (UBreakIterator *)breakiter,
+                                          reinterpret_cast<UBreakIterator*>(breakiter),
                                           &status);
     uprv_free(m_search_);
     m_search_ = nullptr;
@@ -95,7 +95,7 @@ StringSearch::StringSearch(const UnicodeString     &pattern,
     }
     m_strsrch_ = usearch_open(m_pattern_.getBuffer(), m_pattern_.length(),
                               m_text_.getBuffer(), m_text_.length(),
-                              locale.getName(), (UBreakIterator *)breakiter,
+                              locale.getName(), reinterpret_cast<UBreakIterator*>(breakiter),
                               &status);
     uprv_free(m_search_);
     m_search_ = nullptr;
@@ -127,7 +127,7 @@ StringSearch::StringSearch(const UnicodeString     &pattern,
                                           m_pattern_.length(),
                                           m_text_.getBuffer(),
                                           m_text_.length(), coll->toUCollator(),
-                                          (UBreakIterator *)breakiter,
+                                          reinterpret_cast<UBreakIterator*>(breakiter),
                                           &status);
     uprv_free(m_search_);
     m_search_ = nullptr;
@@ -159,7 +159,7 @@ StringSearch::StringSearch(const StringSearch &that) :
                                               m_text_.getBuffer(),
                                               m_text_.length(),
                                               that.m_strsrch_->collator,
-                                             (UBreakIterator *)that.m_breakiterator_,
+                                              reinterpret_cast<UBreakIterator*>(that.m_breakiterator_),
                                               &status);
         if (U_SUCCESS(status)) {
             // m_search_ has been created by the base SearchIterator class

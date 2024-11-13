@@ -157,7 +157,7 @@ have structural meaning for target definitions:
 | `all_dependent_settings`     | A dictionary of settings to be applied to all dependents of the target, transitively.  This includes direct dependents and the entire set of their dependents, and so on.  This section may contain anything found within a `target` dictionary, except `configurations`, `target_name`, and `type` sections.  Compare `direct_dependent_settings` and `link_settings`. |
 | `configurations`             | A list of dictionaries defining build configurations for the target.  See the "Configurations" section below.  |
 | `copies`                     | A list of copy actions to perform. See the "Copies" section below. |
-| `defines`                    | A list of preprocesor definitions to be passed on the command line to the C/C++ compiler (via `-D` or `/D` options). |
+| `defines`                    | A list of preprocessor definitions to be passed on the command line to the C/C++ compiler (via `-D` or `/D` options). |
 | `dependencies`               | A list of targets on which this target depends.  Targets in other `.gyp` files are specified as `../path/to/other.gyp:target_we_want`. |
 | `direct_dependent_settings`  | A dictionary of settings to be applied to other targets that depend on this target.  These settings will only be applied to direct dependents.  This section may contain anything found within a `target` dictionary, except `configurations`, `target_name`, and `type` sections.  Compare with `all_dependent_settings` and `link_settings`. |
 | `include_dirs`               | A list of include directories to be passed on the command line to the C/C++ compiler (via `-I` or `/I` options). |
@@ -208,8 +208,8 @@ Configuration dictionaries may also contain these elements:
 
 Conditionals may appear within any dictionary in a `.gyp` file.  There
 are two tpes of conditionals, which differ only in the timing of their
-processing.  `conditons` sections are processed shortly after loading
-`.gyp` files, and `target_conditons` sections are processed after all
+processing.  `conditions` sections are processed shortly after loading
+`.gyp` files, and `target_conditions` sections are processed after all
 dependencies have been computed.
 
 A conditional section is introduced with a `conditions` or

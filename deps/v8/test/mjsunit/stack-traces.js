@@ -154,6 +154,29 @@ function testClassNames() {
   (new MyObjCreator).Create();
 }
 
+function testChangeMessage() {
+  const e = new Error('old');
+  e.message = 'new';
+  throw e;
+}
+
+class CustomErrorWithMessage extends Error {
+  constructor(message) {
+    super(message);
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+function testCustomErrorWithMessage() {
+  throw new CustomErrorWithMessage('custom message');
+}
+
+function testCustomErrorWithChangedMessage() {
+  const e = new CustomErrorWithMessage('custom message');
+  e.message = 'changed message';
+  throw e;
+}
+
 // Utility function for testing that the expected strings occur
 // in the stack trace produced when running the given function.
 function testTrace(name, fun, expected, unexpected) {
@@ -289,6 +312,12 @@ testTrace("testStrippedCustomError", testStrippedCustomError, ["hep-hey"],
     ["new CustomError", "collectStackTrace"]);
 testTrace("testClassNames", testClassNames,
           ["new MyObj", "MyObjCreator.Create"], ["as Create"]);
+testTrace("testChangeMessage", testChangeMessage, ["Error: old"], ["Error: new"]);
+testTrace("testCustomErrorWithMessage", testCustomErrorWithMessage,
+    ["Error: custom message"]);
+testTrace("testCustomErrorWithChangedMessage", testCustomErrorWithChangedMessage,
+    ["Error: custom message"], ["Error: changed message"]);
+
 testCallerCensorship();
 testUnintendedCallerCensorship();
 testErrorsDuringFormatting();

@@ -14,6 +14,8 @@
 
 #include "absl/strings/internal/escaping.h"
 
+#include <limits>
+
 #include "absl/base/internal/endian.h"
 #include "absl/base/internal/raw_logging.h"
 
@@ -31,12 +33,14 @@ ABSL_CONST_INIT const char kBase64Chars[] =
 ABSL_CONST_INIT const char kWebSafeBase64Chars[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-
 size_t CalculateBase64EscapedLenInternal(size_t input_len, bool do_padding) {
   // Base64 encodes three bytes of input at a time. If the input is not
   // divisible by three, we pad as appropriate.
   //
   // Base64 encodes each three bytes of input into four bytes of output.
+  constexpr size_t kMaxSize = (std::numeric_limits<size_t>::max() - 1) / 4 * 3;
+  ABSL_INTERNAL_CHECK(input_len <= kMaxSize,
+                      "CalculateBase64EscapedLenInternal() overflow");
   size_t len = (input_len / 3) * 4;
 
   // Since all base 64 input is an integral number of octets, only the following
@@ -66,7 +70,6 @@ size_t CalculateBase64EscapedLenInternal(size_t input_len, bool do_padding) {
     }
   }
 
-  assert(len >= input_len);  // make sure we didn't overflow
   return len;
 }
 

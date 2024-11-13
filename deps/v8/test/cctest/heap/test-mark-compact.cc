@@ -66,7 +66,8 @@ TEST(Promotion) {
     heap::SealCurrentObjects(heap);
 
     int array_length = heap::FixedArrayLenFromSize(kMaxRegularHeapObjectSize);
-    Handle<FixedArray> array = isolate->factory()->NewFixedArray(array_length);
+    DirectHandle<FixedArray> array =
+        isolate->factory()->NewFixedArray(array_length);
 
     // Array should be in the new space.
     CHECK(heap->InSpace(*array, NEW_SPACE));
@@ -86,7 +87,7 @@ AllocationResult HeapTester::AllocateMapForTest(Isolate* isolate) {
   ReadOnlyRoots roots(isolate);
   obj->set_map_after_allocation(*isolate->meta_map());
   return AllocationResult::FromObject(isolate->factory()->InitializeMap(
-      Map::cast(obj), JS_OBJECT_TYPE, JSObject::kHeaderSize,
+      Cast<Map>(obj), JS_OBJECT_TYPE, JSObject::kHeaderSize,
       TERMINAL_FAST_ELEMENTS_KIND, 0, roots));
 }
 
@@ -103,7 +104,7 @@ AllocationResult HeapTester::AllocateFixedArrayForTest(
   }
   obj->set_map_after_allocation(ReadOnlyRoots(heap).fixed_array_map(),
                                 SKIP_WRITE_BARRIER);
-  Tagged<FixedArray> array = FixedArray::cast(obj);
+  Tagged<FixedArray> array = Cast<FixedArray>(obj);
   array->set_length(length);
   MemsetTagged(array->RawFieldOfFirstElement(),
                ReadOnlyRoots(heap).undefined_value(), length);
@@ -161,7 +162,7 @@ HEAP_TEST(MarkCompactCollector) {
     Handle<Object> func_value =
         Object::GetProperty(isolate, global, func_name).ToHandleChecked();
     CHECK(IsJSFunction(*func_value));
-    Handle<JSFunction> function = Handle<JSFunction>::cast(func_value);
+    Handle<JSFunction> function = Cast<JSFunction>(func_value);
     Handle<JSObject> obj = factory->NewJSObject(function);
 
     Handle<String> obj_name = factory->InternalizeUtf8String("theObject");
@@ -205,24 +206,24 @@ HEAP_TEST(DoNotEvacuatePinnedPages) {
   MemoryChunk* chunk = MemoryChunk::FromHeapObject(*handles.front());
 
   CHECK(heap->InSpace(*handles.front(), OLD_SPACE));
-  chunk->SetFlag(MemoryChunk::PINNED);
+  chunk->SetFlagNonExecutable(MemoryChunk::PINNED);
 
   heap::InvokeMajorGC(heap);
   heap->EnsureSweepingCompleted(Heap::SweepingForcedFinalizationMode::kV8Only);
 
   // The pinned flag should prevent the page from moving.
-  for (Handle<FixedArray> object : handles) {
+  for (DirectHandle<FixedArray> object : handles) {
     CHECK_EQ(chunk, MemoryChunk::FromHeapObject(*object));
   }
 
-  chunk->ClearFlag(MemoryChunk::PINNED);
+  chunk->ClearFlagNonExecutable(MemoryChunk::PINNED);
 
   heap::InvokeMajorGC(heap);
   heap->EnsureSweepingCompleted(Heap::SweepingForcedFinalizationMode::kV8Only);
 
   // `compact_on_every_full_gc` ensures that this page is an evacuation
   // candidate, so with the pin flag cleared compaction should now move it.
-  for (Handle<FixedArray> object : handles) {
+  for (DirectHandle<FixedArray> object : handles) {
     CHECK_NE(chunk, MemoryChunk::FromHeapObject(*object));
   }
 }
@@ -350,7 +351,7 @@ TEST(Regress5829) {
   }
   CHECK(marking->IsMarking());
   CHECK(marking->black_allocation());
-  Handle<FixedArray> array =
+  DirectHandle<FixedArray> array =
       isolate->factory()->NewFixedArray(10, AllocationType::kOld);
   Address old_end = array->address() + array->Size();
   // Right trim the array without clearing the mark bits.

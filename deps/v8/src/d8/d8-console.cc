@@ -73,11 +73,21 @@ class StringOutputStream : public v8::OutputStream {
  private:
   std::ostringstream os_;
 };
+
+std::optional<std::string> GetTimerLabel(
+    const debug::ConsoleCallArguments& args) {
+  if (args.Length() == 0) return "default";
+  Isolate* isolate = args.GetIsolate();
+  v8::TryCatch try_catch(isolate);
+  v8::String::Utf8Value label(isolate, args[0]);
+  if (*label == nullptr) return std::nullopt;
+  return std::string(*label, label.length());
+}
+
 }  // anonymous namespace
 
-D8Console::D8Console(Isolate* isolate) : isolate_(isolate) {
-  default_timer_ = base::TimeTicks::Now();
-}
+D8Console::D8Console(Isolate* isolate)
+    : isolate_(isolate), origin_(base::TimeTicks::Now()) {}
 
 D8Console::~D8Console() { DCHECK_NULL(profiler_); }
 
@@ -155,64 +165,54 @@ void D8Console::ProfileEnd(const debug::ConsoleCallArguments& args,
 void D8Console::Time(const debug::ConsoleCallArguments& args,
                      const v8::debug::ConsoleContext&) {
   if (i::v8_flags.correctness_fuzzer_suppressions) return;
-  if (args.Length() == 0) {
-    default_timer_ = base::TimeTicks::Now();
-  } else {
-    Local<Value> arg = args[0];
-    Local<String> label;
-    v8::TryCatch try_catch(isolate_);
-    if (!arg->ToString(isolate_->GetCurrentContext()).ToLocal(&label)) return;
-    v8::String::Utf8Value utf8(isolate_, label);
-    std::string string(*utf8);
-    auto find = timers_.find(string);
-    if (find != timers_.end()) {
-      find->second = base::TimeTicks::Now();
-    } else {
-      timers_.insert(std::pair<std::string, base::TimeTicks>(
-          string, base::TimeTicks::Now()));
-    }
+  std::optional label = GetTimerLabel(args);
+  if (!label.has_value()) return;
+  if (!timers_.try_emplace(label.value(), base::TimeTicks::Now()).second) {
+    printf("console.time: Timer '%s' already exists\n", label.value().c_str());
   }
+}
+
+void D8Console::TimeLog(const debug::ConsoleCallArguments& args,
+                        const v8::debug::ConsoleContext&) {
+  if (i::v8_flags.correctness_fuzzer_suppressions) return;
+  std::optional label = GetTimerLabel(args);
+  if (!label.has_value()) return;
+  auto it = timers_.find(label.value());
+  if (it == timers_.end()) {
+    printf("console.timeLog: Timer '%s' does not exist\n",
+           label.value().c_str());
+    return;
+  }
+  base::TimeDelta delta = base::TimeTicks::Now() - it->second;
+  printf("console.timeLog: %s, %f\n", label.value().c_str(),
+         delta.InMillisecondsF());
 }
 
 void D8Console::TimeEnd(const debug::ConsoleCallArguments& args,
                         const v8::debug::ConsoleContext&) {
   if (i::v8_flags.correctness_fuzzer_suppressions) return;
-  base::TimeDelta delta;
-  if (args.Length() == 0) {
-    delta = base::TimeTicks::Now() - default_timer_;
-    printf("console.timeEnd: default, %f\n", delta.InMillisecondsF());
-  } else {
-    base::TimeTicks now = base::TimeTicks::Now();
-    Local<Value> arg = args[0];
-    Local<String> label;
-    v8::TryCatch try_catch(isolate_);
-    if (!arg->ToString(isolate_->GetCurrentContext()).ToLocal(&label)) return;
-    v8::String::Utf8Value utf8(isolate_, label);
-    std::string string(*utf8);
-    auto find = timers_.find(string);
-    if (find != timers_.end()) {
-      delta = now - find->second;
-      timers_.erase(find);
-    }
-    printf("console.timeEnd: %s, %f\n", *utf8, delta.InMillisecondsF());
+  std::optional label = GetTimerLabel(args);
+  if (!label.has_value()) return;
+  auto it = timers_.find(label.value());
+  if (it == timers_.end()) {
+    printf("console.timeEnd: Timer '%s' does not exist\n",
+           label.value().c_str());
+    return;
   }
+  base::TimeDelta delta = base::TimeTicks::Now() - it->second;
+  printf("console.timeEnd: %s, %f\n", label.value().c_str(),
+         delta.InMillisecondsF());
+  timers_.erase(it);
 }
 
 void D8Console::TimeStamp(const debug::ConsoleCallArguments& args,
                           const v8::debug::ConsoleContext&) {
   if (i::v8_flags.correctness_fuzzer_suppressions) return;
-  base::TimeDelta delta = base::TimeTicks::Now() - default_timer_;
-  if (args.Length() == 0) {
-    printf("console.timeStamp: default, %f\n", delta.InMillisecondsF());
-  } else {
-    Local<Value> arg = args[0];
-    Local<String> label;
-    v8::TryCatch try_catch(isolate_);
-    if (!arg->ToString(isolate_->GetCurrentContext()).ToLocal(&label)) return;
-    v8::String::Utf8Value utf8(isolate_, label);
-    std::string string(*utf8);
-    printf("console.timeStamp: %s, %f\n", *utf8, delta.InMillisecondsF());
-  }
+  std::optional label = GetTimerLabel(args);
+  if (!label.has_value()) return;
+  base::TimeDelta delta = base::TimeTicks::Now() - origin_;
+  printf("console.timeStamp: %s, %f\n", label.value().c_str(),
+         delta.InMillisecondsF());
 }
 
 void D8Console::Trace(const debug::ConsoleCallArguments& args,

@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -77,7 +77,7 @@ static int ssl_free(BIO *a)
         return 0;
     bs = BIO_get_data(a);
     if (BIO_get_shutdown(a)) {
-        if (bs->ssl != NULL)
+        if (bs->ssl != NULL && !SSL_in_init(bs->ssl))
             SSL_shutdown(bs->ssl);
         if (BIO_get_init(a))
             SSL_free(bs->ssl);

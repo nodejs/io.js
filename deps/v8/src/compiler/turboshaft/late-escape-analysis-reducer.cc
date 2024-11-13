@@ -81,14 +81,13 @@ bool LateEscapeAnalysisAnalyzer::EscapesThroughUse(OpIndex alloc,
 
 void LateEscapeAnalysisAnalyzer::MarkToRemove(OpIndex alloc) {
   if (ShouldSkipOptimizationStep()) return;
-  graph_.MarkAsUnused(alloc);
+  graph_.KillOperation(alloc);
   if (alloc_uses_.find(alloc) == alloc_uses_.end()) {
     return;
   }
 
   // The uses of {alloc} should also be skipped.
   for (OpIndex use : alloc_uses_.at(alloc)) {
-    graph_.MarkAsUnused(use);
     const StoreOp& store = graph_.Get(use).Cast<StoreOp>();
     if (graph_.Get(store.value()).Is<AllocateOp>()) {
       // This store was storing the result of an allocation. Because we now
@@ -96,6 +95,7 @@ void LateEscapeAnalysisAnalyzer::MarkToRemove(OpIndex alloc) {
       // as well.
       allocs_.push_back(store.value());
     }
+    graph_.KillOperation(use);
   }
 }
 

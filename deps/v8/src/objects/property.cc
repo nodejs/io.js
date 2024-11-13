@@ -105,7 +105,7 @@ Descriptor Descriptor::DataConstant(Handle<Name> key, Handle<Object> value,
 }
 
 Descriptor Descriptor::DataConstant(Isolate* isolate, Handle<Name> key,
-                                    int field_index, Handle<Object> value,
+                                    int field_index, DirectHandle<Object> value,
                                     PropertyAttributes attributes) {
   MaybeObjectHandle any_type(FieldType::Any(), isolate);
   return DataField(key, field_index, attributes, PropertyConstness::kConst,

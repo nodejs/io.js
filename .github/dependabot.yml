@@ -9,3 +9,29 @@ updates:
     commit-message:
       prefix: meta
     open-pull-requests-limit: 10
+
+  - package-ecosystem: npm
+    directory: /tools/eslint
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: tools
+    open-pull-requests-limit: 10
+    groups:
+      eslint:
+        applies-to: version-updates
+        patterns:
+          - '*'
+
+  - package-ecosystem: npm
+    directory: /tools/lint-md
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: tools
+    open-pull-requests-limit: 10
+    groups:
+      lint-md:
+        applies-to: version-updates
+        patterns:
+          - '*'

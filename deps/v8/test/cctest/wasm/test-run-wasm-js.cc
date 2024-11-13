@@ -57,9 +57,8 @@ ManuallyImportedJSFunction CreateJSSelector(FunctionSig* sig, int which) {
   SNPrintF(source, "(function(%s) { return %c; })",
            formals[sig->parameter_count()], param);
 
-  Handle<JSFunction> js_function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-          *v8::Local<v8::Function>::Cast(CompileRun(source.begin()))));
+  Handle<JSFunction> js_function = Cast<JSFunction>(v8::Utils::OpenHandle(
+      *v8::Local<v8::Function>::Cast(CompileRun(source.begin()))));
   ManuallyImportedJSFunction import = {sig, js_function};
 
   return import;
@@ -103,9 +102,8 @@ WASM_COMPILED_EXEC_TEST(Run_CallJS_Add_jswrapped) {
   TestSignatures sigs;
   HandleScope scope(CcTest::InitIsolateOnce());
   const char* source = "(function(a) { return a + 99; })";
-  Handle<JSFunction> js_function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-          *v8::Local<v8::Function>::Cast(CompileRun(source))));
+  Handle<JSFunction> js_function = Cast<JSFunction>(v8::Utils::OpenHandle(
+      *v8::Local<v8::Function>::Cast(CompileRun(source))));
   ManuallyImportedJSFunction import = {sigs.i_i(), js_function};
   WasmRunner<int, int> r(execution_tier, kWasmOrigin, &import);
   uint32_t js_index = 0;
@@ -483,9 +481,8 @@ void RunPickerTest(TestExecutionTier tier, bool indirect) {
   TestSignatures sigs;
 
   const char* source = "(function(a,b,c) { if(c)return a; return b; })";
-  Handle<JSFunction> js_function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(
-          *v8::Local<v8::Function>::Cast(CompileRun(source))));
+  Handle<JSFunction> js_function = Cast<JSFunction>(v8::Utils::OpenHandle(
+      *v8::Local<v8::Function>::Cast(CompileRun(source))));
 
   ManuallyImportedJSFunction import = {sigs.i_iii(), js_function};
 

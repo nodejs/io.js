@@ -86,7 +86,7 @@ UnhandledEngine::findBreaks( UText *text,
     if (U_FAILURE(status)) return 0;
     utext_setNativeIndex(text, startPos);
     UChar32 c = utext_current32(text);
-    while((int32_t)utext_getNativeIndex(text) < endPos && fHandled->contains(c)) {
+    while (static_cast<int32_t>(utext_getNativeIndex(text)) < endPos && fHandled->contains(c)) {
         utext_next32(text);            // TODO:  recast loop to work with post-increment operations.
         c = utext_current32(text);
     }
@@ -146,7 +146,7 @@ ICULanguageBreakFactory::getEngineFor(UChar32 c, const char* locale) {
     Mutex m(&gBreakEngineMutex);
     int32_t i = fEngines->size();
     while (--i >= 0) {
-        lbe = (const LanguageBreakEngine *)(fEngines->elementAt(i));
+        lbe = static_cast<const LanguageBreakEngine*>(fEngines->elementAt(i));
         if (lbe != nullptr && lbe->handles(c, locale)) {
             return lbe;
         }
@@ -259,7 +259,7 @@ ICULanguageBreakFactory::loadDictionaryMatcherFor(UScriptCode script) {
     CharString ext;
     const char16_t *extStart = u_memrchr(dictfname, 0x002e, dictnlength);  // last dot
     if (extStart != nullptr) {
-        int32_t len = (int32_t)(extStart - dictfname);
+        int32_t len = static_cast<int32_t>(extStart - dictfname);
         ext.appendInvariantChars(UnicodeString(false, extStart + 1, dictnlength - len - 1), status);
         dictnlength = len;
     }
@@ -269,18 +269,18 @@ ICULanguageBreakFactory::loadDictionaryMatcherFor(UScriptCode script) {
     UDataMemory *file = udata_open(U_ICUDATA_BRKITR, ext.data(), dictnbuf.data(), &status);
     if (U_SUCCESS(status)) {
         // build trie
-        const uint8_t *data = (const uint8_t *)udata_getMemory(file);
-        const int32_t *indexes = (const int32_t *)data;
+        const uint8_t* data = static_cast<const uint8_t*>(udata_getMemory(file));
+        const int32_t* indexes = reinterpret_cast<const int32_t*>(data);
         const int32_t offset = indexes[DictionaryData::IX_STRING_TRIE_OFFSET];
         const int32_t trieType = indexes[DictionaryData::IX_TRIE_TYPE] & DictionaryData::TRIE_TYPE_MASK;
         DictionaryMatcher *m = nullptr;
         if (trieType == DictionaryData::TRIE_TYPE_BYTES) {
             const int32_t transform = indexes[DictionaryData::IX_TRANSFORM];
-            const char *characters = (const char *)(data + offset);
+            const char* characters = reinterpret_cast<const char*>(data + offset);
             m = new BytesDictionaryMatcher(characters, transform, file);
         }
         else if (trieType == DictionaryData::TRIE_TYPE_UCHARS) {
-            const char16_t *characters = (const char16_t *)(data + offset);
+            const char16_t* characters = reinterpret_cast<const char16_t*>(data + offset);
             m = new UCharsDictionaryMatcher(characters, file);
         }
         if (m == nullptr) {
@@ -337,12 +337,12 @@ int32_t BreakEngineWrapper::findBreaks(
     //   extends towards the start or end of the text, depending on 'reverse'.
 
     utext_setNativeIndex(text, startPos);
-    int32_t start = (int32_t)utext_getNativeIndex(text);
+    int32_t start = static_cast<int32_t>(utext_getNativeIndex(text));
     int32_t current;
     int32_t rangeStart;
     int32_t rangeEnd;
     UChar32 c = utext_current32(text);
-    while((current = (int32_t)utext_getNativeIndex(text)) < endPos && delegate->handles(c)) {
+    while ((current = static_cast<int32_t>(utext_getNativeIndex(text))) < endPos && delegate->handles(c)) {
         utext_next32(text);         // TODO:  recast loop for postincrement
         c = utext_current32(text);
     }

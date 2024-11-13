@@ -22,7 +22,8 @@ TEST_F(StringsStorageWithIsolate, GetNameFromString) {
   StringsStorage storage;
 
   // One char strings are canonical on the v8 heap so use a 2 char string here.
-  Handle<String> str = isolate()->factory()->NewStringFromAsciiChecked("xy");
+  DirectHandle<String> str =
+      isolate()->factory()->NewStringFromAsciiChecked("xy");
   const char* stored_str = storage.GetName(*str);
   CHECK(StringEq("xy", stored_str));
 
@@ -33,7 +34,8 @@ TEST_F(StringsStorageWithIsolate, GetNameFromString) {
 
   // Even if the input string was a different one on the v8 heap, if the char
   // array is the same, it should be de-duplicated.
-  Handle<String> str2 = isolate()->factory()->NewStringFromAsciiChecked("xy");
+  DirectHandle<String> str2 =
+      isolate()->factory()->NewStringFromAsciiChecked("xy");
   CHECK_NE(*str, *str2);
   const char* stored_str_thrice = storage.GetName(*str2);
   CHECK_EQ(stored_str_twice, stored_str_thrice);
@@ -42,11 +44,11 @@ TEST_F(StringsStorageWithIsolate, GetNameFromString) {
 TEST_F(StringsStorageWithIsolate, GetNameFromSymbol) {
   StringsStorage storage;
 
-  Handle<Symbol> symbol = isolate()->factory()->NewSymbol();
+  DirectHandle<Symbol> symbol = isolate()->factory()->NewSymbol();
   const char* stored_symbol = storage.GetName(*symbol);
   CHECK(StringEq("<symbol>", stored_symbol));
 
-  Handle<Symbol> symbol2 = isolate()->factory()->NewSymbol();
+  DirectHandle<Symbol> symbol2 = isolate()->factory()->NewSymbol();
   CHECK_NE(*symbol, *symbol2);
   const char* stored_symbol2 = storage.GetName(*symbol2);
   CHECK_EQ(stored_symbol, stored_symbol2);
@@ -55,7 +57,8 @@ TEST_F(StringsStorageWithIsolate, GetNameFromSymbol) {
 TEST_F(StringsStorageWithIsolate, GetConsName) {
   StringsStorage storage;
 
-  Handle<String> str = isolate()->factory()->NewStringFromAsciiChecked("xy");
+  DirectHandle<String> str =
+      isolate()->factory()->NewStringFromAsciiChecked("xy");
 
   const char* empty_prefix_str = storage.GetConsName("", *str);
   CHECK(StringEq("xy", empty_prefix_str));
@@ -101,7 +104,8 @@ TEST_F(StringsStorageWithIsolate, Format) {
 TEST_F(StringsStorageWithIsolate, FormatAndGetShareStorage) {
   StringsStorage storage;
 
-  Handle<String> str = isolate()->factory()->NewStringFromAsciiChecked("xy");
+  DirectHandle<String> str =
+      isolate()->factory()->NewStringFromAsciiChecked("xy");
   const char* stored_str = storage.GetName(*str);
 
   const char* formatted_str = storage.GetFormatted("%s", "xy");
@@ -166,7 +170,8 @@ TEST_F(StringsStorageWithIsolate, InvalidRelease) {
 TEST_F(StringsStorageWithIsolate, CopyAndConsShareStorage) {
   StringsStorage storage;
 
-  Handle<String> str = isolate()->factory()->NewStringFromAsciiChecked("foo");
+  DirectHandle<String> str =
+      isolate()->factory()->NewStringFromAsciiChecked("foo");
 
   const char* copy_str = storage.GetCopy("get foo");
   const char* cons_str = storage.GetConsName("get ", *str);

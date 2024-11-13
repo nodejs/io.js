@@ -479,11 +479,17 @@ void BaselineAssembler::StaModuleVariable(Register context, Register value,
   StoreTaggedFieldWithWriteBarrier(context, Cell::kValueOffset, value);
 }
 
-void BaselineAssembler::AddSmi(Register lhs, Tagged<Smi> rhs) {
+void BaselineAssembler::IncrementSmi(MemOperand lhs) {
+  BaselineAssembler::ScratchRegisterScope temps(this);
+  Register tmp = temps.AcquireScratch();
   if (SmiValuesAre31Bits()) {
-    __ Add_w(lhs, lhs, Operand(rhs));
+    __ Ld_w(tmp, lhs);
+    __ Add_w(tmp, tmp, Operand(Smi::FromInt(1)));
+    __ St_w(tmp, lhs);
   } else {
-    __ Add_d(lhs, lhs, Operand(rhs));
+    __ Ld_d(tmp, lhs);
+    __ Add_d(tmp, tmp, Operand(Smi::FromInt(1)));
+    __ St_d(tmp, lhs);
   }
 }
 
@@ -538,7 +544,7 @@ void BaselineAssembler::EmitReturn(MacroAssembler* masm) {
 
   BaselineAssembler::ScratchRegisterScope temps(&basm);
   Register actual_params_size = temps.AcquireScratch();
-  // Compute the size of the actual parameters + receiver (in bytes).
+  // Compute the size of the actual parameters + receiver.
   __ Move(actual_params_size,
           MemOperand(fp, StandardFrameConstants::kArgCOffset));
 
@@ -553,9 +559,8 @@ void BaselineAssembler::EmitReturn(MacroAssembler* masm) {
   // Leave the frame (also dropping the register file).
   __ masm()->LeaveFrame(StackFrame::BASELINE);
 
-  // Drop receiver + arguments.
-  __ masm()->DropArguments(params_size, MacroAssembler::kCountIsInteger,
-                           MacroAssembler::kCountIncludesReceiver);
+  // Drop arguments.
+  __ masm()->DropArguments(params_size);
   __ masm()->Ret();
 }
 

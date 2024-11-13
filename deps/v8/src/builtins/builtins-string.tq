@@ -227,12 +227,28 @@ transitioning javascript builtin StringConstructor(
   if (newTarget == Undefined) {
     return s;
   }
+
+  // We might be creating a string wrapper with a custom @@toPrimitive.
+  if (target != newTarget) {
+    InvalidateStringWrapperToPrimitiveProtector();
+  }
+
   // 4. Return ! StringCreate(s, ? GetPrototypeFromConstructor(NewTarget,
   // "%String.prototype%")).
   const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
   const obj =
       UnsafeCast<JSPrimitiveWrapper>(AllocateFastOrSlowJSObjectFromMap(map));
   obj.value = s;
+  return obj;
+}
+
+javascript builtin StringCreateLazyDeoptContinuation(
+    js-implicit context: NativeContext)(value: JSAny): JSAny {
+  const function = GetStringFunction();
+  const initialMap = UnsafeCast<Map>(function.prototype_or_initial_map);
+  const obj = UnsafeCast<JSPrimitiveWrapper>(
+      AllocateFastOrSlowJSObjectFromMap(initialMap));
+  obj.value = UnsafeCast<String>(value);
   return obj;
 }
 

@@ -147,8 +147,8 @@ TEST_F(CodePagesTest, OptimizedCodeWithCodeRange) {
   RunJS(foo_str.c_str());
   v8::Local<v8::Function> local_foo = v8::Local<v8::Function>::Cast(
       context()->Global()->Get(context(), NewString("foo1")).ToLocalChecked());
-  Handle<JSFunction> foo =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(*local_foo));
+  DirectHandle<JSFunction> foo =
+      Cast<JSFunction>(v8::Utils::OpenDirectHandle(*local_foo));
 
   Tagged<Code> code = foo->code(i_isolate());
   // We don't produce optimized code when run with --no-turbofan and
@@ -190,8 +190,8 @@ TEST_F(CodePagesTest, OptimizedCodeWithCodePages) {
               ->Global()
               ->Get(context(), NewString(foo_name))
               .ToLocalChecked());
-      Handle<JSFunction> foo =
-          Handle<JSFunction>::cast(v8::Utils::OpenHandle(*local_foo));
+      DirectHandle<JSFunction> foo =
+          Cast<JSFunction>(v8::Utils::OpenDirectHandle(*local_foo));
 
       // If there is baseline code, check that it's only due to
       // --always-sparkplug (if this check fails, we'll have to re-think this
@@ -294,10 +294,10 @@ TEST_F(CodePagesTest, LargeCodeObject) {
 
   {
     HandleScope scope(i_isolate());
-    Handle<Code> foo_code =
+    IndirectHandle<Code> foo_code =
         Factory::CodeBuilder(i_isolate(), desc, CodeKind::FOR_TESTING).Build();
-    Handle<InstructionStream> foo_istream(foo_code->instruction_stream(),
-                                          i_isolate());
+    IndirectHandle<InstructionStream> foo_istream(
+        foo_code->instruction_stream(), i_isolate());
 
     EXPECT_TRUE(i_isolate()->heap()->InSpace(*foo_istream, CODE_LO_SPACE));
 
@@ -421,10 +421,10 @@ TEST_F(CodePagesTest, LargeCodeObjectWithSignalHandler) {
 
   {
     HandleScope scope(i_isolate());
-    Handle<Code> foo_code =
+    IndirectHandle<Code> foo_code =
         Factory::CodeBuilder(i_isolate(), desc, CodeKind::FOR_TESTING).Build();
-    Handle<InstructionStream> foo_istream(foo_code->instruction_stream(),
-                                          i_isolate());
+    IndirectHandle<InstructionStream> foo_istream(
+        foo_code->instruction_stream(), i_isolate());
 
     EXPECT_TRUE(i_isolate()->heap()->InSpace(*foo_istream, CODE_LO_SPACE));
 
@@ -497,7 +497,7 @@ TEST_F(CodePagesTest, Sorted) {
   };
   {
     HandleScope outer_scope(i_isolate());
-    Handle<InstructionStream> code1, code3;
+    IndirectHandle<InstructionStream> code1, code3;
     Address code2_address;
 
     code1 =
@@ -512,11 +512,11 @@ TEST_F(CodePagesTest, Sorted) {
 
       // Create three large code objects, we'll delete the middle one and check
       // everything is still sorted.
-      Handle<InstructionStream> code2 =
-          handle(Factory::CodeBuilder(i_isolate(), desc, CodeKind::FOR_TESTING)
-                     .Build()
-                     ->instruction_stream(),
-                 i_isolate());
+      DirectHandle<InstructionStream> code2(
+          Factory::CodeBuilder(i_isolate(), desc, CodeKind::FOR_TESTING)
+              .Build()
+              ->instruction_stream(),
+          i_isolate());
       EXPECT_TRUE(i_isolate()->heap()->InSpace(*code2, CODE_LO_SPACE));
       code3 =
           handle(Factory::CodeBuilder(i_isolate(), desc, CodeKind::FOR_TESTING)

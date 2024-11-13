@@ -178,10 +178,6 @@ into a tarball (b).
     npm install ansi-regex --save-bundle
     ```
 
-    **Note**: If there is a file or folder named `<name>` in the current
-    working directory, then it will try to install that, and only try to
-    fetch the package by name if it is not valid.
-
 * `npm install <alias>@npm:<name>`:
 
     Install a package under a custom alias. Allows multiple versions of

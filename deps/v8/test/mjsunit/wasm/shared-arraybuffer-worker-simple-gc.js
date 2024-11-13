@@ -8,7 +8,7 @@ const kNumIterations = 10;
 
 function NewWorker() {
   function workerCode() {
-    onmessage = (msg) => {
+    onmessage = ({data:msg}) => {
       if (msg.memory) postMessage("ack");
       if (msg.quit) postMessage("bye");
       gc();

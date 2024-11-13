@@ -61,17 +61,17 @@ TEST_F(RuntimeTest, WasmTableWithoutInstance) {
   bool has_maximum = false;
   uint32_t maximum = std::numeric_limits<uint32_t>::max();
   Handle<WasmTableObject> table = WasmTableObject::New(
-      i_isolate(), Handle<WasmInstanceObject>(), wasm::kWasmAnyRef, initial,
-      has_maximum, maximum, i_isolate()->factory()->null_value());
+      i_isolate(), Handle<WasmTrustedInstanceData>(), wasm::kWasmAnyRef,
+      initial, has_maximum, maximum, i_isolate()->factory()->null_value());
   MaybeHandle<JSArray> result =
       Runtime::GetInternalProperties(i_isolate(), table);
   ASSERT_FALSE(result.is_null());
   // ["[[Prototype]]", <map>, "[[Entries]]", <entries>]
   ASSERT_EQ(4, result.ToHandleChecked()->elements()->length());
-  Handle<Object> entries =
+  DirectHandle<Object> entries =
       Object::GetElement(i_isolate(), result.ToHandleChecked(), 3)
           .ToHandleChecked();
-  EXPECT_EQ(1, JSArray::cast(*entries)->elements()->length());
+  EXPECT_EQ(1, Cast<JSArray>(*entries)->elements()->length());
 }
 #endif
 

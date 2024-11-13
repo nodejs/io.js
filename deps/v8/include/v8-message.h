@@ -61,27 +61,6 @@ class ScriptOriginOptions {
  */
 class V8_EXPORT ScriptOrigin {
  public:
-  V8_DEPRECATE_SOON("Use constructor without the isolate.")
-  V8_INLINE ScriptOrigin(Isolate* isolate, Local<Value> resource_name,
-                         int resource_line_offset = 0,
-                         int resource_column_offset = 0,
-                         bool resource_is_shared_cross_origin = false,
-                         int script_id = -1,
-                         Local<Value> source_map_url = Local<Value>(),
-                         bool resource_is_opaque = false, bool is_wasm = false,
-                         bool is_module = false,
-                         Local<Data> host_defined_options = Local<Data>())
-      : resource_name_(resource_name),
-        resource_line_offset_(resource_line_offset),
-        resource_column_offset_(resource_column_offset),
-        options_(resource_is_shared_cross_origin, resource_is_opaque, is_wasm,
-                 is_module),
-        script_id_(script_id),
-        source_map_url_(source_map_url),
-        host_defined_options_(host_defined_options) {
-    VerifyHostDefinedOptions();
-  }
-
   V8_INLINE ScriptOrigin(Local<Value> resource_name,
                          int resource_line_offset = 0,
                          int resource_column_offset = 0,

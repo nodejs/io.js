@@ -4,6 +4,9 @@
 
 #include "src/heap/scavenger.h"
 
+#include <atomic>
+#include <optional>
+
 #include "src/common/globals.h"
 #include "src/handles/global-handles.h"
 #include "src/heap/array-buffer-sweeper.h"
@@ -13,11 +16,12 @@
 #include "src/heap/gc-tracer.h"
 #include "src/heap/heap-inl.h"
 #include "src/heap/heap.h"
+#include "src/heap/large-page-metadata-inl.h"
 #include "src/heap/mark-compact-inl.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/mutable-page-inl.h"
-#include "src/heap/mutable-page.h"
+#include "src/heap/mutable-page-metadata-inl.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/objects-visiting-inl.h"
 #include "src/heap/pretenuring-handler.h"
 #include "src/heap/remembered-set-inl.h"
@@ -70,10 +74,39 @@ class IterateAndScavengePromotedObjectsVisitor final : public ObjectVisitor {
     if (ObjectInYoungGeneration(*key)) {
       // We cannot check the map here, as it might be a large object.
       scavenger_->RememberPromotedEphemeron(
-          EphemeronHashTable::unchecked_cast(obj), entry);
+          UncheckedCast<EphemeronHashTable>(obj), entry);
     } else {
       VisitPointer(obj, key);
     }
+  }
+
+  void VisitExternalPointer(Tagged<HeapObject> host,
+                            ExternalPointerSlot slot) override {
+#ifdef V8_COMPRESS_POINTERS
+    DCHECK_NE(slot.tag(), kExternalPointerNullTag);
+    DCHECK(!IsSharedExternalPointerType(slot.tag()));
+    // TODO(chromium:337580006): Remove when pointer compression always uses
+    // EPT.
+    if (!slot.HasExternalPointerHandle()) return;
+    ExternalPointerHandle handle = slot.Relaxed_LoadHandle();
+    Heap* heap = scavenger_->heap();
+    ExternalPointerTable& table = heap->isolate()->external_pointer_table();
+
+    // For survivor objects, the scavenger marks their EPT entries when they are
+    // copied and then sweeps the young EPT space at the end of collection,
+    // reclaiming unmarked EPT entries.  (Exception: if an incremental mark is
+    // in progress, the scavenger neither marks nor sweeps, as it will be the
+    // major GC's responsibility.)
+    //
+    // However when promoting, we just evacuate the entry from new to old space.
+    // Usually the entry will be unmarked, unless an incremental mark is in
+    // progress, or the slot was initialized since the last GC (external pointer
+    // tags have the mark bit set), in which case it may be marked already.  In
+    // any case, transfer the color from new to old EPT space.
+    table.Evacuate(heap->young_external_pointer_space(),
+                   heap->old_external_pointer_space(), handle, slot.address(),
+                   ExternalPointerTable::EvacuateMarkMode::kTransferMark);
+#endif  // V8_COMPRESS_POINTERS
   }
 
   // Special cases: Unreachable visitors for objects that are never found in the
@@ -167,7 +200,7 @@ class IterateAndScavengePromotedObjectsVisitor final : public ObjectVisitor {
 namespace {
 
 V8_INLINE bool IsUnscavengedHeapObject(Heap* heap, Tagged<Object> object) {
-  return Heap::InFromPage(object) && !HeapObject::cast(object)
+  return Heap::InFromPage(object) && !Cast<HeapObject>(object)
                                           ->map_word(kRelaxedLoad)
                                           .IsForwardingAddress();
 }
@@ -208,6 +241,8 @@ void ScavengerCollector::JobTask::Run(JobDelegate* delegate) {
   // In case multi-cage pointer compression mode is enabled ensure that
   // current thread's cage base values are properly initialized.
   PtrComprCageAccessScope ptr_compr_cage_access_scope(outer_->heap_->isolate());
+
+  outer_->estimate_concurrency_.fetch_add(1, std::memory_order_relaxed);
 
   Scavenger* scavenger = (*scavengers_)[delegate->GetTaskId()].get();
   if (delegate->IsJoiningThread()) {
@@ -257,7 +292,7 @@ void ScavengerCollector::JobTask::ProcessItems(JobDelegate* delegate,
 void ScavengerCollector::JobTask::ConcurrentScavengePages(
     Scavenger* scavenger) {
   while (remaining_memory_chunks_.load(std::memory_order_relaxed) > 0) {
-    base::Optional<size_t> index = generator_.GetNext();
+    std::optional<size_t> index = generator_.GetNext();
     if (!index) return;
     for (size_t i = *index; i < memory_chunks_.size(); ++i) {
       auto& work_item = memory_chunks_[i];
@@ -300,7 +335,7 @@ class GlobalHandlesWeakRootsUpdatingVisitor final : public RootVisitor {
     // Smis.
     if (!Heap::InYoungGeneration(object)) return;
 
-    Tagged<HeapObject> heap_object = HeapObject::cast(object);
+    Tagged<HeapObject> heap_object = Cast<HeapObject>(object);
     // TODO(chromium:1336158): Turn the following CHECKs into DCHECKs after
     // flushing out potential issues.
     CHECK(Heap::InFromPage(heap_object));
@@ -331,6 +366,15 @@ class V8_NODISCARD ScopedFullHeapCrashKey {
 
 void ScavengerCollector::CollectGarbage() {
   ScopedFullHeapCrashKey collect_full_heap_dump_if_crash(isolate_);
+
+  auto* new_space = SemiSpaceNewSpace::From(heap_->new_space());
+  new_space->GarbageCollectionPrologue();
+  new_space->EvacuatePrologue();
+
+  // We also flip the young generation large object space. All large objects
+  // will be in the from space.
+  heap_->new_lo_space()->Flip();
+  heap_->new_lo_space()->ResetPendingObject();
 
   DCHECK(!heap_->allocator()->new_space_allocator()->IsLabValid());
 
@@ -435,7 +479,23 @@ void ScavengerCollector::CollectGarbage() {
       }
       scavengers.clear();
 
+#ifdef V8_COMPRESS_POINTERS
+      // Sweep the external pointer table, unless an incremental mark is in
+      // progress, in which case leave sweeping to the end of the
+      // already-scheduled major GC cycle.  (If we swept here we'd clear EPT
+      // marks that the major marker was using, which would be an error.)
+      DCHECK(heap_->concurrent_marking()->IsStopped());
+      if (!heap_->incremental_marking()->IsMajorMarking()) {
+        heap_->isolate()->external_pointer_table().Sweep(
+            heap_->young_external_pointer_space(),
+            heap_->isolate()->counters());
+      }
+#endif  // V8_COMPRESS_POINTERS
+
       HandleSurvivingNewLargeObjects();
+
+      heap_->tracer()->SampleConcurrencyEsimate(
+          FetchAndResetConcurrencyEstimate());
     }
   }
 
@@ -446,10 +506,7 @@ void ScavengerCollector::CollectGarbage() {
         &Heap::UpdateYoungReferenceInExternalStringTableEntry);
 
     heap_->incremental_marking()->UpdateMarkingWorklistAfterScavenge();
-
-    if (V8_UNLIKELY(v8_flags.track_retaining_path)) {
-      heap_->UpdateRetainersAfterScavenge();
-    }
+    heap_->incremental_marking()->UpdateExternalPointerTableAfterScavenge();
 
     if (V8_UNLIKELY(v8_flags.always_use_string_forwarding_table)) {
       isolate_->string_forwarding_table()->UpdateAfterYoungEvacuation();
@@ -508,10 +565,7 @@ void ScavengerCollector::CollectGarbage() {
 #endif
   }
 
-  {
-    TRACE_GC(heap_->tracer(), GCTracer::Scope::SCAVENGER_SWEEP_ARRAY_BUFFERS);
-    SweepArrayBufferExtensions();
-  }
+  SweepArrayBufferExtensions();
 
   isolate_->global_handles()->UpdateListOfYoungNodes();
   isolate_->traced_handles()->UpdateListOfYoungNodes();
@@ -621,17 +675,6 @@ Scavenger::PromotionList::Local::Local(Scavenger::PromotionList* promotion_list)
       large_object_promotion_list_local_(
           promotion_list->large_object_promotion_list_) {}
 
-namespace {
-MainAllocator* CreateSharedOldAllocator(Heap* heap) {
-  if (v8_flags.shared_string_table && heap->isolate()->has_shared_space()) {
-    return new MainAllocator(heap, heap->shared_allocation_space(),
-                             MainAllocator::kInGC);
-  }
-  return nullptr;
-}
-
-}  // namespace
-
 Scavenger::Scavenger(ScavengerCollector* collector, Heap* heap, bool is_logging,
                      EmptyChunksList* empty_chunks, CopiedList* copied_list,
                      PromotionList* promotion_list,
@@ -645,14 +688,12 @@ Scavenger::Scavenger(ScavengerCollector* collector, Heap* heap, bool is_logging,
       ephemeron_table_list_local_(*ephemeron_table_list),
       pretenuring_handler_(heap_->pretenuring_handler()),
       local_pretenuring_feedback_(PretenuringHandler::kInitialFeedbackCapacity),
-      copied_size_(0),
-      promoted_size_(0),
       allocator_(heap, CompactionSpaceKind::kCompactionSpaceForScavenge),
-      shared_old_allocator_(CreateSharedOldAllocator(heap_)),
       is_logging_(is_logging),
       is_incremental_marking_(heap->incremental_marking()->IsMarking()),
       is_compacting_(heap->incremental_marking()->IsCompacting()),
-      shared_string_table_(shared_old_allocator_ != nullptr),
+      shared_string_table_(v8_flags.shared_string_table &&
+                           heap->isolate()->has_shared_space()),
       mark_shared_heap_(heap->isolate()->is_shared_space_isolate()),
       shortcut_strings_(
           heap->CanShortcutStringsDuringGC(GarbageCollector::SCAVENGER)) {
@@ -678,7 +719,7 @@ void Scavenger::IterateAndScavengePromotedObject(Tagged<HeapObject> target,
 
   if (IsJSArrayBufferMap(map)) {
     DCHECK(!MemoryChunk::FromHeapObject(target)->IsLargePage());
-    JSArrayBuffer::cast(target)->YoungMarkExtensionPromoted();
+    Cast<JSArrayBuffer>(target)->YoungMarkExtensionPromoted();
   }
 }
 
@@ -872,7 +913,6 @@ void Scavenger::Finalize() {
   heap()->IncrementPromotedObjectsSize(promoted_size_);
   collector_->MergeSurvivingNewLargeObjects(surviving_new_large_objects_);
   allocator_.Finalize();
-  if (shared_old_allocator_) shared_old_allocator_->FreeLinearAllocationArea();
   empty_chunks_local_.Publish();
   ephemeron_table_list_local_.Publish();
   for (auto it = ephemeron_remembered_set_.begin();
@@ -944,7 +984,7 @@ void RootScavengeVisitor::ScavengePointer(FullObjectSlot p) {
   DCHECK(!HasWeakHeapObjectTag(object));
   DCHECK(!MapWord::IsPacked(object.ptr()));
   if (Heap::InYoungGeneration(object)) {
-    scavenger_->ScavengeObject(FullHeapObjectSlot(p), HeapObject::cast(object));
+    scavenger_->ScavengeObject(FullHeapObjectSlot(p), Cast<HeapObject>(object));
   }
 }
 

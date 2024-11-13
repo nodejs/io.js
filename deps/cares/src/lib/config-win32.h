@@ -187,6 +187,9 @@
 /* Define if you have the send function. */
 #define HAVE_SEND 1
 
+/* Define if you have the sendto function. */
+#define HAVE_SENDTO 1
+
 /* Define to the type of arg 1 for send. */
 #define SEND_TYPE_ARG1 SOCKET
 
@@ -352,6 +355,9 @@
 #  define HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID 1
 #endif
 
+/* Define to 1 if you have the `RegisterWaitForSingleObject' function. */
+#define HAVE_REGISTERWAITFORSINGLEOBJECT 1
+
 #if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0600) && \
   !defined(__WATCOMC__) && !defined(WATT32)
 /* Define if you have if_nametoindex() */
@@ -362,6 +368,8 @@
 #  define HAVE_CONVERTINTERFACEINDEXTOLUID 1
 /* Define to 1 if you have the `ConvertInterfaceLuidToNameA' function. */
 #  define HAVE_CONVERTINTERFACELUIDTONAMEA 1
+/* Define to 1 if you have the `NotifyIpInterfaceChange' function. */
+#  define HAVE_NOTIFYIPINTERFACECHANGE 1
 #endif
 
 /* ---------------------------------------------------------------- */

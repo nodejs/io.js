@@ -35,11 +35,11 @@
   await gc({ type: 'major', execution: 'async' });
   assertEquals(0, cleanup_call_count);
 
+  // Wait two ticks, so that the finalization registry cleanup has an
+  // opportunity to both run and re-post itself.
+  await new Promise(resolve=>setTimeout(resolve, 0));
+  await new Promise(resolve=>setTimeout(resolve, 0));
+
   // Assert that the cleanup function was called.
-  let timeout_func = function () {
-    assertEquals(2, cleanup_call_count);
-  }
-
-  setTimeout(timeout_func, 0);
-
+  assertEquals(2, cleanup_call_count);
 })();

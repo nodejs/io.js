@@ -150,7 +150,8 @@ bool ConcurrentMarkingVisitor::DeferTraceToMutatorThreadIfConcurrent(
   marking_state_.concurrent_marking_bailout_worklist().Push(
       {parameter, callback, deferred_size});
   static_cast<ConcurrentMarkingState&>(marking_state_)
-      .AccountDeferredMarkedBytes(deferred_size);
+      .AccountDeferredMarkedBytes(
+          BasePage::FromPayload(const_cast<void*>(parameter)), deferred_size);
   return true;
 }
 

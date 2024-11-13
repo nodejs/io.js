@@ -37,7 +37,7 @@ void CreateFixedArray(Heap* heap, Address start, int size) {
   Tagged<HeapObject> object = HeapObject::FromAddress(start);
   object->set_map_after_allocation(ReadOnlyRoots(heap).fixed_array_map(),
                                    SKIP_WRITE_BARRIER);
-  Tagged<FixedArray> array = FixedArray::cast(object);
+  Tagged<FixedArray> array = Cast<FixedArray>(object);
   int length = (size - FixedArray::kHeaderSize) / kTaggedSize;
   array->set_length(length);
   MemsetTagged(array->RawFieldOfFirstElement(),
@@ -158,20 +158,19 @@ UNINITIALIZED_TEST(ConcurrentAllocationWhileMainThreadIsParked) {
   std::vector<std::unique_ptr<ConcurrentAllocationThread>> threads;
   const int kThreads = 4;
 
-  {
-    ParkedScope scope(i_isolate->main_thread_local_isolate());
+  i_isolate->main_thread_local_isolate()->ExecuteMainThreadWhileParked(
+      [i_isolate, &threads]() {
+        for (int i = 0; i < kThreads; i++) {
+          auto thread =
+              std::make_unique<ConcurrentAllocationThread>(i_isolate->heap());
+          CHECK(thread->Start());
+          threads.push_back(std::move(thread));
+        }
 
-    for (int i = 0; i < kThreads; i++) {
-      auto thread =
-          std::make_unique<ConcurrentAllocationThread>(i_isolate->heap());
-      CHECK(thread->Start());
-      threads.push_back(std::move(thread));
-    }
-
-    for (auto& thread : threads) {
-      thread->Join();
-    }
-  }
+        for (auto& thread : threads) {
+          thread->Join();
+        }
+      });
 
   isolate->Dispose();
 }
@@ -206,16 +205,16 @@ UNINITIALIZED_TEST(ConcurrentAllocationWhileMainThreadParksAndUnparks) {
     }
 
     for (int i = 0; i < 300'000; i++) {
-      ParkedScope scope(i_isolate->main_thread_local_isolate());
+      i_isolate->main_thread_local_isolate()->ExecuteMainThreadWhileParked(
+          []() { /* nothing */ });
     }
 
-    {
-      ParkedScope scope(i_isolate->main_thread_local_isolate());
-
-      for (auto& thread : threads) {
-        thread->Join();
-      }
-    }
+    i_isolate->main_thread_local_isolate()->ExecuteMainThreadWhileParked(
+        [&threads]() {
+          for (auto& thread : threads) {
+            thread->Join();
+          }
+        });
   }
 
   isolate->Dispose();
@@ -256,13 +255,12 @@ UNINITIALIZED_TEST(ConcurrentAllocationWhileMainThreadRunsWithSafepoints) {
       i_isolate->main_thread_local_heap()->Safepoint();
     }
 
-    {
-      ParkedScope scope(i_isolate->main_thread_local_isolate());
-
-      for (auto& thread : threads) {
-        thread->Join();
-      }
-    }
+    i_isolate->main_thread_local_isolate()->ExecuteMainThreadWhileParked(
+        [&threads]() {
+          for (auto& thread : threads) {
+            thread->Join();
+          }
+        });
   }
 
   i_isolate->main_thread_local_heap()->Safepoint();
@@ -354,9 +352,10 @@ class ConcurrentBlackAllocationThread final : public v8::base::Thread {
 
     for (int i = 0; i < kNumIterations; i++) {
       if (i == kWhiteIterations) {
-        ParkedScope scope(&local_heap);
-        sema_white_->Signal();
-        sema_marking_started_->Wait();
+        local_heap.ExecuteWhileParked([this]() {
+          sema_white_->Signal();
+          sema_marking_started_->Wait();
+        });
       }
       Address address = local_heap.AllocateRawOrFail(
           kSmallObjectSize, AllocationType::kOld, AllocationOrigin::kRuntime,
@@ -458,9 +457,9 @@ UNINITIALIZED_TEST(ConcurrentWriteBarrier) {
     Tagged<HeapObject> value;
     {
       HandleScope handle_scope(i_isolate);
-      Handle<FixedArray> fixed_array_handle(
+      DirectHandle<FixedArray> fixed_array_handle(
           i_isolate->factory()->NewFixedArray(1));
-      Handle<HeapNumber> value_handle(
+      DirectHandle<HeapNumber> value_handle(
           i_isolate->factory()->NewHeapNumber<AllocationType::kOld>(1.1));
       fixed_array = *fixed_array_handle;
       value = *value_handle;
@@ -555,7 +554,7 @@ UNINITIALIZED_TEST(ConcurrentRecordRelocSlot) {
       // Globalize the handle for |code| for the incremental marker to mark it.
       i_isolate->global_handles()->Create(*code_handle.location());
       heap::AbandonCurrentlyFreeMemory(heap->old_space());
-      Handle<HeapNumber> value_handle(
+      DirectHandle<HeapNumber> value_handle(
           i_isolate->factory()->NewHeapNumber<AllocationType::kOld>(1.1));
       heap::ForceEvacuationCandidate(
           PageMetadata::FromHeapObject(*value_handle));

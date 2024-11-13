@@ -41,7 +41,8 @@ class PropertyCell
 
   // Changes the value and/or property details.
   // For global properties:
-  inline void Transition(PropertyDetails new_details, Handle<Object> new_value);
+  inline void Transition(PropertyDetails new_details,
+                         DirectHandle<Object> new_value);
   // For protectors:
   void InvalidateProtector();
 
@@ -58,14 +59,14 @@ class PropertyCell
   // that value.  As a result the old cell could be invalidated and/or dependent
   // code could be deoptimized. Returns the (possibly new) property cell.
   static Handle<PropertyCell> PrepareForAndSetValue(
-      Isolate* isolate, Handle<GlobalDictionary> dictionary,
-      InternalIndex entry, Handle<Object> value, PropertyDetails details);
+      Isolate* isolate, DirectHandle<GlobalDictionary> dictionary,
+      InternalIndex entry, DirectHandle<Object> value, PropertyDetails details);
 
   void ClearAndInvalidate(ReadOnlyRoots roots);
   static Handle<PropertyCell> InvalidateAndReplaceEntry(
-      Isolate* isolate, Handle<GlobalDictionary> dictionary,
+      Isolate* isolate, DirectHandle<GlobalDictionary> dictionary,
       InternalIndex entry, PropertyDetails new_details,
-      Handle<Object> new_value);
+      DirectHandle<Object> new_value);
 
   // Whether or not the {details} and {value} fit together. This is an
   // approximation with false positives.

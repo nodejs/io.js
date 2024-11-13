@@ -32,7 +32,6 @@ const assert = require('assert');
 const child = require('child_process');
 const path = require('path');
 const fixtures = require('../common/fixtures');
-const nodejs = `"${process.execPath}"`;
 
 if (process.argv.length > 2) {
   console.log(process.argv.slice(2).join(' '));
@@ -40,13 +39,13 @@ if (process.argv.length > 2) {
 }
 
 // Assert that nothing is written to stdout.
-child.exec(`${nodejs} --eval 42`, common.mustSucceed((stdout, stderr) => {
+child.exec(...common.escapePOSIXShell`"${process.execPath}" --eval 42`, common.mustSucceed((stdout, stderr) => {
   assert.strictEqual(stdout, '');
   assert.strictEqual(stderr, '');
 }));
 
 // Assert that "42\n" is written to stderr.
-child.exec(`${nodejs} --eval "console.error(42)"`,
+child.exec(...common.escapePOSIXShell`"${process.execPath}" --eval "console.error(42)"`,
            common.mustSucceed((stdout, stderr) => {
              assert.strictEqual(stdout, '');
              assert.strictEqual(stderr, '42\n');
@@ -54,14 +53,14 @@ child.exec(`${nodejs} --eval "console.error(42)"`,
 
 // Assert that the expected output is written to stdout.
 ['--print', '-p -e', '-pe', '-p'].forEach((s) => {
-  const cmd = `${nodejs} ${s} `;
+  const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" ${s}`;
 
-  child.exec(`${cmd}42`, common.mustSucceed((stdout, stderr) => {
+  child.exec(`${cmd} 42`, opts, common.mustSucceed((stdout, stderr) => {
     assert.strictEqual(stdout, '42\n');
     assert.strictEqual(stderr, '');
   }));
 
-  child.exec(`${cmd} '[]'`, common.mustSucceed((stdout, stderr) => {
+  child.exec(`${cmd} '[]'`, opts, common.mustSucceed((stdout, stderr) => {
     assert.strictEqual(stdout, '[]\n');
     assert.strictEqual(stderr, '');
   }));
@@ -69,29 +68,26 @@ child.exec(`${nodejs} --eval "console.error(42)"`,
 
 // Assert that module loading works.
 {
-  // Replace \ by / because Windows uses backslashes in paths, but they're still
-  // interpreted as the escape character when put between quotes.
-  const filename = __filename.replace(/\\/g, '/');
-
-  child.exec(`${nodejs} --eval "require('${filename}')"`,
-             common.mustCall((err, stdout, stderr) => {
-               assert.strictEqual(err.code, 42);
-               assert.strictEqual(
-                 stdout, 'Loaded as a module, exiting with status code 42.\n');
-               assert.strictEqual(stderr, '');
-             }));
+  common.spawnPromisified(process.execPath, ['--eval', `require(${JSON.stringify(__filename)})`])
+    .then(common.mustCall(({ stdout, stderr, code }) => {
+      assert.strictEqual(stderr, '');
+      assert.strictEqual(
+        stdout, 'Loaded as a module, exiting with status code 42.\n');
+      assert.strictEqual(code, 42);
+    }));
 }
 
 // Check that builtin modules are pre-defined.
-child.exec(`${nodejs} --print "os.platform()"`,
+child.exec(...common.escapePOSIXShell`"${process.execPath}" --print "os.platform()"`,
            common.mustSucceed((stdout, stderr) => {
              assert.strictEqual(stderr, '');
              assert.strictEqual(stdout.trim(), require('os').platform());
            }));
 
 // Module path resolve bug regression test.
-child.exec(`${nodejs} --eval "require('./test/parallel/test-cli-eval.js')"`,
-           { cwd: path.resolve(__dirname, '../../') },
+const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" --eval "require('./test/parallel/test-cli-eval.js')"`;
+child.exec(cmd,
+           { ...opts, cwd: path.resolve(__dirname, '../../') },
            common.mustCall((err, stdout, stderr) => {
              assert.strictEqual(err.code, 42);
              assert.strictEqual(
@@ -100,7 +96,7 @@ child.exec(`${nodejs} --eval "require('./test/parallel/test-cli-eval.js')"`,
            }));
 
 // Missing argument should not crash.
-child.exec(`${nodejs} -e`, common.mustCall((err, stdout, stderr) => {
+child.exec(...common.escapePOSIXShell`"${process.execPath}" -e`, common.mustCall((err, stdout, stderr) => {
   assert.strictEqual(err.code, 9);
   assert.strictEqual(stdout, '');
   assert.strictEqual(stderr.trim(),
@@ -108,18 +104,18 @@ child.exec(`${nodejs} -e`, common.mustCall((err, stdout, stderr) => {
 }));
 
 // Empty program should do nothing.
-child.exec(`${nodejs} -e ""`, common.mustSucceed((stdout, stderr) => {
+child.exec(...common.escapePOSIXShell`"${process.execPath}" -e ""`, common.mustSucceed((stdout, stderr) => {
   assert.strictEqual(stdout, '');
   assert.strictEqual(stderr, '');
 }));
 
 // "\\-42" should be interpreted as an escaped expression, not a switch.
-child.exec(`${nodejs} -p "\\-42"`, common.mustSucceed((stdout, stderr) => {
+child.exec(...common.escapePOSIXShell`"${process.execPath}" -p "\\-42"`, common.mustSucceed((stdout, stderr) => {
   assert.strictEqual(stdout, '-42\n');
   assert.strictEqual(stderr, '');
 }));
 
-child.exec(`${nodejs} --use-strict -p process.execArgv`,
+child.exec(...common.escapePOSIXShell`"${process.execPath}" --use-strict -p process.execArgv`,
            common.mustSucceed((stdout, stderr) => {
              assert.strictEqual(
                stdout, "[ '--use-strict', '-p', 'process.execArgv' ]\n"
@@ -129,26 +125,26 @@ child.exec(`${nodejs} --use-strict -p process.execArgv`,
 
 // Regression test for https://github.com/nodejs/node/issues/3574.
 {
-  let emptyFile = fixtures.path('empty.js');
-  if (common.isWindows) {
-    emptyFile = emptyFile.replace(/\\/g, '\\\\');
-  }
+  const emptyFile = fixtures.path('empty.js');
 
-  child.exec(`${nodejs} -e 'require("child_process").fork("${emptyFile}")'`,
-             common.mustSucceed((stdout, stderr) => {
-               assert.strictEqual(stdout, '');
-               assert.strictEqual(stderr, '');
-             }));
+  common.spawnPromisified(process.execPath, ['-e', `require("child_process").fork(${JSON.stringify(emptyFile)})`])
+    .then(common.mustCall(({ stdout, stderr, code }) => {
+      assert.strictEqual(stdout, '');
+      assert.strictEqual(stderr, '');
+      assert.strictEqual(code, 0);
+    }));
 
   // Make sure that monkey-patching process.execArgv doesn't cause child_process
   // to incorrectly munge execArgv.
-  child.exec(
-    `${nodejs} -e "process.execArgv = ['-e', 'console.log(42)', 'thirdArg'];` +
-                  `require('child_process').fork('${emptyFile}')"`,
-    common.mustSucceed((stdout, stderr) => {
-      assert.strictEqual(stdout, '42\n');
-      assert.strictEqual(stderr, '');
-    }));
+  common.spawnPromisified(process.execPath, [
+    '-e',
+    'process.execArgv = [\'-e\', \'console.log(42)\', \'thirdArg\'];' +
+      `require('child_process').fork(${JSON.stringify(emptyFile)})`,
+  ]).then(common.mustCall(({ stdout, stderr, code }) => {
+    assert.strictEqual(stdout, '42\n');
+    assert.strictEqual(stderr, '');
+    assert.strictEqual(code, 0);
+  }));
 }
 
 // Regression test for https://github.com/nodejs/node/issues/8534.
@@ -192,32 +188,34 @@ child.exec(`${nodejs} --use-strict -p process.execArgv`,
 ].forEach(function(args) {
 
   // Ensure that arguments are successfully passed to eval.
-  const opt = ' --eval "console.log(process.argv.slice(1).join(\' \'))"';
-  const cmd = `${nodejs}${opt} -- ${args}`;
-  child.exec(cmd, common.mustCall(function(err, stdout, stderr) {
-    assert.strictEqual(stdout, `${args}\n`);
-    assert.strictEqual(stderr, '');
-    assert.strictEqual(err, null);
-  }));
+  child.exec(
+    ...common.escapePOSIXShell`"${process.execPath}" --eval "console.log(process.argv.slice(1).join(' '))" -- ${args}`,
+    common.mustCall(function(err, stdout, stderr) {
+      assert.strictEqual(stdout, `${args}\n`);
+      assert.strictEqual(stderr, '');
+      assert.strictEqual(err, null);
+    })
+  );
 
   // Ensure that arguments are successfully passed to print.
-  const popt = ' --print "process.argv.slice(1).join(\' \')"';
-  const pcmd = `${nodejs}${popt} -- ${args}`;
-  child.exec(pcmd, common.mustCall(function(err, stdout, stderr) {
-    assert.strictEqual(stdout, `${args}\n`);
-    assert.strictEqual(stderr, '');
-    assert.strictEqual(err, null);
-  }));
+  child.exec(
+    ...common.escapePOSIXShell`"${process.execPath}" --print "process.argv.slice(1).join(' ')" -- ${args}`,
+    common.mustCall(function(err, stdout, stderr) {
+      assert.strictEqual(stdout, `${args}\n`);
+      assert.strictEqual(stderr, '');
+      assert.strictEqual(err, null);
+    })
+  );
 
   // Ensure that arguments are successfully passed to a script.
   // The first argument after '--' should be interpreted as a script
   // filename.
-  const filecmd = `${nodejs} -- "${__filename}" ${args}`;
-  child.exec(filecmd, common.mustCall(function(err, stdout, stderr) {
-    assert.strictEqual(stdout, `${args}\n`);
-    assert.strictEqual(stderr, '');
-    assert.strictEqual(err, null);
-  }));
+  child.exec(...common.escapePOSIXShell`"${process.execPath}" -- "${__filename}" ${args}`,
+             common.mustCall(function(err, stdout, stderr) {
+               assert.strictEqual(stdout, `${args}\n`);
+               assert.strictEqual(stderr, '');
+               assert.strictEqual(err, null);
+             }));
 });
 
 // ESModule eval tests
@@ -226,14 +224,14 @@ child.exec(`${nodejs} --use-strict -p process.execArgv`,
 // Assert that "42\n" is written to stdout on module eval.
 const execOptions = '--input-type module';
 child.exec(
-  `${nodejs} ${execOptions} --eval "console.log(42)"`,
+  ...common.escapePOSIXShell`"${process.execPath}" ${execOptions} --eval "console.log(42)"`,
   common.mustSucceed((stdout) => {
     assert.strictEqual(stdout, '42\n');
   }));
 
 // Assert that "42\n" is written to stdout with print option.
 child.exec(
-  `${nodejs} ${execOptions} --print --eval "42"`,
+  ...common.escapePOSIXShell`"${process.execPath}" ${execOptions} --print --eval "42"`,
   common.mustCall((err, stdout, stderr) => {
     assert.ok(err);
     assert.strictEqual(stdout, '');
@@ -242,7 +240,7 @@ child.exec(
 
 // Assert that error is written to stderr on invalid input.
 child.exec(
-  `${nodejs} ${execOptions} --eval "!!!!"`,
+  ...common.escapePOSIXShell`"${process.execPath}" ${execOptions} --eval "!!!!"`,
   common.mustCall((err, stdout, stderr) => {
     assert.ok(err);
     assert.strictEqual(stdout, '');
@@ -251,100 +249,95 @@ child.exec(
 
 // Assert that require is undefined in ESM support
 child.exec(
-  `${nodejs} ${execOptions} --eval "console.log(typeof require);"`,
+  ...common.escapePOSIXShell`"${process.execPath}" ${execOptions} --eval "console.log(typeof require);"`,
   common.mustSucceed((stdout) => {
     assert.strictEqual(stdout, 'undefined\n');
   }));
 
 // Assert that import.meta is defined in ESM
 child.exec(
-  `${nodejs} ${execOptions} --eval "console.log(typeof import.meta);"`,
+  ...common.escapePOSIXShell`"${process.execPath}" ${execOptions} --eval "console.log(typeof import.meta);"`,
   common.mustSucceed((stdout) => {
     assert.strictEqual(stdout, 'object\n');
   }));
 
+{
 // Assert that packages can be imported cwd-relative with --eval
-child.exec(
-  `${nodejs} ${execOptions} ` +
-  '--eval "import \'./test/fixtures/es-modules/mjs-file.mjs\'"',
-  common.mustSucceed((stdout) => {
-    assert.strictEqual(stdout, '.mjs file\n');
-  }));
+  const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" ${execOptions} --eval`;
+  const options = { ...opts, cwd: path.join(__dirname, '../..') };
+  child.exec(
+    `${cmd} "import './test/fixtures/es-modules/mjs-file.mjs'"`,
+    options,
+    common.mustSucceed((stdout) => {
+      assert.strictEqual(stdout, '.mjs file\n');
+    }));
 
 
-// Assert that packages can be dynamic imported initial cwd-relative with --eval
-child.exec(
-  `${nodejs} ${execOptions} ` +
-  '--eval "process.chdir(\'..\');' +
+  // Assert that packages can be dynamic imported initial cwd-relative with --eval
+  child.exec(
+    cmd + ' "process.chdir(\'..\');' +
           'import(\'./test/fixtures/es-modules/mjs-file.mjs\')"',
-  common.mustSucceed((stdout) => {
-    assert.strictEqual(stdout, '.mjs file\n');
-  }));
+    options,
+    common.mustSucceed((stdout) => {
+      assert.strictEqual(stdout, '.mjs file\n');
+    }));
 
-child.exec(
-  `${nodejs} ` +
-  '--eval "process.chdir(\'..\');' +
+  child.exec(
+    cmd + ' "process.chdir(\'..\');' +
           'import(\'./test/fixtures/es-modules/mjs-file.mjs\')"',
-  common.mustSucceed((stdout) => {
-    assert.strictEqual(stdout, '.mjs file\n');
-  }));
+    options,
+    common.mustSucceed((stdout) => {
+      assert.strictEqual(stdout, '.mjs file\n');
+    }));
+}
 
 if (common.hasCrypto) {
   // Assert that calls to crypto utils work without require.
   child.exec(
-    `${nodejs} ` +
-      '-e "console.log(crypto.randomBytes(16).toString(\'hex\'))"',
+    ...common.escapePOSIXShell`"${process.execPath}" -e "console.log(crypto.randomBytes(16).toString('hex'))"`,
     common.mustSucceed((stdout) => {
       assert.match(stdout, /[0-9a-f]{32}/i);
     }));
   child.exec(
-    `${nodejs} ` +
-      '-p "crypto.randomBytes(16).toString(\'hex\')"',
+    ...common.escapePOSIXShell`"${process.execPath}" -p "crypto.randomBytes(16).toString('hex')"`,
     common.mustSucceed((stdout) => {
       assert.match(stdout, /[0-9a-f]{32}/i);
     }));
 }
 // Assert that overriding crypto works.
 child.exec(
-  `${nodejs} ` +
-      '-p "crypto=Symbol(\'test\')"',
+  ...common.escapePOSIXShell`"${process.execPath}" -p "crypto=Symbol('test')"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /Symbol\(test\)/i);
   }));
 child.exec(
-  `${nodejs} ` +
-    '-e "crypto = {};console.log(\'randomBytes\', typeof crypto.randomBytes)"',
+  ...common.escapePOSIXShell`"${process.execPath}" -e "crypto = {};console.log('randomBytes', typeof crypto.randomBytes)"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /randomBytes\sundefined/);
   }));
 // Assert that overriding crypto with a local variable works.
 child.exec(
-  `${nodejs} ` +
-    '-e "const crypto = {};console.log(\'randomBytes\', typeof crypto.randomBytes)"',
+  ...common.escapePOSIXShell`"${process.execPath}" -e "const crypto = {};console.log('randomBytes', typeof crypto.randomBytes)"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /randomBytes\sundefined/);
   }));
 child.exec(
-  `${nodejs} ` +
-    '-e "let crypto = {};console.log(\'randomBytes\', typeof crypto.randomBytes)"',
+  ...common.escapePOSIXShell`"${process.execPath}" -e "let crypto = {};console.log('randomBytes', typeof crypto.randomBytes)"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /randomBytes\sundefined/);
   }));
 child.exec(
-  `${nodejs} ` +
-    '-e "var crypto = {};console.log(\'randomBytes\', typeof crypto.randomBytes)"',
+  ...common.escapePOSIXShell`"${process.execPath}" -e "var crypto = {};console.log('randomBytes', typeof crypto.randomBytes)"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /randomBytes\sundefined/);
   }));
 child.exec(
-  `${nodejs} ` +
-    '-p "const crypto = {randomBytes:1};typeof crypto.randomBytes"',
+  ...common.escapePOSIXShell`"${process.execPath}" -p "const crypto = {randomBytes:1};typeof crypto.randomBytes"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /^number/);
   }));
 child.exec(
-  `${nodejs} ` +
-    '-p "let crypto = {randomBytes:1};typeof crypto.randomBytes"',
+  ...common.escapePOSIXShell`"${process.execPath}" -p "let crypto = {randomBytes:1};typeof crypto.randomBytes"`,
   common.mustSucceed((stdout) => {
     assert.match(stdout, /^number/);
   }));

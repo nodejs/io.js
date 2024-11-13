@@ -5,6 +5,8 @@
 #ifndef V8_COMPILER_JS_CREATE_LOWERING_H_
 #define V8_COMPILER_JS_CREATE_LOWERING_H_
 
+#include <optional>
+
 #include "src/base/compiler-specific.h"
 #include "src/common/globals.h"
 #include "src/compiler/graph-reducer.h"
@@ -81,6 +83,7 @@ class V8_EXPORT_PRIVATE JSCreateLowering final
       ElementsKind elements_kind, AllocationType allocation,
       const SlackTrackingPrediction& slack_tracking_prediction);
   Reduction ReduceJSCreateObject(Node* node);
+  Reduction ReduceJSCreateStringWrapper(Node* node);
 
   // The following functions all return nullptr iff there are too many arguments
   // for inline allocation.
@@ -96,12 +99,12 @@ class V8_EXPORT_PRIVATE JSCreateLowering final
                                     Node* arguments_length,
                                     SharedFunctionInfoRef shared,
                                     bool* has_aliased_arguments);
-  base::Optional<Node*> TryAllocateFastLiteral(Node* effect, Node* control,
-                                               JSObjectRef boilerplate,
-                                               AllocationType allocation,
-                                               int max_depth,
-                                               int* max_properties);
-  base::Optional<Node*> TryAllocateFastLiteralElements(
+  std::optional<Node*> TryAllocateFastLiteral(Node* effect, Node* control,
+                                              JSObjectRef boilerplate,
+                                              AllocationType allocation,
+                                              int max_depth,
+                                              int* max_properties);
+  std::optional<Node*> TryAllocateFastLiteralElements(
       Node* effect, Node* control, JSObjectRef boilerplate,
       AllocationType allocation, int max_depth, int* max_properties);
 

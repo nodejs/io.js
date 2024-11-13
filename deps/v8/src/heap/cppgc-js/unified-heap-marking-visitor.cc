@@ -136,7 +136,9 @@ bool ConcurrentUnifiedHeapMarkingVisitor::DeferTraceToMutatorThreadIfConcurrent(
   marking_state_.concurrent_marking_bailout_worklist().Push(
       {parameter, callback, deferred_size});
   static_cast<cppgc::internal::ConcurrentMarkingState&>(marking_state_)
-      .AccountDeferredMarkedBytes(deferred_size);
+      .AccountDeferredMarkedBytes(
+          cppgc::internal::BasePage::FromPayload(const_cast<void*>(parameter)),
+          deferred_size);
   return true;
 }
 

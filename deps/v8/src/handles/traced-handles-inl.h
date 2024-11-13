@@ -21,22 +21,24 @@ TracedNode* TracedNodeBlock::AllocateNode() {
   return node;
 }
 
-TracedNode* TracedHandles::AllocateNode() {
+std::pair<TracedNodeBlock*, TracedNode*> TracedHandles::AllocateNode() {
   if (V8_UNLIKELY(usable_blocks_.empty())) {
     RefillUsableNodeBlocks();
   }
   TracedNodeBlock* block = usable_blocks_.Front();
   auto* node = block->AllocateNode();
+  DCHECK(node->IsMetadataCleared());
   if (V8_UNLIKELY(block->IsFull())) {
     usable_blocks_.Remove(block);
   }
   used_nodes_++;
-  return node;
+  return std::make_pair(block, node);
 }
 
 bool TracedHandles::NeedsTrackingInYoungNodes(Tagged<Object> object,
                                               TracedNode* node) const {
-  return ObjectInYoungGeneration(object) && !node->is_in_young_list();
+  DCHECK(!node->is_in_young_list());
+  return ObjectInYoungGeneration(object);
 }
 
 CppHeap* TracedHandles::GetCppHeapIfUnifiedYoungGC(Isolate* isolate) const {
@@ -87,24 +89,12 @@ FullObjectSlot TracedNode::Publish(Tagged<Object> object,
                                    bool needs_young_bit_update,
                                    bool needs_black_allocation,
                                    bool has_old_host, bool is_droppable_value) {
-  DCHECK(!is_in_use());
-  DCHECK(!is_weak());
-  DCHECK(!markbit());
-  DCHECK(!is_droppable());
-  if (needs_young_bit_update) {
-    set_is_in_young_list(true);
-  }
-  if (needs_black_allocation) {
-    set_markbit();
-  }
-  if (has_old_host) {
-    DCHECK(is_in_young_list());
-    set_has_old_host(true);
-  }
-  if (is_droppable_value) {
-    set_droppable(true);
-  }
-  set_is_in_use(true);
+  DCHECK(IsMetadataCleared());
+
+  flags_ = needs_young_bit_update << IsInYoungList::kShift |
+           has_old_host << HasOldHost::kShift |
+           is_droppable_value << IsDroppable::kShift | 1 << IsInUse::kShift;
+  if (needs_black_allocation) set_markbit();
   reinterpret_cast<std::atomic<Address>*>(&object_)->store(
       object.ptr(), std::memory_order_release);
   return FullObjectSlot(&object_);
@@ -115,7 +105,7 @@ FullObjectSlot TracedHandles::Create(
     TracedReferenceHandling reference_handling) {
   DCHECK_NOT_NULL(slot);
   Tagged<Object> object(value);
-  auto* node = AllocateNode();
+  auto [block, node] = AllocateNode();
   const bool needs_young_bit_update = NeedsTrackingInYoungNodes(object, node);
   const bool has_old_host = NeedsToBeRemembered(object, node, slot, store_mode);
   const bool needs_black_allocation =
@@ -127,8 +117,10 @@ FullObjectSlot TracedHandles::Create(
                     has_old_host, is_droppable);
   // Write barrier and young node tracking may be reordered, so move them below
   // `Publish()`.
-  if (needs_young_bit_update) {
-    young_nodes_.push_back(node);
+  if (needs_young_bit_update && !block->InYoungList()) {
+    young_blocks_.PushFront(block);
+    block->SetInYoungList(true);
+    DCHECK(block->InYoungList());
   }
   if (needs_black_allocation) {
     WriteBarrier::MarkingFromGlobalHandle(object);

@@ -288,7 +288,7 @@ FSReqBase* GetReqWrap(const v8::FunctionCallbackInfo<v8::Value>& args,
                       bool use_bigint) {
   v8::Local<v8::Value> value = args[index];
   if (value->IsObject()) {
-    return Unwrap<FSReqBase>(value.As<v8::Object>());
+    return BaseObject::Unwrap<FSReqBase>(value.As<v8::Object>());
   }
 
   Realm* realm = Realm::GetCurrent(args);

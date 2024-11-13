@@ -18,6 +18,7 @@ class ArboristCmd extends BaseCommand {
 
   static workspaces = true
   static ignoreImplicitWorkspace = false
+  static checkDevEngines = true
 
   constructor (npm) {
     super(npm)

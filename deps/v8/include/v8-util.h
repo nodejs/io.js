@@ -182,7 +182,7 @@ class PersistentValueMapBase {
    */
   Local<V> Get(const K& key) {
     V* p = FromVal(Traits::Get(&impl_, key));
-#ifdef V8_ENABLE_DIRECT_LOCAL
+#ifdef V8_ENABLE_DIRECT_HANDLE
     if (p == nullptr) return Local<V>();
 #endif
     return Local<V>::New(isolate_, p);
@@ -542,122 +542,6 @@ class StdGlobalValueMap : public GlobalValueMap<K, V, Traits> {
  public:
   explicit StdGlobalValueMap(Isolate* isolate)
       : GlobalValueMap<K, V, Traits>(isolate) {}
-};
-
-class DefaultPersistentValueVectorTraits {
- public:
-  typedef std::vector<PersistentContainerValue> Impl;
-
-  static void Append(Impl* impl, PersistentContainerValue value) {
-    impl->push_back(value);
-  }
-  static bool IsEmpty(const Impl* impl) {
-    return impl->empty();
-  }
-  static size_t Size(const Impl* impl) {
-    return impl->size();
-  }
-  static PersistentContainerValue Get(const Impl* impl, size_t i) {
-    return (i < impl->size()) ? impl->at(i) : kPersistentContainerNotFound;
-  }
-  static void ReserveCapacity(Impl* impl, size_t capacity) {
-    impl->reserve(capacity);
-  }
-  static void Clear(Impl* impl) {
-    impl->clear();
-  }
-};
-
-/**
- * A vector wrapper that safely stores Global values.
- * C++11 embedders don't need this class, as they can use Global
- * directly in std containers.
- *
- * This class relies on a backing vector implementation, whose type and methods
- * are described by the Traits class. The backing map will handle values of type
- * PersistentContainerValue, with all conversion into and out of V8
- * handles being transparently handled by this class.
- */
-template <typename V, typename Traits = DefaultPersistentValueVectorTraits>
-class V8_DEPRECATE_SOON("Use std::vector<Global<V>>.") PersistentValueVector {
- public:
-  explicit PersistentValueVector(Isolate* isolate) : isolate_(isolate) { }
-
-  ~PersistentValueVector() {
-    Clear();
-  }
-
-  /**
-   * Append a value to the vector.
-   */
-  void Append(Local<V> value) {
-    Global<V> persistent(isolate_, value);
-    Traits::Append(&impl_, ClearAndLeak(&persistent));
-  }
-
-  /**
-   * Append a persistent's value to the vector.
-   */
-  void Append(Global<V> persistent) {
-    Traits::Append(&impl_, ClearAndLeak(&persistent));
-  }
-
-  /**
-   * Are there any values in the vector?
-   */
-  bool IsEmpty() const {
-    return Traits::IsEmpty(&impl_);
-  }
-
-  /**
-   * How many elements are in the vector?
-   */
-  size_t Size() const {
-    return Traits::Size(&impl_);
-  }
-
-  /**
-   * Retrieve the i-th value in the vector.
-   */
-  Local<V> Get(size_t index) const {
-    return Local<V>::New(isolate_, internal::ValueHelper::SlotAsValue<V>(
-                                       Traits::Get(&impl_, index)));
-  }
-
-  /**
-   * Remove all elements from the vector.
-   */
-  void Clear() {
-    size_t length = Traits::Size(&impl_);
-    for (size_t i = 0; i < length; i++) {
-      Global<V> p;
-      p.slot() = reinterpret_cast<internal::Address>(Traits::Get(&impl_, i));
-    }
-    Traits::Clear(&impl_);
-  }
-
-  /**
-   * Reserve capacity in the vector.
-   * (Efficiency gains depend on the backing implementation.)
-   */
-  void ReserveCapacity(size_t capacity) {
-    Traits::ReserveCapacity(&impl_, capacity);
-  }
-
- private:
-  static PersistentContainerValue ClearAndLeak(Global<V>* persistent) {
-    auto slot = persistent->slot();
-    persistent->Clear();
-    return reinterpret_cast<PersistentContainerValue>(slot);
-  }
-
-  static V* FromVal(PersistentContainerValue v) {
-    return internal::ValueHelper::SlotAsValue<V>(
-        reinterpret_cast<internal::Address*>(v));
-  }
-
-  Isolate* isolate_;
-  typename Traits::Impl impl_;
 };
 
 }  // namespace v8

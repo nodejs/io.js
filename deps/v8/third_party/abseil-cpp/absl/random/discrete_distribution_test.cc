@@ -200,7 +200,7 @@ TEST(DiscreteDistributionTest, ChiSquaredTest50) {
 }
 
 TEST(DiscreteDistributionTest, StabilityTest) {
-  // absl::discrete_distribution stabilitiy relies on
+  // absl::discrete_distribution stability relies on
   // absl::uniform_int_distribution and absl::bernoulli_distribution.
   absl::random_internal::sequence_urbg urbg(
       {0x0003eb76f6f7f755ull, 0xFFCEA50FDB2F953Bull, 0xC332DDEFBE6C5AA5ull,

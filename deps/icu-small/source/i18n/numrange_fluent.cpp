@@ -313,9 +313,8 @@ FormattedNumberRange LocalizedNumberRangeFormatter::formatFormattableRange(
         return FormattedNumberRange(U_ILLEGAL_ARGUMENT_ERROR);
     }
 
-    auto* results = new UFormattedNumberRangeData();
-    if (results == nullptr) {
-        status = U_MEMORY_ALLOCATION_ERROR;
+    LocalPointer<UFormattedNumberRangeData> results(new UFormattedNumberRangeData(), status);
+    if (U_FAILURE(status)) {
         return FormattedNumberRange(status);
     }
 
@@ -333,9 +332,8 @@ FormattedNumberRange LocalizedNumberRangeFormatter::formatFormattableRange(
 
     // Do not save the results object if we encountered a failure.
     if (U_SUCCESS(status)) {
-        return FormattedNumberRange(results);
+        return FormattedNumberRange(results.orphan());
     } else {
-        delete results;
         return FormattedNumberRange(status);
     }
 }
@@ -373,13 +371,8 @@ LocalizedNumberRangeFormatter::getFormatter(UErrorCode& status) const {
     }
 
     // Try computing the formatter on our own
-    auto* temp = new NumberRangeFormatterImpl(fMacros, status);
+    LocalPointer<NumberRangeFormatterImpl> temp(new NumberRangeFormatterImpl(fMacros, status), status);
     if (U_FAILURE(status)) {
-        delete temp;
-        return nullptr;
-    }
-    if (temp == nullptr) {
-        status = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
     }
 
@@ -387,13 +380,12 @@ LocalizedNumberRangeFormatter::getFormatter(UErrorCode& status) const {
     // it is set to what is actually stored in the atomic
     // if another thread beat us to computing the formatter object.
     auto* nonConstThis = const_cast<LocalizedNumberRangeFormatter*>(this);
-    if (!nonConstThis->fAtomicFormatter.compare_exchange_strong(ptr, temp)) {
+    if (!nonConstThis->fAtomicFormatter.compare_exchange_strong(ptr, temp.getAlias())) {
         // Another thread beat us to computing the formatter
-        delete temp;
         return ptr;
     } else {
         // Our copy of the formatter got stored in the atomic
-        return temp;
+        return temp.orphan();
     }
 
 }

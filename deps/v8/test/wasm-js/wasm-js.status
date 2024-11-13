@@ -19,6 +19,8 @@
   'proposals/js-types/function/constructor.tentative': [FAIL],
   'proposals/gc/gc/casts.tentative': [FAIL],
   'wpt/gc/casts.tentative': [FAIL],
+  'proposals/memory64/table/constructor': [FAIL],
+  'wpt/module/moduleSource': [FAIL],
 
   # This is a spec test of the https://github.com/WebAssembly/esm-integration
   # proposal which V8 does not implement yet.
@@ -52,6 +54,11 @@
   # than one memory. Github issue:
   # https://github.com/WebAssembly/multi-memory/issues/49
   'limits': [FAIL, HEAVY],
+
+  # TODO(thibaudm): Test failing after the type-reflection change around
+  # WebAssembly.Function.type. The tests should be updated anyway since they
+  # still use the old API (which works but is deprecated).
+  'proposals/js-promise-integration/js-promise-integration/js-promise-integration': [FAIL],
 }], # ALWAYS
 
 ['system == android', {

@@ -10,6 +10,7 @@ const {
 } = require('../common/child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 tmpdir.refresh();
 common.allowGlobals(global.require);
@@ -152,12 +153,6 @@ for (const extraSnapshotArgs of [
     { cwd: tmpdir.path });
 }
 
-// Skipping rest of the test on Windows because it fails in the CI
-// TODO(StefanStojanovic): Reenable rest of the test after fixing it
-if (common.isWindows) {
-  return;
-}
-
 // Guarantee NODE_REPL_EXTERNAL_MODULE won't bypass kDisableNodeOptionsEnv
 {
   spawnSyncAndExit(
@@ -172,6 +167,6 @@ if (common.isWindows) {
     {
       status: 9,
       signal: null,
-      stderr: `${binary}: NODE_REPL_EXTERNAL_MODULE can't be used with kDisableNodeOptionsEnv\n`,
+      stderr: `${binary}: NODE_REPL_EXTERNAL_MODULE can't be used with kDisableNodeOptionsEnv${os.EOL}`,
     });
 }

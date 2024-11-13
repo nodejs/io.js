@@ -32,19 +32,19 @@ enum class SfiState {
 void ExpectSharedFunctionInfoState(Isolate* isolate,
                                    Tagged<SharedFunctionInfo> sfi,
                                    SfiState expectedState) {
-  Tagged<Object> function_data = sfi->GetData(isolate);
+  Tagged<Object> function_data = sfi->GetTrustedData(isolate);
   Tagged<HeapObject> script = sfi->script(kAcquireLoad);
   switch (expectedState) {
     case SfiState::Compiled:
       CHECK(IsBytecodeArray(function_data) ||
             (IsCode(function_data) &&
-             Code::cast(function_data)->kind() == CodeKind::BASELINE));
+             Cast<Code>(function_data)->kind() == CodeKind::BASELINE));
       CHECK(IsScript(script));
       break;
     case SfiState::DebugInfo: {
       CHECK(IsBytecodeArray(function_data) ||
             (IsCode(function_data) &&
-             Code::cast(function_data)->kind() == CodeKind::BASELINE));
+             Cast<Code>(function_data)->kind() == CodeKind::BASELINE));
       CHECK(IsScript(script));
       Tagged<DebugInfo> debug_info = sfi->GetDebugInfo(isolate);
       CHECK(!debug_info->HasInstrumentedBytecodeArray());
@@ -114,7 +114,7 @@ TEST(TestConcurrentSharedFunctionInfo) {
           ->Get(CcTest::isolate()->GetCurrentContext(), v8_str("test"))
           .ToLocalChecked());
   Handle<JSFunction> test =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(*function_test));
+      Cast<JSFunction>(v8::Utils::OpenHandle(*function_test));
   Handle<SharedFunctionInfo> test_sfi(test->shared(), isolate);
   DCHECK(test_sfi->HasBytecodeArray());
   IsCompiledScope compiled_scope_test(*test_sfi, isolate);
@@ -125,12 +125,11 @@ TEST(TestConcurrentSharedFunctionInfo) {
       CcTest::global()
           ->Get(CcTest::isolate()->GetCurrentContext(), v8_str("f"))
           .ToLocalChecked());
-  Handle<JSFunction> f =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(*function_f));
+  Handle<JSFunction> f = Cast<JSFunction>(v8::Utils::OpenHandle(*function_f));
   Handle<SharedFunctionInfo> f_sfi(f->shared(), isolate);
   DCHECK(f_sfi->HasBytecodeArray());
   OptimizedCompilationInfo f_info(&zone, isolate, f_sfi, f, CodeKind::TURBOFAN);
-  Handle<Code> f_code =
+  DirectHandle<Code> f_code =
       Pipeline::GenerateCodeForTesting(&f_info, isolate).ToHandleChecked();
   f->set_code(*f_code, kReleaseStore);
   IsCompiledScope compiled_scope_f(*f_sfi, isolate);

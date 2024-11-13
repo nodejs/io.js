@@ -315,7 +315,7 @@ void AccumulateStats(Tagged<ConsString> cons_string, ConsStringStats* stats) {
   bool left_is_cons = IsConsString(cons_string->first());
   if (left_is_cons) {
     stats->left_traversals_++;
-    AccumulateStats(ConsString::cast(cons_string->first()), stats);
+    AccumulateStats(Cast<ConsString>(cons_string->first()), stats);
   } else {
     CHECK_NE(left_length, 0);
     stats->leaves_++;
@@ -324,7 +324,7 @@ void AccumulateStats(Tagged<ConsString> cons_string, ConsStringStats* stats) {
   // Check right side.
   if (IsConsString(cons_string->second())) {
     stats->right_traversals_++;
-    AccumulateStats(ConsString::cast(cons_string->second()), stats);
+    AccumulateStats(Cast<ConsString>(cons_string->second()), stats);
   } else {
     if (right_length == 0) {
       stats->empty_leaves_++;
@@ -335,10 +335,10 @@ void AccumulateStats(Tagged<ConsString> cons_string, ConsStringStats* stats) {
   }
 }
 
-void AccumulateStats(Handle<String> cons_string, ConsStringStats* stats) {
+void AccumulateStats(DirectHandle<String> cons_string, ConsStringStats* stats) {
   DisallowGarbageCollection no_gc;
   if (IsConsString(*cons_string)) {
-    return AccumulateStats(ConsString::cast(*cons_string), stats);
+    return AccumulateStats(Cast<ConsString>(*cons_string), stats);
   }
   // This string got flattened by gc.
   stats->chars_ += cons_string->length();
@@ -357,17 +357,18 @@ void AccumulateStatsWithOperator(Tagged<ConsString> cons_string,
   }
 }
 
-void VerifyConsString(Handle<String> root, ConsStringGenerationData* data) {
+void VerifyConsString(DirectHandle<String> root,
+                      ConsStringGenerationData* data) {
   // Verify basic data.
   CHECK(IsConsString(*root));
   CHECK_EQ(root->length(), data->stats_.chars_);
   // Recursive verify.
   ConsStringStats stats;
-  AccumulateStats(ConsString::cast(*root), &stats);
+  AccumulateStats(Cast<ConsString>(*root), &stats);
   stats.VerifyEqual(data->stats_);
   // Iteratively verify.
   stats.Reset();
-  AccumulateStatsWithOperator(ConsString::cast(*root), &stats);
+  AccumulateStatsWithOperator(Cast<ConsString>(*root), &stats);
   // Don't see these. Must copy over.
   stats.empty_leaves_ = data->stats_.empty_leaves_;
   stats.left_traversals_ = data->stats_.left_traversals_;
@@ -502,7 +503,7 @@ static Handle<String> ConstructBalanced(ConsStringGenerationData* data,
   return string;
 }
 
-static void Traverse(Handle<String> s1, Handle<String> s2) {
+static void Traverse(DirectHandle<String> s1, DirectHandle<String> s2) {
   int i = 0;
   StringCharacterStream character_stream_1(*s1);
   StringCharacterStream character_stream_2(*s2);
@@ -518,7 +519,8 @@ static void Traverse(Handle<String> s1, Handle<String> s2) {
   CHECK_EQ(s2->length(), i);
 }
 
-static void TraverseFirst(Handle<String> s1, Handle<String> s2, int chars) {
+static void TraverseFirst(DirectHandle<String> s1, DirectHandle<String> s2,
+                          int chars) {
   int i = 0;
   StringCharacterStream character_stream_1(*s1);
   StringCharacterStream character_stream_2(*s2);
@@ -551,7 +553,7 @@ TEST(Traverse) {
   Traverse(flat, right_asymmetric);
   printf("4\n");
   Handle<String> left_deep_asymmetric = ConstructLeft(&data, SUPER_DEEP_DEPTH);
-  Handle<String> right_deep_asymmetric =
+  DirectHandle<String> right_deep_asymmetric =
       ConstructRight(&data, SUPER_DEEP_DEPTH);
   printf("5\n");
   TraverseFirst(left_asymmetric, left_deep_asymmetric, 1050);
@@ -588,15 +590,15 @@ TEST(ConsStringWithEmptyFirstFlatten) {
                                  ->NewConsString(initial_fst, initial_snd)
                                  .ToHandleChecked();
   CHECK(IsConsString(*str));
-  auto cons = i::Handle<i::ConsString>::cast(str);
+  auto cons = i::Cast<i::ConsString>(str);
 
   const int initial_length = cons->length();
 
   // set_first / set_second does not update the length (which the heap verifier
   // checks), so we need to ensure the length stays the same.
 
-  i::Handle<i::String> new_fst = isolate->factory()->empty_string();
-  i::Handle<i::String> new_snd =
+  i::DirectHandle<i::String> new_fst = isolate->factory()->empty_string();
+  i::DirectHandle<i::String> new_snd =
       isolate->factory()->NewStringFromAsciiChecked("snd012345012345678");
   cons->set_first(*new_fst);
   cons->set_second(*new_snd);
@@ -606,7 +608,7 @@ TEST(ConsStringWithEmptyFirstFlatten) {
 
   // Make sure Flatten doesn't alloc a new string.
   DisallowGarbageCollection no_alloc;
-  i::Handle<i::String> flat = i::String::Flatten(isolate, cons);
+  i::DirectHandle<i::String> flat = i::String::Flatten(isolate, cons);
   CHECK(flat->IsFlat());
   CHECK_EQ(initial_length, flat->length());
 }
@@ -667,7 +669,7 @@ void TestStringCharacterStream(BuildString build, int test_cases) {
     // Flatten string.
     String::Flatten(isolate, flat_string);
     // Build unflattened version of cons string to test.
-    Handle<String> cons_string = build(i, &data);
+    DirectHandle<String> cons_string = build(i, &data);
     ConsStringStats cons_string_stats;
     AccumulateStats(cons_string, &cons_string_stats);
     DisallowGarbageCollection no_gc;
@@ -680,7 +682,7 @@ void TestStringCharacterStream(BuildString build, int test_cases) {
     static_assert(kTaggedCanConvertToRawObjects);
     Tagged<String> flat_string_ptr =
         IsConsString(*flat_string)
-            ? Tagged(Tagged<ConsString>::cast(*flat_string)->first())
+            ? Tagged(Cast<ConsString>(*flat_string)->first())
             : *flat_string;
     VerifyCharacterStream(flat_string_ptr, *cons_string);
   }
@@ -1309,17 +1311,17 @@ TEST(SliceFromCons) {
       factory->NewConsString(string, string).ToHandleChecked();
   CHECK(IsConsString(*parent));
   CHECK(!parent->IsFlat());
-  Handle<String> slice = factory->NewSubString(parent, 1, 25);
+  DirectHandle<String> slice = factory->NewSubString(parent, 1, 25);
   // After slicing, the original string becomes a flat cons.
   CHECK(parent->IsFlat());
   CHECK(IsSlicedString(*slice));
   // TODO(leszeks): Remove Tagged cast when .first() returns a Tagged.
   static_assert(kTaggedCanConvertToRawObjects);
-  CHECK_EQ(SlicedString::cast(*slice)->parent(),
+  CHECK_EQ(Cast<SlicedString>(*slice)->parent(),
            // Parent could have been short-circuited.
-           IsConsString(*parent) ? Tagged(ConsString::cast(*parent)->first())
+           IsConsString(*parent) ? Tagged(Cast<ConsString>(*parent)->first())
                                  : *parent);
-  CHECK(IsSeqString(SlicedString::cast(*slice)->parent()));
+  CHECK(IsSeqString(Cast<SlicedString>(*slice)->parent()));
   CHECK(slice->IsFlat());
 }
 
@@ -1337,6 +1339,7 @@ class OneByteVectorResource : public v8::String::ExternalOneByteStringResource {
 
 TEST(InternalizeExternal) {
   v8_flags.stress_incremental_marking = false;
+  ManualGCScope manual_gc_scope;
   CcTest::InitializeVM();
   i::Isolate* isolate = CcTest::i_isolate();
   Factory* factory = isolate->factory();
@@ -1418,15 +1421,15 @@ TEST(SliceFromExternal) {
   Handle<String> string =
       factory->NewExternalStringFromOneByte(&resource).ToHandleChecked();
   CHECK(IsExternalString(*string));
-  Handle<String> slice = factory->NewSubString(string, 1, 25);
+  DirectHandle<String> slice = factory->NewSubString(string, 1, 25);
   CHECK(IsSlicedString(*slice));
   CHECK(IsExternalString(*string));
-  CHECK_EQ(SlicedString::cast(*slice)->parent(), *string);
-  CHECK(IsExternalString(SlicedString::cast(*slice)->parent()));
+  CHECK_EQ(Cast<SlicedString>(*slice)->parent(), *string);
+  CHECK(IsExternalString(Cast<SlicedString>(*slice)->parent()));
   CHECK(slice->IsFlat());
   // This avoids the GC from trying to free stack allocated resources.
-  i::Handle<i::ExternalOneByteString>::cast(string)->SetResource(
-      CcTest::i_isolate(), nullptr);
+  i::Cast<i::ExternalOneByteString>(string)->SetResource(CcTest::i_isolate(),
+                                                         nullptr);
 }
 
 static void ExternalizeDuringJsonStringifyCallback(
@@ -1434,7 +1437,7 @@ static void ExternalizeDuringJsonStringifyCallback(
   v8::Local<v8::Value> key = v8_compile("p")
                                  ->Run(CcTest::isolate()->GetCurrentContext())
                                  .ToLocalChecked();
-  const static char ext_string_content[] = "prop-1234567890asdf";
+  static const char ext_string_content[] = "prop-1234567890asdf";
   OneByteVectorResource* resource =
       new OneByteVectorResource(v8::base::Vector<const char>(
           ext_string_content, strlen(ext_string_content)));
@@ -1503,7 +1506,7 @@ TEST(SliceFromSlice) {
   CcTest::InitializeVM();
   v8::HandleScope scope(CcTest::isolate());
   v8::Local<v8::Value> result;
-  Handle<String> string;
+  DirectHandle<String> string;
   const char* init = "var str = 'abcdefghijklmnopqrstuvwxyz';";
   const char* slice = "var slice = ''; slice = str.slice(1,-1); slice";
   const char* slice_from_slice = "slice.slice(1,-1);";
@@ -1511,16 +1514,16 @@ TEST(SliceFromSlice) {
   CompileRun(init);
   result = CompileRun(slice);
   CHECK(result->IsString());
-  string = v8::Utils::OpenHandle(v8::String::Cast(*result));
+  string = v8::Utils::OpenDirectHandle(v8::String::Cast(*result));
   CHECK(IsSlicedString(*string));
-  CHECK(IsSeqString(SlicedString::cast(*string)->parent()));
+  CHECK(IsSeqString(Cast<SlicedString>(*string)->parent()));
   CHECK_EQ(0, strcmp("bcdefghijklmnopqrstuvwxy", string->ToCString().get()));
 
   result = CompileRun(slice_from_slice);
   CHECK(result->IsString());
-  string = v8::Utils::OpenHandle(v8::String::Cast(*result));
+  string = v8::Utils::OpenDirectHandle(v8::String::Cast(*result));
   CHECK(IsSlicedString(*string));
-  CHECK(IsSeqString(SlicedString::cast(*string)->parent()));
+  CHECK(IsSeqString(Cast<SlicedString>(*string)->parent()));
   CHECK_EQ(0, strcmp("cdefghijklmnopqrstuvwx", string->ToCString().get()));
 }
 
@@ -1602,7 +1605,8 @@ TEST(StringReplaceAtomTwoByteResult) {
       "var replace = '\x80';            "
       "subject.replace(/~/g, replace);  ");
   CHECK(result->IsString());
-  Handle<String> string = v8::Utils::OpenHandle(v8::String::Cast(*result));
+  DirectHandle<String> string =
+      v8::Utils::OpenDirectHandle(v8::String::Cast(*result));
   CHECK(string->IsTwoByteRepresentation());
 
   v8::Local<v8::String> expected = v8_str("one_byte\x80only\x80string\x80");
@@ -1731,9 +1735,12 @@ TEST(FormatMessage) {
   LocalContext context;
   Isolate* isolate = CcTest::i_isolate();
   HandleScope scope(isolate);
-  Handle<String> arg0 = isolate->factory()->NewStringFromAsciiChecked("arg0");
-  Handle<String> arg1 = isolate->factory()->NewStringFromAsciiChecked("arg1");
-  Handle<String> arg2 = isolate->factory()->NewStringFromAsciiChecked("arg2");
+  DirectHandle<String> arg0 =
+      isolate->factory()->NewStringFromAsciiChecked("arg0");
+  DirectHandle<String> arg1 =
+      isolate->factory()->NewStringFromAsciiChecked("arg1");
+  DirectHandle<String> arg2 =
+      isolate->factory()->NewStringFromAsciiChecked("arg2");
   Handle<String> result = MessageFormatter::TryFormat(
                               isolate, MessageTemplate::kPropertyNotFunction,
                               base::VectorOf({arg0, arg1, arg2}))
@@ -1811,7 +1818,8 @@ struct IndexData {
 };
 
 void TestString(i::Isolate* isolate, const IndexData& data) {
-  Handle<String> s = isolate->factory()->NewStringFromAsciiChecked(data.string);
+  DirectHandle<String> s =
+      isolate->factory()->NewStringFromAsciiChecked(data.string);
   if (data.is_array_index) {
     uint32_t index;
     CHECK(s->AsArrayIndex(&index));
@@ -1916,16 +1924,16 @@ TEST(InternalizeExternalString) {
   const char* raw_string = "external";
   OneByteResource* resource =
       new OneByteResource(i::StrDup(raw_string), strlen(raw_string));
-  Handle<String> string =
+  DirectHandle<String> string =
       factory->NewExternalStringFromOneByte(resource).ToHandleChecked();
   CHECK(IsExternalString(*string));
 
   // Check it is not uncached.
-  Handle<ExternalString> external = Handle<ExternalString>::cast(string);
+  DirectHandle<ExternalString> external = Cast<ExternalString>(string);
   CHECK(!external->is_uncached());
 
   // Internalize succesfully, without a copy.
-  Handle<String> internal = factory->InternalizeString(external);
+  DirectHandle<String> internal = factory->InternalizeString(external);
   CHECK(IsInternalizedString(*string));
   CHECK(string.equals(internal));
 }
@@ -1941,16 +1949,16 @@ TEST(InternalizeExternalStringTwoByte) {
   const char* raw_string = "external";
   Resource* resource =
       new Resource(AsciiToTwoByteString(raw_string), strlen(raw_string));
-  Handle<String> string =
+  DirectHandle<String> string =
       factory->NewExternalStringFromTwoByte(resource).ToHandleChecked();
   CHECK(IsExternalString(*string));
 
   // Check it is not uncached.
-  Handle<ExternalString> external = Handle<ExternalString>::cast(string);
+  DirectHandle<ExternalString> external = Cast<ExternalString>(string);
   CHECK(!external->is_uncached());
 
   // Internalize succesfully, without a copy.
-  Handle<String> internal = factory->InternalizeString(external);
+  DirectHandle<String> internal = factory->InternalizeString(external);
   CHECK(IsInternalizedString(*string));
   CHECK(string.equals(internal));
 }
@@ -1987,11 +1995,11 @@ TEST(InternalizeExternalStringUncachedWithCopy) {
   CHECK(IsExternalString(*string));
 
   // Check it is uncached.
-  Handle<ExternalString> external = Handle<ExternalString>::cast(string);
+  Handle<ExternalString> external = Cast<ExternalString>(string);
   CHECK(external->is_uncached());
 
   // Internalize succesfully, with a copy.
-  Handle<String> internal = factory->InternalizeString(external);
+  DirectHandle<String> internal = factory->InternalizeString(external);
   CHECK(!IsInternalizedString(*external));
   CHECK(IsInternalizedString(*internal));
 }
@@ -2030,12 +2038,12 @@ TEST(InternalizeExternalStringUncachedWithCopyTwoByte) {
   CHECK(IsExternalString(*string));
 
   // Check it is uncached.
-  Handle<ExternalString> external = Handle<ExternalString>::cast(string);
+  Handle<ExternalString> external = Cast<ExternalString>(string);
   CHECK(external->is_uncached());
 
   // Internalize succesfully, with a copy.
   CHECK(!IsInternalizedString(*external));
-  Handle<String> internal = factory->InternalizeString(external);
+  DirectHandle<String> internal = factory->InternalizeString(external);
   CHECK(!IsInternalizedString(*external));
   CHECK(IsInternalizedString(*internal));
 }
@@ -2070,8 +2078,8 @@ TEST(CheckCachedDataInternalExternalUncachedString) {
 
   // Check that the external string is uncached, its resource is cacheable, and
   // that we indeed cached it.
-  Handle<ExternalOneByteString> external_string =
-      Handle<ExternalOneByteString>::cast(string);
+  DirectHandle<ExternalOneByteString> external_string =
+      Cast<ExternalOneByteString>(string);
   // If the sandbox is enabled, string objects will always be cacheable because
   // they are smaller.
   CHECK(V8_ENABLE_SANDBOX_BOOL || external_string->is_uncached());
@@ -2115,8 +2123,8 @@ TEST(CheckCachedDataInternalExternalUncachedStringTwoByte) {
 
   // Check that the external string is uncached, its resource is cacheable, and
   // that we indeed cached it.
-  Handle<ExternalTwoByteString> external_string =
-      Handle<ExternalTwoByteString>::cast(string);
+  DirectHandle<ExternalTwoByteString> external_string =
+      Cast<ExternalTwoByteString>(string);
   // If the sandbox is enabled, string objects will always be cacheable because
   // they are smaller.
   CHECK(V8_ENABLE_SANDBOX_BOOL || external_string->is_uncached());
@@ -2126,6 +2134,82 @@ TEST(CheckCachedDataInternalExternalUncachedStringTwoByte) {
     CHECK_EQ(external_string->resource()->cached_data(),
              external_string->resource()->data());
   }
+}
+
+TEST(CheckIntlSegmentIteratorTerminateExecutionInterrupt) {
+#if V8_INTL_SUPPORT
+  class WorkerThread : public v8::base::Thread {
+   public:
+    WorkerThread(v8::base::Mutex& m, v8::base::ConditionVariable& cv)
+        : Thread(v8::base::Thread::Options("WorkerThread")), m_(m), cv_(cv) {}
+    void Run() override {
+      v8::Isolate::CreateParams create_params;
+      create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
+      isolate = v8::Isolate::New(create_params);
+      {
+        v8::Isolate::Scope isolate_scope(isolate);
+        v8::HandleScope handle_scope(isolate);
+        v8::Local<v8::ObjectTemplate> global = ObjectTemplate::New(isolate);
+        v8::Local<v8::Value> wrapper = v8::External::New(isolate, this);
+        global->Set(isolate, "notifyCV",
+                    v8::FunctionTemplate::New(
+                        isolate, (v8::FunctionCallback)&NotifyCallback, wrapper,
+                        Local<v8::Signature>(), 0, ConstructorBehavior::kThrow,
+                        SideEffectType::kHasNoSideEffect));
+        LocalContext context(isolate, nullptr, global);
+        v8::TryCatch try_catch(isolate);
+        auto result = CompileRun(
+            context.local(),
+            "const kSize = 4 * 1024 * 1024;\n"
+            "const baseText = 'Super big, super bad, itty bitty teeny weeny "
+            "mellow yellow stringy wingy. ';\n"
+            "let text = baseText.repeat(((kSize / baseText.length) + 1) | 0);\n"
+            "let iter = new Intl.Segmenter('en', { granularity: 'word' "
+            "}).segment(text);\n"
+            "notifyCV(); /* Signal CV that we are ready for interrupt */\n"
+            "Array.from(iter)\n");
+        CHECK(result.IsEmpty());
+        CHECK(try_catch.HasTerminated());
+      }
+      isolate->Dispose();
+    }
+    void TerminateExecution() { isolate->TerminateExecution(); }
+    inline void NotifyCV() {
+      v8::base::MutexGuard guard(&m_);
+      cv_.NotifyOne();
+    }
+
+    bool DidEnterLoop() const { return did_enter_loop_; }
+
+   private:
+    static WorkerThread* Unwrap(Local<Value> value) {
+      CHECK(value->IsExternal());
+      return reinterpret_cast<WorkerThread*>(value.As<External>()->Value());
+    }
+    static void NotifyCallback(
+        const v8::FunctionCallbackInfo<v8::Value>& args) {
+      auto self = Unwrap(args.Data());
+      self->did_enter_loop_ = true;
+      self->NotifyCV();
+    }
+    bool did_enter_loop_{false};
+    v8::Isolate* isolate{nullptr};
+    v8::base::Mutex& m_;
+    v8::base::ConditionVariable& cv_;
+  };
+  v8::base::Mutex m;
+  v8::base::ConditionVariable cv;
+  WorkerThread worker_thread(m, cv);
+  CHECK(worker_thread.Start());
+  {
+    v8::base::MutexGuard guard(&m);
+    if (!worker_thread.DidEnterLoop()) {
+      cv.Wait(&m);
+    }
+  }
+  worker_thread.TerminateExecution();
+  worker_thread.Join();
+#endif
 }
 
 }  // namespace test_strings

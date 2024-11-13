@@ -44,23 +44,6 @@ bool MarkingWorklists::Local::PopOnHold(Tagged<HeapObject>* object) {
   return on_hold_.Pop(object);
 }
 
-bool MarkingWorklists::Local::SupportsExtractWrapper() {
-  return cpp_marking_state_.get();
-}
-
-bool MarkingWorklists::Local::ExtractWrapper(Tagged<Map> map,
-                                             Tagged<JSObject> object,
-                                             WrapperSnapshot& snapshot) {
-  DCHECK_NOT_NULL(cpp_marking_state_);
-  return cpp_marking_state_->ExtractEmbedderDataSnapshot(map, object, snapshot);
-}
-
-void MarkingWorklists::Local::PushExtractedWrapper(
-    const WrapperSnapshot& snapshot) {
-  DCHECK_NOT_NULL(cpp_marking_state_);
-  cpp_marking_state_->MarkAndPush(snapshot);
-}
-
 Address MarkingWorklists::Local::SwitchToContext(Address context) {
   if (context == active_context_) return context;
   return SwitchToContextSlow(context);
@@ -72,10 +55,11 @@ void MarkingWorklists::Local::SwitchToContextImpl(
   active_context_ = context;
 }
 
-bool MarkingWorklists::Local::PublishWrapper() {
-  if (!cpp_marking_state_) return false;
+void MarkingWorklists::Local::PublishCppHeapObjects() {
+  if (!cpp_marking_state_) {
+    return;
+  }
   cpp_marking_state_->Publish();
-  return true;
 }
 
 }  // namespace internal

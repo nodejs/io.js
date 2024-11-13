@@ -534,22 +534,6 @@ buffered but not yet executed. This method is primarily intended to be
 called from within the action function for commands registered using the
 `replServer.defineCommand()` method.
 
-### `replServer.parseREPLKeyword(keyword[, rest])`
-
-<!-- YAML
-added: v0.8.9
-deprecated: v9.0.0
--->
-
-> Stability: 0 - Deprecated.
-
-* `keyword` {string} the potential keyword to parse and execute
-* `rest` {any} any parameters to the keyword command
-* Returns: {boolean}
-
-An internal method used to parse and execute `REPLServer` keywords.
-Returns `true` if `keyword` is a valid keyword, otherwise `false`.
-
 ### `replServer.setupHistory(historyPath, callback)`
 
 <!-- YAML
@@ -773,6 +757,14 @@ a `net.Server` and `net.Socket` instance, see:
 
 For an example of running a REPL instance over [`curl(1)`][], see:
 <https://gist.github.com/TooTallNate/2053342>.
+
+This example is intended purely for educational purposes to demonstrate how
+Node.js REPLs can be started using different I/O streams.
+It should **not** be used in production environments or any context where security
+is a concern without additional protective measures.
+If you need to implement REPLs in a real-world application, consider alternative
+approaches that mitigate these risks, such as using secure input mechanisms and
+avoiding open network interfaces.
 
 [TTY keybindings]: readline.md#tty-keybindings
 [ZSH]: https://en.wikipedia.org/wiki/Z_shell

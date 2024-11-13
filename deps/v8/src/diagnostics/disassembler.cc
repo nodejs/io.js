@@ -252,7 +252,8 @@ static void PrintRelocInfo(std::ostringstream& out, Isolate* isolate,
     const char* reference_name =
         ref_encoder
             ? ref_encoder->NameOfAddress(isolate, address)
-            : ExternalReferenceTable::NameOfIsolateIndependentAddress(address);
+            : ExternalReferenceTable::NameOfIsolateIndependentAddress(
+                  address, IsolateGroup::current()->external_ref_table());
     out << "    ;; external reference (" << reference_name << ")";
   } else if (RelocInfo::IsCodeTargetMode(rmode)) {
     out << "    ;; code:";
@@ -397,10 +398,7 @@ static int DecodeIt(Isolate* isolate, ExternalReferenceEncoder* ref_encoder,
       const CodeReference& host = code;
       Address constant_pool =
           host.is_null() ? kNullAddress : host.constant_pool();
-      Handle<Code> code_handle;
       if (host.is_code()) {
-        code_handle = host.as_code();
-
         RelocInfo relocinfo(pcs[i], rmodes[i], datas[i], constant_pool);
         bool first_reloc_info = (i == 0);
         PrintRelocInfo(out, isolate, ref_encoder, os, code, &relocinfo,

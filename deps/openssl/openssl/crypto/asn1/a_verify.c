@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -203,10 +203,12 @@ int ASN1_item_verify_ctx(const ASN1_ITEM *it, const X509_ALGOR *alg,
     inl = ASN1_item_i2d(data, &buf_in, it);
     if (inl <= 0) {
         ERR_raise(ERR_LIB_ASN1, ERR_R_INTERNAL_ERROR);
+        ret = -1;
         goto err;
     }
     if (buf_in == NULL) {
         ERR_raise(ERR_LIB_ASN1, ERR_R_MALLOC_FAILURE);
+        ret = -1;
         goto err;
     }
     inll = inl;

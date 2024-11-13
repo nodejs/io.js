@@ -70,7 +70,8 @@ AssemblerOptions AssemblerOptions::Default(Isolate* isolate) {
   options.enable_simulator_code = !serializer || v8_flags.target_is_simulator;
 #endif
 
-#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_LOONG64
+#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_LOONG64 || \
+    V8_TARGET_ARCH_RISCV64
   options.code_range_base = isolate->heap()->code_range_base();
 #endif
   bool short_builtin_calls =

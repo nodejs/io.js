@@ -4,6 +4,9 @@
 
 #include "src/compiler/turboshaft/instruction-selection-phase.h"
 
+#include <optional>
+
+#include "src/builtins/profile-data-reader.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/compiler/backend/instruction-selector-impl.h"
 #include "src/compiler/backend/instruction-selector.h"
@@ -292,26 +295,44 @@ void PropagateDeferred(Graph& graph) {
   }
 }
 
-base::Optional<BailoutReason> InstructionSelectionPhase::Run(
-    Zone* temp_zone, const CallDescriptor* call_descriptor, Linkage* linkage,
-    CodeTracer* code_tracer) {
-  PipelineData* data = &PipelineData::Get();
-  Graph& graph = PipelineData::Get().graph();
+void ProfileApplicationPhase::Run(PipelineData* data, Zone* temp_zone,
+                                  const ProfileDataFromFile* profile) {
+  Graph& graph = data->graph();
+  for (auto& op : graph.AllOperations()) {
+    if (BranchOp* branch = op.TryCast<BranchOp>()) {
+      uint32_t true_block_id = branch->if_true->index().id();
+      uint32_t false_block_id = branch->if_false->index().id();
+      BranchHint hint = profile->GetHint(true_block_id, false_block_id);
+      if (hint != BranchHint::kNone) {
+        // We update the hint in-place.
+        branch->hint = hint;
+      }
+    }
+  }
+}
+
+void SpecialRPOSchedulingPhase::Run(PipelineData* data, Zone* temp_zone) {
+  Graph& graph = data->graph();
 
   // Compute special RPO order....
   TurboshaftSpecialRPONumberer numberer(graph, temp_zone);
-  auto schedule = numberer.ComputeSpecialRPO();
-  graph.ReorderBlocks(base::VectorOf(schedule));
+  if (!data->graph_has_special_rpo()) {
+    auto schedule = numberer.ComputeSpecialRPO();
+    graph.ReorderBlocks(base::VectorOf(schedule));
+    data->set_graph_has_special_rpo();
+  }
 
   // Determine deferred blocks.
   PropagateDeferred(graph);
+}
 
-  // Print graph once before instruction selection.
-  turboshaft::PrintTurboshaftGraph(temp_zone, code_tracer,
-                                   "before instruction selection");
+std::optional<BailoutReason> InstructionSelectionPhase::Run(
+    PipelineData* data, Zone* temp_zone, const CallDescriptor* call_descriptor,
+    Linkage* linkage, CodeTracer* code_tracer) {
+  Graph& graph = data->graph();
 
   // Initialize an instruction sequence.
-  data->InitializeInstructionSequence(call_descriptor);
+  data->InitializeInstructionComponent(call_descriptor);
 
   // Run the actual instruction selection.
   InstructionSelector selector = InstructionSelector::ForTurboshaft(
@@ -321,8 +342,7 @@ base::Optional<BailoutReason> InstructionSelectionPhase::Run(
           ? InstructionSelector::kEnableSwitchJumpTable
           : InstructionSelector::kDisableSwitchJumpTable,
       &data->info()->tick_counter(), data->broker(),
-      data->address_of_max_unoptimized_frame_height(),
-      data->address_of_max_pushed_argument_count(),
+      &data->max_unoptimized_frame_height(), &data->max_pushed_argument_count(),
       data->info()->source_positions()
           ? InstructionSelector::kAllSourcePositions
           : InstructionSelector::kCallSourcePositions,
@@ -336,12 +356,12 @@ base::Optional<BailoutReason> InstructionSelectionPhase::Run(
       data->info()->trace_turbo_json()
           ? InstructionSelector::kEnableTraceTurboJson
           : InstructionSelector::kDisableTraceTurboJson);
-  if (base::Optional<BailoutReason> bailout = selector.SelectInstructions()) {
+  if (std::optional<BailoutReason> bailout = selector.SelectInstructions()) {
     return bailout;
   }
   TraceSequence(data->info(), data->sequence(), data->broker(), code_tracer,
                 "after instruction selection");
-  return base::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace v8::internal::compiler::turboshaft

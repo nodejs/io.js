@@ -11,9 +11,8 @@ const { exec, spawn } = require('child_process');
 const { once } = require('events');
 let stdOut;
 
-
 function startPrintHelpTest() {
-  exec(`${process.execPath} --help`, common.mustSucceed((stdout, stderr) => {
+  exec(...common.escapePOSIXShell`"${process.execPath}" --help`, common.mustSucceed((stdout, stderr) => {
     stdOut = stdout;
     validateNodePrintHelp();
   }));

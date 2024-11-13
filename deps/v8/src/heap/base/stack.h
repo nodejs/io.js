@@ -19,6 +19,12 @@ class StackVisitor {
   virtual void VisitPointer(const void* address) = 0;
 };
 
+#if defined(__has_feature)
+#if __has_feature(safe_stack)
+#define V8_USE_SAFE_STACK 1
+#endif  // __has_feature(safe_stack)
+#endif  // defined(__has_feature)
+
 // Abstraction over the stack. Supports handling of:
 // - native stack;
 // - ASAN/MSAN;
@@ -31,14 +37,21 @@ class StackVisitor {
 // of relevant GC stack regions where interesting pointers can be found.
 class V8_EXPORT_PRIVATE Stack final {
  public:
-  explicit Stack(const void* stack_start = nullptr)
-      : stack_start_(stack_start) {}
-
-  // Sets the start of the stack.
-  void SetStackStart(const void* stack_start) { stack_start_ = stack_start; }
+  // Sets the start of the stack to the current stack start.
+  void SetStackStart() {
+    current_segment_.start = v8::base::Stack::GetStackStart();
+#ifdef V8_USE_ADDRESS_SANITIZER
+    current_segment_.asan_fake_stack = __asan_get_current_fake_stack();
+#endif  // V8_USE_ADDRESS_SANITIZER
+#ifdef V8_USE_SAFE_STACK
+    current_segment_.unsafe_stack_start = __builtin___get_unsafe_stack_top();
+#endif  // V8_USE_SAFE_STACK
+  }
 
   // Returns true if |slot| is part of the stack and false otherwise.
-  bool IsOnStack(const void* slot) const;
+  // It is a static method, ignoring the set stack start and marker, but it
+  // considers the ASAN stack and SafeStack.
+  static bool IsOnStack(const void* slot);
 
   void IteratePointers(StackVisitor* visitor) const {
     IteratePointersUntilMarker(visitor);
@@ -65,16 +78,17 @@ class V8_EXPORT_PRIVATE Stack final {
 
   template <typename Callback>
   V8_INLINE void SetMarkerIfNeededAndCallback(Callback callback) {
-    if (stack_marker_ == nullptr) {
+    if (!IsMarkerSet()) {
       TrampolineCallbackHelper(static_cast<void*>(&callback),
                                &SetMarkerAndCallbackImpl<Callback>);
     } else {
-      DCHECK(IsOnCurrentStack(stack_marker_));
+      DCHECK(IsOnCurrentStack(current_segment_.top));
       callback();
     }
   }
 
   using ThreadId = int;
+
   template <typename Callback>
   V8_INLINE void SetMarkerForBackgroundThreadAndCallback(ThreadId thread,
                                                          Callback callback) {
@@ -92,11 +106,54 @@ class V8_EXPORT_PRIVATE Stack final {
   // `visitor`. To be used for testing.
   void IteratePointersForTesting(StackVisitor* visitor);
 
-  bool IsMarkerSet() const { return stack_marker_ != nullptr; }
+  bool IsMarkerSet() const { return current_segment_.top != nullptr; }
+  bool IsMarkerSetForBackgroundThread(ThreadId thread) const {
+    v8::base::MutexGuard guard(&lock_);
+    auto it = background_stacks_.find(thread);
+    if (it == background_stacks_.end()) return false;
+    DCHECK_NOT_NULL(it->second.top);
+    return true;
+  }
 
   // This method is only safe to use in a safepoint, as it does not take the
   // mutex for background_stacks_.
   bool HasBackgroundStacks() const { return !background_stacks_.empty(); }
+
+  // Stack segments that may contain pointers and should be scanned.
+  struct Segment {
+    // The start and top of the stack. It must be sp <= top <= start.
+    // The top pointer is generally a marker that signals the end of the
+    // interesting stack region in which on-heap pointers can be found.
+    const void* start = nullptr;
+    const void* top = nullptr;
+
+#ifdef V8_USE_ADDRESS_SANITIZER
+    // The start of ASAN's fake stack.
+    const void* asan_fake_stack = nullptr;
+#endif  // V8_USE_ADDRESS_SANITIZER
+
+#ifdef V8_USE_SAFE_STACK
+    // Start and top for the unsafe stack that is used in clang with
+    // -fsanitizer=safe-stack.
+    // It must be unsafe_sp <= unsafe_stack_top <= unsafe_stack_start.
+    // Notice that the terms "start" and "top" have here a different meaning in
+    // the terminology used in this feature's documentation.
+    const void* unsafe_stack_start = nullptr;
+    const void* unsafe_stack_top = nullptr;
+#endif  // V8_USE_SAFE_STACK
+
+    Segment() = default;
+    Segment(const void* stack_start, const void* stack_top)
+        : start(stack_start), top(stack_top) {
+#ifdef V8_USE_ADDRESS_SANITIZER
+      asan_fake_stack = __asan_get_current_fake_stack();
+#endif  // V8_USE_ADDRESS_SANITIZER
+#ifdef V8_USE_SAFE_STACK
+      unsafe_stack_start = __builtin___get_unsafe_stack_top();
+      unsafe_stack_top = __builtin___get_unsafe_stack_ptr();
+#endif  // V8_USE_SAFE_STACK
+    }
+  };
 
  private:
 #ifdef DEBUG
@@ -109,11 +166,15 @@ class V8_EXPORT_PRIVATE Stack final {
   template <typename Callback>
   static void SetMarkerAndCallbackImpl(Stack* stack, void* argument,
                                        const void* stack_end) {
-    DCHECK_NULL(stack->stack_marker_);
-    stack->stack_marker_ = stack_end;
+    Segment previous_segment = stack->current_segment_;
+    stack->current_segment_.top = stack_end;
+#ifdef V8_USE_SAFE_STACK
+    stack->current_segment_.unsafe_stack_top =
+        __builtin___get_unsafe_stack_ptr();
+#endif  // V8_USE_SAFE_STACK
     Callback* callback = static_cast<Callback*>(argument);
     (*callback)();
-    stack->stack_marker_ = nullptr;
+    stack->current_segment_ = previous_segment;
   }
 
   template <typename Callback>
@@ -123,34 +184,40 @@ class V8_EXPORT_PRIVATE Stack final {
     auto [thread, callback] =
         *static_cast<std::pair<ThreadId, Callback*>*>(argument);
     auto& background_stacks = stack->background_stacks_;
+    Segment previous_segment;
     {
       v8::base::MutexGuard guard(&stack->lock_);
-      DCHECK_EQ(background_stacks.end(), background_stacks.find(thread));
-      background_stacks.emplace(
-          thread, StackSegments{v8::base::Stack::GetStackStart(), stack_end});
+      if (auto it = background_stacks.find(thread);
+          it != background_stacks.end()) {
+        previous_segment = it->second;
+        DCHECK_NOT_NULL(previous_segment.top);
+      } else {
+        DCHECK_NULL(previous_segment.top);
+      }
+      // This implicitly uses the current values (if applicable) for:
+      // - asan_fake_start
+      // - unsafe stack start
+      // - unsafe stack top
+      background_stacks[thread] =
+          Segment(v8::base::Stack::GetStackStart(), stack_end);
     }
     (*callback)();
     {
       v8::base::MutexGuard guard(&stack->lock_);
-      background_stacks.erase(thread);
+      if (previous_segment.top)
+        background_stacks[thread] = previous_segment;
+      else
+        background_stacks.erase(thread);
     }
   }
 
-  const void* stack_start_;
+  Segment current_segment_;
 
-  // Marker that signals end of the interesting stack region in which on-heap
-  // pointers can be found.
-  const void* stack_marker_ = nullptr;
-
-  // Stack segments that may also contain pointers and should be scanned.
-  struct StackSegments {
-    const void* start;
-    const void* top;
-  };
-  std::vector<StackSegments> inactive_stacks_;
+  // TODO(v8:13493): If inactive stacks are not used anymore, clean this up.
+  std::vector<Segment> inactive_stacks_;
 
   mutable v8::base::Mutex lock_;
-  std::map<ThreadId, const StackSegments> background_stacks_;
+  std::map<ThreadId, Segment> background_stacks_;
 };
 
 }  // namespace heap::base

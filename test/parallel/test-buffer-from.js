@@ -139,3 +139,6 @@ throws(() => {
     code: 'ERR_OUT_OF_RANGE',
   })
 );
+
+// Invalid encoding is allowed
+Buffer.from('asd', 1);

@@ -25,8 +25,8 @@ class AlwaysSharedSpaceJSObject
   static void PrepareMapNoEnumerableProperties(
       Isolate* isolate, Tagged<Map> map, Tagged<DescriptorArray> descriptors);
   static void PrepareMapWithEnumerableProperties(
-      Isolate* isolate, Handle<Map> map, Handle<DescriptorArray> descriptors,
-      int enum_length);
+      Isolate* isolate, DirectHandle<Map> map,
+      DirectHandle<DescriptorArray> descriptors, int enum_length);
 
   V8_WARN_UNUSED_RESULT static Maybe<bool> DefineOwnProperty(
       Isolate* isolate, Handle<AlwaysSharedSpaceJSObject> shared_obj,
@@ -37,7 +37,7 @@ class AlwaysSharedSpaceJSObject
   // against the object's map. It is on `AlwaysSharedSpaceJSObject` because this
   // kind of instanceof resolution resolution is used only for shared objects.
   static Maybe<bool> HasInstance(Isolate* isolate,
-                                 Handle<JSFunction> constructor,
+                                 DirectHandle<JSFunction> constructor,
                                  Handle<Object> object);
 
   static_assert(kHeaderSize == JSObject::kHeaderSize);
@@ -67,7 +67,6 @@ class JSSharedStruct
                                            Tagged<Map> instance_map,
                                            InternalIndex i);
 
-  DECL_CAST(JSSharedStruct)
   DECL_PRINTER(JSSharedStruct)
   EXPORT_DECL_VERIFIER(JSSharedStruct)
 
@@ -98,7 +97,7 @@ class SharedStructTypeRegistry final {
                                    const std::set<uint32_t>& element_names);
 
   MaybeHandle<Map> CheckIfEntryMatches(
-      Isolate* isolate, InternalIndex entry, Handle<String> key,
+      Isolate* isolate, InternalIndex entry, DirectHandle<String> key,
       const std::vector<Handle<Name>>& field_names,
       const std::set<uint32_t>& element_names);
 

@@ -97,9 +97,9 @@ void StubCache::Set(Tagged<Name> name, Tagged<Map> map,
   if (!old_handler.SafeEquals(isolate()->builtins()->code(Builtin::kIllegal)) &&
       !primary->map.IsSmi()) {
     Tagged<Map> old_map =
-        Map::cast(StrongTaggedValue::ToObject(isolate(), primary->map));
+        Cast<Map>(StrongTaggedValue::ToObject(isolate(), primary->map));
     Tagged<Name> old_name =
-        Name::cast(StrongTaggedValue::ToObject(isolate(), primary->key));
+        Cast<Name>(StrongTaggedValue::ToObject(isolate(), primary->key));
     int secondary_offset = SecondaryOffset(old_name, old_map);
     Entry* secondary = entry(secondary_, secondary_offset);
     *secondary = *primary;

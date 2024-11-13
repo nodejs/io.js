@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2008-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -132,7 +132,7 @@ const OPTIONS cms_options[] = {
     {"binary", OPT_BINARY, '-',
      "Treat input as binary: do not translate to canonical form"},
     {"crlfeol", OPT_CRLFEOL, '-',
-     "Use CRLF as EOL termination instead of CR only" },
+     "Use CRLF as EOL termination instead of LF only" },
     {"asciicrlf", OPT_ASCIICRLF, '-',
      "Perform CRLF canonicalisation when signing"},
 

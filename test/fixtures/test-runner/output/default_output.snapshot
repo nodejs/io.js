@@ -27,7 +27,7 @@
   [31m✖ should pass but parent fail [90m(*ms)[39m[39m
     [32m'test did not finish before its parent and was cancelled'[39m
 
-[31m▶ [39mparent [90m(*ms)[39m
+[31m✖ parent [90m(*ms)[39m[39m
 [34mℹ tests 6[39m
 [34mℹ suites 0[39m
 [34mℹ pass 1[39m

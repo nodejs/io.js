@@ -31,6 +31,7 @@ using v8::FunctionCallbackInfo;
 using v8::HandleScope;
 using v8::Isolate;
 using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
@@ -107,15 +108,17 @@ void* NodeArrayBufferAllocator::Allocate(size_t size) {
     ret = allocator_->Allocate(size);
   else
     ret = allocator_->AllocateUninitialized(size);
-  if (LIKELY(ret != nullptr))
+  if (ret != nullptr) [[likely]] {
     total_mem_usage_.fetch_add(size, std::memory_order_relaxed);
+  }
   return ret;
 }
 
 void* NodeArrayBufferAllocator::AllocateUninitialized(size_t size) {
   void* ret = allocator_->AllocateUninitialized(size);
-  if (LIKELY(ret != nullptr))
+  if (ret != nullptr) [[likely]] {
     total_mem_usage_.fetch_add(size, std::memory_order_relaxed);
+  }
   return ret;
 }
 
@@ -371,9 +374,8 @@ IsolateData* CreateIsolateData(
     MultiIsolatePlatform* platform,
     ArrayBufferAllocator* allocator,
     const EmbedderSnapshotData* embedder_snapshot_data) {
-  const SnapshotData* snapshot_data =
-      SnapshotData::FromEmbedderWrapper(embedder_snapshot_data);
-  return new IsolateData(isolate, loop, platform, allocator, snapshot_data);
+  return IsolateData::CreateIsolateData(
+      isolate, loop, platform, allocator, embedder_snapshot_data);
 }
 
 void FreeIsolateData(IsolateData* isolate_data) {
@@ -636,7 +638,7 @@ void ProtoThrower(const FunctionCallbackInfo<Value>& info) {
 
 // This runs at runtime, regardless of whether the context
 // is created from a snapshot.
-Maybe<bool> InitializeContextRuntime(Local<Context> context) {
+Maybe<void> InitializeContextRuntime(Local<Context> context) {
   Isolate* isolate = context->GetIsolate();
   HandleScope handle_scope(isolate);
 
@@ -654,7 +656,7 @@ Maybe<bool> InitializeContextRuntime(Local<Context> context) {
       Boolean::New(isolate, is_code_generation_from_strings_allowed));
 
   if (per_process::cli_options->disable_proto == "") {
-    return Just(true);
+    return JustVoid();
   }
 
   // Remove __proto__
@@ -670,14 +672,14 @@ Maybe<bool> InitializeContextRuntime(Local<Context> context) {
     if (!context->Global()
         ->Get(context, object_string)
         .ToLocal(&object_v)) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
 
     Local<Value> prototype_v;
     if (!object_v.As<Object>()
         ->Get(context, prototype_string)
         .ToLocal(&prototype_v)) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
 
     prototype = prototype_v.As<Object>();
@@ -690,13 +692,13 @@ Maybe<bool> InitializeContextRuntime(Local<Context> context) {
     if (prototype
         ->Delete(context, proto_string)
         .IsNothing()) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
   } else if (per_process::cli_options->disable_proto == "throw") {
     Local<Value> thrower;
     if (!Function::New(context, ProtoThrower)
         .ToLocal(&thrower)) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
 
     PropertyDescriptor descriptor(thrower, thrower);
@@ -705,17 +707,17 @@ Maybe<bool> InitializeContextRuntime(Local<Context> context) {
     if (prototype
         ->DefineProperty(context, proto_string, descriptor)
         .IsNothing()) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
   } else if (per_process::cli_options->disable_proto != "") {
     // Validated in ProcessGlobalArgs
     UNREACHABLE("invalid --disable-proto mode");
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
-Maybe<bool> InitializeBaseContextForSnapshot(Local<Context> context) {
+Maybe<void> InitializeBaseContextForSnapshot(Local<Context> context) {
   Isolate* isolate = context->GetIsolate();
   HandleScope handle_scope(isolate);
 
@@ -729,18 +731,18 @@ Maybe<bool> InitializeBaseContextForSnapshot(Local<Context> context) {
 
     Local<Value> intl_v;
     if (!context->Global()->Get(context, intl_string).ToLocal(&intl_v)) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
 
     if (intl_v->IsObject() &&
         intl_v.As<Object>()->Delete(context, break_iter_string).IsNothing()) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
   }
-  return Just(true);
+  return JustVoid();
 }
 
-Maybe<bool> InitializeMainContextForSnapshot(Local<Context> context) {
+Maybe<void> InitializeMainContextForSnapshot(Local<Context> context) {
   Isolate* isolate = context->GetIsolate();
   HandleScope handle_scope(isolate);
 
@@ -751,12 +753,12 @@ Maybe<bool> InitializeMainContextForSnapshot(Local<Context> context) {
       ContextEmbedderIndex::kAllowCodeGenerationFromStrings, True(isolate));
 
   if (InitializeBaseContextForSnapshot(context).IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
   return InitializePrimordials(context);
 }
 
-Maybe<bool> InitializePrimordials(Local<Context> context) {
+Maybe<void> InitializePrimordials(Local<Context> context) {
   // Run per-context JS files.
   Isolate* isolate = context->GetIsolate();
   Context::Scope context_scope(context);
@@ -767,10 +769,10 @@ Maybe<bool> InitializePrimordials(Local<Context> context) {
 
   // Create primordials first and make it available to per-context scripts.
   Local<Object> primordials = Object::New(isolate);
-  if (primordials->SetPrototype(context, Null(isolate)).IsNothing() ||
+  if (primordials->SetPrototypeV2(context, Null(isolate)).IsNothing() ||
       !GetPerContextExports(context).ToLocal(&exports) ||
       exports->Set(context, primordials_string, primordials).IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
   static const char* context_files[] = {"internal/per_context/primordials",
@@ -794,11 +796,11 @@ Maybe<bool> InitializePrimordials(Local<Context> context) {
                 context, *module, arraysize(arguments), arguments, nullptr)
             .IsEmpty()) {
       // Execution failed during context creation.
-      return Nothing<bool>();
+      return Nothing<void>();
     }
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
 // This initializes the main context (i.e. vm contexts are not included).
@@ -807,7 +809,10 @@ Maybe<bool> InitializeContext(Local<Context> context) {
     return Nothing<bool>();
   }
 
-  return InitializeContextRuntime(context);
+  if (InitializeContextRuntime(context).IsNothing()) {
+    return Nothing<bool>();
+  }
+  return Just(true);
 }
 
 uv_loop_t* GetCurrentEventLoop(Isolate* isolate) {

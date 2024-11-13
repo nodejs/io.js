@@ -14,8 +14,7 @@ bitfield struct FeedbackVectorFlags extends uint16 {
   // updated in time).
   maybe_has_maglev_code: bool: 1 bit;
   maybe_has_turbofan_code: bool: 1 bit;
-  // Just one bit, since only {kNone,kInProgress} are relevant for OSR.
-  osr_tiering_state: TieringState: 1 bit;
+  osr_tiering_in_progress: bool: 1 bit;
   interrupt_budget_reset_by_ic_change: bool: 1 bit;
   all_your_bits_are_belong_to_jgruber: uint32: 8 bit;
 }

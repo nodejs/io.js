@@ -39,6 +39,10 @@ TEST_F(PathTest, PathResolve) {
   EXPECT_EQ(
       PathResolve(*env, {"C:\\foo\\tmp.3\\", "..\\tmp.3\\cycles\\root.js"}),
       "C:\\foo\\tmp.3\\cycles\\root.js");
+  EXPECT_EQ(PathResolve(*env, {"\\\\.\\PHYSICALDRIVE0"}),
+            "\\\\.\\PHYSICALDRIVE0");
+  EXPECT_EQ(PathResolve(*env, {"\\\\?\\PHYSICALDRIVE0"}),
+            "\\\\?\\PHYSICALDRIVE0");
 #else
   EXPECT_EQ(PathResolve(*env, {"/var/lib", "../", "file/"}), "/var/file");
   EXPECT_EQ(PathResolve(*env, {"/var/lib", "/../", "file/"}), "/file");

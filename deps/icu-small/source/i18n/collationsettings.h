@@ -136,7 +136,7 @@ struct U_I18N_API CollationSettings : public SharedObject {
     inline uint32_t reorder(uint32_t p) const {
         uint8_t b = reorderTable[p >> 24];
         if(b != 0 || p <= Collation::NO_CE_PRIMARY) {
-            return ((uint32_t)b << 24) | (p & 0xffffff);
+            return (static_cast<uint32_t>(b) << 24) | (p & 0xffffff);
         } else {
             return reorderEx(p);
         }
@@ -178,7 +178,7 @@ struct U_I18N_API CollationSettings : public SharedObject {
     void setMaxVariable(int32_t value, int32_t defaultOptions, UErrorCode &errorCode);
 
     MaxVariable getMaxVariable() const {
-        return (MaxVariable)((options & MAX_VARIABLE_MASK) >> MAX_VARIABLE_SHIFT);
+        return static_cast<MaxVariable>((options & MAX_VARIABLE_MASK) >> MAX_VARIABLE_SHIFT);
     }
 
     /**

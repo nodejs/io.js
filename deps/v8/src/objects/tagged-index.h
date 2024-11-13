@@ -6,6 +6,7 @@
 #define V8_OBJECTS_TAGGED_INDEX_H_
 
 #include "src/common/globals.h"
+#include "src/objects/casting.h"
 #include "src/objects/heap-object.h"
 
 // Has to be the last include (doesn't have include guards):
@@ -46,8 +47,6 @@ class TaggedIndex : public AllStatic {
     return kMinValue <= value && value <= kMaxValue;
   }
 
-  DECL_CAST(TaggedIndex)
-
   // Dispatched behavior.
   DECL_STATIC_VERIFIER(TaggedIndex)
 
@@ -58,10 +57,13 @@ class TaggedIndex : public AllStatic {
   static constexpr intptr_t kMaxValue = -(kMinValue + 1);
 };
 
-Tagged<TaggedIndex> TaggedIndex::cast(Tagged<Object> object) {
-  DCHECK(HAS_SMI_TAG(object.ptr()));
-  return Tagged<TaggedIndex>(object.ptr());
-}
+template <>
+struct CastTraits<TaggedIndex> {
+  static inline bool AllowFrom(Tagged<Object> value) {
+    return HAS_SMI_TAG(value.ptr());
+  }
+  static inline bool AllowFrom(Tagged<HeapObject> value) { return false; }
+};
 
 }  // namespace internal
 }  // namespace v8

@@ -1,6 +1,6 @@
 // Flags: --expose-internals --expose-gc
 'use strict';
-require('../common');
+const common = require('../common');
 const { Worker } = require('worker_threads');
 const assert = require('assert');
 
@@ -29,3 +29,11 @@ new Worker(CODE, { eval: true, env: process.env, execArgv: ['--expose-internals'
 assert.throws(() => {
   new Worker(CODE, { eval: true, execArgv: ['--expose-gc'] });
 }, /ERR_WORKER_INVALID_EXEC_ARGV/);
+
+// Test ESM eval
+new Worker('export {}', { eval: true, execArgv: ['--input-type=module'] });
+new Worker('export {}', { eval: true, execArgv: ['--input-type=commonjs'] })
+  .once('error', common.expectsError({ name: 'SyntaxError' }));
+new Worker('export {}', { eval: true, execArgv: ['--experimental-detect-module'] });
+new Worker('export {}', { eval: true, execArgv: ['--no-experimental-detect-module'] })
+  .once('error', common.expectsError({ name: 'SyntaxError' }));

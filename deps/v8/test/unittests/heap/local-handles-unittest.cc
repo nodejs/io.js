@@ -48,18 +48,15 @@ class LocalHandlesThread final : public v8::base::Thread {
 
     for (int i = 0; i < kNumHandles; i++) {
       Handle<HeapNumber> number = handle(
-          HeapNumber::cast(HeapObject::FromAddress(object_)), &local_heap);
+          Cast<HeapNumber>(HeapObject::FromAddress(object_)), &local_heap);
       handles.push_back(number);
     }
 
     sema_started_->Signal();
 
-    {
-      ParkedScope parked_scope(&local_heap);
-      sema_gc_finished_->Wait();
-    }
+    local_heap.ExecuteWhileParked([this]() { sema_gc_finished_->Wait(); });
 
-    for (Handle<HeapNumber> handle : handles) {
+    for (DirectHandle<HeapNumber> handle : handles) {
       CHECK_EQ(42.0, handle->value());
     }
   }
@@ -77,7 +74,7 @@ TEST_F(LocalHandlesTest, CreateLocalHandles) {
 
   {
     HandleScope handle_scope(isolate);
-    Handle<HeapNumber> number = isolate->factory()->NewHeapNumber(42.0);
+    DirectHandle<HeapNumber> number = isolate->factory()->NewHeapNumber(42.0);
     object = number->address();
   }
 
@@ -109,7 +106,7 @@ TEST_F(LocalHandlesTest, DereferenceLocalHandle) {
   // Create a PersistentHandle to create the LocalHandle, and thus not have a
   // HandleScope present to override the LocalHandleScope.
   std::unique_ptr<PersistentHandles> phs = isolate->NewPersistentHandles();
-  Handle<HeapNumber> ph;
+  IndirectHandle<HeapNumber> ph;
   {
     HandleScope handle_scope(isolate);
     Handle<HeapNumber> number = isolate->factory()->NewHeapNumber(42.0);
@@ -120,7 +117,7 @@ TEST_F(LocalHandlesTest, DereferenceLocalHandle) {
                          std::move(phs));
     UnparkedScope unparked_scope(&local_heap);
     LocalHandleScope scope(&local_heap);
-    Handle<HeapNumber> local_number = handle(*ph, &local_heap);
+    DirectHandle<HeapNumber> local_number = handle(*ph, &local_heap);
     CHECK_EQ(42, local_number->value());
   }
 }
@@ -131,7 +128,7 @@ TEST_F(LocalHandlesTest, DereferenceLocalHandleFailsWhenDisallowed) {
   // Create a PersistentHandle to create the LocalHandle, and thus not have a
   // HandleScope present to override the LocalHandleScope.
   std::unique_ptr<PersistentHandles> phs = isolate->NewPersistentHandles();
-  Handle<HeapNumber> ph;
+  IndirectHandle<HeapNumber> ph;
   {
     HandleScope handle_scope(isolate);
     Handle<HeapNumber> number = isolate->factory()->NewHeapNumber(42.0);
@@ -142,7 +139,7 @@ TEST_F(LocalHandlesTest, DereferenceLocalHandleFailsWhenDisallowed) {
                          std::move(phs));
     UnparkedScope unparked_scope(&local_heap);
     LocalHandleScope scope(&local_heap);
-    Handle<HeapNumber> local_number = handle(*ph, &local_heap);
+    DirectHandle<HeapNumber> local_number = handle(*ph, &local_heap);
     DisallowHandleDereference disallow_scope;
     CHECK_EQ(42, local_number->value());
   }

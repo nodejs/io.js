@@ -144,7 +144,7 @@ void PretenuringHandler::MergeAllocationSitePretenuringFeedback(
     site = site_and_count.first;
     MapWord map_word = site->map_word(cage_base, kRelaxedLoad);
     if (map_word.IsForwardingAddress()) {
-      site = AllocationSite::cast(map_word.ToForwardingAddress(site));
+      site = Cast<AllocationSite>(map_word.ToForwardingAddress(site));
     }
 
     // We have not validated the allocation site yet, since we have not
@@ -179,9 +179,12 @@ void PretenuringHandler::ProcessPretenuringFeedback(
 
   if (!v8_flags.allocation_site_pretenuring) return;
 
+  // TODO(333906585): Adjust capacity for sticky bits.
+  const size_t max_capacity = v8_flags.sticky_mark_bits
+                                  ? heap_->sticky_space()->Capacity()
+                                  : heap_->new_space()->MaximumCapacity();
   const size_t min_new_space_capacity_for_pretenuring =
-      std::min(heap_->new_space()->MaximumCapacity(),
-               kDefaultMinNewSpaceCapacityForPretenuring);
+      std::min(max_capacity, kDefaultMinNewSpaceCapacityForPretenuring);
 
   bool trigger_deoptimization = false;
   int tenure_decisions = 0;

@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
 
+import argparse
 import logging
 import re
 import shutil
@@ -13,7 +14,6 @@ import sys
 
 from blinkpy.common.system.log_utils import configure_logging
 from blinkpy.w3c.common import read_credentials
-from blinkpy.w3c.test_importer import TestImporter
 
 TEST_FILE_REFERENCE_IN_STATUS_FILE = re.compile("^\s*'(.*)':.*,$")
 TEST262_FAILURE_LINE = re.compile("=== test262/(.*) ===")
@@ -32,7 +32,7 @@ class GitFileStatus(Enum):
   UNKNOWN = 'X'
 
 
-class V8TestImporter(TestImporter):
+class V8TestImporter():
 
   def __init__(self,
                phase,
@@ -40,7 +40,8 @@ class V8TestImporter(TestImporter):
                test262_github=None,
                test262_failure_file=None,
                v8_test262_last_rev=None):
-    super().__init__(host, test262_github, wpt_manifests=None)
+    self.host = host
+    self.github = test262_github
     self.project_config = host.project_config
     self.project_root = Path(self.project_config.project_root)
     self.test262_status_file = self.project_root / 'test' / 'test262' / 'test262.status'
@@ -48,16 +49,27 @@ class V8TestImporter(TestImporter):
     self.test262_failure_file = test262_failure_file
     self.v8_test262_last_rev = v8_test262_last_rev
 
+  def parse_args(self, argv):
+        parser = argparse.ArgumentParser()
+        parser.description = __doc__
+        parser.add_argument(
+            '-v',
+            '--verbose',
+            action='store_true',
+            help='log extra details that may be helpful when debugging')
+        parser.add_argument(
+            '--credentials-json',
+            help='A JSON file with GitHub credentials, '
+            'generally not necessary on developer machines')
+
+        return parser.parse_args(argv)
+
   def main(self, argv=None):
     options = self.parse_args(argv)
     self.verbose = options.verbose
 
     log_level = logging.DEBUG if self.verbose else logging.INFO
     configure_logging(logging_level=log_level, include_time=True)
-
-    if options.auto_update and options.auto_upload:
-      _log.error('--auto-upload and --auto-update cannot be used together.')
-      return False
 
     credentials = read_credentials(self.host, options.credentials_json)
     gh_user = credentials.get('GH_USER')

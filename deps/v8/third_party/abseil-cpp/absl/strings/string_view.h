@@ -159,7 +159,7 @@ ABSL_NAMESPACE_BEGIN
 //
 //   absl::string_view() == absl::string_view("", 0)
 //   absl::string_view(nullptr, 0) == absl::string_view("abcdef"+6, 0)
-class string_view {
+class ABSL_INTERNAL_ATTRIBUTE_VIEW string_view {
  public:
   using traits_type = std::char_traits<char>;
   using value_type = char;
@@ -173,6 +173,7 @@ class string_view {
   using reverse_iterator = const_reverse_iterator;
   using size_type = size_t;
   using difference_type = std::ptrdiff_t;
+  using absl_internal_is_view = std::true_type;
 
   static constexpr size_type npos = static_cast<size_type>(-1);
 

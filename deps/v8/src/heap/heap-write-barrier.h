@@ -6,7 +6,6 @@
 #define V8_HEAP_HEAP_WRITE_BARRIER_H_
 
 #include "include/v8-internal.h"
-#include "src/base/optional.h"
 #include "src/common/globals.h"
 #include "src/objects/heap-object.h"
 
@@ -47,10 +46,15 @@ void CombinedWriteBarrier(HeapObjectLayout* object, TaggedMemberBase* slot,
 void CombinedEphemeronWriteBarrier(Tagged<EphemeronHashTable> object,
                                    ObjectSlot slot, Tagged<Object> value,
                                    WriteBarrierMode mode);
+
 void IndirectPointerWriteBarrier(Tagged<HeapObject> host,
                                  IndirectPointerSlot slot,
                                  Tagged<HeapObject> value,
                                  WriteBarrierMode mode);
+
+void JSDispatchHandleWriteBarrier(Tagged<HeapObject> host,
+                                  JSDispatchHandle handle,
+                                  WriteBarrierMode mode);
 
 // Generational write barrier.
 void GenerationalBarrierForCode(Tagged<InstructionStream> host,
@@ -75,9 +79,12 @@ class V8_EXPORT_PRIVATE WriteBarrier {
   static inline void Marking(Tagged<TrustedObject> host,
                              ProtectedPointerSlot slot,
                              Tagged<TrustedObject> value);
+  static inline void Marking(Tagged<HeapObject> host, JSDispatchHandle handle);
 
   static inline void Shared(Tagged<InstructionStream> host, RelocInfo*,
                             Tagged<HeapObject> value);
+  static void Shared(Tagged<TrustedObject> host, ProtectedPointerSlot slot,
+                     Tagged<TrustedObject> value);
 
   // It is invoked from generated code and has to take raw addresses.
   static int MarkingFromCode(Address raw_host, Address raw_slot);
@@ -89,11 +96,8 @@ class V8_EXPORT_PRIVATE WriteBarrier {
   // Invoked from global handles where no host object is available.
   static inline void MarkingFromGlobalHandle(Tagged<Object> value);
 
-  static inline void CombinedBarrierFromInternalFields(Tagged<JSObject> host,
-                                                       void* value);
-  static inline void CombinedBarrierFromInternalFields(Tagged<JSObject> host,
-                                                       size_t argc,
-                                                       void** values);
+  static inline void CombinedBarrierForCppHeapPointer(Tagged<JSObject> host,
+                                                      void* value);
 
   static MarkingBarrier* SetForThread(MarkingBarrier*);
 
@@ -122,13 +126,12 @@ class V8_EXPORT_PRIVATE WriteBarrier {
   static void MarkingSlow(Tagged<HeapObject> host, IndirectPointerSlot slot);
   static void MarkingSlow(Tagged<TrustedObject> host, ProtectedPointerSlot slot,
                           Tagged<TrustedObject> value);
+  static void MarkingSlow(Tagged<HeapObject> host, JSDispatchHandle handle);
   static void MarkingSlowFromGlobalHandle(Tagged<HeapObject> value);
-  static void MarkingSlowFromInternalFields(Heap* heap, Tagged<JSObject> host);
+  static void MarkingSlowFromCppHeapWrappable(Heap* heap, void* object);
 
-  static inline void GenerationalBarrierFromInternalFields(
-      Tagged<JSObject> host, void* value);
-  static inline void GenerationalBarrierFromInternalFields(
-      Tagged<JSObject> host, size_t argc, void** values);
+  static inline void GenerationalBarrierForCppHeapPointer(Tagged<JSObject> host,
+                                                          void* value);
 
   static void SharedSlow(Tagged<InstructionStream> host, RelocInfo*,
                          Tagged<HeapObject> value);

@@ -4,34 +4,34 @@
 
 #include "src/torque/server-data.h"
 
+#include <optional>
+
 #include "src/base/macros.h"
 #include "src/torque/declarable.h"
 #include "src/torque/implementation-visitor.h"
 
 EXPORT_CONTEXTUAL_VARIABLE(v8::internal::torque::LanguageServerData)
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 void LanguageServerData::AddDefinition(SourcePosition token,
                                        SourcePosition definition) {
   Get().definitions_map_[token.source].emplace_back(token, definition);
 }
 
-base::Optional<SourcePosition> LanguageServerData::FindDefinition(
+std::optional<SourcePosition> LanguageServerData::FindDefinition(
     SourceId source, LineAndColumn pos) {
-  if (!source.IsValid()) return base::nullopt;
+  if (!source.IsValid()) return std::nullopt;
 
   auto iter = Get().definitions_map_.find(source);
-  if (iter == Get().definitions_map_.end()) return base::nullopt;
+  if (iter == Get().definitions_map_.end()) return std::nullopt;
 
   for (const DefinitionMapping& mapping : iter->second) {
     SourcePosition current = mapping.first;
     if (current.Contains(pos)) return mapping.second;
   }
 
-  return base::nullopt;
+  return std::nullopt;
 }
 
 void LanguageServerData::PrepareAllDeclarableSymbols() {
@@ -48,6 +48,4 @@ void LanguageServerData::PrepareAllDeclarableSymbols() {
   }
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

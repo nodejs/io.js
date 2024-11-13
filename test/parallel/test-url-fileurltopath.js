@@ -1,25 +1,25 @@
 'use strict';
 const { isWindows } = require('../common');
-const assert = require('assert');
-const url = require('url');
 
-function testInvalidArgs(...args) {
-  for (const arg of args) {
+const { test } = require('node:test');
+const assert = require('node:assert');
+const url = require('node:url');
+
+test('invalid arguments', () => {
+  for (const arg of [null, undefined, 1, {}, true]) {
     assert.throws(() => url.fileURLToPath(arg), {
       code: 'ERR_INVALID_ARG_TYPE'
     });
   }
-}
-
-// Input must be string or URL
-testInvalidArgs(null, undefined, 1, {}, true);
-
-// Input must be a file URL
-assert.throws(() => url.fileURLToPath('https://a/b/c'), {
-  code: 'ERR_INVALID_URL_SCHEME'
 });
 
-{
+test('input must be a file URL', () => {
+  assert.throws(() => url.fileURLToPath('https://a/b/c'), {
+    code: 'ERR_INVALID_URL_SCHEME'
+  });
+});
+
+test('fileURLToPath with host', () => {
   const withHost = new URL('file://host/a');
 
   if (isWindows) {
@@ -29,9 +29,9 @@ assert.throws(() => url.fileURLToPath('https://a/b/c'), {
       code: 'ERR_INVALID_FILE_URL_HOST'
     });
   }
-}
+});
 
-{
+test('fileURLToPath with invalid path', () => {
   if (isWindows) {
     assert.throws(() => url.fileURLToPath('file:///C:/a%2F/'), {
       code: 'ERR_INVALID_FILE_URL_PATH'
@@ -47,7 +47,7 @@ assert.throws(() => url.fileURLToPath('https://a/b/c'), {
       code: 'ERR_INVALID_FILE_URL_PATH'
     });
   }
-}
+});
 
 const windowsTestCases = [
   // Lowercase ascii alpha
@@ -95,6 +95,7 @@ const windowsTestCases = [
   // UNC path (see https://docs.microsoft.com/en-us/archive/blogs/ie/file-uris-in-windows)
   { path: '\\\\nas\\My Docs\\File.doc', fileURL: 'file://nas/My%20Docs/File.doc' },
 ];
+
 const posixTestCases = [
   // Lowercase ascii alpha
   { path: '/foo', fileURL: 'file:///foo' },
@@ -140,29 +141,37 @@ const posixTestCases = [
   { path: '/🚀', fileURL: 'file:///%F0%9F%9A%80' },
 ];
 
-for (const { path, fileURL } of windowsTestCases) {
-  const fromString = url.fileURLToPath(fileURL, { windows: true });
-  assert.strictEqual(fromString, path);
-  const fromURL = url.fileURLToPath(new URL(fileURL), { windows: true });
-  assert.strictEqual(fromURL, path);
-}
+test('fileURLToPath with windows path', { skip: !isWindows }, () => {
 
-for (const { path, fileURL } of posixTestCases) {
-  const fromString = url.fileURLToPath(fileURL, { windows: false });
-  assert.strictEqual(fromString, path);
-  const fromURL = url.fileURLToPath(new URL(fileURL), { windows: false });
-  assert.strictEqual(fromURL, path);
-}
+  for (const { path, fileURL } of windowsTestCases) {
+    const fromString = url.fileURLToPath(fileURL, { windows: true });
+    assert.strictEqual(fromString, path);
+    const fromURL = url.fileURLToPath(new URL(fileURL), { windows: true });
+    assert.strictEqual(fromURL, path);
+  }
+});
+
+test('fileURLToPath with posix path', { skip: isWindows }, () => {
+  for (const { path, fileURL } of posixTestCases) {
+    const fromString = url.fileURLToPath(fileURL, { windows: false });
+    assert.strictEqual(fromString, path);
+    const fromURL = url.fileURLToPath(new URL(fileURL), { windows: false });
+    assert.strictEqual(fromURL, path);
+  }
+});
 
 const defaultTestCases = isWindows ? windowsTestCases : posixTestCases;
 
-// Test when `options` is null
-const whenNullActual = url.fileURLToPath(new URL(defaultTestCases[0].fileURL), null);
-assert.strictEqual(whenNullActual, defaultTestCases[0].path);
+test('options is null', () => {
+  const whenNullActual = url.fileURLToPath(new URL(defaultTestCases[0].fileURL), null);
+  assert.strictEqual(whenNullActual, defaultTestCases[0].path);
+});
 
-for (const { path, fileURL } of defaultTestCases) {
-  const fromString = url.fileURLToPath(fileURL);
-  assert.strictEqual(fromString, path);
-  const fromURL = url.fileURLToPath(new URL(fileURL));
-  assert.strictEqual(fromURL, path);
-}
+test('defaultTestCases', () => {
+  for (const { path, fileURL } of defaultTestCases) {
+    const fromString = url.fileURLToPath(fileURL);
+    assert.strictEqual(fromString, path);
+    const fromURL = url.fileURLToPath(new URL(fileURL));
+    assert.strictEqual(fromURL, path);
+  }
+});

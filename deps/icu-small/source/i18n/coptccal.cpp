@@ -79,10 +79,11 @@ CopticCalendar::handleGetExtendedYear(UErrorCode& status)
 }
 
 void
-CopticCalendar::handleComputeFields(int32_t julianDay, UErrorCode &/*status*/)
+CopticCalendar::handleComputeFields(int32_t julianDay, UErrorCode& status)
 {
     int32_t eyear, month, day, era, year;
-    jdToCE(julianDay, getJDEpochOffset(), eyear, month, day);
+    jdToCE(julianDay, getJDEpochOffset(), eyear, month, day, status);
+    if (U_FAILURE(status)) return;
 
     if (eyear <= 0) {
         era = BCE;

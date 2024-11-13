@@ -5,6 +5,8 @@
 #ifndef V8_OBJECTS_SMI_H_
 #define V8_OBJECTS_SMI_H_
 
+#include <type_traits>
+
 #include "src/common/globals.h"
 #include "src/objects/tagged.h"
 
@@ -35,7 +37,7 @@ class Smi : public AllStatic {
   // Convert a value to a Smi object.
   static inline constexpr Tagged<Smi> FromInt(int value) {
     DCHECK(Smi::IsValid(value));
-    return Tagged<Smi>(Internals::IntToSmi(value));
+    return Tagged<Smi>(Internals::IntegralToSmi(value));
   }
 
   static inline constexpr Tagged<Smi> FromIntptr(intptr_t value) {
@@ -60,9 +62,17 @@ class Smi : public AllStatic {
   }
 
   // Returns whether value can be represented in a Smi.
-  static inline bool constexpr IsValid(intptr_t value) {
+  template <typename T>
+  static inline std::enable_if_t<std::is_integral_v<T> && std::is_signed_v<T>,
+                                 bool> constexpr IsValid(T value) {
     DCHECK_EQ(Internals::IsValidSmi(value),
               value >= kMinValue && value <= kMaxValue);
+    return Internals::IsValidSmi(value);
+  }
+  template <typename T>
+  static inline std::enable_if_t<std::is_integral_v<T> && std::is_unsigned_v<T>,
+                                 bool> constexpr IsValid(T value) {
+    DCHECK_EQ(Internals::IsValidSmi(value), value <= kMaxValue);
     return Internals::IsValidSmi(value);
   }
 
@@ -76,8 +86,6 @@ class Smi : public AllStatic {
   V8_EXPORT_PRIVATE static Address LexicographicCompare(Isolate* isolate,
                                                         Tagged<Smi> x,
                                                         Tagged<Smi> y);
-
-  DECL_CAST(Smi)
 
   // Dispatched behavior.
   V8_EXPORT_PRIVATE static void SmiPrint(Tagged<Smi> smi, std::ostream& os);
@@ -104,11 +112,6 @@ class Smi : public AllStatic {
     return Tagged<Smi>(kNullAddress);
   }
 };
-
-Tagged<Smi> Smi::cast(Tagged<Object> object) {
-  DCHECK(object.IsSmi());
-  return Tagged<Smi>(object.ptr());
-}
 
 }  // namespace internal
 }  // namespace v8

@@ -1,6 +1,6 @@
 {
   "name": "corepack",
-  "version": "0.29.3",
+  "version": "0.29.4",
   "homepage": "https://github.com/nodejs/corepack#readme",
   "bugs": {
     "url": "https://github.com/nodejs/corepack/issues"

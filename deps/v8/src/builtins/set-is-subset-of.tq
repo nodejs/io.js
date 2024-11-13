@@ -25,7 +25,8 @@ transitioning javascript builtin SetPrototypeIsSubsetOf(
   const thisSize = table.LoadSize();
 
   // 5. If thisSize > otherRec.[[Size]], return false.
-  if (thisSize > Convert<int32>(otherRec.size)) {
+  if (!(otherRec.size == V8_INFINITY) &&
+      thisSize > Convert<int32>(otherRec.size)) {
     return False;
   }
 

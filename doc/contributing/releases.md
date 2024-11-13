@@ -944,6 +944,13 @@ a `NODEJS_RELEASE_HOST` environment variable:
 NODEJS_RELEASE_HOST=proxy.xyz ./tools/release.sh
 ```
 
+> \[!TIP]
+> Sometimes, due to machines being overloaded or other external factors,
+> the files at <https://nodejs.org/dist/index.json>, <https://nodejs.org/dist/index.tab>
+> or `SHASUMS256.txt` may not be generated correctly.
+> In this case you can repeat the signing step in order
+> to fix it. e.g: `./tools/release.sh -s`.
+
 `tools/release.sh` will perform the following actions when run:
 
 <details>
@@ -1210,8 +1217,14 @@ the releaser, these must be kept in sync with `main`.
 The `vN.x` and `vN.x-staging` branches must be kept in sync with one another
 up until the date of the release.
 
-The TSC should be informed of any `SEMVER-MAJOR` commits that land within one
-month of the release.
+If a `SEMVER-MAJOR` pull request lands on the default branch within one month
+prior to the major release date, it must not be included on the new major
+staging branch, unless there is consensus from the Node.js releasers team to
+do so. This measure aims to ensure better stability for the release candidate
+(RC) phase, which begins approximately two weeks prior to the official release.
+By restricting `SEMVER-MAJOR` commits in this period, we provide more time for
+thorough testing and reduce the potential for major breakages, especially in
+LTS lines.
 
 ### Create release labels
 

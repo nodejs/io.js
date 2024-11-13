@@ -83,7 +83,7 @@ void DecompressionAnalyzer::ProcessOperation(const Operation& op) {
       if (store.index().valid()) {
         MarkAsNeedsDecompression(store.index().value());
       }
-      if (!store.stored_rep.IsTagged()) {
+      if (!store.stored_rep.IsCompressibleTagged()) {
         MarkAsNeedsDecompression(store.value());
       }
       break;
@@ -183,7 +183,7 @@ void DecompressionAnalyzer::MarkAddressingBase(OpIndex base_idx) {
   DCHECK(DECOMPRESS_POINTER_BY_ADDRESSING_MODE);
   const Operation& base = graph.Get(base_idx);
   if (const LoadOp* load = base.TryCast<LoadOp>();
-      load && load->loaded_rep.IsTagged()) {
+      load && load->loaded_rep.IsCompressibleTagged()) {
     // We can keep {load} (the base) as compressed and untag with complex
     // addressing mode.
     return;
@@ -192,7 +192,8 @@ void DecompressionAnalyzer::MarkAddressingBase(OpIndex base_idx) {
     bool keep_compressed = true;
     for (OpIndex input_idx : base.inputs()) {
       const Operation& input = graph.Get(input_idx);
-      if (!input.Is<LoadOp>() || !base.IsOnlyUserOf(input, graph)) {
+      if (!input.Is<LoadOp>() || !base.IsOnlyUserOf(input, graph) ||
+          !input.Cast<LoadOp>().loaded_rep.IsCompressibleTagged()) {
         keep_compressed = false;
         break;
       }
@@ -230,7 +231,7 @@ void RunDecompressionOptimization(Graph& graph, Zone* phase_zone) {
       }
       case Opcode::kLoad: {
         auto& load = op.Cast<LoadOp>();
-        if (load.loaded_rep.IsTagged()) {
+        if (load.loaded_rep.IsCompressibleTagged()) {
           DCHECK_EQ(load.result_rep,
                     any_of(RegisterRepresentation::Tagged(),
                            RegisterRepresentation::Compressed()));

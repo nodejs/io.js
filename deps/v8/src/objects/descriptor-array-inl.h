@@ -10,6 +10,7 @@
 #include "src/heap/heap-write-barrier.h"
 #include "src/heap/heap.h"
 #include "src/objects/descriptor-array.h"
+#include "src/objects/dictionary.h"
 #include "src/objects/field-type.h"
 #include "src/objects/heap-object-inl.h"
 #include "src/objects/lookup-cache-inl.h"
@@ -126,7 +127,7 @@ Tagged<Name> DescriptorArray::GetKey(PtrComprCageBase cage_base,
                                      InternalIndex descriptor_number) const {
   DCHECK_LT(descriptor_number.as_int(), number_of_descriptors());
   int entry_offset = OffsetOfDescriptorAt(descriptor_number.as_int());
-  return Name::cast(
+  return Cast<Name>(
       EntryKeyField::Relaxed_Load(cage_base, *this, entry_offset));
 }
 
@@ -160,12 +161,12 @@ void DescriptorArray::SetSortedKey(int descriptor_number, int pointer) {
 Tagged<Object> DescriptorArray::GetStrongValue(
     InternalIndex descriptor_number) {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
-  return GetStrongValue(cage_base, descriptor_number);
+  return Cast<Object>(GetStrongValue(cage_base, descriptor_number));
 }
 
 Tagged<Object> DescriptorArray::GetStrongValue(
     PtrComprCageBase cage_base, InternalIndex descriptor_number) {
-  return Tagged<Object>::cast(GetValue(cage_base, descriptor_number));
+  return Cast<Object>(GetValue(cage_base, descriptor_number));
 }
 
 void DescriptorArray::SetValue(InternalIndex descriptor_number,
@@ -222,6 +223,7 @@ Tagged<FieldType> DescriptorArray::GetFieldType(
 
 void DescriptorArray::Set(InternalIndex descriptor_number, Tagged<Name> key,
                           Tagged<MaybeObject> value, PropertyDetails details) {
+  CHECK_LT(descriptor_number.as_int(), number_of_descriptors());
   SetKey(descriptor_number, key);
   SetDetails(descriptor_number, details);
   SetValue(descriptor_number, value);

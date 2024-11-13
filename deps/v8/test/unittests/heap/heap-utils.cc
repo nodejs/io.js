@@ -12,7 +12,7 @@
 #include "src/heap/incremental-marking.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/new-spaces.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/safepoint.h"
 #include "src/objects/free-space-inl.h"
 

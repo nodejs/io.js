@@ -6,7 +6,7 @@
 // Flags: --no-always-use-string-forwarding-table
 
 let internalized1234 = %ConstructInternalizedString("1234123412341234");
-let nonInternalized1234 = "1234" + "1234" + "1234" + "1234";
+let nonInternalized1234 = %ConstructConsString("12341234", "12341234");
 let uniqueId = 0;
 
 function warmUpMaglevTestFn(test_fn_src) {

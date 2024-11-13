@@ -5,6 +5,8 @@
 #ifndef V8_COMPILER_COMMON_OPERATOR_H_
 #define V8_COMPILER_COMMON_OPERATOR_H_
 
+#include <optional>
+
 #include "src/base/compiler-specific.h"
 #include "src/codegen/machine-type.h"
 #include "src/codegen/reloc-info.h"
@@ -479,17 +481,17 @@ const char* StaticAssertSourceOf(const Operator* op);
 class SLVerifierHintParameters final {
  public:
   explicit SLVerifierHintParameters(const Operator* semantics,
-                                    base::Optional<Type> override_output_type)
+                                    std::optional<Type> override_output_type)
       : semantics_(semantics), override_output_type_(override_output_type) {}
 
   const Operator* semantics() const { return semantics_; }
-  const base::Optional<Type>& override_output_type() const {
+  const std::optional<Type>& override_output_type() const {
     return override_output_type_;
   }
 
  private:
   const Operator* semantics_;
-  base::Optional<Type> override_output_type_;
+  std::optional<Type> override_output_type_;
 };
 
 V8_EXPORT_PRIVATE bool operator==(const SLVerifierHintParameters& p1,
@@ -562,7 +564,7 @@ class V8_EXPORT_PRIVATE CommonOperatorBuilder final
   // are removed at the end of SimplifiedLowering after verification.
   const Operator* SLVerifierHint(
       const Operator* semantics,
-      const base::Optional<Type>& override_output_type);
+      const std::optional<Type>& override_output_type);
   const Operator* End(size_t control_input_count);
   // TODO(nicohartmann@): Remove the default argument for {semantics} once all
   // uses are updated.
@@ -612,6 +614,7 @@ class V8_EXPORT_PRIVATE CommonOperatorBuilder final
   const Operator* PointerConstant(intptr_t);
   const Operator* HeapConstant(const Handle<HeapObject>&);
   const Operator* CompressedHeapConstant(const Handle<HeapObject>&);
+  const Operator* TrustedHeapConstant(const Handle<HeapObject>&);
   const Operator* ObjectId(uint32_t);
 
   const Operator* RelocatableInt32Constant(int32_t value,
@@ -656,11 +659,11 @@ class V8_EXPORT_PRIVATE CommonOperatorBuilder final
 
   // Constructs function info for frame state construction.
   const FrameStateFunctionInfo* CreateFrameStateFunctionInfo(
-      FrameStateType type, int parameter_count, int local_count,
-      Handle<SharedFunctionInfo> shared_info);
+      FrameStateType type, uint16_t parameter_count, uint16_t max_arguments,
+      int local_count, Handle<SharedFunctionInfo> shared_info);
 #if V8_ENABLE_WEBASSEMBLY
   const FrameStateFunctionInfo* CreateJSToWasmFrameStateFunctionInfo(
-      FrameStateType type, int parameter_count, int local_count,
+      FrameStateType type, uint16_t parameter_count, int local_count,
       Handle<SharedFunctionInfo> shared_info,
       const wasm::FunctionSig* signature);
 #endif  // V8_ENABLE_WEBASSEMBLY

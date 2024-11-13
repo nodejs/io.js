@@ -90,3 +90,14 @@ fractals.sort(random_sort);
 assertEqualsDelta(edge_length, Math.hypot.apply(Math, fractals), 1E-15);
 fractals.sort(random_sort);
 assertEqualsDelta(edge_length, Math.hypot.apply(Math, fractals), 1E-15);
+
+
+let numOfValueOfCalls = 0;
+let obj = { valueOf() { numOfValueOfCalls++; return 0; } };
+
+Math.hypot(obj, obj);
+assertEquals(numOfValueOfCalls, 2)
+Math.hypot(obj, obj, obj);
+assertEquals(numOfValueOfCalls, 5) // 2 + 3
+Math.hypot(obj, obj, obj, obj);
+assertEquals(numOfValueOfCalls, 9) // 2 + 3 + 4

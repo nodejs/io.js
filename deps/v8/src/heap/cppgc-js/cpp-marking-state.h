@@ -20,44 +20,27 @@ class EmbedderDataSlot;
 
 class CppMarkingState final {
  public:
-  using EmbedderDataSnapshot =
-      std::pair<EmbedderDataSlot::EmbedderDataSlotSnapshot,
-                EmbedderDataSlot::EmbedderDataSlotSnapshot>;
-
-  CppMarkingState(Isolate* isolate, const WrapperDescriptor& wrapper_descriptor,
-                  cppgc::internal::MarkingStateBase& main_thread_marking_state)
-      : isolate_(isolate),
-        wrapper_descriptor_(wrapper_descriptor),
-        owned_marking_state_(nullptr),
+  explicit CppMarkingState(
+      cppgc::internal::MarkingStateBase& main_thread_marking_state)
+      : owned_marking_state_(nullptr),
         marking_state_(main_thread_marking_state) {}
 
-  CppMarkingState(Isolate* isolate, const WrapperDescriptor& wrapper_descriptor,
-                  std::unique_ptr<cppgc::internal::MarkingStateBase>
-                      concurrent_marking_state)
-      : isolate_(isolate),
-        wrapper_descriptor_(wrapper_descriptor),
-        owned_marking_state_(std::move(concurrent_marking_state)),
+  explicit CppMarkingState(std::unique_ptr<cppgc::internal::MarkingStateBase>
+                               concurrent_marking_state)
+      : owned_marking_state_(std::move(concurrent_marking_state)),
         marking_state_(*owned_marking_state_) {}
   CppMarkingState(const CppMarkingState&) = delete;
   CppMarkingState& operator=(const CppMarkingState&) = delete;
 
   void Publish() { marking_state_.Publish(); }
 
-  inline bool ExtractEmbedderDataSnapshot(Tagged<Map>, Tagged<JSObject>,
-                                          EmbedderDataSnapshot&);
+  inline void MarkAndPush(void* instance);
 
-  inline void MarkAndPush(const EmbedderDataSnapshot&);
-  inline void MarkAndPush(const EmbedderDataSlot type_slot,
-                          const EmbedderDataSlot instance_slot);
-
-  bool IsLocalEmpty() {
+  bool IsLocalEmpty() const {
     return marking_state_.marking_worklist().IsLocalEmpty();
   }
 
  private:
-  Isolate* const isolate_;
-  const WrapperDescriptor& wrapper_descriptor_;
-
   std::unique_ptr<cppgc::internal::MarkingStateBase> owned_marking_state_;
   cppgc::internal::MarkingStateBase& marking_state_;
 };

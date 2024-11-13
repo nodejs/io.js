@@ -39,6 +39,20 @@ void Int32NegateWithOverflow::GenerateCode(MaglevAssembler* masm,
   __ EmitEagerDeoptIf(vs, DeoptimizeReason::kOverflow, this);
 }
 
+void Int32AbsWithOverflow::GenerateCode(MaglevAssembler* masm,
+                                        const ProcessingState& state) {
+  Register out = ToRegister(result());
+  Label done;
+  __ cmp(out, Operand(0));
+  __ JumpIf(ge, &done);
+  __ rsb(out, out, Operand(0), SetCC);
+  // Output register must not be a register input into the eager deopt info.
+  DCHECK_REGLIST_EMPTY(RegList{out} &
+                       GetGeneralRegistersUsedAsInputs(eager_deopt_info()));
+  __ EmitEagerDeoptIf(vs, DeoptimizeReason::kOverflow, this);
+  __ bind(&done);
+}
+
 void Int32IncrementWithOverflow::SetValueLocationConstraints() {
   UseRegister(value_input());
   DefineAsRegister(this);
@@ -78,62 +92,32 @@ void BuiltinStringFromCharCode::SetValueLocationConstraints() {
   if (code_input().node()->Is<Int32Constant>()) {
     UseAny(code_input());
   } else {
-    UseRegister(code_input());
+    UseAndClobberRegister(code_input());
   }
-  set_temporaries_needed(2);
+  set_temporaries_needed(1);
   DefineAsRegister(this);
 }
 void BuiltinStringFromCharCode::GenerateCode(MaglevAssembler* masm,
                                              const ProcessingState& state) {
-  MaglevAssembler::ScratchRegisterScope temps(masm);
+  MaglevAssembler::TemporaryRegisterScope temps(masm);
   Register scratch = temps.Acquire();
   Register result_string = ToRegister(result());
   if (Int32Constant* constant = code_input().node()->TryCast<Int32Constant>()) {
-    int32_t char_code = constant->value();
+    int32_t char_code = constant->value() & 0xFFFF;
     if (0 <= char_code && char_code < String::kMaxOneByteCharCode) {
       __ LoadSingleCharacterString(result_string, char_code);
     } else {
-      // Ensure that {result_string} never aliases {scratch}, otherwise the
-      // store will fail.
-      bool reallocate_result = (scratch == result_string);
-      if (reallocate_result) {
-        result_string = temps.Acquire();
-      }
-      DCHECK(scratch != result_string);
+      DCHECK_NE(scratch, result_string);
       __ AllocateTwoByteString(register_snapshot(), result_string, 1);
-      __ Move(scratch, char_code & 0xFFFF);
+      __ Move(scratch, char_code);
       __ strh(scratch, FieldMemOperand(result_string,
                                        OFFSET_OF_DATA_START(SeqTwoByteString)));
-      if (reallocate_result) {
-        __ Move(ToRegister(result()), result_string);
-      }
     }
   } else {
     __ StringFromCharCode(register_snapshot(), nullptr, result_string,
-                          ToRegister(code_input()), scratch);
+                          ToRegister(code_input()), scratch,
+                          MaglevAssembler::CharCodeMaskMode::kMustApplyMask);
   }
-}
-
-int BuiltinStringPrototypeCharCodeOrCodePointAt::MaxCallStackArgs() const {
-  DCHECK_EQ(Runtime::FunctionForId(Runtime::kStringCharCodeAt)->nargs, 2);
-  return 2;
-}
-void BuiltinStringPrototypeCharCodeOrCodePointAt::
-    SetValueLocationConstraints() {
-  UseAndClobberRegister(string_input());
-  UseAndClobberRegister(index_input());
-  DefineAsRegister(this);
-}
-void BuiltinStringPrototypeCharCodeOrCodePointAt::GenerateCode(
-    MaglevAssembler* masm, const ProcessingState& state) {
-  Label done;
-  MaglevAssembler::ScratchRegisterScope temps(masm);
-  Register scratch = temps.Acquire();
-  RegisterSnapshot save_registers = register_snapshot();
-  __ StringCharCodeOrCodePointAt(mode_, save_registers, ToRegister(result()),
-                                 ToRegister(string_input()),
-                                 ToRegister(index_input()), scratch, &done);
-  __ bind(&done);
 }
 
 void InlinedAllocation::SetValueLocationConstraints() {
@@ -173,6 +157,7 @@ void RestLength::GenerateCode(MaglevAssembler* masm,
   __ b(kGreaterThanEqual, &done);
   __ Move(length, 0);
   __ bind(&done);
+  __ UncheckedSmiTagInt32(length);
 }
 
 int CheckedObjectToIndex::MaxCallStackArgs() const { return 0; }
@@ -218,7 +203,6 @@ void Int32MultiplyWithOverflow::SetValueLocationConstraints() {
   UseRegister(left_input());
   UseRegister(right_input());
   DefineAsRegister(this);
-  set_temporaries_needed(1);
 }
 void Int32MultiplyWithOverflow::GenerateCode(MaglevAssembler* masm,
                                              const ProcessingState& state) {
@@ -228,13 +212,13 @@ void Int32MultiplyWithOverflow::GenerateCode(MaglevAssembler* masm,
 
   // TODO(leszeks): peephole optimise multiplication by a constant.
 
-  MaglevAssembler::ScratchRegisterScope temps(masm);
+  MaglevAssembler::TemporaryRegisterScope temps(masm);
   bool out_alias_input = out == left || out == right;
   Register res_low = out;
   if (out_alias_input) {
-    res_low = temps.Acquire();
+    res_low = temps.AcquireScratch();
   }
-  Register res_high = temps.Acquire();
+  Register res_high = temps.AcquireScratch();
   __ smull(res_low, res_high, left, right);
 
   // ARM doesn't set the overflow flag for multiplication, so we need to
@@ -262,10 +246,6 @@ void Int32DivideWithOverflow::SetValueLocationConstraints() {
   UseRegister(left_input());
   UseRegister(right_input());
   DefineAsRegister(this);
-  if (!CpuFeatures::IsSupported(SUDIV)) {
-    // We use the standard low double register and an extra one.
-    set_double_temporaries_needed(1);
-  }
 }
 void Int32DivideWithOverflow::GenerateCode(MaglevAssembler* masm,
                                            const ProcessingState& state) {
@@ -314,11 +294,11 @@ void Int32DivideWithOverflow::GenerateCode(MaglevAssembler* masm,
   __ bind(*done);
 
   // Perform the actual integer division.
-  MaglevAssembler::ScratchRegisterScope temps(masm);
+  MaglevAssembler::TemporaryRegisterScope temps(masm);
   bool out_alias_input = out == left || out == right;
   Register res = out;
   if (out_alias_input) {
-    res = temps.Acquire();
+    res = temps.AcquireScratch();
   }
   if (CpuFeatures::IsSupported(SUDIV)) {
     CpuFeatureScope scope(masm, SUDIV);
@@ -339,7 +319,7 @@ void Int32DivideWithOverflow::GenerateCode(MaglevAssembler* masm,
   }
 
   // Check that the remainder is zero.
-  Register temp = temps.Acquire();
+  Register temp = temps.AcquireScratch();
   __ mul(temp, res, right);
   __ cmp(temp, left);
   __ EmitEagerDeoptIf(ne, DeoptimizeReason::kNotInt32, this);
@@ -350,8 +330,8 @@ void Int32DivideWithOverflow::GenerateCode(MaglevAssembler* masm,
 namespace {
 void Uint32Mod(MaglevAssembler* masm, Register out, Register left,
                Register right) {
-  MaglevAssembler::ScratchRegisterScope temps(masm);
-  Register res = temps.Acquire();
+  MaglevAssembler::TemporaryRegisterScope temps(masm);
+  Register res = temps.AcquireScratch();
   if (CpuFeatures::IsSupported(SUDIV)) {
     CpuFeatureScope scope(masm, SUDIV);
     __ udiv(res, left, right);
@@ -382,10 +362,6 @@ void Int32ModulusWithOverflow::SetValueLocationConstraints() {
   UseAndClobberRegister(left_input());
   UseAndClobberRegister(right_input());
   DefineAsRegister(this);
-  if (!CpuFeatures::IsSupported(SUDIV)) {
-    // We use the standard low double register and an extra one.
-    set_double_temporaries_needed(1);
-  }
 }
 void Int32ModulusWithOverflow::GenerateCode(MaglevAssembler* masm,
                                             const ProcessingState& state) {
@@ -459,17 +435,18 @@ void Int32ModulusWithOverflow::GenerateCode(MaglevAssembler* masm,
       done, lhs, rhs, out, this);
 
   Label rhs_not_power_of_2;
-  MaglevAssembler::ScratchRegisterScope temps(masm);
-  Register mask = temps.Acquire();
-  __ add(mask, rhs, Operand(-1));
-  __ tst(mask, rhs);
-  __ JumpIf(ne, &rhs_not_power_of_2);
+  {
+    MaglevAssembler::TemporaryRegisterScope temps(masm);
+    Register mask = temps.AcquireScratch();
+    __ add(mask, rhs, Operand(-1));
+    __ tst(mask, rhs);
+    __ JumpIf(ne, &rhs_not_power_of_2);
 
-  // {rhs} is power of 2.
-  __ and_(out, mask, lhs);
-  __ Jump(*done);
-  // {mask} can be reused from now on.
-  temps.Include(mask);
+    // {rhs} is power of 2.
+    __ and_(out, mask, lhs);
+    __ Jump(*done);
+    // {mask} can be reused from now on.
+  }
 
   __ bind(&rhs_not_power_of_2);
   Uint32Mod(masm, out, lhs, rhs);
@@ -521,8 +498,8 @@ DEF_BITWISE_BINOP(Int32BitwiseXor, eor)
         __ opcode(out, left, Operand(shift));                                  \
       }                                                                        \
     } else {                                                                   \
-      MaglevAssembler::ScratchRegisterScope temps(masm);                       \
-      Register scratch = temps.Acquire();                                      \
+      MaglevAssembler::TemporaryRegisterScope temps(masm);                     \
+      Register scratch = temps.AcquireScratch();                               \
       Register right = ToRegister(right_input());                              \
       __ and_(scratch, right, Operand(31));                                    \
       __ opcode(out, left, Operand(scratch));                                  \
@@ -629,21 +606,28 @@ void Float64Negate::GenerateCode(MaglevAssembler* masm,
   __ vneg(out, value);
 }
 
+void Float64Abs::GenerateCode(MaglevAssembler* masm,
+                              const ProcessingState& state) {
+  DoubleRegister in = ToDoubleRegister(input());
+  DoubleRegister out = ToDoubleRegister(result());
+  __ vabs(out, in);
+}
+
 void Float64Round::GenerateCode(MaglevAssembler* masm,
                                 const ProcessingState& state) {
   DoubleRegister in = ToDoubleRegister(input());
   DoubleRegister out = ToDoubleRegister(result());
   CpuFeatureScope scope(masm, ARMv8);
   if (kind_ == Kind::kNearest) {
-    MaglevAssembler::ScratchRegisterScope temps(masm);
+    MaglevAssembler::TemporaryRegisterScope temps(masm);
     DoubleRegister temp = temps.AcquireDouble();
-    DoubleRegister half_one = temps.AcquireDouble();
     __ Move(temp, in);
     // vrintn rounds to even on tie, while JS expects it to round towards
     // +Infinity. Fix the difference by checking if we rounded down by exactly
     // 0.5, and if so, round to the other side.
     __ vrintn(out, in);
     __ vsub(temp, temp, out);
+    DoubleRegister half_one = temps.AcquireScratchDouble();
     __ Move(half_one, 0.5);
     __ VFPCompareAndSetFlags(temp, half_one);
     Label done;
@@ -702,8 +686,8 @@ void LoadTypedArrayLength::GenerateCode(MaglevAssembler* masm,
   Register object = ToRegister(receiver_input());
   Register result_register = ToRegister(result());
   if (v8_flags.debug_code) {
-    __ CompareObjectTypeAndAssert(object, JS_TYPED_ARRAY_TYPE, eq,
-                                  AbortReason::kUnexpectedValue);
+    __ AssertObjectType(object, JS_TYPED_ARRAY_TYPE,
+                        AbortReason::kUnexpectedValue);
   }
   __ LoadBoundedSizeFromObject(result_register, object,
                                JSTypedArray::kRawByteLengthOffset);
@@ -724,12 +708,12 @@ void CheckJSDataViewBounds::SetValueLocationConstraints() {
 }
 void CheckJSDataViewBounds::GenerateCode(MaglevAssembler* masm,
                                          const ProcessingState& state) {
-  MaglevAssembler::ScratchRegisterScope temps(masm);
+  MaglevAssembler::TemporaryRegisterScope temps(masm);
   Register object = ToRegister(receiver_input());
   Register index = ToRegister(index_input());
   if (v8_flags.debug_code) {
-    __ CompareObjectTypeAndAssert(object, JS_DATA_VIEW_TYPE, eq,
-                                  AbortReason::kUnexpectedValue);
+    __ AssertObjectType(object, JS_DATA_VIEW_TYPE,
+                        AbortReason::kUnexpectedValue);
   }
 
   // Normal DataView (backed by AB / SAB) or non-length tracking backed by GSAB.
@@ -737,7 +721,7 @@ void CheckJSDataViewBounds::GenerateCode(MaglevAssembler* masm,
   __ LoadBoundedSizeFromObject(byte_length, object,
                                JSDataView::kRawByteLengthOffset);
 
-  int element_size = ExternalArrayElementSize(element_type_);
+  int element_size = compiler::ExternalArrayElementSize(element_type_);
   if (element_size > 1) {
     __ sub(byte_length, byte_length, Operand(element_size - 1), SetCC);
     __ EmitEagerDeoptIf(mi, DeoptimizeReason::kOutOfBounds, this);
@@ -815,7 +799,7 @@ void HandleInterruptsAndTiering(MaglevAssembler* masm, ZoneLabelRef done,
 
 void GenerateReduceInterruptBudget(MaglevAssembler* masm, Node* node,
                                    ReduceInterruptBudgetType type, int amount) {
-  MaglevAssembler::ScratchRegisterScope temps(masm);
+  MaglevAssembler::TemporaryRegisterScope temps(masm);
   Register scratch = temps.Acquire();
   Register feedback_cell = scratch;
   Register budget = temps.Acquire();
@@ -895,8 +879,7 @@ void Return::GenerateCode(MaglevAssembler* masm, const ProcessingState& state) {
   __ bind(&corrected_args_count);
 
   // Drop receiver + arguments according to dynamic arguments size.
-  __ DropArguments(params_size, MacroAssembler::kCountIsInteger,
-                   MacroAssembler::kCountIncludesReceiver);
+  __ DropArguments(params_size);
   __ Ret();
 }
 

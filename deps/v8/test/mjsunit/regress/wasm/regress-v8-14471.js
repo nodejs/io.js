@@ -5,12 +5,12 @@
 // Flags: --allow-natives-syntax --experimental-wasm-stack-switching
 // Flags: --wasm-to-js-generic-wrapper
 
-load("test/mjsunit/wasm/wasm-module-builder.js");
+d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 (function Regress14471() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  let export_params = [kWasmExternRef, kWasmExternRef, kWasmF32];
+  let export_params = [kWasmExternRef, kWasmF32];
   let import_params = [kWasmExternRef, kWasmF32];
   const export_sig = makeSig(export_params, [kWasmExternRef]);
   const import_sig = makeSig(import_params, [kWasmExternRef]);
@@ -18,8 +18,8 @@ load("test/mjsunit/wasm/wasm-module-builder.js");
   const fill_newspace_index = builder.addImport('m', 'fill_newspace', kSig_v_v);
   builder.addFunction("test", export_sig)
       .addBody([
+      kExprLocalGet, 0,
       kExprLocalGet, 1,
-      kExprLocalGet, 2,
       // After the params are converted in the generic wasm-to-js wrapper, the
       // signature slot is overwritten with a Smi which signals that parameter
       // scanning can be skipped for this frame.
@@ -33,7 +33,7 @@ load("test/mjsunit/wasm/wasm-module-builder.js");
   };
   function fill_newspace() { %SimulateNewspaceFull(); }
   let instance = builder.instantiate({m: {import_js, fill_newspace}});
-  let wrapper = ToPromising(instance.exports.test);
+  let wrapper = WebAssembly.promising(instance.exports.test);
   let args = [{}, 34];
   assertPromiseResult(
       wrapper(...args),

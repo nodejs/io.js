@@ -59,10 +59,13 @@ class SecureContext final : public BaseObject {
 
   v8::Maybe<void> AddCert(Environment* env, BIOPointer&& bio);
   v8::Maybe<void> SetCRL(Environment* env, const BIOPointer& bio);
-  v8::Maybe<void> UseKey(Environment* env, std::shared_ptr<KeyObjectData> key);
+  v8::Maybe<void> UseKey(Environment* env, const KeyObjectData& key);
 
   void SetCACert(const BIOPointer& bio);
   void SetRootCerts();
+
+  void SetX509StoreFlag(unsigned long flags);  // NOLINT(runtime/int)
+  X509_STORE* GetCertStoreOwnedByThisSecureContext();
 
   // TODO(joyeecheung): track the memory used by OpenSSL types
   SET_NO_MEMORY_INFO()
@@ -90,6 +93,8 @@ class SecureContext final : public BaseObject {
 #endif  // !OPENSSL_NO_ENGINE
   static void SetCert(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddCACert(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void SetAllowPartialTrustChain(
+      const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddCRL(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddRootCerts(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetCipherSuites(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -142,6 +147,8 @@ class SecureContext final : public BaseObject {
   SSLCtxPointer ctx_;
   X509Pointer cert_;
   X509Pointer issuer_;
+  // Non-owning cache for SSL_CTX_get_cert_store(ctx_.get())
+  X509_STORE* own_cert_store_cache_ = nullptr;
 #ifndef OPENSSL_NO_ENGINE
   bool client_cert_engine_provided_ = false;
   ncrypto::EnginePointer private_key_engine_;

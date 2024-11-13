@@ -37,7 +37,6 @@
 #include "include/v8-locker.h"
 #include "src/base/lazy-instance.h"
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/base/platform/condition-variable.h"
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/semaphore.h"
@@ -311,7 +310,7 @@ i::Handle<i::JSFunction> Optimize(i::Handle<i::JSFunction> function,
   CHECK(info.shared_info()->HasBytecodeArray());
   i::JSFunction::EnsureFeedbackVector(isolate, function, &is_compiled_scope);
 
-  i::Handle<i::Code> code =
+  i::DirectHandle<i::Code> code =
       i::compiler::Pipeline::GenerateCodeForTesting(&info, isolate)
           .ToHandleChecked();
   function->set_code(*code, v8::kReleaseStore);

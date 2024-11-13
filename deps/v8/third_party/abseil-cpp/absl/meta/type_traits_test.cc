@@ -26,9 +26,31 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#ifdef ABSL_HAVE_STD_STRING_VIEW
+#include <string_view>
+#endif
+
 namespace {
 
 using ::testing::StaticAssertTypeEq;
+
+template <typename T>
+using IsOwnerAndNotView =
+    absl::conjunction<absl::type_traits_internal::IsOwner<T>,
+                      absl::negation<absl::type_traits_internal::IsView<T>>>;
+
+static_assert(IsOwnerAndNotView<std::vector<int>>::value,
+              "vector is an owner, not a view");
+static_assert(IsOwnerAndNotView<std::string>::value,
+              "string is an owner, not a view");
+static_assert(IsOwnerAndNotView<std::wstring>::value,
+              "wstring is an owner, not a view");
+#ifdef ABSL_HAVE_STD_STRING_VIEW
+static_assert(!IsOwnerAndNotView<std::string_view>::value,
+              "string_view is a view, not an owner");
+static_assert(!IsOwnerAndNotView<std::wstring_view>::value,
+              "wstring_view is a view, not an owner");
+#endif
 
 template <class T, class U>
 struct simple_pair {
@@ -487,76 +509,6 @@ TEST(TypeTraitsTest, TestExtentAliases) {
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(remove_all_extents, int[1]);
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(remove_all_extents, int[1][1]);
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(remove_all_extents, int[][1]);
-}
-
-TEST(TypeTraitsTest, TestAlignedStorageAlias) {
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 1);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 2);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 3);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 4);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 5);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 6);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 7);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 8);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 9);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 10);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 11);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 12);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 13);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 14);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 15);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 16);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 17);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 18);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 19);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 20);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 21);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 22);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 23);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 24);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 25);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 26);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 27);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 28);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 29);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 30);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 31);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 32);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 33);
-
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 1, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 2, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 3, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 4, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 5, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 6, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 7, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 8, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 9, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 10, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 11, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 12, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 13, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 14, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 15, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 16, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 17, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 18, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 19, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 20, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 21, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 22, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 23, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 24, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 25, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 26, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 27, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 28, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 29, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 30, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 31, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 32, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 33, 128);
 }
 
 TEST(TypeTraitsTest, TestDecay) {

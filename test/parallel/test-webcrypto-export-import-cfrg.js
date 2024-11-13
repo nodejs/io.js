@@ -322,6 +322,15 @@ async function testImportJwk({ name, publicUsages, privateUsages }, extractable)
       extractable,
       [/* empty usages */]),
     { name: 'SyntaxError', message: 'Usages cannot be empty when importing a private key.' });
+
+  await assert.rejects(
+    subtle.importKey(
+      'jwk',
+      { kty: jwk.kty, /* missing x */ crv: jwk.crv },
+      { name },
+      extractable,
+      publicUsages),
+    { name: 'DataError', message: 'Invalid keyData' });
 }
 
 async function testImportRaw({ name, publicUsages }) {

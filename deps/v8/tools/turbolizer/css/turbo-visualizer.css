@@ -496,6 +496,7 @@ text {
   border-width: 5px;
   border-style: solid;
   border-color: transparent transparent #555 transparent;
+  transform: translateZ(1px);
 }
 
 .source-position.selected .marker {

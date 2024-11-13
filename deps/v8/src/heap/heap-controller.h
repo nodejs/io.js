@@ -24,11 +24,11 @@ struct BaseControllerTrait {
 };
 
 struct V8HeapTrait : public BaseControllerTrait {
-  static const char* kName;
+  static constexpr char kName[] = "HeapController";
 };
 
 struct GlobalMemoryTrait : public BaseControllerTrait {
-  static const char* kName;
+  static constexpr char kName[] = "GlobalMemoryController";
 };
 
 template <typename Trait>

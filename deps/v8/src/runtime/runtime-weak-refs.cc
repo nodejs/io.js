@@ -12,12 +12,12 @@ namespace internal {
 RUNTIME_FUNCTION(Runtime_ShrinkFinalizationRegistryUnregisterTokenMap) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFinalizationRegistry> finalization_registry =
+  DirectHandle<JSFinalizationRegistry> finalization_registry =
       args.at<JSFinalizationRegistry>(0);
 
   if (!IsUndefined(finalization_registry->key_map(), isolate)) {
     Handle<SimpleNumberDictionary> key_map =
-        handle(SimpleNumberDictionary::cast(finalization_registry->key_map()),
+        handle(Cast<SimpleNumberDictionary>(finalization_registry->key_map()),
                isolate);
     key_map = SimpleNumberDictionary::Shrink(isolate, key_map);
     finalization_registry->set_key_map(*key_map);
@@ -30,7 +30,7 @@ RUNTIME_FUNCTION(
     Runtime_JSFinalizationRegistryRegisterWeakCellWithUnregisterToken) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSFinalizationRegistry> finalization_registry =
+  DirectHandle<JSFinalizationRegistry> finalization_registry =
       args.at<JSFinalizationRegistry>(0);
   Handle<WeakCell> weak_cell = args.at<WeakCell>(1);
 
@@ -43,7 +43,7 @@ RUNTIME_FUNCTION(
 RUNTIME_FUNCTION(Runtime_JSWeakRefAddToKeptObjects) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<HeapObject> object = args.at<HeapObject>(0);
+  DirectHandle<HeapObject> object = args.at<HeapObject>(0);
   DCHECK(Object::CanBeHeldWeakly(*object));
 
   isolate->heap()->KeepDuringJob(object);

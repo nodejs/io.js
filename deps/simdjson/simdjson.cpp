@@ -1,4 +1,4 @@
-/* auto-generated on 2024-06-11 14:08:20 -0400. Do not edit! */
+/* auto-generated on 2024-08-01 09:31:50 -0400. Do not edit! */
 /* including simdjson.cpp:  */
 /* begin file simdjson.cpp */
 #define SIMDJSON_SRC_SIMDJSON_CPP
@@ -38,6 +38,16 @@
 #else
 #define SIMDJSON_CPLUSPLUS __cplusplus
 #endif
+#endif
+
+// C++ 23
+#if !defined(SIMDJSON_CPLUSPLUS23) && (SIMDJSON_CPLUSPLUS >= 202302L)
+#define SIMDJSON_CPLUSPLUS23 1
+#endif
+
+// C++ 20
+#if !defined(SIMDJSON_CPLUSPLUS20) && (SIMDJSON_CPLUSPLUS >= 202002L)
+#define SIMDJSON_CPLUSPLUS20 1
 #endif
 
 // C++ 17
@@ -224,6 +234,11 @@ using std::size_t;
 #define SIMDJSON_NO_SANITIZE_UNDEFINED
 #endif
 
+#if defined(__clang__) || defined(__GNUC__)
+#define simdjson_pure [[gnu::pure]]
+#else
+#define simdjson_pure
+#endif
 
 #if defined(__clang__) || defined(__GNUC__)
 #if defined(__has_feature)
@@ -5949,7 +5964,7 @@ public:
    * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
    * must be an unescaped quote terminating the string. It returns the final output
    * position as pointer. In case of error (e.g., the string has bad escaped codes),
-   * then null_nullptrptr is returned. It is assumed that the output buffer is large
+   * then null_ptr is returned. It is assumed that the output buffer is large
    * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
    * SIMDJSON_PADDING bytes.
    *
@@ -5966,7 +5981,7 @@ public:
    * Unescape a NON-valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
    * must be an unescaped quote terminating the string. It returns the final output
    * position as pointer. In case of error (e.g., the string has bad escaped codes),
-   * then null_nullptrptr is returned. It is assumed that the output buffer is large
+   * then null_ptr is returned. It is assumed that the output buffer is large
    * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
    * SIMDJSON_PADDING bytes.
    *
@@ -6020,14 +6035,14 @@ public:
    *
    * @return Current capacity, in bytes.
    */
-  simdjson_inline size_t capacity() const noexcept;
+  simdjson_pure simdjson_inline size_t capacity() const noexcept;
 
   /**
    * The maximum level of nested object and arrays supported by this parser.
    *
    * @return Maximum depth, in bytes.
    */
-  simdjson_inline size_t max_depth() const noexcept;
+  simdjson_pure simdjson_inline size_t max_depth() const noexcept;
 
   /**
    * Ensure this parser has enough memory to process JSON documents up to `capacity` bytes in length
@@ -6068,11 +6083,11 @@ simdjson_inline dom_parser_implementation::dom_parser_implementation() noexcept 
 simdjson_inline dom_parser_implementation::dom_parser_implementation(dom_parser_implementation &&other) noexcept = default;
 simdjson_inline dom_parser_implementation &dom_parser_implementation::operator=(dom_parser_implementation &&other) noexcept = default;
 
-simdjson_inline size_t dom_parser_implementation::capacity() const noexcept {
+simdjson_pure simdjson_inline size_t dom_parser_implementation::capacity() const noexcept {
   return _capacity;
 }
 
-simdjson_inline size_t dom_parser_implementation::max_depth() const noexcept {
+simdjson_pure simdjson_inline size_t dom_parser_implementation::max_depth() const noexcept {
   return _max_depth;
 }
 
@@ -12477,7 +12492,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -13352,7 +13367,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -18696,7 +18711,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -19571,7 +19586,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -24908,7 +24923,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -25783,7 +25798,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -31391,7 +31406,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -32266,7 +32281,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -38448,7 +38463,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -39323,7 +39338,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -44472,7 +44487,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -45347,7 +45362,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -50487,7 +50502,7 @@ simdjson_inline error_code json_structural_indexer::finish(dom_parser_implementa
   }
   parser.n_structural_indexes = uint32_t(indexer.tail - parser.structural_indexes.get());
   /***
-   * The On Demand API requires special padding.
+   * The On-Demand API requires special padding.
    *
    * This is related to https://github.com/simdjson/simdjson/issues/906
    * Basically, we want to make sure that if the parsing continues beyond the last (valid)
@@ -51362,7 +51377,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */
@@ -54563,7 +54578,7 @@ simdjson_inline bool handle_unicode_codepoint_wobbly(const uint8_t **src_ptr,
  * Unescape a valid UTF-8 string from src to dst, stopping at a final unescaped quote. There
  * must be an unescaped quote terminating the string. It returns the final output
  * position as pointer. In case of error (e.g., the string has bad escaped codes),
- * then null_nullptrptr is returned. It is assumed that the output buffer is large
+ * then null_ptr is returned. It is assumed that the output buffer is large
  * enough. E.g., if src points at 'joe"', then dst needs to have four free bytes +
  * SIMDJSON_PADDING bytes.
  */

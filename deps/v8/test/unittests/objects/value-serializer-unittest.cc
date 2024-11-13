@@ -59,23 +59,23 @@ class ValueSerializerTest : public TestWithIsolate {
     Local<FunctionTemplate> function_template = v8::FunctionTemplate::New(
         isolate(), [](const FunctionCallbackInfo<Value>& info) {
           CHECK(i::ValidateCallbackInfo(info));
-          info.Holder()->SetInternalField(0, info[0]);
-          info.Holder()->SetInternalField(1, info[1]);
+          info.HolderSoonToBeDeprecated()->SetInternalField(0, info[0]);
+          info.HolderSoonToBeDeprecated()->SetInternalField(1, info[1]);
         });
     function_template->InstanceTemplate()->SetInternalFieldCount(2);
-    function_template->InstanceTemplate()->SetAccessor(
+    function_template->InstanceTemplate()->SetNativeDataProperty(
         StringFromUtf8("value"),
         [](Local<Name> property, const PropertyCallbackInfo<Value>& info) {
           CHECK(i::ValidateCallbackInfo(info));
           info.GetReturnValue().Set(
-              info.Holder()->GetInternalField(0).As<v8::Value>());
+              info.HolderV2()->GetInternalField(0).As<v8::Value>());
         });
-    function_template->InstanceTemplate()->SetAccessor(
+    function_template->InstanceTemplate()->SetNativeDataProperty(
         StringFromUtf8("value2"),
         [](Local<Name> property, const PropertyCallbackInfo<Value>& info) {
           CHECK(i::ValidateCallbackInfo(info));
           info.GetReturnValue().Set(
-              info.Holder()->GetInternalField(1).As<v8::Value>());
+              info.HolderV2()->GetInternalField(1).As<v8::Value>());
         });
     for (Local<Context> context :
          {serialization_context, deserialization_context}) {
@@ -1916,8 +1916,8 @@ TEST_F(ValueSerializerTest, RoundTripArrayBuffer) {
   ExpectScriptTrue("Object.getPrototypeOf(result) === ArrayBuffer.prototype");
   // TODO(v8:11111): Use API functions for testing max_byte_length and resizable
   // once they're exposed via the API.
-  i::Handle<i::JSArrayBuffer> array_buffer =
-      Utils::OpenHandle(ArrayBuffer::Cast(*value));
+  i::DirectHandle<i::JSArrayBuffer> array_buffer =
+      Utils::OpenDirectHandle(ArrayBuffer::Cast(*value));
   EXPECT_EQ(0u, array_buffer->max_byte_length());
   EXPECT_EQ(false, array_buffer->is_resizable_by_js());
 
@@ -1925,7 +1925,7 @@ TEST_F(ValueSerializerTest, RoundTripArrayBuffer) {
   ASSERT_TRUE(value->IsArrayBuffer());
   EXPECT_EQ(3u, ArrayBuffer::Cast(*value)->ByteLength());
   ExpectScriptTrue("new Uint8Array(result).toString() === '0,128,255'");
-  array_buffer = Utils::OpenHandle(ArrayBuffer::Cast(*value));
+  array_buffer = Utils::OpenDirectHandle(ArrayBuffer::Cast(*value));
   EXPECT_EQ(3u, array_buffer->max_byte_length());
   EXPECT_EQ(false, array_buffer->is_resizable_by_js());
 
@@ -1943,8 +1943,8 @@ TEST_F(ValueSerializerTest, RoundTripResizableArrayBuffer) {
 
   // TODO(v8:11111): Use API functions for testing max_byte_length and resizable
   // once they're exposed via the API.
-  i::Handle<i::JSArrayBuffer> array_buffer =
-      Utils::OpenHandle(ArrayBuffer::Cast(*value));
+  i::DirectHandle<i::JSArrayBuffer> array_buffer =
+      Utils::OpenDirectHandle(ArrayBuffer::Cast(*value));
   EXPECT_EQ(200u, array_buffer->max_byte_length());
   EXPECT_EQ(true, array_buffer->is_resizable_by_js());
 }
@@ -2090,7 +2090,7 @@ TEST_F(ValueSerializerTest, RoundTripTypedArray) {
   // TODO(v8:11111): Use API functions for testing is_length_tracking and
   // is_backed_by_rab, once they're exposed via the API.
   Local<Value> value;
-  i::Handle<i::JSTypedArray> i_ta;
+  i::DirectHandle<i::JSTypedArray> i_ta;
 #define TYPED_ARRAY_ROUND_TRIP_TEST(Type, type, TYPE, ctype)             \
   value = RoundTripTest("new " #Type "Array(2)");                        \
   ASSERT_TRUE(value->Is##Type##Array());                                 \
@@ -2098,7 +2098,7 @@ TEST_F(ValueSerializerTest, RoundTripTypedArray) {
   EXPECT_EQ(2u, TypedArray::Cast(*value)->Length());                     \
   ExpectScriptTrue("Object.getPrototypeOf(result) === " #Type            \
                    "Array.prototype");                                   \
-  i_ta = v8::Utils::OpenHandle(TypedArray::Cast(*value));                \
+  i_ta = v8::Utils::OpenDirectHandle(TypedArray::Cast(*value));          \
   EXPECT_EQ(false, i_ta->is_length_tracking());                          \
   EXPECT_EQ(false, i_ta->is_backed_by_rab());
 
@@ -2140,7 +2140,7 @@ TEST_F(ValueSerializerTest, RoundTripRabBackedLengthTrackingTypedArray) {
   // TODO(v8:11111): Use API functions for testing is_length_tracking and
   // is_backed_by_rab, once they're exposed via the API.
   Local<Value> value;
-  i::Handle<i::JSTypedArray> i_ta;
+  i::DirectHandle<i::JSTypedArray> i_ta;
 #define TYPED_ARRAY_ROUND_TRIP_TEST(Type, type, TYPE, ctype)          \
   value = RoundTripTest("new " #Type                                  \
                         "Array(new ArrayBuffer(80, "                  \
@@ -2150,7 +2150,7 @@ TEST_F(ValueSerializerTest, RoundTripRabBackedLengthTrackingTypedArray) {
   EXPECT_EQ(80u / sizeof(ctype), TypedArray::Cast(*value)->Length()); \
   ExpectScriptTrue("Object.getPrototypeOf(result) === " #Type         \
                    "Array.prototype");                                \
-  i_ta = v8::Utils::OpenHandle(TypedArray::Cast(*value));             \
+  i_ta = v8::Utils::OpenDirectHandle(TypedArray::Cast(*value));       \
   EXPECT_EQ(true, i_ta->is_length_tracking());                        \
   EXPECT_EQ(true, i_ta->is_backed_by_rab());
 
@@ -2165,7 +2165,7 @@ TEST_F(ValueSerializerTest, RoundTripRabBackedNonLengthTrackingTypedArray) {
   // TODO(v8:11111): Use API functions for testing is_length_tracking and
   // is_backed_by_rab, once they're exposed via the API.
   Local<Value> value;
-  i::Handle<i::JSTypedArray> i_ta;
+  i::DirectHandle<i::JSTypedArray> i_ta;
 #define TYPED_ARRAY_ROUND_TRIP_TEST(Type, type, TYPE, ctype)             \
   value = RoundTripTest("new " #Type                                     \
                         "Array(new ArrayBuffer(80, "                     \
@@ -2175,7 +2175,7 @@ TEST_F(ValueSerializerTest, RoundTripRabBackedNonLengthTrackingTypedArray) {
   EXPECT_EQ(4u, TypedArray::Cast(*value)->Length());                     \
   ExpectScriptTrue("Object.getPrototypeOf(result) === " #Type            \
                    "Array.prototype");                                   \
-  i_ta = v8::Utils::OpenHandle(TypedArray::Cast(*value));                \
+  i_ta = v8::Utils::OpenDirectHandle(TypedArray::Cast(*value));          \
   EXPECT_EQ(false, i_ta->is_length_tracking());                          \
   EXPECT_EQ(true, i_ta->is_backed_by_rab());
 
@@ -2514,8 +2514,8 @@ TEST_F(ValueSerializerTest, RoundTripDataView) {
   // TODO(v8:11111): Use API functions for testing is_length_tracking and
   // is_backed_by_rab, once they're exposed
   // via the API.
-  i::Handle<i::JSDataViewOrRabGsabDataView> i_dv =
-      v8::Utils::OpenHandle(DataView::Cast(*value));
+  i::DirectHandle<i::JSDataViewOrRabGsabDataView> i_dv =
+      v8::Utils::OpenDirectHandle(DataView::Cast(*value));
   EXPECT_EQ(false, i_dv->is_length_tracking());
   EXPECT_EQ(false, i_dv->is_backed_by_rab());
 }
@@ -2544,8 +2544,8 @@ TEST_F(ValueSerializerTest, RoundTripRabBackedDataView) {
   ExpectScriptTrue("Object.getPrototypeOf(result) === DataView.prototype");
   // TODO(v8:11111): Use API functions for testing is_length_tracking and
   // is_backed_by_rab, once they're exposed via the API.
-  i::Handle<i::JSDataViewOrRabGsabDataView> i_dv =
-      v8::Utils::OpenHandle(DataView::Cast(*value));
+  i::DirectHandle<i::JSDataViewOrRabGsabDataView> i_dv =
+      v8::Utils::OpenDirectHandle(DataView::Cast(*value));
   EXPECT_EQ(false, i_dv->is_length_tracking());
   EXPECT_EQ(true, i_dv->is_backed_by_rab());
 }
@@ -2560,8 +2560,8 @@ TEST_F(ValueSerializerTest, RoundTripRabBackedLengthTrackingDataView) {
   ExpectScriptTrue("Object.getPrototypeOf(result) === DataView.prototype");
   // TODO(v8:11111): Use API functions for testing is_length_tracking and
   // is_backed_by_rab, once they're exposed via the API.
-  i::Handle<i::JSDataViewOrRabGsabDataView> i_dv =
-      v8::Utils::OpenHandle(DataView::Cast(*value));
+  i::DirectHandle<i::JSDataViewOrRabGsabDataView> i_dv =
+      v8::Utils::OpenDirectHandle(DataView::Cast(*value));
   EXPECT_EQ(true, i_dv->is_length_tracking());
   EXPECT_EQ(true, i_dv->is_backed_by_rab());
 }
@@ -2801,9 +2801,9 @@ TEST_F(ValueSerializerTestWithSharedArrayBufferClone,
     const int32_t kMaxPages = 1;
     i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate());
     i::Handle<i::JSArrayBuffer> buffer = Utils::OpenHandle(*input_buffer());
-    i::Handle<i::WasmMemoryObject> wasm_memory = i::WasmMemoryObject::New(
+    i::DirectHandle<i::WasmMemoryObject> wasm_memory = i::WasmMemoryObject::New(
         i_isolate, buffer, kMaxPages, i::WasmMemoryFlag::kWasmMemory32);
-    i::Handle<i::FixedArray> fixed_array =
+    i::DirectHandle<i::FixedArray> fixed_array =
         i_isolate->factory()->NewFixedArray(2);
     fixed_array->set(0, *buffer);
     fixed_array->set(1, *wasm_memory);
@@ -3279,11 +3279,12 @@ class ValueSerializerTestWithWasm : public ValueSerializerTest {
   Local<WasmModuleObject> MakeWasm() {
     Context::Scope scope(serialization_context());
     i::wasm::ErrorThrower thrower(i_isolate(), "MakeWasm");
-    auto enabled_features = i::wasm::WasmFeatures::FromIsolate(i_isolate());
-    auto compile_imports = i::wasm::CompileTimeImports{};
+    auto enabled_features =
+        i::wasm::WasmEnabledFeatures::FromIsolate(i_isolate());
     i::MaybeHandle<i::JSObject> compiled =
         i::wasm::GetWasmEngine()->SyncCompile(
-            i_isolate(), enabled_features, compile_imports, &thrower,
+            i_isolate(), enabled_features, i::wasm::CompileTimeImports{},
+            &thrower,
             i::wasm::ModuleWireBytes(base::ArrayVector(kIncrementerWasm)));
     CHECK(!thrower.error());
     return Local<WasmModuleObject>::Cast(
@@ -3522,9 +3523,10 @@ TEST_F(ValueSerializerTest, RoundTripError) {
 
   {
     Context::Scope scope(deserialization_context());
-    EXPECT_EQ(error->GetPrototype(), Exception::Error(String::Empty(isolate()))
-                                         .As<Object>()
-                                         ->GetPrototype());
+    EXPECT_EQ(error->GetPrototypeV2(),
+              Exception::Error(String::Empty(isolate()))
+                  .As<Object>()
+                  ->GetPrototypeV2());
   }
   ASSERT_TRUE(error->Get(deserialization_context(), StringFromUtf8("name"))
                   .ToLocal(&name));

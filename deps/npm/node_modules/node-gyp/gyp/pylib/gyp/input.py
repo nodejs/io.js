@@ -1135,16 +1135,16 @@ def EvalCondition(condition, conditions_key, phase, variables, build_file):
         true_dict = condition[i + 1]
         if type(true_dict) is not dict:
             raise GypError(
-                f"{conditions_key} {cond_expr} must be followed by a dictionary, not "
-                f"{type(true_dict)}"
+                f"{conditions_key} {cond_expr} must be followed by a dictionary, "
+                f"not {type(true_dict)}"
             )
         if len(condition) > i + 2 and type(condition[i + 2]) is dict:
             false_dict = condition[i + 2]
             i = i + 3
             if i != len(condition):
                 raise GypError(
-                    f"{conditions_key} {cond_expr} has {len(condition) - i} "
-                    "unexpected trailing items"
+                    f"{conditions_key} {cond_expr} has "
+                    f"{len(condition) - i} unexpected trailing items"
                 )
         else:
             false_dict = None
@@ -2536,6 +2536,8 @@ def ProcessListFiltersInDict(name, the_dict):
     lists = []
     del_lists = []
     for key, value in the_dict.items():
+        if not key:
+            continue
         operation = key[-1]
         if operation not in {"!", "/"}:
             continue

@@ -472,16 +472,29 @@ any digest that has been set.
 =item B<string_mask>
 
 This option masks out the use of certain string types in certain
-fields. Most users will not need to change this option.
+fields. Most users will not need to change this option. It can be set to
+several values:
 
-It can be set to several values B<default> which is also the default
-option uses PrintableStrings, T61Strings and BMPStrings if the
-B<pkix> value is used then only PrintableStrings and BMPStrings will
-be used. This follows the PKIX recommendation in RFC2459. If the
-B<utf8only> option is used then only UTF8Strings will be used: this
-is the PKIX recommendation in RFC2459 after 2003. Finally the B<nombstr>
-option just uses PrintableStrings and T61Strings: certain software has
-problems with BMPStrings and UTF8Strings: in particular Netscape.
+=over 4
+
+=item B<utf8only>
+- only UTF8Strings are used (this is the default value)
+
+=item B<pkix>
+- any string type except T61Strings
+
+=item B<nombstr>
+- any string type except BMPStrings and UTF8Strings
+
+=item B<default>
+- any kind of string type
+
+=back
+
+Note that B<utf8only> is the PKIX recommendation in RFC2459 after 2003, and the
+default B<string_mask>; B<default> is not the default option. The B<nombstr>
+value is a workaround for some software that has problems with variable-sized
+BMPStrings and UTF8Strings.
 
 =item B<req_extensions>
 
@@ -765,7 +778,7 @@ The <-nodes> option was deprecated in OpenSSL 3.0, too; use B<-noenc> instead.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

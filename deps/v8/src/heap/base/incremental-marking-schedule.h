@@ -7,8 +7,8 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 
-#include "src/base/optional.h"
 #include "src/base/platform/time.h"
 
 namespace heap::base {
@@ -130,7 +130,7 @@ class V8_EXPORT_PRIVATE IncrementalMarkingSchedule final {
   StepInfo current_step_;
   const size_t min_marked_bytes_per_step_;
   const bool predictable_schedule_ = false;
-  v8::base::Optional<v8::base::TimeDelta> elapsed_time_override_;
+  std::optional<v8::base::TimeDelta> elapsed_time_override_;
 };
 
 }  // namespace heap::base

@@ -15,7 +15,6 @@
 namespace v8 {
 namespace internal {
 
-CAST_ACCESSOR(TrustedObject)
 OBJECT_CONSTRUCTORS_IMPL(TrustedObject, HeapObject)
 
 Tagged<TrustedObject> TrustedObject::ReadProtectedPointerField(
@@ -44,13 +43,13 @@ void TrustedObject::WriteProtectedPointerField(int offset,
       *this, offset, value);
 }
 
-bool TrustedObject::IsProtectedPointerFieldCleared(int offset) const {
+bool TrustedObject::IsProtectedPointerFieldEmpty(int offset) const {
   return TaggedField<Object, 0, TrustedSpaceCompressionScheme>::load(
              *this, offset) == Smi::zero();
 }
 
-bool TrustedObject::IsProtectedPointerFieldCleared(int offset,
-                                                   AcquireLoadTag) const {
+bool TrustedObject::IsProtectedPointerFieldEmpty(int offset,
+                                                 AcquireLoadTag) const {
   return TaggedField<Object, 0, TrustedSpaceCompressionScheme>::Acquire_Load(
              *this, offset) == Smi::zero();
 }
@@ -76,7 +75,6 @@ void TrustedObject::VerifyProtectedPointerField(Isolate* isolate, int offset) {
 }
 #endif
 
-CAST_ACCESSOR(ExposedTrustedObject)
 OBJECT_CONSTRUCTORS_IMPL(ExposedTrustedObject, TrustedObject)
 
 void ExposedTrustedObject::init_self_indirect_pointer(

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -181,21 +181,26 @@ int tls_parse_ctos_maxfragmentlen(SSL *s, PACKET *pkt, unsigned int context,
     }
 
     /*
-     * RFC 6066:  The negotiated length applies for the duration of the session
+     * When doing a full handshake or a renegotiation max_fragment_len_mode will
+     * be TLSEXT_max_fragment_length_UNSPECIFIED
+     *
+     * In case of a resumption max_fragment_len_mode will be one of
+     *      TLSEXT_max_fragment_length_DISABLED, TLSEXT_max_fragment_length_512,
+     *      TLSEXT_max_fragment_length_1024, TLSEXT_max_fragment_length_2048.
+     *      TLSEXT_max_fragment_length_4096
+     *
+     * RFC 6066: The negotiated length applies for the duration of the session
      * including session resumptions.
-     * We should receive the same code as in resumed session !
+     *
+     * So we only set the value in case it is unspecified.
      */
-    if (s->hit && s->session->ext.max_fragment_len_mode != value) {
-        SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER,
-                 SSL_R_SSL3_EXT_INVALID_MAX_FRAGMENT_LENGTH);
-        return 0;
-    }
+    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)
+        /*
+         * Store it in session, so it'll become binding for us
+         * and we'll include it in a next Server Hello.
+         */
+        s->session->ext.max_fragment_len_mode = value;
 
-    /*
-     * Store it in session, so it'll become binding for us
-     * and we'll include it in a next Server Hello.
-     */
-    s->session->ext.max_fragment_len_mode = value;
     return 1;
 }
 
@@ -1505,9 +1510,10 @@ EXT_RETURN tls_construct_stoc_next_proto_neg(SSL *s, WPACKET *pkt,
             return EXT_RETURN_FAIL;
         }
         s->s3.npn_seen = 1;
+        return EXT_RETURN_SENT;
     }
 
-    return EXT_RETURN_SENT;
+    return EXT_RETURN_NOT_SENT;
 }
 #endif
 

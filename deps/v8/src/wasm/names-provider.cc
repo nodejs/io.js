@@ -35,6 +35,8 @@ void NamesProvider::DecodeNamesIfNotYetDone() {
 void NamesProvider::ComputeFunctionNamesFromImportsExports() {
   DCHECK(!has_computed_function_import_names_);
   has_computed_function_import_names_ = true;
+  // When tracing streaming compilations, we might not yet have wire bytes.
+  if (wire_bytes_.empty()) return;
   for (const WasmImport& import : module_->import_table) {
     if (import.kind != kExternalFunction) continue;
     if (module_->lazily_generated_names.Has(import.index)) continue;
@@ -50,6 +52,8 @@ void NamesProvider::ComputeFunctionNamesFromImportsExports() {
 void NamesProvider::ComputeNamesFromImportsExports() {
   DCHECK(!has_computed_import_names_);
   has_computed_import_names_ = true;
+  // When tracing streaming compilations, we might not yet have wire bytes.
+  if (wire_bytes_.empty()) return;
   DCHECK(has_decoded_);
   for (const WasmImport import : module_->import_table) {
     switch (import.kind) {
@@ -121,6 +125,7 @@ static constexpr char kIdentifierChar[] = {
 // rendered and simplify this to "one '_' per invalid UTF8 byte".
 void SanitizeUnicodeName(StringBuilder& out, const uint8_t* utf8_src,
                          size_t length) {
+  if (length == 0) return;  // Illegal nullptrs arise below when length == 0.
   base::Vector<const uint8_t> utf8_data(utf8_src, length);
   Utf8Decoder decoder(utf8_data);
   std::vector<uint16_t> utf16(decoder.utf16_length());
@@ -436,11 +441,14 @@ size_t NamesProvider::EstimateCurrentMemoryConsumption() const {
     result += names->field_names_.EstimateCurrentMemoryConsumption();
     result += names->tag_names_.EstimateCurrentMemoryConsumption();
   }
-  result += StringMapSize(import_export_function_names_);
-  result += StringMapSize(import_export_table_names_);
-  result += StringMapSize(import_export_memory_names_);
-  result += StringMapSize(import_export_global_names_);
-  result += StringMapSize(import_export_tag_names_);
+  {
+    base::MutexGuard lock(&mutex_);
+    result += StringMapSize(import_export_function_names_);
+    result += StringMapSize(import_export_table_names_);
+    result += StringMapSize(import_export_memory_names_);
+    result += StringMapSize(import_export_global_names_);
+    result += StringMapSize(import_export_tag_names_);
+  }
   if (v8_flags.trace_wasm_offheap_memory) {
     PrintF("NamesProvider: %zu\n", result);
   }

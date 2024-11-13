@@ -138,6 +138,7 @@ cc_test(
         "//absl/container:fixed_array",
         "//absl/container:inlined_vector",
         "//absl/hash:hash_testing",
+        "//absl/meta:type_traits",
         "//absl/strings",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",

@@ -5,7 +5,8 @@
 #ifndef V8_FLAGS_FLAGS_H_
 #define V8_FLAGS_FLAGS_H_
 
-#include "src/base/optional.h"
+#include <optional>
+
 #include "src/common/globals.h"
 
 #if V8_ENABLE_WEBASSEMBLY
@@ -25,7 +26,7 @@ class FlagValue {
   // We currently allow the following types to be used for flags:
   // - Arithmetic types like bool, int, size_t, double; those will trivially be
   //   protected.
-  // - base::Optional<bool>, which is basically a POD, and can also be
+  // - std::optional<bool>, which is basically a POD, and can also be
   //   protected.
   // - const char*, for which we currently do not protect the actual string
   //   value. TODO(12887): Also protect the string storage.
@@ -34,10 +35,11 @@ class FlagValue {
   // works for them.
   static_assert(std::is_same_v<std::decay_t<T>, T>);
   static_assert(std::is_arithmetic_v<T> ||
-                std::is_same_v<base::Optional<bool>, T> ||
+                std::is_same_v<std::optional<bool>, T> ||
                 std::is_same_v<const char*, T>);
 
  public:
+  using underlying_type = T;
   explicit constexpr FlagValue(T value) : value_(value) {}
 
   // Implicitly convert to a {T}. Not marked {constexpr} so we do not get

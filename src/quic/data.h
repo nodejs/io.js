@@ -13,8 +13,7 @@
 #include <string>
 #include "defs.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 struct Path final : public ngtcp2_path {
   Path(const SocketAddress& local, const SocketAddress& remote);
@@ -143,8 +142,7 @@ class QuicError final : public MemoryRetainer {
   const ngtcp2_ccerr* ptr_ = nullptr;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

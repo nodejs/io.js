@@ -15,7 +15,7 @@
 namespace v8::internal::wasm {
 struct CompilationEnv;
 struct WasmCompilationResult;
-class WasmFeatures;
+class WasmDetectedFeatures;
 }  // namespace v8::internal::wasm
 
 namespace v8::internal::compiler {
@@ -25,7 +25,7 @@ namespace turboshaft {
 
 wasm::WasmCompilationResult ExecuteTurboshaftWasmCompilation(
     wasm::CompilationEnv* env, WasmCompilationData& data,
-    wasm::WasmFeatures* detected);
+    wasm::WasmDetectedFeatures* detected);
 
 class TurboshaftCompilationJob : public OptimizedCompilationJob {
  public:

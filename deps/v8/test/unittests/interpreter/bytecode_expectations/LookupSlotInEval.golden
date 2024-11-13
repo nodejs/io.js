@@ -87,10 +87,10 @@ snippet: "
 "
 frame size: 0
 parameter count: 1
-bytecode array length: 6
+bytecode array length: 7
 bytecodes: [
   /*   15 S> */ B(LdaLookupGlobalSlotInsideTypeof), U8(0), U8(0), U8(1),
-                B(TypeOf),
+                B(TypeOf), U8(2),
   /*   31 S> */ B(Return),
 ]
 constant pool: [

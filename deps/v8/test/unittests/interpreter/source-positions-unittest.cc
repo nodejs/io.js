@@ -159,8 +159,8 @@ Handle<BytecodeArray> SourcePositionTest::MakeBytecode(
 
           .ToLocalChecked()
           .As<Function>();
-  Handle<JSFunction> function =
-      Handle<JSFunction>::cast(v8::Utils::OpenHandle(*api_function));
+  DirectHandle<JSFunction> function =
+      Cast<JSFunction>(v8::Utils::OpenDirectHandle(*api_function));
   return handle(function->shared()->GetBytecodeArray(i_isolate()), i_isolate());
 }
 

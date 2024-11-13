@@ -16,6 +16,7 @@
 #include "absl/log/log.h"
 
 #define ABSL_TEST_LOG LOG
+#define ABSL_TEST_DLOG DLOG
 
 #include "gtest/gtest.h"
 #include "absl/log/log_basic_test_impl.inc"

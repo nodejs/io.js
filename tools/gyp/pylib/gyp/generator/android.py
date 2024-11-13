@@ -769,7 +769,7 @@ class AndroidMkWriter:
         Args:
           cflags: A list of compiler flags, which may be mixed with "-I.."
         Returns:
-          A tuple of lists: (clean_clfags, include_paths). "-I.." is trimmed.
+          A tuple of lists: (clean_cflags, include_paths). "-I.." is trimmed.
         """
         clean_cflags = []
         include_paths = []

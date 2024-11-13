@@ -1,6 +1,6 @@
 {
   "name": "foreground-child",
-  "version": "3.2.1",
+  "version": "3.3.0",
   "description": "Run a child as if it's the foreground process. Give it stdio. Exit when it exits.",
   "main": "./dist/commonjs/index.js",
   "types": "./dist/commonjs/index.d.ts",

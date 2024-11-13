@@ -15,7 +15,7 @@ function testFirstInPath(moduleName, isLocalModule) {
   assertFunction(paths[0], '.');
 
   paths = _module._resolveLookupPaths(moduleName, null);
-  assertFunction(paths && paths[0], '.');
+  assertFunction(paths?.[0], '.');
 }
 
 testFirstInPath('./lodash', true);

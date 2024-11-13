@@ -243,9 +243,6 @@ cc_library(
     hdrs = ["absl_vlog_is_on.h"],
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    visibility = [
-        "//absl/log:__subpackages__",
-    ],
     deps = [
         "//absl/base:config",
         "//absl/base:core_headers",
@@ -259,9 +256,6 @@ cc_library(
     hdrs = ["vlog_is_on.h"],
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    visibility = [
-        "//absl/log:__subpackages__",
-    ],
     deps = [
         ":absl_vlog_is_on",
     ],
@@ -315,6 +309,7 @@ cc_test(
 cc_test(
     name = "absl_log_basic_test",
     size = "small",
+    timeout = "moderate",
     srcs = ["absl_log_basic_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -363,6 +358,8 @@ cc_library(
         "//absl/base:core_headers",
         "//absl/log/internal:test_helpers",
         "//absl/status",
+        "//absl/strings",
+        "//absl/strings:string_view",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -428,6 +425,7 @@ cc_test(
 cc_test(
     name = "log_basic_test",
     size = "small",
+    timeout = "moderate",
     srcs = ["log_basic_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -452,6 +450,7 @@ cc_library(
         "//absl/log:globals",
         "//absl/log:log_entry",
         "//absl/log:scoped_mock_log",
+        "//absl/log/internal:globals",
         "//absl/log/internal:test_actions",
         "//absl/log/internal:test_helpers",
         "//absl/log/internal:test_matchers",
@@ -669,6 +668,7 @@ cc_test(
         ":log_entry",
         ":log_sink",
         ":log_sink_registry",
+        ":vlog_is_on",
         "//absl/base:core_headers",
         "//absl/base:log_severity",
         "//absl/flags:flag",

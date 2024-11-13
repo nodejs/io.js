@@ -579,7 +579,8 @@ class XcodeSettings:
 
         sdk_root = self._SdkPath()
         if "SDKROOT" in self._Settings() and sdk_root:
-            cflags.append("-isysroot %s" % sdk_root)
+            cflags.append("-isysroot")
+            cflags.append(sdk_root)
 
         if self.header_map_path:
             cflags.append("-I%s" % self.header_map_path)
@@ -664,7 +665,8 @@ class XcodeSettings:
                 # TODO: Supporting fat binaries will be annoying.
                 self._WarnUnimplemented("ARCHS")
                 archs = ["i386"]
-            cflags.append("-arch " + archs[0])
+            cflags.append("-arch")
+            cflags.append(archs[0])
 
             if archs[0] in ("i386", "x86_64"):
                 if self._Test("GCC_ENABLE_SSE3_EXTENSIONS", "YES", default="NO"):
@@ -924,17 +926,15 @@ class XcodeSettings:
         self._AppendPlatformVersionMinFlags(ldflags)
 
         if "SDKROOT" in self._Settings() and self._SdkPath():
-            ldflags.append("-isysroot " + self._SdkPath())
+            ldflags.append("-isysroot")
+            ldflags.append(self._SdkPath())
 
         for library_path in self._Settings().get("LIBRARY_SEARCH_PATHS", []):
             ldflags.append("-L" + gyp_to_build_path(library_path))
 
         if "ORDER_FILE" in self._Settings():
-            ldflags.append(
-                "-Wl,-order_file "
-                + "-Wl,"
-                + gyp_to_build_path(self._Settings()["ORDER_FILE"])
-            )
+            ldflags.append("-Wl,-order_file")
+            ldflags.append("-Wl," + gyp_to_build_path(self._Settings()["ORDER_FILE"]))
 
         if not gyp.common.CrossCompileRequested():
             if arch is not None:
@@ -946,7 +946,9 @@ class XcodeSettings:
                 # TODO: Supporting fat binaries will be annoying.
                 self._WarnUnimplemented("ARCHS")
                 archs = ["i386"]
-            ldflags.append("-arch " + archs[0])
+            # Avoid quoting the space between -arch and the arch name
+            ldflags.append("-arch")
+            ldflags.append(archs[0])
 
         # Xcode adds the product directory by default.
         # Rewrite -L. to -L./ to work around http://www.openradar.me/25313838
@@ -954,7 +956,8 @@ class XcodeSettings:
 
         install_name = self.GetInstallName()
         if install_name and self.spec["type"] != "loadable_module":
-            ldflags.append("-install_name " + install_name.replace(" ", r"\ "))
+            ldflags.append("-install_name")
+            ldflags.append(install_name.replace(" ", r"\ "))
 
         for rpath in self._Settings().get("LD_RUNPATH_SEARCH_PATHS", []):
             ldflags.append("-Wl,-rpath," + rpath)
@@ -971,7 +974,8 @@ class XcodeSettings:
             platform_root = self._XcodePlatformPath(configname)
             if sdk_root and platform_root:
                 ldflags.append("-F" + platform_root + "/Developer/Library/Frameworks/")
-                ldflags.append("-framework XCTest")
+                ldflags.append("-framework")
+                ldflags.append("XCTest")
 
         is_extension = self._IsIosAppExtension() or self._IsIosWatchKitExtension()
         if sdk_root and is_extension:
@@ -987,7 +991,8 @@ class XcodeSettings:
                     + "/System/Library/PrivateFrameworks/PlugInKit.framework/PlugInKit"
                 )
             else:
-                ldflags.append("-e _NSExtensionMain")
+                ldflags.append("-e")
+                ldflags.append("_NSExtensionMain")
             ldflags.append("-fapplication-extension")
 
         self._Appendf(ldflags, "CLANG_CXX_LIBRARY", "-stdlib=%s")

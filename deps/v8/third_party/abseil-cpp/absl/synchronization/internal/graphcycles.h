@@ -126,6 +126,11 @@ class GraphCycles {
   // Expensive: should only be called from graphcycles_test.cc.
   bool CheckInvariants() const;
 
+  // Test-only method to add more nodes. The nodes will not be valid, and this
+  // method should only be used to test the behavior of the graph when it is
+  // very full.
+  void TestOnlyAddNodes(uint32_t n);
+
   // ----------------------------------------------------
   struct Rep;
  private:

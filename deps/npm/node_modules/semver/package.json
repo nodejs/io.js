@@ -1,6 +1,6 @@
 {
   "name": "semver",
-  "version": "7.6.2",
+  "version": "7.6.3",
   "description": "The semantic version parser used by npm.",
   "main": "index.js",
   "scripts": {

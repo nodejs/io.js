@@ -380,6 +380,10 @@ function fromAlias (res, where) {
     throw new Error('aliases only work for registry deps')
   }
 
+  if (!subSpec.name) {
+    throw new Error('aliases must have a name')
+  }
+
   res.subSpec = subSpec
   res.registry = true
   res.type = 'alias'

@@ -55,7 +55,7 @@
 // Example:
 //
 //   // Construct a civil-time object for a specific day
-//   const absl::CivilDay cd(1969, 07, 20);
+//   const absl::CivilDay cd(1969, 7, 20);
 //
 //   // Construct a civil-time object for a specific second
 //   const absl::CivilSecond cd(2018, 8, 1, 12, 0, 1);
@@ -65,7 +65,7 @@
 // Example:
 //
 //   // Valid in C++14
-//   constexpr absl::CivilDay cd(1969, 07, 20);
+//   constexpr absl::CivilDay cd(1969, 7, 20);
 
 #ifndef ABSL_TIME_CIVIL_TIME_H_
 #define ABSL_TIME_CIVIL_TIME_H_

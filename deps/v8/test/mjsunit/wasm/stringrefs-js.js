@@ -78,28 +78,28 @@ function assertInvalid(fn, message) {
 })();
 
 (function TestViewsUnsupported() {
-  let kSig_x_v = makeSig([], [kWasmStringViewWtf8]);
-  let kSig_y_v = makeSig([], [kWasmStringViewWtf16]);
-  let kSig_z_v = makeSig([], [kWasmStringViewIter]);
+  let kSig_x_w = makeSig([kWasmStringRef], [kWasmStringViewWtf8]);
+  let kSig_y_w = makeSig([kWasmStringRef], [kWasmStringViewWtf16]);
+  let kSig_z_w = makeSig([kWasmStringRef], [kWasmStringViewIter]);
   let builder = new WasmModuleBuilder();
 
-  builder.addFunction("stringview_wtf8", kSig_x_v)
+  builder.addFunction("stringview_wtf8", kSig_x_w)
     .exportFunc()
-    .addLocals(kWasmStringViewWtf8, 1)
     .addBody([
       kExprLocalGet, 0,
+      ...GCInstr(kExprStringAsWtf8),
     ]);
-  builder.addFunction("stringview_wtf16", kSig_y_v)
+  builder.addFunction("stringview_wtf16", kSig_y_w)
     .exportFunc()
-    .addLocals(kWasmStringViewWtf16, 1)
     .addBody([
       kExprLocalGet, 0,
+      ...GCInstr(kExprStringAsWtf16),
     ]);
-  builder.addFunction("stringview_iter", kSig_z_v)
+  builder.addFunction("stringview_iter", kSig_z_w)
     .exportFunc()
-    .addLocals(kWasmStringViewIter, 1)
     .addBody([
       kExprLocalGet, 0,
+      ...GCInstr(kExprStringAsIter),
     ]);
 
   let instance = builder.instantiate()
@@ -115,15 +115,12 @@ function assertInvalid(fn, message) {
 (function TestDefinedGlobals() {
   let kSig_w_v = makeSig([], [kWasmStringRef]);
   let kSig_v_w = makeSig([kWasmStringRef], []);
-  let kSig_x_v = makeSig([], [kWasmStringViewWtf8]);
-  let kSig_y_v = makeSig([], [kWasmStringViewWtf16]);
-  let kSig_z_v = makeSig([], [kWasmStringViewIter]);
   let builder = new WasmModuleBuilder();
 
   builder.addGlobal(kWasmStringRef, true, false).exportAs('w');
-  builder.addGlobal(kWasmStringViewWtf8, true, false).exportAs('x');
-  builder.addGlobal(kWasmStringViewWtf16, true, false).exportAs('y');
-  builder.addGlobal(kWasmStringViewIter, true, false).exportAs('z');
+  // String views being non-nullable makes them non-defaultable; combined
+  // with view creation instructions not being constant that means there is
+  // currently no way to have view-typed globals.
 
   builder.addFunction("get_stringref", kSig_w_v)
     .exportFunc()
@@ -137,22 +134,6 @@ function assertInvalid(fn, message) {
       kExprGlobalSet, 0
     ]);
 
-  builder.addFunction("get_stringview_wtf8", kSig_x_v)
-    .exportFunc()
-    .addBody([
-      kExprGlobalGet, 1,
-    ]);
-  builder.addFunction("get_stringview_wtf16", kSig_y_v)
-    .exportFunc()
-    .addBody([
-      kExprGlobalGet, 2,
-    ]);
-  builder.addFunction("get_stringview_iter", kSig_z_v)
-    .exportFunc()
-    .addBody([
-      kExprGlobalGet, 3,
-    ]);
-
   let instance = builder.instantiate()
 
   assertEquals(null, instance.exports.get_stringref());
@@ -163,25 +144,6 @@ function assertInvalid(fn, message) {
   instance.exports.w.value = 'bar';
   assertEquals('bar', instance.exports.w.value);
   assertEquals('bar', instance.exports.get_stringref());
-
-  assertThrows(()=>instance.exports.get_stringview_wtf8(),
-               TypeError, "type incompatibility when transforming from/to JS");
-  assertThrows(()=>instance.exports.get_stringview_wtf16(),
-               TypeError, "type incompatibility when transforming from/to JS");
-  assertThrows(()=>instance.exports.get_stringview_iter(),
-               TypeError, "type incompatibility when transforming from/to JS");
-
-  let unsupportedGlobalMessage = (mode, type) => {
-    return `${mode} WebAssembly.Global.value: ${type} has no JS representation`;
-  }
-  for (let [global, type] of [[instance.exports.x, 'stringview_wtf8'],
-                              [instance.exports.y, 'stringview_wtf16'],
-                              [instance.exports.z, 'stringview_iter']]) {
-    assertThrows(()=>global.value, TypeError,
-                 unsupportedGlobalMessage('get', type));
-    assertThrows(()=>{global.value = null}, TypeError,
-                 unsupportedGlobalMessage('set', type));
-  }
 })();
 
 (function TestImportedGlobals() {
@@ -235,15 +197,12 @@ function assertInvalid(fn, message) {
 (function TestDefinedTables() {
   let kSig_w_v = makeSig([], [kWasmStringRef]);
   let kSig_v_w = makeSig([kWasmStringRef], []);
-  let kSig_x_v = makeSig([], [kWasmStringViewWtf8]);
-  let kSig_y_v = makeSig([], [kWasmStringViewWtf16]);
-  let kSig_z_v = makeSig([], [kWasmStringViewIter]);
+  // String views being non-nullable makes them non-defaultable; combined
+  // with view creation instructions not being constant that means there is
+  // currently no way to have view-typed tables.
   let builder = new WasmModuleBuilder();
 
   builder.addTable(kWasmStringRef, 1).exportAs('w');
-  builder.addTable(kWasmStringViewWtf8, 1).exportAs('x');
-  builder.addTable(kWasmStringViewWtf16, 1).exportAs('y');
-  builder.addTable(kWasmStringViewIter, 1).exportAs('z');
 
   builder.addFunction("get_stringref", kSig_w_v)
     .exportFunc()
@@ -259,25 +218,6 @@ function assertInvalid(fn, message) {
       kExprTableSet, 0,
     ]);
 
-  builder.addFunction("get_stringview_wtf8", kSig_x_v)
-    .exportFunc()
-    .addBody([
-      kExprI32Const, 0,
-      kExprTableGet, 1,
-    ]);
-  builder.addFunction("get_stringview_wtf16", kSig_y_v)
-    .exportFunc()
-    .addBody([
-      kExprI32Const, 0,
-      kExprTableGet, 2,
-    ]);
-  builder.addFunction("get_stringview_iter", kSig_z_v)
-    .exportFunc()
-    .addBody([
-      kExprI32Const, 0,
-      kExprTableGet, 3,
-    ]);
-
   let instance = builder.instantiate()
 
   assertEquals(null, instance.exports.get_stringref());
@@ -289,24 +229,6 @@ function assertInvalid(fn, message) {
   assertEquals('bar', instance.exports.w.get(0));
   assertEquals('bar', instance.exports.get_stringref());
 
-  assertThrows(()=>instance.exports.get_stringview_wtf8(),
-               TypeError, "type incompatibility when transforming from/to JS");
-  assertThrows(()=>instance.exports.get_stringview_wtf16(),
-               TypeError, "type incompatibility when transforming from/to JS");
-  assertThrows(()=>instance.exports.get_stringview_iter(),
-               TypeError, "type incompatibility when transforming from/to JS");
-
-  for (let [table, type] of [[instance.exports.x, 'stringview_wtf8'],
-                             [instance.exports.y, 'stringview_wtf16'],
-                             [instance.exports.z, 'stringview_iter']]) {
-    let unsupportedGetMessage =
-        `WebAssembly.Table.get(): ${type} has no JS representation`;
-    let unsupportedSetMessage =
-        'WebAssembly.Table.set(): Argument 1 is invalid for table: '
-        + `${type} has no JS representation`;
-    assertThrows(()=>table.get(0), TypeError, unsupportedGetMessage);
-    assertThrows(()=>{table.set(0, null);}, TypeError, unsupportedSetMessage);
-  }
 })();
 
 (function TestImportedTables() {

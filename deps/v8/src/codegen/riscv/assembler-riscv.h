@@ -55,6 +55,7 @@
 #include "src/codegen/riscv/extension-riscv-f.h"
 #include "src/codegen/riscv/extension-riscv-m.h"
 #include "src/codegen/riscv/extension-riscv-v.h"
+#include "src/codegen/riscv/extension-riscv-zicond.h"
 #include "src/codegen/riscv/extension-riscv-zicsr.h"
 #include "src/codegen/riscv/extension-riscv-zifencei.h"
 #include "src/codegen/riscv/register-riscv.h"
@@ -173,6 +174,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
                                     public AssemblerRISCVC,
                                     public AssemblerRISCVZifencei,
                                     public AssemblerRISCVZicsr,
+                                    public AssemblerRISCVZicond,
                                     public AssemblerRISCVV {
  public:
   // Create an assembler. Instructions and relocation information are emitted
@@ -280,9 +282,19 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   // See Assembler::CheckConstPool for more info.
   void EmitPoolGuard();
 
+#if defined(V8_TARGET_ARCH_RISCV64)
   static void set_target_value_at(
-      Address pc, uintptr_t target,
+      Address pc, uint64_t target,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+#elif defined(V8_TARGET_ARCH_RISCV32)
+  static void set_target_value_at(
+      Address pc, uint32_t target,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+#endif
+
+  static inline int32_t target_constant32_at(Address pc);
+  static inline void set_target_constant32_at(
+      Address pc, uint32_t target, ICacheFlushMode icache_flush_mode);
 
   static void JumpLabelToJumpRegister(Address pc);
 
@@ -301,6 +313,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   inline static void deserialization_set_target_internal_reference_at(
       Address pc, Address target,
       RelocInfo::Mode mode = RelocInfo::INTERNAL_REFERENCE);
+
+  // Read/modify the uint32 constant used at pc.
+  static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
+  static inline void set_uint32_constant_at(
+      Address pc, Address constant_pool, uint32_t new_constant,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Here we are patching the address in the LUI/ADDI instruction pair.
   // These values are used in the serialization process and must be zero for
@@ -377,24 +395,28 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   // Assembler Pseudo Instructions (Tables 25.2, 25.3, RISC-V Unprivileged ISA)
   void nop();
 #if defined(V8_TARGET_ARCH_RISCV64)
-  void RecursiveLiImpl(Register rd, intptr_t imm);
-  void RecursiveLi(Register rd, intptr_t imm);
-  static int RecursiveLiCount(intptr_t imm);
-  static int RecursiveLiImplCount(intptr_t imm);
-  void RV_li(Register rd, intptr_t imm);
+  void RecursiveLiImpl(Register rd, int64_t imm);
+  void RecursiveLi(Register rd, int64_t imm);
+  static int RecursiveLiCount(int64_t imm);
+  static int RecursiveLiImplCount(int64_t imm);
+  void RV_li(Register rd, int64_t imm);
   static int RV_li_count(int64_t imm, bool is_get_temp_reg = false);
   // Returns the number of instructions required to load the immediate
   void GeneralLi(Register rd, int64_t imm);
-  static int GeneralLiCount(intptr_t imm, bool is_get_temp_reg = false);
+  static int GeneralLiCount(int64_t imm, bool is_get_temp_reg = false);
+  // Loads an immediate, always using 8 instructions, regardless of the value,
+  // so that it can be modified later.
+  void li_constant(Register rd, int64_t imm);
+  void li_constant32(Register rd, int32_t imm);
+  void li_ptr(Register rd, int64_t imm);
 #endif
 #if defined(V8_TARGET_ARCH_RISCV32)
   void RV_li(Register rd, int32_t imm);
   static int RV_li_count(int32_t imm, bool is_get_temp_reg = false);
+
+  void li_constant(Register rd, int32_t imm);
+  void li_ptr(Register rd, int32_t imm);
 #endif
-  // Loads an immediate, always using 8 instructions, regardless of the value,
-  // so that it can be modified later.
-  void li_constant(Register rd, intptr_t imm);
-  void li_ptr(Register rd, intptr_t imm);
 
   void break_(uint32_t code, bool break_as_stop = false);
   void stop(uint32_t code = kMaxStopCode);

@@ -174,4 +174,16 @@ ABSL_NAMESPACE_END
 #define ABSL_DEPRECATE_AND_INLINE()
 #endif
 
+// Requires the compiler to prove that the size of the given object is at least
+// the expected amount.
+#if ABSL_HAVE_ATTRIBUTE(diagnose_if) && ABSL_HAVE_BUILTIN(__builtin_object_size)
+#define ABSL_INTERNAL_NEED_MIN_SIZE(Obj, N)                     \
+  __attribute__((diagnose_if(__builtin_object_size(Obj, 0) < N, \
+                             "object size provably too small "  \
+                             "(this would corrupt memory)",     \
+                             "error")))
+#else
+#define ABSL_INTERNAL_NEED_MIN_SIZE(Obj, N)
+#endif
+
 #endif  // ABSL_BASE_MACROS_H_

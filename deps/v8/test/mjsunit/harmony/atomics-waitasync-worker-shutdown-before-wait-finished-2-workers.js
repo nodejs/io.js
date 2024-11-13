@@ -11,7 +11,7 @@
 
   (function createWorker() {
     function workerCode(location) {
-      onmessage = function(msg) {
+      onmessage = function({data:msg}) {
         if (msg.sab) {
           const i32a = new Int32Array(msg.sab);
           Atomics.waitAsync(i32a, location, 0);

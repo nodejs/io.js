@@ -19,11 +19,7 @@ import getnapibuildversion
 
 # Regex used for parsing results of "gn args".
 GN_RE = re.compile(r'(\w+)\s+=\s+(.*?)$', re.MULTILINE)
-
-if sys.platform == 'win32':
-  GN = 'gn.exe'
-else:
-  GN = 'gn'
+GN = 'gn.bat' if sys.platform == 'win32' else 'gn'
 
 def bool_to_number(v):
   return 1 if v else 0
@@ -65,6 +61,7 @@ def translate_config(out_dir, config, v8_config):
           eval(config['node_builtin_shareable_builtins']),
       'node_module_version': int(config['node_module_version']),
       'node_use_openssl': config['node_use_openssl'],
+      'node_use_amaro': config['node_use_amaro'],
       'node_use_node_code_cache': config['node_use_node_code_cache'],
       'node_use_node_snapshot': config['node_use_node_snapshot'],
       'v8_enable_inspector':  # this is actually a node misnomer

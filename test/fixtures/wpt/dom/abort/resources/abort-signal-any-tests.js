@@ -182,4 +182,59 @@ function abortSignalAnyTests(signalInterface, controllerInterface) {
     controller.abort();
     assert_equals(result, "01234");
   }, `Abort events for ${desc} signals fire in the right order ${suffix}`);
+
+  test(t => {
+    const controller = new controllerInterface();
+    const signal1 = signalInterface.any([controller.signal]);
+    const signal2 = signalInterface.any([signal1]);
+    let eventFired = false;
+
+    controller.signal.addEventListener('abort', () => {
+      const signal3 = signalInterface.any([signal2]);
+      assert_true(controller.signal.aborted);
+      assert_true(signal1.aborted);
+      assert_true(signal2.aborted);
+      assert_true(signal3.aborted);
+      eventFired = true;
+    });
+
+    controller.abort();
+    assert_true(eventFired, "event fired");
+  }, `Dependent signals for ${desc} are marked aborted before abort events fire ${suffix}`);
+
+  test(t => {
+    const controller1 = new controllerInterface();
+    const controller2 = new controllerInterface();
+    const signal = signalInterface.any([controller1.signal, controller2.signal]);
+    let count = 0;
+
+    controller1.signal.addEventListener('abort', () => {
+      controller2.abort("reason 2");
+    });
+
+    signal.addEventListener('abort', () => {
+      count++;
+    });
+
+    controller1.abort("reason 1");
+    assert_equals(count, 1);
+    assert_true(signal.aborted);
+    assert_equals(signal.reason, "reason 1");
+  }, `Dependent signals for ${desc} are aborted correctly for reentrant aborts ${suffix}`);
+
+  test(t => {
+    const source = signalInterface.abort();
+    const dependent = signalInterface.any([source]);
+    assert_true(source.reason instanceof DOMException);
+    assert_equals(source.reason, dependent.reason);
+  }, `Dependent signals for ${desc} should use the same DOMException instance from the already aborted source signal ${suffix}`);
+
+  test(t => {
+    const controller = new controllerInterface();
+    const source = controller.signal;
+    const dependent = signalInterface.any([source]);
+    controller.abort();
+    assert_true(source.reason instanceof DOMException);
+    assert_equals(source.reason, dependent.reason);
+  }, `Dependent signals for ${desc} should use the same DOMException instance from the source signal being aborted later ${suffix}`);
 }

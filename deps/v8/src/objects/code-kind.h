@@ -81,7 +81,11 @@ inline constexpr bool CodeKindIsBuiltinOrJSFunction(CodeKind kind) {
 }
 
 inline constexpr bool CodeKindCanDeoptimize(CodeKind kind) {
-  return CodeKindIsOptimizedJSFunction(kind);
+  return CodeKindIsOptimizedJSFunction(kind)
+#if V8_ENABLE_WEBASSEMBLY
+         || (kind == CodeKind::WASM_FUNCTION && v8_flags.wasm_deopt)
+#endif
+      ;
 }
 
 inline constexpr bool CodeKindCanOSR(CodeKind kind) {

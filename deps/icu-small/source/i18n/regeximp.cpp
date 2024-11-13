@@ -41,7 +41,7 @@ UChar32 CaseFoldingUTextIterator::next() {
             if (fFoldLength < 0) {
                 fFoldLength = ~fFoldLength;
             }
-            foldedC = (UChar32)fFoldLength;
+            foldedC = static_cast<UChar32>(fFoldLength);
             fFoldChars = nullptr;
             return foldedC;
         }
@@ -89,7 +89,7 @@ UChar32 CaseFoldingUCharIterator::next() {
             if (fFoldLength < 0) {
                 fFoldLength = ~fFoldLength;
             }
-            foldedC = (UChar32)fFoldLength;
+            foldedC = static_cast<UChar32>(fFoldLength);
             fFoldChars = nullptr;
             return foldedC;
         }

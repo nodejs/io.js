@@ -1,4 +1,4 @@
-Missing script: "non-existent-command"
+Missing script: "non-existent-command" for *
 
 Available scripts are:
   test: echo "Error: no test specified" && exit 1
@@ -12,3 +12,5 @@ Available scripts are:
   path-env-windows: path-env.bat
   special-env-variables: special-env-variables
   special-env-variables-windows: special-env-variables.bat
+  pwd: pwd
+  pwd-windows: cd

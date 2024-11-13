@@ -390,6 +390,7 @@ cc_test(
         ":flag",
         ":flag_internal",
         ":marshalling",
+        ":parse",
         ":reflection",
         "//absl/base:core_headers",
         "//absl/base:malloc_internal",
@@ -497,7 +498,10 @@ cc_test(
     ],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
-    tags = ["no_test_wasm"],
+    tags = [
+        "no_test_fuchsia_x64",
+        "no_test_wasm",
+    ],
     deps = [
         ":program_name",
         "//absl/strings",

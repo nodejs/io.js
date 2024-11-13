@@ -66,8 +66,7 @@ transitioning javascript builtin TypedArrayPrototypeWith(
     //   i. Perform ? Set(A, Pk, value, true).
     const accessor: TypedArrayAccessor =
         GetTypedArrayAccessor(copy.elements_kind);
-    accessor.StoreJSAny(context, copy, actualIndex, value)
-        otherwise unreachable;
+    accessor.StoreJSAnyInBounds(context, copy, actualIndex, value);
 
     // Fill the remainder with undefined, in case of resize during parameter
     // conversion. This is not the same as doing nothing because:
@@ -76,7 +75,7 @@ transitioning javascript builtin TypedArrayPrototypeWith(
     // - Undefined cannot convert to BigInt and throws
     let k: uintptr = fastCopyableLength;
     while (k < copy.length) {
-      accessor.StoreJSAny(context, copy, k, Undefined) otherwise unreachable;
+      accessor.StoreJSAnyInBounds(context, copy, k, Undefined);
       ++k;
     }
 

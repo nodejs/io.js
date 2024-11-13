@@ -601,18 +601,21 @@ class MockPlatform final : public TestPlatform {
  private:
   class MockTaskRunner : public v8::TaskRunner {
    public:
-    void PostTask(std::unique_ptr<v8::Task> task) override {
+    void PostTaskImpl(std::unique_ptr<v8::Task> task,
+                      const SourceLocation&) override {
       task->Run();
       posted_count_++;
     }
 
-    void PostDelayedTask(std::unique_ptr<Task> task,
-                         double delay_in_seconds) override {
+    void PostDelayedTaskImpl(std::unique_ptr<Task> task,
+                             double delay_in_seconds,
+                             const SourceLocation&) override {
       task_ = std::move(task);
       delay_ = delay_in_seconds;
     }
 
-    void PostIdleTask(std::unique_ptr<IdleTask> task) override {
+    void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                          const SourceLocation&) override {
       UNREACHABLE();
     }
 
@@ -665,6 +668,7 @@ TEST_WITH_PLATFORM(MaxSamplesCallback, MockPlatform) {
   sample2.timestamp = v8::base::TimeTicks::Now();
   sample2.pc = ToPointer(0x1925);
   sample2.stack[0] = ToPointer(0x1780);
+  sample2.stack[1] = ToPointer(0x1760);
   sample2.frames_count = 2;
   symbolized = symbolizer.SymbolizeTickSample(sample2);
   profiles.AddPathToCurrentProfiles(
@@ -674,6 +678,9 @@ TEST_WITH_PLATFORM(MaxSamplesCallback, MockPlatform) {
   TickSample sample3;
   sample3.timestamp = v8::base::TimeTicks::Now();
   sample3.pc = ToPointer(0x1510);
+  sample3.stack[0] = ToPointer(0x1780);
+  sample3.stack[1] = ToPointer(0x1760);
+  sample3.stack[2] = ToPointer(0x1740);
   sample3.frames_count = 3;
   symbolized = symbolizer.SymbolizeTickSample(sample3);
   profiles.AddPathToCurrentProfiles(
@@ -869,8 +876,8 @@ int GetFunctionLineNumber(CpuProfiler* profiler, LocalContext* env,
                           i::Isolate* isolate, const char* name) {
   InstructionStreamMap* instruction_stream_map =
       profiler->symbolizer()->instruction_stream_map();
-  i::Handle<i::JSFunction> func = i::Handle<i::JSFunction>::cast(
-      v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+  i::DirectHandle<i::JSFunction> func = i::Cast<i::JSFunction>(
+      v8::Utils::OpenDirectHandle(*v8::Local<v8::Function>::Cast(
           (*env)->Global()->Get(env->local(), v8_str(name)).ToLocalChecked())));
   PtrComprCageBase cage_base(isolate);
   CodeEntry* func_entry = instruction_stream_map->FindEntry(
@@ -928,7 +935,7 @@ TEST(BailoutReason) {
                                          "Debugger")
                                          .As<v8::Function>();
   i::Handle<i::JSFunction> i_function =
-      i::Handle<i::JSFunction>::cast(v8::Utils::OpenHandle(*function));
+      i::Cast<i::JSFunction>(v8::Utils::OpenHandle(*function));
   USE(i_function);
 
   CompileRun(

@@ -11,7 +11,7 @@ namespace internal {
 using WeakArrayListTest = TestWithIsolate;
 
 TEST_F(WeakArrayListTest, Compact) {
-  Handle<WeakArrayList> list = isolate()->factory()->NewWeakArrayList(10);
+  DirectHandle<WeakArrayList> list = isolate()->factory()->NewWeakArrayList(10);
   EXPECT_EQ(list->length(), 0);
   EXPECT_EQ(list->capacity(), 10);
 
@@ -31,7 +31,7 @@ TEST_F(WeakArrayListTest, Compact) {
 }
 
 TEST_F(WeakArrayListTest, OutOfPlaceCompact) {
-  Handle<WeakArrayList> list = isolate()->factory()->NewWeakArrayList(20);
+  DirectHandle<WeakArrayList> list = isolate()->factory()->NewWeakArrayList(20);
   EXPECT_EQ(list->length(), 0);
   EXPECT_EQ(list->capacity(), 20);
 
@@ -46,7 +46,7 @@ TEST_F(WeakArrayListTest, OutOfPlaceCompact) {
   list->Set(4, cleared_ref);
   list->set_length(6);
 
-  Handle<WeakArrayList> compacted =
+  DirectHandle<WeakArrayList> compacted =
       isolate()->factory()->CompactWeakArrayList(list, 4);
   EXPECT_EQ(list->length(), 6);
   EXPECT_EQ(compacted->length(), 4);

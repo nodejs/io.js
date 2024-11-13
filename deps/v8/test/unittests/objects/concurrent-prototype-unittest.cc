@@ -46,12 +46,12 @@ class ConcurrentSearchThread final : public v8::base::Thread {
 
     sema_started_->Signal();
 
-    for (Handle<JSObject> js_obj : handles_) {
+    for (DirectHandle<JSObject> js_obj : handles_) {
       // Walk up the prototype chain all the way to the top.
-      Handle<Map> map(js_obj->map(kAcquireLoad), &local_heap);
+      DirectHandle<Map> map(js_obj->map(kAcquireLoad), &local_heap);
       while (!IsNull(map->prototype())) {
-        Handle<Map> map_prototype_map(map->prototype()->map(kAcquireLoad),
-                                      &local_heap);
+        DirectHandle<Map> map_prototype_map(map->prototype()->map(kAcquireLoad),
+                                            &local_heap);
         if (!IsJSObjectMap(*map_prototype_map)) {
           break;
         }
@@ -173,7 +173,7 @@ TEST_F(ConcurrentPrototypeTest, ProtoWalkBackground_PrototypeChainWrite) {
   // The prototype chain looks like this JSObject -> Object -> null. Change the
   // prototype of the js_object to be JSObject -> null, and then back a bunch of
   // times.
-  Handle<Map> map(js_object->map(), i_isolate());
+  DirectHandle<Map> map(js_object->map(), i_isolate());
   Handle<HeapObject> old_proto(map->prototype(), i_isolate());
   DCHECK(!IsNull(*old_proto));
   Handle<HeapObject> new_proto(old_proto->map()->prototype(), i_isolate());

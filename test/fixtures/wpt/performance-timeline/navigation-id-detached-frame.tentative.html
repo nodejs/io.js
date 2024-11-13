@@ -1,0 +1,30 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>The navigation_id Detached iframe Parent Page.</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+</head>
+
+<body>
+  <script>
+    promise_test(t => {
+      return new Promise(resolve => {
+        const frame = document.createElement("iframe");
+        frame.addEventListener("load", async () => {
+          // Wait for iframe to be detached.
+          while (frame.contentWindow) {
+            await new Promise(r => t.step_timeout(r, 10));
+          }
+          resolve();
+        });
+        frame.src = "resources/navigation-id-detached-frame-page.html";
+        document.body.appendChild(frame);
+      });
+    }, "The navigation_id getter does not crash a window of detached frame");
+  </script>
+</body>
+
+</html>

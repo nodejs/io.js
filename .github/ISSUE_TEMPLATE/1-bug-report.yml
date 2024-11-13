@@ -13,7 +13,9 @@ body:
   - type: input
     attributes:
       label: Version
-      description: Output of `node -v`
+      description: |
+        Output of `node -v`.
+        Please verify that you are reproducing the issue in a [currently-supported version](https://github.com/nodejs/Release/blob/HEAD/README.md#release-schedule) of Node.js.
   - type: textarea
     attributes:
       label: Platform

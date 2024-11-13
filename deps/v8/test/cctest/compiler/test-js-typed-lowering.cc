@@ -190,9 +190,9 @@ class JSTypedLoweringTester : public HandleAndZoneScope,
     CheckHandle(isolate->factory()->false_value(), result);
   }
 
-  void CheckHandle(Handle<HeapObject> expected, Node* result) {
+  void CheckHandle(DirectHandle<HeapObject> expected, Node* result) {
     CHECK_EQ(IrOpcode::kHeapConstant, result->opcode());
-    Handle<HeapObject> value = HeapConstantOf(result->op());
+    DirectHandle<HeapObject> value = HeapConstantOf(result->op());
     CHECK_EQ(*expected, *value);
   }
 };

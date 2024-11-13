@@ -34,6 +34,8 @@ static_assert(sizeof(g_thread_in_wasm_code) > 1,
 
 size_t gNumCodeObjects = 0;
 CodeProtectionInfoListEntry* gCodeObjects = nullptr;
+uintptr_t gV8SandboxBase = 0;
+size_t gV8SandboxSize = 0;
 std::atomic_size_t gRecoveredTrapCount = {0};
 std::atomic<uintptr_t> gLandingPad = {0};
 

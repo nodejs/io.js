@@ -192,7 +192,7 @@ class TestResolver : public CompilationResultResolver {
 
   void OnCompilationFailed(i::Handle<i::Object> error_reason) override {
     *state_ = CompilationState::kFailed;
-    Handle<String> str =
+    DirectHandle<String> str =
         Object::ToString(isolate_, error_reason).ToHandleChecked();
     error_message_->assign(str->ToCString().get());
     // Print the error message, for easier debugging on tests that unexpectedly
@@ -214,7 +214,7 @@ class StreamTester {
     Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
     v8::Local<v8::Context> context = isolate->GetCurrentContext();
 
-    WasmFeatures features = WasmFeatures::FromIsolate(i_isolate);
+    WasmEnabledFeatures features = WasmEnabledFeatures::FromIsolate(i_isolate);
     stream_ = GetWasmEngine()->StartStreamingCompilation(
         i_isolate, features, CompileTimeImports{},
         v8::Utils::OpenHandle(*context), "WebAssembly.compileStreaming()",
@@ -355,13 +355,13 @@ ZoneBuffer GetValidCompiledModuleBytes(v8::Isolate* isolate, Zone* zone,
       break;
     }
     for (Handle<WasmExportedFunction> exported_function : exported_functions) {
-      Handle<Object> return_value =
+      DirectHandle<Object> return_value =
           Execution::Call(i_isolate, exported_function,
                           ReadOnlyRoots{i_isolate}.undefined_value_handle(), 0,
                           nullptr)
               .ToHandleChecked();
       CHECK(IsSmi(*return_value));
-      CHECK_EQ(0, Smi::cast(*return_value).value());
+      CHECK_EQ(0, Cast<Smi>(*return_value).value());
     }
     tester.RunCompilerTasks();
   }
@@ -407,8 +407,8 @@ STREAM_TEST(TestAllBytesArriveAOTCompilerFinishesFirst) {
 
 size_t GetFunctionOffset(i::Isolate* isolate, base::Vector<const uint8_t> bytes,
                          size_t index) {
-  ModuleResult result = DecodeWasmModule(WasmFeatures::All(), bytes, false,
-                                         ModuleOrigin::kWasmOrigin);
+  ModuleResult result = DecodeWasmModule(WasmEnabledFeatures::All(), bytes,
+                                         false, ModuleOrigin::kWasmOrigin);
   CHECK(result.ok());
   const WasmFunction* func = &result.value()->functions[index];
   return func->code.offset();
@@ -1227,6 +1227,8 @@ STREAM_TEST(TestIncrementalCaching) {
   FLAG_VALUE_SCOPE(wasm_tier_up, false);
   constexpr int threshold = 10;  // 10 bytes
   FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, threshold);
+  FlagScope<int> caching_hard_threshold(&v8_flags.wasm_caching_hard_threshold,
+                                        threshold);
   StreamTester tester(isolate);
   int call_cache_counter = 0;
   tester.stream()->SetMoreFunctionsCanBeSerializedCallback(
@@ -1238,7 +1240,7 @@ STREAM_TEST(TestIncrementalCaching) {
   ZoneBuffer buffer(tester.zone());
   TestSignatures sigs;
   WasmModuleBuilder builder(tester.zone());
-  builder.SetMinMemorySize(1);
+  builder.AddMemory(1);
 
   base::Vector<const char> function_names[] = {
       base::CStrVector("f0"), base::CStrVector("f1"), base::CStrVector("f2")};
@@ -1270,13 +1272,13 @@ STREAM_TEST(TestIncrementalCaching) {
   tester.native_module();
   constexpr base::Vector<const char> kNoSourceUrl{"", 0};
   Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
-  Handle<Script> script = GetWasmEngine()->GetOrCreateScript(
+  DirectHandle<Script> script = GetWasmEngine()->GetOrCreateScript(
       i_isolate, tester.shared_native_module(), kNoSourceUrl);
   Handle<WasmModuleObject> module_object =
       WasmModuleObject::New(i_isolate, tester.shared_native_module(), script);
   ErrorThrower thrower(i_isolate, "Instantiation");
   // We instantiated before, so the second instantiation must also succeed:
-  Handle<WasmInstanceObject> instance =
+  DirectHandle<WasmInstanceObject> instance =
       GetWasmEngine()
           ->SyncInstantiate(i_isolate, &thrower, module_object, {}, {})
           .ToHandleChecked();
@@ -1413,6 +1415,8 @@ STREAM_TEST(TestMoreFunctionsCanBeSerializedCallback) {
   // Reduce the caching threshold to 10 bytes so that our three small functions
   // trigger caching.
   FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, 10);
+  FlagScope<int> caching_hard_threshold(&v8_flags.wasm_caching_hard_threshold,
+                                        10);
   StreamTester tester(isolate);
   bool callback_called = false;
   tester.stream()->SetMoreFunctionsCanBeSerializedCallback(
@@ -1487,6 +1491,8 @@ STREAM_TEST(TestMoreFunctionsCanBeSerializedCallbackWithTimeout) {
   // Reduce the caching threshold to 10 bytes so that our three small functions
   // trigger caching.
   FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, 10);
+  FlagScope<int> caching_hard_threshold(&v8_flags.wasm_caching_hard_threshold,
+                                        10);
   // Set the caching timeout to 10ms.
   constexpr int kCachingTimeoutMs = 10;
   FlagScope<int> caching_timeout(&v8_flags.wasm_caching_timeout_ms,
@@ -1615,7 +1621,7 @@ STREAM_TEST(TestHardCachingThreshold) {
   // Reduce the caching threshold to 1 byte and set the hard threshold to 10
   // bytes so that one small function hits both thresholds.
   FlagScope<int> caching_threshold(&v8_flags.wasm_caching_threshold, 1);
-  FlagScope<int> hard_caching_threshold(&v8_flags.wasm_caching_hard_threshold,
+  FlagScope<int> caching_hard_threshold(&v8_flags.wasm_caching_hard_threshold,
                                         10);
   // Set a caching timeout such that the hard threshold has any meaning. This
   // timeout should never be reached.

@@ -27,11 +27,6 @@ new RuleTester().run('documented-errors', rule, {
           message: `"${invalidCode}" is not documented in doc/api/errors.md`,
           line: 2
         },
-        {
-          message:
-            `doc/api/errors.md does not have an anchor for "${invalidCode}"`,
-          line: 2
-        },
       ]
     },
   ]

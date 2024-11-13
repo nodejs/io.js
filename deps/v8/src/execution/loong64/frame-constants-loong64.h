@@ -18,6 +18,12 @@ class EntryFrameConstants : public AllStatic {
   // This is the offset to where JSEntry pushes the current value of
   // Isolate::c_entry_fp onto the stack.
   static constexpr int kNextExitFrameFPOffset = -3 * kSystemPointerSize;
+
+  // The offsets for storing the FP and PC of fast API calls.
+  static constexpr int kNextFastCallFrameFPOffset =
+      kNextExitFrameFPOffset - kSystemPointerSize;
+  static constexpr int kNextFastCallFramePCOffset =
+      kNextFastCallFrameFPOffset - kSystemPointerSize;
 };
 
 class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
@@ -29,21 +35,28 @@ class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
 
   // On loong64, spilled registers are implicitly sorted backwards by number.
   // We spill:
-  //   a2, a3, a4, a5, a6, a7: param1, param2, ..., param6
-  // in the following FP-relative order: [a7, a6, a5, a4, a3, a2].
-  // The instance slot is in position '6', the first spill slot is at '0'.
+  //   a0, a2, a3, a4, a5, a6: param1, param2, ..., param6
+  // in the following FP-relative order: [a6, a5, a4, a3, a2, a0].
+  // The instance slot is in position '0', the first spill slot is at '1'.
+  // See wasm::kGpParamRegisters and Builtins::Generate_WasmCompileLazy.
   static constexpr int kInstanceSpillOffset =
-      TYPED_FRAME_PUSHED_VALUE_OFFSET(6);
+      TYPED_FRAME_PUSHED_VALUE_OFFSET(0);
 
   static constexpr int kParameterSpillsOffset[] = {
-      TYPED_FRAME_PUSHED_VALUE_OFFSET(5), TYPED_FRAME_PUSHED_VALUE_OFFSET(4),
-      TYPED_FRAME_PUSHED_VALUE_OFFSET(3), TYPED_FRAME_PUSHED_VALUE_OFFSET(2),
-      TYPED_FRAME_PUSHED_VALUE_OFFSET(1), TYPED_FRAME_PUSHED_VALUE_OFFSET(0)};
+      TYPED_FRAME_PUSHED_VALUE_OFFSET(6), TYPED_FRAME_PUSHED_VALUE_OFFSET(5),
+      TYPED_FRAME_PUSHED_VALUE_OFFSET(4), TYPED_FRAME_PUSHED_VALUE_OFFSET(3),
+      TYPED_FRAME_PUSHED_VALUE_OFFSET(2), TYPED_FRAME_PUSHED_VALUE_OFFSET(1)};
 
   // SP-relative.
   static constexpr int kWasmInstanceOffset = 2 * kSystemPointerSize;
   static constexpr int kDeclaredFunctionIndexOffset = 1 * kSystemPointerSize;
   static constexpr int kNativeModuleOffset = 0;
+};
+
+class WasmLiftoffFrameConstants : public TypedFrameConstants {
+ public:
+  static constexpr int kFeedbackVectorOffset = 3 * kSystemPointerSize;
+  static constexpr int kInstanceDataOffset = 2 * kSystemPointerSize;
 };
 
 // Frame constructed by the {WasmDebugBreak} builtin.

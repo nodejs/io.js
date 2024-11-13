@@ -2150,9 +2150,15 @@ async function httpNetworkFetch (
                   finishFlush: zlib.constants.Z_SYNC_FLUSH
                 }))
               } else if (coding === 'deflate') {
-                decoders.push(createInflate())
+                decoders.push(createInflate({
+                  flush: zlib.constants.Z_SYNC_FLUSH,
+                  finishFlush: zlib.constants.Z_SYNC_FLUSH
+                }))
               } else if (coding === 'br') {
-                decoders.push(zlib.createBrotliDecompress())
+                decoders.push(zlib.createBrotliDecompress({
+                  flush: zlib.constants.BROTLI_OPERATION_FLUSH,
+                  finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH
+                }))
               } else {
                 decoders.length = 0
                 break
@@ -2160,13 +2166,19 @@ async function httpNetworkFetch (
             }
           }
 
+          const onError = this.onError.bind(this)
+
           resolve({
             status,
             statusText,
             headersList,
             body: decoders.length
-              ? pipeline(this.body, ...decoders, () => { })
-              : this.body.on('error', () => { })
+              ? pipeline(this.body, ...decoders, (err) => {
+                if (err) {
+                  this.onError(err)
+                }
+              }).on('error', onError)
+              : this.body.on('error', onError)
           })
 
           return true

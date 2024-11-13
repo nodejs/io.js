@@ -4,6 +4,8 @@
 
 #include "src/wasm/streaming-decoder.h"
 
+#include <optional>
+
 #include "src/logging/counters.h"
 #include "src/wasm/decoder.h"
 #include "src/wasm/leb-helper.h"
@@ -18,9 +20,7 @@
     if (v8_flags.trace_wasm_streaming) PrintF(__VA_ARGS__); \
   } while (false)
 
-namespace v8 {
-namespace internal {
-namespace wasm {
+namespace v8::internal::wasm {
 
 class V8_EXPORT_PRIVATE AsyncStreamingDecoder : public StreamingDecoder {
  public:
@@ -75,7 +75,7 @@ class V8_EXPORT_PRIVATE AsyncStreamingDecoder : public StreamingDecoder {
                                offset_in_code_buffer + ref.length());
     }
 
-    base::Optional<ModuleWireBytes> GetModuleBytes() const final { return {}; }
+    std::optional<ModuleWireBytes> GetModuleBytes() const final { return {}; }
 
     uint32_t module_offset() const { return module_offset_; }
     base::Vector<uint8_t> bytes() const { return bytes_.as_vector(); }
@@ -294,6 +294,10 @@ void AsyncStreamingDecoder::Finish(bool can_use_compiled_module) {
   if (!full_wire_bytes_.back().empty()) {
     size_t total_length = 0;
     for (auto& bytes : full_wire_bytes_) total_length += bytes.size();
+    if (ok()) {
+      // {DecodeSectionLength} enforces this with graceful error reporting.
+      CHECK_LE(total_length, max_module_size());
+    }
     auto all_bytes = base::OwnedVector<uint8_t>::NewForOverwrite(total_length);
     uint8_t* ptr = all_bytes.begin();
     for (auto& bytes : full_wire_bytes_) {
@@ -627,6 +631,18 @@ std::unique_ptr<AsyncStreamingDecoder::DecodingState>
 AsyncStreamingDecoder::DecodeSectionLength::NextWithValue(
     AsyncStreamingDecoder* streaming) {
   TRACE_STREAMING("DecodeSectionLength(%zu)\n", value_);
+  // Check if this section fits into the overall module length limit.
+  // Note: {this->module_offset_} is the position of the section ID byte,
+  // {streaming->module_offset_} is the start of the section's payload (i.e.
+  // right after the just-decoded section length varint).
+  // The latter can already exceed the max module size, when the previous
+  // section barely fit into it, and this new section's ID or length crossed
+  // the threshold.
+  uint32_t payload_start = streaming->module_offset();
+  size_t max_size = max_module_size();
+  if (payload_start > max_size || max_size - payload_start < value_) {
+    return streaming->ToErrorState();
+  }
   SectionBuffer* buf =
       streaming->CreateNewBuffer(module_offset_, section_id_, value_,
                                  buffer().SubVector(0, bytes_consumed_));
@@ -757,8 +773,6 @@ std::unique_ptr<StreamingDecoder> StreamingDecoder::CreateAsyncStreamingDecoder(
   return std::make_unique<AsyncStreamingDecoder>(std::move(processor));
 }
 
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm
 
 #undef TRACE_STREAMING

@@ -624,7 +624,7 @@
         {
           "name": "NumberToString",
           "main": "run.js",
-          "flags": [],
+          "flags": ["--no-maglev"],
           "resources": ["typedLowering.js"],
           "test_flags": ["typedLowering"],
           "results_regexp": "^NumberToString\\-TurboFan\\(Score\\): (.+)$"

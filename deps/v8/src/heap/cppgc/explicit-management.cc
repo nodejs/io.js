@@ -51,6 +51,14 @@ void ExplicitManagementImpl::FreeUnreferencedObject(HeapHandle& heap_handle,
     // If this object was registered as remembered, remove it. Do that before
     // the page gets destroyed.
     heap_base.remembered_set().InvalidateRememberedSourceObject(header);
+    if (header.IsMarked()) {
+      base_page->DecrementMarkedBytes(
+          header.IsLargeObject<AccessMode::kNonAtomic>()
+              ? reinterpret_cast<const LargePage*>(
+                    BasePage::FromPayload(&header))
+                    ->PayloadSize()
+              : header.AllocatedSize<AccessMode::kNonAtomic>());
+    }
   }
 #endif  // defined(CPPGC_YOUNG_GENERATION)
 
@@ -94,6 +102,15 @@ bool Grow(HeapObjectHeader& header, BasePage& base_page, size_t new_size,
     Address delta_start = lab.Allocate(size_delta);
     SetMemoryAccessible(delta_start, size_delta);
     header.SetAllocatedSize(new_size);
+#if defined(CPPGC_YOUNG_GENERATION)
+    if (auto& heap_base = *normal_space.raw_heap()->heap();
+        heap_base.generational_gc_supported()) {
+      if (header.IsMarked()) {
+        base_page.IncrementMarkedBytes(
+            header.AllocatedSize<AccessMode::kNonAtomic>());
+      }
+    }
+#endif  // defined(CPPGC_YOUNG_GENERATION)
     return true;
   }
   return false;
@@ -129,6 +146,10 @@ bool Shrink(HeapObjectHeader& header, BasePage& base_page, size_t new_size,
   if (heap.generational_gc_supported()) {
     heap.remembered_set().InvalidateRememberedSlotsInRange(
         free_start, free_start + size_delta);
+    if (header.IsMarked()) {
+      base_page.DecrementMarkedBytes(
+          header.AllocatedSize<AccessMode::kNonAtomic>());
+    }
   }
 #endif  // defined(CPPGC_YOUNG_GENERATION)
   // Return success in any case, as we want to avoid that embedders start

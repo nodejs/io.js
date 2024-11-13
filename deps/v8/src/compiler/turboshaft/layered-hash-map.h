@@ -8,9 +8,9 @@
 #include <cstddef>
 #include <iostream>
 #include <limits>
+#include <optional>
 
 #include "src/base/bits.h"
-#include "src/base/optional.h"
 #include "src/compiler/turboshaft/fast-hash.h"
 #include "src/zone/zone-containers.h"
 
@@ -45,7 +45,7 @@ class LayeredHashMap {
 
   void InsertNewKey(Key key, Value value);
   bool Contains(Key key);
-  base::Optional<Value> Get(Key key);
+  std::optional<Value> Get(Key key);
 
  private:
   struct Entry {
@@ -126,9 +126,9 @@ void LayeredHashMap<Key, Value>::InsertNewKey(Key key, Value value) {
 }
 
 template <class Key, class Value>
-base::Optional<Value> LayeredHashMap<Key, Value>::Get(Key key) {
+std::optional<Value> LayeredHashMap<Key, Value>::Get(Key key) {
   Entry* destination = FindEntryForKey(key, ComputeHash(key));
-  if (destination->hash == 0) return base::nullopt;
+  if (destination->hash == 0) return std::nullopt;
   return destination->value;
 }
 

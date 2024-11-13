@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-array-grouping
+// Flags: --js-explicit-resource-management
 
 Debug = debug.Debug
 
@@ -17,6 +17,8 @@ var data_view = new DataView(new ArrayBuffer(8), 0, 8);
 var array = [1,2,3];
 var pure_function = function(x) { return x * x; };
 var unpure_function = function(x) { array.push(x); };
+var stack = new DisposableStack();
+var regexp = /\d/g;
 
 function listener(event, exec_state, event_data, data) {
   if (event != Debug.DebugEvent.Break) return;
@@ -75,8 +77,10 @@ function listener(event, exec_state, event_data, data) {
     success([], `new Array()`);
     success([undefined, undefined], `new Array(2)`);
     success([1, 2], `new Array(1, 2)`);
-    fail(`Array.from([1, 2, 3])`);
-    fail(`Array.of(1, 2, 3)`);
+    success([1, 2, 3], `Array.from([1, 2, 3])`);
+    success(3, `Array.from([1, 2, 3]).pop()`);
+    success([1, 2, 3], `Array.of(1, 2, 3)`);
+    success(3, `Array.of(1, 2, 3).pop()`);
     var function_param = [
       "flatMap", "forEach", "every", "some", "reduce", "reduceRight", "find",
       "filter", "map", "findIndex", "findLast", "findLastIndex", "group",
@@ -175,9 +179,6 @@ function listener(event, exec_state, event_data, data) {
     }
 
     // Test String functions.
-    success(new String(), `new String()`);
-    success(" ", "String.fromCodePoint(0x20)");
-    success(" ", "String.fromCharCode(0x20)");
     for (f of Object.getOwnPropertyNames(String.prototype)) {
       if (typeof String.prototype[f] === "function") {
         // Do not expect locale-specific or regexp-related functions to work.
@@ -185,30 +186,47 @@ function listener(event, exec_state, event_data, data) {
         // if Intl is enabled.
         if (f.indexOf("locale") >= 0) continue;
         if (f.indexOf("Locale") >= 0) continue;
-        if (typeof Intl !== 'undefined') {
-          if (f == "toUpperCase") continue;
-          if (f == "toLowerCase") continue;
-        }
-        if (f == "normalize") continue;
-        if (f == "match") continue;
-        if (f == "matchAll") continue;
-        if (f == "search") continue;
-        if (f == "split" || f == "replace" || f == "replaceAll") {
-          fail(`'abcd'.${f}(2)`);
-          continue;
+        switch (f) {
+          case "match":
+          case "split":
+          case "matchAll":
+          case "normalize":
+          case "search":
+            case "toLowerCase":
+            case "toUpperCase":
+            continue;
         }
         success("abcd"[f](2), `"abcd".${f}(2);`);
       }
     }
-    fail("'abCd'.toLocaleLowerCase()");
-    fail("'abcd'.toLocaleUpperCase()");
-    if (typeof Intl !== 'undefined') {
-      fail("'abCd'.toLowerCase()");
-      fail("'abcd'.toUpperCase()");
-    }
-    fail("'abcd'.match(/a/)");
-    fail("'abcd'.replace(/a/)");
-    fail("'abcd'.search(/a/)");
+
+    success(new String(), `new String()`);
+    success(" ", "String.fromCodePoint(0x20)");
+    success(" ", "String.fromCharCode(0x20)");
+    success("abcd", "'abCd'.toLocaleLowerCase()");
+    success("ABCD", "'abcd'.toLocaleUpperCase()");
+    success("abcd", "'abCd'.toLowerCase()");
+    success("ABCD", "'abcd'.toUpperCase()");
+    success("a", "'abcd'.match('a')[0]");
+    success("a", "'abcd'.match(/a/)[0]");
+    fail("'1234'.match(regexp)");
+    success("[object RegExp String Iterator]", "'abcd'.matchAll('a').toString()");
+    success("[object RegExp String Iterator]", "'abcd'.matchAll(/a/g).toString()");
+    fail("'1234'.matchAll(regexp)");
+    success("ebcd", "'abcd'.replace('a', 'e')");
+    success("ebcd", "'abcd'.replace(/a/, 'e')");
+    fail("'135'.replace(regexp, 'e')");
+    success("ebcd", "'abcd'.replaceAll('a', 'e')");
+    success("ebcd", "'abcd'.replaceAll(/a/g, 'e')");
+    fail("'135'.replaceAll(regexp, 'e')");
+    success(1, "'abcd'.search('b')");
+    success(1, "'abcd'.search(/b/)");
+    fail("'12a34b'.search(regexp)");
+    success(["a", "cd"], "'abcd'.split('b')");
+    success(["a", "cd"], "'abcd'.split(/b/)");
+    fail("'12a34b'.split(regexp)");
+    success(-1, "'abcd'.localeCompare('abce')");
+    success('abcd', "'abcd'.normalize('NFC')");
 
     // Test RegExp functions.
     fail(`/a/.compile()`);
@@ -244,6 +262,10 @@ function listener(event, exec_state, event_data, data) {
 
     // Test some Map functions
     success('[1]', `JSON.stringify(Map.groupBy([1,2], x => x).get(1))`);
+
+    // Test DisposableStack functions.
+    success({}, `new DisposableStack()`);
+    success(false, `stack.disposed`);
   } catch (e) {
     exception = e;
     print(e, e.stack);

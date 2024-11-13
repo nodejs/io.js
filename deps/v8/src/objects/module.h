@@ -6,7 +6,6 @@
 #define V8_OBJECTS_MODULE_H_
 
 #include "include/v8-script.h"
-#include "src/objects/fixed-array.h"
 #include "src/objects/js-objects.h"
 #include "src/objects/objects.h"
 #include "src/objects/struct.h"
@@ -48,6 +47,10 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
     kErrored
   };
 
+#ifdef DEBUG
+  static const char* StatusString(Module::Status status);
+#endif  // DEBUG
+
   // The exception in the case {status} is kErrored.
   Tagged<Object> GetException();
 
@@ -55,24 +58,13 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
   // i.e. has a top-level await.
   V8_WARN_UNUSED_RESULT bool IsGraphAsync(Isolate* isolate) const;
 
-  // While deprecating v8::ResolveCallback in v8.h we still need to support the
-  // version of the API that uses it, but we can't directly reference the
-  // deprecated version because of the enusing build warnings.  So, we declare
-  // this matching typedef for temporary internal use.
-  // TODO(v8:10958) Delete this typedef and all references to it once
-  // v8::ResolveCallback is removed.
-  typedef MaybeLocal<v8::Module> (*DeprecatedResolveCallback)(
-      Local<v8::Context> context, Local<v8::String> specifier,
-      Local<v8::Module> referrer);
-
   // Implementation of spec operation ModuleDeclarationInstantiation.
   // Returns false if an exception occurred during instantiation, true
   // otherwise. (In the case where the callback throws an exception, that
   // exception is propagated.)
   static V8_WARN_UNUSED_RESULT bool Instantiate(
       Isolate* isolate, Handle<Module> module, v8::Local<v8::Context> context,
-      v8::Module::ResolveModuleCallback callback,
-      DeprecatedResolveCallback callback_without_import_assertions);
+      v8::Module::ResolveModuleCallback callback);
 
   // Implementation of spec operation ModuleEvaluation.
   static V8_WARN_UNUSED_RESULT MaybeHandle<Object> Evaluate(
@@ -107,8 +99,7 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
 
   static V8_WARN_UNUSED_RESULT bool PrepareInstantiate(
       Isolate* isolate, Handle<Module> module, v8::Local<v8::Context> context,
-      v8::Module::ResolveModuleCallback callback,
-      DeprecatedResolveCallback callback_without_import_assertions);
+      v8::Module::ResolveModuleCallback callback);
   static V8_WARN_UNUSED_RESULT bool FinishInstantiate(
       Isolate* isolate, Handle<Module> module,
       ZoneForwardList<Handle<SourceTextModule>>* stack, unsigned* dfs_index,

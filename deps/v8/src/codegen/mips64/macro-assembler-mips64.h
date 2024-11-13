@@ -9,6 +9,8 @@
 #ifndef V8_CODEGEN_MIPS64_MACRO_ASSEMBLER_MIPS64_H_
 #define V8_CODEGEN_MIPS64_MACRO_ASSEMBLER_MIPS64_H_
 
+#include <optional>
+
 #include "src/codegen/assembler.h"
 #include "src/codegen/mips64/assembler-mips64.h"
 #include "src/common/globals.h"
@@ -32,9 +34,6 @@ enum class AbortReason : uint8_t;
 // via 'jalr t9' or 'jr t9' instructions. This is relied upon by gcc when
 // trying to update gp register for position-independent-code. Whenever
 // MIPS generated code calls C code, it must be via t9 register.
-
-// Flags used for LeaveExitFrame function.
-enum LeaveExitFrameMode { EMIT_RETURN = true, NO_EMIT_RETURN = false };
 
 // Allow programmer to use Branch Delay Slot of Branches, Jumps, Calls.
 enum BranchDelaySlot { USE_DELAY_SLOT, PROTECT };
@@ -236,6 +235,9 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   // that is guaranteed not to be clobbered.
   MemOperand ExternalReferenceAsOperand(ExternalReference reference,
                                         Register scratch);
+  MemOperand ExternalReferenceAsOperand(IsolateFieldId id) {
+    return ExternalReferenceAsOperand(ExternalReference::Create(id), no_reg);
+  }
 
   inline void Move(Register output, MemOperand operand) { Ld(output, operand); }
 
@@ -260,6 +262,7 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
             COND_ARGS);
   void Call(Label* target);
   void LoadAddress(Register dst, Label* target);
+  void LoadAddressPCRelative(Register dst, Label* target);
 
   // Load the builtin given by the Smi in |builtin_index| into |target|.
   void LoadEntryFromBuiltinIndex(Register builtin_index, Register target);
@@ -308,14 +311,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void Drop(int count, Condition cond = cc_always, Register reg = no_reg,
             const Operand& op = Operand(no_reg));
 
-  enum ArgumentsCountMode { kCountIncludesReceiver, kCountExcludesReceiver };
-  enum ArgumentsCountType { kCountIsInteger, kCountIsSmi, kCountIsBytes };
-  void DropArguments(Register count, ArgumentsCountType type,
-                     ArgumentsCountMode mode, Register scratch = no_reg);
-  void DropArgumentsAndPushNewReceiver(Register argc, Register receiver,
-                                       ArgumentsCountType type,
-                                       ArgumentsCountMode mode,
-                                       Register scratch = no_reg);
+  void DropArguments(Register count);
+  void DropArgumentsAndPushNewReceiver(Register argc, Register receiver);
 
   // Trivial case of DropAndRet that utilizes the delay slot.
   void DropAndRet(int drop);
@@ -583,19 +580,23 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   // garbage collection, since that might move the code and invalidate the
   // return address (unless this is somehow accounted for by the called
   // function).
-  void CallCFunction(
+  int CallCFunction(
       ExternalReference function, int num_arguments,
-      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes);
-  void CallCFunction(
+      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes,
+      Label* return_location = nullptr);
+  int CallCFunction(
       Register function, int num_arguments,
-      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes);
-  void CallCFunction(
+      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes,
+      Label* return_location = nullptr);
+  int CallCFunction(
       ExternalReference function, int num_reg_arguments,
       int num_double_arguments,
-      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes);
-  void CallCFunction(
+      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes,
+      Label* return_location = nullptr);
+  int CallCFunction(
       Register function, int num_reg_arguments, int num_double_arguments,
-      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes);
+      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes,
+      Label* return_location = nullptr);
   void MovFromFloatResult(DoubleRegister dst);
   void MovFromFloatParameter(DoubleRegister dst);
 
@@ -730,6 +731,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void Float64MinOutOfLine(FPURegister dst, FPURegister src1, FPURegister src2);
 
   bool IsDoubleZeroRegSet() { return has_double_zero_reg_set_; }
+
+  void LoadIsolateField(Register dst, IsolateFieldId id);
 
   void mov(Register rd, Register rt) { or_(rd, rt, zero_reg); }
 
@@ -1027,13 +1030,12 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
               FPURegister scratch);
 
   // Enter exit frame.
-  // argc - argument count to be dropped by LeaveExitFrame.
   // stack_space - extra stack space.
-  void EnterExitFrame(int stack_space, StackFrame::Type frame_type);
+  void EnterExitFrame(Register scratch, int stack_space,
+                      StackFrame::Type frame_type);
 
   // Leave the current exit frame.
-  void LeaveExitFrame(Register arg_count, bool do_return = NO_EMIT_RETURN,
-                      bool argument_count_is_length = false);
+  void LeaveExitFrame(Register scratch);
 
   // Make sure the stack is aligned. Only emits code in debug mode.
   void AssertStackIsAligned() NOOP_UNLESS_DEBUG_CODE;
@@ -1231,9 +1233,10 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void BranchShortMSA(MSABranchDF df, Label* target, MSABranchCondition cond,
                       MSARegister wt, BranchDelaySlot bd = PROTECT);
 
-  void CallCFunctionHelper(
+  int CallCFunctionHelper(
       Register function, int num_reg_arguments, int num_double_arguments,
-      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes);
+      SetIsolateDataSlots set_isolate_data_slots = SetIsolateDataSlots::kYes,
+      Label* return_location = nullptr);
 
   // TODO(mips) Reorder parameters so out parameters come last.
   bool CalculateOffset(Label* L, int32_t* offset, OffsetSize bits);
@@ -1320,9 +1323,9 @@ struct MoveCycleState {
   // {MoveToTempLocation}.
   RegList scratch_regs;
   // Available scratch registers during the move cycle resolution scope.
-  base::Optional<UseScratchRegisterScope> temps;
+  std::optional<UseScratchRegisterScope> temps;
   // Scratch register picked by {MoveToTempLocation}.
-  base::Optional<Register> scratch_reg;
+  std::optional<Register> scratch_reg;
 };
 
 // Provides access to exit frame parameters (GC-ed).
@@ -1341,14 +1344,16 @@ inline MemOperand ExitFrameCallerStackSlotOperand(int index) {
 }
 
 // Calls an API function. Allocates HandleScope, extracts returned value
-// from handle and propagates exceptions.  Restores context.  On return removes
-// *stack_space_operand * kSystemPointerSize or stack_space * kSystemPointerSize
+// from handle and propagates exceptions. Clobbers C argument registers
+// and C caller-saved registers. Restores context. On return removes
+//   (*argc_operand + slots_to_drop_on_return) * kSystemPointerSize
 // (GCed, includes the call JS arguments space and the additional space
 // allocated for the fast call).
 void CallApiFunctionAndReturn(MacroAssembler* masm, bool with_profiling,
                               Register function_address,
                               ExternalReference thunk_ref, Register thunk_arg,
-                              int stack_space, MemOperand* stack_space_operand,
+                              int slots_to_drop_on_return,
+                              MemOperand* argc_operand,
                               MemOperand return_value_operand);
 
 }  // namespace internal

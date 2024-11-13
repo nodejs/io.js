@@ -48,7 +48,7 @@
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 
-#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 201703L
+#ifdef ABSL_INTERNAL_STD_FILESYSTEM_PATH_HASH_AVAILABLE
 #include <filesystem>  // NOLINT
 #endif
 

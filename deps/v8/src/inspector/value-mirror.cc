@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "include/v8-container.h"
 #include "include/v8-date.h"
@@ -16,7 +17,6 @@
 #include "include/v8-regexp.h"
 #include "include/v8-typed-array.h"
 #include "include/v8-wasm.h"
-#include "src/base/optional.h"
 #include "src/debug/debug-interface.h"
 #include "src/inspector/v8-debugger.h"
 #include "src/inspector/v8-deep-serializer.h"
@@ -249,38 +249,46 @@ String16 descriptionForRegExp(v8::Isolate* isolate,
   return description.toString();
 }
 
-enum class ErrorType { kNative, kClient };
-
-// Build a description from an exception using the following rules:
-//   * Usually return the stack trace found in the {stack} property.
-//   * If the stack trace does not start with the class name of the passed
-//     exception, try to build a description from the class name, the
-//     {message} property and the rest of the stack trace.
-//     (The stack trace is only used if {message} was also found in
-//     said stack trace).
+// Build a description from an exception using the following pattern:
+//   * The first line is "<name || constructor name>: <message property>". We
+//     use the constructor name if the "name" property is "Error". Most custom
+//     Error subclasses don't overwrite the "name" property.
+//   * The rest is the content of the "stack" property but only with the actual
+//     stack trace part.
 String16 descriptionForError(v8::Local<v8::Context> context,
-                             v8::Local<v8::Object> object, ErrorType type) {
+                             v8::Local<v8::Object> object) {
   v8::Isolate* isolate = context->GetIsolate();
   v8::TryCatch tryCatch(isolate);
-  String16 className = toProtocolString(isolate, object->GetConstructorName());
 
-  v8::base::Optional<String16> stack;
+  String16 name = toProtocolString(isolate, object->GetConstructorName());
+  {
+    v8::Local<v8::Value> nameValue;
+    if (object->Get(context, toV8String(isolate, "name")).ToLocal(&nameValue) &&
+        nameValue->IsString()) {
+      v8::Local<v8::String> nameString = nameValue.As<v8::String>();
+      if (nameString->Length() > 0 &&
+          !nameString->StringEquals(toV8String(isolate, "Error"))) {
+        name = toProtocolString(isolate, nameString);
+      }
+    }
+  }
+
+  std::optional<String16> stack;
   {
     v8::Local<v8::Value> stackValue;
     if (object->Get(context, toV8String(isolate, "stack"))
             .ToLocal(&stackValue) &&
         stackValue->IsString()) {
-      stack = toProtocolString(isolate, stackValue.As<v8::String>());
+      String16 stackString =
+          toProtocolString(isolate, stackValue.As<v8::String>());
+      size_t pos = stackString.find("\n    at ");
+      if (pos != String16::kNotFound) {
+        stack = stackString.substring(pos);
+      }
     }
   }
 
-  if (type == ErrorType::kNative && stack) return *stack;
-
-  if (stack && stack->substring(0, className.length()) == className) {
-    return *stack;
-  }
-
-  v8::base::Optional<String16> message;
+  std::optional<String16> message;
   {
     v8::Local<v8::Value> messageValue;
     if (object->Get(context, toV8String(isolate, "message"))
@@ -291,17 +299,15 @@ String16 descriptionForError(v8::Local<v8::Context> context,
     }
   }
 
-  if (!message) return stack ? *stack : className;
+  String16 description = name;
+  if (message.has_value() && message->length() > 0) {
+    description += ": " + *message;
+  }
 
-  String16 description = className + ": " + *message;
-  if (!stack) return description;
-
-  DCHECK(stack && message);
-  size_t index = stack->find(*message);
-  String16 stackWithoutMessage =
-      index != String16::kNotFound ? stack->substring(index + message->length())
-                                   : String16();
-  return description + stackWithoutMessage;
+  if (stack.has_value() && stack->length() > 0) {
+    description += *stack;
+  }
+  return description;
 }
 
 String16 descriptionForObject(v8::Isolate* isolate,
@@ -1739,9 +1745,9 @@ std::unique_ptr<ValueMirror> clientMirror(v8::Local<v8::Context> context,
         value, subtype, toString16(descriptionForValueSubtype->string()));
   }
   if (subtype == "error") {
-    return std::make_unique<ObjectMirror>(
-        value, RemoteObject::SubtypeEnum::Error,
-        descriptionForError(context, value, ErrorType::kClient));
+    return std::make_unique<ObjectMirror>(value,
+                                          RemoteObject::SubtypeEnum::Error,
+                                          descriptionForError(context, value));
   }
   if (subtype == "array" && value->IsObject()) {
     v8::Isolate* isolate = context->GetIsolate();
@@ -1826,9 +1832,9 @@ std::unique_ptr<ValueMirror> ValueMirror::create(v8::Local<v8::Context> context,
         descriptionForObject(isolate, promise));
   }
   if (object->IsNativeError()) {
-    return std::make_unique<ObjectMirror>(
-        object, RemoteObject::SubtypeEnum::Error,
-        descriptionForError(context, object, ErrorType::kNative));
+    return std::make_unique<ObjectMirror>(object,
+                                          RemoteObject::SubtypeEnum::Error,
+                                          descriptionForError(context, object));
   }
   if (object->IsMap()) {
     v8::Local<v8::Map> map = object.As<v8::Map>();

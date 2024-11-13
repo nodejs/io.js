@@ -11,6 +11,7 @@
 #include "src/objects/heap-number.h"
 #include "src/objects/js-collection.h"
 #include "src/objects/js-generator.h"
+#include "src/objects/js-objects.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/ordered-hash-table.h"
 #include "src/objects/source-text-module.h"
@@ -269,6 +270,21 @@ FieldAccess AccessBuilder::ForJSFunctionFeedbackCell() {
   return access;
 }
 
+#ifdef V8_ENABLE_LEAPTIERING
+// static
+FieldAccess AccessBuilder::ForJSFunctionDispatchHandleNoWriteBarrier() {
+  // We currently don't require write barriers when writing dispatch handles of
+  // JSFunctions because they are loaded from the function's FeedbackCell and
+  // so must already be reachable. If this ever changes, we'll need to
+  // implement write barrier support for dispatch handles in generated code.
+  FieldAccess access = {
+      kTaggedBase,      JSFunction::kDispatchHandleOffset, Handle<Name>(),
+      OptionalMapRef(), TypeCache::Get()->kInt32,          MachineType::Int32(),
+      kNoWriteBarrier,  "JSFunctionDispatchHandle"};
+  return access;
+}
+#endif  // V8_ENABLE_LEAPTIERING
+
 // static
 FieldAccess AccessBuilder::ForJSBoundFunctionBoundTargetFunction() {
   FieldAccess access = {
@@ -454,6 +470,7 @@ FieldAccess AccessBuilder::ForJSArrayBufferViewBuffer() {
                         MaybeHandle<Name>(),   OptionalMapRef(),
                         Type::OtherInternal(), MachineType::TaggedPointer(),
                         kPointerWriteBarrier,  "JSArrayBufferViewBuffer"};
+  access.is_immutable = true;
   return access;
 }
 
@@ -578,8 +595,8 @@ FieldAccess AccessBuilder::ForJSDateValue() {
                         MaybeHandle<Name>(),
                         OptionalMapRef(),
                         TypeCache::Get()->kJSDateValueType,
-                        MachineType::AnyTagged(),
-                        kFullWriteBarrier,
+                        MachineType::Float64(),
+                        kNoWriteBarrier,
                         "JSDateValue"};
   return access;
 }
@@ -587,7 +604,7 @@ FieldAccess AccessBuilder::ForJSDateValue() {
 // static
 FieldAccess AccessBuilder::ForJSDateField(JSDate::FieldIndex index) {
   FieldAccess access = {
-      kTaggedBase,         JSDate::kValueOffset + index * kTaggedSize,
+      kTaggedBase,         JSDate::kYearOffset + index * kTaggedSize,
       MaybeHandle<Name>(), OptionalMapRef(),
       Type::Number(),      MachineType::AnyTagged(),
       kFullWriteBarrier,   "JSDateField"};
@@ -621,14 +638,30 @@ FieldAccess AccessBuilder::ForJSPrimitiveWrapperValue() {
   return access;
 }
 
+#ifdef V8_ENABLE_SANDBOX
 // static
 FieldAccess AccessBuilder::ForJSRegExpData() {
-  FieldAccess access = {kTaggedBase,         JSRegExp::kDataOffset,
-                        MaybeHandle<Name>(), OptionalMapRef(),
-                        Type::NonInternal(), MachineType::AnyTagged(),
-                        kFullWriteBarrier,   "JSRegExpData"};
+  FieldAccess access = {kTaggedBase,
+                        JSRegExp::kDataOffset,
+                        MaybeHandle<Name>(),
+                        OptionalMapRef(),
+                        Type::OtherInternal(),
+                        MachineType::IndirectPointer(),
+                        kIndirectPointerWriteBarrier,
+                        "JSRegExpData"};
+  access.indirect_pointer_tag = kRegExpDataIndirectPointerTag;
   return access;
 }
+#else
+// static
+FieldAccess AccessBuilder::ForJSRegExpData() {
+  FieldAccess access = {kTaggedBase,           JSRegExp::kDataOffset,
+                        MaybeHandle<Name>(),   OptionalMapRef(),
+                        Type::OtherInternal(), MachineType::TaggedPointer(),
+                        kPointerWriteBarrier,  "JSRegExpData"};
+  return access;
+}
+#endif  // V8_ENABLE_SANDBOX
 
 // static
 FieldAccess AccessBuilder::ForJSRegExpFlags() {
@@ -1043,6 +1076,16 @@ FieldAccess AccessBuilder::ForFeedbackVectorSlot(int index) {
 }
 
 // static
+FieldAccess AccessBuilder::ForPropertyArraySlot(int index) {
+  int offset = PropertyArray::OffsetOfElementAt(index);
+  FieldAccess access = {kTaggedBase,       offset,
+                        Handle<Name>(),    OptionalMapRef(),
+                        Type::Any(),       MachineType::AnyTagged(),
+                        kFullWriteBarrier, "PropertyArraySlot"};
+  return access;
+}
+
+// static
 FieldAccess AccessBuilder::ForWeakFixedArraySlot(int index) {
   int offset = WeakFixedArray::OffsetOfElementAt(index);
   FieldAccess access = {kTaggedBase,       offset,
@@ -1064,7 +1107,7 @@ FieldAccess AccessBuilder::ForCellValue() {
 FieldAccess AccessBuilder::ForScopeInfoFlags() {
   FieldAccess access = {kTaggedBase,         ScopeInfo::kFlagsOffset,
                         MaybeHandle<Name>(), OptionalMapRef(),
-                        Type::SignedSmall(), MachineType::TaggedSigned(),
+                        Type::Unsigned32(),  MachineType::Uint32(),
                         kNoWriteBarrier,     "ScopeInfoFlags"};
   return access;
 }
@@ -1147,16 +1190,6 @@ ElementAccess AccessBuilder::ForFixedArrayElement(ElementsKind kind) {
     default:
       UNREACHABLE();
   }
-  return access;
-}
-
-// static
-ElementAccess AccessBuilder::ForStackArgument() {
-  ElementAccess access = {
-      kUntaggedBase,
-      CommonFrameConstants::kFixedFrameSizeAboveFp - kSystemPointerSize,
-      Type::NonInternal(), MachineType::Pointer(),
-      WriteBarrierKind::kNoWriteBarrier};
   return access;
 }
 
@@ -1432,6 +1465,24 @@ FieldAccess AccessBuilder::ForFeedbackCellInterruptBudget() {
                         "FeedbackCellInterruptBudget"};
   return access;
 }
+
+#ifdef V8_ENABLE_LEAPTIERING
+// static
+FieldAccess AccessBuilder::ForFeedbackCellDispatchHandleNoWriteBarrier() {
+  // Dispatch handles in FeedbackCells are effectively const-after-init and so
+  // they are marked as kNoWriteBarrier here (because the fields will not be
+  // written to).
+  FieldAccess access = {kTaggedBase,
+                        FeedbackCell::kDispatchHandleOffset,
+                        Handle<Name>(),
+                        OptionalMapRef(),
+                        TypeCache::Get()->kInt32,
+                        MachineType::Int32(),
+                        kNoWriteBarrier,
+                        "FeedbackCellDispatchHandle"};
+  return access;
+}
+#endif  // V8_ENABLE_LEAPTIERING
 
 // static
 FieldAccess AccessBuilder::ForFeedbackVectorInvocationCount() {

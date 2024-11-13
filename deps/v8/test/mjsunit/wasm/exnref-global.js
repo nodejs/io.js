@@ -28,12 +28,15 @@ let kSig_e_v = makeSig([], [kWasmExnRef]);
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
   let g = builder.addGlobal(kWasmExnRef, false, false);
-  builder.addFunction('push_and_return_exnref', kSig_e_v)
-      .addBody([kExprGlobalGet, g.index])
+  builder.addFunction('push_and_check_exnref', kSig_i_v)
+      .addBody([
+          kExprGlobalGet, g.index,
+          kExprRefIsNull, kExnRefCode,
+      ])
       .exportFunc();
   let instance = builder.instantiate();
 
-  assertEquals(null, instance.exports.push_and_return_exnref());
+  assertEquals(1, instance.exports.push_and_check_exnref());
 })();
 
 // Test custom initialization index for a global "exnref" variable.
@@ -44,8 +47,16 @@ let kSig_e_v = makeSig([], [kWasmExnRef]);
   builder.addFunction('push_and_return_exnref', kSig_e_v)
       .addBody([kExprGlobalGet, g_index])
       .exportFunc();
-  let exception = { x: "my fancy exception" };
-  let instance = builder.instantiate({ "m": { "exn": exception }});
+  assertThrows(() => builder.instantiate({ "m": { "exn": {} }}), WebAssembly.LinkError);
+  assertThrows(() => builder.instantiate({ "m": { "exn": null }}), WebAssembly.LinkError);
+})();
 
-  assertSame(exception, instance.exports.push_and_return_exnref());
+(function TestGlobalExnRefJsApi() {
+  print(arguments.callee.name);
+
+  let builder = new WasmModuleBuilder();
+  let g_index = builder.addGlobal(kWasmExnRef, true, false).exportAs('g');
+  let instance = builder.instantiate();
+  assertThrows(() => new WebAssembly.Global({value: "exnref", mutable: true}, null), TypeError);
+  assertThrows(() => { instance.exports.g.value; }, TypeError);
 })();

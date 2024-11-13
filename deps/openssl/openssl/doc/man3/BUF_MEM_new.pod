@@ -34,6 +34,7 @@ should be allocated on the secure heap; see L<CRYPTO_secure_malloc(3)>.
 
 BUF_MEM_free() frees up an already existing buffer. The data is zeroed
 before freeing up in case the buffer contains sensitive data.
+If the argument is NULL, nothing is done.
 
 BUF_MEM_grow() changes the size of an already existing buffer to
 B<len>. Any data already in the buffer is preserved if it increases in
@@ -65,7 +66,7 @@ The BUF_MEM_new_ex() function was added in OpenSSL 1.1.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2018 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

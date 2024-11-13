@@ -69,9 +69,6 @@
     # Enable profiling support. Only required on Windows.
     'v8_enable_prof%': 0,
 
-    # Some versions of GCC 4.5 seem to need -fno-strict-aliasing.
-    'v8_no_strict_aliasing%': 0,
-
     # Chrome needs this definition unconditionally. For standalone V8 builds,
     # it's handled in gypfiles/standalone.gypi.
     'want_separate_host_toolset%': 1,
@@ -666,14 +663,6 @@
           'V8_ANDROID_LOG_STDOUT',
         ],
       }],
-      ['OS=="linux" or OS=="freebsd" or OS=="openbsd" or OS=="solaris" \
-         or OS=="netbsd" or OS=="qnx" or OS=="aix" or OS=="os400"', {
-        'conditions': [
-          [ 'v8_no_strict_aliasing==1', {
-            'cflags': [ '-fno-strict-aliasing' ],
-          }],
-        ],  # conditions
-      }],
       ['OS=="solaris"', {
         'defines': [ '__C99FEATURES__=1' ],  # isinf() etc.
       }],
@@ -830,7 +819,6 @@
               ['OS=="mac"', {
                 'xcode_settings': {
                   'GCC_OPTIMIZATION_LEVEL': '3',  # -O3
-                  'GCC_STRICT_ALIASING': 'YES',
                 },
               }],
               ['v8_enable_slow_dchecks==1', {
@@ -889,12 +877,6 @@
           ['OS=="mac"', {
             'xcode_settings': {
               'GCC_OPTIMIZATION_LEVEL': '3',  # -O3
-
-              # -fstrict-aliasing.  Mainline gcc
-              # enables this at -O2 and above,
-              # but Apple gcc does not unless it
-              # is specified explicitly.
-              'GCC_STRICT_ALIASING': 'YES',
             },
           }],  # OS=="mac"
           ['OS=="win"', {

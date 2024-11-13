@@ -37,12 +37,27 @@ MIN_FUZZTESTS = 2
 # just double it.
 MAX_FUZZTESTS = 100
 
-WRAPPER_TEMPLATE = """
+WRAPPER_HEADER = """
 #!/bin/sh
-BINARY_DIR="$(cd "${0%%/*}"/..; pwd)"
+BINARY_DIR="$(cd "${{0%/*}}"/..; pwd)"
 cd $BINARY_DIR
-exec $BINARY_DIR/%s $@%s
 """.strip()
+
+CENTIPEDE_WRAPPER = WRAPPER_HEADER + """
+exec $BINARY_DIR/centipede $@
+"""
+
+FUZZTEST_WRAPPER = WRAPPER_HEADER + """
+# Normal fuzzing.
+if [ "$#" -eq  "0" ]; then
+   exec $BINARY_DIR/v8_unittests --fuzz={test} --corpus_database=""
+fi
+# Fuzztest replay.
+if [ "$#" -eq  "1" ]; then
+   unset CENTIPEDE_RUNNER_FLAGS
+   FUZZTEST_REPLAY=$1 exec $BINARY_DIR/v8_unittests --fuzz={test} --corpus_database=""
+fi
+"""
 
 FUZZER_NAME_RE = re.compile(r'^\w+\.\w+$')
 
@@ -61,7 +76,7 @@ def list_fuzz_tests(executable):
 
 def fuzz_test_to_file_name(test):
   assert FUZZER_NAME_RE.match(test)
-  fuzztest_name = re.sub(r'(f|F)uzz(t|T)est', '', test)
+  fuzztest_name = re.sub(r'((f|F)uzz(t|T)est|(t|T)est)', '', test)
   fuzztest_name = re.sub(r'\.', ' ', fuzztest_name)
   fuzztest_name = re.sub('([A-Z]+)', r' \1', fuzztest_name)
   fuzztest_name = re.sub('([A-Z][a-z]+)', r' \1', fuzztest_name)
@@ -71,9 +86,9 @@ def fuzz_test_to_file_name(test):
   return 'v8_' + '_'.join(splitted) + '_fuzztest'
 
 
-def create_wrapper(file_name, executable_name, extra_arg=''):
+def create_wrapper(file_name, template, test=''):
   with action_helpers.atomic_output(file_name) as f:
-    wrapper = WRAPPER_TEMPLATE % (executable_name, extra_arg)
+    wrapper = template.format(test=test)
     f.write(wrapper.encode('utf-8'))
 
   # Make the wrapper world-executable.
@@ -92,14 +107,14 @@ def setup_fuzztests_dir(cwd):
   # Centipede is later expected to be side-by-side with the fuzz-test
   # targets. Create a bash redirect so that shared libraries in cwd
   # keep loading.
-  create_wrapper(fuzz_test_dir / CENTIPEDE, CENTIPEDE)
+  create_wrapper(fuzz_test_dir / CENTIPEDE, CENTIPEDE_WRAPPER)
 
   return fuzz_test_dir
 
 
 def create_fuzztest_wrapper(fuzz_test_dir, test_name):
   fuzztest_path = fuzz_test_dir / fuzz_test_to_file_name(test_name)
-  create_wrapper(fuzztest_path, EXECUTABLE, f' --fuzz={test_name}')
+  create_wrapper(fuzztest_path, FUZZTEST_WRAPPER, test_name)
 
 
 def main():

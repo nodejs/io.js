@@ -12,7 +12,7 @@ namespace v8::internal::compiler::turboshaft {
 struct SimplifiedLoweringPhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(SimplifiedLowering)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 }  // namespace v8::internal::compiler::turboshaft

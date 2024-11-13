@@ -16,7 +16,8 @@
 
 // Define the v8::internal::trap_handler::ProbeMemory function declared in
 // trap-handler-simulators.h.
-asm(".globl " SYMBOL(v8_internal_simulator_ProbeMemory) "       \n"
+asm(".att_syntax                                                \n"
+    ".globl " SYMBOL(v8_internal_simulator_ProbeMemory) "       \n"
     SYMBOL(v8_internal_simulator_ProbeMemory) ":                \n"
 // First parameter (address) passed in %rdi on Linux/Mac, and %rcx on Windows.
 // The second parameter (pc) is unused here. It is read by the trap handler

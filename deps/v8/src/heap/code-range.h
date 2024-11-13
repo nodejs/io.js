@@ -99,12 +99,13 @@ class CodeRange final : public VirtualMemoryCage {
 
   bool InitReservation(v8::PageAllocator* page_allocator, size_t requested);
 
-  void Free();
+  V8_EXPORT_PRIVATE void Free();
 
   // Remap and copy the embedded builtins into this CodeRange. This method is
   // idempotent and only performs the copy once. This property is so that this
-  // method can be used uniformly regardless of having a per-Isolate or a shared
-  // pointer cage. Returns the address of the copy.
+  // method can be used uniformly regardless of whether there is a single global
+  // pointer address space or multiple pointer cages. Returns the address of
+  // the copy.
   //
   // The builtins code region will be freed with the code range at tear down.
   //
@@ -113,13 +114,6 @@ class CodeRange final : public VirtualMemoryCage {
   uint8_t* RemapEmbeddedBuiltins(Isolate* isolate,
                                  const uint8_t* embedded_blob_code,
                                  size_t embedded_blob_code_size);
-
-  static CodeRange* EnsureProcessWideCodeRange(
-      v8::PageAllocator* page_allocator, size_t requested_size);
-
-  // If InitializeProcessWideCodeRangeOnce has been called, returns the
-  // initialized CodeRange. Otherwise returns a null pointer.
-  V8_EXPORT_PRIVATE static CodeRange* GetProcessWideCodeRange();
 
  private:
   static base::AddressRegion GetPreferredRegion(size_t radius_in_megabytes,

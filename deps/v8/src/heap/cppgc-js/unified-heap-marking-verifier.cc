@@ -6,6 +6,7 @@
 
 #include "src/heap/cppgc-js/unified-heap-marking-verifier.h"
 
+#include "include/cppgc/internal/name-trait.h"
 #include "include/v8-cppgc.h"
 #include "src/handles/traced-handles.h"
 #include "src/heap/cppgc/marking-verifier.h"
@@ -84,7 +85,12 @@ void UnifiedHeapVerificationState::VerifyMarkedTracedReference(
         "# Hint:\n"
         "#   %s (%p)\n"
         "#     \\-> TracedReference (%p)",
-        parent_ ? parent_->GetName().value : "Stack",
+        parent_
+            ? parent_
+                  ->GetName(cppgc::internal::HeapObjectNameForUnnamedObject::
+                                kUseClassNameIfSupported)
+                  .value
+            : "Stack",
         parent_ ? parent_->ObjectStart() : nullptr, &ref);
   }
 }

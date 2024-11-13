@@ -12,7 +12,7 @@ INCLUDE (CheckCSourceCompiles)
 INCLUDE (CheckStructHasMember)
 INCLUDE (CheckLibraryExists)
 
-PROJECT (c-ares LANGUAGES C VERSION "1.32.3" )
+PROJECT (c-ares LANGUAGES C VERSION "1.34.3" )
 
 # Set this version before release
 SET (CARES_VERSION "${PROJECT_VERSION}")
@@ -30,7 +30,7 @@ INCLUDE (GNUInstallDirs) # include this *AFTER* PROJECT(), otherwise paths are w
 # For example, a version of 4:0:2 would generate output such as:
 #    libname.so   -> libname.so.2
 #    libname.so.2 -> libname.so.2.2.0
-SET (CARES_LIB_VERSIONINFO "19:3:17")
+SET (CARES_LIB_VERSIONINFO "21:2:19")
 
 
 OPTION (CARES_STATIC        "Build as a static library"                                             OFF)
@@ -42,6 +42,7 @@ OPTION (CARES_BUILD_CONTAINER_TESTS "Build and run container tests (implies CARE
 OPTION (CARES_BUILD_TOOLS   "Build tools"                                                           ON)
 OPTION (CARES_SYMBOL_HIDING "Hide private symbols in shared libraries"                              OFF)
 OPTION (CARES_THREADS       "Build with thread-safety support"                                      ON)
+OPTION (CARES_COVERAGE      "Build for code coverage"                                               OFF)
 SET    (CARES_RANDOM_FILE "/dev/urandom" CACHE STRING "Suitable File / Device Path for entropy, such as /dev/urandom")
 
 
@@ -262,10 +263,10 @@ ENDIF ()
 # Set system-specific compiler flags
 IF (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 	LIST (APPEND SYSFLAGS -D_DARWIN_C_SOURCE)
-ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Android")
 	LIST (APPEND SYSFLAGS -D_GNU_SOURCE -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700)
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
-	LIST (APPEND SYSFLAGS -D__EXTENSIONS__ -D_REENTRANT -D_XOPEN_SOURCE=700)
+	LIST (APPEND SYSFLAGS -D__EXTENSIONS__ -D_REENTRANT -D_XOPEN_SOURCE=600)
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "AIX")
 	LIST (APPEND SYSFLAGS -D_ALL_SOURCE -D_XOPEN_SOURCE=700 -D_USE_IRS)
 ELSEIF (CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
@@ -405,10 +406,11 @@ ENDIF ()
 
 CHECK_STRUCT_HAS_MEMBER("struct sockaddr_in6" sin6_scope_id "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID LANGUAGE C)
 
-
+CHECK_SYMBOL_EXISTS (memmem          "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_MEMMEM)
 CHECK_SYMBOL_EXISTS (closesocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CLOSESOCKET)
 CHECK_SYMBOL_EXISTS (CloseSocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CLOSESOCKET_CAMEL)
 CHECK_SYMBOL_EXISTS (connect         "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONNECT)
+CHECK_SYMBOL_EXISTS (connectx        "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONNECTX)
 CHECK_SYMBOL_EXISTS (fcntl           "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_FCNTL)
 CHECK_SYMBOL_EXISTS (freeaddrinfo    "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_FREEADDRINFO)
 CHECK_SYMBOL_EXISTS (getaddrinfo     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_GETADDRINFO)
@@ -423,6 +425,10 @@ CHECK_SYMBOL_EXISTS (if_indextoname  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_IF_INDE
 CHECK_SYMBOL_EXISTS (if_nametoindex  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_IF_NAMETOINDEX)
 CHECK_SYMBOL_EXISTS (ConvertInterfaceIndexToLuid  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONVERTINTERFACEINDEXTOLUID)
 CHECK_SYMBOL_EXISTS (ConvertInterfaceLuidToNameA  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_CONVERTINTERFACELUIDTONAMEA)
+CHECK_SYMBOL_EXISTS (NotifyIpInterfaceChange      "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_NOTIFYIPINTERFACECHANGE)
+CHECK_SYMBOL_EXISTS (RegisterWaitForSingleObject  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_REGISTERWAITFORSINGLEOBJECT)
+
+
 CHECK_SYMBOL_EXISTS (inet_net_pton   "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_INET_NET_PTON)
 IF (NOT WIN32)
 	# Disabled on Windows, because these functions are only really supported on Windows
@@ -437,6 +443,7 @@ CHECK_SYMBOL_EXISTS (IoctlSocket     "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_IOCTLSO
 CHECK_SYMBOL_EXISTS (recv            "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_RECV)
 CHECK_SYMBOL_EXISTS (recvfrom        "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_RECVFROM)
 CHECK_SYMBOL_EXISTS (send            "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SEND)
+CHECK_SYMBOL_EXISTS (sendto          "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SENDTO)
 CHECK_SYMBOL_EXISTS (setsockopt      "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SETSOCKOPT)
 CHECK_SYMBOL_EXISTS (socket          "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_SOCKET)
 CHECK_SYMBOL_EXISTS (strcasecmp      "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_STRCASECMP)
@@ -494,7 +501,10 @@ IF (CARES_THREADS)
 			CARES_EXTRAINCLUDE_IFSET (HAVE_PTHREAD_NP_H                    pthread_np.h)
 			CHECK_SYMBOL_EXISTS (pthread_init  "${CMAKE_EXTRA_INCLUDE_FILES}" HAVE_PTHREAD_INIT)
 			# Make sure libcares.pc.cmake knows about thread libraries on static builds
-			LIST (APPEND CARES_DEPENDENT_LIBS ${CMAKE_THREAD_LIBS_INIT})
+			# The variable set by FIND_PACKAGE(Threads) has a -l prefix on it, we need
+			# to strip that first since CARES_DEPENDENT_LIBS doesn't expect that.
+			STRING (REPLACE "-l" "" CARES_THREAD_LIBRARY "${CMAKE_THREAD_LIBS_INIT}")
+			LIST (APPEND CARES_DEPENDENT_LIBS ${CARES_THREAD_LIBRARY})
 		ELSE ()
 			MESSAGE (WARNING "Threading support not found, disabling...")
 			SET (CARES_THREADS OFF)
@@ -682,6 +692,26 @@ IF (HAVE_ARPA_NAMESER_COMPAT_H)
 	SET (CARES_HAVE_ARPA_NAMESER_COMPAT_H 1)
 ENDIF()
 
+# Coverage
+IF (CARES_COVERAGE)
+	# set compiler flags
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ftest-coverage -fprofile-arcs")
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftest-coverage -fprofile-arcs")
+
+	# find required tools
+	FIND_PROGRAM(LCOV lcov REQUIRED)
+	FIND_PROGRAM(GENHTML genhtml REQUIRED)
+
+	# add coverage target
+	ADD_CUSTOM_TARGET(coverage
+		# gather data
+		COMMAND ${LCOV} --directory . --capture --output-file coverage.info
+		# generate report
+		COMMAND ${GENHTML} --demangle-cpp -o coverage coverage.info
+		WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+	)
+ENDIF()
+
 # TRANSFORM_MAKEFILE_INC
 #
 # This function consumes the "Makefile.inc" autotools file, and converts it into
@@ -728,7 +758,6 @@ IF (CARES_BUILD_TESTS OR CARES_BUILD_CONTAINER_TESTS)
 	ADD_SUBDIRECTORY (test)
 ENDIF ()
 
-
 # Export targets
 IF (CARES_INSTALL)
 	SET (CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
@@ -743,16 +772,14 @@ IF (CARES_INSTALL)
 	INSTALL (EXPORT ${PROJECT_NAME}-targets COMPONENT Devel DESTINATION ${CMAKECONFIG_INSTALL_DIR} NAMESPACE ${PROJECT_NAME}::)
 	INSTALL (FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake" "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake" COMPONENT Devel DESTINATION ${CMAKECONFIG_INSTALL_DIR})
 
-	# pkgconfig support
-	IF (NOT CARES_SHARED)
-		FOREACH (LIB ${CARES_DEPENDENT_LIBS})
-			SET (CARES_PRIVATE_LIBS "${CARES_PRIVATE_LIBS} -l${LIB}")
-		ENDFOREACH ()
-	ENDIF ()
+	# pkgconfig support for static builds
+	FOREACH (LIB ${CARES_DEPENDENT_LIBS})
+		SET (CARES_PRIVATE_LIBS "${CARES_PRIVATE_LIBS} -l${LIB}")
+	ENDFOREACH ()
+
 	CONFIGURE_FILE("libcares.pc.cmake" "libcares.pc" @ONLY)
 	INSTALL (FILES "${CMAKE_CURRENT_BINARY_DIR}/libcares.pc" COMPONENT Devel DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 ENDIF ()
-
 
 # Legacy chain-building variables (provided for compatibility with old code).
 # Don't use these, external code should be updated to refer to the aliases directly (e.g., Cares::cares).

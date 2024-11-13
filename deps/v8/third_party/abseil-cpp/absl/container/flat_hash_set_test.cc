@@ -181,6 +181,39 @@ TEST(FlatHashSet, EraseIf) {
   }
 }
 
+TEST(FlatHashSet, CForEach) {
+  using ValueType = std::pair<int, int>;
+  flat_hash_set<ValueType> s;
+  std::vector<ValueType> expected;
+  for (int i = 0; i < 100; ++i) {
+    {
+      SCOPED_TRACE("mutable object iteration");
+      std::vector<ValueType> v;
+      absl::container_internal::c_for_each_fast(
+          s, [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("const object iteration");
+      std::vector<ValueType> v;
+      const flat_hash_set<ValueType>& cs = s;
+      absl::container_internal::c_for_each_fast(
+          cs, [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("temporary object iteration");
+      std::vector<ValueType> v;
+      absl::container_internal::c_for_each_fast(
+          flat_hash_set<ValueType>(s),
+          [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    s.emplace(i, i);
+    expected.emplace_back(i, i);
+  }
+}
+
 class PoisonSoo {
   int64_t data_;
 

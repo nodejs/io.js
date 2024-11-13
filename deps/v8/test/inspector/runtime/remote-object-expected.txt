@@ -688,7 +688,7 @@ Running test: testDate
                 [0] : {
                     name : toString
                     type : function
-                    value : 
+                    value :
                 }
             ]
             subtype : date
@@ -1314,7 +1314,7 @@ Running test: testWeakMap
                             [0] : {
                                 name : setTimeout
                                 type : function
-                                value : 
+                                value :
                             }
                             [1] : {
                                 name : inspector
@@ -1398,7 +1398,7 @@ Running test: testWeakSet
                             [0] : {
                                 name : setTimeout
                                 type : function
-                                value : 
+                                value :
                             }
                             [1] : {
                                 name : inspector
@@ -2736,7 +2736,7 @@ Running test: testOtherObjects
         type : object
     }
 }
-'inspector.createObjectWithAccessor('title', true)', returnByValue: false, generatePreview: true
+'inspector.createObjectWithNativeDataProperty('title', true)', returnByValue: false, generatePreview: true
 {
     id : <messageId>
     result : {
@@ -2759,7 +2759,7 @@ Running test: testOtherObjects
         }
     }
 }
-'inspector.createObjectWithAccessor('title', false)', returnByValue: false, generatePreview: true
+'inspector.createObjectWithNativeDataProperty('title', false)', returnByValue: false, generatePreview: true
 {
     id : <messageId>
     result : {
@@ -2782,7 +2782,7 @@ Running test: testOtherObjects
         }
     }
 }
-'inspector.createObjectWithAccessor('title', true)', returnByValue: true, generatePreview: false
+'inspector.createObjectWithNativeDataProperty('title', true)', returnByValue: true, generatePreview: false
 {
     error : {
         code : -32603
@@ -2847,7 +2847,7 @@ Running test: testOtherObjects
                     [0] : {
                         name : a
                         type : function
-                        value : 
+                        value :
                     }
                 ]
                 type : object
@@ -3037,12 +3037,12 @@ Running test: testOtherObjects
                     [0] : {
                         name : a1
                         type : function
-                        value : 
+                        value :
                     }
                     [1] : {
                         name : a2
                         type : function
-                        value : 
+                        value :
                     }
                 ]
                 type : object

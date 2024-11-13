@@ -525,6 +525,9 @@ added:
 * `delay` {number} The number of milliseconds to wait before resolving the
   promise.
 * `options` {Object}
+  * `ref` {boolean} Set to `false` to indicate that the scheduled `Timeout`
+    should not require the Node.js event loop to remain active.
+    **Default:** `true`.
   * `signal` {AbortSignal} An optional `AbortSignal` that can be used to
     cancel waiting.
 * Returns: {Promise}
@@ -532,9 +535,8 @@ added:
 An experimental API defined by the [Scheduling APIs][] draft specification
 being developed as a standard Web Platform API.
 
-Calling `timersPromises.scheduler.wait(delay, options)` is roughly equivalent
-to calling `timersPromises.setTimeout(delay, undefined, options)` except that
-the `ref` option is not supported.
+Calling `timersPromises.scheduler.wait(delay, options)` is equivalent
+to calling `timersPromises.setTimeout(delay, undefined, options)`.
 
 ```mjs
 import { scheduler } from 'node:timers/promises';

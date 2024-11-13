@@ -5,4 +5,5 @@ include_rules = [
   "+src/heap/base",
   "+src/heap/cppgc",
   "+src/tracing/trace-event.h",
+  "+src/tracing/trace-event-no-perfetto.h",
 ]

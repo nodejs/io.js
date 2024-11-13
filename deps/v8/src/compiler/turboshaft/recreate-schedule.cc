@@ -21,9 +21,10 @@
 #include "src/compiler/linkage.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/node-origin-table.h"
+#include "src/compiler/phase.h"
+#include "src/compiler/pipeline-data-inl.h"
 #include "src/compiler/schedule.h"
 #include "src/compiler/scheduler.h"
-#include "src/compiler/simplified-operator.h"
 #include "src/compiler/turboshaft/deopt-data.h"
 #include "src/compiler/turboshaft/graph.h"
 #include "src/compiler/turboshaft/operations.h"
@@ -39,27 +40,22 @@ namespace v8::internal::compiler::turboshaft {
 namespace {
 
 struct ScheduleBuilder {
+  PipelineData* data;
   CallDescriptor* call_descriptor;
   Zone* phase_zone;
+  compiler::TFPipelineData* turbofan_data;
 
-  const Graph& input_graph = PipelineData::Get().graph();
-  JSHeapBroker* broker = PipelineData::Get().broker();
-  Zone* graph_zone = PipelineData::Get().graph_zone();
-  SourcePositionTable* source_positions =
-      PipelineData::Get().source_positions();
-  NodeOriginTable* origins = PipelineData::Get().node_origins();
-  const size_t node_count_estimate =
-      static_cast<size_t>(1.1 * input_graph.op_id_count());
-  Schedule* const schedule =
-      graph_zone->New<Schedule>(graph_zone, node_count_estimate);
-  compiler::Graph* const tf_graph =
-      graph_zone->New<compiler::Graph>(graph_zone);
-  compiler::MachineOperatorBuilder machine{
-      graph_zone, MachineType::PointerRepresentation(),
-      InstructionSelector::SupportedMachineOperatorFlags(),
-      InstructionSelector::AlignmentRequirements()};
-  compiler::CommonOperatorBuilder common{graph_zone};
-  compiler::SimplifiedOperatorBuilder simplified{graph_zone};
+  const Graph& input_graph = data->graph();
+  JSHeapBroker* broker = data->broker();
+  Zone* graph_zone = turbofan_data->graph_zone();
+  SourcePositionTable* source_positions = turbofan_data->source_positions();
+  NodeOriginTable* origins = turbofan_data->node_origins();
+
+  Schedule* const schedule = turbofan_data->schedule();
+  compiler::Graph* const tf_graph = turbofan_data->graph();
+  compiler::MachineOperatorBuilder& machine = *turbofan_data->machine();
+  compiler::CommonOperatorBuilder& common = *turbofan_data->common();
+
   compiler::BasicBlock* current_block = schedule->start();
   const Block* current_input_block = nullptr;
   ZoneAbslFlatHashMap<int, Node*> parameters{phase_zone};
@@ -192,6 +188,10 @@ TURBOSHAFT_JS_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
 TURBOSHAFT_SIMPLIFIED_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
 TURBOSHAFT_OTHER_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
 TURBOSHAFT_WASM_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
+SHOULD_HAVE_BEEN_LOWERED(Dead)
+// {AbortCSADcheck} is not emitted in pipelines that still use
+// {RecreateSchedule}.
+SHOULD_HAVE_BEEN_LOWERED(AbortCSADcheck)
 #undef SHOULD_HAVE_BEEN_LOWERED
 
 Node* ScheduleBuilder::ProcessOperation(const WordBinopOp& op) {
@@ -411,6 +411,18 @@ Node* ScheduleBuilder::ProcessOperation(const WordUnaryOp& op) {
   }
   return AddNode(o, {GetNode(op.input())});
 }
+
+Node* ScheduleBuilder::ProcessOperation(const OverflowCheckedUnaryOp& op) {
+  bool word64 = op.rep == WordRepresentation::Word64();
+  const Operator* o;
+  switch (op.kind) {
+    case OverflowCheckedUnaryOp::Kind::kAbs:
+      o = word64 ? machine.Int64AbsWithOverflow().op()
+                 : machine.Int32AbsWithOverflow().op();
+  }
+  return AddNode(o, {GetNode(op.input())});
+}
+
 Node* ScheduleBuilder::ProcessOperation(const FloatUnaryOp& op) {
   DCHECK(FloatUnaryOp::IsSupported(op.kind, op.rep));
   bool float64 = op.rep == FloatRepresentation::Float64();
@@ -992,9 +1004,10 @@ Node* ScheduleBuilder::ProcessOperation(const AtomicRMWOp& op) {
   V(Exchange)            \
   V(CompareExchange)
 
-  AtomicOpParameters param(op.input_rep.ToMachineType(), op.memory_access_kind);
+  AtomicOpParameters param(op.memory_rep.ToMachineType(),
+                           op.memory_access_kind);
   const Operator* node_op;
-  if (op.result_rep == RegisterRepresentation::Word32()) {
+  if (op.in_out_rep == RegisterRepresentation::Word32()) {
     switch (op.bin_op) {
 #define CASE(Name)                               \
   case AtomicRMWOp::BinOp::k##Name:              \
@@ -1004,7 +1017,7 @@ Node* ScheduleBuilder::ProcessOperation(const AtomicRMWOp& op) {
 #undef CASE
     }
   } else {
-    DCHECK_EQ(op.result_rep, RegisterRepresentation::Word64());
+    DCHECK_EQ(op.in_out_rep, RegisterRepresentation::Word64());
     switch (op.bin_op) {
 #define CASE(Name)                               \
   case AtomicRMWOp::BinOp::k##Name:              \
@@ -1046,10 +1059,14 @@ Node* ScheduleBuilder::ProcessOperation(const ConstantOp& op) {
     case ConstantOp::Kind::kSmi:
       if constexpr (Is64()) {
         return AddNode(
-            common.Int64Constant(static_cast<int64_t>(op.smi().ptr())), {});
+            machine.BitcastWordToTaggedSigned(),
+            {AddNode(common.Int64Constant(static_cast<int64_t>(op.smi().ptr())),
+                     {})});
       } else {
         return AddNode(
-            common.Int32Constant(static_cast<int32_t>(op.smi().ptr())), {});
+            machine.BitcastWordToTaggedSigned(),
+            {AddNode(common.Int32Constant(static_cast<int32_t>(op.smi().ptr())),
+                     {})});
       }
     case ConstantOp::Kind::kExternal:
       return AddNode(common.ExternalConstant(op.external_reference()), {});
@@ -1057,19 +1074,26 @@ Node* ScheduleBuilder::ProcessOperation(const ConstantOp& op) {
       return AddNode(common.HeapConstant(op.handle()), {});
     case ConstantOp::Kind::kCompressedHeapObject:
       return AddNode(common.CompressedHeapConstant(op.handle()), {});
+    case ConstantOp::Kind::kTrustedHeapObject:
+      return AddNode(common.TrustedHeapConstant(op.handle()), {});
     case ConstantOp::Kind::kNumber:
-      return AddNode(common.NumberConstant(op.number()), {});
+      return AddNode(common.NumberConstant(op.number().get_scalar()), {});
     case ConstantOp::Kind::kTaggedIndex:
       return AddNode(common.TaggedIndexConstant(op.tagged_index()), {});
     case ConstantOp::Kind::kFloat64:
-      return AddNode(common.Float64Constant(op.float64()), {});
+      return AddNode(common.Float64Constant(op.float64().get_scalar()), {});
     case ConstantOp::Kind::kFloat32:
-      return AddNode(common.Float32Constant(op.float32()), {});
+      return AddNode(common.Float32Constant(op.float32().get_scalar()), {});
     case ConstantOp::Kind::kRelocatableWasmCall:
       return RelocatableIntPtrConstant(op.integral(), RelocInfo::WASM_CALL);
     case ConstantOp::Kind::kRelocatableWasmStubCall:
       return RelocatableIntPtrConstant(op.integral(),
                                        RelocInfo::WASM_STUB_CALL);
+    case ConstantOp::Kind::kRelocatableWasmCanonicalSignatureId:
+      return AddNode(common.RelocatableInt32Constant(
+                         base::checked_cast<int32_t>(op.integral()),
+                         RelocInfo::WASM_CANONICAL_SIG_ID),
+                     {});
   }
 }
 
@@ -1394,6 +1418,10 @@ std::pair<Node*, MachineType> ScheduleBuilder::BuildDeoptInput(
       return {AddNode(common.ArgumentsLengthState(), {}),
               MachineType::AnyTagged()};
     }
+    case Instr::kRestLength:
+      // For now, kRestLength is only generated when using the Maglev frontend,
+      // which doesn't use recreate-schedule.
+      [[fallthrough]];
     case Instr::kUnusedRegister:
       UNREACHABLE();
   }
@@ -1657,6 +1685,10 @@ Node* ScheduleBuilder::ProcessOperation(const Simd128UnaryOp& op) {
   }
 }
 
+Node* ScheduleBuilder::ProcessOperation(const Simd128ReduceOp& op) {
+  UNIMPLEMENTED();
+}
+
 Node* ScheduleBuilder::ProcessOperation(const Simd128ShiftOp& op) {
   switch (op.kind) {
 #define HANDLE_KIND(kind)             \
@@ -1719,6 +1751,9 @@ Node* ScheduleBuilder::ProcessOperation(const Simd128ExtractLaneOp& op) {
     case Simd128ExtractLaneOp::Kind::kI64x2:
       o = machine.I64x2ExtractLane(op.lane);
       break;
+    case Simd128ExtractLaneOp::Kind::kF16x8:
+      o = machine.F16x8ExtractLane(op.lane);
+      break;
     case Simd128ExtractLaneOp::Kind::kF32x4:
       o = machine.F32x4ExtractLane(op.lane);
       break;
@@ -1744,6 +1779,9 @@ Node* ScheduleBuilder::ProcessOperation(const Simd128ReplaceLaneOp& op) {
       break;
     case Simd128ReplaceLaneOp::Kind::kI64x2:
       o = machine.I64x2ReplaceLane(op.lane);
+      break;
+    case Simd128ReplaceLaneOp::Kind::kF16x8:
+      o = machine.F16x8ReplaceLane(op.lane);
       break;
     case Simd128ReplaceLaneOp::Kind::kF32x4:
       o = machine.F32x4ReplaceLane(op.lane);
@@ -1817,6 +1855,10 @@ Node* ScheduleBuilder::ProcessOperation(const Simd128ShuffleOp& op) {
 }
 
 #if V8_ENABLE_WASM_SIMD256_REVEC
+Node* ScheduleBuilder::ProcessOperation(const Simd256ConstantOp& op) {
+  return AddNode(machine.S256Const(op.value), {});
+}
+
 Node* ScheduleBuilder::ProcessOperation(const Simd256Extract128LaneOp& op) {
   const Operator* o = machine.ExtractF128(op.lane);
   return AddNode(o, {GetNode(op.input())});
@@ -1884,6 +1926,31 @@ Node* ScheduleBuilder::ProcessOperation(const Simd256TernaryOp& op) {
   }
 }
 
+Node* ScheduleBuilder::ProcessOperation(const Simd256SplatOp& op) {
+  switch (op.kind) {
+#define HANDLE_KIND(kind)             \
+  case Simd256SplatOp::Kind::k##kind: \
+    return AddNode(machine.kind##Splat(), {GetNode(op.input())});
+    FOREACH_SIMD_256_SPLAT_OPCODE(HANDLE_KIND);
+#undef HANDLE_KIND
+  }
+}
+
+Node* ScheduleBuilder::ProcessOperation(const SimdPack128To256Op& op) {
+  UNREACHABLE();
+}
+
+#ifdef V8_TARGET_ARCH_X64
+Node* ScheduleBuilder::ProcessOperation(const Simd256ShufdOp& op) {
+  UNIMPLEMENTED();
+}
+Node* ScheduleBuilder::ProcessOperation(const Simd256ShufpsOp& op) {
+  UNIMPLEMENTED();
+}
+Node* ScheduleBuilder::ProcessOperation(const Simd256UnpackOp& op) {
+  UNIMPLEMENTED();
+}
+#endif  // V8_TARGET_ARCH_X64
 #endif  // V8_ENABLE_WASM_SIMD256_REVEC
 
 Node* ScheduleBuilder::ProcessOperation(const LoadStackPointerOp& op) {
@@ -1891,16 +1958,18 @@ Node* ScheduleBuilder::ProcessOperation(const LoadStackPointerOp& op) {
 }
 
 Node* ScheduleBuilder::ProcessOperation(const SetStackPointerOp& op) {
-  return AddNode(machine.SetStackPointer(op.fp_scope), {GetNode(op.value())});
+  return AddNode(machine.SetStackPointer(), {GetNode(op.value())});
 }
 
 #endif  // V8_ENABLE_WEBASSEMBLY
 
 }  // namespace
 
-RecreateScheduleResult RecreateSchedule(CallDescriptor* call_descriptor,
+RecreateScheduleResult RecreateSchedule(PipelineData* data,
+                                        compiler::TFPipelineData* turbofan_data,
+                                        CallDescriptor* call_descriptor,
                                         Zone* phase_zone) {
-  ScheduleBuilder builder{call_descriptor, phase_zone};
+  ScheduleBuilder builder{data, call_descriptor, phase_zone, turbofan_data};
   return builder.Run();
 }
 

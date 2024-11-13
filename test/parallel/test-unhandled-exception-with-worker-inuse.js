@@ -10,7 +10,7 @@ const common = require('../common');
 //
 // The root cause of this issue is that before PerIsolateMessageListener()
 // is invoked by v8, v8 preserves the JS vm state, although it should
-// switch to EXTERNEL. https://bugs.chromium.org/p/v8/issues/detail?id=13464
+// switch to EXTERNAL. https://bugs.chromium.org/p/v8/issues/detail?id=13464
 //
 // Therefore, this commit can be considered as an workaround of the v8 bug,
 // but we also find it not useful to call SetIdle() when terminating.

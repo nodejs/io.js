@@ -9,9 +9,12 @@
 #ifndef V8_CODEGEN_RISCV_MACRO_ASSEMBLER_RISCV_H_
 #define V8_CODEGEN_RISCV_MACRO_ASSEMBLER_RISCV_H_
 
+#include <optional>
+
 #include "src/codegen/assembler-arch.h"
 #include "src/codegen/assembler.h"
 #include "src/codegen/bailout-reason.h"
+#include "src/codegen/register.h"
 #include "src/common/globals.h"
 #include "src/execution/frame-constants.h"
 #include "src/execution/isolate-data.h"
@@ -37,8 +40,6 @@ enum class AbortReason : uint8_t;
 // trying to update gp register for position-independent-code. Whenever
 // RISC-V generated code calls C code, it must be via t6 register.
 
-// Flags used for LeaveExitFrame function.
-enum LeaveExitFrameMode { EMIT_RETURN = true, NO_EMIT_RETURN = false };
 
 // Flags used for the li macro-assembler function.
 enum LiFlags {
@@ -92,6 +93,8 @@ inline MemOperand CFunctionArgumentOperand(int index) {
   return MemOperand(sp, offset);
 }
 
+enum StackLimitKind { kInterruptStackLimit, kRealStackLimit };
+
 class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
  public:
   using MacroAssemblerBase::MacroAssemblerBase;
@@ -116,6 +119,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
                      IsolateData::cage_base_offset());
 #endif
   }
+
+  void LoadIsolateField(const Register& rd, IsolateFieldId id);
 
   // Jump unconditionally to given label.
   void jmp(Label* L, Label::Distance distance = Label::kFar) {
@@ -235,7 +240,9 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   // that is guaranteed not to be clobbered.
   MemOperand ExternalReferenceAsOperand(ExternalReference reference,
                                         Register scratch);
-
+  MemOperand ExternalReferenceAsOperand(IsolateFieldId id) {
+    return ExternalReferenceAsOperand(ExternalReference::Create(id), no_reg);
+  }
   inline void GenPCRelativeJump(Register rd, int32_t imm32) {
     BlockTrampolinePoolScope block_trampoline_pool(this);
     DCHECK(is_int32(imm32 + 0x800));
@@ -674,21 +681,21 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void LoadZeroIfConditionZero(Register dest, Register condition);
 
   void SignExtendByte(Register rd, Register rs) {
-#if CAN_USE_ZBB_INSTRUCTIONS
-    sextb(rd, rs);
-#else
-    slli(rd, rs, xlen - 8);
-    srai(rd, rd, xlen - 8);
-#endif
+    if (CpuFeatures::IsSupported(ZBB)) {
+      sextb(rd, rs);
+    } else {
+      slli(rd, rs, xlen - 8);
+      srai(rd, rd, xlen - 8);
+    }
   }
 
   void SignExtendShort(Register rd, Register rs) {
-#if CAN_USE_ZBB_INSTRUCTIONS
-    sexth(rd, rs);
-#else
-    slli(rd, rs, xlen - 16);
-    srai(rd, rd, xlen - 16);
-#endif
+    if (CpuFeatures::IsSupported(ZBB)) {
+      sexth(rd, rs);
+    } else {
+      slli(rd, rs, xlen - 16);
+      srai(rd, rd, xlen - 16);
+    }
   }
 
   void Clz32(Register rd, Register rs);
@@ -698,12 +705,12 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
 #if V8_TARGET_ARCH_RISCV64
   void SignExtendWord(Register rd, Register rs) { sext_w(rd, rs); }
   void ZeroExtendWord(Register rd, Register rs) {
-#if CAN_USE_ZBA_INSTRUCTIONS
-    zextw(rd, rs);
-#else
-    slli(rd, rs, 32);
-    srli(rd, rd, 32);
-#endif
+    if (CpuFeatures::IsSupported(ZBA)) {
+      zextw(rd, rs);
+    } else {
+      slli(rd, rs, 32);
+      srli(rd, rd, 32);
+    }
   }
   void Popcnt64(Register rd, Register rs, Register scratch);
   void Ctz64(Register rd, Register rs);
@@ -771,7 +778,12 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
 
   // Change endianness
   void ByteSwap(Register dest, Register src, int operand_size,
-                Register scratch);
+                Register scratch = no_reg);
+
+  // helper function for bytes reverse
+  template <int NBYTES>
+  void ReverseBytesHelper(Register rd, Register rs, Register tmp1,
+                          Register tmp2);
 
   void Clear_if_nan_d(Register rd, FPURegister fs);
   void Clear_if_nan_s(Register rd, FPURegister fs);
@@ -1192,6 +1204,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
                         const MemOperand& field_operand);
   void DecompressTagged(const Register& destination, const Register& source);
   void DecompressTagged(Register dst, Tagged_t immediate);
+  void DecompressProtected(const Register& destination,
+                           const MemOperand& field_operand);
 
   // ---------------------------------------------------------------------------
   // V8 Sandbox support
@@ -1401,16 +1415,11 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void Msub_s(FPURegister fd, FPURegister fr, FPURegister fs, FPURegister ft);
   void Msub_d(FPURegister fd, FPURegister fr, FPURegister fs, FPURegister ft);
 
-  // Enter exit frame.
-  // argc - argument count to be dropped by LeaveExitFrame.
-  // save_doubles - saves FPU registers on stack.
   // stack_space - extra stack space.
-  void EnterExitFrame(int stack_space = 0,
-                      StackFrame::Type frame_type = StackFrame::EXIT);
-
+  void EnterExitFrame(Register scratch, int stack_space,
+                      StackFrame::Type frame_type);
   // Leave the current exit frame.
-  void LeaveExitFrame(Register arg_count, bool do_return = NO_EMIT_RETURN,
-                      bool argument_count_is_length = false);
+  void LeaveExitFrame(Register scratch);
 
   // Make sure the stack is aligned. Only emits code in debug mode.
   void AssertStackIsAligned();
@@ -1526,8 +1535,6 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
 
   // -------------------------------------------------------------------------
   // Stack limit utilities
-
-  enum StackLimitKind { kInterruptStackLimit, kRealStackLimit };
   void LoadStackLimit(Register destination, StackLimitKind kind);
   void StackOverflowCheck(Register num_args, Register scratch1,
                           Register scratch2, Label* stack_overflow,
@@ -1557,13 +1564,10 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   }
 
   enum ArgumentsCountMode { kCountIncludesReceiver, kCountExcludesReceiver };
-  enum ArgumentsCountType { kCountIsInteger, kCountIsSmi, kCountIsBytes };
-  void DropArguments(Register count, ArgumentsCountType type,
-                     ArgumentsCountMode mode, Register scratch = no_reg);
-  void DropArgumentsAndPushNewReceiver(Register argc, Register receiver,
-                                       ArgumentsCountType type,
-                                       ArgumentsCountMode mode,
-                                       Register scratch = no_reg);
+  enum ArgumentsCountType { kCountIsInteger, kCountIsSmi };
+  void DropArguments(Register count);
+  void DropArgumentsAndPushNewReceiver(Register argc, Register receiver);
+
   void JumpIfCodeIsMarkedForDeoptimization(Register code, Register scratch,
                                            Label* if_marked_for_deoptimization);
   Operand ClearedValue() const;
@@ -1721,9 +1725,9 @@ struct MoveCycleState {
   // {MoveToTempLocation}.
   RegList scratch_regs;
   // Available scratch registers during the move cycle resolution scope.
-  base::Optional<UseScratchRegisterScope> temps;
+  std::optional<UseScratchRegisterScope> temps;
   // Scratch register picked by {MoveToTempLocation}.
-  base::Optional<Register> scratch_reg;
+  std::optional<Register> scratch_reg;
 };
 
 inline MemOperand ExitFrameStackSlotOperand(int offset) {
@@ -1736,10 +1740,17 @@ inline MemOperand ExitFrameCallerStackSlotOperand(int index) {
                             kSystemPointerSize);
 }
 
+// Calls an API function. Allocates HandleScope, extracts returned value
+// from handle and propagates exceptions. Clobbers C argument registers
+// and C caller-saved registers. Restores context. On return removes
+//   (*argc_operand + slots_to_drop_on_return) * kSystemPointerSize
+// (GCed, includes the call JS arguments space and the additional space
+// allocated for the fast call).
 void CallApiFunctionAndReturn(MacroAssembler* masm, bool with_profiling,
                               Register function_address,
                               ExternalReference thunk_ref, Register thunk_arg,
-                              int stack_space, MemOperand* stack_space_operand,
+                              int slots_to_drop_on_return,
+                              MemOperand* argc_operand,
                               MemOperand return_value_operand);
 
 #define ACCESS_MASM(masm) masm->

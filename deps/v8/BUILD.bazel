@@ -28,6 +28,8 @@ load(":bazel/v8-non-pointer-compression.bzl", "v8_binary_non_pointer_compression
 # v8_custom_deps
 # v8_embed_script
 # v8_embedder_string
+# v8_array_buffer_internal_field_count
+# v8_array_buffer_view_internal_field_count
 # v8_promise_internal_field_count
 # v8_enable_vtunetracemark
 # v8_enable_fast_torque
@@ -41,7 +43,6 @@ load(":bazel/v8-non-pointer-compression.bzl", "v8_binary_non_pointer_compression
 # v8_enable_concurrent_marking
 # v8_enable_conservative_stack_scanning
 # v8_enable_direct_handle
-# v8_enable_direct_local
 # v8_enable_local_off_stack_check
 # v8_enable_ignition_dispatch_counting
 # v8_enable_builtins_optimization
@@ -207,6 +208,49 @@ v8_flag(
 )
 
 v8_flag(
+    name = "v8_enable_drumbrake",
+    default = False,
+)
+
+v8_flag(
+    name = "v8_enable_drumbrake_tracing",
+    default = False,
+)
+
+selects.config_setting_group(
+    name = "enable_drumbrake_x64",
+    match_all = [
+        ":is_v8_enable_drumbrake",
+        "@v8//bazel/config:v8_target_x64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "enable_drumbrake_arm64",
+    match_all = [
+        ":is_v8_enable_drumbrake",
+        "@v8//bazel/config:v8_target_arm64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "is_drumbrake_trap_handling_platform",
+    match_any = [
+        "@v8//bazel/config:is_linux",
+        "@v8//bazel/config:is_macos",
+        "@v8//bazel/config:is_windows",
+    ],
+)
+
+selects.config_setting_group(
+    name = "v8_drumbrake_bounds_checks",
+    match_all = [
+        ":enable_drumbrake_x64",
+        ":is_drumbrake_trap_handling_platform",
+    ],
+)
+
+v8_flag(
     name = "v8_jitless",
     default = False,
 )
@@ -271,18 +315,6 @@ selects.config_setting_group(
 # Pointer cage, true by default if v8_enable_pointer_compression.
 v8_flag(
     name = "v8_enable_pointer_compression_shared_cage",
-    default = True,
-)
-
-# Shared RO heap. Flag has to be set to false when
-# v8_enable_pointer_compression_shared_cage is set to false.
-v8_flag(
-    name = "v8_enable_shared_ro_heap",
-    default = True,
-)
-
-v8_flag(
-    name = "v8_enable_extensible_ro_snapshot",
     default = True,
 )
 
@@ -421,6 +453,8 @@ v8_config(
         "v8_enable_verify_heap": "VERIFY_HEAP",
         "v8_enable_verify_predictable": "VERIFY_PREDICTABLE",
         "v8_enable_webassembly": "V8_ENABLE_WEBASSEMBLY",
+        "v8_enable_drumbrake": "V8_ENABLE_DRUMBRAKE",
+        "v8_enable_drumbrake_tracing": "V8_ENABLE_DRUMBRAKE_TRACING",
         "v8_jitless": "V8_JITLESS",
         "v8_enable_vtunejit": "ENABLE_VTUNE_JIT_INTERFACE",
     },
@@ -429,6 +463,8 @@ v8_config(
         "V8_ADVANCED_BIGINT_ALGORITHMS",
         "V8_CONCURRENT_MARKING",
         "V8_ENABLE_SPARKPLUG",
+        "V8_ENABLE_EXTENSIBLE_RO_SNAPSHOT",
+        "V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA",
     ] + select({
         "@v8//bazel/config:is_debug": [
             "DEBUG",
@@ -497,13 +533,13 @@ v8_config(
         ],
         "//conditions:default": [],
     }) + select({
-        ":is_v8_enable_shared_ro_heap": [
+        # Shared RO heap is unconfigurable in bazel. However, we
+        # still have to make sure that the flag is disabled when
+        # v8_enable_pointer_compression_shared_cage is set to false.
+        ":is_v8_enable_pointer_compression_shared_cage": [
             "V8_SHARED_RO_HEAP",
         ],
-    }) + select({
-        ":is_v8_enable_extensible_ro_snapshot": [
-            "V8_ENABLE_EXTENSIBLE_RO_SNAPSHOT",
-        ],
+        "//conditions:default": [],
     }) + select({
         ":is_v8_enable_short_builtin_calls": [
             "V8_SHORT_BUILTIN_CALLS",
@@ -526,7 +562,13 @@ v8_config(
             "V8_ENABLE_DOUBLE_CONST_STORE_CHECK",
         ],
         "//conditions:default": [],
+    }) + select({
+        "v8_drumbrake_bounds_checks": [
+            "V8_DRUMBRAKE_BOUNDS_CHECKS"
+        ],
+        "//conditions:default": [],
     }),
+
     deps = [":default"],
 )
 
@@ -653,6 +695,7 @@ filegroup(
         "include/v8-promise.h",
         "include/v8-proxy.h",
         "include/v8-regexp.h",
+        "include/v8-sandbox.h",
         "include/v8-script.h",
         "include/v8-snapshot.h",
         "include/v8-statistics.h",
@@ -764,7 +807,6 @@ filegroup(
         "src/base/numbers/strtod.h",
         "src/base/once.cc",
         "src/base/once.h",
-        "src/base/optional.h",
         "src/base/overflowing-math.h",
         "src/base/page-allocator.cc",
         "src/base/page-allocator.h",
@@ -798,6 +840,10 @@ filegroup(
         "src/base/strings.h",
         "src/base/sys-info.cc",
         "src/base/sys-info.h",
+        "src/base/template-meta-programming/algorithm.h",
+        "src/base/template-meta-programming/functional.h",
+        "src/base/template-meta-programming/list.h",
+        "src/base/template-meta-programming/string-literal.h",
         "src/base/template-utils.h",
         "src/base/threaded-list.h",
         "src/base/timezone-cache.h",
@@ -969,6 +1015,7 @@ filegroup(
         "src/builtins/promise-reaction-job.tq",
         "src/builtins/promise-resolve.tq",
         "src/builtins/promise-then.tq",
+        "src/builtins/promise-try.tq",
         "src/builtins/promise-withresolvers.tq",
         "src/builtins/proxy.tq",
         "src/builtins/proxy-constructor.tq",
@@ -1070,6 +1117,7 @@ filegroup(
         "src/objects/js-atomics-synchronization.tq",
         "src/objects/js-collection.tq",
         "src/objects/js-collection-iterator.tq",
+        "src/objects/js-disposable-stack.tq",
         "src/objects/js-function.tq",
         "src/objects/js-generator.tq",
         "src/objects/js-iterator-helpers.tq",
@@ -1209,15 +1257,6 @@ filegroup(
     ],
 )
 
-# Default setting for v8_enable_pointer_compression when target is x64.
-selects.config_setting_group(
-    name = "is_v8_enable_webassembly_on_non_android_posix_x64",
-    match_all = [
-        ":is_v8_enable_webassembly",
-        "@v8//bazel/config:is_non_android_posix_x64",
-    ],
-)
-
 filegroup(
     name = "v8_base_without_compiler_files",
     srcs = [
@@ -1278,9 +1317,11 @@ filegroup(
         "src/builtins/builtins.cc",
         "src/builtins/builtins-inl.h",
         "src/builtins/builtins.h",
+        "src/builtins/builtins-abstract-module-source.cc",
         "src/builtins/builtins-api.cc",
         "src/builtins/builtins-array.cc",
         "src/builtins/builtins-arraybuffer.cc",
+        "src/builtins/builtins-async-disposable-stack.cc",
         "src/builtins/builtins-async-module.cc",
         "src/builtins/builtins-atomics-synchronization.cc",
         "src/builtins/builtins-bigint.cc",
@@ -1292,6 +1333,7 @@ filegroup(
         "src/builtins/builtins-date.cc",
         "src/builtins/builtins-definitions.h",
         "src/builtins/builtins-descriptors.h",
+        "src/builtins/builtins-disposable-stack.cc",
         "src/builtins/builtins-error.cc",
         "src/builtins/builtins-function.cc",
         "src/builtins/builtins-global.cc",
@@ -1355,6 +1397,7 @@ filegroup(
         "src/codegen/flush-instruction-cache.h",
         "src/codegen/handler-table.cc",
         "src/codegen/handler-table.h",
+        "src/codegen/heap-object-list.h",
         "src/codegen/interface-descriptors.cc",
         "src/codegen/interface-descriptors.h",
         "src/codegen/interface-descriptors-inl.h",
@@ -1409,6 +1452,9 @@ filegroup(
         "src/common/ptr-compr.cc",
         "src/common/ptr-compr.h",
         "src/common/ptr-compr-inl.h",
+        "src/common/segmented-table.h",
+        "src/common/segmented-table-inl.h",
+        "src/common/simd128.h",
         "src/compiler-dispatcher/lazy-compile-dispatcher.cc",
         "src/compiler-dispatcher/lazy-compile-dispatcher.h",
         "src/compiler-dispatcher/optimizing-compile-dispatcher.cc",
@@ -1572,6 +1618,7 @@ filegroup(
         "src/heap/base/active-system-pages.h",
         "src/heap/memory-chunk-metadata.cc",
         "src/heap/memory-chunk-metadata.h",
+        "src/heap/memory-chunk-metadata-inl.h",
         "src/heap/code-range.cc",
         "src/heap/code-range.h",
         "src/heap/trusted-range.cc",
@@ -1599,8 +1646,6 @@ filegroup(
         "src/heap/cppgc-js/unified-heap-marking-verifier.h",
         "src/heap/cppgc-js/unified-heap-marking-visitor.cc",
         "src/heap/cppgc-js/unified-heap-marking-visitor.h",
-        "src/heap/cppgc-js/wrappable-info.h",
-        "src/heap/cppgc-js/wrappable-info-inl.h",
         "src/heap/ephemeron-remembered-set.h",
         "src/heap/ephemeron-remembered-set.cc",
         "src/heap/evacuation-allocator.cc",
@@ -1621,8 +1666,6 @@ filegroup(
         "src/heap/free-list.h",
         "src/heap/free-list-inl.h",
         "src/heap/gc-callbacks.h",
-        "src/heap/gc-idle-time-handler.cc",
-        "src/heap/gc-idle-time-handler.h",
         "src/heap/gc-tracer.cc",
         "src/heap/gc-tracer.h",
         "src/heap/gc-tracer-inl.h",
@@ -1648,8 +1691,9 @@ filegroup(
         "src/heap/incremental-marking-job.h",
         "src/heap/index-generator.cc",
         "src/heap/index-generator.h",
-        "src/heap/large-page.cc",
-        "src/heap/large-page.h",
+        "src/heap/large-page-metadata.cc",
+        "src/heap/large-page-metadata.h",
+        "src/heap/large-page-metadata-inl.h",
         "src/heap/large-spaces.cc",
         "src/heap/large-spaces.h",
         "src/heap/linear-allocation-area.h",
@@ -1688,11 +1732,12 @@ filegroup(
         "src/heap/memory-allocator.h",
         "src/heap/memory-balancer.cc",
         "src/heap/memory-balancer.h",
-        "src/heap/mutable-page.cc",
-        "src/heap/mutable-page.h",
+        "src/heap/mutable-page-metadata.cc",
+        "src/heap/mutable-page-metadata.h",
+        "src/heap/mutable-page-metadata-inl.h",
         "src/heap/memory-chunk.cc",
         "src/heap/memory-chunk.h",
-        "src/heap/mutable-page-inl.h",
+        "src/heap/memory-chunk-inl.h",
         "src/heap/memory-chunk-layout.cc",
         "src/heap/memory-chunk-layout.h",
         "src/heap/memory-measurement.cc",
@@ -1706,14 +1751,15 @@ filegroup(
         "src/heap/new-spaces.h",
         "src/heap/new-spaces-inl.h",
         "src/heap/object-lock.h",
+        "src/heap/object-lock-inl.h",
         "src/heap/object-stats.cc",
         "src/heap/object-stats.h",
         "src/heap/objects-visiting.cc",
         "src/heap/objects-visiting.h",
         "src/heap/objects-visiting-inl.h",
-        "src/heap/page.cc",
-        "src/heap/page.h",
-        "src/heap/page-inl.h",
+        "src/heap/page-metadata.cc",
+        "src/heap/page-metadata.h",
+        "src/heap/page-metadata-inl.h",
         "src/heap/paged-spaces.cc",
         "src/heap/paged-spaces.h",
         "src/heap/paged-spaces-inl.h",
@@ -1774,8 +1820,8 @@ filegroup(
         "src/init/heap-symbols.h",
         "src/init/icu_util.cc",
         "src/init/icu_util.h",
-        "src/init/isolate-allocator.cc",
-        "src/init/isolate-allocator.h",
+        "src/init/isolate-group.cc",
+        "src/init/isolate-group.h",
         "src/init/setup-isolate.h",
         "src/init/startup-data-util.cc",
         "src/init/startup-data-util.h",
@@ -1792,8 +1838,8 @@ filegroup(
         "src/interpreter/bytecode-array-writer.h",
         "src/interpreter/bytecode-decoder.cc",
         "src/interpreter/bytecode-decoder.h",
-        "src/interpreter/bytecode-flags.cc",
-        "src/interpreter/bytecode-flags.h",
+        "src/interpreter/bytecode-flags-and-tokens.cc",
+        "src/interpreter/bytecode-flags-and-tokens.h",
         "src/interpreter/bytecode-generator.cc",
         "src/interpreter/bytecode-generator.h",
         "src/interpreter/bytecode-jump-table.h",
@@ -1877,6 +1923,7 @@ filegroup(
         "src/objects/call-site-info.cc",
         "src/objects/call-site-info.h",
         "src/objects/call-site-info-inl.h",
+        "src/objects/casting.h",
         "src/objects/cell.h",
         "src/objects/cell-inl.h",
         "src/objects/code.cc",
@@ -1960,6 +2007,9 @@ filegroup(
         "src/objects/js-collection-inl.h",
         "src/objects/js-collection-iterator.h",
         "src/objects/js-collection-iterator-inl.h",
+        "src/objects/js-disposable-stack.cc",
+        "src/objects/js-disposable-stack.h",
+        "src/objects/js-disposable-stack-inl.h",
         "src/objects/js-function.cc",
         "src/objects/js-function.h",
         "src/objects/js-function-inl.h",
@@ -2120,6 +2170,7 @@ filegroup(
         "src/objects/tagged-index.h",
         "src/objects/tagged-value.h",
         "src/objects/tagged-value-inl.h",
+        "src/objects/union.h",
         "src/objects/template-objects.cc",
         "src/objects/template-objects.h",
         "src/objects/template-objects-inl.h",
@@ -2142,6 +2193,8 @@ filegroup(
         "src/objects/visitors.cc",
         "src/objects/visitors.h",
         "src/objects/visitors-inl.h",
+        "src/objects/waiter-queue-node.cc",
+        "src/objects/waiter-queue-node.h",
         "src/parsing/expression-scope.h",
         "src/parsing/func-name-inferrer.cc",
         "src/parsing/func-name-inferrer.h",
@@ -2287,31 +2340,50 @@ filegroup(
         "src/runtime/runtime-weak-refs.cc",
         "src/sandbox/bounded-size.h",
         "src/sandbox/bounded-size-inl.h",
+        "src/sandbox/check.h",
         "src/sandbox/external-pointer.h",
         "src/sandbox/external-pointer-inl.h",
         "src/sandbox/external-pointer-table.cc",
         "src/sandbox/external-pointer-table.h",
         "src/sandbox/external-pointer-table-inl.h",
+        "src/sandbox/cppheap-pointer-inl.h",
+        "src/sandbox/cppheap-pointer-table.cc",
+        "src/sandbox/cppheap-pointer-table.h",
+        "src/sandbox/cppheap-pointer-table-inl.h",
         "src/sandbox/code-pointer-table.cc",
         "src/sandbox/code-pointer-table.h",
         "src/sandbox/code-pointer-table-inl.h",
+        "src/sandbox/js-dispatch-table.cc",
+        "src/sandbox/js-dispatch-table.h",
+        "src/sandbox/js-dispatch-table-inl.h",
         "src/sandbox/trusted-pointer-table.cc",
         "src/sandbox/trusted-pointer-table.h",
         "src/sandbox/trusted-pointer-table-inl.h",
         "src/sandbox/code-pointer.h",
         "src/sandbox/code-pointer-inl.h",
+        "src/sandbox/compactible-external-entity-table-inl.h",
+        "src/sandbox/compactible-external-entity-table.h",
         "src/sandbox/isolate.h",
         "src/sandbox/isolate-inl.h",
         "src/sandbox/indirect-pointer.h",
         "src/sandbox/indirect-pointer-tag.h",
         "src/sandbox/indirect-pointer-inl.h",
         "src/sandbox/code-entrypoint-tag.h",
+        "src/sandbox/external-buffer.h",
+        "src/sandbox/external-buffer-tag.h",
+        "src/sandbox/external-buffer-inl.h",
+        "src/sandbox/external-buffer-table.cc",
+        "src/sandbox/external-buffer-table-inl.h",
+        "src/sandbox/external-buffer-table.h",
         "src/sandbox/external-entity-table.h",
         "src/sandbox/external-entity-table-inl.h",
+        "src/sandbox/hardware-support.cc",
+        "src/sandbox/hardware-support.h",
         "src/sandbox/sandbox.cc",
         "src/sandbox/sandbox.h",
         "src/sandbox/sandboxed-pointer.h",
         "src/sandbox/sandboxed-pointer-inl.h",
+        "src/sandbox/tagged-payload.h",
         "src/sandbox/testing.cc",
         "src/sandbox/testing.h",
         "src/snapshot/code-serializer.cc",
@@ -2364,6 +2436,7 @@ filegroup(
         "src/strings/char-predicates.h",
         "src/strings/char-predicates-inl.h",
         "src/strings/string-builder.cc",
+        "src/strings/string-builder.h",
         "src/strings/string-builder-inl.h",
         "src/strings/string-case.cc",
         "src/strings/string-case.h",
@@ -2393,6 +2466,7 @@ filegroup(
         "src/torque/runtime-macro-shims.h",
         "src/tracing/trace-event.cc",
         "src/tracing/trace-event.h",
+        "src/tracing/trace-event-no-perfetto.h",
         "src/tracing/traced-value.cc",
         "src/tracing/traced-value.h",
         "src/tracing/tracing-category-observer.cc",
@@ -2663,12 +2737,7 @@ filegroup(
             "src/wasm/baseline/ppc/liftoff-assembler-ppc-inl.h",
         ],
     }) + select({
-        # Only for x64 builds and for arm64 with x64 host simulator.
-        ":is_v8_enable_webassembly_on_non_android_posix_x64": [
-            "src/trap-handler/handler-inside-posix.cc",
-            "src/trap-handler/handler-outside-posix.cc",
-        ],
-        "@v8//bazel/config:is_macos_arm64": [
+        "@v8//bazel/config:is_posix": [
             "src/trap-handler/handler-inside-posix.cc",
             "src/trap-handler/handler-outside-posix.cc",
         ],
@@ -2714,6 +2783,8 @@ filegroup(
             "src/maglev/maglev-ir.h",
             "src/maglev/maglev-phi-representation-selector.h",
             "src/maglev/maglev-pipeline-statistics.h",
+            "src/maglev/maglev-post-hoc-optimizations-processors.h",
+            "src/maglev/maglev-pre-regalloc-codegen-processors.h",
             "src/maglev/maglev-regalloc-data.h",
             "src/maglev/maglev-regalloc.h",
             "src/maglev/maglev-register-frame-array.h",
@@ -2786,6 +2857,7 @@ filegroup(
             "src/wasm/baseline/liftoff-compiler.cc",
             "src/wasm/baseline/liftoff-compiler.h",
             "src/wasm/baseline/liftoff-register.h",
+            "src/wasm/baseline/liftoff-varstate.h",
             "src/wasm/baseline/parallel-move.cc",
             "src/wasm/baseline/parallel-move.h",
             "src/wasm/baseline/parallel-move-inl.h",
@@ -2801,6 +2873,7 @@ filegroup(
             "src/wasm/constant-expression-interface.cc",
             "src/wasm/constant-expression-interface.h",
             "src/wasm/decoder.h",
+            "src/wasm/float16.h",
             "src/wasm/function-body-decoder.cc",
             "src/wasm/function-body-decoder.h",
             "src/wasm/function-body-decoder-impl.h",
@@ -2831,6 +2904,7 @@ filegroup(
             "src/wasm/pgo.cc",
             "src/wasm/pgo.h",
             "src/wasm/serialized-signature-inl.h",
+            "src/wasm/signature-hashing.h",
             "src/wasm/simd-shuffle.cc",
             "src/wasm/simd-shuffle.h",
             "src/wasm/stacks.cc",
@@ -2852,6 +2926,8 @@ filegroup(
             "src/wasm/wasm-code-manager.h",
             "src/wasm/wasm-debug.cc",
             "src/wasm/wasm-debug.h",
+            "src/wasm/wasm-deopt-data.cc",
+            "src/wasm/wasm-deopt-data.h",
             "src/wasm/wasm-disassembler.cc",
             "src/wasm/wasm-disassembler.h",
             "src/wasm/wasm-disassembler-impl.h",
@@ -2890,6 +2966,21 @@ filegroup(
             "src/wasm/well-known-imports.cc",
             "src/wasm/well-known-imports.h",
             "src/wasm/wrappers.cc",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        ":is_v8_enable_drumbrake": [
+            "src/wasm/interpreter/instruction-handlers.h",
+            "src/wasm/interpreter/wasm-interpreter.cc",
+            "src/wasm/interpreter/wasm-interpreter.h",
+            "src/wasm/interpreter/wasm-interpreter-inl.h",
+            "src/wasm/interpreter/wasm-interpreter-objects.cc",
+            "src/wasm/interpreter/wasm-interpreter-objects-inl.h",
+            "src/wasm/interpreter/wasm-interpreter-objects.h",
+            "src/wasm/interpreter/wasm-interpreter-runtime.cc",
+            "src/wasm/interpreter/wasm-interpreter-runtime-inl.h",
+            "src/wasm/interpreter/wasm-interpreter-runtime.h",
+            "src/wasm/interpreter/wasm-interpreter-simd.cc",
         ],
         "//conditions:default": [],
     }),
@@ -3022,8 +3113,6 @@ filegroup(
         "src/compiler/const-tracking-let-helpers.h",
         "src/compiler/control-equivalence.cc",
         "src/compiler/control-equivalence.h",
-        "src/compiler/control-flow-optimizer.cc",
-        "src/compiler/control-flow-optimizer.h",
         "src/compiler/control-path-state.h",
         "src/compiler/csa-load-elimination.cc",
         "src/compiler/csa-load-elimination.h",
@@ -3032,8 +3121,6 @@ filegroup(
         "src/compiler/decompression-optimizer.cc",
         "src/compiler/decompression-optimizer.h",
         "src/compiler/diamond.h",
-        "src/compiler/effect-control-linearizer.cc",
-        "src/compiler/effect-control-linearizer.h",
         "src/compiler/escape-analysis.cc",
         "src/compiler/escape-analysis.h",
         "src/compiler/escape-analysis-reducer.cc",
@@ -3177,18 +3264,20 @@ filegroup(
         "src/compiler/simplified-operator-reducer.h",
         "src/compiler/state-values-utils.cc",
         "src/compiler/state-values-utils.h",
-        "src/compiler/store-store-elimination.cc",
-        "src/compiler/store-store-elimination.h",
         "src/compiler/string-builder-optimizer.cc",
         "src/compiler/string-builder-optimizer.h",
         "src/compiler/turbofan.h",
         "src/compiler/turbofan-enabled.cc",
+        "src/compiler/turboshaft/access-builder.h",
         "src/compiler/turboshaft/analyzer-iterator.cc",
         "src/compiler/turboshaft/analyzer-iterator.h",
         "src/compiler/turboshaft/assembler.cc",
         "src/compiler/turboshaft/assembler.h",
         "src/compiler/turboshaft/assert-types-reducer.h",
-        "src/compiler/turboshaft/duplication-optimization-reducer.h",
+        "src/compiler/turboshaft/block-instrumentation-phase.cc",
+        "src/compiler/turboshaft/block-instrumentation-phase.h",
+        "src/compiler/turboshaft/block-instrumentation-reducer.cc",
+        "src/compiler/turboshaft/block-instrumentation-reducer.h",
         "src/compiler/turboshaft/branch-elimination-reducer.h",
         "src/compiler/turboshaft/build-graph-phase.cc",
         "src/compiler/turboshaft/build-graph-phase.h",
@@ -3198,6 +3287,8 @@ filegroup(
         "src/compiler/turboshaft/dataview-lowering-reducer.h",
         "src/compiler/turboshaft/code-elimination-and-simplification-phase.cc",
         "src/compiler/turboshaft/code-elimination-and-simplification-phase.h",
+        "src/compiler/turboshaft/copying-phase.cc",
+        "src/compiler/turboshaft/copying-phase.h",
         "src/compiler/turboshaft/dead-code-elimination-reducer.h",
         "src/compiler/turboshaft/debug-feature-lowering-phase.cc",
         "src/compiler/turboshaft/debug-feature-lowering-phase.h",
@@ -3208,6 +3299,7 @@ filegroup(
         "src/compiler/turboshaft/decompression-optimization-phase.h",
         "src/compiler/turboshaft/define-assembler-macros.inc",
         "src/compiler/turboshaft/deopt-data.h",
+        "src/compiler/turboshaft/duplication-optimization-reducer.h",
         "src/compiler/turboshaft/explicit-truncation-reducer.h",
         "src/compiler/turboshaft/fast-api-call-lowering-reducer.h",
         "src/compiler/turboshaft/fast-hash.h",
@@ -3219,6 +3311,7 @@ filegroup(
         "src/compiler/turboshaft/graph-visualizer.h",
         "src/compiler/turboshaft/js-generic-lowering-reducer.h",
         "src/compiler/turboshaft/index.h",
+        "src/compiler/turboshaft/instruction-selection-normalization-reducer.h",
         "src/compiler/turboshaft/instruction-selection-phase.cc",
         "src/compiler/turboshaft/instruction-selection-phase.h",
         "src/compiler/turboshaft/late-escape-analysis-reducer.cc",
@@ -3249,12 +3342,12 @@ filegroup(
         "src/compiler/turboshaft/operations.cc",
         "src/compiler/turboshaft/operations.h",
         "src/compiler/turboshaft/opmasks.h",
-        "src/compiler/turboshaft/copying-phase.cc",
-        "src/compiler/turboshaft/copying-phase.h",
         "src/compiler/turboshaft/optimize-phase.cc",
         "src/compiler/turboshaft/optimize-phase.h",
         "src/compiler/turboshaft/phase.cc",
         "src/compiler/turboshaft/phase.h",
+        "src/compiler/turboshaft/pipelines.cc",
+        "src/compiler/turboshaft/pipelines.h",
         "src/compiler/turboshaft/pretenuring-propagation-reducer.cc",
         "src/compiler/turboshaft/pretenuring-propagation-reducer.h",
         "src/compiler/turboshaft/recreate-schedule.cc",
@@ -3262,6 +3355,7 @@ filegroup(
         "src/compiler/turboshaft/recreate-schedule-phase.cc",
         "src/compiler/turboshaft/recreate-schedule-phase.h",
         "src/compiler/turboshaft/reducer-traits.h",
+        "src/compiler/turboshaft/register-allocation-phase.h",
         "src/compiler/turboshaft/representations.cc",
         "src/compiler/turboshaft/representations.h",
         "src/compiler/turboshaft/required-optimization-reducer.h",
@@ -3279,7 +3373,8 @@ filegroup(
         "src/compiler/turboshaft/stack-check-lowering-reducer.h",
         "src/compiler/turboshaft/store-store-elimination-phase.cc",
         "src/compiler/turboshaft/store-store-elimination-phase.h",
-        "src/compiler/turboshaft/store-store-elimination-reducer.h",
+        "src/compiler/turboshaft/store-store-elimination-reducer-inl.h",
+        "src/compiler/turboshaft/string-view.h",
         "src/compiler/turboshaft/structural-optimization-reducer.h",
         "src/compiler/turboshaft/tracing.h",
         "src/compiler/turboshaft/type-assertions-phase.cc",
@@ -3304,6 +3399,7 @@ filegroup(
         "src/compiler/turboshaft/value-numbering-reducer.h",
         "src/compiler/turboshaft/variable-reducer.h",
         "src/compiler/turboshaft/wasm-js-lowering-reducer.h",
+        "src/compiler/turboshaft/zone-with-name.h",
         "src/compiler/type-cache.cc",
         "src/compiler/type-cache.h",
         "src/compiler/type-narrowing-reducer.cc",
@@ -3425,6 +3521,36 @@ filegroup(
             "src/compiler/wasm-typer.h",
         ],
         "//conditions:default": [],
+    }) + select({
+        # Turboshaft's Maglev graph builder needs some Maglev files. We only
+        # include them explicitely when Maglev is disabled.
+        ":enable_maglev": [],
+        "//conditions:default": [
+            "src/maglev/maglev-basic-block.h",
+            "src/maglev/maglev-code-gen-state.h",
+            "src/maglev/maglev-compilation-info.cc",
+            "src/maglev/maglev-compilation-info.h",
+            "src/maglev/maglev-compilation-unit.cc",
+            "src/maglev/maglev-compilation-unit.h",
+            "src/maglev/maglev-graph-builder.cc",
+            "src/maglev/maglev-graph-builder.h",
+            "src/maglev/maglev-graph.h",
+            "src/maglev/maglev-graph-labeller.h",
+            "src/maglev/maglev-graph-printer.cc",
+            "src/maglev/maglev-graph-printer.h",
+            "src/maglev/maglev-graph-processor.h",
+            "src/maglev/maglev-graph-verifier.h",
+            "src/maglev/maglev-interpreter-frame-state.cc",
+            "src/maglev/maglev-interpreter-frame-state.h",
+            "src/maglev/maglev-ir.cc",
+            "src/maglev/maglev-ir.h",
+            "src/maglev/maglev-ir-inl.h",
+            "src/maglev/maglev-register-frame-array.h",
+            "src/maglev/maglev-phi-representation-selector.cc",
+            "src/maglev/maglev-phi-representation-selector.h",
+            "src/maglev/maglev-post-hoc-optimizations-processors.h",
+            "src/maglev/maglev-pre-regalloc-codegen-processors.h",
+        ],
     }),
 )
 
@@ -3474,6 +3600,7 @@ filegroup(
         "src/builtins/builtins-sharedarraybuffer-gen.cc",
         "src/builtins/builtins-string-gen.cc",
         "src/builtins/builtins-string-gen.h",
+        "src/builtins/builtins-string-tsa.cc",
         "src/builtins/builtins-temporal-gen.cc",
         "src/builtins/builtins-typed-array-gen.cc",
         "src/builtins/builtins-typed-array-gen.h",
@@ -3484,6 +3611,7 @@ filegroup(
         "src/builtins/profile-data-reader.h",
         "src/builtins/setup-builtins-internal.cc",
         "src/builtins/torque-csa-header-includes.h",
+        "src/codegen/turboshaft-builtins-assembler-inl.h",
         "src/codegen/code-stub-assembler.cc",
         "third_party/v8/codegen/fp16-inl.h",
         "src/codegen/code-stub-assembler-inl.h",
@@ -3520,31 +3648,13 @@ filegroup(
         ],
         "//conditions:default": [],
     }) + select({
-        # Turboshaft's Maglev graph builder needs some Maglev files. We only
-        # include them explicitely when Maglev is disabled.
-        ":enable_maglev": [],
-        "//conditions:default": [
-            "src/maglev/maglev-basic-block.h",
-            "src/maglev/maglev-code-gen-state.h",
-            "src/maglev/maglev-compilation-info.cc",
-            "src/maglev/maglev-compilation-info.h",
-            "src/maglev/maglev-compilation-unit.cc",
-            "src/maglev/maglev-compilation-unit.h",
-            "src/maglev/maglev-graph-builder.cc",
-            "src/maglev/maglev-graph-builder.h",
-            "src/maglev/maglev-graph.h",
-            "src/maglev/maglev-graph-labeller.h",
-            "src/maglev/maglev-graph-printer.cc",
-            "src/maglev/maglev-graph-printer.h",
-            "src/maglev/maglev-graph-processor.h",
-            "src/maglev/maglev-graph-verifier.h",
-            "src/maglev/maglev-interpreter-frame-state.cc",
-            "src/maglev/maglev-interpreter-frame-state.h",
-            "src/maglev/maglev-ir.cc",
-            "src/maglev/maglev-ir.h",
-            "src/maglev/maglev-ir-inl.h",
-            "src/maglev/maglev-register-frame-array.h",
+        ":enable_drumbrake_x64": [
+            "src/wasm/interpreter/x64/interpreter-builtins-x64.cc"
         ],
+        ":enable_drumbrake_arm64": [
+            "src/wasm/interpreter/arm64/interpreter-builtins-arm64.cc"
+        ],
+        "//conditions:default": [],
     }),
 )
 
@@ -3660,6 +3770,7 @@ filegroup(
         "src/heap/base/active-system-pages.h",
         "src/heap/base/basic-slot-set.h",
         "src/heap/base/bytes.h",
+        "src/heap/base/cached-unordered-map.h",
         "src/heap/base/incremental-marking-schedule.cc",
         "src/heap/base/incremental-marking-schedule.h",
         "src/heap/base/memory-tagging.h",
@@ -3739,6 +3850,8 @@ filegroup(
         "src/snapshot/embedded/platform-embedded-file-writer-mac.h",
         "src/snapshot/embedded/platform-embedded-file-writer-win.cc",
         "src/snapshot/embedded/platform-embedded-file-writer-win.h",
+        "src/snapshot/embedded/platform-embedded-file-writer-zos.cc",
+        "src/snapshot/embedded/platform-embedded-file-writer-zos.h",
         "src/snapshot/mksnapshot.cc",
         "src/snapshot/snapshot-empty.cc",
         "src/snapshot/static-roots-gen.cc",
@@ -4188,7 +4301,6 @@ v8_library(
     deps = [
         ":lib_fp16",
         ":v8_libbase",
-        "//external:base_trace_event_common",
         "//external:absl_btree",
         "//external:absl_flat_hash_map",
         "//external:absl_flat_hash_set",
@@ -4372,6 +4484,11 @@ alias(
 
 v8_build_config(
     name = "v8_build_config",
+    arch = select({
+        "@v8//bazel/config:v8_target_arm64": "arm64",
+        "@v8//bazel/config:v8_target_x64": "x64",
+        "//conditions:default": "x64",
+    }),
 )
 
 # Runs mjsunit with d8.
@@ -4389,6 +4506,15 @@ py_test(
         "--variant=google3_noicu",
         "--outdir noicu",
         "--verbose",
+    ] + select({
+        "@v8//bazel/config:v8_target_arm64": [
+            "--arch=arm64",
+        ],
+        "@v8//bazel/config:v8_target_x64": [
+            "--arch=x64",
+        ],
+        "//conditions:default": [],
+    }) + [
         "mjsunit",
     ],
     data = [
@@ -4419,6 +4545,15 @@ py_test(
         "--variant=google3_icu",
         "--outdir icu",
         "--verbose",
+    ] + select({
+        "@v8//bazel/config:v8_target_arm64": [
+            "--arch=arm64",
+        ],
+        "@v8//bazel/config:v8_target_x64": [
+            "--arch=x64",
+        ],
+        "//conditions:default": [],
+    }) + [
         "mjsunit",
     ],
     data = [

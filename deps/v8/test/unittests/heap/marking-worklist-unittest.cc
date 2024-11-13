@@ -22,7 +22,7 @@ TEST_F(MarkingWorklistTest, PushPop) {
   MarkingWorklists holder;
   MarkingWorklists::Local worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));
@@ -36,7 +36,7 @@ TEST_F(MarkingWorklistTest, PushPopOnHold) {
   MarkingWorklists holder;
   MarkingWorklists::Local worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));
@@ -51,7 +51,7 @@ TEST_F(MarkingWorklistTest, MergeOnHold) {
   MarkingWorklists::Local main_worklists(&holder);
   MarkingWorklists::Local worker_worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));
@@ -68,7 +68,7 @@ TEST_F(MarkingWorklistTest, ShareWorkIfGlobalPoolIsEmpty) {
   MarkingWorklists::Local main_worklists(&holder);
   MarkingWorklists::Local worker_worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));
@@ -85,7 +85,7 @@ TEST_F(MarkingWorklistTest, ContextWorklistsPushPop) {
   holder.CreateContextWorklists({context});
   MarkingWorklists::Local worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));
@@ -104,7 +104,7 @@ TEST_F(MarkingWorklistTest, ContextWorklistsEmpty) {
   holder.CreateContextWorklists({context});
   MarkingWorklists::Local worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));
@@ -128,7 +128,7 @@ TEST_F(MarkingWorklistTest, ContextWorklistCrossTask) {
   MarkingWorklists::Local main_worklists(&holder);
   MarkingWorklists::Local worker_worklists(&holder);
   Tagged<HeapObject> pushed_object =
-      HeapObject::cast(i_isolate()
+      Cast<HeapObject>(i_isolate()
                            ->roots_table()
                            .slot(RootIndex::kFirstStrongRoot)
                            .load(i_isolate()));

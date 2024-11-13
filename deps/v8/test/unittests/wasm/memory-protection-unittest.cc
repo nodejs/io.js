@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "include/v8config.h"
 
 // TODO(clemensb): Extend this to other OSes.
@@ -59,7 +61,8 @@ class MemoryProtectionTest : public TestWithNativeContext {
   WasmCode* code() const { return code_; }
 
   bool code_is_protected() {
-    return V8_HAS_PTHREAD_JIT_WRITE_PROTECT || uses_pku();
+    return V8_HAS_PTHREAD_JIT_WRITE_PROTECT ||
+           V8_HAS_BECORE_JIT_WRITE_PROTECT || uses_pku();
   }
 
   void WriteToCode() { code_->instructions()[0] = 0; }
@@ -80,7 +83,9 @@ class MemoryProtectionTest : public TestWithNativeContext {
 
   bool uses_pku() {
     // M1 always uses MAP_JIT.
-    if (V8_HAS_PTHREAD_JIT_WRITE_PROTECT) return false;
+    if (V8_HAS_PTHREAD_JIT_WRITE_PROTECT || V8_HAS_BECORE_JIT_WRITE_PROTECT) {
+      return false;
+    }
     bool param_has_pku = mode_ == kPku;
     return param_has_pku && WasmCodeManager::HasMemoryProtectionKeySupport();
   }
@@ -94,15 +99,15 @@ class MemoryProtectionTest : public TestWithNativeContext {
         SECTION(Code, ENTRY_COUNT(1), ADD_COUNT(0 /* locals */, kExprEnd))};
 
     ModuleResult result =
-        DecodeWasmModule(WasmFeatures::All(), base::ArrayVector(module_bytes),
-                         false, kWasmOrigin);
+        DecodeWasmModule(WasmEnabledFeatures::All(),
+                         base::ArrayVector(module_bytes), false, kWasmOrigin);
     CHECK(result.ok());
 
     ErrorThrower thrower(isolate(), "");
     constexpr int kNoCompilationId = 0;
     constexpr ProfileInformation* kNoProfileInformation = nullptr;
     std::shared_ptr<NativeModule> native_module = CompileToNativeModule(
-        isolate(), WasmFeatures::All(), CompileTimeImports{}, &thrower,
+        isolate(), WasmEnabledFeatures::All(), CompileTimeImports{}, &thrower,
         std::move(result).value(),
         ModuleWireBytes{base::ArrayVector(module_bytes)}, kNoCompilationId,
         v8::metrics::Recorder::ContextId::Empty(), kNoProfileInformation);
@@ -267,14 +272,16 @@ TEST_P(ParameterizedMemoryProtectionTestWithSignalHandling, TestSignalHandler) {
   // An exception is M1, where an open scope still has an effect in the signal
   // handler.
   bool expect_crash = write_in_signal_handler && code_is_protected() &&
-                      (!V8_HAS_PTHREAD_JIT_WRITE_PROTECT || !open_write_scope);
+                      ((!V8_HAS_PTHREAD_JIT_WRITE_PROTECT &&
+                        !V8_HAS_BECORE_JIT_WRITE_PROTECT) ||
+                       !open_write_scope);
   if (expect_crash) {
     // Avoid {ASSERT_DEATH_IF_SUPPORTED}, because it only accepts a regex as
     // second parameter, and not a matcher as {ASSERT_DEATH}.
 #if GTEST_HAS_DEATH_TEST
     ASSERT_DEATH(
         {
-          base::Optional<CodeSpaceWriteScope> write_scope;
+          std::optional<CodeSpaceWriteScope> write_scope;
           if (open_write_scope) write_scope.emplace();
           pthread_kill(pthread_self(), SIGPROF);
           base::OS::Sleep(base::TimeDelta::FromMilliseconds(10));
@@ -294,7 +301,7 @@ TEST_P(ParameterizedMemoryProtectionTestWithSignalHandling, TestSignalHandler) {
                                  "UndefinedBehaviorSanitizer:DEADLYSIGNAL")));
 #endif  // GTEST_HAS_DEATH_TEST
   } else {
-    base::Optional<CodeSpaceWriteScope> write_scope;
+    std::optional<CodeSpaceWriteScope> write_scope;
     if (open_write_scope) write_scope.emplace();
     // The signal handler does not write or code is not protected, hence this
     // should succeed.

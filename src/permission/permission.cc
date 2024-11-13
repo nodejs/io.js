@@ -18,6 +18,8 @@ namespace node {
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::Local;
+using v8::MaybeLocal;
+using v8::NewStringType;
 using v8::Object;
 using v8::String;
 using v8::Value;
@@ -105,46 +107,43 @@ Permission::Permission() : enabled_(false) {
 #undef V
 }
 
-Local<Value> CreateAccessDeniedError(Environment* env,
-                                     PermissionScope perm,
-                                     const std::string_view& res) {
-  Local<Value> err = ERR_ACCESS_DENIED(env->isolate());
-  CHECK(err->IsObject());
-  if (err.As<Object>()
-          ->Set(env->context(),
-                env->permission_string(),
-                v8::String::NewFromUtf8(env->isolate(),
-                                        Permission::PermissionToString(perm),
-                                        v8::NewStringType::kNormal)
-                    .ToLocalChecked())
+MaybeLocal<Value> CreateAccessDeniedError(Environment* env,
+                                          PermissionScope perm,
+                                          const std::string_view& res) {
+  Local<Object> err = ERR_ACCESS_DENIED(env->isolate());
+  Local<String> perm_string;
+  Local<String> resource_string;
+  if (!String::NewFromUtf8(env->isolate(),
+                           Permission::PermissionToString(perm),
+                           NewStringType::kNormal)
+           .ToLocal(&perm_string) ||
+      !String::NewFromUtf8(
+           env->isolate(), std::string(res).c_str(), NewStringType::kNormal)
+           .ToLocal(&resource_string) ||
+      err->Set(env->context(), env->permission_string(), perm_string)
           .IsNothing() ||
-      err.As<Object>()
-          ->Set(env->context(),
-                env->resource_string(),
-                v8::String::NewFromUtf8(env->isolate(),
-                                        std::string(res).c_str(),
-                                        v8::NewStringType::kNormal)
-                    .ToLocalChecked())
-          .IsNothing())
-    return Local<Value>();
+      err->Set(env->context(), env->resource_string(), resource_string)
+          .IsNothing()) {
+    return MaybeLocal<Value>();
+  }
   return err;
 }
 
 void Permission::ThrowAccessDenied(Environment* env,
                                    PermissionScope perm,
                                    const std::string_view& res) {
-  Local<Value> err = CreateAccessDeniedError(env, perm, res);
+  MaybeLocal<Value> err = CreateAccessDeniedError(env, perm, res);
   if (err.IsEmpty()) return;
-  env->isolate()->ThrowException(err);
+  env->isolate()->ThrowException(err.ToLocalChecked());
 }
 
 void Permission::AsyncThrowAccessDenied(Environment* env,
                                         fs::FSReqBase* req_wrap,
                                         PermissionScope perm,
                                         const std::string_view& res) {
-  Local<Value> err = CreateAccessDeniedError(env, perm, res);
+  MaybeLocal<Value> err = CreateAccessDeniedError(env, perm, res);
   if (err.IsEmpty()) return;
-  return req_wrap->Reject(err);
+  return req_wrap->Reject(err.ToLocalChecked());
 }
 
 void Permission::EnablePermissions() {

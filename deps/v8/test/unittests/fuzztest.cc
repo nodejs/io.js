@@ -47,7 +47,10 @@ static void ManyConditions(std::vector<int> input, int failure) {
         CHECK_WITH_MSG(false, "Fake fuzz-test check failure");
         break;
       case 2:
-        DCHECK_WITH_MSG(false, "Fake fuzz-test dcheck failure");
+        // The message here needs to be different enough from the one above to
+        // avoid grouping the resulting test cases.
+        DCHECK_WITH_MSG(false,
+                        "A very different fake f-u-z-z-t-e-s-t dcheck failure");
         break;
       case 3:
         // Fake Heap-buffer-overflow.

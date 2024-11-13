@@ -172,7 +172,13 @@ class InstructionOperandConverter {
   }
 
   Simd128Register ToSimd128Register(InstructionOperand* op) {
-    return LocationOperand::cast(op)->GetSimd128Register();
+    LocationOperand* loc_op = LocationOperand::cast(op);
+#ifdef V8_TARGET_ARCH_X64
+    if (loc_op->IsSimd256Register()) {
+      return loc_op->GetSimd256RegisterAsSimd128();
+    }
+#endif
+    return loc_op->GetSimd128Register();
   }
 
 #if defined(V8_TARGET_ARCH_X64)

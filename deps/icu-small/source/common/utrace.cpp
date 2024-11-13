@@ -138,7 +138,7 @@ static void outputHexBytes(int64_t val, int32_t charsToOutput,
 static void outputPtrBytes(void *val, char *outBuf, int32_t *outIx, int32_t capacity) {
     uint32_t  i;
     int32_t  incVal = 1;              /* +1 for big endian, -1 for little endian          */
-    char     *p     = (char *)&val;   /* point to current byte to output in the ptr val  */
+    char* p = reinterpret_cast<char*>(&val); /* point to current byte to output in the ptr val  */
 
 #if !U_IS_BIG_ENDIAN
     /* Little Endian.  Move p to most significant end of the value      */
@@ -233,7 +233,7 @@ utrace_vformat(char *outBuf, int32_t capacity, int32_t indent, const char *fmt, 
         case 'S':
             /* char16_t * string, with length, len==-1 for NUL terminated. */
             ptrArg = va_arg(args, char *);             /* Ptr    */
-            intArg =(int32_t)va_arg(args, int32_t);    /* Length */
+            intArg = va_arg(args, int32_t);            /* Length */
             outputUString((const char16_t *)ptrArg, intArg, outBuf, &outIx, capacity, indent);
             break;
 
@@ -298,7 +298,7 @@ utrace_vformat(char *outBuf, int32_t capacity, int32_t indent, const char *fmt, 
                 i32Ptr = (int32_t *)i8Ptr;
                 i64Ptr = (int64_t *)i8Ptr;
                 ptrPtr = (void **)i8Ptr;
-                vectorLen =(int32_t)va_arg(args, int32_t);
+                vectorLen = va_arg(args, int32_t);
                 if (ptrPtr == nullptr) {
                     outputString("*NULL* ", outBuf, &outIx, capacity, indent);
                 } else {

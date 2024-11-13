@@ -311,7 +311,9 @@ enum VectorFormat {
   kFormatB = NEON_B | NEONScalar,
   kFormatH = NEON_H | NEONScalar,
   kFormatS = NEON_S | NEONScalar,
-  kFormatD = NEON_D | NEONScalar
+  kFormatD = NEON_D | NEONScalar,
+
+  kFormat1Q = 0xfffffffd
 };
 
 VectorFormat VectorFormatHalfWidth(VectorFormat vform);
@@ -384,6 +386,9 @@ class VRegister : public CPURegister {
   VRegister V1D() const {
     return VRegister::Create(code(), kDRegSizeInBits, 1);
   }
+  VRegister V1Q() const {
+    return VRegister::Create(code(), kQRegSizeInBits, 1);
+  }
 
   VRegister Format(VectorFormat f) const {
     return VRegister::Create(code(), f);
@@ -397,6 +402,7 @@ class VRegister : public CPURegister {
   bool Is4S() const { return (Is128Bits() && (lane_count_ == 4)); }
   bool Is1D() const { return (Is64Bits() && (lane_count_ == 1)); }
   bool Is2D() const { return (Is128Bits() && (lane_count_ == 2)); }
+  bool Is1Q() const { return (Is128Bits() && (lane_count_ == 1)); }
 
   // For consistency, we assert the number of lanes of these scalar registers,
   // even though there are no vectors of equivalent total size with which they

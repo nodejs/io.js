@@ -59,6 +59,17 @@ bool IsFaultAddressCovered(uintptr_t fault_addr) {
       // ProtectedInstructionData::instr_offset.
       TH_DCHECK(base + offset == fault_addr);
 
+#ifdef V8_ENABLE_DRUMBRAKE
+      // Ignore the protected instruction offsets if we are running in the Wasm
+      // interpreter.
+      if (data->num_protected_instructions == 0) {
+        gRecoveredTrapCount.store(
+            gRecoveredTrapCount.load(std::memory_order_relaxed) + 1,
+            std::memory_order_relaxed);
+        return true;
+      }
+#endif  // V8_ENABLE_DRUMBRAKE
+
       for (unsigned j = 0; j < data->num_protected_instructions; ++j) {
         if (data->instructions[j].instr_offset == offset) {
           // Hurray again, we found the actual instruction.
@@ -72,6 +83,16 @@ bool IsFaultAddressCovered(uintptr_t fault_addr) {
     }
   }
   return false;
+}
+
+bool IsAccessedMemoryCovered(uintptr_t addr) {
+  // Check if the access is inside the V8 sandbox (if it is enabled) as all Wasm
+  // Memory objects must be located inside the sandbox.
+  if (gV8SandboxSize > 0) {
+    return addr >= gV8SandboxBase && addr < (gV8SandboxBase + gV8SandboxSize);
+  }
+
+  return true;
 }
 #endif  // V8_TRAP_HANDLER_SUPPORTED
 

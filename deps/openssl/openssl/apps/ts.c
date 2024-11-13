@@ -1,5 +1,5 @@
 /*
- * Copyright 2006-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2006-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -535,15 +535,18 @@ static int create_digest(BIO *input, const char *digest, const EVP_MD *md,
 
         *md_value = OPENSSL_hexstr2buf(digest, &digest_len);
         if (*md_value == NULL || md_value_len != digest_len) {
-            OPENSSL_free(*md_value);
-            *md_value = NULL;
             BIO_printf(bio_err, "bad digest, %d bytes "
                        "must be specified\n", md_value_len);
-            return 0;
+            goto err;
         }
     }
     rv = md_value_len;
  err:
+    if (rv <= 0) {
+        OPENSSL_free(*md_value);
+        *md_value = NULL;
+        rv = 0;
+    }
     EVP_MD_CTX_free(md_ctx);
     return rv;
 }

@@ -14,11 +14,9 @@
 
 #include "absl/algorithm/algorithm.h"
 
-#include <algorithm>
-#include <list>
+#include <array>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/config.h"
 
@@ -46,5 +44,17 @@ TEST_F(LinearSearchTest, linear_searchConst) {
   EXPECT_FALSE(
       absl::linear_search(const_container->begin(), const_container->end(), 4));
 }
+
+#if defined(ABSL_INTERNAL_CPLUSPLUS_LANG) && \
+    ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+
+TEST_F(LinearSearchTest, Constexpr) {
+  static constexpr std::array<int, 3> kArray = {1, 2, 3};
+  static_assert(absl::linear_search(kArray.begin(), kArray.end(), 3));
+  static_assert(!absl::linear_search(kArray.begin(), kArray.end(), 4));
+}
+
+#endif  // defined(ABSL_INTERNAL_CPLUSPLUS_LANG) &&
+        //  ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
 
 }  // namespace

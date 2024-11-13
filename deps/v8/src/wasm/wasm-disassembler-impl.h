@@ -232,12 +232,13 @@ class V8_EXPORT_PRIVATE FunctionBodyDisassembler
 
   FunctionBodyDisassembler(Zone* zone, const WasmModule* module,
                            uint32_t func_index, bool shared,
-                           WasmFeatures* detected, const FunctionSig* sig,
-                           const uint8_t* start, const uint8_t* end,
-                           uint32_t offset, const ModuleWireBytes wire_bytes,
+                           WasmDetectedFeatures* detected,
+                           const FunctionSig* sig, const uint8_t* start,
+                           const uint8_t* end, uint32_t offset,
+                           const ModuleWireBytes wire_bytes,
                            NamesProvider* names)
-      : WasmDecoder<ValidationTag>(zone, module, WasmFeatures::All(), detected,
-                                   sig, shared, start, end, offset),
+      : WasmDecoder<ValidationTag>(zone, module, WasmEnabledFeatures::All(),
+                                   detected, sig, shared, start, end, offset),
         func_index_(func_index),
         wire_bytes_(wire_bytes),
         names_(names) {}

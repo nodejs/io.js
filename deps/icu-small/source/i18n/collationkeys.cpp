@@ -126,15 +126,15 @@ private:
 
 void SortKeyLevel::appendByte(uint32_t b) {
     if(len < buffer.getCapacity() || ensureCapacity(1)) {
-        buffer[len++] = (uint8_t)b;
+        buffer[len++] = static_cast<uint8_t>(b);
     }
 }
 
 void
 SortKeyLevel::appendWeight16(uint32_t w) {
     U_ASSERT((w & 0xffff) != 0);
-    uint8_t b0 = (uint8_t)(w >> 8);
-    uint8_t b1 = (uint8_t)w;
+    uint8_t b0 = static_cast<uint8_t>(w >> 8);
+    uint8_t b1 = static_cast<uint8_t>(w);
     int32_t appendLength = (b1 == 0) ? 1 : 2;
     if((len + appendLength) <= buffer.getCapacity() || ensureCapacity(appendLength)) {
         buffer[len++] = b0;
@@ -147,7 +147,12 @@ SortKeyLevel::appendWeight16(uint32_t w) {
 void
 SortKeyLevel::appendWeight32(uint32_t w) {
     U_ASSERT(w != 0);
-    uint8_t bytes[4] = { (uint8_t)(w >> 24), (uint8_t)(w >> 16), (uint8_t)(w >> 8), (uint8_t)w };
+    uint8_t bytes[4] = {
+        static_cast<uint8_t>(w >> 24),
+        static_cast<uint8_t>(w >> 16),
+        static_cast<uint8_t>(w >> 8),
+        static_cast<uint8_t>(w)
+    };
     int32_t appendLength = (bytes[1] == 0) ? 1 : (bytes[2] == 0) ? 2 : (bytes[3] == 0) ? 3 : 4;
     if((len + appendLength) <= buffer.getCapacity() || ensureCapacity(appendLength)) {
         buffer[len++] = bytes[0];
@@ -166,8 +171,8 @@ SortKeyLevel::appendWeight32(uint32_t w) {
 void
 SortKeyLevel::appendReverseWeight16(uint32_t w) {
     U_ASSERT((w & 0xffff) != 0);
-    uint8_t b0 = (uint8_t)(w >> 8);
-    uint8_t b1 = (uint8_t)w;
+    uint8_t b0 = static_cast<uint8_t>(w >> 8);
+    uint8_t b1 = static_cast<uint8_t>(w);
     int32_t appendLength = (b1 == 0) ? 1 : 2;
     if((len + appendLength) <= buffer.getCapacity() || ensureCapacity(appendLength)) {
         if(b1 == 0) {
@@ -238,7 +243,7 @@ CollationKeys::writeSortKeyUpToQuaternary(CollationIterator &iter,
         levels |= Collation::CASE_LEVEL_FLAG;
     }
     // Minus the levels below minLevel.
-    levels &= ~(((uint32_t)1 << minLevel) - 1);
+    levels &= ~((static_cast<uint32_t>(1) << minLevel) - 1);
     if(levels == 0) { return; }
 
     uint32_t variableTop;
@@ -269,7 +274,7 @@ CollationKeys::writeSortKeyUpToQuaternary(CollationIterator &iter,
         // No need to keep all CEs in the buffer when we write a sort key.
         iter.clearCEsIfNoneRemaining();
         int64_t ce = iter.nextCE(errorCode);
-        uint32_t p = (uint32_t)(ce >> 32);
+        uint32_t p = static_cast<uint32_t>(ce >> 32);
         if(p < variableTop && p > Collation::MERGE_SEPARATOR_PRIMARY) {
             // Variable CE, shift it to quaternary level.
             // Ignore all following primary ignorables, and shift further variable CEs.
@@ -297,7 +302,7 @@ CollationKeys::writeSortKeyUpToQuaternary(CollationIterator &iter,
                 }
                 do {
                     ce = iter.nextCE(errorCode);
-                    p = (uint32_t)(ce >> 32);
+                    p = static_cast<uint32_t>(ce >> 32);
                 } while(p == 0);
             } while(p < variableTop && p > Collation::MERGE_SEPARATOR_PRIMARY);
         }
@@ -331,9 +336,9 @@ CollationKeys::writeSortKeyUpToQuaternary(CollationIterator &iter,
                     prevReorderedPrimary = 0;
                 }
             }
-            char p2 = (char)(p >> 16);
+            char p2 = static_cast<char>(p >> 16);
             if(p2 != 0) {
-                char buffer[3] = { p2, (char)(p >> 8), (char)p };
+                char buffer[3] = {p2, static_cast<char>(p >> 8), static_cast<char>(p)};
                 sink.Append(buffer, (buffer[1] == 0) ? 1 : (buffer[2] == 0) ? 2 : 3);
             }
             // Optimization for internalNextSortKeyPart():
@@ -347,7 +352,7 @@ CollationKeys::writeSortKeyUpToQuaternary(CollationIterator &iter,
             }
         }
 
-        uint32_t lower32 = (uint32_t)ce;
+        uint32_t lower32 = static_cast<uint32_t>(ce);
         if(lower32 == 0) { continue; }  // completely ignorable, no secondary/case/tertiary/quaternary
 
         if((levels & Collation::SECONDARY_LEVEL_FLAG) != 0) {
@@ -635,7 +640,7 @@ CollationKeys::writeSortKeyUpToQuaternary(CollationIterator &iter,
         int32_t length = cases.length() - 1;  // Ignore the trailing NO_CE.
         uint8_t b = 0;
         for(int32_t i = 0; i < length; ++i) {
-            uint8_t c = (uint8_t)cases[i];
+            uint8_t c = cases[i];
             U_ASSERT((c & 0xf) == 0 && c != 0);
             if(b == 0) {
                 b = c;

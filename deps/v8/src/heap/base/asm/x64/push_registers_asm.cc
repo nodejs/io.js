@@ -14,60 +14,16 @@
 
 // Do not depend on V8_TARGET_OS_* defines as some embedders may override the
 // GN toolchain (e.g. ChromeOS) and not provide them.
-// _WIN64 Defined as 1 when the compilation target is 64-bit ARM or x64.
-// Otherwise, undefined.
-#ifdef _WIN64
-
-// We maintain 16-byte alignment at calls. There is an 8-byte return address
-// on the stack and we push 232 bytes which maintains 16-byte stack alignment
-// at the call.
-// Source: https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
-asm(".globl PushAllRegistersAndIterateStack             \n"
-    "PushAllRegistersAndIterateStack:                   \n"
-    // rbp is callee-saved. Maintain proper frame pointer for debugging.
-    "  push %rbp                                        \n"
-    "  mov %rsp, %rbp                                   \n"
-    // Dummy for alignment.
-    "  push $0xCDCDCD                                   \n"
-    "  push %rsi                                        \n"
-    "  push %rdi                                        \n"
-    "  push %rbx                                        \n"
-    "  push %r12                                        \n"
-    "  push %r13                                        \n"
-    "  push %r14                                        \n"
-    "  push %r15                                        \n"
-    "  sub $160, %rsp                                   \n"
-    // Use aligned instrs as we are certain that the stack is properly aligned.
-    "  movdqa %xmm6, 144(%rsp)                          \n"
-    "  movdqa %xmm7, 128(%rsp)                          \n"
-    "  movdqa %xmm8, 112(%rsp)                          \n"
-    "  movdqa %xmm9, 96(%rsp)                           \n"
-    "  movdqa %xmm10, 80(%rsp)                          \n"
-    "  movdqa %xmm11, 64(%rsp)                          \n"
-    "  movdqa %xmm12, 48(%rsp)                          \n"
-    "  movdqa %xmm13, 32(%rsp)                          \n"
-    "  movdqa %xmm14, 16(%rsp)                          \n"
-    "  movdqa %xmm15, (%rsp)                            \n"
-    // Pass 1st parameter (rcx) unchanged (Stack*).
-    // Pass 2nd parameter (rdx) unchanged (StackVisitor*).
-    // Save 3rd parameter (r8; IterateStackCallback)
-    "  mov %r8, %r9                                     \n"
-    // Pass 3rd parameter as rsp (stack pointer).
-    "  mov %rsp, %r8                                    \n"
-    // Call the callback.
-    "  call *%r9                                        \n"
-    // Pop the callee-saved registers.
-    "  add $224, %rsp                                   \n"
-    // Restore rbp as it was used as frame pointer.
-    "  pop %rbp                                         \n"
-    "  ret                                              \n");
-
-#else  // !_WIN64
 
 // We maintain 16-byte alignment at calls. There is an 8-byte return address
 // on the stack and we push 56 bytes which maintains 16-byte stack alignment
 // at the call.
 // Source: https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf
+
+#ifdef _WIN64
+#error "The masm based version must be used for Windows"
+#endif
+
 asm(
 #ifdef __APPLE__
     ".globl _PushAllRegistersAndIterateStack            \n"
@@ -101,6 +57,10 @@ asm(
     "  add $48, %rsp                                    \n"
     // Restore rbp as it was used as frame pointer.
     "  pop %rbp                                         \n"
-    "  ret                                              \n");
-
-#endif  // !_WIN64
+    "  ret                                              \n"
+#if !defined(__APPLE__)
+    ".Lfunc_end0:                                       \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack        \n"
+#endif  // !defined(__APPLE__)
+    );

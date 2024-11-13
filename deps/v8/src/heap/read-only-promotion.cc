@@ -129,7 +129,7 @@ class Committee final {
     const InstanceType itype = o->map(isolate)->instance_type();
 #define V(TYPE)                                            \
   if (InstanceTypeChecker::Is##TYPE(itype)) {              \
-    return IsPromoCandidate##TYPE(isolate, TYPE::cast(o)); \
+    return IsPromoCandidate##TYPE(isolate, Cast<TYPE>(o)); \
     /* NOLINTNEXTLINE(readability/braces) */               \
   } else
     PROMO_CANDIDATE_TYPE_LIST(V)
@@ -279,6 +279,10 @@ class ReadOnlyPromotionImpl final : public AllStatic {
           rospace->AllocateRaw(size, kTaggedAligned).ToObjectChecked();
       Heap::CopyBlock(dst.address(), src.address(), size);
       moves->emplace(src, dst);
+
+      if (V8_UNLIKELY(v8_flags.trace_read_only_promotion_verbose)) {
+        LogPromotedObject(src, dst);
+      }
     }
   }
 
@@ -333,7 +337,8 @@ class ReadOnlyPromotionImpl final : public AllStatic {
     //
     // Known objects.
     Heap* heap = isolate->heap();
-    CHECK(InReadOnlySpace(heap->promise_all_resolve_element_shared_fun()));
+    CHECK(InReadOnlySpace(
+        heap->promise_all_resolve_element_closure_shared_fun()));
     // TODO(jgruber): Extend here with more objects as they are added to
     // the promotion algorithm.
 
@@ -352,9 +357,14 @@ class ReadOnlyPromotionImpl final : public AllStatic {
    public:
     UpdatePointersVisitor(Isolate* isolate, const HeapObjectMap* moves)
         : isolate_(isolate), moves_(moves) {
-      for (auto [src, dst] : *moves_) {
-        moves_reverse_lookup_.emplace(dst, src);
+#ifdef V8_ENABLE_SANDBOX
+      for (auto [_src, dst] : *moves_) {
+        promoted_objects_.emplace(dst);
+        if (IsCode(dst)) {
+          PromoteCodePointerEntryFor(Cast<Code>(dst));
+        }
       }
+#endif  // V8_ENABLE_SANDBOX
     }
 
     // The RootVisitor interface.
@@ -386,8 +396,7 @@ class ReadOnlyPromotionImpl final : public AllStatic {
     void VisitExternalPointer(Tagged<HeapObject> host,
                               ExternalPointerSlot slot) final {
 #ifdef V8_ENABLE_SANDBOX
-      auto it = moves_reverse_lookup_.find(host);
-      if (it == moves_reverse_lookup_.end()) return;
+      if (promoted_objects_.find(host) == promoted_objects_.end()) return;
 
       // If we reach here, `host` is a moved object with external pointer slots
       // located in RO space. To preserve the 1:1 relation between slots and
@@ -395,7 +404,7 @@ class ReadOnlyPromotionImpl final : public AllStatic {
       // read_only_external_pointer_space) now.
       RecordProcessedSlotIfDebug(slot.address());
       Address slot_value = slot.load(isolate_);
-      slot.init(isolate_, slot_value);
+      slot.init(isolate_, host, slot_value);
 
       if (V8_UNLIKELY(v8_flags.trace_read_only_promotion_verbose)) {
         LogUpdatedExternalPointerTableEntry(host, slot, slot_value);
@@ -403,54 +412,20 @@ class ReadOnlyPromotionImpl final : public AllStatic {
 #endif  // V8_ENABLE_SANDBOX
     }
     void VisitIndirectPointer(Tagged<HeapObject> host, IndirectPointerSlot slot,
-                              IndirectPointerMode mode) final {}
+                              IndirectPointerMode mode) final {
+#ifdef V8_ENABLE_SANDBOX
+      if (slot.tag() == kCodeIndirectPointerTag) {
+        VisitCodePointer(host, slot);
+      }
+#endif  // V8_ENABLE_SANDBOX
+    }
     void VisitTrustedPointerTableEntry(Tagged<HeapObject> host,
                                        IndirectPointerSlot slot) final {
 #ifdef V8_ENABLE_SANDBOX
-      // When an object owning an pointer table entry is relocated, it
-      // needs to update the entry to point to its new location.
-
-      // Check if the host object was promoted and moved to RO space. Due to
-      // the way we handle baseline code during serialization (we manually skip
-      // over them), we may for example encounter live Code objects in mutable
-      // space during iteration, which will also be ignored here.
-      auto it = moves_reverse_lookup_.find(host);
-      if (it == moves_reverse_lookup_.end()) return;
-
-      // If we reach here, `host` is a moved object located in RO space.
-      CHECK(InReadOnlySpace(host));
-      RecordProcessedSlotIfDebug(slot.address());
-
-      Tagged<ExposedTrustedObject> dead_object =
-          ExposedTrustedObject::cast(it->second);
-      CHECK(IsExposedTrustedObject(dead_object));
-      CHECK(!InReadOnlySpace(dead_object));
-
-      // Currently, only Code objects are RO promotion candidates and are
-      // referenced through indirect pointers. Code objects always use the code
-      // pointer table.
       if (slot.tag() == kCodeIndirectPointerTag) {
-        CHECK(IsCode(host));
-        CHECK(IsCode(dead_object));
-
-        IndirectPointerHandle handle = slot.Relaxed_LoadHandle();
-        CodePointerTable* cpt = GetProcessWideCodePointerTable();
-        CHECK_EQ(dead_object, Tagged<Object>(cpt->GetCodeObject(handle)));
-
-        // Update the table entry to point at the moved RO object.
-        cpt->SetCodeObject(handle, host.address());
-
-        if (V8_UNLIKELY(v8_flags.trace_read_only_promotion_verbose)) {
-          LogUpdatedCodePointerTableEntry(host, slot, Code::cast(dead_object));
-        }
-      } else {
-        // If we ever need to handle objects other than Code here, we would
-        // simply need to use the trusted pointer table for them instead.
-        UNREACHABLE();
+        VisitCodePointer(host, slot);
       }
-#else
-      UNREACHABLE();
-#endif
+#endif  // V8_ENABLE_SANDBOX
     }
     void VisitRootPointers(Root root, const char* description,
                            OffHeapObjectSlot start,
@@ -461,18 +436,18 @@ class ReadOnlyPromotionImpl final : public AllStatic {
       for (OffHeapObjectSlot slot = start; slot < end; slot++) {
         Tagged<Object> o = slot.load(isolate_);
         if (!IsHeapObject(o)) continue;
-        CHECK(!Contains(*moves_, HeapObject::cast(o)));
+        CHECK(!Contains(*moves_, Cast<HeapObject>(o)));
       }
     }
 
    private:
     void ProcessSlot(Root root, FullObjectSlot slot) {
       Tagged<Object> old_slot_value_obj = slot.load(isolate_);
-#ifdef V8_ENABLE_DIRECT_LOCAL
+#ifdef V8_ENABLE_DIRECT_HANDLE
       if (old_slot_value_obj.ptr() == kTaggedNullAddress) return;
 #endif
       if (!IsHeapObject(old_slot_value_obj)) return;
-      Tagged<HeapObject> old_slot_value = HeapObject::cast(old_slot_value_obj);
+      Tagged<HeapObject> old_slot_value = Cast<HeapObject>(old_slot_value_obj);
       auto it = moves_->find(old_slot_value);
       if (it == moves_->end()) return;
       Tagged<HeapObject> new_slot_value = it->second;
@@ -492,6 +467,54 @@ class ReadOnlyPromotionImpl final : public AllStatic {
         LogUpdatedPointer(host, slot, old_slot_value, new_slot_value);
       }
     }
+
+#ifdef V8_ENABLE_SANDBOX
+    void VisitCodePointer(Tagged<HeapObject> host, IndirectPointerSlot slot) {
+      CHECK_EQ(kCodeIndirectPointerTag, slot.tag());
+      IndirectPointerHandle old_handle = slot.Relaxed_LoadHandle();
+      auto it = code_pointer_moves_.find(old_handle);
+      if (it == code_pointer_moves_.end()) return;
+
+      // If we reach here, `host` is a moved object with a code pointer slot
+      // located in RO space. To preserve the 1:1 relation between slots and
+      // table entries, we need to use the relocated code pointer table entry.
+      RecordProcessedSlotIfDebug(slot.address());
+      IndirectPointerHandle new_handle = it->second;
+      slot.Relaxed_StoreHandle(new_handle);
+
+      if (V8_UNLIKELY(v8_flags.trace_read_only_promotion_verbose)) {
+        LogUpdatedCodePointerTableEntry(host, slot, old_handle, new_handle);
+      }
+    }
+
+    void PromoteCodePointerEntryFor(Tagged<Code> code) {
+      // If we reach here, `code` is a moved Code object located in RO space.
+      CHECK(InReadOnlySpace(code));
+
+      IndirectPointerSlot slot = code->RawIndirectPointerField(
+          Code::kSelfIndirectPointerOffset, kCodeIndirectPointerTag);
+      CodeEntrypointTag entrypoint_tag = code->entrypoint_tag();
+
+      IndirectPointerHandle old_handle = slot.Relaxed_LoadHandle();
+      CodePointerTable* cpt = GetProcessWideCodePointerTable();
+
+      // To preserve the 1:1 relation between slots and code table entries,
+      // allocate a new entry (in the code_pointer_space of the RO heap) now.
+      // The slot will be updated later, when the Code object is visited.
+      CodePointerTable::Space* space =
+          IsolateForSandbox(isolate_).GetCodePointerTableSpaceFor(
+              slot.address());
+      IndirectPointerHandle new_handle = cpt->AllocateAndInitializeEntry(
+          space, code.address(), cpt->GetEntrypoint(old_handle, entrypoint_tag),
+          entrypoint_tag);
+
+      code_pointer_moves_.emplace(old_handle, new_handle);
+
+      if (V8_UNLIKELY(v8_flags.trace_read_only_promotion_verbose)) {
+        LogPromotedCodePointerTableEntry(code, old_handle, new_handle);
+      }
+    }
+#endif  // V8_ENABLE_SANDBOX
 
     void LogUpdatedPointer(Root root, FullObjectSlot slot,
                            Tagged<HeapObject> old_slot_value,
@@ -521,11 +544,13 @@ class ReadOnlyPromotionImpl final : public AllStatic {
     }
     void LogUpdatedCodePointerTableEntry(Tagged<HeapObject> host,
                                          IndirectPointerSlot slot,
-                                         Tagged<Code> old_code_object) {
+                                         IndirectPointerHandle old_handle,
+                                         IndirectPointerHandle new_handle) {
       std::cout << "ro-promotion: updated code pointer table entry {host "
                 << reinterpret_cast<void*>(host.address()) << " slot "
                 << reinterpret_cast<void*>(slot.address()) << " from "
-                << reinterpret_cast<void*>(old_code_object.ptr()) << "}\n";
+                << AsHex(old_handle, 8, true) << " to "
+                << AsHex(new_handle, 8, true) << "}\n";
     }
 
 #ifdef DEBUG
@@ -541,8 +566,36 @@ class ReadOnlyPromotionImpl final : public AllStatic {
 
     Isolate* const isolate_;
     const HeapObjectMap* moves_;
-    HeapObjectMap moves_reverse_lookup_;
+
+#ifdef V8_ENABLE_SANDBOX
+    HeapObjectSet promoted_objects_;
+
+    // When an object owning an pointer table entry is relocated to the RO
+    // space, it cannot just update the entry to point to its new location
+    // (see b/330450848). A new pointer table entry must be allocated for the
+    // relocated object, in a RO segment of the table.
+
+    using IndirectPointerHandleMap =
+        std::unordered_map<IndirectPointerHandle, IndirectPointerHandle>;
+    IndirectPointerHandleMap code_pointer_moves_;
+#endif  // V8_ENABLE_SANDBOX
   };
+
+  static void LogPromotedObject(Tagged<HeapObject> src,
+                                Tagged<HeapObject> dst) {
+    std::cout << "ro-promotion: promoted object {from "
+              << reinterpret_cast<void*>(src.ptr()) << " to "
+              << reinterpret_cast<void*>(dst.ptr()) << "}\n";
+  }
+
+  static void LogPromotedCodePointerTableEntry(
+      Tagged<Code> code, IndirectPointerHandle old_handle,
+      IndirectPointerHandle new_handle) {
+    std::cout << "ro-promotion: promoted code pointer table entry {code "
+              << reinterpret_cast<void*>(code.ptr()) << " slot "
+              << AsHex(old_handle, 8, true) << " to "
+              << AsHex(new_handle, 8, true) << "}\n";
+  }
 };
 
 }  // namespace

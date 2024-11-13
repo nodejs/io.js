@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-array-grouping
-
 var array = [-0, 1, 0, 2];
 var group = () => {
   let result = Object.groupBy(array, v => v > 0);

@@ -10,6 +10,8 @@
     "path-env": "path-env",
     "path-env-windows": "path-env.bat",
     "special-env-variables": "special-env-variables",
-    "special-env-variables-windows": "special-env-variables.bat"
+    "special-env-variables-windows": "special-env-variables.bat",
+    "pwd": "pwd",
+    "pwd-windows": "cd"
   }
 }

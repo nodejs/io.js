@@ -44,7 +44,7 @@ class JSNumberFormat
  public:
   // ecma402/#sec-initializenumberformat
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSNumberFormat> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
       Handle<Object> options, const char* service);
 
   // ecma402/#sec-unwrapnumberformat
@@ -53,26 +53,26 @@ class JSNumberFormat
 
   // #sec-number-format-functions
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> NumberFormatFunction(
-      Isolate* isolate, Handle<JSNumberFormat> number_format,
+      Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
       Handle<Object> numeric_obj);
 
   // ecma402/#sec-intl.numberformat.prototype.resolvedoptions
-  static Handle<JSObject> ResolvedOptions(Isolate* isolate,
-                                          Handle<JSNumberFormat> number_format);
+  static Handle<JSObject> ResolvedOptions(
+      Isolate* isolate, DirectHandle<JSNumberFormat> number_format);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatToParts(
-      Isolate* isolate, Handle<JSNumberFormat> number_format,
+      Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
       Handle<Object> numeric_obj);
 
   // ecma402/#sec-formatnumericrange
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> FormatNumericRange(
-      Isolate* isolate, Handle<JSNumberFormat> number_format, Handle<Object> x,
-      Handle<Object> y);
+      Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
+      Handle<Object> x, Handle<Object> y);
 
   // ecma402/#sec-formatnumericrangetoparts
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatNumericRangeToParts(
-      Isolate* isolate, Handle<JSNumberFormat> number_format, Handle<Object> x,
-      Handle<Object> y);
+      Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
+      Handle<Object> x, Handle<Object> y);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<String> FormatNumeric(
       Isolate* isolate,

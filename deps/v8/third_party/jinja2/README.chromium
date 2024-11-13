@@ -22,3 +22,6 @@ Additional chromium-specific files are:
 * DIR_METADATA
 * jinja2.gni
 * .gitignore
+
+Patches:
+- Set create_system=3 (unix) to ZipInfo for cross platform determinism. (patches/0001-canonicalize-zipinfo-create-system)

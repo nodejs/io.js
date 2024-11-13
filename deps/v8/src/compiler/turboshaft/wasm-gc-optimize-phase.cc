@@ -12,11 +12,11 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void WasmGCOptimizePhase::Run(Zone* temp_zone) {
-  UnparkedScopeIfNeeded scope(PipelineData::Get().broker(),
+void WasmGCOptimizePhase::Run(PipelineData* data, Zone* temp_zone) {
+  UnparkedScopeIfNeeded scope(data->broker(),
                               v8_flags.turboshaft_trace_reduction);
   CopyingPhase<WasmLoadEliminationReducer, WasmGCTypedOptimizationReducer>::Run(
-      temp_zone);
+      data, temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

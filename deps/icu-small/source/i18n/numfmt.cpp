@@ -661,7 +661,7 @@ NumberFormat::format(int64_t number,
                      FieldPosition& pos) const
 {
     // default so we don't introduce a new abstract method
-    return format((int32_t)number, appendTo, pos);
+    return format(static_cast<int32_t>(number), appendTo, pos);
 }
 
 // -------------------------------------
@@ -861,7 +861,7 @@ public:
     virtual ~ICUNumberFormatFactory();
 protected:
     virtual UObject* handleCreate(const Locale& loc, int32_t kind, const ICUService* /* service */, UErrorCode& status) const override {
-        return NumberFormat::makeInstance(loc, (UNumberFormatStyle)kind, status);
+        return NumberFormat::makeInstance(loc, static_cast<UNumberFormatStyle>(kind), status);
     }
 };
 
@@ -893,7 +893,7 @@ public:
             lkey->canonicalLocale(loc);
             int32_t kind = lkey->kind();
 
-            UObject* result = _delegate->createFormat(loc, (UNumberFormatStyle)kind);
+            UObject* result = _delegate->createFormat(loc, static_cast<UNumberFormatStyle>(kind));
             if (result == nullptr) {
                 result = service->getKey(const_cast<ICUServiceKey&>(key) /* cast away const */, nullptr, this, status);
             }
@@ -914,7 +914,7 @@ protected:
             if (!_ids) {
                 int32_t count = 0;
                 const UnicodeString * const idlist = _delegate->getSupportedIDs(count, status);
-                ((NFFactory*)this)->_ids = new Hashtable(status); /* cast away const */
+                const_cast<NFFactory*>(this)->_ids = new Hashtable(status); /* cast away const */
                 if (_ids) {
                     for (int i = 0; i < count; ++i) {
                         _ids->put(idlist[i], (void*)this, status);
@@ -954,7 +954,7 @@ public:
         int32_t kind = lkey->kind();
         Locale loc;
         lkey->currentLocale(loc);
-        return NumberFormat::makeInstance(loc, (UNumberFormatStyle)kind, status);
+        return NumberFormat::makeInstance(loc, static_cast<UNumberFormatStyle>(kind), status);
     }
 
     virtual UBool isDefault() const override {
@@ -1216,7 +1216,7 @@ void NumberFormat::setContext(UDisplayContext value, UErrorCode& status)
 {
     if (U_FAILURE(status))
         return;
-    if ( (UDisplayContextType)((uint32_t)value >> 8) == UDISPCTX_TYPE_CAPITALIZATION ) {
+    if (static_cast<UDisplayContextType>(static_cast<uint32_t>(value) >> 8) == UDISPCTX_TYPE_CAPITALIZATION) {
         fCapitalizationContext = value;
     } else {
         status = U_ILLEGAL_ARGUMENT_ERROR;
@@ -1227,10 +1227,10 @@ void NumberFormat::setContext(UDisplayContext value, UErrorCode& status)
 UDisplayContext NumberFormat::getContext(UDisplayContextType type, UErrorCode& status) const
 {
     if (U_FAILURE(status))
-        return (UDisplayContext)0;
+        return static_cast<UDisplayContext>(0);
     if (type != UDISPCTX_TYPE_CAPITALIZATION) {
         status = U_ILLEGAL_ARGUMENT_ERROR;
-        return (UDisplayContext)0;
+        return static_cast<UDisplayContext>(0);
     }
     return fCapitalizationContext;
 }
@@ -1378,7 +1378,7 @@ NumberFormat::makeInstance(const Locale& desiredLocale,
 
         static UMutex nscacheMutex;
         Mutex lock(&nscacheMutex);
-        ns = (NumberingSystem *)uhash_iget(NumberingSystem_cache, hashKey);
+        ns = static_cast<NumberingSystem*>(uhash_iget(NumberingSystem_cache, hashKey));
         if (ns == nullptr) {
             ns = NumberingSystem::createInstance(desiredLocale,status);
             uhash_iput(NumberingSystem_cache, hashKey, (void*)ns, &status);

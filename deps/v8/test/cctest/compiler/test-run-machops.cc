@@ -5181,7 +5181,7 @@ TEST(RunRefDiamond) {
   RawMachineAssemblerTester<int32_t> m;
 
   const int magic = 99644;
-  Handle<String> rexpected =
+  DirectHandle<String> rexpected =
       CcTest::i_isolate()->factory()->InternalizeUtf8String("A");
   Tagged<String> buffer;
 
@@ -5216,7 +5216,7 @@ TEST(RunDoubleRefDiamond) {
   const int magic = 99648;
   double dbuffer = 0.1;
   double dconstant = 99.99;
-  Handle<String> rexpected =
+  DirectHandle<String> rexpected =
       CcTest::i_isolate()->factory()->InternalizeUtf8String("AX");
   Tagged<String> rbuffer;
 
@@ -5257,7 +5257,7 @@ TEST(RunDoubleRefDoubleDiamond) {
   const int magic = 99649;
   double dbuffer = 0.1;
   double dconstant = 99.997;
-  Handle<String> rexpected =
+  DirectHandle<String> rexpected =
       CcTest::i_isolate()->factory()->InternalizeUtf8String("AD");
   Tagged<String> rbuffer;
 

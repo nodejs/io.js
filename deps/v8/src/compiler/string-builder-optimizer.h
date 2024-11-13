@@ -6,11 +6,11 @@
 #define V8_COMPILER_STRING_BUILDER_OPTIMIZER_H_
 
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/compiler/graph-assembler.h"
 #include "src/compiler/graph-reducer.h"
 #include "src/compiler/js-graph.h"
@@ -203,7 +203,7 @@ class OneOrTwoByteAnalysis final {
   // 1-byte string. The analysis is sound (it doesn't make mistake), but is not
   // complete (it bails out (returns nullopt) on operators that are not
   // handled).
-  base::Optional<std::pair<int64_t, int64_t>> TryGetRange(Node* node);
+  std::optional<std::pair<int64_t, int64_t>> TryGetRange(Node* node);
 
   JSHeapBroker* broker() { return broker_; }
 
@@ -363,7 +363,7 @@ class V8_EXPORT_PRIVATE StringBuilderOptimizer final {
   // SlicedString indirection; the only thing that would be an issue is that the
   // rest of the VM could have access to a SlicedString that is less than
   // SlicedString::kMinLength characters, which may or may not break things).
-  ZoneVector<base::Optional<ZoneVector<Node*>>> blocks_to_trimmings_map_;
+  ZoneVector<std::optional<ZoneVector<Node*>>> blocks_to_trimmings_map_;
   ZoneVector<Status> status_;
   ZoneVector<StringBuilder> string_builders_;
   // {loop_headers_} is used to keep track ot the start of each loop that the

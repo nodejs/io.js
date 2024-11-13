@@ -427,7 +427,7 @@ RuleBasedCollator::getAttribute(UColAttribute attr, UErrorCode &errorCode) const
         option = CollationSettings::CHECK_FCD;
         break;
     case UCOL_STRENGTH:
-        return (UColAttributeValue)settings->getStrength();
+        return static_cast<UColAttributeValue>(settings->getStrength());
     case UCOL_HIRAGANA_QUATERNARY_MODE:
         // Deprecated attribute, unsettable.
         return UCOL_OFF;
@@ -539,7 +539,7 @@ RuleBasedCollator::setMaxVariable(UColReorderCode group, UErrorCode &errorCode) 
     }
 
     if(group == UCOL_REORDER_CODE_DEFAULT) {
-        group = (UColReorderCode)(
+        group = static_cast<UColReorderCode>(
             UCOL_REORDER_CODE_FIRST + int32_t{defaultSettings.getMaxVariable()});
     }
     uint32_t varTop = data->getLastPrimaryForGroup(group);
@@ -558,7 +558,7 @@ RuleBasedCollator::setMaxVariable(UColReorderCode group, UErrorCode &errorCode) 
 
 UColReorderCode
 RuleBasedCollator::getMaxVariable() const {
-    return (UColReorderCode)(UCOL_REORDER_CODE_FIRST + int32_t{settings->getMaxVariable()});
+    return static_cast<UColReorderCode>(UCOL_REORDER_CODE_FIRST + int32_t{settings->getMaxVariable()});
 }
 
 uint32_t
@@ -593,7 +593,7 @@ RuleBasedCollator::setVariableTop(const char16_t *varTop, int32_t len, UErrorCod
         errorCode = U_CE_NOT_FOUND_ERROR;
         return 0;
     }
-    setVariableTop((uint32_t)(ce1 >> 32), errorCode);
+    setVariableTop(static_cast<uint32_t>(ce1 >> 32), errorCode);
     return settings->variableTop;
 }
 
@@ -862,7 +862,7 @@ public:
             s = text;
             limit = spanLimit;
         } else {
-            str.setTo(text, (int32_t)(spanLimit - text));
+            str.setTo(text, static_cast<int32_t>(spanLimit - text));
             {
                 ReorderingBuffer r_buffer(nfcImpl, str);
                 if(r_buffer.init(str.length(), errorCode)) {
@@ -1063,7 +1063,7 @@ RuleBasedCollator::doCompare(const char16_t *left, int32_t leftLength,
         }
     }
     if(result != UCOL_EQUAL || settings->getStrength() < UCOL_IDENTICAL || U_FAILURE(errorCode)) {
-        return (UCollationResult)result;
+        return static_cast<UCollationResult>(result);
     }
 
     // Note: If NUL-terminated, we could get the actual limits from the iterators now.
@@ -1188,7 +1188,7 @@ RuleBasedCollator::doCompare(const uint8_t *left, int32_t leftLength,
         }
     }
     if(result != UCOL_EQUAL || settings->getStrength() < UCOL_IDENTICAL || U_FAILURE(errorCode)) {
-        return (UCollationResult)result;
+        return static_cast<UCollationResult>(result);
     }
 
     // Note: If NUL-terminated, we could get the actual limits from the iterators now.
@@ -1364,13 +1364,13 @@ RuleBasedCollator::writeIdenticalLevel(const char16_t *s, const char16_t *limit,
     sink.Append(Collation::LEVEL_SEPARATOR_BYTE);
     UChar32 prev = 0;
     if(nfdQCYesLimit != s) {
-        prev = u_writeIdenticalLevelRun(prev, s, (int32_t)(nfdQCYesLimit - s), sink);
+        prev = u_writeIdenticalLevelRun(prev, s, static_cast<int32_t>(nfdQCYesLimit - s), sink);
     }
     // Is there non-NFD text?
     int32_t destLengthEstimate;
     if(limit != nullptr) {
         if(nfdQCYesLimit == limit) { return; }
-        destLengthEstimate = (int32_t)(limit - nfdQCYesLimit);
+        destLengthEstimate = static_cast<int32_t>(limit - nfdQCYesLimit);
     } else {
         // s is NUL-terminated
         if(*nfdQCYesLimit == 0) { return; }
@@ -1432,10 +1432,10 @@ RuleBasedCollator::internalNextSortKeyPart(UCharIterator *iter, uint32_t state[2
     if(count == 0) { return 0; }
 
     FixedSortKeyByteSink sink(reinterpret_cast<char *>(dest), count);
-    sink.IgnoreBytes((int32_t)state[1]);
+    sink.IgnoreBytes(static_cast<int32_t>(state[1]));
     iter->move(iter, 0, UITER_START);
 
-    Collation::Level level = (Collation::Level)state[0];
+    Collation::Level level = static_cast<Collation::Level>(state[0]);
     if(level <= Collation::QUATERNARY_LEVEL) {
         UBool numeric = settings->isNumeric();
         PartLevelCallback callback(sink);
@@ -1450,8 +1450,8 @@ RuleBasedCollator::internalNextSortKeyPart(UCharIterator *iter, uint32_t state[2
         }
         if(U_FAILURE(errorCode)) { return 0; }
         if(sink.NumberOfBytesAppended() > count) {
-            state[0] = (uint32_t)callback.getLevel();
-            state[1] = (uint32_t)callback.getLevelCapacity();
+            state[0] = static_cast<uint32_t>(callback.getLevel());
+            state[1] = static_cast<uint32_t>(callback.getLevelCapacity());
             return count;
         }
         // All of the normal levels are done.
@@ -1468,20 +1468,20 @@ RuleBasedCollator::internalNextSortKeyPart(UCharIterator *iter, uint32_t state[2
         for(;;) {
             UChar32 c = iter->next(iter);
             if(c < 0) { break; }
-            s.append((char16_t)c);
+            s.append(static_cast<char16_t>(c));
         }
         const char16_t *sArray = s.getBuffer();
         writeIdenticalLevel(sArray, sArray + s.length(), sink, errorCode);
         if(U_FAILURE(errorCode)) { return 0; }
         if(sink.NumberOfBytesAppended() > count) {
-            state[0] = (uint32_t)level;
-            state[1] = (uint32_t)levelCapacity;
+            state[0] = static_cast<uint32_t>(level);
+            state[1] = static_cast<uint32_t>(levelCapacity);
             return count;
         }
     }
 
     // ZERO_LEVEL: Fill the remainder of dest with 00 bytes.
-    state[0] = (uint32_t)Collation::ZERO_LEVEL;
+    state[0] = static_cast<uint32_t>(Collation::ZERO_LEVEL);
     state[1] = 0;
     int32_t length = sink.NumberOfBytesAppended();
     int32_t i = length;

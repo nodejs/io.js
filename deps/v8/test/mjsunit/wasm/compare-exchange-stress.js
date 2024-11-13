@@ -144,7 +144,7 @@ function spawnWorker(module, memory, address, sequence) {
     let workers = [];
     for (let i = 0; i < kNumberOfWorkers; i++) {
         let worker = new Worker(
-            `onmessage = function(msg) {
+            `onmessage = function({data:msg}) {
                 this.instance = new WebAssembly.Instance(msg.module,
                     {m: {imported_mem: msg.memory}});
                 instance.exports.worker(msg.address, msg.sequence,

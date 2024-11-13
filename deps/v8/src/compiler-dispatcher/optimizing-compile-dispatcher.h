@@ -23,6 +23,62 @@ class TurbofanCompilationJob;
 class RuntimeCallStats;
 class SharedFunctionInfo;
 
+// Circular queue of incoming recompilation tasks (including OSR).
+class V8_EXPORT OptimizingCompileDispatcherQueue {
+ public:
+  inline bool IsAvailable() {
+    base::MutexGuard access(&mutex_);
+    return length_ < capacity_;
+  }
+
+  inline int Length() {
+    base::MutexGuard access_queue(&mutex_);
+    return length_;
+  }
+
+  explicit OptimizingCompileDispatcherQueue(int capacity)
+      : capacity_(capacity), length_(0), shift_(0) {
+    queue_ = NewArray<TurbofanCompilationJob*>(capacity_);
+  }
+
+  ~OptimizingCompileDispatcherQueue() { DeleteArray(queue_); }
+
+  TurbofanCompilationJob* Dequeue() {
+    base::MutexGuard access(&mutex_);
+    if (length_ == 0) return nullptr;
+    TurbofanCompilationJob* job = queue_[QueueIndex(0)];
+    DCHECK_NOT_NULL(job);
+    shift_ = QueueIndex(1);
+    length_--;
+    return job;
+  }
+
+  void Enqueue(TurbofanCompilationJob* job) {
+    base::MutexGuard access(&mutex_);
+    DCHECK_LT(length_, capacity_);
+    queue_[QueueIndex(length_)] = job;
+    length_++;
+  }
+
+  void Flush(Isolate* isolate);
+
+  void Prioritize(Tagged<SharedFunctionInfo> function);
+
+ private:
+  inline int QueueIndex(int i) {
+    int result = (i + shift_) % capacity_;
+    DCHECK_LE(0, result);
+    DCHECK_LT(result, capacity_);
+    return result;
+  }
+
+  TurbofanCompilationJob** queue_;
+  int capacity_;
+  int length_;
+  int shift_;
+  base::Mutex mutex_;
+};
+
 class V8_EXPORT_PRIVATE OptimizingCompileDispatcher {
  public:
   explicit OptimizingCompileDispatcher(Isolate* isolate);
@@ -36,15 +92,7 @@ class V8_EXPORT_PRIVATE OptimizingCompileDispatcher {
   void AwaitCompileTasks();
   void InstallOptimizedFunctions();
 
-  inline bool IsQueueAvailable() {
-    base::MutexGuard access_input_queue(&input_queue_mutex_);
-    return input_queue_length_ < input_queue_capacity_;
-  }
-
-  inline int InputQueueLength() {
-    base::MutexGuard access_input_queue(&input_queue_mutex_);
-    return input_queue_length_;
-  }
+  inline bool IsQueueAvailable() { return input_queue_.IsAvailable(); }
 
   static bool Enabled() { return v8_flags.concurrent_recompilation; }
 
@@ -59,6 +107,8 @@ class V8_EXPORT_PRIVATE OptimizingCompileDispatcher {
     CHECK(!HasJobs());
     finalize_ = finalize;
   }
+
+  void Prioritize(Tagged<SharedFunctionInfo> function);
 
  private:
   class CompileTask;
@@ -75,21 +125,9 @@ class V8_EXPORT_PRIVATE OptimizingCompileDispatcher {
   void CompileNext(TurbofanCompilationJob* job, LocalIsolate* local_isolate);
   TurbofanCompilationJob* NextInput(LocalIsolate* local_isolate);
 
-  inline int InputQueueIndex(int i) {
-    int result = (i + input_queue_shift_) % input_queue_capacity_;
-    DCHECK_LE(0, result);
-    DCHECK_LT(result, input_queue_capacity_);
-    return result;
-  }
-
   Isolate* isolate_;
 
-  // Circular queue of incoming recompilation tasks (including OSR).
-  TurbofanCompilationJob** input_queue_;
-  int input_queue_capacity_;
-  int input_queue_length_;
-  int input_queue_shift_;
-  base::Mutex input_queue_mutex_;
+  OptimizingCompileDispatcherQueue input_queue_;
 
   // Queue of recompilation tasks ready to be installed (excluding OSR).
   std::queue<TurbofanCompilationJob*> output_queue_;

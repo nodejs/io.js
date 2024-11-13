@@ -6,6 +6,7 @@
 
 #include "src/base/memory.h"
 #include "src/heap/heap.h"
+#include "src/heap/memory-chunk-metadata-inl.h"
 #include "src/objects/slots-inl.h"
 
 namespace v8::internal::heap {

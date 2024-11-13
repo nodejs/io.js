@@ -747,3 +747,9 @@ let asyncTest = Promise.resolve();
   event.cancelBubble = true;
   strictEqual(event.cancelBubble, true);
 }
+
+{
+  // A null eventInitDict should not throw an error.
+  new Event('', null);
+  new Event('', undefined);
+}

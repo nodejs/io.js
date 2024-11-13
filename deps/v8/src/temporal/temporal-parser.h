@@ -5,11 +5,11 @@
 #ifndef V8_TEMPORAL_TEMPORAL_PARSER_H_
 #define V8_TEMPORAL_TEMPORAL_PARSER_H_
 
-#include "src/base/optional.h"
+#include <optional>
+
 #include "src/execution/isolate.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 /**
  * ParsedISO8601Result contains the parsed result of ISO 8601 grammar
@@ -133,8 +133,8 @@ struct ParsedISO8601Duration {
  */
 class V8_EXPORT_PRIVATE TemporalParser {
  public:
-#define DEFINE_PARSE_METHOD(R, NAME)                          \
-  V8_WARN_UNUSED_RESULT static base::Optional<R> Parse##NAME( \
+#define DEFINE_PARSE_METHOD(R, NAME)                         \
+  V8_WARN_UNUSED_RESULT static std::optional<R> Parse##NAME( \
       Isolate* isolate, Handle<String> iso_string)
   DEFINE_PARSE_METHOD(ParsedISO8601Result, TemporalDateString);
   DEFINE_PARSE_METHOD(ParsedISO8601Result, TemporalDateTimeString);
@@ -151,7 +151,6 @@ class V8_EXPORT_PRIVATE TemporalParser {
 };
 #undef DEFINE_PARSE_METHOD
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal
 
 #endif  // V8_TEMPORAL_TEMPORAL_PARSER_H_

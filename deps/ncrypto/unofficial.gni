@@ -14,6 +14,7 @@ template("ncrypto_gn_build") {
       "-Wno-deprecated-declarations",
       "-Wno-pessimizing-move",
       "-Wno-shadow",
+      "-Wno-unused-variable",
     ]
   }
 

@@ -116,7 +116,8 @@ TEST(ExternalString_ExternalBackingStoreSizeIncreasesMarkCompact) {
     v8::HandleScope handle_scope(isolate);
     v8::Local<v8::String> es = v8::String::NewExternalOneByte(
         isolate, new TestOneByteResource(i::StrDup(TEST_STR))).ToLocalChecked();
-    v8::internal::Handle<v8::internal::String> esh = v8::Utils::OpenHandle(*es);
+    v8::internal::DirectHandle<v8::internal::String> esh =
+        v8::Utils::OpenDirectHandle(*es);
 
     PageMetadata* page_before_gc = PageMetadata::FromHeapObject(*esh);
     heap::ForceEvacuationCandidate(page_before_gc);

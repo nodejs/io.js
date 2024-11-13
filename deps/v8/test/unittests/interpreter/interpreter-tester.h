@@ -115,7 +115,7 @@ class InterpreterTester {
 
   static Handle<Object> NewObject(const char* script);
 
-  static Handle<String> GetName(Isolate* isolate, const char* name);
+  static DirectHandle<String> GetName(Isolate* isolate, const char* name);
 
   static std::string SourceForBody(const char* body);
 
@@ -150,7 +150,7 @@ class InterpreterTester {
                                  .ToLocalChecked())
 
               .ToLocalChecked());
-      function = Handle<JSFunction>::cast(v8::Utils::OpenHandle(*api_function));
+      function = Cast<JSFunction>(v8::Utils::OpenHandle(*api_function));
       is_compiled_scope = function->shared()->is_compiled_scope(isolate_);
     } else {
       int arg_count = sizeof...(A);
@@ -159,7 +159,7 @@ class InterpreterTester {
         source += i == 0 ? "a" : ", a";
       }
       source += "){})";
-      function = Handle<JSFunction>::cast(v8::Utils::OpenHandle(
+      function = Cast<JSFunction>(v8::Utils::OpenHandle(
           *v8::Local<v8::Function>::Cast(CompileRun(source.c_str()))));
       function->set_code(*BUILTIN_CODE(isolate_, InterpreterEntryTrampoline));
       is_compiled_scope = function->shared()->is_compiled_scope(isolate_);

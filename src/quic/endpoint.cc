@@ -86,7 +86,9 @@ STAT_STRUCT(Endpoint, ENDPOINT)
 namespace {
 #ifdef DEBUG
 bool is_diagnostic_packet_loss(double probability) {
-  if (LIKELY(probability == 0.0)) return false;
+  if (probability == 0.0) [[unlikely]] {
+    return false;
+  }
   unsigned char c = 255;
   CHECK(ncrypto::CSPRNG(&c, 1));
   return (static_cast<double>(c) / 255) < probability;
@@ -233,6 +235,7 @@ bool SetOption(Environment* env,
 Maybe<Endpoint::Options> Endpoint::Options::From(Environment* env,
                                                  Local<Value> value) {
   if (value.IsEmpty() || !value->IsObject()) {
+    if (value->IsUndefined()) return Just(Endpoint::Options());
     THROW_ERR_INVALID_ARG_TYPE(env, "options must be an object");
     return Nothing<Options>();
   }
@@ -624,7 +627,7 @@ void Endpoint::InitPerContext(Realm* realm, Local<Object> target) {
 #undef V
 
 #define V(name, _) IDX_STATS_ENDPOINT_##name,
-  enum IDX_STATS_ENDPONT { ENDPOINT_STATS(V) IDX_STATS_ENDPOINT_COUNT };
+  enum IDX_STATS_ENDPOINT { ENDPOINT_STATS(V) IDX_STATS_ENDPOINT_COUNT };
   NODE_DEFINE_CONSTANT(target, IDX_STATS_ENDPOINT_COUNT);
 #undef V
 
@@ -656,6 +659,25 @@ void Endpoint::InitPerContext(Realm* realm, Local<Object> target) {
   NODE_DEFINE_CONSTANT(target, DEFAULT_REGULARTOKEN_EXPIRATION);
   NODE_DEFINE_CONSTANT(target, DEFAULT_MAX_PACKET_LENGTH);
 
+  static constexpr auto CLOSECONTEXT_CLOSE =
+      static_cast<int>(CloseContext::CLOSE);
+  static constexpr auto CLOSECONTEXT_BIND_FAILURE =
+      static_cast<int>(CloseContext::BIND_FAILURE);
+  static constexpr auto CLOSECONTEXT_LISTEN_FAILURE =
+      static_cast<int>(CloseContext::LISTEN_FAILURE);
+  static constexpr auto CLOSECONTEXT_RECEIVE_FAILURE =
+      static_cast<int>(CloseContext::RECEIVE_FAILURE);
+  static constexpr auto CLOSECONTEXT_SEND_FAILURE =
+      static_cast<int>(CloseContext::SEND_FAILURE);
+  static constexpr auto CLOSECONTEXT_START_FAILURE =
+      static_cast<int>(CloseContext::START_FAILURE);
+  NODE_DEFINE_CONSTANT(target, CLOSECONTEXT_CLOSE);
+  NODE_DEFINE_CONSTANT(target, CLOSECONTEXT_BIND_FAILURE);
+  NODE_DEFINE_CONSTANT(target, CLOSECONTEXT_LISTEN_FAILURE);
+  NODE_DEFINE_CONSTANT(target, CLOSECONTEXT_RECEIVE_FAILURE);
+  NODE_DEFINE_CONSTANT(target, CLOSECONTEXT_SEND_FAILURE);
+  NODE_DEFINE_CONSTANT(target, CLOSECONTEXT_START_FAILURE);
+
   SetConstructorFunction(realm->context(),
                          target,
                          "Endpoint",
@@ -682,6 +704,7 @@ Endpoint::Endpoint(Environment* env,
       udp_(this),
       addrLRU_(options_.address_lru_size) {
   MakeWeak();
+  STAT_RECORD_TIMESTAMP(Stats, created_at);
   IF_QUIC_DEBUG(env) {
     Debug(this, "Endpoint created. Options %s", options.ToString());
   }
@@ -704,6 +727,7 @@ SocketAddress Endpoint::local_address() const {
 
 void Endpoint::MarkAsBusy(bool on) {
   Debug(this, "Marking endpoint as %s", on ? "busy" : "not busy");
+  if (on) STAT_INCREMENT(Stats, server_busy_count);
   state_->busy = on ? 1 : 0;
 }
 
@@ -805,7 +829,7 @@ void Endpoint::Send(Packet* packet) {
   // When diagnostic packet loss is enabled, the packet will be randomly
   // dropped. This can happen to any type of packet. We use this only in
   // testing to test various reliability issues.
-  if (UNLIKELY(is_diagnostic_packet_loss(options_.tx_loss))) {
+  if (is_diagnostic_packet_loss(options_.tx_loss)) [[unlikely]] {
     packet->Done(0);
     // Simulating tx packet loss
     return;
@@ -874,7 +898,9 @@ void Endpoint::SendVersionNegotiation(const PathDescriptor& options) {
 
 bool Endpoint::SendStatelessReset(const PathDescriptor& options,
                                   size_t source_len) {
-  if (UNLIKELY(options_.disable_stateless_reset)) return false;
+  if (options_.disable_stateless_reset) [[unlikely]] {
+    return false;
+  }
   Debug(this,
         "Sending stateless reset on path %s with len %" PRIu64,
         options,
@@ -1087,6 +1113,7 @@ void Endpoint::Destroy(CloseContext context, int status) {
   state_->bound = 0;
   state_->receiving = 0;
   BindingData::Get(env()).listening_endpoints.erase(this);
+  STAT_RECORD_TIMESTAMP(Stats, destroyed_at);
 
   EmitClose(close_context_, close_status_);
 }
@@ -1473,14 +1500,14 @@ void Endpoint::Receive(const uv_buf_t& buf,
 #ifdef DEBUG
   // When diagnostic packet loss is enabled, the packet will be randomly
   // dropped.
-  if (UNLIKELY(is_diagnostic_packet_loss(options_.rx_loss))) {
+  if (is_diagnostic_packet_loss(options_.rx_loss)) [[unlikely]] {
     // Simulating rx packet loss
     return;
   }
 #endif  // DEBUG
 
   // TODO(@jasnell): Implement blocklist support
-  // if (UNLIKELY(block_list_->Apply(remote_address))) {
+  // if (block_list_->Apply(remote_address)) [[unlikely]] {
   //   Debug(this, "Ignoring blocked remote address: %s", remote_address);
   //   return;
   // }
@@ -1495,7 +1522,7 @@ void Endpoint::Receive(const uv_buf_t& buf,
   // checks. It is critical at this point that we do as little work as possible
   // to avoid a DOS vector.
   std::shared_ptr<BackingStore> backing = env()->release_managed_buffer(buf);
-  if (UNLIKELY(!backing)) {
+  if (!backing) [[unlikely]] {
     // At this point something bad happened and we need to treat this as a fatal
     // case. There's likely no way to test this specific condition reliably.
     return Destroy(CloseContext::RECEIVE_FAILURE, UV_ENOMEM);
@@ -1519,9 +1546,9 @@ void Endpoint::Receive(const uv_buf_t& buf,
 
   // QUIC currently requires CID lengths of max NGTCP2_MAX_CIDLEN. Ignore any
   // packet with a non-standard CID length.
-  if (UNLIKELY(pversion_cid.dcidlen > NGTCP2_MAX_CIDLEN ||
-               pversion_cid.scidlen > NGTCP2_MAX_CIDLEN)) {
-    Debug(this, "Packet had incorrectly sized CIDs, igoring");
+  if (pversion_cid.dcidlen > NGTCP2_MAX_CIDLEN ||
+      pversion_cid.scidlen > NGTCP2_MAX_CIDLEN) [[unlikely]] {
+    Debug(this, "Packet had incorrectly sized CIDs, ignoring");
     return;  // Ignore the packet!
   }
 

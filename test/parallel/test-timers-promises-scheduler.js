@@ -7,6 +7,7 @@ const { setTimeout } = require('timers');
 const {
   strictEqual,
   rejects,
+  throws,
 } = require('assert');
 
 async function testYield() {
@@ -48,3 +49,7 @@ async function testCancelableWait2() {
 }
 
 testCancelableWait2().then(common.mustCall());
+
+throws(() => new scheduler.constructor(), {
+  code: 'ERR_ILLEGAL_CONSTRUCTOR',
+});

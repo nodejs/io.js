@@ -14,9 +14,9 @@ extern runtime WasmAllocateSuspender(Context): JSAny;
 
 namespace wasm {
 extern builtin JSToWasmWrapperAsm(
-    RawPtr<intptr>, WasmTrustedInstanceData, JSAny): JSAny;
+    RawPtr<intptr>, WasmImportData|WasmTrustedInstanceData, JSAny): JSAny;
 extern builtin WasmReturnPromiseOnSuspendAsm(
-    RawPtr<intptr>, WasmTrustedInstanceData, JSAny): JSAny;
+    RawPtr<intptr>, WasmImportData|WasmTrustedInstanceData, JSAny): JSAny;
 
 extern macro UniqueIntPtrConstant(constexpr intptr): intptr;
 
@@ -68,6 +68,11 @@ extern enum ValueKind extends int32 constexpr 'wasm::ValueKind' {
   kRef,
   kRefNull,
   ...
+}
+
+extern enum Promise extends int32 constexpr 'wasm::Promise' {
+  kPromise,
+  kNoPromise
 }
 
 extern enum HeapType extends int32
@@ -228,6 +233,14 @@ struct ReturnSlotAllocator {
       return this.stackSlots - 1;
     } else {
       return this.stackSlots;
+    }
+  }
+
+  // For references we start a new section on the stack, no old slots are
+  // filled.
+  macro StartRefs(): void {
+    if (!this.smallSlotLast) {
+      this.hasSmallSlot = false;
     }
   }
 
@@ -442,27 +455,56 @@ macro JSToWasmObject(
       context, trustedInstanceDataOrUndefined, value, Convert<Smi>(targetType));
 }
 
+// macro for handling platform specific f32 params.
+macro HandleF32Params(
+    context: NativeContext, locationAllocator: LocationAllocator,
+    toRef: &intptr, param: JSAny): void {
+  if constexpr (kIsFpAlwaysDouble) {
+    if (locationAllocator.GetRemainingFPRegs() >= 0) {
+      *RefCast<float64>(toRef) =
+          ChangeFloat32ToFloat64(WasmTaggedToFloat32(param));
+    } else {
+      *RefCast<float32>(toRef) = WasmTaggedToFloat32(param);
+    }
+  } else if constexpr (kIsBigEndian) {
+    *toRef = Convert<intptr>(Bitcast<uint32>(WasmTaggedToFloat32(param))) << 32;
+  } else if constexpr (kIsBigEndianOnSim) {
+    if (locationAllocator.GetRemainingFPRegs() >= 0) {
+      *toRef = Convert<intptr>(Bitcast<uint32>(WasmTaggedToFloat32(param)))
+          << 32;
+    } else {
+      *toRef = Convert<intptr>(Bitcast<uint32>(WasmTaggedToFloat32(param)));
+    }
+  }
+}
+
 macro JSToWasmWrapperHelper(
     context: NativeContext, _receiver: JSAny, target: JSFunction,
-    arguments: Arguments, switchStack: constexpr bool): never {
-  const functionData = UnsafeCast<WasmExportedFunctionData>(
-      target.shared_function_info.function_data);
+    arguments: Arguments, promise: constexpr Promise): never {
+  const functionData = target.shared_function_info.wasm_exported_function_data;
 
   // Trigger a wrapper tier-up when this function got called often enough.
+  const switchStack = promise != Promise::kNoPromise;
   if constexpr (!switchStack) {
-    functionData.wrapper_budget = functionData.wrapper_budget - 1;
-    if (functionData.wrapper_budget == 0) {
+    const budget: Smi =
+        UnsafeCast<Smi>(functionData.wrapper_budget.value) - SmiConstant(1);
+    functionData.wrapper_budget.value = budget;
+    if (budget == SmiConstant(0)) {
       runtime::WasmCompileWrapper(kNoContext, functionData);
     }
   }
 
-  const sig = functionData.sig_ptr;
+  const sig = functionData.sig;
+  const implicitArg: WasmImportData|WasmTrustedInstanceData =
+      functionData.internal.implicit_arg;
   const trustedInstanceData: WasmTrustedInstanceData =
-      LoadTrustedDataFromInstance(functionData.instance);
+      functionData.instance_data;
 
-  const paramCount = *GetRefAt<int32>(sig, kWasmParameterCountOffset);
+  const paramCount =
+      TruncateIntPtrToInt32(*GetRefAt<intptr>(sig, kWasmParameterCountOffset));
 
-  const returnCount = *GetRefAt<int32>(sig, kWasmReturnCountOffset);
+  const returnCount =
+      TruncateIntPtrToInt32(*GetRefAt<intptr>(sig, kWasmReturnCountOffset));
 
   const reps = *GetRefAt<RawPtr>(sig, kWasmSigTypesOffset);
 
@@ -486,9 +528,9 @@ macro JSToWasmWrapperHelper(
     const returnTypes =
         Subslice(sigTypes, Convert<intptr>(0), Convert<intptr>(returnCount))
         otherwise unreachable;
-    let retIt = returnTypes.Iterator();
     let allocator = NewReturnSlotAllocator();
 
+    let retIt = returnTypes.Iterator();
     while (!retIt.Empty()) {
       const retType = retIt.NextNotEmpty();
       if (retType == kWasmI32Type) {
@@ -506,10 +548,20 @@ macro JSToWasmWrapperHelper(
       } else {
         const retKind = retType & kValueTypeKindBitsMask;
         dcheck(retKind == ValueKind::kRef || retKind == ValueKind::kRefNull);
-        // Also check if there are any reference return values, as this allows
-        // us to skip code when we process return values.
+        // Reference return values will be processed later.
         hasRefReturns = true;
-        allocator.AllocGP();
+      }
+    }
+    // Second round: reference values.
+    if (hasRefReturns) {
+      allocator.StartRefs();
+      retIt = returnTypes.Iterator();
+      while (!retIt.Empty()) {
+        const retType = retIt.NextNotEmpty();
+        const retKind = retType & kValueTypeKindBitsMask;
+        if (retKind == ValueKind::kRef || retKind == ValueKind::kRefNull) {
+          allocator.AllocGP();
+        }
       }
     }
     returnSize = allocator.GetSize();
@@ -559,14 +611,17 @@ macro JSToWasmWrapperHelper(
 
   let locationAllocator = LocationAllocatorForParams(paramBuffer);
   let hasRefParam: bool = false;
+  // A storage for converted reference parameters, so that they don't get
+  // garbage collected if the conversion of primitive parameters causes a GC.
+  // The storage gets allocated lazily when the first reference parameter gets
+  // converted to avoid performance regressions for signatures without tagged
+  // parameters. An old implementation used the `arguments` array as the storage
+  // for converted reference parameters, but this does not work because then
+  // converted reference parameters can be accessed from JavaScript using
+  // `Function.prototype.arguments`.
+  let convertedTagged: FixedArray|Smi = Convert<Smi>(0);
 
   let paramTypeIndex: int32 = 0;
-  // For stack switching paramTypeIndex and paramIndex diverges,
-  // because a suspender is not passed to wrapper as param.
-  if constexpr (switchStack) {
-    paramTypeIndex++;
-    hasRefParam = true;
-  }
   for (let paramIndex: int32 = 0; paramTypeIndex < paramCount; paramIndex++) {
     const param = arguments[Convert<intptr>(paramIndex)];
     const paramType = *paramTypes.UncheckedAtIndex(
@@ -575,16 +630,19 @@ macro JSToWasmWrapperHelper(
       let toRef = locationAllocator.GetGPSlot();
       typeswitch (param) {
         case (smiParam: Smi): {
-          *toRef = Convert<intptr>(Unsigned(SmiToInt32(smiParam)));
+          *toRef = Convert<intptr>(SmiToInt32(smiParam));
         }
         case (heapParam: JSAnyNotSmi): {
-          *toRef =
-              Convert<intptr>(Unsigned(WasmTaggedNonSmiToInt32(heapParam)));
+          *toRef = Convert<intptr>(WasmTaggedNonSmiToInt32(heapParam));
         }
       }
     } else if (paramType == kWasmF32Type) {
       let toRef = locationAllocator.GetFP32Slot();
-      *toRef = Convert<intptr>(Bitcast<uint32>(WasmTaggedToFloat32(param)));
+      if constexpr (kIsFpAlwaysDouble || kIsBigEndian || kIsBigEndianOnSim) {
+        HandleF32Params(context, locationAllocator, toRef, param);
+      } else {
+        *toRef = Convert<intptr>(Bitcast<uint32>(WasmTaggedToFloat32(param)));
+      }
     } else if (paramType == kWasmF64Type) {
       let toRef = locationAllocator.GetFP64Slot();
       *RefCast<float64>(toRef) = ChangeTaggedToFloat64(param);
@@ -612,9 +670,18 @@ macro JSToWasmWrapperHelper(
       // primitive types are finished. For now we write the converted parameter
       // back to the stack.
       hasRefParam = true;
-      arguments[Convert<intptr>(paramIndex)] =
+      if (TaggedIsSmi(convertedTagged)) {
+        convertedTagged =
+            WasmAllocateZeroedFixedArray(Convert<intptr>(paramCount));
+      }
+      UnsafeCast<FixedArray>(convertedTagged)
+          .objects[Convert<intptr>(paramIndex)] =
           JSToWasmObject(context, trustedInstanceData, paramType, param);
     }
+  }
+  let suspender: JSAny = Undefined;
+  if constexpr (switchStack) {
+    suspender = runtime::WasmAllocateSuspender(context);
   }
   if (hasRefParam) {
     // Iterate over all parameters again and handle all those with ref types.
@@ -623,14 +690,6 @@ macro JSToWasmWrapperHelper(
     // because a suspender is not passed to wrapper as param.
     let paramIndex: int32 = 0;
     locationAllocator.StartRefs();
-
-    if constexpr (switchStack) {
-      const suspender = runtime::WasmAllocateSuspender(context);
-      const toRef = locationAllocator.GetGPSlot();
-      *toRef = BitcastTaggedToWord(suspender);
-      // First param is suspender, so skip it in the signature loop.
-      k++;
-    }
 
     // We are not using a `for` loop here because Torque does not support
     // `continue` in `for` loops.
@@ -642,7 +701,8 @@ macro JSToWasmWrapperHelper(
         paramIndex++;
         continue;
       }
-      const param = arguments[Convert<intptr>(paramIndex++)];
+      const param = UnsafeCast<FixedArray>(convertedTagged)
+                        .objects[Convert<intptr>(paramIndex++)];
       let toRef = locationAllocator.GetGPSlot();
       *toRef = BitcastTaggedToWord(param);
       k++;
@@ -651,8 +711,7 @@ macro JSToWasmWrapperHelper(
   const paramStart = paramBuffer.GCUnsafeRawPtr();
   const paramEnd = locationAllocator.GetStackEnd();
 
-  const internal: WasmInternalFunction = functionData.internal;
-  const callTarget = internal.call_target_ptr;
+  const callTarget = functionData.internal.call_target;
 
   // We construct a state that will be passed to `JSToWasmWrapperAsm`
   // and `JSToWasmHandleReturns`. There are too many parameters to pass
@@ -678,11 +737,10 @@ macro JSToWasmWrapperHelper(
   // Torque builtin.
   let result: JSAny;
   if constexpr (switchStack) {
-    result = WasmReturnPromiseOnSuspendAsm(
-        wrapperBuffer, trustedInstanceData, resultArray);
-  } else {
     result =
-        JSToWasmWrapperAsm(wrapperBuffer, trustedInstanceData, resultArray);
+        WasmReturnPromiseOnSuspendAsm(wrapperBuffer, implicitArg, resultArray);
+  } else {
+    result = JSToWasmWrapperAsm(wrapperBuffer, implicitArg, resultArray);
   }
 
   // The normal return sequence of Torque-generated JavaScript builtins does not
@@ -706,13 +764,15 @@ macro JSToWasmWrapperHelper(
 transitioning javascript builtin JSToWasmWrapper(
     js-implicit context: NativeContext, receiver: JSAny, target: JSFunction)(
     ...arguments): JSAny {
-  JSToWasmWrapperHelper(context, receiver, target, arguments, false);
+  JSToWasmWrapperHelper(
+      context, receiver, target, arguments, Promise::kNoPromise);
 }
 
-transitioning javascript builtin WasmReturnPromiseOnSuspend(
+transitioning javascript builtin WasmPromising(
     js-implicit context: NativeContext, receiver: JSAny, target: JSFunction)(
     ...arguments): JSAny {
-  JSToWasmWrapperHelper(context, receiver, target, arguments, true);
+  JSToWasmWrapperHelper(
+      context, receiver, target, arguments, Promise::kPromise);
 }
 
 macro WasmToJSObject(context: NativeContext, value: Object, retType: int32):
@@ -756,7 +816,7 @@ macro WasmToJSObject(context: NativeContext, value: Object, retType: int32):
 }
 
 builtin JSToWasmHandleReturns(
-    trustedData: WasmTrustedInstanceData, resultArray: JSArray,
+    jsContext: NativeContext, resultArray: JSArray,
     wrapperBuffer: RawPtr<intptr>): JSAny {
   const returnCount = *GetRefAt<int32>(
       wrapperBuffer, kWrapperBufferReturnCount);
@@ -768,14 +828,30 @@ builtin JSToWasmHandleReturns(
         wrapperBuffer, kWrapperBufferSigRepresentationArray);
     const retType = *GetRefAt<int32>(reps, 0);
     if (retType == kWasmI32Type) {
-      const ret = *GetRefAt<int32>(
-          wrapperBuffer, kWrapperBufferGPReturnRegister1);
+      let ret: int32;
+      if constexpr (kIsBigEndian) {
+        ret = TruncateInt64ToInt32(*GetRefAt<int64>(
+            wrapperBuffer, kWrapperBufferGPReturnRegister1));
+      } else {
+        ret = *GetRefAt<int32>(wrapperBuffer, kWrapperBufferGPReturnRegister1);
+      }
       const result = Convert<Number>(ret);
       return result;
     } else if (retType == kWasmF32Type) {
-      const resultRef =
-          GetRefAt<float32>(wrapperBuffer, kWrapperBufferFPReturnRegister1);
-      return Convert<Number>(*resultRef);
+      if constexpr (kIsFpAlwaysDouble) {
+        return Convert<Number>(TruncateFloat64ToFloat32(*GetRefAt<float64>(
+            wrapperBuffer, kWrapperBufferFPReturnRegister1)));
+      } else if constexpr (kIsBigEndianOnSim) {
+        return Convert<Number>(BitcastInt32ToFloat32(
+            TruncateInt64ToInt32(*GetRefAt<int64>(
+                                     wrapperBuffer,
+                                     kWrapperBufferFPReturnRegister1) >>
+                32)));
+      } else {
+        const resultRef =
+            GetRefAt<float32>(wrapperBuffer, kWrapperBufferFPReturnRegister1);
+        return Convert<Number>(*resultRef);
+      }
     } else if (retType == kWasmF64Type) {
       const resultRef =
           GetRefAt<float64>(wrapperBuffer, kWrapperBufferFPReturnRegister1);
@@ -797,12 +873,11 @@ builtin JSToWasmHandleReturns(
           wrapperBuffer + kWrapperBufferGPReturnRegister1);
       const rawRef = *GetRefAt<uintptr>(ptr, 0);
       const value = BitcastWordToTagged(rawRef);
-      return WasmToJSObject(
-          LoadContextFromInstanceData(trustedData), value, retType);
+      return WasmToJSObject(jsContext, value, retType);
     }
   }
 
-  // Multi return;
+  // Multi return.
   const fixedArray: FixedArray = UnsafeCast<FixedArray>(resultArray.elements);
   const returnBuffer = *GetRefAt<RawPtr>(
       wrapperBuffer, kWrapperBufferStackReturnBufferStart);
@@ -825,8 +900,9 @@ builtin JSToWasmHandleReturns(
     // references does not trigger a GC, but the allocation of HeapNumbers and
     // BigInts for primitive types may trigger a GC.
 
+    // First skip over the locations of non-ref return values:
     for (let k: intptr = 0; k < Convert<intptr>(returnCount); k++) {
-      const retType = *retTypes.UncheckedAtIndex(Convert<intptr>(k));
+      const retType = *retTypes.UncheckedAtIndex(k);
       if (retType == kWasmI32Type) {
         locationAllocator.GetGPSlot();
       } else if (retType == kWasmF32Type) {
@@ -838,11 +914,17 @@ builtin JSToWasmHandleReturns(
         }
       } else if (retType == kWasmF64Type) {
         locationAllocator.GetFP64Slot();
-      } else {
-        let value: Object;
+      }
+    }
+    // Then copy the references.
+    locationAllocator.StartRefs();
+    for (let k: intptr = 0; k < Convert<intptr>(returnCount); k++) {
+      const retType = *retTypes.UncheckedAtIndex(k);
+      const retKind = retType & kValueTypeKindBitsMask;
+      if (retKind == ValueKind::kRef || retKind == ValueKind::kRefNull) {
         const slot = locationAllocator.GetGPSlot();
         const rawRef = *slot;
-        value = BitcastWordToTagged(rawRef);
+        const value: Object = BitcastWordToTagged(rawRef);
         // Store the wasm object in the JSArray to make it GC safe. The
         // transformation will happen later in a second loop.
         fixedArray.objects[k] = value;
@@ -855,14 +937,35 @@ builtin JSToWasmHandleReturns(
       wrapperBuffer + kWrapperBufferFPReturnRegister1, returnBuffer);
 
   for (let k: intptr = 0; k < Convert<intptr>(returnCount); k++) {
-    const retType = *retTypes.UncheckedAtIndex(Convert<intptr>(k));
+    const retType = *retTypes.UncheckedAtIndex(k);
     if (retType == kWasmI32Type) {
       const slot = locationAllocator.GetGPSlot();
-      const val = *RefCast<int32>(slot);
+      let val: int32;
+      if constexpr (kIsBigEndian) {
+        val = TruncateInt64ToInt32(*RefCast<int64>(slot));
+      } else {
+        val = *RefCast<int32>(slot);
+      }
       fixedArray.objects[k] = Convert<Number>(val);
     } else if (retType == kWasmF32Type) {
       const slot = locationAllocator.GetFP32Slot();
-      const val = *RefCast<float32>(slot);
+      let val: float32;
+      if constexpr (kIsFpAlwaysDouble) {
+        if (locationAllocator.GetRemainingFPRegs() >= 0) {
+          val = TruncateFloat64ToFloat32(*RefCast<float64>(slot));
+        } else {
+          val = *RefCast<float32>(slot);
+        }
+      } else if constexpr (kIsBigEndianOnSim) {
+        if (locationAllocator.GetRemainingFPRegs() >= 0) {
+          val = BitcastInt32ToFloat32(
+              TruncateInt64ToInt32(*RefCast<int64>(slot) >> 32));
+        } else {
+          val = *RefCast<float32>(slot);
+        }
+      } else {
+        val = *RefCast<float32>(slot);
+      }
       fixedArray.objects[k] = Convert<Number>(val);
     } else if (retType == kWasmI64Type) {
       if constexpr (Is64()) {
@@ -881,10 +984,8 @@ builtin JSToWasmHandleReturns(
       const val = *RefCast<float64>(slot);
       fixedArray.objects[k] = Convert<Number>(val);
     } else {
-      locationAllocator.GetGPSlot();
       const value = fixedArray.objects[k];
-      fixedArray.objects[k] = WasmToJSObject(
-          LoadContextFromInstanceData(trustedData), value, retType);
+      fixedArray.objects[k] = WasmToJSObject(jsContext, value, retType);
     }
   }
 

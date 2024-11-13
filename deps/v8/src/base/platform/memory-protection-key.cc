@@ -17,15 +17,12 @@
 int pkey_mprotect(void* addr, size_t len, int prot, int pkey) V8_WEAK;
 int pkey_get(int key) V8_WEAK;
 int pkey_set(int, unsigned) V8_WEAK;
+int pkey_alloc(unsigned int, unsigned int) V8_WEAK;
 
 namespace v8 {
 namespace base {
 
 namespace {
-
-#if DEBUG
-bool pkey_api_initialized = false;
-#endif
 
 int GetProtectionFromMemoryPermission(PageAllocator::Permission permission) {
   // Mappings for PKU are either RWX (for code), no access (for uncommitted
@@ -35,6 +32,8 @@ int GetProtectionFromMemoryPermission(PageAllocator::Permission permission) {
       return PROT_NONE;
     case PageAllocator::kRead:
       return PROT_READ;
+    case PageAllocator::kReadWrite:
+      return PROT_READ | PROT_WRITE;
     case PageAllocator::kReadWriteExecute:
       return PROT_READ | PROT_WRITE | PROT_EXEC;
     default:
@@ -44,22 +43,27 @@ int GetProtectionFromMemoryPermission(PageAllocator::Permission permission) {
 
 }  // namespace
 
-bool MemoryProtectionKey::InitializeMemoryProtectionKeySupport() {
-  // Flip {pkey_api_initialized} (in debug mode) and check the new value.
-  DCHECK_EQ(true, pkey_api_initialized = !pkey_api_initialized);
-
+bool MemoryProtectionKey::HasMemoryProtectionKeySupport() {
   if (!pkey_mprotect) return false;
   // If {pkey_mprotect} is available, the others must also be available.
-  CHECK(pkey_get && pkey_set);
+  CHECK(pkey_get && pkey_set && pkey_alloc);
 
   return true;
+}
+
+// static
+int MemoryProtectionKey::AllocateKey() {
+  if (!pkey_alloc) {
+    return kNoMemoryProtectionKey;
+  }
+
+  return pkey_alloc(0, 0);
 }
 
 // static
 bool MemoryProtectionKey::SetPermissionsAndKey(
     base::AddressRegion region, v8::PageAllocator::Permission page_permissions,
     int key) {
-  DCHECK(pkey_api_initialized);
   DCHECK_NE(key, kNoMemoryProtectionKey);
   CHECK_NOT_NULL(pkey_mprotect);
 
@@ -74,7 +78,6 @@ bool MemoryProtectionKey::SetPermissionsAndKey(
 // static
 void MemoryProtectionKey::SetPermissionsForKey(int key,
                                                Permission permissions) {
-  DCHECK(pkey_api_initialized);
   DCHECK_NE(kNoMemoryProtectionKey, key);
 
   // If a valid key was allocated, {pkey_set()} must also be available.
@@ -85,7 +88,6 @@ void MemoryProtectionKey::SetPermissionsForKey(int key,
 
 // static
 MemoryProtectionKey::Permission MemoryProtectionKey::GetKeyPermission(int key) {
-  DCHECK(pkey_api_initialized);
   DCHECK_NE(kNoMemoryProtectionKey, key);
 
   // If a valid key was allocated, {pkey_get()} must also be available.

@@ -9,14 +9,12 @@
 
 #include "include/v8-callbacks.h"
 #include "src/base/atomic-utils.h"
-#include "src/base/optional.h"
 #include "src/base/platform/elapsed-timer.h"
 #include "src/base/platform/time.h"
 #include "src/common/globals.h"
 #include "src/logging/counters-definitions.h"
 #include "src/logging/runtime-call-stats.h"
 #include "src/objects/code-kind.h"
-#include "src/objects/fixed-array.h"
 #include "src/objects/objects.h"
 #include "src/utils/allocation.h"
 
@@ -530,6 +528,16 @@ class Counters : public std::enable_shared_from_this<Counters> {
   HISTOGRAM_RANGE_LIST(HR)
 #undef HR
 
+#if V8_ENABLE_DRUMBRAKE
+#define HR(name, caption, min, max, num_buckets)     \
+  Histogram* name() {                                \
+    name##_.EnsureCreated(v8_flags.slow_histograms); \
+    return &name##_;                                 \
+  }
+  HISTOGRAM_RANGE_LIST_SLOW(HR)
+#undef HR
+#endif  // V8_ENABLE_DRUMBRAKE
+
 #define HT(name, caption, max, res) \
   NestedTimedHistogram* name() {    \
     name##_.EnsureCreated();        \
@@ -652,6 +660,9 @@ class Counters : public std::enable_shared_from_this<Counters> {
 
 #define HR(name, caption, min, max, num_buckets) Histogram name##_;
   HISTOGRAM_RANGE_LIST(HR)
+#if V8_ENABLE_DRUMBRAKE
+  HISTOGRAM_RANGE_LIST_SLOW(HR)
+#endif  // V8_ENABLE_DRUMBRAKE
 #undef HR
 
 #define HT(name, caption, max, res) NestedTimedHistogram name##_;

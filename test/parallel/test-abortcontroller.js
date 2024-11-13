@@ -1,7 +1,7 @@
-// Flags: --no-warnings --expose-gc --expose-internals
+// Flags: --expose-gc
 'use strict';
 
-const common = require('../common');
+require('../common');
 const { inspect } = require('util');
 
 const {
@@ -12,49 +12,62 @@ const {
 } = require('assert');
 
 const {
-  kWeakHandler,
-} = require('internal/event_target');
+  test,
+  mock,
+} = require('node:test');
 
 const { setTimeout: sleep } = require('timers/promises');
 
-{
+// All of the the tests in this file depend on public-facing Node.js APIs.
+// For tests that depend on Node.js internal APIs, please add them to
+// test-abortcontroller-internal.js instead.
+
+test('Abort is fired with the correct event type on AbortControllers', () => {
   // Tests that abort is fired with the correct event type on AbortControllers
   const ac = new AbortController();
   ok(ac.signal);
-  ac.signal.onabort = common.mustCall((event) => {
+
+  const fn = mock.fn((event) => {
     ok(event);
     strictEqual(event.type, 'abort');
   });
-  ac.signal.addEventListener('abort', common.mustCall((event) => {
-    ok(event);
-    strictEqual(event.type, 'abort');
-  }), { once: true });
+
+  ac.signal.onabort = fn;
+  ac.signal.addEventListener('abort', fn);
+
   ac.abort();
   ac.abort();
   ok(ac.signal.aborted);
-}
 
-{
+  strictEqual(fn.mock.calls.length, 2);
+});
+
+test('Abort events are trusted', () => {
   // Tests that abort events are trusted
   const ac = new AbortController();
-  ac.signal.addEventListener('abort', common.mustCall((event) => {
-    ok(event.isTrusted);
-  }));
-  ac.abort();
-}
 
-{
+  const fn = mock.fn((event) => {
+    ok(event.isTrusted);
+  });
+
+  ac.signal.onabort = fn;
+  ac.abort();
+  strictEqual(fn.mock.calls.length, 1);
+});
+
+test('Abort events have the same isTrusted reference', () => {
   // Tests that abort events have the same `isTrusted` reference
   const first = new AbortController();
   const second = new AbortController();
   let ev1, ev2;
   const ev3 = new Event('abort');
-  first.signal.addEventListener('abort', common.mustCall((event) => {
+
+  first.signal.addEventListener('abort', (event) => {
     ev1 = event;
-  }));
-  second.signal.addEventListener('abort', common.mustCall((event) => {
+  });
+  second.signal.addEventListener('abort', (event) => {
     ev2 = event;
-  }));
+  });
   first.abort();
   second.abort();
   const firstTrusted = Reflect.getOwnPropertyDescriptor(Object.getPrototypeOf(ev1), 'isTrusted').get;
@@ -62,30 +75,30 @@ const { setTimeout: sleep } = require('timers/promises');
   const untrusted = Reflect.getOwnPropertyDescriptor(Object.getPrototypeOf(ev3), 'isTrusted').get;
   strictEqual(firstTrusted, secondTrusted);
   strictEqual(untrusted, firstTrusted);
-}
+});
 
-{
+test('AbortSignal is impossible to construct manually', () => {
   // Tests that AbortSignal is impossible to construct manually
   const ac = new AbortController();
   throws(() => new ac.signal.constructor(), {
     code: 'ERR_ILLEGAL_CONSTRUCTOR',
   });
-}
-{
+});
+
+test('Symbol.toStringTag is correct', () => {
   // Symbol.toStringTag
   const toString = (o) => Object.prototype.toString.call(o);
   const ac = new AbortController();
   strictEqual(toString(ac), '[object AbortController]');
   strictEqual(toString(ac.signal), '[object AbortSignal]');
-}
+});
 
-{
+test('AbortSignal.abort() creates an already aborted signal', () => {
   const signal = AbortSignal.abort();
   ok(signal.aborted);
-}
+});
 
-{
-  // Test that AbortController properties and methods validate the receiver
+test('AbortController properties and methods valiate the receiver', () => {
   const acSignalGet = Object.getOwnPropertyDescriptor(
     AbortController.prototype,
     'signal'
@@ -115,10 +128,9 @@ const { setTimeout: sleep } = require('timers/promises');
       { name: 'TypeError' }
     );
   }
-}
+});
 
-{
-  // Test that AbortSignal properties validate the receiver
+test('AbortSignal properties validate the receiver', () => {
   const signalAbortedGet = Object.getOwnPropertyDescriptor(
     AbortSignal.prototype,
     'aborted'
@@ -142,96 +154,87 @@ const { setTimeout: sleep } = require('timers/promises');
       { name: 'TypeError' }
     );
   }
-}
+});
 
-{
+test('AbortController inspection depth 1 or null works', () => {
   const ac = new AbortController();
   strictEqual(inspect(ac, { depth: 1 }),
               'AbortController { signal: [AbortSignal] }');
   strictEqual(inspect(ac, { depth: null }),
               'AbortController { signal: AbortSignal { aborted: false } }');
-}
+});
 
-{
+test('AbortSignal reason is set correctly', () => {
   // Test AbortSignal.reason
   const ac = new AbortController();
   ac.abort('reason');
   strictEqual(ac.signal.reason, 'reason');
-}
+});
 
-{
+test('AbortSignal reasonable is set correctly with AbortSignal.abort()', () => {
   // Test AbortSignal.reason
   const signal = AbortSignal.abort('reason');
   strictEqual(signal.reason, 'reason');
-}
+});
 
-{
+test('AbortSignal.timeout() works as expected', async () => {
   // Test AbortSignal timeout
   const signal = AbortSignal.timeout(10);
   ok(!signal.aborted);
-  setTimeout(common.mustCall(() => {
+
+  const { promise, resolve } = Promise.withResolvers();
+
+  const fn = mock.fn(() => {
     ok(signal.aborted);
     strictEqual(signal.reason.name, 'TimeoutError');
     strictEqual(signal.reason.code, 23);
-  }), 20);
-}
+    resolve();
+  });
 
-{
-  (async () => {
-    // Test AbortSignal timeout doesn't prevent the signal
-    // from being garbage collected.
-    let ref;
-    {
-      ref = new globalThis.WeakRef(AbortSignal.timeout(1_200_000));
-    }
+  setTimeout(fn, 20);
+  await promise;
+});
 
-    await sleep(10);
-    globalThis.gc();
-    strictEqual(ref.deref(), undefined);
-  })().then(common.mustCall());
+test('AbortSignal.timeout() does not prevent the signal from being collected', async () => {
+  // Test AbortSignal timeout doesn't prevent the signal
+  // from being garbage collected.
+  let ref;
+  {
+    ref = new globalThis.WeakRef(AbortSignal.timeout(1_200_000));
+  }
 
-  (async () => {
-    // Test that an AbortSignal with a timeout is not gc'd while
-    // there is an active listener on it.
-    let ref;
-    function handler() {}
-    {
-      ref = new globalThis.WeakRef(AbortSignal.timeout(1_200_000));
-      ref.deref().addEventListener('abort', handler);
-    }
+  await sleep(10);
+  globalThis.gc();
+  strictEqual(ref.deref(), undefined);
+});
 
-    await sleep(10);
-    globalThis.gc();
-    notStrictEqual(ref.deref(), undefined);
-    ok(ref.deref() instanceof AbortSignal);
+test('AbortSignal with a timeout is not collected while there is an active listener', async () => {
+  // Test that an AbortSignal with a timeout is not gc'd while
+  // there is an active listener on it.
+  let ref;
+  function handler() {}
+  {
+    ref = new globalThis.WeakRef(AbortSignal.timeout(1_200_000));
+    ref.deref().addEventListener('abort', handler);
+  }
 
-    ref.deref().removeEventListener('abort', handler);
+  await sleep(10);
+  globalThis.gc();
+  notStrictEqual(ref.deref(), undefined);
+  ok(ref.deref() instanceof AbortSignal);
 
-    await sleep(10);
-    globalThis.gc();
-    strictEqual(ref.deref(), undefined);
-  })().then(common.mustCall());
+  ref.deref().removeEventListener('abort', handler);
 
-  (async () => {
-    // If the event listener is weak, however, it should not prevent gc
-    let ref;
-    function handler() {}
-    {
-      ref = new globalThis.WeakRef(AbortSignal.timeout(1_200_000));
-      ref.deref().addEventListener('abort', handler, { [kWeakHandler]: {} });
-    }
+  await sleep(10);
+  globalThis.gc();
+  strictEqual(ref.deref(), undefined);
+});
 
-    await sleep(10);
-    globalThis.gc();
-    strictEqual(ref.deref(), undefined);
-  })().then(common.mustCall());
-
-  // Setting a long timeout (20 minutes here) should not
-  // keep the Node.js process open (the timer is unref'd)
+test('Setting a long timeout should not keep the process open', () => {
   AbortSignal.timeout(1_200_000);
-}
+});
 
-{
+test('AbortSignal.reason should default', () => {
   // Test AbortSignal.reason default
   const signal = AbortSignal.abort();
   ok(signal.reason instanceof DOMException);
@@ -241,9 +244,9 @@ const { setTimeout: sleep } = require('timers/promises');
   ac.abort();
   ok(ac.signal.reason instanceof DOMException);
   strictEqual(ac.signal.reason.code, 20);
-}
+});
 
-{
+test('abortSignal.throwIfAborted() works as expected', () => {
   // Test abortSignal.throwIfAborted()
   throws(() => AbortSignal.abort().throwIfAborted(), {
     code: 20,
@@ -253,21 +256,21 @@ const { setTimeout: sleep } = require('timers/promises');
   // Does not throw because it's not aborted.
   const ac = new AbortController();
   ac.signal.throwIfAborted();
-}
+});
 
-{
+test('abortSignal.throwIfAobrted() works as expected (2)', () => {
   const originalDesc = Reflect.getOwnPropertyDescriptor(AbortSignal.prototype, 'aborted');
   const actualReason = new Error();
   Reflect.defineProperty(AbortSignal.prototype, 'aborted', { value: false });
   throws(() => AbortSignal.abort(actualReason).throwIfAborted(), actualReason);
   Reflect.defineProperty(AbortSignal.prototype, 'aborted', originalDesc);
-}
+});
 
-{
+test('abortSignal.throwIfAobrted() works as expected (3)', () => {
   const originalDesc = Reflect.getOwnPropertyDescriptor(AbortSignal.prototype, 'reason');
   const actualReason = new Error();
   const fakeExcuse = new Error();
   Reflect.defineProperty(AbortSignal.prototype, 'reason', { value: fakeExcuse });
   throws(() => AbortSignal.abort(actualReason).throwIfAborted(), actualReason);
   Reflect.defineProperty(AbortSignal.prototype, 'reason', originalDesc);
-}
+});

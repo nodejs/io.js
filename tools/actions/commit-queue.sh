@@ -57,7 +57,7 @@ for pr in "$@"; do
   fi
 
   git node land --autorebase --yes $MULTIPLE_COMMIT_POLICY "$pr" >output 2>&1 || echo "Failed to land #${pr}"
-  # cat here otherwise we'll be supressing the output of git node land
+  # cat here otherwise we'll be suppressing the output of git node land
   cat output
 
   # TODO(mmarchini): workaround for ncu not returning the expected status code,

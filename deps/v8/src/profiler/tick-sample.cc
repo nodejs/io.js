@@ -228,7 +228,16 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
   sample_info->embedder_context = nullptr;
   sample_info->context = nullptr;
 
-  if (sample_info->vm_state == GC) return true;
+  if (sample_info->vm_state == GC || v8_isolate->heap()->IsInGC()) {
+    // GC can happen any time, not directly caused by its caller. Don't collect
+    // stacks for it. We check for both GC VMState and IsInGC, since we can
+    // observe LOGGING VM states during GC.
+    // TODO(leszeks): We could still consider GC stacks (as long as this isn't a
+    // moving GC), e.g. to surface if one particular function is triggering all
+    // the GCs. However, this is a user-visible change, and we would need to
+    // adjust the symbolizer and devtools to expose this information.
+    return true;
+  }
 
   EmbedderState* embedder_state = isolate->current_embedder_state();
   if (embedder_state != nullptr) {
@@ -348,7 +357,7 @@ bool TickSample::GetStackSample(Isolate* v8_isolate, RegisterState* regs,
           static_cast<i::InterpretedFrame*>(it.frame());
       // Since the sampler can interrupt execution at any point the
       // bytecode_array might be garbage, so don't actually dereference it. We
-      // avoid the frame->GetXXX functions since they call BytecodeArray::cast,
+      // avoid the frame->GetXXX functions since they call Cast<BytecodeArray>,
       // which has a heap access in its DCHECK.
       i::Address bytecode_array = base::Memory<i::Address>(
           frame->fp() + i::InterpreterFrameConstants::kBytecodeArrayFromFp);

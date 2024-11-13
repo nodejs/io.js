@@ -18,12 +18,12 @@ const availableCli = [
 ].filter((cli) => existsSync(path.resolve(__dirname, '../../', cli)));
 const bench = common.createBenchmark(main, {
   cli: availableCli,
-  count: [30],
+  n: [30],
 });
 
 function spawnProcess(cli, bench, state) {
   const cmd = process.execPath || process.argv[0];
-  while (state.finished < state.count) {
+  while (state.finished < state.n) {
     const child = spawnSync(cmd, [cli, '--version'], {
       env: { npm_config_loglevel: 'silent', ...process.env },
     });
@@ -41,15 +41,15 @@ function spawnProcess(cli, bench, state) {
       bench.start();
     }
 
-    if (state.finished === state.count) {
-      bench.end(state.count);
+    if (state.finished === state.n) {
+      bench.end(state.n);
     }
   }
 }
 
-function main({ count, cli }) {
+function main({ n, cli }) {
   cli = path.resolve(__dirname, '../../', cli);
   const warmup = 3;
-  const state = { count, finished: -warmup };
+  const state = { n, finished: -warmup };
   spawnProcess(cli, bench, state);
 }

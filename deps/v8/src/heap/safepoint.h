@@ -5,6 +5,8 @@
 #ifndef V8_HEAP_SAFEPOINT_H_
 #define V8_HEAP_SAFEPOINT_H_
 
+#include <optional>
+
 #include "src/base/platform/condition-variable.h"
 #include "src/base/platform/mutex.h"
 #include "src/common/globals.h"
@@ -224,8 +226,8 @@ class V8_NODISCARD SafepointScope {
                                             SafepointKind kind);
 
  private:
-  base::Optional<IsolateSafepointScope> isolate_safepoint_;
-  base::Optional<GlobalSafepointScope> global_safepoint_;
+  std::optional<IsolateSafepointScope> isolate_safepoint_;
+  std::optional<GlobalSafepointScope> global_safepoint_;
 };
 
 }  // namespace internal

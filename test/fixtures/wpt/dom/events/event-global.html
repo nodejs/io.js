@@ -114,4 +114,14 @@ async_test(t => {
 
   target.dispatchEvent(new Event("click"));
 }, "window.event is set to the current event, which is the event passed to dispatch");
+
+async_test(t => {
+  let target = new XMLHttpRequest();
+
+  target.onload = t.step_func_done(e => {
+    assert_equals(e, window.event);
+  });
+
+  target.dispatchEvent(new Event("load"));
+}, "window.event is set to the current event, which is the event passed to dispatch (2)");
 </script>

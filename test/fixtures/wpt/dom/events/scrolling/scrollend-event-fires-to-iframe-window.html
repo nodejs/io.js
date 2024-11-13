@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src="/resources/testdriver.js"></script>
+  <script src="/resources/testdriver-actions.js"></script>
+  <script src="/resources/testdriver-vendor.js"></script>
+  <script src="scroll_support.js"></script>
+  <script src="scrollend-user-scroll-common.js"></script>
+  <style>
+    iframe {
+      height: 300px;
+      width: 300px;
+    }
+  </style>
+</head>
+
+<body style="margin:0" onload=runTest()>
+  <iframe id="frame" src="scrollend-event-fires-to-iframe-inner-frame.html"></iframe>
+</body>
+
+<script>
+  function runTest() {
+    let target_div = frame.contentDocument.getElementById("scroller");
+    //Tests for scrollend events on an element within an iframe.
+    promise_test(async (t) => {
+      await test_scrollend_on_touch_drag(t, target_div);
+    }, 'Tests that the target_div within iframe gets scrollend event when touch ' +
+    'dragging.');
+
+    promise_test(async (t) => {
+      await test_scrollend_on_scrollbar_gutter_click(t, target_div);
+    }, 'Tests that the target_div within iframe gets scrollend event when ' +
+    'clicking scrollbar.');
+
+    // Same issue as previous test.
+    promise_test(async (t) => {
+      await test_scrollend_on_scrollbar_thumb_drag(t, target_div);
+    }, 'Tests that the target_div within iframe gets scrollend event when ' +
+    'dragging the scrollbar thumb.');
+
+    promise_test(async (t) => {
+      await test_scrollend_on_mousewheel_scroll(t, target_div, frame);
+    }, 'Tests that the target_div within iframe gets scrollend event when mouse ' +
+    'wheel scrolling.');
+
+    promise_test(async (t) => {
+      await test_scrollend_on_keyboard_scroll(t, target_div);
+    }, 'Tests that the target_div within iframe gets scrollend event when ' +
+    'sending DOWN key to the target.');
+
+    // Test for scrollend events on the iframe's window.
+    // TODO: add similar tests with different input modes.
+    promise_test(async (t) => {
+      let scroller = frame.contentDocument.scrollingElement;
+
+      await waitForScrollReset(t, scroller);
+      await waitForCompositorReady();
+
+      const targetScrollendPromise = waitForScrollendEventNoTimeout(frame.contentDocument);
+      verifyNoScrollendOnDocument(t);
+
+      let x = target_div.getBoundingClientRect().width + 20;
+      let y = 20;
+      let dy = 30;
+      await new test_driver.Actions().scroll(x, y, 0, dy).send();
+      await targetScrollendPromise;
+      assert_equals(scroller.scrollTop, dy, 'window scrolled by mousewheel');
+    }, 'scrollend fires to iframe window on mousewheelscroll');
+  }
+
+</script>
+
+</html>

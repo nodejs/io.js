@@ -1,0 +1,17 @@
+Name: Highway: C++ library for SIMD
+Short Name: highway
+URL: https://github.com/google/highway
+Version: N/A
+Date: 2024-05-16
+Revision: 8295336dd70f1201d42c22ab5b0861de38cf8fbf
+License: Apache 2.0
+License File: LICENSE
+Security Critical: yes
+Shipped: yes
+CPEPrefix: unknown
+
+Description:
+Highway is a C++ library for SIMD (Single Instruction, Multiple Data), i.e. applying the same operation to 'lanes'. This library is a dependency from libjxl to use SIMD instructions across multiple target platforms and runtime CPUs.
+
+Local Modifications:
+None.

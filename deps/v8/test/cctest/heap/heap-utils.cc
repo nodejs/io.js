@@ -16,8 +16,8 @@
 #include "src/heap/incremental-marking.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/marking-barrier.h"
-#include "src/heap/mutable-page.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/mutable-page-metadata.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/safepoint.h"
 #include "src/heap/spaces.h"
 #include "src/objects/free-space-inl.h"
@@ -376,7 +376,8 @@ void EmptyNewSpaceUsingGC(Heap* heap) { InvokeMajorGC(heap); }
 void ForceEvacuationCandidate(PageMetadata* page) {
   IsolateSafepointScope safepoint(page->owner()->heap());
   CHECK(v8_flags.manual_evacuation_candidates_selection);
-  page->Chunk()->SetFlag(MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
+  page->Chunk()->SetFlagNonExecutable(
+      MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
   page->owner()->heap()->FreeLinearAllocationAreas();
 }
 

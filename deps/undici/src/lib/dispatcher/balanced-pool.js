@@ -25,9 +25,23 @@ const kWeight = Symbol('kWeight')
 const kMaxWeightPerServer = Symbol('kMaxWeightPerServer')
 const kErrorPenalty = Symbol('kErrorPenalty')
 
+/**
+ * Calculate the greatest common divisor of two numbers by
+ * using the Euclidean algorithm.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
 function getGreatestCommonDivisor (a, b) {
-  if (b === 0) return a
-  return getGreatestCommonDivisor(b, a % b)
+  if (a === 0) return b
+
+  while (b !== 0) {
+    const t = b
+    b = a % b
+    a = t
+  }
+  return a
 }
 
 function defaultFactory (origin, opts) {
@@ -105,7 +119,12 @@ class BalancedPool extends PoolBase {
   }
 
   _updateBalancedPoolStats () {
-    this[kGreatestCommonDivisor] = this[kClients].map(p => p[kWeight]).reduce(getGreatestCommonDivisor, 0)
+    let result = 0
+    for (let i = 0; i < this[kClients].length; i++) {
+      result = getGreatestCommonDivisor(this[kClients][i][kWeight], result)
+    }
+
+    this[kGreatestCommonDivisor] = result
   }
 
   removeUpstream (upstream) {

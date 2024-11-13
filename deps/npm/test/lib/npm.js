@@ -149,8 +149,8 @@ t.test('npm.load', async t => {
       'does not change npm.command when another command is called')
 
     t.match(logs, [
+      /timing config:load:flatten Completed in [0-9.]+ms/,
       /timing command:config Completed in [0-9.]+ms/,
-      /timing command:get Completed in [0-9.]+ms/,
     ])
     t.same(outputs, ['scope=@foo\nusage=false'])
   })

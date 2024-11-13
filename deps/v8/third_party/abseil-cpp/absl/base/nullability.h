@@ -128,9 +128,17 @@
 //
 // By default, nullability annotations are applicable to raw and smart
 // pointers. User-defined types can indicate compatibility with nullability
-// annotations by providing an `absl_nullability_compatible` nested type. The
-// actual definition of this inner type is not relevant as it is used merely as
-// a marker. It is common to use a using declaration of
+// annotations by adding the ABSL_NULLABILITY_COMPATIBLE attribute.
+//
+// // Example:
+// struct ABSL_NULLABILITY_COMPATIBLE MyPtr {
+//   ...
+// };
+//
+// Note: For the time being, nullability-compatible classes should additionally
+// be marked with an `absl_nullability_compatible` nested type (this will soon
+// be deprecated). The actual definition of this inner type is not relevant as
+// it is used merely as a marker. It is common to use a using declaration of
 // `absl_nullability_compatible` set to void.
 //
 // // Example:
@@ -150,14 +158,16 @@
 #ifndef ABSL_BASE_NULLABILITY_H_
 #define ABSL_BASE_NULLABILITY_H_
 
+#include "absl/base/config.h"
 #include "absl/base/internal/nullability_impl.h"
 
 namespace absl {
+ABSL_NAMESPACE_BEGIN
 
 // absl::Nonnull
 //
 // The indicated pointer is never null. It is the responsibility of the provider
-// of this pointer across an API boundary to ensure that the pointer is never be
+// of this pointer across an API boundary to ensure that the pointer is never
 // set to null. Consumers of this pointer across an API boundary may safely
 // dereference the pointer.
 //
@@ -198,9 +208,9 @@ using Nullable = nullability_internal::NullableImpl<T>;
 // migrated into one of the above two nullability states: `Nonnull<T>` or
 //  `Nullable<T>`.
 //
-// NOTE: Because this annotation is the global default state, pointers without
-// any annotation are assumed to have "unknown" semantics. This assumption is
-// designed to minimize churn and reduce clutter within the codebase.
+// NOTE: Because this annotation is the global default state, unannotated
+// pointers are assumed to have "unknown" semantics. This assumption is designed
+// to minimize churn and reduce clutter within the codebase.
 //
 // Example:
 //
@@ -219,6 +229,22 @@ using Nullable = nullability_internal::NullableImpl<T>;
 template <typename T>
 using NullabilityUnknown = nullability_internal::NullabilityUnknownImpl<T>;
 
+ABSL_NAMESPACE_END
 }  // namespace absl
+
+// ABSL_NULLABILITY_COMPATIBLE
+//
+// Indicates that a class is compatible with nullability annotations.
+//
+// For example:
+//
+// struct ABSL_NULLABILITY_COMPATIBLE MyPtr {
+//   ...
+// };
+#if ABSL_HAVE_FEATURE(nullability_on_classes)
+#define ABSL_NULLABILITY_COMPATIBLE _Nullable
+#else
+#define ABSL_NULLABILITY_COMPATIBLE
+#endif
 
 #endif  // ABSL_BASE_NULLABILITY_H_

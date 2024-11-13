@@ -43,7 +43,8 @@ function emptyState() {
       categories : "code-type",
       sort : "time"
     },
-    sourceData: null
+    sourceData: null,
+    showLogging: false,
   };
 }
 
@@ -144,11 +145,87 @@ let main = {
     main.currentState.sourceData = new SourceData(file);
   },
 
+  filterFileTicks(file, showLogging) {
+    if (showLogging) return file;
+
+    // Filter out ticks with the logging VMState, if necessary. This is done
+    // directly on the file ticks, rather than as a filter on the tick
+    // processors, so that the timestamps can be adjusted as if the stacks were
+    // never there.
+    let filtered_ticks = [];
+    let currentTimestampCorrection = 0;
+    let timestampCorrections = [];
+    for (let i = 0; i < file.ticks.length; ++i) {
+      let tick = file.ticks[i];
+      // Fitler VMState == CPP_LOGGING.
+      if (tick.vm == 9) {
+        if (i > 0) {
+          currentTimestampCorrection += tick.tm - file.ticks[i - 1].tm;
+          timestampCorrections.push({
+            tm: tick.tm,
+            correction: currentTimestampCorrection
+          });
+        }
+      } else if (currentTimestampCorrection == 0) {
+        filtered_ticks.push(tick);
+      } else {
+        let new_tick = {...tick};
+        new_tick.tm -= currentTimestampCorrection;
+        filtered_ticks.push(new_tick);
+      }
+    }
+
+    // Now fix up creation timestamps of code objects.
+
+    // Binary search for the lower bound timestamp correction.
+    function applyTimestampCorrection(tm) {
+      let corrections = timestampCorrections;
+
+      if (corrections.length == 0) return tm;
+      let start = 0;
+      let end = corrections.length - 1;
+      while (start <= end) {
+        let middle = (start + end) >> 1;
+        if (corrections[middle].tm <= tm) {
+          start = middle + 1;
+        } else {
+          end = middle - 1;
+        }
+      }
+      if (start == 0) return tm;
+      return tm - corrections[start - 1].correction
+    }
+
+    let filtered_code = [];
+    for (let i = 0; i < file.code.length; ++i) {
+      let code = file.code[i];
+      if (code.type == "JS") {
+        let new_code = { ...code };
+        new_code.tm =
+            applyTimestampCorrection(new_code.tm, timestampCorrections);
+
+        if (code.deopt) {
+          let new_deopt = { ...code.deopt };
+          new_deopt.tm =
+              applyTimestampCorrection(new_deopt.tm, timestampCorrections);
+          new_code.deopt = new_deopt;
+        }
+
+        filtered_code.push(new_code);
+      } else {
+        filtered_code.push(code);
+      }
+    }
+    return {...file, code: filtered_code, ticks: filtered_ticks};
+  },
+
   setFile(file) {
-    if (file !== main.currentState.file) {
+    if (file !== main.currentState.unfilteredFile) {
       let lastMode = main.currentState.mode || "summary";
       main.currentState = emptyState();
-      main.currentState.file = file;
+      main.currentState.unfilteredFile = file;
+      main.currentState.file =
+          main.filterFileTicks(file, main.currentState.showLogging);
       main.updateSources(file);
       main.setMode(lastMode);
       main.delayRender();
@@ -167,6 +244,15 @@ let main = {
     if (main.currentState.viewingSource !== value) {
       main.currentState = Object.assign({}, main.currentState);
       main.currentState.viewingSource = value;
+      main.delayRender();
+    }
+  },
+
+  setShowLogging(value) {
+    if (main.currentState.showLogging !== value) {
+      main.currentState = Object.assign({}, main.currentState);
+      main.currentState.showLogging = value;
+      main.currentState.file = main.filterFileTicks(main.currentState.unfilteredFile, value);
       main.delayRender();
     }
   },
@@ -275,7 +361,7 @@ const bucketDescriptors =
   },
   {
     kinds: ["CPP_COMP_BASELINE"],
-    color: "#43a047",
+    color: "#8fba29",
     backgroundColor: "#5a8000",
     text: "C++/Baseline compiler"
   },
@@ -290,6 +376,12 @@ const bucketDescriptors =
     color: "#6200ea",
     backgroundColor: "#e1bee7",
     text: "C++/GC"
+  },
+  {
+    kinds: ["CPP_LOGGING"],
+    color: "#dedede",
+    backgroundColor: "#efefef",
+    text: "C++/Logging"
   },
   {
     kinds: ["UNKNOWN"],
@@ -335,6 +427,8 @@ function codeTypeToText(type) {
       return "C++ GC";
     case "CPP_EXT":
       return "C++ External";
+    case "CPP_LOGGING":
+      return "C++ Logging";
     case "CPP":
       return "C++";
     case "LIB":
@@ -353,8 +447,6 @@ function codeTypeToText(type) {
       return "JS Ignition";
     case "JS_SPARKPLUG":
       return "JS Sparkplug";
-    case "JS_TURBOPROP":
-      return "JS Turboprop";
     case "JS_MAGLEV":
       return "JS Maglev";
     case "JS_TURBOFAN":
@@ -774,6 +866,11 @@ class TimelineView {
     this.functionTimelineTickHeight = 16;
 
     this.currentState = null;
+
+    this.showLoggingInput = $("show-logging");
+    this.showLoggingInput.onchange = () => {
+      main.setShowLogging(this.showLoggingInput.checked);
+    };
   }
 
   onMouseDown(e) {
@@ -910,7 +1007,8 @@ class TimelineView {
           newState.currentCodeId === oldState.currentCodeId &&
           newState.callTree.attribution === oldState.callTree.attribution &&
           newState.start === oldState.start &&
-          newState.end === oldState.end) {
+          newState.end === oldState.end &&
+          newState.showLogging === oldState.showLogging) {
         // No change, nothing to do.
         return;
       }
@@ -1050,11 +1148,12 @@ class TimelineView {
       let func = file.functions[file.code[currentCodeId].func];
       for (let i = 0; i < func.codes.length; i++) {
         let code = file.code[func.codes[i]];
-        if (code.kind === "Opt") {
+        if (code.kind === "Opt" || code.kind === "Maglev" ||
+            code.kind === "Sparkplug") {
           if (code.deopt) {
             // Draw deoptimization mark.
             let x = timestampToX(code.deopt.tm);
-            ctx.lineWidth = 0.7;
+            ctx.lineWidth = 1;
             ctx.strokeStyle = "red";
             ctx.beginPath();
             ctx.moveTo(x - 3, y - 3);
@@ -1065,10 +1164,23 @@ class TimelineView {
             ctx.lineTo(x + 3, y - 3);
             ctx.stroke();
           }
+          let code_type = "UNKNOWN";
+          switch (code.kind) {
+            case "Opt":
+              code_type = "JS_TURBOFAN";
+              break;
+            case "Maglev":
+              code_type = "JS_MAGLEV";
+              break;
+            case "Sparkplug":
+              code_type = "JS_SPARKPLUG";
+              break;
+          }
+
           // Draw optimization mark.
           let x = timestampToX(code.tm);
-          ctx.lineWidth = 0.7;
-          ctx.strokeStyle = "blue";
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = kindToBucketDescriptor[code_type].color;
           ctx.beginPath();
           ctx.moveTo(x - 3, y - 3);
           ctx.lineTo(x, y);
@@ -1095,26 +1207,21 @@ class TimelineView {
     this.drawSelection();
 
     // (Re-)Populate the graph legend.
-    while (this.legend.cells.length > 0) {
-      this.legend.deleteCell(0);
-    }
-    let cell = this.legend.insertCell(-1);
-    cell.textContent = "Legend: ";
-    cell.style.padding = "1ex";
+    this.legend.innerHTML = "";
     for (let i = 0; i < bucketDescriptors.length; i++) {
-      let cell = this.legend.insertCell(-1);
-      cell.style.padding = "1ex";
       let desc = bucketDescriptors[i];
-      let div = document.createElement("div");
-      div.style.display = "inline-block";
-      div.style.width = "0.6em";
-      div.style.height = "1.2ex";
-      div.style.backgroundColor = desc.color;
-      div.style.borderStyle = "solid";
-      div.style.borderWidth = "1px";
-      div.style.borderColor = "Black";
-      cell.appendChild(div);
+      let box = document.createElement("div");
+      box.style.display = "inline-block";
+      box.style.width = "0.6em";
+      box.style.height = "1.2ex";
+      box.style.backgroundColor = desc.color;
+      box.style.borderStyle = "solid";
+      box.style.borderWidth = "1px";
+      box.style.borderColor = "Black";
+      let cell = document.createElement("div");
+      cell.appendChild(box);
       cell.appendChild(document.createTextNode(" " + desc.text));
+      this.legend.appendChild(cell);
     }
 
     removeAllChildren(this.currentCode);
@@ -1269,7 +1376,7 @@ class SummaryView {
       makeCollapsible(row, arrow);
     }
 
-    function expandOptimizedFunctionList(row, arrow, list, indent, kind) {
+    function expandOptimizedFunctionList(row, arrow, list, indent) {
       let index = row.rowIndex;
       for (let i = 0; i < list.length; i++) {
         let childRow = rows.insertRow(index + 1);
@@ -1309,8 +1416,7 @@ class SummaryView {
         arrow.textContent = COLLAPSED_ARROW;
         if (kind === "opt") {
           row.onclick = () => {
-            expandOptimizedFunctionList(
-                row, arrow, list.functions, indent + 1, kind);
+            expandOptimizedFunctionList(row, arrow, list.functions, indent + 1);
           };
         } else {
           row.onclick = () => {
@@ -1323,28 +1429,27 @@ class SummaryView {
     }
 
     addRow("Total function count:", stats.functionCount);
+    addRow("Baseline function count:", stats.baselineFunctionCount);
     addRow("Optimized function count:", stats.optimizedFunctionCount, 1);
-    if (stats.turbopropOptimizedFunctionCount != 0) {
-      addRow("Turboprop optimized function count:", stats.turbopropOptimizedFunctionCount, 1);
-    }
+    addRow(
+        "Maglev optimized function count:", stats.maglevOptimizedFunctionCount,
+        1);
     addRow("Deoptimized function count:", stats.deoptimizedFunctionCount, 2);
 
+    addExpandableRow(
+        "Baseline compilation count:", stats.baselineCompilations, 0, "opt");
     addExpandableRow("Optimization count:", stats.optimizations, 0, "opt");
-    if (stats.turbopropOptimizedFunctionCount != 0) {
-      addExpandableRow("Turboprop Optimization count:", stats.turbopropOptimizations, 0, "tp");
-    }
+    addExpandableRow(
+        "Maglev Optimization count:", stats.maglevOptimizations, 0, "opt");
+
     let deoptCount = stats.eagerDeoptimizations.count +
-        stats.softDeoptimizations.count + stats.lazyDeoptimizations.count;
+        stats.lazyDeoptimizations.count +
+        stats.dependencyChangeDeoptimizations.count;
     addRow("Deoptimization count:", deoptCount);
     addExpandableRow("Eager:", stats.eagerDeoptimizations, 1, "eager");
     addExpandableRow("Lazy:", stats.lazyDeoptimizations, 1, "lazy");
-    addExpandableRow("Soft:", stats.softDeoptimizations, 1, "soft");
-    if (stats.softBailouts.count != 0) {
-      addExpandableRow("SoftBailout:", stats.softBailouts, 1, "softbailout");
-    }
-    if (stats.eagerBailouts.count != 0) {
-      addExpandableRow("EagerBailout:", stats.eagerBailouts, 1, "eagerbailout");
-    }
+    addExpandableRow(
+        "Dependency change:", stats.dependencyChangeDeoptimizations, 1, "deps");
 
     table.appendChild(rows);
     this.element.appendChild(table);

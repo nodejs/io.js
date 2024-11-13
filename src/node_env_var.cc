@@ -6,6 +6,7 @@
 #include "node_process-inl.h"
 
 #include <time.h>  // tzset(), _tzset()
+#include <optional>
 
 namespace node {
 using v8::Array;
@@ -18,7 +19,7 @@ using v8::HandleScope;
 using v8::Integer;
 using v8::Intercepted;
 using v8::Isolate;
-using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
@@ -38,7 +39,7 @@ using v8::Value;
 class RealEnvStore final : public KVStore {
  public:
   MaybeLocal<String> Get(Isolate* isolate, Local<String> key) const override;
-  Maybe<std::string> Get(const char* key) const override;
+  std::optional<std::string> Get(const char* key) const override;
   void Set(Isolate* isolate, Local<String> key, Local<String> value) override;
   int32_t Query(Isolate* isolate, Local<String> key) const override;
   int32_t Query(const char* key) const override;
@@ -49,7 +50,7 @@ class RealEnvStore final : public KVStore {
 class MapKVStore final : public KVStore {
  public:
   MaybeLocal<String> Get(Isolate* isolate, Local<String> key) const override;
-  Maybe<std::string> Get(const char* key) const override;
+  std::optional<std::string> Get(const char* key) const override;
   void Set(Isolate* isolate, Local<String> key, Local<String> value) override;
   int32_t Query(Isolate* isolate, Local<String> key) const override;
   int32_t Query(const char* key) const override;
@@ -101,7 +102,7 @@ void DateTimeConfigurationChangeNotification(
   }
 }
 
-Maybe<std::string> RealEnvStore::Get(const char* key) const {
+std::optional<std::string> RealEnvStore::Get(const char* key) const {
   Mutex::ScopedLock lock(per_process::env_var_mutex);
 
   size_t init_sz = 256;
@@ -116,19 +117,19 @@ Maybe<std::string> RealEnvStore::Get(const char* key) const {
   }
 
   if (ret >= 0) {  // Env key value fetch success.
-    return Just(std::string(*val, init_sz));
+    return std::string(*val, init_sz);
   }
 
-  return Nothing<std::string>();
+  return std::nullopt;
 }
 
 MaybeLocal<String> RealEnvStore::Get(Isolate* isolate,
                                      Local<String> property) const {
   node::Utf8Value key(isolate, property);
-  Maybe<std::string> value = Get(*key);
+  std::optional<std::string> value = Get(*key);
 
-  if (value.IsJust()) {
-    std::string val = value.FromJust();
+  if (value.has_value()) {
+    std::string val = value.value();
     return String::NewFromUtf8(
         isolate, val.data(), NewStringType::kNormal, val.size());
   }
@@ -229,17 +230,17 @@ std::shared_ptr<KVStore> KVStore::Clone(Isolate* isolate) const {
   return copy;
 }
 
-Maybe<std::string> MapKVStore::Get(const char* key) const {
+std::optional<std::string> MapKVStore::Get(const char* key) const {
   Mutex::ScopedLock lock(mutex_);
   auto it = map_.find(key);
-  return it == map_.end() ? Nothing<std::string>() : Just(it->second);
+  return it == map_.end() ? std::nullopt : std::make_optional(it->second);
 }
 
 MaybeLocal<String> MapKVStore::Get(Isolate* isolate, Local<String> key) const {
   Utf8Value str(isolate, key);
-  Maybe<std::string> value = Get(*str);
-  if (value.IsNothing()) return Local<String>();
-  std::string val = value.FromJust();
+  std::optional<std::string> value = Get(*str);
+  if (!value.has_value()) return MaybeLocal<String>();
+  std::string val = value.value();
   return String::NewFromUtf8(
       isolate, val.data(), NewStringType::kNormal, val.size());
 }
@@ -291,35 +292,34 @@ std::shared_ptr<KVStore> KVStore::CreateMapKVStore() {
   return std::make_shared<MapKVStore>();
 }
 
-Maybe<bool> KVStore::AssignFromObject(Local<Context> context,
+Maybe<void> KVStore::AssignFromObject(Local<Context> context,
                                       Local<Object> entries) {
   Isolate* isolate = context->GetIsolate();
   HandleScope handle_scope(isolate);
   Local<Array> keys;
   if (!entries->GetOwnPropertyNames(context).ToLocal(&keys))
-    return Nothing<bool>();
+    return Nothing<void>();
   uint32_t keys_length = keys->Length();
   for (uint32_t i = 0; i < keys_length; i++) {
     Local<Value> key;
-    if (!keys->Get(context, i).ToLocal(&key))
-      return Nothing<bool>();
+    if (!keys->Get(context, i).ToLocal(&key)) return Nothing<void>();
     if (!key->IsString()) continue;
 
     Local<Value> value;
     Local<String> value_string;
     if (!entries->Get(context, key).ToLocal(&value) ||
         !value->ToString(context).ToLocal(&value_string)) {
-      return Nothing<bool>();
+      return Nothing<void>();
     }
 
     Set(isolate, key.As<String>(), value_string);
   }
-  return Just(true);
+  return JustVoid();
 }
 
 // TODO(bnoordhuis) Not super efficient but called infrequently. Not worth
 // the trouble yet of specializing for RealEnvStore and MapKVStore.
-Maybe<bool> KVStore::AssignToObject(v8::Isolate* isolate,
+Maybe<void> KVStore::AssignToObject(v8::Isolate* isolate,
                                     v8::Local<v8::Context> context,
                                     v8::Local<v8::Object> object) {
   HandleScope scope(isolate);
@@ -332,9 +332,9 @@ Maybe<bool> KVStore::AssignToObject(v8::Isolate* isolate,
     ok = ok && key->IsString();
     ok = ok && Get(isolate, key.As<String>()).ToLocal(&value);
     ok = ok && object->Set(context, key, value).To(&ok);
-    if (!ok) return Nothing<bool>();
+    if (!ok) return Nothing<void>();
   }
-  return Just(true);
+  return JustVoid();
 }
 
 static Intercepted EnvGetter(Local<Name> property,

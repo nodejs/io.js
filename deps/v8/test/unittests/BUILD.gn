@@ -348,7 +348,6 @@ v8_source_set("v8_unittests_sources") {
     "heap/cppgc-js/unified-heap-utils.h",
     "heap/cppgc-js/young-unified-heap-unittest.cc",
     "heap/direct-handles-unittest.cc",
-    "heap/gc-idle-time-handler-unittest.cc",
     "heap/gc-tracer-unittest.cc",
     "heap/global-handles-unittest.cc",
     "heap/global-safepoint-unittest.cc",
@@ -516,12 +515,10 @@ v8_source_set("v8_unittests_sources") {
       "compiler/compiler-unittest.cc",
       "compiler/constant-folding-reducer-unittest.cc",
       "compiler/control-equivalence-unittest.cc",
-      "compiler/control-flow-optimizer-unittest.cc",
       "compiler/csa-load-elimination-unittest.cc",
       "compiler/dead-code-elimination-unittest.cc",
       "compiler/decompression-optimizer-unittest.cc",
       "compiler/diamond-unittest.cc",
-      "compiler/effect-control-linearizer-unittest.cc",
       "compiler/frame-unittest.cc",
       "compiler/function-tester.cc",
       "compiler/function-tester.h",
@@ -571,6 +568,7 @@ v8_source_set("v8_unittests_sources") {
       "compiler/state-values-utils-unittest.cc",
       "compiler/turboshaft/control-flow-unittest.cc",
       "compiler/turboshaft/late-load-elimination-reducer-unittest.cc",
+      "compiler/turboshaft/loop-unrolling-analyzer-unittest.cc",
       "compiler/turboshaft/opmask-unittest.cc",
       "compiler/turboshaft/reducer-test.h",
       "compiler/turboshaft/simplified-lowering-reducer-unittest.cc",
@@ -599,6 +597,7 @@ v8_source_set("v8_unittests_sources") {
       "asmjs/asm-scanner-unittest.cc",
       "asmjs/asm-types-unittest.cc",
       "compiler/int64-lowering-unittest.cc",
+      "compiler/turboshaft/wasm-simd-unittest.cc",
       "compiler/wasm-address-reassociation-unittest.cc",
       "objects/wasm-backing-store-unittest.cc",
       "wasm/decoder-unittest.cc",
@@ -608,7 +607,9 @@ v8_source_set("v8_unittests_sources") {
       "wasm/loop-assignment-analysis-unittest.cc",
       "wasm/memory-protection-unittest.cc",
       "wasm/module-decoder-memory64-unittest.cc",
+      "wasm/module-decoder-table64-unittest.cc",
       "wasm/module-decoder-unittest.cc",
+      "wasm/signature-hashing-unittest.cc",
       "wasm/simd-shuffle-unittest.cc",
       "wasm/streaming-decoder-unittest.cc",
       "wasm/string-builder-unittest.cc",
@@ -702,7 +703,10 @@ v8_source_set("v8_unittests_sources") {
       "assembler/macro-assembler-riscv-unittest.cc",
     ]
     if (v8_enable_turbofan) {
-      sources += [ "compiler/riscv64/instruction-selector-riscv64-unittest.cc" ]
+      sources += [
+        "compiler/riscv64/instruction-selector-riscv64-unittest.cc",
+        "compiler/riscv64/turboshaft-instruction-selector-riscv64-unittest.cc",
+      ]
     }
     if (v8_enable_webassembly && current_cpu == "riscv64") {
       sources += [ "wasm/trap-handler-native-unittest.cc" ]
@@ -713,7 +717,10 @@ v8_source_set("v8_unittests_sources") {
       "assembler/macro-assembler-riscv-unittest.cc",
     ]
     if (v8_enable_turbofan) {
-      sources += [ "compiler/riscv32/instruction-selector-riscv32-unittest.cc" ]
+      sources += [
+        "compiler/riscv32/instruction-selector-riscv32-unittest.cc",
+        "compiler/riscv32/turboshaft-instruction-selector-riscv32-unittest.cc",
+      ]
     }
   } else if (v8_current_cpu == "x64") {
     sources += [
@@ -722,7 +729,10 @@ v8_source_set("v8_unittests_sources") {
       "assembler/macro-assembler-x64-unittest.cc",
     ]
     if (v8_enable_turbofan) {
-      sources += [ "compiler/x64/instruction-selector-x64-unittest.cc" ]
+      sources += [
+        "compiler/x64/instruction-selector-x64-unittest.cc",
+        "compiler/x64/turboshaft-instruction-selector-x64-unittest.cc",
+      ]
     }
     if (v8_enable_webassembly) {
       sources += [ "wasm/trap-handler-native-unittest.cc" ]
@@ -802,11 +812,14 @@ v8_source_set("v8_unittests_sources") {
     sources += [
       "fuzztest-adapter.h",
       "fuzztest-init-adapter.h",
+      "regexp/regexp-fuzzer.cc",
+      "regexp/regexp-grammar.h",
     ]
 
     deps += [
       "//third_party/abseil-cpp:absl_full",
       "//third_party/fuzztest:fuzztest",
+      "//third_party/fuzztest:init_fuzztest",
     ]
 
     if (!is_win) {

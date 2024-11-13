@@ -89,15 +89,13 @@ class U_I18N_API Measure: public UObject {
      */
     bool operator==(const UObject& other) const;
 
-#ifndef U_HIDE_DRAFT_API
     /**
      * Inequality operator.  Returns true if this object is not equal to the other object.
      * @param other the object to compare with
      * @return true if the objects are not equal
-     * @draft ICU 74
+     * @stable ICU 74
      */
     inline bool operator!=(const UObject& other) const { return !operator==(other); }
-#endif  // U_HIDE_DRAFT_API
 
     /**
      * Return a reference to the numeric value of this object.  The

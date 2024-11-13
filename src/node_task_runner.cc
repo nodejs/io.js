@@ -1,5 +1,5 @@
 #include "node_task_runner.h"
-#include "util.h"
+#include "util-inl.h"
 
 #include <regex>  // NOLINT(build/c++11)
 
@@ -69,7 +69,7 @@ ProcessRunner::ProcessRunner(std::shared_ptr<InitializationResultImpl> result,
     command_args_ = {
         options_.file, "/d", "/s", "/c", "\"" + command_str + "\""};
   } else {
-    // If the file is not cmd.exe, and it is unclear wich shell is being used,
+    // If the file is not cmd.exe, and it is unclear which shell is being used,
     // so assume -c is the correct syntax (Unix-like shells use -c for this
     // purpose).
     command_args_ = {options_.file, "-c", command_str};
@@ -149,7 +149,7 @@ std::string EscapeShell(const std::string_view input) {
 #endif
   }
 
-  static const std::string_view forbidden_characters =
+  static constexpr std::string_view forbidden_characters =
       "[\t\n\r \"#$&'()*;<>?\\\\`|~]";
 
   // Check if input contains any forbidden characters
@@ -191,7 +191,7 @@ std::string EscapeShell(const std::string_view input) {
 void ProcessRunner::ExitCallback(uv_process_t* handle,
                                  int64_t exit_status,
                                  int term_signal) {
-  auto self = reinterpret_cast<ProcessRunner*>(handle->data);
+  const auto self = static_cast<ProcessRunner*>(handle->data);
   uv_close(reinterpret_cast<uv_handle_t*>(handle), nullptr);
   self->OnExit(exit_status, term_signal);
 }
@@ -205,6 +205,9 @@ void ProcessRunner::OnExit(int64_t exit_status, int term_signal) {
 }
 
 void ProcessRunner::Run() {
+  // keeps the string alive until destructor
+  cwd = package_json_path_.parent_path().string();
+  options_.cwd = cwd.c_str();
   if (int r = uv_spawn(loop_, &process_, &options_)) {
     fprintf(stderr, "Error: %s\n", uv_strerror(r));
   }
@@ -246,14 +249,16 @@ FindPackageJson(const std::filesystem::path& cwd) {
   return {{package_json_path, raw_content, path_env_var}};
 }
 
-void RunTask(std::shared_ptr<InitializationResultImpl> result,
+void RunTask(const std::shared_ptr<InitializationResultImpl>& result,
              std::string_view command_id,
              const std::vector<std::string_view>& positional_args) {
   auto cwd = std::filesystem::current_path();
   auto package_json = FindPackageJson(cwd);
 
   if (!package_json.has_value()) {
-    fprintf(stderr, "Can't read package.json\n");
+    fprintf(stderr,
+            "Can't find package.json for directory %s\n",
+            cwd.string().c_str());
     result->exit_code_ = ExitCode::kGenericUserError;
     return;
   }
@@ -267,11 +272,21 @@ void RunTask(std::shared_ptr<InitializationResultImpl> result,
   simdjson::ondemand::parser json_parser;
   simdjson::ondemand::document document;
   simdjson::ondemand::object main_object;
-  simdjson::error_code error = json_parser.iterate(raw_json).get(document);
 
+  if (json_parser.iterate(raw_json).get(document)) {
+    fprintf(stderr, "Can't parse %s\n", path.string().c_str());
+    result->exit_code_ = ExitCode::kGenericUserError;
+    return;
+  }
   // If document is not an object, throw an error.
-  if (error || document.get_object().get(main_object)) {
-    fprintf(stderr, "Can't parse package.json\n");
+  if (auto root_error = document.get_object().get(main_object)) {
+    if (root_error == simdjson::error_code::INCORRECT_TYPE) {
+      fprintf(stderr,
+              "Root value unexpected not an object for %s\n\n",
+              path.string().c_str());
+    } else {
+      fprintf(stderr, "Can't parse %s\n", path.string().c_str());
+    }
     result->exit_code_ = ExitCode::kGenericUserError;
     return;
   }
@@ -279,34 +294,45 @@ void RunTask(std::shared_ptr<InitializationResultImpl> result,
   // If package_json object doesn't have "scripts" field, throw an error.
   simdjson::ondemand::object scripts_object;
   if (main_object["scripts"].get_object().get(scripts_object)) {
-    fprintf(stderr, "Can't find \"scripts\" field in package.json\n");
+    fprintf(
+        stderr, "Can't find \"scripts\" field in %s\n", path.string().c_str());
     result->exit_code_ = ExitCode::kGenericUserError;
     return;
   }
 
   // If the command_id is not found in the scripts object, throw an error.
   std::string_view command;
-  if (scripts_object[command_id].get_string().get(command)) {
-    fprintf(stderr,
-            "Missing script: \"%.*s\"\n\n",
-            static_cast<int>(command_id.size()),
-            command_id.data());
-    fprintf(stderr, "Available scripts are:\n");
+  if (auto command_error =
+          scripts_object[command_id].get_string().get(command)) {
+    if (command_error == simdjson::error_code::INCORRECT_TYPE) {
+      fprintf(stderr,
+              "Script \"%.*s\" is unexpectedly not a string for %s\n\n",
+              static_cast<int>(command_id.size()),
+              command_id.data(),
+              path.string().c_str());
+    } else {
+      fprintf(stderr,
+              "Missing script: \"%.*s\" for %s\n\n",
+              static_cast<int>(command_id.size()),
+              command_id.data(),
+              path.string().c_str());
+      fprintf(stderr, "Available scripts are:\n");
 
-    // Reset the object to iterate over it again
-    scripts_object.reset();
-    simdjson::ondemand::value value;
-    for (auto field : scripts_object) {
-      std::string_view key_str;
-      std::string_view value_str;
-      if (!field.unescaped_key().get(key_str) && !field.value().get(value) &&
-          !value.get_string().get(value_str)) {
-        fprintf(stderr,
-                "  %.*s: %.*s\n",
-                static_cast<int>(key_str.size()),
-                key_str.data(),
-                static_cast<int>(value_str.size()),
-                value_str.data());
+      // Reset the object to iterate over it again
+      scripts_object.reset();
+      simdjson::ondemand::value value;
+      for (auto field : scripts_object) {
+        std::string_view key_str;
+        std::string_view value_str;
+        if (!field.unescaped_key().get(key_str) && !field.value().get(value) &&
+            !value.get_string().get(value_str)) {
+          fprintf(stderr,
+                  "  %.*s: %.*s\n",
+                  static_cast<int>(key_str.size()),
+                  key_str.data(),
+                  static_cast<int>(value_str.size()),
+                  value_str.data());
+        }
       }
     }
     result->exit_code_ = ExitCode::kGenericUserError;

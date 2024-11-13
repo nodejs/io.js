@@ -183,6 +183,7 @@ absl_source_set("strip") {
   deps = [
     ":log_message",
     ":nullstream",
+    "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:log_severity",
   ]
 }

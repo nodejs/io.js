@@ -7,7 +7,6 @@
 #include <atomic>
 
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/base/platform/mutex.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
@@ -157,7 +156,7 @@ void IsolateSafepoint::LockMutex(LocalHeap* local_heap) {
     // Safepoints are only used for GCs, so GC requests should be ignored by
     // default when parking for a safepoint.
     IgnoreLocalGCRequests ignore_gc_requests(local_heap->heap());
-    local_heap->BlockWhileParked([this]() { local_heaps_mutex_.Lock(); });
+    local_heap->ExecuteWhileParked([this]() { local_heaps_mutex_.Lock(); });
   }
 }
 
@@ -344,7 +343,7 @@ void GlobalSafepoint::EnterGlobalSafepointScope(Isolate* initiator) {
 
   if (!clients_mutex_.TryLock()) {
     IgnoreLocalGCRequests ignore_gc_requests(initiator->heap());
-    initiator->main_thread_local_heap()->BlockWhileParked(
+    initiator->main_thread_local_heap()->ExecuteWhileParked(
         [this]() { clients_mutex_.Lock(); });
   }
 

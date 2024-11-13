@@ -307,7 +307,7 @@ class RegExpBuilder {
   void AddTerm(RegExpTree* tree);
   void AddAssertion(RegExpTree* tree);
   void NewAlternative();  // '|'
-  bool AddQuantifierToAtom(int min, int max,
+  bool AddQuantifierToAtom(int min, int max, int index,
                            RegExpQuantifier::QuantifierType type);
   void FlushText();
   RegExpTree* ToRegExp();
@@ -640,6 +640,7 @@ class RegExpParserImpl final {
   int next_pos_;
   int captures_started_;
   int capture_count_;  // Only valid after we have scanned for captures.
+  int quantifier_count_;
   int lookaround_count_;  // Only valid after we have scanned for lookbehinds.
   bool has_more_;
   bool simple_;
@@ -667,6 +668,7 @@ RegExpParserImpl<CharT>::RegExpParserImpl(
       next_pos_(0),
       captures_started_(0),
       capture_count_(0),
+      quantifier_count_(0),
       lookaround_count_(0),
       has_more_(true),
       simple_(false),
@@ -1274,9 +1276,11 @@ RegExpTree* RegExpParserImpl<CharT>::ParseDisjunction() {
       quantifier_type = RegExpQuantifier::POSSESSIVE;
       Advance();
     }
-    if (!builder->AddQuantifierToAtom(min, max, quantifier_type)) {
+    if (!builder->AddQuantifierToAtom(min, max, quantifier_count_,
+                                      quantifier_type)) {
       return ReportError(RegExpError::kInvalidQuantifier);
     }
+    ++quantifier_count_;
   }
 }
 
@@ -1333,19 +1337,31 @@ RegExpParserState* RegExpParserImpl<CharT>::ParseOpenParenthesis(
           break;
         case '=':
           Advance(2);
-          parsing_modifiers = false;
+          if (parsing_modifiers) {
+            DCHECK(v8_flags.js_regexp_modifiers);
+            ReportError(RegExpError::kInvalidGroup);
+            return nullptr;
+          }
           lookaround_type = RegExpLookaround::LOOKAHEAD;
           subexpr_type = POSITIVE_LOOKAROUND;
           break;
         case '!':
           Advance(2);
-          parsing_modifiers = false;
+          if (parsing_modifiers) {
+            DCHECK(v8_flags.js_regexp_modifiers);
+            ReportError(RegExpError::kInvalidGroup);
+            return nullptr;
+          }
           lookaround_type = RegExpLookaround::LOOKAHEAD;
           subexpr_type = NEGATIVE_LOOKAROUND;
           break;
         case '<':
           Advance();
-          parsing_modifiers = false;
+          if (parsing_modifiers) {
+            DCHECK(v8_flags.js_regexp_modifiers);
+            ReportError(RegExpError::kInvalidGroup);
+            return nullptr;
+          }
           if (Next() == '=') {
             Advance(2);
             lookaround_type = RegExpLookaround::LOOKBEHIND;
@@ -2367,7 +2383,7 @@ base::uc32 RegExpParserImpl<CharT>::ParseCharacterEscape(
       if (IsUnicodeMode()) {
         // With /u or /v, decimal escape is not interpreted as octal character
         // code.
-        ReportError(RegExpError::kInvalidClassEscape);
+        ReportError(RegExpError::kInvalidDecimalEscape);
         return 0;
       }
       return ParseOctalLiteral();
@@ -3179,7 +3195,8 @@ RegExpTree* RegExpBuilder::ToRegExp() {
 }
 
 bool RegExpBuilder::AddQuantifierToAtom(
-    int min, int max, RegExpQuantifier::QuantifierType quantifier_type) {
+    int min, int max, int index,
+    RegExpQuantifier::QuantifierType quantifier_type) {
   if (pending_empty_) {
     pending_empty_ = false;
     return true;
@@ -3211,7 +3228,7 @@ bool RegExpBuilder::AddQuantifierToAtom(
     UNREACHABLE();
   }
   terms_.emplace_back(
-      zone()->New<RegExpQuantifier>(min, max, quantifier_type, atom));
+      zone()->New<RegExpQuantifier>(min, max, quantifier_type, index, atom));
   return true;
 }
 
@@ -3222,7 +3239,7 @@ template class RegExpParserImpl<base::uc16>;
 
 // static
 bool RegExpParser::ParseRegExpFromHeapString(Isolate* isolate, Zone* zone,
-                                             Handle<String> input,
+                                             DirectHandle<String> input,
                                              RegExpFlags flags,
                                              RegExpCompileData* result) {
   DisallowGarbageCollection no_gc;

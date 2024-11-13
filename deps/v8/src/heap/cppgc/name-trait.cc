@@ -23,7 +23,7 @@ namespace internal {
 HeapObjectName NameTraitBase::GetNameFromTypeSignature(const char* signature) {
   // Parsing string of structure:
   //    static HeapObjectName NameTrait<int>::GetNameFor(...) [T = int]
-  if (!signature) return {NameProvider::kNoNameDeducible, true};
+  if (!signature) return {NameProvider::kNoNameDeducible, false};
 
   const std::string raw(signature);
   const auto start_pos = raw.rfind("T = ") + 4;

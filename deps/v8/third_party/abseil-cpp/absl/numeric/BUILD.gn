@@ -26,6 +26,7 @@ absl_source_set("int128") {
     ":bits",
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/types:compare",
   ]
 }
 
@@ -40,6 +41,7 @@ absl_test("int128_test") {
     "//third_party/abseil-cpp/absl/hash:hash_testing",
     "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/types:compare",
   ]
 }
 

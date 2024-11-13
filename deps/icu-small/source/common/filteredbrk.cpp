@@ -50,8 +50,8 @@ static void _fb_trace(const char *m, const UnicodeString *s, UBool b, int32_t d,
  * Used with sortedInsert()
  */
 static int32_t U_CALLCONV compareUnicodeString(UElement t1, UElement t2) {
-    const UnicodeString &a = *(const UnicodeString*)t1.pointer;
-    const UnicodeString &b = *(const UnicodeString*)t2.pointer;
+    const UnicodeString& a = *static_cast<const UnicodeString*>(t1.pointer);
+    const UnicodeString& b = *static_cast<const UnicodeString*>(t2.pointer);
     return a.compare(b);
 }
 
@@ -76,7 +76,7 @@ class UStringSet : public UVector {
    * Return the ith UnicodeString alias
    */
   inline const UnicodeString* getStringAt(int32_t i) const {
-    return (const UnicodeString*)elementAt(i);
+    return static_cast<const UnicodeString*>(elementAt(i));
   }
   /**
    * Adopt the UnicodeString if not already contained.

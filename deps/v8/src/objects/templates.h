@@ -5,8 +5,10 @@
 #ifndef V8_OBJECTS_TEMPLATES_H_
 #define V8_OBJECTS_TEMPLATES_H_
 
+#include <optional>
 #include <string_view>
 
+#include "include/v8-exception.h"
 #include "include/v8-memory-span.h"
 #include "src/handles/handles.h"
 #include "src/objects/contexts.h"
@@ -94,45 +96,52 @@ class FunctionTemplateInfo
     : public TorqueGeneratedFunctionTemplateInfo<FunctionTemplateInfo,
                                                  TemplateInfo> {
  public:
-#define DECL_RARE_ACCESSORS(Name, CamelName, Type)                           \
-  DECL_GETTER(Get##CamelName, Tagged<Type>)                                  \
-  static inline void Set##CamelName(                                         \
-      Isolate* isolate, Handle<FunctionTemplateInfo> function_template_info, \
-      Handle<Type> Name);
+#define DECL_RARE_ACCESSORS(Name, CamelName, ...)                \
+  DECL_GETTER(Get##CamelName, Tagged<__VA_ARGS__>)               \
+  static inline void Set##CamelName(                             \
+      Isolate* isolate,                                          \
+      DirectHandle<FunctionTemplateInfo> function_template_info, \
+      DirectHandle<__VA_ARGS__> Name);
 
   // ObjectTemplateInfo or Undefined, used for the prototype property of the
   // resulting JSFunction instance of this FunctionTemplate.
-  DECL_RARE_ACCESSORS(prototype_template, PrototypeTemplate, HeapObject)
+  DECL_RARE_ACCESSORS(prototype_template, PrototypeTemplate,
+                      UnionOf<Undefined, ObjectTemplateInfo>)
 
   // In the case the prototype_template is Undefined we use the
   // prototype_provider_template to retrieve the instance prototype. Either
   // contains an FunctionTemplateInfo or Undefined.
   DECL_RARE_ACCESSORS(prototype_provider_template, PrototypeProviderTemplate,
-                      HeapObject)
+                      UnionOf<Undefined, FunctionTemplateInfo>)
 
   // Used to create prototype chains. The parent_template's prototype is set as
   // __proto__ of this FunctionTemplate's instance prototype. Is either a
   // FunctionTemplateInfo or Undefined.
-  DECL_RARE_ACCESSORS(parent_template, ParentTemplate, HeapObject)
+  DECL_RARE_ACCESSORS(parent_template, ParentTemplate,
+                      UnionOf<Undefined, FunctionTemplateInfo>)
 
   // Returns an InterceptorInfo or Undefined for named properties.
-  DECL_RARE_ACCESSORS(named_property_handler, NamedPropertyHandler, HeapObject)
+  DECL_RARE_ACCESSORS(named_property_handler, NamedPropertyHandler,
+                      UnionOf<Undefined, InterceptorInfo>)
   // Returns an InterceptorInfo or Undefined for indexed properties/elements.
   DECL_RARE_ACCESSORS(indexed_property_handler, IndexedPropertyHandler,
-                      HeapObject)
+                      UnionOf<Undefined, InterceptorInfo>)
 
   // An ObjectTemplateInfo that is used when instantiating the JSFunction
   // associated with this FunctionTemplateInfo. Contains either an
   // ObjectTemplateInfo or Undefined. A default instance_template is assigned
   // upon first instantiation if it's Undefined.
-  DECL_RARE_ACCESSORS(instance_template, InstanceTemplate, HeapObject)
+  DECL_RARE_ACCESSORS(instance_template, InstanceTemplate,
+                      UnionOf<Undefined, ObjectTemplateInfo>)
 
   // Either a FunctionTemplateInfo or Undefined. If an instance_call_handler is
   // provided the instances created from the associated JSFunction are marked as
   // callable.
-  DECL_RARE_ACCESSORS(instance_call_handler, InstanceCallHandler, HeapObject)
+  DECL_RARE_ACCESSORS(instance_call_handler, InstanceCallHandler,
+                      UnionOf<Undefined, FunctionTemplateInfo>)
 
-  DECL_RARE_ACCESSORS(access_check_info, AccessCheckInfo, HeapObject)
+  DECL_RARE_ACCESSORS(access_check_info, AccessCheckInfo,
+                      UnionOf<Undefined, AccessCheckInfo>)
 
   DECL_RARE_ACCESSORS(c_function_overloads, CFunctionOverloads, FixedArray)
 #undef DECL_RARE_ACCESSORS
@@ -183,12 +192,12 @@ class FunctionTemplateInfo
                                                   int api_instance_type_end);
 
   static Handle<SharedFunctionInfo> GetOrCreateSharedFunctionInfo(
-      Isolate* isolate, Handle<FunctionTemplateInfo> info,
-      MaybeHandle<Name> maybe_name);
+      Isolate* isolate, DirectHandle<FunctionTemplateInfo> info,
+      MaybeDirectHandle<Name> maybe_name);
 
   static Handle<SharedFunctionInfo> GetOrCreateSharedFunctionInfo(
-      LocalIsolate* isolate, Handle<FunctionTemplateInfo> info,
-      Handle<Name> maybe_name) {
+      LocalIsolate* isolate, DirectHandle<FunctionTemplateInfo> info,
+      DirectHandle<Name> maybe_name) {
     // We don't support streaming compilation of scripts with natives, so we
     // don't need an off-thread implementation of this.
     UNREACHABLE();
@@ -209,12 +218,12 @@ class FunctionTemplateInfo
   bool HasInstanceType();
 
   // Helper function for cached accessors.
-  static base::Optional<Tagged<Name>> TryGetCachedPropertyName(
+  static std::optional<Tagged<Name>> TryGetCachedPropertyName(
       Isolate* isolate, Tagged<Object> getter);
   // Fast API overloads.
   int GetCFunctionsCount() const;
-  Address GetCFunction(int index) const;
-  const CFunctionInfo* GetCSignature(int index) const;
+  Address GetCFunction(Isolate* isolate, int index) const;
+  const CFunctionInfo* GetCSignature(Isolate* isolate, int index) const;
 
   // CFunction data for a set of overloads is stored into a FixedArray, as
   // [address_0, signature_0, ... address_n-1, signature_n-1].
@@ -262,10 +271,12 @@ class FunctionTemplateInfo
 
   static constexpr int kNoJSApiObjectType = 0;
   static inline Tagged<FunctionTemplateRareData> EnsureFunctionTemplateRareData(
-      Isolate* isolate, Handle<FunctionTemplateInfo> function_template_info);
+      Isolate* isolate,
+      DirectHandle<FunctionTemplateInfo> function_template_info);
 
   static Tagged<FunctionTemplateRareData> AllocateFunctionTemplateRareData(
-      Isolate* isolate, Handle<FunctionTemplateInfo> function_template_info);
+      Isolate* isolate,
+      DirectHandle<FunctionTemplateInfo> function_template_info);
 
   TQ_OBJECT_CONSTRUCTORS(FunctionTemplateInfo)
 };

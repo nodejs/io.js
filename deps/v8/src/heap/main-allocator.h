@@ -5,7 +5,8 @@
 #ifndef V8_HEAP_MAIN_ALLOCATOR_H_
 #define V8_HEAP_MAIN_ALLOCATOR_H_
 
-#include "src/base/optional.h"
+#include <optional>
+
 #include "src/common/globals.h"
 #include "src/heap/allocation-observer.h"
 #include "src/heap/allocation-result.h"
@@ -17,16 +18,17 @@ namespace v8 {
 namespace internal {
 
 class Heap;
+class LocalHeap;
 class MainAllocator;
-class SemiSpaceNewSpace;
-class SpaceWithLinearArea;
 class PagedNewSpace;
 class PagedSpaceBase;
+class SemiSpaceNewSpace;
+class SpaceWithLinearArea;
 
 class AllocatorPolicy {
  public:
   explicit AllocatorPolicy(MainAllocator* allocator);
-  virtual ~AllocatorPolicy() {}
+  virtual ~AllocatorPolicy() = default;
 
   // Sets up a linear allocation area that fits the given number of bytes.
   // Returns false if there is not enough space and the caller has to retry
@@ -148,11 +150,14 @@ class MainAllocator {
   struct InGCTag {};
   static constexpr InGCTag kInGC{};
 
+  enum class IsNewGeneration { kNo, kYes };
+
   // Use this constructor on main/background threads. `allocation_info` can be
   // used for allocation support in generated code (currently new and old
   // space).
   V8_EXPORT_PRIVATE MainAllocator(
       LocalHeap* heap, SpaceWithLinearArea* space,
+      IsNewGeneration is_new_generation,
       LinearAllocationArea* allocation_info = nullptr);
 
   // Use this constructor for GC LABs/allocations.
@@ -256,6 +261,14 @@ class MainAllocator {
       AllocationOrigin origin);
 
  private:
+  enum class BlackAllocation {
+    kAlwaysEnabled,
+    kAlwaysDisabled,
+    kEnabledOnMarking
+  };
+
+  static constexpr BlackAllocation ComputeBlackAllocation(IsNewGeneration);
+
   // Allocates an object from the linear allocation area. Assumes that the
   // linear allocation area is large enough to fit the object.
   V8_WARN_UNUSED_RESULT V8_INLINE AllocationResult
@@ -333,21 +346,22 @@ class MainAllocator {
 
   // Returns the space's heap. Note that this might differ from `isolate_heap()`
   // for shared space in worker isolates.
-  Heap* space_heap() const;
+  V8_EXPORT_PRIVATE Heap* space_heap() const;
 
   // The current main or background thread's LocalHeap. nullptr for GC threads.
   LocalHeap* const local_heap_;
   Heap* const isolate_heap_;
   SpaceWithLinearArea* const space_;
 
-  base::Optional<AllocationCounter> allocation_counter_;
+  std::optional<AllocationCounter> allocation_counter_;
   LinearAllocationArea* const allocation_info_;
   // This memory is used if no LinearAllocationArea& is passed in as argument.
   LinearAllocationArea owned_allocation_info_;
-  base::Optional<LinearAreaOriginalData> linear_area_original_data_;
+  std::optional<LinearAreaOriginalData> linear_area_original_data_;
   std::unique_ptr<AllocatorPolicy> allocator_policy_;
 
   const bool supports_extending_lab_;
+  const BlackAllocation black_allocation_;
 
   friend class AllocatorPolicy;
   friend class PagedSpaceAllocatorPolicy;

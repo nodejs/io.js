@@ -24,36 +24,52 @@ function f() {
   return x.b + 10;
 }
 
-// Test bytecode gets flushed
-f();
-assertTrue(HasByteCode(f));
-gc();
-assertTrue(HasByteCode(f));
-
-// Test baseline code gets flushed but not bytecode.
-for (i = 1; i < 50; i++) {
+(async function () {
+  // Test bytecode gets flushed
   f();
-}
-assertTrue(HasBaselineCode(f));
-gc();
-assertFalse(HasBaselineCode(f));
-assertTrue(HasByteCode(f));
+  assertTrue(HasByteCode(f));
+  // We need to invoke GC asynchronously and wait for it to finish, so that
+  // it doesn't need to scan the stack. Otherwise, some objects may not be
+  // reclaimed because of conservative stack scanning and the test may not
+  // work as intended.
+  await gc({ type: 'major', execution: 'async' });
+  assertTrue(HasByteCode(f));
+})();
 
-// Check baseline code and bytecode aren't flushed if baseline code is on
-// stack.
-function f2(should_recurse) {
-  if (should_recurse) {
-    assertTrue(HasBaselineCode(f2));
-    f2(false);
-    gc();
-    assertTrue(HasBaselineCode(f2));
+(async function () {
+  // Test baseline code gets flushed but not bytecode.
+  for (i = 1; i < 50; i++) {
+    f();
   }
-  return x.b + 10;
-}
+  assertTrue(HasBaselineCode(f));
+  // We need to invoke GC asynchronously and wait for it to finish, so that
+  // it doesn't need to scan the stack. Otherwise, some objects may not be
+  // reclaimed because of conservative stack scanning and the test may not
+  // work as intended.
+  await gc({ type: 'major', execution: 'async' });
+  assertFalse(HasBaselineCode(f));
+  assertTrue(HasByteCode(f));
+})();
 
-for (i = 1; i < 50; i++) {
-  f2(false);
-}
-assertTrue(HasBaselineCode(f2));
-// Recurse with baseline code on stack
-f2(true);
+(async function () {
+  // Check baseline code and bytecode aren't flushed if baseline code is on
+  // stack.
+  function f2(should_recurse) {
+    if (should_recurse) {
+      assertTrue(HasBaselineCode(f2));
+      f2(false);
+      // Here we are not checking whether some object was indeed reclaimed,
+      // so should not worry if conservative stack scanning is performed.
+      gc();
+      assertTrue(HasBaselineCode(f2));
+    }
+    return x.b + 10;
+  }
+
+  for (i = 1; i < 50; i++) {
+    f2(false);
+  }
+  assertTrue(HasBaselineCode(f2));
+  // Recurse with baseline code on stack
+  f2(true);
+})();

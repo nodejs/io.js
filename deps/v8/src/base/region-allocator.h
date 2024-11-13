@@ -124,7 +124,7 @@ class V8_BASE_EXPORT RegionAllocator final {
     return whole_region_.contains(address, size);
   }
 
-  // Total size of not yet aquired regions.
+  // Total size of not yet acquired regions.
   size_t free_size() const { return free_size_; }
 
   // The alignment of the allocated region's addresses and granularity of

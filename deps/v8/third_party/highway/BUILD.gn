@@ -1,0 +1,36 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This config is applied to targets that depend on libhwy
+config("libhwy_external_config") {
+  include_dirs = [ "src" ]
+  defines = []
+  if (target_cpu == "x86") {
+    # Highway automatically disables AVX2 and AVX3 targets when compiling in
+    # 32-bit mode due to bugs in the generated code. However, when doing so it
+    # prints a warning (#pragma message). This flag silences that warning by
+    # explicitly disabling AVX2 and AVX3 targets.
+    defines += [ "HWY_BROKEN_TARGETS=(HWY_AVX2|HWY_AVX3)" ]
+  }
+  if (target_cpu == "arm64") {
+    # There are Chrome targets that use HWY_ALIGN on absl::uint128. This breaks
+    # with SVE, since HWY_ALIGN == 8 for it and the minimal alignment requirement
+    # for absl::uint128 is 16.
+    defines += [ "HWY_BROKEN_TARGETS=HWY_ALL_SVE" ]
+  }
+}
+
+source_set("libhwy") {
+  sources = [
+    "src/hwy/abort.cc",
+    "src/hwy/aligned_allocator.cc",
+    "src/hwy/per_target.cc",
+    "src/hwy/print.cc",
+    "src/hwy/stats.cc",
+    "src/hwy/targets.cc",
+    "src/hwy/timer.cc",
+  ]
+
+  public_configs = [ ":libhwy_external_config" ]
+}

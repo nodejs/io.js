@@ -5,8 +5,16 @@
 #ifndef V8CONFIG_H_
 #define V8CONFIG_H_
 
+// gcc 10 defines __cplusplus to "an unspecified value strictly larger than
+// 201703L" for its experimental -std=gnu++2a config.
+// TODO(leszeks): Change to `__cplusplus <= 202002L` once we only support
+// compilers with full C++20 support.
+#if __cplusplus <= 201703L
+#error "C++20 or later required."
+#endif
+
 #ifdef V8_GN_HEADER
-#if __cplusplus >= 201703L && !__has_include("v8-gn.h")
+#if !__has_include("v8-gn.h")
 #error Missing v8-gn.h. The configuration for v8 is missing from the include \
 path. Add it with -I<path> to the command line
 #endif
@@ -23,6 +31,8 @@ path. Add it with -I<path> to the command line
 # include <TargetConditionals.h>
 #elif defined(__linux__)
 # include <features.h>
+#elif defined(__MVS__)
+# include "zos-base.h"
 #endif
 
 
@@ -83,6 +93,7 @@ path. Add it with -I<path> to the command line
 //  V8_OS_STARBOARD     - Starboard (platform abstraction for Cobalt)
 //  V8_OS_AIX           - AIX
 //  V8_OS_WIN           - Microsoft Windows
+//  V8_OS_ZOS           - z/OS
 
 #if defined(__ANDROID__)
 # define V8_OS_ANDROID 1
@@ -163,6 +174,11 @@ path. Add it with -I<path> to the command line
 #elif defined(_WIN32)
 # define V8_OS_WIN 1
 # define V8_OS_STRING "windows"
+
+#elif defined(__MVS__)
+# define V8_OS_POSIX 1
+# define V8_OS_ZOS 1
+# define V8_OS_STRING "zos"
 #endif
 
 // -----------------------------------------------------------------------------
@@ -376,8 +392,14 @@ path. Add it with -I<path> to the command line
 # define V8_HAS_ATTRIBUTE_WEAK (__has_attribute(weak))
 
 # define V8_HAS_CPP_ATTRIBUTE_NODISCARD (V8_HAS_CPP_ATTRIBUTE(nodiscard))
+#if defined(V8_CC_MSVC)
+# define V8_HAS_CPP_ATTRIBUTE_NO_UNIQUE_ADDRESS       \
+    (V8_HAS_CPP_ATTRIBUTE(msvc::no_unique_address) || \
+     V8_HAS_CPP_ATTRIBUTE(no_unique_address))
+#else
 # define V8_HAS_CPP_ATTRIBUTE_NO_UNIQUE_ADDRESS \
     (V8_HAS_CPP_ATTRIBUTE(no_unique_address))
+#endif
 
 # define V8_HAS_BUILTIN_ADD_OVERFLOW (__has_builtin(__builtin_add_overflow))
 # define V8_HAS_BUILTIN_ASSUME (__has_builtin(__builtin_assume))
@@ -477,22 +499,32 @@ path. Add it with -I<path> to the command line
 # define V8_INLINE inline
 #endif
 
+#if V8_HAS_BUILTIN_ASSUME
 #ifdef DEBUG
-// In debug mode, check assumptions instead of actually adding annotations.
-# define V8_ASSUME DCHECK
-#elif V8_HAS_BUILTIN_ASSUME
+// In debug mode, check assumptions in addition to adding annotations.
+// This helps GCC (and maybe other compilers) figure out that certain
+// situations are unreachable.
+# define V8_ASSUME(condition)    \
+  do {                           \
+    DCHECK(condition);           \
+    __builtin_assume(condition); \
+  } while (false)
+#else  // DEBUG
 # define V8_ASSUME __builtin_assume
+#endif  // DEBUG
 #elif V8_HAS_BUILTIN_UNREACHABLE
 # define V8_ASSUME(condition)                  \
   do {                                         \
+    DCHECK(condition);                         \
     if (!(condition)) __builtin_unreachable(); \
   } while (false)
 #else
 # define V8_ASSUME USE
 #endif
 
-// Prefer c++20 std::assume_aligned
-#if __cplusplus >= 202002L && defined(__cpp_lib_assume_aligned)
+// Prefer c++20 std::assume_aligned. Don't use it on MSVC though, because it's
+// not happy with our large 4GB alignment values.
+#if __cplusplus >= 202002L && defined(__cpp_lib_assume_aligned) && !V8_CC_MSVC
 # define V8_ASSUME_ALIGNED(ptr, alignment) \
   std::assume_aligned<(alignment)>(ptr)
 #elif V8_HAS_BUILTIN_ASSUME_ALIGNED
@@ -645,7 +677,7 @@ path. Add it with -I<path> to the command line
 //   V8_NODISCARD Foo() { ... };
 // [[nodiscard]] comes in C++17 but supported in clang with -std >= c++11.
 #if V8_HAS_CPP_ATTRIBUTE_NODISCARD
-#define V8_NODISCARD [[nodiscard]]
+#define V8_NODISCARD
 #else
 #define V8_NODISCARD /* NOT SUPPORTED */
 #endif
@@ -666,7 +698,15 @@ path. Add it with -I<path> to the command line
 // [[no_unique_address]] comes in C++20 but supported in clang with
 // -std >= c++11.
 #if V8_HAS_CPP_ATTRIBUTE_NO_UNIQUE_ADDRESS
+#if defined(V8_CC_MSVC) && V8_HAS_CPP_ATTRIBUTE(msvc::no_unique_address)
+// Unfortunately MSVC ignores [[no_unique_address]] (see
+// https://devblogs.microsoft.com/cppblog/msvc-cpp20-and-the-std-cpp20-switch/#msvc-extensions-and-abi),
+// and clang-cl matches it for ABI compatibility reasons. We need to prefer
+// [[msvc::no_unique_address]] when available if we actually want any effect.
+#define V8_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#else
 #define V8_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#endif
 #else
 #define V8_NO_UNIQUE_ADDRESS /* NOT SUPPORTED */
 #endif

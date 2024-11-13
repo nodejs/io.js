@@ -30,4 +30,10 @@ title property with getter only:
     }
     isOwn : true
     name : title
+    set : {
+        className : Function
+        description : function () { [native code] }
+        objectId : <objectId>
+        type : function
+    }
 }

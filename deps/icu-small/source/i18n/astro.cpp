@@ -307,7 +307,7 @@ UDate CalendarAstronomer::getTime() {
  */
 double CalendarAstronomer::getJulianDay() {
     if (isINVALID(julianDay)) {
-        julianDay = (fTime - (double)JULIAN_EPOCH_MS) / (double)DAY_MS;
+        julianDay = (fTime - JULIAN_EPOCH_MS) / static_cast<double>(DAY_MS);
     }
     return julianDay;
 }

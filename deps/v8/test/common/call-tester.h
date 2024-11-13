@@ -56,7 +56,7 @@ class CodeRunner : public CallHelper<T> {
   CodeRunner(Isolate* isolate, Handle<InstructionStream> istream,
              MachineSignature* csig)
       : CallHelper<T>(isolate, csig), istream_(istream) {}
-  CodeRunner(Isolate* isolate, Handle<Code> code, MachineSignature* csig)
+  CodeRunner(Isolate* isolate, DirectHandle<Code> code, MachineSignature* csig)
       : CallHelper<T>(isolate, csig),
         istream_(code->instruction_stream(), isolate) {}
   ~CodeRunner() override = default;

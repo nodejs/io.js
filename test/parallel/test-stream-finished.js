@@ -687,3 +687,16 @@ testClosed((opts) => new Writable({ write() {}, ...opts }));
     assert.strictEqual(stream._writableState.pendingcb, 0);
   }));
 }
+
+{
+  const stream = new Duplex({
+    write(chunk, enc, cb) {}
+  });
+
+  stream.end('foo');
+
+  // Simulate an old stream implementation that doesn't have pendingcb
+  delete stream._writableState.pendingcb;
+
+  finished(stream, { readable: false }, common.mustCall());
+}

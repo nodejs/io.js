@@ -50,6 +50,9 @@ AllocationResult MainAllocator::AllocateFastUnaligned(int size_in_bytes,
 
   MSAN_ALLOCATED_UNINITIALIZED_MEMORY(obj.address(), size_in_bytes);
 
+  DCHECK_IMPLIES(black_allocation_ == BlackAllocation::kAlwaysEnabled,
+                 space_heap()->marking_state()->IsMarked(obj));
+
   return AllocationResult::FromObject(obj);
 }
 
@@ -73,6 +76,9 @@ AllocationResult MainAllocator::AllocateFastAligned(
   }
 
   MSAN_ALLOCATED_UNINITIALIZED_MEMORY(obj.address(), size_in_bytes);
+
+  DCHECK_IMPLIES(black_allocation_ == BlackAllocation::kAlwaysEnabled,
+                 space_heap()->marking_state()->IsMarked(obj));
 
   return AllocationResult::FromObject(obj);
 }

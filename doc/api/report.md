@@ -10,6 +10,9 @@
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/55697
+    description: Added `--report-exclude-env` option for excluding environment variables from report generation.
   - version:
     - v22.0.0
     - v20.13.0
@@ -32,7 +35,7 @@ is provided below for reference.
 ```json
 {
   "header": {
-    "reportVersion": 3,
+    "reportVersion": 4,
     "event": "exception",
     "trigger": "Exception",
     "filename": "report.20181221.005011.8974.0.001.json",
@@ -322,6 +325,50 @@ is provided below for reference.
       "is_active": true,
       "address": "0x000055fc7b2cb180",
       "loopIdleTimeSeconds": 22644.8
+    },
+    {
+      "type": "tcp",
+      "is_active": true,
+      "is_referenced": true,
+      "address": "0x000055e70fcb85d8",
+      "localEndpoint": {
+        "host": "localhost",
+        "ip4": "127.0.0.1",
+        "port": 48986
+      },
+      "remoteEndpoint": {
+        "host": "localhost",
+        "ip4": "127.0.0.1",
+        "port": 38573
+      },
+      "sendBufferSize": 2626560,
+      "recvBufferSize": 131072,
+      "fd": 24,
+      "writeQueueSize": 0,
+      "readable": true,
+      "writable": true
+    },
+    {
+      "type": "tcp",
+      "is_active": true,
+      "is_referenced": true,
+      "address": "0x000055e70fcd68c8",
+      "localEndpoint": {
+        "host": "ip6-localhost",
+        "ip6": "::1",
+        "port": 52266
+      },
+      "remoteEndpoint": {
+        "host": "ip6-localhost",
+        "ip6": "::1",
+        "port": 38573
+      },
+      "sendBufferSize": 2626560,
+      "recvBufferSize": 131072,
+      "fd": 25,
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": false
     }
   ],
   "workers": [],
@@ -461,9 +508,13 @@ meaning of `SIGUSR2` for the said purposes.
 * `--report-signal` Sets or resets the signal for report generation
   (not supported on Windows). Default signal is `SIGUSR2`.
 
-* `--report-exclude-network` Exclude `header.networkInterfaces` from the
-  diagnostic report. By default this is not set and the network interfaces
-  are included.
+* `--report-exclude-network` Exclude `header.networkInterfaces` and disable the reverse DNS queries
+  in `libuv.*.(remote|local)Endpoint.host` from the diagnostic report.
+  By default this is not set and the network interfaces are included.
+
+* `--report-exclude-env` Exclude `environmentVariables` from the
+  diagnostic report. By default this is not set and the environment
+  variables are included.
 
 A report can also be triggered via an API call from a JavaScript application:
 

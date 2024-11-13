@@ -39,6 +39,7 @@ absl_source_set("inlined_vector_internal") {
   public = [ "internal/inlined_vector.h" ]
   deps = [
     ":compressed_tuple",
+    "//third_party/abseil-cpp/absl/base:base_internal",
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/memory",
@@ -97,11 +98,11 @@ absl_source_set("flat_hash_map") {
   public = [ "flat_hash_map.h" ]
   deps = [
     ":container_memory",
-    ":hash_function_defaults",
+    ":hash_container_defaults",
     ":raw_hash_map",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
-    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
   ]
 }
 
@@ -110,11 +111,13 @@ absl_test("flat_hash_map_test") {
   deps = [
     ":flat_hash_map",
     ":hash_generator_testing",
+    ":hash_policy_testing",
     ":test_allocator",
     ":unordered_map_constructor_test",
     ":unordered_map_lookup_test",
     ":unordered_map_members_test",
     ":unordered_map_modifiers_test",
+    "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/log:check",
     "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/types:any",
@@ -125,11 +128,12 @@ absl_source_set("flat_hash_set") {
   public = [ "flat_hash_set.h" ]
   deps = [
     ":container_memory",
-    ":hash_function_defaults",
+    ":hash_container_defaults",
     ":raw_hash_set",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
   ]
 }
 
@@ -155,12 +159,27 @@ absl_source_set("node_hash_map") {
   public = [ "node_hash_map.h" ]
   deps = [
     ":container_memory",
-    ":hash_function_defaults",
+    ":hash_container_defaults",
     ":node_slot_policy",
     ":raw_hash_map",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_test("node_hash_map_test") {
+  sources = [ "node_hash_map_test.cc" ]
+  deps = [
+    ":hash_policy_testing",
+    ":node_hash_map",
+    ":tracked",
+    ":unordered_map_constructor_test",
+    ":unordered_map_lookup_test",
+    ":unordered_map_members_test",
+    ":unordered_map_modifiers_test",
+    "//third_party/abseil-cpp/absl/base:config",
   ]
 }
 
@@ -168,11 +187,27 @@ absl_source_set("node_hash_set") {
   public = [ "node_hash_set.h" ]
   deps = [
     ":container_memory",
-    ":hash_function_defaults",
+    ":hash_container_defaults",
     ":node_slot_policy",
     ":raw_hash_set",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+  ]
+}
+
+absl_test("node_hash_set_test") {
+  sources = [ "node_hash_set_test.cc" ]
+  deps = [
+    ":hash_generator_testing",
+    ":hash_policy_testing",
+    ":node_hash_set",
+    ":unordered_set_constructor_test",
+    ":unordered_set_lookup_test",
+    ":unordered_set_members_test",
+    ":unordered_set_modifiers_test",
+    "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/memory",
   ]
 }
@@ -210,6 +245,15 @@ absl_source_set("hash_function_defaults") {
     "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/strings:cord",
     "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
+absl_source_set("hash_container_defaults") {
+  public = [ "hash_container_defaults.h" ]
+  visibility = [ "//third_party/abseil-cpp/absl/container:*" ]
+  deps = [
+    ":hash_function_defaults",
+    "//third_party/abseil-cpp/absl/base:config",
   ]
 }
 
@@ -370,17 +414,22 @@ absl_test("raw_hash_set_test") {
     ":hash_policy_testing",
     ":hashtable_debug",
     ":hashtablez_sampler",
+    ":node_hash_set",
     ":raw_hash_set",
     ":test_allocator",
+    ":test_instance_tracker",
     "//third_party/abseil-cpp/absl/base",
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:prefetch",
+    "//third_party/abseil-cpp/absl/functional:function_ref",
     "//third_party/abseil-cpp/absl/hash",
     "//third_party/abseil-cpp/absl/log",
+    "//third_party/abseil-cpp/absl/log:check",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/types:optional",
   ]
 }
 
@@ -528,6 +577,7 @@ absl_source_set("btree") {
     ":compressed_tuple",
     ":container_memory",
     ":layout",
+    "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:raw_logging_internal",
     "//third_party/abseil-cpp/absl/base:throw_delegate",
@@ -536,7 +586,6 @@ absl_source_set("btree") {
     "//third_party/abseil-cpp/absl/strings:cord",
     "//third_party/abseil-cpp/absl/strings:string_view",
     "//third_party/abseil-cpp/absl/types:compare",
-    "//third_party/abseil-cpp/absl/utility",
   ]
 }
 

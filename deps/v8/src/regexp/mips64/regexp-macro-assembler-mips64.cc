@@ -1032,8 +1032,8 @@ Handle<HeapObject> RegExpMacroAssemblerMIPS::GetCode(Handle<String> source) {
           .set_empty_source_position_table()
           .Build();
   LOG(masm_->isolate(),
-      RegExpCodeCreateEvent(Handle<AbstractCode>::cast(code), source));
-  return Handle<HeapObject>::cast(code);
+      RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+  return Cast<HeapObject>(code);
 }
 
 void RegExpMacroAssemblerMIPS::GoTo(Label* to) {
@@ -1243,7 +1243,7 @@ int64_t RegExpMacroAssemblerMIPS::CheckStackGuardState(Address* return_address,
                                                        Address re_frame,
                                                        uintptr_t extra_space) {
   Tagged<InstructionStream> re_code =
-      InstructionStream::cast(Tagged<Object>(raw_code));
+      Cast<InstructionStream>(Tagged<Object>(raw_code));
   return NativeRegExpMacroAssembler::CheckStackGuardState(
       frame_entry<Isolate*>(re_frame, kIsolateOffset),
       static_cast<int>(frame_entry<int64_t>(re_frame, kStartIndexOffset)),

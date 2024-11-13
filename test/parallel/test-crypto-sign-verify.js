@@ -621,12 +621,10 @@ assert.throws(
   const msgfile = tmpdir.resolve('s5.msg');
   fs.writeFileSync(msgfile, msg);
 
-  const cmd =
-    `"${common.opensslCli}" dgst -sha256 -verify "${pubfile}" -signature "${
-      sigfile}" -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-2 "${
-      msgfile}"`;
-
-  exec(cmd, common.mustCall((err, stdout, stderr) => {
+  exec(...common.escapePOSIXShell`"${
+    common.opensslCli}" dgst -sha256 -verify "${pubfile}" -signature "${
+    sigfile}" -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-2 "${msgfile
+  }"`, common.mustCall((err, stdout, stderr) => {
     assert(stdout.includes('Verified OK'));
   }));
 }
@@ -791,5 +789,23 @@ assert.throws(
     assert.throws(() => {
       crypto.createVerify('SHA256').update('Test123').verify(publicKey, 'sig');
     }, { code: 'ERR_CRYPTO_UNSUPPORTED_OPERATION', message: 'Unsupported crypto operation' });
+  }
+}
+
+{
+  // Dh, x25519 and x448 should not be used for signing/verifying
+  // https://github.com/nodejs/node/issues/53742
+  for (const algo of ['dh', 'x25519', 'x448']) {
+    const privateKey = fixtures.readKey(`${algo}_private.pem`, 'ascii');
+    const publicKey = fixtures.readKey(`${algo}_public.pem`, 'ascii');
+    assert.throws(() => {
+      crypto.createSign('SHA256').update('Test123').sign(privateKey);
+    }, { code: 'ERR_OSSL_EVP_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE', message: /operation not supported for this keytype/ });
+    assert.throws(() => {
+      crypto.createVerify('SHA256').update('Test123').verify(privateKey, 'sig');
+    }, { code: 'ERR_OSSL_EVP_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE', message: /operation not supported for this keytype/ });
+    assert.throws(() => {
+      crypto.createVerify('SHA256').update('Test123').verify(publicKey, 'sig');
+    }, { code: 'ERR_OSSL_EVP_OPERATION_NOT_SUPPORTED_FOR_THIS_KEYTYPE', message: /operation not supported for this keytype/ });
   }
 }

@@ -480,7 +480,7 @@ class DefaultApplication final : public Session::Application {
           // the data until after we're sure it's written.
         };
 
-    if (LIKELY(!stream->is_eos())) {
+    if (!stream->is_eos()) [[likely]] {
       int ret = stream->Pull(std::move(next),
                              bob::Options::OPTIONS_SYNC,
                              stream_data->data,

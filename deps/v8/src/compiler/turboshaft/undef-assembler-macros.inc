@@ -21,6 +21,9 @@
 #undef BREAK
 #undef CONTINUE
 #undef ELSE
+#undef FOREACH
+#undef FOREACH_IMPL_2
+#undef FOREACH_IMPL_3
 #undef GOTO
 #undef GOTO_IF
 #undef GOTO_IF_NOT
@@ -29,6 +32,7 @@
 #undef LIKLEY
 #undef REDUCE
 #undef REDUCE_INPUT_GRAPH
+#undef TSA_DCHECK
 #undef UNLIKELY
 #undef WHILE
 

@@ -871,7 +871,9 @@ bool Stream::AddHeader(const Header& header) {
 
   const auto push = [&](auto raw) {
     Local<Value> value;
-    if (UNLIKELY(!raw.ToLocal(&value))) return false;
+    if (!raw.ToLocal(&value)) [[unlikely]] {
+      return false;
+    }
     headers_.push_back(value);
     return true;
   };

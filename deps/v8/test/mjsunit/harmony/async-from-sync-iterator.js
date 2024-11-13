@@ -435,7 +435,7 @@ if (testFailed) {
   ], log);
 
   // If [sync_iterator] does not have a .throw method, return a Promise rejected
-  // with the sent value.
+  // with the a TypeError signaling the protocol error of missing the .throw.
   log = [];
   iter = %CreateAsyncFromSyncIterator(sync(['sync-value'], kNext, log));
   try {
@@ -443,7 +443,7 @@ if (testFailed) {
     assertUnreachable('Expected iter.throw(\'Boo!!\') to throw, but did not ' +
                       'throw');
   } catch (e) {
-    assertEquals('Boo!!', e);
+    assertTrue(e instanceof TypeError);
   }
 
   // [Async-from-Sync Iterator] merely delegates, and does not keep track of

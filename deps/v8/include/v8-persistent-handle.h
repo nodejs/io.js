@@ -15,8 +15,6 @@ namespace v8 {
 class Isolate;
 template <class K, class V, class T>
 class PersistentValueMapBase;
-template <class V, class T>
-class PersistentValueVector;
 template <class T>
 class Global;
 template <class T>
@@ -204,8 +202,6 @@ class PersistentBase : public api_internal::IndirectHandleBase {
   friend class ReturnValue;
   template <class F1, class F2, class F3>
   friend class PersistentValueMapBase;
-  template <class F1, class F2>
-  friend class PersistentValueVector;
   friend class Object;
   friend class internal::ValueHelper;
 
@@ -233,21 +229,6 @@ class NonCopyablePersistentTraits {
                              NonCopyablePersistent* dest) {
     static_assert(sizeof(S) < 0,
                   "NonCopyablePersistentTraits::Copy is not instantiable");
-  }
-};
-
-/**
- * Helper class traits to allow copying and assignment of Persistent.
- * This will clone the contents of storage cell, but not any of the flags, etc.
- */
-template <class T>
-struct CopyablePersistentTraits {
-  using CopyablePersistent = Persistent<T, CopyablePersistentTraits<T>>;
-  static const bool kResetInDestructor = true;
-  template <class S, class M>
-  static V8_INLINE void Copy(const Persistent<S, M>& source,
-                             CopyablePersistent* dest) {
-    // do nothing, just allow copy
   }
 };
 

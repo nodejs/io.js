@@ -117,46 +117,52 @@ bool FunctionTemplateInfo::has_callback(IsolateT* isolate) const {
 // static
 Tagged<FunctionTemplateRareData>
 FunctionTemplateInfo::EnsureFunctionTemplateRareData(
-    Isolate* isolate, Handle<FunctionTemplateInfo> function_template_info) {
+    Isolate* isolate,
+    DirectHandle<FunctionTemplateInfo> function_template_info) {
   Tagged<HeapObject> extra =
       function_template_info->rare_data(isolate, kAcquireLoad);
   if (IsUndefined(extra, isolate)) {
     return AllocateFunctionTemplateRareData(isolate, function_template_info);
   } else {
-    return FunctionTemplateRareData::cast(extra);
+    return Cast<FunctionTemplateRareData>(extra);
   }
 }
 
-#define RARE_ACCESSORS(Name, CamelName, Type, Default)                         \
-  DEF_GETTER(FunctionTemplateInfo, Get##CamelName, Tagged<Type>) {             \
+#define RARE_ACCESSORS(Name, CamelName, Default, ...)                          \
+  DEF_GETTER(FunctionTemplateInfo, Get##CamelName, Tagged<__VA_ARGS__>) {      \
     Tagged<HeapObject> extra = rare_data(cage_base, kAcquireLoad);             \
     Tagged<Undefined> undefined =                                              \
         GetReadOnlyRoots(cage_base).undefined_value();                         \
     return extra == undefined ? Default                                        \
-                              : FunctionTemplateRareData::cast(extra)->Name(); \
+                              : Cast<FunctionTemplateRareData>(extra)->Name(); \
   }                                                                            \
   inline void FunctionTemplateInfo::Set##CamelName(                            \
-      Isolate* isolate, Handle<FunctionTemplateInfo> function_template_info,   \
-      Handle<Type> Name) {                                                     \
+      Isolate* isolate,                                                        \
+      DirectHandle<FunctionTemplateInfo> function_template_info,               \
+      DirectHandle<__VA_ARGS__> Name) {                                        \
     Tagged<FunctionTemplateRareData> rare_data =                               \
         EnsureFunctionTemplateRareData(isolate, function_template_info);       \
     rare_data->set_##Name(*Name);                                              \
   }
 
-RARE_ACCESSORS(prototype_template, PrototypeTemplate, HeapObject, undefined)
+RARE_ACCESSORS(prototype_template, PrototypeTemplate, undefined,
+               UnionOf<Undefined, ObjectTemplateInfo>)
 RARE_ACCESSORS(prototype_provider_template, PrototypeProviderTemplate,
-               HeapObject, undefined)
-RARE_ACCESSORS(parent_template, ParentTemplate, HeapObject, undefined)
-RARE_ACCESSORS(named_property_handler, NamedPropertyHandler, HeapObject,
-               undefined)
-RARE_ACCESSORS(indexed_property_handler, IndexedPropertyHandler, HeapObject,
-               undefined)
-RARE_ACCESSORS(instance_template, InstanceTemplate, HeapObject, undefined)
-RARE_ACCESSORS(instance_call_handler, InstanceCallHandler, HeapObject,
-               undefined)
-RARE_ACCESSORS(access_check_info, AccessCheckInfo, HeapObject, undefined)
-RARE_ACCESSORS(c_function_overloads, CFunctionOverloads, FixedArray,
-               GetReadOnlyRoots(cage_base).empty_fixed_array())
+               undefined, UnionOf<Undefined, FunctionTemplateInfo>)
+RARE_ACCESSORS(parent_template, ParentTemplate, undefined,
+               UnionOf<Undefined, FunctionTemplateInfo>)
+RARE_ACCESSORS(named_property_handler, NamedPropertyHandler, undefined,
+               UnionOf<Undefined, InterceptorInfo>)
+RARE_ACCESSORS(indexed_property_handler, IndexedPropertyHandler, undefined,
+               UnionOf<Undefined, InterceptorInfo>)
+RARE_ACCESSORS(instance_template, InstanceTemplate, undefined,
+               UnionOf<Undefined, ObjectTemplateInfo>)
+RARE_ACCESSORS(instance_call_handler, InstanceCallHandler, undefined,
+               UnionOf<Undefined, FunctionTemplateInfo>)
+RARE_ACCESSORS(access_check_info, AccessCheckInfo, undefined,
+               UnionOf<Undefined, AccessCheckInfo>)
+RARE_ACCESSORS(c_function_overloads, CFunctionOverloads,
+               GetReadOnlyRoots(cage_base).empty_fixed_array(), FixedArray)
 #undef RARE_ACCESSORS
 
 InstanceType FunctionTemplateInfo::GetInstanceType() const {
@@ -219,7 +225,7 @@ bool FunctionTemplateInfo::instantiated() {
 inline bool FunctionTemplateInfo::BreakAtEntry(Isolate* isolate) {
   Tagged<Object> maybe_shared = shared_function_info();
   if (IsSharedFunctionInfo(maybe_shared)) {
-    Tagged<SharedFunctionInfo> shared = SharedFunctionInfo::cast(maybe_shared);
+    Tagged<SharedFunctionInfo> shared = Cast<SharedFunctionInfo>(maybe_shared);
     return shared->BreakAtEntry(isolate);
   }
   return false;
@@ -228,20 +234,20 @@ inline bool FunctionTemplateInfo::BreakAtEntry(Isolate* isolate) {
 Tagged<FunctionTemplateInfo> FunctionTemplateInfo::GetParent(Isolate* isolate) {
   Tagged<Object> parent = GetParentTemplate();
   return IsUndefined(parent, isolate) ? Tagged<FunctionTemplateInfo>{}
-                                      : FunctionTemplateInfo::cast(parent);
+                                      : Cast<FunctionTemplateInfo>(parent);
 }
 
 Tagged<ObjectTemplateInfo> ObjectTemplateInfo::GetParent(Isolate* isolate) {
   Tagged<Object> maybe_ctor = constructor();
   if (IsUndefined(maybe_ctor, isolate)) return ObjectTemplateInfo();
   Tagged<FunctionTemplateInfo> constructor =
-      FunctionTemplateInfo::cast(maybe_ctor);
+      Cast<FunctionTemplateInfo>(maybe_ctor);
   while (true) {
     constructor = constructor->GetParent(isolate);
     if (constructor.is_null()) return ObjectTemplateInfo();
     Tagged<Object> maybe_obj = constructor->GetInstanceTemplate();
     if (!IsUndefined(maybe_obj, isolate)) {
-      return ObjectTemplateInfo::cast(maybe_obj);
+      return Cast<ObjectTemplateInfo>(maybe_obj);
     }
   }
   return Tagged<ObjectTemplateInfo>();
@@ -309,7 +315,7 @@ MaybeHandle<ReturnType> TemplateInfo::ProbeInstantiationsCache(
     if (IsTheHole(*object, isolate)) {
       return {};
     }
-    return Handle<ReturnType>::cast(object);
+    return Cast<ReturnType>(object);
   }
   if (caching_mode == CachingMode::kUnlimited ||
       (serial_number < TemplateInfo::kSlowTemplateInstantiationsCacheSize)) {
@@ -317,7 +323,7 @@ MaybeHandle<ReturnType> TemplateInfo::ProbeInstantiationsCache(
         native_context->slow_template_instantiations_cache();
     InternalIndex entry = slow_cache->FindEntry(isolate, serial_number);
     if (entry.is_found()) {
-      return handle(ReturnType::cast(slow_cache->ValueAt(entry)), isolate);
+      return handle(Cast<ReturnType>(slow_cache->ValueAt(entry)), isolate);
     }
   }
   return {};
@@ -339,7 +345,7 @@ void TemplateInfo::CacheTemplateInstantiation(
   if (serial_number < TemplateInfo::kFastTemplateInstantiationsCacheSize) {
     Handle<FixedArray> fast_cache =
         handle(native_context->fast_template_instantiations_cache(), isolate);
-    Handle<FixedArray> new_cache =
+    DirectHandle<FixedArray> new_cache =
         FixedArray::SetAndGrow(isolate, fast_cache, serial_number, object);
     if (*new_cache != *fast_cache) {
       native_context->set_fast_template_instantiations_cache(*new_cache);

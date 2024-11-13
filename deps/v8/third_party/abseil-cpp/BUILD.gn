@@ -82,7 +82,13 @@ group("absl_component_deps") {
     "//third_party/abseil-cpp/absl/hash",
     "//third_party/abseil-cpp/absl/log:absl_check",
     "//third_party/abseil-cpp/absl/log:absl_log",
+    "//third_party/abseil-cpp/absl/log:absl_vlog_is_on",
     "//third_party/abseil-cpp/absl/log:die_if_null",
+    "//third_party/abseil-cpp/absl/log:globals",
+    "//third_party/abseil-cpp/absl/log:initialize",
+    "//third_party/abseil-cpp/absl/log:log_entry",
+    "//third_party/abseil-cpp/absl/log:log_sink",
+    "//third_party/abseil-cpp/absl/log:log_sink_registry",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/numeric:bits",
@@ -136,7 +142,16 @@ source_set("absl_full") {
   }
 
   if (build_with_chromium) {
-    visibility = [ "//third_party/fuzztest:*" ]
+    visibility = [
+      # Used by some test executables, but not by anything that is a
+      # part of Chrome.
+      "//components/optimization_guide/internal/*",
+      "//third_party/fuzztest:*",
+
+      # GoogleTest doesn't actually need absl_full, but this makes gn check
+      # happier.
+      "//third_party/googletest:*",
+    ]
   }
 }
 
@@ -263,7 +278,10 @@ if (absl_build_tests) {
         "absl/base:config_test",
         "absl/base:no_destructor_test",
         "absl/base:nullability_test",
+        "absl/base:poison_test",
         "absl/base:prefetch_test",
+        "absl/base:tracing_internal_strong_test",
+        "absl/base:tracing_internal_weak_test",
         "absl/cleanup:cleanup_test",
 
         # TODO(mbonadei): Fix issue with EXPECT_DEATH and uncomment.
@@ -274,6 +292,8 @@ if (absl_build_tests) {
         "absl/container:flat_hash_set_test",
         "absl/container:hash_function_defaults_test",
         "absl/container:inlined_vector_test",
+        "absl/container:node_hash_map_test",
+        "absl/container:node_hash_set_test",
         "absl/container:node_slot_policy_test",
         "absl/container:raw_hash_set_allocator_test",
         "absl/container:raw_hash_set_test",
@@ -282,7 +302,11 @@ if (absl_build_tests) {
         "absl/crc:crc_cord_state_test",
         "absl/crc:crc_memcpy_test",
         "absl/crc:non_temporal_memcpy_test",
+        "absl/debugging:bounded_utf8_length_sequence_test",
+        "absl/debugging:decode_rust_punycode_test",
+        "absl/debugging:demangle_rust_test",
         "absl/debugging:stacktrace_test",
+        "absl/debugging:utf8_for_code_point_test",
         "absl/flags:flag_test",
         "absl/functional:any_invocable_test",
         "absl/functional:function_ref_test",
@@ -311,6 +335,9 @@ if (absl_build_tests) {
         "absl/numeric:int128_test",
         "absl/profiling:exponential_biased_test",
         "absl/profiling:periodic_sampler_test",
+        "absl/random:distributions_test",
+        "absl/random:mock_distributions_test",
+        "absl/status:status_matchers_test",
         "absl/status:status_test",
         "absl/status:statusor_test",
         "absl/strings:ascii_test",
@@ -342,10 +369,15 @@ if (absl_build_tests) {
         "absl/strings:str_format_test",
         "absl/strings:str_replace_test",
         "absl/strings:string_view_test",
+        "absl/synchronization:barrier_test",
+        "absl/synchronization:graphcycles_test",
         "absl/synchronization:kernel_timeout_internal_test",
+        "absl/synchronization:mutex_test",
+        "absl/synchronization:per_thread_sem_test",
         "absl/synchronization:waiter_test",
         "absl/time:time_test",
         "absl/types:optional_test",
+        "absl/types:span_test",
         "absl/types:variant_test",
         "absl/utility:if_constexpr_test",
         "//third_party/googletest:gtest_main",

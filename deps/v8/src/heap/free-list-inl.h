@@ -6,6 +6,7 @@
 #define V8_HEAP_FREE_LIST_INL_H_
 
 #include "src/heap/free-list.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/spaces.h"
 
 namespace v8 {

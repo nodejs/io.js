@@ -8,10 +8,10 @@
 #include <string.h>
 
 #include <algorithm>
+#include <optional>
 
 #include "src/asmjs/asm-js.h"
 #include "src/asmjs/asm-types.h"
-#include "src/base/optional.h"
 #include "src/base/overflowing-math.h"
 #include "src/flags/flags.h"
 #include "src/numbers/conversions-inl.h"
@@ -78,7 +78,7 @@ AsmJsParser::AsmJsParser(Zone* zone, uintptr_t stack_limit,
       stack_limit_(stack_limit),
       block_stack_(zone),
       global_imports_(zone) {
-  module_builder_->SetMinMemorySize(0);
+  module_builder_->AddMemory(0);
   InitializeStdlibTypes();
 }
 
@@ -2119,7 +2119,7 @@ AsmType* AsmJsParser::ValidateCall() {
   // both cases we might be seeing the {function_name} for the first time and
   // hence allocate a {VarInfo} here, all subsequent uses of the same name then
   // need to match the information stored at this point.
-  base::Optional<TemporaryVariableScope> tmp_scope;
+  std::optional<TemporaryVariableScope> tmp_scope;
   if (Check('[')) {
     AsmType* index = nullptr;
     RECURSEn(index = EqualityExpression());

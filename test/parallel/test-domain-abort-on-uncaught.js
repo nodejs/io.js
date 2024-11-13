@@ -202,18 +202,15 @@ if (process.argv[2] === 'child') {
 } else {
 
   tests.forEach(function(test, testIndex) {
-    let testCmd = '';
+    const escapedArgs = common.escapePOSIXShell`"${process.execPath}" --abort-on-uncaught-exception "${__filename}" child ${testIndex}`;
     if (!common.isWindows) {
       // Do not create core files, as it can take a lot of disk space on
       // continuous testing and developers' machines
-      testCmd += 'ulimit -c 0 && ';
+      escapedArgs[0] = 'ulimit -c 0 && ' + escapedArgs[0];
     }
 
-    testCmd += `"${process.argv[0]}" --abort-on-uncaught-exception ` +
-               `"${process.argv[1]}" child ${testIndex}`;
-
     try {
-      child_process.execSync(testCmd);
+      child_process.execSync(...escapedArgs);
     } catch (e) {
       assert.fail(`Test index ${testIndex} failed: ${e}`);
     }

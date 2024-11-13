@@ -45,9 +45,9 @@ Data types
     be a relative path to a file contained in the directory, or `NULL` if the
     file name cannot be determined.
 
-    The `events` parameter is an ORed mask of :c:type:`uv_fs_event` elements.
+    The `events` parameter is an ORed mask of :c:enum:`uv_fs_event` elements.
 
-.. c:type:: uv_fs_event
+.. c:enum:: uv_fs_event
 
     Event types that :c:type:`uv_fs_event_t` handles monitor.
 
@@ -58,7 +58,7 @@ Data types
             UV_CHANGE = 2
         };
 
-.. c:type:: uv_fs_event_flags
+.. c:enum:: uv_fs_event_flags
 
     Flags that can be passed to :c:func:`uv_fs_event_start` to control its
     behavior.
@@ -109,10 +109,13 @@ API
 .. c:function:: int uv_fs_event_start(uv_fs_event_t* handle, uv_fs_event_cb cb, const char* path, unsigned int flags)
 
     Start the handle with the given callback, which will watch the specified
-    `path` for changes. `flags` can be an ORed mask of :c:type:`uv_fs_event_flags`.
+    `path` for changes. `flags` can be an ORed mask of :c:enum:`uv_fs_event_flags`.
 
     .. note:: Currently the only supported flag is ``UV_FS_EVENT_RECURSIVE`` and
               only on OSX and Windows.
+    .. note:: On macOS, events collected by the OS immediately before calling
+              ``uv_fs_event_start`` might be reported to the `uv_fs_event_cb`
+              callback.
 
 .. c:function:: int uv_fs_event_stop(uv_fs_event_t* handle)
 

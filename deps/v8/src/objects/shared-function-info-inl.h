@@ -5,8 +5,11 @@
 #ifndef V8_OBJECTS_SHARED_FUNCTION_INFO_INL_H_
 #define V8_OBJECTS_SHARED_FUNCTION_INFO_INL_H_
 
+#include <optional>
+
 #include "src/base/macros.h"
 #include "src/base/platform/mutex.h"
+#include "src/builtins/builtins.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/common/globals.h"
 #include "src/handles/handles-inl.h"
@@ -23,16 +26,15 @@
 #include "src/objects/string.h"
 #include "src/objects/templates-inl.h"
 
+// Has to be the last include (doesn't have include guards):
+#include "src/objects/object-macros.h"
+
 #if V8_ENABLE_WEBASSEMBLY
 #include "src/wasm/wasm-module.h"
 #include "src/wasm/wasm-objects.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
-// Has to be the last include (doesn't have include guards):
-#include "src/objects/object-macros.h"
-
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #include "torque-generated/src/objects/shared-function-info-tq-inl.inc"
 
@@ -76,7 +78,7 @@ void PreparseData::copy_in(int index, const uint8_t* buffer, int length) {
 }
 
 Tagged<PreparseData> PreparseData::get_child(int index) const {
-  return PreparseData::cast(get_child_raw(index));
+  return Cast<PreparseData>(get_child_raw(index));
 }
 
 Tagged<Object> PreparseData::get_child_raw(int index) const {
@@ -108,107 +110,81 @@ PROTECTED_POINTER_ACCESSORS(InterpreterData, interpreter_trampoline, Code,
                             kInterpreterTrampolineOffset)
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(SharedFunctionInfo)
-DEFINE_DEOPT_ELEMENT_ACCESSORS(SharedFunctionInfo, Tagged<Object>)
 
 RELEASE_ACQUIRE_ACCESSORS(SharedFunctionInfo, name_or_scope_info,
-                          Tagged<Object>, kNameOrScopeInfoOffset)
+                          Tagged<NameOrScopeInfoT>, kNameOrScopeInfoOffset)
 RELEASE_ACQUIRE_ACCESSORS(SharedFunctionInfo, script, Tagged<HeapObject>,
                           kScriptOffset)
 RELEASE_ACQUIRE_ACCESSORS(SharedFunctionInfo, raw_script, Tagged<Object>,
                           kScriptOffset)
 
-void SharedFunctionInfo::SetData(Tagged<Object> value, ReleaseStoreTag tag,
-                                 DataType type, WriteBarrierMode mode) {
-#ifdef V8_ENABLE_SANDBOX
-  if (type == DataType::kTrusted) {
-    DCHECK(IsExposedTrustedObject(value));
-    // Currently we only support BytecodeArray, InterpreterData, and Code.
-    // HasBytecodeArray relies on that.
-    DCHECK(IsBytecodeArray(value) || IsInterpreterData(value) || IsCode(value));
-    // Only one of trusted_function_data and function_data can be in use.
-    set_trusted_function_data(ExposedTrustedObject::cast(value), tag, mode);
-    clear_function_data(kReleaseStore);
-  } else {
-    DCHECK_EQ(type, DataType::kRegular);
-    // Only one of trusted_function_data and function_data can be in use.
-    set_function_data(value, tag, mode);
-    clear_trusted_function_data(kReleaseStore);
-  }
-#else
-  set_function_data(value, tag, mode);
-#endif  // V8_ENABLE_SANDBOX
-}
-
-#ifdef V8_ENABLE_SANDBOX
-// TODO(saelo): consider using a unique magic value here instead. However,
-// using -1 has some benefits such as a recognizable crashing address if this
-// field was ever accidentally treated as a HeapObject.
-constexpr int kClearedFunctionDataValue = -1;
-void SharedFunctionInfo::clear_function_data(ReleaseStoreTag) {
-  TaggedField<Object, kFunctionDataOffset>::Release_Store(
-      *this, Smi::FromInt(kClearedFunctionDataValue));
-}
-
-void SharedFunctionInfo::clear_trusted_function_data(ReleaseStoreTag) {
-  TaggedField<Object, kTrustedFunctionDataOffset>::Release_Store(*this,
-                                                                 Smi::zero());
-}
-
-bool SharedFunctionInfo::has_trusted_function_data() const {
-  return TaggedField<Object, kTrustedFunctionDataOffset>::Relaxed_Load(*this) !=
-         Smi::zero();
-}
-
-Tagged<ExposedTrustedObject> SharedFunctionInfo::trusted_function_data(
-    IsolateForSandbox isolate, AcquireLoadTag) const {
-  Tagged<Object> trusted_data =
-      ReadIndirectPointerField<kUnknownIndirectPointerTag>(
-          kTrustedFunctionDataOffset, isolate);
-  return ExposedTrustedObject::cast(trusted_data);
-}
-
-void SharedFunctionInfo::set_trusted_function_data(
-    Tagged<ExposedTrustedObject> value, ReleaseStoreTag,
-    WriteBarrierMode mode) {
-  WriteIndirectPointerField<kUnknownIndirectPointerTag>(
+void SharedFunctionInfo::SetTrustedData(Tagged<ExposedTrustedObject> value,
+                                        WriteBarrierMode mode) {
+  WriteTrustedPointerField<kUnknownIndirectPointerTag>(
       kTrustedFunctionDataOffset, value);
-  CONDITIONAL_INDIRECT_POINTER_WRITE_BARRIER(*this, kTrustedFunctionDataOffset,
-                                             kUnknownIndirectPointerTag, value,
-                                             mode);
+
+  // Only one of trusted_function_data and untrusted_function_data can be in
+  // use, so clear the untrusted data field. Using -1 here as cleared data value
+  // allows HasBuiltinId to become quite simple, as it can just check if the
+  // untrusted data is a Smi containing a valid builtin ID.
+  constexpr int kClearedUntrustedFunctionDataValue = -1;
+  static_assert(!Builtins::IsBuiltinId(kClearedUntrustedFunctionDataValue));
+  TaggedField<Object, kUntrustedFunctionDataOffset>::Release_Store(
+      *this, Smi::FromInt(kClearedUntrustedFunctionDataValue));
+
+  CONDITIONAL_TRUSTED_POINTER_WRITE_BARRIER(*this, kTrustedFunctionDataOffset,
+                                            kUnknownIndirectPointerTag, value,
+                                            mode);
 }
 
-IndirectPointerHandle SharedFunctionInfo::trusted_function_data_handle(
-    AcquireLoadTag) const {
-  return RawIndirectPointerField(kTrustedFunctionDataOffset,
-                                 kUnknownIndirectPointerTag)
-      .Acquire_LoadHandle();
-}
-#endif  // V8_ENABLE_SANDBOX
+void SharedFunctionInfo::SetUntrustedData(Tagged<Object> value,
+                                          WriteBarrierMode mode) {
+  TaggedField<Object, kUntrustedFunctionDataOffset>::Release_Store(*this,
+                                                                   value);
 
-DEF_ACQUIRE_GETTER(SharedFunctionInfo, function_data, Tagged<Object>) {
-  Tagged<Object> value =
-      TaggedField<Object, kFunctionDataOffset>::Acquire_Load(cage_base, *this);
-  return value;
+  // Only one of trusted_function_data and untrusted_function_data can be in
+  // use, so clear the trusted data field.
+  ClearTrustedPointerField(kTrustedFunctionDataOffset, kReleaseStore);
+
+  CONDITIONAL_WRITE_BARRIER(*this, kUntrustedFunctionDataOffset, value, mode);
 }
 
-void SharedFunctionInfo::set_function_data(Tagged<Object> value,
-                                           ReleaseStoreTag,
-                                           WriteBarrierMode mode) {
-  TaggedField<Object, kFunctionDataOffset>::Release_Store(*this, value);
-  CONDITIONAL_WRITE_BARRIER(*this, kFunctionDataOffset, value, mode);
+bool SharedFunctionInfo::HasTrustedData() const {
+  return !IsTrustedPointerFieldEmpty(kTrustedFunctionDataOffset);
 }
 
-Tagged<Object> SharedFunctionInfo::GetData(IsolateForSandbox isolate) const {
+bool SharedFunctionInfo::HasUntrustedData() const { return !HasTrustedData(); }
+
+Tagged<Object> SharedFunctionInfo::GetTrustedData(
+    IsolateForSandbox isolate) const {
+  return ReadMaybeEmptyTrustedPointerField<kUnknownIndirectPointerTag>(
+      kTrustedFunctionDataOffset, isolate, kAcquireLoad);
+}
+
+template <typename T, IndirectPointerTag tag>
+Tagged<T> SharedFunctionInfo::GetTrustedData(IsolateForSandbox isolate) const {
+  static_assert(tag != kUnknownIndirectPointerTag);
+  return Cast<T>(ReadMaybeEmptyTrustedPointerField<tag>(
+      kTrustedFunctionDataOffset, isolate, kAcquireLoad));
+}
+
+Tagged<Object> SharedFunctionInfo::GetTrustedData() const {
 #ifdef V8_ENABLE_SANDBOX
   auto trusted_data_slot = RawIndirectPointerField(kTrustedFunctionDataOffset,
                                                    kUnknownIndirectPointerTag);
-  IndirectPointerHandle trusted_data_handle =
-      trusted_data_slot.Acquire_LoadHandle();
-  if (trusted_data_handle != kNullIndirectPointerHandle) {
-    return trusted_data_slot.ResolveHandle(trusted_data_handle, isolate);
-  }
+  // This routine is sometimes used for SFI's in read-only space (which never
+  // have trusted data). In that case, GetIsolateForSandbox cannot be used, so
+  // we need to return early in that case, before trying to obtain an Isolate.
+  IndirectPointerHandle handle = trusted_data_slot.Acquire_LoadHandle();
+  if (handle == kNullIndirectPointerHandle) return Smi::zero();
+  return trusted_data_slot.ResolveHandle(handle, GetIsolateForSandbox(*this));
+#else
+  return TaggedField<Object, kTrustedFunctionDataOffset>::Acquire_Load(*this);
 #endif
-  return function_data(kAcquireLoad);
+}
+
+Tagged<Object> SharedFunctionInfo::GetUntrustedData() const {
+  return TaggedField<Object, kUntrustedFunctionDataOffset>::Acquire_Load(*this);
 }
 
 DEF_GETTER(SharedFunctionInfo, script, Tagged<HeapObject>) {
@@ -266,7 +242,7 @@ UINT8_ACCESSORS(SharedFunctionInfo, flags2, kFlags2Offset)
 bool SharedFunctionInfo::HasSharedName() const {
   Tagged<Object> value = name_or_scope_info(kAcquireLoad);
   if (IsScopeInfo(value)) {
-    return ScopeInfo::cast(value)->HasSharedFunctionName();
+    return Cast<ScopeInfo>(value)->HasSharedFunctionName();
   }
   return value != kNoSharedNameSentinel;
 }
@@ -275,18 +251,18 @@ Tagged<String> SharedFunctionInfo::Name() const {
   if (!HasSharedName()) return GetReadOnlyRoots().empty_string();
   Tagged<Object> value = name_or_scope_info(kAcquireLoad);
   if (IsScopeInfo(value)) {
-    if (ScopeInfo::cast(value)->HasFunctionName()) {
-      return String::cast(ScopeInfo::cast(value)->FunctionName());
+    if (Cast<ScopeInfo>(value)->HasFunctionName()) {
+      return Cast<String>(Cast<ScopeInfo>(value)->FunctionName());
     }
     return GetReadOnlyRoots().empty_string();
   }
-  return String::cast(value);
+  return Cast<String>(value);
 }
 
 void SharedFunctionInfo::SetName(Tagged<String> name) {
   Tagged<Object> maybe_scope_info = name_or_scope_info(kAcquireLoad);
   if (IsScopeInfo(maybe_scope_info)) {
-    ScopeInfo::cast(maybe_scope_info)->SetFunctionName(name);
+    Cast<ScopeInfo>(maybe_scope_info)->SetFunctionName(name);
   } else {
     DCHECK(IsString(maybe_scope_info) ||
            maybe_scope_info == kNoSharedNameSentinel);
@@ -297,7 +273,7 @@ void SharedFunctionInfo::SetName(Tagged<String> name) {
 
 bool SharedFunctionInfo::is_script() const {
   return scope_info(kAcquireLoad)->is_script_scope() &&
-         Script::cast(script())->compilation_type() ==
+         Cast<Script>(script())->compilation_type() ==
              Script::CompilationType::kHost;
 }
 
@@ -309,9 +285,9 @@ Tagged<AbstractCode> SharedFunctionInfo::abstract_code(Isolate* isolate) {
   // TODO(v8:11429): Decide if this return bytecode or baseline code, when the
   // latter is present.
   if (HasBytecodeArray(isolate)) {
-    return AbstractCode::cast(GetBytecodeArray(isolate));
+    return Cast<AbstractCode>(GetBytecodeArray(isolate));
   } else {
-    return AbstractCode::cast(GetCode(isolate));
+    return Cast<AbstractCode>(GetCode(isolate));
   }
 }
 
@@ -387,6 +363,10 @@ BIT_FIELD_ACCESSORS(SharedFunctionInfo, flags2, maglev_compilation_failed,
 
 BIT_FIELD_ACCESSORS(SharedFunctionInfo, flags2, sparkplug_compiled,
                     SharedFunctionInfo::SparkplugCompiledBit)
+
+BIT_FIELD_ACCESSORS(SharedFunctionInfo, flags2,
+                    function_context_independent_compiled,
+                    SharedFunctionInfo::FunctionContextIndependentCompiledBit)
 
 BIT_FIELD_ACCESSORS(SharedFunctionInfo, relaxed_flags, syntax_kind,
                     SharedFunctionInfo::FunctionSyntaxKindBits)
@@ -528,6 +508,22 @@ void SharedFunctionInfo::DontAdaptArguments() {
   // TODO(leszeks): Revise this DCHECK now that the code field is gone.
   DCHECK(!HasWasmExportedFunctionData());
 #endif  // V8_ENABLE_WEBASSEMBLY
+  if (HasBuiltinId()) {
+    Builtin builtin = builtin_id();
+    if (Builtins::KindOf(builtin) == Builtins::TFJ) {
+      const int formal_parameter_count =
+          Builtins::GetStackParameterCount(builtin);
+      // If we have `kDontAdaptArgumentsSentinel` or no arguments, then we are
+      // good. Otherwise this is a mismatch.
+      if (formal_parameter_count != kDontAdaptArgumentsSentinel &&
+          formal_parameter_count != JSParameterCount(0)) {
+        FATAL(
+            "Conflicting argument adaptation configuration (SFI vs call "
+            "descriptor) for builtin: %s (%d)",
+            Builtins::name(builtin), static_cast<int>(builtin));
+      }
+    }
+  }
   TorqueGeneratedClass::set_formal_parameter_count(kDontAdaptArgumentsSentinel);
 }
 
@@ -539,7 +535,7 @@ bool SharedFunctionInfo::IsDontAdaptArguments() const {
 DEF_ACQUIRE_GETTER(SharedFunctionInfo, scope_info, Tagged<ScopeInfo>) {
   Tagged<Object> maybe_scope_info = name_or_scope_info(cage_base, kAcquireLoad);
   if (IsScopeInfo(maybe_scope_info, cage_base)) {
-    return ScopeInfo::cast(maybe_scope_info);
+    return Cast<ScopeInfo>(maybe_scope_info);
   }
   return GetReadOnlyRoots().empty_scope_info();
 }
@@ -553,7 +549,7 @@ Tagged<ScopeInfo> SharedFunctionInfo::EarlyScopeInfo(AcquireLoadTag tag) {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
   Tagged<Object> maybe_scope_info = name_or_scope_info(cage_base, tag);
   if (IsScopeInfo(maybe_scope_info, cage_base)) {
-    return ScopeInfo::cast(maybe_scope_info);
+    return Cast<ScopeInfo>(maybe_scope_info);
   }
   return EarlyGetReadOnlyRoots().empty_scope_info();
 }
@@ -561,14 +557,25 @@ Tagged<ScopeInfo> SharedFunctionInfo::EarlyScopeInfo(AcquireLoadTag tag) {
 void SharedFunctionInfo::SetScopeInfo(Tagged<ScopeInfo> scope_info,
                                       WriteBarrierMode mode) {
   // Move the existing name onto the ScopeInfo.
-  Tagged<Object> name = name_or_scope_info(kAcquireLoad);
-  if (IsScopeInfo(name)) {
-    name = ScopeInfo::cast(name)->FunctionName();
+  Tagged<NameOrScopeInfoT> name_or_scope_info =
+      this->name_or_scope_info(kAcquireLoad);
+  Tagged<UnionOf<Smi, String>> name;
+  if (IsScopeInfo(name_or_scope_info)) {
+    name = Cast<ScopeInfo>(name_or_scope_info)->FunctionName();
+  } else {
+    name = Cast<UnionOf<Smi, String>>(name_or_scope_info);
   }
   DCHECK(IsString(name) || name == kNoSharedNameSentinel);
-  // Only set the function name for function scopes.
-  scope_info->SetFunctionName(name);
-  if (HasInferredName() && inferred_name()->length() != 0) {
+  // ScopeInfo can get promoted to read-only space. Now that we reuse them after
+  // flushing bytecode, we'll actually reinstall read-only scopeinfos on
+  // SharedFunctionInfos if they required a context. The read-only scopeinfos
+  // should already be fully initialized though, and hence will already have the
+  // right FunctionName (and InferredName if relevant).
+  if (scope_info->FunctionName() != name) {
+    scope_info->SetFunctionName(name);
+  }
+  if (HasInferredName() && inferred_name()->length() != 0 &&
+      scope_info->InferredFunctionName() != inferred_name()) {
     scope_info->SetInferredFunctionName(inferred_name());
   }
   set_name_or_scope_info(scope_info, kReleaseStore, mode);
@@ -588,11 +595,12 @@ DEF_GETTER(SharedFunctionInfo, outer_scope_info, Tagged<HeapObject>) {
 
 bool SharedFunctionInfo::HasOuterScopeInfo() const {
   Tagged<ScopeInfo> outer_info;
-  if (!is_compiled()) {
+  Tagged<ScopeInfo> info = scope_info(kAcquireLoad);
+  if (info->IsEmpty()) {
+    if (is_compiled()) return false;
     if (!IsScopeInfo(outer_scope_info())) return false;
-    outer_info = ScopeInfo::cast(outer_scope_info());
+    outer_info = Cast<ScopeInfo>(outer_scope_info());
   } else {
-    Tagged<ScopeInfo> info = scope_info(kAcquireLoad);
     if (!info->HasOuterScopeInfo()) return false;
     outer_info = info->OuterScopeInfo();
   }
@@ -601,8 +609,9 @@ bool SharedFunctionInfo::HasOuterScopeInfo() const {
 
 Tagged<ScopeInfo> SharedFunctionInfo::GetOuterScopeInfo() const {
   DCHECK(HasOuterScopeInfo());
-  if (!is_compiled()) return ScopeInfo::cast(outer_scope_info());
-  return scope_info(kAcquireLoad)->OuterScopeInfo();
+  Tagged<ScopeInfo> info = scope_info(kAcquireLoad);
+  if (info->IsEmpty()) return Cast<ScopeInfo>(outer_scope_info());
+  return info->OuterScopeInfo();
 }
 
 void SharedFunctionInfo::set_outer_scope_info(Tagged<HeapObject> value,
@@ -610,6 +619,7 @@ void SharedFunctionInfo::set_outer_scope_info(Tagged<HeapObject> value,
   DCHECK(!is_compiled());
   DCHECK(IsTheHole(raw_outer_scope_info_or_feedback_metadata()));
   DCHECK(IsScopeInfo(value) || IsTheHole(value));
+  DCHECK(scope_info()->IsEmpty());
   set_raw_outer_scope_info_or_feedback_metadata(value, mode);
 }
 
@@ -623,7 +633,7 @@ bool SharedFunctionInfo::HasFeedbackMetadata(AcquireLoadTag tag) const {
 
 DEF_GETTER(SharedFunctionInfo, feedback_metadata, Tagged<FeedbackMetadata>) {
   DCHECK(HasFeedbackMetadata());
-  return FeedbackMetadata::cast(
+  return Cast<FeedbackMetadata>(
       raw_outer_scope_info_or_feedback_metadata(cage_base));
 }
 
@@ -635,9 +645,8 @@ RELEASE_ACQUIRE_ACCESSORS_CHECKED2(SharedFunctionInfo, feedback_metadata,
                                        IsFeedbackMetadata(value))
 
 bool SharedFunctionInfo::is_compiled() const {
-  Tagged<Object> data = function_data(kAcquireLoad);
-  return data != Smi::FromEnum(Builtin::kCompileLazy) &&
-         !IsUncompiledData(data);
+  return GetUntrustedData() != Smi::FromEnum(Builtin::kCompileLazy) &&
+         !HasUncompiledData();
 }
 
 template <typename IsolateT>
@@ -685,31 +694,23 @@ bool SharedFunctionInfo::CanCollectSourcePosition(Isolate* isolate) {
 }
 
 bool SharedFunctionInfo::IsApiFunction() const {
-  return IsFunctionTemplateInfo(function_data(kAcquireLoad));
+  return IsFunctionTemplateInfo(GetUntrustedData());
 }
 
 DEF_GETTER(SharedFunctionInfo, api_func_data, Tagged<FunctionTemplateInfo>) {
   DCHECK(IsApiFunction());
-  return FunctionTemplateInfo::cast(function_data(kAcquireLoad));
+  return Cast<FunctionTemplateInfo>(GetUntrustedData());
 }
 
 DEF_GETTER(SharedFunctionInfo, HasBytecodeArray, bool) {
-#ifdef V8_ENABLE_SANDBOX
-  // The trusted_function_data field contains one of BytecodeArray, Code or
-  // InterpreterData (there is a DCHECK in SetData that guards this), so if it
-  // is set, we know that we have bytecode. If this ever changes, we could
-  // consider introducing a new flag to indicate whether bytecode is available.
-  return trusted_function_data_handle(kAcquireLoad) !=
-         kNullIndirectPointerHandle;
-#else
-  Tagged<Object> data = function_data(kAcquireLoad);
-  if (!IsHeapObject(data)) return false;
+  Tagged<Object> data = GetTrustedData();
+  // If the SFI has no trusted data, GetTrustedData() will return Smi::zero().
+  if (IsSmi(data)) return false;
   InstanceType instance_type =
-      HeapObject::cast(data)->map(cage_base)->instance_type();
+      Cast<HeapObject>(data)->map(cage_base)->instance_type();
   return InstanceTypeChecker::IsBytecodeArray(instance_type) ||
          InstanceTypeChecker::IsInterpreterData(instance_type) ||
          InstanceTypeChecker::IsCode(instance_type);
-#endif
 }
 
 template <typename IsolateT>
@@ -721,7 +722,7 @@ Tagged<BytecodeArray> SharedFunctionInfo::GetBytecodeArray(
   DCHECK(HasBytecodeArray());
 
   Isolate* main_isolate = isolate->GetMainThreadIsolateUnsafe();
-  base::Optional<Tagged<DebugInfo>> debug_info = TryGetDebugInfo(main_isolate);
+  std::optional<Tagged<DebugInfo>> debug_info = TryGetDebugInfo(main_isolate);
   if (debug_info.has_value() &&
       debug_info.value()->HasInstrumentedBytecodeArray()) {
     return debug_info.value()->OriginalBytecodeArray(main_isolate);
@@ -732,33 +733,18 @@ Tagged<BytecodeArray> SharedFunctionInfo::GetBytecodeArray(
 
 Tagged<BytecodeArray> SharedFunctionInfo::GetActiveBytecodeArray(
     IsolateForSandbox isolate) const {
-#ifdef V8_ENABLE_SANDBOX
-  // When the sandbox is enabled, the bytecode array must be loaded via the
-  // trusted pointer field. Loading it from the (tagged) function_data field
-  // would not be safe. Here we can't use ReadTrustedPointerField but instead
-  // need an acquire load of the handle to synchronize with the release store in
-  // set_trusted_function_data. Technically, we'd only need memory_order_consume
-  // since we're dealing with dependent loads, but that ordering is not
-  // currently supported (and that's why ReadTrustedPointerField uses a relaxed
-  // load, but TSan doesn't like that).
-  auto trusted_data_slot = RawIndirectPointerField(kTrustedFunctionDataOffset,
-                                                   kUnknownIndirectPointerTag);
-  IndirectPointerHandle trusted_data_handle =
-      trusted_data_slot.Acquire_LoadHandle();
-  Tagged<Object> data =
-      trusted_data_slot.ResolveHandle(trusted_data_handle, isolate);
-#else
-  Tagged<Object> data = function_data(kAcquireLoad);
-#endif  // V8_ENABLE_SANDBOX
+  Tagged<Object> data = GetTrustedData(isolate);
   if (IsCode(data)) {
-    Tagged<Code> baseline_code = Code::cast(data);
+    Tagged<Code> baseline_code = Cast<Code>(data);
     data = baseline_code->bytecode_or_interpreter_data();
   }
   if (IsBytecodeArray(data)) {
-    return BytecodeArray::cast(data);
+    return Cast<BytecodeArray>(data);
   } else {
-    DCHECK(IsInterpreterData(data));
-    return InterpreterData::cast(data)->bytecode_array();
+    // We need an explicit check here since we use the
+    // kUnknownIndirectPointerTag above and so don't have any type guarantees.
+    SBXCHECK(IsInterpreterData(data));
+    return Cast<InterpreterData>(data)->bytecode_array();
   }
 }
 
@@ -777,15 +763,15 @@ void SharedFunctionInfo::SetActiveBytecodeArray(Tagged<BytecodeArray> bytecode,
 }
 
 void SharedFunctionInfo::set_bytecode_array(Tagged<BytecodeArray> bytecode) {
-  DCHECK(function_data(kAcquireLoad) == Smi::FromEnum(Builtin::kCompileLazy) ||
+  DCHECK(GetUntrustedData() == Smi::FromEnum(Builtin::kCompileLazy) ||
          HasUncompiledData());
-  SetData(bytecode, kReleaseStore, DataType::kTrusted);
+  SetTrustedData(bytecode);
 }
 
 void SharedFunctionInfo::overwrite_bytecode_array(
     Tagged<BytecodeArray> bytecode) {
   DCHECK(HasBytecodeArray());
-  SetData(bytecode, kReleaseStore, DataType::kTrusted);
+  SetTrustedData(bytecode);
 }
 
 Tagged<Code> SharedFunctionInfo::InterpreterTrampoline(
@@ -795,9 +781,9 @@ Tagged<Code> SharedFunctionInfo::InterpreterTrampoline(
 }
 
 bool SharedFunctionInfo::HasInterpreterData(IsolateForSandbox isolate) const {
-  Tagged<Object> data = GetData(isolate);
+  Tagged<Object> data = GetTrustedData(isolate);
   if (IsCode(data)) {
-    Tagged<Code> baseline_code = Code::cast(data);
+    Tagged<Code> baseline_code = Cast<Code>(data);
     DCHECK_EQ(baseline_code->kind(), CodeKind::BASELINE);
     data = baseline_code->bytecode_or_interpreter_data();
   }
@@ -807,115 +793,95 @@ bool SharedFunctionInfo::HasInterpreterData(IsolateForSandbox isolate) const {
 Tagged<InterpreterData> SharedFunctionInfo::interpreter_data(
     IsolateForSandbox isolate) const {
   DCHECK(HasInterpreterData(isolate));
-#ifdef V8_ENABLE_SANDBOX
-  Tagged<Object> data = trusted_function_data(isolate, kAcquireLoad);
-#else
-  Tagged<Object> data = function_data(kAcquireLoad);
-#endif
+  Tagged<Object> data = GetTrustedData(isolate);
   if (IsCode(data)) {
-    Tagged<Code> baseline_code = Code::cast(data);
+    Tagged<Code> baseline_code = Cast<Code>(data);
     DCHECK_EQ(baseline_code->kind(), CodeKind::BASELINE);
     data = baseline_code->bytecode_or_interpreter_data();
   }
-  return InterpreterData::cast(data);
+  SBXCHECK(IsInterpreterData(data));
+  return Cast<InterpreterData>(data);
 }
 
 void SharedFunctionInfo::set_interpreter_data(
     Tagged<InterpreterData> interpreter_data, WriteBarrierMode mode) {
   DCHECK(v8_flags.interpreted_frames_native_stack);
   DCHECK(!HasBaselineCode());
-  SetData(interpreter_data, kReleaseStore, DataType::kTrusted, mode);
+  SetTrustedData(interpreter_data, mode);
 }
 
 DEF_GETTER(SharedFunctionInfo, HasBaselineCode, bool) {
-#ifdef V8_ENABLE_SANDBOX
-  // Micro-optimization: we just need to look at the indirect pointer handle
-  // stored in the trusted_function_data field and check if that is a code
-  // pointer handle.
-  IndirectPointerHandle handle = trusted_function_data_handle(kAcquireLoad);
-  if (handle & kCodePointerHandleMarker) {
-    DCHECK_EQ(Code::cast(GetData(GetIsolateForSandbox(*this)))->kind(),
-              CodeKind::BASELINE);
-    return true;
-  }
-  return false;
-#else
-  Tagged<Object> data = function_data(cage_base, kAcquireLoad);
+  Tagged<Object> data = GetTrustedData();
   if (IsCode(data, cage_base)) {
-    DCHECK_EQ(Code::cast(data)->kind(), CodeKind::BASELINE);
+    DCHECK_EQ(Cast<Code>(data)->kind(), CodeKind::BASELINE);
     return true;
   }
   return false;
-#endif
 }
 
 DEF_ACQUIRE_GETTER(SharedFunctionInfo, baseline_code, Tagged<Code>) {
   DCHECK(HasBaselineCode(cage_base));
-#ifdef V8_ENABLE_SANDBOX
-  return Code::cast(
-      trusted_function_data(GetIsolateForSandbox(*this), kAcquireLoad));
-#else
-  return Code::cast(function_data(cage_base, kAcquireLoad));
-#endif
+  IsolateForSandbox isolate = GetIsolateForSandbox(*this);
+  return GetTrustedData<Code, kCodeIndirectPointerTag>(isolate);
 }
 
 void SharedFunctionInfo::set_baseline_code(Tagged<Code> baseline_code,
                                            ReleaseStoreTag tag,
                                            WriteBarrierMode mode) {
   DCHECK_EQ(baseline_code->kind(), CodeKind::BASELINE);
-  SetData(baseline_code, tag, DataType::kTrusted, mode);
+  SetTrustedData(baseline_code, mode);
 }
 
 void SharedFunctionInfo::FlushBaselineCode() {
   DCHECK(HasBaselineCode());
-  SetData(baseline_code(kAcquireLoad)->bytecode_or_interpreter_data(),
-          kReleaseStore, DataType::kTrusted);
+  Tagged<TrustedObject> new_data =
+      baseline_code(kAcquireLoad)->bytecode_or_interpreter_data();
+  DCHECK(IsBytecodeArray(new_data) || IsInterpreterData(new_data));
+  SetTrustedData(Cast<ExposedTrustedObject>(new_data));
 }
 
 #if V8_ENABLE_WEBASSEMBLY
 bool SharedFunctionInfo::HasAsmWasmData() const {
-  return IsAsmWasmData(function_data(kAcquireLoad));
+  return IsAsmWasmData(GetUntrustedData());
 }
 
 bool SharedFunctionInfo::HasWasmFunctionData() const {
-  return IsWasmFunctionData(function_data(kAcquireLoad));
+  return IsWasmFunctionData(GetTrustedData());
 }
 
 bool SharedFunctionInfo::HasWasmExportedFunctionData() const {
-  return IsWasmExportedFunctionData(function_data(kAcquireLoad));
+  return IsWasmExportedFunctionData(GetTrustedData());
 }
 
 bool SharedFunctionInfo::HasWasmJSFunctionData() const {
-  return IsWasmJSFunctionData(function_data(kAcquireLoad));
+  return IsWasmJSFunctionData(GetTrustedData());
 }
 
 bool SharedFunctionInfo::HasWasmCapiFunctionData() const {
-  return IsWasmCapiFunctionData(function_data(kAcquireLoad));
+  return IsWasmCapiFunctionData(GetTrustedData());
 }
 
 bool SharedFunctionInfo::HasWasmResumeData() const {
-  return IsWasmResumeData(function_data(kAcquireLoad));
+  return IsWasmResumeData(GetUntrustedData());
 }
 
 DEF_GETTER(SharedFunctionInfo, asm_wasm_data, Tagged<AsmWasmData>) {
   DCHECK(HasAsmWasmData());
-  return AsmWasmData::cast(function_data(kAcquireLoad));
+  return Cast<AsmWasmData>(GetUntrustedData());
 }
 
 void SharedFunctionInfo::set_asm_wasm_data(Tagged<AsmWasmData> data,
                                            WriteBarrierMode mode) {
-  DCHECK(function_data(kAcquireLoad) == Smi::FromEnum(Builtin::kCompileLazy) ||
+  DCHECK(GetUntrustedData() == Smi::FromEnum(Builtin::kCompileLazy) ||
          HasUncompiledData() || HasAsmWasmData());
-  SetData(data, kReleaseStore, DataType::kRegular, mode);
+  SetUntrustedData(data, mode);
 }
 
 const wasm::WasmModule* SharedFunctionInfo::wasm_module() const {
   if (!HasWasmExportedFunctionData()) return nullptr;
   Tagged<WasmExportedFunctionData> function_data =
       wasm_exported_function_data();
-  Tagged<WasmInstanceObject> wasm_instance = function_data->instance();
-  Tagged<WasmModuleObject> wasm_module_object = wasm_instance->module_object();
-  return wasm_module_object->module();
+  return function_data->instance_data()->module();
 }
 
 const wasm::FunctionSig* SharedFunctionInfo::wasm_function_signature() const {
@@ -938,54 +904,52 @@ int SharedFunctionInfo::wasm_function_index() const {
 
 DEF_GETTER(SharedFunctionInfo, wasm_function_data, Tagged<WasmFunctionData>) {
   DCHECK(HasWasmFunctionData());
-  return WasmFunctionData::cast(function_data(cage_base, kAcquireLoad));
+  // TODO(saelo): It would be nicer if the caller provided an IsolateForSandbox.
+  return GetTrustedData<WasmFunctionData, kWasmFunctionDataIndirectPointerTag>(
+      GetIsolateForSandbox(*this));
 }
 
 DEF_GETTER(SharedFunctionInfo, wasm_exported_function_data,
            Tagged<WasmExportedFunctionData>) {
   DCHECK(HasWasmExportedFunctionData());
-  return WasmExportedFunctionData::cast(function_data(cage_base, kAcquireLoad));
+  Tagged<WasmFunctionData> data = wasm_function_data();
+  // TODO(saelo): the SBXCHECKs here and below are only needed because our type
+  // tags don't currently support type hierarchies.
+  SBXCHECK(IsWasmExportedFunctionData(data));
+  return Cast<WasmExportedFunctionData>(data);
 }
 
 DEF_GETTER(SharedFunctionInfo, wasm_js_function_data,
            Tagged<WasmJSFunctionData>) {
   DCHECK(HasWasmJSFunctionData());
-  return WasmJSFunctionData::cast(function_data(cage_base, kAcquireLoad));
+  Tagged<WasmFunctionData> data = wasm_function_data();
+  SBXCHECK(IsWasmJSFunctionData(data));
+  return Cast<WasmJSFunctionData>(data);
 }
 
 DEF_GETTER(SharedFunctionInfo, wasm_capi_function_data,
            Tagged<WasmCapiFunctionData>) {
   DCHECK(HasWasmCapiFunctionData());
-  return WasmCapiFunctionData::cast(function_data(cage_base, kAcquireLoad));
+  Tagged<WasmFunctionData> data = wasm_function_data();
+  SBXCHECK(IsWasmCapiFunctionData(data));
+  return Cast<WasmCapiFunctionData>(data);
 }
 
 DEF_GETTER(SharedFunctionInfo, wasm_resume_data, Tagged<WasmResumeData>) {
   DCHECK(HasWasmResumeData());
-  return WasmResumeData::cast(function_data(cage_base, kAcquireLoad));
+  return Cast<WasmResumeData>(GetUntrustedData());
 }
 
 #endif  // V8_ENABLE_WEBASSEMBLY
 
 bool SharedFunctionInfo::HasBuiltinId() const {
-#ifdef V8_ENABLE_SANDBOX
-  if (trusted_function_data_handle(kAcquireLoad) !=
-      kNullIndirectPointerHandle) {
-    return false;
-  }
-  // It can happen that SetData is called on another thread at this point and
-  // transitions from function_data to trusted_function_data. In this case,
-  // we'll see the kClearedFunctionDataValue Smi value here and so must be able
-  // to handle that, for example by checking that the id is a valid builtin id.
-  static_assert(!Builtins::IsBuiltinId(kClearedFunctionDataValue));
-  Tagged<Object> data = function_data(kAcquireLoad);
+  Tagged<Object> data = GetUntrustedData();
   return IsSmi(data) && Builtins::IsBuiltinId(Smi::ToInt(data));
-#endif
-  return IsSmi(function_data(kAcquireLoad));
 }
 
 Builtin SharedFunctionInfo::builtin_id() const {
   DCHECK(HasBuiltinId());
-  int id = Smi::ToInt(function_data(kAcquireLoad));
+  int id = Smi::ToInt(GetUntrustedData());
   // The builtin id is read from the heap and so must be assumed to be
   // untrusted in the sandbox attacker model. As it is considered trusted by
   // e.g. `GetCode` (when fetching the code for this SFI), we validate it here.
@@ -995,64 +959,69 @@ Builtin SharedFunctionInfo::builtin_id() const {
 
 void SharedFunctionInfo::set_builtin_id(Builtin builtin) {
   DCHECK(Builtins::IsBuiltinId(builtin));
-  SetData(Smi::FromInt(static_cast<int>(builtin)), kReleaseStore,
-          DataType::kRegular, SKIP_WRITE_BARRIER);
+  SetUntrustedData(Smi::FromInt(static_cast<int>(builtin)), SKIP_WRITE_BARRIER);
 }
 
 bool SharedFunctionInfo::HasUncompiledData() const {
-  return IsUncompiledData(function_data(kAcquireLoad));
+  return IsUncompiledData(GetTrustedData());
 }
 
-DEF_GETTER(SharedFunctionInfo, uncompiled_data, Tagged<UncompiledData>) {
+Tagged<UncompiledData> SharedFunctionInfo::uncompiled_data(
+    IsolateForSandbox isolate) const {
   DCHECK(HasUncompiledData());
-  return UncompiledData::cast(function_data(cage_base, kAcquireLoad));
+  return GetTrustedData<UncompiledData, kUncompiledDataIndirectPointerTag>(
+      isolate);
 }
 
 void SharedFunctionInfo::set_uncompiled_data(
     Tagged<UncompiledData> uncompiled_data, WriteBarrierMode mode) {
-  DCHECK(function_data(kAcquireLoad) == Smi::FromEnum(Builtin::kCompileLazy) ||
-         HasUncompiledData() || HasBytecodeArray() || HasBaselineCode());
   DCHECK(IsUncompiledData(uncompiled_data));
-  SetData(uncompiled_data, kReleaseStore);
+  SetTrustedData(uncompiled_data, mode);
 }
 
 bool SharedFunctionInfo::HasUncompiledDataWithPreparseData() const {
-  return IsUncompiledDataWithPreparseData(function_data(kAcquireLoad));
+  return IsUncompiledDataWithPreparseData(GetTrustedData());
 }
 
 Tagged<UncompiledDataWithPreparseData>
-SharedFunctionInfo::uncompiled_data_with_preparse_data() const {
+SharedFunctionInfo::uncompiled_data_with_preparse_data(
+    IsolateForSandbox isolate) const {
   DCHECK(HasUncompiledDataWithPreparseData());
-  return UncompiledDataWithPreparseData::cast(function_data(kAcquireLoad));
+  Tagged<UncompiledData> data = uncompiled_data(isolate);
+  // TODO(saelo): this SBXCHECK is needed because our type tags don't currently
+  // support type hierarchies.
+  SBXCHECK(IsUncompiledDataWithPreparseData(data));
+  return Cast<UncompiledDataWithPreparseData>(data);
 }
 
 void SharedFunctionInfo::set_uncompiled_data_with_preparse_data(
     Tagged<UncompiledDataWithPreparseData> uncompiled_data_with_preparse_data,
     WriteBarrierMode mode) {
-  DCHECK(function_data(kAcquireLoad) == Smi::FromEnum(Builtin::kCompileLazy));
+  DCHECK_EQ(GetUntrustedData(), Smi::FromEnum(Builtin::kCompileLazy));
   DCHECK(IsUncompiledDataWithPreparseData(uncompiled_data_with_preparse_data));
-  SetData(uncompiled_data_with_preparse_data, kReleaseStore);
+  SetTrustedData(uncompiled_data_with_preparse_data, mode);
 }
 
 bool SharedFunctionInfo::HasUncompiledDataWithoutPreparseData() const {
-  return IsUncompiledDataWithoutPreparseData(function_data(kAcquireLoad));
+  return IsUncompiledDataWithoutPreparseData(GetTrustedData());
 }
 
-void SharedFunctionInfo::ClearUncompiledDataJobPointer() {
-  Tagged<UncompiledData> uncompiled_data = this->uncompiled_data();
+void SharedFunctionInfo::ClearUncompiledDataJobPointer(
+    IsolateForSandbox isolate) {
+  Tagged<UncompiledData> uncompiled_data = this->uncompiled_data(isolate);
   if (IsUncompiledDataWithPreparseDataAndJob(uncompiled_data)) {
-    UncompiledDataWithPreparseDataAndJob::cast(uncompiled_data)
+    Cast<UncompiledDataWithPreparseDataAndJob>(uncompiled_data)
         ->set_job(kNullAddress);
   } else if (IsUncompiledDataWithoutPreparseDataWithJob(uncompiled_data)) {
-    UncompiledDataWithoutPreparseDataWithJob::cast(uncompiled_data)
+    Cast<UncompiledDataWithoutPreparseDataWithJob>(uncompiled_data)
         ->set_job(kNullAddress);
   }
 }
 
-void SharedFunctionInfo::ClearPreparseData() {
+void SharedFunctionInfo::ClearPreparseData(IsolateForSandbox isolate) {
   DCHECK(HasUncompiledDataWithPreparseData());
   Tagged<UncompiledDataWithPreparseData> data =
-      uncompiled_data_with_preparse_data();
+      uncompiled_data_with_preparse_data(isolate);
 
   // Trim off the pre-parsed scope data from the uncompiled data by swapping the
   // map, leaving only an uncompiled data without pre-parsed scope.
@@ -1082,10 +1051,14 @@ void SharedFunctionInfo::ClearPreparseData() {
 }
 
 void UncompiledData::InitAfterBytecodeFlush(
-    Tagged<String> inferred_name, int start_position, int end_position,
+    IsolateForSandbox isolate, Tagged<String> inferred_name, int start_position,
+    int end_position,
     std::function<void(Tagged<HeapObject> object, ObjectSlot slot,
                        Tagged<HeapObject> target)>
         gc_notify_updated_slot) {
+#ifdef V8_ENABLE_SANDBOX
+  init_self_indirect_pointer(isolate);
+#endif
   set_inferred_name(inferred_name);
   gc_notify_updated_slot(*this, RawField(UncompiledData::kInferredNameOffset),
                          inferred_name);
@@ -1094,13 +1067,13 @@ void UncompiledData::InitAfterBytecodeFlush(
 }
 
 bool SharedFunctionInfo::is_repl_mode() const {
-  return IsScript(script()) && Script::cast(script())->is_repl_mode();
+  return IsScript(script()) && Cast<Script>(script())->is_repl_mode();
 }
 
 bool SharedFunctionInfo::HasInferredName() {
   Tagged<Object> scope_info = name_or_scope_info(kAcquireLoad);
   if (IsScopeInfo(scope_info)) {
-    return ScopeInfo::cast(scope_info)->HasInferredFunctionName();
+    return Cast<ScopeInfo>(scope_info)->HasInferredFunctionName();
   }
   return HasUncompiledData();
 }
@@ -1108,13 +1081,14 @@ bool SharedFunctionInfo::HasInferredName() {
 DEF_GETTER(SharedFunctionInfo, inferred_name, Tagged<String>) {
   Tagged<Object> maybe_scope_info = name_or_scope_info(kAcquireLoad);
   if (IsScopeInfo(maybe_scope_info)) {
-    Tagged<ScopeInfo> scope_info = ScopeInfo::cast(maybe_scope_info);
+    Tagged<ScopeInfo> scope_info = Cast<ScopeInfo>(maybe_scope_info);
     if (scope_info->HasInferredFunctionName()) {
       Tagged<Object> name = scope_info->InferredFunctionName();
-      if (IsString(name)) return String::cast(name);
+      if (IsString(name)) return Cast<String>(name);
     }
   } else if (HasUncompiledData()) {
-    return uncompiled_data(cage_base)->inferred_name(cage_base);
+    return uncompiled_data(GetIsolateForSandbox(*this))
+        ->inferred_name(cage_base);
   }
   return GetReadOnlyRoots().empty_string();
 }
@@ -1122,7 +1096,7 @@ DEF_GETTER(SharedFunctionInfo, inferred_name, Tagged<String>) {
 bool SharedFunctionInfo::IsUserJavaScript() const {
   Tagged<Object> script_obj = script();
   if (IsUndefined(script_obj)) return false;
-  Tagged<Script> script = Script::cast(script_obj);
+  Tagged<Script> script = Cast<Script>(script_obj);
   return script->IsUserJavaScript();
 }
 
@@ -1157,8 +1131,12 @@ bool SharedFunctionInfo::are_properties_final() const {
   return bit && is_class_constructor();
 }
 
-}  // namespace internal
-}  // namespace v8
+OBJECT_CONSTRUCTORS_IMPL(SharedFunctionInfoWrapper, TrustedObject)
+
+ACCESSORS(SharedFunctionInfoWrapper, shared_info, Tagged<SharedFunctionInfo>,
+          kSharedInfoOffset)
+
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

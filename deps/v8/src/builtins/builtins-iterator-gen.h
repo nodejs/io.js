@@ -35,20 +35,20 @@ class IteratorBuiltinsAssembler : public CodeStubAssembler {
   // object, loaded from the native context.
   TNode<JSReceiver> IteratorStep(
       TNode<Context> context, const IteratorRecord& iterator, Label* if_done,
-      base::Optional<TNode<Map>> fast_iterator_result_map = base::nullopt);
+      std::optional<TNode<Map>> fast_iterator_result_map = std::nullopt);
   TNode<JSReceiver> IteratorStep(
       TNode<Context> context, const IteratorRecord& iterator,
-      base::Optional<TNode<Map>> fast_iterator_result_map, Label* if_done) {
+      std::optional<TNode<Map>> fast_iterator_result_map, Label* if_done) {
     return IteratorStep(context, iterator, if_done, fast_iterator_result_map);
   }
 
   // https://tc39.es/ecma262/#sec-iteratorcomplete
   void IteratorComplete(
       TNode<Context> context, const TNode<HeapObject> iterator, Label* if_done,
-      base::Optional<TNode<Map>> fast_iterator_result_map = base::nullopt);
+      std::optional<TNode<Map>> fast_iterator_result_map = std::nullopt);
   void IteratorComplete(TNode<Context> context,
                         const TNode<HeapObject> iterator,
-                        base::Optional<TNode<Map>> fast_iterator_result_map,
+                        std::optional<TNode<Map>> fast_iterator_result_map,
                         Label* if_done) {
     return IteratorComplete(context, iterator, if_done,
                             fast_iterator_result_map);
@@ -60,7 +60,7 @@ class IteratorBuiltinsAssembler : public CodeStubAssembler {
   // object, loaded from the native context.
   TNode<Object> IteratorValue(
       TNode<Context> context, TNode<JSReceiver> result,
-      base::Optional<TNode<Map>> fast_iterator_result_map = base::nullopt);
+      std::optional<TNode<Map>> fast_iterator_result_map = std::nullopt);
 
   void Iterate(TNode<Context> context, TNode<Object> iterable,
                std::function<void(TNode<Object>)> func,

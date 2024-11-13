@@ -55,6 +55,13 @@ class V8_EXPORT NameProvider {
    * Specifies a name for the garbage-collected object. Such names will never
    * be hidden, as they are explicitly specified by the user of this API.
    *
+   * V8 may call this function while generating a heap snapshot or at other
+   * times. If V8 is currently generating a heap snapshot (according to
+   * HeapProfiler::IsTakingSnapshot), then the returned string must stay alive
+   * until the snapshot generation has completed. Otherwise, the returned string
+   * must stay alive forever. If you need a place to store a temporary string
+   * during snapshot generation, use HeapProfiler::CopyNameForHeapSnapshot.
+   *
    * @returns a human readable name for the object.
    */
   virtual const char* GetHumanReadableName() const = 0;

@@ -617,7 +617,7 @@
           } else {
             indent = cap[2].search(/[^ ]/); // Find first non-space char
 
-            indent = cap[1].length + (indent > 4 ? 1 : indent); // intented code blocks after 4 spaces; indent is always 1
+            indent = cap[1].length + (indent > 4 ? 1 : indent); // indented code blocks after 4 spaces; indent is always 1
 
             itemContents = lines[0].slice(indent - cap[1].length);
           }

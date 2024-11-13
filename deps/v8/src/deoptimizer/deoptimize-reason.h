@@ -44,6 +44,8 @@ namespace internal {
     "Insufficient type feedback for object literal")                           \
   V(InsufficientTypeFeedbackForInstanceOf,                                     \
     "Insufficient type feedback for instanceof")                               \
+  V(InsufficientTypeFeedbackForTypeOf,                                         \
+    "Insufficient type feedback for typeof")                                   \
   V(LostPrecision, "lost precision")                                           \
   V(LostPrecisionOrNaN, "lost precision or NaN")                               \
   V(MinusZero, "minus zero")                                                   \
@@ -63,6 +65,7 @@ namespace internal {
   V(NotAString, "not a String")                                                \
   V(NotAStringOrStringWrapper, "not a String or a string wrapper")             \
   V(NotASymbol, "not a Symbol")                                                \
+  V(NotDetectableReceiver, "not a detectable receiver")                        \
   V(NotInt32, "not int32")                                                     \
   V(NotUint32, "not unsigned int32")                                           \
   V(OutOfBounds, "out of bounds")                                              \
@@ -71,6 +74,7 @@ namespace internal {
   V(StoreToConstant, "Storing to a constant field")                            \
   V(SuspendGeneratorIsDead, "SuspendGenerator is in a dead branch")            \
   V(Unknown, "(unknown)")                                                      \
+  V(UnoptimizedCatch, "First use of catch block")                              \
   V(ValueMismatch, "value mismatch")                                           \
   V(WrongCallTarget, "wrong call target")                                      \
   V(WrongEnumIndices, "wrong enum indices")                                    \
@@ -82,6 +86,8 @@ namespace internal {
   V(WrongValue, "wrong value")                                                 \
   V(NoInitialElement, "no initial element")                                    \
   V(ArrayLengthChanged, "the array length changed")                            \
+  V(GreaterThanMaxFastElementArray,                                            \
+    "length is greater than the maximum for fast elements array")              \
   V(Float16NotYetSupported, "float16 is not supported as machine operation")
 
 enum class DeoptimizeReason : uint8_t {

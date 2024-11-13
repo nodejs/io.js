@@ -64,7 +64,7 @@ CollationRootElements::lastCEWithPrimaryBefore(uint32_t p) const {
             secTer = q;
         }
     }
-    return ((int64_t)p << 32) | (secTer & ~SEC_TER_DELTA_FLAG);
+    return (static_cast<int64_t>(p) << 32) | (secTer & ~SEC_TER_DELTA_FLAG);
 }
 
 int64_t
@@ -82,7 +82,7 @@ CollationRootElements::firstCEWithPrimaryAtLeast(uint32_t p) const {
         }
     }
     // The code above guarantees that p has at most 3 bytes: (p & 0xff) == 0.
-    return ((int64_t)p << 32) | Collation::COMMON_SEC_AND_TER_CE;
+    return (static_cast<int64_t>(p) << 32) | Collation::COMMON_SEC_AND_TER_CE;
 }
 
 uint32_t
@@ -93,7 +93,7 @@ CollationRootElements::getPrimaryBefore(uint32_t p, UBool isCompressible) const 
     if(p == (q & 0xffffff00)) {
         // Found p itself. Return the previous primary.
         // See if p is at the end of a previous range.
-        step = (int32_t)q & PRIMARY_STEP_MASK;
+        step = static_cast<int32_t>(q) & PRIMARY_STEP_MASK;
         if(step == 0) {
             // p is not at the end of a range. Look for the previous primary.
             do {
@@ -105,7 +105,7 @@ CollationRootElements::getPrimaryBefore(uint32_t p, UBool isCompressible) const 
         // p is in a range, and not at the start.
         uint32_t nextElement = elements[index + 1];
         U_ASSERT(isEndOfPrimaryRange(nextElement));
-        step = (int32_t)nextElement & PRIMARY_STEP_MASK;
+        step = static_cast<int32_t>(nextElement) & PRIMARY_STEP_MASK;
     }
     // Return the previous range primary.
     if((p & 0xffff) == 0) {
@@ -120,7 +120,7 @@ CollationRootElements::getSecondaryBefore(uint32_t p, uint32_t s) const {
     int32_t index;
     uint32_t previousSec, sec;
     if(p == 0) {
-        index = (int32_t)elements[IX_FIRST_SECONDARY_INDEX];
+        index = static_cast<int32_t>(elements[IX_FIRST_SECONDARY_INDEX]);
         // Gap at the beginning of the secondary CE range.
         previousSec = 0;
         sec = elements[index] >> 16;
@@ -146,11 +146,11 @@ CollationRootElements::getTertiaryBefore(uint32_t p, uint32_t s, uint32_t t) con
     uint32_t previousTer, secTer;
     if(p == 0) {
         if(s == 0) {
-            index = (int32_t)elements[IX_FIRST_TERTIARY_INDEX];
+            index = static_cast<int32_t>(elements[IX_FIRST_TERTIARY_INDEX]);
             // Gap at the beginning of the tertiary CE range.
             previousTer = 0;
         } else {
-            index = (int32_t)elements[IX_FIRST_SECONDARY_INDEX];
+            index = static_cast<int32_t>(elements[IX_FIRST_SECONDARY_INDEX]);
             previousTer = Collation::BEFORE_WEIGHT16;
         }
         secTer = elements[index] & ~SEC_TER_DELTA_FLAG;
@@ -174,7 +174,7 @@ CollationRootElements::getPrimaryAfter(uint32_t p, int32_t index, UBool isCompre
     U_ASSERT(p == (elements[index] & 0xffffff00) || isEndOfPrimaryRange(elements[index + 1]));
     uint32_t q = elements[++index];
     int32_t step;
-    if((q & SEC_TER_DELTA_FLAG) == 0 && (step = (int32_t)q & PRIMARY_STEP_MASK) != 0) {
+    if ((q & SEC_TER_DELTA_FLAG) == 0 && (step = static_cast<int32_t>(q) & PRIMARY_STEP_MASK) != 0) {
         // Return the next primary in this range.
         if((p & 0xffff) == 0) {
             return Collation::incTwoBytePrimaryByOffset(p, isCompressible, step);
@@ -198,7 +198,7 @@ CollationRootElements::getSecondaryAfter(int32_t index, uint32_t s) const {
     if(index == 0) {
         // primary = 0
         U_ASSERT(s != 0);
-        index = (int32_t)elements[IX_FIRST_SECONDARY_INDEX];
+        index = static_cast<int32_t>(elements[IX_FIRST_SECONDARY_INDEX]);
         secTer = elements[index];
         // Gap at the end of the secondary CE range.
         secLimit = 0x10000;
@@ -225,11 +225,11 @@ CollationRootElements::getTertiaryAfter(int32_t index, uint32_t s, uint32_t t) c
         // primary = 0
         if(s == 0) {
             U_ASSERT(t != 0);
-            index = (int32_t)elements[IX_FIRST_TERTIARY_INDEX];
+            index = static_cast<int32_t>(elements[IX_FIRST_TERTIARY_INDEX]);
             // Gap at the end of the tertiary CE range.
             terLimit = 0x4000;
         } else {
-            index = (int32_t)elements[IX_FIRST_SECONDARY_INDEX];
+            index = static_cast<int32_t>(elements[IX_FIRST_SECONDARY_INDEX]);
             // Gap for tertiaries of primary/secondary CEs.
             terLimit = getTertiaryBoundary();
         }
@@ -287,7 +287,7 @@ CollationRootElements::findP(uint32_t p) const {
     // For example, it might be a reordering group boundary.
     U_ASSERT((p >> 24) != Collation::UNASSIGNED_IMPLICIT_BYTE);
     // modified binary search
-    int32_t start = (int32_t)elements[IX_FIRST_PRIMARY_INDEX];
+    int32_t start = static_cast<int32_t>(elements[IX_FIRST_PRIMARY_INDEX]);
     U_ASSERT(p >= elements[start]);
     int32_t limit = length - 1;
     U_ASSERT(elements[limit] >= PRIMARY_SENTINEL);

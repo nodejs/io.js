@@ -21,8 +21,10 @@
 
 #if defined(__clang__) || defined(__GNUC__) || defined(__llvm__)
 #define Z_BUILTIN_MEMCPY __builtin_memcpy
+#define Z_BUILTIN_MEMSET __builtin_memset
 #else
 #define Z_BUILTIN_MEMCPY zmemcpy
+#define Z_BUILTIN_MEMSET zmemset
 #endif
 
 #if defined(INFLATE_CHUNK_SIMD_NEON)
@@ -31,6 +33,8 @@ typedef uint8x16_t z_vec128i_t;
 #elif defined(INFLATE_CHUNK_SIMD_SSE2)
 #include <emmintrin.h>
 typedef __m128i z_vec128i_t;
+#elif defined(INFLATE_CHUNK_GENERIC)
+typedef struct { uint8_t x[16]; } z_vec128i_t;
 #else
 #error chunkcopy.h inflate chunk SIMD is not defined for your build target
 #endif
@@ -264,6 +268,77 @@ static inline z_vec128i_t v_load8_dup(const void* src) {
  */
 static inline void v_store_128(void* out, const z_vec128i_t vec) {
   _mm_storeu_si128((__m128i*)out, vec);
+}
+#elif defined(INFLATE_CHUNK_GENERIC)
+/*
+ * Default implementations for chunk-copy functions rely on memcpy() being
+ * inlined by the compiler for best performance.  This is most likely to work
+ * as expected when the length argument is constant (as is the case here) and
+ * the target supports unaligned loads and stores.  Since that's not always a
+ * safe assumption, this may need extra compiler arguments such as
+ * `-mno-strict-align` or `-munaligned-access`, or the availability of
+ * extensions like SIMD.
+ */
+
+/*
+ * v_load64_dup(): load *src as an unaligned 64-bit int and duplicate it in
+ * every 64-bit component of the 128-bit result (64-bit int splat).
+ */
+static inline z_vec128i_t v_load64_dup(const void* src) {
+  int64_t in;
+  Z_BUILTIN_MEMCPY(&in, src, sizeof(in));
+  z_vec128i_t out;
+  for (int i = 0; i < sizeof(out); i += sizeof(in)) {
+    Z_BUILTIN_MEMCPY((uint8_t*)&out + i, &in, sizeof(in));
+  }
+  return out;
+}
+
+/*
+ * v_load32_dup(): load *src as an unaligned 32-bit int and duplicate it in
+ * every 32-bit component of the 128-bit result (32-bit int splat).
+ */
+static inline z_vec128i_t v_load32_dup(const void* src) {
+  int32_t in;
+  Z_BUILTIN_MEMCPY(&in, src, sizeof(in));
+  z_vec128i_t out;
+  for (int i = 0; i < sizeof(out); i += sizeof(in)) {
+    Z_BUILTIN_MEMCPY((uint8_t*)&out + i, &in, sizeof(in));
+  }
+  return out;
+}
+
+/*
+ * v_load16_dup(): load *src as an unaligned 16-bit int and duplicate it in
+ * every 16-bit component of the 128-bit result (16-bit int splat).
+ */
+static inline z_vec128i_t v_load16_dup(const void* src) {
+  int16_t in;
+  Z_BUILTIN_MEMCPY(&in, src, sizeof(in));
+  z_vec128i_t out;
+  for (int i = 0; i < sizeof(out); i += sizeof(in)) {
+    Z_BUILTIN_MEMCPY((uint8_t*)&out + i, &in, sizeof(in));
+  }
+  return out;
+}
+
+/*
+ * v_load8_dup(): load the 8-bit int *src and duplicate it in every 8-bit
+ * component of the 128-bit result (8-bit int splat).
+ */
+static inline z_vec128i_t v_load8_dup(const void* src) {
+  int8_t in = *(const uint8_t*)src;
+  z_vec128i_t out;
+  Z_BUILTIN_MEMSET(&out, in, sizeof(out));
+  return out;
+}
+
+/*
+ * v_store_128(): store the 128-bit vec in a memory destination (that might
+ * not be 16-byte aligned) void* out.
+ */
+static inline void v_store_128(void* out, const z_vec128i_t vec) {
+  Z_BUILTIN_MEMCPY(out, &vec, sizeof(vec));
 }
 #endif
 

@@ -5,6 +5,8 @@
 #ifndef V8_BASELINE_BYTECODE_OFFSET_ITERATOR_H_
 #define V8_BASELINE_BYTECODE_OFFSET_ITERATOR_H_
 
+#include <optional>
+
 #include "src/base/vlq.h"
 #include "src/common/globals.h"
 #include "src/interpreter/bytecode-array-iterator.h"
@@ -87,7 +89,7 @@ class V8_EXPORT_PRIVATE BytecodeOffsetIterator {
   Tagged<BytecodeArray> bytecode_handle_storage_;
   interpreter::BytecodeArrayIterator bytecode_iterator_;
   LocalHeap* local_heap_;
-  base::Optional<DisallowGarbageCollection> no_gc_;
+  std::optional<DisallowGarbageCollection> no_gc_;
 };
 
 }  // namespace baseline

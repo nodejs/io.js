@@ -36,13 +36,13 @@ MUTABLE_ROOT_LIST(MUTABLE_ROOT_ACCESSOR)
 
 template <typename Impl>
 Handle<Boolean> FactoryBase<Impl>::ToBoolean(bool value) {
-  return value ? Handle<Boolean>::cast(impl()->true_value())
-               : Handle<Boolean>::cast(impl()->false_value());
+  return value ? Cast<Boolean>(impl()->true_value())
+               : Cast<Boolean>(impl()->false_value());
 }
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Object> FactoryBase<Impl>::NewNumber(double value) {
+Handle<Number> FactoryBase<Impl>::NewNumber(double value) {
   // Materialize as a SMI if possible.
   int32_t int_value;
   if (DoubleToSmiInteger(value, &int_value)) {
@@ -53,7 +53,7 @@ Handle<Object> FactoryBase<Impl>::NewNumber(double value) {
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Object> FactoryBase<Impl>::NewNumberFromInt(int32_t value) {
+Handle<Number> FactoryBase<Impl>::NewNumberFromInt(int32_t value) {
   if (Smi::IsValid(value)) return handle(Smi::FromInt(value), isolate());
   // Bypass NewNumber to avoid various redundant checks.
   return NewHeapNumber<allocation>(FastI2D(value));
@@ -61,7 +61,7 @@ Handle<Object> FactoryBase<Impl>::NewNumberFromInt(int32_t value) {
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Object> FactoryBase<Impl>::NewNumberFromUint(uint32_t value) {
+Handle<Number> FactoryBase<Impl>::NewNumberFromUint(uint32_t value) {
   int32_t int32v = static_cast<int32_t>(value);
   if (int32v >= 0 && Smi::IsValid(int32v)) {
     return handle(Smi::FromInt(int32v), isolate());
@@ -71,7 +71,7 @@ Handle<Object> FactoryBase<Impl>::NewNumberFromUint(uint32_t value) {
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Object> FactoryBase<Impl>::NewNumberFromSize(size_t value) {
+Handle<Number> FactoryBase<Impl>::NewNumberFromSize(size_t value) {
   // We can't use Smi::IsValid() here because that operates on a signed
   // intptr_t, and casting from size_t could create a bogus sign bit.
   if (value <= static_cast<size_t>(Smi::kMaxValue)) {
@@ -82,7 +82,7 @@ Handle<Object> FactoryBase<Impl>::NewNumberFromSize(size_t value) {
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Object> FactoryBase<Impl>::NewNumberFromInt64(int64_t value) {
+Handle<Number> FactoryBase<Impl>::NewNumberFromInt64(int64_t value) {
   if (value <= std::numeric_limits<int32_t>::max() &&
       value >= std::numeric_limits<int32_t>::min() &&
       Smi::IsValid(static_cast<int32_t>(value))) {
@@ -120,7 +120,7 @@ Tagged<StructType> FactoryBase<Impl>::NewStructInternal(
   ReadOnlyRoots roots = read_only_roots();
   Tagged<Map> map = Map::GetMapFor(roots, type);
   int size = StructType::kSize;
-  return StructType::cast(NewStructInternal(roots, map, size, allocation));
+  return Cast<StructType>(NewStructInternal(roots, map, size, allocation));
 }
 
 template <typename Impl>
@@ -129,7 +129,7 @@ Tagged<Struct> FactoryBase<Impl>::NewStructInternal(ReadOnlyRoots roots,
                                                     AllocationType allocation) {
   DCHECK_EQ(size, map->instance_size());
   Tagged<HeapObject> result = AllocateRawWithImmortalMap(size, allocation, map);
-  Tagged<Struct> str = Tagged<Struct>::cast(result);
+  Tagged<Struct> str = Cast<Struct>(result);
   Tagged<Undefined> undefined = roots.undefined_value();
   int length = (size >> kTaggedSizeLog2) - 1;
   MemsetTagged(str->RawField(Struct::kHeaderSize), undefined, length);

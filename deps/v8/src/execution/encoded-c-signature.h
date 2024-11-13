@@ -33,7 +33,25 @@ struct EncodedCSignature {
     return (bitfield_ & (static_cast<uint32_t>(1) << index)) != 0;
   }
   bool IsReturnFloat() const { return IsFloat(kReturnIndex); }
+#ifdef V8_TARGET_ARCH_RISCV64
+  bool IsReturnFloat64() const {
+    return IsFloat(kReturnIndex) && return_type_is_float64_;
+  }
+#endif
   void SetFloat(int index) { bitfield_ |= (static_cast<uint32_t>(1) << index); }
+
+  void SetReturnFloat64() {
+    SetFloat(kReturnIndex);
+#ifdef V8_TARGET_ARCH_RISCV64
+    return_type_is_float64_ = true;
+#endif
+  }
+  void SetReturnFloat32() {
+    SetFloat(kReturnIndex);
+#ifdef V8_TARGET_ARCH_RISCV64
+    return_type_is_float64_ = false;
+#endif
+  }
 
   bool IsValid() const { return parameter_count_ < kInvalidParamCount; }
 
@@ -49,8 +67,13 @@ struct EncodedCSignature {
   static const int kInvalidParamCount = kReturnIndex + 1;
 
  private:
-  uint32_t bitfield_ = 0;  // Bit i is set if floating point, unset if not.
-
+  // Bit i is set if floating point, unset if not.
+  uint32_t bitfield_ = 0;
+#ifdef V8_TARGET_ARCH_RISCV64
+  // Indicates whether the return type for functions is float64,
+  // RISC-V need NaNboxing float32 return value in simulator.
+  bool return_type_is_float64_ = false;
+#endif  // V8_TARGET_ARCH_RISCV64
   int parameter_count_ = kInvalidParamCount;
 };
 

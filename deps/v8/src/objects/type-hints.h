@@ -5,8 +5,9 @@
 #ifndef V8_OBJECTS_TYPE_HINTS_H_
 #define V8_OBJECTS_TYPE_HINTS_H_
 
+#include <iosfwd>
+
 #include "src/base/flags.h"
-#include "src/utils/utils.h"
 
 namespace v8 {
 namespace internal {

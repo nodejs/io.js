@@ -95,6 +95,17 @@ static void SetExcludeNetwork(const FunctionCallbackInfo<Value>& info) {
   env->options()->report_exclude_network = info[0]->IsTrue();
 }
 
+static void GetExcludeEnv(const FunctionCallbackInfo<Value>& info) {
+  Environment* env = Environment::GetCurrent(info);
+  info.GetReturnValue().Set(env->report_exclude_env());
+}
+
+static void SetExcludeEnv(const FunctionCallbackInfo<Value>& info) {
+  Environment* env = Environment::GetCurrent(info);
+  CHECK(info[0]->IsBoolean());
+  env->options()->report_exclude_env = info[0]->IsTrue();
+}
+
 static void GetDirectory(const FunctionCallbackInfo<Value>& info) {
   Mutex::ScopedLock lock(per_process::cli_options_mutex);
   Environment* env = Environment::GetCurrent(info);
@@ -187,6 +198,8 @@ static void Initialize(Local<Object> exports,
   SetMethod(context, exports, "setCompact", SetCompact);
   SetMethod(context, exports, "getExcludeNetwork", GetExcludeNetwork);
   SetMethod(context, exports, "setExcludeNetwork", SetExcludeNetwork);
+  SetMethod(context, exports, "getExcludeEnv", GetExcludeEnv);
+  SetMethod(context, exports, "setExcludeEnv", SetExcludeEnv);
   SetMethod(context, exports, "getDirectory", GetDirectory);
   SetMethod(context, exports, "setDirectory", SetDirectory);
   SetMethod(context, exports, "getFilename", GetFilename);
@@ -215,6 +228,8 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(SetCompact);
   registry->Register(GetExcludeNetwork);
   registry->Register(SetExcludeNetwork);
+  registry->Register(GetExcludeEnv);
+  registry->Register(SetExcludeEnv);
   registry->Register(GetDirectory);
   registry->Register(SetDirectory);
   registry->Register(GetFilename);

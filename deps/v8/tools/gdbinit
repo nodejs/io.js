@@ -63,7 +63,7 @@ class PrintV8LocalCommand(PrintV8HandleCommand):
     # Before https://crrev.com/c/4335544, v8::Local contained a val_.
     if gdb.types.has_field(value.type, "val_"):
       return self.print_indirect(value["val_"], from_tty)
-    # With v8_enable_direct_local=true, v8::Local contains a ptr_.
+    # With v8_enable_direct_handle=true, v8::Local contains a ptr_.
     if gdb.types.has_field(value.type, "ptr_"):
       return self.print_direct(value["ptr_"], from_tty)
     # We don't know how to print this...
@@ -127,11 +127,20 @@ end
 
 # Print TransitionTree.
 define jtt
-call (void) _v8_internal_Print_TransitionTree((void*)($arg0))
+call (void) _v8_internal_Print_TransitionTree((void*)($arg0), false)
 end
 document jtt
-Print the complete transition tree of the given v8 Map.
+Print the complete transition tree starting at the given v8 map.
 Usage: jtt tagged_ptr
+end
+
+# Print TransitionTree starting from the root map.
+define jttr
+call (void) _v8_internal_Print_TransitionTree((void*)($arg0), true)
+end
+document jttr
+Print the complete transition tree starting at the root map of the given v8 map.
+Usage: jttr tagged_ptr
 end
 
 # Print JavaScript stack trace.
@@ -162,6 +171,35 @@ end
 document jss
 Skip the jitted stack on x64 to where we entered JS last.
 Usage: jss
+end
+
+# Print v8::FunctionCallbackInfo<T>& info.
+define jfci
+call _v8_internal_Print_FunctionCallbackInfo((void*)(&$arg0))
+end
+document jfci
+Print v8::FunctionCallbackInfo<T>& info.
+Usage: jfci info
+end
+
+# Print v8::PropertyCallbackInfo<T>& info.
+define jpci
+call _v8_internal_Print_PropertyCallbackInfo((void*)(&$arg0))
+end
+document jpci
+Print v8::PropertyCallbackInfo<T>& info.
+Usage: jpci info
+end
+
+# Print whether the object is marked, the mark-bit cell and index. The address
+# of the cell is handy for reverse debugging to check when the object was
+# marked/unmarked.
+define jomb
+call _v8_internal_Print_Object_MarkBit((void*)($arg0))
+end
+document jomb
+Print whether the object is marked, the markbit cell and index.
+Usage: jomb tagged_ptr
 end
 
 # Execute a simulator command.

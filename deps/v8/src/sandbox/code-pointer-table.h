@@ -28,6 +28,10 @@ class Counters;
  * the Code's entrypoint.
  */
 struct CodePointerTableEntry {
+  // We write-protect the CodePointerTable on platforms that support it for
+  // forward-edge CFI.
+  static constexpr bool IsWriteProtected = true;
+
   // Make this entry a code pointer entry for the given code object and
   // entrypoint.
   inline void MakeCodePointerEntry(Address code, Address entrypoint,
@@ -115,6 +119,9 @@ static_assert(sizeof(CodePointerTableEntry) == kCodePointerTableEntrySize);
 class V8_EXPORT_PRIVATE CodePointerTable
     : public ExternalEntityTable<CodePointerTableEntry,
                                  kCodePointerTableReservationSize> {
+  using Base = ExternalEntityTable<CodePointerTableEntry,
+                                   kCodePointerTableReservationSize>;
+
  public:
   // Size of a CodePointerTable, for layout computation in IsolateData.
   static int constexpr kSize = 2 * kSystemPointerSize;
@@ -125,10 +132,9 @@ class V8_EXPORT_PRIVATE CodePointerTable
   CodePointerTable& operator=(const CodePointerTable&) = delete;
 
   // The Spaces used by a CodePointerTable.
-  using Space = ExternalEntityTable<
-      CodePointerTableEntry,
-      kCodePointerTableReservationSize>::SpaceWithBlackAllocationSupport;
+  using Space = Base::SpaceWithBlackAllocationSupport;
 
+  // Retrieves the entrypoint of the entry referenced by the given handle.
   //
   // This method is atomic and can be called from background threads.
   inline Address GetEntrypoint(CodePointerHandle handle,

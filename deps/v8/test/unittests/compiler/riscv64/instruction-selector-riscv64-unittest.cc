@@ -312,7 +312,6 @@ TEST_P(InstructionSelectorCmpTest, Parameter) {
   StreamBuilder m(this, type, type, type);
   m.Return((m.*cmp.mi.constructor)(m.Parameter(0), m.Parameter(1)));
   Stream s = m.Build();
-  std::cout << type.representation() << std::endl;
   if (v8_flags.debug_code &&
       type.representation() == MachineRepresentation::kWord32) {
 #ifndef V8_COMPRESS_POINTERS
@@ -415,93 +414,6 @@ INSTANTIATE_TEST_SUITE_P(InstructionSelectorTest,
                          InstructionSelectorLogicalTest,
                          ::testing::ValuesIn(kLogicalInstructions));
 
-TEST_F(InstructionSelectorTest, Word64XorMinusOneWithParameter) {
-  {
-    StreamBuilder m(this, MachineType::Int64(), MachineType::Int64());
-    m.Return(m.Word64Xor(m.Parameter(0), m.Int64Constant(-1)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-  {
-    StreamBuilder m(this, MachineType::Int64(), MachineType::Int64());
-    m.Return(m.Word64Xor(m.Int64Constant(-1), m.Parameter(0)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-}
-
-TEST_F(InstructionSelectorTest, Word32XorMinusOneWithParameter) {
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Parameter(0), m.Int32Constant(-1)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor32, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Int32Constant(-1), m.Parameter(0)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor32, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-}
-
-TEST_F(InstructionSelectorTest, Word64XorMinusOneWithWord64Or) {
-  {
-    StreamBuilder m(this, MachineType::Int64(), MachineType::Int64());
-    m.Return(m.Word64Xor(m.Word64Or(m.Parameter(0), m.Parameter(0)),
-                         m.Int64Constant(-1)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-  {
-    StreamBuilder m(this, MachineType::Int64(), MachineType::Int64());
-    m.Return(m.Word64Xor(m.Int64Constant(-1),
-                         m.Word64Or(m.Parameter(0), m.Parameter(0))));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-}
-
-TEST_F(InstructionSelectorTest, Word32XorMinusOneWithWord32Or) {
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Word32Or(m.Parameter(0), m.Parameter(0)),
-                         m.Int32Constant(-1)));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor32, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-  {
-    StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
-    m.Return(m.Word32Xor(m.Int32Constant(-1),
-                         m.Word32Or(m.Parameter(0), m.Parameter(0))));
-    Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvNor32, s[0]->arch_opcode());
-    EXPECT_EQ(2U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-  }
-}
 
 TEST_F(InstructionSelectorTest, Word32ShlWithWord32And) {
   TRACED_FORRANGE(int32_t, shift, 0, 30) {
@@ -1415,7 +1327,7 @@ TEST_F(InstructionSelectorTest, Word32EqualWithZero) {
     m.Return(m.Word32Equal(m.Parameter(0), m.Int32Constant(0)));
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvCmpZero, s[0]->arch_opcode());
+    EXPECT_EQ(kRiscvCmpZero32, s[0]->arch_opcode());
     EXPECT_EQ(kMode_None, s[0]->addressing_mode());
     ASSERT_EQ(1U, s[0]->InputCount());
     EXPECT_EQ(1U, s[0]->OutputCount());
@@ -1427,7 +1339,7 @@ TEST_F(InstructionSelectorTest, Word32EqualWithZero) {
     m.Return(m.Word32Equal(m.Int32Constant(0), m.Parameter(0)));
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvCmpZero, s[0]->arch_opcode());
+    EXPECT_EQ(kRiscvCmpZero32, s[0]->arch_opcode());
     EXPECT_EQ(kMode_None, s[0]->addressing_mode());
     ASSERT_EQ(1U, s[0]->InputCount());
     EXPECT_EQ(1U, s[0]->OutputCount());
@@ -1451,7 +1363,7 @@ TEST_F(InstructionSelectorTest, Word64EqualWithZero) {
   }
   {
     StreamBuilder m(this, MachineType::Int64(), MachineType::Int64());
-    m.Return(m.Word64Equal(m.Int32Constant(0), m.Parameter(0)));
+    m.Return(m.Word64Equal(m.Int64Constant(0), m.Parameter(0)));
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(kRiscvCmpZero, s[0]->arch_opcode());
@@ -1584,18 +1496,18 @@ TEST_F(InstructionSelectorTest, Word32ReverseBytes) {
     StreamBuilder m(this, MachineType::Int32(), MachineType::Int32());
     m.Return(m.Word32ReverseBytes(m.Parameter(0)));
     Stream s = m.Build();
-#ifdef CAN_USE_ZBB_INSTRUCTIONS
-    ASSERT_EQ(2U, s.size());
-    EXPECT_EQ(kRiscvRev8, s[0]->arch_opcode());
-    EXPECT_EQ(kRiscvShr64, s[1]->arch_opcode());
-    EXPECT_EQ(1U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-#else
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(kRiscvByteSwap32, s[0]->arch_opcode());
-    EXPECT_EQ(1U, s[0]->InputCount());
-    EXPECT_EQ(1U, s[0]->OutputCount());
-#endif
+    if (CpuFeatures::IsSupported(ZBB)) {
+      ASSERT_EQ(2U, s.size());
+      EXPECT_EQ(kRiscvRev8, s[0]->arch_opcode());
+      EXPECT_EQ(kRiscvShr64, s[1]->arch_opcode());
+      EXPECT_EQ(1U, s[0]->InputCount());
+      EXPECT_EQ(1U, s[0]->OutputCount());
+    } else {
+      ASSERT_EQ(1U, s.size());
+      EXPECT_EQ(kRiscvByteSwap32, s[0]->arch_opcode());
+      EXPECT_EQ(1U, s[0]->InputCount());
+      EXPECT_EQ(1U, s[0]->OutputCount());
+    }
   }
 }
 
@@ -1605,11 +1517,11 @@ TEST_F(InstructionSelectorTest, Word64ReverseBytes) {
     m.Return(m.Word64ReverseBytes(m.Parameter(0)));
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
-#ifdef CAN_USE_ZBB_INSTRUCTIONS
-    EXPECT_EQ(kRiscvRev8, s[0]->arch_opcode());
-#else
-    EXPECT_EQ(kRiscvByteSwap64, s[0]->arch_opcode());
-#endif
+    if (CpuFeatures::IsSupported(ZBB)) {
+      EXPECT_EQ(kRiscvRev8, s[0]->arch_opcode());
+    } else {
+      EXPECT_EQ(kRiscvByteSwap64, s[0]->arch_opcode());
+    }
     EXPECT_EQ(1U, s[0]->InputCount());
     EXPECT_EQ(1U, s[0]->OutputCount());
   }

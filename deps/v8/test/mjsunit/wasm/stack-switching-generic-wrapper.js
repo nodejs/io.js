@@ -17,9 +17,8 @@ d8.file.execute("test/mjsunit/wasm/stack-switching-export.js");
 (function testGenericWrapperException() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
-  let sig_index = builder.addType(kSig_v_r);
   let func_index = builder.addImport("mod", "func", kSig_v_v);
-  builder.addFunction("main", sig_index)
+  builder.addFunction("main", kSig_v_v)
     .addBody([
       kExprTry, kWasmVoid,
         kExprCallFunction, func_index,
@@ -39,6 +38,6 @@ d8.file.execute("test/mjsunit/wasm/stack-switching-export.js");
   }
 
   let instance = builder.instantiate({ mod: { func: import_func } });
-  let main = ToPromising(instance.exports.main);
+  let main = WebAssembly.promising(instance.exports.main);
   assertThrowsAsync(main(), RangeError, /Maximum call stack size exceeded/);
 })();

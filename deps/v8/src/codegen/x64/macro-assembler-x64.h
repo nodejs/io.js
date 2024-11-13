@@ -130,6 +130,13 @@ class V8_EXPORT_PRIVATE MacroAssembler
   void CheckPageFlag(Register object, Register scratch, int mask, Condition cc,
                      Label* condition_met,
                      Label::Distance condition_met_distance = Label::kFar);
+  void CheckMarkBit(Register object, Register scratch0, Register scratch1,
+                    Condition cc, Label* condition_met,
+                    Label::Distance condition_met_distance = Label::kFar);
+  void JumpIfMarking(Label* is_marking,
+                     Label::Distance condition_met_distance = Label::kFar);
+  void JumpIfNotMarking(Label* not_marking,
+                        Label::Distance condition_met_distance = Label::kFar);
 
   // Define movq here instead of using AVX_OP. movq is defined using templates
   // and there is a function template `void movq(P1)`, while technically
@@ -228,6 +235,10 @@ class V8_EXPORT_PRIVATE MacroAssembler
                 YMMRegister scratch);
   void F32x8Max(YMMRegister dst, YMMRegister lhs, YMMRegister rhs,
                 YMMRegister scratch);
+  void F16x8Min(YMMRegister dst, XMMRegister lhs, XMMRegister rhs,
+                YMMRegister scratch, YMMRegister scratch2);
+  void F16x8Max(YMMRegister dst, XMMRegister lhs, XMMRegister rhs,
+                YMMRegister scratch, YMMRegister scratch2);
   void I64x4ExtMul(YMMRegister dst, XMMRegister src1, XMMRegister src2,
                    YMMRegister scratch, bool is_signed);
   void I32x8ExtMul(YMMRegister dst, XMMRegister src1, XMMRegister src2,
@@ -245,6 +256,16 @@ class V8_EXPORT_PRIVATE MacroAssembler
   MACRO_ASM_X64_IEXTADDPAIRWISE_LIST(DECLARE_IEXTADDPAIRWISE)
 #undef DECLARE_IEXTADDPAIRWISE
 #undef MACRO_ASM_X64_IEXTADDPAIRWISE_LIST
+
+  void I32x8SConvertF32x8(YMMRegister dst, YMMRegister src, YMMRegister tmp,
+                          Register scratch);
+  void I16x8SConvertF16x8(YMMRegister dst, XMMRegister src, YMMRegister tmp,
+                          Register scratch);
+  void I16x8TruncF16x8U(YMMRegister dst, XMMRegister src, YMMRegister tmp);
+  void F16x8Qfma(YMMRegister dst, XMMRegister src1, XMMRegister src2,
+                 XMMRegister src3, YMMRegister tmp, YMMRegister tmp2);
+  void F16x8Qfms(YMMRegister dst, XMMRegister src1, XMMRegister src2,
+                 XMMRegister src3, YMMRegister tmp, YMMRegister tmp2);
 
   void S256Not(YMMRegister dst, YMMRegister src, YMMRegister scratch);
   void S256Select(YMMRegister dst, YMMRegister mask, YMMRegister src1,
@@ -267,6 +288,19 @@ class V8_EXPORT_PRIVATE MacroAssembler
 
   void F64x4Splat(YMMRegister dst, XMMRegister src);
   void F32x8Splat(YMMRegister dst, XMMRegister src);
+
+  void F32x8Qfma(YMMRegister dst, YMMRegister src1, YMMRegister src2,
+                 YMMRegister src3, YMMRegister tmp);
+  void F32x8Qfms(YMMRegister dst, YMMRegister src1, YMMRegister src2,
+                 YMMRegister src3, YMMRegister tmp);
+  void F64x4Qfma(YMMRegister dst, YMMRegister src1, YMMRegister src2,
+                 YMMRegister src3, YMMRegister tmp);
+  void F64x4Qfms(YMMRegister dst, YMMRegister src1, YMMRegister src2,
+                 YMMRegister src3, YMMRegister tmp);
+
+  void I32x8DotI8x32I7x32AddS(YMMRegister dst, YMMRegister src1,
+                              YMMRegister src2, YMMRegister src3,
+                              YMMRegister scratch, YMMRegister splat_reg);
 
   // ---------------------------------------------------------------------------
   // Conversions between tagged smi values and non-tagged integer values.
@@ -458,6 +492,10 @@ class V8_EXPORT_PRIVATE MacroAssembler
   Operand ExternalReferenceAsOperand(ExternalReference reference,
                                      Register scratch = kScratchRegister);
 
+  Operand ExternalReferenceAsOperand(IsolateFieldId id) {
+    return ExternalReferenceAsOperand(ExternalReference::Create(id), no_reg);
+  }
+
   void Call(Register reg) { call(reg); }
   void Call(Operand op);
   void Call(Handle<Code> code_object, RelocInfo::Mode rmode);
@@ -510,18 +548,11 @@ class V8_EXPORT_PRIVATE MacroAssembler
   void Prologue();
 
   // Helpers for argument handling
-  enum ArgumentsCountMode { kCountIncludesReceiver, kCountExcludesReceiver };
-  enum ArgumentsCountType { kCountIsInteger, kCountIsSmi, kCountIsBytes };
-  void DropArguments(Register count, Register scratch, ArgumentsCountType type,
-                     ArgumentsCountMode mode);
+  void DropArguments(Register count, Register scratch);
   void DropArgumentsAndPushNewReceiver(Register argc, Register receiver,
-                                       Register scratch,
-                                       ArgumentsCountType type,
-                                       ArgumentsCountMode mode);
+                                       Register scratch);
   void DropArgumentsAndPushNewReceiver(Register argc, Operand receiver,
-                                       Register scratch,
-                                       ArgumentsCountType type,
-                                       ArgumentsCountMode mode);
+                                       Register scratch);
 
   // Calls Abort(msg) if the condition cc is not satisfied.
   // Use --debug_code to enable.
@@ -706,6 +737,7 @@ class V8_EXPORT_PRIVATE MacroAssembler
   void DecompressTagged(Register destination, Operand field_operand);
   void DecompressTagged(Register destination, Register source);
   void DecompressTagged(Register destination, Tagged_t immediate);
+  void DecompressProtected(Register destination, Operand field_operand);
 
   // ---------------------------------------------------------------------------
   // V8 Sandbox support
@@ -914,6 +946,12 @@ class V8_EXPORT_PRIVATE MacroAssembler
   // Variant of the above, which only guarantees to set the correct
   // equal/not_equal flag. Map might not be loaded.
   void IsObjectType(Register heap_object, InstanceType type, Register scratch);
+  // Variant of the above, which compares against a type range rather than a
+  // single type (lower_limit and higher_limit are inclusive).
+  //
+  // Always use unsigned comparisons: below for a positive result.
+  void IsObjectTypeInRange(Register heap_object, InstanceType low,
+                           InstanceType high, Register scratch);
 #if V8_STATIC_ROOTS_BOOL
   // Fast variant which is guaranteed to not actually load the instance type
   // from the map.
@@ -1088,8 +1126,7 @@ class V8_EXPORT_PRIVATE MacroAssembler
   Register GetSmiConstant(Tagged<Smi> value);
 
   // Drops arguments assuming that the return address was already popped.
-  void DropArguments(Register count, ArgumentsCountType type = kCountIsInteger,
-                     ArgumentsCountMode mode = kCountExcludesReceiver);
+  void DropArguments(Register count);
 
  private:
   // Helper functions for generating invokes.
@@ -1151,17 +1188,18 @@ struct MoveCycleState {
   bool pending_double_scratch_register_use = false;
 };
 
-// Calls an API function.  Allocates HandleScope, extracts returned value
-// from handle and propagates exceptions.  Clobbers r12, r15 and caller-saved
-// registers.  Restores context.  On return removes
-// *stack_space_operand * kSystemPointerSize or stack_space * kSystemPointerSize
+// Calls an API function. Allocates HandleScope, extracts returned value
+// from handle and propagates exceptions. Clobbers C argument registers
+// and C caller-saved registers. Restores context. On return removes
+//   (*argc_operand + slots_to_drop_on_return) * kSystemPointerSize
 // (GCed, includes the call JS arguments space and the additional space
 // allocated for the fast call).
 void CallApiFunctionAndReturn(MacroAssembler* masm, bool with_profiling,
                               Register function_address,
                               ExternalReference thunk_ref, Register thunk_arg,
-                              int stack_space, Operand* stack_space_operand,
-                              Operand return_value_operand);
+                              int slots_to_drop_on_return,
+                              MemOperand* argc_operand,
+                              MemOperand return_value_operand);
 
 #define ACCESS_MASM(masm) masm->
 

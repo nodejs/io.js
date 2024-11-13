@@ -550,6 +550,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   inline Handle<Code> code_target_object_handle_at(Address pc);
   inline Handle<HeapObject> compressed_embedded_object_handle_at(Address pc);
 
+  // Read/modify the uint32 constant used at pc.
+  static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
+  static inline void set_uint32_constant_at(
+      Address pc, Address constant_pool, uint32_t new_constant,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+
   // Number of bytes taken up by the branch target in the code.
   static constexpr int kSpecialTargetSize = 4;  // 32-bit displacement.
 
@@ -1122,6 +1128,14 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
 
   // Conditional jumps
   void j(Condition cc, Label* L, Label::Distance distance = Label::kFar);
+  // Used for JCC erratum performance mitigation.
+  void aligned_j(Condition cc, Label* L,
+                 Label::Distance distance = Label::kFar) {
+    DCHECK(CpuFeatures::IsSupported(INTEL_JCC_ERRATUM_MITIGATION));
+    const int kInstLength = distance == Label::kFar ? 6 : 2;
+    AlignForJCCErratum(kInstLength);
+    j(cc, L, distance);
+  }
   void j(Condition cc, Address entry, RelocInfo::Mode rmode);
   void j(Condition cc, Handle<Code> target, RelocInfo::Mode rmode);
 
@@ -1709,23 +1723,35 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
                   uint8_t lane);
   void vextractf128(XMMRegister dst, YMMRegister src, uint8_t lane);
 
-  void fma_instr(uint8_t op, XMMRegister dst, XMMRegister src1,
-                 XMMRegister src2, VectorLength l, SIMDPrefix pp,
-                 LeadingOpcode m, VexW w);
-  void fma_instr(uint8_t op, XMMRegister dst, XMMRegister src1, Operand src2,
-                 VectorLength l, SIMDPrefix pp, LeadingOpcode m, VexW w);
+  template <typename Reg1, typename Reg2, typename Op>
+  void fma_instr(uint8_t op, Reg1 dst, Reg2 src1, Op src2, VectorLength l,
+                 SIMDPrefix pp, LeadingOpcode m, VexW w);
 
-#define FMA(instr, length, prefix, escape1, escape2, extension, opcode) \
-  void instr(XMMRegister dst, XMMRegister src1, XMMRegister src2) {     \
-    fma_instr(0x##opcode, dst, src1, src2, k##length, k##prefix,        \
-              k##escape1##escape2, k##extension);                       \
-  }                                                                     \
-  void instr(XMMRegister dst, XMMRegister src1, Operand src2) {         \
-    fma_instr(0x##opcode, dst, src1, src2, k##length, k##prefix,        \
-              k##escape1##escape2, k##extension);                       \
+#define FMA(instr, prefix, escape1, escape2, extension, opcode)     \
+  void instr(XMMRegister dst, XMMRegister src1, XMMRegister src2) { \
+    fma_instr(0x##opcode, dst, src1, src2, kL128, k##prefix,        \
+              k##escape1##escape2, k##extension);                   \
+  }                                                                 \
+  void instr(XMMRegister dst, XMMRegister src1, Operand src2) {     \
+    fma_instr(0x##opcode, dst, src1, src2, kL128, k##prefix,        \
+              k##escape1##escape2, k##extension);                   \
   }
   FMA_INSTRUCTION_LIST(FMA)
 #undef FMA
+
+#define DECLARE_FMA_YMM_INSTRUCTION(instr, prefix, escape1, escape2, \
+                                    extension, opcode)               \
+  void instr(YMMRegister dst, YMMRegister src1, YMMRegister src2) {  \
+    fma_instr(0x##opcode, dst, src1, src2, kL256, k##prefix,         \
+              k##escape1##escape2, k##extension);                    \
+  }                                                                  \
+  void instr(YMMRegister dst, YMMRegister src1, Operand src2) {      \
+    fma_instr(0x##opcode, dst, src1, src2, kL256, k##prefix,         \
+              k##escape1##escape2, k##extension);                    \
+  }
+  FMA_PS_INSTRUCTION_LIST(DECLARE_FMA_YMM_INSTRUCTION)
+  FMA_PD_INSTRUCTION_LIST(DECLARE_FMA_YMM_INSTRUCTION)
+#undef DECLARE_FMA_YMM_INSTRUCTION
 
   void vmovd(XMMRegister dst, Register src);
   void vmovd(XMMRegister dst, Operand src);
@@ -2240,6 +2266,20 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   }
   AVX2_BROADCAST_LIST(AVX2_INSTRUCTION)
 #undef AVX2_INSTRUCTION
+
+  // F16C Instructions.
+  void vcvtph2ps(XMMRegister dst, XMMRegister src);
+  void vcvtph2ps(YMMRegister dst, XMMRegister src);
+  void vcvtps2ph(XMMRegister dst, XMMRegister src, uint8_t imm8);
+  void vcvtps2ph(XMMRegister dst, YMMRegister src, uint8_t imm8);
+
+  // AVX-VNNI instruction
+  void vpdpbusd(XMMRegister dst, XMMRegister src1, XMMRegister src2) {
+    vinstr(0x50, dst, src1, src2, k66, k0F38, kW0, AVX_VNNI);
+  }
+  void vpdpbusd(YMMRegister dst, YMMRegister src1, YMMRegister src2) {
+    vinstr(0x50, dst, src1, src2, k66, k0F38, kW0, AVX_VNNI);
+  }
 
   // BMI instruction
   void andnq(Register dst, Register src1, Register src2) {
@@ -3019,6 +3059,32 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   std::unique_ptr<win64_unwindinfo::XdataEncoder> xdata_encoder_;
 #endif
 };
+
+extern template EXPORT_TEMPLATE_DECLARE(
+    V8_EXPORT_PRIVATE) void Assembler::fma_instr(uint8_t op, XMMRegister dst,
+                                                 XMMRegister src1,
+                                                 XMMRegister src2,
+                                                 VectorLength l, SIMDPrefix pp,
+                                                 LeadingOpcode m, VexW w);
+
+extern template EXPORT_TEMPLATE_DECLARE(
+    V8_EXPORT_PRIVATE) void Assembler::fma_instr(uint8_t op, YMMRegister dst,
+                                                 YMMRegister src1,
+                                                 YMMRegister src2,
+                                                 VectorLength l, SIMDPrefix pp,
+                                                 LeadingOpcode m, VexW w);
+
+extern template EXPORT_TEMPLATE_DECLARE(
+    V8_EXPORT_PRIVATE) void Assembler::fma_instr(uint8_t op, XMMRegister dst,
+                                                 XMMRegister src1, Operand src2,
+                                                 VectorLength l, SIMDPrefix pp,
+                                                 LeadingOpcode m, VexW w);
+
+extern template EXPORT_TEMPLATE_DECLARE(
+    V8_EXPORT_PRIVATE) void Assembler::fma_instr(uint8_t op, YMMRegister dst,
+                                                 YMMRegister src1, Operand src2,
+                                                 VectorLength l, SIMDPrefix pp,
+                                                 LeadingOpcode m, VexW w);
 
 extern template EXPORT_TEMPLATE_DECLARE(
     V8_EXPORT_PRIVATE) void Assembler::vinstr(uint8_t op, YMMRegister dst,

@@ -19,6 +19,13 @@ import roll_merge_gerrit
 TEST_DATA = Path(__file__).resolve().parent / 'testdata'
 HAPPY_PATH_LOG = TEST_DATA / 'roll_merge_gerrit_happy_path.txt'
 
+ROLL_COMMIT_MESSAGE = """V8 roll from 123abc to 456def
+
+https://chromium.googlesource.com/v8/v8.git/+log/123abc..456def
+
+2038-01-19 v8-ci-autoroll-builder@chops-service-accounts.iam.gserviceaccount.com Version 1.2.3
+"""
+
 V8_VERSION_FILE_AT_CHERRY_PICK = """
 #define V8_MAJOR_VERSION 1
 #define V8_MINOR_VERSION 2
@@ -38,17 +45,46 @@ V8_VERSION_ROLL_RESPONSE = io.StringIO(
 
 
 class TestStats(unittest.TestCase):
-  @patch('gerrit_util.QueryChanges',
-         return_value=[{'subject': 'Update V8 to version 1.2.3'}])
-  @patch('gerrit_util.CherryPick',
-         return_value={'_number': 42, 'change_id': 23})
-  @patch('gerrit_util.GetFileContents',
-         return_value=V8_VERSION_FILE_AT_CHERRY_PICK)
-  @patch('gerrit_util.CallGerritApi', side_effect=[
-      None,
-      {'labels': {'Code-Review': {'all': [{'value': 1}]}}},
-      {'ref': 'refs/heads/roll', 'revision': 'beefdead'},
-      {'revision': 'deadbeefce'}])
+
+  @patch(
+      'gerrit_util.QueryChanges',
+      return_value=[{
+          'subject': ROLL_COMMIT_MESSAGE.splitlines()[0],
+          'current_revision': '789acf',
+          'revisions': {
+              '789acf': {
+                  'commit': {
+                      'message': ROLL_COMMIT_MESSAGE
+                  }
+              }
+          }
+      }])
+  @patch(
+      'gerrit_util.CherryPick', return_value={
+          '_number': 42,
+          'change_id': 23
+      })
+  @patch(
+      'gerrit_util.GetFileContents',
+      return_value=V8_VERSION_FILE_AT_CHERRY_PICK)
+  @patch(
+      'gerrit_util.CallGerritApi',
+      side_effect=[
+          None, {
+              'labels': {
+                  'Code-Review': {
+                      'all': [{
+                          'value': 1
+                      }]
+                  }
+              }
+          }, {
+              'ref': 'refs/heads/roll',
+              'revision': 'beefdead'
+          }, {
+              'revision': 'deadbeefce'
+          }
+      ])
   @patch('gerrit_util.ChangeEdit')
   @patch('gerrit_util.GetChangeCommit', side_effect=[
       {'commit': 'deadbeef', 'subject': 'Fix everything'},

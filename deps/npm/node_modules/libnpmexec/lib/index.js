@@ -202,14 +202,19 @@ const exec = async (opts) => {
     args[0] = getBinFromManifest(commandManifest)
 
     if (needInstall.length > 0 && globalPath) {
-      // See if the package is installed globally, and run the translated bin
+      // See if the package is installed globally. If it is, run the translated bin
       const globalArb = new Arborist({ ...flatOptions, path: globalPath, global: true })
-      const globalTree = await globalArb.loadActual()
-      const { manifest: globalManifest } =
-        await missingFromTree({ spec, tree: globalTree, flatOptions, shallow: true })
-      if (!globalManifest && await fileExists(`${globalBin}/${args[0]}`)) {
-        binPaths.push(globalBin)
-        return await run()
+      const globalTree = await globalArb.loadActual().catch(() => {
+        log.verbose(`Could not read global path ${globalPath}, ignoring`)
+        return null
+      })
+      if (globalTree) {
+        const { manifest: globalManifest } =
+          await missingFromTree({ spec, tree: globalTree, flatOptions, shallow: true })
+        if (!globalManifest && await fileExists(`${globalBin}/${args[0]}`)) {
+          binPaths.push(globalBin)
+          return await run()
+        }
       }
     }
   }

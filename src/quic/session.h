@@ -25,8 +25,7 @@
 #include "tlscontext.h"
 #include "transportparams.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 class Endpoint;
 
@@ -438,8 +437,7 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   friend class TransportParams;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

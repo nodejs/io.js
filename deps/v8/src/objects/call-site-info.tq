@@ -9,6 +9,7 @@ bitfield struct CallSiteInfoFlags extends uint31 {
   is_constructor: bool: 1 bit;
   is_asm_js_at_number_conversion: bool: 1 bit;
   is_async: bool: 1 bit;
+  @if(V8_ENABLE_DRUMBRAKE) is_wasm_interpreted_frame: bool: 1 bit;
   is_builtin: bool: 1 bit;
 
   // whether offset_or_source_position contains the source position.
@@ -18,8 +19,7 @@ bitfield struct CallSiteInfoFlags extends uint31 {
 extern class CallSiteInfo extends Struct {
   // A direct (sandbox off) or indirect (sandbox on) pointer to a Code or a
   // BytecodeArray object. May be empty, in which case it contains Smi::zero().
-  @if(V8_ENABLE_SANDBOX) code_object: IndirectPointer;
-  @ifnot(V8_ENABLE_SANDBOX) code_object: Object;
+  code_object: TrustedPointer<Code|BytecodeArray>;
   receiver_or_instance: JSAny;
   function: JSFunction|Smi;
   code_offset_or_source_position: Smi;

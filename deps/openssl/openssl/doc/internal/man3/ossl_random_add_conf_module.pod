@@ -15,7 +15,7 @@ ossl_random_add_conf_module - internal random configuration module
 
 ossl_random_add_conf_module() adds the random configuration module
 for providers.
-This allows the type and parameters of the stardard setup of random number
+This allows the type and parameters of the standard setup of random number
 generators to be configured with an OpenSSL L<config(5)> file.
 
 =head1 RETURN VALUES
@@ -32,7 +32,7 @@ The functions described here were all added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

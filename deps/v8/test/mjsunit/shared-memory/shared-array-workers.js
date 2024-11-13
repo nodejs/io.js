@@ -9,7 +9,7 @@
 
 if (this.Worker) {
   (function TestSharedArrayPostMessage() {
-    let workerScript = `onmessage = function(arr) {
+    let workerScript = `onmessage = function({data:arr}) {
          arr[0][0] = 42;
          arr[1] = "worker";
          arr[2].payload = "updated";

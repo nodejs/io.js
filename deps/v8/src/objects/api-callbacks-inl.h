@@ -80,8 +80,6 @@ bool AccessorInfo::has_setter(Isolate* isolate) {
   return setter(isolate) != kNullAddress;
 }
 
-BIT_FIELD_ACCESSORS(AccessorInfo, flags, is_special_data_property,
-                    AccessorInfo::IsSpecialDataPropertyBit)
 BIT_FIELD_ACCESSORS(AccessorInfo, flags, replace_on_access,
                     AccessorInfo::ReplaceOnAccessBit)
 BIT_FIELD_ACCESSORS(AccessorInfo, flags, is_sloppy, AccessorInfo::IsSloppyBit)
@@ -116,6 +114,7 @@ BOOL_ACCESSORS(InterceptorInfo, flags, non_masking, NonMaskingBit::kShift)
 BOOL_ACCESSORS(InterceptorInfo, flags, is_named, NamedBit::kShift)
 BOOL_ACCESSORS(InterceptorInfo, flags, has_no_side_effect,
                HasNoSideEffectBit::kShift)
+// TODO(ishell): remove once all the Api changes are done.
 BOOL_ACCESSORS(InterceptorInfo, flags, has_new_callbacks_signature,
                HasNewCallbacksSignatureBit::kShift)
 

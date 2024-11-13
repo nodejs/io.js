@@ -36,6 +36,8 @@ void StartupDeserializer::DeserializeIntoIsolate() {
   DCHECK(!isolate()->builtins()->is_initialized());
 
   {
+    DeserializeAndCheckExternalReferenceTable();
+
     isolate()->heap()->IterateSmiRoots(this);
     isolate()->heap()->IterateRoots(
         this,
@@ -46,10 +48,10 @@ void StartupDeserializer::DeserializeIntoIsolate() {
     isolate()->heap()->IterateWeakRoots(
         this, base::EnumSet<SkipRoot>{SkipRoot::kUnserializable});
     DeserializeDeferredObjects();
-    for (Handle<AccessorInfo> info : accessor_infos()) {
+    for (DirectHandle<AccessorInfo> info : accessor_infos()) {
       RestoreExternalReferenceRedirector(isolate(), *info);
     }
-    for (Handle<FunctionTemplateInfo> info : function_template_infos()) {
+    for (DirectHandle<FunctionTemplateInfo> info : function_template_infos()) {
       RestoreExternalReferenceRedirector(isolate(), *info);
     }
 
@@ -87,6 +89,18 @@ void StartupDeserializer::DeserializeIntoIsolate() {
     const int bytes = source()->length();
     const double ms = timer.Elapsed().InMillisecondsF();
     PrintF("[Deserializing isolate (%d bytes) took %0.3f ms]\n", bytes, ms);
+  }
+}
+
+void StartupDeserializer::DeserializeAndCheckExternalReferenceTable() {
+  // Verify that any external reference entries that were deduplicated in the
+  // serializer are also deduplicated in this isolate.
+  ExternalReferenceTable* table = isolate()->external_reference_table();
+  while (true) {
+    uint32_t index = source()->GetUint30();
+    if (index == ExternalReferenceTable::kSizeIsolateIndependent) break;
+    uint32_t encoded_index = source()->GetUint30();
+    CHECK_EQ(table->address(index), table->address(encoded_index));
   }
 }
 

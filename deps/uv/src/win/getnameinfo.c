@@ -82,7 +82,7 @@ static void uv__getnameinfo_done(struct uv__work* w, int status) {
   char* service;
 
   req = container_of(w, uv_getnameinfo_t, work_req);
-  uv__req_unregister(req->loop, req);
+  uv__req_unregister(req->loop);
   host = service = NULL;
 
   if (status == UV_ECANCELED) {
@@ -124,7 +124,7 @@ int uv_getnameinfo(uv_loop_t* loop,
   }
 
   UV_REQ_INIT(req, UV_GETNAMEINFO);
-  uv__req_register(loop, req);
+  uv__req_register(loop);
 
   req->getnameinfo_cb = getnameinfo_cb;
   req->flags = flags;

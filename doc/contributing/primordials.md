@@ -10,6 +10,7 @@ important than reliability against prototype pollution:
 * `node:http`
 * `node:http2`
 * `node:tls`
+* `node:zlib`
 
 Usage of primordials should be preferred for new code in other areas, but
 replacing current code with primordials should be

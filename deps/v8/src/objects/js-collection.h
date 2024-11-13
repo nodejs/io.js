@@ -30,8 +30,8 @@ class JSCollection
 // The JSSet describes EcmaScript Harmony sets
 class JSSet : public TorqueGeneratedJSSet<JSSet, JSCollection> {
  public:
-  static void Initialize(Handle<JSSet> set, Isolate* isolate);
-  static void Clear(Isolate* isolate, Handle<JSSet> set);
+  static void Initialize(DirectHandle<JSSet> set, Isolate* isolate);
+  static void Clear(Isolate* isolate, DirectHandle<JSSet> set);
   void Rehash(Isolate* isolate);
 
   // Dispatched behavior.
@@ -48,8 +48,6 @@ class JSSetIterator
   DECL_PRINTER(JSSetIterator)
   DECL_VERIFIER(JSSetIterator)
 
-  DECL_CAST(JSSetIterator)
-
   OBJECT_CONSTRUCTORS(JSSetIterator,
                       OrderedHashTableIterator<JSSetIterator, OrderedHashSet>);
 };
@@ -57,8 +55,8 @@ class JSSetIterator
 // The JSMap describes EcmaScript Harmony maps
 class JSMap : public TorqueGeneratedJSMap<JSMap, JSCollection> {
  public:
-  static void Initialize(Handle<JSMap> map, Isolate* isolate);
-  static void Clear(Isolate* isolate, Handle<JSMap> map);
+  static void Initialize(DirectHandle<JSMap> map, Isolate* isolate);
+  static void Clear(Isolate* isolate, DirectHandle<JSMap> map);
   void Rehash(Isolate* isolate);
 
   // Dispatched behavior.
@@ -75,8 +73,6 @@ class JSMapIterator
   DECL_PRINTER(JSMapIterator)
   DECL_VERIFIER(JSMapIterator)
 
-  DECL_CAST(JSMapIterator)
-
   // Returns the current value of the iterator. This should only be called when
   // |HasMore| returns true.
   inline Tagged<Object> CurrentValue();
@@ -89,13 +85,14 @@ class JSMapIterator
 class JSWeakCollection
     : public TorqueGeneratedJSWeakCollection<JSWeakCollection, JSObject> {
  public:
-  static void Initialize(Handle<JSWeakCollection> collection, Isolate* isolate);
-  V8_EXPORT_PRIVATE static void Set(Handle<JSWeakCollection> collection,
-                                    Handle<Object> key, Handle<Object> value,
-                                    int32_t hash);
-  static bool Delete(Handle<JSWeakCollection> collection, Handle<Object> key,
-                     int32_t hash);
-  static Handle<JSArray> GetEntries(Handle<JSWeakCollection> holder,
+  static void Initialize(DirectHandle<JSWeakCollection> collection,
+                         Isolate* isolate);
+  V8_EXPORT_PRIVATE static void Set(DirectHandle<JSWeakCollection> collection,
+                                    Handle<Object> key,
+                                    DirectHandle<Object> value, int32_t hash);
+  static bool Delete(DirectHandle<JSWeakCollection> collection,
+                     Handle<Object> key, int32_t hash);
+  static Handle<JSArray> GetEntries(DirectHandle<JSWeakCollection> holder,
                                     int max_entries);
 
   static const int kAddFunctionDescriptorIndex = 3;

@@ -9,17 +9,18 @@
 #include <stdint.h>
 
 #include <cmath>
+#include <optional>
 
 #include "src/ast/ast-value-factory.h"
 #include "src/base/strings.h"
 #include "src/numbers/conversions-inl.h"
+#include "src/numbers/conversions.h"
 #include "src/objects/bigint.h"
 #include "src/parsing/parse-info.h"
 #include "src/parsing/scanner-inl.h"
 #include "src/zone/zone.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 class Scanner::ErrorState {
  public:
@@ -166,6 +167,7 @@ Token::Value Scanner::Next() {
   // clear its token to indicate that it wasn't scanned yet. Otherwise we use
   // current_ as next_ and scan into it, leaving next_next_ uninitialized.
   if (V8_LIKELY(next_next().token == Token::kUninitialized)) {
+    DCHECK(next_next_next().token == Token::kUninitialized);
     next_ = previous;
     // User 'previous' instead of 'next_' because for some reason the compiler
     // thinks 'next_' could be modified before the entry into Scan.
@@ -173,7 +175,14 @@ Token::Value Scanner::Next() {
     Scan(previous);
   } else {
     next_ = next_next_;
-    next_next_ = previous;
+
+    if (V8_LIKELY(next_next_next().token == Token::kUninitialized)) {
+      next_next_ = previous;
+    } else {
+      next_next_ = next_next_next_;
+      next_next_next_ = previous;
+    }
+
     previous->token = Token::kUninitialized;
     DCHECK_NE(Token::kUninitialized, current().token);
   }
@@ -194,6 +203,23 @@ Token::Value Scanner::PeekAhead() {
   next_next_ = next_;
   next_ = temp;
   return next_next().token;
+}
+
+Token::Value Scanner::PeekAheadAhead() {
+  if (next_next_next().token != Token::kUninitialized) {
+    return next_next_next().token;
+  }
+  // PeekAhead() must be called first in order to call PeekAheadAhead().
+  DCHECK(next_next().token != Token::kUninitialized);
+  TokenDesc* temp = next_;
+  TokenDesc* temp_next = next_next_;
+  next_ = next_next_next_;
+  next().after_line_terminator = false;
+  Scan();
+  next_next_next_ = next_;
+  next_next_ = temp_next;
+  next_ = temp;
+  return next_next_next().token;
 }
 
 Token::Value Scanner::SkipSingleHTMLComment() {
@@ -247,8 +273,7 @@ void Scanner::TryToParseMagicComment(base::uc32 hash_or_at_sign) {
     value = &source_mapping_url_;
     DCHECK(hash_or_at_sign == '#' || hash_or_at_sign == '@');
     saw_source_mapping_url_magic_comment_at_sign_ = hash_or_at_sign == '@';
-  } else if (name_literal ==
-             base::StaticOneByteVector("experimentalChromiumCompileHints")) {
+  } else if (name_literal == base::StaticOneByteVector("eagerCompilation")) {
     value = &compile_hints_value;
   } else {
     return;
@@ -275,7 +300,7 @@ void Scanner::TryToParseMagicComment(base::uc32 hash_or_at_sign) {
     }
     Advance();
   }
-  if (value == &compile_hints_value) {
+  if (value == &compile_hints_value && compile_hints_value.is_one_byte()) {
     base::Vector<const uint8_t> value_literal =
         compile_hints_value.one_byte_literal();
     if (value_literal == base::StaticOneByteVector("all")) {
@@ -724,7 +749,7 @@ bool Scanner::ScanOctalDigits() {
 
 bool Scanner::ScanImplicitOctalDigits(int start_pos,
                                       Scanner::NumberKind* kind) {
-  *kind = IMPLICIT_OCTAL;
+  DCHECK_EQ(*kind, IMPLICIT_OCTAL);
 
   while (true) {
     // (possible) octal number
@@ -818,7 +843,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
 
         if (next().literal_chars.one_byte_literal().length() <= 10 &&
             value <= Smi::kMaxValue && c0_ != '.' && !IsIdentifierStart(c0_)) {
-          next().smi_value_ = static_cast<uint32_t>(value);
+          next().smi_value = static_cast<uint32_t>(value);
 
           if (kind == DECIMAL_WITH_LEADING_ZERO) {
             octal_pos_ = Location(start_pos, source_pos());
@@ -859,7 +884,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
     Advance();
   } else if (AsciiAlphaToLower(c0_) == 'e') {
     // scan exponent, if any
-    DCHECK(kind != HEX);  // 'e'/'E' must be scanned as part of the hex number
+    DCHECK_NE(kind, HEX);  // 'e'/'E' must be scanned as part of the hex number
 
     if (!IsDecimalNumberKind(kind)) return Token::kIllegal;
 
@@ -882,6 +907,7 @@ Token::Value Scanner::ScanNumber(bool seen_period) {
     octal_message_ = MessageTemplate::kStrictDecimalWithLeadingZero;
   }
 
+  next().number_kind = kind;
   return is_bigint ? Token::kBigInt : Token::kNumber;
 }
 
@@ -1004,13 +1030,13 @@ bool Scanner::ScanRegExpPattern() {
   return true;
 }
 
-base::Optional<RegExpFlags> Scanner::ScanRegExpFlags() {
+std::optional<RegExpFlags> Scanner::ScanRegExpFlags() {
   DCHECK_EQ(Token::kRegExpLiteral, next().token);
 
   RegExpFlags flags;
   next().literal_chars.Start();
   while (IsIdentifierPart(c0_)) {
-    base::Optional<RegExpFlag> maybe_flag = JSRegExp::FlagFromChar(c0_);
+    std::optional<RegExpFlag> maybe_flag = JSRegExp::FlagFromChar(c0_);
     if (!maybe_flag.has_value()) return {};
     RegExpFlag flag = maybe_flag.value();
     if (flags & flag) return {};
@@ -1049,9 +1075,19 @@ const AstRawString* Scanner::CurrentRawSymbol(
 
 double Scanner::DoubleValue() {
   DCHECK(is_literal_one_byte());
-  return StringToDouble(
-      literal_one_byte_string(),
-      ALLOW_HEX | ALLOW_OCTAL | ALLOW_IMPLICIT_OCTAL | ALLOW_BINARY);
+  switch (current().number_kind) {
+    case IMPLICIT_OCTAL:
+      return ImplicitOctalStringToDouble(literal_one_byte_string());
+    case BINARY:
+      return BinaryStringToDouble(literal_one_byte_string());
+    case OCTAL:
+      return OctalStringToDouble(literal_one_byte_string());
+    case HEX:
+      return HexStringToDouble(literal_one_byte_string());
+    case DECIMAL:
+    case DECIMAL_WITH_LEADING_ZERO:
+      return StringToDouble(literal_one_byte_string(), NO_CONVERSION_FLAG);
+  }
 }
 
 const char* Scanner::CurrentLiteralAsCString(Zone* zone) const {
@@ -1085,5 +1121,4 @@ void Scanner::SeekNext(size_t position) {
   DCHECK_EQ(next().location.beg_pos, static_cast<int>(position));
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

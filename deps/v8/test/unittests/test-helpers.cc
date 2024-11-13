@@ -16,31 +16,33 @@ namespace v8 {
 namespace internal {
 namespace test {
 
-Handle<String> CreateSource(Isolate* isolate,
-                            ExternalOneByteString::Resource* maybe_resource) {
+ScriptResource* CreateSource(ScriptResource* maybe_resource) {
   if (!maybe_resource) {
     static const char test_script[] = "(x) { x*x; }";
-    maybe_resource = new test::ScriptResource(test_script, strlen(test_script));
+    return new test::ScriptResource(test_script, strlen(test_script),
+                                    JSParameterCount(1));
+  } else {
+    return maybe_resource;
   }
-  return isolate->factory()
-      ->NewExternalStringFromOneByte(maybe_resource)
-      .ToHandleChecked();
 }
 
 Handle<SharedFunctionInfo> CreateSharedFunctionInfo(
-    Isolate* isolate,
-    v8::String::ExternalOneByteStringResource* maybe_resource) {
+    Isolate* isolate, ScriptResource* maybe_resource) {
   HandleScope scope(isolate);
-  Handle<String> source = CreateSource(isolate, maybe_resource);
-  Handle<Script> script = isolate->factory()->NewScript(source);
-  Handle<WeakFixedArray> infos = isolate->factory()->NewWeakFixedArray(3);
-  script->set_shared_function_infos(*infos);
+  test::ScriptResource* resource = CreateSource(maybe_resource);
+  DirectHandle<String> source = isolate->factory()
+                                    ->NewExternalStringFromOneByte(resource)
+                                    .ToHandleChecked();
+  DirectHandle<Script> script = isolate->factory()->NewScript(source);
+  DirectHandle<WeakFixedArray> infos = isolate->factory()->NewWeakFixedArray(3);
+  script->set_infos(*infos);
   Handle<SharedFunctionInfo> shared =
       isolate->factory()->NewSharedFunctionInfoForBuiltin(
           isolate->factory()->NewStringFromAsciiChecked("f"),
           Builtin::kCompileLazy);
   int function_literal_id = 1;
   shared->set_function_literal_id(function_literal_id);
+  shared->set_internal_formal_parameter_count(resource->parameter_count());
   // Ensure that the function can be compiled lazily.
   shared->set_uncompiled_data(
       *isolate->factory()->NewUncompiledDataWithoutPreparseDataWithJob(
@@ -48,16 +50,17 @@ Handle<SharedFunctionInfo> CreateSharedFunctionInfo(
   // Make sure we have an outer scope info, even though it's empty
   shared->set_raw_outer_scope_info_or_feedback_metadata(
       ScopeInfo::Empty(isolate));
-  shared->SetScript(ReadOnlyRoots(isolate), *script, function_literal_id);
+  shared->SetScript(isolate, ReadOnlyRoots(isolate), *script,
+                    function_literal_id);
   return scope.CloseAndEscape(shared);
 }
 
 std::unique_ptr<Utf16CharacterStream> SourceCharacterStreamForShared(
-    Isolate* isolate, Handle<SharedFunctionInfo> shared) {
+    Isolate* isolate, DirectHandle<SharedFunctionInfo> shared) {
   // Create a character stream to simulate the parser having done so for the
   // top-level ParseProgram.
-  Tagged<Script> script = Script::cast(shared->script());
-  Handle<String> source(String::cast(script->source()), isolate);
+  Tagged<Script> script = Cast<Script>(shared->script());
+  Handle<String> source(Cast<String>(script->source()), isolate);
   std::unique_ptr<Utf16CharacterStream> stream(
       ScannerStream::For(isolate, source));
   return stream;

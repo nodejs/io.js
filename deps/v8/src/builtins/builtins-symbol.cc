@@ -23,12 +23,12 @@ BUILTIN(SymbolConstructor) {
                               isolate->factory()->Symbol_string()));
   }
   // [[Call]]
-  Handle<Symbol> result = isolate->factory()->NewSymbol();
+  DirectHandle<Symbol> result = isolate->factory()->NewSymbol();
   Handle<Object> description = args.atOrUndefined(isolate, 1);
   if (!IsUndefined(*description, isolate)) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, description,
                                        Object::ToString(isolate, description));
-    result->set_description(String::cast(*description));
+    result->set_description(Cast<String>(*description));
   }
   return *result;
 }
@@ -51,7 +51,7 @@ BUILTIN(SymbolKeyFor) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kSymbolKeyFor, obj));
   }
-  Handle<Symbol> symbol = Handle<Symbol>::cast(obj);
+  auto symbol = Cast<Symbol>(obj);
   DisallowGarbageCollection no_gc;
   Tagged<Object> result;
   if (symbol->is_in_public_symbol_table()) {

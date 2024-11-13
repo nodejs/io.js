@@ -12,6 +12,7 @@
 #include "src/common/globals.h"
 #include "src/sandbox/external-entity-table.h"
 #include "src/sandbox/indirect-pointer-tag.h"
+#include "src/sandbox/tagged-payload.h"
 
 #ifdef V8_ENABLE_SANDBOX
 
@@ -36,6 +37,9 @@ struct TrustedPointerTableEntry {
   // on the freelist.
   inline void MakeFreelistEntry(uint32_t next_entry_index);
 
+  // Make this entry a zapped entry. Zapped entries contain invalid pointers.
+  inline void MakeZappedEntry();
+
   // Retrieve the pointer stored in this entry. This entry must be tagged with
   // the given tag, otherwise an inaccessible pointer will be returned.
   // This entry must not be a freelist entry.
@@ -44,6 +48,9 @@ struct TrustedPointerTableEntry {
   // Store the given pointer in this entry while preserving the marking state.
   // This entry must not be a freelist entry.
   inline void SetPointer(Address pointer, IndirectPointerTag tag);
+
+  // Returns true if this entry contains a pointer with the given tag.
+  inline bool HasPointer(IndirectPointerTag tag) const;
 
   // Returns true if this entry is a freelist entry.
   inline bool IsFreelistEntry() const;
@@ -63,12 +70,22 @@ struct TrustedPointerTableEntry {
   // Test whether this entry is currently marked as alive.
   inline bool IsMarked() const;
 
+  static constexpr bool IsWriteProtected = false;
+
  private:
   friend class TrustedPointerTable;
 
   // TrustedPointerTable entries consist of a single pointer-sized word
   // containing a tag and marking bit together with the actual pointer.
-  struct Payload {
+  struct TrustedPointerTaggingScheme {
+    using TagType = IndirectPointerTag;
+    static constexpr uint64_t kMarkBit = kTrustedPointerTableMarkBit;
+    static constexpr uint64_t kTagMask = kIndirectPointerTagMask;
+    static constexpr TagType kFreeEntryTag = kFreeTrustedPointerTableEntryTag;
+    static constexpr bool kSupportsEvacuation = false;
+  };
+
+  struct Payload : TaggedPayload<TrustedPointerTaggingScheme> {
     static Payload ForTrustedPointerEntry(Address pointer,
                                           IndirectPointerTag tag) {
       // We expect to only store references to (trusted) HeapObjects in the
@@ -83,33 +100,13 @@ struct TrustedPointerTableEntry {
       return Payload(next_entry, kFreeTrustedPointerTableEntryTag);
     }
 
-    Address Untag(IndirectPointerTag tag) const {
-      return encoded_word_ & ~(tag | kTrustedPointerTableMarkBit);
+    static Payload ForZappedEntry() {
+      return Payload(0, kIndirectPointerNullTag);
     }
-
-    void SetMarkBit() { encoded_word_ |= kTrustedPointerTableMarkBit; }
-
-    void ClearMarkBit() { encoded_word_ &= ~kTrustedPointerTableMarkBit; }
-
-    bool HasMarkBitSet() const {
-      return (encoded_word_ & kTrustedPointerTableMarkBit) != 0;
-    }
-
-    bool ContainsFreelistLink() const {
-      return (encoded_word_ & kFreeTrustedPointerTableEntryTag) ==
-             kFreeTrustedPointerTableEntryTag;
-    }
-
-    uint32_t ExtractFreelistLink() const {
-      return static_cast<uint32_t>(encoded_word_);
-    }
-
-    bool ContainsTrustedPointer() const { return !ContainsFreelistLink(); }
 
    private:
-    Payload(Address pointer, Address tag) : encoded_word_(pointer | tag) {}
-
-    Address encoded_word_;
+    Payload(Address pointer, IndirectPointerTag tag)
+        : TaggedPayload(pointer, tag) {}
   };
 
   std::atomic<Payload> payload_;
@@ -178,6 +175,11 @@ class V8_EXPORT_PRIVATE TrustedPointerTable
   //
   // Returns the number of live entries after sweeping.
   uint32_t Sweep(Space* space, Counters* counters);
+
+  // Zaps the content of the entry referenced by the given handle.
+  //
+  // Accessing a zapped entry will return an invalid pointer.
+  inline void Zap(TrustedPointerHandle handle);
 
   // Iterate over all active entries in the given space.
   //

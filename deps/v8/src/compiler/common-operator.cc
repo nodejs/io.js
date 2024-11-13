@@ -4,6 +4,8 @@
 
 #include "src/compiler/common-operator.h"
 
+#include <optional>
+
 #include "src/base/functional.h"
 #include "src/base/lazy-instance.h"
 #include "src/compiler/linkage.h"
@@ -1020,7 +1022,7 @@ const Operator* CommonOperatorBuilder::StaticAssert(const char* source) {
 
 const Operator* CommonOperatorBuilder::SLVerifierHint(
     const Operator* semantics,
-    const base::Optional<Type>& override_output_type) {
+    const std::optional<Type>& override_output_type) {
   return zone()->New<Operator1<SLVerifierHintParameters>>(
       IrOpcode::kSLVerifierHint, Operator::kNoProperties, "SLVerifierHint", 1,
       0, 0, 1, 0, 0, SLVerifierHintParameters(semantics, override_output_type));
@@ -1356,9 +1358,19 @@ const Operator* CommonOperatorBuilder::CompressedHeapConstant(
       value);                                              // parameter
 }
 
+const Operator* CommonOperatorBuilder::TrustedHeapConstant(
+    const Handle<HeapObject>& value) {
+  return zone()->New<Operator1<Handle<HeapObject>>>(    // --
+      IrOpcode::kTrustedHeapConstant, Operator::kPure,  // opcode
+      "TrustedHeapConstant",                            // name
+      0, 0, 0, 1, 0, 0,                                 // counts
+      value);                                           // parameter
+}
+
 Handle<HeapObject> HeapConstantOf(const Operator* op) {
   DCHECK(IrOpcode::kHeapConstant == op->opcode() ||
-         IrOpcode::kCompressedHeapConstant == op->opcode());
+         IrOpcode::kCompressedHeapConstant == op->opcode() ||
+         IrOpcode::kTrustedHeapConstant == op->opcode());
   return OpParameter<Handle<HeapObject>>(op);
 }
 
@@ -1679,16 +1691,16 @@ const Operator* CommonOperatorBuilder::ResizeMergeOrPhi(const Operator* op,
 
 const FrameStateFunctionInfo*
 CommonOperatorBuilder::CreateFrameStateFunctionInfo(
-    FrameStateType type, int parameter_count, int local_count,
-    Handle<SharedFunctionInfo> shared_info) {
-  return zone()->New<FrameStateFunctionInfo>(type, parameter_count, local_count,
-                                             shared_info);
+    FrameStateType type, uint16_t parameter_count, uint16_t max_arguments,
+    int local_count, Handle<SharedFunctionInfo> shared_info) {
+  return zone()->New<FrameStateFunctionInfo>(
+      type, parameter_count, max_arguments, local_count, shared_info);
 }
 
 #if V8_ENABLE_WEBASSEMBLY
 const FrameStateFunctionInfo*
 CommonOperatorBuilder::CreateJSToWasmFrameStateFunctionInfo(
-    FrameStateType type, int parameter_count, int local_count,
+    FrameStateType type, uint16_t parameter_count, int local_count,
     Handle<SharedFunctionInfo> shared_info,
     const wasm::FunctionSig* signature) {
   DCHECK_EQ(type, FrameStateType::kJSToWasmBuiltinContinuation);

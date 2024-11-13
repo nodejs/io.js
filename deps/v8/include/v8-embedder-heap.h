@@ -29,6 +29,8 @@ class V8_EXPORT EmbedderRootsHandler {
   virtual ~EmbedderRootsHandler() = default;
 
   EmbedderRootsHandler() = default;
+
+  V8_DEPRECATED("Use the default constructor instead.")
   explicit EmbedderRootsHandler(RootHandling default_traced_reference_handling)
       : default_traced_reference_handling_(default_traced_reference_handling) {}
 
@@ -47,6 +49,7 @@ class V8_EXPORT EmbedderRootsHandler {
    *
    * The concrete implementations must be thread-safe.
    */
+  V8_DEPRECATED("Use TracedReferenceHandling::kDroppable instead.")
   virtual bool IsRoot(const v8::TracedReference<v8::Value>& handle) = 0;
 
   /**
@@ -72,7 +75,7 @@ class V8_EXPORT EmbedderRootsHandler {
 
  private:
   const RootHandling default_traced_reference_handling_ =
-      RootHandling::kQueryEmbedderForNonDroppableReferences;
+      RootHandling::kDontQueryEmbedderForAnyReference;
 
   friend class internal::TracedHandles;
 };

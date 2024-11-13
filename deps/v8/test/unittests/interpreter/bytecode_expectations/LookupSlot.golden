@@ -28,7 +28,7 @@ bytecodes: [
                 B(Star3),
                 B(LdaZero),
                 B(Star7),
-                B(LdaSmi), I8(10),
+                B(LdaSmi), I8(2),
                 B(Star8),
                 B(LdaSmi), I8(14),
                 B(Star9),
@@ -56,7 +56,7 @@ snippet: "
 "
 frame size: 10
 parameter count: 1
-bytecode array length: 57
+bytecode array length: 58
 bytecodes: [
   /*   10 E> */ B(CreateFunctionContext), U8(0), U8(4),
                 B(PushContext), R(1),
@@ -72,7 +72,7 @@ bytecodes: [
                 B(Star3),
                 B(LdaZero),
                 B(Star7),
-                B(LdaSmi), I8(10),
+                B(LdaSmi), I8(2),
                 B(Star8),
                 B(LdaSmi), I8(14),
                 B(Star9),
@@ -83,7 +83,7 @@ bytecodes: [
                 B(Star2),
   /*   14 E> */ B(CallUndefinedReceiver1), R(2), R(3), U8(2),
   /*   35 S> */ B(LdaLookupGlobalSlotInsideTypeof), U8(3), U8(4), U8(1),
-                B(TypeOf),
+                B(TypeOf), U8(6),
   /*   51 S> */ B(Return),
 ]
 constant pool: [
@@ -119,7 +119,7 @@ bytecodes: [
                 B(Star3),
                 B(LdaZero),
                 B(Star7),
-                B(LdaSmi), I8(10),
+                B(LdaSmi), I8(2),
                 B(Star8),
                 B(LdaSmi), I8(29),
                 B(Star9),
@@ -167,7 +167,7 @@ bytecodes: [
                 B(Star3),
                 B(LdaZero),
                 B(Star7),
-                B(LdaSmi), I8(38),
+                B(LdaSmi), I8(3),
                 B(Star8),
                 B(LdaSmi), I8(44),
                 B(Star9),
@@ -216,7 +216,7 @@ bytecodes: [
                 B(Star3),
                 B(LdaZero),
                 B(Star7),
-                B(LdaSmi), I8(34),
+                B(LdaSmi), I8(3),
                 B(Star8),
                 B(LdaSmi), I8(40),
                 B(Star9),

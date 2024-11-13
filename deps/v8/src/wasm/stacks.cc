@@ -6,13 +6,14 @@
 
 #include "src/base/platform/platform.h"
 #include "src/execution/simulator.h"
+#include "src/wasm/wasm-engine.h"
 
 namespace v8::internal::wasm {
 
 // static
 StackMemory* StackMemory::GetCurrentStackView(Isolate* isolate) {
   base::Vector<uint8_t> view = SimulatorStack::GetCurrentStackView(isolate);
-  return new StackMemory(isolate, view.begin(), view.size());
+  return new StackMemory(view.begin(), view.size());
 }
 
 StackMemory::~StackMemory() {
@@ -23,22 +24,9 @@ StackMemory::~StackMemory() {
   if (owned_ && !allocator->DecommitPages(limit_, size_)) {
     V8::FatalProcessOutOfMemory(nullptr, "Decommit stack memory");
   }
-  // We don't need to handle removing the last stack from the list (next_ ==
-  // this). This only happens on isolate tear down, otherwise there is always
-  // at least one reachable stack (the active stack).
-  isolate_->wasm_stacks() = next_;
-  prev_->next_ = next_;
-  next_->prev_ = prev_;
 }
 
-void StackMemory::Add(StackMemory* stack) {
-  stack->next_ = this->next_;
-  stack->prev_ = this;
-  this->next_->prev_ = stack;
-  this->next_ = stack;
-}
-
-StackMemory::StackMemory(Isolate* isolate) : isolate_(isolate), owned_(true) {
+StackMemory::StackMemory() : owned_(true) {
   static std::atomic<int> next_id(1);
   id_ = next_id.fetch_add(1);
   PageAllocator* allocator = GetPlatformPageAllocator();
@@ -55,9 +43,35 @@ StackMemory::StackMemory(Isolate* isolate) : isolate_(isolate), owned_(true) {
 }
 
 // Overload to represent a view of the libc stack.
-StackMemory::StackMemory(Isolate* isolate, uint8_t* limit, size_t size)
-    : isolate_(isolate), limit_(limit), size_(size), owned_(false) {
+StackMemory::StackMemory(uint8_t* limit, size_t size)
+    : limit_(limit), size_(size), owned_(false) {
   id_ = 0;
+}
+
+std::unique_ptr<StackMemory> StackPool::GetOrAllocate() {
+  std::unique_ptr<StackMemory> stack;
+  if (freelist_.empty()) {
+    stack = StackMemory::New();
+  } else {
+    stack = std::move(freelist_.back());
+    freelist_.pop_back();
+    size_ -= stack->size_;
+  }
+  return stack;
+}
+
+void StackPool::Add(std::unique_ptr<StackMemory> stack) {
+  if (size_ + stack->size_ > kMaxSize) {
+    return;
+  }
+  size_ += stack->size_;
+  freelist_.push_back(std::move(stack));
+}
+
+void StackPool::ReleaseFinishedStacks() { freelist_.clear(); }
+
+size_t StackPool::Size() const {
+  return freelist_.size() * sizeof(decltype(freelist_)::value_type) + size_;
 }
 
 }  // namespace v8::internal::wasm

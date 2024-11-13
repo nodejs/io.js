@@ -92,9 +92,9 @@ for target in [args.configuration]:
   gn_args_template = config["gn_args"].copy()
   gn_args = (build_dir / "args.gn").open("r").read().splitlines()
   with (build_dir / "args.gn").open("w") as f:
-    for line in gn_args:
+    for line in filter(bool, gn_args):
       result = re.search(r"^([^ ]+) = (.+)$", line)
-      if len(result.groups()) != 2:
+      if not result or len(result.groups()) != 2:
         print(f"Error parsing {build_dir / 'args.gn'} at line '{line}'")
         exit(255)
       if result.group(1) in gn_args_template:

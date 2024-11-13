@@ -226,9 +226,9 @@ public:
                     cap += 256;
                 }
                 if (buf == nullptr) {
-                    buf = (void**)uprv_malloc(cap * sizeof(void*));
+                    buf = static_cast<void**>(uprv_malloc(cap * sizeof(void*)));
                 } else {
-                    buf = (void**)uprv_realloc(buf, cap * sizeof(void*));
+                    buf = static_cast<void**>(uprv_realloc(buf, cap * sizeof(void*)));
                 }
                 if (buf == nullptr) {
                     // if we couldn't realloc, we leak the memory we've already allocated, but we're in deep trouble anyway
@@ -460,7 +460,7 @@ LocDataParser::doParse() {
         array.add(nullptr, ec);
         if (U_SUCCESS(ec)) {
             int32_t numLocs = array.length() - 2; // subtract first, nullptr
-            char16_t*** result = (char16_t***)array.release();
+            char16_t*** result = reinterpret_cast<char16_t***>(array.release());
             
             return new StringLocalizationInfo(data, result, requiredLength-2, numLocs); // subtract first, nullptr
         }
@@ -515,7 +515,7 @@ LocDataParser::nextArray(int32_t& requiredLength) {
             ERROR("Array not of required length");
         }
         
-        return (char16_t**)array.release();
+        return reinterpret_cast<char16_t**>(array.release());
     }
     ERROR("Unknown Error");
 }
@@ -583,11 +583,11 @@ void LocDataParser::parseError(const char* EXPLANATION_ARG)
     if (limit > e) {
         limit = e;
     }
-    u_strncpy(pe.preContext, start, (int32_t)(p-start));
+    u_strncpy(pe.preContext, start, static_cast<int32_t>(p - start));
     pe.preContext[p-start] = 0;
-    u_strncpy(pe.postContext, p, (int32_t)(limit-p));
+    u_strncpy(pe.postContext, p, static_cast<int32_t>(limit - p));
     pe.postContext[limit-p] = 0;
-    pe.offset = (int32_t)(p - data);
+    pe.offset = static_cast<int32_t>(p - data);
     
 #ifdef RBNF_DEBUG
     fprintf(stderr, "%s at or near character %ld: ", EXPLANATION_ARG, p-data);
@@ -632,7 +632,7 @@ StringLocalizationInfo::create(const UnicodeString& info, UParseError& perror, U
         return nullptr; // no error;
     }
     
-    char16_t* p = (char16_t*)uprv_malloc(len * sizeof(char16_t));
+    char16_t* p = static_cast<char16_t*>(uprv_malloc(len * sizeof(char16_t)));
     if (!p) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
@@ -647,7 +647,7 @@ StringLocalizationInfo::create(const UnicodeString& info, UParseError& perror, U
 }
 
 StringLocalizationInfo::~StringLocalizationInfo() {
-    for (char16_t*** p = (char16_t***)data; *p; ++p) {
+    for (char16_t*** p = data; *p; ++p) {
         // remaining data is simply pointer into our unicode string data.
         if (*p) uprv_free(*p);
     }
@@ -990,7 +990,7 @@ UnicodeString
 RuleBasedNumberFormat::getRuleSetName(int32_t index) const
 {
     if (localizations) {
-        UnicodeString string(true, localizations->getRuleSetName(index), (int32_t)-1);
+        UnicodeString string(true, localizations->getRuleSetName(index), static_cast<int32_t>(-1));
         return string;
     }
     else if (fRuleSets) {
@@ -1045,7 +1045,7 @@ RuleBasedNumberFormat::getRuleSetDisplayNameLocale(int32_t index, UErrorCode& st
         int32_t cap = name.length() + 1;
         char* bp = buffer;
         if (cap > 64) {
-            bp = (char *)uprv_malloc(cap);
+            bp = static_cast<char*>(uprv_malloc(cap));
             if (bp == nullptr) {
                 status = U_MEMORY_ALLOCATION_ERROR;
                 return {""};
@@ -1159,7 +1159,7 @@ RuleBasedNumberFormat::format(int32_t number,
                               UnicodeString& toAppendTo,
                               FieldPosition& pos) const
 {
-    return format((int64_t)number, toAppendTo, pos);
+    return format(static_cast<int64_t>(number), toAppendTo, pos);
 }
 
 
@@ -1196,7 +1196,7 @@ RuleBasedNumberFormat::format(int32_t number,
                               FieldPosition& pos,
                               UErrorCode& status) const
 {
-    return format((int64_t)number, ruleSetName, toAppendTo, pos, status);
+    return format(static_cast<int64_t>(number), ruleSetName, toAppendTo, pos, status);
 }
 
 
@@ -1362,7 +1362,7 @@ RuleBasedNumberFormat::parse(const UnicodeString& text,
             ParsePosition working_pp(0);
             Formattable working_result;
 
-            rp->parse(workingText, working_pp, kMaxDouble, 0, working_result);
+            rp->parse(workingText, working_pp, kMaxDouble, 0, 0, working_result);
             if (working_pp.getIndex() > high_pp.getIndex()) {
                 high_pp = working_pp;
                 high_result = working_result;
@@ -1555,7 +1555,7 @@ RuleBasedNumberFormat::init(const UnicodeString& rules, LocalizationInfo* locali
     ++numRuleSets;
 
     // our rule list is an array of the appropriate size
-    fRuleSets = (NFRuleSet **)uprv_malloc((numRuleSets + 1) * sizeof(NFRuleSet *));
+    fRuleSets = static_cast<NFRuleSet**>(uprv_malloc((numRuleSets + 1) * sizeof(NFRuleSet*)));
     /* test for nullptr */
     if (fRuleSets == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
@@ -1829,7 +1829,7 @@ RuleBasedNumberFormat::getCollator() const
             if (U_SUCCESS(status)) {
                 newCollator->setAttribute(UCOL_DECOMPOSITION_MODE, UCOL_ON, status);
                 // cast away const
-                ((RuleBasedNumberFormat*)this)->collator = newCollator;
+                const_cast<RuleBasedNumberFormat*>(this)->collator = newCollator;
             } else {
                 delete newCollator;
             }

@@ -92,8 +92,28 @@ async function configure (gyp, argv) {
     log.verbose(
       'build dir', '"build" dir needed to be created?', isNew ? 'Yes' : 'No'
     )
-    const vsInfo = win ? await findVisualStudio(release.semver, gyp.opts['msvs-version']) : null
-    return createConfigFile(vsInfo)
+    if (win) {
+      let usingMakeGenerator = false
+      for (let i = argv.length - 1; i >= 0; --i) {
+        const arg = argv[i]
+        if (arg === '-f' || arg === '--format') {
+          const format = argv[i + 1]
+          if (typeof format === 'string' && format.startsWith('make')) {
+            usingMakeGenerator = true
+            break
+          }
+        } else if (arg.startsWith('--format=make')) {
+          usingMakeGenerator = true
+          break
+        }
+      }
+      let vsInfo = {}
+      if (!usingMakeGenerator) {
+        vsInfo = await findVisualStudio(release.semver, gyp.opts['msvs-version'])
+      }
+      return createConfigFile(vsInfo)
+    }
+    return createConfigFile(null)
   }
 
   async function createConfigFile (vsInfo) {

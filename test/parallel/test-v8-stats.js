@@ -48,6 +48,8 @@ const expectedHeapSpaces = [
   'read_only_space',
   'shared_large_object_space',
   'shared_space',
+  'shared_trusted_large_object_space',
+  'shared_trusted_space',
   'trusted_large_object_space',
   'trusted_space',
 ];

@@ -23,6 +23,7 @@ namespace internal {
   V(BUILTIN_CONTINUATION_FRAME, 3)                     \
   IF_WASM(V, JS_TO_WASM_BUILTIN_CONTINUATION_FRAME, 4) \
   IF_WASM(V, WASM_INLINED_INTO_JS_FRAME, 3)            \
+  IF_WASM(V, LIFTOFF_FRAME, 3)                         \
   V(INLINED_EXTRA_ARGUMENTS, 2)
 
 #define TRANSLATION_OPCODE_LIST(V)    \
@@ -30,6 +31,7 @@ namespace internal {
   TRANSLATION_FRAME_OPCODE_LIST(V)    \
   V(ARGUMENTS_ELEMENTS, 1)            \
   V(ARGUMENTS_LENGTH, 0)              \
+  V(REST_LENGTH, 0)                   \
   V(BEGIN_WITHOUT_FEEDBACK, 3)        \
   V(BEGIN_WITH_FEEDBACK, 3)           \
   V(BOOL_REGISTER, 1)                 \
@@ -37,8 +39,10 @@ namespace internal {
   V(CAPTURED_OBJECT, 1)               \
   V(DOUBLE_REGISTER, 1)               \
   V(DOUBLE_STACK_SLOT, 1)             \
+  V(SIMD128_STACK_SLOT, 1)            \
   V(HOLEY_DOUBLE_REGISTER, 1)         \
   V(HOLEY_DOUBLE_STACK_SLOT, 1)       \
+  V(SIMD128_REGISTER, 1)              \
   V(DUPLICATED_OBJECT, 1)             \
   V(FLOAT_REGISTER, 1)                \
   V(FLOAT_STACK_SLOT, 1)              \

@@ -239,6 +239,7 @@ absl_test("flag_test") {
     ":flag",
     ":flag_internal",
     ":marshalling",
+    ":parse",
     ":reflection",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:malloc_internal",

@@ -159,8 +159,9 @@ security announcements for more information.
     folder and merging the PR.
 
 * [ ] 2\. **Cleanup:**
-  * [ ] Close PRs and backports.
-  * [ ] Close HackerOne reports:
+  * [ ] `git node security --cleanup`. This command will:
+  * Close PRs and backports.
+  * Close HackerOne reports:
     * Close Resolved
     * Request Disclosure
     * Request publication of H1 CVE requests

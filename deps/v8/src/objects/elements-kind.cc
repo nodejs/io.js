@@ -134,6 +134,7 @@ const char* ElementsKindToString(ElementsKind kind) {
     case NO_ELEMENTS:
       return "NO_ELEMENTS";
   }
+  UNREACHABLE();
 }
 
 const ElementsKind kFastElementsKindSequence[kFastElementsKindCount] = {

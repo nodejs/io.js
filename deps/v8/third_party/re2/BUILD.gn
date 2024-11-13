@@ -42,7 +42,6 @@ static_library("re2") {
     "src/re2/unicode_groups.cc",
     "src/re2/unicode_groups.h",
     "src/re2/walker-inl.h",
-    "src/util/logging.h",
     "src/util/rune.cc",
     "src/util/strutil.cc",
     "src/util/strutil.h",

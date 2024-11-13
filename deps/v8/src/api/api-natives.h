@@ -43,29 +43,31 @@ class ApiNatives {
       Handle<JSReceiver> new_target = Handle<JSReceiver>());
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSObject> InstantiateRemoteObject(
-      Handle<ObjectTemplateInfo> data);
+      DirectHandle<ObjectTemplateInfo> data);
 
   static Handle<JSFunction> CreateApiFunction(
       Isolate* isolate, Handle<NativeContext> native_context,
-      Handle<FunctionTemplateInfo> obj, Handle<Object> prototype,
+      DirectHandle<FunctionTemplateInfo> obj, Handle<Object> prototype,
       InstanceType type, MaybeHandle<Name> name = MaybeHandle<Name>());
 
-  static void AddDataProperty(Isolate* isolate, Handle<TemplateInfo> info,
+  static void AddDataProperty(Isolate* isolate, DirectHandle<TemplateInfo> info,
                               Handle<Name> name, Handle<Object> value,
                               PropertyAttributes attributes);
 
-  static void AddDataProperty(Isolate* isolate, Handle<TemplateInfo> info,
+  static void AddDataProperty(Isolate* isolate, DirectHandle<TemplateInfo> info,
                               Handle<Name> name, v8::Intrinsic intrinsic,
                               PropertyAttributes attributes);
 
-  static void AddAccessorProperty(Isolate* isolate, Handle<TemplateInfo> info,
+  static void AddAccessorProperty(Isolate* isolate,
+                                  DirectHandle<TemplateInfo> info,
                                   Handle<Name> name,
                                   Handle<FunctionTemplateInfo> getter,
                                   Handle<FunctionTemplateInfo> setter,
                                   PropertyAttributes attributes);
 
-  static void AddNativeDataProperty(Isolate* isolate, Handle<TemplateInfo> info,
-                                    Handle<AccessorInfo> property);
+  static void AddNativeDataProperty(Isolate* isolate,
+                                    DirectHandle<TemplateInfo> info,
+                                    DirectHandle<AccessorInfo> property);
 };
 
 }  // namespace internal

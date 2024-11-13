@@ -82,7 +82,7 @@ class V8_EXPORT_PRIVATE NamesProvider {
 
   // Lazy loading must guard against concurrent modifications from multiple
   // {WasmModuleObject}s.
-  base::Mutex mutex_;
+  mutable base::Mutex mutex_;
   bool has_decoded_{false};
   bool has_computed_function_import_names_{false};
   bool has_computed_import_names_{false};

@@ -165,7 +165,7 @@ class TestInstantiateResolver : public InstantiationResultResolver {
 
   void OnInstantiationFailed(i::Handle<i::Object> error_reason) override {
     *status_ = CompilationStatus::kFailed;
-    Handle<String> str =
+    DirectHandle<String> str =
         Object::ToString(isolate_, error_reason).ToHandleChecked();
     error_message_->assign(str->ToCString().get());
   }
@@ -199,7 +199,7 @@ class TestCompileResolver : public CompilationResultResolver {
 
   void OnCompilationFailed(i::Handle<i::Object> error_reason) override {
     *status_ = CompilationStatus::kFailed;
-    Handle<String> str =
+    DirectHandle<String> str =
         Object::ToString(CcTest::i_isolate(), error_reason).ToHandleChecked();
     error_message_->assign(str->ToCString().get());
   }
@@ -284,7 +284,7 @@ COMPILE_TEST(TestEventMetrics) {
   ZoneBuffer buffer(&zone);
   builder->WriteTo(&buffer);
 
-  auto enabled_features = WasmFeatures::FromIsolate(isolate);
+  auto enabled_features = WasmEnabledFeatures::FromIsolate(isolate);
   CompilationStatus status = CompilationStatus::kPending;
   std::string error_message;
   std::shared_ptr<NativeModule> native_module;

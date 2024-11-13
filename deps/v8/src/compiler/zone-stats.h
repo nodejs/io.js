@@ -27,7 +27,23 @@ class V8_EXPORT_PRIVATE ZoneStats final {
     ~Scope() { Destroy(); }
 
     Scope(const Scope&) = delete;
+    Scope(Scope&& other) V8_NOEXCEPT
+        : zone_name_(other.zone_name_),
+          zone_stats_(other.zone_stats_),
+          zone_(nullptr),
+          support_zone_compression_(other.support_zone_compression_) {
+      std::swap(zone_, other.zone_);
+    }
     Scope& operator=(const Scope&) = delete;
+    Scope& operator=(Scope&& other) V8_NOEXCEPT {
+      Destroy();
+      zone_name_ = other.zone_name_;
+      zone_stats_ = other.zone_stats_;
+      support_zone_compression_ = other.support_zone_compression_;
+      DCHECK_NULL(zone_);
+      std::swap(zone_, other.zone_);
+      return *this;
+    }
 
     Zone* zone() {
       if (zone_ == nullptr)
@@ -44,9 +60,9 @@ class V8_EXPORT_PRIVATE ZoneStats final {
 
    private:
     const char* zone_name_;
-    ZoneStats* const zone_stats_;
+    ZoneStats* zone_stats_;
     Zone* zone_;
-    const bool support_zone_compression_;
+    bool support_zone_compression_;
   };
 
   class V8_EXPORT_PRIVATE V8_NODISCARD StatsScope final {

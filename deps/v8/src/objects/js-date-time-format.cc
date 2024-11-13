@@ -2,21 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8_INTL_SUPPORT
-#error Internationalization is expected to be enabled.
-#endif  // V8_INTL_SUPPORT
-
 #include "src/objects/js-date-time-format.h"
 
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "src/base/bit-field.h"
-#include "src/base/optional.h"
 #include "src/date/date.h"
 #include "src/execution/isolate.h"
 #include "src/heap/factory.h"
@@ -33,8 +29,11 @@
 #include "unicode/smpdtfmt.h"
 #include "unicode/unistr.h"
 
-namespace v8 {
-namespace internal {
+#ifndef V8_INTL_SUPPORT
+#error Internationalization is expected to be enabled.
+#endif  // V8_INTL_SUPPORT
+
+namespace v8::internal {
 
 namespace {
 
@@ -622,27 +621,27 @@ Handle<Object> GetTimeZone(Isolate* isolate,
 }  // namespace
 
 Handle<String> JSDateTimeFormat::Calendar(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format) {
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format) {
   return GetCalendar(isolate,
                      *(date_time_format->icu_simple_date_format()->raw()));
 }
 
 Handle<Object> JSDateTimeFormat::TimeZone(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format) {
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format) {
   return GetTimeZone(isolate,
                      *(date_time_format->icu_simple_date_format()->raw()));
 }
 
 // ecma402 #sec-intl.datetimeformat.prototype.resolvedoptions
 MaybeHandle<JSObject> JSDateTimeFormat::ResolvedOptions(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format) {
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format) {
   Factory* factory = isolate->factory();
   // 4. Let options be ! ObjectCreate(%ObjectPrototype%).
   Handle<JSObject> options = factory->NewJSObject(isolate->object_function());
 
-  Handle<Object> resolved_obj;
+  DirectHandle<Object> resolved_obj;
 
-  Handle<String> locale = Handle<String>(date_time_format->locale(), isolate);
+  Handle<String> locale(date_time_format->locale(), isolate);
   DCHECK(!date_time_format->icu_locale().is_null());
   DCHECK_NOT_NULL(date_time_format->icu_locale()->raw());
   icu::Locale* icu_locale = date_time_format->icu_locale()->raw();
@@ -799,7 +798,7 @@ MaybeHandle<JSObject> JSDateTimeFormat::ResolvedOptions(
 namespace {
 
 // #sec-temporal-istemporalobject
-bool IsTemporalObject(Handle<Object> value) {
+bool IsTemporalObject(DirectHandle<Object> value) {
   // 1. If Type(value) is not Object, then
   if (!IsJSReceiver(*value)) {
     // a. Return false.
@@ -823,7 +822,7 @@ bool IsTemporalObject(Handle<Object> value) {
 }
 
 // #sec-temporal-sametemporaltype
-bool SameTemporalType(Handle<Object> x, Handle<Object> y) {
+bool SameTemporalType(DirectHandle<Object> x, DirectHandle<Object> y) {
   // 1. If either of ! IsTemporalObject(x) or ! IsTemporalObject(y) is false,
   // return false.
   if (!IsTemporalObject(x)) return false;
@@ -876,9 +875,9 @@ struct DateTimeValueRecord {
   PatternKind kind;
 };
 
-DateTimeValueRecord TemporalInstantToRecord(Isolate* isolate,
-                                            Handle<JSTemporalInstant> instant,
-                                            PatternKind kind) {
+DateTimeValueRecord TemporalInstantToRecord(
+    Isolate* isolate, DirectHandle<JSTemporalInstant> instant,
+    PatternKind kind) {
   double milliseconds =
       BigInt::Divide(isolate, Handle<BigInt>(instant->nanoseconds(), isolate),
                      BigInt::FromInt64(isolate, 1000000))
@@ -897,8 +896,7 @@ Maybe<DateTimeValueRecord> TemporalPlainDateTimeToRecord(
   // Handle<String> by ensure it will not return undefined.
   CHECK(IsString(*time_zone_obj));
   Handle<JSTemporalTimeZone> time_zone =
-      temporal::CreateTemporalTimeZone(isolate,
-                                       Handle<String>::cast(time_zone_obj))
+      temporal::CreateTemporalTimeZone(isolate, Cast<String>(time_zone_obj))
           .ToHandleChecked();
   // 9. Let instant be ? BuiltinTimeZoneGetInstantFor(timeZone, plainDateTime,
   // "compatible").
@@ -995,7 +993,7 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalDateTime(
       Nothing<DateTimeValueRecord>());
   // 4. If calendar is not "iso8601" and not equal to
   // dateTimeFormat.[[Calendar]], then
-  Handle<JSReceiver> calendar_override;
+  DirectHandle<JSReceiver> calendar_override;
   if (!String::Equals(isolate, calendar,
                       isolate->factory()->iso8601_string()) &&
       !String::Equals(isolate, calendar, date_time_format_calendar)) {
@@ -1024,7 +1022,8 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalDateTime(
 Maybe<DateTimeValueRecord> HandleDateTimeTemporalZonedDateTime(
     Isolate* isolate, const icu::SimpleDateFormat& date_time_format,
     Handle<String> date_time_format_calendar,
-    Handle<JSTemporalZonedDateTime> zoned_date_time, const char* method_name) {
+    DirectHandle<JSTemporalZonedDateTime> zoned_date_time,
+    const char* method_name) {
   // 1. Assert: zonedDateTime has an [[InitializedTemporalZonedDateTime]]
   // internal slot.
   // 2. Let pattern be dateTimeFormat.[[TemporalZonedDateTimePattern]].
@@ -1037,7 +1036,7 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalZonedDateTime(
       Nothing<DateTimeValueRecord>());
   // 4. If calendar is not "iso8601" and not equal to
   // dateTimeFormat.[[Calendar]], then
-  Handle<JSReceiver> calendar_override;
+  DirectHandle<JSReceiver> calendar_override;
   if (!String::Equals(isolate, calendar,
                       isolate->factory()->iso8601_string()) &&
       !String::Equals(isolate, calendar, date_time_format_calendar)) {
@@ -1060,7 +1059,7 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalZonedDateTime(
       GetTimeZone(isolate, date_time_format);
   DCHECK(IsString(*date_time_format_time_zone));
   Handle<String> date_time_format_time_zone_string =
-      Handle<String>::cast(date_time_format_time_zone);
+      Cast<String>(date_time_format_time_zone);
   if (!String::Equals(isolate, date_time_format_time_zone_string,
                       Intl::DefaultTimeZone(isolate)) &&
       !String::Equals(isolate, time_zone, date_time_format_time_zone_string)) {
@@ -1072,7 +1071,7 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalZonedDateTime(
         Nothing<DateTimeValueRecord>());
   }
   // 7. Let instant be ! CreateTemporalInstant(zonedDateTime.[[Nanoseconds]]).
-  Handle<JSTemporalInstant> instant =
+  DirectHandle<JSTemporalInstant> instant =
       temporal::CreateTemporalInstant(
           isolate, handle(zoned_date_time->nanoseconds(), isolate))
           .ToHandleChecked();
@@ -1087,7 +1086,7 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalZonedDateTime(
 // #sec-temporal-handledatetimevaluetemporalinstant
 Maybe<DateTimeValueRecord> HandleDateTimeTemporalInstant(
     Isolate* isolate, const icu::SimpleDateFormat& date_time_format,
-    Handle<JSTemporalInstant> instant, const char* method_name) {
+    DirectHandle<JSTemporalInstant> instant, const char* method_name) {
   // 1. Assert: instant has an [[InitializedTemporalInstant]] internal slot.
   // 2. Let pattern be dateTimeFormat.[[TemporalInstantPattern]].
   // 3. If pattern is null, throw a TypeError exception.
@@ -1100,13 +1099,13 @@ Maybe<DateTimeValueRecord> HandleDateTimeTemporalInstant(
 // #sec-temporal-handledatetimevaluetemporaltime
 Maybe<DateTimeValueRecord> HandleDateTimeTemporalTime(
     Isolate* isolate, const icu::SimpleDateFormat& date_time_format,
-    Handle<JSTemporalPlainTime> temporal_time, const char* method_name) {
+    DirectHandle<JSTemporalPlainTime> temporal_time, const char* method_name) {
   // 1. Assert: temporalTime has an [[InitializedTemporalTime]] internal slot.
   // 2. Let pattern be dateTimeFormat.[[TemporalPlainTimePattern]].
 
   // 3. Let isoCalendar be ! GetISO8601Calendar().
 
-  Handle<JSReceiver> iso_calendar = temporal::GetISO8601Calendar(isolate);
+  DirectHandle<JSReceiver> iso_calendar = temporal::GetISO8601Calendar(isolate);
   // 4. Let plainDateTime be ? CreateTemporalDateTime(1970, 1, 1,
   // temporalTime.[[ISOHour]], temporalTime.[[ISOMinute]],
   // temporalTime.[[ISOSecond]], temporalTime.[[ISOMillisecond]],
@@ -1198,12 +1197,11 @@ Maybe<DateTimeValueRecord> HandleDateTimeOthers(
     ASSIGN_RETURN_ON_EXCEPTION_VALUE(isolate, x_obj,
                                      Object::ToNumber(isolate, x_obj),
                                      Nothing<DateTimeValueRecord>());
-    x = Object::Number(*x_obj);
+    x = Object::NumberValue(*x_obj);
   }
   // 6. Set x to TimeClip(x).
-  x = DateCache::TimeClip(x);
   // 7. If x is NaN, throw a RangeError exception.
-  if (std::isnan(x)) {
+  if (!DateCache::TryTimeClip(&x)) {
     THROW_NEW_ERROR_RETURN_VALUE(
         isolate, NewRangeError(MessageTemplate::kInvalidTimeValue),
         Nothing<DateTimeValueRecord>());
@@ -1227,49 +1225,47 @@ Maybe<DateTimeValueRecord> HandleDateTimeValue(
       // i. Return ? HandleDateTimeTemporalDate(dateTimeFormat, x).
       return HandleDateTimeTemporalDate(
           isolate, date_time_format, date_time_format_calendar,
-          Handle<JSTemporalPlainDate>::cast(x), method_name);
+          Cast<JSTemporalPlainDate>(x), method_name);
     }
     // b. If x has an [[InitializedTemporalYearMonth]] internal slot, then
     if (IsJSTemporalPlainYearMonth(*x)) {
       // i. Return ? HandleDateTimeTemporalYearMonth(dateTimeFormat, x).
       return HandleDateTimeTemporalYearMonth(
           isolate, date_time_format, date_time_format_calendar,
-          Handle<JSTemporalPlainYearMonth>::cast(x), method_name);
+          Cast<JSTemporalPlainYearMonth>(x), method_name);
     }
     // c. If x has an [[InitializedTemporalMonthDay]] internal slot, then
     if (IsJSTemporalPlainMonthDay(*x)) {
       // i. Return ? HandleDateTimeTemporalMonthDay(dateTimeFormat, x).
       return HandleDateTimeTemporalMonthDay(
           isolate, date_time_format, date_time_format_calendar,
-          Handle<JSTemporalPlainMonthDay>::cast(x), method_name);
+          Cast<JSTemporalPlainMonthDay>(x), method_name);
     }
     // d. If x has an [[InitializedTemporalTime]] internal slot, then
     if (IsJSTemporalPlainTime(*x)) {
       // i. Return ? HandleDateTimeTemporalTime(dateTimeFormat, x).
-      return HandleDateTimeTemporalTime(isolate, date_time_format,
-                                        Handle<JSTemporalPlainTime>::cast(x),
-                                        method_name);
+      return HandleDateTimeTemporalTime(
+          isolate, date_time_format, Cast<JSTemporalPlainTime>(x), method_name);
     }
     // e. If x has an [[InitializedTemporalDateTime]] internal slot, then
     if (IsJSTemporalPlainDateTime(*x)) {
       // i. Return ? HandleDateTimeTemporalDateTime(dateTimeFormat, x).
       return HandleDateTimeTemporalDateTime(
           isolate, date_time_format, date_time_format_calendar,
-          Handle<JSTemporalPlainDateTime>::cast(x), method_name);
+          Cast<JSTemporalPlainDateTime>(x), method_name);
     }
     // f. If x has an [[InitializedTemporalInstant]] internal slot, then
     if (IsJSTemporalInstant(*x)) {
       // i. Return ? HandleDateTimeTemporalInstant(dateTimeFormat, x).
-      return HandleDateTimeTemporalInstant(isolate, date_time_format,
-                                           Handle<JSTemporalInstant>::cast(x),
-                                           method_name);
+      return HandleDateTimeTemporalInstant(
+          isolate, date_time_format, Cast<JSTemporalInstant>(x), method_name);
     }
     // g. Assert: x has an [[InitializedTemporalZonedDateTime]] internal slot.
     DCHECK(IsJSTemporalZonedDateTime(*x));
     // h. Return ? HandleDateTimeTemporalZonedDateTime(dateTimeFormat, x).
     return HandleDateTimeTemporalZonedDateTime(
         isolate, date_time_format, date_time_format_calendar,
-        Handle<JSTemporalZonedDateTime>::cast(x), method_name);
+        Cast<JSTemporalZonedDateTime>(x), method_name);
   }
 
   // 2. Return ? HandleDateTimeOthers(dateTimeFormat, x).
@@ -1442,14 +1438,12 @@ icu::UnicodeString CallICUFormat(const icu::SimpleDateFormat& date_format,
 MaybeHandle<String> FormatDateTime(Isolate* isolate,
                                    const icu::SimpleDateFormat& date_format,
                                    double x) {
-  double date_value = DateCache::TimeClip(x);
-  if (std::isnan(date_value)) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue),
-                    String);
+  if (!DateCache::TryTimeClip(&x)) {
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue));
   }
 
   icu::UnicodeString result;
-  date_format.format(date_value, result);
+  date_format.format(x, result);
 
   // Revert ICU 72 change that introduced U+202F instead of U+0020
   // to separate time from AM/PM. See https://crbug.com/1414292.
@@ -1484,7 +1478,7 @@ MaybeHandle<String> FormatDateTimeWithTemporalSupport(
 }
 
 MaybeHandle<String> FormatDateTimeWithTemporalSupport(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
     Handle<Object> x, const char* method_name) {
   return FormatDateTimeWithTemporalSupport(
       isolate, *(date_time_format->icu_simple_date_format()->raw()),
@@ -1496,7 +1490,7 @@ MaybeHandle<String> FormatDateTimeWithTemporalSupport(
 // ecma402/#sec-datetime-format-functions
 // DateTime Format Functions
 MaybeHandle<String> JSDateTimeFormat::DateTimeFormat(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
     Handle<Object> date, const char* method_name) {
   // 2. Assert: Type(dtf) is Object and dtf has an [[InitializedDateTimeFormat]]
   // internal slot.
@@ -1513,10 +1507,9 @@ MaybeHandle<String> JSDateTimeFormat::DateTimeFormat(
   } else {
     // 4. Else,
     //    a. Let x be ? ToNumber(date).
-    ASSIGN_RETURN_ON_EXCEPTION(isolate, date, Object::ToNumber(isolate, date),
-                               String);
+    ASSIGN_RETURN_ON_EXCEPTION(isolate, date, Object::ToNumber(isolate, date));
     DCHECK(IsNumber(*date));
-    x = Object::Number(*date);
+    x = Object::NumberValue(*date);
   }
   // 5. Return FormatDateTime(dtf, x).
   icu::SimpleDateFormat* format =
@@ -1550,10 +1543,9 @@ MaybeHandle<String> JSDateTimeFormat::ToLocaleDateTime(
   if (!IsJSDate(*date)) {
     THROW_NEW_ERROR(isolate,
                     NewTypeError(MessageTemplate::kMethodInvokedOnWrongType,
-                                 factory->Date_string()),
-                    String);
+                                 factory->Date_string()));
   }
-  double const x = Object::Number(Handle<JSDate>::cast(date)->value());
+  double const x = Cast<JSDate>(date)->value();
   // 2. If x is NaN, return "Invalid Date"
   if (std::isnan(x)) {
     return factory->Invalid_Date_string();
@@ -1575,20 +1567,19 @@ MaybeHandle<String> JSDateTimeFormat::ToLocaleDateTime(
   }
   // 4. Let dateFormat be ? Construct(%DateTimeFormat%, « locales, options »).
   Handle<JSFunction> constructor = Handle<JSFunction>(
-      JSFunction::cast(isolate->context()
+      Cast<JSFunction>(isolate->context()
                            ->native_context()
                            ->intl_date_time_format_function()),
       isolate);
   Handle<Map> map;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, map,
-      JSFunction::GetDerivedMap(isolate, constructor, constructor), String);
+      JSFunction::GetDerivedMap(isolate, constructor, constructor));
   Handle<JSDateTimeFormat> date_time_format;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, date_time_format,
       JSDateTimeFormat::CreateDateTimeFormat(isolate, map, locales, options,
-                                             required, defaults, method_name),
-      String);
+                                             required, defaults, method_name));
 
   if (can_cache) {
     isolate->set_icu_object_in_cache(
@@ -1609,13 +1600,13 @@ MaybeHandle<String> JSDateTimeFormat::TemporalToLocaleString(
   Handle<JSFunction> constructor(
       isolate->context()->native_context()->intl_date_time_format_function(),
       isolate);
-  Handle<Map> map = JSFunction::GetDerivedMap(isolate, constructor, constructor)
-                        .ToHandleChecked();
+  DirectHandle<Map> map =
+      JSFunction::GetDerivedMap(isolate, constructor, constructor)
+          .ToHandleChecked();
   Handle<JSDateTimeFormat> date_time_format;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, date_time_format,
-      JSDateTimeFormat::New(isolate, map, locales, options, method_name),
-      String);
+      JSDateTimeFormat::New(isolate, map, locales, options, method_name));
 
   // 5. Return FormatDateTime(dateFormat, x).
   return FormatDateTimeWithTemporalSupport(isolate, date_time_format, x,
@@ -1624,17 +1615,16 @@ MaybeHandle<String> JSDateTimeFormat::TemporalToLocaleString(
 
 MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::UnwrapDateTimeFormat(
     Isolate* isolate, Handle<JSReceiver> format_holder) {
-  Handle<Context> native_context =
-      Handle<Context>(isolate->context()->native_context(), isolate);
-  Handle<JSFunction> constructor = Handle<JSFunction>(
-      JSFunction::cast(native_context->intl_date_time_format_function()),
+  DirectHandle<Context> native_context(isolate->context()->native_context(),
+                                       isolate);
+  Handle<JSFunction> constructor(
+      Cast<JSFunction>(native_context->intl_date_time_format_function()),
       isolate);
   Handle<Object> dtf;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, dtf,
       Intl::LegacyUnwrapReceiver(isolate, format_holder, constructor,
-                                 IsJSDateTimeFormat(*format_holder)),
-      JSDateTimeFormat);
+                                 IsJSDateTimeFormat(*format_holder)));
   // 2. If Type(dtf) is not Object or dtf does not have an
   //    [[InitializedDateTimeFormat]] internal slot, then
   if (!IsJSDateTimeFormat(*dtf)) {
@@ -1643,25 +1633,24 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::UnwrapDateTimeFormat(
                     NewTypeError(MessageTemplate::kIncompatibleMethodReceiver,
                                  isolate->factory()->NewStringFromAsciiChecked(
                                      "UnwrapDateTimeFormat"),
-                                 format_holder),
-                    JSDateTimeFormat);
+                                 format_holder));
   }
   // 3. Return dtf.
-  return Handle<JSDateTimeFormat>::cast(dtf);
+  return Cast<JSDateTimeFormat>(dtf);
 }
 
 // Convert the input in the form of
 // [+-\u2212]hh:?mm  to the ID acceptable for SimpleTimeZone
 // GMT[+-]hh or GMT[+-]hh:mm or empty
-base::Optional<std::string> GetOffsetTimeZone(Isolate* isolate,
-                                              Handle<String> time_zone) {
+std::optional<std::string> GetOffsetTimeZone(Isolate* isolate,
+                                             Handle<String> time_zone) {
   time_zone = String::Flatten(isolate, time_zone);
   DisallowGarbageCollection no_gc;
   const String::FlatContent& flat = time_zone->GetFlatContent(no_gc);
   int32_t len = flat.length();
   if (len < 3) {
     // Error
-    return base::nullopt;
+    return std::nullopt;
   }
   std::string tz("GMT");
   switch (flat.Get(0)) {
@@ -1674,7 +1663,7 @@ base::Optional<std::string> GetOffsetTimeZone(Isolate* isolate,
       break;
     default:
       // Error
-      return base::nullopt;
+      return std::nullopt;
   }
   // 00 - 23
   uint16_t h0 = flat.Get(1);
@@ -1686,7 +1675,7 @@ base::Optional<std::string> GetOffsetTimeZone(Isolate* isolate,
     tz += h1;
   } else {
     // Error
-    return base::nullopt;
+    return std::nullopt;
   }
   if (len == 3) {
     return tz;
@@ -1700,7 +1689,7 @@ base::Optional<std::string> GetOffsetTimeZone(Isolate* isolate,
   }
   if (len - p != 2) {
     // Error
-    return base::nullopt;
+    return std::nullopt;
   }
   uint16_t m1 = flat.Get(p + 1);
   if (m0 >= '0' && m0 <= '5' && m1 >= '0' && m1 <= '9') {
@@ -1709,13 +1698,13 @@ base::Optional<std::string> GetOffsetTimeZone(Isolate* isolate,
     return tz;
   }
   // Error
-  return base::nullopt;
+  return std::nullopt;
 }
 std::unique_ptr<icu::TimeZone> JSDateTimeFormat::CreateTimeZone(
     Isolate* isolate, Handle<String> time_zone_string) {
   // Create time zone as specified by the user. We have to re-create time zone
   // since calendar takes ownership.
-  base::Optional<std::string> offsetTimeZone =
+  std::optional<std::string> offsetTimeZone =
       GetOffsetTimeZone(isolate, time_zone_string);
   if (offsetTimeZone.has_value()) {
     std::unique_ptr<icu::TimeZone> tz(
@@ -1920,7 +1909,7 @@ std::unique_ptr<icu::SimpleDateFormat> CreateICUDateFormatFromCache(
 // Right now we want to avoid making the constructor more expensive and
 // increasing overhead in the object.
 std::unique_ptr<icu::DateIntervalFormat> LazyCreateDateIntervalFormat(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
     PatternKind kind) {
   Tagged<Managed<icu::DateIntervalFormat>> managed_format =
       date_time_format->icu_date_interval_format();
@@ -1951,9 +1940,9 @@ std::unique_ptr<icu::DateIntervalFormat> LazyCreateDateIntervalFormat(
   if (kind != PatternKind::kDate) {
     return date_interval_format;
   }
-  Handle<Managed<icu::DateIntervalFormat>> managed_interval_format =
-      Managed<icu::DateIntervalFormat>::FromUniquePtr(
-          isolate, 0, std::move(date_interval_format));
+  DirectHandle<Managed<icu::DateIntervalFormat>> managed_interval_format =
+      Managed<icu::DateIntervalFormat>::From(isolate, 0,
+                                             std::move(date_interval_format));
   date_time_format->set_icu_date_interval_format(*managed_interval_format);
   return std::unique_ptr<icu::DateIntervalFormat>(
       managed_interval_format->raw()->clone());
@@ -2173,7 +2162,7 @@ enum FormatMatcherOption { kBestFit, kBasic };
 
 // ecma402/#sec-initializedatetimeformat
 MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::New(
-    Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+    Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
     Handle<Object> input_options, const char* service) {
   return JSDateTimeFormat::CreateDateTimeFormat(
       isolate, map, locales, input_options, RequiredOption::kAny,
@@ -2181,7 +2170,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::New(
 }
 
 MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
-    Isolate* isolate, Handle<Map> map, Handle<Object> locales,
+    Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
     Handle<Object> input_options, RequiredOption required,
     DefaultsOption defaults, const char* service) {
   Factory* factory = isolate->factory();
@@ -2194,8 +2183,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
   // 2. Let options be ? CoerceOptionsToObject(_options_).
   Handle<JSReceiver> options;
   ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, options, CoerceOptionsToObject(isolate, input_options, service),
-      JSDateTimeFormat);
+      isolate, options, CoerceOptionsToObject(isolate, input_options, service));
 
   // 4. Let matcher be ? GetOption(options, "localeMatcher", "string",
   // « "lookup", "best fit" », "best fit").
@@ -2217,10 +2205,9 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
     icu::Locale default_locale;
     if (!Intl::IsWellFormedCalendar(calendar_str.get())) {
       THROW_NEW_ERROR(
-          isolate,
-          NewRangeError(MessageTemplate::kInvalid, factory->calendar_string(),
-                        factory->NewStringFromAsciiChecked(calendar_str.get())),
-          JSDateTimeFormat);
+          isolate, NewRangeError(
+                       MessageTemplate::kInvalid, factory->calendar_string(),
+                       factory->NewStringFromAsciiChecked(calendar_str.get())));
     }
   }
 
@@ -2264,8 +2251,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
       isolate, JSDateTimeFormat::GetAvailableLocales(), requested_locales,
       locale_matcher, relevant_extension_keys);
   if (maybe_resolve_locale.IsNothing()) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                    JSDateTimeFormat);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
   }
   Intl::ResolvedLocale r = maybe_resolve_locale.FromJust();
 
@@ -2352,15 +2338,13 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, time_zone_obj,
       Object::GetPropertyOrElement(isolate, options,
-                                   isolate->factory()->timeZone_string()),
-      JSDateTimeFormat);
+                                   isolate->factory()->timeZone_string()));
 
   std::unique_ptr<icu::TimeZone> tz;
   if (!IsUndefined(*time_zone_obj, isolate)) {
     Handle<String> time_zone;
     ASSIGN_RETURN_ON_EXCEPTION(isolate, time_zone,
-                               Object::ToString(isolate, time_zone_obj),
-                               JSDateTimeFormat);
+                               Object::ToString(isolate, time_zone_obj));
     tz = JSDateTimeFormat::CreateTimeZone(isolate, time_zone);
   } else {
     // 19.a. Else / Let timeZone be DefaultTimeZone().
@@ -2368,10 +2352,8 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
   }
 
   if (tz.get() == nullptr) {
-    THROW_NEW_ERROR(
-        isolate,
-        NewRangeError(MessageTemplate::kInvalidTimeZone, time_zone_obj),
-        JSDateTimeFormat);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeZone,
+                                           time_zone_obj));
   }
 
   std::unique_ptr<icu::Calendar> calendar(
@@ -2380,10 +2362,8 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
   // 18.b If the result of IsValidTimeZoneName(timeZone) is false, then
   // i. Throw a RangeError exception.
   if (calendar.get() == nullptr) {
-    THROW_NEW_ERROR(
-        isolate,
-        NewRangeError(MessageTemplate::kInvalidTimeZone, time_zone_obj),
-        JSDateTimeFormat);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeZone,
+                                           time_zone_obj));
   }
 
   DateTimeStyle date_style = DateTimeStyle::kUndefined;
@@ -2491,11 +2471,10 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
     // a. If hasExplicitFormatComponents is true, then
     if (explicit_format_components != 0) {
       // i. Throw a TypeError exception.
-      THROW_NEW_ERROR(isolate,
-                      NewTypeError(MessageTemplate::kInvalid,
-                                   factory->NewStringFromStaticChars("option"),
-                                   factory->NewStringFromStaticChars("option")),
-                      JSDateTimeFormat);
+      THROW_NEW_ERROR(
+          isolate, NewTypeError(MessageTemplate::kInvalid,
+                                factory->NewStringFromStaticChars("option"),
+                                factory->NewStringFromStaticChars("option")));
     }
     // b. If required is ~date~ and timeStyle is not *undefined*, then
     if (required == RequiredOption::kDate &&
@@ -2504,8 +2483,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
       THROW_NEW_ERROR(isolate,
                       NewTypeError(MessageTemplate::kInvalid,
                                    factory->NewStringFromStaticChars("option"),
-                                   factory->timeStyle_string()),
-                      JSDateTimeFormat);
+                                   factory->timeStyle_string()));
     }
     // c. If required is ~time~ and dateStyle is not *undefined*, then
     if (required == RequiredOption::kTime &&
@@ -2514,8 +2492,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
       THROW_NEW_ERROR(isolate,
                       NewTypeError(MessageTemplate::kInvalid,
                                    factory->NewStringFromStaticChars("option"),
-                                   factory->dateStyle_string()),
-                      JSDateTimeFormat);
+                                   factory->dateStyle_string()));
     }
     // b. Let pattern be DateTimeStylePattern(dateStyle, timeStyle,
     // dataLocaleData, hc).
@@ -2526,8 +2503,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
         DateTimeStylePattern(date_style, time_style, icu_locale,
                              dateTimeFormatHourCycle, generator.get());
     if (icu_date_format.get() == nullptr) {
-      THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                      JSDateTimeFormat);
+      THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
     }
   } else {
     // a. Let needDefaults be *true*.
@@ -2608,8 +2584,7 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
       icu_date_format = CreateICUDateFormatFromCache(
           icu_locale, skeleton_ustr, generator.get(), dateTimeFormatHourCycle);
       if (icu_date_format.get() == nullptr) {
-        THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                        JSDateTimeFormat);
+        THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
       }
     }
   }
@@ -2648,21 +2623,23 @@ MaybeHandle<JSDateTimeFormat> JSDateTimeFormat::CreateDateTimeFormat(
 
   Maybe<std::string> maybe_locale_str = Intl::ToLanguageTag(resolved_locale);
   MAYBE_RETURN(maybe_locale_str, MaybeHandle<JSDateTimeFormat>());
-  Handle<String> locale_str = isolate->factory()->NewStringFromAsciiChecked(
-      maybe_locale_str.FromJust().c_str());
+  DirectHandle<String> locale_str =
+      isolate->factory()->NewStringFromAsciiChecked(
+          maybe_locale_str.FromJust().c_str());
 
-  Handle<Managed<icu::Locale>> managed_locale =
-      Managed<icu::Locale>::FromRawPtr(isolate, 0, icu_locale.clone());
+  DirectHandle<Managed<icu::Locale>> managed_locale =
+      Managed<icu::Locale>::From(
+          isolate, 0, std::shared_ptr<icu::Locale>{icu_locale.clone()});
 
-  Handle<Managed<icu::SimpleDateFormat>> managed_format =
-      Managed<icu::SimpleDateFormat>::FromUniquePtr(isolate, 0,
-                                                    std::move(icu_date_format));
+  DirectHandle<Managed<icu::SimpleDateFormat>> managed_format =
+      Managed<icu::SimpleDateFormat>::From(isolate, 0,
+                                           std::move(icu_date_format));
 
-  Handle<Managed<icu::DateIntervalFormat>> managed_interval_format =
-      Managed<icu::DateIntervalFormat>::FromRawPtr(isolate, 0, nullptr);
+  DirectHandle<Managed<icu::DateIntervalFormat>> managed_interval_format =
+      Managed<icu::DateIntervalFormat>::From(isolate, 0, nullptr);
 
   // Now all properties are ready, so we can allocate the result object.
-  Handle<JSDateTimeFormat> date_time_format = Handle<JSDateTimeFormat>::cast(
+  Handle<JSDateTimeFormat> date_time_format = Cast<JSDateTimeFormat>(
       isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
   DisallowGarbageCollection no_gc;
   date_time_format->set_flags(0);
@@ -2752,7 +2729,7 @@ MaybeHandle<JSArray> FormatMillisecondsByKindToArray(
   icu::UnicodeString formatted =
       CallICUFormat(date_format, kind, x, &fp_iter, status);
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), JSArray);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
   return FieldPositionIteratorToArray(isolate, formatted, fp_iter,
                                       output_source);
@@ -2764,7 +2741,7 @@ MaybeHandle<JSArray> FormatMillisecondsByKindToArrayOutputSource(
 }
 
 MaybeHandle<JSArray> FormatToPartsWithTemporalSupport(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
     Handle<Object> x, bool output_source, const char* method_name) {
   icu::SimpleDateFormat* format =
       date_time_format->icu_simple_date_format()->raw();
@@ -2791,7 +2768,7 @@ MaybeHandle<JSArray> FormatMillisecondsToArray(
   UErrorCode status = U_ZERO_ERROR;
   format.format(value, formatted, &fp_iter, status);
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), JSArray);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
   return FieldPositionIteratorToArray(isolate, formatted, fp_iter,
                                       output_source);
@@ -2803,7 +2780,7 @@ MaybeHandle<JSArray> FormatMillisecondsToArrayOutputSource(
 }  // namespace
 
 MaybeHandle<JSArray> JSDateTimeFormat::FormatToParts(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
     Handle<Object> x, bool output_source, const char* method_name) {
   Factory* factory = isolate->factory();
   if (v8_flags.harmony_temporal) {
@@ -2814,14 +2791,12 @@ MaybeHandle<JSArray> JSDateTimeFormat::FormatToParts(
   if (IsUndefined(*x, isolate)) {
     x = factory->NewNumberFromInt64(JSDate::CurrentTimeValue(isolate));
   } else {
-    ASSIGN_RETURN_ON_EXCEPTION(isolate, x, Object::ToNumber(isolate, x),
-                               JSArray);
+    ASSIGN_RETURN_ON_EXCEPTION(isolate, x, Object::ToNumber(isolate, x));
   }
 
-  double date_value = DateCache::TimeClip(Object::Number(*x));
-  if (std::isnan(date_value)) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue),
-                    JSArray);
+  double date_value = Object::NumberValue(*x);
+  if (!DateCache::TryTimeClip(&date_value)) {
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue));
   }
   return FormatMillisecondsToArray(
       isolate, *(date_time_format->icu_simple_date_format()->raw()), date_value,
@@ -2848,8 +2823,7 @@ MaybeHandle<JSArray> FieldPositionIteratorToArray(
     if (previous_end_pos < begin_pos) {
       ASSIGN_RETURN_ON_EXCEPTION(
           isolate, substring,
-          Intl::ToString(isolate, formatted, previous_end_pos, begin_pos),
-          JSArray);
+          Intl::ToString(isolate, formatted, previous_end_pos, begin_pos));
       if (output_source) {
         Intl::AddElement(isolate, result, index,
                          IcuDateFieldIdToDateType(-1, isolate), substring,
@@ -2863,7 +2837,7 @@ MaybeHandle<JSArray> FieldPositionIteratorToArray(
     }
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, substring,
-        Intl::ToString(isolate, formatted, begin_pos, end_pos), JSArray);
+        Intl::ToString(isolate, formatted, begin_pos, end_pos));
     if (output_source) {
       Intl::AddElement(isolate, result, index,
                        IcuDateFieldIdToDateType(fp.getField(), isolate),
@@ -2880,7 +2854,7 @@ MaybeHandle<JSArray> FieldPositionIteratorToArray(
   if (previous_end_pos < length) {
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, substring,
-        Intl::ToString(isolate, formatted, previous_end_pos, length), JSArray);
+        Intl::ToString(isolate, formatted, previous_end_pos, length));
     if (output_source) {
       Intl::AddElement(isolate, result, index,
                        IcuDateFieldIdToDateType(-1, isolate), substring,
@@ -2938,12 +2912,12 @@ Maybe<bool> AddPartForFormatRange(
 // If this function return a value, it could be a throw of TypeError, or normal
 // formatted string. If it return a nullopt the caller should call the fallback
 // function.
-base::Optional<MaybeHandle<String>> FormattedToString(
+std::optional<MaybeHandle<String>> FormattedToString(
     Isolate* isolate, const icu::FormattedValue& formatted) {
   UErrorCode status = U_ZERO_ERROR;
   icu::UnicodeString result = formatted.toString(status);
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), String);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
   icu::ConstrainedFieldPosition cfpos;
   while (formatted.nextPosition(cfpos, status)) {
@@ -2951,7 +2925,7 @@ base::Optional<MaybeHandle<String>> FormattedToString(
       return Intl::ToString(isolate, result);
     }
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 // A helper function to convert the FormattedDateInterval to a
@@ -2959,7 +2933,7 @@ base::Optional<MaybeHandle<String>> FormattedToString(
 // If this function return a value, it could be a throw of TypeError, or normal
 // formatted parts in JSArray. If it return a nullopt the caller should call
 // the fallback function.
-base::Optional<MaybeHandle<JSArray>> FormattedDateIntervalToJSArray(
+std::optional<MaybeHandle<JSArray>> FormattedDateIntervalToJSArray(
     Isolate* isolate, const icu::FormattedValue& formatted) {
   UErrorCode status = U_ZERO_ERROR;
   icu::UnicodeString result = formatted.toString(status);
@@ -3009,45 +2983,41 @@ base::Optional<MaybeHandle<JSArray>> FormattedDateIntervalToJSArray(
   }
 
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), JSArray);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
 
   JSObject::ValidateElements(*array);
   if (output_range) return array;
-  return base::nullopt;
+  return std::nullopt;
 }
 
 // The shared code between formatRange and formatRangeToParts
-template <typename T, base::Optional<MaybeHandle<T>> (*Format)(
+template <typename T, std::optional<MaybeHandle<T>> (*Format)(
                           Isolate*, const icu::FormattedValue&)>
-base::Optional<MaybeHandle<T>> CallICUFormatRange(
+std::optional<MaybeHandle<T>> CallICUFormatRange(
     Isolate* isolate, const icu::DateIntervalFormat* format,
     const icu::Calendar* calendar, double x, double y);
 // #sec-partitiondatetimerangepattern
-template <typename T, base::Optional<MaybeHandle<T>> (*Format)(
+template <typename T, std::optional<MaybeHandle<T>> (*Format)(
                           Isolate*, const icu::FormattedValue&)>
-base::Optional<MaybeHandle<T>> PartitionDateTimeRangePattern(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format, double x,
+std::optional<MaybeHandle<T>> PartitionDateTimeRangePattern(
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format, double x,
     double y, const char* method_name) {
   // 1. Let x be TimeClip(x).
-  x = DateCache::TimeClip(x);
   // 2. If x is NaN, throw a RangeError exception.
-  if (std::isnan(x)) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue),
-                    T);
+  if (!DateCache::TryTimeClip(&x)) {
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue));
   }
   // 3. Let y be TimeClip(y).
-  y = DateCache::TimeClip(y);
   // 4. If y is NaN, throw a RangeError exception.
-  if (std::isnan(y)) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue),
-                    T);
+  if (!DateCache::TryTimeClip(&y)) {
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kInvalidTimeValue));
   }
 
   std::unique_ptr<icu::DateIntervalFormat> format(LazyCreateDateIntervalFormat(
       isolate, date_time_format, PatternKind::kDate));
   if (format.get() == nullptr) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), T);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
 
   icu::SimpleDateFormat* date_format =
@@ -3057,9 +3027,9 @@ base::Optional<MaybeHandle<T>> PartitionDateTimeRangePattern(
   return CallICUFormatRange<T, Format>(isolate, format.get(), calendar, x, y);
 }
 
-template <typename T, base::Optional<MaybeHandle<T>> (*Format)(
+template <typename T, std::optional<MaybeHandle<T>> (*Format)(
                           Isolate*, const icu::FormattedValue&)>
-base::Optional<MaybeHandle<T>> CallICUFormatRange(
+std::optional<MaybeHandle<T>> CallICUFormatRange(
     Isolate* isolate, const icu::DateIntervalFormat* format,
     const icu::Calendar* calendar, double x, double y) {
   UErrorCode status = U_ZERO_ERROR;
@@ -3074,18 +3044,18 @@ base::Optional<MaybeHandle<T>> CallICUFormatRange(
   icu::FormattedDateInterval formatted =
       format->formatToValue(*c1, *c2, status);
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), T);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
   return Format(isolate, formatted);
 }
 
 template <typename T,
-          base::Optional<MaybeHandle<T>> (*Format)(Isolate*,
-                                                   const icu::FormattedValue&),
+          std::optional<MaybeHandle<T>> (*Format)(Isolate*,
+                                                  const icu::FormattedValue&),
           MaybeHandle<T> (*Fallback)(Isolate*, const icu::SimpleDateFormat&,
                                      PatternKind, double)>
 MaybeHandle<T> FormatRangeCommonWithTemporalSupport(
-    Isolate* isolate, Handle<JSDateTimeFormat> date_time_format,
+    Isolate* isolate, DirectHandle<JSDateTimeFormat> date_time_format,
     Handle<Object> x_obj, Handle<Object> y_obj, const char* method_name) {
   // 5. If either of ! IsTemporalObject(x) or ! IsTemporalObject(y) is true,
   // then
@@ -3094,7 +3064,7 @@ MaybeHandle<T> FormatRangeCommonWithTemporalSupport(
     if (!SameTemporalType(x_obj, y_obj)) {
       THROW_NEW_ERROR(
           isolate,
-          NewTypeError(MessageTemplate::kInvalidArgumentForTemporal, y_obj), T);
+          NewTypeError(MessageTemplate::kInvalidArgumentForTemporal, y_obj));
     }
   }
   // 6. Let x be ? HandleDateTimeValue(dateTimeFormat, x).
@@ -3120,13 +3090,13 @@ MaybeHandle<T> FormatRangeCommonWithTemporalSupport(
   std::unique_ptr<icu::DateIntervalFormat> format(
       LazyCreateDateIntervalFormat(isolate, date_time_format, x_record.kind));
   if (format.get() == nullptr) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), T);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
 
   const icu::Calendar* calendar =
       date_time_format->icu_simple_date_format()->raw()->getCalendar();
 
-  base::Optional<MaybeHandle<T>> result = CallICUFormatRange<T, Format>(
+  std::optional<MaybeHandle<T>> result = CallICUFormatRange<T, Format>(
       isolate, format.get(), calendar, x_record.epoch_milliseconds,
       y_record.epoch_milliseconds);
   if (result.has_value()) return *result;
@@ -3135,8 +3105,8 @@ MaybeHandle<T> FormatRangeCommonWithTemporalSupport(
 }
 
 template <typename T,
-          base::Optional<MaybeHandle<T>> (*Format)(Isolate*,
-                                                   const icu::FormattedValue&),
+          std::optional<MaybeHandle<T>> (*Format)(Isolate*,
+                                                  const icu::FormattedValue&),
           MaybeHandle<T> (*Fallback)(Isolate*, const icu::SimpleDateFormat&,
                                      double)>
 MaybeHandle<T> FormatRangeCommon(Isolate* isolate,
@@ -3144,15 +3114,13 @@ MaybeHandle<T> FormatRangeCommon(Isolate* isolate,
                                  Handle<Object> x_obj, Handle<Object> y_obj,
                                  const char* method_name) {
   // 4. Let x be ? ToNumber(startDate).
-  ASSIGN_RETURN_ON_EXCEPTION(isolate, x_obj, Object::ToNumber(isolate, x_obj),
-                             T);
-  double x = Object::Number(*x_obj);
+  ASSIGN_RETURN_ON_EXCEPTION(isolate, x_obj, Object::ToNumber(isolate, x_obj));
+  double x = Object::NumberValue(*x_obj);
   // 5. Let y be ? ToNumber(endDate).
-  ASSIGN_RETURN_ON_EXCEPTION(isolate, y_obj, Object::ToNumber(isolate, y_obj),
-                             T);
-  double y = Object::Number(*y_obj);
+  ASSIGN_RETURN_ON_EXCEPTION(isolate, y_obj, Object::ToNumber(isolate, y_obj));
+  double y = Object::NumberValue(*y_obj);
 
-  base::Optional<MaybeHandle<T>> result =
+  std::optional<MaybeHandle<T>> result =
       PartitionDateTimeRangePattern<T, Format>(isolate, date_time_format, x, y,
                                                method_name);
   if (result.has_value()) return *result;
@@ -3196,5 +3164,4 @@ MaybeHandle<JSArray> JSDateTimeFormat::FormatRangeToParts(
       isolate, date_time_format, x, y, method_name);
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

@@ -26,19 +26,20 @@ Handle<AllocationSite> AllocationSiteUsageContext::EnterNewScope() {
     // Advance current site
     Tagged<Object> nested_site = current()->nested_site();
     // Something is wrong if we advance to the end of the list here.
-    update_current_site(AllocationSite::cast(nested_site));
+    update_current_site(Cast<AllocationSite>(nested_site));
   }
   return Handle<AllocationSite>(*current(), isolate());
 }
 
-void AllocationSiteUsageContext::ExitScope(Handle<AllocationSite> scope_site,
-                                           Handle<JSObject> object) {
+void AllocationSiteUsageContext::ExitScope(
+    DirectHandle<AllocationSite> scope_site, Handle<JSObject> object) {
   // This assert ensures that we are pointing at the right sub-object in a
   // recursive walk of a nested literal.
   DCHECK(object.is_null() || *object == scope_site->boilerplate());
 }
 
-bool AllocationSiteUsageContext::ShouldCreateMemento(Handle<JSObject> object) {
+bool AllocationSiteUsageContext::ShouldCreateMemento(
+    DirectHandle<JSObject> object) {
   if (activated_ && AllocationSite::CanTrack(object->map()->instance_type())) {
     if (v8_flags.allocation_site_pretenuring ||
         AllocationSite::ShouldTrack(object->GetElementsKind())) {

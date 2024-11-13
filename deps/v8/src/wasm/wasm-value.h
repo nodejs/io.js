@@ -10,68 +10,15 @@
 #define V8_WASM_WASM_VALUE_H_
 
 #include "src/base/memory.h"
+#include "src/common/simd128.h"
 #include "src/handles/handles.h"
 #include "src/utils/boxed-float.h"
 #include "src/wasm/value-type.h"
+#include "third_party/fp16/src/include/fp16.h"
 
 namespace v8 {
 namespace internal {
 namespace wasm {
-
-#define FOREACH_SIMD_TYPE(V)  \
-  V(double, float2, f64x2, 2) \
-  V(float, float4, f32x4, 4)  \
-  V(int64_t, int2, i64x2, 2)  \
-  V(int32_t, int4, i32x4, 4)  \
-  V(int16_t, int8, i16x8, 8)  \
-  V(int8_t, int16, i8x16, 16)
-
-#define DEFINE_SIMD_TYPE(cType, sType, name, kSize) \
-  struct sType {                                    \
-    cType val[kSize];                               \
-  };
-FOREACH_SIMD_TYPE(DEFINE_SIMD_TYPE)
-#undef DEFINE_SIMD_TYPE
-
-class Simd128 {
- public:
-  Simd128() = default;
-
-#define DEFINE_SIMD_TYPE_SPECIFIC_METHODS(cType, sType, name, size)          \
-  explicit Simd128(sType val) {                                              \
-    base::WriteUnalignedValue<sType>(reinterpret_cast<Address>(val_), val);  \
-  }                                                                          \
-  sType to_##name() const {                                                  \
-    return base::ReadUnalignedValue<sType>(reinterpret_cast<Address>(val_)); \
-  }
-  FOREACH_SIMD_TYPE(DEFINE_SIMD_TYPE_SPECIFIC_METHODS)
-#undef DEFINE_SIMD_TYPE_SPECIFIC_METHODS
-
-  explicit Simd128(uint8_t* bytes) {
-    memcpy(static_cast<void*>(val_), reinterpret_cast<void*>(bytes),
-           kSimd128Size);
-  }
-
-  bool operator==(const Simd128& other) const noexcept {
-    return memcmp(val_, other.val_, sizeof val_) == 0;
-  }
-
-  const uint8_t* bytes() { return val_; }
-
-  template <typename T>
-  inline T to() const;
-
- private:
-  uint8_t val_[16] = {0};
-};
-
-#define DECLARE_CAST(cType, sType, name, size) \
-  template <>                                  \
-  inline sType Simd128::to() const {           \
-    return to_##name();                        \
-  }
-FOREACH_SIMD_TYPE(DECLARE_CAST)
-#undef DECLARE_CAST
 
 // Macro for defining WasmValue methods for different types.
 // Elements:
@@ -85,6 +32,7 @@ FOREACH_SIMD_TYPE(DECLARE_CAST)
   V(u32, kWasmI32, uint32_t)              \
   V(i64, kWasmI64, int64_t)               \
   V(u64, kWasmI64, uint64_t)              \
+  V(f16, kWasmF16, uint16_t)              \
   V(f32, kWasmF32, float)                 \
   V(f32_boxed, kWasmF32, Float32)         \
   V(f64, kWasmF64, double)                \
@@ -190,6 +138,8 @@ class WasmValue {
         return std::to_string(to_i32());
       case kI64:
         return std::to_string(to_i64());
+      case kF16:
+        return std::to_string(fp16_ieee_to_fp32_value(to_f16()));
       case kF32:
         return std::to_string(to_f32());
       case kF64:

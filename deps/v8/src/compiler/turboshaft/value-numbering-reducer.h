@@ -115,7 +115,7 @@ class ValueNumberingReducer : public Next {
 
   template <typename Op>
   static constexpr bool CanBeGVNed() {
-    constexpr Opcode opcode = operation_to_opcode_map<Op>::value;
+    constexpr Opcode opcode = operation_to_opcode_v<Op>;
     /* Throwing operations have a non-trivial lowering, so they don't work
      * with value numbering. */
     if constexpr (MayThrow(opcode)) return false;

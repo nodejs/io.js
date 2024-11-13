@@ -34,7 +34,7 @@ const server = http.createServer(common.mustCall((req, res) => {
   res.writeHead(200);
   res.write('foo');
 
-  complete = complete || function() {
+  complete ??= function() {
     res.end();
   };
 }));

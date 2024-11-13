@@ -16,6 +16,9 @@
 #   define NOMCX
 #include <windows.h>
 #include <time.h>
+#   if defined(__clang__)
+#       include <exception>
+#   endif
 #   ifdef __GNUC__
 #       define WINDOWS_WITH_GNUC
 #   endif
@@ -292,6 +295,11 @@ checkAssemblyHeaderName(const char* optAssembly) {
     }
 
     return false;
+}
+
+U_CAPI UBool U_EXPORT2
+checkCpuArchitecture(const char* optCpuArch) {
+    return strcmp(optCpuArch, "x64") == 0 || strcmp(optCpuArch, "x86") == 0 || strcmp(optCpuArch, "arm64") == 0;
 }
 
 
@@ -598,7 +606,7 @@ write32(FileStream *out, uint32_t bitField, uint32_t column) {
     int32_t i;
     char bitFieldStr[64]; /* This is more bits than needed for a 32-bit number */
     char *s = bitFieldStr;
-    uint8_t *ptrIdx = (uint8_t *)&bitField;
+    uint8_t* ptrIdx = reinterpret_cast<uint8_t*>(&bitField);
     static const char hexToStr[16] = {
         '0','1','2','3',
         '4','5','6','7',
@@ -665,14 +673,14 @@ write8(FileStream *out, uint8_t byte, uint32_t column) {
 
     /* convert the byte value to a string */
     if(byte>=100) {
-        s[i++]=(char)('0'+byte/100);
+        s[i++] = static_cast<char>('0' + byte / 100);
         byte%=100;
     }
     if(i>0 || byte>=10) {
-        s[i++]=(char)('0'+byte/10);
+        s[i++] = static_cast<char>('0' + byte / 10);
         byte%=10;
     }
-    s[i++]=(char)('0'+byte);
+    s[i++] = static_cast<char>('0' + byte);
     s[i]=0;
 
     /* write the value, possibly with comma and newline */
@@ -799,7 +807,12 @@ getOutFilename(
 
 #ifdef CAN_GENERATE_OBJECTS
 static void
-getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char *optMatchArch) {
+getArchitecture(
+    uint16_t *pCPU,
+    uint16_t *pBits,
+    UBool *pIsBigEndian,
+    const char *optMatchArch,
+    [[maybe_unused]] const char *optCpuArch) {
     union {
         char        bytes[2048];
 #ifdef U_ELF
@@ -830,7 +843,7 @@ getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char
         /* set EM_386 because elf.h does not provide better defaults */
         *pCPU=EM_386;
         *pBits=32;
-        *pIsBigEndian=(UBool)(U_IS_BIG_ENDIAN ? ELFDATA2MSB : ELFDATA2LSB);
+        *pIsBigEndian = static_cast<UBool>(U_IS_BIG_ENDIAN ? ELFDATA2MSB : ELFDATA2LSB);
 #elif U_PLATFORM_HAS_WIN32_API
         // Windows always runs in little-endian mode.
         *pIsBigEndian = false;
@@ -847,7 +860,25 @@ getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char
 #   if defined(_M_IX86)
         *pCPU = IMAGE_FILE_MACHINE_I386;
 #   else
-        *pCPU = IMAGE_FILE_MACHINE_UNKNOWN;
+        // Linker for ClangCL doesn't handle IMAGE_FILE_MACHINE_UNKNOWN the same as
+        // linker for MSVC. Because of this optCpuArch is used to define the CPU
+        // architecture in that case. While _M_AMD64 and _M_ARM64 could be used,
+        // this would potentially be problematic when cross-compiling as this code
+        // would most likely be ran on host machine to generate the .obj file for
+        // the target architecture.
+#       if defined(__clang__)
+            if (strcmp(optCpuArch, "x64") == 0) {
+                *pCPU = IMAGE_FILE_MACHINE_AMD64;
+            } else if (strcmp(optCpuArch, "x86") == 0) {
+                *pCPU = IMAGE_FILE_MACHINE_I386;
+            } else if (strcmp(optCpuArch, "arm64") == 0) {
+                *pCPU = IMAGE_FILE_MACHINE_ARM64;
+            } else {
+                std::terminate(); // Unreachable.
+            }
+#       else
+            *pCPU = IMAGE_FILE_MACHINE_UNKNOWN;
+#       endif
 #   endif
 #   if defined(_M_IA64) || defined(_M_AMD64) || defined (_M_ARM64)
         *pBits = 64; // Doesn't seem to be used for anything interesting though?
@@ -870,7 +901,7 @@ getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char
     length=T_FileStream_read(in, buffer.bytes, sizeof(buffer.bytes));
 
 #ifdef U_ELF
-    if(length<(int32_t)sizeof(Elf32_Ehdr)) {
+    if (length < static_cast<int32_t>(sizeof(Elf32_Ehdr))) {
         fprintf(stderr, "genccode: match-arch file %s is too short\n", filename);
         exit(U_UNSUPPORTED_ERROR);
     }
@@ -898,7 +929,7 @@ getArchitecture(uint16_t *pCPU, uint16_t *pBits, UBool *pIsBigEndian, const char
     }
 #endif
 
-    *pIsBigEndian=(UBool)(buffer.header32.e_ident[EI_DATA]==ELFDATA2MSB);
+    *pIsBigEndian = static_cast<UBool>(buffer.header32.e_ident[EI_DATA] == ELFDATA2MSB);
     if(*pIsBigEndian!=U_IS_BIG_ENDIAN) {
         fprintf(stderr, "genccode: currently only same-endianness ELF formats are supported\n");
         exit(U_UNSUPPORTED_ERROR);
@@ -934,6 +965,7 @@ writeObjectCode(
         const char *destdir,
         const char *optEntryPoint,
         const char *optMatchArch,
+        const char *optCpuArch,
         const char *optFilename,
         char *outFilePath,
         size_t outFilePathCapacity,
@@ -1201,7 +1233,7 @@ writeObjectCode(
 #endif
 
     /* deal with options, files and the entry point name */
-    getArchitecture(&cpu, &bits, &makeBigEndian, optMatchArch);
+    getArchitecture(&cpu, &bits, &makeBigEndian, optMatchArch, optCpuArch);
     if (optMatchArch)
     {
         printf("genccode: --match-arch cpu=%hu bits=%hu big-endian=%d\n", cpu, bits, makeBigEndian);
@@ -1371,7 +1403,7 @@ writeObjectCode(
         if(length==0) {
             break;
         }
-        T_FileStream_write(out, buffer, (int32_t)length);
+        T_FileStream_write(out, buffer, length);
     }
 
 #if U_PLATFORM_HAS_WIN32_API

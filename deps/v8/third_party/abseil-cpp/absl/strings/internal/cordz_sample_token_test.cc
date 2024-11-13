@@ -81,11 +81,11 @@ TEST(CordzSampleTokenTest, IteratorEmpty) {
 
 TEST(CordzSampleTokenTest, Iterator) {
   TestCordData cord1, cord2, cord3;
-  CordzInfo::TrackCord(cord1.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord1.data, kTrackCordMethod, 1);
   CordzInfo* info1 = cord1.data.cordz_info();
-  CordzInfo::TrackCord(cord2.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord2.data, kTrackCordMethod, 1);
   CordzInfo* info2 = cord2.data.cordz_info();
-  CordzInfo::TrackCord(cord3.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord3.data, kTrackCordMethod, 1);
   CordzInfo* info3 = cord3.data.cordz_info();
 
   CordzSampleToken token;
@@ -105,21 +105,21 @@ TEST(CordzSampleTokenTest, IteratorEquality) {
   TestCordData cord1;
   TestCordData cord2;
   TestCordData cord3;
-  CordzInfo::TrackCord(cord1.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord1.data, kTrackCordMethod, 1);
   CordzInfo* info1 = cord1.data.cordz_info();
 
   CordzSampleToken token1;
   // lhs starts with the CordzInfo corresponding to cord1 at the head.
   CordzSampleToken::Iterator lhs = token1.begin();
 
-  CordzInfo::TrackCord(cord2.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord2.data, kTrackCordMethod, 1);
   CordzInfo* info2 = cord2.data.cordz_info();
 
   CordzSampleToken token2;
   // rhs starts with the CordzInfo corresponding to cord2 at the head.
   CordzSampleToken::Iterator rhs = token2.begin();
 
-  CordzInfo::TrackCord(cord3.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord3.data, kTrackCordMethod, 1);
   CordzInfo* info3 = cord3.data.cordz_info();
 
   // lhs is on cord1 while rhs is on cord2.
@@ -170,7 +170,7 @@ TEST(CordzSampleTokenTest, MultiThreaded) {
             cord.data.clear_cordz_info();
           } else {
             // 2) Track
-            CordzInfo::TrackCord(cord.data, kTrackCordMethod);
+            CordzInfo::TrackCord(cord.data, kTrackCordMethod, 1);
           }
         } else {
           std::unique_ptr<CordzSampleToken>& token = tokens[index];

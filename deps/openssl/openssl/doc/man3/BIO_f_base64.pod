@@ -21,25 +21,23 @@ any data read through it.
 
 Base64 BIOs do not support BIO_gets() or BIO_puts().
 
-For writing, output is by default divided to lines of length 64
-characters and there is always a newline at the end of output.
+For writing, by default output is divided to lines of length 64
+characters and there is a newline at the end of output.
+This behavior can be changed with B<BIO_FLAGS_BASE64_NO_NL> flag.
 
-For reading, first line should be at most 1024
-characters long. If it is longer then it is ignored completely.
-Other input lines can be of any length. There must be a newline
-at the end of input.
-
-This behavior can be changed with BIO_FLAGS_BASE64_NO_NL flag.
+For reading, first line should be at most 1024 bytes long including newline
+unless the flag B<BIO_FLAGS_BASE64_NO_NL> is set.
+Further input lines can be of any length (i.e., newlines may appear anywhere
+in the input) and a newline at the end of input is not needed.
 
 BIO_flush() on a base64 BIO that is being written through is
 used to signal that no more data is to be encoded: this is used
 to flush the final block through the BIO.
 
-The flag BIO_FLAGS_BASE64_NO_NL can be set with BIO_set_flags().
+The flag B<BIO_FLAGS_BASE64_NO_NL> can be set with BIO_set_flags().
 For writing, it causes all data to be written on one line without
 newline at the end.
-For reading, it expects the data to be all on one line (with or
-without a trailing newline).
+For reading, it removes all expectations on newlines in the input data.
 
 =head1 NOTES
 
@@ -85,6 +83,10 @@ data to standard output:
 
 =head1 BUGS
 
+On decoding, if the flag B<BIO_FLAGS_BASE64_NO_NL> is not set and
+the first 1024 bytes of input do not include a newline character
+the first two lines of input are ignored.
+
 The ambiguity of EOF in base64 encoded data can cause additional
 data following the base64 encoded block to be misinterpreted.
 
@@ -93,7 +95,7 @@ to reliably determine EOF (for example a MIME boundary).
 
 =head1 COPYRIGHT
 
-Copyright 2000-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

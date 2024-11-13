@@ -4,14 +4,15 @@
 
 #include "src/heap/cppgc/heap-growing.h"
 
+#include <optional>
+
 #include "include/cppgc/platform.h"
 #include "src/heap/cppgc/heap.h"
 #include "src/heap/cppgc/stats-collector.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace cppgc {
-namespace internal {
+namespace cppgc::internal {
 
 namespace {
 
@@ -42,9 +43,7 @@ class FakeGarbageCollector : public GarbageCollector {
   void set_override_stack_state(EmbedderStackState state) override {}
   void clear_overridden_stack_state() override {}
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  v8::base::Optional<int> UpdateAllocationTimeout() override {
-    return v8::base::nullopt;
-  }
+  std::optional<int> UpdateAllocationTimeout() override { return std::nullopt; }
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
  private:
@@ -63,7 +62,7 @@ class MockGarbageCollector : public GarbageCollector {
   MOCK_METHOD(void, set_override_stack_state, (EmbedderStackState), (override));
   MOCK_METHOD(void, clear_overridden_stack_state, (), (override));
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  MOCK_METHOD(v8::base::Optional<int>, UpdateAllocationTimeout, (), (override));
+  MOCK_METHOD(std::optional<int>, UpdateAllocationTimeout, (), (override));
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 };
 
@@ -184,5 +183,4 @@ TEST(HeapGrowingTest, IncrementalGCFinalized) {
   FakeAllocate(&stats_collector, StatsCollector::kAllocationThresholdBytes);
 }
 
-}  // namespace internal
-}  // namespace cppgc
+}  // namespace cppgc::internal

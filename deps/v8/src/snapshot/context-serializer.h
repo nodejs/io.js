@@ -7,6 +7,7 @@
 
 #include "src/objects/contexts.h"
 #include "src/snapshot/serializer.h"
+#include "src/snapshot/snapshot-source-sink.h"
 
 namespace v8 {
 namespace internal {
@@ -42,6 +43,10 @@ class V8_EXPORT_PRIVATE ContextSerializer : public Serializer {
                                          UserCallback user_callback,
                                          ApiObjectType api_obj);
 
+  // For JS API wrapper objects we serialize embedder-controled data for each
+  // object.
+  void SerializeApiWrapperFields(Handle<JSObject> js_object);
+
   StartupSerializer* startup_serializer_;
   SerializeEmbedderFieldsCallback serialize_embedder_fields_;
   // Indicates whether we only serialized hash tables that we can rehash.
@@ -51,6 +56,8 @@ class V8_EXPORT_PRIVATE ContextSerializer : public Serializer {
 
   // Used to store serialized data for embedder fields.
   SnapshotByteSink embedder_fields_sink_;
+  // Used to store serialized data for API wrappers.
+  SnapshotByteSink api_wrapper_sink_;
 };
 
 }  // namespace internal

@@ -31,13 +31,14 @@ class WasmValue;
 class ArrayList;
 class WasmFrame;
 class WasmInstanceObject;
+#if V8_ENABLE_DRUMBRAKE
+class WasmInterpreterEntryFrame;
+#endif  // V8_ENABLE_DRUMBRAKE
 class WasmModuleObject;
 class WasmTableObject;
 
 class WasmValueObject : public JSObject {
  public:
-  DECL_CAST(WasmValueObject)
-
   DECL_ACCESSORS(type, Tagged<String>)
   DECL_ACCESSORS(value, Tagged<Object>)
 
@@ -57,8 +58,9 @@ class WasmValueObject : public JSObject {
   static constexpr int kTypeIndex = 0;
   static constexpr int kValueIndex = 1;
 
-  static Handle<WasmValueObject> New(Isolate* isolate, Handle<String> type,
-                                     Handle<Object> value);
+  static Handle<WasmValueObject> New(Isolate* isolate,
+                                     DirectHandle<String> type,
+                                     DirectHandle<Object> value);
   static Handle<WasmValueObject> New(Isolate* isolate,
                                      const wasm::WasmValue& value,
                                      Handle<WasmModuleObject> module);
@@ -70,9 +72,14 @@ Handle<JSObject> GetWasmDebugProxy(WasmFrame* frame);
 
 std::unique_ptr<debug::ScopeIterator> GetWasmScopeIterator(WasmFrame* frame);
 
-Handle<String> GetWasmFunctionDebugName(Isolate* isolate,
-                                        Handle<WasmInstanceObject> instance,
-                                        uint32_t func_index);
+#if V8_ENABLE_DRUMBRAKE
+std::unique_ptr<debug::ScopeIterator> GetWasmInterpreterScopeIterator(
+    WasmInterpreterEntryFrame* frame);
+#endif  // V8_ENABLE_DRUMBRAKE
+
+Handle<String> GetWasmFunctionDebugName(
+    Isolate* isolate, DirectHandle<WasmTrustedInstanceData> instance_data,
+    uint32_t func_index);
 
 Handle<ArrayList> AddWasmInstanceObjectInternalProperties(
     Isolate* isolate, Handle<ArrayList> result,
@@ -80,10 +87,11 @@ Handle<ArrayList> AddWasmInstanceObjectInternalProperties(
 
 Handle<ArrayList> AddWasmModuleObjectInternalProperties(
     Isolate* isolate, Handle<ArrayList> result,
-    Handle<WasmModuleObject> module_object);
+    DirectHandle<WasmModuleObject> module_object);
 
 Handle<ArrayList> AddWasmTableObjectInternalProperties(
-    Isolate* isolate, Handle<ArrayList> result, Handle<WasmTableObject> table);
+    Isolate* isolate, Handle<ArrayList> result,
+    DirectHandle<WasmTableObject> table);
 
 }  // namespace internal
 }  // namespace v8

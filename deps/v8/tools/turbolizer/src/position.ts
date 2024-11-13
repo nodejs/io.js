@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import { TurboshaftGraphNode } from "./phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "./phases/turboshaft-graph-phase/turboshaft-graph-operation";
 
 export class InliningPosition {
   sourceId: number;
@@ -94,7 +94,7 @@ export class PositionsContainer {
     if (!nodes.includes(nodeIdentifier)) nodes.push(nodeIdentifier);
   }
 
-  public merge(nodes: Array<TurboshaftGraphNode>, replacements: Map<number, number>): void {
+  public merge(nodes: Array<TurboshaftGraphOperation>, replacements: Map<number, number>): void {
     for (const node of nodes) {
       const sourcePosition = node.sourcePosition;
       const bytecodePosition = node.bytecodePosition;

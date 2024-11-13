@@ -367,7 +367,7 @@ followed by I<X509_check_purpose(copied_cert, -1, 0)>,
 which re-builds the cached data.
 
 B<I<TYPE>_free>() releases the object and all pointers and sub-objects
-within it.
+within it. If the argument is NULL, nothing is done.
 
 B<I<TYPE>_print_ctx>() prints the object I<a> on the specified BIO I<out>.
 Each line will be prefixed with I<indent> spaces.

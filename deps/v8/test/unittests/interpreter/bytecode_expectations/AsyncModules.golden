@@ -11,31 +11,30 @@ top level: yes
 snippet: "
   await 42;
 "
-frame size: 6
+frame size: 5
 parameter count: 1
-bytecode array length: 112
+bytecode array length: 100
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(2),
                 B(Mov), R(this), R(3),
   /*    0 E> */ B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionEnter), R(2), U8(2),
                 B(Star0),
-  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(2), U8(0),
-                B(ResumeGenerator), R(0), R(0), U8(2),
-                B(Star2),
+                B(Mov), R(context), R(2),
+                B(Ldar), R(0),
+  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(3), U8(0),
+                B(ResumeGenerator), R(0), R(0), U8(3),
+                B(Star3),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
                 B(SwitchOnSmiNoFeedback), U8(2), U8(2), I8(0),
-                B(Ldar), R(2),
+                B(Ldar), R(3),
   /*    0 E> */ B(Throw),
-                B(Ldar), R(2),
+                B(Ldar), R(3),
                 B(Return),
-                B(Mov), R(2), R(1),
-                B(Ldar), R(1),
-                B(Mov), R(context), R(2),
   /*    0 S> */ B(LdaSmi), I8(42),
                 B(Star4),
                 B(Mov), R(0), R(3),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwaitUncaught), R(3), U8(2),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwait), R(3), U8(2),
   /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(3), U8(1),
                 B(ResumeGenerator), R(0), R(0), U8(3),
                 B(Star3),
@@ -46,67 +45,57 @@ bytecodes: [
                 B(JumpIfTrue), U8(5),
                 B(Ldar), R(3),
                 B(ReThrow),
-                B(LdaUndefined),
-                B(Star4),
+                B(Mov), R(3), R(1),
                 B(Mov), R(0), R(3),
+                B(Mov), R(1), R(4),
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionResolve), R(3), U8(2),
   /*   10 S> */ B(Return),
-                B(Star3),
-                B(CreateCatchContext), R(3), U8(4),
-                B(Star2),
-                B(LdaTheHole),
-                B(SetPendingMessage),
-                B(Ldar), R(2),
-                B(PushContext), R(3),
-                B(LdaImmutableCurrentContextSlot), U8(2),
-                B(Star5),
-                B(Mov), R(0), R(4),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(4), U8(2),
+                B(Star4),
+                B(Mov), R(0), R(3),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(3), U8(2),
                 B(Return),
 ]
 constant pool: [
-  Smi [20],
-  Smi [62],
+  Smi [25],
+  Smi [59],
   Smi [10],
   Smi [7],
-  SCOPE_INFO_TYPE,
 ]
 handlers: [
-  [47, 90, 90],
+  [18, 91, 91],
 ]
 
 ---
 snippet: "
   await import(\"foo\");
 "
-frame size: 6
+frame size: 5
 parameter count: 1
-bytecode array length: 121
+bytecode array length: 109
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(2),
                 B(Mov), R(this), R(3),
   /*    0 E> */ B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionEnter), R(2), U8(2),
                 B(Star0),
-  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(2), U8(0),
-                B(ResumeGenerator), R(0), R(0), U8(2),
-                B(Star2),
+                B(Mov), R(context), R(2),
+                B(Ldar), R(0),
+  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(3), U8(0),
+                B(ResumeGenerator), R(0), R(0), U8(3),
+                B(Star3),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
                 B(SwitchOnSmiNoFeedback), U8(2), U8(2), I8(0),
-                B(Ldar), R(2),
+                B(Ldar), R(3),
   /*    0 E> */ B(Throw),
-                B(Ldar), R(2),
+                B(Ldar), R(3),
                 B(Return),
-                B(Mov), R(2), R(1),
-                B(Ldar), R(1),
-                B(Mov), R(context), R(2),
   /*    0 S> */ B(LdaConstant), U8(4),
                 B(Star4),
                 B(Mov), R(closure), R(3),
                 B(CallRuntime), U16(Runtime::kDynamicImportCall), R(3), U8(2),
                 B(Star4),
                 B(Mov), R(0), R(3),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwaitUncaught), R(3), U8(2),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwait), R(3), U8(2),
   /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(3), U8(1),
                 B(ResumeGenerator), R(0), R(0), U8(3),
                 B(Star3),
@@ -117,34 +106,25 @@ bytecodes: [
                 B(JumpIfTrue), U8(5),
                 B(Ldar), R(3),
                 B(ReThrow),
-                B(LdaUndefined),
-                B(Star4),
+                B(Mov), R(3), R(1),
                 B(Mov), R(0), R(3),
+                B(Mov), R(1), R(4),
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionResolve), R(3), U8(2),
   /*   21 S> */ B(Return),
-                B(Star3),
-                B(CreateCatchContext), R(3), U8(5),
-                B(Star2),
-                B(LdaTheHole),
-                B(SetPendingMessage),
-                B(Ldar), R(2),
-                B(PushContext), R(3),
-                B(LdaImmutableCurrentContextSlot), U8(2),
-                B(Star5),
-                B(Mov), R(0), R(4),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(4), U8(2),
+                B(Star4),
+                B(Mov), R(0), R(3),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(3), U8(2),
                 B(Return),
 ]
 constant pool: [
-  Smi [20],
-  Smi [71],
+  Smi [25],
+  Smi [68],
   Smi [10],
   Smi [7],
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["foo"],
-  SCOPE_INFO_TYPE,
 ]
 handlers: [
-  [47, 99, 99],
+  [18, 100, 100],
 ]
 
 ---
@@ -155,9 +135,9 @@ snippet: "
   }
   foo();
 "
-frame size: 7
+frame size: 6
 parameter count: 1
-bytecode array length: 122
+bytecode array length: 106
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(3),
@@ -166,23 +146,21 @@ bytecodes: [
                 B(Star0),
                 B(CreateClosure), U8(2), U8(0), U8(0),
                 B(Star1),
+                B(Mov), R(context), R(3),
                 B(Ldar), R(0),
-  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(3), U8(0),
-                B(ResumeGenerator), R(0), R(0), U8(3),
-                B(Star3),
+  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(4), U8(0),
+                B(ResumeGenerator), R(0), R(0), U8(4),
+                B(Star4),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
                 B(SwitchOnSmiNoFeedback), U8(3), U8(2), I8(0),
-                B(Ldar), R(3),
+                B(Ldar), R(4),
   /*    0 E> */ B(Throw),
-                B(Ldar), R(3),
+                B(Ldar), R(4),
                 B(Return),
-                B(Mov), R(3), R(2),
-                B(Ldar), R(2),
-                B(Mov), R(context), R(3),
   /*    0 S> */ B(LdaSmi), I8(42),
                 B(Star5),
                 B(Mov), R(0), R(4),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwaitUncaught), R(4), U8(2),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwait), R(4), U8(2),
   /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(4), U8(1),
                 B(ResumeGenerator), R(0), R(0), U8(4),
                 B(Star4),
@@ -194,34 +172,25 @@ bytecodes: [
                 B(Ldar), R(4),
                 B(ReThrow),
   /*   47 S> */ B(CallUndefinedReceiver0), R(1), U8(0),
-                B(LdaUndefined),
-                B(Star5),
+                B(Star2),
                 B(Mov), R(0), R(4),
+                B(Mov), R(2), R(5),
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionResolve), R(4), U8(2),
   /*   54 S> */ B(Return),
-                B(Star4),
-                B(CreateCatchContext), R(4), U8(5),
-                B(Star3),
-                B(LdaTheHole),
-                B(SetPendingMessage),
-                B(Ldar), R(3),
-                B(PushContext), R(4),
-                B(LdaImmutableCurrentContextSlot), U8(2),
-                B(Star6),
-                B(Mov), R(0), R(5),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(5), U8(2),
+                B(Star5),
+                B(Mov), R(0), R(4),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(4), U8(2),
                 B(Return),
 ]
 constant pool: [
-  Smi [27],
-  Smi [69],
+  Smi [30],
+  Smi [64],
   SHARED_FUNCTION_INFO_TYPE,
   Smi [10],
   Smi [7],
-  SCOPE_INFO_TYPE,
 ]
 handlers: [
-  [54, 100, 100],
+  [23, 97, 97],
 ]
 
 ---
@@ -229,9 +198,9 @@ snippet: "
   import * as foo from \"bar\";
   await import(\"goo\");
 "
-frame size: 7
+frame size: 6
 parameter count: 1
-bytecode array length: 131
+bytecode array length: 117
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(3),
@@ -242,26 +211,24 @@ bytecodes: [
                 B(Star3),
                 B(CallRuntime), U16(Runtime::kGetModuleNamespace), R(3), U8(1),
                 B(Star1),
+                B(Mov), R(context), R(3),
                 B(Ldar), R(0),
-  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(3), U8(0),
-                B(ResumeGenerator), R(0), R(0), U8(3),
-                B(Star3),
+  /*    0 E> */ B(SuspendGenerator), R(0), R(0), U8(4), U8(0),
+                B(ResumeGenerator), R(0), R(0), U8(4),
+                B(Star4),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorGetResumeMode), R(0), U8(1),
                 B(SwitchOnSmiNoFeedback), U8(2), U8(2), I8(0),
-                B(Ldar), R(3),
+                B(Ldar), R(4),
   /*    0 E> */ B(Throw),
-                B(Ldar), R(3),
+                B(Ldar), R(4),
                 B(Return),
-                B(Mov), R(3), R(2),
-                B(Ldar), R(2),
-                B(Mov), R(context), R(3),
   /*   28 S> */ B(LdaConstant), U8(4),
                 B(Star5),
                 B(Mov), R(closure), R(4),
                 B(CallRuntime), U16(Runtime::kDynamicImportCall), R(4), U8(2),
                 B(Star5),
                 B(Mov), R(0), R(4),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwaitUncaught), R(4), U8(2),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionAwait), R(4), U8(2),
   /*   28 E> */ B(SuspendGenerator), R(0), R(0), U8(4), U8(1),
                 B(ResumeGenerator), R(0), R(0), U8(4),
                 B(Star4),
@@ -272,33 +239,24 @@ bytecodes: [
                 B(JumpIfTrue), U8(5),
                 B(Ldar), R(4),
                 B(ReThrow),
-                B(LdaUndefined),
-                B(Star5),
+                B(Mov), R(4), R(2),
                 B(Mov), R(0), R(4),
+                B(Mov), R(2), R(5),
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionResolve), R(4), U8(2),
   /*   49 S> */ B(Return),
-                B(Star4),
-                B(CreateCatchContext), R(4), U8(5),
-                B(Star3),
-                B(LdaTheHole),
-                B(SetPendingMessage),
-                B(Ldar), R(3),
-                B(PushContext), R(4),
-                B(LdaImmutableCurrentContextSlot), U8(2),
-                B(Star6),
-                B(Mov), R(0), R(5),
-                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(5), U8(2),
+                B(Star5),
+                B(Mov), R(0), R(4),
+                B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(4), U8(2),
                 B(Return),
 ]
 constant pool: [
-  Smi [30],
-  Smi [81],
+  Smi [33],
+  Smi [76],
   Smi [10],
   Smi [7],
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["goo"],
-  SCOPE_INFO_TYPE,
 ]
 handlers: [
-  [57, 109, 109],
+  [26, 108, 108],
 ]
 

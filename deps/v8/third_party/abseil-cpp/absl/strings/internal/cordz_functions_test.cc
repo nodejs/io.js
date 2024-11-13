@@ -47,9 +47,9 @@ TEST(CordzFunctionsTest, ShouldProfileDisable) {
 
   set_cordz_mean_interval(0);
   cordz_set_next_sample_for_testing(0);
-  EXPECT_FALSE(cordz_should_profile());
+  EXPECT_EQ(cordz_should_profile(), 0);
   // 1 << 16 is from kIntervalIfDisabled in cordz_functions.cc.
-  EXPECT_THAT(cordz_next_sample, Eq(1 << 16));
+  EXPECT_THAT(cordz_next_sample.next_sample, Eq(1 << 16));
 
   set_cordz_mean_interval(orig_sample_rate);
 }
@@ -59,8 +59,8 @@ TEST(CordzFunctionsTest, ShouldProfileAlways) {
 
   set_cordz_mean_interval(1);
   cordz_set_next_sample_for_testing(1);
-  EXPECT_TRUE(cordz_should_profile());
-  EXPECT_THAT(cordz_next_sample, Le(1));
+  EXPECT_GT(cordz_should_profile(), 0);
+  EXPECT_THAT(cordz_next_sample.next_sample, Le(1));
 
   set_cordz_mean_interval(orig_sample_rate);
 }
@@ -74,9 +74,7 @@ TEST(CordzFunctionsTest, DoesNotAlwaysSampleFirstCord) {
   do {
     ++tries;
     ASSERT_THAT(tries, Le(1000));
-    std::thread thread([&sampled] {
-      sampled = cordz_should_profile();
-    });
+    std::thread thread([&sampled] { sampled = cordz_should_profile() > 0; });
     thread.join();
   } while (sampled);
 }
@@ -94,7 +92,7 @@ TEST(CordzFunctionsTest, ShouldProfileRate) {
     // new value for next_sample each iteration.
     cordz_set_next_sample_for_testing(0);
     cordz_should_profile();
-    sum_of_intervals += cordz_next_sample;
+    sum_of_intervals += cordz_next_sample.next_sample;
   }
 
   // The sum of independent exponential variables is an Erlang distribution,

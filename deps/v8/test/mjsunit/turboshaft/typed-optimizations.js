@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Flags: --turboshaft --allow-natives-syntax
+// Flags: --turboshaft --allow-natives-syntax --turboshaft-typed-optimizations
 
 function add1(x) {
   let a = x ? 3 : 7;      // a = {3, 7}

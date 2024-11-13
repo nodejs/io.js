@@ -8,7 +8,6 @@ const {
   truncate,
   writeFile,
 } = require('fs/promises')
-const pMap = require('p-map')
 const contentPath = require('./content/path')
 const fsm = require('fs-minipass')
 const glob = require('./util/glob.js')
@@ -93,6 +92,7 @@ async function fixPerms (cache, opts) {
 //
 async function garbageCollect (cache, opts) {
   opts.log.silly('verify', 'garbage collecting content')
+  const { default: pMap } = await import('p-map')
   const indexStream = index.lsStream(cache)
   const liveContent = new Set()
   indexStream.on('data', (entry) => {
@@ -176,6 +176,7 @@ async function verifyContent (filepath, sri) {
 
 async function rebuildIndex (cache, opts) {
   opts.log.silly('verify', 'rebuilding index')
+  const { default: pMap } = await import('p-map')
   const entries = await index.ls(cache)
   const stats = {
     missingContent: 0,

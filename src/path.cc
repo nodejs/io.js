@@ -7,11 +7,11 @@
 namespace node {
 
 #ifdef _WIN32
-constexpr bool IsPathSeparator(char c) noexcept {
+constexpr bool IsPathSeparator(const char c) noexcept {
   return c == '\\' || c == '/';
 }
 #else   // POSIX
-constexpr bool IsPathSeparator(char c) noexcept {
+constexpr bool IsPathSeparator(const char c) noexcept {
   return c == '/';
 }
 #endif  // _WIN32
@@ -170,9 +170,16 @@ std::string PathResolve(Environment* env,
               j++;
             }
             if (j == len || j != last) {
-              // We matched a UNC root
-              device = "\\\\" + firstPart + "\\" + path.substr(last, j - last);
-              rootEnd = j;
+              if (firstPart != "." && firstPart != "?") {
+                // We matched a UNC root
+                device =
+                    "\\\\" + firstPart + "\\" + path.substr(last, j - last);
+                rootEnd = j;
+              } else {
+                // We matched a device root (e.g. \\\\.\\PHYSICALDRIVE0)
+                device = "\\\\" + firstPart;
+                rootEnd = 4;
+              }
             }
           }
         }

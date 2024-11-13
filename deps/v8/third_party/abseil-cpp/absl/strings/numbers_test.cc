@@ -231,15 +231,10 @@ TEST(Numbers, TestFastPrints) {
   CheckInt32(INT_MIN);
   CheckInt32(INT_MAX);
   CheckInt64(LONG_MIN);
-  CheckInt64(uint64_t{10000000});
-  CheckInt64(uint64_t{100000000});
   CheckInt64(uint64_t{1000000000});
   CheckInt64(uint64_t{9999999999});
   CheckInt64(uint64_t{100000000000000});
   CheckInt64(uint64_t{999999999999999});
-  CheckInt64(uint64_t{1000000000000000});
-  CheckInt64(uint64_t{10000000000000000});
-  CheckInt64(uint64_t{100000000000000000});
   CheckInt64(uint64_t{1000000000000000000});
   CheckInt64(uint64_t{1199999999999999999});
   CheckInt64(int64_t{-700000000000000000});
@@ -251,8 +246,6 @@ TEST(Numbers, TestFastPrints) {
   CheckUInt64(uint64_t{999999999999999});
   CheckUInt64(uint64_t{1000000000000000000});
   CheckUInt64(uint64_t{1199999999999999999});
-  CheckUInt64(uint64_t{10000000000000000000u});
-  CheckUInt64(uint64_t{10200300040000500006u});
   CheckUInt64(std::numeric_limits<uint64_t>::max());
 
   for (int i = 0; i < 10000; i++) {
