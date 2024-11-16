@@ -135,15 +135,8 @@ Relative paths are NOT yet supported by the CLI flag.
 The initializer module also needs to be allowed. Consider the following example:
 .Bd -literal
 $ node --experimental-permission t.js
-node:internal/modules/cjs/loader:162
-  const result = internalModuleStat(receiver, filename);
-                 ^
 
 Error: Access to this API has been restricted
-    at stat (node:internal/modules/cjs/loader:162:18)
-    at Module._findPath (node:internal/modules/cjs/loader:640:16)
-    at resolveMainPath (node:internal/modules/run_main:15:25)
-    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:53:24)
     at node:internal/main/run_main_module:23:47 {
   code: 'ERR_ACCESS_DENIED',
   permission: 'FileSystemRead',
@@ -190,18 +183,8 @@ new WASI({
 .Ed
 .Bd -literal
 $ node --experimental-permission --allow-fs-read=* index.js
-node:wasi:99
-    const wrap = new _WASI(args, env, preopens, stdio);
-                 ^
 
 Error: Access to this API has been restricted
-    at new WASI (node:wasi:99:18)
-    at Object.<anonymous> (/home/index.js:3:1)
-    at Module._compile (node:internal/modules/cjs/loader:1476:14)
-    at Module._extensions..js (node:internal/modules/cjs/loader:1555:10)
-    at Module.load (node:internal/modules/cjs/loader:1288:32)
-    at Module._load (node:internal/modules/cjs/loader:1104:12)
-    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:191:14)
     at node:internal/main/run_main_module:30:49 {
   code: 'ERR_ACCESS_DENIED',
   permission: 'WASI',
@@ -221,18 +204,8 @@ new Worker(__filename);
 .Ed
 .Bd -literal
 $ node --experimental-permission --allow-fs-read=* index.js
-node:internal/worker:188
-    this[kHandle] = new WorkerImpl(url,
-                    ^
 
 Error: Access to this API has been restricted
-    at new Worker (node:internal/worker:188:21)
-    at Object.<anonymous> (/home/index.js.js:3:1)
-    at Module._compile (node:internal/modules/cjs/loader:1120:14)
-    at Module._extensions..js (node:internal/modules/cjs/loader:1174:10)
-    at Module.load (node:internal/modules/cjs/loader:998:32)
-    at Module._load (node:internal/modules/cjs/loader:839:12)
-    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:81:12)
     at node:internal/main/run_main_module:17:47 {
   code: 'ERR_ACCESS_DENIED',
   permission: 'WorkerThreads'
@@ -552,14 +525,6 @@ and \fB"\fR are usable.
 It is possible to run code containing inline types by passing
 \fB--experimental-strip-types\fR.
 .
-.It Fl -experimental-async-context-frame
-Enables the use of \fBAsyncLocalStorage\fR backed by \fBAsyncContextFrame\fR rather
-than the default implementation which relies on async_hooks. This new model is
-implemented very differently and so could have differences in how context data
-flows within the application. As such, it is presently recommended to be sure
-your application behaviour is unaffected by this change before using it in
-production.
-.
 .It Fl -experimental-default-type Ns = Ns Ar type
 Define which module system, \fBmodule\fR or \fBcommonjs\fR, to use for the following:
 .Bl -bullet
@@ -817,7 +782,7 @@ Allow spaces to be present after a chunk size and before \fB\\r\\n\fR.
 All the above will expose your application to request smuggling
 or poisoning attack. Avoid using this option.
 .
-.It Fl -inspect[ Ns = Ns Ar [host:]port
+.It Fl -inspect Ns = Ns Ar [[host:]port]
 Activate inspector on \fBhost:port\fR. Default is \fB127.0.0.1:9229\fR. If port \fB0\fR is
 specified, a random available port will be used.
 V8 inspector integration allows tools such as Chrome DevTools and IDEs to debug
@@ -825,7 +790,7 @@ and profile Node.js instances. The tools attach to Node.js instances via a
 tcp port and communicate using the Chrome DevTools Protocol.
 See V8 Inspector integration for Node.js for further explanation on Node.js debugger.
 .
-.It Fl -inspect-brk[ Ns = Ns Ar [host:]port
+.It Fl -inspect-brk Ns = Ns Ar [[host:]port]
 Activate inspector on \fBhost:port\fR and break at start of user script.
 Default \fBhost:port\fR is \fB127.0.0.1:9229\fR. If port \fB0\fR is specified,
 a random available port will be used.
@@ -844,7 +809,7 @@ Specify ways of the inspector web socket url exposure.
 By default inspector websocket url is available in stderr and under \fB/json/list\fR
 endpoint on \fBhttp://host:port/json/list\fR.
 .
-.It Fl -inspect-wait[ Ns = Ns Ar [host:]port
+.It Fl -inspect-wait Ns = Ns Ar [[host:]port]
 Activate inspector on \fBhost:port\fR and wait for debugger to be attached.
 Default \fBhost:port\fR is \fB127.0.0.1:9229\fR. If port \fB0\fR is specified,
 a random available port will be used.
@@ -878,6 +843,12 @@ For more information, see \fBnet.getDefaultAutoSelectFamilyAttemptTimeout()\fR.
 Disable the \fBnode-addons\fR exports condition as well as disable loading
 native addons. When \fB--no-addons\fR is specified, calling \fBprocess.dlopen\fR or
 requiring a native C++ addon will fail and throw an exception.
+.
+.It Fl -no-async-context-frame
+Disables the use of \fBAsyncLocalStorage\fR backed by \fBAsyncContextFrame\fR and
+uses the prior implementation which relied on async_hooks. The previous model
+is retained for compatibility with Electron and for cases where the context
+flow may differ. However, if a difference in flow is found please report it.
 .
 .It Fl -no-deprecation
 Silence deprecation warnings.
@@ -1026,6 +997,14 @@ human consumption.
 .It Fl -report-dir Ns = Ns Ar directory , Fl eport-directory Ns = Ns Ar directory
 Location at which the report will be generated.
 .
+.It Fl -report-exclude-env
+When \fB--report-exclude-env\fR is passed the diagnostic report generated will not
+contain the \fBenvironmentVariables\fR data.
+.
+.It Fl -report-exclude-network
+Exclude \fBheader.networkInterfaces\fR from the diagnostic report. By default
+this is not set and the network interfaces are included.
+.
 .It Fl -report-filename Ns = Ns Ar filename
 Name of the file to which the report will be written.
 If the filename is set to \fB'stdout'\fR or \fB'stderr'\fR, the report is written to
@@ -1051,10 +1030,6 @@ Default signal is \fBSIGUSR2\fR.
 Enables report to be generated when the process exits due to an uncaught
 exception. Useful when inspecting the JavaScript stack in conjunction with
 native stack and other runtime environment data.
-.
-.It Fl -report-exclude-network
-Exclude \fBheader.networkInterfaces\fR from the diagnostic report. By default
-this is not set and the network interfaces are included.
 .
 .It Fl r , Fl -require Ar module
 Preload the specified module at startup.
@@ -1528,8 +1503,6 @@ one is included in the list below.
 .It
 \fB--experimental-abortcontroller\fR
 .It
-\fB--experimental-async-context-frame\fR
-.It
 \fB--experimental-default-type\fR
 .It
 \fB--experimental-detect-module\fR
@@ -1620,6 +1593,8 @@ one is included in the list below.
 .It
 \fB--no-addons\fR
 .It
+\fB--no-async-context-frame\fR
+.It
 \fB--no-deprecation\fR
 .It
 \fB--no-experimental-global-navigator\fR
@@ -1659,6 +1634,8 @@ one is included in the list below.
 \fB--report-compact\fR
 .It
 \fB--report-dir\fR, \fB--report-directory\fR
+.It
+\fB--report-exclude-env\fR
 .It
 \fB--report-exclude-network\fR
 .It
@@ -1911,8 +1888,10 @@ reason any of these APIs takes a long time, other (seemingly unrelated) APIs
 that run in libuv's threadpool will experience degraded performance. In order to
 mitigate this issue, one potential solution is to increase the size of libuv's
 threadpool by setting the \fB'UV_THREADPOOL_SIZE'\fR environment variable to a value
-greater than \fB4\fR (its current default value). For more information, see the
-libuv threadpool documentation.
+greater than \fB4\fR (its current default value). However, setting this from inside
+the process using \fBprocess.env.UV_THREADPOOL_SIZE=size\fR is not guranteed to work
+as the threadpool would have been created as part of the runtime initialisation
+much before user code is run. For more information, see the libuv threadpool documentation.
 .
 
 .El
