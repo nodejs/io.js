@@ -5,7 +5,7 @@ const assert = require('assert');
 const http = require('http');
 const { kHighWaterMark } = require('_http_outgoing');
 
-const { getDefaultHighWaterMark } = require('internal/streams/state');
+const { setDefaultHighWaterMark } = require('internal/streams/state');
 
 function listen(server) {
   server.listen(0, common.mustCall(() => {
@@ -20,28 +20,44 @@ function listen(server) {
   }));
 }
 
+// Test `options.highWaterMark` fails if less than zero.
 {
+  assert.throws(() => {
+    http.createServer({
+      highWaterMark: -1,
+    });
+  }, { code: 'ERR_OUT_OF_RANGE' });
+}
+
+// Test socket watermark is set with the value in `options.highWaterMark`.
+{
+  const waterMarkValue = 17000;
+  const serverWaterMarkValue = 14000;
   const server = http.createServer({
-    highWaterMark: getDefaultHighWaterMark() * 2,
+    highWaterMark: serverWaterMarkValue,
   }, common.mustCall((req, res) => {
-    assert.strictEqual(req._readableState.highWaterMark, getDefaultHighWaterMark() * 2);
-    assert.strictEqual(res[kHighWaterMark], getDefaultHighWaterMark() * 2);
+    assert.strictEqual(req._readableState.highWaterMark, serverWaterMarkValue);
+    assert.strictEqual(res[kHighWaterMark], serverWaterMarkValue);
     res.statusCode = 200;
     res.end();
   }));
 
+  setDefaultHighWaterMark(false, waterMarkValue);
   listen(server);
 }
 
+// Test socket watermark is the default if `highWaterMark` in `options` is unset.
 {
+  const waterMarkValue = 13000;
   const server = http.createServer(
     common.mustCall((req, res) => {
-      assert.strictEqual(req._readableState.highWaterMark, getDefaultHighWaterMark());
-      assert.strictEqual(res[kHighWaterMark], getDefaultHighWaterMark());
+      assert.strictEqual(req._readableState.highWaterMark, waterMarkValue);
+      assert.strictEqual(res[kHighWaterMark], waterMarkValue);
       res.statusCode = 200;
       res.end();
     })
   );
 
+  setDefaultHighWaterMark(false, waterMarkValue);
   listen(server);
 }

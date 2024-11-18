@@ -3525,7 +3525,8 @@ changes:
   * `highWaterMark` {number} Optionally overrides all `socket`s'
     `readableHighWaterMark` and `writableHighWaterMark`. This affects
     `highWaterMark` property of both `IncomingMessage` and `ServerResponse`.
-    **Default:** See [`stream.getDefaultHighWaterMark()`][].
+    **Default:** `undefined`. Sockets will use the default watermark value
+    at the time the request arrives. See [`stream.getDefaultHighWaterMark()`][].
   * `insecureHTTPParser` {boolean} If set to `true`, it will use a HTTP parser
     with leniency flags enabled. Using the insecure parser should be avoided.
     See [`--insecure-http-parser`][] for more information.
