@@ -3,6 +3,7 @@
   "description": "markdown linting",
   "version": "1.0.0",
   "dependencies": {
+    "@node-core/api-docs-tooling": "github:nodejs/api-docs-tooling#bbf44c4a39752d1c7d75784d1ac940dab9ca8a96",
     "remark-parse": "^11.0.0",
     "remark-preset-lint-node": "^5.1.2",
     "remark-stringify": "^11.0.0",

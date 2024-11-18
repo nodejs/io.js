@@ -22,21 +22,11 @@ const addOptionRE = /AddOption[\s\n\r]*\([\s\n\r]*"([^"]+)"(.*?)\);/gs;
 const nodeOptionsText = cliText.match(/<!-- node-options-node start -->(.*)<!-- node-options-others end -->/s)[1];
 const v8OptionsText = cliText.match(/<!-- v8-options start -->(.*)<!-- v8-options end -->/s)[1];
 
-const manPage = path.join(rootDir, 'doc', 'node.1');
-const manPageText = fs.readFileSync(manPage, { encoding: 'utf8' });
-
 // Documented in /doc/api/deprecations.md
 const deprecated = [
   '--debug',
   '--debug-brk',
 ];
-
-
-const manPagesOptions = new Set();
-
-for (const [, envVar] of manPageText.matchAll(/\.It Fl (-[a-zA-Z0-9._-]+)/g)) {
-  manPagesOptions.add(envVar);
-}
 
 for (const [, envVar, config] of nodeOptionsCC.matchAll(addOptionRE)) {
   let hasTrueAsDefaultValue = false;
@@ -68,14 +58,11 @@ for (const [, envVar, config] of nodeOptionsCC.matchAll(addOptionRE)) {
     deprecated.includes(envVar) ||
     isNoOp
   ) {
-    // assert(!manPagesOptions.has(envVar.slice(1)), `Option ${envVar} should not be documented`)
-    manPagesOptions.delete(envVar.slice(1));
     continue;
   }
 
   // Internal API options are documented in /doc/contributing/internal-api.md
   if (new RegExp(`####.*\`${envVar}[[=\\s\\b\`]`).test(internalApiText) === true) {
-    manPagesOptions.delete(envVar.slice(1));
     continue;
   }
 
@@ -83,8 +70,6 @@ for (const [, envVar, config] of nodeOptionsCC.matchAll(addOptionRE)) {
   if (!isV8Option && !hasTrueAsDefaultValue) {
     if (new RegExp(`###.*\`${envVar}[[=\\s\\b\`]`).test(cliText) === false) {
       assert(false, `Should have option ${envVar} documented`);
-    } else {
-      manPagesOptions.delete(envVar.slice(1));
     }
   }
 
@@ -95,8 +80,6 @@ for (const [, envVar, config] of nodeOptionsCC.matchAll(addOptionRE)) {
   if (!isV8Option && hasTrueAsDefaultValue) {
     if (new RegExp(`###.*\`--no${envVar.slice(1)}[[=\\s\\b\`]`).test(cliText) === false) {
       assert(false, `Should have option --no${envVar.slice(1)} documented`);
-    } else {
-      manPagesOptions.delete(`-no${envVar.slice(1)}`);
     }
   }
 
@@ -117,13 +100,6 @@ for (const [, envVar, config] of nodeOptionsCC.matchAll(addOptionRE)) {
   if (isV8Option) {
     if (new RegExp(`###.*\`${envVar}[[=\\s\\b\`]`).test(v8OptionsText) === false) {
       assert(false, `Should have option ${envVar} in V8 options documented`);
-    } else {
-      manPagesOptions.delete(envVar.slice(1));
     }
   }
 }
-
-// add alias handling
-manPagesOptions.delete('-trace-events-enabled');
-
-assert.strictEqual(manPagesOptions.size, 0, `Man page options not documented: ${[...manPagesOptions]}`);
