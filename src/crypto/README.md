@@ -33,6 +33,7 @@ following table:
 | File (\*.h/\*.cc)    | Description                                                                |
 | -------------------- | -------------------------------------------------------------------------- |
 | `crypto_aes`         | AES Cipher support.                                                        |
+| `crypto_argon2`      | Argon2 key / bit generation implementation.                                |
 | `crypto_cipher`      | General Encryption/Decryption utilities.                                   |
 | `crypto_clienthello` | TLS/SSL client hello parser implementation. Used during SSL/TLS handshake. |
 | `crypto_context`     | Implementation of the `SecureContext` object.                              |

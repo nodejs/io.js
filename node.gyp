@@ -317,6 +317,7 @@
     ],
     'node_crypto_sources': [
       'src/crypto/crypto_aes.cc',
+      'src/crypto/crypto_argon2.cc',
       'src/crypto/crypto_bio.cc',
       'src/crypto/crypto_common.cc',
       'src/crypto/crypto_dsa.cc',
@@ -340,6 +341,7 @@
       'src/crypto/crypto_scrypt.cc',
       'src/crypto/crypto_tls.cc',
       'src/crypto/crypto_x509.cc',
+      'src/crypto/crypto_argon2.h',
       'src/crypto/crypto_bio.h',
       'src/crypto/crypto_clienthello-inl.h',
       'src/crypto/crypto_dh.h',
@@ -961,11 +963,11 @@
           'variables': {
             'mkssldef_flags': [
               # Categories to export.
-              '-CAES,BF,BIO,DES,DH,DSA,EC,ECDH,ECDSA,ENGINE,EVP,HMAC,MD4,MD5,'
-              'PSK,RC2,RC4,RSA,SHA,SHA0,SHA1,SHA256,SHA512,SOCK,STDIO,TLSEXT,'
-              'UI,FP_API,TLS1_METHOD,TLS1_1_METHOD,TLS1_2_METHOD,SCRYPT,OCSP,'
-              'NEXTPROTONEG,RMD160,CAST,DEPRECATEDIN_1_1_0,DEPRECATEDIN_1_2_0,'
-              'DEPRECATEDIN_3_0',
+              '-CAES,ARGON2,BF,BIO,DES,DH,DSA,EC,ECDH,ECDSA,ENGINE,EVP,HMAC,'
+              'MD4,MD5,PSK,RC2,RC4,RSA,SHA,SHA0,SHA1,SHA256,SHA512,SOCK,STDIO,'
+              'TLSEXT,UI,FP_API,TLS1_METHOD,TLS1_1_METHOD,TLS1_2_METHOD,'
+              'SCRYPT,OCSP,NEXTPROTONEG,RMD160,CAST,DEPRECATEDIN_1_1_0,'
+              'DEPRECATEDIN_1_2_0,DEPRECATEDIN_3_0',
               # Defines.
               '-DWIN32',
               # Symbols to filter from the export list.

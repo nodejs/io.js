@@ -62,6 +62,8 @@ using SSLPointer = ncrypto::SSLPointer;
 using PKCS8Pointer = ncrypto::PKCS8Pointer;
 using EVPKeyPointer = ncrypto::EVPKeyPointer;
 using EVPKeyCtxPointer = ncrypto::EVPKeyCtxPointer;
+using EVPKdfPointer = ncrypto::EVPKdfPointer;
+using EVPKdfCtxPointer = ncrypto::EVPKdfCtxPointer;
 using EVPMDCtxPointer = ncrypto::EVPMDCtxPointer;
 using RSAPointer = ncrypto::RSAPointer;
 using ECPointer = ncrypto::ECPointer;
@@ -77,6 +79,7 @@ using HMACCtxPointer = ncrypto::HMACCtxPointer;
 using CipherCtxPointer = ncrypto::CipherCtxPointer;
 using DsaPointer = ncrypto::DSAPointer;
 using DsaSigPointer = ncrypto::DSASigPointer;
+using OsslLibCtxPointer = ncrypto::OsslLibCtxPointer;
 
 using ClearErrorOnReturn = ncrypto::ClearErrorOnReturn;
 using MarkPopErrorOnReturn = ncrypto::MarkPopErrorOnReturn;
@@ -734,6 +737,14 @@ v8::Maybe<void> SetEncodedValue(Environment* env,
                                 int size = 0);
 
 bool SetRsaOaepLabel(const EVPKeyCtxPointer& rsa, const ByteSource& label);
+
+struct MaxThreadsScope final {
+  MaxThreadsScope(OSSL_LIB_CTX* ctx, uint64_t threads);
+  ~MaxThreadsScope();
+
+  OSSL_LIB_CTX* ctx;
+  bool success;
+};
 
 namespace Util {
 void Initialize(Environment* env, v8::Local<v8::Object> target);

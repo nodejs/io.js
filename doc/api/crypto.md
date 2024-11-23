@@ -2960,6 +2960,160 @@ is currently in use. Setting to true requires a FIPS build of Node.js.
 This property is deprecated. Please use `crypto.setFips()` and
 `crypto.getFips()` instead.
 
+### `crypto.argon2(password, salt, keylen[, options], callback)`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `password` {string|ArrayBuffer|Buffer|TypedArray|DataView}
+* `salt` {string|ArrayBuffer|Buffer|TypedArray|DataView}
+* `keylen` {number}
+* `options` {Object}
+  * `algorithm` {string} Variant of Argon2, one of "ARGON2D", "ARGON2I" or
+    "ARGON2ID". **Default:** `"ARGON2ID"`.
+  * `iter` {number} Number of iterations (passes). **Default:** `3`.
+  * `lanes` {number} Parallelization parameter (number of threads). **Default:** `4`.
+  * `memcost` {number} Memory cost in 1KiB blocks. **Default:** `65536`.
+  * `secret` {string|ArrayBuffer|Buffer|TypedArray|DataView} Random additional
+    input, similar to the salt, that should **NOT** be stored with the derived
+    key. Also known as a pepper.
+  * `ad` {string|ArrayBuffer|Buffer|TypedArray|DataView} Additional data to be
+    added to the hash, functionally equivalent to salt or secret, but meant for
+    non-random data.
+* `callback` {Function}
+  * `err` {Error}
+  * `derivedKey` {Buffer}
+
+Provides an asynchronous [argon2][] implementation. Argon2 is a password-based
+key derivation function that is designed to be expensive computationally and
+memory-wise in order to make brute-force attacks unrewarding.
+
+The `salt` should be as unique as possible. It is recommended that a salt is
+random and at least 16 bytes long. See [NIST SP 800-132][] for details.
+
+When passing strings for `password`, `salt`, `secret` or `ad`, please consider
+[caveats when using strings as inputs to cryptographic APIs][].
+
+The `callback` function is called with two arguments: `err` and `derivedKey`.
+`err` is an exception object when key derivation fails, otherwise `err` is
+`null`. `derivedKey` is passed to the callback as a [`Buffer`][].
+
+An exception is thrown when any of the input arguments specify invalid values
+or types.
+
+```mjs
+const {
+  argon2,
+  randomBytes,
+} = await import('node:crypto');
+
+const salt = randomBytes(16);
+// Using the factory defaults.
+argon2('password', salt, 64, (err, derivedKey) => {
+  if (err) throw err;
+  console.log(derivedKey.toString('hex'));  // '0de3036...22afcc5'
+});
+// Using a custom iter parameter.
+argon2('password', salt, 64, { iter: 3 }, (err, derivedKey) => {
+  if (err) throw err;
+  console.log(derivedKey.toString('hex'));  // '0de3036...22afcc5'
+});
+```
+
+```cjs
+const {
+  argon2,
+  randomBytes,
+} = require('node:crypto');
+
+// Using the factory defaults.
+randomBytes(16, (err, salt) => {
+  if (err) throw err;
+  argon2('password', salt, 64, (err, derivedKey) => {
+    if (err) throw err;
+    console.log(derivedKey.toString('hex'));  // '0de3036...22afcc5'
+  });
+});
+// Using a custom iter parameter.
+randomBytes(16, (err, salt) => {
+  if (err) throw err;
+  argon2('password', salt, 64, { iter: 3 }, (err, derivedKey) => {
+    if (err) throw err;
+    console.log(derivedKey.toString('hex'));  // '0de3036...22afcc5'
+  });
+});
+```
+
+### `crypto.argon2Sync(password, salt, keylen[, options])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `password` {string|Buffer|TypedArray|DataView}
+* `salt` {string|Buffer|TypedArray|DataView}
+* `keylen` {number}
+* `options` {Object}
+  * `algorithm` {string} Variant of Argon2, one of "ARGON2D", "ARGON2I" or
+    "ARGON2ID". **Default:** `"ARGON2ID"`.
+  * `iter` {number} Number of iterations (passes). **Default:** `3`.
+  * `lanes` {number} Parallelization parameter (number of threads). **Default:** `4`.
+  * `memcost` {number} Memory cost in 1KiB blocks. **Default:** `65536`.
+  * `secret` {string|Buffer|TypedArray|DataView} Random additional input,
+    similar to the salt, that should **NOT** be stored with the derived key.
+    Also known as a pepper.
+  * `ad` {string|Buffer|TypedArray|DataView} Additional data to be added to the
+    hash, functionally equivalent to salt or secret, but meant for non-random
+    data.
+* Returns: {Buffer}
+
+Provides a synchronous [argon2][] implementation. Argon2 is a password-based
+key derivation function that is designed to be expensive computationally and
+memory-wise in order to make brute-force attacks unrewarding.
+
+The `salt` should be as unique as possible. It is recommended that a salt is
+random and at least 16 bytes long. See [NIST SP 800-132][] for details.
+
+When passing strings for `password`, `salt`, `secret` or `ad`, please consider
+[caveats when using strings as inputs to cryptographic APIs][].
+
+An exception is thrown when key derivation fails, otherwise the derived key is
+returned as a [`Buffer`][].
+
+An exception is thrown when any of the input arguments specify invalid values
+or types.
+
+```mjs
+const {
+  argon2Sync,
+  randomBytes,
+} = await import('node:crypto');
+// Using the factory defaults.
+
+const salt = randomBytes(16);
+const key1 = argon2Sync('password', salt, 64);
+console.log(key1.toString('hex'));  // '3745e48...08d59ae'
+// Using a custom iter parameter.
+const key2 = argon2Sync('password', salt, 64, { iter: 3 });
+console.log(key2.toString('hex'));  // '3745e48...aa39b34'
+```
+
+```cjs
+const {
+  argon2Sync,
+  randomBytes,
+} = require('node:crypto');
+// Using the factory defaults.
+
+const salt = randomBytes(16);
+const key1 = argon2Sync('password', salt, 64);
+console.log(key1.toString('hex'));  // '3745e48...08d59ae'
+// Using a custom iter parameter.
+const key2 = argon2Sync('password', salt, 64, { iter: 3 });
+console.log(key2.toString('hex'));  // '3745e48...aa39b34'
+```
+
 ### `crypto.checkPrime(candidate[, options], callback)`
 
 <!-- YAML
@@ -6182,6 +6336,7 @@ See the [list of SSL OP Flags][] for details.
 [`verify.update()`]: #verifyupdatedata-inputencoding
 [`verify.verify()`]: #verifyverifyobject-signature-signatureencoding
 [`x509.fingerprint256`]: #x509fingerprint256
+[argon2]: https://en.wikipedia.org/wiki/Argon2
 [caveats when using strings as inputs to cryptographic APIs]: #using-strings-as-inputs-to-cryptographic-apis
 [certificate object]: tls.md#certificate-object
 [encoding]: buffer.md#buffers-and-character-encodings

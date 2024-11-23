@@ -29,6 +29,7 @@
 // remains for convenience for any code that still imports it. New
 // code should include the relevant src/crypto headers directly.
 #include "crypto/crypto_aes.h"
+#include "crypto/crypto_argon2.h"
 #include "crypto/crypto_bio.h"
 #include "crypto/crypto_cipher.h"
 #include "crypto/crypto_context.h"
