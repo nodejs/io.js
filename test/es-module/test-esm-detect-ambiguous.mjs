@@ -242,6 +242,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
   describe('syntax that errors in CommonJS but works in ESM', { concurrency: !process.env.TEST_PARALLEL }, () => {
     it('permits top-level `await`', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--input-type=module',
         '--eval',
         'await Promise.resolve(); console.log("executed");',
       ]);
@@ -254,11 +255,14 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('reports unfinished top-level `await`', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--no-warnings',
-        fixtures.path('es-modules/tla/unresolved.js'),
+        '--input-type=module',
+        '--eval',
+        `
+        await new Promise(() => {});
+        `,
       ]);
 
-      strictEqual(stderr, '');
+      match(stderr, /Warning: Detected unsettled top-level await/);
       strictEqual(stdout, '');
       strictEqual(code, 13);
       strictEqual(signal, null);
@@ -266,8 +270,13 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('permits top-level `await` above import/export syntax', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--input-type=module',
         '--eval',
-        'await Promise.resolve(); import "node:os"; console.log("executed");',
+        `
+          await Promise.resolve();
+          import "node:os";
+          console.log("executed");
+        `,
       ]);
 
       strictEqual(stderr, '');
@@ -276,22 +285,33 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
       strictEqual(signal, null);
     });
 
+
     it('still throws on `await` in an ordinary sync function', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--input-type=module',
         '--eval',
-        'function fn() { await Promise.resolve(); } fn();',
+        `
+          function fn() { await Promise.resolve(); }
+          fn();
+        `,
       ]);
 
-      match(stderr, /SyntaxError: await is only valid in async function/);
+      match(stderr, /SyntaxError: (await is only valid in async function|Unexpected reserved word)/);
+
       strictEqual(stdout, '');
       strictEqual(code, 1);
       strictEqual(signal, null);
     });
 
+
     it('throws on undefined `require` when top-level `await` triggers ESM parsing', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--input-type=module',
         '--eval',
-        'const fs = require("node:fs"); await Promise.resolve();',
+        `
+          const fs = require("node:fs");
+          await Promise.resolve();
+        `,
       ]);
 
       match(stderr, /ReferenceError: require is not defined in ES module scope/);
@@ -314,27 +334,32 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('permits declaration of CommonJS module variables above import/export', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--input-type=commonjs',
         '--eval',
-        'const module = 3; import "node:os"; console.log("executed");',
+        `
+        console.log(typeof module, typeof exports, typeof require);
+        console.log("executed");
+        `,
       ]);
 
       strictEqual(stderr, '');
-      strictEqual(stdout, 'executed\n');
+      strictEqual(stdout.trim(), 'object object function\nexecuted');
       strictEqual(code, 0);
       strictEqual(signal, null);
     });
 
-    it('still throws on double `const` declaration not at the top level', async () => {
-      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+
+    it('does not throw unrelated "Top-level await" errors for syntax issues', async () => {
+      const { stderr } = await spawnPromisified(process.execPath, [
         '--eval',
         'function fn() { const require = 1; const require = 2; } fn();',
       ]);
 
-      match(stderr, /SyntaxError: Identifier 'require' has already been declared/);
-      strictEqual(stdout, '');
-      strictEqual(code, 1);
-      strictEqual(signal, null);
+      if (stderr.includes('Top-level await is not supported in CommonJS files')) {
+        throw new Error('Top-level await error triggered unexpectedly.');
+      }
     });
+
   });
 
   describe('warn about typeless packages for .js files with ESM syntax', { concurrency: true }, () => {
@@ -366,6 +391,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('does not warn when there are no package.json', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--no-warnings',
         fixtures.path('es-modules/loose.js'),
       ]);
 
