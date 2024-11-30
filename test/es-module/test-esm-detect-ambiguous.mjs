@@ -333,7 +333,6 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('permits declaration of CommonJS module variables above import/export', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--input-type=commonjs',
         '--eval',
         `
         console.log(typeof module, typeof exports, typeof require);
