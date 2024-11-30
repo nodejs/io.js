@@ -394,7 +394,6 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('does not warn when there are no package.json', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--no-warnings',
         fixtures.path('es-modules/loose.js'),
       ]);
 
