@@ -276,10 +276,8 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
       strictEqual(signal, null);
     });
 
-
     it('still throws on `await` in an ordinary sync function', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--input-type=module',
         '--eval',
         `
           function fn() { await Promise.resolve(); }
