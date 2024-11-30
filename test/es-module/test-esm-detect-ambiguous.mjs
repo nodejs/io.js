@@ -288,10 +288,8 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
       strictEqual(signal, null);
     });
 
-
     it('throws on undefined `require` when top-level `await` triggers ESM parsing', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--input-type=module',
         '--eval',
         `
           const fs = require("node:fs");
