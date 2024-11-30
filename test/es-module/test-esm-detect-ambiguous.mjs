@@ -282,8 +282,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         'function fn() { await Promise.resolve(); } fn();',
       ]);
 
-      match(stderr, /SyntaxError: (await is only valid in async function|Unexpected reserved word)/);
-
+      match(stderr, /SyntaxError: await is only valid in async function/);
       strictEqual(stdout, '');
       strictEqual(code, 1);
       strictEqual(signal, null);
