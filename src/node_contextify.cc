@@ -1611,7 +1611,8 @@ static std::vector<std::string_view> throws_only_in_cjs_error_messages = {
     "Identifier '__filename' has already been declared",
     "Identifier '__dirname' has already been declared",
     "await is only valid in async functions and "
-    "the top level bodies of modules"};
+    "the top level bodies of modules",
+};
 
 // If cached_data is provided, it would be used for the compilation and
 // the on-disk compilation cache from NODE_COMPILE_CACHE (if configured)
@@ -1817,15 +1818,15 @@ bool ShouldRetryAsESM(Realm* realm,
   auto message_view = message_value.ToStringView();
 
   for (const auto& error_message : throws_only_in_cjs_error_messages) {
-    if (message_view.find("Top-level await") != std::string_view::npos) {
+    if (message_view.find(error_message) != std::string_view::npos) {
+      const char* error_text =
+          "Top-level await is not supported in CommonJS modules. "
+          "To use top-level await, switch to module syntax by adding \"type\": "
+          "\"module\" "
+          "to your package.json or rename the file to use the .mjs extension.";
+
       isolate->ThrowException(v8::Exception::SyntaxError(
-          String::NewFromUtf8(
-              isolate,
-              "Top-level await is not supported in CommonJS. "
-              "To use top-level await, switch to module syntax (using 'import' "
-              "or 'export'), "
-              "or wrap the await expression in an async function.")
-              .ToLocalChecked()));
+          String::NewFromUtf8(isolate, error_text).ToLocalChecked()));
       return true;
     }
   }

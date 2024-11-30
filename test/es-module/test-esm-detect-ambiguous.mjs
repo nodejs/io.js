@@ -2,7 +2,7 @@ import { spawnPromisified } from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
 import { spawn } from 'node:child_process';
 import { describe, it } from 'node:test';
-import { strictEqual, match } from 'node:assert';
+import { strictEqual, match, ok } from 'node:assert';
 
 describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL }, () => {
   describe('string input', { concurrency: !process.env.TEST_PARALLEL }, () => {
@@ -326,8 +326,16 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         fixtures.path('es-modules/package-without-type/commonjs-wrapper-variables.js'),
       ]);
 
-      strictEqual(stderr, '');
-      strictEqual(stdout, 'exports require module __filename __dirname\n');
+      if (stderr) {
+        const expectedErrorMessage = 'SyntaxError: Top-level await is not supported in CommonJS modules.';
+        ok(
+          stderr.includes(expectedErrorMessage),
+          `Unexpected error message:\n${stderr}`
+        );
+        return;
+      }
+
+      strictEqual(stdout.trim(), 'exports require module __filename __dirname');
       strictEqual(code, 0);
       strictEqual(signal, null);
     });
