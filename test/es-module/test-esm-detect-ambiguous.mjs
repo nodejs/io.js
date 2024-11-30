@@ -279,10 +279,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
     it('still throws on `await` in an ordinary sync function', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
         '--eval',
-        `
-          function fn() { await Promise.resolve(); }
-          fn();
-        `,
+        'function fn() { await Promise.resolve(); } fn();',
       ]);
 
       match(stderr, /SyntaxError: (await is only valid in async function|Unexpected reserved word)/);
