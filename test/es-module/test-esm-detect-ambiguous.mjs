@@ -266,7 +266,6 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('permits top-level `await` above import/export syntax', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--input-type=module',
         '--eval',
         `
           await Promise.resolve();
