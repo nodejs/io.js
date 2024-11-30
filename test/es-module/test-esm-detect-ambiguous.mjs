@@ -291,10 +291,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
     it('throws on undefined `require` when top-level `await` triggers ESM parsing', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
         '--eval',
-        `
-          const fs = require("node:fs");
-          await Promise.resolve();
-        `,
+        'const fs = require("node:fs"); await Promise.resolve();',
       ]);
 
       match(stderr, /ReferenceError: require is not defined in ES module scope/);
