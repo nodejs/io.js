@@ -255,11 +255,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
 
     it('reports unfinished top-level `await`', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--input-type=module',
-        '--eval',
-        `
-        await new Promise(() => {});
-        `,
+        fixtures.path('es-modules/tla/unresolved.js'),
       ]);
 
       match(stderr, /Warning: Detected unsettled top-level await/);
