@@ -436,3 +436,20 @@ describe('when working with Worker threads', () => {
     strictEqual(signal, null);
   });
 });
+
+describe('Top-level await error in CommonJS modules', () => {
+  it('should throw a SyntaxError with guidance for top-level await in CommonJS', async () => {
+    const { code, stderr, stdout } = await spawnPromisified(process.execPath, [
+      '--eval',
+      'await Promise.resolve();',
+      '--input-type=commonjs',
+    ]);
+
+    match(
+      stderr,
+      /await is only valid in async functions and the top level bodies of modules/
+    );
+    strictEqual(stdout, '');
+    strictEqual(code, 1);
+  });
+});
