@@ -442,7 +442,6 @@ describe('Top-level await error in CommonJS modules', () => {
     const { code, stderr, stdout } = await spawnPromisified(process.execPath, [
       '--eval',
       'await Promise.resolve();',
-      '--input-type=commonjs',
     ]);
 
     match(
