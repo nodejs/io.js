@@ -2,10 +2,13 @@
 
 const common = require('../common');
 
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-const assert = require('assert');
+
 const { subtle } = globalThis.crypto;
 
 const kWrappingData = {
@@ -44,7 +47,7 @@ const kWrappingData = {
   }
 };
 
-function generateWrappingKeys() {
+async function generateWrappingKeys() {
   return Promise.all(Object.keys(kWrappingData).map(async (name) => {
     const keys = await subtle.generateKey(
       { name, ...kWrappingData[name].generate },
@@ -227,14 +230,6 @@ function getFormats(key) {
   }
 }
 
-// If the wrapping algorithm is AES-KW, the exported key
-// material length must be a multiple of 8.
-// If the wrapping algorithm is RSA-OAEP, the exported key
-// material maximum length is a factor of the modulusLength
-//
-// As per the NOTE in step 13 https://w3c.github.io/webcrypto/#SubtleCrypto-method-wrapKey
-// we're padding AES-KW wrapped JWK to make sure it is always a multiple of 8 bytes
-// in length
 async function wrappingIsPossible(name, exported) {
   if ('byteLength' in exported) {
     switch (name) {
@@ -293,7 +288,7 @@ function testWrapping(name, keys) {
   return variations;
 }
 
-(async function() {
+test('Test crypto wrapping functionality', async () => {
   await generateWrappingKeys();
   const keys = await generateKeysToWrap();
   const variations = [];
@@ -301,4 +296,4 @@ function testWrapping(name, keys) {
     variations.push(...testWrapping(name, keys));
   });
   await Promise.all(variations);
-})().then(common.mustCall());
+}).then(common.mustCall());

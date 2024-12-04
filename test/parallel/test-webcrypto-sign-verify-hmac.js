@@ -5,15 +5,15 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-const assert = require('assert');
+const { test } = require('node:test');
+const assert = require('node:assert');
+
 const { subtle } = globalThis.crypto;
 
 const vectors = require('../fixtures/crypto/hmac')();
 
-async function testVerify({ hash,
-                            keyBuffer,
-                            signature,
-                            plaintext }) {
+// Test for verifying the signature
+async function testVerify({ hash, keyBuffer, signature, plaintext }) {
   const name = 'HMAC';
   const [
     key,
@@ -25,13 +25,13 @@ async function testVerify({ hash,
       keyBuffer,
       { name, hash },
       false,
-      ['verify']),
+      ['verify']),  // Ensure usage is 'verify' for the public key
     subtle.importKey(
       'raw',
       keyBuffer,
       { name, hash },
       false,
-      ['sign']),
+      ['sign']),  // Ensure usage is 'sign' for the private key
     subtle.generateKey(
       {
         name: 'RSA-PSS',
@@ -101,10 +101,8 @@ async function testVerify({ hash,
   }
 }
 
-async function testSign({ hash,
-                          keyBuffer,
-                          signature,
-                          plaintext }) {
+// Test for signing
+async function testSign({ hash, keyBuffer, signature, plaintext }) {
   const name = 'HMAC';
   const [
     key,
@@ -116,7 +114,7 @@ async function testSign({ hash,
       keyBuffer,
       { name, hash },
       false,
-      ['verify', 'sign']),
+      ['verify', 'sign']),  // Ensure usages are 'verify' and 'sign' for the HMAC key
     subtle.importKey(
       'raw',
       keyBuffer,
@@ -169,7 +167,7 @@ async function testSign({ hash,
     });
 }
 
-(async function() {
+test('Test HMAC verification, signing and failure cases', async () => {
   const variations = [];
 
   for (const vector of vectors) {
@@ -178,4 +176,4 @@ async function testSign({ hash,
   }
 
   await Promise.all(variations);
-})().then(common.mustCall());
+});

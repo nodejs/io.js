@@ -5,12 +5,15 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-const assert = require('assert');
+const assert = require('node:assert');
 const { subtle } = globalThis.crypto;
 
 const rsa_pkcs = require('../fixtures/crypto/rsa_pkcs');
 const rsa_pss = require('../fixtures/crypto/rsa_pss');
 
+const { test } = require('node:test');
+
+// Test for verifying the signature
 async function testVerify({
   algorithm,
   hash,
@@ -122,6 +125,7 @@ async function testVerify({
   }
 }
 
+// Test for signing
 async function testSign({
   algorithm,
   hash,
@@ -194,6 +198,7 @@ async function testSign({
     });
 }
 
+// Test for salt length in RSA-PSS
 async function testSaltLength(keyLength, hash, hLen) {
   const { publicKey, privateKey } = await subtle.generateKey({
     name: 'RSA-PSS',
@@ -223,7 +228,7 @@ async function testSaltLength(keyLength, hash, hLen) {
     });
 }
 
-(async function() {
+test('Test crypto verification, signing, and salt length', async () => {
   const variations = [];
 
   rsa_pkcs().forEach((vector) => {
@@ -242,4 +247,4 @@ async function testSaltLength(keyLength, hash, hLen) {
   }
 
   await Promise.all(variations);
-})().then(common.mustCall());
+}).then(common.mustCall());
