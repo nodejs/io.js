@@ -352,6 +352,34 @@ changes:
 Register a module that exports [hooks][] that customize Node.js module
 resolution and loading behavior. See [Customization hooks][].
 
+### `module.resolveLoadAndCache(specifier[, parentURL[, importAttributes[, conditions]]])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+* `specifier` {string|URL} Customization hooks to be registered; this should be
+  the same string that would be passed to `import()`, except that if it is
+  relative, it is resolved relative to `parentURL`.
+* `parentURL` {string|URL} If you want to resolve `specifier` relative to a base
+  URL, such as `import.meta.url`, you can pass that URL here. **Default:**
+  `'data:'`.
+* `importAttributes` {object}
+* `conditions` {Array}
+* Returns: {Promise} fulfills with an object with the following properties:
+  * `url` {string} The absolute URL for that module
+  * `format` {string} The format this module will be parsed as.
+  * `source` {null|TypedArray}
+
+This API tells you how a specific URL will be loaded by the ECMAScript loader if
+it was imported from the `parentURL` in the current process. If the module was
+already imported before `resolveLoadAndCache` is called, the cached version is
+returned; if not, it will populate the cache so future calls to
+`resolveLoadAndCache` or `import` do re-do the work.
+
+
 ## `module.stripTypeScriptTypes(code[, options])`
 
 <!-- YAML
