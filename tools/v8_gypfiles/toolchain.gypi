@@ -40,7 +40,7 @@
     'ubsan_vptr%': 0,
     'has_valgrind%': 0,
     'coverage%': 0,
-    'v8_target_arch%': '<(target_arch)',
+    'v8_target_arch%': '<(v8_target_arch)',
     'v8_host_byteorder%': '<!("<(python)" -c "import sys; print(sys.byteorder)")',
     'force_dynamic_crt%': 0,
 

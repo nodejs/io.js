@@ -49,6 +49,8 @@ valid_os = ('win', 'mac', 'solaris', 'freebsd', 'openbsd', 'linux',
             'android', 'aix', 'cloudabi', 'os400', 'ios')
 valid_arch = ('arm', 'arm64', 'ia32', 'mips', 'mipsel', 'mips64el', 'ppc',
               'ppc64', 'x64', 'x86', 'x86_64', 's390x', 'riscv64', 'loong64')
+valid_simulator = ('arm', 'arm64', 'mips', 'mipsel', 'mips64el', 'ppc',
+                  'ppc64', 's390x', 'riscv64', 'loong64')
 valid_arm_float_abi = ('soft', 'softfp', 'hard')
 valid_arm_fpu = ('vfp', 'vfpv3', 'vfpv3-d16', 'neon')
 valid_mips_arch = ('loongson', 'r1', 'r2', 'r6', 'rx')
@@ -113,6 +115,12 @@ parser.add_argument('--dest-cpu',
     dest='dest_cpu',
     choices=valid_arch,
     help=f"CPU architecture to build for ({', '.join(valid_arch)})")
+
+parser.add_argument('--v8-enable-simulator',
+    action='store_true',
+    dest='v8_enable_simulator',
+    default=None,
+    help=f"Enable V8 simulator for  ({', '.join(valid_simulator)})")
 
 parser.add_argument('--cross-compiling',
     action='store_true',
@@ -1401,7 +1409,18 @@ def configure_node(o):
   o['variables']['use_prefix_to_find_headers'] = b(options.use_prefix_to_find_headers)
 
   host_arch = host_arch_win() if os.name == 'nt' else host_arch_cc()
-  target_arch = options.dest_cpu or host_arch
+
+  # if set v8_enable_simulator, v8_target_arch will be different from target_arch.
+  v8_target_arch = options.dest_cpu or host_arch
+  o['variables']['v8_target_arch'] = v8_target_arch
+  target_arch = v8_target_arch
+  if options.v8_enable_simulator == 1:
+    if target_arch in ['arm', 'ppc']:
+      target_arch = 'ia32'
+    else:
+      target_arch = 'x64'
+
+
   # ia32 is preferred by the build tools (GYP) over x86 even if we prefer the latter
   # the Makefile resets this to x86 afterward
   if target_arch == 'x86':
@@ -1664,6 +1683,7 @@ def configure_v8(o, configs):
   o['variables']['v8_enable_shared_ro_heap'] = 0 if options.enable_pointer_compression or options.disable_shared_ro_heap else 1
   o['variables']['v8_enable_extensible_ro_snapshot'] = 0
   o['variables']['v8_trace_maps'] = 1 if options.trace_maps else 0
+  o['variables']['v8_enable_simulator'] = 1 if options.v8_enable_simulator else 0
   o['variables']['node_use_v8_platform'] = b(not options.without_v8_platform)
   o['variables']['node_use_bundled_v8'] = b(not options.without_bundled_v8)
   o['variables']['force_dynamic_crt'] = 1 if options.shared else 0
@@ -1685,6 +1705,12 @@ def configure_v8(o, configs):
     raise Exception(
         'Only one of the --v8-enable-object-print or --v8-disable-object-print options '
         'can be specified at a time.')
+  if options.v8_enable_simulator and ((not options.dest_cpu) or (options.dest_cpu not in valid_simulator)):
+    raise Exception('Invalid value for --dest-cpu. Valid values are: ' + ', '.join(valid_simulator))
+
+  if options.v8_enable_simulator and options.cross_compiling:
+    raise Exception('Only one of the --v8-enable-simulator or --cross-compiling '
+                    'can be specified at a time.')
 
 def configure_openssl(o):
   variables = o['variables']
