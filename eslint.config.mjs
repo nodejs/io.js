@@ -20,6 +20,7 @@ const babelPluginSyntaxImportAttributes = resolveEslintTool('@babel/plugin-synta
 const jsdoc = requireEslintTool('eslint-plugin-jsdoc');
 const markdown = requireEslintTool('eslint-plugin-markdown');
 const stylisticJs = requireEslintTool('@stylistic/eslint-plugin-js');
+const tseslint = requireEslintTool('typescript-eslint');
 
 nodeCore.RULES_DIR = fileURLToPath(new URL('./tools/eslint-rules', import.meta.url));
 
@@ -58,7 +59,7 @@ export default [
   js.configs.recommended,
   jsdoc.configs['flat/recommended'],
   {
-    files: ['**/*.{js,cjs}'],
+    files: ['**/*.{js,cjs,ts,cts}'],
     languageOptions: {
       // The default is `commonjs` but it's not supported by the Babel parser.
       sourceType: 'script',
@@ -323,7 +324,7 @@ export default [
     processor: 'markdown/markdown',
   },
   {
-    files: ['**/*.md/*.{js,cjs}'],
+    files: ['**/*.md/*.{js,cjs,ts,cts}'],
     languageOptions: {
       parserOptions: {
         ecmaFeatures: { impliedStrict: true },
@@ -373,6 +374,35 @@ export default [
     ] },
   },
   // #endregion
+  {
+    files: ['**/*.{ts,mts,cts}'],
+    ...tseslint.configs.base,
+    rules: {
+      ...tseslint.configs.eslintRecommended.rules,
+      // Index 0 contains the base configuration,
+      // index 1 provides eslint-specific overrides,
+      // and index 2 includes the recommended rules.
+      ...tseslint.configs.recommended[2].rules,
+
+      // This is handled by 'no-restricted-globals'
+      '@typescript-eslint/no-require-imports': 'off',
+      // We use ignore comments throughout the codebase
+      '@typescript-eslint/ban-ts-comment': 'off',
+    },
+  },
+  {
+    files: ['typings/**'],
+    rules: {
+      // In the typings, explicit any is used, along with
+      // empty objects.
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+
+      // TODO(RedYetiDev): In the typings, many things are
+      // out of order.
+      'no-use-before-define': 'off',
+    },
+  },
   // #region partials
   ...benchmarkConfig,
   ...docConfig,

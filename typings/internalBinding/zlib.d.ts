@@ -13,13 +13,31 @@ declare namespace InternalZlibBinding {
     reset(): void;
     close(): void;
     params(level: number, strategy: number): void;
-    write(flushFlag: number, input: TypedArray, inputOff: number, inputLen: number, out: TypedArray, outOff: number, outLen: number): void;
-    writeSync(flushFlag: number, input: TypedArray, inputOff: number, inputLen: number, out: TypedArray, outOff: number, outLen: number): void;
+    write(flushFlag: number,
+          input: TypedArray,
+          inputOff: number,
+          inputLen: number,
+          out: TypedArray,
+          outOff: number,
+          outLen: number): void;
+    writeSync(flushFlag: number,
+              input: TypedArray,
+              inputOff: number,
+              inputLen: number,
+              out: TypedArray,
+              outOff: number,
+              outLen: number): void;
   }
 
-  class Zlib extends ZlibBase{
+  class Zlib extends ZlibBase {
     constructor(mode: number)
-    init(windowBits: number, level: number, memLevel: number, strategy: number, writeState: Uint32Array, callback: VoidFunction, dictionary: Uint32Array): number;
+    init(windowBits: number,
+         level: number,
+         memLevel: number,
+         strategy: number,
+         writeState: Uint32Array,
+         callback: VoidFunction,
+         dictionary: Uint32Array): number;
   }
 
   class BrotliDecoder extends ZlibBase {

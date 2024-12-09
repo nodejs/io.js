@@ -9,7 +9,7 @@ const globals = requireEslintTool('globals');
 
 export default [
   {
-    files: ['doc/**/*.md/*.{js,mjs,cjs}'],
+    files: ['doc/**/*.md/*.{js,mjs,cjs,ts,mts,cts}'],
     rules: {
       // Ease some restrictions in doc examples.
       'no-restricted-properties': 'off',
@@ -23,6 +23,8 @@ export default [
         },
       ],
       'no-undef': 'off',
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
       'no-unused-expressions': 'off',
       'no-unused-vars': 'off',
       'symbol-description': 'off',

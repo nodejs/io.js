@@ -26,7 +26,8 @@ export interface MessagingBinding {
   checkMessagePort(port: unknown): boolean;
   drainMessagePort(port: typeof InternalMessagingBinding.MessagePort): void;
   receiveMessageOnPort(port: typeof InternalMessagingBinding.MessagePort): any;
-  moveMessagePortToContext(port: typeof InternalMessagingBinding.MessagePort, context: any): typeof InternalMessagingBinding.MessagePort;
+  moveMessagePortToContext(port: typeof InternalMessagingBinding.MessagePort,
+                           context: any): typeof InternalMessagingBinding.MessagePort;
   setDeserializerCreateObjectFunction(func: (deserializeInfo: string) => any): void;
   broadcastChannel(name: string): typeof InternalMessagingBinding.MessagePort;
 }

@@ -1364,7 +1364,7 @@ format-md: tools/lint-md/node_modules/remark-parse/package.json ## Format the ma
 
 
 
-LINT_JS_TARGETS = eslint.config.mjs benchmark doc lib test tools
+LINT_JS_TARGETS = eslint.config.mjs benchmark doc lib test tools typings
 
 run-lint-js = tools/eslint/node_modules/eslint/bin/eslint.js --cache \
 	--max-warnings=0 --report-unused-disable-directives $(LINT_JS_TARGETS)

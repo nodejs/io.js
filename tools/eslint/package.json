@@ -11,6 +11,7 @@
     "eslint-formatter-tap": "^8.40.0",
     "eslint-plugin-jsdoc": "^50.4.3",
     "eslint-plugin-markdown": "^5.1.0",
-    "globals": "^15.11.0"
+    "globals": "^15.11.0",
+    "typescript-eslint": "^8.13.0"
   }
 }

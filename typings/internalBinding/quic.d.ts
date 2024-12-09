@@ -20,8 +20,8 @@ interface QuicCallbacks {
                                 supports: number[]) => void;
   onStreamCreated: (stream: Stream) => void;
   onStreamBlocked: () => void;
-  onStreamClose: (error: [number,bigint,string]) => void;
-  onStreamReset: (error: [number,bigint,string]) => void;
+  onStreamClose: (error: [number, bigint, string]) => void;
+  onStreamReset: (error: [number, bigint, string]) => void;
   onStreamHeaders: (headers: string[], kind: number) => void;
   onStreamTrailers: () => void;
 }

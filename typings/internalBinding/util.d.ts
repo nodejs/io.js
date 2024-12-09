@@ -30,6 +30,7 @@ export interface UtilBinding {
   getConstructorName(object: object): string;
   getExternalValue(value: any): bigint;
   sleep(msec: number): void;
+  /* eslint-disable @typescript-eslint/no-unsafe-function-type */
   isConstructor(fn: Function): boolean;
   arrayBufferViewHasBuffer(view: ArrayBufferView): boolean;
   propertyFilter: {

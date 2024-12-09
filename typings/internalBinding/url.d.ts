@@ -1,4 +1,4 @@
-import type { urlUpdateActions } from 'internal/url'
+import type { urlUpdateActions } from 'internal/url';
 
 export interface URLBinding {
   urlComponents: Uint32Array;
