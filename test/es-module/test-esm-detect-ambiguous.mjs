@@ -271,7 +271,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
     });
 
     it('permits top-level `await` above import/export syntax', async () => {
-      const { stdout, stderr, code } = await spawnPromisified(process.execPath, [
+      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
         '--eval',
         'await Promise.resolve(); import "node:os"; console.log("executed");',
       ]);
@@ -282,6 +282,7 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
       );
       strictEqual(stdout, '');
       strictEqual(code, 1);
+      strictEqual(signal, null);
     });
 
     it('still throws on `await` in an ordinary sync function', async () => {
