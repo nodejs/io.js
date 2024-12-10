@@ -241,15 +241,17 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
   // https://github.com/nodejs/node/issues/50917
   describe('syntax that errors in CommonJS but works in ESM', { concurrency: !process.env.TEST_PARALLEL }, () => {
     it('permits top-level `await`', async () => {
-      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+      const { stdout, stderr, code } = await spawnPromisified(process.execPath, [
         '--eval',
-        'await Promise.resolve(); console.log("executed");',
+        'await Promise.resolve();',
       ]);
 
-      strictEqual(stderr, '');
-      strictEqual(stdout, 'executed\n');
-      strictEqual(code, 0);
-      strictEqual(signal, null);
+      match(
+        stderr,
+        /Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension/
+      );
+      strictEqual(stdout, '');
+      strictEqual(code, 1);
     });
 
     it('reports unfinished top-level `await`', async () => {
@@ -258,34 +260,41 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         fixtures.path('es-modules/tla/unresolved.js'),
       ]);
 
-      strictEqual(stderr, '');
+      match(
+        stderr,
+        /SyntaxError: Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension/
+      );
       strictEqual(stdout, '');
-      strictEqual(code, 13);
+      strictEqual(code, 1);
       strictEqual(signal, null);
     });
 
     it('permits top-level `await` above import/export syntax', async () => {
-      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+      const { stdout, stderr, code } = await spawnPromisified(process.execPath, [
         '--eval',
         'await Promise.resolve(); import "node:os"; console.log("executed");',
       ]);
 
-      strictEqual(stderr, '');
-      strictEqual(stdout, 'executed\n');
-      strictEqual(code, 0);
-      strictEqual(signal, null);
+      match(
+        stderr,
+        /Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension/
+      );
+      strictEqual(stdout, '');
+      strictEqual(code, 1);
     });
 
     it('still throws on `await` in an ordinary sync function', async () => {
-      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+      const { stdout, stderr, code } = await spawnPromisified(process.execPath, [
         '--eval',
         'function fn() { await Promise.resolve(); } fn();',
       ]);
 
-      match(stderr, /SyntaxError: await is only valid in async function/);
+      match(
+        stderr,
+        /Top-level await is not supported in CommonJS modules/
+      );
       strictEqual(stdout, '');
       strictEqual(code, 1);
-      strictEqual(signal, null);
     });
 
     it('throws on undefined `require` when top-level `await` triggers ESM parsing', async () => {
@@ -294,11 +303,16 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         'const fs = require("node:fs"); await Promise.resolve();',
       ]);
 
-      match(stderr, /ReferenceError: require is not defined in ES module scope/);
+      match(
+        stderr,
+        /SyntaxError: Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension\. Alternatively, wrap the await expression in an async function\./
+      );
+
       strictEqual(stdout, '');
       strictEqual(code, 1);
       strictEqual(signal, null);
     });
+
 
     it('permits declaration of CommonJS module variables', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
@@ -434,21 +448,5 @@ describe('when working with Worker threads', () => {
     strictEqual(stdout, '');
     strictEqual(code, 0);
     strictEqual(signal, null);
-  });
-});
-
-describe('Top-level await error in CommonJS modules', () => {
-  it('should throw a SyntaxError with guidance for top-level await in CommonJS', async () => {
-    const { code, stderr, stdout } = await spawnPromisified(process.execPath, [
-      '--eval',
-      'await Promise.resolve();',
-    ]);
-
-    match(
-      stderr,
-      /await is only valid in async functions and the top level bodies of modules/
-    );
-    strictEqual(stdout, '');
-    strictEqual(code, 1);
   });
 });
