@@ -1826,7 +1826,8 @@ bool ShouldRetryAsESM(Realm* realm,
           "To use top-level await, add \"type\": \"module\" to your "
           "package.json "
           "or rename the file to use the .mjs extension. Alternatively, wrap "
-          "the await expression in an async function.";
+          "the await expression in an async function. Module syntax like "
+          "import/export statements requires proper module configuration.";
 
       isolate->ThrowException(v8::Exception::SyntaxError(
           String::NewFromUtf8(isolate, error_text).ToLocalChecked()));
