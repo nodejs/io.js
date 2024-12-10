@@ -385,7 +385,7 @@ class StreamBase : public StreamResource {
   int Shutdown(const v8::FunctionCallbackInfo<v8::Value>& args);
   int Writev(const v8::FunctionCallbackInfo<v8::Value>& args);
   int WriteBuffer(const v8::FunctionCallbackInfo<v8::Value>& args);
-  template <enum encoding enc>
+  template <ENCODING enc>
   int WriteString(const v8::FunctionCallbackInfo<v8::Value>& args);
   int UseUserBuffer(const v8::FunctionCallbackInfo<v8::Value>& args);
 

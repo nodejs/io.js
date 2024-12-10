@@ -363,7 +363,7 @@ ByteSource ByteSource::FromBIO(const BIOPointer& bio) {
 
 ByteSource ByteSource::FromEncodedString(Environment* env,
                                          Local<String> key,
-                                         enum encoding enc) {
+                                         ENCODING enc) {
   size_t length = 0;
   ByteSource out;
 

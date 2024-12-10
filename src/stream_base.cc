@@ -141,7 +141,7 @@ template int StreamBase::WriteString<ASCII>(
     const FunctionCallbackInfo<Value>& args);
 template int StreamBase::WriteString<UTF8>(
     const FunctionCallbackInfo<Value>& args);
-template int StreamBase::WriteString<UCS2>(
+template int StreamBase::WriteString<UTF16LE>(
     const FunctionCallbackInfo<Value>& args);
 template int StreamBase::WriteString<LATIN1>(
     const FunctionCallbackInfo<Value>& args);
@@ -217,7 +217,7 @@ int StreamBase::Writev(const FunctionCallbackInfo<Value>& args) {
       Local<Value> next_chunk;
       if (!chunks->Get(context, i * 2 + 1).ToLocal(&next_chunk))
         return -1;
-      enum encoding encoding = ParseEncoding(isolate, next_chunk);
+      auto encoding = static_cast<ENCODING>(next_chunk->Uint32Value(context).ToChecked());
       size_t chunk_size;
       if ((encoding == UTF8 &&
              string->Length() > 65535 &&
@@ -273,7 +273,7 @@ int StreamBase::Writev(const FunctionCallbackInfo<Value>& args) {
       Local<Value> next_chunk;
       if (!chunks->Get(context, i * 2 + 1).ToLocal(&next_chunk))
         return -1;
-      enum encoding encoding = ParseEncoding(isolate, next_chunk);
+      auto encoding = static_cast<ENCODING>(next_chunk->Uint32Value(context).ToChecked());
       str_size = StringBytes::Write(isolate,
                                     str_storage,
                                     str_size,
@@ -299,7 +299,7 @@ int StreamBase::WriteBuffer(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
   if (!args[1]->IsUint8Array()) {
-    node::THROW_ERR_INVALID_ARG_TYPE(env, "Second argument must be a buffer");
+    THROW_ERR_INVALID_ARG_TYPE(env, "Second argument must be a buffer");
     return 0;
   }
 
@@ -332,7 +332,7 @@ int StreamBase::WriteBuffer(const FunctionCallbackInfo<Value>& args) {
 }
 
 
-template <enum encoding enc>
+template <enum ENCODING enc>
 int StreamBase::WriteString(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
@@ -577,7 +577,7 @@ void StreamBase::AddMethods(IsolateData* isolate_data,
   SetProtoMethod(
       isolate, t, "writeUtf8String", JSMethod<&StreamBase::WriteString<UTF8>>);
   SetProtoMethod(
-      isolate, t, "writeUcs2String", JSMethod<&StreamBase::WriteString<UCS2>>);
+      isolate, t, "writeUcs2String", JSMethod<&StreamBase::WriteString<UTF16LE>>);
   SetProtoMethod(isolate,
                  t,
                  "writeLatin1String",
@@ -612,7 +612,7 @@ void StreamBase::RegisterExternalReferences(
   registry->Register(JSMethod<&StreamBase::WriteBuffer>);
   registry->Register(JSMethod<&StreamBase::WriteString<ASCII>>);
   registry->Register(JSMethod<&StreamBase::WriteString<UTF8>>);
-  registry->Register(JSMethod<&StreamBase::WriteString<UCS2>>);
+  registry->Register(JSMethod<&StreamBase::WriteString<UTF16LE>>);
   registry->Register(JSMethod<&StreamBase::WriteString<LATIN1>>);
   registry->Register(
       BaseObject::InternalFieldGet<StreamBase::kOnReadFunctionField>);

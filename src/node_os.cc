@@ -272,19 +272,17 @@ static void GetHomeDirectory(const FunctionCallbackInfo<Value>& args) {
 static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   uv_passwd_t pwd;
-  enum encoding encoding;
+  auto encoding = ENCODING::UTF8;
 
   if (args[0]->IsObject()) {
     Local<Object> options = args[0].As<Object>();
     MaybeLocal<Value> maybe_encoding = options->Get(env->context(),
                                                     env->encoding_string());
     Local<Value> encoding_opt;
-    if (!maybe_encoding.ToLocal(&encoding_opt))
+    uint32_t encoding_value;
+    if (!maybe_encoding.ToLocal(&encoding_opt) || !encoding_opt->Uint32Value(env->context()).To(&encoding_value))
         return;
-
-    encoding = ParseEncoding(env->isolate(), encoding_opt, UTF8);
-  } else {
-    encoding = UTF8;
+    encoding = static_cast<ENCODING>(encoding_value);
   }
 
   if (const int err = uv_os_get_passwd(&pwd)) {

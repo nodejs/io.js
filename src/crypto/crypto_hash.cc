@@ -224,7 +224,7 @@ void Hash::OneShotDigest(const FunctionCallbackInfo<Value>& args) {
     return ThrowCryptoError(env, ERR_get_error(), message.c_str());
   }
 
-  enum encoding output_enc = ParseEncoding(isolate, args[4], args[5], HEX);
+  auto output_enc = static_cast<ENCODING>(args[4].As<v8::Uint32>()->Value());
 
   int md_len = EVP_MD_size(md);
   unsigned int result_size;
@@ -381,9 +381,9 @@ void Hash::HashDigest(const FunctionCallbackInfo<Value>& args) {
   Hash* hash;
   ASSIGN_OR_RETURN_UNWRAP(&hash, args.This());
 
-  enum encoding encoding = BUFFER;
+  auto encoding = BUFFER;
   if (args.Length() >= 1) {
-    encoding = ParseEncoding(env->isolate(), args[0], BUFFER);
+    encoding = static_cast<ENCODING>(args[0].As<v8::Uint32>()->Value());
   }
 
   unsigned int len = hash->md_len_;

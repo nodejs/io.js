@@ -27,7 +27,7 @@ namespace {
 MaybeLocal<String> MakeString(Isolate* isolate,
                               const char* data,
                               size_t length,
-                              enum encoding encoding) {
+                              ENCODING encoding) {
   Local<Value> error;
   MaybeLocal<Value> ret;
   if (encoding == UTF8) {
@@ -71,7 +71,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
   size_t nread = *nread_ptr;
 
   if (Encoding() == UTF8 ||
-      Encoding() == UCS2 ||
+      Encoding() == UTF16LE ||
       Encoding() == BASE64 ||
       Encoding() == BASE64URL) {
     // See if we want bytes to finish a character from the previous
@@ -191,7 +191,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
             break;
           }
         }
-      } else if (Encoding() == UCS2) {
+      } else if (Encoding() == UTF16LE) {
         if ((nread % 2) == 1) {
           // We got half a codepoint, and need the second byte of it.
           state_[kBufferedBytes] = 1;
@@ -240,7 +240,7 @@ MaybeLocal<String> StringDecoder::FlushData(Isolate* isolate) {
     CHECK_EQ(BufferedBytes(), 0);
   }
 
-  if (Encoding() == UCS2 && BufferedBytes() % 2 == 1) {
+  if (Encoding() == UTF16LE && BufferedBytes() % 2 == 1) {
     // Ignore a single trailing byte, like the JS decoder does.
     state_[kMissingBytes]--;
     state_[kBufferedBytes]--;
@@ -315,7 +315,7 @@ void InitializeStringDecoder(Local<Object> target,
   ADD_TO_ENCODINGS_ARRAY(UTF8, "utf8");
   ADD_TO_ENCODINGS_ARRAY(BASE64, "base64");
   ADD_TO_ENCODINGS_ARRAY(BASE64URL, "base64url");
-  ADD_TO_ENCODINGS_ARRAY(UCS2, "utf16le");
+  ADD_TO_ENCODINGS_ARRAY(UTF16LE, "utf16le");
   ADD_TO_ENCODINGS_ARRAY(HEX, "hex");
   ADD_TO_ENCODINGS_ARRAY(BUFFER, "buffer");
   ADD_TO_ENCODINGS_ARRAY(LATIN1, "latin1");

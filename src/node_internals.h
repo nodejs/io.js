@@ -458,10 +458,6 @@ v8::HeapProfiler::HeapSnapshotOptions GetHeapSnapshotOptions(
     v8::Local<v8::Value> options);
 }  // namespace heap
 
-enum encoding ParseEncoding(v8::Isolate* isolate,
-                            v8::Local<v8::Value> encoding_v,
-                            v8::Local<v8::Value> encoding_id,
-                            enum encoding default_encoding);
 }  // namespace node
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

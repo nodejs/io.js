@@ -210,7 +210,7 @@ static MaybeLocal<Array> DirentListToArray(
     Environment* env,
     uv_dirent_t* ents,
     int num,
-    enum encoding encoding,
+    ENCODING encoding,
     Local<Value>* err_out) {
   MaybeStackBuffer<Local<Value>, 64> entries(num * 2);
 
@@ -283,7 +283,7 @@ void DirHandle::Read(const FunctionCallbackInfo<Value>& args) {
 
   CHECK_GE(args.Length(), 2);  // encoding, bufferSize, [callback]
 
-  const enum encoding encoding = ParseEncoding(isolate, args[0], UTF8);
+  auto encoding = static_cast<ENCODING>(args[0].As<v8::Uint32>()->Value());
 
   DirHandle* dir;
   ASSIGN_OR_RETURN_UNWRAP(&dir, args.This());
@@ -365,7 +365,7 @@ static void OpenDir(const FunctionCallbackInfo<Value>& args) {
   CHECK_NOT_NULL(*path);
   ToNamespacedPath(env, &path);
 
-  const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
+  auto encoding = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
 
   if (!args[2]->IsUndefined()) {  // openDir(path, encoding, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);

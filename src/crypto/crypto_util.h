@@ -106,7 +106,7 @@ void Decode(const v8::FunctionCallbackInfo<v8::Value>& args,
   if (args[0]->IsString()) {
     StringBytes::InlineDecoder decoder;
     Environment* env = Environment::GetCurrent(args);
-    enum encoding enc = ParseEncoding(env->isolate(), args[1], UTF8);
+    auto enc = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
     if (decoder.Decode(env, args[0].As<v8::String>(), enc).IsNothing())
       return;
     callback(ctx, args, decoder.out(), decoder.size());
@@ -285,7 +285,7 @@ class ByteSource {
 
   static ByteSource FromEncodedString(Environment* env,
                                       v8::Local<v8::String> value,
-                                      enum encoding enc = BASE64);
+                                      ENCODING enc = BASE64);
 
   static ByteSource FromStringOrBuffer(Environment* env,
                                        v8::Local<v8::Value> value);

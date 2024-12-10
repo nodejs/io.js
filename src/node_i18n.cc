@@ -253,50 +253,38 @@ MaybeLocal<Object> TranscodeUtf8FromUcs2(Environment* env,
   return Buffer::New(env, &destbuf);
 }
 
-constexpr const char* EncodingName(const enum encoding encoding) {
+constexpr const char* EncodingName(const ENCODING encoding) {
   switch (encoding) {
     case ASCII: return "us-ascii";
     case LATIN1: return "iso8859-1";
-    case UCS2: return "utf16le";
+    case UTF16LE: return "utf16le";
     case UTF8: return "utf-8";
     default: return nullptr;
   }
 }
 
-constexpr bool SupportedEncoding(const enum encoding encoding) {
-  switch (encoding) {
-    case ASCII:
-    case LATIN1:
-    case UCS2:
-    case UTF8: return true;
-    default: return false;
-  }
-}
-
 void Transcode(const FunctionCallbackInfo<Value>&args) {
   Environment* env = Environment::GetCurrent(args);
-  Isolate* isolate = env->isolate();
   UErrorCode status = U_ZERO_ERROR;
   MaybeLocal<Object> result;
 
   ArrayBufferViewContents<char> input(args[0]);
-  const enum encoding fromEncoding = ParseEncoding(isolate, args[1], BUFFER);
-  const enum encoding toEncoding = ParseEncoding(isolate, args[2], BUFFER);
+  auto fromEncoding = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
+  auto toEncoding = static_cast<ENCODING>(args[2].As<v8::Uint32>()->Value());
 
-  if (SupportedEncoding(fromEncoding) && SupportedEncoding(toEncoding)) {
-    TranscodeFunc tfn = &Transcode;
+  TranscodeFunc tfn = &Transcode;
     switch (fromEncoding) {
       case ASCII:
       case LATIN1:
-        if (toEncoding == UCS2) tfn = &TranscodeLatin1ToUcs2;
+        if (toEncoding == UTF16LE) tfn = &TranscodeLatin1ToUcs2;
         break;
       case UTF8:
-        if (toEncoding == UCS2)
+        if (toEncoding == UTF16LE)
           tfn = &TranscodeUcs2FromUtf8;
         break;
-      case UCS2:
+      case UTF16LE:
         switch (toEncoding) {
-          case UCS2:
+          case UTF16LE:
             tfn = &Transcode;
             break;
           case UTF8:
@@ -307,15 +295,11 @@ void Transcode(const FunctionCallbackInfo<Value>&args) {
         }
         break;
       default:
-        // This should not happen because of the SupportedEncoding checks
-        ABORT();
+        UNREACHABLE("Unsupported encoding received");
     }
 
     result = tfn(env, EncodingName(fromEncoding), EncodingName(toEncoding),
                  input.data(), input.length(), &status);
-  } else {
-    status = U_ILLEGAL_ARGUMENT_ERROR;
-  }
 
   if (result.IsEmpty())
     return args.GetReturnValue().Set(status);
@@ -511,7 +495,7 @@ void ConverterObject::Decode(const FunctionCallbackInfo<Value>& args) {
     }
 
     MaybeLocal<Value> encoded =
-        StringBytes::Encode(env->isolate(), value, length, UCS2, &error);
+        StringBytes::Encode(env->isolate(), value, length, UTF16LE, &error);
 
     Local<Value> ret;
     if (encoded.ToLocal(&ret)) {

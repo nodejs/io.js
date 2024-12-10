@@ -242,7 +242,7 @@ size_t StringBytes::Write(Isolate* isolate,
                           char* buf,
                           size_t buflen,
                           Local<Value> val,
-                          enum encoding encoding) {
+                          ENCODING encoding) {
   HandleScope scope(isolate);
   size_t nbytes;
 
@@ -271,7 +271,7 @@ size_t StringBytes::Write(Isolate* isolate,
       nbytes = str->WriteUtf8(isolate, buf, buflen, nullptr, flags);
       break;
 
-    case UCS2: {
+    case UTF16LE: {
       nbytes = WriteUCS2(isolate, buf, buflen, str, flags);
 
       // Node's "ucs2" encoding wants LE character data stored in
@@ -386,7 +386,7 @@ size_t StringBytes::Write(Isolate* isolate,
 // UTF8 can be as much as 3x the size, Base64 can have 1-2 extra bytes
 Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
                                        Local<Value> val,
-                                       enum encoding encoding) {
+                                       ENCODING encoding) {
   HandleScope scope(isolate);
 
   if (Buffer::HasInstance(val) && (encoding == BUFFER || encoding == LATIN1)) {
@@ -413,7 +413,7 @@ Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
       data_size = 3 * view.length();
       break;
 
-    case UCS2:
+    case UTF16LE:
       data_size = view.length() * sizeof(uint16_t);
       break;
 
@@ -440,7 +440,7 @@ Maybe<size_t> StringBytes::StorageSize(Isolate* isolate,
 
 Maybe<size_t> StringBytes::Size(Isolate* isolate,
                                 Local<Value> val,
-                                enum encoding encoding) {
+                                ENCODING encoding) {
   HandleScope scope(isolate);
 
   if (Buffer::HasInstance(val) && (encoding == BUFFER || encoding == LATIN1))
@@ -465,7 +465,7 @@ Maybe<size_t> StringBytes::Size(Isolate* isolate,
       return Just<size_t>(simdutf::utf8_length_from_utf16(
           reinterpret_cast<const char16_t*>(view.data16()), view.length()));
 
-    case UCS2:
+    case UTF16LE:
       return Just(view.length() * sizeof(uint16_t));
 
     case BASE64URL: {
@@ -496,7 +496,7 @@ Maybe<size_t> StringBytes::Size(Isolate* isolate,
 MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
                                       const char* buf,
                                       size_t buflen,
-                                      enum encoding encoding,
+                                      ENCODING encoding,
                                       Local<Value>* error) {
   CHECK_BUFLEN_IN_RANGE(buflen);
 
@@ -590,7 +590,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
       return ExternOneByteString::New(isolate, dst, dlen, error);
     }
 
-    case UCS2: {
+    case UTF16LE: {
       size_t str_len = buflen / 2;
       if constexpr (IsBigEndian()) {
         uint16_t* dst = node::UncheckedMalloc<uint16_t>(str_len);
@@ -656,7 +656,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
 
 MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
                                       const char* buf,
-                                      enum encoding encoding,
+                                      ENCODING encoding,
                                       Local<Value>* error) {
   const size_t len = strlen(buf);
   return Encode(isolate, buf, len, encoding, error);

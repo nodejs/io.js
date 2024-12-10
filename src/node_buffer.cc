@@ -300,7 +300,7 @@ MaybeLocal<Uint8Array> New(Isolate* isolate,
 
 MaybeLocal<Object> New(Isolate* isolate,
                        Local<String> string,
-                       enum encoding enc) {
+                       ENCODING enc) {
   EscapableHandleScope scope(isolate);
 
   size_t length;
@@ -530,7 +530,7 @@ MaybeLocal<Object> New(Environment* env,
 
 namespace {
 
-template <encoding encoding>
+template <ENCODING encoding>
 void StringSlice(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
@@ -615,7 +615,7 @@ void Fill(const FunctionCallbackInfo<Value>& args) {
   size_t fill_length = end - start;
   Local<String> str_obj;
   size_t str_length;
-  enum encoding enc;
+  ENCODING enc;
 
   // OOB Check. Throw the error in JS.
   if (start > end || fill_length + start > ts_obj_length)
@@ -640,18 +640,18 @@ void Fill(const FunctionCallbackInfo<Value>& args) {
   }
 
   str_obj = args[1]->ToString(env->context()).ToLocalChecked();
-  enc = ParseEncoding(env->isolate(), args[4], UTF8);
+  enc = static_cast<ENCODING>(args[4].As<Uint32>()->Value());
 
   // Can't use StringBytes::Write() in all cases. For example if attempting
   // to write a two byte character into a one byte Buffer.
   if (enc == UTF8) {
     str_length = str_obj->Utf8Length(env->isolate());
-    node::Utf8Value str(env->isolate(), args[1]);
+    Utf8Value str(env->isolate(), args[1]);
     memcpy(ts_obj_data + start, *str, std::min(str_length, fill_length));
 
-  } else if (enc == UCS2) {
+  } else if (enc == UTF16LE) {
     str_length = str_obj->Length() * sizeof(uint16_t);
-    node::TwoByteValue str(env->isolate(), args[1]);
+    TwoByteValue str(env->isolate(), args[1]);
     if constexpr (IsBigEndian())
       CHECK(nbytes::SwapBytes16(reinterpret_cast<char*>(&str[0]), str_length));
 
@@ -693,7 +693,7 @@ start_fill:
 }
 
 
-template <encoding encoding>
+template <ENCODING encoding>
 void StringWrite(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
@@ -920,7 +920,7 @@ void IndexOfString(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[3]->IsInt32());
   CHECK(args[4]->IsBoolean());
 
-  enum encoding enc = static_cast<enum encoding>(args[3].As<Int32>()->Value());
+  auto enc = static_cast<ENCODING>(args[3].As<Int32>()->Value());
 
   THROW_AND_RETURN_UNLESS_BUFFER(env, args[0]);
   ArrayBufferViewContents<char> buffer(args[0]);
@@ -931,7 +931,7 @@ void IndexOfString(const FunctionCallbackInfo<Value>& args) {
 
   const char* haystack = buffer.data();
   // Round down to the nearest multiple of 2 in case of UCS2.
-  const size_t haystack_length = (enc == UCS2) ?
+  const size_t haystack_length = (enc == UTF16LE) ?
       buffer.length() &~ 1 : buffer.length();  // NOLINT(whitespace/operators)
 
   size_t needle_length;
@@ -964,7 +964,7 @@ void IndexOfString(const FunctionCallbackInfo<Value>& args) {
 
   size_t result = haystack_length;
 
-  if (enc == UCS2) {
+  if (enc == UTF16LE) {
     String::Value needle_value(isolate, needle);
     if (*needle_value == nullptr) {
       return args.GetReturnValue().Set(-1);
@@ -1038,7 +1038,7 @@ void IndexOfBuffer(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[3]->IsInt32());
   CHECK(args[4]->IsBoolean());
 
-  enum encoding enc = static_cast<enum encoding>(args[3].As<Int32>()->Value());
+  auto enc = static_cast<ENCODING>(args[3].As<Int32>()->Value());
 
   THROW_AND_RETURN_UNLESS_BUFFER(Environment::GetCurrent(args), args[0]);
   THROW_AND_RETURN_UNLESS_BUFFER(Environment::GetCurrent(args), args[1]);
@@ -1079,7 +1079,7 @@ void IndexOfBuffer(const FunctionCallbackInfo<Value>& args) {
 
   size_t result = haystack_length;
 
-  if (enc == UCS2) {
+  if (enc == UTF16LE) {
     if (haystack_length < 2 || needle_length < 2) {
       return args.GetReturnValue().Set(-1);
     }
@@ -1442,7 +1442,7 @@ void CopyArrayBuffer(const FunctionCallbackInfo<Value>& args) {
   memcpy(dest, src, bytes_to_copy);
 }
 
-template <encoding encoding>
+template <ENCODING encoding>
 uint32_t WriteOneByteString(const char* src,
                             uint32_t src_len,
                             char* dst,
@@ -1463,7 +1463,7 @@ uint32_t WriteOneByteString(const char* src,
   }
 }
 
-template <encoding encoding>
+template <ENCODING encoding>
 void SlowWriteString(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
@@ -1500,7 +1500,7 @@ void SlowWriteString(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(written);
 }
 
-template <encoding encoding>
+template <ENCODING encoding>
 uint32_t FastWriteString(Local<Value> receiver,
                          const v8::FastApiTypedArray<uint8_t>& dst,
                          const v8::FastOneByteString& src,
@@ -1583,13 +1583,13 @@ void Initialize(Local<Object> target,
       context, target, "base64urlSlice", StringSlice<BASE64URL>);
   SetMethodNoSideEffect(context, target, "latin1Slice", StringSlice<LATIN1>);
   SetMethodNoSideEffect(context, target, "hexSlice", StringSlice<HEX>);
-  SetMethodNoSideEffect(context, target, "ucs2Slice", StringSlice<UCS2>);
+  SetMethodNoSideEffect(context, target, "ucs2Slice", StringSlice<UTF16LE>);
   SetMethodNoSideEffect(context, target, "utf8Slice", StringSlice<UTF8>);
 
   SetMethod(context, target, "base64Write", StringWrite<BASE64>);
   SetMethod(context, target, "base64urlWrite", StringWrite<BASE64URL>);
   SetMethod(context, target, "hexWrite", StringWrite<HEX>);
-  SetMethod(context, target, "ucs2Write", StringWrite<UCS2>);
+  SetMethod(context, target, "ucs2Write", StringWrite<UTF16LE>);
 
   SetFastMethod(context,
                 target,
@@ -1644,7 +1644,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(StringSlice<BASE64URL>);
   registry->Register(StringSlice<LATIN1>);
   registry->Register(StringSlice<HEX>);
-  registry->Register(StringSlice<UCS2>);
+  registry->Register(StringSlice<UTF16LE>);
   registry->Register(StringSlice<UTF8>);
 
   registry->Register(SlowWriteString<ASCII>);
@@ -1661,7 +1661,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(StringWrite<BASE64URL>);
   registry->Register(StringWrite<LATIN1>);
   registry->Register(StringWrite<HEX>);
-  registry->Register(StringWrite<UCS2>);
+  registry->Register(StringWrite<UTF16LE>);
   registry->Register(StringWrite<UTF8>);
   registry->Register(GetZeroFillToggle);
 

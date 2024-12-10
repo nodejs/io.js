@@ -10,7 +10,7 @@ namespace node {
 class StringDecoder {
  public:
   StringDecoder() { state_[kEncodingField] = BUFFER; }
-  inline enum encoding Encoding() const;
+  inline ENCODING Encoding() const;
 
   inline char* IncompleteCharacterBuffer();
   inline unsigned MissingBytes() const;

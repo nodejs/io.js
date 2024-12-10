@@ -7,8 +7,8 @@
 
 namespace node {
 
-enum encoding StringDecoder::Encoding() const {
-  return static_cast<enum encoding>(state_[kEncodingField]);
+ENCODING StringDecoder::Encoding() const {
+  return static_cast<ENCODING>(state_[kEncodingField]);
 }
 
 unsigned StringDecoder::BufferedBytes() const {

@@ -1385,7 +1385,7 @@ static void ReadLink(const FunctionCallbackInfo<Value>& args) {
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
 
-  const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
+  auto encoding = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
 
   if (argc > 2) {  // readlink(path, encoding, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);
@@ -1943,7 +1943,7 @@ static void RealPath(const FunctionCallbackInfo<Value>& args) {
   CHECK_NOT_NULL(*path);
   ToNamespacedPath(env, &path);
 
-  const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
+  auto encoding = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
 
   if (argc > 2) {  // realpath(path, encoding, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);
@@ -1988,7 +1988,7 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
   CHECK_NOT_NULL(*path);
   ToNamespacedPath(env, &path);
 
-  const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
+  auto encoding = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
 
   bool with_types = args[2]->IsTrue();
 
@@ -2404,7 +2404,7 @@ static void WriteString(const FunctionCallbackInfo<Value>& args) {
 
   const int64_t pos = GetOffset(args[2]);
 
-  const auto enc = ParseEncoding(isolate, args[3], UTF8);
+  auto enc = static_cast<ENCODING>(args[3].As<v8::Uint32>()->Value());
 
   Local<Value> value = args[1];
   char* buf = nullptr;
@@ -2426,7 +2426,7 @@ static void WriteString(const FunctionCallbackInfo<Value>& args) {
       auto ext = string->GetExternalOneByteStringResource();
       buf = const_cast<char*>(ext->data());
       len = ext->length();
-    } else if (enc == UCS2 && string->IsExternalTwoByte()) {
+    } else if (enc == UTF16LE && string->IsExternalTwoByte()) {
       if constexpr (IsLittleEndian()) {
         auto ext = string->GetExternalStringResource();
         buf = reinterpret_cast<char*>(const_cast<uint16_t*>(ext->data()));
@@ -3043,7 +3043,7 @@ static void Mkdtemp(const FunctionCallbackInfo<Value>& args) {
 
   CHECK_NOT_NULL(*tmpl);
 
-  const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
+  auto encoding = static_cast<ENCODING>(args[1].As<v8::Uint32>()->Value());
 
   if (argc > 2) {  // mkdtemp(tmpl, encoding, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);

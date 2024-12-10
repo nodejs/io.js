@@ -39,7 +39,7 @@ class StringBytes {
    public:
     inline v8::Maybe<void> Decode(Environment* env,
                                   v8::Local<v8::String> string,
-                                  enum encoding enc) {
+                                  ENCODING enc) {
       size_t storage;
       if (!StringBytes::StorageSize(env->isolate(), string, enc).To(&storage))
         return v8::Nothing<void>();
@@ -59,13 +59,13 @@ class StringBytes {
   // as much as triple UTF-8 strings <= 65536 chars in length
   static v8::Maybe<size_t> StorageSize(v8::Isolate* isolate,
                                        v8::Local<v8::Value> val,
-                                       enum encoding enc);
+                                       ENCODING enc);
 
   // Precise byte count, but slightly slower for Base64 and
   // very much slower for UTF-8
   static v8::Maybe<size_t> Size(v8::Isolate* isolate,
                                 v8::Local<v8::Value> val,
-                                enum encoding enc);
+                                ENCODING enc);
 
   // Write the bytes from the string or buffer into the char*
   // returns the number of bytes written, which will always be
@@ -75,13 +75,13 @@ class StringBytes {
                       char* buf,
                       size_t buflen,
                       v8::Local<v8::Value> val,
-                      enum encoding enc);
+                      ENCODING enc);
 
   // Take the bytes in the src, and turn it into a Buffer or String.
   static v8::MaybeLocal<v8::Value> Encode(v8::Isolate* isolate,
                                           const char* buf,
                                           size_t buflen,
-                                          enum encoding encoding,
+                                          ENCODING encoding,
                                           v8::Local<v8::Value>* error);
 
   // Warning: This reverses endianness on BE platforms, even though the
@@ -95,7 +95,7 @@ class StringBytes {
 
   static v8::MaybeLocal<v8::Value> Encode(v8::Isolate* isolate,
                                           const char* buf,
-                                          enum encoding encoding,
+                                          ENCODING encoding,
                                           v8::Local<v8::Value>* error);
 
  private:

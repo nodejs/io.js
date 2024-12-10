@@ -145,9 +145,9 @@ class FSReqBase : public ReqWrap<uv_fs_t> {
   inline void Init(const char* syscall,
                    const char* data,
                    size_t len,
-                   enum encoding encoding);
+                   ENCODING encoding);
   inline FSReqBuffer& Init(const char* syscall, size_t len,
-                           enum encoding encoding);
+                           ENCODING encoding);
 
   virtual void Reject(v8::Local<v8::Value> reject) = 0;
   virtual void Resolve(v8::Local<v8::Value> value) = 0;
@@ -158,7 +158,7 @@ class FSReqBase : public ReqWrap<uv_fs_t> {
 
   const char* syscall() const { return syscall_; }
   const char* data() const { return has_data_ ? *buffer_ : nullptr; }
-  enum encoding encoding() const { return encoding_; }
+  ENCODING encoding() const { return encoding_; }
   bool use_bigint() const { return use_bigint_; }
   bool is_plain_open() const { return is_plain_open_; }
   bool with_file_types() const { return with_file_types_; }
@@ -186,7 +186,7 @@ class FSReqBase : public ReqWrap<uv_fs_t> {
 
  private:
   std::unique_ptr<FSContinuationData> continuation_data_;
-  enum encoding encoding_ = UTF8;
+  ENCODING encoding_ = UTF8;
   bool has_data_ = false;
   bool use_bigint_ = false;
   bool is_plain_open_ = false;
@@ -496,7 +496,7 @@ template <typename Func, typename... Args>
 inline FSReqBase* AsyncDestCall(Environment* env, FSReqBase* req_wrap,
                                 const v8::FunctionCallbackInfo<v8::Value>& args,
                                 const char* syscall, const char* dest,
-                                size_t len, enum encoding enc, uv_fs_cb after,
+                                size_t len, ENCODING enc, uv_fs_cb after,
                                 Func fn, Args... fn_args);
 
 // Returns nullptr if the operation fails from the start.
@@ -504,7 +504,7 @@ template <typename Func, typename... Args>
 inline FSReqBase* AsyncCall(Environment* env,
                             FSReqBase* req_wrap,
                             const v8::FunctionCallbackInfo<v8::Value>& args,
-                            const char* syscall, enum encoding enc,
+                            const char* syscall, ENCODING enc,
                             uv_fs_cb after, Func fn, Args... fn_args);
 
 // Template counterpart of SYNC_CALL, except that it only puts

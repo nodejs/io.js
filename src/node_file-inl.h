@@ -51,7 +51,7 @@ FSReqBase::FSReqBase(BindingData* binding_data,
 void FSReqBase::Init(const char* syscall,
                      const char* data,
                      size_t len,
-                     enum encoding encoding) {
+                     ENCODING encoding) {
   syscall_ = syscall;
   encoding_ = encoding;
 
@@ -65,7 +65,7 @@ void FSReqBase::Init(const char* syscall,
 }
 
 FSReqBase::FSReqBuffer&
-FSReqBase::Init(const char* syscall, size_t len, enum encoding encoding) {
+FSReqBase::Init(const char* syscall, size_t len, ENCODING encoding) {
   syscall_ = syscall;
   encoding_ = encoding;
 
@@ -309,7 +309,7 @@ template <typename Func, typename... Args>
 FSReqBase* AsyncDestCall(Environment* env, FSReqBase* req_wrap,
                          const v8::FunctionCallbackInfo<v8::Value>& args,
                          const char* syscall, const char* dest,
-                         size_t len, enum encoding enc, uv_fs_cb after,
+                         size_t len, ENCODING enc, uv_fs_cb after,
                          Func fn, Args... fn_args) {
   CHECK_NOT_NULL(req_wrap);
   req_wrap->Init(syscall, dest, len, enc);
@@ -332,7 +332,7 @@ template <typename Func, typename... Args>
 FSReqBase* AsyncCall(Environment* env,
                      FSReqBase* req_wrap,
                      const v8::FunctionCallbackInfo<v8::Value>& args,
-                     const char* syscall, enum encoding enc,
+                     const char* syscall, ENCODING enc,
                      uv_fs_cb after, Func fn, Args... fn_args) {
   return AsyncDestCall(env, req_wrap, args,
                        syscall, nullptr, 0, enc,

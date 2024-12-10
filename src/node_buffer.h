@@ -29,7 +29,7 @@ namespace node {
 
 namespace Buffer {
 
-static const size_t kMaxLength = v8::Uint8Array::kMaxLength;
+constexpr size_t kMaxLength = v8::Uint8Array::kMaxLength;
 
 typedef void (*FreeCallback)(char* data, void* hint);
 
@@ -51,7 +51,7 @@ NODE_EXTERN v8::MaybeLocal<v8::Object> New(v8::Isolate* isolate, size_t length);
 // public constructor from string
 NODE_EXTERN v8::MaybeLocal<v8::Object> New(v8::Isolate* isolate,
                                            v8::Local<v8::String> string,
-                                           enum encoding enc = UTF8);
+                                           ENCODING enc = UTF8);
 
 // public constructor - data is used, callback is passed data on object gc
 NODE_EXTERN v8::MaybeLocal<v8::Object> New(v8::Isolate* isolate,

@@ -116,9 +116,9 @@ void Hmac::HmacDigest(const FunctionCallbackInfo<Value>& args) {
   Hmac* hmac;
   ASSIGN_OR_RETURN_UNWRAP(&hmac, args.This());
 
-  enum encoding encoding = BUFFER;
+  auto encoding = BUFFER;
   if (args.Length() >= 1) {
-    encoding = ParseEncoding(env->isolate(), args[0], BUFFER);
+    static_cast<ENCODING>(args[0].As<v8::Uint32>()->Value());
   }
 
   unsigned char md_value[EVP_MAX_MD_SIZE];
