@@ -273,9 +273,52 @@ std::string PathResolve(Environment* env,
 }
 #endif  // _WIN32
 
-void ToNamespacedPath(Environment* env, BufferValue* path) {
+void ToNamespacedPath(Environment* env,
+                      BufferValue* path,
+                      bool convertToDevicePath) {
 #ifdef _WIN32
   if (path->length() == 0) return;
+
+  static const std::vector<std::regex> windowsDevicePatterns = {
+      std::regex(R"((.*[\\/])?COM\d+$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?LPT\d+$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?NUL$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?CON$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?PRN$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?AUX$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?CONIN\$$)", std::regex_constants::icase),
+      std::regex(R"((.*[\\/])?CONOUT\$$)", std::regex_constants::icase),
+      std::regex(R"(^PHYSICALDRIVE\d+$)", std::regex_constants::icase),
+      std::regex(R"(^(PIPE\\.+)$)", std::regex_constants::icase),
+      std::regex(R"(^(MAILSLOT\\.+)$)", std::regex_constants::icase),
+      std::regex(R"(^TAPE\d+$)", std::regex_constants::icase),
+      std::regex(R"(^CHANGER\d+$)", std::regex_constants::icase)};
+
+  // Only check for Windows device path patterns if conversion is needed.
+  // This avoids conflicts with file creation (e.g., mkfile).
+  if (convertToDevicePath) {
+    std::string path_str(path->ToStringView());
+    for (const std::regex& pattern : windowsDevicePatterns) {
+      if (std::regex_match(path_str, pattern)) {
+        std::string deviceName;
+        if (std::regex_match(path_str,
+                             std::regex(R"(^(PIPE\\.+|MAILSLOT\\.+)$)",
+                                        std::regex_constants::icase))) {
+          deviceName = path_str;
+        } else {
+          size_t pos = path_str.find_last_of("\\/");
+          deviceName =
+              (pos != std::string::npos) ? path_str.substr(pos + 1) : path_str;
+        }
+        std::string new_path = "\\\\.\\" + deviceName;
+        path->AllocateSufficientStorage(new_path.size() + 1);
+        path->SetLength(new_path.size());
+        memcpy(path->out(), new_path.c_str(), new_path.size() + 1);
+        return;
+      }
+    }
+  }
+
   std::string resolved_path = node::PathResolve(env, {path->ToStringView()});
   if (resolved_path.size() <= 2) {
     return;

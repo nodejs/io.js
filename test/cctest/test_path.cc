@@ -85,6 +85,65 @@ TEST_F(PathTest, ToNamespacedPath) {
           .ToLocalChecked());
   ToNamespacedPath(*env, &data_4);
   EXPECT_EQ(data_4.ToStringView(), "\\\\?\\c:\\Windows\\System");
+  BufferValue data5(
+      isolate_,
+      v8::String::NewFromUtf8(isolate_, "C:\\path\\COM1").ToLocalChecked());
+  ToNamespacedPath(*env, &data5, true);
+  EXPECT_EQ(data5.ToStringView(), "\\\\.\\COM1");
+  BufferValue data6(isolate_,
+                    v8::String::NewFromUtf8(isolate_, "COM1").ToLocalChecked());
+  ToNamespacedPath(*env, &data6, true);
+  EXPECT_EQ(data6.ToStringView(), "\\\\.\\COM1");
+  BufferValue data7(isolate_,
+                    v8::String::NewFromUtf8(isolate_, "LPT1").ToLocalChecked());
+  ToNamespacedPath(*env, &data7, true);
+  EXPECT_EQ(data7.ToStringView(), "\\\\.\\LPT1");
+  BufferValue data8(
+      isolate_, v8::String::NewFromUtf8(isolate_, "C:\\LPT1").ToLocalChecked());
+  ToNamespacedPath(*env, &data8, true);
+  EXPECT_EQ(data8.ToStringView(), "\\\\.\\LPT1");
+  BufferValue data9(
+      isolate_,
+      v8::String::NewFromUtf8(isolate_, "PhysicalDrive0").ToLocalChecked());
+  ToNamespacedPath(*env, &data9, true);
+  EXPECT_EQ(data9.ToStringView(), "\\\\.\\PhysicalDrive0");
+  BufferValue data10(
+      isolate_,
+      v8::String::NewFromUtf8(isolate_, "pipe\\mypipe").ToLocalChecked());
+  ToNamespacedPath(*env, &data10, true);
+  EXPECT_EQ(data10.ToStringView(), "\\\\.\\pipe\\mypipe");
+  BufferValue data11(
+      isolate_,
+      v8::String::NewFromUtf8(isolate_, "MAILSLOT\\mySlot").ToLocalChecked());
+  ToNamespacedPath(*env, &data11, true);
+  EXPECT_EQ(data11.ToStringView(), "\\\\.\\MAILSLOT\\mySlot");
+  BufferValue data12(isolate_,
+                     v8::String::NewFromUtf8(isolate_, "NUL").ToLocalChecked());
+  ToNamespacedPath(*env, &data12, true);
+  EXPECT_EQ(data12.ToStringView(), "\\\\.\\NUL");
+  BufferValue data13(
+      isolate_, v8::String::NewFromUtf8(isolate_, "Tape0").ToLocalChecked());
+  ToNamespacedPath(*env, &data13, true);
+  EXPECT_EQ(data13.ToStringView(), "\\\\.\\Tape0");
+  BufferValue data14(
+      isolate_, v8::String::NewFromUtf8(isolate_, "Changer0").ToLocalChecked());
+  ToNamespacedPath(*env, &data14, true);
+  EXPECT_EQ(data14.ToStringView(), "\\\\.\\Changer0");
+  BufferValue data15(isolate_,
+                     v8::String::NewFromUtf8(isolate_, "\\\\.\\pipe\\somepipe")
+                         .ToLocalChecked());
+  ToNamespacedPath(*env, &data15, true);
+  EXPECT_EQ(data15.ToStringView(), "\\\\.\\pipe\\somepipe");
+  BufferValue data16(
+      isolate_,
+      v8::String::NewFromUtf8(isolate_, "\\\\.\\COM1").ToLocalChecked());
+  ToNamespacedPath(*env, &data16, true);
+  EXPECT_EQ(data16.ToStringView(), "\\\\.\\COM1");
+  BufferValue data17(
+      isolate_,
+      v8::String::NewFromUtf8(isolate_, "\\\\.\\LPT1").ToLocalChecked());
+  ToNamespacedPath(*env, &data17, true);
+  EXPECT_EQ(data17.ToStringView(), "\\\\.\\LPT1");
 #else
   BufferValue data(
       isolate_,

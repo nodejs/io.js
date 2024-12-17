@@ -625,11 +625,15 @@ added: v9.0.0
 -->
 
 * `path` {string}
+* `convertToDevicePath`: {boolean}
 * Returns: {string}
 
 On Windows systems only, returns an equivalent [namespace-prefixed path][] for
 the given `path`. If `path` is not a string, `path` will be returned without
 modifications.
+
+To convert the `path` to a device namespacedPath,
+set `convertToDevicePath` to true; by default, this option is set to false.
 
 This method is meaningful only on Windows systems. On POSIX systems, the
 method is non-operational and always returns `path` without modifications.
