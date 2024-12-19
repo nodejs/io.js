@@ -388,18 +388,17 @@ void OptionsParser<Options>::Parse(
     }
 
     {
-      std::string implied_name = name;
-      if (is_negation) {
-        // Implications for negated options are defined with "--no-".
-        implied_name.insert(2, "no-");
-      }
-      auto implications = implications_.equal_range(implied_name);
+      auto implications = implications_.equal_range(name);
       for (auto imp = implications.first; imp != implications.second; ++imp) {
         if (imp->second.type == kV8Option) {
           v8_args->push_back(imp->second.name);
         } else {
-          *imp->second.target_field->template Lookup<bool>(options) =
-              imp->second.target_value;
+          auto p = imp->second.target_field->template Lookup<bool>(options);
+          if (is_negation) {
+            if (it->second.type == kBoolean) *p = !imp->second.target_value;
+          } else {
+            *p = imp->second.target_value;
+          }
         }
       }
     }
