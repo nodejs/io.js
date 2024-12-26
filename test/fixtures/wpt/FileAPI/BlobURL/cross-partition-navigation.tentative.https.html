@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<meta charset=utf-8>
+<meta name="timeout" content="long">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/get-host-info.sub.js"></script>
+<script src="/common/utils.js"></script>
+<script src="/common/dispatcher/dispatcher.js"></script>
+<!-- Pull in executor_path needed by newPopup / newIframe -->
+<script src="/html/cross-origin-embedder-policy/credentialless/resources/common.js"></script>
+<!-- Pull in importScript / newPopup / newIframe -->
+<script src="/html/anonymous-iframe/resources/common.js"></script>
+<body>
+<script>
+
+const navigation_handle_null = "Navigation handle returns null";
+const navigation_handle_not_null = "Navigation handle returns not null";
+const opener_null_response = "Window.opener is null";
+const opener_not_null_response = "Window.opener isn't null";
+
+const does_blob_url_open_return_handle = (blob_url, response_queue_name) => `
+  async function test() {
+    const handle = window.open("${blob_url}")
+    if (!handle) {
+      return send("${response_queue_name}", "${navigation_handle_null}");
+    }
+
+    return send("${response_queue_name}", "${navigation_handle_not_null}");
+  }
+  await test();
+`;
+
+const add_iframe_js = (iframe_origin, response_queue_uuid) => `
+  const importScript = ${importScript};
+  await importScript("/html/cross-origin-embedder-policy/credentialless" +
+                   "/resources/common.js");
+  await importScript("/html/anonymous-iframe/resources/common.js");
+  await importScript("/common/utils.js");
+
+  // dispatcher.js has already been loaded by the popup this is running in.
+  await send("${response_queue_uuid}", newIframe("${iframe_origin}"));
+`;
+
+const same_site_origin = get_host_info().HTTPS_ORIGIN;
+const cross_site_origin = get_host_info().HTTPS_NOTSAMESITE_ORIGIN;
+
+async function create_test_iframes(t, response_queue_uuid) {
+  assert_equals("https://" + window.location.host, same_site_origin,
+  "this test assumes that the page's window.location.host corresponds to " +
+  "get_host_info().HTTPS_ORIGIN");
+
+  // Create a same-origin iframe in a cross-site popup.
+  const not_same_site_popup_uuid = newPopup(t, cross_site_origin);
+  await send(not_same_site_popup_uuid,
+       add_iframe_js(same_site_origin, response_queue_uuid));
+  const cross_site_iframe_uuid = await receive(response_queue_uuid);
+
+  // Create a same-origin iframe in a same-site popup.
+  const same_origin_popup_uuid = newPopup(t, same_site_origin);
+  await send(same_origin_popup_uuid,
+       add_iframe_js(same_site_origin, response_queue_uuid));
+  const same_site_iframe_uuid = await receive(response_queue_uuid);
+
+  return [cross_site_iframe_uuid, same_site_iframe_uuid];
+}
+
+// Tests navigating blob URL for same and cross partition iframes.
+promise_test(t => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Creates same and cross partition iframes.
+      const response_queue_uuid = token();
+      const noopener_response_queue = token();
+
+      const [cross_site_iframe_uuid, same_site_iframe_uuid] =
+        await create_test_iframes(t, response_queue_uuid);
+
+      const frame_html = `
+        <!doctype html>
+        // dispatcher.js requires the baseURI to be set in order to compute the
+        // server path correctly in the blob URL page.
+        <base href="${window.location.href}">
+        <script src="/html/cross-origin-embedder-policy/credentialless/resources/common.js"><\/script>
+        <script src="/html/anonymous-iframe/resources/common.js"><\/script>
+        <script src="/common/utils.js"><\/script>
+        <script src="/common/dispatcher/dispatcher.js"><\/script>
+        <script>
+          if (window.opener === null) {
+            send("${noopener_response_queue}", "${opener_null_response}")
+          } else {
+            send("${noopener_response_queue}", "${opener_not_null_response}")
+          }
+        <\/script>
+      `;
+
+      const blob = new Blob([frame_html], {type : "text/html"});
+      const blob_url = URL.createObjectURL(blob);
+
+      // Attempt to open blob URL in cross partition iframe.
+      await send(cross_site_iframe_uuid, does_blob_url_open_return_handle(blob_url, response_queue_uuid));
+      const response_1 = await receive(response_queue_uuid);
+      if (response_1 !== navigation_handle_null) {
+        reject(`Blob URL handle wasn't null in not-same-top-level-site iframe: ${response_1}`);
+      }
+      const noopener_response_1 = await receive(noopener_response_queue);
+      if (noopener_response_1 !== opener_null_response) {
+        reject(`Blob URL page opener wasn't null in not-same-top-level-site iframe.`);
+      }
+
+      // Attempt to open blob URL in same partition iframe.
+      await send(same_site_iframe_uuid, does_blob_url_open_return_handle(blob_url, response_queue_uuid));
+      const response_2 = await receive(response_queue_uuid);
+      if (response_2 !== navigation_handle_not_null) {
+        reject(`Blob URL wasn't opened in same-top-level-site iframe: ${response_2}`);
+      }
+      const noopener_response_2 = await receive(noopener_response_queue);
+      if (noopener_response_2 !== opener_non_null_response) {
+        reject(`Blob URL page opener was null in same-top-level-site iframe`);
+      }
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}, "Blob URL navigation should enforce noopener for a cross-top-level-site navigation");
+
+</script>
+</body>

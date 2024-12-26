@@ -290,13 +290,21 @@ test_blob(function() {
     new Int16Array([0x4150, 0x5353]),
     new Uint32Array([0x53534150]),
     new Int32Array([0x53534150]),
-    new Float16Array([2.65625, 58.59375]),
     new Float32Array([0xD341500000])
   ]);
 }, {
-  expected: "PASSPASSPASSPASSPASSPASSPASSPASS",
+  expected: "PASSPASSPASSPASSPASSPASSPASS",
   type: "",
   desc: "Passing typed arrays as elements of the blobParts array should work."
+});
+test_blob(function() {
+  return new Blob([
+    new Float16Array([2.65625, 58.59375])
+  ]);
+}, {
+  expected: "PASS",
+  type: "",
+  desc: "Passing a Float16Array as element of the blobParts array should work."
 });
 test_blob(function() {
   return new Blob([
