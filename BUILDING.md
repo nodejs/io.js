@@ -572,6 +572,21 @@ export CC="ccache cc"          # add to ~/.zshrc or other shell config file
 export CXX="ccache c++"        # add to ~/.zshrc or other shell config file
 ```
 
+On Windows:
+
+Tips: follow <https://github.com/ccache/ccache/wiki/MS-Visual-Studio>, and you
+should notice that obj file will be bigger the normal one.
+
+First, install ccache, assume ccache install to c:\ccache, copy
+c:\ccache\ccache.exe to c:\ccache\cl.exe
+
+```powershell
+set CLToolPath=c:\ccache\
+set ForceImportAfterCppProps=%CD%\tools\msvc\props_4_ccache.props
+# run vcbuild to build node, rerun should be fast even after out dir be deleted
+.\vcbuild
+```
+
 This will allow for near-instantaneous rebuilds when switching branches back
 and forth that were built with cache.
 
