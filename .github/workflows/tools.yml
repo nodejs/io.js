@@ -22,7 +22,6 @@ on:
           - cjs-module-lexer
           - corepack
           - doc
-          - github_reporter
           - googletest
           - gyp-next
           - histogram
@@ -135,14 +134,6 @@ jobs:
                 npm install --ignore-scripts $NEW_VERSION
                 npm install --ignore-scripts
               fi
-          - id: github_reporter
-            subsystem: tools
-            label: tools
-            run: |
-              ./tools/dep_updaters/update-github-reporter.sh > temp-output
-              cat temp-output
-              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
-              rm temp-output
           - id: googletest
             subsystem: deps
             label: dependencies, test
