@@ -551,6 +551,30 @@ added: v0.5.9
 
 An alias of [`assert.ok()`][].
 
+## `assert.greaterThanOrEqualTo(actual, expected[, message])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `actual` {number}
+* `expected` {number}
+* `message` {string|Error}
+
+Expects the `actual` input to be greater than or equal to the `expected` value.
+
+## `assert.lessThanOrEqualTo(actual, expected[, message])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `actual` {number}
+* `expected` {number}
+* `message` {string|Error}
+
+Expects the `actual` input to be less than or equal to the `expected` value.
+
 ## `assert.deepEqual(actual, expected[, message])`
 
 <!-- YAML
@@ -1311,6 +1335,18 @@ parameter is undefined, a default error message is assigned. If the `message`
 parameter is an instance of an [`Error`][] then it will be thrown instead of the
 `AssertionError`.
 
+## `assert.greaterThan(actual, expected[, message])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `actual` {number}
+* `expected` {number}
+* `message` {string|Error}
+
+Expects the `actual` input to be greater than the `expected` value.
+
 ## `assert.fail([message])`
 
 <!-- YAML
@@ -1449,6 +1485,18 @@ suppressFrame();
 //     at ContextifyScript.Script.runInThisContext (vm.js:44:33)
 //     ...
 ```
+
+## `assert.lessThan(actual, expected[, message])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `actual` {number}
+* `expected` {number}
+* `message` {string|Error}
+
+Expects the `actual` input to be less than the `expected` value.
 
 ## `assert.ifError(value)`
 
