@@ -689,6 +689,10 @@ def Win32SetErrorMode(mode):
 
 def KillTimedOutProcess(context, pid):
   signal_to_send = signal.SIGTERM
+  if context.trace_sigint:
+    # Using SIGINT here allows the process to print a stack trace before
+    # exiting.
+    signal_to_send = signal.SIGINT
   if context.abort_on_timeout:
     # Using SIGABRT here allows the OS to generate a core dump that can be
     # looked at post-mortem, which helps for investigating failures that are
@@ -941,20 +945,19 @@ TIMEOUT_SCALEFACTOR = {
 
 class Context(object):
 
-  def __init__(self, workspace, verbose, vm, args, expect_fail,
-               timeout, processor, suppress_dialogs,
-               store_unexpected_output, repeat, abort_on_timeout):
+  def __init__(self, workspace, verbose, options, processor):
     self.workspace = workspace
     self.verbose = verbose
-    self.vm = vm
-    self.node_args = args
-    self.expect_fail = expect_fail
-    self.timeout = timeout
+    self.vm = options.shell
+    self.node_args = options.node_args
+    self.expect_fail = options.expect_fail
+    self.timeout = options.timeout
     self.processor = processor
-    self.suppress_dialogs = suppress_dialogs
-    self.store_unexpected_output = store_unexpected_output
-    self.repeat = repeat
-    self.abort_on_timeout = abort_on_timeout
+    self.suppress_dialogs = options.suppress_dialogs
+    self.store_unexpected_output = options.store_unexpected_output
+    self.repeat = options.repeat
+    self.abort_on_timeout = options.abort_on_timeout
+    self.trace_sigint = options.trace_sigint
     self.v8_enable_inspector = True
     self.node_has_crypto = True
 
@@ -1400,6 +1403,8 @@ def BuildOptions():
       default=False, action="store_true")
   result.add_option("--worker", help="Run parallel tests inside a worker context",
       default=False, action="store_true")
+  result.add_option("--trace-sigint", dest="trace_sigint",
+      help="Trace SIGINT signals when timeouts", default=True, action="store_true")
   result.add_option("--check-deopts", help="Check tests for permanent deoptimizations",
       default=False, action="store_true")
   result.add_option("--cat", help="Print the source of the tests",
@@ -1663,23 +1668,18 @@ def Main():
     options.node_args.append("--always-turbofan")
     options.progress = "deopts"
 
+  if options.trace_sigint:
+    options.node_args.append("--trace-sigint")
+
+  # 'run-worker.js' must be the last item of node_args. Args after 'run-worker.js'
+  # will be recognized as arguments to 'run-worker.js' instead of exec args.
   if options.worker:
     run_worker = join(workspace, "tools", "run-worker.js")
     options.node_args.append(run_worker)
 
   processor = GetSpecialCommandProcessor(options.special_command)
 
-  context = Context(workspace,
-                    VERBOSE,
-                    options.shell,
-                    options.node_args,
-                    options.expect_fail,
-                    options.timeout,
-                    processor,
-                    options.suppress_dialogs,
-                    options.store_unexpected_output,
-                    options.repeat,
-                    options.abort_on_timeout)
+  context = Context(workspace, VERBOSE, options, processor)
 
   # Get status for tests
   sections = [ ]

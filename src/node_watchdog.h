@@ -102,7 +102,7 @@ class TraceSigintWatchdog : public HandleWrap, public SigintWatchdogBase {
   TraceSigintWatchdog(Environment* env, v8::Local<v8::Object> object);
   void HandleInterrupt();
 
-  bool interrupting = false;
+  bool interrupted = false;
   uv_async_t handle_;
   SignalFlags signal_flag_ = SignalFlags::None;
 };

@@ -198,11 +198,12 @@ SignalPropagation TraceSigintWatchdog::HandleSigint() {
 }
 
 void TraceSigintWatchdog::HandleInterrupt() {
-  // Do not nest interrupts.
-  if (interrupting) {
+  // Do not interrupt if already interrupted. This can happen if idle
+  // interruption still get triggered after RequestInterrupt.
+  if (interrupted) {
     return;
   }
-  interrupting = true;
+  interrupted = true;
   if (signal_flag_ == SignalFlags::None) {
     return;
   }
@@ -219,7 +220,6 @@ void TraceSigintWatchdog::HandleInterrupt() {
                         env_->isolate(), 10, v8::StackTrace::kDetailed));
   }
   signal_flag_ = SignalFlags::None;
-  interrupting = false;
 
   Mutex::ScopedLock lock(SigintWatchdogHelper::GetInstanceActionMutex());
   SigintWatchdogHelper::GetInstance()->Unregister(this);
@@ -390,8 +390,12 @@ void SigintWatchdogHelper::Unregister(SigintWatchdogBase* wd) {
   Mutex::ScopedLock lock(list_mutex_);
 
   auto it = std::find(watchdogs_.begin(), watchdogs_.end(), wd);
-
-  CHECK_NE(it, watchdogs_.end());
+  // If the helper thread is stopping, the watchdog list has been cleared.
+  // Ignore the unregister call if the watchdog cleans up itself after the
+  // thread was joined.
+  if (it == watchdogs_.end()) {
+    return;
+  }
   watchdogs_.erase(it);
 }
 

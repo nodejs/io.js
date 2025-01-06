@@ -16,10 +16,10 @@ if (isMainThread) {
       mustCall((module) => {
         const message = module.default;
 
-        if (process.execArgv.length === 0) {
-          assert.strictEqual(message, 'using native addons');
-        } else {
+        if (process.execArgv.includes('--no-addons')) {
           assert.strictEqual(message, 'not using native addons');
+        } else {
+          assert.strictEqual(message, 'using native addons');
         }
       })
     );

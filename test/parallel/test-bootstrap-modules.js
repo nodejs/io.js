@@ -174,6 +174,11 @@ if (process.env.NODE_V8_COVERAGE) {
   expected.atRunTime.add('Internal Binding profiler');
 }
 
+if (process.execArgv.includes('--trace-sigint') && common.isMainThread) {
+  expected.atRunTime.add('Internal Binding watchdog');
+  expected.atRunTime.add('NativeModule internal/watchdog');
+}
+
 // Accumulate all the errors and print them at the end instead of throwing
 // immediately which makes it harder to update the test.
 const errorLogs = [];
