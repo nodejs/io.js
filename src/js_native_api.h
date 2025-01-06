@@ -610,6 +610,11 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_object_seal(napi_env env,
                                                     napi_value object);
 #endif  // NAPI_VERSION >= 8
 
+#ifdef NAPI_EXPERIMENTAL
+NAPI_EXTERN napi_status NAPI_CDECL napi_can_call_into_js(napi_env env,
+                                                         bool* result);
+#endif
+
 EXTERN_C_END
 
 #endif  // SRC_JS_NATIVE_API_H_

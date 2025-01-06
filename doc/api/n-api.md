@@ -6716,6 +6716,24 @@ node_api_get_module_file_name(node_api_basic_env env, const char** result);
 `result` may be an empty string if the add-on loading process fails to establish
 the add-on's file name during loading.
 
+#### `napi_can_call_into_js`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+NAPI_EXTERN napi_status napi_can_call_into_js(napi_env env);
+```
+
+* `[in] env`: The environment that the API is invoked under.
+
+Returns `napi_ok` if the API succeeded.
+
+This API is used to check if it is safe to call into JavaScript.
+
 [ABI Stability]: https://nodejs.org/en/docs/guides/abi-stability/
 [AppVeyor]: https://www.appveyor.com
 [C++ Addons]: addons.md
