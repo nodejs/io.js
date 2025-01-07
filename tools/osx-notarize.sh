@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# Notarize a generated node-<version>.pkg file as an Apple requirement for installation on macOS Catalina and later, as validated by Gatekeeper.
-# Uses notarytool and requires Xcode >= 13.0.
-
 pkgid="$1"
 
 if [ -z "$pkgid" ]; then
@@ -34,26 +31,59 @@ then
     exit 1
 fi
 
-echo "Submitting node-$pkgid.pkg for notarization..."
+# heck each file type
+for filetype in pkg tar.gz tar.xz; do
+  for filename in node-"$pkgid"*."$filetype"; do
+    # Check if the file exists
+    if [ -f "$filename" ]; then
+      echo "Found $filename. Submitting for notarization..."
 
-xcrun notarytool submit \
-  --keychain-profile "NODE_RELEASE_PROFILE" \
-  --wait \
-  "node-$pkgid.pkg"
+      if [ $filetype = "pkg" ]; then
+        if xcrun notarytool submit \
+          --keychain-profile "NODE_RELEASE_PROFILE" \
+          --wait \
+          "$filename"
+        then
+          echo "Notarization $filename submitted successfully."
+        else
+          echo "Notarization $filename failed."
+          exit 1
+        fi
 
-if [ $? -eq 0 ]; then
-  echo "Notarization node-$pkgid.pkg submitted successfully."
-else
-  echo "Notarization node-$pkgid.pkg failed."
-  exit 1
-fi
+        if ! xcrun spctl --assess --type install --context context:primary-signature --ignore-cache --verbose=2 "$filename"; then
+          echo "error: Signature will not be accepted by Gatekeeper!" 1>&2
+          exit 1
+        else
+          echo "Verification was successful."
+        fi
 
-if ! xcrun spctl --assess --type install --context context:primary-signature --ignore-cache --verbose=2 "node-$pkgid.pkg"; then
-  echo "error: Signature will not be accepted by Gatekeeper!" 1>&2
-  exit 1
-else
-  echo "Verification was successful."
-fi
+        xcrun stapler staple "$filename"
+        echo "Stapler was successful."
 
-xcrun stapler staple "node-$pkgid.pkg"
-echo "Stapler was successful."
+      elif [ $filetype = "tar.gz" ] || [ $filetype = "tar.xz" ]; then
+        echo "Converting tarball to zip for notarization..."
+
+        mkdir -p "${filename%.*}"
+        tar -xf "$filename" -C "${filename%.*}"
+        zip -r "${filename%.*}.zip" "${filename%.*}"
+
+        if xcrun notarytool submit \
+          --keychain-profile "NODE_RELEASE_PROFILE" \
+          --wait \
+          "${filename%.*}.zip"
+        then
+          echo "Notarization ${filename%.*}.zip submitted successfully."
+        else
+          echo "Notarization ${filename%.*}.zip failed."
+          exit 1
+        fi
+
+        echo "Converting zip back to tarball..."
+
+        rm -rf "${filename%.*}"
+        tar -czf "$filename" "${filename%.*}"
+        rm "${filename%.*}.zip"
+      fi
+    fi
+  done
+done
