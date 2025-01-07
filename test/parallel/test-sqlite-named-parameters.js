@@ -13,7 +13,7 @@ function nextDb() {
 }
 
 suite('named parameters', () => {
-  test('throws on unknown named parameters', (t) => {
+  test('unknown named parameters are supported', (t) => {
     const db = new DatabaseSync(nextDb());
     t.after(() => { db.close(); });
     const setup = db.exec(
@@ -21,12 +21,11 @@ suite('named parameters', () => {
     );
     t.assert.strictEqual(setup, undefined);
 
-    t.assert.throws(() => {
-      const stmt = db.prepare('INSERT INTO types (key, val) VALUES ($k, $v)');
-      stmt.run({ $k: 1, $unknown: 1 });
-    }, {
-      code: 'ERR_INVALID_STATE',
-      message: /Unknown named parameter '\$unknown'/,
+    const stmt = db.prepare('INSERT INTO types (key, val) VALUES ($k, $v)');
+    t.assert.deepStrictEqual(stmt.run({ $k: 1, $unknown: 1, $v: 1 }, true), 
+    {
+      changes: 1,
+      lastInsertRowid: 1,
     });
   });
 

@@ -1007,19 +1007,8 @@ bool StatementSync::BindParams(const FunctionCallbackInfo<Value>& args) {
       Utf8Value utf8_key(env()->isolate(), key);
       int r = sqlite3_bind_parameter_index(statement_, *utf8_key);
       if (r == 0) {
-        if (allow_bare_named_params_) {
-          auto lookup = bare_named_params_->find(std::string(*utf8_key));
-          if (lookup != bare_named_params_->end()) {
-            r = sqlite3_bind_parameter_index(statement_,
-                                             lookup->second.c_str());
-          }
-        }
-
-        if (r == 0) {
-          THROW_ERR_INVALID_STATE(
-              env(), "Unknown named parameter '%s'", *utf8_key);
-          return false;
-        }
+        // Ignore unknown named parameter
+        continue;
       }
 
       Local<Value> value;
@@ -1034,9 +1023,15 @@ bool StatementSync::BindParams(const FunctionCallbackInfo<Value>& args) {
     anon_start++;
   }
 
-  for (int i = anon_start; i < args.Length(); ++i) {
+  int param_count = sqlite3_bind_parameter_count(statement_);
+
+  for (int i = anon_start; i < args.Length() && anon_idx <= param_count; ++i) {
     while (sqlite3_bind_parameter_name(statement_, anon_idx) != nullptr) {
       anon_idx++;
+    }
+
+    if (anon_idx > param_count) {
+      break; // Ignore extra parameters
     }
 
     if (!BindValue(args[i], anon_idx)) {
