@@ -80,6 +80,7 @@
   V(base_string, "base")                                                       \
   V(bits_string, "bits")                                                       \
   V(block_list_string, "blockList")                                            \
+  V(broadcast_string, "broadcast")                                             \
   V(buffer_string, "buffer")                                                   \
   V(bytes_parsed_string, "bytesParsed")                                        \
   V(bytes_read_string, "bytesRead")                                            \
