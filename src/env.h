@@ -602,6 +602,12 @@ class Cleanable {
   friend class Environment;
 };
 
+class CppgcWrapperListNode {
+ public:
+  virtual void Clean() = 0;
+  ListNode<CppgcWrapperListNode> wrapper_list_node;
+};
+
 /**
  * Environment is a per-isolate data structure that represents an execution
  * environment. Each environment has a principal realm. An environment can
@@ -897,12 +903,18 @@ class Environment final : public MemoryRetainer {
   typedef ListHead<HandleWrap, &HandleWrap::handle_wrap_queue_> HandleWrapQueue;
   typedef ListHead<ReqWrapBase, &ReqWrapBase::req_wrap_queue_> ReqWrapQueue;
   typedef ListHead<Cleanable, &Cleanable::cleanable_queue_> CleanableQueue;
+  typedef ListHead<CppgcWrapperListNode,
+                   &CppgcWrapperListNode::wrapper_list_node>
+      CppgcWrapperList;
 
   inline HandleWrapQueue* handle_wrap_queue() { return &handle_wrap_queue_; }
   inline CleanableQueue* cleanable_queue() {
     return &cleanable_queue_;
   }
   inline ReqWrapQueue* req_wrap_queue() { return &req_wrap_queue_; }
+  inline CppgcWrapperList* cppgc_wrapper_list() {
+    return &cppgc_wrapper_list_;
+  }
 
   // https://w3c.github.io/hr-time/#dfn-time-origin
   inline uint64_t time_origin() {
@@ -1191,6 +1203,8 @@ class Environment final : public MemoryRetainer {
   CleanableQueue cleanable_queue_;
   HandleWrapQueue handle_wrap_queue_;
   ReqWrapQueue req_wrap_queue_;
+  CppgcWrapperList cppgc_wrapper_list_;
+
   int handle_cleanup_waiting_ = 0;
   int request_waiting_ = 0;
 
