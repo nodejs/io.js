@@ -2097,7 +2097,7 @@ const obs = new PerformanceObserver((list, observer) => {
   performance.clearMeasures();
   observer.disconnect();
 });
-obs.observe({ entryTypes: ['measure'], buffered: true });
+obs.observe({ entryTypes: ['measure'] });
 
 setTimeout(() => {}, 1000);
 ```
@@ -2154,7 +2154,7 @@ const obs = new PerformanceObserver((list) => {
   performance.clearMeasures();
   obs.disconnect();
 });
-obs.observe({ entryTypes: ['function'], buffered: true });
+obs.observe({ entryTypes: ['function'] });
 
 require('some-module');
 ```
