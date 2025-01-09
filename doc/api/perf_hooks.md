@@ -1385,7 +1385,7 @@ changes:
   * `buffered` {boolean} If true, the observer callback is called with a
     list global `PerformanceEntry` buffered entries. If false, only
     `PerformanceEntry`s created after the time point are sent to the
-    observer callback. **Default:** `false`.
+    observer callback. Must be used only with `options.type`.
 
 Subscribes the {PerformanceObserver} instance to notifications of new
 {PerformanceEntry} instances identified either by `options.entryTypes`

@@ -33,6 +33,13 @@ test(() => {
   });
 }, "Calling observe() with type and entryTypes should throw a TypeError");
 
+test(() => {
+  const obs = new PerformanceObserver(() =>{});
+  assert_throws_js(TypeError, function () {
+    obs.observe({buffered: true, entryTypes: ["measure"]});
+  });
+}, "Calling observe() with buffered and entryTypes should throw a TypeError");
+
 test(function () {
   const obs = new PerformanceObserver(() =>{});
   // Definitely not an entry type.
