@@ -467,10 +467,16 @@ void Initialize(Local<Object> target,
 NODE_BINDING_CONTEXT_AWARE_INTERNAL(cares_wrap, Initialize)
 ```
 
-If the C++ binding is loaded during bootstrap, it needs to be registered
-with the utilities in `node_external_reference.h`, like this:
+#### Registering binding functions used in bootstrap
+
+If the C++ binding is loaded during bootstrap, in addition to registering it
+using `NODE_BINDING_CONTEXT_AWARE_INTERNAL` for `internalBinding()` lookup,
+it also needs to be registered with `NODE_BINDING_EXTERNAL_REFERENCE` so that
+the external references can be resolved from the built-in snapshot, like this:
 
 ```cpp
+#include "node_external_reference.h"
+
 namespace node {
 namespace util {
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
@@ -498,7 +504,8 @@ Unknown external reference 0x107769200.
 /bin/sh: line 1:  6963 Illegal instruction: 4  out/Release/node_mksnapshot out/Release/gen/node_snapshot.cc
 ```
 
-You can try using a debugger to symbolicate the external reference. For example,
+You can try using a debugger to symbolicate the external reference in order to find
+out the binding functions that you forget to register. For example,
 with lldb's `image lookup --address` command (with gdb it's `info symbol`):
 
 ```console
@@ -514,7 +521,9 @@ Process 7012 stopped
 ```
 
 Which explains that the unregistered external reference is
-`node::util::GetHiddenValue` defined in `node_util.cc`.
+`node::util::GetHiddenValue` defined in `node_util.cc`, and should be registered
+using `registry->Register()` in a registration function marked by
+`NODE_BINDING_EXTERNAL_REFERENCE`.
 
 <a id="per-binding-state"></a>
 
