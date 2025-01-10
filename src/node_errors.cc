@@ -58,7 +58,20 @@ static std::string GetSourceMapErrorSource(Isolate* isolate,
                                            bool* added_exception_line) {
   v8::TryCatch try_catch(isolate);
   HandleScope handle_scope(isolate);
-  Environment* env = Environment::GetCurrent(context);
+  Realm* realm = Realm::GetCurrent(context);
+
+  Local<Function> get_source;
+  if (realm != nullptr) {
+    // If we are in a Realm, call the realm specific getSourceMapErrorSource
+    // callback to avoid passing the JS objects (the exception and trace) across
+    // the realm boundary.
+    get_source = realm->get_source_map_error_source();
+  } else {
+    Environment* env = Environment::GetCurrent(context);
+    // The context is created with ContextifyContext, call the principal
+    // realm's getSourceMapErrorSource callback.
+    get_source = env->principal_realm()->get_source_map_error_source();
+  }
 
   // The ScriptResourceName of the message may be different from the one we use
   // to compile the script. V8 replaces it when it detects magic comments in
@@ -70,8 +83,8 @@ static std::string GetSourceMapErrorSource(Isolate* isolate,
   Local<Value> argv[] = {script_resource_name,
                          v8::Int32::New(isolate, linenum),
                          v8::Int32::New(isolate, columnum)};
-  MaybeLocal<Value> maybe_ret = env->get_source_map_error_source()->Call(
-      context, Undefined(isolate), arraysize(argv), argv);
+  MaybeLocal<Value> maybe_ret =
+      get_source->Call(context, Undefined(isolate), arraysize(argv), argv);
   Local<Value> ret;
   if (!maybe_ret.ToLocal(&ret)) {
     // Ignore the caught exceptions.

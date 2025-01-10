@@ -1,0 +1,20 @@
+*/test/fixtures/source-map/tabs.coffee:26
+	alert "I knew it!"
+	^
+
+
+ReferenceError: alert is not defined
+    at <anonymous> (*/test/fixtures/source-map/tabs.coffee:26:2)
+    at <anonymous> (*/test/fixtures/source-map/tabs.coffee:1:14)
+    at Script.runInContext (node:vm:151:12)
+*/test/fixtures/source-map/tabs.coffee:26
+	alert "I knew it!"
+	^
+
+
+ReferenceError: alert is not defined
+    at <anonymous> (*/test/fixtures/source-map/tabs.coffee:26:2)
+    at <anonymous> (*/test/fixtures/source-map/tabs.coffee:1:14)
+    at Script.runInContext (node:vm:151:12)
+
+Node.js *

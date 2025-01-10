@@ -1,11 +1,11 @@
-*tabs.coffee:26
+/synthethized/workspace/tabs.coffee:26
 	alert "I knew it!"
 	^
 
 
 ReferenceError: alert is not defined
-    at Object.eval (*tabs.coffee:26:2)
-    at eval (*tabs.coffee:1:14)
-    at Object.<anonymous> (*output*source_map_eval.js:10:1)
+    at Object.eval (/synthethized/workspace/tabs.coffee:26:2)
+    at eval (/synthethized/workspace/tabs.coffee:1:14)
+    at Object.<anonymous> (*/test/fixtures/source-map/output/source_map_eval.js:11:1)
 
 Node.js *

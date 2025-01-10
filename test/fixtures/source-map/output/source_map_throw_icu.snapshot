@@ -1,10 +1,10 @@
-*icu.jsx:3
+*/test/fixtures/source-map/icu.jsx:3
     ("あ 🐕 🐕", throw Error("an error"));
      ^
 
 
 Error: an error
-    at Object.createElement (*icu.jsx:3:23)
-    at Object.<anonymous> (*icu.jsx:9:5)
+    at Object.createElement (*/test/fixtures/source-map/icu.jsx:3:23)
+    at Object.<anonymous> (*/test/fixtures/source-map/icu.jsx:9:5)
 
 Node.js *

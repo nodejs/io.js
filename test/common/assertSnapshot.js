@@ -8,12 +8,21 @@ const assert = require('node:assert/strict');
 const stackFramesRegexp = /(?<=\n)(\s+)((.+?)\s+\()?(?:\(?(.+?):(\d+)(?::(\d+))?)\)?(\s+\{)?(\[\d+m)?(\n|$)/g;
 const windowNewlineRegexp = /\r/g;
 
+function replaceExperimentalWarning(str) {
+  return str.replace(/\(node:\d+\) ExperimentalWarning: (.*)\n/g, '')
+    .replace('(Use `node --trace-warnings ...` to show where the warning was created)\n', '');
+}
+
 function replaceNodeVersion(str) {
   return str.replaceAll(process.version, '*');
 }
 
 function replaceStackTrace(str, replacement = '$1*$7$8\n') {
   return str.replace(stackFramesRegexp, replacement);
+}
+
+function replaceInternalStackTrace(str) {
+  return str.replaceAll(/(\W+).*node:internal.*/g, '$1*');
 }
 
 function replaceWindowsLineEndings(str) {
@@ -24,8 +33,20 @@ function replaceWindowsPaths(str) {
   return common.isWindows ? str.replaceAll(path.win32.sep, path.posix.sep) : str;
 }
 
-function replaceFullPaths(str) {
-  return str.replaceAll('\\\'', "'").replaceAll(path.resolve(__dirname, '../..'), '');
+function replaceWindowsDriveLetter(str) {
+  if (!common.isWindows) {
+    return str;
+  }
+  const currentDriveLetter = path.parse(process.cwd()).root.substring(0, 1).toLowerCase();
+  const regex = new RegExp(`${currentDriveLetter}:`, 'gi');
+  return str.replaceAll('\\\'', "'").replaceAll(regex, '');
+}
+
+function transformCwd(replacement = '') {
+  const cwd = process.cwd();
+  return (str) => {
+    return str.replaceAll('\\\'', "'").replaceAll(cwd, replacement);
+  };
 }
 
 function transform(...args) {
@@ -94,11 +115,14 @@ async function spawnAndAssert(filename, transform = (x) => x, { tty = false, ...
 module.exports = {
   assertSnapshot,
   getSnapshotPath,
-  replaceFullPaths,
+  replaceExperimentalWarning,
   replaceNodeVersion,
   replaceStackTrace,
+  replaceInternalStackTrace,
   replaceWindowsLineEndings,
   replaceWindowsPaths,
+  replaceWindowsDriveLetter,
   spawnAndAssert,
   transform,
+  transformCwd,
 };
