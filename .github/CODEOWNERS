@@ -171,6 +171,9 @@
 /src/permission/* @nodejs/security-wg
 /test/parallel/test-permission-* @nodejs/security-wg
 
+# Security Release
+/doc/contributing/security-release-process.md @nodejs/security-release
+
 # Dependency Update Tools
 
 /.github/workflows/tools.yml @nodejs/security-wg
