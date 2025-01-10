@@ -1,7 +1,4 @@
 {
-  "idlharness-shadowrealm.window.js": {
-    "skip": "ShadowRealm support is not enabled"
-  },
   "percent-encoding.window.js": {
     "skip": "TODO: port from .window.js"
   },
@@ -19,13 +16,7 @@
       "expected": [
         "\uD87E\uDC68.com (using URL)",
         "\uD87E\uDC68.com (using URL.host)",
-        "\uD87E\uDC68.com (using URL.hostname)",
-        "\u1E9E.com (using URL)",
-        "\u1E9E.com (using URL.host)",
-        "\u1E9E.com (using URL.hostname)",
-        "\u1E9E.foo.com (using URL)",
-        "\u1E9E.foo.com (using URL.host)",
-        "\u1E9E.foo.com (using URL.hostname)"
+        "\uD87E\uDC68.com (using URL.hostname)"
       ]
     }
   },

@@ -1,4 +1,4 @@
-/* auto-generated on 2024-09-02 20:07:32 -0400. Do not edit! */
+/* auto-generated on 2024-12-05 22:29:01 -0500. Do not edit! */
 /* begin file include/ada.h */
 /**
  * @file ada.h
@@ -8,7 +8,7 @@
 #define ADA_H
 
 /* begin file include/ada/ada_idna.h */
-/* auto-generated on 2023-09-19 15:58:51 -0400. Do not edit! */
+/* auto-generated on 2024-12-05 20:44:13 -0500. Do not edit! */
 /* begin file include/idna.h */
 #ifndef ADA_IDNA_H
 #define ADA_IDNA_H
@@ -129,9 +129,6 @@ std::string to_ascii(std::string_view ut8_string);
 // https://url.spec.whatwg.org/#forbidden-domain-code-point
 bool contains_forbidden_domain_code_point(std::string_view ascii_string);
 
-bool begins_with(std::u32string_view view, std::u32string_view prefix);
-bool begins_with(std::string_view view, std::string_view prefix);
-
 bool constexpr is_ascii(std::u32string_view view);
 bool constexpr is_ascii(std::string_view view);
 
@@ -230,13 +227,6 @@ std::string to_unicode(std::string_view input);
 #define ada_unused
 #define ada_warn_unused
 
-#ifndef ada_likely
-#define ada_likely(x) x
-#endif
-#ifndef ada_unlikely
-#define ada_unlikely(x) x
-#endif
-
 #define ADA_PUSH_DISABLE_WARNINGS __pragma(warning(push))
 #define ADA_PUSH_DISABLE_ALL_WARNINGS __pragma(warning(push, 0))
 #define ADA_DISABLE_VS_WARNING(WARNING_NUMBER) \
@@ -267,13 +257,6 @@ std::string to_unicode(std::string_view input);
 
 #define ada_unused __attribute__((unused))
 #define ada_warn_unused __attribute__((warn_unused_result))
-
-#ifndef ada_likely
-#define ada_likely(x) __builtin_expect(!!(x), 1)
-#endif
-#ifndef ada_unlikely
-#define ada_unlikely(x) __builtin_expect(!!(x), 0)
-#endif
 
 #define ADA_PUSH_DISABLE_WARNINGS _Pragma("GCC diagnostic push")
 // gcc doesn't seem to disable all warnings with all and extra, add warnings
@@ -353,52 +336,6 @@ namespace ada {
 #endif
 }
 }  // namespace ada
-
-#if defined(__GNUC__) && !defined(__clang__)
-#if __GNUC__ <= 8
-#define ADA_OLD_GCC 1
-#endif  //  __GNUC__ <= 8
-#endif  // defined(__GNUC__) && !defined(__clang__)
-
-#if ADA_OLD_GCC
-#define ada_constexpr
-#else
-#define ada_constexpr constexpr
-#endif
-
-#if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__)
-#define ADA_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-#elif defined(_WIN32)
-#define ADA_IS_BIG_ENDIAN 0
-#else
-#if defined(__APPLE__) || \
-    defined(__FreeBSD__)  // defined __BYTE_ORDER__ && defined
-                          // __ORDER_BIG_ENDIAN__
-#include <machine/endian.h>
-#elif defined(sun) || \
-    defined(__sun)  // defined(__APPLE__) || defined(__FreeBSD__)
-#include <sys/byteorder.h>
-#else  // defined(__APPLE__) || defined(__FreeBSD__)
-
-#ifdef __has_include
-#if __has_include(<endian.h>)
-#include <endian.h>
-#endif  //__has_include(<endian.h>)
-#endif  //__has_include
-
-#endif  // defined(__APPLE__) || defined(__FreeBSD__)
-
-#ifndef !defined(__BYTE_ORDER__) || !defined(__ORDER_LITTLE_ENDIAN__)
-#define ADA_IS_BIG_ENDIAN 0
-#endif
-
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define ADA_IS_BIG_ENDIAN 0
-#else  // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define ADA_IS_BIG_ENDIAN 1
-#endif  // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-
-#endif  // defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__
 
 // Unless the programmer has already set ADA_DEVELOPMENT_CHECKS,
 // we want to set it under debug builds. We detect a debug build
@@ -503,7 +440,7 @@ namespace ada {
  * @brief Includes the definitions for unicode character sets.
  */
 namespace ada::character_sets {
-ada_really_inline bool bit_at(const uint8_t a[], uint8_t i);
+ada_really_inline constexpr bool bit_at(const uint8_t a[], uint8_t i);
 }  // namespace ada::character_sets
 
 #endif  // ADA_CHARACTER_SETS_H
@@ -1012,7 +949,7 @@ constexpr uint8_t WWW_FORM_URLENCODED_PERCENT_ENCODE[32] = {
     // F8     F9     FA     FB     FC     FD     FE     FF
     0x01 | 0x02 | 0x04 | 0x08 | 0x10 | 0x20 | 0x40 | 0x80};
 
-ada_really_inline bool bit_at(const uint8_t a[], const uint8_t i) {
+ada_really_inline constexpr bool bit_at(const uint8_t a[], const uint8_t i) {
   return !!(a[i >> 3] & (1 << (i & 7)));
 }
 
@@ -1028,23 +965,20 @@ ada_really_inline bool bit_at(const uint8_t a[], const uint8_t i) {
 #ifndef ADA_CHECKERS_INL_H
 #define ADA_CHECKERS_INL_H
 
-
-#include <algorithm>
+#include <bit>
 #include <string_view>
-#include <cstring>
 
 namespace ada::checkers {
 
-inline bool has_hex_prefix_unsafe(std::string_view input) {
+constexpr bool has_hex_prefix_unsafe(std::string_view input) {
   // This is actually efficient code, see has_hex_prefix for the assembly.
-  uint32_t value_one = 1;
-  bool is_little_endian = (reinterpret_cast<char*>(&value_one)[0] == 1);
-  uint16_t word0x{};
-  std::memcpy(&word0x, "0x", 2);  // we would use bit_cast in C++20 and the
-                                  // function could be constexpr.
-  uint16_t two_first_bytes{};
-  std::memcpy(&two_first_bytes, input.data(), 2);
-  if (is_little_endian) {
+  constexpr bool is_little_endian = std::endian::native == std::endian::little;
+  constexpr auto word0x =
+      std::bit_cast<uint16_t>(static_cast<uint16_t>(0x7830));
+  uint16_t two_first_bytes =
+      static_cast<uint16_t>(input[0]) |
+      static_cast<uint16_t>((static_cast<uint16_t>(input[1]) << 8));
+  if constexpr (is_little_endian) {
     two_first_bytes |= 0x2000;
   } else {
     two_first_bytes |= 0x020;
@@ -1052,7 +986,7 @@ inline bool has_hex_prefix_unsafe(std::string_view input) {
   return two_first_bytes == word0x;
 }
 
-inline bool has_hex_prefix(std::string_view input) {
+constexpr bool has_hex_prefix(std::string_view input) {
   return input.size() >= 2 && has_hex_prefix_unsafe(input);
 }
 
@@ -1064,24 +998,16 @@ constexpr bool is_alpha(char x) noexcept {
   return (to_lower(x) >= 'a') && (to_lower(x) <= 'z');
 }
 
-inline constexpr bool is_windows_drive_letter(std::string_view input) noexcept {
+constexpr bool is_windows_drive_letter(std::string_view input) noexcept {
   return input.size() >= 2 &&
          (is_alpha(input[0]) && ((input[1] == ':') || (input[1] == '|'))) &&
          ((input.size() == 2) || (input[2] == '/' || input[2] == '\\' ||
                                   input[2] == '?' || input[2] == '#'));
 }
 
-inline constexpr bool is_normalized_windows_drive_letter(
+constexpr bool is_normalized_windows_drive_letter(
     std::string_view input) noexcept {
   return input.size() >= 2 && (is_alpha(input[0]) && (input[1] == ':'));
-}
-
-ada_really_inline bool begins_with(std::string_view view,
-                                   std::string_view prefix) {
-  // in C++20, you have view.begins_with(prefix)
-  // std::equal is constexpr in C++20
-  return view.size() >= prefix.size() &&
-         std::equal(prefix.begin(), prefix.end(), view.begin());
 }
 
 }  // namespace ada::checkers
@@ -1097,65 +1023,31 @@ ada_really_inline bool begins_with(std::string_view view,
 #ifndef ADA_LOG_H
 #define ADA_LOG_H
 
-#include <iostream>
 // To enable logging, set ADA_LOGGING to 1:
 #ifndef ADA_LOGGING
 #define ADA_LOGGING 0
 #endif
 
+#if ADA_LOGGING
+#include <iostream>
+#endif  // ADA_LOGGING
+
 namespace ada {
 
 /**
- * Private function used for logging messages.
+ * Log a message. If you want to have no overhead when logging is disabled, use
+ * the ada_log macro.
  * @private
  */
-template <typename T>
-ada_really_inline void inner_log([[maybe_unused]] T t) {
+template <typename... Args>
+constexpr ada_really_inline void log([[maybe_unused]] Args... args) {
 #if ADA_LOGGING
-  std::cout << t << std::endl;
-#endif
-}
-
-/**
- * Private function used for logging messages.
- * @private
- */
-template <typename T, typename... Args>
-ada_really_inline void inner_log([[maybe_unused]] T t,
-                                 [[maybe_unused]] Args... args) {
-#if ADA_LOGGING
-  std::cout << t;
-  inner_log(args...);
-#endif
-}
-
-/**
- * Log a message.
- * @private
- */
-template <typename T, typename... Args>
-ada_really_inline void log([[maybe_unused]] T t,
-                           [[maybe_unused]] Args... args) {
-#if ADA_LOGGING
-  std::cout << "ADA_LOG: " << t;
-  inner_log(args...);
-#endif
-}
-
-/**
- * Log a message.
- * @private
- */
-template <typename T>
-ada_really_inline void log([[maybe_unused]] T t) {
-#if ADA_LOGGING
-  std::cout << "ADA_LOG: " << t << std::endl;
-#endif
+  ((std::cout << "ADA_LOG: ") << ... << args) << std::endl;
+#endif  // ADA_LOGGING
 }
 }  // namespace ada
 
 #if ADA_LOGGING
-
 #ifndef ada_log
 #define ada_log(...)       \
   do {                     \
@@ -1413,7 +1305,7 @@ struct url_components {
    * @return true if the offset values are
    *  consistent with a possible URL string
    */
-  [[nodiscard]] bool check_offset_consistency() const noexcept;
+  [[nodiscard]] constexpr bool check_offset_consistency() const noexcept;
 
   /**
    * Converts a url_components to JSON stringified version.
@@ -1421,7 +1313,6 @@ struct url_components {
   [[nodiscard]] std::string to_string() const;
 
 };  // struct url_components
-
 }  // namespace ada
 #endif
 /* end file include/ada/url_components.h */
@@ -1435,7 +1326,6 @@ struct url_components {
 
 
 #include <array>
-#include <optional>
 #include <string>
 
 /**
@@ -1563,7 +1453,7 @@ struct url_base {
    * A URL is special if its scheme is a special scheme. A URL is not special if
    * its scheme is not a special scheme.
    */
-  [[nodiscard]] ada_really_inline bool is_special() const noexcept;
+  [[nodiscard]] ada_really_inline constexpr bool is_special() const noexcept;
 
   /**
    * The origin getter steps are to return the serialization of this's URL's
@@ -1639,6 +1529,10 @@ struct url_base {
 
 #include <string_view>
 #include <optional>
+
+#if ADA_DEVELOPMENT_CHECKS
+#include <iostream>
+#endif  // ADA_DEVELOPMENT_CHECKS
 
 /**
  * These functions are not part of our public API and may
@@ -1716,8 +1610,8 @@ ada_really_inline void remove_ascii_tab_or_newline(std::string& input) noexcept;
  * Return the substring from input going from index pos to the end.
  * This function cannot throw.
  */
-ada_really_inline std::string_view substring(std::string_view input,
-                                             size_t pos) noexcept;
+ada_really_inline constexpr std::string_view substring(std::string_view input,
+                                                       size_t pos) noexcept;
 
 /**
  * @private
@@ -1730,9 +1624,9 @@ bool overlaps(std::string_view input1, const std::string& input2) noexcept;
  * Return the substring from input going from index pos1 to the pos2 (non
  * included). The length of the substring is pos2 - pos1.
  */
-ada_really_inline std::string_view substring(const std::string& input,
-                                             size_t pos1,
-                                             size_t pos2) noexcept {
+ada_really_inline constexpr std::string_view substring(std::string_view input,
+                                                       size_t pos1,
+                                                       size_t pos2) noexcept {
 #if ADA_DEVELOPMENT_CHECKS
   if (pos2 < pos1) {
     std::cerr << "Negative-length substring: [" << pos1 << " to " << pos2 << ")"
@@ -1740,7 +1634,7 @@ ada_really_inline std::string_view substring(const std::string& input,
     abort();
   }
 #endif
-  return std::string_view(input.data() + pos1, pos2 - pos1);
+  return input.substr(pos1, pos2 - pos1);
 }
 
 /**
@@ -1756,7 +1650,7 @@ ada_really_inline void resize(std::string_view& input, size_t pos) noexcept;
  * and whether a colon was found outside brackets. Used by the host parser.
  */
 ada_really_inline std::pair<size_t, bool> get_host_delimiter_location(
-    const bool is_special, std::string_view& view) noexcept;
+    bool is_special, std::string_view& view) noexcept;
 
 /**
  * @private
@@ -4530,7 +4424,6 @@ constexpr ada::scheme::type get_scheme_type(std::string_view scheme) noexcept {
 
 
 #include <array>
-#include <optional>
 #include <string>
 
 /**
@@ -4714,7 +4607,7 @@ ada_really_inline constexpr bool is_ascii_tab_or_newline(char c) noexcept;
  * @details A double-dot path segment must be ".." or an ASCII case-insensitive
  * match for ".%2e", "%2e.", or "%2e%2e".
  */
-ada_really_inline ada_constexpr bool is_double_dot_path_segment(
+ada_really_inline constexpr bool is_double_dot_path_segment(
     std::string_view input) noexcept;
 
 /**
@@ -4857,7 +4750,7 @@ struct url_aggregator : url_base {
    * @see https://url.spec.whatwg.org/#dom-url-href
    * @see https://url.spec.whatwg.org/#concept-url-serializer
    */
-  [[nodiscard]] inline std::string_view get_href() const noexcept
+  [[nodiscard]] constexpr std::string_view get_href() const noexcept
       ada_lifetime_bound;
   /**
    * The username getter steps are to return this's URL's username.
@@ -4914,7 +4807,7 @@ struct url_aggregator : url_base {
    * @return a lightweight std::string_view.
    * @see https://url.spec.whatwg.org/#dom-url-pathname
    */
-  [[nodiscard]] std::string_view get_pathname() const noexcept
+  [[nodiscard]] constexpr std::string_view get_pathname() const noexcept
       ada_lifetime_bound;
   /**
    * Compute the pathname length in bytes without instantiating a view or a
@@ -4944,7 +4837,8 @@ struct url_aggregator : url_base {
    * A URL includes credentials if its username or password is not the empty
    * string.
    */
-  [[nodiscard]] ada_really_inline bool has_credentials() const noexcept;
+  [[nodiscard]] ada_really_inline constexpr bool has_credentials()
+      const noexcept;
 
   /**
    * Useful for implementing efficient serialization for the URL.
@@ -4983,24 +4877,24 @@ struct url_aggregator : url_base {
    * @return true if the URL is valid, otherwise return true of the offsets are
    * possible.
    */
-  [[nodiscard]] bool validate() const noexcept;
+  [[nodiscard]] constexpr bool validate() const noexcept;
 
   /** @return true if it has an host but it is the empty string */
-  [[nodiscard]] inline bool has_empty_hostname() const noexcept;
+  [[nodiscard]] constexpr bool has_empty_hostname() const noexcept;
   /** @return true if it has a host (included an empty host) */
-  [[nodiscard]] inline bool has_hostname() const noexcept;
+  [[nodiscard]] constexpr bool has_hostname() const noexcept;
   /** @return true if the URL has a non-empty username */
-  [[nodiscard]] inline bool has_non_empty_username() const noexcept;
+  [[nodiscard]] constexpr bool has_non_empty_username() const noexcept;
   /** @return true if the URL has a non-empty password */
-  [[nodiscard]] inline bool has_non_empty_password() const noexcept;
+  [[nodiscard]] constexpr bool has_non_empty_password() const noexcept;
   /** @return true if the URL has a (non default) port */
-  [[nodiscard]] inline bool has_port() const noexcept;
+  [[nodiscard]] constexpr bool has_port() const noexcept;
   /** @return true if the URL has a password */
-  [[nodiscard]] inline bool has_password() const noexcept;
+  [[nodiscard]] constexpr bool has_password() const noexcept;
   /** @return true if the URL has a hash component */
-  [[nodiscard]] inline bool has_hash() const noexcept override;
+  [[nodiscard]] constexpr bool has_hash() const noexcept override;
   /** @return true if the URL has a search component */
-  [[nodiscard]] inline bool has_search() const noexcept override;
+  [[nodiscard]] constexpr bool has_search() const noexcept override;
 
   inline void clear_port();
   inline void clear_hash();
@@ -5033,7 +4927,7 @@ struct url_aggregator : url_base {
    * To optimize performance, you may indicate how much memory to allocate
    * within this instance.
    */
-  inline void reserve(uint32_t capacity);
+  constexpr void reserve(uint32_t capacity);
 
   ada_really_inline size_t parse_port(
       std::string_view view, bool check_trailing_content) noexcept override;
@@ -5068,7 +4962,7 @@ struct url_aggregator : url_base {
    * A URL cannot have a username/password/port if its host is null or the empty
    * string, or its scheme is "file".
    */
-  [[nodiscard]] inline bool cannot_have_credentials_or_port() const;
+  [[nodiscard]] constexpr bool cannot_have_credentials_or_port() const;
 
   template <bool override_hostname = false>
   bool set_host_or_hostname(std::string_view input);
@@ -5090,10 +4984,10 @@ struct url_aggregator : url_base {
   inline void update_base_port(uint32_t input);
   inline void append_base_pathname(std::string_view input);
   [[nodiscard]] inline uint32_t retrieve_base_port() const;
-  inline void clear_hostname();
-  inline void clear_password();
-  inline void clear_pathname() override;
-  [[nodiscard]] inline bool has_dash_dot() const noexcept;
+  constexpr void clear_hostname();
+  constexpr void clear_password();
+  constexpr void clear_pathname() override;
+  [[nodiscard]] constexpr bool has_dash_dot() const noexcept;
   void delete_dash_dot();
   inline void consume_prepared_path(std::string_view input);
   template <bool has_state_override = false>
@@ -5101,8 +4995,8 @@ struct url_aggregator : url_base {
       std::string_view input);
   ada_really_inline uint32_t replace_and_resize(uint32_t start, uint32_t end,
                                                 std::string_view input);
-  [[nodiscard]] inline bool has_authority() const noexcept;
-  inline void set_protocol_as_file();
+  [[nodiscard]] constexpr bool has_authority() const noexcept;
+  constexpr void set_protocol_as_file();
   inline void set_scheme(std::string_view new_scheme) noexcept;
   /**
    * Fast function to set the scheme from a view with a colon in the
@@ -5111,6 +5005,8 @@ struct url_aggregator : url_base {
   inline void set_scheme_from_view_with_colon(
       std::string_view new_scheme_with_colon) noexcept;
   inline void copy_scheme(const url_aggregator &u) noexcept;
+
+  inline void update_host_to_base_host(const std::string_view input) noexcept;
 
 };  // url_aggregator
 
@@ -5164,12 +5060,12 @@ constexpr bool is_alpha(char x) noexcept;
  *
  * @see has_hex_prefix
  */
-inline bool has_hex_prefix_unsafe(std::string_view input);
+constexpr bool has_hex_prefix_unsafe(std::string_view input);
 /**
  * @private
  * Check whether a string starts with 0x or 0X.
  */
-inline bool has_hex_prefix(std::string_view input);
+constexpr bool has_hex_prefix(std::string_view input);
 
 /**
  * @private
@@ -5202,18 +5098,11 @@ inline constexpr bool is_normalized_windows_drive_letter(
 
 /**
  * @private
- * @warning Will be removed when Ada requires C++20.
- */
-ada_really_inline bool begins_with(std::string_view view,
-                                   std::string_view prefix);
-
-/**
- * @private
  * Returns true if an input is an ipv4 address. It is assumed that the string
  * does not contain uppercase ASCII characters (the input should have been
  * lowered cased before calling this function) and is not empty.
  */
-ada_really_inline ada_constexpr bool is_ipv4(std::string_view view) noexcept;
+ada_really_inline constexpr bool is_ipv4(std::string_view view) noexcept;
 
 /**
  * @private
@@ -5387,7 +5276,7 @@ struct url : url_base {
    * @return a newly allocated string.
    * @see https://url.spec.whatwg.org/#dom-url-pathname
    */
-  [[nodiscard]] std::string_view get_pathname() const noexcept;
+  [[nodiscard]] constexpr std::string_view get_pathname() const noexcept;
 
   /**
    * Compute the pathname length in bytes without instantiating a view or a
@@ -5521,9 +5410,9 @@ struct url : url_base {
   [[nodiscard]] ada_really_inline ada::url_components get_components()
       const noexcept;
   /** @return true if the URL has a hash component */
-  [[nodiscard]] inline bool has_hash() const noexcept override;
+  [[nodiscard]] constexpr bool has_hash() const noexcept override;
   /** @return true if the URL has a search component */
-  [[nodiscard]] inline bool has_search() const noexcept override;
+  [[nodiscard]] constexpr bool has_search() const noexcept override;
 
  private:
   friend ada::url ada::parser::parse_url<ada::url>(std::string_view,
@@ -5540,10 +5429,9 @@ struct url : url_base {
 
   inline void update_unencoded_base_hash(std::string_view input);
   inline void update_base_hostname(std::string_view input);
-  inline void update_base_search(std::string_view input);
   inline void update_base_search(std::string_view input,
                                  const uint8_t query_percent_encode_set[]);
-  inline void update_base_search(std::optional<std::string> input);
+  inline void update_base_search(std::optional<std::string> &&input);
   inline void update_base_pathname(std::string_view input);
   inline void update_base_username(std::string_view input);
   inline void update_base_password(std::string_view input);
@@ -5600,12 +5488,6 @@ struct url : url_base {
   }
 
   /**
-   * Take the scheme from another URL. The scheme string is copied from the
-   * provided url.
-   */
-  inline void copy_scheme(const ada::url &u);
-
-  /**
    * Parse the host from the provided input. We assume that
    * the input does not contain spaces or tabs. Control
    * characters and spaces are not trimmed (they should have
@@ -5618,9 +5500,9 @@ struct url : url_base {
   template <bool has_state_override = false>
   [[nodiscard]] ada_really_inline bool parse_scheme(std::string_view input);
 
-  inline void clear_pathname() override;
-  inline void clear_search() override;
-  inline void set_protocol_as_file();
+  constexpr void clear_pathname() override;
+  constexpr void clear_search() override;
+  constexpr void set_protocol_as_file();
 
   /**
    * Parse the path from the provided input.
@@ -5645,7 +5527,13 @@ struct url : url_base {
    * Take the scheme from another URL. The scheme string is moved from the
    * provided url.
    */
-  inline void copy_scheme(ada::url &&u) noexcept;
+  constexpr void copy_scheme(ada::url &&u) noexcept;
+
+  /**
+   * Take the scheme from another URL. The scheme string is copied from the
+   * provided url.
+   */
+  constexpr void copy_scheme(const ada::url &u);
 
 };  // struct url
 
@@ -5663,7 +5551,8 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u);
 
 namespace ada {
 
-[[nodiscard]] ada_really_inline bool url_base::is_special() const noexcept {
+[[nodiscard]] ada_really_inline constexpr bool url_base::is_special()
+    const noexcept {
   return type != ada::scheme::NOT_SPECIAL;
 }
 
@@ -5723,6 +5612,10 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u) {
   return path.size();
 }
 
+[[nodiscard]] constexpr std::string_view url::get_pathname() const noexcept {
+  return path;
+}
+
 [[nodiscard]] ada_really_inline ada::url_components url::get_components()
     const noexcept {
   url_components out{};
@@ -5761,7 +5654,7 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u) {
     out.host_start = out.protocol_end;
     out.host_end = out.host_start;
 
-    if (!has_opaque_path && checkers::begins_with(path, "//")) {
+    if (!has_opaque_path && path.starts_with("//")) {
       // If url's host is null, url does not have an opaque path, url's path's
       // size is greater than 1, and url's path[0] is the empty string, then
       // append U+002F (/) followed by U+002E (.) to output.
@@ -5808,8 +5701,8 @@ inline void url::update_base_search(std::string_view input,
   query = ada::unicode::percent_encode(input, query_percent_encode_set);
 }
 
-inline void url::update_base_search(std::optional<std::string> input) {
-  query = input;
+inline void url::update_base_search(std::optional<std::string> &&input) {
+  query = std::move(input);
 }
 
 inline void url::update_base_pathname(const std::string_view input) {
@@ -5828,19 +5721,19 @@ inline void url::update_base_port(std::optional<uint16_t> input) {
   port = input;
 }
 
-inline void url::clear_pathname() { path.clear(); }
+constexpr void url::clear_pathname() { path.clear(); }
 
-inline void url::clear_search() { query = std::nullopt; }
+constexpr void url::clear_search() { query = std::nullopt; }
 
-[[nodiscard]] inline bool url::has_hash() const noexcept {
+[[nodiscard]] constexpr bool url::has_hash() const noexcept {
   return hash.has_value();
 }
 
-[[nodiscard]] inline bool url::has_search() const noexcept {
+[[nodiscard]] constexpr bool url::has_search() const noexcept {
   return query.has_value();
 }
 
-inline void url::set_protocol_as_file() { type = ada::scheme::type::FILE; }
+constexpr void url::set_protocol_as_file() { type = ada::scheme::type::FILE; }
 
 inline void url::set_scheme(std::string &&new_scheme) noexcept {
   type = ada::scheme::get_scheme_type(new_scheme);
@@ -5850,12 +5743,12 @@ inline void url::set_scheme(std::string &&new_scheme) noexcept {
   }
 }
 
-inline void url::copy_scheme(ada::url &&u) noexcept {
+constexpr void url::copy_scheme(ada::url &&u) noexcept {
   non_special_scheme = u.non_special_scheme;
   type = u.type;
 }
 
-inline void url::copy_scheme(const ada::url &u) {
+constexpr void url::copy_scheme(const ada::url &u) {
   non_special_scheme = u.non_special_scheme;
   type = u.type;
 }
@@ -5876,7 +5769,7 @@ inline void url::copy_scheme(const ada::url &u) {
     if (port.has_value()) {
       output += ":" + get_port();
     }
-  } else if (!has_opaque_path && checkers::begins_with(path, "//")) {
+  } else if (!has_opaque_path && path.starts_with("//")) {
     // If url's host is null, url does not have an opaque path, url's path's
     // size is greater than 1, and url's path[0] is the empty string, then
     // append U+002F (/) followed by U+002E (.) to output.
@@ -5908,7 +5801,7 @@ ada_really_inline size_t url::parse_port(std::string_view view,
     return 0;
   }
   ada_log("parse_port: ", parsed_port);
-  const size_t consumed = size_t(r.ptr - view.data());
+  const auto consumed = size_t(r.ptr - view.data());
   ada_log("parse_port: consumed ", consumed);
   if (check_trailing_content) {
     is_valid &=
@@ -5921,9 +5814,8 @@ ada_really_inline size_t url::parse_port(std::string_view view,
     auto default_port = scheme_default_port();
     bool is_port_valid = (default_port == 0 && parsed_port == 0) ||
                          (default_port != parsed_port);
-    port = (r.ec == std::errc() && is_port_valid)
-               ? std::optional<uint16_t>(parsed_port)
-               : std::nullopt;
+    port = (r.ec == std::errc() && is_port_valid) ? std::optional(parsed_port)
+                                                  : std::nullopt;
   }
   return consumed;
 }
@@ -5932,6 +5824,96 @@ ada_really_inline size_t url::parse_port(std::string_view view,
 
 #endif  // ADA_URL_H
 /* end file include/ada/url-inl.h */
+/* begin file include/ada/url_components-inl.h */
+/**
+ * @file url_components.h
+ * @brief Declaration for the URL Components
+ */
+#ifndef ADA_URL_COMPONENTS_INL_H
+#define ADA_URL_COMPONENTS_INL_H
+
+
+namespace ada {
+
+[[nodiscard]] constexpr bool url_components::check_offset_consistency()
+    const noexcept {
+  /**
+   * https://user:pass@example.com:1234/foo/bar?baz#quux
+   *       |     |    |          | ^^^^|       |   |
+   *       |     |    |          | |   |       |   `----- hash_start
+   *       |     |    |          | |   |       `--------- search_start
+   *       |     |    |          | |   `----------------- pathname_start
+   *       |     |    |          | `--------------------- port
+   *       |     |    |          `----------------------- host_end
+   *       |     |    `---------------------------------- host_start
+   *       |     `--------------------------------------- username_end
+   *       `--------------------------------------------- protocol_end
+   */
+  // These conditions can be made more strict.
+  uint32_t index = 0;
+
+  if (protocol_end == url_components::omitted) {
+    return false;
+  }
+  if (protocol_end < index) {
+    return false;
+  }
+  index = protocol_end;
+
+  if (username_end == url_components::omitted) {
+    return false;
+  }
+  if (username_end < index) {
+    return false;
+  }
+  index = username_end;
+
+  if (host_start == url_components::omitted) {
+    return false;
+  }
+  if (host_start < index) {
+    return false;
+  }
+  index = host_start;
+
+  if (port != url_components::omitted) {
+    if (port > 0xffff) {
+      return false;
+    }
+    uint32_t port_length = helpers::fast_digit_count(port) + 1;
+    if (index + port_length < index) {
+      return false;
+    }
+    index += port_length;
+  }
+
+  if (pathname_start == url_components::omitted) {
+    return false;
+  }
+  if (pathname_start < index) {
+    return false;
+  }
+  index = pathname_start;
+
+  if (search_start != url_components::omitted) {
+    if (search_start < index) {
+      return false;
+    }
+    index = search_start;
+  }
+
+  if (hash_start != url_components::omitted) {
+    if (hash_start < index) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+}  // namespace ada
+#endif
+/* end file include/ada/url_components-inl.h */
 /* begin file include/ada/url_aggregator-inl.h */
 /**
  * @file url_aggregator-inl.h
@@ -5960,11 +5942,32 @@ ada_really_inline size_t url::parse_port(std::string_view view,
 namespace ada::unicode {
 ada_really_inline size_t percent_encode_index(const std::string_view input,
                                               const uint8_t character_set[]) {
-  return std::distance(
-      input.begin(),
-      std::find_if(input.begin(), input.end(), [character_set](const char c) {
-        return character_sets::bit_at(character_set, c);
-      }));
+  const char* data = input.data();
+  const size_t size = input.size();
+
+  // Process 8 bytes at a time using unrolled loop
+  size_t i = 0;
+  for (; i + 8 <= size; i += 8) {
+    unsigned char chunk[8];
+    std::memcpy(&chunk, data + i,
+                8);  // entices compiler to unconditionally process 8 characters
+
+    // Check 8 characters at once
+    for (size_t j = 0; j < 8; j++) {
+      if (character_sets::bit_at(character_set, chunk[j])) {
+        return i + j;
+      }
+    }
+  }
+
+  // Handle remaining bytes
+  for (; i < size; i++) {
+    if (character_sets::bit_at(character_set, data[i])) {
+      return i;
+    }
+  }
+
+  return size;
 }
 }  // namespace ada::unicode
 
@@ -5982,7 +5985,7 @@ inline void url_aggregator::update_base_authority(
       base.protocol_end, base.host_start - base.protocol_end);
   ada_log("url_aggregator::update_base_authority ", input);
 
-  bool input_starts_with_dash = checkers::begins_with(input, "//");
+  bool input_starts_with_dash = input.starts_with("//");
   uint32_t diff = components.host_start - components.protocol_end;
 
   buffer.erase(components.protocol_end,
@@ -6222,7 +6225,7 @@ inline void url_aggregator::update_base_pathname(const std::string_view input) {
   ADA_ASSERT_TRUE(!helpers::overlaps(input, buffer));
   ADA_ASSERT_TRUE(validate());
 
-  const bool begins_with_dashdash = checkers::begins_with(input, "//");
+  const bool begins_with_dashdash = input.starts_with("//");
   if (!begins_with_dashdash && has_dash_dot()) {
     ada_log("url_aggregator::update_base_pathname has /.: \n", to_diagram());
     // We must delete the ./
@@ -6367,7 +6370,7 @@ inline void url_aggregator::append_base_username(const std::string_view input) {
   ADA_ASSERT_TRUE(validate());
 }
 
-inline void url_aggregator::clear_password() {
+constexpr void url_aggregator::clear_password() {
   ada_log("url_aggregator::clear_password ", to_string(), "\n", to_diagram());
   ADA_ASSERT_TRUE(validate());
   if (!has_password()) {
@@ -6589,7 +6592,7 @@ inline void url_aggregator::clear_hash() {
   ADA_ASSERT_TRUE(validate());
 }
 
-inline void url_aggregator::clear_pathname() {
+constexpr void url_aggregator::clear_pathname() {
   ada_log("url_aggregator::clear_pathname");
   ADA_ASSERT_TRUE(validate());
   uint32_t ending_index = uint32_t(buffer.size());
@@ -6624,7 +6627,7 @@ inline void url_aggregator::clear_pathname() {
   ada_log("url_aggregator::clear_pathname completed, running checks... ok");
 }
 
-inline void url_aggregator::clear_hostname() {
+constexpr void url_aggregator::clear_hostname() {
   ada_log("url_aggregator::clear_hostname");
   ADA_ASSERT_TRUE(validate());
   if (!has_authority()) {
@@ -6661,22 +6664,22 @@ inline void url_aggregator::clear_hostname() {
   ADA_ASSERT_TRUE(validate());
 }
 
-[[nodiscard]] inline bool url_aggregator::has_hash() const noexcept {
+[[nodiscard]] constexpr bool url_aggregator::has_hash() const noexcept {
   ada_log("url_aggregator::has_hash");
   return components.hash_start != url_components::omitted;
 }
 
-[[nodiscard]] inline bool url_aggregator::has_search() const noexcept {
+[[nodiscard]] constexpr bool url_aggregator::has_search() const noexcept {
   ada_log("url_aggregator::has_search");
   return components.search_start != url_components::omitted;
 }
 
-ada_really_inline bool url_aggregator::has_credentials() const noexcept {
+constexpr bool url_aggregator::has_credentials() const noexcept {
   ada_log("url_aggregator::has_credentials");
   return has_non_empty_username() || has_non_empty_password();
 }
 
-inline bool url_aggregator::cannot_have_credentials_or_port() const {
+constexpr bool url_aggregator::cannot_have_credentials_or_port() const {
   ada_log("url_aggregator::cannot_have_credentials_or_port");
   return type == ada::scheme::type::FILE ||
          components.host_start == components.host_end;
@@ -6687,7 +6690,8 @@ url_aggregator::get_components() const noexcept {
   return components;
 }
 
-[[nodiscard]] inline bool ada::url_aggregator::has_authority() const noexcept {
+[[nodiscard]] constexpr bool ada::url_aggregator::has_authority()
+    const noexcept {
   ada_log("url_aggregator::has_authority");
   // Performance: instead of doing this potentially expensive check, we could
   // have a boolean in the struct.
@@ -6722,28 +6726,28 @@ inline void ada::url_aggregator::add_authority_slashes_if_needed() noexcept {
   ADA_ASSERT_TRUE(validate());
 }
 
-inline void ada::url_aggregator::reserve(uint32_t capacity) {
+constexpr void ada::url_aggregator::reserve(uint32_t capacity) {
   buffer.reserve(capacity);
 }
 
-inline bool url_aggregator::has_non_empty_username() const noexcept {
+constexpr bool url_aggregator::has_non_empty_username() const noexcept {
   ada_log("url_aggregator::has_non_empty_username");
   return components.protocol_end + 2 < components.username_end;
 }
 
-inline bool url_aggregator::has_non_empty_password() const noexcept {
+constexpr bool url_aggregator::has_non_empty_password() const noexcept {
   ada_log("url_aggregator::has_non_empty_password");
   return components.host_start - components.username_end > 0;
 }
 
-inline bool url_aggregator::has_password() const noexcept {
+constexpr bool url_aggregator::has_password() const noexcept {
   ada_log("url_aggregator::has_password");
   // This function does not care about the length of the password
   return components.host_start > components.username_end &&
          buffer[components.username_end] == ':';
 }
 
-inline bool url_aggregator::has_empty_hostname() const noexcept {
+constexpr bool url_aggregator::has_empty_hostname() const noexcept {
   if (!has_hostname()) {
     return false;
   }
@@ -6756,18 +6760,18 @@ inline bool url_aggregator::has_empty_hostname() const noexcept {
   return components.username_end != components.host_start;
 }
 
-inline bool url_aggregator::has_hostname() const noexcept {
+constexpr bool url_aggregator::has_hostname() const noexcept {
   return has_authority();
 }
 
-inline bool url_aggregator::has_port() const noexcept {
+constexpr bool url_aggregator::has_port() const noexcept {
   ada_log("url_aggregator::has_port");
   // A URL cannot have a username/password/port if its host is null or the empty
   // string, or its scheme is "file".
   return has_hostname() && components.pathname_start != components.host_end;
 }
 
-[[nodiscard]] inline bool url_aggregator::has_dash_dot() const noexcept {
+[[nodiscard]] constexpr bool url_aggregator::has_dash_dot() const noexcept {
   // If url's host is null, url does not have an opaque path, url's path's size
   // is greater than 1, and url's path[0] is the empty string, then append
   // U+002F (/) followed by U+002E (.) to output.
@@ -6799,8 +6803,8 @@ inline bool url_aggregator::has_port() const noexcept {
          buffer[components.host_end + 1] == '.';
 }
 
-[[nodiscard]] inline std::string_view url_aggregator::get_href() const noexcept
-    ada_lifetime_bound {
+[[nodiscard]] constexpr std::string_view url_aggregator::get_href()
+    const noexcept ada_lifetime_bound {
   ada_log("url_aggregator::get_href");
   return buffer;
 }
@@ -6844,7 +6848,7 @@ ada_really_inline size_t url_aggregator::parse_port(
   return consumed;
 }
 
-inline void url_aggregator::set_protocol_as_file() {
+constexpr void url_aggregator::set_protocol_as_file() {
   ada_log("url_aggregator::set_protocol_as_file ");
   ADA_ASSERT_TRUE(validate());
   type = ada::scheme::type::FILE;
@@ -6874,9 +6878,216 @@ inline void url_aggregator::set_protocol_as_file() {
   ADA_ASSERT_TRUE(validate());
 }
 
+[[nodiscard]] constexpr bool url_aggregator::validate() const noexcept {
+  if (!is_valid) {
+    return true;
+  }
+  if (!components.check_offset_consistency()) {
+    ada_log("url_aggregator::validate inconsistent components \n",
+            to_diagram());
+    return false;
+  }
+  // We have a credible components struct, but let us investivate more
+  // carefully:
+  /**
+   * https://user:pass@example.com:1234/foo/bar?baz#quux
+   *       |     |    |          | ^^^^|       |   |
+   *       |     |    |          | |   |       |   `----- hash_start
+   *       |     |    |          | |   |       `--------- search_start
+   *       |     |    |          | |   `----------------- pathname_start
+   *       |     |    |          | `--------------------- port
+   *       |     |    |          `----------------------- host_end
+   *       |     |    `---------------------------------- host_start
+   *       |     `--------------------------------------- username_end
+   *       `--------------------------------------------- protocol_end
+   */
+  if (components.protocol_end == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted protocol_end \n", to_diagram());
+    return false;
+  }
+  if (components.username_end == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted username_end \n", to_diagram());
+    return false;
+  }
+  if (components.host_start == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted host_start \n", to_diagram());
+    return false;
+  }
+  if (components.host_end == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted host_end \n", to_diagram());
+    return false;
+  }
+  if (components.pathname_start == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted pathname_start \n", to_diagram());
+    return false;
+  }
+
+  if (components.protocol_end > buffer.size()) {
+    ada_log("url_aggregator::validate protocol_end overflow \n", to_diagram());
+    return false;
+  }
+  if (components.username_end > buffer.size()) {
+    ada_log("url_aggregator::validate username_end overflow \n", to_diagram());
+    return false;
+  }
+  if (components.host_start > buffer.size()) {
+    ada_log("url_aggregator::validate host_start overflow \n", to_diagram());
+    return false;
+  }
+  if (components.host_end > buffer.size()) {
+    ada_log("url_aggregator::validate host_end overflow \n", to_diagram());
+    return false;
+  }
+  if (components.pathname_start > buffer.size()) {
+    ada_log("url_aggregator::validate pathname_start overflow \n",
+            to_diagram());
+    return false;
+  }
+
+  if (components.protocol_end > 0) {
+    if (buffer[components.protocol_end - 1] != ':') {
+      ada_log(
+          "url_aggregator::validate missing : at the end of the protocol \n",
+          to_diagram());
+      return false;
+    }
+  }
+
+  if (components.username_end != buffer.size() &&
+      components.username_end > components.protocol_end + 2) {
+    if (buffer[components.username_end] != ':' &&
+        buffer[components.username_end] != '@') {
+      ada_log(
+          "url_aggregator::validate missing : or @ at the end of the username "
+          "\n",
+          to_diagram());
+      return false;
+    }
+  }
+
+  if (components.host_start != buffer.size()) {
+    if (components.host_start > components.username_end) {
+      if (buffer[components.host_start] != '@') {
+        ada_log(
+            "url_aggregator::validate missing @ at the end of the password \n",
+            to_diagram());
+        return false;
+      }
+    } else if (components.host_start == components.username_end &&
+               components.host_end > components.host_start) {
+      if (components.host_start == components.protocol_end + 2) {
+        if (buffer[components.protocol_end] != '/' ||
+            buffer[components.protocol_end + 1] != '/') {
+          ada_log(
+              "url_aggregator::validate missing // between protocol and host "
+              "\n",
+              to_diagram());
+          return false;
+        }
+      } else {
+        if (components.host_start > components.protocol_end &&
+            buffer[components.host_start] != '@') {
+          ada_log(
+              "url_aggregator::validate missing @ at the end of the username "
+              "\n",
+              to_diagram());
+          return false;
+        }
+      }
+    } else {
+      if (components.host_end != components.host_start) {
+        ada_log("url_aggregator::validate expected omitted host \n",
+                to_diagram());
+        return false;
+      }
+    }
+  }
+  if (components.host_end != buffer.size() &&
+      components.pathname_start > components.host_end) {
+    if (components.pathname_start == components.host_end + 2 &&
+        buffer[components.host_end] == '/' &&
+        buffer[components.host_end + 1] == '.') {
+      if (components.pathname_start + 1 >= buffer.size() ||
+          buffer[components.pathname_start] != '/' ||
+          buffer[components.pathname_start + 1] != '/') {
+        ada_log(
+            "url_aggregator::validate expected the path to begin with // \n",
+            to_diagram());
+        return false;
+      }
+    } else if (buffer[components.host_end] != ':') {
+      ada_log("url_aggregator::validate missing : at the port \n",
+              to_diagram());
+      return false;
+    }
+  }
+  if (components.pathname_start != buffer.size() &&
+      components.pathname_start < components.search_start &&
+      components.pathname_start < components.hash_start && !has_opaque_path) {
+    if (buffer[components.pathname_start] != '/') {
+      ada_log("url_aggregator::validate missing / at the path \n",
+              to_diagram());
+      return false;
+    }
+  }
+  if (components.search_start != url_components::omitted) {
+    if (buffer[components.search_start] != '?') {
+      ada_log("url_aggregator::validate missing ? at the search \n",
+              to_diagram());
+      return false;
+    }
+  }
+  if (components.hash_start != url_components::omitted) {
+    if (buffer[components.hash_start] != '#') {
+      ada_log("url_aggregator::validate missing # at the hash \n",
+              to_diagram());
+      return false;
+    }
+  }
+
+  return true;
+}
+
+[[nodiscard]] constexpr std::string_view url_aggregator::get_pathname()
+    const noexcept ada_lifetime_bound {
+  ada_log("url_aggregator::get_pathname pathname_start = ",
+          components.pathname_start, " buffer.size() = ", buffer.size(),
+          " components.search_start = ", components.search_start,
+          " components.hash_start = ", components.hash_start);
+  auto ending_index = uint32_t(buffer.size());
+  if (components.search_start != url_components::omitted) {
+    ending_index = components.search_start;
+  } else if (components.hash_start != url_components::omitted) {
+    ending_index = components.hash_start;
+  }
+  return helpers::substring(buffer, components.pathname_start, ending_index);
+}
+
 inline std::ostream &operator<<(std::ostream &out,
                                 const ada::url_aggregator &u) {
   return out << u.to_string();
+}
+
+void url_aggregator::update_host_to_base_host(
+    const std::string_view input) noexcept {
+  ada_log("url_aggregator::update_host_to_base_host ", input);
+  ADA_ASSERT_TRUE(validate());
+  ADA_ASSERT_TRUE(!helpers::overlaps(input, buffer));
+  if (type != ada::scheme::type::FILE) {
+    // Let host be the result of host parsing host_view with url is not special.
+    if (input.empty() && !is_special()) {
+      if (has_hostname()) {
+        clear_hostname();
+      } else if (has_dash_dot()) {
+        add_authority_slashes_if_needed();
+        delete_dash_dot();
+      }
+      return;
+    }
+  }
+  update_base_hostname(input);
+  ADA_ASSERT_TRUE(validate());
+  return;
 }
 }  // namespace ada
 
@@ -6927,7 +7138,9 @@ struct url_search_params {
    * @see
    * https://github.com/web-platform-tests/wpt/blob/master/url/urlsearchparams-constructor.any.js
    */
-  url_search_params(const std::string_view input) { initialize(input); }
+  explicit url_search_params(const std::string_view input) {
+    initialize(input);
+  }
 
   url_search_params(const url_search_params &u) = default;
   url_search_params(url_search_params &&u) noexcept = default;
@@ -7057,7 +7270,7 @@ struct url_search_params_iter {
    */
   inline std::optional<T> next();
 
-  inline bool has_next();
+  inline bool has_next() const;
 
  private:
   static url_search_params EMPTY;
@@ -7083,6 +7296,7 @@ struct url_search_params_iter {
 
 #include <algorithm>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -7108,14 +7322,14 @@ inline void url_search_params::initialize(std::string_view input) {
 
     if (equal == std::string_view::npos) {
       std::string name(current);
-      std::replace(name.begin(), name.end(), '+', ' ');
+      std::ranges::replace(name, '+', ' ');
       params.emplace_back(unicode::percent_decode(name, name.find('%')), "");
     } else {
       std::string name(current.substr(0, equal));
       std::string value(current.substr(equal + 1));
 
-      std::replace(name.begin(), name.end(), '+', ' ');
-      std::replace(value.begin(), value.end(), '+', ' ');
+      std::ranges::replace(name, '+', ' ');
+      std::ranges::replace(value, '+', ' ');
 
       params.emplace_back(unicode::percent_decode(name, name.find('%')),
                           unicode::percent_decode(value, value.find('%')));
@@ -7147,8 +7361,8 @@ inline size_t url_search_params::size() const noexcept { return params.size(); }
 
 inline std::optional<std::string_view> url_search_params::get(
     const std::string_view key) {
-  auto entry = std::find_if(params.begin(), params.end(),
-                            [&key](auto &param) { return param.first == key; });
+  auto entry = std::ranges::find_if(
+      params, [&key](auto &param) { return param.first == key; });
 
   if (entry == params.end()) {
     return std::nullopt;
@@ -7171,17 +7385,16 @@ inline std::vector<std::string> url_search_params::get_all(
 }
 
 inline bool url_search_params::has(const std::string_view key) noexcept {
-  auto entry = std::find_if(params.begin(), params.end(),
-                            [&key](auto &param) { return param.first == key; });
+  auto entry = std::ranges::find_if(
+      params, [&key](auto &param) { return param.first == key; });
   return entry != params.end();
 }
 
 inline bool url_search_params::has(std::string_view key,
                                    std::string_view value) noexcept {
-  auto entry =
-      std::find_if(params.begin(), params.end(), [&key, &value](auto &param) {
-        return param.first == key && param.second == value;
-      });
+  auto entry = std::ranges::find_if(params, [&key, &value](auto &param) {
+    return param.first == key && param.second == value;
+  });
   return entry != params.end();
 }
 
@@ -7193,8 +7406,8 @@ inline std::string url_search_params::to_string() const {
     auto value = ada::unicode::percent_encode(params[i].second, character_set);
 
     // Performance optimization: Move this inside percent_encode.
-    std::replace(key.begin(), key.end(), ' ', '+');
-    std::replace(value.begin(), value.end(), ' ', '+');
+    std::ranges::replace(key, ' ', '+');
+    std::ranges::replace(value, ' ', '+');
 
     if (i != 0) {
       out += "&";
@@ -7210,7 +7423,7 @@ inline void url_search_params::set(const std::string_view key,
                                    const std::string_view value) {
   const auto find = [&key](auto &param) { return param.first == key; };
 
-  auto it = std::find_if(params.begin(), params.end(), find);
+  auto it = std::ranges::find_if(params, find);
 
   if (it == params.end()) {
     params.emplace_back(key, value);
@@ -7222,27 +7435,21 @@ inline void url_search_params::set(const std::string_view key,
 }
 
 inline void url_search_params::remove(const std::string_view key) {
-  params.erase(
-      std::remove_if(params.begin(), params.end(),
-                     [&key](auto &param) { return param.first == key; }),
-      params.end());
+  std::erase_if(params, [&key](auto &param) { return param.first == key; });
 }
 
 inline void url_search_params::remove(const std::string_view key,
                                       const std::string_view value) {
-  params.erase(std::remove_if(params.begin(), params.end(),
-                              [&key, &value](auto &param) {
-                                return param.first == key &&
-                                       param.second == value;
-                              }),
-               params.end());
+  std::erase_if(params, [&key, &value](auto &param) {
+    return param.first == key && param.second == value;
+  });
 }
 
 inline void url_search_params::sort() {
-  std::stable_sort(params.begin(), params.end(),
-                   [](const key_value_pair &lhs, const key_value_pair &rhs) {
-                     return lhs.first < rhs.first;
-                   });
+  std::ranges::stable_sort(
+      params, [](const key_value_pair &lhs, const key_value_pair &rhs) {
+        return lhs.first < rhs.first;
+      });
 }
 
 inline url_search_params_keys_iter url_search_params::get_keys() {
@@ -7264,7 +7471,7 @@ inline url_search_params_entries_iter url_search_params::get_entries() {
 }
 
 template <typename T, url_search_params_iter_type Type>
-inline bool url_search_params_iter<T, Type>::has_next() {
+inline bool url_search_params_iter<T, Type>::has_next() const {
   return pos < params.params.size();
 }
 
