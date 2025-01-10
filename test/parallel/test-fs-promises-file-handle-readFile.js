@@ -5,17 +5,17 @@ const common = require('../common');
 // The following tests validate base functionality for the fs.promises
 // FileHandle.readFile method.
 
-const fs = require('fs');
+const fs = require('node:fs');
 const {
   open,
   readFile,
   writeFile,
-  truncate,
 } = fs.promises;
-const path = require('path');
+const path = require('node:path');
+const os = require('node:os');
 const tmpdir = require('../common/tmpdir');
 const tick = require('../common/tick');
-const assert = require('assert');
+const assert = require('node:assert');
 const tmpDir = tmpdir.path;
 
 tmpdir.refresh();
@@ -33,6 +33,29 @@ async function validateReadFile() {
   assert.deepStrictEqual(buffer, readFileData);
 
   await fileHandle.close();
+}
+
+async function validateLargeFileSupport() {
+  const LARGE_FILE_SIZE = 3 * 1024 * 1024 * 1024; // 3 GiB
+  const FILE_PATH = path.join(os.tmpdir(), 'large-virtual-file.bin');
+
+  function createVirtualLargeFile() {
+    return Buffer.alloc(LARGE_FILE_SIZE, 'A');
+  }
+
+  const virtualFile = createVirtualLargeFile();
+
+  await writeFile(FILE_PATH, virtualFile);
+
+  const buffer = await readFile(FILE_PATH);
+
+  assert.strictEqual(
+    buffer.length,
+    LARGE_FILE_SIZE,
+    `Expected file size to be ${LARGE_FILE_SIZE}, but got ${buffer.length}`
+  );
+
+  await fs.promises.unlink(FILE_PATH);
 }
 
 async function validateReadFileProc() {
@@ -100,32 +123,10 @@ async function doReadAndCancel() {
 
     await fileHandle.close();
   }
-
-  // Validate file size is within range for reading
-  {
-    // Variable taken from https://github.com/nodejs/node/blob/1377163f3351/lib/internal/fs/promises.js#L5
-    const kIoMaxLength = 2 ** 31 - 1;
-
-    if (!tmpdir.hasEnoughSpace(kIoMaxLength)) {
-      // truncate() will fail with ENOSPC if there is not enough space.
-      common.printSkipMessage(`Not enough space in ${tmpDir}`);
-    } else {
-      const newFile = path.resolve(tmpDir, 'dogs-running3.txt');
-      await writeFile(newFile, Buffer.from('0'));
-      await truncate(newFile, kIoMaxLength + 1);
-
-      const fileHandle = await open(newFile, 'r');
-
-      await assert.rejects(fileHandle.readFile(), {
-        name: 'RangeError',
-        code: 'ERR_FS_FILE_TOO_LARGE'
-      });
-      await fileHandle.close();
-    }
-  }
 }
 
 validateReadFile()
+  .then(validateLargeFileSupport)
   .then(validateReadFileProc)
   .then(doReadAndCancel)
   .then(common.mustCall());
