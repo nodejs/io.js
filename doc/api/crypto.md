@@ -5487,6 +5487,58 @@ Use of `crypto.timingSafeEqual` does not guarantee that the _surrounding_ code
 is timing-safe. Care should be taken to ensure that the surrounding code does
 not introduce timing vulnerabilities.
 
+Particular care must be taken if `crypto.timingSafeEqual` is used in scenarios
+where one or both arguments may vary in length, as its algorithm is only
+constant-time with respect to a byte length that is consistent. For example, if
+you are comparing a known secret to an input of unknown length, do not truncate
+whichever of the two happens to be longer to match the length of the shorter
+one. Doing so may seem more efficient, but it can leak timing information. In
+this case, you might instead choose to _always_ size `a` and `b` to the length
+of the input, regardless of whether it's longer or shorter than the secret.
+This would mean that `crypto.timingSafeEqual` might not always execute in the
+same amount of time across calls, but its variance will be strictly dependent
+on the attacker's input rather than on the length of your secret.
+
+In the above scenario you'll also need to check that the original input is of
+the same length as the secret, but this should be done _in addition_ to calling
+`crypto.timingSafeEqual`, not as a precondition to it. If your code compares
+the lengths of secret and input and rejects an input of different length
+without calling `crypto.timingSafeEqual`, you may leak timing information.
+
+```mjs
+import { Buffer } from 'buffer';
+const { timingSafeEqual } = await import('crypto');
+
+function timingSafeStringCompare(input, secret) {
+  const inputBuffer = Buffer.from(input);
+  const secretBuffer = Buffer.alloc(inputBuffer.length);
+  secretBuffer.write(secret);
+
+  return timingSafeEqual(inputBuffer, secretBuffer) &&
+    inputBuffer.length === Buffer.byteLength(secret);
+}
+
+// Perform a timing-safe comparison of two utf-8 strings.
+console.log(timingSafeStringCompare('evil_hacker', 'verysecret'));
+```
+
+```cjs
+const { Buffer } = require('buffer');
+const { timingSafeEqual } = require('crypto');
+
+function timingSafeStringCompare(input, secret) {
+  const inputBuffer = Buffer.from(input);
+  const secretBuffer = Buffer.alloc(inputBuffer.length);
+  secretBuffer.write(secret);
+
+  return timingSafeEqual(inputBuffer, secretBuffer) &&
+    inputBuffer.length === Buffer.byteLength(secret);
+}
+
+// Perform a timing-safe comparison of two utf-8 strings.
+console.log(timingSafeStringCompare('evil_hacker', 'verysecret'));
+```
+
 ### `crypto.verify(algorithm, data, key, signature[, callback])`
 
 <!-- YAML
