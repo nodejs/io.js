@@ -70,18 +70,19 @@ def checkHash(targetfile, hashAlgo):
 
 def unpack(packedfile, parent_path):
     """Unpacks packedfile into parent_path. Assumes .zip. Returns parent_path"""
+    packedsuffix = packedfile.lower().split('.')[-1]  # .zip, .tgz etc
     if zipfile.is_zipfile(packedfile):
-        with contextlib.closing(zipfile.ZipFile(packedfile, 'r')) as icuzip:
-            print(' Extracting zipfile: %s' % packedfile)
-            icuzip.extractall(parent_path)
-            return parent_path
+      print(' Extracting zip file: %s' % packedfile)
+      with contextlib.closing(zipfile.ZipFile(packedfile, 'r')) as icuzip:
+          icuzip.extractall(parent_path)
+          return parent_path
     elif tarfile.is_tarfile(packedfile):
-        with contextlib.closing(tarfile.TarFile.open(packedfile, 'r')) as icuzip:
-            print(' Extracting tarfile: %s' % packedfile)
-            icuzip.extractall(parent_path)
-            return parent_path
+      # this will support gz, bz2, xz, etc. See tarfile.open()
+      print(' Extracting tar file: %s' % packedfile)
+      with contextlib.closing(tarfile.TarFile.open(packedfile, 'r')) as icuzip:
+          icuzip.extractall(parent_path)
+          return parent_path
     else:
-        packedsuffix = packedfile.lower().split('.')[-1]  # .zip, .tgz etc
         raise Exception('Error: Don\'t know how to unpack %s with extension %s' % (packedfile, packedsuffix))
 
 # List of possible "--download=" types.

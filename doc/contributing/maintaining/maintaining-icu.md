@@ -109,6 +109,8 @@ Node.js is built.
 * Configure Node.js with the specific [ICU version](http://site.icu-project.org/download)
   you want to upgrade to, for example:
 
+(posix)
+
 ```bash
 ./configure \
     --with-intl=full-icu \
@@ -116,8 +118,11 @@ Node.js is built.
 make
 ```
 
-> _Note_ in theory, the equivalent `vcbuild.bat` commands should work also,
-> but the commands below are makefile-centric.
+(vcbuild)
+
+```bash
+vcbuild.bat full-icu with-icu-source https://github.com/unicode-org/icu/releases/download/release-67-1/icu4c-67_1-src.tgz test
+```
 
 * If there are ICU version-specific changes needed, you may need to make changes
   in `tools/icu/icu-generic.gyp` or add patch files to `tools/icu/patches`.

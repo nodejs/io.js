@@ -1811,7 +1811,8 @@ def glob_to_var(dir_base, dir_sub, patch_dir):
   return file_list
 
 def configure_intl(o):
-  def icu_download(path):
+  def icu_download():
+    """Download or verify ICU from the deps file (current_ver.dep)"""
     depFile = tools_path / 'icu' / 'current_ver.dep'
     icus = json.loads(depFile.read_text(encoding='utf-8'))
     # download ICU, if needed
@@ -1861,6 +1862,17 @@ def configure_intl(o):
 
   with_intl = options.with_intl
   with_icu_source = options.with_icu_source
+  if not with_icu_source:
+    with_icu_source_path = None
+    # no --with-icu-source
+  elif with_icu_source.startswith('http://') or with_icu_source.startswith('https://'):
+    # --with-icu-source isn't a path.
+    with_icu_source_path = None
+  else:
+    # convert to a resolved path for the dep check (below)
+    with_icu_source = Path(with_icu_source).resolve()
+    # pre-convert to a path for later checks.
+    with_icu_source_path = Path(with_icu_source)
   have_icu_path = bool(options.with_icu_path)
   if have_icu_path and with_intl != 'none':
     error('Cannot specify both --with-icu-path and --with-intl')
@@ -1949,8 +1961,8 @@ def configure_intl(o):
     icu_config['variables']['icu_full_canned'] = 1
   # --with-icu-source processing
   # now, check that they didn't pass --with-icu-source=deps/icu
-  elif with_icu_source and Path(icu_full_path).resolve() == Path(with_icu_source).resolve():
-    warn(f'Ignoring redundant --with-icu-source={with_icu_source}')
+  elif with_icu_source and Path(icu_full_path).resolve() == with_icu_source:
+    warn(f'Ignoring redundant --with-icu-source={options.with_icu_source}')
     with_icu_source = None
   # if with_icu_source is still set, try to use it.
   if with_icu_source:
@@ -1958,7 +1970,7 @@ def configure_intl(o):
       print(f'Deleting old ICU source: {icu_full_path}')
       shutil.rmtree(icu_full_path)
     # now, what path was given?
-    if Path(with_icu_source).is_dir():
+    if with_icu_source_path and with_icu_source_path.is_dir():
       # it's a path. Copy it.
       print(f'{with_icu_source} -> {icu_full_path}')
       shutil.copytree(with_icu_source, icu_full_path)
@@ -1969,13 +1981,15 @@ def configure_intl(o):
         shutil.rmtree(icu_tmp_path)
       icu_tmp_path.mkdir()
       icu_tarball = None
-      if Path(with_icu_source).is_file():
+      if with_icu_source_path and with_icu_source_path.is_file():
         # it's a file. Try to unpack it.
-        icu_tarball = with_icu_source
-      else:
-        # Can we download it?
+        icu_tarball = str(with_icu_source.as_posix()) # resolved path
+      elif not with_icu_source_path:
+        # Can we download it? (not a path)
         local = icu_tmp_path / with_icu_source.split('/')[-1]  # local part
         icu_tarball = nodedownload.retrievefile(with_icu_source, local)
+      else:
+        error(f'Cannot find ICU, not a file, dir, or URL: --with-icu-source={options.with_icu_source}')
       # continue with "icu_tarball"
       nodedownload.unpack(icu_tarball, icu_tmp_path)
       # Did it unpack correctly? Should contain 'icu'
@@ -1985,7 +1999,7 @@ def configure_intl(o):
         shutil.rmtree(icu_tmp_path)
       else:
         shutil.rmtree(icu_tmp_path)
-        error(f'--with-icu-source={with_icu_source} did not result in an "icu" dir.')
+        error(f'--with-icu-source={options.with_icu_source} did not result in an "icu" dir.')
 
   # ICU mode. (icu-generic.gyp)
   o['variables']['icu_gyp_path'] = 'tools/icu/icu-generic.gyp'
@@ -1993,7 +2007,7 @@ def configure_intl(o):
   o['variables']['icu_path'] = icu_full_path
   if not Path(icu_full_path).is_dir():
     # can we download (or find) a zipfile?
-    localzip = icu_download(icu_full_path)
+    localzip = icu_download()
     if localzip:
       nodedownload.unpack(localzip, icu_parent_path)
     else:
