@@ -65,7 +65,7 @@ declare namespace InternalFSBinding {
   function chmod(path: string, mode: number, usePromises: typeof kUsePromises): Promise<void>;
 
   function chown(path: string, uid: number, gid: number, req: FSReqCallback): void;
-  function chown(path: string, uid: number, gid: number, req: undefined, ctx: FSSyncContext): void;
+  function chown(path: string, uid: number, gid: number): void;
   function chown(path: string, uid: number, gid: number, usePromises: typeof kUsePromises): Promise<void>;
   function chown(path: string, uid: number, gid: number): void;
 
@@ -106,7 +106,7 @@ declare namespace InternalFSBinding {
   function fsync(fd: number): void;
 
   function ftruncate(fd: number, len: number, req: FSReqCallback): void;
-  function ftruncate(fd: number, len: number, req: undefined, ctx: FSSyncContext): void;
+  function ftruncate(fd: number, len: number): void;
   function ftruncate(fd: number, len: number, usePromises: typeof kUsePromises): Promise<void>;
 
   function futimes(fd: number, atime: number, mtime: number, req: FSReqCallback): void;
@@ -116,12 +116,12 @@ declare namespace InternalFSBinding {
   function internalModuleStat(receiver: unknown, path: string): number;
 
   function lchown(path: string, uid: number, gid: number, req: FSReqCallback): void;
-  function lchown(path: string, uid: number, gid: number, req: undefined, ctx: FSSyncContext): void;
+  function lchown(path: string, uid: number, gid: number): void;
   function lchown(path: string, uid: number, gid: number, usePromises: typeof kUsePromises): Promise<void>;
   function lchown(path: string, uid: number, gid: number): void;
 
   function link(existingPath: string, newPath: string, req: FSReqCallback): void;
-  function link(existingPath: string, newPath: string, req: undefined, ctx: FSSyncContext): void;
+  function link(existingPath: string, newPath: string): void;
   function link(existingPath: string, newPath: string, usePromises: typeof kUsePromises): Promise<void>;
   function link(existingPath: string, newPath: string): void;
 
@@ -140,7 +140,7 @@ declare namespace InternalFSBinding {
   function lutimes(path: string, atime: number, mtime: number, usePromises: typeof kUsePromises): Promise<void>;
 
   function mkdtemp(prefix: string, encoding: unknown, req: FSReqCallback<string>): void;
-  function mkdtemp(prefix: string, encoding: unknown, req: undefined, ctx: FSSyncContext): string;
+  function mkdtemp(prefix: string, encoding: unknown): string;
   function mkdtemp(prefix: string, encoding: unknown, usePromises: typeof kUsePromises): Promise<string>;
   function mkdtemp(prefix: string, encoding: unknown): string;
 
@@ -163,9 +163,9 @@ declare namespace InternalFSBinding {
   function read(fd: number, buffer: ArrayBufferView, offset: number, length: number, position: number, usePromises: typeof kUsePromises): Promise<number>;
   function read(fd: number, buffer: ArrayBufferView, offset: number, length: number, position: number): number;
 
-  function readBuffers(fd: number, buffers: ArrayBufferView[], position: number, req: FSReqCallback<number>): void;
-  function readBuffers(fd: number, buffers: ArrayBufferView[], position: number, req: undefined, ctx: FSSyncContext): number;
-  function readBuffers(fd: number, buffers: ArrayBufferView[], position: number, usePromises: typeof kUsePromises): Promise<number>;
+  function readBuffers(fd: number, buffers: ArrayBufferView[], position: number | null, req: FSReqCallback<number>): void;
+  function readBuffers(fd: number, buffers: ArrayBufferView[], position: number | null): number;
+  function readBuffers(fd: number, buffers: ArrayBufferView[], position: number | null, usePromises: typeof kUsePromises): Promise<number>;
 
   function readdir(path: StringOrBuffer, encoding: unknown, withFileTypes: boolean, req: FSReqCallback<string[] | [string[], number[]]>): void;
   function readdir(path: StringOrBuffer, encoding: unknown, withFileTypes: true, req: FSReqCallback<[string[], number[]]>): void;
@@ -185,7 +185,7 @@ declare namespace InternalFSBinding {
   function readlink(path: StringOrBuffer, encoding: unknown): StringOrBuffer;
 
   function realpath(path: StringOrBuffer, encoding: unknown, req: FSReqCallback<string | Buffer>): void;
-  function realpath(path: StringOrBuffer, encoding: unknown, req: undefined, ctx: FSSyncContext): string | Buffer;
+  function realpath(path: StringOrBuffer, encoding: unknown): string | Buffer;
   function realpath(path: StringOrBuffer, encoding: unknown, usePromises: typeof kUsePromises): Promise<string | Buffer>;
   function realpath(path: StringOrBuffer, encoding: unknown): StringOrBuffer;
 
