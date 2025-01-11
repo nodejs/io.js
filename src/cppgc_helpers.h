@@ -25,20 +25,38 @@ namespace node {
  * with V8's GC scheduling.
  *
  * A cppgc-managed native wrapper should look something like this, note
- * that per cppgc rules, CPPGC_MIXIN(Klass) must be at the left-most
+ * that per cppgc rules, CPPGC_MIXIN(MyWrap) must be at the left-most
  * position in the hierarchy (which ensures cppgc::GarbageCollected
  * is at the left-most position).
  *
- * class Klass final : CPPGC_MIXIN(Klass) {
+ * class MyWrap final : CPPGC_MIXIN(MyWrap) {
  *  public:
- *   SET_CPPGC_NAME(Klass)  // Sets the heap snapshot name to "Node / Klass"
+ *   SET_CPPGC_NAME(MyWrap)  // Sets the heap snapshot name to "Node / MyWrap"
  *   void Trace(cppgc::Visitor* visitor) const final {
  *     CppgcMixin::Trace(visitor);
  *     visitor->Trace(...);  // Trace any additional owned traceable data
  *   }
  * }
+ *
+ * If the wrapper needs to perform cleanups when it's destroyed and that
+ * cleanup relies on a living Node.js `Environment`, it should implement a
+ * pattern like this:
+ *
+ *   ~MyWrap() { this->Clean(); }
+ *   void CleanEnvResource(Environment* env) override {
+ *     // Do cleanup that relies on a living Environemnt.
+ *   }
+ *
+ * If the cleanup also needs access to the V8 heap, including using V8
+ * handles, it should include this in the private section of the
+ * class body (the `CPPGC_USING_PRE_FINALIZER` macro is in the
+ * `cppgc/prefinalizer.h` header):
+ *
+ *  private:
+ *   CPPGC_USING_PRE_FINALIZER(MyWrap, Clean);
  */
-class CppgcMixin : public cppgc::GarbageCollectedMixin {
+class CppgcMixin : public cppgc::GarbageCollectedMixin,
+                   public CppgcWrapperListNode {
  public:
   // To help various callbacks access wrapper objects with different memory
   // management, cppgc-managed objects share the same layout as BaseObjects.
@@ -58,6 +76,7 @@ class CppgcMixin : public cppgc::GarbageCollectedMixin {
     obj->SetAlignedPointerInInternalField(
         kEmbedderType, env->isolate_data()->embedder_id_for_cppgc());
     obj->SetAlignedPointerInInternalField(kSlot, ptr);
+    env->cppgc_wrapper_list()->PushFront(ptr);
   }
 
   v8::Local<v8::Object> object() const {
@@ -88,8 +107,32 @@ class CppgcMixin : public cppgc::GarbageCollectedMixin {
     visitor->Trace(traced_reference_);
   }
 
+  // This implements CppgcWrapperListNode::Clean and is run for all the
+  // remaining Cppgc wrappers tracked in the Environment during Environment
+  // shutdown. The destruction of the wrappers would happen later, when the
+  // final garbage collection is triggered when CppHeap is torn down as part of
+  // the Isolate teardown. If subclasses of CppgcMixin wish to perform cleanups
+  // that depend on the Environment during destruction, they should implement
+  // it n a CleanEnvResource() override, and then call this->Clean() from their
+  // destructor. If they wish to access the V8 heap in the cleanup, they should
+  // also use CPPGC_USING_PRE_FINALIZER(MyWrap, Clean); in the private section
+  // of the class.
+  // Outside of CleanEnvResource(), subclasses should avoid calling
+  // into JavaScript or perform any operation that can trigger garbage
+  // collection during the destruction.
+  void Clean() override {
+    if (env_ == nullptr) return;
+    this->CleanEnvResource(env_);
+    env_ = nullptr;
+  }
+
+  // The default implementation of CleanEnvResource() is a no-op. Subclasses
+  // should override it to perform cleanup that require a living Environment,
+  // instead of doing these cleanups directly in the destructor.
+  virtual void CleanEnvResource(Environment* env) {}
+
  private:
-  Environment* env_;
+  Environment* env_ = nullptr;
   v8::TracedReference<v8::Object> traced_reference_;
 };
 
