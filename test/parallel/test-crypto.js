@@ -123,10 +123,22 @@ for (const algo of cryptoCiphers) {
     options = { authTagLength: 8 };
   else if (mode === 'ocb' || algo === 'chacha20-poly1305')
     options = { authTagLength: 16 };
-  crypto.createCipheriv(algo,
-                        crypto.randomBytes(keyLength),
-                        crypto.randomBytes(ivLength || 0),
-                        options);
+
+  const create_cipher = () =>
+    crypto.createCipheriv(algo,
+                          crypto.randomBytes(keyLength),
+                          crypto.randomBytes(ivLength || 0),
+                          options);
+
+  // Disabled ciphers will throw
+  if (algo.includes('hmac-sha'))
+    assert.throws(create_cipher, {
+      code: 'ERR_CRYPTO_CIPHER_DISABLED',
+      name: 'Error',
+      message: `Cipher ${algo} is disabled as it's not compatible with OpenSSL's EVP AEAD interfaces`
+    });
+  else
+    create_cipher();
 }
 
 // Assume that we have at least AES256-SHA.

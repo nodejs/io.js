@@ -821,6 +821,14 @@ when an error occurs (and is caught) during the creation of the
 context, for example, when the allocation fails or the maximum call stack
 size is reached when the context is created.
 
+<a id="ERR_CRYPTO_CIPHER_DISABLED"></a>
+
+### `ERR_CRYPTO_CIPHER_DISABLED`
+
+A cipher was requested that does not conform to OpenSSL's standard
+EVP interface for AEAD ciphers and requires usage of undocumented
+interfaces.
+
 <a id="ERR_CRYPTO_CUSTOM_ENGINE_NOT_SUPPORTED"></a>
 
 ### `ERR_CRYPTO_CUSTOM_ENGINE_NOT_SUPPORTED`
