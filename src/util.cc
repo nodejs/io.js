@@ -220,24 +220,6 @@ std::string GetHumanReadableProcessName() {
   return SPrintF("%s[%d]", GetProcessTitle("Node.js"), uv_os_getpid());
 }
 
-std::vector<std::string_view> SplitString(const std::string_view in,
-                                          const std::string_view delim) {
-  std::vector<std::string_view> out;
-
-  for (auto first = in.data(), second = in.data(), last = first + in.size();
-       second != last && first != last;
-       first = second + 1) {
-    second =
-        std::find_first_of(first, last, std::cbegin(delim), std::cend(delim));
-
-    if (first != second) {
-      out.emplace_back(first, second - first);
-    }
-  }
-
-  return out;
-}
-
 void ThrowErrStringTooLong(Isolate* isolate) {
   isolate->ThrowException(ERR_STRING_TOO_LONG(isolate));
 }

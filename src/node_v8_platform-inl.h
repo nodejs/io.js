@@ -128,19 +128,19 @@ struct V8Platform {
 
   inline void StartTracingAgent() {
     constexpr auto convert_to_set =
-        [](std::vector<std::string_view> categories) -> std::set<std::string> {
+        [](auto& categories) -> std::set<std::string> {
       std::set<std::string> out;
       for (const auto& s : categories) {
-        out.emplace(s);
+        out.emplace(std::string(s.data(), s.size()));
       }
       return out;
     };
     // Attach a new NodeTraceWriter only if this function hasn't been called
     // before.
     if (tracing_file_writer_.IsDefaultHandle()) {
-      using std::string_view_literals::operator""sv;
-      const std::vector<std::string_view> categories =
-          SplitString(per_process::cli_options->trace_event_categories, ","sv);
+      using std::operator""sv;
+      auto categories = std::views::split(
+          per_process::cli_options->trace_event_categories, ","sv);
 
       tracing_file_writer_ = tracing_agent_->AddClient(
           convert_to_set(categories),

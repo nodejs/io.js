@@ -53,19 +53,19 @@ void DebugOptions::CheckOptions(std::vector<std::string>* errors,
                       "`node --inspect-brk` instead.");
   }
 
-  using std::string_view_literals::operator""sv;
-  const std::vector<std::string_view> destinations =
-      SplitString(inspect_publish_uid_string, ","sv);
+  using std::operator""sv;
+  auto entries = std::views::split(inspect_publish_uid_string, ","sv);
   inspect_publish_uid.console = false;
   inspect_publish_uid.http = false;
-  for (const std::string_view destination : destinations) {
+  for (const auto& entry : entries) {
+    std::string_view destination(entry.data(), entry.size());
     if (destination == "stderr"sv) {
       inspect_publish_uid.console = true;
     } else if (destination == "http"sv) {
       inspect_publish_uid.http = true;
     } else {
-      errors->push_back("--inspect-publish-uid destination can be "
-                        "stderr or http");
+      errors->emplace_back("--inspect-publish-uid destination can be "
+                           "stderr or http");
     }
   }
 }
