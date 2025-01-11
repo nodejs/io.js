@@ -17,30 +17,27 @@ const inputs = {
 };
 
 function getParams(str) {
-  const out = [];
-  for (const key of str.split('&')) {
-    out.push(key, '');
-  }
-  return out;
+  return str.split('&');
 }
 
 const bench = common.createBenchmark(main, {
   type: Object.keys(inputs),
   n: [1e6],
-}, {
-  flags: ['--expose-internals'],
 });
 
 function main({ type, n }) {
-  const searchParams = require('internal/url').searchParamsSymbol;
   const input = inputs[type];
   const params = new URLSearchParams();
   const array = getParams(input);
 
+  for (let i = 0; i < array.length; i++) {
+    params.append(array[i], '');
+  }
+
   bench.start();
   for (let i = 0; i < n; i++) {
-    params[searchParams] = array.slice();
-    params.sort();
+    const paramsForSort = new URLSearchParams(params);
+    paramsForSort.sort();
   }
   bench.end(n);
 }
