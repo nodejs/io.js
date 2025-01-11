@@ -1142,14 +1142,16 @@ void SlowIndexOfNumber(const FunctionCallbackInfo<Value>& args) {
 }
 
 int32_t FastIndexOfNumber(v8::Local<v8::Value>,
-                          const FastApiTypedArray<uint8_t>& buffer,
+                          v8::Local<v8::Object> buffer,
                           uint32_t needle,
                           int64_t offset_i64,
                           bool is_forward) {
-  uint8_t* buffer_data;
-  CHECK(buffer.getStorageIfAligned(&buffer_data));
+  HandleScope handle_scope(buffer->GetIsolate());
+  Local<Uint8Array> uint8_array = buffer.As<Uint8Array>();
+  uint8_t* buffer_data =
+      reinterpret_cast<uint8_t*>(uint8_array->Buffer()->Data());
   return IndexOfNumber(
-      buffer_data, buffer.length(), needle, offset_i64, is_forward);
+      buffer_data, uint8_array->Length(), needle, offset_i64, is_forward);
 }
 
 static v8::CFunction fast_index_of_number(
