@@ -5,17 +5,27 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { isMainThread } = require('worker_threads');
+const isUnix = process.platform === 'darwin' || process.platform === 'linux';
 
 function rmSync(pathname, useSpawn) {
   if (useSpawn) {
-    const escapedPath = pathname.replaceAll('\\', '\\\\');
-    spawnSync(
-      process.execPath,
-      [
-        '-e',
-        `require("fs").rmSync("${escapedPath}", { maxRetries: 3, recursive: true, force: true });`,
-      ],
-    );
+    if (isUnix) {
+      for (let i = 0; i < 3; i++) {
+        const { status } = spawnSync(`rm -rf ${pathname}`);
+        if (status === 0) {
+          break;
+        }
+      }
+    } else {
+      const escapedPath = pathname.replaceAll('\\', '\\\\');
+      spawnSync(
+        process.execPath,
+        [
+          '-e',
+          `require("fs").rmSync("${escapedPath}", { maxRetries: 3, recursive: true, force: true });`,
+        ],
+      );
+    }
   } else {
     fs.rmSync(pathname, { maxRetries: 3, recursive: true, force: true });
   }
