@@ -176,6 +176,11 @@ Maybe<void> CheckPrimeTraits::AdditionalConfig(
   ArrayBufferOrViewContents<unsigned char> candidate(args[offset]);
 
   params->candidate = BignumPointer(candidate.data(), candidate.size());
+  if (params->candidate.get() == nullptr) {
+    ThrowCryptoError(
+        Environment::GetCurrent(args), ERR_get_error(), "BignumPointer");
+    return Nothing<void>();
+  }
 
   CHECK(args[offset + 1]->IsInt32());  // Checks
   params->checks = args[offset + 1].As<Int32>()->Value();
