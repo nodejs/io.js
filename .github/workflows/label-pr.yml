@@ -1,7 +1,7 @@
 name: Label PRs
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened]
 
 permissions:

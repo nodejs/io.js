@@ -2,7 +2,7 @@ name: Comment on issues and PRs when labeled
 on:
   issues:
     types: [labeled]
-  pull_request_target:
+  pull_request:
     types: [labeled]
 
 env:
@@ -35,7 +35,7 @@ jobs:
   fast-track:
     permissions:
       pull-requests: write
-    if: github.repository == 'nodejs/node' && github.event_name == 'pull_request_target' && github.event.label.name == 'fast-track'
+    if: github.repository == 'nodejs/node' && github.event_name == 'pull_request' && github.event.label.name == 'fast-track'
     runs-on: ubuntu-latest
     steps:
       - name: Request Fast-Track
@@ -46,7 +46,7 @@ jobs:
   notable-change:
     permissions:
       pull-requests: write
-    if: github.repository == 'nodejs/node' && github.event_name == 'pull_request_target' && github.event.label.name == 'notable-change'
+    if: github.repository == 'nodejs/node' && github.event_name == 'pull_request' && github.event.label.name == 'notable-change'
     runs-on: ubuntu-latest
     steps:
       - name: Add notable change description

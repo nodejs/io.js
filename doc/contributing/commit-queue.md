@@ -71,7 +71,7 @@ reasons:
    the last one to finish will fail because the local branch will be out of
    sync with the remote after the first Action pushes. `issue_comment` event
    has the same limitation.
-2. `pull_request_target` will only run if the Action exists on the base commit
+2. `pull_request` will only run if the Action exists on the base commit
    of a pull request, and it will run the Action version present on that
    commit, meaning we wouldn't be able to use it for already opened PRs
    without rebasing them first.

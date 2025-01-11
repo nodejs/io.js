@@ -2,7 +2,7 @@ name: Notify on Review Wanted
 on:
   issues:
     types: [labeled]
-  pull_request_target:
+  pull_request:
     types: [labeled]
 
 permissions:
