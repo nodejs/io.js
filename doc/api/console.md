@@ -126,10 +126,11 @@ changes:
     streams. **Default:** `true`.
   * `colorMode` {boolean|string} Set color support for this `Console` instance.
     Setting to `true` enables coloring while inspecting values. Setting to
-    `false` disables coloring while inspecting values. Setting to
-    `'auto'` makes color support depend on the value of the `isTTY` property
-    and the value returned by `getColorDepth()` on the respective stream. This
-    option can not be used, if `inspectOptions.colors` is set as well.
+    `false` disables coloring while inspecting values as well as disabling `%c`
+    CSS color effects. Setting to `'auto'` makes color support depend on the
+    value of the `isTTY` property and the value returned by `getColorDepth()` on
+    the respective stream. This option can not be used, if
+    `inspectOptions.colors` is set as well.
     **Default:** `'auto'`.
   * `inspectOptions` {Object} Specifies options that are passed along to
     [`util.inspect()`][].

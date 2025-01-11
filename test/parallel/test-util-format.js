@@ -553,3 +553,37 @@ assert.strictEqual(
     message: /"inspectOptions".+object/
   });
 });
+
+assert.strictEqual(
+  util.formatWithOptions({ colors: true }, '%cfoo', 'color: red'),
+  '\x1b[31mfoo\x1b[0m'
+);
+
+assert.strictEqual(
+  util.formatWithOptions(
+    { colors: true },
+    '%cfoo',
+    'color: red; background-color: blue'
+  ),
+  '\x1B[44m\x1B[31mfoo\x1B[0m'
+);
+
+assert.strictEqual(
+  util.formatWithOptions({ colors: true }, '%cfoo', 'color: red', 'bar'),
+  '\x1b[31mfoo\x1b[0m bar'
+);
+
+assert.strictEqual(
+  util.formatWithOptions({ colors: true }, '%cfoo%c bar', 'color: red', ''),
+  '\x1b[31mfoo\x1b[39m bar\x1b[0m'
+);
+
+assert.strictEqual(
+  util.formatWithOptions(
+    { colors: true },
+    '%cfoo %cbar',
+    'color: red',
+    'color: blue'
+  ),
+  '\x1b[31mfoo \x1b[34mbar\x1b[0m'
+);

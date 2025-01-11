@@ -45,6 +45,7 @@ expected.beforePreExec = new Set([
   'NativeModule internal/priority_queue',
   'NativeModule internal/assert',
   'NativeModule internal/util/inspect',
+  'NativeModule internal/util/inspect_colors',
   'NativeModule internal/util/debuglog',
   'NativeModule internal/streams/utils',
   'NativeModule internal/timers',
