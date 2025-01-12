@@ -1,5 +1,5 @@
 
-> undici@7.2.0 build:wasm
+> undici@7.2.1 build:wasm
 > node build/wasm.js --docker
 
 > docker run --rm --platform=linux/x86_64  --user 1001:128 --mount type=bind,source=/home/runner/work/node/node/deps/undici/src/lib/llhttp,target=/home/node/build/lib/llhttp            --mount type=bind,source=/home/runner/work/node/node/deps/undici/src/build,target=/home/node/build/build            --mount type=bind,source=/home/runner/work/node/node/deps/undici/src/deps,target=/home/node/build/deps            -t ghcr.io/nodejs/wasm-builder@sha256:975f391d907e42a75b8c72eb77c782181e941608687d4d8694c3e9df415a0970 node build/wasm.js

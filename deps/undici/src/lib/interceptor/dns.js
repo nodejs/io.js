@@ -353,7 +353,7 @@ module.exports = interceptorOpts => {
 
       instance.runLookup(origin, origDispatchOpts, (err, newOrigin) => {
         if (err) {
-          return handler.onError(err)
+          return handler.onResponseError(null, err)
         }
 
         let dispatchOpts = null

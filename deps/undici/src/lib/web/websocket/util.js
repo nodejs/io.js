@@ -87,7 +87,7 @@ function toArrayBuffer (buffer) {
   if (buffer.byteLength === buffer.buffer.byteLength) {
     return buffer.buffer
   }
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  return new Uint8Array(buffer).buffer
 }
 
 /**
