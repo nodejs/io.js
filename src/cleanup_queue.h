@@ -3,6 +3,7 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <unordered_set>
@@ -40,6 +41,9 @@ class CleanupQueue : public MemoryRetainer {
         : fn_(fn),
           arg_(arg),
           insertion_order_counter_(insertion_order_counter) {}
+
+    constexpr std::strong_ordering operator<=>(
+        const CleanupHookCallback& other) const noexcept;
 
     // Only hashes `arg_`, since that is usually enough to identify the hook.
     struct Hash {

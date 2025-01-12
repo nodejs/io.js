@@ -3,6 +3,8 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
+#include <compare>
+
 #include "cleanup_queue.h"
 #include "util.h"
 
@@ -27,6 +29,18 @@ void CleanupQueue::Add(Callback cb, void* arg) {
 void CleanupQueue::Remove(Callback cb, void* arg) {
   CleanupHookCallback search{cb, arg, 0};
   cleanup_hooks_.erase(search);
+}
+
+constexpr std::strong_ordering CleanupQueue::CleanupHookCallback::operator<=>(
+    const CleanupHookCallback& other) const noexcept {
+  if (insertion_order_counter_ > other.insertion_order_counter_) {
+    return std::strong_ordering::greater;
+  }
+
+  if (insertion_order_counter_ < other.insertion_order_counter_) {
+    return std::strong_ordering::less;
+  }
+  return std::strong_ordering::equivalent;
 }
 
 }  // namespace node
