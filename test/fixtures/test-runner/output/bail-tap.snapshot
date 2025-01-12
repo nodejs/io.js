@@ -1,0 +1,38 @@
+TAP version 13
+# Subtest: nested
+    # Subtest: first
+    ok 1 - first
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: second
+    not ok 2 - second
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/bail-tap.js:(LINE):5'
+      failureType: 'testCodeFailure'
+      error: ''
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        *
+        *
+        *
+        *
+        *
+        *
+      ...
+    # Subtest: third
+    1..3
+# Subtest: top level
+Bail out!
+1..2
+# tests 5
+# suites 0
+# pass 1
+# fail 1
+# cancelled 3
+# skipped 0
+# todo 0
+# duration_ms *

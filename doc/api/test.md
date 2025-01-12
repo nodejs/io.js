@@ -990,6 +990,23 @@ exports[`suite of snapshot tests > snapshot test 2`] = `
 Once the snapshot file is created, run the tests again without the
 `--test-update-snapshots` flag. The tests should pass now.
 
+## Bailing out
+
+<!-- YAML
+added:
+  - REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+The `--test-bail` flag provides a way to stop test execution
+as soon as a test fails.
+By enabling this flag, the test runner will exit the test suite early
+when it encounters the first failing test, preventing
+the execution of subsequent tests.
+Already running tests will be canceled, and no further tests will be started.
+**Default:** `false`.
+
 ## Test reporters
 
 <!-- YAML
@@ -1077,6 +1094,9 @@ const customReporter = new Transform({
       case 'test:fail':
         callback(null, `test ${event.data.name} failed`);
         break;
+      case 'test:bail':
+        callback(null, `test ${event.data.name} bailed out`);
+        break;
       case 'test:plan':
         callback(null, 'test plan');
         break;
@@ -1122,6 +1142,9 @@ const customReporter = new Transform({
       case 'test:fail':
         callback(null, `test ${event.data.name} failed`);
         break;
+      case 'test:bail':
+        callback(null, `test ${event.data.name} bailed out`);
+        break;
       case 'test:plan':
         callback(null, 'test plan');
         break;
@@ -1166,6 +1189,9 @@ export default async function * customReporter(source) {
       case 'test:fail':
         yield `test ${event.data.name} failed\n`;
         break;
+      case 'test:bail':
+        yield `test ${event.data.name} bailed out\n`;
+        break;
       case 'test:plan':
         yield 'test plan\n';
         break;
@@ -1205,6 +1231,9 @@ module.exports = async function * customReporter(source) {
         break;
       case 'test:fail':
         yield `test ${event.data.name} failed\n`;
+        break;
+      case 'test:bail':
+        yield `test ${event.data.name} bailed out\n`;
         break;
       case 'test:plan':
         yield 'test plan\n';
@@ -1483,6 +1512,11 @@ changes:
   does not have a name.
 * `options` {Object} Configuration options for the test. The following
   properties are supported:
+  * `bail` {boolean}
+    If `true`, it will exit the test suite early
+    when it encounters the first failing test, preventing
+    the execution of subsequent tests and canceling already running tests.
+    **Default:** `false`.
   * `concurrency` {number|boolean} If a number is provided,
     then that many tests would run in parallel within the application thread.
     If `true`, all scheduled asynchronous tests run concurrently within the
@@ -3124,6 +3158,22 @@ generated for each test file in addition to a final cumulative summary.
 
 Emitted when no more tests are queued for execution in watch mode.
 
+### Event: `'test:bail'`
+
+* `data` {Object}
+  * `column` {number|undefined} The column number where the test is defined, or
+    `undefined` if the test was run through the REPL.
+  * `file` {string|undefined} The path of the test file,
+    `undefined` if test was run through the REPL.
+  * `line` {number|undefined} The line number where the test is defined, or
+    `undefined` if the test was run through the REPL.
+  * `name` {string} The test name.
+  * `nesting` {number} The nesting level of the test.
+
+Emitted when the test runner stops executing tests due to the [`--test-bail`][] flag.
+This event signals that the first failing test caused the suite to bail out,
+canceling all pending and currently running tests.
+
 ## Class: `TestContext`
 
 <!-- YAML
@@ -3657,6 +3707,7 @@ Can be used to abort test subtasks when the test has been aborted.
 [`--experimental-test-module-mocks`]: cli.md#--experimental-test-module-mocks
 [`--import`]: cli.md#--importmodule
 [`--no-experimental-strip-types`]: cli.md#--no-experimental-strip-types
+[`--test-bail`]: cli.md#--test-bail
 [`--test-concurrency`]: cli.md#--test-concurrency
 [`--test-coverage-exclude`]: cli.md#--test-coverage-exclude
 [`--test-coverage-include`]: cli.md#--test-coverage-include

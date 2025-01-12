@@ -295,6 +295,23 @@ const tests = [
     name: 'test-runner/output/coverage-width-infinity-uncovered-lines.mjs',
     flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
+  {
+    name: 'test-runner/output/bail-spec.js',
+    flags: [
+      '--test',
+      '--test-bail',
+      '--test-reporter=spec',
+    ],
+    transform: specTransform,
+  },
+  {
+    name: 'test-runner/output/bail-tap.js',
+    flags: [
+      '--test',
+      '--test-bail',
+      '--test-reporter=tap',
+    ],
+  },
 ]
 .filter(Boolean)
 .map(({ flags, name, tty, transform }) => ({

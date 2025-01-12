@@ -549,6 +549,19 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
       // eslint-disable-next-line no-unused-vars
       for await (const _ of stream);
     });
+
+    it('should only allow a boolean in options.bail', async () => {
+      [Symbol(), {}, [], () => { }, 0, 1, 0n, 1n, '', '1', Promise.resolve([])]
+        .forEach((bail) => assert.throws(() => run({ bail }), {
+          code: 'ERR_INVALID_ARG_TYPE'
+        }));
+    });
+
+    it('should not allow bail with watch mode', async () => {
+      assert.throws(() => run({ bail: true, watch: true }), {
+        code: 'ERR_INVALID_ARG_VALUE'
+      });
+    });
   });
 
   it('should avoid running recursively', async () => {
@@ -629,6 +642,93 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
       assert.strictEqual(diagnostics.includes(entry), true);
     }
   });
+
+  it('should handle the bail option', async () => {
+    const stream = run({
+      files: [join(testFixtures, 'bailout', 'sequential.test.mjs')],
+      bail: true
+    });
+
+    let failedTestCount = 0;
+    let passedTestCount = 0;
+    let bailedTestCount = 0;
+    for await (const data of stream) {
+      if (data.type === 'test:fail') {
+        failedTestCount++;
+      }
+      if (data.type === 'test:pass') {
+        passedTestCount++;
+      }
+      if (data.type === 'test:bail') {
+        bailedTestCount++;
+      }
+    }
+
+    assert.strictEqual(bailedTestCount, 1);
+    assert.strictEqual(failedTestCount, 3);
+    assert.strictEqual(passedTestCount, 0);
+  });
+
+  it('should handle the bail option with multiple files', async () => {
+    const stream = run({
+      files: [
+        join(testFixtures, 'bailout/sequential.test.mjs'),
+        join(testFixtures, 'bailout/suite.test.mjs'),
+      ],
+      bail: true,
+      concurrency: 2
+    });
+
+    let failedTestCount = 0;
+    let passedTestCount = 0;
+    let bailedTestCount = 0;
+    for await (const data of stream) {
+      if (data.type === 'test:fail') {
+        failedTestCount++;
+      }
+      if (data.type === 'test:pass') {
+        passedTestCount++;
+      }
+      if (data.type === 'test:bail') {
+        bailedTestCount++;
+      }
+    }
+
+    assert.strictEqual(bailedTestCount, 1);
+    assert.strictEqual(failedTestCount, 3);
+    assert.strictEqual(passedTestCount, 0);
+  });
+
+  it('should handle the bail option with isolation none', async () => {
+    const stream = run({
+      files: [join(testFixtures, 'bailout/sequential.test.mjs')],
+      bail: true,
+      isolation: 'none',
+    });
+
+    let failedTestCount = 0;
+    let passedTestCount = 0;
+    let bailedTestCount = 0;
+    for await (const data of stream) {
+      if (data.type === 'test:fail') {
+        failedTestCount++;
+      }
+      if (data.type === 'test:pass') {
+        passedTestCount++;
+      }
+      if (data.type === 'test:bail') {
+        bailedTestCount++;
+      }
+    }
+
+    assert.strictEqual(bailedTestCount, 1);
+    assert.strictEqual(failedTestCount, 3);
+    assert.strictEqual(passedTestCount, 0);
+  });
+
+  // TODO(pmarchini): Bailout is not supported in watch mode yet but it should be.
+  // We should enable this test once it is supported.
+  it.todo('should handle the bail option with watch mode');
 });
 
 describe('forceExit', () => {
