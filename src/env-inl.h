@@ -666,7 +666,8 @@ inline bool Environment::no_global_search_paths() const {
 }
 
 inline bool Environment::should_start_debug_signal_handler() const {
-  return (flags_ & EnvironmentFlags::kNoStartDebugSignalHandler) == 0;
+  return ((flags_ & EnvironmentFlags::kNoStartDebugSignalHandler) == 0) &&
+         !options_->disable_sigusr1;
 }
 
 inline bool Environment::no_browser_globals() const {

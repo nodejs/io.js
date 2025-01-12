@@ -386,6 +386,11 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             " (default: current working directory)",
             &EnvironmentOptions::diagnostic_dir,
             kAllowedInEnvvar);
+  AddOption("--disable-sigusr1",
+            "Disable inspector thread to be listening for SIGUSR1 signal",
+            &EnvironmentOptions::disable_sigusr1,
+            kAllowedInEnvvar,
+            false);
   AddOption("--dns-result-order",
             "set default value of verbatim in dns.lookup. Options are "
             "'ipv4first' (IPv4 addresses are placed before IPv6 addresses) "

@@ -577,6 +577,17 @@ Disable the `Object.prototype.__proto__` property. If `mode` is `delete`, the
 property is removed entirely. If `mode` is `throw`, accesses to the
 property throw an exception with the code `ERR_PROTO_ACCESS`.
 
+### `--disable-sigusr1`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1.2 - Release candidate
+
+Disable the ability of starting a debugging session by sending a
+`SIGUSR1` signal to the process.
+
 ### `--disable-warning=code-or-type`
 
 > Stability: 1.1 - Active development
@@ -1458,6 +1469,7 @@ added: v7.6.0
 
 Set the `host:port` to be used when the inspector is activated.
 Useful when activating the inspector by sending the `SIGUSR1` signal.
+Except when [`--disable-sigusr1`][] is passed.
 
 Default host is `127.0.0.1`. If port `0` is specified,
 a random available port will be used.
@@ -3099,6 +3111,7 @@ one is included in the list below.
 * `--conditions`, `-C`
 * `--diagnostic-dir`
 * `--disable-proto`
+* `--disable-sigusr1`
 * `--disable-warning`
 * `--disable-wasm-trap-handler`
 * `--dns-result-order`
@@ -3677,6 +3690,7 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [`--build-snapshot`]: #--build-snapshot
 [`--cpu-prof-dir`]: #--cpu-prof-dir
 [`--diagnostic-dir`]: #--diagnostic-dirdirectory
+[`--disable-sigusr1`]: #--disable-sigusr1
 [`--env-file-if-exists`]: #--env-file-if-existsconfig
 [`--env-file`]: #--env-fileconfig
 [`--experimental-addon-modules`]: #--experimental-addon-modules
