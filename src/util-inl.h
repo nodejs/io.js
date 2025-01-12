@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstring>
 #include <locale>
+#include <ranges>
 #include <regex>  // NOLINT(build/c++11)
 #include "node_revert.h"
 #include "util.h"
@@ -377,6 +378,25 @@ v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
   }
 
   return set_js;
+}
+
+template <typename T, std::size_t U>
+v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
+                                    const std::ranges::elements_view<T, U>& vec,
+                                    v8::Isolate* isolate) {
+  if (isolate == nullptr) isolate = context->GetIsolate();
+  v8::EscapableHandleScope handle_scope(isolate);
+
+  MaybeStackBuffer<v8::Local<v8::Value>, 128> arr(vec.size());
+  arr.SetLength(vec.size());
+  auto it = vec.begin();
+  for (size_t i = 0; i < vec.size(); ++i) {
+    if (!ToV8Value(context, *it, isolate).ToLocal(&arr[i]))
+      return v8::MaybeLocal<v8::Value>();
+    std::advance(it, 1);
+  }
+
+  return handle_scope.Escape(v8::Array::New(isolate, arr.out(), arr.length()));
 }
 
 template <typename T, typename U>
