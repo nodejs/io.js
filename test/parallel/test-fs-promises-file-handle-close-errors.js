@@ -4,23 +4,15 @@
 const common = require('../common');
 const tmpdir = require('../common/tmpdir');
 
-// The following tests validate aggregate errors are thrown correctly
-// when both an operation and close throw.
+const { test } = require('node:test');
+const { readFile, writeFile, truncate, lchmod } = require('fs/promises');
+const { FileHandle } = require('internal/fs/promises');
 
-const {
-  readFile,
-  writeFile,
-  truncate,
-  lchmod,
-} = require('fs/promises');
-const {
-  FileHandle,
-} = require('internal/fs/promises');
-
-const assert = require('assert');
+const assert = require('node:assert');
 const originalFd = Object.getOwnPropertyDescriptor(FileHandle.prototype, 'fd');
 
 let count = 0;
+
 async function createFile() {
   const filePath = tmpdir.resolve(`close_errors_${++count}.txt`);
   await writeFile(filePath, 'content');
@@ -43,7 +35,7 @@ async function checkCloseError(op) {
           throw closeError;
         };
         return originalFd.get.call(this);
-      }
+      },
     });
 
     await assert.rejects(op(filePath), {
@@ -55,7 +47,8 @@ async function checkCloseError(op) {
     Object.defineProperty(FileHandle.prototype, 'fd', originalFd);
   }
 }
-(async function() {
+
+test('File operations with close errors', async () => {
   tmpdir.refresh();
   await checkCloseError((filePath) => truncate(filePath));
   await checkCloseError((filePath) => readFile(filePath));
@@ -63,4 +56,4 @@ async function checkCloseError(op) {
   if (common.isMacOS) {
     await checkCloseError((filePath) => lchmod(filePath, 0o777));
   }
-})().then(common.mustCall());
+}).then(common.mustCall());
