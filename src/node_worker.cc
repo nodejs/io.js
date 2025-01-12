@@ -54,7 +54,8 @@ Worker::Worker(Environment* env,
                std::shared_ptr<PerIsolateOptions> per_isolate_opts,
                std::vector<std::string>&& exec_argv,
                std::shared_ptr<KVStore> env_vars,
-               const SnapshotData* snapshot_data)
+               const SnapshotData* snapshot_data,
+               const bool is_internal)
     : AsyncWrap(env, wrap, AsyncWrap::PROVIDER_WORKER),
       per_isolate_opts_(per_isolate_opts),
       exec_argv_(exec_argv),
@@ -63,7 +64,8 @@ Worker::Worker(Environment* env,
       name_(name),
       env_vars_(env_vars),
       embedder_preload_(env->embedder_preload()),
-      snapshot_data_(snapshot_data) {
+      snapshot_data_(snapshot_data),
+      is_internal_(is_internal) {
   Debug(this, "Creating new worker instance with thread id %llu",
         thread_id_.id);
 
@@ -687,7 +689,8 @@ void Worker::New(const FunctionCallbackInfo<Value>& args) {
                               per_isolate_opts,
                               std::move(exec_argv_out),
                               env_vars,
-                              snapshot_data);
+                              snapshot_data,
+                              is_internal);
 
   CHECK(args[3]->IsFloat64Array());
   Local<Float64Array> limit_info = args[3].As<Float64Array>();
@@ -1028,6 +1031,16 @@ void CreateWorkerPerContextProperties(Local<Object> target,
       ->Set(env->context(),
             FIXED_ONE_BYTE_STRING(isolate, "isMainThread"),
             Boolean::New(isolate, env->is_main_thread()))
+      .Check();
+
+  Worker* worker = env->isolate_data()->worker_context();
+  bool is_internal = worker != nullptr && worker->is_internal();
+
+  // Set the is_internal property
+  target
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "isInternalThread"),
+            Boolean::New(isolate, is_internal))
       .Check();
 
   target
