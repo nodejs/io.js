@@ -1614,6 +1614,55 @@ static void RMDir(const FunctionCallbackInfo<Value>& args) {
   }
 }
 
+#ifdef _WIN32
+std::wstring ConvertToWideString(const std::string& str) {
+  int size_needed = MultiByteToWideChar(
+      CP_UTF8, 0, &str[0], static_cast<int>(str.size()), nullptr, 0);
+  std::wstring wstrTo(size_needed, 0);
+  MultiByteToWideChar(CP_UTF8,
+                      0,
+                      &str[0],
+                      static_cast<int>(str.size()),
+                      &wstrTo[0],
+                      size_needed);
+  return wstrTo;
+}
+
+#define BufferValueToPath(str)                                                 \
+  std::filesystem::path(ConvertToWideString(str.ToString()))
+
+std::string ConvertWideToUTF8(const std::wstring& wstr) {
+  if (wstr.empty()) return std::string();
+
+  int size_needed = WideCharToMultiByte(CP_UTF8,
+                                        0,
+                                        &wstr[0],
+                                        static_cast<int>(wstr.size()),
+                                        nullptr,
+                                        0,
+                                        nullptr,
+                                        nullptr);
+  std::string strTo(size_needed, 0);
+  WideCharToMultiByte(CP_UTF8,
+                      0,
+                      &wstr[0],
+                      static_cast<int>(wstr.size()),
+                      &strTo[0],
+                      size_needed,
+                      nullptr,
+                      nullptr);
+  return strTo;
+}
+
+#define PathToString(path) ConvertWideToUTF8(path.wstring());
+
+#else  // _WIN32
+
+#define BufferValueToPath(str) std::filesystem::path(str.ToStringView());
+#define PathToString(path) path.native();
+
+#endif  // _WIN32
+
 static void RmSync(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   Isolate* isolate = env->isolate();
@@ -1625,7 +1674,7 @@ static void RmSync(const FunctionCallbackInfo<Value>& args) {
   ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
-  auto file_path = std::filesystem::path(path.ToStringView());
+  auto file_path = BufferValueToPath(path);
   std::error_code error;
   auto file_status = std::filesystem::status(file_path, error);
 
@@ -1637,11 +1686,13 @@ static void RmSync(const FunctionCallbackInfo<Value>& args) {
   int recursive = args[2]->IsTrue();
   int retryDelay = args[3].As<Int32>()->Value();
 
+  auto file_path_as_str = PathToString(file_path);
+
   // File is a directory and recursive is false
   if (file_status.type() == std::filesystem::file_type::directory &&
       !recursive) {
     return THROW_ERR_FS_EISDIR(
-        isolate, "Path is a directory: %s", file_path.c_str());
+        isolate, "Path is a directory: %s", file_path_as_str);
   }
 
   // Allowed errors are:
@@ -3144,55 +3195,6 @@ static void GetFormatOfExtensionlessFile(
 
   return args.GetReturnValue().Set(EXTENSIONLESS_FORMAT_JAVASCRIPT);
 }
-
-#ifdef _WIN32
-std::wstring ConvertToWideString(const std::string& str) {
-  int size_needed = MultiByteToWideChar(
-      CP_UTF8, 0, &str[0], static_cast<int>(str.size()), nullptr, 0);
-  std::wstring wstrTo(size_needed, 0);
-  MultiByteToWideChar(CP_UTF8,
-                      0,
-                      &str[0],
-                      static_cast<int>(str.size()),
-                      &wstrTo[0],
-                      size_needed);
-  return wstrTo;
-}
-
-#define BufferValueToPath(str)                                                 \
-  std::filesystem::path(ConvertToWideString(str.ToString()))
-
-std::string ConvertWideToUTF8(const std::wstring& wstr) {
-  if (wstr.empty()) return std::string();
-
-  int size_needed = WideCharToMultiByte(CP_UTF8,
-                                        0,
-                                        &wstr[0],
-                                        static_cast<int>(wstr.size()),
-                                        nullptr,
-                                        0,
-                                        nullptr,
-                                        nullptr);
-  std::string strTo(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8,
-                      0,
-                      &wstr[0],
-                      static_cast<int>(wstr.size()),
-                      &strTo[0],
-                      size_needed,
-                      nullptr,
-                      nullptr);
-  return strTo;
-}
-
-#define PathToString(path) ConvertWideToUTF8(path.wstring());
-
-#else  // _WIN32
-
-#define BufferValueToPath(str) std::filesystem::path(str.ToStringView());
-#define PathToString(path) path.native();
-
-#endif  // _WIN32
 
 static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
