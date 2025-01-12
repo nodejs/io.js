@@ -79,6 +79,13 @@ const assert = require('node:assert');
   );
 }
 
+// ScriptId is a string.
+{
+  const callSites = getCallSites(1);
+  assert.strictEqual(callSites.length, 1);
+  assert.strictEqual(typeof callSites[0].scriptId, 'string');
+}
+
 // Guarantee [eval] will appear on stacktraces when using -e
 {
   const { status, stderr, stdout } = spawnSync(
