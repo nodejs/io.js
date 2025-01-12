@@ -1085,6 +1085,7 @@ class Environment final : public MemoryRetainer {
                          const char* errmsg);
   void TrackContext(v8::Local<v8::Context> context);
   void UntrackContext(v8::Local<v8::Context> context);
+  void PurgeTrackedEmptyContexts();
 
   std::list<binding::DLib> loaded_addons_;
   v8::Isolate* const isolate_;
