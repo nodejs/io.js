@@ -2,7 +2,6 @@
 #undef NDEBUG
 #endif
 #include <assert.h>
-#include "executable_wrapper.h"
 #include "node.h"
 
 #include <algorithm>
@@ -27,10 +26,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args);
 
-NODE_MAIN(int argc, node::argv_type raw_argv[]) {
-  char** argv = nullptr;
-  node::FixupMain(argc, raw_argv, &argv);
-
+extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]) {
   std::vector<std::string> args(argv, argv + argc);
   std::shared_ptr<node::InitializationResult> result =
       node::InitializeOncePerProcess(

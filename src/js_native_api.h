@@ -13,7 +13,7 @@
 #else
 // The baseline version for N-API.
 // The NAPI_VERSION controls which version will be used by default when
-// compilling a native addon. If the addon developer specifically wants to use
+// compiling a native addon. If the addon developer specifically wants to use
 // functions available in a new version of N-API that is not yet ported in all
 // LTS versions, they can set NAPI_VERSION knowing that they have specifically
 // depended on that version.

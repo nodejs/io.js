@@ -164,9 +164,11 @@ void ThrowNodeApiVersionError(node::Environment* node_env,
   node_env->ThrowError(error_message.c_str());
 }
 
-inline napi_env NewEnv(v8::Local<v8::Context> context,
-                       const std::string& module_filename,
-                       int32_t module_api_version) {
+}  // namespace
+
+napi_env NewEnv(v8::Local<v8::Context> context,
+                const std::string& module_filename,
+                int32_t module_api_version) {
   node_napi_env result;
 
   // Validate module_api_version.
@@ -195,6 +197,8 @@ inline napi_env NewEnv(v8::Local<v8::Context> context,
 
   return result;
 }
+
+namespace {
 
 class ThreadSafeFunction : public node::AsyncResource {
  public:
