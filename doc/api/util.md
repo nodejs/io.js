@@ -1153,7 +1153,7 @@ added:
   - v18.13.0
 -->
 
-> Stability: 1 - Experimental
+> Stability: 2 - Stable
 
 An implementation of [the MIMEType class](https://bmeck.github.io/node-proposal-mime-api/).
 
