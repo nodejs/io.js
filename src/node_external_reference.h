@@ -180,6 +180,7 @@ class ExternalReferenceRegistry {
   V(tty_wrap)                                                                  \
   V(udp_wrap)                                                                  \
   V(url)                                                                       \
+  V(url_pattern)                                                               \
   V(util)                                                                      \
   V(pipe_wrap)                                                                 \
   V(sea)                                                                       \

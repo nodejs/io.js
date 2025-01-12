@@ -75,6 +75,10 @@
     "commit": "6fa3fe8a929be45422cd46a8961e647e13d0cab8",
     "path": "url"
   },
+  "urlpattern": {
+    "commit": "1b56d89a261b86dedfd2854b53c1732e435f1f57",
+    "path": "urlpattern"
+  },
   "user-timing": {
     "commit": "5ae85bf8267ac617833dc013dee9774c9e2a18b7",
     "path": "user-timing"

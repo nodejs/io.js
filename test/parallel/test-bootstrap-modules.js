@@ -74,6 +74,7 @@ expected.beforePreExec = new Set([
   'NativeModule internal/querystring',
   'NativeModule querystring',
   'Internal Binding url',
+  'Internal Binding url_pattern',
   'Internal Binding blob',
   'NativeModule internal/url',
   'NativeModule util',

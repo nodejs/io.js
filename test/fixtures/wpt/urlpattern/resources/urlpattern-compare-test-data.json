@@ -1,0 +1,152 @@
+[
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/a" },
+    "right": { "pathname": "/foo/b" },
+    "expected": -1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/b" },
+    "right": { "pathname": "/foo/bar" },
+    "expected": -1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/bar" },
+    "right": { "pathname": "/foo/:bar" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/" },
+    "right": { "pathname": "/foo/:bar" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/:bar" },
+    "right": { "pathname": "/foo/*" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/{bar}" },
+    "right": { "pathname": "/foo/(bar)" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/{bar}" },
+    "right": { "pathname": "/foo/{bar}+" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/{bar}+" },
+    "right": { "pathname": "/foo/{bar}?" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/{bar}?" },
+    "right": { "pathname": "/foo/{bar}*" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/(123)" },
+    "right": { "pathname": "/foo/(12)" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/:b" },
+    "right": { "pathname": "/foo/:a" },
+    "expected": 0
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "*/foo" },
+    "right": { "pathname": "*" },
+    "expected": 1
+  },
+  {
+    "component": "port",
+    "left": { "port": "9" },
+    "right": { "port": "100" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "foo/:bar?/baz" },
+    "right": { "pathname": "foo/{:bar}?/baz" },
+    "expected": -1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "foo/:bar?/baz" },
+    "right": { "pathname": "foo{/:bar}?/baz" },
+    "expected": 0
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "foo/:bar?/baz" },
+    "right": { "pathname": "fo{o/:bar}?/baz" },
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "foo/:bar?/baz" },
+    "right": { "pathname": "foo{/:bar/}?baz" },
+    "expected": -1
+  },
+  {
+    "component": "pathname",
+    "left": "https://a.example.com/b?a",
+    "right": "https://b.example.com/a?b",
+    "expected": 1
+  },
+  {
+    "component": "pathname",
+    "left": { "pathname": "/foo/{bar}/baz" },
+    "right": { "pathname": "/foo/bar/baz" },
+    "expected": 0
+  },
+  {
+    "component": "protocol",
+    "left": { "protocol": "a" },
+    "right": { "protocol": "b" },
+    "expected": -1
+  },
+  {
+    "component": "username",
+    "left": { "username": "a" },
+    "right": { "username": "b" },
+    "expected": -1
+  },
+  {
+    "component": "password",
+    "left": { "password": "a" },
+    "right": { "password": "b" },
+    "expected": -1
+  },
+  {
+    "component": "hostname",
+    "left": { "hostname": "a" },
+    "right": { "hostname": "b" },
+    "expected": -1
+  },
+  {
+    "component": "search",
+    "left": { "search": "a" },
+    "right": { "search": "b" },
+    "expected": -1
+  },
+  {
+    "component": "hash",
+    "left": { "hash": "a" },
+    "right": { "hash": "b" },
+    "expected": -1
+  }
+]

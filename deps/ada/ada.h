@@ -1,4 +1,4 @@
-/* auto-generated on 2024-09-02 20:07:32 -0400. Do not edit! */
+/* auto-generated on 2025-01-08 10:36:11 -0500. Do not edit! */
 /* begin file include/ada.h */
 /**
  * @file ada.h
@@ -8,7 +8,7 @@
 #define ADA_H
 
 /* begin file include/ada/ada_idna.h */
-/* auto-generated on 2023-09-19 15:58:51 -0400. Do not edit! */
+/* auto-generated on 2024-12-18 09:44:34 -0500. Do not edit! */
 /* begin file include/idna.h */
 #ifndef ADA_IDNA_H
 #define ADA_IDNA_H
@@ -129,9 +129,6 @@ std::string to_ascii(std::string_view ut8_string);
 // https://url.spec.whatwg.org/#forbidden-domain-code-point
 bool contains_forbidden_domain_code_point(std::string_view ascii_string);
 
-bool begins_with(std::u32string_view view, std::u32string_view prefix);
-bool begins_with(std::string_view view, std::string_view prefix);
-
 bool constexpr is_ascii(std::u32string_view view);
 bool constexpr is_ascii(std::string_view view);
 
@@ -154,6 +151,29 @@ std::string to_unicode(std::string_view input);
 
 #endif  // ADA_IDNA_TO_UNICODE_H
 /* end file include/ada/idna/to_unicode.h */
+/* begin file include/ada/idna/identifier.h */
+#ifndef ADA_IDNA_IDENTIFIER_H
+#define ADA_IDNA_IDENTIFIER_H
+
+#include <string>
+#include <string_view>
+
+namespace ada::idna {
+
+// Access the first code point of the input string.
+// Verify if it is valid name code point given a Unicode code point and a
+// boolean first: If first is true return the result of checking if code point
+// is contained in the IdentifierStart set of code points. Otherwise return the
+// result of checking if code point is contained in the IdentifierPart set of
+// code points. Returns false if the input is empty or the code point is not
+// valid. There is minimal Unicode error handling: the input should be valid
+// UTF-8. https://urlpattern.spec.whatwg.org/#is-a-valid-name-code-point
+bool valid_name_code_point(char32_t input, bool first);
+
+}  // namespace ada::idna
+
+#endif
+/* end file include/ada/idna/identifier.h */
 
 #endif
 /* end file include/idna.h */
@@ -185,6 +205,10 @@ std::string to_unicode(std::string_view input);
  */
 #ifndef ADA_COMMON_DEFS_H
 #define ADA_COMMON_DEFS_H
+
+// https://en.cppreference.com/w/cpp/feature_test#Library_features
+// detect C++20 features
+#include <version>
 
 #ifdef _MSC_VER
 #define ADA_VISUAL_STUDIO 1
@@ -230,13 +254,6 @@ std::string to_unicode(std::string_view input);
 #define ada_unused
 #define ada_warn_unused
 
-#ifndef ada_likely
-#define ada_likely(x) x
-#endif
-#ifndef ada_unlikely
-#define ada_unlikely(x) x
-#endif
-
 #define ADA_PUSH_DISABLE_WARNINGS __pragma(warning(push))
 #define ADA_PUSH_DISABLE_ALL_WARNINGS __pragma(warning(push, 0))
 #define ADA_DISABLE_VS_WARNING(WARNING_NUMBER) \
@@ -267,13 +284,6 @@ std::string to_unicode(std::string_view input);
 
 #define ada_unused __attribute__((unused))
 #define ada_warn_unused __attribute__((warn_unused_result))
-
-#ifndef ada_likely
-#define ada_likely(x) __builtin_expect(!!(x), 1)
-#endif
-#ifndef ada_unlikely
-#define ada_unlikely(x) __builtin_expect(!!(x), 0)
-#endif
 
 #define ADA_PUSH_DISABLE_WARNINGS _Pragma("GCC diagnostic push")
 // gcc doesn't seem to disable all warnings with all and extra, add warnings
@@ -353,52 +363,6 @@ namespace ada {
 #endif
 }
 }  // namespace ada
-
-#if defined(__GNUC__) && !defined(__clang__)
-#if __GNUC__ <= 8
-#define ADA_OLD_GCC 1
-#endif  //  __GNUC__ <= 8
-#endif  // defined(__GNUC__) && !defined(__clang__)
-
-#if ADA_OLD_GCC
-#define ada_constexpr
-#else
-#define ada_constexpr constexpr
-#endif
-
-#if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__)
-#define ADA_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
-#elif defined(_WIN32)
-#define ADA_IS_BIG_ENDIAN 0
-#else
-#if defined(__APPLE__) || \
-    defined(__FreeBSD__)  // defined __BYTE_ORDER__ && defined
-                          // __ORDER_BIG_ENDIAN__
-#include <machine/endian.h>
-#elif defined(sun) || \
-    defined(__sun)  // defined(__APPLE__) || defined(__FreeBSD__)
-#include <sys/byteorder.h>
-#else  // defined(__APPLE__) || defined(__FreeBSD__)
-
-#ifdef __has_include
-#if __has_include(<endian.h>)
-#include <endian.h>
-#endif  //__has_include(<endian.h>)
-#endif  //__has_include
-
-#endif  // defined(__APPLE__) || defined(__FreeBSD__)
-
-#ifndef !defined(__BYTE_ORDER__) || !defined(__ORDER_LITTLE_ENDIAN__)
-#define ADA_IS_BIG_ENDIAN 0
-#endif
-
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define ADA_IS_BIG_ENDIAN 0
-#else  // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define ADA_IS_BIG_ENDIAN 1
-#endif  // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-
-#endif  // defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__
 
 // Unless the programmer has already set ADA_DEVELOPMENT_CHECKS,
 // we want to set it under debug builds. We detect a debug build
@@ -491,6 +455,13 @@ namespace ada {
 #define ada_lifetime_bound
 #endif
 
+#ifdef __cpp_lib_format
+#if __cpp_lib_format >= 202110L
+#include <format>
+#define ADA_HAS_FORMAT 1
+#endif
+#endif
+
 #endif  // ADA_COMMON_DEFS_H
 /* end file include/ada/common_defs.h */
 #include <cstdint>
@@ -503,7 +474,7 @@ namespace ada {
  * @brief Includes the definitions for unicode character sets.
  */
 namespace ada::character_sets {
-ada_really_inline bool bit_at(const uint8_t a[], uint8_t i);
+ada_really_inline constexpr bool bit_at(const uint8_t a[], uint8_t i);
 }  // namespace ada::character_sets
 
 #endif  // ADA_CHARACTER_SETS_H
@@ -1012,7 +983,7 @@ constexpr uint8_t WWW_FORM_URLENCODED_PERCENT_ENCODE[32] = {
     // F8     F9     FA     FB     FC     FD     FE     FF
     0x01 | 0x02 | 0x04 | 0x08 | 0x10 | 0x20 | 0x40 | 0x80};
 
-ada_really_inline bool bit_at(const uint8_t a[], const uint8_t i) {
+ada_really_inline constexpr bool bit_at(const uint8_t a[], const uint8_t i) {
   return !!(a[i >> 3] & (1 << (i & 7)));
 }
 
@@ -1028,23 +999,19 @@ ada_really_inline bool bit_at(const uint8_t a[], const uint8_t i) {
 #ifndef ADA_CHECKERS_INL_H
 #define ADA_CHECKERS_INL_H
 
-
-#include <algorithm>
+#include <bit>
 #include <string_view>
-#include <cstring>
 
 namespace ada::checkers {
 
-inline bool has_hex_prefix_unsafe(std::string_view input) {
+constexpr bool has_hex_prefix_unsafe(std::string_view input) {
   // This is actually efficient code, see has_hex_prefix for the assembly.
-  uint32_t value_one = 1;
-  bool is_little_endian = (reinterpret_cast<char*>(&value_one)[0] == 1);
-  uint16_t word0x{};
-  std::memcpy(&word0x, "0x", 2);  // we would use bit_cast in C++20 and the
-                                  // function could be constexpr.
-  uint16_t two_first_bytes{};
-  std::memcpy(&two_first_bytes, input.data(), 2);
-  if (is_little_endian) {
+  constexpr bool is_little_endian = std::endian::native == std::endian::little;
+  constexpr uint16_t word0x = 0x7830;
+  uint16_t two_first_bytes =
+      static_cast<uint16_t>(input[0]) |
+      static_cast<uint16_t>((static_cast<uint16_t>(input[1]) << 8));
+  if constexpr (is_little_endian) {
     two_first_bytes |= 0x2000;
   } else {
     two_first_bytes |= 0x020;
@@ -1052,7 +1019,7 @@ inline bool has_hex_prefix_unsafe(std::string_view input) {
   return two_first_bytes == word0x;
 }
 
-inline bool has_hex_prefix(std::string_view input) {
+constexpr bool has_hex_prefix(std::string_view input) {
   return input.size() >= 2 && has_hex_prefix_unsafe(input);
 }
 
@@ -1064,24 +1031,16 @@ constexpr bool is_alpha(char x) noexcept {
   return (to_lower(x) >= 'a') && (to_lower(x) <= 'z');
 }
 
-inline constexpr bool is_windows_drive_letter(std::string_view input) noexcept {
+constexpr bool is_windows_drive_letter(std::string_view input) noexcept {
   return input.size() >= 2 &&
          (is_alpha(input[0]) && ((input[1] == ':') || (input[1] == '|'))) &&
          ((input.size() == 2) || (input[2] == '/' || input[2] == '\\' ||
                                   input[2] == '?' || input[2] == '#'));
 }
 
-inline constexpr bool is_normalized_windows_drive_letter(
+constexpr bool is_normalized_windows_drive_letter(
     std::string_view input) noexcept {
   return input.size() >= 2 && (is_alpha(input[0]) && (input[1] == ':'));
-}
-
-ada_really_inline bool begins_with(std::string_view view,
-                                   std::string_view prefix) {
-  // in C++20, you have view.begins_with(prefix)
-  // std::equal is constexpr in C++20
-  return view.size() >= prefix.size() &&
-         std::equal(prefix.begin(), prefix.end(), view.begin());
 }
 
 }  // namespace ada::checkers
@@ -1097,65 +1056,31 @@ ada_really_inline bool begins_with(std::string_view view,
 #ifndef ADA_LOG_H
 #define ADA_LOG_H
 
-#include <iostream>
 // To enable logging, set ADA_LOGGING to 1:
 #ifndef ADA_LOGGING
 #define ADA_LOGGING 0
 #endif
 
+#if ADA_LOGGING
+#include <iostream>
+#endif  // ADA_LOGGING
+
 namespace ada {
 
 /**
- * Private function used for logging messages.
+ * Log a message. If you want to have no overhead when logging is disabled, use
+ * the ada_log macro.
  * @private
  */
-template <typename T>
-ada_really_inline void inner_log([[maybe_unused]] T t) {
+template <typename... Args>
+constexpr ada_really_inline void log([[maybe_unused]] Args... args) {
 #if ADA_LOGGING
-  std::cout << t << std::endl;
-#endif
-}
-
-/**
- * Private function used for logging messages.
- * @private
- */
-template <typename T, typename... Args>
-ada_really_inline void inner_log([[maybe_unused]] T t,
-                                 [[maybe_unused]] Args... args) {
-#if ADA_LOGGING
-  std::cout << t;
-  inner_log(args...);
-#endif
-}
-
-/**
- * Log a message.
- * @private
- */
-template <typename T, typename... Args>
-ada_really_inline void log([[maybe_unused]] T t,
-                           [[maybe_unused]] Args... args) {
-#if ADA_LOGGING
-  std::cout << "ADA_LOG: " << t;
-  inner_log(args...);
-#endif
-}
-
-/**
- * Log a message.
- * @private
- */
-template <typename T>
-ada_really_inline void log([[maybe_unused]] T t) {
-#if ADA_LOGGING
-  std::cout << "ADA_LOG: " << t << std::endl;
-#endif
+  ((std::cout << "ADA_LOG: ") << ... << args) << std::endl;
+#endif  // ADA_LOGGING
 }
 }  // namespace ada
 
 #if ADA_LOGGING
-
 #ifndef ada_log
 #define ada_log(...)       \
   do {                     \
@@ -1413,7 +1338,7 @@ struct url_components {
    * @return true if the offset values are
    *  consistent with a possible URL string
    */
-  [[nodiscard]] bool check_offset_consistency() const noexcept;
+  [[nodiscard]] constexpr bool check_offset_consistency() const noexcept;
 
   /**
    * Converts a url_components to JSON stringified version.
@@ -1421,7 +1346,6 @@ struct url_components {
   [[nodiscard]] std::string to_string() const;
 
 };  // struct url_components
-
 }  // namespace ada
 #endif
 /* end file include/ada/url_components.h */
@@ -1435,7 +1359,6 @@ struct url_components {
 
 
 #include <array>
-#include <optional>
 #include <string>
 
 /**
@@ -1563,7 +1486,7 @@ struct url_base {
    * A URL is special if its scheme is a special scheme. A URL is not special if
    * its scheme is not a special scheme.
    */
-  [[nodiscard]] ada_really_inline bool is_special() const noexcept;
+  [[nodiscard]] ada_really_inline constexpr bool is_special() const noexcept;
 
   /**
    * The origin getter steps are to return the serialization of this's URL's
@@ -1639,6 +1562,10 @@ struct url_base {
 
 #include <string_view>
 #include <optional>
+
+#if ADA_DEVELOPMENT_CHECKS
+#include <iostream>
+#endif  // ADA_DEVELOPMENT_CHECKS
 
 /**
  * These functions are not part of our public API and may
@@ -1716,8 +1643,8 @@ ada_really_inline void remove_ascii_tab_or_newline(std::string& input) noexcept;
  * Return the substring from input going from index pos to the end.
  * This function cannot throw.
  */
-ada_really_inline std::string_view substring(std::string_view input,
-                                             size_t pos) noexcept;
+ada_really_inline constexpr std::string_view substring(std::string_view input,
+                                                       size_t pos) noexcept;
 
 /**
  * @private
@@ -1730,9 +1657,9 @@ bool overlaps(std::string_view input1, const std::string& input2) noexcept;
  * Return the substring from input going from index pos1 to the pos2 (non
  * included). The length of the substring is pos2 - pos1.
  */
-ada_really_inline std::string_view substring(const std::string& input,
-                                             size_t pos1,
-                                             size_t pos2) noexcept {
+ada_really_inline constexpr std::string_view substring(std::string_view input,
+                                                       size_t pos1,
+                                                       size_t pos2) noexcept {
 #if ADA_DEVELOPMENT_CHECKS
   if (pos2 < pos1) {
     std::cerr << "Negative-length substring: [" << pos1 << " to " << pos2 << ")"
@@ -1740,7 +1667,7 @@ ada_really_inline std::string_view substring(const std::string& input,
     abort();
   }
 #endif
-  return std::string_view(input.data() + pos1, pos2 - pos1);
+  return input.substr(pos1, pos2 - pos1);
 }
 
 /**
@@ -1756,14 +1683,14 @@ ada_really_inline void resize(std::string_view& input, size_t pos) noexcept;
  * and whether a colon was found outside brackets. Used by the host parser.
  */
 ada_really_inline std::pair<size_t, bool> get_host_delimiter_location(
-    const bool is_special, std::string_view& view) noexcept;
+    bool is_special, std::string_view& view) noexcept;
 
 /**
  * @private
  * Removes leading and trailing C0 control and whitespace characters from
  * string.
  */
-ada_really_inline void trim_c0_whitespace(std::string_view& input) noexcept;
+void trim_c0_whitespace(std::string_view& input) noexcept;
 
 /**
  * @private
@@ -1867,8 +1794,8 @@ inline int fast_digit_count(uint32_t x) noexcept {
 #ifndef ADA_PARSER_H
 #define ADA_PARSER_H
 
-#include <optional>
 #include <string_view>
+#include <variant>
 
 /* begin file include/ada/expected.h */
 /**
@@ -4398,6 +4325,10 @@ void swap(expected<T, E> &lhs,
 namespace ada {
 struct url_aggregator;
 struct url;
+class url_pattern;
+struct url_pattern_options;
+struct url_pattern_init;
+enum class errors : uint8_t;
 }  // namespace ada
 
 /**
@@ -4411,7 +4342,7 @@ namespace ada::parser {
  * parameter that can be used to resolve relative URLs. If the base_url is
  * provided, the user_input is resolved against the base_url.
  */
-template <typename result_type = ada::url_aggregator>
+template <typename result_type = url_aggregator>
 result_type parse_url(std::string_view user_input,
                       const result_type* base_url = nullptr);
 
@@ -4420,7 +4351,7 @@ extern template url_aggregator parse_url<url_aggregator>(
 extern template url parse_url<url>(std::string_view user_input,
                                    const url* base_url);
 
-template <typename result_type = ada::url_aggregator, bool store_values = true>
+template <typename result_type = url_aggregator, bool store_values = true>
 result_type parse_url_impl(std::string_view user_input,
                            const result_type* base_url = nullptr);
 
@@ -4428,6 +4359,11 @@ extern template url_aggregator parse_url_impl<url_aggregator>(
     std::string_view user_input, const url_aggregator* base_url);
 extern template url parse_url_impl<url>(std::string_view user_input,
                                         const url* base_url);
+
+tl::expected<url_pattern, errors> parse_url_pattern_impl(
+    std::variant<std::string_view, url_pattern_init> input,
+    const std::string_view* base_url, const url_pattern_options* options);
+
 }  // namespace ada::parser
 
 #endif  // ADA_PARSER_H
@@ -4530,7 +4466,6 @@ constexpr ada::scheme::type get_scheme_type(std::string_view scheme) noexcept {
 
 
 #include <array>
-#include <optional>
 #include <string>
 
 /**
@@ -4693,6 +4628,20 @@ ada_really_inline constexpr bool is_ascii_hex_digit(char c) noexcept;
 
 /**
  * @private
+ * An ASCII digit is a code point in the range U+0030 (0) to U+0039 (9),
+ * inclusive.
+ */
+ada_really_inline constexpr bool is_ascii_digit(char c) noexcept;
+
+/**
+ * @private
+ * @details If a char is between U+0000 and U+007F inclusive, then it's an ASCII
+ * character.
+ */
+ada_really_inline constexpr bool is_ascii(char32_t c) noexcept;
+
+/**
+ * @private
  * Checks if the input is a C0 control or space character.
  *
  * @details A C0 control or space is a C0 control or U+0020 SPACE.
@@ -4714,7 +4663,7 @@ ada_really_inline constexpr bool is_ascii_tab_or_newline(char c) noexcept;
  * @details A double-dot path segment must be ".." or an ASCII case-insensitive
  * match for ".%2e", "%2e.", or "%2e%2e".
  */
-ada_really_inline ada_constexpr bool is_double_dot_path_segment(
+ada_really_inline constexpr bool is_double_dot_path_segment(
     std::string_view input) noexcept;
 
 /**
@@ -4811,314 +4760,41 @@ constexpr bool to_lower_ascii(char* input, size_t length) noexcept;
 #include <string>
 #include <string_view>
 
-
-namespace ada {
-
+/* begin file include/ada/url_pattern.h */
 /**
- * @brief Lightweight URL struct.
- *
- * @details The url_aggregator class aims to minimize temporary memory
- * allocation while representing a parsed URL. Internally, it contains a single
- * normalized URL (the href), and it makes available the components, mostly
- * using std::string_view.
+ * @file url_pattern.h
+ * @brief Declaration for the URLPattern implementation.
  */
-struct url_aggregator : url_base {
-  url_aggregator() = default;
-  url_aggregator(const url_aggregator &u) = default;
-  url_aggregator(url_aggregator &&u) noexcept = default;
-  url_aggregator &operator=(url_aggregator &&u) noexcept = default;
-  url_aggregator &operator=(const url_aggregator &u) = default;
-  ~url_aggregator() override = default;
+#ifndef ADA_URL_PATTERN_H
+#define ADA_URL_PATTERN_H
 
-  bool set_href(std::string_view input);
-  bool set_host(std::string_view input);
-  bool set_hostname(std::string_view input);
-  bool set_protocol(std::string_view input);
-  bool set_username(std::string_view input);
-  bool set_password(std::string_view input);
-  bool set_port(std::string_view input);
-  bool set_pathname(std::string_view input);
-  void set_search(std::string_view input);
-  void set_hash(std::string_view input);
+/* begin file include/ada/implementation.h */
+/**
+ * @file implementation.h
+ * @brief Definitions for user facing functions for parsing URL and it's
+ * components.
+ */
+#ifndef ADA_IMPLEMENTATION_H
+#define ADA_IMPLEMENTATION_H
 
-  [[nodiscard]] bool has_valid_domain() const noexcept override;
-  /**
-   * The origin getter steps are to return the serialization of this's URL's
-   * origin. [HTML]
-   * @return a newly allocated string.
-   * @see https://url.spec.whatwg.org/#concept-url-origin
-   */
-  [[nodiscard]] std::string get_origin() const noexcept override;
-  /**
-   * Return the normalized string.
-   * This function does not allocate memory.
-   * It is highly efficient.
-   * @return a constant reference to the underlying normalized URL.
-   * @see https://url.spec.whatwg.org/#dom-url-href
-   * @see https://url.spec.whatwg.org/#concept-url-serializer
-   */
-  [[nodiscard]] inline std::string_view get_href() const noexcept
-      ada_lifetime_bound;
-  /**
-   * The username getter steps are to return this's URL's username.
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-username
-   */
-  [[nodiscard]] std::string_view get_username() const noexcept
-      ada_lifetime_bound;
-  /**
-   * The password getter steps are to return this's URL's password.
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-password
-   */
-  [[nodiscard]] std::string_view get_password() const noexcept
-      ada_lifetime_bound;
-  /**
-   * Return this's URL's port, serialized.
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-port
-   */
-  [[nodiscard]] std::string_view get_port() const noexcept ada_lifetime_bound;
-  /**
-   * Return U+0023 (#), followed by this's URL's fragment.
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view..
-   * @see https://url.spec.whatwg.org/#dom-url-hash
-   */
-  [[nodiscard]] std::string_view get_hash() const noexcept ada_lifetime_bound;
-  /**
-   * Return url's host, serialized, followed by U+003A (:) and url's port,
-   * serialized.
-   * This function does not allocate memory.
-   * When there is no host, this function returns the empty view.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-host
-   */
-  [[nodiscard]] std::string_view get_host() const noexcept ada_lifetime_bound;
-  /**
-   * Return this's URL's host, serialized.
-   * This function does not allocate memory.
-   * When there is no host, this function returns the empty view.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-hostname
-   */
-  [[nodiscard]] std::string_view get_hostname() const noexcept
-      ada_lifetime_bound;
-  /**
-   * The pathname getter steps are to return the result of URL path serializing
-   * this's URL.
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-pathname
-   */
-  [[nodiscard]] std::string_view get_pathname() const noexcept
-      ada_lifetime_bound;
-  /**
-   * Compute the pathname length in bytes without instantiating a view or a
-   * string.
-   * @return size of the pathname in bytes
-   * @see https://url.spec.whatwg.org/#dom-url-pathname
-   */
-  [[nodiscard]] ada_really_inline uint32_t get_pathname_length() const noexcept;
-  /**
-   * Return U+003F (?), followed by this's URL's query.
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-search
-   */
-  [[nodiscard]] std::string_view get_search() const noexcept ada_lifetime_bound;
-  /**
-   * The protocol getter steps are to return this's URL's scheme, followed by
-   * U+003A (:).
-   * This function does not allocate memory.
-   * @return a lightweight std::string_view.
-   * @see https://url.spec.whatwg.org/#dom-url-protocol
-   */
-  [[nodiscard]] std::string_view get_protocol() const noexcept
-      ada_lifetime_bound;
+#include <string>
+#include <optional>
 
-  /**
-   * A URL includes credentials if its username or password is not the empty
-   * string.
-   */
-  [[nodiscard]] ada_really_inline bool has_credentials() const noexcept;
+/* begin file include/ada/url.h */
+/**
+ * @file url.h
+ * @brief Declaration for the URL
+ */
+#ifndef ADA_URL_H
+#define ADA_URL_H
 
-  /**
-   * Useful for implementing efficient serialization for the URL.
-   *
-   * https://user:pass@example.com:1234/foo/bar?baz#quux
-   *       |     |    |          | ^^^^|       |   |
-   *       |     |    |          | |   |       |   `----- hash_start
-   *       |     |    |          | |   |       `--------- search_start
-   *       |     |    |          | |   `----------------- pathname_start
-   *       |     |    |          | `--------------------- port
-   *       |     |    |          `----------------------- host_end
-   *       |     |    `---------------------------------- host_start
-   *       |     `--------------------------------------- username_end
-   *       `--------------------------------------------- protocol_end
-   *
-   * Inspired after servo/url
-   *
-   * @return a constant reference to the underlying component attribute.
-   *
-   * @see
-   * https://github.com/servo/rust-url/blob/b65a45515c10713f6d212e6726719a020203cc98/url/src/quirks.rs#L31
-   */
-  [[nodiscard]] ada_really_inline const ada::url_components &get_components()
-      const noexcept;
-  /**
-   * Returns a string representation of this URL.
-   */
-  [[nodiscard]] std::string to_string() const override;
-  /**
-   * Returns a string diagram of this URL.
-   */
-  [[nodiscard]] std::string to_diagram() const;
+#include <algorithm>
+#include <charconv>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
 
-  /**
-   * Verifies that the parsed URL could be valid. Useful for debugging purposes.
-   * @return true if the URL is valid, otherwise return true of the offsets are
-   * possible.
-   */
-  [[nodiscard]] bool validate() const noexcept;
-
-  /** @return true if it has an host but it is the empty string */
-  [[nodiscard]] inline bool has_empty_hostname() const noexcept;
-  /** @return true if it has a host (included an empty host) */
-  [[nodiscard]] inline bool has_hostname() const noexcept;
-  /** @return true if the URL has a non-empty username */
-  [[nodiscard]] inline bool has_non_empty_username() const noexcept;
-  /** @return true if the URL has a non-empty password */
-  [[nodiscard]] inline bool has_non_empty_password() const noexcept;
-  /** @return true if the URL has a (non default) port */
-  [[nodiscard]] inline bool has_port() const noexcept;
-  /** @return true if the URL has a password */
-  [[nodiscard]] inline bool has_password() const noexcept;
-  /** @return true if the URL has a hash component */
-  [[nodiscard]] inline bool has_hash() const noexcept override;
-  /** @return true if the URL has a search component */
-  [[nodiscard]] inline bool has_search() const noexcept override;
-
-  inline void clear_port();
-  inline void clear_hash();
-  inline void clear_search() override;
-
- private:
-  friend ada::url_aggregator ada::parser::parse_url<ada::url_aggregator>(
-      std::string_view, const ada::url_aggregator *);
-  friend void ada::helpers::strip_trailing_spaces_from_opaque_path<
-      ada::url_aggregator>(ada::url_aggregator &url) noexcept;
-  friend ada::url_aggregator ada::parser::parse_url_impl<
-      ada::url_aggregator, true>(std::string_view, const ada::url_aggregator *);
-  friend ada::url_aggregator
-  ada::parser::parse_url_impl<ada::url_aggregator, false>(
-      std::string_view, const ada::url_aggregator *);
-
-  std::string buffer{};
-  url_components components{};
-
-  /**
-   * Returns true if neither the search, nor the hash nor the pathname
-   * have been set.
-   * @return true if the buffer is ready to receive the path.
-   */
-  [[nodiscard]] ada_really_inline bool is_at_path() const noexcept;
-
-  inline void add_authority_slashes_if_needed() noexcept;
-
-  /**
-   * To optimize performance, you may indicate how much memory to allocate
-   * within this instance.
-   */
-  inline void reserve(uint32_t capacity);
-
-  ada_really_inline size_t parse_port(
-      std::string_view view, bool check_trailing_content) noexcept override;
-
-  ada_really_inline size_t parse_port(std::string_view view) noexcept override {
-    return this->parse_port(view, false);
-  }
-
-  /**
-   * Return true on success. The 'in_place' parameter indicates whether the
-   * the string_view input is pointing in the buffer. When in_place is false,
-   * we must nearly always update the buffer.
-   * @see https://url.spec.whatwg.org/#concept-ipv4-parser
-   */
-  [[nodiscard]] bool parse_ipv4(std::string_view input, bool in_place);
-
-  /**
-   * Return true on success.
-   * @see https://url.spec.whatwg.org/#concept-ipv6-parser
-   */
-  [[nodiscard]] bool parse_ipv6(std::string_view input);
-
-  /**
-   * Return true on success.
-   * @see https://url.spec.whatwg.org/#concept-opaque-host-parser
-   */
-  [[nodiscard]] bool parse_opaque_host(std::string_view input);
-
-  ada_really_inline void parse_path(std::string_view input);
-
-  /**
-   * A URL cannot have a username/password/port if its host is null or the empty
-   * string, or its scheme is "file".
-   */
-  [[nodiscard]] inline bool cannot_have_credentials_or_port() const;
-
-  template <bool override_hostname = false>
-  bool set_host_or_hostname(std::string_view input);
-
-  ada_really_inline bool parse_host(std::string_view input);
-
-  inline void update_base_authority(std::string_view base_buffer,
-                                    const ada::url_components &base);
-  inline void update_unencoded_base_hash(std::string_view input);
-  inline void update_base_hostname(std::string_view input);
-  inline void update_base_search(std::string_view input);
-  inline void update_base_search(std::string_view input,
-                                 const uint8_t *query_percent_encode_set);
-  inline void update_base_pathname(std::string_view input);
-  inline void update_base_username(std::string_view input);
-  inline void append_base_username(std::string_view input);
-  inline void update_base_password(std::string_view input);
-  inline void append_base_password(std::string_view input);
-  inline void update_base_port(uint32_t input);
-  inline void append_base_pathname(std::string_view input);
-  [[nodiscard]] inline uint32_t retrieve_base_port() const;
-  inline void clear_hostname();
-  inline void clear_password();
-  inline void clear_pathname() override;
-  [[nodiscard]] inline bool has_dash_dot() const noexcept;
-  void delete_dash_dot();
-  inline void consume_prepared_path(std::string_view input);
-  template <bool has_state_override = false>
-  [[nodiscard]] ada_really_inline bool parse_scheme_with_colon(
-      std::string_view input);
-  ada_really_inline uint32_t replace_and_resize(uint32_t start, uint32_t end,
-                                                std::string_view input);
-  [[nodiscard]] inline bool has_authority() const noexcept;
-  inline void set_protocol_as_file();
-  inline void set_scheme(std::string_view new_scheme) noexcept;
-  /**
-   * Fast function to set the scheme from a view with a colon in the
-   * buffer, does not change type.
-   */
-  inline void set_scheme_from_view_with_colon(
-      std::string_view new_scheme_with_colon) noexcept;
-  inline void copy_scheme(const url_aggregator &u) noexcept;
-
-};  // url_aggregator
-
-inline std::ostream &operator<<(std::ostream &out, const ada::url &u);
-}  // namespace ada
-
-#endif
-/* end file include/ada/url_aggregator.h */
 /* begin file include/ada/checkers.h */
 /**
  * @file checkers.h
@@ -5128,8 +4804,8 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u);
 #define ADA_CHECKERS_H
 
 
-#include <string_view>
 #include <cstring>
+#include <string_view>
 
 /**
  * These functions are not part of our public API and may
@@ -5164,12 +4840,12 @@ constexpr bool is_alpha(char x) noexcept;
  *
  * @see has_hex_prefix
  */
-inline bool has_hex_prefix_unsafe(std::string_view input);
+constexpr bool has_hex_prefix_unsafe(std::string_view input);
 /**
  * @private
  * Check whether a string starts with 0x or 0X.
  */
-inline bool has_hex_prefix(std::string_view input);
+constexpr bool has_hex_prefix(std::string_view input);
 
 /**
  * @private
@@ -5202,18 +4878,11 @@ inline constexpr bool is_normalized_windows_drive_letter(
 
 /**
  * @private
- * @warning Will be removed when Ada requires C++20.
- */
-ada_really_inline bool begins_with(std::string_view view,
-                                   std::string_view prefix);
-
-/**
- * @private
  * Returns true if an input is an ipv4 address. It is assumed that the string
  * does not contain uppercase ASCII characters (the input should have been
  * lowered cased before calling this function) and is not empty.
  */
-ada_really_inline ada_constexpr bool is_ipv4(std::string_view view) noexcept;
+ada_really_inline constexpr bool is_ipv4(std::string_view view) noexcept;
 
 /**
  * @private
@@ -5243,21 +4912,6 @@ ada_really_inline constexpr bool verify_dns_length(
 
 #endif  // ADA_CHECKERS_H
 /* end file include/ada/checkers.h */
-/* begin file include/ada/url.h */
-/**
- * @file url.h
- * @brief Declaration for the URL
- */
-#ifndef ADA_URL_H
-#define ADA_URL_H
-
-#include <algorithm>
-#include <charconv>
-#include <iostream>
-#include <optional>
-#include <string>
-#include <string_view>
-
 
 namespace ada {
 
@@ -5387,7 +5041,7 @@ struct url : url_base {
    * @return a newly allocated string.
    * @see https://url.spec.whatwg.org/#dom-url-pathname
    */
-  [[nodiscard]] std::string_view get_pathname() const noexcept;
+  [[nodiscard]] constexpr std::string_view get_pathname() const noexcept;
 
   /**
    * Compute the pathname length in bytes without instantiating a view or a
@@ -5521,9 +5175,9 @@ struct url : url_base {
   [[nodiscard]] ada_really_inline ada::url_components get_components()
       const noexcept;
   /** @return true if the URL has a hash component */
-  [[nodiscard]] inline bool has_hash() const noexcept override;
+  [[nodiscard]] constexpr bool has_hash() const noexcept override;
   /** @return true if the URL has a search component */
-  [[nodiscard]] inline bool has_search() const noexcept override;
+  [[nodiscard]] constexpr bool has_search() const noexcept override;
 
  private:
   friend ada::url ada::parser::parse_url<ada::url>(std::string_view,
@@ -5540,10 +5194,9 @@ struct url : url_base {
 
   inline void update_unencoded_base_hash(std::string_view input);
   inline void update_base_hostname(std::string_view input);
-  inline void update_base_search(std::string_view input);
   inline void update_base_search(std::string_view input,
                                  const uint8_t query_percent_encode_set[]);
-  inline void update_base_search(std::optional<std::string> input);
+  inline void update_base_search(std::optional<std::string> &&input);
   inline void update_base_pathname(std::string_view input);
   inline void update_base_username(std::string_view input);
   inline void update_base_password(std::string_view input);
@@ -5600,12 +5253,6 @@ struct url : url_base {
   }
 
   /**
-   * Take the scheme from another URL. The scheme string is copied from the
-   * provided url.
-   */
-  inline void copy_scheme(const ada::url &u);
-
-  /**
    * Parse the host from the provided input. We assume that
    * the input does not contain spaces or tabs. Control
    * characters and spaces are not trimmed (they should have
@@ -5618,9 +5265,9 @@ struct url : url_base {
   template <bool has_state_override = false>
   [[nodiscard]] ada_really_inline bool parse_scheme(std::string_view input);
 
-  inline void clear_pathname() override;
-  inline void clear_search() override;
-  inline void set_protocol_as_file();
+  constexpr void clear_pathname() override;
+  constexpr void clear_search() override;
+  constexpr void set_protocol_as_file();
 
   /**
    * Parse the path from the provided input.
@@ -5645,7 +5292,13 @@ struct url : url_base {
    * Take the scheme from another URL. The scheme string is moved from the
    * provided url.
    */
-  inline void copy_scheme(ada::url &&u) noexcept;
+  constexpr void copy_scheme(ada::url &&u) noexcept;
+
+  /**
+   * Take the scheme from another URL. The scheme string is copied from the
+   * provided url.
+   */
+  constexpr void copy_scheme(const ada::url &u);
 
 };  // struct url
 
@@ -5655,6 +5308,714 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u);
 #endif  // ADA_URL_H
 /* end file include/ada/url.h */
 
+namespace ada {
+enum class errors : uint8_t { type_error };
+
+template <class result_type = ada::url_aggregator>
+using result = tl::expected<result_type, ada::errors>;
+
+/**
+ * The URL parser takes a scalar value string input, with an optional null or
+ * base URL base (default null). The parser assumes the input is a valid ASCII
+ * or UTF-8 string.
+ *
+ * @param input the string input to analyze (must be valid ASCII or UTF-8)
+ * @param base_url the optional URL input to use as a base url.
+ * @return a parsed URL.
+ */
+template <class result_type = ada::url_aggregator>
+ada_warn_unused ada::result<result_type> parse(
+    std::string_view input, const result_type* base_url = nullptr);
+
+extern template ada::result<url> parse<url>(std::string_view input,
+                                            const url* base_url);
+extern template ada::result<url_aggregator> parse<url_aggregator>(
+    std::string_view input, const url_aggregator* base_url);
+
+/**
+ * Verifies whether the URL strings can be parsed. The function assumes
+ * that the inputs are valid ASCII or UTF-8 strings.
+ * @see https://url.spec.whatwg.org/#dom-url-canparse
+ * @return If URL can be parsed or not.
+ */
+bool can_parse(std::string_view input,
+               const std::string_view* base_input = nullptr);
+
+/**
+ * Implementation of the URL pattern parsing algorithm.
+ * @see https://urlpattern.spec.whatwg.org
+ *
+ * @param input valid UTF-8 string or URLPatternInit struct
+ * @param base_url an optional valid UTF-8 string
+ * @param options an optional url_pattern_options struct
+ * @return url_pattern instance
+ */
+ada_warn_unused tl::expected<url_pattern, errors> parse_url_pattern(
+    std::variant<std::string_view, url_pattern_init> input,
+    const std::string_view* base_url = nullptr,
+    const url_pattern_options* options = nullptr);
+
+/**
+ * Computes a href string from a file path. The function assumes
+ * that the input is a valid ASCII or UTF-8 string.
+ * @return a href string (starts with file:://)
+ */
+std::string href_from_file(std::string_view path);
+}  // namespace ada
+
+#endif  // ADA_IMPLEMENTATION_H
+/* end file include/ada/implementation.h */
+
+#include <regex>
+#include <string>
+#include <unordered_map>
+#include <variant>
+#include <vector>
+
+namespace ada {
+
+namespace parser {
+template <typename result_type, typename url_pattern_init,
+          typename url_pattern_options>
+tl::expected<result_type, errors> parse_url_pattern_impl(
+    std::variant<std::string_view, url_pattern_init> input,
+    const std::string_view* base_url, const url_pattern_options* options);
+}
+
+// Important: C++20 allows us to use concept rather than `using` or `typedef
+// and allows functions with second argument, which is optional (using either
+// std::nullopt or a parameter with default value)
+template <typename F>
+concept url_pattern_encoding_callback = requires(F f, std::string_view sv) {
+  { f(sv) } -> std::same_as<tl::expected<std::string, errors>>;
+};
+
+// A structure providing matching patterns for individual components
+// of a URL. When a URLPattern is created, or when a URLPattern is
+// used to match or test against a URL, the input can be given as
+// either a string or a URLPatternInit struct. If a string is given,
+// it will be parsed to create a URLPatternInit. The URLPatternInit
+// API is defined as part of the URLPattern specification.
+struct url_pattern_init {
+  // @see https://urlpattern.spec.whatwg.org/#process-a-urlpatterninit
+  static tl::expected<url_pattern_init, errors> process(
+      url_pattern_init init, std::string_view type,
+      std::optional<std::string_view> protocol = std::nullopt,
+      std::optional<std::string_view> username = std::nullopt,
+      std::optional<std::string_view> password = std::nullopt,
+      std::optional<std::string_view> hostname = std::nullopt,
+      std::optional<std::string_view> port = std::nullopt,
+      std::optional<std::string_view> pathname = std::nullopt,
+      std::optional<std::string_view> search = std::nullopt,
+      std::optional<std::string_view> hash = std::nullopt);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-protocol-for-init
+  static tl::expected<std::string, errors> process_protocol(
+      std::string_view value, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-username-for-init
+  static tl::expected<std::string, errors> process_username(
+      std::string_view value, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-password-for-init
+  static tl::expected<std::string, errors> process_password(
+      std::string_view value, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-hostname-for-init
+  static tl::expected<std::string, errors> process_hostname(
+      std::string_view value, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-port-for-init
+  static tl::expected<std::string, errors> process_port(
+      std::string_view port, std::string_view protocol, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-pathname-for-init
+  static tl::expected<std::string, errors> process_pathname(
+      std::string_view value, std::string_view protocol, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-search-for-init
+  static tl::expected<std::string, errors> process_search(
+      std::string_view value, std::string_view type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-hash-for-init
+  static tl::expected<std::string, errors> process_hash(std::string_view value,
+                                                        std::string_view type);
+
+  [[nodiscard]] std::string to_string() const;
+
+  bool operator==(const url_pattern_init&) const;
+
+  std::optional<std::string> protocol{};
+  std::optional<std::string> username{};
+  std::optional<std::string> password{};
+  std::optional<std::string> hostname{};
+  std::optional<std::string> port{};
+  std::optional<std::string> pathname{};
+  std::optional<std::string> search{};
+  std::optional<std::string> hash{};
+  std::optional<std::string> base_url{};
+};
+
+enum class url_pattern_part_type : uint8_t {
+  // The part represents a simple fixed text string.
+  FIXED_TEXT,
+  // The part represents a matching group with a custom regular expression.
+  REGEXP,
+  // The part represents a matching group that matches code points up to the
+  // next separator code point. This is typically used for a named group like
+  // ":foo" that does not have a custom regular expression.
+  SEGMENT_WILDCARD,
+  // The part represents a matching group that greedily matches all code points.
+  // This is typically used for the "*" wildcard matching group.
+  FULL_WILDCARD,
+};
+
+enum class url_pattern_part_modifier : uint8_t {
+  // The part does not have a modifier.
+  NONE,
+  // The part has an optional modifier indicated by the U+003F (?) code point.
+  OPTIONAL,
+  // The part has a "zero or more" modifier indicated by the U+002A (*) code
+  // point.
+  ZERO_OR_MORE,
+  // The part has a "one or more" modifier indicated by the U+002B (+) code
+  // point.
+  ONE_OR_MORE,
+};
+
+// @see https://urlpattern.spec.whatwg.org/#part
+class url_pattern_part {
+ public:
+  url_pattern_part(url_pattern_part_type _type, std::string&& _value,
+                   url_pattern_part_modifier _modifier)
+      : type(_type), value(_value), modifier(_modifier) {}
+
+  url_pattern_part(url_pattern_part_type _type, std::string&& _value,
+                   url_pattern_part_modifier _modifier, std::string&& _name,
+                   std::string&& _prefix, std::string&& _suffix)
+      : type(_type),
+        value(_value),
+        modifier(_modifier),
+        name(_name),
+        prefix(_prefix),
+        suffix(_suffix) {}
+  // A part has an associated type, a string, which must be set upon creation.
+  url_pattern_part_type type;
+  // A part has an associated value, a string, which must be set upon creation.
+  std::string value;
+  // A part has an associated modifier a string, which must be set upon
+  // creation.
+  url_pattern_part_modifier modifier;
+  // A part has an associated name, a string, initially the empty string.
+  std::string name{};
+  // A part has an associated prefix, a string, initially the empty string.
+  std::string prefix{};
+  // A part has an associated suffix, a string, initially the empty string.
+  std::string suffix{};
+
+  inline bool is_regexp() const noexcept;
+};
+
+// @see https://urlpattern.spec.whatwg.org/#options-header
+struct url_pattern_compile_component_options {
+  url_pattern_compile_component_options() = default;
+  explicit url_pattern_compile_component_options(
+      std::optional<char> new_delimiter = std::nullopt,
+      std::optional<char> new_prefix = std::nullopt)
+      : delimiter(new_delimiter), prefix(new_prefix) {}
+
+  std::string_view get_delimiter() const ada_warn_unused;
+  std::string_view get_prefix() const ada_warn_unused;
+
+  // @see https://urlpattern.spec.whatwg.org/#options-ignore-case
+  bool ignore_case = false;
+
+  static url_pattern_compile_component_options DEFAULT;
+  static url_pattern_compile_component_options HOSTNAME;
+  static url_pattern_compile_component_options PATHNAME;
+
+ private:
+  // @see https://urlpattern.spec.whatwg.org/#options-delimiter-code-point
+  std::optional<char> delimiter{};
+  // @see https://urlpattern.spec.whatwg.org/#options-prefix-code-point
+  std::optional<char> prefix{};
+};
+
+// A struct providing the URLPattern matching results for a single
+// URL component. The URLPatternComponentResult is only ever used
+// as a member attribute of a URLPatternResult struct. The
+// URLPatternComponentResult API is defined as part of the URLPattern
+// specification.
+struct url_pattern_component_result {
+  std::string input;
+  std::unordered_map<std::string, std::string> groups;
+
+  bool operator==(const url_pattern_component_result&) const;
+
+#if ADA_TESTING
+  friend void PrintTo(const url_pattern_component_result& result,
+                      std::ostream* os) {
+    *os << "input: '" << result.input << "', group: ";
+    for (const auto& group : result.groups) {
+      *os << "(" << group.first << ", " << group.second << ") ";
+    }
+  }
+#endif  // ADA_TESTING
+};
+
+class url_pattern_component {
+ public:
+  url_pattern_component() = default;
+
+  // This function explicitly takes a std::string because it is moved.
+  // To avoid unnecessary copy, move each value while calling the constructor.
+  url_pattern_component(std::string&& new_pattern, std::regex&& new_regexp,
+                        std::regex_constants::syntax_option_type new_flags,
+                        std::vector<std::string>&& new_group_name_list,
+                        bool new_has_regexp_groups)
+      : regexp(std::move(new_regexp)),
+        pattern(std::move(new_pattern)),
+        flags(new_flags),
+        group_name_list(new_group_name_list),
+        has_regexp_groups(new_has_regexp_groups) {}
+
+  // @see https://urlpattern.spec.whatwg.org/#compile-a-component
+  template <url_pattern_encoding_callback F>
+  static tl::expected<url_pattern_component, errors> compile(
+      std::string_view input, F& encoding_callback,
+      url_pattern_compile_component_options& options);
+
+  // @see https://urlpattern.spec.whatwg.org/#create-a-component-match-result
+  url_pattern_component_result create_component_match_result(
+      std::string_view input, const std::smatch& exec_result);
+
+  std::string to_string() const;
+
+  std::regex regexp{};
+  std::string pattern{};
+  std::regex_constants::syntax_option_type flags = std::regex::ECMAScript;
+  std::vector<std::string> group_name_list{};
+  bool has_regexp_groups = false;
+};
+
+using url_pattern_input = std::variant<std::string_view, url_pattern_init>;
+
+// A struct providing the URLPattern matching results for all
+// components of a URL. The URLPatternResult API is defined as
+// part of the URLPattern specification.
+struct url_pattern_result {
+  std::vector<url_pattern_input> inputs;
+  url_pattern_component_result protocol;
+  url_pattern_component_result username;
+  url_pattern_component_result password;
+  url_pattern_component_result hostname;
+  url_pattern_component_result port;
+  url_pattern_component_result pathname;
+  url_pattern_component_result search;
+  url_pattern_component_result hash;
+};
+
+struct url_pattern_options {
+  bool ignore_case = false;
+
+  std::string to_string() const;
+};
+
+// URLPattern is a Web Platform standard API for matching URLs against a
+// pattern syntax (think of it as a regular expression for URLs). It is
+// defined in https://wicg.github.io/urlpattern.
+// More information about the URL Pattern syntax can be found at
+// https://developer.mozilla.org/en-US/docs/Web/API/URL_Pattern_API
+class url_pattern {
+ public:
+  url_pattern() = default;
+  explicit url_pattern(std::optional<url_pattern_input>&& input,
+                       std::optional<std::string_view>&& base_url,
+                       std::optional<url_pattern_options>&& options);
+
+  /**
+   * @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-exec
+   */
+  result<std::optional<url_pattern_result>> exec(const url_pattern_input& input,
+                                                 std::string_view* base_url);
+
+  /**
+   * @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-test
+   */
+  result<bool> test(const url_pattern_input& input, std::string_view* base_url);
+
+  /**
+   * @see https://urlpattern.spec.whatwg.org/#url-pattern-match
+   * This function expects a valid UTF-8 string if input is a string.
+   */
+  result<std::optional<url_pattern_result>> match(
+      const url_pattern_input& input, std::string_view* base_url_string);
+
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-protocol
+  std::string_view get_protocol() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-username
+  std::string_view get_username() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-password
+  std::string_view get_password() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-hostname
+  std::string_view get_hostname() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-port
+  std::string_view get_port() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-pathname
+  std::string_view get_pathname() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-search
+  std::string_view get_search() const ada_lifetime_bound;
+  // @see https://urlpattern.spec.whatwg.org/#dom-urlpattern-hash
+  std::string_view get_hash() const ada_lifetime_bound;
+
+  // If ignoreCase is true, the JavaScript regular expression created for each
+  // pattern must use the `vi` flag. Otherwise, they must use the `v` flag.
+  bool ignore_case() const;
+
+  // @see https://urlpattern.spec.whatwg.org/#url-pattern-has-regexp-groups
+  bool has_regexp_groups() const;
+
+  std::string to_string() const;
+
+  url_pattern_component protocol_component{};
+  url_pattern_component username_component{};
+  url_pattern_component password_component{};
+  url_pattern_component hostname_component{};
+  url_pattern_component port_component{};
+  url_pattern_component pathname_component{};
+  url_pattern_component search_component{};
+  url_pattern_component hash_component{};
+  bool ignore_case_ = false;
+
+  template <typename result_type, typename url_pattern_init,
+            typename url_pattern_options>
+  friend tl::expected<result_type, errors> parser::parse_url_pattern_impl(
+      std::variant<std::string_view, url_pattern_init> input,
+      const std::string_view* base_url, const url_pattern_options* options);
+};
+
+}  // namespace ada
+
+#endif
+/* end file include/ada/url_pattern.h */
+
+namespace ada {
+
+/**
+ * @brief Lightweight URL struct.
+ *
+ * @details The url_aggregator class aims to minimize temporary memory
+ * allocation while representing a parsed URL. Internally, it contains a single
+ * normalized URL (the href), and it makes available the components, mostly
+ * using std::string_view.
+ */
+struct url_aggregator : url_base {
+  url_aggregator() = default;
+  url_aggregator(const url_aggregator &u) = default;
+  url_aggregator(url_aggregator &&u) noexcept = default;
+  url_aggregator &operator=(url_aggregator &&u) noexcept = default;
+  url_aggregator &operator=(const url_aggregator &u) = default;
+  ~url_aggregator() override = default;
+
+  bool set_href(std::string_view input);
+  bool set_host(std::string_view input);
+  bool set_hostname(std::string_view input);
+  bool set_protocol(std::string_view input);
+  bool set_username(std::string_view input);
+  bool set_password(std::string_view input);
+  bool set_port(std::string_view input);
+  bool set_pathname(std::string_view input);
+  void set_search(std::string_view input);
+  void set_hash(std::string_view input);
+
+  [[nodiscard]] bool has_valid_domain() const noexcept override;
+  /**
+   * The origin getter steps are to return the serialization of this's URL's
+   * origin. [HTML]
+   * @return a newly allocated string.
+   * @see https://url.spec.whatwg.org/#concept-url-origin
+   */
+  [[nodiscard]] std::string get_origin() const noexcept override;
+  /**
+   * Return the normalized string.
+   * This function does not allocate memory.
+   * It is highly efficient.
+   * @return a constant reference to the underlying normalized URL.
+   * @see https://url.spec.whatwg.org/#dom-url-href
+   * @see https://url.spec.whatwg.org/#concept-url-serializer
+   */
+  [[nodiscard]] constexpr std::string_view get_href() const noexcept
+      ada_lifetime_bound;
+  /**
+   * The username getter steps are to return this's URL's username.
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-username
+   */
+  [[nodiscard]] std::string_view get_username() const noexcept
+      ada_lifetime_bound;
+  /**
+   * The password getter steps are to return this's URL's password.
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-password
+   */
+  [[nodiscard]] std::string_view get_password() const noexcept
+      ada_lifetime_bound;
+  /**
+   * Return this's URL's port, serialized.
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-port
+   */
+  [[nodiscard]] std::string_view get_port() const noexcept ada_lifetime_bound;
+  /**
+   * Return U+0023 (#), followed by this's URL's fragment.
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view..
+   * @see https://url.spec.whatwg.org/#dom-url-hash
+   */
+  [[nodiscard]] std::string_view get_hash() const noexcept ada_lifetime_bound;
+  /**
+   * Return url's host, serialized, followed by U+003A (:) and url's port,
+   * serialized.
+   * This function does not allocate memory.
+   * When there is no host, this function returns the empty view.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-host
+   */
+  [[nodiscard]] std::string_view get_host() const noexcept ada_lifetime_bound;
+  /**
+   * Return this's URL's host, serialized.
+   * This function does not allocate memory.
+   * When there is no host, this function returns the empty view.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-hostname
+   */
+  [[nodiscard]] std::string_view get_hostname() const noexcept
+      ada_lifetime_bound;
+  /**
+   * The pathname getter steps are to return the result of URL path serializing
+   * this's URL.
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-pathname
+   */
+  [[nodiscard]] constexpr std::string_view get_pathname() const noexcept
+      ada_lifetime_bound;
+  /**
+   * Compute the pathname length in bytes without instantiating a view or a
+   * string.
+   * @return size of the pathname in bytes
+   * @see https://url.spec.whatwg.org/#dom-url-pathname
+   */
+  [[nodiscard]] ada_really_inline uint32_t get_pathname_length() const noexcept;
+  /**
+   * Return U+003F (?), followed by this's URL's query.
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-search
+   */
+  [[nodiscard]] std::string_view get_search() const noexcept ada_lifetime_bound;
+  /**
+   * The protocol getter steps are to return this's URL's scheme, followed by
+   * U+003A (:).
+   * This function does not allocate memory.
+   * @return a lightweight std::string_view.
+   * @see https://url.spec.whatwg.org/#dom-url-protocol
+   */
+  [[nodiscard]] std::string_view get_protocol() const noexcept
+      ada_lifetime_bound;
+
+  /**
+   * A URL includes credentials if its username or password is not the empty
+   * string.
+   */
+  [[nodiscard]] ada_really_inline constexpr bool has_credentials()
+      const noexcept;
+
+  /**
+   * Useful for implementing efficient serialization for the URL.
+   *
+   * https://user:pass@example.com:1234/foo/bar?baz#quux
+   *       |     |    |          | ^^^^|       |   |
+   *       |     |    |          | |   |       |   `----- hash_start
+   *       |     |    |          | |   |       `--------- search_start
+   *       |     |    |          | |   `----------------- pathname_start
+   *       |     |    |          | `--------------------- port
+   *       |     |    |          `----------------------- host_end
+   *       |     |    `---------------------------------- host_start
+   *       |     `--------------------------------------- username_end
+   *       `--------------------------------------------- protocol_end
+   *
+   * Inspired after servo/url
+   *
+   * @return a constant reference to the underlying component attribute.
+   *
+   * @see
+   * https://github.com/servo/rust-url/blob/b65a45515c10713f6d212e6726719a020203cc98/url/src/quirks.rs#L31
+   */
+  [[nodiscard]] ada_really_inline const url_components &get_components()
+      const noexcept;
+  /**
+   * Returns a string representation of this URL.
+   */
+  [[nodiscard]] std::string to_string() const override;
+  /**
+   * Returns a string diagram of this URL.
+   */
+  [[nodiscard]] std::string to_diagram() const;
+
+  /**
+   * Verifies that the parsed URL could be valid. Useful for debugging purposes.
+   * @return true if the URL is valid, otherwise return true of the offsets are
+   * possible.
+   */
+  [[nodiscard]] constexpr bool validate() const noexcept;
+
+  /** @return true if it has an host but it is the empty string */
+  [[nodiscard]] constexpr bool has_empty_hostname() const noexcept;
+  /** @return true if it has a host (included an empty host) */
+  [[nodiscard]] constexpr bool has_hostname() const noexcept;
+  /** @return true if the URL has a non-empty username */
+  [[nodiscard]] constexpr bool has_non_empty_username() const noexcept;
+  /** @return true if the URL has a non-empty password */
+  [[nodiscard]] constexpr bool has_non_empty_password() const noexcept;
+  /** @return true if the URL has a (non default) port */
+  [[nodiscard]] constexpr bool has_port() const noexcept;
+  /** @return true if the URL has a password */
+  [[nodiscard]] constexpr bool has_password() const noexcept;
+  /** @return true if the URL has a hash component */
+  [[nodiscard]] constexpr bool has_hash() const noexcept override;
+  /** @return true if the URL has a search component */
+  [[nodiscard]] constexpr bool has_search() const noexcept override;
+
+  inline void clear_port();
+  inline void clear_hash();
+  inline void clear_search() override;
+
+ private:
+  // helper methods
+  friend void helpers::strip_trailing_spaces_from_opaque_path<url_aggregator>(
+      url_aggregator &url) noexcept;
+  // parse_url methods
+  friend url_aggregator parser::parse_url<url_aggregator>(
+      std::string_view, const url_aggregator *);
+
+  friend url_aggregator parser::parse_url_impl<url_aggregator, true>(
+      std::string_view, const url_aggregator *);
+  friend url_aggregator parser::parse_url_impl<url_aggregator, false>(
+      std::string_view, const url_aggregator *);
+  // url_pattern methods
+  friend tl::expected<url_pattern, errors> parse_url_pattern_impl(
+      std::variant<std::string_view, url_pattern_init> input,
+      const std::string_view *base_url, const url_pattern_options *options);
+
+  std::string buffer{};
+  url_components components{};
+
+  /**
+   * Returns true if neither the search, nor the hash nor the pathname
+   * have been set.
+   * @return true if the buffer is ready to receive the path.
+   */
+  [[nodiscard]] ada_really_inline bool is_at_path() const noexcept;
+
+  inline void add_authority_slashes_if_needed() noexcept;
+
+  /**
+   * To optimize performance, you may indicate how much memory to allocate
+   * within this instance.
+   */
+  constexpr void reserve(uint32_t capacity);
+
+  ada_really_inline size_t parse_port(
+      std::string_view view, bool check_trailing_content) noexcept override;
+
+  ada_really_inline size_t parse_port(std::string_view view) noexcept override {
+    return this->parse_port(view, false);
+  }
+
+  /**
+   * Return true on success. The 'in_place' parameter indicates whether the
+   * the string_view input is pointing in the buffer. When in_place is false,
+   * we must nearly always update the buffer.
+   * @see https://url.spec.whatwg.org/#concept-ipv4-parser
+   */
+  [[nodiscard]] bool parse_ipv4(std::string_view input, bool in_place);
+
+  /**
+   * Return true on success.
+   * @see https://url.spec.whatwg.org/#concept-ipv6-parser
+   */
+  [[nodiscard]] bool parse_ipv6(std::string_view input);
+
+  /**
+   * Return true on success.
+   * @see https://url.spec.whatwg.org/#concept-opaque-host-parser
+   */
+  [[nodiscard]] bool parse_opaque_host(std::string_view input);
+
+  ada_really_inline void parse_path(std::string_view input);
+
+  /**
+   * A URL cannot have a username/password/port if its host is null or the empty
+   * string, or its scheme is "file".
+   */
+  [[nodiscard]] constexpr bool cannot_have_credentials_or_port() const;
+
+  template <bool override_hostname = false>
+  bool set_host_or_hostname(std::string_view input);
+
+  ada_really_inline bool parse_host(std::string_view input);
+
+  inline void update_base_authority(std::string_view base_buffer,
+                                    const url_components &base);
+  inline void update_unencoded_base_hash(std::string_view input);
+  inline void update_base_hostname(std::string_view input);
+  inline void update_base_search(std::string_view input);
+  inline void update_base_search(std::string_view input,
+                                 const uint8_t *query_percent_encode_set);
+  inline void update_base_pathname(std::string_view input);
+  inline void update_base_username(std::string_view input);
+  inline void append_base_username(std::string_view input);
+  inline void update_base_password(std::string_view input);
+  inline void append_base_password(std::string_view input);
+  inline void update_base_port(uint32_t input);
+  inline void append_base_pathname(std::string_view input);
+  [[nodiscard]] inline uint32_t retrieve_base_port() const;
+  constexpr void clear_hostname();
+  constexpr void clear_password();
+  constexpr void clear_pathname() override;
+  [[nodiscard]] constexpr bool has_dash_dot() const noexcept;
+  void delete_dash_dot();
+  inline void consume_prepared_path(std::string_view input);
+  template <bool has_state_override = false>
+  [[nodiscard]] ada_really_inline bool parse_scheme_with_colon(
+      std::string_view input);
+  ada_really_inline uint32_t replace_and_resize(uint32_t start, uint32_t end,
+                                                std::string_view input);
+  [[nodiscard]] constexpr bool has_authority() const noexcept;
+  constexpr void set_protocol_as_file();
+  inline void set_scheme(std::string_view new_scheme) noexcept;
+  /**
+   * Fast function to set the scheme from a view with a colon in the
+   * buffer, does not change type.
+   */
+  inline void set_scheme_from_view_with_colon(
+      std::string_view new_scheme_with_colon) noexcept;
+  inline void copy_scheme(const url_aggregator &u) noexcept;
+
+  inline void update_host_to_base_host(const std::string_view input) noexcept;
+
+};  // url_aggregator
+
+inline std::ostream &operator<<(std::ostream &out, const url &u);
+}  // namespace ada
+
+#endif
+/* end file include/ada/url_aggregator.h */
+
 #include <optional>
 #include <string>
 #if ADA_REGULAR_VISUAL_STUDIO
@@ -5663,7 +6024,8 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u);
 
 namespace ada {
 
-[[nodiscard]] ada_really_inline bool url_base::is_special() const noexcept {
+[[nodiscard]] ada_really_inline constexpr bool url_base::is_special()
+    const noexcept {
   return type != ada::scheme::NOT_SPECIAL;
 }
 
@@ -5723,6 +6085,10 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u) {
   return path.size();
 }
 
+[[nodiscard]] constexpr std::string_view url::get_pathname() const noexcept {
+  return path;
+}
+
 [[nodiscard]] ada_really_inline ada::url_components url::get_components()
     const noexcept {
   url_components out{};
@@ -5761,7 +6127,7 @@ inline std::ostream &operator<<(std::ostream &out, const ada::url &u) {
     out.host_start = out.protocol_end;
     out.host_end = out.host_start;
 
-    if (!has_opaque_path && checkers::begins_with(path, "//")) {
+    if (!has_opaque_path && path.starts_with("//")) {
       // If url's host is null, url does not have an opaque path, url's path's
       // size is greater than 1, and url's path[0] is the empty string, then
       // append U+002F (/) followed by U+002E (.) to output.
@@ -5808,8 +6174,8 @@ inline void url::update_base_search(std::string_view input,
   query = ada::unicode::percent_encode(input, query_percent_encode_set);
 }
 
-inline void url::update_base_search(std::optional<std::string> input) {
-  query = input;
+inline void url::update_base_search(std::optional<std::string> &&input) {
+  query = std::move(input);
 }
 
 inline void url::update_base_pathname(const std::string_view input) {
@@ -5828,19 +6194,19 @@ inline void url::update_base_port(std::optional<uint16_t> input) {
   port = input;
 }
 
-inline void url::clear_pathname() { path.clear(); }
+constexpr void url::clear_pathname() { path.clear(); }
 
-inline void url::clear_search() { query = std::nullopt; }
+constexpr void url::clear_search() { query = std::nullopt; }
 
-[[nodiscard]] inline bool url::has_hash() const noexcept {
+[[nodiscard]] constexpr bool url::has_hash() const noexcept {
   return hash.has_value();
 }
 
-[[nodiscard]] inline bool url::has_search() const noexcept {
+[[nodiscard]] constexpr bool url::has_search() const noexcept {
   return query.has_value();
 }
 
-inline void url::set_protocol_as_file() { type = ada::scheme::type::FILE; }
+constexpr void url::set_protocol_as_file() { type = ada::scheme::type::FILE; }
 
 inline void url::set_scheme(std::string &&new_scheme) noexcept {
   type = ada::scheme::get_scheme_type(new_scheme);
@@ -5850,12 +6216,12 @@ inline void url::set_scheme(std::string &&new_scheme) noexcept {
   }
 }
 
-inline void url::copy_scheme(ada::url &&u) noexcept {
+constexpr void url::copy_scheme(ada::url &&u) noexcept {
   non_special_scheme = u.non_special_scheme;
   type = u.type;
 }
 
-inline void url::copy_scheme(const ada::url &u) {
+constexpr void url::copy_scheme(const ada::url &u) {
   non_special_scheme = u.non_special_scheme;
   type = u.type;
 }
@@ -5876,7 +6242,7 @@ inline void url::copy_scheme(const ada::url &u) {
     if (port.has_value()) {
       output += ":" + get_port();
     }
-  } else if (!has_opaque_path && checkers::begins_with(path, "//")) {
+  } else if (!has_opaque_path && path.starts_with("//")) {
     // If url's host is null, url does not have an opaque path, url's path's
     // size is greater than 1, and url's path[0] is the empty string, then
     // append U+002F (/) followed by U+002E (.) to output.
@@ -5908,7 +6274,7 @@ ada_really_inline size_t url::parse_port(std::string_view view,
     return 0;
   }
   ada_log("parse_port: ", parsed_port);
-  const size_t consumed = size_t(r.ptr - view.data());
+  const auto consumed = size_t(r.ptr - view.data());
   ada_log("parse_port: consumed ", consumed);
   if (check_trailing_content) {
     is_valid &=
@@ -5921,9 +6287,8 @@ ada_really_inline size_t url::parse_port(std::string_view view,
     auto default_port = scheme_default_port();
     bool is_port_valid = (default_port == 0 && parsed_port == 0) ||
                          (default_port != parsed_port);
-    port = (r.ec == std::errc() && is_port_valid)
-               ? std::optional<uint16_t>(parsed_port)
-               : std::nullopt;
+    port = (r.ec == std::errc() && is_port_valid) ? std::optional(parsed_port)
+                                                  : std::nullopt;
   }
   return consumed;
 }
@@ -5932,6 +6297,96 @@ ada_really_inline size_t url::parse_port(std::string_view view,
 
 #endif  // ADA_URL_H
 /* end file include/ada/url-inl.h */
+/* begin file include/ada/url_components-inl.h */
+/**
+ * @file url_components.h
+ * @brief Declaration for the URL Components
+ */
+#ifndef ADA_URL_COMPONENTS_INL_H
+#define ADA_URL_COMPONENTS_INL_H
+
+
+namespace ada {
+
+[[nodiscard]] constexpr bool url_components::check_offset_consistency()
+    const noexcept {
+  /**
+   * https://user:pass@example.com:1234/foo/bar?baz#quux
+   *       |     |    |          | ^^^^|       |   |
+   *       |     |    |          | |   |       |   `----- hash_start
+   *       |     |    |          | |   |       `--------- search_start
+   *       |     |    |          | |   `----------------- pathname_start
+   *       |     |    |          | `--------------------- port
+   *       |     |    |          `----------------------- host_end
+   *       |     |    `---------------------------------- host_start
+   *       |     `--------------------------------------- username_end
+   *       `--------------------------------------------- protocol_end
+   */
+  // These conditions can be made more strict.
+  uint32_t index = 0;
+
+  if (protocol_end == url_components::omitted) {
+    return false;
+  }
+  if (protocol_end < index) {
+    return false;
+  }
+  index = protocol_end;
+
+  if (username_end == url_components::omitted) {
+    return false;
+  }
+  if (username_end < index) {
+    return false;
+  }
+  index = username_end;
+
+  if (host_start == url_components::omitted) {
+    return false;
+  }
+  if (host_start < index) {
+    return false;
+  }
+  index = host_start;
+
+  if (port != url_components::omitted) {
+    if (port > 0xffff) {
+      return false;
+    }
+    uint32_t port_length = helpers::fast_digit_count(port) + 1;
+    if (index + port_length < index) {
+      return false;
+    }
+    index += port_length;
+  }
+
+  if (pathname_start == url_components::omitted) {
+    return false;
+  }
+  if (pathname_start < index) {
+    return false;
+  }
+  index = pathname_start;
+
+  if (search_start != url_components::omitted) {
+    if (search_start < index) {
+      return false;
+    }
+    index = search_start;
+  }
+
+  if (hash_start != url_components::omitted) {
+    if (hash_start < index) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+}  // namespace ada
+#endif
+/* end file include/ada/url_components-inl.h */
 /* begin file include/ada/url_aggregator-inl.h */
 /**
  * @file url_aggregator-inl.h
@@ -5947,7 +6402,6 @@ ada_really_inline size_t url::parse_port(std::string_view view,
  */
 #ifndef ADA_UNICODE_INL_H
 #define ADA_UNICODE_INL_H
-#include <algorithm>
 
 /**
  * Unicode operations. These functions are not part of our public API and may
@@ -5960,11 +6414,32 @@ ada_really_inline size_t url::parse_port(std::string_view view,
 namespace ada::unicode {
 ada_really_inline size_t percent_encode_index(const std::string_view input,
                                               const uint8_t character_set[]) {
-  return std::distance(
-      input.begin(),
-      std::find_if(input.begin(), input.end(), [character_set](const char c) {
-        return character_sets::bit_at(character_set, c);
-      }));
+  const char* data = input.data();
+  const size_t size = input.size();
+
+  // Process 8 bytes at a time using unrolled loop
+  size_t i = 0;
+  for (; i + 8 <= size; i += 8) {
+    unsigned char chunk[8];
+    std::memcpy(&chunk, data + i,
+                8);  // entices compiler to unconditionally process 8 characters
+
+    // Check 8 characters at once
+    for (size_t j = 0; j < 8; j++) {
+      if (character_sets::bit_at(character_set, chunk[j])) {
+        return i + j;
+      }
+    }
+  }
+
+  // Handle remaining bytes
+  for (; i < size; i++) {
+    if (character_sets::bit_at(character_set, data[i])) {
+      return i;
+    }
+  }
+
+  return size;
 }
 }  // namespace ada::unicode
 
@@ -5982,7 +6457,7 @@ inline void url_aggregator::update_base_authority(
       base.protocol_end, base.host_start - base.protocol_end);
   ada_log("url_aggregator::update_base_authority ", input);
 
-  bool input_starts_with_dash = checkers::begins_with(input, "//");
+  bool input_starts_with_dash = input.starts_with("//");
   uint32_t diff = components.host_start - components.protocol_end;
 
   buffer.erase(components.protocol_end,
@@ -6222,9 +6697,8 @@ inline void url_aggregator::update_base_pathname(const std::string_view input) {
   ADA_ASSERT_TRUE(!helpers::overlaps(input, buffer));
   ADA_ASSERT_TRUE(validate());
 
-  const bool begins_with_dashdash = checkers::begins_with(input, "//");
+  const bool begins_with_dashdash = input.starts_with("//");
   if (!begins_with_dashdash && has_dash_dot()) {
-    ada_log("url_aggregator::update_base_pathname has /.: \n", to_diagram());
     // We must delete the ./
     delete_dash_dot();
   }
@@ -6247,8 +6721,6 @@ inline void url_aggregator::update_base_pathname(const std::string_view input) {
   if (components.hash_start != url_components::omitted) {
     components.hash_start += difference;
   }
-  ada_log("url_aggregator::update_base_pathname end '", input, "' [",
-          input.size(), " bytes] \n", to_diagram());
   ADA_ASSERT_TRUE(validate());
 }
 
@@ -6367,8 +6839,8 @@ inline void url_aggregator::append_base_username(const std::string_view input) {
   ADA_ASSERT_TRUE(validate());
 }
 
-inline void url_aggregator::clear_password() {
-  ada_log("url_aggregator::clear_password ", to_string(), "\n", to_diagram());
+constexpr void url_aggregator::clear_password() {
+  ada_log("url_aggregator::clear_password ", to_string());
   ADA_ASSERT_TRUE(validate());
   if (!has_password()) {
     return;
@@ -6589,7 +7061,7 @@ inline void url_aggregator::clear_hash() {
   ADA_ASSERT_TRUE(validate());
 }
 
-inline void url_aggregator::clear_pathname() {
+constexpr void url_aggregator::clear_pathname() {
   ada_log("url_aggregator::clear_pathname");
   ADA_ASSERT_TRUE(validate());
   uint32_t ending_index = uint32_t(buffer.size());
@@ -6624,7 +7096,7 @@ inline void url_aggregator::clear_pathname() {
   ada_log("url_aggregator::clear_pathname completed, running checks... ok");
 }
 
-inline void url_aggregator::clear_hostname() {
+constexpr void url_aggregator::clear_hostname() {
   ada_log("url_aggregator::clear_hostname");
   ADA_ASSERT_TRUE(validate());
   if (!has_authority()) {
@@ -6661,22 +7133,22 @@ inline void url_aggregator::clear_hostname() {
   ADA_ASSERT_TRUE(validate());
 }
 
-[[nodiscard]] inline bool url_aggregator::has_hash() const noexcept {
+[[nodiscard]] constexpr bool url_aggregator::has_hash() const noexcept {
   ada_log("url_aggregator::has_hash");
   return components.hash_start != url_components::omitted;
 }
 
-[[nodiscard]] inline bool url_aggregator::has_search() const noexcept {
+[[nodiscard]] constexpr bool url_aggregator::has_search() const noexcept {
   ada_log("url_aggregator::has_search");
   return components.search_start != url_components::omitted;
 }
 
-ada_really_inline bool url_aggregator::has_credentials() const noexcept {
+constexpr bool url_aggregator::has_credentials() const noexcept {
   ada_log("url_aggregator::has_credentials");
   return has_non_empty_username() || has_non_empty_password();
 }
 
-inline bool url_aggregator::cannot_have_credentials_or_port() const {
+constexpr bool url_aggregator::cannot_have_credentials_or_port() const {
   ada_log("url_aggregator::cannot_have_credentials_or_port");
   return type == ada::scheme::type::FILE ||
          components.host_start == components.host_end;
@@ -6687,7 +7159,8 @@ url_aggregator::get_components() const noexcept {
   return components;
 }
 
-[[nodiscard]] inline bool ada::url_aggregator::has_authority() const noexcept {
+[[nodiscard]] constexpr bool ada::url_aggregator::has_authority()
+    const noexcept {
   ada_log("url_aggregator::has_authority");
   // Performance: instead of doing this potentially expensive check, we could
   // have a boolean in the struct.
@@ -6722,28 +7195,28 @@ inline void ada::url_aggregator::add_authority_slashes_if_needed() noexcept {
   ADA_ASSERT_TRUE(validate());
 }
 
-inline void ada::url_aggregator::reserve(uint32_t capacity) {
+constexpr void ada::url_aggregator::reserve(uint32_t capacity) {
   buffer.reserve(capacity);
 }
 
-inline bool url_aggregator::has_non_empty_username() const noexcept {
+constexpr bool url_aggregator::has_non_empty_username() const noexcept {
   ada_log("url_aggregator::has_non_empty_username");
   return components.protocol_end + 2 < components.username_end;
 }
 
-inline bool url_aggregator::has_non_empty_password() const noexcept {
+constexpr bool url_aggregator::has_non_empty_password() const noexcept {
   ada_log("url_aggregator::has_non_empty_password");
   return components.host_start - components.username_end > 0;
 }
 
-inline bool url_aggregator::has_password() const noexcept {
+constexpr bool url_aggregator::has_password() const noexcept {
   ada_log("url_aggregator::has_password");
   // This function does not care about the length of the password
   return components.host_start > components.username_end &&
          buffer[components.username_end] == ':';
 }
 
-inline bool url_aggregator::has_empty_hostname() const noexcept {
+constexpr bool url_aggregator::has_empty_hostname() const noexcept {
   if (!has_hostname()) {
     return false;
   }
@@ -6756,18 +7229,18 @@ inline bool url_aggregator::has_empty_hostname() const noexcept {
   return components.username_end != components.host_start;
 }
 
-inline bool url_aggregator::has_hostname() const noexcept {
+constexpr bool url_aggregator::has_hostname() const noexcept {
   return has_authority();
 }
 
-inline bool url_aggregator::has_port() const noexcept {
+constexpr bool url_aggregator::has_port() const noexcept {
   ada_log("url_aggregator::has_port");
   // A URL cannot have a username/password/port if its host is null or the empty
   // string, or its scheme is "file".
   return has_hostname() && components.pathname_start != components.host_end;
 }
 
-[[nodiscard]] inline bool url_aggregator::has_dash_dot() const noexcept {
+[[nodiscard]] constexpr bool url_aggregator::has_dash_dot() const noexcept {
   // If url's host is null, url does not have an opaque path, url's path's size
   // is greater than 1, and url's path[0] is the empty string, then append
   // U+002F (/) followed by U+002E (.) to output.
@@ -6799,8 +7272,8 @@ inline bool url_aggregator::has_port() const noexcept {
          buffer[components.host_end + 1] == '.';
 }
 
-[[nodiscard]] inline std::string_view url_aggregator::get_href() const noexcept
-    ada_lifetime_bound {
+[[nodiscard]] constexpr std::string_view url_aggregator::get_href()
+    const noexcept ada_lifetime_bound {
   ada_log("url_aggregator::get_href");
   return buffer;
 }
@@ -6844,7 +7317,7 @@ ada_really_inline size_t url_aggregator::parse_port(
   return consumed;
 }
 
-inline void url_aggregator::set_protocol_as_file() {
+constexpr void url_aggregator::set_protocol_as_file() {
   ada_log("url_aggregator::set_protocol_as_file ");
   ADA_ASSERT_TRUE(validate());
   type = ada::scheme::type::FILE;
@@ -6874,9 +7347,216 @@ inline void url_aggregator::set_protocol_as_file() {
   ADA_ASSERT_TRUE(validate());
 }
 
+[[nodiscard]] constexpr bool url_aggregator::validate() const noexcept {
+  if (!is_valid) {
+    return true;
+  }
+  if (!components.check_offset_consistency()) {
+    ada_log("url_aggregator::validate inconsistent components \n",
+            to_diagram());
+    return false;
+  }
+  // We have a credible components struct, but let us investivate more
+  // carefully:
+  /**
+   * https://user:pass@example.com:1234/foo/bar?baz#quux
+   *       |     |    |          | ^^^^|       |   |
+   *       |     |    |          | |   |       |   `----- hash_start
+   *       |     |    |          | |   |       `--------- search_start
+   *       |     |    |          | |   `----------------- pathname_start
+   *       |     |    |          | `--------------------- port
+   *       |     |    |          `----------------------- host_end
+   *       |     |    `---------------------------------- host_start
+   *       |     `--------------------------------------- username_end
+   *       `--------------------------------------------- protocol_end
+   */
+  if (components.protocol_end == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted protocol_end \n", to_diagram());
+    return false;
+  }
+  if (components.username_end == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted username_end \n", to_diagram());
+    return false;
+  }
+  if (components.host_start == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted host_start \n", to_diagram());
+    return false;
+  }
+  if (components.host_end == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted host_end \n", to_diagram());
+    return false;
+  }
+  if (components.pathname_start == url_components::omitted) {
+    ada_log("url_aggregator::validate omitted pathname_start \n", to_diagram());
+    return false;
+  }
+
+  if (components.protocol_end > buffer.size()) {
+    ada_log("url_aggregator::validate protocol_end overflow \n", to_diagram());
+    return false;
+  }
+  if (components.username_end > buffer.size()) {
+    ada_log("url_aggregator::validate username_end overflow \n", to_diagram());
+    return false;
+  }
+  if (components.host_start > buffer.size()) {
+    ada_log("url_aggregator::validate host_start overflow \n", to_diagram());
+    return false;
+  }
+  if (components.host_end > buffer.size()) {
+    ada_log("url_aggregator::validate host_end overflow \n", to_diagram());
+    return false;
+  }
+  if (components.pathname_start > buffer.size()) {
+    ada_log("url_aggregator::validate pathname_start overflow \n",
+            to_diagram());
+    return false;
+  }
+
+  if (components.protocol_end > 0) {
+    if (buffer[components.protocol_end - 1] != ':') {
+      ada_log(
+          "url_aggregator::validate missing : at the end of the protocol \n",
+          to_diagram());
+      return false;
+    }
+  }
+
+  if (components.username_end != buffer.size() &&
+      components.username_end > components.protocol_end + 2) {
+    if (buffer[components.username_end] != ':' &&
+        buffer[components.username_end] != '@') {
+      ada_log(
+          "url_aggregator::validate missing : or @ at the end of the username "
+          "\n",
+          to_diagram());
+      return false;
+    }
+  }
+
+  if (components.host_start != buffer.size()) {
+    if (components.host_start > components.username_end) {
+      if (buffer[components.host_start] != '@') {
+        ada_log(
+            "url_aggregator::validate missing @ at the end of the password \n",
+            to_diagram());
+        return false;
+      }
+    } else if (components.host_start == components.username_end &&
+               components.host_end > components.host_start) {
+      if (components.host_start == components.protocol_end + 2) {
+        if (buffer[components.protocol_end] != '/' ||
+            buffer[components.protocol_end + 1] != '/') {
+          ada_log(
+              "url_aggregator::validate missing // between protocol and host "
+              "\n",
+              to_diagram());
+          return false;
+        }
+      } else {
+        if (components.host_start > components.protocol_end &&
+            buffer[components.host_start] != '@') {
+          ada_log(
+              "url_aggregator::validate missing @ at the end of the username "
+              "\n",
+              to_diagram());
+          return false;
+        }
+      }
+    } else {
+      if (components.host_end != components.host_start) {
+        ada_log("url_aggregator::validate expected omitted host \n",
+                to_diagram());
+        return false;
+      }
+    }
+  }
+  if (components.host_end != buffer.size() &&
+      components.pathname_start > components.host_end) {
+    if (components.pathname_start == components.host_end + 2 &&
+        buffer[components.host_end] == '/' &&
+        buffer[components.host_end + 1] == '.') {
+      if (components.pathname_start + 1 >= buffer.size() ||
+          buffer[components.pathname_start] != '/' ||
+          buffer[components.pathname_start + 1] != '/') {
+        ada_log(
+            "url_aggregator::validate expected the path to begin with // \n",
+            to_diagram());
+        return false;
+      }
+    } else if (buffer[components.host_end] != ':') {
+      ada_log("url_aggregator::validate missing : at the port \n",
+              to_diagram());
+      return false;
+    }
+  }
+  if (components.pathname_start != buffer.size() &&
+      components.pathname_start < components.search_start &&
+      components.pathname_start < components.hash_start && !has_opaque_path) {
+    if (buffer[components.pathname_start] != '/') {
+      ada_log("url_aggregator::validate missing / at the path \n",
+              to_diagram());
+      return false;
+    }
+  }
+  if (components.search_start != url_components::omitted) {
+    if (buffer[components.search_start] != '?') {
+      ada_log("url_aggregator::validate missing ? at the search \n",
+              to_diagram());
+      return false;
+    }
+  }
+  if (components.hash_start != url_components::omitted) {
+    if (buffer[components.hash_start] != '#') {
+      ada_log("url_aggregator::validate missing # at the hash \n",
+              to_diagram());
+      return false;
+    }
+  }
+
+  return true;
+}
+
+[[nodiscard]] constexpr std::string_view url_aggregator::get_pathname()
+    const noexcept ada_lifetime_bound {
+  ada_log("url_aggregator::get_pathname pathname_start = ",
+          components.pathname_start, " buffer.size() = ", buffer.size(),
+          " components.search_start = ", components.search_start,
+          " components.hash_start = ", components.hash_start);
+  auto ending_index = uint32_t(buffer.size());
+  if (components.search_start != url_components::omitted) {
+    ending_index = components.search_start;
+  } else if (components.hash_start != url_components::omitted) {
+    ending_index = components.hash_start;
+  }
+  return helpers::substring(buffer, components.pathname_start, ending_index);
+}
+
 inline std::ostream &operator<<(std::ostream &out,
                                 const ada::url_aggregator &u) {
   return out << u.to_string();
+}
+
+void url_aggregator::update_host_to_base_host(
+    const std::string_view input) noexcept {
+  ada_log("url_aggregator::update_host_to_base_host ", input);
+  ADA_ASSERT_TRUE(validate());
+  ADA_ASSERT_TRUE(!helpers::overlaps(input, buffer));
+  if (type != ada::scheme::type::FILE) {
+    // Let host be the result of host parsing host_view with url is not special.
+    if (input.empty() && !is_special()) {
+      if (has_hostname()) {
+        clear_hostname();
+      } else if (has_dash_dot()) {
+        add_authority_slashes_if_needed();
+        delete_dash_dot();
+      }
+      return;
+    }
+  }
+  update_base_hostname(input);
+  ADA_ASSERT_TRUE(validate());
+  return;
 }
 }  // namespace ada
 
@@ -6927,7 +7607,9 @@ struct url_search_params {
    * @see
    * https://github.com/web-platform-tests/wpt/blob/master/url/urlsearchparams-constructor.any.js
    */
-  url_search_params(const std::string_view input) { initialize(input); }
+  explicit url_search_params(const std::string_view input) {
+    initialize(input);
+  }
 
   url_search_params(const url_search_params &u) = default;
   url_search_params(url_search_params &&u) noexcept = default;
@@ -7057,7 +7739,7 @@ struct url_search_params_iter {
    */
   inline std::optional<T> next();
 
-  inline bool has_next();
+  inline bool has_next() const;
 
  private:
   static url_search_params EMPTY;
@@ -7083,6 +7765,7 @@ struct url_search_params_iter {
 
 #include <algorithm>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -7108,14 +7791,14 @@ inline void url_search_params::initialize(std::string_view input) {
 
     if (equal == std::string_view::npos) {
       std::string name(current);
-      std::replace(name.begin(), name.end(), '+', ' ');
+      std::ranges::replace(name, '+', ' ');
       params.emplace_back(unicode::percent_decode(name, name.find('%')), "");
     } else {
       std::string name(current.substr(0, equal));
       std::string value(current.substr(equal + 1));
 
-      std::replace(name.begin(), name.end(), '+', ' ');
-      std::replace(value.begin(), value.end(), '+', ' ');
+      std::ranges::replace(name, '+', ' ');
+      std::ranges::replace(value, '+', ' ');
 
       params.emplace_back(unicode::percent_decode(name, name.find('%')),
                           unicode::percent_decode(value, value.find('%')));
@@ -7147,8 +7830,8 @@ inline size_t url_search_params::size() const noexcept { return params.size(); }
 
 inline std::optional<std::string_view> url_search_params::get(
     const std::string_view key) {
-  auto entry = std::find_if(params.begin(), params.end(),
-                            [&key](auto &param) { return param.first == key; });
+  auto entry = std::ranges::find_if(
+      params, [&key](auto &param) { return param.first == key; });
 
   if (entry == params.end()) {
     return std::nullopt;
@@ -7171,17 +7854,16 @@ inline std::vector<std::string> url_search_params::get_all(
 }
 
 inline bool url_search_params::has(const std::string_view key) noexcept {
-  auto entry = std::find_if(params.begin(), params.end(),
-                            [&key](auto &param) { return param.first == key; });
+  auto entry = std::ranges::find_if(
+      params, [&key](auto &param) { return param.first == key; });
   return entry != params.end();
 }
 
 inline bool url_search_params::has(std::string_view key,
                                    std::string_view value) noexcept {
-  auto entry =
-      std::find_if(params.begin(), params.end(), [&key, &value](auto &param) {
-        return param.first == key && param.second == value;
-      });
+  auto entry = std::ranges::find_if(params, [&key, &value](auto &param) {
+    return param.first == key && param.second == value;
+  });
   return entry != params.end();
 }
 
@@ -7193,8 +7875,8 @@ inline std::string url_search_params::to_string() const {
     auto value = ada::unicode::percent_encode(params[i].second, character_set);
 
     // Performance optimization: Move this inside percent_encode.
-    std::replace(key.begin(), key.end(), ' ', '+');
-    std::replace(value.begin(), value.end(), ' ', '+');
+    std::ranges::replace(key, ' ', '+');
+    std::ranges::replace(value, ' ', '+');
 
     if (i != 0) {
       out += "&";
@@ -7210,7 +7892,7 @@ inline void url_search_params::set(const std::string_view key,
                                    const std::string_view value) {
   const auto find = [&key](auto &param) { return param.first == key; };
 
-  auto it = std::find_if(params.begin(), params.end(), find);
+  auto it = std::ranges::find_if(params, find);
 
   if (it == params.end()) {
     params.emplace_back(key, value);
@@ -7222,27 +7904,21 @@ inline void url_search_params::set(const std::string_view key,
 }
 
 inline void url_search_params::remove(const std::string_view key) {
-  params.erase(
-      std::remove_if(params.begin(), params.end(),
-                     [&key](auto &param) { return param.first == key; }),
-      params.end());
+  std::erase_if(params, [&key](auto &param) { return param.first == key; });
 }
 
 inline void url_search_params::remove(const std::string_view key,
                                       const std::string_view value) {
-  params.erase(std::remove_if(params.begin(), params.end(),
-                              [&key, &value](auto &param) {
-                                return param.first == key &&
-                                       param.second == value;
-                              }),
-               params.end());
+  std::erase_if(params, [&key, &value](auto &param) {
+    return param.first == key && param.second == value;
+  });
 }
 
 inline void url_search_params::sort() {
-  std::stable_sort(params.begin(), params.end(),
-                   [](const key_value_pair &lhs, const key_value_pair &rhs) {
-                     return lhs.first < rhs.first;
-                   });
+  std::ranges::stable_sort(
+      params, [](const key_value_pair &lhs, const key_value_pair &rhs) {
+        return lhs.first < rhs.first;
+      });
 }
 
 inline url_search_params_keys_iter url_search_params::get_keys() {
@@ -7264,7 +7940,7 @@ inline url_search_params_entries_iter url_search_params::get_entries() {
 }
 
 template <typename T, url_search_params_iter_type Type>
-inline bool url_search_params_iter<T, Type>::has_next() {
+inline bool url_search_params_iter<T, Type>::has_next() const {
   return pos < params.params.size();
 }
 
@@ -7297,6 +7973,1261 @@ url_search_params_entries_iter::next() {
 
 #endif  // ADA_URL_SEARCH_PARAMS_INL_H
 /* end file include/ada/url_search_params-inl.h */
+/* begin file include/ada/url_pattern-inl.h */
+/**
+ * @file url_pattern-inl.h
+ * @brief Declaration for the URLPattern inline functions.
+ */
+#ifndef ADA_URL_PATTERN_INL_H
+#define ADA_URL_PATTERN_INL_H
+
+
+#include <string_view>
+
+namespace ada {
+
+inline bool url_pattern_init::operator==(const url_pattern_init& other) const {
+  return protocol == other.protocol && username == other.username &&
+         password == other.password && hostname == other.hostname &&
+         port == other.port && search == other.search && hash == other.hash &&
+         pathname == other.pathname;
+}
+
+inline bool url_pattern_component_result::operator==(
+    const url_pattern_component_result& other) const {
+  return input == other.input && groups == other.groups;
+}
+
+inline std::string url_pattern_component::to_string() const {
+#ifdef ADA_HAS_FORMAT
+  return std::format(R"({{"pattern": "{}", "has_regexp_groups": {}}})", pattern,
+                     has_regexp_groups ? "true" : "false"  //,
+  );
+#else
+  return "";
+#endif
+}
+
+inline url_pattern_component_result
+url_pattern_component::create_component_match_result(
+    std::string_view input, const std::smatch& exec_result) {
+  // Let result be a new URLPatternComponentResult.
+  // Set result["input"] to input.
+  // Let groups be a record<USVString, (USVString or undefined)>.
+  auto result =
+      url_pattern_component_result{.input = std::string(input), .groups = {}};
+
+  // If input is empty, then groups will always be empty.
+  if (input.empty()) {
+    result.groups.insert({"0", ""});
+    return result;
+  }
+
+  // Optimization: Let's reserve the size.
+  result.groups.reserve(exec_result.size() - 1);
+
+  size_t group_index = 0;
+  // Let index be 1.
+  // While index is less than Get(execResult, "length"):
+  for (size_t index = 1; index < exec_result.size(); index++) {
+    // Let name be component’s group name list[index - 1].
+    // Let value be Get(execResult, ToString(index)).
+    // Set groups[name] to value.
+    auto exec = exec_result[index];
+    if (!exec.matched) continue;
+    result.groups.insert({
+        group_name_list[group_index],
+        exec.str(),
+    });
+
+    group_index++;
+  }
+  return result;
+}
+
+inline std::string url_pattern::to_string() const {
+#ifdef ADA_HAS_FORMAT
+  return std::format(
+      R"({{"protocol_component": "{}", "username_component": {}, "password_component": {}, "hostname_component": {}, "port_component": {}, "pathname_component": {}, "search_component": {}, "hash_component": {}, "ignore_case": {}}})",
+      protocol_component.to_string(), username_component.to_string(),
+      password_component.to_string(), hostname_component.to_string(),
+      port_component.to_string(), pathname_component.to_string(),
+      search_component.to_string(), hash_component.to_string(),
+      ignore_case_ ? "true" : "false");
+#else
+  return "";
+#endif
+}
+
+inline std::string_view url_pattern::get_protocol() const ada_lifetime_bound {
+  // Return this's associated URL pattern's protocol component's pattern string.
+  return protocol_component.pattern;
+}
+inline std::string_view url_pattern::get_username() const ada_lifetime_bound {
+  // Return this's associated URL pattern's username component's pattern string.
+  return username_component.pattern;
+}
+inline std::string_view url_pattern::get_password() const ada_lifetime_bound {
+  // Return this's associated URL pattern's password component's pattern string.
+  return password_component.pattern;
+}
+inline std::string_view url_pattern::get_hostname() const ada_lifetime_bound {
+  // Return this's associated URL pattern's hostname component's pattern string.
+  return hostname_component.pattern;
+}
+inline std::string_view url_pattern::get_port() const ada_lifetime_bound {
+  // Return this's associated URL pattern's port component's pattern string.
+  return port_component.pattern;
+}
+inline std::string_view url_pattern::get_pathname() const ada_lifetime_bound {
+  // Return this's associated URL pattern's pathname component's pattern string.
+  return pathname_component.pattern;
+}
+inline std::string_view url_pattern::get_search() const ada_lifetime_bound {
+  // Return this's associated URL pattern's search component's pattern string.
+  return search_component.pattern;
+}
+inline std::string_view url_pattern::get_hash() const ada_lifetime_bound {
+  // Return this's associated URL pattern's hash component's pattern string.
+  return hash_component.pattern;
+}
+
+inline bool url_pattern::ignore_case() const { return ignore_case_; }
+
+inline bool url_pattern::has_regexp_groups() const {
+  // If this's associated URL pattern's has regexp groups, then return true.
+  return protocol_component.has_regexp_groups ||
+         username_component.has_regexp_groups ||
+         password_component.has_regexp_groups ||
+         hostname_component.has_regexp_groups ||
+         port_component.has_regexp_groups ||
+         pathname_component.has_regexp_groups ||
+         search_component.has_regexp_groups || hash_component.has_regexp_groups;
+}
+
+inline bool url_pattern_part::is_regexp() const noexcept {
+  return type == url_pattern_part_type::REGEXP;
+}
+
+inline std::string_view url_pattern_compile_component_options::get_delimiter()
+    const {
+  if (delimiter) {
+    return {&delimiter.value(), 1};
+  }
+  return {};
+}
+
+inline std::string_view url_pattern_compile_component_options::get_prefix()
+    const {
+  if (prefix) {
+    return {&prefix.value(), 1};
+  }
+  return {};
+}
+}  // namespace ada
+
+#endif
+/* end file include/ada/url_pattern-inl.h */
+/* begin file include/ada/url_pattern_helpers.h */
+/**
+ * @file url_pattern_helpers.h
+ * @brief Declaration for the URLPattern helpers.
+ */
+#ifndef ADA_URL_PATTERN_HELPERS_H
+#define ADA_URL_PATTERN_HELPERS_H
+
+
+#include <string>
+#include <tuple>
+#include <vector>
+
+namespace ada::url_pattern_helpers {
+
+// @see https://urlpattern.spec.whatwg.org/#token
+enum class token_type : uint8_t {
+  INVALID_CHAR,    // 0
+  OPEN,            // 1
+  CLOSE,           // 2
+  REGEXP,          // 3
+  NAME,            // 4
+  CHAR,            // 5
+  ESCAPED_CHAR,    // 6
+  OTHER_MODIFIER,  // 7
+  ASTERISK,        // 8
+  END,             // 9
+};
+
+std::string to_string(token_type type);
+
+// @see https://urlpattern.spec.whatwg.org/#tokenize-policy
+enum class token_policy {
+  STRICT,
+  LENIENT,
+};
+
+// @see https://urlpattern.spec.whatwg.org/#tokens
+class Token {
+ public:
+  Token(token_type _type, size_t _index, std::string&& _value)
+      : type(_type), index(_index), value(std::move(_value)) {}
+
+  // A token has an associated type, a string, initially "invalid-char".
+  token_type type = token_type::INVALID_CHAR;
+
+  // A token has an associated index, a number, initially 0. It is the position
+  // of the first code point in the pattern string represented by the token.
+  size_t index = 0;
+
+  // A token has an associated value, a string, initially the empty string. It
+  // contains the code points from the pattern string represented by the token.
+  std::string value{};
+};
+
+// @see https://urlpattern.spec.whatwg.org/#pattern-parser
+template <url_pattern_encoding_callback F>
+class url_pattern_parser {
+ public:
+  url_pattern_parser(F& encoding_callback_,
+                     std::string_view segment_wildcard_regexp_)
+      : encoding_callback(encoding_callback_),
+        segment_wildcard_regexp(segment_wildcard_regexp_) {}
+
+  bool can_continue() const { return index < tokens.size(); }
+
+  // @see https://urlpattern.spec.whatwg.org/#try-to-consume-a-token
+  Token* try_consume_token(token_type type);
+  // @see https://urlpattern.spec.whatwg.org/#try-to-consume-a-modifier-token
+  Token* try_consume_modifier_token();
+  // @see
+  // https://urlpattern.spec.whatwg.org/#try-to-consume-a-regexp-or-wildcard-token
+  Token* try_consume_regexp_or_wildcard_token(Token* name_token);
+  // @see https://urlpattern.spec.whatwg.org/#consume-text
+  std::string consume_text();
+  // @see https://urlpattern.spec.whatwg.org/#consume-a-required-token
+  bool consume_required_token(token_type type);
+  // @see
+  // https://urlpattern.spec.whatwg.org/#maybe-add-a-part-from-the-pending-fixed-value
+  std::optional<errors> maybe_add_part_from_the_pending_fixed_value()
+      ada_warn_unused;
+  // @see https://urlpattern.spec.whatwg.org/#add-a-part
+  std::optional<errors> add_part(std::string_view prefix, Token* name_token,
+                                 Token* regexp_or_wildcard_token,
+                                 std::string_view suyffix,
+                                 Token* modifier_token) ada_warn_unused;
+
+  std::vector<Token> tokens{};
+  F& encoding_callback;
+  std::string segment_wildcard_regexp;
+  std::vector<url_pattern_part> parts{};
+  std::string pending_fixed_value{};
+  size_t index = 0;
+  size_t next_numeric_name = 0;
+};
+
+// @see https://urlpattern.spec.whatwg.org/#tokenizer
+class Tokenizer {
+ public:
+  explicit Tokenizer(std::string_view new_input, token_policy new_policy)
+      : input(new_input), policy(new_policy) {}
+
+  // @see https://urlpattern.spec.whatwg.org/#get-the-next-code-point
+  void get_next_code_point();
+
+  // @see https://urlpattern.spec.whatwg.org/#seek-and-get-the-next-code-point
+  void seek_and_get_next_code_point(size_t index);
+
+  // @see https://urlpattern.spec.whatwg.org/#add-a-token
+
+  void add_token(token_type type, size_t next_position, size_t value_position,
+                 size_t value_length);
+
+  // @see https://urlpattern.spec.whatwg.org/#add-a-token-with-default-length
+  void add_token_with_default_length(token_type type, size_t next_position,
+                                     size_t value_position);
+
+  // @see
+  // https://urlpattern.spec.whatwg.org/#add-a-token-with-default-position-and-length
+  void add_token_with_defaults(token_type type);
+
+  // @see https://urlpattern.spec.whatwg.org/#process-a-tokenizing-error
+  std::optional<errors> process_tokenizing_error(
+      size_t next_position, size_t value_position) ada_warn_unused;
+
+  // has an associated input, a pattern string, initially the empty string.
+  std::string input;
+  // has an associated policy, a tokenize policy, initially "strict".
+  token_policy policy;
+  // has an associated token list, a token list, initially an empty list.
+  std::vector<Token> token_list{};
+  // has an associated index, a number, initially 0.
+  size_t index = 0;
+  // has an associated next index, a number, initially 0.
+  size_t next_index = 0;
+  // has an associated code point, a Unicode code point, initially null.
+  char32_t code_point{};
+};
+
+// @see https://urlpattern.spec.whatwg.org/#constructor-string-parser
+struct constructor_string_parser {
+  explicit constructor_string_parser(std::string_view new_input,
+                                     std::vector<Token>&& new_token_list)
+      : input(new_input), token_list(std::move(new_token_list)) {}
+
+  // @see https://urlpattern.spec.whatwg.org/#rewind
+  void rewind();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-hash-prefix
+  bool is_hash_prefix();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-search-prefix
+  bool is_search_prefix();
+
+  // @see https://urlpattern.spec.whatwg.org/#parse-a-constructor-string
+  static tl::expected<url_pattern_init, errors> parse(std::string_view input);
+
+  // @see https://urlpattern.spec.whatwg.org/#constructor-string-parser-state
+  enum class State {
+    INIT,
+    PROTOCOL,
+    AUTHORITY,
+    USERNAME,
+    PASSWORD,
+    HOSTNAME,
+    PORT,
+    PATHNAME,
+    SEARCH,
+    HASH,
+    DONE,
+  };
+
+  // @see https://urlpattern.spec.whatwg.org/#change-state
+  void change_state(State state, size_t skip);
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-group-open
+  bool is_group_open() const;
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-group-close
+  bool is_group_close() const;
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-protocol-suffix
+  bool is_protocol_suffix();
+
+  // @see
+  // https://urlpattern.spec.whatwg.org/#compute-protocol-matches-a-special-scheme-flag
+  std::optional<errors> compute_protocol_matches_special_scheme_flag();
+
+  // @see https://urlpattern.spec.whatwg.org/#next-is-authority-slashes
+  bool next_is_authority_slashes();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-an-identity-terminator
+  bool is_an_identity_terminator();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-pathname-start
+  bool is_pathname_start();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-password-prefix
+  bool is_password_prefix();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-an-ipv6-open
+  bool is_an_ipv6_open();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-an-ipv6-close
+  bool is_an_ipv6_close();
+
+  // @see https://urlpattern.spec.whatwg.org/#is-a-port-prefix
+  bool is_port_prefix();
+
+  // has an associated input, a string, which must be set upon creation.
+  std::string input;
+  // has an associated token list, a token list, which must be set upon
+  // creation.
+  std::vector<Token> token_list;
+  // has an associated result, a URLPatternInit, initially set to a new
+  // URLPatternInit.
+  url_pattern_init result{};
+  // has an associated component start, a number, initially set to 0.
+  size_t component_start = 0;
+  // has an associated token index, a number, initially set to 0.
+  size_t token_index = 0;
+  // has an associated token increment, a number, initially set to 1.
+  size_t token_increment = 1;
+  // has an associated group depth, a number, initially set to 0.
+  size_t group_depth = 0;
+  // has an associated hostname IPv6 bracket depth, a number, initially set to
+  // 0.
+  size_t hostname_ipv6_bracket_depth = 0;
+  // has an associated protocol matches a special scheme flag, a boolean,
+  // initially set to false.
+  bool protocol_matches_a_special_scheme_flag = false;
+  // has an associated state, a string, initially set to "init".
+  State state = State::INIT;
+
+ private:
+  // @see https://urlpattern.spec.whatwg.org/#is-a-non-special-pattern-char
+  bool is_non_special_pattern_char(size_t index, std::string_view value);
+
+  // @see https://urlpattern.spec.whatwg.org/#get-a-safe-token
+  const Token* get_safe_token(size_t index);
+
+  // @see https://urlpattern.spec.whatwg.org/#make-a-component-string
+  std::string make_component_string();
+};
+
+// @see https://urlpattern.spec.whatwg.org/#canonicalize-a-protocol
+tl::expected<std::string, errors> canonicalize_protocol(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-username
+tl::expected<std::string, errors> canonicalize_username(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-password
+tl::expected<std::string, errors> canonicalize_password(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-password
+tl::expected<std::string, errors> canonicalize_hostname(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-an-ipv6-hostname
+tl::expected<std::string, errors> canonicalize_ipv6_hostname(
+    std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-port
+tl::expected<std::string, errors> canonicalize_port(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-port
+tl::expected<std::string, errors> canonicalize_port_with_protocol(
+    std::string_view input, std::string_view protocol);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-pathname
+tl::expected<std::string, errors> canonicalize_pathname(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-an-opaque-pathname
+tl::expected<std::string, errors> canonicalize_opaque_pathname(
+    std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-search
+tl::expected<std::string, errors> canonicalize_search(std::string_view input);
+
+// @see https://wicg.github.io/urlpattern/#canonicalize-a-hash
+tl::expected<std::string, errors> canonicalize_hash(std::string_view input);
+
+// @see https://urlpattern.spec.whatwg.org/#tokenize
+tl::expected<std::vector<Token>, errors> tokenize(std::string_view input,
+                                                  token_policy policy);
+
+// @see https://urlpattern.spec.whatwg.org/#process-a-base-url-string
+std::string process_base_url_string(std::string_view input,
+                                    std::string_view type);
+
+// @see https://urlpattern.spec.whatwg.org/#escape-a-pattern-string
+std::string escape_pattern_string(std::string_view input);
+
+// @see https://urlpattern.spec.whatwg.org/#escape-a-regexp-string
+std::string escape_regexp_string(std::string_view input);
+
+// @see https://urlpattern.spec.whatwg.org/#is-an-absolute-pathname
+constexpr bool is_absolute_pathname(std::string_view input,
+                                    std::string_view type) noexcept;
+
+// @see https://urlpattern.spec.whatwg.org/#parse-a-pattern-string
+template <url_pattern_encoding_callback F>
+tl::expected<std::vector<url_pattern_part>, errors> parse_pattern_string(
+    std::string_view input, url_pattern_compile_component_options& options,
+    F& encoding_callback);
+
+// @see https://urlpattern.spec.whatwg.org/#generate-a-pattern-string
+std::string generate_pattern_string(
+    std::vector<url_pattern_part>& part_list,
+    url_pattern_compile_component_options& options);
+
+// @see
+// https://urlpattern.spec.whatwg.org/#generate-a-regular-expression-and-name-list
+std::tuple<std::string, std::vector<std::string>>
+generate_regular_expression_and_name_list(
+    std::vector<url_pattern_part>& part_list,
+    url_pattern_compile_component_options options);
+
+// @see https://urlpattern.spec.whatwg.org/#hostname-pattern-is-an-ipv6-address
+bool is_ipv6_address(std::string_view input) noexcept;
+
+// @see
+// https://urlpattern.spec.whatwg.org/#protocol-component-matches-a-special-scheme
+bool protocol_component_matches_special_scheme(
+    ada::url_pattern_component& input);
+
+// @see https://urlpattern.spec.whatwg.org/#convert-a-modifier-to-a-string
+std::string convert_modifier_to_string(url_pattern_part_modifier modifier);
+
+// @see https://urlpattern.spec.whatwg.org/#generate-a-segment-wildcard-regexp
+std::string generate_segment_wildcard_regexp(
+    url_pattern_compile_component_options options);
+
+}  // namespace ada::url_pattern_helpers
+
+#endif
+/* end file include/ada/url_pattern_helpers.h */
+/* begin file include/ada/url_pattern_helpers-inl.h */
+/**
+ * @file url_pattern_helpers-inl.h
+ * @brief Declaration for the URLPattern helpers.
+ */
+#ifndef ADA_URL_PATTERN_HELPERS_INL_H
+#define ADA_URL_PATTERN_HELPERS_INL_H
+
+
+namespace ada::url_pattern_helpers {
+inline std::string to_string(token_type type) {
+  switch (type) {
+    case token_type::INVALID_CHAR:
+      return "INVALID_CHAR";
+    case token_type::OPEN:
+      return "OPEN";
+    case token_type::CLOSE:
+      return "CLOSE";
+    case token_type::REGEXP:
+      return "REGEXP";
+    case token_type::NAME:
+      return "NAME";
+    case token_type::CHAR:
+      return "CHAR";
+    case token_type::ESCAPED_CHAR:
+      return "ESCAPED_CHAR";
+    case token_type::OTHER_MODIFIER:
+      return "OTHER_MODIFIER";
+    case token_type::ASTERISK:
+      return "ASTERISK";
+    case token_type::END:
+      return "END";
+    default:
+      ada::unreachable();
+  }
+}
+
+inline void constructor_string_parser::rewind() {
+  // Set parser’s token index to parser’s component start.
+  token_index = component_start;
+  // Set parser’s token increment to 0.
+  token_increment = 0;
+}
+
+inline bool constructor_string_parser::is_hash_prefix() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index and "#".
+  return is_non_special_pattern_char(token_index, "#");
+}
+
+inline bool constructor_string_parser::is_search_prefix() {
+  // If result of running is a non-special pattern char given parser, parser’s
+  // token index and "?" is true, then return true.
+  if (is_non_special_pattern_char(token_index, "?")) {
+    return true;
+  }
+
+  // If parser’s token list[parser’s token index]'s value is not "?", then
+  // return false.
+  if (token_list[token_index].value != "?") {
+    return false;
+  }
+
+  // If previous index is less than 0, then return true.
+  if (token_index == 0) return true;
+  // Let previous index be parser’s token index − 1.
+  auto previous_index = token_index - 1;
+  // Let previous token be the result of running get a safe token given parser
+  // and previous index.
+  auto previous_token = get_safe_token(previous_index);
+  ADA_ASSERT_TRUE(previous_token);
+  // If any of the following are true, then return false:
+  // - previous token’s type is "name".
+  // - previous token’s type is "regexp".
+  // - previous token’s type is "close".
+  // - previous token’s type is "asterisk".
+  return !(previous_token->type == token_type::NAME ||
+           previous_token->type == token_type::REGEXP ||
+           previous_token->type == token_type::CLOSE ||
+           previous_token->type == token_type::ASTERISK);
+}
+
+inline bool constructor_string_parser::is_non_special_pattern_char(
+    size_t index, std::string_view value) {
+  // Let token be the result of running get a safe token given parser and index.
+  auto token = get_safe_token(index);
+  ADA_ASSERT_TRUE(token);
+
+  // If token’s value is not value, then return false.
+  if (token->value != value) {
+    return false;
+  }
+
+  // If any of the following are true:
+  // - token’s type is "char";
+  // - token’s type is "escaped-char"; or
+  // - token’s type is "invalid-char",
+  // - then return true.
+  return token->type == token_type::CHAR ||
+         token->type == token_type::ESCAPED_CHAR ||
+         token->type == token_type::INVALID_CHAR;
+}
+
+inline const Token* constructor_string_parser::get_safe_token(size_t index) {
+  // If index is less than parser’s token list's size, then return parser’s
+  // token list[index].
+  if (index < token_list.size()) [[likely]] {
+    return &token_list[index];
+  }
+
+  // Assert: parser’s token list's size is greater than or equal to 1.
+  ADA_ASSERT_TRUE(!token_list.empty());
+
+  // Let token be parser’s token list[last index].
+  // Assert: token’s type is "end".
+  ADA_ASSERT_TRUE(token_list.back().type == token_type::END);
+
+  // Return token.
+  return &token_list.back();
+}
+
+inline bool constructor_string_parser::is_group_open() const {
+  // If parser’s token list[parser’s token index]'s type is "open", then return
+  // true.
+  return token_list[token_index].type == token_type::OPEN;
+}
+
+inline bool constructor_string_parser::is_group_close() const {
+  // If parser’s token list[parser’s token index]'s type is "close", then return
+  // true.
+  return token_list[token_index].type == token_type::CLOSE;
+}
+
+inline bool constructor_string_parser::next_is_authority_slashes() {
+  // If the result of running is a non-special pattern char given parser,
+  // parser’s token index + 1, and "/" is false, then return false.
+  if (!is_non_special_pattern_char(token_index + 1, "/")) {
+    return false;
+  }
+  // If the result of running is a non-special pattern char given parser,
+  // parser’s token index + 2, and "/" is false, then return false.
+  if (!is_non_special_pattern_char(token_index + 2, "/")) {
+    return false;
+  }
+  return true;
+}
+
+inline bool constructor_string_parser::is_protocol_suffix() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and ":".
+  return is_non_special_pattern_char(token_index, ":");
+}
+
+inline void constructor_string_parser::change_state(State new_state,
+                                                    size_t skip) {
+  // If parser’s state is not "init", not "authority", and not "done", then set
+  // parser’s result[parser’s state] to the result of running make a component
+  // string given parser.
+  if (state != State::INIT && state != State::AUTHORITY &&
+      state != State::DONE) {
+    auto value = make_component_string();
+    // TODO: Simplify this.
+    switch (state) {
+      case State::PROTOCOL: {
+        result.protocol = value;
+        break;
+      }
+      case State::USERNAME: {
+        result.username = value;
+        break;
+      }
+      case State::PASSWORD: {
+        result.password = value;
+        break;
+      }
+      case State::HOSTNAME: {
+        result.hostname = value;
+        break;
+      }
+      case State::PORT: {
+        result.port = value;
+        break;
+      }
+      case State::PATHNAME: {
+        result.pathname = value;
+        break;
+      }
+      case State::SEARCH: {
+        result.search = value;
+        break;
+      }
+      case State::HASH: {
+        result.hash = value;
+        break;
+      }
+      default:
+        ada::unreachable();
+    }
+  }
+
+  // If parser’s state is not "init" and new state is not "done", then:
+  if (state != State::INIT && new_state != State::DONE) {
+    // If parser’s state is "protocol", "authority", "username", or "password";
+    // new state is "port", "pathname", "search", or "hash"; and parser’s
+    // result["hostname"] does not exist, then set parser’s result["hostname"]
+    // to the empty string.
+    if ((state == State::PROTOCOL || state == State::AUTHORITY ||
+         state == State::USERNAME || state == State::PASSWORD) &&
+        (new_state == State::PORT || new_state == State::PATHNAME ||
+         new_state == State::SEARCH || new_state == State::HASH) &&
+        !result.hostname)
+      result.hostname = "";
+  }
+
+  // If parser’s state is "protocol", "authority", "username", "password",
+  // "hostname", or "port"; new state is "search" or "hash"; and parser’s
+  // result["pathname"] does not exist, then:
+  if ((state == State::PROTOCOL || state == State::AUTHORITY ||
+       state == State::USERNAME || state == State::PASSWORD ||
+       state == State::HOSTNAME || state == State::PORT) &&
+      (new_state == State::SEARCH || new_state == State::HASH) &&
+      !result.pathname) {
+    if (protocol_matches_a_special_scheme_flag) {
+      result.pathname = "/";
+    } else {
+      // Otherwise, set parser’s result["pathname"] to the empty string.
+      result.pathname = "";
+    }
+  }
+
+  // If parser’s state is "protocol", "authority", "username", "password",
+  // "hostname", "port", or "pathname"; new state is "hash"; and parser’s
+  // result["search"] does not exist, then set parser’s result["search"] to
+  // the empty string.
+  if ((state == State::PROTOCOL || state == State::AUTHORITY ||
+       state == State::USERNAME || state == State::PASSWORD ||
+       state == State::HOSTNAME || state == State::PORT ||
+       state == State::PATHNAME) &&
+      new_state == State::HASH && !result.search) {
+    result.search = "";
+  }
+
+  // Set parser’s state to new state.
+  state = new_state;
+  // Increment parser’s token index by skip.
+  token_index += skip;
+  // Set parser’s component start to parser’s token index.
+  component_start = token_index;
+  // Set parser’s token increment to 0.
+  token_increment = 0;
+}
+
+inline std::string constructor_string_parser::make_component_string() {
+  // Assert: parser’s token index is less than parser’s token list's size.
+  ADA_ASSERT_TRUE(token_index < token_list.size());
+
+  // Let token be parser’s token list[parser’s token index].
+  // Let end index be token’s index.
+  const auto end_index = token_list[token_index].index;
+  // Let component start token be the result of running get a safe token given
+  // parser and parser’s component start.
+  const auto component_start_token = get_safe_token(component_start);
+  ADA_ASSERT_TRUE(component_start_token);
+  // Let component start input index be component start token’s index.
+  const auto component_start_input_index = component_start_token->index;
+  // Return the code point substring from component start input index to end
+  // index within parser’s input.
+  return input.substr(component_start_input_index,
+                      end_index - component_start_input_index);
+}
+
+inline bool constructor_string_parser::is_an_identity_terminator() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and "@".
+  return is_non_special_pattern_char(token_index, "@");
+}
+
+inline bool constructor_string_parser::is_pathname_start() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and "/".
+  return is_non_special_pattern_char(token_index, "/");
+}
+
+inline bool constructor_string_parser::is_password_prefix() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and ":".
+  return is_non_special_pattern_char(token_index, ":");
+}
+
+inline bool constructor_string_parser::is_an_ipv6_open() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and "[".
+  return is_non_special_pattern_char(token_index, "[");
+}
+
+inline bool constructor_string_parser::is_an_ipv6_close() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and "]".
+  return is_non_special_pattern_char(token_index, "]");
+}
+
+inline bool constructor_string_parser::is_port_prefix() {
+  // Return the result of running is a non-special pattern char given parser,
+  // parser’s token index, and ":".
+  return is_non_special_pattern_char(token_index, ":");
+}
+
+inline void Tokenizer::get_next_code_point() {
+  ada_log("Tokenizer::get_next_code_point called with index=", next_index);
+  ADA_ASSERT_TRUE(next_index < input.size());
+  // this assumes that we have a valid, non-truncated UTF-8 stream.
+  code_point = 0;
+  size_t number_bytes = 0;
+  unsigned char first_byte = input[next_index];
+
+  if ((first_byte & 0x80) == 0) {
+    // 1-byte character (ASCII)
+    next_index++;
+    code_point = first_byte;
+    ada_log("Tokenizer::get_next_code_point returning ASCII code point=",
+            uint32_t(code_point));
+    ada_log("Tokenizer::get_next_code_point next_index =", next_index,
+            " input.size()=", input.size());
+    return;
+  }
+  ada_log("Tokenizer::get_next_code_point read first byte=",
+          uint32_t(first_byte));
+  if ((first_byte & 0xE0) == 0xC0) {
+    code_point = first_byte & 0x1F;
+    number_bytes = 2;
+    ada_log("Tokenizer::get_next_code_point two bytes");
+  } else if ((first_byte & 0xF0) == 0xE0) {
+    code_point = first_byte & 0x0F;
+    number_bytes = 3;
+    ada_log("Tokenizer::get_next_code_point three bytes");
+  } else if ((first_byte & 0xF8) == 0xF0) {
+    code_point = first_byte & 0x07;
+    number_bytes = 4;
+    ada_log("Tokenizer::get_next_code_point four bytes");
+  }
+  ADA_ASSERT_TRUE(number_bytes + next_index <= input.size());
+
+  for (size_t i = 1 + next_index; i < number_bytes + next_index; ++i) {
+    unsigned char byte = input[i];
+    ada_log("Tokenizer::get_next_code_point read byte=", uint32_t(byte));
+    code_point = (code_point << 6) | (byte & 0x3F);
+  }
+  ada_log("Tokenizer::get_next_code_point returning non-ASCII code point=",
+          uint32_t(code_point));
+  ada_log("Tokenizer::get_next_code_point next_index =", next_index,
+          " input.size()=", input.size());
+  next_index += number_bytes;
+}
+
+inline void Tokenizer::seek_and_get_next_code_point(size_t new_index) {
+  ada_log("Tokenizer::seek_and_get_next_code_point called with new_index=",
+          new_index);
+  // Set tokenizer’s next index to index.
+  next_index = new_index;
+  // Run get the next code point given tokenizer.
+  get_next_code_point();
+}
+
+inline void Tokenizer::add_token(token_type type, size_t next_position,
+                                 size_t value_position, size_t value_length) {
+  ada_log("Tokenizer::add_token called with type=", to_string(type),
+          " next_position=", next_position, " value_position=", value_position);
+  ADA_ASSERT_TRUE(next_position >= value_position);
+
+  // Let token be a new token.
+  // Set token’s type to type.
+  // Set token’s index to tokenizer’s index.
+  // Set token’s value to the code point substring from value position with
+  // length value length within tokenizer’s input.
+  // Append token to the back of tokenizer’s token list.
+  token_list.emplace_back(type, index,
+                          input.substr(value_position, value_length));
+  // Set tokenizer’s index to next position.
+  index = next_position;
+}
+
+inline void Tokenizer::add_token_with_default_length(token_type type,
+                                                     size_t next_position,
+                                                     size_t value_position) {
+  // Let computed length be next position − value position.
+  auto computed_length = next_position - value_position;
+  // Run add a token given tokenizer, type, next position, value position, and
+  // computed length.
+  add_token(type, next_position, value_position, computed_length);
+}
+
+inline void Tokenizer::add_token_with_defaults(token_type type) {
+  ada_log("Tokenizer::add_token_with_defaults called with type=",
+          to_string(type));
+  // Run add a token with default length given tokenizer, type, tokenizer’s next
+  // index, and tokenizer’s index.
+  add_token_with_default_length(type, next_index, index);
+}
+
+inline ada_warn_unused std::optional<errors>
+Tokenizer::process_tokenizing_error(size_t next_position,
+                                    size_t value_position) {
+  // If tokenizer’s policy is "strict", then throw a TypeError.
+  if (policy == token_policy::STRICT) {
+    ada_log("process_tokenizing_error failed with next_position=",
+            next_position, " value_position=", value_position);
+    return errors::type_error;
+  }
+  // Assert: tokenizer’s policy is "lenient".
+  ADA_ASSERT_TRUE(policy == token_policy::LENIENT);
+  // Run add a token with default length given tokenizer, "invalid-char", next
+  // position, and value position.
+  add_token_with_default_length(token_type::INVALID_CHAR, next_position,
+                                value_position);
+  return std::nullopt;
+}
+
+template <url_pattern_encoding_callback F>
+Token* url_pattern_parser<F>::try_consume_modifier_token() {
+  // Let token be the result of running try to consume a token given parser and
+  // "other-modifier".
+  auto token = try_consume_token(token_type::OTHER_MODIFIER);
+  // If token is not null, then return token.
+  if (token) return token;
+  // Set token to the result of running try to consume a token given parser and
+  // "asterisk".
+  // Return token.
+  return try_consume_token(token_type::ASTERISK);
+}
+
+template <url_pattern_encoding_callback F>
+Token* url_pattern_parser<F>::try_consume_regexp_or_wildcard_token(
+    Token* name_token) {
+  // Let token be the result of running try to consume a token given parser and
+  // "regexp".
+  auto token = try_consume_token(token_type::REGEXP);
+  // If name token is null and token is null, then set token to the result of
+  // running try to consume a token given parser and "asterisk".
+  if (!name_token && !token) {
+    token = try_consume_token(token_type::ASTERISK);
+  }
+  // Return token.
+  return token;
+}
+
+template <url_pattern_encoding_callback F>
+Token* url_pattern_parser<F>::try_consume_token(token_type type) {
+  ada_log("url_pattern_parser::try_consume_token called with type=",
+          to_string(type));
+  // Assert: parser’s index is less than parser’s token list size.
+  ADA_ASSERT_TRUE(index < tokens.size());
+  // Let next token be parser’s token list[parser’s index].
+  auto& next_token = tokens[index];
+  // If next token’s type is not type return null.
+  if (next_token.type != type) return nullptr;
+  // Increase parser’s index by 1.
+  index++;
+  // Return next token.
+  return &next_token;
+}
+
+template <url_pattern_encoding_callback F>
+std::string url_pattern_parser<F>::consume_text() {
+  // Let result be the empty string.
+  std::string result{};
+  // While true:
+  while (true) {
+    // Let token be the result of running try to consume a token given parser
+    // and "char".
+    auto token = try_consume_token(token_type::CHAR);
+    // If token is null, then set token to the result of running try to consume
+    // a token given parser and "escaped-char".
+    if (!token) token = try_consume_token(token_type::ESCAPED_CHAR);
+    // If token is null, then break.
+    if (!token) break;
+    // Append token’s value to the end of result.
+    result.append(token->value);
+  }
+  // Return result.
+  return result;
+}
+
+template <url_pattern_encoding_callback F>
+bool url_pattern_parser<F>::consume_required_token(token_type type) {
+  ada_log("url_pattern_parser::consume_required_token called with type=",
+          to_string(type));
+  // Let result be the result of running try to consume a token given parser and
+  // type.
+  return try_consume_token(type) != nullptr;
+}
+
+template <url_pattern_encoding_callback F>
+std::optional<errors>
+url_pattern_parser<F>::maybe_add_part_from_the_pending_fixed_value() {
+  // If parser’s pending fixed value is the empty string, then return.
+  if (pending_fixed_value.empty()) {
+    ada_log("pending_fixed_value is empty");
+    return std::nullopt;
+  }
+  // Let encoded value be the result of running parser’s encoding callback given
+  // parser’s pending fixed value.
+  auto encoded_value = encoding_callback(pending_fixed_value);
+  if (!encoded_value) {
+    ada_log("failed to encode pending_fixed_value: ", pending_fixed_value);
+    return encoded_value.error();
+  }
+  // Set parser’s pending fixed value to the empty string.
+  pending_fixed_value.clear();
+  // Let part be a new part whose type is "fixed-text", value is encoded value,
+  // and modifier is "none".
+  // Append part to parser’s part list.
+  parts.emplace_back(url_pattern_part_type::FIXED_TEXT,
+                     std::move(*encoded_value),
+                     url_pattern_part_modifier::NONE);
+  return std::nullopt;
+}
+
+template <url_pattern_encoding_callback F>
+std::optional<errors> url_pattern_parser<F>::add_part(
+    std::string_view prefix, Token* name_token, Token* regexp_or_wildcard_token,
+    std::string_view suffix, Token* modifier_token) {
+  // Let modifier be "none".
+  auto modifier = url_pattern_part_modifier::NONE;
+  // If modifier token is not null:
+  if (modifier_token) {
+    // If modifier token’s value is "?" then set modifier to "optional".
+    if (modifier_token->value == "?") {
+      modifier = url_pattern_part_modifier::OPTIONAL;
+    } else if (modifier_token->value == "*") {
+      // Otherwise if modifier token’s value is "*" then set modifier to
+      // "zero-or-more".
+      modifier = url_pattern_part_modifier::ZERO_OR_MORE;
+    } else if (modifier_token->value == "+") {
+      // Otherwise if modifier token’s value is "+" then set modifier to
+      // "one-or-more".
+      modifier = url_pattern_part_modifier::ONE_OR_MORE;
+    }
+  }
+  // If name token is null and regexp or wildcard token is null and modifier
+  // is "none":
+  if (!name_token && !regexp_or_wildcard_token &&
+      modifier == url_pattern_part_modifier::NONE) {
+    // Append prefix to the end of parser’s pending fixed value.
+    pending_fixed_value.append(prefix);
+    return std::nullopt;
+  }
+  // Run maybe add a part from the pending fixed value given parser.
+  if (auto error = maybe_add_part_from_the_pending_fixed_value()) {
+    return *error;
+  }
+  // If name token is null and regexp or wildcard token is null:
+  if (!name_token && !regexp_or_wildcard_token) {
+    // Assert: suffix is the empty string.
+    ADA_ASSERT_TRUE(suffix.empty());
+    // If prefix is the empty string, then return.
+    if (prefix.empty()) return std::nullopt;
+    // Let encoded value be the result of running parser’s encoding callback
+    // given prefix.
+    auto encoded_value = encoding_callback(prefix);
+    if (!encoded_value) {
+      return encoded_value.error();
+    }
+    // Let part be a new part whose type is "fixed-text", value is encoded
+    // value, and modifier is modifier.
+    // Append part to parser’s part list.
+    parts.emplace_back(url_pattern_part_type::FIXED_TEXT,
+                       std::move(*encoded_value), modifier);
+    return std::nullopt;
+  }
+  // Let regexp value be the empty string.
+  std::string regexp_value{};
+  // If regexp or wildcard token is null, then set regexp value to parser’s
+  // segment wildcard regexp.
+  if (!regexp_or_wildcard_token) {
+    regexp_value = segment_wildcard_regexp;
+  } else if (regexp_or_wildcard_token->type == token_type::ASTERISK) {
+    // Otherwise if regexp or wildcard token’s type is "asterisk", then set
+    // regexp value to the full wildcard regexp value.
+    regexp_value = ".*";
+  } else {
+    // Otherwise set regexp value to regexp or wildcard token’s value.
+    regexp_value = regexp_or_wildcard_token->value;
+  }
+  // Let type be "regexp".
+  auto type = url_pattern_part_type::REGEXP;
+  // If regexp value is parser’s segment wildcard regexp:
+  if (regexp_value == segment_wildcard_regexp) {
+    // Set type to "segment-wildcard".
+    type = url_pattern_part_type::SEGMENT_WILDCARD;
+    // Set regexp value to the empty string.
+    regexp_value.clear();
+  } else if (regexp_value == ".*") {
+    // Otherwise if regexp value is the full wildcard regexp value:
+    // Set type to "full-wildcard".
+    type = url_pattern_part_type::FULL_WILDCARD;
+    // Set regexp value to the empty string.
+    regexp_value.clear();
+  }
+  // Let name be the empty string.
+  std::string name{};
+  // If name token is not null, then set name to name token’s value.
+  if (name_token) {
+    name = name_token->value;
+  } else if (regexp_or_wildcard_token) {
+    // Otherwise if regexp or wildcard token is not null:
+    // Set name to parser’s next numeric name, serialized.
+    // TODO: Make sure this is correct.
+    name = std::to_string(next_numeric_name);
+    // Increment parser’s next numeric name by 1.
+    next_numeric_name++;
+  }
+  // If the result of running is a duplicate name given parser and name is
+  // true, then throw a TypeError.
+  if (std::ranges::any_of(
+          parts, [&name](const auto& part) { return part.name == name; })) {
+    return errors::type_error;
+  }
+  // Let encoded prefix be the result of running parser’s encoding callback
+  // given prefix.
+  auto encoded_prefix = encoding_callback(prefix);
+  if (!encoded_prefix) return encoded_prefix.error();
+  // Let encoded suffix be the result of running parser’s encoding callback
+  // given suffix.
+  auto encoded_suffix = encoding_callback(suffix);
+  if (!encoded_suffix) return encoded_suffix.error();
+  // Let part be a new part whose type is type, value is regexp value,
+  // modifier is modifier, name is name, prefix is encoded prefix, and suffix
+  // is encoded suffix.
+  // Append part to parser’s part list.
+  parts.emplace_back(type, std::move(regexp_value), modifier, std::move(name),
+                     std::move(*encoded_prefix), std::move(*encoded_suffix));
+  return std::nullopt;
+}
+
+template <url_pattern_encoding_callback F>
+tl::expected<std::vector<url_pattern_part>, errors> parse_pattern_string(
+    std::string_view input, url_pattern_compile_component_options& options,
+    F& encoding_callback) {
+  ada_log("parse_pattern_string input=", input);
+  // Let parser be a new pattern parser whose encoding callback is encoding
+  // callback and segment wildcard regexp is the result of running generate a
+  // segment wildcard regexp given options.
+  auto parser = url_pattern_parser<F>(
+      encoding_callback, generate_segment_wildcard_regexp(options));
+  // Set parser’s token list to the result of running tokenize given input and
+  // "strict".
+  auto tokenize_result = tokenize(input, token_policy::STRICT);
+  if (!tokenize_result) {
+    ada_log("parse_pattern_string tokenize failed");
+    return tl::unexpected(tokenize_result.error());
+  }
+  parser.tokens = std::move(*tokenize_result);
+
+  // While parser’s index is less than parser’s token list's size:
+  while (parser.can_continue()) {
+    // Let char token be the result of running try to consume a token given
+    // parser and "char".
+    auto char_token = parser.try_consume_token(token_type::CHAR);
+    // Let name token be the result of running try to consume a token given
+    // parser and "name".
+    auto name_token = parser.try_consume_token(token_type::NAME);
+    // Let regexp or wildcard token be the result of running try to consume a
+    // regexp or wildcard token given parser and name token.
+    auto regexp_or_wildcard_token =
+        parser.try_consume_regexp_or_wildcard_token(name_token);
+    // If name token is not null or regexp or wildcard token is not null:
+    if (name_token || regexp_or_wildcard_token) {
+      // Let prefix be the empty string.
+      std::string prefix{};
+      // If char token is not null then set prefix to char token’s value.
+      if (char_token) prefix = char_token->value;
+      // If prefix is not the empty string and not options’s prefix code point:
+      if (!prefix.empty() && prefix != options.get_prefix()) {
+        // Append prefix to the end of parser’s pending fixed value.
+        parser.pending_fixed_value.append(prefix);
+        // Set prefix to the empty string.
+        prefix.clear();
+      }
+      // Run maybe add a part from the pending fixed value given parser.
+      if (auto error = parser.maybe_add_part_from_the_pending_fixed_value()) {
+        ada_log("maybe_add_part_from_the_pending_fixed_value failed");
+        return tl::unexpected(*error);
+      }
+      // Let modifier token be the result of running try to consume a modifier
+      // token given parser.
+      auto modifier_token = parser.try_consume_modifier_token();
+      // Run add a part given parser, prefix, name token, regexp or wildcard
+      // token, the empty string, and modifier token.
+      if (auto error =
+              parser.add_part(prefix, name_token, regexp_or_wildcard_token, "",
+                              modifier_token)) {
+        ada_log("parser.add_part failed");
+        return tl::unexpected(*error);
+      }
+      // Continue.
+      continue;
+    }
+
+    // Let fixed token be char token.
+    auto fixed_token = char_token;
+    // If fixed token is null, then set fixed token to the result of running try
+    // to consume a token given parser and "escaped-char".
+    if (!fixed_token)
+      fixed_token = parser.try_consume_token(token_type::ESCAPED_CHAR);
+    // If fixed token is not null:
+    if (fixed_token) {
+      // Append fixed token’s value to parser’s pending fixed value.
+      parser.pending_fixed_value.append(fixed_token->value);
+      // Continue.
+      continue;
+    }
+    // Let open token be the result of running try to consume a token given
+    // parser and "open".
+    auto open_token = parser.try_consume_token(token_type::OPEN);
+    // If open token is not null:
+    if (open_token) {
+      // Set prefix be the result of running consume text given parser.
+      auto prefix_ = parser.consume_text();
+      // Set name token to the result of running try to consume a token given
+      // parser and "name".
+      name_token = parser.try_consume_token(token_type::NAME);
+      // Set regexp or wildcard token to the result of running try to consume a
+      // regexp or wildcard token given parser and name token.
+      regexp_or_wildcard_token =
+          parser.try_consume_regexp_or_wildcard_token(name_token);
+      // Let suffix be the result of running consume text given parser.
+      auto suffix_ = parser.consume_text();
+      // Run consume a required token given parser and "close".
+      if (!parser.consume_required_token(token_type::CLOSE)) {
+        ada_log("parser.consume_required_token failed");
+        return tl::unexpected(errors::type_error);
+      }
+      // Set modifier token to the result of running try to consume a modifier
+      // token given parser.
+      auto modifier_token = parser.try_consume_modifier_token();
+      // Run add a part given parser, prefix, name token, regexp or wildcard
+      // token, suffix, and modifier token.
+      if (auto error =
+              parser.add_part(prefix_, name_token, regexp_or_wildcard_token,
+                              suffix_, modifier_token)) {
+        return tl::unexpected(*error);
+      }
+      // Continue.
+      continue;
+    }
+    // Run maybe add a part from the pending fixed value given parser.
+    if (auto error = parser.maybe_add_part_from_the_pending_fixed_value()) {
+      ada_log("maybe_add_part_from_the_pending_fixed_value failed on line 992");
+      return tl::unexpected(*error);
+    }
+    // Run consume a required token given parser and "end".
+    if (!parser.consume_required_token(token_type::END)) {
+      return tl::unexpected(errors::type_error);
+    }
+  }
+  ada_log("parser.parts size is: ", parser.parts.size());
+  // Return parser’s part list.
+  return parser.parts;
+}
+
+}  // namespace ada::url_pattern_helpers
+
+#endif
+/* end file include/ada/url_pattern_helpers-inl.h */
 
 // Public API
 /* begin file include/ada/ada_version.h */
@@ -7321,62 +9252,6 @@ enum {
 
 #endif  // ADA_ADA_VERSION_H
 /* end file include/ada/ada_version.h */
-/* begin file include/ada/implementation.h */
-/**
- * @file implementation.h
- * @brief Definitions for user facing functions for parsing URL and it's
- * components.
- */
-#ifndef ADA_IMPLEMENTATION_H
-#define ADA_IMPLEMENTATION_H
-
-#include <string>
-#include <optional>
-
-
-namespace ada {
-enum class errors { generic_error };
-
-template <class result_type = ada::url_aggregator>
-using result = tl::expected<result_type, ada::errors>;
-
-/**
- * The URL parser takes a scalar value string input, with an optional null or
- * base URL base (default null). The parser assumes the input is a valid ASCII
- * or UTF-8 string.
- *
- * @param input the string input to analyze (must be valid ASCII or UTF-8)
- * @param base_url the optional URL input to use as a base url.
- * @return a parsed URL.
- */
-template <class result_type = ada::url_aggregator>
-ada_warn_unused ada::result<result_type> parse(
-    std::string_view input, const result_type* base_url = nullptr);
-
-extern template ada::result<url> parse<url>(std::string_view input,
-                                            const url* base_url);
-extern template ada::result<url_aggregator> parse<url_aggregator>(
-    std::string_view input, const url_aggregator* base_url);
-
-/**
- * Verifies whether the URL strings can be parsed. The function assumes
- * that the inputs are valid ASCII or UTF-8 strings.
- * @see https://url.spec.whatwg.org/#dom-url-canparse
- * @return If URL can be parsed or not.
- */
-bool can_parse(std::string_view input,
-               const std::string_view* base_input = nullptr);
-
-/**
- * Computes a href string from a file path. The function assumes
- * that the input is a valid ASCII or UTF-8 string.
- * @return a href string (starts with file:://)
- */
-std::string href_from_file(std::string_view path);
-}  // namespace ada
-
-#endif  // ADA_IMPLEMENTATION_H
-/* end file include/ada/implementation.h */
 
 #endif  // ADA_H
 /* end file include/ada.h */

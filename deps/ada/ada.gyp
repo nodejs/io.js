@@ -11,7 +11,17 @@
       'direct_dependent_settings': {
         'include_dirs': ['.'],
       },
-      'sources': [ '<@(ada_sources)' ]
+      'sources': [ '<@(ada_sources)' ],
+      'cflags_cc': ['-fexceptions'],
+      'xcode_settings': {
+        'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',  # -fexceptions
+      },
+      'msvs_settings': {
+        'VCCLCompilerTool': {
+          'RuntimeTypeInfo': 'true',
+          'ExceptionHandling': 1,
+        },
+      },
     },
   ]
 }
