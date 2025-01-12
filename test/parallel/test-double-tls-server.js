@@ -1,10 +1,13 @@
 'use strict';
 const common = require('../common');
-const assert = require('assert');
-if (!common.hasCrypto) common.skip('missing crypto');
 const fixtures = require('../common/fixtures');
-const tls = require('tls');
-const net = require('net');
+const assert = require('node:assert');
+
+if (!common.hasCrypto) common.skip('missing crypto');
+
+const { test } = require('node:test');
+const tls = require('node:tls');
+const net = require('node:net');
 
 // Sending tls data on a server TLSSocket with an active write led to a crash:
 //
@@ -27,7 +30,7 @@ const net = require('net');
 
 const serverReplaySize = 2 * 1024 * 1024;
 
-(async function() {
+test('TLS double handshake test', async (t) => {
   const tlsClientHello = await getClientHello();
 
   const subserver = tls.createServer({
@@ -57,8 +60,7 @@ const serverReplaySize = 2 * 1024 * 1024;
       subserver.emit('connection', serverTlsSock);
     });
 
-
-  function startClient() {
+  async function startClient() {
     const clientTlsSock = tls.connect({
       host: '127.0.0.1',
       port: server.address().port,
@@ -81,7 +83,7 @@ const serverReplaySize = 2 * 1024 * 1024;
     // In reality, one may want to send a HTTP CONNECT before starting this double TLS
     clientTlsSock.write(tlsClientHello);
   }
-})().then(common.mustCall());
+});
 
 function getClientHello() {
   return new Promise((resolve) => {
