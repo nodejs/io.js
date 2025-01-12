@@ -130,6 +130,82 @@ static void CPUUsage(const FunctionCallbackInfo<Value>& args) {
   fields[1] = MICROS_PER_SEC * rusage.ru_stime.tv_sec + rusage.ru_stime.tv_usec;
 }
 
+// ThreadCPUUsage use system dependent implementation to get the current thread
+// cpu times:
+//
+// - On Unix, it uses getrusage(2) with RUSAGE_THREAD.
+// - On macOS, it uses thread_info(2) with THREAD_BASIC_INFO.
+// - On Windows, it uses GetThreadTimes(2).
+//
+// Returns those values as Float64 microseconds in the elements of the array
+// passed to the function.
+static void ThreadCPUUsage(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+
+  // Get the double array pointer from the Float64Array argument.
+  Local<ArrayBuffer> ab = get_fields_array_buffer(args, 0, 2);
+  double* fields = static_cast<double*>(ab->Data());
+
+#if defined(_WIN32)
+  // On Windows, GetCurrentThread will return the current thread pseudo-handler,
+  // which is then used in GetThreadTimes to retrieve the current thread timing
+  // information.
+  // The documentation is accessible here:
+  // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthread
+  // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadtimes
+
+  HANDLE thread_ = GetCurrentThread();
+  FILETIME _creation_time, _exit_time, kernel_time, user_time;
+
+  if (!GetThreadTimes(
+          thread_, &_creation_time, &_exit_time, &kernel_time, &user_time)) {
+    return THROW_ERR_THREAD_CPU_USAGE_FAILED(env);
+  }
+
+  // GetThreadTimes returns the time in 100-nanosecond intervals, so we need to
+  // convert it to microseconds.
+  fields[0] = (((static_cast<uint64_t>(user_time.dwHighDateTime) << 32) |
+                 static_cast<uint64_t>(user_time.dwLowDateTime)) *
+               100) /
+              1000;
+  fields[1] = (((static_cast<uint64_t>(system_ns.dwHighDateTime) << 32) |
+                 static_cast<uint64_t>(system_ns.dwLowDateTime)) *
+               100) /
+              1000;
+#elif defined(__APPLE__)
+  // On MacOS, mach_thread_self returns the thread port for the current thread,
+  // then thread_info is used with THREAD_BASIC_INFO to get the current thread
+  // resource usage. The documentation is accessible here:
+  // https://www.gnu.org/software/hurd/gnumach-doc/Thread-Information.html.
+  mach_port_t thread = mach_thread_self();
+  mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+  thread_basic_info_data_t usage;
+  kern_return_t kr =
+      thread_info(thread, THREAD_BASIC_INFO, (thread_info_t)&usage, &count);
+
+  if (kr != KERN_SUCCESS) {
+    return THROW_ERR_THREAD_CPU_USAGE_FAILED(env);
+  }
+
+  fields[0] =
+      MICROS_PER_SEC * usage.user_time.seconds + usage.user_time.microseconds;
+  fields[1] = MICROS_PER_SEC * usage.system_time.seconds +
+              usage.system_time.microseconds;
+#else
+  // On other Unix / Linux, getrusage(2) with RUSAGE_THREAD is used to get
+  // the current thread CPU usage.
+  // The documentation is accessible by running man getrusage.
+  struct rusage usage;
+
+  if (getrusage(RUSAGE_THREAD, &usage) == -1) {
+    return THROW_ERR_THREAD_CPU_USAGE_FAILED(env);
+  }
+
+  fields[0] = MICROS_PER_SEC * usage.ru_utime.tv_sec + usage.ru_utime.tv_usec;
+  fields[1] = MICROS_PER_SEC * usage.ru_stime.tv_sec + usage.ru_stime.tv_usec;
+#endif
+}
+
 static void Cwd(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   CHECK(env->has_run_bootstrapping_code());
@@ -650,6 +726,7 @@ static void CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethod(isolate, target, "availableMemory", GetAvailableMemory);
   SetMethod(isolate, target, "rss", Rss);
   SetMethod(isolate, target, "cpuUsage", CPUUsage);
+  SetMethod(isolate, target, "threadCpuUsage", ThreadCPUUsage);
   SetMethod(isolate, target, "resourceUsage", ResourceUsage);
 
   SetMethod(isolate, target, "_debugEnd", DebugEnd);
@@ -694,6 +771,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GetAvailableMemory);
   registry->Register(Rss);
   registry->Register(CPUUsage);
+  registry->Register(ThreadCPUUsage);
   registry->Register(ResourceUsage);
 
   registry->Register(GetActiveRequests);

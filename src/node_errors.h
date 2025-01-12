@@ -111,7 +111,8 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
   V(ERR_WASI_NOT_STARTED, Error)                                               \
   V(ERR_ZLIB_INITIALIZATION_FAILED, Error)                                     \
   V(ERR_WORKER_INIT_FAILED, Error)                                             \
-  V(ERR_PROTO_ACCESS, Error)
+  V(ERR_PROTO_ACCESS, Error)                                                   \
+  V(ERR_THREAD_CPU_USAGE_FAILED, Error)
 
 #define V(code, type)                                                          \
   template <typename... Args>                                                  \
@@ -214,7 +215,8 @@ ERRORS_WITH_CODE(V)
   V(ERR_WORKER_INIT_FAILED, "Worker initialization failure")                   \
   V(ERR_PROTO_ACCESS,                                                          \
     "Accessing Object.prototype.__proto__ has been "                           \
-    "disallowed with --disable-proto=throw")
+    "disallowed with --disable-proto=throw")                                   \
+  V(ERR_THREAD_CPU_USAGE_FAILED, "Failed to get thread CPU usage")
 
 #define V(code, message)                                                       \
   inline v8::Local<v8::Object> code(v8::Isolate* isolate) {                    \
