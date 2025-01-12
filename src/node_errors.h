@@ -13,6 +13,11 @@
 #include <sstream>
 
 namespace node {
+// This forward declaration is required to have the method
+// available in error messages.
+namespace errors {
+const char* errno_string(int errorno);
+}
 
 enum ErrorHandlingMode { CONTEXTIFY_ERROR, FATAL_ERROR, MODULE_ERROR };
 void AppendExceptionLine(Environment* env,
