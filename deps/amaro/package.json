@@ -1,6 +1,6 @@
 {
 	"name": "amaro",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "Node.js TypeScript wrapper",
 	"license": "MIT",
 	"type": "commonjs",
@@ -41,7 +41,10 @@
 		"./strip": "./dist/register-strip.mjs",
 		"./transform": "./dist/register-transform.mjs"
 	},
-	"files": ["dist", "LICENSE.md"],
+	"files": [
+		"dist",
+		"LICENSE.md"
+	],
 	"engines": {
 		"node": ">=22"
 	}

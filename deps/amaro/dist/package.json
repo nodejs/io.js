@@ -4,7 +4,7 @@
     "강동윤 <kdy1997.dev@gmail.com>"
   ],
   "description": "wasm module for swc",
-  "version": "1.10.3",
+  "version": "1.10.4",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
