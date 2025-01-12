@@ -20,11 +20,12 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-// Test compressing and uncompressing a string with zlib
 
-const common = require('../common');
-const assert = require('assert');
-const zlib = require('zlib');
+require('../common');
+
+const assert = require('node:assert');
+const zlib = require('node:zlib');
+const { test } = require('node:test');
 
 const inputString = 'ΩΩLorem ipsum dolor sit amet, consectetur adipiscing eli' +
                     't. Morbi faucibus, purus at gravida dictum, libero arcu ' +
@@ -54,30 +55,56 @@ const expectedBase64Gzip = 'H4sIAAAAAAAAA11RS05DMQy8yhzg6d2BPSAkJPZu4laWkjiN4' +
                            'mHo33kJO8xfkckmLjE5XMKBQ4gxIsfvCZ44doUThF2mcZq8q2' +
                            'sHnHNzRtagj5AQAA';
 
-zlib.deflate(inputString, common.mustCall((err, buffer) => {
-  zlib.inflate(buffer, common.mustCall((err, inflated) => {
-    assert.strictEqual(inflated.toString(), inputString);
-  }));
-}));
+test('properly deflate and inflate', async (t) => {
+  const { promise, resolve } = Promise.withResolvers();
+  zlib.deflate(inputString, (err, buffer) => {
+    assert.ifError(err);
+    zlib.inflate(buffer, (err, inflated) => {
+      assert.ifError(err);
+      assert.strictEqual(inflated.toString(), inputString);
+      resolve();
+    });
+  });
+  await promise;
+});
 
-zlib.gzip(inputString, common.mustCall((err, buffer) => {
-  // Can't actually guarantee that we'll get exactly the same
-  // deflated bytes when we compress a string, since the header
-  // depends on stuff other than the input string itself.
-  // However, decrypting it should definitely yield the same
-  // result that we're expecting, and this should match what we get
-  // from inflating the known valid deflate data.
-  zlib.gunzip(buffer, common.mustCall((err, gunzipped) => {
-    assert.strictEqual(gunzipped.toString(), inputString);
-  }));
-}));
+test('properly gzip and gunzip', async (t) => {
+  const { promise, resolve } = Promise.withResolvers();
+  zlib.gzip(inputString, (err, buffer) => {
+    assert.ifError(err);
+    // Can't actually guarantee that we'll get exactly the same
+    // deflated bytes when we compress a string, since the header
+    // depends on stuff other than the input string itself.
+    // However, decrypting it should definitely yield the same
+    // result that we're expecting, and this should match what we get
+    // from inflating the known valid deflate data.
+    zlib.gunzip(buffer, (err, gunzipped) => {
+      assert.ifError(err);
+      assert.strictEqual(gunzipped.toString(), inputString);
+      resolve();
+    });
+  });
+  await promise;
+});
 
-let buffer = Buffer.from(expectedBase64Deflate, 'base64');
-zlib.unzip(buffer, common.mustCall((err, buffer) => {
-  assert.strictEqual(buffer.toString(), inputString);
-}));
+test('properly unzip base64 deflate', async (t) => {
+  const { promise, resolve } = Promise.withResolvers();
+  const buffer = Buffer.from(expectedBase64Deflate, 'base64');
+  zlib.unzip(buffer, (err, buffer) => {
+    assert.ifError(err);
+    assert.strictEqual(buffer.toString(), inputString);
+    resolve();
+  });
+  await promise;
+});
 
-buffer = Buffer.from(expectedBase64Gzip, 'base64');
-zlib.unzip(buffer, common.mustCall((err, buffer) => {
-  assert.strictEqual(buffer.toString(), inputString);
-}));
+test('properly unzip base64 gzip', async (t) => {
+  const { promise, resolve } = Promise.withResolvers();
+  const buffer = Buffer.from(expectedBase64Gzip, 'base64');
+  zlib.unzip(buffer, (err, buffer) => {
+    assert.ifError(err);
+    assert.strictEqual(buffer.toString(), inputString);
+    resolve();
+  });
+  await promise;
+});

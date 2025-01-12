@@ -20,16 +20,18 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const common = require('../common');
-if (!common.hasCrypto)
-  common.skip('missing crypto');
 
-const assert = require('assert');
-const crypto = require('crypto');
-const stream = require('stream');
-const zlib = require('zlib');
+// Explicitly require to ensure no other common functionality is needed/loaded.
+const { hasCrypto, skip } = require('../common');
+if (!hasCrypto)
+  skip('missing crypto');
 
-const Stream = stream.Stream;
+const assert = require('node:assert');
+const crypto = require('node:crypto');
+const { Stream } = require('node:stream');
+const zlib = require('node:zlib');
+const { test } = require('node:test');
+const { once } = require('node:events');
 
 // Emit random bytes, and keep a shasum
 class RandomReadStream extends Stream {
@@ -66,7 +68,6 @@ class RandomReadStream extends Stream {
   }
 
   resume() {
-    // console.error("rrs resume");
     this._paused = false;
     this.emit('resume');
     this._process();
@@ -141,18 +142,24 @@ class HashStream extends Stream {
   }
 }
 
-for (const [ createCompress, createDecompress ] of [
-  [ zlib.createGzip, zlib.createGunzip ],
-  [ zlib.createBrotliCompress, zlib.createBrotliDecompress ],
-]) {
-  const inp = new RandomReadStream({ total: 1024, block: 256, jitter: 16 });
-  const out = new HashStream();
-  const gzip = createCompress();
-  const gunz = createDecompress();
+test('random byte pipes', async (t) => {
+  for (const [ createCompress, createDecompress ] of [
+    [ zlib.createGzip, zlib.createGunzip ],
+    [ zlib.createBrotliCompress, zlib.createBrotliDecompress ],
+  ]) {
+    const inp = new RandomReadStream({ total: 1024, block: 256, jitter: 16 });
+    const out = new HashStream();
+    const gzip = createCompress();
+    const gunz = createDecompress();
 
-  inp.pipe(gzip).pipe(gunz).pipe(out);
+    inp.pipe(gzip).pipe(gunz).pipe(out);
 
-  out.on('data', common.mustCall((c) => {
-    assert.strictEqual(c, inp._hash, `Hash '${c}' equals '${inp._hash}'.`);
-  }));
-}
+    const onDataCallback = t.mock.fn();
+    onDataCallback.mock.mockImplementation((c) => {
+      assert.strictEqual(c, inp._hash, `Hash '${c}' equals '${inp._hash}'.`);
+    });
+    out.on('data', onDataCallback);
+    await once(out, 'end');
+    assert.ok(onDataCallback.mock.calls.length > 0, 'Should have called on data callback');
+  }
+});

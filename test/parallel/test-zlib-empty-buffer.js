@@ -1,11 +1,15 @@
 'use strict';
-const common = require('../common');
-const zlib = require('zlib');
-const { inspect, promisify } = require('util');
-const assert = require('assert');
-const emptyBuffer = Buffer.alloc(0);
 
-(async function() {
+require('../common');
+
+const zlib = require('node:zlib');
+const { inspect, promisify } = require('node:util');
+const assert = require('node:assert');
+const { test } = require('node:test');
+
+test('empty buffer', async (t) => {
+  const emptyBuffer = Buffer.alloc(0);
+
   for (const [ compress, decompress, method ] of [
     [ zlib.deflateRawSync, zlib.inflateRawSync, 'raw sync' ],
     [ zlib.deflateSync, zlib.inflateSync, 'deflate sync' ],
@@ -23,4 +27,4 @@ const emptyBuffer = Buffer.alloc(0);
       `Expected ${inspect(compressed)} to match ${inspect(decompressed)} ` +
       `to match for ${method}`);
   }
-})().then(common.mustCall());
+});
