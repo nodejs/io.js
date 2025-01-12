@@ -33,6 +33,24 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
     for await (const _ of stream);
   });
 
+  it('should emit diagnostic events with level parameter', async () => {
+    const diagnosticEvents = [];
+
+    const stream = run({
+      files: [join(testFixtures, 'coverage.js')],
+      reporter: 'spec',
+    });
+
+    stream.on('test:diagnostic', (event) => {
+      diagnosticEvents.push(event);
+    });
+    // eslint-disable-next-line no-unused-vars
+    for await (const _ of stream);
+    assert(diagnosticEvents.length > 0, 'No diagnostic events were emitted');
+    const infoEvent = diagnosticEvents.find((e) => e.level === 'info');
+    assert(infoEvent, 'No diagnostic events with level "info" were emitted');
+  });
+
   const argPrintingFile = join(testFixtures, 'print-arguments.js');
   it('should allow custom arguments via execArgv', async () => {
     const result = await run({ files: [argPrintingFile], execArgv: ['-p', '"Printed"'] }).compose(spec).toArray();
