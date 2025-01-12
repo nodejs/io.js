@@ -21,7 +21,17 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::BIOPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::CryptoErrorList;
+using ncrypto::DHPointer;
+using ncrypto::EnginePointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::MarkPopErrorOnReturn;
+using ncrypto::SSLPointer;
 using ncrypto::StackOfX509;
+using ncrypto::X509Pointer;
 using v8::Array;
 using v8::ArrayBufferView;
 using v8::Boolean;
@@ -693,10 +703,10 @@ void SecureContext::SetEngineKey(const FunctionCallbackInfo<Value>& args) {
         "experimental permission model is enabled");
   }
 
-  ncrypto::CryptoErrorList errors;
+  CryptoErrorList errors;
   Utf8Value engine_id(env->isolate(), args[1]);
-  auto engine = ncrypto::EnginePointer::getEngineByName(
-      engine_id.ToStringView(), &errors);
+  auto engine =
+      EnginePointer::getEngineByName(engine_id.ToStringView(), &errors);
   if (!engine) {
     Local<Value> exception;
     if (errors.empty()) {
@@ -1205,10 +1215,10 @@ void SecureContext::SetClientCertEngine(
         "experimental permission model is enabled");
   }
 
-  ncrypto::CryptoErrorList errors;
+  CryptoErrorList errors;
   const Utf8Value engine_id(env->isolate(), args[0]);
-  auto engine = ncrypto::EnginePointer::getEngineByName(
-      engine_id.ToStringView(), &errors);
+  auto engine =
+      EnginePointer::getEngineByName(engine_id.ToStringView(), &errors);
   if (!engine) {
     Local<Value> exception;
     if (errors.empty()) {

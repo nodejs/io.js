@@ -10,6 +10,13 @@
 
 namespace node {
 
+using ncrypto::Cipher;
+using ncrypto::CipherCtxPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::MarkPopErrorOnReturn;
+using ncrypto::SSLCtxPointer;
+using ncrypto::SSLPointer;
 using v8::Array;
 using v8::ArrayBuffer;
 using v8::BackingStore;
@@ -42,10 +49,10 @@ void GetCipherInfo(const FunctionCallbackInfo<Value>& args) {
   const auto cipher = ([&] {
     if (args[1]->IsString()) {
       Utf8Value name(env->isolate(), args[1]);
-      return ncrypto::Cipher::FromName(*name);
+      return Cipher::FromName(*name);
     } else {
       int nid = args[1].As<Int32>()->Value();
-      return ncrypto::Cipher::FromNid(nid);
+      return Cipher::FromNid(nid);
     }
   })();
 
@@ -334,7 +341,7 @@ void CipherBase::CommonInit(const char* cipher_type,
     return THROW_ERR_CRYPTO_INVALID_KEYLEN(env());
   }
 
-  if (!ctx_.init(ncrypto::Cipher(), encrypt, key, iv)) {
+  if (!ctx_.init(Cipher(), encrypt, key, iv)) {
     return ThrowCryptoError(env(), ERR_get_error(),
                             "Failed to initialize cipher");
   }
@@ -345,7 +352,7 @@ void CipherBase::Init(const char* cipher_type,
                       unsigned int auth_tag_len) {
   HandleScope scope(env()->isolate());
   MarkPopErrorOnReturn mark_pop_error_on_return;
-  auto cipher = ncrypto::Cipher::FromName(cipher_type);
+  auto cipher = Cipher::FromName(cipher_type);
   if (!cipher) {
     return THROW_ERR_CRYPTO_UNKNOWN_CIPHER(env());
   }
@@ -415,7 +422,7 @@ void CipherBase::InitIv(const char* cipher_type,
   HandleScope scope(env()->isolate());
   MarkPopErrorOnReturn mark_pop_error_on_return;
 
-  auto cipher = ncrypto::Cipher::FromName(cipher_type);
+  auto cipher = Cipher::FromName(cipher_type);
   if (!cipher) return THROW_ERR_CRYPTO_UNKNOWN_CIPHER(env());
 
   const int expected_iv_len = cipher.getIvLength();
@@ -628,8 +635,7 @@ void CipherBase::SetAuthTag(const FunctionCallbackInfo<Value>& args) {
   } else {
     // At this point, the tag length is already known and must match the
     // length of the given authentication tag.
-    CHECK(
-        ncrypto::Cipher::FromCtx(cipher->ctx_).isSupportedAuthenticatedMode());
+    CHECK(Cipher::FromCtx(cipher->ctx_).isSupportedAuthenticatedMode());
     CHECK_NE(cipher->auth_tag_len_, kNoAuthTagLength);
     is_valid = cipher->auth_tag_len_ == tag_len;
   }
@@ -854,7 +860,7 @@ bool CipherBase::Final(std::unique_ptr<BackingStore>* out) {
   }
 
   if (kind_ == kDecipher &&
-      ncrypto::Cipher::FromCtx(ctx_).isSupportedAuthenticatedMode()) {
+      Cipher::FromCtx(ctx_).isSupportedAuthenticatedMode()) {
     MaybePassAuthTagToOpenSSL();
   }
 

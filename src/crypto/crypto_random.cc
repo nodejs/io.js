@@ -11,6 +11,8 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::ClearErrorOnReturn;
 using v8::ArrayBuffer;
 using v8::BackingStore;
 using v8::Boolean;
@@ -27,8 +29,7 @@ using v8::Value;
 
 namespace crypto {
 namespace {
-ncrypto::BignumPointer::PrimeCheckCallback getPrimeCheckCallback(
-    Environment* env) {
+BignumPointer::PrimeCheckCallback getPrimeCheckCallback(Environment* env) {
   // The callback is used to check if the operation should be stopped.
   // Currently, the only check we perform is if env->is_stopping()
   // is true.

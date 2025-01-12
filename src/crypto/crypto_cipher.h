@@ -85,7 +85,7 @@ class CipherBase : public BaseObject {
   CipherBase(Environment* env, v8::Local<v8::Object> wrap, CipherKind kind);
 
  private:
-  CipherCtxPointer ctx_;
+  ncrypto::CipherCtxPointer ctx_;
   const CipherKind kind_;
   AuthTagState auth_tag_state_;
   unsigned int auth_tag_len_;
@@ -110,7 +110,7 @@ class PublicKeyCipher {
             EVP_PKEY_cipher_init_t EVP_PKEY_cipher_init,
             EVP_PKEY_cipher_t EVP_PKEY_cipher>
   static bool Cipher(Environment* env,
-                     const EVPKeyPointer& pkey,
+                     const ncrypto::EVPKeyPointer& pkey,
                      int padding,
                      const EVP_MD* digest,
                      const ArrayBufferOrViewContents<unsigned char>& oaep_label,

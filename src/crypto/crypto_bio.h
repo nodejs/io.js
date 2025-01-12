@@ -43,12 +43,13 @@ class NodeBIO : public MemoryRetainer {
  public:
   ~NodeBIO() override;
 
-  static BIOPointer New(Environment* env = nullptr);
+  static ncrypto::BIOPointer New(Environment* env = nullptr);
 
   // NewFixed takes a copy of `len` bytes from `data` and returns a BIO that,
   // when read from, returns those bytes followed by EOF.
-  static BIOPointer NewFixed(const char* data, size_t len,
-                             Environment* env = nullptr);
+  static ncrypto::BIOPointer NewFixed(const char* data,
+                                      size_t len,
+                                      Environment* env = nullptr);
 
   // Move read head to next buffer if needed
   void TryMoveReadHead();

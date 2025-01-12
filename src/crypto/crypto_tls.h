@@ -248,8 +248,8 @@ class TLSWrap : public AsyncWrap,
 
   Environment* const env_;
   Kind kind_;
-  SSLSessionPointer next_sess_;
-  SSLPointer ssl_;
+  ncrypto::SSLSessionPointer next_sess_;
+  ncrypto::SSLPointer ssl_;
   ClientHelloParser hello_parser_;
   v8::Global<v8::ArrayBufferView> ocsp_response_;
   BaseObjectPtr<SecureContext> sni_context_;
@@ -288,7 +288,7 @@ class TLSWrap : public AsyncWrap,
   CertCb cert_cb_ = nullptr;
   void* cert_cb_arg_ = nullptr;
 
-  BIOPointer bio_trace_;
+  ncrypto::BIOPointer bio_trace_;
 
   bool has_active_write_issued_by_prev_listener_ = false;
 

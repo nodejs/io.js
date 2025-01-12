@@ -36,6 +36,12 @@
 
 namespace node {
 
+using ncrypto::BIOPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::MarkPopErrorOnReturn;
+using ncrypto::SSLPointer;
+using ncrypto::SSLSessionPointer;
+using ncrypto::X509Pointer;
 using v8::Array;
 using v8::ArrayBuffer;
 using v8::ArrayBufferView;

@@ -27,7 +27,14 @@
 
 namespace node {
 
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::ECKeyPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::SSLPointer;
+using ncrypto::SSLSessionPointer;
 using ncrypto::StackOfX509;
+using ncrypto::X509Pointer;
+using ncrypto::X509View;
 using v8::ArrayBuffer;
 using v8::BackingStore;
 using v8::Context;
@@ -135,7 +142,7 @@ MaybeLocal<Object> AddIssuerChainToObject(X509Pointer* cert,
   for (;;) {
     int i;
     for (i = 0; i < sk_X509_num(peer_certs.get()); i++) {
-      ncrypto::X509View ca(sk_X509_value(peer_certs.get(), i));
+      X509View ca(sk_X509_value(peer_certs.get(), i));
       if (!cert->view().isIssuedBy(ca)) continue;
 
       Local<Value> ca_info;
@@ -243,7 +250,7 @@ MaybeLocal<Object> GetEphemeralKey(Environment* env, const SSLPointer& ssl) {
 
   EscapableHandleScope scope(env->isolate());
   Local<Object> info = Object::New(env->isolate());
-  crypto::EVPKeyPointer key = ssl.getPeerTempKey();
+  EVPKeyPointer key = ssl.getPeerTempKey();
   if (!key) return scope.Escape(info);
 
   Local<Context> context = env->context();
@@ -265,8 +272,7 @@ MaybeLocal<Object> GetEphemeralKey(Environment* env, const SSLPointer& ssl) {
       {
         const char* curve_name;
         if (kid == EVP_PKEY_EC) {
-          OSSL3_CONST EC_KEY* ec = EVP_PKEY_get0_EC_KEY(key.get());
-          int nid = EC_GROUP_get_curve_name(EC_KEY_get0_group(ec));
+          int nid = ECKeyPointer::GetGroupName(key);
           curve_name = OBJ_nid2sn(nid);
         } else {
           curve_name = OBJ_nid2sn(kid);
@@ -341,8 +347,8 @@ MaybeLocal<Value> GetPeerCert(
     if (cert) {
       return X509Certificate::toObject(env, cert.view());
     }
-    return X509Certificate::toObject(
-        env, ncrypto::X509View(sk_X509_value(ssl_certs, 0)));
+    return X509Certificate::toObject(env,
+                                     X509View(sk_X509_value(ssl_certs, 0)));
   }
 
   StackOfX509 peer_certs = CloneSSLCerts(std::move(cert), ssl_certs);
@@ -351,7 +357,7 @@ MaybeLocal<Value> GetPeerCert(
 
   // First and main certificate.
   Local<Value> result;
-  ncrypto::X509View first_cert(sk_X509_value(peer_certs.get(), 0));
+  X509View first_cert(sk_X509_value(peer_certs.get(), 0));
   CHECK(first_cert);
   if (!X509Certificate::toObject(env, first_cert).ToLocal(&result)) return {};
   CHECK(result->IsObject());

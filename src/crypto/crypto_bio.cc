@@ -30,6 +30,9 @@
 #include <cstring>
 
 namespace node {
+
+using ncrypto::BIOPointer;
+
 namespace crypto {
 
 BIOPointer NodeBIO::New(Environment* env) {

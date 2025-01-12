@@ -13,6 +13,7 @@
 
 namespace node {
 
+using ncrypto::HMACCtxPointer;
 using v8::Boolean;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;

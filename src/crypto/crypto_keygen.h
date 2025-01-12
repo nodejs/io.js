@@ -163,7 +163,7 @@ struct KeyPairGenTraits final {
   static KeyGenJobStatus DoKeyGen(
       Environment* env,
       AdditionalParameters* params) {
-    EVPKeyCtxPointer ctx = KeyPairAlgorithmTraits::Setup(params);
+    ncrypto::EVPKeyCtxPointer ctx = KeyPairAlgorithmTraits::Setup(params);
 
     if (!ctx)
       return KeyGenJobStatus::FAILED;
@@ -174,7 +174,7 @@ struct KeyPairGenTraits final {
       return KeyGenJobStatus::FAILED;
 
     auto data = KeyObjectData::CreateAsymmetric(KeyType::kKeyTypePrivate,
-                                                EVPKeyPointer(pkey));
+                                                ncrypto::EVPKeyPointer(pkey));
     if (!data) [[unlikely]]
       return KeyGenJobStatus::FAILED;
     params->key = std::move(data);
@@ -280,7 +280,7 @@ struct NidKeyPairGenTraits final {
   using AdditionalParameters = NidKeyPairGenConfig;
   static constexpr const char* JobName = "NidKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(NidKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(NidKeyPairGenConfig* params);
 
   static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,

@@ -14,6 +14,11 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::DataPointer;
+using ncrypto::DHPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
 using v8::ArrayBuffer;
 using v8::ConstructorBehavior;
 using v8::Context;
@@ -47,14 +52,11 @@ void DiffieHellman::MemoryInfo(MemoryTracker* tracker) const {
 }
 
 namespace {
-MaybeLocal<Value> DataPointerToBuffer(Environment* env,
-                                      ncrypto::DataPointer&& data) {
+MaybeLocal<Value> DataPointerToBuffer(Environment* env, DataPointer&& data) {
   auto backing = ArrayBuffer::NewBackingStore(
       data.get(),
       data.size(),
-      [](void* data, size_t len, void* ptr) {
-        ncrypto::DataPointer free_ne(data, len);
-      },
+      [](void* data, size_t len, void* ptr) { DataPointer free_me(data, len); },
       nullptr);
   data.release();
 

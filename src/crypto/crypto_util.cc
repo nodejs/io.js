@@ -26,6 +26,11 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::BIOPointer;
+using ncrypto::CryptoErrorList;
+using ncrypto::EnginePointer;
+using ncrypto::EVPKeyCtxPointer;
 using v8::ArrayBuffer;
 using v8::BackingStore;
 using v8::BigInt;
@@ -162,7 +167,7 @@ void InitCryptoOnce() {
   sk_SSL_COMP_zero(SSL_COMP_get_compression_methods());
 
 #ifndef OPENSSL_NO_ENGINE
-  ncrypto::EnginePointer::initEnginesOnce();
+  EnginePointer::initEnginesOnce();
 #endif  // !OPENSSL_NO_ENGINE
 }
 
@@ -181,7 +186,7 @@ void SetFipsCrypto(const FunctionCallbackInfo<Value>& args) {
   CHECK(env->owns_process_state());
   bool enable = args[0]->BooleanValue(env->isolate());
 
-  ncrypto::CryptoErrorList errors;
+  CryptoErrorList errors;
   if (!ncrypto::setFipsEnabled(enable, &errors)) {
     Local<Value> exception;
     if (cryptoErrorListToException(env, errors).ToLocal(&exception)) {
@@ -210,8 +215,8 @@ bool CryptoErrorStore::Empty() const {
   return errors_.empty();
 }
 
-MaybeLocal<Value> cryptoErrorListToException(
-    Environment* env, const ncrypto::CryptoErrorList& errors) {
+MaybeLocal<Value> cryptoErrorListToException(Environment* env,
+                                             const CryptoErrorList& errors) {
   // The CryptoErrorList contains a listing of zero or more errors.
   // If there are no errors, it is likely a bug but we will return
   // an error anyway.
@@ -587,7 +592,7 @@ void SetEngine(const FunctionCallbackInfo<Value>& args) {
   // If the engine name is not known, calling setAsDefault on the
   // empty engine pointer will be non-op that always returns false.
   args.GetReturnValue().Set(
-      ncrypto::EnginePointer::getEngineByName(engine_id.ToStringView())
+      EnginePointer::getEngineByName(engine_id.ToStringView())
           .setAsDefault(flags));
 }
 #endif  // !OPENSSL_NO_ENGINE
@@ -597,7 +602,7 @@ MaybeLocal<Value> EncodeBignum(
     const BIGNUM* bn,
     int size,
     Local<Value>* error) {
-  auto buf = ncrypto::BignumPointer::EncodePadded(bn, size);
+  auto buf = BignumPointer::EncodePadded(bn, size);
   CHECK_EQ(buf.size(), static_cast<size_t>(size));
   return StringBytes::Encode(env->isolate(),
                              reinterpret_cast<const char*>(buf.get()),

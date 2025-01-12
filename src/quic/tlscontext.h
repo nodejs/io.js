@@ -7,6 +7,7 @@
 #include <crypto/crypto_context.h>
 #include <crypto/crypto_keys.h>
 #include <memory_tracker.h>
+#include <ncrypto.h>
 #include <ngtcp2/ngtcp2_crypto.h>
 #include "bindingdata.h"
 #include "data.h"
@@ -84,7 +85,7 @@ class TLSSession final : public MemoryRetainer {
 
  private:
   operator SSL*() const;
-  crypto::SSLPointer Initialize(
+  ncrypto::SSLPointer Initialize(
       const std::optional<SessionTicket>& maybeSessionTicket);
 
   static ngtcp2_conn* connection(ngtcp2_crypto_conn_ref* ref);
@@ -92,8 +93,8 @@ class TLSSession final : public MemoryRetainer {
   ngtcp2_crypto_conn_ref ref_;
   std::shared_ptr<TLSContext> context_;
   Session* session_;
-  crypto::SSLPointer ssl_;
-  crypto::BIOPointer bio_trace_;
+  ncrypto::SSLPointer ssl_;
+  ncrypto::BIOPointer bio_trace_;
   std::string validation_error_ = "";
   bool in_key_update_ = false;
 };
@@ -198,7 +199,7 @@ class TLSContext final : public MemoryRetainer,
   SET_SELF_SIZE(TLSContext)
 
  private:
-  crypto::SSLCtxPointer Initialize();
+  ncrypto::SSLCtxPointer Initialize();
   operator SSL_CTX*() const;
 
   static void OnKeylog(const SSL* ssl, const char* line);
@@ -213,9 +214,9 @@ class TLSContext final : public MemoryRetainer,
 
   Side side_;
   Options options_;
-  crypto::X509Pointer cert_;
-  crypto::X509Pointer issuer_;
-  crypto::SSLCtxPointer ctx_;
+  ncrypto::X509Pointer cert_;
+  ncrypto::X509Pointer issuer_;
+  ncrypto::SSLCtxPointer ctx_;
   std::string validation_error_ = "";
 
   friend class TLSSession;

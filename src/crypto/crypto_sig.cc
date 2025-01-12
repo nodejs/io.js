@@ -12,6 +12,13 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::ECDSASigPointer;
+using ncrypto::ECKeyPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::EVPMDCtxPointer;
 using v8::ArrayBuffer;
 using v8::BackingStore;
 using v8::Boolean;
@@ -129,9 +136,7 @@ unsigned int GetBytesOfRS(const EVPKeyPointer& pkey) {
     // Both r and s are computed mod q, so their width is limited by that of q.
     bits = BignumPointer::GetBitCount(DSA_get0_q(dsa_key));
   } else if (base_id == EVP_PKEY_EC) {
-    const EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(pkey.get());
-    const EC_GROUP* ec_group = EC_KEY_get0_group(ec_key);
-    bits = EC_GROUP_order_bits(ec_group);
+    bits = EC_GROUP_order_bits(ECKeyPointer::GetGroup(pkey));
   } else {
     return kNoDsaSignature;
   }
@@ -144,16 +149,16 @@ bool ExtractP1363(
     unsigned char* out,
     size_t len,
     size_t n) {
-  ECDSASigPointer asn1_sig(d2i_ECDSA_SIG(nullptr, &sig_data, len));
+  ncrypto::Buffer<const unsigned char> sig_buffer{
+      .data = sig_data,
+      .len = len,
+  };
+  auto asn1_sig = ECDSASigPointer::Parse(sig_buffer);
   if (!asn1_sig)
     return false;
 
-  const BIGNUM* pr;
-  const BIGNUM* ps;
-  ECDSA_SIG_get0(asn1_sig.get(), &pr, &ps);
-
-  return BignumPointer::EncodePaddedInto(pr, out, n) > 0 &&
-         BignumPointer::EncodePaddedInto(ps, out + n, n) > 0;
+  return BignumPointer::EncodePaddedInto(asn1_sig.r(), out, n) > 0 &&
+         BignumPointer::EncodePaddedInto(asn1_sig.s(), out + n, n) > 0;
 }
 
 // Returns the maximum size of each of the integers (r, s) of the DSA signature.
@@ -207,23 +212,19 @@ ByteSource ConvertSignatureToDER(const EVPKeyPointer& pkey, ByteSource&& out) {
   if (out.size() != 2 * n)
     return ByteSource();
 
-  ECDSASigPointer asn1_sig(ECDSA_SIG_new());
+  auto asn1_sig = ECDSASigPointer::New();
   CHECK(asn1_sig);
   BignumPointer r(sig_data, n);
   CHECK(r);
   BignumPointer s(sig_data + n, n);
   CHECK(s);
-  CHECK_EQ(1, ECDSA_SIG_set0(asn1_sig.get(), r.release(), s.release()));
+  CHECK(asn1_sig.setParams(std::move(r), std::move(s)));
 
-  unsigned char* data = nullptr;
-  int len = i2d_ECDSA_SIG(asn1_sig.get(), &data);
+  auto buf = asn1_sig.encode();
+  if (buf.len <= 0) return ByteSource();
 
-  if (len <= 0)
-    return ByteSource();
-
-  CHECK_NOT_NULL(data);
-
-  return ByteSource::Allocated(data, len);
+  CHECK_NOT_NULL(buf.data);
+  return ByteSource::Allocated(buf);
 }
 
 void CheckThrow(Environment* env, SignBase::Error error) {

@@ -15,6 +15,15 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::BIOPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::DataPointer;
+using ncrypto::ECKeyPointer;
+using ncrypto::SSLPointer;
+using ncrypto::StackOfASN1;
+using ncrypto::X509Pointer;
+using ncrypto::X509View;
 using v8::Array;
 using v8::ArrayBuffer;
 using v8::ArrayBufferView;
@@ -62,7 +71,7 @@ void ManagedX509::MemoryInfo(MemoryTracker* tracker) const {
 namespace {
 MaybeLocal<Value> GetFingerprintDigest(Environment* env,
                                        const EVP_MD* method,
-                                       const ncrypto::X509View& cert) {
+                                       const X509View& cert) {
   auto fingerprint = cert.getFingerprint(method);
   // Returning an empty string indicates that the digest failed for
   // some reason.
@@ -129,7 +138,7 @@ MaybeLocal<Value> ToV8Value(Local<Context> context, const ASN1_STRING* str) {
   if (value_str_size < 0) {
     return Undefined(context->GetIsolate());
   }
-  ncrypto::DataPointer free_value_str(value_str, value_str_size);
+  DataPointer free_value_str(value_str, value_str_size);
 
   Local<Value> result;
   if (!String::NewFromUtf8(context->GetIsolate(),
@@ -171,7 +180,7 @@ MaybeLocal<Value> ToBuffer(Environment* env, BIOPointer* bio) {
   return ret;
 }
 
-MaybeLocal<Value> GetDer(Environment* env, const ncrypto::X509View& view) {
+MaybeLocal<Value> GetDer(Environment* env, const X509View& view) {
   Local<Value> ret;
   auto bio = view.toDER();
   if (!bio) return Undefined(env->isolate());
@@ -182,7 +191,7 @@ MaybeLocal<Value> GetDer(Environment* env, const ncrypto::X509View& view) {
 }
 
 MaybeLocal<Value> GetSubjectAltNameString(Environment* env,
-                                          const ncrypto::X509View& view) {
+                                          const X509View& view) {
   Local<Value> ret;
   auto bio = view.getSubjectAltName();
   if (!bio) return Undefined(env->isolate());
@@ -190,8 +199,7 @@ MaybeLocal<Value> GetSubjectAltNameString(Environment* env,
   return ret;
 }
 
-MaybeLocal<Value> GetInfoAccessString(Environment* env,
-                                      const ncrypto::X509View& view) {
+MaybeLocal<Value> GetInfoAccessString(Environment* env, const X509View& view) {
   Local<Value> ret;
   auto bio = view.getInfoAccess();
   if (!bio) return Undefined(env->isolate());
@@ -201,8 +209,7 @@ MaybeLocal<Value> GetInfoAccessString(Environment* env,
   return ret;
 }
 
-MaybeLocal<Value> GetValidFrom(Environment* env,
-                               const ncrypto::X509View& view) {
+MaybeLocal<Value> GetValidFrom(Environment* env, const X509View& view) {
   Local<Value> ret;
   auto bio = view.getValidFrom();
   if (!bio) return Undefined(env->isolate());
@@ -212,7 +219,7 @@ MaybeLocal<Value> GetValidFrom(Environment* env,
   return ret;
 }
 
-MaybeLocal<Value> GetValidTo(Environment* env, const ncrypto::X509View& view) {
+MaybeLocal<Value> GetValidTo(Environment* env, const X509View& view) {
   Local<Value> ret;
   auto bio = view.getValidTo();
   if (!bio) return Undefined(env->isolate());
@@ -222,20 +229,17 @@ MaybeLocal<Value> GetValidTo(Environment* env, const ncrypto::X509View& view) {
   return ret;
 }
 
-MaybeLocal<Value> GetValidFromDate(Environment* env,
-                                   const ncrypto::X509View& view) {
+MaybeLocal<Value> GetValidFromDate(Environment* env, const X509View& view) {
   int64_t validFromTime = view.getValidFromTime();
   return Date::New(env->context(), validFromTime * 1000.);
 }
 
-MaybeLocal<Value> GetValidToDate(Environment* env,
-                                 const ncrypto::X509View& view) {
+MaybeLocal<Value> GetValidToDate(Environment* env, const X509View& view) {
   int64_t validToTime = view.getValidToTime();
   return Date::New(env->context(), validToTime * 1000.);
 }
 
-MaybeLocal<Value> GetSerialNumber(Environment* env,
-                                  const ncrypto::X509View& view) {
+MaybeLocal<Value> GetSerialNumber(Environment* env, const X509View& view) {
   if (auto serial = view.getSerialNumber()) {
     return OneByteString(env->isolate(),
                          static_cast<unsigned char*>(serial.get()));
@@ -243,8 +247,8 @@ MaybeLocal<Value> GetSerialNumber(Environment* env,
   return Undefined(env->isolate());
 }
 
-MaybeLocal<Value> GetKeyUsage(Environment* env, const ncrypto::X509View& cert) {
-  ncrypto::StackOfASN1 eku(static_cast<STACK_OF(ASN1_OBJECT)*>(
+MaybeLocal<Value> GetKeyUsage(Environment* env, const X509View& cert) {
+  StackOfASN1 eku(static_cast<STACK_OF(ASN1_OBJECT)*>(
       X509_get_ext_d2i(cert.get(), NID_ext_key_usage, nullptr, nullptr)));
   if (eku) {
     const int count = sk_ASN1_OBJECT_num(eku.get());
@@ -458,10 +462,10 @@ void CheckHost(const FunctionCallbackInfo<Value>& args) {
 
   Utf8Value name(env->isolate(), args[0]);
   uint32_t flags = args[1].As<Uint32>()->Value();
-  ncrypto::DataPointer peername;
+  DataPointer peername;
 
   switch (cert->view().checkHost(name.ToStringView(), flags, &peername)) {
-    case ncrypto::X509View::CheckMatch::MATCH: {  // Match!
+    case X509View::CheckMatch::MATCH: {  // Match!
       Local<Value> ret = args[0];
       if (peername) {
         ret = OneByteString(env->isolate(),
@@ -470,9 +474,9 @@ void CheckHost(const FunctionCallbackInfo<Value>& args) {
       }
       return args.GetReturnValue().Set(ret);
     }
-    case ncrypto::X509View::CheckMatch::NO_MATCH:  // No Match!
+    case X509View::CheckMatch::NO_MATCH:  // No Match!
       return;  // No return value is set
-    case ncrypto::X509View::CheckMatch::INVALID_NAME:  // Error!
+    case X509View::CheckMatch::INVALID_NAME:  // Error!
       return THROW_ERR_INVALID_ARG_VALUE(env, "Invalid name");
     default:  // Error!
       return THROW_ERR_CRYPTO_OPERATION_FAILED(env);
@@ -491,11 +495,11 @@ void CheckEmail(const FunctionCallbackInfo<Value>& args) {
   uint32_t flags = args[1].As<Uint32>()->Value();
 
   switch (cert->view().checkEmail(name.ToStringView(), flags)) {
-    case ncrypto::X509View::CheckMatch::MATCH:  // Match!
+    case X509View::CheckMatch::MATCH:  // Match!
       return args.GetReturnValue().Set(args[0]);
-    case ncrypto::X509View::CheckMatch::NO_MATCH:  // No Match!
+    case X509View::CheckMatch::NO_MATCH:  // No Match!
       return;  // No return value is set
-    case ncrypto::X509View::CheckMatch::INVALID_NAME:  // Error!
+    case X509View::CheckMatch::INVALID_NAME:  // Error!
       return THROW_ERR_INVALID_ARG_VALUE(env, "Invalid name");
     default:  // Error!
       return THROW_ERR_CRYPTO_OPERATION_FAILED(env);
@@ -514,11 +518,11 @@ void CheckIP(const FunctionCallbackInfo<Value>& args) {
   uint32_t flags = args[1].As<Uint32>()->Value();
 
   switch (cert->view().checkIp(name.ToStringView(), flags)) {
-    case ncrypto::X509View::CheckMatch::MATCH:  // Match!
+    case X509View::CheckMatch::MATCH:  // Match!
       return args.GetReturnValue().Set(args[0]);
-    case ncrypto::X509View::CheckMatch::NO_MATCH:  // No Match!
+    case X509View::CheckMatch::NO_MATCH:  // No Match!
       return;  // No return value is set
-    case ncrypto::X509View::CheckMatch::INVALID_NAME:  // Error!
+    case X509View::CheckMatch::INVALID_NAME:  // Error!
       return THROW_ERR_INVALID_ARG_VALUE(env, "Invalid IP");
     default:  // Error!
       return THROW_ERR_CRYPTO_OPERATION_FAILED(env);
@@ -594,7 +598,7 @@ bool Set(Environment* env,
 // The property value may be a single string or an array of strings.
 template <X509_NAME* get_name(const X509*)>
 static MaybeLocal<Value> GetX509NameObject(Environment* env,
-                                           const ncrypto::X509View& cert) {
+                                           const X509View& cert) {
   X509_NAME* name = get_name(cert.get());
   CHECK_NOT_NULL(name);
 
@@ -694,7 +698,7 @@ MaybeLocal<Value> GetExponentString(Environment* env, const BIGNUM* e) {
 MaybeLocal<Value> GetECPubKey(Environment* env,
                               const EC_GROUP* group,
                               OSSL3_CONST EC_KEY* ec) {
-  const EC_POINT* pubkey = EC_KEY_get0_public_key(ec);
+  const auto pubkey = ECKeyPointer::GetPublicKey(ec);
   if (pubkey == nullptr) return Undefined(env->isolate());
 
   return ECPointToBuffer(env, group, pubkey, EC_KEY_get_conv_form(ec), nullptr)
@@ -718,8 +722,7 @@ MaybeLocal<Value> GetCurveName(Environment* env, const int nid) {
              : MaybeLocal<Value>(Undefined(env->isolate()));
 }
 
-MaybeLocal<Object> X509ToObject(Environment* env,
-                                const ncrypto::X509View& cert) {
+MaybeLocal<Object> X509ToObject(Environment* env, const X509View& cert) {
   EscapableHandleScope scope(env->isolate());
   Local<Object> info = Object::New(env->isolate());
 
@@ -777,7 +780,7 @@ MaybeLocal<Object> X509ToObject(Environment* env,
       return {};
     }
   } else if (ec) {
-    const EC_GROUP* group = EC_KEY_get0_group(ec);
+    const auto group = ECKeyPointer::GetGroup(ec);
 
     if (!Set<Value>(
             env, info, env->bits_string(), GetECGroupBits(env, group)) ||
@@ -906,7 +909,7 @@ MaybeLocal<Object> X509Certificate::New(Environment* env,
 
 MaybeLocal<Object> X509Certificate::GetCert(Environment* env,
                                             const SSLPointer& ssl) {
-  auto cert = ncrypto::X509View::From(ssl);
+  auto cert = X509View::From(ssl);
   if (!cert) return {};
   return New(env, cert.clone());
 }
@@ -940,8 +943,8 @@ v8::MaybeLocal<v8::Value> X509Certificate::toObject(Environment* env) {
   return toObject(env, view());
 }
 
-v8::MaybeLocal<v8::Value> X509Certificate::toObject(
-    Environment* env, const ncrypto::X509View& cert) {
+v8::MaybeLocal<v8::Value> X509Certificate::toObject(Environment* env,
+                                                    const X509View& cert) {
   if (!cert) return {};
   return X509ToObject(env, cert).FromMaybe(Local<Value>());
 }

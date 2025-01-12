@@ -18,6 +18,14 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::DataPointer;
+using ncrypto::ECGroupPointer;
+using ncrypto::ECKeyPointer;
+using ncrypto::ECPointPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::MarkPopErrorOnReturn;
 using v8::Array;
 using v8::ArrayBuffer;
 using v8::BackingStore;
@@ -104,9 +112,7 @@ void ECDH::GetCurves(const FunctionCallbackInfo<Value>& args) {
 }
 
 ECDH::ECDH(Environment* env, Local<Object> wrap, ECKeyPointer&& key)
-    : BaseObject(env, wrap),
-    key_(std::move(key)),
-    group_(EC_KEY_get0_group(key_.get())) {
+    : BaseObject(env, wrap), key_(std::move(key)), group_(key_.getGroup()) {
   MakeWeak();
   CHECK_NOT_NULL(group_);
 }
@@ -128,7 +134,7 @@ void ECDH::New(const FunctionCallbackInfo<Value>& args) {
   if (nid == NID_undef)
     return THROW_ERR_CRYPTO_INVALID_CURVE(env);
 
-  ECKeyPointer key(EC_KEY_new_by_curve_name(nid));
+  auto key = ECKeyPointer::NewByCurveName(nid);
   if (!key)
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
       "Failed to create key using named curve");
@@ -142,35 +148,34 @@ void ECDH::GenerateKeys(const FunctionCallbackInfo<Value>& args) {
   ECDH* ecdh;
   ASSIGN_OR_RETURN_UNWRAP(&ecdh, args.This());
 
-  if (!EC_KEY_generate_key(ecdh->key_.get()))
+  if (!ecdh->key_.generate()) {
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env, "Failed to generate key");
+  }
 }
 
 ECPointPointer ECDH::BufferToPoint(Environment* env,
                                    const EC_GROUP* group,
                                    Local<Value> buf) {
-  int r;
+  ArrayBufferOrViewContents<unsigned char> input(buf);
+  if (!input.CheckSizeInt32()) [[unlikely]] {
+    THROW_ERR_OUT_OF_RANGE(env, "buffer is too big");
+    return {};
+  }
 
-  ECPointPointer pub(EC_POINT_new(group));
+  auto pub = ECPointPointer::New(group);
   if (!pub) {
     THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to allocate EC_POINT for a public key");
     return pub;
   }
 
-  ArrayBufferOrViewContents<unsigned char> input(buf);
-  if (!input.CheckSizeInt32()) [[unlikely]] {
-    THROW_ERR_OUT_OF_RANGE(env, "buffer is too big");
-    return ECPointPointer();
+  ncrypto::Buffer<const unsigned char> buffer{
+      .data = input.data(),
+      .len = input.size(),
+  };
+  if (!pub.setFromBuffer(buffer, group)) {
+    return {};
   }
-  r = EC_POINT_oct2point(
-      group,
-      pub.get(),
-      input.data(),
-      input.size(),
-      nullptr);
-  if (!r)
-    return ECPointPointer();
 
   return pub;
 }
@@ -188,10 +193,7 @@ void ECDH::ComputeSecret(const FunctionCallbackInfo<Value>& args) {
   if (!ecdh->IsKeyPairValid())
     return THROW_ERR_CRYPTO_INVALID_KEYPAIR(env);
 
-  ECPointPointer pub(
-      ECDH::BufferToPoint(env,
-                          ecdh->group_,
-                          args[0]));
+  auto pub = ECDH::BufferToPoint(env, ecdh->group_, args[0]);
   if (!pub) {
     args.GetReturnValue().Set(
         FIXED_ONE_BYTE_STRING(env->isolate(),
@@ -209,7 +211,7 @@ void ECDH::ComputeSecret(const FunctionCallbackInfo<Value>& args) {
   }
 
   if (!ECDH_compute_key(
-          bs->Data(), bs->ByteLength(), pub.get(), ecdh->key_.get(), nullptr))
+          bs->Data(), bs->ByteLength(), pub, ecdh->key_.get(), nullptr))
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env, "Failed to compute ECDH key");
 
   Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(bs));
@@ -227,8 +229,8 @@ void ECDH::GetPublicKey(const FunctionCallbackInfo<Value>& args) {
   ECDH* ecdh;
   ASSIGN_OR_RETURN_UNWRAP(&ecdh, args.This());
 
-  const EC_GROUP* group = EC_KEY_get0_group(ecdh->key_.get());
-  const EC_POINT* pub = EC_KEY_get0_public_key(ecdh->key_.get());
+  const auto group = ecdh->key_.getGroup();
+  const auto pub = ecdh->key_.getPublicKey();
   if (pub == nullptr)
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to get ECDH public key");
@@ -250,7 +252,7 @@ void ECDH::GetPrivateKey(const FunctionCallbackInfo<Value>& args) {
   ECDH* ecdh;
   ASSIGN_OR_RETURN_UNWRAP(&ecdh, args.This());
 
-  const BIGNUM* b = EC_KEY_get0_private_key(ecdh->key_.get());
+  auto b = ecdh->key_.getPrivateKey();
   if (b == nullptr)
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to get ECDH private key");
@@ -292,10 +294,10 @@ void ECDH::SetPrivateKey(const FunctionCallbackInfo<Value>& args) {
         "Private key is not valid for specified curve.");
   }
 
-  ECKeyPointer new_key(EC_KEY_dup(ecdh->key_.get()));
+  auto new_key = ecdh->key_.clone();
   CHECK(new_key);
 
-  int result = EC_KEY_set_private_key(new_key.get(), priv.get());
+  bool result = new_key.setPrivateKey(priv);
   priv.reset();
 
   if (!result) {
@@ -306,24 +308,24 @@ void ECDH::SetPrivateKey(const FunctionCallbackInfo<Value>& args) {
   MarkPopErrorOnReturn mark_pop_error_on_return;
   USE(&mark_pop_error_on_return);
 
-  const BIGNUM* priv_key = EC_KEY_get0_private_key(new_key.get());
+  auto priv_key = new_key.getPrivateKey();
   CHECK_NOT_NULL(priv_key);
 
-  ECPointPointer pub(EC_POINT_new(ecdh->group_));
+  auto pub = ECPointPointer::New(ecdh->group_);
   CHECK(pub);
 
-  if (!EC_POINT_mul(ecdh->group_, pub.get(), priv_key,
-                    nullptr, nullptr, nullptr)) {
+  if (!pub.mul(ecdh->group_, priv_key)) {
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to generate ECDH public key");
   }
 
-  if (!EC_KEY_set_public_key(new_key.get(), pub.get()))
+  if (!new_key.setPublicKey(pub)) {
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to set generated public key");
+  }
 
   ecdh->key_ = std::move(new_key);
-  ecdh->group_ = EC_KEY_get0_group(ecdh->key_.get());
+  ecdh->group_ = ecdh->key_.getGroup();
 }
 
 void ECDH::SetPublicKey(const FunctionCallbackInfo<Value>& args) {
@@ -336,17 +338,13 @@ void ECDH::SetPublicKey(const FunctionCallbackInfo<Value>& args) {
 
   MarkPopErrorOnReturn mark_pop_error_on_return;
 
-  ECPointPointer pub(
-      ECDH::BufferToPoint(env,
-                          ecdh->group_,
-                          args[0]));
+  auto pub = ECDH::BufferToPoint(env, ecdh->group_, args[0]);
   if (!pub) {
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to convert Buffer to EC_POINT");
   }
 
-  int r = EC_KEY_set_public_key(ecdh->key_.get(), pub.get());
-  if (!r) {
+  if (!ecdh->key_.setPublicKey(pub)) {
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to set EC_POINT as the public key");
   }
@@ -368,8 +366,7 @@ bool ECDH::IsKeyValidForCurve(const BignumPointer& private_key) {
 
 bool ECDH::IsKeyPairValid() {
   MarkPopErrorOnReturn mark_pop_error_on_return;
-  USE(&mark_pop_error_on_return);
-  return 1 == EC_KEY_check_key(key_.get());
+  return key_.checkKey();
 }
 
 // Convert the input public key to compressed, uncompressed, or hybrid formats.
@@ -391,17 +388,12 @@ void ECDH::ConvertKey(const FunctionCallbackInfo<Value>& args) {
   if (nid == NID_undef)
     return THROW_ERR_CRYPTO_INVALID_CURVE(env);
 
-  ECGroupPointer group(
-      EC_GROUP_new_by_curve_name(nid));
-  if (group == nullptr)
+  auto group = ECGroupPointer::NewByCurveName(nid);
+  if (!group)
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env, "Failed to get EC_GROUP");
 
-  ECPointPointer pub(
-      ECDH::BufferToPoint(env,
-                          group.get(),
-                          args[0]));
-
-  if (pub == nullptr) {
+  auto pub = ECDH::BufferToPoint(env, group, args[0]);
+  if (!pub) {
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env,
         "Failed to convert Buffer to EC_POINT");
   }
@@ -412,7 +404,7 @@ void ECDH::ConvertKey(const FunctionCallbackInfo<Value>& args) {
 
   const char* error;
   Local<Object> buf;
-  if (!ECPointToBuffer(env, group.get(), pub.get(), form, &error).ToLocal(&buf))
+  if (!ECPointToBuffer(env, group, pub, form, &error).ToLocal(&buf))
     return THROW_ERR_CRYPTO_OPERATION_FAILED(env, error);
   args.GetReturnValue().Set(buf);
 }
@@ -491,19 +483,19 @@ bool ECDHBitsTraits::DeriveBits(Environment* env,
       const EC_KEY* private_key;
       {
         Mutex::ScopedLock priv_lock(params.private_.mutex());
-        private_key = EVP_PKEY_get0_EC_KEY(m_privkey.get());
+        private_key = m_privkey;
       }
 
       Mutex::ScopedLock pub_lock(params.public_.mutex());
-      const EC_KEY* public_key = EVP_PKEY_get0_EC_KEY(m_pubkey.get());
+      const EC_KEY* public_key = m_pubkey;
 
-      const EC_GROUP* group = EC_KEY_get0_group(private_key);
+      const auto group = ECKeyPointer::GetGroup(private_key);
       if (group == nullptr)
         return false;
 
-      CHECK_EQ(EC_KEY_check_key(private_key), 1);
-      CHECK_EQ(EC_KEY_check_key(public_key), 1);
-      const EC_POINT* pub = EC_KEY_get0_public_key(public_key);
+      CHECK(ECKeyPointer::Check(private_key));
+      CHECK(ECKeyPointer::Check(public_key));
+      const auto pub = ECKeyPointer::GetPublicKey(public_key);
       int field_size = EC_GROUP_get_degree(group);
       len = (field_size + 7) / 8;
       ByteSource::Builder buf(len);
@@ -602,7 +594,7 @@ WebCryptoKeyExportStatus EC_Raw_Export(const KeyObjectData& key_data,
   CHECK(m_pkey);
   Mutex::ScopedLock lock(key_data.mutex());
 
-  const EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(m_pkey.get());
+  const EC_KEY* ec_key = m_pkey;
 
   if (ec_key == nullptr) {
     switch (key_data.GetKeyType()) {
@@ -624,8 +616,8 @@ WebCryptoKeyExportStatus EC_Raw_Export(const KeyObjectData& key_data,
   } else {
     if (key_data.GetKeyType() != kKeyTypePublic)
       return WebCryptoKeyExportStatus::INVALID_KEY_TYPE;
-    const EC_GROUP* group = EC_KEY_get0_group(ec_key);
-    const EC_POINT* point = EC_KEY_get0_public_key(ec_key);
+    const auto group = ECKeyPointer::GetGroup(ec_key);
+    const auto point = ECKeyPointer::GetPublicKey(ec_key);
     point_conversion_form_t form = POINT_CONVERSION_UNCOMPRESSED;
 
     // Get the allocated data size...
@@ -681,9 +673,8 @@ WebCryptoKeyExportStatus ECKeyExportTraits::DoExport(
         // the header is for all practical purposes a static 26 byte sequence
         // where only the second byte changes.
         Mutex::ScopedLock lock(key_data.mutex());
-        const EC_KEY* ec_key = EVP_PKEY_get0_EC_KEY(m_pkey.get());
-        const EC_GROUP* group = EC_KEY_get0_group(ec_key);
-        const EC_POINT* point = EC_KEY_get0_public_key(ec_key);
+        const auto group = ECKeyPointer::GetGroup(m_pkey);
+        const auto point = ECKeyPointer::GetPublicKey(m_pkey);
         const point_conversion_form_t form = POINT_CONVERSION_UNCOMPRESSED;
         const size_t need =
             EC_POINT_point2oct(group, point, form, nullptr, 0, nullptr);
@@ -692,18 +683,17 @@ WebCryptoKeyExportStatus ECKeyExportTraits::DoExport(
         const size_t have = EC_POINT_point2oct(
             group, point, form, data.data<unsigned char>(), need, nullptr);
         if (have == 0) return WebCryptoKeyExportStatus::FAILED;
-        ECKeyPointer ec(EC_KEY_new());
-        CHECK_EQ(1, EC_KEY_set_group(ec.get(), group));
-        ECPointPointer uncompressed(EC_POINT_new(group));
-        CHECK_EQ(1,
-                 EC_POINT_oct2point(group,
-                                    uncompressed.get(),
-                                    data.data<unsigned char>(),
-                                    data.size(),
-                                    nullptr));
-        CHECK_EQ(1, EC_KEY_set_public_key(ec.get(), uncompressed.get()));
+        auto ec = ECKeyPointer::New(group);
+        CHECK(ec);
+        auto uncompressed = ECPointPointer::New(group);
+        ncrypto::Buffer<const unsigned char> buffer{
+            .data = data.data<unsigned char>(),
+            .len = data.size(),
+        };
+        CHECK(uncompressed.setFromBuffer(buffer, group));
+        CHECK(ec.setPublicKey(uncompressed));
         auto pkey = EVPKeyPointer::New();
-        CHECK_EQ(1, EVP_PKEY_set1_EC_KEY(pkey.get(), ec.get()));
+        CHECK(pkey.set(ec));
         auto bio = pkey.derPublicKey();
         if (!bio) return WebCryptoKeyExportStatus::FAILED;
         *out = ByteSource::FromBIO(bio);
@@ -722,11 +712,11 @@ Maybe<void> ExportJWKEcKey(Environment* env,
   const auto& m_pkey = key.GetAsymmetricKey();
   CHECK_EQ(m_pkey.id(), EVP_PKEY_EC);
 
-  const EC_KEY* ec = EVP_PKEY_get0_EC_KEY(m_pkey.get());
+  const EC_KEY* ec = m_pkey;
   CHECK_NOT_NULL(ec);
 
-  const EC_POINT* pub = EC_KEY_get0_public_key(ec);
-  const EC_GROUP* group = EC_KEY_get0_group(ec);
+  const auto pub = ECKeyPointer::GetPublicKey(ec);
+  const auto group = ECKeyPointer::GetGroup(ec);
 
   int degree_bits = EC_GROUP_get_degree(group);
   int degree_bytes =
@@ -792,7 +782,7 @@ Maybe<void> ExportJWKEcKey(Environment* env,
   }
 
   if (key.GetKeyType() == kKeyTypePrivate) {
-    const BIGNUM* pvt = EC_KEY_get0_private_key(ec);
+    auto pvt = ECKeyPointer::GetPrivateKey(ec);
     return SetEncodedValue(env, target, env->jwk_d_string(), pvt, degree_bytes);
   }
 
@@ -821,7 +811,7 @@ Maybe<void> ExportJWKEdKey(Environment* env,
   })();
 
   static constexpr auto trySetKey = [](Environment* env,
-                                       ncrypto::DataPointer data,
+                                       DataPointer data,
                                        Local<Object> target,
                                        Local<String> key) {
     Local<Value> encoded;
@@ -886,7 +876,7 @@ KeyObjectData ImportJWKEcKey(Environment* env,
 
   KeyType type = d_value->IsString() ? kKeyTypePrivate : kKeyTypePublic;
 
-  ECKeyPointer ec(EC_KEY_new_by_curve_name(nid));
+  auto ec = ECKeyPointer::NewByCurveName(nid);
   if (!ec) {
     THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK EC key");
     return {};
@@ -895,24 +885,22 @@ KeyObjectData ImportJWKEcKey(Environment* env,
   ByteSource x = ByteSource::FromEncodedString(env, x_value.As<String>());
   ByteSource y = ByteSource::FromEncodedString(env, y_value.As<String>());
 
-  if (!EC_KEY_set_public_key_affine_coordinates(
-          ec.get(),
-          x.ToBN().get(),
-          y.ToBN().get())) {
+  if (!ec.setPublicKeyRaw(x.ToBN(), y.ToBN())) {
     THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK EC key");
     return {};
   }
 
   if (type == kKeyTypePrivate) {
     ByteSource d = ByteSource::FromEncodedString(env, d_value.As<String>());
-    if (!EC_KEY_set_private_key(ec.get(), d.ToBN().get())) {
+    if (!ec.setPrivateKey(d.ToBN())) {
       THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK EC key");
       return {};
     }
   }
 
   auto pkey = EVPKeyPointer::New();
-  CHECK_EQ(EVP_PKEY_set1_EC_KEY(pkey.get(), ec.get()), 1);
+  if (!pkey) return {};
+  CHECK(pkey.set(ec));
 
   return KeyObjectData::CreateAsymmetric(type, std::move(pkey));
 }
@@ -924,10 +912,10 @@ Maybe<void> GetEcKeyDetail(Environment* env,
   const auto& m_pkey = key.GetAsymmetricKey();
   CHECK_EQ(m_pkey.id(), EVP_PKEY_EC);
 
-  const EC_KEY* ec = EVP_PKEY_get0_EC_KEY(m_pkey.get());
+  const EC_KEY* ec = m_pkey;
   CHECK_NOT_NULL(ec);
 
-  const EC_GROUP* group = EC_KEY_get0_group(ec);
+  const auto group = ECKeyPointer::GetGroup(ec);
   int nid = EC_GROUP_get_curve_name(group);
 
   if (target
@@ -946,11 +934,10 @@ Maybe<void> GetEcKeyDetail(Environment* env,
 // https://github.com/chromium/chromium/blob/7af6cfd/components/webcrypto/algorithms/ecdsa.cc
 
 size_t GroupOrderSize(const EVPKeyPointer& key) {
-  const EC_KEY* ec = EVP_PKEY_get0_EC_KEY(key.get());
+  const EC_KEY* ec = key;
   CHECK_NOT_NULL(ec);
-  const EC_GROUP* group = EC_KEY_get0_group(ec);
   auto order = BignumPointer::New();
-  CHECK(EC_GROUP_get_order(group, order.get(), nullptr));
+  CHECK(EC_GROUP_get_order(ECKeyPointer::GetGroup(ec), order.get(), nullptr));
   return order.byteLength();
 }
 }  // namespace crypto

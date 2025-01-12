@@ -16,6 +16,9 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::Cipher;
+using ncrypto::CipherCtxPointer;
 using v8::FunctionCallbackInfo;
 using v8::Just;
 using v8::JustVoid;
@@ -60,7 +63,7 @@ WebCryptoCipherStatus AES_Cipher(Environment* env,
 
   if (!ctx.setKeyLength(key_data.GetSymmetricKeySize()) ||
       !ctx.init(
-          ncrypto::Cipher(),
+          Cipher(),
           encrypt,
           reinterpret_cast<const unsigned char*>(key_data.GetSymmetricKey()),
           params.iv.data<unsigned char>())) {
@@ -464,7 +467,7 @@ Maybe<void> AESCipherTraits::AdditionalConfig(
   }
 #undef V
 
-  params->cipher = ncrypto::Cipher::FromNid(cipher_nid);
+  params->cipher = Cipher::FromNid(cipher_nid);
   if (!params->cipher) {
     THROW_ERR_CRYPTO_UNKNOWN_CIPHER(env);
     return Nothing<void>();

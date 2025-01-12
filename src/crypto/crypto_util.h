@@ -38,6 +38,7 @@
 #include <vector>
 
 namespace node {
+
 namespace crypto {
 // Currently known sizes of commonly used OpenSSL struct sizes.
 // OpenSSL considers it's various structs to be opaque and the
@@ -52,33 +53,6 @@ constexpr size_t kSizeOf_EVP_MD_CTX = 48;
 constexpr size_t kSizeOf_EVP_PKEY = 72;
 constexpr size_t kSizeOf_EVP_PKEY_CTX = 80;
 constexpr size_t kSizeOf_HMAC_CTX = 32;
-
-// Define smart pointers for the most commonly used OpenSSL types:
-using X509Pointer = ncrypto::X509Pointer;
-using BIOPointer = ncrypto::BIOPointer;
-using SSLCtxPointer = ncrypto::SSLCtxPointer;
-using SSLSessionPointer = ncrypto::SSLSessionPointer;
-using SSLPointer = ncrypto::SSLPointer;
-using PKCS8Pointer = ncrypto::PKCS8Pointer;
-using EVPKeyPointer = ncrypto::EVPKeyPointer;
-using EVPKeyCtxPointer = ncrypto::EVPKeyCtxPointer;
-using EVPMDCtxPointer = ncrypto::EVPMDCtxPointer;
-using RSAPointer = ncrypto::RSAPointer;
-using ECPointer = ncrypto::ECPointer;
-using BignumPointer = ncrypto::BignumPointer;
-using NetscapeSPKIPointer = ncrypto::NetscapeSPKIPointer;
-using ECGroupPointer = ncrypto::ECGroupPointer;
-using ECPointPointer = ncrypto::ECPointPointer;
-using ECKeyPointer = ncrypto::ECKeyPointer;
-using DHPointer = ncrypto::DHPointer;
-using ECDSASigPointer = ncrypto::ECDSASigPointer;
-using HMACCtxPointer = ncrypto::HMACCtxPointer;
-using CipherCtxPointer = ncrypto::CipherCtxPointer;
-using DsaPointer = ncrypto::DSAPointer;
-using DsaSigPointer = ncrypto::DSASigPointer;
-
-using ClearErrorOnReturn = ncrypto::ClearErrorOnReturn;
-using MarkPopErrorOnReturn = ncrypto::MarkPopErrorOnReturn;
 
 bool ProcessFipsOptions();
 
@@ -260,8 +234,8 @@ class ByteSource {
 
   operator bool() const { return data_ != nullptr; }
 
-  BignumPointer ToBN() const {
-    return BignumPointer(data<unsigned char>(), size());
+  ncrypto::BignumPointer ToBN() const {
+    return ncrypto::BignumPointer(data<unsigned char>(), size());
   }
 
   // Creates a v8::BackingStore that takes over responsibility for
@@ -296,7 +270,7 @@ class ByteSource {
   static ByteSource FromBuffer(v8::Local<v8::Value> buffer,
                                bool ntc = false);
 
-  static ByteSource FromBIO(const BIOPointer& bio);
+  static ByteSource FromBIO(const ncrypto::BIOPointer& bio);
 
   static ByteSource NullTerminatedCopy(Environment* env,
                                        v8::Local<v8::Value> value);
@@ -733,7 +707,8 @@ v8::Maybe<void> SetEncodedValue(Environment* env,
                                 const BIGNUM* bn,
                                 int size = 0);
 
-bool SetRsaOaepLabel(const EVPKeyCtxPointer& rsa, const ByteSource& label);
+bool SetRsaOaepLabel(const ncrypto::EVPKeyCtxPointer& rsa,
+                     const ByteSource& label);
 
 namespace Util {
 void Initialize(Environment* env, v8::Local<v8::Object> target);

@@ -14,6 +14,10 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::RSAPointer;
 using v8::ArrayBuffer;
 using v8::BackingStore;
 using v8::FunctionCallbackInfo;

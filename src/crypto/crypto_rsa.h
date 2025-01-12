@@ -41,7 +41,7 @@ struct RsaKeyGenTraits final {
   using AdditionalParameters = RsaKeyPairGenConfig;
   static constexpr const char* JobName = "RsaKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(RsaKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(RsaKeyPairGenConfig* params);
 
   static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,

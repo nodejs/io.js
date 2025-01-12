@@ -11,6 +11,8 @@
 
 namespace node {
 
+using ncrypto::EVPMDCtxPointer;
+using ncrypto::MarkPopErrorOnReturn;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;

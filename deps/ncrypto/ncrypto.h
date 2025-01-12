@@ -28,6 +28,12 @@
 #include <openssl/fips.h>
 #endif  // OPENSSL_FIPS
 
+#if OPENSSL_VERSION_MAJOR >= 3
+#define OSSL3_CONST const
+#else
+#define OSSL3_CONST
+#endif
+
 #ifdef __GNUC__
 #define NCRYPTO_MUST_USE_RESULT __attribute__((warn_unused_result))
 #else
@@ -197,13 +203,6 @@ using DeleteFnPtr = typename FunctionDeleter<T, function>::Pointer;
 
 using BignumCtxPointer = DeleteFnPtr<BN_CTX, BN_CTX_free>;
 using BignumGenCallbackPointer = DeleteFnPtr<BN_GENCB, BN_GENCB_free>;
-using DSAPointer = DeleteFnPtr<DSA, DSA_free>;
-using DSASigPointer = DeleteFnPtr<DSA_SIG, DSA_SIG_free>;
-using ECDSASigPointer = DeleteFnPtr<ECDSA_SIG, ECDSA_SIG_free>;
-using ECPointer = DeleteFnPtr<EC_KEY, EC_KEY_free>;
-using ECGroupPointer = DeleteFnPtr<EC_GROUP, EC_GROUP_free>;
-using ECKeyPointer = DeleteFnPtr<EC_KEY, EC_KEY_free>;
-using ECPointPointer = DeleteFnPtr<EC_POINT, EC_POINT_free>;
 using EVPKeyCtxPointer = DeleteFnPtr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
 using EVPMDCtxPointer = DeleteFnPtr<EVP_MD_CTX, EVP_MD_CTX_free>;
 using HMACCtxPointer = DeleteFnPtr<HMAC_CTX, HMAC_CTX_free>;
@@ -213,6 +212,7 @@ using RSAPointer = DeleteFnPtr<RSA, RSA_free>;
 using SSLSessionPointer = DeleteFnPtr<SSL_SESSION, SSL_SESSION_free>;
 
 class CipherCtxPointer;
+class ECKeyPointer;
 
 struct StackOfXASN1Deleter {
   void operator()(STACK_OF(ASN1_OBJECT) * p) const {
@@ -543,6 +543,10 @@ class EVPKeyPointer final {
   NCRYPTO_DISALLOW_COPY(EVPKeyPointer)
   ~EVPKeyPointer();
 
+  bool assign(const ECKeyPointer& eckey);
+  bool set(const ECKeyPointer& eckey);
+  operator const EC_KEY*() const;
+
   inline bool operator==(std::nullptr_t) const noexcept {
     return pkey_ == nullptr;
   }
@@ -822,6 +826,126 @@ class X509Pointer final {
 
  private:
   DeleteFnPtr<X509, X509_free> cert_;
+};
+
+class ECDSASigPointer final {
+ public:
+  explicit ECDSASigPointer();
+  explicit ECDSASigPointer(ECDSA_SIG* sig);
+  ECDSASigPointer(ECDSASigPointer&& other) noexcept;
+  ECDSASigPointer& operator=(ECDSASigPointer&& other) noexcept;
+  NCRYPTO_DISALLOW_COPY(ECDSASigPointer)
+  ~ECDSASigPointer();
+
+  inline bool operator==(std::nullptr_t) noexcept { return sig_ == nullptr; }
+  inline operator bool() const { return sig_ != nullptr; }
+  inline ECDSA_SIG* get() const { return sig_.get(); }
+  inline operator ECDSA_SIG*() const { return sig_.get(); }
+  void reset(ECDSA_SIG* sig = nullptr);
+  ECDSA_SIG* release();
+
+  static ECDSASigPointer New();
+  static ECDSASigPointer Parse(const Buffer<const unsigned char>& buffer);
+
+  inline const BIGNUM* r() const { return pr_; }
+  inline const BIGNUM* s() const { return ps_; }
+
+  bool setParams(BignumPointer&& r, BignumPointer&& s);
+
+  Buffer<unsigned char> encode() const;
+
+ private:
+  DeleteFnPtr<ECDSA_SIG, ECDSA_SIG_free> sig_;
+  const BIGNUM* pr_ = nullptr;
+  const BIGNUM* ps_ = nullptr;
+};
+
+class ECGroupPointer final {
+ public:
+  explicit ECGroupPointer();
+  explicit ECGroupPointer(EC_GROUP* group);
+  ECGroupPointer(ECGroupPointer&& other) noexcept;
+  ECGroupPointer& operator=(ECGroupPointer&& other) noexcept;
+  NCRYPTO_DISALLOW_COPY(ECGroupPointer)
+  ~ECGroupPointer();
+
+  inline bool operator==(std::nullptr_t) noexcept { return group_ == nullptr; }
+  inline operator bool() const { return group_ != nullptr; }
+  inline EC_GROUP* get() const { return group_.get(); }
+  inline operator EC_GROUP*() const { return group_.get(); }
+  void reset(EC_GROUP* group = nullptr);
+  EC_GROUP* release();
+
+  static ECGroupPointer NewByCurveName(int nid);
+
+ private:
+  DeleteFnPtr<EC_GROUP, EC_GROUP_free> group_;
+};
+
+class ECPointPointer final {
+ public:
+  ECPointPointer();
+  explicit ECPointPointer(EC_POINT* point);
+  ECPointPointer(ECPointPointer&& other) noexcept;
+  ECPointPointer& operator=(ECPointPointer&& other) noexcept;
+  NCRYPTO_DISALLOW_COPY(ECPointPointer)
+  ~ECPointPointer();
+
+  inline bool operator==(std::nullptr_t) noexcept { return point_ == nullptr; }
+  inline operator bool() const { return point_ != nullptr; }
+  inline EC_POINT* get() const { return point_.get(); }
+  inline operator EC_POINT*() const { return point_.get(); }
+  void reset(EC_POINT* point = nullptr);
+  EC_POINT* release();
+
+  bool setFromBuffer(const Buffer<const unsigned char>& buffer,
+                     const EC_GROUP* group);
+  bool mul(const EC_GROUP* group, const BIGNUM* priv_key);
+
+  static ECPointPointer New(const EC_GROUP* group);
+
+ private:
+  DeleteFnPtr<EC_POINT, EC_POINT_free> point_;
+};
+
+class ECKeyPointer final {
+ public:
+  ECKeyPointer();
+  explicit ECKeyPointer(EC_KEY* key);
+  ECKeyPointer(ECKeyPointer&& other) noexcept;
+  ECKeyPointer& operator=(ECKeyPointer&& other) noexcept;
+  NCRYPTO_DISALLOW_COPY(ECKeyPointer)
+  ~ECKeyPointer();
+
+  inline bool operator==(std::nullptr_t) noexcept { return key_ == nullptr; }
+  inline operator bool() const { return key_ != nullptr; }
+  inline EC_KEY* get() const { return key_.get(); }
+  inline operator EC_KEY*() const { return key_.get(); }
+  void reset(EC_KEY* key = nullptr);
+  EC_KEY* release();
+
+  ECKeyPointer clone() const;
+  bool setPrivateKey(const BignumPointer& priv);
+  bool setPublicKey(const ECPointPointer& pub);
+  bool setPublicKeyRaw(const BignumPointer& x, const BignumPointer& y);
+  bool generate();
+  bool checkKey() const;
+
+  const EC_GROUP* getGroup() const;
+  const BIGNUM* getPrivateKey() const;
+  const EC_POINT* getPublicKey() const;
+
+  static ECKeyPointer New(const EC_GROUP* group);
+  static ECKeyPointer NewByCurveName(int nid);
+
+  static const EC_POINT* GetPublicKey(const EC_KEY* key);
+  static const BIGNUM* GetPrivateKey(const EC_KEY* key);
+  static const EC_GROUP* GetGroup(const EC_KEY* key);
+  static int GetGroupName(const EC_KEY* key);
+  static bool Check(const EC_KEY* key);
+
+ private:
+  DeleteFnPtr<EC_KEY, EC_KEY_free> key_;
 };
 
 #ifndef OPENSSL_NO_ENGINE

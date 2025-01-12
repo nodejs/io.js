@@ -12,6 +12,7 @@
 
 namespace node {
 
+using ncrypto::EVPKeyCtxPointer;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
 using v8::JustVoid;

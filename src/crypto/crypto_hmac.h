@@ -36,7 +36,7 @@ class Hmac : public BaseObject {
   static void Sign(const v8::FunctionCallbackInfo<v8::Value>& args);
 
  private:
-  HMACCtxPointer ctx_;
+  ncrypto::HMACCtxPointer ctx_;
 };
 
 struct HmacConfig final : public MemoryRetainer {
