@@ -3578,6 +3578,9 @@ The [`util.toUSVString()`][] API is deprecated. Please use
 <!-- YAML
 changes:
   - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/55862
+    description: End-of-Life.
+  - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/49686
     description: Runtime deprecation.
   - version: v20.8.0
@@ -3585,10 +3588,10 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Runtime
+Type: End-of-Life
 
-`F_OK`, `R_OK`, `W_OK` and `X_OK` getters exposed directly on `node:fs` are
-deprecated. Get them from `fs.constants` or `fs.promises.constants` instead.
+`F_OK`, `R_OK`, `W_OK` and `X_OK` getters exposed directly on `node:fs` were
+removed. Get them from `fs.constants` or `fs.promises.constants` instead.
 
 ### DEP0177: `util.types.isWebAssemblyCompiledModule`
 
