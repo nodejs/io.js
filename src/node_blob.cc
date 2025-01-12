@@ -11,6 +11,7 @@
 #include "path.h"
 #include "permission/permission.h"
 #include "util.h"
+#include "v8-fast-api-calls.h"
 #include "v8.h"
 
 #include <algorithm>
@@ -123,6 +124,36 @@ void BlobFromFilePath(const FunctionCallbackInfo<Value>& args) {
 }
 }  // namespace
 
+// Fast API version
+void FastRevokeObjectURL(v8::Local<Value> receiver,
+                         const v8::FastOneByteString& url_string) {
+  auto out = ada::parse<ada::url_aggregator>(url_string.data);
+
+  if (!out) {
+    return;
+  }
+
+  const auto& pathname = out->get_pathname();
+  auto start_index = pathname.find(':');
+
+  if (start_index != std::string_view::npos &&
+      start_index + 1 < pathname.size()) {
+    auto end_index = pathname.find(':', start_index + 1);
+    if (end_index == std::string_view::npos) {
+      std::string id(pathname.substr(start_index + 1));
+
+      v8::Isolate* isolate = v8::Isolate::GetCurrent();
+      Realm* realm = Realm::GetCurrent(isolate);
+      BlobBindingData* binding_data = realm->GetBindingData<BlobBindingData>();
+
+      binding_data->revoke_data_object(std::move(id));
+    }
+  }
+}
+
+static v8::CFunction fast_revoke_object_url(
+    v8::CFunction::Make(FastRevokeObjectURL));
+
 void Blob::CreatePerIsolateProperties(IsolateData* isolate_data,
                                       Local<ObjectTemplate> target) {
   Isolate* isolate = isolate_data->isolate();
@@ -130,7 +161,12 @@ void Blob::CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethod(isolate, target, "createBlob", New);
   SetMethod(isolate, target, "storeDataObject", StoreDataObject);
   SetMethod(isolate, target, "getDataObject", GetDataObject);
-  SetMethod(isolate, target, "revokeObjectURL", RevokeObjectURL);
+  SetFastMethodNoSideEffect(isolate,
+                            target,
+                            "revokeObjectURL",
+                            RevokeObjectURL,
+                            &fast_revoke_object_url);
+
   SetMethod(isolate, target, "concat", Concat);
   SetMethod(isolate, target, "createBlobFromFilePath", BlobFromFilePath);
 }
@@ -150,8 +186,7 @@ Local<FunctionTemplate> Blob::GetConstructorTemplate(Environment* env) {
     tmpl = NewFunctionTemplate(isolate, nullptr);
     tmpl->InstanceTemplate()->SetInternalFieldCount(
         BaseObject::kInternalFieldCount);
-    tmpl->SetClassName(
-        FIXED_ONE_BYTE_STRING(env->isolate(), "Blob"));
+    tmpl->SetClassName(FIXED_ONE_BYTE_STRING(env->isolate(), "Blob"));
     SetProtoMethod(isolate, tmpl, "getReader", GetReader);
     SetProtoMethod(isolate, tmpl, "slice", ToSlice);
     env->set_blob_constructor_template(tmpl);
@@ -242,8 +277,7 @@ void Blob::New(const FunctionCallbackInfo<Value>& args) {
   }
 
   auto blob = Create(env, DataQueue::CreateIdempotent(std::move(entries)));
-  if (blob)
-    args.GetReturnValue().Set(blob->object());
+  if (blob) args.GetReturnValue().Set(blob->object());
 }
 
 void Blob::GetReader(const FunctionCallbackInfo<Value>& args) {
@@ -265,8 +299,7 @@ void Blob::ToSlice(const FunctionCallbackInfo<Value>& args) {
   size_t start = args[0].As<Uint32>()->Value();
   size_t end = args[1].As<Uint32>()->Value();
   BaseObjectPtr<Blob> slice = blob->Slice(env, start, end);
-  if (slice)
-    args.GetReturnValue().Set(slice->object());
+  if (slice) args.GetReturnValue().Set(slice->object());
 }
 
 void Blob::MemoryInfo(MemoryTracker* tracker) const {
@@ -395,8 +428,7 @@ void Blob::Reader::Pull(const FunctionCallbackInfo<Value>& args) {
       std::move(next), node::bob::OPTIONS_END, nullptr, 0));
 }
 
-BaseObjectPtr<BaseObject>
-Blob::BlobTransferData::Deserialize(
+BaseObjectPtr<BaseObject> Blob::BlobTransferData::Deserialize(
     Environment* env,
     Local<Context> context,
     std::unique_ptr<worker::TransferData> self) {
@@ -418,10 +450,10 @@ std::unique_ptr<worker::TransferData> Blob::CloneForMessaging() const {
 void Blob::StoreDataObject(const v8::FunctionCallbackInfo<v8::Value>& args) {
   Realm* realm = Realm::GetCurrent(args);
 
-  CHECK(args[0]->IsString());  // ID key
+  CHECK(args[0]->IsString());                       // ID key
   CHECK(Blob::HasInstance(realm->env(), args[1]));  // Blob
-  CHECK(args[2]->IsUint32());  // Length
-  CHECK(args[3]->IsString());  // Type
+  CHECK(args[2]->IsUint32());                       // Length
+  CHECK(args[3]->IsString());                       // Type
 
   BlobBindingData* binding_data = realm->GetBindingData<BlobBindingData>();
   Isolate* isolate = realm->isolate();
@@ -435,13 +467,11 @@ void Blob::StoreDataObject(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
   binding_data->store_data_object(
       std::string(*key, key.length()),
-      BlobBindingData::StoredDataObject(
-        BaseObjectPtr<Blob>(blob),
-        length,
-        std::string(*type, type.length())));
+      BlobBindingData::StoredDataObject(BaseObjectPtr<Blob>(blob),
+                                        length,
+                                        std::string(*type, type.length())));
 }
 
-// TODO(@anonrig): Add V8 Fast API to the following function
 void Blob::RevokeObjectURL(const FunctionCallbackInfo<Value>& args) {
   CHECK_GE(args.Length(), 1);
   CHECK(args[0]->IsString());
@@ -502,12 +532,8 @@ void BlobBindingData::StoredDataObject::MemoryInfo(
 }
 
 BlobBindingData::StoredDataObject::StoredDataObject(
-    const BaseObjectPtr<Blob>& blob_,
-    size_t length_,
-    const std::string& type_)
-    : blob(blob_),
-      length(length_),
-      type(type_) {}
+    const BaseObjectPtr<Blob>& blob_, size_t length_, const std::string& type_)
+    : blob(blob_), length(length_), type(type_) {}
 
 BlobBindingData::BlobBindingData(Realm* realm, Local<Object> wrap)
     : SnapshotableObject(realm, wrap, type_int) {
@@ -521,8 +547,7 @@ void BlobBindingData::MemoryInfo(MemoryTracker* tracker) const {
 }
 
 void BlobBindingData::store_data_object(
-    const std::string& uuid,
-    const BlobBindingData::StoredDataObject& object) {
+    const std::string& uuid, const BlobBindingData::StoredDataObject& object) {
   data_objects_[uuid] = object;
 }
 
@@ -537,8 +562,7 @@ void BlobBindingData::revoke_data_object(const std::string& uuid) {
 BlobBindingData::StoredDataObject BlobBindingData::get_data_object(
     const std::string& uuid) {
   auto entry = data_objects_.find(uuid);
-  if (entry == data_objects_.end())
-    return BlobBindingData::StoredDataObject {};
+  if (entry == data_objects_.end()) return BlobBindingData::StoredDataObject{};
   return entry->second;
 }
 
@@ -578,8 +602,10 @@ void Blob::RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(Blob::Reader::Pull);
   registry->Register(Concat);
   registry->Register(BlobFromFilePath);
-}
 
+  registry->Register(FastRevokeObjectURL);
+  registry->Register(fast_revoke_object_url.GetTypeInfo());
+}
 }  // namespace node
 
 NODE_BINDING_CONTEXT_AWARE_INTERNAL(blob,
