@@ -816,6 +816,10 @@ void DefineCryptoConstants(Local<Object> target) {
     NODE_DEFINE_CONSTANT(target, OPENSSL_VERSION_NUMBER);
 #endif
 
+#ifdef OPENSSL_IS_BORINGSSL
+    NODE_DEFINE_CONSTANT(target, OPENSSL_IS_BORINGSSL);
+#endif
+
 #ifdef SSL_OP_ALL
     NODE_DEFINE_CONSTANT(target, SSL_OP_ALL);
 #endif
