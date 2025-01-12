@@ -32,6 +32,7 @@
 namespace node {
 namespace v8_utils {
 using v8::Array;
+using v8::CFunction;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
@@ -237,6 +238,23 @@ void SetFlagsFromString(const FunctionCallbackInfo<Value>& args) {
   String::Utf8Value flags(args.GetIsolate(), args[0]);
   V8::SetFlagsFromString(*flags, static_cast<size_t>(flags.length()));
 }
+
+static void IsStringOneByteRepresentation(
+    const FunctionCallbackInfo<Value>& args) {
+  CHECK_EQ(args.Length(), 1);
+  CHECK(args[0]->IsString());
+  bool is_one_byte = args[0].As<String>()->IsOneByte();
+  args.GetReturnValue().Set(is_one_byte);
+}
+
+static bool FastIsStringOneByteRepresentation(Local<Value> receiver,
+                                              const Local<Value> target) {
+  CHECK(target->IsString());
+  return target.As<String>()->IsOneByte();
+}
+
+CFunction fast_is_string_one_byte_representation_(
+    CFunction::Make(FastIsStringOneByteRepresentation));
 
 static const char* GetGCTypeName(v8::GCType gc_type) {
   switch (gc_type) {
@@ -479,6 +497,13 @@ void Initialize(Local<Object> target,
   // Export symbols used by v8.setFlagsFromString()
   SetMethod(context, target, "setFlagsFromString", SetFlagsFromString);
 
+  // Export symbols used by v8.isStringOneByteRepresentation()
+  SetFastMethodNoSideEffect(context,
+                            target,
+                            "isStringOneByteRepresentation",
+                            IsStringOneByteRepresentation,
+                            &fast_is_string_one_byte_representation_);
+
   // GCProfiler
   Local<FunctionTemplate> t =
       NewFunctionTemplate(env->isolate(), GCProfiler::New);
@@ -498,6 +523,9 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GCProfiler::New);
   registry->Register(GCProfiler::Start);
   registry->Register(GCProfiler::Stop);
+  registry->Register(IsStringOneByteRepresentation);
+  registry->Register(FastIsStringOneByteRepresentation);
+  registry->Register(fast_is_string_one_byte_representation_.GetTypeInfo());
 }
 
 }  // namespace v8_utils
