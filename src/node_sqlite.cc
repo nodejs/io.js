@@ -287,11 +287,13 @@ class BackupJob : public ThreadPoolWork {
   void Cleanup() {
     if (pBackup_) {
       sqlite3_backup_finish(pBackup_);
+      pBackup_ = nullptr;
     }
 
     if (pDest_) {
       backup_status_ = sqlite3_errcode(pDest_);
       sqlite3_close(pDest_);
+      pDest_ = nullptr;
     }
   }
 
