@@ -572,9 +572,9 @@ void SlowCopy(const FunctionCallbackInfo<Value>& args) {
   ArrayBufferViewContents<char> source(args[0]);
   SPREAD_BUFFER_ARG(args[1].As<Object>(), target);
 
-  const auto target_start = args[2]->Uint32Value(env->context()).ToChecked();
-  const auto source_start = args[3]->Uint32Value(env->context()).ToChecked();
-  const auto to_copy = args[4]->Uint32Value(env->context()).ToChecked();
+  const auto target_start = args[2]->IntegerValue(env->context()).ToChecked();
+  const auto source_start = args[3]->IntegerValue(env->context()).ToChecked();
+  const auto to_copy = args[4]->IntegerValue(env->context()).ToChecked();
 
   memmove(target_data + target_start, source.data() + source_start, to_copy);
   args.GetReturnValue().Set(to_copy);
