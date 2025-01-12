@@ -241,7 +241,7 @@ Consult previous versions of this document for older versions of Node.js:
 
 Installation via Linux package manager can be achieved with:
 
-* Ubuntu, Debian: `sudo apt-get install python3 g++ make python3-pip`
+* Ubuntu, Debian: `sudo apt-get install python3 g++-12 gcc-12 make python3-pip`
 * Fedora: `sudo dnf install python3 gcc-c++ make python3-pip`
 * CentOS and RHEL: `sudo yum install python3 gcc-c++ make python3-pip`
 * OpenSUSE: `sudo zypper install python3 gcc-c++ make python3-pip`
@@ -269,6 +269,7 @@ fail.
 To build Node.js:
 
 ```bash
+export CXX=g++-12
 ./configure
 make -j4
 ```
