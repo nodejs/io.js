@@ -536,7 +536,7 @@ changes:
 * `options` {Object}
   * `cwd` {string|URL} Current working directory of the child process.
   * `detached` {boolean} Prepare child process to run independently of its
-    parent process. Specific behavior depends on the platform, see
+    parent process. Specific behavior depends on the platform (see
     [`options.detached`][]).
   * `env` {Object} Environment key-value pairs. **Default:** `process.env`.
   * `execPath` {string} Executable used to create the child process.
@@ -688,7 +688,7 @@ changes:
   * `stdio` {Array|string} Child's stdio configuration (see
     [`options.stdio`][`stdio`]).
   * `detached` {boolean} Prepare child process to run independently of
-    its parent process. Specific behavior depends on the platform, see
+    its parent process. Specific behavior depends on the platform (see
     [`options.detached`][]).
   * `uid` {number} Sets the user identity of the process (see setuid(2)).
   * `gid` {number} Sets the group identity of the process (see setgid(2)).
