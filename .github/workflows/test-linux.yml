@@ -7,6 +7,9 @@ on:
       - .github/**
       - '!.github/workflows/test-linux.yml'
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - '**.md'
+      - 'doc/**'
   push:
     branches:
       - main
