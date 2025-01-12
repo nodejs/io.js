@@ -1426,11 +1426,6 @@ bool LoadSnapshotData(const SnapshotData** snapshot_data_ptr) {
 }
 
 static ExitCode StartInternal(int argc, char** argv) {
-  CHECK_GT(argc, 0);
-
-  // Hack around with the argv pointer. Used for process.title = "blah".
-  argv = uv_setup_args(argc, argv);
-
   std::shared_ptr<InitializationResultImpl> result =
       InitializeOncePerProcessInternal(
           std::vector<std::string>(argv, argv + argc));
@@ -1489,8 +1484,22 @@ static ExitCode StartInternal(int argc, char** argv) {
 }
 
 int Start(int argc, char** argv) {
+  CHECK_GT(argc, 0);
+
+  // Hack around with the argv pointer. Used for process.title = "blah".
+  argv = uv_setup_args(argc, argv);
+
 #ifndef DISABLE_SINGLE_EXECUTABLE_APPLICATION
-  std::tie(argc, argv) = sea::FixupArgsForSEA(argc, argv);
+  char** new_argv = nullptr;
+  std::tie(argc, new_argv) = sea::FixupArgsForSEA(argc, argv);
+
+#ifdef _WIN32
+  if (new_argv != argv) {
+    delete[] argv;
+  }
+#endif
+
+  argv = new_argv;
 #endif
   return static_cast<int>(StartInternal(argc, argv));
 }
