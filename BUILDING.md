@@ -116,7 +116,7 @@ platforms. This is true regardless of entries in the table below.
 | Windows          | arm64            | >= Windows 10                     | Tier 2       |                                      |
 | macOS            | x64              | >= 11.0                           | Tier 1       | For notes about compilation see [^4] |
 | macOS            | arm64            | >= 11.0                           | Tier 1       |                                      |
-| SmartOS          | x64              | >= 18                             | Tier 2       |                                      |
+| SmartOS          | x64              | >= 18                             | Experimental |                                      |
 | AIX              | ppc64be >=power8 | >= 7.2 TL04                       | Tier 2       |                                      |
 | FreeBSD          | x64              | >= 13.2                           | Experimental |                                      |
 
