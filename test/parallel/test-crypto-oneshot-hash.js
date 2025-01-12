@@ -31,6 +31,9 @@ const methods = crypto.getHashes();
 const input = fs.readFileSync(fixtures.path('utf8_test_text.txt'));
 
 for (const method of methods) {
+  // Skip failing tests on OpenSSL 3.4.0
+  if (method.startsWith('shake') && common.hasOpenSSL(3, 4))
+    continue;
   for (const outputEncoding of ['buffer', 'hex', 'base64', undefined]) {
     const oldDigest = crypto.createHash(method).update(input).digest(outputEncoding || 'hex');
     const digestFromBuffer = crypto.hash(method, input, outputEncoding);
