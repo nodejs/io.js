@@ -126,6 +126,43 @@ does not exist, the wildcard will not be added, and access will be limited to
 yet, make sure to explicitly include the wildcard:
 `/my-path/folder-do-not-exist/*`.
 
+#### Using the Permission Model with `npx`
+
+If you're using [`npx`][] to execute a Node.js script, you can enable the
+Permission Model by passing the `--node-options` flag. For example:
+
+```bash
+npx --node-options="--permission" package-name
+```
+
+This sets the `NODE_OPTIONS` environment variable for all Node.js processes
+spawned by [`npx`][], without affecting the `npx` process itself.
+
+**FileSystemRead Error with `npx`**
+
+The above command will likely throw a `FileSystemRead` invalid access error
+because Node.js requires file system read access to locate and execute the
+package. To avoid this:
+
+1. **Using a Globally Installed Package**
+   Grant read access to the global `node_modules` directory by running:
+
+   ```bash
+   npx --node-options="--permission --allow-fs-read=$(npm prefix -g)" package-name
+   ```
+
+2. **Using the `npx` Cache**
+   If you are installing the package temporarily or relying on the `npx` cache,
+   grant read access to the npm cache directory:
+
+   ```bash
+   npx --node-options="--permission --allow-fs-read=$(npm config get cache)" package-name
+   ```
+
+Any arguments you would normally pass to `node` (e.g., `--allow-*` flags) can
+also be passed through the `--node-options` flag. This flexibility makes it
+easy to configure permissions as needed when using `npx`.
+
 #### Permission Model constraints
 
 There are constraints you need to know before using this system:
@@ -166,4 +203,5 @@ There are constraints you need to know before using this system:
 [`--allow-wasi`]: cli.md#--allow-wasi
 [`--allow-worker`]: cli.md#--allow-worker
 [`--permission`]: cli.md#--permission
+[`npx`]: https://docs.npmjs.com/cli/commands/npx
 [`permission.has()`]: process.md#processpermissionhasscope-reference
