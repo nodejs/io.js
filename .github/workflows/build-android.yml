@@ -1,0 +1,63 @@
+name: Build Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      ndkVersion:
+        description: Android NDK Version (e.g., r26b)
+        required: true
+        default: r26b
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - .mailmap
+      - '**.md'
+      - AUTHORS
+      - doc/**
+      - .github/**
+      - '!.github/workflows/build-android.yml'
+  push:
+    branches:
+      - main
+      - v[0-9]+.x-staging
+      - v[0-9]+.x
+    paths-ignore:
+      - .mailmap
+      - '**.md'
+      - AUTHORS
+      - doc/**
+      - .github/**
+      - '!.github/workflows/build-android.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.11'
+  ARCH: x86_64
+  API_LEVEL: '34'
+
+permissions:
+  contents: read
+
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11  # v4.1.1
+        with:
+          persist-credentials: false
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Download Android NDK
+        run: |
+          wget https://dl.google.com/android/repository/android-ndk-${{ github.event.inputs.ndkVersion }}-linux.zip
+          unzip android-ndk-${{ github.event.inputs.ndkVersion }}-linux.zip -d ${{ github.workspace }}
+          echo "NDK_PATH=${{ github.workspace }}/android-ndk-${{ github.event.inputs.ndkVersion }}" >> $GITHUB_ENV
+      - name: Configure and Build
+        run: |
+          ./android-configure $NDK_PATH $API_LEVEL $ARCH && make -j4
