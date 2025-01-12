@@ -287,7 +287,6 @@ class BackupJob : public ThreadPoolWork {
     }
   }
 
- private:
   void Cleanup() {
     if (pBackup_) {
       sqlite3_backup_finish(pBackup_);
@@ -299,7 +298,7 @@ class BackupJob : public ThreadPoolWork {
     }
   }
 
-  // https://github.com/nodejs/node/blob/649da3b8377e030ea7b9a1bc0308451e26e28740/src/crypto/crypto_keygen.h#L126
+ private:
   int backup_status_;
   Environment* env() const { return env_; }
   sqlite3* pDest_;
@@ -459,6 +458,7 @@ void DatabaseSync::DeleteSessions() {
 DatabaseSync::~DatabaseSync() {
   if (IsOpen()) {
     FinalizeStatements();
+    FinalizeBackups();
     DeleteSessions();
     sqlite3_close_v2(connection_);
     connection_ = nullptr;
@@ -519,6 +519,14 @@ bool DatabaseSync::Open() {
   }
 
   return true;
+}
+
+void DatabaseSync::FinalizeBackups() {
+  for (auto backup : backups_) {
+    backup->Cleanup();
+  }
+
+  backups_.clear();
 }
 
 void DatabaseSync::FinalizeStatements() {
@@ -825,6 +833,7 @@ void DatabaseSync::Backup(const FunctionCallbackInfo<Value>& args) {
 
   BackupJob* job = new BackupJob(
       env, db, resolver, source_db, *destFilename, dest_db, rate, progressFunc);
+  db->backups_.insert(job);
   job->ScheduleBackup();
 }
 
