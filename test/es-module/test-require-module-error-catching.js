@@ -17,5 +17,5 @@ assert.throws(() => {
   require('../fixtures/es-modules/reference-error-esm.js');
 }, {
   name: 'ReferenceError',
-  message: 'exports is not defined'
+  message: 'exports is not defined in ES module scope'
 });
