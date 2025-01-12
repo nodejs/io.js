@@ -1102,6 +1102,22 @@ The post content can be as simple as:
 > …
 > something here about notable changes
 
+You can create the PR for the release post on nodejs/bluesky with the following:
+
+```bash
+# Create a PR for a post:
+gh workflow run create-pr.yml --repo "https://github.com/nodejs/bluesky" \
+  -F prTitle='vx.x.x release announcement' \
+  -F richText='Node.js vx.x.x is out. Check the blog post at https://nodejs.org/…. TL;DR is
+
+- New feature
+- …'
+
+# Create a PR for a retweet:
+gh workflow run create-pr.yml --repo "https://github.com/nodejs/bluesky" \
+  -F prTitle='Retweet vx.x.x release announcement' -F postURL=…
+```
+
 <details>
 <summary>Security release</summary>
 
