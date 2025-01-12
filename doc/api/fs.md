@@ -477,11 +477,14 @@ Reads data from the file and stores that in the given buffer.
 If the file is not modified concurrently, the end-of-file is reached when the
 number of bytes read is zero.
 
-#### `filehandle.readableWebStream([options])`
+#### `filehandle.readableWebStream()`
 
 <!-- YAML
 added: v17.0.0
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/55461
+    description: Removed option to create a 'bytes' stream. Streams are now always 'bytes' streams.
   - version:
     - v20.0.0
     - v18.17.0
@@ -491,13 +494,10 @@ changes:
 
 > Stability: 1 - Experimental
 
-* `options` {Object}
-  * `type` {string|undefined} Whether to open a normal or a `'bytes'` stream.
-    **Default:** `undefined`
-
 * Returns: {ReadableStream}
 
-Returns a `ReadableStream` that may be used to read the files data.
+Returns a byte-oriented `ReadableStream` that may be used to read the file's
+contents.
 
 An error will be thrown if this method is called more than once or is called
 after the `FileHandle` is closed or closing.
