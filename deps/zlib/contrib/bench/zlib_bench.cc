@@ -18,17 +18,18 @@
  *   g++|clang++ -O3 -Wall -std=c++11 zlib_bench.cc -lstdc++ -lz
  */
 
-#include <algorithm>
-#include <chrono>
-#include <fstream>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include <memory.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <algorithm>
+#include <chrono>
+#include <fstream>
+#include <memory>
+#include <new>
+#include <string>
+#include <vector>
 
 #include "zlib.h"
 
