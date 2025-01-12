@@ -237,7 +237,8 @@ MaybeLocal<Value> cryptoErrorListToException(
   if (errors.size() > 1) {
     CHECK(exception->IsObject());
     Local<Object> exception_obj = exception.As<Object>();
-    LocalVector<Value> stack(env->isolate(), errors.size() - 1);
+    LocalVector<Value> stack(env->isolate());
+    stack.reserve(errors.size() - 1);
 
     // Iterate over all but the last error in the list.
     auto current = errors.begin();
@@ -255,9 +256,9 @@ MaybeLocal<Value> cryptoErrorListToException(
     Local<v8::Array> stackArray =
         v8::Array::New(env->isolate(), stack.data(), stack.size());
 
-    if (!exception_obj
-             ->Set(env->context(), env->openssl_error_stack(), stackArray)
-             .IsNothing()) {
+    if (exception_obj
+            ->Set(env->context(), env->openssl_error_stack(), stackArray)
+            .IsNothing()) {
       return {};
     }
   }
