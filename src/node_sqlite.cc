@@ -182,7 +182,7 @@ class BackupJob : public ThreadPoolWork {
     Local<Object> e = Local<Object>();
 
     if (backup_status_ != SQLITE_OK) {
-      CreateSQLiteError(isolate, pDest_).ToLocal(&e);
+      e = CreateSQLiteError(isolate, pDest_).ToLocalChecked();
 
       Cleanup();
 
@@ -195,7 +195,7 @@ class BackupJob : public ThreadPoolWork {
         pDest_, dest_db_.c_str(), source_->Connection(), source_db_.c_str());
 
     if (pBackup_ == nullptr) {
-      CreateSQLiteError(isolate, pDest_).ToLocal(&e);
+      e = CreateSQLiteError(isolate, pDest_).ToLocalChecked();
 
       sqlite3_close(pDest_);
 
@@ -209,8 +209,6 @@ class BackupJob : public ThreadPoolWork {
 
   void DoThreadPoolWork() override {
     backup_status_ = sqlite3_backup_step(pBackup_, pages_);
-
-    const char* errstr = sqlite3_errstr(backup_status_);
   }
 
   void AfterThreadPoolWork(int status) override {
@@ -227,9 +225,8 @@ class BackupJob : public ThreadPoolWork {
 
     if (!(backup_status_ == SQLITE_OK || backup_status_ == SQLITE_DONE ||
           backup_status_ == SQLITE_BUSY || backup_status_ == SQLITE_LOCKED)) {
-      Local<Object> e = Local<Object>();
-
-      CreateSQLiteError(env()->isolate(), backup_status_).ToLocal(&e);
+      Local<Object> e =
+          CreateSQLiteError(env()->isolate(), backup_status_).ToLocalChecked();
 
       Cleanup();
 
@@ -275,8 +272,8 @@ class BackupJob : public ThreadPoolWork {
             env()->isolate(), "Backup completed", NewStringType::kNormal)
             .ToLocalChecked();
 
-    Local<Object> e = Local<Object>();
-    CreateSQLiteError(env()->isolate(), pDest_).ToLocal(&e);
+    Local<Object> e =
+        CreateSQLiteError(env()->isolate(), pDest_).ToLocalChecked();
 
     Cleanup();
 
@@ -826,8 +823,8 @@ void DatabaseSync::Backup(const FunctionCallbackInfo<Value>& args) {
   }
 
   Local<Promise::Resolver> resolver = Promise::Resolver::New(env->context())
-    .ToLocalChecked()
-    .As<Promise::Resolver>();
+                                          .ToLocalChecked()
+                                          .As<Promise::Resolver>();
 
   args.GetReturnValue().Set(resolver->GetPromise());
 

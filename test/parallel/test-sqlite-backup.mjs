@@ -1,4 +1,4 @@
-import common from '../common/index.js';
+import * as common from '../common/index.mjs';
 import tmpdir from '../common/tmpdir.js';
 import { join } from 'path';
 import { DatabaseSync } from 'node:sqlite';
@@ -58,7 +58,8 @@ test('database backup', async (t) => {
   const backup = new DatabaseSync(destDb);
   const rows = backup.prepare('SELECT * FROM data').all();
 
-  // The source database has two pages - using the default page size -, so the progress function should be called once (the last call is not made since
+  // The source database has two pages - using the default page size -,
+  // so the progress function should be called once (the last call is not made since
   // the promise resolves)
   t.assert.strictEqual(progressFn.mock.calls.length, 1);
   t.assert.deepStrictEqual(rows, [
@@ -80,4 +81,3 @@ test('database backup fails when dest file is not writable', (t) => {
     message: 'attempt to write a readonly database'
   }));
 });
-
