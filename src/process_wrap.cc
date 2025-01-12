@@ -122,6 +122,17 @@ class ProcessWrap : public HandleWrap {
     for (uint32_t i = 0; i < len; i++) {
       Local<Object> stdio =
           stdios->Get(context, i).ToLocalChecked().As<Object>();
+
+      // Never trust the user's input.
+      // If for some reason the stdio object is not an object, we will
+      // create a new object with the type set to 'ignore'.
+      // Refs: https://github.com/nodejs/node/issues/55932
+      if (!stdio->IsObject()) {
+        stdio = Object::New(env->isolate());
+        stdio->Set(context, env->type_string(), env->ignore_string())
+            .FromJust();
+      }
+
       Local<Value> type =
           stdio->Get(context, env->type_string()).ToLocalChecked();
 
