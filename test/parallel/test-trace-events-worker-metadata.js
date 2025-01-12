@@ -23,7 +23,7 @@ if (isMainThread) {
       assert(traces.length > 0);
       assert(traces.some((trace) =>
         trace.cat === '__metadata' && trace.name === 'thread_name' &&
-          trace.args.name === '[worker 1]'));
+          trace.args.name === '[worker 1] WorkerThread'));
     }));
   }));
 } else {

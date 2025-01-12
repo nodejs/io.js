@@ -25,6 +25,7 @@ struct PlatformWorkerData {
 };
 
 static void PlatformWorkerThread(void* data) {
+  uv_thread_setname("V8Worker");
   std::unique_ptr<PlatformWorkerData>
       worker_data(static_cast<PlatformWorkerData*>(data));
 

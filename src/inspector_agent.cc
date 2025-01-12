@@ -79,6 +79,7 @@ static void StartIoThreadWakeup(int signo, siginfo_t* info, void* ucontext) {
 }
 
 inline void* StartIoThreadMain(void* unused) {
+  uv_thread_setname("SignalInspector");
   for (;;) {
     uv_sem_wait(&start_io_thread_semaphore);
     Mutex::ScopedLock lock(start_io_thread_async_mutex);

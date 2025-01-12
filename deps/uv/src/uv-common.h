@@ -428,4 +428,18 @@ struct uv__loop_internal_fields_s {
 #endif  /* __linux__ */
 };
 
+#if defined(_WIN32)
+# define UV_PTHREAD_MAX_NAMELEN_NP 32767
+#elif defined(__APPLE__)
+# define UV_PTHREAD_MAX_NAMELEN_NP 64
+#elif defined(__NetBSD__) || defined(__illumos__)
+# define UV_PTHREAD_MAX_NAMELEN_NP PTHREAD_MAX_NAMELEN_NP
+#elif defined (__linux__)
+# define UV_PTHREAD_MAX_NAMELEN_NP 16
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+# define UV_PTHREAD_MAX_NAMELEN_NP (MAXCOMLEN + 1)
+#else
+# define UV_PTHREAD_MAX_NAMELEN_NP 16
+#endif
+
 #endif /* UV_COMMON_H_ */
