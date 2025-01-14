@@ -128,6 +128,26 @@ inline void THROW_ERR_SQLITE_ERROR(Isolate* isolate, int errcode) {
   isolate->ThrowException(error);
 }
 
+class CustomAggregate {
+  public:
+    explicit CustomAggregate(Environment* env, Local<Function> fn)
+      : env_(env), fn_(env->isolate(), fn) {}
+
+    static void xStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {}
+
+    static void xFinal(sqlite3_context* ctx) {}
+
+    static void xValue(sqlite3_context* ctx) {}
+
+    static void xInverse(sqlite3_context* ctx, int argc, sqlite3_value** argv) {}
+
+    static void xDestroy(void* self) {}
+
+  private:
+    Environment* env_;
+    Global<Function> fn_;
+}
+
 class UserDefinedFunction {
  public:
   explicit UserDefinedFunction(Environment* env,
@@ -675,6 +695,29 @@ void DatabaseSync::CustomFunction(const FunctionCallbackInfo<Value>& args) {
                                      nullptr,
                                      nullptr,
                                      UserDefinedFunction::xDestroy);
+  CHECK_ERROR_OR_THROW(env->isolate(), db->connection_, r, SQLITE_OK, void());
+}
+
+// database.aggregate(name, { start, step, inverse, result })
+void DatabaseSync::AggregateFunction(const FunctionCallbackInfo<Value>& args) {
+  DatabaseSync* db;
+  ASSIGN_OR_RETURN_UNWRAP(&db, args.This());
+  Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_ON_BAD_STATE(env, !db->IsOpen(), "database is not open");
+
+  Utf8Value name(env->isolate(), args[0].As<String>());
+  Local<Object> options = args[1].As<Object>();
+
+  int r = sqlite3_create_window_function(db->connection_,
+      *name,
+      int nArg,
+      int eTextRep,
+      void *pApp,
+      void (*xStep)(sqlite3_context *, int, sqlite3_value **),
+      void (*xFinal)(sqlite3_context *), void (*xValue)(sqlite3_context *),
+      void (*xInverse)(sqlite3_context *, int, sqlite3_value **),
+      void (*xDestroy)(void *));
+
   CHECK_ERROR_OR_THROW(env->isolate(), db->connection_, r, SQLITE_OK, void());
 }
 
@@ -1719,6 +1762,7 @@ static void Initialize(Local<Object> target,
   SetProtoMethod(isolate, db_tmpl, "prepare", DatabaseSync::Prepare);
   SetProtoMethod(isolate, db_tmpl, "exec", DatabaseSync::Exec);
   SetProtoMethod(isolate, db_tmpl, "function", DatabaseSync::CustomFunction);
+  SetProtoMethod(isolate, db_tmpl, "aggregate", DatabaseSync::AggregateFunction);
   SetProtoMethod(
       isolate, db_tmpl, "createSession", DatabaseSync::CreateSession);
   SetProtoMethod(
