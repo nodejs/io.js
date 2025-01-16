@@ -27,7 +27,7 @@
 
     'clang%': 0,
     'error_on_warn%': 'false',
-    'cfg%': 'false',
+    'control_flow_guard%': 'false',
 
     'openssl_product': '<(STATIC_LIB_PREFIX)openssl<(STATIC_LIB_SUFFIX)',
     'openssl_no_asm%': 0,
