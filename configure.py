@@ -791,7 +791,7 @@ parser.add_argument('--without-corepack',
     default=None,
     help='do not install the bundled Corepack')
 
-parser.add_argument('--cfg',
+parser.add_argument('--control-flow-guard',
     action='store_true',
     dest='enable_cfg',
     default=None,
