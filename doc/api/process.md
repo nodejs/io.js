@@ -4222,6 +4222,25 @@ Thrown:
 [DeprecationWarning: test] { name: 'DeprecationWarning' }
 ```
 
+## `process.threadCpuUsage([previousValue])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* `previousValue` {Object} A previous return value from calling
+  `process.cpuUsage()`
+* Returns: {Object}
+  * `user` {integer}
+  * `system` {integer}
+
+The `process.threadCpuUsage()` method returns the user and system CPU time usage of
+the current worker thread, in an object with properties `user` and `system`, whose
+values are microsecond values (millionth of a second).
+
+The result of a previous call to `process.threadCpuUsage()` can be passed as the
+argument to the function, to get a diff reading.
+
 ## `process.title`
 
 <!-- YAML
