@@ -2077,7 +2077,7 @@ added: v5.3.0
 changes:
   - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
+    description: supports Uint8Array as `this` value.
 -->
 
 * `value` {string|Buffer|Uint8Array|integer} What to search for.
@@ -2965,13 +2965,14 @@ console.log(buf.readInt32LE(1));
 <!-- YAML
 added: v0.11.15
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56578
+    description: supports Uint8Array as `this` value.
   - version: v10.0.0
     pr-url: https://github.com/nodejs/node/pull/18395
     description: Removed `noAssert` and no implicit coercion of the offset
                  and `byteLength` to `uint32` anymore.
-  - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
+
 -->
 
 * `offset` {integer} Number of bytes to skip before starting to read. Must
@@ -3015,13 +3016,14 @@ console.log(buf.readIntBE(1, 0).toString(16));
 <!-- YAML
 added: v0.11.15
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56578
+    description: supports Uint8Array as `this` value.
   - version: v10.0.0
     pr-url: https://github.com/nodejs/node/pull/18395
     description: Removed `noAssert` and no implicit coercion of the offset
                  and `byteLength` to `uint32` anymore.
-  - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
+
 -->
 
 * `offset` {integer} Number of bytes to skip before starting to read. Must
@@ -3295,6 +3297,9 @@ console.log(buf.readUInt32LE(1).toString(16));
 <!-- YAML
 added: v0.11.15
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56578
+    description: supports Uint8Array as `this` value.
   - version:
     - v14.9.0
     - v12.19.0
@@ -3304,9 +3309,6 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/18395
     description: Removed `noAssert` and no implicit coercion of the offset
                  and `byteLength` to `uint32` anymore.
-  - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
 -->
 
 * `offset` {integer} Number of bytes to skip before starting to read. Must
@@ -3348,6 +3350,9 @@ console.log(buf.readUIntBE(1, 6).toString(16));
 <!-- YAML
 added: v0.11.15
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56578
+    description: supports Uint8Array as `this` value.
   - version:
     - v14.9.0
     - v12.19.0
@@ -3357,9 +3362,6 @@ changes:
     pr-url: https://github.com/nodejs/node/pull/18395
     description: Removed `noAssert` and no implicit coercion of the offset
                  and `byteLength` to `uint32` anymore.
-  - version: REPLACEME
-    pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
 -->
 
 * `offset` {integer} Number of bytes to skip before starting to read. Must
@@ -3806,7 +3808,7 @@ added: v0.1.90
 changes:
   - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
+    description: supports Uint8Array as `this` value.
 -->
 
 * `encoding` {string} The character encoding to use. **Default:** `'utf8'`.
@@ -3948,7 +3950,7 @@ added: v0.1.90
 changes:
   - version: REPLACEME
     pr-url: https://github.com/nodejs/node/pull/56578
-    description: supports Uint8Array as `this` value
+    description: supports Uint8Array as `this` value.
 -->
 
 * `string` {string} String to write to `buf`.
