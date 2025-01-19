@@ -186,12 +186,8 @@ Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fail
 		<testcase name="level 1c" time="*" classname="test"/>
 		<testcase name="level 1d" time="*" classname="test"/>
 	</testsuite>
-	<testsuite name="top level" time="*" disabled="0" errors="0" tests="2" failures="1" skipped="0" hostname="HOSTNAME">
-		<testcase name="+long running" time="*" classname="test" failure="test did not finish before its parent and was cancelled">
-			<failure type="cancelledByParent" message="test did not finish before its parent and was cancelled">
-[Error [ERR_TEST_FAILURE]: test did not finish before its parent and was cancelled] { code: 'ERR_TEST_FAILURE', failureType: 'cancelledByParent', cause: 'test did not finish before its parent and was cancelled' }
-			</failure>
-		</testcase>
+	<testsuite name="top level" time="*" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="HOSTNAME">
+		<testcase name="+long running" time="*" classname="test"/>
 		<testsuite name="+short running" time="*" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="HOSTNAME">
 			<testcase name="++short running" time="*" classname="test"/>
 		</testsuite>
@@ -519,9 +515,9 @@ Error [ERR_TEST_FAILURE]: test could not be started because its parent finished
 	<!-- Error: Test "callback async throw after done" at test/fixtures/test-runner/output/output.js:269:1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
 	<!-- tests 75 -->
 	<!-- suites 0 -->
-	<!-- pass 34 -->
-	<!-- fail 25 -->
-	<!-- cancelled 3 -->
+	<!-- pass 36 -->
+	<!-- fail 24 -->
+	<!-- cancelled 2 -->
 	<!-- skipped 9 -->
 	<!-- todo 4 -->
 	<!-- duration_ms * -->

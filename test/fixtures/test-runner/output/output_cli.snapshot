@@ -288,14 +288,10 @@ ok 23 - level 0a
   ...
 # Subtest: top level
     # Subtest: +long running
-    not ok 1 - +long running
+    ok 1 - +long running
       ---
       duration_ms: *
       type: 'test'
-      location: '/test/fixtures/test-runner/output/output.js:(LINE):5'
-      failureType: 'cancelledByParent'
-      error: 'test did not finish before its parent and was cancelled'
-      code: 'ERR_TEST_FAILURE'
       ...
     # Subtest: +short running
         # Subtest: ++short running
@@ -311,14 +307,10 @@ ok 23 - level 0a
       type: 'test'
       ...
     1..2
-not ok 24 - top level
+ok 24 - top level
   ---
   duration_ms: *
   type: 'test'
-  location: '/test/fixtures/test-runner/output/output.js:(LINE):1'
-  failureType: 'subtestsFailed'
-  error: '1 subtest failed'
-  code: 'ERR_TEST_FAILURE'
   ...
 # Subtest: invalid subtest - pass but subtest fails
 ok 25 - invalid subtest - pass but subtest fails
@@ -801,9 +793,9 @@ ok 63 - last test
 1..63
 # tests 77
 # suites 0
-# pass 36
-# fail 25
-# cancelled 3
+# pass 38
+# fail 24
+# cancelled 2
 # skipped 9
 # todo 4
 # duration_ms *

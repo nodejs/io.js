@@ -1,5 +1,5 @@
 ..XX...X..XXX.X.....
-XXX.....X..X...X....
+XXX............X....
 .....X...XXX.XX.....
 XXXXXXX...XXXXX
 
@@ -93,10 +93,6 @@ Failed tests:
   '1 subtest failed'
 ✖ sync throw non-error fail (*ms)
   Symbol(thrown symbol from sync throw non-error fail)
-✖ +long running (*ms)
-  'test did not finish before its parent and was cancelled'
-✖ top level (*ms)
-  '1 subtest failed'
 ✖ sync skip option is false fail (*ms)
   Error: this should be executed
       *
