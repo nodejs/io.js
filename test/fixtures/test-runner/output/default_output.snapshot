@@ -1,32 +1,9 @@
 [32m✔ should pass [90m(*ms)[39m[39m
 [31m✖ should fail [90m(*ms)[39m[39m
-  Error: fail
-      *[39m
-  *[39m
-  *[39m
-  *[39m
-  *[39m
-  *[39m
-  *[39m
-
 [90m﹣ should skip [90m(*ms)[39m # SKIP[39m
 ▶ parent
   [31m✖ should fail [90m(*ms)[39m[39m
-    Error: fail
-        *[39m
-    *[39m
-    *[39m
-    *[39m
-    *[39m
-        *[39m
-    *[39m
-    *[39m
-    *[39m
-    *[39m
-
   [31m✖ should pass but parent fail [90m(*ms)[39m[39m
-    [32m'test did not finish before its parent and was cancelled'[39m
-
 [31m✖ parent [90m(*ms)[39m[39m
 [34mℹ tests 6[39m
 [34mℹ suites 0[39m

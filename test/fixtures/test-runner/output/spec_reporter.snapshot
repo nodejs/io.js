@@ -1,91 +1,19 @@
  sync pass todo (*ms) # TODO
  sync pass todo with message (*ms) # this is a passing todo
  sync fail todo (*ms) # TODO
-  Error: thrown from sync fail todo
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  sync fail todo with message (*ms) # this is a failing todo
-  Error: thrown from sync fail todo with message
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  sync skip pass (*ms) # SKIP
  sync skip pass with message (*ms) # this is skipped
  sync pass (*ms)
  this test should pass
  sync throw fail (*ms)
-  Error: thrown from sync throw fail
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  async skip pass (*ms) # SKIP
  async pass (*ms)
  async throw fail (*ms)
-  Error: thrown from async throw fail
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  async skip fail (*ms) # SKIP
-  Error: thrown from async throw fail
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  async assertion fail (*ms)
-  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
-  
-  true !== false
-  
-      *
-      *
-      *
-      *
-      *
-      *
-      * {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: true,
-    expected: false,
-    operator: 'strictEqual'
-  }
-
  resolve pass (*ms)
  reject fail (*ms)
-  Error: rejected from reject fail
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  unhandled rejection - passes but warns (*ms)
  async unhandled rejection - passes but warns (*ms)
  immediate throw - passes but warns (*ms)
@@ -93,23 +21,9 @@
  immediate resolve pass (*ms)
  subtest sync throw fail
    +sync throw fail (*ms)
-    Error: thrown from subtest sync throw fail
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    this subtest should make its parent test fail
  subtest sync throw fail (*ms)
  sync throw non-error fail (*ms)
-  Symbol(thrown symbol from sync throw non-error fail)
-
  level 0a
    level 1a (*ms)
    level 1b (*ms)
@@ -118,8 +32,6 @@
  level 0a (*ms)
  top level
    +long running (*ms)
-    'test did not finish before its parent and was cancelled'
-
    +short running
      ++short running (*ms)
    +short running (*ms)
@@ -128,15 +40,6 @@
  sync skip option (*ms) # SKIP
  sync skip option with message (*ms) # this is skipped
  sync skip option is false fail (*ms)
-  Error: this should be executed
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  <anonymous> (*ms)
  functionOnly (*ms)
  <anonymous> (*ms)
@@ -147,43 +50,15 @@
  functionAndOptions (*ms) # SKIP
  callback pass (*ms)
  callback fail (*ms)
-  Error: callback failure
-      *
-      *
-
  sync t is this in test (*ms)
  async t is this in test (*ms)
  callback t is this in test (*ms)
  callback also returns a Promise (*ms)
-  'passed a callback but also returned a Promise'
-
  callback throw (*ms)
-  Error: thrown from callback throw
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  callback called twice (*ms)
-  'callback invoked multiple times'
-
  callback called twice in different ticks (*ms)
  callback called twice in future tick (*ms)
-  Error [ERR_TEST_FAILURE]: callback invoked multiple times
-      * {
-    code: 'ERR_TEST_FAILURE',
-    failureType: 'multipleCallbackInvocations',
-    cause: 'callback invoked multiple times'
-  }
-
  callback async throw (*ms)
-  Error: thrown from callback async throw
-      *
-      *
-
  callback async throw after done (*ms)
  only is set on subtests but not in only mode
    running subtest 1 (*ms)
@@ -191,108 +66,21 @@
    running subtest 4 (*ms)
  only is set on subtests but not in only mode (*ms)
  custom inspect symbol fail (*ms)
-  customized
-
  custom inspect symbol that throws fail (*ms)
-  { foo: 1, Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]] }
-
  subtest sync throw fails
    sync throw fails at first (*ms)
-    Error: thrown from subtest sync throw fails at first
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    sync throw fails at second (*ms)
-    Error: thrown from subtest sync throw fails at second
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  subtest sync throw fails (*ms)
  timed out async test (*ms)
-  'test timed out after *ms'
-
  timed out callback test (*ms)
-  'test timed out after *ms'
-
  large timeout async test is ok (*ms)
  large timeout callback test is ok (*ms)
  successful thenable (*ms)
  rejected thenable (*ms)
-  'custom error'
-
  unfinished test with uncaughtException (*ms)
-  Error: foo
-      *
-      *
-      *
-
  unfinished test with unhandledRejection (*ms)
-  Error: bar
-      *
-      *
-      *
-
  assertion errors display actual and expected properly (*ms)
-  AssertionError [ERR_ASSERTION]: Expected values to be loosely deep-equal:
-  
-  {
-    bar: 1,
-    baz: {
-      date: 1970-01-01T00:00:00.000Z,
-      null: null,
-      number: 1,
-      string: 'Hello',
-      undefined: undefined
-    },
-    boo: [
-      1
-    ],
-    foo: 1
-  }
-  
-  should loosely deep-equal
-  
-  {
-    baz: {
-      date: 1970-01-01T00:00:00.000Z,
-      null: null,
-      number: 1,
-      string: 'Hello',
-      undefined: undefined
-    },
-    boo: [
-      1
-    ],
-    circular: <ref *1> {
-      bar: 2,
-      c: [Circular *1]
-    }
-  }
-      * {
-    generatedMessage: true,
-    code: 'ERR_ASSERTION',
-    actual: [Object],
-    expected: [Object],
-    operator: 'deepEqual'
-  }
-
  invalid subtest fail (*ms)
-  'test could not be started because its parent finished'
-
  Error: Test "unhandled rejection - passes but warns" at test/fixtures/test-runner/output/output.js:72:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
  Error: Test "async unhandled rejection - passes but warns" at test/fixtures/test-runner/output/output.js:76:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from async unhandled rejection fail" and would have caused the test to fail, but instead triggered an unhandledRejection event.
  Error: A resource generated asynchronous activity after the test ended. This activity created the error "Error: uncaught from outside of a test" which triggered an uncaughtException event, caught by the test runner.

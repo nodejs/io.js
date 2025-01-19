@@ -10,161 +10,29 @@
  describe hooks - no subtests (*ms)
  before throws
    1
-    'test did not finish before its parent and was cancelled'
-
    2
-    'test did not finish before its parent and was cancelled'
-
  before throws (*ms)
-
-  Error: before
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  before throws - no subtests (*ms)
-  Error: before
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  after throws
    1 (*ms)
    2 (*ms)
  after throws (*ms)
-
-  Error: after
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  after throws - no subtests (*ms)
-  Error: after
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  beforeEach throws
    1 (*ms)
-    Error: beforeEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        at new Promise (<anonymous>)
-
    2 (*ms)
-    Error: beforeEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        at async Promise.all (index 0)
-
  beforeEach throws (*ms)
  afterEach throws
    1 (*ms)
-    Error: afterEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        at async Promise.all (index 0)
-        *
-
    2 (*ms)
-    Error: afterEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  afterEach throws (*ms)
  afterEach when test fails
    1 (*ms)
-    Error: test
-        *
-        *
-        *
-        *
-        *
-        *
-        at new Promise (<anonymous>)
-        *
-        *
-        at Array.map (<anonymous>)
-
    2 (*ms)
  afterEach when test fails (*ms)
  afterEach throws and test fails
    1 (*ms)
-    Error: test
-        *
-        *
-        *
-        *
-        *
-        *
-        at new Promise (<anonymous>)
-        *
-        *
-        at Array.map (<anonymous>)
-
    2 (*ms)
-    Error: afterEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  afterEach throws and test fails (*ms)
  test hooks
    1 (*ms)
@@ -177,155 +45,24 @@
  test hooks - no subtests (*ms)
  t.before throws
    1 (*ms)
-    Error: before
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    2 (*ms)
-    Error: before
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  t.before throws (*ms)
-
-  Error: before
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  t.before throws - no subtests (*ms)
-  Error: before
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  t.after throws
    1 (*ms)
    2 (*ms)
  t.after throws (*ms)
-
-  Error: after
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  t.after throws - no subtests (*ms)
-  Error: after
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  t.beforeEach throws
    1 (*ms)
-    Error: beforeEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    2 (*ms)
-    Error: beforeEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  t.beforeEach throws (*ms)
  t.afterEach throws
    1 (*ms)
-    Error: afterEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    2 (*ms)
-    Error: afterEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  t.afterEach throws (*ms)
  afterEach when test fails
    1 (*ms)
-    Error: test
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    2 (*ms)
  afterEach when test fails (*ms)
  afterEach context when test passes
@@ -333,64 +70,16 @@
  afterEach context when test passes (*ms)
  afterEach context when test fails
    1 (*ms)
-    Error: test
-        *
-        *
-        *
-        *
-
  afterEach context when test fails (*ms)
  afterEach throws and test fails
    1 (*ms)
-    Error: test
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
    2 (*ms)
-    Error: afterEach
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-
  afterEach throws and test fails (*ms)
  t.after() is called if test body throws (*ms)
-  Error: bye
-      *
-      *
-      *
-      *
-
  - after() called
  run after when before throws
    1
-    'test did not finish before its parent and was cancelled'
-
  run after when before throws (*ms)
-
-  Error: before
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-      *
-
  test hooks - async
    1 (*ms)
    2 (*ms)
