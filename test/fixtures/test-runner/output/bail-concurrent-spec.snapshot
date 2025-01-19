@@ -1,0 +1,39 @@
+▶ long-running-test.test.mjs
+▶ test-with-setup
+  ✔ awaits second test to start running before passing (*ms)
+  ✖ first (*ms)
+    Error: First test failed
+        *
+        *
+        *
+        *
+        *
+        *
+        at async Promise.all (index 0)
+        *
+        *
+
+✖ Bail out!
+ℹ tests 4
+ℹ suites 1
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 2
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms *
+
+✖ failing tests:
+
+*
+✖ first (*ms)
+  Error: First test failed
+      *
+      *
+      *
+      *
+      *
+      *
+      at async Promise.all (index 0)
+      *
+      *

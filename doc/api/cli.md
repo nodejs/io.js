@@ -2276,6 +2276,17 @@ Starts the Node.js command line test runner. This flag cannot be combined with
 See the documentation on [running tests from the command line][]
 for more details.
 
+### `--test-bail`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Instructs the test runner to bail out if a test failure occurs.
+See the documentation on [test bailout][] for more details.
+
 ### `--test-concurrency`
 
 <!-- YAML
@@ -3748,6 +3759,7 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [single executable application]: single-executable-applications.md
 [snapshot testing]: test.md#snapshot-testing
 [syntax detection]: packages.md#syntax-detection
+[test bailout]: test.md#bailing-out
 [test reporters]: test.md#test-reporters
 [test runner execution model]: test.md#test-runner-execution-model
 [timezone IDs]: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones

@@ -1,0 +1,41 @@
+TAP version 13
+# Subtest: long-running-test.test.mjs
+# Subtest: test-with-setup
+    # Subtest: awaits second test to start running before passing
+    ok 1 - awaits second test to start running before passing
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: first
+    not ok 2 - first
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/bailout/parallel-output/test-with-setup.test.mjs:(LINE):3'
+      failureType: 'testCodeFailure'
+      error: 'First test failed'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        *
+        *
+        *
+        *
+        *
+        *
+        async Promise.all (index 0)
+        *
+        *
+      ...
+    # Subtest: second
+    1..3
+Bail out!
+1..2
+# tests 4
+# suites 1
+# pass 1
+# fail 1
+# cancelled 2
+# skipped 0
+# todo 0
+# duration_ms *

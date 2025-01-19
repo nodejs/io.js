@@ -202,6 +202,7 @@ class EnvironmentOptions : public Options {
   std::vector<std::string> test_skip_pattern;
   std::vector<std::string> coverage_include_pattern;
   std::vector<std::string> coverage_exclude_pattern;
+  bool test_bail = false;
   bool throw_deprecation = false;
   bool trace_deprecation = false;
   bool trace_exit = false;

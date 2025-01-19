@@ -990,6 +990,22 @@ exports[`suite of snapshot tests > snapshot test 2`] = `
 Once the snapshot file is created, run the tests again without the
 `--test-update-snapshots` flag. The tests should pass now.
 
+## Bailing out
+
+<!-- YAML
+added:
+  - REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+The `--test-bail` flag provides a way to stop test execution
+as soon as a test fails.
+By enabling this flag, the test runner will cancel all remaining tests
+when it encounters the first failing test.
+
+Note: The bail option is not currently supported in watch mode.
+
 ## Test reporters
 
 <!-- YAML
@@ -1077,6 +1093,9 @@ const customReporter = new Transform({
       case 'test:fail':
         callback(null, `test ${event.data.name} failed`);
         break;
+      case 'test:bail':
+        callback(null, `test ${event.data.name} bailed out`);
+        break;
       case 'test:plan':
         callback(null, 'test plan');
         break;
@@ -1122,6 +1141,9 @@ const customReporter = new Transform({
       case 'test:fail':
         callback(null, `test ${event.data.name} failed`);
         break;
+      case 'test:bail':
+        callback(null, `test ${event.data.name} bailed out`);
+        break;
       case 'test:plan':
         callback(null, 'test plan');
         break;
@@ -1166,6 +1188,9 @@ export default async function * customReporter(source) {
       case 'test:fail':
         yield `test ${event.data.name} failed\n`;
         break;
+      case 'test:bail':
+        yield `test ${event.data.name} bailed out\n`;
+        break;
       case 'test:plan':
         yield 'test plan\n';
         break;
@@ -1205,6 +1230,9 @@ module.exports = async function * customReporter(source) {
         break;
       case 'test:fail':
         yield `test ${event.data.name} failed\n`;
+        break;
+      case 'test:bail':
+        yield `test ${event.data.name} bailed out\n`;
         break;
       case 'test:plan':
         yield 'test plan\n';
@@ -1289,6 +1317,10 @@ changes:
     parallel.
     If `false`, it would only run one test file at a time.
     **Default:** `false`.
+  * `bail`: {boolean} Determines whether the test runner stops execution after the first test failure.
+    If set to `true`, the runner cancels all remaining tests immediately upon encountering a failure,
+    following the [bailing out][] behavior.
+    **Default:** `false`.
   * `cwd`: {string} Specifies the current working directory to be used by the test runner.
     Serves as the base path for resolving files according to the [test runner execution model][].
     **Default:** `process.cwd()`.
@@ -1316,8 +1348,7 @@ changes:
     and can be used to setup listeners before any tests are run.
     **Default:** `undefined`.
   * `execArgv` {Array} An array of CLI flags to pass to the `node` executable when
-    spawning the subprocesses. This option has no effect when `isolation` is `'none`'.
-    **Default:** `[]`
+    spawning the subprocesses. This option has no effect when `isolation` is `'none''. **Default:** `\[]\`
   * `argv` {Array} An array of CLI flags to pass to each test file when spawning the
     subprocesses. This option has no effect when `isolation` is `'none'`.
     **Default:** `[]`.
@@ -3124,6 +3155,22 @@ generated for each test file in addition to a final cumulative summary.
 
 Emitted when no more tests are queued for execution in watch mode.
 
+### Event: `'test:bail'`
+
+* `data` {Object}
+  * `column` {number|undefined} The column number where the test is defined, or
+    `undefined` if the test was run through the REPL.
+  * `file` {string|undefined} The path of the test file,
+    `undefined` if test was run through the REPL.
+  * `line` {number|undefined} The line number where the test is defined, or
+    `undefined` if the test was run through the REPL.
+  * `name` {string} The test name.
+  * `nesting` {number} The nesting level of the test.
+
+Emitted when the test runner stops executing tests due to the [`--test-bail`][] flag.
+This event signals that the first failing test caused the suite to bail out,
+canceling all pending and currently running tests.
+
 ## Class: `TestContext`
 
 <!-- YAML
@@ -3678,6 +3725,7 @@ Can be used to abort test subtasks when the test has been aborted.
 [`--experimental-test-module-mocks`]: cli.md#--experimental-test-module-mocks
 [`--import`]: cli.md#--importmodule
 [`--no-experimental-strip-types`]: cli.md#--no-experimental-strip-types
+[`--test-bail`]: cli.md#--test-bail
 [`--test-concurrency`]: cli.md#--test-concurrency
 [`--test-coverage-exclude`]: cli.md#--test-coverage-exclude
 [`--test-coverage-include`]: cli.md#--test-coverage-include
@@ -3704,6 +3752,7 @@ Can be used to abort test subtasks when the test has been aborted.
 [`run()`]: #runoptions
 [`suite()`]: #suitename-options-fn
 [`test()`]: #testname-options-fn
+[bailing out]: #bailing-out
 [code coverage]: #collecting-code-coverage
 [describe options]: #describename-options-fn
 [it options]: #testname-options-fn

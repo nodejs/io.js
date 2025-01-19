@@ -5,6 +5,9 @@ import { describe, it } from 'node:test';
 import { hostname } from 'node:os';
 import { chdir, cwd } from 'node:process';
 import { fileURLToPath } from 'node:url';
+import tmpdir from '../common/tmpdir.js';
+
+tmpdir.refresh();
 
 const skipForceColors =
   process.config.variables.icu_gyp_path !== 'tools/icu/icu-generic.gyp' ||
@@ -295,12 +298,32 @@ const tests = [
     name: 'test-runner/output/coverage-width-infinity-uncovered-lines.mjs',
     flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
+  {
+    name: 'test-runner/output/bail-concurrent-spec.mjs',
+    transform: specTransform,
+    env: {
+      __TEST_SYNC_PATH__: tmpdir.path,
+      __TEST_SYNC_FILE__: 'bail-concurrent-spec'
+    },
+  },
+  {
+    name: 'test-runner/output/bail-sequential-spec.js',
+    transform: specTransform,
+  },
+  {
+    name: 'test-runner/output/bail-concurrent-tap.mjs',
+    env: {
+      __TEST_SYNC_PATH__: tmpdir.path,
+      __TEST_SYNC_FILE__: 'bail-concurrent-tap'
+    },
+  },
+  { name: 'test-runner/output/bail-sequential-tap.js' },
 ]
 .filter(Boolean)
-.map(({ flags, name, tty, transform }) => ({
+.map(({ flags, name, tty, transform, env }) => ({
   name,
   fn: common.mustCall(async () => {
-    await snapshot.spawnAndAssert(fixtures.path(name), transform ?? defaultTransform, { tty, flags });
+    await snapshot.spawnAndAssert(fixtures.path(name), transform ?? defaultTransform, { tty, flags, env });
   }),
 }));
 

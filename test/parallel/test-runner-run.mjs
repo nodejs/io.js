@@ -551,6 +551,82 @@ describe('require(\'node:test\').run', { concurrency: true }, () => {
     });
   });
 
+  describe('bail', () => {
+    describe('validations', () => {
+      it('should only allow a boolean in options.bail', async () => {
+        [Symbol(), {}, [], () => { }, 0, 1, 0n, 1n, '', '1', Promise.resolve([])]
+          .forEach((bail) => assert.throws(() => run({ bail }), {
+            code: 'ERR_INVALID_ARG_TYPE',
+            message: /The "options\.bail" property must be of type boolean/
+          }));
+      });
+
+      it('should not allow bail with watch mode', async () => {
+        assert.throws(() => run({ bail: true, watch: true }), {
+          code: 'ERR_INVALID_ARG_VALUE',
+          message: /The property 'options\.bail' bail is not supported while watch mode is enabled/
+        });
+      });
+    });
+
+    async function consumeTestStream(stream) {
+      let failedTestCount = 0;
+      let passedTestCount = 0;
+      let generalBailCount = 0;
+      let failureDueToBailOutCount = 0;
+
+      for await (const testEvent of stream) {
+        if (testEvent.type === 'test:fail') {
+          if (testEvent.data?.details?.error?.failureType === 'testBailedOut') {
+            failureDueToBailOutCount++;
+          } else {
+            failedTestCount++;
+          }
+        }
+        if (testEvent.type === 'test:pass') {
+          passedTestCount++;
+        }
+        if (testEvent.type === 'test:bail') {
+          generalBailCount++;
+        }
+      }
+
+      return {
+        failedTestCount,
+        passedTestCount,
+        generalBailCount,
+        failureDueToBailOutCount,
+      };
+    }
+
+    it('should not bail if no bail option is provided', async () => {
+      const stream = run({
+        files: [join(testFixtures, 'bailout', 'sequential.test.mjs')],
+      });
+
+      const counts = await consumeTestStream(stream);
+
+      assert.strictEqual(counts.generalBailCount, 0);
+      assert.strictEqual(counts.failureDueToBailOutCount, 0);
+      assert.strictEqual(counts.failedTestCount, 3);
+      assert.strictEqual(counts.passedTestCount, 1);
+    });
+
+    it('should handle the bail option', async () => {
+      const stream = run({
+        files: [join(testFixtures, 'bailout', 'sequential.test.mjs')],
+        bail: true
+      });
+
+      const counts = await consumeTestStream(stream);
+
+      assert.strictEqual(counts.generalBailCount, 1);
+      assert.strictEqual(counts.failureDueToBailOutCount, 2);
+      assert.strictEqual(counts.failedTestCount, 1);
+      assert.strictEqual(counts.passedTestCount, 1);
+    });
+  });
+
   it('should avoid running recursively', async () => {
     const stream = run({ files: [join(testFixtures, 'recursive_run.js')] });
     let stderr = '';

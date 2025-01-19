@@ -1,4 +1,5 @@
 #include "node_options.h"  // NOLINT(build/include_inline)
+#include "node.h"
 #include "node_options-inl.h"
 
 #include "env-inl.h"
@@ -743,6 +744,10 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "exclude files from coverage report that match this glob pattern",
             &EnvironmentOptions::coverage_exclude_pattern,
             kAllowedInEnvvar);
+  AddOption("--test-bail",
+            "stop test runner execution on the first test failure",
+            &EnvironmentOptions::test_bail,
+            kDisallowedInEnvvar);
   AddOption("--test-udp-no-try-send", "",  // For testing only.
             &EnvironmentOptions::test_udp_no_try_send);
   AddOption("--throw-deprecation",
