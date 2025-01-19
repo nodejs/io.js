@@ -178,7 +178,7 @@ if defined package set stage_package=1
 :: assign path to node_exe
 set "node_exe=%config%\node.exe"
 set "node_gyp_exe="%node_exe%" deps\npm\node_modules\node-gyp\bin\node-gyp"
-set "npm_exe="%~dp0%node_exe%" %~dp0deps\npm\bin\npm-cli.js"
+set "npm_exe="%node_exe%" deps\npm\bin\npm-cli.js"
 if "%target_env%"=="vs2022" set "node_gyp_exe=%node_gyp_exe% --msvs_version=2022"
 
 :: skip building if the only argument received was lint
