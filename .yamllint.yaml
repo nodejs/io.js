@@ -23,8 +23,7 @@ rules:
     level: error
     present: false
 
-  empty-lines:
-    max: 1
+  empty-lines: disable
 
   indentation:
     spaces: 2
