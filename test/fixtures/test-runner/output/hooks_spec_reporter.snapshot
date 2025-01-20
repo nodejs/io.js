@@ -282,7 +282,6 @@
         *
         *
         *
-        *
 
  t.beforeEach throws (*ms)
  t.afterEach throws
@@ -296,12 +295,9 @@
         *
         *
         *
-        *
-        *
 
    2 (*ms)
     Error: afterEach
-        *
         *
         *
         *
@@ -355,7 +351,6 @@
 
    2 (*ms)
     Error: afterEach
-        *
         *
         *
         *
@@ -674,7 +669,6 @@
       *
       *
       *
-      *
 
 *
  1 (*ms)
@@ -687,13 +681,10 @@
       *
       *
       *
-      *
-      *
 
 *
  2 (*ms)
   Error: afterEach
-      *
       *
       *
       *
@@ -741,7 +732,6 @@
 *
  2 (*ms)
   Error: afterEach
-      *
       *
       *
       *

@@ -606,8 +606,6 @@ not ok 51 - custom inspect symbol that throws fail
         *
         *
         *
-        *
-        *
       ...
     1..2
 not ok 52 - subtest sync throw fails

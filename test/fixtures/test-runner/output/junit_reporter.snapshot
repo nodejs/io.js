@@ -351,13 +351,10 @@ Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at first
 		</testcase>
 		<testcase name="sync throw fails at second" time="*" classname="test" failure="thrown from subtest sync throw fails at second">
 			<failure type="testCodeFailure" message="thrown from subtest sync throw fails at second">
-Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at second
-    * {
+[Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at second] {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
   cause: Error: thrown from subtest sync throw fails at second
-      *
-      *
       *
       *
       *

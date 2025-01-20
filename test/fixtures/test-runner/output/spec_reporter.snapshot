@@ -216,8 +216,6 @@
         *
         *
         *
-        *
-        *
 
  subtest sync throw fails (*ms)
  timed out async test (*ms)
@@ -489,8 +487,6 @@
 *
  sync throw fails at second (*ms)
   Error: thrown from subtest sync throw fails at second
-      *
-      *
       *
       *
       *
