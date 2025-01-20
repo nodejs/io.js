@@ -1407,6 +1407,11 @@ run({ files: [path.resolve('./tests/test.js')] })
 added:
   - v22.0.0
   - v20.13.0
+changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
 -->
 
 * `name` {string} The name of the suite, which is displayed when reporting test
@@ -1417,7 +1422,6 @@ added:
 * `fn` {Function|AsyncFunction} The suite function declaring nested tests and
   suites. The first argument to this function is a [`SuiteContext`][] object.
   **Default:** A no-op function.
-* Returns: {Promise} Immediately fulfilled with `undefined`.
 
 The `suite()` function is imported from the `node:test` module.
 
@@ -1461,6 +1465,10 @@ added:
   - v18.0.0
   - v16.17.0
 changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
   - version:
     - v20.2.0
     - v18.17.0
@@ -1510,8 +1518,6 @@ changes:
   to this function is a [`TestContext`][] object. If the test uses callbacks,
   the callback function is passed as the second argument. **Default:** A no-op
   function.
-* Returns: {Promise} Fulfilled with `undefined` once
-  the test completes, or immediately if the test runs within a suite.
 
 The `test()` function is the value imported from the `test` module. Each
 invocation of this function results in reporting the test to the {TestsStream}.
@@ -1519,26 +1525,6 @@ invocation of this function results in reporting the test to the {TestsStream}.
 The `TestContext` object passed to the `fn` argument can be used to perform
 actions related to the current test. Examples include skipping the test, adding
 additional diagnostic information, or creating subtests.
-
-`test()` returns a `Promise` that fulfills once the test completes.
-if `test()` is called within a suite, it fulfills immediately.
-The return value can usually be discarded for top level tests.
-However, the return value from subtests should be used to prevent the parent
-test from finishing first and cancelling the subtest
-as shown in the following example.
-
-```js
-test('top level test', async (t) => {
-  // The setTimeout() in the following subtest would cause it to outlive its
-  // parent test if 'await' is removed on the next line. Once the parent test
-  // completes, it will cancel any outstanding subtests.
-  await t.test('longer running subtest', async (t) => {
-    return new Promise((resolve, reject) => {
-      setTimeout(resolve, 1000);
-    });
-  });
-});
-```
 
 The `timeout` option can be used to fail the test if it takes longer than
 `timeout` milliseconds to complete. However, it is not a reliable mechanism for

@@ -6,7 +6,6 @@ require('../common');
 
 const assert = require('assert');
 const { test, describe, it } = require('node:test');
-const { isPromise } = require('util/types');
 
 const testOnly = test('only test', { only: true });
 const testTodo = test('todo test', { todo: true });
@@ -16,21 +15,12 @@ const testTodoShorthand = test.todo('todo test shorthand');
 const testSkipShorthand = test.skip('skip test shorthand');
 
 describe('\'node:test\' and its shorthands should return the same', () => {
-  it('should return a Promise', () => {
-    assert(isPromise(testOnly));
-    assert(isPromise(testTodo));
-    assert(isPromise(testSkip));
-    assert(isPromise(testOnlyShorthand));
-    assert(isPromise(testTodoShorthand));
-    assert(isPromise(testSkipShorthand));
-  });
-
-  it('should resolve undefined', async () => {
-    assert.strictEqual(await testOnly, undefined);
-    assert.strictEqual(await testTodo, undefined);
-    assert.strictEqual(await testSkip, undefined);
-    assert.strictEqual(await testOnlyShorthand, undefined);
-    assert.strictEqual(await testTodoShorthand, undefined);
-    assert.strictEqual(await testSkipShorthand, undefined);
+  it('should return undefined', () => {
+    assert.strictEqual(testOnly, undefined);
+    assert.strictEqual(testTodo, undefined);
+    assert.strictEqual(testSkip, undefined);
+    assert.strictEqual(testOnlyShorthand, undefined);
+    assert.strictEqual(testTodoShorthand, undefined);
+    assert.strictEqual(testSkipShorthand, undefined);
   });
 });
