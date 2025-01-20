@@ -698,7 +698,8 @@ void DatabaseSync::CustomFunction(const FunctionCallbackInfo<Value>& args) {
   CHECK_ERROR_OR_THROW(env->isolate(), db->connection_, r, SQLITE_OK, void());
 }
 
-// database.aggregate(name, { start, step, inverse, result })
+// database.aggregate(name, { start, step, inverse, result, directOnly,
+// deterministic, varargs })
 void DatabaseSync::AggregateFunction(const FunctionCallbackInfo<Value>& args) {
   DatabaseSync* db;
   ASSIGN_OR_RETURN_UNWRAP(&db, args.This());
@@ -707,16 +708,96 @@ void DatabaseSync::AggregateFunction(const FunctionCallbackInfo<Value>& args) {
 
   Utf8Value name(env->isolate(), args[0].As<String>());
   Local<Object> options = args[1].As<Object>();
+  Local<Value> step_v;
+  if (!options->Get(env->context(), env->step_string()).ToLocal(&step_func)) {
+    // TODO: throw an error; step is required
+    return;
+  }
 
-  int r = sqlite3_create_window_function(db->connection_,
+  if (!step_v->IsFunction()) {
+    THROW_ERR_INVALID_ARG_TYPE(
+        env->isolate(), "The \"options.step\" argument must be a function.");
+    return;
+  }
+
+  Local<Value> start_v;
+  if (options->Get(env->context(), env->start_string()).ToLocal(&start_v)) {
+    return;
+  }
+
+  auto start_func = start_v->IsFunction() ? start_v.As<Function>() : nullptr;
+
+  bool deterministic = false;
+  bool direct_only = false;
+
+  Local<Value> deterministic_v;
+  if (!options
+           ->Get(env->context(),
+                 FIXED_ONE_BYTE_STRING(env->isolate(), "deterministic"))
+           .ToLocal(&deterministic_v)) {
+    return;
+  }
+
+  if (!deterministic_v->IsUndefined()) {
+    if (!deterministic_v->IsBoolean()) {
+      THROW_ERR_INVALID_ARG_TYPE(
+          env->isolate(),
+          "The \"options.deterministic\" argument must be a boolean.");
+      return;
+    }
+    deterministic = deterministic_v.As<Boolean>()->Value();
+  }
+
+  Local<Value> direct_only_v;
+  if (!options
+           ->Get(env->context(),
+                 FIXED_ONE_BYTE_STRING(env->isolate(), "directOnly"))
+           .ToLocal(&direct_only_v)) {
+    return;
+  }
+
+  if (!direct_only_v->IsUndefined()) {
+    if (!direct_only_v->IsBoolean()) {
+      THROW_ERR_INVALID_ARG_TYPE(
+          env->isolate(),
+          "The \"options.directOnly\" argument must be a boolean.");
+      return;
+    }
+    direct_only = direct_only_v.As<Boolean>()->Value();
+  }
+
+  Local<Function> stepFunction = step_v.As<Function>();
+  int argc = -1;
+  int text_rep = SQLITE_UTF8;
+
+  Local<Value> js_len;
+  if (!fn->Get(env->context(), env->length_string()).ToLocal(&js_len)) {
+    return;
+  }
+  argc = js_len.As<Int32>()->Value();  // get max of step and inverse
+
+  if (deterministic) {
+    text_rep |= SQLITE_DETERMINISTIC;
+  }
+
+  if (direct_only) {
+    text_rep |= SQLITE_DIRECTONLY;
+  }
+
+  auto xValue = nullptr;
+  auto xInverse = nullptr;
+
+  int r = sqlite3_create_window_function(
+      db->connection_,
       *name,
-      int nArg,
-      int eTextRep,
-      void *pApp,
-      void (*xStep)(sqlite3_context *, int, sqlite3_value **),
-      void (*xFinal)(sqlite3_context *), void (*xValue)(sqlite3_context *),
-      void (*xInverse)(sqlite3_context *, int, sqlite3_value **),
-      void (*xDestroy)(void *));
+      argc,
+      text_rep,
+      new CustomAggregate(env, db, *name, stepFunction),
+      CustomAggregate::xStep,
+      CustomAggregate::xFinal,
+      xValue,
+      xInverse,
+      CustomAggregate::xDestroy);
 
   CHECK_ERROR_OR_THROW(env->isolate(), db->connection_, r, SQLITE_OK, void());
 }

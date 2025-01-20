@@ -70,6 +70,8 @@
   V(__filename_string, "__filename")                                           \
   V(__dirname_string, "__dirname")                                             \
   V(ack_string, "ack")                                                         \
+  V(step_string, "step")                                                       \
+  V(start_string, "start")                                                     \
   V(address_string, "address")                                                 \
   V(aliases_string, "aliases")                                                 \
   V(alpn_callback_string, "ALPNCallback")                                      \
