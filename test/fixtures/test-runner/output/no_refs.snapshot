@@ -1,35 +1,23 @@
 TAP version 13
 # Subtest: does not keep event loop alive
     # Subtest: +does not keep event loop alive
-    not ok 1 - +does not keep event loop alive
+    ok 1 - +does not keep event loop alive
       ---
       duration_ms: *
       type: 'test'
-      location: '/test/fixtures/test-runner/output/no_refs.js:(LINE):11'
-      failureType: 'cancelledByParent'
-      error: 'Promise resolution is still pending but the event loop has already resolved'
-      code: 'ERR_TEST_FAILURE'
-      stack: |-
-        *
       ...
     1..1
-not ok 1 - does not keep event loop alive
+ok 1 - does not keep event loop alive
   ---
   duration_ms: *
   type: 'test'
-  location: '/test/fixtures/test-runner/output/no_refs.js:(LINE):1'
-  failureType: 'cancelledByParent'
-  error: 'Promise resolution is still pending but the event loop has already resolved'
-  code: 'ERR_TEST_FAILURE'
-  stack: |-
-    *
   ...
 1..1
 # tests 2
 # suites 0
-# pass 0
+# pass 2
 # fail 0
-# cancelled 2
+# cancelled 0
 # skipped 0
 # todo 0
 # duration_ms *

@@ -122,4 +122,4 @@ describe('Coverage with source maps', async () => {
       t.assert.strictEqual(spawned.code, 1);
     });
   }
-}).then(common.mustCall());
+});

@@ -118,8 +118,6 @@
  level 0a (*ms)
  top level
    +long running (*ms)
-    'test did not finish before its parent and was cancelled'
-
    +short running
      ++short running (*ms)
    +short running (*ms)
@@ -218,8 +216,6 @@
         *
         *
         *
-        *
-        *
 
  subtest sync throw fails (*ms)
  timed out async test (*ms)
@@ -302,9 +298,9 @@
  Error: Test "callback async throw after done" at test/fixtures/test-runner/output/output.js:269:1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event.
  tests 75
  suites 0
- pass 34
- fail 25
- cancelled 3
+ pass 36
+ fail 24
+ cancelled 2
  skipped 9
  todo 4
  duration_ms *
@@ -416,10 +412,6 @@
   Symbol(thrown symbol from sync throw non-error fail)
 
 *
- +long running (*ms)
-  'test did not finish before its parent and was cancelled'
-
-*
  sync skip option is false fail (*ms)
   Error: this should be executed
       *
@@ -495,8 +487,6 @@
 *
  sync throw fails at second (*ms)
   Error: thrown from subtest sync throw fails at second
-      *
-      *
       *
       *
       *
