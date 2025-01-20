@@ -291,8 +291,6 @@ For information about the governance of the Node.js project, see
   **Antoine du Hamel** <<duhamelantoine1995@gmail.com>> (he/him) - [Support me](https://github.com/sponsors/aduh95)
 * [anonrig](https://github.com/anonrig) -
   **Yagiz Nizipli** <<yagiz@nizipli.com>> (he/him) - [Support me](https://github.com/sponsors/anonrig)
-* [apapirovski](https://github.com/apapirovski) -
-  **Anatoli Papirovski** <<apapirovski@mac.com>> (he/him)
 * [atlowChemi](https://github.com/atlowChemi) -
   **Chemi Atlow** <<chemi@atlow.co.il>> (he/him)
 * [Ayase-252](https://github.com/Ayase-252) -
@@ -369,8 +367,6 @@ For information about the governance of the Node.js project, see
   **Minwoo Jung** <<nodecorelab@gmail.com>> (he/him)
 * [KhafraDev](https://github.com/KhafraDev) -
   **Matthew Aitken** <<maitken033380023@gmail.com>> (he/him)
-* [kvakil](https://github.com/kvakil) -
-  **Keyhan Vakil** <<kvakil@sylph.kvakil.me>>
 * [legendecas](https://github.com/legendecas) -
   **Chengzhong Wu** <<legendecas@gmail.com>> (he/him)
 * [lemire](https://github.com/lemire) -
@@ -475,6 +471,8 @@ For information about the governance of the Node.js project, see
   **Anna M. Kedzierska** <<anna.m.kedzierska@gmail.com>>
 * [antsmartian](https://github.com/antsmartian) -
   **Anto Aravinth** <<anto.aravinth.cse@gmail.com>> (he/him)
+* [apapirovski](https://github.com/apapirovski) -
+  **Anatoli Papirovski** <<apapirovski@mac.com>> (he/him)
 * [aqrln](https://github.com/aqrln) -
   **Alexey Orlenko** <<eaglexrlnk@gmail.com>> (he/him)
 * [AshCripps](https://github.com/AshCripps) -
@@ -579,6 +577,8 @@ For information about the governance of the Node.js project, see
   **Kunal Pathak** <<kunal.pathak@microsoft.com>>
 * [kuriyosh](https://github.com/kuriyosh) -
   **Yoshiki Kurihara** <<yosyos0306@gmail.com>> (he/him)
+* [kvakil](https://github.com/kvakil) -
+  **Keyhan Vakil** <<kvakil@sylph.kvakil.me>>
 * [lance](https://github.com/lance) -
   **Lance Ball** <<lball@redhat.com>> (he/him)
 * [Leko](https://github.com/Leko) -
