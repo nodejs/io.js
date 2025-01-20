@@ -289,6 +289,7 @@ The properties available on the assigned network address object include:
 
 * `address` {string} The assigned IPv4 or IPv6 address
 * `netmask` {string} The IPv4 or IPv6 network mask
+* `broadcast` {string} The IPv4 or IPv6 broadcast address (not available on all interface types)
 * `family` {string} Either `IPv4` or `IPv6`
 * `mac` {string} The MAC address of the network interface
 * `internal` {boolean} `true` if the network interface is a loopback or
@@ -326,6 +327,7 @@ The properties available on the assigned network address object include:
     {
       address: '192.168.1.108',
       netmask: '255.255.255.0',
+      broadcast: '192.168.1.255',
       family: 'IPv4',
       mac: '01:02:03:0a:0b:0c',
       internal: false,

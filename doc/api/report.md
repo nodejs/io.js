@@ -103,6 +103,7 @@ is provided below for reference.
         "mac": "13:10:de:ad:be:ef",
         "address": "10.0.0.37",
         "netmask": "255.255.255.0",
+        "broadcast": "10.0.0.255",
         "family": "IPv4"
       }
     ],
