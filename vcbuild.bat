@@ -209,7 +209,7 @@ if defined openssl_no_asm   set configure_flags=%configure_flags% --openssl-no-a
 if defined no_shared_roheap set configure_flags=%configure_flags% --disable-shared-readonly-heap
 if defined DEBUG_HELPER     set configure_flags=%configure_flags% --verbose
 if defined compile_commands set configure_flags=%configure_flags% -C
-if defined cfg              set configure_flags=%configure_flags% --cfg
+if defined cfg              set configure_flags=%configure_flags% --control-flow-guard
 
 if "%target_arch%"=="x86" (
   echo "32-bit Windows builds are not supported anymore."

@@ -310,7 +310,7 @@
               '/Zm2000',
             ],
           }],
-          ['cfg=="true"', {
+          ['control_flow_guard=="true"', {
             'AdditionalOptions': [
               '/guard:cf',                        # Control Flow Guard
             ],
@@ -341,7 +341,7 @@
           ['target_arch=="arm64"', {
             'TargetMachine' : 0,              # NotSet. MACHINE:ARM64 is inferred from the input files.
           }],
-          ['cfg=="true"', {
+          ['control_flow_guard=="true"', {
             'AdditionalOptions': [
               '/guard:cf',                        # Control Flow Guard
             ],
