@@ -18,17 +18,16 @@ ANOTHER_VALID=value`;
 
   const result = parseEnv(input);
 
-  // Using individual assertions for better error messages
-  assert.strictEqual(Object.keys(result).length, 3, 'Should only have 3 valid entries');
-  assert.strictEqual(result.baz, 'whatever', 'baz should have value "whatever"');
-  assert.strictEqual(result.VALID_AFTER_INVALID, 'test', 'VALID_AFTER_INVALID should have value "test"');
-  assert.strictEqual(result.ANOTHER_VALID, 'value', 'ANOTHER_VALID should have value "value"');
+  assert.strictEqual(Object.keys(result).length, 3);
+  assert.strictEqual(result.baz, 'whatever');
+  assert.strictEqual(result.VALID_AFTER_INVALID, 'test');
+  assert.strictEqual(result.ANOTHER_VALID, 'value');
 
   // Ensure invalid entries are not present
-  assert.strictEqual(result.foo, undefined, 'foo should not be present');
-  assert.strictEqual(result.bar, undefined, 'bar should not be present');
-  assert.strictEqual(result.multiple_invalid, undefined, 'multiple_invalid should not be present');
-  assert.strictEqual(result.lines_without_equals, undefined, 'lines_without_equals should not be present');
+  assert.strictEqual(result.foo, undefined);
+  assert.strictEqual(result.bar, undefined);
+  assert.strictEqual(result.multiple_invalid, undefined);
+  assert.strictEqual(result.lines_without_equals, undefined);
 }
 
 // Test edge cases
@@ -58,14 +57,13 @@ ANOTHER_VALID=value`;
       expected: {
         VALID: 'value'
       }
-    }
+    },
   ];
 
   for (const { input, expected } of edgeCases) {
     assert.deepStrictEqual(
       parseEnv(input),
-      expected,
-      `Failed parsing: ${JSON.stringify(input)}`
+      expected
     );
   }
 }

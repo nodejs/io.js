@@ -150,7 +150,8 @@ void Dotenv::ParseContent(const std::string_view input) {
     auto newline = content.find('\n');
 
     // If there is no equal character in this line, skip to next line
-    if (equal == std::string_view::npos || (newline != std::string_view::npos && equal > newline)) {
+    if (equal == std::string_view::npos ||
+        (newline != std::string_view::npos && equal > newline)) {
       if (newline != std::string_view::npos) {
         content.remove_prefix(newline + 1);
         content = trim_spaces(content);
