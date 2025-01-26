@@ -138,13 +138,24 @@ void Dotenv::ParseContent(const std::string_view input) {
       auto newline = content.find('\n');
       if (newline != std::string_view::npos) {
         content.remove_prefix(newline + 1);
+        content = trim_spaces(content);
         continue;
+      } else {
+        break;
       }
     }
 
-    // If there is no equal character, then ignore everything
+    // Find the next equals sign and newline
     auto equal = content.find('=');
-    if (equal == std::string_view::npos) {
+    auto newline = content.find('\n');
+
+    // If there is no equal character in this line, skip to next line
+    if (equal == std::string_view::npos || (newline != std::string_view::npos && equal > newline)) {
+      if (newline != std::string_view::npos) {
+        content.remove_prefix(newline + 1);
+        content = trim_spaces(content);
+        continue;
+      }
       break;
     }
 
@@ -161,12 +172,19 @@ void Dotenv::ParseContent(const std::string_view input) {
     content = trim_spaces(content);
 
     if (key.empty()) {
+      // Skip invalid empty key
+      if (newline != std::string_view::npos) {
+        content.remove_prefix(newline + 1);
+        content = trim_spaces(content);
+        continue;
+      }
       break;
     }
 
     // Remove export prefix from key
     if (key.starts_with("export ")) {
       key.remove_prefix(7);
+      key = trim_spaces(key);
     }
 
     // SAFETY: Content is guaranteed to have at least one character
