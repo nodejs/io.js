@@ -200,4 +200,29 @@ describe('.env supports edge cases', () => {
     assert.strictEqual(child.code, 9);
     assert.match(child.stderr, /bad option: --env-file-ABCD/);
   });
+
+  it('should handle invalid syntax in .env file', async () => {
+    const invalidEnvFilePath = path.resolve(__dirname, '../fixtures/dotenv/invalid-syntax.env');
+    const code = `
+      const { parseEnv } = require('node:util');
+
+      const input = fs.readFileSync('${invalidEnvFilePath}', 'utf8');
+      const result = parseEnv(input);
+      assert.strictEqual(Object.keys(result).length, 3);
+      assert.strictEqual(result.baz, 'whatever');
+      assert.strictEqual(result.VALID_AFTER_INVALID, 'test');
+      assert.strictEqual(result.ANOTHER_VALID, 'value');
+      assert.strictEqual(result.foo, undefined);
+      assert.strictEqual(result.bar, undefined);
+      assert.strictEqual(result.multiple_invalid, undefined);
+      assert.strictEqual(result.lines_without_equals, undefined);
+    `.trim();
+    const child = await common.spawnPromisified(
+      process.execPath,
+      [ '--eval', code ],
+      { cwd: __dirname },
+    );
+    assert.strictEqual(child.stderr, '');
+    assert.strictEqual(child.code, 0);
+  });
 });
