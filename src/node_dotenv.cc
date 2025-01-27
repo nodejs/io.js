@@ -155,24 +155,23 @@ void Dotenv::ParseContent(const std::string_view input) {
       }
     }
 
-    // Find the next equals sign to identify key-value pairs
-    // Using find_first_of to optimize searching for both = and \n in one pass
-    auto equal = content.find('=');
-    auto newline = content.find('\n');
+    // Find the next equals sign or newline in a single pass
+    // This optimizes the search by avoiding multiple iterations
+    auto pos = content.find_first_of("=\n");
 
-    // If there is no equal character in this line, skip to next line
-    if (equal == std::string_view::npos ||
-        (newline != std::string_view::npos && equal > newline)) {
-      if (newline != std::string_view::npos) {
-        content.remove_prefix(newline + 1);
+    // If we found nothing or found a newline before equals, the line is invalid
+    if (pos == std::string_view::npos || content[pos] == '\n') {
+      if (pos != std::string_view::npos) {
+        content.remove_prefix(pos + 1);
         content = trim_spaces(content);
         continue;
       }
       break;
     }
 
-    key = content.substr(0, equal);
-    content.remove_prefix(equal + 1);
+    // We found an equals sign, extract the key
+    key = content.substr(0, pos);
+    content.remove_prefix(pos + 1);
     key = trim_spaces(key);
 
     // If the value is not present (e.g. KEY=) set is to an empty string
@@ -188,7 +187,7 @@ void Dotenv::ParseContent(const std::string_view input) {
     //   =value
     //   "   "=value
     if (key.empty()) {
-      // Skip invalid empty key
+      auto newline = content.find('\n');
       if (newline != std::string_view::npos) {
         content.remove_prefix(newline + 1);
         content = trim_spaces(content);
@@ -206,22 +205,20 @@ void Dotenv::ParseContent(const std::string_view input) {
       key = trim_spaces(key);
     }
 
-    // SAFETY: Content is guaranteed to have at least one character
+    // If content is empty after the equals sign, store empty value and break
     if (content.empty()) {
-      // In case the last line is a single key without value
-      // Example: KEY= (without a newline at the EOF)
       store_.insert_or_assign(std::string(key), "");
       break;
     }
 
-    // Expand new line if \n it's inside double quotes
-    // Example: EXPAND_NEWLINES = 'expand\nnew\nlines'
+    // Handle different types of value formats (quoted, multi-line, etc)
     if (content.front() == '"') {
       auto closing_quote = content.find(content.front(), 1);
       if (closing_quote != std::string_view::npos) {
         value = content.substr(1, closing_quote - 1);
         std::string multi_line_value = std::string(value);
 
+        // Replace \n with actual newlines in double-quoted strings
         size_t pos = 0;
         while ((pos = multi_line_value.find("\\n", pos)) !=
                std::string_view::npos) {
@@ -238,58 +235,57 @@ void Dotenv::ParseContent(const std::string_view input) {
       }
     }
 
-    // Check if the value is wrapped in quotes, single quotes or backticks
-    if ((content.front() == '\'' || content.front() == '"' ||
-         content.front() == '`')) {
+    // Handle quoted values (single quotes, double quotes, backticks)
+    if (content.front() == '\'' || content.front() == '"' ||
+        content.front() == '`') {
       auto closing_quote = content.find(content.front(), 1);
 
-      // Check if the closing quote is not found
-      // Example: KEY="value
       if (closing_quote == std::string_view::npos) {
-        // Check if newline exist. If it does, take the entire line as the value
-        // Example: KEY="value\nKEY2=value2
-        // The value pair should be `"value`
+        // No closing quote - take until newline
         auto newline = content.find('\n');
         if (newline != std::string_view::npos) {
           value = content.substr(0, newline);
           store_.insert_or_assign(std::string(key), value);
           content.remove_prefix(newline);
+        } else {
+          // No newline - take rest of content
+          value = content;
+          store_.insert_or_assign(std::string(key), value);
+          break;
         }
       } else {
-        // Example: KEY="value"
+        // Found closing quote - take content between quotes
         value = content.substr(1, closing_quote - 1);
         store_.insert_or_assign(std::string(key), value);
-        // Select the first newline after the closing quotation mark
-        // since there could be newline characters inside the value.
         auto newline = content.find('\n', closing_quote + 1);
         if (newline != std::string_view::npos) {
           content.remove_prefix(newline);
+        } else {
+          break;
         }
       }
     } else {
-      // Regular key value pair.
-      // Example: `KEY=this is value`
+      // Handle unquoted values
       auto newline = content.find('\n');
-
       if (newline != std::string_view::npos) {
         value = content.substr(0, newline);
         auto hash_character = value.find('#');
-        // Check if there is a comment in the line
-        // Example: KEY=value # comment
-        // The value pair should be `value`
         if (hash_character != std::string_view::npos) {
-          value = content.substr(0, hash_character);
+          value = value.substr(0, hash_character);
         }
+        value = trim_spaces(value);
+        store_.insert_or_assign(std::string(key), std::string(value));
         content.remove_prefix(newline);
       } else {
-        // In case the last line is a single key/value pair
-        // Example: KEY=VALUE (without a newline at the EOF)
-        value = content.substr(0);
+        // Last line without newline
+        value = content;
+        value = trim_spaces(value);
+        store_.insert_or_assign(std::string(key), std::string(value));
+        break;
       }
-
-      value = trim_spaces(value);
-      store_.insert_or_assign(std::string(key), value);
     }
+
+    content = trim_spaces(content);
   }
 }
 
