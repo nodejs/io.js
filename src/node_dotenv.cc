@@ -139,8 +139,6 @@ void Dotenv::ParseContent(const std::string_view input) {
     // Skip empty lines and comments
     // Example:
     //   # This is a comment
-    //
-    //   KEY=value
     if (content.front() == '\n' || content.front() == '#') {
       auto newline = content.find('\n');
       if (newline != std::string_view::npos) {
@@ -157,12 +155,13 @@ void Dotenv::ParseContent(const std::string_view input) {
 
     // Find the next equals sign or newline in a single pass
     // This optimizes the search by avoiding multiple iterations
-    auto pos = content.find_first_of("=\n");
+    auto equal_or_newline = content.find_first_of("=\n");
 
     // If we found nothing or found a newline before equals, the line is invalid
-    if (pos == std::string_view::npos || content[pos] == '\n') {
-      if (pos != std::string_view::npos) {
-        content.remove_prefix(pos + 1);
+    if (equal_or_newline == std::string_view::npos ||
+        content.at(equal_or_newline) == '\n') {
+      if (equal_or_newline != std::string_view::npos) {
+        content.remove_prefix(equal_or_newline + 1);
         content = trim_spaces(content);
         continue;
       }
@@ -170,8 +169,8 @@ void Dotenv::ParseContent(const std::string_view input) {
     }
 
     // We found an equals sign, extract the key
-    key = content.substr(0, pos);
-    content.remove_prefix(pos + 1);
+    key = content.substr(0, equal_or_newline);
+    content.remove_prefix(equal_or_newline + 1);
     key = trim_spaces(key);
 
     // If the value is not present (e.g. KEY=) set is to an empty string
@@ -186,15 +185,7 @@ void Dotenv::ParseContent(const std::string_view input) {
     // Examples of invalid keys that would be skipped:
     //   =value
     //   "   "=value
-    if (key.empty()) {
-      auto newline = content.find('\n');
-      if (newline != std::string_view::npos) {
-        content.remove_prefix(newline + 1);
-        content = trim_spaces(content);
-        continue;
-      }
-      break;
-    }
+    if (key.empty()) continue;
 
     // Remove export prefix from key and ensure proper spacing
     // Example: export FOO=bar -> FOO=bar
@@ -205,13 +196,16 @@ void Dotenv::ParseContent(const std::string_view input) {
       key = trim_spaces(key);
     }
 
-    // If content is empty after the equals sign, store empty value and break
+    // SAFETY: Content is guaranteed to have at least one character
     if (content.empty()) {
+      // In case the last line is a single key without value
+      // Example: KEY= (without a newline at the EOF)
       store_.insert_or_assign(std::string(key), "");
       break;
     }
 
-    // Handle different types of value formats (quoted, multi-line, etc)
+    // Expand new line if \n it's inside double quotes
+    // Example: EXPAND_NEWLINES = 'expand\nnew\nlines'
     if (content.front() == '"') {
       auto closing_quote = content.find(content.front(), 1);
       if (closing_quote != std::string_view::npos) {
@@ -240,8 +234,12 @@ void Dotenv::ParseContent(const std::string_view input) {
         content.front() == '`') {
       auto closing_quote = content.find(content.front(), 1);
 
+      // Check if the closing quote is not found
+      // Example: KEY="value
       if (closing_quote == std::string_view::npos) {
-        // No closing quote - take until newline
+        // Check if newline exist. If it does, take the entire line as the value
+        // Example: KEY="value\nKEY2=value2
+        // The value pair should be `"value`
         auto newline = content.find('\n');
         if (newline != std::string_view::npos) {
           value = content.substr(0, newline);
@@ -265,11 +263,16 @@ void Dotenv::ParseContent(const std::string_view input) {
         }
       }
     } else {
-      // Handle unquoted values
+      // Regular key value pair.
+      // Example: `KEY=this is value`
       auto newline = content.find('\n');
+
       if (newline != std::string_view::npos) {
         value = content.substr(0, newline);
         auto hash_character = value.find('#');
+        // Check if there is a comment in the line
+        // Example: KEY=value # comment
+        // The value pair should be `value`
         if (hash_character != std::string_view::npos) {
           value = value.substr(0, hash_character);
         }
