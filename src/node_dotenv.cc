@@ -140,18 +140,23 @@ void Dotenv::ParseContent(const std::string_view input) {
     // Example:
     //   # This is a comment
     if (content.front() == '\n' || content.front() == '#') {
-      auto newline = content.find('\n');
-      if (newline != std::string_view::npos) {
-        content.remove_prefix(newline + 1);
-        // Trim spaces after skipping comments or empty lines to handle
-        // cases where there might be trailing whitespace
-        content = trim_spaces(content);
-        continue;
+      // Check if the first character of the content is a newline or a hash
+      if (content.front() == '\n') {
+        // If the first character is a newline, remove it
+        content.remove_prefix(1);
       } else {
-        // If no newline is found, we've reached the end of content
-        // Example: #ABC=1
-        break;
+        // If the first character is a hash, find the next newline character
+        auto newline = content.find('\n');
+        if (newline != std::string_view::npos) {
+          // If a newline is found, remove the comment line including the
+          // newline character
+          content.remove_prefix(newline + 1);
+        }
       }
+
+      // Skip the remaining code in the loop and continue with the next
+      // iteration
+      continue;
     }
 
     // Find the next equals sign or newline in a single pass
