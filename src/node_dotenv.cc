@@ -149,6 +149,7 @@ void Dotenv::ParseContent(const std::string_view input) {
         continue;
       } else {
         // If no newline is found, we've reached the end of content
+        // Example: #ABC=1
         break;
       }
     }
