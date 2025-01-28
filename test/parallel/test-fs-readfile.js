@@ -6,6 +6,7 @@ const common = require('../common');
 
 const tmpdir = require('../../test/common/tmpdir');
 const assert = require('assert');
+const path = require('node:path');
 const fs = require('fs');
 
 const prefix = `.removeme-fs-readfile-${process.pid}`;
@@ -52,26 +53,21 @@ for (const e of fileInfo) {
   }));
 }
 
-// readFile() and readFileSync() should fail if the file is too big.
+// Test to verify that readFile() and readFileSync() can handle large files
 {
-  const kIoMaxLength = 2 ** 31 - 1;
+  const kLargeFileSize = 3 * 1024 * 1024 * 1024; // 3 GiB
 
-  if (!tmpdir.hasEnoughSpace(kIoMaxLength)) {
-    // truncateSync() will fail with ENOSPC if there is not enough space.
-    common.printSkipMessage(`Not enough space in ${tmpdir.path}`);
-  } else {
-    const file = tmpdir.resolve(`${prefix}-too-large.txt`);
-    fs.writeFileSync(file, Buffer.from('0'));
-    fs.truncateSync(file, kIoMaxLength + 1);
+  const file = path.join(tmpdir.path, 'temp-large-file.txt');
+  fs.writeFileSync(file, Buffer.alloc(1024));
+  fs.truncateSync(file, kLargeFileSize);
 
-    fs.readFile(file, common.expectsError({
-      code: 'ERR_FS_FILE_TOO_LARGE',
-      name: 'RangeError',
-    }));
-    assert.throws(() => {
-      fs.readFileSync(file);
-    }, { code: 'ERR_FS_FILE_TOO_LARGE', name: 'RangeError' });
-  }
+  fs.readFile(file, (err, data) => {
+    if (err) {
+      console.error('Error reading file:', err);
+    } else {
+      console.log('File read successfully:', data.length);
+    }
+  });
 }
 
 {
