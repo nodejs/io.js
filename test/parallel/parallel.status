@@ -69,6 +69,9 @@ test-domain-no-error-handler-abort-on-uncaught-8: PASS, FLAKY
 test-domain-no-error-handler-abort-on-uncaught-9: PASS, FLAKY
 test-domain-throw-error-then-throw-from-uncaught-exception-handler: PASS, FLAKY
 test-domain-with-abort-on-uncaught-exception: PASS, FLAKY
+# https://github.com/nodejs/node/issues/56746
+test-tls-min-max-version: PASS, FLAKY
+
 # https://github.com/nodejs/node/issues/50050
 test-tick-processor-arguments: SKIP
 # https://github.com/nodejs/node/issues/54534
