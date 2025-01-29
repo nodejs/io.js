@@ -109,6 +109,10 @@
         }, {
           'includes': ['./openssl-fips_asm_avx2.gypi'],
         }],
+        # Avoid excessive LTO
+        ['enable_lto=="true"', {
+          'ldflags': [ '-fno-lto' ],
+        }],
      ],
      'direct_dependent_settings': {
        'include_dirs': [ 'openssl/include', 'openssl/crypto/include']
