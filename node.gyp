@@ -510,7 +510,7 @@
           '-Wl,-bnoerrmsg',
         ],
       }],
-      ['OS=="linux" and clang==1', {
+      ['OS=="linux" and clang==1 and compiler_rt_atomics!=1', {
         'libraries': ['-latomic'],
       }],
     ],

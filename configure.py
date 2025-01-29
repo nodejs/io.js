@@ -136,6 +136,11 @@ parser.add_argument('--use_clang',
     dest='use_clang',
     default=None,
     help='use clang instead of gcc')
+parser.add_argument('--use-compiler-rt-atomics',
+    action='store_true',
+    dest='use_compiler_rt_atomics',
+    default=None,
+    help='use compiler-rt atomic builtins instead of libatomic')
 
 parser.add_argument('--dest-os',
     action='store',
@@ -1092,6 +1097,31 @@ def try_check_compiler(cc, lang):
   return (True, is_clang, clang_version, gcc_version)
 
 
+def try_check_compiler_rt_atomics(cc):
+  try:
+    proc = subprocess.Popen(shlex.split(cc) + ['-print-libgcc-file-name'],
+                            stdout=subprocess.PIPE)
+    with proc:
+      rt_file_name = to_utf8(proc.communicate()[0]).strip()
+  except OSError as e:
+    return (False, False, False, False)
+
+  nm = shutil.which('nm') or shutil.which('llvm-nm')
+  if not nm:
+    return (True, False, False, False)
+
+  try:
+    proc = subprocess.Popen(shlex.split(nm) + shlex.split(rt_file_name),
+                            stdout=subprocess.PIPE)
+    with proc:
+      symbols = to_utf8(proc.communicate()[0]).strip()
+  except OSError as e:
+    return (True, True, False, False)
+
+  has_atomics = '__atomic' in symbols
+  return (True, True, True, has_atomics)
+
+
 #
 # The version of asm compiler is needed for building openssl asm files.
 # See deps/openssl/openssl.gypi for detail.
@@ -1425,6 +1455,27 @@ def configure_node(o):
   # Allow overriding the compiler - needed by embedders.
   if options.use_clang:
     o['variables']['clang'] = 1
+
+  # Allow using compiler-rt atomic builtins instead of libatomic.
+  if options.use_compiler_rt_atomics:
+    if not o['variables']['clang'] == 1:
+      error('--use-compiler-rt-atomics can be used only with clang')
+    cc_ok, found_nm, nm_ok, has_atomics = try_check_compiler_rt_atomics(CC)
+    if not cc_ok:
+      error('''Failed to execute `''' + CC + ''' -print-libgcc-file-name` to
+            find the runtime library.''')
+    if not found_nm:
+      error('''Could not find nm or llvm-nm.''')
+    if not nm_ok:
+      error('''Failed to execute nm.''')
+    if not has_atomics:
+      error('''compiler-rt does not have atomics.''')
+    if has_atomics:
+      o['variables']['compiler_rt_atomics'] = 1
+    else:
+      o['variables']['compiler_rt_atomics'] = 0
+  else:
+    o['variables']['compiler_rt_atomics'] = 0
 
   cross_compiling = (options.cross_compiling
                      if options.cross_compiling is not None
