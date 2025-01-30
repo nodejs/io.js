@@ -57,19 +57,23 @@ for (const e of fileInfo) {
 {
   const kLargeFileSize = 3 * 1024 * 1024 * 1024; // 3 GiB
 
-  const file = path.join(tmpdir.path, 'temp-large-file.txt');
-  fs.writeFileSync(file, Buffer.alloc(1024));
-  fs.truncateSync(file, kLargeFileSize);
+  if (!tmpdir.hasEnoughSpace(kLargeFileSize)) {
+    // truncateSync() will fail with ENOSPC if there is not enough space.
+    common.printSkipMessage(`Not enough space in ${tmpdir.path}`);
+  } else {
+    const file = path.join(tmpdir.path, 'temp-large-file.txt');
+    fs.writeFileSync(file, Buffer.alloc(1024));
+    fs.truncateSync(file, kLargeFileSize);
 
-  fs.readFile(file, (err, data) => {
-    if (err) {
-      console.error('Error reading file:', err);
-    } else {
-      console.log('File read successfully:', data.length);
-    }
-  });
+    fs.readFile(file, (err, data) => {
+      if (err) {
+        console.error('Error reading file:', err);
+      } else {
+        console.log('File read successfully:', data.length);
+      }
+    });
+  }
 }
-
 {
   // Test cancellation, before
   const signal = AbortSignal.abort();
