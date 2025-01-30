@@ -13,16 +13,18 @@ namespace node {
 
 struct ToStringHelper {
   template <typename T>
-  static std::string Convert(
-      const T& value,
-      std::string(T::* to_string)() const = &T::ToString) {
+  static std::string Convert(const T& value,
+                             std::string (T::*to_string)()
+                                 const = &T::ToString) {
     return (value.*to_string)();
   }
   template <typename T,
             typename test_for_number = typename std::
-                enable_if<std::is_arithmetic<T>::value, bool>::type,
+                enable_if_t<std::is_arithmetic_v<T> || std::is_enum_v<T>, bool>,
             typename dummy = bool>
-  static std::string Convert(const T& value) { return std::to_string(value); }
+  static std::string Convert(const T& value) {
+    return std::to_string(value);
+  }
   static std::string Convert(const char* value) {
     return value != nullptr ? value : "(null)";
   }
@@ -42,8 +44,7 @@ struct ToStringHelper {
     const char* digits = "0123456789abcdef";
     do {
       unsigned digit = v & ((1 << BASE_BITS) - 1);
-      *--ptr =
-          (BASE_BITS < 4 ? static_cast<char>('0' + digit) : digits[digit]);
+      *--ptr = (BASE_BITS < 4 ? static_cast<char>('0' + digit) : digits[digit]);
     } while ((v >>= BASE_BITS) != 0);
     return ptr;
   }
@@ -76,22 +77,25 @@ inline std::string SPrintFImpl(const char* format) {
 
 template <typename Arg, typename... Args>
 std::string COLD_NOINLINE SPrintFImpl(  // NOLINT(runtime/string)
-    const char* format, Arg&& arg, Args&&... args) {
+    const char* format,
+    Arg&& arg,
+    Args&&... args) {
   const char* p = strchr(format, '%');
   CHECK_NOT_NULL(p);  // If you hit this, you passed in too many arguments.
   std::string ret(format, p);
   // Ignore long / size_t modifiers
-  while (strchr("lz", *++p) != nullptr) {}
+  while (strchr("lz", *++p) != nullptr) {
+  }
   switch (*p) {
     case '%': {
-      return ret + '%' + SPrintFImpl(p + 1,
-                                     std::forward<Arg>(arg),
-                                     std::forward<Args>(args)...);
+      return ret + '%' +
+             SPrintFImpl(
+                 p + 1, std::forward<Arg>(arg), std::forward<Args>(args)...);
     }
     default: {
-      return ret + '%' + SPrintFImpl(p,
-                                     std::forward<Arg>(arg),
-                                     std::forward<Args>(args)...);
+      return ret + '%' +
+             SPrintFImpl(
+                 p, std::forward<Arg>(arg), std::forward<Args>(args)...);
     }
     case 'd':
     case 'i':
@@ -109,12 +113,10 @@ std::string COLD_NOINLINE SPrintFImpl(  // NOLINT(runtime/string)
       ret += node::ToUpper(ToBaseString<4>(arg));
       break;
     case 'p': {
-      CHECK(std::is_pointer<typename std::remove_reference<Arg>::type>::value);
+      CHECK(std::is_pointer_v<typename std::remove_reference_t<Arg>>);
       char out[20];
-      int n = snprintf(out,
-                       sizeof(out),
-                       "%p",
-                       *reinterpret_cast<const void* const*>(&arg));
+      int n = snprintf(
+          out, sizeof(out), "%p", *reinterpret_cast<const void* const*>(&arg));
       CHECK_GE(n, 0);
       ret += out;
       break;
@@ -125,7 +127,8 @@ std::string COLD_NOINLINE SPrintFImpl(  // NOLINT(runtime/string)
 
 template <typename... Args>
 std::string COLD_NOINLINE SPrintF(  // NOLINT(runtime/string)
-    const char* format, Args&&... args) {
+    const char* format,
+    Args&&... args) {
   return SPrintFImpl(format, std::forward<Args>(args)...);
 }
 
