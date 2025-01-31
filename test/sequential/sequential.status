@@ -28,7 +28,11 @@ test-http-server-request-timeouts-mixed: PASS, FLAKY
 # https://github.com/nodejs/node/issues/54816
 test-single-executable-application-empty: PASS, FLAKY
 
+# https://github.com/nodejs/node/issues/43465
+test-http-server-request-timeouts-mixed: PASS, FLAKY
+
 [$system==solaris] # Also applies to SmartOS
+test-worker-prof: PASS, FLAKY
 
 [$system==freebsd]
 
@@ -48,18 +52,3 @@ test-tls-securepair-client: PASS, FLAKY
 [$arch==arm]
 # https://github.com/nodejs/node/issues/49933
 test-watch-mode-inspect: SKIP
-
-[$arch==s390x]
-# https://github.com/nodejs/node/issues/41286
-test-performance-eventloopdelay: PASS, FLAKY
-
-[$system==linux && $arch==ppc64]
-# https://github.com/nodejs/node/issues/50740
-test-single-executable-application-assets-raw: PASS, FLAKY
-test-single-executable-application-assets: PASS, FLAKY
-test-single-executable-application-disable-experimental-sea-warning: PASS, FLAKY
-test-single-executable-application-empty: PASS, FLAKY
-test-single-executable-application-snapshot-and-code-cache: PASS, FLAKY
-test-single-executable-application-snapshot: PASS, FLAKY
-test-single-executable-application-use-code-cache: PASS, FLAKY
-test-single-executable-application: PASS, FLAKY

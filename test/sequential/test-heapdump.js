@@ -1,9 +1,11 @@
 'use strict';
 
 const common = require('../common');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 const { writeHeapSnapshot, getHeapSnapshot } = require('v8');
 const assert = require('assert');

@@ -7,16 +7,16 @@ namespace ncrypto {
 
 #ifndef OPENSSL_NO_ENGINE
 EnginePointer::EnginePointer(ENGINE* engine_, bool finish_on_exit_)
-    : engine(engine_),
-      finish_on_exit(finish_on_exit_) {}
+    : engine(engine_), finish_on_exit(finish_on_exit_) {}
 
 EnginePointer::EnginePointer(EnginePointer&& other) noexcept
-    : engine(other.engine),
-      finish_on_exit(other.finish_on_exit) {
+    : engine(other.engine), finish_on_exit(other.finish_on_exit) {
   other.release();
 }
 
-EnginePointer::~EnginePointer() { reset(); }
+EnginePointer::~EnginePointer() {
+  reset();
+}
 
 EnginePointer& EnginePointer::operator=(EnginePointer&& other) noexcept {
   if (this == &other) return *this;
@@ -75,7 +75,8 @@ bool EnginePointer::init(bool finish_on_exit) {
 
 EVPKeyPointer EnginePointer::loadPrivateKey(const std::string_view key_name) {
   if (engine == nullptr) return EVPKeyPointer();
-  return EVPKeyPointer(ENGINE_load_private_key(engine, key_name.data(), nullptr, nullptr));
+  return EVPKeyPointer(
+      ENGINE_load_private_key(engine, key_name.data(), nullptr, nullptr));
 }
 
 void EnginePointer::initEnginesOnce() {

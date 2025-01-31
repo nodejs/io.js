@@ -191,7 +191,7 @@ int uv_cwd(char* buffer, size_t* size) {
   WCHAR *utf16_buffer;
   int r;
 
-  if (buffer == NULL || size == NULL) {
+  if (buffer == NULL || size == NULL || *size == 0) {
     return UV_EINVAL;
   }
 
@@ -874,56 +874,100 @@ void uv_free_interface_addresses(uv_interface_address_t* addresses,
 
 
 int uv_getrusage(uv_rusage_t *uv_rusage) {
-  FILETIME createTime, exitTime, kernelTime, userTime;
-  SYSTEMTIME kernelSystemTime, userSystemTime;
-  PROCESS_MEMORY_COUNTERS memCounters;
-  IO_COUNTERS ioCounters;
+  FILETIME create_time, exit_time, kernel_time, user_time;
+  SYSTEMTIME kernel_system_time, user_system_time;
+  PROCESS_MEMORY_COUNTERS mem_counters;
+  IO_COUNTERS io_counters;
   int ret;
 
-  ret = GetProcessTimes(GetCurrentProcess(), &createTime, &exitTime, &kernelTime, &userTime);
+  ret = GetProcessTimes(GetCurrentProcess(),
+                        &create_time,
+                        &exit_time,
+                        &kernel_time,
+                        &user_time);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = FileTimeToSystemTime(&kernelTime, &kernelSystemTime);
+  ret = FileTimeToSystemTime(&kernel_time, &kernel_system_time);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = FileTimeToSystemTime(&userTime, &userSystemTime);
+  ret = FileTimeToSystemTime(&user_time, &user_system_time);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
   ret = GetProcessMemoryInfo(GetCurrentProcess(),
-                             &memCounters,
-                             sizeof(memCounters));
+                             &mem_counters,
+                             sizeof(mem_counters));
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = GetProcessIoCounters(GetCurrentProcess(), &ioCounters);
+  ret = GetProcessIoCounters(GetCurrentProcess(), &io_counters);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
   memset(uv_rusage, 0, sizeof(*uv_rusage));
 
-  uv_rusage->ru_utime.tv_sec = userSystemTime.wHour * 3600 +
-                               userSystemTime.wMinute * 60 +
-                               userSystemTime.wSecond;
-  uv_rusage->ru_utime.tv_usec = userSystemTime.wMilliseconds * 1000;
+  uv_rusage->ru_utime.tv_sec = user_system_time.wHour * 3600 +
+                               user_system_time.wMinute * 60 +
+                               user_system_time.wSecond;
+  uv_rusage->ru_utime.tv_usec = user_system_time.wMilliseconds * 1000;
 
-  uv_rusage->ru_stime.tv_sec = kernelSystemTime.wHour * 3600 +
-                               kernelSystemTime.wMinute * 60 +
-                               kernelSystemTime.wSecond;
-  uv_rusage->ru_stime.tv_usec = kernelSystemTime.wMilliseconds * 1000;
+  uv_rusage->ru_stime.tv_sec = kernel_system_time.wHour * 3600 +
+                               kernel_system_time.wMinute * 60 +
+                               kernel_system_time.wSecond;
+  uv_rusage->ru_stime.tv_usec = kernel_system_time.wMilliseconds * 1000;
 
-  uv_rusage->ru_majflt = (uint64_t) memCounters.PageFaultCount;
-  uv_rusage->ru_maxrss = (uint64_t) memCounters.PeakWorkingSetSize / 1024;
+  uv_rusage->ru_majflt = (uint64_t) mem_counters.PageFaultCount;
+  uv_rusage->ru_maxrss = (uint64_t) mem_counters.PeakWorkingSetSize / 1024;
 
-  uv_rusage->ru_oublock = (uint64_t) ioCounters.WriteOperationCount;
-  uv_rusage->ru_inblock = (uint64_t) ioCounters.ReadOperationCount;
+  uv_rusage->ru_oublock = (uint64_t) io_counters.WriteOperationCount;
+  uv_rusage->ru_inblock = (uint64_t) io_counters.ReadOperationCount;
+
+  return 0;
+}
+
+
+int uv_getrusage_thread(uv_rusage_t* uv_rusage) {
+  FILETIME create_time, exit_time, kernel_time, user_time;
+  SYSTEMTIME kernel_system_time, user_system_time;
+  int ret;
+
+  ret = GetThreadTimes(GetCurrentThread(),
+                       &create_time,
+                       &exit_time,
+                       &kernel_time,
+                       &user_time);
+  if (ret == 0) {
+    return uv_translate_sys_error(GetLastError());
+  }
+
+  ret = FileTimeToSystemTime(&kernel_time, &kernel_system_time);
+  if (ret == 0) {
+    return uv_translate_sys_error(GetLastError());
+  }
+
+  ret = FileTimeToSystemTime(&user_time, &user_system_time);
+  if (ret == 0) {
+    return uv_translate_sys_error(GetLastError());
+  }
+
+  memset(uv_rusage, 0, sizeof(*uv_rusage));
+
+  uv_rusage->ru_utime.tv_sec = user_system_time.wHour * 3600 +
+                               user_system_time.wMinute * 60 +
+                               user_system_time.wSecond;
+  uv_rusage->ru_utime.tv_usec = user_system_time.wMilliseconds * 1000;
+
+  uv_rusage->ru_stime.tv_sec = kernel_system_time.wHour * 3600 +
+                               kernel_system_time.wMinute * 60 +
+                               kernel_system_time.wSecond;
+  uv_rusage->ru_stime.tv_usec = kernel_system_time.wMilliseconds * 1000;
 
   return 0;
 }
@@ -1589,7 +1633,7 @@ int uv_os_uname(uv_utsname_t* buffer) {
     version_size = sizeof(buffer->version) - version_size;
     r = uv__copy_utf16_to_utf8(os_info.szCSDVersion,
                                -1,
-                               buffer->version + 
+                               buffer->version +
                                  sizeof(buffer->version) - version_size,
                                &version_size);
     if (r)

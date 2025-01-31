@@ -29,9 +29,11 @@ const fs = require('fs');
 const path = require('path');
 
 const tmpdir = require('../common/tmpdir');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 const expectFilePath = common.isWindows ||
                        common.isLinux ||

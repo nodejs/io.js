@@ -12,7 +12,7 @@ const bench = common.createBenchmark(main, {
   filepath: [ts, js],
   n: [1e4],
 }, {
-  flags: ['--experimental-strip-types', '--disable-warning=ExperimentalWarning'],
+  flags: ['--disable-warning=ExperimentalWarning'],
 });
 
 async function main({ n, filepath }) {

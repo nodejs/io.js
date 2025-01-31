@@ -1,8 +1,8 @@
 'use strict'
 
-const { maxUnsigned16Bit } = require('./constants')
+const { maxUnsigned16Bit, opcodes } = require('./constants')
 
-const BUFFER_SIZE = 16386
+const BUFFER_SIZE = 8 * 1024
 
 /** @type {import('crypto')} */
 let crypto
@@ -27,7 +27,7 @@ try {
 function generateMask () {
   if (bufIdx === BUFFER_SIZE) {
     bufIdx = 0
-    crypto.randomFillSync((buffer ??= Buffer.allocUnsafe(BUFFER_SIZE)), 0, BUFFER_SIZE)
+    crypto.randomFillSync((buffer ??= Buffer.allocUnsafeSlow(BUFFER_SIZE)), 0, BUFFER_SIZE)
   }
   return [buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++], buffer[bufIdx++]]
 }
@@ -88,6 +88,48 @@ class WebsocketFrameSend {
     }
 
     return buffer
+  }
+
+  /**
+   * @param {Uint8Array} buffer
+   */
+  static createFastTextFrame (buffer) {
+    const maskKey = generateMask()
+
+    const bodyLength = buffer.length
+
+    // mask body
+    for (let i = 0; i < bodyLength; ++i) {
+      buffer[i] ^= maskKey[i & 3]
+    }
+
+    let payloadLength = bodyLength
+    let offset = 6
+
+    if (bodyLength > maxUnsigned16Bit) {
+      offset += 8 // payload length is next 8 bytes
+      payloadLength = 127
+    } else if (bodyLength > 125) {
+      offset += 2 // payload length is next 2 bytes
+      payloadLength = 126
+    }
+    const head = Buffer.allocUnsafeSlow(offset)
+
+    head[0] = 0x80 /* FIN */ | opcodes.TEXT /* opcode TEXT */
+    head[1] = payloadLength | 0x80 /* MASK */
+    head[offset - 4] = maskKey[0]
+    head[offset - 3] = maskKey[1]
+    head[offset - 2] = maskKey[2]
+    head[offset - 1] = maskKey[3]
+
+    if (payloadLength === 126) {
+      head.writeUInt16BE(bodyLength, 2)
+    } else if (payloadLength === 127) {
+      head[2] = head[3] = 0
+      head.writeUIntBE(bodyLength, 4, 6)
+    }
+
+    return [head, buffer]
   }
 }
 

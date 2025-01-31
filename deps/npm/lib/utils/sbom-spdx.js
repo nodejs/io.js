@@ -173,7 +173,7 @@ const isGitNode = (node) => {
   try {
     const { type } = npa(node.resolved)
     return type === 'git' || type === 'hosted'
-  } catch (err) {
+  } catch {
     /* istanbul ignore next */
     return false
   }

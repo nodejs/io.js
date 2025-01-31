@@ -188,7 +188,15 @@ class FetcherBase {
   // private
   // Note: cacache will raise a EINTEGRITY error if the integrity doesn't match
   #tarballFromCache () {
-    return cacache.get.stream.byDigest(this.cache, this.integrity, this.opts)
+    const startTime = Date.now()
+    const stream = cacache.get.stream.byDigest(this.cache, this.integrity, this.opts)
+    const elapsedTime = Date.now() - startTime
+    // cache is good, so log it as a hit in particular since there was no fetch logged
+    log.http(
+      'cache',
+      `${this.spec} ${elapsedTime}ms (cache hit)`
+    )
+    return stream
   }
 
   get [_.cacheFetches] () {

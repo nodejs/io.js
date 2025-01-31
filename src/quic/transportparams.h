@@ -107,7 +107,8 @@ class TransportParams final {
     // When true, communicates that the Session does not support active
     // connection migration. See the QUIC specification for more details on
     // connection migration.
-    bool disable_active_migration = false;
+    // TODO(@jasnell): We currently do not implementation active migration.
+    bool disable_active_migration = true;
 
     static const Options kDefault;
 
@@ -151,7 +152,7 @@ class TransportParams final {
   // Returns an ArrayBuffer containing the encoded transport parameters.
   // If an error occurs during encoding, an empty shared_ptr will be returned
   // and the error() property will be set to an appropriate QuicError.
-  Store Encode(Environment* env, int version = QUIC_TRANSPORT_PARAMS_V1);
+  Store Encode(Environment* env, int version = QUIC_TRANSPORT_PARAMS_V1) const;
 
  private:
   ngtcp2_transport_params params_{};

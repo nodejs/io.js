@@ -137,7 +137,7 @@ Failed tests:
 ✖ custom inspect symbol fail (*ms)
   customized
 ✖ custom inspect symbol that throws fail (*ms)
-  { foo: 1, [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]] }
+  { foo: 1, Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]] }
 ✖ sync throw fails at first (*ms)
   Error: thrown from subtest sync throw fails at first
       *

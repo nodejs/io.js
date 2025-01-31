@@ -3,7 +3,6 @@
 const { Writable } = require('node:stream')
 const assert = require('node:assert')
 const { parserStates, opcodes, states, emptyBuffer, sentCloseFrameState } = require('./constants')
-const { kReadyState, kSentClose, kResponse, kReceivedClose } = require('./symbols')
 const { channels } = require('../../core/diagnostics')
 const {
   isValidStatusCode,
@@ -16,7 +15,6 @@ const {
   isContinuationFrame
 } = require('./util')
 const { WebsocketFrameSend } = require('./frame')
-const { closeWebSocketConnection } = require('./connection')
 const { PerMessageDeflate } = require('./permessage-deflate')
 
 // This code was influenced by ws released under the MIT license.
@@ -26,6 +24,7 @@ const { PerMessageDeflate } = require('./permessage-deflate')
 
 class ByteParser extends Writable {
   #buffers = []
+  #fragmentsBytes = 0
   #byteOffset = 0
   #loop = false
 
@@ -37,10 +36,13 @@ class ByteParser extends Writable {
   /** @type {Map<string, PerMessageDeflate>} */
   #extensions
 
-  constructor (ws, extensions) {
+  /** @type {import('./websocket').Handler} */
+  #handler
+
+  constructor (handler, extensions) {
     super()
 
-    this.ws = ws
+    this.#handler = handler
     this.#extensions = extensions == null ? new Map() : extensions
 
     if (this.#extensions.has('permessage-deflate')) {
@@ -86,12 +88,12 @@ class ByteParser extends Writable {
         const rsv3 = buffer[0] & 0x10
 
         if (!isValidOpcode(opcode)) {
-          failWebsocketConnection(this.ws, 'Invalid opcode received')
+          failWebsocketConnection(this.#handler, 1002, 'Invalid opcode received')
           return callback()
         }
 
         if (masked) {
-          failWebsocketConnection(this.ws, 'Frame cannot be masked')
+          failWebsocketConnection(this.#handler, 1002, 'Frame cannot be masked')
           return callback()
         }
 
@@ -105,43 +107,43 @@ class ByteParser extends Writable {
         // WebSocket connection where a PMCE is in use, this bit indicates
         // whether a message is compressed or not.
         if (rsv1 !== 0 && !this.#extensions.has('permessage-deflate')) {
-          failWebsocketConnection(this.ws, 'Expected RSV1 to be clear.')
+          failWebsocketConnection(this.#handler, 1002, 'Expected RSV1 to be clear.')
           return
         }
 
         if (rsv2 !== 0 || rsv3 !== 0) {
-          failWebsocketConnection(this.ws, 'RSV1, RSV2, RSV3 must be clear')
+          failWebsocketConnection(this.#handler, 1002, 'RSV1, RSV2, RSV3 must be clear')
           return
         }
 
         if (fragmented && !isTextBinaryFrame(opcode)) {
           // Only text and binary frames can be fragmented
-          failWebsocketConnection(this.ws, 'Invalid frame type was fragmented.')
+          failWebsocketConnection(this.#handler, 1002, 'Invalid frame type was fragmented.')
           return
         }
 
         // If we are already parsing a text/binary frame and do not receive either
         // a continuation frame or close frame, fail the connection.
         if (isTextBinaryFrame(opcode) && this.#fragments.length > 0) {
-          failWebsocketConnection(this.ws, 'Expected continuation frame')
+          failWebsocketConnection(this.#handler, 1002, 'Expected continuation frame')
           return
         }
 
         if (this.#info.fragmented && fragmented) {
           // A fragmented frame can't be fragmented itself
-          failWebsocketConnection(this.ws, 'Fragmented frame exceeded 125 bytes.')
+          failWebsocketConnection(this.#handler, 1002, 'Fragmented frame exceeded 125 bytes.')
           return
         }
 
         // "All control frames MUST have a payload length of 125 bytes or less
         // and MUST NOT be fragmented."
         if ((payloadLength > 125 || fragmented) && isControlFrame(opcode)) {
-          failWebsocketConnection(this.ws, 'Control frame either too large or fragmented')
+          failWebsocketConnection(this.#handler, 1002, 'Control frame either too large or fragmented')
           return
         }
 
         if (isContinuationFrame(opcode) && this.#fragments.length === 0 && !this.#info.compressed) {
-          failWebsocketConnection(this.ws, 'Unexpected continuation frame')
+          failWebsocketConnection(this.#handler, 1002, 'Unexpected continuation frame')
           return
         }
 
@@ -187,7 +189,7 @@ class ByteParser extends Writable {
         // https://source.chromium.org/chromium/chromium/src/+/main:v8/src/common/globals.h;drc=1946212ac0100668f14eb9e2843bdd846e510a1e;bpv=1;bpt=1;l=1275
         // https://source.chromium.org/chromium/chromium/src/+/main:v8/src/objects/js-array-buffer.h;l=34;drc=1946212ac0100668f14eb9e2843bdd846e510a1e
         if (upper > 2 ** 31 - 1) {
-          failWebsocketConnection(this.ws, 'Received payload length > 2^31 bytes.')
+          failWebsocketConnection(this.#handler, 1009, 'Received payload length > 2^31 bytes.')
           return
         }
 
@@ -207,27 +209,25 @@ class ByteParser extends Writable {
           this.#state = parserStates.INFO
         } else {
           if (!this.#info.compressed) {
-            this.#fragments.push(body)
+            this.writeFragments(body)
 
             // If the frame is not fragmented, a message has been received.
             // If the frame is fragmented, it will terminate with a fin bit set
             // and an opcode of 0 (continuation), therefore we handle that when
             // parsing continuation frames, not here.
             if (!this.#info.fragmented && this.#info.fin) {
-              const fullMessage = Buffer.concat(this.#fragments)
-              websocketMessageReceived(this.ws, this.#info.binaryType, fullMessage)
-              this.#fragments.length = 0
+              websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments())
             }
 
             this.#state = parserStates.INFO
           } else {
             this.#extensions.get('permessage-deflate').decompress(body, this.#info.fin, (error, data) => {
               if (error) {
-                closeWebSocketConnection(this.ws, 1007, error.message, error.message.length)
+                failWebsocketConnection(this.#handler, 1007, error.message)
                 return
               }
 
-              this.#fragments.push(data)
+              this.writeFragments(data)
 
               if (!this.#info.fin) {
                 this.#state = parserStates.INFO
@@ -236,11 +236,10 @@ class ByteParser extends Writable {
                 return
               }
 
-              websocketMessageReceived(this.ws, this.#info.binaryType, Buffer.concat(this.#fragments))
+              websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments())
 
               this.#loop = true
               this.#state = parserStates.INFO
-              this.#fragments.length = 0
               this.run(callback)
             })
 
@@ -264,34 +263,70 @@ class ByteParser extends Writable {
       return emptyBuffer
     }
 
-    if (this.#buffers[0].length === n) {
-      this.#byteOffset -= this.#buffers[0].length
-      return this.#buffers.shift()
-    }
-
-    const buffer = Buffer.allocUnsafe(n)
-    let offset = 0
-
-    while (offset !== n) {
-      const next = this.#buffers[0]
-      const { length } = next
-
-      if (length + offset === n) {
-        buffer.set(this.#buffers.shift(), offset)
-        break
-      } else if (length + offset > n) {
-        buffer.set(next.subarray(0, n - offset), offset)
-        this.#buffers[0] = next.subarray(n - offset)
-        break
-      } else {
-        buffer.set(this.#buffers.shift(), offset)
-        offset += next.length
-      }
-    }
-
     this.#byteOffset -= n
 
-    return buffer
+    const first = this.#buffers[0]
+
+    if (first.length > n) {
+      // replace with remaining buffer
+      this.#buffers[0] = first.subarray(n, first.length)
+      return first.subarray(0, n)
+    } else if (first.length === n) {
+      // prefect match
+      return this.#buffers.shift()
+    } else {
+      let offset = 0
+      // If Buffer.allocUnsafe is used, extra copies will be made because the offset is non-zero.
+      const buffer = Buffer.allocUnsafeSlow(n)
+      while (offset !== n) {
+        const next = this.#buffers[0]
+        const length = next.length
+
+        if (length + offset === n) {
+          buffer.set(this.#buffers.shift(), offset)
+          break
+        } else if (length + offset > n) {
+          buffer.set(next.subarray(0, n - offset), offset)
+          this.#buffers[0] = next.subarray(n - offset)
+          break
+        } else {
+          buffer.set(this.#buffers.shift(), offset)
+          offset += length
+        }
+      }
+
+      return buffer
+    }
+  }
+
+  writeFragments (fragment) {
+    this.#fragmentsBytes += fragment.length
+    this.#fragments.push(fragment)
+  }
+
+  consumeFragments () {
+    const fragments = this.#fragments
+
+    if (fragments.length === 1) {
+      // single fragment
+      this.#fragmentsBytes = 0
+      return fragments.shift()
+    }
+
+    let offset = 0
+    // If Buffer.allocUnsafe is used, extra copies will be made because the offset is non-zero.
+    const output = Buffer.allocUnsafeSlow(this.#fragmentsBytes)
+
+    for (let i = 0; i < fragments.length; ++i) {
+      const buffer = fragments[i]
+      output.set(buffer, offset)
+      offset += buffer.length
+    }
+
+    this.#fragments = []
+    this.#fragmentsBytes = 0
+
+    return output
   }
 
   parseCloseBody (data) {
@@ -339,7 +374,7 @@ class ByteParser extends Writable {
 
     if (opcode === opcodes.CLOSE) {
       if (payloadLength === 1) {
-        failWebsocketConnection(this.ws, 'Received close frame with a 1-byte body.')
+        failWebsocketConnection(this.#handler, 1002, 'Received close frame with a 1-byte body.')
         return false
       }
 
@@ -348,12 +383,13 @@ class ByteParser extends Writable {
       if (this.#info.closeInfo.error) {
         const { code, reason } = this.#info.closeInfo
 
-        closeWebSocketConnection(this.ws, code, reason, reason.length)
-        failWebsocketConnection(this.ws, reason)
+        failWebsocketConnection(this.#handler, code, reason)
         return false
       }
 
-      if (this.ws[kSentClose] !== sentCloseFrameState.SENT) {
+      // Upon receiving such a frame, the other peer sends a
+      // Close frame in response, if it hasn't already sent one.
+      if (!this.#handler.closeState.has(sentCloseFrameState.SENT) && !this.#handler.closeState.has(sentCloseFrameState.RECEIVED)) {
         // If an endpoint receives a Close frame and did not previously send a
         // Close frame, the endpoint MUST send a Close frame in response.  (When
         // sending a Close frame in response, the endpoint typically echos the
@@ -365,21 +401,15 @@ class ByteParser extends Writable {
         }
         const closeFrame = new WebsocketFrameSend(body)
 
-        this.ws[kResponse].socket.write(
-          closeFrame.createFrame(opcodes.CLOSE),
-          (err) => {
-            if (!err) {
-              this.ws[kSentClose] = sentCloseFrameState.SENT
-            }
-          }
-        )
+        this.#handler.socket.write(closeFrame.createFrame(opcodes.CLOSE))
+        this.#handler.closeState.add(sentCloseFrameState.SENT)
       }
 
       // Upon either sending or receiving a Close control frame, it is said
       // that _The WebSocket Closing Handshake is Started_ and that the
       // WebSocket connection is in the CLOSING state.
-      this.ws[kReadyState] = states.CLOSING
-      this.ws[kReceivedClose] = true
+      this.#handler.readyState = states.CLOSING
+      this.#handler.closeState.add(sentCloseFrameState.RECEIVED)
 
       return false
     } else if (opcode === opcodes.PING) {
@@ -388,10 +418,10 @@ class ByteParser extends Writable {
       // A Pong frame sent in response to a Ping frame must have identical
       // "Application data"
 
-      if (!this.ws[kReceivedClose]) {
+      if (!this.#handler.closeState.has(sentCloseFrameState.RECEIVED)) {
         const frame = new WebsocketFrameSend(body)
 
-        this.ws[kResponse].socket.write(frame.createFrame(opcodes.PONG))
+        this.#handler.socket.write(frame.createFrame(opcodes.PONG))
 
         if (channels.ping.hasSubscribers) {
           channels.ping.publish({

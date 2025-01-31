@@ -290,6 +290,7 @@ class PackWalker extends IgnoreWalker {
       '/package-lock.json',
       '/yarn.lock',
       '/pnpm-lock.yaml',
+      '/bun.lockb',
     ]
 
     // if we have a files array in our package, we need to pull rules from it

@@ -298,6 +298,10 @@ const vectors = {
       KeyObject.from(privateKey).asymmetricKeyDetails.publicExponent,
       bigIntArrayToUnsignedBigInt(publicExponent));
     assert.strictEqual(privateKey.algorithm.hash.name, hash);
+    assert.strictEqual(privateKey.algorithm, privateKey.algorithm);
+    assert.strictEqual(privateKey.usages, privateKey.usages);
+    assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
+    assert.strictEqual(publicKey.usages, publicKey.usages);
 
     // Missing parameters
     await assert.rejects(
@@ -442,6 +446,10 @@ const vectors = {
     assert.strictEqual(privateKey.algorithm.name, name);
     assert.strictEqual(publicKey.algorithm.namedCurve, namedCurve);
     assert.strictEqual(privateKey.algorithm.namedCurve, namedCurve);
+    assert.strictEqual(privateKey.algorithm, privateKey.algorithm);
+    assert.strictEqual(privateKey.usages, privateKey.usages);
+    assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
+    assert.strictEqual(publicKey.usages, publicKey.usages);
 
     // Invalid parameters
     [1, true, {}, [], null].forEach(async (namedCurve) => {
@@ -508,6 +516,8 @@ const vectors = {
     assert.deepStrictEqual(key.usages, usages);
     assert.strictEqual(key.algorithm.name, name);
     assert.strictEqual(key.algorithm.length, length);
+    assert.strictEqual(key.algorithm, key.algorithm);
+    assert.strictEqual(key.usages, key.usages);
 
     // Invalid parameters
     [1, 100, 257, '', false, null].forEach(async (length) => {
@@ -568,6 +578,8 @@ const vectors = {
     assert.strictEqual(key.algorithm.name, 'HMAC');
     assert.strictEqual(key.algorithm.length, length);
     assert.strictEqual(key.algorithm.hash.name, hash);
+    assert.strictEqual(key.algorithm, key.algorithm);
+    assert.strictEqual(key.usages, key.usages);
 
     [1, false, null].forEach(async (hash) => {
       await assert.rejects(
@@ -632,6 +644,10 @@ assert.throws(() => new CryptoKey(), { code: 'ERR_ILLEGAL_CONSTRUCTOR' });
     assert.deepStrictEqual(privateKey.usages, privateUsages);
     assert.strictEqual(publicKey.algorithm.name, name);
     assert.strictEqual(privateKey.algorithm.name, name);
+    assert.strictEqual(privateKey.algorithm, privateKey.algorithm);
+    assert.strictEqual(privateKey.usages, privateKey.usages);
+    assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
+    assert.strictEqual(publicKey.usages, publicKey.usages);
   }
 
   const kTests = [

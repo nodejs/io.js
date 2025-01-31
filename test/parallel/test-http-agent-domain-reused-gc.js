@@ -26,7 +26,7 @@ async_hooks.createHook({
   },
   before(id) {
     if (id === reusedHandleId) {
-      global.gc();
+      globalThis.gc();
       checkBeforeCalled();
     }
   }

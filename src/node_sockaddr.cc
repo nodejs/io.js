@@ -20,6 +20,7 @@ using v8::FunctionTemplate;
 using v8::Int32;
 using v8::Isolate;
 using v8::Local;
+using v8::LocalVector;
 using v8::MaybeLocal;
 using v8::Object;
 using v8::Uint32;
@@ -154,9 +155,8 @@ bool is_match_ipv4_ipv6(
                 sizeof(uint32_t)) == 0;
 }
 
-SocketAddress::CompareResult compare_ipv4(
-    const SocketAddress& one,
-    const SocketAddress& two) {
+std::partial_ordering compare_ipv4(const SocketAddress& one,
+                                   const SocketAddress& two) {
   const sockaddr_in* one_in =
       reinterpret_cast<const sockaddr_in*>(one.data());
   const sockaddr_in* two_in =
@@ -165,31 +165,29 @@ SocketAddress::CompareResult compare_ipv4(
   const uint32_t s_addr_two = ntohl(two_in->sin_addr.s_addr);
 
   if (s_addr_one < s_addr_two)
-    return SocketAddress::CompareResult::LESS_THAN;
+    return std::partial_ordering::less;
   else if (s_addr_one == s_addr_two)
-    return SocketAddress::CompareResult::SAME;
+    return std::partial_ordering::equivalent;
   else
-    return SocketAddress::CompareResult::GREATER_THAN;
+    return std::partial_ordering::greater;
 }
 
-SocketAddress::CompareResult compare_ipv6(
-    const SocketAddress& one,
-    const SocketAddress& two) {
+std::partial_ordering compare_ipv6(const SocketAddress& one,
+                                   const SocketAddress& two) {
   const sockaddr_in6* one_in =
       reinterpret_cast<const sockaddr_in6*>(one.data());
   const sockaddr_in6* two_in =
       reinterpret_cast<const sockaddr_in6*>(two.data());
   int ret = memcmp(&one_in->sin6_addr, &two_in->sin6_addr, 16);
   if (ret < 0)
-    return SocketAddress::CompareResult::LESS_THAN;
+    return std::partial_ordering::less;
   else if (ret > 0)
-    return SocketAddress::CompareResult::GREATER_THAN;
-  return SocketAddress::CompareResult::SAME;
+    return std::partial_ordering::greater;
+  return std::partial_ordering::equivalent;
 }
 
-SocketAddress::CompareResult compare_ipv4_ipv6(
-    const SocketAddress& ipv4,
-    const SocketAddress& ipv6) {
+std::partial_ordering compare_ipv4_ipv6(const SocketAddress& ipv4,
+                                        const SocketAddress& ipv6) {
   const sockaddr_in* ipv4_in =
       reinterpret_cast<const sockaddr_in*>(ipv4.data());
   const sockaddr_in6 * ipv6_in =
@@ -199,7 +197,7 @@ SocketAddress::CompareResult compare_ipv4_ipv6(
       reinterpret_cast<const uint8_t*>(&ipv6_in->sin6_addr);
 
   if (memcmp(ptr, mask, sizeof(mask)) != 0)
-    return SocketAddress::CompareResult::NOT_COMPARABLE;
+    return std::partial_ordering::unordered;
 
   int ret = memcmp(
       &ipv4_in->sin_addr,
@@ -207,10 +205,10 @@ SocketAddress::CompareResult compare_ipv4_ipv6(
       sizeof(uint32_t));
 
   if (ret < 0)
-    return SocketAddress::CompareResult::LESS_THAN;
+    return std::partial_ordering::less;
   else if (ret > 0)
-    return SocketAddress::CompareResult::GREATER_THAN;
-  return SocketAddress::CompareResult::SAME;
+    return std::partial_ordering::greater;
+  return std::partial_ordering::equivalent;
 }
 
 bool in_network_ipv4(
@@ -235,7 +233,7 @@ bool in_network_ipv6(
   // Special case, if prefix == 128, then just do a
   // straight comparison.
   if (prefix == 128)
-    return compare_ipv6(ip, net) == SocketAddress::CompareResult::SAME;
+    return compare_ipv6(ip, net) == std::partial_ordering::equivalent;
 
   uint8_t r = prefix % 8;
   int len = (prefix - r) / 8;
@@ -263,7 +261,7 @@ bool in_network_ipv4_ipv6(
     int prefix) {
 
   if (prefix == 128)
-    return compare_ipv4_ipv6(ip, net) == SocketAddress::CompareResult::SAME;
+    return compare_ipv4_ipv6(ip, net) == std::partial_ordering::equivalent;
 
   uint8_t r = prefix % 8;
   int len = (prefix - r) / 8;
@@ -293,7 +291,7 @@ bool in_network_ipv6_ipv4(
     const SocketAddress& net,
     int prefix) {
   if (prefix == 32)
-    return compare_ipv4_ipv6(net, ip) == SocketAddress::CompareResult::SAME;
+    return compare_ipv4_ipv6(net, ip) == std::partial_ordering::equivalent;
 
   uint32_t m = ((1ull << prefix) - 1) << (32 - prefix);
 
@@ -337,8 +335,7 @@ bool SocketAddress::is_match(const SocketAddress& other) const {
   return false;
 }
 
-SocketAddress::CompareResult SocketAddress::compare(
-    const SocketAddress& other) const {
+std::partial_ordering SocketAddress::compare(const SocketAddress& other) const {
   switch (family()) {
     case AF_INET:
       switch (other.family()) {
@@ -349,16 +346,15 @@ SocketAddress::CompareResult SocketAddress::compare(
     case AF_INET6:
       switch (other.family()) {
         case AF_INET: {
-          CompareResult c = compare_ipv4_ipv6(other, *this);
-          switch (c) {
-            case SocketAddress::CompareResult::NOT_COMPARABLE:
-              // Fall through
-            case SocketAddress::CompareResult::SAME:
-              return c;
-            case SocketAddress::CompareResult::GREATER_THAN:
-              return SocketAddress::CompareResult::LESS_THAN;
-            case SocketAddress::CompareResult::LESS_THAN:
-              return SocketAddress::CompareResult::GREATER_THAN;
+          auto c = compare_ipv4_ipv6(other, *this);
+          if (c == std::partial_ordering::unordered) {
+            return std::partial_ordering::unordered;
+          } else if (c == std::partial_ordering::equivalent) {
+            return std::partial_ordering::equivalent;
+          } else if (c == std::partial_ordering::less) {
+            return std::partial_ordering::greater;
+          } else if (c == std::partial_ordering::greater) {
+            return std::partial_ordering::less;
           }
           break;
         }
@@ -366,7 +362,7 @@ SocketAddress::CompareResult SocketAddress::compare(
       }
       break;
   }
-  return SocketAddress::CompareResult::NOT_COMPARABLE;
+  return std::partial_ordering::unordered;
 }
 
 bool SocketAddress::is_in_network(
@@ -503,15 +499,14 @@ std::string SocketAddressBlockList::SocketAddressMaskRule::ToString() {
 
 MaybeLocal<Array> SocketAddressBlockList::ListRules(Environment* env) {
   Mutex::ScopedLock lock(mutex_);
-  std::vector<Local<Value>> rules;
+  LocalVector<Value> rules(env->isolate());
   if (!ListRules(env, &rules))
     return MaybeLocal<Array>();
   return Array::New(env->isolate(), rules.data(), rules.size());
 }
 
-bool SocketAddressBlockList::ListRules(
-    Environment* env,
-    std::vector<v8::Local<v8::Value>>* rules) {
+bool SocketAddressBlockList::ListRules(Environment* env,
+                                       LocalVector<Value>* rules) {
   if (parent_ && !parent_->ListRules(env, rules))
     return false;
   for (const auto& rule : rules_) {

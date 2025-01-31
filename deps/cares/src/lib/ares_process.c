@@ -650,6 +650,51 @@ done:
   return status;
 }
 
+static ares_bool_t issue_might_be_edns(const ares_dns_record_t *req,
+                                       const ares_dns_record_t *rsp)
+{
+  const ares_dns_rr_t *rr;
+
+  /* If we use EDNS and server answers with FORMERR without an OPT RR, the
+   * protocol extension is not understood by the responder. We must retry the
+   * query without EDNS enabled. */
+  if (ares_dns_record_get_rcode(rsp) != ARES_RCODE_FORMERR) {
+    return ARES_FALSE;
+  }
+
+  rr = ares_dns_get_opt_rr_const(req);
+  if (rr == NULL) {
+    /* We didn't send EDNS */
+    return ARES_FALSE;
+  }
+
+  if (ares_dns_get_opt_rr_const(rsp) == NULL) {
+    /* Spec says EDNS won't be echo'd back on non-supporting servers, so
+     * retry without EDNS */
+    return ARES_TRUE;
+  }
+
+  /* As per issue #911 some non-compliant servers that do indeed support EDNS
+   * but don't support unrecognized option codes exist.  At this point we
+   * expect them to have also returned an EDNS opt record, but we may remove
+   * that check in the future. Lets detect this situation if we're sending
+   * option codes */
+  if (ares_dns_rr_get_opt_cnt(rr, ARES_RR_OPT_OPTIONS) == 0) {
+    /* We didn't send any option codes */
+    return ARES_FALSE;
+  }
+
+  if (ares_dns_get_opt_rr_const(rsp) != NULL) {
+    /* At this time we're requiring the server to respond with EDNS opt
+     * records since that's what has been observed in the field.  We might
+     * find in the future we have to remove this, who knows. Lets go
+     * ahead and force a retry without EDNS*/
+    return ARES_TRUE;
+  }
+
+  return ARES_FALSE;
+}
+
 /* Handle an answer from a server. This must NEVER cleanup the
  * server connection! Return something other than ARES_SUCCESS to cause
  * the connection to be terminated after this call. */
@@ -713,12 +758,10 @@ static ares_status_t process_answer(ares_channel_t      *channel,
   ares_llist_node_destroy(query->node_queries_to_conn);
   query->node_queries_to_conn = NULL;
 
-  /* If we use EDNS and server answers with FORMERR without an OPT RR, the
-   * protocol extension is not understood by the responder. We must retry the
-   * query without EDNS enabled. */
-  if (ares_dns_record_get_rcode(rdnsrec) == ARES_RCODE_FORMERR &&
-      ares_dns_get_opt_rr_const(query->query) != NULL &&
-      ares_dns_get_opt_rr_const(rdnsrec) == NULL) {
+  /* There are old servers that don't understand EDNS at all, then some servers
+   * that have non-compliant implementations.  Lets try to detect this sort
+   * of thing. */
+  if (issue_might_be_edns(query->query, rdnsrec)) {
     status = rewrite_without_edns(query);
     if (status != ARES_SUCCESS) {
       end_query(channel, server, query, status, NULL);

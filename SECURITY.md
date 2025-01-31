@@ -82,23 +82,23 @@ Vulnerabilities related to this case may be fixed by a documentation update.
 
 **Node.js does NOT trust**:
 
-1. Data received from the remote end of inbound network connections
-   that are accepted through the use of Node.js APIs and
-   which is transformed/validated by Node.js before being passed
-   to the application. This includes:
-   * HTTP APIs (all flavors) server APIs.
-2. The data received from the remote end of outbound network connections
-   that are created through the use of Node.js APIs and
-   which is transformed/validated by Node.js before being passed
-   to the application EXCEPT with respect to payload length. Node.js trusts
-   that applications make connections/requests which will avoid payload
-   sizes that will result in a Denial of Service.
-   * HTTP APIs (all flavors) client APIs.
-   * DNS APIs.
-3. Consumers of data protected through the use of Node.js APIs (for example,
-   people who have access to data encrypted through the Node.js crypto APIs).
-4. The file content or other I/O that is opened for reading or writing by the
-   use of Node.js APIs (ex: stdin, stdout, stderr).
+* Data received from the remote end of inbound network connections
+  that are accepted through the use of Node.js APIs and
+  which is transformed/validated by Node.js before being passed
+  to the application. This includes:
+  * HTTP APIs (all flavors) server APIs.
+* The data received from the remote end of outbound network connections
+  that are created through the use of Node.js APIs and
+  which is transformed/validated by Node.js before being passed
+  to the application EXCEPT with respect to payload length. Node.js trusts
+  that applications make connections/requests which will avoid payload
+  sizes that will result in a Denial of Service.
+  * HTTP APIs (all flavors) client APIs.
+  * DNS APIs.
+* Consumers of data protected through the use of Node.js APIs (for example,
+  people who have access to data encrypted through the Node.js crypto APIs).
+* The file content or other I/O that is opened for reading or writing by the
+  use of Node.js APIs (ex: stdin, stdout, stderr).
 
 In other words, if the data passing through Node.js to/from the application
 can trigger actions other than those documented for the APIs, there is likely
@@ -108,23 +108,23 @@ lead to a loss of confidentiality, integrity, or availability.
 
 **Node.js trusts everything else**. Examples include:
 
-1. The developers and infrastructure that runs it.
-2. The operating system that Node.js is running under and its configuration,
-   along with anything under control of the operating system.
-3. The code it is asked to run, including JavaScript and native code, even if
-   said code is dynamically loaded, e.g., all dependencies installed from the
-   npm registry.
-   The code run inherits all the privileges of the execution user.
-4. Inputs provided to it by the code it is asked to run, as it is the
-   responsibility of the application to perform the required input validations,
-   e.g. the input to `JSON.parse()`.
-5. Any connection used for inspector (debugger protocol) regardless of being
-   opened by command line options or Node.js APIs, and regardless of the remote
-   end being on the local machine or remote.
-6. The file system when requiring a module.
-   See <https://nodejs.org/api/modules.html#all-together>.
-7. The `node:wasi` module does not currently provide the comprehensive file
-   system security properties provided by some WASI runtimes.
+* The developers and infrastructure that runs it.
+* The operating system that Node.js is running under and its configuration,
+  along with anything under control of the operating system.
+* The code it is asked to run, including JavaScript, WASM and native code, even
+  if said code is dynamically loaded, e.g., all dependencies installed from the
+  npm registry.
+  The code run inherits all the privileges of the execution user.
+* Inputs provided to it by the code it is asked to run, as it is the
+  responsibility of the application to perform the required input validations,
+  e.g. the input to `JSON.parse()`.
+* Any connection used for inspector (debugger protocol) regardless of being
+  opened by command line options or Node.js APIs, and regardless of the remote
+  end being on the local machine or remote.
+* The file system when requiring a module.
+  See <https://nodejs.org/api/modules.html#all-together>.
+* The `node:wasi` module does not currently provide the comprehensive file
+  system security properties provided by some WASI runtimes.
 
 Any unexpected behavior from the data manipulation from Node.js Internal
 functions may be considered a vulnerability if they are exploitable via
@@ -218,7 +218,7 @@ as any other stable feature.
 Security notifications will be distributed via the following methods.
 
 * <https://groups.google.com/group/nodejs-sec>
-* <https://nodejs.org/en/blog/>
+* <https://nodejs.org/en/blog/vulnerability>
 
 ## Comments on this policy
 

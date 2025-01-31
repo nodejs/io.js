@@ -32,7 +32,7 @@ doOpen().then(common.mustCall((fd) => {
 })).then(common.mustCall(() => {
   setImmediate(() => {
     // The FileHandle should be out-of-scope and no longer accessed now.
-    global.gc();
+    globalThis.gc();
 
     // Wait an extra event loop turn, as the warning is emitted from the
     // native layer in an unref()'ed setImmediate() callback.

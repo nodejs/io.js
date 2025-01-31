@@ -3,7 +3,7 @@ var testCases = {
         {length: 256, expected: algorithms["HKDF"].derivation},
         {length: 384, expected: algorithms["HKDF"].derivation384},
         {length: 230, expected: undefined}, // should throw an exception, not multiple of 8
-        {length: 0, expected: undefined}, // explicitly disallowed, so should throw
+        {length: 0, expected: emptyArray},
         {length: null, expected: undefined }, // should throw an exception
         {length: undefined, expected: undefined }, // should throw an exception
         {length: "omitted", expected: undefined }, // default value is null, so should throw
@@ -12,7 +12,7 @@ var testCases = {
         {length: 256, expected: algorithms["PBKDF2"].derivation},
         {length: 384, expected: algorithms["PBKDF2"].derivation384},
         {length: 230, expected: undefined}, // should throw an exception, not multiple of 8
-        {length: 0, expected: undefined}, // explicitly disallowed, so should throw
+        {length: 0, expected: emptyArray},
         {length: null, expected: undefined }, // should throw an exception
         {length: undefined, expected: undefined }, // should throw an exception
         {length: "omitted", expected: undefined }, // default value is null, so should throw

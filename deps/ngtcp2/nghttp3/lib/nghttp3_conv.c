@@ -31,34 +31,39 @@
 #include "nghttp3_str.h"
 #include "nghttp3_unreachable.h"
 
-int64_t nghttp3_get_varint(size_t *plen, const uint8_t *p) {
+const uint8_t *nghttp3_get_varint(int64_t *dest, const uint8_t *p) {
   union {
-    char b[8];
+    uint8_t n8;
     uint16_t n16;
     uint32_t n32;
     uint64_t n64;
   } n;
 
-  *plen = (size_t)(1u << (*p >> 6));
-
-  switch (*plen) {
+  switch (*p >> 6) {
+  case 0:
+    *dest = *p++;
+    return p;
   case 1:
-    return (int64_t)*p;
-  case 2:
     memcpy(&n, p, 2);
-    n.b[0] &= 0x3f;
-    return (int64_t)ntohs(n.n16);
-  case 4:
-    memcpy(&n, p, 4);
-    n.b[0] &= 0x3f;
-    return (int64_t)ntohl(n.n32);
-  case 8:
-    memcpy(&n, p, 8);
-    n.b[0] &= 0x3f;
-    return (int64_t)nghttp3_ntohl64(n.n64);
-  }
+    n.n8 &= 0x3f;
+    *dest = ntohs(n.n16);
 
-  nghttp3_unreachable();
+    return p + 2;
+  case 2:
+    memcpy(&n, p, 4);
+    n.n8 &= 0x3f;
+    *dest = ntohl(n.n32);
+
+    return p + 4;
+  case 3:
+    memcpy(&n, p, 8);
+    n.n8 &= 0x3f;
+    *dest = (int64_t)nghttp3_ntohl64(n.n64);
+
+    return p + 8;
+  default:
+    nghttp3_unreachable();
+  }
 }
 
 int64_t nghttp3_get_varint_fb(const uint8_t *p) { return *p & 0x3f; }

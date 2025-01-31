@@ -1,0 +1,95 @@
+# Copyright 2016 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+declare_args() {
+  # Where jinja2 is located, in chromium it is //third_party.
+  jinja_dir = "//third_party"
+}
+
+# This template will generate inspector protocol source code. The code will
+# not be compiled, use get_target_outputs(<name>) to compile them.
+#
+# Inputs
+#
+#   config_file  (required)
+#       Path to json file specifying inspector protocol configuration.
+#
+#   out_dir  (required)
+#       Path to put the generated files in. It must be inside output or
+#       generated file directory.
+#
+#   outputs (required)
+#       Files generated. Relative to out_dir.
+#
+#   inputs  (optional)
+#       Extra inputs specified by the config file.
+template("inspector_protocol_generate") {
+  assert(defined(invoker.config_file))
+  assert(defined(invoker.out_dir))
+  assert(defined(invoker.outputs))
+  assert(defined(invoker.inspector_protocol_dir))
+  inspector_protocol_dir = invoker.inspector_protocol_dir
+  use_embedder_types =
+      defined(invoker.use_embedder_types) && invoker.use_embedder_types
+  action(target_name) {
+    script = "$inspector_protocol_dir/code_generator.py"
+
+    inputs = [
+      invoker.config_file,
+      "$inspector_protocol_dir/lib/Forward_h.template",
+      "$inspector_protocol_dir/templates/Exported_h.template",
+      "$inspector_protocol_dir/templates/Imported_h.template",
+      "$inspector_protocol_dir/templates/TypeBuilder_cpp.template",
+      "$inspector_protocol_dir/templates/TypeBuilder_h.template",
+    ]
+    if (defined(invoker.inputs)) {
+      inputs += invoker.inputs
+    }
+    if (!use_embedder_types) {
+      inputs += [
+        "$inspector_protocol_dir/lib/ValueConversions_cpp.template",
+        "$inspector_protocol_dir/lib/ValueConversions_h.template",
+        "$inspector_protocol_dir/lib/Values_cpp.template",
+        "$inspector_protocol_dir/lib/Values_h.template",
+        "$inspector_protocol_dir/lib/Object_cpp.template",
+        "$inspector_protocol_dir/lib/Object_h.template",
+      ]
+    }
+
+    args = [
+      "--jinja_dir",
+      rebase_path(jinja_dir, root_build_dir),
+      "--output_base",
+      rebase_path(invoker.out_dir, root_build_dir),
+      "--config",
+      rebase_path(invoker.config_file, root_build_dir),
+      "--inspector_protocol_dir",
+      "$inspector_protocol_dir",
+    ]
+    if (use_embedder_types) {
+      args += [
+        "--config_value",
+        "use_embedder_types=true",
+      ]
+    }
+    if (defined(invoker.config_values)) {
+      foreach(value, invoker.config_values) {
+        args += [
+          "--config_value",
+          value,
+        ]
+      }
+    }
+
+    outputs = get_path_info(rebase_path(invoker.outputs, ".", invoker.out_dir),
+                            "abspath")
+
+    forward_variables_from(invoker,
+                           [
+                             "visibility",
+                             "deps",
+                             "public_deps",
+                           ])
+  }
+}

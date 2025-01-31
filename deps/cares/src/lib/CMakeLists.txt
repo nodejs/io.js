@@ -92,10 +92,22 @@ IF (CARES_STATIC)
 
 	SET_TARGET_PROPERTIES (${LIBNAME} PROPERTIES
 		EXPORT_NAME                  cares${STATIC_SUFFIX}
-		OUTPUT_NAME                  cares${STATIC_SUFFIX}
 		COMPILE_PDB_NAME             cares${STATIC_SUFFIX}
 		C_STANDARD                   90
 	)
+
+	# On Windows, the output name should have a static suffix since otherwise
+	# we would have conflicting output names (libcares.lib) for the link
+	# library.
+	# However on Unix-like systems, we typically have something like
+	# libcares.so  for shared libraries  and libcares.a for static
+	# libraries, so these don't conflict.
+	# This behavior better emulates what happens with autotools builds
+	IF (WIN32)
+		SET_TARGET_PROPERTIES(${LIBNAME} PROPERTIES OUTPUT_NAME cares${STATIC_SUFFIX})
+	ELSE ()
+		SET_TARGET_PROPERTIES(${LIBNAME} PROPERTIES OUTPUT_NAME cares)
+	ENDIF()
 
 	IF (ANDROID)
 		SET_TARGET_PROPERTIES (${LIBNAME} PROPERTIES C_STANDARD 99)

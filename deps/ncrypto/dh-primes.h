@@ -50,16 +50,19 @@
  * (eay@cryptsoft.com).  This product includes software written by Tim
  * Hudson (tjh@cryptsoft.com). */
 
+#ifndef DEPS_NCRYPTO_DH_PRIMES_H_
+#define DEPS_NCRYPTO_DH_PRIMES_H_
+
 #include <openssl/dh.h>
 
 #include <openssl/bn.h>
 #include <openssl/err.h>
 #include <openssl/mem.h>
 
-extern "C" int bn_set_words(BIGNUM *bn, const BN_ULONG *words, size_t num);
+extern "C" int bn_set_words(BIGNUM* bn, const BN_ULONG* words, size_t num);
 
-// Backporting primes that may not be supported in earlier boringssl versions. Intentionally
-// keeping the existing C-style formatting.
+// Backporting primes that may not be supported in earlier boringssl versions.
+// Intentionally keeping the existing C-style formatting.
 
 #define OPENSSL_ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
@@ -71,25 +74,27 @@ extern "C" int bn_set_words(BIGNUM *bn, const BN_ULONG *words, size_t num);
 #error "Must define either OPENSSL_32_BIT or OPENSSL_64_BIT"
 #endif
 
-static BIGNUM *get_params(BIGNUM *ret, const BN_ULONG *words, size_t num_words) {
-  BIGNUM *alloc = NULL;
-  if (ret == NULL) {
+static BIGNUM* get_params(BIGNUM* ret,
+                          const BN_ULONG* words,
+                          size_t num_words) {
+  BIGNUM* alloc = nullptr;
+  if (ret == nullptr) {
     alloc = BN_new();
-    if (alloc == NULL) {
-      return NULL;
+    if (alloc == nullptr) {
+      return nullptr;
     }
     ret = alloc;
   }
 
   if (!bn_set_words(ret, words, num_words)) {
     BN_free(alloc);
-    return NULL;
+    return nullptr;
   }
 
   return ret;
 }
 
-BIGNUM *BN_get_rfc3526_prime_2048(BIGNUM *ret) {
+BIGNUM* BN_get_rfc3526_prime_2048(BIGNUM* ret) {
   static const BN_ULONG kWords[] = {
       TOBN(0xffffffff, 0xffffffff), TOBN(0x15728e5a, 0x8aacaa68),
       TOBN(0x15d22618, 0x98fa0510), TOBN(0x3995497c, 0xea956ae5),
@@ -111,7 +116,7 @@ BIGNUM *BN_get_rfc3526_prime_2048(BIGNUM *ret) {
   return get_params(ret, kWords, OPENSSL_ARRAY_SIZE(kWords));
 }
 
-BIGNUM *BN_get_rfc3526_prime_3072(BIGNUM *ret) {
+BIGNUM* BN_get_rfc3526_prime_3072(BIGNUM* ret) {
   static const BN_ULONG kWords[] = {
       TOBN(0xffffffff, 0xffffffff), TOBN(0x4b82d120, 0xa93ad2ca),
       TOBN(0x43db5bfc, 0xe0fd108e), TOBN(0x08e24fa0, 0x74e5ab31),
@@ -141,7 +146,7 @@ BIGNUM *BN_get_rfc3526_prime_3072(BIGNUM *ret) {
   return get_params(ret, kWords, OPENSSL_ARRAY_SIZE(kWords));
 }
 
-BIGNUM *BN_get_rfc3526_prime_4096(BIGNUM *ret) {
+BIGNUM* BN_get_rfc3526_prime_4096(BIGNUM* ret) {
   static const BN_ULONG kWords[] = {
       TOBN(0xffffffff, 0xffffffff), TOBN(0x4df435c9, 0x34063199),
       TOBN(0x86ffb7dc, 0x90a6c08f), TOBN(0x93b4ea98, 0x8d8fddc1),
@@ -179,7 +184,7 @@ BIGNUM *BN_get_rfc3526_prime_4096(BIGNUM *ret) {
   return get_params(ret, kWords, OPENSSL_ARRAY_SIZE(kWords));
 }
 
-BIGNUM *BN_get_rfc3526_prime_6144(BIGNUM *ret) {
+BIGNUM* BN_get_rfc3526_prime_6144(BIGNUM* ret) {
   static const BN_ULONG kWords[] = {
       TOBN(0xffffffff, 0xffffffff), TOBN(0xe694f91e, 0x6dcc4024),
       TOBN(0x12bf2d5b, 0x0b7474d6), TOBN(0x043e8f66, 0x3f4860ee),
@@ -233,7 +238,7 @@ BIGNUM *BN_get_rfc3526_prime_6144(BIGNUM *ret) {
   return get_params(ret, kWords, OPENSSL_ARRAY_SIZE(kWords));
 }
 
-BIGNUM *BN_get_rfc3526_prime_8192(BIGNUM *ret) {
+BIGNUM* BN_get_rfc3526_prime_8192(BIGNUM* ret) {
   static const BN_ULONG kWords[] = {
       TOBN(0xffffffff, 0xffffffff), TOBN(0x60c980dd, 0x98edd3df),
       TOBN(0xc81f56e8, 0x80b96e71), TOBN(0x9e3050e2, 0x765694df),
@@ -302,3 +307,5 @@ BIGNUM *BN_get_rfc3526_prime_8192(BIGNUM *ret) {
   };
   return get_params(ret, kWords, OPENSSL_ARRAY_SIZE(kWords));
 }
+
+#endif  // DEPS_NCRYPTO_DH_PRIMES_H_

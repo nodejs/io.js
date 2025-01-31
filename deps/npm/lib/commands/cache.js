@@ -38,7 +38,7 @@ const searchCachePackage = async (path, parsed, cacheKeys) => {
     try {
       details = await cacache.get(path, key)
       packument = jsonParse(details.data)
-    } catch (_) {
+    } catch {
       // if we couldn't parse the packument, abort
       continue
     }
@@ -131,7 +131,7 @@ class Cache extends BaseCommand {
       let entry
       try {
         entry = await cacache.get(cachePath, key)
-      } catch (err) {
+      } catch {
         log.warn('cache', `Not Found: ${key}`)
         break
       }

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "quic/defs.h"
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 #if HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 
+#include "base_object.h"
 #include "bindingdata.h"
 #include "defs.h"
 #include "session.h"
@@ -27,14 +27,15 @@ class Session::Application : public MemoryRetainer {
   // Application. The only additional processing the Session does is to
   // automatically adjust the session-level flow control window. It is up to
   // the Application to do the same for the Stream-level flow control.
-  virtual bool ReceiveStreamData(Stream* stream,
+  virtual bool ReceiveStreamData(int64_t stream_id,
                                  const uint8_t* data,
                                  size_t datalen,
-                                 Stream::ReceiveDataFlags flags) = 0;
+                                 const Stream::ReceiveDataFlags& flags,
+                                 void* stream_user_data) = 0;
 
   // Session will forward all data acknowledgements for a stream to the
   // Application.
-  virtual void AcknowledgeStreamData(Stream* stream, size_t datalen);
+  virtual bool AcknowledgeStreamData(int64_t stream_id, size_t datalen);
 
   // Called to determine if a Header can be added to this application.
   // Applications that do not support headers will always return false.
@@ -78,15 +79,16 @@ class Session::Application : public MemoryRetainer {
       SessionTicket::AppData::Source::Flag flag);
 
   // Notifies the Application that the identified stream has been closed.
-  virtual void StreamClose(Stream* stream, QuicError error = QuicError());
+  virtual void StreamClose(Stream* stream, QuicError&& error = QuicError());
 
   // Notifies the Application that the identified stream has been reset.
   virtual void StreamReset(Stream* stream,
                            uint64_t final_size,
-                           QuicError error);
+                           QuicError&& error = QuicError());
 
   // Notifies the Application that the identified stream should stop sending.
-  virtual void StreamStopSending(Stream* stream, QuicError error);
+  virtual void StreamStopSending(Stream* stream,
+                                 QuicError&& error = QuicError());
 
   // Submits an outbound block of headers for the given stream. Not all
   // Application types will support headers, in which case this function
@@ -124,7 +126,7 @@ class Session::Application : public MemoryRetainer {
   inline const Session& session() const { return *session_; }
 
  private:
-  Packet* CreateStreamDataPacket();
+  BaseObjectPtr<Packet> CreateStreamDataPacket();
 
   // Write the given stream_data into the buffer.
   ssize_t WriteVStream(PathStorage* path,
@@ -145,10 +147,14 @@ struct Session::Application::StreamData final {
   int64_t id = -1;
   int fin = 0;
   ngtcp2_vec data[kMaxVectorCount]{};
-  ngtcp2_vec* buf = data;
   BaseObjectPtr<Stream> stream;
 
-  inline operator nghttp3_vec() const { return {data[0].base, data[0].len}; }
+  inline operator nghttp3_vec*() {
+    return reinterpret_cast<nghttp3_vec*>(data);
+  }
+
+  inline operator const ngtcp2_vec*() const { return data; }
+  inline operator ngtcp2_vec*() { return data; }
 
   std::string ToString() const;
 };

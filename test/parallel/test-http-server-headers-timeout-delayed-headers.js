@@ -38,25 +38,29 @@ server.listen(0, common.mustCall(() => {
     response += chunk;
   }));
 
-  const errOrEnd = common.mustSucceed(function(err) {
+  client.on('error', () => {
+    // Ignore errors like 'write EPIPE' that might occur while the request is
+    // sent.
+  });
+
+  client.on('close', common.mustCall(() => {
     assert.strictEqual(
       response,
       'HTTP/1.1 408 Request Timeout\r\nConnection: close\r\n\r\n'
     );
     server.close();
-  });
-
-  client.on('end', errOrEnd);
-  client.on('error', errOrEnd);
+  }));
 
   client.resume();
 
   sendDelayedRequestHeaders = common.mustCall(() => {
     setTimeout(() => {
-      client.write('POST / HTTP/1.1\r\n');
-      client.write('Content-Length: 20\r\n');
-      client.write('Connection: close\r\n\r\n');
-      client.write('12345678901234567890\r\n\r\n');
+      client.write(
+        'POST / HTTP/1.1\r\n' +
+        'Content-Length: 20\r\n' +
+        'Connection: close\r\n\r\n' +
+        '12345678901234567890\r\n\r\n'
+      );
     }, common.platformTimeout(headersTimeout * 2)).unref();
   });
 }));

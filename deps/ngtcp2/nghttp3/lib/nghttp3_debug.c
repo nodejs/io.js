@@ -35,7 +35,7 @@ static void nghttp3_default_debug_vfprintf_callback(const char *fmt,
 }
 
 static nghttp3_debug_vprintf_callback static_debug_vprintf_callback =
-    nghttp3_default_debug_vfprintf_callback;
+  nghttp3_default_debug_vfprintf_callback;
 
 void nghttp3_debug_vprintf(const char *format, ...) {
   if (static_debug_vprintf_callback) {
@@ -47,15 +47,15 @@ void nghttp3_debug_vprintf(const char *format, ...) {
 }
 
 void nghttp3_set_debug_vprintf_callback(
-    nghttp3_debug_vprintf_callback debug_vprintf_callback) {
+  nghttp3_debug_vprintf_callback debug_vprintf_callback) {
   static_debug_vprintf_callback = debug_vprintf_callback;
 }
 
-#else /* !DEBUGBUILD */
+#else /* !defined(DEBUGBUILD) */
 
 void nghttp3_set_debug_vprintf_callback(
-    nghttp3_debug_vprintf_callback debug_vprintf_callback) {
+  nghttp3_debug_vprintf_callback debug_vprintf_callback) {
   (void)debug_vprintf_callback;
 }
 
-#endif /* !DEBUGBUILD */
+#endif /* !defined(DEBUGBUILD) */

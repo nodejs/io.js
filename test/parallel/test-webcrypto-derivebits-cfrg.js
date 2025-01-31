@@ -140,9 +140,11 @@ async function prepareKeys() {
           public: publicKey
         }, privateKey, 8 * size - 11);
 
-        assert.strictEqual(
-          Buffer.from(bits).toString('hex'),
-          result.slice(0, -2));
+        const expected = Buffer.from(result.slice(0, -2), 'hex');
+        expected[size - 2] = expected[size - 2] & 0b11111000;
+        assert.deepStrictEqual(
+          Buffer.from(bits),
+          expected);
       }
     }));
 

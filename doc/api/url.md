@@ -600,6 +600,12 @@ value returned is equivalent to that of [`url.href`][] and [`url.toJSON()`][].
 
 #### `url.toJSON()`
 
+<!-- YAML
+added:
+  - v7.7.0
+  - v6.13.0
+-->
+
 * Returns: {string}
 
 The `toJSON()` method on the `URL` object returns the serialized URL. The

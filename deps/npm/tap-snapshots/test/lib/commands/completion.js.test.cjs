@@ -64,7 +64,6 @@ Array [
     get
     help
     help-search
-    hook
     init
     install
     install-ci-test

@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.assertBundleLatest = exports.assertBundleV02 = exports.isBundleV01 = exports.assertBundleV01 = exports.assertBundle = void 0;
+exports.assertBundle = assertBundle;
+exports.assertBundleV01 = assertBundleV01;
+exports.isBundleV01 = isBundleV01;
+exports.assertBundleV02 = assertBundleV02;
+exports.assertBundleLatest = assertBundleLatest;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -27,7 +31,6 @@ function assertBundle(b) {
         throw new error_1.ValidationError('invalid bundle', invalidValues);
     }
 }
-exports.assertBundle = assertBundle;
 // Asserts that the given bundle conforms to the v0.1 bundle format.
 function assertBundleV01(b) {
     const invalidValues = [];
@@ -37,7 +40,6 @@ function assertBundleV01(b) {
         throw new error_1.ValidationError('invalid v0.1 bundle', invalidValues);
     }
 }
-exports.assertBundleV01 = assertBundleV01;
 // Type guard to determine if Bundle is a v0.1 bundle.
 function isBundleV01(b) {
     try {
@@ -48,7 +50,6 @@ function isBundleV01(b) {
         return false;
     }
 }
-exports.isBundleV01 = isBundleV01;
 // Asserts that the given bundle conforms to the v0.2 bundle format.
 function assertBundleV02(b) {
     const invalidValues = [];
@@ -58,7 +59,6 @@ function assertBundleV02(b) {
         throw new error_1.ValidationError('invalid v0.2 bundle', invalidValues);
     }
 }
-exports.assertBundleV02 = assertBundleV02;
 // Asserts that the given bundle conforms to the newest (0.3) bundle format.
 function assertBundleLatest(b) {
     const invalidValues = [];
@@ -69,7 +69,6 @@ function assertBundleLatest(b) {
         throw new error_1.ValidationError('invalid bundle', invalidValues);
     }
 }
-exports.assertBundleLatest = assertBundleLatest;
 function validateBundleBase(b) {
     const invalidValues = [];
     // Media type validation
@@ -192,6 +191,7 @@ function validateInclusionProof(b) {
 // Necessary for V03 and later bundles
 function validateNoCertificateChain(b) {
     const invalidValues = [];
+    /* istanbul ignore next */
     if (b.verificationMaterial?.content?.$case === 'x509CertificateChain') {
         invalidValues.push('verificationMaterial.content.$case');
     }

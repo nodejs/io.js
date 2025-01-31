@@ -8,7 +8,7 @@ updates:
       interval: monthly
     commit-message:
       prefix: meta
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: ${{secrets.OPEN_PR_LIMIT}}
 
   - package-ecosystem: npm
     directory: /tools/eslint
@@ -16,7 +16,7 @@ updates:
       interval: monthly
     commit-message:
       prefix: tools
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: ${{secrets.OPEN_PR_LIMIT}}
     groups:
       eslint:
         applies-to: version-updates
@@ -29,7 +29,7 @@ updates:
       interval: monthly
     commit-message:
       prefix: tools
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: ${{secrets.OPEN_PR_LIMIT}}
     groups:
       lint-md:
         applies-to: version-updates

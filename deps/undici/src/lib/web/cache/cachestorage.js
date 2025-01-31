@@ -1,9 +1,9 @@
 'use strict'
 
-const { kConstruct } = require('./symbols')
 const { Cache } = require('./cache')
 const { webidl } = require('../fetch/webidl')
 const { kEnumerableProperty } = require('../../core/util')
+const { kConstruct } = require('../../core/symbols')
 
 class CacheStorage {
   /**
@@ -16,6 +16,8 @@ class CacheStorage {
     if (arguments[0] !== kConstruct) {
       webidl.illegalConstructor()
     }
+
+    webidl.util.markAsUncloneable(this)
   }
 
   async match (request, options = {}) {

@@ -1,4 +1,4 @@
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const { otplease } = require('../utils/auth.js')
 const npa = require('npm-package-arg')
 const { log } = require('proc-log')
@@ -47,7 +47,7 @@ class Deprecate extends BaseCommand {
     }
 
     const uri = '/' + p.escapedName
-    const packument = await fetch.json(uri, {
+    const packument = await npmFetch.json(uri, {
       ...this.npm.flatOptions,
       spec: p,
       query: { write: true },
@@ -60,7 +60,7 @@ class Deprecate extends BaseCommand {
       for (const v of versions) {
         packument.versions[v].deprecated = msg
       }
-      return otplease(this.npm, this.npm.flatOptions, opts => fetch(uri, {
+      return otplease(this.npm, this.npm.flatOptions, opts => npmFetch(uri, {
         ...opts,
         spec: p,
         method: 'PUT',

@@ -94,7 +94,7 @@ const toCyclonedxItem = (node, { packageType }) => {
     }
 
     parsedLicense = parseLicense(license)
-  } catch (err) {
+  } catch {
     parsedLicense = null
   }
 
@@ -192,7 +192,7 @@ const isGitNode = (node) => {
   try {
     const { type } = npa(node.resolved)
     return type === 'git' || type === 'hosted'
-  } catch (err) {
+  } catch {
     /* istanbul ignore next */
     return false
   }

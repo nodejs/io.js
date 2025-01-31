@@ -1,1 +1,3 @@
-module.exports = require('./binary-extensions.json');
+import binaryExtensions from './binary-extensions.json' with {type: 'json'};
+
+export default binaryExtensions;

@@ -1,5 +1,5 @@
 const npa = require('npm-package-arg')
-const regFetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const semver = require('semver')
 const { log, output } = require('proc-log')
 const { otplease } = require('../utils/auth.js')
@@ -119,7 +119,7 @@ class DistTag extends BaseCommand {
       },
       spec,
     }
-    await otplease(this.npm, reqOpts, o => regFetch(url, o))
+    await otplease(this.npm, reqOpts, o => npmFetch(url, o))
     output.standard(`+${t}: ${spec.name}@${version}`)
   }
 
@@ -145,7 +145,7 @@ class DistTag extends BaseCommand {
       method: 'DELETE',
       spec,
     }
-    await otplease(this.npm, reqOpts, o => regFetch(url, o))
+    await otplease(this.npm, reqOpts, o => npmFetch(url, o))
     output.standard(`-${tag}: ${spec.name}@${version}`)
   }
 
@@ -182,7 +182,7 @@ class DistTag extends BaseCommand {
       try {
         output.standard(`${name}:`)
         await this.list(npa(name), this.npm.flatOptions)
-      } catch (err) {
+      } catch {
         // set the exitCode directly, but ignore the error
         // since it will have already been logged by this.list()
         process.exitCode = 1
@@ -191,7 +191,7 @@ class DistTag extends BaseCommand {
   }
 
   async fetchTags (spec, opts) {
-    const data = await regFetch.json(
+    const data = await npmFetch.json(
       `/-/package/${spec.escapedName}/dist-tags`,
       { ...opts, 'prefer-online': true, spec }
     )

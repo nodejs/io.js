@@ -1,4 +1,4 @@
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const npa = require('npm-package-arg')
 const { log, output } = require('proc-log')
 const getIdentity = require('../utils/get-identity')
@@ -32,7 +32,7 @@ class Star extends BaseCommand {
     const username = await getIdentity(this.npm, this.npm.flatOptions)
 
     for (const pkg of pkgs) {
-      const fullData = await fetch.json(pkg.escapedName, {
+      const fullData = await npmFetch.json(pkg.escapedName, {
         ...this.npm.flatOptions,
         spec: pkg,
         query: { write: true },
@@ -55,7 +55,7 @@ class Star extends BaseCommand {
         log.verbose('unstar', 'unstarring', body)
       }
 
-      const data = await fetch.json(pkg.escapedName, {
+      const data = await npmFetch.json(pkg.escapedName, {
         ...this.npm.flatOptions,
         spec: pkg,
         method: 'PUT',

@@ -2,6 +2,8 @@
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
+if (common.isInsideDirWithUnusualChars)
+  common.skip('npm does not support this install path');
 
 const path = require('path');
 const exec = require('child_process').exec;

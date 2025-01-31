@@ -1,7 +1,10 @@
 // Flags: --expose-internals
 'use strict';
 const common = require('../common');
-common.skipIfDumbTerminal();
+
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const assert = require('assert');
 const readline = require('readline/promises');
@@ -946,6 +949,22 @@ for (let i = 0; i < 12; i++) {
     ac.abort();
     rli.write('bar\n');
     rli.close();
+  }
+
+  // Aborting a question with ctrl+C
+  {
+    const [rli, fi] = getInterface({ terminal: true });
+    assert.rejects(rli.question('hello?'), { name: 'AbortError' })
+        .then(common.mustCall());
+    fi.emit('keypress', '.', { ctrl: true, name: 'c' });
+  }
+
+  // Aborting a question with ctrl+D
+  {
+    const [rli, fi] = getInterface({ terminal: true });
+    assert.rejects(rli.question('hello?'), { name: 'AbortError' })
+        .then(common.mustCall());
+    fi.emit('keypress', '.', { ctrl: true, name: 'd' });
   }
 
   (async () => {

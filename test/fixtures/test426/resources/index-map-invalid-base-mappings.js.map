@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "mappings": "AAAA",
+  "sections": [
+    {
+      "offset": { "line": 0, "column": 0 },
+      "map": {
+        "version": 3,
+        "names": [],
+        "sources": ["empty-original.js"],
+        "sourcesContnet": [""],
+        "mappings": "AAAA"
+      }
+    }
+  ]
+}

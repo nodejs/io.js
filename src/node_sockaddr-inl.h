@@ -172,22 +172,9 @@ bool SocketAddress::operator!=(const SocketAddress& other) const {
   return !(*this == other);
 }
 
-bool SocketAddress::operator<(const SocketAddress& other) const {
-  return compare(other) == CompareResult::LESS_THAN;
-}
-
-bool SocketAddress::operator>(const SocketAddress& other) const {
-  return compare(other) == CompareResult::GREATER_THAN;
-}
-
-bool SocketAddress::operator<=(const SocketAddress& other) const {
-  CompareResult c = compare(other);
-  return c == CompareResult::NOT_COMPARABLE ? false :
-              c <= CompareResult::SAME;
-}
-
-bool SocketAddress::operator>=(const SocketAddress& other) const {
-  return compare(other) >= CompareResult::SAME;
+std::partial_ordering SocketAddress::operator<=>(
+    const SocketAddress& other) const {
+  return compare(other);
 }
 
 template <typename T>

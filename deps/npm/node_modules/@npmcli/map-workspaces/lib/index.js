@@ -134,7 +134,7 @@ async function mapWorkspaces (opts = {}) {
     try {
       pkg = await pkgJson.normalize(path.join(opts.cwd, match))
     } catch (err) {
-      if (err.code === 'ENOENT') {
+      if (err.code === 'ENOENT' || err.code === 'ENOTDIR') {
         continue
       } else {
         throw err

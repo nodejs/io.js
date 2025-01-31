@@ -27,6 +27,6 @@ template("ncrypto_gn_build") {
     forward_variables_from(invoker, "*")
     public_configs = [ ":ncrypto_config" ]
     sources = gypi_values.ncrypto_sources
-    deps = [ "../openssl" ]
+    deps = [ "$node_openssl_path" ]
   }
 }

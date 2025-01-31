@@ -918,7 +918,9 @@ chained.
 <!-- YAML
 added: v0.11.13
 changes:
-  - version: v23.1.0
+  - version:
+    - v23.1.0
+    - v22.12.0
     pr-url: https://github.com/nodejs/node/pull/55403
     description: The `reusePort` option is supported.
   - version: v15.8.0
@@ -957,6 +959,13 @@ changes:
   * `sendBufferSize` {number} Sets the `SO_SNDBUF` socket value.
   * `lookup` {Function} Custom lookup function. **Default:** [`dns.lookup()`][].
   * `signal` {AbortSignal} An AbortSignal that may be used to close a socket.
+  * `receiveBlockList` {net.BlockList} `receiveBlockList` can be used for discarding
+    inbound datagram to specific IP addresses, IP ranges, or IP subnets. This does not
+    work if the server is behind a reverse proxy, NAT, etc. because the address
+    checked against the blocklist is the address of the proxy, or the one
+    specified by the NAT.
+  * `sendBlockList` {net.BlockList} `sendBlockList` can be used for disabling outbound
+    access to specific IP addresses, IP ranges, or IP subnets.
 * `callback` {Function} Attached as a listener for `'message'` events. Optional.
 * Returns: {dgram.Socket}
 

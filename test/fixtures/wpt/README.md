@@ -27,12 +27,12 @@ Last update:
 - performance-timeline: https://github.com/web-platform-tests/wpt/tree/94caab7038/performance-timeline
 - resource-timing: https://github.com/web-platform-tests/wpt/tree/22d38586d0/resource-timing
 - resources: https://github.com/web-platform-tests/wpt/tree/1e140d63ec/resources
-- streams: https://github.com/web-platform-tests/wpt/tree/2bd26e124c/streams
-- url: https://github.com/web-platform-tests/wpt/tree/6a39784534/url
+- streams: https://github.com/web-platform-tests/wpt/tree/bc9dcbbf1a/streams
+- url: https://github.com/web-platform-tests/wpt/tree/a23788b77a/url
 - user-timing: https://github.com/web-platform-tests/wpt/tree/5ae85bf826/user-timing
 - wasm/jsapi: https://github.com/web-platform-tests/wpt/tree/cde25e7e3c/wasm/jsapi
 - wasm/webapi: https://github.com/web-platform-tests/wpt/tree/fd1b23eeaa/wasm/webapi
-- WebCryptoAPI: https://github.com/web-platform-tests/wpt/tree/5f0f4ac1af/WebCryptoAPI
+- WebCryptoAPI: https://github.com/web-platform-tests/wpt/tree/3e3374efde/WebCryptoAPI
 - webidl/ecmascript-binding/es-exceptions: https://github.com/web-platform-tests/wpt/tree/a370aad338/webidl/ecmascript-binding/es-exceptions
 - webmessaging/broadcastchannel: https://github.com/web-platform-tests/wpt/tree/6495c91853/webmessaging/broadcastchannel
 - webstorage: https://github.com/web-platform-tests/wpt/tree/9dafa89214/webstorage

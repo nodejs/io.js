@@ -309,25 +309,28 @@
 /* Define to 1 if you have `strnicmp` */
 #undef HAVE_STRNICMP
 
-/* Define to 1 if the system has the type 'struct addrinfo'. */
+/* Define to 1 if you have `strnlen` */
+#undef HAVE_STRNLEN
+
+/* Define to 1 if the system has the type `struct addrinfo'. */
 #undef HAVE_STRUCT_ADDRINFO
 
-/* Define to 1 if 'ai_flags' is a member of 'struct addrinfo'. */
+/* Define to 1 if `ai_flags' is a member of `struct addrinfo'. */
 #undef HAVE_STRUCT_ADDRINFO_AI_FLAGS
 
-/* Define to 1 if the system has the type 'struct in6_addr'. */
+/* Define to 1 if the system has the type `struct in6_addr'. */
 #undef HAVE_STRUCT_IN6_ADDR
 
-/* Define to 1 if the system has the type 'struct sockaddr_in6'. */
+/* Define to 1 if the system has the type `struct sockaddr_in6'. */
 #undef HAVE_STRUCT_SOCKADDR_IN6
 
-/* Define to 1 if 'sin6_scope_id' is a member of 'struct sockaddr_in6'. */
+/* Define to 1 if `sin6_scope_id' is a member of `struct sockaddr_in6'. */
 #undef HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID
 
-/* Define to 1 if the system has the type 'struct sockaddr_storage'. */
+/* Define to 1 if the system has the type `struct sockaddr_storage'. */
 #undef HAVE_STRUCT_SOCKADDR_STORAGE
 
-/* Define to 1 if the system has the type 'struct timeval'. */
+/* Define to 1 if the system has the type `struct timeval'. */
 #undef HAVE_STRUCT_TIMEVAL
 
 /* Define to 1 if you have the <sys/epoll.h> header file. */
@@ -356,6 +359,9 @@
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/system_properties.h> header file. */
+#undef HAVE_SYS_SYSTEM_PROPERTIES_H
 
 /* Define to 1 if you have the <sys/time.h> header file. */
 #undef HAVE_SYS_TIME_H
@@ -481,12 +487,12 @@
 /* send() return value */
 #undef SEND_TYPE_RETV
 
-/* Define to 1 if all of the C89 standard headers exist (not just the ones
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
 
-/* Enable extensions on AIX, Interix, z/OS.  */
+/* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
 # undef _ALL_SOURCE
 #endif
@@ -547,15 +553,11 @@
 #ifndef __STDC_WANT_IEC_60559_DFP_EXT__
 # undef __STDC_WANT_IEC_60559_DFP_EXT__
 #endif
-/* Enable extensions specified by C23 Annex F.  */
-#ifndef __STDC_WANT_IEC_60559_EXT__
-# undef __STDC_WANT_IEC_60559_EXT__
-#endif
 /* Enable extensions specified by ISO/IEC TS 18661-4:2015.  */
 #ifndef __STDC_WANT_IEC_60559_FUNCS_EXT__
 # undef __STDC_WANT_IEC_60559_FUNCS_EXT__
 #endif
-/* Enable extensions specified by C23 Annex H and ISO/IEC TS 18661-3:2015.  */
+/* Enable extensions specified by ISO/IEC TS 18661-3:2015.  */
 #ifndef __STDC_WANT_IEC_60559_TYPES_EXT__
 # undef __STDC_WANT_IEC_60559_TYPES_EXT__
 #endif
@@ -584,14 +586,8 @@
 /* Number of bits in a file offset, on hosts where this is settable. */
 #undef _FILE_OFFSET_BITS
 
-/* Define to 1 on platforms where this makes off_t a 64-bit type. */
+/* Define for large files, on AIX-style hosts. */
 #undef _LARGE_FILES
 
-/* Number of bits in time_t, on hosts where this is settable. */
-#undef _TIME_BITS
-
-/* Define to 1 on platforms where this makes time_t a 64-bit type. */
-#undef __MINGW_USE_VC2005_COMPAT
-
-/* Define as 'unsigned int' if <stddef.h> doesn't define. */
+/* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t

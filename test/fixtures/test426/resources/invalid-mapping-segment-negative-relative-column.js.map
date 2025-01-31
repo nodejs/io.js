@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "names": [],
+  "file": "invalid-mapping-segment-negative-relative-column.js",
+  "sources": ["empty-original.js"],
+  "sourcesContent": [""],
+  "mappings": "C,F"
+}

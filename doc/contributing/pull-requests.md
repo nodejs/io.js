@@ -122,7 +122,7 @@ If you are modifying code, please be sure to run `make lint` (or
 code style guide.
 
 Any documentation you write (including code comments and API documentation)
-should follow the [Style Guide](../../README.md). Code samples
+should follow the [Style Guide](../../doc/README.md). Code samples
 included in the API docs will also be checked when running `make lint` (or
 `vcbuild.bat lint` on Windows). If you are adding to or deprecating an API,
 add or change the appropriate YAML documentation. Use `REPLACEME` for the
@@ -183,6 +183,11 @@ A good commit message should describe what changed and why.
 4. If your patch fixes an open issue, you can add a reference to it at the end
    of the log. Use the `Fixes:` prefix and the full issue URL. For other
    references use `Refs:`.
+
+   `Fixes:` and `Refs:` trailers get automatically added to your commit message
+   when the Pull Request lands as long as they are included in the
+   Pull Request's description. If the Pull Request lands in several commits,
+   by default the trailers found in the description are added to each commits.
 
    Examples:
 

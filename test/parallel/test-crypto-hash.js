@@ -1,12 +1,14 @@
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const crypto = require('crypto');
 const fs = require('fs');
 
+const { hasOpenSSL } = require('../common/crypto');
 const fixtures = require('../common/fixtures');
 
 let cryptoType;
@@ -39,7 +41,7 @@ a8.write('');
 a8.end();
 a8 = a8.read();
 
-if (!common.hasFipsCrypto) {
+if (!crypto.getFips()) {
   cryptoType = 'md5';
   digest = 'latin1';
   const a0 = crypto.createHash(cryptoType).update('Test123').digest(digest);
@@ -182,19 +184,21 @@ assert.throws(
 
 // Test XOF hash functions and the outputLength option.
 {
-  // Default outputLengths.
-  assert.strictEqual(crypto.createHash('shake128').digest('hex'),
-                     '7f9c2ba4e88f827d616045507605853e');
-  assert.strictEqual(crypto.createHash('shake128', null).digest('hex'),
-                     '7f9c2ba4e88f827d616045507605853e');
-  assert.strictEqual(crypto.createHash('shake256').digest('hex'),
-                     '46b9dd2b0ba88d13233b3feb743eeb24' +
-                     '3fcd52ea62b81b82b50c27646ed5762f');
-  assert.strictEqual(crypto.createHash('shake256', { outputLength: 0 })
-                           .copy()  // Default outputLength.
-                           .digest('hex'),
-                     '46b9dd2b0ba88d13233b3feb743eeb24' +
-                     '3fcd52ea62b81b82b50c27646ed5762f');
+  // Default outputLengths. Since OpenSSL 3.4 an outputLength is mandatory
+  if (!hasOpenSSL(3, 4)) {
+    assert.strictEqual(crypto.createHash('shake128').digest('hex'),
+                       '7f9c2ba4e88f827d616045507605853e');
+    assert.strictEqual(crypto.createHash('shake128', null).digest('hex'),
+                       '7f9c2ba4e88f827d616045507605853e');
+    assert.strictEqual(crypto.createHash('shake256').digest('hex'),
+                       '46b9dd2b0ba88d13233b3feb743eeb24' +
+                       '3fcd52ea62b81b82b50c27646ed5762f');
+    assert.strictEqual(crypto.createHash('shake256', { outputLength: 0 })
+                             .copy()  // Default outputLength.
+                             .digest('hex'),
+                       '46b9dd2b0ba88d13233b3feb743eeb24' +
+                       '3fcd52ea62b81b82b50c27646ed5762f');
+  }
 
   // Short outputLengths.
   assert.strictEqual(crypto.createHash('shake128', { outputLength: 0 })

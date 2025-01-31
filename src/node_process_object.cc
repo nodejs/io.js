@@ -104,12 +104,10 @@ static void SetVersions(Isolate* isolate, Local<Object> versions) {
 
   for (const auto& version : versions_array) {
     versions
-        ->DefineOwnProperty(
-            context,
-            OneByteString(isolate, version.first.data(), version.first.size()),
-            OneByteString(
-                isolate, version.second.data(), version.second.size()),
-            v8::ReadOnly)
+        ->DefineOwnProperty(context,
+                            OneByteString(isolate, version.first),
+                            OneByteString(isolate, version.second),
+                            v8::ReadOnly)
         .Check();
   }
 }

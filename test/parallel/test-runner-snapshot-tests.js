@@ -1,4 +1,4 @@
-// Flags: --expose-internals --experimental-test-snapshots
+// Flags: --expose-internals
 /* eslint-disable no-template-curly-in-string */
 'use strict';
 const common = require('../common');
@@ -299,7 +299,7 @@ test('t.assert.snapshot()', async (t) => {
   await t.test('fails prior to snapshot generation', async (t) => {
     const child = await common.spawnPromisified(
       process.execPath,
-      ['--experimental-test-snapshots', fixture],
+      [fixture],
       { cwd: tmpdir.path },
     );
 
@@ -314,7 +314,7 @@ test('t.assert.snapshot()', async (t) => {
   await t.test('passes when regenerating snapshots', async (t) => {
     const child = await common.spawnPromisified(
       process.execPath,
-      ['--test-update-snapshots', '--experimental-test-snapshots', fixture],
+      ['--test-update-snapshots', fixture],
       { cwd: tmpdir.path },
     );
 
@@ -328,7 +328,7 @@ test('t.assert.snapshot()', async (t) => {
   await t.test('passes when snapshots exist', async (t) => {
     const child = await common.spawnPromisified(
       process.execPath,
-      ['--experimental-test-snapshots', fixture],
+      [fixture],
       { cwd: tmpdir.path },
     );
 
@@ -349,8 +349,7 @@ test('snapshots from multiple files (isolation=none)', async (t) => {
   await t.test('fails prior to snapshot generation', async (t) => {
     const args = [
       '--test',
-      '--experimental-test-isolation=none',
-      '--experimental-test-snapshots',
+      '--test-isolation=none',
       fixture,
       fixture2,
     ];
@@ -371,8 +370,7 @@ test('snapshots from multiple files (isolation=none)', async (t) => {
   await t.test('passes when regenerating snapshots', async (t) => {
     const args = [
       '--test',
-      '--experimental-test-isolation=none',
-      '--experimental-test-snapshots',
+      '--test-isolation=none',
       '--test-update-snapshots',
       fixture,
       fixture2,
@@ -393,8 +391,7 @@ test('snapshots from multiple files (isolation=none)', async (t) => {
   await t.test('passes when snapshots exist', async (t) => {
     const args = [
       '--test',
-      '--experimental-test-isolation=none',
-      '--experimental-test-snapshots',
+      '--test-isolation=none',
       fixture,
       fixture2,
     ];

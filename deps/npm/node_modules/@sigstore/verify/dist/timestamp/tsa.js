@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyRFC3161Timestamp = void 0;
+exports.verifyRFC3161Timestamp = verifyRFC3161Timestamp;
 const core_1 = require("@sigstore/core");
 const error_1 = require("../error");
 const certificate_1 = require("../key/certificate");
@@ -35,7 +35,6 @@ function verifyRFC3161Timestamp(timestamp, data, timestampAuthorities) {
         });
     }
 }
-exports.verifyRFC3161Timestamp = verifyRFC3161Timestamp;
 function verifyTimestampForCA(timestamp, data, ca) {
     const [leaf, ...cas] = ca.certChain;
     const signingKey = core_1.crypto.createPublicKey(leaf.publicKey);

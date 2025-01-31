@@ -5,9 +5,11 @@ const cp = require('child_process');
 const tmpdir = require('../common/tmpdir');
 const fs = require('fs');
 const util = require('util');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 const traceFile = 'node_trace.1.log';
 

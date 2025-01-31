@@ -1,43 +1,40 @@
 'use strict'
 
-const util = require('../core/util')
 const { InvalidArgumentError, RequestAbortedError } = require('../core/errors')
 const DecoratorHandler = require('../handler/decorator-handler')
 
 class DumpHandler extends DecoratorHandler {
   #maxSize = 1024 * 1024
-  #abort = null
   #dumped = false
-  #aborted = false
   #size = 0
-  #reason = null
-  #handler = null
+  #controller = null
+  aborted = false
+  reason = false
 
-  constructor ({ maxSize }, handler) {
-    super(handler)
-
+  constructor ({ maxSize, signal }, handler) {
     if (maxSize != null && (!Number.isFinite(maxSize) || maxSize < 1)) {
       throw new InvalidArgumentError('maxSize must be a number greater than 0')
     }
 
+    super(handler)
+
     this.#maxSize = maxSize ?? this.#maxSize
-    this.#handler = handler
+    // this.#handler = handler
   }
 
-  onConnect (abort) {
-    this.#abort = abort
-
-    this.#handler.onConnect(this.#customAbort.bind(this))
+  #abort (reason) {
+    this.aborted = true
+    this.reason = reason
   }
 
-  #customAbort (reason) {
-    this.#aborted = true
-    this.#reason = reason
+  onRequestStart (controller, context) {
+    controller.abort = this.#abort.bind(this)
+    this.#controller = controller
+
+    return super.onRequestStart(controller, context)
   }
 
-  // TODO: will require adjustment after new hooks are out
-  onHeaders (statusCode, rawHeaders, resume, statusMessage) {
-    const headers = util.parseHeaders(rawHeaders)
+  onResponseStart (controller, statusCode, headers, statusMessage) {
     const contentLength = headers['content-length']
 
     if (contentLength != null && contentLength > this.#maxSize) {
@@ -48,55 +45,50 @@ class DumpHandler extends DecoratorHandler {
       )
     }
 
-    if (this.#aborted) {
+    if (this.aborted === true) {
       return true
     }
 
-    return this.#handler.onHeaders(
-      statusCode,
-      rawHeaders,
-      resume,
-      statusMessage
-    )
+    return super.onResponseStart(controller, statusCode, headers, statusMessage)
   }
 
-  onError (err) {
+  onResponseError (controller, err) {
     if (this.#dumped) {
       return
     }
 
-    err = this.#reason ?? err
+    err = this.#controller.reason ?? err
 
-    this.#handler.onError(err)
+    super.onResponseError(controller, err)
   }
 
-  onData (chunk) {
+  onResponseData (controller, chunk) {
     this.#size = this.#size + chunk.length
 
     if (this.#size >= this.#maxSize) {
       this.#dumped = true
 
-      if (this.#aborted) {
-        this.#handler.onError(this.#reason)
+      if (this.aborted === true) {
+        super.onResponseError(controller, this.reason)
       } else {
-        this.#handler.onComplete([])
+        super.onResponseEnd(controller, {})
       }
     }
 
     return true
   }
 
-  onComplete (trailers) {
+  onResponseEnd (controller, trailers) {
     if (this.#dumped) {
       return
     }
 
-    if (this.#aborted) {
-      this.#handler.onError(this.reason)
+    if (this.#controller.aborted === true) {
+      super.onResponseError(controller, this.reason)
       return
     }
 
-    this.#handler.onComplete(trailers)
+    super.onResponseEnd(controller, trailers)
   }
 }
 
@@ -107,13 +99,9 @@ function createDumpInterceptor (
 ) {
   return dispatch => {
     return function Intercept (opts, handler) {
-      const { dumpMaxSize = defaultMaxSize } =
-        opts
+      const { dumpMaxSize = defaultMaxSize } = opts
 
-      const dumpHandler = new DumpHandler(
-        { maxSize: dumpMaxSize },
-        handler
-      )
+      const dumpHandler = new DumpHandler({ maxSize: dumpMaxSize, signal: opts.signal }, handler)
 
       return dispatch(opts, dumpHandler)
     }

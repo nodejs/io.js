@@ -32,7 +32,7 @@ test('Aborted with gc cleanup', async () => {
   const { promise, resolve } = Promise.withResolvers();
 
   setImmediate(() => {
-    global.gc();
+    globalThis.gc();
     ac.abort();
     strictEqual(ac.signal.aborted, true);
     strictEqual(getEventListeners(ac.signal, 'abort').length, 0);

@@ -1,0 +1,7 @@
+{
+  "version" : 3,
+  "sources": ["first.js"],
+  "sourcesContent": "not a list",
+  "names": ["foo"],
+  "mappings": "AAAAA"
+}

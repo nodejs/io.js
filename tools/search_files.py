@@ -14,6 +14,9 @@ if __name__ == '__main__':
   try:
     files = SearchFiles(*sys.argv[2:])
     files = [ os.path.relpath(x, sys.argv[1]) for x in files ]
+    # Apply the same transform in SearchFiles after relpath
+    if sys.platform == 'win32':
+      files = [ x.replace('\\', '/') for x in files ]
     print('\n'.join(files))
   except Exception as e:
     print(str(e))

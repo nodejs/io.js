@@ -10,7 +10,8 @@ const {
   kOriginalClose,
   kOrigin,
   kOriginalDispatch,
-  kConnected
+  kConnected,
+  kIgnoreTrailingSlash
 } = require('./mock-symbols')
 const { MockInterceptor } = require('./mock-interceptor')
 const Symbols = require('../core/symbols')
@@ -21,14 +22,15 @@ const { InvalidArgumentError } = require('../core/errors')
  */
 class MockPool extends Pool {
   constructor (origin, opts) {
-    super(origin, opts)
-
     if (!opts || !opts.agent || typeof opts.agent.dispatch !== 'function') {
       throw new InvalidArgumentError('Argument opts.agent must implement Agent')
     }
 
+    super(origin, opts)
+
     this[kMockAgent] = opts.agent
     this[kOrigin] = origin
+    this[kIgnoreTrailingSlash] = opts.ignoreTrailingSlash ?? false
     this[kDispatches] = []
     this[kConnected] = 1
     this[kOriginalDispatch] = this.dispatch
@@ -46,7 +48,10 @@ class MockPool extends Pool {
    * Sets up the base interceptor for mocking replies from undici.
    */
   intercept (opts) {
-    return new MockInterceptor(opts, this[kDispatches])
+    return new MockInterceptor(
+      opts && { ignoreTrailingSlash: this[kIgnoreTrailingSlash], ...opts },
+      this[kDispatches]
+    )
   }
 
   async [kClose] () {

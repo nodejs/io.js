@@ -3,6 +3,7 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
+const { hasOpenSSL } = require('../common/crypto');
 const assert = require('assert');
 const tls = require('tls');
 const fixtures = require('../common/fixtures');
@@ -38,7 +39,7 @@ function test(size, err, next) {
     // Client set minimum DH parameter size to 2048 or 3072 bits
     // so that it fails when it makes a connection to the tls
     // server where is too small
-    const minDHSize = common.hasOpenSSL(3, 2) ? 3072 : 2048;
+    const minDHSize = hasOpenSSL(3, 2) ? 3072 : 2048;
     const client = tls.connect({
       minDHSize: minDHSize,
       port: this.address().port,
@@ -76,7 +77,7 @@ function testDHE3072() {
   test(3072, false, null);
 }
 
-if (common.hasOpenSSL(3, 2)) {
+if (hasOpenSSL(3, 2)) {
   // Minimum size for OpenSSL 3.2 is 2048 by default
   testDHE2048(true, testDHE3072);
 } else {

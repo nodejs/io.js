@@ -19,6 +19,14 @@ function getMismatchedJWKKeyData(algorithm) {
     return [];
 }
 
+function getMismatchedKtyField(algorithm) {
+    return mismatchedKtyField[algorithm.name];
+}
+
+function getMismatchedCrvField(algorithm) {
+    return mismatchedCrvField[algorithm.name];
+}
+
 var validKeyData = {
     "P-521": [
         {
@@ -201,3 +209,17 @@ var missingJWKFieldKeyData = {
         }
     ]
 };
+
+// The 'kty' field doesn't match the key algorithm.
+var mismatchedKtyField =  {
+    "P-521": "OKP",
+    "P-256": "OKP",
+    "P-384": "OKP",
+}
+
+// The 'kty' field doesn't match the key algorithm.
+var mismatchedCrvField =  {
+    "P-521": "P-256",
+    "P-256": "P-384",
+    "P-384": "P-521",
+}

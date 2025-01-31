@@ -4,9 +4,9 @@ import Dispatcher from './dispatcher'
 export default EnvHttpProxyAgent
 
 declare class EnvHttpProxyAgent extends Dispatcher {
-  constructor(opts?: EnvHttpProxyAgent.Options)
+  constructor (opts?: EnvHttpProxyAgent.Options)
 
-  dispatch(options: Agent.DispatchOptions, handler: Dispatcher.DispatchHandlers): boolean;
+  dispatch (options: Agent.DispatchOptions, handler: Dispatcher.DispatchHandler): boolean
 }
 
 declare namespace EnvHttpProxyAgent {

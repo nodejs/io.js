@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyp-next"
-version = "0.18.3"
+version = "0.19.1"
 authors = [
   { name="Node.js contributors", email="ryzokuken@disroot.org" },
 ]

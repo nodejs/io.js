@@ -40,6 +40,6 @@ import { Agent, RetryAgent } from 'undici'
 const agent = new RetryAgent(new Agent())
 
 const res = await agent.request('http://example.com')
-console.log(res.statuCode)
+console.log(res.statusCode)
 console.log(await res.body.text())
 ```

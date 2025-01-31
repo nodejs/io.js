@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 const testArguments = [
   '--test',
-  '--experimental-test-isolation=none',
+  '--test-isolation=none',
 ];
 
 const testFiles = [

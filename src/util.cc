@@ -782,6 +782,16 @@ std::string DetermineSpecificErrorType(Environment* env,
         input.As<v8::Object>()->GetConstructorName();
     Utf8Value name(env->isolate(), constructor_name);
     return SPrintF("an instance of %s", name.out());
+  } else if (input->IsSymbol()) {
+    v8::MaybeLocal<v8::String> str =
+        input.As<v8::Symbol>()->ToDetailString(env->context());
+    v8::Local<v8::String> js_str;
+    if (!str.ToLocal(&js_str)) {
+      return "Symbol";
+    }
+    Utf8Value name(env->isolate(), js_str);
+    // Symbol(xxx)
+    return name.out();
   }
 
   Utf8Value utf8_value(env->isolate(),

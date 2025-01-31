@@ -4,11 +4,16 @@ const common = require('../common');
 // This test ensures that ecdhCurve option of TLS server supports colon
 // separated ECDH curve names as value.
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
+const { opensslCli } = require('../common/crypto');
+const crypto = require('crypto');
+
+if (!opensslCli) {
   common.skip('missing openssl-cli');
+}
 
 const assert = require('assert');
 const tls = require('tls');
@@ -36,7 +41,7 @@ const server = tls.createServer(options, (conn) => {
                 '-cipher', `${options.ciphers}`,
                 '-connect', `127.0.0.1:${server.address().port}`];
 
-  execFile(common.opensslCli, args, common.mustSucceed((stdout) => {
+  execFile(opensslCli, args, common.mustSucceed((stdout) => {
     assert(stdout.includes(reply));
     server.close();
   }));
@@ -51,8 +56,9 @@ const server = tls.createServer(options, (conn) => {
   ];
 
   // Brainpool is not supported in FIPS mode.
-  if (common.hasFipsCrypto)
+  if (crypto.getFips()) {
     unsupportedCurves.push('brainpoolP256r1');
+  }
 
   unsupportedCurves.forEach((ecdhCurve) => {
     assert.throws(() => tls.createServer({ ecdhCurve }),

@@ -683,7 +683,7 @@ let asyncTest = Promise.resolve();
   const et = new EventTarget();
   et.addEventListener('foo', common.mustNotCall(), { [kWeakHandler]: {} });
   setImmediate(() => {
-    global.gc();
+    globalThis.gc();
     et.dispatchEvent(new Event('foo'));
   });
 }

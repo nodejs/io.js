@@ -26,7 +26,7 @@ const fs = require('fs');
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission', `--allow-fs-read=${scriptDir}`, `--allow-fs-write=${scriptDir}`,
+      '--permission', `--allow-fs-read=${scriptDir}`, `--allow-fs-write=${scriptDir}`,
       '-r', wrapper, empty,
     ],
     {

@@ -15,14 +15,24 @@ webuser=dist
 promotablecmd=dist-promotable
 promotecmd=dist-promote
 signcmd=dist-sign
+allPGPKeys=""
 customsshkey="" # let ssh and scp use default key
+readmePath="README.md"
 signversion=""
 cloudflare_bucket="r2:dist-prod"
 
-while getopts ":i:s:" option; do
+while getopts ":i:r:s:a" option; do
     case "${option}" in
+        a)
+            # With -a, local keys are not filtered based on the one listed in the README
+            # useful if you want to sign with a subkey.
+            allPGPKeys="true"
+            ;;
         i)
             customsshkey="-i ${OPTARG}"
+            ;;
+        r)
+            readmePath="${OPTARG}"
             ;;
         s)
             signversion="${OPTARG}"
@@ -44,7 +54,16 @@ shift $((OPTIND-1))
 
 echo "# Selecting GPG key ..."
 
-gpgkey=$(gpg --list-secret-keys --keyid-format SHORT | awk -F'( +|/)' '/^(sec|ssb)/{print $3}')
+
+if [ -z "$allPGPKeys" ]; then
+  gpgkey="$(awk '{
+    if ($1 == "gpg" && $2 == "--keyserver" && $4 == "--recv-keys" && (1 == 2'"$(
+      gpg --list-secret-keys | awk -F' = ' '/^ +Key fingerprint/{ gsub(/ /,"",$2); print " || $5 == \"" $2 "\"" }' || true
+    )"')) { print substr($5, 33) }
+  }' "$readmePath")"
+else
+  gpgkey=$(gpg --list-secret-keys --keyid-format SHORT | awk -F'( +|/)' '/^(sec|ssb)/{print $3}')
+fi
 keycount=$(echo "$gpgkey" | wc -w)
 
 if [ "$keycount" -eq 0 ]; then
@@ -68,13 +87,12 @@ elif [ "$keycount" -ne 1 ]; then
   gpgkey=$(echo "$gpgkey" | sed -n "${keynum}p")
 fi
 
-gpgfing=$(gpg --keyid-format 0xLONG --fingerprint "$gpgkey" | grep 'Key fingerprint =' | awk -F' = ' '{print $2}' | tr -d ' ')
+gpgfing=$(gpg --keyid-format 0xLONG --fingerprint "$gpgkey" | awk -F' = ' '/^ +Key fingerprint/{gsub(/ /,"",$2);print $2}')
 
-grep -q "$gpgfing" README.md || (\
-  echo 'Error: this GPG key fingerprint is not listed in ./README.md' && \
-  exit 1 \
-)
-
+grep -q "$gpgfing" "$readmePath" || {
+  echo "Error: this GPG key fingerprint is not listed in $readmePath"
+  exit 1
+}
 
 echo "Using GPG key: $gpgkey"
 echo "  Fingerprint: $gpgfing"

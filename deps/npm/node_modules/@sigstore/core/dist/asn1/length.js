@@ -15,7 +15,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.encodeLength = exports.decodeLength = void 0;
+exports.decodeLength = decodeLength;
+exports.encodeLength = encodeLength;
 const error_1 = require("./error");
 // Decodes the length of a DER-encoded ANS.1 element from the supplied stream.
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-encoded-length-and-value-bytes
@@ -44,7 +45,6 @@ function decodeLength(stream) {
     }
     return len;
 }
-exports.decodeLength = decodeLength;
 // Translates the supplied value to a DER-encoded length.
 function encodeLength(len) {
     if (len < 128) {
@@ -60,4 +60,3 @@ function encodeLength(len) {
     }
     return Buffer.from([0x80 | bytes.length, ...bytes]);
 }
-exports.encodeLength = encodeLength;

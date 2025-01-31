@@ -1,4 +1,3 @@
-// Flags: --experimental-sqlite
 'use strict';
 require('../common');
 const tmpdir = require('../common/tmpdir');

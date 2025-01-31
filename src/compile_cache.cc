@@ -77,10 +77,27 @@ v8::ScriptCompiler::CachedData* CompileCacheEntry::CopyCache() const {
 // See comments in CompileCacheHandler::Persist().
 constexpr uint32_t kCacheMagicNumber = 0x8adfdbb2;
 
+const char* CompileCacheEntry::type_name() const {
+  switch (type) {
+    case CachedCodeType::kCommonJS:
+      return "CommonJS";
+    case CachedCodeType::kESM:
+      return "ESM";
+    case CachedCodeType::kStrippedTypeScript:
+      return "StrippedTypeScript";
+    case CachedCodeType::kTransformedTypeScript:
+      return "TransformedTypeScript";
+    case CachedCodeType::kTransformedTypeScriptWithSourceMaps:
+      return "TransformedTypeScriptWithSourceMaps";
+    default:
+      UNREACHABLE();
+  }
+}
+
 void CompileCacheHandler::ReadCacheFile(CompileCacheEntry* entry) {
   Debug("[compile cache] reading cache from %s for %s %s...",
         entry->cache_filename,
-        entry->type == CachedCodeType::kCommonJS ? "CommonJS" : "ESM",
+        entry->type_name(),
         entry->source_filename);
 
   uv_fs_t req;
@@ -256,7 +273,8 @@ void CompileCacheHandler::MaybeSaveImpl(CompileCacheEntry* entry,
                                         v8::Local<T> func_or_mod,
                                         bool rejected) {
   DCHECK_NOT_NULL(entry);
-  Debug("[compile cache] cache for %s was %s, ",
+  Debug("[compile cache] V8 code cache for %s %s was %s, ",
+        entry->type_name(),
         entry->source_filename,
         rejected                    ? "rejected"
         : (entry->cache == nullptr) ? "not initialized"
@@ -285,6 +303,25 @@ void CompileCacheHandler::MaybeSave(CompileCacheEntry* entry,
                                     v8::Local<v8::Function> func,
                                     bool rejected) {
   MaybeSaveImpl(entry, func, rejected);
+}
+
+void CompileCacheHandler::MaybeSave(CompileCacheEntry* entry,
+                                    std::string_view transpiled) {
+  CHECK(entry->type == CachedCodeType::kStrippedTypeScript ||
+        entry->type == CachedCodeType::kTransformedTypeScript ||
+        entry->type == CachedCodeType::kTransformedTypeScriptWithSourceMaps);
+  Debug("[compile cache] saving transpilation cache for %s %s\n",
+        entry->type_name(),
+        entry->source_filename);
+
+  // TODO(joyeecheung): it's weird to copy it again here. Convert the v8::String
+  // directly into buffer held by v8::ScriptCompiler::CachedData here.
+  int cache_size = static_cast<int>(transpiled.size());
+  uint8_t* data = new uint8_t[cache_size];
+  memcpy(data, transpiled.data(), cache_size);
+  entry->cache.reset(new v8::ScriptCompiler::CachedData(
+      data, cache_size, v8::ScriptCompiler::CachedData::BufferOwned));
+  entry->refreshed = true;
 }
 
 /**
@@ -316,18 +353,25 @@ void CompileCacheHandler::Persist() {
   // incur a negligible overhead from thread synchronization.
   for (auto& pair : compiler_cache_store_) {
     auto* entry = pair.second.get();
+    const char* type_name = entry->type_name();
     if (entry->cache == nullptr) {
-      Debug("[compile cache] skip %s because the cache was not initialized\n",
+      Debug("[compile cache] skip persisting %s %s because the cache was not "
+            "initialized\n",
+            type_name,
             entry->source_filename);
       continue;
     }
     if (entry->refreshed == false) {
-      Debug("[compile cache] skip %s because cache was the same\n",
-            entry->source_filename);
+      Debug(
+          "[compile cache] skip persisting %s %s because cache was the same\n",
+          type_name,
+          entry->source_filename);
       continue;
     }
     if (entry->persisted == true) {
-      Debug("[compile cache] skip %s because cache was already persisted\n",
+      Debug("[compile cache] skip persisting %s %s because cache was already "
+            "persisted\n",
+            type_name,
             entry->source_filename);
       continue;
     }
@@ -363,8 +407,9 @@ void CompileCacheHandler::Persist() {
     auto cleanup_mkstemp =
         OnScopeLeave([&mkstemp_req]() { uv_fs_req_cleanup(&mkstemp_req); });
     std::string cache_filename_tmp = entry->cache_filename + ".XXXXXX";
-    Debug("[compile cache] Creating temporary file for cache of %s...",
-          entry->source_filename);
+    Debug("[compile cache] Creating temporary file for cache of %s (%s)...",
+          entry->source_filename,
+          type_name);
     int err = uv_fs_mkstemp(
         nullptr, &mkstemp_req, cache_filename_tmp.c_str(), nullptr);
     if (err < 0) {
@@ -372,8 +417,10 @@ void CompileCacheHandler::Persist() {
       continue;
     }
     Debug(" -> %s\n", mkstemp_req.path);
-    Debug("[compile cache] writing cache for %s to temporary file %s [%d %d %d "
+    Debug("[compile cache] writing cache for %s %s to temporary file %s [%d "
+          "%d %d "
           "%d %d]...",
+          type_name,
           entry->source_filename,
           mkstemp_req.path,
           headers[kMagicNumberOffset],

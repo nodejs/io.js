@@ -1,4 +1,4 @@
-.TH "PACKAGE.JSON" "5" "October 2024" "NPM@10.9.0" ""
+.TH "PACKAGE.JSON" "5" "December 2024" "NPM@11.0.0" ""
 .SH "NAME"
 \fBpackage.json\fR - Specifics of npm's package.json handling
 .SS "Description"
@@ -317,6 +317,8 @@ Some files are always ignored by default:
 \fBpnpm-lock.yaml\fR
 .IP \(bu 4
 \fByarn.lock\fR
+.IP \(bu 4
+\fBbun.lockb\fR
 .RE 0
 
 .P
@@ -334,6 +336,8 @@ Most of these ignored files can be included specifically if included in the \fBf
 \fBpnpm-lock.yaml\fR
 .IP \(bu 4
 \fByarn.lock\fR
+.IP \(bu 4
+\fBbun.lockb\fR
 .RE 0
 
 .P
@@ -1044,6 +1048,18 @@ Like the \fBos\fR option, you can also block architectures:
 .RE
 .P
 The host architecture is determined by \fBprocess.arch\fR
+.SS "libc"
+.P
+If your code only runs or builds in certain versions of libc, you can specify which ones. This field only applies if \fBos\fR is \fBlinux\fR.
+.P
+.RS 2
+.nf
+{
+  "os": "linux",
+  "libc": "glibc"
+}
+.fi
+.RE
 .SS "devEngines"
 .P
 The \fBdevEngines\fR field aids engineers working on a codebase to all be using the same tooling.

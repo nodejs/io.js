@@ -136,8 +136,13 @@ static std::string GetErrorSource(Isolate* isolate,
 
   // Print (filename):(line number): (message).
   ScriptOrigin origin = message->GetScriptOrigin();
-  node::Utf8Value filename(isolate, message->GetScriptResourceName());
-  const char* filename_string = *filename;
+  std::string filename_string;
+  if (message->GetScriptResourceName()->IsUndefined()) {
+    filename_string = "<anonymous_script>";
+  } else {
+    node::Utf8Value filename(isolate, message->GetScriptResourceName());
+    filename_string = filename.ToString();
+  }
   int linenum = message->GetLineNumber(context).FromJust();
 
   int script_start = (linenum - origin.LineOffset()) == 1

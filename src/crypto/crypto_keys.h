@@ -33,10 +33,11 @@ enum KeyEncodingContext {
 
 enum class ParseKeyResult {
   kParseKeyNotRecognized =
-      static_cast<int>(EVPKeyPointer::PKParseError::NOT_RECOGNIZED),
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::NOT_RECOGNIZED),
   kParseKeyNeedPassphrase =
-      static_cast<int>(EVPKeyPointer::PKParseError::NEED_PASSPHRASE),
-  kParseKeyFailed = static_cast<int>(EVPKeyPointer::PKParseError::FAILED),
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::NEED_PASSPHRASE),
+  kParseKeyFailed =
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::FAILED),
   kParseKeyOk,
 };
 
@@ -45,7 +46,8 @@ class KeyObjectData final : public MemoryRetainer {
  public:
   static KeyObjectData CreateSecret(ByteSource key);
 
-  static KeyObjectData CreateAsymmetric(KeyType type, EVPKeyPointer&& pkey);
+  static KeyObjectData CreateAsymmetric(KeyType type,
+                                        ncrypto::EVPKeyPointer&& pkey);
 
   KeyObjectData(std::nullptr_t = nullptr);
 
@@ -55,7 +57,7 @@ class KeyObjectData final : public MemoryRetainer {
 
   // These functions allow unprotected access to the raw key material and should
   // only be used to implement cryptographic operations requiring the key.
-  const EVPKeyPointer& GetAsymmetricKey() const;
+  const ncrypto::EVPKeyPointer& GetAsymmetricKey() const;
   const char* GetSymmetricKey() const;
   size_t GetSymmetricKeySize() const;
 
@@ -103,11 +105,11 @@ class KeyObjectData final : public MemoryRetainer {
 
  private:
   explicit KeyObjectData(ByteSource symmetric_key);
-  explicit KeyObjectData(KeyType type, EVPKeyPointer&& pkey);
+  explicit KeyObjectData(KeyType type, ncrypto::EVPKeyPointer&& pkey);
 
   static KeyObjectData GetParsedKey(KeyType type,
                                     Environment* env,
-                                    EVPKeyPointer&& pkey,
+                                    ncrypto::EVPKeyPointer&& pkey,
                                     ParseKeyResult ret,
                                     const char* default_msg);
 
@@ -116,10 +118,10 @@ class KeyObjectData final : public MemoryRetainer {
 
   struct Data {
     const ByteSource symmetric_key;
-    const EVPKeyPointer asymmetric_key;
+    const ncrypto::EVPKeyPointer asymmetric_key;
     explicit Data(ByteSource symmetric_key)
         : symmetric_key(std::move(symmetric_key)) {}
-    explicit Data(EVPKeyPointer asymmetric_key)
+    explicit Data(ncrypto::EVPKeyPointer asymmetric_key)
         : asymmetric_key(std::move(asymmetric_key)) {}
   };
   std::shared_ptr<Data> data_;

@@ -2469,11 +2469,8 @@ def SetUpConfigurations(target, target_dict):
         merged_configurations[configuration] = new_configuration_dict
 
     # Put the new configurations back into the target dict as a configuration.
-    for configuration in merged_configurations:
-        target_dict["configurations"][configuration] = merged_configurations[
-            configuration
-        ]
-
+    for configuration, value in merged_configurations.items():
+        target_dict["configurations"][configuration] = value
     # Now drop all the abstract ones.
     configs = target_dict["configurations"]
     target_dict["configurations"] = {
@@ -3020,8 +3017,8 @@ def Load(
                     del target_dict[key]
         ProcessListFiltersInDict(target_name, tmp_dict)
         # Write the results back to |target_dict|.
-        for key in tmp_dict:
-            target_dict[key] = tmp_dict[key]
+        for key, value in tmp_dict.items():
+            target_dict[key] = value
 
     # Make sure every dependency appears at most once.
     RemoveDuplicateDependencies(targets)

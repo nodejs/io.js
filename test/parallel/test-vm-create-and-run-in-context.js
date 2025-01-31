@@ -45,6 +45,6 @@ assert.strictEqual(context.thing, 'lala');
 // Run in contextified sandbox without referencing the context
 const sandbox = { x: 1 };
 vm.createContext(sandbox);
-global.gc();
+globalThis.gc();
 vm.runInContext('x = 2', sandbox);
 // Should not crash.

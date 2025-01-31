@@ -52,19 +52,6 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
       strictEqual(signal, null);
     });
 
-    it('should be overridden by --experimental-default-type', async () => {
-      const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
-        '--experimental-default-type=commonjs',
-        '--eval',
-        'import.meta.url',
-      ]);
-
-      match(stderr, /SyntaxError: Cannot use 'import\.meta' outside a module/);
-      strictEqual(stdout, '');
-      strictEqual(code, 1);
-      strictEqual(signal, null);
-    });
-
     it('does not trigger detection via source code `eval()`', async () => {
       const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
         '--eval',

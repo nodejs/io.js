@@ -3,13 +3,14 @@ require('../common');
 const assert = require('node:assert');
 const test = require('node:test');
 
-const uncopiedKeys = [
-  'AssertionError',
-  'CallTracker',
-  'strict',
-];
-test('only methods from node:assert are on t.assert', (t) => {
-  const expectedKeys = Object.keys(assert).filter((key) => !uncopiedKeys.includes(key)).sort();
+test('expected methods are on t.assert', (t) => {
+  const uncopiedKeys = [
+    'AssertionError',
+    'CallTracker',
+    'strict',
+  ];
+  const assertKeys = Object.keys(assert).filter((key) => !uncopiedKeys.includes(key));
+  const expectedKeys = ['snapshot', 'fileSnapshot'].concat(assertKeys).sort();
   assert.deepStrictEqual(Object.keys(t.assert).sort(), expectedKeys);
 });
 

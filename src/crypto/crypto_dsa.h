@@ -26,7 +26,7 @@ struct DsaKeyGenTraits final {
   using AdditionalParameters = DsaKeyPairGenConfig;
   static constexpr const char* JobName = "DsaKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(DsaKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(DsaKeyPairGenConfig* params);
 
   static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,

@@ -116,6 +116,13 @@ class Publish extends BaseCommand {
     // note that publishConfig might have changed as well!
     manifest = await this.#getManifest(spec, opts, true)
 
+    const isPreRelease = Boolean(semver.parse(manifest.version).prerelease.length)
+    const isDefaultTag = this.npm.config.isDefault('tag')
+
+    if (isPreRelease && isDefaultTag) {
+      throw new Error('You must specify a tag using --tag when publishing a prerelease version.')
+    }
+
     // If we are not in JSON mode then we show the user the contents of the tarball
     // before it is published so they can see it while their otp is pending
     if (!json) {
@@ -148,6 +155,14 @@ class Publish extends BaseCommand {
       } else {
         throw Object.assign(new Error(msg), { code: 'ENEEDAUTH' })
       }
+    }
+
+    const latestVersion = await this.#latestPublishedVersion(resolved, registry)
+    const latestSemverIsGreater = !!latestVersion && semver.gte(latestVersion, manifest.version)
+
+    if (latestSemverIsGreater && isDefaultTag) {
+      /* eslint-disable-next-line max-len */
+      throw new Error(`Cannot implicitly apply the "latest" tag because published version ${latestVersion} is higher than the new version ${manifest.version}. You must specify a tag using --tag.`)
     }
 
     const access = opts.access === null ? 'default' : opts.access
@@ -186,6 +201,28 @@ class Publish extends BaseCommand {
 
     if (!json && !silent) {
       output.standard(`+ ${pkgContents.id}`)
+    }
+  }
+
+  async #latestPublishedVersion (spec, registry) {
+    try {
+      const packument = await pacote.packument(spec, {
+        ...this.npm.flatOptions,
+        preferOnline: true,
+        registry,
+      })
+      if (typeof packument?.versions === 'undefined') {
+        return null
+      }
+      const ordered = Object.keys(packument?.versions)
+        .flatMap(v => {
+          const s = new semver.SemVer(v)
+          return s.prerelease.length > 0 ? [] : s
+        })
+        .sort((a, b) => b.compare(a))
+      return ordered.length >= 1 ? ordered[0].version : null
+    } catch (e) {
+      return null
     }
   }
 

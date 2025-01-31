@@ -1,17 +1,17 @@
-import { skip, spawnPromisified, isWindows } from '../common/index.mjs';
+import { skip, spawnPromisified } from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
 import { match, strictEqual } from 'node:assert';
 import { test } from 'node:test';
 
-test('expect process.features.typescript to be \'strip\' when --experimental-strip-types', async () => {
+test('expect process.features.typescript to be false when --no-experimental-strip-types ', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-strip-types',
+    '--no-experimental-strip-types',
     fixtures.path('typescript/echo-process-features-typescript.cjs'),
   ]);
 
   strictEqual(result.stderr, '');
-  strictEqual(result.stdout, process.config.variables.node_use_amaro ? 'strip\n' : 'false\n');
+  strictEqual(result.stdout, 'false\n');
   strictEqual(result.code, 0);
 });
 
@@ -32,7 +32,6 @@ if (!process.config.variables.node_use_amaro) skip('Requires Amaro');
 
 test('execute a TypeScript file', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-typescript.ts'),
   ]);
 
@@ -43,7 +42,6 @@ test('execute a TypeScript file', async () => {
 
 test('execute a TypeScript file with imports', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-import-foo.ts'),
   ]);
@@ -65,35 +63,8 @@ test('execute a TypeScript file with imports', async () => {
   strictEqual(result.code, 0);
 });
 
-test('execute a TypeScript file with imports with default-type module', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--experimental-default-type=module',
-    '--no-warnings',
-    fixtures.path('typescript/ts/test-import-foo.ts'),
-  ]);
-
-  strictEqual(result.stderr, '');
-  match(result.stdout, /Hello, TypeScript!/);
-  strictEqual(result.code, 0);
-});
-
 test('execute a TypeScript file with node_modules', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--no-warnings',
-    fixtures.path('typescript/ts/test-typescript-node-modules.ts'),
-  ]);
-
-  strictEqual(result.stderr, '');
-  match(result.stdout, /Hello, TypeScript!/);
-  strictEqual(result.code, 0);
-});
-
-test('execute a TypeScript file with node_modules with default-type module', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--experimental-default-type=module',
     '--no-warnings',
     fixtures.path('typescript/ts/test-typescript-node-modules.ts'),
   ]);
@@ -105,7 +76,6 @@ test('execute a TypeScript file with node_modules with default-type module', asy
 
 test('expect error when executing a TypeScript file with imports with no extensions', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-import-no-extension.ts'),
   ]);
 
@@ -114,22 +84,8 @@ test('expect error when executing a TypeScript file with imports with no extensi
   strictEqual(result.code, 1);
 });
 
-test('expect error when executing a TypeScript file with imports with no extensions with default-type module',
-     async () => {
-       const result = await spawnPromisified(process.execPath, [
-         '--experimental-strip-types',
-         '--experimental-default-type=module',
-         fixtures.path('typescript/ts/test-import-no-extension.ts'),
-       ]);
-
-       match(result.stderr, /Error \[ERR_MODULE_NOT_FOUND\]:/);
-       strictEqual(result.stdout, '');
-       strictEqual(result.code, 1);
-     });
-
 test('expect error when executing a TypeScript file with enum', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-enums.ts'),
   ]);
 
@@ -141,7 +97,6 @@ test('expect error when executing a TypeScript file with enum', async () => {
 
 test('expect error when executing a TypeScript file with experimental decorators', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-experimental-decorators.ts'),
   ]);
   // This error should be thrown at runtime
@@ -152,7 +107,6 @@ test('expect error when executing a TypeScript file with experimental decorators
 
 test('expect error when executing a TypeScript file with namespaces', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-namespaces.ts'),
   ]);
   // This error should be thrown during transformation
@@ -163,7 +117,6 @@ test('expect error when executing a TypeScript file with namespaces', async () =
 
 test('execute a TypeScript file with type definition', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-import-types.ts'),
   ]);
@@ -175,19 +128,6 @@ test('execute a TypeScript file with type definition', async () => {
 
 test('execute a TypeScript file with type definition but no type keyword', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    fixtures.path('typescript/ts/test-import-no-type-keyword.ts'),
-  ]);
-
-  match(result.stderr, /does not provide an export named 'MyType'/);
-  strictEqual(result.stdout, '');
-  strictEqual(result.code, 1);
-});
-
-test('execute a TypeScript file with type definition but no type keyword with default-type modue', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--experimental-default-type=module',
     fixtures.path('typescript/ts/test-import-no-type-keyword.ts'),
   ]);
 
@@ -198,7 +138,6 @@ test('execute a TypeScript file with type definition but no type keyword with de
 
 test('execute a TypeScript file with CommonJS syntax', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-commonjs-parsing.ts'),
   ]);
@@ -209,20 +148,6 @@ test('execute a TypeScript file with CommonJS syntax', async () => {
 
 test('execute a TypeScript file with ES module syntax', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--no-warnings',
-    fixtures.path('typescript/ts/test-module-typescript.ts'),
-  ]);
-
-  strictEqual(result.stderr, '');
-  match(result.stdout, /Hello, TypeScript!/);
-  strictEqual(result.code, 0);
-});
-
-test('execute a TypeScript file with ES module syntax with default-type module', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--experimental-default-type=module',
     '--no-warnings',
     fixtures.path('typescript/ts/test-module-typescript.ts'),
   ]);
@@ -234,19 +159,16 @@ test('execute a TypeScript file with ES module syntax with default-type module',
 
 test('expect failure of a TypeScript file requiring ES module syntax', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--experimental-require-module',
     fixtures.path('typescript/ts/test-require-module.ts'),
   ]);
 
-  match(result.stderr, /Support for loading ES Module in require\(\) is an experimental feature and might change at any time/);
   match(result.stdout, /Hello, TypeScript!/);
   strictEqual(result.code, 0);
 });
 
 test('expect stack trace of a TypeScript file to be correct', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-whitespacing.ts'),
   ]);
 
@@ -257,7 +179,6 @@ test('expect stack trace of a TypeScript file to be correct', async () => {
 
 test('execute CommonJS TypeScript file from node_modules with require-module', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-import-ts-node-modules.ts'),
   ]);
 
@@ -266,33 +187,8 @@ test('execute CommonJS TypeScript file from node_modules with require-module', a
   strictEqual(result.code, 1);
 });
 
-test('execute CommonJS TypeScript file from node_modules with require-module and default-type module',
-     async () => {
-       const result = await spawnPromisified(process.execPath, [
-         '--experimental-strip-types',
-         '--experimental-default-type=module',
-         fixtures.path('typescript/ts/test-import-ts-node-modules.ts'),
-       ]);
-
-       match(result.stderr, /ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING/);
-       strictEqual(result.stdout, '');
-       strictEqual(result.code, 1);
-     });
-
-test('execute a TypeScript file with CommonJS syntax but default type module', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--experimental-default-type=module',
-    fixtures.path('typescript/ts/test-commonjs-parsing.ts'),
-  ]);
-  strictEqual(result.stdout, '');
-  match(result.stderr, /require is not defined in ES module scope, you can use import instead/);
-  strictEqual(result.code, 1);
-});
-
 test('execute a TypeScript file with CommonJS syntax requiring .cts', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-require-cts.ts'),
   ]);
@@ -304,7 +200,6 @@ test('execute a TypeScript file with CommonJS syntax requiring .cts', async () =
 
 test('execute a TypeScript file with CommonJS syntax requiring .mts', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-require-mts.ts'),
   ]);
 
@@ -314,19 +209,16 @@ test('execute a TypeScript file with CommonJS syntax requiring .mts', async () =
 
 test('execute a TypeScript file with CommonJS syntax requiring .mts using require-module', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--experimental-require-module',
     fixtures.path('typescript/ts/test-require-mts.ts'),
   ]);
 
-  match(result.stderr, /Support for loading ES Module in require\(\) is an experimental feature and might change at any time/);
   match(result.stdout, /Hello, TypeScript!/);
   strictEqual(result.code, 0);
 });
 
 test('execute a TypeScript file with CommonJS syntax requiring .cts using commonjs', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-require-cts.ts'),
   ]);
@@ -336,11 +228,9 @@ test('execute a TypeScript file with CommonJS syntax requiring .cts using common
   strictEqual(result.code, 0);
 });
 
-test('execute a TypeScript file with CommonJS syntax requiring .mts with require-module with default-type commonjs',
+test('execute a TypeScript file with CommonJS syntax requiring .mts with require-module',
      async () => {
        const result = await spawnPromisified(process.execPath, [
-         '--experimental-strip-types',
-         '--experimental-default-type=commonjs',
          '--no-warnings',
          fixtures.path('typescript/ts/test-require-cts.ts'),
        ]);
@@ -352,7 +242,6 @@ test('execute a TypeScript file with CommonJS syntax requiring .mts with require
 
 test('execute a JavaScript file importing a cjs TypeScript file', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/issue-54457.mjs'),
   ]);
@@ -361,14 +250,10 @@ test('execute a JavaScript file importing a cjs TypeScript file', async () => {
   strictEqual(result.code, 0);
 });
 
-// TODO(marco-ippolito) Due to a bug in SWC, the TypeScript loader
-// does not work on Windows arm64. This test should be re-enabled
-// when https://github.com/nodejs/node/issues/54645 is fixed
-test('execute a TypeScript test mocking module', { skip: isWindows && process.arch === 'arm64' }, async () => {
+test('execute a TypeScript test mocking module', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--test',
     '--experimental-test-module-mocks',
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-mock-module.ts'),
   ]);
@@ -378,13 +263,12 @@ test('execute a TypeScript test mocking module', { skip: isWindows && process.ar
   strictEqual(result.code, 0);
 });
 
-test('expect process.features.typescript to be false without type-stripping', async () => {
-  strictEqual(process.features.typescript, false);
+test('expect process.features.typescript to be strip', async () => {
+  strictEqual(process.features.typescript, 'strip');
 });
 
 test('execute a TypeScript file with union types', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/ts/test-union-types.ts'),
   ]);
@@ -402,7 +286,6 @@ test('execute a TypeScript file with union types', async () => {
 
 test('expect error when executing a TypeScript file with generics', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/ts/test-parameter-properties.ts'),
   ]);
 
@@ -411,6 +294,40 @@ test('expect error when executing a TypeScript file with generics', async () => 
     result.stderr,
     /TypeScript parameter property is not supported in strip-only mode/
   );
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 1);
+});
+
+test('execute a TypeScript loader and a .ts file', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--import',
+    fixtures.fileURL('typescript/ts/test-loader.ts'),
+    fixtures.path('typescript/ts/test-typescript.ts'),
+  ]);
+  strictEqual(result.stderr, '');
+  match(result.stdout, /Hello, TypeScript!/);
+  strictEqual(result.code, 0);
+});
+
+test('execute a TypeScript loader and a .js file', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--import',
+    fixtures.fileURL('typescript/ts/test-loader.ts'),
+    fixtures.path('typescript/ts/test-simple.js'),
+  ]);
+  strictEqual(result.stderr, '');
+  match(result.stdout, /Hello, TypeScript!/);
+  strictEqual(result.code, 0);
+});
+
+test('execute invalid TypeScript syntax', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    fixtures.path('typescript/ts/test-invalid-syntax.ts'),
+  ]);
+
+  match(result.stderr, /ERR_INVALID_TYPESCRIPT_SYNTAX/);
   strictEqual(result.stdout, '');
   strictEqual(result.code, 1);
 });

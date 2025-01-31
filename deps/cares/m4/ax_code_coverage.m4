@@ -74,7 +74,7 @@
 #   You should have received a copy of the GNU Lesser General Public License
 #   along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#serial 34
+#serial 37
 
 m4_define(_AX_CODE_COVERAGE_RULES,[
 AX_ADD_AM_MACRO_STATIC([
@@ -144,7 +144,7 @@ code_coverage_v_lcov_cap_ = \$(code_coverage_v_lcov_cap_\$(AM_DEFAULT_VERBOSITY)
 code_coverage_v_lcov_cap_0 = @echo \"  LCOV   --capture\" \$(CODE_COVERAGE_OUTPUT_FILE);
 code_coverage_v_lcov_ign = \$(code_coverage_v_lcov_ign_\$(V))
 code_coverage_v_lcov_ign_ = \$(code_coverage_v_lcov_ign_\$(AM_DEFAULT_VERBOSITY))
-code_coverage_v_lcov_ign_0 = @echo \"  LCOV   --remove /tmp/*\" \$(CODE_COVERAGE_IGNORE_PATTERN);
+code_coverage_v_lcov_ign_0 = @echo \"  LCOV   --remove\" \"\$(CODE_COVERAGE_OUTPUT_FILE).tmp\" \$(CODE_COVERAGE_IGNORE_PATTERN);
 code_coverage_v_genhtml = \$(code_coverage_v_genhtml_\$(V))
 code_coverage_v_genhtml_ = \$(code_coverage_v_genhtml_\$(AM_DEFAULT_VERBOSITY))
 code_coverage_v_genhtml_0 = @echo \"  GEN   \" \"\$(CODE_COVERAGE_OUTPUT_DIRECTORY)\";
@@ -163,7 +163,7 @@ check-code-coverage:
 # Capture code coverage data
 code-coverage-capture: code-coverage-capture-hook
 	\$(code_coverage_v_lcov_cap)\$(LCOV) \$(code_coverage_quiet) \$(addprefix --directory ,\$(CODE_COVERAGE_DIRECTORY)) --capture --output-file \"\$(CODE_COVERAGE_OUTPUT_FILE).tmp\" --test-name \"\$(call code_coverage_sanitize,\$(PACKAGE_NAME)-\$(PACKAGE_VERSION))\" --no-checksum --compat-libtool \$(CODE_COVERAGE_LCOV_SHOPTS) \$(CODE_COVERAGE_LCOV_OPTIONS)
-	\$(code_coverage_v_lcov_ign)\$(LCOV) \$(code_coverage_quiet) \$(addprefix --directory ,\$(CODE_COVERAGE_DIRECTORY)) --remove \"\$(CODE_COVERAGE_OUTPUT_FILE).tmp\" \"/tmp/*\" \$(CODE_COVERAGE_IGNORE_PATTERN) --output-file \"\$(CODE_COVERAGE_OUTPUT_FILE)\" \$(CODE_COVERAGE_LCOV_SHOPTS) \$(CODE_COVERAGE_LCOV_RMOPTS)
+	\$(code_coverage_v_lcov_ign)\$(LCOV) \$(code_coverage_quiet) \$(addprefix --directory ,\$(CODE_COVERAGE_DIRECTORY)) --remove \"\$(CODE_COVERAGE_OUTPUT_FILE).tmp\" \$(CODE_COVERAGE_IGNORE_PATTERN) --output-file \"\$(CODE_COVERAGE_OUTPUT_FILE)\" \$(CODE_COVERAGE_LCOV_SHOPTS) \$(CODE_COVERAGE_LCOV_RMOPTS)
 	-@rm -f \"\$(CODE_COVERAGE_OUTPUT_FILE).tmp\"
 	\$(code_coverage_v_genhtml)LANG=C \$(GENHTML) \$(code_coverage_quiet) \$(addprefix --prefix ,\$(CODE_COVERAGE_DIRECTORY)) --output-directory \"\$(CODE_COVERAGE_OUTPUT_DIRECTORY)\" --title \"\$(PACKAGE_NAME)-\$(PACKAGE_VERSION) Code Coverage\" --legend --show-details \"\$(CODE_COVERAGE_OUTPUT_FILE)\" \$(CODE_COVERAGE_GENHTML_OPTIONS)
 	@echo \"file://\$(abs_builddir)/\$(CODE_COVERAGE_OUTPUT_DIRECTORY)/index.html\"
@@ -206,14 +206,14 @@ code-coverage-capture-hook:
 ])
 
 AC_DEFUN([_AX_CODE_COVERAGE_ENABLED],[
-	AX_CHECK_GNU_MAKE([],AC_MSG_ERROR([not using GNU make that is needed for coverage]))
+	AX_CHECK_GNU_MAKE([],[AC_MSG_ERROR([not using GNU make that is needed for coverage])])
 	AC_REQUIRE([AX_ADD_AM_MACRO_STATIC])
 	# check for gcov
 	AC_CHECK_TOOL([GCOV],
 		  [$_AX_CODE_COVERAGE_GCOV_PROG_WITH],
 		  [:])
 	AS_IF([test "X$GCOV" = "X:"],
-	      AC_MSG_ERROR([gcov is needed to do coverage]))
+	      [AC_MSG_ERROR([gcov is needed to do coverage])])
 	AC_SUBST([GCOV])
 
 	dnl Check if gcc is being used
@@ -232,12 +232,13 @@ AC_DEFUN([_AX_CODE_COVERAGE_ENABLED],[
 		AC_MSG_ERROR([Could not find genhtml from the lcov package])
 	])
 
+	AC_CHECK_LIB([gcov], [_gcov_init], [CODE_COVERAGE_LIBS="-lgcov"], [CODE_COVERAGE_LIBS=""])
+
 	dnl Build the code coverage flags
 	dnl Define CODE_COVERAGE_LDFLAGS for backwards compatibility
 	CODE_COVERAGE_CPPFLAGS="-DNDEBUG"
 	CODE_COVERAGE_CFLAGS="-O0 -g -fprofile-arcs -ftest-coverage"
 	CODE_COVERAGE_CXXFLAGS="-O0 -g -fprofile-arcs -ftest-coverage"
-	CODE_COVERAGE_LIBS="-lgcov"
 
 	AC_SUBST([CODE_COVERAGE_CPPFLAGS])
 	AC_SUBST([CODE_COVERAGE_CFLAGS])

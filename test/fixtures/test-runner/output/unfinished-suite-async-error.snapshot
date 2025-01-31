@@ -4,6 +4,7 @@ TAP version 13
     not ok 1 - uses callback
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/unfinished-suite-async-error.js:(LINE):3'
       failureType: 'uncaughtException'
       error: 'callback test does not complete'
@@ -16,6 +17,7 @@ TAP version 13
     ok 2 - should pass 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 1 - unfinished suite with asynchronous error
@@ -31,6 +33,7 @@ not ok 1 - unfinished suite with asynchronous error
 ok 2 - should pass 2
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..2
 # tests 3

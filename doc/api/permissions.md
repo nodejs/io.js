@@ -1,5 +1,9 @@
 # Permissions
 
+<!--introduced_in=v20.0.0-->
+
+<!-- source_link=src/permission.cc -->
+
 Permissions can be used to control what system resources the
 Node.js process has access to or what actions the process can take
 with those resources.
@@ -26,36 +30,35 @@ If you find a potential security vulnerability, please refer to our
 
 ### Permission Model
 
-<!-- type=misc -->
+<!-- YAML
+added: v20.0.0
+changes:
+  - version:
+    - v23.5.0
+    - v22.13.0
+    pr-url: https://github.com/nodejs/node/pull/56201
+    description: This feature is no longer experimental.
+-->
 
-> Stability: 1.1 - Active development
-
-<!-- name=permission-model -->
+> Stability: 2 - Stable.
 
 The Node.js Permission Model is a mechanism for restricting access to specific
 resources during execution.
-The API exists behind a flag [`--experimental-permission`][] which when enabled,
+The API exists behind a flag [`--permission`][] which when enabled,
 will restrict access to all available permissions.
 
-The available permissions are documented by the [`--experimental-permission`][]
+The available permissions are documented by the [`--permission`][]
 flag.
 
-When starting Node.js with `--experimental-permission`,
+When starting Node.js with `--permission`,
 the ability to access the file system through the `fs` module, spawn processes,
 use `node:worker_threads`, use native addons, use WASI, and enable the runtime inspector
 will be restricted.
 
 ```console
-$ node --experimental-permission index.js
-node:internal/modules/cjs/loader:171
-  const result = internalModuleStat(receiver, filename);
-                 ^
+$ node --permission index.js
 
 Error: Access to this API has been restricted
-    at stat (node:internal/modules/cjs/loader:171:18)
-    at Module._findPath (node:internal/modules/cjs/loader:627:16)
-    at resolveMainPath (node:internal/modules/run_main:19:25)
-    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:76:24)
     at node:internal/main/run_main_module:23:47 {
   code: 'ERR_ACCESS_DENIED',
   permission: 'FileSystemRead',
@@ -71,7 +74,7 @@ flag. For WASI, use the [`--allow-wasi`][] flag.
 
 #### Runtime API
 
-When enabling the Permission Model through the [`--experimental-permission`][]
+When enabling the Permission Model through the [`--permission`][]
 flag a new property `permission` is added to the `process` object.
 This property contains one function:
 
@@ -97,10 +100,8 @@ To allow access to the file system, use the [`--allow-fs-read`][] and
 [`--allow-fs-write`][] flags:
 
 ```console
-$ node --experimental-permission --allow-fs-read=* --allow-fs-write=* index.js
+$ node --permission --allow-fs-read=* --allow-fs-write=* index.js
 Hello world!
-(node:19836) ExperimentalWarning: Permission is an experimental feature
-(Use `node --trace-warnings ...` to show where the warning was created)
 ```
 
 The valid arguments for both flags are:
@@ -135,6 +136,43 @@ does not exist, the wildcard will not be added, and access will be limited to
 yet, make sure to explicitly include the wildcard:
 `/my-path/folder-do-not-exist/*`.
 
+#### Using the Permission Model with `npx`
+
+If you're using [`npx`][] to execute a Node.js script, you can enable the
+Permission Model by passing the `--node-options` flag. For example:
+
+```bash
+npx --node-options="--permission" package-name
+```
+
+This sets the `NODE_OPTIONS` environment variable for all Node.js processes
+spawned by [`npx`][], without affecting the `npx` process itself.
+
+**FileSystemRead Error with `npx`**
+
+The above command will likely throw a `FileSystemRead` invalid access error
+because Node.js requires file system read access to locate and execute the
+package. To avoid this:
+
+1. **Using a Globally Installed Package**
+   Grant read access to the global `node_modules` directory by running:
+
+   ```bash
+   npx --node-options="--permission --allow-fs-read=$(npm prefix -g)" package-name
+   ```
+
+2. **Using the `npx` Cache**
+   If you are installing the package temporarily or relying on the `npx` cache,
+   grant read access to the npm cache directory:
+
+   ```bash
+   npx --node-options="--permission --allow-fs-read=$(npm config get cache)" package-name
+   ```
+
+Any arguments you would normally pass to `node` (e.g., `--allow-*` flags) can
+also be passed through the `--node-options` flag. This flexibility makes it
+easy to configure permissions as needed when using `npx`.
+
 #### Permission Model constraints
 
 There are constraints you need to know before using this system:
@@ -154,6 +192,8 @@ There are constraints you need to know before using this system:
   flags that can be set via runtime through `v8.setFlagsFromString`.
 * OpenSSL engines cannot be requested at runtime when the Permission
   Model is enabled, affecting the built-in crypto, https, and tls modules.
+* Run-Time Loadable Extensions cannot be loaded when the Permission Model is
+  enabled, affecting the sqlite module.
 * Using existing file descriptors via the `node:fs` module bypasses the
   Permission Model.
 
@@ -172,5 +212,6 @@ There are constraints you need to know before using this system:
 [`--allow-fs-write`]: cli.md#--allow-fs-write
 [`--allow-wasi`]: cli.md#--allow-wasi
 [`--allow-worker`]: cli.md#--allow-worker
-[`--experimental-permission`]: cli.md#--experimental-permission
+[`--permission`]: cli.md#--permission
+[`npx`]: https://docs.npmjs.com/cli/commands/npx
 [`permission.has()`]: process.md#processpermissionhasscope-reference

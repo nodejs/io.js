@@ -260,6 +260,94 @@ static ares_status_t ares_init_sysconfig_android(const ares_channel_t *channel,
 }
 #endif
 
+#if defined(__QNX__)
+static ares_status_t
+  ares_init_sysconfig_qnx(const ares_channel_t *channel,
+                          ares_sysconfig_t     *sysconfig)
+{
+  /* QNX:
+   *   1. use confstr(_CS_RESOLVE, ...) as primary resolv.conf data, replacing
+   *      "_" with " ".  If that is empty, then do normal /etc/resolv.conf
+   *      processing.
+   *   2. We want to process /etc/nsswitch.conf as normal.
+   *   3. if confstr(_CS_DOMAIN, ...) this is the domain name.  Use this as
+   *      preference over anything else found.
+   */
+  ares_buf_t    *buf                = ares_buf_create();
+  unsigned char *data               = NULL;
+  size_t         data_size          = 0;
+  ares_bool_t    process_resolvconf = ARES_TRUE;
+  ares_status_t  status             = ARES_SUCCESS;
+
+  /* Prefer confstr(_CS_RESOLVE, ...) */
+  buf = ares_buf_create();
+  if (buf == NULL) {
+    status = ARES_ENOMEM;
+    goto done;
+  }
+
+  data_size = 1024;
+  data      = ares_buf_append_start(buf, &data_size);
+  if (data == NULL) {
+    status = ARES_ENOMEM;
+    goto done;
+  }
+
+  data_size = confstr(_CS_RESOLVE, (char *)data, data_size);
+  if (data_size > 1) {
+    /* confstr returns byte for NULL terminator, strip */
+    data_size--;
+
+    ares_buf_append_finish(buf, data_size);
+    /* Its odd, this uses _ instead of " " between keywords, otherwise the
+     * format is the same as resolv.conf, replace. */
+    ares_buf_replace(buf, (const unsigned char *)"_", 1,
+                     (const unsigned char *)" ", 1);
+
+    status = ares_sysconfig_process_buf(channel, sysconfig, buf,
+                                        ares_sysconfig_parse_resolv_line);
+    if (status != ARES_SUCCESS) {
+      /* ENOMEM is really the only error we'll get here */
+      goto done;
+    }
+
+    /* don't read resolv.conf if we processed *any* nameservers */
+    if (ares_llist_len(sysconfig->sconfig) != 0) {
+      process_resolvconf = ARES_FALSE;
+    }
+  }
+
+  /* Process files */
+  status = ares_init_sysconfig_files(channel, sysconfig, process_resolvconf);
+  if (status != ARES_SUCCESS) {
+    goto done;
+  }
+
+  /* Read confstr(_CS_DOMAIN, ...), but if we had a search path specified with
+   * more than one domain, lets prefer that instead.  Its not exactly clear
+   * the best way to handle this. */
+  if (sysconfig->ndomains <= 1) {
+    char   domain[256];
+    size_t domain_len;
+
+    domain_len = confstr(_CS_DOMAIN, domain, sizeof(domain_len));
+    if (domain_len != 0) {
+      ares_strsplit_free(sysconfig->domains, sysconfig->ndomains);
+      sysconfig->domains = ares_strsplit(domain, ", ", &sysconfig->ndomains);
+      if (sysconfig->domains == NULL) {
+        status = ARES_ENOMEM;
+        goto done;
+      }
+    }
+  }
+
+done:
+  ares_buf_destroy(buf);
+
+  return status;
+}
+#endif
+
 #if defined(CARES_USE_LIBRESOLV)
 static ares_status_t
   ares_init_sysconfig_libresolv(const ares_channel_t *channel,
@@ -516,8 +604,10 @@ ares_status_t ares_init_by_sysconfig(ares_channel_t *channel)
   status = ares_init_sysconfig_macos(channel, &sysconfig);
 #elif defined(CARES_USE_LIBRESOLV)
   status = ares_init_sysconfig_libresolv(channel, &sysconfig);
+#elif defined(__QNX__)
+  status = ares_init_sysconfig_qnx(channel, &sysconfig);
 #else
-  status = ares_init_sysconfig_files(channel, &sysconfig);
+  status = ares_init_sysconfig_files(channel, &sysconfig, ARES_TRUE);
 #endif
 
   if (status != ARES_SUCCESS) {

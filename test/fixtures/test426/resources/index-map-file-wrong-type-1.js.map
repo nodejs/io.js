@@ -1,0 +1,15 @@
+{
+  "version": 3,
+  "file": [],
+  "sections": [
+    {
+      "offset": { "line": 0, "column": 0 },
+      "map": {
+        "version": 3,
+        "names": ["foo","bar"],
+        "sources": ["basic-mapping-original.js"],
+        "mappings": "AAAA,SAASA,MACP,OAAO,EACT,CACA,SAASC,MACP,OAAO,EACT,CACAD,MACAC"
+      }
+    }
+  ]
+}

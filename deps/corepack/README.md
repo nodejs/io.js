@@ -302,6 +302,8 @@ same major line. Should you need to upgrade to a new major, use an explicit
 
 ## Troubleshooting
 
+The environment variable `DEBUG` can be set to `corepack` to enable additional debug logging.
+
 ### Networking
 
 There are a wide variety of networking issues that can occur while running

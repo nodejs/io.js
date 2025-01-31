@@ -1,6 +1,12 @@
 'use strict';
 
 const common = require('../common');
+
+if (!common.hasCrypto) {
+  common.skip('missing crypto');
+}
+const { hasOpenSSL3 } = require('../common/crypto');
+
 const fixtures = require('../common/fixtures');
 
 // Confirm that for TLSv1.3, renegotiate() is disallowed.
@@ -29,7 +35,7 @@ connect({
 
   const ok = client.renegotiate({}, common.mustCall((err) => {
     assert.throws(() => { throw err; }, {
-      message: common.hasOpenSSL3 ?
+      message: hasOpenSSL3 ?
         'error:0A00010A:SSL routines::wrong ssl version' :
         'error:1420410A:SSL routines:SSL_renegotiate:wrong ssl version',
       code: 'ERR_SSL_WRONG_SSL_VERSION',

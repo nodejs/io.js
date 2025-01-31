@@ -179,10 +179,10 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
     });
   });
 
-  it('should work without worker permission', async () => {
+  it('should not work without worker permission', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read',
       '*',
       '--experimental-loader',
@@ -190,16 +190,16 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
       fixtures.path('es-modules/esm-top-level-await.mjs'),
     ]);
 
-    assert.strictEqual(stderr, '');
-    assert.match(stdout, /^1\r?\n2\r?\n$/);
-    assert.strictEqual(code, 0);
+    assert.match(stderr, /Error: Access to this API has been restricted/);
+    assert.strictEqual(stdout, '');
+    assert.strictEqual(code, 1);
     assert.strictEqual(signal, null);
   });
 
   it('should allow loader hooks to spawn workers when allowed by the CLI flags', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
-      '--experimental-permission',
+      '--permission',
       '--allow-worker',
       '--allow-fs-read',
       '*',
@@ -217,7 +217,7 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should not allow loader hooks to spawn workers if restricted by the CLI flags', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read',
       '*',
       '--experimental-loader',

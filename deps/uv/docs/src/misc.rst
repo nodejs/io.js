@@ -360,6 +360,17 @@ API
         On Windows not all fields are set, the unsupported fields are filled with zeroes.
         See :c:type:`uv_rusage_t` for more details.
 
+.. c:function:: int uv_getrusage_thread(uv_rusage_t* rusage)
+
+    Gets the resource usage measures for the calling thread.
+
+    .. versionadded:: 1.50.0
+
+    .. note::
+        Not supported on all platforms. May return `UV_ENOTSUP`.
+        On macOS and Windows not all fields are set, the unsupported fields are filled with zeroes.
+        See :c:type:`uv_rusage_t` for more details.
+
 .. c:function:: uv_pid_t uv_os_getpid(void)
 
     Returns the current process ID.

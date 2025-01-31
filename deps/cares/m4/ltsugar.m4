@@ -1,6 +1,6 @@
 # ltsugar.m4 -- libtool m4 base layer.                         -*-Autoconf-*-
 #
-# Copyright (C) 2004-2005, 2007-2008, 2011-2019, 2021-2024 Free Software
+# Copyright (C) 2004-2005, 2007-2008, 2011-2015 Free Software
 # Foundation, Inc.
 # Written by Gary V. Vaughan, 2004
 #

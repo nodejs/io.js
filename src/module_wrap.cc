@@ -23,25 +23,35 @@ using node::contextify::ContextifyContext;
 using v8::Array;
 using v8::ArrayBufferView;
 using v8::Context;
+using v8::Data;
 using v8::EscapableHandleScope;
+using v8::Exception;
 using v8::FixedArray;
 using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
+using v8::Global;
 using v8::HandleScope;
 using v8::Int32;
 using v8::Integer;
 using v8::Isolate;
+using v8::Just;
 using v8::Local;
+using v8::LocalVector;
+using v8::Maybe;
 using v8::MaybeLocal;
 using v8::MemorySpan;
+using v8::Message;
 using v8::MicrotaskQueue;
 using v8::Module;
 using v8::ModuleRequest;
+using v8::Name;
+using v8::Null;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::PrimitiveArray;
 using v8::Promise;
+using v8::PromiseRejectEvent;
 using v8::ScriptCompiler;
 using v8::ScriptOrigin;
 using v8::String;
@@ -103,7 +113,7 @@ ModuleWrap* ModuleWrap::GetFromModule(Environment* env,
   return nullptr;
 }
 
-v8::Maybe<bool> ModuleWrap::CheckUnsettledTopLevelAwait() {
+Maybe<bool> ModuleWrap::CheckUnsettledTopLevelAwait() {
   Isolate* isolate = env()->isolate();
   Local<Context> context = env()->context();
 
@@ -115,17 +125,17 @@ v8::Maybe<bool> ModuleWrap::CheckUnsettledTopLevelAwait() {
   Local<Module> module = module_.Get(isolate);
   // It's a synthetic module, likely a facade wrapping CJS.
   if (!module->IsSourceTextModule()) {
-    return v8::Just(true);
+    return Just(true);
   }
 
   if (!module->IsGraphAsync()) {  // There is no TLA, no need to check.
-    return v8::Just(true);
+    return Just(true);
   }
 
   auto stalled_messages =
       std::get<1>(module->GetStalledTopLevelAwaitMessages(isolate));
   if (stalled_messages.empty()) {
-    return v8::Just(true);
+    return Just(true);
   }
 
   if (env()->options()->warnings) {
@@ -138,7 +148,7 @@ v8::Maybe<bool> ModuleWrap::CheckUnsettledTopLevelAwait() {
     }
   }
 
-  return v8::Just(false);
+  return Just(false);
 }
 
 Local<PrimitiveArray> ModuleWrap::GetHostDefinedOptions(
@@ -229,7 +239,7 @@ void ModuleWrap::New(const FunctionCallbackInfo<Value>& args) {
       Local<Array> export_names_arr = args[2].As<Array>();
 
       uint32_t len = export_names_arr->Length();
-      std::vector<Local<String>> export_names(len);
+      LocalVector<String> export_names(realm->isolate(), len);
       for (uint32_t i = 0; i < len; i++) {
         Local<Value> export_name_val =
             export_names_arr->Get(context, i).ToLocalChecked();
@@ -245,7 +255,7 @@ void ModuleWrap::New(const FunctionCallbackInfo<Value>& args) {
       // When we are compiling for the default loader, this will be
       // std::nullopt, and CompileSourceTextModule() should use
       // on-disk cache.
-      std::optional<v8::ScriptCompiler::CachedData*> user_cached_data;
+      std::optional<ScriptCompiler::CachedData*> user_cached_data;
       if (id_symbol !=
           realm->isolate_data()->source_text_module_default_hdo()) {
         user_cached_data = nullptr;
@@ -324,7 +334,7 @@ void ModuleWrap::New(const FunctionCallbackInfo<Value>& args) {
   // be stored in an internal field.
   Local<Object> context_object = context->GetExtrasBindingObject();
   Local<Value> synthetic_evaluation_step =
-      synthetic ? args[3] : Undefined(realm->isolate()).As<v8::Value>();
+      synthetic ? args[3] : Undefined(realm->isolate()).As<Value>();
 
   ModuleWrap* obj = new ModuleWrap(
       realm, that, module, url, context_object, synthetic_evaluation_step);
@@ -405,22 +415,22 @@ static Local<Object> createImportAttributesContainer(
     const int elements_per_attribute) {
   CHECK_EQ(raw_attributes->Length() % elements_per_attribute, 0);
   size_t num_attributes = raw_attributes->Length() / elements_per_attribute;
-  std::vector<Local<v8::Name>> names(num_attributes);
-  std::vector<Local<v8::Value>> values(num_attributes);
+  LocalVector<Name> names(isolate, num_attributes);
+  LocalVector<Value> values(isolate, num_attributes);
 
   for (int i = 0; i < raw_attributes->Length(); i += elements_per_attribute) {
     int idx = i / elements_per_attribute;
-    names[idx] = raw_attributes->Get(realm->context(), i).As<v8::Name>();
+    names[idx] = raw_attributes->Get(realm->context(), i).As<Name>();
     values[idx] = raw_attributes->Get(realm->context(), i + 1).As<Value>();
   }
 
   return Object::New(
-      isolate, v8::Null(isolate), names.data(), values.data(), num_attributes);
+      isolate, Null(isolate), names.data(), values.data(), num_attributes);
 }
 
 static Local<Array> createModuleRequestsContainer(
     Realm* realm, Isolate* isolate, Local<FixedArray> raw_requests) {
-  std::vector<Local<Value>> requests(raw_requests->Length());
+  LocalVector<Value> requests(isolate, raw_requests->Length());
 
   for (int i = 0; i < raw_requests->Length(); i++) {
     Local<ModuleRequest> module_request =
@@ -434,7 +444,7 @@ static Local<Array> createModuleRequestsContainer(
     Local<Object> attributes =
         createImportAttributesContainer(realm, isolate, raw_attributes, 3);
 
-    Local<v8::Name> names[] = {
+    Local<Name> names[] = {
         realm->isolate_data()->specifier_string(),
         realm->isolate_data()->attributes_string(),
     };
@@ -444,8 +454,8 @@ static Local<Array> createModuleRequestsContainer(
     };
     DCHECK_EQ(arraysize(names), arraysize(values));
 
-    Local<Object> request = Object::New(
-        isolate, v8::Null(isolate), names, values, arraysize(names));
+    Local<Object> request =
+        Object::New(isolate, Null(isolate), names, values, arraysize(names));
 
     requests[i] = request;
   }
@@ -481,11 +491,11 @@ void ModuleWrap::Link(const FunctionCallbackInfo<Value>& args) {
   Local<Array> modules = args[1].As<Array>();
   CHECK_EQ(specifiers->Length(), modules->Length());
 
-  std::vector<v8::Global<Value>> specifiers_buffer;
+  std::vector<Global<Value>> specifiers_buffer;
   if (FromV8Array(context, specifiers, &specifiers_buffer).IsNothing()) {
     return;
   }
-  std::vector<v8::Global<Value>> modules_buffer;
+  std::vector<Global<Value>> modules_buffer;
   if (FromV8Array(context, modules, &modules_buffer).IsNothing()) {
     return;
   }
@@ -663,9 +673,24 @@ void ModuleWrap::EvaluateSync(const FunctionCallbackInfo<Value>& args) {
   CHECK(result->IsPromise());
   Local<Promise> promise = result.As<Promise>();
   if (promise->State() == Promise::PromiseState::kRejected) {
+    // The rejected promise is created by V8, so we don't get a chance to mark
+    // it as resolved before the rejection happens from evaluation. But we can
+    // tell the promise rejection callback to treat it as a promise rejected
+    // before handler was added which would remove it from the unhandled
+    // rejection handling, since we are converting it into an error and throw
+    // from here directly.
+    Local<Value> type =
+        Integer::New(isolate,
+                     static_cast<int32_t>(
+                         PromiseRejectEvent::kPromiseHandlerAddedAfterReject));
+    Local<Value> args[] = {type, promise, Undefined(isolate)};
+    if (env->promise_reject_callback()
+            ->Call(context, Undefined(isolate), arraysize(args), args)
+            .IsEmpty()) {
+      return;
+    }
     Local<Value> exception = promise->Result();
-    Local<v8::Message> message =
-        v8::Exception::CreateMessage(isolate, exception);
+    Local<Message> message = Exception::CreateMessage(isolate, exception);
     AppendExceptionLine(
         env, exception, message, ErrorHandlingMode::MODULE_ERROR);
     isolate->ThrowException(exception);
@@ -702,15 +727,15 @@ void ModuleWrap::GetNamespaceSync(const FunctionCallbackInfo<Value>& args) {
   Local<Module> module = obj->module_.Get(isolate);
 
   switch (module->GetStatus()) {
-    case v8::Module::Status::kUninstantiated:
-    case v8::Module::Status::kInstantiating:
+    case Module::Status::kUninstantiated:
+    case Module::Status::kInstantiating:
       return realm->env()->ThrowError(
           "Cannot get namespace, module has not been instantiated");
-    case v8::Module::Status::kInstantiated:
-    case v8::Module::Status::kEvaluated:
-    case v8::Module::Status::kErrored:
+    case Module::Status::kInstantiated:
+    case Module::Status::kEvaluated:
+    case Module::Status::kErrored:
       break;
-    case v8::Module::Status::kEvaluating:
+    case Module::Status::kEvaluating:
       UNREACHABLE();
   }
 
@@ -730,14 +755,14 @@ void ModuleWrap::GetNamespace(const FunctionCallbackInfo<Value>& args) {
   Local<Module> module = obj->module_.Get(isolate);
 
   switch (module->GetStatus()) {
-    case v8::Module::Status::kUninstantiated:
-    case v8::Module::Status::kInstantiating:
+    case Module::Status::kUninstantiated:
+    case Module::Status::kInstantiating:
       return realm->env()->ThrowError(
           "cannot get namespace, module has not been instantiated");
-    case v8::Module::Status::kInstantiated:
-    case v8::Module::Status::kEvaluating:
-    case v8::Module::Status::kEvaluated:
-    case v8::Module::Status::kErrored:
+    case Module::Status::kInstantiated:
+    case Module::Status::kEvaluating:
+    case Module::Status::kEvaluated:
+    case Module::Status::kErrored:
       break;
     default:
       UNREACHABLE();
@@ -809,7 +834,7 @@ MaybeLocal<Module> ModuleWrap::ResolveModuleCallback(
 
 static MaybeLocal<Promise> ImportModuleDynamically(
     Local<Context> context,
-    Local<v8::Data> host_defined_options,
+    Local<Data> host_defined_options,
     Local<Value> resource_name,
     Local<String> specifier,
     Local<FixedArray> import_attributes) {
@@ -995,7 +1020,7 @@ void ModuleWrap::CreateCachedData(const FunctionCallbackInfo<Value>& args) {
 
   Local<Module> module = obj->module_.Get(isolate);
 
-  CHECK_LT(module->GetStatus(), v8::Module::Status::kEvaluating);
+  CHECK_LT(module->GetStatus(), Module::Status::kEvaluating);
 
   Local<UnboundModuleScript> unbound_module_script =
       module->GetUnboundModuleScript();

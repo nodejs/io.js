@@ -1,6 +1,6 @@
 'use strict'
 
-const { kProxy, kClose, kDestroy, kInterceptors } = require('../core/symbols')
+const { kProxy, kClose, kDestroy } = require('../core/symbols')
 const { URL } = require('node:url')
 const Agent = require('./agent')
 const Pool = require('./pool')
@@ -27,8 +27,6 @@ const noop = () => {}
 
 class ProxyAgent extends DispatcherBase {
   constructor (opts) {
-    super()
-
     if (!opts || (typeof opts === 'object' && !(opts instanceof URL) && !opts.uri)) {
       throw new InvalidArgumentError('Proxy uri is mandatory')
     }
@@ -38,13 +36,12 @@ class ProxyAgent extends DispatcherBase {
       throw new InvalidArgumentError('Proxy opts.clientFactory must be a function.')
     }
 
+    super()
+
     const url = this.#getUrl(opts)
     const { href, origin, port, protocol, username, password, hostname: proxyHostname } = url
 
     this[kProxy] = { uri: href, protocol }
-    this[kInterceptors] = opts.interceptors?.ProxyAgent && Array.isArray(opts.interceptors.ProxyAgent)
-      ? opts.interceptors.ProxyAgent
-      : []
     this[kRequestTls] = opts.requestTls
     this[kProxyTls] = opts.proxyTls
     this[kProxyHeaders] = opts.headers || {}

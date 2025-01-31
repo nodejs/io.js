@@ -24,7 +24,7 @@ function hookChildProcess(cp, parsed) {
         // the command exists and emit an "error" instead
         // See https://github.com/IndigoUnited/node-cross-spawn/issues/16
         if (name === 'exit') {
-            const err = verifyENOENT(arg1, parsed, 'spawn');
+            const err = verifyENOENT(arg1, parsed);
 
             if (err) {
                 return originalEmit.call(cp, 'error', err);

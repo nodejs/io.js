@@ -1,9 +1,8 @@
-// Flags: --experimental-sqlite
 'use strict';
 const { spawnPromisified } = require('../common');
 const tmpdir = require('../common/tmpdir');
 const { join } = require('node:path');
-const { DatabaseSync } = require('node:sqlite');
+const { DatabaseSync, constants } = require('node:sqlite');
 const { suite, test } = require('node:test');
 let cnt = 0;
 
@@ -23,13 +22,14 @@ suite('accessing the node:sqlite module', () => {
     });
   });
 
-  test('cannot be accessed without --experimental-sqlite flag', async (t) => {
+  test('can be disabled with --no-experimental-sqlite flag', async (t) => {
     const {
       stdout,
       stderr,
       code,
       signal,
     } = await spawnPromisified(process.execPath, [
+      '--no-experimental-sqlite',
       '-e',
       'require("node:sqlite")',
     ]);
@@ -85,6 +85,12 @@ test('in-memory databases are supported', (t) => {
   );
 });
 
+test('sqlite constants are defined', (t) => {
+  t.assert.strictEqual(constants.SQLITE_CHANGESET_OMIT, 0);
+  t.assert.strictEqual(constants.SQLITE_CHANGESET_REPLACE, 1);
+  t.assert.strictEqual(constants.SQLITE_CHANGESET_ABORT, 2);
+});
+
 test('PRAGMAs are supported', (t) => {
   const db = new DatabaseSync(nextDb());
   t.after(() => { db.close(); });
@@ -95,5 +101,13 @@ test('PRAGMAs are supported', (t) => {
   t.assert.deepStrictEqual(
     db.prepare('PRAGMA journal_mode').get(),
     { __proto__: null, journal_mode: 'wal' },
+  );
+});
+
+test('math functions are enabled', (t) => {
+  const db = new DatabaseSync(':memory:');
+  t.assert.deepStrictEqual(
+    db.prepare('SELECT PI() AS pi').get(),
+    { __proto__: null, pi: 3.141592653589793 },
   );
 });

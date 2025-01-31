@@ -7,6 +7,11 @@
 template("uv_gn_build") {
   config("uv_external_config") {
     include_dirs = [ "include" ]
+    if (is_clang || !is_win) {
+      cflags_cc = [
+        "-Wno-deprecated-pragma",  # for using ENODATA in errno.h
+      ]
+    }
   }
 
   config("uv_internal_config") {

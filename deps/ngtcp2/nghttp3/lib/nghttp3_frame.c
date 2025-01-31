@@ -102,7 +102,7 @@ nghttp3_frame_write_priority_update(uint8_t *p,
 }
 
 size_t nghttp3_frame_write_priority_update_len(
-    int64_t *ppayloadlen, const nghttp3_frame_priority_update *fr) {
+  int64_t *ppayloadlen, const nghttp3_frame_priority_update *fr) {
   size_t payloadlen = nghttp3_put_varintlen(fr->pri_elem_id) + fr->datalen;
 
   *ppayloadlen = (int64_t)payloadlen;

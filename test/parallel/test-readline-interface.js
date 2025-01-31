@@ -22,7 +22,10 @@
 // Flags: --expose-internals
 'use strict';
 const common = require('../common');
-common.skipIfDumbTerminal();
+
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const assert = require('assert');
 const readline = require('readline');

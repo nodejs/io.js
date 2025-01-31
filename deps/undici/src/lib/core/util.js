@@ -28,6 +28,10 @@ class BodyAsyncIterable {
   }
 }
 
+/**
+ * @param {*} body
+ * @returns {*}
+ */
 function wrapRequestBody (body) {
   if (isStream(body)) {
     // TODO (fix): Provide some way for the user to cache the file to e.g. /tmp
@@ -67,13 +71,19 @@ function wrapRequestBody (body) {
   }
 }
 
-function nop () {}
-
+/**
+ * @param {*} obj
+ * @returns {obj is import('node:stream').Stream}
+ */
 function isStream (obj) {
   return obj && typeof obj === 'object' && typeof obj.pipe === 'function' && typeof obj.on === 'function'
 }
 
-// based on https://github.com/node-fetch/fetch-blob/blob/8ab587d34080de94140b54f07168451e7d0b655e/index.js#L229-L241 (MIT License)
+/**
+ * @param {*} object
+ * @returns {object is Blob}
+ * based on https://github.com/node-fetch/fetch-blob/blob/8ab587d34080de94140b54f07168451e7d0b655e/index.js#L229-L241 (MIT License)
+ */
 function isBlobLike (object) {
   if (object === null) {
     return false
@@ -91,7 +101,12 @@ function isBlobLike (object) {
   }
 }
 
-function buildURL (url, queryParams) {
+/**
+ * @param {string} url The URL to add the query params to
+ * @param {import('node:querystring').ParsedUrlQueryInput} queryParams The object to serialize into a URL query string
+ * @returns {string} The URL with the query params added
+ */
+function serializePathWithQuery (url, queryParams) {
   if (url.includes('?') || url.includes('#')) {
     throw new Error('Query params cannot be passed when url already contains "?" or "#".')
   }
@@ -105,6 +120,10 @@ function buildURL (url, queryParams) {
   return url
 }
 
+/**
+ * @param {number|string|undefined} port
+ * @returns {boolean}
+ */
 function isValidPort (port) {
   const value = parseInt(port, 10)
   return (
@@ -114,6 +133,12 @@ function isValidPort (port) {
   )
 }
 
+/**
+ * Check if the value is a valid http or https prefixed string.
+ *
+ * @param {string} value
+ * @returns {boolean}
+ */
 function isHttpOrHttpsPrefixed (value) {
   return (
     value != null &&
@@ -131,8 +156,15 @@ function isHttpOrHttpsPrefixed (value) {
   )
 }
 
+/**
+ * @param {string|URL|Record<string,string>} url
+ * @returns {URL}
+ */
 function parseURL (url) {
   if (typeof url === 'string') {
+    /**
+     * @type {URL}
+     */
     url = new URL(url)
 
     if (!isHttpOrHttpsPrefixed(url.origin || url.protocol)) {
@@ -202,6 +234,10 @@ function parseURL (url) {
   return url
 }
 
+/**
+ * @param {string|URL|Record<string, string>} url
+ * @returns {URL}
+ */
 function parseOrigin (url) {
   url = parseURL(url)
 
@@ -212,6 +248,10 @@ function parseOrigin (url) {
   return url
 }
 
+/**
+ * @param {string} host
+ * @returns {string}
+ */
 function getHostname (host) {
   if (host[0] === '[') {
     const idx = host.indexOf(']')
@@ -226,8 +266,12 @@ function getHostname (host) {
   return host.substring(0, idx)
 }
 
-// IP addresses are not valid server names per RFC6066
-// > Currently, the only server names supported are DNS hostnames
+/**
+ * IP addresses are not valid server names per RFC6066
+ * Currently, the only server names supported are DNS hostnames
+ * @param {string|null} host
+ * @returns {string|null}
+ */
 function getServerName (host) {
   if (!host) {
     return null
@@ -243,18 +287,36 @@ function getServerName (host) {
   return servername
 }
 
+/**
+ * @function
+ * @template T
+ * @param {T} obj
+ * @returns {T}
+ */
 function deepClone (obj) {
   return JSON.parse(JSON.stringify(obj))
 }
 
+/**
+ * @param {*} obj
+ * @returns {obj is AsyncIterable}
+ */
 function isAsyncIterable (obj) {
   return !!(obj != null && typeof obj[Symbol.asyncIterator] === 'function')
 }
 
+/**
+ * @param {*} obj
+ * @returns {obj is Iterable}
+ */
 function isIterable (obj) {
   return !!(obj != null && (typeof obj[Symbol.iterator] === 'function' || typeof obj[Symbol.asyncIterator] === 'function'))
 }
 
+/**
+ * @param {Blob|Buffer|import ('stream').Stream} body
+ * @returns {number|null}
+ */
 function bodyLength (body) {
   if (body == null) {
     return 0
@@ -272,10 +334,19 @@ function bodyLength (body) {
   return null
 }
 
+/**
+ * @param {import ('stream').Stream} body
+ * @returns {boolean}
+ */
 function isDestroyed (body) {
   return body && !!(body.destroyed || body[kDestroyed] || (stream.isDestroyed?.(body)))
 }
 
+/**
+ * @param {import ('stream').Stream} stream
+ * @param {Error} [err]
+ * @returns {void}
+ */
 function destroy (stream, err) {
   if (stream == null || !isStream(stream) || isDestroyed(stream)) {
     return
@@ -300,8 +371,12 @@ function destroy (stream, err) {
 }
 
 const KEEPALIVE_TIMEOUT_EXPR = /timeout=(\d+)/
+/**
+ * @param {string} val
+ * @returns {number | null}
+ */
 function parseKeepAliveTimeout (val) {
-  const m = val.toString().match(KEEPALIVE_TIMEOUT_EXPR)
+  const m = val.match(KEEPALIVE_TIMEOUT_EXPR)
   return m ? parseInt(m[1], 10) * 1000 : null
 }
 
@@ -326,12 +401,13 @@ function bufferToLowerCasedHeaderName (value) {
 }
 
 /**
- * @param {Record<string, string | string[]> | (Buffer | string | (Buffer | string)[])[]} headers
+ * @param {(Buffer | string)[]} headers
  * @param {Record<string, string | string[]>} [obj]
  * @returns {Record<string, string | string[]>}
  */
 function parseHeaders (headers, obj) {
   if (obj === undefined) obj = {}
+
   for (let i = 0; i < headers.length; i += 2) {
     const key = headerNameToString(headers[i])
     let val = obj[key]
@@ -360,9 +436,16 @@ function parseHeaders (headers, obj) {
   return obj
 }
 
+/**
+ * @param {Buffer[]} headers
+ * @returns {string[]}
+ */
 function parseRawHeaders (headers) {
-  const len = headers.length
-  const ret = new Array(len)
+  const headersLength = headers.length
+  /**
+   * @type {string[]}
+   */
+  const ret = new Array(headersLength)
 
   let hasContentLength = false
   let contentDispositionIdx = -1
@@ -370,7 +453,7 @@ function parseRawHeaders (headers) {
   let val
   let kLen = 0
 
-  for (let n = 0; n < headers.length; n += 2) {
+  for (let n = 0; n < headersLength; n += 2) {
     key = headers[n]
     val = headers[n + 1]
 
@@ -395,14 +478,42 @@ function parseRawHeaders (headers) {
   return ret
 }
 
+/**
+ * @param {string[]} headers
+ * @param {Buffer[]} headers
+ */
+function encodeRawHeaders (headers) {
+  if (!Array.isArray(headers)) {
+    throw new TypeError('expected headers to be an array')
+  }
+  return headers.map(x => Buffer.from(x))
+}
+
+/**
+ * @param {*} buffer
+ * @returns {buffer is Buffer}
+ */
 function isBuffer (buffer) {
   // See, https://github.com/mcollina/undici/pull/319
   return buffer instanceof Uint8Array || Buffer.isBuffer(buffer)
 }
 
-function validateHandler (handler, method, upgrade) {
+/**
+ * Asserts that the handler object is a request handler.
+ *
+ * @param {object} handler
+ * @param {string} method
+ * @param {string} [upgrade]
+ * @returns {asserts handler is import('../api/api-request').RequestHandler}
+ */
+function assertRequestHandler (handler, method, upgrade) {
   if (!handler || typeof handler !== 'object') {
     throw new InvalidArgumentError('handler must be an object')
+  }
+
+  if (typeof handler.onRequestStart === 'function') {
+    // TODO (fix): More checks...
+    return
   }
 
   if (typeof handler.onConnect !== 'function') {
@@ -436,21 +547,33 @@ function validateHandler (handler, method, upgrade) {
   }
 }
 
-// A body is disturbed if it has been read from and it cannot
-// be re-used without losing state or data.
+/**
+ * A body is disturbed if it has been read from and it cannot be re-used without
+ * losing state or data.
+ * @param {import('node:stream').Readable} body
+ * @returns {boolean}
+ */
 function isDisturbed (body) {
   // TODO (fix): Why is body[kBodyUsed] needed?
   return !!(body && (stream.isDisturbed(body) || body[kBodyUsed]))
 }
 
-function isErrored (body) {
-  return !!(body && stream.isErrored(body))
-}
+/**
+ * @typedef {object} SocketInfo
+ * @property {string} [localAddress]
+ * @property {number} [localPort]
+ * @property {string} [remoteAddress]
+ * @property {number} [remotePort]
+ * @property {string} [remoteFamily]
+ * @property {number} [timeout]
+ * @property {number} bytesWritten
+ * @property {number} bytesRead
+ */
 
-function isReadable (body) {
-  return !!(body && stream.isReadable(body))
-}
-
+/**
+ * @param {import('net').Socket} socket
+ * @returns {SocketInfo}
+ */
 function getSocketInfo (socket) {
   return {
     localAddress: socket.localAddress,
@@ -464,7 +587,10 @@ function getSocketInfo (socket) {
   }
 }
 
-/** @type {globalThis['ReadableStream']} */
+/**
+ * @param {Iterable} iterable
+ * @returns {ReadableStream}
+ */
 function ReadableStreamFrom (iterable) {
   // We cannot use ReadableStream.from here because it does not return a byte stream.
 
@@ -489,7 +615,7 @@ function ReadableStreamFrom (iterable) {
         }
         return controller.desiredSize > 0
       },
-      async cancel (reason) {
+      async cancel () {
         await iterator.return()
       },
       type: 'bytes'
@@ -497,8 +623,12 @@ function ReadableStreamFrom (iterable) {
   )
 }
 
-// The chunk should be a FormData instance and contains
-// all the required methods.
+/**
+ * The object should be a FormData instance and contains all the required
+ * methods.
+ * @param {*} object
+ * @returns {object is FormData}
+ */
 function isFormDataLike (object) {
   return (
     object &&
@@ -518,31 +648,56 @@ function addAbortListener (signal, listener) {
     signal.addEventListener('abort', listener, { once: true })
     return () => signal.removeEventListener('abort', listener)
   }
-  signal.addListener('abort', listener)
+  signal.once('abort', listener)
   return () => signal.removeListener('abort', listener)
 }
 
-const hasToWellFormed = typeof String.prototype.toWellFormed === 'function'
-const hasIsWellFormed = typeof String.prototype.isWellFormed === 'function'
-
 /**
- * @param {string} val
+ * @function
+ * @param {string} value
+ * @returns {string}
  */
-function toUSVString (val) {
-  return hasToWellFormed ? `${val}`.toWellFormed() : nodeUtil.toUSVString(val)
-}
+const toUSVString = (() => {
+  if (typeof String.prototype.toWellFormed === 'function') {
+    /**
+     * @param {string} value
+     * @returns {string}
+     */
+    return (value) => `${value}`.toWellFormed()
+  } else {
+    /**
+     * @param {string} value
+     * @returns {string}
+     */
+    return nodeUtil.toUSVString
+  }
+})()
 
 /**
- * @param {string} val
+ * @param {*} value
+ * @returns {boolean}
  */
 // TODO: move this to webidl
-function isUSVString (val) {
-  return hasIsWellFormed ? `${val}`.isWellFormed() : toUSVString(val) === `${val}`
-}
+const isUSVString = (() => {
+  if (typeof String.prototype.isWellFormed === 'function') {
+    /**
+     * @param {*} value
+     * @returns {boolean}
+     */
+    return (value) => `${value}`.isWellFormed()
+  } else {
+    /**
+     * @param {*} value
+     * @returns {boolean}
+     */
+    return (value) => toUSVString(value) === `${value}`
+  }
+})()
 
 /**
  * @see https://tools.ietf.org/html/rfc7230#section-3.2.6
  * @param {number} c
+ * @returns {boolean}
  */
 function isTokenCharCode (c) {
   switch (c) {
@@ -573,6 +728,7 @@ function isTokenCharCode (c) {
 
 /**
  * @param {string} characters
+ * @returns {boolean}
  */
 function isValidHTTPToken (characters) {
   if (characters.length === 0) {
@@ -599,17 +755,31 @@ const headerCharRegex = /[^\t\x20-\x7e\x80-\xff]/
 
 /**
  * @param {string} characters
+ * @returns {boolean}
  */
 function isValidHeaderValue (characters) {
   return !headerCharRegex.test(characters)
 }
 
-// Parsed accordingly to RFC 9110
-// https://www.rfc-editor.org/rfc/rfc9110#field.content-range
+const rangeHeaderRegex = /^bytes (\d+)-(\d+)\/(\d+)?$/
+
+/**
+ * @typedef {object} RangeHeader
+ * @property {number} start
+ * @property {number | null} end
+ * @property {number | null} size
+ */
+
+/**
+ * Parse accordingly to RFC 9110
+ * @see https://www.rfc-editor.org/rfc/rfc9110#field.content-range
+ * @param {string} [range]
+ * @returns {RangeHeader|null}
+ */
 function parseRangeHeader (range) {
   if (range == null || range === '') return { start: 0, end: null, size: null }
 
-  const m = range ? range.match(/^bytes (\d+)-(\d+)\/(\d+)?$/) : null
+  const m = range ? range.match(rangeHeaderRegex) : null
   return m
     ? {
         start: parseInt(m[1]),
@@ -619,6 +789,13 @@ function parseRangeHeader (range) {
     : null
 }
 
+/**
+ * @template {import("events").EventEmitter} T
+ * @param {T} obj
+ * @param {string} name
+ * @param {(...args: any[]) => void} listener
+ * @returns {T}
+ */
 function addListener (obj, name, listener) {
   const listeners = (obj[kListeners] ??= [])
   listeners.push([name, listener])
@@ -626,13 +803,26 @@ function addListener (obj, name, listener) {
   return obj
 }
 
+/**
+ * @template {import("events").EventEmitter} T
+ * @param {T} obj
+ * @returns {T}
+ */
 function removeAllListeners (obj) {
-  for (const [name, listener] of obj[kListeners] ?? []) {
-    obj.removeListener(name, listener)
+  if (obj[kListeners] != null) {
+    for (const [name, listener] of obj[kListeners]) {
+      obj.removeListener(name, listener)
+    }
+    obj[kListeners] = null
   }
-  obj[kListeners] = null
+  return obj
 }
 
+/**
+ * @param {import ('../dispatcher/client')} client
+ * @param {import ('../core/request')} request
+ * @param {Error} err
+ */
 function errorRequest (client, request, err) {
   try {
     request.onError(err)
@@ -672,10 +862,7 @@ Object.setPrototypeOf(normalizedMethodRecords, null)
 
 module.exports = {
   kEnumerableProperty,
-  nop,
   isDisturbed,
-  isErrored,
-  isReadable,
   toUSVString,
   isUSVString,
   isBlobLike,
@@ -692,6 +879,7 @@ module.exports = {
   removeAllListeners,
   errorRequest,
   parseRawHeaders,
+  encodeRawHeaders,
   parseHeaders,
   parseKeepAliveTimeout,
   destroy,
@@ -699,10 +887,10 @@ module.exports = {
   deepClone,
   ReadableStreamFrom,
   isBuffer,
-  validateHandler,
+  assertRequestHandler,
   getSocketInfo,
   isFormDataLike,
-  buildURL,
+  serializePathWithQuery,
   addAbortListener,
   isValidHTTPToken,
   isValidHeaderValue,
@@ -714,6 +902,6 @@ module.exports = {
   isHttpOrHttpsPrefixed,
   nodeMajor,
   nodeMinor,
-  safeHTTPMethods: ['GET', 'HEAD', 'OPTIONS', 'TRACE'],
+  safeHTTPMethods: Object.freeze(['GET', 'HEAD', 'OPTIONS', 'TRACE']),
   wrapRequestBody
 }

@@ -102,6 +102,18 @@ dist
 
 dist-tags:
 [34mlatest[39m: 1.0.0
+[34mz[39m: 1.0.0
+[34my[39m: 1.0.0
+[34mv1[39m: 1.0.0
+[34mprev[39m: 1.0.0
+[34md[39m: 1.0.0
+[34mc[39m: 1.0.0
+[34mb[39m: 1.0.0
+[34ma[39m: 1.0.0
+[34mx[39m: 1.0.1
+[34mnext[39m: 1.0.1
+[34mh[39m: 1.0.1
+[2m(...and 3 more.)[22m
 
 published {TIME} ago[39m
 `
@@ -116,6 +128,18 @@ dist
 
 dist-tags:
 [34mlatest[39m: 1.0.0
+[34mz[39m: 1.0.0
+[34my[39m: 1.0.0
+[34mv1[39m: 1.0.0
+[34mprev[39m: 1.0.0
+[34md[39m: 1.0.0
+[34mc[39m: 1.0.0
+[34mb[39m: 1.0.0
+[34ma[39m: 1.0.0
+[34mx[39m: 1.0.1
+[34mnext[39m: 1.0.1
+[34mh[39m: 1.0.1
+[2m(...and 3 more.)[22m
 
 published {TIME} ago[39m
 `
@@ -130,6 +154,18 @@ dist
 
 dist-tags:
 [34mlatest[39m: 1.0.0
+[34mz[39m: 1.0.0
+[34my[39m: 1.0.0
+[34mv1[39m: 1.0.0
+[34mprev[39m: 1.0.0
+[34md[39m: 1.0.0
+[34mc[39m: 1.0.0
+[34mb[39m: 1.0.0
+[34ma[39m: 1.0.0
+[34mx[39m: 1.0.1
+[34mnext[39m: 1.0.1
+[34mh[39m: 1.0.1
+[2m(...and 3 more.)[22m
 
 published {TIME} ago[39m
 `
@@ -269,6 +305,18 @@ dist
 
 dist-tags:
 [34mlatest[39m: 1.0.0
+[34mz[39m: 1.0.0
+[34my[39m: 1.0.0
+[34mv1[39m: 1.0.0
+[34mprev[39m: 1.0.0
+[34md[39m: 1.0.0
+[34mc[39m: 1.0.0
+[34mb[39m: 1.0.0
+[34ma[39m: 1.0.0
+[34mx[39m: 1.0.1
+[34mnext[39m: 1.0.1
+[34mh[39m: 1.0.1
+[2m(...and 3 more.)[22m
 
 published {TIME} ago[39m
 `
@@ -283,6 +331,18 @@ dist
 
 dist-tags:
 [34mlatest[39m: 1.0.0
+[34mz[39m: 1.0.0
+[34my[39m: 1.0.0
+[34mv1[39m: 1.0.0
+[34mprev[39m: 1.0.0
+[34md[39m: 1.0.0
+[34mc[39m: 1.0.0
+[34mb[39m: 1.0.0
+[34ma[39m: 1.0.0
+[34mx[39m: 1.0.1
+[34mnext[39m: 1.0.1
+[34mh[39m: 1.0.1
+[2m(...and 3 more.)[22m
 
 published {TIME} ago[39m
 
@@ -296,8 +356,20 @@ dist
 
 dist-tags:
 [34mlatest[39m: 1.0.0
+[34mz[39m: 1.0.0
+[34my[39m: 1.0.0
+[34mv1[39m: 1.0.0
+[34mprev[39m: 1.0.0
+[34md[39m: 1.0.0
+[34mc[39m: 1.0.0
+[34mb[39m: 1.0.0
+[34ma[39m: 1.0.0
+[34mx[39m: 1.0.1
+[34mnext[39m: 1.0.1
+[34mh[39m: 1.0.1
+[2m(...and 3 more.)[22m
 
-published [36mover a year from now[39m
+published {TIME} ago[39m
 `
 
 exports[`test/lib/commands/view.js TAP package with single version full json > must match snapshot 1`] = `

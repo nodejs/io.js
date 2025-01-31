@@ -21,11 +21,15 @@
 
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('node compiled without OpenSSL CLI.');
+}
 
 const assert = require('assert');
 const fixtures = require('../common/fixtures');
@@ -67,7 +71,7 @@ server.listen(0, function() {
                 '-cert', fixtures.path('keys/rsa_cert_foafssl_b.crt'),
                 '-key', fixtures.path('keys/rsa_private_b.pem')];
 
-  const client = spawn(common.opensslCli, args);
+  const client = spawn(opensslCli, args);
 
   client.stdout.on('data', function(data) {
     console.log('response received');

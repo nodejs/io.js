@@ -26,6 +26,7 @@ void CreatePerIsolateProperties(IsolateData* isolate_data,
                                 Local<ObjectTemplate> target) {
   Endpoint::InitPerIsolate(isolate_data, target);
   Session::InitPerIsolate(isolate_data, target);
+  Stream::InitPerIsolate(isolate_data, target);
 }
 
 void CreatePerContextProperties(Local<Object> target,
@@ -36,12 +37,14 @@ void CreatePerContextProperties(Local<Object> target,
   BindingData::InitPerContext(realm, target);
   Endpoint::InitPerContext(realm, target);
   Session::InitPerContext(realm, target);
+  Stream::InitPerContext(realm, target);
 }
 
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   BindingData::RegisterExternalReferences(registry);
   Endpoint::RegisterExternalReferences(registry);
   Session::RegisterExternalReferences(registry);
+  Stream::RegisterExternalReferences(registry);
 }
 
 }  // namespace quic

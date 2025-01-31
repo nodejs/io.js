@@ -1,22 +1,22 @@
-import Dispatcher from'./dispatcher'
+import Dispatcher from './dispatcher'
 import { setGlobalDispatcher, getGlobalDispatcher } from './global-dispatcher'
 import { setGlobalOrigin, getGlobalOrigin } from './global-origin'
-import Pool from'./pool'
+import Pool from './pool'
 import { RedirectHandler, DecoratorHandler } from './handlers'
 
 import BalancedPool from './balanced-pool'
-import Client from'./client'
-import buildConnector from'./connector'
-import errors from'./errors'
-import Agent from'./agent'
-import MockClient from'./mock-client'
-import MockPool from'./mock-pool'
-import MockAgent from'./mock-agent'
-import mockErrors from'./mock-errors'
-import ProxyAgent from'./proxy-agent'
+import Client from './client'
+import buildConnector from './connector'
+import errors from './errors'
+import Agent from './agent'
+import MockClient from './mock-client'
+import MockPool from './mock-pool'
+import MockAgent from './mock-agent'
+import mockErrors from './mock-errors'
+import ProxyAgent from './proxy-agent'
 import EnvHttpProxyAgent from './env-http-proxy-agent'
-import RetryHandler from'./retry-handler'
-import RetryAgent from'./retry-agent'
+import RetryHandler from './retry-handler'
+import RetryAgent from './retry-agent'
 import { request, pipeline, stream, connect, upgrade } from './api'
 import interceptors from './interceptors'
 
@@ -24,8 +24,6 @@ export * from './util'
 export * from './cookies'
 export * from './eventsource'
 export * from './fetch'
-export * from './file'
-export * from './filereader'
 export * from './formdata'
 export * from './diagnostics-channel'
 export * from './websocket'
@@ -37,35 +35,36 @@ export { Dispatcher, BalancedPool, Pool, Client, buildConnector, errors, Agent, 
 export default Undici
 
 declare namespace Undici {
-  var Dispatcher: typeof import('./dispatcher').default
-  var Pool: typeof import('./pool').default;
-  var RedirectHandler: typeof import ('./handlers').RedirectHandler
-  var DecoratorHandler: typeof import ('./handlers').DecoratorHandler
-  var RetryHandler: typeof import ('./retry-handler').default
-  var createRedirectInterceptor: typeof import ('./interceptors').default.createRedirectInterceptor
-  var BalancedPool: typeof import('./balanced-pool').default;
-  var Client: typeof import('./client').default;
-  var buildConnector: typeof import('./connector').default;
-  var errors: typeof import('./errors').default;
-  var Agent: typeof import('./agent').default;
-  var setGlobalDispatcher: typeof import('./global-dispatcher').setGlobalDispatcher;
-  var getGlobalDispatcher: typeof import('./global-dispatcher').getGlobalDispatcher;
-  var request: typeof import('./api').request;
-  var stream: typeof import('./api').stream;
-  var pipeline: typeof import('./api').pipeline;
-  var connect: typeof import('./api').connect;
-  var upgrade: typeof import('./api').upgrade;
-  var MockClient: typeof import('./mock-client').default;
-  var MockPool: typeof import('./mock-pool').default;
-  var MockAgent: typeof import('./mock-agent').default;
-  var mockErrors: typeof import('./mock-errors').default;
-  var fetch: typeof import('./fetch').fetch;
-  var Headers: typeof import('./fetch').Headers;
-  var Response: typeof import('./fetch').Response;
-  var Request: typeof import('./fetch').Request;
-  var FormData: typeof import('./formdata').FormData;
-  var File: typeof import('./file').File;
-  var FileReader: typeof import('./filereader').FileReader;
-  var caches: typeof import('./cache').caches;
-  var interceptors: typeof import('./interceptors').default;
+  const Dispatcher: typeof import('./dispatcher').default
+  const Pool: typeof import('./pool').default
+  const RedirectHandler: typeof import ('./handlers').RedirectHandler
+  const DecoratorHandler: typeof import ('./handlers').DecoratorHandler
+  const RetryHandler: typeof import ('./retry-handler').default
+  const BalancedPool: typeof import('./balanced-pool').default
+  const Client: typeof import('./client').default
+  const buildConnector: typeof import('./connector').default
+  const errors: typeof import('./errors').default
+  const Agent: typeof import('./agent').default
+  const setGlobalDispatcher: typeof import('./global-dispatcher').setGlobalDispatcher
+  const getGlobalDispatcher: typeof import('./global-dispatcher').getGlobalDispatcher
+  const request: typeof import('./api').request
+  const stream: typeof import('./api').stream
+  const pipeline: typeof import('./api').pipeline
+  const connect: typeof import('./api').connect
+  const upgrade: typeof import('./api').upgrade
+  const MockClient: typeof import('./mock-client').default
+  const MockPool: typeof import('./mock-pool').default
+  const MockAgent: typeof import('./mock-agent').default
+  const mockErrors: typeof import('./mock-errors').default
+  const fetch: typeof import('./fetch').fetch
+  const Headers: typeof import('./fetch').Headers
+  const Response: typeof import('./fetch').Response
+  const Request: typeof import('./fetch').Request
+  const FormData: typeof import('./formdata').FormData
+  const caches: typeof import('./cache').caches
+  const interceptors: typeof import('./interceptors').default
+  const cacheStores: {
+    MemoryCacheStore: typeof import('./cache-interceptor').default.MemoryCacheStore,
+    SqliteCacheStore: typeof import('./cache-interceptor').default.SqliteCacheStore
+  }
 }

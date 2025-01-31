@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.preAuthEncoding = void 0;
+exports.preAuthEncoding = preAuthEncoding;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -28,4 +28,3 @@ function preAuthEncoding(payloadType, payload) {
     ].join(' ');
     return Buffer.concat([Buffer.from(prefix, 'ascii'), payload]);
 }
-exports.preAuthEncoding = preAuthEncoding;

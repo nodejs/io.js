@@ -1,0 +1,46 @@
+From bebeda0b8133fc8f44382e59edda9203c980e8f3 Mon Sep 17 00:00:00 2001
+From: Asumu Takikawa <asumu@igalia.com>
+Date: Thu, 11 Jul 2024 16:44:29 -0700
+Subject: [PATCH 2/2] Add reverse mapping code to test
+
+---
+ front_end/core/sdk/SourceMapSpec.test.ts | 16 +++++++++++++++-
+ 1 file changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/front_end/core/sdk/SourceMapSpec.test.ts b/front_end/core/sdk/SourceMapSpec.test.ts
+index 93b26a2e13..402b82e4c0 100644
+--- a/front_end/core/sdk/SourceMapSpec.test.ts
++++ b/front_end/core/sdk/SourceMapSpec.test.ts
+@@ -12,7 +12,6 @@
+ 
+  **/
+ 
+-const {assert} = chai;
+ import type * as Platform from '../platform/platform.js';
+ import {assertNotNullOrUndefined} from '../platform/platform.js';
+ import { SourceMapV3, parseSourceMap } from './SourceMap.js';
+@@ -170,6 +169,21 @@ describeWithEnvironment('SourceMapSpec', () => {
+             assert.strictEqual(nullish(actual.sourceURL), originalSource, 'unexpected source URL');
+             assert.strictEqual(nullish(actual.sourceLineNumber), originalLine, 'unexpected source line number');
+             assert.strictEqual(nullish(actual.sourceColumnNumber), originalColumn, 'unexpected source column number');
++
++            if (originalSource != null) {
++              let reverseEntries = sourceMap.findReverseEntries(
++                originalSource as Platform.DevToolsPath.UrlString,
++                originalLine,
++                originalColumn
++              );
++
++              const anyEntryMatched = reverseEntries.some((entry) => {
++                  return entry.sourceURL === originalSource &&
++                    entry.sourceLineNumber === originalLine &&
++                    entry.sourceColumnNumber === originalColumn;
++                });
++              assert.isTrue(anyEntryMatched, `expected any matching reverse lookup entry, got none`);
++            }
+           }
+         });
+       }
+-- 
+2.39.2
+

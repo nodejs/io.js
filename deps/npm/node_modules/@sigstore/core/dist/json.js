@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.canonicalize = void 0;
+exports.canonicalize = canonicalize;
 // JSON canonicalization per https://github.com/cyberphone/json-canonicalization
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function canonicalize(object) {
@@ -58,4 +58,3 @@ function canonicalize(object) {
     }
     return buffer;
 }
-exports.canonicalize = canonicalize;

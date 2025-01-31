@@ -8,6 +8,10 @@ const fs = require('fs');
 const exec = require('child_process').exec;
 const crypto = require('crypto');
 const fixtures = require('../common/fixtures');
+const {
+  hasOpenSSL3,
+  opensslCli,
+} = require('../common/crypto');
 
 // Test certificates
 const certPem = fixtures.readKey('rsa_cert.crt');
@@ -62,7 +66,7 @@ const keySize = 2048;
         key: keyPem,
         padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
       });
-  }, { message: common.hasOpenSSL3 ?
+  }, { message: hasOpenSSL3 ?
     'error:1C8000A5:Provider routines::illegal or unsupported padding mode' :
     'bye, bye, error stack' });
 
@@ -340,7 +344,7 @@ assert.throws(
         key: keyPem,
         padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
       });
-  }, common.hasOpenSSL3 ? {
+  }, hasOpenSSL3 ? {
     code: 'ERR_OSSL_ILLEGAL_OR_UNSUPPORTED_PADDING_MODE',
     message: /illegal or unsupported padding mode/,
   } : {
@@ -599,8 +603,9 @@ assert.throws(
 // Note: this particular test *must* be the last in this file as it will exit
 // early if no openssl binary is found
 {
-  if (!common.opensslCli)
+  if (!opensslCli) {
     common.skip('node compiled without OpenSSL CLI.');
+  }
 
   const pubfile = fixtures.path('keys', 'rsa_public_2048.pem');
   const privkey = fixtures.readKey('rsa_private_2048.pem');
@@ -622,7 +627,7 @@ assert.throws(
   fs.writeFileSync(msgfile, msg);
 
   exec(...common.escapePOSIXShell`"${
-    common.opensslCli}" dgst -sha256 -verify "${pubfile}" -signature "${
+    opensslCli}" dgst -sha256 -verify "${pubfile}" -signature "${
     sigfile}" -sigopt rsa_padding_mode:pss -sigopt rsa_pss_saltlen:-2 "${msgfile
   }"`, common.mustCall((err, stdout, stderr) => {
     assert(stdout.includes('Verified OK'));

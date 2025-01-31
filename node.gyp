@@ -405,26 +405,8 @@
     ],
     'node_cctest_sources': [
       'src/node_snapshot_stub.cc',
-      'test/cctest/node_test_fixture.cc',
-      'test/cctest/node_test_fixture.h',
-      'test/cctest/test_aliased_buffer.cc',
-      'test/cctest/test_base64.cc',
-      'test/cctest/test_base_object_ptr.cc',
-      'test/cctest/test_cppgc.cc',
-      'test/cctest/test_node_postmortem_metadata.cc',
-      'test/cctest/test_node_task_runner.cc',
-      'test/cctest/test_environment.cc',
-      'test/cctest/test_linked_binding.cc',
-      'test/cctest/test_node_api.cc',
-      'test/cctest/test_path.cc',
-      'test/cctest/test_per_process.cc',
-      'test/cctest/test_platform.cc',
-      'test/cctest/test_report.cc',
-      'test/cctest/test_json_utils.cc',
-      'test/cctest/test_sockaddr.cc',
-      'test/cctest/test_traced_value.cc',
-      'test/cctest/test_util.cc',
-      'test/cctest/test_dataqueue.cc',
+      '<!@(<(python) tools/search_files.py . test/cctest cc)',
+      '<!@(<(python) tools/search_files.py . test/cctest h)',
     ],
     'node_cctest_openssl_sources': [
       'test/cctest/test_crypto_clienthello.cc',
@@ -435,6 +417,7 @@
       'test/cctest/test_quic_tokens.cc',
     ],
     'node_cctest_inspector_sources': [
+      'test/cctest/inspector/test_node_protocol.cc',
       'test/cctest/test_inspector_socket.cc',
       'test/cctest/test_inspector_socket_server.cc',
     ],
@@ -485,6 +468,7 @@
         '-Wno-unused-parameter',
         '-Werror=undefined-inline',
         '-Werror=extra-semi',
+        '-Werror=ctad-maybe-unsupported',
       ],
     },
 
@@ -852,9 +836,6 @@
       'dependencies': [
         'deps/googletest/googletest.gyp:gtest_prod',
         'deps/histogram/histogram.gyp:histogram',
-        'deps/simdjson/simdjson.gyp:simdjson',
-        'deps/simdutf/simdutf.gyp:simdutf',
-        'deps/ada/ada.gyp:ada',
         'deps/nbytes/nbytes.gyp:nbytes',
         'node_js2c#host',
       ],
@@ -876,8 +857,6 @@
         'openssl_default_cipher_list%': '',
       },
 
-      'cflags': ['-Werror=unused-result'],
-
       'defines': [
         'NODE_ARCH="<(target_arch)"',
         'NODE_PLATFORM="<(OS)"',
@@ -885,6 +864,7 @@
         # Warn when using deprecated V8 APIs.
         'V8_DEPRECATION_WARNINGS=1',
         'NODE_OPENSSL_SYSTEM_CERT_PATH="<(openssl_system_ca_path)"',
+        "SQLITE_ENABLE_SESSION"
       ],
 
       # - "C4244: conversion from 'type1' to 'type2', possible loss of data"
@@ -896,6 +876,9 @@
           'defines': [
             'NODE_OPENSSL_DEFAULT_CIPHER_LIST="<(openssl_default_cipher_list)"'
            ]
+        }],
+        [ 'suppress_all_error_on_warn=="false"', {
+          'cflags': ['-Werror=unused-result'],
         }],
         [ 'error_on_warn=="true"', {
           'cflags': ['-Werror'],
@@ -1128,7 +1111,6 @@
         'deps/googletest/googletest.gyp:gtest_prod',
         'deps/histogram/histogram.gyp:histogram',
         'deps/uvwasi/uvwasi.gyp:uvwasi',
-        'deps/ada/ada.gyp:ada',
         'deps/nbytes/nbytes.gyp:nbytes',
       ],
       'includes': [
@@ -1175,9 +1157,6 @@
         'deps/googletest/googletest.gyp:gtest',
         'deps/googletest/googletest.gyp:gtest_main',
         'deps/histogram/histogram.gyp:histogram',
-        'deps/simdjson/simdjson.gyp:simdjson',
-        'deps/simdutf/simdutf.gyp:simdutf',
-        'deps/ada/ada.gyp:ada',
         'deps/nbytes/nbytes.gyp:nbytes',
       ],
 
@@ -1210,17 +1189,26 @@
           'dependencies': [
             'deps/ncrypto/ncrypto.gyp:ncrypto',
           ],
-          'sources': [ '<@(node_cctest_openssl_sources)' ],
+        }, {
+          'sources!': [ '<@(node_cctest_openssl_sources)' ],
         }],
         ['v8_enable_inspector==1', {
           'defines': [
             'HAVE_INSPECTOR=1',
           ],
-          'sources': [ '<@(node_cctest_inspector_sources)' ],
+          'include_dirs': [
+            # TODO(legendecas): make node_inspector.gypi a dependable target.
+            '<(SHARED_INTERMEDIATE_DIR)', # for inspector
+            '<(SHARED_INTERMEDIATE_DIR)/src', # for inspector
+          ],
+          'dependencies': [
+            'deps/inspector_protocol/inspector_protocol.gyp:crdtp',
+          ],
         }, {
            'defines': [
              'HAVE_INSPECTOR=0',
-           ]
+           ],
+           'sources!': [ '<@(node_cctest_inspector_sources)' ],
         }],
         ['OS=="solaris"', {
           'ldflags': [ '-I<(SHARED_INTERMEDIATE_DIR)' ]
@@ -1255,7 +1243,6 @@
       'dependencies': [
         '<(node_lib_target_name)',
         'deps/histogram/histogram.gyp:histogram',
-        'deps/ada/ada.gyp:ada',
         'deps/nbytes/nbytes.gyp:nbytes',
       ],
 
@@ -1339,9 +1326,6 @@
       'target_name': 'node_js2c',
       'type': 'executable',
       'toolsets': ['host'],
-      'dependencies': [
-        'deps/simdutf/simdutf.gyp:simdutf#host',
-      ],
       'include_dirs': [
         'tools',
         'src',
@@ -1353,6 +1337,9 @@
         'src/embedded_data.cc',
       ],
       'conditions': [
+        [ 'node_shared_simdutf=="false"', {
+          'dependencies': [ 'deps/simdutf/simdutf.gyp:simdutf#host' ],
+        }],
         [ 'node_shared_libuv=="false"', {
           'dependencies': [ 'deps/uv/uv.gyp:libuv#host' ],
         }],
@@ -1378,10 +1365,7 @@
       'dependencies': [
         '<(node_lib_target_name)',
         'deps/histogram/histogram.gyp:histogram',
-        'deps/ada/ada.gyp:ada',
         'deps/nbytes/nbytes.gyp:nbytes',
-        'deps/simdjson/simdjson.gyp:simdjson',
-        'deps/simdutf/simdutf.gyp:simdutf',
       ],
 
       'includes': [

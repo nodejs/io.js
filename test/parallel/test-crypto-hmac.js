@@ -1,7 +1,8 @@
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const crypto = require('crypto');
@@ -40,7 +41,7 @@ assert.throws(
 
 function testHmac(algo, key, data, expected) {
   // FIPS does not support MD5.
-  if (common.hasFipsCrypto && algo === 'md5')
+  if (crypto.getFips() && algo === 'md5')
     return;
 
   if (!Array.isArray(data))

@@ -388,8 +388,23 @@ ares_status_t ares_sysconfig_set_options(ares_sysconfig_t *sysconfig,
 
 ares_status_t ares_init_by_environment(ares_sysconfig_t *sysconfig);
 
+
+typedef ares_status_t (*ares_sysconfig_line_cb_t)(const ares_channel_t *channel,
+                                                  ares_sysconfig_t     *sysconfig,
+                                                  ares_buf_t           *line);
+
+ares_status_t ares_sysconfig_parse_resolv_line(const ares_channel_t *channel,
+                                               ares_sysconfig_t     *sysconfig,
+                                               ares_buf_t           *line);
+
+ares_status_t ares_sysconfig_process_buf(const ares_channel_t    *channel,
+                                         ares_sysconfig_t        *sysconfig,
+                                         ares_buf_t              *buf,
+                                         ares_sysconfig_line_cb_t cb);
+
 ares_status_t ares_init_sysconfig_files(const ares_channel_t *channel,
-                                        ares_sysconfig_t     *sysconfig);
+                                        ares_sysconfig_t     *sysconfig,
+                                        ares_bool_t process_resolvconf);
 #ifdef __APPLE__
 ares_status_t ares_init_sysconfig_macos(const ares_channel_t *channel,
                                         ares_sysconfig_t     *sysconfig);

@@ -1,0 +1,13 @@
+{
+  "version": 3,
+  "file": "index-map-invalid-sub-map.js",
+  "sections": [
+    {
+      "offset": { "line": 0, "column": 0 },
+      "map": {
+        "version": "3",
+        "mappings": 7
+      }
+    }
+  ]
+}

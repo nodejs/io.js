@@ -386,3 +386,97 @@ describe('fsPromises glob - withFileTypes', function() {
     });
   }
 });
+
+// [pattern, exclude option, expected result]
+const pattern2 = [
+  ['a/{b,c}*', ['a/*c'], ['a/b', 'a/cb']],
+  ['a/{a,b,c}*', ['a/*bc*', 'a/cb'], ['a/b', 'a/c']],
+  ['a/**/[cg]', ['**/c'], ['a/abcdef/g', 'a/abcfed/g']],
+  ['a/**/[cg]', ['./**/c'], ['a/abcdef/g', 'a/abcfed/g']],
+  ['a/**/[cg]', ['a/**/[cg]/../c'], ['a/abcdef/g', 'a/abcfed/g']],
+  ['a/*/+(c|g)/*', ['**/./h'], ['a/b/c/d']],
+  [
+    'a/**/[cg]/../[cg]',
+    ['a/ab{cde,cfe}*'],
+    [
+      'a/b/c',
+      'a/c',
+      'a/c/d/c',
+      ...(common.isWindows ? [] : ['a/symlink/a/b/c']),
+    ],
+  ],
+  [
+    `${absDir}/*`,
+    [`${absDir}/asdf`, `${absDir}/ba*`],
+    [`${absDir}/foo`, `${absDir}/quux`, `${absDir}/qwer`, `${absDir}/rewq`],
+  ],
+  [
+    `${absDir}/*`,
+    [`${absDir}/asdf`, `**/ba*`],
+    [
+      `${absDir}/bar`,
+      `${absDir}/baz`,
+      `${absDir}/foo`,
+      `${absDir}/quux`,
+      `${absDir}/qwer`,
+      `${absDir}/rewq`,
+    ],
+  ],
+  [
+    [`${absDir}/*`, 'a/**/[cg]'],
+    [`${absDir}/*{a,q}*`, './a/*{c,b}*/*'],
+    [`${absDir}/foo`, 'a/c', ...(common.isWindows ? [] : ['a/symlink/a/b/c'])],
+  ],
+];
+
+describe('globSync - exclude', function() {
+  for (const [pattern, exclude] of Object.entries(patterns).map(([k, v]) => [k, v.filter(Boolean)])) {
+    test(`${pattern} - exclude: ${exclude}`, () => {
+      const actual = globSync(pattern, { cwd: fixtureDir, exclude }).sort();
+      assert.strictEqual(actual.length, 0);
+    });
+  }
+  for (const [pattern, exclude, expected] of pattern2) {
+    test(`${pattern} - exclude: ${exclude}`, () => {
+      const actual = globSync(pattern, { cwd: fixtureDir, exclude }).sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('glob - exclude', function() {
+  const promisified = promisify(glob);
+  for (const [pattern, exclude] of Object.entries(patterns).map(([k, v]) => [k, v.filter(Boolean)])) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = (await promisified(pattern, { cwd: fixtureDir, exclude })).sort();
+      assert.strictEqual(actual.length, 0);
+    });
+  }
+  for (const [pattern, exclude, expected] of pattern2) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = (await promisified(pattern, { cwd: fixtureDir, exclude })).sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('fsPromises glob - exclude', function() {
+  for (const [pattern, exclude] of Object.entries(patterns).map(([k, v]) => [k, v.filter(Boolean)])) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, { cwd: fixtureDir, exclude })) actual.push(item);
+      actual.sort();
+      assert.strictEqual(actual.length, 0);
+    });
+  }
+  for (const [pattern, exclude, expected] of pattern2) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, { cwd: fixtureDir, exclude })) actual.push(item);
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual.sort(), normalized);
+    });
+  }
+});

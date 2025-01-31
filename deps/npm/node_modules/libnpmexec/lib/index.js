@@ -24,7 +24,7 @@ const manifests = new Map()
 
 const getManifest = async (spec, flatOptions) => {
   if (!manifests.has(spec.raw)) {
-    const manifest = await pacote.manifest(spec, { ...flatOptions, preferOnline: true })
+    const manifest = await pacote.manifest(spec, { ...flatOptions, preferOnline: true, Arborist })
     manifests.set(spec.raw, manifest)
   }
   return manifests.get(spec.raw)

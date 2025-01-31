@@ -236,5 +236,21 @@ TEST_IMPL(platform_output) {
   printf("  version: %s\n", uname.version);
   printf("  machine: %s\n", uname.machine);
 
+  ASSERT_OK(uv_getrusage_thread(&rusage));
+  ASSERT_UINT64_GE(rusage.ru_utime.tv_sec, 0);
+  ASSERT_UINT64_GE(rusage.ru_utime.tv_usec, 0);
+  ASSERT_UINT64_GE(rusage.ru_stime.tv_sec, 0);
+  ASSERT_UINT64_GE(rusage.ru_stime.tv_usec, 0);
+  printf("uv_getrusage_thread:\n");
+  printf("  user: %llu sec %llu microsec\n",
+         (unsigned long long) rusage.ru_utime.tv_sec,
+         (unsigned long long) rusage.ru_utime.tv_usec);
+  printf("  system: %llu sec %llu microsec\n",
+         (unsigned long long) rusage.ru_stime.tv_sec,
+         (unsigned long long) rusage.ru_stime.tv_usec);
+  printf("  page faults: %llu\n", (unsigned long long) rusage.ru_majflt);
+  printf("  maximum resident set size: %llu\n",
+         (unsigned long long) rusage.ru_maxrss);
+
   return 0;
 }

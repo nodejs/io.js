@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "names": ["foo","bar"],
+  "sources": ["basic-mapping-original.js"],
+  "mappings": "AAA"
+}

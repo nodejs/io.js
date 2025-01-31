@@ -13,9 +13,11 @@
 
 const common = require('../common');
 const assert = require('assert');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('--require does not work with Workers');
+}
 
 const inspector = require('inspector');
 const msg = 'Test inspector logging';

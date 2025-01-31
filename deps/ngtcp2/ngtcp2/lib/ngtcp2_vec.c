@@ -50,6 +50,7 @@ int ngtcp2_vec_new(ngtcp2_vec **pvec, const uint8_t *data, size_t datalen,
   p = (uint8_t *)(*pvec) + sizeof(ngtcp2_vec);
   (*pvec)->base = p;
   (*pvec)->len = datalen;
+
   if (datalen) {
     /* p = */ ngtcp2_cpymem(p, data, datalen);
   }
@@ -89,8 +90,8 @@ int64_t ngtcp2_vec_len_varint(const ngtcp2_vec *vec, size_t n) {
   return (int64_t)res;
 }
 
-ngtcp2_ssize ngtcp2_vec_split(ngtcp2_vec *src, size_t *psrccnt, ngtcp2_vec *dst,
-                              size_t *pdstcnt, size_t left, size_t maxcnt) {
+ngtcp2_ssize ngtcp2_vec_split(ngtcp2_vec *dst, size_t *pdstcnt, ngtcp2_vec *src,
+                              size_t *psrccnt, size_t left, size_t maxcnt) {
   size_t i;
   size_t srccnt = *psrccnt;
   size_t nmove;
@@ -203,6 +204,7 @@ size_t ngtcp2_vec_merge(ngtcp2_vec *dst, size_t *pdstcnt, ngtcp2_vec *src,
     } else {
       dst[(*pdstcnt)++] = *b;
     }
+
     left -= b->len;
   }
 
@@ -222,11 +224,14 @@ size_t ngtcp2_vec_copy_at_most(ngtcp2_vec *dst, size_t dstcnt,
       ++i;
       continue;
     }
+
     dst[j] = src[i];
+
     if (dst[j].len > left) {
       dst[j].len = left;
       return j + 1;
     }
+
     left -= dst[j].len;
     ++i;
     ++j;

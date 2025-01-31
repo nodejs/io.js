@@ -1,3 +1,5 @@
+'use strict'
+
 const { kFree, kConnected, kPending, kQueued, kRunning, kSize } = require('../core/symbols')
 const kPool = Symbol('pool')
 

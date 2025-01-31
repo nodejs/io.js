@@ -212,3 +212,12 @@ fs.lstat(__filename, undefined, common.mustCall());
     assert.strictEqual(s.birthtime, 5);
   }));
 }
+
+{
+  assert.throws(
+    () => fs.fstat(Symbol('test'), () => {}),
+    {
+      code: 'ERR_INVALID_ARG_TYPE',
+    },
+  );
+}

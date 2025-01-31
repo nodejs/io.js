@@ -9,7 +9,6 @@ command -v python3.12 >/dev/null && exec python3.12 "$0" "$@"
 command -v python3.11 >/dev/null && exec python3.11 "$0" "$@"
 command -v python3.10 >/dev/null && exec python3.10 "$0" "$@"
 command -v python3.9 >/dev/null && exec python3.9 "$0" "$@"
-command -v python3.8 >/dev/null && exec python3.8 "$0" "$@"
 command -v python3 >/dev/null && exec python3 "$0" "$@"
 exec python "$0" "$@"
 ''' "$0" "$@"
@@ -23,7 +22,7 @@ except ImportError:
   from distutils.spawn import find_executable as which
 
 print('Node.js android configure: Found Python {}.{}.{}...'.format(*sys.version_info))
-acceptable_pythons = ((3, 13), (3, 12), (3, 11), (3, 10), (3, 9), (3, 8))
+acceptable_pythons = ((3, 13), (3, 12), (3, 11), (3, 10), (3, 9))
 if sys.version_info[:2] in acceptable_pythons:
   import android_configure
 else:

@@ -90,54 +90,6 @@ t.test('normal audit', async t => {
   t.matchSnapshot(joinedOutput())
 })
 
-t.test('fallback audit ', async t => {
-  const { npm, joinedOutput } = await loadMockNpm(t, {
-    prefixDir: tree,
-  })
-  const registry = new MockRegistry({
-    tap: t,
-    registry: npm.config.get('registry'),
-  })
-  const manifest = registry.manifest({
-    name: 'test-dep-a',
-    packuments: [{ version: '1.0.0' }, { version: '1.0.1' }],
-  })
-  await registry.package({ manifest })
-  const advisory = registry.advisory({
-    id: 100,
-    module_name: 'test-dep-a',
-    vulnerable_versions: '<1.0.1',
-    findings: [{ version: '1.0.0', paths: ['test-dep-a'] }],
-  })
-  registry.nock
-    .post('/-/npm/v1/security/advisories/bulk').reply(404)
-    .post('/-/npm/v1/security/audits/quick', body => {
-      const unzipped = JSON.parse(gunzip(Buffer.from(body, 'hex')))
-      return t.match(unzipped, {
-        name: 'test-dep',
-        version: '1.0.0',
-        requires: { 'test-dep-a': '*' },
-        dependencies: { 'test-dep-a': { version: '1.0.0' } },
-      })
-    }).reply(200, {
-      actions: [],
-      muted: [],
-      advisories: {
-        100: advisory,
-      },
-      metadata: {
-        vulnerabilities: { info: 0, low: 0, moderate: 0, high: 1, critical: 0 },
-        dependencies: 1,
-        devDependencies: 0,
-        optionalDependencies: 0,
-        totalDependencies: 1,
-      },
-    })
-  await npm.exec('audit', [])
-  t.ok(process.exitCode, 'would have exited uncleanly')
-  t.matchSnapshot(joinedOutput())
-})
-
 t.test('json audit', async t => {
   const { npm, joinedOutput } = await loadMockNpm(t, {
     prefixDir: tree,

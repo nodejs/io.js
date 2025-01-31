@@ -3,59 +3,70 @@ TAP version 13
 ok 1 - only = true, skip = string # SKIP skip message
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: only = true, skip = true
 ok 2 - only = true, skip = true # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: only = true, with subtests
     # Subtest: running subtest 1
     ok 1 - running subtest 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: running subtest 2
     ok 2 - running subtest 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: running subtest 3
     ok 3 - running subtest 3
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: running subtest 4
         # Subtest: running sub-subtest 1
         ok 1 - running sub-subtest 1
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: running sub-subtest 2
         ok 2 - running sub-subtest 2
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 4 - running subtest 4
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: skipped subtest 4
     ok 5 - skipped subtest 4 # SKIP
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..5
 ok 3 - only = true, with subtests
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: describe only = true, with subtests
     # Subtest: `it` subtest 1 should run
     ok 1 - `it` subtest 1 should run
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 4 - describe only = true, with subtests
@@ -68,31 +79,37 @@ ok 4 - describe only = true, with subtests
     ok 1 - `it` subtest 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: `it` async subtest 1
     ok 2 - `it` async subtest 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: `it` subtest 2 only=true
     ok 3 - `it` subtest 2 only=true
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: `test` subtest 1
     ok 4 - `test` subtest 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: `test` async subtest 1
     ok 5 - `test` async subtest 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: `test` subtest 2 only=true
     ok 6 - `test` subtest 2 only=true
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..6
 ok 5 - describe only = true, with a mixture of subtests
@@ -105,6 +122,7 @@ ok 5 - describe only = true, with a mixture of subtests
     ok 1 - subtest should run
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 6 - describe only = true, with subtests
@@ -118,6 +136,7 @@ ok 6 - describe only = true, with subtests
         ok 1 - nested test should run
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 1 - nested describe
@@ -136,12 +155,14 @@ ok 7 - describe only = undefined, with nested only subtest
     ok 1 - async subtest should run
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: nested describe
         # Subtest: nested test should run
         ok 1 - nested test should run
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 2 - nested describe
@@ -160,37 +181,44 @@ ok 8 - describe only = true, with nested subtests
     ok 1 - running subtest - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: this subtest is run  - 3
         # Subtest: this subtest is run - 4
         ok 1 - this subtest is run - 4
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: this subtest is run - 5
         ok 2 - this subtest is run - 5
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 2 - this subtest is run  - 3
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: this subtest is now run - 6
     ok 3 - this subtest is now run - 6
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: skipped subtest - 8
     ok 4 - skipped subtest - 8 # SKIP
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..4
 ok 9 - nested tests with run only
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..9
 # tests 28

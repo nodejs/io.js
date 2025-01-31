@@ -199,6 +199,7 @@ const customTypesMap = {
 
   'repl.REPLServer': 'repl.html#class-replserver',
 
+  'Session': 'sqlite.html#class-session',
   'StatementSync': 'sqlite.html#class-statementsync',
 
   'Stream': 'stream.html#stream',
@@ -282,6 +283,31 @@ const customTypesMap = {
   'Response': 'https://developer.mozilla.org/en-US/docs/Web/API/Response',
   'Request': 'https://developer.mozilla.org/en-US/docs/Web/API/Request',
   'Disposable': 'https://tc39.es/proposal-explicit-resource-management/#sec-disposable-interface',
+
+  'quic.QuicEndpoint': 'quic.html#class-quicendpoint',
+  'quic.QuicEndpoint.Stats': 'quic.html#class-quicendpointstats',
+  'quic.QuicSession': 'quic.html#class-quicsession',
+  'quic.QuicSession.Stats': 'quic.html#class-quicsessionstats',
+  'quic.QuicStream': 'quic.html#class-quicstream',
+  'quic.QuicStream.Stats': 'quic.html#class-quicstreamstats',
+  'quic.EndpointOptions': 'quic.html#type-endpointoptions',
+  'quic.SessionOptions': 'quic.html#type-sessionoptions',
+  'quic.ApplicationOptions': 'quic.html#type-applicationoptions',
+  'quic.TlsOptions': 'quic.html#type-tlsoptions',
+  'quic.TransportParams': 'quic.html#type-transportparams',
+  'quic.OnSessionCallback': 'quic.html#callback-onsessioncallback',
+  'quic.OnStreamCallback': 'quic.html#callback-onstreamcallback',
+  'quic.OnDatagramCallback': 'quic.html#callback-ondatagramcallback',
+  'quic.OnDatagramStatusCallback': 'quic.html#callback-ondatagramstatuscallback',
+  'quic.OnPathValidationCallback': 'quic.html#callback-onpathvalidationcallback',
+  'quic.OnSessionTicketCallback': 'quic.html#callback-onsessionticketcallback',
+  'quic.OnVersionNegotiationCallback': 'quic.html#callback-onversionnegotiationcallback',
+  'quic.OnHandshakeCallback': 'quic.html#callback-onhandshakecallback',
+  'quic.OnBlockedCallback': 'quic.html#callback-onblockedcallback',
+  'quic.OnStreamErrorCallback': 'quic.html#callback-onstreamerrorcallback',
+  'quic.OnHeadersCallback': 'quic.html#callback-onheaderscallback',
+  'quic.OnTrailersCallback': 'quic.html#callback-ontrailerscallback',
+  'quic.OnPullCallback': 'quic.html#callback-onpullcallback',
 };
 
 const arrayPart = /(?:\[])+$/;

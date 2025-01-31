@@ -1,8 +1,9 @@
 'use strict';
 
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const crypto = require('crypto');
@@ -98,6 +99,27 @@ const pkcs8EncExp = getRegExpForPEM('ENCRYPTED PRIVATE KEY');
 const sec1Exp = getRegExpForPEM('EC PRIVATE KEY');
 const sec1EncExp = (cipher) => getRegExpForPEM('EC PRIVATE KEY', cipher);
 
+// Synthesize OPENSSL_VERSION_NUMBER format with the layout 0xMNN00PPSL
+const opensslVersionNumber = (major = 0, minor = 0, patch = 0) => {
+  assert(major >= 0 && major <= 0xf);
+  assert(minor >= 0 && minor <= 0xff);
+  assert(patch >= 0 && patch <= 0xff);
+  return (major << 28) | (minor << 20) | (patch << 4);
+};
+
+let OPENSSL_VERSION_NUMBER;
+const hasOpenSSL = (major = 0, minor = 0, patch = 0) => {
+  if (!common.hasCrypto) return false;
+  if (OPENSSL_VERSION_NUMBER === undefined) {
+    const regexp = /(?<m>\d+)\.(?<n>\d+)\.(?<p>\d+)/;
+    const { m, n, p } = process.versions.openssl.match(regexp).groups;
+    OPENSSL_VERSION_NUMBER = opensslVersionNumber(m, n, p);
+  }
+  return OPENSSL_VERSION_NUMBER >= opensslVersionNumber(major, minor, patch);
+};
+
+let opensslCli = null;
+
 module.exports = {
   modp2buf,
   assertApproximateSize,
@@ -111,4 +133,32 @@ module.exports = {
   pkcs8EncExp,  // used once
   sec1Exp,
   sec1EncExp,
+  hasOpenSSL,
+  get hasOpenSSL3() {
+    return hasOpenSSL(3);
+  },
+  // opensslCli defined lazily to reduce overhead of spawnSync
+  get opensslCli() {
+    if (opensslCli !== null) return opensslCli;
+
+    if (process.config.variables.node_shared_openssl) {
+      // Use external command
+      opensslCli = 'openssl';
+    } else {
+      const path = require('path');
+      // Use command built from sources included in Node.js repository
+      opensslCli = path.join(path.dirname(process.execPath), 'openssl-cli');
+    }
+
+    if (exports.isWindows) opensslCli += '.exe';
+
+    const { spawnSync } = require('child_process');
+
+    const opensslCmd = spawnSync(opensslCli, ['version']);
+    if (opensslCmd.status !== 0 || opensslCmd.error !== undefined) {
+      // OpenSSL command cannot be executed
+      opensslCli = false;
+    }
+    return opensslCli;
+  },
 };

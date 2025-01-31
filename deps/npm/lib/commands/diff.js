@@ -83,7 +83,7 @@ class Diff extends BaseCommand {
     try {
       const { content: pkg } = await pkgJson.normalize(this.prefix)
       name = pkg.name
-    } catch (e) {
+    } catch {
       log.verbose('diff', 'could not read project dir package.json')
     }
 
@@ -117,7 +117,7 @@ class Diff extends BaseCommand {
     try {
       const { content: pkg } = await pkgJson.normalize(this.prefix)
       pkgName = pkg.name
-    } catch (e) {
+    } catch {
       log.verbose('diff', 'could not read project dir package.json')
       noPackageJson = true
     }
@@ -156,7 +156,7 @@ class Diff extends BaseCommand {
         node = actualTree &&
           actualTree.inventory.query('name', spec.name)
             .values().next().value
-      } catch (e) {
+      } catch {
         log.verbose('diff', 'failed to load actual install tree')
       }
 
@@ -230,7 +230,7 @@ class Diff extends BaseCommand {
       try {
         const { content: pkg } = await pkgJson.normalize(this.prefix)
         pkgName = pkg.name
-      } catch (e) {
+      } catch {
         log.verbose('diff', 'could not read project dir package.json')
       }
 
@@ -265,7 +265,7 @@ class Diff extends BaseCommand {
       }
       const arb = new Arborist(opts)
       actualTree = await arb.loadActual(opts)
-    } catch (e) {
+    } catch {
       log.verbose('diff', 'failed to load actual install tree')
     }
 

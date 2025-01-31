@@ -106,3 +106,15 @@ await assert.rejects(import('data:text/javascript,export default import.meta.res
     stdout: 'http://example.com/\n',
   });
 }
+
+{
+  const result = await spawnPromisified(execPath, [
+    '--no-warnings',
+    '--experimental-import-meta-resolve',
+    '--eval',
+    'import.meta.resolve("foo", "http://example.com/bar.js")',
+  ]);
+  assert.match(result.stderr, /ERR_INVALID_URL/);
+  assert.strictEqual(result.stdout, '');
+  assert.strictEqual(result.code, 1);
+}

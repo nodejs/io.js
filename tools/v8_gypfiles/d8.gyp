@@ -21,6 +21,7 @@
         'v8.gyp:v8_libplatform',
         'v8.gyp:generate_bytecode_builtins_list',
         'v8.gyp:v8_abseil',
+        'v8.gyp:fp16',
       ],
       # Generated source files need this explicitly:
       'include_dirs+': [

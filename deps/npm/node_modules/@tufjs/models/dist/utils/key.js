@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPublicKey = void 0;
+exports.getPublicKey = getPublicKey;
 const crypto_1 = __importDefault(require("crypto"));
 const error_1 = require("../error");
 const oid_1 = require("./oid");
@@ -28,7 +28,6 @@ function getPublicKey(keyInfo) {
             throw new error_1.UnsupportedAlgorithmError(`Unsupported key type: ${keyInfo.keyType}`);
     }
 }
-exports.getPublicKey = getPublicKey;
 function getRSAPublicKey(keyInfo) {
     // Only support PEM-encoded RSA keys
     if (!keyInfo.keyVal.startsWith(PEM_HEADER)) {

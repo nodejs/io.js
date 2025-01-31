@@ -62,7 +62,7 @@ Maybe<TransportParams::Options> TransportParams::Options::From(
       !SET(initial_max_streams_bidi) || !SET(initial_max_streams_uni) ||
       !SET(max_idle_timeout) || !SET(active_connection_id_limit) ||
       !SET(ack_delay_exponent) || !SET(max_ack_delay) ||
-      !SET(max_datagram_frame_size) || !SET(disable_active_migration)) {
+      !SET(max_datagram_frame_size)) {
     return Nothing<Options>();
   }
 
@@ -153,6 +153,7 @@ TransportParams::TransportParams(const Config& config, const Options& options)
     // For the server side, the original dcid is always set.
     CHECK(config.ocid);
     params_.original_dcid = config.ocid;
+    params_.original_dcid_present = 1;
 
     // The retry_scid is only set if the server validated a retry token.
     if (config.retry_scid) {
@@ -179,25 +180,25 @@ TransportParams::TransportParams(const ngtcp2_vec& vec, int version)
   }
 }
 
-Store TransportParams::Encode(Environment* env, int version) {
+Store TransportParams::Encode(Environment* env, int version) const {
   if (ptr_ == nullptr) {
-    error_ = QuicError::ForNgtcp2Error(NGTCP2_INTERNAL_ERROR);
     return Store();
   }
 
   // Preflight to see how much storage we'll need.
   ssize_t size =
       ngtcp2_transport_params_encode_versioned(nullptr, 0, version, &params_);
+  if (size == 0) {
+    return Store();
+  }
 
-  DCHECK_GT(size, 0);
-
-  auto result = ArrayBuffer::NewBackingStore(env->isolate(), size);
+  auto result = ArrayBuffer::NewBackingStore(
+      env->isolate(), size, v8::BackingStoreInitializationMode::kUninitialized);
 
   auto ret = ngtcp2_transport_params_encode_versioned(
       static_cast<uint8_t*>(result->Data()), size, version, &params_);
 
   if (ret != 0) {
-    error_ = QuicError::ForNgtcp2Error(ret);
     return Store();
   }
 
@@ -232,7 +233,7 @@ void TransportParams::SetPreferredAddress(const SocketAddress& address) {
 
 void TransportParams::GenerateSessionTokens(Session* session) {
   if (session->is_server()) {
-    GenerateStatelessResetToken(session->endpoint(), session->config_.scid);
+    GenerateStatelessResetToken(session->endpoint(), session->config().scid);
     GeneratePreferredAddressToken(session);
   }
 }
@@ -247,14 +248,15 @@ void TransportParams::GenerateStatelessResetToken(const Endpoint& endpoint,
 
 void TransportParams::GeneratePreferredAddressToken(Session* session) {
   DCHECK(ptr_ == &params_);
+  Session::Config& config = session->config();
   if (params_.preferred_addr_present) {
-    session->config_.preferred_address_cid = session->new_cid();
-    params_.preferred_addr.cid = session->config_.preferred_address_cid;
+    config.preferred_address_cid = session->new_cid();
+    params_.preferred_addr.cid = config.preferred_address_cid;
     auto& endpoint = session->endpoint();
     endpoint.AssociateStatelessResetToken(
         endpoint.GenerateNewStatelessResetToken(
             params_.preferred_addr.stateless_reset_token,
-            session->config_.preferred_address_cid),
+            config.preferred_address_cid),
         session);
   }
 }

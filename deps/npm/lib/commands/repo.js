@@ -49,7 +49,7 @@ const unknownHostedUrl = url => {
     const proto = /(git\+)http:$/.test(protocol) ? 'http:' : 'https:'
     const path = pathname.replace(/\.git$/, '')
     return `${proto}//${hostname}${path}`
-  } catch (e) {
+  } catch {
     return null
   }
 }

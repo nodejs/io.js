@@ -192,7 +192,7 @@ class Init extends BaseCommand {
     // top-level package.json
     try {
       statSync(resolve(workspacePath, 'package.json'))
-    } catch (err) {
+    } catch {
       return
     }
 

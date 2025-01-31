@@ -257,6 +257,9 @@
 /* Define to 1 if you have the <signal.h> header file. */
 #cmakedefine HAVE_SIGNAL_H 1
 
+/* Define to 1 if you have the strnlen function. */
+#cmakedefine HAVE_STRNLEN 1
+
 /* Define to 1 if your struct sockaddr_in6 has sin6_scope_id. */
 #cmakedefine HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID 1
 

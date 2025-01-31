@@ -17,6 +17,7 @@ const hasSlashes = isWindows ? /\\|[/]/ : /[/]/
 const isURL = /^(?:git[+])?[a-z]+:/i
 const isGit = /^[^@]+@[^:.]+\.[^:]+:.+$/i
 const isFilename = /[.](?:tgz|tar.gz|tar)$/i
+const isPortNumber = /:[0-9]+(\/|$)/i
 
 function npa (arg, where) {
   let name
@@ -324,7 +325,9 @@ function fromURL (res) {
     // git+ssh://git@my.custom.git.com:username/project.git#deadbeef
     // ...and various combinations. The username in the beginning is *required*.
     const matched = rawSpec.match(/^git\+ssh:\/\/([^:#]+:[^#]+(?:\.git)?)(?:#(.*))?$/i)
-    if (matched && !matched[1].match(/:[0-9]+\/?.*$/i)) {
+    // Filter out all-number "usernames" which are really port numbers
+    // They can either be :1234 :1234/ or :1234/path but not :12abc
+    if (matched && !matched[1].match(isPortNumber)) {
       res.type = 'git'
       setGitAttrs(res, matched[2])
       res.fetchSpec = matched[1]

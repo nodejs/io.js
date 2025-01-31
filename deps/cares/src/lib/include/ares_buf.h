@@ -219,6 +219,26 @@ CARES_EXTERN unsigned char *ares_buf_finish_bin(ares_buf_t *buf, size_t *len);
  */
 CARES_EXTERN char          *ares_buf_finish_str(ares_buf_t *buf, size_t *len);
 
+/*! Replace the given search byte sequence with the replacement byte sequence.
+ *  This is only valid for allocated buffers, not const buffers.  Will replace
+ *  all byte sequences starting at the current offset to the end of the buffer.
+ *
+ *  \param[in]  buf       Initialized buffer object. Can not be a "const" buffer.
+ *  \param[in]  srch      Search byte sequence, must not be NULL.
+ *  \param[in]  srch_size Size of byte sequence, must not be zero.
+ *  \param[in]  rplc      Byte sequence to use as replacement.  May be NULL if
+ *                        rplc_size is zero.
+ *  \param[in]  rplc_size Size of replacement byte sequence, may be 0.
+ *  \return ARES_SUCCESS on success, otherwise on may return failure only on
+ *          memory allocation failure or misuse.  Will not return indication
+ *          if any replacements occurred
+ */
+CARES_EXTERN ares_status_t  ares_buf_replace(ares_buf_t *buf,
+                                             const unsigned char *srch,
+                                             size_t srch_size,
+                                             const unsigned char *rplc,
+                                             size_t rplc_size);
+
 /*! Tag a position to save in the buffer in case parsing needs to rollback,
  *  such as if insufficient data is available, but more data may be added in
  *  the future.  Only a single tag can be set per buffer object.  Setting a

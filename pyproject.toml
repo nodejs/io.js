@@ -4,11 +4,10 @@ exclude = [
   "tools/cpplint.py",
   "tools/gyp",
   "tools/inspector_protocol",
-  "tools/eslint/node_modules",
-  "tools/github_reporter"
+  "tools/eslint/node_modules"
 ]
 line-length = 172
-target-version = "py38"
+target-version = "py39"
 
 [tool.ruff.lint]
 select = [
@@ -33,9 +32,7 @@ ignore = [
   "E401",
   "E402",
   "E7",
-  "PLC1901",
   "RUF005",
-  "RUF100",
 ]
 
 [tool.ruff.lint.mccabe]

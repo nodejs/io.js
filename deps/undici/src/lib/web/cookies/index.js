@@ -5,18 +5,20 @@ const { stringify } = require('./util')
 const { webidl } = require('../fetch/webidl')
 const { Headers } = require('../fetch/headers')
 
+const brandChecks = webidl.brandCheckMultiple([Headers, globalThis.Headers].filter(Boolean))
+
 /**
  * @typedef {Object} Cookie
  * @property {string} name
  * @property {string} value
- * @property {Date|number|undefined} expires
- * @property {number|undefined} maxAge
- * @property {string|undefined} domain
- * @property {string|undefined} path
- * @property {boolean|undefined} secure
- * @property {boolean|undefined} httpOnly
- * @property {'Strict'|'Lax'|'None'} sameSite
- * @property {string[]} unparsed
+ * @property {Date|number} [expires]
+ * @property {number} [maxAge]
+ * @property {string} [domain]
+ * @property {string} [path]
+ * @property {boolean} [secure]
+ * @property {boolean} [httpOnly]
+ * @property {'Strict'|'Lax'|'None'} [sameSite]
+ * @property {string[]} [unparsed]
  */
 
 /**
@@ -26,9 +28,11 @@ const { Headers } = require('../fetch/headers')
 function getCookies (headers) {
   webidl.argumentLengthCheck(arguments, 1, 'getCookies')
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
   const cookie = headers.get('cookie')
+
+  /** @type {Record<string, string>} */
   const out = {}
 
   if (!cookie) {
@@ -51,7 +55,7 @@ function getCookies (headers) {
  * @returns {void}
  */
 function deleteCookie (headers, name, attributes) {
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
   const prefix = 'deleteCookie'
   webidl.argumentLengthCheck(arguments, 2, prefix)
@@ -76,7 +80,7 @@ function deleteCookie (headers, name, attributes) {
 function getSetCookies (headers) {
   webidl.argumentLengthCheck(arguments, 1, 'getSetCookies')
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
   const cookies = headers.getSetCookie()
 
@@ -88,6 +92,16 @@ function getSetCookies (headers) {
 }
 
 /**
+ * Parses a cookie string
+ * @param {string} cookie
+ */
+function parseCookie (cookie) {
+  cookie = webidl.converters.DOMString(cookie)
+
+  return parseSetCookie(cookie)
+}
+
+/**
  * @param {Headers} headers
  * @param {Cookie} cookie
  * @returns {void}
@@ -95,14 +109,14 @@ function getSetCookies (headers) {
 function setCookie (headers, cookie) {
   webidl.argumentLengthCheck(arguments, 2, 'setCookie')
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
   cookie = webidl.converters.Cookie(cookie)
 
   const str = stringify(cookie)
 
   if (str) {
-    headers.append('Set-Cookie', str)
+    headers.append('set-cookie', str, true)
   }
 }
 
@@ -180,5 +194,6 @@ module.exports = {
   getCookies,
   deleteCookie,
   getSetCookies,
-  setCookie
+  setCookie,
+  parseCookie
 }

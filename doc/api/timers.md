@@ -292,7 +292,24 @@ returned Promises will be rejected with an `'AbortError'`.
 
 For `setImmediate()`:
 
-```js
+```mjs
+import { setImmediate as setImmediatePromise } from 'node:timers/promises';
+
+const ac = new AbortController();
+const signal = ac.signal;
+
+// We do not `await` the promise so `ac.abort()` is called concurrently.
+setImmediatePromise('foobar', { signal })
+  .then(console.log)
+  .catch((err) => {
+    if (err.name === 'AbortError')
+      console.error('The immediate was aborted');
+  });
+
+ac.abort();
+```
+
+```cjs
 const { setImmediate: setImmediatePromise } = require('node:timers/promises');
 
 const ac = new AbortController();
@@ -310,7 +327,24 @@ ac.abort();
 
 For `setTimeout()`:
 
-```js
+```mjs
+import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
+
+const ac = new AbortController();
+const signal = ac.signal;
+
+// We do not `await` the promise so `ac.abort()` is called concurrently.
+setTimeoutPromise(1000, 'foobar', { signal })
+  .then(console.log)
+  .catch((err) => {
+    if (err.name === 'AbortError')
+      console.error('The timeout was aborted');
+  });
+
+ac.abort();
+```
+
+```cjs
 const { setTimeout: setTimeoutPromise } = require('node:timers/promises');
 
 const ac = new AbortController();

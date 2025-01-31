@@ -14,6 +14,11 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::DataPointer;
+using ncrypto::DHPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
 using v8::ArrayBuffer;
 using v8::ConstructorBehavior;
 using v8::Context;
@@ -47,14 +52,11 @@ void DiffieHellman::MemoryInfo(MemoryTracker* tracker) const {
 }
 
 namespace {
-MaybeLocal<Value> DataPointerToBuffer(Environment* env,
-                                      ncrypto::DataPointer&& data) {
+MaybeLocal<Value> DataPointerToBuffer(Environment* env, DataPointer&& data) {
   auto backing = ArrayBuffer::NewBackingStore(
       data.get(),
       data.size(),
-      [](void* data, size_t len, void* ptr) {
-        ncrypto::DataPointer free_ne(data, len);
-      },
+      [](void* data, size_t len, void* ptr) { DataPointer free_me(data, len); },
       nullptr);
   data.release();
 
@@ -395,31 +397,23 @@ EVPKeyCtxPointer DhKeyGenTraits::Setup(DhKeyPairGenConfig* params) {
     auto dh = DHPointer::New(std::move(prime), std::move(bn_g));
     if (!dh) return {};
 
-    key_params = EVPKeyPointer::New();
-    CHECK(key_params);
-    CHECK_EQ(EVP_PKEY_assign_DH(key_params.get(), dh.release()), 1);
+    key_params = EVPKeyPointer::NewDH(std::move(dh));
   } else if (int* prime_size = std::get_if<int>(&params->params.prime)) {
-    EVPKeyCtxPointer param_ctx(EVP_PKEY_CTX_new_id(EVP_PKEY_DH, nullptr));
-    EVP_PKEY* raw_params = nullptr;
-    if (!param_ctx ||
-        EVP_PKEY_paramgen_init(param_ctx.get()) <= 0 ||
-        EVP_PKEY_CTX_set_dh_paramgen_prime_len(
-            param_ctx.get(),
-            *prime_size) <= 0 ||
-        EVP_PKEY_CTX_set_dh_paramgen_generator(
-            param_ctx.get(),
-            params->params.generator) <= 0 ||
-        EVP_PKEY_paramgen(param_ctx.get(), &raw_params) <= 0) {
+    auto param_ctx = EVPKeyCtxPointer::NewFromID(EVP_PKEY_DH);
+    if (!param_ctx.initForParamgen() ||
+        !param_ctx.setDhParameters(*prime_size, params->params.generator)) {
       return {};
     }
 
-    key_params = EVPKeyPointer(raw_params);
+    key_params = param_ctx.paramgen();
   } else {
     UNREACHABLE();
   }
 
+  if (!key_params) return {};
+
   EVPKeyCtxPointer ctx = key_params.newCtx();
-  if (!ctx || EVP_PKEY_keygen_init(ctx.get()) <= 0) return {};
+  if (!ctx.initForKeygen()) return {};
 
   return ctx;
 }

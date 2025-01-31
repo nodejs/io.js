@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "sections": [
+    {
+      "map": {
+        "version": 3,
+        "names": [],
+        "sources": ["empty-original.js"],
+        "sourcesContent": [""],
+        "mappings": "AAAA"
+      }
+    }
+  ]
+}

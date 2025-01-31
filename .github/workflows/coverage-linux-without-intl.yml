@@ -68,7 +68,7 @@ jobs:
       # TODO(bcoe): fix the couple tests that fail with the inspector enabled.
       # The cause is most likely coverage's use of the inspector.
       - name: Test
-        run: NODE_V8_COVERAGE=coverage/tmp make test-cov -j4 V=1 TEST_CI_ARGS="-p dots --node-args='--test-reporter=spec' --measure-flakiness 9" || exit 0
+        run: NODE_V8_COVERAGE=coverage/tmp make test-cov -j4 V=1 TEST_CI_ARGS="-p dots  --measure-flakiness 9" || exit 0
       - name: Report JS
         run: npx c8 report --check-coverage
         env:
@@ -79,7 +79,6 @@ jobs:
       - name: Clean tmp
         run: rm -rf coverage/tmp && rm -rf out
       - name: Upload
-        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238  # v4.6.0
+        uses: codecov/codecov-action@015f24e6818733317a2da2edd6290ab26238649a  # v5.0.7
         with:
           directory: ./coverage
-          token: ${{ secrets.CODECOV_TOKEN }}

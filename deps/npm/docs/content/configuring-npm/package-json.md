@@ -324,6 +324,7 @@ Some files are always ignored by default:
   if you wish it to be published)
 * `pnpm-lock.yaml`
 * `yarn.lock`
+* `bun.lockb`
 
 Most of these ignored files can be included specifically if included in
 the `files` globs.  Exceptions to this are:
@@ -334,6 +335,7 @@ the `files` globs.  Exceptions to this are:
 * `package-lock.json`
 * `pnpm-lock.yaml`
 * `yarn.lock`
+* `bun.lockb`
 
 These can not be included.
 
@@ -1128,6 +1130,18 @@ Like the `os` option, you can also block architectures:
 ```
 
 The host architecture is determined by `process.arch`
+
+### libc
+
+If your code only runs or builds in certain versions of libc, you can
+specify which ones.  This field only applies if `os` is `linux`.
+
+```json
+{
+  "os": "linux",
+  "libc": "glibc"
+}
+```
 
 ### devEngines
 

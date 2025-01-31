@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.31.0](https://github.com/nodejs/corepack/compare/v0.30.0...v0.31.0) (2025-01-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop support for Node.js 21.x ([#594](https://github.com/nodejs/corepack/issues/594))
+
+### Features
+
+* update package manager versions ([#595](https://github.com/nodejs/corepack/issues/595)) ([c7a9bde](https://github.com/nodejs/corepack/commit/c7a9bde16dcbbb7e6ef03fef740656cde7ade360))
+
+
+### Bug Fixes
+
+* only print message for `UsageError`s ([#602](https://github.com/nodejs/corepack/issues/602)) ([72a588c](https://github.com/nodejs/corepack/commit/72a588c2370c17e415b24fe389efdafb3c84e90b))
+* update npm registry keys ([#614](https://github.com/nodejs/corepack/issues/614)) ([8c90caa](https://github.com/nodejs/corepack/commit/8c90caab7f1c5c9b89f1de113bc1dfc441bf25d2))
+
+
+### Miscellaneous Chores
+
+* drop support for Node.js 21.x ([#594](https://github.com/nodejs/corepack/issues/594)) ([8bebc0c](https://github.com/nodejs/corepack/commit/8bebc0c0a5cbcdeec41673dcbaf581e6e1c1be11))
+
+## [0.30.0](https://github.com/nodejs/corepack/compare/v0.29.4...v0.30.0) (2024-11-23)
+
+
+### Features
+
+* update package manager versions ([#578](https://github.com/nodejs/corepack/issues/578)) ([a286c8f](https://github.com/nodejs/corepack/commit/a286c8f5537ea9ecf9b6ff53c7bc3e8da4e3c8bb))
+
+
+### Performance Improvements
+
+* prefer `module.enableCompileCache` over `v8-compile-cache` ([#574](https://github.com/nodejs/corepack/issues/574)) ([cba6905](https://github.com/nodejs/corepack/commit/cba690575bd606faeee54bd512ccb8797d49055f))
+
 ## [0.29.4](https://github.com/nodejs/corepack/compare/v0.29.3...v0.29.4) (2024-09-07)
 
 

@@ -581,10 +581,14 @@ path. Add it with -I<path> to the command line
 // functions.
 // Use like:
 //   V8_NOINLINE V8_PRESERVE_MOST void UnlikelyMethod();
+#if V8_OS_WIN
+# define V8_PRESERVE_MOST
+#else
 #if V8_HAS_ATTRIBUTE_PRESERVE_MOST
 # define V8_PRESERVE_MOST __attribute__((preserve_most))
 #else
 # define V8_PRESERVE_MOST /* NOT SUPPORTED */
+#endif
 #endif
 
 

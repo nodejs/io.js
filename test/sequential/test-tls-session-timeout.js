@@ -22,8 +22,11 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
+
+const { opensslCli } = require('../common/crypto');
 
 const tmpdir = require('../common/tmpdir');
 tmpdir.refresh();
@@ -56,8 +59,9 @@ const cert = fixtures.readKey('rsa_cert.crt');
   }
 }
 
-if (!common.opensslCli)
+if (!opensslCli) {
   common.skip('node compiled without OpenSSL CLI.');
+}
 
 doTest();
 
@@ -105,7 +109,7 @@ function doTest() {
       '-sess_in', sessionFileName,
       '-sess_out', sessionFileName,
     ];
-    const client = spawn(common.opensslCli, flags, {
+    const client = spawn(opensslCli, flags, {
       stdio: ['ignore', 'pipe', 'ignore']
     });
 

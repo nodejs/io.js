@@ -354,14 +354,16 @@ static void *ares_event_thread(void *arg)
       ares_process_pending_write(e->channel);
     }
 
+    /* Relock before we loop again */
+    ares_thread_mutex_lock(e->mutex);
+
     /* Each iteration should do timeout processing and any other cleanup
      * that may not have been performed */
     if (e->isup) {
+      ares_thread_mutex_unlock(e->mutex);
       ares_process_fds(e->channel, NULL, 0, ARES_PROCESS_FLAG_NONE);
+      ares_thread_mutex_lock(e->mutex);
     }
-
-    /* Relock before we loop again */
-    ares_thread_mutex_lock(e->mutex);
   }
 
   /* Lets cleanup while we're in the thread itself */

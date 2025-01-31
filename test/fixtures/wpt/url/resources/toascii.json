@@ -1,5 +1,6 @@
 [
-  "This resource is focused on highlighting issues with UTS #46 ToASCII",
+  "This contains assorted IDNA tests that IdnaTestV2 might not cover.",
+  "Feel free to deduplicate with a clear commit message.",
   {
     "comment": "Label with hyphens in 3rd and 4th position",
     "input": "aa--",
@@ -198,5 +199,175 @@
   {
     "input": ">\u00AD\u0338",
     "output": "xn--hdh"
+  },
+  "Tests below are from WebKit (fast/url/idna2003.html & fast/url/idna2008.html; contributed by Chris Weber back in 2011).",
+  {
+    "input": "fa\u00DF.de",
+    "output": "xn--fa-hia.de"
+  },
+  {
+    "input": "\u03B2\u03CC\u03BB\u03BF\u03C2.com",
+    "output": "xn--nxasmm1c.com"
+  },
+  {
+    "input": "\u0DC1\u0DCA\u200D\u0DBB\u0DD3.com",
+    "output": "xn--10cl1a0b660p.com"
+  },
+  {
+    "input": "\u0646\u0627\u0645\u0647\u200C\u0627\u06CC.com",
+    "output": "xn--mgba3gch31f060k.com"
+  },
+  {
+    "input": "www.loo\u0138out.net",
+    "output": "www.xn--looout-5bb.net"
+  },
+  {
+    "input": "\u15EF\u15EF\u15EF.lookout.net",
+    "output": "xn--1qeaa.lookout.net"
+  },
+  {
+    "input": "www.lookout.\u0441\u043E\u043C",
+    "output": "www.lookout.xn--l1adi"
+  },
+  {
+    "input": "www\u2025lookout.net",
+    "output": null
+  },
+  {
+    "input": "www.lookout\u2027net",
+    "output": "www.xn--lookoutnet-406e"
+  },
+  {
+    "input": "www.lookout.net\u2A7480",
+    "output": null
+  },
+  {
+    "input": "www\u00A0.lookout.net",
+    "output": null
+  },
+  {
+    "input": "\u1680lookout.net",
+    "output": null
+  },
+  {
+    "input": "\u001flookout.net",
+    "output": null
+  },
+  {
+    "input": "look\u06DDout.net",
+    "output": null
+  },
+  {
+    "input": "look\u180Eout.net",
+    "output": null
+  },
+  {
+    "input": "look\u2060out.net",
+    "output": "lookout.net"
+  },
+  {
+    "input": "look\uFEFFout.net",
+    "output": "lookout.net"
+  },
+  {
+    "input": "look\uD83F\uDFFEout.net",
+    "output": null
+  },
+  {
+    "input": "look\uFFFAout.net",
+    "output": null
+  },
+  {
+    "input": "look\u2FF0out.net",
+    "output": null
+  },
+  {
+    "input": "look\u0341out.net",
+    "output": "xn--looout-kp7b.net"
+  },
+  {
+    "input": "look\u202Eout.net",
+    "output": null
+  },
+  {
+    "input": "look\u206Bout.net",
+    "output": null
+  },
+  {
+    "input": "look\uDB40\uDC01out.net",
+    "output": null
+  },
+  {
+    "input": "look\uDB40\uDC20out.net",
+    "output": null
+  },
+  {
+    "input": "look\u05BEout.net",
+    "output": null
+  },
+  {
+    "input": "B\u00FCcher.de",
+    "output": "xn--bcher-kva.de"
+  },
+  {
+    "input": "\u2665.net",
+    "output": "xn--g6h.net"
+  },
+  {
+    "input": "\u0378.net",
+    "output": null
+  },
+  {
+    "input": "\u04C0.com",
+    "output": null
+  },
+  {
+    "comment": "This is U+2F868 (which is mapped to U+36FC starting with Unicode 16.0)",
+    "input": "\uD87E\uDC68.com",
+    "output": "xn--snl.com"
+  },
+  {
+    "input": "\u2183.com",
+    "output": null
+  },
+  {
+    "input": "look\u034Fout.net",
+    "output": "lookout.net"
+  },
+  {
+    "input": "gOoGle.com",
+    "output": "google.com"
+  },
+  {
+    "input": "\u09dc.com",
+    "output": "xn--15b8c.com"
+  },
+  {
+    "input": "\u1E9E.com",
+    "output": "xn--zca.com"
+  },
+  {
+    "input": "\u1E9E.foo.com",
+    "output": "xn--zca.foo.com"
+  },
+  {
+    "input": "-foo.bar.com",
+    "output": "-foo.bar.com"
+  },
+  {
+    "input": "foo-.bar.com",
+    "output": "foo-.bar.com"
+  },
+  {
+    "input": "ab--cd.com",
+    "output": "ab--cd.com"
+  },
+  {
+    "input": "xn--0.com",
+    "output": null
+  },
+  {
+    "input": "foo\u0300.bar.com",
+    "output": "xn--fo-3ja.bar.com"
   }
 ]

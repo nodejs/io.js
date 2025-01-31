@@ -345,7 +345,7 @@ child.exec(
 // Regression test for https://github.com/nodejs/node/issues/45336
 child.execFile(process.execPath,
                ['-p',
-                'Object.defineProperty(global, "fs", { configurable: false });' +
+                'Object.defineProperty(globalThis, "fs", { configurable: false });' +
                 'fs === require("node:fs")'],
                common.mustSucceed((stdout) => {
                  assert.match(stdout, /^true/);

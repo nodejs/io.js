@@ -626,7 +626,6 @@ a Worker pool around it could use the following structure:
 ```mjs
 import { AsyncResource } from 'node:async_hooks';
 import { EventEmitter } from 'node:events';
-import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 
 const kTaskInfo = Symbol('kTaskInfo');

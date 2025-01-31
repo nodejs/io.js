@@ -3,16 +3,19 @@ TAP version 13
 ok 1 - top level skipped test enabled # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level it enabled
 ok 2 - top level it enabled
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level skipped it enabled
 ok 3 - top level skipped it enabled # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level skipped describe enabled
 ok 4 - top level skipped describe enabled # SKIP
@@ -24,28 +27,33 @@ ok 4 - top level skipped describe enabled # SKIP
 ok 5 - top level runs because name includes PaTtErN
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level test enabled
     # Subtest: nested test runs because name includes PATTERN
     ok 1 - nested test runs because name includes PATTERN
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 6 - top level test enabled
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level describe enabled
     # Subtest: nested it not disabled
     ok 1 - nested it not disabled
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: nested it enabled
     ok 2 - nested it enabled
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: nested describe not disabled
     ok 3 - nested describe not disabled
@@ -58,6 +66,7 @@ ok 6 - top level test enabled
         ok 1 - is enabled
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 4 - nested describe enabled
@@ -76,22 +85,26 @@ ok 7 - top level describe enabled
     ok 1 - no
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: yes
     ok 2 - yes
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: maybe
         # Subtest: no
         ok 1 - no
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: yes
         ok 2 - yes
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 3 - maybe
@@ -110,12 +123,14 @@ ok 8 - yes
     ok 1 - yes
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: maybe
         # Subtest: yes
         ok 1 - yes
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 2 - maybe
@@ -134,12 +149,14 @@ ok 9 - no
     ok 1 - yes
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: maybe
         # Subtest: yes
         ok 1 - yes
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 2 - maybe
@@ -159,6 +176,7 @@ ok 10 - no with todo # TODO
         ok 1 - NestedTest
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 1 - NestedDescribeForMatchWithAncestors

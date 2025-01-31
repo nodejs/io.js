@@ -1,6 +1,6 @@
 'use strict';
 
-// Flags: --expose-internals --experimental-permission --allow-fs-read=* --allow-child-process
+// Flags: --expose-internals --permission --allow-fs-read=* --allow-child-process
 
 require('../common');
 
@@ -40,7 +40,7 @@ describe('legacyMainResolve', () => {
         process.execPath,
         [
           '--expose-internals',
-          '--experimental-permission',
+          '--permission',
           ...allowReadFiles,
           '-e',
           `
@@ -98,7 +98,7 @@ describe('legacyMainResolve', () => {
         process.execPath,
         [
           '--expose-internals',
-          '--experimental-permission',
+          '--permission',
           ...allowReadFiles,
           '-e',
           `

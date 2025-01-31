@@ -801,7 +801,7 @@ test('Test strict assert', () => {
     '\n' +
     '+ {}\n' +
     '- {\n' +
-    '-   [Symbol(nodejs.util.inspect.custom)]: [Function (anonymous)],\n' +
+    '-   Symbol(nodejs.util.inspect.custom): [Function (anonymous)],\n' +
     "-   loop: 'forever'\n" +
     '- }\n'
   });
@@ -1343,6 +1343,17 @@ test('Additional assert', () => {
   assert.throws(
     () => {
       assert.deepStrictEqual({ a: true }, { a: false }, 'custom message');
+    },
+    {
+      code: 'ERR_ASSERTION',
+      name: 'AssertionError',
+      message: 'custom message\n+ actual - expected\n\n  {\n+   a: true\n-   a: false\n  }\n'
+    }
+  );
+
+  assert.throws(
+    () => {
+      assert.partialDeepStrictEqual({ a: true }, { a: false }, 'custom message');
     },
     {
       code: 'ERR_ASSERTION',

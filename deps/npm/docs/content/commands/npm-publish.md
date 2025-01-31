@@ -85,6 +85,9 @@ See [`developers`](/using-npm/developers) for full details on what's
 included in the published package, as well as details on how the package is
 built.
 
+See [`package.json`](/configuring-npm/package-json) for more info on
+what can and can't be ignored.
+
 ### Configuration
 
 #### `tag`

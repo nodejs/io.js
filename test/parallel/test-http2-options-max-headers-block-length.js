@@ -35,9 +35,11 @@ server.listen(0, common.mustCall(() => {
     assert.strictEqual(code, h2.constants.NGHTTP2_FRAME_SIZE_ERROR);
   }));
 
+  // NGHTTP2 will automatically send the NGHTTP2_REFUSED_STREAM with
+  // the GOAWAY frame.
   req.on('error', common.expectsError({
     code: 'ERR_HTTP2_STREAM_ERROR',
     name: 'Error',
-    message: 'Stream closed with error code NGHTTP2_FRAME_SIZE_ERROR'
+    message: 'Stream closed with error code NGHTTP2_REFUSED_STREAM'
   }));
 }));

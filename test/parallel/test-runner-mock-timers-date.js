@@ -117,4 +117,11 @@ describe('Mock Timers Date Test Suite', () => {
     assert.strictEqual(fn.mock.callCount(), 0);
     clearTimeout(id);
   });
+
+  it((t) => {
+    t.mock.timers.enable();
+    t.test('should throw when a already-mocked Date is mocked', (t2) => {
+      assert.throws(() => t2.mock.timers.enable(), { code: 'ERR_INVALID_STATE' });
+    });
+  });
 });

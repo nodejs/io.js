@@ -10,7 +10,7 @@ for (const isolation of ['none', 'process']) {
     '--test',
     '--test-reporter=spec',
     '--test-force-exit',
-    `--experimental-test-isolation=${isolation}`,
+    `--test-isolation=${isolation}`,
     fixture,
   ];
   const r = spawnSync(process.execPath, args);

@@ -962,6 +962,8 @@ ExitCode BuildSnapshotWithoutCodeCache(
   }
 
   Isolate* isolate = setup->isolate();
+  v8::Locker locker(isolate);
+
   {
     HandleScope scope(isolate);
     TryCatch bootstrapCatch(isolate);
@@ -973,25 +975,29 @@ ExitCode BuildSnapshotWithoutCodeCache(
       }
     });
 
+    Context::Scope context_scope(setup->context());
+    Environment* env = setup->env();
+
     // Run the custom main script for fully customized snapshots.
     if (snapshot_type == SnapshotMetadata::Type::kFullyCustomized) {
-      Context::Scope context_scope(setup->context());
-      Environment* env = setup->env();
 #if HAVE_INSPECTOR
         env->InitializeInspector({});
 #endif
         if (LoadEnvironment(env, builder_script_content.value()).IsEmpty()) {
           return ExitCode::kGenericUserError;
         }
+    }
 
-        // FIXME(joyeecheung): right now running the loop in the snapshot
-        // builder might introduce inconsistencies in JS land that need to
-        // be synchronized again after snapshot restoration.
-        ExitCode exit_code =
-            SpinEventLoopInternal(env).FromMaybe(ExitCode::kGenericUserError);
-        if (exit_code != ExitCode::kNoFailure) {
-          return exit_code;
-        }
+    // Drain the loop and platform tasks before creating a snapshot. This is
+    // necessary to ensure that the no roots are held by the the platform
+    // tasks, which may reference objects associated with a context. For
+    // example, a WeakRef may schedule an per-isolate platform task as a GC
+    // root, and referencing an object in a context, causing an assertion in
+    // the snapshot creator.
+    ExitCode exit_code =
+        SpinEventLoopInternal(env).FromMaybe(ExitCode::kGenericUserError);
+    if (exit_code != ExitCode::kNoFailure) {
+      return exit_code;
     }
   }
 

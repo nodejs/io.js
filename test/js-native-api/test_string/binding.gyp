@@ -7,7 +7,7 @@
         "test_null.c",
       ],
       "defines": [
-        "NAPI_EXPERIMENTAL",
+        "NAPI_VERSION=10",
       ],
     },
   ],

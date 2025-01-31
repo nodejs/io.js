@@ -31,7 +31,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* defined(__cplusplus) */
 
 /**
  * @macrosection
@@ -70,7 +70,7 @@ extern "C" {
  */
 NGTCP2_EXTERN ngtcp2_encryption_level
 ngtcp2_crypto_quictls_from_ossl_encryption_level(
-    OSSL_ENCRYPTION_LEVEL ossl_level);
+  OSSL_ENCRYPTION_LEVEL ossl_level);
 
 /**
  * @function
@@ -81,7 +81,7 @@ ngtcp2_crypto_quictls_from_ossl_encryption_level(
  */
 NGTCP2_EXTERN OSSL_ENCRYPTION_LEVEL
 ngtcp2_crypto_quictls_from_ngtcp2_encryption_level(
-    ngtcp2_encryption_level encryption_level);
+  ngtcp2_encryption_level encryption_level);
 
 /**
  * @function
@@ -142,6 +142,6 @@ NGTCP2_EXTERN int ngtcp2_crypto_quictls_init(void);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* defined(__cplusplus) */
 
-#endif /* NGTCP2_CRYPTO_QUICTLS_H */
+#endif /* !defined(NGTCP2_CRYPTO_QUICTLS_H) */

@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -42,7 +42,7 @@ void ngtcp2_mem_free(const ngtcp2_mem *mem, void *ptr);
 void *ngtcp2_mem_calloc(const ngtcp2_mem *mem, size_t nmemb, size_t size);
 
 void *ngtcp2_mem_realloc(const ngtcp2_mem *mem, void *ptr, size_t size);
-#else /* MEMDEBUG */
+#else /* defined(MEMDEBUG) */
 void *ngtcp2_mem_malloc_debug(const ngtcp2_mem *mem, size_t size,
                               const char *func, const char *file, size_t line);
 
@@ -67,6 +67,6 @@ void *ngtcp2_mem_realloc_debug(const ngtcp2_mem *mem, void *ptr, size_t size,
 
 #  define ngtcp2_mem_realloc(MEM, PTR, SIZE)                                   \
     ngtcp2_mem_realloc_debug((MEM), (PTR), (SIZE), __func__, __FILE__, __LINE__)
-#endif /* MEMDEBUG */
+#endif /* defined(MEMDEBUG) */
 
-#endif /* NGTCP2_MEM_H */
+#endif /* !defined(NGTCP2_MEM_H) */

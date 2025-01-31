@@ -37,7 +37,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -62,4 +62,4 @@ void ngtcp2_window_filter_reset(ngtcp2_window_filter *wf, uint64_t new_sample,
 
 uint64_t ngtcp2_window_filter_get_best(ngtcp2_window_filter *wf);
 
-#endif /* NGTCP2_WINDOW_FILTER_H */
+#endif /* !defined(NGTCP2_WINDOW_FILTER_H) */

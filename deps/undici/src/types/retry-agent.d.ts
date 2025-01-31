@@ -4,5 +4,5 @@ import RetryHandler from './retry-handler'
 export default RetryAgent
 
 declare class RetryAgent extends Dispatcher {
-  constructor(dispatcher: Dispatcher, options?: RetryHandler.RetryOptions)
+  constructor (dispatcher: Dispatcher, options?: RetryHandler.RetryOptions)
 }

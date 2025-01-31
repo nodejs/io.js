@@ -266,6 +266,18 @@ class View extends BaseCommand {
     const deps = Object.entries(manifest.dependencies || {}).map(([k, dep]) =>
       `${chalk.blue(k)}: ${dep}`
     )
+    // Sort dist-tags by publish time, then tag name, keeping latest at the top of the list
+    const distTags = Object.entries(packu['dist-tags'])
+      .sort(([aTag, aVer], [bTag, bVer]) => {
+        const aTime = aTag === 'latest' ? Infinity : Date.parse(packu.time[aVer])
+        const bTime = bTag === 'latest' ? Infinity : Date.parse(packu.time[bVer])
+        if (aTime === bTime) {
+          return aTag > bTag ? -1 : 1
+        }
+        return aTime > bTime ? -1 : 1
+      })
+      .map(([k, t]) => `${chalk.blue(k)}: ${t}`)
+
     const site = manifest.homepage?.url || manifest.homepage
     const bins = Object.keys(manifest.bin || {})
     const licenseField = manifest.license || 'Proprietary'
@@ -333,9 +345,11 @@ class View extends BaseCommand {
     }
 
     res.push('\ndist-tags:')
-    res.push(columns(Object.entries(packu['dist-tags']).map(([k, t]) =>
-      `${chalk.blue(k)}: ${t}`
-    )))
+    const maxTags = 12
+    res.push(columns(distTags.slice(0, maxTags), { padding: 1, sort: false }))
+    if (distTags.length > maxTags) {
+      res.push(chalk.dim(`(...and ${distTags.length - maxTags} more.)`))
+    }
 
     const publisher = manifest._npmUser && unparsePerson({
       name: chalk.blue(manifest._npmUser.name),

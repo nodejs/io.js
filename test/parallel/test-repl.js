@@ -36,7 +36,7 @@ const prompt_tcp = 'node via TCP socket> ';
 const moduleFilename = fixtures.path('a');
 
 // Function for REPL to run
-global.invoke_me = function(arg) {
+globalThis.invoke_me = function(arg) {
   return `invoked ${arg}`;
 };
 
@@ -51,6 +51,7 @@ async function runReplTests(socket, prompt, tests) {
     // Expect can be a single line or multiple lines
     const expectedLines = Array.isArray(expect) ? expect : [ expect ];
 
+    console.error('\n------------');
     console.error('out:', JSON.stringify(send));
     socket.write(`${send}\n`);
 
@@ -593,17 +594,18 @@ const errorTests = [
   // REPL should get a normal require() function, not one that allows
   // access to internal modules without the --expose-internals flag.
   {
-    send: 'require("internal/repl")',
+    // Shrink the stack trace to avoid having to update this test whenever the
+    // implementation of require() changes. It's set to 4 because somehow setting it
+    // to a lower value breaks the error formatting and the message becomes
+    // "Uncaught [Error...", which is probably a bug(?).
+    send: 'Error.stackTraceLimit = 4; require("internal/repl")',
     expect: [
       /^Uncaught Error: Cannot find module 'internal\/repl'/,
       /^Require stack:/,
-      /^- <repl>/,
-      /^ {4}at .*/, // at Module._resolveFilename
-      /^ {4}at .*/, // at Module._load
-      /^ {4}at .*/, // at TracingChannel.traceSync
-      /^ {4}at .*/, // at wrapModuleLoad
-      /^ {4}at .*/, // at Module.require
-      /^ {4}at .*/, // at require
+      /^- <repl>/,  // This just tests MODULE_NOT_FOUND so let's skip the stack trace
+      /^ {4}at .*/, // Some stack frame that we have to capture otherwise error message is buggy.
+      /^ {4}at .*/, // Some stack frame that we have to capture otherwise error message is buggy.
+      /^ {4}at .*/, // Some stack frame that we have to capture otherwise error message is buggy.
       "  code: 'MODULE_NOT_FOUND',",
       "  requireStack: [ '<repl>' ]",
       '}',
@@ -792,7 +794,10 @@ const errorTests = [
     expect: [
       'Object [console] {',
       '  log: [Function: log],',
+      '  info: [Function: info],',
+      '  debug: [Function: debug],',
       '  warn: [Function: warn],',
+      '  error: [Function: error],',
       '  dir: [Function: dir],',
       '  time: [Function: time],',
       '  timeEnd: [Function: timeEnd],',
@@ -805,10 +810,7 @@ const errorTests = [
       '  group: [Function: group],',
       '  groupEnd: [Function: groupEnd],',
       '  table: [Function: table],',
-      / {2}debug: \[Function: (debug|log)],/,
-      / {2}info: \[Function: (info|log)],/,
       / {2}dirxml: \[Function: (dirxml|log)],/,
-      / {2}error: \[Function: (error|warn)],/,
       / {2}groupCollapsed: \[Function: (groupCollapsed|group)],/,
       / {2}Console: \[Function: Console],?/,
       ...process.features.inspector ? [
@@ -937,8 +939,8 @@ alternatively use dynamic import: const { default: alias, namedExport } = await 
 
     socket.end();
   }
-  common.allowGlobals(global.invoke_me, global.message, global.a, global.blah,
-                      global.I, global.f, global.path, global.x, global.name, global.foo);
+  common.allowGlobals(globalThis.invoke_me, globalThis.message, globalThis.a, globalThis.blah,
+                      globalThis.I, globalThis.f, globalThis.path, globalThis.x, globalThis.name, globalThis.foo);
 })().then(common.mustCall());
 
 function startTCPRepl() {

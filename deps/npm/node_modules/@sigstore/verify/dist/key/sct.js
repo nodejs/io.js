@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifySCTs = void 0;
+exports.verifySCTs = verifySCTs;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -52,7 +52,7 @@ function verifySCTs(cert, issuer, ctlogs) {
     // https://www.rfc-editor.org/rfc/rfc6962#section-3.2
     const preCert = new core_1.ByteStream();
     // Calculate hash of the issuer's public key
-    const issuerId = core_1.crypto.hash(issuer.publicKey);
+    const issuerId = core_1.crypto.digest('sha256', issuer.publicKey);
     preCert.appendView(issuerId);
     // Re-encodes the certificate to DER after removing the SCT extension
     const tbs = clone.tbsCertificate.toDER();
@@ -76,4 +76,3 @@ function verifySCTs(cert, issuer, ctlogs) {
         return sct.logID;
     });
 }
-exports.verifySCTs = verifySCTs;

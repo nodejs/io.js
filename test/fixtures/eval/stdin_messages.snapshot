@@ -1,0 +1,54 @@
+[stdin]
+[stdin]:1
+with(this){__filename}
+^^^^
+  x The 'with' statement is not supported. All symbols in a 'with' block will have type 'any'.
+   ,----
+ 1 | with(this){__filename}
+   : ^^^^
+   `----
+
+SyntaxError: Strict mode code may not include a with statement
+
+Node.js *
+42
+42
+[stdin]:1
+throw new Error("hello")
+^
+
+Error: hello
+
+Node.js *
+[stdin]:1
+throw new Error("hello")
+^
+
+Error: hello
+
+Node.js *
+100
+[stdin]:1
+let x = 100; y = x;
+               ^
+
+ReferenceError: y is not defined
+
+Node.js *
+
+[stdin]:1
+let ______________________________________________; throw 10
+                                                    ^
+10
+(Use `node --trace-uncaught ...` to show where the exception was thrown)
+
+Node.js *
+
+[stdin]:1
+let ______________________________________________; throw 10
+                                                    ^
+10
+(Use `node --trace-uncaught ...` to show where the exception was thrown)
+
+Node.js *
+done

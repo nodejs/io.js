@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -105,4 +105,4 @@ int ngtcp2_buf_chain_new(ngtcp2_buf_chain **pbufchain, size_t len,
  */
 void ngtcp2_buf_chain_del(ngtcp2_buf_chain *bufchain, const ngtcp2_mem *mem);
 
-#endif /* NGTCP2_BUF_H */
+#endif /* !defined(NGTCP2_BUF_H) */

@@ -352,7 +352,7 @@ writes to the returned array buffer is likely to result in a crash.
 
 * `key`  {string} the key for the asset in the dictionary specified by the
   `assets` field in the single-executable application configuration.
-* Returns: {string|ArrayBuffer}
+* Returns: {ArrayBuffer}
 
 ### `require(id)` in the injected main script is not file based
 

@@ -3,6 +3,6 @@
 
 'use strict';
 const common = require('../common');
-global.process = {};  // Boom!
-common.allowGlobals(global.process);
+globalThis.process = {};  // Boom!
+common.allowGlobals(globalThis.process);
 setImmediate(common.mustCall());

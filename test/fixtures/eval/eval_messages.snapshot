@@ -1,0 +1,54 @@
+[eval]
+[eval]:1
+with(this){__filename}
+^^^^
+  x The 'with' statement is not supported. All symbols in a 'with' block will have type 'any'.
+   ,----
+ 1 | with(this){__filename}
+   : ^^^^
+   `----
+
+SyntaxError: Strict mode code may not include a with statement
+
+Node.js *
+42
+42
+[eval]:1
+throw new Error("hello")
+^
+
+Error: hello
+
+Node.js *
+[eval]:1
+throw new Error("hello")
+^
+
+Error: hello
+
+Node.js *
+100
+[eval]:1
+var x = 100; y = x;
+               ^
+
+ReferenceError: y is not defined
+
+Node.js *
+
+[eval]:1
+var ______________________________________________; throw 10
+                                                    ^
+10
+(Use `node --trace-uncaught ...` to show where the exception was thrown)
+
+Node.js *
+
+[eval]:1
+var ______________________________________________; throw 10
+                                                    ^
+10
+(Use `node --trace-uncaught ...` to show where the exception was thrown)
+
+Node.js *
+done

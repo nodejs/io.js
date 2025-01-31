@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "names": ["foo", "bar"],
+  "sources": ["unused", "mapping-semantics-relative-2-original.js"],
+  "sourcesContent": ["", "  foo\n  bar"],
+  "mappings": "CCAEA;EACAC"
+}

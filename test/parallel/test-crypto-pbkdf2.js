@@ -5,6 +5,7 @@ if (!common.hasCrypto)
 
 const assert = require('assert');
 const crypto = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 function runPBKDF2(password, salt, iterations, keylen, hash) {
   const syncResult =
@@ -219,7 +220,7 @@ assert.throws(
   }
 );
 
-if (!common.hasOpenSSL3) {
+if (!hasOpenSSL3) {
   const kNotPBKDF2Supported = ['shake128', 'shake256'];
   crypto.getHashes()
     .filter((hash) => !kNotPBKDF2Supported.includes(hash))

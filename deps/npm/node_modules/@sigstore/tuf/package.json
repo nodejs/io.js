@@ -1,6 +1,6 @@
 {
   "name": "@sigstore/tuf",
-  "version": "2.3.4",
+  "version": "3.0.0",
   "description": "Client for the Sigstore TUF repository",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,14 +28,14 @@
   },
   "devDependencies": {
     "@sigstore/jest": "^0.0.0",
-    "@tufjs/repo-mock": "^2.0.1",
+    "@tufjs/repo-mock": "^3.0.1",
     "@types/make-fetch-happen": "^10.0.4"
   },
   "dependencies": {
     "@sigstore/protobuf-specs": "^0.3.2",
-    "tuf-js": "^2.2.1"
+    "tuf-js": "^3.0.1"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   }
 }

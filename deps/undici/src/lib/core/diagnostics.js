@@ -1,11 +1,12 @@
 'use strict'
+
 const diagnosticsChannel = require('node:diagnostics_channel')
 const util = require('node:util')
 
 const undiciDebugLog = util.debuglog('undici')
 const fetchDebuglog = util.debuglog('fetch')
 const websocketDebuglog = util.debuglog('websocket')
-let isClientSet = false
+
 const channels = {
   // Client
   beforeConnect: diagnosticsChannel.channel('undici:client:beforeConnect'),
@@ -26,102 +27,21 @@ const channels = {
   pong: diagnosticsChannel.channel('undici:websocket:pong')
 }
 
-if (undiciDebugLog.enabled || fetchDebuglog.enabled) {
-  const debuglog = fetchDebuglog.enabled ? fetchDebuglog : undiciDebugLog
+let isTrackingClientEvents = false
 
-  // Track all Client events
-  diagnosticsChannel.channel('undici:client:beforeConnect').subscribe(evt => {
-    const {
-      connectParams: { version, protocol, port, host }
-    } = evt
-    debuglog(
-      'connecting to %s using %s%s',
-      `${host}${port ? `:${port}` : ''}`,
-      protocol,
-      version
-    )
-  })
+function trackClientEvents (debugLog = undiciDebugLog) {
+  if (isTrackingClientEvents) {
+    return
+  }
 
-  diagnosticsChannel.channel('undici:client:connected').subscribe(evt => {
-    const {
-      connectParams: { version, protocol, port, host }
-    } = evt
-    debuglog(
-      'connected to %s using %s%s',
-      `${host}${port ? `:${port}` : ''}`,
-      protocol,
-      version
-    )
-  })
+  isTrackingClientEvents = true
 
-  diagnosticsChannel.channel('undici:client:connectError').subscribe(evt => {
-    const {
-      connectParams: { version, protocol, port, host },
-      error
-    } = evt
-    debuglog(
-      'connection to %s using %s%s errored - %s',
-      `${host}${port ? `:${port}` : ''}`,
-      protocol,
-      version,
-      error.message
-    )
-  })
-
-  diagnosticsChannel.channel('undici:client:sendHeaders').subscribe(evt => {
-    const {
-      request: { method, path, origin }
-    } = evt
-    debuglog('sending request to %s %s/%s', method, origin, path)
-  })
-
-  // Track Request events
-  diagnosticsChannel.channel('undici:request:headers').subscribe(evt => {
-    const {
-      request: { method, path, origin },
-      response: { statusCode }
-    } = evt
-    debuglog(
-      'received response to %s %s/%s - HTTP %d',
-      method,
-      origin,
-      path,
-      statusCode
-    )
-  })
-
-  diagnosticsChannel.channel('undici:request:trailers').subscribe(evt => {
-    const {
-      request: { method, path, origin }
-    } = evt
-    debuglog('trailers received from %s %s/%s', method, origin, path)
-  })
-
-  diagnosticsChannel.channel('undici:request:error').subscribe(evt => {
-    const {
-      request: { method, path, origin },
-      error
-    } = evt
-    debuglog(
-      'request to %s %s/%s errored - %s',
-      method,
-      origin,
-      path,
-      error.message
-    )
-  })
-
-  isClientSet = true
-}
-
-if (websocketDebuglog.enabled) {
-  if (!isClientSet) {
-    const debuglog = undiciDebugLog.enabled ? undiciDebugLog : websocketDebuglog
-    diagnosticsChannel.channel('undici:client:beforeConnect').subscribe(evt => {
+  diagnosticsChannel.subscribe('undici:client:beforeConnect',
+    evt => {
       const {
         connectParams: { version, protocol, port, host }
       } = evt
-      debuglog(
+      debugLog(
         'connecting to %s%s using %s%s',
         host,
         port ? `:${port}` : '',
@@ -130,11 +50,12 @@ if (websocketDebuglog.enabled) {
       )
     })
 
-    diagnosticsChannel.channel('undici:client:connected').subscribe(evt => {
+  diagnosticsChannel.subscribe('undici:client:connected',
+    evt => {
       const {
         connectParams: { version, protocol, port, host }
       } = evt
-      debuglog(
+      debugLog(
         'connected to %s%s using %s%s',
         host,
         port ? `:${port}` : '',
@@ -143,12 +64,13 @@ if (websocketDebuglog.enabled) {
       )
     })
 
-    diagnosticsChannel.channel('undici:client:connectError').subscribe(evt => {
+  diagnosticsChannel.subscribe('undici:client:connectError',
+    evt => {
       const {
         connectParams: { version, protocol, port, host },
         error
       } = evt
-      debuglog(
+      debugLog(
         'connection to %s%s using %s%s errored - %s',
         host,
         port ? `:${port}` : '',
@@ -158,43 +80,115 @@ if (websocketDebuglog.enabled) {
       )
     })
 
-    diagnosticsChannel.channel('undici:client:sendHeaders').subscribe(evt => {
+  diagnosticsChannel.subscribe('undici:client:sendHeaders',
+    evt => {
       const {
         request: { method, path, origin }
       } = evt
-      debuglog('sending request to %s %s/%s', method, origin, path)
+      debugLog('sending request to %s %s/%s', method, origin, path)
     })
+}
+
+let isTrackingRequestEvents = false
+
+function trackRequestEvents (debugLog = undiciDebugLog) {
+  if (isTrackingRequestEvents) {
+    return
   }
 
-  // Track all WebSocket events
-  diagnosticsChannel.channel('undici:websocket:open').subscribe(evt => {
-    const {
-      address: { address, port }
-    } = evt
-    websocketDebuglog('connection opened %s%s', address, port ? `:${port}` : '')
-  })
+  isTrackingRequestEvents = true
 
-  diagnosticsChannel.channel('undici:websocket:close').subscribe(evt => {
-    const { websocket, code, reason } = evt
-    websocketDebuglog(
-      'closed connection to %s - %s %s',
-      websocket.url,
-      code,
-      reason
-    )
-  })
+  diagnosticsChannel.subscribe('undici:request:headers',
+    evt => {
+      const {
+        request: { method, path, origin },
+        response: { statusCode }
+      } = evt
+      debugLog(
+        'received response to %s %s/%s - HTTP %d',
+        method,
+        origin,
+        path,
+        statusCode
+      )
+    })
 
-  diagnosticsChannel.channel('undici:websocket:socket_error').subscribe(err => {
-    websocketDebuglog('connection errored - %s', err.message)
-  })
+  diagnosticsChannel.subscribe('undici:request:trailers',
+    evt => {
+      const {
+        request: { method, path, origin }
+      } = evt
+      debugLog('trailers received from %s %s/%s', method, origin, path)
+    })
 
-  diagnosticsChannel.channel('undici:websocket:ping').subscribe(evt => {
-    websocketDebuglog('ping received')
-  })
+  diagnosticsChannel.subscribe('undici:request:error',
+    evt => {
+      const {
+        request: { method, path, origin },
+        error
+      } = evt
+      debugLog(
+        'request to %s %s/%s errored - %s',
+        method,
+        origin,
+        path,
+        error.message
+      )
+    })
+}
 
-  diagnosticsChannel.channel('undici:websocket:pong').subscribe(evt => {
-    websocketDebuglog('pong received')
-  })
+let isTrackingWebSocketEvents = false
+
+function trackWebSocketEvents (debugLog = websocketDebuglog) {
+  if (isTrackingWebSocketEvents) {
+    return
+  }
+
+  isTrackingWebSocketEvents = true
+
+  diagnosticsChannel.subscribe('undici:websocket:open',
+    evt => {
+      const {
+        address: { address, port }
+      } = evt
+      debugLog('connection opened %s%s', address, port ? `:${port}` : '')
+    })
+
+  diagnosticsChannel.subscribe('undici:websocket:close',
+    evt => {
+      const { websocket, code, reason } = evt
+      debugLog(
+        'closed connection to %s - %s %s',
+        websocket.url,
+        code,
+        reason
+      )
+    })
+
+  diagnosticsChannel.subscribe('undici:websocket:socket_error',
+    err => {
+      debugLog('connection errored - %s', err.message)
+    })
+
+  diagnosticsChannel.subscribe('undici:websocket:ping',
+    evt => {
+      debugLog('ping received')
+    })
+
+  diagnosticsChannel.subscribe('undici:websocket:pong',
+    evt => {
+      debugLog('pong received')
+    })
+}
+
+if (undiciDebugLog.enabled || fetchDebuglog.enabled) {
+  trackClientEvents(fetchDebuglog.enabled ? fetchDebuglog : undiciDebugLog)
+  trackRequestEvents(fetchDebuglog.enabled ? fetchDebuglog : undiciDebugLog)
+}
+
+if (websocketDebuglog.enabled) {
+  trackClientEvents(undiciDebugLog.enabled ? undiciDebugLog : websocketDebuglog)
+  trackWebSocketEvents(websocketDebuglog)
 }
 
 module.exports = {

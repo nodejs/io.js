@@ -45,12 +45,6 @@ npm Team management APIs
 Version [34m2.0.2[39m published [34m2020-11-03[39m by [34mnlf[39m
 Maintainers: nlf ruyadorno darcyclarke isaacs
 [34mhttps://npm.im/libnpmteam[39m
-[34mlibnpmhook[39m
-programmatic API for managing npm registry hooks
-Version [34m6.0.1[39m published [34m2020-11-03[39m by [34mnlf[39m
-Maintainers: nlf ruyadorno darcyclarke isaacs
-Keywords: npm hooks registry npm api
-[34mhttps://npm.im/libnpmhook[39m
 [34mlibnpmpublish[39m
 Programmatic API for the bits behind npm publish and unpublish
 Version [34m4.0.0[39m published [34m2020-11-03[39m by [34mnlf[39m
@@ -124,12 +118,6 @@ npm Team management APIs
 Version [34m2.0.2[39m published [34m2020-11-03[39m by [34mnlf[39m
 Maintainers: nlf ruyadorno darcyclarke isaacs
 [34mhttps://npm.im/libnpmteam[39m
-[34m[36mlibnpm[39m[34mhook[39m
-programmatic API for managing npm registry hooks
-Version [34m6.0.1[39m published [34m2020-11-03[39m by [34mnlf[39m
-Maintainers: nlf ruyadorno darcyclarke isaacs
-Keywords: npm hooks registry npm api
-[34mhttps://npm.im/libnpmhook[39m
 [34m[36mlibnpm[39m[34mpublish[39m
 Programmatic API for the bits behind npm publish and unpublish
 Version [34m4.0.0[39m published [34m2020-11-03[39m by [34mnlf[39m
@@ -171,7 +159,6 @@ libnpmaccess	programmatic library for \`npm access\` commands	2020-11-03	4.0.1	l
 libnpmorg	Programmatic api for \`npm org\` commands	2020-11-03	2.0.1	libnpm,npm,package manager,api,orgs,teams
 libnpmsearch	Programmatic API for searching in npm and compatible registries.	2020-12-08	3.1.0	npm,search,api,libnpm
 libnpmteam	npm Team management APIs	2020-11-03	2.0.2
-libnpmhook	programmatic API for managing npm registry hooks	2020-11-03	6.0.1	npm,hooks,registry,npm api
 libnpmpublish	Programmatic API for the bits behind npm publish and unpublish	2020-11-03	4.0.0
 libnpmfund	Programmatic API for npm fund	2020-12-08	1.0.2	npm,npmcli,libnpm,cli,git,fund,gitfund
 @npmcli/map-workspaces	Retrieves a name:pathname Map for a given workspaces config	2020-09-30	1.0.1	npm,,bad map,npmcli,libnpm,cli,workspaces,map-workspaces
@@ -235,12 +222,6 @@ npm Team management APIs
 Version 2.0.2 published 2020-11-03 by nlf
 Maintainers: nlf ruyadorno darcyclarke isaacs
 https://npm.im/libnpmteam
-libnpmhook
-programmatic API for managing npm registry hooks
-Version 6.0.1 published 2020-11-03 by nlf
-Maintainers: nlf ruyadorno darcyclarke isaacs
-Keywords: npm hooks registry npm api
-https://npm.im/libnpmhook
 libnpmpublish
 Programmatic API for the bits behind npm publish and unpublish
 Version 4.0.0 published 2020-11-03 by nlf
@@ -318,12 +299,6 @@ npm Team management APIs
 Version 2.0.2 published 2020-11-03 by nlf
 Maintainers: nlf ruyadorno darcyclarke isaacs
 https://npm.im/libnpmteam
-libnpmhook
-programmatic API for managing npm registry hooks
-Version 6.0.1 published 2020-11-03 by nlf
-Maintainers: nlf ruyadorno darcyclarke isaacs
-Keywords: npm hooks registry npm api
-https://npm.im/libnpmhook
 libnpmpublish
 Programmatic API for the bits behind npm publish and unpublish
 Version 4.0.0 published 2020-11-03 by nlf
@@ -392,12 +367,6 @@ npm Team management APIs
 Version 2.0.2 published 2020-11-03 by nlf
 Maintainers: nlf ruyadorno darcyclarke isaacs
 https://npm.im/libnpmteam
-libnpmhook
-programmatic API for managing npm registry hooks
-Version 6.0.1 published 2020-11-03 by nlf
-Maintainers: nlf ruyadorno darcyclarke isaacs
-Keywords: npm hooks registry npm api
-https://npm.im/libnpmhook
 libnpmpublish
 Programmatic API for the bits behind npm publish and unpublish
 Version 4.0.0 published 2020-11-03 by nlf
@@ -466,12 +435,6 @@ npm Team management APIs
 Version 2.0.2 published 2020-11-03 by nlf
 Maintainers: nlf ruyadorno darcyclarke isaacs
 https://npm.im/libnpmteam
-libnpmhook
-programmatic API for managing npm registry hooks
-Version 6.0.1 published 2020-11-03 by nlf
-Maintainers: nlf ruyadorno darcyclarke isaacs
-Keywords: npm hooks registry npm api
-https://npm.im/libnpmhook
 libnpmpublish
 Programmatic API for the bits behind npm publish and unpublish
 Version 4.0.0 published 2020-11-03 by nlf
@@ -771,51 +734,6 @@ Array [
     },
     "scope": "unscoped",
     "version": "2.0.2",
-  },
-  Object {
-    "author": Object {
-      "email": "kzm@sykosomatic.org",
-      "name": "Kat Marchán",
-    },
-    "date": "2020-11-03T19:20:45.818Z",
-    "description": "programmatic API for managing npm registry hooks",
-    "keywords": Array [
-      "npm",
-      "hooks",
-      "registry",
-      "npm api",
-    ],
-    "links": Object {
-      "bugs": "https://github.com/npm/libnpmhook/issues",
-      "homepage": "https://github.com/npm/libnpmhook#readme",
-      "npm": "https://www.npmjs.com/package/libnpmhook",
-      "repository": "https://github.com/npm/libnpmhook",
-    },
-    "maintainers": Array [
-      Object {
-        "email": "quitlahok@gmail.com",
-        "username": "nlf",
-      },
-      Object {
-        "email": "ruyadorno@hotmail.com",
-        "username": "ruyadorno",
-      },
-      Object {
-        "email": "darcy@darcyclarke.me",
-        "username": "darcyclarke",
-      },
-      Object {
-        "email": "i@izs.me",
-        "username": "isaacs",
-      },
-    ],
-    "name": "libnpmhook",
-    "publisher": Object {
-      "email": "quitlahok@gmail.com",
-      "username": "nlf",
-    },
-    "scope": "unscoped",
-    "version": "6.0.1",
   },
   Object {
     "author": Object {

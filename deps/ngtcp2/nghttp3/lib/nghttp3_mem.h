@@ -29,7 +29,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -40,7 +40,7 @@ void *nghttp3_mem_malloc(const nghttp3_mem *mem, size_t size);
 void nghttp3_mem_free(const nghttp3_mem *mem, void *ptr);
 void *nghttp3_mem_calloc(const nghttp3_mem *mem, size_t nmemb, size_t size);
 void *nghttp3_mem_realloc(const nghttp3_mem *mem, void *ptr, size_t size);
-#else /* MEMDEBUG */
+#else /* defined(MEMDEBUG) */
 void *nghttp3_mem_malloc_debug(const nghttp3_mem *mem, size_t size,
                                const char *func, const char *file, size_t line);
 
@@ -75,6 +75,6 @@ void *nghttp3_mem_realloc_debug(const nghttp3_mem *mem, void *ptr, size_t size,
 #  define nghttp3_mem_realloc(MEM, PTR, SIZE)                                  \
     nghttp3_mem_realloc_debug((MEM), (PTR), (SIZE), __func__, __FILE__,        \
                               __LINE__)
-#endif /* MEMDEBUG */
+#endif /* defined(MEMDEBUG) */
 
-#endif /* NGHTTP3_MEM_H */
+#endif /* !defined(NGHTTP3_MEM_H) */

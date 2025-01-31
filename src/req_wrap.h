@@ -48,6 +48,8 @@ class ReqWrap : public AsyncWrap, public ReqWrapBase {
   template <typename LibuvFunction, typename... Args>
   inline int Dispatch(LibuvFunction fn, Args... args);
 
+  inline bool IsDispatched();
+
  private:
   friend int GenDebugSymbols();
 

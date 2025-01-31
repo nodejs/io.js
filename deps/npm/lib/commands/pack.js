@@ -15,6 +15,7 @@ class Pack extends BaseCommand {
     'workspace',
     'workspaces',
     'include-workspace-root',
+    'ignore-scripts',
   ]
 
   static usage = ['<package-spec>']
@@ -29,12 +30,13 @@ class Pack extends BaseCommand {
     const unicode = this.npm.config.get('unicode')
     const json = this.npm.config.get('json')
 
+    const Arborist = require('@npmcli/arborist')
     // Get the manifests and filenames first so we can bail early on manifest
     // errors before making any tarballs
     const manifests = []
     for (const arg of args) {
       const spec = npa(arg)
-      const manifest = await pacote.manifest(spec, this.npm.flatOptions)
+      const manifest = await pacote.manifest(spec, { ...this.npm.flatOptions, Arborist })
       if (!manifest._id) {
         throw new Error('Invalid package, must have name and version')
       }

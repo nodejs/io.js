@@ -1,8 +1,12 @@
-// Flags: --experimental-permission --allow-fs-read=* --allow-child-process
+// Flags: --permission --allow-fs-read=* --allow-child-process
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 const assert = require('assert');
 const { spawnSync } = require('child_process');
@@ -12,7 +16,7 @@ const { spawnSync } = require('child_process');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read', '*',
       '--allow-fs-write', '../fixtures/permission/deny/regular-file.md',
       '-e',

@@ -1,4 +1,3 @@
-// Flags: --experimental-sqlite
 'use strict';
 require('../common');
 const tmpdir = require('../common/tmpdir');
@@ -82,6 +81,42 @@ suite('StatementSync.prototype.all()', () => {
       { __proto__: null, key: 'key1', val: 'val1' },
       { __proto__: null, key: 'key2', val: 'val2' },
     ]);
+  });
+});
+
+suite('StatementSync.prototype.iterate()', () => {
+  test('executes a query and returns an empty iterator on no results', (t) => {
+    const db = new DatabaseSync(nextDb());
+    const stmt = db.prepare('CREATE TABLE storage(key TEXT, val TEXT)');
+    t.assert.deepStrictEqual(stmt.iterate().toArray(), []);
+  });
+
+  test('executes a query and returns all results', (t) => {
+    const db = new DatabaseSync(nextDb());
+    let stmt = db.prepare('CREATE TABLE storage(key TEXT, val TEXT)');
+    t.assert.deepStrictEqual(stmt.run(), { changes: 0, lastInsertRowid: 0 });
+    stmt = db.prepare('INSERT INTO storage (key, val) VALUES (?, ?)');
+    t.assert.deepStrictEqual(
+      stmt.run('key1', 'val1'),
+      { changes: 1, lastInsertRowid: 1 },
+    );
+    t.assert.deepStrictEqual(
+      stmt.run('key2', 'val2'),
+      { changes: 1, lastInsertRowid: 2 },
+    );
+
+    const items = [
+      { __proto__: null, key: 'key1', val: 'val1' },
+      { __proto__: null, key: 'key2', val: 'val2' },
+    ];
+
+    stmt = db.prepare('SELECT * FROM storage ORDER BY key');
+    t.assert.deepStrictEqual(stmt.iterate().toArray(), items);
+
+    const itemsLoop = items.slice();
+    for (const item of stmt.iterate()) {
+      t.assert.deepStrictEqual(item, itemsLoop.shift());
+    }
   });
 });
 

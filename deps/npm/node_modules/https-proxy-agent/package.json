@@ -1,6 +1,6 @@
 {
   "name": "https-proxy-agent",
-  "version": "7.0.5",
+  "version": "7.0.6",
   "description": "An HTTP(s) proxy `http.Agent` implementation for HTTPS",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,7 +21,7 @@
   "author": "Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)",
   "license": "MIT",
   "dependencies": {
-    "agent-base": "^7.0.2",
+    "agent-base": "^7.1.2",
     "debug": "4"
   },
   "devDependencies": {

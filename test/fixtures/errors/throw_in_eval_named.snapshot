@@ -1,0 +1,8 @@
+evalscript.js:*
+  throw new Error('error in named script');
+  ^
+
+Error: error in named script
+    at eval (evalscript.js:*:*)
+
+Node.js *

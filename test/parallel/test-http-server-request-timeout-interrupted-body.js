@@ -45,24 +45,27 @@ server.listen(0, common.mustCall(() => {
     response += chunk;
   }));
 
-  const errOrEnd = common.mustSucceed(function(err) {
+  client.on('error', () => {
+    // Ignore errors like 'write EPIPE' that might occur while the request is
+    // sent.
+  });
+
+  client.on('close', common.mustCall(() => {
     assert.strictEqual(
       response,
       'HTTP/1.1 408 Request Timeout\r\nConnection: close\r\n\r\n'
     );
     server.close();
-  });
-
-  client.on('error', errOrEnd);
-  client.on('end', errOrEnd);
+  }));
 
   client.resume();
-  client.write('POST / HTTP/1.1\r\n');
-  client.write('Host: example.com\r\n');
-  client.write('Content-Length: 20\r\n');
-  client.write('Connection: close\r\n');
-  client.write('\r\n');
-  client.write('1234567890');
+  client.write(
+    'POST / HTTP/1.1\r\n' +
+    'Host: example.com\r\n' +
+    'Content-Length: 20\r\n' +
+    'Connection: close\r\n\r\n' +
+    '1234567890'
+  );
 
   sendDelayedRequestBody = common.mustCall(() => {
     setTimeout(() => {

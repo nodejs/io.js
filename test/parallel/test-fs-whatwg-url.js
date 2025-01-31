@@ -5,6 +5,8 @@ const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const fs = require('fs');
 const tmpdir = require('../common/tmpdir');
+const { isMainThread } = require('worker_threads');
+
 tmpdir.refresh();
 
 const url = fixtures.fileURL('a.js');
@@ -86,7 +88,7 @@ if (common.isWindows) {
 // Test that strings are interpreted as paths and not as URL
 // Can't use process.chdir in Workers
 // Please avoid testing fs.rmdir('file:') or using it as cleanup
-if (common.isMainThread && !common.isWindows) {
+if (isMainThread && !common.isWindows) {
   const oldCwd = process.cwd();
   process.chdir(tmpdir.path);
 

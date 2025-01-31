@@ -191,8 +191,9 @@ static void uv__getaddrinfo_done(struct uv__work* w, int status) {
         if (addrinfow_ptr == NULL)
           break;
         cur_off = align_offset(cur_off, sizeof(void *));
-        addrinfo_ptr = (struct addrinfo *)(alloc_ptr + cur_off);
-        addrinfo_ptr->ai_next = addrinfo_ptr;
+        struct addrinfo *next_addrinfo_ptr = (struct addrinfo *)(alloc_ptr + cur_off);
+        addrinfo_ptr->ai_next = next_addrinfo_ptr;
+        addrinfo_ptr = next_addrinfo_ptr;
       }
       req->addrinfo = (struct addrinfo*)alloc_ptr;
     } else {

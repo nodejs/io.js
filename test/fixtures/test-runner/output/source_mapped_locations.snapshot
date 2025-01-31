@@ -3,6 +3,7 @@ TAP version 13
 not ok 1 - fails
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/source_mapped_locations.ts:5:1'
   failureType: 'testCodeFailure'
   error: |-

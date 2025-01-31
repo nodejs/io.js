@@ -1127,8 +1127,8 @@ class XcodeSettings:
     be deployed to a device.  This should be run as the very last step of the
     build."""
         if not (
-            self.isIOS
-            and (self.spec["type"] == "executable" or self._IsXCTest())
+            (self.isIOS
+            and (self.spec["type"] == "executable" or self._IsXCTest()))
             or self.IsIosFramework()
         ):
             return []

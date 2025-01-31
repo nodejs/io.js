@@ -25,6 +25,7 @@ not ok 1 - suite 1
     not ok 1 - enabled - should get cancelled
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/filtered-suite-throws.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'

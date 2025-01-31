@@ -10,6 +10,8 @@ const redirectableStatusCodes = [300, 301, 302, 303, 307, 308]
 
 const kBody = Symbol('body')
 
+const noop = () => {}
+
 class BodyAsyncIterable {
   constructor (body) {
     this[kBody] = body
@@ -24,21 +26,26 @@ class BodyAsyncIterable {
 }
 
 class RedirectHandler {
+  static buildDispatch (dispatcher, maxRedirections) {
+    if (maxRedirections != null && (!Number.isInteger(maxRedirections) || maxRedirections < 0)) {
+      throw new InvalidArgumentError('maxRedirections must be a positive number')
+    }
+
+    const dispatch = dispatcher.dispatch.bind(dispatcher)
+    return (opts, originalHandler) => dispatch(opts, new RedirectHandler(dispatch, maxRedirections, opts, originalHandler))
+  }
+
   constructor (dispatch, maxRedirections, opts, handler) {
     if (maxRedirections != null && (!Number.isInteger(maxRedirections) || maxRedirections < 0)) {
       throw new InvalidArgumentError('maxRedirections must be a positive number')
     }
 
-    util.validateHandler(handler, opts.method, opts.upgrade)
-
     this.dispatch = dispatch
     this.location = null
-    this.abort = null
     this.opts = { ...opts, maxRedirections: 0 } // opts must be a copy
     this.maxRedirections = maxRedirections
     this.handler = handler
     this.history = []
-    this.redirectionLimitReached = false
 
     if (util.isStream(this.opts.body)) {
       // TODO (fix): Provide some way for the user to cache the file to e.g. /tmp
@@ -66,7 +73,8 @@ class RedirectHandler {
       this.opts.body &&
       typeof this.opts.body !== 'string' &&
       !ArrayBuffer.isView(this.opts.body) &&
-      util.isIterable(this.opts.body)
+      util.isIterable(this.opts.body) &&
+      !util.isFormDataLike(this.opts.body)
     ) {
       // TODO: Should we allow re-using iterable if !this.opts.idempotent
       // or through some other flag?
@@ -74,40 +82,51 @@ class RedirectHandler {
     }
   }
 
-  onConnect (abort) {
-    this.abort = abort
-    this.handler.onConnect(abort, { history: this.history })
+  onRequestStart (controller, context) {
+    this.handler.onRequestStart?.(controller, { ...context, history: this.history })
   }
 
-  onUpgrade (statusCode, headers, socket) {
-    this.handler.onUpgrade(statusCode, headers, socket)
+  onRequestUpgrade (controller, statusCode, headers, socket) {
+    this.handler.onRequestUpgrade?.(controller, statusCode, headers, socket)
   }
 
-  onError (error) {
-    this.handler.onError(error)
-  }
-
-  onHeaders (statusCode, headers, resume, statusText) {
-    this.location = this.history.length >= this.maxRedirections || util.isDisturbed(this.opts.body)
-      ? null
-      : parseLocation(statusCode, headers)
-
+  onResponseStart (controller, statusCode, headers, statusMessage) {
     if (this.opts.throwOnMaxRedirect && this.history.length >= this.maxRedirections) {
-      if (this.request) {
-        this.request.abort(new Error('max redirects'))
-      }
-
-      this.redirectionLimitReached = true
-      this.abort(new Error('max redirects'))
-      return
+      throw new Error('max redirects')
     }
+
+    // https://tools.ietf.org/html/rfc7231#section-6.4.2
+    // https://fetch.spec.whatwg.org/#http-redirect-fetch
+    // In case of HTTP 301 or 302 with POST, change the method to GET
+    if ((statusCode === 301 || statusCode === 302) && this.opts.method === 'POST') {
+      this.opts.method = 'GET'
+      if (util.isStream(this.opts.body)) {
+        util.destroy(this.opts.body.on('error', noop))
+      }
+      this.opts.body = null
+    }
+
+    // https://tools.ietf.org/html/rfc7231#section-6.4.4
+    // In case of HTTP 303, always replace method to be either HEAD or GET
+    if (statusCode === 303 && this.opts.method !== 'HEAD') {
+      this.opts.method = 'GET'
+      if (util.isStream(this.opts.body)) {
+        util.destroy(this.opts.body.on('error', noop))
+      }
+      this.opts.body = null
+    }
+
+    this.location = this.history.length >= this.maxRedirections || util.isDisturbed(this.opts.body) || redirectableStatusCodes.indexOf(statusCode) === -1
+      ? null
+      : headers.location
 
     if (this.opts.origin) {
       this.history.push(new URL(this.opts.path, this.opts.origin))
     }
 
     if (!this.location) {
-      return this.handler.onHeaders(statusCode, headers, resume, statusText)
+      this.handler.onResponseStart?.(controller, statusCode, headers, statusMessage)
+      return
     }
 
     const { origin, pathname, search } = util.parseURL(new URL(this.location, this.opts.origin && new URL(this.opts.path, this.opts.origin)))
@@ -121,23 +140,16 @@ class RedirectHandler {
     this.opts.origin = origin
     this.opts.maxRedirections = 0
     this.opts.query = null
-
-    // https://tools.ietf.org/html/rfc7231#section-6.4.4
-    // In case of HTTP 303, always replace method to be either HEAD or GET
-    if (statusCode === 303 && this.opts.method !== 'HEAD') {
-      this.opts.method = 'GET'
-      this.opts.body = null
-    }
   }
 
-  onData (chunk) {
+  onResponseData (controller, chunk) {
     if (this.location) {
       /*
         https://tools.ietf.org/html/rfc7231#section-6.4
 
         TLDR: undici always ignores 3xx response bodies.
 
-        Redirection is used to serve the requested resource from another URL, so it is assumes that
+        Redirection is used to serve the requested resource from another URL, so it assumes that
         no body is generated (and thus can be ignored). Even though generating a body is not prohibited.
 
         For status 301, 302, 303, 307 and 308 (the latter from RFC 7238), the specs mention that the body usually
@@ -150,11 +162,11 @@ class RedirectHandler {
         servers and browsers implementors, we ignore the body as there is no specified way to eventually parse it.
       */
     } else {
-      return this.handler.onData(chunk)
+      this.handler.onResponseData?.(controller, chunk)
     }
   }
 
-  onComplete (trailers) {
+  onResponseEnd (controller, trailers) {
     if (this.location) {
       /*
         https://tools.ietf.org/html/rfc7231#section-6.4
@@ -164,32 +176,14 @@ class RedirectHandler {
 
         See comment on onData method above for more detailed information.
       */
-
-      this.location = null
-      this.abort = null
-
       this.dispatch(this.opts, this)
     } else {
-      this.handler.onComplete(trailers)
+      this.handler.onResponseEnd(controller, trailers)
     }
   }
 
-  onBodySent (chunk) {
-    if (this.handler.onBodySent) {
-      this.handler.onBodySent(chunk)
-    }
-  }
-}
-
-function parseLocation (statusCode, headers) {
-  if (redirectableStatusCodes.indexOf(statusCode) === -1) {
-    return null
-  }
-
-  for (let i = 0; i < headers.length; i += 2) {
-    if (headers[i].length === 8 && util.headerNameToString(headers[i]) === 'location') {
-      return headers[i + 1]
-    }
+  onResponseError (controller, error) {
+    this.handler.onResponseError?.(controller, error)
   }
 }
 
@@ -218,9 +212,10 @@ function cleanRequestHeaders (headers, removeContent, unknownOrigin) {
       }
     }
   } else if (headers && typeof headers === 'object') {
-    for (const key of Object.keys(headers)) {
+    const entries = typeof headers[Symbol.iterator] === 'function' ? headers : Object.entries(headers)
+    for (const [key, value] of entries) {
       if (!shouldRemoveHeader(key, removeContent, unknownOrigin)) {
-        ret.push(key, headers[key])
+        ret.push(key, value)
       }
     }
   } else {

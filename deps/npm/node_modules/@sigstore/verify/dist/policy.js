@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyExtensions = exports.verifySubjectAlternativeName = void 0;
+exports.verifySubjectAlternativeName = verifySubjectAlternativeName;
+exports.verifyExtensions = verifyExtensions;
 const error_1 = require("./error");
 function verifySubjectAlternativeName(policyIdentity, signerIdentity) {
     if (signerIdentity === undefined || !signerIdentity.match(policyIdentity)) {
@@ -10,7 +11,6 @@ function verifySubjectAlternativeName(policyIdentity, signerIdentity) {
         });
     }
 }
-exports.verifySubjectAlternativeName = verifySubjectAlternativeName;
 function verifyExtensions(policyExtensions, signerExtensions = {}) {
     let key;
     for (key in policyExtensions) {
@@ -22,4 +22,3 @@ function verifyExtensions(policyExtensions, signerExtensions = {}) {
         }
     }
 }
-exports.verifyExtensions = verifyExtensions;

@@ -282,10 +282,18 @@ You can integrate the PRs into the proposal without running full CI.
 
 ### 2. Create a new branch for the release
 
-⚠️ At this point, you can either run `git node release --prepare`:
+> \[!TIP] Once the staging branch is up-to-date you can use the
+> [`create-release-proposal`][] action to generate the proposal.
 
-```console
-$ git node release --prepare x.y.z
+```bash
+gh workflow run "Create Release Proposal" -f release-line=N -f release-date=YYYY-MM-DD
+```
+
+If you prefer to run it locally you can either run
+`git node release --prepare`:
+
+```bash
+git node release -S --prepare x.y.z
 ```
 
 to automate the remaining steps until step 6 or you can perform it manually
@@ -300,6 +308,22 @@ branch.
 git checkout -b v1.2.3-proposal upstream/v1.x-staging
 ```
 
+You can also run:
+
+```bash
+git node release -S --prepare --security --filterLabel vX.x
+```
+
+Example:
+
+```bash
+git checkout v20.x
+git node release -S --prepare --security --filterLabel v20.x
+```
+
+to automate the remaining steps until step 6 or you can perform it manually
+following the below steps.
+
 <details>
 <summary>Security release</summary>
 
@@ -310,6 +334,9 @@ branched off of `vN.x`.
 $ git checkout -b v1.2.3-proposal upstream/v1.x
 git cherry-pick  ...  # cherry-pick nodejs-private PR commits directly into the proposal
 ```
+
+Be sure to label the CVE fixes as `notable-change` in the nodejs-private repository.
+This will ensure they are included in the "Notable Changes" section of the CHANGELOG.
 
 </details>
 
@@ -704,12 +731,23 @@ the build before moving forward. Use the following list as a baseline:
 
 ### 11. Tag and sign the release commit
 
-Once you have produced builds that you're happy with, create a new tag. By
-waiting until this stage to create tags, you can discard a proposed release if
-something goes wrong or additional commits are required. Once you have created a
-tag and pushed it to GitHub, you _**must not**_ delete and re-tag. If you make
-a mistake after tagging then you'll have to version-bump and start again and
-count that tag/version as lost.
+Once you have produced builds that you're happy with you can either run
+`git node release --promote`
+
+```bash
+git node release -S --promote https://github.com/nodejs/node/pull/XXXX
+```
+
+to automate the remaining steps until step 16 or you can perform it manually
+following the below steps.
+
+***
+
+Create a new tag: By waiting until this stage to create tags, you can discard
+a proposed release if something goes wrong or additional commits are required.
+Once you have created a tag and pushed it to GitHub, you _**must not**_ delete
+and re-tag. If you make a mistake after tagging then you'll have to version-bump
+and start again and count that tag/version as lost.
 
 Tag summaries have a predictable format. Look at a recent tag to see:
 
@@ -944,6 +982,13 @@ a `NODEJS_RELEASE_HOST` environment variable:
 NODEJS_RELEASE_HOST=proxy.xyz ./tools/release.sh
 ```
 
+In case `gpg` is unable to autoselect a key, you can retry using the
+`-a` option to enable an interactive interface:
+
+```bash
+./tools/release.sh -a
+```
+
 > \[!TIP]
 > Sometimes, due to machines being overloaded or other external factors,
 > the files at <https://nodejs.org/dist/index.json>, <https://nodejs.org/dist/index.tab>
@@ -1061,19 +1106,33 @@ This script will use the promoted builds and changelog to generate the post. Run
 ### 19. Announce
 
 The nodejs.org website will automatically rebuild and include the new version.
-To announce the build on Twitter through the official @nodejs account, email
-<pr@nodejs.org> with a message such as:
+To announce the build on social media, please ping the @nodejs-social-team
+on offical slack channel.
+
+Node.js is also available on Bluesky and a release announcement can be
+reposted using [nodejs/bluesky](https://github.com/nodejs/bluesky) repository.
+
+The post content can be as simple as:
 
 > v5.8.0 of @nodejs is out: <https://nodejs.org/en/blog/release/v5.8.0/>
 > …
 > something here about notable changes
 
-To ensure communication goes out with the timing of the blog post, please allow
-24 hour prior notice. If known, please include the date and time the release
-will be shared with the community in the email to coordinate these
-announcements.
+You can create the PR for the release post on nodejs/bluesky with the following:
 
-Ping the IRC ops and the other [Partner Communities][] liaisons.
+```bash
+# Create a PR for a post:
+gh workflow run create-pr.yml --repo "https://github.com/nodejs/bluesky" \
+  -F prTitle='vx.x.x release announcement' \
+  -F richText='Node.js vx.x.x is out. Check the blog post at https://nodejs.org/…. TL;DR is
+
+- New feature
+- …'
+
+# Create a PR for a retweet:
+gh workflow run create-pr.yml --repo "https://github.com/nodejs/bluesky" \
+  -F prTitle='Retweet vx.x.x release announcement' -F postURL=…
+```
 
 <details>
 <summary>Security release</summary>
@@ -1369,12 +1428,48 @@ Infrastructure team is able to perform the switch of the default. An issue
 should be opened on the [Node.js Snap management repository][] requesting this
 take place once a new LTS line has been released.
 
+## FAQ
+
+Due to how `tools/release.sh` work, it isn't uncommon to face some errors
+during the promotion process as it depends on network communication and machine
+availability. This section aims to guide the releaser through potential
+failures.
+
+### Error on dist-indexer while promoting
+
+```bash
+node:events:491
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read ECONNRESET
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:217:20)
+Emitted 'error' event on DestroyableTransform instance at:
+    at ClientRequest.<anonymous> (/usr/lib/node_modules/nodejs-dist-indexer/node_modules/hyperquest/index.js:14:19)
+    at ClientRequest.emit (node:events:513:28)
+    at TLSSocket.socketErrorListener (node:_http_client:494:9)
+    at TLSSocket.emit (node:events:513:28)
+    at emitErrorNT (node:internal/streams/destroy:157:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:122:3)
+    at processTicksAndRejections (node:internal/process/task_queues:83:21) {
+  errno: -104,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+```
+
+Typical resolution: sign the release again.
+
+```bash
+./tools/release.sh -s vX.Y.Z
+```
+
 [Build issue tracker]: https://github.com/nodejs/build/issues/new
 [CI lockdown procedure]: https://github.com/nodejs/build/blob/HEAD/doc/jenkins-guide.md#restricting-access-for-security-releases
 [Node.js Snap management repository]: https://github.com/nodejs/snap
-[Partner Communities]: https://github.com/nodejs/community-committee/blob/HEAD/governance/PARTNER_COMMUNITIES.md
 [Snap]: https://snapcraft.io/node
+[`create-release-proposal`]: https://github.com/nodejs/node/actions/workflows/create-release-proposal.yml
 [build-infra team]: https://github.com/orgs/nodejs/teams/build-infra
 [expected assets]: https://github.com/nodejs/build/tree/HEAD/ansible/www-standalone/tools/promote/expected_assets
-[nodejs.org release-post.js script]: https://github.com/nodejs/nodejs.org/blob/HEAD/scripts/release-post/index.mjs
+[nodejs.org release-post.js script]: https://github.com/nodejs/nodejs.org/blob/HEAD/apps/site/scripts/release-post/index.mjs
 [nodejs.org repository]: https://github.com/nodejs/nodejs.org

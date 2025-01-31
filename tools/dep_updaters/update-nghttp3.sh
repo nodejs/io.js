@@ -42,16 +42,17 @@ cleanup () {
 trap cleanup INT TERM EXIT
 
 NGHTTP3_REF="v$NEW_VERSION"
-NGHTTP3_ZIP="nghttp3-$NEW_VERSION"
+ARCHIVE_BASENAME="nghttp3-${NEW_VERSION}"
 
 cd "$WORKSPACE"
 
 echo "Fetching nghttp3 source archive..."
-curl -sL -o "$NGHTTP3_ZIP.zip" "https://github.com/ngtcp2/nghttp3/archive/refs/tags/$NGHTTP3_REF.zip"
-log_and_verify_sha256sum "nghttp3" "$NGHTTP3_ZIP.zip"
-unzip "$NGHTTP3_ZIP.zip"
-rm "$NGHTTP3_ZIP.zip"
-mv "$NGHTTP3_ZIP" nghttp3
+curl -sL -o "$ARCHIVE_BASENAME.tar.xz" "https://github.com/ngtcp2/nghttp3/releases/download/${NGHTTP3_REF}/${ARCHIVE_BASENAME}.tar.xz"
+SHA256="$(curl -sL "https://github.com/ngtcp2/nghttp3/releases/download/${NGHTTP3_REF}/checksums.txt" | grep 'tar.xz$')"
+log_and_verify_sha256sum "nghttp3" "$ARCHIVE_BASENAME.tar.xz" "$SHA256"
+tar -xJf "$ARCHIVE_BASENAME.tar.xz"
+rm "$ARCHIVE_BASENAME.tar.xz"
+mv "$ARCHIVE_BASENAME" nghttp3
 
 cd nghttp3
 

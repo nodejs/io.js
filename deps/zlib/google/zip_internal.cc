@@ -165,8 +165,7 @@ struct ZipBuffer {
 // writing compressed data and it returns NULL for this case.)
 void* OpenZipBuffer(void* opaque, const void* /*filename*/, int mode) {
   if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER) != ZLIB_FILEFUNC_MODE_READ) {
-    NOTREACHED_IN_MIGRATION();
-    return NULL;
+    NOTREACHED();
   }
   ZipBuffer* buffer = static_cast<ZipBuffer*>(opaque);
   if (!buffer || !buffer->data || !buffer->length)
@@ -196,8 +195,7 @@ uLong WriteZipBuffer(void* /*opaque*/,
                      void* /*stream*/,
                      const void* /*buf*/,
                      uLong /*size*/) {
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 // Returns the offset from the beginning of the data.
@@ -228,8 +226,7 @@ long SeekZipBuffer(void* opaque,
     buffer->offset = std::min(buffer->length, offset);
     return 0;
   }
-  NOTREACHED_IN_MIGRATION();
-  return -1;
+  NOTREACHED();
 }
 
 // Closes the input offset and deletes all resources used for compressing or

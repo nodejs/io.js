@@ -23,7 +23,7 @@ const { Worker } = require('worker_threads');
   });
   w.on('message', common.mustCall(() => {
     assert.strictEqual(local.toString(), 'Hello world!');
-    global.gc();
+    globalThis.gc();
     w.terminate();
   }));
   w.postMessage({});

@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -58,6 +58,10 @@ typedef struct ngtcp2_pmtud {
   /* min_fail_udp_payload_size is the minimum UDP payload size that is
      known to fail. */
   size_t min_fail_udp_payload_size;
+  /* probes is the array of UDP datagram payload size to probe. */
+  const uint16_t *probes;
+  /* probeslen is the number of probes pointed by probes. */
+  size_t probeslen;
 } ngtcp2_pmtud;
 
 /*
@@ -70,6 +74,10 @@ typedef struct ngtcp2_pmtud {
  * larger than or equal to all UDP payload probe candidates.
  * Therefore, call ngtcp2_pmtud_finished to check this situation.
  *
+ * The array pointed by |pmtud_probes| of length |pmtud_probeslen|
+ * specifies UDP datagram payload size to probe.  If |pmtud_probeslen|
+ * is zero, the default probes are used.
+ *
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
  *
@@ -78,6 +86,7 @@ typedef struct ngtcp2_pmtud {
  */
 int ngtcp2_pmtud_new(ngtcp2_pmtud **ppmtud, size_t max_udp_payload_size,
                      size_t hard_max_udp_payload_size, int64_t tx_pkt_num,
+                     const uint16_t *pmtud_probes, size_t pmtud_probeslen,
                      const ngtcp2_mem *mem);
 
 /*
@@ -120,4 +129,4 @@ void ngtcp2_pmtud_handle_expiry(ngtcp2_pmtud *pmtud, ngtcp2_tstamp ts);
  */
 int ngtcp2_pmtud_finished(ngtcp2_pmtud *pmtud);
 
-#endif /* NGTCP2_PMTUD_H */
+#endif /* !defined(NGTCP2_PMTUD_H) */

@@ -38,21 +38,25 @@ server.listen(0, common.mustCall(() => {
     response += chunk;
   }));
 
-  const errOrEnd = common.mustSucceed(function(err) {
+  client.on('error', () => {
+    // Ignore errors like 'write EPIPE' that might occur while the request is
+    // sent.
+  });
+
+  client.on('close', common.mustCall(() => {
     assert.strictEqual(
       response,
       'HTTP/1.1 408 Request Timeout\r\nConnection: close\r\n\r\n'
     );
     server.close();
-  });
-
-  client.on('end', errOrEnd);
-  client.on('error', errOrEnd);
+  }));
 
   client.resume();
-  client.write('GET / HTTP/1.1\r\n');
-  client.write('Connection: close\r\n');
-  client.write('X-CRASH: ');
+  client.write(
+    'GET / HTTP/1.1\r\n' +
+    'Connection: close\r\n' +
+    'X-CRASH: '
+  );
 
   sendDelayedRequestHeaders = common.mustCall(() => {
     setTimeout(() => {

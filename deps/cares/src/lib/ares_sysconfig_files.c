@@ -549,9 +549,9 @@ ares_status_t ares_init_by_environment(ares_sysconfig_t *sysconfig)
 /* This function will only return ARES_SUCCESS or ARES_ENOMEM.  Any other
  * conditions are ignored.  Users may mess up config files, but we want to
  * process anything we can. */
-static ares_status_t parse_resolvconf_line(const ares_channel_t *channel,
-                                           ares_sysconfig_t     *sysconfig,
-                                           ares_buf_t           *line)
+ares_status_t ares_sysconfig_parse_resolv_line(const ares_channel_t *channel,
+                                               ares_sysconfig_t     *sysconfig,
+                                               ares_buf_t           *line)
 {
   char          option[32];
   char          value[512];
@@ -726,38 +726,16 @@ done:
   return status;
 }
 
-typedef ares_status_t (*line_callback_t)(const ares_channel_t *channel,
-                                         ares_sysconfig_t     *sysconfig,
-                                         ares_buf_t           *line);
 
-/* Should only return:
- *  ARES_ENOTFOUND - file not found
- *  ARES_EFILE     - error reading file (perms)
- *  ARES_ENOMEM    - out of memory
- *  ARES_SUCCESS   - file processed, doesn't necessarily mean it was a good
- *                   file, but we're not erroring out if we can't parse
- *                   something (or anything at all) */
-static ares_status_t process_config_lines(const ares_channel_t *channel,
-                                          const char           *filename,
-                                          ares_sysconfig_t     *sysconfig,
-                                          line_callback_t       cb)
+ares_status_t ares_sysconfig_process_buf(const ares_channel_t    *channel,
+                                         ares_sysconfig_t        *sysconfig,
+                                         ares_buf_t              *buf,
+                                         ares_sysconfig_line_cb_t cb)
 {
-  ares_status_t status = ARES_SUCCESS;
   ares_array_t *lines  = NULL;
-  ares_buf_t   *buf    = NULL;
   size_t        num;
   size_t        i;
-
-  buf = ares_buf_create();
-  if (buf == NULL) {
-    status = ARES_ENOMEM;
-    goto done;
-  }
-
-  status = ares_buf_load_file(filename, buf);
-  if (status != ARES_SUCCESS) {
-    goto done;
-  }
+  ares_status_t status;
 
   status = ares_buf_split(buf, (const unsigned char *)"\n", 1,
                           ARES_BUF_SPLIT_TRIM, 0, &lines);
@@ -777,25 +755,60 @@ static ares_status_t process_config_lines(const ares_channel_t *channel,
   }
 
 done:
-  ares_buf_destroy(buf);
   ares_array_destroy(lines);
+  return status;
+}
+
+/* Should only return:
+ *  ARES_ENOTFOUND - file not found
+ *  ARES_EFILE     - error reading file (perms)
+ *  ARES_ENOMEM    - out of memory
+ *  ARES_SUCCESS   - file processed, doesn't necessarily mean it was a good
+ *                   file, but we're not erroring out if we can't parse
+ *                   something (or anything at all) */
+static ares_status_t process_config_lines(const ares_channel_t    *channel,
+                                          const char              *filename,
+                                          ares_sysconfig_t        *sysconfig,
+                                          ares_sysconfig_line_cb_t cb)
+{
+  ares_status_t status = ARES_SUCCESS;
+  ares_buf_t   *buf    = NULL;
+
+  buf = ares_buf_create();
+  if (buf == NULL) {
+    status = ARES_ENOMEM;
+    goto done;
+  }
+
+  status = ares_buf_load_file(filename, buf);
+  if (status != ARES_SUCCESS) {
+    goto done;
+  }
+
+  status = ares_sysconfig_process_buf(channel, sysconfig, buf, cb);
+
+done:
+  ares_buf_destroy(buf);
 
   return status;
 }
 
 ares_status_t ares_init_sysconfig_files(const ares_channel_t *channel,
-                                        ares_sysconfig_t     *sysconfig)
+                                        ares_sysconfig_t     *sysconfig,
+                                        ares_bool_t process_resolvconf)
 {
   ares_status_t status = ARES_SUCCESS;
 
   /* Resolv.conf */
-  status = process_config_lines(channel,
-                                (channel->resolvconf_path != NULL)
-                                  ? channel->resolvconf_path
-                                  : PATH_RESOLV_CONF,
-                                sysconfig, parse_resolvconf_line);
-  if (status != ARES_SUCCESS && status != ARES_ENOTFOUND) {
-    goto done;
+  if (process_resolvconf) {
+    status = process_config_lines(channel,
+                                  (channel->resolvconf_path != NULL)
+                                    ? channel->resolvconf_path
+                                    : PATH_RESOLV_CONF,
+                                  sysconfig, ares_sysconfig_parse_resolv_line);
+    if (status != ARES_SUCCESS && status != ARES_ENOTFOUND) {
+      goto done;
+    }
   }
 
   /* Nsswitch.conf */

@@ -1660,7 +1660,7 @@ static void CreatePerIsolateProperties(IsolateData* isolate_data,
     Local<FunctionTemplate> t = FunctionTemplate::New(isolate);
     t->InstanceTemplate()->SetInternalFieldCount(
         JSTransferable::kInternalFieldCount);
-    t->SetClassName(OneByteString(isolate, "JSTransferable"));
+    t->SetClassName(FIXED_ONE_BYTE_STRING(isolate, "JSTransferable"));
     isolate_data->set_js_transferable_constructor_template(t);
   }
 

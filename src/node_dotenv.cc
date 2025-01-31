@@ -182,7 +182,10 @@ void Dotenv::ParseContent(const std::string_view input) {
         }
 
         store_.insert_or_assign(std::string(key), multi_line_value);
-        content.remove_prefix(content.find('\n', closing_quote + 1));
+        auto newline = content.find('\n', closing_quote + 1);
+        if (newline != std::string_view::npos) {
+          content.remove_prefix(newline);
+        }
         continue;
       }
     }
@@ -210,7 +213,10 @@ void Dotenv::ParseContent(const std::string_view input) {
         store_.insert_or_assign(std::string(key), value);
         // Select the first newline after the closing quotation mark
         // since there could be newline characters inside the value.
-        content.remove_prefix(content.find('\n', closing_quote + 1));
+        auto newline = content.find('\n', closing_quote + 1);
+        if (newline != std::string_view::npos) {
+          content.remove_prefix(newline);
+        }
       }
     } else {
       // Regular key value pair.

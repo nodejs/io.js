@@ -1,8 +1,7 @@
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
 const npa = require('npm-package-arg')
 const pacote = require('pacote')
-const pMap = require('p-map')
 const tufClient = require('@sigstore/tuf')
 const { log, output } = require('proc-log')
 
@@ -26,6 +25,7 @@ class VerifySignatures {
 
   async run () {
     const start = process.hrtime.bigint()
+    const { default: pMap } = await import('p-map')
 
     // Find all deps in tree
     const { edges, registries } = this.getEdgesOut(this.tree.inventory.values(), this.filterSet)
@@ -202,7 +202,7 @@ class VerifySignatures {
 
     // If keys not found in Sigstore TUF repo, fallback to registry keys API
     if (!keys) {
-      keys = await fetch.json('/-/npm/v1/keys', {
+      keys = await npmFetch.json('/-/npm/v1/keys', {
         ...this.npm.flatOptions,
         registry,
       }).then(({ keys: ks }) => ks.map((key) => ({
@@ -253,7 +253,7 @@ class VerifySignatures {
   }
 
   getSpecRegistry (spec) {
-    return fetch.pickRegistry(spec, this.npm.flatOptions)
+    return npmFetch.pickRegistry(spec, this.npm.flatOptions)
   }
 
   getValidPackageInfo (edge) {

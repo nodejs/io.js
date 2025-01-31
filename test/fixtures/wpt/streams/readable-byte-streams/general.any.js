@@ -870,11 +870,11 @@ promise_test(() => {
     start(c) {
       controller = c;
     },
-    async pull() {
+    pull() {
       byobRequestDefined.push(controller.byobRequest !== null);
       const initialByobRequest = controller.byobRequest;
 
-      const transferredView = await transferArrayBufferView(controller.byobRequest.view);
+      const transferredView = transferArrayBufferView(controller.byobRequest.view);
       transferredView[0] = 0x01;
       controller.byobRequest.respondWithNewView(transferredView);
 
@@ -2288,7 +2288,7 @@ promise_test(async t => {
   await pullCalledPromise;
 
   // Transfer the original BYOB request's buffer, and respond with a new view on that buffer
-  const transferredView = await transferArrayBufferView(controller.byobRequest.view);
+  const transferredView = transferArrayBufferView(controller.byobRequest.view);
   const newView = transferredView.subarray(0, 1);
   newView[0] = 42;
 
@@ -2328,7 +2328,7 @@ promise_test(async t => {
   await pullCalledPromise;
 
   // Transfer the original BYOB request's buffer, and respond with an empty view on that buffer
-  const transferredView = await transferArrayBufferView(controller.byobRequest.view);
+  const transferredView = transferArrayBufferView(controller.byobRequest.view);
   const newView = transferredView.subarray(0, 0);
 
   controller.close();

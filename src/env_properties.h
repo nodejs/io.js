@@ -90,6 +90,7 @@
   V(cached_data_string, "cachedData")                                          \
   V(cache_key_string, "cacheKey")                                              \
   V(change_string, "change")                                                   \
+  V(changes_string, "changes")                                                 \
   V(channel_string, "channel")                                                 \
   V(chunks_sent_since_last_write_string, "chunksSentSinceLastWrite")           \
   V(clone_unsupported_type_str, "Cannot clone object of unsupported type.")    \
@@ -98,6 +99,7 @@
     "transferList")                                                            \
   V(clone_untransferable_str, "Found invalid value in transferList.")          \
   V(code_string, "code")                                                       \
+  V(column_number_string, "columnNumber")                                      \
   V(column_string, "column")                                                   \
   V(commonjs_string, "commonjs")                                               \
   V(config_string, "config")                                                   \
@@ -143,10 +145,13 @@
   V(entry_type_string, "entryType")                                            \
   V(env_pairs_string, "envPairs")                                              \
   V(env_var_settings_string, "envVarSettings")                                 \
+  V(err_sqlite_error_string, "ERR_SQLITE_ERROR")                               \
+  V(errcode_string, "errcode")                                                 \
   V(errno_string, "errno")                                                     \
   V(error_string, "error")                                                     \
-  V(events, "events")                                                          \
+  V(errstr_string, "errstr")                                                   \
   V(events_waiting, "eventsWaiting")                                           \
+  V(events, "events")                                                          \
   V(exchange_string, "exchange")                                               \
   V(expire_string, "expire")                                                   \
   V(exponent_string, "exponent")                                               \
@@ -159,6 +164,7 @@
   V(fields_string, "fields")                                                   \
   V(file_string, "file")                                                       \
   V(filename_string, "filename")                                               \
+  V(filter_string, "filter")                                                   \
   V(fingerprint256_string, "fingerprint256")                                   \
   V(fingerprint512_string, "fingerprint512")                                   \
   V(fingerprint_string, "fingerprint")                                         \
@@ -192,8 +198,10 @@
   V(ipv4_string, "IPv4")                                                       \
   V(ipv6_string, "IPv6")                                                       \
   V(isclosing_string, "isClosing")                                             \
+  V(isfinished_string, "isFinished")                                           \
   V(issuer_string, "issuer")                                                   \
   V(issuercert_string, "issuerCertificate")                                    \
+  V(iterator_string, "Iterator")                                               \
   V(jwk_crv_string, "crv")                                                     \
   V(jwk_d_string, "d")                                                         \
   V(jwk_dp_string, "dp")                                                       \
@@ -215,6 +223,7 @@
   V(jwk_y_string, "y")                                                         \
   V(kill_signal_string, "killSignal")                                          \
   V(kind_string, "kind")                                                       \
+  V(last_insert_rowid_string, "lastInsertRowid")                               \
   V(length_string, "length")                                                   \
   V(library_string, "library")                                                 \
   V(line_number_string, "lineNumber")                                          \
@@ -238,12 +247,14 @@
   V(nistcurve_string, "nistCurve")                                             \
   V(node_string, "node")                                                       \
   V(nsname_string, "nsname")                                                   \
+  V(num_cols_string, "num_cols")                                               \
   V(object_string, "Object")                                                   \
   V(ocsp_request_string, "OCSPRequest")                                        \
   V(oncertcb_string, "oncertcb")                                               \
   V(onchange_string, "onchange")                                               \
   V(onclienthello_string, "onclienthello")                                     \
   V(oncomplete_string, "oncomplete")                                           \
+  V(onconflict_string, "onConflict")                                           \
   V(onconnection_string, "onconnection")                                       \
   V(ondone_string, "ondone")                                                   \
   V(onerror_string, "onerror")                                                 \
@@ -284,6 +295,7 @@
   V(priority_string, "priority")                                               \
   V(process_string, "process")                                                 \
   V(promise_string, "promise")                                                 \
+  V(prototype_string, "prototype")                                             \
   V(psk_string, "psk")                                                         \
   V(pubkey_string, "pubkey")                                                   \
   V(public_exponent_string, "publicExponent")                                  \
@@ -305,9 +317,11 @@
   V(require_string, "require")                                                 \
   V(resource_string, "resource")                                               \
   V(retry_string, "retry")                                                     \
+  V(return_string, "return")                                                   \
   V(salt_length_string, "saltLength")                                          \
   V(scheme_string, "scheme")                                                   \
   V(scopeid_string, "scopeid")                                                 \
+  V(script_id_string, "scriptId")                                              \
   V(script_name_string, "scriptName")                                          \
   V(serial_number_string, "serialNumber")                                      \
   V(serial_string, "serial")                                                   \
@@ -328,6 +342,7 @@
   V(standard_name_string, "standardName")                                      \
   V(start_time_string, "startTime")                                            \
   V(state_string, "state")                                                     \
+  V(statement_string, "statement")                                             \
   V(stats_string, "stats")                                                     \
   V(status_string, "status")                                                   \
   V(stdio_string, "stdio")                                                     \
@@ -411,6 +426,7 @@
   V(shutdown_wrap_template, v8::ObjectTemplate)                                \
   V(socketaddress_constructor_template, v8::FunctionTemplate)                  \
   V(sqlite_statement_sync_constructor_template, v8::FunctionTemplate)          \
+  V(sqlite_session_constructor_template, v8::FunctionTemplate)                 \
   V(streambaseentry_ctor_template, v8::FunctionTemplate)                       \
   V(streambaseoutputstream_constructor_template, v8::ObjectTemplate)           \
   V(streamentry_ctor_template, v8::FunctionTemplate)                           \

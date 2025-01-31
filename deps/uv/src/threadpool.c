@@ -59,6 +59,7 @@ static void worker(void* arg) {
   struct uv__queue* q;
   int is_slow_work;
 
+  uv_thread_setname("libuv-worker");
   uv_sem_post((uv_sem_t*) arg);
   arg = NULL;
 

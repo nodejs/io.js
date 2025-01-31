@@ -1,8 +1,6 @@
 'use strict';
 
-// This checks the warning and the stack trace emitted by the require(esm)
-// experimental warning. It can get removed when `require(esm)` becomes stable.
-
+// This checks the warning and the stack trace emitted by --trace-require-module=all.
 require('../common');
 const { spawnSyncAndAssert } = require('../common/child_process');
 const fixtures = require('../common/fixtures');
@@ -10,6 +8,7 @@ const assert = require('assert');
 
 spawnSyncAndAssert(process.execPath, [
   '--trace-warnings',
+  '--trace-require-module=all',
   fixtures.path('es-modules', 'require-module.js'),
 ], {
   trim: true,
@@ -32,4 +31,13 @@ spawnSyncAndAssert(process.execPath, [
       /at Object\.<anonymous> \(.*require-module\.js:1:1\)/
     );
   }
+});
+
+spawnSyncAndAssert(process.execPath, [
+  '--trace-require-module=1',
+  fixtures.path('es-modules', 'require-module.js'),
+], {
+  status: 9,
+  trim: true,
+  stderr: /invalid value for --trace-require-module/
 });

@@ -144,7 +144,7 @@ class Updater {
         const rootVersion = this.trustedSet.root.signed.version;
         const lowerBound = rootVersion + 1;
         const upperBound = lowerBound + this.config.maxRootRotations;
-        for (let version = lowerBound; version <= upperBound; version++) {
+        for (let version = lowerBound; version < upperBound; version++) {
             const rootUrl = url.join(this.metadataBaseUrl, `${version}.root.json`);
             try {
                 // Client workflow 5.3.3: download new root metadata file
@@ -155,7 +155,13 @@ class Updater {
                 this.persistMetadata(models_1.MetadataKind.Root, bytesData);
             }
             catch (error) {
-                break;
+                if (error instanceof error_1.DownloadHTTPError) {
+                    //  404/403 means current root is newest available
+                    if ([403, 404].includes(error.statusCode)) {
+                        break;
+                    }
+                }
+                throw error;
             }
         }
     }
@@ -247,7 +253,8 @@ class Updater {
             const version = this.trustedSet.root.signed.consistentSnapshot
                 ? metaInfo.version
                 : undefined;
-            const metadataUrl = url.join(this.metadataBaseUrl, version ? `${version}.${role}.json` : `${role}.json`);
+            const encodedRole = encodeURIComponent(role);
+            const metadataUrl = url.join(this.metadataBaseUrl, version ? `${version}.${encodedRole}.json` : `${encodedRole}.json`);
             try {
                 // Client workflow 5.6.1: download targets metadata file
                 const bytesData = await this.fetcher.downloadBytes(metadataUrl, maxLength);
@@ -280,7 +287,6 @@ class Updater {
         while (visitedRoleNames.size <= this.config.maxDelegations &&
             delegationsToVisit.length > 0) {
             //  Pop the role name from the top of the stack.
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
             const { roleName, parentRoleName } = delegationsToVisit.pop();
             // Skip any visited current role to prevent cycles.
             // Client workflow 5.6.7.1: skip already-visited roles
@@ -330,13 +336,14 @@ class Updater {
         return path.join(this.targetDir, filePath);
     }
     persistMetadata(metaDataName, bytesData) {
+        const encodedName = encodeURIComponent(metaDataName);
         try {
-            const filePath = path.join(this.dir, `${metaDataName}.json`);
+            const filePath = path.join(this.dir, `${encodedName}.json`);
             log('WRITE %s', filePath);
             fs.writeFileSync(filePath, bytesData.toString('utf8'));
         }
         catch (error) {
-            throw new error_1.PersistError(`Failed to persist metadata ${metaDataName} error: ${error}`);
+            throw new error_1.PersistError(`Failed to persist metadata ${encodedName} error: ${error}`);
         }
     }
 }

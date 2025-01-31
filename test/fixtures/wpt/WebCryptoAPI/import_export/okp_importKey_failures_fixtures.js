@@ -17,6 +17,14 @@ function getMismatchedJWKKeyData(algorithm) {
     return mismatchedJWKKeyData[algorithm.name];
 }
 
+function getMismatchedKtyField(algorithm) {
+    return mismatchedKtyField[algorithm.name];
+}
+
+function getMismatchedCrvField(algorithm) {
+    return mismatchedCrvField[algorithm.name];
+}
+
 var validKeyData = {
     "Ed25519": [
         {
@@ -411,4 +419,20 @@ var mismatchedJWKKeyData =  {
             x: "mwj3zDG34+Z9ItWuoSEHSic70rg94Jxj+qc9LCLF2bvINmRyQdlT1AxbEtqIEg1TF3+A5TLEH6A",
         },
     ],
+}
+
+// The 'kty' field doesn't match the key algorithm.
+var mismatchedKtyField =  {
+    "Ed25519": "EC",
+    "X25519": "EC",
+    "Ed448": "EC",
+    "X448": "EC",
+}
+
+// The 'kty' field doesn't match the key algorithm.
+var mismatchedCrvField =  {
+    "Ed25519": "X25519",
+    "X25519": "Ed448",
+    "Ed448": "X25519",
+    "X448": "Ed25519",
 }

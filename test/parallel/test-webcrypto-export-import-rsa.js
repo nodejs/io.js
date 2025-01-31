@@ -315,6 +315,8 @@ async function testImportSpki({ name, publicUsages }, size, hash, extractable) {
   assert.deepStrictEqual(key.algorithm.publicExponent,
                          new Uint8Array([1, 0, 1]));
   assert.strictEqual(key.algorithm.hash.name, hash);
+  assert.strictEqual(key.algorithm, key.algorithm);
+  assert.strictEqual(key.usages, key.usages);
 
   if (extractable) {
     const spki = await subtle.exportKey('spki', key);
@@ -349,6 +351,8 @@ async function testImportPkcs8(
   assert.deepStrictEqual(key.algorithm.publicExponent,
                          new Uint8Array([1, 0, 1]));
   assert.strictEqual(key.algorithm.hash.name, hash);
+  assert.strictEqual(key.algorithm, key.algorithm);
+  assert.strictEqual(key.usages, key.usages);
 
   if (extractable) {
     const pkcs8 = await subtle.exportKey('pkcs8', key);
@@ -415,6 +419,10 @@ async function testImportJwk(
                          new Uint8Array([1, 0, 1]));
   assert.deepStrictEqual(publicKey.algorithm.publicExponent,
                          privateKey.algorithm.publicExponent);
+  assert.strictEqual(privateKey.algorithm, privateKey.algorithm);
+  assert.strictEqual(privateKey.usages, privateKey.usages);
+  assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
+  assert.strictEqual(publicKey.usages, publicKey.usages);
 
   if (extractable) {
     const [

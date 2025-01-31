@@ -1524,6 +1524,7 @@ class NODE_EXTERN AsyncResource {
  private:
   Environment* env_;
   v8::Global<v8::Object> resource_;
+  v8::Global<v8::Value> context_frame_;
   async_context async_context_;
 };
 

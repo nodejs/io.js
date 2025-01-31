@@ -14,6 +14,8 @@ const {
   privateDecrypt,
 } = require('crypto');
 
+const { hasOpenSSL3 } = require('../common/crypto');
+
 const pair = generateKeyPairSync('rsa', { modulusLength: 512 });
 
 const expected = Buffer.from('shibboleth');
@@ -34,7 +36,7 @@ function decrypt(key) {
 }
 
 decrypt(pkey);
-assert.throws(() => decrypt(pkeyEncrypted), common.hasOpenSSL3 ?
+assert.throws(() => decrypt(pkeyEncrypted), hasOpenSSL3 ?
   { message: 'error:07880109:common libcrypto routines::interrupted or ' +
              'cancelled' } :
   { code: 'ERR_MISSING_PASSPHRASE' });

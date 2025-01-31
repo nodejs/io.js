@@ -282,3 +282,8 @@ const util = require('util');
   assert(!blocklist.check('1.1.1.2'));
   assert(!blocklist.check('2.3.4.5'));
 }
+
+{
+  assert(BlockList.isBlockList(new BlockList()));
+  assert(!BlockList.isBlockList({}));
+}

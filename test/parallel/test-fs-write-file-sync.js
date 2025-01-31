@@ -21,9 +21,11 @@
 
 'use strict';
 const common = require('../common');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('Setting process.umask is not supported in Workers');
+}
 
 const assert = require('assert');
 const fs = require('fs');

@@ -23,10 +23,15 @@
 
 const common = require('../common');
 
-if (common.isWindows)
+if (common.isWindows) {
   common.skip('SIGUSR1 and SIGHUP signals are not supported');
-if (!common.isMainThread)
+}
+
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   common.skip('Signal handling in Workers is not supported');
+}
 
 console.log(`process.pid: ${process.pid}`);
 

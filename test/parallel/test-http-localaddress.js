@@ -22,8 +22,10 @@
 // Flags: --expose-internals
 'use strict';
 const common = require('../common');
-if (!common.hasMultiLocalhost())
+const { hasMultiLocalhost } = require('../common/net');
+if (!hasMultiLocalhost()) {
   common.skip('platform-specific test.');
+}
 
 const http = require('http');
 const assert = require('assert');

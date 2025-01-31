@@ -171,7 +171,7 @@ class _Integer(_Type):
         int(value, self._msbuild_base)
 
     def ConvertToMSBuild(self, value):
-        msbuild_format = (self._msbuild_base == 10) and "%d" or "0x%04x"
+        msbuild_format = ((self._msbuild_base == 10) and "%d") or "0x%04x"
         return msbuild_format % int(value)
 
 

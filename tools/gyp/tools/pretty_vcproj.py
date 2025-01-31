@@ -118,8 +118,8 @@ def FixFilenames(filenames, current_directory):
     new_list = []
     for filename in filenames:
         if filename:
-            for key in REPLACEMENTS:
-                filename = filename.replace(key, REPLACEMENTS[key])
+            for key, value in REPLACEMENTS.items():
+                filename = filename.replace(key, value)
             os.chdir(current_directory)
             filename = filename.strip("\"' ")
             if filename.startswith("$"):

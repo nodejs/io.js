@@ -53,7 +53,7 @@ setImmediate(status);
 function status() {
   if (done > 0) {
     createClients = false;
-    global.gc();
+    globalThis.gc();
     console.log(`done/collected/total: ${done}/${countGC}/${count}`);
     if (countGC === count) {
       server.close();

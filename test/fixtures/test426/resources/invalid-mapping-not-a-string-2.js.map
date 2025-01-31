@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "names": [],
+  "file": "invalid-mapping-not-a-string-2.js",
+  "sources": ["empty-original.js"],
+  "sourcesContent": [""],
+  "mappings": [1, 2, 3, 4]
+}

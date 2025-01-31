@@ -34,7 +34,7 @@ assert.notStrictEqual(test_general.testGetPrototype(baseObject),
                       test_general.testGetPrototype(extendedObject));
 
 // Test version management functions
-assert.strictEqual(test_general.testGetVersion(), 9);
+assert.strictEqual(test_general.testGetVersion(), 10);
 
 [
   123,

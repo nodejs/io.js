@@ -27,6 +27,7 @@
 
     'clang%': 0,
     'error_on_warn%': 'false',
+    'suppress_all_error_on_warn%': 'false',
 
     'openssl_product': '<(STATIC_LIB_PREFIX)openssl<(STATIC_LIB_SUFFIX)',
     'openssl_no_asm%': 0,
@@ -36,7 +37,7 @@
 
     # Reset this number to 0 on major V8 upgrades.
     # Increment by one for each non-official patch applied to deps/v8.
-    'v8_embedder_string': '-node.11',
+    'v8_embedder_string': '-node.12',
 
     ##### V8 defaults for Node.js #####
 

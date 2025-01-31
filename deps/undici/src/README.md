@@ -1,6 +1,6 @@
 # undici
 
-[![Node CI](https://github.com/nodejs/undici/actions/workflows/nodejs.yml/badge.svg)](https://github.com/nodejs/undici/actions/workflows/nodejs.yml) [![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat)](http://standardjs.com/) [![npm version](https://badge.fury.io/js/undici.svg)](https://badge.fury.io/js/undici) [![codecov](https://codecov.io/gh/nodejs/undici/branch/main/graph/badge.svg?token=yZL6LtXkOA)](https://codecov.io/gh/nodejs/undici)
+[![Node CI](https://github.com/nodejs/undici/actions/workflows/nodejs.yml/badge.svg)](https://github.com/nodejs/undici/actions/workflows/nodejs.yml) [![neostandard javascript style](https://img.shields.io/badge/neo-standard-7fffff?style=flat\&labelColor=ff80ff)](https://github.com/neostandard/neostandard) [![npm version](https://badge.fury.io/js/undici.svg)](https://badge.fury.io/js/undici) [![codecov](https://codecov.io/gh/nodejs/undici/branch/main/graph/badge.svg?token=yZL6LtXkOA)](https://codecov.io/gh/nodejs/undici)
 
 An HTTP/1.1 client, written from scratch for Node.js.
 
@@ -22,41 +22,26 @@ npm i undici
 ## Benchmarks
 
 The benchmark is a simple getting data [example](https://github.com/nodejs/undici/blob/main/benchmarks/benchmark.js) using a
-50 TCP connections with a pipelining depth of 10 running on Node 20.10.0.
+50 TCP connections with a pipelining depth of 10 running on Node 22.11.0.
 
-|       _Tests_       | _Samples_ |     _Result_     | _Tolerance_ | _Difference with slowest_ |
-| :-----------------: | :-------: | :--------------: | :---------: | :-----------------------: |
-|   undici - fetch    |    30     | 3704.43 req/sec  |  ± 2.95 %   |             -             |
-| http - no keepalive |    20     | 4275.30 req/sec  |  ± 2.60 %   |         + 15.41 %         |
-|     node-fetch      |    10     | 4759.42 req/sec  |  ± 0.87 %   |         + 28.48 %         |
-|       request       |    40     | 4803.37 req/sec  |  ± 2.77 %   |         + 29.67 %         |
-|        axios        |    45     | 4951.97 req/sec  |  ± 2.88 %   |         + 33.68 %         |
-|         got         |    10     | 5969.67 req/sec  |  ± 2.64 %   |         + 61.15 %         |
-|     superagent      |    10     | 9471.48 req/sec  |  ± 1.50 %   |        + 155.68 %         |
-|  http - keepalive   |    25     | 10327.49 req/sec |  ± 2.95 %   |        + 178.79 %         |
-|  undici - pipeline  |    10     | 15053.41 req/sec |  ± 1.63 %   |        + 306.36 %         |
-|  undici - request   |    10     | 19264.24 req/sec |  ± 1.74 %   |        + 420.03 %         |
-|   undici - stream   |    15     | 20317.29 req/sec |  ± 2.13 %   |        + 448.46 %         |
-|  undici - dispatch  |    10     | 24883.28 req/sec |  ± 1.54 %   |        + 571.72 %         |
-
-The benchmark is a simple sending data [example](https://github.com/nodejs/undici/blob/main/benchmarks/post-benchmark.js) using a
-50 TCP connections with a pipelining depth of 10 running on Node 20.10.0.
-
-|       _Tests_       | _Samples_ |    _Result_     | _Tolerance_ | _Difference with slowest_ |
-| :-----------------: | :-------: | :-------------: | :---------: | :-----------------------: |
-|   undici - fetch    |    20     | 1968.42 req/sec |  ± 2.63 %   |             -             |
-| http - no keepalive |    25     | 2330.30 req/sec |  ± 2.99 %   |         + 18.38 %         |
-|     node-fetch      |    20     | 2485.36 req/sec |  ± 2.70 %   |         + 26.26 %         |
-|         got         |    15     | 2787.68 req/sec |  ± 2.56 %   |         + 41.62 %         |
-|       request       |    30     | 2805.10 req/sec |  ± 2.59 %   |         + 42.50 %         |
-|        axios        |    10     | 3040.45 req/sec |  ± 1.72 %   |         + 54.46 %         |
-|     superagent      |    20     | 3358.29 req/sec |  ± 2.51 %   |         + 70.61 %         |
-|  http - keepalive   |    20     | 3477.94 req/sec |  ± 2.51 %   |         + 76.69 %         |
-|  undici - pipeline  |    25     | 3812.61 req/sec |  ± 2.80 %   |         + 93.69 %         |
-|  undici - request   |    10     | 6067.00 req/sec |  ± 0.94 %   |        + 208.22 %         |
-|   undici - stream   |    10     | 6391.61 req/sec |  ± 1.98 %   |        + 224.71 %         |
-|  undici - dispatch  |    10     | 6397.00 req/sec |  ± 1.48 %   |        + 224.98 %         |
-
+```
+┌────────────────────────┬─────────┬────────────────────┬────────────┬─────────────────────────┐
+│  Tests                 │ Samples │ Result             │ Tolerance  │ Difference with slowest │
+├────────────────────────┼─────────┼────────────────────┼────────────┼─────────────────────────┤
+│  'axios'               │ 15      │ '5708.26 req/sec'  │ '± 2.91 %' │ '-'                     │
+│  'http - no keepalive' │ 10      │ '5809.80 req/sec'  │ '± 2.30 %' │ '+ 1.78 %'              │
+│  'request'             │ 30      │ '5828.80 req/sec'  │ '± 2.91 %' │ '+ 2.11 %'              │
+│  'undici - fetch'      │ 40      │ '5903.78 req/sec'  │ '± 2.87 %' │ '+ 3.43 %'              │
+│  'node-fetch'          │ 10      │ '5945.40 req/sec'  │ '± 2.13 %' │ '+ 4.15 %'              │
+│  'got'                 │ 35      │ '6511.45 req/sec'  │ '± 2.84 %' │ '+ 14.07 %'             │
+│  'http - keepalive'    │ 65      │ '9193.24 req/sec'  │ '± 2.92 %' │ '+ 61.05 %'             │
+│  'superagent'          │ 35      │ '9339.43 req/sec'  │ '± 2.95 %' │ '+ 63.61 %'             │
+│  'undici - pipeline'   │ 50      │ '13364.62 req/sec' │ '± 2.93 %' │ '+ 134.13 %'            │
+│  'undici - stream'     │ 95      │ '18245.36 req/sec' │ '± 2.99 %' │ '+ 219.63 %'            │
+│  'undici - request'    │ 50      │ '18340.17 req/sec' │ '± 2.84 %' │ '+ 221.29 %'            │
+│  'undici - dispatch'   │ 40      │ '22234.42 req/sec' │ '± 2.94 %' │ '+ 289.51 %'            │
+└────────────────────────┴─────────┴────────────────────┴────────────┴─────────────────────────┘
+```
 
 ## Quick Start
 
@@ -127,13 +112,12 @@ Arguments:
 * **options** [`RequestOptions`](./docs/docs/api/Dispatcher.md#parameter-requestoptions)
   * **dispatcher** `Dispatcher` - Default: [getGlobalDispatcher](#undicigetglobaldispatcher)
   * **method** `String` - Default: `PUT` if `options.body`, otherwise `GET`
-  * **maxRedirections** `Integer` - Default: `0`
 
 Returns a promise with the result of the `Dispatcher.request` method.
 
 Calls `options.dispatcher.request(options)`.
 
-See [Dispatcher.request](./docs/docs/api/Dispatcher.md#dispatcherrequestoptions-callback) for more details, and [request examples](./examples/README.md) for examples.
+See [Dispatcher.request](./docs/docs/api/Dispatcher.md#dispatcherrequestoptions-callback) for more details, and [request examples](./docs/examples/README.md) for examples.
 
 ### `undici.stream([url, options, ]factory): Promise`
 
@@ -143,7 +127,6 @@ Arguments:
 * **options** [`StreamOptions`](./docs/docs/api/Dispatcher.md#parameter-streamoptions)
   * **dispatcher** `Dispatcher` - Default: [getGlobalDispatcher](#undicigetglobaldispatcher)
   * **method** `String` - Default: `PUT` if `options.body`, otherwise `GET`
-  * **maxRedirections** `Integer` - Default: `0`
 * **factory** `Dispatcher.stream.factory`
 
 Returns a promise with the result of the `Dispatcher.stream` method.
@@ -160,7 +143,6 @@ Arguments:
 * **options** [`PipelineOptions`](./docs/docs/api/Dispatcher.md#parameter-pipelineoptions)
   * **dispatcher** `Dispatcher` - Default: [getGlobalDispatcher](#undicigetglobaldispatcher)
   * **method** `String` - Default: `PUT` if `options.body`, otherwise `GET`
-  * **maxRedirections** `Integer` - Default: `0`
 * **handler** `Dispatcher.pipeline.handler`
 
 Returns: `stream.Duplex`
@@ -178,7 +160,6 @@ Arguments:
 * **url** `string | URL | UrlObject`
 * **options** [`ConnectOptions`](./docs/docs/api/Dispatcher.md#parameter-connectoptions)
   * **dispatcher** `Dispatcher` - Default: [getGlobalDispatcher](#undicigetglobaldispatcher)
-  * **maxRedirections** `Integer` - Default: `0`
 * **callback** `(err: Error | null, data: ConnectData | null) => void` (optional)
 
 Returns a promise with the result of the `Dispatcher.connect` method.
@@ -234,7 +215,7 @@ A body can be of the following types:
 - URLSearchParams
 - FormData
 
-In this implementation of fetch, ```request.body``` now accepts ```Async Iterables```. It is not present in the [Fetch Standard.](https://fetch.spec.whatwg.org)
+In this implementation of fetch, ```request.body``` now accepts ```Async Iterables```. It is not present in the [Fetch Standard](https://fetch.spec.whatwg.org).
 
 ```js
 import { fetch } from 'undici'
@@ -263,13 +244,13 @@ await fetch('http://example.com', { method: 'POST', body })
 
 #### `request.duplex`
 
-- half
+- `'half'`
 
-In this implementation of fetch, `request.duplex` must be set if `request.body` is `ReadableStream` or `Async Iterables`, however, fetch requests are currently always full duplex. For more detail refer to the [Fetch Standard.](https://fetch.spec.whatwg.org/#dom-requestinit-duplex).
+In this implementation of fetch, `request.duplex` must be set if `request.body` is `ReadableStream` or `Async Iterables`, however, even though the value must be set to `'half'`, it is actually a _full_ duplex. For more detail refer to the [Fetch Standard](https://fetch.spec.whatwg.org/#dom-requestinit-duplex).
 
 #### `response.body`
 
-Nodejs has two kinds of streams: [web streams](https://nodejs.org/dist/latest-v16.x/docs/api/webstreams.html), which follow the API of the WHATWG web standard found in browsers, and an older Node-specific [streams API](https://nodejs.org/api/stream.html). `response.body` returns a readable web stream. If you would prefer to work with a Node stream you can convert a web stream using `.fromWeb()`.
+Nodejs has two kinds of streams: [web streams](https://nodejs.org/api/webstreams.html), which follow the API of the WHATWG web standard found in browsers, and an older Node-specific [streams API](https://nodejs.org/api/stream.html). `response.body` returns a readable web stream. If you would prefer to work with a Node stream you can convert a web stream using `.fromWeb()`.
 
 ```js
 import { fetch } from 'undici'
@@ -300,17 +281,23 @@ stalls or deadlocks when running out of connections.
 
 ```js
 // Do
-const headers = await fetch(url)
-  .then(async res => {
-    for await (const chunk of res.body) {
-      // force consumption of body
-    }
-    return res.headers
-  })
+const { body, headers } = await fetch(url);
+for await (const chunk of body) {
+  // force consumption of body
+}
 
 // Do not
-const headers = await fetch(url)
-  .then(res => res.headers)
+const { headers } = await fetch(url);
+```
+
+The same applies for `request` too:
+```js
+// Do
+const { body, headers } = await request(url);
+await res.body.dump(); // force consumption of body
+
+// Do not
+const { headers } = await request(url);
 ```
 
 However, if you want to get only headers, it might be better to use `HEAD` request method. Usage of this method will obviate the need for consumption or cancelling of the response body. See [MDN - HTTP - HTTP request methods - HEAD](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD) for more details.
@@ -338,7 +325,6 @@ Arguments:
 * **url** `string | URL | UrlObject`
 * **options** [`UpgradeOptions`](./docs/docs/api/Dispatcher.md#parameter-upgradeoptions)
   * **dispatcher** `Dispatcher` - Default: [getGlobalDispatcher](#undicigetglobaldispatcher)
-  * **maxRedirections** `Integer` - Default: `0`
 * **callback** `(error: Error | null, data: UpgradeData) => void` (optional)
 
 Returns a promise with the result of the `Dispatcher.upgrade` method.
@@ -407,7 +393,8 @@ Refs: https://tools.ietf.org/html/rfc7231#section-5.1.1
 ### Pipelining
 
 Undici will only use pipelining if configured with a `pipelining` factor
-greater than `1`.
+greater than `1`. Also it is important to pass `blocking: false` to the
+request options to properly pipeline requests.
 
 Undici always assumes that connections are persistent and will immediately
 pipeline requests, without checking whether the connection is persistent.
@@ -453,6 +440,8 @@ and `undici.Agent`) which will enable the family autoselection algorithm when es
 * [__Matthew Aitken__](https://github.com/KhafraDev), <https://www.npmjs.com/~khaf>
 * [__Robert Nagy__](https://github.com/ronag), <https://www.npmjs.com/~ronag>
 * [__Szymon Marczak__](https://github.com/szmarczak), <https://www.npmjs.com/~szmarczak>
+
+## Past Collaborators
 * [__Tomas Della Vedova__](https://github.com/delvedor), <https://www.npmjs.com/~delvedor>
 
 ### Releasers
@@ -461,6 +450,16 @@ and `undici.Agent`) which will enable the family autoselection algorithm when es
 * [__Matteo Collina__](https://github.com/mcollina), <https://www.npmjs.com/~matteo.collina>
 * [__Robert Nagy__](https://github.com/ronag), <https://www.npmjs.com/~ronag>
 * [__Matthew Aitken__](https://github.com/KhafraDev), <https://www.npmjs.com/~khaf>
+
+## Long Term Support
+
+Undici aligns with the Node.js LTS schedule. The following table shows the supported versions:
+
+| Version | Node.js     | End of Life |
+|---------|-------------|-------------|
+| 5.x     | v18.x       | 2024-04-30  |
+| 6.x     | v20.x v22.x | 2026-04-30  |
+| 7.x     | v24.x       | 2027-04-30  |
 
 ## License
 

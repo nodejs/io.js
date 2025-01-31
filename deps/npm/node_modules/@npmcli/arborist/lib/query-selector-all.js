@@ -8,7 +8,7 @@ const { minimatch } = require('minimatch')
 const npa = require('npm-package-arg')
 const pacote = require('pacote')
 const semver = require('semver')
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 
 // handle results for parsed query asts, results are stored in a map that has a
 // key that points to each ast selector node and stores the resulting array of
@@ -461,7 +461,7 @@ class Results {
           packages[node.name].push(node.version)
         }
       })
-      const res = await fetch('/-/npm/v1/security/advisories/bulk', {
+      const res = await npmFetch('/-/npm/v1/security/advisories/bulk', {
         ...this.flatOptions,
         registry: this.flatOptions.auditRegistry || this.flatOptions.registry,
         method: 'POST',

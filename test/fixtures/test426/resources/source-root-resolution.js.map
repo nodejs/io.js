@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "sourceRoot": "theroot",
+  "file": "source-root-resolution.js",
+  "names": ["foo", "bar"],
+  "sources": ["basic-mapping-original.js"],
+  "sourcesContent": ["function foo() {\n return 42;\n }\n function bar() {\n return 24;\n }\n foo();\n bar();"],
+  "mappings": "AAAA,SAASA"
+}

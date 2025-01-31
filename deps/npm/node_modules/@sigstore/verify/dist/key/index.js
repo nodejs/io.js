@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyCertificate = exports.verifyPublicKey = void 0;
+exports.verifyPublicKey = verifyPublicKey;
+exports.verifyCertificate = verifyCertificate;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -34,7 +35,6 @@ function verifyPublicKey(hint, timestamps, trustMaterial) {
     });
     return { key: key.publicKey };
 }
-exports.verifyPublicKey = verifyPublicKey;
 function verifyCertificate(leaf, timestamps, trustMaterial) {
     // Check that leaf certificate chains to a trusted CA
     const path = (0, certificate_1.verifyCertificateChain)(leaf, trustMaterial.certificateAuthorities);
@@ -51,10 +51,10 @@ function verifyCertificate(leaf, timestamps, trustMaterial) {
         signer: getSigner(path[0]),
     };
 }
-exports.verifyCertificate = verifyCertificate;
 function getSigner(cert) {
     let issuer;
     const issuerExtension = cert.extension(OID_FULCIO_ISSUER_V2);
+    /* istanbul ignore next */
     if (issuerExtension) {
         issuer = issuerExtension.valueObj.subs?.[0]?.value.toString('ascii');
     }

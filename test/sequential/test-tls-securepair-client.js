@@ -23,14 +23,19 @@
 
 const common = require('../common');
 
-if (!common.opensslCli)
-  common.skip('node compiled without OpenSSL CLI.');
-
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (common.isWindows)
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
+  common.skip('node compiled without OpenSSL CLI.');
+}
+
+if (common.isWindows) {
   common.skip('test does not work on Windows'); // ...but it should!
+}
 
 const net = require('net');
 const assert = require('assert');
@@ -63,11 +68,11 @@ function test(keyPath, certPath, check, next) {
   const key = fixtures.readSync(keyPath).toString();
   const cert = fixtures.readSync(certPath).toString();
 
-  const server = spawn(common.opensslCli, ['s_server',
-                                           '-accept', 0,
-                                           '-cert', fixtures.path(certPath),
-                                           '-key', fixtures.path(keyPath),
-                                           ...(useIPv4 ? ['-4'] : []),
+  const server = spawn(opensslCli, ['s_server',
+                                    '-accept', 0,
+                                    '-cert', fixtures.path(certPath),
+                                    '-key', fixtures.path(keyPath),
+                                    ...(useIPv4 ? ['-4'] : []),
   ]);
   server.stdout.pipe(process.stdout);
   server.stderr.pipe(process.stdout);

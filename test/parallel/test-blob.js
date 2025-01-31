@@ -339,7 +339,7 @@ assert.throws(() => new Blob({}), {
   setTimeout(() => {
     // The blob stream is now a byte stream hence after the first read,
     // it should pull in the next 'hello' which is 5 bytes hence -5.
-    assert.strictEqual(stream[kState].controller.desiredSize, -5);
+    assert.strictEqual(stream[kState].controller.desiredSize, 0);
   }, 0);
 })().then(common.mustCall());
 
@@ -366,7 +366,7 @@ assert.throws(() => new Blob({}), {
   assert.strictEqual(value.byteLength, 5);
   assert(!done);
   setTimeout(() => {
-    assert.strictEqual(stream[kState].controller.desiredSize, -5);
+    assert.strictEqual(stream[kState].controller.desiredSize, 0);
   }, 0);
 })().then(common.mustCall());
 

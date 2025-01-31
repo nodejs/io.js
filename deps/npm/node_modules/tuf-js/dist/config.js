@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.defaultConfig = void 0;
 exports.defaultConfig = {
-    maxRootRotations: 32,
+    maxRootRotations: 256,
     maxDelegations: 32,
     rootMaxLength: 512000, //bytes
     timestampMaxLength: 16384, // bytes

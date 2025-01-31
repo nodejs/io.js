@@ -1,9 +1,10 @@
 'use strict';
 // Flags: --expose-gc
 
-const common = require('../common');
+require('../common');
 const assert = require('assert');
 const async_hooks = require('async_hooks');
+const { isMainThread } = require('worker_threads');
 const util = require('util');
 const print = process._rawDebug;
 
@@ -161,7 +162,7 @@ class ActivityCollector {
         const stub = { uid, type: 'Unknown', handleIsObject: true, handle: {} };
         this._activities.set(uid, stub);
         return stub;
-      } else if (!common.isMainThread) {
+      } else if (!isMainThread) {
         // Worker threads start main script execution inside of an AsyncWrap
         // callback, so we don't yield errors for these.
         return null;

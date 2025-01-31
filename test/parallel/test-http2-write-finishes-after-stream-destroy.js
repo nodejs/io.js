@@ -9,7 +9,7 @@ const { duplexPair } = require('stream');
 
 // Make sure the Http2Stream destructor works, since we don't clean the
 // stream up like we would otherwise do.
-process.on('exit', global.gc);
+process.on('exit', globalThis.gc);
 
 {
   const [ clientSide, serverSide ] = duplexPair();

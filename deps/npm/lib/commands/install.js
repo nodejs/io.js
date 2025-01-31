@@ -68,7 +68,7 @@ class Install extends ArboristWorkspaceCmd {
           const contents = await readdir(join(partialPath, sibling))
           const result = (contents.indexOf('package.json') !== -1)
           return result
-        } catch (er) {
+        } catch {
           return false
         }
       }
@@ -86,7 +86,7 @@ class Install extends ArboristWorkspaceCmd {
         }
         // no matches
         return []
-      } catch (er) {
+      } catch {
         return [] // invalid dir: no matching
       }
     }

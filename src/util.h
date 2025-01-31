@@ -340,6 +340,9 @@ inline v8::Local<v8::String> OneByteString(v8::Isolate* isolate,
                                            const unsigned char* data,
                                            int length = -1);
 
+inline v8::Local<v8::String> OneByteString(v8::Isolate* isolate,
+                                           std::string_view str);
+
 // Used to be a macro, hence the uppercase name.
 template <int N>
 inline v8::Local<v8::String> FIXED_ONE_BYTE_STRING(

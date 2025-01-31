@@ -20,14 +20,12 @@ CID::CID() : ptr_(&cid_) {
 CID::CID(const ngtcp2_cid& cid) : CID(cid.data, cid.datalen) {}
 
 CID::CID(const uint8_t* data, size_t len) : CID() {
-  DCHECK_GE(len, kMinLength);
   DCHECK_LE(len, kMaxLength);
   ngtcp2_cid_init(&cid_, data, len);
 }
 
 CID::CID(const ngtcp2_cid* cid) : ptr_(cid) {
   CHECK_NOT_NULL(cid);
-  DCHECK_GE(cid->datalen, kMinLength);
   DCHECK_LE(cid->datalen, kMaxLength);
 }
 

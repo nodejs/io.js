@@ -24,9 +24,9 @@ class ECDH final : public BaseObject {
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
-  static ECPointPointer BufferToPoint(Environment* env,
-                                      const EC_GROUP* group,
-                                      v8::Local<v8::Value> buf);
+  static ncrypto::ECPointPointer BufferToPoint(Environment* env,
+                                               const EC_GROUP* group,
+                                               v8::Local<v8::Value> buf);
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(ECDH)
@@ -37,7 +37,9 @@ class ECDH final : public BaseObject {
   static void GetCurves(const v8::FunctionCallbackInfo<v8::Value>& args);
 
  protected:
-  ECDH(Environment* env, v8::Local<v8::Object> wrap, ECKeyPointer&& key);
+  ECDH(Environment* env,
+       v8::Local<v8::Object> wrap,
+       ncrypto::ECKeyPointer&& key);
 
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void GenerateKeys(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -48,9 +50,9 @@ class ECDH final : public BaseObject {
   static void SetPublicKey(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   bool IsKeyPairValid();
-  bool IsKeyValidForCurve(const BignumPointer& private_key);
+  bool IsKeyValidForCurve(const ncrypto::BignumPointer& private_key);
 
-  ECKeyPointer key_;
+  ncrypto::ECKeyPointer key_;
   const EC_GROUP* group_;
 };
 
@@ -102,7 +104,7 @@ struct EcKeyGenTraits final {
   using AdditionalParameters = EcKeyPairGenConfig;
   static constexpr const char* JobName = "EcKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(EcKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(EcKeyPairGenConfig* params);
 
   static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,

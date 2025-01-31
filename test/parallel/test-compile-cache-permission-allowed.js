@@ -23,7 +23,7 @@ function testAllowed(readDir, writeDir, envDir) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,
       `--allow-fs-read=${readDir}`,
       `--allow-fs-write=${writeDir}`,
@@ -47,7 +47,7 @@ function testAllowed(readDir, writeDir, envDir) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,
       `--allow-fs-read=${readDir}`,
       `--allow-fs-write=${writeDir}`,

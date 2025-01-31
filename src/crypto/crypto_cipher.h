@@ -44,7 +44,7 @@ class CipherBase : public BaseObject {
   static const unsigned kNoAuthTagLength = static_cast<unsigned>(-1);
 
   void CommonInit(const char* cipher_type,
-                  const EVP_CIPHER* cipher,
+                  const ncrypto::Cipher& cipher,
                   const unsigned char* key,
                   int key_len,
                   const unsigned char* iv,
@@ -85,7 +85,7 @@ class CipherBase : public BaseObject {
   CipherBase(Environment* env, v8::Local<v8::Object> wrap, CipherKind kind);
 
  private:
-  DeleteFnPtr<EVP_CIPHER_CTX, EVP_CIPHER_CTX_free> ctx_;
+  ncrypto::CipherCtxPointer ctx_;
   const CipherKind kind_;
   AuthTagState auth_tag_state_;
   unsigned int auth_tag_len_;
@@ -96,30 +96,26 @@ class CipherBase : public BaseObject {
 
 class PublicKeyCipher {
  public:
-  typedef int (*EVP_PKEY_cipher_init_t)(EVP_PKEY_CTX* ctx);
-  typedef int (*EVP_PKEY_cipher_t)(EVP_PKEY_CTX* ctx,
-                                   unsigned char* out, size_t* outlen,
-                                   const unsigned char* in, size_t inlen);
+  using Cipher_t =
+      ncrypto::DataPointer(const ncrypto::EVPKeyPointer&,
+                           const ncrypto::Cipher::CipherParams& params,
+                           const ncrypto::Buffer<const void>);
 
   enum Operation {
     kPublic,
     kPrivate
   };
 
-  template <Operation operation,
-            EVP_PKEY_cipher_init_t EVP_PKEY_cipher_init,
-            EVP_PKEY_cipher_t EVP_PKEY_cipher>
+  template <Cipher_t cipher>
   static bool Cipher(Environment* env,
-                     const EVPKeyPointer& pkey,
+                     const ncrypto::EVPKeyPointer& pkey,
                      int padding,
                      const EVP_MD* digest,
                      const ArrayBufferOrViewContents<unsigned char>& oaep_label,
                      const ArrayBufferOrViewContents<unsigned char>& data,
                      std::unique_ptr<v8::BackingStore>* out);
 
-  template <Operation operation,
-            EVP_PKEY_cipher_init_t EVP_PKEY_cipher_init,
-            EVP_PKEY_cipher_t EVP_PKEY_cipher>
+  template <Operation operation, Cipher_t cipher>
   static void Cipher(const v8::FunctionCallbackInfo<v8::Value>& args);
 };
 

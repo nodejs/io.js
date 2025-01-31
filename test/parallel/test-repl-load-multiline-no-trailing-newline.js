@@ -5,7 +5,9 @@ const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const repl = require('repl');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const command = `.load ${fixtures.path('repl-load-multiline-no-trailing-newline.js')}`;
 const terminalCode = '\u001b[1G\u001b[0J \u001b[1G';

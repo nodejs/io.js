@@ -23,12 +23,11 @@ const {
   requestDuplex
 } = require('./constants')
 const { kEnumerableProperty, normalizedMethodRecordsBase, normalizedMethodRecords } = util
-const { kHeaders, kSignal, kState, kDispatcher } = require('./symbols')
 const { webidl } = require('./webidl')
 const { URLSerializer } = require('./data-url')
 const { kConstruct } = require('../../core/symbols')
 const assert = require('node:assert')
-const { getMaxListeners, setMaxListeners, getEventListeners, defaultMaxListeners } = require('node:events')
+const { getMaxListeners, setMaxListeners, defaultMaxListeners } = require('node:events')
 
 const kAbortController = Symbol('abortController')
 
@@ -80,8 +79,21 @@ let patchMethodWarning = false
 
 // https://fetch.spec.whatwg.org/#request-class
 class Request {
+  /** @type {AbortSignal} */
+  #signal
+
+  /** @type {import('../../dispatcher/dispatcher')} */
+  #dispatcher
+
+  /** @type {Headers} */
+  #headers
+
+  #state
+
   // https://fetch.spec.whatwg.org/#dom-request
-  constructor (input, init = {}) {
+  constructor (input, init = undefined) {
+    webidl.util.markAsUncloneable(this)
+
     if (input === kConstruct) {
       return
     }
@@ -106,7 +118,7 @@ class Request {
 
     // 5. If input is a string, then:
     if (typeof input === 'string') {
-      this[kDispatcher] = init.dispatcher
+      this.#dispatcher = init.dispatcher
 
       // 1. Let parsedURL be the result of parsing input with baseURL.
       // 2. If parsedURL is failure, then throw a TypeError.
@@ -131,18 +143,18 @@ class Request {
       // 5. Set fallbackMode to "cors".
       fallbackMode = 'cors'
     } else {
-      this[kDispatcher] = init.dispatcher || input[kDispatcher]
-
       // 6. Otherwise:
 
       // 7. Assert: input is a Request object.
-      assert(input instanceof Request)
+      assert(webidl.is.Request(input))
 
       // 8. Set request to input’s request.
-      request = input[kState]
+      request = input.#state
 
       // 9. Set signal to input’s signal.
-      signal = input[kSignal]
+      signal = input.#signal
+
+      this.#dispatcher = init.dispatcher || input.#dispatcher
     }
 
     // 7. Let origin be this’s relevant settings object’s origin.
@@ -389,27 +401,17 @@ class Request {
     }
 
     // 27. Set this’s request to request.
-    this[kState] = request
+    this.#state = request
 
     // 28. Set this’s signal to a new AbortSignal object with this’s relevant
     // Realm.
     // TODO: could this be simplified with AbortSignal.any
     // (https://dom.spec.whatwg.org/#dom-abortsignal-any)
     const ac = new AbortController()
-    this[kSignal] = ac.signal
+    this.#signal = ac.signal
 
     // 29. If signal is not null, then make this’s signal follow signal.
     if (signal != null) {
-      if (
-        !signal ||
-        typeof signal.aborted !== 'boolean' ||
-        typeof signal.addEventListener !== 'function'
-      ) {
-        throw new TypeError(
-          "Failed to construct 'Request': member signal is not of type AbortSignal."
-        )
-      }
-
       if (signal.aborted) {
         ac.abort(signal.reason)
       } else {
@@ -429,8 +431,6 @@ class Request {
           // This is only available in node >= v19.9.0
           if (typeof getMaxListeners === 'function' && getMaxListeners(signal) === defaultMaxListeners) {
             setMaxListeners(1500, signal)
-          } else if (getEventListeners(signal, 'abort').length >= defaultMaxListeners) {
-            setMaxListeners(1500, signal)
           }
         } catch {}
 
@@ -446,9 +446,9 @@ class Request {
     // 30. Set this’s headers to a new Headers object with this’s relevant
     // Realm, whose header list is request’s header list and guard is
     // "request".
-    this[kHeaders] = new Headers(kConstruct)
-    setHeadersList(this[kHeaders], request.headersList)
-    setHeadersGuard(this[kHeaders], 'request')
+    this.#headers = new Headers(kConstruct)
+    setHeadersList(this.#headers, request.headersList)
+    setHeadersGuard(this.#headers, 'request')
 
     // 31. If this’s request’s mode is "no-cors", then:
     if (mode === 'no-cors') {
@@ -461,13 +461,13 @@ class Request {
       }
 
       // 2. Set this’s headers’s guard to "request-no-cors".
-      setHeadersGuard(this[kHeaders], 'request-no-cors')
+      setHeadersGuard(this.#headers, 'request-no-cors')
     }
 
     // 32. If init is not empty, then:
     if (initHasKey) {
       /** @type {HeadersList} */
-      const headersList = getHeadersList(this[kHeaders])
+      const headersList = getHeadersList(this.#headers)
       // 1. Let headers be a copy of this’s headers and its associated header
       // list.
       // 2. If init["headers"] exists, then set headers to init["headers"].
@@ -486,13 +486,13 @@ class Request {
         headersList.cookies = headers.cookies
       } else {
         // 5. Otherwise, fill this’s headers with headers.
-        fillHeaders(this[kHeaders], headers)
+        fillHeaders(this.#headers, headers)
       }
     }
 
     // 33. Let inputBody be input’s request’s body if input is a Request
     // object; otherwise null.
-    const inputBody = input instanceof Request ? input[kState].body : null
+    const inputBody = webidl.is.Request(input) ? input.#state.body : null
 
     // 34. If either init["body"] exists and is non-null or inputBody is
     // non-null, and request’s method is `GET` or `HEAD`, then throw a
@@ -521,8 +521,8 @@ class Request {
       // 3, If Content-Type is non-null and this’s headers’s header list does
       // not contain `Content-Type`, then append `Content-Type`/Content-Type to
       // this’s headers.
-      if (contentType && !getHeadersList(this[kHeaders]).contains('content-type', true)) {
-        this[kHeaders].append('content-type', contentType)
+      if (contentType && !getHeadersList(this.#headers).contains('content-type', true)) {
+        this.#headers.append('content-type', contentType, true)
       }
     }
 
@@ -557,7 +557,7 @@ class Request {
     // 40. If initBody is null and inputBody is non-null, then:
     if (initBody == null && inputBody != null) {
       // 1. If input is unusable, then throw a TypeError.
-      if (bodyUnusable(input)) {
+      if (bodyUnusable(input.#state)) {
         throw new TypeError(
           'Cannot construct a Request with a Request object that has already been used.'
         )
@@ -575,7 +575,7 @@ class Request {
     }
 
     // 41. Set this’s request’s body to finalBody.
-    this[kState].body = finalBody
+    this.#state.body = finalBody
   }
 
   // Returns request’s HTTP method, which is "GET" by default.
@@ -583,7 +583,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The method getter steps are to return this’s request’s method.
-    return this[kState].method
+    return this.#state.method
   }
 
   // Returns the URL of request as a string.
@@ -591,7 +591,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The url getter steps are to return this’s request’s URL, serialized.
-    return URLSerializer(this[kState].url)
+    return URLSerializer(this.#state.url)
   }
 
   // Returns a Headers object consisting of the headers associated with request.
@@ -601,7 +601,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The headers getter steps are to return this’s headers.
-    return this[kHeaders]
+    return this.#headers
   }
 
   // Returns the kind of resource requested by request, e.g., "document"
@@ -610,7 +610,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The destination getter are to return this’s request’s destination.
-    return this[kState].destination
+    return this.#state.destination
   }
 
   // Returns the referrer of request. Its value can be a same-origin URL if
@@ -623,18 +623,18 @@ class Request {
 
     // 1. If this’s request’s referrer is "no-referrer", then return the
     // empty string.
-    if (this[kState].referrer === 'no-referrer') {
+    if (this.#state.referrer === 'no-referrer') {
       return ''
     }
 
     // 2. If this’s request’s referrer is "client", then return
     // "about:client".
-    if (this[kState].referrer === 'client') {
+    if (this.#state.referrer === 'client') {
       return 'about:client'
     }
 
     // Return this’s request’s referrer, serialized.
-    return this[kState].referrer.toString()
+    return this.#state.referrer.toString()
   }
 
   // Returns the referrer policy associated with request.
@@ -644,7 +644,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The referrerPolicy getter steps are to return this’s request’s referrer policy.
-    return this[kState].referrerPolicy
+    return this.#state.referrerPolicy
   }
 
   // Returns the mode associated with request, which is a string indicating
@@ -654,15 +654,17 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The mode getter steps are to return this’s request’s mode.
-    return this[kState].mode
+    return this.#state.mode
   }
 
   // Returns the credentials mode associated with request,
   // which is a string indicating whether credentials will be sent with the
   // request always, never, or only when sent to a same-origin URL.
   get credentials () {
+    webidl.brandCheck(this, Request)
+
     // The credentials getter steps are to return this’s request’s credentials mode.
-    return this[kState].credentials
+    return this.#state.credentials
   }
 
   // Returns the cache mode associated with request,
@@ -672,7 +674,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The cache getter steps are to return this’s request’s cache mode.
-    return this[kState].cache
+    return this.#state.cache
   }
 
   // Returns the redirect mode associated with request,
@@ -683,7 +685,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The redirect getter steps are to return this’s request’s redirect mode.
-    return this[kState].redirect
+    return this.#state.redirect
   }
 
   // Returns request’s subresource integrity metadata, which is a
@@ -694,7 +696,7 @@ class Request {
 
     // The integrity getter steps are to return this’s request’s integrity
     // metadata.
-    return this[kState].integrity
+    return this.#state.integrity
   }
 
   // Returns a boolean indicating whether or not request can outlive the
@@ -703,7 +705,7 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The keepalive getter steps are to return this’s request’s keepalive.
-    return this[kState].keepalive
+    return this.#state.keepalive
   }
 
   // Returns a boolean indicating whether or not request is for a reload
@@ -713,7 +715,7 @@ class Request {
 
     // The isReloadNavigation getter steps are to return true if this’s
     // request’s reload-navigation flag is set; otherwise false.
-    return this[kState].reloadNavigation
+    return this.#state.reloadNavigation
   }
 
   // Returns a boolean indicating whether or not request is for a history
@@ -723,7 +725,7 @@ class Request {
 
     // The isHistoryNavigation getter steps are to return true if this’s request’s
     // history-navigation flag is set; otherwise false.
-    return this[kState].historyNavigation
+    return this.#state.historyNavigation
   }
 
   // Returns the signal associated with request, which is an AbortSignal
@@ -733,19 +735,19 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // The signal getter steps are to return this’s signal.
-    return this[kSignal]
+    return this.#signal
   }
 
   get body () {
     webidl.brandCheck(this, Request)
 
-    return this[kState].body ? this[kState].body.stream : null
+    return this.#state.body ? this.#state.body.stream : null
   }
 
   get bodyUsed () {
     webidl.brandCheck(this, Request)
 
-    return !!this[kState].body && util.isDisturbed(this[kState].body.stream)
+    return !!this.#state.body && util.isDisturbed(this.#state.body.stream)
   }
 
   get duplex () {
@@ -759,12 +761,12 @@ class Request {
     webidl.brandCheck(this, Request)
 
     // 1. If this is unusable, then throw a TypeError.
-    if (bodyUnusable(this)) {
+    if (bodyUnusable(this.#state)) {
       throw new TypeError('unusable')
     }
 
     // 2. Let clonedRequest be the result of cloning this’s request.
-    const clonedRequest = cloneRequest(this[kState])
+    const clonedRequest = cloneRequest(this.#state)
 
     // 3. Let clonedRequestObject be the result of creating a Request object,
     // given clonedRequest, this’s headers’s guard, and this’s relevant Realm.
@@ -787,7 +789,7 @@ class Request {
     }
 
     // 4. Return clonedRequestObject.
-    return fromInnerRequest(clonedRequest, ac.signal, getHeadersGuard(this[kHeaders]))
+    return fromInnerRequest(clonedRequest, this.#dispatcher, ac.signal, getHeadersGuard(this.#headers))
   }
 
   [nodeUtil.inspect.custom] (depth, options) {
@@ -817,9 +819,64 @@ class Request {
 
     return `Request ${nodeUtil.formatWithOptions(options, properties)}`
   }
+
+  /**
+   * @param {Request} request
+   * @param {AbortSignal} newSignal
+   */
+  static setRequestSignal (request, newSignal) {
+    request.#signal = newSignal
+    return request
+  }
+
+  /**
+   * @param {Request} request
+   */
+  static getRequestDispatcher (request) {
+    return request.#dispatcher
+  }
+
+  /**
+   * @param {Request} request
+   * @param {import('../../dispatcher/dispatcher')} newDispatcher
+   */
+  static setRequestDispatcher (request, newDispatcher) {
+    request.#dispatcher = newDispatcher
+  }
+
+  /**
+   * @param {Request} request
+   * @param {Headers} newHeaders
+   */
+  static setRequestHeaders (request, newHeaders) {
+    request.#headers = newHeaders
+  }
+
+  /**
+   * @param {Request} request
+   */
+  static getRequestState (request) {
+    return request.#state
+  }
+
+  /**
+   * @param {Request} request
+   * @param {any} newState
+   */
+  static setRequestState (request, newState) {
+    request.#state = newState
+  }
 }
 
-mixinBody(Request)
+const { setRequestSignal, getRequestDispatcher, setRequestDispatcher, setRequestHeaders, getRequestState, setRequestState } = Request
+Reflect.deleteProperty(Request, 'setRequestSignal')
+Reflect.deleteProperty(Request, 'getRequestDispatcher')
+Reflect.deleteProperty(Request, 'setRequestDispatcher')
+Reflect.deleteProperty(Request, 'setRequestHeaders')
+Reflect.deleteProperty(Request, 'getRequestState')
+Reflect.deleteProperty(Request, 'setRequestState')
+
+mixinBody(Request, getRequestState)
 
 // https://fetch.spec.whatwg.org/#requests
 function makeRequest (init) {
@@ -887,17 +944,20 @@ function cloneRequest (request) {
 /**
  * @see https://fetch.spec.whatwg.org/#request-create
  * @param {any} innerRequest
+ * @param {import('../../dispatcher/agent')} dispatcher
  * @param {AbortSignal} signal
  * @param {'request' | 'immutable' | 'request-no-cors' | 'response' | 'none'} guard
  * @returns {Request}
  */
-function fromInnerRequest (innerRequest, signal, guard) {
+function fromInnerRequest (innerRequest, dispatcher, signal, guard) {
   const request = new Request(kConstruct)
-  request[kState] = innerRequest
-  request[kSignal] = signal
-  request[kHeaders] = new Headers(kConstruct)
-  setHeadersList(request[kHeaders], innerRequest.headersList)
-  setHeadersGuard(request[kHeaders], guard)
+  setRequestState(request, innerRequest)
+  setRequestDispatcher(request, dispatcher)
+  setRequestSignal(request, signal)
+  const headers = new Headers(kConstruct)
+  setRequestHeaders(request, headers)
+  setHeadersList(headers, innerRequest.headersList)
+  setHeadersGuard(headers, guard)
   return request
 }
 
@@ -928,26 +988,20 @@ Object.defineProperties(Request.prototype, {
   }
 })
 
-webidl.converters.Request = webidl.interfaceConverter(
-  Request
-)
+webidl.is.Request = webidl.util.MakeTypeAssertion(Request)
 
 // https://fetch.spec.whatwg.org/#requestinfo
 webidl.converters.RequestInfo = function (V, prefix, argument) {
   if (typeof V === 'string') {
-    return webidl.converters.USVString(V, prefix, argument)
+    return webidl.converters.USVString(V)
   }
 
-  if (V instanceof Request) {
-    return webidl.converters.Request(V, prefix, argument)
+  if (webidl.is.Request(V)) {
+    return V
   }
 
-  return webidl.converters.USVString(V, prefix, argument)
+  return webidl.converters.USVString(V)
 }
-
-webidl.converters.AbortSignal = webidl.interfaceConverter(
-  AbortSignal
-)
 
 // https://fetch.spec.whatwg.org/#requestinit
 webidl.converters.RequestInit = webidl.dictionaryConverter([
@@ -1013,8 +1067,7 @@ webidl.converters.RequestInit = webidl.dictionaryConverter([
       (signal) => webidl.converters.AbortSignal(
         signal,
         'RequestInit',
-        'signal',
-        { strict: false }
+        'signal'
       )
     )
   },
@@ -1033,4 +1086,11 @@ webidl.converters.RequestInit = webidl.dictionaryConverter([
   }
 ])
 
-module.exports = { Request, makeRequest, fromInnerRequest, cloneRequest }
+module.exports = {
+  Request,
+  makeRequest,
+  fromInnerRequest,
+  cloneRequest,
+  getRequestDispatcher,
+  getRequestState
+}

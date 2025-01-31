@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyTLogSET = void 0;
+exports.verifyTLogSET = verifyTLogSET;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -46,7 +46,6 @@ function verifyTLogSET(entry, tlogs) {
         });
     }
 }
-exports.verifyTLogSET = verifyTLogSET;
 // Returns a properly formatted "VerificationPayload" for one of the
 // transaction log entires in the given bundle which can be used for SET
 // verification.

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.base64Decode = exports.base64Encode = void 0;
+exports.base64Encode = base64Encode;
+exports.base64Decode = base64Decode;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -21,8 +22,6 @@ const UTF8_ENCODING = 'utf-8';
 function base64Encode(str) {
     return Buffer.from(str, UTF8_ENCODING).toString(BASE64_ENCODING);
 }
-exports.base64Encode = base64Encode;
 function base64Decode(str) {
     return Buffer.from(str, BASE64_ENCODING).toString(UTF8_ENCODING);
 }
-exports.base64Decode = base64Decode;

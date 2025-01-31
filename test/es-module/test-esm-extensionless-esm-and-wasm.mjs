@@ -77,7 +77,6 @@ describe('extensionless ES modules within no package scope', { concurrency: !pro
 });
 
 describe('extensionless Wasm within no package scope', { concurrency: !process.env.TEST_PARALLEL }, () => {
-  // This succeeds with `--experimental-default-type=module`
   it('should error as the entry point', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
       '--experimental-wasm-modules',

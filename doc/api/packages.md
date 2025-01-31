@@ -73,10 +73,9 @@ expressions:
   `import` or `export` statements or `import.meta`, with no explicit marker of
   how it should be interpreted. Explicit markers are `.mjs` or `.cjs`
   extensions, `package.json` `"type"` fields with either `"module"` or
-  `"commonjs"` values, or `--input-type` or `--experimental-default-type` flags.
-  Dynamic `import()` expressions are supported in either CommonJS or ES modules
-  and would not force a file to be treated as an ES module. See
-  [Syntax detection][].
+  `"commonjs"` values, or the `--input-type` flag. Dynamic `import()`
+  expressions are supported in either CommonJS or ES modules and would not force
+  a file to be treated as an ES module. See [Syntax detection][].
 
 Node.js will treat the following as [CommonJS][] when passed to `node` as the
 initial input, or when referenced by `import` statements or `import()`
@@ -90,30 +89,21 @@ expressions:
 * Strings passed in as an argument to `--eval` or `--print`, or piped to `node`
   via `STDIN`, with the flag `--input-type=commonjs`.
 
-Aside from these explicit cases, there are other cases where Node.js defaults to
-one module system or the other based on the value of the
-[`--experimental-default-type`][] flag:
+* Files with a `.js` extension with no parent `package.json` file or where the
+  nearest parent `package.json` file lacks a `type` field, and where the code
+  can evaluate successfully as CommonJS. In other words, Node.js tries to run
+  such "ambiguous" files as CommonJS first, and will retry evaluating them as ES
+  modules if the evaluation as CommonJS fails because the parser found ES module
+  syntax.
 
-* Files ending in `.js` or with no extension, if there is no `package.json` file
-  present in the same folder or any parent folder.
-
-* Files ending in `.js` or with no extension, if the nearest parent
-  `package.json` field lacks a `"type"` field; unless the folder is inside a
-  `node_modules` folder. (Package scopes under `node_modules` are always treated
-  as CommonJS when the `package.json` file lacks a `"type"` field, regardless
-  of `--experimental-default-type`, for backward compatibility.)
-
-* Strings passed in as an argument to `--eval` or piped to `node` via `STDIN`,
-  when `--input-type` is unspecified.
-
-This flag currently defaults to `"commonjs"`, but it may change in the future to
-default to `"module"`. For this reason it is best to be explicit wherever
-possible; in particular, package authors should always include the [`"type"`][]
-field in their `package.json` files, even in packages where all sources are
-CommonJS. Being explicit about the `type` of the package will future-proof the
-package in case the default type of Node.js ever changes, and it will also make
-things easier for build tools and loaders to determine how the files in the
-package should be interpreted.
+Writing ES module syntax in "ambiguous" files incurs a performance cost, and
+therefore it is encouraged that authors be explicit wherever possible. In
+particular, package authors should always include the [`"type"`][] field in
+their `package.json` files, even in packages where all sources are CommonJS.
+Being explicit about the `type` of the package will future-proof the package in
+case the default type of Node.js ever changes, and it will also make things
+easier for build tools and loaders to determine how the files in the package
+should be interpreted.
 
 ### Syntax detection
 
@@ -137,10 +127,8 @@ as an ES module.
 Ambiguous input is defined as:
 
 * Files with a `.js` extension or no extension; and either no controlling
-  `package.json` file or one that lacks a `type` field; and
-  `--experimental-default-type` is not specified.
-* String input (`--eval` or STDIN) when neither `--input-type` nor
-  `--experimental-default-type` are specified.
+  `package.json` file or one that lacks a `type` field.
+* String input (`--eval` or `STDIN`) when `--input-type`is not specified.
 
 ES module syntax is defined as syntax that would throw when evaluated as
 CommonJS. This includes the following:
@@ -1162,7 +1150,6 @@ This field defines [subpath imports][] for the current package.
 [`"packageManager"`]: #packagemanager
 [`"type"`]: #type
 [`--conditions` / `-C` flag]: #resolving-user-conditions
-[`--experimental-default-type`]: cli.md#--experimental-default-typetype
 [`--no-addons` flag]: cli.md#--no-addons
 [`ERR_PACKAGE_PATH_NOT_EXPORTED`]: errors.md#err_package_path_not_exported
 [`package.json`]: #nodejs-packagejson-field-definitions

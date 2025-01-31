@@ -109,7 +109,7 @@ class Explain extends ArboristWorkspaceCmd {
     // otherwise, try to select all matching nodes
     try {
       return this.getNodesByVersion(tree, arg)
-    } catch (er) {
+    } catch {
       return []
     }
   }

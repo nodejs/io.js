@@ -15,9 +15,11 @@ module.exports = {
   kMockDispatch: Symbol('mock dispatch'),
   kClose: Symbol('close'),
   kOriginalClose: Symbol('original agent close'),
+  kOriginalDispatch: Symbol('original dispatch'),
   kOrigin: Symbol('origin'),
   kIsMockActive: Symbol('is mock active'),
   kNetConnect: Symbol('net connect'),
   kGetNetConnect: Symbol('get net connect'),
-  kConnected: Symbol('connected')
+  kConnected: Symbol('connected'),
+  kIgnoreTrailingSlash: Symbol('ignore trailing slash')
 }

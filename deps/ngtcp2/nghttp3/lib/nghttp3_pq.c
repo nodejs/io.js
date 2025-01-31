@@ -30,18 +30,21 @@
 
 #include "nghttp3_macro.h"
 
-void nghttp3_pq_init(nghttp3_pq *pq, nghttp3_less less,
+void nghttp3_pq_init(nghttp3_pq *pq, nghttp3_pq_less less,
                      const nghttp3_mem *mem) {
-  pq->mem = mem;
-  pq->capacity = 0;
   pq->q = NULL;
+  pq->mem = mem;
   pq->length = 0;
+  pq->capacity = 0;
   pq->less = less;
 }
 
 void nghttp3_pq_free(nghttp3_pq *pq) {
+  if (!pq) {
+    return;
+  }
+
   nghttp3_mem_free(pq->mem, pq->q);
-  pq->q = NULL;
 }
 
 static void swap(nghttp3_pq *pq, size_t i, size_t j) {
@@ -56,11 +59,13 @@ static void swap(nghttp3_pq *pq, size_t i, size_t j) {
 
 static void bubble_up(nghttp3_pq *pq, size_t index) {
   size_t parent;
-  while (index != 0) {
+
+  while (index) {
     parent = (index - 1) / 2;
     if (!pq->less(pq->q[index], pq->q[parent])) {
       return;
     }
+
     swap(pq, parent, index);
     index = parent;
   }
@@ -71,20 +76,23 @@ int nghttp3_pq_push(nghttp3_pq *pq, nghttp3_pq_entry *item) {
     void *nq;
     size_t ncapacity;
 
-    ncapacity = nghttp3_max(4, (pq->capacity * 2));
+    ncapacity = nghttp3_max_size(4, pq->capacity * 2);
 
     nq = nghttp3_mem_realloc(pq->mem, pq->q,
                              ncapacity * sizeof(nghttp3_pq_entry *));
     if (nq == NULL) {
       return NGHTTP3_ERR_NOMEM;
     }
+
     pq->capacity = ncapacity;
     pq->q = nq;
   }
+
   pq->q[pq->length] = item;
   item->index = pq->length;
   ++pq->length;
-  bubble_up(pq, pq->length - 1);
+  bubble_up(pq, item->index);
+
   return 0;
 }
 
@@ -95,32 +103,37 @@ nghttp3_pq_entry *nghttp3_pq_top(const nghttp3_pq *pq) {
 
 static void bubble_down(nghttp3_pq *pq, size_t index) {
   size_t i, j, minindex;
+
   for (;;) {
     j = index * 2 + 1;
     minindex = index;
+
     for (i = 0; i < 2; ++i, ++j) {
       if (j >= pq->length) {
         break;
       }
+
       if (pq->less(pq->q[j], pq->q[minindex])) {
         minindex = j;
       }
     }
+
     if (minindex == index) {
       return;
     }
+
     swap(pq, index, minindex);
     index = minindex;
   }
 }
 
 void nghttp3_pq_pop(nghttp3_pq *pq) {
-  if (pq->length > 0) {
-    pq->q[0] = pq->q[pq->length - 1];
-    pq->q[0]->index = 0;
-    --pq->length;
-    bubble_down(pq, 0);
-  }
+  assert(pq->length);
+
+  pq->q[0] = pq->q[pq->length - 1];
+  pq->q[0]->index = 0;
+  --pq->length;
+  bubble_down(pq, 0);
 }
 
 void nghttp3_pq_remove(nghttp3_pq *pq, nghttp3_pq_entry *item) {
@@ -157,11 +170,13 @@ int nghttp3_pq_each(const nghttp3_pq *pq, nghttp3_pq_item_cb fun, void *arg) {
   if (pq->length == 0) {
     return 0;
   }
+
   for (i = 0; i < pq->length; ++i) {
     if ((*fun)(pq->q[i], arg)) {
       return 1;
     }
   }
+
   return 0;
 }
 

@@ -12,7 +12,8 @@ static constexpr auto null = JSONWriter::Null{};
 static void ReportEndpoint(uv_handle_t* h,
                            struct sockaddr* addr,
                            const char* name,
-                           JSONWriter* writer) {
+                           JSONWriter* writer,
+                           bool exclude_network) {
   if (addr == nullptr) {
     writer->json_keyvalue(name, null);
     return;
@@ -20,35 +21,42 @@ static void ReportEndpoint(uv_handle_t* h,
 
   uv_getnameinfo_t endpoint;
   char* host = nullptr;
-  char hostbuf[INET6_ADDRSTRLEN];
   const int family = addr->sa_family;
   const int port = ntohs(family == AF_INET ?
                          reinterpret_cast<sockaddr_in*>(addr)->sin_port :
                          reinterpret_cast<sockaddr_in6*>(addr)->sin6_port);
 
-  if (uv_getnameinfo(h->loop, &endpoint, nullptr, addr, NI_NUMERICSERV) == 0) {
+  writer->json_objectstart(name);
+  if (!exclude_network &&
+      uv_getnameinfo(h->loop, &endpoint, nullptr, addr, NI_NUMERICSERV) == 0) {
     host = endpoint.host;
     DCHECK_EQ(port, std::stoi(endpoint.service));
-  } else {
-    const void* src = family == AF_INET ?
-                      static_cast<void*>(
-                        &(reinterpret_cast<sockaddr_in*>(addr)->sin_addr)) :
-                      static_cast<void*>(
-                        &(reinterpret_cast<sockaddr_in6*>(addr)->sin6_addr));
-    if (uv_inet_ntop(family, src, hostbuf, sizeof(hostbuf)) == 0) {
-      host = hostbuf;
-    }
-  }
-  writer->json_objectstart(name);
-  if (host != nullptr) {
     writer->json_keyvalue("host", host);
+  }
+
+  if (family == AF_INET) {
+    char ipbuf[INET_ADDRSTRLEN];
+    if (uv_ip4_name(
+            reinterpret_cast<sockaddr_in*>(addr), ipbuf, sizeof(ipbuf)) == 0) {
+      writer->json_keyvalue("ip4", ipbuf);
+      if (host == nullptr) writer->json_keyvalue("host", ipbuf);
+    }
+  } else {
+    char ipbuf[INET6_ADDRSTRLEN];
+    if (uv_ip6_name(
+            reinterpret_cast<sockaddr_in6*>(addr), ipbuf, sizeof(ipbuf)) == 0) {
+      writer->json_keyvalue("ip6", ipbuf);
+      if (host == nullptr) writer->json_keyvalue("host", ipbuf);
+    }
   }
   writer->json_keyvalue("port", port);
   writer->json_objectend();
 }
 
 // Utility function to format libuv socket information.
-static void ReportEndpoints(uv_handle_t* h, JSONWriter* writer) {
+static void ReportEndpoints(uv_handle_t* h,
+                            JSONWriter* writer,
+                            bool exclude_network) {
   struct sockaddr_storage addr_storage;
   struct sockaddr* addr = reinterpret_cast<sockaddr*>(&addr_storage);
   uv_any_handle* handle = reinterpret_cast<uv_any_handle*>(h);
@@ -65,7 +73,8 @@ static void ReportEndpoints(uv_handle_t* h, JSONWriter* writer) {
     default:
       break;
   }
-  ReportEndpoint(h, rc == 0 ? addr : nullptr,  "localEndpoint", writer);
+  ReportEndpoint(
+      h, rc == 0 ? addr : nullptr, "localEndpoint", writer, exclude_network);
 
   switch (h->type) {
     case UV_UDP:
@@ -77,7 +86,8 @@ static void ReportEndpoints(uv_handle_t* h, JSONWriter* writer) {
     default:
       break;
   }
-  ReportEndpoint(h, rc == 0 ? addr : nullptr, "remoteEndpoint", writer);
+  ReportEndpoint(
+      h, rc == 0 ? addr : nullptr, "remoteEndpoint", writer, exclude_network);
 }
 
 // Utility function to format libuv pipe information.
@@ -155,7 +165,7 @@ static void ReportPath(uv_handle_t* h, JSONWriter* writer) {
 }
 
 // Utility function to walk libuv handles.
-void WalkHandle(uv_handle_t* h, void* arg) {
+void WalkHandle(uv_handle_t* h, void* arg, bool exclude_network = false) {
   const char* type = uv_handle_type_name(h->type);
   JSONWriter* writer = static_cast<JSONWriter*>(arg);
   uv_any_handle* handle = reinterpret_cast<uv_any_handle*>(h);
@@ -177,7 +187,7 @@ void WalkHandle(uv_handle_t* h, void* arg) {
       break;
     case UV_TCP:
     case UV_UDP:
-      ReportEndpoints(h, writer);
+      ReportEndpoints(h, writer, exclude_network);
       break;
     case UV_NAMED_PIPE:
       ReportPipeEndpoints(h, writer);
@@ -267,6 +277,11 @@ void WalkHandle(uv_handle_t* h, void* arg) {
   }
   writer->json_end();
 }
-
+void WalkHandleNetwork(uv_handle_t* h, void* arg) {
+  WalkHandle(h, arg, false);
+}
+void WalkHandleNoNetwork(uv_handle_t* h, void* arg) {
+  WalkHandle(h, arg, true);
+}
 }  // namespace report
 }  // namespace node

@@ -122,6 +122,19 @@ a.type {
   font-size: .9em;
 }
 
+.skip-to-content {
+  position: fixed;
+  top: -300%;
+}
+.skip-to-content:focus {
+  display: block;
+  top: 0;
+  left: 0;
+  background-color: var(--green1);
+  padding: 1rem;
+  z-index: 999999;
+}
+
 #content {
   position: relative;
 }
@@ -182,22 +195,15 @@ li.picker-header .picker-arrow {
   height: .6rem;
   border-top: .3rem solid transparent;
   border-bottom: .3rem solid transparent;
-  border-left: .6rem solid var(--color-links);
+  border-left: .6rem solid currentColor;
   border-right: none;
   margin: 0 .2rem .05rem 0;
 }
 
-li.picker-header a:focus .picker-arrow,
-li.picker-header a:active .picker-arrow,
-li.picker-header a:hover .picker-arrow {
-  border-left: .6rem solid var(--white);
-}
-
-li.picker-header.expanded a:focus .picker-arrow,
-li.picker-header.expanded a:active .picker-arrow,
-li.picker-header.expanded a:hover .picker-arrow,
+li.picker-header.expanded .picker-arrow,
+:root:not(.has-js) li.picker-header:focus-within .picker-arrow,
 :root:not(.has-js) li.picker-header:hover .picker-arrow  {
-  border-top: .6rem solid var(--white);
+  border-top: .6rem solid currentColor;
   border-bottom: none;
   border-left: .35rem solid transparent;
   border-right: .35rem solid transparent;
@@ -205,11 +211,13 @@ li.picker-header.expanded a:hover .picker-arrow,
 }
 
 li.picker-header.expanded > a,
+:root:not(.has-js) li.picker-header:focus-within > a,
 :root:not(.has-js) li.picker-header:hover > a {
   border-radius: 2px 2px 0 0;
 }
 
 li.picker-header.expanded > .picker, 
+:root:not(.has-js) li.picker-header:focus-within > .picker,
 :root:not(.has-js) li.picker-header:hover > .picker {
   display: block;
   z-index: 1;
@@ -562,38 +570,26 @@ hr {
 }
 
 .toc ul {
-  margin: 0
+  margin: 0;
 }
-
-.toc li a::before {
-  content: "■";
-  color: var(--color-text-primary);
-  padding-right: 1em;
-  font-size: 0.9em;
+.toc>ul:first-child {
+  margin-left: 1rem;
+}
+.toc li {
+  display: list-item;
+  list-style: square;
+}
+.toc li a {
+  display: inline;
+  padding-left: 0;
 }
 
 .toc li a:hover::before {
   color: var(--white);
 }
 
-.toc ul ul a {
+.toc ul {
   padding-left: 1rem;
-}
-
-.toc ul ul ul a {
-  padding-left: 2rem;
-}
-
-.toc ul ul ul ul a {
-  padding-left: 3rem;
-}
-
-.toc ul ul ul ul ul a {
-  padding-left: 4rem;
-}
-
-.toc ul ul ul ul ul ul a {
-  padding-left: 5rem;
 }
 
 #toc .stability_0::after,

@@ -1104,6 +1104,72 @@ const unsigned char *ares_buf_peek(const ares_buf_t *buf, size_t *len)
   return ares_buf_fetch(buf, len);
 }
 
+ares_status_t ares_buf_replace(ares_buf_t *buf, const unsigned char *srch,
+                               size_t srch_size, const unsigned char *rplc,
+                               size_t rplc_size)
+{
+  size_t        processed_len = 0;
+  ares_status_t status;
+
+  if (buf->alloc_buf == NULL || srch == NULL || srch_size == 0 ||
+      (rplc == NULL && rplc_size != 0)) {
+    return ARES_EFORMERR;
+  }
+
+  while (1) {
+    unsigned char *ptr           = buf->alloc_buf + buf->offset + processed_len;
+    size_t         remaining_len = buf->data_len - buf->offset - processed_len;
+    size_t         found_offset  = 0;
+    size_t         move_data_len;
+
+    /* Find pattern */
+    ptr = ares_memmem(ptr, remaining_len, srch, srch_size);
+    if (ptr == NULL) {
+      break;
+    }
+
+    /* Store the offset this was found because our actual pointer might be
+     * switched out from under us by the call to ensure_space() if the
+     * replacement pattern is larger than the search pattern */
+    found_offset   = (size_t)(ptr - (size_t)(buf->alloc_buf + buf->offset));
+    if (rplc_size > srch_size) {
+      status = ares_buf_ensure_space(buf, rplc_size - srch_size);
+      if (status != ARES_SUCCESS) {
+        return status;
+      }
+    }
+
+    /* Impossible, but silence clang */
+    if (buf->alloc_buf == NULL) {
+      return ARES_ENOMEM;
+    }
+
+    /* Recalculate actual pointer */
+    ptr = buf->alloc_buf + buf->offset + found_offset;
+
+    /* Move the data */
+    move_data_len = buf->data_len - buf->offset - found_offset - srch_size;
+    memmove(ptr + rplc_size,
+            ptr + srch_size,
+            move_data_len);
+
+    /* Copy in the replacement data */
+    if (rplc != NULL && rplc_size > 0) {
+      memcpy(ptr, rplc, rplc_size);
+    }
+
+    if (rplc_size > srch_size) {
+      buf->data_len += rplc_size - srch_size;
+    } else {
+      buf->data_len -= srch_size - rplc_size;
+    }
+
+    processed_len = found_offset + rplc_size;
+  }
+
+  return ARES_SUCCESS;
+}
+
 ares_status_t ares_buf_peek_byte(const ares_buf_t *buf, unsigned char *b)
 {
   size_t               remaining_len = 0;

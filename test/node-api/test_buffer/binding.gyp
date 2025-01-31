@@ -3,7 +3,7 @@
     {
       "target_name": "test_buffer",
       "defines": [
-        'NAPI_EXPERIMENTAL'
+        'NAPI_VERSION=10'
       ],
       "sources": [ "test_buffer.c" ]
     },

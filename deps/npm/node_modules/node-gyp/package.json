@@ -11,7 +11,7 @@
     "bindings",
     "gyp"
   ],
-  "version": "10.2.0",
+  "version": "11.0.0",
   "installVersion": 11,
   "author": "Nathan Rajlich <nathan@tootallnate.net> (http://tootallnate.net)",
   "repository": {
@@ -26,26 +26,27 @@
     "exponential-backoff": "^3.1.1",
     "glob": "^10.3.10",
     "graceful-fs": "^4.2.6",
-    "make-fetch-happen": "^13.0.0",
-    "nopt": "^7.0.0",
-    "proc-log": "^4.1.0",
+    "make-fetch-happen": "^14.0.3",
+    "nopt": "^8.0.0",
+    "proc-log": "^5.0.0",
     "semver": "^7.3.5",
-    "tar": "^6.2.1",
-    "which": "^4.0.0"
+    "tar": "^7.4.3",
+    "which": "^5.0.0"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   },
   "devDependencies": {
     "bindings": "^1.5.0",
     "cross-env": "^7.0.3",
-    "mocha": "^10.2.0",
+    "eslint": "^9.16.0",
+    "mocha": "^11.0.1",
     "nan": "^2.14.2",
-    "require-inject": "^1.4.4",
-    "standard": "^17.0.0"
+    "neostandard": "^0.11.9",
+    "require-inject": "^1.4.4"
   },
   "scripts": {
-    "lint": "standard \"*/*.js\" \"test/**/*.js\" \".github/**/*.js\"",
+    "lint": "eslint \"*/*.js\" \"test/**/*.js\" \".github/**/*.js\"",
     "test": "cross-env NODE_GYP_NULL_LOGGER=true mocha --timeout 15000 test/test-download.js test/test-*"
   }
 }

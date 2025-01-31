@@ -4,7 +4,9 @@ const assert = require('assert');
 const Stream = require('stream');
 const repl = require('repl');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const tests = [
   testSloppyMode,

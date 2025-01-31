@@ -24,7 +24,7 @@
  */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <assert.h>
 
@@ -39,9 +39,9 @@
 #define PRINTF_DEBUG 0
 #if PRINTF_DEBUG
 #  define DEBUG_MSG(...) fprintf(stderr, __VA_ARGS__)
-#else
+#else /* !PRINTF_DEBUG */
 #  define DEBUG_MSG(...) (void)0
-#endif
+#endif /* !PRINTF_DEBUG */
 
 ngtcp2_crypto_aead *ngtcp2_crypto_aead_aes_128_gcm(ngtcp2_crypto_aead *aead) {
   return ngtcp2_crypto_aead_init(aead, (void *)wolfSSL_EVP_aes_128_gcm());
@@ -65,7 +65,7 @@ ngtcp2_crypto_aead *ngtcp2_crypto_aead_init(ngtcp2_crypto_aead *aead,
                                             void *aead_native_handle) {
   aead->native_handle = aead_native_handle;
   aead->max_overhead = wolfSSL_quic_get_aead_tag_len(
-      (const WOLFSSL_EVP_CIPHER *)(aead_native_handle));
+    (const WOLFSSL_EVP_CIPHER *)(aead_native_handle));
   return aead;
 }
 
@@ -124,7 +124,7 @@ ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
   ctx->hp.native_handle = (void *)wolfSSL_quic_get_hp(ssl);
   ctx->max_encryption = crypto_aead_get_aead_max_encryption(aead);
   ctx->max_decryption_failure =
-      crypto_aead_get_aead_max_decryption_failure(aead);
+    crypto_aead_get_aead_max_decryption_failure(aead);
   return ctx;
 }
 
@@ -203,7 +203,7 @@ int ngtcp2_crypto_cipher_ctx_encrypt_init(ngtcp2_crypto_cipher_ctx *cipher_ctx,
   WOLFSSL_EVP_CIPHER_CTX *actx;
 
   actx =
-      wolfSSL_quic_crypt_new(cipher->native_handle, key, NULL, /* encrypt */ 1);
+    wolfSSL_quic_crypt_new(cipher->native_handle, key, NULL, /* encrypt */ 1);
   if (actx == NULL) {
     return -1;
   }
@@ -279,7 +279,6 @@ int ngtcp2_crypto_decrypt(uint8_t *dest, const ngtcp2_crypto_aead *aead,
   if (wolfSSL_quic_aead_decrypt(dest, aead_ctx->native_handle, ciphertext,
                                 ciphertextlen, nonce, aad,
                                 aadlen) != WOLFSSL_SUCCESS) {
-
     DEBUG_MSG("WOLFSSL: decrypt FAILED\n");
     return -1;
   }
@@ -296,11 +295,11 @@ int ngtcp2_crypto_hp_mask(uint8_t *dest, const ngtcp2_crypto_cipher *hp,
   (void)hp;
 
   if (wolfSSL_EVP_EncryptInit_ex(actx, NULL, NULL, NULL, sample) !=
-          WOLFSSL_SUCCESS ||
+        WOLFSSL_SUCCESS ||
       wolfSSL_EVP_CipherUpdate(actx, dest, &len, PLAINTEXT,
                                sizeof(PLAINTEXT) - 1) != WOLFSSL_SUCCESS ||
       wolfSSL_EVP_EncryptFinal_ex(actx, dest + sizeof(PLAINTEXT) - 1, &len) !=
-          WOLFSSL_SUCCESS) {
+        WOLFSSL_SUCCESS) {
     DEBUG_MSG("WOLFSSL: hp_mask FAILED\n");
     return -1;
   }
@@ -309,11 +308,11 @@ int ngtcp2_crypto_hp_mask(uint8_t *dest, const ngtcp2_crypto_cipher *hp,
 }
 
 int ngtcp2_crypto_read_write_crypto_data(
-    ngtcp2_conn *conn, ngtcp2_encryption_level encryption_level,
-    const uint8_t *data, size_t datalen) {
+  ngtcp2_conn *conn, ngtcp2_encryption_level encryption_level,
+  const uint8_t *data, size_t datalen) {
   WOLFSSL *ssl = ngtcp2_conn_get_tls_native_handle(conn);
   WOLFSSL_ENCRYPTION_LEVEL level =
-      ngtcp2_crypto_wolfssl_from_ngtcp2_encryption_level(encryption_level);
+    ngtcp2_crypto_wolfssl_from_ngtcp2_encryption_level(encryption_level);
   int rv;
   int err;
 
@@ -397,7 +396,7 @@ int ngtcp2_crypto_set_local_transport_params(void *tls, const uint8_t *buf,
 }
 
 ngtcp2_encryption_level ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(
-    WOLFSSL_ENCRYPTION_LEVEL wolfssl_level) {
+  WOLFSSL_ENCRYPTION_LEVEL wolfssl_level) {
   switch (wolfssl_level) {
   case wolfssl_encryption_initial:
     return NGTCP2_ENCRYPTION_LEVEL_INITIAL;
@@ -415,7 +414,7 @@ ngtcp2_encryption_level ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(
 
 WOLFSSL_ENCRYPTION_LEVEL
 ngtcp2_crypto_wolfssl_from_ngtcp2_encryption_level(
-    ngtcp2_encryption_level encryption_level) {
+  ngtcp2_encryption_level encryption_level) {
   switch (encryption_level) {
   case NGTCP2_ENCRYPTION_LEVEL_INITIAL:
     return wolfssl_encryption_initial;
@@ -458,7 +457,7 @@ static int set_encryption_secrets(WOLFSSL *ssl,
   ngtcp2_crypto_conn_ref *conn_ref = SSL_get_app_data(ssl);
   ngtcp2_conn *conn = conn_ref->get_conn(conn_ref);
   ngtcp2_encryption_level level =
-      ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(wolfssl_level);
+    ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(wolfssl_level);
 
   DEBUG_MSG("WOLFSSL: set encryption secrets, level=%d, rxlen=%lu, txlen=%lu\n",
             wolfssl_level, rx_secret ? secretlen : 0,
@@ -484,7 +483,7 @@ static int add_handshake_data(WOLFSSL *ssl,
   ngtcp2_crypto_conn_ref *conn_ref = SSL_get_app_data(ssl);
   ngtcp2_conn *conn = conn_ref->get_conn(conn_ref);
   ngtcp2_encryption_level level =
-      ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(wolfssl_level);
+    ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(wolfssl_level);
   int rv;
 
   DEBUG_MSG("WOLFSSL: add handshake data, level=%d len=%lu\n", wolfssl_level,
@@ -516,10 +515,10 @@ static int send_alert(WOLFSSL *ssl, enum wolfssl_encryption_level_t level,
 }
 
 static WOLFSSL_QUIC_METHOD quic_method = {
-    set_encryption_secrets,
-    add_handshake_data,
-    flush_flight,
-    send_alert,
+  set_encryption_secrets,
+  add_handshake_data,
+  flush_flight,
+  send_alert,
 };
 
 static void crypto_wolfssl_configure_context(WOLFSSL_CTX *ssl_ctx) {
@@ -532,7 +531,7 @@ int ngtcp2_crypto_wolfssl_configure_server_context(WOLFSSL_CTX *ssl_ctx) {
   crypto_wolfssl_configure_context(ssl_ctx);
 #if PRINTF_DEBUG
   wolfSSL_Debugging_ON();
-#endif
+#endif /* PRINTF_DEBUG */
   return 0;
 }
 
@@ -541,6 +540,6 @@ int ngtcp2_crypto_wolfssl_configure_client_context(WOLFSSL_CTX *ssl_ctx) {
   wolfSSL_CTX_UseSessionTicket(ssl_ctx);
 #if PRINTF_DEBUG
   wolfSSL_Debugging_ON();
-#endif
+#endif /* PRINTF_DEBUG */
   return 0;
 }

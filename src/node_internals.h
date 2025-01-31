@@ -321,10 +321,14 @@ class ThreadPoolWork {
 #endif  // defined(__POSIX__) && !defined(__ANDROID__) && !defined(__CloudABI__)
 
 namespace credentials {
-bool SafeGetenv(const char* key,
-                std::string* text,
-                std::shared_ptr<KVStore> env_vars = nullptr);
+bool SafeGetenv(const char* key, std::string* text, Environment* env = nullptr);
 }  // namespace credentials
+
+void TraceEnvVar(Environment* env, const char* message);
+void TraceEnvVar(Environment* env, const char* message, const char* key);
+void TraceEnvVar(Environment* env,
+                 const char* message,
+                 v8::Local<v8::String> key);
 
 void DefineZlibConstants(v8::Local<v8::Object> target);
 v8::Isolate* NewIsolate(v8::Isolate::CreateParams* params,

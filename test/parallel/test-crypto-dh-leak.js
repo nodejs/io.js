@@ -9,10 +9,11 @@ if (common.isASan)
 
 const assert = require('assert');
 const crypto = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 const before = process.memoryUsage.rss();
 {
-  const size = common.hasFipsCrypto || common.hasOpenSSL3 ? 1024 : 256;
+  const size = crypto.getFips() || hasOpenSSL3 ? 1024 : 256;
   const dh = crypto.createDiffieHellman(size);
   const publicKey = dh.generateKeys();
   const privateKey = dh.getPrivateKey();
@@ -21,7 +22,7 @@ const before = process.memoryUsage.rss();
     dh.setPrivateKey(privateKey);
   }
 }
-global.gc();
+globalThis.gc();
 const after = process.memoryUsage.rss();
 
 // RSS should stay the same, ceteris paribus, but allow for

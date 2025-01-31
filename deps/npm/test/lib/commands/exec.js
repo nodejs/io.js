@@ -254,3 +254,27 @@ t.test('npx --no-install @npmcli/npx-test', async t => {
     )
   }
 })
+
+t.test('packs from git spec', async t => {
+  const spec = 'test/test#111111aaaaaaaabbbbbbbbccccccdddddddeeeee'
+  const pkgPath = path.resolve(__dirname, '../../fixtures/git-test.tgz')
+
+  const srv = MockRegistry.tnock(t, 'https://codeload.github.com')
+  srv.get('/test/test/tar.gz/111111aaaaaaaabbbbbbbbccccccdddddddeeeee')
+    .times(2)
+    .reply(200, await fs.readFile(pkgPath))
+
+  const { npm } = await loadMockNpm(t, {
+    config: {
+      audit: false,
+      yes: true,
+    },
+  })
+  try {
+    await npm.exec('exec', [spec])
+    const exists = await fs.stat(path.join(npm.prefix, 'npm-exec-test-success'))
+    t.ok(exists.isFile(), 'bin ran, creating file')
+  } catch (err) {
+    t.fail(err, "shouldn't throw")
+  }
+})

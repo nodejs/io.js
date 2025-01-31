@@ -24,7 +24,7 @@
  */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <assert.h>
 
@@ -339,7 +339,7 @@ static ngtcp2_crypto_ctx *crypto_ctx_cipher_id(ngtcp2_crypto_ctx *ctx,
   ctx->hp.native_handle = (void *)crypto_cipher_id_get_hp(cipher_id);
   ctx->max_encryption = crypto_cipher_id_get_aead_max_encryption(cipher_id);
   ctx->max_decryption_failure =
-      crypto_cipher_id_get_aead_max_decryption_failure(cipher_id);
+    crypto_cipher_id_get_aead_max_decryption_failure(cipher_id);
 
   return ctx;
 }
@@ -527,14 +527,14 @@ int ngtcp2_crypto_hkdf_extract(uint8_t *dest, const ngtcp2_crypto_md *md,
   EVP_KDF_CTX *kctx = EVP_KDF_CTX_new(kdf);
   int mode = EVP_KDF_HKDF_MODE_EXTRACT_ONLY;
   OSSL_PARAM params[] = {
-      OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
-      OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
-                                       (char *)EVP_MD_get0_name(prf), 0),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)secret,
-                                        secretlen),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, (void *)salt,
-                                        saltlen),
-      OSSL_PARAM_construct_end(),
+    OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
+    OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
+                                     (char *)EVP_MD_get0_name(prf), 0),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)secret,
+                                      secretlen),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, (void *)salt,
+                                      saltlen),
+    OSSL_PARAM_construct_end(),
   };
   int rv = 0;
 
@@ -584,14 +584,14 @@ int ngtcp2_crypto_hkdf_expand(uint8_t *dest, size_t destlen,
   EVP_KDF_CTX *kctx = EVP_KDF_CTX_new(kdf);
   int mode = EVP_KDF_HKDF_MODE_EXPAND_ONLY;
   OSSL_PARAM params[] = {
-      OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
-      OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
-                                       (char *)EVP_MD_get0_name(prf), 0),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)secret,
-                                        secretlen),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, (void *)info,
-                                        infolen),
-      OSSL_PARAM_construct_end(),
+    OSSL_PARAM_construct_int(OSSL_KDF_PARAM_MODE, &mode),
+    OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
+                                     (char *)EVP_MD_get0_name(prf), 0),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)secret,
+                                      secretlen),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, (void *)info,
+                                      infolen),
+    OSSL_PARAM_construct_end(),
   };
   int rv = 0;
 
@@ -639,15 +639,15 @@ int ngtcp2_crypto_hkdf(uint8_t *dest, size_t destlen,
   EVP_KDF *kdf = crypto_kdf_hkdf();
   EVP_KDF_CTX *kctx = EVP_KDF_CTX_new(kdf);
   OSSL_PARAM params[] = {
-      OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
-                                       (char *)EVP_MD_get0_name(prf), 0),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)secret,
-                                        secretlen),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, (void *)salt,
-                                        saltlen),
-      OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, (void *)info,
-                                        infolen),
-      OSSL_PARAM_construct_end(),
+    OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST,
+                                     (char *)EVP_MD_get0_name(prf), 0),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, (void *)secret,
+                                      secretlen),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, (void *)salt,
+                                      saltlen),
+    OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, (void *)info,
+                                      infolen),
+    OSSL_PARAM_construct_end(),
   };
   int rv = 0;
 
@@ -672,7 +672,7 @@ int ngtcp2_crypto_hkdf(uint8_t *dest, size_t destlen,
 
   if (EVP_PKEY_derive_init(pctx) != 1 ||
       EVP_PKEY_CTX_hkdf_mode(pctx, EVP_PKEY_HKDEF_MODE_EXTRACT_AND_EXPAND) !=
-          1 ||
+        1 ||
       EVP_PKEY_CTX_set_hkdf_md(pctx, prf) != 1 ||
       EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt, (int)saltlen) != 1 ||
       EVP_PKEY_CTX_set1_hkdf_key(pctx, secret, (int)secretlen) != 1 ||
@@ -699,9 +699,9 @@ int ngtcp2_crypto_encrypt(uint8_t *dest, const ngtcp2_crypto_aead *aead,
   int len;
 #if OPENSSL_VERSION_NUMBER >= 0x30000000L
   OSSL_PARAM params[] = {
-      OSSL_PARAM_construct_octet_string(OSSL_CIPHER_PARAM_AEAD_TAG,
-                                        dest + plaintextlen, taglen),
-      OSSL_PARAM_construct_end(),
+    OSSL_PARAM_construct_octet_string(OSSL_CIPHER_PARAM_AEAD_TAG,
+                                      dest + plaintextlen, taglen),
+    OSSL_PARAM_construct_end(),
   };
 #endif /* OPENSSL_VERSION_NUMBER >= 0x30000000L */
 
@@ -794,16 +794,16 @@ int ngtcp2_crypto_hp_mask(uint8_t *dest, const ngtcp2_crypto_cipher *hp,
 }
 
 int ngtcp2_crypto_read_write_crypto_data(
-    ngtcp2_conn *conn, ngtcp2_encryption_level encryption_level,
-    const uint8_t *data, size_t datalen) {
+  ngtcp2_conn *conn, ngtcp2_encryption_level encryption_level,
+  const uint8_t *data, size_t datalen) {
   SSL *ssl = ngtcp2_conn_get_tls_native_handle(conn);
   int rv;
   int err;
 
   if (SSL_provide_quic_data(
-          ssl,
-          ngtcp2_crypto_quictls_from_ngtcp2_encryption_level(encryption_level),
-          data, datalen) != 1) {
+        ssl,
+        ngtcp2_crypto_quictls_from_ngtcp2_encryption_level(encryption_level),
+        data, datalen) != 1) {
     return -1;
   }
 
@@ -874,7 +874,7 @@ int ngtcp2_crypto_set_local_transport_params(void *tls, const uint8_t *buf,
 }
 
 ngtcp2_encryption_level ngtcp2_crypto_quictls_from_ossl_encryption_level(
-    OSSL_ENCRYPTION_LEVEL ossl_level) {
+  OSSL_ENCRYPTION_LEVEL ossl_level) {
   switch (ossl_level) {
   case ssl_encryption_initial:
     return NGTCP2_ENCRYPTION_LEVEL_INITIAL;
@@ -892,7 +892,7 @@ ngtcp2_encryption_level ngtcp2_crypto_quictls_from_ossl_encryption_level(
 
 OSSL_ENCRYPTION_LEVEL
 ngtcp2_crypto_quictls_from_ngtcp2_encryption_level(
-    ngtcp2_encryption_level encryption_level) {
+  ngtcp2_encryption_level encryption_level) {
   switch (encryption_level) {
   case NGTCP2_ENCRYPTION_LEVEL_INITIAL:
     return ssl_encryption_initial;
@@ -934,7 +934,7 @@ static int set_encryption_secrets(SSL *ssl, OSSL_ENCRYPTION_LEVEL ossl_level,
   ngtcp2_crypto_conn_ref *conn_ref = SSL_get_app_data(ssl);
   ngtcp2_conn *conn = conn_ref->get_conn(conn_ref);
   ngtcp2_encryption_level level =
-      ngtcp2_crypto_quictls_from_ossl_encryption_level(ossl_level);
+    ngtcp2_crypto_quictls_from_ossl_encryption_level(ossl_level);
 
   if (rx_secret &&
       ngtcp2_crypto_derive_and_install_rx_key(conn, NULL, NULL, NULL, level,
@@ -956,7 +956,7 @@ static int add_handshake_data(SSL *ssl, OSSL_ENCRYPTION_LEVEL ossl_level,
   ngtcp2_crypto_conn_ref *conn_ref = SSL_get_app_data(ssl);
   ngtcp2_conn *conn = conn_ref->get_conn(conn_ref);
   ngtcp2_encryption_level level =
-      ngtcp2_crypto_quictls_from_ossl_encryption_level(ossl_level);
+    ngtcp2_crypto_quictls_from_ossl_encryption_level(ossl_level);
   int rv;
 
   rv = ngtcp2_conn_submit_crypto_data(conn, level, data, datalen);
@@ -973,8 +973,7 @@ static int flush_flight(SSL *ssl) {
   return 1;
 }
 
-static int send_alert(SSL *ssl, enum ssl_encryption_level_t level,
-                      uint8_t alert) {
+static int send_alert(SSL *ssl, OSSL_ENCRYPTION_LEVEL level, uint8_t alert) {
   ngtcp2_crypto_conn_ref *conn_ref = SSL_get_app_data(ssl);
   ngtcp2_conn *conn = conn_ref->get_conn(conn_ref);
   (void)level;
@@ -985,14 +984,14 @@ static int send_alert(SSL *ssl, enum ssl_encryption_level_t level,
 }
 
 static SSL_QUIC_METHOD quic_method = {
-    set_encryption_secrets,
-    add_handshake_data,
-    flush_flight,
-    send_alert,
+  set_encryption_secrets,
+  add_handshake_data,
+  flush_flight,
+  send_alert,
 #ifdef LIBRESSL_VERSION_NUMBER
-    NULL,
-    NULL,
-#endif /* LIBRESSL_VERSION_NUMBER */
+  NULL,
+  NULL,
+#endif /* defined(LIBRESSL_VERSION_NUMBER) */
 };
 
 static void crypto_quictls_configure_context(SSL_CTX *ssl_ctx) {

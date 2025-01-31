@@ -19,7 +19,7 @@ const color = (colorStr, colorId) => {
   return colorStr.replace(/[^\n\r]+/g, open + '$&' + close)
 }
 
-const formatDiff = ({ files, opts = {}, refs, versions }) => {
+const formatDiff = async ({ files, opts = {}, refs, versions }) => {
   let res = ''
   const srcPrefix = opts.diffNoPrefix ? '' : opts.diffSrcPrefix || 'a/'
   const dstPrefix = opts.diffNoPrefix ? '' : opts.diffDstPrefix || 'b/'
@@ -77,7 +77,7 @@ const formatDiff = ({ files, opts = {}, refs, versions }) => {
     /* eslint-disable-next-line max-len */
     header(`index ${opts.tagVersionPrefix || 'v'}${versions.a}..${opts.tagVersionPrefix || 'v'}${versions.b} ${fileMode}`)
 
-    if (shouldPrintPatch(filename)) {
+    if (await shouldPrintPatch(filename)) {
       patch += jsDiff.createTwoFilesPatch(
         names.a,
         names.b,

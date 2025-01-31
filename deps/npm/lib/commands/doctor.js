@@ -1,6 +1,6 @@
 const cacache = require('cacache')
 const { access, lstat, readdir, constants: { R_OK, W_OK, X_OK } } = require('node:fs/promises')
-const fetch = require('make-fetch-happen')
+const npmFetch = require('make-fetch-happen')
 const which = require('which')
 const pacote = require('pacote')
 const { resolve } = require('node:path')
@@ -166,7 +166,7 @@ class Doctor extends BaseCommand {
     const currentRange = `^${current}`
     const url = 'https://nodejs.org/dist/index.json'
     log.info('doctor', 'Getting Node.js release information')
-    const res = await fetch(url, { method: 'GET', ...this.npm.flatOptions })
+    const res = await npmFetch(url, { method: 'GET', ...this.npm.flatOptions })
     const data = await res.json()
     let maxCurrent = '0.0.0'
     let maxLTS = '0.0.0'
@@ -246,7 +246,7 @@ class Doctor extends BaseCommand {
 
         try {
           await access(f, mask)
-        } catch (er) {
+        } catch {
           ok = false
           const msg = `Missing permissions on ${f} (expect: ${maskLabel(mask)})`
           log.error('doctor', 'checkFilesPermission', msg)

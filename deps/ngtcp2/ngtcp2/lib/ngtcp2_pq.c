@@ -29,17 +29,20 @@
 
 #include "ngtcp2_macro.h"
 
-void ngtcp2_pq_init(ngtcp2_pq *pq, ngtcp2_less less, const ngtcp2_mem *mem) {
-  pq->mem = mem;
-  pq->capacity = 0;
+void ngtcp2_pq_init(ngtcp2_pq *pq, ngtcp2_pq_less less, const ngtcp2_mem *mem) {
   pq->q = NULL;
+  pq->mem = mem;
   pq->length = 0;
+  pq->capacity = 0;
   pq->less = less;
 }
 
 void ngtcp2_pq_free(ngtcp2_pq *pq) {
+  if (!pq) {
+    return;
+  }
+
   ngtcp2_mem_free(pq->mem, pq->q);
-  pq->q = NULL;
 }
 
 static void swap(ngtcp2_pq *pq, size_t i, size_t j) {
@@ -54,11 +57,13 @@ static void swap(ngtcp2_pq *pq, size_t i, size_t j) {
 
 static void bubble_up(ngtcp2_pq *pq, size_t index) {
   size_t parent;
-  while (index != 0) {
+
+  while (index) {
     parent = (index - 1) / 2;
     if (!pq->less(pq->q[index], pq->q[parent])) {
       return;
     }
+
     swap(pq, parent, index);
     index = parent;
   }
@@ -69,56 +74,64 @@ int ngtcp2_pq_push(ngtcp2_pq *pq, ngtcp2_pq_entry *item) {
     void *nq;
     size_t ncapacity;
 
-    ncapacity = ngtcp2_max(4, (pq->capacity * 2));
+    ncapacity = ngtcp2_max_size(4, pq->capacity * 2);
 
-    nq = ngtcp2_mem_realloc(pq->mem, pq->q,
-                            ncapacity * sizeof(ngtcp2_pq_entry *));
+    nq =
+      ngtcp2_mem_realloc(pq->mem, pq->q, ncapacity * sizeof(ngtcp2_pq_entry *));
     if (nq == NULL) {
       return NGTCP2_ERR_NOMEM;
     }
+
     pq->capacity = ncapacity;
     pq->q = nq;
   }
+
   pq->q[pq->length] = item;
   item->index = pq->length;
   ++pq->length;
-  bubble_up(pq, pq->length - 1);
+  bubble_up(pq, item->index);
+
   return 0;
 }
 
-ngtcp2_pq_entry *ngtcp2_pq_top(ngtcp2_pq *pq) {
+ngtcp2_pq_entry *ngtcp2_pq_top(const ngtcp2_pq *pq) {
   assert(pq->length);
   return pq->q[0];
 }
 
 static void bubble_down(ngtcp2_pq *pq, size_t index) {
   size_t i, j, minindex;
+
   for (;;) {
     j = index * 2 + 1;
     minindex = index;
+
     for (i = 0; i < 2; ++i, ++j) {
       if (j >= pq->length) {
         break;
       }
+
       if (pq->less(pq->q[j], pq->q[minindex])) {
         minindex = j;
       }
     }
+
     if (minindex == index) {
       return;
     }
+
     swap(pq, index, minindex);
     index = minindex;
   }
 }
 
 void ngtcp2_pq_pop(ngtcp2_pq *pq) {
-  if (pq->length > 0) {
-    pq->q[0] = pq->q[pq->length - 1];
-    pq->q[0]->index = 0;
-    --pq->length;
-    bubble_down(pq, 0);
-  }
+  assert(pq->length);
+
+  pq->q[0] = pq->q[pq->length - 1];
+  pq->q[0]->index = 0;
+  --pq->length;
+  bubble_down(pq, 0);
 }
 
 void ngtcp2_pq_remove(ngtcp2_pq *pq, ngtcp2_pq_entry *item) {
@@ -145,20 +158,22 @@ void ngtcp2_pq_remove(ngtcp2_pq *pq, ngtcp2_pq_entry *item) {
   }
 }
 
-int ngtcp2_pq_empty(ngtcp2_pq *pq) { return pq->length == 0; }
+int ngtcp2_pq_empty(const ngtcp2_pq *pq) { return pq->length == 0; }
 
-size_t ngtcp2_pq_size(ngtcp2_pq *pq) { return pq->length; }
+size_t ngtcp2_pq_size(const ngtcp2_pq *pq) { return pq->length; }
 
-int ngtcp2_pq_each(ngtcp2_pq *pq, ngtcp2_pq_item_cb fun, void *arg) {
+int ngtcp2_pq_each(const ngtcp2_pq *pq, ngtcp2_pq_item_cb fun, void *arg) {
   size_t i;
 
   if (pq->length == 0) {
     return 0;
   }
+
   for (i = 0; i < pq->length; ++i) {
     if ((*fun)(pq->q[i], arg)) {
       return 1;
     }
   }
+
   return 0;
 }

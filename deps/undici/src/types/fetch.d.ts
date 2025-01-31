@@ -6,7 +6,7 @@ import { Blob } from 'buffer'
 import { URL, URLSearchParams } from 'url'
 import { ReadableStream } from 'stream/web'
 import { FormData } from './formdata'
-
+import { HeaderRecord } from './header'
 import Dispatcher from './dispatcher'
 
 export type RequestInfo = string | URL | Request
@@ -36,17 +36,17 @@ export class BodyMixin {
   /**
    * @deprecated This method is not recommended for parsing multipart/form-data bodies in server environments.
    * It is recommended to use a library such as [@fastify/busboy](https://www.npmjs.com/package/@fastify/busboy) as follows:
-   * 
+   *
    * @example
    * ```js
    * import { Busboy } from '@fastify/busboy'
    * import { Readable } from 'node:stream'
-   * 
+   *
    * const response = await fetch('...')
    * const busboy = new Busboy({ headers: { 'content-type': response.headers.get('content-type') } })
-   * 
+   *
    * // handle events emitted from `busboy`
-   * 
+   *
    * Readable.fromWeb(response.body).pipe(busboy)
    * ```
    */
@@ -67,7 +67,7 @@ export interface SpecIterable<T> {
   [Symbol.iterator](): SpecIterator<T>;
 }
 
-export type HeadersInit = string[][] | Record<string, string | ReadonlyArray<string>> | Headers
+export type HeadersInit = [string, string][] | HeaderRecord | Headers
 
 export declare class Headers implements SpecIterable<[string, string]> {
   constructor (init?: HeadersInit)
@@ -119,20 +119,21 @@ type RequestDestination =
   | 'xslt'
 
 export interface RequestInit {
-  method?: string
-  keepalive?: boolean
-  headers?: HeadersInit
   body?: BodyInit | null
-  redirect?: RequestRedirect
-  integrity?: string
-  signal?: AbortSignal | null
+  cache?: RequestCache
   credentials?: RequestCredentials
-  mode?: RequestMode
-  referrer?: string
-  referrerPolicy?: ReferrerPolicy
-  window?: null
   dispatcher?: Dispatcher
   duplex?: RequestDuplex
+  headers?: HeadersInit
+  integrity?: string
+  keepalive?: boolean
+  method?: string
+  mode?: RequestMode
+  redirect?: RequestRedirect
+  referrer?: string
+  referrerPolicy?: ReferrerPolicy
+  signal?: AbortSignal | null
+  window?: null
 }
 
 export type ReferrerPolicy =
@@ -144,7 +145,7 @@ export type ReferrerPolicy =
   | 'same-origin'
   | 'strict-origin'
   | 'strict-origin-when-cross-origin'
-  | 'unsafe-url';
+  | 'unsafe-url'
 
 export type RequestMode = 'cors' | 'navigate' | 'no-cors' | 'same-origin'
 
@@ -204,6 +205,6 @@ export declare class Response extends BodyMixin {
   readonly clone: () => Response
 
   static error (): Response
-  static json(data: any, init?: ResponseInit): Response
+  static json (data: any, init?: ResponseInit): Response
   static redirect (url: string | URL, status: ResponseRedirectStatus): Response
 }

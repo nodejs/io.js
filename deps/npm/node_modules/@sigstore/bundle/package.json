@@ -1,6 +1,6 @@
 {
   "name": "@sigstore/bundle",
-  "version": "2.3.2",
+  "version": "3.0.0",
   "description": "Sigstore bundle type",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -30,6 +30,6 @@
     "@sigstore/protobuf-specs": "^0.3.2"
   },
   "engines": {
-    "node": "^16.14.0 || >=18.0.0"
+    "node": "^18.17.0 || >=20.5.0"
   }
 }

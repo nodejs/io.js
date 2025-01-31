@@ -38,7 +38,7 @@ enum AESKeyVariant {
 struct AESCipherConfig final : public MemoryRetainer {
   CryptoJobMode mode;
   AESKeyVariant variant;
-  const EVP_CIPHER* cipher;
+  ncrypto::Cipher cipher;
   size_t length;
   ByteSource iv;  // Used for both iv or counter
   ByteSource additional_data;

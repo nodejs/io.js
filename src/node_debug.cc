@@ -12,8 +12,7 @@
 #include <unordered_map>
 #endif  // DEBUG
 
-namespace node {
-namespace debug {
+namespace node::debug {
 
 #ifdef DEBUG
 using v8::Context;
@@ -41,7 +40,7 @@ void GetV8FastApiCallCount(const FunctionCallbackInfo<Value>& args) {
     return;
   }
   Utf8Value utf8_key(env->isolate(), args[0]);
-  args.GetReturnValue().Set(GetV8FastApiCallCount(utf8_key.ToString()));
+  args.GetReturnValue().Set(GetV8FastApiCallCount(utf8_key.ToStringView()));
 }
 
 void SlowIsEven(const FunctionCallbackInfo<Value>& args) {
@@ -93,8 +92,7 @@ void Initialize(Local<Object> target,
 }
 #endif  // DEBUG
 
-}  // namespace debug
-}  // namespace node
+}  // namespace node::debug
 
 #ifdef DEBUG
 NODE_BINDING_CONTEXT_AWARE_INTERNAL(debug, node::debug::Initialize)

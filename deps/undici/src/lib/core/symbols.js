@@ -1,3 +1,5 @@
+'use strict'
+
 module.exports = {
   kClose: Symbol('close'),
   kDestroy: Symbol('destroy'),
@@ -52,7 +54,6 @@ module.exports = {
   kMaxRequests: Symbol('maxRequestsPerClient'),
   kProxy: Symbol('proxy agent options'),
   kCounter: Symbol('socket request counter'),
-  kInterceptors: Symbol('dispatch interceptors'),
   kMaxResponseSize: Symbol('max response size'),
   kHTTP2Session: Symbol('http2Session'),
   kHTTP2SessionState: Symbol('http2Session state'),

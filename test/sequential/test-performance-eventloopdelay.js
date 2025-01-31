@@ -3,6 +3,7 @@
 
 const common = require('../common');
 const assert = require('assert');
+const os = require('os');
 const {
   monitorEventLoopDelay
 } = require('perf_hooks');
@@ -51,9 +52,13 @@ const { sleep } = require('internal/util');
 }
 
 {
+  const s390x = os.arch() === 's390x';
   const histogram = monitorEventLoopDelay({ resolution: 1 });
   histogram.enable();
   let m = 5;
+  if (s390x) {
+    m = m * 2;
+  }
   function spinAWhile() {
     sleep(1000);
     if (--m > 0) {

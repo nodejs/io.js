@@ -9,6 +9,7 @@ gonna timeout
     not ok 1 - first describe first test
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/timeout_in_before_each_should_not_affect_further_tests.js:(LINE):3'
       failureType: 'hookFailed'
       error: 'failed running beforeEach hook'
@@ -20,6 +21,7 @@ gonna timeout
     ok 2 - first describe second test
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 1 - before each timeout
@@ -38,6 +40,7 @@ not gonna timeout
     not ok 1 - second describe first test
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/timeout_in_before_each_should_not_affect_further_tests.js:(LINE):3'
       failureType: 'hookFailed'
       error: 'failed running afterEach hook'
@@ -49,6 +52,7 @@ not gonna timeout
     ok 2 - second describe second test
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 2 - after each timeout

@@ -294,3 +294,13 @@ TEST_IMPL(thread_stack_size_explicit) {
 
   return 0;
 }
+
+static void thread_detach_cb(void* arg) {}
+
+TEST_IMPL(thread_detach) {
+  uv_thread_t thread;
+  ASSERT_OK(uv_thread_create(&thread, thread_detach_cb, NULL));
+  ASSERT_OK(uv_thread_detach(&thread));
+
+  return 0;
+}

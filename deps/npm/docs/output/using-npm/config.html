@@ -141,9 +141,9 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="----config----1090">
+<h1 id="----config----1100">
     <span>config</span>
-    <span class="version">@10.9.0</span>
+    <span class="version">@11.0.0</span>
 </h1>
 <span class="description">More than you probably want to know about npm configuration</span>
 </header>
@@ -1468,9 +1468,9 @@ command line.</p>
 <li>Default: null</li>
 <li>Type: null or String</li>
 <li>DEPRECATED: <code>key</code> and <code>cert</code> are no longer used for most registry
-operations. Use registry scoped <code>keyfile</code> and <code>certfile</code> instead. Example:
+operations. Use registry scoped <code>keyfile</code> and <code>cafile</code> instead. Example:
 //other-registry.tld/:keyfile=/path/to/key.pem
-//other-registry.tld/:certfile=/path/to/cert.crt</li>
+//other-registry.tld/:cafile=/path/to/cert.crt</li>
 </ul>
 <p>A client certificate to pass when accessing the registry. Values should be
 in PEM format (Windows calls it "Base-64 encoded X.509 (.CER)") with
@@ -1478,8 +1478,8 @@ newlines replaced by the string "\n". For example:</p>
 <pre><code class="language-ini">cert="-----BEGIN CERTIFICATE-----\nXXXX\nXXXX\n-----END CERTIFICATE-----"
 </code></pre>
 <p>It is <em>not</em> the path to a certificate file, though you can set a
-registry-scoped "certfile" path like
-"//other-registry.tld/:certfile=/path/to/cert.pem".</p>
+registry-scoped "cafile" path like
+"//other-registry.tld/:cafile=/path/to/cert.pem".</p>
 <h4 id="dev"><code>dev</code></h4>
 <ul>
 <li>Default: false</li>
@@ -1543,9 +1543,9 @@ on deeper dependencies. Sets <code>--install-strategy=shallow</code>.</p>
 <li>Default: null</li>
 <li>Type: null or String</li>
 <li>DEPRECATED: <code>key</code> and <code>cert</code> are no longer used for most registry
-operations. Use registry scoped <code>keyfile</code> and <code>certfile</code> instead. Example:
+operations. Use registry scoped <code>keyfile</code> and <code>cafile</code> instead. Example:
 //other-registry.tld/:keyfile=/path/to/key.pem
-//other-registry.tld/:certfile=/path/to/cert.crt</li>
+//other-registry.tld/:cafile=/path/to/cert.crt</li>
 </ul>
 <p>A client key to pass when accessing the registry. Values should be in PEM
 format with newlines replaced by the string "\n". For example:</p>

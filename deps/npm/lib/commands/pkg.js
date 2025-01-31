@@ -63,12 +63,12 @@ class Pkg extends BaseCommand {
 
     if (args.length) {
       result = new Queryable(result).query(args)
-      // in case there's only a single result from the query
-      // just prints that one element to stdout
+      // in case there's only a single argument and a single result from the query
+      // just prints that one element to stdout.
       // TODO(BREAKING_CHANGE): much like other places where we unwrap single
       // item arrays this should go away. it makes the behavior unknown for users
       // who don't already know the shape of the data.
-      if (Object.keys(result).length === 1) {
+      if (Object.keys(result).length === 1 && args.length === 1) {
         result = result[args]
       }
     }

@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -78,4 +78,4 @@ int nghttp3_rcbuf_new2(nghttp3_rcbuf **rcbuf_ptr, const uint8_t *src,
  */
 void nghttp3_rcbuf_del(nghttp3_rcbuf *rcbuf);
 
-#endif /* NGHTTP3_RCBUF_H */
+#endif /* !defined(NGHTTP3_RCBUF_H) */

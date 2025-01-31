@@ -1,5 +1,8 @@
 'use strict'
 const EventEmitter = require('node:events')
+const WrapHandler = require('../handler/wrap-handler')
+
+const wrapInterceptor = (dispatch) => (opts, handler) => dispatch(opts, WrapHandler.wrap(handler))
 
 class Dispatcher extends EventEmitter {
   dispatch () {
@@ -29,36 +32,16 @@ class Dispatcher extends EventEmitter {
       }
 
       dispatch = interceptor(dispatch)
+      dispatch = wrapInterceptor(dispatch)
 
       if (dispatch == null || typeof dispatch !== 'function' || dispatch.length !== 2) {
         throw new TypeError('invalid interceptor')
       }
     }
 
-    return new ComposedDispatcher(this, dispatch)
-  }
-}
-
-class ComposedDispatcher extends Dispatcher {
-  #dispatcher = null
-  #dispatch = null
-
-  constructor (dispatcher, dispatch) {
-    super()
-    this.#dispatcher = dispatcher
-    this.#dispatch = dispatch
-  }
-
-  dispatch (...args) {
-    this.#dispatch(...args)
-  }
-
-  close (...args) {
-    return this.#dispatcher.close(...args)
-  }
-
-  destroy (...args) {
-    return this.#dispatcher.destroy(...args)
+    return new Proxy(this, {
+      get: (target, key) => key === 'dispatch' ? dispatch : target[key]
+    })
   }
 }
 

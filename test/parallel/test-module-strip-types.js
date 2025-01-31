@@ -12,6 +12,12 @@ common.expectWarning(
   'stripTypeScriptTypes is an experimental feature and might change at any time',
 );
 
+const sourceToBeTransformed = `
+  namespace MathUtil {
+    export const add = (a: number, b: number) => a + b;
+  }`;
+const sourceToBeTransformedMapping = 'UACY;aACK,MAAM,CAAC,GAAW,IAAc,IAAI;AACnD,GAFU,aAAA';
+
 test('stripTypeScriptTypes', () => {
   const source = 'const x: number = 1;';
   const result = stripTypeScriptTypes(source);
@@ -48,45 +54,52 @@ test('stripTypeScriptTypes sourceUrl throws when mode is strip', () => {
 });
 
 test('stripTypeScriptTypes source map when mode is transform', () => {
-  const source = `
-  namespace MathUtil {
-    export const add = (a: number, b: number) => a + b;
-  }`;
-  const result = stripTypeScriptTypes(source, { mode: 'transform', sourceMap: true });
+  const result = stripTypeScriptTypes(sourceToBeTransformed, { mode: 'transform', sourceMap: true });
   const script = new vm.Script(result);
   const sourceMap =
     {
       version: 3,
-      sources: [
-        '<anon>',
-      ],
-      sourcesContent: [
-        '\n  namespace MathUtil {\n    export const add = (a: number, b: number) => a + b;\n  }',
-      ],
+      sources: [''],
       names: [],
-      mappings: ';UACY;aACK,MAAM,CAAC,GAAW,IAAc,IAAI;AACnD,GAFU,aAAA'
+      mappings: sourceToBeTransformedMapping,
     };
-  assert(script.sourceMapURL, `sourceMappingURL=data:application/json;base64,${JSON.stringify(sourceMap)}`);
+  const inlinedSourceMap = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
+  assert.strictEqual(script.sourceMapURL, `data:application/json;base64,${inlinedSourceMap}`);
 });
 
 test('stripTypeScriptTypes source map when mode is transform and sourceUrl', () => {
-  const source = `
-  namespace MathUtil {
-    export const add = (a: number, b: number) => a + b;
-  }`;
-  const result = stripTypeScriptTypes(source, { mode: 'transform', sourceMap: true, sourceUrl: 'test.ts' });
+  const result = stripTypeScriptTypes(sourceToBeTransformed, {
+    mode: 'transform',
+    sourceMap: true,
+    sourceUrl: 'test.ts'
+  });
   const script = new vm.Script(result);
   const sourceMap =
     {
       version: 3,
-      sources: [
-        'test.ts',
-      ],
-      sourcesContent: [
-        '\n  namespace MathUtil {\n    export const add = (a: number, b: number) => a + b;\n  }',
-      ],
+      sources: ['test.ts'],
       names: [],
-      mappings: ';UACY;aACK,MAAM,CAAC,GAAW,IAAc,IAAI;AACnD,GAFU,aAAA'
+      mappings: sourceToBeTransformedMapping,
     };
-  assert(script.sourceMapURL, `sourceMappingURL=data:application/json;base64,${JSON.stringify(sourceMap)}`);
+  const inlinedSourceMap = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
+  assert.strictEqual(script.sourceMapURL, `data:application/json;base64,${inlinedSourceMap}`);
+});
+
+test('stripTypeScriptTypes source map when mode is transform and sourceUrl with non-latin-1 chars', () => {
+  const sourceUrl = 'dir%20with $unusual"chars?\'åß∂ƒ©∆¬…`.cts';
+  const result = stripTypeScriptTypes(sourceToBeTransformed, {
+    mode: 'transform',
+    sourceMap: true,
+    sourceUrl,
+  });
+  const script = new vm.Script(result);
+  const sourceMap =
+    {
+      version: 3,
+      sources: [sourceUrl],
+      names: [],
+      mappings: sourceToBeTransformedMapping,
+    };
+  const inlinedSourceMap = Buffer.from(JSON.stringify(sourceMap)).toString('base64');
+  assert.strictEqual(script.sourceMapURL, `data:application/json;base64,${inlinedSourceMap}`);
 });

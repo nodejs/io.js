@@ -1,5 +1,7 @@
 'use strict'
 
+const WASM_BUILDER_CONTAINER = 'ghcr.io/nodejs/wasm-builder@sha256:975f391d907e42a75b8c72eb77c782181e941608687d4d8694c3e9df415a0970' // v0.0.9
+
 const { execSync } = require('node:child_process')
 const { writeFileSync, readFileSync } = require('node:fs')
 const { join, resolve } = require('node:path')
@@ -7,7 +9,6 @@ const { join, resolve } = require('node:path')
 const ROOT = resolve(__dirname, '../')
 const WASM_SRC = resolve(__dirname, '../deps/llhttp')
 const WASM_OUT = resolve(__dirname, '../lib/llhttp')
-const DOCKERFILE = resolve(__dirname, './Dockerfile')
 
 // These are defined by build environment
 const WASM_CC = process.env.WASM_CC || 'clang'
@@ -33,7 +34,17 @@ const writeWasmChunk = (path, dest) => {
 
 const { Buffer } = require('node:buffer')
 
-module.exports = Buffer.from('${base64}', 'base64')
+const wasmBase64 = '${base64}'
+
+let wasmBuffer
+
+Object.defineProperty(module, 'exports', {
+  get: () => {
+    return wasmBuffer
+      ? wasmBuffer
+      : (wasmBuffer = Buffer.from(wasmBase64, 'base64'))
+  }
+})
 `)
 }
 
@@ -42,33 +53,16 @@ if (!platform && process.argv[2]) {
   platform = execSync('docker info -f "{{.OSType}}/{{.Architecture}}"').toString().trim()
 }
 
-if (process.argv[2] === '--rm') {
-  const cmd = 'docker image rm llhttp_wasm_builder'
-
-  console.log(`> ${cmd}\n\n`)
-  try {
-    execSync(cmd, { stdio: 'inherit' })
-  } catch (e) {}
-
-  process.exit(0)
-}
-
-if (process.argv[2] === '--prebuild') {
-  const cmd = `docker build --platform=${platform.toString().trim()} -t llhttp_wasm_builder -f ${DOCKERFILE} ${ROOT}`
-
-  console.log(`> ${cmd}\n\n`)
-  execSync(cmd, { stdio: 'inherit' })
-
-  process.exit(0)
-}
-
 if (process.argv[2] === '--docker') {
-  let cmd = `docker run --rm -t --platform=${platform.toString().trim()}`
+  let cmd = `docker run --rm --platform=${platform.toString().trim()} `
   if (process.platform === 'linux') {
     cmd += ` --user ${process.getuid()}:${process.getegid()}`
   }
 
-  cmd += ` --mount type=bind,source=${ROOT}/lib/llhttp,target=/home/node/undici/lib/llhttp llhttp_wasm_builder node build/wasm.js`
+  cmd += ` --mount type=bind,source=${ROOT}/lib/llhttp,target=/home/node/build/lib/llhttp \
+           --mount type=bind,source=${ROOT}/build,target=/home/node/build/build \
+           --mount type=bind,source=${ROOT}/deps,target=/home/node/build/deps \
+           -t ${WASM_BUILDER_CONTAINER} node build/wasm.js`
   console.log(`> ${cmd}\n\n`)
   execSync(cmd, { stdio: 'inherit' })
   process.exit(0)

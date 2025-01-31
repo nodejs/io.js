@@ -40,7 +40,7 @@ BaseObjectPtr<LogStream> LogStream::Create(Environment* env) {
            ->InstanceTemplate()
            ->NewInstance(env->context())
            .ToLocal(&obj)) {
-    return BaseObjectPtr<LogStream>();
+    return {};
   }
   return MakeDetachedBaseObject<LogStream>(env, obj);
 }

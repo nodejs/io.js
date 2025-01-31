@@ -12,7 +12,7 @@ async function pack (spec = 'file:.', opts = {}) {
   // gets spec
   spec = npa(spec)
 
-  const manifest = await pacote.manifest(spec, opts)
+  const manifest = await pacote.manifest(spec, { ...opts, Arborist })
 
   const stdio = opts.foregroundScripts ? 'inherit' : 'pipe'
 

@@ -27,7 +27,11 @@
 
   'conditions': [
     [ 'clang==1', {
-      'cflags': [ '-Werror=undefined-inline', '-Werror=extra-semi']
+      'cflags': [
+        '-Werror=undefined-inline',
+        '-Werror=extra-semi',
+        '-Werror=ctad-maybe-unsupported',
+      ],
     }],
     [ '"<(_type)"=="executable"', {
       'msvs_settings': {
@@ -212,6 +216,18 @@
       'dependencies': [ 'deps/nghttp2/nghttp2.gyp:nghttp2' ],
     }],
 
+    [ 'node_shared_ada=="false"', {
+        'dependencies': [ 'deps/ada/ada.gyp:ada' ],
+    }],
+
+    [ 'node_shared_simdjson=="false"', {
+        'dependencies': [ 'deps/simdjson/simdjson.gyp:simdjson' ],
+    }],
+
+    [ 'node_shared_simdutf=="false"', {
+        'dependencies': [ 'deps/simdutf/simdutf.gyp:simdutf' ],
+    }],
+
     [ 'node_shared_brotli=="false"', {
       'dependencies': [ 'deps/brotli/brotli.gyp:brotli' ],
     }],
@@ -222,8 +238,9 @@
 
     [ 'OS=="mac"', {
       # linking Corefoundation is needed since certain macOS debugging tools
-      # like Instruments require it for some features
-      'libraries': [ '-framework CoreFoundation' ],
+      # like Instruments require it for some features. Security is needed for
+      # --use-system-ca.
+      'libraries': [ '-framework CoreFoundation -framework Security' ],
       'defines!': [
         'NODE_PLATFORM="mac"',
       ],

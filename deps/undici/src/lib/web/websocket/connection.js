@@ -1,21 +1,14 @@
 'use strict'
 
 const { uid, states, sentCloseFrameState, emptyBuffer, opcodes } = require('./constants')
-const {
-  kReadyState,
-  kSentClose,
-  kByteParser,
-  kReceivedClose,
-  kResponse
-} = require('./symbols')
-const { fireEvent, failWebsocketConnection, isClosing, isClosed, isEstablished, parseExtensions } = require('./util')
+const { failWebsocketConnection, parseExtensions, isClosed, isClosing, isEstablished, validateCloseCodeAndReason } = require('./util')
 const { channels } = require('../../core/diagnostics')
-const { CloseEvent } = require('./events')
 const { makeRequest } = require('../fetch/request')
 const { fetching } = require('../fetch/index')
 const { Headers, getHeadersList } = require('../fetch/headers')
 const { getDecodeSplit } = require('../fetch/util')
 const { WebsocketFrameSend } = require('./frame')
+const assert = require('node:assert')
 
 /** @type {import('crypto')} */
 let crypto
@@ -30,11 +23,10 @@ try {
  * @see https://websockets.spec.whatwg.org/#concept-websocket-establish
  * @param {URL} url
  * @param {string|string[]} protocols
- * @param {import('./websocket').WebSocket} ws
- * @param {(response: any, extensions: string[] | undefined) => void} onEstablish
- * @param {Partial<import('../../types/websocket').WebSocketInit>} options
+ * @param {import('./websocket').Handler} handler
+ * @param {Partial<import('../../../types/websocket').WebSocketInit>} options
  */
-function establishWebSocketConnection (url, protocols, client, ws, onEstablish, options) {
+function establishWebSocketConnection (url, protocols, client, handler, options) {
   // 1. Let requestURL be a copy of url, with its scheme set to "http", if url’s
   //    scheme is "ws", and to "https" otherwise.
   const requestURL = url
@@ -75,17 +67,17 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
 
   // 6. Append (`Sec-WebSocket-Key`, keyValue) to request’s
   //    header list.
-  request.headersList.append('sec-websocket-key', keyValue)
+  request.headersList.append('sec-websocket-key', keyValue, true)
 
   // 7. Append (`Sec-WebSocket-Version`, `13`) to request’s
   //    header list.
-  request.headersList.append('sec-websocket-version', '13')
+  request.headersList.append('sec-websocket-version', '13', true)
 
   // 8. For each protocol in protocols, combine
   //    (`Sec-WebSocket-Protocol`, protocol) in request’s header
   //    list.
   for (const protocol of protocols) {
-    request.headersList.append('sec-websocket-protocol', protocol)
+    request.headersList.append('sec-websocket-protocol', protocol, true)
   }
 
   // 9. Let permessageDeflate be a user-agent defined
@@ -95,7 +87,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
 
   // 10. Append (`Sec-WebSocket-Extensions`, permessageDeflate) to
   //     request’s header list.
-  request.headersList.append('sec-websocket-extensions', permessageDeflate)
+  request.headersList.append('sec-websocket-extensions', permessageDeflate, true)
 
   // 11. Fetch request with useParallelQueue set to true, and
   //     processResponse given response being these steps:
@@ -104,10 +96,16 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
     useParallelQueue: true,
     dispatcher: options.dispatcher,
     processResponse (response) {
+      if (response.type === 'error') {
+        // If the WebSocket connection could not be established, it is also said
+        // that _The WebSocket Connection is Closed_, but not _cleanly_.
+        handler.readyState = states.CLOSED
+      }
+
       // 1. If response is a network error or its status is not 101,
       //    fail the WebSocket connection.
       if (response.type === 'error' || response.status !== 101) {
-        failWebsocketConnection(ws, 'Received network error or non-101 status code.')
+        failWebsocketConnection(handler, 1002, 'Received network error or non-101 status code.')
         return
       }
 
@@ -116,7 +114,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
       //    header list results in null, failure, or the empty byte
       //    sequence, then fail the WebSocket connection.
       if (protocols.length !== 0 && !response.headersList.get('Sec-WebSocket-Protocol')) {
-        failWebsocketConnection(ws, 'Server did not respond with sent protocols.')
+        failWebsocketConnection(handler, 1002, 'Server did not respond with sent protocols.')
         return
       }
 
@@ -131,7 +129,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
       //    insensitive match for the value "websocket", the client MUST
       //    _Fail the WebSocket Connection_.
       if (response.headersList.get('Upgrade')?.toLowerCase() !== 'websocket') {
-        failWebsocketConnection(ws, 'Server did not set Upgrade header to "websocket".')
+        failWebsocketConnection(handler, 1002, 'Server did not set Upgrade header to "websocket".')
         return
       }
 
@@ -140,7 +138,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
       //    ASCII case-insensitive match for the value "Upgrade", the client
       //    MUST _Fail the WebSocket Connection_.
       if (response.headersList.get('Connection')?.toLowerCase() !== 'upgrade') {
-        failWebsocketConnection(ws, 'Server did not set Connection header to "upgrade".')
+        failWebsocketConnection(handler, 1002, 'Server did not set Connection header to "upgrade".')
         return
       }
 
@@ -154,7 +152,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
       const secWSAccept = response.headersList.get('Sec-WebSocket-Accept')
       const digest = crypto.createHash('sha1').update(keyValue + uid).digest('base64')
       if (secWSAccept !== digest) {
-        failWebsocketConnection(ws, 'Incorrect hash received in Sec-WebSocket-Accept header.')
+        failWebsocketConnection(handler, 1002, 'Incorrect hash received in Sec-WebSocket-Accept header.')
         return
       }
 
@@ -172,7 +170,7 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
         extensions = parseExtensions(secExtension)
 
         if (!extensions.has('permessage-deflate')) {
-          failWebsocketConnection(ws, 'Sec-WebSocket-Extensions header does not match.')
+          failWebsocketConnection(handler, 1002, 'Sec-WebSocket-Extensions header does not match.')
           return
         }
       }
@@ -193,14 +191,14 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
         // the selected subprotocol values in its response for the connection to
         // be established.
         if (!requestProtocols.includes(secProtocol)) {
-          failWebsocketConnection(ws, 'Protocol was not set in the opening handshake.')
+          failWebsocketConnection(handler, 1002, 'Protocol was not set in the opening handshake.')
           return
         }
       }
 
-      response.socket.on('data', onSocketData)
-      response.socket.on('close', onSocketClose)
-      response.socket.on('error', onSocketError)
+      response.socket.on('data', handler.onSocketData)
+      response.socket.on('close', handler.onSocketClose)
+      response.socket.on('error', handler.onSocketError)
 
       if (channels.open.hasSubscribers) {
         channels.open.publish({
@@ -210,35 +208,45 @@ function establishWebSocketConnection (url, protocols, client, ws, onEstablish, 
         })
       }
 
-      onEstablish(response, extensions)
+      handler.wasEverConnected = true
+      handler.onConnectionEstablished(response, extensions)
     }
   })
 
   return controller
 }
 
-function closeWebSocketConnection (ws, code, reason, reasonByteLength) {
-  if (isClosing(ws) || isClosed(ws)) {
-    // If this's ready state is CLOSING (2) or CLOSED (3)
-    // Do nothing.
-  } else if (!isEstablished(ws)) {
-    // If the WebSocket connection is not yet established
-    // Fail the WebSocket connection and set this's ready state
-    // to CLOSING (2).
-    failWebsocketConnection(ws, 'Connection was closed before it was established.')
-    ws[kReadyState] = states.CLOSING
-  } else if (ws[kSentClose] === sentCloseFrameState.NOT_SENT) {
-    // If the WebSocket closing handshake has not yet been started
-    // Start the WebSocket closing handshake and set this's ready
-    // state to CLOSING (2).
-    // - If neither code nor reason is present, the WebSocket Close
-    //   message must not have a body.
-    // - If code is present, then the status code to use in the
-    //   WebSocket Close message must be the integer given by code.
-    // - If reason is also present, then reasonBytes must be
-    //   provided in the Close message after the status code.
+/**
+ * @see https://whatpr.org/websockets/48.html#close-the-websocket
+ * @param {import('./websocket').Handler} object
+ * @param {number} [code=null]
+ * @param {string} [reason='']
+ */
+function closeWebSocketConnection (object, code, reason, validate = false) {
+  // 1. If code was not supplied, let code be null.
+  code ??= null
 
-    ws[kSentClose] = sentCloseFrameState.PROCESSING
+  // 2. If reason was not supplied, let reason be the empty string.
+  reason ??= ''
+
+  // 3. Validate close code and reason with code and reason.
+  if (validate) validateCloseCodeAndReason(code, reason)
+
+  // 4. Run the first matching steps from the following list:
+  //     - If object’s ready state is CLOSING (2) or CLOSED (3)
+  //     - If the WebSocket connection is not yet established [WSP]
+  //     - If the WebSocket closing handshake has not yet been started [WSP]
+  //     - Otherwise
+  if (isClosed(object.readyState) || isClosing(object.readyState)) {
+    // Do nothing.
+  } else if (!isEstablished(object.readyState)) {
+    // Fail the WebSocket connection and set object’s ready state to CLOSING (2). [WSP]
+    failWebsocketConnection(object)
+    object.readyState = states.CLOSING
+  } else if (!object.closeState.has(sentCloseFrameState.SENT) && !object.closeState.has(sentCloseFrameState.RECEIVED)) {
+    // Upon either sending or receiving a Close control frame, it is said
+    // that _The WebSocket Closing Handshake is Started_ and that the
+    // WebSocket connection is in the CLOSING state.
 
     const frame = new WebsocketFrameSend()
 
@@ -247,13 +255,24 @@ function closeWebSocketConnection (ws, code, reason, reasonByteLength) {
 
     // If code is present, then the status code to use in the
     // WebSocket Close message must be the integer given by code.
-    if (code !== undefined && reason === undefined) {
+    // If code is null and reason is the empty string, the WebSocket Close frame must not have a body.
+    // If reason is non-empty but code is null, then set code to 1000 ("Normal Closure").
+    if (reason.length !== 0 && code === null) {
+      code = 1000
+    }
+
+    // If code is set, then the status code to use in the WebSocket Close frame must be the integer given by code.
+    assert(code === null || Number.isInteger(code))
+
+    if (code === null && reason.length === 0) {
+      frame.frameData = emptyBuffer
+    } else if (code !== null && reason === null) {
       frame.frameData = Buffer.allocUnsafe(2)
       frame.frameData.writeUInt16BE(code, 0)
-    } else if (code !== undefined && reason !== undefined) {
+    } else if (code !== null && reason !== null) {
       // If reason is also present, then reasonBytes must be
       // provided in the Close message after the status code.
-      frame.frameData = Buffer.allocUnsafe(2 + reasonByteLength)
+      frame.frameData = Buffer.allocUnsafe(2 + Buffer.byteLength(reason))
       frame.frameData.writeUInt16BE(code, 0)
       // the body MAY contain UTF-8-encoded data with value /reason/
       frame.frameData.write(reason, 2, 'utf-8')
@@ -261,108 +280,18 @@ function closeWebSocketConnection (ws, code, reason, reasonByteLength) {
       frame.frameData = emptyBuffer
     }
 
-    /** @type {import('stream').Duplex} */
-    const socket = ws[kResponse].socket
+    object.socket.write(frame.createFrame(opcodes.CLOSE))
 
-    socket.write(frame.createFrame(opcodes.CLOSE))
-
-    ws[kSentClose] = sentCloseFrameState.SENT
+    object.closeState.add(sentCloseFrameState.SENT)
 
     // Upon either sending or receiving a Close control frame, it is said
     // that _The WebSocket Closing Handshake is Started_ and that the
     // WebSocket connection is in the CLOSING state.
-    ws[kReadyState] = states.CLOSING
+    object.readyState = states.CLOSING
   } else {
-    // Otherwise
-    // Set this's ready state to CLOSING (2).
-    ws[kReadyState] = states.CLOSING
+    // Set object’s ready state to CLOSING (2).
+    object.readyState = states.CLOSING
   }
-}
-
-/**
- * @param {Buffer} chunk
- */
-function onSocketData (chunk) {
-  if (!this.ws[kByteParser].write(chunk)) {
-    this.pause()
-  }
-}
-
-/**
- * @see https://websockets.spec.whatwg.org/#feedback-from-the-protocol
- * @see https://datatracker.ietf.org/doc/html/rfc6455#section-7.1.4
- */
-function onSocketClose () {
-  const { ws } = this
-  const { [kResponse]: response } = ws
-
-  response.socket.off('data', onSocketData)
-  response.socket.off('close', onSocketClose)
-  response.socket.off('error', onSocketError)
-
-  // If the TCP connection was closed after the
-  // WebSocket closing handshake was completed, the WebSocket connection
-  // is said to have been closed _cleanly_.
-  const wasClean = ws[kSentClose] === sentCloseFrameState.SENT && ws[kReceivedClose]
-
-  let code = 1005
-  let reason = ''
-
-  const result = ws[kByteParser].closingInfo
-
-  if (result && !result.error) {
-    code = result.code ?? 1005
-    reason = result.reason
-  } else if (!ws[kReceivedClose]) {
-    // If _The WebSocket
-    // Connection is Closed_ and no Close control frame was received by the
-    // endpoint (such as could occur if the underlying transport connection
-    // is lost), _The WebSocket Connection Close Code_ is considered to be
-    // 1006.
-    code = 1006
-  }
-
-  // 1. Change the ready state to CLOSED (3).
-  ws[kReadyState] = states.CLOSED
-
-  // 2. If the user agent was required to fail the WebSocket
-  //    connection, or if the WebSocket connection was closed
-  //    after being flagged as full, fire an event named error
-  //    at the WebSocket object.
-  // TODO
-
-  // 3. Fire an event named close at the WebSocket object,
-  //    using CloseEvent, with the wasClean attribute
-  //    initialized to true if the connection closed cleanly
-  //    and false otherwise, the code attribute initialized to
-  //    the WebSocket connection close code, and the reason
-  //    attribute initialized to the result of applying UTF-8
-  //    decode without BOM to the WebSocket connection close
-  //    reason.
-  // TODO: process.nextTick
-  fireEvent('close', ws, (type, init) => new CloseEvent(type, init), {
-    wasClean, code, reason
-  })
-
-  if (channels.close.hasSubscribers) {
-    channels.close.publish({
-      websocket: ws,
-      code,
-      reason
-    })
-  }
-}
-
-function onSocketError (error) {
-  const { ws } = this
-
-  ws[kReadyState] = states.CLOSING
-
-  if (channels.socketError.hasSubscribers) {
-    channels.socketError.publish(error)
-  }
-
-  this.destroy()
 }
 
 module.exports = {

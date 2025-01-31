@@ -131,9 +131,19 @@ const open = (_args, opts = {}, extra = {}) => {
 
   let platform = process.platform
   // process.platform === 'linux' may actually indicate WSL, if that's the case
-  // we want to treat things as win32 anyway so the host can open the argument
+  // open the argument with sensible-browser which is pre-installed
+  // In WSL, set the default browser using, for example,
+  // export BROWSER="/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"
+  // or
+  // export BROWSER="/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+  // To permanently set the default browser, add the appropriate entry to your shell's
+  // RC file, e.g. .bashrc or .zshrc.
   if (platform === 'linux' && os.release().toLowerCase().includes('microsoft')) {
-    platform = 'win32'
+    platform = 'wsl'
+    if (!process.env.BROWSER) {
+      return Promise.reject(
+        new Error('Set the BROWSER environment variable to your desired browser.'))
+    }
   }
 
   let command = options.command
@@ -146,6 +156,8 @@ const open = (_args, opts = {}, extra = {}) => {
       // accidentally interpret the first arg as the title, we stick an empty
       // string immediately after the start command
       command = 'start ""'
+    } else if (platform === 'wsl') {
+      command = 'sensible-browser'
     } else if (platform === 'darwin') {
       command = 'open'
     } else {

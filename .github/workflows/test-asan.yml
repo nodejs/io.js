@@ -63,4 +63,4 @@ jobs:
       - name: Build
         run: make build-ci -j4 V=1
       - name: Test
-        run: make run-ci -j4 V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=spec' --node-args='--test-reporter-destination=stdout' -t 300 --measure-flakiness 9"
+        run: make run-ci -j4 V=1 TEST_CI_ARGS="-p actions -t 300 --measure-flakiness 9"

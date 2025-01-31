@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9)
+cmake_minimum_required(VERSION 3.10)
 
 if(POLICY CMP0091)
   cmake_policy(SET CMP0091 NEW) # Enable MSVC_RUNTIME_LIBRARY setting
@@ -186,7 +186,7 @@ set(uv_sources
     src/version.c)
 
 if(WIN32)
-  list(APPEND uv_defines WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0602 _CRT_DECLARE_NONSTDC_NAMES=0)
+  list(APPEND uv_defines WIN32_LEAN_AND_MEAN _WIN32_WINNT=0x0A00 _CRT_DECLARE_NONSTDC_NAMES=0)
   list(APPEND uv_libraries
        psapi
        user32
@@ -667,6 +667,7 @@ if(LIBUV_BUILD_TESTS)
        test/test-thread-affinity.c
        test/test-thread-equal.c
        test/test-thread.c
+       test/test-thread-name.c
        test/test-thread-priority.c
        test/test-threadpool-cancel.c
        test/test-threadpool.c

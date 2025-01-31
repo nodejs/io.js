@@ -163,10 +163,8 @@ Enable Source Map V3 support for stack traces.
 .It Fl -entry-url
 Interpret the entry point as a URL.
 .
-.It Fl -experimental-default-type Ns = Ns Ar type
-Interpret as either ES modules or CommonJS modules input via --eval or STDIN, when --input-type is unspecified;
-.js or extensionless files with no sibling or parent package.json;
-.js or extensionless files whose nearest parent package.json lacks a "type" field, unless under node_modules.
+.It Fl -experimental-addon-modules
+Enable experimental addon module support.
 .
 .It Fl -experimental-import-meta-resolve
 Enable experimental ES modules support for import.meta.resolve().
@@ -176,29 +174,17 @@ Specify the
 .Ar module
 to use as a custom module loader.
 .
-.It Fl -experimental-permission
-Enable the experimental permission model.
+.It Fl -permission
+Enable the permission model.
 .
 .It Fl -experimental-shadow-realm
 Use this flag to enable ShadowRealm support.
 .
-.It Fl -experimental-sqlite
-Enable the experimental node:sqlite module.
-.
 .It Fl -experimental-test-coverage
 Enable code coverage in the test runner.
 .
-.It Fl -experimental-test-isolation Ns = Ns Ar mode
-Configures the type of test isolation used in the test runner.
-.
 .It Fl -experimental-test-module-mocks
 Enable module mocking in the test runner.
-.
-.It Fl -experimental-test-snapshots
-Enable snapshot testing in the test runner.
-.
-.It Fl -experimental-strip-types
-Enable experimental type-stripping for TypeScript files.
 .
 .It Fl -experimental-transform-types
 Enable transformation of TypeScript-only syntax into JavaScript code.
@@ -215,6 +201,12 @@ Enable experimental support for the Web Storage API.
 .It Fl -no-experimental-repl-await
 Disable top-level await keyword support in REPL.
 .
+.It Fl -no-experimental-sqlite
+Disable the experimental node:sqlite module.
+.
+.It Fl -no-experimental-strip-types
+Disable experimental type-stripping for TypeScript files.
+.
 .It Fl -experimental-vm-modules
 Enable experimental ES module support in VM module.
 .
@@ -224,6 +216,9 @@ flag is no longer required as WASI is enabled by default.
 .
 .It Fl -experimental-wasm-modules
 Enable experimental WebAssembly module support.
+.
+.It Fl -experimental-quic
+Enable the experimental QUIC support.
 .
 .It Fl -force-context-aware
 Disable loading native addons that are not context-aware.
@@ -462,6 +457,9 @@ Require a minimum threshold for line coverage (0 - 100).
 .It Fl -test-force-exit
 Configures the test runner to exit the process once all known tests have
 finished executing even if the event loop would otherwise remain active.
+.
+.It Fl -test-isolation Ns = Ns Ar mode
+Configures the type of test isolation used in the test runner.
 .
 .It Fl -test-name-pattern
 A regular expression that configures the test runner to only execute tests

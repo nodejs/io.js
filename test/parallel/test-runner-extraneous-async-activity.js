@@ -52,7 +52,7 @@ const { spawnSync } = require('child_process');
 {
   const child = spawnSync(process.execPath, [
     '--test',
-    '--experimental-test-isolation=none',
+    '--test-isolation=none',
     fixtures.path('test-runner', 'async-error-in-test-hook.mjs'),
   ]);
   const stdout = child.stdout.toString();

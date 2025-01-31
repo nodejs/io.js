@@ -23,6 +23,6 @@ const tick = require('../common/tick');
     // This schedules a write.
     client.settings(http2.getDefaultSettings());
     client = null;
-    global.gc();
+    globalThis.gc();
   });
 }

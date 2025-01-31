@@ -59,6 +59,7 @@ using v8::Isolate;
 using v8::JustVoid;
 using v8::KeyCollectionMode;
 using v8::Local;
+using v8::LocalVector;
 using v8::Maybe;
 using v8::MaybeLocal;
 using v8::MeasureMemoryExecution;
@@ -117,8 +118,9 @@ Local<Name> Uint32ToName(Local<Context> context, uint32_t index) {
 
 }  // anonymous namespace
 
-BaseObjectPtr<ContextifyContext> ContextifyContext::New(
-    Environment* env, Local<Object> sandbox_obj, ContextOptions* options) {
+ContextifyContext* ContextifyContext::New(Environment* env,
+                                          Local<Object> sandbox_obj,
+                                          ContextOptions* options) {
   Local<ObjectTemplate> object_template;
   HandleScope scope(env->isolate());
   CHECK_IMPLIES(sandbox_obj.IsEmpty(), options->vanilla);
@@ -139,21 +141,25 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
   if (!(CreateV8Context(env->isolate(), object_template, snapshot_data, queue)
             .ToLocal(&v8_context))) {
     // Allocation failure, maximum call stack size reached, termination, etc.
-    return BaseObjectPtr<ContextifyContext>();
+    return {};
   }
   return New(v8_context, env, sandbox_obj, options);
 }
 
-void ContextifyContext::MemoryInfo(MemoryTracker* tracker) const {}
+void ContextifyContext::Trace(cppgc::Visitor* visitor) const {
+  CppgcMixin::Trace(visitor);
+  visitor->Trace(context_);
+}
 
 ContextifyContext::ContextifyContext(Environment* env,
                                      Local<Object> wrapper,
                                      Local<Context> v8_context,
                                      ContextOptions* options)
-    : BaseObject(env, wrapper),
-      microtask_queue_(options->own_microtask_queue
+    : microtask_queue_(options->own_microtask_queue
                            ? options->own_microtask_queue.release()
                            : nullptr) {
+  CppgcMixin::Wrap(this, env, wrapper);
+
   context_.Reset(env->isolate(), v8_context);
   // This should only be done after the initial initializations of the context
   // global object is finished.
@@ -161,19 +167,6 @@ ContextifyContext::ContextifyContext(Environment* env,
       ContextEmbedderIndex::kContextifyContext));
   v8_context->SetAlignedPointerInEmbedderData(
       ContextEmbedderIndex::kContextifyContext, this);
-  // It's okay to make this reference weak - V8 would create an internal
-  // reference to this context via the constructor of the wrapper.
-  // As long as the wrapper is alive, it's constructor is alive, and so
-  // is the context.
-  context_.SetWeak();
-}
-
-ContextifyContext::~ContextifyContext() {
-  Isolate* isolate = env()->isolate();
-  HandleScope scope(isolate);
-
-  env()->UnassignFromContext(PersistentToLocal::Weak(isolate, context_));
-  context_.Reset();
 }
 
 void ContextifyContext::InitializeGlobalTemplates(IsolateData* isolate_data) {
@@ -250,11 +243,10 @@ MaybeLocal<Context> ContextifyContext::CreateV8Context(
   return scope.Escape(ctx);
 }
 
-BaseObjectPtr<ContextifyContext> ContextifyContext::New(
-    Local<Context> v8_context,
-    Environment* env,
-    Local<Object> sandbox_obj,
-    ContextOptions* options) {
+ContextifyContext* ContextifyContext::New(Local<Context> v8_context,
+                                          Environment* env,
+                                          Local<Object> sandbox_obj,
+                                          ContextOptions* options) {
   HandleScope scope(env->isolate());
   CHECK_IMPLIES(sandbox_obj.IsEmpty(), options->vanilla);
   // This only initializes part of the context. The primordials are
@@ -262,7 +254,7 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
   // things down significantly and they are only needed in rare occasions
   // in the vm contexts.
   if (InitializeContextRuntime(v8_context).IsNothing()) {
-    return BaseObjectPtr<ContextifyContext>();
+    return {};
   }
 
   Local<Context> main_context = env->context();
@@ -299,7 +291,7 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
     info.origin = *origin_val;
   }
 
-  BaseObjectPtr<ContextifyContext> result;
+  ContextifyContext* result;
   Local<Object> wrapper;
   {
     Context::Scope context_scope(v8_context);
@@ -314,7 +306,7 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
                   ctor_name,
                   static_cast<v8::PropertyAttribute>(v8::DontEnum))
               .IsNothing()) {
-        return BaseObjectPtr<ContextifyContext>();
+        return {};
       }
     }
 
@@ -327,7 +319,7 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
                          env->host_defined_option_symbol(),
                          options->host_defined_options_id)
             .IsNothing()) {
-      return BaseObjectPtr<ContextifyContext>();
+      return {};
     }
 
     env->AssignToContext(v8_context, nullptr, info);
@@ -335,13 +327,15 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
     if (!env->contextify_wrapper_template()
              ->NewInstance(v8_context)
              .ToLocal(&wrapper)) {
-      return BaseObjectPtr<ContextifyContext>();
+      return {};
     }
 
-    result =
-        MakeBaseObject<ContextifyContext>(env, wrapper, v8_context, options);
-    // The only strong reference to the wrapper will come from the sandbox.
-    result->MakeWeak();
+    result = cppgc::MakeGarbageCollected<ContextifyContext>(
+        env->isolate()->GetCppHeap()->GetAllocationHandle(),
+        env,
+        wrapper,
+        v8_context,
+        options);
   }
 
   Local<Object> wrapper_holder =
@@ -351,7 +345,7 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
           ->SetPrivate(
               v8_context, env->contextify_context_private_symbol(), wrapper)
           .IsNothing()) {
-    return BaseObjectPtr<ContextifyContext>();
+    return {};
   }
 
   // Assign host_defined_options_id to the sandbox object or the global object
@@ -363,7 +357,7 @@ BaseObjectPtr<ContextifyContext> ContextifyContext::New(
                        env->host_defined_option_symbol(),
                        options->host_defined_options_id)
           .IsNothing()) {
-    return BaseObjectPtr<ContextifyContext>();
+    return {};
   }
   return result;
 }
@@ -437,7 +431,7 @@ void ContextifyContext::MakeContext(const FunctionCallbackInfo<Value>& args) {
   options.host_defined_options_id = args[6].As<Symbol>();
 
   TryCatchScope try_catch(env);
-  BaseObjectPtr<ContextifyContext> context_ptr =
+  ContextifyContext* context_ptr =
       ContextifyContext::New(env, sandbox, &options);
 
   if (try_catch.HasCaught()) {
@@ -468,6 +462,10 @@ ContextifyContext* ContextifyContext::ContextFromContextifiedSandbox(
 
 template <typename T>
 ContextifyContext* ContextifyContext::Get(const PropertyCallbackInfo<T>& args) {
+  // TODO(joyeecheung): it should be fine to simply use
+  // args.GetIsolate()->GetCurrentContext() and take the pointer at
+  // ContextEmbedderIndex::kContextifyContext, as V8 is supposed to
+  // push the creation context before invoking these callbacks.
   return Get(args.This());
 }
 
@@ -831,7 +829,7 @@ void ContextifyContext::IndexedPropertyEnumeratorCallback(
   }
 
   // Filter out non-number property names.
-  std::vector<Local<Value>> indices;
+  LocalVector<Value> indices(isolate);
   for (uint32_t i = 0; i < properties->Length(); i++) {
     Local<Value> prop = properties_vec[i].Get(isolate);
     if (!prop->IsNumber()) {
@@ -1790,20 +1788,20 @@ static void CompileFunctionForCJSLoader(
   }
 
   Local<Value> undefined = v8::Undefined(isolate);
-  std::vector<Local<Name>> names = {
+  Local<Name> names[] = {
       env->cached_data_rejected_string(),
       env->source_map_url_string(),
       env->function_string(),
       FIXED_ONE_BYTE_STRING(isolate, "canParseAsESM"),
   };
-  std::vector<Local<Value>> values = {
+  Local<Value> values[] = {
       Boolean::New(isolate, cache_rejected),
       fn.IsEmpty() ? undefined : fn->GetScriptOrigin().SourceMapUrl(),
       fn.IsEmpty() ? undefined : fn.As<Value>(),
       Boolean::New(isolate, can_parse_as_esm),
   };
   Local<Object> result = Object::New(
-      isolate, v8::Null(isolate), names.data(), values.data(), names.size());
+      isolate, v8::Null(isolate), &names[0], &values[0], arraysize(names));
   args.GetReturnValue().Set(result);
 }
 

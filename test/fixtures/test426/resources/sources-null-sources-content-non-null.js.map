@@ -1,0 +1,7 @@
+{
+  "version":3,
+  "names": ["foo"],
+  "sources": [null],
+  "sourcesContent": ["function foo()\n{ return 42; }\nfunction bar()\n { return 24; }\nfoo();\nbar();"],
+  "mappings":"AAAA,SAASA"
+}

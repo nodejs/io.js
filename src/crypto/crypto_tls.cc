@@ -36,10 +36,17 @@
 
 namespace node {
 
+using ncrypto::BIOPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::MarkPopErrorOnReturn;
+using ncrypto::SSLPointer;
+using ncrypto::SSLSessionPointer;
+using ncrypto::X509Pointer;
 using v8::Array;
 using v8::ArrayBuffer;
 using v8::ArrayBufferView;
 using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Boolean;
 using v8::Context;
 using v8::DontDelete;
@@ -54,6 +61,7 @@ using v8::Isolate;
 using v8::Local;
 using v8::MaybeLocal;
 using v8::Null;
+using v8::Number;
 using v8::Object;
 using v8::PropertyAttribute;
 using v8::ReadOnly;
@@ -155,7 +163,7 @@ int NewSessionCallback(SSL* s, SSL_SESSION* sess) {
   HandleScope handle_scope(env->isolate());
   Context::Scope context_scope(env->context());
 
-  if (!w->has_session_callbacks())
+  if (!w->has_session_callbacks()) [[unlikely]]
     return 0;
 
   // Check if session is small enough to be stored
@@ -217,10 +225,11 @@ int SSLCertCallback(SSL* s, void* arg) {
 
   Local<Object> info = Object::New(env->isolate());
 
-  const char* servername = GetServerName(s);
-  Local<String> servername_str = (servername == nullptr)
-      ? String::Empty(env->isolate())
-      : OneByteString(env->isolate(), servername, strlen(servername));
+  auto servername = SSLPointer::GetServerName(s);
+  Local<String> servername_str =
+      !servername.has_value()
+          ? String::Empty(env->isolate())
+          : OneByteString(env->isolate(), servername.value());
 
   Local<Value> ocsp = Boolean::New(
       env->isolate(), SSL_get_tlsext_status_type(s) == TLSEXT_STATUSTYPE_ocsp);
@@ -249,30 +258,27 @@ int SelectALPNCallback(
     Environment* env = w->env();
     HandleScope handle_scope(env->isolate());
 
-    Local<Value> callback_arg =
-        Buffer::Copy(env, reinterpret_cast<const char*>(in), inlen)
-            .ToLocalChecked();
+    Local<Value> callback_arg;
+    Local<Value> callback_result;
 
-    MaybeLocal<Value> maybe_callback_result =
-        w->MakeCallback(env->alpn_callback_string(), 1, &callback_arg);
-
-    if (maybe_callback_result.IsEmpty()) [[unlikely]] {
-      // Implies the callback didn't return, because some exception was thrown
-      // during processing, e.g. if callback returned an invalid ALPN value.
+    if (!Buffer::Copy(env, reinterpret_cast<const char*>(in), inlen)
+             .ToLocal(&callback_arg)) {
       return SSL_TLSEXT_ERR_ALERT_FATAL;
     }
 
-    Local<Value> callback_result = maybe_callback_result.ToLocalChecked();
+    if (!w->MakeCallback(env->alpn_callback_string(), 1, &callback_arg)
+             .ToLocal(&callback_result)) {
+      return SSL_TLSEXT_ERR_ALERT_FATAL;
+    }
 
-    if (callback_result->IsUndefined()) {
+    if (callback_result->IsUndefined() && !callback_result->IsNumber()) {
       // If you set an ALPN callback, but you return undefined for an ALPN
       // request, you're rejecting all proposed ALPN protocols, and so we send
       // a fatal alert:
       return SSL_TLSEXT_ERR_ALERT_FATAL;
     }
 
-    CHECK(callback_result->IsNumber());
-    unsigned int result_int = callback_result.As<v8::Number>()->Value();
+    unsigned int result_int = callback_result.As<Number>()->Value();
 
     // The callback returns an offset into the given buffer, for the selected
     // protocol that should be returned. We then set outlen & out to point
@@ -303,6 +309,20 @@ int SelectALPNCallback(
                                           : SSL_TLSEXT_ERR_ALERT_FATAL;
 }
 
+MaybeLocal<Value> GetSSLOCSPResponse(Environment* env, SSL* ssl) {
+  const unsigned char* resp;
+  int len = SSL_get_tlsext_status_ocsp_resp(ssl, &resp);
+  if (resp == nullptr) return Null(env->isolate());
+
+  Local<Value> ret;
+  MaybeLocal<Object> maybe_buffer =
+      Buffer::Copy(env, reinterpret_cast<const char*>(resp), len);
+
+  if (!maybe_buffer.ToLocal(&ret)) return MaybeLocal<Value>();
+
+  return ret;
+}
+
 int TLSExtStatusCallback(SSL* s, void* arg) {
   TLSWrap* w = static_cast<TLSWrap*>(SSL_get_app_data(s));
   Environment* env = w->env();
@@ -311,7 +331,7 @@ int TLSExtStatusCallback(SSL* s, void* arg) {
   if (w->is_client()) {
     // Incoming response
     Local<Value> arg;
-    if (GetSSLOCSPResponse(env, s, Null(env->isolate())).ToLocal(&arg))
+    if (GetSSLOCSPResponse(env, s).ToLocal(&arg))
       w->MakeCallback(env->onocspresponse_string(), 1, &arg);
 
     // No async acceptance is possible, so always return 1 to accept the
@@ -343,8 +363,7 @@ int TLSExtStatusCallback(SSL* s, void* arg) {
 
 void ConfigureSecureContext(SecureContext* sc) {
   // OCSP stapling
-  SSL_CTX_set_tlsext_status_cb(sc->ctx().get(), TLSExtStatusCallback);
-  SSL_CTX_set_tlsext_status_arg(sc->ctx().get(), nullptr);
+  sc->ctx().setStatusCallback(TLSExtStatusCallback);
 }
 
 inline bool Set(
@@ -362,6 +381,19 @@ inline bool Set(
           .IsNothing();
 }
 
+inline bool Set(Environment* env,
+                Local<Object> target,
+                Local<String> name,
+                const std::string_view& value,
+                bool ignore_null = true) {
+  if (value.empty()) return ignore_null;
+  return !target
+              ->Set(env->context(),
+                    name,
+                    OneByteString(env->isolate(), value.data(), value.length()))
+              .IsNothing();
+}
+
 std::string GetBIOError() {
   std::string ret;
   ERR_print_errors_cb(
@@ -372,6 +404,7 @@ std::string GetBIOError() {
       static_cast<void*>(&ret));
   return ret;
 }
+
 }  // namespace
 
 TLSWrap::TLSWrap(Environment* env,
@@ -830,8 +863,7 @@ void TLSWrap::ClearOut() {
           if (context.IsEmpty()) [[unlikely]]
             return;
           const std::string error_str = GetBIOError();
-          Local<String> message = OneByteString(
-              env()->isolate(), error_str.c_str(), error_str.size());
+          Local<String> message = OneByteString(env()->isolate(), error_str);
           if (message.IsEmpty()) [[unlikely]]
             return;
           error = Exception::Error(message);
@@ -1053,10 +1085,10 @@ int TLSWrap::DoWrite(WriteWrap* w,
   // and copying it when it could just be used.
 
   if (nonempty_count != 1) {
-    {
-      NoArrayBufferZeroFillScope no_zero_fill_scope(env()->isolate_data());
-      bs = ArrayBuffer::NewBackingStore(env()->isolate(), length);
-    }
+    bs = ArrayBuffer::NewBackingStore(
+        env()->isolate(),
+        length,
+        BackingStoreInitializationMode::kUninitialized);
     size_t offset = 0;
     for (i = 0; i < count; i++) {
       memcpy(static_cast<char*>(bs->Data()) + offset,
@@ -1073,8 +1105,10 @@ int TLSWrap::DoWrite(WriteWrap* w,
     written = SSL_write(ssl_.get(), buf->base, buf->len);
 
     if (written == -1) {
-      NoArrayBufferZeroFillScope no_zero_fill_scope(env()->isolate_data());
-      bs = ArrayBuffer::NewBackingStore(env()->isolate(), length);
+      bs = ArrayBuffer::NewBackingStore(
+          env()->isolate(),
+          length,
+          BackingStoreInitializationMode::kUninitialized);
       memcpy(bs->Data(), buf->base, buf->len);
     }
   }
@@ -1330,9 +1364,11 @@ void TLSWrap::GetServername(const FunctionCallbackInfo<Value>& args) {
 
   CHECK_NOT_NULL(wrap->ssl_);
 
-  const char* servername = GetServerName(wrap->ssl_.get());
-  if (servername != nullptr) {
-    args.GetReturnValue().Set(OneByteString(env->isolate(), servername));
+  auto servername = wrap->ssl_.getServerName();
+  if (servername.has_value()) {
+    auto& sn = servername.value();
+    args.GetReturnValue().Set(
+        OneByteString(env->isolate(), sn.data(), sn.length()));
   } else {
     args.GetReturnValue().Set(false);
   }
@@ -1361,8 +1397,9 @@ int TLSWrap::SelectSNIContextCallback(SSL* s, int* ad, void* arg) {
   HandleScope handle_scope(env->isolate());
   Context::Scope context_scope(env->context());
 
-  const char* servername = GetServerName(s);
-  if (!Set(env, p->GetOwner(), env->servername_string(), servername))
+  auto servername = SSLPointer::GetServerName(s);
+  if (!servername.has_value() ||
+      !Set(env, p->GetOwner(), env->servername_string(), servername.value()))
     return SSL_TLSEXT_ERR_NOACK;
 
   Local<Value> ctx = p->object()->Get(env->context(), env->sni_context_string())
@@ -1713,11 +1750,8 @@ void TLSWrap::GetFinished(const FunctionCallbackInfo<Value>& args) {
   if (len == 0)
     return;
 
-  std::unique_ptr<BackingStore> bs;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs = ArrayBuffer::NewBackingStore(env->isolate(), len);
-  }
+  auto bs = ArrayBuffer::NewBackingStore(
+      env->isolate(), len, BackingStoreInitializationMode::kUninitialized);
 
   CHECK_EQ(bs->ByteLength(),
            SSL_get_finished(w->ssl_.get(), bs->Data(), bs->ByteLength()));
@@ -1744,11 +1778,8 @@ void TLSWrap::GetPeerFinished(const FunctionCallbackInfo<Value>& args) {
   if (len == 0)
     return;
 
-  std::unique_ptr<BackingStore> bs;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs = ArrayBuffer::NewBackingStore(env->isolate(), len);
-  }
+  auto bs = ArrayBuffer::NewBackingStore(
+      env->isolate(), len, BackingStoreInitializationMode::kUninitialized);
 
   CHECK_EQ(bs->ByteLength(),
            SSL_get_peer_finished(w->ssl_.get(), bs->Data(), bs->ByteLength()));
@@ -1773,11 +1804,8 @@ void TLSWrap::GetSession(const FunctionCallbackInfo<Value>& args) {
   if (slen <= 0)
     return;  // Invalid or malformed session.
 
-  std::unique_ptr<BackingStore> bs;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs = ArrayBuffer::NewBackingStore(env->isolate(), slen);
-  }
+  auto bs = ArrayBuffer::NewBackingStore(
+      env->isolate(), slen, BackingStoreInitializationMode::kUninitialized);
 
   unsigned char* p = static_cast<unsigned char*>(bs->Data());
   CHECK_LT(0, i2d_SSL_SESSION(sess, &p));
@@ -1803,7 +1831,7 @@ void TLSWrap::SetSession(const FunctionCallbackInfo<Value>& args) {
   if (sess == nullptr)
     return;  // TODO(tniessen): figure out error handling
 
-  if (!SetTLSSession(w->ssl_, sess))
+  if (!w->ssl_.setSession(sess))
     return env->ThrowError("SSL_set_session error");
 }
 
@@ -1830,15 +1858,19 @@ void TLSWrap::VerifyError(const FunctionCallbackInfo<Value>& args) {
   if (x509_verify_error == X509_V_OK)
     return args.GetReturnValue().SetNull();
 
-  const char* reason = X509_verify_cert_error_string(x509_verify_error);
-  const char* code = X509ErrorCode(x509_verify_error);
+  Local<Value> reason;
+  if (!GetValidationErrorReason(env, x509_verify_error).ToLocal(&reason)) {
+    return;
+  }
+  if (reason->IsUndefined()) [[unlikely]]
+    return;
 
-  Local<Object> error =
-      Exception::Error(OneByteString(env->isolate(), reason))
-          ->ToObject(env->isolate()->GetCurrentContext())
-              .FromMaybe(Local<Object>());
+  Local<Object> error = Exception::Error(reason.As<v8::String>())
+                            ->ToObject(env->isolate()->GetCurrentContext())
+                            .FromMaybe(Local<Object>());
 
-  if (Set(env, error, env->code_string(), code))
+  auto code = X509Pointer::ErrorCode(x509_verify_error);
+  if (Set(env, error, env->code_string(), code.data()))
     args.GetReturnValue().Set(error);
 }
 
@@ -1938,7 +1970,7 @@ void TLSWrap::GetSharedSigalgs(const FunctionCallbackInfo<Value>& args) {
     } else {
       sig_with_md += "UNDEF";
     }
-    ret_arr[i] = OneByteString(env->isolate(), sig_with_md.c_str());
+    ret_arr[i] = OneByteString(env->isolate(), sig_with_md);
   }
 
   args.GetReturnValue().Set(
@@ -1956,11 +1988,8 @@ void TLSWrap::ExportKeyingMaterial(const FunctionCallbackInfo<Value>& args) {
   uint32_t olen = args[0].As<Uint32>()->Value();
   Utf8Value label(env->isolate(), args[1]);
 
-  std::unique_ptr<BackingStore> bs;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs = ArrayBuffer::NewBackingStore(env->isolate(), olen);
-  }
+  auto bs = ArrayBuffer::NewBackingStore(
+      env->isolate(), olen, BackingStoreInitializationMode::kUninitialized);
 
   ByteSource context;
   bool use_context = !args[2]->IsUndefined();

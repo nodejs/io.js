@@ -1,0 +1,6 @@
+{
+  "version" : 3,
+  "names": ["foo"],
+  "sources": ["1.js"],
+  "sourcesContent": ["hello world"]
+}

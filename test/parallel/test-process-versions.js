@@ -85,11 +85,12 @@ assert.match(process.versions.modules, /^\d+$/);
 assert.match(process.versions.cjs_module_lexer, commonTemplate);
 
 if (common.hasCrypto) {
+  const { hasOpenSSL3 } = require('../common/crypto');
   assert.match(process.versions.ncrypto, commonTemplate);
   if (process.config.variables.node_shared_openssl) {
     assert.ok(process.versions.openssl);
   } else {
-    const versionRegex = common.hasOpenSSL3 ?
+    const versionRegex = hasOpenSSL3 ?
       // The following also matches a development version of OpenSSL 3.x which
       // can be in the format '3.0.0-alpha4-dev'. This can be handy when
       // building and linking against the main development branch of OpenSSL.

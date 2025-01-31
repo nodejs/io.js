@@ -5,22 +5,26 @@ TAP version 13
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: 2
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: nested
         # Subtest: nested 1
         ok 1 - nested 1
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: nested 2
         ok 2 - nested 2
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 3 - nested
@@ -45,6 +49,7 @@ ok 2 - describe hooks - no subtests
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -54,6 +59,7 @@ ok 2 - describe hooks - no subtests
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -69,7 +75,6 @@ not ok 3 - before throws
   error: 'before'
   code: 'ERR_TEST_FAILURE'
   stack: |-
-    *
     *
     *
     *
@@ -97,18 +102,19 @@ not ok 4 - before throws - no subtests
     *
     *
     *
-    *
   ...
 # Subtest: after throws
     # Subtest: 1
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: 2
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 5 - after throws
@@ -120,6 +126,7 @@ not ok 5 - after throws
   error: 'after'
   code: 'ERR_TEST_FAILURE'
   stack: |-
+    *
     *
     *
     *
@@ -149,17 +156,42 @@ not ok 6 - after throws - no subtests
     *
     *
     *
+    *
   ...
 # Subtest: beforeEach throws
     # Subtest: 1
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'hookFailed'
       error: 'beforeEach'
       code: 'ERR_TEST_FAILURE'
       stack: |-
+        *
+        *
+        *
+        *
+        *
+        *
+        *
+        *
+        *
+        new Promise (<anonymous>)
+      ...
+    # Subtest: 2
+    not ok 2 - 2
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
+      failureType: 'hookFailed'
+      error: 'beforeEach'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        *
+        *
         *
         *
         *
@@ -168,26 +200,6 @@ not ok 6 - after throws - no subtests
         *
         *
         async Promise.all (index 0)
-        *
-        *
-      ...
-    # Subtest: 2
-    not ok 2 - 2
-      ---
-      duration_ms: *
-      location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
-      failureType: 'hookFailed'
-      error: 'beforeEach'
-      code: 'ERR_TEST_FAILURE'
-      stack: |-
-        *
-        *
-        *
-        *
-        *
-        *
-        *
-        *
       ...
     1..2
 not ok 7 - beforeEach throws
@@ -204,6 +216,7 @@ not ok 7 - beforeEach throws
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'hookFailed'
       error: 'afterEach'
@@ -224,6 +237,7 @@ not ok 7 - beforeEach throws
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'hookFailed'
       error: 'afterEach'
@@ -254,6 +268,7 @@ not ok 8 - afterEach throws
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'testCodeFailure'
       error: 'test'
@@ -274,6 +289,7 @@ not ok 8 - afterEach throws
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 9 - afterEach when test fails
@@ -290,6 +306,7 @@ not ok 9 - afterEach when test fails
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'testCodeFailure'
       error: 'test'
@@ -310,6 +327,7 @@ not ok 9 - afterEach when test fails
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'hookFailed'
       error: 'afterEach'
@@ -340,43 +358,51 @@ not ok 10 - afterEach throws and test fails
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: 2
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: nested
         # Subtest: nested 1
         ok 1 - nested 1
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: nested 2
         ok 2 - nested 2
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 3 - nested
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..3
 ok 11 - test hooks
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: test hooks - no subtests
 ok 12 - test hooks - no subtests
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: t.before throws
     # Subtest: 1
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'before'
@@ -397,6 +423,7 @@ ok 12 - test hooks - no subtests
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'before'
@@ -417,6 +444,7 @@ ok 12 - test hooks - no subtests
 not ok 13 - t.before throws
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'before'
@@ -437,6 +465,7 @@ not ok 13 - t.before throws
 not ok 14 - t.before throws - no subtests
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'before'
@@ -458,22 +487,24 @@ not ok 14 - t.before throws - no subtests
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: 2
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 15 - t.after throws
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'hookFailed'
   error: 'after'
   code: 'ERR_TEST_FAILURE'
   stack: |-
-    *
     *
     *
     *
@@ -488,12 +519,12 @@ not ok 15 - t.after throws
 not ok 16 - t.after throws - no subtests
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'hookFailed'
   error: 'after'
   code: 'ERR_TEST_FAILURE'
   stack: |-
-    *
     *
     *
     *
@@ -509,6 +540,7 @@ not ok 16 - t.after throws - no subtests
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'beforeEach'
@@ -529,6 +561,7 @@ not ok 16 - t.after throws - no subtests
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'beforeEach'
@@ -549,6 +582,7 @@ not ok 16 - t.after throws - no subtests
 not ok 17 - t.beforeEach throws
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'subtestsFailed'
   error: '2 subtests failed'
@@ -559,6 +593,7 @@ not ok 17 - t.beforeEach throws
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'afterEach'
@@ -579,6 +614,7 @@ not ok 17 - t.beforeEach throws
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'afterEach'
@@ -599,6 +635,7 @@ not ok 17 - t.beforeEach throws
 not ok 18 - t.afterEach throws
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'subtestsFailed'
   error: '2 subtests failed'
@@ -609,6 +646,7 @@ not ok 18 - t.afterEach throws
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'testCodeFailure'
       error: 'test'
@@ -628,11 +666,13 @@ not ok 18 - t.afterEach throws
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 19 - afterEach when test fails
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'subtestsFailed'
   error: '1 subtest failed'
@@ -643,17 +683,20 @@ not ok 19 - afterEach when test fails
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 20 - afterEach context when test passes
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: afterEach context when test fails
     # Subtest: 1
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'testCodeFailure'
       error: 'test'
@@ -668,6 +711,7 @@ ok 20 - afterEach context when test passes
 not ok 21 - afterEach context when test fails
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'subtestsFailed'
   error: '1 subtest failed'
@@ -678,6 +722,7 @@ not ok 21 - afterEach context when test fails
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'testCodeFailure'
       error: 'test'
@@ -697,6 +742,7 @@ not ok 21 - afterEach context when test fails
     not ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):11'
       failureType: 'hookFailed'
       error: 'afterEach'
@@ -717,6 +763,7 @@ not ok 21 - afterEach context when test fails
 not ok 22 - afterEach throws and test fails
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'subtestsFailed'
   error: '2 subtests failed'
@@ -726,6 +773,7 @@ not ok 22 - afterEach throws and test fails
 not ok 23 - t.after() is called if test body throws
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/hooks.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'bye'
@@ -742,6 +790,7 @@ not ok 23 - t.after() is called if test body throws
     not ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/hooks.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -765,23 +814,25 @@ not ok 24 - run after when before throws
     *
     *
     *
-    *
   ...
 # Subtest: test hooks - async
     # Subtest: 1
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: 2
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 ok 25 - test hooks - async
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..25
 # before 1 called

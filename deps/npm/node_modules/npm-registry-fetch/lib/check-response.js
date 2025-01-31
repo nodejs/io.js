@@ -48,10 +48,18 @@ function logRequest (method, res, startTime) {
   const cacheStr = cacheStatus ? ` (cache ${cacheStatus})` : ''
   const urlStr = cleanUrl(res.url)
 
-  log.http(
-    'fetch',
-    `${method.toUpperCase()} ${res.status} ${urlStr} ${elapsedTime}ms${attemptStr}${cacheStr}`
-  )
+  // If make-fetch-happen reports a cache hit, then there was no fetch
+  if (cacheStatus === 'hit') {
+    log.http(
+      'cache',
+      `${urlStr} ${elapsedTime}ms${attemptStr}${cacheStr}`
+    )
+  } else {
+    log.http(
+      'fetch',
+      `${method.toUpperCase()} ${res.status} ${urlStr} ${elapsedTime}ms${attemptStr}${cacheStr}`
+    )
+  }
 }
 
 function checkErrors (method, res, startTime, opts) {

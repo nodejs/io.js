@@ -11,43 +11,54 @@ const {
 describe('quic internal endpoint listen defaults', { skip: !hasQuic }, async () => {
   const {
     ok,
+    rejects,
     strictEqual,
     throws,
   } = require('node:assert');
+
+  const {
+    kState,
+  } = require('internal/quic/symbols');
+
+  const { createPrivateKey } = require('node:crypto');
+  const fixtures = require('../common/fixtures');
+  const keys = createPrivateKey(fixtures.readKey('agent1-key.pem'));
+  const certs = fixtures.readKey('agent1-cert.pem');
 
   const {
     SocketAddress,
   } = require('net');
 
   const {
-    Endpoint,
+    QuicEndpoint,
+    listen,
   } = require('internal/quic/quic');
 
   it('are reasonable and work as expected', async () => {
-    const endpoint = new Endpoint({
-      onsession() {},
-      session: {},
-      stream: {},
-    }, {});
+    const endpoint = new QuicEndpoint();
 
-    ok(!endpoint.state.isBound);
-    ok(!endpoint.state.isReceiving);
-    ok(!endpoint.state.isListening);
+    ok(!endpoint[kState].isBound);
+    ok(!endpoint[kState].isReceiving);
+    ok(!endpoint[kState].isListening);
 
     strictEqual(endpoint.address, undefined);
 
-    throws(() => endpoint.listen(123), {
+    await rejects(listen(123, { keys, certs, endpoint }), {
       code: 'ERR_INVALID_ARG_TYPE',
     });
 
-    endpoint.listen();
-    throws(() => endpoint.listen(), {
+    await rejects(listen(() => {}, 123), {
+      code: 'ERR_INVALID_ARG_TYPE',
+    });
+
+    await listen(() => {}, { keys, certs, endpoint });
+    await rejects(listen(() => {}, { keys, certs, endpoint }), {
       code: 'ERR_INVALID_STATE',
     });
 
-    ok(endpoint.state.isBound);
-    ok(endpoint.state.isReceiving);
-    ok(endpoint.state.isListening);
+    ok(endpoint[kState].isBound);
+    ok(endpoint[kState].isReceiving);
+    ok(endpoint[kState].isListening);
 
     const address = endpoint.address;
     ok(address instanceof SocketAddress);
@@ -63,7 +74,7 @@ describe('quic internal endpoint listen defaults', { skip: !hasQuic }, async () 
     await endpoint.closed;
     ok(endpoint.destroyed);
 
-    throws(() => endpoint.listen(), {
+    await rejects(listen(() => {}, { keys, certs, endpoint }), {
       code: 'ERR_INVALID_STATE',
     });
     throws(() => { endpoint.busy = true; }, {

@@ -153,6 +153,11 @@ ares_status_t ares_send_nolock(ares_channel_t *channel, ares_server_t *server,
   /* Duplicate Query */
   status = ares_dns_record_duplicate_ex(&query->query, dnsrec);
   if (status != ARES_SUCCESS) {
+    /* Sometimes we might get a EBADRESP response from duplicate due to
+     * the way it works (write and parse), rewrite it to EBADQUERY. */
+    if (status == ARES_EBADRESP) {
+      status = ARES_EBADQUERY;
+    }
     ares_free(query);
     callback(arg, status, 0, NULL);
     return status;

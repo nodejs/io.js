@@ -171,7 +171,12 @@ const tests = [
     name: 'test-runner/output/source_mapped_locations.mjs',
     flags: ['--test-reporter=tap'],
   },
-  process.features.inspector ? { name: 'test-runner/output/lcov_reporter.js', transform: lcovTransform } : false,
+  process.features.inspector ?
+    {
+      name: 'test-runner/output/lcov_reporter.js',
+      transform: lcovTransform
+    } :
+    false,
   { name: 'test-runner/output/output.js', flags: ['--test-reporter=tap'] },
   { name: 'test-runner/output/output_cli.js' },
   {
@@ -236,7 +241,7 @@ const tests = [
   },
   process.features.inspector ? {
     name: 'test-runner/output/coverage_failure.js',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   {
     name: 'test-runner/output/test-diagnostic-warning-without-test-only-flag.js',
@@ -244,49 +249,51 @@ const tests = [
   },
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-40.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-80.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector && !skipCoverageColors ? {
     name: 'test-runner/output/coverage-width-80-color.mjs',
+    flags: ['--test-coverage-exclude=!test/**'],
     transform: specTransform,
     tty: true
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-100.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-150.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-infinity.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-80-uncovered-lines.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-100-uncovered-lines.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector && !skipCoverageColors ? {
     name: 'test-runner/output/coverage-width-80-uncovered-lines-color.mjs',
+    flags: ['--test-coverage-exclude=!test/**'],
     transform: specTransform,
     tty: true
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-150-uncovered-lines.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
   process.features.inspector ? {
     name: 'test-runner/output/coverage-width-infinity-uncovered-lines.mjs',
-    flags: ['--test-reporter=tap'],
+    flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],
   } : false,
 ]
 .filter(Boolean)

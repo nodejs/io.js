@@ -1,4 +1,4 @@
-.TH "CONFIG" "7" "October 2024" "NPM@10.9.0" ""
+.TH "CONFIG" "7" "December 2024" "NPM@11.0.0" ""
 .SH "NAME"
 \fBconfig\fR - More than you probably want to know about npm configuration
 .SS "Description"
@@ -1835,7 +1835,7 @@ Default: null
 .IP \(bu 4
 Type: null or String
 .IP \(bu 4
-DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcertfile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:certfile=/path/to/cert.crt
+DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcafile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:cafile=/path/to/cert.crt
 .RE 0
 
 .P
@@ -1847,7 +1847,7 @@ cert="-----BEGIN CERTIFICATE-----\[rs]nXXXX\[rs]nXXXX\[rs]n-----END CERTIFICATE-
 .fi
 .RE
 .P
-It is \fInot\fR the path to a certificate file, though you can set a registry-scoped "certfile" path like "//other-registry.tld/:certfile=/path/to/cert.pem".
+It is \fInot\fR the path to a certificate file, though you can set a registry-scoped "cafile" path like "//other-registry.tld/:cafile=/path/to/cert.pem".
 .SS "\fBdev\fR"
 .RS 0
 .IP \(bu 4
@@ -1951,7 +1951,7 @@ Default: null
 .IP \(bu 4
 Type: null or String
 .IP \(bu 4
-DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcertfile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:certfile=/path/to/cert.crt
+DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcafile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:cafile=/path/to/cert.crt
 .RE 0
 
 .P

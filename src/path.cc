@@ -114,7 +114,7 @@ std::string PathResolve(Environment* env,
       // a UNC path at this points, because UNC paths are always absolute.
       std::string resolvedDevicePath;
       const std::string envvar = "=" + resolvedDevice;
-      credentials::SafeGetenv(envvar.c_str(), &resolvedDevicePath);
+      credentials::SafeGetenv(envvar.c_str(), &resolvedDevicePath, env);
       path = resolvedDevicePath.empty() ? cwd : resolvedDevicePath;
 
       // Verify that a cwd was found and that it actually points

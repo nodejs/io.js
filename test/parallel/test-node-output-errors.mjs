@@ -63,6 +63,8 @@ describe('errors output', { concurrency: !process.env.TEST_PARALLEL }, () => {
     { name: 'errors/if-error-has-good-stack.js', transform: errTransform },
     { name: 'errors/throw_custom_error.js', transform: errTransform },
     { name: 'errors/throw_error_with_getter_throw.js', transform: errTransform },
+    { name: 'errors/throw_in_eval_anonymous.js', transform: errTransform },
+    { name: 'errors/throw_in_eval_named.js', transform: errTransform },
     { name: 'errors/throw_in_line_with_tabs.js', transform: errTransform },
     { name: 'errors/throw_non_error.js', transform: errTransform },
     { name: 'errors/throw_null.js', transform: errTransform },

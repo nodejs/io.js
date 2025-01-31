@@ -12,7 +12,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write', tmpPath, '--allow-fs-write', otherPath, '-e',
       `console.log(process.permission.has("fs"));
       console.log(process.permission.has("fs.read"));
@@ -36,7 +36,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write',
       tmpPath,
       '--allow-fs-write',
@@ -63,7 +63,7 @@ const path = require('path');
   const { status, stdout, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read=*',
       `--allow-fs-write=${filePath}`,
       '-e',

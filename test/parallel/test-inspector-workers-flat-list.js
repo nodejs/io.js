@@ -6,8 +6,8 @@ common.skipIfInspectorDisabled();
 const { Worker, isMainThread, parentPort, workerData } =
   require('worker_threads');
 
-if (isMainThread || workerData !== 'launched by test') {
-  common.skipIfWorker();
+if (!isMainThread || workerData !== 'launched by test') {
+  common.skip('This test only works on a main thread');
 }
 
 const { Session } = require('inspector');

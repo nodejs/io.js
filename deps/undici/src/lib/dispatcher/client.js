@@ -1,5 +1,3 @@
-// @ts-check
-
 'use strict'
 
 const assert = require('node:assert')
@@ -43,13 +41,11 @@ const {
   kBodyTimeout,
   kStrictContentLength,
   kConnector,
-  kMaxRedirections,
   kMaxRequests,
   kCounter,
   kClose,
   kDestroy,
   kDispatch,
-  kInterceptors,
   kLocalAddress,
   kMaxResponseSize,
   kOnError,
@@ -59,9 +55,15 @@ const {
 } = require('../core/symbols.js')
 const connectH1 = require('./client-h1.js')
 const connectH2 = require('./client-h2.js')
-let deprecatedInterceptorWarned = false
 
 const kClosedResolve = Symbol('kClosedResolve')
+
+const getDefaultNodeMaxHeaderSize = http &&
+  http.maxHeaderSize &&
+  Number.isInteger(http.maxHeaderSize) &&
+  http.maxHeaderSize > 0
+  ? () => http.maxHeaderSize
+  : () => { throw new InvalidArgumentError('http module not available or http.maxHeaderSize invalid') }
 
 const noop = () => {}
 
@@ -79,7 +81,6 @@ class Client extends DispatcherBase {
    * @param {import('../../types/client.js').Client.Options} options
    */
   constructor (url, {
-    interceptors,
     maxHeaderSize,
     headersTimeout,
     socketTimeout,
@@ -97,7 +98,6 @@ class Client extends DispatcherBase {
     tls,
     strictContentLength,
     maxCachedSessions,
-    maxRedirections,
     connect,
     maxRequestsPerClient,
     localAddress,
@@ -108,8 +108,6 @@ class Client extends DispatcherBase {
     maxConcurrentStreams,
     allowH2
   } = {}) {
-    super()
-
     if (keepAlive !== undefined) {
       throw new InvalidArgumentError('unsupported keepAlive, use pipelining=0 instead')
     }
@@ -130,8 +128,14 @@ class Client extends DispatcherBase {
       throw new InvalidArgumentError('unsupported maxKeepAliveTimeout, use keepAliveMaxTimeout instead')
     }
 
-    if (maxHeaderSize != null && !Number.isFinite(maxHeaderSize)) {
-      throw new InvalidArgumentError('invalid maxHeaderSize')
+    if (maxHeaderSize != null) {
+      if (!Number.isInteger(maxHeaderSize) || maxHeaderSize < 1) {
+        throw new InvalidArgumentError('invalid maxHeaderSize')
+      }
+    } else {
+      // If maxHeaderSize is not provided, use the default value from the http module
+      // or if that is not available, throw an error.
+      maxHeaderSize = getDefaultNodeMaxHeaderSize()
     }
 
     if (socketPath != null && typeof socketPath !== 'string') {
@@ -166,10 +170,6 @@ class Client extends DispatcherBase {
       throw new InvalidArgumentError('connect must be a function or an object')
     }
 
-    if (maxRedirections != null && (!Number.isInteger(maxRedirections) || maxRedirections < 0)) {
-      throw new InvalidArgumentError('maxRedirections must be a positive number')
-    }
-
     if (maxRequestsPerClient != null && (!Number.isInteger(maxRequestsPerClient) || maxRequestsPerClient < 0)) {
       throw new InvalidArgumentError('maxRequestsPerClient must be a positive number')
     }
@@ -198,6 +198,8 @@ class Client extends DispatcherBase {
       throw new InvalidArgumentError('maxConcurrentStreams must be a positive integer, greater than 0')
     }
 
+    super()
+
     if (typeof connect !== 'function') {
       connect = buildConnector({
         ...tls,
@@ -210,22 +212,10 @@ class Client extends DispatcherBase {
       })
     }
 
-    if (interceptors?.Client && Array.isArray(interceptors.Client)) {
-      this[kInterceptors] = interceptors.Client
-      if (!deprecatedInterceptorWarned) {
-        deprecatedInterceptorWarned = true
-        process.emitWarning('Client.Options#interceptor is deprecated. Use Dispatcher#compose instead.', {
-          code: 'UNDICI-CLIENT-INTERCEPTOR-DEPRECATED'
-        })
-      }
-    } else {
-      this[kInterceptors] = [createRedirectInterceptor({ maxRedirections })]
-    }
-
     this[kUrl] = util.parseOrigin(url)
     this[kConnector] = connect
     this[kPipelining] = pipelining != null ? pipelining : 1
-    this[kMaxHeadersSize] = maxHeaderSize || http.maxHeaderSize
+    this[kMaxHeadersSize] = maxHeaderSize
     this[kKeepAliveDefaultTimeout] = keepAliveTimeout == null ? 4e3 : keepAliveTimeout
     this[kKeepAliveMaxTimeout] = keepAliveMaxTimeout == null ? 600e3 : keepAliveMaxTimeout
     this[kKeepAliveTimeoutThreshold] = keepAliveTimeoutThreshold == null ? 2e3 : keepAliveTimeoutThreshold
@@ -238,7 +228,6 @@ class Client extends DispatcherBase {
     this[kBodyTimeout] = bodyTimeout != null ? bodyTimeout : 300e3
     this[kHeadersTimeout] = headersTimeout != null ? headersTimeout : 300e3
     this[kStrictContentLength] = strictContentLength == null ? true : strictContentLength
-    this[kMaxRedirections] = maxRedirections
     this[kMaxRequests] = maxRequestsPerClient
     this[kClosedResolve] = null
     this[kMaxResponseSize] = maxResponseSize > -1 ? maxResponseSize : -1
@@ -364,8 +353,6 @@ class Client extends DispatcherBase {
   }
 }
 
-const createRedirectInterceptor = require('../interceptor/redirect-interceptor.js')
-
 function onError (client, err) {
   if (
     client[kRunning] === 0 &&
@@ -404,7 +391,7 @@ async function connect (client) {
     assert(idx !== -1)
     const ip = hostname.substring(1, idx)
 
-    assert(net.isIP(ip))
+    assert(net.isIPv6(ip))
     hostname = ip
   }
 

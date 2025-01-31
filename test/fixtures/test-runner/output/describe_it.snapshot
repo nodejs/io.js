@@ -3,16 +3,19 @@ TAP version 13
 ok 1 - sync pass todo # TODO
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync pass todo with message
 ok 2 - sync pass todo with message # TODO this is a passing todo
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync todo
 not ok 3 - sync todo # TODO
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):4'
   failureType: 'testCodeFailure'
   error: 'should not count as a failure'
@@ -30,6 +33,7 @@ not ok 3 - sync todo # TODO
 not ok 4 - sync todo with message # TODO this is a failing todo
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'should not count as a failure'
@@ -47,21 +51,25 @@ not ok 4 - sync todo with message # TODO this is a failing todo
 ok 5 - sync skip pass # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync skip pass with message
 ok 6 - sync skip pass with message # SKIP this is skipped
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync pass
 ok 7 - sync pass
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync throw fail
 not ok 8 - sync throw fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'thrown from sync throw fail'
@@ -79,21 +87,25 @@ not ok 8 - sync throw fail
 ok 9 - async skip pass # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: async pass
 ok 10 - async pass
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: mixing describe/it and test should work
 ok 11 - mixing describe/it and test should work
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: async throw fail
 not ok 12 - async throw fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'thrown from async throw fail'
@@ -111,6 +123,7 @@ not ok 12 - async throw fail
 not ok 13 - async skip fail # SKIP
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'callbackAndPromisePresent'
   error: 'passed a callback but also returned a Promise'
@@ -120,6 +133,7 @@ not ok 13 - async skip fail # SKIP
 not ok 14 - async assertion fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: |-
@@ -145,11 +159,13 @@ not ok 14 - async assertion fail
 ok 15 - resolve pass
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: reject fail
 not ok 16 - reject fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'rejected from reject fail'
@@ -167,32 +183,38 @@ not ok 16 - reject fail
 ok 17 - unhandled rejection - passes but warns
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: async unhandled rejection - passes but warns
 ok 18 - async unhandled rejection - passes but warns
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: immediate throw - passes but warns
 ok 19 - immediate throw - passes but warns
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: immediate reject - passes but warns
 ok 20 - immediate reject - passes but warns
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: immediate resolve pass
 ok 21 - immediate resolve pass
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: subtest sync throw fail
     # Subtest: +sync throw fail
     not ok 1 - +sync throw fail
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'testCodeFailure'
       error: 'thrown from subtest sync throw fail'
@@ -213,6 +235,7 @@ ok 21 - immediate resolve pass
     ok 2 - mixing describe/it and test should work
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 not ok 22 - subtest sync throw fail
@@ -228,6 +251,7 @@ not ok 22 - subtest sync throw fail
 not ok 23 - sync throw non-error fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'Symbol(thrown symbol from sync throw non-error fail)'
@@ -238,21 +262,25 @@ not ok 23 - sync throw non-error fail
     ok 1 - level 1a
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: level 1b
     ok 2 - level 1b
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: level 1c
     ok 3 - level 1c
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: level 1d
     ok 4 - level 1d
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..4
 ok 24 - level 0a
@@ -270,16 +298,19 @@ ok 25 - invalid subtest - pass but subtest fails
 ok 26 - sync skip option # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync skip option with message
 ok 27 - sync skip option with message # SKIP this is skipped
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: sync skip option is false fail
 not ok 28 - sync skip option is false fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'this should be executed'
@@ -297,51 +328,61 @@ not ok 28 - sync skip option is false fail
 ok 29 - <anonymous>
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: functionOnly
 ok 30 - functionOnly
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: <anonymous>
 ok 31 - <anonymous>
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: test with only a name provided
 ok 32 - test with only a name provided
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: <anonymous>
 ok 33 - <anonymous>
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: <anonymous>
 ok 34 - <anonymous> # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: test with a name and options provided
 ok 35 - test with a name and options provided # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: functionAndOptions
 ok 36 - functionAndOptions # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: callback pass
 ok 37 - callback pass
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: callback fail
 not ok 38 - callback fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'callback failure'
@@ -354,21 +395,25 @@ not ok 38 - callback fail
 ok 39 - sync t is this in test
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: async t is this in test
 ok 40 - async t is this in test
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: callback t is this in test
 ok 41 - callback t is this in test
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: callback also returns a Promise
 not ok 42 - callback also returns a Promise
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'callbackAndPromisePresent'
   error: 'passed a callback but also returned a Promise'
@@ -378,6 +423,7 @@ not ok 42 - callback also returns a Promise
 not ok 43 - callback throw
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'thrown from callback throw'
@@ -395,6 +441,7 @@ not ok 43 - callback throw
 not ok 44 - callback called twice
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'multipleCallbackInvocations'
   error: 'callback invoked multiple times'
@@ -407,11 +454,13 @@ not ok 44 - callback called twice
 ok 45 - callback called twice in different ticks
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: callback called twice in future tick
 not ok 46 - callback called twice in future tick
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'uncaughtException'
   error: 'callback invoked multiple times'
@@ -423,6 +472,7 @@ not ok 46 - callback called twice in future tick
 not ok 47 - callback async throw
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'uncaughtException'
   error: 'thrown from callback async throw'
@@ -435,11 +485,13 @@ not ok 47 - callback async throw
 ok 48 - callback async throw after done
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: custom inspect symbol fail
 not ok 49 - custom inspect symbol fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'customized'
@@ -449,12 +501,13 @@ not ok 49 - custom inspect symbol fail
 not ok 50 - custom inspect symbol that throws fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: |-
     {
       foo: 1,
-      [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]
+      Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]
     }
   code: 'ERR_TEST_FAILURE'
   ...
@@ -463,6 +516,7 @@ not ok 50 - custom inspect symbol that throws fail
     not ok 1 - sync throw fails at first
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'testCodeFailure'
       error: 'thrown from subtest sync throw fails at first'
@@ -483,6 +537,7 @@ not ok 50 - custom inspect symbol that throws fail
     not ok 2 - sync throw fails at second
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'testCodeFailure'
       error: 'thrown from subtest sync throw fails at second'
@@ -513,6 +568,7 @@ not ok 51 - subtest sync throw fails
     not ok 1 - should not run
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -544,6 +600,7 @@ not ok 52 - describe sync throw fails
     not ok 1 - should not run
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -575,6 +632,7 @@ not ok 53 - describe async throw fails
     not ok 1 - timed out async test
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'testTimeoutFailure'
       error: 'test timed out after 5ms'
@@ -586,6 +644,7 @@ not ok 53 - describe async throw fails
     not ok 2 - timed out callback test
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'testTimeoutFailure'
       error: 'test timed out after 5ms'
@@ -595,11 +654,13 @@ not ok 53 - describe async throw fails
     ok 3 - large timeout async test is ok
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: large timeout callback test is ok
     ok 4 - large timeout callback test is ok
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..4
 not ok 54 - timeouts
@@ -616,11 +677,13 @@ not ok 54 - timeouts
     ok 1 - successful thenable
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: rejected thenable
     not ok 2 - rejected thenable
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):3'
       failureType: 'testCodeFailure'
       error: 'custom error'
@@ -655,17 +718,20 @@ not ok 56 - rejected thenable
     ok 1 - it inside describe 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: it inside describe 2
     ok 2 - it inside describe 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: inner describe
         # Subtest: it inside inner describe
         ok 1 - it inside inner describe
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 3 - inner describe
@@ -683,6 +749,7 @@ ok 57 - async describe function
 not ok 58 - invalid subtest fail
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/describe_it.js:(LINE):5'
   failureType: 'parentAlreadyFinished'
   error: 'test could not be started because its parent finished'

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyTLogBody = void 0;
+exports.verifyTLogBody = verifyTLogBody;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -45,4 +45,3 @@ function verifyTLogBody(entry, sigContent) {
             });
     }
 }
-exports.verifyTLogBody = verifyTLogBody;

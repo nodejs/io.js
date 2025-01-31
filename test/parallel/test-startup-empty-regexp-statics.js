@@ -1,6 +1,11 @@
 'use strict';
 
 const common = require('../common');
+
+if (common.isInsideDirWithUnusualChars) {
+  common.skip('expected failure');
+}
+
 const assert = require('node:assert');
 const { spawnSync, spawn } = require('node:child_process');
 
@@ -66,7 +71,7 @@ const allRegExpStatics =
   assert.strictEqual(child.signal, null);
 }
 
-{
+if (!common.isInsideDirWithUnusualChars) {
   const child = spawn(process.execPath, [], { stdio: ['pipe', 'pipe', 'inherit'], encoding: 'utf8' });
 
   let stdout = '';

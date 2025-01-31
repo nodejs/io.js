@@ -12,7 +12,7 @@ const {
   InvalidArgumentError
 } = require('../core/errors')
 const util = require('../core/util')
-const { kUrl, kInterceptors } = require('../core/symbols')
+const { kUrl } = require('../core/symbols')
 const buildConnector = require('../core/connect')
 
 const kOptions = Symbol('options')
@@ -37,8 +37,6 @@ class Pool extends PoolBase {
     allowH2,
     ...options
   } = {}) {
-    super()
-
     if (connections != null && (!Number.isFinite(connections) || connections < 0)) {
       throw new InvalidArgumentError('invalid connections')
     }
@@ -50,6 +48,8 @@ class Pool extends PoolBase {
     if (connect != null && typeof connect !== 'function' && typeof connect !== 'object') {
       throw new InvalidArgumentError('connect must be a function or an object')
     }
+
+    super()
 
     if (typeof connect !== 'function') {
       connect = buildConnector({
@@ -63,9 +63,6 @@ class Pool extends PoolBase {
       })
     }
 
-    this[kInterceptors] = options.interceptors?.Pool && Array.isArray(options.interceptors.Pool)
-      ? options.interceptors.Pool
-      : []
     this[kConnections] = connections || null
     this[kUrl] = util.parseOrigin(origin)
     this[kOptions] = { ...util.deepClone(options), connect, allowH2 }

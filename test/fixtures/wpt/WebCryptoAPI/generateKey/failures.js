@@ -166,6 +166,14 @@ function run_test(algorithmNames) {
         });
     });
 
+    // Empty algorithm should fail with TypeError
+    allValidUsages(["decrypt", "sign", "deriveBits"], true, []) // Small search space, shouldn't matter because should fail before used
+        .forEach(function(usages) {
+            [false, true, "RED", 7].forEach(function(extractable){
+                testError({}, extractable, usages, "TypeError", "Empty algorithm");
+            });
+        });
+
 
     // Algorithms normalize okay, but usages bad (though not empty).
     // It shouldn't matter what other extractable is. Should fail

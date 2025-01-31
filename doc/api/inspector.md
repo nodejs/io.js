@@ -505,7 +505,7 @@ inspector.Network.requestWillBeSent({
   request: {
     url: 'https://nodejs.org/en',
     method: 'GET',
-  }
+  },
 });
 ```
 

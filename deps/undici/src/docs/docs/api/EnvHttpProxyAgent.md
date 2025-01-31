@@ -20,7 +20,7 @@ Returns: `EnvHttpProxyAgent`
 
 ### Parameter: `EnvHttpProxyAgentOptions`
 
-Extends: [`AgentOptions`](Agent.md#parameter-agentoptions)
+Extends: [`AgentOptions`](/docs/docs/api/Agent.md#parameter-agentoptions)
 
 * **httpProxy** `string` (optional) - When set, it will override the `HTTP_PROXY` environment variable.
 * **httpsProxy** `string` (optional) - When set, it will override the `HTTPS_PROXY` environment variable.
@@ -118,45 +118,44 @@ const data = await json() // data { foo: "bar" }
 
 ### `EnvHttpProxyAgent.close([callback])`
 
-Implements [`Dispatcher.close([callback])`](Dispatcher.md#dispatcherclosecallback-promise).
+Implements [`Dispatcher.close([callback])`](/docs/docs/api/Dispatcher.md#dispatcherclosecallback-promise).
 
 ### `EnvHttpProxyAgent.destroy([error, callback])`
 
-Implements [`Dispatcher.destroy([error, callback])`](Dispatcher.md#dispatcherdestroyerror-callback-promise).
+Implements [`Dispatcher.destroy([error, callback])`](/docs/docs/api/Dispatcher.md#dispatcherdestroyerror-callback-promise).
 
 ### `EnvHttpProxyAgent.dispatch(options, handler: AgentDispatchOptions)`
 
-Implements [`Dispatcher.dispatch(options, handler)`](Dispatcher.md#dispatcherdispatchoptions-handler).
+Implements [`Dispatcher.dispatch(options, handler)`](/docs/docs/api/Dispatcher.md#dispatcherdispatchoptions-handler).
 
 #### Parameter: `AgentDispatchOptions`
 
-Extends: [`DispatchOptions`](Dispatcher.md#parameter-dispatchoptions)
+Extends: [`DispatchOptions`](/docs/docs/api/Dispatcher.md#parameter-dispatchoptions)
 
 * **origin** `string | URL`
-* **maxRedirections** `Integer`.
 
-Implements [`Dispatcher.destroy([error, callback])`](Dispatcher.md#dispatcherdestroyerror-callback-promise).
+Implements [`Dispatcher.destroy([error, callback])`](/docs/docs/api/Dispatcher.md#dispatcherdestroyerror-callback-promise).
 
 ### `EnvHttpProxyAgent.connect(options[, callback])`
 
-See [`Dispatcher.connect(options[, callback])`](Dispatcher.md#dispatcherconnectoptions-callback).
+See [`Dispatcher.connect(options[, callback])`](/docs/docs/api/Dispatcher.md#dispatcherconnectoptions-callback).
 
 ### `EnvHttpProxyAgent.dispatch(options, handler)`
 
-Implements [`Dispatcher.dispatch(options, handler)`](Dispatcher.md#dispatcherdispatchoptions-handler).
+Implements [`Dispatcher.dispatch(options, handler)`](/docs/docs/api/Dispatcher.md#dispatcherdispatchoptions-handler).
 
 ### `EnvHttpProxyAgent.pipeline(options, handler)`
 
-See [`Dispatcher.pipeline(options, handler)`](Dispatcher.md#dispatcherpipelineoptions-handler).
+See [`Dispatcher.pipeline(options, handler)`](/docs/docs/api/Dispatcher.md#dispatcherpipelineoptions-handler).
 
 ### `EnvHttpProxyAgent.request(options[, callback])`
 
-See [`Dispatcher.request(options [, callback])`](Dispatcher.md#dispatcherrequestoptions-callback).
+See [`Dispatcher.request(options [, callback])`](/docs/docs/api/Dispatcher.md#dispatcherrequestoptions-callback).
 
 ### `EnvHttpProxyAgent.stream(options, factory[, callback])`
 
-See [`Dispatcher.stream(options, factory[, callback])`](Dispatcher.md#dispatcherstreamoptions-factory-callback).
+See [`Dispatcher.stream(options, factory[, callback])`](/docs/docs/api/Dispatcher.md#dispatcherstreamoptions-factory-callback).
 
 ### `EnvHttpProxyAgent.upgrade(options[, callback])`
 
-See [`Dispatcher.upgrade(options[, callback])`](Dispatcher.md#dispatcherupgradeoptions-callback).
+See [`Dispatcher.upgrade(options[, callback])`](/docs/docs/api/Dispatcher.md#dispatcherupgradeoptions-callback).

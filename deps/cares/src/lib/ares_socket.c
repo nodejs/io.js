@@ -263,7 +263,8 @@ ares_status_t ares_socket_configure(ares_channel_t *channel, int family,
      * compatibility */
     (void)channel->sock_funcs.asetsockopt(
       fd, ARES_SOCKET_OPT_BIND_DEVICE, channel->local_dev_name,
-      sizeof(channel->local_dev_name), channel->sock_func_cb_data);
+      (ares_socklen_t)ares_strlen(channel->local_dev_name),
+      channel->sock_func_cb_data);
   }
 
   /* Bind to ip address if configured */

@@ -29,6 +29,20 @@
 
 CARES_EXTERN char  *ares_strdup(const char *s1);
 
+/*! Scan up to maxlen bytes for the first NULL character and return
+ *  its index, or maxlen if not found.  The function only returns
+ *  maxlen if the first maxlen bytes were not NULL characters; it
+ *  makes no guarantee for what \c str[maxlen] (if defined) is, and
+ *  does not access it.  It is behaving like the POSIX \c strnlen()
+ *  function, except that it returns 0 if the \p str pointer is \c
+ *  NULL.
+ *
+ *  \param[in] str    The string to scan for the NULL character
+ *  \param[in] maxlen The maximum number of bytes to scan
+ *  \return Index of first NULL byte. Between 0 and maxlen (inclusive).
+ */
+CARES_EXTERN size_t ares_strnlen(const char *str, size_t maxlen);
+
 CARES_EXTERN size_t ares_strlen(const char *str);
 
 /*! Copy string from source to destination with destination buffer size

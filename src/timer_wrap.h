@@ -61,6 +61,8 @@ class TimerWrapHandle : public MemoryRetainer  {
 
   void Update(uint64_t interval, uint64_t repeat = 0);
 
+  inline operator bool() const { return timer_ != nullptr; }
+
   void Ref();
   void Unref();
 

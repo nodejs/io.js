@@ -1,11 +1,12 @@
 'use strict'
 
 const assert = require('node:assert')
+const { AsyncResource } = require('node:async_hooks')
 const { Readable } = require('./readable')
 const { InvalidArgumentError, RequestAbortedError } = require('../core/errors')
 const util = require('../core/util')
-const { getResolveErrorBodyCallback } = require('./util')
-const { AsyncResource } = require('node:async_hooks')
+
+function noop () {}
 
 class RequestHandler extends AsyncResource {
   constructor (opts, callback) {
@@ -13,7 +14,7 @@ class RequestHandler extends AsyncResource {
       throw new InvalidArgumentError('invalid opts')
     }
 
-    const { signal, method, opaque, body, onInfo, responseHeaders, throwOnError, highWaterMark } = opts
+    const { signal, method, opaque, body, onInfo, responseHeaders, highWaterMark } = opts
 
     try {
       if (typeof callback !== 'function') {
@@ -39,7 +40,7 @@ class RequestHandler extends AsyncResource {
       super('UNDICI_REQUEST')
     } catch (err) {
       if (util.isStream(body)) {
-        util.destroy(body.on('error', util.nop), err)
+        util.destroy(body.on('error', noop), err)
       }
       throw err
     }
@@ -54,37 +55,21 @@ class RequestHandler extends AsyncResource {
     this.trailers = {}
     this.context = null
     this.onInfo = onInfo || null
-    this.throwOnError = throwOnError
     this.highWaterMark = highWaterMark
-    this.signal = signal
     this.reason = null
     this.removeAbortListener = null
 
-    if (util.isStream(body)) {
-      body.on('error', (err) => {
-        this.onError(err)
+    if (signal?.aborted) {
+      this.reason = signal.reason ?? new RequestAbortedError()
+    } else if (signal) {
+      this.removeAbortListener = util.addAbortListener(signal, () => {
+        this.reason = signal.reason ?? new RequestAbortedError()
+        if (this.res) {
+          util.destroy(this.res.on('error', noop), this.reason)
+        } else if (this.abort) {
+          this.abort(this.reason)
+        }
       })
-    }
-
-    if (this.signal) {
-      if (this.signal.aborted) {
-        this.reason = this.signal.reason ?? new RequestAbortedError()
-      } else {
-        this.removeAbortListener = util.addAbortListener(this.signal, () => {
-          this.reason = this.signal.reason ?? new RequestAbortedError()
-          if (this.res) {
-            util.destroy(this.res, this.reason)
-          } else if (this.abort) {
-            this.abort(this.reason)
-          }
-
-          if (this.removeAbortListener) {
-            this.res?.off('close', this.removeAbortListener)
-            this.removeAbortListener()
-            this.removeAbortListener = null
-          }
-        })
-      }
     }
   }
 
@@ -127,25 +112,20 @@ class RequestHandler extends AsyncResource {
 
     if (this.removeAbortListener) {
       res.on('close', this.removeAbortListener)
+      this.removeAbortListener = null
     }
 
     this.callback = null
     this.res = res
     if (callback !== null) {
-      if (this.throwOnError && statusCode >= 400) {
-        this.runInAsyncScope(getResolveErrorBodyCallback, null,
-          { callback, body: res, contentType, statusCode, statusMessage, headers }
-        )
-      } else {
-        this.runInAsyncScope(callback, null, null, {
-          statusCode,
-          headers,
-          trailers: this.trailers,
-          opaque,
-          body: res,
-          context
-        })
-      }
+      this.runInAsyncScope(callback, null, null, {
+        statusCode,
+        headers,
+        trailers: this.trailers,
+        opaque,
+        body: res,
+        context
+      })
     }
   }
 
@@ -173,17 +153,20 @@ class RequestHandler extends AsyncResource {
       this.res = null
       // Ensure all queued handlers are invoked before destroying res.
       queueMicrotask(() => {
-        util.destroy(res, err)
+        util.destroy(res.on('error', noop), err)
       })
     }
 
     if (body) {
       this.body = null
-      util.destroy(body, err)
+
+      if (util.isStream(body)) {
+        body.on('error', noop)
+        util.destroy(body, err)
+      }
     }
 
     if (this.removeAbortListener) {
-      res?.off('close', this.removeAbortListener)
       this.removeAbortListener()
       this.removeAbortListener = null
     }
@@ -200,7 +183,9 @@ function request (opts, callback) {
   }
 
   try {
-    this.dispatch(opts, new RequestHandler(opts, callback))
+    const handler = new RequestHandler(opts, callback)
+
+    this.dispatch(opts, handler)
   } catch (err) {
     if (typeof callback !== 'function') {
       throw err

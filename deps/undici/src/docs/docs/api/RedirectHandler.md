@@ -16,7 +16,7 @@ Returns: `RedirectHandler`
 
 ### Parameters
 
-- **dispatch** `(options: Dispatch.DispatchOptions, handlers: Dispatch.DispatchHandlers) => Promise<Dispatch.DispatchResponse>` (required) - Dispatch function to be called after every redirection.
+- **dispatch** `(options: Dispatch.DispatchOptions, handlers: Dispatch.DispatchHandler) => Promise<Dispatch.DispatchResponse>` (required) - Dispatch function to be called after every redirection.
 - **maxRedirections** `number` (required) - Maximum number of redirections allowed.
 - **opts** `object` (required) - Options for handling redirection.
 - **handler** `object` (required) - Handlers for different stages of the request lifecycle.

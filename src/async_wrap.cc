@@ -488,29 +488,13 @@ AsyncWrap::AsyncWrap(Environment* env,
                      Local<Object> object,
                      ProviderType provider,
                      double execution_async_id)
-    : AsyncWrap(env, object, provider, execution_async_id, false) {}
-
-AsyncWrap::AsyncWrap(Environment* env,
-                     Local<Object> object,
-                     ProviderType provider,
-                     double execution_async_id,
-                     bool silent)
     : AsyncWrap(env, object) {
   CHECK_NE(provider, PROVIDER_NONE);
   provider_type_ = provider;
 
   // Use AsyncReset() call to execute the init() callbacks.
-  AsyncReset(object, execution_async_id, silent);
+  AsyncReset(object, execution_async_id);
   init_hook_ran_ = true;
-}
-
-AsyncWrap::AsyncWrap(Environment* env,
-                     Local<Object> object,
-                     ProviderType provider,
-                     double execution_async_id,
-                     double trigger_async_id)
-    : AsyncWrap(env, object, provider, execution_async_id, true) {
-  trigger_async_id_ = trigger_async_id;
 }
 
 AsyncWrap::AsyncWrap(Environment* env, Local<Object> object)
@@ -592,8 +576,7 @@ void AsyncWrap::EmitDestroy(Environment* env, double async_id) {
 // Generalized call for both the constructor and for handles that are pooled
 // and reused over their lifetime. This way a new uid can be assigned when
 // the resource is pulled out of the pool and put back into use.
-void AsyncWrap::AsyncReset(Local<Object> resource, double execution_async_id,
-                           bool silent) {
+void AsyncWrap::AsyncReset(Local<Object> resource, double execution_async_id) {
   CHECK_NE(provider_type(), PROVIDER_NONE);
 
   if (async_id_ != kInvalidAsyncId) {
@@ -641,8 +624,6 @@ void AsyncWrap::AsyncReset(Local<Object> resource, double execution_async_id,
   }
 
   context_frame_.Reset(isolate, async_context_frame::current(isolate));
-
-  if (silent) return;
 
   EmitAsyncInit(env(), resource,
                 env()->async_hooks()->provider_string(provider_type()),

@@ -220,6 +220,11 @@ const setupConnectTimeout = process.platform === 'win32'
  * @param {number} opts.port
  */
 function onConnectTimeout (socket, opts) {
+  // The socket could be already garbage collected
+  if (socket == null) {
+    return
+  }
+
   let message = 'Connect Timeout Error'
   if (Array.isArray(socket.autoSelectFamilyAttemptedAddresses)) {
     message += ` (attempted addresses: ${socket.autoSelectFamilyAttemptedAddresses.join(', ')},`

@@ -3,6 +3,7 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 const fixtures = require('../common/fixtures');
+const { hasOpenSSL } = require('../common/crypto');
 
 const assert = require('assert');
 const { X509Certificate } = require('crypto');
@@ -69,7 +70,7 @@ function test(size, type, name, cipher) {
 
 test(undefined, undefined, undefined, 'AES256-SHA256');
 test('auto', 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');
-if (!common.hasOpenSSL(3, 2)) {
+if (!hasOpenSSL(3, 2)) {
   test(1024, 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');
 } else {
   test(3072, 'DH', undefined, 'DHE-RSA-AES256-GCM-SHA384');

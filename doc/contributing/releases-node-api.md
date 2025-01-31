@@ -85,7 +85,7 @@ with:
 
 ```bash
 grep                           \
-  -E                           \
+  -nHE                         \
   'N(ODE_)?API_EXPERIMENTAL'   \
   src/js_native_api{_types,}.h \
   src/node_api{_types,}.h
@@ -95,13 +95,13 @@ and update the define version guards with the release version:
 
 ```diff
 - #ifdef NAPI_EXPERIMENTAL
-+ #if NAPI_VERSION >= 10
++ #if NAPI_VERSION >= 11
 
   NAPI_EXTERN napi_status NAPI_CDECL
   node_api_function(napi_env env);
 
 - #endif  // NAPI_EXPERIMENTAL
-+ #endif  // NAPI_VERSION >= 10
++ #endif  // NAPI_VERSION >= 11
 ```
 
 Remove any feature flags of the form `NODE_API_EXPERIMENTAL_HAS_<FEATURE>`.
@@ -121,11 +121,11 @@ Also, update the Node-API version value of the `napi_get_version` test in
 #### Step 2. Update runtime version guards
 
 If this release includes runtime behavior version guards, the relevant commits
-should already include `NAPI_VERSION_EXPERIMENTAL` guard for the change. Check
-for these guards with:
+should already include the `NAPI_VERSION_EXPERIMENTAL` guard for the change.
+Check for these guards with:
 
 ```bash
-grep NAPI_VERSION_EXPERIMENTAL src/js_native_api_v8* src/node_api.cc
+grep -nH NAPI_VERSION_EXPERIMENTAL src/js_native_api_v8* src/node_api.cc
 ```
 
 and substitute this guard version with the release version `x`.
@@ -138,7 +138,7 @@ Check for these definitions with:
 
 ```bash
 grep                                    \
-  -E                                    \
+  -nHE                                  \
   'N(ODE_)?API_EXPERIMENTAL'            \
   test/node-api/*/{*.{h,c},binding.gyp} \
   test/js-native-api/*/{*.{h,c},binding.gyp}
@@ -170,7 +170,7 @@ stability banner:
   <!-- YAML
   added:
     - v1.2.3
-+ napiVersion: 10
++ napiVersion: 11
   -->
 
 - > Stability: 1 - Experimental
@@ -186,7 +186,7 @@ For all runtime version guards updated in Step 2, check for these definitions
 with:
 
 ```bash
-grep NAPI_EXPERIMENTAL doc/api/n-api.md
+grep -nH NAPI_EXPERIMENTAL doc/api/n-api.md
 ```
 
 In `doc/api/n-api.md`, update the `experimental` change history item to be the

@@ -24,25 +24,27 @@ void CreateEnvProxyTemplate(IsolateData* isolate_data);
 void RawDebug(const v8::FunctionCallbackInfo<v8::Value>& args);
 
 v8::MaybeLocal<v8::Value> ProcessEmit(Environment* env,
-                                      const char* event,
+                                      std::string_view event,
                                       v8::Local<v8::Value> message);
 
 v8::Maybe<bool> ProcessEmitWarningGeneric(Environment* env,
-                                          const char* warning,
-                                          const char* type = nullptr,
-                                          const char* code = nullptr);
+                                          std::string_view warning,
+                                          std::string_view type = "",
+                                          std::string_view code = "");
 
 template <typename... Args>
 inline v8::Maybe<bool> ProcessEmitWarning(Environment* env,
                                           const char* fmt,
                                           Args&&... args);
 
-v8::Maybe<bool> ProcessEmitWarningSync(Environment* env, const char* message);
+v8::Maybe<bool> ProcessEmitWarningSync(Environment* env,
+                                       std::string_view message);
 v8::Maybe<bool> ProcessEmitExperimentalWarning(Environment* env,
-                                              const char* warning);
-v8::Maybe<bool> ProcessEmitDeprecationWarning(Environment* env,
-                                              const char* warning,
-                                              const char* deprecation_code);
+                                               const std::string& warning);
+v8::Maybe<bool> ProcessEmitDeprecationWarning(
+    Environment* env,
+    const std::string& warning,
+    std::string_view deprecation_code);
 
 v8::MaybeLocal<v8::Object> CreateProcessObject(Realm* env);
 void PatchProcessObject(const v8::FunctionCallbackInfo<v8::Value>& args);

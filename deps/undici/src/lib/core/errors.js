@@ -1,8 +1,8 @@
 'use strict'
 
 class UndiciError extends Error {
-  constructor (message) {
-    super(message)
+  constructor (message, options) {
+    super(message, options)
     this.name = 'UndiciError'
     this.code = 'UND_ERR'
   }
@@ -196,20 +196,20 @@ class RequestRetryError extends UndiciError {
 }
 
 class ResponseError extends UndiciError {
-  constructor (message, code, { headers, data }) {
+  constructor (message, code, { headers, body }) {
     super(message)
     this.name = 'ResponseError'
     this.message = message || 'Response error'
     this.code = 'UND_ERR_RESPONSE'
     this.statusCode = code
-    this.data = data
+    this.body = body
     this.headers = headers
   }
 }
 
 class SecureProxyConnectionError extends UndiciError {
-  constructor (cause, message, options) {
-    super(message, { cause, ...(options ?? {}) })
+  constructor (cause, message, options = {}) {
+    super(message, { cause, ...options })
     this.name = 'SecureProxyConnectionError'
     this.message = message || 'Secure Proxy Connection failed'
     this.code = 'UND_ERR_PRX_TLS'

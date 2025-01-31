@@ -1,0 +1,14 @@
+{
+  "sourceRootResolution": {
+    "testActions": {
+      "skip": "sourceRoot is not supported"
+    }
+  },
+  "mappingSemanticsSingleFieldSegment": {
+    "testActions": {
+      "1": {
+        "skip": "Might be incorrect test"
+      }
+    }
+  }
+}

@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -74,7 +74,7 @@ struct ngtcp2_frame_chain {
   };
 };
 
-ngtcp2_objalloc_decl(frame_chain, ngtcp2_frame_chain, oplent);
+ngtcp2_objalloc_decl(frame_chain, ngtcp2_frame_chain, oplent)
 
 /*
  * ngtcp2_bind_frame_chains binds two frame chains |a| and |b| using
@@ -121,12 +121,29 @@ int ngtcp2_frame_chain_objalloc_new(ngtcp2_frame_chain **pfrc,
 int ngtcp2_frame_chain_extralen_new(ngtcp2_frame_chain **pfrc, size_t extralen,
                                     const ngtcp2_mem *mem);
 
+/* NGTCP2_FRAME_CHAIN_STREAM_AVAIL is the number of additional bytes
+   available after ngtcp2_stream when it is embedded in
+   ngtcp2_frame. */
+#define NGTCP2_FRAME_CHAIN_STREAM_AVAIL                                        \
+  (sizeof(ngtcp2_frame) - sizeof(ngtcp2_stream))
+
+/* NGTCP2_FRAME_CHAIN_STREAM_DATACNT_THRES is the number of datacnt
+   that changes allocation method.  If datacnt is more than this
+   value, ngtcp2_frame_chain is allocated without ngtcp2_objalloc.
+   Otherwise, it is allocated using ngtcp2_objalloc.  */
+#define NGTCP2_FRAME_CHAIN_STREAM_DATACNT_THRES                                \
+  (NGTCP2_FRAME_CHAIN_STREAM_AVAIL / sizeof(ngtcp2_vec) + 1)
+
 /*
  * ngtcp2_frame_chain_stream_datacnt_objalloc_new works like
  * ngtcp2_frame_chain_new, but it allocates enough data to store
  * additional |datacnt| - 1 ngtcp2_vec object after ngtcp2_stream
- * object.  If no additional space is required,
- * ngtcp2_frame_chain_objalloc_new is called internally.
+ * object.  If no additional space is required, in other words,
+ * |datacnt| <= NGTCP2_FRAME_CHAIN_STREAM_DATACNT_THRES,
+ * ngtcp2_frame_chain_objalloc_new is called internally.  Otherwise,
+ * ngtcp2_frame_chain_extralen_new is used and objalloc is not used.
+ * Therefore, it is important to call ngtcp2_frame_chain_objalloc_del
+ * without changing datacnt field.
  */
 int ngtcp2_frame_chain_stream_datacnt_objalloc_new(ngtcp2_frame_chain **pfrc,
                                                    size_t datacnt,
@@ -168,4 +185,4 @@ void ngtcp2_frame_chain_list_objalloc_del(ngtcp2_frame_chain *frc,
                                           ngtcp2_objalloc *objalloc,
                                           const ngtcp2_mem *mem);
 
-#endif /* NGTCP2_FRAME_CHAIN_H */
+#endif /* !defined(NGTCP2_FRAME_CHAIN_H) */

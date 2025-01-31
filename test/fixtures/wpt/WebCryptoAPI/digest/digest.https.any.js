@@ -118,6 +118,20 @@
         });
     });
 
+    // Call digest() with empty algorithm object
+    Object.keys(sourceData).forEach(function(size) {
+        promise_test(function(test) {
+            var promise = subtle.digest({}, sourceData[size])
+            .then(function(result) {
+                assert_unreached("digest() with missing algorithm name should have thrown a TypeError");
+            }, function(err) {
+                assert_equals(err.name, "TypeError", "Missing algorithm name should cause TypeError")
+            });
+
+            return promise;
+        }, "empty algorithm object with " + size);
+    });
+
 
     done();
 

@@ -21,18 +21,23 @@
 
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (common.hasFipsCrypto)
+const { hasOpenSSL3 } = require('../common/crypto');
+const crypto = require('crypto');
+
+if (crypto.getFips()) {
   common.skip('BF-ECB is not FIPS 140-2 compatible');
+}
 
-if (common.hasOpenSSL3)
+if (hasOpenSSL3) {
   common.skip('Blowfish is only available with the legacy provider in ' +
     'OpenSSl 3.x');
+}
 
 const assert = require('assert');
-const crypto = require('crypto');
 
 // Testing whether EVP_CipherInit_ex is functioning correctly.
 // Reference: bug#1997

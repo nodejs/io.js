@@ -8,16 +8,6 @@ module.exports = {
   'algorithm-discards-context.https.window.js': {
     'skip': 'Not relevant in Node.js context',
   },
-  'derive_bits_keys/derived_bits_length.https.any.js': {
-    'fail': {
-      // See https://github.com/nodejs/node/pull/55296
-      // The fix is pending a decision whether truncation in ECDH/X* will be removed from the spec entirely
-      'expected': [
-        "ECDH derivation with 230 as 'length' parameter",
-        "X25519 derivation with 230 as 'length' parameter",
-      ],
-    },
-  },
   'historical.any.js': {
     'skip': 'Not relevant in Node.js context',
   },

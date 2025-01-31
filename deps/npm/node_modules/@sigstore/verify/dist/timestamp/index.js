@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyTLogTimestamp = exports.verifyTSATimestamp = void 0;
+exports.verifyTSATimestamp = verifyTSATimestamp;
+exports.verifyTLogTimestamp = verifyTLogTimestamp;
 const error_1 = require("../error");
 const checkpoint_1 = require("./checkpoint");
 const merkle_1 = require("./merkle");
@@ -14,7 +15,6 @@ function verifyTSATimestamp(timestamp, data, timestampAuthorities) {
         timestamp: timestamp.signingTime,
     };
 }
-exports.verifyTSATimestamp = verifyTSATimestamp;
 function verifyTLogTimestamp(entry, tlogAuthorities) {
     let inclusionVerified = false;
     if (isTLogEntryWithInclusionPromise(entry)) {
@@ -38,7 +38,6 @@ function verifyTLogTimestamp(entry, tlogAuthorities) {
         timestamp: new Date(Number(entry.integratedTime) * 1000),
     };
 }
-exports.verifyTLogTimestamp = verifyTLogTimestamp;
 function isTLogEntryWithInclusionPromise(entry) {
     return entry.inclusionPromise !== undefined;
 }

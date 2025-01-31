@@ -86,6 +86,10 @@ const { subtle } = globalThis.crypto;
         hash: 'SHA-256'
       }, true, ['sign', 'verify']);
 
+
+    assert.strictEqual(key.algorithm, key.algorithm);
+    assert.strictEqual(key.usages, key.usages);
+
     const raw = await subtle.exportKey('raw', key);
 
     assert.deepStrictEqual(
@@ -127,6 +131,8 @@ const { subtle } = globalThis.crypto;
         name: 'AES-CTR',
         length: 256,
       }, true, ['encrypt', 'decrypt']);
+    assert.strictEqual(key.algorithm, key.algorithm);
+    assert.strictEqual(key.usages, key.usages);
 
     const raw = await subtle.exportKey('raw', key);
 

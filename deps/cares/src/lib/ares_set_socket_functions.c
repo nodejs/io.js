@@ -288,7 +288,9 @@ static int default_asetsockopt(ares_socket_t sock, ares_socket_opt_t opt,
       return setsockopt(sock, SOL_SOCKET, SO_RCVBUF, val, val_size);
 
     case ARES_SOCKET_OPT_BIND_DEVICE:
-      if (!ares_str_isprint(val, (size_t)val_size)) {
+      /* Count the number of characters before NULL terminator then
+       * validate those are all printable */
+      if (!ares_str_isprint(val, ares_strnlen(val, (size_t)val_size))) {
         SET_SOCKERRNO(EINVAL);
         return -1;
       }

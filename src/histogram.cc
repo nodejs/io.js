@@ -341,7 +341,7 @@ Local<FunctionTemplate> IntervalHistogram::GetConstructorTemplate(
     Isolate* isolate = env->isolate();
     tmpl = NewFunctionTemplate(isolate, nullptr);
     tmpl->Inherit(HandleWrap::GetConstructorTemplate(env));
-    tmpl->SetClassName(OneByteString(isolate, "Histogram"));
+    tmpl->SetClassName(FIXED_ONE_BYTE_STRING(isolate, "Histogram"));
     auto instance = tmpl->InstanceTemplate();
     instance->SetInternalFieldCount(HistogramImpl::kInternalFieldCount);
     HistogramImpl::AddMethods(isolate, tmpl);

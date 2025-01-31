@@ -20,7 +20,7 @@ let done = 0;
 
 const ondone = common.mustSucceed(() => {
   if (++done < writes) {
-    if (done % 25 === 0) global.gc();
+    if (done % 25 === 0) globalThis.gc();
     setImmediate(write);
   } else {
     assert.strictEqual(

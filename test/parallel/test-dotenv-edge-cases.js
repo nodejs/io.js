@@ -8,6 +8,8 @@ const fixtures = require('../common/fixtures');
 
 const validEnvFilePath = '../fixtures/dotenv/valid.env';
 const nodeOptionsEnvFilePath = '../fixtures/dotenv/node-options.env';
+const noFinalNewlineEnvFilePath = '../fixtures/dotenv/no-final-newline.env';
+const noFinalNewlineSingleQuotesEnvFilePath = '../fixtures/dotenv/no-final-newline-single-quotes.env';
 
 describe('.env supports edge cases', () => {
   it('supports multiple declarations, including optional ones', async () => {
@@ -147,5 +149,37 @@ describe('.env supports edge cases', () => {
     assert.strictEqual(child.stdout, '');
     assert.strictEqual(child.stderr, '');
     assert.strictEqual(child.code, 0);
+  });
+
+  it('should handle file without a final newline', async () => {
+    const code = `
+      require('assert').strictEqual(process.env.BASIC, 'basic');
+    `.trim();
+    const child = await common.spawnPromisified(
+      process.execPath,
+      [ `--env-file=${path.resolve(__dirname, noFinalNewlineEnvFilePath)}`, '--eval', code ],
+    );
+
+    const SingleQuotesChild = await common.spawnPromisified(
+      process.execPath,
+      [ `--env-file=${path.resolve(__dirname, noFinalNewlineSingleQuotesEnvFilePath)}`, '--eval', code ],
+    );
+
+    assert.strictEqual(child.stderr, '');
+    assert.strictEqual(child.code, 0);
+    assert.strictEqual(SingleQuotesChild.stderr, '');
+    assert.strictEqual(SingleQuotesChild.code, 0);
+  });
+
+  it('should reject invalid env file flag', async () => {
+    const child = await common.spawnPromisified(
+      process.execPath,
+      ['--env-file-ABCD', validEnvFilePath],
+      { cwd: __dirname },
+    );
+
+    assert.strictEqual(child.stdout, '');
+    assert.strictEqual(child.code, 9);
+    assert.match(child.stderr, /bad option: --env-file-ABCD/);
   });
 });

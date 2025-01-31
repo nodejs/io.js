@@ -2,9 +2,9 @@
 
 const { InvalidArgumentError, SocketError } = require('../core/errors')
 const { AsyncResource } = require('node:async_hooks')
+const assert = require('node:assert')
 const util = require('../core/util')
 const { addSignal, removeSignal } = require('./abort-signal')
-const assert = require('node:assert')
 
 class UpgradeHandler extends AsyncResource {
   constructor (opts, callback) {
@@ -91,11 +91,13 @@ function upgrade (opts, callback) {
 
   try {
     const upgradeHandler = new UpgradeHandler(opts, callback)
-    this.dispatch({
+    const upgradeOpts = {
       ...opts,
       method: opts.method || 'GET',
       upgrade: opts.protocol || 'Websocket'
-    }, upgradeHandler)
+    }
+
+    this.dispatch(upgradeOpts, upgradeHandler)
   } catch (err) {
     if (typeof callback !== 'function') {
       throw err

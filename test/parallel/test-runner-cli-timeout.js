@@ -21,7 +21,7 @@ test('timeout of 10ms', async () => {
 
 test('isolation=none uses the --test-timeout flag', async () => {
   const args = [
-    '--test', '--experimental-test-isolation=none', '--test-timeout=10',
+    '--test', '--test-isolation=none', '--test-timeout=10',
   ];
   const cp = spawnSync(process.execPath, args, { cwd, env });
   assert.match(cp.stderr.toString(), /timeout: 10,/);

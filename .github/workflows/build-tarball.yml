@@ -105,4 +105,4 @@ jobs:
       - name: Test
         run: |
           cd $TAR_DIR
-          make run-ci -j4 V=1 TEST_CI_ARGS="-p dots --node-args='--test-reporter=spec' --measure-flakiness 9"
+          make run-ci -j4 V=1 TEST_CI_ARGS="-p dots  --measure-flakiness 9"

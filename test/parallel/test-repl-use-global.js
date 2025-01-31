@@ -20,10 +20,10 @@ const globalTest = (useGlobal, cb, output) => (err, repl) => {
 
   let str = '';
   output.on('data', (data) => (str += data));
-  global.lunch = 'tacos';
-  repl.write('global.lunch;\n');
+  globalThis.lunch = 'tacos';
+  repl.write('globalThis.lunch;\n');
   repl.close();
-  delete global.lunch;
+  delete globalThis.lunch;
   cb(null, str.trim());
 };
 

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyIntotoTLogBody = void 0;
+exports.verifyIntotoTLogBody = verifyIntotoTLogBody;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -29,7 +29,6 @@ function verifyIntotoTLogBody(tlogEntry, content) {
             });
     }
 }
-exports.verifyIntotoTLogBody = verifyIntotoTLogBody;
 // Compare the given intoto v0.0.2 tlog entry to the given DSSE envelope.
 function verifyIntoto002TLogBody(tlogEntry, content) {
     // Ensure the bundle's DSSE contains a single signature

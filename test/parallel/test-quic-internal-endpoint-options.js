@@ -1,4 +1,4 @@
-// Flags: --expose-internals
+// Flags: --experimental-quic --no-warnings
 'use strict';
 
 const { hasQuic } = require('../common');
@@ -15,22 +15,16 @@ describe('quic internal endpoint options', { skip: !hasQuic }, async () => {
   } = require('node:assert');
 
   const {
-    Endpoint,
-  } = require('internal/quic/quic');
+    QuicEndpoint,
+  } = require('node:quic');
 
   const {
     inspect,
   } = require('util');
 
-  const callbackConfig = {
-    onsession() {},
-    session: {},
-    stream: {},
-  };
-
   it('invalid options', async () => {
     ['a', null, false, NaN].forEach((i) => {
-      throws(() => new Endpoint(callbackConfig, i), {
+      throws(() => new QuicEndpoint(i), {
         code: 'ERR_INVALID_ARG_TYPE',
       });
     });
@@ -38,9 +32,7 @@ describe('quic internal endpoint options', { skip: !hasQuic }, async () => {
 
   it('valid options', async () => {
     // Just Works... using all defaults
-    new Endpoint(callbackConfig, {});
-    new Endpoint(callbackConfig);
-    new Endpoint(callbackConfig, undefined);
+    new QuicEndpoint();
   });
 
   it('various cases', async () => {
@@ -95,20 +87,6 @@ describe('quic internal endpoint options', { skip: !hasQuic }, async () => {
         invalid: [-1, -1n, 'a', null, false, true, {}, [], () => {}]
       },
       {
-        key: 'maxPayloadSize',
-        valid: [
-          1, 10, 100, 1000, 10000, 10000n,
-        ],
-        invalid: [-1, -1n, 'a', null, false, true, {}, [], () => {}]
-      },
-      {
-        key: 'unacknowledgedPacketThreshold',
-        valid: [
-          1, 10, 100, 1000, 10000, 10000n,
-        ],
-        invalid: [-1, -1n, 'a', null, false, true, {}, [], () => {}]
-      },
-      {
         key: 'validateAddress',
         valid: [true, false, 0, 1, 'a'],
         invalid: [],
@@ -122,18 +100,6 @@ describe('quic internal endpoint options', { skip: !hasQuic }, async () => {
         key: 'ipv6Only',
         valid: [true, false, 0, 1, 'a'],
         invalid: [],
-      },
-      {
-        key: 'cc',
-        valid: [
-          Endpoint.CC_ALGO_RENO,
-          Endpoint.CC_ALGO_CUBIC,
-          Endpoint.CC_ALGO_BBR,
-          Endpoint.CC_ALGO_RENO_STR,
-          Endpoint.CC_ALGO_CUBIC_STR,
-          Endpoint.CC_ALGO_BBR_STR,
-        ],
-        invalid: [-1, 4, 1n, 'a', null, false, true, {}, [], () => {}],
       },
       {
         key: 'udpReceiveBufferSize',
@@ -190,39 +156,34 @@ describe('quic internal endpoint options', { skip: !hasQuic }, async () => {
       for (const value of valid) {
         const options = {};
         options[key] = value;
-        new Endpoint(callbackConfig, options);
+        new QuicEndpoint(options);
       }
 
       for (const value of invalid) {
         const options = {};
         options[key] = value;
-        throws(() => new Endpoint(callbackConfig, options), {
-          code: 'ERR_INVALID_ARG_VALUE',
-        });
+        throws(() => new QuicEndpoint(options), {
+          message: new RegExp(`${key}`),
+        }, value);
       }
     }
   });
 
-  it('endpoint can be ref/unrefed without error', async () => {
-    const endpoint = new Endpoint(callbackConfig, {});
-    endpoint.unref();
-    endpoint.ref();
-    endpoint.close();
-    await endpoint.closed;
-  });
-
   it('endpoint can be inspected', async () => {
-    const endpoint = new Endpoint(callbackConfig, {});
+    const endpoint = new QuicEndpoint({});
     strictEqual(typeof inspect(endpoint), 'string');
     endpoint.close();
     await endpoint.closed;
   });
 
   it('endpoint with object address', () => {
-    new Endpoint(callbackConfig, {
+    new QuicEndpoint({
       address: { host: '127.0.0.1:0' },
     });
-    throws(() => new Endpoint(callbackConfig, { address: '127.0.0.1:0' }), {
+    new QuicEndpoint({
+      address: '127.0.0.1:0',
+    });
+    throws(() => new QuicEndpoint({ address: 123 }), {
       code: 'ERR_INVALID_ARG_TYPE',
     });
   });

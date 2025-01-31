@@ -1,15 +1,16 @@
 'use strict';
 // Original test written by Jakub Lekstan <kuebzky@gmail.com>
 const common = require('../common');
+const { isMainThread } = require('worker_threads');
 
 // FIXME add sunos support
-if (common.isSunOS)
+if (common.isSunOS || common.isIBMi) {
   common.skip(`Unsupported platform [${process.platform}]`);
-// FIXME add IBMi support
-if (common.isIBMi)
-  common.skip('Unsupported platform IBMi');
-if (!common.isMainThread)
+}
+
+if (!isMainThread) {
   common.skip('Setting the process title from Workers is not supported');
+}
 
 const assert = require('assert');
 const { exec, execSync } = require('child_process');
@@ -25,8 +26,9 @@ process.title = title;
 assert.strictEqual(process.title, title);
 
 // Test setting the title but do not try to run `ps` on Windows.
-if (common.isWindows)
+if (common.isWindows) {
   common.skip('Windows does not have "ps" utility');
+}
 
 try {
   execSync('command -v ps');

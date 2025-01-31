@@ -84,7 +84,7 @@ describe('--entry-url', { concurrency: true }, () => {
 
     for (const url of typescriptUrls) {
       await assertSpawnedProcess(
-        ['--entry-url', '--experimental-strip-types', fixtures.fileURL(url)],
+        ['--entry-url', fixtures.fileURL(url)],
         {},
         {
           ...experimentalFeatureWarning,

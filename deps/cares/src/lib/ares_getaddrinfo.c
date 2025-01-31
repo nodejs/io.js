@@ -481,6 +481,18 @@ static void terminate_retries(const struct host_query *hquery,
   query->no_retries = ARES_TRUE;
 }
 
+static ares_bool_t ai_has_ipv4(struct ares_addrinfo *ai)
+{
+  struct ares_addrinfo_node *node;
+
+  for (node = ai->nodes; node != NULL; node = node->ai_next) {
+    if (node->ai_family == AF_INET) {
+      return ARES_TRUE;
+    }
+  }
+  return ARES_FALSE;
+}
+
 static void host_callback(void *arg, ares_status_t status, size_t timeouts,
                           const ares_dns_record_t *dnsrec)
 {
@@ -496,7 +508,27 @@ static void host_callback(void *arg, ares_status_t status, size_t timeouts,
       addinfostatus =
         ares_parse_into_addrinfo(dnsrec, ARES_TRUE, hquery->port, hquery->ai);
     }
-    if (addinfostatus == ARES_SUCCESS) {
+
+    /* We sent out ipv4 and ipv6 requests simultaneously.  If we got a
+     * successful ipv4 response, we want to go ahead and tell the ipv6 request
+     * that if it fails or times out to not try again since we have the data
+     * we need.
+     *
+     * Our initial implementation of this would terminate retries if we got any
+     * successful response (ipv4 _or_ ipv6).  But we did get some user-reported
+     * issues with this that had bad system configs and odd behavior:
+     *  https://github.com/alpinelinux/docker-alpine/issues/366
+     *
+     * Essentially the ipv6 query succeeded but the ipv4 query failed or timed
+     * out, and so we only returned the ipv6 address, but the host couldn't
+     * use ipv6.  If we continued to allow ipv4 retries it would have found a
+     * server that worked and returned both address classes (this is clearly
+     * unexpected behavior).
+     *
+     * At some point down the road if ipv6 actually becomes required and
+     * reliable we can drop this ipv4 check.
+     */
+    if (addinfostatus == ARES_SUCCESS && ai_has_ipv4(hquery->ai)) {
       terminate_retries(hquery, ares_dns_record_get_id(dnsrec));
     }
   }

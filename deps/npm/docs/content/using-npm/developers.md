@@ -112,8 +112,8 @@ as `.gitignore` files:
 * You can end patterns with a forward slash `/` to specify a directory.
 * You can negate a pattern by starting it with an exclamation point `!`.
 
-By default, the following paths and files are ignored, so there's no
-need to add them to `.npmignore` explicitly:
+By default, some paths and files are ignored, so there's no
+need to add them to `.npmignore` explicitly. Some examples are:
 
 * `.*.swp`
 * `._*`
@@ -147,6 +147,9 @@ maintenance headache, you might instead try populating the `files`
 property of `package.json`, which is an array of file or directory names
 that should be included in your package. Sometimes manually picking
 which items to allow is easier to manage than building a block list.
+
+See [`package.json`](/configuring-npm/package-json) for more info on
+what can and can't be ignored.
 
 #### Testing whether your `.npmignore` or `files` config works
 

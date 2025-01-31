@@ -35,7 +35,8 @@ const RETRY_TYPES = [
 // following redirects (through the cache if necessary)
 // and verifying response integrity
 const remoteFetch = (request, options) => {
-  const agent = getAgent(request.url, options)
+  // options.signal is intended for the fetch itself, not the agent.  Attaching it to the agent will re-use that signal across multiple requests, which prevents any connections beyond the first one.
+  const agent = getAgent(request.url, { ...options, signal: undefined })
   if (!request.headers.has('connection')) {
     request.headers.set('connection', agent ? 'keep-alive' : 'close')
   }

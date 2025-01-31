@@ -100,6 +100,44 @@ if (isMainThread) {
 }
 ```
 
+## `worker.isInternalThread`
+
+<!-- YAML
+added: v23.7.0
+-->
+
+* {boolean}
+
+Is `true` if this code is running inside of an internal [`Worker`][] thread (e.g the loader thread).
+
+```bash
+node --experimental-loader ./loader.js main.js
+```
+
+```cjs
+// loader.js
+const { isInternalThread } = require('node:worker_threads');
+console.log(isInternalThread);  // true
+```
+
+```mjs
+// loader.js
+import { isInternalThread } from 'node:worker_threads';
+console.log(isInternalThread);  // true
+```
+
+```cjs
+// main.js
+const { isInternalThread } = require('node:worker_threads');
+console.log(isInternalThread);  // false
+```
+
+```mjs
+// main.js
+import { isInternalThread } from 'node:worker_threads';
+console.log(isInternalThread);  // false
+```
+
 ## `worker.isMainThread`
 
 <!-- YAML
@@ -220,7 +258,7 @@ markAsUncloneable(anyObject);
 const { port1 } = new MessageChannel();
 try {
   // This will throw an error, because anyObject is not cloneable.
-  port1.postMessage(anyObject)
+  port1.postMessage(anyObject);
 } catch (error) {
   // error.name === 'DataCloneError'
 }
@@ -909,6 +947,8 @@ non-enumerable properties, property accessors, and object prototypes are
 not preserved. In particular, [`Buffer`][] objects will be read as
 plain [`Uint8Array`][]s on the receiving side, and instances of JavaScript
 classes will be cloned as plain JavaScript objects.
+
+<!-- eslint-disable no-unused-private-class-members -->
 
 ```js
 const b = Symbol('b');

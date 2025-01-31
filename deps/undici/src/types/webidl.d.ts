@@ -1,4 +1,5 @@
 // These types are not exported, and are only used internally
+import * as undici from './index'
 
 /**
  * Take in an unknown value and return one that is of type T
@@ -34,11 +35,24 @@ interface WebidlErrors {
   }): TypeError
 }
 
+interface WebIDLTypes {
+  UNDEFINED: 1,
+  BOOLEAN: 2,
+  STRING: 3,
+  SYMBOL: 4,
+  NUMBER: 5,
+  BIGINT: 6,
+  NULL: 7
+  OBJECT: 8
+}
+
 interface WebidlUtil {
   /**
    * @see https://tc39.es/ecma262/#sec-ecmascript-data-types-and-values
    */
-  Type (object: unknown):
+  Type (object: unknown): WebIDLTypes[keyof WebIDLTypes]
+
+  TypeValueToString (o: unknown):
     | 'Undefined'
     | 'Boolean'
     | 'String'
@@ -47,6 +61,8 @@ interface WebidlUtil {
     | 'BigInt'
     | 'Null'
     | 'Object'
+
+  Types: WebIDLTypes
 
   /**
    * @see https://webidl.spec.whatwg.org/#abstract-opdef-converttoint
@@ -67,6 +83,14 @@ interface WebidlUtil {
    * Stringifies {@param V}
    */
   Stringify (V: any): string
+
+  MakeTypeAssertion <I>(I: I): (arg: any) => arg is I
+
+  /**
+   * Mark a value as uncloneable for Node.js.
+   * This is only effective in some newer Node.js versions.
+   */
+  markAsUncloneable (V: any): void
 }
 
 interface WebidlConverters {
@@ -150,7 +174,7 @@ interface WebidlConverters {
   ): NodeJS.TypedArray | ArrayBufferLike | DataView
 
   ['sequence<ByteString>']: SequenceConverter<string>
-  
+
   ['sequence<sequence<ByteString>>']: SequenceConverter<string[]>
 
   ['record<ByteString, ByteString>']: RecordConverter<string, string>
@@ -158,16 +182,35 @@ interface WebidlConverters {
   [Key: string]: (...args: any[]) => unknown
 }
 
+type IsAssertion<T> = (arg: any) => arg is T
+
+interface WebidlIs {
+  Request: IsAssertion<undici.Request>
+  Response: IsAssertion<undici.Response>
+  ReadableStream: IsAssertion<ReadableStream>
+  Blob: IsAssertion<Blob>
+  URLSearchParams: IsAssertion<URLSearchParams>
+  File: IsAssertion<File>
+  FormData: IsAssertion<undici.FormData>
+  URL: IsAssertion<URL>
+  WebSocketError: IsAssertion<undici.WebSocketError>
+  AbortSignal: IsAssertion<AbortSignal>
+  MessagePort: IsAssertion<MessagePort>
+}
+
 export interface Webidl {
   errors: WebidlErrors
   util: WebidlUtil
   converters: WebidlConverters
+  is: WebidlIs
 
   /**
    * @description Performs a brand-check on {@param V} to ensure it is a
    * {@param cls} object.
    */
-  brandCheck <Interface>(V: unknown, cls: Interface, opts?: { strict?: boolean }): asserts V is Interface
+  brandCheck <Interface extends new () => unknown>(V: unknown, cls: Interface): asserts V is Interface
+
+  brandCheckMultiple <Interfaces extends (new () => unknown)[]> (list: Interfaces): (V: any) => asserts V is Interfaces[number]
 
   /**
    * @see https://webidl.spec.whatwg.org/#es-sequence
@@ -190,10 +233,11 @@ export interface Webidl {
    * Similar to {@link Webidl.brandCheck} but allows skipping the check if third party
    * interfaces are allowed.
    */
-  interfaceConverter <Interface>(cls: Interface): (
+  interfaceConverter <Interface>(typeCheck: IsAssertion<Interface>, name: string): (
     V: unknown,
-    opts?: { strict: boolean }
-  ) => asserts V is typeof cls
+    prefix: string,
+    argument: string
+  ) => asserts V is Interface
 
   // TODO(@KhafraDev): a type could likely be implemented that can infer the return type
   // from the converters given?

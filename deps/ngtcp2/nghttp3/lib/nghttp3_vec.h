@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -38,4 +38,4 @@
  */
 int64_t nghttp3_vec_len_varint(const nghttp3_vec *vec, size_t n);
 
-#endif /* NGHTTP3_VEC_H */
+#endif /* !defined(NGHTTP3_VEC_H) */

@@ -59,6 +59,7 @@ rm "$SQLITE_ZIP.zip"
 echo "Copying new files to deps folder"
 cp "$WORKSPACE/sqlite/sqlite3.c" "$DEPS_DIR/sqlite/"
 cp "$WORKSPACE/sqlite/sqlite3.h" "$DEPS_DIR/sqlite/"
+cp "$WORKSPACE/sqlite/sqlite3ext.h" "$DEPS_DIR/sqlite/"
 
 echo ""
 

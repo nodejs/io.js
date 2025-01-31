@@ -22,7 +22,7 @@ class DSSESignatureContent {
         this.env = env;
     }
     compareDigest(digest) {
-        return core_1.crypto.bufferEqual(digest, core_1.crypto.hash(this.env.payload));
+        return core_1.crypto.bufferEqual(digest, core_1.crypto.digest('sha256', this.env.payload));
     }
     compareSignature(signature) {
         return core_1.crypto.bufferEqual(signature, this.signature);

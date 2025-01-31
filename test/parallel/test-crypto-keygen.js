@@ -14,6 +14,7 @@ const {
 } = require('crypto');
 const { inspect } = require('util');
 
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // Test invalid parameter encoding.
 {
@@ -351,7 +352,7 @@ const { inspect } = require('util');
       publicExponent
     }, common.mustCall((err) => {
       assert.strictEqual(err.name, 'Error');
-      assert.match(err.message, common.hasOpenSSL3 ? /exponent/ : /bad e value/);
+      assert.match(err.message, hasOpenSSL3 ? /exponent/ : /bad e value/);
     }));
   }
 }

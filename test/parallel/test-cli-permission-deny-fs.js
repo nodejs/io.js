@@ -12,7 +12,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission', '-e',
+      '--permission', '-e',
       `console.log(process.permission.has("fs"));
        console.log(process.permission.has("fs.read"));
        console.log(process.permission.has("fs.write"));`,
@@ -31,7 +31,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write', tmpPath, '-e',
       `console.log(process.permission.has("fs"));
       console.log(process.permission.has("fs.read"));
@@ -51,7 +51,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write', '*', '-e',
       `console.log(process.permission.has("fs"));
        console.log(process.permission.has("fs.read"));
@@ -70,7 +70,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read', '*', '-e',
       `console.log(process.permission.has("fs"));
        console.log(process.permission.has("fs.read"));
@@ -89,7 +89,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write=*', '-p',
       'fs.readFileSync(process.execPath)',
     ]
@@ -104,7 +104,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '-p',
       'fs.readFileSync(process.execPath)',
     ]
@@ -119,7 +119,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read=*', '-p',
       'fs.writeFileSync("policy-deny-example.md", "# test")',
     ]
@@ -145,7 +145,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${firstPath}`,
       file,
     ]

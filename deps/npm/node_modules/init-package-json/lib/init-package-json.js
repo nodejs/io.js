@@ -139,7 +139,7 @@ async function init (dir,
     return
   }
 
-  await pkg.save()
+  await pkg.save({ sort: true })
   return pkg.content
 }
 

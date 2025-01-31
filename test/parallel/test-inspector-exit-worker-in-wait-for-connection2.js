@@ -3,9 +3,9 @@
 const common = require('../common');
 common.skipIfInspectorDisabled();
 
-const { workerData, Worker } = require('node:worker_threads');
-if (!workerData) {
-  common.skipIfWorker();
+const { isMainThread, workerData, Worker } = require('node:worker_threads');
+if (!workerData && !isMainThread) {
+  common.skip('This test only works on a main thread');
 }
 
 const assert = require('node:assert');

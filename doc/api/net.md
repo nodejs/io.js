@@ -170,6 +170,17 @@ added:
 
 The list of rules added to the blocklist.
 
+### `BlockList.isBlockList(value)`
+
+<!-- YAML
+added:
+  - v23.4.0
+  - v22.13.0
+-->
+
+* `value` {any} Any JS value
+* Returns `true` if the `value` is a `net.BlockList`.
+
 ## Class: `net.SocketAddress`
 
 <!-- YAML
@@ -234,6 +245,19 @@ added:
 -->
 
 * Type {number}
+
+### `SocketAddress.parse(input)`
+
+<!-- YAML
+added:
+  - v23.4.0
+  - v22.13.0
+-->
+
+* `input` {string} An input string containing an IP address and optional port,
+  e.g. `123.1.2.3:1234` or `[1::1]:1234`.
+* Returns: {net.SocketAddress} Returns a `SocketAddress` if parsing was successful.
+  Otherwise returns `undefined`.
 
 ## Class: `net.Server`
 
@@ -471,7 +495,9 @@ Listening on a file descriptor is not supported on Windows.
 <!-- YAML
 added: v0.11.14
 changes:
-  - version: v23.1.0
+  - version:
+    - v23.1.0
+    - v22.12.0
     pr-url: https://github.com/nodejs/node/pull/55408
     description: The `reusePort` option is supported.
   - version: v15.6.0
@@ -623,7 +649,9 @@ with [`child_process.fork()`][].
 ### `server.dropMaxConnection`
 
 <!-- YAML
-added: v23.1.0
+added:
+  - v23.1.0
+  - v22.12.0
 -->
 
 * {boolean}
@@ -1069,6 +1097,8 @@ For TCP connections, available `options` are:
 * `noDelay` {boolean} If set to `true`, it disables the use of Nagle's algorithm
   immediately after the socket is established. **Default:** `false`.
 * `port` {number} Required. Port the socket should connect to.
+* `blockList` {net.BlockList} `blockList` can be used for disabling outbound
+  access to specific IP addresses, IP ranges, or IP subnets.
 
 For [IPC][] connections, available `options` are:
 
@@ -1713,6 +1743,11 @@ changes:
     **Default:** `false`.
   * `pauseOnConnect` {boolean} Indicates whether the socket should be
     paused on incoming connections. **Default:** `false`.
+  * `blockList` {net.BlockList} `blockList` can be used for disabling inbound
+    access to specific IP addresses, IP ranges, or IP subnets. This does not
+    work if the server is behind a reverse proxy, NAT, etc. because the address
+    checked against the block list is the address of the proxy, or the one
+    specified by the NAT.
 
 * `connectionListener` {Function} Automatically set as a listener for the
   [`'connection'`][] event.

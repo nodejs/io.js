@@ -1,5 +1,13 @@
 'use strict';
 const common = require('../common');
+
+if (!common.hasCrypto) {
+  common.skip('missing crypto');
+}
+const {
+  hasOpenSSL,
+  hasOpenSSL3,
+} = require('../common/crypto');
 const fixtures = require('../common/fixtures');
 const { inspect } = require('util');
 
@@ -16,13 +24,13 @@ function test(cmin, cmax, cprot, smin, smax, sprot, proto, cerr, serr) {
   assert(proto || cerr || serr, 'test missing any expectations');
 
   let ciphers;
-  if (common.hasOpenSSL3 && (proto === 'TLSv1' || proto === 'TLSv1.1' ||
+  if (hasOpenSSL3 && (proto === 'TLSv1' || proto === 'TLSv1.1' ||
       proto === 'TLSv1_1_method' || proto === 'TLSv1_method' ||
       sprot === 'TLSv1_1_method' || sprot === 'TLSv1_method')) {
     if (serr !== 'ERR_SSL_UNSUPPORTED_PROTOCOL')
       ciphers = 'ALL@SECLEVEL=0';
   }
-  if (common.hasOpenSSL31 && cerr === 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION') {
+  if (hasOpenSSL(3, 1) && cerr === 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION') {
     ciphers = 'DEFAULT@SECLEVEL=0';
   }
   // Report where test was called from. Strip leading garbage from
@@ -125,9 +133,9 @@ test(U, U, 'TLS_method', U, U, 'TLSv1_method', 'TLSv1');
 
 // OpenSSL 1.1.1 and 3.0 use a different error code and alert (sent to the
 // client) when no protocols are enabled on the server.
-const NO_PROTOCOLS_AVAILABLE_SERVER = common.hasOpenSSL3 ?
+const NO_PROTOCOLS_AVAILABLE_SERVER = hasOpenSSL3 ?
   'ERR_SSL_NO_PROTOCOLS_AVAILABLE' : 'ERR_SSL_INTERNAL_ERROR';
-const NO_PROTOCOLS_AVAILABLE_SERVER_ALERT = common.hasOpenSSL3 ?
+const NO_PROTOCOLS_AVAILABLE_SERVER_ALERT = hasOpenSSL3 ?
   'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION' : 'ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR';
 
 // SSLv23 also means "any supported protocol" greater than the default

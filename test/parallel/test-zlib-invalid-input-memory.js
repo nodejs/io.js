@@ -17,7 +17,7 @@ const ongc = common.mustCall();
   strm.once('error', common.mustCall((err) => {
     assert(err);
     setImmediate(() => {
-      global.gc();
+      globalThis.gc();
       // Keep the event loop alive for seeing the async_hooks destroy hook
       // we use for GC tracking...
       // TODO(addaleax): This should maybe not be necessary?

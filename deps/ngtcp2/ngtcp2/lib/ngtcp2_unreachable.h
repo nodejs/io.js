@@ -27,26 +27,26 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
 #ifdef __FILE_NAME__
 #  define NGTCP2_FILE_NAME __FILE_NAME__
-#else /* !__FILE_NAME__ */
+#else /* !defined(__FILE_NAME__) */
 #  define NGTCP2_FILE_NAME "(file)"
-#endif /* !__FILE_NAME__ */
+#endif /* !defined(__FILE_NAME__) */
 
 #define ngtcp2_unreachable()                                                   \
   ngtcp2_unreachable_fail(NGTCP2_FILE_NAME, __LINE__, __func__)
 
 #ifdef _MSC_VER
 __declspec(noreturn)
-#endif /* _MSC_VER */
+#endif /* defined(_MSC_VER) */
     void ngtcp2_unreachable_fail(const char *file, int line, const char *func)
 #ifndef _MSC_VER
         __attribute__((noreturn))
-#endif /* !_MSC_VER */
+#endif /* !defined(_MSC_VER) */
         ;
 
-#endif /* NGTCP2_UNREACHABLE_H */
+#endif /* !defined(NGTCP2_UNREACHABLE_H) */

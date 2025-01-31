@@ -141,16 +141,16 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="----packagejson----1090">
+<h1 id="----packagejson----1100">
     <span>package.json</span>
-    <span class="version">@10.9.0</span>
+    <span class="version">@11.0.0</span>
 </h1>
 <span class="description">Specifics of npm's package.json handling</span>
 </header>
 
 <section id="table_of_contents">
 <h2 id="table-of-contents">Table of contents</h2>
-<div id="_table_of_contents"><ul><li><a href="#description">Description</a></li><li><a href="#name">name</a></li><li><a href="#version">version</a></li><li><a href="#description2">description</a></li><li><a href="#keywords">keywords</a></li><li><a href="#homepage">homepage</a></li><li><a href="#bugs">bugs</a></li><li><a href="#license">license</a></li><li><a href="#people-fields-author-contributors">people fields: author, contributors</a></li><li><a href="#funding">funding</a></li><li><a href="#files">files</a></li><li><a href="#exports">exports</a></li><li><a href="#main">main</a></li><li><a href="#browser">browser</a></li><li><a href="#bin">bin</a></li><li><a href="#man">man</a></li><li><a href="#directories">directories</a></li><ul><li><a href="#directoriesbin">directories.bin</a></li><li><a href="#directoriesman">directories.man</a></li></ul><li><a href="#repository">repository</a></li><li><a href="#scripts">scripts</a></li><li><a href="#config">config</a></li><li><a href="#dependencies">dependencies</a></li><ul><li><a href="#urls-as-dependencies">URLs as Dependencies</a></li><li><a href="#git-urls-as-dependencies">Git URLs as Dependencies</a></li><li><a href="#github-urls">GitHub URLs</a></li><li><a href="#local-paths">Local Paths</a></li></ul><li><a href="#devdependencies">devDependencies</a></li><li><a href="#peerdependencies">peerDependencies</a></li><li><a href="#peerdependenciesmeta">peerDependenciesMeta</a></li><li><a href="#bundledependencies">bundleDependencies</a></li><li><a href="#optionaldependencies">optionalDependencies</a></li><li><a href="#overrides">overrides</a></li><li><a href="#engines">engines</a></li><li><a href="#os">os</a></li><li><a href="#cpu">cpu</a></li><li><a href="#devengines">devEngines</a></li><li><a href="#private">private</a></li><li><a href="#publishconfig">publishConfig</a></li><li><a href="#workspaces">workspaces</a></li><li><a href="#default-values">DEFAULT VALUES</a></li><li><a href="#see-also">SEE ALSO</a></li></ul></div>
+<div id="_table_of_contents"><ul><li><a href="#description">Description</a></li><li><a href="#name">name</a></li><li><a href="#version">version</a></li><li><a href="#description2">description</a></li><li><a href="#keywords">keywords</a></li><li><a href="#homepage">homepage</a></li><li><a href="#bugs">bugs</a></li><li><a href="#license">license</a></li><li><a href="#people-fields-author-contributors">people fields: author, contributors</a></li><li><a href="#funding">funding</a></li><li><a href="#files">files</a></li><li><a href="#exports">exports</a></li><li><a href="#main">main</a></li><li><a href="#browser">browser</a></li><li><a href="#bin">bin</a></li><li><a href="#man">man</a></li><li><a href="#directories">directories</a></li><ul><li><a href="#directoriesbin">directories.bin</a></li><li><a href="#directoriesman">directories.man</a></li></ul><li><a href="#repository">repository</a></li><li><a href="#scripts">scripts</a></li><li><a href="#config">config</a></li><li><a href="#dependencies">dependencies</a></li><ul><li><a href="#urls-as-dependencies">URLs as Dependencies</a></li><li><a href="#git-urls-as-dependencies">Git URLs as Dependencies</a></li><li><a href="#github-urls">GitHub URLs</a></li><li><a href="#local-paths">Local Paths</a></li></ul><li><a href="#devdependencies">devDependencies</a></li><li><a href="#peerdependencies">peerDependencies</a></li><li><a href="#peerdependenciesmeta">peerDependenciesMeta</a></li><li><a href="#bundledependencies">bundleDependencies</a></li><li><a href="#optionaldependencies">optionalDependencies</a></li><li><a href="#overrides">overrides</a></li><li><a href="#engines">engines</a></li><li><a href="#os">os</a></li><li><a href="#cpu">cpu</a></li><li><a href="#libc">libc</a></li><li><a href="#devengines">devEngines</a></li><li><a href="#private">private</a></li><li><a href="#publishconfig">publishConfig</a></li><li><a href="#workspaces">workspaces</a></li><li><a href="#default-values">DEFAULT VALUES</a></li><li><a href="#see-also">SEE ALSO</a></li></ul></div>
 </section>
 
 <div id="_content"><h3 id="description">Description</h3>
@@ -399,6 +399,7 @@ will be used instead.</p>
 if you wish it to be published)</li>
 <li><code>pnpm-lock.yaml</code></li>
 <li><code>yarn.lock</code></li>
+<li><code>bun.lockb</code></li>
 </ul>
 <p>Most of these ignored files can be included specifically if included in
 the <code>files</code> globs.  Exceptions to this are:</p>
@@ -409,6 +410,7 @@ the <code>files</code> globs.  Exceptions to this are:</p>
 <li><code>package-lock.json</code></li>
 <li><code>pnpm-lock.yaml</code></li>
 <li><code>yarn.lock</code></li>
+<li><code>bun.lockb</code></li>
 </ul>
 <p>These can not be included.</p>
 <h3 id="exports">exports</h3>
@@ -1007,6 +1009,14 @@ you can specify which ones.</p>
 }
 </code></pre>
 <p>The host architecture is determined by <code>process.arch</code></p>
+<h3 id="libc">libc</h3>
+<p>If your code only runs or builds in certain versions of libc, you can
+specify which ones.  This field only applies if <code>os</code> is <code>linux</code>.</p>
+<pre><code class="language-json">{
+  "os": "linux",
+  "libc": "glibc"
+}
+</code></pre>
 <h3 id="devengines">devEngines</h3>
 <p>The <code>devEngines</code> field aids engineers working on a codebase to all be using the same tooling.</p>
 <p>You can specify a <code>devEngines</code> property in your <code>package.json</code> which will run before <code>install</code>, <code>ci</code>, and <code>run</code> commands.</p>

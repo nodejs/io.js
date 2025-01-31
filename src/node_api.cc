@@ -93,11 +93,11 @@ void node_napi_env__::CallbackIntoModule(T&& call) {
       return;
     }
     node::Environment* node_env = env->node_env();
-    // If the module api version is less than NAPI_VERSION_EXPERIMENTAL,
-    // and the option --force-node-api-uncaught-exceptions-policy is not
-    // specified, emit a warning about the uncaught exception instead of
-    // triggering uncaught exception event.
-    if (env->module_api_version < NAPI_VERSION_EXPERIMENTAL &&
+    // If the module api version is less than 10, and the option
+    // --force-node-api-uncaught-exceptions-policy is not specified, emit a
+    // warning about the uncaught exception instead of triggering the uncaught
+    // exception event.
+    if (env->module_api_version < 10 &&
         !node_env->options()->force_node_api_uncaught_exceptions_policy &&
         !enforceUncaughtExceptionPolicy) {
       ProcessEmitDeprecationWarning(
@@ -682,11 +682,13 @@ node::addon_context_register_func get_node_api_context_register_func(
     const char* module_name,
     int32_t module_api_version) {
   static_assert(
-      NODE_API_SUPPORTED_VERSION_MAX == 9,
+      NODE_API_SUPPORTED_VERSION_MAX == 10,
       "New version of Node-API requires adding another else-if statement below "
       "for the new version and updating this assert condition.");
   if (module_api_version == 9) {
     return node_api_context_register_func<9>;
+  } else if (module_api_version == 10) {
+    return node_api_context_register_func<10>;
   } else if (module_api_version == NAPI_VERSION_EXPERIMENTAL) {
     return node_api_context_register_func<NAPI_VERSION_EXPERIMENTAL>;
   } else if (module_api_version >= NODE_API_SUPPORTED_VERSION_MIN &&

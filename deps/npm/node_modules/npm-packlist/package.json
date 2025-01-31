@@ -1,6 +1,6 @@
 {
   "name": "npm-packlist",
-  "version": "9.0.0",
+  "version": "10.0.0",
   "description": "Get a list of the files to add from a folder into an npm package",
   "directories": {
     "test": "test"
@@ -16,9 +16,9 @@
     "lib/"
   ],
   "devDependencies": {
-    "@npmcli/arborist": "^7.5.4",
-    "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.23.3",
+    "@npmcli/arborist": "^8.0.0",
+    "@npmcli/eslint-config": "^5.0.1",
+    "@npmcli/template-oss": "4.23.4",
     "mutate-fs": "^2.1.1",
     "tap": "^16.0.1"
   },
@@ -51,11 +51,11 @@
     ]
   },
   "engines": {
-    "node": "^18.17.0 || >=20.5.0"
+    "node": "^20.17.0 || >=22.9.0"
   },
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.23.3",
+    "version": "4.23.4",
     "publish": true
   }
 }

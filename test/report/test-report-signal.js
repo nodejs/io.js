@@ -3,11 +3,15 @@
 // Test producing a report via signal.
 const common = require('../common');
 
-if (common.isWindows)
+if (common.isWindows) {
   return common.skip('Unsupported on Windows.');
+}
 
-if (!common.isMainThread)
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   common.skip('Signal reporting is only supported in the main thread');
+}
 
 const assert = require('assert');
 const helper = require('../common/report');

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "names": ["foo"],
+  "sources": ["unused", "mapping-semantics-five-field-segment-original.js"],
+  "sourcesContent": ["", "\n\n  foo"],
+  "mappings": "CCEEA"
+}

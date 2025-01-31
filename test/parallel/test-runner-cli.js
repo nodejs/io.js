@@ -12,7 +12,7 @@ for (const isolation of ['none', 'process']) {
     // File not found.
     const args = [
       '--test',
-      `--experimental-test-isolation=${isolation}`,
+      `--test-isolation=${isolation}`,
       'a-random-file-that-does-not-exist.js',
     ];
     const child = spawnSync(process.execPath, args);
@@ -27,7 +27,7 @@ for (const isolation of ['none', 'process']) {
     // Default behavior. node_modules is ignored. Files that don't match the
     // pattern are ignored except in test/ directories.
     const args = ['--test', '--test-reporter=tap',
-                  `--experimental-test-isolation=${isolation}`];
+                  `--test-isolation=${isolation}`];
     const child = spawnSync(process.execPath, args, { cwd: join(testFixtures, 'default-behavior') });
 
     assert.strictEqual(child.status, 1);
@@ -46,7 +46,8 @@ for (const isolation of ['none', 'process']) {
   {
     // Should match files with "-test.(c|m)js" suffix.
     const args = ['--test', '--test-reporter=tap',
-                  `--experimental-test-isolation=${isolation}`];
+                  `--no-experimental-strip-types`,
+                  `--test-isolation=${isolation}`];
     const child = spawnSync(process.execPath, args, { cwd: join(testFixtures, 'matching-patterns') });
 
     assert.strictEqual(child.status, 0);
@@ -64,7 +65,7 @@ for (const isolation of ['none', 'process']) {
   for (const type of ['strip', 'transform']) {
     // Should match files with "-test.(c|m)(t|j)s" suffix when typescript support is enabled
     const args = ['--test', '--test-reporter=tap', '--no-warnings',
-                  `--experimental-${type}-types`, `--experimental-test-isolation=${isolation}`];
+                  `--experimental-${type}-types`, `--test-isolation=${isolation}`];
     const child = spawnSync(process.execPath, args, { cwd: join(testFixtures, 'matching-patterns') });
 
     if (!process.config.variables.node_use_amaro) {
@@ -91,7 +92,7 @@ for (const isolation of ['none', 'process']) {
       '--require', join(testFixtures, 'protoMutation.js'),
       '--test',
       '--test-reporter=tap',
-      `--experimental-test-isolation=${isolation}`,
+      `--test-isolation=${isolation}`,
     ];
     const child = spawnSync(process.execPath, args, { cwd: join(testFixtures, 'default-behavior') });
 
@@ -112,7 +113,7 @@ for (const isolation of ['none', 'process']) {
     const args = [
       '--test',
       '--test-reporter=tap',
-      `--experimental-test-isolation=${isolation}`,
+      `--test-isolation=${isolation}`,
       join(testFixtures, 'index.js'),
     ];
     const child = spawnSync(process.execPath, args, { cwd: testFixtures });
@@ -129,7 +130,7 @@ for (const isolation of ['none', 'process']) {
     const args = [
       '--test',
       '--test-reporter=tap',
-      `--experimental-test-isolation=${isolation}`,
+      `--test-isolation=${isolation}`,
       join(testFixtures, 'default-behavior/node_modules/*.js'),
     ];
     const child = spawnSync(process.execPath, args);
@@ -143,7 +144,7 @@ for (const isolation of ['none', 'process']) {
 
   {
     // The current directory is used by default.
-    const args = ['--test', `--experimental-test-isolation=${isolation}`];
+    const args = ['--test', `--test-isolation=${isolation}`];
     const options = { cwd: join(testFixtures, 'default-behavior') };
     const child = spawnSync(process.execPath, args, options);
 
@@ -165,7 +166,7 @@ for (const isolation of ['none', 'process']) {
     const args = [
       '--test',
       '--test-reporter=tap',
-      `--experimental-test-isolation=${isolation}`,
+      `--test-isolation=${isolation}`,
       'test/fixtures/test-runner/default-behavior/index.test.js',
       'test/fixtures/test-runner/nested.js',
       'test/fixtures/test-runner/invalid-tap.js',

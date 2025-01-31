@@ -33,7 +33,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
+#endif /* defined(__cplusplus) */
 
 /**
  * @function
@@ -44,7 +44,7 @@ extern "C" {
  */
 NGTCP2_EXTERN ngtcp2_encryption_level
 ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(
-    WOLFSSL_ENCRYPTION_LEVEL wolfssl_level);
+  WOLFSSL_ENCRYPTION_LEVEL wolfssl_level);
 
 /**
  * @function
@@ -55,7 +55,7 @@ ngtcp2_crypto_wolfssl_from_wolfssl_encryption_level(
  */
 NGTCP2_EXTERN WOLFSSL_ENCRYPTION_LEVEL
 ngtcp2_crypto_wolfssl_from_ngtcp2_encryption_level(
-    ngtcp2_encryption_level encryption_level);
+  ngtcp2_encryption_level encryption_level);
 
 /**
  * @function
@@ -101,6 +101,6 @@ ngtcp2_crypto_wolfssl_configure_client_context(WOLFSSL_CTX *ssl_ctx);
 
 #ifdef __cplusplus
 }
-#endif
+#endif /* defined(__cplusplus) */
 
-#endif /* NGTCP2_CRYPTO_WOLFSSL_H */
+#endif /* !defined(NGTCP2_CRYPTO_WOLFSSL_H) */

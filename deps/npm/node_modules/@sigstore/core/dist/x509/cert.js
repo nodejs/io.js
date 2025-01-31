@@ -97,13 +97,15 @@ class X509Certificate {
     }
     get subjectAltName() {
         const ext = this.extSubjectAltName;
-        return ext?.uri || ext?.rfc822Name;
+        return ext?.uri || /* istanbul ignore next */ ext?.rfc822Name;
     }
     get extensions() {
         // The extension list is the first (and only) element of the extensions
         // context specific tag
+        /* istanbul ignore next */
         const extSeq = this.extensionsObj?.subs[0];
-        return extSeq?.subs || /* istanbul ignore next */ [];
+        /* istanbul ignore next */
+        return extSeq?.subs || [];
     }
     get extKeyUsage() {
         const ext = this.findExtension(EXTENSION_OID_KEY_USAGE);
@@ -135,8 +137,10 @@ class X509Certificate {
         const ca = this.extBasicConstraints?.isCA || false;
         // If the KeyUsage extension is present, keyCertSign must be set
         if (this.extKeyUsage) {
-            ca && this.extKeyUsage.keyCertSign;
+            return ca && this.extKeyUsage.keyCertSign;
         }
+        // TODO: test coverage for this case
+        /* istanbul ignore next */
         return ca;
     }
     extension(oid) {

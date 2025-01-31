@@ -18,7 +18,6 @@ const MockPool = require('./mock-pool')
 const { matchValue, buildMockOptions } = require('./mock-utils')
 const { InvalidArgumentError, UndiciError } = require('../core/errors')
 const Dispatcher = require('../dispatcher/dispatcher')
-const Pluralizer = require('./pluralizer')
 const PendingInterceptorsFormatter = require('./pending-interceptors-formatter')
 
 class MockAgent extends Dispatcher {
@@ -147,13 +146,11 @@ class MockAgent extends Dispatcher {
       return
     }
 
-    const pluralizer = new Pluralizer('interceptor', 'interceptors').pluralize(pending.length)
-
-    throw new UndiciError(`
-${pluralizer.count} ${pluralizer.noun} ${pluralizer.is} pending:
-
-${pendingInterceptorsFormatter.format(pending)}
-`.trim())
+    throw new UndiciError(
+      pending.length === 1
+        ? `1 interceptor is pending:\n\n${pendingInterceptorsFormatter.format(pending)}`.trim()
+        : `${pending.length} interceptors are pending:\n\n${pendingInterceptorsFormatter.format(pending)}`.trim()
+    )
   }
 }
 

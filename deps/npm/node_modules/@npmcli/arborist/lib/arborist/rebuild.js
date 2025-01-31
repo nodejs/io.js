@@ -154,7 +154,9 @@ module.exports = cls => class Builder extends cls {
 
     // links should run prepare scripts and only link bins after that
     if (type === 'links') {
-      await this.#runScripts('prepare')
+      if (!this.options.ignoreScripts) {
+        await this.#runScripts('prepare')
+      }
     }
     if (this.options.binLinks) {
       await this.#linkAllBins()

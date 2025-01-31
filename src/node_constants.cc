@@ -1337,33 +1337,47 @@ void CreatePerContextProperties(Local<Object> target,
   // Define libuv constants.
   NODE_DEFINE_CONSTANT(os_constants, UV_UDP_REUSEADDR);
 
-  os_constants->Set(env->context(),
-                    OneByteString(isolate, "dlopen"),
-                    dlopen_constants).Check();
-  os_constants->Set(env->context(),
-                    OneByteString(isolate, "errno"),
-                    err_constants).Check();
-  os_constants->Set(env->context(),
-                    OneByteString(isolate, "signals"),
-                    sig_constants).Check();
-  os_constants->Set(env->context(),
-                    OneByteString(isolate, "priority"),
-                    priority_constants).Check();
-  target->Set(env->context(),
-              OneByteString(isolate, "os"),
-              os_constants).Check();
-  target->Set(env->context(),
-              OneByteString(isolate, "fs"),
-              fs_constants).Check();
-  target->Set(env->context(),
-              OneByteString(isolate, "crypto"),
-              crypto_constants).Check();
-  target->Set(env->context(),
-              OneByteString(isolate, "zlib"),
-              zlib_constants).Check();
-  target->Set(env->context(),
-              OneByteString(isolate, "trace"),
-              trace_constants).Check();
+  os_constants
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "dlopen"),
+            dlopen_constants)
+      .Check();
+  os_constants
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "errno"),
+            err_constants)
+      .Check();
+  os_constants
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "signals"),
+            sig_constants)
+      .Check();
+  os_constants
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "priority"),
+            priority_constants)
+      .Check();
+  target
+      ->Set(env->context(), FIXED_ONE_BYTE_STRING(isolate, "os"), os_constants)
+      .Check();
+  target
+      ->Set(env->context(), FIXED_ONE_BYTE_STRING(isolate, "fs"), fs_constants)
+      .Check();
+  target
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "crypto"),
+            crypto_constants)
+      .Check();
+  target
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "zlib"),
+            zlib_constants)
+      .Check();
+  target
+      ->Set(env->context(),
+            FIXED_ONE_BYTE_STRING(isolate, "trace"),
+            trace_constants)
+      .Check();
 }
 
 }  // namespace constants

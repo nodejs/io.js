@@ -1,15 +1,15 @@
-import Dispatcher from "./dispatcher";
+import Dispatcher from './dispatcher'
 
-export declare class RedirectHandler implements Dispatcher.DispatchHandlers {
-  constructor(
+export declare class RedirectHandler implements Dispatcher.DispatchHandler {
+  constructor (
     dispatch: Dispatcher,
     maxRedirections: number,
     opts: Dispatcher.DispatchOptions,
-    handler: Dispatcher.DispatchHandlers,
+    handler: Dispatcher.DispatchHandler,
     redirectionLimitReached: boolean
-  );
+  )
 }
 
-export declare class DecoratorHandler implements Dispatcher.DispatchHandlers {
-  constructor(handler: Dispatcher.DispatchHandlers);
+export declare class DecoratorHandler implements Dispatcher.DispatchHandler {
+  constructor (handler: Dispatcher.DispatchHandler)
 }

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.extractJWTSubject = void 0;
+exports.extractJWTSubject = extractJWTSubject;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -28,4 +28,3 @@ function extractJWTSubject(jwt) {
             return payload.sub;
     }
 }
-exports.extractJWTSubject = extractJWTSubject;

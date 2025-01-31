@@ -1,24 +1,21 @@
 'use strict'
+
 const RedirectHandler = require('../handler/redirect-handler')
 
-module.exports = opts => {
-  const globalMaxRedirections = opts?.maxRedirections
-  return dispatch => {
-    return function redirectInterceptor (opts, handler) {
-      const { maxRedirections = globalMaxRedirections, ...baseOpts } = opts
+function createRedirectInterceptor ({ maxRedirections: defaultMaxRedirections } = {}) {
+  return (dispatch) => {
+    return function Intercept (opts, handler) {
+      const { maxRedirections = defaultMaxRedirections, ...rest } = opts
 
-      if (!maxRedirections) {
+      if (maxRedirections == null || maxRedirections === 0) {
         return dispatch(opts, handler)
       }
 
-      const redirectHandler = new RedirectHandler(
-        dispatch,
-        maxRedirections,
-        opts,
-        handler
-      )
-
-      return dispatch(baseOpts, redirectHandler)
+      const dispatchOpts = { ...rest, maxRedirections: 0 } // Stop sub dispatcher from also redirecting.
+      const redirectHandler = new RedirectHandler(dispatch, maxRedirections, dispatchOpts, handler)
+      return dispatch(dispatchOpts, redirectHandler)
     }
   }
 }
+
+module.exports = createRedirectInterceptor

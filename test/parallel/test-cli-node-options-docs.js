@@ -123,6 +123,21 @@ for (const [, envVar, config] of nodeOptionsCC.matchAll(addOptionRE)) {
   }
 }
 
+{
+  const sections = /^## (.+)$/mg;
+  const cliOptionPattern = /^### (?:`-\w.*`, )?`([^`]+)`/mg;
+  let match;
+  let previousIndex = 0;
+  do {
+    const sectionTitle = match?.[1];
+    match = sections.exec(cliText);
+    const filteredCLIText = cliText.slice(previousIndex, match?.index);
+    const options = Array.from(filteredCLIText.matchAll(cliOptionPattern), (match) => match[1]);
+    assert.deepStrictEqual(options, options.toSorted(), `doc/api/cli.md ${sectionTitle} subsections are not in alphabetical order`);
+    previousIndex = match?.index;
+  } while (match);
+}
+
 // add alias handling
 manPagesOptions.delete('-trace-events-enabled');
 

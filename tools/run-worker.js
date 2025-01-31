@@ -7,7 +7,7 @@ if (typeof require === 'undefined') {
 const path = require('path');
 const { Worker } = require('worker_threads');
 
-// When --experimental-permission is enabled, the process
+// When --permission is enabled, the process
 // aren't able to spawn any worker unless --allow-worker is passed.
 // Therefore, we skip the permission tests for custom-suites-freestyle
 if (process.permission && !process.permission.has('worker')) {

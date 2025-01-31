@@ -84,7 +84,8 @@ assert.ok(hostname.length > 0);
 // IBMi process priority is different.
 if (!common.isIBMi) {
   const { PRIORITY_BELOW_NORMAL, PRIORITY_LOW } = os.constants.priority;
-  const LOWER_PRIORITY = os.getPriority() > PRIORITY_BELOW_NORMAL ? PRIORITY_BELOW_NORMAL : PRIORITY_LOW;
+  // Priority means niceness: higher numeric value <=> lower priority
+  const LOWER_PRIORITY = os.getPriority() < PRIORITY_BELOW_NORMAL ? PRIORITY_BELOW_NORMAL : PRIORITY_LOW;
   os.setPriority(LOWER_PRIORITY);
   const priority = os.getPriority();
   is.number(priority);

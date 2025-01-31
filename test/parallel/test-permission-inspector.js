@@ -1,8 +1,13 @@
-// Flags: --experimental-permission --allow-fs-read=* --allow-child-process
+// Flags: --permission --allow-fs-read=* --allow-child-process
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
+
 common.skipIfInspectorDisabled();
 
 const { Session } = require('inspector');
@@ -26,7 +31,7 @@ if (!common.hasCrypto)
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '-e',
       '(new (require("inspector")).Session()).connect()',
     ],

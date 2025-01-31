@@ -328,7 +328,10 @@
 
     # Enable advanced BigInt algorithms, costing about 10-30 KiB binary size
     # depending on platform.
-    'v8_advanced_bigint_algorithms%': 1
+    'v8_advanced_bigint_algorithms%': 1,
+
+    # Enable 256-bit long vector re-vectorization pass in WASM compilation pipeline.
+    'v8_enable_wasm_simd256_revec%' : 0
   },
 
   'target_defaults': {
@@ -540,6 +543,9 @@
       }],
       ['v8_advanced_bigint_algorithms==1', {
         'defines': ['V8_ADVANCED_BIGINT_ALGORITHMS',],
+      }],
+      ['v8_enable_wasm_simd256_revec==1', {
+        'defines': ['V8_ENABLE_WASM_SIMD256_REVEC',],
       }],
     ],  # conditions
     'defines': [

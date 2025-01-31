@@ -1,13 +1,27 @@
 'use strict'
 
 const { types, inspect } = require('node:util')
+const { markAsUncloneable } = require('node:worker_threads')
 const { toUSVString } = require('../../core/util')
 
+const UNDEFINED = 1
+const BOOLEAN = 2
+const STRING = 3
+const SYMBOL = 4
+const NUMBER = 5
+const BIGINT = 6
+const NULL = 7
+const OBJECT = 8 // function and object
+
+const FunctionPrototypeSymbolHasInstance = Function.call.bind(Function.prototype[Symbol.hasInstance])
+
 /** @type {import('../../../types/webidl').Webidl} */
-const webidl = {}
-webidl.converters = {}
-webidl.util = {}
-webidl.errors = {}
+const webidl = {
+  converters: {},
+  util: {},
+  errors: {},
+  is: {}
+}
 
 webidl.errors.exception = function (message) {
   return new TypeError(`${message.header}: ${message.message}`)
@@ -33,15 +47,19 @@ webidl.errors.invalidArgument = function (context) {
 }
 
 // https://webidl.spec.whatwg.org/#implements
-webidl.brandCheck = function (V, I, opts) {
-  if (opts?.strict !== false) {
-    if (!(V instanceof I)) {
-      const err = new TypeError('Illegal invocation')
-      err.code = 'ERR_INVALID_THIS' // node compat.
-      throw err
-    }
-  } else {
-    if (V?.[Symbol.toStringTag] !== I.prototype[Symbol.toStringTag]) {
+webidl.brandCheck = function (V, I) {
+  if (!FunctionPrototypeSymbolHasInstance(I, V)) {
+    const err = new TypeError('Illegal invocation')
+    err.code = 'ERR_INVALID_THIS' // node compat.
+    throw err
+  }
+}
+
+webidl.brandCheckMultiple = function (List) {
+  const prototypes = List.map((c) => webidl.util.MakeTypeAssertion(c))
+
+  return (V) => {
+    if (prototypes.every(typeCheck => !typeCheck(V))) {
       const err = new TypeError('Illegal invocation')
       err.code = 'ERR_INVALID_THIS' // node compat.
       throw err
@@ -66,25 +84,55 @@ webidl.illegalConstructor = function () {
   })
 }
 
+webidl.util.MakeTypeAssertion = function (I) {
+  return (O) => FunctionPrototypeSymbolHasInstance(I, O)
+}
+
 // https://tc39.es/ecma262/#sec-ecmascript-data-types-and-values
 webidl.util.Type = function (V) {
   switch (typeof V) {
-    case 'undefined': return 'Undefined'
-    case 'boolean': return 'Boolean'
-    case 'string': return 'String'
-    case 'symbol': return 'Symbol'
-    case 'number': return 'Number'
-    case 'bigint': return 'BigInt'
+    case 'undefined': return UNDEFINED
+    case 'boolean': return BOOLEAN
+    case 'string': return STRING
+    case 'symbol': return SYMBOL
+    case 'number': return NUMBER
+    case 'bigint': return BIGINT
     case 'function':
     case 'object': {
       if (V === null) {
-        return 'Null'
+        return NULL
       }
 
-      return 'Object'
+      return OBJECT
     }
   }
 }
+
+webidl.util.Types = {
+  UNDEFINED,
+  BOOLEAN,
+  STRING,
+  SYMBOL,
+  NUMBER,
+  BIGINT,
+  NULL,
+  OBJECT
+}
+
+webidl.util.TypeValueToString = function (o) {
+  switch (webidl.util.Type(o)) {
+    case UNDEFINED: return 'Undefined'
+    case BOOLEAN: return 'Boolean'
+    case STRING: return 'String'
+    case SYMBOL: return 'Symbol'
+    case NUMBER: return 'Number'
+    case BIGINT: return 'BigInt'
+    case NULL: return 'Null'
+    case OBJECT: return 'Object'
+  }
+}
+
+webidl.util.markAsUncloneable = markAsUncloneable || (() => {})
 
 // https://webidl.spec.whatwg.org/#abstract-opdef-converttoint
 webidl.util.ConvertToInt = function (V, bitLength, signedness, opts) {
@@ -224,11 +272,11 @@ webidl.util.Stringify = function (V) {
   const type = webidl.util.Type(V)
 
   switch (type) {
-    case 'Symbol':
+    case SYMBOL:
       return `Symbol(${V.description})`
-    case 'Object':
+    case OBJECT:
       return inspect(V)
-    case 'String':
+    case STRING:
       return `"${V}"`
     default:
       return `${V}`
@@ -239,7 +287,7 @@ webidl.util.Stringify = function (V) {
 webidl.sequenceConverter = function (converter) {
   return (V, prefix, argument, Iterable) => {
     // 1. If Type(V) is not Object, throw a TypeError.
-    if (webidl.util.Type(V) !== 'Object') {
+    if (webidl.util.Type(V) !== OBJECT) {
       throw webidl.errors.exception({
         header: prefix,
         message: `${argument} (${webidl.util.Stringify(V)}) is not iterable.`
@@ -282,10 +330,10 @@ webidl.sequenceConverter = function (converter) {
 webidl.recordConverter = function (keyConverter, valueConverter) {
   return (O, prefix, argument) => {
     // 1. If Type(O) is not Object, throw a TypeError.
-    if (webidl.util.Type(O) !== 'Object') {
+    if (webidl.util.Type(O) !== OBJECT) {
       throw webidl.errors.exception({
         header: prefix,
-        message: `${argument} ("${webidl.util.Type(O)}") is not an Object.`
+        message: `${argument} ("${webidl.util.TypeValueToString(O)}") is not an Object.`
       })
     }
 
@@ -297,12 +345,14 @@ webidl.recordConverter = function (keyConverter, valueConverter) {
       const keys = [...Object.getOwnPropertyNames(O), ...Object.getOwnPropertySymbols(O)]
 
       for (const key of keys) {
+        const keyName = webidl.util.Stringify(key)
+
         // 1. Let typedKey be key converted to an IDL value of type K.
-        const typedKey = keyConverter(key, prefix, argument)
+        const typedKey = keyConverter(key, prefix, `Key ${keyName} in ${argument}`)
 
         // 2. Let value be ? Get(O, key).
         // 3. Let typedValue be value converted to an IDL value of type V.
-        const typedValue = valueConverter(O[key], prefix, argument)
+        const typedValue = valueConverter(O[key], prefix, `${argument}[${keyName}]`)
 
         // 4. Set result[typedKey] to typedValue.
         result[typedKey] = typedValue
@@ -339,12 +389,12 @@ webidl.recordConverter = function (keyConverter, valueConverter) {
   }
 }
 
-webidl.interfaceConverter = function (i) {
-  return (V, prefix, argument, opts) => {
-    if (opts?.strict !== false && !(V instanceof i)) {
+webidl.interfaceConverter = function (TypeCheck, name) {
+  return (V, prefix, argument) => {
+    if (!TypeCheck(V)) {
       throw webidl.errors.exception({
         header: prefix,
-        message: `Expected ${argument} ("${webidl.util.Stringify(V)}") to be an instance of ${i.name}.`
+        message: `Expected ${argument} ("${webidl.util.Stringify(V)}") to be an instance of ${name}.`
       })
     }
 
@@ -354,12 +404,9 @@ webidl.interfaceConverter = function (i) {
 
 webidl.dictionaryConverter = function (converters) {
   return (dictionary, prefix, argument) => {
-    const type = webidl.util.Type(dictionary)
     const dict = {}
 
-    if (type === 'Null' || type === 'Undefined') {
-      return dict
-    } else if (type !== 'Object') {
+    if (dictionary != null && webidl.util.Type(dictionary) !== OBJECT) {
       throw webidl.errors.exception({
         header: prefix,
         message: `Expected ${dictionary} to be one of: Null, Undefined, Object.`
@@ -370,7 +417,7 @@ webidl.dictionaryConverter = function (converters) {
       const { key, defaultValue, required, converter } = options
 
       if (required === true) {
-        if (!Object.hasOwn(dictionary, key)) {
+        if (dictionary == null || !Object.hasOwn(dictionary, key)) {
           throw webidl.errors.exception({
             header: prefix,
             message: `Missing required key "${key}".`
@@ -378,13 +425,13 @@ webidl.dictionaryConverter = function (converters) {
         }
       }
 
-      let value = dictionary[key]
-      const hasDefault = Object.hasOwn(options, 'defaultValue')
+      let value = dictionary?.[key]
+      const hasDefault = defaultValue !== undefined
 
       // Only use defaultValue if value is undefined and
       // a defaultValue options was provided.
-      if (hasDefault && value !== null) {
-        value ??= defaultValue()
+      if (hasDefault && value === undefined) {
+        value = defaultValue()
       }
 
       // A key can be optional and have no default value.
@@ -421,6 +468,14 @@ webidl.nullableConverter = function (converter) {
   }
 }
 
+webidl.is.ReadableStream = webidl.util.MakeTypeAssertion(ReadableStream)
+webidl.is.Blob = webidl.util.MakeTypeAssertion(Blob)
+webidl.is.URLSearchParams = webidl.util.MakeTypeAssertion(URLSearchParams)
+webidl.is.File = webidl.util.MakeTypeAssertion(globalThis.File ?? require('node:buffer').File)
+webidl.is.URL = webidl.util.MakeTypeAssertion(URL)
+webidl.is.AbortSignal = webidl.util.MakeTypeAssertion(AbortSignal)
+webidl.is.MessagePort = webidl.util.MakeTypeAssertion(MessagePort)
+
 // https://webidl.spec.whatwg.org/#es-DOMString
 webidl.converters.DOMString = function (V, prefix, argument, opts) {
   // 1. If V is null and the conversion is to an IDL type
@@ -448,8 +503,14 @@ webidl.converters.DOMString = function (V, prefix, argument, opts) {
 // https://webidl.spec.whatwg.org/#es-ByteString
 webidl.converters.ByteString = function (V, prefix, argument) {
   // 1. Let x be ? ToString(V).
-  // Note: DOMString converter perform ? ToString(V)
-  const x = webidl.converters.DOMString(V, prefix, argument)
+  if (typeof V === 'symbol') {
+    throw webidl.errors.exception({
+      header: prefix,
+      message: `${argument} is a symbol, which cannot be converted to a ByteString.`
+    })
+  }
+
+  const x = String(V)
 
   // 2. If the value of any element of x is greater than
   //    255, then throw a TypeError.
@@ -535,7 +596,7 @@ webidl.converters.ArrayBuffer = function (V, prefix, argument, opts) {
   // see: https://tc39.es/ecma262/#sec-properties-of-the-arraybuffer-instances
   // see: https://tc39.es/ecma262/#sec-properties-of-the-sharedarraybuffer-instances
   if (
-    webidl.util.Type(V) !== 'Object' ||
+    webidl.util.Type(V) !== OBJECT ||
     !types.isAnyArrayBuffer(V)
   ) {
     throw webidl.errors.conversionFailed({
@@ -579,7 +640,7 @@ webidl.converters.TypedArray = function (V, T, prefix, name, opts) {
   //    [[TypedArrayName]] internal slot with a value
   //    equal to T’s name, then throw a TypeError.
   if (
-    webidl.util.Type(V) !== 'Object' ||
+    webidl.util.Type(V) !== OBJECT ||
     !types.isTypedArray(V) ||
     V.constructor.name !== T.name
   ) {
@@ -620,7 +681,7 @@ webidl.converters.TypedArray = function (V, T, prefix, name, opts) {
 webidl.converters.DataView = function (V, prefix, name, opts) {
   // 1. If Type(V) is not Object, or V does not have a
   //    [[DataView]] internal slot, then throw a TypeError.
-  if (webidl.util.Type(V) !== 'Object' || !types.isDataView(V)) {
+  if (webidl.util.Type(V) !== OBJECT || !types.isDataView(V)) {
     throw webidl.errors.exception({
       header: prefix,
       message: `${name} is not a DataView.`
@@ -654,27 +715,6 @@ webidl.converters.DataView = function (V, prefix, name, opts) {
   return V
 }
 
-// https://webidl.spec.whatwg.org/#BufferSource
-webidl.converters.BufferSource = function (V, prefix, name, opts) {
-  if (types.isAnyArrayBuffer(V)) {
-    return webidl.converters.ArrayBuffer(V, prefix, name, { ...opts, allowShared: false })
-  }
-
-  if (types.isTypedArray(V)) {
-    return webidl.converters.TypedArray(V, V.constructor, prefix, name, { ...opts, allowShared: false })
-  }
-
-  if (types.isDataView(V)) {
-    return webidl.converters.DataView(V, prefix, name, { ...opts, allowShared: false })
-  }
-
-  throw webidl.errors.conversionFailed({
-    prefix,
-    argument: `${name} ("${webidl.util.Stringify(V)}")`,
-    types: ['BufferSource']
-  })
-}
-
 webidl.converters['sequence<ByteString>'] = webidl.sequenceConverter(
   webidl.converters.ByteString
 )
@@ -686,6 +726,13 @@ webidl.converters['sequence<sequence<ByteString>>'] = webidl.sequenceConverter(
 webidl.converters['record<ByteString, ByteString>'] = webidl.recordConverter(
   webidl.converters.ByteString,
   webidl.converters.ByteString
+)
+
+webidl.converters.Blob = webidl.interfaceConverter(webidl.is.Blob, 'Blob')
+
+webidl.converters.AbortSignal = webidl.interfaceConverter(
+  webidl.is.AbortSignal,
+  'AbortSignal'
 )
 
 module.exports = {

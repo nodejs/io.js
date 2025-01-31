@@ -93,17 +93,13 @@ bool NgHeader<T>::IsZeroLength(
 }
 
 template <typename T>
-bool NgHeader<T>::IsZeroLength(
-    int32_t token,
-    NgHeader<T>::rcbuf_t* name,
-    NgHeader<T>::rcbuf_t* value) {
-
+bool NgHeader<T>::IsZeroLength(int32_t token,
+                               NgHeader<T>::rcbuf_t* name,
+                               NgHeader<T>::rcbuf_t* value) {
   if (NgHeader<T>::rcbufferpointer_t::IsZeroLength(value))
     return true;
 
-  const char* header_name = T::ToHttpHeaderName(token);
-  return header_name != nullptr ||
-      NgHeader<T>::rcbufferpointer_t::IsZeroLength(name);
+  return NgHeader<T>::rcbufferpointer_t::IsZeroLength(name);
 }
 
 template <typename T>

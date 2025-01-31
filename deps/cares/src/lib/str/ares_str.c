@@ -32,6 +32,23 @@
 #  include <stdint.h>
 #endif
 
+size_t ares_strnlen(const char *str, size_t maxlen) {
+  const char *p = NULL;
+  if (str == NULL) {
+    return 0;
+  }
+#ifdef HAVE_STRNLEN
+  (void)p;
+  return strnlen(str, maxlen);
+#else
+  if ((p = memchr(str, 0, maxlen)) == NULL) {
+    return maxlen;
+  } else {
+    return (size_t)(p - str);
+  }
+#endif /* HAVE_STRNLEN */
+}
+
 size_t ares_strlen(const char *str)
 {
   if (str == NULL) {

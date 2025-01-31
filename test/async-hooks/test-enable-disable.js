@@ -87,8 +87,9 @@ const assert = require('assert');
 const tick = require('../common/tick');
 const initHooks = require('./init-hooks');
 const { checkInvocations } = require('./hook-checks');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread)
   common.skip('Worker bootstrapping works differently -> different timing');
 
 // Include "Unknown"s because hook2 will not be able to identify

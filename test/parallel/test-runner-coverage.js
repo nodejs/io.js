@@ -84,7 +84,11 @@ test('test coverage report', async (t) => {
     }
 
     const fixture = fixtures.path('test-runner', 'coverage.js');
-    const args = ['--experimental-test-coverage', fixture];
+    const args = [
+      '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
+      fixture,
+    ];
     const result = spawnSync(process.execPath, args);
 
     assert(!result.stdout.toString().includes('# start of coverage report'));
@@ -97,7 +101,13 @@ test('test coverage report', async (t) => {
 test('test tap coverage reporter', skipIfNoInspector, async (t) => {
   await t.test('coverage is reported and dumped to NODE_V8_COVERAGE if present', (t) => {
     const fixture = fixtures.path('test-runner', 'coverage.js');
-    const args = ['--experimental-test-coverage', '--test-reporter', 'tap', fixture];
+    const args = [
+      '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
+      '--test-reporter',
+      'tap',
+      fixture,
+    ];
     const options = { env: { ...process.env, NODE_V8_COVERAGE: tmpdir.path } };
     const result = spawnSync(process.execPath, args, options);
     const report = getTapCoverageFixtureReport();
@@ -109,7 +119,13 @@ test('test tap coverage reporter', skipIfNoInspector, async (t) => {
 
   await t.test('coverage is reported without NODE_V8_COVERAGE present', (t) => {
     const fixture = fixtures.path('test-runner', 'coverage.js');
-    const args = ['--experimental-test-coverage', '--test-reporter', 'tap', fixture];
+    const args = [
+      '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
+      '--test-reporter',
+      'tap',
+      fixture,
+    ];
     const result = spawnSync(process.execPath, args);
     const report = getTapCoverageFixtureReport();
 
@@ -123,7 +139,12 @@ test('test tap coverage reporter', skipIfNoInspector, async (t) => {
 test('test spec coverage reporter', skipIfNoInspector, async (t) => {
   await t.test('coverage is reported and dumped to NODE_V8_COVERAGE if present', (t) => {
     const fixture = fixtures.path('test-runner', 'coverage.js');
-    const args = ['--experimental-test-coverage', '--test-reporter', 'spec', fixture];
+    const args = [
+      '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
+      '--test-reporter',
+      'spec',
+      fixture];
     const options = { env: { ...process.env, NODE_V8_COVERAGE: tmpdir.path } };
     const result = spawnSync(process.execPath, args, options);
     const report = getSpecCoverageFixtureReport();
@@ -136,7 +157,12 @@ test('test spec coverage reporter', skipIfNoInspector, async (t) => {
 
   await t.test('coverage is reported without NODE_V8_COVERAGE present', (t) => {
     const fixture = fixtures.path('test-runner', 'coverage.js');
-    const args = ['--experimental-test-coverage', '--test-reporter', 'spec', fixture];
+    const args = [
+      '--experimental-test-coverage',
+      '--test-coverage-exclude=!test/**',
+      '--test-reporter',
+      'spec',
+      fixture];
     const result = spawnSync(process.execPath, args);
     const report = getSpecCoverageFixtureReport();
 
@@ -150,7 +176,12 @@ test('test spec coverage reporter', skipIfNoInspector, async (t) => {
 test('single process coverage is the same with --test', skipIfNoInspector, () => {
   const fixture = fixtures.path('test-runner', 'coverage.js');
   const args = [
-    '--test', '--experimental-test-coverage', '--test-reporter', 'tap', fixture,
+    '--test',
+    '--experimental-test-coverage',
+    '--test-coverage-exclude=!test/**',
+    '--test-reporter',
+    'tap',
+    fixture,
   ];
   const result = spawnSync(process.execPath, args);
   const report = getTapCoverageFixtureReport();
@@ -183,7 +214,11 @@ test('coverage is combined for multiple processes', skipIfNoInspector, () => {
 
   const fixture = fixtures.path('v8-coverage', 'combined_coverage');
   const args = [
-    '--test', '--experimental-test-coverage', '--test-reporter', 'tap',
+    '--test',
+    '--experimental-test-coverage',
+    '--test-coverage-exclude=!test/**',
+    '--test-reporter',
+    'tap',
   ];
   const result = spawnSync(process.execPath, args, {
     env: { ...process.env, NODE_TEST_TMPDIR: tmpdir.path },
@@ -221,7 +256,11 @@ test.skip('coverage works with isolation=none', skipIfNoInspector, () => {
 
   const fixture = fixtures.path('v8-coverage', 'combined_coverage');
   const args = [
-    '--test', '--experimental-test-coverage', '--test-reporter', 'tap', '--experimental-test-isolation=none',
+    '--test',
+    '--experimental-test-coverage',
+    '--test-reporter',
+    'tap',
+    '--test-isolation=none',
   ];
   const result = spawnSync(process.execPath, args, {
     env: { ...process.env, NODE_TEST_TMPDIR: tmpdir.path },
@@ -236,9 +275,14 @@ test.skip('coverage works with isolation=none', skipIfNoInspector, () => {
 test('coverage reports on lines, functions, and branches', skipIfNoInspector, async (t) => {
   const fixture = fixtures.path('test-runner', 'coverage.js');
   const child = spawnSync(process.execPath,
-                          ['--test', '--experimental-test-coverage', '--test-reporter',
-                           fixtures.fileURL('test-runner/custom_reporters/coverage.mjs'),
-                           fixture]);
+                          [
+                            '--test',
+                            '--experimental-test-coverage',
+                            '--test-coverage-exclude=!test/**',
+                            '--test-reporter',
+                            fixtures.fileURL('test-runner/custom_reporters/coverage.mjs'),
+                            fixture,
+                          ]);
   assert.strictEqual(child.stderr.toString(), '');
   const stdout = child.stdout.toString();
   const coverage = JSON.parse(stdout);
@@ -310,7 +354,14 @@ test('coverage with ESM hook - source irrelevant', skipIfNoInspector, () => {
 
   const fixture = fixtures.path('test-runner', 'coverage-loader');
   const args = [
-    '--import', './register-hooks.js', '--test', '--experimental-test-coverage', '--test-reporter', 'tap', 'virtual.js',
+    '--import',
+    './register-hooks.js',
+    '--test',
+    '--experimental-test-coverage',
+    '--test-coverage-exclude=!test/**',
+    '--test-reporter',
+    'tap',
+    'virtual.js',
   ];
   const result = spawnSync(process.execPath, args, { cwd: fixture });
 
@@ -341,7 +392,10 @@ test('coverage with ESM hook - source transpiled', skipIfNoInspector, () => {
 
   const fixture = fixtures.path('test-runner', 'coverage-loader');
   const args = [
-    '--import', './register-hooks.js', '--test', '--experimental-test-coverage',
+    '--import', './register-hooks.js',
+    '--test',
+    '--experimental-test-coverage',
+    '--test-coverage-exclude=!test/**',
     '--test-reporter', 'tap', 'sum.test.ts',
   ];
   const result = spawnSync(process.execPath, args, { cwd: fixture });
@@ -356,6 +410,7 @@ test('coverage with excluded files', skipIfNoInspector, () => {
   const args = [
     '--experimental-test-coverage', '--test-reporter', 'tap',
     '--test-coverage-exclude=test/*/test-runner/invalid-tap.js',
+    '--test-coverage-exclude=!test/**',
     fixture];
   const result = spawnSync(process.execPath, args);
   const report = [
@@ -391,6 +446,7 @@ test('coverage with included files', skipIfNoInspector, () => {
     '--experimental-test-coverage', '--test-reporter', 'tap',
     '--test-coverage-include=test/fixtures/test-runner/coverage.js',
     '--test-coverage-include=test/fixtures/v8-coverage/throw.js',
+    '--test-coverage-exclude=!test/**',
     fixture,
   ];
   const result = spawnSync(process.execPath, args);
@@ -478,7 +534,12 @@ test('correctly prints the coverage report of files contained in parent director
   }
   const fixture = fixtures.path('test-runner', 'coverage.js');
   const args = [
-    '--test', '--experimental-test-coverage', '--test-reporter', 'tap', fixture,
+    '--test',
+    '--experimental-test-coverage',
+    '--test-coverage-exclude=!test/**',
+    '--test-reporter',
+    'tap',
+    fixture,
   ];
   const result = spawnSync(process.execPath, args, {
     env: { ...process.env, NODE_TEST_TMPDIR: tmpdir.path },

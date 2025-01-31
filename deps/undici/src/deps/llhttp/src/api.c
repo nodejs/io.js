@@ -126,7 +126,7 @@ void llhttp_reset(llhttp_t* parser) {
   llhttp_type_t type = parser->type;
   const llhttp_settings_t* settings = parser->settings;
   void* data = parser->data;
-  uint8_t lenient_flags = parser->lenient_flags;
+  uint16_t lenient_flags = parser->lenient_flags;
 
   llhttp__internal_init(parser);
 
@@ -280,6 +280,54 @@ void llhttp_set_lenient_transfer_encoding(llhttp_t* parser, int enabled) {
     parser->lenient_flags |= LENIENT_TRANSFER_ENCODING;
   } else {
     parser->lenient_flags &= ~LENIENT_TRANSFER_ENCODING;
+  }
+}
+
+void llhttp_set_lenient_version(llhttp_t* parser, int enabled) {
+  if (enabled) {
+    parser->lenient_flags |= LENIENT_VERSION;
+  } else {
+    parser->lenient_flags &= ~LENIENT_VERSION;
+  }
+}
+
+void llhttp_set_lenient_data_after_close(llhttp_t* parser, int enabled) {
+  if (enabled) {
+    parser->lenient_flags |= LENIENT_DATA_AFTER_CLOSE;
+  } else {
+    parser->lenient_flags &= ~LENIENT_DATA_AFTER_CLOSE;
+  }
+}
+
+void llhttp_set_lenient_optional_lf_after_cr(llhttp_t* parser, int enabled) {
+  if (enabled) {
+    parser->lenient_flags |= LENIENT_OPTIONAL_LF_AFTER_CR;
+  } else {
+    parser->lenient_flags &= ~LENIENT_OPTIONAL_LF_AFTER_CR;
+  }
+}
+
+void llhttp_set_lenient_optional_crlf_after_chunk(llhttp_t* parser, int enabled) {
+  if (enabled) {
+    parser->lenient_flags |= LENIENT_OPTIONAL_CRLF_AFTER_CHUNK;
+  } else {
+    parser->lenient_flags &= ~LENIENT_OPTIONAL_CRLF_AFTER_CHUNK;
+  }
+}
+
+void llhttp_set_lenient_optional_cr_before_lf(llhttp_t* parser, int enabled) {
+  if (enabled) {
+    parser->lenient_flags |= LENIENT_OPTIONAL_CR_BEFORE_LF;
+  } else {
+    parser->lenient_flags &= ~LENIENT_OPTIONAL_CR_BEFORE_LF;
+  }
+}
+
+void llhttp_set_lenient_spaces_after_chunk_size(llhttp_t* parser, int enabled) {
+  if (enabled) {
+    parser->lenient_flags |= LENIENT_SPACES_AFTER_CHUNK_SIZE;
+  } else {
+    parser->lenient_flags &= ~LENIENT_SPACES_AFTER_CHUNK_SIZE;
   }
 }
 

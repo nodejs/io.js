@@ -131,6 +131,12 @@ parser.add_argument('--use-prefix-to-find-headers',
     default=None,
     help='use the prefix to look for pre-installed headers')
 
+parser.add_argument('--use_clang',
+    action='store_true',
+    dest='use_clang',
+    default=None,
+    help='use clang instead of gcc')
+
 parser.add_argument('--dest-os',
     action='store',
     dest='dest_os',
@@ -142,6 +148,12 @@ parser.add_argument('--error-on-warn',
     dest='error_on_warn',
     default=None,
     help='Turn compiler warnings into errors for node core sources.')
+
+parser.add_argument('--suppress-all-error-on-warn',
+    action='store_true',
+    dest='suppress_all_error_on_warn',
+    default=False,
+    help='Suppress cases where compiler warnings are turned into errors by default.')
 
 parser.add_argument('--gdb',
     action='store_true',
@@ -1391,7 +1403,10 @@ def configure_node(o):
   o['variables']['node_use_amaro'] = b(not options.without_amaro)
   o['variables']['debug_node'] = b(options.debug_node)
   o['default_configuration'] = 'Debug' if options.debug else 'Release'
+  if options.error_on_warn and options.suppress_all_error_on_warn:
+    raise Exception('--error_on_warn is incompatible with --suppress_all_error_on_warn.')
   o['variables']['error_on_warn'] = b(options.error_on_warn)
+  o['variables']['suppress_all_error_on_warn'] = b(options.suppress_all_error_on_warn)
   o['variables']['use_prefix_to_find_headers'] = b(options.use_prefix_to_find_headers)
 
   host_arch = host_arch_win() if os.name == 'nt' else host_arch_cc()
@@ -1406,6 +1421,10 @@ def configure_node(o):
   o['variables']['host_arch'] = host_arch
   o['variables']['target_arch'] = target_arch
   o['variables']['node_byteorder'] = sys.byteorder
+
+  # Allow overriding the compiler - needed by embedders.
+  if options.use_clang:
+    o['variables']['clang'] = 1
 
   cross_compiling = (options.cross_compiling
                      if options.cross_compiling is not None
@@ -1675,6 +1694,9 @@ def configure_v8(o, configs):
     raise Exception(
         'Only one of the --v8-enable-object-print or --v8-disable-object-print options '
         'can be specified at a time.')
+  if sys.platform != 'darwin':
+    if o['variables']['v8_enable_webassembly'] and o['variables']['target_arch'] == 'x64':
+      o['variables']['v8_enable_wasm_simd256_revec'] = 1
 
 def configure_openssl(o):
   variables = o['variables']
@@ -2130,7 +2152,7 @@ def make_bin_override():
   if sys.platform == 'win32':
     raise Exception('make_bin_override should not be called on win32.')
   # If the system python is not the python we are running (which should be
-  # python 3.8+), then create a directory with a symlink called `python` to our
+  # python 3.9+), then create a directory with a symlink called `python` to our
   # sys.executable. This directory will be prefixed to the PATH, so that
   # other tools that shell out to `python` will use the appropriate python
 

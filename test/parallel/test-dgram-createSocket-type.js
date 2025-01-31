@@ -59,3 +59,16 @@ validTypes.forEach((validType) => {
     socket.close();
   }));
 }
+
+{
+  [
+    { type: 'udp4', recvBufferSize: 'invalid' },
+    { type: 'udp4', sendBufferSize: 'invalid' },
+  ].forEach((options) => {
+    assert.throws(() => {
+      dgram.createSocket(options);
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+    });
+  });
+}

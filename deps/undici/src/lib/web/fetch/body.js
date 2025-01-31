@@ -3,16 +3,13 @@
 const util = require('../../core/util')
 const {
   ReadableStreamFrom,
-  isBlobLike,
-  isReadableStreamLike,
   readableStreamClose,
   createDeferredPromise,
   fullyReadBody,
   extractMimeType,
   utf8DecodeBytes
 } = require('./util')
-const { FormData } = require('./formdata')
-const { kState } = require('./symbols')
+const { FormData, setFormDataState } = require('./formdata')
 const { webidl } = require('./webidl')
 const { Blob } = require('node:buffer')
 const assert = require('node:assert')
@@ -42,9 +39,9 @@ function extractBody (object, keepalive = false) {
   let stream = null
 
   // 2. If object is a ReadableStream object, then set stream to object.
-  if (object instanceof ReadableStream) {
+  if (webidl.is.ReadableStream(object)) {
     stream = object
-  } else if (isBlobLike(object)) {
+  } else if (webidl.is.Blob(object)) {
     // 3. Otherwise, if object is a Blob object, set stream to the
     //    result of running object’s get stream.
     stream = object.stream()
@@ -67,7 +64,7 @@ function extractBody (object, keepalive = false) {
   }
 
   // 5. Assert: stream is a ReadableStream object.
-  assert(isReadableStreamLike(stream))
+  assert(webidl.is.ReadableStream(stream))
 
   // 6. Let action be null.
   let action = null
@@ -89,7 +86,7 @@ function extractBody (object, keepalive = false) {
 
     // Set type to `text/plain;charset=UTF-8`.
     type = 'text/plain;charset=UTF-8'
-  } else if (object instanceof URLSearchParams) {
+  } else if (webidl.is.URLSearchParams(object)) {
     // URLSearchParams
 
     // spec says to run application/x-www-form-urlencoded on body.list
@@ -112,7 +109,7 @@ function extractBody (object, keepalive = false) {
 
     // Set source to a copy of the bytes held by object.
     source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength))
-  } else if (util.isFormDataLike(object)) {
+  } else if (webidl.is.FormData(object)) {
     const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, '0')}`
     const prefix = `--${boundary}\r\nContent-Disposition: form-data`
 
@@ -154,7 +151,10 @@ function extractBody (object, keepalive = false) {
       }
     }
 
-    const chunk = textEncoder.encode(`--${boundary}--`)
+    // CRLF is appended to the body to function with legacy servers and match other implementations.
+    // https://github.com/curl/curl/blob/3434c6b46e682452973972e8313613dfa58cd690/lib/mime.c#L1029-L1030
+    // https://github.com/form-data/form-data/issues/63
+    const chunk = textEncoder.encode(`--${boundary}--\r\n`)
     blobParts.push(chunk)
     length += chunk.byteLength
     if (hasUnknownSizeValue) {
@@ -178,7 +178,7 @@ function extractBody (object, keepalive = false) {
     // followed by the multipart/form-data boundary string generated
     // by the multipart/form-data encoding algorithm.
     type = `multipart/form-data; boundary=${boundary}`
-  } else if (isBlobLike(object)) {
+  } else if (webidl.is.Blob(object)) {
     // Blob
 
     // Set source to object.
@@ -206,7 +206,7 @@ function extractBody (object, keepalive = false) {
     }
 
     stream =
-      object instanceof ReadableStream ? object : ReadableStreamFrom(object)
+      webidl.is.ReadableStream(object) ? object : ReadableStreamFrom(object)
   }
 
   // 11. If source is a byte sequence, then set action to a
@@ -265,7 +265,7 @@ function safelyExtractBody (object, keepalive = false) {
   // a byte sequence or BodyInit object object, run these steps:
 
   // 1. If object is a ReadableStream object, then:
-  if (object instanceof ReadableStream) {
+  if (webidl.is.ReadableStream(object)) {
     // Assert: object is neither disturbed nor locked.
     // istanbul ignore next
     assert(!util.isDisturbed(object), 'The body has already been consumed.')
@@ -306,7 +306,7 @@ function throwIfAborted (state) {
   }
 }
 
-function bodyMixinMethods (instance) {
+function bodyMixinMethods (instance, getInternalState) {
   const methods = {
     blob () {
       // The blob() method steps are to return the result of
@@ -315,7 +315,7 @@ function bodyMixinMethods (instance) {
       // contents are bytes and whose type attribute is this’s
       // MIME type.
       return consumeBody(this, (bytes) => {
-        let mimeType = bodyMimeType(this)
+        let mimeType = bodyMimeType(getInternalState(this))
 
         if (mimeType === null) {
           mimeType = ''
@@ -326,7 +326,7 @@ function bodyMixinMethods (instance) {
         // Return a Blob whose contents are bytes and type attribute
         // is mimeType.
         return new Blob([bytes], { type: mimeType })
-      }, instance)
+      }, instance, getInternalState)
     },
 
     arrayBuffer () {
@@ -336,19 +336,19 @@ function bodyMixinMethods (instance) {
       // whose contents are bytes.
       return consumeBody(this, (bytes) => {
         return new Uint8Array(bytes).buffer
-      }, instance)
+      }, instance, getInternalState)
     },
 
     text () {
       // The text() method steps are to return the result of running
       // consume body with this and UTF-8 decode.
-      return consumeBody(this, utf8DecodeBytes, instance)
+      return consumeBody(this, utf8DecodeBytes, instance, getInternalState)
     },
 
     json () {
       // The json() method steps are to return the result of running
       // consume body with this and parse JSON from bytes.
-      return consumeBody(this, parseJSONFromBytes, instance)
+      return consumeBody(this, parseJSONFromBytes, instance, getInternalState)
     },
 
     formData () {
@@ -356,7 +356,7 @@ function bodyMixinMethods (instance) {
       // consume body with this and the following step given a byte sequence bytes:
       return consumeBody(this, (value) => {
         // 1. Let mimeType be the result of get the MIME type with this.
-        const mimeType = bodyMimeType(this)
+        const mimeType = bodyMimeType(getInternalState(this))
 
         // 2. If mimeType is non-null, then switch on mimeType’s essence and run
         //    the corresponding steps:
@@ -364,17 +364,13 @@ function bodyMixinMethods (instance) {
           switch (mimeType.essence) {
             case 'multipart/form-data': {
               // 1. ... [long step]
-              const parsed = multipartFormDataParser(value, mimeType)
-
               // 2. If that fails for some reason, then throw a TypeError.
-              if (parsed === 'failure') {
-                throw new TypeError('Failed to parse body as FormData.')
-              }
+              const parsed = multipartFormDataParser(value, mimeType)
 
               // 3. Return a new FormData object, appending each entry,
               //    resulting from the parsing operation, to its entry list.
               const fd = new FormData()
-              fd[kState] = parsed
+              setFormDataState(fd, parsed)
 
               return fd
             }
@@ -400,7 +396,7 @@ function bodyMixinMethods (instance) {
         throw new TypeError(
           'Content-Type was not one of "multipart/form-data" or "application/x-www-form-urlencoded".'
         )
-      }, instance)
+      }, instance, getInternalState)
     },
 
     bytes () {
@@ -409,33 +405,36 @@ function bodyMixinMethods (instance) {
       // result of creating a Uint8Array from bytes in this’s relevant realm.
       return consumeBody(this, (bytes) => {
         return new Uint8Array(bytes)
-      }, instance)
+      }, instance, getInternalState)
     }
   }
 
   return methods
 }
 
-function mixinBody (prototype) {
-  Object.assign(prototype.prototype, bodyMixinMethods(prototype))
+function mixinBody (prototype, getInternalState) {
+  Object.assign(prototype.prototype, bodyMixinMethods(prototype, getInternalState))
 }
 
 /**
  * @see https://fetch.spec.whatwg.org/#concept-body-consume-body
- * @param {Response|Request} object
+ * @param {any} object internal state
  * @param {(value: unknown) => unknown} convertBytesToJSValue
- * @param {Response|Request} instance
+ * @param {any} instance
+ * @param {(target: any) => any} getInternalState
  */
-async function consumeBody (object, convertBytesToJSValue, instance) {
+async function consumeBody (object, convertBytesToJSValue, instance, getInternalState) {
   webidl.brandCheck(object, instance)
+
+  const state = getInternalState(object)
 
   // 1. If object is unusable, then return a promise rejected
   //    with a TypeError.
-  if (bodyUnusable(object)) {
+  if (bodyUnusable(state)) {
     throw new TypeError('Body is unusable: Body has already been read')
   }
 
-  throwIfAborted(object[kState])
+  throwIfAborted(state)
 
   // 2. Let promise be a new promise.
   const promise = createDeferredPromise()
@@ -457,22 +456,25 @@ async function consumeBody (object, convertBytesToJSValue, instance) {
 
   // 5. If object’s body is null, then run successSteps with an
   //    empty byte sequence.
-  if (object[kState].body == null) {
+  if (state.body == null) {
     successSteps(Buffer.allocUnsafe(0))
     return promise.promise
   }
 
   // 6. Otherwise, fully read object’s body given successSteps,
   //    errorSteps, and object’s relevant global object.
-  await fullyReadBody(object[kState].body, successSteps, errorSteps)
+  fullyReadBody(state.body, successSteps, errorSteps)
 
   // 7. Return promise.
   return promise.promise
 }
 
-// https://fetch.spec.whatwg.org/#body-unusable
+/**
+ * @see https://fetch.spec.whatwg.org/#body-unusable
+ * @param {any} object internal state
+ */
 function bodyUnusable (object) {
-  const body = object[kState].body
+  const body = object.body
 
   // An object including the Body interface mixin is
   // said to be unusable if its body is non-null and
@@ -490,14 +492,14 @@ function parseJSONFromBytes (bytes) {
 
 /**
  * @see https://fetch.spec.whatwg.org/#concept-body-mime-type
- * @param {import('./response').Response|import('./request').Request} requestOrResponse
+ * @param {any} requestOrResponse internal state
  */
 function bodyMimeType (requestOrResponse) {
   // 1. Let headers be null.
   // 2. If requestOrResponse is a Request object, then set headers to requestOrResponse’s request’s header list.
   // 3. Otherwise, set headers to requestOrResponse’s response’s header list.
   /** @type {import('./headers').HeadersList} */
-  const headers = requestOrResponse[kState].headersList
+  const headers = requestOrResponse.headersList
 
   // 4. Let mimeType be the result of extracting a MIME type from headers.
   const mimeType = extractMimeType(headers)

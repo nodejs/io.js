@@ -96,6 +96,9 @@ async function getCurrentConfigGypi ({ gyp, nodeDir, vsInfo, python }) {
       }
     }
     variables.msbuild_path = vsInfo.msBuild
+    if (config.variables.clang === 1) {
+      config.variables.clang = 0
+    }
   }
 
   // loop through the rest of the opts and add the unknown ones as variables.

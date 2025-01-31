@@ -145,9 +145,9 @@ TEST(SocketAddress, Comparison) {
   SocketAddress addr5(reinterpret_cast<const sockaddr*>(&storage[4]));
   SocketAddress addr6(reinterpret_cast<const sockaddr*>(&storage[5]));
 
-  CHECK_EQ(addr1.compare(addr1), SocketAddress::CompareResult::SAME);
-  CHECK_EQ(addr1.compare(addr2), SocketAddress::CompareResult::LESS_THAN);
-  CHECK_EQ(addr2.compare(addr1), SocketAddress::CompareResult::GREATER_THAN);
+  CHECK_EQ(addr1.compare(addr1), std::partial_ordering::equivalent);
+  CHECK_EQ(addr1.compare(addr2), std::partial_ordering::less);
+  CHECK_EQ(addr2.compare(addr1), std::partial_ordering::greater);
   CHECK(addr1 <= addr1);
   CHECK(addr1 < addr2);
   CHECK(addr1 <= addr2);
@@ -155,9 +155,9 @@ TEST(SocketAddress, Comparison) {
   CHECK(addr2 > addr1);
   CHECK(addr2 >= addr1);
 
-  CHECK_EQ(addr3.compare(addr3), SocketAddress::CompareResult::SAME);
-  CHECK_EQ(addr3.compare(addr4), SocketAddress::CompareResult::LESS_THAN);
-  CHECK_EQ(addr4.compare(addr3), SocketAddress::CompareResult::GREATER_THAN);
+  CHECK_EQ(addr3.compare(addr3), std::partial_ordering::equivalent);
+  CHECK_EQ(addr3.compare(addr4), std::partial_ordering::less);
+  CHECK_EQ(addr4.compare(addr3), std::partial_ordering::greater);
   CHECK(addr3 <= addr3);
   CHECK(addr3 < addr4);
   CHECK(addr3 <= addr4);
@@ -166,8 +166,8 @@ TEST(SocketAddress, Comparison) {
   CHECK(addr4 >= addr3);
 
   // Not comparable
-  CHECK_EQ(addr1.compare(addr3), SocketAddress::CompareResult::NOT_COMPARABLE);
-  CHECK_EQ(addr3.compare(addr1), SocketAddress::CompareResult::NOT_COMPARABLE);
+  CHECK_EQ(addr1.compare(addr3), std::partial_ordering::unordered);
+  CHECK_EQ(addr3.compare(addr1), std::partial_ordering::unordered);
   CHECK(!(addr1 < addr3));
   CHECK(!(addr1 > addr3));
   CHECK(!(addr1 >= addr3));
@@ -178,10 +178,10 @@ TEST(SocketAddress, Comparison) {
   CHECK(!(addr3 <= addr1));
 
   // Comparable
-  CHECK_EQ(addr1.compare(addr5), SocketAddress::CompareResult::SAME);
-  CHECK_EQ(addr2.compare(addr6), SocketAddress::CompareResult::SAME);
-  CHECK_EQ(addr1.compare(addr6), SocketAddress::CompareResult::LESS_THAN);
-  CHECK_EQ(addr6.compare(addr1), SocketAddress::CompareResult::GREATER_THAN);
+  CHECK_EQ(addr1.compare(addr5), std::partial_ordering::equivalent);
+  CHECK_EQ(addr2.compare(addr6), std::partial_ordering::equivalent);
+  CHECK_EQ(addr1.compare(addr6), std::partial_ordering::less);
+  CHECK_EQ(addr6.compare(addr1), std::partial_ordering::greater);
   CHECK(addr1 <= addr5);
   CHECK(addr1 <= addr6);
   CHECK(addr1 < addr6);

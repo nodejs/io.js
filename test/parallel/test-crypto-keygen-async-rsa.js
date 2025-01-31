@@ -13,6 +13,7 @@ const {
   testEncryptDecrypt,
   testSignVerify,
   pkcs1EncExp,
+  hasOpenSSL3,
 } = require('../common/crypto');
 
 // Test async RSA key generation with an encrypted private key.
@@ -43,7 +44,7 @@ const {
       type: 'pkcs1',
       format: 'der',
     };
-    const expectedError = common.hasOpenSSL3 ? {
+    const expectedError = hasOpenSSL3 ? {
       name: 'Error',
       message: 'error:07880109:common libcrypto routines::interrupted or ' +
                'cancelled'

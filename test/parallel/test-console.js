@@ -31,10 +31,12 @@ const {
   restoreStderr
 } = require('../common/hijackstdio');
 
+const { isMainThread } = require('worker_threads');
+
 assert.ok(process.stdout.writable);
 assert.ok(process.stderr.writable);
 // Support legacy API
-if (common.isMainThread) {
+if (isMainThread) {
   assert.strictEqual(typeof process.stdout.fd, 'number');
   assert.strictEqual(typeof process.stderr.fd, 'number');
 }
@@ -234,10 +236,10 @@ for (const expected of expectedStrings) {
 }
 
 assert.strictEqual(strings.shift(),
-                   "{\n  foo: 'bar',\n  [Symbol(nodejs.util.inspect.custom)]:" +
+                   "{\n  foo: 'bar',\n  Symbol(nodejs.util.inspect.custom):" +
                     ' [Function: [nodejs.util.inspect.custom]]\n}\n');
 assert.strictEqual(strings.shift(),
-                   "{\n  foo: 'bar',\n  [Symbol(nodejs.util.inspect.custom)]:" +
+                   "{\n  foo: 'bar',\n  Symbol(nodejs.util.inspect.custom):" +
                     ' [Function: [nodejs.util.inspect.custom]]\n}\n');
 assert.ok(strings.shift().includes('foo: [Object]'));
 assert.strictEqual(strings.shift().includes('baz'), false);

@@ -1,4 +1,4 @@
-import { mustCall, mustNotMutateObjectDeep } from '../common/index.mjs';
+import { mustCall, mustNotMutateObjectDeep, isInsideDirWithUnusualChars } from '../common/index.mjs';
 
 import assert from 'assert';
 import fs from 'fs';
@@ -264,7 +264,7 @@ function nextdir(dirname) {
 }
 
 // It throws error if parent directory of symlink in dest points to src.
-{
+if (!isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(join(src, 'a'), mustNotMutateObjectDeep({ recursive: true }));
   const dest = nextdir();
@@ -279,7 +279,7 @@ function nextdir(dirname) {
 }
 
 // It throws error if attempt is made to copy directory to file.
-{
+if (!isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(src, mustNotMutateObjectDeep({ recursive: true }));
   const dest = './test/fixtures/copy/kitchen-sink/README.md';
@@ -310,7 +310,7 @@ function nextdir(dirname) {
 
 
 // It throws error if attempt is made to copy file to directory.
-{
+if (!isInsideDirWithUnusualChars) {
   const src = './test/fixtures/copy/kitchen-sink/README.md';
   const dest = nextdir();
   mkdirSync(dest, mustNotMutateObjectDeep({ recursive: true }));
@@ -346,7 +346,7 @@ function nextdir(dirname) {
 
 // It throws error if attempt is made to copy src to dest
 // when src is parent directory of the parent of dest
-{
+if (!isInsideDirWithUnusualChars) {
   const src = nextdir('a');
   const destParent = nextdir('a/b');
   const dest = nextdir('a/b/c');
@@ -370,7 +370,7 @@ function nextdir(dirname) {
 }
 
 // It throws an error if attempt is made to copy socket.
-if (!isWindows) {
+if (!isWindows && !isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(src);
   const dest = nextdir();
@@ -738,7 +738,7 @@ if (!isWindows) {
 }
 
 // It returns an error if attempt is made to copy socket.
-if (!isWindows) {
+if (!isWindows && !isInsideDirWithUnusualChars) {
   const src = nextdir();
   mkdirSync(src);
   const dest = nextdir();

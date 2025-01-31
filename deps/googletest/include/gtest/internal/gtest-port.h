@@ -2533,4 +2533,12 @@ using Variant = ::std::variant<T...>;
 #define GTEST_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL 1
 #endif
 
+#if (defined(__cpp_lib_three_way_comparison) || \
+     (GTEST_INTERNAL_HAS_INCLUDE(<compare>) &&  \
+      GTEST_INTERNAL_CPLUSPLUS_LANG >= 201907L))
+#define GTEST_INTERNAL_HAS_COMPARE_LIB 1
+#else
+#define GTEST_INTERNAL_HAS_COMPARE_LIB 0
+#endif
+
 #endif  // GOOGLETEST_INCLUDE_GTEST_INTERNAL_GTEST_PORT_H_

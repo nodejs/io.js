@@ -50,6 +50,13 @@ class Endpoint;
 // secure the communication. Once those keys are established, the Session can be
 // used to open Streams. Based on how the Session is configured, any number of
 // Streams can exist concurrently on a single Session.
+//
+// The Session wraps an ngtcp2_conn that is initialized when the session object
+// is created. This ngtcp2_conn is destroyed when the session object is freed.
+// However, the session can be in a closed/destroyed state and still have a
+// valid ngtcp2_conn pointer. This is important because the ngtcp2 still might
+// be processsing data within the scope of an ngtcp2_conn after the session
+// object itself is closed/destroyed by user code.
 class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
  public:
   // For simplicity, we use the same Application::Options struct for all
@@ -92,6 +99,17 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   // of a QUIC Session.
   class Application;
 
+  // The ApplicationProvider optionally supplies the underlying application
+  // protocol handler used by a session. The ApplicationProvider is supplied
+  // in the *internal* options (that is, it is not exposed as a public, user
+  // facing API. If the ApplicationProvider is not specified, then the
+  // DefaultApplication is used (see application.cc).
+  class ApplicationProvider : public BaseObject {
+   public:
+    using BaseObject::BaseObject;
+    virtual std::unique_ptr<Application> Create(Session* session) = 0;
+  };
+
   // The options used to configure a session. Most of these deal directly with
   // the transport parameters that are exchanged with the remote peer during
   // handshake.
@@ -102,25 +120,62 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     // Te minimum QUIC protocol version supported by this session.
     uint32_t min_version = NGTCP2_PROTO_VER_MIN;
 
-    // By default a client session will use the preferred address advertised by
-    // the the server. This option is only relevant for client sessions.
+    // By default a client session will ignore the preferred address
+    // advertised by the the server. This option is only relevant for
+    // client sessions.
     PreferredAddress::Policy preferred_address_strategy =
-        PreferredAddress::Policy::USE_PREFERRED;
+        PreferredAddress::Policy::IGNORE_PREFERRED;
 
     TransportParams::Options transport_params =
         TransportParams::Options::kDefault;
     TLSContext::Options tls_options = TLSContext::Options::kDefault;
-    Application_Options application_options = Application_Options::kDefault;
 
     // A reference to the CID::Factory used to generate CID instances
     // for this session.
     const CID::Factory* cid_factory = &CID::Factory::random();
     // If the CID::Factory is a base object, we keep a reference to it
     // so that it cannot be garbage collected.
-    BaseObjectPtr<BaseObject> cid_factory_ref = BaseObjectPtr<BaseObject>();
+    BaseObjectPtr<BaseObject> cid_factory_ref = {};
+
+    // If the application provider is specified, it will be used to create
+    // the underlying Application instance for the session.
+    BaseObjectPtr<ApplicationProvider> application_provider = {};
 
     // When true, QLog output will be enabled for the session.
     bool qlog = false;
+
+    // The amount of time (in milliseconds) that the endpoint will wait for the
+    // completion of the tls handshake.
+    uint64_t handshake_timeout = UINT64_MAX;
+
+    // Maximum initial flow control window size for a stream.
+    uint64_t max_stream_window = 0;
+
+    // Maximum initial flow control window size for the connection.
+    uint64_t max_window = 0;
+
+    // The max_payload_size is the maximum size of a serialized QUIC packet. It
+    // should always be set small enough to fit within a single MTU without
+    // fragmentation. The default is set by the QUIC specification at 1200. This
+    // value should not be changed unless you know for sure that the entire path
+    // supports a given MTU without fragmenting at any point in the path.
+    uint64_t max_payload_size = kDefaultMaxPacketLength;
+
+    // The unacknowledged_packet_threshold is the maximum number of
+    // unacknowledged packets that an ngtcp2 session will accumulate before
+    // sending an acknowledgement. Setting this to 0 uses the ngtcp2 defaults,
+    // which is what most will want. The value can be changed to fine tune some
+    // of the performance characteristics of the session. This should only be
+    // changed if you have a really good reason for doing so.
+    uint64_t unacknowledged_packet_threshold = 0;
+
+    // There are several common congestion control algorithms that ngtcp2 uses
+    // to determine how it manages the flow control window: RENO, CUBIC, and
+    // BBR. The details of how each works is not relevant here. The choice of
+    // which to use by default is arbitrary and we can choose whichever we'd
+    // like. Additional performance profiling will be needed to determine which
+    // is the better of the two for our needs.
+    ngtcp2_cc_algo cc_algorithm = CC_ALGO_CUBIC;
 
     void MemoryInfo(MemoryTracker* tracker) const override;
     SET_MEMORY_INFO_NAME(Session::Options)
@@ -167,8 +222,8 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     operator ngtcp2_settings*() { return &settings; }
     operator const ngtcp2_settings*() const { return &settings; }
 
-    Config(Side side,
-           const Endpoint& endpoint,
+    Config(Environment* env,
+           Side side,
            const Options& options,
            uint32_t version,
            const SocketAddress& local_address,
@@ -177,7 +232,7 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
            const CID& scid,
            const CID& ocid = CID::kInvalid);
 
-    Config(const Endpoint& endpoint,
+    Config(Environment* env,
            const Options& options,
            const SocketAddress& local_address,
            const SocketAddress& remote_address,
@@ -216,114 +271,112 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
           const Config& config,
           TLSContext* tls_context,
           const std::optional<SessionTicket>& ticket);
+  DISALLOW_COPY_AND_MOVE(Session)
   ~Session() override;
+
+  bool is_destroyed() const;
+  bool is_server() const;
 
   uint32_t version() const;
   Endpoint& endpoint() const;
-  TLSSession& tls_session();
-  Application& application();
+  TLSSession& tls_session() const;
+  Application& application() const;
   const Config& config() const;
   const Options& options() const;
   const SocketAddress& remote_address() const;
   const SocketAddress& local_address() const;
 
-  bool is_closing() const;
-  bool is_graceful_closing() const;
-  bool is_silent_closing() const;
-  bool is_destroyed() const;
-  bool is_server() const;
-
-  size_t max_packet_size() const;
-
-  void set_priority_supported(bool on = true);
-
   std::string diagnostic_name() const override;
-
-  // Use the configured CID::Factory to generate a new CID.
-  CID new_cid(size_t len = CID::kMaxLength) const;
-
-  void HandleQlog(uint32_t flags, const void* data, size_t len);
-
-  TransportParams GetLocalTransportParams() const;
-  TransportParams GetRemoteTransportParams() const;
-  void UpdatePacketTxTime();
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(Session)
   SET_SELF_SIZE(Session)
 
-  struct State;
-  struct Stats;
-
   operator ngtcp2_conn*() const;
 
-  BaseObjectPtr<Stream> FindStream(int64_t id) const;
-  BaseObjectPtr<Stream> CreateStream(int64_t id);
-  BaseObjectPtr<Stream> OpenStream(Direction direction);
-  void ExtendStreamOffset(int64_t id, size_t amount);
-  void ExtendOffset(size_t amount);
-  void SetLastError(QuicError&& error);
-  uint64_t max_data_left() const;
-
-  enum class CloseMethod {
-    // Roundtrip through JavaScript, causing all currently opened streams
-    // to be closed. An attempt will be made to send a CONNECTION_CLOSE
-    // frame to the peer. If closing while within the ngtcp2 callback scope,
-    // sending the CONNECTION_CLOSE will be deferred until the scope exits.
-    DEFAULT,
-    // The connected peer will not be notified.
-    SILENT,
-    // Closing gracefully disables the ability to open or accept new streams for
-    // this Session. Existing streams are allowed to close naturally on their
-    // own.
-    // Once called, the Session will be immediately closed once there are no
-    // remaining streams. No notification is given to the connected peer that we
-    // are in a graceful closing state. A CONNECTION_CLOSE will be sent only
-    // once
-    // Close() is called.
-    GRACEFUL
-  };
-  void Close(CloseMethod method = CloseMethod::DEFAULT);
-
-  struct SendPendingDataScope {
+  // Ensures that the session/application sends pending data when the scope
+  // exits. Scopes can be nested. When nested, pending data will be sent
+  // only when the outermost scope is exited.
+  struct SendPendingDataScope final {
     Session* session;
     explicit SendPendingDataScope(Session* session);
     explicit SendPendingDataScope(const BaseObjectPtr<Session>& session);
-    DISALLOW_COPY_AND_MOVE(SendPendingDataScope)
     ~SendPendingDataScope();
+    DISALLOW_COPY_AND_MOVE(SendPendingDataScope)
   };
+
+  struct State;
+  struct Stats;
+
+  void HandleQlog(uint32_t flags, const void* data, size_t len);
 
  private:
   struct Impl;
-  struct MaybeCloseConnectionScope;
 
   using StreamsMap = std::unordered_map<int64_t, BaseObjectPtr<Stream>>;
   using QuicConnectionPointer = DeleteFnPtr<ngtcp2_conn, ngtcp2_conn_del>;
 
-  struct PathValidationFlags {
+  struct PathValidationFlags final {
     bool preferredAddress = false;
   };
 
-  struct DatagramReceivedFlags {
+  struct DatagramReceivedFlags final {
     bool early = false;
   };
-
-  void Destroy();
 
   bool Receive(Store&& store,
                const SocketAddress& local_address,
                const SocketAddress& remote_address);
 
-  void Send(Packet* packet);
-  void Send(Packet* packet, const PathStorage& path);
+  void Send(const BaseObjectPtr<Packet>& packet);
+  void Send(const BaseObjectPtr<Packet>& packet, const PathStorage& path);
   uint64_t SendDatagram(Store&& data);
 
-  void AddStream(const BaseObjectPtr<Stream>& stream);
+  // A non-const variation to allow certain modifications.
+  Config& config();
+
+  enum class CreateStreamOption {
+    NOTIFY,
+    DO_NOT_NOTIFY,
+  };
+  BaseObjectPtr<Stream> FindStream(int64_t id) const;
+  BaseObjectPtr<Stream> CreateStream(
+      int64_t id,
+      CreateStreamOption option = CreateStreamOption::NOTIFY,
+      std::shared_ptr<DataQueue> data_source = nullptr);
+  void AddStream(BaseObjectPtr<Stream> stream,
+                 CreateStreamOption option = CreateStreamOption::NOTIFY);
   void RemoveStream(int64_t id);
   void ResumeStream(int64_t id);
-  void ShutdownStream(int64_t id, QuicError error);
   void StreamDataBlocked(int64_t id);
+  void ShutdownStream(int64_t id, QuicError error = QuicError());
   void ShutdownStreamWrite(int64_t id, QuicError code = QuicError());
+
+  // Use the configured CID::Factory to generate a new CID.
+  CID new_cid(size_t len = CID::kMaxLength) const;
+
+  const TransportParams local_transport_params() const;
+  const TransportParams remote_transport_params() const;
+
+  bool is_destroyed_or_closing() const;
+  size_t max_packet_size() const;
+  void set_priority_supported(bool on = true);
+
+  // Open a new locally-initialized stream with the specified directionality.
+  // If the session is not yet in a state where the stream can be openen --
+  // such as when the handshake is not yet sufficiently far along and ORTT
+  // session resumption is not being used -- then the stream will be created
+  // in a pending state where actually opening the stream will be deferred.
+  v8::MaybeLocal<v8::Object> OpenStream(
+      Direction direction, std::shared_ptr<DataQueue> data_source = nullptr);
+
+  void ExtendStreamOffset(int64_t id, size_t amount);
+  void ExtendOffset(size_t amount);
+  void SetLastError(QuicError&& error);
+  uint64_t max_data_left() const;
+
+  PendingStream::PendingStreamQueue& pending_bidi_stream_queue() const;
+  PendingStream::PendingStreamQueue& pending_uni_stream_queue() const;
 
   // Implementation of SessionTicket::AppData::Source
   void CollectSessionTicketAppData(
@@ -349,8 +402,17 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   bool can_send_packets() const;
 
   // Returns false if the Session is currently in a state where it cannot create
-  // new streams.
+  // new streams. Specifically, a stream is not in a state to create streams if
+  // it has been destroyed or is closing.
   bool can_create_streams() const;
+
+  // Returns false if the Session is currently in a state where it cannot open
+  // a new locally-initiated stream. When using 0RTT session resumption, this
+  // will become true immediately after the session ticket and transport params
+  // have been configured. Otherwise, it becomes true after the remote transport
+  // params and tx keys have been installed.
+  bool can_open_streams() const;
+
   uint64_t max_local_streams_uni() const;
   uint64_t max_local_streams_bidi() const;
 
@@ -362,12 +424,46 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
   // defined there to manage it.
   void set_wrapped();
 
-  void DoClose(bool silent = false);
-  void UpdateDataStats();
+  enum class CloseMethod {
+    // Immediate close with a roundtrip through JavaScript, causing all
+    // currently opened streams to be closed. An attempt will be made to
+    // send a CONNECTION_CLOSE frame to the peer. If closing while within
+    // the ngtcp2 callback scope, sending the CONNECTION_CLOSE will be
+    // deferred until the scope exits.
+    DEFAULT,
+    // Same as DEFAULT except that no attempt to notify the peer will be
+    // made.
+    SILENT,
+    // Closing gracefully disables the ability to open or accept new streams
+    // for this Session. Existing streams are allowed to close naturally on
+    // their own.
+    // Once called, the Session will be immediately closed once there are no
+    // remaining streams. No notification is given to the connected peer that
+    // we are in a graceful closing state. A CONNECTION_CLOSE will be sent
+    // only once FinishClose() is called.
+    GRACEFUL
+  };
+  // Initiate closing of the session.
+  void Close(CloseMethod method = CloseMethod::DEFAULT);
+
+  void FinishClose();
+  void Destroy();
+
+  // Close the session and send a connection close packet to the peer.
+  // If creating the packet fails the session will be silently closed.
+  // The connection close packet will use the value of last_error_ as
+  // the error code transmitted to the peer.
   void SendConnectionClose();
   void OnTimeout();
+
   void UpdateTimer();
-  bool StartClosingPeriod();
+  // Has to be called after certain operations that generate packets.
+  void UpdatePacketTxTime();
+  void UpdateDataStats();
+  void UpdatePath(const PathStorage& path);
+
+  void ProcessPendingBidiStreams();
+  void ProcessPendingUniStreams();
 
   // JavaScript callouts
 
@@ -387,54 +483,43 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
                           const ValidatedPath& newPath,
                           const std::optional<ValidatedPath>& oldPath);
   void EmitSessionTicket(Store&& ticket);
-  void EmitStream(BaseObjectPtr<Stream> stream);
+  void EmitStream(const BaseObjectWeakPtr<Stream>& stream);
   void EmitVersionNegotiation(const ngtcp2_pkt_hd& hd,
                               const uint32_t* sv,
                               size_t nsv);
-
   void DatagramStatus(uint64_t datagramId, DatagramStatus status);
   void DatagramReceived(const uint8_t* data,
                         size_t datalen,
                         DatagramReceivedFlags flag);
-  bool GenerateNewConnectionId(ngtcp2_cid* cid, size_t len, uint8_t* token);
+  void GenerateNewConnectionId(ngtcp2_cid* cid, size_t len, uint8_t* token);
   bool HandshakeCompleted();
   void HandshakeConfirmed();
   void SelectPreferredAddress(PreferredAddress* preferredAddress);
-  void UpdatePath(const PathStorage& path);
+
+  static std::unique_ptr<Application> SelectApplication(Session* session,
+                                                        const Config& config);
 
   QuicConnectionPointer InitConnection();
 
-  std::unique_ptr<Application> select_application();
-
-  AliasedStruct<Stats> stats_;
-  AliasedStruct<State> state_;
+  Side side_;
   ngtcp2_mem allocator_;
-  BaseObjectWeakPtr<Endpoint> endpoint_;
-  Config config_;
-  SocketAddress local_address_;
-  SocketAddress remote_address_;
+  std::unique_ptr<Impl> impl_;
   QuicConnectionPointer connection_;
   std::unique_ptr<TLSSession> tls_session_;
-  std::unique_ptr<Application> application_;
-  StreamsMap streams_;
-  TimerWrapHandle timer_;
-  size_t send_scope_depth_ = 0;
-  size_t connection_close_depth_ = 0;
-  QuicError last_error_;
-  Packet* conn_closebuf_;
   BaseObjectPtr<LogStream> qlog_stream_;
   BaseObjectPtr<LogStream> keylog_stream_;
 
   friend class Application;
   friend class DefaultApplication;
+  friend class Http3ApplicationImpl;
   friend class Endpoint;
-  friend struct Impl;
-  friend struct MaybeCloseConnectionScope;
-  friend struct SendPendingDataScope;
   friend class Stream;
+  friend class PendingStream;
   friend class TLSContext;
   friend class TLSSession;
   friend class TransportParams;
+  friend struct Impl;
+  friend struct SendPendingDataScope;
 };
 
 }  // namespace node::quic

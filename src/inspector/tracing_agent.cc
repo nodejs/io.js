@@ -1,4 +1,5 @@
 #include "tracing_agent.h"
+#include "crdtp/json.h"
 #include "main_thread_interface.h"
 #include "node_internals.h"
 #include "node_v8_platform-inl.h"
@@ -69,9 +70,16 @@ class SendMessageRequest : public Request {
             thread->GetObjectIfExists(object_id_));
     if (frontend_wrapper == nullptr) return;
     auto frontend = frontend_wrapper->get();
-    if (frontend != nullptr) {
-      frontend->sendRawJSONNotification(message_);
+    if (frontend == nullptr) {
+      return;
     }
+    std::vector<uint8_t> cbor;
+    crdtp::Status status =
+        crdtp::json::ConvertJSONToCBOR(crdtp::SpanFrom(message_), &cbor);
+    DCHECK(status.ok());
+    USE(status);
+
+    frontend->sendRawNotification(Serializable::From(cbor));
   }
 
  private:
@@ -136,11 +144,11 @@ void TracingAgent::Wire(UberDispatcher* dispatcher) {
 DispatchResponse TracingAgent::start(
     std::unique_ptr<protocol::NodeTracing::TraceConfig> traceConfig) {
   if (!trace_writer_.empty()) {
-    return DispatchResponse::Error(
+    return DispatchResponse::InvalidRequest(
         "Call NodeTracing::end to stop tracing before updating the config");
   }
   if (!env_->owns_process_state()) {
-    return DispatchResponse::Error(
+    return DispatchResponse::InvalidRequest(
         "Tracing properties can only be changed through main thread sessions");
   }
 
@@ -151,7 +159,8 @@ DispatchResponse TracingAgent::start(
     categories_set.insert((*categories)[i]);
 
   if (categories_set.empty())
-    return DispatchResponse::Error("At least one category should be enabled");
+    return DispatchResponse::InvalidRequest(
+        "At least one category should be enabled");
 
   tracing::AgentWriterHandle* writer = GetTracingAgentWriter();
   if (writer != nullptr) {
@@ -161,13 +170,13 @@ DispatchResponse TracingAgent::start(
                                        frontend_object_id_, main_thread_),
                                    tracing::Agent::kIgnoreDefaultCategories);
   }
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse TracingAgent::stop() {
   trace_writer_.reset();
   frontend_->tracingComplete();
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse TracingAgent::getCategories(
@@ -195,7 +204,7 @@ DispatchResponse TracingAgent::getCategories(
   categories_list->emplace_back("node.threadpoolwork.sync");
   categories_list->emplace_back("node.vm.script");
   categories_list->emplace_back("v8");
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 }  // namespace protocol

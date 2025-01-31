@@ -27,8 +27,8 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
-#endif /* NGHTTP3_ERR_H */
+#endif /* !defined(NGHTTP3_ERR_H) */

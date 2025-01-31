@@ -1,6 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createVerificationPolicy = exports.createKeyFinder = exports.createBundleBuilder = exports.DEFAULT_TIMEOUT = exports.DEFAULT_RETRY = void 0;
+exports.DEFAULT_TIMEOUT = exports.DEFAULT_RETRY = void 0;
+exports.createBundleBuilder = createBundleBuilder;
+exports.createKeyFinder = createKeyFinder;
+exports.createVerificationPolicy = createVerificationPolicy;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -30,10 +33,12 @@ function createBundleBuilder(bundleType, options) {
         case 'messageSignature':
             return new sign_1.MessageSignatureBundleBuilder(bundlerOptions);
         case 'dsseEnvelope':
-            return new sign_1.DSSEBundleBuilder(bundlerOptions);
+            return new sign_1.DSSEBundleBuilder({
+                ...bundlerOptions,
+                certificateChain: options.legacyCompatibility,
+            });
     }
 }
-exports.createBundleBuilder = createBundleBuilder;
 // Translates the public KeySelector type into the KeyFinderFunc type needed by
 // the verifier.
 function createKeyFinder(keySelector) {
@@ -51,7 +56,6 @@ function createKeyFinder(keySelector) {
         };
     };
 }
-exports.createKeyFinder = createKeyFinder;
 function createVerificationPolicy(options) {
     const policy = {};
     const san = options.certificateIdentityEmail || options.certificateIdentityURI;
@@ -63,7 +67,6 @@ function createVerificationPolicy(options) {
     }
     return policy;
 }
-exports.createVerificationPolicy = createVerificationPolicy;
 // Instantiate the FulcioSigner based on the supplied options.
 function initSigner(options) {
     return new sign_1.FulcioSigner({
@@ -92,6 +95,7 @@ function initWitnesses(options) {
     if (isRekorEnabled(options)) {
         witnesses.push(new sign_1.RekorWitness({
             rekorBaseURL: options.rekorURL,
+            entryType: options.legacyCompatibility ? 'intoto' : 'dsse',
             fetchOnConflict: false,
             retry: options.retry ?? exports.DEFAULT_RETRY,
             timeout: options.timeout ?? exports.DEFAULT_TIMEOUT,

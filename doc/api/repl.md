@@ -10,7 +10,11 @@ The `node:repl` module provides a Read-Eval-Print-Loop (REPL) implementation
 that is available both as a standalone program or includible in other
 applications. It can be accessed using:
 
-```js
+```mjs
+import repl from 'node:repl';
+```
+
+```cjs
 const repl = require('node:repl');
 ```
 
@@ -106,7 +110,14 @@ The default evaluator provides access to any variables that exist in the global
 scope. It is possible to expose a variable to the REPL explicitly by assigning
 it to the `context` object associated with each `REPLServer`:
 
-```js
+```mjs
+import repl from 'node:repl';
+const msg = 'message';
+
+repl.start('> ').context.m = msg;
+```
+
+```cjs
 const repl = require('node:repl');
 const msg = 'message';
 
@@ -124,7 +135,19 @@ $ node repl_test.js
 Context properties are not read-only by default. To specify read-only globals,
 context properties must be defined using `Object.defineProperty()`:
 
-```js
+```mjs
+import repl from 'node:repl';
+const msg = 'message';
+
+const r = repl.start('> ');
+Object.defineProperty(r.context, 'm', {
+  configurable: false,
+  enumerable: true,
+  value: msg,
+});
+```
+
+```cjs
 const repl = require('node:repl');
 const msg = 'message';
 
@@ -280,20 +303,34 @@ When a new [`repl.REPLServer`][] is created, a custom evaluation function may be
 provided. This can be used, for instance, to implement fully customized REPL
 applications.
 
-The following illustrates a hypothetical example of a REPL that performs
-translation of text from one language to another:
+The following illustrates an example of a REPL that squares a given number:
 
-```js
-const repl = require('node:repl');
-const { Translator } = require('translator');
+```mjs
+import repl from 'node:repl';
 
-const myTranslator = new Translator('en', 'fr');
-
-function myEval(cmd, context, filename, callback) {
-  callback(null, myTranslator.translate(cmd));
+function byThePowerOfTwo(number) {
+  return number * number;
 }
 
-repl.start({ prompt: '> ', eval: myEval });
+function myEval(cmd, context, filename, callback) {
+  callback(null, byThePowerOfTwo(cmd));
+}
+
+repl.start({ prompt: 'Enter a number: ', eval: myEval });
+```
+
+```cjs
+const repl = require('node:repl');
+
+function byThePowerOfTwo(number) {
+  return number * number;
+}
+
+function myEval(cmd, context, filename, callback) {
+  callback(null, byThePowerOfTwo(cmd));
+}
+
+repl.start({ prompt: 'Enter a number: ', eval: myEval });
 ```
 
 #### Recoverable errors
@@ -354,7 +391,21 @@ To fully customize the output of a [`repl.REPLServer`][] instance pass in a new
 function for the `writer` option on construction. The following example, for
 instance, simply converts any input text to upper case:
 
-```js
+```mjs
+import repl from 'node:repl';
+
+const r = repl.start({ prompt: '> ', eval: myEval, writer: myWriter });
+
+function myEval(cmd, context, filename, callback) {
+  callback(null, cmd);
+}
+
+function myWriter(output) {
+  return output.toUpperCase();
+}
+```
+
+```cjs
 const repl = require('node:repl');
 
 const r = repl.start({ prompt: '> ', eval: myEval, writer: myWriter });
@@ -380,7 +431,16 @@ added: v0.1.91
 Instances of `repl.REPLServer` are created using the [`repl.start()`][] method
 or directly using the JavaScript `new` keyword.
 
-```js
+```mjs
+import repl from 'node:repl';
+
+const options = { useColors: true };
+
+const firstInstance = repl.start(options);
+const secondInstance = new repl.REPLServer(options);
+```
+
+```cjs
 const repl = require('node:repl');
 
 const options = { useColors: true };
@@ -424,7 +484,20 @@ reference to the `context` object as the only argument.
 This can be used primarily to re-initialize REPL context to some pre-defined
 state:
 
-```js
+```mjs
+import repl from 'node:repl';
+
+function initializeContext(context) {
+  context.m = 'test';
+}
+
+const r = repl.start({ prompt: '> ' });
+initializeContext(r.context);
+
+r.on('reset', initializeContext);
+```
+
+```cjs
 const repl = require('node:repl');
 
 function initializeContext(context) {
@@ -475,7 +548,25 @@ properties:
 
 The following example shows two new commands added to the REPL instance:
 
-```js
+```mjs
+import repl from 'node:repl';
+
+const replServer = repl.start({ prompt: '> ' });
+replServer.defineCommand('sayhello', {
+  help: 'Say hello',
+  action(name) {
+    this.clearBufferedCommand();
+    console.log(`Hello, ${name}!`);
+    this.displayPrompt();
+  },
+});
+replServer.defineCommand('saybye', function saybye() {
+  console.log('Goodbye!');
+  this.close();
+});
+```
+
+```cjs
 const repl = require('node:repl');
 
 const replServer = repl.start({ prompt: '> ' });
@@ -637,7 +728,14 @@ The `repl.start()` method creates and starts a [`repl.REPLServer`][] instance.
 
 If `options` is a string, then it specifies the input prompt:
 
-```js
+```mjs
+import repl from 'node:repl';
+
+// a Unix style prompt
+repl.start('$ ');
+```
+
+```cjs
 const repl = require('node:repl');
 
 // a Unix style prompt
@@ -709,7 +807,43 @@ separate I/O interfaces.
 The following example, for instance, provides separate REPLs on `stdin`, a Unix
 socket, and a TCP socket:
 
-```js
+```mjs
+import net from 'node:net';
+import repl from 'node:repl';
+import process from 'node:process';
+
+let connections = 0;
+
+repl.start({
+  prompt: 'Node.js via stdin> ',
+  input: process.stdin,
+  output: process.stdout,
+});
+
+net.createServer((socket) => {
+  connections += 1;
+  repl.start({
+    prompt: 'Node.js via Unix socket> ',
+    input: socket,
+    output: socket,
+  }).on('exit', () => {
+    socket.end();
+  });
+}).listen('/tmp/node-repl-sock');
+
+net.createServer((socket) => {
+  connections += 1;
+  repl.start({
+    prompt: 'Node.js via TCP socket> ',
+    input: socket,
+    output: socket,
+  }).on('exit', () => {
+    socket.end();
+  });
+}).listen(5001);
+```
+
+```cjs
 const net = require('node:net');
 const repl = require('node:repl');
 let connections = 0;

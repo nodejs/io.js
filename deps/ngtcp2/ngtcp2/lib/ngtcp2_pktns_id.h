@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -59,4 +59,4 @@ typedef enum ngtcp2_pktns_id {
   NGTCP2_PKTNS_ID_MAX
 } ngtcp2_pktns_id;
 
-#endif /* NGTCP2_PKTNS_ID_H */
+#endif /* !defined(NGTCP2_PKTNS_ID_H) */

@@ -3017,10 +3017,10 @@ class PBXProject(XCContainerPortal):
         symroots = self._DefinedSymroots(target)
         for s in self._DefinedSymroots(target):
             if (
-                s is not None
-                and not self._IsUniqueSymrootForTarget(s)
-                or s is None
-                and not inherit_unique_symroot
+                (s is not None
+                and not self._IsUniqueSymrootForTarget(s))
+                or (s is None
+                and not inherit_unique_symroot)
             ):
                 return False
         return True if symroots else inherit_unique_symroot

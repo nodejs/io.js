@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyHashedRekordTLogBody = void 0;
+exports.verifyHashedRekordTLogBody = verifyHashedRekordTLogBody;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -29,7 +29,6 @@ function verifyHashedRekordTLogBody(tlogEntry, content) {
             });
     }
 }
-exports.verifyHashedRekordTLogBody = verifyHashedRekordTLogBody;
 // Compare the given hashedrekord v0.0.1 tlog entry to the given message
 // signature
 function verifyHashedrekord001TLogBody(tlogEntry, content) {

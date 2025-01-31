@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fetchWithRetry = void 0;
+exports.fetchWithRetry = fetchWithRetry;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -58,14 +58,13 @@ async function fetchWithRetry(url, options) {
         }
     }, retryOpts(options.retry));
 }
-exports.fetchWithRetry = fetchWithRetry;
 // Translate a Response into an HTTPError instance. This will attempt to parse
 // the response body for a message, but will default to the statusText if none
 // is found.
 const errorFromResponse = async (response) => {
     let message = response.statusText;
-    const location = response.headers?.get(HTTP2_HEADER_LOCATION) || undefined;
-    const contentType = response.headers?.get(HTTP2_HEADER_CONTENT_TYPE);
+    const location = response.headers.get(HTTP2_HEADER_LOCATION) || undefined;
+    const contentType = response.headers.get(HTTP2_HEADER_CONTENT_TYPE);
     // If response type is JSON, try to parse the body for a message
     if (contentType?.includes('application/json')) {
         try {

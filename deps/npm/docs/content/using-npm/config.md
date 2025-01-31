@@ -1833,9 +1833,9 @@ When set to `dev` or `development`, this is an alias for `--include=dev`.
 * Default: null
 * Type: null or String
 * DEPRECATED: `key` and `cert` are no longer used for most registry
-  operations. Use registry scoped `keyfile` and `certfile` instead. Example:
+  operations. Use registry scoped `keyfile` and `cafile` instead. Example:
   //other-registry.tld/:keyfile=/path/to/key.pem
-  //other-registry.tld/:certfile=/path/to/cert.crt
+  //other-registry.tld/:cafile=/path/to/cert.crt
 
 A client certificate to pass when accessing the registry. Values should be
 in PEM format (Windows calls it "Base-64 encoded X.509 (.CER)") with
@@ -1846,8 +1846,8 @@ cert="-----BEGIN CERTIFICATE-----\nXXXX\nXXXX\n-----END CERTIFICATE-----"
 ```
 
 It is _not_ the path to a certificate file, though you can set a
-registry-scoped "certfile" path like
-"//other-registry.tld/:certfile=/path/to/cert.pem".
+registry-scoped "cafile" path like
+"//other-registry.tld/:cafile=/path/to/cert.pem".
 
 
 
@@ -1938,9 +1938,9 @@ Alias for `--init-version`
 * Default: null
 * Type: null or String
 * DEPRECATED: `key` and `cert` are no longer used for most registry
-  operations. Use registry scoped `keyfile` and `certfile` instead. Example:
+  operations. Use registry scoped `keyfile` and `cafile` instead. Example:
   //other-registry.tld/:keyfile=/path/to/key.pem
-  //other-registry.tld/:certfile=/path/to/cert.crt
+  //other-registry.tld/:cafile=/path/to/cert.crt
 
 A client key to pass when accessing the registry. Values should be in PEM
 format with newlines replaced by the string "\n". For example:

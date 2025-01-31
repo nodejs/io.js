@@ -1,51 +1,47 @@
 'use strict'
 
-const { kReadyState, kController, kResponse, kBinaryType, kWebSocketURL } = require('./symbols')
 const { states, opcodes } = require('./constants')
-const { ErrorEvent, createFastMessageEvent } = require('./events')
 const { isUtf8 } = require('node:buffer')
 const { collectASequenceOfCodePointsFast, removeHTTPWhitespace } = require('../fetch/data-url')
 
-/* globals Blob */
-
 /**
- * @param {import('./websocket').WebSocket} ws
+ * @param {number} readyState
  * @returns {boolean}
  */
-function isConnecting (ws) {
+function isConnecting (readyState) {
   // If the WebSocket connection is not yet established, and the connection
   // is not yet closed, then the WebSocket connection is in the CONNECTING state.
-  return ws[kReadyState] === states.CONNECTING
+  return readyState === states.CONNECTING
 }
 
 /**
- * @param {import('./websocket').WebSocket} ws
+ * @param {number} readyState
  * @returns {boolean}
  */
-function isEstablished (ws) {
+function isEstablished (readyState) {
   // If the server's response is validated as provided for above, it is
   // said that _The WebSocket Connection is Established_ and that the
   // WebSocket Connection is in the OPEN state.
-  return ws[kReadyState] === states.OPEN
+  return readyState === states.OPEN
 }
 
 /**
- * @param {import('./websocket').WebSocket} ws
+ * @param {number} readyState
  * @returns {boolean}
  */
-function isClosing (ws) {
+function isClosing (readyState) {
   // Upon either sending or receiving a Close control frame, it is said
   // that _The WebSocket Closing Handshake is Started_ and that the
   // WebSocket connection is in the CLOSING state.
-  return ws[kReadyState] === states.CLOSING
+  return readyState === states.CLOSING
 }
 
 /**
- * @param {import('./websocket').WebSocket} ws
+ * @param {number} readyState
  * @returns {boolean}
  */
-function isClosed (ws) {
-  return ws[kReadyState] === states.CLOSED
+function isClosed (readyState) {
+  return readyState === states.CLOSED
 }
 
 /**
@@ -54,6 +50,7 @@ function isClosed (ws) {
  * @param {EventTarget} target
  * @param {(...args: ConstructorParameters<typeof Event>) => Event} eventFactory
  * @param {EventInit | undefined} eventInitDict
+ * @returns {void}
  */
 function fireEvent (e, target, eventFactory = (type, init) => new Event(type, init), eventInitDict = {}) {
   // 1. If eventConstructor is not given, then let eventConstructor be Event.
@@ -73,56 +70,24 @@ function fireEvent (e, target, eventFactory = (type, init) => new Event(type, in
 
 /**
  * @see https://websockets.spec.whatwg.org/#feedback-from-the-protocol
- * @param {import('./websocket').WebSocket} ws
+ * @param {import('./websocket').Handler} handler
  * @param {number} type Opcode
  * @param {Buffer} data application data
+ * @returns {void}
  */
-function websocketMessageReceived (ws, type, data) {
-  // 1. If ready state is not OPEN (1), then return.
-  if (ws[kReadyState] !== states.OPEN) {
-    return
-  }
-
-  // 2. Let dataForEvent be determined by switching on type and binary type:
-  let dataForEvent
-
-  if (type === opcodes.TEXT) {
-    // -> type indicates that the data is Text
-    //      a new DOMString containing data
-    try {
-      dataForEvent = utf8Decode(data)
-    } catch {
-      failWebsocketConnection(ws, 'Received invalid UTF-8 in text frame.')
-      return
-    }
-  } else if (type === opcodes.BINARY) {
-    if (ws[kBinaryType] === 'blob') {
-      // -> type indicates that the data is Binary and binary type is "blob"
-      //      a new Blob object, created in the relevant Realm of the WebSocket
-      //      object, that represents data as its raw data
-      dataForEvent = new Blob([data])
-    } else {
-      // -> type indicates that the data is Binary and binary type is "arraybuffer"
-      //      a new ArrayBuffer object, created in the relevant Realm of the
-      //      WebSocket object, whose contents are data
-      dataForEvent = toArrayBuffer(data)
-    }
-  }
-
-  // 3. Fire an event named message at the WebSocket object, using MessageEvent,
-  //    with the origin attribute initialized to the serialization of the WebSocket
-  //    object’s url's origin, and the data attribute initialized to dataForEvent.
-  fireEvent('message', ws, createFastMessageEvent, {
-    origin: ws[kWebSocketURL].origin,
-    data: dataForEvent
-  })
+function websocketMessageReceived (handler, type, data) {
+  handler.onMessage(type, data)
 }
 
+/**
+ * @param {Buffer} buffer
+ * @returns {ArrayBuffer}
+ */
 function toArrayBuffer (buffer) {
   if (buffer.byteLength === buffer.buffer.byteLength) {
     return buffer.buffer
   }
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  return new Uint8Array(buffer).buffer
 }
 
 /**
@@ -130,6 +95,7 @@ function toArrayBuffer (buffer) {
  * @see https://datatracker.ietf.org/doc/html/rfc2616
  * @see https://bugs.chromium.org/p/chromium/issues/detail?id=398407
  * @param {string} protocol
+ * @returns {boolean}
  */
 function isValidSubprotocol (protocol) {
   // If present, this value indicates one
@@ -176,6 +142,7 @@ function isValidSubprotocol (protocol) {
 /**
  * @see https://datatracker.ietf.org/doc/html/rfc6455#section-7-4
  * @param {number} code
+ * @returns {boolean}
  */
 function isValidStatusCode (code) {
   if (code >= 1000 && code < 1015) {
@@ -190,30 +157,35 @@ function isValidStatusCode (code) {
 }
 
 /**
- * @param {import('./websocket').WebSocket} ws
+ * @param {import('./websocket').Handler} handler
+ * @param {number} code
  * @param {string|undefined} reason
+ * @returns {void}
  */
-function failWebsocketConnection (ws, reason) {
-  const { [kController]: controller, [kResponse]: response } = ws
-
-  controller.abort()
-
-  if (response?.socket && !response.socket.destroyed) {
-    response.socket.destroy()
+function failWebsocketConnection (handler, code, reason) {
+  // If _The WebSocket Connection is Established_ prior to the point where
+  // the endpoint is required to _Fail the WebSocket Connection_, the
+  // endpoint SHOULD send a Close frame with an appropriate status code
+  // (Section 7.4) before proceeding to _Close the WebSocket Connection_.
+  if (isEstablished(handler.readyState)) {
+    // avoid circular require - performance is not important here
+    const { closeWebSocketConnection } = require('./connection')
+    closeWebSocketConnection(handler, code, reason, false)
   }
 
-  if (reason) {
-    // TODO: process.nextTick
-    fireEvent('error', ws, (type, init) => new ErrorEvent(type, init), {
-      error: new Error(reason),
-      message: reason
-    })
+  handler.controller.abort()
+
+  if (handler.socket?.destroyed === false) {
+    handler.socket.destroy()
   }
+
+  handler.onFail(code, reason)
 }
 
 /**
  * @see https://datatracker.ietf.org/doc/html/rfc6455#section-5.5
  * @param {number} opcode
+ * @returns {boolean}
  */
 function isControlFrame (opcode) {
   return (
@@ -223,14 +195,27 @@ function isControlFrame (opcode) {
   )
 }
 
+/**
+ * @param {number} opcode
+ * @returns {boolean}
+ */
 function isContinuationFrame (opcode) {
   return opcode === opcodes.CONTINUATION
 }
 
+/**
+ * @param {number} opcode
+ * @returns {boolean}
+ */
 function isTextBinaryFrame (opcode) {
   return opcode === opcodes.TEXT || opcode === opcodes.BINARY
 }
 
+/**
+ *
+ * @param {number} opcode
+ * @returns {boolean}
+ */
 function isValidOpcode (opcode) {
   return isTextBinaryFrame(opcode) || isContinuationFrame(opcode) || isControlFrame(opcode)
 }
@@ -264,6 +249,7 @@ function parseExtensions (extensions) {
  * @see https://www.rfc-editor.org/rfc/rfc7692#section-7.1.2.2
  * @description "client-max-window-bits = 1*DIGIT"
  * @param {string} value
+ * @returns {boolean}
  */
 function isValidClientWindowBits (value) {
   for (let i = 0; i < value.length; i++) {
@@ -277,22 +263,84 @@ function isValidClientWindowBits (value) {
   return true
 }
 
-// https://nodejs.org/api/intl.html#detecting-internationalization-support
-const hasIntl = typeof process.versions.icu === 'string'
-const fatalDecoder = hasIntl ? new TextDecoder('utf-8', { fatal: true }) : undefined
+/**
+ * @see https://whatpr.org/websockets/48/7b748d3...d5570f3.html#get-a-url-record
+ * @param {string} url
+ * @param {string} [baseURL]
+ */
+function getURLRecord (url, baseURL) {
+  // 1. Let urlRecord be the result of applying the URL parser to url with baseURL .
+  // 2. If urlRecord is failure, then throw a " SyntaxError " DOMException .
+  let urlRecord
+
+  try {
+    urlRecord = new URL(url, baseURL)
+  } catch (e) {
+    throw new DOMException(e, 'SyntaxError')
+  }
+
+  // 3. If urlRecord ’s scheme is " http ", then set urlRecord ’s scheme to " ws ".
+  // 4. Otherwise, if urlRecord ’s scheme is " https ", set urlRecord ’s scheme to " wss ".
+  if (urlRecord.protocol === 'http:') {
+    urlRecord.protocol = 'ws:'
+  } else if (urlRecord.protocol === 'https:') {
+    urlRecord.protocol = 'wss:'
+  }
+
+  // 5. If urlRecord ’s scheme is not " ws " or " wss ", then throw a " SyntaxError " DOMException .
+  if (urlRecord.protocol !== 'ws:' && urlRecord.protocol !== 'wss:') {
+    throw new DOMException('expected a ws: or wss: url', 'SyntaxError')
+  }
+
+  // If urlRecord ’s fragment is non-null, then throw a " SyntaxError " DOMException .
+  if (urlRecord.hash.length || urlRecord.href.endsWith('#')) {
+    throw new DOMException('hash', 'SyntaxError')
+  }
+
+  // Return urlRecord .
+  return urlRecord
+}
+
+// https://whatpr.org/websockets/48.html#validate-close-code-and-reason
+function validateCloseCodeAndReason (code, reason) {
+  // 1. If code is not null, but is neither an integer equal to
+  //    1000 nor an integer in the range 3000 to 4999, inclusive,
+  //    throw an "InvalidAccessError" DOMException.
+  if (code !== null) {
+    if (code !== 1000 && (code < 3000 || code > 4999)) {
+      throw new DOMException('invalid code', 'InvalidAccessError')
+    }
+  }
+
+  // 2. If reason is not null, then:
+  if (reason !== null) {
+    // 2.1. Let reasonBytes be the result of UTF-8 encoding reason.
+    // 2.2. If reasonBytes is longer than 123 bytes, then throw a
+    //      "SyntaxError" DOMException.
+    const reasonBytesLength = Buffer.byteLength(reason)
+
+    if (reasonBytesLength > 123) {
+      throw new DOMException(`Reason must be less than 123 bytes; received ${reasonBytesLength}`, 'SyntaxError')
+    }
+  }
+}
 
 /**
  * Converts a Buffer to utf-8, even on platforms without icu.
- * @param {Buffer} buffer
+ * @type {(buffer: Buffer) => string}
  */
-const utf8Decode = hasIntl
-  ? fatalDecoder.decode.bind(fatalDecoder)
-  : function (buffer) {
+const utf8Decode = (() => {
+  if (typeof process.versions.icu === 'string') {
+    const fatalDecoder = new TextDecoder('utf-8', { fatal: true })
+    return fatalDecoder.decode.bind(fatalDecoder)
+  }
+  return function (buffer) {
     if (isUtf8(buffer)) {
       return buffer.toString('utf-8')
     }
     throw new TypeError('Invalid utf-8 received.')
   }
+})()
 
 module.exports = {
   isConnecting,
@@ -310,5 +358,8 @@ module.exports = {
   isTextBinaryFrame,
   isValidOpcode,
   parseExtensions,
-  isValidClientWindowBits
+  isValidClientWindowBits,
+  toArrayBuffer,
+  getURLRecord,
+  validateCloseCodeAndReason
 }

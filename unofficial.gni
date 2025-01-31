@@ -22,6 +22,11 @@ template("node_gn_build") {
     } else {
       defines += [ "HAVE_OPENSSL=0" ]
     }
+    if (node_use_amaro) {
+      defines += [ "HAVE_AMARO=1" ]
+    } else {
+      defines += [ "HAVE_AMARO=0" ]
+    }
     if (node_use_v8_platform) {
       defines += [ "NODE_USE_V8_PLATFORM=1" ]
     } else {
@@ -86,7 +91,7 @@ template("node_gn_build") {
     if (current_cpu == "x86") {
       node_arch = "ia32"
     } else {
-      node_arch = current_cpu
+      node_arch = target_cpu
     }
     if (target_os == "win") {
       node_platform = "win32"
@@ -153,10 +158,10 @@ template("node_gn_build") {
       "deps/nghttp2",
       "deps/ngtcp2",
       "deps/postject",
-      "deps/simdutf",
       "deps/sqlite",
       "deps/uvwasi",
       "//third_party/zlib",
+      "$node_simdutf_path",
       "$node_v8_path:v8_libplatform",
     ]
 
@@ -180,11 +185,12 @@ template("node_gn_build") {
     }
     if (node_use_openssl) {
       deps += [ "deps/ncrypto" ]
-      public_deps += [ "deps/openssl" ]
+      public_deps += [ "$node_openssl_path" ]
       sources += gypi_values.node_crypto_sources
     }
     if (node_enable_inspector) {
       deps += [
+        "src/inspector:crdtp",
         "src/inspector:node_protocol_generated_sources",
         "src/inspector:v8_inspector_compress_protocol_json",
       ]
@@ -258,7 +264,7 @@ template("node_gn_build") {
           ldflags = [ "/OPT:NOICF" ]  # link.exe, but also lld-link.exe.
         } else if (is_apple && !use_lld) {
           ldflags = [ "-Wl,-no_deduplicate" ]  # ld64.
-        } else if (use_gold || use_lld) {
+        } else if ((!is_apple && use_gold) || use_lld) {
           ldflags = [ "-Wl,--icf=none" ]
         }
       }
@@ -295,8 +301,8 @@ template("node_gn_build") {
 
   executable("node_js2c") {
     deps = [
-      "deps/simdutf",
       "deps/uv",
+      "$node_simdutf_path",
     ]
     sources = [
       "tools/js2c.cc",
@@ -353,7 +359,7 @@ template("node_gn_build") {
       "deps/googletest",
       "deps/googletest:gtest_main",
       "deps/nbytes",
-      "deps/simdutf",
+      "$node_simdutf_path",
     ]
 
     sources = gypi_values.node_cctest_sources

@@ -27,7 +27,10 @@ describe('sourcemaps output', { concurrency: !process.env.TEST_PARALLEL }, () =>
 
   const tests = [
     { name: 'source-map/output/source_map_disabled_by_api.js' },
+    { name: 'source-map/output/source_map_disabled_by_process_api.js' },
     { name: 'source-map/output/source_map_enabled_by_api.js' },
+    { name: 'source-map/output/source_map_enabled_by_api_node_modules.js' },
+    { name: 'source-map/output/source_map_enabled_by_process_api.js' },
     { name: 'source-map/output/source_map_enclosing_function.js' },
     { name: 'source-map/output/source_map_eval.js' },
     { name: 'source-map/output/source_map_no_source_file.js' },

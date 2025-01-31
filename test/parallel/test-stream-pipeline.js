@@ -1723,3 +1723,30 @@ tmpdir.refresh();
   });
   src.destroy(new Error('problem'));
 }
+
+{
+  async function* myAsyncGenerator(ag) {
+    for await (const data of ag) {
+      yield data;
+    }
+  }
+
+  const duplexStream = Duplex.from(myAsyncGenerator);
+
+  const r = new Readable({
+    read() {
+      this.push('data1\n');
+      throw new Error('booom');
+    },
+  });
+
+  const w = new Writable({
+    write(chunk, encoding, callback) {
+      callback();
+    },
+  });
+
+  pipeline(r, duplexStream, w, common.mustCall((err) => {
+    assert.deepStrictEqual(err, new Error('booom'));
+  }));
+}

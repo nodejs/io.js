@@ -20,6 +20,12 @@ new RuleTester({
       code: 'require("common")\n' +
             'require("assert")'
     },
+    {
+      code: 'import "../../../../common/index.mjs";',
+      languageOptions: {
+        sourceType: 'module',
+      },
+    },
   ],
   invalid: [
     {

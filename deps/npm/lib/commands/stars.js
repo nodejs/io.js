@@ -1,4 +1,4 @@
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const { log, output } = require('proc-log')
 const getIdentity = require('../utils/get-identity.js')
 const BaseCommand = require('../base-cmd.js')
@@ -16,7 +16,7 @@ class Stars extends BaseCommand {
         user = await getIdentity(this.npm, this.npm.flatOptions)
       }
 
-      const { rows } = await fetch.json('/-/_view/starredByUser', {
+      const { rows } = await npmFetch.json('/-/_view/starredByUser', {
         ...this.npm.flatOptions,
         query: { key: `"${user}"` },
       })

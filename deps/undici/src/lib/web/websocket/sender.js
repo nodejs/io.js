@@ -4,9 +4,6 @@ const { WebsocketFrameSend } = require('./frame')
 const { opcodes, sendHints } = require('./constants')
 const FixedQueue = require('../../dispatcher/fixed-queue')
 
-/** @type {typeof Uint8Array} */
-const FastBuffer = Buffer[Symbol.species]
-
 /**
  * @typedef {object} SendQueueNode
  * @property {Promise<void> | null} promise
@@ -34,16 +31,25 @@ class SendQueue {
 
   add (item, cb, hint) {
     if (hint !== sendHints.blob) {
-      const frame = createFrame(item, hint)
       if (!this.#running) {
-        // fast-path
-        this.#socket.write(frame, cb)
+        // TODO(@tsctx): support fast-path for string on running
+        if (hint === sendHints.text) {
+          // special fast-path for string
+          const { 0: head, 1: body } = WebsocketFrameSend.createFastTextFrame(item)
+          this.#socket.cork()
+          this.#socket.write(head)
+          this.#socket.write(body, cb)
+          this.#socket.uncork()
+        } else {
+          // direct writing
+          this.#socket.write(createFrame(item, hint), cb)
+        }
       } else {
         /** @type {SendQueueNode} */
         const node = {
           promise: null,
           callback: cb,
-          frame
+          frame: createFrame(item, hint)
         }
         this.#queue.push(node)
       }
@@ -86,18 +92,17 @@ class SendQueue {
 }
 
 function createFrame (data, hint) {
-  return new WebsocketFrameSend(toBuffer(data, hint)).createFrame(hint === sendHints.string ? opcodes.TEXT : opcodes.BINARY)
+  return new WebsocketFrameSend(toBuffer(data, hint)).createFrame(hint === sendHints.text ? opcodes.TEXT : opcodes.BINARY)
 }
 
 function toBuffer (data, hint) {
   switch (hint) {
-    case sendHints.string:
-      return Buffer.from(data)
+    case sendHints.text:
+    case sendHints.typedArray:
+      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
     case sendHints.arrayBuffer:
     case sendHints.blob:
-      return new FastBuffer(data)
-    case sendHints.typedArray:
-      return new FastBuffer(data.buffer, data.byteOffset, data.byteLength)
+      return new Uint8Array(data)
   }
 }
 

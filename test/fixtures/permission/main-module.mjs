@@ -1,0 +1,1 @@
+import './required-module.mjs';

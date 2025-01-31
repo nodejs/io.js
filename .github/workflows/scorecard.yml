@@ -33,7 +33,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7  # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f  # v2.10.2
         with:
           egress-policy: audit  # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -73,6 +73,6 @@ jobs:
 
       # Upload the results to GitHub's code scanning dashboard.
       - name: Upload to code-scanning
-        uses: github/codeql-action/upload-sarif@662472033e021d55d94146f66f6058822b0b39fd  # v3.27.0
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88  # v3.27.5
         with:
           sarif_file: results.sarif

@@ -1,0 +1,1 @@
+delete process.env.FOO;

@@ -41,6 +41,19 @@
         'AdditionalOptions': ['/utf-8']
       }
     },
+    'conditions': [
+      ['OS=="mac"', {
+        # Hide symbols that are not explicitly exported with V8_EXPORT.
+        # TODO(joyeecheung): enable it on other platforms. Currently gcc times out
+        # or run out of memory with -fvisibility=hidden on some machines in the CI.
+        'xcode_settings': {
+          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',  # -fvisibility=hidden
+        },
+        'defines': [
+          'BUILDING_V8_SHARED',  # Make V8_EXPORT visible.
+        ],
+      }],
+    ],
   },
   'targets': [
     {
@@ -646,6 +659,11 @@
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_webassembly.*?sources \\+= ")',
             ],
           }],
+          ['v8_enable_wasm_simd256_revec==1', {
+            'sources': [
+              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_wasm_simd256_revec.*?sources \\+= ")',
+            ],
+          }],
           ['v8_enable_i18n_support==1', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_header_set.\\"v8_internal_headers\\".*?v8_enable_i18n_support.*?sources \\+= ")',
@@ -880,6 +898,11 @@
           ['v8_enable_webassembly==1', {
             'sources': [
               '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_enable_webassembly.*?v8_compiler_sources \\+= ")',
+            ],
+          }],
+          ['v8_enable_wasm_simd256_revec==1', {
+            'sources': [
+              '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_compiler_sources =.*?v8_enable_wasm_simd256_revec.*?v8_compiler_sources \\+= ")',
             ],
           }],
         ],
@@ -1176,6 +1199,23 @@
           'sources': [
             '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_base_without_compiler.*?v8_enable_wasm_gdb_remote_debugging.*?v8_current_cpu == \\"riscv64\\".*?sources \\+= ")',
           ],
+          'conditions': [
+            ['v8_enable_webassembly==1', {
+              'conditions': [
+                ['((_toolset=="host" and host_arch=="riscv64" or _toolset=="target" and target_arch=="riscv64") and (OS=="linux")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS=="linux"))', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
+                  ],
+                }],
+                ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS=="linux")', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-simulator.cc',
+                  ],
+                }],
+              ],
+            }],
+          ],
         }],
         ['v8_target_arch=="loong64"', {
           'sources': [
@@ -1188,6 +1228,11 @@
                   'sources': [
                     '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
                     '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
+                  ],
+                }],
+                ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS=="linux")', {
+                  'sources': [
+                    '<(V8_ROOT)/src/trap-handler/handler-outside-simulator.cc',
                   ],
                 }],
               ],
@@ -2374,7 +2419,6 @@
         '<(ABSEIL_ROOT)/absl/strings/cord_buffer.cc',
         '<(ABSEIL_ROOT)/absl/strings/escaping.h',
         '<(ABSEIL_ROOT)/absl/strings/escaping.cc',
-        '<(ABSEIL_ROOT)/absl/strings/has_absl_stringify.h',
         '<(ABSEIL_ROOT)/absl/strings/has_ostream_operator.h',
         '<(ABSEIL_ROOT)/absl/strings/internal/charconv_bigint.h',
         '<(ABSEIL_ROOT)/absl/strings/internal/charconv_bigint.cc',

@@ -1,0 +1,6 @@
+{
+  "version" : 3,
+  "sources": ["source.js"],
+  "names": { "foo": 3 },
+  "mappings": "AAAAA"
+}

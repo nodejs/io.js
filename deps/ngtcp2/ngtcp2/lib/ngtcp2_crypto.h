@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -38,35 +38,8 @@
    bytes. */
 #define NGTCP2_INITIAL_AEAD_OVERHEAD 16
 
-/* NGTCP2_MAX_AEAD_OVERHEAD is expected maximum AEAD overhead. */
+/* NGTCP2_MAX_AEAD_OVERHEAD is the maximum AEAD overhead. */
 #define NGTCP2_MAX_AEAD_OVERHEAD 16
-
-/* ngtcp2_transport_param_id is the registry of QUIC transport
-   parameter ID. */
-typedef uint64_t ngtcp2_transport_param_id;
-
-#define NGTCP2_TRANSPORT_PARAM_ORIGINAL_DESTINATION_CONNECTION_ID 0x00
-#define NGTCP2_TRANSPORT_PARAM_MAX_IDLE_TIMEOUT 0x01
-#define NGTCP2_TRANSPORT_PARAM_STATELESS_RESET_TOKEN 0x02
-#define NGTCP2_TRANSPORT_PARAM_MAX_UDP_PAYLOAD_SIZE 0x03
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_DATA 0x04
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_LOCAL 0x05
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_BIDI_REMOTE 0x06
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_STREAM_DATA_UNI 0x07
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_STREAMS_BIDI 0x08
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_MAX_STREAMS_UNI 0x09
-#define NGTCP2_TRANSPORT_PARAM_ACK_DELAY_EXPONENT 0x0a
-#define NGTCP2_TRANSPORT_PARAM_MAX_ACK_DELAY 0x0b
-#define NGTCP2_TRANSPORT_PARAM_DISABLE_ACTIVE_MIGRATION 0x0c
-#define NGTCP2_TRANSPORT_PARAM_PREFERRED_ADDRESS 0x0d
-#define NGTCP2_TRANSPORT_PARAM_ACTIVE_CONNECTION_ID_LIMIT 0x0e
-#define NGTCP2_TRANSPORT_PARAM_INITIAL_SOURCE_CONNECTION_ID 0x0f
-#define NGTCP2_TRANSPORT_PARAM_RETRY_SOURCE_CONNECTION_ID 0x10
-/* https://datatracker.ietf.org/doc/html/rfc9221 */
-#define NGTCP2_TRANSPORT_PARAM_MAX_DATAGRAM_FRAME_SIZE 0x20
-#define NGTCP2_TRANSPORT_PARAM_GREASE_QUIC_BIT 0x2ab2
-/* https://datatracker.ietf.org/doc/html/rfc9368 */
-#define NGTCP2_TRANSPORT_PARAM_VERSION_INFORMATION 0x11
 
 /* NGTCP2_CRYPTO_KM_FLAG_NONE indicates that no flag is set. */
 #define NGTCP2_CRYPTO_KM_FLAG_NONE 0x00u
@@ -83,8 +56,7 @@ typedef struct ngtcp2_crypto_km {
      a packet.  For decryption key, it is the lowest packet number of
      a packet which can be decrypted with this keying material. */
   int64_t pkt_num;
-  /* use_count is the number of encryption applied with this key.
-     This field is only used for tx key. */
+  /* use_count is the number of encryption applied with this key. */
   uint64_t use_count;
   /* flags is the bitwise OR of zero or more of
      NGTCP2_CRYPTO_KM_FLAG_*. */
@@ -92,12 +64,12 @@ typedef struct ngtcp2_crypto_km {
 } ngtcp2_crypto_km;
 
 /*
- * ngtcp2_crypto_km_new creates new ngtcp2_crypto_km object and
+ * ngtcp2_crypto_km_new creates new ngtcp2_crypto_km object, and
  * assigns its pointer to |*pckm|.  The |secret| of length
- * |secretlen|, the |key| of length |keylen| and the |iv| of length
- * |ivlen| are copied to |*pckm|.  If |secretlen| == 0, the function
- * assumes no secret is given which is acceptable.  The sole reason to
- * store secret is update keys.  Only 1RTT key can be updated.
+ * |secretlen|, |aead_ctx|, and the |iv| of length |ivlen| are copied
+ * to |*pckm|.  If |secretlen| == 0, the function assumes no secret is
+ * given which is acceptable.  The sole reason to store secret is
+ * update keys.  Only 1RTT key can be updated.
  */
 int ngtcp2_crypto_km_new(ngtcp2_crypto_km **pckm, const uint8_t *secret,
                          size_t secretlen,
@@ -107,7 +79,7 @@ int ngtcp2_crypto_km_new(ngtcp2_crypto_km **pckm, const uint8_t *secret,
 
 /*
  * ngtcp2_crypto_km_nocopy_new is similar to ngtcp2_crypto_km_new, but
- * it does not copy secret, key and IV.
+ * it does not copy secret, aead context, and IV.
  */
 int ngtcp2_crypto_km_nocopy_new(ngtcp2_crypto_km **pckm, size_t secretlen,
                                 size_t ivlen, const ngtcp2_mem *mem);
@@ -127,21 +99,4 @@ typedef struct ngtcp2_crypto_cc {
 void ngtcp2_crypto_create_nonce(uint8_t *dest, const uint8_t *iv, size_t ivlen,
                                 int64_t pkt_num);
 
-/*
- * ngtcp2_transport_params_copy_new makes a copy of |src|, and assigns
- * it to |*pdest|.  If |src| is NULL, NULL is assigned to |*pdest|.
- *
- * Caller is responsible to call ngtcp2_transport_params_del to free
- * the memory assigned to |*pdest|.
- *
- * This function returns 0 if it succeeds, or one of the following
- * negative error codes:
- *
- * NGTCP2_ERR_NOMEM
- *     Out of memory.
- */
-int ngtcp2_transport_params_copy_new(ngtcp2_transport_params **pdest,
-                                     const ngtcp2_transport_params *src,
-                                     const ngtcp2_mem *mem);
-
-#endif /* NGTCP2_CRYPTO_H */
+#endif /* !defined(NGTCP2_CRYPTO_H) */

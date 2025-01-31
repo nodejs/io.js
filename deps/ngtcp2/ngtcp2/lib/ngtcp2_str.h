@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -91,4 +91,4 @@ char *ngtcp2_encode_printable_ascii(char *dest, const uint8_t *data,
  */
 int ngtcp2_cmemeq(const uint8_t *a, const uint8_t *b, size_t n);
 
-#endif /* NGTCP2_STR_H */
+#endif /* !defined(NGTCP2_STR_H) */

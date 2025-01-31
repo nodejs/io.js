@@ -28,7 +28,8 @@ const defaultReconnectionTime = 3000
 
 /**
  * The readyState attribute represents the state of the connection.
- * @enum
+ * @typedef ReadyState
+ * @type {0|1|2}
  * @readonly
  * @see https://html.spec.whatwg.org/multipage/server-sent-events.html#dom-eventsource-readystate-dev
  */
@@ -80,9 +81,12 @@ class EventSource extends EventTarget {
     message: null
   }
 
-  #url = null
+  #url
   #withCredentials = false
 
+  /**
+   * @type {ReadyState}
+   */
   #readyState = CONNECTING
 
   #request = null
@@ -98,12 +102,14 @@ class EventSource extends EventTarget {
   /**
    * Creates a new EventSource object.
    * @param {string} url
-   * @param {EventSourceInit} [eventSourceInitDict]
+   * @param {EventSourceInit} [eventSourceInitDict={}]
    * @see https://html.spec.whatwg.org/multipage/server-sent-events.html#the-eventsource-interface
    */
   constructor (url, eventSourceInitDict = {}) {
     // 1. Let ev be a new EventSource object.
     super()
+
+    webidl.util.markAsUncloneable(this)
 
     const prefix = 'EventSource constructor'
     webidl.argumentLengthCheck(arguments, 1, prefix)
@@ -115,7 +121,7 @@ class EventSource extends EventTarget {
       })
     }
 
-    url = webidl.converters.USVString(url, prefix, 'url')
+    url = webidl.converters.USVString(url)
     eventSourceInitDict = webidl.converters.EventSourceInitDict(eventSourceInitDict, prefix, 'eventSourceInitDict')
 
     this.#dispatcher = eventSourceInitDict.dispatcher
@@ -148,7 +154,7 @@ class EventSource extends EventTarget {
     // 7. If the value of eventSourceInitDict's withCredentials member is true,
     // then set corsAttributeState to Use Credentials and set ev's
     // withCredentials attribute to true.
-    if (eventSourceInitDict.withCredentials) {
+    if (eventSourceInitDict.withCredentials === true) {
       corsAttributeState = USE_CREDENTIALS
       this.#withCredentials = true
     }
@@ -189,7 +195,7 @@ class EventSource extends EventTarget {
   /**
    * Returns the state of this EventSource object's connection. It can have the
    * values described below.
-   * @returns {0|1|2}
+   * @returns {ReadyState}
    * @readonly
    */
   get readyState () {

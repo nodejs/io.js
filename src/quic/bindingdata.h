@@ -30,7 +30,8 @@ class Packet;
   V(packet)                                                                    \
   V(session)                                                                   \
   V(stream)                                                                    \
-  V(udp)
+  V(udp)                                                                       \
+  V(http3application)
 
 // The callbacks are persistent v8::Function references that are set in the
 // quic::BindingState used to communicate data and events back out to the JS
@@ -60,8 +61,7 @@ class Packet;
   V(ack_delay_exponent, "ackDelayExponent")                                    \
   V(active_connection_id_limit, "activeConnectionIDLimit")                     \
   V(address_lru_size, "addressLRUSize")                                        \
-  V(alpn, "alpn")                                                              \
-  V(application_options, "application")                                        \
+  V(application_provider, "provider")                                          \
   V(bbr, "bbr")                                                                \
   V(ca, "ca")                                                                  \
   V(certs, "certs")                                                            \
@@ -69,7 +69,6 @@ class Packet;
   V(crl, "crl")                                                                \
   V(ciphers, "ciphers")                                                        \
   V(cubic, "cubic")                                                            \
-  V(disable_active_migration, "disableActiveMigration")                        \
   V(disable_stateless_reset, "disableStatelessReset")                          \
   V(enable_connect_protocol, "enableConnectProtocol")                          \
   V(enable_datagrams, "enableDatagrams")                                       \
@@ -80,6 +79,7 @@ class Packet;
   V(groups, "groups")                                                          \
   V(handshake_timeout, "handshakeTimeout")                                     \
   V(http3_alpn, &NGHTTP3_ALPN_H3[1])                                           \
+  V(http3application, "Http3Application")                                      \
   V(initial_max_data, "initialMaxData")                                        \
   V(initial_max_stream_data_bidi_local, "initialMaxStreamDataBidiLocal")       \
   V(initial_max_stream_data_bidi_remote, "initialMaxStreamDataBidiRemote")     \
@@ -105,9 +105,9 @@ class Packet;
   V(max_stream_window, "maxStreamWindow")                                      \
   V(max_window, "maxWindow")                                                   \
   V(min_version, "minVersion")                                                 \
-  V(no_udp_payload_size_shaping, "noUdpPayloadSizeShaping")                    \
   V(packetwrap, "PacketWrap")                                                  \
   V(preferred_address_strategy, "preferredAddressPolicy")                      \
+  V(protocol, "protocol")                                                      \
   V(qlog, "qlog")                                                              \
   V(qpack_blocked_streams, "qpackBlockedStreams")                              \
   V(qpack_encoder_max_dtable_capacity, "qpackEncoderMaxDTableCapacity")        \
@@ -117,8 +117,8 @@ class Packet;
   V(retry_token_expiration, "retryTokenExpiration")                            \
   V(reset_token_secret, "resetTokenSecret")                                    \
   V(rx_loss, "rxDiagnosticLoss")                                               \
+  V(servername, "servername")                                                  \
   V(session, "Session")                                                        \
-  V(sni, "sni")                                                                \
   V(stream, "Stream")                                                          \
   V(success, "success")                                                        \
   V(tls_options, "tls")                                                        \
@@ -169,7 +169,7 @@ class BindingData final
   // bridge out to the JS API.
   static void SetCallbacks(const v8::FunctionCallbackInfo<v8::Value>& args);
 
-  std::vector<Packet*> packet_freelist;
+  std::vector<BaseObjectPtr<BaseObject>> packet_freelist;
 
   std::unordered_map<Endpoint*, BaseObjectPtr<BaseObject>> listening_endpoints;
 

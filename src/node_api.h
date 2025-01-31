@@ -90,9 +90,6 @@ EXTERN_C_START
 
 // Deprecated. Replaced by symbol-based registration defined by NAPI_MODULE
 // and NAPI_MODULE_INIT macros.
-#if defined(__cplusplus) && __cplusplus >= 201402L
-[[deprecated]]
-#endif
 NAPI_EXTERN void NAPI_CDECL
 napi_module_register(napi_module* mod);
 
@@ -136,8 +133,7 @@ napi_create_external_buffer(napi_env env,
                             napi_value* result);
 #endif  // NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED
 
-#ifdef NAPI_EXPERIMENTAL
-#define NODE_API_EXPERIMENTAL_HAS_CREATE_BUFFER_FROM_ARRAYBUFFER
+#if NAPI_VERSION >= 10
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_buffer_from_arraybuffer(napi_env env,
@@ -145,7 +141,7 @@ node_api_create_buffer_from_arraybuffer(napi_env env,
                                         size_t byte_offset,
                                         size_t byte_length,
                                         napi_value* result);
-#endif  // NAPI_EXPERIMENTAL
+#endif  // NAPI_VERSION >= 10
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_create_buffer_copy(napi_env env,
                                                            size_t length,

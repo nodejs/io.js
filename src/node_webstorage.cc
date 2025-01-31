@@ -26,6 +26,7 @@ using v8::Intercepted;
 using v8::Isolate;
 using v8::JustVoid;
 using v8::Local;
+using v8::LocalVector;
 using v8::Map;
 using v8::Maybe;
 using v8::MaybeLocal;
@@ -255,7 +256,7 @@ MaybeLocal<Array> Storage::Enumerate() {
   int r = sqlite3_prepare_v2(db_.get(), sql.data(), sql.size(), &s, 0);
   CHECK_ERROR_OR_THROW(env(), r, SQLITE_OK, Local<Array>());
   auto stmt = stmt_unique_ptr(s);
-  std::vector<Local<Value>> values;
+  LocalVector<Value> values(env()->isolate());
   Local<Value> value;
   while ((r = sqlite3_step(stmt.get())) == SQLITE_ROW) {
     CHECK(sqlite3_column_type(stmt.get(), 0) == SQLITE_BLOB);

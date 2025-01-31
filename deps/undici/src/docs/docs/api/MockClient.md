@@ -2,7 +2,7 @@
 
 Extends: `undici.Client`
 
-A mock client class that implements the same api as [MockPool](MockPool.md).
+A mock client class that implements the same api as [MockPool](/docs/docs/api/MockPool.md).
 
 ## `new MockClient(origin, [options])`
 
@@ -36,19 +36,19 @@ const mockClient = mockAgent.get('http://localhost:3000')
 
 ### `MockClient.intercept(options)`
 
-Implements: [`MockPool.intercept(options)`](MockPool.md#mockpoolinterceptoptions)
+Implements: [`MockPool.intercept(options)`](/docs/docs/api/MockPool.md#mockpoolinterceptoptions)
 
 ### `MockClient.close()`
 
-Implements: [`MockPool.close()`](MockPool.md#mockpoolclose)
+Implements: [`MockPool.close()`](/docs/docs/api/MockPool.md#mockpoolclose)
 
 ### `MockClient.dispatch(options, handlers)`
 
-Implements [`Dispatcher.dispatch(options, handlers)`](Dispatcher.md#dispatcherdispatchoptions-handler).
+Implements [`Dispatcher.dispatch(options, handlers)`](/docs/docs/api/Dispatcher.md#dispatcherdispatchoptions-handler).
 
 ### `MockClient.request(options[, callback])`
 
-See [`Dispatcher.request(options [, callback])`](Dispatcher.md#dispatcherrequestoptions-callback).
+See [`Dispatcher.request(options [, callback])`](/docs/docs/api/Dispatcher.md#dispatcherrequestoptions-callback).
 
 #### Example - MockClient request
 

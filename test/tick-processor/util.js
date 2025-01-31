@@ -5,14 +5,21 @@ const {
   isWindows,
   isSunOS,
   isAIX,
-  isLinuxPPCBE,
   isFreeBSD,
 } = require('../common');
+
+const { endianness } = require('os');
+
+function isLinuxPPCBE() {
+  return (process.platform === 'linux') &&
+         (process.arch === 'ppc64') &&
+         (endianness() === 'BE');
+}
 
 module.exports = {
   isCPPSymbolsNotMapped: isWindows ||
                          isSunOS ||
                          isAIX ||
-                         isLinuxPPCBE ||
+                         isLinuxPPCBE() ||
                          isFreeBSD,
 };

@@ -319,15 +319,15 @@ Error [ERR_TEST_FAILURE]: thrown from callback async throw
 [Error [ERR_TEST_FAILURE]: customized] { code: 'ERR_TEST_FAILURE', failureType: 'testCodeFailure', cause: customized }
 		</failure>
 	</testcase>
-	<testcase name="custom inspect symbol that throws fail" time="*" classname="test" failure="{  foo: 1,  [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]}">
-		<failure type="testCodeFailure" message="{  foo: 1,  [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]}">
+	<testcase name="custom inspect symbol that throws fail" time="*" classname="test" failure="{  foo: 1,  Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]}">
+		<failure type="testCodeFailure" message="{  foo: 1,  Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]}">
 [Error [ERR_TEST_FAILURE]: {
   foo: 1,
-  [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]
+  Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]
 }] {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
-  cause: { foo: 1, [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]] }
+  cause: { foo: 1, Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]] }
 }
 		</failure>
 	</testcase>

@@ -41,7 +41,7 @@ struct RsaKeyGenTraits final {
   using AdditionalParameters = RsaKeyPairGenConfig;
   static constexpr const char* JobName = "RsaKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(RsaKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(RsaKeyPairGenConfig* params);
 
   static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
@@ -77,7 +77,7 @@ struct RSAKeyExportTraits final {
 using RSAKeyExportJob = KeyExportJob<RSAKeyExportTraits>;
 
 struct RSACipherConfig final : public MemoryRetainer {
-  CryptoJobMode mode;
+  CryptoJobMode mode = kCryptoJobAsync;
   ByteSource label;
   int padding = 0;
   const EVP_MD* digest = nullptr;

@@ -3,7 +3,9 @@ import {
   noRestrictedSyntaxCommonLib,
   requireEslintTool,
 } from '../tools/eslint/eslint.config_utils.mjs';
-import { builtinModules as builtin } from 'node:module';
+import { builtinModules } from 'node:module';
+
+const builtin = builtinModules.filter((name) => !name.startsWith('node:'));
 
 const globals = requireEslintTool('globals');
 

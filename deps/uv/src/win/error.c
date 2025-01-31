@@ -69,7 +69,6 @@ int uv_translate_sys_error(int sys_errno) {
   }
 
   switch (sys_errno) {
-    case ERROR_NOACCESS:                    return UV_EACCES;
     case WSAEACCES:                         return UV_EACCES;
     case ERROR_ELEVATION_REQUIRED:          return UV_EACCES;
     case ERROR_CANT_ACCESS_FILE:            return UV_EACCES;
@@ -96,7 +95,7 @@ int uv_translate_sys_error(int sys_errno) {
     case WSAECONNRESET:                     return UV_ECONNRESET;
     case ERROR_ALREADY_EXISTS:              return UV_EEXIST;
     case ERROR_FILE_EXISTS:                 return UV_EEXIST;
-    case ERROR_BUFFER_OVERFLOW:             return UV_EFAULT;
+    case ERROR_NOACCESS:                    return UV_EFAULT;
     case WSAEFAULT:                         return UV_EFAULT;
     case ERROR_HOST_UNREACHABLE:            return UV_EHOSTUNREACH;
     case WSAEHOSTUNREACH:                   return UV_EHOSTUNREACH;
@@ -127,6 +126,7 @@ int uv_translate_sys_error(int sys_errno) {
     case ERROR_TOO_MANY_OPEN_FILES:         return UV_EMFILE;
     case WSAEMFILE:                         return UV_EMFILE;
     case WSAEMSGSIZE:                       return UV_EMSGSIZE;
+    case ERROR_BUFFER_OVERFLOW:             return UV_ENAMETOOLONG;
     case ERROR_FILENAME_EXCED_RANGE:        return UV_ENAMETOOLONG;
     case ERROR_NETWORK_UNREACHABLE:         return UV_ENETUNREACH;
     case WSAENETUNREACH:                    return UV_ENETUNREACH;

@@ -42,6 +42,16 @@ function define_tests() {
                             });
                         }, testName);
 
+                        // 0 length
+                        subsetTest(promise_test, function(test) {
+                            return subtle.deriveBits({name: "PBKDF2", salt: salts[saltSize], hash: hashName, iterations: parseInt(iterations)}, baseKeys[passwordSize], 0)
+                            .then(function(derivation) {
+                                assert_true(equalBuffers(derivation.byteLength, 0, "Derived correctly empty key"));
+                            }, function(err) {
+                                assert_unreached("deriveBits failed with error " + err.name + ": " + err.message);
+                            });
+                        }, testName + " with 0 length");
+
                         // Check for correct deriveKey results for every kind of
                         // key that can be created by the deriveKeys operation.
                         derivedKeyTypes.forEach(function(derivedKeyType) {
@@ -102,16 +112,6 @@ function define_tests() {
                             }, testName + " with wrong (ECDH) key");
 
                         });
-
-                        // 0 length (OperationError)
-                        subsetTest(promise_test, function(test) {
-                            return subtle.deriveBits({name: "PBKDF2", salt: salts[saltSize], hash: hashName, iterations: parseInt(iterations)}, baseKeys[passwordSize], 0)
-                            .then(function(derivation) {
-                                assert_unreached("0 length should have thrown an OperationError");
-                            }, function(err) {
-                                assert_equals(err.name, "OperationError", "deriveBits with 0 length correctly threw OperationError: " + err.message);
-                            });
-                        }, testName + " with 0 length");
 
                         // length not multiple of 8 (OperationError)
                         subsetTest(promise_test, function(test) {

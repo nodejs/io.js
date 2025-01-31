@@ -130,7 +130,7 @@ void Initialize(Local<Object> target,
   for (size_t i = 0; i < errors_len; ++i) {
     const auto& error = per_process::uv_errors_map[i];
     const std::string prefixed_name = prefix + error.name;
-    Local<String> name = OneByteString(isolate, prefixed_name.c_str());
+    Local<String> name = OneByteString(isolate, prefixed_name);
     Local<Integer> value = Integer::New(isolate, error.value);
     target->DefineOwnProperty(context, name, value, attributes).Check();
   }

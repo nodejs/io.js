@@ -12,7 +12,7 @@ test('works with --test-only', () => {
   const args = [
     '--test',
     '--test-reporter=tap',
-    '--experimental-test-isolation=none',
+    '--test-isolation=none',
     '--test-only',
     fixture1,
     fixture2,
@@ -35,7 +35,7 @@ test('works without --test-only', () => {
   const args = [
     '--test',
     '--test-reporter=tap',
-    '--experimental-test-isolation=none',
+    '--test-isolation=none',
     fixture1,
     fixture2,
   ];
@@ -57,7 +57,7 @@ test('works with --test-name-pattern', () => {
   const args = [
     '--test',
     '--test-reporter=tap',
-    '--experimental-test-isolation=none',
+    '--test-isolation=none',
     '--test-name-pattern=/test one/',
     fixture1,
     fixture2,
@@ -75,7 +75,7 @@ test('works with --test-skip-pattern', () => {
   const args = [
     '--test',
     '--test-reporter=tap',
-    '--experimental-test-isolation=none',
+    '--test-isolation=none',
     '--test-skip-pattern=/one/',
     fixture1,
     fixture2,

@@ -7,7 +7,6 @@ if (!process.config.variables.node_use_amaro) skip('Requires Amaro');
 
 test('require a .ts file with explicit extension succeeds', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--eval',
     'require("./test-typescript.ts")',
     '--no-warnings',
@@ -22,7 +21,6 @@ test('require a .ts file with explicit extension succeeds', async () => {
 
 test('eval require a .ts file with implicit extension fails', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--eval',
     'require("./test-typescript")',
     '--no-warnings',
@@ -37,7 +35,6 @@ test('eval require a .ts file with implicit extension fails', async () => {
 
 test('eval require a .cts file with implicit extension fails', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--eval',
     'require("./test-cts-typescript")',
     '--no-warnings',
@@ -52,7 +49,6 @@ test('eval require a .cts file with implicit extension fails', async () => {
 
 test('require a .ts file with implicit extension fails', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/cts/test-extensionless-require.ts'),
   ]);
@@ -64,7 +60,6 @@ test('require a .ts file with implicit extension fails', async () => {
 
 test('expect failure of an .mts file with CommonJS syntax', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/cts/test-cts-but-module-syntax.cts'),
   ]);
 
@@ -75,7 +70,6 @@ test('expect failure of an .mts file with CommonJS syntax', async () => {
 
 test('execute a .cts file importing a .cts file', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/cts/test-require-commonjs.cts'),
   ]);
@@ -87,7 +81,6 @@ test('execute a .cts file importing a .cts file', async () => {
 
 test('execute a .cts file importing a .ts file export', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-warnings',
     fixtures.path('typescript/cts/test-require-ts-file.cts'),
   ]);
@@ -99,7 +92,6 @@ test('execute a .cts file importing a .ts file export', async () => {
 
 test('execute a .cts file importing a .mts file export', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-experimental-require-module',
     fixtures.path('typescript/cts/test-require-mts-module.cts'),
   ]);
@@ -111,32 +103,16 @@ test('execute a .cts file importing a .mts file export', async () => {
 
 test('execute a .cts file importing a .mts file export', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--experimental-require-module',
     fixtures.path('typescript/cts/test-require-mts-module.cts'),
   ]);
 
-  match(result.stderr, /Support for loading ES Module in require\(\) is an experimental feature and might change at any time/);
-  match(result.stdout, /Hello, TypeScript!/);
-  strictEqual(result.code, 0);
-});
-
-test('execute a .cts file with default type module', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
-    '--experimental-default-type=module', // Keeps working with commonjs
-    '--no-warnings',
-    fixtures.path('typescript/cts/test-require-commonjs.cts'),
-  ]);
-
-  strictEqual(result.stderr, '');
   match(result.stdout, /Hello, TypeScript!/);
   strictEqual(result.code, 0);
 });
 
 test('expect failure of a .cts file in node_modules', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/cts/test-cts-node_modules.cts'),
   ]);
 
@@ -147,7 +123,6 @@ test('expect failure of a .cts file in node_modules', async () => {
 
 test('expect failure of a .ts file in node_modules', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     fixtures.path('typescript/cts/test-ts-node_modules.cts'),
   ]);
 
@@ -158,7 +133,6 @@ test('expect failure of a .ts file in node_modules', async () => {
 
 test('expect failure of a .cts requiring esm without default type module', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--no-experimental-require-module',
     fixtures.path('typescript/cts/test-mts-node_modules.cts'),
   ]);
@@ -170,7 +144,6 @@ test('expect failure of a .cts requiring esm without default type module', async
 
 test('expect failure of a .cts file requiring esm in node_modules', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-strip-types',
     '--experimental-require-module',
     fixtures.path('typescript/cts/test-mts-node_modules.cts'),
   ]);

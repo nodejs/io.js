@@ -1,7 +1,10 @@
 'use strict';
 const common = require('../common');
-if (!common.isMainThread)
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   common.skip("Workers don't have process-like stdio");
+}
 
 // Test if Node handles redirecting one child process stdout to another
 // process stdin without crashing.

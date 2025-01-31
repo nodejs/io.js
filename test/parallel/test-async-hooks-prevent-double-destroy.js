@@ -17,7 +17,7 @@ const hook = async_hooks.createHook({
 }
 
 setImmediate(() => {
-  global.gc();
+  globalThis.gc();
   setImmediate(() => {
     hook.disable();
   });

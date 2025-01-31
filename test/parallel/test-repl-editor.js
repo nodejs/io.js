@@ -5,7 +5,9 @@ const assert = require('assert');
 const repl = require('repl');
 const ArrayStream = require('../common/arraystream');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 // \u001b[nG - Moves the cursor to n st column
 // \u001b[0J - Clear screen

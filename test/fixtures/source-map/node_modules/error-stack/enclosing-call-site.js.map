@@ -1,0 +1,8 @@
+{
+"version":3,
+"file":"enclosing-call-site-min.js",
+"lineCount":1,
+"mappings":"AAAA,IAAMA,UAAYA,QAAA,EAAM,CACtBC,SAAA,EADsB,CAIxBA,SAASA,UAAS,EAAG,CACnBC,SAAA,EADmB,CAIrB,IAAMA,UAAYA,QAAA,EAAM,CACtBC,SAAA,EADsB,CAAxB,CAIMA,UAAYA,QAAA,EAAM,CAEpB,GAAoB,CAApB,CAAIC,IAAA,CAAKC,MAAL,EAAJ,CACE,KAAUC,MAAJ,CAAU,WAAV,CAAN,CAHkB,CAJxB,CAYMC,QAAUP,SAEhB,IAAI,CACFO,SAAA,EADE,CAEF,MAAOC,CAAP,CAAY,CACZ,KAAMA,EAAN,CADY;",
+"sources":["enclosing-call-site.js"],
+"names":["functionA","functionB","functionC","functionD","Math","random","Error","thrower","err"]
+}

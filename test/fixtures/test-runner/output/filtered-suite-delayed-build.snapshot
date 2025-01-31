@@ -4,6 +4,7 @@ TAP version 13
     ok 1 - enabled 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 1 - async suite
@@ -16,6 +17,7 @@ ok 1 - async suite
     ok 1 - enabled 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 2 - sync suite

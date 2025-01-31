@@ -7,6 +7,7 @@ const updateScripts = require('./update-scripts.js')
 const updateWorkspaces = require('./update-workspaces.js')
 const normalize = require('./normalize.js')
 const { read, parse } = require('./read-package.js')
+const { packageSort } = require('./sort.js')
 
 // a list of handy specialized helper functions that take
 // care of special cases that are handled by the npm cli
@@ -230,19 +231,23 @@ class PackageJson {
     return this
   }
 
-  async save () {
+  async save ({ sort } = {}) {
     if (!this.#canSave) {
       throw new Error('No package.json to save to')
     }
     const {
       [Symbol.for('indent')]: indent,
       [Symbol.for('newline')]: newline,
+      ...rest
     } = this.content
 
     const format = indent === undefined ? '  ' : indent
     const eol = newline === undefined ? '\n' : newline
+
+    const content = sort ? packageSort(rest) : rest
+
     const fileContent = `${
-      JSON.stringify(this.content, null, format)
+      JSON.stringify(content, null, format)
     }\n`
       .replace(/\n/g, eol)
 

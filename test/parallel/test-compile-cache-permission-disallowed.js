@@ -24,7 +24,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,  // No read or write permission for cache dir.
       `--allow-fs-write=${dummyDir}`,
       script,
@@ -47,7 +47,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,
       `--allow-fs-read=${cacheDirInPermission}`,  // Read-only
       `--allow-fs-write=${dummyDir}`,
@@ -71,7 +71,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,
       `--allow-fs-write=${cacheDirInPermission}`,  // Write-only
       script,

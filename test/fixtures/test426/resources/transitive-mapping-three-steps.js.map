@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "file": "transitive-mapping-three-steps.js",
+  "sources": ["transitive-mapping.js"],
+  "names": ["foo", "x"],
+  "mappings": "AAAA,SAASA,IAAIC;IAAG,OAAOA;AAAC;;AAACD,IAAI,KAAK"
+}

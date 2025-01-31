@@ -100,7 +100,7 @@
 
 // The NAPI_VERSION supported by the runtime. This is the inclusive range of
 // versions which the Node.js binary being built supports.
-#define NODE_API_SUPPORTED_VERSION_MAX 9
+#define NODE_API_SUPPORTED_VERSION_MAX 10
 #define NODE_API_SUPPORTED_VERSION_MIN 1
 
 // Node API modules use NAPI_VERSION 8 by default if it is not explicitly

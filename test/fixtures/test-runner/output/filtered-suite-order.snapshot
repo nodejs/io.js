@@ -20,12 +20,14 @@ TAP version 13
     ok 1 - A
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: C
         # Subtest: A
         ok 1 - A
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 2 - C
@@ -38,6 +40,7 @@ TAP version 13
         ok 1 - A
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 3 - D
@@ -56,17 +59,20 @@ ok 1 - A
     ok 1 - A
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: B
     ok 2 - B
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: C
         # Subtest: A
         ok 1 - A
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 3 - C
@@ -85,17 +91,20 @@ ok 2 - B
     ok 1 - A
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: C
         # Subtest: A
         ok 1 - A
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: B
         ok 2 - B
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 2 - C
@@ -108,6 +117,7 @@ ok 2 - B
         ok 1 - B
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..1
     ok 3 - D
@@ -126,6 +136,7 @@ ok 3 - C
     ok 1 - B
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 4 - D
@@ -138,11 +149,13 @@ ok 4 - D
     ok 1 - A
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: B
     ok 2 - B
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 ok 5 - E
@@ -154,6 +167,7 @@ ok 5 - E
 ok 6 - F
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..6
 # tests 14

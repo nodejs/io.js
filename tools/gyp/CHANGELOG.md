@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.1](https://github.com/nodejs/gyp-next/compare/v0.19.0...v0.19.1) (2024-12-09)
+
+
+### Bug Fixes
+
+* fixup for break in EscapeForCString ([#274](https://github.com/nodejs/gyp-next/issues/274)) ([610f661](https://github.com/nodejs/gyp-next/commit/610f661da877a358c8b3cbc106b528fb1d0b8095))
+
+## [0.19.0](https://github.com/nodejs/gyp-next/compare/v0.18.3...v0.19.0) (2024-12-03)
+
+
+### Features
+
+* provide escaped version of `PRODUCT_DIR_ABS` ([#271](https://github.com/nodejs/gyp-next/issues/271)) ([3bf3b1c](https://github.com/nodejs/gyp-next/commit/3bf3b1cda26f16c645e0fdd5582ffbf49d9a2580))
+
 ## [0.18.3](https://github.com/nodejs/gyp-next/compare/v0.18.2...v0.18.3) (2024-10-08)
 
 

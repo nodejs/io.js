@@ -47,7 +47,7 @@ async function testWatch({
   const ran2 = Promise.withResolvers();
   const child = spawn(process.execPath,
                       ['--watch', '--test', '--test-reporter=spec',
-                       isolation ? `--experimental-test-isolation=${isolation}` : '',
+                       isolation ? `--test-isolation=${isolation}` : '',
                        file ? fixturePaths[file] : undefined].filter(Boolean),
                       { encoding: 'utf8', stdio: 'pipe', cwd: tmpdir.path });
   let stdout = '';

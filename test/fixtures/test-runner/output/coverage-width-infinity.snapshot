@@ -3,6 +3,7 @@ TAP version 13
 ok 1 - Coverage Print Fixed Width Infinity
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..1
 # tests 1

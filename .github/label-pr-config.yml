@@ -125,6 +125,8 @@ exlusiveLabels:
   /^test\/es-module\//: test, esm
   /^test\/fixtures\/wpt\/streams\//: test, web streams
   /^test\/fixtures\/typescript/: test, strip-types
+  /^test\/module-hooks\//: test, module, loaders
+  /^test\/fixtures/module-hooks\//: test, module, loaders
 
   /^test\//: test
 

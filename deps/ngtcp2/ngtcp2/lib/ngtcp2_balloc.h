@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -39,7 +39,10 @@ typedef struct ngtcp2_memblock_hd ngtcp2_memblock_hd;
  * ngtcp2_memblock_hd is the header of memory block.
  */
 struct ngtcp2_memblock_hd {
-  ngtcp2_memblock_hd *next;
+  union {
+    ngtcp2_memblock_hd *next;
+    uint64_t pad;
+  };
 };
 
 /*
@@ -60,7 +63,7 @@ typedef struct ngtcp2_balloc {
 
 /*
  * ngtcp2_balloc_init initializes |balloc| with |blklen| which is the
- * size of memory block.
+ * size of memory block.  |blklen| must be divisible by 16.
  */
 void ngtcp2_balloc_init(ngtcp2_balloc *balloc, size_t blklen,
                         const ngtcp2_mem *mem);
@@ -88,4 +91,4 @@ int ngtcp2_balloc_get(ngtcp2_balloc *balloc, void **pbuf, size_t n);
  */
 void ngtcp2_balloc_clear(ngtcp2_balloc *balloc);
 
-#endif /* NGTCP2_BALLOC_H */
+#endif /* !defined(NGTCP2_BALLOC_H) */

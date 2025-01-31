@@ -174,7 +174,6 @@ Object {
     "man/man1/npm-fund.1",
     "man/man1/npm-help-search.1",
     "man/man1/npm-help.1",
-    "man/man1/npm-hook.1",
     "man/man1/npm-init.1",
     "man/man1/npm-install-ci-test.1",
     "man/man1/npm-install-test.1",

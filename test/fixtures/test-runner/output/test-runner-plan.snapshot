@@ -3,11 +3,13 @@ TAP version 13
 ok 1 - test planning basic
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: less assertions than planned
 not ok 2 - less assertions than planned
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/test-runner-plan.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'plan expected 1 assertions but received 0'
@@ -17,6 +19,7 @@ not ok 2 - less assertions than planned
 not ok 3 - more assertions than planned
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/test-runner-plan.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'plan expected 1 assertions but received 2'
@@ -27,38 +30,45 @@ not ok 3 - more assertions than planned
     ok 1 - subtest
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 4 - subtesting
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: subtesting correctly
     # Subtest: subtest
     ok 1 - subtest
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 5 - subtesting correctly
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: correctly ignoring subtesting plan
     # Subtest: subtest
     ok 1 - subtest
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 6 - correctly ignoring subtesting plan
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: failing planning by options
 not ok 7 - failing planning by options
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/test-runner-plan.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'plan expected 1 assertions but received 0'
@@ -68,22 +78,26 @@ not ok 7 - failing planning by options
 ok 8 - not failing planning by options
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: subtest planning by options
     # Subtest: subtest
     ok 1 - subtest
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..1
 ok 9 - subtest planning by options
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: failing more assertions than planned
 not ok 10 - failing more assertions than planned
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/test-runner-plan.js:(LINE):1'
   failureType: 'testCodeFailure'
   error: 'plan expected 2 assertions but received 3'
@@ -93,6 +107,7 @@ not ok 10 - failing more assertions than planned
 ok 11 - planning with streams
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..11
 # tests 15

@@ -157,6 +157,7 @@ struct uv__queue {
   XX(ESOCKTNOSUPPORT, "socket type not supported")                            \
   XX(ENODATA, "no data available")                                            \
   XX(EUNATCH, "protocol driver not attached")                                 \
+  XX(ENOEXEC, "exec format error")                                            \
 
 #define UV_HANDLE_TYPE_MAP(XX)                                                \
   XX(ASYNC, async)                                                            \
@@ -775,6 +776,12 @@ UV_EXTERN int uv_udp_try_send(uv_udp_t* handle,
                               const uv_buf_t bufs[],
                               unsigned int nbufs,
                               const struct sockaddr* addr);
+UV_EXTERN int uv_udp_try_send2(uv_udp_t* handle,
+                               unsigned int count,
+                               uv_buf_t* bufs[/*count*/],
+                               unsigned int nbufs[/*count*/],
+                               struct sockaddr* addrs[/*count*/],
+                               unsigned int flags);
 UV_EXTERN int uv_udp_recv_start(uv_udp_t* handle,
                                 uv_alloc_cb alloc_cb,
                                 uv_udp_recv_cb recv_cb);
@@ -1288,6 +1295,7 @@ typedef struct {
 } uv_rusage_t;
 
 UV_EXTERN int uv_getrusage(uv_rusage_t* rusage);
+UV_EXTERN int uv_getrusage_thread(uv_rusage_t* rusage);
 
 UV_EXTERN int uv_os_homedir(char* buffer, size_t* size);
 UV_EXTERN int uv_os_tmpdir(char* buffer, size_t* size);
@@ -1869,6 +1877,7 @@ UV_EXTERN int uv_gettimeofday(uv_timeval64_t* tv);
 typedef void (*uv_thread_cb)(void* arg);
 
 UV_EXTERN int uv_thread_create(uv_thread_t* tid, uv_thread_cb entry, void* arg);
+UV_EXTERN int uv_thread_detach(uv_thread_t* tid);
 
 typedef enum {
   UV_THREAD_NO_FLAGS = 0x00,
@@ -1898,6 +1907,9 @@ UV_EXTERN int uv_thread_getcpu(void);
 UV_EXTERN uv_thread_t uv_thread_self(void);
 UV_EXTERN int uv_thread_join(uv_thread_t *tid);
 UV_EXTERN int uv_thread_equal(const uv_thread_t* t1, const uv_thread_t* t2);
+UV_EXTERN int uv_thread_setname(const char* name);
+UV_EXTERN int uv_thread_getname(uv_thread_t* tid, char* name, size_t size);
+
 
 /* The presence of these unions force similar struct layout. */
 #define XX(_, name) uv_ ## name ## _t name;

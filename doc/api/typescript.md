@@ -2,6 +2,9 @@
 
 <!-- YAML
 changes:
+  - version: v23.6.0
+    pr-url: https://github.com/nodejs/node/pull/56350
+    description: Type stripping is enabled by default.
   - version: v22.7.0
     pr-url: https://github.com/nodejs/node/pull/54283
     description: Added `--experimental-transform-types` flag.
@@ -52,7 +55,7 @@ added: v22.6.0
 
 > Stability: 1.1 - Active development
 
-The flag [`--experimental-strip-types`][] enables Node.js to run TypeScript
+The flag [`--no-experimental-strip-types`][] prevents Node.js from running TypeScript
 files. By default Node.js will execute only files that contain no
 TypeScript features that require transformation, such as enums or namespaces.
 Node.js will replace inline type annotations with whitespace,
@@ -153,10 +156,10 @@ import { fn, FnParams } from './fn.ts';
 
 ### Non-file forms of input
 
-Type stripping can be enabled for `--eval`. The module system
+Type stripping can be enabled for `--eval` and STDIN. The module system
 will be determined by `--input-type`, as it is for JavaScript.
 
-TypeScript syntax is unsupported in the REPL, STDIN input, `--print`, `--check`, and
+TypeScript syntax is unsupported in the REPL, `--check`, and
 `inspect`.
 
 ### Source maps
@@ -181,8 +184,8 @@ with `#`.
 [CommonJS]: modules.md
 [ES Modules]: esm.md
 [Full TypeScript support]: #full-typescript-support
-[`--experimental-strip-types`]: cli.md#--experimental-strip-types
 [`--experimental-transform-types`]: cli.md#--experimental-transform-types
+[`--no-experimental-strip-types`]: cli.md#--no-experimental-strip-types
 [`tsconfig` "paths"]: https://www.typescriptlang.org/tsconfig/#paths
 [`tsx`]: https://tsx.is/
 [`verbatimModuleSyntax`]: https://www.typescriptlang.org/tsconfig/#verbatimModuleSyntax

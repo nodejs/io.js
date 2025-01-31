@@ -1329,9 +1329,7 @@ TEST_IMPL(environment_creation) {
       }
     }
     if (prev) { /* verify sort order */
-#if !defined(__MINGW32__) || defined(__MINGW64_VERSION_MAJOR)
       ASSERT_EQ(1, CompareStringOrdinal(prev, -1, str, -1, TRUE));
-#endif
     }
     ASSERT(found); /* verify that we expected this variable */
   }
@@ -1524,7 +1522,7 @@ TEST_IMPL(spawn_setuid_fails) {
   init_process_options("spawn_helper1", fail_cb);
 
   options.flags |= UV_PROCESS_SETUID;
-  /* On IBMi PASE, there is no root user. User may grant 
+  /* On IBMi PASE, there is no root user. User may grant
    * root-like privileges, including setting uid to 0.
    */
 #if defined(__PASE__)
@@ -1575,7 +1573,7 @@ TEST_IMPL(spawn_setgid_fails) {
   init_process_options("spawn_helper1", fail_cb);
 
   options.flags |= UV_PROCESS_SETGID;
-  /* On IBMi PASE, there is no root user. User may grant 
+  /* On IBMi PASE, there is no root user. User may grant
    * root-like privileges, including setting gid to 0.
    */
 #if defined(__MVS__) || defined(__PASE__)

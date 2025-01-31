@@ -8,7 +8,7 @@ const CODE = `
 // If the --expose-internals flag does not pass to worker
 // require function will throw an error
 require('internal/options');
-global.gc();
+globalThis.gc();
 `;
 
 // Test if the flags is passed to worker threads correctly

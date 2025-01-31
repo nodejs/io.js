@@ -3,56 +3,67 @@ TAP version 13
 ok 1 - 1
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 2
 ok 2 - 2
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 3
 ok 3 - 3
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 4
 ok 4 - 4
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 5
 ok 5 - 5
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 6
 ok 6 - 6
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 7
 ok 7 - 7
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 8
 ok 8 - 8
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 9
 ok 9 - 9
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 10
 ok 10 - 10
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: 11
 ok 11 - 11
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..11
 # tests 11

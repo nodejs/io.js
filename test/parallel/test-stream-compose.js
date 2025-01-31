@@ -1,5 +1,3 @@
-// Flags: --expose-internals
-
 'use strict';
 
 const common = require('../common');
@@ -9,9 +7,9 @@ const {
   Transform,
   Writable,
   finished,
+  compose,
   PassThrough
 } = require('stream');
-const compose = require('internal/streams/compose');
 const assert = require('assert');
 
 {

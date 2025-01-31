@@ -31,9 +31,21 @@ const socks_1 = require("socks");
 const agent_base_1 = require("agent-base");
 const debug_1 = __importDefault(require("debug"));
 const dns = __importStar(require("dns"));
+const net = __importStar(require("net"));
 const tls = __importStar(require("tls"));
 const url_1 = require("url");
 const debug = (0, debug_1.default)('socks-proxy-agent');
+const setServernameFromNonIpHost = (options) => {
+    if (options.servername === undefined &&
+        options.host &&
+        !net.isIP(options.host)) {
+        return {
+            ...options,
+            servername: options.host,
+        };
+    }
+    return options;
+};
 function parseSocksURL(url) {
     let lookup = false;
     let type = 5;
@@ -149,11 +161,9 @@ class SocksProxyAgent extends agent_base_1.Agent {
             // The proxy is connecting to a TLS server, so upgrade
             // this socket connection to a TLS connection.
             debug('Upgrading socket connection to TLS');
-            const servername = opts.servername || opts.host;
             const tlsSocket = tls.connect({
-                ...omit(opts, 'host', 'path', 'port'),
+                ...omit(setServernameFromNonIpHost(opts), 'host', 'path', 'port'),
                 socket,
-                servername,
             });
             tlsSocket.once('error', (error) => {
                 debug('Socket TLS error', error.message);

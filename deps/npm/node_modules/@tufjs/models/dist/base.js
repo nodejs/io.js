@@ -3,7 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Signed = exports.isMetadataKind = exports.MetadataKind = void 0;
+exports.Signed = exports.MetadataKind = void 0;
+exports.isMetadataKind = isMetadataKind;
 const util_1 = __importDefault(require("util"));
 const error_1 = require("./error");
 const utils_1 = require("./utils");
@@ -19,7 +20,6 @@ function isMetadataKind(value) {
     return (typeof value === 'string' &&
         Object.values(MetadataKind).includes(value));
 }
-exports.isMetadataKind = isMetadataKind;
 /***
  * A base class for the signed part of TUF metadata.
  *
@@ -39,8 +39,8 @@ class Signed {
         if (specList[0] != SPECIFICATION_VERSION[0]) {
             throw new error_1.ValueError('Unsupported specVersion');
         }
-        this.expires = options.expires || new Date().toISOString();
-        this.version = options.version || 1;
+        this.expires = options.expires;
+        this.version = options.version;
         this.unrecognizedFields = options.unrecognizedFields || {};
     }
     equals(other) {
@@ -60,13 +60,22 @@ class Signed {
     }
     static commonFieldsFromJSON(data) {
         const { spec_version, expires, version, ...rest } = data;
-        if (utils_1.guard.isDefined(spec_version) && !(typeof spec_version === 'string')) {
+        if (!utils_1.guard.isDefined(spec_version)) {
+            throw new error_1.ValueError('spec_version is not defined');
+        }
+        else if (typeof spec_version !== 'string') {
             throw new TypeError('spec_version must be a string');
         }
-        if (utils_1.guard.isDefined(expires) && !(typeof expires === 'string')) {
+        if (!utils_1.guard.isDefined(expires)) {
+            throw new error_1.ValueError('expires is not defined');
+        }
+        else if (!(typeof expires === 'string')) {
             throw new TypeError('expires must be a string');
         }
-        if (utils_1.guard.isDefined(version) && !(typeof version === 'number')) {
+        if (!utils_1.guard.isDefined(version)) {
+            throw new error_1.ValueError('version is not defined');
+        }
+        else if (!(typeof version === 'number')) {
             throw new TypeError('version must be a number');
         }
         return {

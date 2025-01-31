@@ -68,11 +68,11 @@
     "path": "resources"
   },
   "streams": {
-    "commit": "2bd26e124cf17b2f0a25c150794d640b07b2a870",
+    "commit": "bc9dcbbf1a4c2c741ef47f47d6ede6458f40c4a4",
     "path": "streams"
   },
   "url": {
-    "commit": "6a39784534e118acc102cf5252c542378831401d",
+    "commit": "a23788b77a947304b2b3159d8efda492727ab623",
     "path": "url"
   },
   "user-timing": {
@@ -88,7 +88,7 @@
     "path": "wasm/webapi"
   },
   "WebCryptoAPI": {
-    "commit": "5f0f4ac1af4848480406621fac99163c8ba0e242",
+    "commit": "3e3374efde7ce73d551ea908d52d0afab046971a",
     "path": "WebCryptoAPI"
   },
   "webidl/ecmascript-binding/es-exceptions": {

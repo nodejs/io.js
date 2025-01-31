@@ -1,12 +1,11 @@
 'use strict'
 
-const { kConstruct } = require('./symbols')
+const { kConstruct } = require('../../core/symbols')
 const { urlEquals, getFieldValues } = require('./util')
 const { kEnumerableProperty, isDisturbed } = require('../../core/util')
 const { webidl } = require('../fetch/webidl')
-const { Response, cloneResponse, fromInnerResponse } = require('../fetch/response')
-const { Request, fromInnerRequest } = require('../fetch/request')
-const { kState } = require('../fetch/symbols')
+const { cloneResponse, fromInnerResponse, getResponseState } = require('../fetch/response')
+const { Request, fromInnerRequest, getRequestState } = require('../fetch/request')
 const { fetching } = require('../fetch/index')
 const { urlIsHttpHttpsScheme, createDeferredPromise, readAllBytes } = require('../fetch/util')
 const assert = require('node:assert')
@@ -37,6 +36,7 @@ class Cache {
       webidl.illegalConstructor()
     }
 
+    webidl.util.markAsUncloneable(this)
     this.#relevantRequestResponseList = arguments[1]
   }
 
@@ -115,7 +115,7 @@ class Cache {
       }
 
       // 3.1
-      const r = request[kState]
+      const r = getRequestState(request)
 
       // 3.2
       if (!urlIsHttpHttpsScheme(r.url) || r.method !== 'GET') {
@@ -133,7 +133,7 @@ class Cache {
     // 5.
     for (const request of requests) {
       // 5.1
-      const r = new Request(request)[kState]
+      const r = getRequestState(new Request(request))
 
       // 5.2
       if (!urlIsHttpHttpsScheme(r.url)) {
@@ -269,10 +269,10 @@ class Cache {
     let innerRequest = null
 
     // 2.
-    if (request instanceof Request) {
-      innerRequest = request[kState]
+    if (webidl.is.Request(request)) {
+      innerRequest = getRequestState(request)
     } else { // 3.
-      innerRequest = new Request(request)[kState]
+      innerRequest = getRequestState(new Request(request))
     }
 
     // 4.
@@ -284,7 +284,7 @@ class Cache {
     }
 
     // 5.
-    const innerResponse = response[kState]
+    const innerResponse = getResponseState(response)
 
     // 6.
     if (innerResponse.status === 206) {
@@ -334,7 +334,7 @@ class Cache {
       const reader = stream.getReader()
 
       // 11.3
-      readAllBytes(reader).then(bodyReadPromise.resolve, bodyReadPromise.reject)
+      readAllBytes(reader, bodyReadPromise.resolve, bodyReadPromise.reject)
     } else {
       bodyReadPromise.resolve(undefined)
     }
@@ -401,8 +401,8 @@ class Cache {
      */
     let r = null
 
-    if (request instanceof Request) {
-      r = request[kState]
+    if (webidl.is.Request(request)) {
+      r = getRequestState(request)
 
       if (r.method !== 'GET' && !options.ignoreMethod) {
         return false
@@ -410,7 +410,7 @@ class Cache {
     } else {
       assert(typeof request === 'string')
 
-      r = new Request(request)[kState]
+      r = getRequestState(new Request(request))
     }
 
     /** @type {CacheBatchOperation[]} */
@@ -467,16 +467,16 @@ class Cache {
     // 2.
     if (request !== undefined) {
       // 2.1
-      if (request instanceof Request) {
+      if (webidl.is.Request(request)) {
         // 2.1.1
-        r = request[kState]
+        r = getRequestState(request)
 
         // 2.1.2
         if (r.method !== 'GET' && !options.ignoreMethod) {
           return []
         }
       } else if (typeof request === 'string') { // 2.2
-        r = new Request(request)[kState]
+        r = getRequestState(new Request(request))
       }
     }
 
@@ -514,6 +514,7 @@ class Cache {
       for (const request of requests) {
         const requestObject = fromInnerRequest(
           request,
+          undefined,
           new AbortController().signal,
           'immutable'
         )
@@ -748,9 +749,9 @@ class Cache {
 
     // 2.
     if (request !== undefined) {
-      if (request instanceof Request) {
+      if (webidl.is.Request(request)) {
         // 2.1.1
-        r = request[kState]
+        r = getRequestState(request)
 
         // 2.1.2
         if (r.method !== 'GET' && !options.ignoreMethod) {
@@ -758,7 +759,7 @@ class Cache {
         }
       } else if (typeof request === 'string') {
         // 2.2.1
-        r = new Request(request)[kState]
+        r = getRequestState(new Request(request))
       }
     }
 
@@ -847,7 +848,10 @@ webidl.converters.MultiCacheQueryOptions = webidl.dictionaryConverter([
   }
 ])
 
-webidl.converters.Response = webidl.interfaceConverter(Response)
+webidl.converters.Response = webidl.interfaceConverter(
+  webidl.is.Response,
+  'Response'
+)
 
 webidl.converters['sequence<RequestInfo>'] = webidl.sequenceConverter(
   webidl.converters.RequestInfo

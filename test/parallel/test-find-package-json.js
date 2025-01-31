@@ -149,4 +149,44 @@ describe('findPackageJSON', () => { // Throws when no arguments are provided
       });
     }));
   });
+
+  it('should work within a loader', async () => {
+    const specifierBase = './packages/root-types-field';
+    const target = fixtures.fileURL(specifierBase, 'index.js');
+    const foundPjsonPath = path.toNamespacedPath(fixtures.path(specifierBase, 'package.json'));
+    const { code, stderr, stdout } = await common.spawnPromisified(process.execPath, [
+      '--no-warnings',
+      '--loader',
+      [
+        'data:text/javascript,',
+        'import fs from "node:fs";',
+        'import module from "node:module";',
+        encodeURIComponent(`fs.writeSync(1, module.findPackageJSON(${JSON.stringify(target)}));`),
+        'export const resolve = async (s, c, n) => n(s);',
+      ].join(''),
+      '--eval',
+      'import "node:os";', // Can be anything that triggers the resolve hook chain
+    ]);
+
+    assert.strictEqual(stderr, '');
+    assert.ok(stdout.includes(foundPjsonPath), stdout);
+    assert.strictEqual(code, 0);
+  });
+
+  it('should work with an async resolve hook registered', async () => {
+    const specifierBase = './packages/root-types-field';
+    const target = fixtures.fileURL(specifierBase, 'index.js');
+    const foundPjsonPath = path.toNamespacedPath(fixtures.path(specifierBase, 'package.json'));
+    const { code, stderr, stdout } = await common.spawnPromisified(process.execPath, [
+      '--no-warnings',
+      '--loader',
+      'data:text/javascript,export const resolve = async (s, c, n) => n(s);',
+      '--print',
+      `require("node:module").findPackageJSON(${JSON.stringify(target)})`,
+    ]);
+
+    assert.strictEqual(stderr, '');
+    assert.ok(stdout.includes(foundPjsonPath), stdout);
+    assert.strictEqual(code, 0);
+  });
 });

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.appDataPath = void 0;
+exports.appDataPath = appDataPath;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -41,4 +41,3 @@ function appDataPath(name) {
         }
     }
 }
-exports.appDataPath = appDataPath;

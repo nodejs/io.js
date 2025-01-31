@@ -38,7 +38,7 @@ jobs:
                   --base ${{ github.ref_name }} \
                   --label 'commit-queue' \
                   --json 'number' \
-                  --search "created:<=$(date --date="2 days ago"  +"%Y-%m-%dT%H:%M:%S%z")" \
+                  --search "created:<=$(date --date="2 days ago"  +"%Y-%m-%dT%H:%M:%S%z") -label:blocked" \
                   -t '{{ range . }}{{ .number }} {{ end }}' \
                   --limit 100)
           fast_track_prs=$(gh pr list \
@@ -46,6 +46,7 @@ jobs:
                   --base ${{ github.ref_name }} \
                   --label 'commit-queue' \
                   --label 'fast-track' \
+                  --search "-label:blocked" \
                   --json 'number' \
                   -t '{{ range . }}{{ .number }} {{ end }}' \
                   --limit 100)

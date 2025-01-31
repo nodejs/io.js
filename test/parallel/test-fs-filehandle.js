@@ -35,6 +35,6 @@ common.expectWarning({
   'DeprecationWarning': [[deprecationWarning, 'DEP0137']]
 });
 
-global.gc();
+globalThis.gc();
 
 setTimeout(() => {}, 10);

@@ -1,17 +1,15 @@
 'use strict'
 
 const { InvalidArgumentError } = require('../core/errors')
-const { kClients, kRunning, kClose, kDestroy, kDispatch, kInterceptors } = require('../core/symbols')
+const { kClients, kRunning, kClose, kDestroy, kDispatch } = require('../core/symbols')
 const DispatcherBase = require('./dispatcher-base')
 const Pool = require('./pool')
 const Client = require('./client')
 const util = require('../core/util')
-const createRedirectInterceptor = require('../interceptor/redirect-interceptor')
 
 const kOnConnect = Symbol('onConnect')
 const kOnDisconnect = Symbol('onDisconnect')
 const kOnConnectionError = Symbol('onConnectionError')
-const kMaxRedirections = Symbol('maxRedirections')
 const kOnDrain = Symbol('onDrain')
 const kFactory = Symbol('factory')
 const kOptions = Symbol('options')
@@ -23,9 +21,7 @@ function defaultFactory (origin, opts) {
 }
 
 class Agent extends DispatcherBase {
-  constructor ({ factory = defaultFactory, maxRedirections = 0, connect, ...options } = {}) {
-    super()
-
+  constructor ({ factory = defaultFactory, connect, ...options } = {}) {
     if (typeof factory !== 'function') {
       throw new InvalidArgumentError('factory must be a function.')
     }
@@ -34,23 +30,13 @@ class Agent extends DispatcherBase {
       throw new InvalidArgumentError('connect must be a function or an object')
     }
 
-    if (!Number.isInteger(maxRedirections) || maxRedirections < 0) {
-      throw new InvalidArgumentError('maxRedirections must be a positive number')
-    }
+    super()
 
     if (connect && typeof connect !== 'function') {
       connect = { ...connect }
     }
 
-    this[kInterceptors] = options.interceptors?.Agent && Array.isArray(options.interceptors.Agent)
-      ? options.interceptors.Agent
-      : [createRedirectInterceptor({ maxRedirections })]
-
     this[kOptions] = { ...util.deepClone(options), connect }
-    this[kOptions].interceptors = options.interceptors
-      ? { ...options.interceptors }
-      : undefined
-    this[kMaxRedirections] = maxRedirections
     this[kFactory] = factory
     this[kClients] = new Map()
 
