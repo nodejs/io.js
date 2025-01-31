@@ -37,12 +37,12 @@ permissions:
 
 jobs:
   test-ubsan:
-    if: false  # Temporary disabled. Reference: https://github.com/nodejs/node/pull/52293#issuecomment-2059270585
-    runs-on: ubuntu-latest
+    # if: github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
     env:
-      CC: sccache gcc
-      CXX: sccache g++
-      LINK: sccache g++
+      CC: sccache clang
+      CXX: sccache clang++
+      LINK: sccache clang++
       CONFIG_FLAGS: --enable-ubsan
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
       - name: Store suppressions path
         run: |
-          echo "UBSAN_OPTIONS=suppressions=$GITHUB_WORKSPACE/suppressions.supp" >> $GITHUB_ENV
+          echo "UBSAN_OPTIONS=suppressions=$GITHUB_WORKSPACE/suppressions.supp:report_error_type=1:print_stacktrace=1" >> $GITHUB_ENV
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
         with:
