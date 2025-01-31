@@ -2,8 +2,6 @@
 #define SRC_JS_NATIVE_API_H_
 
 // This file needs to be compatible with C compilers.
-#include <stdbool.h>  // NOLINT(modernize-deprecated-headers)
-#include <stddef.h>   // NOLINT(modernize-deprecated-headers)
 
 // Use INT_MAX, this should only be consumed by the pre-processor anyway.
 #define NAPI_VERSION_EXPERIMENTAL 2147483647

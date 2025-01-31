@@ -3,7 +3,7 @@
 This file is an overview for C embedding API.
 It is mostly to catch all the work in progress.
 
-## The API overview 
+## The API overview
 
 ### Error handling API
 - `node_embedding_on_error`

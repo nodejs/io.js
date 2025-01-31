@@ -128,7 +128,8 @@ function runCommonApiTests(apiType) {
 }
 
 runCommonApiTests('cpp-api');
-runCommonApiTests('node-api');
+runCommonApiTests('c-api');
+runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -235,12 +236,12 @@ function runSnapshotTests(apiType) {
 
 runSnapshotTests('cpp-api');
 
-// Node-API specific tests
-{
+// C-API specific tests
+function runCApiTests(apiType) {
   runTest(
-    'nodejs-main-node-api: run Node.js CLI',
+    `${apiType}-nodejs-main: run Node.js CLI`,
     spawnSyncAndAssert,
-    ['nodejs-main-node-api', '--eval', 'console.log("Hello World")'],
+    [`${apiType}-nodejs-main`, '--eval', 'console.log("Hello World")'],
     {
       trim: true,
       stdout: 'Hello World',
@@ -248,27 +249,27 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    `node-api: callMe`,
+    `${apiType}: callMe`,
     spawnSyncAndAssert,
-    ['node-api', 'function callMe(text) { return text + " you"; }'],
+    [apiType, 'function callMe(text) { return text + " you"; }'],
     { stdout: 'called you' }
   );
 
   runTest(
-    `node-api: waitMe`,
+    `${apiType}: waitMe`,
     spawnSyncAndAssert,
     [
-      'node-api',
+      apiType,
       'function waitMe(text, cb) { setTimeout(() => cb(text + " you"), 1); }',
     ],
     { stdout: 'waited you' }
   );
 
   runTest(
-    `node-api: waitPromise`,
+    `${apiType}: waitPromise`,
     spawnSyncAndAssert,
     [
-      'node-api',
+      apiType,
       'function waitPromise(text) { ' +
         'return new Promise((res) => ' +
         '  setTimeout(() => res(text + " with cheese"), 1)); ' +
@@ -278,10 +279,10 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    `node-api: waitPromise reject`,
+    `${apiType}: waitPromise reject`,
     spawnSyncAndAssert,
     [
-      'node-api',
+      apiType,
       'function waitPromise(text) { ' +
         'return new Promise((res, rej) => ' +
         '  setTimeout(() => rej(text + " without cheese"), 1)); ' +
@@ -291,9 +292,9 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    `threading-runtime-per-thread-node-api: run 12 environments concurrently`,
+    `${apiType}-threading-runtime-per-thread: run 12 environments concurrently`,
     spawnSyncAndAssert,
-    ['threading-runtime-per-thread-node-api', 'myCount = 1'],
+    [`${apiType}-threading-runtime-per-thread`, 'myCount = 1'],
     {
       trim: true,
       stdout: '12',
@@ -301,10 +302,10 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    'threading-several-runtimes-per-thread-node-api: run 12 environments in the same thread',
+    `${apiType}-threading-several-runtimes-per-thread: run 12 environments in the same thread`,
     spawnSyncAndAssert,
     [
-      'threading-several-runtimes-per-thread-node-api',
+      `${apiType}-threading-several-runtimes-per-thread`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -318,10 +319,10 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    'threading-runtime-in-several-threads-node-api: run and environment from multiple threads',
+    `${apiType}-threading-runtime-in-several-threads: run an environment from multiple threads`,
     spawnSyncAndAssert,
     [
-      'threading-runtime-in-several-threads-node-api',
+      `${apiType}-threading-runtime-in-several-threads`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -335,10 +336,10 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    'threading-runtime-in-ui-thread-node-api: run and environment from multiple threads',
+    `${apiType}-threading-runtime-in-ui-thread: run an environment from UI thread`,
     spawnSyncAndAssert,
     [
-      'threading-runtime-in-ui-thread-node-api',
+      `${apiType}-threading-runtime-in-ui-thread`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -354,9 +355,9 @@ runSnapshotTests('cpp-api');
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
   runTest(
-    'preload-node-api: run preload callback',
+    `${apiType}-preload: run preload callback`,
     spawnSyncAndAssert,
-    ['preload-node-api', `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
+    [`${apiType}-preload`, `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
     {
       cwd: __dirname,
       trim: true,
@@ -367,10 +368,10 @@ runSnapshotTests('cpp-api');
   const linkedModulesScriptPath = path.join(__dirname, 'use-linked-modules.js');
 
   runTest(
-    'linked-modules-node-api: run with two linked modules',
+    `${apiType}-linked-modules: run with two linked modules`,
     spawnSyncAndAssert,
     [
-      'linked-modules-node-api',
+      `${apiType}-linked-modules`,
       `eval(${getReadFileCodeForPath(linkedModulesScriptPath)})`,
       2, // expected number of greeter module calls
       2, // expected number of replicator module calls
@@ -382,6 +383,9 @@ runSnapshotTests('cpp-api');
     }
   );
 }
+
+runCApiTests('c-api');
+runCApiTests('c-cpp-api');
 
 function runEnvTests(apiType) {
   runTest(
@@ -410,14 +414,4 @@ function runEnvTests(apiType) {
 }
 
 runEnvTests('c-api');
-
-/*
-runTest(
-  `modules-node-api: load modules`,
-  spawnSyncAndExitWithoutError,
-  ['modules-node-api', 'cjs.cjs', 'es6.mjs', ],
-  {
-    cwd: __dirname,
-  }
-);
-*/
+runEnvTests('c-cpp-api');
