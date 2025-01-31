@@ -261,6 +261,7 @@ typedef enum {
   node_embedding_status_generic_error = 1,
   node_embedding_status_null_arg = 2,
   node_embedding_status_bad_arg = 3,
+  node_embedding_status_out_of_memory = 4,
   node_embedding_status_error_exit_code = 512,
 } node_embedding_status;
 ```
@@ -270,6 +271,7 @@ typedef enum {
 - `node_embedding_status_null_arg` - One of non-optional arguments passed as
   NULL value.
 - `node_embedding_status_bad_arg` - One of the arguments has wrong value.
+- `node_embedding_status_out_of_memory` - Failed to allocate memory.
 - `node_embedding_status_error_exit_code` - A bit flag added to the Node.js exit
    code value if the error status is associated with an error code.
 
@@ -342,25 +344,17 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef node_embedding_status(NAPI_CDECL* node_embedding_handle_error_callback)(
-    void* handler_data,
-    const char* messages[],
-    size_t messages_size,
-    node_embedding_status exit_code);
+typedef node_embedding_status(NAPI_CDECL* node_embedding_data_release_callback)(
+    void* data);
 ```
 
-Function pointer type for user-provided native function that handles the list
-of error messages and the exit code.
+Function pointer type to release data.
 
 The callback parameters:
 
-- `[in] handler_data`: The user data associated with this callback.
-- `[in] messages`: Pointer to an array of zero terminating strings.
-- `[in] messages_size`: Size of the `messages` string array.
-- `[in] exit_code`: The suggested process exit code in case of error. If the
-  `exit_code` is zero, then the callback is used to output non-error messages.
+- `[in] data`: The data to be released.
 
-##### `node_embedding_configure_platform_callback`
+##### `node_embedding_platform_configure_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -370,45 +364,22 @@ added: REPLACEME
 
 ```c
 typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_configure_platform_callback)(
+    NAPI_CDECL* node_embedding_platform_configure_callback)(
     void* cb_data,
     node_embedding_platform_config platform_config);
 ```
 
-Function pointer type for user-provided native function that provides additional
-platform configuration..
+Function pointer type for user-provided native function that configures the
+platform.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
+- `[in] cb_data`: The data associated with the callback.
 - `[in] platform_config`: The platform configuration.
-
-##### `node_embedding_get_args_callback`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-```c
-typedef void(NAPI_CDECL* node_embedding_get_args_callback)(void* cb_data,
-                                                           int32_t argc,
-                                                           const char* argv[]);
-```
-
-Function pointer type for user-provided native function that receives list of
-CLI arguments from the `node_embedding_platform`.
-
-The callback parameters:
-
-- `[in] cb_data`: The user data associated with this callback.
-- `[in] argc`: Number of items in the `argv` array.
-- `[in] argv`: CLI arguments as an array of zero terminating strings.
 
 #### Functions
 
-##### `node_embedding_on_error`
+##### `node_embedding_last_error_message_get`
 
 <!-- YAML
 added: REPLACEME
@@ -416,32 +387,20 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Sets global custom error handler for the Node.js embedded code.
+Gets the last error message for the current thread.
 
 ```c
-node_embedding_status NAPI_CDECL
-node_embedding_on_error(node_embedding_error_handler error_handler,
-                        void* error_handler_data);
+const char* NAPI_CDECL
+node_embedding_last_error_message_get();
 ```
 
-- `[in] error_handler`: The error handler callback.
-- `[in] error_handler_data`: Optional. The error handler data that will be
-  passed to the `error_handler` callback. It can be removed after the
-  `node_embedding_delete_platform()` call.
+Returns a pointer to a non-null string that contains the last error message
+in the current thread or to empty string if there were no error messages.
 
-Returns `node_embedding_status_ok` if there were no issues.
+The value of the string should be copied or processed immediately since it can
+be overridden by upcoming embedding API calls.
 
-It is recommended to call this function before the creation of the
-`node_embedding_platform` instance to handle all error messages the same way.
-
-This function assigns a custom platform error handler. It replaces the default
-error handler that outputs error messages to the `stderr` and exits the current
-process with the `exit_code` when it is not zero.
-
-The zero `exit_code` indicates reported warnings or text messages. For example,
-it can be Node.js help text returned in response to the `--help` CLI argument.
-
-##### `node_embedding_set_api_version`
+##### `node_embedding_last_error_message_set`
 
 <!-- YAML
 added: REPLACEME
@@ -449,21 +408,21 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Sets the versions of the C embedding API and the Node-API.
-By default the API uses the latest stable versions of the APIs.
+Sets the last error message for the current thread.
 
 ```c
-node_embedding_status NAPI_CDECL node_embedding_set_api_version(
-    int32_t embedding_api_version,
-    int32_t node_api_version);
+const char* NAPI_CDECL
+node_embedding_last_error_message_set(const char* message);
 ```
 
-- `[in] embedding_api_version`: The version of the embedding API.
-- `[in] node_api_version`: The version of the Node-API.
+- `[in] message`: The new last error message for the current thread.
 
-Returns `node_embedding_status_ok` if there were no issues.
+The stored value can be retrieved by the `node_embedding_last_error_message_get`
+function.
 
-##### `node_embedding_run_main`
+The last error message can be removed by passing null to this function.
+
+##### `node_embedding_main_run`
 
 <!-- YAML
 added: REPLACEME
@@ -472,36 +431,37 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 Runs Node.js main function as if it is invoked from Node.js CLI.
-It allows to customize the platform, the runtime, and evaluate some Node-API
-code after the runtime initialization.
+It allows to customize the platform and the runtime behavior.
 
 ```c
-node_embedding_status NAPI_CDECL node_embedding_run_main(
+node_embedding_status NAPI_CDECL node_embedding_main_run(
+    int32_t embedding_api_version,
     int32_t argc,
-    char* argv[],
-    node_embedding_configure_platform_callback configure_platform_cb,
-    void* configure_platform_cb_data,
-    node_embedding_configure_runtime_callback configure_runtime_cb,
-    void* configure_runtime_cb_data,
-    node_embedding_node_api_callback node_api_cb,
-    void* node_api_cb_data);
+    const char* argv[],
+    node_embedding_platform_configure_callback configure_platform,
+    void* configure_platform_data,
+    node_embedding_runtime_configure_callback configure_runtime,
+    void* configure_runtime_data);
 ```
 
+- `[in] embedding_api_version`: The version of the embedding API.
 - `[in] argc`: Number of items in the `argv` array.
-- `[in] argv`: CLI arguments as an array of zero terminating strings.
-- `[in] configure_platform_cb`: A callback to configure the platform.
-- `[in] configure_platform_cb_data`: Additional data for the
-  `configure_platform_cb` callback.
-- `[in] configure_runtime_cb`: A callback to configure the runtime.
-- `[in] configure_runtime_cb_data`: Additional data for the
-  `configure_runtime_cb` callback.
-- `[in] node_api_cb`: A callback to call Node-API code after the
-  runtime initialization.
-- `[in] node_api_cb_data`: Additional data for the `node_api_cb` callback.
+- `[in] argv`: CLI arguments as an array of zero terminated strings.
+- `[in] configure_platform`: Optional. A callback to configure the platform.
+- `[in] configure_platform_data`: Optional. Additional data for the
+  `configure_platform` callback.
+- `[in] configure_runtime`: Optional. A callback to configure the main runtime.
+- `[in] configure_runtime_data`: Optional. Additional data for the
+  `configure_runtime` callback.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-##### `node_embedding_create_platform`
+In case of early return when Node.js prints help, version info, or V8 options,
+the output text can be accessed by calling the
+`node_embedding_last_error_message_get` while the returned status is
+`node_embedding_status_ok`.
+
+##### `node_embedding_platform_create`
 
 <!-- YAML
 added: REPLACEME
@@ -512,26 +472,33 @@ added: REPLACEME
 Creates new Node.js platform instance.
 
 ```c
-node_embedding_status NAPI_CDECL node_embedding_create_platform(
+node_embedding_status NAPI_CDECL node_embedding_platform_create(
+    int32_t embedding_api_version,
     int32_t argc,
-    char* argv[],
-    node_embedding_configure_platform_callback configure_platform_cb,
-    void* configure_platform_cb_data,
+    const char* argv[],
+    node_embedding_platform_configure_callback configure_platform,
+    void* configure_platform_data,
     node_embedding_platform* result);
 ```
 
+- `[in] embedding_api_version`: The version of the embedding API.
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: CLI arguments as an array of zero terminating strings.
-- `[in] configure_platform_cb`: A callback to configure the platform.
-- `[in] configure_platform_cb_data`: Additional data for the
-  `configure_platform_cb` callback.
+- `[in] configure_platform`: Optional. A callback to configure the platform.
+- `[in] configure_platform_data`: Optional. Additional data for the
+  `configure_platform` callback.
 - `[out] result`: New Node.js platform instance.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
 Node.js allows only a single platform instance per process.
 
-##### `node_embedding_delete_platform`
+In case of early return when Node.js prints help, version info, or V8 options,
+the output text can be accessed by calling the
+`node_embedding_last_error_message_get` while the returned status is
+`node_embedding_status_ok` and the `result` is null.
+
+##### `node_embedding_platform_delete`
 
 <!-- YAML
 added: REPLACEME
@@ -543,17 +510,14 @@ Deletes Node.js platform instance.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_delete_platform(node_embedding_platform platform);
+node_embedding_platform_delete(node_embedding_platform platform);
 ```
 
 - `[in] platform`: The Node.js platform instance to delete.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-If the platform was initialized before the deletion, then the method
-uninitializes the platform before deletion.
-
-##### `node_embedding_platform_set_flags`
+##### `node_embedding_platform_config_set_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -565,7 +529,7 @@ Sets the Node.js platform instance flags.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_platform_set_flags(
+node_embedding_platform_config_set_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags);
 ```
@@ -589,20 +553,19 @@ Gets the parsed list of non-Node.js arguments.
 node_embedding_status NAPI_CDECL
 node_embedding_platform_get_parsed_args(
     node_embedding_platform platform,
-    node_embedding_get_args_callback get_args_cb,
-    void* get_args_cb_data,
-    node_embedding_get_args_callback get_exec_args_cb,
-    void* get_exec_args_cb_data);
+    int32_t* args_count,
+    const char** args[],
+    int32_t* runtime_args_count,
+    const char** runtime_args[]);
 ```
 
 - `[in] platform`: The Node.js platform instance.
-- `[in] get_args_cb`: The callback to receive non-Node.js arguments.
-- `[in] get_args_cb_data`: Optional. The callback data that will be passed to
-  the `get_args_cb` callback. It can be deleted right after the function call.
-- `[in] get_exec_args_cb`: The callback to receive Node.js arguments.
-- `[in] get_exec_args_cb_data`: Optional. The callback data that will be passed
-  to the `get_exec_args_cb` callback. It can be deleted right after the function
-  call.
+- `[out] args_count`: Optional. Receives the non-Node.js argument count.
+- `[out] args`: Optional. Receives a pointer to an array of zero-terminated
+  strings with the non-Node.js arguments.
+- `[out] runtime_args_count`: Optional. Receives the Node.js argument count.
+- `[out] runtime_args`: Optional. Receives a pointer to an array of
+  zero-terminated strings with the Node.js arguments.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
@@ -644,72 +607,72 @@ Flags are used to initialize a Node.js runtime instance.
 
 ```c
 typedef enum {
-  node_embedding_runtime_no_flags = 0,
-  node_embedding_runtime_default_flags = 1 << 0,
-  node_embedding_runtime_owns_process_state = 1 << 1,
-  node_embedding_runtime_owns_inspector = 1 << 2,
-  node_embedding_runtime_no_register_esm_loader = 1 << 3,
-  node_embedding_runtime_track_unmanaged_fds = 1 << 4,
-  node_embedding_runtime_hide_console_windows = 1 << 5,
-  node_embedding_runtime_no_native_addons = 1 << 6,
-  node_embedding_runtime_no_global_search_paths = 1 << 7,
-  node_embedding_runtime_no_browser_globals = 1 << 8,
-  node_embedding_runtime_no_create_inspector = 1 << 9,
-  node_embedding_runtime_no_start_debug_signal_handler = 1 << 10,
-  node_embedding_runtime_no_wait_for_inspector_frontend = 1 << 11
+  node_embedding_runtime_flags_none = 0,
+  node_embedding_runtime_flags_default = 1 << 0,
+  node_embedding_runtime_flags_owns_process_state = 1 << 1,
+  node_embedding_runtime_flags_owns_inspector = 1 << 2,
+  node_embedding_runtime_flags_no_register_esm_loader = 1 << 3,
+  node_embedding_runtime_flags_track_unmanaged_fds = 1 << 4,
+  node_embedding_runtime_flags_hide_console_windows = 1 << 5,
+  node_embedding_runtime_flags_no_native_addons = 1 << 6,
+  node_embedding_runtime_flags_no_global_search_paths = 1 << 7,
+  node_embedding_runtime_flags_no_browser_globals = 1 << 8,
+  node_embedding_runtime_flags_no_create_inspector = 1 << 9,
+  node_embedding_runtime_flags_no_start_debug_signal_handler = 1 << 10,
+  node_embedding_runtime_flags_no_wait_for_inspector_frontend = 1 << 11
 } node_embedding_runtime_flags;
 ```
 
 These flags match to the C++ `node::EnvironmentFlags` and control the
 Node.js runtime initialization.
 
-- `node_embedding_runtime_no_flags` - No flags set.
-- `node_embedding_runtime_default_flags` - Use the default behavior for
+- `node_embedding_runtime_flags_none` - No flags set.
+- `node_embedding_runtime_flags_default` - Use the default behavior for
   Node.js instances.
-- `node_embedding_runtime_owns_process_state` - Controls whether this runtime
-  is allowed to affect per-process state (e.g. cwd, process title, uid, etc.).
-  This is set when using `node_embedding_runtime_default_flags`.
-- `node_embedding_runtime_owns_inspector` - Set if this runtime instance is
-  associated with the global inspector handling code (i.e. listening
+- `node_embedding_runtime_flags_owns_process_state` - Controls whether this
+  runtime is allowed to affect per-process state (e.g. cwd, process title,
+  uid, etc.). This is set when using `node_embedding_runtime_flags_default`.
+- `node_embedding_runtime_flags_owns_inspector` - Set if this runtime instance
+  is associated with the global inspector handling code (i.e. listening
   on `SIGUSR1`).
-  This is set when using `node_embedding_runtime_default_flags`.
-- `node_embedding_runtime_no_register_esm_loader` - Set if Node.js should not
-  run its own esm loader. This is needed by some embedders, because it's
+  This is set when using `node_embedding_runtime_flags_default`.
+- `node_embedding_runtime_flags_no_register_esm_loader` - Set if Node.js should
+  not run its own esm loader. This is needed by some embedders, because it's
   possible for the Node.js esm loader to conflict with another one in an
   embedder environment, e.g. Blink's in Chromium.
-- `node_embedding_runtime_track_unmanaged_fds` - Set this flag to make Node.js
-  track "raw" file descriptors, i.e. managed by `fs.open()` and `fs.close()`,
-  and close them during `node_embedding_delete_runtime`.
-- `node_embedding_runtime_hide_console_windows` - Set this flag to force hiding
-  console windows when spawning child processes. This is usually used when
-  embedding Node.js in GUI programs on Windows.
-- `node_embedding_runtime_no_native_addons` - Set this flag to disable loading
-  native addons via `process.dlopen`. This runtime flag is especially important
-  for worker threads so that a worker thread can't load a native addon even if
-  `execArgv` is overwritten and `--no-addons` is not specified but was specified
-  for this runtime instance.
-- `node_embedding_runtime_no_global_search_paths` - Set this flag to disable
-  searching modules from global paths like `$HOME/.node_modules` and
+- `node_embedding_runtime_flags_track_unmanaged_fds` - Set this flag to make
+  Node.js track "raw" file descriptors, i.e. managed by `fs.open()` and
+  `fs.close()`, and close them during the `node_embedding_runtime_delete` call.
+- `node_embedding_runtime_flags_hide_console_windows` - Set this flag to force
+  hiding console windows when spawning child processes. This is usually used
+  when embedding Node.js in GUI programs on Windows.
+- `node_embedding_runtime_flags_no_native_addons` - Set this flag to disable
+  loading native addons via `process.dlopen`. This runtime flag is especially
+  important for worker threads so that a worker thread can't load a native addon
+  even if `execArgv` is overwritten and `--no-addons` is not specified but was
+  specified for this runtime instance.
+- `node_embedding_runtime_flags_no_global_search_paths` - Set this flag to
+  disable searching modules from global paths like `$HOME/.node_modules` and
   `$NODE_PATH`. This is used by standalone apps that do not expect to have their
   behaviors changed because of globally installed modules.
-- `node_embedding_runtime_no_browser_globals` - Do not export browser globals
-  like setTimeout, console, etc.
-- `node_embedding_runtime_no_create_inspector` - Controls whether or not the
-  runtime should call `V8Inspector::create()`. This control is needed by
+- `node_embedding_runtime_flags_no_browser_globals` - Do not export browser
+  globals like setTimeout, console, etc.
+- `node_embedding_runtime_flags_no_create_inspector` - Controls whether or not
+  the runtime should call `V8Inspector::create()`. This control is needed by
   embedders who may not want to initialize the V8 inspector in situations where
   one has already been created, e.g. Blink's in Chromium.
-- `node_embedding_runtime_no_start_debug_signal_handler` - Controls whether or
-  not the `InspectorAgent` for this runtime should call
+- `node_embedding_runtime_flags_no_start_debug_signal_handler` - Controls
+  whether or not the `InspectorAgent` for this runtime should call
   `StartDebugSignalHandler`. This control is needed by embedders who may not
   want to allow other processes to start the V8 inspector.
-- `node_embedding_runtime_no_wait_for_inspector_frontend` - Controls whether the
-  `InspectorAgent` created for this runtime waits for Inspector frontend events
-  during the runtime creation. It's used to call `node::Stop(env)` on a Worker
-  thread that is waiting for the events.
+- `node_embedding_runtime_flags_no_wait_for_inspector_frontend` - Controls
+  whether the `InspectorAgent` created for this runtime waits for Inspector
+  frontend events during the runtime creation. It's used to call
+  `node::Stop(env)` on a Worker thread that is waiting for the events.
 
 #### Callback types
 
-##### `node_embedding_configure_runtime_callback`
+##### `node_embedding_runtime_configure_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -719,19 +682,19 @@ added: REPLACEME
 
 ```c
 typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_configure_runtime_callback)(
+    NAPI_CDECL* node_embedding_runtime_configure_callback)(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config);
 ```
 
-Function pointer type for user-provided native function that provides additional
-platform configuration..
+Function pointer type for user-provided native function that configures
+the runtime.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
-- `[in] platform`: The platform for the for the runtime.
+- `[in] cb_data`: The data associated with this callback.
+- `[in] platform`: The platform for the runtime.
 - `[in] runtime_config`: The runtime configuration.
 
 ##### `node_embedding_runtime_preload_callback`
@@ -751,18 +714,18 @@ typedef void(NAPI_CDECL* node_embedding_runtime_preload_callback)(
     napi_value require);
 ```
 
-Function pointer type for user-provided native function that is called when the
-runtime initially loads the JavaScript code.
+Function pointer type for user-provided native function that is called before
+the runtime loads any JavaScript code.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
+- `[in] cb_data`: The data associated with this callback.
 - `[in] runtime`: The runtime owning the callback.
-- `[in] env`: Node-API environmentStart of the blob memory span.
+- `[in] env`: Node-API environment.
 - `[in] process`: The Node.js `process` object.
 - `[in] require`: The internal `require` function.
 
-##### `node_embedding_start_execution_callback`
+##### `node_embedding_runtime_loading_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -771,7 +734,7 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef napi_value(NAPI_CDECL* node_embedding_start_execution_callback)(
+typedef napi_value(NAPI_CDECL* node_embedding_runtime_loading_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
@@ -781,18 +744,20 @@ typedef napi_value(NAPI_CDECL* node_embedding_start_execution_callback)(
 ```
 
 Function pointer type for user-provided native function that is called when the
-runtime starts the execution.
+runtime loads the main JavaScript and starts the runtime execution.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
+- `[in] cb_data`: The data associated with this callback.
 - `[in] runtime`: The runtime owning the callback.
-- `[in] env`: Node-API environmentStart of the blob memory span.
+- `[in] env`: Node-API environment.
 - `[in] process`: The Node.js `process` object.
 - `[in] require`: The internal `require` function.
 - `[in] run_cjs`: The internal function that runs Common JS modules.
 
-##### `node_embedding_initialize_module_callback`
+It returns `napi_value` with the result of the main script run.
+
+##### `node_embedding_runtime_loaded_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -801,7 +766,33 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
+typedef void(NAPI_CDECL* node_embedding_runtime_loaded_callback)(
+    void* cb_data,
+    node_embedding_runtime runtime,
+    napi_env env,
+    napi_value load_result);
+```
+
+Function pointer type for user-provided native function that is called after
+the runtime loaded the main JavaScript. It can help handing the loading result.
+
+The callback parameters:
+
+- `[in] cb_data`: The data associated with this callback.
+- `[in] runtime`: The runtime owning the callback.
+- `[in] env`: Node-API environment.
+- `[in] load_result`: The result of loading of the main script.
+
+##### `node_embedding_module_initialize_callback`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+typedef napi_value(NAPI_CDECL* node_embedding_module_initialize_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
@@ -826,7 +817,7 @@ and returned.
 
 #### Functions
 
-##### `node_embedding_run_runtime`
+##### `node_embedding_runtime_run`
 
 <!-- YAML
 added: REPLACEME
@@ -834,29 +825,23 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Runs Node.js runtime environment. It allows to customize the runtime, and
-evaluate some Node-API code after the runtime initialization.
+Runs Node.js runtime environment. It allows the runtime customization.
 
 ```c
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_runtime(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_run(
     node_embedding_platform platform,
-    node_embedding_configure_runtime_callback configure_runtime_cb,
-    void* configure_runtime_cb_data,
-    node_embedding_node_api_callback node_api_cb,
-    void* node_api_cb_data);
+    node_embedding_runtime_configure_callback configure_runtime,
+    void* configure_runtime_data);
 ```
 
 - `[in] platform`: The platform instance for the runtime.
-- `[in] configure_runtime_cb`: A callback to configure the runtime.
-- `[in] configure_runtime_cb_data`: Additional data for the
-  `configure_runtime_cb` callback.
-- `[in] node_api_cb`: A callback to call Node-API code after the
-  runtime initialization.
-- `[in] node_api_cb_data`: Additional data for the `node_api_cb` callback.
+- `[in] configure_runtime`: A callback to configure the runtime.
+- `[in] configure_runtime_data`: Additional data for the `configure_runtime`
+  callback.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-##### `node_embedding_create_runtime`
+##### `node_embedding_runtime_create`
 
 <!-- YAML
 added: REPLACEME
@@ -867,24 +852,24 @@ added: REPLACEME
 Creates new Node.js runtime instance.
 
 ```c
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_create(
     node_embedding_platform platform,
-    node_embedding_configure_runtime_callback configure_runtime_cb,
-    void* configure_runtime_cb_data,
+    node_embedding_runtime_configure_callback configure_runtime,
+    void* configure_runtime_data,
     node_embedding_runtime* result);
 ```
 
 - `[in] platform`: An initialized Node.js platform instance.
-- `[in] configure_runtime_cb`: A callback to configure the runtime.
-- `[in] configure_runtime_cb_data`: Additional data for the
-  `configure_runtime_cb` callback.
+- `[in] configure_runtime`: A callback to configure the runtime.
+- `[in] configure_runtime_data`: Additional data for the `configure_runtime`
+  callback.
 - `[out] result`: Upon return has a new Node.js runtime instance.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-Creates new Node.js runtime instance based on the provided platform instance.
+Creates new Node.js runtime instance for the provided platform instance.
 
-##### `node_embedding_delete_runtime`
+##### `node_embedding_runtime_delete`
 
 <!-- YAML
 added: REPLACEME
@@ -896,21 +881,14 @@ Deletes Node.js runtime instance.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_delete_runtime(node_embedding_runtime runtime);
+node_embedding_runtime_delete(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to delete.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-If the runtime was initialized, then the method un-initializes the runtime
-before the deletion.
-
-As a part of the un-initialization it can store created snapshot blob if the
-`node_embedding_runtime_on_create_snapshot` set the callback to save the
-snapshot blob.
-
-##### `node_embedding_runtime_set_flags`
+##### `node_embedding_runtime_config_set_node_api_version`
 
 <!-- YAML
 added: REPLACEME
@@ -922,8 +900,31 @@ Sets the Node.js runtime instance flags.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_flags(node_embedding_runtime_config runtime_config,
-                                 node_embedding_runtime_flags flags);
+node_embedding_runtime_config_set_node_api_version(
+    node_embedding_runtime_config runtime_config,
+    int32_t node_api_version);
+```
+
+- `[in] runtime_config`: The Node.js runtime configuration.
+- `[in] node_api_version`: The Node-API version to use by the runtime.
+
+Returns `node_embedding_status_ok` if there were no issues.
+
+##### `node_embedding_runtime_config_set_flags`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the Node.js runtime instance flags.
+
+```c
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_config_set_flags(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_runtime_flags flags);
 ```
 
 - `[in] runtime_config`: The Node.js runtime configuration.
@@ -931,28 +932,30 @@ node_embedding_runtime_set_flags(node_embedding_runtime_config runtime_config,
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-##### `node_embedding_runtime_set_args`
+##### `node_embedding_runtime_config_set_args`
 
 Sets the non-Node.js arguments for the Node.js runtime instance.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_args(node_embedding_runtime_config runtime_config,
-                                int32_t argc,
-                                const char* argv[],
-                                int32_t exec_argc,
-                                const char* exec_argv[]);
+node_embedding_runtime_config_set_args(
+    node_embedding_runtime_config runtime_config,
+    int32_t argc,
+    const char* argv[],
+    int32_t runtime_argc,
+    const char* runtime_argv[]);
 ```
 
 - `[in] runtime_config`: The Node.js runtime configuration.
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: non-Node.js arguments as an array of zero terminating strings.
-- `[in] exec_argc`: Number of items in the `exec_argv` array.
-- `[in] exec_argv`: Node.js arguments as an array of zero terminating strings.
+- `[in] runtime_argc`: Number of items in the `runtime_argv` array.
+- `[in] runtime_argv`: Node.js runtime arguments as an array of zero
+  terminated strings.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-##### `node_embedding_runtime_on_preload`
+##### `node_embedding_runtime_config_on_preload`
 
 <!-- YAML
 added: REPLACEME
@@ -964,22 +967,27 @@ Sets a preload callback to call before Node.js runtime instance is loaded.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_preload(
+node_embedding_runtime_config_on_preload(
     node_embedding_runtime_config runtime_config,
-    node_embedding_runtime_preload_callback preload_cb,
-    void* preload_cb_data);
+    node_embedding_runtime_preload_callback preload,
+    void* preload_data,
+    node_embedding_data_release_callback release_preload_data);
 ```
 
 - `[in] runtime_config`: The Node.js runtime configuration.
-- `[in] preload_cb`: The preload callback to be called before Node.js runtime
+- `[in] preload`: The preload callback to be called before Node.js runtime
   instance is loaded.
-- `[in] preload_cb_data`: Optional. The preload callback data that will be
-  passed to the `preload_cb` callback. It can be removed after the
-  `node_embedding_delete_runtime` call.
+- `[in] preload_data`: Optional. The preload callback data that will be
+  passed to the `preload` callback.
+- `[in] release_preload_data`: Optional. A callback to call to delete
+  the `preload_data` when the runtime is destroyed.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-##### `node_embedding_runtime_on_start_execution`
+This callback is called for the Node.js environment associated with the runtime
+and before each worker thread start.
+
+##### `node_embedding_runtime_config_on_loading`
 
 <!-- YAML
 added: REPLACEME
@@ -987,27 +995,63 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Sets a start execution callback to call when Node.js runtime instance
-starts execution.
+Sets a callback responsible for the loading of the main script by Node.js.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_start_execution(
+node_embedding_runtime_config_on_loading(
     node_embedding_runtime_config runtime_config,
-    node_embedding_start_execution_callback start_execution_cb,
-    void* start_execution_cb_data);
+    node_embedding_runtime_loading_callback run_load,
+    void* load_data,
+    node_embedding_data_release_callback release_load_data);
 ```
 
 - `[in] runtime_config`: The Node.js runtime configuration.
-- `[in] start_execution_cb`: The start execution callback to be called
-  when Node.js runtime starts execution.
-- `[in] start_execution_cb_data`: Optional. The start execution callback data
-  that will be passed to the `start_execution_cb` callback. It can be removed
-  after the `node_embedding_delete_runtime` call.
+- `[in] run_load`: The callback to be called when Node.js runtime loads
+  the main script.
+- `[in] load_data`: Optional. The data associated with the `run_load` callback.
+- `[in] release_load_data`: Optional. A callback to release the `load_data`
+  when the runtime does not need it anymore.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-##### `node_embedding_runtime_add_module`
+This callback is only called for a runtime only once. It is not called for the 
+runtime worker threads. The callback must take care about the thread safety.
+
+##### `node_embedding_runtime_config_on_loaded`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets a callback that helps processing result from loading the main script
+for the runtime.
+
+```c
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_config_on_loaded(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_runtime_loaded_callback handle_loaded,
+    void* handle_loaded_data,
+    node_embedding_data_release_callback release_handle_loaded_data);
+```
+
+- `[in] runtime_config`: The Node.js runtime configuration.
+- `[in] handle_loaded`: The callback to be called after Node.js runtime 
+  finished loading the main script.
+- `[in] handle_loaded_data`: Optional. The data associated with the
+  `handle_loaded` callback.
+- `[in] release_handle_loaded_data`: Optional. A callback to release the
+  `handle_loaded_data` when the runtime does not need it anymore.
+
+Returns `node_embedding_status_ok` if there were no issues.
+
+This callback is only called for a runtime only once. It is not called for the 
+runtime worker threads.
+
+##### `node_embedding_runtime_config_add_module`
 
 <!-- YAML
 added: REPLACEME
@@ -1019,18 +1063,22 @@ Adds a linked module for the Node.js runtime instance.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_add_module(
+node_embedding_runtime_config_add_module(
     node_embedding_runtime_config runtime_config,
     const char* module_name,
-    node_embedding_initialize_module_functor init_module,
+    node_embedding_module_initialize_callback init_module,
+    void* init_module_data,
+    node_embedding_data_release_callback release_init_module_data,
     int32_t module_node_api_version);
 ```
 
 - `[in] runtime_config`: The Node.js runtime configuration.
 - `[in] module_name`: The name of the module.
-- `[in] init_module_cb`: Module initialization callback. It is called for the
-  main and worker threads. The caller must take care about the thread safety.
-- `[in] init_module_cb_data`: The user data for the init_module_cb.
+- `[in] init_module`: Module initialization callback. It is called for the
+  main and worker threads. The callback must take care about the thread safety.
+- `[in] init_module_data`: Optional. The data for the `init_module` callback.
+- `[in] release_init_module_data`: Optional. A callback to release the
+  `init_module_data` when the runtime does not need it anymore.
 - `[in] module_node_api_version`: The Node API version used by the module.
 
 Returns `node_embedding_status_ok` if there were no issues.
@@ -1039,11 +1087,7 @@ The registered module can be accessed in JavaScript as
 `process._linkedBinding(module_name)` in the main JS and in the related
 worker threads.
 
-### Event loop APIs
-
-#### Data types
-
-##### `node_embedding_event_loop_run_mode`
+##### `node_embedding_runtime_user_data_set`
 
 <!-- YAML
 added: REPLACEME
@@ -1051,29 +1095,55 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-The event loop run mode.
+Associates or clears user data for the Node.js runtime.
 
 ```c
-typedef enum {
-  node_embedding_event_loop_run_mode_default = 0,
-  node_embedding_event_loop_run_mode_once = 1,
-  node_embedding_event_loop_run_mode_nowait = 2,
-} node_embedding_event_loop_run_mode;
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_user_data_set(
+    node_embedding_runtime runtime,
+    void* user_data,
+    node_embedding_data_release_callback release_user_data);
 ```
 
-These values match to UV library `uv_run_mode` enum and control the event loop
-behavior.
+- `[in] runtime`: The Node.js runtime.
+- `[in] user_data`: The user data to associate with the runtime. It it null
+  then it clears previously associated data without calling its
+  `release_user_data` callback.
+- `[in] release_user_data`: Optional. A callback to release the
+  `user_data` when the runtime destructor is called.
 
-- `node_embedding_event_loop_run_mode_default` - RRun the event loop until it is
-  completed. It matches the `UV_RUN_DEFAULT` behavior.
-- `node_embedding_event_loop_run_mode_once` - Run the event loop once and wait
-  if there are no events. It matches the `UV_RUN_ONCE` behavior.
-- `node_embedding_event_loop_run_mode_nowait` - Run the event loop once and do
-  not wait if there are no events. It matches the `UV_RUN_NOWAIT` behavior.
+Returns `node_embedding_status_ok` if there were no issues.
+
+Note that this method does not call `release_user_data` for the previously
+assigned data.
+
+##### `node_embedding_runtime_user_data_get`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Gets the user data associated with the Node.js runtime.
+
+```c
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_user_data_get(
+    node_embedding_runtime runtime,
+    void** user_data);
+```
+
+- `[in] runtime`: The Node.js runtime.
+- `[out] user_data`: The user data associated with the runtime.
+
+Returns `node_embedding_status_ok` if there were no issues.
+
+### Event loop APIs
 
 #### Callback types
 
-##### `node_embedding_post_task_callback`
+##### `node_embedding_task_post_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -1082,20 +1152,33 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_embedding_post_task_callback)(
+typedef node_embedding_status(NAPI_CDECL* node_embedding_task_post_callback)(
     void* cb_data,
-    node_embedding_run_task_functor run_task);
+    node_embedding_task_run_callback run_task,
+    void* task_data,
+    node_embedding_data_release_callback release_task_data,
+    bool* is_posted);
 ```
 
-Function pointer type for the `node_embedding_post_task_functor` that posts
-a task to the task runner.
+Function pointer type for the task runner callback.
+The task runner enables running the JavaScript and Node.js event loop in an
+existing dispatcher queue or UI event loop instead of the current thread.
 
 The callback parameters:
 
-- `[in] cb_data`: The data associated with the callback.
+- `[in] cb_data`: The data associated with the task runner that the post
+  callback calls.
 - `[in] run_task`: The task to run in the task runner.
+- `[in] task_data`: Optional. The data associated with the task.
+- `[in] release_task_data`: Optional. The callback to call when the `task_data`
+  is not needed anymore by the task runner.
+- `[out] is_posted`: Optional. Returns `true` if the task was successfully
+  posted for execution by the task runner. It should return `false` if the task
+  runner is already shutdown.
 
-##### `node_embedding_run_task_callback`
+The callback returns `node_embedding_status_ok` if there were no errors.
+
+##### `node_embedding_task_run_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -1104,70 +1187,21 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_embedding_run_task_callback)(
+typedef node_embedding_status(NAPI_CDECL* node_embedding_task_run_callback)(
     void* cb_data);
 ```
 
-Function pointer type for the `node_embedding_run_task_functor` that runs
-a task by the task runner.
+Function pointer type for the task to be run in the task runner.
 
 The callback parameters:
 
 - `[in] cb_data`: The data associated with the callback.
 
-#### Functor types
-
-##### `node_embedding_post_task_functor`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-```c
-typedef struct {
-  void* data;
-  node_embedding_post_task_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_post_task_functor;
-```
-
-Functor posts a task to a task runner.
-
-The functor fields:
-
-- `data`: The data associated with the functor.
-- `invoke`: The callback with this functor.
-- `release`: The callback to delete the `data` associated with this functor.
-
-##### `node_embedding_run_task_functor`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-```c
-typedef struct {
-  void* data;
-  node_embedding_run_task_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_run_task_functor;
-```
-
-Functor that runs a task.
-
-The functor fields:
-
-- `data`: The data associated with the functor.
-- `invoke`: The callback with this functor.
-- `release`: The callback to delete the `data` associated with this functor.
+The callback returns `node_embedding_status_ok` if there were no errors.
 
 #### Functions
 
-##### `node_embedding_runtime_set_task_runner`
+##### `node_embedding_runtime_config_set_task_runner`
 
 <!-- YAML
 added: REPLACEME
@@ -1177,25 +1211,33 @@ added: REPLACEME
 
 Sets the task runner for the Node.js runtime.
 It enables running Node.js event loop as a part of application UI event loop or
-dispatcher queue.
+a dispatcher queue.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_task_runner(
+node_embedding_runtime_config_set_task_runner(
     node_embedding_runtime_config runtime_config,
-    node_embedding_post_task_functor post_task);
+    node_embedding_task_post_callback post_task,
+    void* post_task_data,
+    node_embedding_data_release_callback release_post_task_data);
 ```
 
 - `[in] runtime_config`: The Node.js runtime configuration.
-- `[in] post_task`: The functor that is called by the Node.js runtime to run
+- `[in] post_task`: The callback that is called by the Node.js runtime to run
   event loop iteration.
+- `[in] post_task_data`: The data associated with the callback.
+- `[in] release_post_task_data`: The callback to be called to release the
+  `post_task_data` when the task runner is not needed any more.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
 This function enables running Node.js runtime event loop from the host
 application UI event loop or a dispatcher queue. Internally it creates a thread
 that observes new events to process by the event loop. Then, it posts a task
-to run the event loop once using the `post_task` functor.
+to run the event loop once by using the `post_task` callback and passing there
+the `post_task_data`. The `post_task` call is made from the helper observer
+queue. The goal of the `pots_task` is to schedule the task in the UI queue or
+the dispatcher queue used as a task runner.
 
 Note that running the event loop in a dedicated thread is more efficient.
 This method can be used in scenarios when we must combine the Node.js event
@@ -1203,7 +1245,14 @@ loop processing with the application UI event loop. It may be required when
 the application wants to run JavaScript code from the UI thread to interop with
 the native UI components.
 
-##### `node_embedding_run_event_loop`
+Using the task runner is an alternative to calling the
+`node_embedding_runtime_event_loop_run` function that processes all Node.js
+tasks in the current thread.
+
+The `post_task_data` may outlive the lifetime of the runtime it is associated
+with and released much later.
+
+##### `node_embedding_runtime_event_loop_run`
 
 <!-- YAML
 added: REPLACEME
@@ -1211,38 +1260,11 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Runs Node.js runtime instance event loop.
+Runs Node.js runtime instance event loop in the default mode.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_run_event_loop(
-    node_embedding_runtime runtime,
-    node_embedding_event_loop_run_mode run_mode,
-    bool* has_more_work);
-```
-
-- `[in] runtime`: The Node.js runtime instance.
-- `[in] run_mode`: The mode for running the runtime event loop.
-- `[out] has_more_work`: `true` if the event loop has more work to do.
-
-Returns `node_embedding_status_ok` if there were no issues.
-
-The function does not complete the Node.js runtime event loop if there are no
-more tasks to run.
-
-##### `node_embedding_complete_event_loop`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Completes the Node.js runtime instance event loop.
-
-```c
-node_embedding_status NAPI_CDECL
-node_embedding_complete_event_loop(
+node_embedding_runtime_event_loop_run(
     node_embedding_runtime runtime);
 ```
 
@@ -1250,13 +1272,13 @@ node_embedding_complete_event_loop(
 
 Returns `node_embedding_status_ok` if there were no issues.
 
-It completes all current tasks and emits `beforeExit` event.
+The function processes all Node.js tasks and emits `beforeExit` event.
 If new tasks are added, then it completes them and raises the `beforeExit` event
 again. The process repeats until the `beforeExit` event stops producing new
 tasks. After that it emits the `exit` event and ends the event loop processing.
 No new tasks can be added in the `exit` event handler or after that.
 
-##### `node_embedding_terminate_event_loop`
+##### `node_embedding_runtime_event_loop_terminate`
 
 <!-- YAML
 added: REPLACEME
@@ -1268,7 +1290,7 @@ Terminates the Node.js runtime instance event loop.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_terminate_event_loop(
+node_embedding_runtime_event_loop_terminate(
     node_embedding_runtime runtime);
 ```
 
@@ -1277,9 +1299,70 @@ node_embedding_terminate_event_loop(
 Returns `node_embedding_status_ok` if there were no issues.
 
 The event loop is stopped and cannot be resumed.
-No `beforeExit` or `exit` events are going to be raised.
+No `beforeExit` or `exit` events are not going to be raised.
+
+##### `node_embedding_runtime_event_loop_run_once`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Executes a single event loop iteration. It may block the current thread while
+waiting for the new events from the asynchronous operations.
+
+```c
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_event_loop_run_once(
+    node_embedding_runtime runtime,
+    bool* has_more_work);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[out] has_more_work`: Optional. Returns true if the event loop has more
+  work to do.
+
+Returns `node_embedding_status_ok` if there were no issues.
+
+##### `node_embedding_runtime_event_loop_run_no_wait`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Executes a single event loop iteration. It does not block the current thread
+while to wait on pending asynchronous operations.
+
+```c
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_event_loop_run_no_wait(
+    node_embedding_runtime runtime,
+    bool* has_more_work);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[out] has_more_work`: Optional. Returns true if the event loop has more
+  work to do.
+
+Returns `node_embedding_status_ok` if there were no issues.
 
 ### JavaScript/Native interop APIs
+
+#### Data types
+
+##### `node_embedding_node_api_scope`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+This is an opaque pointer for the Node-API scope where the provided `napi_env`
+is valid.
 
 #### Callback types
 
@@ -1294,7 +1377,6 @@ added: REPLACEME
 ```c
 typedef void(NAPI_CDECL* node_embedding_run_node_api_callback)(
     void* cb_data,
-    node_embedding_runtime runtime,
     napi_env env);
 ```
 
@@ -1303,36 +1385,11 @@ Function pointer type for callback that invokes Node-API code.
 The callback parameters:
 
 - `[in] cb_data`: The user data associated with this callback.
-- `[in] runtime`: The Node.js runtime invoking this callback.
 - `[in] env`: Node-API environment.
-
-#### Functor types
-
-##### `node_embedding_run_node_api_functor_ref`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-```c
-typedef struct {
-  void* data;
-  node_embedding_run_node_api_callback invoke;
-} node_embedding_run_node_api_functor_ref;
-```
-
-Functor reference that invokes Node-API code.
-
-The functor reference fields:
-
-- `data`: The data associated with the functor reference.
-- `invoke`: The callback with this functor reference.
 
 #### Functions
 
-##### `node_embedding_run_node_api`
+##### `node_embedding_runtime_node_api_run`
 
 <!-- YAML
 added: REPLACEME
@@ -1344,21 +1401,24 @@ Runs Node-API code.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_run_node_api(
+node_embedding_runtime_node_api_run(
     node_embedding_runtime runtime,
-    node_embedding_run_node_api_functor_ref run_node_api);
+    node_embedding_node_api_run_callback run_node_api,
+    void* run_node_api_data);
 ```
 
 - `[in] runtime`: The Node.js embedding_runtime instance.
-- `[in] run_node_api`: The functor reference that invokes Node-API code.
+- `[in] run_node_api`: The callback to invoke Node-API code.
+- `[in] run_node_api_data`: Optional. The data associated with the
+  `run_node_api` callback.
 
 Returns `node_embedding_status_ok` if there were no issues.
 
 The function invokes the callback that runs Node-API code in the Node-API scope.
-Then, it triggers the uncaught exception handler if there were any
-unhandled errors.
+It triggers the uncaught exception handler if there were any unhandled
+JavaScript errors.
 
-##### `node_embedding_open_node_api_scope`
+##### `node_embedding_runtime_node_api_scope_open`
 
 <!-- YAML
 added: REPLACEME
@@ -1370,7 +1430,7 @@ Opens scope to run Node-API code.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_open_node_api_scope(
+node_embedding_runtime_node_api_scope_open(
     node_embedding_runtime runtime,
     node_embedding_node_api_scope* node_api_scope,
     napi_env* env);
@@ -1385,7 +1445,10 @@ Returns `node_embedding_status_ok` if there were no issues.
 The function opens up V8 Isolate, V8 handle, and V8 context scopes where it is
 safe to run the Node-API environment.
 
-##### `node_embedding_close_node_api_scope`
+Using the `node_embedding_runtime_node_api_scope_open` and `node_embedding_runtime_node_api_scope_close` is an alternative to the
+`node_embedding_runtime_node_api_run` call.
+
+##### `node_embedding_runtime_node_api_scope_close`
 
 <!-- YAML
 added: REPLACEME
@@ -1397,7 +1460,7 @@ Closes the Node-API invocation scope.
 
 ```c
 node_embedding_status NAPI_CDECL
-node_embedding_close_node_api_scope(
+node_embedding_runtime_node_api_scope_close(
     node_embedding_runtime runtime,
     node_embedding_node_api_scope node_api_scope);
 ```
