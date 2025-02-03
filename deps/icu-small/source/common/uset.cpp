@@ -21,6 +21,7 @@
 */
 
 #include "unicode/utypes.h"
+#include "unicode/char16ptr.h"
 #include "unicode/uobject.h"
 #include "unicode/uset.h"
 #include "unicode/uniset.h"
@@ -307,9 +308,29 @@ uset_getRangeCount(const USet *set) {
 }
 
 U_CAPI int32_t U_EXPORT2
+uset_getStringCount(const USet *uset) {
+    const UnicodeSet &set = *(const UnicodeSet *)uset;
+    return USetAccess::getStringCount(set);
+}
+
+U_CAPI int32_t U_EXPORT2
 uset_getItemCount(const USet* uset) {
     const UnicodeSet& set = *(const UnicodeSet*)uset;
     return set.getRangeCount() + USetAccess::getStringCount(set);
+}
+
+U_CAPI const UChar* U_EXPORT2
+uset_getString(const USet *uset, int32_t index, int32_t *pLength) {
+    if (pLength == nullptr) { return nullptr; }
+    const UnicodeSet &set = *(const UnicodeSet *)uset;
+    int32_t count = USetAccess::getStringCount(set);
+    if (index < 0 || count <= index) {
+        *pLength = 0;
+        return nullptr;
+    }
+    const UnicodeString *s = USetAccess::getString(set, index);
+    *pLength = s->length();
+    return toUCharPtr(s->getBuffer());
 }
 
 U_CAPI int32_t U_EXPORT2
@@ -475,7 +496,7 @@ uset_serializedContains(const USerializedSet* set, UChar32 c) {
         } else {
             hi += 1;
         }
-        return (UBool)(hi&1);
+        return hi&1;
     } else {
         /* find c in the supplementary part */
         uint16_t high=(uint16_t)(c>>16), low=(uint16_t)c;
@@ -500,7 +521,7 @@ uset_serializedContains(const USerializedSet* set, UChar32 c) {
             hi += 2;
         }
         /* count pairs of 16-bit units even per BMP and check if the number of pairs is odd */
-        return (UBool)(((hi+(base<<1))&2)!=0);
+        return ((hi+(base<<1))&2)!=0;
     }
 }
 

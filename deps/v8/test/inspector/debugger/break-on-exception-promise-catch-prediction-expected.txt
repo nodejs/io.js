@@ -464,7 +464,7 @@ Correctly predicted as caught
 
 Running test: testCase
 > Throwing from exceptionInCatch, handling with dontHandleAsync
-Paused on uncaught promiseRejection
+Paused on caught promiseRejection
 exceptionInCatch (catch-prediction.js:75:17)
 dontHandleAsync (catch-prediction.js:183:8)
 runWithResolution (catch-prediction.js:427:22)
@@ -1060,7 +1060,7 @@ Correctly predicted as caught
 
 Running test: testCase
 > Throwing from promiseReject, handling with catchMethod
-Paused on uncaught promiseRejection
+Paused on caught promiseRejection
 promiseReject (catch-prediction.js:14:17)
 catchMethod (catch-prediction.js:197:2)
 runWithResolution (catch-prediction.js:427:22)
@@ -1074,7 +1074,7 @@ console: awaiting promise
 console: caught
 console: finished without error
 
-PREDICTION MISMATCH: Exception was caught but was predicted to be uncaught
+Correctly predicted as caught
 ------------------------------------------------------
 
 Running test: testCase
@@ -1163,7 +1163,7 @@ Correctly predicted as caught
 
 Running test: testCase
 > Throwing from promiseReject, handling with catchMethodInTry
-Paused on uncaught promiseRejection
+Paused on caught promiseRejection
 promiseReject (catch-prediction.js:14:17)
 catchMethodInTry (catch-prediction.js:207:4)
 runWithResolution (catch-prediction.js:427:22)
@@ -1177,7 +1177,7 @@ console: awaiting promise
 console: caught
 console: finished without error
 
-PREDICTION MISMATCH: Exception was caught but was predicted to be uncaught
+Correctly predicted as caught
 ------------------------------------------------------
 
 Running test: testCase
@@ -1409,7 +1409,7 @@ Correctly predicted as caught
 
 Running test: testCase
 > Throwing from promiseReject, handling with finallyAndCatchMethod
-Paused on uncaught promiseRejection
+Paused on caught promiseRejection
 promiseReject (catch-prediction.js:14:17)
 finallyAndCatchMethod (catch-prediction.js:258:2)
 runWithResolution (catch-prediction.js:427:22)
@@ -1425,7 +1425,7 @@ console: finished without error
 Uncaught message immediately revoked for reason: Handler added to rejected promise
 console: caught
 
-PREDICTION MISMATCH: Exception was caught but was predicted to be uncaught
+Correctly predicted as caught
 ------------------------------------------------------
 
 Running test: testCase
@@ -1511,7 +1511,7 @@ Correctly predicted as caught
 
 Running test: testCase
 > Throwing from promiseReject, handling with thenMethodWithTwoArgs
-Paused on uncaught promiseRejection
+Paused on caught promiseRejection
 promiseReject (catch-prediction.js:14:17)
 thenMethodWithTwoArgs (catch-prediction.js:267:2)
 runWithResolution (catch-prediction.js:427:22)
@@ -1525,7 +1525,7 @@ console: awaiting promise
 console: caught
 console: finished without error
 
-PREDICTION MISMATCH: Exception was caught but was predicted to be uncaught
+Correctly predicted as caught
 ------------------------------------------------------
 
 Running test: testCase
@@ -2266,7 +2266,7 @@ Correctly predicted as uncaught
 
 Running test: testCase
 > Throwing from promiseReject, handling with catchAndAlsoDont
-Paused on uncaught promiseRejection
+Paused on caught promiseRejection
 promiseReject (catch-prediction.js:14:17)
 catchAndAlsoDont (catch-prediction.js:411:26)
 runWithResolution (catch-prediction.js:427:22)
@@ -2288,5 +2288,5 @@ runWithResolution (catch-prediction.js:427:22)
 testWrapper (catch-prediction.js:438:8)
 (anonymous) (test_framework.js:0:0)
 
-Correctly predicted as uncaught
+PREDICTION MISMATCH: Exception was uncaught but was predicted to be caught
 ------------------------------------------------------

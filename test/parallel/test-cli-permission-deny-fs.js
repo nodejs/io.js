@@ -12,7 +12,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission', '-e',
+      '--permission', '-e',
       `console.log(process.permission.has("fs"));
        console.log(process.permission.has("fs.read"));
        console.log(process.permission.has("fs.write"));`,
@@ -27,16 +27,16 @@ const path = require('path');
 }
 
 {
-  const tmpPath = path.resolve('/tmp/');
+  const tmpPath = path.resolve('./tmp/');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write', tmpPath, '-e',
       `console.log(process.permission.has("fs"));
       console.log(process.permission.has("fs.read"));
       console.log(process.permission.has("fs.write"));
-      console.log(process.permission.has("fs.write", "/tmp/"));`,
+      console.log(process.permission.has("fs.write", "./tmp/"));`,
     ]
   );
   const [fs, fsIn, fsOut, fsOutAllowed] = stdout.toString().split('\n');
@@ -51,7 +51,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write', '*', '-e',
       `console.log(process.permission.has("fs"));
        console.log(process.permission.has("fs.read"));
@@ -70,7 +70,7 @@ const path = require('path');
   const { status, stdout } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read', '*', '-e',
       `console.log(process.permission.has("fs"));
        console.log(process.permission.has("fs.read"));
@@ -89,7 +89,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-write=*', '-p',
       'fs.readFileSync(process.execPath)',
     ]
@@ -104,7 +104,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '-p',
       'fs.readFileSync(process.execPath)',
     ]
@@ -119,7 +119,7 @@ const path = require('path');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read=*', '-p',
       'fs.writeFileSync("policy-deny-example.md", "# test")',
     ]
@@ -138,11 +138,14 @@ const path = require('path');
   if (firstPath.startsWith('/etc')) {
     common.skip('/etc as firstPath');
   }
+  if (firstPath.startsWith('/tmp')) {
+    common.skip('/tmp as firstPath');
+  }
   const file = fixtures.path('permission', 'loader', 'index.js');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${firstPath}`,
       file,
     ]

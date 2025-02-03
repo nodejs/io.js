@@ -17,6 +17,7 @@
 #include <atomic>
 
 #include "absl/base/internal/raw_logging.h"
+#include "absl/base/internal/tracing.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/time/time.h"
 
@@ -24,6 +25,7 @@ namespace absl {
 ABSL_NAMESPACE_BEGIN
 
 void Notification::Notify() {
+  base_internal::TraceSignal(this, TraceObjectKind());
   MutexLock l(&this->mutex_);
 
 #ifndef NDEBUG
@@ -45,31 +47,37 @@ Notification::~Notification() {
 }
 
 void Notification::WaitForNotification() const {
+  base_internal::TraceWait(this, TraceObjectKind());
   if (!HasBeenNotifiedInternal(&this->notified_yet_)) {
-    this->mutex_.LockWhen(Condition(&HasBeenNotifiedInternal,
-                                    &this->notified_yet_));
+    this->mutex_.LockWhen(
+        Condition(&HasBeenNotifiedInternal, &this->notified_yet_));
     this->mutex_.Unlock();
   }
+  base_internal::TraceContinue(this, TraceObjectKind());
 }
 
 bool Notification::WaitForNotificationWithTimeout(
     absl::Duration timeout) const {
+  base_internal::TraceWait(this, TraceObjectKind());
   bool notified = HasBeenNotifiedInternal(&this->notified_yet_);
   if (!notified) {
     notified = this->mutex_.LockWhenWithTimeout(
         Condition(&HasBeenNotifiedInternal, &this->notified_yet_), timeout);
     this->mutex_.Unlock();
   }
+  base_internal::TraceContinue(notified ? this : nullptr, TraceObjectKind());
   return notified;
 }
 
 bool Notification::WaitForNotificationWithDeadline(absl::Time deadline) const {
+  base_internal::TraceWait(this, TraceObjectKind());
   bool notified = HasBeenNotifiedInternal(&this->notified_yet_);
   if (!notified) {
     notified = this->mutex_.LockWhenWithDeadline(
         Condition(&HasBeenNotifiedInternal, &this->notified_yet_), deadline);
     this->mutex_.Unlock();
   }
+  base_internal::TraceContinue(notified ? this : nullptr, TraceObjectKind());
   return notified;
 }
 

@@ -315,6 +315,11 @@ EmbedderSnapshotData::Pointer EmbedderSnapshotData::BuiltinSnapshotData() {
 
 EmbedderSnapshotData::Pointer EmbedderSnapshotData::FromBlob(
     const std::vector<char>& in) {
+  return FromBlob(std::string_view(in.data(), in.size()));
+}
+
+EmbedderSnapshotData::Pointer EmbedderSnapshotData::FromBlob(
+    std::string_view in) {
   SnapshotData* snapshot_data = new SnapshotData();
   CHECK_EQ(snapshot_data->data_ownership, SnapshotData::DataOwnership::kOwned);
   EmbedderSnapshotData::Pointer result{

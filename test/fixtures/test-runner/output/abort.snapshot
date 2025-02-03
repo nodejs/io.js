@@ -4,26 +4,31 @@ TAP version 13
     ok 1 - ok 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 2
     ok 2 - ok 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 3
     ok 3 - ok 3
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 4
     ok 4 - ok 4
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: not ok 1
     not ok 5 - not ok 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):7'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -33,6 +38,7 @@ TAP version 13
     not ok 6 - not ok 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):7'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -42,6 +48,7 @@ TAP version 13
     not ok 7 - not ok 3
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):7'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -63,6 +70,7 @@ TAP version 13
     not ok 8 - not ok 4
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):7'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -84,6 +92,7 @@ TAP version 13
     not ok 9 - not ok 5
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):7'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -105,6 +114,7 @@ TAP version 13
 not ok 1 - promise timeout signal
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/abort.js:(LINE):1'
   failureType: 'testAborted'
   error: 'The operation was aborted due to timeout'
@@ -120,6 +130,7 @@ not ok 1 - promise timeout signal
 not ok 2 - promise abort signal
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/abort.js:(LINE):1'
   failureType: 'testAborted'
   error: 'This operation was aborted'
@@ -135,32 +146,38 @@ not ok 2 - promise abort signal
     *
     *
     *
+    *
   ...
 # Subtest: callback timeout signal
     # Subtest: ok 1
     ok 1 - ok 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 2
     ok 2 - ok 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 3
     ok 3 - ok 3
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 4
     ok 4 - ok 4
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: not ok 1
     not ok 5 - not ok 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):5'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -170,6 +187,7 @@ not ok 2 - promise abort signal
     not ok 6 - not ok 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):5'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -179,6 +197,7 @@ not ok 2 - promise abort signal
     not ok 7 - not ok 3
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):5'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -200,6 +219,7 @@ not ok 2 - promise abort signal
     not ok 8 - not ok 4
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):5'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -221,6 +241,7 @@ not ok 2 - promise abort signal
     not ok 9 - not ok 5
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort.js:(LINE):5'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -242,6 +263,7 @@ not ok 2 - promise abort signal
 not ok 3 - callback timeout signal
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/abort.js:(LINE):1'
   failureType: 'testAborted'
   error: 'The operation was aborted due to timeout'
@@ -257,12 +279,14 @@ not ok 3 - callback timeout signal
 not ok 4 - callback abort signal
   ---
   duration_ms: *
+  type: 'test'
   location: '/test/fixtures/test-runner/output/abort.js:(LINE):1'
   failureType: 'testAborted'
   error: 'This operation was aborted'
   code: 20
   name: 'AbortError'
   stack: |-
+    *
     *
     *
     *

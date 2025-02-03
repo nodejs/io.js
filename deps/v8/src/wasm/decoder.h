@@ -89,17 +89,10 @@ class Decoder {
   // Don't run validation, assume valid input.
   static constexpr struct NoValidationTag {
     static constexpr bool validate = false;
-    static constexpr bool full_validation = false;
   } kNoValidation = {};
-  // Run validation but only store a generic error.
-  static constexpr struct BooleanValidationTag {
-    static constexpr bool validate = true;
-    static constexpr bool full_validation = false;
-  } kBooleanValidation = {};
   // Run full validation with error message and location.
   static constexpr struct FullValidationTag {
     static constexpr bool validate = true;
-    static constexpr bool full_validation = true;
   } kFullValidation = {};
 
   struct NoName {
@@ -113,8 +106,7 @@ class Decoder {
   using Name = const char*;
 #else
   template <typename ValidationTag>
-  using Name =
-      std::conditional_t<ValidationTag::full_validation, const char*, NoName>;
+  using Name = std::conditional_t<ValidationTag::validate, const char*, NoName>;
 #endif
 
   enum TraceFlag : bool { kTrace = true, kNoTrace = false };
@@ -333,14 +325,6 @@ class Decoder {
     return true;
   }
 
-  // Use this for "boolean validation", i.e. if the error message is not used
-  // anyway.
-  void V8_NOINLINE V8_PRESERVE_MOST MarkError() {
-    if (!ok()) return;
-    error_ = {0, "validation failed"};
-    onFirstError();
-  }
-
   // Do not inline error methods. This has measurable impact on validation time,
   // see https://crbug.com/910432.
   void V8_NOINLINE V8_PRESERVE_MOST error(const char* msg) {
@@ -479,11 +463,7 @@ class Decoder {
       DCHECK_LE(pc, end_);
       DCHECK_LE(sizeof(IntType), end_ - pc);
     } else if (V8_UNLIKELY(ptrdiff_t{sizeof(IntType)} > end_ - pc)) {
-      if (ValidationTag::full_validation) {
-        error(pc, msg);
-      } else {
-        MarkError();
-      }
+      error(pc, msg);
       return 0;
     }
     return base::ReadLittleEndianValue<IntType>(reinterpret_cast<Address>(pc));
@@ -575,12 +555,8 @@ class Decoder {
     }
     if (ValidationTag::validate && V8_UNLIKELY(at_end || (b & 0x80))) {
       TRACE_IF(trace, at_end ? "<end> " : "<length overflow> ");
-      if constexpr (ValidationTag::full_validation) {
-        errorf(pc, "%s while decoding %s",
-               at_end ? "reached end" : "length overflow", name);
-      } else {
-        MarkError();
-      }
+      errorf(pc, "%s while decoding %s",
+             at_end ? "reached end" : "length overflow", name);
       return {0, 0};
     }
     if constexpr (is_last_byte) {
@@ -600,11 +576,7 @@ class Decoder {
       if (!ValidationTag::validate) {
         DCHECK(valid_extra_bits);
       } else if (V8_UNLIKELY(!valid_extra_bits)) {
-        if (ValidationTag::full_validation) {
-          error(pc, "extra bits in varint");
-        } else {
-          MarkError();
-        }
+        error(pc, "extra bits in varint");
         return {0, 0};
       }
     }

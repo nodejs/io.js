@@ -11,7 +11,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let struct = builder.addStruct([makeField(kWasmI32, true)]);
 
   builder.addFunction("main", kSig_i_i)
-    .addLocals(wasmRefNullType(kWasmStructRef), 1)
+    .addLocals(kWasmStructRef, 1)
     .addBody([
       kExprLocalGet, 0,
       kGCPrefix, kExprStructNew, struct,

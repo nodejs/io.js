@@ -16,7 +16,9 @@ SSL_CTX_set_cert_store, SSL_CTX_set1_cert_store, SSL_CTX_get_cert_store - manipu
 
 SSL_CTX_set_cert_store() sets/replaces the certificate verification storage
 of B<ctx> to/with B<store>. If another X509_STORE object is currently
-set in B<ctx>, it will be X509_STORE_free()ed.
+set in B<ctx>, it will be X509_STORE_free()ed. SSL_CTX_set_cert_store() will
+take ownership of the B<store>, i.e., the call C<X509_STORE_free(store)> is no
+longer needed.
 
 SSL_CTX_set1_cert_store() sets/replaces the certificate verification storage
 of B<ctx> to/with B<store>. The B<store>'s reference count is incremented.
@@ -79,7 +81,7 @@ L<SSL_CTX_set_verify(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2001-2016 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2001-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

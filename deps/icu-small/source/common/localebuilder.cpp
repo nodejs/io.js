@@ -1,6 +1,8 @@
 // © 2019 and later: Unicode, Inc. and others.
 // License & terms of use: http://www.unicode.org/copyright.html
 
+#include <optional>
+#include <string_view>
 #include <utility>
 
 #include "bytesinkutil.h"  // StringByteSink<CharString>
@@ -162,12 +164,15 @@ _isKeywordValue(const char* key, const char* value, int32_t value_len)
     // otherwise: unicode extension value
     // We need to convert from legacy key/value to unicode
     // key/value
-    const char* unicode_locale_key = uloc_toUnicodeLocaleKey(key);
-    const char* unicode_locale_type = uloc_toUnicodeLocaleType(key, value);
+    std::optional<std::string_view> unicode_locale_key = ulocimp_toBcpKeyWithFallback(key);
+    std::optional<std::string_view> unicode_locale_type = ulocimp_toBcpTypeWithFallback(key, value);
 
-    return unicode_locale_key && unicode_locale_type &&
-           ultag_isUnicodeLocaleKey(unicode_locale_key, -1) &&
-           ultag_isUnicodeLocaleType(unicode_locale_type, -1);
+    return unicode_locale_key.has_value() &&
+           unicode_locale_type.has_value() &&
+           ultag_isUnicodeLocaleKey(unicode_locale_key->data(),
+                                    static_cast<int32_t>(unicode_locale_key->size())) &&
+           ultag_isUnicodeLocaleType(unicode_locale_type->data(),
+                                     static_cast<int32_t>(unicode_locale_type->size()));
 }
 
 void

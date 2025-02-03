@@ -53,7 +53,7 @@ class StreamTester {
     Handle<Context> context = i_isolate->native_context();
 
     stream_ = GetWasmEngine()->StartStreamingCompilation(
-        i_isolate, WasmFeatures::All(), CompileTimeImports{}, context,
+        i_isolate, WasmEnabledFeatures::All(), CompileTimeImports{}, context,
         "WebAssembly.compileStreaming()", test_resolver_);
   }
 
@@ -85,9 +85,9 @@ ZoneBuffer GetValidModuleBytes(Zone* zone, uint8_t n) {
 
 std::shared_ptr<NativeModule> SyncCompile(base::Vector<const uint8_t> bytes) {
   ErrorThrower thrower(CcTest::i_isolate(), "Test");
-  auto enabled_features = WasmFeatures::FromIsolate(CcTest::i_isolate());
+  auto enabled_features = WasmEnabledFeatures::FromIsolate(CcTest::i_isolate());
   auto wire_bytes = ModuleWireBytes(bytes.begin(), bytes.end());
-  Handle<WasmModuleObject> module =
+  DirectHandle<WasmModuleObject> module =
       GetWasmEngine()
           ->SyncCompile(CcTest::i_isolate(), enabled_features,
                         CompileTimeImports{}, &thrower, wire_bytes)
@@ -138,15 +138,15 @@ TEST(TestAsyncCache) {
   auto resolverA2 = std::make_shared<TestResolver>(&pending);
   auto resolverB = std::make_shared<TestResolver>(&pending);
 
-  GetWasmEngine()->AsyncCompile(CcTest::i_isolate(), WasmFeatures::All(),
+  GetWasmEngine()->AsyncCompile(CcTest::i_isolate(), WasmEnabledFeatures::All(),
                                 CompileTimeImports{}, resolverA1,
                                 ModuleWireBytes(bufferA.begin(), bufferA.end()),
                                 true, "WebAssembly.compile");
-  GetWasmEngine()->AsyncCompile(CcTest::i_isolate(), WasmFeatures::All(),
+  GetWasmEngine()->AsyncCompile(CcTest::i_isolate(), WasmEnabledFeatures::All(),
                                 CompileTimeImports{}, resolverA2,
                                 ModuleWireBytes(bufferA.begin(), bufferA.end()),
                                 true, "WebAssembly.compile");
-  GetWasmEngine()->AsyncCompile(CcTest::i_isolate(), WasmFeatures::All(),
+  GetWasmEngine()->AsyncCompile(CcTest::i_isolate(), WasmEnabledFeatures::All(),
                                 CompileTimeImports{}, resolverB,
                                 ModuleWireBytes(bufferB.begin(), bufferB.end()),
                                 true, "WebAssembly.compile");
@@ -256,7 +256,7 @@ void TestModuleSharingBetweenIsolates() {
         ErrorThrower thrower(i_isolate, "Test");
         std::shared_ptr<NativeModule> native_module =
             GetWasmEngine()
-                ->SyncCompile(i_isolate, WasmFeatures::All(),
+                ->SyncCompile(i_isolate, WasmEnabledFeatures::All(),
                               CompileTimeImports{}, &thrower,
                               ModuleWireBytes{full_bytes.as_vector()})
                 .ToHandleChecked()

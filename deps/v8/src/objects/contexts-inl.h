@@ -7,6 +7,7 @@
 
 #include "src/common/globals.h"
 #include "src/heap/heap-write-barrier.h"
+#include "src/objects/casting.h"
 #include "src/objects/contexts.h"
 #include "src/objects/dictionary-inl.h"
 #include "src/objects/fixed-array-inl.h"
@@ -28,7 +29,6 @@ namespace internal {
 #include "torque-generated/src/objects/contexts-tq-inl.inc"
 
 OBJECT_CONSTRUCTORS_IMPL(ScriptContextTable, ScriptContextTable::Super)
-CAST_ACCESSOR(ScriptContextTable)
 
 RELEASE_ACQUIRE_SMI_ACCESSORS(ScriptContextTable, length, kLengthOffset)
 ACCESSORS(ScriptContextTable, names_to_context_index,
@@ -46,8 +46,6 @@ Tagged<Context> ScriptContextTable::get(int i, AcquireLoadTag tag) const {
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(Context)
 NEVER_READ_ONLY_SPACE_IMPL(Context)
-
-CAST_ACCESSOR(NativeContext)
 
 RELAXED_SMI_ACCESSORS(Context, length, kLengthOffset)
 
@@ -106,7 +104,7 @@ Tagged<Object> Context::unchecked_previous() const {
 Tagged<Context> Context::previous() const {
   Tagged<Object> result = get(PREVIOUS_INDEX);
   DCHECK(IsBootstrappingOrValidParentContext(result, *this));
-  return Context::unchecked_cast(result);
+  return UncheckedCast<Context>(result);
 }
 void Context::set_previous(Tagged<Context> context, WriteBarrierMode mode) {
   set(PREVIOUS_INDEX, context, mode);
@@ -122,7 +120,7 @@ bool Context::has_extension() const {
 
 Tagged<HeapObject> Context::extension() const {
   DCHECK(scope_info()->HasContextExtensionSlot());
-  return HeapObject::cast(get(EXTENSION_INDEX));
+  return Cast<HeapObject>(get(EXTENSION_INDEX));
 }
 
 Tagged<NativeContext> Context::native_context() const {
@@ -172,22 +170,22 @@ bool Context::HasSameSecurityTokenAs(Tagged<Context> that) const {
 
 bool Context::IsDetached() const { return global_object()->IsDetached(); }
 
-#define NATIVE_CONTEXT_FIELD_ACCESSORS(index, type, name)   \
-  void Context::set_##name(Tagged<type> value) {            \
-    DCHECK(IsNativeContext(*this));                         \
-    set(index, value, UPDATE_WRITE_BARRIER, kReleaseStore); \
-  }                                                         \
-  bool Context::is_##name(Tagged<type> value) const {       \
-    DCHECK(IsNativeContext(*this));                         \
-    return type::cast(get(index)) == value;                 \
-  }                                                         \
-  Tagged<type> Context::name() const {                      \
-    DCHECK(IsNativeContext(*this));                         \
-    return type::cast(get(index));                          \
-  }                                                         \
-  Tagged<type> Context::name(AcquireLoadTag tag) const {    \
-    DCHECK(IsNativeContext(*this));                         \
-    return type::cast(get(index, tag));                     \
+#define NATIVE_CONTEXT_FIELD_ACCESSORS(index, type, name)         \
+  void Context::set_##name(Tagged<UNPAREN(type)> value) {         \
+    DCHECK(IsNativeContext(*this));                               \
+    set(index, value, UPDATE_WRITE_BARRIER, kReleaseStore);       \
+  }                                                               \
+  bool Context::is_##name(Tagged<UNPAREN(type)> value) const {    \
+    DCHECK(IsNativeContext(*this));                               \
+    return Cast<UNPAREN(type)>(get(index)) == value;              \
+  }                                                               \
+  Tagged<UNPAREN(type)> Context::name() const {                   \
+    DCHECK(IsNativeContext(*this));                               \
+    return Cast<UNPAREN(type)>(get(index));                       \
+  }                                                               \
+  Tagged<UNPAREN(type)> Context::name(AcquireLoadTag tag) const { \
+    DCHECK(IsNativeContext(*this));                               \
+    return Cast<UNPAREN(type)>(get(index, tag));                  \
   }
 NATIVE_CONTEXT_FIELDS(NATIVE_CONTEXT_FIELD_ACCESSORS)
 #undef NATIVE_CONTEXT_FIELD_ACCESSORS
@@ -217,7 +215,7 @@ int Context::FunctionMapIndex(LanguageMode language_mode, FunctionKind kind,
     base = IsAsyncFunction(kind) ? ASYNC_GENERATOR_FUNCTION_MAP_INDEX
                                  : GENERATOR_FUNCTION_MAP_INDEX;
 
-  } else if (IsAsyncFunction(kind) || IsAsyncModule(kind)) {
+  } else if (IsAsyncFunction(kind) || IsModuleWithTopLevelAwait(kind)) {
     CHECK_FOLLOWS2(ASYNC_FUNCTION_MAP_INDEX,
                    ASYNC_FUNCTION_WITH_NAME_MAP_INDEX);
 
@@ -253,7 +251,7 @@ Tagged<Map> Context::GetInitialJSArrayMap(ElementsKind kind) const {
   DisallowGarbageCollection no_gc;
   Tagged<Object> const initial_js_array_map = get(Context::ArrayMapIndex(kind));
   DCHECK(!IsUndefined(initial_js_array_map));
-  return Map::cast(initial_js_array_map);
+  return Cast<Map>(initial_js_array_map);
 }
 
 EXTERNAL_POINTER_ACCESSORS(NativeContext, microtask_queue, MicrotaskQueue*,
@@ -268,7 +266,7 @@ void NativeContext::synchronized_set_script_context_table(
 
 Tagged<ScriptContextTable> NativeContext::synchronized_script_context_table()
     const {
-  return ScriptContextTable::cast(
+  return Cast<ScriptContextTable>(
       get(SCRIPT_CONTEXT_TABLE_INDEX, kAcquireLoad));
 }
 
@@ -276,7 +274,7 @@ Tagged<Map> NativeContext::TypedArrayElementsKindToCtorMap(
     ElementsKind element_kind) const {
   int ctor_index = Context::FIRST_FIXED_TYPED_ARRAY_FUN_INDEX + element_kind -
                    ElementsKind::FIRST_FIXED_TYPED_ARRAY_ELEMENTS_KIND;
-  Tagged<Map> map = Map::cast(JSFunction::cast(get(ctor_index))->initial_map());
+  Tagged<Map> map = Cast<Map>(Cast<JSFunction>(get(ctor_index))->initial_map());
   DCHECK_EQ(map->elements_kind(), element_kind);
   DCHECK(InstanceTypeChecker::IsJSTypedArray(map));
   return map;
@@ -287,7 +285,7 @@ Tagged<Map> NativeContext::TypedArrayElementsKindToRabGsabCtorMap(
   int ctor_index = Context::FIRST_RAB_GSAB_TYPED_ARRAY_MAP_INDEX +
                    element_kind -
                    ElementsKind::FIRST_FIXED_TYPED_ARRAY_ELEMENTS_KIND;
-  Tagged<Map> map = Map::cast(get(ctor_index));
+  Tagged<Map> map = Cast<Map>(get(ctor_index));
   DCHECK_EQ(map->elements_kind(),
             GetCorrespondingRabGsabElementsKind(element_kind));
   DCHECK(InstanceTypeChecker::IsJSTypedArray(map));

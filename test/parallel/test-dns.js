@@ -361,11 +361,11 @@ assert.throws(() => {
   const cases = [
     { method: 'resolveAny',
       answers: [
-        { type: 'A', address: '1.2.3.4', ttl: 3333333333 },
-        { type: 'AAAA', address: '::42', ttl: 3333333333 },
-        { type: 'MX', priority: 42, exchange: 'foobar.com', ttl: 3333333333 },
-        { type: 'NS', value: 'foobar.org', ttl: 3333333333 },
-        { type: 'PTR', value: 'baz.org', ttl: 3333333333 },
+        { type: 'A', address: '1.2.3.4', ttl: 0 },
+        { type: 'AAAA', address: '::42', ttl: 0 },
+        { type: 'MX', priority: 42, exchange: 'foobar.com', ttl: 0 },
+        { type: 'NS', value: 'foobar.org', ttl: 0 },
+        { type: 'PTR', value: 'baz.org', ttl: 0 },
         {
           type: 'SOA',
           nsname: 'ns1.example.com',
@@ -380,11 +380,11 @@ assert.throws(() => {
 
     { method: 'resolve4',
       options: { ttl: true },
-      answers: [ { type: 'A', address: '1.2.3.4', ttl: 3333333333 } ] },
+      answers: [ { type: 'A', address: '1.2.3.4', ttl: 0 } ] },
 
     { method: 'resolve6',
       options: { ttl: true },
-      answers: [ { type: 'AAAA', address: '::42', ttl: 3333333333 } ] },
+      answers: [ { type: 'AAAA', address: '::42', ttl: 0 } ] },
 
     { method: 'resolveSoa',
       answers: [
@@ -415,7 +415,7 @@ assert.throws(() => {
         (answer) => Object.assign({ domain }, answer)
       ),
     }), port, address);
-  }, cases.length * 2));
+  }, cases.length * 2 - 1));
 
   server.bind(0, common.mustCall(() => {
     const address = server.address();

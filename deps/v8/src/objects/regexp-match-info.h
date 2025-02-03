@@ -98,7 +98,6 @@ class RegExpMatchInfo
   static constexpr int kNumberOfCaptureRegistersOffset =
       Shape::kNumberOfCaptureRegistersOffset;
 
-  DECL_CAST(RegExpMatchInfo)
   DECL_PRINTER(RegExpMatchInfo)
   DECL_VERIFIER(RegExpMatchInfo)
 

@@ -27,6 +27,21 @@
 
 #if defined(V8_OS_AIX)
 #include <fenv.h>  // NOLINT(build/c++11)
+
+#include "src/wasm/float16.h"
+#endif
+
+#ifdef _MSC_VER
+// MSVC doesn't define SSE3. However, it does define AVX, and AVX implies SSE3.
+#ifdef __AVX__
+#ifndef __SSE3__
+#define __SSE3__
+#endif
+#endif
+#endif
+
+#ifdef __SSE3__
+#include <immintrin.h>
 #endif
 
 #if defined(V8_TARGET_ARCH_ARM64) && \
@@ -229,6 +244,16 @@ inline T RoundingAverageUnsigned(T a, T b) {
     LIST_MACRO(DEFINE_ONE_FIELD_OFFSET)                        \
   };
 
+#define DEFINE_ONE_FIELD_OFFSET_PURE_NAME(CamelName, Size, ...) \
+  k##CamelName##Offset,                                         \
+      k##CamelName##OffsetEnd = k##CamelName##Offset + (Size)-1,
+
+#define DEFINE_FIELD_OFFSET_CONSTANTS_WITH_PURE_NAME(StartOffset, LIST_MACRO) \
+  enum {                                                                      \
+    LIST_MACRO##_StartOffset = StartOffset - 1,                               \
+    LIST_MACRO(DEFINE_ONE_FIELD_OFFSET_PURE_NAME)                             \
+  };
+
 // Size of the field defined by DEFINE_FIELD_OFFSET_CONSTANTS
 #define FIELD_SIZE(Name) (Name##End + 1 - Name)
 
@@ -323,8 +348,103 @@ class SetOncePointer {
   T* pointer_ = nullptr;
 };
 
-#if defined(V8_OPTIMIZE_WITH_NEON)
+#if defined(__SSE3__)
+
+template <typename Char>
+V8_INLINE bool SimdMemEqual(const Char* lhs, const Char* rhs, size_t count,
+                            size_t order) {
+  static_assert(sizeof(Char) == 1);
+  DCHECK_GE(order, 5);
+
+  static constexpr uint16_t kSIMDMatched16Mask = UINT16_MAX;
+  static constexpr uint32_t kSIMDMatched32Mask = UINT32_MAX;
+
+  if (order == 5) {  // count: [17, 32]
+    // Utilize more simd registers for better pipelining.
+    const __m128i lhs128_start =
+        _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lhs));
+    const __m128i lhs128_end = _mm_lddqu_si128(
+        reinterpret_cast<const __m128i*>(lhs + count - sizeof(__m128i)));
+    const __m128i rhs128_start =
+        _mm_lddqu_si128(reinterpret_cast<const __m128i*>(rhs));
+    const __m128i rhs128_end = _mm_lddqu_si128(
+        reinterpret_cast<const __m128i*>(rhs + count - sizeof(__m128i)));
+    const __m128i res_start = _mm_cmpeq_epi8(lhs128_start, rhs128_start);
+    const __m128i res_end = _mm_cmpeq_epi8(lhs128_end, rhs128_end);
+    const uint32_t res =
+        _mm_movemask_epi8(res_start) << 16 | _mm_movemask_epi8(res_end);
+    return res == kSIMDMatched32Mask;
+  }
+
+  // count: [33, ...]
+  const __m128i lhs128_unrolled =
+      _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lhs));
+  const __m128i rhs128_unrolled =
+      _mm_lddqu_si128(reinterpret_cast<const __m128i*>(rhs));
+  const __m128i res_unrolled = _mm_cmpeq_epi8(lhs128_unrolled, rhs128_unrolled);
+  const uint16_t res_unrolled_mask = _mm_movemask_epi8(res_unrolled);
+  if (res_unrolled_mask != kSIMDMatched16Mask) return false;
+
+  for (size_t i = count % sizeof(__m128i); i < count; i += sizeof(__m128i)) {
+    const __m128i lhs128 =
+        _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lhs + i));
+    const __m128i rhs128 =
+        _mm_lddqu_si128(reinterpret_cast<const __m128i*>(rhs + i));
+    const __m128i res = _mm_cmpeq_epi8(lhs128, rhs128);
+    const uint16_t res_mask = _mm_movemask_epi8(res);
+    if (res_mask != kSIMDMatched16Mask) return false;
+  }
+  return true;
+}
+
+#elif defined(V8_OPTIMIZE_WITH_NEON)
+
+// We intentionally use misaligned read/writes for NEON intrinsics, disable
+// alignment sanitization explicitly.
+template <typename Char>
+V8_INLINE V8_CLANG_NO_SANITIZE("alignment") bool SimdMemEqual(const Char* lhs,
+                                                              const Char* rhs,
+                                                              size_t count,
+                                                              size_t order) {
+  static_assert(sizeof(Char) == 1);
+  DCHECK_GE(order, 5);
+
+  if (order == 5) {  // count: [17, 32]
+    // Utilize more simd registers for better pipelining.
+    const auto lhs0 = vld1q_u8(lhs);
+    const auto lhs1 = vld1q_u8(lhs + count - sizeof(uint8x16_t));
+    const auto rhs0 = vld1q_u8(rhs);
+    const auto rhs1 = vld1q_u8(rhs + count - sizeof(uint8x16_t));
+    const auto xored0 = veorq_u8(lhs0, rhs0);
+    const auto xored1 = veorq_u8(lhs1, rhs1);
+    const auto ored = vorrq_u8(xored0, xored1);
+    return !static_cast<bool>(
+        vgetq_lane_u64(vreinterpretq_u64_u8(vpmaxq_u8(ored, ored)), 0));
+  }
+
+  // count: [33, ...]
+  const auto lhs0 = vld1q_u8(lhs);
+  const auto rhs0 = vld1q_u8(rhs);
+  const auto xored = veorq_u8(lhs0, rhs0);
+  if (static_cast<bool>(
+          vgetq_lane_u64(vreinterpretq_u64_u8(vpmaxq_u8(xored, xored)), 0)))
+    return false;
+  for (size_t i = count % sizeof(uint8x16_t); i < count;
+       i += sizeof(uint8x16_t)) {
+    const auto lhs0 = vld1q_u8(lhs + i);
+    const auto rhs0 = vld1q_u8(rhs + i);
+    const auto xored = veorq_u8(lhs0, rhs0);
+    if (static_cast<bool>(
+            vgetq_lane_u64(vreinterpretq_u64_u8(vpmaxq_u8(xored, xored)), 0)))
+      return false;
+  }
+  return true;
+}
+
+#endif
+
 template <typename IntType, typename Char>
+V8_CLANG_NO_SANITIZE("alignment")
 V8_INLINE bool OverlappingCompare(const Char* lhs, const Char* rhs,
                                   size_t count) {
   static_assert(sizeof(Char) == 1);
@@ -335,6 +455,7 @@ V8_INLINE bool OverlappingCompare(const Char* lhs, const Char* rhs,
 }
 
 template <typename Char>
+V8_CLANG_NO_SANITIZE("alignment")
 V8_INLINE bool SimdMemEqual(const Char* lhs, const Char* rhs, size_t count) {
   static_assert(sizeof(Char) == 1);
   if (count == 0) {
@@ -355,41 +476,10 @@ V8_INLINE bool SimdMemEqual(const Char* lhs, const Char* rhs, size_t count) {
       return OverlappingCompare<uint32_t>(lhs, rhs, count);
     case 4:  // count: [9, 16]
       return OverlappingCompare<uint64_t>(lhs, rhs, count);
-    case 5:  // count: [17, 32]
-    {
-      // Utilize more simd registers for better pipelining.
-      const auto lhs0 = vld1q_u8(lhs);
-      const auto lhs1 = vld1q_u8(lhs + count - sizeof(uint8x16_t));
-      const auto rhs0 = vld1q_u8(rhs);
-      const auto rhs1 = vld1q_u8(rhs + count - sizeof(uint8x16_t));
-      const auto xored0 = veorq_u8(lhs0, rhs0);
-      const auto xored1 = veorq_u8(lhs1, rhs1);
-      const auto ored = vorrq_u8(xored0, xored1);
-      return !static_cast<bool>(
-          vgetq_lane_u64(vreinterpretq_u64_u8(vpmaxq_u8(ored, ored)), 0));
-    }
-    default:  // count: [33, ...]
-    {
-      const auto lhs0 = vld1q_u8(lhs);
-      const auto rhs0 = vld1q_u8(rhs);
-      const auto xored = veorq_u8(lhs0, rhs0);
-      if (static_cast<bool>(
-              vgetq_lane_u64(vreinterpretq_u64_u8(vpmaxq_u8(xored, xored)), 0)))
-        return false;
-      for (size_t i = count % sizeof(uint8x16_t); i < count;
-           i += sizeof(uint8x16_t)) {
-        const auto lhs0 = vld1q_u8(lhs + i);
-        const auto rhs0 = vld1q_u8(rhs + i);
-        const auto xored = veorq_u8(lhs0, rhs0);
-        if (static_cast<bool>(vgetq_lane_u64(
-                vreinterpretq_u64_u8(vpmaxq_u8(xored, xored)), 0)))
-          return false;
-      }
-      return true;
-    }
+    default:
+      return SimdMemEqual(lhs, rhs, count, order);
   }
 }
-#endif  // defined(V8_OPTIMIZE_WITH_NEON)
 
 // Compare 8bit/16bit chars to 8bit/16bit chars.
 template <typename lchar, typename rchar>
@@ -398,7 +488,7 @@ inline bool CompareCharsEqualUnsigned(const lchar* lhs, const rchar* rhs,
   static_assert(std::is_unsigned<lchar>::value);
   static_assert(std::is_unsigned<rchar>::value);
   if constexpr (sizeof(*lhs) == sizeof(*rhs)) {
-#if defined(V8_OPTIMIZE_WITH_NEON)
+#if defined(__SSE3__) || defined(V8_OPTIMIZE_WITH_NEON)
     if constexpr (sizeof(*lhs) == 1) {
       return SimdMemEqual(lhs, rhs, chars);
     }
@@ -726,6 +816,13 @@ T FpOpWorkaround(T input, T value) {
   }
   return value;
 }
+
+template <>
+inline Float16 FpOpWorkaround(Float16 input, Float16 value) {
+  float result = FpOpWorkaround(input.ToFloat32(), value.ToFloat32());
+  return Float16::FromFloat32(result);
+}
+
 #endif
 
 V8_EXPORT_PRIVATE bool PassesFilter(base::Vector<const char> name,

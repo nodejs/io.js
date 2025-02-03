@@ -33,6 +33,7 @@ subSystemLabels:
   /^src\/quic\/*/: c++, quic
   /^src\/node_bob*/: c++, quic
   /^src\/node_sea/: single-executable
+  /^src\/node_sqlite.*/: c++, sqlite
 
   # Properly label changes to V8 inspector integration-related files
   /^src\/inspector_/: c++, inspector, needs-ci
@@ -66,7 +67,7 @@ subSystemLabels:
   /^tools\/build-addons.mjs/: needs-ci
   # All other tool changes should be marked as such
   /^tools\//: tools
-  /^\.eslint|\.editorconfig/: tools
+  /^eslint\.config|\.editorconfig/: tools
   /^typings\//: typings
 
   ## Dependencies
@@ -80,23 +81,25 @@ subSystemLabels:
   /^deps\/nghttp2\/nghttp2\.gyp/: build, http2
   /^deps\/nghttp2\//: http2
   /^deps\/ngtcp2\//: quic
+  /^deps\/amaro\//: strip-types
   /^deps\/([^/]+)/: dependencies, $1
 
   ## JS subsystems
   # Oddities first
   /^lib\/(?:punycode|\w+\/freelist|sys\.js)/: ''
   /^lib\/constants\.js$/: lib / src
-  /^lib\/internal/debugger$/: debugger
+  /^lib\/internal\/debugger$/: debugger
   /^lib\/internal\/linkedlist\.js$/: timers
   /^lib\/internal\/bootstrap/: lib / src
   /^lib\/internal\/v8_prof_/: tools
   /^lib\/internal\/socket(?:_list|address)\.js$/: net
-  /^lib\/\w+\/streams$/: stream
+  /^lib\/(_stream.*|internal\/streams\/.*|stream\.js|stream\/.*)$/: stream
   /^lib\/.*http2/: http2
   /^lib\/worker_threads.js$/: worker
   /^lib\/test.js$/: test_runner
   /^lib\/internal\/url\.js$/: whatwg-url
   /^lib\/internal\/modules\/esm/: esm
+  /^lib\/internal\/modules/: module
   /^lib\/internal\/webstreams/: web streams
   /^lib\/internal\/test_runner/: test_runner
 
@@ -121,6 +124,9 @@ exlusiveLabels:
   /^test\/fixtures\/es-module/: test, esm
   /^test\/es-module\//: test, esm
   /^test\/fixtures\/wpt\/streams\//: test, web streams
+  /^test\/fixtures\/typescript/: test, strip-types
+  /^test\/module-hooks\//: test, module, loaders
+  /^test\/fixtures/module-hooks\//: test, module, loaders
 
   /^test\//: test
 
@@ -140,6 +146,8 @@ exlusiveLabels:
   # Add deprecations label to PRs that affect doc/api/deprecations.md
   /^doc\/api\/deprecations.md$/: doc, deprecations
   /^doc\/changelogs\//: release
+  # Specific map for typescript.md as it should be labeled 'strip-types'
+  /^doc\/api\/typescript.md$/: doc, strip-types
 
   /^doc\//: doc
 
@@ -186,8 +194,10 @@ allJsSubSystems:
   - readline
   - repl
   - report
+  - sqlite
   - stream
   - string_decoder
+  - strip-types
   - timers
   - tls
   - trace_events

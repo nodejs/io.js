@@ -4,6 +4,8 @@
 
 #include "src/compiler/bytecode-analysis.h"
 
+#include <iomanip>
+
 #include "src/compiler/bytecode-liveness-map.h"
 #include "src/interpreter/bytecode-array-builder.h"
 #include "src/interpreter/bytecode-array-iterator.h"

@@ -2,7 +2,7 @@ const t = require('tap')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const MockRegistry = require('@npmcli/mock-registry')
 
-const path = require('path')
+const path = require('node:path')
 const npa = require('npm-package-arg')
 const packageName = '@npmcli/test-package'
 const spec = npa(packageName)
@@ -123,7 +123,7 @@ t.test('owner ls fails to retrieve packument', async t => {
   })
   registry.nock.get(`/${spec.escapedName}`).reply(404)
   await t.rejects(npm.exec('owner', ['ls']))
-  t.match(logs.error, [['owner ls', "Couldn't get owner data", '@npmcli/test-package']])
+  t.match(logs.error.byTitle('owner ls'), [`owner ls Couldn't get owner data @npmcli/test-package`])
 })
 
 t.test('owner ls <pkg>', async t => {
@@ -240,8 +240,8 @@ t.test('owner add <user> <pkg> already an owner', async t => {
   await npm.exec('owner', ['add', username, packageName])
   t.equal(joinedOutput(), '')
   t.match(
-    logs.info,
-    [['owner add', 'Already a package owner: test-user-a <test-user-a@npmjs.org>']]
+    logs.info.byTitle('owner add'),
+    [`Already a package owner: test-user-a <test-user-a@npmjs.org>`]
   )
 })
 
@@ -256,7 +256,7 @@ t.test('owner add <user> <pkg> fails to retrieve user', async t => {
   })
   registry.couchuser({ username, responseCode: 404, body: {} })
   await t.rejects(npm.exec('owner', ['add', username, packageName]))
-  t.match(logs.error, [['owner mutate', `Error getting user data for ${username}`]])
+  t.match(logs.error.byTitle('owner mutate'), [`Error getting user data for ${username}`])
 })
 
 t.test('owner add <user> <pkg> fails to PUT updates', async t => {
@@ -380,7 +380,7 @@ t.test('owner rm <user> <pkg> not a current owner', async t => {
   registry.couchuser({ username })
   await registry.package({ manifest })
   await npm.exec('owner', ['rm', username, packageName])
-  t.match(logs.info, [['owner rm', `Not a package owner: ${username}`]])
+  t.match(logs.info.byTitle('owner rm'), [`Not a package owner: ${username}`])
 })
 
 t.test('owner rm <user> cwd package', async t => {

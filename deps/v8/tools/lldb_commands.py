@@ -52,7 +52,12 @@ def ptr_arg_cmd(debugger, name, param, cmd, print_error=True):
 
 def print_handle(debugger, command_name, param, print_func):
   value = current_frame(debugger).EvaluateExpression(param)
-  result = print_func(value)
+  error = value.GetError()
+  if error.fail:
+    print("Error evaluating {}\n{}".format(param, error))
+    return (False, error, "")
+  # Attempt to print, ignoring visualizers if they are enabled
+  result = print_func(value.GetNonSyntheticValue())
   if not result[0]:
     print("{} cannot print a value of type {}".format(command_name,
                                                       value.type.name))
@@ -123,7 +128,7 @@ def jlh(debugger, param, *args):
     field = value.GetValueForExpressionPath(".val_")
     if field.IsValid():
       return print_indirect(debugger, 'jlh', field.value)
-    # With v8_enable_direct_local=true, v8::Local contains a ptr_.
+    # With v8_enable_direct_handle=true, v8::Local contains a ptr_.
     field = value.GetValueForExpressionPath(".ptr_")
     if field.IsValid():
       return print_direct(debugger, 'jlh', field.value)

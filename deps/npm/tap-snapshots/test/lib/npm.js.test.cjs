@@ -5,6 +5,16 @@
  * Make sure to inspect the output below.  Do not ignore changes!
  */
 'use strict'
+exports[`test/lib/npm.js TAP npm.load workspace-aware configs and commands > should exec workspaces version of commands 1`] = `
+Lifecycle scripts included in a@1.0.0:
+  test
+    echo test a
+
+Lifecycle scripts included in b@1.0.0:
+  test
+    echo test b
+`
+
 exports[`test/lib/npm.js TAP usage set process.stdout.columns column width 0 > must match snapshot 1`] = `
 npm <command>
 
@@ -24,12 +34,12 @@ All commands:
     access, adduser, audit, bugs, cache, ci, completion,
     config, dedupe, deprecate, diff, dist-tag, docs, doctor,
     edit, exec, explain, explore, find-dupes, fund, get, help,
-    help-search, hook, init, install, install-ci-test,
-    install-test, link, ll, login, logout, ls, org, outdated,
-    owner, pack, ping, pkg, prefix, profile, prune, publish,
-    query, rebuild, repo, restart, root, run-script, sbom,
-    search, set, shrinkwrap, star, stars, start, stop, team,
-    test, token, uninstall, unpublish, unstar, update, version,
+    help-search, init, install, install-ci-test, install-test,
+    link, ll, login, logout, ls, org, outdated, owner, pack,
+    ping, pkg, prefix, profile, prune, publish, query, rebuild,
+    repo, restart, root, run-script, sbom, search, set,
+    shrinkwrap, star, stars, start, stop, team, test, token,
+    undeprecate, uninstall, unpublish, unstar, update, version,
     view, whoami
 
 Specify configs in the ini-formatted file:
@@ -66,7 +76,7 @@ All commands:
     edit, exec, explain,
     explore, find-dupes,
     fund, get, help,
-    help-search, hook, init,
+    help-search, init,
     install,
     install-ci-test,
     install-test, link, ll,
@@ -80,9 +90,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -118,7 +129,7 @@ All commands:
     edit, exec, explain,
     explore, find-dupes,
     fund, get, help,
-    help-search, hook, init,
+    help-search, init,
     install,
     install-ci-test,
     install-test, link, ll,
@@ -132,9 +143,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -165,12 +177,12 @@ All commands:
     access, adduser, audit, bugs, cache, ci, completion,
     config, dedupe, deprecate, diff, dist-tag, docs, doctor,
     edit, exec, explain, explore, find-dupes, fund, get, help,
-    help-search, hook, init, install, install-ci-test,
-    install-test, link, ll, login, logout, ls, org, outdated,
-    owner, pack, ping, pkg, prefix, profile, prune, publish,
-    query, rebuild, repo, restart, root, run-script, sbom,
-    search, set, shrinkwrap, star, stars, start, stop, team,
-    test, token, uninstall, unpublish, unstar, update, version,
+    help-search, init, install, install-ci-test, install-test,
+    link, ll, login, logout, ls, org, outdated, owner, pack,
+    ping, pkg, prefix, profile, prune, publish, query, rebuild,
+    repo, restart, root, run-script, sbom, search, set,
+    shrinkwrap, star, stars, start, stop, team, test, token,
+    undeprecate, uninstall, unpublish, unstar, update, version,
     view, whoami
 
 Specify configs in the ini-formatted file:
@@ -207,7 +219,7 @@ All commands:
     edit, exec, explain,
     explore, find-dupes,
     fund, get, help,
-    help-search, hook, init,
+    help-search, init,
     install,
     install-ci-test,
     install-test, link, ll,
@@ -221,9 +233,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -259,7 +272,7 @@ All commands:
     edit, exec, explain,
     explore, find-dupes,
     fund, get, help,
-    help-search, hook, init,
+    help-search, init,
     install,
     install-ci-test,
     install-test, link, ll,
@@ -273,9 +286,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -311,7 +325,7 @@ All commands:
     edit, exec, explain,
     explore, find-dupes,
     fund, get, help,
-    help-search, hook, init,
+    help-search, init,
     install, install-ci-test,
     install-test, link, ll,
     login, logout, ls, org,
@@ -323,10 +337,10 @@ All commands:
     run-script, sbom, search,
     set, shrinkwrap, star,
     stars, start, stop, team,
-    test, token, uninstall,
-    unpublish, unstar,
-    update, version, view,
-    whoami
+    test, token, undeprecate,
+    uninstall, unpublish,
+    unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -357,12 +371,12 @@ All commands:
     access, adduser, audit, bugs, cache, ci, completion,
     config, dedupe, deprecate, diff, dist-tag, docs, doctor,
     edit, exec, explain, explore, find-dupes, fund, get, help,
-    help-search, hook, init, install, install-ci-test,
-    install-test, link, ll, login, logout, ls, org, outdated,
-    owner, pack, ping, pkg, prefix, profile, prune, publish,
-    query, rebuild, repo, restart, root, run-script, sbom,
-    search, set, shrinkwrap, star, stars, start, stop, team,
-    test, token, uninstall, unpublish, unstar, update, version,
+    help-search, init, install, install-ci-test, install-test,
+    link, ll, login, logout, ls, org, outdated, owner, pack,
+    ping, pkg, prefix, profile, prune, publish, query, rebuild,
+    repo, restart, root, run-script, sbom, search, set,
+    shrinkwrap, star, stars, start, stop, team, test, token,
+    undeprecate, uninstall, unpublish, unstar, update, version,
     view, whoami
 
 Specify configs in the ini-formatted file:
@@ -394,12 +408,12 @@ All commands:
     access, adduser, audit, bugs, cache, ci, completion,
     config, dedupe, deprecate, diff, dist-tag, docs, doctor,
     edit, exec, explain, explore, find-dupes, fund, get, help,
-    help-search, hook, init, install, install-ci-test,
-    install-test, link, ll, login, logout, ls, org, outdated,
-    owner, pack, ping, pkg, prefix, profile, prune, publish,
-    query, rebuild, repo, restart, root, run-script, sbom,
-    search, set, shrinkwrap, star, stars, start, stop, team,
-    test, token, uninstall, unpublish, unstar, update, version,
+    help-search, init, install, install-ci-test, install-test,
+    link, ll, login, logout, ls, org, outdated, owner, pack,
+    ping, pkg, prefix, profile, prune, publish, query, rebuild,
+    repo, restart, root, run-script, sbom, search, set,
+    shrinkwrap, star, stars, start, stop, team, test, token,
+    undeprecate, uninstall, unpublish, unstar, update, version,
     view, whoami
 
 Specify configs in the ini-formatted file:
@@ -431,12 +445,12 @@ All commands:
     access, adduser, audit, bugs, cache, ci, completion,
     config, dedupe, deprecate, diff, dist-tag, docs, doctor,
     edit, exec, explain, explore, find-dupes, fund, get, help,
-    help-search, hook, init, install, install-ci-test,
-    install-test, link, ll, login, logout, ls, org, outdated,
-    owner, pack, ping, pkg, prefix, profile, prune, publish,
-    query, rebuild, repo, restart, root, run-script, sbom,
-    search, set, shrinkwrap, star, stars, start, stop, team,
-    test, token, uninstall, unpublish, unstar, update, version,
+    help-search, init, install, install-ci-test, install-test,
+    link, ll, login, logout, ls, org, outdated, owner, pack,
+    ping, pkg, prefix, profile, prune, publish, query, rebuild,
+    repo, restart, root, run-script, sbom, search, set,
+    shrinkwrap, star, stars, start, stop, team, test, token,
+    undeprecate, uninstall, unpublish, unstar, update, version,
     view, whoami
 
 Specify configs in the ini-formatted file:

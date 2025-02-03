@@ -362,11 +362,12 @@ inline constexpr Vector<T> VectorOf(T* start, size_t size) {
   return {start, size};
 }
 
-// Construct a Vector from anything providing a {data()} and {size()} accessor.
+// Construct a Vector from anything compatible with std::data and std::size (ie,
+// an array, or a container providing a {data()} and {size()} accessor).
 template <typename Container>
 inline constexpr auto VectorOf(Container&& c)
-    -> decltype(VectorOf(c.data(), c.size())) {
-  return VectorOf(c.data(), c.size());
+    -> decltype(VectorOf(std::data(c), std::size(c))) {
+  return VectorOf(std::data(c), std::size(c));
 }
 
 // Construct a Vector from an initializer list. The vector can obviously only be

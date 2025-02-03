@@ -23,14 +23,10 @@
   "idlharness.any.js": {
     "fail": {
       "expected": [
-        "PerformanceResourceTiming interface: attribute deliveryType",
         "PerformanceResourceTiming interface: attribute firstInterimResponseStart",
-        "PerformanceResourceTiming interface: attribute responseStatus",
         "PerformanceResourceTiming interface: attribute renderBlockingStatus",
         "PerformanceResourceTiming interface: attribute contentType",
-        "PerformanceResourceTiming interface: resource must inherit property \"deliveryType\" with the proper type",
         "PerformanceResourceTiming interface: resource must inherit property \"firstInterimResponseStart\" with the proper type",
-        "PerformanceResourceTiming interface: resource must inherit property \"responseStatus\" with the proper type",
         "PerformanceResourceTiming interface: resource must inherit property \"renderBlockingStatus\" with the proper type",
         "PerformanceResourceTiming interface: resource must inherit property \"contentType\" with the proper type",
         "PerformanceResourceTiming interface: default toJSON operation on resource"

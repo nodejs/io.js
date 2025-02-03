@@ -23,6 +23,8 @@ const kNameDescriptorIndex: constexpr int32
     ;
 const kMinDescriptorsForFastBindAndWrap: constexpr int31
     generates 'JSFunction::kMinDescriptorsForFastBindAndWrap';
+const kCodeMaxArguments:
+    constexpr intptr generates 'Code::kMaxArguments';
 
 macro CheckAccessor(
     implicit context: Context)(array: DescriptorArray, index: constexpr int32,
@@ -43,6 +45,8 @@ transitioning javascript builtin FastFunctionPrototypeBind(
   try {
     typeswitch (receiver) {
       case (fn: JSFunction|JSBoundFunction|JSWrappedFunction): {
+        if (argc >= kCodeMaxArguments) goto Slow;
+
         // Disallow binding of slow-mode functions. We need to figure out
         // whether the length and name property are in the original state.
         Comment('Disallow binding of slow-mode functions');

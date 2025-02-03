@@ -13,13 +13,19 @@ namespace internal {
 void CodeDesc::Initialize(CodeDesc* desc, Assembler* assembler,
                           int safepoint_table_offset, int handler_table_offset,
                           int constant_pool_offset, int code_comments_offset,
+                          int builtin_jump_table_info_offset,
                           int reloc_info_offset) {
   desc->buffer = assembler->buffer_start();
   desc->buffer_size = assembler->buffer_size();
   desc->instr_size = assembler->instruction_size();
 
+  desc->builtin_jump_table_info_offset = builtin_jump_table_info_offset;
+  desc->builtin_jump_table_info_size =
+      desc->instr_size - builtin_jump_table_info_offset;
+
   desc->code_comments_offset = code_comments_offset;
-  desc->code_comments_size = desc->instr_size - code_comments_offset;
+  desc->code_comments_size =
+      desc->builtin_jump_table_info_offset - code_comments_offset;
 
   desc->constant_pool_offset = constant_pool_offset;
   desc->constant_pool_size = desc->code_comments_offset - constant_pool_offset;
@@ -61,7 +67,11 @@ void CodeDesc::Verify(const CodeDesc* desc) {
             desc->code_comments_offset);
   DCHECK_GE(desc->code_comments_size, 0);
   DCHECK_EQ(desc->code_comments_size + desc->code_comments_offset,
-            desc->instr_size);
+            desc->builtin_jump_table_info_offset);
+  DCHECK_GE(desc->builtin_jump_table_info_size, 0);
+  DCHECK_EQ(
+      desc->builtin_jump_table_info_size + desc->builtin_jump_table_info_offset,
+      desc->instr_size);
 
   DCHECK_GE(desc->reloc_offset, 0);
   DCHECK_GE(desc->reloc_size, 0);

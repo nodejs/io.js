@@ -191,6 +191,10 @@ class SmallVector {
     return pos;
   }
 
+  T* insert(T* pos, std::initializer_list<T> values) {
+    return insert(pos, values.begin(), values.end());
+  }
+
   void resize_no_init(size_t new_size) {
     // Resizing without initialization is safe if T is trivially copyable.
     ASSERT_TRIVIALLY_COPYABLE(T);
@@ -198,12 +202,12 @@ class SmallVector {
     end_ = begin_ + new_size;
   }
 
-  void resize_and_init(size_t new_size) {
+  void resize_and_init(size_t new_size, const T& initial_value = {}) {
     static_assert(std::is_trivially_destructible_v<T>);
     if (new_size > capacity()) Grow(new_size);
     T* new_end = begin_ + new_size;
     if (new_end > end_) {
-      std::uninitialized_fill(end_, new_end, T{});
+      std::uninitialized_fill(end_, new_end, initial_value);
     }
     end_ = new_end;
   }

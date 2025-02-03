@@ -75,8 +75,21 @@ const filename = 'foo';
     common.mustCall((err, dirent) => {
       assert.strictEqual(err, null);
       assert.strictEqual(dirent.name, filename);
+      assert.strictEqual(dirent.parentPath, tmpdir.path);
     },
     ));
+}
+{
+  // Reassigning `.path` property should not trigger a warning
+  const dirent = getDirent(
+    tmpdir.path,
+    filename,
+    UV_DIRENT_UNKNOWN,
+  );
+  assert.strictEqual(dirent.name, filename);
+  dirent.path = 'some other value';
+  assert.strictEqual(dirent.parentPath, tmpdir.path);
+  assert.strictEqual(dirent.path, 'some other value');
 }
 {
   // string + Buffer
@@ -88,19 +101,22 @@ const filename = 'foo';
     common.mustCall((err, dirent) => {
       assert.strictEqual(err, null);
       assert.strictEqual(dirent.name, filenameBuffer);
+      assert.strictEqual(dirent.parentPath, tmpdir.path);
     },
     ));
 }
 {
   // Buffer + Buffer
   const filenameBuffer = Buffer.from(filename);
+  const dirnameBuffer = Buffer.from(tmpdir.path);
   getDirent(
-    Buffer.from(tmpdir.path),
+    dirnameBuffer,
     filenameBuffer,
     UV_DIRENT_UNKNOWN,
     common.mustCall((err, dirent) => {
       assert.strictEqual(err, null);
       assert.strictEqual(dirent.name, filenameBuffer);
+      assert.deepStrictEqual(dirent.parentPath, dirnameBuffer);
     },
     ));
 }

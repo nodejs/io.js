@@ -4,7 +4,9 @@ const { PassThrough } = require('stream');
 const readline = require('readline');
 const assert = require('assert');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 {
   const input = new PassThrough();

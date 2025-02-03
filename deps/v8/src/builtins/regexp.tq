@@ -441,6 +441,10 @@ transitioning macro RegExpCreate(
   return RegExpCreate(initialMap, maybeString, flags);
 }
 
+extern macro ClearTrustedPointerField(HeapObject, constexpr int31): void;
+const kJSRegExpRegExpDataOffset:
+    constexpr int31 generates 'JSRegExp::kDataOffset';
+
 @export
 transitioning macro RegExpCreate(
     implicit context: Context)(initialMap: Map, maybeString: JSAny,
@@ -449,6 +453,9 @@ transitioning macro RegExpCreate(
       maybeString == Undefined ? kEmptyString : ToString_Inline(maybeString);
   const regexp =
       UnsafeCast<JSRegExp>(AllocateFastOrSlowJSObjectFromMap(initialMap));
+  // Clear the data field, as a GC can be triggered before the field is set
+  // during compilation.
+  ClearTrustedPointerField(regexp, kJSRegExpRegExpDataOffset);
   return RegExpInitializeAndCompile(context, regexp, pattern, flags);
 }
 }

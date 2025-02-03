@@ -16,7 +16,10 @@ Starting with libuv v1.45.0, some file operations on Linux are handed off to
 `io_uring <https://en.wikipedia.org/wiki/Io_uring>` when possible. Apart from
 a (sometimes significant) increase in throughput there should be no change in
 observable behavior. Libuv reverts to using its threadpool when the necessary
-kernel features are unavailable or unsuitable.
+kernel features are unavailable or unsuitable. Starting with libuv v1.49.0 this
+behavior was reverted and Libuv on Linux by default will be using the threadpool
+again. In order to enable io_uring the :c:type:`uv_loop_t` instance must be
+configured with the :c:type:`UV_LOOP_ENABLE_IO_URING_SQPOLL` option.
 
 .. note::
      On Windows `uv_fs_*` functions use utf-8 encoding.
@@ -129,10 +132,9 @@ Data types
             uint64_t f_spare[4];
         } uv_statfs_t;
 
-.. c:enum:: uv_dirent_t
+.. c:enum:: uv_dirent_type_t
 
-    Cross platform (reduced) equivalent of ``struct dirent``.
-    Used in :c:func:`uv_fs_scandir_next`.
+    Type of dirent.
 
     ::
 
@@ -146,6 +148,14 @@ Data types
             UV_DIRENT_CHAR,
             UV_DIRENT_BLOCK
         } uv_dirent_type_t;
+
+
+.. c:type:: uv_dirent_t
+
+    Cross platform (reduced) equivalent of ``struct dirent``.
+    Used in :c:func:`uv_fs_scandir_next`.
+
+    ::
 
         typedef struct uv_dirent_s {
             const char* name;
@@ -454,7 +464,7 @@ API
 
 .. c:function:: int uv_fs_realpath(uv_loop_t* loop, uv_fs_t* req, const char* path, uv_fs_cb cb)
 
-    Equivalent to :man:`realpath(3)` on Unix. Windows uses `GetFinalPathNameByHandle <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlea>`_.
+    Equivalent to :man:`realpath(3)` on Unix. Windows uses `GetFinalPathNameByHandleW <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew>`_.
     The resulting string is stored in `req->ptr`.
 
     .. warning::
@@ -653,7 +663,7 @@ File open constants
 
     .. note::
         `UV_FS_O_RANDOM` is only supported on Windows via
-        `FILE_FLAG_RANDOM_ACCESS <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea>`_.
+        `FILE_FLAG_RANDOM_ACCESS <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew>`_.
 
 .. c:macro:: UV_FS_O_RDONLY
 
@@ -670,7 +680,7 @@ File open constants
 
     .. note::
         `UV_FS_O_SEQUENTIAL` is only supported on Windows via
-        `FILE_FLAG_SEQUENTIAL_SCAN <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea>`_.
+        `FILE_FLAG_SEQUENTIAL_SCAN <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew>`_.
 
 .. c:macro:: UV_FS_O_SHORT_LIVED
 
@@ -678,7 +688,7 @@ File open constants
 
     .. note::
         `UV_FS_O_SHORT_LIVED` is only supported on Windows via
-        `FILE_ATTRIBUTE_TEMPORARY <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea>`_.
+        `FILE_ATTRIBUTE_TEMPORARY <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew>`_.
 
 .. c:macro:: UV_FS_O_SYMLINK
 
@@ -699,7 +709,7 @@ File open constants
 
     .. note::
         `UV_FS_O_TEMPORARY` is only supported on Windows via
-        `FILE_ATTRIBUTE_TEMPORARY <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea>`_.
+        `FILE_ATTRIBUTE_TEMPORARY <https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew>`_.
 
 .. c:macro:: UV_FS_O_TRUNC
 

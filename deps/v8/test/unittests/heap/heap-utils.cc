@@ -12,7 +12,7 @@
 #include "src/heap/incremental-marking.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/new-spaces.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/safepoint.h"
 #include "src/objects/free-space-inl.h"
 
@@ -50,7 +50,7 @@ int FixedArrayLenFromSize(int size) {
                    FixedArray::kMaxRegularLength});
 }
 
-void FillPageInPagedSpace(Page* page,
+void FillPageInPagedSpace(PageMetadata* page,
                           std::vector<Handle<FixedArray>>* out_handles) {
   Heap* heap = page->heap();
   ManualGCScope manual_gc_scope(heap->isolate());
@@ -65,7 +65,7 @@ void FillPageInPagedSpace(Page* page,
   CollectionEpoch young_epoch = heap->tracer()->CurrentEpoch(
       GCTracer::Scope::ScopeId::MINOR_MARK_SWEEPER);
 
-  for (Page* p : *paged_space) {
+  for (PageMetadata* p : *paged_space) {
     if (p != page) paged_space->UnlinkFreeListCategories(p);
   }
 
@@ -135,7 +135,7 @@ void FillPageInPagedSpace(Page* page,
   DCHECK_EQ(0, page->AvailableInFreeList());
   DCHECK_EQ(0, page->AvailableInFreeListFromAllocatedBytes());
 
-  for (Page* p : *paged_space) {
+  for (PageMetadata* p : *paged_space) {
     if (p != page) paged_space->RelinkFreeListCategories(p);
   }
 
@@ -164,7 +164,7 @@ void HeapInternalsBase::SimulateFullSpace(
   if (v8_flags.minor_ms) {
     auto* space = heap->paged_new_space()->paged_space();
     space->AllocatePageUpToCapacityForTesting();
-    for (Page* page : *space) {
+    for (PageMetadata* page : *space) {
       FillPageInPagedSpace(page, out_handles);
     }
     DCHECK_IMPLIES(space->free_list(), space->free_list()->Available() == 0);
@@ -259,7 +259,7 @@ void FillCurrentPagedSpacePage(v8::internal::NewSpace* space,
                                std::vector<Handle<FixedArray>>* out_handles) {
   const Address top = space->heap()->NewSpaceTop();
   if (top == kNullAddress) return;
-  Page* page = Page::FromAllocationAreaAddress(top);
+  PageMetadata* page = PageMetadata::FromAllocationAreaAddress(top);
   space->heap()->EnsureSweepingCompleted(
       Heap::SweepingForcedFinalizationMode::kV8Only);
   FillPageInPagedSpace(page, out_handles);

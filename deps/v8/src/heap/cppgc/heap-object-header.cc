@@ -38,10 +38,13 @@ void HeapObjectHeader::Finalize() {
 }
 
 HeapObjectName HeapObjectHeader::GetName() const {
+  return GetName(BasePage::FromPayload(this)->heap().name_of_unnamed_object());
+}
+
+HeapObjectName HeapObjectHeader::GetName(
+    HeapObjectNameForUnnamedObject heap_object_name) const {
   const GCInfo& gc_info = GlobalGCInfoTable::GCInfoFromIndex(GetGCInfoIndex());
-  return gc_info.name(
-      ObjectStart(),
-      BasePage::FromPayload(this)->heap().name_of_unnamed_object());
+  return gc_info.name(ObjectStart(), heap_object_name);
 }
 
 }  // namespace internal

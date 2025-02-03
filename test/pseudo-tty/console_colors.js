@@ -4,6 +4,7 @@ const vm = require('vm');
 // Make this test OS-independent by overriding stdio getColorDepth().
 process.stdout.getColorDepth = () => 8;
 process.stderr.getColorDepth = () => 8;
+Error.stackTraceLimit = Infinity;
 
 console.log({ foo: 'bar' });
 console.log('%s q', 'string');

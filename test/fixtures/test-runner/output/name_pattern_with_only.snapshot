@@ -4,16 +4,19 @@ TAP version 13
     ok 1 - enabled
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: disabled but parent not
     ok 2 - disabled but parent not
       ---
       duration_ms: *
+      type: 'test'
       ...
     1..2
 ok 1 - enabled and only
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..1
 # tests 3

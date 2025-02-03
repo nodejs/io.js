@@ -2,10 +2,11 @@ Name: ZIP file API for reading file entries in a ZIP archive
 Short Name: minizip
 URL: https://github.com/madler/zlib/tree/master/contrib/minizip
 Version: 1.3.0.1
+Revision: 643e17b7498d12ab8d15565662880579692f769d
 License: Zlib
 License File: //third_party/zlib/LICENSE
-Security Critical: yes
 Shipped: yes
+Security Critical: yes
 CPEPrefix: cpe:/a:minizip_project:minizip
 
 Description:

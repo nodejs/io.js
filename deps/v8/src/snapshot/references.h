@@ -109,7 +109,8 @@ class SerializerReferenceMap {
     return map_.Find(object);
   }
 
-  const SerializerReference* LookupReference(Handle<HeapObject> object) const {
+  const SerializerReference* LookupReference(
+      DirectHandle<HeapObject> object) const {
     return map_.Find(object);
   }
 

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toTrustMaterial = exports.filterTLogAuthorities = exports.filterCertAuthorities = void 0;
+exports.filterTLogAuthorities = exports.filterCertAuthorities = void 0;
+exports.toTrustMaterial = toTrustMaterial;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -34,7 +35,6 @@ function toTrustMaterial(root, keys) {
         publicKey: keyFinder,
     };
 }
-exports.toTrustMaterial = toTrustMaterial;
 function createTLogAuthority(tlogInstance) {
     const keyDetails = tlogInstance.publicKey.keyDetails;
     const keyType = keyDetails === protobuf_specs_1.PublicKeyDetails.PKCS1_RSA_PKCS1V5 ||
@@ -54,6 +54,7 @@ function createTLogAuthority(tlogInstance) {
     };
 }
 function createCertAuthority(ca) {
+    /* istanbul ignore next */
     return {
         certChain: ca.certChain.certificates.map((cert) => {
             return core_1.X509Certificate.parse(cert.rawBytes);
@@ -76,6 +77,7 @@ function keyLocator(keys) {
         return {
             publicKey: core_1.crypto.createPublicKey(key.rawBytes),
             validFor: (date) => {
+                /* istanbul ignore next */
                 return ((key.validFor?.start || BEGINNING_OF_TIME) <= date &&
                     (key.validFor?.end || END_OF_TIME) >= date);
             },

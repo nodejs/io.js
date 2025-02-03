@@ -60,7 +60,7 @@ async function checkCloseError(op) {
   await checkCloseError((filePath) => truncate(filePath));
   await checkCloseError((filePath) => readFile(filePath));
   await checkCloseError((filePath) => writeFile(filePath, '123'));
-  if (common.isOSX) {
+  if (common.isMacOS) {
     await checkCloseError((filePath) => lchmod(filePath, 0o777));
   }
 })().then(common.mustCall());

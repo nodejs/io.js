@@ -5,6 +5,8 @@
 #ifndef V8_HEAP_MEMORY_BALANCER_H_
 #define V8_HEAP_MEMORY_BALANCER_H_
 
+#include <optional>
+
 #include "src/base/platform/time.h"
 #include "src/tasks/cancelable-task.h"
 
@@ -72,8 +74,8 @@ class MemoryBalancer {
   size_t embedder_allocation_limit_ = 0;
 
   // Our estimate of major allocation rate and major GC speed.
-  base::Optional<SmoothedBytesAndDuration> major_allocation_rate_;
-  base::Optional<SmoothedBytesAndDuration> major_gc_speed_;
+  std::optional<SmoothedBytesAndDuration> major_allocation_rate_;
+  std::optional<SmoothedBytesAndDuration> major_gc_speed_;
 
   // HeartbeatTask uses the diff between last observed time/memory and
   // current time/memory to calculate the allocation rate.

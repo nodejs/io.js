@@ -68,5 +68,14 @@ TEST_IMPL(homedir) {
   r = uv_os_homedir(homedir, &len);
   ASSERT_EQ(r, UV_EINVAL);
 
+#ifdef _WIN32
+  /* Test empty environment variable */
+  r = uv_os_setenv("USERPROFILE", "");
+  ASSERT_EQ(r, 0);
+  len = sizeof homedir;
+  r = uv_os_homedir(homedir, &len);
+  ASSERT_EQ(r, UV_ENOENT);
+#endif
+
   return 0;
 }

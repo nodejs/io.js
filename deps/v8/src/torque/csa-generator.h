@@ -5,18 +5,18 @@
 #ifndef V8_TORQUE_CSA_GENERATOR_H_
 #define V8_TORQUE_CSA_GENERATOR_H_
 
+#include <optional>
+
 #include "src/torque/torque-code-generator.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 class CSAGenerator : public TorqueCodeGenerator {
  public:
   CSAGenerator(const ControlFlowGraph& cfg, std::ostream& out,
-               base::Optional<Builtin::Kind> linkage = base::nullopt)
+               std::optional<Builtin::Kind> linkage = std::nullopt)
       : TorqueCodeGenerator(cfg, out), linkage_(linkage) {}
-  base::Optional<Stack<std::string>> EmitGraph(Stack<std::string> parameters);
+  std::optional<Stack<std::string>> EmitGraph(Stack<std::string> parameters);
 
   static constexpr const char* ARGUMENTS_VARIABLE_STRING = "arguments";
 
@@ -24,17 +24,17 @@ class CSAGenerator : public TorqueCodeGenerator {
                            std::ostream& out);
 
  private:
-  base::Optional<Builtin::Kind> linkage_;
+  std::optional<Builtin::Kind> linkage_;
 
   void EmitSourcePosition(SourcePosition pos,
                           bool always_emit = false) override;
 
   std::string PreCallableExceptionPreparation(
-      base::Optional<Block*> catch_block);
+      std::optional<Block*> catch_block);
   void PostCallableExceptionPreparation(
       const std::string& catch_name, const Type* return_type,
-      base::Optional<Block*> catch_block, Stack<std::string>* stack,
-      const base::Optional<DefinitionLocation>& exception_object_definition);
+      std::optional<Block*> catch_block, Stack<std::string>* stack,
+      const std::optional<DefinitionLocation>& exception_object_definition);
 
   std::vector<std::string> ProcessArgumentsCommon(
       const TypeVector& parameter_types,
@@ -48,8 +48,6 @@ class CSAGenerator : public TorqueCodeGenerator {
 #undef EMIT_INSTRUCTION_DECLARATION
 };
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque
 
 #endif  // V8_TORQUE_CSA_GENERATOR_H_

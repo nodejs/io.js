@@ -12,7 +12,7 @@
 namespace v8 {
 namespace internal {
 
-#if defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64)
+#if defined(V8_TARGET_ARCH_PPC64)
 
 const ConstantPoolEntry::Type kPtrType = ConstantPoolEntry::INTPTR;
 const ConstantPoolEntry::Type kDblType = ConstantPoolEntry::DOUBLE;
@@ -252,7 +252,7 @@ TEST(ConstantPoolNoSharing) {
   CHECK_EQ(access, kOvflAccess);
 }
 
-#endif  // defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64)
+#endif  // defined(V8_TARGET_ARCH_PPC64)
 
 }  // namespace internal
 }  // namespace v8

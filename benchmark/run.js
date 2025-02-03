@@ -12,6 +12,8 @@ const cli = new CLI(`usage: ./node run.js [options] [--] <category> ...
                             (can be repeated)
   --exclude  pattern        excludes scripts matching <pattern> (can be
                             repeated)
+  --runs   variable=value   set the amount of benchmark suite execution.
+                            Default: 1
   --set    variable=value   set benchmark variable (can be repeated)
   --format [simple|csv]     optional value that specifies the output format
   test                      only run a single configuration from the options
@@ -45,8 +47,7 @@ if (format === 'csv') {
   console.log('"filename", "configuration", "rate", "time"');
 }
 
-(function recursive(i) {
-  const filename = benchmarks[i];
+function runBenchmark(filename) {
   const scriptPath = path.resolve(__dirname, filename);
 
   const args = cli.test ? ['--test'] : cli.optional.set;
@@ -63,42 +64,52 @@ if (format === 'csv') {
     );
   }
 
-  if (format !== 'csv') {
-    console.log();
-    console.log(filename);
+  return new Promise((resolve, reject) => {
+    child.on('message', (data) => {
+      if (data.type !== 'report') {
+        return;
+      }
+      // Construct configuration string, " A=a, B=b, ..."
+      let conf = '';
+      for (const key of Object.keys(data.conf)) {
+        if (conf !== '')
+          conf += ' ';
+        conf += `${key}=${JSON.stringify(data.conf[key])}`;
+      }
+      if (format === 'csv') {
+        // Escape quotes (") for correct csv formatting
+        conf = conf.replace(/"/g, '""');
+        console.log(`"${data.name}", "${conf}", ${data.rate}, ${data.time}`);
+      } else {
+        let rate = data.rate.toString().split('.');
+        rate[0] = rate[0].replace(/(\d)(?=(?:\d\d\d)+(?!\d))/g, '$1,');
+        rate = (rate[1] ? rate.join('.') : rate[0]);
+        console.log(`${data.name} ${conf}: ${rate}`);
+      }
+    });
+    child.once('close', (code) => {
+      if (code) {
+        reject(code);
+      } else {
+        resolve(code);
+      }
+    });
+  });
+}
+
+async function run() {
+  for (let i = 0; i < benchmarks.length; ++i) {
+    let runs = cli.optional.runs ?? 1;
+    const filename = benchmarks[i];
+    if (format !== 'csv') {
+      console.log();
+      console.log(filename);
+    }
+
+    while (runs-- > 0) {
+      await runBenchmark(filename);
+    }
   }
+}
 
-  child.on('message', (data) => {
-    if (data.type !== 'report') {
-      return;
-    }
-    // Construct configuration string, " A=a, B=b, ..."
-    let conf = '';
-    for (const key of Object.keys(data.conf)) {
-      if (conf !== '')
-        conf += ' ';
-      conf += `${key}=${JSON.stringify(data.conf[key])}`;
-    }
-    if (format === 'csv') {
-      // Escape quotes (") for correct csv formatting
-      conf = conf.replace(/"/g, '""');
-      console.log(`"${data.name}", "${conf}", ${data.rate}, ${data.time}`);
-    } else {
-      let rate = data.rate.toString().split('.');
-      rate[0] = rate[0].replace(/(\d)(?=(?:\d\d\d)+(?!\d))/g, '$1,');
-      rate = (rate[1] ? rate.join('.') : rate[0]);
-      console.log(`${data.name} ${conf}: ${rate}`);
-    }
-  });
-
-  child.once('close', (code) => {
-    if (code) {
-      process.exit(code);
-    }
-
-    // If there are more benchmarks execute the next
-    if (i + 1 < benchmarks.length) {
-      recursive(i + 1);
-    }
-  });
-})(0);
+run();

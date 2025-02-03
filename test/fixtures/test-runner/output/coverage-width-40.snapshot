@@ -1,0 +1,34 @@
+TAP version 13
+# Subtest: Coverage Print Fixed Width 40
+ok 1 - Coverage Print Fixed Width 40
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *
+# start of coverage report
+# --------------------------------------
+# file                | line % | branch % | funcs % | …
+# --------------------------------------
+# test                |        |          |         | 
+#  fixtures           |        |          |         | 
+#   test-runner       |        |          |         | 
+#    coverage-snap    |        |          |         | 
+#     …g-long-sub-dir |        |          |         | 
+#      c.js           |  55.77 |   100.00 |    0.00 | …
+#     a.js            |  55.77 |   100.00 |    0.00 | …
+#     b.js            |  45.45 |   100.00 |    0.00 | …
+#    output           |        |          |         | 
+#     …e-width-40.mjs | 100.00 |   100.00 |  100.00 | 
+# --------------------------------------
+# all files           |  59.06 |   100.00 |    0.00 | 
+# --------------------------------------
+# end of coverage report

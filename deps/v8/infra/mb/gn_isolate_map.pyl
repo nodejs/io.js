@@ -71,6 +71,10 @@
     "label": "//test:v8_run_num_fuzzer",
     "type": "script",
   },
+  "snapshot_set": {
+    "label": "//:snapshot_set",
+    "type": "script",
+  },
   "test262": {
     "label": "//test/test262:v8_test262",
     "type": "script",

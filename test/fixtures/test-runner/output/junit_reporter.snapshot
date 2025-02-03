@@ -186,12 +186,8 @@ Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fail
 		<testcase name="level 1c" time="*" classname="test"/>
 		<testcase name="level 1d" time="*" classname="test"/>
 	</testsuite>
-	<testsuite name="top level" time="*" disabled="0" errors="0" tests="2" failures="1" skipped="0" hostname="HOSTNAME">
-		<testcase name="+long running" time="*" classname="test" failure="test did not finish before its parent and was cancelled">
-			<failure type="cancelledByParent" message="test did not finish before its parent and was cancelled">
-[Error [ERR_TEST_FAILURE]: test did not finish before its parent and was cancelled] { code: 'ERR_TEST_FAILURE', failureType: 'cancelledByParent', cause: 'test did not finish before its parent and was cancelled' }
-			</failure>
-		</testcase>
+	<testsuite name="top level" time="*" disabled="0" errors="0" tests="2" failures="0" skipped="0" hostname="HOSTNAME">
+		<testcase name="+long running" time="*" classname="test"/>
 		<testsuite name="+short running" time="*" disabled="0" errors="0" tests="1" failures="0" skipped="0" hostname="HOSTNAME">
 			<testcase name="++short running" time="*" classname="test"/>
 		</testsuite>
@@ -309,29 +305,25 @@ Error [ERR_TEST_FAILURE]: thrown from callback async throw
 		</failure>
 	</testcase>
 	<testcase name="callback async throw after done" time="*" classname="test"/>
-	<testsuite name="only is set but not in only mode" time="*" disabled="0" errors="0" tests="4" failures="0" skipped="0" hostname="HOSTNAME">
+	<testsuite name="only is set on subtests but not in only mode" time="*" disabled="0" errors="0" tests="3" failures="0" skipped="0" hostname="HOSTNAME">
 		<testcase name="running subtest 1" time="*" classname="test"/>
-		<testcase name="running subtest 2" time="*" classname="test"/>
-		<!-- 'only' and 'runOnly' require the &#45;&#45;test-only command-line option. -->
 		<testcase name="running subtest 3" time="*" classname="test"/>
-		<!-- 'only' and 'runOnly' require the &#45;&#45;test-only command-line option. -->
 		<testcase name="running subtest 4" time="*" classname="test"/>
 	</testsuite>
-	<!-- 'only' and 'runOnly' require the &#45;&#45;test-only command-line option. -->
 	<testcase name="custom inspect symbol fail" time="*" classname="test" failure="customized">
 		<failure type="testCodeFailure" message="customized">
 [Error [ERR_TEST_FAILURE]: customized] { code: 'ERR_TEST_FAILURE', failureType: 'testCodeFailure', cause: customized }
 		</failure>
 	</testcase>
-	<testcase name="custom inspect symbol that throws fail" time="*" classname="test" failure="{  foo: 1,  [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]}">
-		<failure type="testCodeFailure" message="{  foo: 1,  [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]}">
+	<testcase name="custom inspect symbol that throws fail" time="*" classname="test" failure="{  foo: 1,  Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]}">
+		<failure type="testCodeFailure" message="{  foo: 1,  Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]}">
 [Error [ERR_TEST_FAILURE]: {
   foo: 1,
-  [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]]
+  Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]]
 }] {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
-  cause: { foo: 1, [Symbol(nodejs.util.inspect.custom)]: [Function: [nodejs.util.inspect.custom]] }
+  cause: { foo: 1, Symbol(nodejs.util.inspect.custom): [Function: [nodejs.util.inspect.custom]] }
 }
 		</failure>
 	</testcase>
@@ -359,13 +351,10 @@ Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at first
 		</testcase>
 		<testcase name="sync throw fails at second" time="*" classname="test" failure="thrown from subtest sync throw fails at second">
 			<failure type="testCodeFailure" message="thrown from subtest sync throw fails at second">
-Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at second
-    * {
+[Error [ERR_TEST_FAILURE]: thrown from subtest sync throw fails at second] {
   code: 'ERR_TEST_FAILURE',
   failureType: 'testCodeFailure',
   cause: Error: thrown from subtest sync throw fails at second
-      *
-      *
       *
       *
       *
@@ -521,11 +510,11 @@ Error [ERR_TEST_FAILURE]: test could not be started because its parent finished
 	<!-- Error: Test "immediate reject - passes but warns" at test/fixtures/test-runner/output/output.js:86:1 generated asynchronous activity after the test ended. This activity created the error "Error: rejected from immediate reject fail" and would have caused the test to fail, but instead triggered an unhandledRejection event. -->
 	<!-- Error: Test "callback called twice in different ticks" at test/fixtures/test-runner/output/output.js:251:1 generated asynchronous activity after the test ended. This activity created the error "Error [ERR_TEST_FAILURE]: callback invoked multiple times" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
 	<!-- Error: Test "callback async throw after done" at test/fixtures/test-runner/output/output.js:269:1 generated asynchronous activity after the test ended. This activity created the error "Error: thrown from callback async throw after done" and would have caused the test to fail, but instead triggered an uncaughtException event. -->
-	<!-- tests 76 -->
+	<!-- tests 75 -->
 	<!-- suites 0 -->
-	<!-- pass 35 -->
-	<!-- fail 25 -->
-	<!-- cancelled 3 -->
+	<!-- pass 36 -->
+	<!-- fail 24 -->
+	<!-- cancelled 2 -->
 	<!-- skipped 9 -->
 	<!-- todo 4 -->
 	<!-- duration_ms * -->

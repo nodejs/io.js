@@ -1,4 +1,3 @@
-/* eslint-disable @stylistic/js/quotes */
 'use strict';
 require('../common');
 const { Duplex } = require('stream');

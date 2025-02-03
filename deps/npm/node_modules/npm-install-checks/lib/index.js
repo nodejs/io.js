@@ -1,4 +1,6 @@
 const semver = require('semver')
+const currentEnv = require('./current-env')
+const { checkDevEngines } = require('./dev-engines')
 
 const checkEngine = (target, npmVer, nodeVer, force = false) => {
   const nodev = force ? null : nodeVer
@@ -20,44 +22,29 @@ const checkEngine = (target, npmVer, nodeVer, force = false) => {
   }
 }
 
-const isMusl = (file) => file.includes('libc.musl-') || file.includes('ld-musl-')
-
 const checkPlatform = (target, force = false, environment = {}) => {
   if (force) {
     return
   }
 
-  const platform = environment.os || process.platform
-  const arch = environment.cpu || process.arch
-  const osOk = target.os ? checkList(platform, target.os) : true
-  const cpuOk = target.cpu ? checkList(arch, target.cpu) : true
+  const os = environment.os || currentEnv.os()
+  const cpu = environment.cpu || currentEnv.cpu()
+  const libc = environment.libc || currentEnv.libc(os)
 
-  let libcOk = true
-  let libcFamily = null
-  if (target.libc) {
-    // libc checks only work in linux, any value is a failure if we aren't
-    if (environment.libc) {
-      libcOk = checkList(environment.libc, target.libc)
-    } else if (platform !== 'linux') {
-      libcOk = false
-    } else {
-      const report = process.report.getReport()
-      if (report.header?.glibcVersionRuntime) {
-        libcFamily = 'glibc'
-      } else if (Array.isArray(report.sharedObjects) && report.sharedObjects.some(isMusl)) {
-        libcFamily = 'musl'
-      }
-      libcOk = libcFamily ? checkList(libcFamily, target.libc) : false
-    }
+  const osOk = target.os ? checkList(os, target.os) : true
+  const cpuOk = target.cpu ? checkList(cpu, target.cpu) : true
+  let libcOk = target.libc ? checkList(libc, target.libc) : true
+  if (target.libc && !libc) {
+    libcOk = false
   }
 
   if (!osOk || !cpuOk || !libcOk) {
     throw Object.assign(new Error('Unsupported platform'), {
       pkgid: target._id,
       current: {
-        os: platform,
-        cpu: arch,
-        libc: libcFamily,
+        os,
+        cpu,
+        libc,
       },
       required: {
         os: target.os,
@@ -98,4 +85,6 @@ const checkList = (value, list) => {
 module.exports = {
   checkEngine,
   checkPlatform,
+  checkDevEngines,
+  currentEnv,
 }

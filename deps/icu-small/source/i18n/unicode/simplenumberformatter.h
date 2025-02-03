@@ -87,16 +87,6 @@ class U_I18N_API SimpleNumber : public UMemory {
     void setMaximumIntegerDigits(uint32_t maximumIntegerDigits, UErrorCode& status);
 #endif // U_HIDE_DRAFT_API
 
-#ifndef U_HIDE_DEPRECATED_API
-    /**
-     * Alias for setMaximumIntegerDigits.
-     * Will be removed after ICU 75.
-     *
-     * @deprecated ICU 75
-     */
-    void truncateStart(uint32_t maximumIntegerDigits, UErrorCode& status);
-#endif // U_HIDE_DEPRECATED_API
-
     /**
      * Pads the beginning of the number with zeros up to the given minimum number of integer digits.
      *

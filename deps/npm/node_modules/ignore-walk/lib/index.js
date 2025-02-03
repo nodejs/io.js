@@ -85,7 +85,7 @@ class Walker extends EE {
       .filter(e => this.isIgnoreFile(e))
 
     let igCount = newIg.length
-    const then = _ => {
+    const then = () => {
       if (--igCount === 0) {
         this.filterEntries()
       }
@@ -141,7 +141,7 @@ class Walker extends EE {
     if (entryCount === 0) {
       this.emit('done', this.result)
     } else {
-      const then = _ => {
+      const then = () => {
         if (--entryCount === 0) {
           this.emit('done', this.result)
         }

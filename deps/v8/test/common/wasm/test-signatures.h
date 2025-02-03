@@ -30,6 +30,8 @@ class TestSignatures {
         sig_i_c(1, 1, kIntFuncRefTypes4),
         sig_i_s(1, 1, kIntSimd128Types4),
         sig_l_v(1, 0, kLongTypes4),
+        sig_l_a(1, 1, kLongExternRefTypes4),
+        sig_l_c(1, 1, kLongFuncRefTypes4),
         sig_l_l(1, 1, kLongTypes4),
         sig_l_ll(1, 2, kLongTypes4),
         sig_i_ll(1, 2, kIntLongTypes4),
@@ -65,6 +67,8 @@ class TestSignatures {
     for (int i = 1; i < 4; i++) kIntDoubleTypes4[i] = kWasmF64;
     for (int i = 1; i < 4; i++) kIntExternRefTypes4[i] = kWasmExternRef;
     for (int i = 1; i < 4; i++) kIntFuncRefTypes4[i] = kWasmFuncRef;
+    for (int i = 1; i < 4; i++) kLongExternRefTypes4[i] = kWasmExternRef;
+    for (int i = 1; i < 4; i++) kLongFuncRefTypes4[i] = kWasmFuncRef;
     for (int i = 0; i < 4; i++) kSimd128Types4[i] = kWasmS128;
     for (int i = 1; i < 4; i++) kIntSimd128Types4[i] = kWasmS128;
     for (int i = 0; i < 4; i++) kSimd128IntTypes4[i] = kWasmS128;
@@ -73,6 +77,8 @@ class TestSignatures {
     kIntDoubleTypes4[0] = kWasmI32;
     kIntExternRefTypes4[0] = kWasmI32;
     kIntFuncRefTypes4[0] = kWasmI32;
+    kLongExternRefTypes4[0] = kWasmI64;
+    kLongFuncRefTypes4[0] = kWasmI64;
     kIntSimd128Types4[0] = kWasmI32;
     kSimd128IntTypes4[1] = kWasmI32;
   }
@@ -88,6 +94,8 @@ class TestSignatures {
   FunctionSig* i_dd() { return &sig_i_dd; }
 
   FunctionSig* l_v() { return &sig_l_v; }
+  FunctionSig* l_a() { return &sig_l_a; }
+  FunctionSig* l_c() { return &sig_l_c; }
   FunctionSig* l_l() { return &sig_l_l; }
   FunctionSig* l_ll() { return &sig_l_ll; }
   FunctionSig* i_ll() { return &sig_i_ll; }
@@ -141,6 +149,8 @@ class TestSignatures {
   ValueType kIntDoubleTypes4[4];
   ValueType kIntExternRefTypes4[4];
   ValueType kIntFuncRefTypes4[4];
+  ValueType kLongExternRefTypes4[4];
+  ValueType kLongFuncRefTypes4[4];
   ValueType kSimd128Types4[4];
   ValueType kIntSimd128Types4[4];
   ValueType kSimd128IntTypes4[4];
@@ -160,6 +170,8 @@ class TestSignatures {
   FunctionSig sig_i_s;
 
   FunctionSig sig_l_v;
+  FunctionSig sig_l_a;
+  FunctionSig sig_l_c;
   FunctionSig sig_l_l;
   FunctionSig sig_l_ll;
   FunctionSig sig_i_ll;

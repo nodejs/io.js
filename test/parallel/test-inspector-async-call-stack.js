@@ -5,21 +5,32 @@ common.skipIfInspectorDisabled();
 common.skipIf32Bits();
 
 const assert = require('assert');
+const { inspect } = require('util');
 const { internalBinding } = require('internal/test/binding');
-const { async_hook_fields, constants } = internalBinding('async_wrap');
+const { async_hook_fields, constants, getPromiseHooks } = internalBinding('async_wrap');
 const { kTotals } = constants;
-const inspector = require('inspector');
+const inspector = require('inspector/promises');
 
 const setDepth = 'Debugger.setAsyncCallStackDepth';
-
+const emptyPromiseHooks = [ undefined, undefined, undefined, undefined ];
 function verifyAsyncHookDisabled(message) {
   assert.strictEqual(async_hook_fields[kTotals], 0,
                      `${async_hook_fields[kTotals]} !== 0: ${message}`);
+  const promiseHooks = getPromiseHooks();
+  assert.deepStrictEqual(
+    promiseHooks, emptyPromiseHooks,
+    `${message}: promise hooks ${inspect(promiseHooks)}`
+  );
 }
 
 function verifyAsyncHookEnabled(message) {
   assert.strictEqual(async_hook_fields[kTotals], 4,
                      `${async_hook_fields[kTotals]} !== 4: ${message}`);
+  const promiseHooks = getPromiseHooks();
+  assert.notDeepStrictEqual(
+    promiseHooks, emptyPromiseHooks,
+    `${message}: promise hooks ${inspect(promiseHooks)}`
+  );
 }
 
 // By default inspector async hooks should not have been installed.
@@ -31,53 +42,38 @@ verifyAsyncHookDisabled('creating a session should not enable async hooks');
 session.connect();
 verifyAsyncHookDisabled('connecting a session should not enable async hooks');
 
-session.post('Debugger.enable', () => {
+(async () => {
+  await session.post('Debugger.enable');
   verifyAsyncHookDisabled('enabling debugger should not enable async hooks');
+  await assert.rejects(session.post(setDepth, { invalid: 'message' }), { code: 'ERR_INSPECTOR_COMMAND' });
+  verifyAsyncHookDisabled('invalid message should not enable async hooks');
+  await assert.rejects(session.post(setDepth, { maxDepth: 'five' }), { code: 'ERR_INSPECTOR_COMMAND' });
+  verifyAsyncHookDisabled('invalid maxDepth (string) should not enable ' +
+                          'async hooks');
+  await assert.rejects(session.post(setDepth, { maxDepth: NaN }), { code: 'ERR_INSPECTOR_COMMAND' });
+  verifyAsyncHookDisabled('invalid maxDepth (NaN) should not enable ' +
+                          'async hooks');
+  await session.post(setDepth, { maxDepth: 10 });
+  verifyAsyncHookEnabled('valid message should enable async hooks');
 
-  session.post(setDepth, { invalid: 'message' }, () => {
-    verifyAsyncHookDisabled('invalid message should not enable async hooks');
+  await session.post(setDepth, { maxDepth: 0 });
+  verifyAsyncHookDisabled('Setting maxDepth to 0 should disable ' +
+                          'async hooks');
 
-    session.post(setDepth, { maxDepth: 'five' }, () => {
-      verifyAsyncHookDisabled('invalid maxDepth (string) should not enable ' +
-                              'async hooks');
+  await session.post(setDepth, { maxDepth: 32 });
+  verifyAsyncHookEnabled('valid message should enable async hooks');
 
-      session.post(setDepth, { maxDepth: NaN }, () => {
-        verifyAsyncHookDisabled('invalid maxDepth (NaN) should not enable ' +
-                                'async hooks');
+  await session.post('Debugger.disable');
+  verifyAsyncHookDisabled('Debugger.disable should disable async hooks');
 
-        session.post(setDepth, { maxDepth: 10 }, () => {
-          verifyAsyncHookEnabled('valid message should enable async hooks');
+  await session.post('Debugger.enable');
+  verifyAsyncHookDisabled('Enabling debugger should not enable hooks');
 
-          session.post(setDepth, { maxDepth: 0 }, () => {
-            verifyAsyncHookDisabled('Setting maxDepth to 0 should disable ' +
-                                    'async hooks');
+  await session.post(setDepth, { maxDepth: 64 });
+  verifyAsyncHookEnabled('valid message should enable async hooks');
 
-            runTestSet2(session);
-          });
-        });
-      });
-    });
-  });
-});
+  await session.disconnect();
 
-function runTestSet2(session) {
-  session.post(setDepth, { maxDepth: 32 }, () => {
-    verifyAsyncHookEnabled('valid message should enable async hooks');
-
-    session.post('Debugger.disable', () => {
-      verifyAsyncHookDisabled('Debugger.disable should disable async hooks');
-
-      session.post('Debugger.enable', () => {
-        verifyAsyncHookDisabled('Enabling debugger should not enable hooks');
-
-        session.post(setDepth, { maxDepth: 64 }, () => {
-          verifyAsyncHookEnabled('valid message should enable async hooks');
-
-          session.disconnect();
-          verifyAsyncHookDisabled('Disconnecting session should disable ' +
-                                  'async hooks');
-        });
-      });
-    });
-  });
-}
+  verifyAsyncHookDisabled('Disconnecting session should disable ' +
+                          'async hooks');
+})().then(common.mustCall());

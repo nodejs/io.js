@@ -129,4 +129,32 @@ BENCHMARK(BM_StrToUpper)
     ->RangeMultiplier(2)
     ->Range(64, 1 << 26);
 
+static void BM_StrToUpperFromRvalref(benchmark::State& state) {
+  const size_t size = static_cast<size_t>(state.range(0));
+  std::string s(size, 'X');
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(s);
+    std::string res = absl::AsciiStrToUpper(std::string(s));
+    benchmark::DoNotOptimize(res);
+  }
+}
+BENCHMARK(BM_StrToUpperFromRvalref)
+    ->DenseRange(0, 32)
+    ->RangeMultiplier(2)
+    ->Range(64, 1 << 26);
+
+static void BM_StrToLowerFromRvalref(benchmark::State& state) {
+  const size_t size = static_cast<size_t>(state.range(0));
+  std::string s(size, 'x');
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(s);
+    std::string res = absl::AsciiStrToLower(std::string(s));
+    benchmark::DoNotOptimize(res);
+  }
+}
+BENCHMARK(BM_StrToLowerFromRvalref)
+    ->DenseRange(0, 32)
+    ->RangeMultiplier(2)
+    ->Range(64, 1 << 26);
+
 }  // namespace

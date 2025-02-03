@@ -341,7 +341,7 @@ function spawnWorkers() {
   let workers = [];
   for (let i = 0; i < kNumberOfWorker; i++) {
     let worker = new Worker(
-        `onmessage = function(msg) {
+        `onmessage = function({data:msg}) {
             if (msg.module) {
               let module = msg.module;
               let mem = msg.mem;

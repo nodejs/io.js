@@ -7,12 +7,13 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/prefer-primordials');
 
 new RuleTester({
-  parserOptions: { ecmaVersion: 6 },
-  env: { es6: true }
+  languageOptions: {
+    sourceType: 'script',
+  },
 })
   .run('prefer-primordials', rule, {
     valid: [
@@ -175,6 +176,22 @@ new RuleTester({
         `,
         options: [{ name: 'Symbol' }],
         errors: [{ message: /const { SymbolIterator } = primordials/ }]
+      },
+      {
+        code: `
+          const { SymbolAsyncDispose } = primordials;
+          const a = { [SymbolAsyncDispose] () {} }
+        `,
+        options: [{ name: 'Symbol', polyfilled: ['asyncDispose', 'dispose'] }],
+        errors: [{ message: /const { SymbolAsyncDispose } = require\("internal\/util"\)/ }]
+      },
+      {
+        code: `
+          const { SymbolDispose } = primordials;
+          const a = { [SymbolDispose] () {} }
+        `,
+        options: [{ name: 'Symbol', polyfilled: ['asyncDispose', 'dispose'] }],
+        errors: [{ message: /const { SymbolDispose } = require\("internal\/util"\)/ }]
       },
       {
         code: `

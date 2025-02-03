@@ -222,7 +222,7 @@ macro CastFeedbackVector(
 
 macro CollectConstructFeedback(
     implicit context: Context)(target: JSAny, newTarget: JSAny,
-    maybeFeedbackVector: Undefined|FeedbackVector, slotId: uintptr,
+    maybeFeedbackVector: Undefined|FeedbackVector, slotId: TaggedIndex,
     updateFeedbackMode: constexpr UpdateFeedbackMode):
     never labels ConstructGeneric,
     ConstructArray(AllocationSite) {
@@ -235,12 +235,13 @@ macro CollectConstructFeedback(
 
   const feedbackVector = CastFeedbackVector(
       maybeFeedbackVector, updateFeedbackMode) otherwise goto ConstructGeneric;
-
-  IncrementCallCount(feedbackVector, slotId);
+  // TODO(42200059): Propagate TaggedIndex usage.
+  const slotIdUintptr = Unsigned(TaggedIndexToIntPtr(slotId));
+  IncrementCallCount(feedbackVector, slotIdUintptr);
 
   try {
     const feedback: MaybeObject =
-        LoadFeedbackVectorSlot(feedbackVector, slotId);
+        LoadFeedbackVectorSlot(feedbackVector, slotIdUintptr);
     if (IsMonomorphic(feedback, newTarget)) goto ConstructGeneric;
     if (IsMegamorphic(feedback)) goto ConstructGeneric;
     if (IsUninitialized(feedback)) goto TryInitializeAsMonomorphic;
@@ -265,16 +266,16 @@ macro CollectConstructFeedback(
       // In this case we can skip unwrapping and context validation since we
       // know the target is the current context's array function.
       const allocationSite =
-          CreateAllocationSiteInFeedbackVector(feedbackVector, slotId);
+          CreateAllocationSiteInFeedbackVector(feedbackVector, slotIdUintptr);
       ReportFeedbackUpdate(
-          feedbackVector, slotId, 'Construct:CreateAllocationSite');
+          feedbackVector, slotIdUintptr, 'Construct:CreateAllocationSite');
       goto ConstructArray(allocationSite);
     }
 
-    TryInitializeAsMonomorphic(newTarget, feedbackVector, slotId)
+    TryInitializeAsMonomorphic(newTarget, feedbackVector, slotIdUintptr)
         otherwise TransitionToMegamorphic;
   } label TransitionToMegamorphic {
-    TransitionToMegamorphic(feedbackVector, slotId);
+    TransitionToMegamorphic(feedbackVector, slotIdUintptr);
   }
   goto ConstructGeneric;
 }

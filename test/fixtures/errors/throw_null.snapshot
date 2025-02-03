@@ -3,6 +3,6 @@
 throw null;
 ^
 null
-(Use `node --trace-uncaught ...` to show where the exception was thrown)
+(Use `* --trace-uncaught ...` to show where the exception was thrown)
 
 Node.js *

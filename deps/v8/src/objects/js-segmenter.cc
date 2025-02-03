@@ -24,7 +24,8 @@
 namespace v8 {
 namespace internal {
 
-MaybeHandle<JSSegmenter> JSSegmenter::New(Isolate* isolate, Handle<Map> map,
+MaybeHandle<JSSegmenter> JSSegmenter::New(Isolate* isolate,
+                                          DirectHandle<Map> map,
                                           Handle<Object> locales,
                                           Handle<Object> input_options) {
   // 4. Let requestedLocales be ? CanonicalizeLocaleList(locales).
@@ -38,8 +39,7 @@ MaybeHandle<JSSegmenter> JSSegmenter::New(Isolate* isolate, Handle<Map> map,
   const char* service = "Intl.Segmenter";
   // 5. Let options be GetOptionsObject(_options_).
   ASSIGN_RETURN_ON_EXCEPTION(isolate, options,
-                             GetOptionsObject(isolate, input_options, service),
-                             JSSegmenter);
+                             GetOptionsObject(isolate, input_options, service));
 
   // 7. Let opt be a new Record.
   // 8. Let matcher be ? GetOption(options, "localeMatcher", "string",
@@ -58,13 +58,12 @@ MaybeHandle<JSSegmenter> JSSegmenter::New(Isolate* isolate, Handle<Map> map,
       Intl::ResolveLocale(isolate, JSSegmenter::GetAvailableLocales(),
                           requested_locales, matcher, {});
   if (maybe_resolve_locale.IsNothing()) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                    JSSegmenter);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
   }
   Intl::ResolvedLocale r = maybe_resolve_locale.FromJust();
 
   // 12. Set segmenter.[[Locale]] to the value of r.[[locale]].
-  Handle<String> locale_str =
+  DirectHandle<String> locale_str =
       isolate->factory()->NewStringFromAsciiChecked(r.locale.c_str());
 
   // 13. Let granularity be ? GetOption(options, "granularity", "string", «
@@ -101,13 +100,13 @@ MaybeHandle<JSSegmenter> JSSegmenter::New(Isolate* isolate, Handle<Map> map,
   DCHECK(U_SUCCESS(status));
   DCHECK_NOT_NULL(icu_break_iterator.get());
 
-  Handle<Managed<icu::BreakIterator>> managed_break_iterator =
-      Managed<icu::BreakIterator>::FromUniquePtr(isolate, 0,
-                                                 std::move(icu_break_iterator));
+  DirectHandle<Managed<icu::BreakIterator>> managed_break_iterator =
+      Managed<icu::BreakIterator>::From(isolate, 0,
+                                        std::move(icu_break_iterator));
 
   // Now all properties are ready, so we can allocate the result object.
-  Handle<JSSegmenter> segmenter = Handle<JSSegmenter>::cast(
-      isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
+  Handle<JSSegmenter> segmenter =
+      Cast<JSSegmenter>(isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
   DisallowGarbageCollection no_gc;
   segmenter->set_flags(0);
 
@@ -124,8 +123,8 @@ MaybeHandle<JSSegmenter> JSSegmenter::New(Isolate* isolate, Handle<Map> map,
 }
 
 // ecma402 #sec-Intl.Segmenter.prototype.resolvedOptions
-Handle<JSObject> JSSegmenter::ResolvedOptions(Isolate* isolate,
-                                              Handle<JSSegmenter> segmenter) {
+Handle<JSObject> JSSegmenter::ResolvedOptions(
+    Isolate* isolate, DirectHandle<JSSegmenter> segmenter) {
   Factory* factory = isolate->factory();
   // 3. Let options be ! ObjectCreate(%ObjectPrototype%).
   Handle<JSObject> result = factory->NewJSObject(isolate->object_function());
@@ -141,7 +140,7 @@ Handle<JSObject> JSSegmenter::ResolvedOptions(Isolate* isolate,
   //     [[Locale]]                    "locale"
   //     [[SegmenterGranularity]]      "granularity"
 
-  Handle<String> locale(segmenter->locale(), isolate);
+  DirectHandle<String> locale(segmenter->locale(), isolate);
   JSObject::AddProperty(isolate, result, factory->locale_string(), locale,
                         NONE);
   JSObject::AddProperty(isolate, result, factory->granularity_string(),

@@ -1,6 +1,6 @@
 # Generated with generate_ssl_tests.pl
 
-num_tests = 16
+num_tests = 18
 
 test-0 = 0-alpn-simple
 test-1 = 1-alpn-server-finds-match
@@ -18,6 +18,8 @@ test-12 = 12-alpn-client-switch-resumption
 test-13 = 13-alpn-alert-on-mismatch-resumption
 test-14 = 14-alpn-no-server-support-resumption
 test-15 = 15-alpn-no-client-support-resumption
+test-16 = 16-alpn-empty-client-list
+test-17 = 17-alpn-empty-server-list
 # ===========================================================
 
 [0-alpn-simple]
@@ -614,6 +616,68 @@ client = 15-alpn-no-client-support-resumption-client-extra
 ALPNProtocols = foo
 
 [15-alpn-no-client-support-resumption-client-extra]
+ALPNProtocols = foo
+
+
+# ===========================================================
+
+[16-alpn-empty-client-list]
+ssl_conf = 16-alpn-empty-client-list-ssl
+
+[16-alpn-empty-client-list-ssl]
+server = 16-alpn-empty-client-list-server
+client = 16-alpn-empty-client-list-client
+
+[16-alpn-empty-client-list-server]
+Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
+CipherString = DEFAULT
+PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
+
+[16-alpn-empty-client-list-client]
+CipherString = DEFAULT
+VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
+VerifyMode = Peer
+
+[test-16]
+server = 16-alpn-empty-client-list-server-extra
+client = 16-alpn-empty-client-list-client-extra
+
+[16-alpn-empty-client-list-server-extra]
+ALPNProtocols = foo
+
+[16-alpn-empty-client-list-client-extra]
+ALPNProtocols = 
+
+
+# ===========================================================
+
+[17-alpn-empty-server-list]
+ssl_conf = 17-alpn-empty-server-list-ssl
+
+[17-alpn-empty-server-list-ssl]
+server = 17-alpn-empty-server-list-server
+client = 17-alpn-empty-server-list-client
+
+[17-alpn-empty-server-list-server]
+Certificate = ${ENV::TEST_CERTS_DIR}/servercert.pem
+CipherString = DEFAULT
+PrivateKey = ${ENV::TEST_CERTS_DIR}/serverkey.pem
+
+[17-alpn-empty-server-list-client]
+CipherString = DEFAULT
+VerifyCAFile = ${ENV::TEST_CERTS_DIR}/rootcert.pem
+VerifyMode = Peer
+
+[test-17]
+ExpectedResult = ServerFail
+ExpectedServerAlert = NoApplicationProtocol
+server = 17-alpn-empty-server-list-server-extra
+client = 17-alpn-empty-server-list-client-extra
+
+[17-alpn-empty-server-list-server-extra]
+ALPNProtocols = 
+
+[17-alpn-empty-server-list-client-extra]
 ALPNProtocols = foo
 
 

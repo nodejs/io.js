@@ -1,0 +1,24 @@
+TAP version 13
+AFTER
+# Subtest: test that aborts
+not ok 1 - test that aborts
+  ---
+  duration_ms: *
+  type: 'test'
+  location: '/test/fixtures/test-runner/output/abort-runs-after-hook.js:(LINE):1'
+  failureType: 'uncaughtException'
+  error: 'boom'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    *
+    *
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

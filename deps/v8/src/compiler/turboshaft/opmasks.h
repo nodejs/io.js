@@ -43,6 +43,8 @@
 
 namespace v8::internal::compiler::turboshaft::Opmask {
 
+#include "src/compiler/turboshaft/field-macro.inc"
+
 template <typename T, size_t Offset>
 struct OpMaskField {
   using type = T;
@@ -104,8 +106,7 @@ struct MaskBuilder {
   }
 
   static constexpr uint64_t EncodeValue(typename Fields::type... args) {
-    constexpr uint64_t base_mask =
-        EncodeBaseValue(operation_to_opcode_map<Op>::value);
+    constexpr uint64_t base_mask = EncodeBaseValue(operation_to_opcode_v<Op>);
     return (base_mask | ... | EncodeFieldValue<Fields>(args));
   }
 
@@ -135,10 +136,6 @@ struct MaskBuilder {
   template <typename Fields::type... Args>
   using For = OpMaskT<Op, BuildMask(), EncodeValue(Args...)>;
 };
-
-#define FIELD(op, field_name)                                       \
-  OpMaskField<UnwrapRepresentation<decltype(op::field_name)>::type, \
-              OFFSET_OF(op, field_name)>
 
 // === Definitions of masks for Turboshaft operations === //
 
@@ -172,6 +169,10 @@ using kWord64Sub =
 using kWord64Mul =
     WordBinopMask::For<WordBinopOp::Kind::kMul, WordRepresentation::Word64()>;
 using kWord64BitwiseAnd = WordBinopMask::For<WordBinopOp::Kind::kBitwiseAnd,
+                                             WordRepresentation::Word64()>;
+using kWord64BitwiseOr = WordBinopMask::For<WordBinopOp::Kind::kBitwiseOr,
+                                            WordRepresentation::Word64()>;
+using kWord64BitwiseXor = WordBinopMask::For<WordBinopOp::Kind::kBitwiseXor,
                                              WordRepresentation::Word64()>;
 
 using kBitwiseAnd = WordBinopKindMask::For<WordBinopOp::Kind::kBitwiseAnd>;
@@ -233,6 +234,9 @@ using kWord64ShiftRightLogical =
                    WordRepresentation::Word64()>;
 using kShiftLeft = ShiftKindMask::For<ShiftOp::Kind::kShiftLeft>;
 
+using PhiMask = MaskBuilder<PhiOp, FIELD(PhiOp, rep)>;
+using kTaggedPhi = PhiMask::For<RegisterRepresentation::Tagged()>;
+
 using ConstantMask = MaskBuilder<ConstantOp, FIELD(ConstantOp, kind)>;
 
 using kWord32Constant = ConstantMask::For<ConstantOp::Kind::kWord32>;
@@ -251,6 +255,8 @@ using kWord32Equal = ComparisonMask::For<ComparisonOp::Kind::kEqual,
                                          WordRepresentation::Word32()>;
 using kWord64Equal = ComparisonMask::For<ComparisonOp::Kind::kEqual,
                                          WordRepresentation::Word64()>;
+using ComparisonKindMask = MaskBuilder<ComparisonOp, FIELD(ComparisonOp, kind)>;
+using kComparisonEqual = ComparisonKindMask::For<ComparisonOp::Kind::kEqual>;
 
 using ChangeOpMask =
     MaskBuilder<ChangeOp, FIELD(ChangeOp, kind), FIELD(ChangeOp, assumption),
@@ -308,6 +314,8 @@ using TaggedBitcastKindMask =
     MaskBuilder<TaggedBitcastOp, FIELD(TaggedBitcastOp, kind)>;
 using kTaggedBitcastSmi =
     TaggedBitcastKindMask::For<TaggedBitcastOp::Kind::kSmi>;
+using kTaggedBitcastHeapObject =
+    TaggedBitcastKindMask::For<TaggedBitcastOp::Kind::kHeapObject>;
 
 #if V8_ENABLE_WEBASSEMBLY
 
@@ -316,16 +324,17 @@ using Simd128BinopMask =
 using kSimd128I32x4Mul = Simd128BinopMask::For<Simd128BinopOp::Kind::kI32x4Mul>;
 using kSimd128I16x8Mul = Simd128BinopMask::For<Simd128BinopOp::Kind::kI16x8Mul>;
 
+#define SIMD_SIGN_EXTENSION_BINOP_MASK(kind) \
+  using kSimd128##kind = Simd128BinopMask::For<Simd128BinopOp::Kind::k##kind>;
+FOREACH_SIMD_128_BINARY_SIGN_EXTENSION_OPCODE(SIMD_SIGN_EXTENSION_BINOP_MASK)
+#undef SIMD_SIGN_EXTENSION_BINOP_MASK
+
 using Simd128UnaryMask =
     MaskBuilder<Simd128UnaryOp, FIELD(Simd128UnaryOp, kind)>;
-using kSimd128I16x8ExtAddPairwiseI8x16S =
-    Simd128UnaryMask::For<Simd128UnaryOp::Kind::kI16x8ExtAddPairwiseI8x16S>;
-using kSimd128I16x8ExtAddPairwiseI8x16U =
-    Simd128UnaryMask::For<Simd128UnaryOp::Kind::kI16x8ExtAddPairwiseI8x16U>;
-using kSimd128I32x4ExtAddPairwiseI16x8S =
-    Simd128UnaryMask::For<Simd128UnaryOp::Kind::kI32x4ExtAddPairwiseI16x8S>;
-using kSimd128I32x4ExtAddPairwiseI16x8U =
-    Simd128UnaryMask::For<Simd128UnaryOp::Kind::kI32x4ExtAddPairwiseI16x8U>;
+#define SIMD_UNARY_MASK(kind) \
+  using kSimd128##kind = Simd128UnaryMask::For<Simd128UnaryOp::Kind::k##kind>;
+FOREACH_SIMD_128_UNARY_OPCODE(SIMD_UNARY_MASK)
+#undef SIMD_UNARY_MASK
 
 using Simd128ShiftMask =
     MaskBuilder<Simd128ShiftOp, FIELD(Simd128ShiftOp, kind)>;
@@ -334,11 +343,18 @@ using Simd128ShiftMask =
 FOREACH_SIMD_128_SHIFT_OPCODE(SIMD_SHIFT_MASK)
 #undef SIMD_SHIFT_MASK
 
+using Simd128LoadTransformMask =
+    MaskBuilder<Simd128LoadTransformOp,
+                FIELD(Simd128LoadTransformOp, transform_kind)>;
+#define SIMD_LOAD_TRANSFORM_MASK(kind)                               \
+  using kSimd128LoadTransform##kind = Simd128LoadTransformMask::For< \
+      Simd128LoadTransformOp::TransformKind::k##kind>;
+FOREACH_SIMD_128_LOAD_TRANSFORM_OPCODE(SIMD_LOAD_TRANSFORM_MASK)
+#undef SIMD_LOAD_TRANSFORM_MASK
+
 #endif  // V8_ENABLE_WEBASSEMBLY
 
-#ifndef TURBOSHAFT_OPMASK_EXPORT_FIELD_MACRO_FOR_UNITTESTS
 #undef FIELD
-#endif
 
 }  // namespace v8::internal::compiler::turboshaft::Opmask
 

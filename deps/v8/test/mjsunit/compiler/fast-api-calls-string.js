@@ -11,22 +11,23 @@
 // The test relies on optimizing/deoptimizing at predictable moments, so
 // it's not suitable for deoptimization fuzzing.
 // Flags: --deopt-every-n-times=0
+// Flags: --fast-api-allow-float-in-sim
 
 assertThrows(() => d8.test.FastCAPI());
 const fast_c_api = new d8.test.FastCAPI();
 
 function assertSlowCall(input) {
-  assertEquals(new Uint8Array(input.length), copy_string(false, input));
+  assertEquals(new Uint8Array(input.length), copy_string(input));
 }
 
 function assertFastCall(input) {
   const bytes = Uint8Array.from(input, c => c.charCodeAt(0));
-  assertEquals(bytes, copy_string(false, input));
+  assertEquals(bytes, copy_string(input));
 }
 
-function copy_string(should_fallback = false, input) {
+function copy_string(input) {
   const buffer = new Uint8Array(input.length);
-  fast_c_api.copy_string(should_fallback, input, buffer);
+  fast_c_api.copy_string(input, buffer);
   return buffer;
 }
 

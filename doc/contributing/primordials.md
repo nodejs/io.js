@@ -4,8 +4,16 @@ The file `lib/internal/per_context/primordials.js` subclasses and stores the JS
 built-ins that come from the VM so that Node.js built-in modules do not need to
 later look these up from the global proxy, which can be mutated by users.
 
-Usage of primordials should be preferred for any new code, but replacing current
-code with primordials should be
+For some area of the codebase, performance and code readability are deemed more
+important than reliability against prototype pollution:
+
+* `node:http`
+* `node:http2`
+* `node:tls`
+* `node:zlib`
+
+Usage of primordials should be preferred for new code in other areas, but
+replacing current code with primordials should be
 [done with care](#primordials-with-known-performance-issues). It is highly
 recommended to ping the relevant team when reviewing a pull request that touches
 one of the subsystems they "own".

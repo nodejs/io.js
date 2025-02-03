@@ -19,6 +19,8 @@ describe('ESM: Package.json', { concurrency: !process.env.TEST_PARALLEL }, () =>
     assert.ok(
       stderr.includes(
         `Invalid package config ${path.toNamespacedPath(invalidJson)} while importing "invalid-pjson" from ${entry}.`
+      ) || stderr.includes(
+        `Invalid package config ${path.toNamespacedPath(invalidJson)} while importing "invalid-pjson" from ${path.toNamespacedPath(entry)}.`
       ),
       stderr
     );

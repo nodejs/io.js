@@ -66,17 +66,16 @@
   "streams/decode-utf8.any.js": {
     "requires": ["small-icu"]
   },
-  "streams/decode-bad-chunks.any.js": {
-    "fail": {
-      "expected": [
-        "chunk of type undefined should error the stream"
-      ]
-    }
-  },
   "streams/decode-non-utf8.any.js": {
     "requires": ["full-icu"]
   },
   "encodeInto.any.js": {
+    "fail": {
+      "expected": [
+        "Invalid encodeInto() destination: Float16Array, backed by: ArrayBuffer",
+        "Invalid encodeInto() destination: Float16Array, backed by: SharedArrayBuffer"
+      ]
+    },
     "requires": ["small-icu"]
   },
   "textdecoder-copy.any.js": {

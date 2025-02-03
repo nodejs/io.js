@@ -54,14 +54,14 @@ U_CDECL_BEGIN
 /*==========================================================================*/
 /**
  * Unicode version number, default for the current ICU version.
- * The actual Unicode Character Database (UCD) data is stored in uprops.dat
+ * The actual Unicode Character Database (UCD) data is stored in uprops.icu
  * and may be generated from UCD files from a different Unicode version.
  * Call u_getUnicodeVersion to get the actual Unicode version of the data.
  *
  * @see u_getUnicodeVersion
  * @stable ICU 2.0
  */
-#define U_UNICODE_VERSION "15.1"
+#define U_UNICODE_VERSION "16.0"
 
 /**
  * \file
@@ -533,33 +533,39 @@ typedef enum UProperty {
      * @stable ICU 70
      */
     UCHAR_RGI_EMOJI=71,
-#ifndef U_HIDE_DRAFT_API
     /**
      * Binary property IDS_Unary_Operator.
      * For programmatic determination of Ideographic Description Sequences.
      *
-     * @draft ICU 74
+     * @stable ICU 74
      */
     UCHAR_IDS_UNARY_OPERATOR=72,
     /**
      * Binary property ID_Compat_Math_Start.
      * Used in mathematical identifier profile in UAX #31.
-     * @draft ICU 74
+     * @stable ICU 74
      */
     UCHAR_ID_COMPAT_MATH_START=73,
     /**
      * Binary property ID_Compat_Math_Continue.
      * Used in mathematical identifier profile in UAX #31.
-     * @draft ICU 74
+     * @stable ICU 74
      */
     UCHAR_ID_COMPAT_MATH_CONTINUE=74,
+#ifndef U_HIDE_DRAFT_API
+    /**
+     * Binary property Modifier_Combining_Mark.
+     * Used by the AMTRA algorithm in UAX #53.
+     * @draft ICU 76
+     */
+    UCHAR_MODIFIER_COMBINING_MARK=75,
 #endif  // U_HIDE_DRAFT_API
 #ifndef U_HIDE_DEPRECATED_API
     /**
      * One more than the last constant for binary Unicode properties.
      * @deprecated ICU 58 The numeric value may change over time, see ICU ticket #12420.
      */
-    UCHAR_BINARY_LIMIT=75,
+    UCHAR_BINARY_LIMIT=76,
 #endif  // U_HIDE_DEPRECATED_API
 
     /** Enumerated property Bidi_Class.
@@ -677,13 +683,19 @@ typedef enum UProperty {
      * @draft ICU 75
      */
     UCHAR_IDENTIFIER_STATUS=0x1019,
+    /**
+     * Enumerated property Indic_Conjunct_Break.
+     * Used in the grapheme cluster break algorithm in UAX #29.
+     * @draft ICU 76
+     */
+    UCHAR_INDIC_CONJUNCT_BREAK=0x101A,
 #endif  // U_HIDE_DRAFT_API
 #ifndef U_HIDE_DEPRECATED_API
     /**
      * One more than the last constant for enumerated/integer Unicode properties.
      * @deprecated ICU 58 The numeric value may change over time, see ICU ticket #12420.
      */
-    UCHAR_INT_LIMIT=0x101A,
+    UCHAR_INT_LIMIT=0x101B,
 #endif  // U_HIDE_DEPRECATED_API
 
     /** Bitmask property General_Category_Mask.
@@ -1952,6 +1964,29 @@ enum UBlockCode {
     /** @stable ICU 74 */
     UBLOCK_CJK_UNIFIED_IDEOGRAPHS_EXTENSION_I = 328, /*[2EBF0]*/
 
+    // New blocks in Unicode 16.0
+
+    /** @stable ICU 76 */
+    UBLOCK_EGYPTIAN_HIEROGLYPHS_EXTENDED_A = 329, /*[13460]*/
+    /** @stable ICU 76 */
+    UBLOCK_GARAY = 330, /*[10D40]*/
+    /** @stable ICU 76 */
+    UBLOCK_GURUNG_KHEMA = 331, /*[16100]*/
+    /** @stable ICU 76 */
+    UBLOCK_KIRAT_RAI = 332, /*[16D40]*/
+    /** @stable ICU 76 */
+    UBLOCK_MYANMAR_EXTENDED_C = 333, /*[116D0]*/
+    /** @stable ICU 76 */
+    UBLOCK_OL_ONAL = 334, /*[1E5D0]*/
+    /** @stable ICU 76 */
+    UBLOCK_SUNUWAR = 335, /*[11BC0]*/
+    /** @stable ICU 76 */
+    UBLOCK_SYMBOLS_FOR_LEGACY_COMPUTING_SUPPLEMENT = 336, /*[1CC00]*/
+    /** @stable ICU 76 */
+    UBLOCK_TODHRI = 337, /*[105C0]*/
+    /** @stable ICU 76 */
+    UBLOCK_TULU_TIGALARI = 338, /*[11380]*/
+
 #ifndef U_HIDE_DEPRECATED_API
     /**
      * One more than the highest normal UBlockCode value.
@@ -1959,7 +1994,7 @@ enum UBlockCode {
      *
      * @deprecated ICU 58 The numeric value may change over time, see ICU ticket #12420.
      */
-    UBLOCK_COUNT = 329,
+    UBLOCK_COUNT = 339,
 #endif  // U_HIDE_DEPRECATED_API
 
     /** @stable ICU 2.0 */
@@ -2253,6 +2288,8 @@ typedef enum UJoiningGroup {
 
     U_JG_THIN_YEH,  /**< @stable ICU 70 */
     U_JG_VERTICAL_TAIL,  /**< @stable ICU 70 */
+
+    U_JG_KASHMIRI_YEH,  /**< @stable ICU 76 */
 
 #ifndef U_HIDE_DEPRECATED_API
     /**
@@ -2702,7 +2739,34 @@ typedef enum UIndicSyllabicCategory {
     U_INSC_VOWEL_DEPENDENT,
     /** @stable ICU 63 */
     U_INSC_VOWEL_INDEPENDENT,
+    /** @stable ICU 76 */
+    U_INSC_REORDERING_KILLER,
 } UIndicSyllabicCategory;
+
+#ifndef U_HIDE_DRAFT_API
+/**
+ * Indic Conjunct Break constants.
+ *
+ * @see UCHAR_INDIC_CONJUNCT_BREAK
+ * @draft ICU 76
+ */
+typedef enum UIndicConjunctBreak {
+    /*
+    * Note: UIndicConjunctBreak constants are parsed by preparseucd.py.
+    * It matches lines like
+    *     U_INCB_<Unicode Indic_Conjunct_Break value name>
+    */
+
+    /** @draft ICU 76 */
+    U_INCB_NONE,
+    /** @draft ICU 76 */
+    U_INCB_CONSONANT,
+    /** @draft ICU 76 */
+    U_INCB_EXTEND,
+    /** @draft ICU 76 */
+    U_INCB_LINKER,
+} UIndicConjunctBreak;
+#endif  // U_HIDE_DRAFT_API
 
 /**
  * Vertical Orientation constants.

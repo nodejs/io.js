@@ -1,11 +1,11 @@
-.TH "NPM-SEARCH" "1" "April 2024" "" ""
+.TH "NPM-SEARCH" "1" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBnpm-search\fR - Search for packages
 .SS "Synopsis"
 .P
 .RS 2
 .nf
-npm search \[lB]search terms ...\[rB]
+npm search <search term> \[lB]<search term> ...\[rB]
 
 aliases: find, s, se
 .fi
@@ -22,16 +22,6 @@ Search also allows targeting of maintainers in search results, by prefixing thei
 .P
 If a term starts with \fB/\fR, then it's interpreted as a regular expression and supports standard JavaScript RegExp syntax. In this case search will ignore a trailing \fB/\fR . (Note you must escape or quote many regular expression characters in most shells.)
 .SS "Configuration"
-.SS "\fBlong\fR"
-.RS 0
-.IP \(bu 4
-Default: false
-.IP \(bu 4
-Type: Boolean
-.RE 0
-
-.P
-Show extended information in \fBls\fR, \fBsearch\fR, and \fBhelp-search\fR.
 .SS "\fBjson\fR"
 .RS 0
 .IP \(bu 4

@@ -85,10 +85,10 @@ U_CDECL_END
 static void sweepCache() {
     int32_t pos = UHASH_FIRST;
     const UHashElement* elem;
-    double now = (double)uprv_getUTCtime();
+    double now = static_cast<double>(uprv_getUTCtime());
 
     while ((elem = uhash_nextElement(gTimeZoneNamesCache, &pos)) != nullptr) {
-        TimeZoneNamesCacheEntry *entry = (TimeZoneNamesCacheEntry *)elem->value.pointer;
+        TimeZoneNamesCacheEntry* entry = static_cast<TimeZoneNamesCacheEntry*>(elem->value.pointer);
         if (entry->refCount <= 0 && (now - entry->lastAccess) > CACHE_EXPIRATION) {
             // delete this entry
             uhash_removeElement(gTimeZoneNamesCache, elem);
@@ -152,7 +152,7 @@ TimeZoneNamesDelegate::TimeZoneNamesDelegate(const Locale& locale, UErrorCode& s
     TimeZoneNamesCacheEntry *cacheEntry = nullptr;
 
     const char *key = locale.getName();
-    cacheEntry = (TimeZoneNamesCacheEntry *)uhash_get(gTimeZoneNamesCache, key);
+    cacheEntry = static_cast<TimeZoneNamesCacheEntry*>(uhash_get(gTimeZoneNamesCache, key));
     if (cacheEntry == nullptr) {
         TimeZoneNames *tznames = nullptr;
         char *newKey = nullptr;
@@ -162,7 +162,7 @@ TimeZoneNamesDelegate::TimeZoneNamesDelegate(const Locale& locale, UErrorCode& s
             status = U_MEMORY_ALLOCATION_ERROR;
         }
         if (U_SUCCESS(status)) {
-            newKey = (char *)uprv_malloc(uprv_strlen(key) + 1);
+            newKey = static_cast<char*>(uprv_malloc(uprv_strlen(key) + 1));
             if (newKey == nullptr) {
                 status = U_MEMORY_ALLOCATION_ERROR;
             } else {
@@ -170,13 +170,13 @@ TimeZoneNamesDelegate::TimeZoneNamesDelegate(const Locale& locale, UErrorCode& s
             }
         }
         if (U_SUCCESS(status)) {
-            cacheEntry = (TimeZoneNamesCacheEntry *)uprv_malloc(sizeof(TimeZoneNamesCacheEntry));
+            cacheEntry = static_cast<TimeZoneNamesCacheEntry*>(uprv_malloc(sizeof(TimeZoneNamesCacheEntry)));
             if (cacheEntry == nullptr) {
                 status = U_MEMORY_ALLOCATION_ERROR;
             } else {
                 cacheEntry->names = tznames;
                 cacheEntry->refCount = 1;
-                cacheEntry->lastAccess = (double)uprv_getUTCtime();
+                cacheEntry->lastAccess = static_cast<double>(uprv_getUTCtime());
 
                 uhash_put(gTimeZoneNamesCache, newKey, cacheEntry, &status);
             }
@@ -194,7 +194,7 @@ TimeZoneNamesDelegate::TimeZoneNamesDelegate(const Locale& locale, UErrorCode& s
     } else {
         // Update the reference count
         cacheEntry->refCount++;
-        cacheEntry->lastAccess = (double)uprv_getUTCtime();
+        cacheEntry->lastAccess = static_cast<double>(uprv_getUTCtime());
     }
     gAccessCount++;
     if (gAccessCount >= SWEEP_INTERVAL) {
@@ -442,7 +442,7 @@ TimeZoneNames::MatchInfoCollection::size() const {
 
 UTimeZoneNameType
 TimeZoneNames::MatchInfoCollection::getNameTypeAt(int32_t idx) const {
-    const MatchInfo* match = (const MatchInfo*)fMatches->elementAt(idx);
+    const MatchInfo* match = static_cast<const MatchInfo*>(fMatches->elementAt(idx));
     if (match) {
         return match->nameType;
     }
@@ -451,7 +451,7 @@ TimeZoneNames::MatchInfoCollection::getNameTypeAt(int32_t idx) const {
 
 int32_t
 TimeZoneNames::MatchInfoCollection::getMatchLengthAt(int32_t idx) const {
-    const MatchInfo* match = (const MatchInfo*)fMatches->elementAt(idx);
+    const MatchInfo* match = static_cast<const MatchInfo*>(fMatches->elementAt(idx));
     if (match) {
         return match->matchLength;
     }
@@ -461,7 +461,7 @@ TimeZoneNames::MatchInfoCollection::getMatchLengthAt(int32_t idx) const {
 UBool
 TimeZoneNames::MatchInfoCollection::getTimeZoneIDAt(int32_t idx, UnicodeString& tzID) const {
     tzID.remove();
-    const MatchInfo* match = (const MatchInfo*)fMatches->elementAt(idx);
+    const MatchInfo* match = static_cast<const MatchInfo*>(fMatches->elementAt(idx));
     if (match && match->isTZID) {
         tzID.setTo(match->id);
         return true;
@@ -472,7 +472,7 @@ TimeZoneNames::MatchInfoCollection::getTimeZoneIDAt(int32_t idx, UnicodeString& 
 UBool
 TimeZoneNames::MatchInfoCollection::getMetaZoneIDAt(int32_t idx, UnicodeString& mzID) const {
     mzID.remove();
-    const MatchInfo* match = (const MatchInfo*)fMatches->elementAt(idx);
+    const MatchInfo* match = static_cast<const MatchInfo*>(fMatches->elementAt(idx));
     if (match && !match->isTZID) {
         mzID.setTo(match->id);
         return true;

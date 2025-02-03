@@ -56,7 +56,7 @@ ICUNotifier::addListener(const EventListener* l, UErrorCode& status)
                 listeners = lpListeners.orphan();
             } else {
                 for (int i = 0, e = listeners->size(); i < e; ++i) {
-                    const EventListener* el = (const EventListener*)(listeners->elementAt(i));
+                    const EventListener* el = static_cast<const EventListener*>(listeners->elementAt(i));
                     if (l == el) {
                         return;
                     }
@@ -88,7 +88,7 @@ ICUNotifier::removeListener(const EventListener *l, UErrorCode& status)
             if (listeners != nullptr) {
                 // identity equality check
                 for (int i = 0, e = listeners->size(); i < e; ++i) {
-                    const EventListener* el = (const EventListener*)listeners->elementAt(i);
+                    const EventListener* el = static_cast<const EventListener*>(listeners->elementAt(i));
                     if (l == el) {
                         listeners->removeElementAt(i);
                         if (listeners->size() == 0) {
@@ -109,7 +109,7 @@ ICUNotifier::notifyChanged()
     Mutex lmx(&notifyLock);
     if (listeners != nullptr) {
         for (int i = 0, e = listeners->size(); i < e; ++i) {
-            EventListener* el = (EventListener*)listeners->elementAt(i);
+            EventListener* el = static_cast<EventListener*>(listeners->elementAt(i));
             notifyListener(*el);
         }
     }

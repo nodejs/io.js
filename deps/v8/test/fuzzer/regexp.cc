@@ -19,7 +19,7 @@
 
 namespace i = v8::internal;
 
-void Test(v8::Isolate* isolate, i::Handle<i::JSRegExp> regexp,
+void Test(v8::Isolate* isolate, i::DirectHandle<i::JSRegExp> regexp,
           i::Handle<i::String> subject,
           i::Handle<i::RegExpMatchInfo> results_array) {
   v8::TryCatch try_catch(isolate);

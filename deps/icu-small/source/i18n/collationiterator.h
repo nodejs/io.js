@@ -142,7 +142,7 @@ public:
             // Normal CE from the main data.
             // Forced-inline of ceFromSimpleCE32(ce32).
             return ceBuffer.set(cesIndex++,
-                    ((int64_t)(ce32 & 0xffff0000) << 32) | ((ce32 & 0xff00) << 16) | (t << 8));
+                    (static_cast<int64_t>(ce32 & 0xffff0000) << 32) | ((ce32 & 0xff00) << 16) | (t << 8));
         }
         const CollationData *d;
         // The compiler should be able to optimize the previous and the following
@@ -157,7 +157,7 @@ public:
             if(t < Collation::SPECIAL_CE32_LOW_BYTE) {
                 // Normal CE from the base data.
                 return ceBuffer.set(cesIndex++,
-                        ((int64_t)(ce32 & 0xffff0000) << 32) | ((ce32 & 0xff00) << 16) | (t << 8));
+                        (static_cast<int64_t>(ce32 & 0xffff0000) << 32) | ((ce32 & 0xff00) << 16) | (t << 8));
             }
         } else {
             d = data;
@@ -165,7 +165,7 @@ public:
         if(t == Collation::LONG_PRIMARY_CE32_LOW_BYTE) {
             // Forced-inline of ceFromLongPrimaryCE32(ce32).
             return ceBuffer.set(cesIndex++,
-                    ((int64_t)(ce32 - t) << 32) | Collation::COMMON_SEC_AND_TER_CE);
+                    (static_cast<int64_t>(ce32 - t) << 32) | Collation::COMMON_SEC_AND_TER_CE);
         }
         return nextCEFromCE32(d, c, ce32, errorCode);
     }

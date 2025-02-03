@@ -15,7 +15,8 @@ class ChildProcessPermission final : public PermissionBase {
   void Apply(Environment* env,
              const std::vector<std::string>& allow,
              PermissionScope scope) override;
-  bool is_granted(PermissionScope perm,
+  bool is_granted(Environment* env,
+                  PermissionScope perm,
                   const std::string_view& param = "") const override;
 
  private:

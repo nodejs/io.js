@@ -2,6 +2,7 @@
 // Flags: --expose-gc
 
 const common = require('../common');
+const { gcUntil } = require('../common/gc');
 
 // On IBMi, the rss memory always returns zero
 if (common.isIBMi)
@@ -16,7 +17,7 @@ for (let i = 0; i < 1000000; i++) {
 }
 
 async function main() {
-  await common.gcUntil('RSS should go down', () => {
+  await gcUntil('RSS should go down', () => {
     const after = process.memoryUsage.rss();
     if (common.isASan) {
       console.log(`ASan: before=${before} after=${after}`);

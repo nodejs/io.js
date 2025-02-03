@@ -8,6 +8,7 @@
 #include <initializer_list>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <type_traits>
 
@@ -15,7 +16,6 @@
 // Do not include anything from src/compiler here!
 #include "include/cppgc/source-location.h"
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/builtins/builtins.h"
 #include "src/codegen/atomic-memory-order.h"
 #include "src/codegen/callable.h"
@@ -28,6 +28,10 @@
 #include "src/objects/objects.h"
 #include "src/runtime/runtime.h"
 #include "src/zone/zone-containers.h"
+
+#if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-builtin-list.h"
+#endif
 
 namespace v8 {
 namespace internal {
@@ -233,6 +237,11 @@ class CodeAssemblerParameterizedLabel;
   V(Uint32LessThanOrEqual, BoolT, Word32T, Word32T)       \
   V(Uint32GreaterThan, BoolT, Word32T, Word32T)           \
   V(Uint32GreaterThanOrEqual, BoolT, Word32T, Word32T)    \
+  /* Use Word64Equal if you need Uint64Equal */           \
+  V(Uint64LessThan, BoolT, Word64T, Word64T)              \
+  V(Uint64LessThanOrEqual, BoolT, Word64T, Word64T)       \
+  V(Uint64GreaterThan, BoolT, Word64T, Word64T)           \
+  V(Uint64GreaterThanOrEqual, BoolT, Word64T, Word64T)    \
   /* Use WordEqual if you need UintPtrEqual */            \
   V(UintPtrLessThan, BoolT, WordT, WordT)                 \
   V(UintPtrLessThanOrEqual, BoolT, WordT, WordT)          \
@@ -241,6 +250,9 @@ class CodeAssemblerParameterizedLabel;
 
 #define CODE_ASSEMBLER_BINARY_OP_LIST(V)                                \
   CODE_ASSEMBLER_COMPARE_BINARY_OP_LIST(V)                              \
+  V(Float32Sub, Float32T, Float32T, Float32T)                           \
+  V(Float32Add, Float32T, Float32T, Float32T)                           \
+  V(Float32Mul, Float32T, Float32T, Float32T)                           \
   V(Float64Add, Float64T, Float64T, Float64T)                           \
   V(Float64Sub, Float64T, Float64T, Float64T)                           \
   V(Float64Mul, Float64T, Float64T, Float64T)                           \
@@ -307,6 +319,7 @@ class CodeAssemblerParameterizedLabel;
 TNode<Float64T> Float64Add(TNode<Float64T> a, TNode<Float64T> b);
 
 #define CODE_ASSEMBLER_UNARY_OP_LIST(V)                        \
+  V(Float32Abs, Float32T, Float32T)                            \
   V(Float64Abs, Float64T, Float64T)                            \
   V(Float64Acos, Float64T, Float64T)                           \
   V(Float64Acosh, Float64T, Float64T)                          \
@@ -348,7 +361,8 @@ TNode<Float64T> Float64Add(TNode<Float64T> a, TNode<Float64T> b);
   V(ChangeUint32ToUint64, Uint64T, Word32T)                    \
   V(BitcastInt32ToFloat32, Float32T, Word32T)                  \
   V(BitcastFloat32ToInt32, Uint32T, Float32T)                  \
-  V(BitcastFloat64ToInt64, IntPtrT, Float64T)                  \
+  V(BitcastFloat64ToInt64, Int64T, Float64T)                   \
+  V(BitcastInt64ToFloat64, Float64T, Int64T)                   \
   V(RoundFloat64ToInt32, Int32T, Float64T)                     \
   V(RoundInt32ToFloat32, Float32T, Int32T)                     \
   V(Float64SilenceNaN, Float64T, Float64T)                     \
@@ -441,9 +455,9 @@ class V8_EXPORT_PRIVATE CodeAssembler {
 
     template <class A>
     operator TNode<A>() {
-      static_assert(
-          !std::is_same<A, MaybeObject>::value,
-          "Can't cast to MaybeObject, use explicit conversion functions. ");
+      static_assert(!std::is_same<A, Tagged<MaybeObject>>::value,
+                    "Can't cast to Tagged<MaybeObject>, use explicit "
+                    "conversion functions. ");
 
       static_assert(types_have_common_values<A, PreviousType>::value,
                     "Incompatible types: this cast can never succeed.");
@@ -537,6 +551,16 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   TNode<Uint32T> Uint32Constant(uint32_t value) {
     return Unsigned(Int32Constant(base::bit_cast<int32_t>(value)));
   }
+  TNode<Uint32T> Uint64HighWordConstant(uint64_t value) {
+    return Uint32Constant(value >> 32);
+  }
+  TNode<Uint32T> Uint64HighWordConstantNoLowWord(uint64_t value) {
+    DCHECK_EQ(0, value & ~uint32_t{0});
+    return Uint64HighWordConstant(value);
+  }
+  TNode<Uint32T> Uint64LowWordConstant(uint64_t value) {
+    return Uint32Constant(static_cast<uint32_t>(value));
+  }
   TNode<UintPtrT> UintPtrConstant(uintptr_t value) {
     return Unsigned(IntPtrConstant(base::bit_cast<intptr_t>(value)));
   }
@@ -572,6 +596,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   TNode<String> StringConstant(const char* str);
   TNode<Boolean> BooleanConstant(bool value);
   TNode<ExternalReference> ExternalConstant(ExternalReference address);
+  TNode<ExternalReference> IsolateField(IsolateFieldId id);
   TNode<Float32T> Float32Constant(double value);
   TNode<Float64T> Float64Constant(double value);
   TNode<BoolT> Int32TrueConstant() {
@@ -616,8 +641,8 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   static_assert(kTargetParameterIndex == -1);
 
   template <class T>
-  TNode<T> Parameter(
-      int value, cppgc::SourceLocation loc = cppgc::SourceLocation::Current()) {
+  TNode<T> Parameter(int value,
+                     const SourceLocation& loc = SourceLocation::Current()) {
     static_assert(
         std::is_convertible<TNode<T>, TNode<Object>>::value,
         "Parameter is only for tagged types. Use UncheckedParameter instead.");
@@ -650,6 +675,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   void Return(TNode<Float32T> value);
   void Return(TNode<Float64T> value);
   void Return(TNode<WordT> value1, TNode<WordT> value2);
+  void Return(TNode<Word32T> value1, TNode<Word32T> value2);
   void Return(TNode<WordT> value1, TNode<Object> value2);
   void PopAndReturn(Node* pop, Node* value);
   void PopAndReturn(Node* pop, Node* value1, Node* value2, Node* value3,
@@ -664,12 +690,13 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   // Hack for supporting SourceLocation alongside template packs.
   struct MessageWithSourceLocation {
     const char* message;
-    SourceLocation loc;
+    const SourceLocation& loc;
 
     // Allow implicit construction, necessary for the hack.
     // NOLINTNEXTLINE
-    MessageWithSourceLocation(const char* message,
-                              SourceLocation loc = SourceLocation::Current())
+    MessageWithSourceLocation(
+        const char* message,
+        const SourceLocation& loc = SourceLocation::Current())
         : message(message), loc(loc) {}
   };
   template <class... Args>
@@ -766,7 +793,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
 #if V8_ENABLE_WEBASSEMBLY
   // Access to the stack pointer.
   TNode<RawPtrT> LoadStackPointer();
-  void SetStackPointer(TNode<RawPtrT> ptr, wasm::FPRelativeScope fp_scope);
+  void SetStackPointer(TNode<RawPtrT> ptr);
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   TNode<RawPtrT> LoadPointerFromRootRegister(TNode<IntPtrT> offset);
@@ -805,6 +832,8 @@ class V8_EXPORT_PRIVATE CodeAssembler {
 
   Node* LoadFromObject(MachineType type, TNode<Object> object,
                        TNode<IntPtrT> offset);
+  Node* LoadProtectedPointerFromObject(TNode<Object> object,
+                                       TNode<IntPtrT> offset);
 
 #ifdef V8_MAP_PACKING
   Node* PackMapWord(Node* value);
@@ -932,6 +961,16 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   TNode<ResType> name(TNode<Arg1Type> a, TNode<Arg2Type> b);
   CODE_ASSEMBLER_BINARY_OP_LIST(DECLARE_CODE_ASSEMBLER_BINARY_OP)
 #undef DECLARE_CODE_ASSEMBLER_BINARY_OP
+
+  // Pairwise operations for 32bit.
+  TNode<PairT<Word32T, Word32T>> Int32PairAdd(TNode<Word32T> lhs_lo_word,
+                                              TNode<Word32T> lhs_hi_word,
+                                              TNode<Word32T> rhs_lo_word,
+                                              TNode<Word32T> rhs_hi_word);
+  TNode<PairT<Word32T, Word32T>> Int32PairSub(TNode<Word32T> lhs_lo_word,
+                                              TNode<Word32T> lhs_hi_word,
+                                              TNode<Word32T> rhs_lo_word,
+                                              TNode<Word32T> rhs_hi_word);
 
   TNode<UintPtrT> WordShr(TNode<UintPtrT> left, TNode<IntegralT> right) {
     return Unsigned(WordShr(static_cast<TNode<WordT>>(left), right));
@@ -1227,16 +1266,42 @@ class V8_EXPORT_PRIVATE CodeAssembler {
                                {implicit_cast<TNode<Object>>(args)...});
   }
 
+  Builtin builtin();
+
+  // If the current code is running on a secondary stack, move the stack pointer
+  // to the central stack (but not the frame pointer) and adjust the stack
+  // limit. Returns the old stack pointer, or nullptr if no switch was
+  // performed.
+  TNode<RawPtrT> SwitchToTheCentralStackIfNeeded();
+  TNode<RawPtrT> SwitchToTheCentralStack();
+  // Switch the SP back to the secondary stack after switching to the central
+  // stack.
+  void SwitchFromTheCentralStack(TNode<RawPtrT> old_sp);
+
   //
   // If context passed to CallBuiltin is nullptr, it won't be passed to the
   // builtin.
   //
-
   template <typename T = Object, class... TArgs>
   TNode<T> CallBuiltin(Builtin id, TNode<Object> context, TArgs... args) {
+    TNode<RawPtrT> old_sp;
+#if V8_ENABLE_WEBASSEMBLY
+    bool maybe_needs_switch = wasm::BuiltinLookup::IsWasmBuiltinId(builtin()) &&
+                              !wasm::BuiltinLookup::IsWasmBuiltinId(id);
+    if (maybe_needs_switch) {
+      old_sp = SwitchToTheCentralStackIfNeeded();
+    }
+#endif
     Callable callable = Builtins::CallableFor(isolate(), id);
     TNode<Code> target = HeapConstantNoHole(callable.code());
-    return CallStub<T>(callable.descriptor(), target, context, args...);
+    TNode<T> call =
+        CallStub<T>(callable.descriptor(), target, context, args...);
+#if V8_ENABLE_WEBASSEMBLY
+    if (maybe_needs_switch) {
+      SwitchFromTheCentralStack(old_sp);
+    }
+#endif
+    return call;
   }
 
   template <class... TArgs>
@@ -1306,7 +1371,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   template <class... TArgs>
   TNode<Object> CallJS(Builtin builtin, TNode<Context> context,
                        TNode<Object> function,
-                       base::Optional<TNode<Object>> new_target,
+                       std::optional<TNode<Object>> new_target,
                        TNode<Object> receiver, TArgs... args) {
     Callable callable = Builtins::CallableFor(isolate(), builtin);
     // CallTrampolineDescriptor doesn't have |new_target| parameter.
@@ -1349,7 +1414,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
 
   // Call to a C function.
   template <class... CArgs>
-  Node* CallCFunction(Node* function, base::Optional<MachineType> return_type,
+  Node* CallCFunction(Node* function, std::optional<MachineType> return_type,
                       CArgs... cargs) {
     static_assert(
         std::conjunction_v<std::is_convertible<CArgs, CFunctionArg>...>,
@@ -1409,7 +1474,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
  private:
   void HandleException(Node* result);
 
-  Node* CallCFunction(Node* function, base::Optional<MachineType> return_type,
+  Node* CallCFunction(Node* function, std::optional<MachineType> return_type,
                       std::initializer_list<CFunctionArg> args);
 
   Node* CallCFunctionWithoutFunctionDescriptor(
@@ -1450,7 +1515,7 @@ class V8_EXPORT_PRIVATE CodeAssembler {
   Node* CallJSStubImpl(const CallInterfaceDescriptor& descriptor,
                        TNode<Object> target, TNode<Object> context,
                        TNode<Object> function,
-                       base::Optional<TNode<Object>> new_target,
+                       std::optional<TNode<Object>> new_target,
                        TNode<Int32T> arity, std::initializer_list<Node*> args);
 
   Node* CallStubN(StubCallMode call_mode,

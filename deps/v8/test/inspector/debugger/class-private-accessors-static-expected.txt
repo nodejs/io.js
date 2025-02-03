@@ -1,0 +1,65 @@
+Test static private class accessors
+
+Running test: testScopesPaused
+private members on the base class
+privateProperties from Runtime.getProperties()
+[
+    [0] : {
+        name : #writeOnly
+        set : {
+            className : Function
+            description : set #writeOnly(val) { this.#field = val; }
+            objectId : <objectId>
+            type : function
+        }
+    }
+    [1] : {
+        get : {
+            className : Function
+            description : get #readOnly() { return this.#field; }
+            objectId : <objectId>
+            type : function
+        }
+        name : #readOnly
+    }
+    [2] : {
+        get : {
+            className : Function
+            description : get #accessor() { return this.#field; }
+            objectId : <objectId>
+            type : function
+        }
+        name : #accessor
+        set : {
+            className : Function
+            description : set #accessor(val) { this.#field = val; }
+            objectId : <objectId>
+            type : function
+        }
+    }
+    [3] : {
+        name : #field
+        value : {
+            description : 2
+            type : number
+            value : 2
+        }
+    }
+]
+[[PrivateMethods]] in internalProperties from Runtime.getProperties()
+undefined
+private members on the subclass
+privateProperties from Runtime.getProperties()
+[
+    [0] : {
+        get : {
+            className : Function
+            description : get #accessor() { return 'subclassAccessor'; }
+            objectId : <objectId>
+            type : function
+        }
+        name : #accessor
+    }
+]
+[[PrivateMethods]] in internalProperties from Runtime.getProperties()
+undefined

@@ -26,9 +26,31 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 
+#ifdef ABSL_HAVE_STD_STRING_VIEW
+#include <string_view>
+#endif
+
 namespace {
 
 using ::testing::StaticAssertTypeEq;
+
+template <typename T>
+using IsOwnerAndNotView =
+    absl::conjunction<absl::type_traits_internal::IsOwner<T>,
+                      absl::negation<absl::type_traits_internal::IsView<T>>>;
+
+static_assert(IsOwnerAndNotView<std::vector<int>>::value,
+              "vector is an owner, not a view");
+static_assert(IsOwnerAndNotView<std::string>::value,
+              "string is an owner, not a view");
+static_assert(IsOwnerAndNotView<std::wstring>::value,
+              "wstring is an owner, not a view");
+#ifdef ABSL_HAVE_STD_STRING_VIEW
+static_assert(!IsOwnerAndNotView<std::string_view>::value,
+              "string_view is a view, not an owner");
+static_assert(!IsOwnerAndNotView<std::wstring_view>::value,
+              "wstring_view is a view, not an owner");
+#endif
 
 template <class T, class U>
 struct simple_pair {
@@ -362,8 +384,8 @@ TEST(TypeTraitsTest, TestIsFunction) {
   EXPECT_TRUE(absl::is_function<void() noexcept>::value);
   EXPECT_TRUE(absl::is_function<void(...) noexcept>::value);
 
-  EXPECT_FALSE(absl::is_function<void(*)()>::value);
-  EXPECT_FALSE(absl::is_function<void(&)()>::value);
+  EXPECT_FALSE(absl::is_function<void (*)()>::value);
+  EXPECT_FALSE(absl::is_function<void (&)()>::value);
   EXPECT_FALSE(absl::is_function<int>::value);
   EXPECT_FALSE(absl::is_function<Callable>::value);
 }
@@ -382,8 +404,8 @@ TEST(TypeTraitsTest, TestRemoveCVRef) {
   // Does not remove const in this case.
   EXPECT_TRUE((std::is_same<typename absl::remove_cvref<const int*>::type,
                             const int*>::value));
-  EXPECT_TRUE((std::is_same<typename absl::remove_cvref<int[2]>::type,
-                            int[2]>::value));
+  EXPECT_TRUE(
+      (std::is_same<typename absl::remove_cvref<int[2]>::type, int[2]>::value));
   EXPECT_TRUE((std::is_same<typename absl::remove_cvref<int(&)[2]>::type,
                             int[2]>::value));
   EXPECT_TRUE((std::is_same<typename absl::remove_cvref<int(&&)[2]>::type,
@@ -489,76 +511,6 @@ TEST(TypeTraitsTest, TestExtentAliases) {
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(remove_all_extents, int[][1]);
 }
 
-TEST(TypeTraitsTest, TestAlignedStorageAlias) {
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 1);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 2);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 3);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 4);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 5);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 6);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 7);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 8);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 9);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 10);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 11);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 12);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 13);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 14);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 15);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 16);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 17);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 18);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 19);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 20);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 21);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 22);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 23);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 24);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 25);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 26);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 27);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 28);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 29);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 30);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 31);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 32);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 33);
-
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 1, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 2, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 3, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 4, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 5, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 6, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 7, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 8, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 9, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 10, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 11, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 12, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 13, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 14, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 15, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 16, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 17, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 18, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 19, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 20, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 21, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 22, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 23, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 24, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 25, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 26, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 27, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 28, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 29, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 30, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 31, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 32, 128);
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(aligned_storage, 33, 128);
-}
-
 TEST(TypeTraitsTest, TestDecay) {
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, int);
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, const int);
@@ -580,7 +532,7 @@ TEST(TypeTraitsTest, TestDecay) {
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, int[][1]);
 
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, int());
-  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, int(float));  // NOLINT
+  ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, int(float));      // NOLINT
   ABSL_INTERNAL_EXPECT_ALIAS_EQUIVALENCE(decay, int(char, ...));  // NOLINT
 }
 
@@ -664,8 +616,7 @@ TEST(TypeTraitsTest, TestResultOf) {
 
 namespace adl_namespace {
 
-struct DeletedSwap {
-};
+struct DeletedSwap {};
 
 void swap(DeletedSwap&, DeletedSwap&) = delete;
 
@@ -751,7 +702,7 @@ TEST(TriviallyRelocatable, PrimitiveTypes) {
 
 // User-defined types can be trivially relocatable as long as they don't have a
 // user-provided move constructor or destructor.
-TEST(TriviallyRelocatable, UserDefinedTriviallyReconstructible) {
+TEST(TriviallyRelocatable, UserDefinedTriviallyRelocatable) {
   struct S {
     int x;
     int y;
@@ -780,6 +731,30 @@ TEST(TriviallyRelocatable, UserProvidedCopyConstructor) {
   static_assert(!absl::is_trivially_relocatable<S>::value, "");
 }
 
+// A user-provided copy assignment operator disqualifies a type from
+// being trivially relocatable.
+TEST(TriviallyRelocatable, UserProvidedCopyAssignment) {
+  struct S {
+    S(const S&) = default;
+    S& operator=(const S&) {  // NOLINT(modernize-use-equals-default)
+      return *this;
+    }
+  };
+
+  static_assert(!absl::is_trivially_relocatable<S>::value, "");
+}
+
+// A user-provided move assignment operator disqualifies a type from
+// being trivially relocatable.
+TEST(TriviallyRelocatable, UserProvidedMoveAssignment) {
+  struct S {
+    S(S&&) = default;
+    S& operator=(S&&) { return *this; }  // NOLINT(modernize-use-equals-default)
+  };
+
+  static_assert(!absl::is_trivially_relocatable<S>::value, "");
+}
+
 // A user-provided destructor disqualifies a type from being trivially
 // relocatable.
 TEST(TriviallyRelocatable, UserProvidedDestructor) {
@@ -794,18 +769,19 @@ TEST(TriviallyRelocatable, UserProvidedDestructor) {
 // __is_trivially_relocatable is used there again.
 // TODO(b/324278148): remove the opt-out for Apple once
 // __is_trivially_relocatable is fixed there.
-#if defined(ABSL_HAVE_ATTRIBUTE_TRIVIAL_ABI) &&                      \
-    ABSL_HAVE_BUILTIN(__is_trivially_relocatable) &&                 \
-    !(defined(__clang__) && (defined(_WIN32) || defined(_WIN64))) && \
-    !defined(__APPLE__)
+#if defined(ABSL_HAVE_ATTRIBUTE_TRIVIAL_ABI) &&      \
+    ABSL_HAVE_BUILTIN(__is_trivially_relocatable) && \
+    (defined(__cpp_impl_trivially_relocatable) ||    \
+     (!defined(__clang__) && !defined(__APPLE__) && !defined(__NVCC__)))
 // A type marked with the "trivial ABI" attribute is trivially relocatable even
-// if it has user-provided move/copy constructors and a user-provided
-// destructor.
-TEST(TrivallyRelocatable, TrivialAbi) {
+// if it has user-provided special members.
+TEST(TriviallyRelocatable, TrivialAbi) {
   struct ABSL_ATTRIBUTE_TRIVIAL_ABI S {
     S(S&&) {}       // NOLINT(modernize-use-equals-default)
     S(const S&) {}  // NOLINT(modernize-use-equals-default)
-    ~S() {}         // NOLINT(modernize-use-equals-default)
+    void operator=(S&&) {}
+    void operator=(const S&) {}
+    ~S() {}  // NOLINT(modernize-use-equals-default)
   };
 
   static_assert(absl::is_trivially_relocatable<S>::value, "");
@@ -824,7 +800,7 @@ constexpr int64_t NegateIfConstantEvaluated(int64_t i) {
 
 #endif  // ABSL_HAVE_CONSTANT_EVALUATED
 
-TEST(TrivallyRelocatable, is_constant_evaluated) {
+TEST(IsConstantEvaluated, is_constant_evaluated) {
 #ifdef ABSL_HAVE_CONSTANT_EVALUATED
   constexpr int64_t constant = NegateIfConstantEvaluated(42);
   EXPECT_EQ(constant, -42);
@@ -839,6 +815,5 @@ TEST(TrivallyRelocatable, is_constant_evaluated) {
   GTEST_SKIP() << "absl::is_constant_evaluated is not defined";
 #endif  // ABSL_HAVE_CONSTANT_EVALUATED
 }
-
 
 }  // namespace

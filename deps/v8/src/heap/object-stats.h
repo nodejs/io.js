@@ -70,7 +70,7 @@
   V(RELOC_INFO_TYPE)                             \
   V(RETAINED_MAPS_TYPE)                          \
   V(SCRIPT_LIST_TYPE)                            \
-  V(SCRIPT_SHARED_FUNCTION_INFOS_TYPE)           \
+  V(SCRIPT_INFOS_TYPE)                           \
   V(SCRIPT_SOURCE_EXTERNAL_ONE_BYTE_TYPE)        \
   V(SCRIPT_SOURCE_EXTERNAL_TWO_BYTE_TYPE)        \
   V(SCRIPT_SOURCE_NON_EXTERNAL_ONE_BYTE_TYPE)    \

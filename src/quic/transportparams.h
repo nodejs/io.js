@@ -13,8 +13,7 @@
 #include "data.h"
 #include "tokens.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 class Endpoint;
 class Session;
@@ -108,7 +107,8 @@ class TransportParams final {
     // When true, communicates that the Session does not support active
     // connection migration. See the QUIC specification for more details on
     // connection migration.
-    bool disable_active_migration = false;
+    // TODO(@jasnell): We currently do not implementation active migration.
+    bool disable_active_migration = true;
 
     static const Options kDefault;
 
@@ -152,7 +152,7 @@ class TransportParams final {
   // Returns an ArrayBuffer containing the encoded transport parameters.
   // If an error occurs during encoding, an empty shared_ptr will be returned
   // and the error() property will be set to an appropriate QuicError.
-  Store Encode(Environment* env, int version = QUIC_TRANSPORT_PARAMS_V1);
+  Store Encode(Environment* env, int version = QUIC_TRANSPORT_PARAMS_V1) const;
 
  private:
   ngtcp2_transport_params params_{};
@@ -160,8 +160,7 @@ class TransportParams final {
   QuicError error_ = QuicError::TRANSPORT_NO_ERROR;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

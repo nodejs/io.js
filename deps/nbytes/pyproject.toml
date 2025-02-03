@@ -1,0 +1,38 @@
+[project]
+name = "nbytes"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+  "C90",    # McCabe cyclomatic complexity
+  "E",      # pycodestyle
+  "F",      # Pyflakes
+  "ICN",    # flake8-import-conventions
+  "INT",    # flake8-gettext
+  "PLC",    # Pylint conventions
+  "PLE",    # Pylint errors
+  "PLR09",  # Pylint refactoring: max-args, max-branches, max returns, max-statements
+  "PYI",    # flake8-pyi
+  "RSE",    # flake8-raise
+  "RUF",    # Ruff-specific rules
+  "T10",    # flake8-debugger
+  "TCH",    # flake8-type-checking
+  "TID",    # flake8-tidy-imports
+  "W",      # pycodestyle
+  "YTT",    # flake8-2020
+  "ANN"     # flake8-annotations
+]
+ignore = [
+  "E722",   # Do not use bare `except`
+  "ANN101", # Missing type annotation for self in method
+  "TID252", # Prefer absolute imports over relative imports from parent modules
+]

@@ -41,13 +41,13 @@ void GetTopLevelFunctionInfo(
     std::unordered_map<std::string, bool>* is_compiled) {
   // Get the v8::internal::Script object from the API v8::Script.
   // The API object 'wraps' the compiled top-level function, not the i::Script.
-  Handle<JSFunction> toplevel_fn = v8::Utils::OpenHandle(*script);
+  DirectHandle<JSFunction> toplevel_fn = v8::Utils::OpenDirectHandle(*script);
   SharedFunctionInfo::ScriptIterator iterator(
-      toplevel_fn->GetIsolate(), Script::cast(toplevel_fn->shared()->script()));
+      toplevel_fn->GetIsolate(), Cast<Script>(toplevel_fn->shared()->script()));
 
   for (Tagged<SharedFunctionInfo> shared = iterator.Next(); !shared.is_null();
        shared = iterator.Next()) {
-    std::unique_ptr<char[]> name = String::cast(shared->Name())->ToCString();
+    std::unique_ptr<char[]> name = Cast<String>(shared->Name())->ToCString();
     is_compiled->insert(std::make_pair(name.get(), shared->is_compiled()));
   }
 }

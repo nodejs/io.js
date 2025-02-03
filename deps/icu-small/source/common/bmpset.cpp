@@ -75,7 +75,7 @@ static void set32x64Bits(uint32_t table[64], int32_t start, int32_t limit) {
     int32_t trail=start&0x3f;  // Named for UTF-8 2-byte trail byte with lower 6 bits.
 
     // Set one bit indicating an all-one block.
-    uint32_t bits=(uint32_t)1<<lead;
+    uint32_t bits = static_cast<uint32_t>(1) << lead;
     if((start+1)==limit) {  // Single-character shortcut.
         table[trail]|=bits;
         return;
@@ -100,9 +100,9 @@ static void set32x64Bits(uint32_t table[64], int32_t start, int32_t limit) {
             ++lead;
         }
         if(lead<limitLead) {
-            bits=~(((unsigned)1<<lead)-1);
+            bits = ~((static_cast<unsigned>(1) << lead) - 1);
             if(limitLead<0x20) {
-                bits&=((unsigned)1<<limitLead)-1;
+                bits &= (static_cast<unsigned>(1) << limitLead) - 1;
             }
             for(trail=0; trail<64; ++trail) {
                 table[trail]|=bits;
@@ -111,7 +111,7 @@ static void set32x64Bits(uint32_t table[64], int32_t start, int32_t limit) {
         // limit<=0x800. If limit==0x800 then limitLead=32 and limitTrail=0.
         // In that case, bits=1<<limitLead is undefined but the bits value
         // is not used because trail<limitTrail is already false.
-        bits=(uint32_t)1<<((limitLead == 0x20) ? (limitLead - 1) : limitLead);
+        bits = static_cast<uint32_t>(1) << ((limitLead == 0x20) ? (limitLead - 1) : limitLead);
         for(trail=0; trail<limitTrail; ++trail) {
             table[trail]|=bits;
         }
@@ -290,22 +290,22 @@ int32_t BMPSet::findCodePoint(UChar32 c, int32_t lo, int32_t hi) const {
 
 UBool
 BMPSet::contains(UChar32 c) const {
-    if((uint32_t)c<=0xff) {
-        return (UBool)latin1Contains[c];
-    } else if((uint32_t)c<=0x7ff) {
-        return (UBool)((table7FF[c&0x3f]&((uint32_t)1<<(c>>6)))!=0);
-    } else if((uint32_t)c<0xd800 || (c>=0xe000 && c<=0xffff)) {
+    if (static_cast<uint32_t>(c) <= 0xff) {
+        return latin1Contains[c];
+    } else if (static_cast<uint32_t>(c) <= 0x7ff) {
+        return (table7FF[c & 0x3f] & (static_cast<uint32_t>(1) << (c >> 6))) != 0;
+    } else if (static_cast<uint32_t>(c) < 0xd800 || (c >= 0xe000 && c <= 0xffff)) {
         int lead=c>>12;
         uint32_t twoBits=(bmpBlockBits[(c>>6)&0x3f]>>lead)&0x10001;
         if(twoBits<=1) {
             // All 64 code points with the same bits 15..6
             // are either in the set or not.
-            return (UBool)twoBits;
+            return twoBits;
         } else {
             // Look up the code point in its 4k block of code points.
             return containsSlow(c, list4kStarts[lead], list4kStarts[lead+1]);
         }
-    } else if((uint32_t)c<=0x10ffff) {
+    } else if (static_cast<uint32_t>(c) <= 0x10ffff) {
         // surrogate or supplementary code point
         return containsSlow(c, list4kStarts[0xd], list4kStarts[0x11]);
     } else {
@@ -332,7 +332,7 @@ BMPSet::span(const char16_t *s, const char16_t *limit, USetSpanCondition spanCon
                     break;
                 }
             } else if(c<=0x7ff) {
-                if((table7FF[c&0x3f]&((uint32_t)1<<(c>>6)))==0) {
+                if ((table7FF[c & 0x3f] & (static_cast<uint32_t>(1) << (c >> 6))) == 0) {
                     break;
                 }
             } else if(c<0xd800 || c>=0xe000) {
@@ -372,7 +372,7 @@ BMPSet::span(const char16_t *s, const char16_t *limit, USetSpanCondition spanCon
                     break;
                 }
             } else if(c<=0x7ff) {
-                if((table7FF[c&0x3f]&((uint32_t)1<<(c>>6)))!=0) {
+                if ((table7FF[c & 0x3f] & (static_cast<uint32_t>(1) << (c >> 6))) != 0) {
                     break;
                 }
             } else if(c<0xd800 || c>=0xe000) {
@@ -421,7 +421,7 @@ BMPSet::spanBack(const char16_t *s, const char16_t *limit, USetSpanCondition spa
                     break;
                 }
             } else if(c<=0x7ff) {
-                if((table7FF[c&0x3f]&((uint32_t)1<<(c>>6)))==0) {
+                if ((table7FF[c & 0x3f] & (static_cast<uint32_t>(1) << (c >> 6))) == 0) {
                     break;
                 }
             } else if(c<0xd800 || c>=0xe000) {
@@ -464,7 +464,7 @@ BMPSet::spanBack(const char16_t *s, const char16_t *limit, USetSpanCondition spa
                     break;
                 }
             } else if(c<=0x7ff) {
-                if((table7FF[c&0x3f]&((uint32_t)1<<(c>>6)))!=0) {
+                if ((table7FF[c & 0x3f] & (static_cast<uint32_t>(1) << (c >> 6))) != 0) {
                     break;
                 }
             } else if(c<0xd800 || c>=0xe000) {
@@ -527,7 +527,7 @@ BMPSet::spanUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanConditi
                 b=*s;
             } while(U8_IS_SINGLE(b));
         }
-        length=(int32_t)(limit-s);
+        length = static_cast<int32_t>(limit - s);
     }
 
     if(spanCondition!=USET_SPAN_NOT_CONTAINED) {
@@ -547,7 +547,7 @@ BMPSet::spanUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanConditi
      * the truncated sequence.
      */
     b=*(limit-1);
-    if((int8_t)b<0) {
+    if (static_cast<int8_t>(b) < 0) {
         // b>=0x80: lead or trail byte
         if(b<0xc0) {
             // single trail byte, check for preceding 3- or 4-byte lead byte
@@ -602,15 +602,15 @@ BMPSet::spanUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanConditi
         if(b>=0xe0) {
             if(b<0xf0) {
                 if( /* handle U+0000..U+FFFF inline */
-                    (t1=(uint8_t)(s[0]-0x80)) <= 0x3f &&
-                    (t2=(uint8_t)(s[1]-0x80)) <= 0x3f
+                    (t1 = static_cast<uint8_t>(s[0] - 0x80)) <= 0x3f &&
+                    (t2 = static_cast<uint8_t>(s[1] - 0x80)) <= 0x3f
                 ) {
                     b&=0xf;
                     uint32_t twoBits=(bmpBlockBits[t1]>>b)&0x10001;
                     if(twoBits<=1) {
                         // All 64 code points with this lead byte and middle trail byte
                         // are either in the set or not.
-                        if(twoBits!=(uint32_t)spanCondition) {
+                        if (twoBits != static_cast<uint32_t>(spanCondition)) {
                             return s-1;
                         }
                     } else {
@@ -624,12 +624,12 @@ BMPSet::spanUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanConditi
                     continue;
                 }
             } else if( /* handle U+10000..U+10FFFF inline */
-                (t1=(uint8_t)(s[0]-0x80)) <= 0x3f &&
-                (t2=(uint8_t)(s[1]-0x80)) <= 0x3f &&
-                (t3=(uint8_t)(s[2]-0x80)) <= 0x3f
+                (t1 = static_cast<uint8_t>(s[0] - 0x80)) <= 0x3f &&
+                (t2 = static_cast<uint8_t>(s[1] - 0x80)) <= 0x3f &&
+                (t3 = static_cast<uint8_t>(s[2] - 0x80)) <= 0x3f
             ) {
                 // Give an illegal sequence the same value as the result of contains(FFFD).
-                UChar32 c=((UChar32)(b-0xf0)<<18)|((UChar32)t1<<12)|(t2<<6)|t3;
+                UChar32 c = (static_cast<UChar32>(b - 0xf0) << 18) | (static_cast<UChar32>(t1) << 12) | (t2 << 6) | t3;
                 if( (   (0x10000<=c && c<=0x10ffff) ?
                             containsSlow(c, list4kStarts[0x10], list4kStarts[0x11]) :
                             containsFFFD
@@ -643,9 +643,9 @@ BMPSet::spanUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanConditi
         } else {
             if( /* handle U+0000..U+07FF inline */
                 b>=0xc0 &&
-                (t1=(uint8_t)(*s-0x80)) <= 0x3f
+                (t1 = static_cast<uint8_t>(*s - 0x80)) <= 0x3f
             ) {
-                if((USetSpanCondition)((table7FF[t1]&((uint32_t)1<<(b&0x1f)))!=0) != spanCondition) {
+                if (static_cast<USetSpanCondition>((table7FF[t1] & (static_cast<uint32_t>(1) << (b & 0x1f))) != 0) != spanCondition) {
                     return s-1;
                 }
                 ++s;
@@ -711,7 +711,7 @@ BMPSet::spanBackUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanCon
         c=utf8_prevCharSafeBody(s, 0, &length, b, -3);
         // c is a valid code point, not ASCII, not a surrogate
         if(c<=0x7ff) {
-            if((USetSpanCondition)((table7FF[c&0x3f]&((uint32_t)1<<(c>>6)))!=0) != spanCondition) {
+            if (static_cast<USetSpanCondition>((table7FF[c & 0x3f] & (static_cast<uint32_t>(1) << (c >> 6))) != 0) != spanCondition) {
                 return prev+1;
             }
         } else if(c<=0xffff) {
@@ -720,7 +720,7 @@ BMPSet::spanBackUTF8(const uint8_t *s, int32_t length, USetSpanCondition spanCon
             if(twoBits<=1) {
                 // All 64 code points with the same bits 15..6
                 // are either in the set or not.
-                if(twoBits!=(uint32_t)spanCondition) {
+                if (twoBits != static_cast<uint32_t>(spanCondition)) {
                     return prev+1;
                 }
             } else {

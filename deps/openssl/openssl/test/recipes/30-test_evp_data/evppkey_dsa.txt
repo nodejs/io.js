@@ -1,5 +1,5 @@
 #
-# Copyright 2001-2023 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2001-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -270,6 +270,7 @@ Title = FIPS Tests (using different key sizes and digests)
 
 # Test sign with a 2048 bit key with N == 160 is not allowed in fips mode
 Availablein = fips
+FIPSversion = <3.4.0
 DigestSign = SHA256
 Key = DSA-2048-160
 Input = "Hello"
@@ -324,6 +325,7 @@ Title = Fips Negative Tests (using different key sizes and digests)
 
 # Test sign with a 1024 bit key is not allowed in fips mode
 Availablein = fips
+FIPSversion = <3.4.0
 DigestSign = SHA256
 Securitycheck = 1
 Key = DSA-1024-FIPS186-2
@@ -340,6 +342,7 @@ Result = DIGESTSIGNINIT_ERROR
 
 # Test sign with a 3072 bit key with N == 224 is not allowed in fips mode
 Availablein = fips
+FIPSversion = <3.4.0
 DigestSign = SHA256
 Securitycheck = 1
 Key = DSA-3072-224
@@ -348,6 +351,7 @@ Result = DIGESTSIGNINIT_ERROR
 
 # Test sign with a 4096 bit key is not allowed in fips mode
 Availablein = fips
+FIPSversion = <3.4.0
 DigestSign = SHA256
 Securitycheck = 1
 Key = DSA-4096-256

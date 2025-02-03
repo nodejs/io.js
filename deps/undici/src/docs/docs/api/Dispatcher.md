@@ -197,23 +197,20 @@ Returns: `Boolean` - `false` if dispatcher is busy and further dispatch calls wo
 * **headers** `UndiciHeaders | string[]` (optional) - Default: `null`.
 * **query** `Record<string, any> | null` (optional) - Default: `null` - Query string params to be embedded in the request URL. Note that both keys and values of query are encoded using `encodeURIComponent`. If for some reason you need to send them unencoded, embed query params into path directly instead.
 * **idempotent** `boolean` (optional) - Default: `true` if `method` is `'HEAD'` or `'GET'` - Whether the requests can be safely retried or not. If `false` the request won't be sent until all preceding requests in the pipeline has completed.
-* **blocking** `boolean` (optional) - Default: `false` - Whether the response is expected to take a long time and would end up blocking the pipeline. When this is set to `true` further pipelining will be avoided on the same connection until headers have been received.
+* **blocking** `boolean` (optional) - Default: `method !== 'HEAD'` - Whether the response is expected to take a long time and would end up blocking the pipeline. When this is set to `true` further pipelining will be avoided on the same connection until headers have been received.
 * **upgrade** `string | null` (optional) - Default: `null` - Upgrade the request. Should be used to specify the kind of upgrade i.e. `'Websocket'`.
 * **bodyTimeout** `number | null` (optional) - The timeout after which a request will time out, in milliseconds. Monitors time between receiving body data. Use `0` to disable it entirely. Defaults to 300 seconds.
 * **headersTimeout** `number | null` (optional) - The amount of time, in milliseconds, the parser will wait to receive the complete HTTP headers while not sending the request. Defaults to 300 seconds.
-* **throwOnError** `boolean` (optional) - Default: `false` - Whether Undici should throw an error upon receiving a 4xx or 5xx response from the server.
 * **expectContinue** `boolean` (optional) - Default: `false` - For H2, it appends the expect: 100-continue header, and halts the request body until a 100-continue is received from the remote server
 
 #### Parameter: `DispatchHandler`
 
-* **onConnect** `(abort: () => void, context: object) => void` - Invoked before request is dispatched on socket. May be invoked multiple times when a request is retried when the request at the head of the pipeline fails.
-* **onError** `(error: Error) => void` - Invoked when an error has occurred. May not throw.
-* **onUpgrade** `(statusCode: number, headers: Buffer[], socket: Duplex) => void` (optional) - Invoked when request is upgraded. Required if `DispatchOptions.upgrade` is defined or `DispatchOptions.method === 'CONNECT'`.
-* **onResponseStarted** `() => void` (optional) - Invoked when response is received, before headers have been read.
-* **onHeaders** `(statusCode: number, headers: Buffer[], resume: () => void, statusText: string) => boolean` - Invoked when statusCode and headers have been received. May be invoked multiple times due to 1xx informational headers. Not required for `upgrade` requests.
-* **onData** `(chunk: Buffer) => boolean` - Invoked when response payload data is received. Not required for `upgrade` requests.
-* **onComplete** `(trailers: Buffer[]) => void` - Invoked when response payload and trailers have been received and the request has completed. Not required for `upgrade` requests.
-* **onBodySent** `(chunk: string | Buffer | Uint8Array) => void` - Invoked when a body chunk is sent to the server. Not required. For a stream or iterable body this will be invoked for every chunk. For other body types, it will be invoked once after the body is sent.
+* **onRequestStart** `(controller: DispatchController, context: object) => void` - Invoked before request is dispatched on socket. May be invoked multiple times when a request is retried when the request at the head of the pipeline fails.
+* **onRequestUpgrade** `(controller: DispatchController, statusCode: number, headers: Record<string, string | string[]>, socket: Duplex) => void` (optional) - Invoked when request is upgraded. Required if `DispatchOptions.upgrade` is defined or `DispatchOptions.method === 'CONNECT'`.
+* **onResponseStart** `(controller: DispatchController, statusCode: number, headers: Record<string, string | string []>, statusMessage?: string) => void` - Invoked when statusCode and headers have been received. May be invoked multiple times due to 1xx informational headers. Not required for `upgrade` requests.
+* **onResponseData** `(controller: DispatchController, chunk: Buffer) => void` - Invoked when response payload data is received. Not required for `upgrade` requests.
+* **onResponseEnd** `(controller: DispatchController, trailers: Record<string, string | string[]>) => void` - Invoked when response payload and trailers have been received and the request has completed. Not required for `upgrade` requests.
+* **onResponseError** `(error: Error) => void` - Invoked when an error has occurred. May not throw.
 
 #### Example 1 - Dispatch GET request
 
@@ -378,7 +375,7 @@ Returns: `stream.Duplex`
 
 #### Parameter: PipelineOptions
 
-Extends: [`RequestOptions`](#parameter-requestoptions)
+Extends: [`RequestOptions`](/docs/docs/api/Dispatcher.md#parameter-requestoptions)
 
 * **objectMode** `boolean` (optional) - Default: `false` - Set to `true` if the `handler` will return an object stream.
 
@@ -468,7 +465,7 @@ Returns: `void | Promise<ResponseData>` - Only returns a `Promise` if no `callba
 
 #### Parameter: `RequestOptions`
 
-Extends: [`DispatchOptions`](#parameter-dispatchoptions)
+Extends: [`DispatchOptions`](/docs/docs/api/Dispatcher.md#parameter-dispatchoptions)
 
 * **opaque** `unknown` (optional) - Default: `null` - Used for passing through context to `ResponseData`.
 * **signal** `AbortSignal | events.EventEmitter | null` (optional) - Default: `null`.
@@ -479,7 +476,7 @@ The `RequestOptions.method` property should not be value `'CONNECT'`.
 #### Parameter: `ResponseData`
 
 * **statusCode** `number`
-* **headers** `Record<string, string | string[]>` - Note that all header keys are lower-cased, e. g. `content-type`.
+* **headers** `Record<string, string | string[]>` - Note that all header keys are lower-cased, e.g. `content-type`.
 * **body** `stream.Readable` which also implements [the body mixin from the Fetch Standard](https://fetch.spec.whatwg.org/#body-mixin).
 * **trailers** `Record<string, string>` - This object starts out
   as empty and will be mutated to contain trailers after `body` has emitted `'end'`.
@@ -488,11 +485,13 @@ The `RequestOptions.method` property should not be value `'CONNECT'`.
 
 `body` contains the following additional [body mixin](https://fetch.spec.whatwg.org/#body-mixin) methods and properties:
 
-- `text()`
-- `json()`
-- `arrayBuffer()`
-- `body`
-- `bodyUsed`
+* [`.arrayBuffer()`](https://fetch.spec.whatwg.org/#dom-body-arraybuffer)
+* [`.blob()`](https://fetch.spec.whatwg.org/#dom-body-blob)
+* [`.bytes()`](https://fetch.spec.whatwg.org/#dom-body-bytes)
+* [`.json()`](https://fetch.spec.whatwg.org/#dom-body-json)
+* [`.text()`](https://fetch.spec.whatwg.org/#dom-body-text)
+* `body`
+* `bodyUsed`
 
 `body` can not be consumed twice. For example, calling `text()` after `json()` throws `TypeError`.
 
@@ -526,6 +525,7 @@ try {
   console.log('headers', headers)
   body.setEncoding('utf8')
   body.on('data', console.log)
+  body.on('error', console.error)
   body.on('end', () => {
     console.log('trailers', trailers)
   })
@@ -629,11 +629,30 @@ try {
 }
 ```
 
+#### Example 3 - Conditionally reading the body
+
+Remember to fully consume the body even in the case when it is not read.
+
+```js
+const { body, statusCode } = await client.request({
+  path: '/',
+  method: 'GET'
+})
+
+if (statusCode === 200) {
+  return await body.arrayBuffer()
+}
+
+await body.dump()
+
+return null
+```
+
 ### `Dispatcher.stream(options, factory[, callback])`
 
 A faster version of `Dispatcher.request`. This method expects the second argument `factory` to return a [`stream.Writable`](https://nodejs.org/api/stream.html#stream_class_stream_writable) stream which the response will be written to. This improves performance by avoiding creating an intermediate [`stream.Readable`](https://nodejs.org/api/stream.html#stream_readable_streams) stream when the user expects to directly pipe the response body to a [`stream.Writable`](https://nodejs.org/api/stream.html#stream_class_stream_writable) stream.
 
-As demonstrated in [Example 1 - Basic GET stream request](#example-1---basic-get-stream-request), it is recommended to use the `option.opaque` property to avoid creating a closure for the `factory` method. This pattern works well with Node.js Web Frameworks such as [Fastify](https://fastify.io). See [Example 2 - Stream to Fastify Response](#example-2---stream-to-fastify-response) for more details.
+As demonstrated in [Example 1 - Basic GET stream request](/docs/docs/api/Dispatcher.md#example-1-basic-get-stream-request), it is recommended to use the `option.opaque` property to avoid creating a closure for the `factory` method. This pattern works well with Node.js Web Frameworks such as [Fastify](https://fastify.io). See [Example 2 - Stream to Fastify Response](/docs/docs/api/Dispatch.md#example-2-stream-to-fastify-response) for more details.
 
 Arguments:
 
@@ -915,7 +934,7 @@ await client.request({ path: '/', method: 'GET' })
 
 The `redirect` interceptor allows you to customize the way your dispatcher handles redirects.
 
-It accepts the same arguments as the [`RedirectHandler` constructor](./RedirectHandler.md).
+It accepts the same arguments as the [`RedirectHandler` constructor](/docs/docs/api/RedirectHandler.md).
 
 **Example - Basic Redirect Interceptor**
 
@@ -933,7 +952,7 @@ client.request({ path: "/" })
 
 The `retry` interceptor allows you to customize the way your dispatcher handles retries.
 
-It accepts the same arguments as the [`RetryHandler` constructor](./RetryHandler.md).
+It accepts the same arguments as the [`RetryHandler` constructor](/docs/docs/api/RetryHandler.md).
 
 **Example - Basic Redirect Interceptor**
 
@@ -951,6 +970,122 @@ const client = new Client("http://example.com").compose(
   })
 );
 ```
+
+##### `dump`
+
+The `dump` interceptor enables you to dump the response body from a request upon a given limit.
+
+**Options**
+- `maxSize` - The maximum size (in bytes) of the response body to dump. If the size of the request's body exceeds this value then the connection will be closed. Default: `1048576`.
+
+> The `Dispatcher#options` also gets extended with the options `dumpMaxSize`, `abortOnDumped`, and `waitForTrailers` which can be used to configure the interceptor at a request-per-request basis.
+
+**Example - Basic Dump Interceptor**
+
+```js
+const { Client, interceptors } = require("undici");
+const { dump } = interceptors;
+
+const client = new Client("http://example.com").compose(
+  dump({
+    maxSize: 1024,
+  })
+);
+
+// or
+client.dispatch(
+  {
+    path: "/",
+    method: "GET",
+    dumpMaxSize: 1024,
+  },
+  handler
+);
+```
+
+##### `dns`
+
+The `dns` interceptor enables you to cache DNS lookups for a given duration, per origin.
+
+>It is well suited for scenarios where you want to cache DNS lookups to avoid the overhead of resolving the same domain multiple times
+
+**Options**
+- `maxTTL` - The maximum time-to-live (in milliseconds) of the DNS cache. It should be a positive integer. Default: `10000`.
+  - Set `0` to disable TTL.
+- `maxItems` - The maximum number of items to cache. It should be a positive integer. Default: `Infinity`.
+- `dualStack` - Whether to resolve both IPv4 and IPv6 addresses. Default: `true`.
+  - It will also attempt a happy-eyeballs-like approach to connect to the available addresses in case of a connection failure.
+- `affinity` - Whether to use IPv4 or IPv6 addresses. Default: `4`.
+  - It can be either `'4` or `6`.
+  - It will only take effect if `dualStack` is `false`.
+- `lookup: (hostname: string, options: LookupOptions, callback: (err: NodeJS.ErrnoException | null, addresses: DNSInterceptorRecord[]) => void) => void` - Custom lookup function. Default: `dns.lookup`.
+  - For more info see [dns.lookup](https://nodejs.org/api/dns.html#dns_dns_lookup_hostname_options_callback).
+- `pick: (origin: URL, records: DNSInterceptorRecords, affinity: 4 | 6) => DNSInterceptorRecord` - Custom pick function. Default: `RoundRobin`.
+  - The function should return a single record from the records array.
+  - By default a simplified version of Round Robin is used.
+  - The `records` property can be mutated to store the state of the balancing algorithm.
+
+> The `Dispatcher#options` also gets extended with the options `dns.affinity`, `dns.dualStack`, `dns.lookup` and `dns.pick` which can be used to configure the interceptor at a request-per-request basis.
+
+
+**DNSInterceptorRecord**
+It represents a DNS record.
+- `family` - (`number`) The IP family of the address. It can be either `4` or `6`.
+- `address` - (`string`) The IP address.
+
+**DNSInterceptorOriginRecords**
+It represents a map of DNS IP addresses records for a single origin.
+- `4.ips` - (`DNSInterceptorRecord[] | null`) The IPv4 addresses.
+- `6.ips` - (`DNSInterceptorRecord[] | null`) The IPv6 addresses.
+
+**Example - Basic DNS Interceptor**
+
+```js
+const { Client, interceptors } = require("undici");
+const { dns } = interceptors;
+
+const client = new Agent().compose([
+  dns({ ...opts })
+])
+
+const response = await client.request({
+  origin: `http://localhost:3030`,
+  ...requestOpts
+})
+```
+
+##### `responseError`
+
+The `responseError` interceptor throws an error for responses with status code errors (>= 400).
+
+**Example**
+
+```js
+const { Client, interceptors } = require("undici");
+const { responseError } = interceptors;
+
+const client = new Client("http://example.com").compose(
+  responseError()
+);
+
+// Will throw a ResponseError for status codes >= 400
+await client.request({
+  method: "GET",
+  path: "/"
+});
+```
+
+##### `Cache Interceptor`
+
+The `cache` interceptor implements client-side response caching as described in
+[RFC9111](https://www.rfc-editor.org/rfc/rfc9111.html).
+
+**Options**
+
+- `store` - The [`CacheStore`](/docs/docs/api/CacheStore.md) to store and retrieve responses from. Default is [`MemoryCacheStore`](/docs/docs/api/CacheStore.md#memorycachestore).
+- `methods` - The [**safe** HTTP methods](https://www.rfc-editor.org/rfc/rfc9110#section-9.2.1) to cache the response of.
+- `cacheByDefault` - The default expiration time to cache responses by if they don't have an explicit expiration. If this isn't present, responses without explicit expiration will not be cached. Default `undefined`.
+- `type` - The type of cache for Undici to act as. Can be `shared` or `private`. Default `shared`.
 
 ## Instance Events
 
@@ -998,13 +1133,13 @@ Emitted when dispatcher is no longer busy.
 
 * `Record<string, string | string[] | undefined> | string[] | Iterable<[string, string | string[] | undefined]> | null`
 
-Header arguments such as `options.headers` in [`Client.dispatch`](Client.md#clientdispatchoptions-handlers) can be specified in three forms:
+Header arguments such as `options.headers` in [`Client.dispatch`](/docs/docs/api/Client.md#clientdispatchoptions-handlers) can be specified in three forms:
 * As an object specified by the `Record<string, string | string[] | undefined>` (`IncomingHttpHeaders`) type.
 * As an array of strings. An array representation of a header list must have an even length, or an `InvalidArgumentError` will be thrown.
 * As an iterable that can encompass `Headers`, `Map`, or a custom iterator returning key-value pairs.
 Keys are lowercase and values are not modified.
 
-Response headers will derive a `host` from the `url` of the [Client](Client.md#class-client) instance if no `host` header was previously specified.
+Response headers will derive a `host` from the `url` of the [Client](/docs/docs/api/Client.md#class-client) instance if no `host` header was previously specified.
 
 ### Example 1 - Object
 

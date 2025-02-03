@@ -17,9 +17,21 @@ class SequentialUnmarker final : private HeapVisitor<SequentialUnmarker> {
  public:
   explicit SequentialUnmarker(RawHeap& heap) { Traverse(heap); }
 
+  bool VisitNormalPage(NormalPage& page) {
+    page.ResetMarkedBytes();
+    return false;
+  }
+
+  bool VisitLargePage(LargePage& page) {
+    page.ResetMarkedBytes();
+    return false;
+  }
+
  private:
   bool VisitHeapObjectHeader(HeapObjectHeader& header) {
-    if (header.IsMarked()) header.Unmark();
+    if (header.IsMarked()) {
+      header.Unmark();
+    }
     return true;
   }
 };

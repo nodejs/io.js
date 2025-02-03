@@ -1,3 +1,5 @@
+'use strict'
+
 module.exports = {
   kClose: Symbol('close'),
   kDestroy: Symbol('destroy'),
@@ -8,7 +10,6 @@ module.exports = {
   kQueue: Symbol('queue'),
   kConnect: Symbol('connect'),
   kConnecting: Symbol('connecting'),
-  kHeadersList: Symbol('headers list'),
   kKeepAliveDefaultTimeout: Symbol('default keep alive timeout'),
   kKeepAliveMaxTimeout: Symbol('max keep alive timeout'),
   kKeepAliveTimeoutThreshold: Symbol('keep alive timeout threshold'),
@@ -21,6 +22,7 @@ module.exports = {
   kHost: Symbol('host'),
   kNoRef: Symbol('no ref'),
   kBodyUsed: Symbol('used'),
+  kBody: Symbol('abstracted request body'),
   kRunning: Symbol('running'),
   kBlocking: Symbol('blocking'),
   kPending: Symbol('pending'),
@@ -52,7 +54,6 @@ module.exports = {
   kMaxRequests: Symbol('maxRequestsPerClient'),
   kProxy: Symbol('proxy agent options'),
   kCounter: Symbol('socket request counter'),
-  kInterceptors: Symbol('dispatch interceptors'),
   kMaxResponseSize: Symbol('max response size'),
   kHTTP2Session: Symbol('http2Session'),
   kHTTP2SessionState: Symbol('http2Session state'),
@@ -60,5 +61,8 @@ module.exports = {
   kConstruct: Symbol('constructable'),
   kListeners: Symbol('listeners'),
   kHTTPContext: Symbol('http context'),
-  kMaxConcurrentStreams: Symbol('max concurrent streams')
+  kMaxConcurrentStreams: Symbol('max concurrent streams'),
+  kNoProxyAgent: Symbol('no proxy agent'),
+  kHttpProxyAgent: Symbol('http proxy agent'),
+  kHttpsProxyAgent: Symbol('https proxy agent')
 }

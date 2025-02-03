@@ -24,6 +24,7 @@ const common = require('../common');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { isMainThread } = require('worker_threads');
 
 const tmpdir = require('../common/tmpdir');
 tmpdir.refresh();
@@ -217,7 +218,7 @@ function nextdir() {
 
 // mkdirpSync dirname loop
 // XXX: windows and smartos have issues removing a directory that you're in.
-if (common.isMainThread && (common.isLinux || common.isOSX)) {
+if (isMainThread && (common.isLinux || common.isMacOS)) {
   const pathname = tmpdir.resolve(nextdir());
   fs.mkdirSync(pathname);
   process.chdir(pathname);
@@ -271,11 +272,11 @@ if (common.isMainThread && (common.isLinux || common.isOSX)) {
   const firstPathCreated = tmpdir.resolve(dir1);
   const pathname = tmpdir.resolve(dir1, dir2);
 
-  fs.mkdir(pathname, common.mustNotMutateObjectDeep({ recursive: true }), common.mustCall(function(err, path) {
+  fs.mkdir(pathname, common.mustNotMutateObjectDeep({ recursive: true }), common.mustCall(function(err, result) {
     assert.strictEqual(err, null);
     assert.strictEqual(fs.existsSync(pathname), true);
     assert.strictEqual(fs.statSync(pathname).isDirectory(), true);
-    assert.strictEqual(path, firstPathCreated);
+    assert.strictEqual(result, path.toNamespacedPath(firstPathCreated));
   }));
 }
 
@@ -285,11 +286,11 @@ if (common.isMainThread && (common.isLinux || common.isOSX)) {
   const dir2 = nextdir();
   const pathname = tmpdir.resolve(dir1, dir2);
   fs.mkdirSync(tmpdir.resolve(dir1));
-  fs.mkdir(pathname, common.mustNotMutateObjectDeep({ recursive: true }), common.mustCall(function(err, path) {
+  fs.mkdir(pathname, common.mustNotMutateObjectDeep({ recursive: true }), common.mustCall(function(err, result) {
     assert.strictEqual(err, null);
     assert.strictEqual(fs.existsSync(pathname), true);
     assert.strictEqual(fs.statSync(pathname).isDirectory(), true);
-    assert.strictEqual(path, pathname);
+    assert.strictEqual(result, path.toNamespacedPath(pathname));
   }));
 }
 
@@ -316,7 +317,7 @@ if (common.isMainThread && (common.isLinux || common.isOSX)) {
   const p = fs.mkdirSync(pathname, common.mustNotMutateObjectDeep({ recursive: true }));
   assert.strictEqual(fs.existsSync(pathname), true);
   assert.strictEqual(fs.statSync(pathname).isDirectory(), true);
-  assert.strictEqual(p, firstPathCreated);
+  assert.strictEqual(p, path.toNamespacedPath(firstPathCreated));
 }
 
 // `mkdirp.sync` returns first folder created, when last folder is new.
@@ -328,7 +329,7 @@ if (common.isMainThread && (common.isLinux || common.isOSX)) {
   const p = fs.mkdirSync(pathname, common.mustNotMutateObjectDeep({ recursive: true }));
   assert.strictEqual(fs.existsSync(pathname), true);
   assert.strictEqual(fs.statSync(pathname).isDirectory(), true);
-  assert.strictEqual(p, pathname);
+  assert.strictEqual(p, path.toNamespacedPath(pathname));
 }
 
 // `mkdirp.sync` returns undefined, when no new folders are created.
@@ -353,7 +354,7 @@ if (common.isMainThread && (common.isLinux || common.isOSX)) {
     const p = await fs.promises.mkdir(pathname, common.mustNotMutateObjectDeep({ recursive: true }));
     assert.strictEqual(fs.existsSync(pathname), true);
     assert.strictEqual(fs.statSync(pathname).isDirectory(), true);
-    assert.strictEqual(p, firstPathCreated);
+    assert.strictEqual(p, path.toNamespacedPath(firstPathCreated));
   }
   testCase();
 }

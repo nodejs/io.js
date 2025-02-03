@@ -149,23 +149,31 @@ class JSONEncoder : public ParserHandler {
     Emit('"');
     for (const uint16_t ch : chars) {
       if (ch == '"') {
-        Emit("\\\"");
+        Emit('\\');
+        Emit('"');
       } else if (ch == '\\') {
-        Emit("\\\\");
-      } else if (ch == '\b') {
-        Emit("\\b");
-      } else if (ch == '\f') {
-        Emit("\\f");
-      } else if (ch == '\n') {
-        Emit("\\n");
-      } else if (ch == '\r') {
-        Emit("\\r");
-      } else if (ch == '\t') {
-        Emit("\\t");
+        Emit('\\');
+        Emit('\\');
       } else if (ch >= 32 && ch <= 127) {
         Emit(ch);
+      } else if (ch == '\n') {
+        Emit('\\');
+        Emit('n');
+      } else if (ch == '\r') {
+        Emit('\\');
+        Emit('r');
+      } else if (ch == '\t') {
+        Emit('\\');
+        Emit('t');
+      } else if (ch == '\b') {
+        Emit('\\');
+        Emit('b');
+      } else if (ch == '\f') {
+        Emit('\\');
+        Emit('f');
       } else {
-        Emit("\\u");
+        Emit('\\');
+        Emit('u');
         PrintHex(ch, out_);
       }
     }
@@ -180,23 +188,31 @@ class JSONEncoder : public ParserHandler {
     for (size_t ii = 0; ii < chars.size(); ++ii) {
       uint8_t c = chars[ii];
       if (c == '"') {
-        Emit("\\\"");
+        Emit('\\');
+        Emit('"');
       } else if (c == '\\') {
-        Emit("\\\\");
-      } else if (c == '\b') {
-        Emit("\\b");
-      } else if (c == '\f') {
-        Emit("\\f");
-      } else if (c == '\n') {
-        Emit("\\n");
-      } else if (c == '\r') {
-        Emit("\\r");
-      } else if (c == '\t') {
-        Emit("\\t");
+        Emit('\\');
+        Emit('\\');
       } else if (c >= 32 && c <= 127) {
         Emit(c);
+      } else if (c == '\n') {
+        Emit('\\');
+        Emit('n');
+      } else if (c == '\r') {
+        Emit('\\');
+        Emit('r');
+      } else if (c == '\t') {
+        Emit('\\');
+        Emit('t');
+      } else if (c == '\b') {
+        Emit('\\');
+        Emit('b');
+      } else if (c == '\f') {
+        Emit('\\');
+        Emit('f');
       } else if (c < 32) {
-        Emit("\\u");
+        Emit('\\');
+        Emit('u');
         PrintHex(static_cast<uint16_t>(c), out_);
       } else {
         // Inspect the leading byte to figure out how long the utf8
@@ -307,14 +323,16 @@ class JSONEncoder : public ParserHandler {
     // dmg_fp). So, much like
     // https://cs.chromium.org/chromium/src/base/json/json_writer.cc
     // we probe for this and emit the leading 0 anyway if necessary.
-    const char* chars = str_value.c_str();
-    if (chars[0] == '.') {
+    if (str_value[0] == '.') {
       Emit('0');
-    } else if (chars[0] == '-' && chars[1] == '.') {
+      Emit(str_value);
+    } else if (str_value[0] == '-' && str_value[1] == '.') {
       Emit("-0");
-      ++chars;
+      // Skip the '-' from the original string and emit the rest.
+      out_->insert(out_->end(), str_value.begin() + 1, str_value.end());
+    } else {
+      Emit(str_value);
     }
-    Emit(chars);
   }
 
   void HandleInt32(int32_t value) override {
@@ -328,7 +346,10 @@ class JSONEncoder : public ParserHandler {
     if (!status_->ok())
       return;
     state_.top().StartElement(out_);
-    Emit(value ? "true" : "false");
+    if (value)
+      Emit("true");
+    else
+      Emit("false");
   }
 
   void HandleNull() override {
@@ -345,11 +366,12 @@ class JSONEncoder : public ParserHandler {
   }
 
  private:
-  void Emit(char c) { out_->push_back(c); }
-  void Emit(const char* str) {
-    out_->insert(out_->end(), str, str + strlen(str));
+  inline void Emit(char c) { out_->push_back(c); }
+  template <size_t N>
+  inline void Emit(const char (&str)[N]) {
+    out_->insert(out_->end(), str, str + N - 1);
   }
-  void Emit(const std::string& str) {
+  inline void Emit(const std::string& str) {
     out_->insert(out_->end(), str.begin(), str.end());
   }
 

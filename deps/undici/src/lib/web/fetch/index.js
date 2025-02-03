@@ -7,10 +7,11 @@ const {
   makeAppropriateNetworkError,
   filterResponse,
   makeResponse,
-  fromInnerResponse
+  fromInnerResponse,
+  getResponseState
 } = require('./response')
 const { HeadersList } = require('./headers')
-const { Request, cloneRequest } = require('./request')
+const { Request, cloneRequest, getRequestDispatcher, getRequestState } = require('./request')
 const zlib = require('node:zlib')
 const {
   bytesMatch,
@@ -30,7 +31,6 @@ const {
   determineRequestsReferrer,
   coarsenedSharedCurrentTime,
   createDeferredPromise,
-  isBlobLike,
   sameOrigin,
   isCancelled,
   isAborted,
@@ -47,7 +47,6 @@ const {
   createInflate,
   extractMimeType
 } = require('./util')
-const { kState, kDispatcher } = require('./symbols')
 const assert = require('node:assert')
 const { safelyExtractBody, extractBody } = require('./body')
 const {
@@ -58,8 +57,8 @@ const {
   subresourceSet
 } = require('./constants')
 const EE = require('node:events')
-const { Readable, pipeline, finished } = require('node:stream')
-const { addAbortListener, isErrored, isReadable, nodeMajor, nodeMinor, bufferToLowerCasedHeaderName } = require('../../core/util')
+const { Readable, pipeline, finished, isErrored, isReadable } = require('node:stream')
+const { addAbortListener, bufferToLowerCasedHeaderName } = require('../../core/util')
 const { dataURLProcessor, serializeAMimeType, minimizeSupportedMimeType } = require('./data-url')
 const { getGlobalDispatcher } = require('../../global')
 const { webidl } = require('./webidl')
@@ -120,12 +119,16 @@ class Fetch extends EE {
   }
 }
 
+function handleFetchDone (response) {
+  finalizeAndReportTiming(response, 'fetch')
+}
+
 // https://fetch.spec.whatwg.org/#fetch-method
 function fetch (input, init = undefined) {
-  webidl.argumentLengthCheck(arguments, 1, { header: 'globalThis.fetch' })
+  webidl.argumentLengthCheck(arguments, 1, 'globalThis.fetch')
 
   // 1. Let p be a new promise.
-  const p = createDeferredPromise()
+  let p = createDeferredPromise()
 
   // 2. Let requestObject be the result of invoking the initial value of
   // Request as constructor with input and init as arguments. If this throws
@@ -140,7 +143,7 @@ function fetch (input, init = undefined) {
   }
 
   // 3. Let request be requestObject’s request.
-  const request = requestObject[kState]
+  const request = getRequestState(requestObject)
 
   // 4. If requestObject’s signal’s aborted flag is set, then:
   if (requestObject.signal.aborted) {
@@ -165,7 +168,6 @@ function fetch (input, init = undefined) {
   let responseObject = null
 
   // 8. Let relevantRealm be this’s relevant Realm.
-  const relevantRealm = null
 
   // 9. Let locallyAborted be false.
   let locallyAborted = false
@@ -186,16 +188,17 @@ function fetch (input, init = undefined) {
       // 3. Abort controller with requestObject’s signal’s abort reason.
       controller.abort(requestObject.signal.reason)
 
+      const realResponse = responseObject?.deref()
+
       // 4. Abort the fetch() call with p, request, responseObject,
       //    and requestObject’s signal’s abort reason.
-      abortFetch(p, request, responseObject, requestObject.signal.reason)
+      abortFetch(p, request, realResponse, requestObject.signal.reason)
     }
   )
 
   // 12. Let handleFetchDone given response response be to finalize and
   // report timing with response, globalObject, and "fetch".
-  const handleFetchDone = (response) =>
-    finalizeAndReportTiming(response, 'fetch')
+  // see function handleFetchDone
 
   // 13. Set controller to the result of calling fetch given request,
   // with processResponseEndOfBody set to handleFetchDone, and processResponse
@@ -229,17 +232,18 @@ function fetch (input, init = undefined) {
 
     // 4. Set responseObject to the result of creating a Response object,
     // given response, "immutable", and relevantRealm.
-    responseObject = fromInnerResponse(response, 'immutable', relevantRealm)
+    responseObject = new WeakRef(fromInnerResponse(response, 'immutable'))
 
     // 5. Resolve p with responseObject.
-    p.resolve(responseObject)
+    p.resolve(responseObject.deref())
+    p = null
   }
 
   controller = fetching({
     request,
     processResponseEndOfBody: handleFetchDone,
     processResponse,
-    dispatcher: requestObject[kDispatcher] // undici
+    dispatcher: getRequestDispatcher(requestObject) // undici
   })
 
   // 14. Return p.
@@ -310,18 +314,19 @@ function finalizeAndReportTiming (response, initiatorType = 'other') {
 }
 
 // https://w3c.github.io/resource-timing/#dfn-mark-resource-timing
-const markResourceTiming = (nodeMajor > 18 || (nodeMajor === 18 && nodeMinor >= 2))
-  ? performance.markResourceTiming
-  : () => {}
+const markResourceTiming = performance.markResourceTiming
 
 // https://fetch.spec.whatwg.org/#abort-fetch
 function abortFetch (p, request, responseObject, error) {
   // 1. Reject promise with error.
-  p.reject(error)
+  if (p) {
+    // We might have already resolved the promise at this stage
+    p.reject(error)
+  }
 
   // 2. If request’s body is not null and is readable, then cancel request’s
   // body with error.
-  if (request.body != null && isReadable(request.body?.stream)) {
+  if (request.body?.stream != null && isReadable(request.body.stream)) {
     request.body.stream.cancel(error).catch((err) => {
       if (err.code === 'ERR_INVALID_STATE') {
         // Node bug?
@@ -337,11 +342,11 @@ function abortFetch (p, request, responseObject, error) {
   }
 
   // 4. Let response be responseObject’s response.
-  const response = responseObject[kState]
+  const response = getResponseState(responseObject)
 
   // 5. If response’s body is not null and is readable, then error response’s
   // body with error.
-  if (response.body != null && isReadable(response.body?.stream)) {
+  if (response.body?.stream != null && isReadable(response.body.stream)) {
     response.body.stream.cancel(error).catch((err) => {
       if (err.code === 'ERR_INVALID_STATE') {
         // Node bug?
@@ -438,8 +443,7 @@ function fetching ({
   // 9. If request’s origin is "client", then set request’s origin to request’s
   // client’s origin.
   if (request.origin === 'client') {
-    // TODO: What if request.client is null?
-    request.origin = request.client?.origin
+    request.origin = request.client.origin
   }
 
   // 10. If all of the following conditions are true:
@@ -567,53 +571,46 @@ async function mainFetch (fetchParams, recursive = false) {
   // 11. If response is null, then set response to the result of running
   // the steps corresponding to the first matching statement:
   if (response === null) {
-    response = await (async () => {
-      const currentURL = requestCurrentURL(request)
+    const currentURL = requestCurrentURL(request)
+    if (
+      // - request’s current URL’s origin is same origin with request’s origin,
+      //   and request’s response tainting is "basic"
+      (sameOrigin(currentURL, request.url) && request.responseTainting === 'basic') ||
+      // request’s current URL’s scheme is "data"
+      (currentURL.protocol === 'data:') ||
+      // - request’s mode is "navigate" or "websocket"
+      (request.mode === 'navigate' || request.mode === 'websocket')
+    ) {
+      // 1. Set request’s response tainting to "basic".
+      request.responseTainting = 'basic'
 
-      if (
-        // - request’s current URL’s origin is same origin with request’s origin,
-        //   and request’s response tainting is "basic"
-        (sameOrigin(currentURL, request.url) && request.responseTainting === 'basic') ||
-        // request’s current URL’s scheme is "data"
-        (currentURL.protocol === 'data:') ||
-        // - request’s mode is "navigate" or "websocket"
-        (request.mode === 'navigate' || request.mode === 'websocket')
-      ) {
-        // 1. Set request’s response tainting to "basic".
-        request.responseTainting = 'basic'
+      // 2. Return the result of running scheme fetch given fetchParams.
+      response = await schemeFetch(fetchParams)
 
-        // 2. Return the result of running scheme fetch given fetchParams.
-        return await schemeFetch(fetchParams)
-      }
+    // request’s mode is "same-origin"
+    } else if (request.mode === 'same-origin') {
+      // 1. Return a network error.
+      response = makeNetworkError('request mode cannot be "same-origin"')
 
-      // request’s mode is "same-origin"
-      if (request.mode === 'same-origin') {
-        // 1. Return a network error.
-        return makeNetworkError('request mode cannot be "same-origin"')
-      }
-
-      // request’s mode is "no-cors"
-      if (request.mode === 'no-cors') {
-        // 1. If request’s redirect mode is not "follow", then return a network
-        // error.
-        if (request.redirect !== 'follow') {
-          return makeNetworkError(
-            'redirect mode cannot be "follow" for "no-cors" request'
-          )
-        }
-
+    // request’s mode is "no-cors"
+    } else if (request.mode === 'no-cors') {
+      // 1. If request’s redirect mode is not "follow", then return a network
+      // error.
+      if (request.redirect !== 'follow') {
+        response = makeNetworkError(
+          'redirect mode cannot be "follow" for "no-cors" request'
+        )
+      } else {
         // 2. Set request’s response tainting to "opaque".
         request.responseTainting = 'opaque'
 
         // 3. Return the result of running scheme fetch given fetchParams.
-        return await schemeFetch(fetchParams)
+        response = await schemeFetch(fetchParams)
       }
-
-      // request’s current URL’s scheme is not an HTTP(S) scheme
-      if (!urlIsHttpHttpsScheme(requestCurrentURL(request))) {
-        // Return a network error.
-        return makeNetworkError('URL scheme must be a HTTP(S) scheme')
-      }
+    // request’s current URL’s scheme is not an HTTP(S) scheme
+    } else if (!urlIsHttpHttpsScheme(requestCurrentURL(request))) {
+      // Return a network error.
+      response = makeNetworkError('URL scheme must be a HTTP(S) scheme')
 
       // - request’s use-CORS-preflight flag is set
       // - request’s unsafe-request flag is set and either request’s method is
@@ -627,13 +624,14 @@ async function mainFetch (fetchParams, recursive = false) {
       //    4. Return corsWithPreflightResponse.
       // TODO
 
-      // Otherwise
+    // Otherwise
+    } else {
       //    1. Set request’s response tainting to "cors".
       request.responseTainting = 'cors'
 
       //    2. Return the result of running HTTP fetch given fetchParams.
-      return await httpFetch(fetchParams)
-    })()
+      response = await httpFetch(fetchParams)
+    }
   }
 
   // 12. If recursive is true, then return response.
@@ -805,7 +803,7 @@ function schemeFetch (fetchParams) {
 
       // 2. If request’s method is not `GET`, blobURLEntry is null, or blobURLEntry’s
       //    object is not a Blob object, then return a network error.
-      if (request.method !== 'GET' || !isBlobLike(blob)) {
+      if (request.method !== 'GET' || !webidl.is.Blob(blob)) {
         return Promise.resolve(makeNetworkError('invalid method'))
       }
 
@@ -1069,7 +1067,10 @@ function fetchFinale (fetchParams, response) {
   // 4. If fetchParams’s process response is non-null, then queue a fetch task to run fetchParams’s
   //    process response given response, with fetchParams’s task destination.
   if (fetchParams.processResponse != null) {
-    queueMicrotask(() => fetchParams.processResponse(response))
+    queueMicrotask(() => {
+      fetchParams.processResponse(response)
+      fetchParams.processResponse = null
+    })
   }
 
   // 5. Let internalResponse be response, if response is a network error; otherwise response’s internal response.
@@ -1438,7 +1439,7 @@ async function httpNetworkOrCacheFetch (
   //    11. If httpRequest’s referrer is a URL, then append
   //    `Referer`/httpRequest’s referrer, serialized and isomorphic encoded,
   //     to httpRequest’s header list.
-  if (httpRequest.referrer instanceof URL) {
+  if (webidl.is.URL(httpRequest.referrer)) {
     httpRequest.headersList.append('referer', isomorphicEncode(httpRequest.referrer.href), true)
   }
 
@@ -1452,7 +1453,7 @@ async function httpNetworkOrCacheFetch (
   //    user agents should append `User-Agent`/default `User-Agent` value to
   //    httpRequest’s header list.
   if (!httpRequest.headersList.contains('user-agent', true)) {
-    httpRequest.headersList.append('user-agent', defaultUserAgent)
+    httpRequest.headersList.append('user-agent', defaultUserAgent, true)
   }
 
   //    15. If httpRequest’s cache mode is "default" and httpRequest’s header
@@ -1540,7 +1541,7 @@ async function httpNetworkOrCacheFetch (
 
   //    24. If httpRequest’s cache mode is neither "no-store" nor "reload",
   //    then:
-  if (httpRequest.mode !== 'no-store' && httpRequest.mode !== 'reload') {
+  if (httpRequest.cache !== 'no-store' && httpRequest.cache !== 'reload') {
     // TODO: cache
   }
 
@@ -1551,7 +1552,7 @@ async function httpNetworkOrCacheFetch (
   if (response == null) {
     // 1. If httpRequest’s cache mode is "only-if-cached", then return a
     // network error.
-    if (httpRequest.mode === 'only-if-cached') {
+    if (httpRequest.cache === 'only-if-cached') {
       return makeNetworkError('only if cached')
     }
 
@@ -1880,14 +1881,18 @@ async function httpNetworkFetch (
 
   // 11. Let pullAlgorithm be an action that resumes the ongoing fetch
   // if it is suspended.
-  const pullAlgorithm = async () => {
-    await fetchParams.controller.resume()
+  const pullAlgorithm = () => {
+    return fetchParams.controller.resume()
   }
 
   // 12. Let cancelAlgorithm be an algorithm that aborts fetchParams’s
   // controller with reason, given reason.
   const cancelAlgorithm = (reason) => {
-    fetchParams.controller.abort(reason)
+    // If the aborted fetch was already terminated, then we do not
+    // need to do anything.
+    if (!isCancelled(fetchParams)) {
+      fetchParams.controller.abort(reason)
+    }
   }
 
   // 13. Let highWaterMark be a non-negative, non-NaN number, chosen by
@@ -1938,8 +1943,10 @@ async function httpNetworkFetch (
   // 19. Run these steps in parallel:
 
   //    1. Run these steps, but abort when fetchParams is canceled:
-  fetchParams.controller.onAborted = onAborted
-  fetchParams.controller.on('terminated', onAborted)
+  if (!fetchParams.controller.resume) {
+    fetchParams.controller.on('terminated', onAborted)
+  }
+
   fetchParams.controller.resume = async () => {
     // 1. While true
     while (true) {
@@ -2105,20 +2112,16 @@ async function httpNetworkFetch (
 
           const headersList = new HeadersList()
 
-          // For H2, the rawHeaders are a plain JS object
-          // We distinguish between them and iterate accordingly
-          if (Array.isArray(rawHeaders)) {
-            for (let i = 0; i < rawHeaders.length; i += 2) {
-              headersList.append(bufferToLowerCasedHeaderName(rawHeaders[i]), rawHeaders[i + 1].toString('latin1'), true)
-            }
-            const contentEncoding = headersList.get('content-encoding', true)
-            if (contentEncoding) {
-              // https://www.rfc-editor.org/rfc/rfc7231#section-3.1.2.1
-              // "All content-coding values are case-insensitive..."
-              codings = contentEncoding.toLowerCase().split(',').map((x) => x.trim())
-            }
-            location = headersList.get('location', true)
+          for (let i = 0; i < rawHeaders.length; i += 2) {
+            headersList.append(bufferToLowerCasedHeaderName(rawHeaders[i]), rawHeaders[i + 1].toString('latin1'), true)
           }
+          const contentEncoding = headersList.get('content-encoding', true)
+          if (contentEncoding) {
+            // https://www.rfc-editor.org/rfc/rfc7231#section-3.1.2.1
+            // "All content-coding values are case-insensitive..."
+            codings = contentEncoding.toLowerCase().split(',').map((x) => x.trim())
+          }
+          location = headersList.get('location', true)
 
           this.body = new Readable({ read: resume })
 
@@ -2128,8 +2131,8 @@ async function httpNetworkFetch (
             redirectStatusSet.has(status)
 
           // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Encoding
-          if (request.method !== 'HEAD' && request.method !== 'CONNECT' && !nullBodyStatus.includes(status) && !willFollow) {
-            for (let i = 0; i < codings.length; ++i) {
+          if (codings.length !== 0 && request.method !== 'HEAD' && request.method !== 'CONNECT' && !nullBodyStatus.includes(status) && !willFollow) {
+            for (let i = codings.length - 1; i >= 0; --i) {
               const coding = codings[i]
               // https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2
               if (coding === 'x-gzip' || coding === 'gzip') {
@@ -2142,9 +2145,15 @@ async function httpNetworkFetch (
                   finishFlush: zlib.constants.Z_SYNC_FLUSH
                 }))
               } else if (coding === 'deflate') {
-                decoders.push(createInflate())
+                decoders.push(createInflate({
+                  flush: zlib.constants.Z_SYNC_FLUSH,
+                  finishFlush: zlib.constants.Z_SYNC_FLUSH
+                }))
               } else if (coding === 'br') {
-                decoders.push(zlib.createBrotliDecompress())
+                decoders.push(zlib.createBrotliDecompress({
+                  flush: zlib.constants.BROTLI_OPERATION_FLUSH,
+                  finishFlush: zlib.constants.BROTLI_OPERATION_FLUSH
+                }))
               } else {
                 decoders.length = 0
                 break
@@ -2152,13 +2161,19 @@ async function httpNetworkFetch (
             }
           }
 
+          const onError = this.onError.bind(this)
+
           resolve({
             status,
             statusText,
             headersList,
             body: decoders.length
-              ? pipeline(this.body, ...decoders, () => { })
-              : this.body.on('error', () => { })
+              ? pipeline(this.body, ...decoders, (err) => {
+                if (err) {
+                  this.onError(err)
+                }
+              }).on('error', onError)
+              : this.body.on('error', onError)
           })
 
           return true
@@ -2190,10 +2205,6 @@ async function httpNetworkFetch (
         onComplete () {
           if (this.abort) {
             fetchParams.controller.off('terminated', this.abort)
-          }
-
-          if (fetchParams.controller.onAborted) {
-            fetchParams.controller.off('terminated', fetchParams.controller.onAborted)
           }
 
           fetchParams.controller.ended = true

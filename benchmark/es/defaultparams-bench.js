@@ -9,8 +9,8 @@ const bench = common.createBenchmark(main, {
 });
 
 function oldStyleDefaults(x, y) {
-  x = x || 1;
-  y = y || 2;
+  x ||= 1;
+  y ||= 2;
   assert.strictEqual(x, 1);
   assert.strictEqual(y, 2);
 }

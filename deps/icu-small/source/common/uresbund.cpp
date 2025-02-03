@@ -56,7 +56,7 @@ static UMutex resbMutex;
 
 /* INTERNAL: hashes an entry  */
 static int32_t U_CALLCONV hashEntry(const UHashTok parm) {
-    UResourceDataEntry *b = (UResourceDataEntry *)parm.pointer;
+    UResourceDataEntry* b = static_cast<UResourceDataEntry*>(parm.pointer);
     UHashTok namekey, pathkey;
     namekey.pointer = b->fName;
     pathkey.pointer = b->fPath;
@@ -65,15 +65,14 @@ static int32_t U_CALLCONV hashEntry(const UHashTok parm) {
 
 /* INTERNAL: compares two entries */
 static UBool U_CALLCONV compareEntries(const UHashTok p1, const UHashTok p2) {
-    UResourceDataEntry *b1 = (UResourceDataEntry *)p1.pointer;
-    UResourceDataEntry *b2 = (UResourceDataEntry *)p2.pointer;
+    UResourceDataEntry* b1 = static_cast<UResourceDataEntry*>(p1.pointer);
+    UResourceDataEntry* b2 = static_cast<UResourceDataEntry*>(p2.pointer);
     UHashTok name1, name2, path1, path2;
     name1.pointer = b1->fName;
     name2.pointer = b2->fName;
     path1.pointer = b1->fPath;
     path2.pointer = b2->fPath;
-    return (UBool)(uhash_compareChars(name1, name2) &&
-        uhash_compareChars(path1, path2));
+    return uhash_compareChars(name1, name2) && uhash_compareChars(path1, path2);
 }
 
 
@@ -403,7 +402,7 @@ static int32_t ures_flushCache()
         pos = UHASH_FIRST;
         while ((e = uhash_nextElement(cache, &pos)) != nullptr)
         {
-            resB = (UResourceDataEntry *) e->value.pointer;
+            resB = static_cast<UResourceDataEntry*>(e->value.pointer);
             /* Deletes only if reference counter == 0
              * Don't worry about the children of this node.
              * Those will eventually get deleted too, if not already.
@@ -488,15 +487,15 @@ static void initCache(UErrorCode *status) {
 /** INTERNAL: sets the name (locale) of the resource bundle to given name */
 
 static void setEntryName(UResourceDataEntry *res, const char *name, UErrorCode *status) {
-    int32_t len = (int32_t)uprv_strlen(name);
+    int32_t len = static_cast<int32_t>(uprv_strlen(name));
     if(res->fName != nullptr && res->fName != res->fNameBuffer) {
         uprv_free(res->fName);
     }
-    if (len < (int32_t)sizeof(res->fNameBuffer)) {
+    if (len < static_cast<int32_t>(sizeof(res->fNameBuffer))) {
         res->fName = res->fNameBuffer;
     }
     else {
-        res->fName = (char *)uprv_malloc(len+1);
+        res->fName = static_cast<char*>(uprv_malloc(len + 1));
     }
     if(res->fName == nullptr) {
         *status = U_MEMORY_ALLOCATION_ERROR;
@@ -535,18 +534,18 @@ static UResourceDataEntry *init_entry(const char *localeID, const char *path, UE
         name = localeID;
     }
 
-    find.fName = (char *)name;
-    find.fPath = (char *)path;
+    find.fName = const_cast<char*>(name);
+    find.fPath = const_cast<char*>(path);
 
     /* calculate the hash value of the entry */
     /*hashkey.pointer = (void *)&find;*/
     /*hashValue = hashEntry(hashkey);*/
 
     /* check to see if we already have this entry */
-    r = (UResourceDataEntry *)uhash_get(cache, &find);
+    r = static_cast<UResourceDataEntry*>(uhash_get(cache, &find));
     if(r == nullptr) {
         /* if the entry is not yet in the hash table, we'll try to construct a new one */
-        r = (UResourceDataEntry *) uprv_malloc(sizeof(UResourceDataEntry));
+        r = static_cast<UResourceDataEntry*>(uprv_malloc(sizeof(UResourceDataEntry)));
         if(r == nullptr) {
             *status = U_MEMORY_ALLOCATION_ERROR;
             return nullptr;
@@ -562,7 +561,7 @@ static UResourceDataEntry *init_entry(const char *localeID, const char *path, UE
         }
 
         if(path != nullptr) {
-            r->fPath = (char *)uprv_strdup(path);
+            r->fPath = uprv_strdup(path);
             if(r->fPath == nullptr) {
                 *status = U_MEMORY_ALLOCATION_ERROR;
                 uprv_free(r);
@@ -589,7 +588,7 @@ static UResourceDataEntry *init_entry(const char *localeID, const char *path, UE
                 if (U_SUCCESS(*status)) {
                     const int32_t *poolIndexes = r->fPool->fData.pRoot + 1;
                     if(r->fData.pRoot[1 + URES_INDEX_POOL_CHECKSUM] == poolIndexes[URES_INDEX_POOL_CHECKSUM]) {
-                        r->fData.poolBundleKeys = (const char *)(poolIndexes + (poolIndexes[URES_INDEX_LENGTH] & 0xff));
+                        r->fData.poolBundleKeys = reinterpret_cast<const char*>(poolIndexes + (poolIndexes[URES_INDEX_LENGTH] & 0xff));
                         r->fData.poolBundleStrings = r->fPool->fData.p16BitUnits;
                     } else {
                         r->fBogus = *status = U_INVALID_FORMAT_ERROR;
@@ -615,7 +614,7 @@ static UResourceDataEntry *init_entry(const char *localeID, const char *path, UE
 
         {
             UResourceDataEntry *oldR = nullptr;
-            if((oldR = (UResourceDataEntry *)uhash_get(cache, r)) == nullptr) { /* if the data is not cached */
+            if ((oldR = static_cast<UResourceDataEntry*>(uhash_get(cache, r))) == nullptr) { /* if the data is not cached */
                 /* just insert it in the cache */
                 UErrorCode cacheStatus = U_ZERO_ERROR;
                 uhash_put(cache, (void *)r, r, &cacheStatus);
@@ -676,8 +675,8 @@ findFirstExisting(const char* path, char* name, const char* defaultLocale, UResO
         if (U_FAILURE(*status)) {
             return nullptr;
         }
-        *isDefault = (UBool)(uprv_strncmp(name, defaultLocale, uprv_strlen(name)) == 0);
-        hasRealData = (UBool)(r->fBogus == U_ZERO_ERROR);
+        *isDefault = static_cast<UBool>(uprv_strncmp(name, defaultLocale, uprv_strlen(name)) == 0);
+        hasRealData = static_cast<UBool>(r->fBogus == U_ZERO_ERROR);
         if(!hasRealData) {
             /* this entry is not real. We will discard it. */
             /* However, the parent line for this entry is  */
@@ -692,7 +691,7 @@ findFirstExisting(const char* path, char* name, const char* defaultLocale, UResO
             uprv_strcpy(name, r->fName); /* this is needed for supporting aliases */
         }
 
-        *isRoot = (UBool)(uprv_strcmp(name, kRootLocaleName) == 0);
+        *isRoot = static_cast<UBool>(uprv_strcmp(name, kRootLocaleName) == 0);
 
         /*Fallback data stuff*/
         if (!hasRealData) {
@@ -1091,7 +1090,7 @@ static void ures_appendResPath(UResourceBundle *resB, const char* toAdd, int32_t
     resB->fResPathLen += lenToAdd;
     if(RES_BUFSIZE <= resB->fResPathLen+1) {
         if(resB->fResPath == resB->fResBuf) {
-            resB->fResPath = (char *)uprv_malloc((resB->fResPathLen+1)*sizeof(char));
+            resB->fResPath = static_cast<char*>(uprv_malloc((resB->fResPathLen + 1) * sizeof(char)));
             /* Check that memory was allocated correctly. */
             if (resB->fResPath == nullptr) {
                 *status = U_MEMORY_ALLOCATION_ERROR;
@@ -1099,7 +1098,7 @@ static void ures_appendResPath(UResourceBundle *resB, const char* toAdd, int32_t
             }
             uprv_strcpy(resB->fResPath, resB->fResBuf);
         } else {
-            char *temp = (char *)uprv_realloc(resB->fResPath, (resB->fResPathLen+1)*sizeof(char));
+            char* temp = static_cast<char*>(uprv_realloc(resB->fResPath, (resB->fResPathLen + 1) * sizeof(char)));
             /* Check that memory was reallocated correctly. */
             if (temp == nullptr) {
                 *status = U_MEMORY_ALLOCATION_ERROR;
@@ -1348,7 +1347,7 @@ UResourceBundle *getAliasTargetAsResourceBundle(
                     // if the key path wasn't just a single resource ID, clear out
                     // the bundle's key path and re-set it to be equal to keyPath.
                     ures_freeResPath(resB);
-                    ures_appendResPath(resB, keyPath, (int32_t)uprv_strlen(keyPath), status);
+                    ures_appendResPath(resB, keyPath, static_cast<int32_t>(uprv_strlen(keyPath)), status);
                     if(resB->fResPath[resB->fResPathLen-1] != RES_PATH_SEPARATOR) {
                         ures_appendResPath(resB, RES_PATH_SEPARATOR_S, 1, status);
                     }
@@ -1407,7 +1406,7 @@ UResourceBundle *init_resb_result(
             validLocaleDataEntry, containerResPath, recursionDepth, resB, status);
     }
     if(resB == nullptr) {
-        resB = (UResourceBundle *)uprv_malloc(sizeof(UResourceBundle));
+        resB = static_cast<UResourceBundle*>(uprv_malloc(sizeof(UResourceBundle)));
         if (resB == nullptr) {
             *status = U_MEMORY_ALLOCATION_ERROR;
             return nullptr;
@@ -1449,7 +1448,7 @@ UResourceBundle *init_resb_result(
             resB, containerResPath, static_cast<int32_t>(uprv_strlen(containerResPath)), status);
     }
     if(key != nullptr) {
-        ures_appendResPath(resB, key, (int32_t)uprv_strlen(key), status);
+        ures_appendResPath(resB, key, static_cast<int32_t>(uprv_strlen(key)), status);
         if(resB->fResPath[resB->fResPathLen-1] != RES_PATH_SEPARATOR) {
             ures_appendResPath(resB, RES_PATH_SEPARATOR_S, 1, status);
         }
@@ -1494,7 +1493,7 @@ UResourceBundle *ures_copyResb(UResourceBundle *r, const UResourceBundle *origin
     if(original != nullptr) {
         if(r == nullptr) {
             isStackObject = false;
-            r = (UResourceBundle *)uprv_malloc(sizeof(UResourceBundle));
+            r = static_cast<UResourceBundle*>(uprv_malloc(sizeof(UResourceBundle)));
             /* test for nullptr */
             if (r == nullptr) {
                 *status = U_MEMORY_ALLOCATION_ERROR;
@@ -1730,7 +1729,7 @@ U_CAPI UBool U_EXPORT2 ures_hasNext(const UResourceBundle *resB) {
   if(resB == nullptr) {
     return false;
   }
-  return (UBool)(resB->fIndex < resB->fSize-1);
+  return resB->fIndex < resB->fSize-1;
 }
 
 U_CAPI const char16_t* U_EXPORT2 ures_getNextString(UResourceBundle *resB, int32_t* len, const char ** key, UErrorCode *status) {
@@ -2064,7 +2063,7 @@ static Resource getTableItemByKeyPath(const ResourceData *pResData, Resource tab
   path.append(key, errorCode);
   if (U_FAILURE(errorCode)) { return RES_BOGUS; }
   char *pathPart = path.data();  /* Path from current resource to desired resource */
-  UResType type = (UResType)RES_GET_TYPE(resource);  /* the current resource type */
+  UResType type = static_cast<UResType>(RES_GET_TYPE(resource)); /* the current resource type */
   while (*pathPart && resource != RES_BOGUS && URES_IS_CONTAINER(type)) {
     char *nextPathPart = uprv_strchr(pathPart, RES_PATH_SEPARATOR);
     if (nextPathPart != nullptr) {
@@ -2076,7 +2075,7 @@ static Resource getTableItemByKeyPath(const ResourceData *pResData, Resource tab
     int32_t t;
     const char *pathP = pathPart;
     resource = res_getTableItemByKey(pResData, resource, &t, &pathP);
-    type = (UResType)RES_GET_TYPE(resource);
+    type = static_cast<UResType>(RES_GET_TYPE(resource));
     pathPart = nextPathPart; 
   }
   if (*pathPart) {
@@ -2737,7 +2736,7 @@ ures_openWithType(UResourceBundle *r, const char* path, const char* localeID,
 
     UBool isStackObject;
     if(r == nullptr) {
-        r = (UResourceBundle *)uprv_malloc(sizeof(UResourceBundle));
+        r = static_cast<UResourceBundle*>(uprv_malloc(sizeof(UResourceBundle)));
         if(r == nullptr) {
             entryClose(entry);
             *status = U_MEMORY_ALLOCATION_ERROR;
@@ -2924,7 +2923,7 @@ typedef struct ULocalesContext {
 
 static void U_CALLCONV
 ures_loc_closeLocales(UEnumeration *enumerator) {
-    ULocalesContext *ctx = (ULocalesContext *)enumerator->context;
+    ULocalesContext* ctx = static_cast<ULocalesContext*>(enumerator->context);
     ures_close(&ctx->curr);
     ures_close(&ctx->installed);
     uprv_free(ctx);
@@ -2933,7 +2932,7 @@ ures_loc_closeLocales(UEnumeration *enumerator) {
 
 static int32_t U_CALLCONV
 ures_loc_countLocales(UEnumeration *en, UErrorCode * /*status*/) {
-    ULocalesContext *ctx = (ULocalesContext *)en->context;
+    ULocalesContext* ctx = static_cast<ULocalesContext*>(en->context);
     return ures_getSize(&ctx->installed);
 }
 
@@ -3074,9 +3073,12 @@ ures_getFunctionalEquivalent(char *result, int32_t resultCapacity,
     UErrorCode subStatus = U_ZERO_ERROR;
     int32_t length = 0;
     if(U_FAILURE(*status)) return 0;
-    CharString kwVal = ulocimp_getKeywordValue(locid, keyword, subStatus);
-    if(kwVal == DEFAULT_TAG) {
-        kwVal.clear();
+    CharString kwVal;
+    if (keyword != nullptr && *keyword != '\0') {
+        kwVal = ulocimp_getKeywordValue(locid, keyword, subStatus);
+        if (kwVal == DEFAULT_TAG) {
+            kwVal.clear();
+        }
     }
     CharString base = ulocimp_getBaseName(locid, subStatus);
 #if defined(URES_TREE_DEBUG)

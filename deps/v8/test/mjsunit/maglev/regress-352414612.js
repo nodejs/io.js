@@ -1,0 +1,14 @@
+// Copyright 2024 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+//
+// Flags: --allow-natives-syntax
+
+function foo(x) {
+  return (x | 0) / 1;
+}
+
+%PrepareFunctionForOptimization(foo);
+foo(42.2);
+%OptimizeMaglevOnNextCall(foo);
+foo(2147483648);

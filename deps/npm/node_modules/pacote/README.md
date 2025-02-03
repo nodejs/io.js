@@ -166,8 +166,6 @@ resolved, and other properties, as they are determined.
   calls.  This allows you to easily avoid hitting the registry multiple
   times (even just to validate the cache) for a given packument, since it
   is unlikely to change in the span of a single command.
-* `silent` A boolean that determines whether the banner is displayed
-  when calling `@npmcli/run-script`.
 * `verifySignatures` A boolean that will make pacote verify the
     integrity signature of a manifest, if present.  There must be a
     configured `_keys` entry in the config that is scoped to the

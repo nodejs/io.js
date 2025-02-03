@@ -132,7 +132,7 @@ Transliterator::Transliterator(const UnicodeString& theID,
     maximumContextLength(0)
 {
     // NUL-terminate the ID string, which is a non-aliased copy.
-    ID.append((char16_t)0);
+    ID.append(static_cast<char16_t>(0));
     ID.truncate(ID.length()-1);
 }
 
@@ -151,7 +151,7 @@ Transliterator::Transliterator(const Transliterator& other) :
     maximumContextLength(other.maximumContextLength)
 {
     // NUL-terminate the ID string, which is a non-aliased copy.
-    ID.append((char16_t)0);
+    ID.append(static_cast<char16_t>(0));
     ID.truncate(ID.length()-1);
 
     if (other.filter != nullptr) {
@@ -759,8 +759,8 @@ UnicodeString& U_EXPORT2 Transliterator::getDisplayName(const UnicodeString& id,
     if (uprv_isInvariantUString(ID.getBuffer(), ID.length())) {
         char key[200];
         uprv_strcpy(key, RB_DISPLAY_NAME_PREFIX);
-        int32_t length=(int32_t)uprv_strlen(RB_DISPLAY_NAME_PREFIX);
-        ID.extract(0, (int32_t)(sizeof(key)-length), key+length, (int32_t)(sizeof(key)-length), US_INV);
+        int32_t length = static_cast<int32_t>(uprv_strlen(RB_DISPLAY_NAME_PREFIX));
+        ID.extract(0, static_cast<int32_t>(sizeof(key) - length), key + length, static_cast<int32_t>(sizeof(key) - length), US_INV);
 
         // Try to retrieve a UnicodeString from the bundle.
         UnicodeString resString = bundle.getStringEx(key, status);
@@ -793,13 +793,13 @@ UnicodeString& U_EXPORT2 Transliterator::getDisplayName(const UnicodeString& id,
 
             // Use display names for the scripts, if they exist
             UnicodeString s;
-            length=(int32_t)uprv_strlen(RB_SCRIPT_DISPLAY_NAME_PREFIX);
+            length = static_cast<int32_t>(uprv_strlen(RB_SCRIPT_DISPLAY_NAME_PREFIX));
             for (int j=1; j<=2; ++j) {
                 status = U_ZERO_ERROR;
                 uprv_strcpy(key, RB_SCRIPT_DISPLAY_NAME_PREFIX);
                 args[j].getString(s);
                 if (uprv_isInvariantUString(s.getBuffer(), s.length())) {
-                    s.extract(0, sizeof(key)-length-1, key+length, (int32_t)sizeof(key)-length-1, US_INV);
+                    s.extract(0, sizeof(key) - length - 1, key + length, static_cast<int32_t>(sizeof(key)) - length - 1, US_INV);
 
                     resString = bundle.getStringEx(key, status);
 
@@ -949,7 +949,7 @@ Transliterator::createInstance(const UnicodeString& ID,
         t = new CompoundTransliterator(list, parseError, status);
     }
     else {
-        t = (Transliterator*)list.elementAt(0);
+        t = static_cast<Transliterator*>(list.elementAt(0));
     }
     // Check null pointer
     if (t != nullptr) {
@@ -1068,7 +1068,7 @@ Transliterator::createFromRules(const UnicodeString& ID,
         t = new NullTransliterator();
     }
     else if (parser.idBlockVector.size() == 0 && parser.dataVector.size() == 1) {
-        t = new RuleBasedTransliterator(ID, (TransliterationRuleData*)parser.dataVector.orphanElementAt(0), true);
+        t = new RuleBasedTransliterator(ID, static_cast<TransliterationRuleData*>(parser.dataVector.orphanElementAt(0)), true);
     }
     else if (parser.idBlockVector.size() == 1 && parser.dataVector.size() == 0) {
         // idBlock, no data -- this is an alias.  The ID has
@@ -1079,10 +1079,10 @@ Transliterator::createFromRules(const UnicodeString& ID,
             UnicodeString filterPattern;
             parser.compoundFilter->toPattern(filterPattern, false);
             t = createInstance(filterPattern + UnicodeString(ID_DELIM)
-                    + *((UnicodeString*)parser.idBlockVector.elementAt(0)), UTRANS_FORWARD, parseError, status);
+                    + *static_cast<UnicodeString*>(parser.idBlockVector.elementAt(0)), UTRANS_FORWARD, parseError, status);
         }
         else
-            t = createInstance(*((UnicodeString*)parser.idBlockVector.elementAt(0)), UTRANS_FORWARD, parseError, status);
+            t = createInstance(*static_cast<UnicodeString*>(parser.idBlockVector.elementAt(0)), UTRANS_FORWARD, parseError, status);
 
 
         if (t != nullptr) {
@@ -1101,7 +1101,7 @@ Transliterator::createFromRules(const UnicodeString& ID,
 
         for (int32_t i = 0; i < limit; i++) {
             if (i < parser.idBlockVector.size()) {
-                UnicodeString* idBlock = (UnicodeString*)parser.idBlockVector.elementAt(i);
+                UnicodeString* idBlock = static_cast<UnicodeString*>(parser.idBlockVector.elementAt(i));
                 if (!idBlock->isEmpty()) {
                     Transliterator* temp = createInstance(*idBlock, UTRANS_FORWARD, parseError, status);
                     if (U_FAILURE(status)) {
@@ -1120,7 +1120,7 @@ Transliterator::createFromRules(const UnicodeString& ID,
                 }
             }
             if (!parser.dataVector.isEmpty()) {
-                TransliterationRuleData* data = (TransliterationRuleData*)parser.dataVector.orphanElementAt(0);
+                TransliterationRuleData* data = static_cast<TransliterationRuleData*>(parser.dataVector.orphanElementAt(0));
                 // TODO: Should passNumber be turned into a decimal-string representation (1 -> "1")?
                 RuleBasedTransliterator* temprbt = new RuleBasedTransliterator(UnicodeString(CompoundTransliterator::PASS_STRING) + UnicodeString(passNumber++),
                         data, true);

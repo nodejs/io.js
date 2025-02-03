@@ -78,10 +78,10 @@ Tagged<Object> ObjectDefineAccessor(Isolate* isolate, Handle<Object> object,
   //                                   [[Configurable]]: true}.
   PropertyDescriptor desc;
   if (which_accessor == ACCESSOR_GETTER) {
-    desc.set_get(accessor);
+    desc.set_get(Cast<JSAny>(accessor));
   } else {
     DCHECK(which_accessor == ACCESSOR_SETTER);
-    desc.set_set(accessor);
+    desc.set_set(Cast<JSAny>(accessor));
   }
   desc.set_enumerable(true);
   desc.set_configurable(true);
@@ -162,8 +162,7 @@ Tagged<Object> ObjectLookupAccessor(Isolate* isolate, Handle<Object> object,
               it.GetHolder<JSReceiver>()->GetCreationContext().value(),
               isolate);
           return *AccessorPair::GetComponent(
-              isolate, holder_realm, Handle<AccessorPair>::cast(maybe_pair),
-              component);
+              isolate, holder_realm, Cast<AccessorPair>(maybe_pair), component);
         }
         continue;
       }
@@ -217,10 +216,9 @@ BUILTIN(ObjectFreeze) {
   HandleScope scope(isolate);
   Handle<Object> object = args.atOrUndefined(isolate, 1);
   if (IsJSReceiver(*object)) {
-    MAYBE_RETURN(
-        JSReceiver::SetIntegrityLevel(isolate, Handle<JSReceiver>::cast(object),
-                                      FROZEN, kThrowOnError),
-        ReadOnlyRoots(isolate).exception());
+    MAYBE_RETURN(JSReceiver::SetIntegrityLevel(
+                     isolate, Cast<JSReceiver>(object), FROZEN, kThrowOnError),
+                 ReadOnlyRoots(isolate).exception());
   }
   return *object;
 }
@@ -258,7 +256,7 @@ BUILTIN(ObjectPrototypeSetProto) {
 
   // 3. If Type(O) is not Object, return undefined.
   if (!IsJSReceiver(*object)) return ReadOnlyRoots(isolate).undefined_value();
-  Handle<JSReceiver> receiver = Handle<JSReceiver>::cast(object);
+  Handle<JSReceiver> receiver = Cast<JSReceiver>(object);
 
   // 4. Let status be ? O.[[SetPrototypeOf]](proto).
   // 5. If status is false, throw a TypeError exception.
@@ -298,11 +296,10 @@ BUILTIN(ObjectGetOwnPropertySymbols) {
 BUILTIN(ObjectIsFrozen) {
   HandleScope scope(isolate);
   Handle<Object> object = args.atOrUndefined(isolate, 1);
-  Maybe<bool> result =
-      IsJSReceiver(*object)
-          ? JSReceiver::TestIntegrityLevel(
-                isolate, Handle<JSReceiver>::cast(object), FROZEN)
-          : Just(true);
+  Maybe<bool> result = IsJSReceiver(*object)
+                           ? JSReceiver::TestIntegrityLevel(
+                                 isolate, Cast<JSReceiver>(object), FROZEN)
+                           : Just(true);
   MAYBE_RETURN(result, ReadOnlyRoots(isolate).exception());
   return isolate->heap()->ToBoolean(result.FromJust());
 }
@@ -311,11 +308,10 @@ BUILTIN(ObjectIsFrozen) {
 BUILTIN(ObjectIsSealed) {
   HandleScope scope(isolate);
   Handle<Object> object = args.atOrUndefined(isolate, 1);
-  Maybe<bool> result =
-      IsJSReceiver(*object)
-          ? JSReceiver::TestIntegrityLevel(
-                isolate, Handle<JSReceiver>::cast(object), SEALED)
-          : Just(true);
+  Maybe<bool> result = IsJSReceiver(*object)
+                           ? JSReceiver::TestIntegrityLevel(
+                                 isolate, Cast<JSReceiver>(object), SEALED)
+                           : Just(true);
   MAYBE_RETURN(result, ReadOnlyRoots(isolate).exception());
   return isolate->heap()->ToBoolean(result.FromJust());
 }
@@ -339,7 +335,7 @@ BUILTIN(ObjectGetOwnPropertyDescriptors) {
       isolate->factory()->NewJSObject(isolate->object_function());
 
   for (int i = 0; i < keys->length(); ++i) {
-    Handle<Name> key(Name::cast(keys->get(i)), isolate);
+    Handle<Name> key(Cast<Name>(keys->get(i)), isolate);
     PropertyDescriptor descriptor;
     Maybe<bool> did_get_descriptor = JSReceiver::GetOwnPropertyDescriptor(
         isolate, receiver, key, &descriptor);
@@ -361,10 +357,9 @@ BUILTIN(ObjectSeal) {
   HandleScope scope(isolate);
   Handle<Object> object = args.atOrUndefined(isolate, 1);
   if (IsJSReceiver(*object)) {
-    MAYBE_RETURN(
-        JSReceiver::SetIntegrityLevel(isolate, Handle<JSReceiver>::cast(object),
-                                      SEALED, kThrowOnError),
-        ReadOnlyRoots(isolate).exception());
+    MAYBE_RETURN(JSReceiver::SetIntegrityLevel(
+                     isolate, Cast<JSReceiver>(object), SEALED, kThrowOnError),
+                 ReadOnlyRoots(isolate).exception());
   }
   return *object;
 }

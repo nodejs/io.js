@@ -250,6 +250,30 @@ class V8_EXPORT Int32Array : public TypedArray {
 };
 
 /**
+ * An instance of Float16Array constructor.
+ */
+class V8_EXPORT Float16Array : public TypedArray {
+  static constexpr size_t kMaxLength =
+      TypedArray::kMaxByteLength / sizeof(uint16_t);
+
+ public:
+  static Local<Float16Array> New(Local<ArrayBuffer> array_buffer,
+                                 size_t byte_offset, size_t length);
+  static Local<Float16Array> New(Local<SharedArrayBuffer> shared_array_buffer,
+                                 size_t byte_offset, size_t length);
+  V8_INLINE static Float16Array* Cast(Value* value) {
+#ifdef V8_ENABLE_CHECKS
+    CheckCast(value);
+#endif
+    return static_cast<Float16Array*>(value);
+  }
+
+ private:
+  Float16Array();
+  static void CheckCast(Value* obj);
+};
+
+/**
  * An instance of Float32Array constructor (ES6 draft 15.13.6).
  */
 class V8_EXPORT Float32Array : public TypedArray {

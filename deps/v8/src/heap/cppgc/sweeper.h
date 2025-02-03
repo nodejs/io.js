@@ -52,7 +52,6 @@ class V8_EXPORT_PRIVATE Sweeper final {
   // couldn't be finished due to being a recursive sweep call.
   bool FinishIfRunning();
   void FinishIfOutOfWork();
-  void NotifyDoneIfNeeded();
   // SweepForAllocationIfRunning sweeps the given `space` until a slot that can
   // fit an allocation of `min_wanted_size` bytes is found. Returns true if a
   // slot was found. Aborts after `max_duration`.

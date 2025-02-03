@@ -108,10 +108,12 @@ function runTest() {
     document.body.appendChild(out_div);
     await waitForCompositorCommit();
 
-    element_scrollend_arrived = false;
-    document_scrollend_arrived = false;
     inner_div.scrollIntoView({ inline: "end", block: "end", behavior: "auto" });
-    await waitFor(() => { return element_scrollend_arrived || document_scrollend_arrived; }, "Nested scrollIntoView did not receive scrollend event.");
+    const scrollend_events = [
+      waitForScrollendEventNoTimeout(out_div),
+      waitForScrollendEventNoTimeout(target_div)
+    ];
+    await Promise.all(scrollend_events);
     assert_equals(root_element.scrollLeft, 0, "Nested scrollIntoView root_element scrollLeft");
     assert_equals(root_element.scrollTop, 0, "Nested scrollIntoView root_element scrollTop");
     assert_equals(out_div.scrollLeft, 100, "Nested scrollIntoView out_div scrollLeft");

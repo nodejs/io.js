@@ -1,7 +1,7 @@
 // helper function to output a clearer visualization
 // of the current node and its descendents
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-const util = require('util')
+const util = require('node:util')
 const relpath = require('./relpath.js')
 
 class ArboristNode {

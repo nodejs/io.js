@@ -82,7 +82,7 @@ describe('legacyMainResolve', () => {
           {},
           ''
         ),
-      { message: /instance of URL/, code: 'ERR_INVALID_ARG_TYPE' },
+      { code: 'ERR_INTERNAL_ASSERTION' },
     );
   });
 
@@ -129,7 +129,7 @@ describe('legacyMainResolve', () => {
     );
     assert.throws(
       () => legacyMainResolve(packageJsonUrl, { main: null }, packageJsonUrl),
-      { code: 'ERR_MODULE_NOT_FOUND' },
+      { message: /index\.js/, code: 'ERR_MODULE_NOT_FOUND' },
     );
   });
 
@@ -137,7 +137,20 @@ describe('legacyMainResolve', () => {
     const packageJsonUrl = pathToFileURL('/c/file%20with%20percents/package.json');
     assert.throws(
       () => legacyMainResolve(packageJsonUrl, { main: null }, packageJsonUrl),
-      { code: 'ERR_MODULE_NOT_FOUND' },
+      { message: /index\.js/, code: 'ERR_MODULE_NOT_FOUND' },
+    );
+  });
+
+  it('should report main file on error message when not found', () => {
+    const packageJsonUrl = pathToFileURL(
+      path.resolve(
+        fixtures.path('/es-modules/legacy-main-resolver'),
+        'package.json'
+      )
+    );
+    assert.throws(
+      () => legacyMainResolve(packageJsonUrl, { main: './index.node' }, packageJsonUrl),
+      { message: /index\.node/, code: 'ERR_MODULE_NOT_FOUND' },
     );
   });
 
@@ -151,6 +164,14 @@ describe('legacyMainResolve', () => {
     assert.throws(
       () => legacyMainResolve(packageJsonUrl, { main: null }, undefined),
       { message: /"base" argument must be/, code: 'ERR_INVALID_ARG_TYPE' },
+    );
+  });
+
+  it('should interpret main as a path, not a URL', () => {
+    const packageJsonUrl = fixtures.fileURL('/es-modules/legacy-main-resolver/package.json');
+    assert.deepStrictEqual(
+      legacyMainResolve(packageJsonUrl, { main: '../folder%25with percentage#/' }, packageJsonUrl),
+      fixtures.fileURL('/es-modules/folder%25with percentage#/index.js'),
     );
   });
 });

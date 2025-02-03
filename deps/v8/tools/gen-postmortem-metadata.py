@@ -191,8 +191,8 @@ consts_misc = [
         'value': 'DeoptimizationData::kOptimizationIdIndex'
     },
     {
-        'name': 'DeoptimizationDataSharedFunctionInfoIndex',
-        'value': 'DeoptimizationData::kSharedFunctionInfoIndex'
+        'name': 'DeoptimizationDataSharedFunctionInfoWrapperIndex',
+        'value': 'DeoptimizationData::kSharedFunctionInfoWrapperIndex'
     },
     {
         'name': 'DeoptimizationDataInliningPositionsIndex',
@@ -497,7 +497,6 @@ consts_misc = [
 # in this "extras_accessors" table.
 #
 extras_accessors = [
-    'JSFunction, code, Tagged<Code>, kCodeOffset',
     'JSFunction, context, Context, kContextOffset',
     'JSFunction, shared, SharedFunctionInfo, kSharedFunctionInfoOffset',
     'HeapObject, map, Map, kMapOffset',

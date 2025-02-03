@@ -94,7 +94,7 @@ int nghttp2_hd_huff_encode(nghttp2_bufs *bufs, const uint8_t *src,
 
   if (nbits) {
     rv = nghttp2_bufs_addb(
-        bufs, (uint8_t)((uint8_t)(code >> 56) | ((1 << (8 - nbits)) - 1)));
+      bufs, (uint8_t)((uint8_t)(code >> 56) | ((1 << (8 - nbits)) - 1)));
     if (rv != 0) {
       return rv;
     }
@@ -116,7 +116,9 @@ nghttp2_ssize nghttp2_hd_huff_decode(nghttp2_hd_huff_decode_context *ctx,
   uint8_t c;
 
   /* We use the decoding algorithm described in
-     http://graphics.ics.uci.edu/pub/Prefix.pdf */
+      - http://graphics.ics.uci.edu/pub/Prefix.pdf [!!! NO LONGER VALID !!!]
+      - https://ics.uci.edu/~dan/pubs/Prefix.pdf
+      - https://github.com/nghttp2/nghttp2/files/15141264/Prefix.pdf */
   for (; src != end;) {
     c = *src++;
     t = &huff_decode_table[t->fstate & 0x1ff][c >> 4];

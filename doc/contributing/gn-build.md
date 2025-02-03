@@ -28,27 +28,33 @@ Node.js contains following GN build files:
 
 Unlike GYP, the GN tool does not include any built-in rules for compiling a
 project, which means projects building with GN must provide their own build
-configurations for things like how to invoke a C++ compiler. Chromium related
-projects like V8 and skia choose to reuse Chromium's build configurations, and
-V8's Node.js integration testing repository
-([node-ci](https://chromium.googlesource.com/v8/node-ci/)) can be reused for
-building Node.js.
+configurations for things like how to invoke a C++ compiler.
+
+Chromium related projects like V8 and skia choose to reuse Chromium's build
+configurations, and V8's Node.js integration testing repository
+[`node-ci`][node-ci] can be reused for building Node.js.
 
 ### 1. Install `depot_tools`
 
-The `depot_tools` is a set of tools used by Chromium related projects for
-checking out code and managing dependencies, and since this guide is reusing the
-infra of V8, it needs to be installed and added to `PATH`:
+You'll need to install [`depot_tools`][depot-tools] the toolset
+used for fetching Chromium and its dependencies.
 
 ```bash
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 export PATH=/path/to/depot_tools:$PATH
 ```
 
-You can also follow the [official tutorial of
-`depot_tools`](https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html).
+You can ensure `depot_tools` is correctly added to your PATH by running
+`which gn` and confirming that it returns `/path/to/depot_tools/gn`.
 
-### 2. Check out code of Node.js
+**NOTE:** On Windows you'll also need to set the environment variable
+`DEPOT_TOOLS_WIN_TOOLCHAIN=0`. To do so, open `Control Panel` → `System and
+Security` → `System` → `Advanced system settings` and add a system variable
+`DEPOT_TOOLS_WIN_TOOLCHAIN` with value `0`. This tells `depot_tools` to use
+your locally installed version of Visual Studio (by default, `depot_tools` will
+try to download a Google-internal version that only Googlers have access to).
+
+### 2. Checkout Node.js Source Code
 
 To check out the latest main branch of Node.js for building, use the `fetch`
 tool from `depot_tools`:
@@ -91,9 +97,9 @@ out at `node_gn/node/node`.
 
 ### 3. Build
 
-GN only supports [`ninja`](https://ninja-build.org) for building, so to build
-Node.js with GN, `ninja` build files should be generated first, and then
-`ninja` can be invoked to do the building.
+GN only supports [`ninja`](https://ninja-build.org) for building. To build
+Node.js with GN you'll first need to generate `ninja` build files and then invoke
+`ninja` to perform the build.
 
 The `node-ci` repository provides a script for calling GN:
 
@@ -103,9 +109,10 @@ cd node  # Enter `node_gn/node` which contains a node-ci checkout
 ```
 
 which writes `ninja` build files into the `out/Release` directory under
-`node_gn/node`.
+`node_gn/node`. To see all possible configurable options, run
+`tools/gn-gen.py --help`.
 
-And then you can execute `ninja`:
+When `gn-gen.py` has executed successfully, you can then execute `ninja`:
 
 ```bash
 ninja -C out/Release node
@@ -116,10 +123,12 @@ After the build is completed, the compiled Node.js executable can be found in
 
 ## Status of the GN build
 
-Currently the GN build of Node.js is not fully functioning. It builds for macOS
-and Linux, while the Windows build is still a work in progress. And some tests
-are still failing with the GN build.
+Currently the GN build of Node.js is not fully functioning. Some tests
+are still failing with the GN build, and there may be other small pitfall
+for certain configuration options.
 
-There are also efforts on making GN build work without using `depot_tools`,
-which is tracked in the issue
-[#51689](https://github.com/nodejs/node/issues/51689).
+An effort is currently underway to make GN build work without using `depot_tools`,
+which is tracked in [#51689](https://github.com/nodejs/node/issues/51689).
+
+[depot-tools]: https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
+[node-ci]: https://chromium.googlesource.com/v8/node-ci

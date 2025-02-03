@@ -127,8 +127,8 @@ int32_t CollationElementIterator::next(UErrorCode& status)
     int64_t ce = iter_->nextCE(status);
     if (ce == Collation::NO_CE) { return NULLORDER; }
     // Turn the 64-bit CE into two old-style 32-bit CEs, without quaternary bits.
-    uint32_t p = (uint32_t)(ce >> 32);
-    uint32_t lower32 = (uint32_t)ce;
+    uint32_t p = static_cast<uint32_t>(ce >> 32);
+    uint32_t lower32 = static_cast<uint32_t>(ce);
     uint32_t firstHalf = getFirstHalf(p, lower32);
     uint32_t secondHalf = getSecondHalf(p, lower32);
     if (secondHalf != 0) {
@@ -199,8 +199,8 @@ int32_t CollationElementIterator::previous(UErrorCode& status)
     int64_t ce = iter_->previousCE(*offsets_, status);
     if (ce == Collation::NO_CE) { return NULLORDER; }
     // Turn the 64-bit CE into two old-style 32-bit CEs, without quaternary bits.
-    uint32_t p = (uint32_t)(ce >> 32);
-    uint32_t lower32 = (uint32_t)ce;
+    uint32_t p = static_cast<uint32_t>(ce >> 32);
+    uint32_t lower32 = static_cast<uint32_t>(ce);
     uint32_t firstHalf = getFirstHalf(p, lower32);
     uint32_t secondHalf = getSecondHalf(p, lower32);
     if (secondHalf != 0) {
@@ -309,7 +309,7 @@ void CollationElementIterator::setText(CharacterIterator& source,
 
 int32_t CollationElementIterator::strengthOrder(int32_t order) const
 {
-    UColAttributeValue s = (UColAttributeValue)rbc_->settings->getStrength();
+    UColAttributeValue s = static_cast<UColAttributeValue>(rbc_->settings->getStrength());
     // Mask off the unwanted differences.
     if (s == UCOL_PRIMARY) {
         order &= 0xffff0000;
@@ -410,8 +410,8 @@ public:
         }
         // last "half" of the last CE
         int64_t ce = ces[length - 1];
-        uint32_t p = (uint32_t)(ce >> 32);
-        uint32_t lower32 = (uint32_t)ce;
+        uint32_t p = static_cast<uint32_t>(ce >> 32);
+        uint32_t lower32 = static_cast<uint32_t>(ce);
         uint32_t lastHalf = getSecondHalf(p, lower32);
         if (lastHalf == 0) {
             lastHalf = getFirstHalf(p, lower32);
@@ -419,8 +419,8 @@ public:
         } else {
             lastHalf |= 0xc0;  // old-style continuation CE
         }
-        if (count > uhash_igeti(maxExpansions, (int32_t)lastHalf)) {
-            uhash_iputi(maxExpansions, (int32_t)lastHalf, count, &errorCode);
+        if (count > uhash_igeti(maxExpansions, static_cast<int32_t>(lastHalf))) {
+            uhash_iputi(maxExpansions, static_cast<int32_t>(lastHalf), count, &errorCode);
         }
     }
 

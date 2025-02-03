@@ -1,6 +1,6 @@
 'use strict';
 
-// Test to validate massive dns lookups do not block filesytem I/O
+// Test to validate massive dns lookups do not block filesystem I/O
 // (or any fast I/O). Prior to https://github.com/libuv/libuv/pull/1845
 // few back-to-back dns lookups were sufficient to engage libuv
 // threadpool workers in a blocking manner, throttling other work items

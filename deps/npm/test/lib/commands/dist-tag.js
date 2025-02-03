@@ -88,12 +88,7 @@ const mockDist = async (t, { ...npmOpts } = {}) => {
     distTag: mock['dist-tag'],
     fetchOpts: () => fetchOpts,
     result: () => mock.joinedOutput(),
-    logs: () => {
-      const distLogs = mock.logs.filter(l => l[1].startsWith('dist-tag'))
-      return distLogs.map(([, ...parts]) => {
-        return parts.map(p => p.toString()).join(' ').trim()
-      }).join('\n').trim()
-    },
+    joinedLogs: () => mock.logs.byTitle('dist-tag').join('\n').trim(),
   }
 }
 
@@ -159,13 +154,13 @@ t.test('ls on named package', async t => {
 })
 
 t.test('ls on missing package', async t => {
-  const { distTag, logs } = await mockDist(t)
+  const { distTag, joinedLogs } = await mockDist(t)
   await t.rejects(
     distTag.exec(['ls', 'foo']),
     distTag.usage
   )
   t.matchSnapshot(
-    logs(),
+    joinedLogs(),
     'should log no dist-tag found msg'
   )
 })
@@ -245,8 +240,8 @@ t.test('workspaces', async t => {
   })
 
   t.test('two args -- list, @scoped/pkg, logs a warning and ignores workspaces', async t => {
-    const { result, logs } = await mockWorkspaces(t, ['list', '@scoped/pkg'])
-    t.match(logs(), 'Ignoring workspaces for specified package', 'logs a warning')
+    const { result, joinedLogs } = await mockWorkspaces(t, ['list', '@scoped/pkg'])
+    t.match(joinedLogs(), 'Ignoring workspaces for specified package', 'logs a warning')
     t.matchSnapshot(result(), 'printed the expected output')
   })
 
@@ -266,7 +261,10 @@ t.test('workspaces', async t => {
       },
     })
 
-    t.match(logs(), 'dist-tag ls Couldn\'t get dist-tag data for workspace-d@*', 'logs the error')
+    const error = logs.error.byTitle('dist-tag ls')[0]
+
+    t.match(error, 'Couldn\'t get dist-tag data for Result {')
+    t.match(error, `name: 'workspace-d',`)
     t.matchSnapshot(result(), 'printed the expected output')
   })
 })
@@ -284,14 +282,14 @@ t.test('add new tag', async t => {
 })
 
 t.test('add using valid semver range as name', async t => {
-  const { distTag, logs } = await mockDist(t)
+  const { distTag, joinedLogs } = await mockDist(t)
   await t.rejects(
     distTag.exec(['add', '@scoped/another@7.7.7', '1.0.0']),
     /Tag name must not be a valid SemVer range: 1.0.0/,
     'should exit with semver range error'
   )
   t.matchSnapshot(
-    logs(),
+    joinedLogs(),
     'should return success msg'
   )
 })
@@ -328,31 +326,31 @@ t.test('add invalid tag', async t => {
 })
 
 t.test('set existing version', async t => {
-  const { distTag, logs } = await mockDist(t)
+  const { distTag, joinedLogs } = await mockDist(t)
   await distTag.exec(['set', '@scoped/another@0.6.0', 'b'])
   t.matchSnapshot(
-    logs(),
+    joinedLogs(),
     'should log warn msg'
   )
 })
 
 t.test('remove existing tag', async t => {
-  const { distTag, result, logs, fetchOpts } = await mockDist(t)
+  const { distTag, result, joinedLogs, fetchOpts } = await mockDist(t)
   await distTag.exec(['rm', '@scoped/another', 'c'])
   const opts = fetchOpts()
   t.equal(opts.method, 'DELETE', 'should trigger request to remove tag')
-  t.matchSnapshot(logs(), 'should log remove info')
+  t.matchSnapshot(joinedLogs(), 'should log remove info')
   t.matchSnapshot(result(), 'should return success msg')
 })
 
 t.test('remove non-existing tag', async t => {
-  const { distTag, logs } = await mockDist(t)
+  const { distTag, joinedLogs } = await mockDist(t)
   await t.rejects(
     distTag.exec(['rm', '@scoped/another', 'nonexistent']),
     /nonexistent is not a dist-tag on @scoped\/another/,
     'should exit with error'
   )
-  t.matchSnapshot(logs(), 'should log error msg')
+  t.matchSnapshot(joinedLogs(), 'should log error msg')
 })
 
 t.test('remove missing pkg name', async t => {

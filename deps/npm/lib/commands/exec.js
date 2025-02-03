@@ -1,6 +1,6 @@
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const libexec = require('libnpmexec')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 class Exec extends BaseCommand {
   static description = 'Run a command from a local or remote npm package'
@@ -39,11 +39,8 @@ class Exec extends BaseCommand {
   }
 
   async callExec (args, { name, locationMsg, runPath } = {}) {
-    // This is where libnpmexec will look for locally installed packages at the project level
-    const localPrefix = this.npm.localPrefix
-    // This is where libnpmexec will look for locally installed packages at the workspace level
     let localBin = this.npm.localBin
-    let path = localPrefix
+    let pkgPath = this.npm.localPrefix
 
     // This is where libnpmexec will actually run the scripts from
     if (!runPath) {
@@ -54,7 +51,7 @@ class Exec extends BaseCommand {
       localBin = resolve(this.npm.localDir, name, 'node_modules', '.bin')
       // We also need to look for `bin` entries in the workspace package.json
       // libnpmexec will NOT look in the project root for the bin entry
-      path = runPath
+      pkgPath = runPath
     }
 
     const call = this.npm.config.get('call')
@@ -65,7 +62,6 @@ class Exec extends BaseCommand {
       globalDir,
       chalk,
     } = this.npm
-    const output = this.npm.output.bind(this.npm)
     const scriptShell = this.npm.config.get('script-shell') || undefined
     const packages = this.npm.config.get('package')
     const yes = this.npm.config.get('yes')
@@ -85,17 +81,25 @@ class Exec extends BaseCommand {
       // we explicitly set packageLockOnly to false because if it's true
       // when we try to install a missing package, we won't actually install it
       packageLockOnly: false,
-      // copy args so they dont get mutated
-      args: [...args],
+      // what the user asked to run args[0] is run by default
+      args: [...args], // copy args so they dont get mutated
+      // specify a custom command to be run instead of args[0]
       call,
       chalk,
+      // where to look for bins globally, if a file matches call or args[0] it is called
       globalBin,
+      // where to look for packages globally, if a package matches call or args[0] it is called
       globalPath,
+      // where to look for bins locally, if a file matches call or args[0] it is called
       localBin,
       locationMsg,
-      output,
+      // packages that need to be installed
       packages,
-      path,
+      // path where node_modules is
+      path: this.npm.localPrefix,
+      // where to look for package.json#bin entries first
+      pkgPath,
+      // cwd to run from
       runPath,
       scriptShell,
       yes,

@@ -72,7 +72,7 @@ void *ngtcp2_mem_calloc(const ngtcp2_mem *mem, size_t nmemb, size_t size) {
 void *ngtcp2_mem_realloc(const ngtcp2_mem *mem, void *ptr, size_t size) {
   return mem->realloc(ptr, size, mem->user_data);
 }
-#else  /* MEMDEBUG */
+#else  /* defined(MEMDEBUG) */
 void *ngtcp2_mem_malloc_debug(const ngtcp2_mem *mem, size_t size,
                               const char *func, const char *file, size_t line) {
   void *nptr = mem->malloc(size, mem->user_data);
@@ -110,4 +110,4 @@ void *ngtcp2_mem_realloc_debug(const ngtcp2_mem *mem, void *ptr, size_t size,
 
   return nptr;
 }
-#endif /* MEMDEBUG */
+#endif /* defined(MEMDEBUG) */

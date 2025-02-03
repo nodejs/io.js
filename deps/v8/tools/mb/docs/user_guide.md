@@ -43,7 +43,7 @@ a single object with the following fields:
     no tests that will be run.
   * `additional_compile_targets`: an array of (ninja) build targets that
     reflect the stuff we might want to build *in addition to* the list
-    passed in `test_targets`. Targets in this list will be treated 
+    passed in `test_targets`. Targets in this list will be treated
     specially, in the following way: if a given target is a "meta"
     (GN: group, GYP: none) target like 'blink_tests' or or even the
     ninja-specific 'all' target, then only the *dependencies* of the
@@ -65,7 +65,7 @@ fields:
   * `compile_targets`: the list of ninja targets that should be passed
     directly to the corresponding ninja / compile.py invocation. This
     list may contain entries that are *not* listed in the input (see
-    the description of `additional_compile_targets` above and 
+    the description of `additional_compile_targets` above and
     [design_spec.md](the design spec) for how this works).
   * `invalid_targets`: a list of any targets that were passed in
     either of the input lists that weren't actually found in the graph.
@@ -130,10 +130,6 @@ actually writing anything.
 You can pass the `-q/--quiet` flag to get mb to be silent unless there is an
 error, and pass the `-v/--verbose` flag to get mb to log all of the files
 that are read and written, and all the commands that are run.
-
-If the build config will use the Goma distributed-build system, you can pass
-the path to your Goma client in the `-g/--goma-dir` flag, and it will be
-incorporated into the appropriate flags for GYP or GN as needed.
 
 If gen ends up using GYP, the path must have a valid GYP configuration as the
 last component of the path (i.e., specify `//out/Release_x64`, not `//out`).
@@ -262,8 +258,8 @@ For example, if you had:
   }
   'mixins': {
     'bot': {
-      'gyp_defines': 'use_goma=1 dcheck_always_on=0',
-      'gn_args': 'use_goma=true dcheck_always_on=false',
+      'gyp_defines': 'use_remoteexec=1 dcheck_always_on=0',
+      'gn_args': 'use_remoteexec=true dcheck_always_on=false',
     },
     'debug': {
       'gn_args': 'is_debug=true',
@@ -290,7 +286,7 @@ For example, if you had:
 
 and you ran `mb gen -c linux_release_trybot //out/Release`, it would
 translate into a call to `gyp_chromium -G Release` with `GYP_DEFINES` set to
-`"use_goma=true dcheck_always_on=false dcheck_always_on=true"`.
+`"use_remoteexec=true dcheck_always_on=false dcheck_always_on=true"`.
 
 (From that you can see that mb is intentionally dumb and does not
 attempt to de-dup the flags, it lets gyp do that).
@@ -308,5 +304,3 @@ If you hit weirder things than that, add some print statements to the
 python script, send a question to gn-dev@chromium.org, or
 [file a bug](https://crbug.com/new) with the label
 'mb' and cc: dpranke@chromium.org.
-
-

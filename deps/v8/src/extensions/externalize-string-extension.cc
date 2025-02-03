@@ -82,7 +82,7 @@ ExternalizeStringExtension::GetNativeFunctionTemplate(
 
 namespace {
 
-bool HasExternalForwardingIndex(Handle<String> string) {
+bool HasExternalForwardingIndex(DirectHandle<String> string) {
   if (!string->IsShared()) return false;
   uint32_t raw_hash = string->raw_hash_field(kAcquireLoad);
   return Name::IsExternalForwardingIndex(raw_hash);
@@ -143,7 +143,7 @@ void ExternalizeStringExtension::Externalize(
 namespace {
 
 MaybeHandle<String> CopyConsStringToOld(Isolate* isolate,
-                                        Handle<ConsString> string) {
+                                        DirectHandle<ConsString> string) {
   return isolate->factory()->NewConsString(handle(string->first(), isolate),
                                            handle(string->second(), isolate),
                                            AllocationType::kOld);
@@ -195,7 +195,7 @@ void ExternalizeStringExtension::CreateExternalizableString(
   // a string in old space in that case.
   if (IsConsString(*string, isolate) && !string->IsFlat()) {
     Handle<String> result;
-    if (CopyConsStringToOld(isolate, Handle<ConsString>::cast(string))
+    if (CopyConsStringToOld(isolate, Cast<ConsString>(string))
             .ToHandle(&result)) {
       DCHECK(result->SupportsExternalization(encoding));
       info.GetReturnValue().Set(Utils::ToLocal(result));
@@ -213,7 +213,7 @@ void ExternalizeStringExtension::CreateExternalizableString(
       String::WriteToFlat(*string, result->GetChars(no_gc), 0,
                           string->length());
       DCHECK(result->SupportsExternalization(encoding));
-      info.GetReturnValue().Set(Utils::ToLocal(Handle<String>::cast(result)));
+      info.GetReturnValue().Set(Utils::ToLocal(Cast<String>(result)));
       return;
     }
   } else {
@@ -226,7 +226,7 @@ void ExternalizeStringExtension::CreateExternalizableString(
       String::WriteToFlat(*string, result->GetChars(no_gc), 0,
                           string->length());
       DCHECK(result->SupportsExternalization(encoding));
-      info.GetReturnValue().Set(Utils::ToLocal(Handle<String>::cast(result)));
+      info.GetReturnValue().Set(Utils::ToLocal(Cast<String>(result)));
       return;
     }
   }

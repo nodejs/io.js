@@ -99,21 +99,21 @@ struct CharacterNode {
 };
 
 inline UBool CharacterNode::hasValues() const {
-    return (UBool)(fValues != nullptr);
+    return fValues != nullptr;
 }
 
 inline int32_t CharacterNode::countValues() const {
     return
         fValues == nullptr ? 0 :
         !fHasValuesVector ? 1 :
-        ((const UVector *)fValues)->size();
+        static_cast<const UVector*>(fValues)->size();
 }
 
 inline const void *CharacterNode::getValue(int32_t index) const {
     if (!fHasValuesVector) {
         return fValues;  // Assume index == 0.
     } else {
-        return ((const UVector *)fValues)->elementAt(index);
+        return static_cast<const UVector*>(fValues)->elementAt(index);
     }
 }
 

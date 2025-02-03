@@ -7,7 +7,6 @@
     "visualstudioexptteam.vscodeintellicode"
   ],
   "image": "nodejs/devcontainer:nightly",
-  "initializeCommand": "docker system prune -f -a",
   "settings": {
     "terminal.integrated.profiles.linux": {
       "zsh (login)": {

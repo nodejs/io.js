@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "include/v8-function-callback.h"
 #include "include/v8-function.h"
-#include "src/base/optional.h"
 #include "src/base/strings.h"
 #include "test/cctest/cctest.h"
 
@@ -238,7 +239,7 @@ void IncumbentContextTest_Api(bool with_api_incumbent) {
     Local<Context> context0 = contexts[0];
     Local<Context> context2 = contexts[2];
 
-    v8::base::Optional<Context::BackupIncumbentScope> incumbent_scope;
+    std::optional<Context::BackupIncumbentScope> incumbent_scope;
 
     if (with_api_incumbent) {
       // context -> set incumbent (context2) -> context0.

@@ -1,0 +1,97 @@
+Checks that error.stack works correctly for custom Error subclasses
+{
+    className : MyError
+    description : MyError: custom message     at <anonymous>:1:18     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+    objectId : <objectId>
+    subtype : error
+    type : object
+}
+{
+    className : MyError
+    description : MyError: foo     at <anonymous>:1:18     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+    objectId : <objectId>
+    subtype : error
+    type : object
+}
+{
+    className : ErrorWithCustomName
+    description : NamedError: bar     at <anonymous>:1:18     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+    objectId : <objectId>
+    subtype : error
+    type : object
+}
+{
+    className : MyError
+    description : MyError: custom message     at <anonymous>:1:23     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+    objectId : <objectId>
+    preview : {
+        description : MyError: custom message     at <anonymous>:1:23     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+        overflow : false
+        properties : [
+            [0] : {
+                name : stack
+                type : string
+                value : Error     at <anonymous>:1:23     at recurse (test…)     at foo (test.js:8:3)     at <anonymous>:1:1
+            }
+        ]
+        subtype : error
+        type : object
+    }
+    subtype : error
+    type : object
+}
+{
+    className : MyError
+    description : MyError: foo     at <anonymous>:1:23     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+    objectId : <objectId>
+    preview : {
+        description : MyError: foo     at <anonymous>:1:23     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+        overflow : false
+        properties : [
+            [0] : {
+                name : stack
+                type : string
+                value : Error: foo     at <anonymous>:1:23     at recurse …)     at foo (test.js:8:3)     at <anonymous>:1:1
+            }
+            [1] : {
+                name : message
+                type : string
+                value : foo
+            }
+        ]
+        subtype : error
+        type : object
+    }
+    subtype : error
+    type : object
+}
+{
+    className : ErrorWithCustomName
+    description : NamedError: bar     at <anonymous>:1:23     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+    objectId : <objectId>
+    preview : {
+        description : NamedError: bar     at <anonymous>:1:23     at recurse (test.js:4:10)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at recurse (test.js:3:23)     at foo (test.js:8:3)     at <anonymous>:1:1
+        overflow : false
+        properties : [
+            [0] : {
+                name : name
+                type : string
+                value : NamedError
+            }
+            [1] : {
+                name : stack
+                type : string
+                value : NamedError: bar     at <anonymous>:1:23     at rec…)     at foo (test.js:8:3)     at <anonymous>:1:1
+            }
+            [2] : {
+                name : message
+                type : string
+                value : bar
+            }
+        ]
+        subtype : error
+        type : object
+    }
+    subtype : error
+    type : object
+}

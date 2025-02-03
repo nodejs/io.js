@@ -20,26 +20,18 @@ export function extractAndParseYAML(text) {
   // js-yaml.load() throws on error.
   const meta = yaml.load(text);
 
-  if (meta.added) {
-    // Since semver-minors can trickle down to previous major versions,
-    // features may have been added in multiple versions.
-    meta.added = arrify(meta.added);
-  }
+  // Since semver-minors can trickle down to previous major versions,
+  // features may have been added in multiple versions.
+  meta.added &&= arrify(meta.added);
 
-  if (meta.napiVersion) {
-    meta.napiVersion = arrify(meta.napiVersion);
-  }
+  meta.napiVersion &&= arrify(meta.napiVersion);
 
-  if (meta.deprecated) {
-    // Treat deprecated like added for consistency.
-    meta.deprecated = arrify(meta.deprecated);
-  }
+  // Treat deprecated like added for consistency.
+  meta.deprecated &&= arrify(meta.deprecated);
 
-  if (meta.removed) {
-    meta.removed = arrify(meta.removed);
-  }
+  meta.removed &&= arrify(meta.removed);
 
-  meta.changes = meta.changes || [];
+  meta.changes ||= [];
 
   return meta;
 }

@@ -238,7 +238,7 @@ readHexCodeUnit(const char **string, UErrorCode *status)
 #endif    
             return 0;
         }
-        result = (result << 4) | (char16_t)value;
+        result = (result << 4) | static_cast<char16_t>(value);
         noDigits++;
         (*string)++;
     }
@@ -319,7 +319,7 @@ const char* ucol_sit_readOption(const char *start, CollatorSpec *spec,
           fprintf(stderr, "***Set %d to %s...\n", i, start);
 #endif
           // assume 'start' does not go away through all this
-          spec->entries[i].copyFrom(CharString(start, (int32_t)(end - start), *status), *status);
+          spec->entries[i].copyFrom(CharString(start, static_cast<int32_t>(end - start), *status), *status);
           return end;
       }
   }
@@ -343,7 +343,7 @@ ucol_sit_readSpecs(CollatorSpec *s, const char *string,
         }
     }
     if(U_FAILURE(*status)) {
-        parseError->offset = (int32_t)(string - definition);
+        parseError->offset = static_cast<int32_t>(string - definition);
     }
     return string;
 }

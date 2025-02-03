@@ -16,8 +16,8 @@
 #include "src/heap/incremental-marking.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/marking-barrier.h"
-#include "src/heap/memory-chunk.h"
-#include "src/heap/page-inl.h"
+#include "src/heap/mutable-page-metadata.h"
+#include "src/heap/page-metadata-inl.h"
 #include "src/heap/safepoint.h"
 #include "src/heap/spaces.h"
 #include "src/objects/free-space-inl.h"
@@ -36,7 +36,7 @@ void SealCurrentObjects(Heap* heap) {
   heap::InvokeMajorGC(heap);
   heap->EnsureSweepingCompleted(Heap::SweepingForcedFinalizationMode::kV8Only);
   heap->FreeMainThreadLinearAllocationAreas();
-  for (Page* page : *heap->old_space()) {
+  for (PageMetadata* page : *heap->old_space()) {
     page->MarkNeverAllocateForTesting();
   }
 }
@@ -76,7 +76,8 @@ std::vector<Handle<FixedArray>> FillOldSpacePageWithFixedArrays(Heap* heap,
     }
     if (handles.empty()) {
       // Check that allocations started on a new page.
-      CHECK_EQ(array->address(), Page::FromHeapObject(*array)->area_start());
+      CHECK_EQ(array->address(),
+               PageMetadata::FromHeapObject(*array)->area_start());
     }
     handles.push_back(array);
   } while (allocated <
@@ -133,7 +134,7 @@ std::vector<Handle<FixedArray>> CreatePadding(Heap* heap, int padding_size,
 }
 
 namespace {
-void FillPageInPagedSpace(Page* page,
+void FillPageInPagedSpace(PageMetadata* page,
                           std::vector<Handle<FixedArray>>* out_handles) {
   Heap* heap = page->heap();
   DCHECK(page->SweepingDone());
@@ -148,7 +149,7 @@ void FillPageInPagedSpace(Page* page,
   CollectionEpoch young_epoch = heap->tracer()->CurrentEpoch(
       GCTracer::Scope::ScopeId::MINOR_MARK_SWEEPER);
 
-  for (Page* p : *paged_space) {
+  for (PageMetadata* p : *paged_space) {
     if (p != page) paged_space->UnlinkFreeListCategories(p);
   }
 
@@ -218,7 +219,7 @@ void FillPageInPagedSpace(Page* page,
   DCHECK_EQ(0, page->AvailableInFreeList());
   DCHECK_EQ(0, page->AvailableInFreeListFromAllocatedBytes());
 
-  for (Page* p : *paged_space) {
+  for (PageMetadata* p : *paged_space) {
     if (p != page) paged_space->RelinkFreeListCategories(p);
   }
 
@@ -238,7 +239,7 @@ void FillCurrentPage(v8::internal::NewSpace* space,
     space->heap()->FreeMainThreadLinearAllocationAreas();
     PauseAllocationObserversScope pause_observers(space->heap());
     if (top == kNullAddress) return;
-    Page* page = Page::FromAllocationAreaAddress(top);
+    PageMetadata* page = PageMetadata::FromAllocationAreaAddress(top);
     space->heap()->EnsureSweepingCompleted(
         Heap::SweepingForcedFinalizationMode::kV8Only);
     FillPageInPagedSpace(page, out_handles);
@@ -327,7 +328,7 @@ void AbandonCurrentlyFreeMemory(PagedSpace* space) {
   IsolateSafepointScope safepoint_scope(heap);
   heap->FreeLinearAllocationAreas();
 
-  for (Page* page : *space) {
+  for (PageMetadata* page : *space) {
     page->MarkNeverAllocateForTesting();
   }
 }
@@ -372,10 +373,11 @@ void CollectSharedGarbage(Heap* heap) {
 
 void EmptyNewSpaceUsingGC(Heap* heap) { InvokeMajorGC(heap); }
 
-void ForceEvacuationCandidate(Page* page) {
+void ForceEvacuationCandidate(PageMetadata* page) {
   IsolateSafepointScope safepoint(page->owner()->heap());
   CHECK(v8_flags.manual_evacuation_candidates_selection);
-  page->SetFlag(MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
+  page->Chunk()->SetFlagNonExecutable(
+      MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
   page->owner()->heap()->FreeLinearAllocationAreas();
 }
 

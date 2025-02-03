@@ -4,15 +4,15 @@
 
 #include "src/torque/declaration-visitor.h"
 
+#include <optional>
+
 #include "src/torque/ast.h"
 #include "src/torque/kythe-data.h"
 #include "src/torque/server-data.h"
 #include "src/torque/type-inference.h"
 #include "src/torque/type-visitor.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 Namespace* GetOrCreateNamespace(const std::string& name) {
   std::vector<Namespace*> existing_namespaces = FilterDeclarables<Namespace>(
@@ -62,7 +62,7 @@ Builtin* DeclarationVisitor::CreateBuiltin(BuiltinDeclaration* decl,
                                            std::string external_name,
                                            std::string readable_name,
                                            Signature signature,
-                                           base::Optional<Statement*> body) {
+                                           std::optional<Statement*> body) {
   const bool javascript = decl->javascript_linkage;
   const bool varargs = decl->parameters.has_varargs;
   Builtin::Kind kind = !javascript ? Builtin::kStub
@@ -143,7 +143,7 @@ Builtin* DeclarationVisitor::CreateBuiltin(BuiltinDeclaration* decl,
 void DeclarationVisitor::Visit(ExternalBuiltinDeclaration* decl) {
   Builtin* builtin =
       CreateBuiltin(decl, decl->name->value, decl->name->value,
-                    TypeVisitor::MakeSignature(decl), base::nullopt);
+                    TypeVisitor::MakeSignature(decl), std::nullopt);
   builtin->SetIdentifierPosition(decl->name->pos);
   Declarations::Declare(decl->name->value, builtin);
 }
@@ -191,7 +191,7 @@ void DeclarationVisitor::Visit(ExternalRuntimeDeclaration* decl) {
 void DeclarationVisitor::Visit(ExternalMacroDeclaration* decl) {
   Macro* macro = Declarations::DeclareMacro(
       decl->name->value, true, decl->external_assembler_name,
-      TypeVisitor::MakeSignature(decl), base::nullopt, decl->op);
+      TypeVisitor::MakeSignature(decl), std::nullopt, decl->op);
   macro->SetIdentifierPosition(decl->name->pos);
   macro->SetPosition(decl->pos);
   if (GlobalContext::collect_kythe_data()) {
@@ -209,7 +209,7 @@ void DeclarationVisitor::Visit(TorqueBuiltinDeclaration* decl) {
 
 void DeclarationVisitor::Visit(TorqueMacroDeclaration* decl) {
   Macro* macro = Declarations::DeclareMacro(
-      decl->name->value, decl->export_to_csa, base::nullopt,
+      decl->name->value, decl->export_to_csa, std::nullopt,
       TypeVisitor::MakeSignature(decl), decl->body, decl->op);
   macro->SetIdentifierPosition(decl->name->pos);
   macro->SetPosition(decl->pos);
@@ -348,7 +348,7 @@ Signature DeclarationVisitor::MakeSpecializedSignature(
 
 Callable* DeclarationVisitor::SpecializeImplicit(
     const SpecializationKey<GenericCallable>& key) {
-  base::Optional<Statement*> body = key.generic->CallableBody();
+  std::optional<Statement*> body = key.generic->CallableBody();
   if (!body && IntrinsicDeclaration::DynamicCast(key.generic->declaration()) ==
                    nullptr) {
     ReportError("missing specialization of ", key.generic->name(),
@@ -358,7 +358,7 @@ Callable* DeclarationVisitor::SpecializeImplicit(
   SpecializationRequester requester{CurrentSourcePosition::Get(),
                                     CurrentScope::Get(), ""};
   CurrentScope::Scope generic_scope(key.generic->ParentScope());
-  Callable* result = Specialize(key, key.generic->declaration(), base::nullopt,
+  Callable* result = Specialize(key, key.generic->declaration(), std::nullopt,
                                 body, CurrentSourcePosition::Get());
   result->SetIsUserDefined(false);
   requester.name = result->ReadableName();
@@ -371,8 +371,8 @@ Callable* DeclarationVisitor::SpecializeImplicit(
 Callable* DeclarationVisitor::Specialize(
     const SpecializationKey<GenericCallable>& key,
     CallableDeclaration* declaration,
-    base::Optional<const SpecializationDeclaration*> explicit_specialization,
-    base::Optional<Statement*> body, SourcePosition position) {
+    std::optional<const SpecializationDeclaration*> explicit_specialization,
+    std::optional<Statement*> body, SourcePosition position) {
   CurrentSourcePosition::Scope pos_scope(position);
   size_t generic_parameter_count = key.generic->generic_parameters().size();
   if (generic_parameter_count != key.specialized_types.size()) {
@@ -435,6 +435,4 @@ void PredeclarationVisitor::ResolvePredeclarations() {
   }
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

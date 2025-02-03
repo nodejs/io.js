@@ -1,6 +1,6 @@
 const t = require('tap')
-const fs = require('fs/promises')
-const { join } = require('path')
+const fs = require('node:fs/promises')
+const { join } = require('node:path')
 const { cleanNewlines } = require('../../fixtures/clean-snapshot')
 const tmock = require('../../fixtures/tmock')
 const mockNpm = require('../../fixtures/mock-npm')

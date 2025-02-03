@@ -43,9 +43,6 @@ class FreeSpace : public TorqueGeneratedFreeSpace<FreeSpace, HeapObject> {
   inline void SetNext(const WritableFreeSpace& writable_free_space,
                       Tagged<FreeSpace> next);
 
-  inline static Tagged<FreeSpace> cast(Tagged<HeapObject> obj);
-  inline static Tagged<FreeSpace> unchecked_cast(const Tagged<Object> obj);
-
   // Dispatched behavior.
   DECL_PRINTER(FreeSpace)
 

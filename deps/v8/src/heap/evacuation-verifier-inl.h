@@ -16,8 +16,9 @@ namespace internal {
 
 void EvacuationVerifier::VerifyHeapObjectImpl(Tagged<HeapObject> heap_object) {
   if (!ShouldVerifyObject(heap_object)) return;
-  CHECK_IMPLIES(Heap::InYoungGeneration(heap_object),
-                Heap::InToPage(heap_object));
+  CHECK_IMPLIES(
+      !v8_flags.sticky_mark_bits && Heap::InYoungGeneration(heap_object),
+      Heap::InToPage(heap_object));
   CHECK(!MarkCompactCollector::IsOnEvacuationCandidate(heap_object));
 }
 
@@ -31,7 +32,7 @@ template <typename TSlot>
 void EvacuationVerifier::VerifyPointersImpl(TSlot start, TSlot end) {
   for (TSlot current = start; current < end; ++current) {
     typename TSlot::TObject object = current.load(cage_base());
-#ifdef V8_ENABLE_DIRECT_LOCAL
+#ifdef V8_ENABLE_DIRECT_HANDLE
     if (object.ptr() == kTaggedNullAddress) continue;
 #endif
     Tagged<HeapObject> heap_object;

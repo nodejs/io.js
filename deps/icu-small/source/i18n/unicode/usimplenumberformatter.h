@@ -167,18 +167,6 @@ usnum_setMaximumIntegerDigits(USimpleNumber* unumber, int32_t maximumIntegerDigi
 #endif // U_HIDE_DRAFT_API
 
 
-#ifndef U_HIDE_DEPRECATED_API
-/**
- * Alias for setMaximumIntegerDigits.
- * Will be removed after ICU 75.
- *
- * @deprecated ICU 75
- */
-U_CAPI void U_EXPORT2
-usnum_truncateStart(USimpleNumber* unumber, int32_t maximumIntegerDigits, UErrorCode* ec);
-#endif  // U_HIDE_DEPRECATED_API
-
-
 /**
  * Sets the sign of the number: an explicit plus sign, explicit minus sign, or no sign.
  *

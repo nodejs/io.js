@@ -25,19 +25,16 @@ class ConservativeTracedHandlesMarkingVisitor final
   ~ConservativeTracedHandlesMarkingVisitor() override = default;
 
   void VisitPointer(const void*) override;
-  bool ShouldMarkObject(Tagged<HeapObject> object) const;
 
  private:
   Heap& heap_;
-  const bool has_shared_space_;
-  const bool is_shared_space_isolate_;
   MarkingState& marking_state_;
   MarkingWorklists::Local& local_marking_worklist_;
   const TracedHandles::NodeBounds traced_node_bounds_;
   const TracedHandles::MarkMode mark_mode_;
 };
 
-#endif  // V8_HEAP_TRACED_HANDLES_MARKING_VISITOR_H_
-
 }  // namespace internal
 }  // namespace v8
+
+#endif  // V8_HEAP_TRACED_HANDLES_MARKING_VISITOR_H_

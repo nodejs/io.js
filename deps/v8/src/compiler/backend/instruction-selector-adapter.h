@@ -5,6 +5,8 @@
 #ifndef V8_COMPILER_BACKEND_INSTRUCTION_SELECTOR_ADAPTER_H_
 #define V8_COMPILER_BACKEND_INSTRUCTION_SELECTOR_ADAPTER_H_
 
+#include <optional>
+
 #include "src/codegen/machine-type.h"
 #include "src/compiler/backend/instruction.h"
 #include "src/compiler/common-operator.h"
@@ -16,6 +18,8 @@
 #include "src/compiler/turboshaft/graph.h"
 #include "src/compiler/turboshaft/operation-matcher.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/opmasks.h"
+#include "src/compiler/turboshaft/representations.h"
 #include "src/compiler/turboshaft/use-map.h"
 
 
@@ -47,6 +51,7 @@ struct TurbofanAdapter {
   using inputs_t = Node::Inputs;
   using opcode_t = IrOpcode::Value;
   using id_t = uint32_t;
+  static_assert(std::is_same_v<NodeId, id_t>);
   using source_position_table_t = SourcePositionTable;
 
   explicit TurbofanAdapter(Schedule*) {}
@@ -60,7 +65,9 @@ struct TurbofanAdapter {
              node_->opcode() == IrOpcode::kRelocatableInt64Constant ||
              node_->opcode() == IrOpcode::kHeapConstant ||
              node_->opcode() == IrOpcode::kCompressedHeapConstant ||
-             node_->opcode() == IrOpcode::kNumberConstant);
+             node_->opcode() == IrOpcode::kNumberConstant ||
+             node_->opcode() == IrOpcode::kFloat32Constant ||
+             node_->opcode() == IrOpcode::kFloat64Constant);
     }
 
     bool is_int32() const {
@@ -70,8 +77,12 @@ struct TurbofanAdapter {
       return node_->opcode() == IrOpcode::kRelocatableInt32Constant;
     }
     int32_t int32_value() const {
-      DCHECK(is_int32() || is_relocatable_int32());
-      return OpParameter<int32_t>(node_->op());
+      if (is_int32()) return OpParameter<int32_t>(node_->op());
+      DCHECK(is_relocatable_int32());
+      RelocatablePtrConstantInfo constant_info =
+          OpParameter<RelocatablePtrConstantInfo>(node_->op());
+      DCHECK_EQ(RelocatablePtrConstantInfo::kInt32, constant_info.type());
+      return static_cast<int32_t>(constant_info.value());
     }
     bool is_int64() const {
       return node_->opcode() == IrOpcode::kInt64Constant;
@@ -80,8 +91,12 @@ struct TurbofanAdapter {
       return node_->opcode() == IrOpcode::kRelocatableInt64Constant;
     }
     int64_t int64_value() const {
-      DCHECK(is_int64() || is_relocatable_int64());
-      return OpParameter<int64_t>(node_->op());
+      if (is_int64()) return OpParameter<int64_t>(node_->op());
+      DCHECK(is_relocatable_int64());
+      RelocatablePtrConstantInfo constant_info =
+          OpParameter<RelocatablePtrConstantInfo>(node_->op());
+      DCHECK_EQ(RelocatablePtrConstantInfo::kInt64, constant_info.type());
+      return constant_info.value();
     }
     bool is_heap_object() const {
       return node_->opcode() == IrOpcode::kHeapConstant;
@@ -96,20 +111,20 @@ struct TurbofanAdapter {
     bool is_number() const {
       return node_->opcode() == IrOpcode::kNumberConstant;
     }
-    double number_value() const {
-      DCHECK(is_number());
-      return OpParameter<double>(node_->op());
+    bool is_number_zero() const {
+      if (!is_number()) return false;
+      return base::bit_cast<uint64_t>(OpParameter<double>(node_->op())) == 0;
     }
     bool is_float() const {
       return node_->opcode() == IrOpcode::kFloat32Constant ||
              node_->opcode() == IrOpcode::kFloat64Constant;
     }
-    double float_value() const {
-      DCHECK(is_float());
+    bool is_float_zero() const {
+      if (!is_float()) return false;
       if (node_->opcode() == IrOpcode::kFloat32Constant) {
-        return OpParameter<float>(node_->op());
+        return base::bit_cast<uint32_t>(OpParameter<float>(node_->op())) == 0;
       } else {
-        return OpParameter<double>(node_->op());
+        return base::bit_cast<uint64_t>(OpParameter<double>(node_->op())) == 0;
       }
     }
 
@@ -246,14 +261,14 @@ struct TurbofanAdapter {
           UNREACHABLE();
       }
     }
-    base::Optional<AtomicMemoryOrder> memory_order() const {
+    std::optional<AtomicMemoryOrder> memory_order() const {
       switch (node_->opcode()) {
         case IrOpcode::kStore:
         case IrOpcode::kProtectedStore:
         case IrOpcode::kStoreTrapOnNull:
         case IrOpcode::kStoreIndirectPointer:
         case IrOpcode::kUnalignedStore:
-          return base::nullopt;
+          return std::nullopt;
         case IrOpcode::kWord32AtomicStore:
         case IrOpcode::kWord64AtomicStore:
           return AtomicStoreParametersOf(node_->op()).order();
@@ -288,9 +303,11 @@ struct TurbofanAdapter {
     // TODO(saelo): once we have turboshaft everywhere, we should convert this
     // to an operation parameter instead of an addition input (which is
     // currently required for turbofan, since all store opcodes are cached).
-    node_t indirect_pointer_tag() const {
+    IndirectPointerTag indirect_pointer_tag() const {
       DCHECK_EQ(node_->opcode(), IrOpcode::kStoreIndirectPointer);
-      return node_->InputAt(3);
+      Node* tag = node_->InputAt(3);
+      DCHECK_EQ(tag->opcode(), IrOpcode::kInt64Constant);
+      return static_cast<IndirectPointerTag>(OpParameter<int64_t>(tag->op()));
     }
     int32_t displacement() const { return 0; }
     uint8_t element_size_log2() const { return 0; }
@@ -452,6 +469,8 @@ struct TurbofanAdapter {
       case IrOpcode::kHeapConstant:
       case IrOpcode::kCompressedHeapConstant:
       case IrOpcode::kNumberConstant:
+      case IrOpcode::kFloat32Constant:
+      case IrOpcode::kFloat64Constant:
         // For those, a view must be constructible.
         DCHECK_EQ(constant_view(node), node);
         return true;
@@ -699,19 +718,19 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       return op_->handle();
     }
     bool is_number() const { return op_->kind == Kind::kNumber; }
-    double number_value() const {
-      DCHECK(is_number());
-      return op_->number();
+    bool is_number_zero() const {
+      if (!is_number()) return false;
+      return op_->number().get_bits() == 0;
     }
     bool is_float() const {
       return op_->kind == Kind::kFloat32 || op_->kind == Kind::kFloat64;
     }
-    double float_value() const {
-      DCHECK(is_float());
+    bool is_float_zero() const {
+      if (!is_float()) return false;
       if (op_->kind == Kind::kFloat32) {
-        return op_->float32();
+        return op_->float32().get_bits() == 0;
       } else {
-        return op_->float64();
+        return op_->float64().get_bits() == 0;
       }
     }
 
@@ -758,6 +777,12 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     const CallDescriptor* call_descriptor() const {
       if (call_op_) return call_op_->descriptor->descriptor;
       if (tail_call_op_) return tail_call_op_->descriptor->descriptor;
+      UNREACHABLE();
+    }
+
+    const turboshaft::TSCallDescriptor* ts_call_descriptor() const {
+      if (call_op_) return call_op_->descriptor;
+      if (tail_call_op_) return tail_call_op_->descriptor;
       UNREACHABLE();
     }
 
@@ -820,50 +845,69 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   class LoadView {
    public:
     LoadView(turboshaft::Graph* graph, node_t node) : node_(node) {
-      load_ = graph->Get(node_).TryCast<turboshaft::LoadOp>();
+      switch (graph->Get(node_).opcode) {
+        case opcode_t::kLoad:
+          load_ = &graph->Get(node_).Cast<turboshaft::LoadOp>();
+          break;
 #if V8_ENABLE_WEBASSEMBLY
-      if (load_ == nullptr) {
-        load_transform_ =
-            &graph->Get(node_).Cast<turboshaft::Simd128LoadTransformOp>();
+        case opcode_t::kSimd128LoadTransform:
+          load_transform_ =
+              &graph->Get(node_).Cast<turboshaft::Simd128LoadTransformOp>();
+          break;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+        case opcode_t::kSimd256LoadTransform:
+          load_transform256_ =
+              &graph->Get(node_).Cast<turboshaft::Simd256LoadTransformOp>();
+          break;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif  // V8_ENABLE_WEBASSEMBLY
+        default:
+          UNREACHABLE();
       }
-#else
-      DCHECK_NOT_NULL(load_);
-#endif
     }
-
     LoadRepresentation loaded_rep() const {
       DCHECK_NOT_NULL(load_);
       return load_->machine_type();
     }
+    turboshaft::MemoryRepresentation ts_loaded_rep() const {
+      DCHECK_NOT_NULL(load_);
+      return load_->loaded_rep;
+    }
+    turboshaft::RegisterRepresentation ts_result_rep() const {
+      DCHECK_NOT_NULL(load_);
+      return load_->result_rep;
+    }
     bool is_protected(bool* traps_on_null) const {
-      if (load_) {
-        if (load_->kind.with_trap_handler) {
+      if (kind().with_trap_handler) {
+        if (load_) {
           *traps_on_null = load_->kind.trap_on_null;
-          return true;
-        }
 #if V8_ENABLE_WEBASSEMBLY
-      } else {
-        if (load_transform_->load_kind.with_trap_handler) {
+        } else {
+#if V8_ENABLE_WASM_SIMD256_REVEC
+          DCHECK(
+              (load_transform_ && !load_transform_->load_kind.trap_on_null) ||
+              (load_transform256_ &&
+               !load_transform256_->load_kind.trap_on_null));
+#else
+          DCHECK(load_transform_);
           DCHECK(!load_transform_->load_kind.trap_on_null);
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
           *traps_on_null = false;
-          return true;
+#endif  // V8_ENABLE_WEBASSEMBLY
         }
-#endif
+        return true;
       }
       return false;
     }
-    bool is_atomic() const {
-      if (load_) return load_->kind.is_atomic;
-#if V8_ENABLE_WEBASSEMBLY
-      if (load_transform_) return load_transform_->load_kind.is_atomic;
-#endif
-      UNREACHABLE();
-    }
+    bool is_atomic() const { return kind().is_atomic; }
 
     node_t base() const {
       if (load_) return load_->base();
 #if V8_ENABLE_WEBASSEMBLY
       if (load_transform_) return load_transform_->base();
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return load_transform256_->base();
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 #endif
       UNREACHABLE();
     }
@@ -871,6 +915,9 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       if (load_) return load_->index().value_or_invalid();
 #if V8_ENABLE_WEBASSEMBLY
       if (load_transform_) return load_transform_->index();
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return load_transform256_->index();
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 #endif
       UNREACHABLE();
     }
@@ -890,6 +937,12 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
         int32_t offset = load_transform_->offset;
         DCHECK(!load_transform_->load_kind.tagged_base);
         return offset;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      } else if (load_transform256_) {
+        int32_t offset = load_transform256_->offset;
+        DCHECK(!load_transform256_->load_kind.tagged_base);
+        return offset;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 #endif
       }
       UNREACHABLE();
@@ -901,6 +954,9 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       if (load_) return load_->element_size_log2;
 #if V8_ENABLE_WEBASSEMBLY
       if (load_transform_) return 0;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return 0;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 #endif
       UNREACHABLE();
     }
@@ -908,10 +964,24 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     operator node_t() const { return node_; }
 
    private:
-    node_t node_;
-    const turboshaft::LoadOp* load_;
+    turboshaft::LoadOp::Kind kind() const {
+      if (load_) return load_->kind;
 #if V8_ENABLE_WEBASSEMBLY
-    const turboshaft::Simd128LoadTransformOp* load_transform_;
+      if (load_transform_) return load_transform_->load_kind;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+      if (load_transform256_) return load_transform256_->load_kind;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif
+      UNREACHABLE();
+    }
+
+    node_t node_;
+    const turboshaft::LoadOp* load_ = nullptr;
+#if V8_ENABLE_WEBASSEMBLY
+    const turboshaft::Simd128LoadTransformOp* load_transform_ = nullptr;
+#if V8_ENABLE_WASM_SIMD256_REVEC
+    const turboshaft::Simd256LoadTransformOp* load_transform256_ = nullptr;
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 #endif
   };
 
@@ -925,10 +995,13 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       return {op_->stored_rep.ToMachineType().representation(),
               op_->write_barrier};
     }
-    base::Optional<AtomicMemoryOrder> memory_order() const {
+    turboshaft::MemoryRepresentation ts_stored_rep() const {
+      return op_->stored_rep;
+    }
+    std::optional<AtomicMemoryOrder> memory_order() const {
       // TODO(nicohartmann@): Currently we don't support memory orders.
       if (op_->kind.is_atomic) return AtomicMemoryOrder::kSeqCst;
-      return base::nullopt;
+      return std::nullopt;
     }
     MemoryAccessKind access_kind() const {
       return op_->kind.with_trap_handler ? MemoryAccessKind::kProtected
@@ -939,7 +1012,9 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     node_t base() const { return op_->base(); }
     optional_node_t index() const { return op_->index(); }
     node_t value() const { return op_->value(); }
-    node_t indirect_pointer_tag() const { UNREACHABLE(); }
+    IndirectPointerTag indirect_pointer_tag() const {
+      return static_cast<IndirectPointerTag>(op_->indirect_pointer_tag());
+    }
     int32_t displacement() const {
       static_assert(
           std::is_same_v<decltype(turboshaft::StoreOp::offset), int32_t>);
@@ -1094,6 +1169,9 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     return graph_->Get(node).Is<turboshaft::LoadOp>()
 #if V8_ENABLE_WEBASSEMBLY
            || graph_->Get(node).Is<turboshaft::Simd128LoadTransformOp>()
+#if V8_ENABLE_WASM_SIMD256_REVEC
+           || graph_->Get(node).Is<turboshaft::Simd256LoadTransformOp>()
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
 #endif
         ;
   }
@@ -1191,6 +1269,23 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   bool IsLoadOrLoadImmutable(node_t node) const {
     return graph_->Get(node).opcode == turboshaft::Opcode::kLoad;
   }
+  bool IsProtectedLoad(node_t node) const {
+#if V8_ENABLE_WEBASSEMBLY
+    if (graph_->Get(node).opcode == turboshaft::Opcode::kSimd128LoadTransform) {
+      return true;
+    }
+#if V8_ENABLE_WASM_SIMD256_REVEC
+    if (graph_->Get(node).opcode == turboshaft::Opcode::kSimd256LoadTransform) {
+      return true;
+    }
+#endif  // V8_ENABLE_WASM_SIMD256_REVEC
+#endif  // V8_ENABLE_WEBASSEMBLY
+
+    if (!IsLoadOrLoadImmutable(node)) return false;
+
+    bool traps_on_null;
+    return LoadView(graph_, node).is_protected(&traps_on_null);
+  }
 
   int value_input_count(node_t node) const {
     return graph_->Get(node).input_count;
@@ -1287,15 +1382,15 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   }
 
   bool is_truncate_word64_to_word32(node_t node) const {
-    if (auto change_op = graph_->Get(node).TryCast<turboshaft::ChangeOp>()) {
-      if (change_op->kind == turboshaft::ChangeOp::Kind::kTruncate) {
-        DCHECK_EQ(change_op->from,
-                  turboshaft::RegisterRepresentation::Word64());
-        DCHECK_EQ(change_op->to, turboshaft::RegisterRepresentation::Word32());
-        return true;
-      }
+    return graph_->Get(node).Is<turboshaft::Opmask::kTruncateWord64ToWord32>();
+  }
+  node_t remove_truncate_word64_to_word32(node_t node) const {
+    if (const turboshaft::ChangeOp* change =
+            graph_->Get(node)
+                .TryCast<turboshaft::Opmask::kTruncateWord64ToWord32>()) {
+      return change->input();
     }
-    return false;
+    return node;
   }
 
   bool is_stack_slot(node_t node) const {

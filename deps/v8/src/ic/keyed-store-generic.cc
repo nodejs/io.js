@@ -4,6 +4,8 @@
 
 #include "src/ic/keyed-store-generic.h"
 
+#include <optional>
+
 #include "src/codegen/code-factory.h"
 #include "src/codegen/code-stub-assembler-inl.h"
 #include "src/codegen/interface-descriptors.h"
@@ -15,6 +17,8 @@
 
 namespace v8 {
 namespace internal {
+
+#include "src/codegen/define-code-stub-assembler-macros.inc"
 
 enum class StoreMode {
   // kSet implements [[Set]] in the spec and traverses the prototype
@@ -960,16 +964,14 @@ void KeyedStoreGenericAssembler::EmitGenericPropertyStore(
 
     TVARIABLE(IntPtrT, var_name_index);
     Label dictionary_found(this, &var_name_index),
-        not_found_no_insertion_index(this),
-        not_found_with_insertion_index(this, &var_name_index);
+        not_found(this, &var_name_index);
     TNode<PropertyDictionary> properties = CAST(LoadSlowProperties(receiver));
 
     // When dealing with class fields defined with DefineKeyedOwnIC or
     // DefineNamedOwnIC, use the slow path to check the existing property.
     NameDictionaryLookup<PropertyDictionary>(
         properties, name, IsAnyDefineOwn() ? slow : &dictionary_found,
-        &var_name_index, &not_found_no_insertion_index, kFindExisting,
-        &not_found_with_insertion_index);
+        &var_name_index, &not_found, kFindExistingOrInsertionIndex);
 
     if (!IsAnyDefineOwn()) {
       BIND(&dictionary_found);
@@ -1018,12 +1020,7 @@ void KeyedStoreGenericAssembler::EmitGenericPropertyStore(
       }
     }
 
-    BIND(&not_found_no_insertion_index);
-    {
-      FindInsertionEntry<PropertyDictionary>(properties, name, &var_name_index);
-      Goto(&not_found_with_insertion_index);
-    }
-    BIND(&not_found_with_insertion_index);
+    BIND(&not_found);
     {
       // TODO(jkummerow): Also add support to correctly handle integer exotic
       // cases for typed arrays and remove this check here.
@@ -1188,7 +1185,7 @@ void KeyedStoreGenericAssembler::KeyedStoreGeneric(
   {
     Comment("key is unique name");
     StoreICParameters p(context, receiver, var_unique.value(), value,
-                        base::nullopt, slot, maybe_vector,
+                        std::nullopt, slot, maybe_vector,
                         StoreICMode::kDefault);
     ExitPoint direct_exit(this);
     EmitGenericPropertyStore(CAST(receiver), receiver_map, instance_type, &p,
@@ -1283,7 +1280,7 @@ void KeyedStoreGenericAssembler::StoreIC_NoFeedback() {
     // checks, strings and string wrappers, proxies) are handled in the runtime.
     GotoIf(IsSpecialReceiverInstanceType(instance_type), &miss);
     {
-      StoreICParameters p(context, receiver, name, value, base::nullopt, {},
+      StoreICParameters p(context, receiver, name, value, std::nullopt, {},
                           UndefinedConstant(),
                           IsDefineNamedOwn() ? StoreICMode::kDefineNamedOwn
                                              : StoreICMode::kDefault);
@@ -1309,7 +1306,7 @@ void KeyedStoreGenericAssembler::StoreProperty(TNode<Context> context,
                                                TNode<Name> unique_name,
                                                TNode<Object> value,
                                                LanguageMode language_mode) {
-  StoreICParameters p(context, receiver, unique_name, value, base::nullopt, {},
+  StoreICParameters p(context, receiver, unique_name, value, std::nullopt, {},
                       UndefinedConstant(), StoreICMode::kDefault);
 
   Label done(this), slow(this, Label::kDeferred);
@@ -1342,6 +1339,8 @@ void KeyedStoreGenericAssembler::StoreProperty(TNode<Context> context,
 
   BIND(&done);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

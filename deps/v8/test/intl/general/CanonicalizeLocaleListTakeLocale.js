@@ -25,11 +25,11 @@ assertEquals(tag, nf.resolvedOptions().locale);
 assertDoesNotThrow(() => nf = new Intl.NumberFormat(l));
 assertEquals(tag, nf.resolvedOptions().locale);
 
-// Test with a Array of one Locale
+// Test with an Array of one Locale
 assertDoesNotThrow(() => nf = new Intl.NumberFormat([l]));
 assertEquals(tag, nf.resolvedOptions().locale);
 
-// Test with a Array of one Locale and a Sring
+// Test with an Array of one Locale and a Sring
 assertDoesNotThrow(() => nf = new Intl.NumberFormat([l, "en"]));
 assertEquals(tag, nf.resolvedOptions().locale);
 
@@ -80,7 +80,7 @@ let myLocale = new MyLocale(tag);
 assertDoesNotThrow(() => nf = new Intl.NumberFormat(myLocale));
 assertEquals(tag, nf.resolvedOptions().locale);
 
-// Test with a Array of one Locale
+// Test with an Array of one Locale
 assertDoesNotThrow(() => nf = new Intl.NumberFormat([myLocale]));
 assertEquals(tag, nf.resolvedOptions().locale);
 

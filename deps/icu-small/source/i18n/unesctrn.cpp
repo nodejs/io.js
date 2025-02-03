@@ -84,7 +84,7 @@ static char16_t* copySpec(const char16_t* spec) {
         ++len;
     }
     ++len;
-    char16_t *result = (char16_t *)uprv_malloc(len*sizeof(char16_t));
+    char16_t* result = static_cast<char16_t*>(uprv_malloc(len * sizeof(char16_t)));
     // Check for memory allocation error. 
     if (result != nullptr) {
     	uprv_memcpy(result, spec, (size_t)len*sizeof(result[0]));
@@ -186,7 +186,7 @@ void UnescapeTransliterator::handleTransliterate(Replaceable& text, UTransPositi
             // Read the header
             int32_t prefixLen = spec[ipat++];
             int32_t suffixLen = spec[ipat++];
-            int8_t  radix     = (int8_t) spec[ipat++];
+            int8_t radix = static_cast<int8_t>(spec[ipat++]);
             int32_t minDigits = spec[ipat++];
             int32_t maxDigits = spec[ipat++];
 

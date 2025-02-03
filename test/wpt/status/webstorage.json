@@ -1,0 +1,23 @@
+{
+  "event_constructor.window.js": {
+    "skip": "StorageEvent is currently unimplemented."
+  },
+  "event_initstorageevent.window.js": {
+    "skip": "StorageEvent is currently unimplemented."
+  },
+  "localstorage-cross-origin-iframe.tentative.https.window.js": {
+    "skip": "iframes are not supported in Node.js."
+  },
+  "storage_local_window_open.window.js": {
+    "skip": "window.open() is not supported in Node.js."
+  },
+  "storage_session_window_noopener.window.js": {
+    "skip": "window.open() is not supported in Node.js."
+  },
+  "storage_session_window_open.window.js": {
+    "skip": "window.open() is not supported in Node.js."
+  },
+  "storage_session_window_reopen.window.js": {
+    "skip": "window.open() is not supported in Node.js."
+  }
+}

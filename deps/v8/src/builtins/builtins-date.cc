@@ -26,47 +26,28 @@ namespace internal {
 
 namespace {
 
-// ES6 section 20.3.1.16 Date Time String Format
-double ParseDateTimeString(Isolate* isolate, Handle<String> str) {
-  str = String::Flatten(isolate, str);
-  double out[DateParser::OUTPUT_SIZE];
-  DisallowGarbageCollection no_gc;
-  String::FlatContent str_content = str->GetFlatContent(no_gc);
-  bool result;
-  if (str_content.IsOneByte()) {
-    result = DateParser::Parse(isolate, str_content.ToOneByteVector(), out);
-  } else {
-    result = DateParser::Parse(isolate, str_content.ToUC16Vector(), out);
-  }
-  if (!result) return std::numeric_limits<double>::quiet_NaN();
-  double const day = MakeDay(out[DateParser::YEAR], out[DateParser::MONTH],
-                             out[DateParser::DAY]);
-  double const time =
-      MakeTime(out[DateParser::HOUR], out[DateParser::MINUTE],
-               out[DateParser::SECOND], out[DateParser::MILLISECOND]);
-  double date = MakeDate(day, time);
-  if (std::isnan(out[DateParser::UTC_OFFSET])) {
-    if (date >= -DateCache::kMaxTimeBeforeUTCInMs &&
-        date <= DateCache::kMaxTimeBeforeUTCInMs) {
-      date = isolate->date_cache()->ToUTC(static_cast<int64_t>(date));
-    } else {
-      return std::numeric_limits<double>::quiet_NaN();
-    }
-  } else {
-    date -= out[DateParser::UTC_OFFSET] * 1000.0;
-  }
-  return DateCache::TimeClip(date);
-}
-
-Tagged<Object> SetLocalDateValue(Isolate* isolate, Handle<JSDate> date,
+Tagged<Object> SetLocalDateValue(Isolate* isolate, DirectHandle<JSDate> date,
                                  double time_val) {
   if (time_val >= -DateCache::kMaxTimeBeforeUTCInMs &&
       time_val <= DateCache::kMaxTimeBeforeUTCInMs) {
     time_val = isolate->date_cache()->ToUTC(static_cast<int64_t>(time_val));
-  } else {
-    time_val = std::numeric_limits<double>::quiet_NaN();
+    if (DateCache::TryTimeClip(&time_val)) {
+      date->SetValue(time_val);
+      return *isolate->factory()->NewNumber(time_val);
+    }
   }
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  date->SetNanValue();
+  return ReadOnlyRoots(isolate).nan_value();
+}
+
+Tagged<Object> SetDateValue(Isolate* isolate, DirectHandle<JSDate> date,
+                            double time_val) {
+  if (DateCache::TryTimeClip(&time_val)) {
+    date->SetValue(time_val);
+    return *isolate->factory()->NewNumber(time_val);
+  }
+  date->SetNanValue();
+  return ReadOnlyRoots(isolate).nan_value();
 }
 
 }  // namespace
@@ -85,23 +66,23 @@ BUILTIN(DateConstructor) {
   // [Construct]
   int const argc = args.length() - 1;
   Handle<JSFunction> target = args.target();
-  Handle<JSReceiver> new_target = Handle<JSReceiver>::cast(args.new_target());
+  Handle<JSReceiver> new_target = Cast<JSReceiver>(args.new_target());
   double time_val;
   if (argc == 0) {
     time_val = static_cast<double>(JSDate::CurrentTimeValue(isolate));
   } else if (argc == 1) {
     Handle<Object> value = args.at(1);
     if (IsJSDate(*value)) {
-      time_val = Object::Number(Handle<JSDate>::cast(value)->value());
+      time_val = Cast<JSDate>(value)->value();
     } else {
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, value,
                                          Object::ToPrimitive(isolate, value));
       if (IsString(*value)) {
-        time_val = ParseDateTimeString(isolate, Handle<String>::cast(value));
+        time_val = ParseDateTimeString(isolate, Cast<String>(value));
       } else {
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, value,
                                            Object::ToNumber(isolate, value));
-        time_val = Object::Number(*value);
+        time_val = Object::NumberValue(*value);
       }
     }
   } else {
@@ -111,34 +92,34 @@ BUILTIN(DateConstructor) {
     Handle<Object> month_object;
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, month_object,
                                        Object::ToNumber(isolate, args.at(2)));
-    double year = Object::Number(*year_object);
-    double month = Object::Number(*month_object);
+    double year = Object::NumberValue(*year_object);
+    double month = Object::NumberValue(*month_object);
     double date = 1.0, hours = 0.0, minutes = 0.0, seconds = 0.0, ms = 0.0;
     if (argc >= 3) {
       Handle<Object> date_object;
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, date_object,
                                          Object::ToNumber(isolate, args.at(3)));
-      date = Object::Number(*date_object);
+      date = Object::NumberValue(*date_object);
       if (argc >= 4) {
         Handle<Object> hours_object;
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
             isolate, hours_object, Object::ToNumber(isolate, args.at(4)));
-        hours = Object::Number(*hours_object);
+        hours = Object::NumberValue(*hours_object);
         if (argc >= 5) {
           Handle<Object> minutes_object;
           ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
               isolate, minutes_object, Object::ToNumber(isolate, args.at(5)));
-          minutes = Object::Number(*minutes_object);
+          minutes = Object::NumberValue(*minutes_object);
           if (argc >= 6) {
             Handle<Object> seconds_object;
             ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
                 isolate, seconds_object, Object::ToNumber(isolate, args.at(6)));
-            seconds = Object::Number(*seconds_object);
+            seconds = Object::NumberValue(*seconds_object);
             if (argc >= 7) {
               Handle<Object> ms_object;
               ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
                   isolate, ms_object, Object::ToNumber(isolate, args.at(7)));
-              ms = Object::Number(*ms_object);
+              ms = Object::NumberValue(*ms_object);
             }
           }
         }
@@ -189,38 +170,38 @@ BUILTIN(DateUTC) {
     Handle<Object> year_object;
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, year_object,
                                        Object::ToNumber(isolate, args.at(1)));
-    year = Object::Number(*year_object);
+    year = Object::NumberValue(*year_object);
     if (argc >= 2) {
       Handle<Object> month_object;
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, month_object,
                                          Object::ToNumber(isolate, args.at(2)));
-      month = Object::Number(*month_object);
+      month = Object::NumberValue(*month_object);
       if (argc >= 3) {
         Handle<Object> date_object;
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
             isolate, date_object, Object::ToNumber(isolate, args.at(3)));
-        date = Object::Number(*date_object);
+        date = Object::NumberValue(*date_object);
         if (argc >= 4) {
           Handle<Object> hours_object;
           ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
               isolate, hours_object, Object::ToNumber(isolate, args.at(4)));
-          hours = Object::Number(*hours_object);
+          hours = Object::NumberValue(*hours_object);
           if (argc >= 5) {
             Handle<Object> minutes_object;
             ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
                 isolate, minutes_object, Object::ToNumber(isolate, args.at(5)));
-            minutes = Object::Number(*minutes_object);
+            minutes = Object::NumberValue(*minutes_object);
             if (argc >= 6) {
               Handle<Object> seconds_object;
               ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
                   isolate, seconds_object,
                   Object::ToNumber(isolate, args.at(6)));
-              seconds = Object::Number(*seconds_object);
+              seconds = Object::NumberValue(*seconds_object);
               if (argc >= 7) {
                 Handle<Object> ms_object;
                 ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
                     isolate, ms_object, Object::ToNumber(isolate, args.at(7)));
-                ms = Object::Number(*ms_object);
+                ms = Object::NumberValue(*ms_object);
               }
             }
           }
@@ -234,8 +215,11 @@ BUILTIN(DateUTC) {
   }
   double const day = MakeDay(year, month, date);
   double const time = MakeTime(hours, minutes, seconds, ms);
-  return *isolate->factory()->NewNumber(
-      DateCache::TimeClip(MakeDate(day, time)));
+  double value = MakeDate(day, time);
+  if (DateCache::TryTimeClip(&value)) {
+    return *isolate->factory()->NewNumber(value);
+  }
+  return ReadOnlyRoots(isolate).nan_value();
 }
 
 // ES6 section 20.3.4.20 Date.prototype.setDate ( date )
@@ -245,7 +229,7 @@ BUILTIN(DatePrototypeSetDate) {
   Handle<Object> value = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, value,
                                      Object::ToNumber(isolate, value));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
@@ -253,8 +237,8 @@ BUILTIN(DatePrototypeSetDate) {
     int time_within_day = isolate->date_cache()->TimeInDay(local_time_ms, days);
     int year, month, day;
     isolate->date_cache()->YearMonthDayFromDays(days, &year, &month, &day);
-    time_val =
-        MakeDate(MakeDay(year, month, Object::Number(*value)), time_within_day);
+    time_val = MakeDate(MakeDay(year, month, Object::NumberValue(*value)),
+                        time_within_day);
   }
   return SetLocalDateValue(isolate, date, time_val);
 }
@@ -267,11 +251,11 @@ BUILTIN(DatePrototypeSetFullYear) {
   Handle<Object> year = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, year,
                                      Object::ToNumber(isolate, year));
-  double year_double = Object::Number(*year), month_double = 0.0,
+  double year_double = Object::NumberValue(*year), month_double = 0.0,
          day_double = 1.0;
   int time_within_day = 0;
-  if (!std::isnan(Object::Number(date->value()))) {
-    int64_t const time_ms = static_cast<int64_t>(Object::Number(date->value()));
+  if (!std::isnan(date->value())) {
+    int64_t const time_ms = static_cast<int64_t>(date->value());
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
     int const days = isolate->date_cache()->DaysFromTime(local_time_ms);
     time_within_day = isolate->date_cache()->TimeInDay(local_time_ms, days);
@@ -285,12 +269,12 @@ BUILTIN(DatePrototypeSetFullYear) {
     Handle<Object> month = args.at(2);
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, month,
                                        Object::ToNumber(isolate, month));
-    month_double = Object::Number(*month);
+    month_double = Object::NumberValue(*month);
     if (argc >= 3) {
       Handle<Object> day = args.at(3);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, day,
                                          Object::ToNumber(isolate, day));
-      day_double = Object::Number(*day);
+      day_double = Object::NumberValue(*day);
     }
   }
   double time_val =
@@ -306,8 +290,8 @@ BUILTIN(DatePrototypeSetHours) {
   Handle<Object> hour = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, hour,
                                      Object::ToNumber(isolate, hour));
-  double h = Object::Number(*hour);
-  double time_val = Object::Number(date->value());
+  double h = Object::NumberValue(*hour);
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
@@ -320,17 +304,17 @@ BUILTIN(DatePrototypeSetHours) {
       Handle<Object> min = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, min,
                                          Object::ToNumber(isolate, min));
-      m = Object::Number(*min);
+      m = Object::NumberValue(*min);
       if (argc >= 3) {
         Handle<Object> sec = args.at(3);
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, sec,
                                            Object::ToNumber(isolate, sec));
-        s = Object::Number(*sec);
+        s = Object::NumberValue(*sec);
         if (argc >= 4) {
           Handle<Object> ms = args.at(4);
           ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                              Object::ToNumber(isolate, ms));
-          milli = Object::Number(*ms);
+          milli = Object::NumberValue(*ms);
         }
       }
     }
@@ -346,7 +330,7 @@ BUILTIN(DatePrototypeSetMilliseconds) {
   Handle<Object> ms = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                      Object::ToNumber(isolate, ms));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
@@ -355,7 +339,7 @@ BUILTIN(DatePrototypeSetMilliseconds) {
     int h = time_within_day / (60 * 60 * 1000);
     int m = (time_within_day / (60 * 1000)) % 60;
     int s = (time_within_day / 1000) % 60;
-    time_val = MakeDate(day, MakeTime(h, m, s, Object::Number(*ms)));
+    time_val = MakeDate(day, MakeTime(h, m, s, Object::NumberValue(*ms)));
   }
   return SetLocalDateValue(isolate, date, time_val);
 }
@@ -368,26 +352,26 @@ BUILTIN(DatePrototypeSetMinutes) {
   Handle<Object> min = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, min,
                                      Object::ToNumber(isolate, min));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
     int day = isolate->date_cache()->DaysFromTime(local_time_ms);
     int time_within_day = isolate->date_cache()->TimeInDay(local_time_ms, day);
     int h = time_within_day / (60 * 60 * 1000);
-    double m = Object::Number(*min);
+    double m = Object::NumberValue(*min);
     double s = (time_within_day / 1000) % 60;
     double milli = time_within_day % 1000;
     if (argc >= 2) {
       Handle<Object> sec = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, sec,
                                          Object::ToNumber(isolate, sec));
-      s = Object::Number(*sec);
+      s = Object::NumberValue(*sec);
       if (argc >= 3) {
         Handle<Object> ms = args.at(3);
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                            Object::ToNumber(isolate, ms));
-        milli = Object::Number(*ms);
+        milli = Object::NumberValue(*ms);
       }
     }
     time_val = MakeDate(day, MakeTime(h, m, s, milli));
@@ -403,7 +387,7 @@ BUILTIN(DatePrototypeSetMonth) {
   Handle<Object> month = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, month,
                                      Object::ToNumber(isolate, month));
-  double time_val = Object::Number(this_date->value());
+  double time_val = this_date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
@@ -411,13 +395,13 @@ BUILTIN(DatePrototypeSetMonth) {
     int time_within_day = isolate->date_cache()->TimeInDay(local_time_ms, days);
     int year, unused, day;
     isolate->date_cache()->YearMonthDayFromDays(days, &year, &unused, &day);
-    double m = Object::Number(*month);
+    double m = Object::NumberValue(*month);
     double dt = day;
     if (argc >= 2) {
       Handle<Object> date = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, date,
                                          Object::ToNumber(isolate, date));
-      dt = Object::Number(*date);
+      dt = Object::NumberValue(*date);
     }
     time_val = MakeDate(MakeDay(year, m, dt), time_within_day);
   }
@@ -432,7 +416,7 @@ BUILTIN(DatePrototypeSetSeconds) {
   Handle<Object> sec = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, sec,
                                      Object::ToNumber(isolate, sec));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
@@ -440,13 +424,13 @@ BUILTIN(DatePrototypeSetSeconds) {
     int time_within_day = isolate->date_cache()->TimeInDay(local_time_ms, day);
     int h = time_within_day / (60 * 60 * 1000);
     double m = (time_within_day / (60 * 1000)) % 60;
-    double s = Object::Number(*sec);
+    double s = Object::NumberValue(*sec);
     double milli = time_within_day % 1000;
     if (argc >= 2) {
       Handle<Object> ms = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                          Object::ToNumber(isolate, ms));
-      milli = Object::Number(*ms);
+      milli = Object::NumberValue(*ms);
     }
     time_val = MakeDate(day, MakeTime(h, m, s, milli));
   }
@@ -460,7 +444,24 @@ BUILTIN(DatePrototypeSetTime) {
   Handle<Object> value = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, value,
                                      Object::ToNumber(isolate, value));
-  return *JSDate::SetValue(date, DateCache::TimeClip(Object::Number(*value)));
+  double value_double = Object::NumberValue(*value);
+
+  // Don't use SetDateValue here, since we might already have a tagged value for
+  // the time, and we don't want to reallocate it.
+  double clipped_value = value_double;
+  if (DateCache::TryTimeClip(&clipped_value)) {
+    date->SetValue(clipped_value);
+    // If the clipping didn't change the value (i.e. the value was already an
+    // integer), we can reuse the incoming value for the return value.
+    // Otherwise, we have to allocate a new value. Make sure to use
+    // SameNumberValue so that -0 is _not_ treated as equal to the 0.
+    if (Object::SameNumberValue(clipped_value, value_double)) {
+      return *value;
+    }
+    return *isolate->factory()->NewNumber(clipped_value);
+  }
+  date->SetNanValue();
+  return ReadOnlyRoots(isolate).nan_value();
 }
 
 // ES6 section 20.3.4.28 Date.prototype.setUTCDate ( date )
@@ -470,15 +471,15 @@ BUILTIN(DatePrototypeSetUTCDate) {
   Handle<Object> value = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, value,
                                      Object::ToNumber(isolate, value));
-  if (std::isnan(Object::Number(date->value()))) return date->value();
-  int64_t const time_ms = static_cast<int64_t>(Object::Number(date->value()));
+  if (std::isnan(date->value())) return ReadOnlyRoots(isolate).nan_value();
+  int64_t const time_ms = static_cast<int64_t>(date->value());
   int const days = isolate->date_cache()->DaysFromTime(time_ms);
   int const time_within_day = isolate->date_cache()->TimeInDay(time_ms, days);
   int year, month, day;
   isolate->date_cache()->YearMonthDayFromDays(days, &year, &month, &day);
-  double const time_val =
-      MakeDate(MakeDay(year, month, Object::Number(*value)), time_within_day);
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  double const time_val = MakeDate(
+      MakeDay(year, month, Object::NumberValue(*value)), time_within_day);
+  return SetDateValue(isolate, date, time_val);
 }
 
 // ES6 section 20.3.4.29 Date.prototype.setUTCFullYear (year, month, date)
@@ -489,11 +490,11 @@ BUILTIN(DatePrototypeSetUTCFullYear) {
   Handle<Object> year = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, year,
                                      Object::ToNumber(isolate, year));
-  double year_double = Object::Number(*year), month_double = 0.0,
+  double year_double = Object::NumberValue(*year), month_double = 0.0,
          day_double = 1.0;
   int time_within_day = 0;
-  if (!std::isnan(Object::Number(date->value()))) {
-    int64_t const time_ms = static_cast<int64_t>(Object::Number(date->value()));
+  if (!std::isnan(date->value())) {
+    int64_t const time_ms = static_cast<int64_t>(date->value());
     int const days = isolate->date_cache()->DaysFromTime(time_ms);
     time_within_day = isolate->date_cache()->TimeInDay(time_ms, days);
     int year_int, month_int, day_int;
@@ -506,17 +507,17 @@ BUILTIN(DatePrototypeSetUTCFullYear) {
     Handle<Object> month = args.at(2);
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, month,
                                        Object::ToNumber(isolate, month));
-    month_double = Object::Number(*month);
+    month_double = Object::NumberValue(*month);
     if (argc >= 3) {
       Handle<Object> day = args.at(3);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, day,
                                          Object::ToNumber(isolate, day));
-      day_double = Object::Number(*day);
+      day_double = Object::NumberValue(*day);
     }
   }
   double const time_val =
       MakeDate(MakeDay(year_double, month_double, day_double), time_within_day);
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  return SetDateValue(isolate, date, time_val);
 }
 
 // ES6 section 20.3.4.30 Date.prototype.setUTCHours(hour, min, sec, ms)
@@ -527,8 +528,8 @@ BUILTIN(DatePrototypeSetUTCHours) {
   Handle<Object> hour = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, hour,
                                      Object::ToNumber(isolate, hour));
-  double h = Object::Number(*hour);
-  double time_val = Object::Number(date->value());
+  double h = Object::NumberValue(*hour);
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int day = isolate->date_cache()->DaysFromTime(time_ms);
@@ -540,23 +541,23 @@ BUILTIN(DatePrototypeSetUTCHours) {
       Handle<Object> min = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, min,
                                          Object::ToNumber(isolate, min));
-      m = Object::Number(*min);
+      m = Object::NumberValue(*min);
       if (argc >= 3) {
         Handle<Object> sec = args.at(3);
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, sec,
                                            Object::ToNumber(isolate, sec));
-        s = Object::Number(*sec);
+        s = Object::NumberValue(*sec);
         if (argc >= 4) {
           Handle<Object> ms = args.at(4);
           ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                              Object::ToNumber(isolate, ms));
-          milli = Object::Number(*ms);
+          milli = Object::NumberValue(*ms);
         }
       }
     }
     time_val = MakeDate(day, MakeTime(h, m, s, milli));
   }
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  return SetDateValue(isolate, date, time_val);
 }
 
 // ES6 section 20.3.4.31 Date.prototype.setUTCMilliseconds(ms)
@@ -566,7 +567,7 @@ BUILTIN(DatePrototypeSetUTCMilliseconds) {
   Handle<Object> ms = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                      Object::ToNumber(isolate, ms));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int day = isolate->date_cache()->DaysFromTime(time_ms);
@@ -574,9 +575,9 @@ BUILTIN(DatePrototypeSetUTCMilliseconds) {
     int h = time_within_day / (60 * 60 * 1000);
     int m = (time_within_day / (60 * 1000)) % 60;
     int s = (time_within_day / 1000) % 60;
-    time_val = MakeDate(day, MakeTime(h, m, s, Object::Number(*ms)));
+    time_val = MakeDate(day, MakeTime(h, m, s, Object::NumberValue(*ms)));
   }
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  return SetDateValue(isolate, date, time_val);
 }
 
 // ES6 section 20.3.4.32 Date.prototype.setUTCMinutes ( min, sec, ms )
@@ -587,30 +588,30 @@ BUILTIN(DatePrototypeSetUTCMinutes) {
   Handle<Object> min = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, min,
                                      Object::ToNumber(isolate, min));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int day = isolate->date_cache()->DaysFromTime(time_ms);
     int time_within_day = isolate->date_cache()->TimeInDay(time_ms, day);
     int h = time_within_day / (60 * 60 * 1000);
-    double m = Object::Number(*min);
+    double m = Object::NumberValue(*min);
     double s = (time_within_day / 1000) % 60;
     double milli = time_within_day % 1000;
     if (argc >= 2) {
       Handle<Object> sec = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, sec,
                                          Object::ToNumber(isolate, sec));
-      s = Object::Number(*sec);
+      s = Object::NumberValue(*sec);
       if (argc >= 3) {
         Handle<Object> ms = args.at(3);
         ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                            Object::ToNumber(isolate, ms));
-        milli = Object::Number(*ms);
+        milli = Object::NumberValue(*ms);
       }
     }
     time_val = MakeDate(day, MakeTime(h, m, s, milli));
   }
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  return SetDateValue(isolate, date, time_val);
 }
 
 // ES6 section 20.3.4.31 Date.prototype.setUTCMonth ( month, date )
@@ -621,24 +622,24 @@ BUILTIN(DatePrototypeSetUTCMonth) {
   Handle<Object> month = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, month,
                                      Object::ToNumber(isolate, month));
-  double time_val = Object::Number(this_date->value());
+  double time_val = this_date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int days = isolate->date_cache()->DaysFromTime(time_ms);
     int time_within_day = isolate->date_cache()->TimeInDay(time_ms, days);
     int year, unused, day;
     isolate->date_cache()->YearMonthDayFromDays(days, &year, &unused, &day);
-    double m = Object::Number(*month);
+    double m = Object::NumberValue(*month);
     double dt = day;
     if (argc >= 2) {
       Handle<Object> date = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, date,
                                          Object::ToNumber(isolate, date));
-      dt = Object::Number(*date);
+      dt = Object::NumberValue(*date);
     }
     time_val = MakeDate(MakeDay(year, m, dt), time_within_day);
   }
-  return *JSDate::SetValue(this_date, DateCache::TimeClip(time_val));
+  return SetDateValue(isolate, this_date, time_val);
 }
 
 // ES6 section 20.3.4.34 Date.prototype.setUTCSeconds ( sec, ms )
@@ -649,33 +650,32 @@ BUILTIN(DatePrototypeSetUTCSeconds) {
   Handle<Object> sec = args.atOrUndefined(isolate, 1);
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, sec,
                                      Object::ToNumber(isolate, sec));
-  double time_val = Object::Number(date->value());
+  double time_val = date->value();
   if (!std::isnan(time_val)) {
     int64_t const time_ms = static_cast<int64_t>(time_val);
     int day = isolate->date_cache()->DaysFromTime(time_ms);
     int time_within_day = isolate->date_cache()->TimeInDay(time_ms, day);
     int h = time_within_day / (60 * 60 * 1000);
     double m = (time_within_day / (60 * 1000)) % 60;
-    double s = Object::Number(*sec);
+    double s = Object::NumberValue(*sec);
     double milli = time_within_day % 1000;
     if (argc >= 2) {
       Handle<Object> ms = args.at(2);
       ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, ms,
                                          Object::ToNumber(isolate, ms));
-      milli = Object::Number(*ms);
+      milli = Object::NumberValue(*ms);
     }
     time_val = MakeDate(day, MakeTime(h, m, s, milli));
   }
-  return *JSDate::SetValue(date, DateCache::TimeClip(time_val));
+  return SetDateValue(isolate, date, time_val);
 }
 
 // ES6 section 20.3.4.35 Date.prototype.toDateString ( )
 BUILTIN(DatePrototypeToDateString) {
   HandleScope scope(isolate);
   CHECK_RECEIVER(JSDate, date, "Date.prototype.toDateString");
-  DateBuffer buffer =
-      ToDateString(Object::Number(date->value()), isolate->date_cache(),
-                   ToDateStringMode::kLocalDate);
+  DateBuffer buffer = ToDateString(date->value(), isolate->date_cache(),
+                                   ToDateStringMode::kLocalDate);
   RETURN_RESULT_OR_FAILURE(
       isolate, isolate->factory()->NewStringFromUtf8(base::VectorOf(buffer)));
 }
@@ -684,7 +684,7 @@ BUILTIN(DatePrototypeToDateString) {
 BUILTIN(DatePrototypeToISOString) {
   HandleScope scope(isolate);
   CHECK_RECEIVER(JSDate, date, "Date.prototype.toISOString");
-  double const time_val = Object::Number(date->value());
+  double const time_val = date->value();
   if (std::isnan(time_val)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewRangeError(MessageTemplate::kInvalidTimeValue));
@@ -699,9 +699,8 @@ BUILTIN(DatePrototypeToISOString) {
 BUILTIN(DatePrototypeToString) {
   HandleScope scope(isolate);
   CHECK_RECEIVER(JSDate, date, "Date.prototype.toString");
-  DateBuffer buffer =
-      ToDateString(Object::Number(date->value()), isolate->date_cache(),
-                   ToDateStringMode::kLocalDateAndTime);
+  DateBuffer buffer = ToDateString(date->value(), isolate->date_cache(),
+                                   ToDateStringMode::kLocalDateAndTime);
   RETURN_RESULT_OR_FAILURE(
       isolate, isolate->factory()->NewStringFromUtf8(base::VectorOf(buffer)));
 }
@@ -710,9 +709,8 @@ BUILTIN(DatePrototypeToString) {
 BUILTIN(DatePrototypeToTimeString) {
   HandleScope scope(isolate);
   CHECK_RECEIVER(JSDate, date, "Date.prototype.toTimeString");
-  DateBuffer buffer =
-      ToDateString(Object::Number(date->value()), isolate->date_cache(),
-                   ToDateStringMode::kLocalTime);
+  DateBuffer buffer = ToDateString(date->value(), isolate->date_cache(),
+                                   ToDateStringMode::kLocalTime);
   RETURN_RESULT_OR_FAILURE(
       isolate, isolate->factory()->NewStringFromUtf8(base::VectorOf(buffer)));
 }
@@ -783,9 +781,8 @@ BUILTIN(DatePrototypeToLocaleTimeString) {
 BUILTIN(DatePrototypeToUTCString) {
   HandleScope scope(isolate);
   CHECK_RECEIVER(JSDate, date, "Date.prototype.toUTCString");
-  DateBuffer buffer =
-      ToDateString(Object::Number(date->value()), isolate->date_cache(),
-                   ToDateStringMode::kUTCDateAndTime);
+  DateBuffer buffer = ToDateString(date->value(), isolate->date_cache(),
+                                   ToDateStringMode::kUTCDateAndTime);
   RETURN_RESULT_OR_FAILURE(
       isolate, isolate->factory()->NewStringFromUtf8(base::VectorOf(buffer)));
 }
@@ -794,8 +791,8 @@ BUILTIN(DatePrototypeToUTCString) {
 BUILTIN(DatePrototypeGetYear) {
   HandleScope scope(isolate);
   CHECK_RECEIVER(JSDate, date, "Date.prototype.getYear");
-  double time_val = Object::Number(date->value());
-  if (std::isnan(time_val)) return date->value();
+  double time_val = date->value();
+  if (std::isnan(time_val)) return ReadOnlyRoots(isolate).nan_value();
   int64_t time_ms = static_cast<int64_t>(time_val);
   int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
   int days = isolate->date_cache()->DaysFromTime(local_time_ms);
@@ -812,7 +809,7 @@ BUILTIN(DatePrototypeSetYear) {
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, year,
                                      Object::ToNumber(isolate, year));
   double month_double = 0.0, day_double = 1.0,
-         year_double = Object::Number(*year);
+         year_double = Object::NumberValue(*year);
   if (!std::isnan(year_double)) {
     double year_int = DoubleToInteger(year_double);
     if (0.0 <= year_int && year_int <= 99.0) {
@@ -820,8 +817,8 @@ BUILTIN(DatePrototypeSetYear) {
     }
   }
   int time_within_day = 0;
-  if (!std::isnan(Object::Number(date->value()))) {
-    int64_t const time_ms = static_cast<int64_t>(Object::Number(date->value()));
+  if (!std::isnan(date->value())) {
+    int64_t const time_ms = static_cast<int64_t>(date->value());
     int64_t local_time_ms = isolate->date_cache()->ToLocal(time_ms);
     int const days = isolate->date_cache()->DaysFromTime(local_time_ms);
     time_within_day = isolate->date_cache()->TimeInDay(local_time_ms, days);
@@ -847,7 +844,7 @@ BUILTIN(DatePrototypeToJson) {
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, primitive,
       Object::ToPrimitive(isolate, receiver_obj, ToPrimitiveHint::kNumber));
-  if (IsNumber(*primitive) && !std::isfinite(Object::Number(*primitive))) {
+  if (IsNumber(*primitive) && !std::isfinite(Object::NumberValue(*primitive))) {
     return ReadOnlyRoots(isolate).null_value();
   } else {
     Handle<String> name =
@@ -872,7 +869,8 @@ BUILTIN(DatePrototypeToTemporalInstant) {
   Handle<BigInt> t;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, t,
-      BigInt::FromNumber(isolate, Handle<Object>(date->value(), isolate)));
+      BigInt::FromNumber(isolate,
+                         isolate->factory()->NewNumber(date->value())));
   // 2. Let ns be ? NumberToBigInt(t) × 10^6.
   Handle<BigInt> ns;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(

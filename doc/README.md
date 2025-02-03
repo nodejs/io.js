@@ -1,117 +1,234 @@
-# Documentation style guide
+# Node.js documentation style guide
 
-This style guide helps us create organized and easy-to-read documentation. It
-provides guidelines for organization, spelling, formatting, and more.
+This guide provides clear and concise instructions to help you create well-organized and readable documentation for
+the Node.js community. It covers organization, spelling, formatting, and more to ensure consistency and
+professionalism across all documents.
 
-These are guidelines rather than strict rules. Content is more important than
-formatting. You do not need to learn the entire style guide before contributing
-to documentation. Someone can always edit your material later to conform with
-this guide.
+## Table of contents
 
-* Documentation is in markdown files with names formatted as
-  `lowercase-with-dashes.md`.
-  * Use an underscore in the filename only if the underscore is part of the
-    topic name (e.g., `child_process`).
-  * Some files, such as top-level markdown files, are exceptions.
-* Documents should be word-wrapped at 80 characters.
-* `.editorconfig` describes the preferred formatting.
-  * A [plugin][] is available for some editors to apply these rules.
-* Check changes to documentation with `make test-doc -j` or `vcbuild test-doc`.
-* [Use US spelling][].
-* [Use serial commas][].
+1. [General Guidelines](#general-guidelines)
+2. [Writing Style](#writing-style)
+3. [Punctuation](#punctuation)
+4. [Document Structure](#document-structure)
+5. [API Documentation](#api-documentation)
+6. [Code Blocks](#code-blocks)
+7. [Formatting](#formatting)
+8. [Product and Project Naming](#product-and-project-naming)
+
+***
+
+## General guidelines
+
+### File naming
+
+* **Markdown Files:** Use `lowercase-with-dashes.md`.
+  * Use underscores only if they are part of the topic name (e.g., `child_process`).
+  * Some files, like top-level Markdown files, may be exceptions.
+
+### Text wrapping
+
+* Wrap documents at 120 characters per line to enhance readability and version control.
+
+### Editor configuration
+
+* Follow the formatting rules specified in `.editorconfig`.
+  * A [plugin][] is available for some editors to enforce these rules.
+
+### Testing documentation
+
+* Validate documentation changes using `make test-doc -j` or `vcbuild test-doc`.
+
+***
+
+## Writing style
+
+### Spelling and grammar
+
+* **Spelling:** Use [US spelling][].
+* **Grammar:** Use clear, concise language. Avoid unnecessary jargon.
+
+### Commas
+
+* **Serial Commas:** Use [serial commas][] for clarity.
+  * Example: _apples, oranges<b>,</b> and bananas_
+
+### Pronouns
+
 * Avoid first-person pronouns (_I_, _we_).
-  * Exception: _we recommend foo_ is preferable to _foo is recommended_.
-* Use gender-neutral pronouns and gender-neutral plural nouns.
+  * Exception: Use _we recommend foo_ instead of _foo is recommended_.
+
+### Gender-neutral language
+
+* Use gender-neutral pronouns and plural nouns.
   * OK: _they_, _their_, _them_, _folks_, _people_, _developers_
   * NOT OK: _his_, _hers_, _him_, _her_, _guys_, _dudes_
-* When combining wrapping elements (parentheses and quotes), place terminal
-  punctuation:
-  * Inside the wrapping element if the wrapping element contains a complete
-    clause.
-  * Outside of the wrapping element if the wrapping element contains only a
-    fragment of a clause.
-* Documents must start with a level-one heading.
-* Prefer affixing links (`[a link][]`) to inlining links
-  (`[a link](http://example.com)`).
-* When documenting APIs, update the YAML comment associated with the API as
-  appropriate. This is especially true when introducing or deprecating an API.
-* When documenting APIs, every function should have a usage example or
-  link to an example that uses the function.
-* For code blocks:
-  * Use [language][]-aware fences. (<code>\`\`\`js</code>)
 
-  * For the [info string][], use one of the following.
+### Terminology
 
-    | Meaning       | Info string  |
-    | ------------- | ------------ |
-    | Bash          | `bash`       |
-    | C             | `c`          |
-    | C++           | `cpp`        |
-    | CoffeeScript  | `coffee`     |
-    | Diff          | `diff`       |
-    | HTTP          | `http`       |
-    | JavaScript    | `js`         |
-    | JSON          | `json`       |
-    | Markdown      | `markdown`   |
-    | Plaintext     | `text`       |
-    | Powershell    | `powershell` |
-    | R             | `r`          |
-    | Shell Session | `console`    |
+* Use precise technical terms and avoid colloquialisms.
+* Define any specialized terms or acronyms at first use.
 
-    If one of your language-aware fences needs an info string that is not
-    already on this list, you may use `text` until the grammar gets added to
-    [`remark-preset-lint-node`][].
+***
 
-  * Code need not be complete. Treat code blocks as an illustration or aid to
-    your point, not as complete running programs. If a complete running program
-    is necessary, include it as an asset in `assets/code-examples` and link to
-    it.
-* When using underscores, asterisks, and backticks, please use
-  backslash-escaping: `\_`, `\*`, and ``\` ``.
-* Constructors should use PascalCase.
-* Instances should use camelCase.
-* Denote methods with parentheses: `socket.end()` instead of `socket.end`.
-* Function arguments or object properties should use the following format:
-  * ``* `name` {type|type2} Optional description. **Default:** `value`.``
-  <!--lint disable maximum-line-length remark-lint-->
-  * For example: <code>\* `byteOffset` {integer} Index of first byte to expose. **Default:** `0`.</code>
-  <!--lint enable maximum-line-length remark-lint-->
-  * The `type` should refer to a Node.js type or a [JavaScript type][].
-* Function returns should use the following format:
-  * <code>\* Returns: {type|type2} Optional description.</code>
-  * E.g. <code>\* Returns: {AsyncHook} A reference to `asyncHook`.</code>
-* Use official styling for capitalization in products and projects.
-  * OK: JavaScript, Google's V8
-  <!--lint disable prohibited-strings remark-lint-->
-  * NOT OK: Javascript, Google's v8
-* Use _Node.js_ and not _Node_, _NodeJS_, or similar variants.
-  <!-- lint enable prohibited-strings remark-lint-->
-  * When referring to the executable, _`node`_ is acceptable.
-* [Be direct][].
+## Punctuation
+
+### Terminal punctuation
+
+* Place inside parentheses or quotes if the content is a complete clause.
+* Place outside if the content is a fragment of a clause.
+
+### Quotation marks
+
+* Use double quotation marks for direct quotes.
+* Use single quotation marks for quotes within quotes.
+
+### Colons and semicolons
+
+* Use colons to introduce lists or explanations.
+* Use semicolons to link closely related independent clauses.
+
+***
+
+## Document structure
+
+### Headings
+
+* Start documents with a level-one heading (`#`).
+* Use subsequent headings (`##`, `###`, etc.) to organize content hierarchically.
+
+### Links
+
+* Prefer reference-style links (`[a link][]`) over inline links (`[a link](http://example.com)`).
+
+### Lists
+
+* Use bullet points for unordered lists and numbers for ordered lists.
+* Keep list items parallel in structure.
+
+### Tables
+
+* Use tables to present structured information clearly. Ensure they are readable in plain text.
+
+***
+
+## API documentation
+
+### YAML comments
+
+* Update the YAML comments associated with the API, especially when introducing or deprecating an API.
+
+### Usage examples
+
+* Provide a usage example or a link to an example for every function.
+
+### Parameter descriptions
+
+* Clearly describe parameters and return values, including types and defaults.
+  * Example:
+    ```markdown
+    * `byteOffset` {integer} Index of first byte to expose. **Default:** `0`.
+    ```
+
+***
+
+## Code blocks
+
+### Language-aware fences
+
+* Use language-aware fences (e.g., ` ```js `) for code blocks.
+
+  * **Info String:** Use the appropriate info string from the following list:
+
+    | Language         | Info String  |
+    | ---------------- | ------------ |
+    | Bash             | `bash`       |
+    | C                | `c`          |
+    | CommonJS         | `cjs`        |
+    | CoffeeScript     | `coffee`     |
+    | Terminal Session | `console`    |
+    | C++              | `cpp`        |
+    | Diff             | `diff`       |
+    | HTTP             | `http`       |
+    | JavaScript       | `js`         |
+    | JSON             | `json`       |
+    | Markdown         | `markdown`   |
+    | EcmaScript       | `mjs`        |
+    | Powershell       | `powershell` |
+    | R                | `r`          |
+    | Plaintext        | `text`       |
+    | TypeScript       | `typescript` |
+
+  * Use `text` for languages not listed until their grammar is added to [`remark-preset-lint-node`][].
+
+### Code comments
+
+* Use comments to explain complex logic within code examples.
+* Follow the standard commenting style of the respective language.
+
+***
+
+## Formatting
+
+### Escaping characters
+
+* Use backslash-escaping for underscores, asterisks, and backticks: `\_`, `\*`, `` \` ``.
+
+### Naming conventions
+
+* **Constructors:** Use PascalCase.
+* **Instances:** Use camelCase.
+* **Methods:** Indicate methods with parentheses: `socket.end()` instead of `socket.end`.
+
+### Function arguments and returns
+
+* **Arguments:**
+  ```markdown
+  * `name` {type|type2} Optional description. **Default:** `value`.
+  ```
+  Example:
+  ```markdown
+  * `byteOffset` {integer} Index of first byte to expose. **Default:** `0`.
+  ```
+* **Returns:**
+  ```markdown
+  * Returns: {type|type2} Optional description.
+  ```
+  Example:
+  ```markdown
+  * Returns: {AsyncHook} A reference to `asyncHook`.
+  ```
+
+***
+
+## Product and project naming
 
 <!-- lint disable prohibited-strings remark-lint-->
 
-* When referring to a version of Node.js in prose, use _Node.js_ and the version
-  number. Do not prefix the version number with _v_ in prose. This is to avoid
-  confusion about whether _v8_ refers to Node.js 8.x or the V8 JavaScript
-  engine.
-  <!-- lint enable prohibited-strings remark-lint-->
+### Official styling
+
+* Use official capitalization for products and projects.
+  * OK: JavaScript, Google's V8
+  * NOT OK: Javascript, Google's v8
+
+### Node.js references
+
+* Use _Node.js_ instead of _Node_, _NodeJS_, or similar variants.
+  * For the executable, _`node`_ is acceptable.
+
+### Version references
+
+* Use _Node.js_ and the version number in prose. Do not prefix the version number with _v_.
   * OK: _Node.js 14.x_, _Node.js 14.3.1_
   * NOT OK: _Node.js v14_
-* [Use sentence-style capitalization for headings][].
 
-See also API documentation structure overview in [doctools README][].
+<!-- lint enable prohibited-strings remark-lint-->
 
-For topics not covered here, refer to the [Microsoft Writing Style Guide][].
+For topics not addressed here, please consult the [Microsoft Writing Style Guide][].
 
-[Be direct]: https://docs.microsoft.com/en-us/style-guide/word-choice/use-simple-words-concise-sentences
-[Javascript type]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#Data_structures_and_types
-[Microsoft Writing Style Guide]: https://docs.microsoft.com/en-us/style-guide/welcome/
-[Use US spelling]: https://docs.microsoft.com/en-us/style-guide/word-choice/use-us-spelling-avoid-non-english-words
-[Use sentence-style capitalization for headings]: https://docs.microsoft.com/en-us/style-guide/scannable-content/headings#formatting-headings
-[Use serial commas]: https://docs.microsoft.com/en-us/style-guide/punctuation/commas
+***
+
+[Microsoft Writing Style Guide]: https://learn.microsoft.com/en-us/style-guide/welcome/
+[US spelling]: https://learn.microsoft.com/en-us/style-guide/word-choice/use-us-spelling-avoid-non-english-words
 [`remark-preset-lint-node`]: https://github.com/nodejs/remark-preset-lint-node
-[doctools README]: ../tools/doc/README.md
-[info string]: https://github.github.com/gfm/#info-string
-[language]: https://github.com/highlightjs/highlight.js/blob/HEAD/SUPPORTED_LANGUAGES.md
 [plugin]: https://editorconfig.org/#download
+[serial commas]: https://learn.microsoft.com/en-us/style-guide/punctuation/commas

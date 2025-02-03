@@ -35,6 +35,7 @@ enum class JumpMode {
 };
 
 enum class SmiCheck { kOmit, kInline };
+enum class ReadOnlyCheck { kOmit, kInline };
 
 enum class ComparisonMode {
   // The default compare mode will use a 32-bit comparison when pointer
@@ -50,6 +51,8 @@ enum class SetIsolateDataSlots {
   kYes,
 };
 
+enum class ArgumentAdaptionMode { kAdapt, kDontAdapt };
+
 // This is the only place allowed to include the platform-specific headers.
 #define INCLUDED_FROM_MACRO_ASSEMBLER_H
 #if V8_TARGET_ARCH_IA32
@@ -62,7 +65,7 @@ enum class SetIsolateDataSlots {
 #elif V8_TARGET_ARCH_ARM
 #include "src/codegen/arm/constants-arm.h"
 #include "src/codegen/arm/macro-assembler-arm.h"
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
 #include "src/codegen/ppc/constants-ppc.h"
 #include "src/codegen/ppc/macro-assembler-ppc.h"
 #elif V8_TARGET_ARCH_MIPS64
@@ -97,7 +100,7 @@ static constexpr int kMaxCParameters = 256;
 class V8_NODISCARD FrameScope {
  public:
   explicit FrameScope(MacroAssembler* masm, StackFrame::Type type,
-                      SourceLocation loc = SourceLocation())
+                      const SourceLocation& loc = SourceLocation())
       :
 #ifdef V8_CODE_COMMENTS
         comment_(masm, frame_name(type), loc),

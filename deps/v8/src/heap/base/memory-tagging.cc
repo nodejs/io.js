@@ -16,6 +16,12 @@ SuspendTagCheckingScope::SuspendTagCheckingScope() noexcept {
 #if SUPPORTS_MTE
   v8::base::CPU cpu;
   if (V8_UNLIKELY(cpu.has_mte())) {
+    uint64_t val;
+    // Do a test to see if anything else has interfered with TCO.
+    // We expect TCO to be unset here.
+    asm volatile(".arch_extension memtag \n mrs %0, tco" : "=r"(val));
+    CHECK_EQ(val, 0);
+
     // Suspend tag checks via PSTATE.TCO.
     asm volatile(".arch_extension memtag \n msr tco, #1" ::: "memory");
   }
@@ -28,6 +34,7 @@ SuspendTagCheckingScope::~SuspendTagCheckingScope() {
   if (V8_UNLIKELY(cpu.has_mte())) {
     uint64_t val;
     // Do a test to see if anything else has interfered with TCO.
+    // We expect TCO to be set here.
     asm volatile(".arch_extension memtag \n mrs %0, tco" : "=r"(val));
     CHECK_EQ(val, 1u << 25);
 

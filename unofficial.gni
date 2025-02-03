@@ -22,6 +22,11 @@ template("node_gn_build") {
     } else {
       defines += [ "HAVE_OPENSSL=0" ]
     }
+    if (node_use_amaro) {
+      defines += [ "HAVE_AMARO=1" ]
+    } else {
+      defines += [ "HAVE_AMARO=0" ]
+    }
     if (node_use_v8_platform) {
       defines += [ "NODE_USE_V8_PLATFORM=1" ]
     } else {
@@ -68,6 +73,7 @@ template("node_gn_build") {
       "-Wno-extra-semi",
       "-Wno-implicit-fallthrough",
       "-Wno-macro-redefined",
+      "-Wno-missing-braces",
       "-Wno-return-type",
       "-Wno-shadow",
       "-Wno-sometimes-uninitialized",
@@ -85,7 +91,7 @@ template("node_gn_build") {
     if (current_cpu == "x86") {
       node_arch = "ia32"
     } else {
-      node_arch = current_cpu
+      node_arch = target_cpu
     }
     if (target_os == "win") {
       node_platform = "win32"
@@ -139,7 +145,7 @@ template("node_gn_build") {
     public_deps = [
       "deps/ada",
       "deps/uv",
-      "deps/base64",
+      "deps/simdjson",
       "$node_v8_path",
     ]
     deps = [
@@ -148,13 +154,14 @@ template("node_gn_build") {
       "deps/cares",
       "deps/histogram",
       "deps/llhttp",
+      "deps/nbytes",
       "deps/nghttp2",
       "deps/ngtcp2",
       "deps/postject",
-      "deps/simdjson",
-      "deps/simdutf",
+      "deps/sqlite",
       "deps/uvwasi",
       "//third_party/zlib",
+      "$node_simdutf_path",
       "$node_v8_path:v8_libplatform",
     ]
 
@@ -177,11 +184,13 @@ template("node_gn_build") {
       deps += [ "//third_party/icu" ]
     }
     if (node_use_openssl) {
-      public_deps += [ "deps/openssl" ]
+      deps += [ "deps/ncrypto" ]
+      public_deps += [ "$node_openssl_path" ]
       sources += gypi_values.node_crypto_sources
     }
     if (node_enable_inspector) {
       deps += [
+        "src/inspector:crdtp",
         "src/inspector:node_protocol_generated_sources",
         "src/inspector:v8_inspector_compress_protocol_json",
       ]
@@ -235,12 +244,29 @@ template("node_gn_build") {
   if (node_use_node_snapshot) {
     if (current_toolchain == v8_snapshot_toolchain) {
       executable("node_mksnapshot") {
-        configs += [ ":node_internal_config" ]
+        configs += [ ":node_internal_config", ":disable_icf" ]
         sources = [
           "src/node_snapshot_stub.cc",
           "tools/snapshot/node_mksnapshot.cc",
         ]
         deps = [ ":libnode" ]
+      }
+
+      # This config disables a link time optimization "ICF", which may merge
+      # different functions into one if the function signature and body of them are
+      # identical.
+      #
+      # ICF breaks 1:1 mappings of the external references for V8 snapshot, so we
+      # disable it while taking a V8 snapshot.
+      config("disable_icf") {
+        visibility = [ ":*" ]  # Only targets in this file can depend on this.
+        if (is_win) {
+          ldflags = [ "/OPT:NOICF" ]  # link.exe, but also lld-link.exe.
+        } else if (is_apple && !use_lld) {
+          ldflags = [ "-Wl,-no_deduplicate" ]  # ld64.
+        } else if ((!is_apple && use_gold) || use_lld) {
+          ldflags = [ "-Wl,--icf=none" ]
+        }
       }
     }
 
@@ -262,6 +288,7 @@ template("node_gn_build") {
   }
 
   action("generate_config_gypi") {
+    deps = [ "$node_v8_path:v8_generate_features_json" ]
     script = "tools/generate_config_gypi.py"
     outputs = [ "$target_gen_dir/config.gypi" ]
     depfile = "$target_gen_dir/$target_name.d"
@@ -274,8 +301,8 @@ template("node_gn_build") {
 
   executable("node_js2c") {
     deps = [
-      "deps/simdutf",
       "deps/uv",
+      "$node_simdutf_path",
     ]
     sources = [
       "tools/js2c.cc",
@@ -331,11 +358,13 @@ template("node_gn_build") {
       ":libnode",
       "deps/googletest",
       "deps/googletest:gtest_main",
-      "deps/simdutf",
+      "deps/nbytes",
+      "$node_simdutf_path",
     ]
 
     sources = gypi_values.node_cctest_sources
     if (node_use_openssl) {
+      deps += [ "deps/ncrypto" ]
       sources += gypi_values.node_cctest_openssl_sources
     }
     if (node_enable_inspector) {
@@ -347,6 +376,7 @@ template("node_gn_build") {
     output_name = "embedtest"
     testonly = true
     deps = [ ":libnode" ]
+    include_dirs = [ "tools" ]
     sources = [
       "src/node_snapshot_stub.cc",
       "test/embedding/embedtest.cc",

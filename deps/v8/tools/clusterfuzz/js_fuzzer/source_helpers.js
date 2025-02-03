@@ -49,11 +49,28 @@ const BABYLON_OPTIONS = {
 const BABYLON_REPLACE_VAR_OPTIONS = Object.assign({}, BABYLON_OPTIONS);
 BABYLON_REPLACE_VAR_OPTIONS['placeholderPattern'] = /^VAR_[0-9]+$/;
 
+function _idEquals(exp, name) {
+  return babelTypes.isIdentifier(exp) && exp.name == name;
+}
+
+function _isV8NewAPIExecute(exp) {
+  // exp is a member expression resolving to 'd8.file.execute'
+  return (_hasMemberProperty(exp, 'execute') &&
+          _hasMemberProperty(exp.object, 'file') &&
+          _idEquals(exp.object.object, 'd8'));
+}
+
+function _hasMemberProperty(exp, name) {
+  // 'exp' is a member expression with property <name>
+  return babelTypes.isMemberExpression(exp) && _idEquals(exp.property, name);
+}
+
 function _isV8OrSpiderMonkeyLoad(path) {
-  // 'load' and 'loadRelativeToScript' used by V8 and SpiderMonkey.
-  return (babelTypes.isIdentifier(path.node.callee) &&
-          (path.node.callee.name == 'load' ||
-           path.node.callee.name == 'loadRelativeToScript') &&
+  // 'load' and 'loadRelativeToScript' used by V8's old API and SpiderMonkey.
+  // 'd8.file.execute' used by V8's new API.
+  return ((_idEquals(path.node.callee, 'load') ||
+           _idEquals(path.node.callee, 'loadRelativeToScript') ||
+           _isV8NewAPIExecute(path.node.callee)) &&
           path.node.arguments.length == 1 &&
           babelTypes.isStringLiteral(path.node.arguments[0]));
 }

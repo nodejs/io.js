@@ -149,15 +149,10 @@ threadpool).
 Refer to `crypto_keys.h` and `crypto_keys.cc` for all code relating to the
 core key objects.
 
-#### `ManagedEVPPKey`
-
-The `ManagedEVPPKey` class is a smart pointer for OpenSSL `EVP_PKEY`
-structures. These manage the lifecycle of Public and Private key pairs.
-
 #### `KeyObjectData`
 
 `KeyObjectData` is an internal thread-safe structure used to wrap either
-a `ManagedEVPPKey` (for Public or Private keys) or a `ByteSource` containing
+a `EVPKeyPointer` (for Public or Private keys) or a `ByteSource` containing
 a Secret key.
 
 #### `KeyObjectHandle`

@@ -13,6 +13,8 @@
 
 #if V8_OS_DARWIN
 #include <dispatch/dispatch.h>
+#elif V8_OS_ZOS
+#include "zos-semaphore.h"
 #elif V8_OS_POSIX
 #include <semaphore.h>
 #endif

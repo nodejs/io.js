@@ -48,7 +48,7 @@ class FunctorClass {
   explicit FunctorClass(Callback callback) : callback_(std::move(callback)) {}
 
   FunctorClass(FunctorClass&& other)
-      : callback_(absl::exchange(other.callback_, Callback())) {}
+      : callback_(std::exchange(other.callback_, Callback())) {}
 
   FunctorClass(const FunctorClass&) = delete;
 

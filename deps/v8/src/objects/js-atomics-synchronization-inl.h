@@ -29,9 +29,101 @@ JSSynchronizationPrimitive::AtomicStatePtr() {
   return base::AsAtomicPtr(state_ptr);
 }
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(JSAtomicsMutex)
+void JSSynchronizationPrimitive::SetNullWaiterQueueHead() {
+#if V8_COMPRESS_POINTERS
+  base::AsAtomic32::Relaxed_Store(waiter_queue_head_handle_location(),
+                                  kNullExternalPointerHandle);
+#else
+  base::AsAtomicPointer::Relaxed_Store(waiter_queue_head_location(), nullptr);
+#endif  // V8_COMPRESS_POINTERS
+}
 
-CAST_ACCESSOR(JSAtomicsMutex)
+#if V8_COMPRESS_POINTERS
+ExternalPointerHandle*
+JSSynchronizationPrimitive::waiter_queue_head_handle_location() const {
+  Address location = field_address(kWaiterQueueHeadOffset);
+  return reinterpret_cast<ExternalPointerHandle*>(location);
+}
+#else
+WaiterQueueNode** JSSynchronizationPrimitive::waiter_queue_head_location()
+    const {
+  Address location = field_address(kWaiterQueueHeadOffset);
+  return reinterpret_cast<WaiterQueueNode**>(location);
+}
+#endif  // V8_COMPRESS_POINTERS
+
+WaiterQueueNode* JSSynchronizationPrimitive::DestructivelyGetWaiterQueueHead(
+    Isolate* requester) {
+  if (V8_UNLIKELY(DEBUG_BOOL)) {
+    StateT state = AtomicStatePtr()->load(std::memory_order_relaxed);
+    DCHECK(IsWaiterQueueLockedField::decode(state));
+    USE(state);
+  }
+#if V8_COMPRESS_POINTERS
+  ExternalPointerHandle handle =
+      base::AsAtomic32::Relaxed_Load(waiter_queue_head_handle_location());
+  if (handle == kNullExternalPointerHandle) return nullptr;
+  // Clear external pointer after decoding as a safeguard, no other thread
+  // should be trying to access though the same non-null handle.
+  WaiterQueueNode* waiter_head = reinterpret_cast<WaiterQueueNode*>(
+      requester->shared_external_pointer_table().Exchange(handle, kNullAddress,
+                                                          kWaiterQueueNodeTag));
+  CHECK_NOT_NULL(waiter_head);
+  return waiter_head;
+#else
+  return base::AsAtomicPointer::Relaxed_Load(waiter_queue_head_location());
+#endif  // V8_COMPRESS_POINTERS
+}
+
+JSSynchronizationPrimitive::StateT
+JSSynchronizationPrimitive::SetWaiterQueueHead(Isolate* requester,
+                                               WaiterQueueNode* waiter_head,
+                                               StateT new_state) {
+  if (V8_UNLIKELY(DEBUG_BOOL)) {
+    StateT state = AtomicStatePtr()->load(std::memory_order_relaxed);
+    DCHECK(IsWaiterQueueLockedField::decode(state));
+    USE(state);
+  }
+#if V8_COMPRESS_POINTERS
+  if (waiter_head) {
+    new_state = HasWaitersField::update(new_state, true);
+    ExternalPointerHandle handle =
+        base::AsAtomic32::Relaxed_Load(waiter_queue_head_handle_location());
+    ExternalPointerTable& table = requester->shared_external_pointer_table();
+    if (handle == kNullExternalPointerHandle) {
+      handle = table.AllocateAndInitializeEntry(
+          requester->shared_external_pointer_space(),
+          reinterpret_cast<Address>(waiter_head), kWaiterQueueNodeTag);
+      // Use a Release_Store to ensure that the store of the pointer into the
+      // table is not reordered after the store of the handle. Otherwise, other
+      // threads may access an uninitialized table entry and crash.
+      base::AsAtomic32::Release_Store(waiter_queue_head_handle_location(),
+                                      handle);
+      return new_state;
+    }
+    if (DEBUG_BOOL) {
+      Address old = requester->shared_external_pointer_table().Exchange(
+          handle, reinterpret_cast<Address>(waiter_head), kWaiterQueueNodeTag);
+      DCHECK_EQ(kNullAddress, old);
+      USE(old);
+    } else {
+      requester->shared_external_pointer_table().Set(
+          handle, reinterpret_cast<Address>(waiter_head), kWaiterQueueNodeTag);
+    }
+  } else {
+    new_state = HasWaitersField::update(new_state, false);
+    base::AsAtomic32::Relaxed_Store(waiter_queue_head_handle_location(),
+                                    kNullExternalPointerHandle);
+  }
+#else
+  new_state = HasWaitersField::update(new_state, waiter_head);
+  base::AsAtomicPointer::Relaxed_Store(waiter_queue_head_location(),
+                                       waiter_head);
+#endif  // V8_COMPRESS_POINTERS
+  return new_state;
+}
+
+TQ_OBJECT_CONSTRUCTORS_IMPL(JSAtomicsMutex)
 
 JSAtomicsMutex::LockGuardBase::LockGuardBase(Isolate* isolate,
                                              Handle<JSAtomicsMutex> mutex,
@@ -44,7 +136,7 @@ JSAtomicsMutex::LockGuardBase::~LockGuardBase() {
 
 JSAtomicsMutex::LockGuard::LockGuard(Isolate* isolate,
                                      Handle<JSAtomicsMutex> mutex,
-                                     base::Optional<base::TimeDelta> timeout)
+                                     std::optional<base::TimeDelta> timeout)
     : LockGuardBase(isolate, mutex,
                     JSAtomicsMutex::Lock(isolate, mutex, timeout)) {}
 
@@ -53,8 +145,10 @@ JSAtomicsMutex::TryLockGuard::TryLockGuard(Isolate* isolate,
     : LockGuardBase(isolate, mutex, mutex->TryLock()) {}
 
 // static
-bool JSAtomicsMutex::Lock(Isolate* requester, Handle<JSAtomicsMutex> mutex,
-                          base::Optional<base::TimeDelta> timeout) {
+bool JSAtomicsMutex::LockImpl(Isolate* requester,
+                              DirectHandle<JSAtomicsMutex> mutex,
+                              std::optional<base::TimeDelta> timeout,
+                              LockSlowPathWrapper slow_path_wrapper) {
   DisallowGarbageCollection no_gc;
   // First try to lock an uncontended mutex, which should be the common case. If
   // this fails, then go to the slow path to possibly put the current thread to
@@ -63,14 +157,14 @@ bool JSAtomicsMutex::Lock(Isolate* requester, Handle<JSAtomicsMutex> mutex,
   // The fast path is done using a weak CAS which may fail spuriously on
   // architectures with load-link/store-conditional instructions.
   std::atomic<StateT>* state = mutex->AtomicStatePtr();
-  StateT expected = kUnlocked;
+  StateT expected = kUnlockedUncontended;
   bool locked;
   if (V8_LIKELY(state->compare_exchange_weak(expected, kLockedUncontended,
                                              std::memory_order_acquire,
                                              std::memory_order_relaxed))) {
     locked = true;
   } else {
-    locked = LockSlowPath(requester, mutex, state, timeout);
+    locked = slow_path_wrapper(state);
   }
   if (V8_LIKELY(locked)) {
     mutex->SetCurrentThreadAsOwner();
@@ -78,9 +172,17 @@ bool JSAtomicsMutex::Lock(Isolate* requester, Handle<JSAtomicsMutex> mutex,
   return locked;
 }
 
+// static
+bool JSAtomicsMutex::Lock(Isolate* requester, Handle<JSAtomicsMutex> mutex,
+                          std::optional<base::TimeDelta> timeout) {
+  return LockImpl(requester, mutex, timeout, [=](std::atomic<StateT>* state) {
+    return LockSlowPath(requester, mutex, state, timeout);
+  });
+}
+
 bool JSAtomicsMutex::TryLock() {
   DisallowGarbageCollection no_gc;
-  StateT expected = kUnlocked;
+  StateT expected = kUnlockedUncontended;
   if (V8_LIKELY(AtomicStatePtr()->compare_exchange_strong(
           expected, kLockedUncontended, std::memory_order_acquire,
           std::memory_order_relaxed))) {
@@ -102,7 +204,7 @@ void JSAtomicsMutex::Unlock(Isolate* requester) {
   ClearOwnerThread();
   std::atomic<StateT>* state = AtomicStatePtr();
   StateT expected = kLockedUncontended;
-  if (V8_LIKELY(state->compare_exchange_strong(expected, kUnlocked,
+  if (V8_LIKELY(state->compare_exchange_strong(expected, kUnlockedUncontended,
                                                std::memory_order_release,
                                                std::memory_order_relaxed))) {
     return;
@@ -111,7 +213,8 @@ void JSAtomicsMutex::Unlock(Isolate* requester) {
 }
 
 bool JSAtomicsMutex::IsHeld() {
-  return AtomicStatePtr()->load(std::memory_order_relaxed) & kIsLockedBit;
+  return IsLockedField::decode(
+      AtomicStatePtr()->load(std::memory_order_relaxed));
 }
 
 bool JSAtomicsMutex::IsCurrentThreadOwner() {
@@ -138,8 +241,6 @@ std::atomic<int32_t>* JSAtomicsMutex::AtomicOwnerThreadIdPtr() {
 }
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(JSAtomicsCondition)
-
-CAST_ACCESSOR(JSAtomicsCondition)
 
 }  // namespace internal
 }  // namespace v8

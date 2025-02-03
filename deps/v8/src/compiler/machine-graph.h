@@ -38,7 +38,7 @@ class V8_EXPORT_PRIVATE MachineGraph : public NON_EXPORTED_BASE(ZoneObject) {
 
   Node* UniqueInt64Constant(int64_t value);
 
-  // Creates a Int32Constant node, usually canonicalized.
+  // Creates an Int32Constant node, usually canonicalized.
   Node* Int32Constant(int32_t value);
   Node* Uint32Constant(uint32_t value) {
     return Int32Constant(base::bit_cast<int32_t>(value));
@@ -50,7 +50,7 @@ class V8_EXPORT_PRIVATE MachineGraph : public NON_EXPORTED_BASE(ZoneObject) {
     return Int64Constant(base::bit_cast<int64_t>(value));
   }
 
-  // Creates a Int32Constant/Int64Constant node, depending on the word size of
+  // Creates an Int32Constant/Int64Constant node, depending on the word size of
   // the target machine.
   // TODO(turbofan): Code using Int32Constant/Int64Constant to store pointer
   // constants is probably not serializable.

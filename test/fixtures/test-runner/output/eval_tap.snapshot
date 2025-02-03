@@ -3,11 +3,13 @@ TAP version 13
 ok 1 - passes
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: fails
 not ok 2 - fails
   ---
   duration_ms: *
+  type: 'test'
   failureType: 'testCodeFailure'
   error: 'fail'
   code: 'ERR_TEST_FAILURE'

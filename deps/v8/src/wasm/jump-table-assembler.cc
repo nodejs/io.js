@@ -78,7 +78,7 @@ void JumpTableAssembler::EmitLazyCompileJumpSlot(uint32_t func_index,
   pushq_imm32(func_index);  // 5 bytes
   intptr_t displacement =
       static_cast<intptr_t>(reinterpret_cast<uint8_t*>(lazy_compile_target) -
-                            (pc_ + kNearJmpInstrSize));
+                            (pc_ + kIntraSegmentJmpInstrSize));
   DCHECK(is_int32(displacement));
   near_jmp(displacement, RelocInfo::NO_INFO);  // 5 bytes
 }
@@ -86,7 +86,7 @@ void JumpTableAssembler::EmitLazyCompileJumpSlot(uint32_t func_index,
 bool JumpTableAssembler::EmitJumpSlot(Address target) {
   intptr_t displacement =
       static_cast<intptr_t>(reinterpret_cast<uint8_t*>(target) -
-                            (pc_ + kEndbrSize + kNearJmpInstrSize));
+                            (pc_ + kEndbrSize + kIntraSegmentJmpInstrSize));
   if (!is_int32(displacement)) return false;
   CodeEntry();                                 // kEndbrSize bytes (0 or 4)
   near_jmp(displacement, RelocInfo::NO_INFO);  // 5 bytes

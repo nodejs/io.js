@@ -1,12 +1,11 @@
 'use strict'
 
-const { kConstruct } = require('./symbols')
+const { kConstruct } = require('../../core/symbols')
 const { urlEquals, getFieldValues } = require('./util')
 const { kEnumerableProperty, isDisturbed } = require('../../core/util')
 const { webidl } = require('../fetch/webidl')
-const { Response, cloneResponse, fromInnerResponse } = require('../fetch/response')
-const { Request, fromInnerRequest } = require('../fetch/request')
-const { kState } = require('../fetch/symbols')
+const { cloneResponse, fromInnerResponse, getResponseState } = require('../fetch/response')
+const { Request, fromInnerRequest, getRequestState } = require('../fetch/request')
 const { fetching } = require('../fetch/index')
 const { urlIsHttpHttpsScheme, createDeferredPromise, readAllBytes } = require('../fetch/util')
 const assert = require('node:assert')
@@ -37,15 +36,18 @@ class Cache {
       webidl.illegalConstructor()
     }
 
+    webidl.util.markAsUncloneable(this)
     this.#relevantRequestResponseList = arguments[1]
   }
 
   async match (request, options = {}) {
     webidl.brandCheck(this, Cache)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'Cache.match' })
 
-    request = webidl.converters.RequestInfo(request)
-    options = webidl.converters.CacheQueryOptions(options)
+    const prefix = 'Cache.match'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
+
+    request = webidl.converters.RequestInfo(request, prefix, 'request')
+    options = webidl.converters.CacheQueryOptions(options, prefix, 'options')
 
     const p = this.#internalMatchAll(request, options, 1)
 
@@ -59,17 +61,20 @@ class Cache {
   async matchAll (request = undefined, options = {}) {
     webidl.brandCheck(this, Cache)
 
-    if (request !== undefined) request = webidl.converters.RequestInfo(request)
-    options = webidl.converters.CacheQueryOptions(options)
+    const prefix = 'Cache.matchAll'
+    if (request !== undefined) request = webidl.converters.RequestInfo(request, prefix, 'request')
+    options = webidl.converters.CacheQueryOptions(options, prefix, 'options')
 
     return this.#internalMatchAll(request, options)
   }
 
   async add (request) {
     webidl.brandCheck(this, Cache)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'Cache.add' })
 
-    request = webidl.converters.RequestInfo(request)
+    const prefix = 'Cache.add'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
+
+    request = webidl.converters.RequestInfo(request, prefix, 'request')
 
     // 1.
     const requests = [request]
@@ -83,7 +88,9 @@ class Cache {
 
   async addAll (requests) {
     webidl.brandCheck(this, Cache)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'Cache.addAll' })
+
+    const prefix = 'Cache.addAll'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
 
     // 1.
     const responsePromises = []
@@ -95,7 +102,7 @@ class Cache {
     for (let request of requests) {
       if (request === undefined) {
         throw webidl.errors.conversionFailed({
-          prefix: 'Cache.addAll',
+          prefix,
           argument: 'Argument 1',
           types: ['undefined is not allowed']
         })
@@ -108,12 +115,12 @@ class Cache {
       }
 
       // 3.1
-      const r = request[kState]
+      const r = getRequestState(request)
 
       // 3.2
       if (!urlIsHttpHttpsScheme(r.url) || r.method !== 'GET') {
         throw webidl.errors.exception({
-          header: 'Cache.addAll',
+          header: prefix,
           message: 'Expected http/s scheme when method is not GET.'
         })
       }
@@ -126,12 +133,12 @@ class Cache {
     // 5.
     for (const request of requests) {
       // 5.1
-      const r = new Request(request)[kState]
+      const r = getRequestState(new Request(request))
 
       // 5.2
       if (!urlIsHttpHttpsScheme(r.url)) {
         throw webidl.errors.exception({
-          header: 'Cache.addAll',
+          header: prefix,
           message: 'Expected http/s scheme.'
         })
       }
@@ -251,36 +258,38 @@ class Cache {
 
   async put (request, response) {
     webidl.brandCheck(this, Cache)
-    webidl.argumentLengthCheck(arguments, 2, { header: 'Cache.put' })
 
-    request = webidl.converters.RequestInfo(request)
-    response = webidl.converters.Response(response)
+    const prefix = 'Cache.put'
+    webidl.argumentLengthCheck(arguments, 2, prefix)
+
+    request = webidl.converters.RequestInfo(request, prefix, 'request')
+    response = webidl.converters.Response(response, prefix, 'response')
 
     // 1.
     let innerRequest = null
 
     // 2.
-    if (request instanceof Request) {
-      innerRequest = request[kState]
+    if (webidl.is.Request(request)) {
+      innerRequest = getRequestState(request)
     } else { // 3.
-      innerRequest = new Request(request)[kState]
+      innerRequest = getRequestState(new Request(request))
     }
 
     // 4.
     if (!urlIsHttpHttpsScheme(innerRequest.url) || innerRequest.method !== 'GET') {
       throw webidl.errors.exception({
-        header: 'Cache.put',
+        header: prefix,
         message: 'Expected an http/s scheme when method is not GET'
       })
     }
 
     // 5.
-    const innerResponse = response[kState]
+    const innerResponse = getResponseState(response)
 
     // 6.
     if (innerResponse.status === 206) {
       throw webidl.errors.exception({
-        header: 'Cache.put',
+        header: prefix,
         message: 'Got 206 status'
       })
     }
@@ -295,7 +304,7 @@ class Cache {
         // 7.2.1
         if (fieldValue === '*') {
           throw webidl.errors.exception({
-            header: 'Cache.put',
+            header: prefix,
             message: 'Got * vary field value'
           })
         }
@@ -305,7 +314,7 @@ class Cache {
     // 8.
     if (innerResponse.body && (isDisturbed(innerResponse.body.stream) || innerResponse.body.stream.locked)) {
       throw webidl.errors.exception({
-        header: 'Cache.put',
+        header: prefix,
         message: 'Response body is locked or disturbed'
       })
     }
@@ -325,7 +334,7 @@ class Cache {
       const reader = stream.getReader()
 
       // 11.3
-      readAllBytes(reader).then(bodyReadPromise.resolve, bodyReadPromise.reject)
+      readAllBytes(reader, bodyReadPromise.resolve, bodyReadPromise.reject)
     } else {
       bodyReadPromise.resolve(undefined)
     }
@@ -380,18 +389,20 @@ class Cache {
 
   async delete (request, options = {}) {
     webidl.brandCheck(this, Cache)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'Cache.delete' })
 
-    request = webidl.converters.RequestInfo(request)
-    options = webidl.converters.CacheQueryOptions(options)
+    const prefix = 'Cache.delete'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
+
+    request = webidl.converters.RequestInfo(request, prefix, 'request')
+    options = webidl.converters.CacheQueryOptions(options, prefix, 'options')
 
     /**
      * @type {Request}
      */
     let r = null
 
-    if (request instanceof Request) {
-      r = request[kState]
+    if (webidl.is.Request(request)) {
+      r = getRequestState(request)
 
       if (r.method !== 'GET' && !options.ignoreMethod) {
         return false
@@ -399,7 +410,7 @@ class Cache {
     } else {
       assert(typeof request === 'string')
 
-      r = new Request(request)[kState]
+      r = getRequestState(new Request(request))
     }
 
     /** @type {CacheBatchOperation[]} */
@@ -445,8 +456,10 @@ class Cache {
   async keys (request = undefined, options = {}) {
     webidl.brandCheck(this, Cache)
 
-    if (request !== undefined) request = webidl.converters.RequestInfo(request)
-    options = webidl.converters.CacheQueryOptions(options)
+    const prefix = 'Cache.keys'
+
+    if (request !== undefined) request = webidl.converters.RequestInfo(request, prefix, 'request')
+    options = webidl.converters.CacheQueryOptions(options, prefix, 'options')
 
     // 1.
     let r = null
@@ -454,16 +467,16 @@ class Cache {
     // 2.
     if (request !== undefined) {
       // 2.1
-      if (request instanceof Request) {
+      if (webidl.is.Request(request)) {
         // 2.1.1
-        r = request[kState]
+        r = getRequestState(request)
 
         // 2.1.2
         if (r.method !== 'GET' && !options.ignoreMethod) {
           return []
         }
       } else if (typeof request === 'string') { // 2.2
-        r = new Request(request)[kState]
+        r = getRequestState(new Request(request))
       }
     }
 
@@ -501,9 +514,9 @@ class Cache {
       for (const request of requests) {
         const requestObject = fromInnerRequest(
           request,
+          undefined,
           new AbortController().signal,
-          'immutable',
-          { settingsObject: request.client }
+          'immutable'
         )
         // 5.4.2.1
         requestList.push(requestObject)
@@ -736,9 +749,9 @@ class Cache {
 
     // 2.
     if (request !== undefined) {
-      if (request instanceof Request) {
+      if (webidl.is.Request(request)) {
         // 2.1.1
-        r = request[kState]
+        r = getRequestState(request)
 
         // 2.1.2
         if (r.method !== 'GET' && !options.ignoreMethod) {
@@ -746,7 +759,7 @@ class Cache {
         }
       } else if (typeof request === 'string') {
         // 2.2.1
-        r = new Request(request)[kState]
+        r = getRequestState(new Request(request))
       }
     }
 
@@ -779,7 +792,7 @@ class Cache {
     // 5.5.2
     for (const response of responses) {
       // 5.5.2.1
-      const responseObject = fromInnerResponse(response, 'immutable', { settingsObject: {} })
+      const responseObject = fromInnerResponse(response, 'immutable')
 
       responseList.push(responseObject.clone())
 
@@ -811,17 +824,17 @@ const cacheQueryOptionConverters = [
   {
     key: 'ignoreSearch',
     converter: webidl.converters.boolean,
-    defaultValue: false
+    defaultValue: () => false
   },
   {
     key: 'ignoreMethod',
     converter: webidl.converters.boolean,
-    defaultValue: false
+    defaultValue: () => false
   },
   {
     key: 'ignoreVary',
     converter: webidl.converters.boolean,
-    defaultValue: false
+    defaultValue: () => false
   }
 ]
 
@@ -835,7 +848,10 @@ webidl.converters.MultiCacheQueryOptions = webidl.dictionaryConverter([
   }
 ])
 
-webidl.converters.Response = webidl.interfaceConverter(Response)
+webidl.converters.Response = webidl.interfaceConverter(
+  webidl.is.Response,
+  'Response'
+)
 
 webidl.converters['sequence<RequestInfo>'] = webidl.sequenceConverter(
   webidl.converters.RequestInfo

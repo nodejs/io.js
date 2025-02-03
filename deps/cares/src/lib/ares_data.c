@@ -24,14 +24,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-
-#include "ares_setup.h"
-
-#include <stddef.h>
-
-#include "ares.h"
-#include "ares_data.h"
 #include "ares_private.h"
+#include <stddef.h>
+#include <assert.h>
+#include "ares_data.h"
 
 /*
 ** ares_free_data() - c-ares external API function.

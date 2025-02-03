@@ -38,7 +38,7 @@ void StringBuilderConcatHelper(Tagged<String> special, sinkchar* sink,
       String::WriteToFlat(special, sink + position, pos, len);
       position += len;
     } else {
-      Tagged<String> string = String::cast(element);
+      Tagged<String> string = Cast<String>(element);
       int element_length = string->length();
       String::WriteToFlat(string, sink + position, 0, element_length);
       position += element_length;
@@ -88,7 +88,7 @@ int StringBuilderConcatLength(int special_length,
       if (pos > special_length || len > special_length - pos) return -1;
       increment = len;
     } else if (IsString(elt)) {
-      Tagged<String> element = String::cast(elt);
+      Tagged<String> element = Cast<String>(elt);
       int element_length = element->length();
       increment = element_length;
       if (*one_byte && !element->IsOneByteRepresentation()) {
@@ -114,7 +114,7 @@ FixedArrayBuilder::FixedArrayBuilder(Isolate* isolate, int initial_capacity)
   DCHECK_GT(initial_capacity, 0);
 }
 
-FixedArrayBuilder::FixedArrayBuilder(Handle<FixedArray> backing_store)
+FixedArrayBuilder::FixedArrayBuilder(DirectHandle<FixedArray> backing_store)
     : array_(backing_store), length_(0), has_non_smi_elements_(false) {
   // Require a non-zero initial size. Ensures that doubling the size to
   // extend the array will work.
@@ -152,7 +152,7 @@ void FixedArrayBuilder::EnsureCapacity(Isolate* isolate, int elements) {
     do {
       new_length *= 2;
     } while (new_length < required_length);
-    Handle<FixedArray> extended_array =
+    DirectHandle<FixedArray> extended_array =
         isolate->factory()->NewFixedArrayWithHoles(new_length);
     FixedArray::CopyElements(isolate, *extended_array, 0, *array_, 0, length_);
     array_ = extended_array;
@@ -175,7 +175,7 @@ void FixedArrayBuilder::Add(Tagged<Smi> value) {
 int FixedArrayBuilder::capacity() { return array_->length(); }
 
 ReplacementStringBuilder::ReplacementStringBuilder(Heap* heap,
-                                                   Handle<String> subject,
+                                                   DirectHandle<String> subject,
                                                    int estimated_part_count)
     : heap_(heap),
       array_builder_(Isolate::FromHeap(heap), estimated_part_count),
@@ -191,7 +191,7 @@ void ReplacementStringBuilder::EnsureCapacity(int elements) {
   array_builder_.EnsureCapacity(Isolate::FromHeap(heap_), elements);
 }
 
-void ReplacementStringBuilder::AddString(Handle<String> string) {
+void ReplacementStringBuilder::AddString(DirectHandle<String> string) {
   int length = string->length();
   DCHECK_GT(length, 0);
   AddElement(string);
@@ -201,41 +201,41 @@ void ReplacementStringBuilder::AddString(Handle<String> string) {
   IncrementCharacterCount(length);
 }
 
-MaybeHandle<String> ReplacementStringBuilder::ToString() {
+MaybeDirectHandle<String> ReplacementStringBuilder::ToString() {
   Isolate* isolate = Isolate::FromHeap(heap_);
   if (array_builder_.length() == 0) {
     return isolate->factory()->empty_string();
   }
 
-  Handle<String> joined_string;
+  DirectHandle<String> joined_string;
   if (is_one_byte_) {
-    Handle<SeqOneByteString> seq;
+    DirectHandle<SeqOneByteString> seq;
     ASSIGN_RETURN_ON_EXCEPTION(
-        isolate, seq, isolate->factory()->NewRawOneByteString(character_count_),
-        String);
+        isolate, seq,
+        isolate->factory()->NewRawOneByteString(character_count_));
 
     DisallowGarbageCollection no_gc;
     uint8_t* char_buffer = seq->GetChars(no_gc);
     StringBuilderConcatHelper(*subject_, char_buffer, *array_builder_.array(),
                               array_builder_.length());
-    joined_string = Handle<String>::cast(seq);
+    joined_string = Cast<String>(seq);
   } else {
     // Two-byte.
-    Handle<SeqTwoByteString> seq;
+    DirectHandle<SeqTwoByteString> seq;
     ASSIGN_RETURN_ON_EXCEPTION(
-        isolate, seq, isolate->factory()->NewRawTwoByteString(character_count_),
-        String);
+        isolate, seq,
+        isolate->factory()->NewRawTwoByteString(character_count_));
 
     DisallowGarbageCollection no_gc;
     base::uc16* char_buffer = seq->GetChars(no_gc);
     StringBuilderConcatHelper(*subject_, char_buffer, *array_builder_.array(),
                               array_builder_.length());
-    joined_string = Handle<String>::cast(seq);
+    joined_string = Cast<String>(seq);
   }
   return joined_string;
 }
 
-void ReplacementStringBuilder::AddElement(Handle<Object> element) {
+void ReplacementStringBuilder::AddElement(DirectHandle<Object> element) {
   DCHECK(IsSmi(*element) || IsString(*element));
   EnsureCapacity(1);
   DisallowGarbageCollection no_gc;
@@ -250,7 +250,7 @@ IncrementalStringBuilder::IncrementalStringBuilder(Isolate* isolate)
       current_index_(0) {
   // Create an accumulator handle starting with the empty string.
   accumulator_ =
-      Handle<String>::New(ReadOnlyRoots(isolate).empty_string(), isolate);
+      DirectHandle<String>::New(ReadOnlyRoots(isolate).empty_string(), isolate);
   current_part_ =
       factory()->NewRawOneByteString(part_length_).ToHandleChecked();
 }
@@ -263,15 +263,18 @@ bool IncrementalStringBuilder::HasValidCurrentIndex() const {
   return current_index_ < part_length_;
 }
 
-void IncrementalStringBuilder::Accumulate(Handle<String> new_part) {
-  Handle<String> new_accumulator;
+void IncrementalStringBuilder::Accumulate(DirectHandle<String> new_part) {
+  DirectHandle<String> new_accumulator;
   if (accumulator()->length() + new_part->length() > String::kMaxLength) {
     // Set the flag and carry on. Delay throwing the exception till the end.
     new_accumulator = factory()->empty_string();
     overflowed_ = true;
   } else {
     new_accumulator =
-        factory()->NewConsString(accumulator(), new_part).ToHandleChecked();
+        factory()
+            ->NewConsString(indirect_handle(accumulator(), isolate_),
+                            indirect_handle(new_part, isolate_))
+            .ToHandleChecked();
   }
   set_accumulator(new_accumulator);
 }
@@ -282,7 +285,7 @@ void IncrementalStringBuilder::Extend() {
   if (part_length_ <= kMaxPartLength / kPartLengthGrowthFactor) {
     part_length_ *= kPartLengthGrowthFactor;
   }
-  Handle<String> new_part;
+  DirectHandle<String> new_part;
   if (encoding_ == String::ONE_BYTE_ENCODING) {
     new_part = factory()->NewRawOneByteString(part_length_).ToHandleChecked();
   } else {
@@ -293,14 +296,15 @@ void IncrementalStringBuilder::Extend() {
   current_index_ = 0;
 }
 
-MaybeHandle<String> IncrementalStringBuilder::Finish() {
+MaybeDirectHandle<String> IncrementalStringBuilder::Finish() {
   ShrinkCurrentPart();
   Accumulate(current_part());
   if (overflowed_) {
-    THROW_NEW_ERROR(isolate_, NewInvalidStringLengthError(), String);
+    THROW_NEW_ERROR(isolate_, NewInvalidStringLengthError());
   }
   if (isolate()->serializer_enabled()) {
-    return factory()->InternalizeString(accumulator());
+    return factory()->InternalizeString(
+        indirect_handle(accumulator(), isolate_));
   }
   return accumulator();
 }
@@ -309,7 +313,7 @@ MaybeHandle<String> IncrementalStringBuilder::Finish() {
 // Requires the IncrementalStringBuilder to either have two byte encoding or
 // the incoming string to have one byte representation "underneath" (The
 // one byte check requires the string to be flat).
-bool IncrementalStringBuilder::CanAppendByCopy(Handle<String> string) {
+bool IncrementalStringBuilder::CanAppendByCopy(DirectHandle<String> string) {
   const bool representation_ok =
       encoding_ == String::TWO_BYTE_ENCODING ||
       (string->IsFlat() && String::IsOneByteRepresentationUnderneath(*string));
@@ -317,7 +321,7 @@ bool IncrementalStringBuilder::CanAppendByCopy(Handle<String> string) {
   return representation_ok && CurrentPartCanFit(string->length());
 }
 
-void IncrementalStringBuilder::AppendStringByCopy(Handle<String> string) {
+void IncrementalStringBuilder::AppendStringByCopy(DirectHandle<String> string) {
   DCHECK(CanAppendByCopy(string));
 
   {
@@ -325,13 +329,13 @@ void IncrementalStringBuilder::AppendStringByCopy(Handle<String> string) {
     if (encoding_ == String::ONE_BYTE_ENCODING) {
       String::WriteToFlat(
           *string,
-          Handle<SeqOneByteString>::cast(current_part())->GetChars(no_gc) +
+          Cast<SeqOneByteString>(current_part())->GetChars(no_gc) +
               current_index_,
           0, string->length());
     } else {
       String::WriteToFlat(
           *string,
-          Handle<SeqTwoByteString>::cast(current_part())->GetChars(no_gc) +
+          Cast<SeqTwoByteString>(current_part())->GetChars(no_gc) +
               current_index_,
           0, string->length());
     }
@@ -341,7 +345,7 @@ void IncrementalStringBuilder::AppendStringByCopy(Handle<String> string) {
   if (current_index_ == part_length_) Extend();
 }
 
-void IncrementalStringBuilder::AppendString(Handle<String> string) {
+void IncrementalStringBuilder::AppendString(DirectHandle<String> string) {
   if (CanAppendByCopy(string)) {
     AppendStringByCopy(string);
     return;
@@ -352,5 +356,6 @@ void IncrementalStringBuilder::AppendString(Handle<String> string) {
   Extend();  // Attach current part and allocate new part.
   Accumulate(string);
 }
+
 }  // namespace internal
 }  // namespace v8

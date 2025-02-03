@@ -12,6 +12,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class GeneratorBuiltinsAssembler : public CodeStubAssembler {
  public:
   explicit GeneratorBuiltinsAssembler(compiler::CodeAssemblerState* state)
@@ -239,7 +241,7 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
   auto parent_frame_pointer = LoadParentFramePointer();
   BuildFastLoop<IntPtrT>(
       IntPtrConstant(0), formal_parameter_count,
-      [=](TNode<IntPtrT> index) {
+      [=, this](TNode<IntPtrT> index) {
         auto reg_index = IntPtrAdd(parameter_base_index, index);
         TNode<Object> value = LoadFullTagged(parent_frame_pointer,
                                              TimesSystemPointerSize(reg_index));
@@ -258,7 +260,7 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
   CSA_CHECK(this, UintPtrLessThan(end_index, parameters_and_registers_length));
   BuildFastLoop<IntPtrT>(
       formal_parameter_count, end_index,
-      [=](TNode<IntPtrT> index) {
+      [=, this](TNode<IntPtrT> index) {
         auto reg_index = IntPtrSub(register_base_index, index);
         TNode<Object> value = LoadFullTagged(parent_frame_pointer,
                                              TimesSystemPointerSize(reg_index));
@@ -296,7 +298,7 @@ TF_BUILTIN(ResumeGeneratorBaseline, GeneratorBuiltinsAssembler) {
   auto parent_frame_pointer = LoadParentFramePointer();
   BuildFastLoop<IntPtrT>(
       formal_parameter_count, end_index,
-      [=](TNode<IntPtrT> index) {
+      [=, this](TNode<IntPtrT> index) {
         TNode<Object> value =
             UnsafeLoadFixedArrayElement(parameters_and_registers, index);
         auto reg_index = IntPtrSub(register_base_index, index);
@@ -310,6 +312,8 @@ TF_BUILTIN(ResumeGeneratorBaseline, GeneratorBuiltinsAssembler) {
 
   Return(LoadJSGeneratorObjectInputOrDebugPos(generator));
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

@@ -18,22 +18,6 @@
 
 namespace node {
 namespace crypto {
-enum PKEncodingType {
-  // RSAPublicKey / RSAPrivateKey according to PKCS#1.
-  kKeyEncodingPKCS1,
-  // PrivateKeyInfo or EncryptedPrivateKeyInfo according to PKCS#8.
-  kKeyEncodingPKCS8,
-  // SubjectPublicKeyInfo according to X.509.
-  kKeyEncodingSPKI,
-  // ECPrivateKey according to SEC1.
-  kKeyEncodingSEC1
-};
-
-enum PKFormatType {
-  kKeyFormatDER,
-  kKeyFormatPEM,
-  kKeyFormatJWK
-};
 
 enum KeyType {
   kKeyTypeSecret,
@@ -48,100 +32,32 @@ enum KeyEncodingContext {
 };
 
 enum class ParseKeyResult {
+  kParseKeyNotRecognized =
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::NOT_RECOGNIZED),
+  kParseKeyNeedPassphrase =
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::NEED_PASSPHRASE),
+  kParseKeyFailed =
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::FAILED),
   kParseKeyOk,
-  kParseKeyNotRecognized,
-  kParseKeyNeedPassphrase,
-  kParseKeyFailed
-};
-
-struct AsymmetricKeyEncodingConfig {
-  bool output_key_object_ = false;
-  PKFormatType format_ = kKeyFormatDER;
-  v8::Maybe<PKEncodingType> type_ = v8::Nothing<PKEncodingType>();
-};
-
-using PublicKeyEncodingConfig = AsymmetricKeyEncodingConfig;
-
-struct PrivateKeyEncodingConfig : public AsymmetricKeyEncodingConfig {
-  const EVP_CIPHER* cipher_;
-  // The ByteSource alone is not enough to distinguish between "no passphrase"
-  // and a zero-length passphrase (which can be a null pointer), therefore, we
-  // use a NonCopyableMaybe.
-  NonCopyableMaybe<ByteSource> passphrase_;
-};
-
-// This uses the built-in reference counter of OpenSSL to manage an EVP_PKEY
-// which is slightly more efficient than using a shared pointer and easier to
-// use.
-class ManagedEVPPKey : public MemoryRetainer {
- public:
-  ManagedEVPPKey() : mutex_(std::make_shared<Mutex>()) {}
-  explicit ManagedEVPPKey(EVPKeyPointer&& pkey);
-  ManagedEVPPKey(const ManagedEVPPKey& that);
-  ManagedEVPPKey& operator=(const ManagedEVPPKey& that);
-
-  operator bool() const;
-  EVP_PKEY* get() const;
-  Mutex* mutex() const;
-
-  void MemoryInfo(MemoryTracker* tracker) const override;
-  SET_MEMORY_INFO_NAME(ManagedEVPPKey)
-  SET_SELF_SIZE(ManagedEVPPKey)
-
-  static PublicKeyEncodingConfig GetPublicKeyEncodingFromJs(
-      const v8::FunctionCallbackInfo<v8::Value>& args,
-      unsigned int* offset,
-      KeyEncodingContext context);
-
-  static NonCopyableMaybe<PrivateKeyEncodingConfig> GetPrivateKeyEncodingFromJs(
-      const v8::FunctionCallbackInfo<v8::Value>& args,
-      unsigned int* offset,
-      KeyEncodingContext context);
-
-  static ManagedEVPPKey GetParsedKey(Environment* env,
-                                     EVPKeyPointer&& pkey,
-                                     ParseKeyResult ret,
-                                     const char* default_msg);
-
-  static ManagedEVPPKey GetPublicOrPrivateKeyFromJs(
-    const v8::FunctionCallbackInfo<v8::Value>& args,
-    unsigned int* offset);
-
-  static ManagedEVPPKey GetPrivateKeyFromJs(
-      const v8::FunctionCallbackInfo<v8::Value>& args,
-      unsigned int* offset,
-      bool allow_key_object);
-
-  v8::Maybe<bool> ToEncodedPublicKey(Environment* env,
-                                     const PublicKeyEncodingConfig& config,
-                                     v8::Local<v8::Value>* out);
-
-  v8::Maybe<bool> ToEncodedPrivateKey(Environment* env,
-                                      const PrivateKeyEncodingConfig& config,
-                                      v8::Local<v8::Value>* out);
-
- private:
-  size_t size_of_private_key() const;
-  size_t size_of_public_key() const;
-
-  EVPKeyPointer pkey_;
-  std::shared_ptr<Mutex> mutex_;
 };
 
 // Objects of this class can safely be shared among threads.
-class KeyObjectData : public MemoryRetainer {
+class KeyObjectData final : public MemoryRetainer {
  public:
-  static std::shared_ptr<KeyObjectData> CreateSecret(ByteSource key);
+  static KeyObjectData CreateSecret(ByteSource key);
 
-  static std::shared_ptr<KeyObjectData> CreateAsymmetric(
-      KeyType type,
-      const ManagedEVPPKey& pkey);
+  static KeyObjectData CreateAsymmetric(KeyType type,
+                                        ncrypto::EVPKeyPointer&& pkey);
+
+  KeyObjectData(std::nullptr_t = nullptr);
+
+  inline operator bool() const { return data_ != nullptr; }
 
   KeyType GetKeyType() const;
 
   // These functions allow unprotected access to the raw key material and should
   // only be used to implement cryptographic operations requiring the key.
-  ManagedEVPPKey GetAsymmetricKey() const;
+  const ncrypto::EVPKeyPointer& GetAsymmetricKey() const;
   const char* GetSymmetricKey() const;
   size_t GetSymmetricKeySize() const;
 
@@ -149,16 +65,71 @@ class KeyObjectData : public MemoryRetainer {
   SET_MEMORY_INFO_NAME(KeyObjectData)
   SET_SELF_SIZE(KeyObjectData)
 
+  Mutex& mutex() const;
+
+  static v8::Maybe<ncrypto::EVPKeyPointer::PublicKeyEncodingConfig>
+  GetPublicKeyEncodingFromJs(const v8::FunctionCallbackInfo<v8::Value>& args,
+                             unsigned int* offset,
+                             KeyEncodingContext context);
+
+  static KeyObjectData GetPrivateKeyFromJs(
+      const v8::FunctionCallbackInfo<v8::Value>& args,
+      unsigned int* offset,
+      bool allow_key_object);
+
+  static KeyObjectData GetPublicOrPrivateKeyFromJs(
+      const v8::FunctionCallbackInfo<v8::Value>& args, unsigned int* offset);
+
+  static v8::Maybe<ncrypto::EVPKeyPointer::PrivateKeyEncodingConfig>
+  GetPrivateKeyEncodingFromJs(const v8::FunctionCallbackInfo<v8::Value>& args,
+                              unsigned int* offset,
+                              KeyEncodingContext context);
+
+  v8::Maybe<void> ToEncodedPublicKey(
+      Environment* env,
+      const ncrypto::EVPKeyPointer::PublicKeyEncodingConfig& config,
+      v8::Local<v8::Value>* out);
+
+  v8::Maybe<void> ToEncodedPrivateKey(
+      Environment* env,
+      const ncrypto::EVPKeyPointer::PrivateKeyEncodingConfig& config,
+      v8::Local<v8::Value>* out);
+
+  inline KeyObjectData addRef() const {
+    return KeyObjectData(key_type_, mutex_, data_);
+  }
+
+  inline KeyObjectData addRefWithType(KeyType type) const {
+    return KeyObjectData(type, mutex_, data_);
+  }
+
  private:
   explicit KeyObjectData(ByteSource symmetric_key);
+  explicit KeyObjectData(KeyType type, ncrypto::EVPKeyPointer&& pkey);
 
-  KeyObjectData(
-      KeyType type,
-      const ManagedEVPPKey& pkey);
+  static KeyObjectData GetParsedKey(KeyType type,
+                                    Environment* env,
+                                    ncrypto::EVPKeyPointer&& pkey,
+                                    ParseKeyResult ret,
+                                    const char* default_msg);
 
-  const KeyType key_type_;
-  const ByteSource symmetric_key_;
-  const ManagedEVPPKey asymmetric_key_;
+  KeyType key_type_;
+  mutable std::shared_ptr<Mutex> mutex_;
+
+  struct Data {
+    const ByteSource symmetric_key;
+    const ncrypto::EVPKeyPointer asymmetric_key;
+    explicit Data(ByteSource symmetric_key)
+        : symmetric_key(std::move(symmetric_key)) {}
+    explicit Data(ncrypto::EVPKeyPointer asymmetric_key)
+        : asymmetric_key(std::move(asymmetric_key)) {}
+  };
+  std::shared_ptr<Data> data_;
+
+  KeyObjectData(KeyType type,
+                std::shared_ptr<Mutex> mutex,
+                std::shared_ptr<Data> data)
+      : key_type_(type), mutex_(mutex), data_(data) {}
 };
 
 class KeyObjectHandle : public BaseObject {
@@ -168,14 +139,14 @@ class KeyObjectHandle : public BaseObject {
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
   static v8::MaybeLocal<v8::Object> Create(Environment* env,
-                                           std::shared_ptr<KeyObjectData> data);
+                                           const KeyObjectData& data);
 
   // TODO(tniessen): track the memory used by OpenSSL types
   SET_NO_MEMORY_INFO()
   SET_MEMORY_INFO_NAME(KeyObjectHandle)
   SET_SELF_SIZE(KeyObjectHandle)
 
-  const std::shared_ptr<KeyObjectData>& Data();
+  const KeyObjectData& Data();
 
  protected:
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -203,15 +174,15 @@ class KeyObjectHandle : public BaseObject {
 
   v8::MaybeLocal<v8::Value> ExportSecretKey() const;
   v8::MaybeLocal<v8::Value> ExportPublicKey(
-      const PublicKeyEncodingConfig& config) const;
+      const ncrypto::EVPKeyPointer::PublicKeyEncodingConfig& config) const;
   v8::MaybeLocal<v8::Value> ExportPrivateKey(
-      const PrivateKeyEncodingConfig& config) const;
+      const ncrypto::EVPKeyPointer::PrivateKeyEncodingConfig& config) const;
 
   KeyObjectHandle(Environment* env,
                   v8::Local<v8::Object> wrap);
 
  private:
-  std::shared_ptr<KeyObjectData> data_;
+  KeyObjectData data_;
 };
 
 class NativeKeyObject : public BaseObject {
@@ -229,8 +200,8 @@ class NativeKeyObject : public BaseObject {
 
   class KeyObjectTransferData : public worker::TransferData {
    public:
-    explicit KeyObjectTransferData(const std::shared_ptr<KeyObjectData>& data)
-        : data_(data) {}
+    explicit KeyObjectTransferData(const KeyObjectData& data)
+        : data_(data.addRef()) {}
 
     BaseObjectPtr<BaseObject> Deserialize(
         Environment* env,
@@ -242,7 +213,7 @@ class NativeKeyObject : public BaseObject {
     SET_NO_MEMORY_INFO()
 
    private:
-    std::shared_ptr<KeyObjectData> data_;
+    KeyObjectData data_;
   };
 
   BaseObject::TransferMode GetTransferMode() const override;
@@ -251,13 +222,12 @@ class NativeKeyObject : public BaseObject {
  private:
   NativeKeyObject(Environment* env,
                   v8::Local<v8::Object> wrap,
-                  const std::shared_ptr<KeyObjectData>& handle_data)
-    : BaseObject(env, wrap),
-      handle_data_(handle_data) {
+                  const KeyObjectData& handle_data)
+      : BaseObject(env, wrap), handle_data_(handle_data.addRef()) {
     MakeWeak();
   }
 
-  std::shared_ptr<KeyObjectData> handle_data_;
+  KeyObjectData handle_data_;
 };
 
 enum WebCryptoKeyFormat {
@@ -322,20 +292,18 @@ class KeyExportJob final : public CryptoJob<KeyExportTraits> {
     CryptoJob<KeyExportTraits>::RegisterExternalReferences(New, registry);
   }
 
-  KeyExportJob(
-      Environment* env,
-      v8::Local<v8::Object> object,
-      CryptoJobMode mode,
-      std::shared_ptr<KeyObjectData> key,
-      WebCryptoKeyFormat format,
-      AdditionalParams&& params)
-      : CryptoJob<KeyExportTraits>(
-            env,
-            object,
-            AsyncWrap::PROVIDER_KEYEXPORTREQUEST,
-            mode,
-            std::move(params)),
-        key_(key),
+  KeyExportJob(Environment* env,
+               v8::Local<v8::Object> object,
+               CryptoJobMode mode,
+               const KeyObjectData& key,
+               WebCryptoKeyFormat format,
+               AdditionalParams&& params)
+      : CryptoJob<KeyExportTraits>(env,
+                                   object,
+                                   AsyncWrap::PROVIDER_KEYEXPORTREQUEST,
+                                   mode,
+                                   std::move(params)),
+        key_(key.addRef()),
         format_(format) {}
 
   WebCryptoKeyFormat format() const { return format_; }
@@ -368,23 +336,28 @@ class KeyExportJob final : public CryptoJob<KeyExportTraits> {
     }
   }
 
-  v8::Maybe<bool> ToResult(
-      v8::Local<v8::Value>* err,
-      v8::Local<v8::Value>* result) override {
+  v8::Maybe<void> ToResult(v8::Local<v8::Value>* err,
+                           v8::Local<v8::Value>* result) override {
     Environment* env = AsyncWrap::env();
     CryptoErrorStore* errors = CryptoJob<KeyExportTraits>::errors();
     if (out_.size() > 0) {
       CHECK(errors->Empty());
       *err = v8::Undefined(env->isolate());
       *result = out_.ToArrayBuffer(env);
-      return v8::Just(!result->IsEmpty());
+      if (result->IsEmpty()) {
+        return v8::Nothing<void>();
+      }
+    } else {
+      if (errors->Empty()) errors->Capture();
+      CHECK(!errors->Empty());
+      *result = v8::Undefined(env->isolate());
+      if (!errors->ToException(env).ToLocal(err)) {
+        return v8::Nothing<void>();
+      }
     }
-
-    if (errors->Empty())
-      errors->Capture();
-    CHECK(!errors->Empty());
-    *result = v8::Undefined(env->isolate());
-    return v8::Just(errors->ToException(env).ToLocal(err));
+    CHECK(!result->IsEmpty());
+    CHECK(!err->IsEmpty());
+    return v8::JustVoid();
   }
 
   SET_SELF_SIZE(KeyExportJob)
@@ -394,18 +367,18 @@ class KeyExportJob final : public CryptoJob<KeyExportTraits> {
   }
 
  private:
-  std::shared_ptr<KeyObjectData> key_;
+  KeyObjectData key_;
   WebCryptoKeyFormat format_;
   ByteSource out_;
 };
 
-WebCryptoKeyExportStatus PKEY_SPKI_Export(
-    KeyObjectData* key_data,
-    ByteSource* out);
+WebCryptoKeyExportStatus PKEY_SPKI_Export(const KeyObjectData& key_data,
+                                          ByteSource* out);
 
-WebCryptoKeyExportStatus PKEY_PKCS8_Export(
-    KeyObjectData* key_data,
-    ByteSource* out);
+WebCryptoKeyExportStatus PKEY_PKCS8_Export(const KeyObjectData& key_data,
+                                           ByteSource* out);
+
+int GetOKPCurveFromName(const char* name);
 
 namespace Keys {
 void Initialize(Environment* env, v8::Local<v8::Object> target);

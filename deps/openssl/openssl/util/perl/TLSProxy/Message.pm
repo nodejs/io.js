@@ -1,4 +1,4 @@
-# Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -372,6 +372,15 @@ sub create_message
         $message->parse();
     } elsif ($mt == MT_NEW_SESSION_TICKET) {
         $message = TLSProxy::NewSessionTicket->new(
+            $server,
+            $data,
+            [@message_rec_list],
+            $startoffset,
+            [@message_frag_lens]
+        );
+        $message->parse();
+    }  elsif ($mt == MT_NEXT_PROTO) {
+        $message = TLSProxy::NextProto->new(
             $server,
             $data,
             [@message_rec_list],

@@ -8,4 +8,5 @@ const builder = new WasmModuleBuilder();
 let table = new WebAssembly.Table({element: 'anyfunc', initial: 2});
 // Big size that causes an int32 overflow.
 builder.addImportedTable('m', 'table', 4000000000);
-assertThrows(() => builder.instantiate({m: {table: table}}), RangeError);
+assertThrows(
+    () => builder.instantiate({m: {table: table}}), WebAssembly.CompileError);

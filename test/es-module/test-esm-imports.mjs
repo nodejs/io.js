@@ -9,23 +9,26 @@ const { requireImport, importImport } = importer;
 [requireImport, importImport].forEach((loadFixture) => {
   const isRequire = loadFixture === requireImport;
 
+  const maybeWrapped = isRequire ? (exports) => exports :
+    (exports) => ({ ...exports, 'module.exports': exports.default });
+
   const internalImports = new Map([
     // Base case
-    ['#test', { default: 'test' }],
+    ['#test', maybeWrapped({ default: 'test' })],
     // import / require conditions
-    ['#branch', { default: isRequire ? 'requirebranch' : 'importbranch' }],
+    ['#branch', maybeWrapped({ default: isRequire ? 'requirebranch' : 'importbranch' })],
     // Subpath imports
-    ['#subpath/x.js', { default: 'xsubpath' }],
+    ['#subpath/x.js', maybeWrapped({ default: 'xsubpath' })],
     // External imports
-    ['#external', { default: 'asdf' }],
+    ['#external', maybeWrapped({ default: 'asdf' })],
     // External subpath imports
-    ['#external/subpath/asdf.js', { default: 'asdf' }],
+    ['#external/subpath/asdf.js', maybeWrapped({ default: 'asdf' })],
     // Trailing pattern imports
-    ['#subpath/asdf.asdf', { default: 'test' }],
+    ['#subpath/asdf.asdf', maybeWrapped({ default: 'test' })],
     // Leading slash
-    ['#subpath//asdf.asdf', { default: 'test' }],
+    ['#subpath//asdf.asdf', maybeWrapped({ default: 'test' })],
     // Double slash
-    ['#subpath/as//df.asdf', { default: 'test' }],
+    ['#subpath/as//df.asdf', maybeWrapped({ default: 'test' })],
   ]);
 
   for (const [validSpecifier, expected] of internalImports) {
@@ -124,7 +127,7 @@ requireFixture('#cjs').then(mustCall((actual) => {
 }));
 
 function assertStartsWith(actual, expected) {
-  const start = actual.toString().substr(0, expected.length);
+  const start = actual.toString().slice(0, expected.length);
   strictEqual(start, expected);
 }
 

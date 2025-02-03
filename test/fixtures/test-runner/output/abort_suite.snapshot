@@ -4,26 +4,31 @@ TAP version 13
     ok 1 - ok 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 2
     ok 2 - ok 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 3
     ok 3 - ok 3
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: ok 4
     ok 4 - ok 4
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: not ok 1
     not ok 5 - not ok 1
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort_suite.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -33,6 +38,7 @@ TAP version 13
     not ok 6 - not ok 2
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort_suite.js:(LINE):3'
       failureType: 'cancelledByParent'
       error: 'test did not finish before its parent and was cancelled'
@@ -42,6 +48,7 @@ TAP version 13
     not ok 7 - not ok 3
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort_suite.js:(LINE):3'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -63,6 +70,7 @@ TAP version 13
     not ok 8 - not ok 4
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort_suite.js:(LINE):3'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -84,6 +92,7 @@ TAP version 13
     not ok 9 - not ok 5
       ---
       duration_ms: *
+      type: 'test'
       location: '/test/fixtures/test-runner/output/abort_suite.js:(LINE):3'
       failureType: 'testAborted'
       error: 'This operation was aborted'
@@ -128,6 +137,7 @@ not ok 2 - describe abort signal
   code: 20
   name: 'AbortError'
   stack: |-
+    *
     *
     *
     *

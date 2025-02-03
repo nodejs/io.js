@@ -84,6 +84,33 @@ class V8_EXPORT Context : public Data {
    * created by a previous call to Context::New with the same global
    * template. The state of the global object will be completely reset
    * and only object identify will remain.
+   *
+   * \param internal_fields_deserializer An optional callback used
+   * to deserialize fields set by
+   * v8::Object::SetAlignedPointerInInternalField() in wrapper objects
+   * from the default context snapshot. It should match the
+   * SerializeInternalFieldsCallback() used by
+   * v8::SnapshotCreator::SetDefaultContext() when the default context
+   * snapshot is created. It does not need to be configured if the default
+   * context snapshot contains no wrapper objects with pointer internal
+   * fields, or if no custom startup snapshot is configured
+   * in the v8::CreateParams used to create the isolate.
+   *
+   * \param microtask_queue An optional microtask queue used to manage
+   * the microtasks created in this context. If not set the per-isolate
+   * default microtask queue would be used.
+   *
+   * \param context_data_deserializer An optional callback used
+   * to deserialize embedder data set by
+   * v8::Context::SetAlignedPointerInEmbedderData() in the default
+   * context from the default context snapshot. It does not need to be
+   * configured if the default context snapshot contains no pointer embedder
+   * data, or if no custom startup snapshot is configured in the
+   * v8::CreateParams used to create the isolate.
+   *
+   * \param api_wrapper_deserializer An optional callback used to deserialize
+   * API wrapper objects that was initially set with v8::Object::Wrap() and then
+   * serialized using SerializeAPIWrapperCallback.
    */
   static Local<Context> New(
       Isolate* isolate, ExtensionConfiguration* extensions = nullptr,
@@ -91,33 +118,59 @@ class V8_EXPORT Context : public Data {
       MaybeLocal<Value> global_object = MaybeLocal<Value>(),
       DeserializeInternalFieldsCallback internal_fields_deserializer =
           DeserializeInternalFieldsCallback(),
-      MicrotaskQueue* microtask_queue = nullptr);
+      MicrotaskQueue* microtask_queue = nullptr,
+      DeserializeContextDataCallback context_data_deserializer =
+          DeserializeContextDataCallback(),
+      DeserializeAPIWrapperCallback api_wrapper_deserializer =
+          DeserializeAPIWrapperCallback());
 
   /**
    * Create a new context from a (non-default) context snapshot. There
    * is no way to provide a global object template since we do not create
    * a new global object from template, but we can reuse a global object.
    *
-   * \param isolate See v8::Context::New.
+   * \param isolate See v8::Context::New().
    *
    * \param context_snapshot_index The index of the context snapshot to
-   * deserialize from. Use v8::Context::New for the default snapshot.
+   * deserialize from. Use v8::Context::New() for the default snapshot.
    *
-   * \param embedder_fields_deserializer Optional callback to deserialize
-   * internal fields. It should match the SerializeInternalFieldCallback used
-   * to serialize.
+   * \param internal_fields_deserializer An optional callback used
+   * to deserialize fields set by
+   * v8::Object::SetAlignedPointerInInternalField() in wrapper objects
+   * from the default context snapshot. It does not need to be
+   * configured if there are no wrapper objects with no internal
+   * pointer fields in the default context snapshot or if no startup
+   * snapshot is configured when the isolate is created.
    *
-   * \param extensions See v8::Context::New.
+   * \param extensions See v8::Context::New().
    *
-   * \param global_object See v8::Context::New.
+   * \param global_object See v8::Context::New().
+   *
+   * \param internal_fields_deserializer Similar to
+   * internal_fields_deserializer in v8::Context::New() but applies to
+   * the context specified by the context_snapshot_index.
+   *
+   * \param microtask_queue  See v8::Context::New().
+   *
+   * \param context_data_deserializer  Similar to
+   * context_data_deserializer in v8::Context::New() but applies to
+   * the context specified by the context_snapshot_index.
+   *
+   *\param api_wrapper_deserializer Similar to api_wrapper_deserializer in
+   * v8::Context::New() but applies to the context specified by the
+   * context_snapshot_index.
    */
   static MaybeLocal<Context> FromSnapshot(
       Isolate* isolate, size_t context_snapshot_index,
-      DeserializeInternalFieldsCallback embedder_fields_deserializer =
+      DeserializeInternalFieldsCallback internal_fields_deserializer =
           DeserializeInternalFieldsCallback(),
       ExtensionConfiguration* extensions = nullptr,
       MaybeLocal<Value> global_object = MaybeLocal<Value>(),
-      MicrotaskQueue* microtask_queue = nullptr);
+      MicrotaskQueue* microtask_queue = nullptr,
+      DeserializeContextDataCallback context_data_deserializer =
+          DeserializeContextDataCallback(),
+      DeserializeAPIWrapperCallback api_wrapper_deserializer =
+          DeserializeAPIWrapperCallback());
 
   /**
    * Returns an global object that isn't backed by an actual context.
@@ -181,27 +234,8 @@ class V8_EXPORT Context : public Data {
      * also be considered for freezing should be added to the children_out
      * parameter. Returns true if the operation completed successfully.
      */
-    V8_DEPRECATED("Please use the version that takes a LocalVector&")
     virtual bool FreezeEmbedderObjectAndGetChildren(
-        Local<Object> obj, std::vector<Local<Object>>& children_out) {
-      // TODO(chromium:1454114): This method is temporarily defined in order to
-      // smoothen the transition to the version that follows.
-      return true;
-    }
-    virtual bool FreezeEmbedderObjectAndGetChildren(
-        Local<Object> obj, LocalVector<Object>& children_out) {
-      // TODO(chromium:1454114): This method is temporarily defined and
-      // calls the previous version, soon to be deprecated, in order to
-      // smoothen the transition. When deprecation is completed, this
-      // will become an abstract method.
-      std::vector<Local<Object>> children;
-      START_ALLOW_USE_DEPRECATED()
-      // Temporarily use the old callback.
-      bool result = FreezeEmbedderObjectAndGetChildren(obj, children);
-      END_ALLOW_USE_DEPRECATED()
-      children_out.insert(children_out.end(), children.begin(), children.end());
-      return result;
-    }
+        Local<Object> obj, LocalVector<Object>& children_out) = 0;
   };
 
   /**
@@ -268,6 +302,8 @@ class V8_EXPORT Context : public Data {
    * SetAlignedPointerInEmbedderData with the same index. Note that index 0
    * currently has a special meaning for Chrome's debugger.
    */
+  V8_INLINE void* GetAlignedPointerFromEmbedderData(Isolate* isolate,
+                                                    int index);
   V8_INLINE void* GetAlignedPointerFromEmbedderData(int index);
 
   /**
@@ -284,7 +320,7 @@ class V8_EXPORT Context : public Data {
    * 'Function' constructor are used an exception will be thrown.
    *
    * If code generation from strings is not allowed the
-   * V8::AllowCodeGenerationFromStrings callback will be invoked if
+   * V8::ModifyCodeGenerationFromStringsCallback callback will be invoked if
    * set before blocking the call to 'eval' or the 'Function'
    * constructor. If that callback returns true, the call will be
    * allowed, otherwise an exception will be thrown. If no callback is
@@ -327,22 +363,6 @@ class V8_EXPORT Context : public Data {
   using AbortScriptExecutionCallback = void (*)(Isolate* isolate,
                                                 Local<Context> context);
   void SetAbortScriptExecution(AbortScriptExecutionCallback callback);
-
-  /**
-   * Returns the value that was set or restored by
-   * SetContinuationPreservedEmbedderData(), if any.
-   */
-  V8_DEPRECATE_SOON(
-      "Use v8::Isolate::GetContinuationPreservedEmbedderData instead")
-  Local<Value> GetContinuationPreservedEmbedderData() const;
-
-  /**
-   * Sets a value that will be stored on continuations and reset while the
-   * continuation runs.
-   */
-  V8_DEPRECATE_SOON(
-      "Use v8::Isolate::SetContinuationPreservedEmbedderData instead")
-  void SetContinuationPreservedEmbedderData(Local<Value> context);
 
   /**
    * Set or clear hooks to be invoked for promise lifecycle operations.
@@ -435,6 +455,24 @@ Local<Value> Context::GetEmbedderData(int index) {
   return Local<Value>::New(isolate, value);
 #else
   return SlowGetEmbedderData(index);
+#endif
+}
+
+void* Context::GetAlignedPointerFromEmbedderData(Isolate* isolate, int index) {
+#if !defined(V8_ENABLE_CHECKS)
+  using A = internal::Address;
+  using I = internal::Internals;
+  A ctx = internal::ValueHelper::ValueAsAddress(this);
+  A embedder_data =
+      I::ReadTaggedPointerField(ctx, I::kNativeContextEmbedderDataOffset);
+  int value_offset = I::kEmbedderDataArrayHeaderSize +
+                     (I::kEmbedderDataSlotSize * index) +
+                     I::kEmbedderDataSlotExternalPointerOffset;
+  return reinterpret_cast<void*>(
+      I::ReadExternalPointerField<internal::kEmbedderDataSlotPayloadTag>(
+          isolate, embedder_data, value_offset));
+#else
+  return SlowGetAlignedPointerFromEmbedderData(index);
 #endif
 }
 

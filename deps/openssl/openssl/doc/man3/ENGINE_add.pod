@@ -227,7 +227,8 @@ references such as; ENGINE_by_id(), ENGINE_get_first(), ENGINE_get_last(),
 ENGINE_get_next(), ENGINE_get_prev(). All structural references should be
 released by a corresponding to call to the ENGINE_free() function - the
 ENGINE object itself will only actually be cleaned up and deallocated when
-the last structural reference is released.
+the last structural reference is released. If the argument to ENGINE_free()
+is NULL, nothing is done.
 
 It should also be noted that many ENGINE API function calls that accept a
 structural reference will internally obtain another reference - typically
@@ -665,7 +666,7 @@ and should not be used.
 
 =head1 COPYRIGHT
 
-Copyright 2002-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2002-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

@@ -1,7 +1,7 @@
 // Flags: --expose-gc
 'use strict';
 const common = require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const assert = require('assert');
 const zlib = require('zlib');
 
@@ -17,7 +17,7 @@ const ongc = common.mustCall();
   strm.once('error', common.mustCall((err) => {
     assert(err);
     setImmediate(() => {
-      global.gc();
+      globalThis.gc();
       // Keep the event loop alive for seeing the async_hooks destroy hook
       // we use for GC tracking...
       // TODO(addaleax): This should maybe not be necessary?

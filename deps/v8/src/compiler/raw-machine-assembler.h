@@ -6,6 +6,7 @@
 #define V8_COMPILER_RAW_MACHINE_ASSEMBLER_H_
 
 #include <initializer_list>
+#include <optional>
 #include <type_traits>
 
 #include "src/common/globals.h"
@@ -172,6 +173,20 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
     ObjectAccess access = {type, WriteBarrierKind::kNoWriteBarrier};
     Node* load = AddNode(simplified()->LoadFromObject(access), base, offset);
     return load;
+  }
+
+  Node* LoadProtectedPointerFromObject(Node* base, Node* offset) {
+#if V8_ENABLE_SANDBOX
+    static_assert(COMPRESS_POINTERS_BOOL);
+    Node* tagged = LoadFromObject(MachineType::Int32(), base, offset);
+    Node* trusted_cage_base =
+        LoadImmutable(MachineType::Pointer(), LoadRootRegister(),
+                      IntPtrConstant(IsolateData::trusted_cage_base_offset()));
+    return BitcastWordToTagged(
+        WordOr(trusted_cage_base, ChangeUint32ToUint64(tagged)));
+#else
+    return LoadFromObject(MachineType::AnyTagged(), base, offset);
+#endif  // V8_ENABLE_SANDBOX
   }
 
   Node* Store(MachineRepresentation rep, Node* base, Node* value,
@@ -782,7 +797,7 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
     return AddNode(machine()->BitcastTaggedToWordForTagAndSmiBits(), a);
   }
   Node* BitcastMaybeObjectToWord(Node* a) {
-      return AddNode(machine()->BitcastMaybeObjectToWord(), a);
+    return AddNode(machine()->BitcastMaybeObjectToWord(), a);
   }
   Node* BitcastWordToTagged(Node* a) {
     return AddNode(machine()->BitcastWordToTagged(), a);
@@ -969,8 +984,8 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
   Node* I16x8Splat(Node* a) { return AddNode(machine()->I16x8Splat(), a); }
 
   Node* LoadStackPointer() { return AddNode(machine()->LoadStackPointer()); }
-  void SetStackPointer(Node* ptr, wasm::FPRelativeScope fp_scope) {
-    AddNode(machine()->SetStackPointer(fp_scope), ptr);
+  void SetStackPointer(Node* ptr) {
+    AddNode(machine()->SetStackPointer(), ptr);
   }
 #endif
 
@@ -1018,7 +1033,7 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
 
   // Call to a C function.
   template <class... CArgs>
-  Node* CallCFunction(Node* function, base::Optional<MachineType> return_type,
+  Node* CallCFunction(Node* function, std::optional<MachineType> return_type,
                       CArgs... cargs) {
     static_assert(
         std::conjunction_v<std::is_convertible<CArgs, CFunctionArg>...>,
@@ -1026,7 +1041,7 @@ class V8_EXPORT_PRIVATE RawMachineAssembler {
     return CallCFunction(function, return_type, {cargs...});
   }
 
-  Node* CallCFunction(Node* function, base::Optional<MachineType> return_type,
+  Node* CallCFunction(Node* function, std::optional<MachineType> return_type,
                       std::initializer_list<CFunctionArg> args);
 
   // Call to a C function without a function discriptor on AIX.

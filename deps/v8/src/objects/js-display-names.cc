@@ -77,6 +77,8 @@ UDisplayContext ToUDisplayContext(JSDisplayNames::Style style) {
 // Abstract class for all different types.
 class DisplayNamesInternal {
  public:
+  static constexpr ExternalPointerTag kManagedTag = kDisplayNamesInternalTag;
+
   DisplayNamesInternal() = default;
   virtual ~DisplayNamesInternal() = default;
   virtual const char* type() const = 0;
@@ -400,7 +402,7 @@ DisplayNamesInternal* CreateInternal(const icu::Locale& locale,
 
 // ecma402 #sec-Intl.DisplayNames
 MaybeHandle<JSDisplayNames> JSDisplayNames::New(Isolate* isolate,
-                                                Handle<Map> map,
+                                                DirectHandle<Map> map,
                                                 Handle<Object> locales,
                                                 Handle<Object> input_options) {
   const char* service = "Intl.DisplayNames";
@@ -416,8 +418,7 @@ MaybeHandle<JSDisplayNames> JSDisplayNames::New(Isolate* isolate,
 
   // 4. Let options be ? GetOptionsObject(options).
   ASSIGN_RETURN_ON_EXCEPTION(isolate, options,
-                             GetOptionsObject(isolate, input_options, service),
-                             JSDisplayNames);
+                             GetOptionsObject(isolate, input_options, service));
 
   // Note: No need to create a record. It's not observable.
   // 5. Let opt be a new Record.
@@ -443,8 +444,7 @@ MaybeHandle<JSDisplayNames> JSDisplayNames::New(Isolate* isolate,
       Intl::ResolveLocale(isolate, JSDisplayNames::GetAvailableLocales(),
                           requested_locales, matcher, relevant_extension_keys);
   if (maybe_resolve_locale.IsNothing()) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                    JSDisplayNames);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
   }
   Intl::ResolvedLocale r = maybe_resolve_locale.FromJust();
 
@@ -474,8 +474,7 @@ MaybeHandle<JSDisplayNames> JSDisplayNames::New(Isolate* isolate,
 
   // 13. If type is undefined, throw a TypeError exception.
   if (type_enum == Type::kUndefined) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kInvalidArgument),
-                    JSDisplayNames);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kInvalidArgument));
   }
 
   // 14. Set displayNames.[[Type]] to type.
@@ -527,19 +526,18 @@ MaybeHandle<JSDisplayNames> JSDisplayNames::New(Isolate* isolate,
 
   // Set displayNames.[[Fields]] to styleFields.
 
-  DisplayNamesInternal* internal = CreateInternal(
+  std::shared_ptr<DisplayNamesInternal> internal{CreateInternal(
       icu_locale, style_enum, type_enum, fallback_enum == Fallback::kCode,
-      language_display_enum == LanguageDisplay::kDialect);
+      language_display_enum == LanguageDisplay::kDialect)};
   if (internal == nullptr) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError),
-                    JSDisplayNames);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
 
-  Handle<Managed<DisplayNamesInternal>> managed_internal =
-      Managed<DisplayNamesInternal>::FromRawPtr(isolate, 0, internal);
+  DirectHandle<Managed<DisplayNamesInternal>> managed_internal =
+      Managed<DisplayNamesInternal>::From(isolate, 0, std::move(internal));
 
   Handle<JSDisplayNames> display_names =
-      Handle<JSDisplayNames>::cast(factory->NewFastOrSlowJSObjectFromMap(map));
+      Cast<JSDisplayNames>(factory->NewFastOrSlowJSObjectFromMap(map));
   display_names->set_flags(0);
   display_names->set_style(style_enum);
   display_names->set_fallback(fallback_enum);
@@ -554,7 +552,7 @@ MaybeHandle<JSDisplayNames> JSDisplayNames::New(Isolate* isolate,
 
 // ecma402 #sec-Intl.DisplayNames.prototype.resolvedOptions
 Handle<JSObject> JSDisplayNames::ResolvedOptions(
-    Isolate* isolate, Handle<JSDisplayNames> display_names) {
+    Isolate* isolate, DirectHandle<JSDisplayNames> display_names) {
   Factory* factory = isolate->factory();
   // 4. Let options be ! ObjectCreate(%ObjectPrototype%).
   Handle<JSObject> options = factory->NewJSObject(isolate->object_function());
@@ -603,12 +601,12 @@ Handle<JSObject> JSDisplayNames::ResolvedOptions(
 }
 
 // ecma402 #sec-Intl.DisplayNames.prototype.of
-MaybeHandle<Object> JSDisplayNames::Of(Isolate* isolate,
-                                       Handle<JSDisplayNames> display_names,
-                                       Handle<Object> code_obj) {
+MaybeHandle<Object> JSDisplayNames::Of(
+    Isolate* isolate, DirectHandle<JSDisplayNames> display_names,
+    Handle<Object> code_obj) {
   Handle<String> code;
-  ASSIGN_RETURN_ON_EXCEPTION(isolate, code, Object::ToString(isolate, code_obj),
-                             Object);
+  ASSIGN_RETURN_ON_EXCEPTION(isolate, code,
+                             Object::ToString(isolate, code_obj));
   DisplayNamesInternal* internal = display_names->internal()->raw();
   Maybe<icu::UnicodeString> maybe_result =
       internal->of(isolate, code->ToCString().get());

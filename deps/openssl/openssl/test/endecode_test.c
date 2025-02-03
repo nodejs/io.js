@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -1028,6 +1028,10 @@ DOMAIN_KEYS(ECExplicitTri2G);
 IMPLEMENT_TEST_SUITE(ECExplicitTri2G, "EC", 0)
 IMPLEMENT_TEST_SUITE_LEGACY(ECExplicitTri2G, "EC")
 # endif
+# ifndef OPENSSL_NO_SM2
+KEYS(SM2);
+IMPLEMENT_TEST_SUITE(SM2, "SM2", 0)
+# endif
 KEYS(ED25519);
 IMPLEMENT_TEST_SUITE(ED25519, "ED25519", 1)
 KEYS(ED448);
@@ -1333,9 +1337,7 @@ int setup_tests(void)
     }
 
     /* FIPS(3.0.0): provider imports explicit params but they won't work #17998 */
-    is_fips_3_0_0 = fips_provider_version_eq(testctx, 3, 0, 0);
-    if (is_fips_3_0_0 < 0)
-        return 0;
+    is_fips_3_0_0 = is_fips && fips_provider_version_eq(testctx, 3, 0, 0);
 
     /* Separate provider/ctx for generating the test data */
     if (!TEST_ptr(keyctx = OSSL_LIB_CTX_new()))
@@ -1383,6 +1385,9 @@ int setup_tests(void)
     MAKE_DOMAIN_KEYS(ECExplicitTriNamedCurve, "EC", ec_explicit_tri_params_nc);
     MAKE_DOMAIN_KEYS(ECExplicitTri2G, "EC", ec_explicit_tri_params_explicit);
 # endif
+# ifndef OPENSSL_NO_SM2
+    MAKE_KEYS(SM2, "SM2", NULL);
+# endif
     MAKE_KEYS(ED25519, "ED25519", NULL);
     MAKE_KEYS(ED448, "ED448", NULL);
     MAKE_KEYS(X25519, "X25519", NULL);
@@ -1428,6 +1433,12 @@ int setup_tests(void)
         ADD_TEST_SUITE_LEGACY(ECExplicitTriNamedCurve);
         ADD_TEST_SUITE(ECExplicitTri2G);
         ADD_TEST_SUITE_LEGACY(ECExplicitTri2G);
+# endif
+# ifndef OPENSSL_NO_SM2
+        if (!is_fips_3_0_0) {
+            /* 3.0.0 FIPS provider imports explicit EC params and then fails. */
+            ADD_TEST_SUITE(SM2);
+        }
 # endif
         ADD_TEST_SUITE(ED25519);
         ADD_TEST_SUITE(ED448);
@@ -1485,6 +1496,9 @@ void cleanup_tests(void)
 # ifndef OPENSSL_NO_EC2M
     FREE_DOMAIN_KEYS(ECExplicitTriNamedCurve);
     FREE_DOMAIN_KEYS(ECExplicitTri2G);
+# endif
+# ifndef OPENSSL_NO_SM2
+    FREE_KEYS(SM2);
 # endif
     FREE_KEYS(ED25519);
     FREE_KEYS(ED448);

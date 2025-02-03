@@ -9,6 +9,7 @@
 #include "node_external_reference.h"
 #include "node_internals.h"
 #include "node_process-inl.h"
+#include "path.h"
 #include "util-inl.h"
 #include "uv.h"
 #include "v8-fast-api-calls.h"
@@ -72,7 +73,7 @@ static void Abort(const FunctionCallbackInfo<Value>& args) {
 // For internal testing only, not exposed to userland.
 static void CauseSegfault(const FunctionCallbackInfo<Value>& args) {
   // This should crash hard all platforms.
-  volatile void** d = static_cast<volatile void**>(nullptr);
+  void* volatile* d = static_cast<void* volatile*>(nullptr);
   *d = nullptr;
 }
 
@@ -83,6 +84,8 @@ static void Chdir(const FunctionCallbackInfo<Value>& args) {
   CHECK_EQ(args.Length(), 1);
   CHECK(args[0]->IsString());
   Utf8Value path(env->isolate(), args[0]);
+  THROW_IF_INSUFFICIENT_PERMISSIONS(
+      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
   int err = uv_chdir(*path);
   if (err) {
     // Also include the original working directory, since that will usually
@@ -309,12 +312,12 @@ static void GetActiveResourcesInfo(const FunctionCallbackInfo<Value>& args) {
   // Active timeouts
   resources_info.insert(resources_info.end(),
                         env->timeout_info()[0],
-                        OneByteString(env->isolate(), "Timeout"));
+                        FIXED_ONE_BYTE_STRING(env->isolate(), "Timeout"));
 
   // Active immediates
   resources_info.insert(resources_info.end(),
                         env->immediate_info()->ref_count(),
-                        OneByteString(env->isolate(), "Immediate"));
+                        FIXED_ONE_BYTE_STRING(env->isolate(), "Immediate"));
 
   args.GetReturnValue().Set(
       Array::New(env->isolate(), resources_info.data(), resources_info.size()));
@@ -472,7 +475,8 @@ static void LoadEnvFile(const v8::FunctionCallbackInfo<v8::Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   std::string path = ".env";
   if (args.Length() == 1) {
-    Utf8Value path_value(args.GetIsolate(), args[0]);
+    BufferValue path_value(args.GetIsolate(), args[0]);
+    ToNamespacedPath(env, &path_value);
     path = path_value.ToString();
   }
 
@@ -584,11 +588,11 @@ void BindingData::BigIntImpl(BindingData* receiver) {
 }
 
 void BindingData::SlowBigInt(const FunctionCallbackInfo<Value>& args) {
-  BigIntImpl(FromJSObject<BindingData>(args.Holder()));
+  BigIntImpl(FromJSObject<BindingData>(args.This()));
 }
 
 void BindingData::SlowNumber(const v8::FunctionCallbackInfo<v8::Value>& args) {
-  NumberImpl(FromJSObject<BindingData>(args.Holder()));
+  NumberImpl(FromJSObject<BindingData>(args.This()));
 }
 
 bool BindingData::PrepareForSerialization(Local<Context> context,

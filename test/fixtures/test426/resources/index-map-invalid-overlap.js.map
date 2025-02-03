@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "sections": [
+    {
+      "offset": { "line": 0, "column": 0 },
+      "map": {
+        "version": 3,
+        "names": [],
+        "sources": ["empty-original-1.js"],
+        "sourcesContent": [""],
+        "mappings": "AAAA"
+      }
+    },
+    {
+      "offset": { "line": 0, "column": 0 },
+      "map": {
+        "version": 3,
+        "names": [],
+        "sources": ["empty-original-2.js"],
+        "sourcesContent": [""],
+        "mappings": "AAAA"
+      }
+    }
+  ]
+}

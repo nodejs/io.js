@@ -71,9 +71,9 @@ class Realm : public MemoryRetainer {
   v8::MaybeLocal<v8::Value> ExecuteBootstrapper(const char* id);
   v8::MaybeLocal<v8::Value> RunBootstrapping();
 
-  inline void AddCleanupHook(CleanupQueue::Callback cb, void* arg);
-  inline void RemoveCleanupHook(CleanupQueue::Callback cb, void* arg);
-  inline bool HasCleanupHooks() const;
+  inline void TrackBaseObject(BaseObject* bo);
+  inline void UntrackBaseObject(BaseObject* bo);
+  inline bool PendingCleanup() const;
   void RunCleanup();
 
   template <typename T>
@@ -108,7 +108,6 @@ class Realm : public MemoryRetainer {
   // The BaseObject count is a debugging helper that makes sure that there are
   // no memory leaks caused by BaseObjects staying alive longer than expected
   // (in particular, no circular BaseObjectPtr references).
-  inline void modify_base_object_count(int64_t delta);
   inline int64_t base_object_count() const;
 
   // Base object count created after the bootstrap of the realm.
@@ -154,7 +153,7 @@ class Realm : public MemoryRetainer {
 
   BindingDataStore binding_data_store_;
 
-  CleanupQueue cleanup_queue_;
+  BaseObjectList base_object_list_;
 };
 
 class PrincipalRealm : public Realm {

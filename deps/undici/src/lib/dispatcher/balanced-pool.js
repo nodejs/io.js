@@ -13,7 +13,7 @@ const {
   kGetDispatcher
 } = require('./pool-base')
 const Pool = require('./pool')
-const { kUrl, kInterceptors } = require('../core/symbols')
+const { kUrl } = require('../core/symbols')
 const { parseOrigin } = require('../core/util')
 const kFactory = Symbol('factory')
 
@@ -25,9 +25,23 @@ const kWeight = Symbol('kWeight')
 const kMaxWeightPerServer = Symbol('kMaxWeightPerServer')
 const kErrorPenalty = Symbol('kErrorPenalty')
 
+/**
+ * Calculate the greatest common divisor of two numbers by
+ * using the Euclidean algorithm.
+ *
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
 function getGreatestCommonDivisor (a, b) {
-  if (b === 0) return a
-  return getGreatestCommonDivisor(b, a % b)
+  if (a === 0) return b
+
+  while (b !== 0) {
+    const t = b
+    b = a % b
+    a = t
+  }
+  return a
 }
 
 function defaultFactory (origin, opts) {
@@ -36,6 +50,10 @@ function defaultFactory (origin, opts) {
 
 class BalancedPool extends PoolBase {
   constructor (upstreams = [], { factory = defaultFactory, ...opts } = {}) {
+    if (typeof factory !== 'function') {
+      throw new InvalidArgumentError('factory must be a function.')
+    }
+
     super()
 
     this[kOptions] = opts
@@ -49,13 +67,6 @@ class BalancedPool extends PoolBase {
       upstreams = [upstreams]
     }
 
-    if (typeof factory !== 'function') {
-      throw new InvalidArgumentError('factory must be a function.')
-    }
-
-    this[kInterceptors] = opts.interceptors?.BalancedPool && Array.isArray(opts.interceptors.BalancedPool)
-      ? opts.interceptors.BalancedPool
-      : []
     this[kFactory] = factory
 
     for (const upstream of upstreams) {
@@ -105,7 +116,12 @@ class BalancedPool extends PoolBase {
   }
 
   _updateBalancedPoolStats () {
-    this[kGreatestCommonDivisor] = this[kClients].map(p => p[kWeight]).reduce(getGreatestCommonDivisor, 0)
+    let result = 0
+    for (let i = 0; i < this[kClients].length; i++) {
+      result = getGreatestCommonDivisor(this[kClients][i][kWeight], result)
+    }
+
+    this[kGreatestCommonDivisor] = result
   }
 
   removeUpstream (upstream) {

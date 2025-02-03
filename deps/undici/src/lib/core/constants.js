@@ -1,10 +1,9 @@
 'use strict'
 
-/** @type {Record<string, string | undefined>} */
-const headerNameLowerCasedRecord = {}
-
-// https://developer.mozilla.org/docs/Web/HTTP/Headers
-const wellknownHeaderNames = [
+/**
+ * @see https://developer.mozilla.org/docs/Web/HTTP/Headers
+ */
+const wellknownHeaderNames = /** @type {const} */ ([
   'Accept',
   'Accept-Encoding',
   'Accept-Language',
@@ -100,7 +99,35 @@ const wellknownHeaderNames = [
   'X-Powered-By',
   'X-Requested-With',
   'X-XSS-Protection'
-]
+])
+
+/** @type {Record<typeof wellknownHeaderNames[number]|Lowercase<typeof wellknownHeaderNames[number]>, string>} */
+const headerNameLowerCasedRecord = {}
+
+// Note: object prototypes should not be able to be referenced. e.g. `Object#hasOwnProperty`.
+Object.setPrototypeOf(headerNameLowerCasedRecord, null)
+
+/**
+ * @type {Record<Lowercase<typeof wellknownHeaderNames[number]>, Buffer>}
+ */
+const wellknownHeaderNameBuffers = {}
+
+// Note: object prototypes should not be able to be referenced. e.g. `Object#hasOwnProperty`.
+Object.setPrototypeOf(wellknownHeaderNameBuffers, null)
+
+/**
+ * @param {string} header Lowercased header
+ * @returns {Buffer}
+ */
+function getHeaderNameAsBuffer (header) {
+  let buffer = wellknownHeaderNameBuffers[header]
+
+  if (buffer === undefined) {
+    buffer = Buffer.from(header)
+  }
+
+  return buffer
+}
 
 for (let i = 0; i < wellknownHeaderNames.length; ++i) {
   const key = wellknownHeaderNames[i]
@@ -109,10 +136,8 @@ for (let i = 0; i < wellknownHeaderNames.length; ++i) {
     lowerCasedKey
 }
 
-// Note: object prototypes should not be able to be referenced. e.g. `Object#hasOwnProperty`.
-Object.setPrototypeOf(headerNameLowerCasedRecord, null)
-
 module.exports = {
   wellknownHeaderNames,
-  headerNameLowerCasedRecord
+  headerNameLowerCasedRecord,
+  getHeaderNameAsBuffer
 }

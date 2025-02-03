@@ -24,7 +24,7 @@
  */
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <assert.h>
 #include <string.h>
@@ -79,7 +79,7 @@ crypto_cipher_suite_get_aead_max_encryption(ptls_cipher_suite_t *cs) {
   if (cs->aead == &ptls_openssl_chacha20poly1305) {
     return NGTCP2_CRYPTO_MAX_ENCRYPTION_CHACHA20_POLY1305;
   }
-#endif /* PTLS_OPENSSL_HAVE_CHACHA20_POLY1305 */
+#endif /* defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) */
 
   return 0;
 }
@@ -95,7 +95,7 @@ crypto_cipher_suite_get_aead_max_decryption_failure(ptls_cipher_suite_t *cs) {
   if (cs->aead == &ptls_openssl_chacha20poly1305) {
     return NGTCP2_CRYPTO_MAX_DECRYPTION_FAILURE_CHACHA20_POLY1305;
   }
-#endif /* PTLS_OPENSSL_HAVE_CHACHA20_POLY1305 */
+#endif /* defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) */
 
   return 0;
 }
@@ -114,7 +114,7 @@ crypto_cipher_suite_get_hp(ptls_cipher_suite_t *cs) {
   if (cs->aead == &ptls_openssl_chacha20poly1305) {
     return &ptls_openssl_chacha20;
   }
-#endif /* PTLS_OPENSSL_HAVE_CHACHA20_POLY1305 */
+#endif /* defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) */
 
   return NULL;
 }
@@ -124,7 +124,7 @@ static int supported_cipher_suite(ptls_cipher_suite_t *cs) {
          cs->aead == &ptls_openssl_aes256gcm
 #ifdef PTLS_OPENSSL_HAVE_CHACHA20_POLY1305
          || cs->aead == &ptls_openssl_chacha20poly1305
-#endif /* PTLS_OPENSSL_HAVE_CHACHA20_POLY1305 */
+#endif /* defined(PTLS_OPENSSL_HAVE_CHACHA20_POLY1305) */
       ;
 }
 

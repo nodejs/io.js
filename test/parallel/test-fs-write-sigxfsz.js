@@ -19,8 +19,8 @@ if (process.argv[2] === 'child') {
   tmpdir.refresh();
   fs.writeFileSync(filename, '.'.repeat(1 << 16));  // Exceeds RLIMIT_FSIZE.
 } else {
-  const cmd = `ulimit -f 1 && '${process.execPath}' '${__filename}' child`;
-  const result = child_process.spawnSync('/bin/sh', ['-c', cmd]);
+  const [cmd, opts] = common.escapePOSIXShell`ulimit -f 1 && "${process.execPath}" "${__filename}" child`;
+  const result = child_process.spawnSync('/bin/sh', ['-c', cmd], opts);
   const haystack = result.stderr.toString();
   const needle = 'Error: EFBIG: file too large, write';
   const ok = haystack.includes(needle);

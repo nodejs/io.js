@@ -13,5 +13,5 @@ import { MinimatchOptions } from './index.js';
  * Slashes (and backslashes in `windowsPathsNoEscape` mode) cannot be escaped
  * or unescaped.
  */
-export declare const unescape: (s: string, { windowsPathsNoEscape, }?: Pick<MinimatchOptions, 'windowsPathsNoEscape'>) => string;
+export declare const unescape: (s: string, { windowsPathsNoEscape, }?: Pick<MinimatchOptions, "windowsPathsNoEscape">) => string;
 //# sourceMappingURL=unescape.d.ts.map

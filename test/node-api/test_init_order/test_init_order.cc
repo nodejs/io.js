@@ -12,7 +12,7 @@ namespace {
 // In production code developers must avoid dynamic static initializers because
 // they affect the start up time. They must prefer static initialization such as
 // use of constexpr functions or classes with constexpr constructors. E.g.
-// instead of using std::string, it is preferrable to use const char[], or
+// instead of using std::string, it is preferable to use const char[], or
 // constexpr std::string_view starting with C++17, or even constexpr
 // std::string starting with C++20.
 struct MyClass {

@@ -1,6 +1,6 @@
 'use strict';
 
-// Flags: --expose-internals --experimental-permission --allow-fs-read=* --allow-child-process
+// Flags: --expose-internals --permission --allow-fs-read=* --allow-child-process
 
 require('../common');
 
@@ -40,7 +40,7 @@ describe('legacyMainResolve', () => {
         process.execPath,
         [
           '--expose-internals',
-          '--experimental-permission',
+          '--permission',
           ...allowReadFiles,
           '-e',
           `
@@ -63,9 +63,11 @@ describe('legacyMainResolve', () => {
 
             assert.throws(() => legacyMainResolve(packageJsonUrl, packageConfig, base), {
               code: 'ERR_ACCESS_DENIED',
-              resource: path.resolve(
-                ${JSON.stringify(fixtextureFolderEscaped)},
-                ${JSON.stringify(mainOrFolder)},
+              resource: path.toNamespacedPath(
+                path.resolve(
+                  ${JSON.stringify(fixtextureFolderEscaped)},
+                  ${JSON.stringify(mainOrFolder)},
+                )
               )
             });
           `,
@@ -96,7 +98,7 @@ describe('legacyMainResolve', () => {
         process.execPath,
         [
           '--expose-internals',
-          '--experimental-permission',
+          '--permission',
           ...allowReadFiles,
           '-e',
           `
@@ -120,10 +122,12 @@ describe('legacyMainResolve', () => {
 
             assert.throws(() => legacyMainResolve(packageJsonUrl, packageConfig, base), {
               code: 'ERR_ACCESS_DENIED',
-              resource: path.resolve(
-                ${JSON.stringify(fixtextureFolderEscaped)},
-                ${JSON.stringify(folder)},
-                ${JSON.stringify(expectedFile)},
+              resource: path.toNamespacedPath(
+                path.resolve(
+                  ${JSON.stringify(fixtextureFolderEscaped)},
+                  ${JSON.stringify(folder)},
+                  ${JSON.stringify(expectedFile)},
+                )
               )
             });
           `,

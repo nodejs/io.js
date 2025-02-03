@@ -12,8 +12,9 @@ ALL_VARIANT_FLAGS = {
     # Alias of exhaustive variants, but triggering new test framework features.
     "infra_staging": [[]],
     "interpreted_regexp": [["--regexp-interpret-all"]],
+    "stress_regexp_jit": [["--regexp-tier-up-ticks=0"]],
     "experimental_regexp": [["--default-to-experimental-regexp-engine"]],
-    "jitless": [["--jitless"]],
+    "jitless": [["--jitless", "--wasm-jitless-if-available-for-testing"]],
     "sparkplug": [["--sparkplug"]],
     "maglev": [["--maglev"]],
     "maglev_future": [["--maglev", "--maglev-future"]],
@@ -39,14 +40,22 @@ ALL_VARIANT_FLAGS = {
         "--turboshaft",
         "--turboshaft-future",
         "--turboshaft-wasm",
-        "--turboshaft-wasm-wrappers",
         "--no-wasm-generic-wrapper",
+        "--no-wasm-to-js-generic-wrapper",
         "--no-liftoff",
     ]],
     "concurrent_sparkplug": [["--concurrent-sparkplug", "--sparkplug"]],
     "always_sparkplug": [["--always-sparkplug", "--sparkplug"]],
+    # This combines two orthogonal variants always_sparkplug and
+    # stress_regexp_jit to use bot resources more effectively.
+    "always_sparkplug_and_stress_regexp_jit": [[
+        "--always-sparkplug",
+        "--sparkplug",
+        "--regexp-tier-up-ticks=0",
+    ]],
     "minor_ms": [["--minor-ms"]],
     "no_lfa": [["--no-lazy-feedback-allocation"]],
+    "no_memory_protection_keys": [["--no-memory-protection-keys"]],
     # No optimization means disable all optimizations. OptimizeFunctionOnNextCall
     # would not force optimization too. It turns into a Nop. Please see
     # https://chromium-review.googlesource.com/c/452620/ for more discussion.
@@ -57,14 +66,14 @@ ALL_VARIANT_FLAGS = {
     # compilation. "Liftoff-only" and eager compilation is not a problem,
     # because test functions do typically not get optimized to TurboFan anyways.
     "nooptimization": [[
-        "--no-turbofan", "--no-maglev", "--liftoff", "--no-wasm-tier-up",
-        "--no-wasm-lazy-compilation"
+        "--disable-optimizing-compilers", "--no-wasm-lazy-compilation"
     ]],
     "rehash_snapshot": [["--rehash-snapshot"]],
     "slow_path": [["--force-slow-path"]],
     "stress": [[
         "--no-liftoff", "--stress-lazy-source-positions",
-        "--no-wasm-generic-wrapper", "--no-wasm-lazy-compilation"
+        "--no-wasm-generic-wrapper", "--no-wasm-lazy-compilation",
+        "--no-wasm-to-js-generic-wrapper"
     ]],
     "stress_concurrent_allocation": [["--stress-concurrent-allocation"]],
     "stress_concurrent_inlining": [["--stress-concurrent-inlining"]],
@@ -103,7 +112,10 @@ INCOMPATIBLE_FLAGS_PER_VARIANT = {
             "--no-regexp-interpret-all", "--interpreted-frames-native-stack"
         ],
     "nooptimization": [
-        "--turbofan", "--always-turbofan", "--stress-concurrent-inlining"
+        "--turbofan", "--always-turbofan", "--turboshaft",
+        "--turboshaft-future", "--maglev", "--no-liftoff", "--wasm-tier-up",
+        "--wasm-dynamic-tiering", "--validate-asm", "--track-field-types",
+        "--stress-concurrent-inlining"
     ],
     "slow_path": ["--no-force-slow-path"],
     "stress_concurrent_allocation": [
@@ -152,9 +164,12 @@ INCOMPATIBLE_FLAGS_PER_VARIANT = {
         "--stress-concurrent-inlining",
     ],
     "always_sparkplug": ["--jitless", "--no-sparkplug"],
+    "always_sparkplug_and_stress_regexp_jit": ["--jitless", "--no-sparkplug"],
     "code_serializer": [
         "--cache=after-execute", "--cache=full-code-cache", "--cache=none"
     ],
+    "interpreted_regexp": ["--regexp-tier-up"],
+    "stress_regexp_jit": ["--regexp-interpret-all"],
     "experimental_regexp": ["--no-enable-experimental-regexp-engine"],
     "assert_types": [
         "--concurrent-recompilation", "--stress_concurrent_inlining",
@@ -217,12 +232,9 @@ INCOMPATIBLE_FLAGS_PER_BUILD_VARIABLE = {
     "!slow_dchecks": ["--enable-slow-asserts"],
     "!gdbjit": ["--gdbjit", "--gdbjit_full", "--gdbjit_dump"],
     "!has_maglev": ["--maglev"],
-    "!has_turbofan":
-        kIncompatibleFlagsForNoTurbofan,
-    "has_jitless":
-        INCOMPATIBLE_FLAGS_PER_VARIANT["jitless"],
-    "lite_mode": ["--max-semi-space-size=*"] +
-                 INCOMPATIBLE_FLAGS_PER_VARIANT["jitless"],
+    "!has_turbofan": kIncompatibleFlagsForNoTurbofan,
+    "has_jitless": INCOMPATIBLE_FLAGS_PER_VARIANT["jitless"],
+    "lite_mode": INCOMPATIBLE_FLAGS_PER_VARIANT["jitless"],
     "verify_predictable": [
         "--parallel-compile-tasks-for-eager-toplevel",
         "--parallel-compile-tasks-for-lazy", "--concurrent-recompilation",
@@ -244,7 +256,6 @@ INCOMPATIBLE_FLAGS_PER_EXTRA_FLAG = {
     "--parallel-compile-tasks-for-eager-toplevel": ["--predictable"],
     "--parallel-compile-tasks-for-lazy": ["--predictable"],
     "--gc-interval=*": ["--gc-interval=*"],
-    "--optimize-for-size": ["--max-semi-space-size=*"],
     "--stress_concurrent_allocation":
         INCOMPATIBLE_FLAGS_PER_VARIANT["stress_concurrent_allocation"],
     "--stress-concurrent-inlining":

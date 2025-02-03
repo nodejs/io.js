@@ -934,3 +934,36 @@ promise_test(async () => {
   assert_typed_array_equals(result4.value, new Uint8Array([0]).subarray(0, 0), 'second chunk from branch2 should be correct');
 
 }, 'ReadableStream teeing with byte source: respond() and close() while both branches are pulling');
+
+promise_test(async t => {
+  let pullCount = 0;
+  const arrayBuffer = new Uint8Array([0x01, 0x02, 0x03]).buffer;
+  const enqueuedChunk = new Uint8Array(arrayBuffer, 2);
+  assert_equals(enqueuedChunk.length, 1);
+  assert_equals(enqueuedChunk.byteOffset, 2);
+  const rs = new ReadableStream({
+    type: 'bytes',
+    pull(c) {
+      ++pullCount;
+      if (pullCount === 1) {
+        c.enqueue(enqueuedChunk);
+      }
+    }
+  });
+
+  const [branch1, branch2] = rs.tee();
+  const reader1 = branch1.getReader();
+  const reader2 = branch2.getReader();
+
+  const [result1, result2] = await Promise.all([reader1.read(), reader2.read()]);
+  assert_equals(result1.done, false, 'reader1 done');
+  assert_equals(result2.done, false, 'reader2 done');
+
+  const view1 = result1.value;
+  const view2 = result2.value;
+  // The first stream has the transferred buffer, but the second stream has the
+  // cloned buffer.
+  const underlying = new Uint8Array([0x01, 0x02, 0x03]).buffer;
+  assert_typed_array_equals(view1, new Uint8Array(underlying, 2), 'reader1 value');
+  assert_typed_array_equals(view2, new Uint8Array([0x03]), 'reader2 value');
+}, 'ReadableStream teeing with byte source: reading an array with a byte offset should clone correctly');

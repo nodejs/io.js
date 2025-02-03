@@ -1,6 +1,6 @@
 {
 	"name": "chalk",
-	"version": "5.3.0",
+	"version": "5.4.1",
 	"description": "Terminal string styling done right",
 	"license": "MIT",
 	"repository": "chalk/chalk",
@@ -16,6 +16,7 @@
 		}
 	},
 	"types": "./source/index.d.ts",
+	"sideEffects": false,
 	"engines": {
 		"node": "^12.17.0 || ^14.13 || >=16.0.0"
 	},
@@ -58,10 +59,9 @@
 		"log-update": "^5.0.0",
 		"matcha": "^0.7.0",
 		"tsd": "^0.19.0",
-		"xo": "^0.53.0",
+		"xo": "^0.57.0",
 		"yoctodelay": "^2.0.0"
 	},
-	"sideEffects": false,
 	"xo": {
 		"rules": {
 			"unicorn/prefer-string-slice": "off",

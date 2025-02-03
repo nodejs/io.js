@@ -14,10 +14,22 @@
 
 #include "absl/container/node_hash_set.h"
 
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+#include "absl/base/config.h"
+#include "absl/container/internal/hash_generator_testing.h"
+#include "absl/container/internal/hash_policy_testing.h"
 #include "absl/container/internal/unordered_set_constructor_test.h"
 #include "absl/container/internal/unordered_set_lookup_test.h"
 #include "absl/container/internal/unordered_set_members_test.h"
 #include "absl/container/internal/unordered_set_modifiers_test.h"
+#include "absl/memory/memory.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -28,6 +40,7 @@ using ::absl::container_internal::hash_internal::EnumClass;
 using ::testing::IsEmpty;
 using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAreArray;
 
 using SetTypes = ::testing::Types<
     node_hash_set<int, StatefulTestingHash, StatefulTestingEqual, Alloc<int>>,
@@ -134,6 +147,39 @@ TEST(NodeHashSet, EraseIf) {
     node_hash_set<int> s = {1, 2, 3, 4, 5};
     EXPECT_EQ(erase_if(s, &IsEven), 2);
     EXPECT_THAT(s, UnorderedElementsAre(1, 3, 5));
+  }
+}
+
+TEST(NodeHashSet, CForEach) {
+  using ValueType = std::pair<int, int>;
+  node_hash_set<ValueType> s;
+  std::vector<ValueType> expected;
+  for (int i = 0; i < 100; ++i) {
+    {
+      SCOPED_TRACE("mutable object iteration");
+      std::vector<ValueType> v;
+      absl::container_internal::c_for_each_fast(
+          s, [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("const object iteration");
+      std::vector<ValueType> v;
+      const node_hash_set<ValueType>& cs = s;
+      absl::container_internal::c_for_each_fast(
+          cs, [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("temporary object iteration");
+      std::vector<ValueType> v;
+      absl::container_internal::c_for_each_fast(
+          node_hash_set<ValueType>(s),
+          [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    s.emplace(i, i);
+    expected.emplace_back(i, i);
   }
 }
 

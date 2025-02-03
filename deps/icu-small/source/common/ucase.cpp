@@ -38,7 +38,7 @@
 static UBool U_CALLCONV
 _enumPropertyStartsRange(const void *context, UChar32 start, UChar32 /*end*/, uint32_t /*value*/) {
     /* add the start code point to the USet */
-    const USetAdder *sa=(const USetAdder *)context;
+    const USetAdder* sa = static_cast<const USetAdder*>(context);
     sa->add(sa->set, start);
     return true;
 }
@@ -696,17 +696,17 @@ getDotType(UChar32 c) {
 
 U_CAPI UBool U_EXPORT2
 ucase_isSoftDotted(UChar32 c) {
-    return (UBool)(getDotType(c)==UCASE_SOFT_DOTTED);
+    return getDotType(c)==UCASE_SOFT_DOTTED;
 }
 
 U_CAPI UBool U_EXPORT2
 ucase_isCaseSensitive(UChar32 c) {
     uint16_t props=UTRIE2_GET16(&ucase_props_singleton.trie, c);
     if(!UCASE_HAS_EXCEPTION(props)) {
-        return (UBool)((props&UCASE_SENSITIVE)!=0);
+        return (props&UCASE_SENSITIVE)!=0;
     } else {
         const uint16_t *pe=GET_EXCEPTIONS(&ucase_props_singleton, props);
-        return (UBool)((*pe&UCASE_EXC_SENSITIVE)!=0);
+        return (*pe&UCASE_EXC_SENSITIVE)!=0;
     }
 }
 
@@ -1623,12 +1623,12 @@ ucase_toFullFolding(UChar32 c,
 
 U_CAPI UBool U_EXPORT2
 u_isULowercase(UChar32 c) {
-    return (UBool)(UCASE_LOWER==ucase_getType(c));
+    return UCASE_LOWER==ucase_getType(c);
 }
 
 U_CAPI UBool U_EXPORT2
 u_isUUppercase(UChar32 c) {
-    return (UBool)(UCASE_UPPER==ucase_getType(c));
+    return UCASE_UPPER==ucase_getType(c);
 }
 
 /* Transforms the Unicode character to its lower case equivalent.*/

@@ -10,7 +10,7 @@ if (this.Worker) {
 
 (function TestSharedStructPostMessage() {
   let workerScript =
-      `onmessage = function(struct) {
+      `onmessage = function({data:struct}) {
          struct.struct_field.payload = 42;
          struct.string_field = "worker";
          postMessage("done");

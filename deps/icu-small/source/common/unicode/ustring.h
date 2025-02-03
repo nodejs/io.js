@@ -1107,8 +1107,8 @@ u_strToLower(UChar *dest, int32_t destCapacity,
  * styles, using rules and dictionaries beyond the standard iterators.
  * It may be more efficient to always provide an iterator to avoid
  * opening and closing one for each string.
- * The standard titlecase iterator for the root locale implements the
- * algorithm of Unicode TR 21.
+ * If the break iterator passed in is null, the default Unicode algorithm
+ * will be used to determine the titlecase positions.
  *
  * This function uses only the setText(), first() and next() methods of the
  * provided break iterator.

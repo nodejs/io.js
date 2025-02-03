@@ -497,8 +497,8 @@ TEST(Status, MoveAssignment) {
   {
     absl::Status status(absl::StatusCode::kInvalidArgument, "message");
     absl::Status copy(status);
-    status = static_cast<absl::Status&&>(status);
-    EXPECT_EQ(status, copy);
+    assignee = static_cast<absl::Status&&>(status);
+    EXPECT_EQ(assignee, copy);
   }
 }
 

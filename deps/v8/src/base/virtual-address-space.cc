@@ -4,6 +4,8 @@
 
 #include "src/base/virtual-address-space.h"
 
+#include <optional>
+
 #include "include/v8-platform.h"
 #include "src/base/bits.h"
 #include "src/base/platform/platform.h"
@@ -150,7 +152,7 @@ std::unique_ptr<v8::VirtualAddressSpace> VirtualAddressSpace::AllocateSubspace(
   DCHECK(IsAligned(hint, alignment));
   DCHECK(IsAligned(size, allocation_granularity()));
 
-  base::Optional<AddressSpaceReservation> reservation =
+  std::optional<AddressSpaceReservation> reservation =
       OS::CreateAddressSpaceReservation(
           reinterpret_cast<void*>(hint), size, alignment,
           static_cast<OS::MemoryPermission>(max_page_permissions));
@@ -354,7 +356,7 @@ VirtualAddressSubspace::AllocateSubspace(Address hint, size_t size,
     return std::unique_ptr<v8::VirtualAddressSpace>();
   }
 
-  base::Optional<AddressSpaceReservation> reservation =
+  std::optional<AddressSpaceReservation> reservation =
       reservation_.CreateSubReservation(
           reinterpret_cast<void*>(address), size,
           static_cast<OS::MemoryPermission>(max_page_permissions));

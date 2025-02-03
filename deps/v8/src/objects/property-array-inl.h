@@ -26,29 +26,29 @@ SMI_ACCESSORS(PropertyArray, length_and_hash, kLengthAndHashOffset)
 RELEASE_ACQUIRE_SMI_ACCESSORS(PropertyArray, length_and_hash,
                               kLengthAndHashOffset)
 
-Tagged<Object> PropertyArray::get(int index) const {
+Tagged<JSAny> PropertyArray::get(int index) const {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
   return get(cage_base, index);
 }
 
-Tagged<Object> PropertyArray::get(PtrComprCageBase cage_base, int index) const {
+Tagged<JSAny> PropertyArray::get(PtrComprCageBase cage_base, int index) const {
   DCHECK_LT(static_cast<unsigned>(index),
             static_cast<unsigned>(this->length(kAcquireLoad)));
-  return TaggedField<Object>::Relaxed_Load(cage_base, *this,
-                                           OffsetOfElementAt(index));
+  return TaggedField<JSAny>::Relaxed_Load(cage_base, *this,
+                                          OffsetOfElementAt(index));
 }
 
-Tagged<Object> PropertyArray::get(int index, SeqCstAccessTag tag) const {
+Tagged<JSAny> PropertyArray::get(int index, SeqCstAccessTag tag) const {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
   return get(cage_base, index, tag);
 }
 
-Tagged<Object> PropertyArray::get(PtrComprCageBase cage_base, int index,
-                                  SeqCstAccessTag tag) const {
+Tagged<JSAny> PropertyArray::get(PtrComprCageBase cage_base, int index,
+                                 SeqCstAccessTag tag) const {
   DCHECK_LT(static_cast<unsigned>(index),
             static_cast<unsigned>(this->length(kAcquireLoad)));
-  return TaggedField<Object>::SeqCst_Load(cage_base, *this,
-                                          OffsetOfElementAt(index));
+  return TaggedField<JSAny>::SeqCst_Load(cage_base, *this,
+                                         OffsetOfElementAt(index));
 }
 
 void PropertyArray::set(int index, Tagged<Object> value) {

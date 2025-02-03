@@ -49,7 +49,7 @@ StringProp &StringProp::operator=(const StringProp &other) {
         // copying an errored StringProp.
         return *this;
     }
-    fValue = (char *)uprv_malloc(other.fLength + 1);
+    fValue = static_cast<char*>(uprv_malloc(other.fLength + 1));
     if (fValue == nullptr) {
         fError = U_MEMORY_ALLOCATION_ERROR;
         return *this;
@@ -96,7 +96,7 @@ void StringProp::set(StringPiece value) {
         fValue = nullptr;
     }
     fLength = value.length();
-    fValue = (char *)uprv_malloc(fLength + 1);
+    fValue = static_cast<char*>(uprv_malloc(fLength + 1));
     if (fValue == nullptr) {
         fLength = 0;
         fError = U_MEMORY_ALLOCATION_ERROR;

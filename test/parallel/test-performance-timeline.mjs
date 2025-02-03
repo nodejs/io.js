@@ -33,6 +33,12 @@ await setTimeout(50);
 performance.measure('a', 'one');
 const entriesByName = performance.getEntriesByName('a');
 assert.deepStrictEqual(entriesByName.map((x) => x.entryType), ['measure', 'mark', 'measure', 'mark']);
+const marksByName = performance.getEntriesByName('a', 'mark');
+assert.deepStrictEqual(marksByName.map((x) => x.entryType), ['mark', 'mark']);
+const measuresByName = performance.getEntriesByName('a', 'measure');
+assert.deepStrictEqual(measuresByName.map((x) => x.entryType), ['measure', 'measure']);
+const invalidTypeEntriesByName = performance.getEntriesByName('a', null);
+assert.strictEqual(invalidTypeEntriesByName.length, 0);
 
 // getEntriesBy[Name|Type](undefined)
 performance.mark(undefined);

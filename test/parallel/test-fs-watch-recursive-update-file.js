@@ -31,7 +31,7 @@ fs.writeFileSync(testFile, 'hello');
 
 const watcher = fs.watch(testDirectory, { recursive: true });
 watcher.on('change', common.mustCallAtLeast(function(event, filename) {
-  // Libuv inconsistenly emits a rename event for the file we are watching
+  // Libuv inconsistently emits a rename event for the file we are watching
   assert.ok(event === 'change' || event === 'rename');
 
   if (filename === path.basename(testFile)) {

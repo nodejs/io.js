@@ -38,7 +38,10 @@ template("cares_gn_build") {
       ]
     }
 
-    include_dirs = [ "src/lib" ]
+    include_dirs = [
+      "src/lib",
+      "src/lib/include",
+    ]
     if (is_win) {
       include_dirs += [ "config/win32" ]
     } else if (is_linux) {
@@ -55,21 +58,24 @@ template("cares_gn_build") {
     }
 
     sources = gypi_values.cares_sources_common
-    if (is_win) {
-      sources += gypi_values.cares_sources_win
-    }
     if (is_linux) {
       sources += [ "config/linux/ares_config.h" ]
     }
     if (is_mac) {
-      sources += [ "config/darwin/ares_config.h" ]
+      sources += gypi_values.cares_sources_mac
     }
 
-    if (is_clang || !is_win) {
-      cflags_c = [
-        "-Wno-implicit-fallthrough",
-        "-Wno-unreachable-code",
-      ]
+    if (is_clang) {
+      if (is_win) {
+        cflags_c = [
+          "-Wno-macro-redefined",
+        ]
+      } else {
+        cflags_c = [
+          "-Wno-implicit-fallthrough",
+          "-Wno-unreachable-code",
+        ]
+      }
     }
   }
 }

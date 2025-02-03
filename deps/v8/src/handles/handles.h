@@ -6,13 +6,14 @@
 #define V8_HANDLES_HANDLES_H_
 
 #include <type_traits>
+#include <vector>
 
 #include "src/base/functional.h"
 #include "src/base/macros.h"
 #include "src/common/checks.h"
 #include "src/common/globals.h"
+#include "src/objects/casting.h"
 #include "src/objects/tagged.h"
-#include "src/zone/zone.h"
 #include "v8-handle-base.h"  // NOLINT(build/include_directory)
 
 #ifdef V8_ENABLE_DIRECT_HANDLE
@@ -28,6 +29,8 @@ namespace internal {
 // Forward declarations.
 #ifdef V8_ENABLE_DIRECT_HANDLE
 class DirectHandleBase;
+template <typename T>
+class DirectHandleUnchecked;
 #endif
 class HandleScopeImplementer;
 class Isolate;
@@ -44,6 +47,7 @@ class SmallOrderedHashSet;
 class SmallOrderedNameDictionary;
 class SwissNameDictionary;
 class WasmExportedFunctionData;
+class ZoneAllocationPolicy;
 
 constexpr Address kTaggedNullAddress = 0x1;
 
@@ -133,22 +137,15 @@ class Handle final : public HandleBase {
   // This means that this is only permitted for Tagged<T> with an operator->,
   // i.e. for on-heap object T.
   V8_INLINE Tagged<T> operator->() const {
-    if constexpr (is_subtype_v<T, HeapObject>) {
-      return **this;
-    } else {
-      // `static_assert(false)` in this else clause was an unconditional error
-      // before CWG2518. See https://reviews.llvm.org/D144285
-#if defined(__clang__) && __clang_major__ >= 17
-      // For non-HeapObjects, there's no on-heap object to dereference, so
-      // disallow using operator->.
-      //
-      // If you got an error here and want to access the Tagged<T>, use
-      // operator* -- e.g. for `Tagged<Smi>::value()`, use `(*handle).value()`.
-      static_assert(
-          false,
-          "This handle does not reference a heap object. Use `(*handle).foo`.");
-#endif
-    }
+    // For non-HeapObjects, there's no on-heap object to dereference, so
+    // disallow using operator->.
+    //
+    // If you got an error here and want to access the Tagged<T>, use
+    // operator* -- e.g. for `Tagged<Smi>::value()`, use `(*handle).value()`.
+    static_assert(
+        is_subtype_v<T, HeapObject>,
+        "This handle does not reference a heap object. Use `(*handle).foo`.");
+    return **this;
   }
 
   V8_INLINE Tagged<T> operator*() const {
@@ -162,9 +159,6 @@ class Handle final : public HandleBase {
     SLOW_DCHECK(IsDereferenceAllowed());
     return Tagged<T>(*location());
   }
-
-  template <typename S>
-  inline static const Handle<T> cast(Handle<S> that);
 
   // Consider declaring values that contain empty handles as
   // MaybeHandle to force validation before being used as handles.
@@ -201,6 +195,10 @@ class Handle final : public HandleBase {
   // MaybeHandle is allowed to access location_.
   template <typename>
   friend class MaybeHandle;
+  // Casts are allowed to access location_.
+  template <typename To, typename From>
+  friend inline Handle<To> Cast(Handle<From> value,
+                                const v8::SourceLocation& loc);
 };
 
 template <typename T>
@@ -359,11 +357,27 @@ class V8_TRIVIAL_ABI DirectHandleBase :
   V8_INLINE Address address() const { return obj_; }
 
 #ifdef DEBUG
-  // Counts the number of allocated handles for the current thread.
-  // The number is only accurate if V8_HAS_ATTRIBUTE_TRIVIAL_ABI,
-  // otherwise it's zero.
+  // Counts the number of allocated handles for the current thread that are
+  // below the stack marker. The number is only accurate if
+  // V8_HAS_ATTRIBUTE_TRIVIAL_ABI, otherwise it's zero.
   V8_INLINE static int NumberOfHandles() { return number_of_handles_; }
-#endif
+
+  // Scope to temporarily reset the number of allocated handles.
+  class V8_NODISCARD ResetNumberOfHandlesScope {
+   public:
+    ResetNumberOfHandlesScope() : saved_number_of_handles_(number_of_handles_) {
+      number_of_handles_ = 0;
+    }
+    ~ResetNumberOfHandlesScope() {
+      number_of_handles_ = saved_number_of_handles_;
+    }
+
+   private:
+    int saved_number_of_handles_;
+  };
+#else
+  class V8_NODISCARD ResetNumberOfHandlesScope {};
+#endif  // DEBUG
 
  protected:
   friend class HandleBase;
@@ -387,6 +401,11 @@ class V8_TRIVIAL_ABI DirectHandleBase :
 #else
   V8_INLINE bool IsDereferenceAllowed() const { return true; }
 #endif  // DEBUG
+
+  DirectHandleBase(Address obj, no_checking_tag do_not_check)
+      : StackAllocated(do_not_check), obj_(obj) {
+    Register();
+  }
 
   // This is a direct pointer to either a tagged object or SMI. Design overview:
   // https://docs.google.com/document/d/1uRGYQM76vk1fc_aDqDH3pm2qhaJtnK2oyzeVng4cS6I/
@@ -426,13 +445,12 @@ class V8_TRIVIAL_ABI DirectHandleBase :
 // Further motivation is explained in the design doc:
 // https://docs.google.com/document/d/1uRGYQM76vk1fc_aDqDH3pm2qhaJtnK2oyzeVng4cS6I/
 template <typename T>
-class DirectHandle final : public DirectHandleBase {
+class DirectHandle : public DirectHandleBase {
  public:
   V8_INLINE DirectHandle() : DirectHandle(kTaggedNullAddress) {}
 
   V8_INLINE explicit DirectHandle(Address object) : DirectHandleBase(object) {}
 
-  V8_INLINE explicit DirectHandle(Tagged<T> object);
   V8_INLINE DirectHandle(Tagged<T> object, Isolate* isolate)
       : DirectHandle(object) {}
   V8_INLINE DirectHandle(Tagged<T> object, LocalIsolate* isolate)
@@ -485,12 +503,6 @@ class DirectHandle final : public DirectHandleBase {
     return Tagged<T>(address());
   }
 
-  template <typename S>
-  V8_INLINE static const DirectHandle<T> cast(DirectHandle<S> that);
-
-  template <typename S>
-  V8_INLINE static const DirectHandle<T> cast(Handle<S> that);
-
   // Consider declaring values that contain empty handles as
   // MaybeDirectHandle to force validation before being used as handles.
   V8_INLINE static const DirectHandle<T> null() { return DirectHandle<T>(); }
@@ -498,6 +510,14 @@ class DirectHandle final : public DirectHandleBase {
   // Address equality.
   bool equals(DirectHandle<T> other) const {
     return address() == other.address();
+  }
+
+  // Sets this DirectHandle's value. This is equivalent to handle assignment,
+  // except for the check that is equivalent to that performed in
+  // Handle<T>::PatchValue.
+  void PatchValue(Tagged<T> new_value) {
+    SLOW_DCHECK(obj_ != kTaggedNullAddress && IsDereferenceAllowed());
+    obj_ = new_value.ptr();
   }
 
  private:
@@ -508,11 +528,206 @@ class DirectHandle final : public DirectHandleBase {
   // MaybeDirectHandle is allowed to access obj_.
   template <typename>
   friend class MaybeDirectHandle;
+  friend class DirectHandleUnchecked<T>;
+  // Casts are allowed to access obj_.
+  template <typename To, typename From>
+  friend inline DirectHandle<To> Cast(DirectHandle<From> value,
+                                      const v8::SourceLocation& loc);
+
+  V8_INLINE explicit DirectHandle(Tagged<T> object);
+
+  explicit DirectHandle(no_checking_tag do_not_check)
+      : DirectHandleBase(kTaggedNullAddress, do_not_check) {}
+  explicit DirectHandle(const DirectHandle<T>& other,
+                        no_checking_tag do_not_check)
+      : DirectHandleBase(other.obj_, do_not_check) {}
 };
 
 template <typename T>
 std::ostream& operator<<(std::ostream& os, DirectHandle<T> handle);
 
+// A variant of DirectHandle that is suitable for off-stack allocation.
+// Used internally by DirectHandleVector<T>. Not to be used directly!
+template <typename T>
+class V8_TRIVIAL_ABI DirectHandleUnchecked final : public DirectHandle<T> {
+ public:
+  DirectHandleUnchecked() : DirectHandle<T>(DirectHandle<T>::do_not_check) {}
+
+#if defined(DEBUG) && V8_HAS_ATTRIBUTE_TRIVIAL_ABI
+  // In this case, the check is also enforced in the copy constructor and we
+  // need to suppress it.
+  DirectHandleUnchecked(const DirectHandleUnchecked& other) V8_NOEXCEPT
+      : DirectHandle<T>(other, DirectHandle<T>::do_not_check) {}
+  DirectHandleUnchecked& operator=(const DirectHandleUnchecked&)
+      V8_NOEXCEPT = default;
+#endif
+
+  // Implicit conversion from DirectHandle.
+  DirectHandleUnchecked(const DirectHandle<T>& other)
+      V8_NOEXCEPT  // NOLINT(runtime/explicit)
+      : DirectHandle<T>(other, DirectHandle<T>::do_not_check) {}
+};
+
+// Off-stack allocated direct handles must be registered as strong roots.
+// For off-stack indirect handles, this is not necessary.
+template <typename T>
+class StrongRootAllocator<DirectHandleUnchecked<T>>
+    : public StrongRootAllocatorBase {
+ public:
+  using value_type = DirectHandleUnchecked<T>;
+  static_assert(std::is_standard_layout_v<value_type>);
+  static_assert(sizeof(value_type) == sizeof(Address));
+
+  explicit StrongRootAllocator(Heap* heap) : StrongRootAllocatorBase(heap) {}
+  explicit StrongRootAllocator(Isolate* isolate)
+      : StrongRootAllocatorBase(isolate) {}
+  explicit StrongRootAllocator(v8::Isolate* isolate)
+      : StrongRootAllocatorBase(reinterpret_cast<Isolate*>(isolate)) {}
+  template <typename U>
+  StrongRootAllocator(const StrongRootAllocator<U>& other) noexcept
+      : StrongRootAllocatorBase(other) {}
+
+  value_type* allocate(size_t n) {
+    return reinterpret_cast<value_type*>(allocate_impl(n));
+  }
+  void deallocate(value_type* p, size_t n) noexcept {
+    return deallocate_impl(reinterpret_cast<Address*>(p), n);
+  }
+};
+
+template <typename T>
+class DirectHandleVector {
+ private:
+  using element_type = internal::DirectHandleUnchecked<T>;
+
+  using allocator_type = internal::StrongRootAllocator<element_type>;
+
+  static allocator_type make_allocator(Isolate* isolate) noexcept {
+    return allocator_type(isolate);
+  }
+
+  using vector_type = std::vector<element_type, allocator_type>;
+
+ public:
+  using value_type = DirectHandle<T>;
+  using reference = value_type&;
+  using const_reference = const value_type&;
+  using size_type = size_t;
+  using difference_type = ptrdiff_t;
+  using iterator = internal::WrappedIterator<typename vector_type::iterator,
+                                             DirectHandle<T>>;
+  using const_iterator =
+      internal::WrappedIterator<typename vector_type::const_iterator,
+                                const DirectHandle<T>>;
+
+  explicit DirectHandleVector(Isolate* isolate)
+      : backing_(make_allocator(isolate)) {}
+  DirectHandleVector(Isolate* isolate, size_t n)
+      : backing_(n, make_allocator(isolate)) {}
+  DirectHandleVector(Isolate* isolate,
+                     std::initializer_list<DirectHandle<T>> init)
+      : backing_(make_allocator(isolate)) {
+    if (init.size() == 0) return;
+    backing_.reserve(init.size());
+    backing_.insert(backing_.end(), init.begin(), init.end());
+  }
+
+  iterator begin() noexcept { return iterator(backing_.begin()); }
+  const_iterator begin() const noexcept {
+    return const_iterator(backing_.begin());
+  }
+  iterator end() noexcept { return iterator(backing_.end()); }
+  const_iterator end() const noexcept { return const_iterator(backing_.end()); }
+
+  size_t size() const noexcept { return backing_.size(); }
+  bool empty() const noexcept { return backing_.empty(); }
+  void reserve(size_t n) { backing_.reserve(n); }
+  void shrink_to_fit() { backing_.shrink_to_fit(); }
+
+  DirectHandle<T>& operator[](size_t n) { return backing_[n]; }
+  const DirectHandle<T>& operator[](size_t n) const { return backing_[n]; }
+
+  DirectHandle<T>& at(size_t n) { return backing_.at(n); }
+  const DirectHandle<T>& at(size_t n) const { return backing_.at(n); }
+
+  DirectHandle<T>& front() { return backing_.front(); }
+  const DirectHandle<T>& front() const { return backing_.front(); }
+  DirectHandle<T>& back() { return backing_.back(); }
+  const DirectHandle<T>& back() const { return backing_.back(); }
+
+  DirectHandle<T>* data() noexcept { return backing_.data(); }
+  const DirectHandle<T>* data() const noexcept { return backing_.data(); }
+
+  iterator insert(const_iterator pos, const DirectHandle<T>& value) {
+    return iterator(backing_.insert(pos.base(), value));
+  }
+
+  template <typename InputIt>
+  iterator insert(const_iterator pos, InputIt first, InputIt last) {
+    return iterator(backing_.insert(pos.base(), first, last));
+  }
+
+  iterator insert(const_iterator pos,
+                  std::initializer_list<DirectHandle<T>> init) {
+    return iterator(backing_.insert(pos.base(), init.begin(), init.end()));
+  }
+
+  DirectHandleVector<T>& operator=(
+      std::initializer_list<DirectHandle<T>> init) {
+    backing_.clear();
+    backing_.reserve(init.size());
+    backing_.insert(backing_.end(), init.begin(), init.end());
+    return *this;
+  }
+
+  void push_back(const DirectHandle<T>& x) { backing_.push_back(x); }
+  void pop_back() { backing_.pop_back(); }
+  void emplace_back(const DirectHandle<T>& x) { backing_.emplace_back(x); }
+
+  void clear() noexcept { backing_.clear(); }
+  void resize(size_t n) { backing_.resize(n); }
+  void swap(DirectHandleVector<T>& other) { backing_.swap(other.backing_); }
+
+  friend bool operator==(const DirectHandleVector<T>& x,
+                         const DirectHandleVector<T>& y) {
+    return x.backing_ == y.backing_;
+  }
+  friend bool operator!=(const DirectHandleVector<T>& x,
+                         const DirectHandleVector<T>& y) {
+    return x.backing_ != y.backing_;
+  }
+  friend bool operator<(const DirectHandleVector<T>& x,
+                        const DirectHandleVector<T>& y) {
+    return x.backing_ < y.backing_;
+  }
+  friend bool operator>(const DirectHandleVector<T>& x,
+                        const DirectHandleVector<T>& y) {
+    return x.backing_ > y.backing_;
+  }
+  friend bool operator<=(const DirectHandleVector<T>& x,
+                         const DirectHandleVector<T>& y) {
+    return x.backing_ <= y.backing_;
+  }
+  friend bool operator>=(const DirectHandleVector<T>& x,
+                         const DirectHandleVector<T>& y) {
+    return x.backing_ >= y.backing_;
+  }
+
+ private:
+  vector_type backing_;
+};
+#else   // !V8_ENABLE_DIRECT_HANDLE
+template <typename T>
+class DirectHandleVector : public std::vector<DirectHandle<T>> {
+ public:
+  explicit DirectHandleVector(Isolate* isolate)
+      : std::vector<DirectHandle<T>>() {}
+  DirectHandleVector(Isolate* isolate, size_t n)
+      : std::vector<DirectHandle<T>>(n) {}
+  DirectHandleVector(Isolate* isolate,
+                     std::initializer_list<DirectHandle<T>> init)
+      : std::vector<DirectHandle<T>>(init) {}
+};
 #endif  // V8_ENABLE_DIRECT_HANDLE
 
 }  // namespace internal

@@ -16,6 +16,7 @@
 #include "absl/strings/str_join.h"
 
 #include <string>
+#include <tuple>
 #include <vector>
 #include <utility>
 
@@ -93,5 +94,14 @@ BENCHMARK(BM_JoinStreamable)
     ->ArgPair(256, 16)
     ->ArgPair(16, 256)
     ->ArgPair(256, 256);
+
+void BM_JoinTuple(benchmark::State& state) {
+  for (auto _ : state) {
+    std::string s =
+        absl::StrJoin(std::make_tuple(123456789, 987654321, 24680, 13579), "/");
+    benchmark::DoNotOptimize(s);
+  }
+}
+BENCHMARK(BM_JoinTuple);
 
 }  // namespace

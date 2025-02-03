@@ -24,20 +24,32 @@ function f() {
   return x.b + 10;
 }
 
-// Test bytecode gets flushed
-f();
-assertTrue(HasByteCode(f));
-gc();
-assertFalse(HasByteCode(f));
-
-// Test baseline code and bytecode gets flushed
-for (i = 1; i < 50; i++) {
+(async function () {
+  // Test bytecode gets flushed
   f();
-}
-assertTrue(HasBaselineCode(f));
-gc();
-assertFalse(HasBaselineCode(f));
-assertFalse(HasByteCode(f));
+  assertTrue(HasByteCode(f));
+  // We need to invoke GC asynchronously and wait for it to finish, so that
+  // it doesn't need to scan the stack. Otherwise, some objects may not be
+  // reclaimed because of conservative stack scanning and the test may not
+  // work as intended.
+  await gc({ type: 'major', execution: 'async' });
+  assertFalse(HasByteCode(f))
+})();
+
+(async function () {
+  // Test baseline code and bytecode gets flushed
+  for (i = 1; i < 50; i++) {
+    f();
+  }
+  assertTrue(HasBaselineCode(f));
+  // We need to invoke GC asynchronously and wait for it to finish, so that
+  // it doesn't need to scan the stack. Otherwise, some objects may not be
+  // reclaimed because of conservative stack scanning and the test may not
+  // work as intended.
+  await gc({ type: 'major', execution: 'async' });
+  assertFalse(HasBaselineCode(f));
+  assertFalse(HasByteCode(f));
+})();
 
 // Check bytecode isn't flushed if it's held strongly from somewhere but
 // baseline code is flushed.
@@ -48,6 +60,8 @@ function f1(should_recurse) {
       f1(false);
     }
     assertTrue(HasBaselineCode(f1));
+    // Here we are not checking whether some object was indeed reclaimed,
+    // so should not worry if conservative stack scanning is performed.
     gc();
     // TODO(jgruber, v8:12161): No longer true since we now always tier up to
     // available Sparkplug code as early as possible. By the time we reach this
@@ -59,15 +73,21 @@ function f1(should_recurse) {
   return x.b + 10;
 }
 
-f1(false);
-// Recurse first time so we have bytecode array on the stack that keeps
-// bytecode alive.
-f1(true);
+(async function () {
+  f1(false);
+  // Recurse first time so we have bytecode array on the stack that keeps
+  // bytecode alive.
+  f1(true);
 
-// Flush bytecode
-gc();
-assertFalse(HasBaselineCode(f1));
-assertFalse(HasByteCode(f1));
+  // Flush bytecode.
+  // We need to invoke GC asynchronously and wait for it to finish, so that
+  // it doesn't need to scan the stack. Otherwise, some objects may not be
+  // reclaimed because of conservative stack scanning and the test may not
+  // work as intended.
+  await gc({ type: 'major', execution: 'async' });
+  assertFalse(HasBaselineCode(f1));
+  assertFalse(HasByteCode(f1));
+})();
 
 // Check baseline code and bytecode aren't flushed if baseline code is on
 // stack.
@@ -75,15 +95,19 @@ function f2(should_recurse) {
   if (should_recurse) {
     assertTrue(HasBaselineCode(f2));
     f2(false);
+    // Here we are not checking whether some object was indeed reclaimed,
+    // so should not worry if conservative stack scanning is performed.
     gc();
     assertTrue(HasBaselineCode(f2));
   }
   return x.b + 10;
 }
 
-for (i = 1; i < 50; i++) {
-  f2(false);
-}
-assertTrue(HasBaselineCode(f2));
-// Recurse with baseline code on stack
-f2(true);
+(async function () {
+  for (i = 1; i < 50; i++) {
+    f2(false);
+  }
+  assertTrue(HasBaselineCode(f2));
+  // Recurse with baseline code on stack
+  f2(true);
+})();

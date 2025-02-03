@@ -297,7 +297,7 @@ UCharsTrie::findUniqueValueFromBranch(const char16_t *pos, int32_t length,
         ++pos;  // ignore a comparison unit
         // handle its value
         int32_t node=*pos++;
-        UBool isFinal=(UBool)(node>>15);
+        UBool isFinal = static_cast<UBool>(node >> 15);
         node&=0x7fff;
         int32_t value=readValue(pos, node);
         pos=skipValue(pos, node);
@@ -339,7 +339,7 @@ UCharsTrie::findUniqueValue(const char16_t *pos, UBool haveUniqueValue, int32_t 
             pos+=node-kMinLinearMatch+1;  // Ignore the match units.
             node=*pos++;
         } else {
-            UBool isFinal=(UBool)(node>>15);
+            UBool isFinal = static_cast<UBool>(node >> 15);
             int32_t value;
             if(isFinal) {
                 value=readValue(pos, node&0x7fff);

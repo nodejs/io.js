@@ -1,5 +1,42 @@
 'use strict';
 (function () {
+  // Fake setInterval-like functionality in environments that don't have it
+  class IntervalHandle {
+    constructor(callback, delayMs) {
+      this.callback = callback;
+      this.delayMs = delayMs;
+      this.cancelled = false;
+      Promise.resolve().then(() => this.check());
+    }
+
+    async check() {
+      while (true) {
+        await new Promise(resolve => step_timeout(resolve, this.delayMs));
+        if (this.cancelled) {
+          return;
+        }
+        this.callback();
+      }
+    }
+
+    cancel() {
+      this.cancelled = true;
+    }
+  }
+
+  let localSetInterval, localClearInterval;
+  if (typeof globalThis.setInterval !== "undefined" &&
+      typeof globalThis.clearInterval !== "undefined") {
+    localSetInterval = globalThis.setInterval;
+    localClearInterval = globalThis.clearInterval;
+  } else {
+    localSetInterval = function setInterval(callback, delayMs) {
+      return new IntervalHandle(callback, delayMs);
+    }
+    localClearInterval = function clearInterval(handle) {
+      handle.cancel();
+    }
+  }
 
   class RandomPushSource {
     constructor(toPush) {
@@ -18,12 +55,12 @@
       }
 
       if (!this.started) {
-        this._intervalHandle = setInterval(writeChunk, 2);
+        this._intervalHandle = localSetInterval(writeChunk, 2);
         this.started = true;
       }
 
       if (this.paused) {
-        this._intervalHandle = setInterval(writeChunk, 2);
+        this._intervalHandle = localSetInterval(writeChunk, 2);
         this.paused = false;
       }
 
@@ -37,7 +74,7 @@
 
         if (source.toPush > 0 && source.pushed > source.toPush) {
           if (source._intervalHandle) {
-            clearInterval(source._intervalHandle);
+            localClearInterval(source._intervalHandle);
             source._intervalHandle = undefined;
           }
           source.closed = true;
@@ -55,7 +92,7 @@
 
       if (this.started) {
         this.paused = true;
-        clearInterval(this._intervalHandle);
+        localClearInterval(this._intervalHandle);
         this._intervalHandle = undefined;
       } else {
         throw new Error('Can\'t pause reading an unstarted source.');
@@ -178,15 +215,7 @@
   }
 
   function transferArrayBufferView(view) {
-    const noopByteStream = new ReadableStream({
-      type: 'bytes',
-      pull(c) {
-        c.byobRequest.respond(c.byobRequest.view.byteLength);
-        c.close();
-      }
-    });
-    const reader = noopByteStream.getReader({ mode: 'byob' });
-    return reader.read(view).then((result) => result.value);
+    return structuredClone(view, { transfer: [view.buffer] });
   }
 
   self.RandomPushSource = RandomPushSource;

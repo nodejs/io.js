@@ -48,7 +48,7 @@ def print_size(fn):
     size = (os.stat(fn).st_size) / 1024000
     print('%dM\t%s' % (size, fn))
 
-ignore_regex = re.compile('^.*\.(vcxproj|filters|nrm|icu|dat|xml|txt|ac|guess|m4|in|sub|py|mak)$')
+ignore_regex = re.compile(r'^.*\.(vcxproj|filters|nrm|icu|dat|xml|txt|ac|guess|m4|in|sub|py|mak)$')
 
 def icu_ignore(dir, files):
     subdir = dir[len(options.icusrc)+1::]

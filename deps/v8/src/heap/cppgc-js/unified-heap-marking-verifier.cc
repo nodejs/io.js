@@ -1,13 +1,15 @@
-
-
 // Copyright 2020 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "src/heap/cppgc-js/unified-heap-marking-verifier.h"
 
+#include <memory>
+
+#include "include/cppgc/internal/name-trait.h"
 #include "include/v8-cppgc.h"
 #include "src/handles/traced-handles.h"
+#include "src/heap/cppgc-js/unified-heap-marking-state-inl.h"
 #include "src/heap/cppgc/marking-verifier.h"
 
 namespace v8 {
@@ -55,14 +57,6 @@ class UnifiedHeapVerificationVisitor final : public JSVisitor {
 
 }  // namespace
 
-class BasicTracedReferenceExtractor final {
- public:
-  static Address* GetObjectSlotForMarking(const TracedReferenceBase& ref) {
-    return const_cast<Address*>(
-        reinterpret_cast<const Address*>(ref.GetSlotThreadSafe()));
-  }
-};
-
 void UnifiedHeapVerificationState::VerifyMarkedTracedReference(
     const TracedReferenceBase& ref) const {
   // The following code will crash with null pointer derefs when finding a
@@ -84,7 +78,12 @@ void UnifiedHeapVerificationState::VerifyMarkedTracedReference(
         "# Hint:\n"
         "#   %s (%p)\n"
         "#     \\-> TracedReference (%p)",
-        parent_ ? parent_->GetName().value : "Stack",
+        parent_
+            ? parent_
+                  ->GetName(cppgc::internal::HeapObjectNameForUnnamedObject::
+                                kUseClassNameIfSupported)
+                  .value
+            : "Stack",
         parent_ ? parent_->ObjectStart() : nullptr, &ref);
   }
 }

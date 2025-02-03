@@ -25,7 +25,7 @@ function replaceWindowsPaths(str) {
 }
 
 function replaceFullPaths(str) {
-  return str.replaceAll(process.cwd(), '');
+  return str.replaceAll('\\\'', "'").replaceAll(path.resolve(__dirname, '../..'), '');
 }
 
 function transform(...args) {
@@ -77,9 +77,16 @@ async function spawnAndAssert(filename, transform = (x) => x, { tty = false, ...
     test({ skip: 'Skipping pseudo-tty tests, as pseudo terminals are not available on Windows.' });
     return;
   }
-  const flags = common.parseTestFlags(filename);
-  const executable = tty ? 'tools/pseudo-tty.py' : process.execPath;
-  const args = tty ? [process.execPath, ...flags, filename] : [...flags, filename];
+  let flags = common.parseTestFlags(filename);
+  if (options.flags) {
+    flags = [...options.flags, ...flags];
+  }
+
+  const executable = tty ? (process.env.PYTHON || 'python3') : process.execPath;
+  const args =
+    tty ?
+      [path.join(__dirname, '../..', 'tools/pseudo-tty.py'), process.execPath, ...flags, filename] :
+      [...flags, filename];
   const { stdout, stderr } = await common.spawnPromisified(executable, args, options);
   await assertSnapshot(transform(`${stdout}${stderr}`), filename);
 }

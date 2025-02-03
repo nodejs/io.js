@@ -7,7 +7,7 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/prefer-common-mustsucceed');
 
 const msg1 = 'Please use common.mustSucceed instead of ' +
@@ -15,9 +15,7 @@ const msg1 = 'Please use common.mustSucceed instead of ' +
 const msg2 = 'Please use common.mustSucceed instead of ' +
              'common.mustCall with assert.ifError.';
 
-new RuleTester({
-  parserOptions: { ecmaVersion: 2015 }
-}).run('prefer-common-mustsucceed', rule, {
+new RuleTester().run('prefer-common-mustsucceed', rule, {
   valid: [
     'foo((err) => assert.ifError(err))',
     'foo(function(err) { assert.ifError(err) })',

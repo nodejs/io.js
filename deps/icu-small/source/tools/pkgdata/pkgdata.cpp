@@ -374,11 +374,11 @@ main(int argc, char* argv[]) {
 
     o.shortName = options[NAME].value;
     {
-        int32_t len = (int32_t)uprv_strlen(o.shortName);
+        int32_t len = static_cast<int32_t>(uprv_strlen(o.shortName));
         char *csname, *cp;
         const char *sp;
 
-        cp = csname = (char *) uprv_malloc((len + 1 + 1) * sizeof(*o.cShortName));
+        cp = csname = static_cast<char*>(uprv_malloc((len + 1 + 1) * sizeof(*o.cShortName)));
         if (*(sp = o.shortName)) {
             *cp++ = isalpha(*sp) ? * sp : '_';
             for (++sp; *sp; ++sp) {
@@ -501,7 +501,7 @@ main(int argc, char* argv[]) {
     }
 
     if (o.cShortName != nullptr) {
-        uprv_free((char *)o.cShortName);
+        uprv_free(const_cast<char*>(o.cShortName));
     }
     if (o.fileListFiles != nullptr) {
         pkg_deleteList(o.fileListFiles);
@@ -547,7 +547,7 @@ static int runCommand(const char* command, UBool specialHandling) {
 #if !(defined(USING_CYGWIN) || U_PLATFORM == U_PF_MINGW || U_PLATFORM == U_PF_OS400)
 normal_command_mode:
 #endif
-        cmd = (char *)command;
+        cmd = const_cast<char*>(command);
     }
 
     printf("pkgdata: %s\n", cmd);
@@ -776,6 +776,7 @@ static int32_t pkg_executeOptions(UPKGOptions *o) {
                         o->entryName,
                         (optMatchArch[0] == 0 ? nullptr : optMatchArch),
                         nullptr,
+                        nullptr,
                         gencFilePath,
                         sizeof(gencFilePath),
                         true);
@@ -852,7 +853,7 @@ static int32_t initializePkgDataFlags(UPKGOptions *o) {
     int32_t tmpResult = 0;
 
     /* Initialize pkgdataFlags */
-    pkgDataFlags = (char**)uprv_malloc(sizeof(char*) * PKGDATA_FLAGS_SIZE);
+    pkgDataFlags = static_cast<char**>(uprv_malloc(sizeof(char*) * PKGDATA_FLAGS_SIZE));
 
     /* If we run out of space, allocate more */
 #if !defined(WINDOWS_WITH_MSVC) || defined(USING_CYGWIN)
@@ -860,7 +861,7 @@ static int32_t initializePkgDataFlags(UPKGOptions *o) {
 #endif
         if (pkgDataFlags != nullptr) {
             for (int32_t i = 0; i < PKGDATA_FLAGS_SIZE; i++) {
-                pkgDataFlags[i] = (char*)uprv_malloc(sizeof(char) * currentBufferSize);
+                pkgDataFlags[i] = static_cast<char*>(uprv_malloc(sizeof(char) * currentBufferSize));
                 if (pkgDataFlags[i] != nullptr) {
                     pkgDataFlags[i][0] = 0;
                 } else {
@@ -887,7 +888,7 @@ static int32_t initializePkgDataFlags(UPKGOptions *o) {
           fprintf(stdout, "# Reading options file %s\n", o->options);
         }
         status = U_ZERO_ERROR;
-        tmpResult = parseFlagsFile(o->options, pkgDataFlags, currentBufferSize, FLAG_NAMES, (int32_t)PKGDATA_FLAGS_SIZE, &status);
+        tmpResult = parseFlagsFile(o->options, pkgDataFlags, currentBufferSize, FLAG_NAMES, static_cast<int32_t>(PKGDATA_FLAGS_SIZE), &status);
         if (status == U_BUFFER_OVERFLOW_ERROR) {
             for (int32_t i = 0; i < PKGDATA_FLAGS_SIZE; i++) {
                 if (pkgDataFlags[i]) {
@@ -923,6 +924,10 @@ static int32_t initializePkgDataFlags(UPKGOptions *o) {
 static void createFileNames(UPKGOptions *o, const char mode, const char *version_major, const char *version, const char *libName, UBool reverseExt, UBool noVersion) {
     const char* FILE_EXTENSION_SEP = uprv_strlen(pkgDataFlags[SO_EXT]) == 0 ? "" : ".";
     const char* FILE_SUFFIX = pkgDataFlags[LIB_EXT_ORDER][0] == '.' ? "." : "";
+#if defined(__GNUC__) && !defined(__clang__)
+    _Pragma("GCC diagnostic push")
+    _Pragma("GCC diagnostic ignored \"-Wformat-truncation\"")
+#endif
 
 #if U_PLATFORM == U_PF_MINGW
         /* MinGW does not need the library prefix when building in dll mode. */
@@ -1036,6 +1041,10 @@ static void createFileNames(UPKGOptions *o, const char mode, const char *version
               fprintf(stdout, "# libFileName[LIB_FILE_VERSION] = %s  (static)\n", libFileNames[LIB_FILE_VERSION]);
             }
         }
+#if defined(__GNUC__) && !defined(__clang__)
+    _Pragma("GCC diagnostic pop")
+#endif
+
 }
 
 /* Create the symbolic links for the final library file. */
@@ -1132,7 +1141,7 @@ normal_symlink_mode:
 
 static int32_t pkg_installLibrary(const char *installDir, const char *targetDir, UBool noVersion) {
     int32_t result = 0;
-    char cmd[SMALL_BUFFER_MAX_SIZE];
+    char cmd[LARGE_BUFFER_MAX_SIZE];
 
     auto ret = snprintf(cmd,
             sizeof(cmd),
@@ -1203,7 +1212,7 @@ static int32_t pkg_installLibrary(const char *installDir, const char *targetDir,
 
 static int32_t pkg_installCommonMode(const char *installDir, const char *fileName) {
     int32_t result = 0;
-    char cmd[SMALL_BUFFER_MAX_SIZE] = "";
+    char cmd[LARGE_BUFFER_MAX_SIZE] = "";
 
     if (!T_FileStream_file_exists(installDir)) {
         UErrorCode status = U_ZERO_ERROR;
@@ -1235,7 +1244,7 @@ static int32_t pkg_installCommonMode(const char *installDir, const char *fileNam
 #endif
 static int32_t pkg_installFileMode(const char *installDir, const char *srcDir, const char *fileListName) {
     int32_t result = 0;
-    char cmd[SMALL_BUFFER_MAX_SIZE] = "";
+    char cmd[LARGE_BUFFER_MAX_SIZE] = "";
 
     if (!T_FileStream_file_exists(installDir)) {
         UErrorCode status = U_ZERO_ERROR;
@@ -1309,11 +1318,19 @@ static int32_t pkg_archiveLibrary(const char *targetDir, const char *version, UB
      * archive file suffix is the same, then the final library needs to be archived.
      */
     if (uprv_strcmp(pkgDataFlags[SOBJ_EXT], pkgDataFlags[SO_EXT]) != 0 && uprv_strcmp(pkgDataFlags[A_EXT], pkgDataFlags[SO_EXT]) == 0) {
+#if defined(__GNUC__) && !defined(__clang__)
+    _Pragma("GCC diagnostic push")
+    _Pragma("GCC diagnostic ignored \"-Wformat-truncation\"")
+#endif
+
         snprintf(libFileNames[LIB_FILE_VERSION], sizeof(libFileNames[LIB_FILE_VERSION]), "%s%s%s.%s",
                 libFileNames[LIB_FILE],
                 pkgDataFlags[LIB_EXT_ORDER][0] == '.' ? "." : "",
                 reverseExt ? version : pkgDataFlags[SO_EXT],
                 reverseExt ? pkgDataFlags[SO_EXT] : version);
+#if defined(__GNUC__) && !defined(__clang__)
+    _Pragma("GCC diagnostic pop")
+#endif
 
         snprintf(cmd, sizeof(cmd), "%s %s %s%s %s%s",
                 pkgDataFlags[AR],
@@ -1384,7 +1401,7 @@ static int32_t pkg_generateLibraryFile(const char *targetDir, const char mode, c
         if (cmd == nullptr) {
             length = static_cast<int32_t>(uprv_strlen(pkgDataFlags[AR]) + uprv_strlen(pkgDataFlags[ARFLAGS]) + uprv_strlen(targetDir) +
                      uprv_strlen(libFileNames[LIB_FILE_VERSION]) + uprv_strlen(objectFile) + uprv_strlen(pkgDataFlags[RANLIB]) + BUFFER_PADDING_SIZE);
-            if ((cmd = (char *)uprv_malloc(sizeof(char) * length)) == nullptr) {
+            if ((cmd = static_cast<char*>(uprv_malloc(sizeof(char) * length))) == nullptr) {
                 fprintf(stderr, "Unable to allocate memory for command.\n");
                 return -1;
             }
@@ -1418,7 +1435,7 @@ static int32_t pkg_generateLibraryFile(const char *targetDir, const char mode, c
 #elif U_PLATFORM == U_PF_MINGW
             length += static_cast<int32_t>(uprv_strlen(targetDir) + uprv_strlen(libFileNames[LIB_FILE_MINGW]));
 #endif
-            if ((cmd = (char *)uprv_malloc(sizeof(char) * length)) == nullptr) {
+            if ((cmd = static_cast<char*>(uprv_malloc(sizeof(char) * length))) == nullptr) {
                 fprintf(stderr, "Unable to allocate memory for command.\n");
                 return -1;
             }
@@ -1466,63 +1483,12 @@ static int32_t pkg_generateLibraryFile(const char *targetDir, const char mode, c
         result = runCommand(cmd);
 
 #if U_PLATFORM == U_PF_OS390
-        char *env_tmp;
-        char PDS_LibName[512];
-        char PDS_Name[512];
+        sprintf(cmd, "%s %s -o %s%s %s %s%s %s %s", pkgDataFlags[GENLIB], pkgDataFlags[LDICUDTFLAGS],
+                targetDir, BATCH_STUB_TARGET, objectFile, pkgDataFlags[LD_SONAME],
+                pkgDataFlags[LD_SONAME][0] == 0 ? "" : libFileNames[LIB_FILE_VERSION_MAJOR],
+                pkgDataFlags[RPATH_FLAGS], pkgDataFlags[BIR_FLAGS]);
 
-        PDS_Name[0] = 0;
-        PDS_LibName[0] = 0;
-        if (specialHandling && uprv_strcmp(libFileNames[LIB_FILE],"libicudata") == 0) {
-            if (env_tmp = getenv("ICU_PDS_NAME")) {
-                sprintf(PDS_Name, "%s%s",
-                        env_tmp,
-                        "DA");
-                strcat(PDS_Name, getenv("ICU_PDS_NAME_SUFFIX"));
-            } else if (env_tmp = getenv("PDS_NAME_PREFIX")) {
-                sprintf(PDS_Name, "%s%s",
-                        env_tmp,
-                        U_ICU_VERSION_SHORT "DA");
-            } else {
-                sprintf(PDS_Name, "%s%s",
-                        "IXMI",
-                        U_ICU_VERSION_SHORT "DA");
-            }
-        } else if (!specialHandling && uprv_strcmp(libFileNames[LIB_FILE],"libicudata_stub") == 0) {
-            if (env_tmp = getenv("ICU_PDS_NAME")) {
-                sprintf(PDS_Name, "%s%s",
-                        env_tmp,
-                        "D1");
-                strcat(PDS_Name, getenv("ICU_PDS_NAME_SUFFIX"));
-            } else if (env_tmp = getenv("PDS_NAME_PREFIX")) {
-                sprintf(PDS_Name, "%s%s",
-                        env_tmp,
-                        U_ICU_VERSION_SHORT "D1");
-            } else {
-                sprintf(PDS_Name, "%s%s",
-                        "IXMI",
-                        U_ICU_VERSION_SHORT "D1");
-            }
-        }
-
-        if (PDS_Name[0]) {
-            sprintf(PDS_LibName,"%s%s%s%s%s",
-                    "\"//'",
-                    getenv("LOADMOD"),
-                    "(",
-                    PDS_Name,
-                    ")'\"");
-            sprintf(cmd, "%s %s -o %s %s %s%s %s %s",
-                   pkgDataFlags[GENLIB],
-                   pkgDataFlags[LDICUDTFLAGS],
-                   PDS_LibName,
-                   objectFile,
-                   pkgDataFlags[LD_SONAME],
-                   pkgDataFlags[LD_SONAME][0] == 0 ? "" : libFileNames[LIB_FILE_VERSION_MAJOR],
-                   pkgDataFlags[RPATH_FLAGS],
-                   pkgDataFlags[BIR_FLAGS]);
-
-            result = runCommand(cmd);
-        }
+        result = runCommand(cmd);
 #endif
     }
 
@@ -1549,7 +1515,7 @@ static int32_t pkg_createWithAssemblyCode(const char *targetDir, const char mode
     length = static_cast<int32_t>(uprv_strlen(pkgDataFlags[COMPILER]) + uprv_strlen(pkgDataFlags[LIBFLAGS])
              + uprv_strlen(tempObjectFile) + uprv_strlen(gencFilePath) + BUFFER_PADDING_SIZE);
 
-    LocalMemory<char> cmd((char *)uprv_malloc(sizeof(char) * length));
+    LocalMemory<char> cmd(static_cast<char*>(uprv_malloc(sizeof(char) * length)));
     if (cmd.isNull()) {
         return -1;
     }
@@ -1638,10 +1604,10 @@ static int32_t pkg_createWithoutAssemblyCode(UPKGOptions *o, const char *targetD
         return -1;
     }
 
-    if ((cmd = (char *)uprv_malloc((listSize + 2) * SMALL_BUFFER_MAX_SIZE)) == nullptr) {
+    if ((cmd = static_cast<char*>(uprv_malloc((listSize + 2) * SMALL_BUFFER_MAX_SIZE))) == nullptr) {
         fprintf(stderr, "Unable to allocate memory for cmd.\n");
         return -1;
-    } else if ((buffer = (char *)uprv_malloc((listSize + 1) * SMALL_BUFFER_MAX_SIZE)) == nullptr) {
+    } else if ((buffer = static_cast<char*>(uprv_malloc((listSize + 1) * SMALL_BUFFER_MAX_SIZE))) == nullptr) {
         fprintf(stderr, "Unable to allocate memory for buffer.\n");
         uprv_free(cmd);
         return -1;
@@ -2092,7 +2058,7 @@ static void loadLists(UPKGOptions *o, UErrorCode *status)
         while(T_FileStream_readLine(in, line, sizeof(line))!=nullptr) { /* for each line */
             ln++;
             if(uprv_strlen(line)>lineMax) {
-                fprintf(stderr, "%s:%d - line too long (over %d chars)\n", l->str, (int)ln, (int)lineMax);
+                fprintf(stderr, "%s:%d - line too long (over %d chars)\n", l->str, static_cast<int>(ln), static_cast<int>(lineMax));
                 exit(1);
             }
             /* remove spaces at the beginning */
@@ -2129,14 +2095,14 @@ static void loadLists(UPKGOptions *o, UErrorCode *status)
                     lineNext = uprv_strchr(linePtr+1, '"');
                     if(lineNext == nullptr) {
                         fprintf(stderr, "%s:%d - missing trailing double quote (\")\n",
-                            l->str, (int)ln);
+                            l->str, static_cast<int>(ln));
                         exit(1);
                     } else {
                         lineNext++;
                         if(*lineNext) {
                             if(*lineNext != ' ') {
                                 fprintf(stderr, "%s:%d - malformed quoted line at position %d, expected ' ' got '%c'\n",
-                                    l->str, (int)ln, (int)(lineNext-line), (*lineNext)?*lineNext:'0');
+                                    l->str, static_cast<int>(ln), static_cast<int>(lineNext - line), *lineNext ? *lineNext : '0');
                                 exit(1);
                             }
                             *lineNext = 0;
@@ -2152,7 +2118,7 @@ static void loadLists(UPKGOptions *o, UErrorCode *status)
                 }
 
                 /* add the file */
-                s = (char*)getLongPathname(linePtr);
+                s = const_cast<char*>(getLongPathname(linePtr));
 
                 /* normal mode.. o->files is just the bare list without package names */
                 o->files = pkg_appendToList(o->files, &tail, uprv_strdup(linePtr));
@@ -2162,7 +2128,7 @@ static void loadLists(UPKGOptions *o, UErrorCode *status)
                 }
                 /* The +5 is to add a little extra space for, among other things, PKGDATA_FILE_SEP_STRING */
                 tmpLength = static_cast<int32_t>(uprv_strlen(o->srcDir) + uprv_strlen(s) + 5);
-                if((tmp = (char *)uprv_malloc(tmpLength)) == nullptr) {
+                if ((tmp = static_cast<char*>(uprv_malloc(tmpLength))) == nullptr) {
                     fprintf(stderr, "pkgdata: Error: Unable to allocate tmp buffer size: %d\n", tmpLength);
                     exit(U_MEMORY_ALLOCATION_ERROR);
                 }

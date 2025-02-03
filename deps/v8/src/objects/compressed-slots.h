@@ -6,6 +6,7 @@
 #define V8_OBJECTS_COMPRESSED_SLOTS_H_
 
 #include "include/v8config.h"
+#include "src/common/globals.h"
 #include "src/common/ptr-compr.h"
 #include "src/objects/slots.h"
 #include "src/objects/tagged-field.h"
@@ -63,6 +64,9 @@ class CompressedObjectSlot : public SlotBase<CompressedObjectSlot, Tagged_t> {
   inline Tagged<Object> Acquire_Load() const;
   inline Tagged<Object> Relaxed_Load() const;
   inline Tagged<Object> Relaxed_Load(PtrComprCageBase cage_base) const;
+  inline Tagged_t Relaxed_Load_Raw() const;
+  static inline Tagged<Object> RawToTagged(PtrComprCageBase cage_base,
+                                           Tagged_t raw);
   inline void Relaxed_Store(Tagged<Object> value) const;
   inline void Release_Store(Tagged<Object> value) const;
   inline Tagged<Object> Release_CompareAndSwap(Tagged<Object> old,
@@ -71,14 +75,14 @@ class CompressedObjectSlot : public SlotBase<CompressedObjectSlot, Tagged_t> {
 
 // A CompressedMaybeObjectSlot instance describes a kTaggedSize-sized field
 // ("slot") holding a possibly-weak compressed tagged pointer
-// (think: MaybeObject).
+// (think: Tagged<MaybeObject>).
 // Its address() is the address of the slot.
 // The slot's contents can be read and written using operator* and store().
 class CompressedMaybeObjectSlot
     : public SlotBase<CompressedMaybeObjectSlot, Tagged_t> {
  public:
   using TCompressionScheme = V8HeapCompressionScheme;
-  using TObject = MaybeObject;
+  using TObject = Tagged<MaybeObject>;
   using THeapObjectSlot = CompressedHeapObjectSlot;
 
   static constexpr bool kCanBeWeak = true;
@@ -87,26 +91,30 @@ class CompressedMaybeObjectSlot
   explicit CompressedMaybeObjectSlot(Address ptr) : SlotBase(ptr) {}
   explicit CompressedMaybeObjectSlot(Tagged<Object>* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
-  explicit CompressedMaybeObjectSlot(MaybeObject* ptr)
+  explicit CompressedMaybeObjectSlot(Tagged<MaybeObject>* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
   template <typename T>
   explicit CompressedMaybeObjectSlot(
       SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  inline MaybeObject operator*() const;
-  inline MaybeObject load(PtrComprCageBase cage_base) const;
-  inline void store(MaybeObject value) const;
+  inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> load(PtrComprCageBase cage_base) const;
+  inline void store(Tagged<MaybeObject> value) const;
 
-  inline MaybeObject Relaxed_Load() const;
-  inline MaybeObject Relaxed_Load(PtrComprCageBase cage_base) const;
-  inline void Relaxed_Store(MaybeObject value) const;
-  inline void Release_CompareAndSwap(MaybeObject old, MaybeObject target) const;
+  inline Tagged<MaybeObject> Relaxed_Load() const;
+  inline Tagged<MaybeObject> Relaxed_Load(PtrComprCageBase cage_base) const;
+  inline Tagged_t Relaxed_Load_Raw() const;
+  static inline Tagged<Object> RawToTagged(PtrComprCageBase cage_base,
+                                           Tagged_t raw);
+  inline void Relaxed_Store(Tagged<MaybeObject> value) const;
+  inline void Release_CompareAndSwap(Tagged<MaybeObject> old,
+                                     Tagged<MaybeObject> target) const;
 };
 
 // A CompressedHeapObjectSlot instance describes a kTaggedSize-sized field
 // ("slot") holding a weak or strong compressed pointer to a heap object (think:
-// HeapObjectReference).
+// Tagged<HeapObjectReference>).
 // Its address() is the address of the slot.
 // The slot's contents can be read and written using operator* and store().
 // In case it is known that that slot contains a strong heap object pointer,
@@ -124,9 +132,9 @@ class CompressedHeapObjectSlot
   explicit CompressedHeapObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  inline HeapObjectReference operator*() const;
-  inline HeapObjectReference load(PtrComprCageBase cage_base) const;
-  inline void store(HeapObjectReference value) const;
+  inline Tagged<HeapObjectReference> operator*() const;
+  inline Tagged<HeapObjectReference> load(PtrComprCageBase cage_base) const;
+  inline void store(Tagged<HeapObjectReference> value) const;
 
   inline Tagged<HeapObject> ToHeapObject() const;
 

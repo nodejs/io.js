@@ -1,0 +1,38 @@
+<!DOCTYPE HTML>
+<html>
+ <head>
+  <title>WebStorage Test: sessionStorage event - oldValue</title>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+ </head>
+ <body>
+    <h1>event_session_oldValue</h1>
+    <div id="log"></div>
+    <script>
+        async_test(function(t) {
+            sessionStorage.clear();
+            t.add_cleanup(function() { sessionStorage.clear() });
+
+            self.fail = t.step_func(function(msg) {
+                assert_unreached(msg);
+                t.done();
+            });
+
+            var expected = [null, 'user1', null]
+            function onStorageEvent(event) {
+                assert_equals(event.oldValue, expected.shift());
+                if (!expected.length) {
+                    t.done();
+                }
+            }
+
+            window.addEventListener('storage', t.step_func(onStorageEvent), false);
+
+            var el = document.createElement("iframe");
+            el.setAttribute('id', 'ifrm');
+            el.setAttribute('src', 'resources/session_change_item_iframe.html');
+            document.body.appendChild(el);
+        }, "oldvalue property test of session event - Session event is fired due to an invocation of the setItem(), clear() methods.");
+    </script>
+ </body>
+</html>

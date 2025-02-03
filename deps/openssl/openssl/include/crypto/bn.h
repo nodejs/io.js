@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2014-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -87,6 +87,14 @@ int bn_lshift_fixed_top(BIGNUM *r, const BIGNUM *a, int n);
 int bn_rshift_fixed_top(BIGNUM *r, const BIGNUM *a, int n);
 int bn_div_fixed_top(BIGNUM *dv, BIGNUM *rem, const BIGNUM *m,
                      const BIGNUM *d, BN_CTX *ctx);
+int ossl_bn_mask_bits_fixed_top(BIGNUM *a, int n);
+int ossl_bn_is_word_fixed_top(const BIGNUM *a, const BN_ULONG w);
+int ossl_bn_priv_rand_range_fixed_top(BIGNUM *r, const BIGNUM *range,
+                                      unsigned int strength, BN_CTX *ctx);
+int ossl_bn_gen_dsa_nonce_fixed_top(BIGNUM *out, const BIGNUM *range,
+                                    const BIGNUM *priv,
+                                    const unsigned char *message,
+                                    size_t message_len, BN_CTX *ctx);
 
 #define BN_PRIMETEST_COMPOSITE                    0
 #define BN_PRIMETEST_COMPOSITE_WITH_FACTOR        1

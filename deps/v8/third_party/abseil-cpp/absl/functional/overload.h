@@ -16,26 +16,26 @@
 // File: overload.h
 // -----------------------------------------------------------------------------
 //
-// `absl::Overload()` returns a functor that provides overloads based on the
-// functors passed to it.
+// `absl::Overload` is a functor that provides overloads based on the functors
+// with which it is created. This can, for example, be used to locally define an
+// anonymous visitor type for `std::visit` inside a function using lambdas.
+//
 // Before using this function, consider whether named function overloads would
 // be a better design.
-// One use case for this is locally defining visitors for `std::visit` inside a
-// function using lambdas.
-
-// Example: Using  `absl::Overload` to define a visitor for `std::variant`.
 //
-// std::variant<int, std::string, double> v(int{1});
+// Note: absl::Overload requires C++17.
 //
-// assert(std::visit(absl::Overload(
-//                        [](int) -> absl::string_view { return "int"; },
-//                        [](const std::string&) -> absl::string_view {
-//                          return "string";
-//                        },
-//                        [](double) -> absl::string_view { return "double"; }),
-//                     v) == "int");
+// Example:
 //
-// Note: This requires C++17.
+//     std::variant<std::string, int32_t, int64_t> v(int32_t{1});
+//     const size_t result =
+//         std::visit(absl::Overload{
+//                        [](const std::string& s) { return s.size(); },
+//                        [](const auto& s) { return sizeof(s); },
+//                    },
+//                    v);
+//     assert(result == 4);
+//
 
 #ifndef ABSL_FUNCTIONAL_OVERLOAD_H_
 #define ABSL_FUNCTIONAL_OVERLOAD_H_
@@ -49,14 +49,30 @@ ABSL_NAMESPACE_BEGIN
 #if defined(ABSL_INTERNAL_CPLUSPLUS_LANG) && \
     ABSL_INTERNAL_CPLUSPLUS_LANG >= 201703L
 
-template <int&... ExplicitArgumentBarrier, typename... T>
-auto Overload(T&&... ts) {
-  struct OverloadImpl : absl::remove_cvref_t<T>... {
-    using absl::remove_cvref_t<T>::operator()...;
-  };
-  return OverloadImpl{std::forward<T>(ts)...};
-}
+template <typename... T>
+struct Overload final : T... {
+  using T::operator()...;
+
+  // For historical reasons we want to support use that looks like a function
+  // call:
+  //
+  //     absl::Overload(lambda_1, lambda_2)
+  //
+  // This works automatically in C++20 because we have support for parenthesized
+  // aggregate initialization. Before then we must provide a constructor that
+  // makes this work.
+  //
+  constexpr explicit Overload(T... ts) : T(std::move(ts))... {}
+};
+
+// Before C++20, which added support for CTAD for aggregate types, we must also
+// teach the compiler how to deduce the template arguments for Overload.
+//
+template <typename... T>
+Overload(T...) -> Overload<T...>;
+
 #else
+
 namespace functional_internal {
 template <typename T>
 constexpr bool kDependentFalse = false;
@@ -69,6 +85,7 @@ auto Overload(T&&...) {
 }
 
 #endif
+
 ABSL_NAMESPACE_END
 }  // namespace absl
 

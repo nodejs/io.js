@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -78,6 +78,7 @@ const EVP_CIPHER *evp_get_cipherbyname_ex(OSSL_LIB_CTX *libctx,
     const EVP_CIPHER *cp;
     OSSL_NAMEMAP *namemap;
     int id;
+    int do_retry = 1;
 
     if (!OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_CIPHERS, NULL))
         return NULL;
@@ -94,9 +95,21 @@ const EVP_CIPHER *evp_get_cipherbyname_ex(OSSL_LIB_CTX *libctx,
      */
 
     namemap = ossl_namemap_stored(libctx);
+ retry:
     id = ossl_namemap_name2num(namemap, name);
-    if (id == 0)
-        return NULL;
+    if (id == 0) {
+        EVP_CIPHER *fetched_cipher;
+
+        /* Try to fetch it because the name might not be known yet. */
+        if (!do_retry)
+            return NULL;
+        do_retry = 0;
+        ERR_set_mark();
+        fetched_cipher = EVP_CIPHER_fetch(libctx, name, NULL);
+        EVP_CIPHER_free(fetched_cipher);
+        ERR_pop_to_mark();
+        goto retry;
+    }
 
     if (!ossl_namemap_doall_names(namemap, id, cipher_from_name, &cp))
         return NULL;
@@ -124,6 +137,7 @@ const EVP_MD *evp_get_digestbyname_ex(OSSL_LIB_CTX *libctx, const char *name)
     const EVP_MD *dp;
     OSSL_NAMEMAP *namemap;
     int id;
+    int do_retry = 1;
 
     if (!OPENSSL_init_crypto(OPENSSL_INIT_ADD_ALL_DIGESTS, NULL))
         return NULL;
@@ -140,9 +154,21 @@ const EVP_MD *evp_get_digestbyname_ex(OSSL_LIB_CTX *libctx, const char *name)
      */
 
     namemap = ossl_namemap_stored(libctx);
+ retry:
     id = ossl_namemap_name2num(namemap, name);
-    if (id == 0)
-        return NULL;
+    if (id == 0) {
+        EVP_MD *fetched_md;
+
+        /* Try to fetch it because the name might not be known yet. */
+        if (!do_retry)
+            return NULL;
+        do_retry = 0;
+        ERR_set_mark();
+        fetched_md = EVP_MD_fetch(libctx, name, NULL);
+        EVP_MD_free(fetched_md);
+        ERR_pop_to_mark();
+        goto retry;
+    }
 
     if (!ossl_namemap_doall_names(namemap, id, digest_from_name, &dp))
         return NULL;

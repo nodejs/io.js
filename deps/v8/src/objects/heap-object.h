@@ -7,7 +7,9 @@
 
 #include "src/base/macros.h"
 #include "src/common/globals.h"
+#include "src/objects/casting.h"
 #include "src/objects/instance-type.h"
+#include "src/objects/slots.h"
 #include "src/objects/tagged-field.h"
 #include "src/sandbox/indirect-pointer-tag.h"
 #include "src/sandbox/isolate.h"
@@ -103,16 +105,16 @@ V8_OBJECT class HeapObjectLayout {
 
 static_assert(sizeof(HeapObjectLayout) == kTaggedSize);
 
-inline bool operator==(const HeapObjectLayout* obj, TaggedBase ptr) {
+inline bool operator==(const HeapObjectLayout* obj, StrongTaggedBase ptr) {
   return Tagged<HeapObject>(obj) == ptr;
 }
-inline bool operator==(TaggedBase ptr, const HeapObjectLayout* obj) {
+inline bool operator==(StrongTaggedBase ptr, const HeapObjectLayout* obj) {
   return ptr == Tagged<HeapObject>(obj);
 }
-inline bool operator!=(const HeapObjectLayout* obj, TaggedBase ptr) {
+inline bool operator!=(const HeapObjectLayout* obj, StrongTaggedBase ptr) {
   return Tagged<HeapObject>(obj) != ptr;
 }
-inline bool operator!=(TaggedBase ptr, const HeapObjectLayout* obj) {
+inline bool operator!=(StrongTaggedBase ptr, const HeapObjectLayout* obj) {
   return ptr != Tagged<HeapObject>(obj);
 }
 
@@ -194,8 +196,7 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // Converts an address to a HeapObject pointer.
   static inline Tagged<HeapObject> FromAddress(Address address) {
     DCHECK_TAG_ALIGNED(address);
-    return Tagged<HeapObject>::unchecked_cast(
-        Tagged<Object>(address + kHeapObjectTag));
+    return Tagged<HeapObject>(address + kHeapObjectTag);
   }
 
   // Returns the address of this HeapObject.
@@ -239,37 +240,45 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // GC internal.
   V8_EXPORT_PRIVATE int SizeFromMap(Tagged<Map> map) const;
 
-  template <class T, typename std::enable_if<std::is_arithmetic<T>::value ||
-                                                 std::is_enum<T>::value,
-                                             int>::type = 0>
+  template <class T, typename std::enable_if_t<std::is_arithmetic_v<T> ||
+                                                   std::is_enum_v<T> ||
+                                                   std::is_pointer_v<T>,
+                                               int> = 0>
   inline T ReadField(size_t offset) const {
     return ReadMaybeUnalignedValue<T>(field_address(offset));
   }
 
-  template <class T, typename std::enable_if<std::is_arithmetic<T>::value ||
-                                                 std::is_enum<T>::value,
-                                             int>::type = 0>
+  template <class T, typename std::enable_if_t<std::is_arithmetic_v<T> ||
+                                                   std::is_enum_v<T> ||
+                                                   std::is_pointer_v<T>,
+                                               int> = 0>
   inline void WriteField(size_t offset, T value) const {
     return WriteMaybeUnalignedValue<T>(field_address(offset), value);
   }
 
   // Atomically reads a field using relaxed memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T,
-            typename std::enable_if<(std::is_arithmetic<T>::value ||
-                                     std::is_enum<T>::value) &&
-                                        !std::is_floating_point<T>::value,
-                                    int>::type = 0>
+  template <class T, typename std::enable_if_t<
+                         (std::is_arithmetic_v<T> ||
+                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                         int> = 0>
   inline T Relaxed_ReadField(size_t offset) const;
 
   // Atomically writes a field using relaxed memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T,
-            typename std::enable_if<(std::is_arithmetic<T>::value ||
-                                     std::is_enum<T>::value) &&
-                                        !std::is_floating_point<T>::value,
-                                    int>::type = 0>
+  template <class T, typename std::enable_if_t<
+                         (std::is_arithmetic_v<T> ||
+                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                         int> = 0>
   inline void Relaxed_WriteField(size_t offset, T value);
+
+  // Atomically reads a field using acquire memory ordering. Can only be used
+  // with integral types whose size is <= kTaggedSize (to guarantee alignment).
+  template <class T, typename std::enable_if_t<
+                         (std::is_arithmetic_v<T> ||
+                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                         int> = 0>
+  inline T Acquire_ReadField(size_t offset) const;
 
   // Atomically compares and swaps a field using seq cst memory ordering.
   // Contains the required logic to properly handle number comparison.
@@ -304,6 +313,13 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   template <ExternalPointerTag tag>
   inline Address ReadExternalPointerField(size_t offset,
                                           IsolateForSandbox isolate) const;
+  // Similar to `ReadExternalPointerField()` but uses the CppHeapPointerTable.
+  template <CppHeapPointerTag lower_bound, CppHeapPointerTag upper_bound>
+  inline Address ReadCppHeapPointerField(
+      size_t offset, IsolateForPointerCompression isolate) const;
+  inline Address ReadCppHeapPointerField(
+      size_t offset, IsolateForPointerCompression isolate,
+      CppHeapPointerTagRange tag_range) const;
   template <ExternalPointerTag tag>
   inline void WriteExternalPointerField(size_t offset,
                                         IsolateForSandbox isolate,
@@ -313,22 +329,23 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   inline void WriteLazilyInitializedExternalPointerField(
       size_t offset, IsolateForSandbox isolate, Address value);
 
-  inline void ResetLazilyInitializedExternalPointerField(size_t offset);
+  inline void SetupLazilyInitializedExternalPointerField(size_t offset);
+  inline void SetupLazilyInitializedCppHeapPointerField(size_t offset);
+
+  template <CppHeapPointerTag tag>
+  inline void WriteLazilyInitializedCppHeapPointerField(
+      size_t offset, IsolateForPointerCompression isolate, Address value);
+  inline void WriteLazilyInitializedCppHeapPointerField(
+      size_t offset, IsolateForPointerCompression isolate, Address value,
+      CppHeapPointerTag tag);
 
   //
   // Indirect pointers.
   //
-  // These are only available when the sandbox is enabled.
+  // These are only available when the sandbox is enabled, in which case they
+  // are the under-the-hood implementation of trusted pointers.
   inline void InitSelfIndirectPointerField(size_t offset,
                                            IsolateForSandbox isolate);
-
-  template <IndirectPointerTag tag>
-  inline Tagged<Object> ReadIndirectPointerField(
-      size_t offset, IsolateForSandbox isolate) const;
-
-  template <IndirectPointerTag tag>
-  inline void WriteIndirectPointerField(size_t offset,
-                                        Tagged<ExposedTrustedObject> value);
 
   // Trusted pointers.
   //
@@ -341,16 +358,26 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   inline Tagged<ExposedTrustedObject> ReadTrustedPointerField(
       size_t offset, IsolateForSandbox isolate) const;
   template <IndirectPointerTag tag>
+  inline Tagged<ExposedTrustedObject> ReadTrustedPointerField(
+      size_t offset, IsolateForSandbox isolate, AcquireLoadTag) const;
+  // Like ReadTrustedPointerField, but if the field is cleared, this will
+  // return Smi::zero().
+  template <IndirectPointerTag tag>
+  inline Tagged<Object> ReadMaybeEmptyTrustedPointerField(
+      size_t offset, IsolateForSandbox isolate, AcquireLoadTag) const;
+
+  template <IndirectPointerTag tag>
   inline void WriteTrustedPointerField(size_t offset,
                                        Tagged<ExposedTrustedObject> value);
 
-  // Trusted pointer fields can be cleared, in which case they no longer point
-  // to any object. When the sandbox is enabled, this will set the fields
-  // indirect pointer handle to the null handle (referencing the zeroth entry in
-  // the TrustedPointerTable which just contains nullptr). When the sandbox is
-  // disabled, this will set the field to Smi::zero().
-  inline bool IsTrustedPointerFieldCleared(size_t offset) const;
+  // Trusted pointer fields can be cleared/empty, in which case they no longer
+  // point to any object. When the sandbox is enabled, this will set the fields
+  // indirect pointer handle to the null handle (referencing the zeroth entry
+  // in the TrustedPointerTable which just contains nullptr). When the sandbox
+  // is disabled, this will set the field to Smi::zero().
+  inline bool IsTrustedPointerFieldEmpty(size_t offset) const;
   inline void ClearTrustedPointerField(size_t offest);
+  inline void ClearTrustedPointerField(size_t offest, ReleaseStoreTag);
 
   // Code pointers.
   //
@@ -362,7 +389,7 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
                                            IsolateForSandbox isolate) const;
   inline void WriteCodePointerField(size_t offset, Tagged<Code> value);
 
-  inline bool IsCodePointerFieldCleared(size_t offset) const;
+  inline bool IsCodePointerFieldEmpty(size_t offset) const;
   inline void ClearCodePointerField(size_t offest);
 
   inline Address ReadCodeEntrypointViaCodePointerField(
@@ -370,6 +397,15 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   inline void WriteCodeEntrypointViaCodePointerField(size_t offset,
                                                      Address value,
                                                      CodeEntrypointTag tag);
+
+  // JSDispatchHandles.
+  //
+  // These are references to entries in the JSDispatchTable, which contain the
+  // current code for a function.
+  inline void AllocateAndInstallJSDispatchHandle(
+      size_t offset, IsolateForSandbox isolate, uint16_t parameter_count,
+      Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 
   // Returns the field at offset in obj, as a read/write Object reference.
   // Does no checking, and is safe to use during GC, while maps are invalid.
@@ -380,10 +416,9 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   inline InstructionStreamSlot RawInstructionStreamField(int byte_offset) const;
   inline ExternalPointerSlot RawExternalPointerField(
       int byte_offset, ExternalPointerTag tag) const;
+  inline CppHeapPointerSlot RawCppHeapPointerField(int byte_offset) const;
   inline IndirectPointerSlot RawIndirectPointerField(
       int byte_offset, IndirectPointerTag tag) const;
-
-  DECL_CAST(HeapObject)
 
   // Return the write barrier mode for this. Callers of this function
   // must be able to present a reference to an DisallowGarbageCollection
@@ -483,7 +518,6 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
 inline HeapObject::HeapObject(Address ptr) : TaggedImpl(ptr) {
   IsHeapObject(*this);
 }
-CAST_ACCESSOR(HeapObject)
 
 template <typename T>
 // static
@@ -556,6 +590,13 @@ V8_INLINE bool InReadOnlySpace(Tagged<HeapObject> obj);
 // migrated into trusted space, this can be replaced by !InsideSandbox().
 static_assert(!kAllCodeObjectsLiveInTrustedSpace);
 V8_INLINE bool OutsideSandboxOrInReadonlySpace(Tagged<HeapObject> obj);
+
+// Returns true if obj is guaranteed to be a read-only object or a specific
+// (small) Smi. If the method returns false, we need more checks for RO space
+// objects or Smis. This can be used for a fast RO space/Smi check which are
+// objects for e.g. GC than can be exlucded for processing.
+V8_INLINE constexpr bool FastInReadOnlySpaceOrSmallSmi(Tagged_t obj);
+V8_INLINE constexpr bool FastInReadOnlySpaceOrSmallSmi(Tagged<MaybeObject> obj);
 
 }  // namespace internal
 }  // namespace v8

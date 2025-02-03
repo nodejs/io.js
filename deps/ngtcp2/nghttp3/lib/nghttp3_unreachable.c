@@ -29,11 +29,11 @@
 #include <errno.h>
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>
-#endif /* HAVE_UNISTD_H */
+#endif /* defined(HAVE_UNISTD_H) */
 #include <stdlib.h>
 #ifdef WIN32
 #  include <io.h>
-#endif /* WIN32 */
+#endif /* defined(WIN32) */
 
 void nghttp3_unreachable_fail(const char *file, int line, const char *func) {
   char *buf;
@@ -62,9 +62,9 @@ void nghttp3_unreachable_fail(const char *file, int line, const char *func) {
 #ifndef WIN32
   while (write(STDERR_FILENO, buf, (size_t)rv) == -1 && errno == EINTR)
     ;
-#else  /* WIN32 */
+#else  /* defined(WIN32) */
   _write(_fileno(stderr), buf, (unsigned int)rv);
-#endif /* WIN32 */
+#endif /* defined(WIN32) */
 
   free(buf);
 

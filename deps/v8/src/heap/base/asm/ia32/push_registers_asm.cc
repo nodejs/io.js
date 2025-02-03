@@ -19,6 +19,7 @@
 // Source: https://en.wikipedia.org/wiki/X86_calling_conventions#cdecl
 asm(
 #ifdef _WIN32
+    ".att_syntax                                        \n"
     ".globl _PushAllRegistersAndIterateStack            \n"
     "_PushAllRegistersAndIterateStack:                  \n"
 #else   // !_WIN32
@@ -50,4 +51,10 @@ asm(
     "  addl $24, %esp                                   \n"
     // Restore rbp as it was used as frame pointer.
     "  pop %ebp                                         \n"
-    "  ret                                              \n");
+    "  ret                                              \n"
+#if !defined(__APPLE__) && !defined(_WIN32)
+    ".Lfunc_end0:                                       \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack\n"
+#endif  // !defined(__APPLE__) && !defined(_WIN32)
+    );

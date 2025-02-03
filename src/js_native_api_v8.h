@@ -4,17 +4,18 @@
 #include "js_native_api_types.h"
 #include "js_native_api_v8_internals.h"
 
-inline napi_status napi_clear_last_error(node_api_nogc_env env);
+inline napi_status napi_clear_last_error(node_api_basic_env env);
 
 namespace v8impl {
 
+// Base class to track references and finalizers in a doubly linked list.
 class RefTracker {
  public:
+  using RefList = RefTracker;
+
   RefTracker() = default;
   virtual ~RefTracker() = default;
   virtual void Finalize() {}
-
-  typedef RefTracker RefList;
 
   inline void Link(RefList* list) {
     prev_ = list;
@@ -47,7 +48,6 @@ class RefTracker {
   RefList* prev_ = nullptr;
 };
 
-class Finalizer;
 }  // end of namespace v8impl
 
 struct napi_env__ {
@@ -99,11 +99,7 @@ struct napi_env__ {
     }
   }
 
-  // Call finalizer immediately.
-  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
-    v8::HandleScope handle_scope(isolate);
-    CallIntoModule([&](napi_env env) { cb(env, data, hint); });
-  }
+  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) = 0;
 
   // Invoke finalizer from V8 garbage collector.
   void InvokeFinalizerFromGC(v8impl::RefTracker* finalizer);
@@ -172,8 +168,8 @@ struct napi_env__ {
   virtual ~napi_env__() = default;
 };
 
-inline napi_status napi_clear_last_error(node_api_nogc_env nogc_env) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+inline napi_status napi_clear_last_error(node_api_basic_env basic_env) {
+  napi_env env = const_cast<napi_env>(basic_env);
   env->last_error.error_code = napi_ok;
   env->last_error.engine_error_code = 0;
   env->last_error.engine_reserved = nullptr;
@@ -181,11 +177,11 @@ inline napi_status napi_clear_last_error(node_api_nogc_env nogc_env) {
   return napi_ok;
 }
 
-inline napi_status napi_set_last_error(node_api_nogc_env nogc_env,
+inline napi_status napi_set_last_error(node_api_basic_env basic_env,
                                        napi_status error_code,
                                        uint32_t engine_error_code = 0,
                                        void* engine_reserved = nullptr) {
-  napi_env env = const_cast<napi_env>(nogc_env);
+  napi_env env = const_cast<napi_env>(basic_env);
   env->last_error.error_code = error_code;
   env->last_error.engine_error_code = engine_error_code;
   env->last_error.engine_reserved = engine_reserved;
@@ -238,11 +234,11 @@ inline napi_status napi_set_last_error(node_api_nogc_env nogc_env,
   CHECK_ENV_NOT_IN_GC((env));                                                  \
   RETURN_STATUS_IF_FALSE(                                                      \
       (env), (env)->last_exception.IsEmpty(), napi_pending_exception);         \
-  RETURN_STATUS_IF_FALSE((env),                                                \
-                         (env)->can_call_into_js(),                            \
-                         (env->module_api_version == NAPI_VERSION_EXPERIMENTAL \
-                              ? napi_cannot_run_js                             \
-                              : napi_pending_exception));                      \
+  RETURN_STATUS_IF_FALSE(                                                      \
+      (env),                                                                   \
+      (env)->can_call_into_js(),                                               \
+      (env->module_api_version >= 10 ? napi_cannot_run_js                      \
+                                     : napi_pending_exception));               \
   napi_clear_last_error((env));                                                \
   v8impl::TryCatch try_catch((env))
 
@@ -323,7 +319,7 @@ inline v8::Local<v8::Value> V8LocalValueFromJsValue(napi_value v) {
 
 // Adapter for napi_finalize callbacks.
 class Finalizer {
- protected:
+ public:
   Finalizer(napi_env env,
             napi_finalize finalize_callback,
             void* finalize_data,
@@ -333,23 +329,14 @@ class Finalizer {
         finalize_data_(finalize_data),
         finalize_hint_(finalize_hint) {}
 
-  virtual ~Finalizer() = default;
-
- public:
-  static Finalizer* New(napi_env env,
-                        napi_finalize finalize_callback = nullptr,
-                        void* finalize_data = nullptr,
-                        void* finalize_hint = nullptr) {
-    return new Finalizer(env, finalize_callback, finalize_data, finalize_hint);
-  }
-
-  napi_finalize callback() { return finalize_callback_; }
+  napi_env env() { return env_; }
   void* data() { return finalize_data_; }
-  void* hint() { return finalize_hint_; }
 
+  void ResetEnv();
   void ResetFinalizer();
+  void CallFinalizer();
 
- protected:
+ private:
   napi_env env_;
   napi_finalize finalize_callback_;
   void* finalize_data_;
@@ -370,8 +357,30 @@ class TryCatch : public v8::TryCatch {
   napi_env _env;
 };
 
+// Wrapper around Finalizer that can be tracked.
+class TrackedFinalizer final : public RefTracker {
+ public:
+  static TrackedFinalizer* New(napi_env env,
+                               napi_finalize finalize_callback,
+                               void* finalize_data,
+                               void* finalize_hint);
+  ~TrackedFinalizer() override;
+
+  void* data() { return finalizer_.data(); }
+
+ private:
+  TrackedFinalizer(napi_env env,
+                   napi_finalize finalize_callback,
+                   void* finalize_data,
+                   void* finalize_hint);
+  void Finalize() override;
+
+ private:
+  Finalizer finalizer_;
+};
+
 // Ownership of a reference.
-enum class Ownership {
+enum class ReferenceOwnership : uint8_t {
   // The reference is owned by the runtime. No userland call is needed to
   // destruct the reference.
   kRuntime,
@@ -380,89 +389,95 @@ enum class Ownership {
   kUserland,
 };
 
-// Wrapper around Finalizer that can be tracked.
-class TrackedFinalizer : public Finalizer, public RefTracker {
- protected:
-  TrackedFinalizer(napi_env env,
-                   napi_finalize finalize_callback,
-                   void* finalize_data,
-                   void* finalize_hint);
-
- public:
-  static TrackedFinalizer* New(napi_env env,
-                               napi_finalize finalize_callback,
-                               void* finalize_data,
-                               void* finalize_hint);
-  ~TrackedFinalizer() override;
-
- protected:
-  void Finalize() override;
-  void FinalizeCore(bool deleteMe);
-};
-
-// Wrapper around TrackedFinalizer that implements reference counting.
-class RefBase : public TrackedFinalizer {
- protected:
-  RefBase(napi_env env,
-          uint32_t initial_refcount,
-          Ownership ownership,
-          napi_finalize finalize_callback,
-          void* finalize_data,
-          void* finalize_hint);
-
- public:
-  static RefBase* New(napi_env env,
-                      uint32_t initial_refcount,
-                      Ownership ownership,
-                      napi_finalize finalize_callback,
-                      void* finalize_data,
-                      void* finalize_hint);
-
-  void* Data();
-  uint32_t Ref();
-  uint32_t Unref();
-  uint32_t RefCount();
-
-  Ownership ownership() { return ownership_; }
-
- protected:
-  void Finalize() override;
-
- private:
-  uint32_t refcount_;
-  Ownership ownership_;
-};
-
 // Wrapper around v8impl::Persistent.
-class Reference : public RefBase {
- protected:
-  template <typename... Args>
-  Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args);
-
+class Reference : public RefTracker {
  public:
   static Reference* New(napi_env env,
                         v8::Local<v8::Value> value,
                         uint32_t initial_refcount,
-                        Ownership ownership,
-                        napi_finalize finalize_callback = nullptr,
-                        void* finalize_data = nullptr,
-                        void* finalize_hint = nullptr);
+                        ReferenceOwnership ownership);
+  ~Reference() override;
 
-  virtual ~Reference();
   uint32_t Ref();
   uint32_t Unref();
-  v8::Local<v8::Value> Get();
+  v8::Local<v8::Value> Get(napi_env env);
+
+  virtual void ResetFinalizer() {}
+  virtual void* Data() { return nullptr; }
+
+  uint32_t refcount() const { return refcount_; }
+  ReferenceOwnership ownership() { return ownership_; }
 
  protected:
-  void Finalize() override;
+  Reference(napi_env env,
+            v8::Local<v8::Value> value,
+            uint32_t initial_refcount,
+            ReferenceOwnership ownership);
+  virtual void CallUserFinalizer() {}
+  virtual void InvokeFinalizerFromGC();
 
  private:
   static void WeakCallback(const v8::WeakCallbackInfo<Reference>& data);
-
   void SetWeak();
+  void Finalize() override;
 
+ private:
   v8impl::Persistent<v8::Value> persistent_;
+  uint32_t refcount_;
+  ReferenceOwnership ownership_;
   bool can_be_weak_;
+};
+
+// Reference that can store additional data.
+class ReferenceWithData final : public Reference {
+ public:
+  static ReferenceWithData* New(napi_env env,
+                                v8::Local<v8::Value> value,
+                                uint32_t initial_refcount,
+                                ReferenceOwnership ownership,
+                                void* data);
+
+  void* Data() override { return data_; }
+
+ private:
+  ReferenceWithData(napi_env env,
+                    v8::Local<v8::Value> value,
+                    uint32_t initial_refcount,
+                    ReferenceOwnership ownership,
+                    void* data);
+
+ private:
+  void* data_;
+};
+
+// Reference that has a user finalizer callback.
+class ReferenceWithFinalizer final : public Reference {
+ public:
+  static ReferenceWithFinalizer* New(napi_env env,
+                                     v8::Local<v8::Value> value,
+                                     uint32_t initial_refcount,
+                                     ReferenceOwnership ownership,
+                                     napi_finalize finalize_callback,
+                                     void* finalize_data,
+                                     void* finalize_hint);
+  ~ReferenceWithFinalizer() override;
+
+  void ResetFinalizer() override { finalizer_.ResetFinalizer(); }
+  void* Data() override { return finalizer_.data(); }
+
+ private:
+  ReferenceWithFinalizer(napi_env env,
+                         v8::Local<v8::Value> value,
+                         uint32_t initial_refcount,
+                         ReferenceOwnership ownership,
+                         napi_finalize finalize_callback,
+                         void* finalize_data,
+                         void* finalize_hint);
+  void CallUserFinalizer() override;
+  void InvokeFinalizerFromGC() override;
+
+ private:
+  Finalizer finalizer_;
 };
 
 }  // end of namespace v8impl

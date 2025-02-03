@@ -60,26 +60,6 @@ Node* BuildFastApiCall(Isolate* isolate, Graph* graph,
                        const InitializeOptions& initialize_options,
                        const GenerateSlowApiCall& generate_slow_api_call);
 
-inline Node* AdaptLocalArgument(GraphAssembler* graph_assembler,
-                                Node* argument) {
-#define __ graph_assembler->
-
-#ifdef V8_ENABLE_DIRECT_LOCAL
-  // With direct locals, the argument can be passed directly.
-  return __ BitcastTaggedToWord(argument);
-#else
-  // With indirect locals, the argument has to be stored on the stack and the
-  // slot address is passed.
-  Node* stack_slot = __ StackSlot(sizeof(uintptr_t), alignof(uintptr_t), true);
-  __ Store(StoreRepresentation(MachineType::PointerRepresentation(),
-                               kNoWriteBarrier),
-           stack_slot, 0, __ BitcastTaggedToWord(argument));
-  return stack_slot;
-#endif
-
-#undef __
-}
-
 }  // namespace fast_api_call
 }  // namespace compiler
 }  // namespace internal

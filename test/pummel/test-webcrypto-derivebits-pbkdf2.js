@@ -450,12 +450,12 @@ async function testDeriveBitsBadLengths(
         name: 'OperationError',
       }),
     assert.rejects(
-      subtle.deriveBits(algorithm, baseKeys[size], 0), {
-        message: /length cannot be zero/,
+      subtle.deriveBits(algorithm, baseKeys[size], null), {
+        message: 'length cannot be null',
         name: 'OperationError',
       }),
     assert.rejects(
-      subtle.deriveBits(algorithm, baseKeys[size], null), {
+      subtle.deriveBits(algorithm, baseKeys[size]), {
         message: 'length cannot be null',
         name: 'OperationError',
       }),
@@ -688,3 +688,19 @@ async function testWrongKeyType(
 
   await Promise.all(variations);
 })().then(common.mustCall());
+
+
+// https://github.com/w3c/webcrypto/pull/380
+{
+  crypto.subtle.importKey('raw', new Uint8Array(0), 'PBKDF2', false, ['deriveBits']).then((key) => {
+    return crypto.subtle.deriveBits({
+      name: 'PBKDF2',
+      hash: { name: 'SHA-256' },
+      iterations: 10,
+      salt: new Uint8Array(0),
+    }, key, 0);
+  }).then((bits) => {
+    assert.deepStrictEqual(bits, new ArrayBuffer(0));
+  })
+  .then(common.mustCall());
+}

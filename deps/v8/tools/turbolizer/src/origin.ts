@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import { GraphNode } from "./phases/graph-phase/graph-node";
-import { TurboshaftGraphNode } from "./phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "./phases/turboshaft-graph-phase/turboshaft-graph-operation";
 
 export abstract class Origin {
   phase: string;
@@ -17,9 +17,9 @@ export abstract class Origin {
 
 export class NodeOrigin extends Origin {
   nodeId: number;
-  node: GraphNode | TurboshaftGraphNode;
+  node: GraphNode | TurboshaftGraphOperation;
 
-  constructor(nodeId: number, node: GraphNode | TurboshaftGraphNode, phase: string,
+  constructor(nodeId: number, node: GraphNode | TurboshaftGraphOperation, phase: string,
               reducer: string) {
     super(phase, reducer);
     this.nodeId = nodeId;

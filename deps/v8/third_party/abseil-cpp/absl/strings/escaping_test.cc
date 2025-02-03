@@ -706,6 +706,13 @@ TEST(Escaping, HexStringToBytesBackToHex) {
   hex = absl::BytesToHexString(kTestBytes);
   EXPECT_EQ(hex, kTestHexLower);
 
+  // Same buffer.
+  // We do not care if this works since we do not promise it in the contract.
+  // The purpose of this test is to to see if the program will crash or if
+  // sanitizers will catch anything.
+  bytes = std::string(kTestHexUpper);
+  (void)absl::HexStringToBytes(bytes, &bytes);
+
   // Length not a multiple of two.
   EXPECT_FALSE(absl::HexStringToBytes("1c2f003", &bytes));
 

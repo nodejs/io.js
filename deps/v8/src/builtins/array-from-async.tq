@@ -91,9 +91,17 @@ extern enum ArrayFromAsyncIterableResolveContextSlots extends intptr
   kArrayFromAsyncIterableResolveLength
 }
 
+extern macro AllocateRootFunctionWithContext(
+    constexpr intptr, FunctionContext, NativeContext): JSFunction;
+
+const kArrayFromAsyncIterableOnFulfilledSharedFun: constexpr intptr
+    generates 'RootIndex::kArrayFromAsyncIterableOnFulfilledSharedFun';
+const kArrayFromAsyncIterableOnRejectedSharedFun: constexpr intptr
+    generates 'RootIndex::kArrayFromAsyncIterableOnRejectedSharedFun';
+
 macro CreateArrayFromAsyncIterableResolveContext(
     implicit context: Context)(resumeState: ArrayFromAsyncIterableResumeState,
-    promise: JSPromise, promiseFun: JSReceiver, map: Map, iterator: JSReceiver,
+    promise: JSPromise, promiseFun: JSReceiver, iterator: JSReceiver,
     next: JSAny, arr: JSReceiver, error: JSAny, mapfn: JSAny, thisArg: JSAny,
     nativeContext: NativeContext): ArrayFromAsyncIterableResolveContext {
   const resolveContext = %RawDownCast<ArrayFromAsyncIterableResolveContext>(
@@ -130,16 +138,16 @@ macro CreateArrayFromAsyncIterableResolveContext(
       resolveContext,
       ArrayFromAsyncIterableResolveContextSlots::
           kArrayFromAsyncIterableResolveOnFulfilledFunctionSlot,
-      promise::AllocateFunctionWithMapAndContext(
-          map, ArrayFromAsyncIterableOnFulfilledSharedFunConstant(),
-          resolveContext));
+      AllocateRootFunctionWithContext(
+          kArrayFromAsyncIterableOnFulfilledSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncIterableResolveContextSlots::
           kArrayFromAsyncIterableResolveOnRejectedFunctionSlot,
-      promise::AllocateFunctionWithMapAndContext(
-          map, ArrayFromAsyncIterableOnRejectedSharedFunConstant(),
-          resolveContext));
+      AllocateRootFunctionWithContext(
+          kArrayFromAsyncIterableOnRejectedSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncIterableResolveContextSlots::
@@ -503,9 +511,14 @@ extern enum ArrayFromAsyncArrayLikeResolveContextSlots extends intptr
   kArrayFromAsyncArrayLikeResolveLength
 }
 
+const kArrayFromAsyncArrayLikeOnFulfilledSharedFun: constexpr intptr
+    generates 'RootIndex::kArrayFromAsyncArrayLikeOnFulfilledSharedFun';
+const kArrayFromAsyncArrayLikeOnRejectedSharedFun: constexpr intptr
+    generates 'RootIndex::kArrayFromAsyncArrayLikeOnRejectedSharedFun';
+
 macro CreateArrayFromAsyncArrayLikeResolveContext(
     implicit context: Context)(resumeState: ArrayFromAsyncArrayLikeResumeState,
-    promise: JSPromise, promiseFun: JSReceiver, map: Map, arrayLike: JSReceiver,
+    promise: JSPromise, promiseFun: JSReceiver, arrayLike: JSReceiver,
     arr: JSReceiver, error: JSAny, mapfn: JSAny, thisArg: JSAny,
     nativeContext: NativeContext): ArrayFromAsyncArrayLikeResolveContext {
   const resolveContext = %RawDownCast<ArrayFromAsyncArrayLikeResolveContext>(
@@ -547,16 +560,16 @@ macro CreateArrayFromAsyncArrayLikeResolveContext(
       resolveContext,
       ArrayFromAsyncArrayLikeResolveContextSlots::
           kArrayFromAsyncArrayLikeResolveOnFulfilledFunctionSlot,
-      promise::AllocateFunctionWithMapAndContext(
-          map, ArrayFromAsyncArrayLikeOnFulfilledSharedFunConstant(),
-          resolveContext));
+      AllocateRootFunctionWithContext(
+          kArrayFromAsyncArrayLikeOnFulfilledSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncArrayLikeResolveContextSlots::
           kArrayFromAsyncArrayLikeResolveOnRejectedFunctionSlot,
-      promise::AllocateFunctionWithMapAndContext(
-          map, ArrayFromAsyncArrayLikeOnRejectedSharedFunConstant(),
-          resolveContext));
+      AllocateRootFunctionWithContext(
+          kArrayFromAsyncArrayLikeOnRejectedSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncArrayLikeResolveContextSlots::
@@ -805,8 +818,6 @@ transitioning javascript builtin ArrayFromAsync(
 
   const promiseFun = *NativeContextSlot(
       context, ContextSlot::PROMISE_FUNCTION_INDEX);
-  const map = *NativeContextSlot(
-      context, ContextSlot::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX);
 
   // 3. Let fromAsyncClosure be a new Abstract Closure with no parameters that
   // captures C, mapfn, and thisArg and performs the following steps when
@@ -876,7 +887,7 @@ transitioning javascript builtin ArrayFromAsync(
 
       const arrayLikeResolveContext =
           CreateArrayFromAsyncArrayLikeResolveContext(
-              resumeState, promise, promiseFun, map, arrayLike, arr, Undefined,
+              resumeState, promise, promiseFun, arrayLike, arr, Undefined,
               mapfn, thisArg, context);
 
       CreateArrayFromArrayLikeAsynchronously(arrayLikeResolveContext);
@@ -929,7 +940,7 @@ transitioning javascript builtin ArrayFromAsync(
     };
 
     const iterableResolveContext = CreateArrayFromAsyncIterableResolveContext(
-        iterableResumeState, promise, promiseFun, map, iteratorRecord.object,
+        iterableResumeState, promise, promiseFun, iteratorRecord.object,
         iteratorRecord.next, arr, Undefined, mapfn, thisArg, context);
 
     CreateArrayFromIterableAsynchronously(iterableResolveContext);

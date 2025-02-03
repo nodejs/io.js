@@ -66,21 +66,21 @@ namespace internal {
   /* Punctuators (ECMA-262, section 7.7, page 15). */                         \
   /* BEGIN Property */                                                        \
   T(kPeriod, ".", 0)                                                          \
-  T(kLBrack, "[", 0)                                                          \
+  T(kLeftBracket, "[", 0)                                                     \
   /* END Property */                                                          \
   /* END Member */                                                            \
   T(kQuestionPeriod, "?.", 0)                                                 \
-  T(kLParen, "(", 0)                                                          \
+  T(kLeftParen, "(", 0)                                                       \
   /* END PropertyOrCall */                                                    \
-  T(kRParen, ")", 0)                                                          \
-  T(kRBrack, "]", 0)                                                          \
-  T(kLBrace, "{", 0)                                                          \
+  T(kRightParen, ")", 0)                                                      \
+  T(kRightBracket, "]", 0)                                                    \
+  T(kLeftBrace, "{", 0)                                                       \
   T(kColon, ":", 0)                                                           \
   T(kEllipsis, "...", 0)                                                      \
   T(kConditional, "?", 3)                                                     \
   /* BEGIN AutoSemicolon */                                                   \
   T(kSemicolon, ";", 0)                                                       \
-  T(kRBrace, "}", 0)                                                          \
+  T(kRightBrace, "}", 0)                                                      \
   /* End of source indicator. */                                              \
   T(kEos, "EOS", 0)                                                           \
   /* END AutoSemicolon */                                                     \
@@ -123,12 +123,12 @@ namespace internal {
   /* being contiguous and sorted in the same order! */                        \
   T(kEq, "==", 9)                                                             \
   T(kEqStrict, "===", 9)                                                      \
-  T(kNe, "!=", 9)                                                             \
-  T(kNeStrict, "!==", 9)                                                      \
-  T(kLt, "<", 10)                                                             \
-  T(kGt, ">", 10)                                                             \
-  T(kLte, "<=", 10)                                                           \
-  T(kGte, ">=", 10)                                                           \
+  T(kNotEq, "!=", 9)                                                          \
+  T(kNotEqStrict, "!==", 9)                                                   \
+  T(kLessThan, "<", 10)                                                       \
+  T(kGreaterThan, ">", 10)                                                    \
+  T(kLessThanEq, "<=", 10)                                                    \
+  T(kGreaterThanEq, ">=", 10)                                                 \
   K(kInstanceOf, "instanceof", 10)                                            \
   K(kIn, "in", 10)                                                            \
                                                                               \
@@ -180,6 +180,7 @@ namespace internal {
   K(kSet, "set", 0)                                                           \
   K(kUsing, "using", 0)                                                       \
   K(kOf, "of", 0)                                                             \
+  K(kAccessor, "accessor", 0)                                                 \
   K(kAsync, "async", 0)                                                       \
   /* `await` is a reserved word in module code only */                        \
   K(kAwait, "await", 0)                                                       \
@@ -216,7 +217,7 @@ class V8_EXPORT_PRIVATE Token {
 #undef T
 
   // Returns a string corresponding to the C++ token name
-  // (e.g. "kLt" for the token kLt).
+  // (e.g. "kLessThan" for the token kLessThan).
   static const char* Name(Value token) {
     DCHECK_GT(kNumTokens, token);  // token is unsigned
     return name_[token];
@@ -269,15 +270,15 @@ class V8_EXPORT_PRIVATE Token {
   }
 
   static bool IsMember(Value token) {
-    return base::IsInRange(token, kTemplateSpan, kLBrack);
+    return base::IsInRange(token, kTemplateSpan, kLeftBracket);
   }
 
   static bool IsProperty(Value token) {
-    return base::IsInRange(token, kPeriod, kLBrack);
+    return base::IsInRange(token, kPeriod, kLeftBracket);
   }
 
   static bool IsPropertyOrCall(Value token) {
-    return base::IsInRange(token, kTemplateSpan, kLParen);
+    return base::IsInRange(token, kTemplateSpan, kLeftParen);
   }
 
   static bool IsArrowOrAssignmentOp(Value token) {
@@ -297,7 +298,7 @@ class V8_EXPORT_PRIVATE Token {
   static bool IsCompareOp(Value op) { return base::IsInRange(op, kEq, kIn); }
 
   static bool IsOrderedRelationalCompareOp(Value op) {
-    return base::IsInRange(op, kLt, kGte);
+    return base::IsInRange(op, kLessThan, kGreaterThanEq);
   }
 
   static bool IsEqualityOp(Value op) {
@@ -323,7 +324,7 @@ class V8_EXPORT_PRIVATE Token {
   static bool IsShiftOp(Value op) { return base::IsInRange(op, kShl, kShr); }
 
   // Returns a string corresponding to the JS token string
-  // (.e., "<" for the token kLt) or nullptr if the token doesn't
+  // (.e., "<" for the token kLessThan) or nullptr if the token doesn't
   // have a (unique) string (e.g. a kIdentifier).
   static const char* String(Value token) {
     DCHECK_GT(kNumTokens, token);  // token is unsigned

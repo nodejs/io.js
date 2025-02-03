@@ -101,7 +101,7 @@ CollationTailoring::setVersion(const UVersionInfo baseVersion, const UVersionInf
 
 int32_t
 CollationTailoring::getUCAVersion() const {
-    return ((int32_t)version[1] << 4) | (version[2] >> 6);
+    return (static_cast<int32_t>(version[1]) << 4) | (version[2] >> 6);
 }
 
 CollationCacheEntry::~CollationCacheEntry() {

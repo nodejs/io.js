@@ -17,7 +17,7 @@ const before = process.memoryUsage().external;
     createSecurePair(context, false, false, false, options).destroy();
 }
 setImmediate(() => {
-  global.gc();
+  globalThis.gc();
   const after = process.memoryUsage().external;
 
   // It's not an exact science but a SecurePair grows .external by about 45 KiB.

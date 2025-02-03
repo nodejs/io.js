@@ -38,7 +38,6 @@
 #include <atomic>
 
 #include "src/base/lazy-instance.h"
-#include "src/base/win32-headers.h"
 #endif
 #include "src/base/cpu.h"
 #include "src/base/logging.h"
@@ -95,7 +94,7 @@ V8_INLINE int64_t GetFuchsiaThreadTicks() {
 // _POSIX_MONOTONIC_CLOCK to -1.
 V8_INLINE int64_t ClockNow(clockid_t clk_id) {
 #if (defined(_POSIX_MONOTONIC_CLOCK) && _POSIX_MONOTONIC_CLOCK >= 0) || \
-  defined(V8_OS_BSD) || defined(V8_OS_ANDROID)
+    defined(V8_OS_BSD) || defined(V8_OS_ANDROID) || defined(V8_OS_ZOS)
 #if defined(V8_OS_AIX)
   // On AIX clock_gettime for CLOCK_THREAD_CPUTIME_ID outputs time with
   // resolution of 10ms. thread_cputime API provides the time in ns.
@@ -782,8 +781,9 @@ bool ThreadTicks::IsSupported() {
 #elif defined(__PASE__)
   // Thread CPU time accounting is unavailable in PASE
   return false;
-#elif(defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME >= 0)) || \
-    defined(V8_OS_DARWIN) || defined(V8_OS_ANDROID) || defined(V8_OS_SOLARIS)
+#elif (defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME >= 0)) || \
+    defined(V8_OS_DARWIN) || defined(V8_OS_ANDROID) ||                    \
+    defined(V8_OS_SOLARIS) || defined(V8_OS_ZOS)
   return true;
 #elif defined(V8_OS_WIN)
   return IsSupportedWin();
@@ -803,8 +803,8 @@ ThreadTicks ThreadTicks::Now() {
   return ThreadTicks(ComputeThreadTicks());
 #elif V8_OS_FUCHSIA
   return ThreadTicks(GetFuchsiaThreadTicks());
-#elif(defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME >= 0)) || \
-  defined(V8_OS_ANDROID)
+#elif (defined(_POSIX_THREAD_CPUTIME) && (_POSIX_THREAD_CPUTIME >= 0)) || \
+    defined(V8_OS_ANDROID) || defined(V8_OS_ZOS)
   return ThreadTicks(ClockNow(CLOCK_THREAD_CPUTIME_ID));
 #elif V8_OS_SOLARIS
   return ThreadTicks(gethrvtime() / Time::kNanosecondsPerMicrosecond);
@@ -887,8 +887,8 @@ double ThreadTicks::TSCTicksPerSecond() {
   static const uint64_t tsc_initial = __rdtsc();
   static const uint64_t perf_counter_initial = QPCNowRaw();
 
-  // Make a another reading of the TSC and the performance counter every time
-  // that this function is called.
+  // Make another reading of the TSC and the performance counter every time
+  // this function is called.
   uint64_t tsc_now = __rdtsc();
   uint64_t perf_counter_now = QPCNowRaw();
 

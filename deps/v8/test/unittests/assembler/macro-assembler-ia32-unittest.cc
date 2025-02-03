@@ -24,6 +24,11 @@ TEST_F(MacroAssemblerTest, TestHardAbort) {
   MacroAssembler masm(isolate(), AssemblerOptions{}, CodeObjectRequired::kNo,
                       buffer->CreateView());
   __ set_root_array_available(false);
+  // Initialize the root register, as we need it for `Abort()`. Since `Abort()`
+  // does not return properly, we don't need to restore `kRootRegister`, even
+  // though it's a callee-saved register.
+  __ LoadAddress(kRootRegister, ExternalReference::isolate_root(isolate()));
+  __ set_root_array_available(true);
   __ set_abort_hard(true);
 
   __ Abort(AbortReason::kNoReason);
@@ -41,12 +46,20 @@ TEST_F(MacroAssemblerTest, TestCheck) {
   MacroAssembler masm(isolate(), AssemblerOptions{}, CodeObjectRequired::kNo,
                       buffer->CreateView());
   __ set_root_array_available(false);
+  // Initialize the root register, as we need it for `Check()`.
+  // Save the value in `kRootRegister` to restore it later after the call. In
+  // some configurations `kRootRegister` is callee-saved for C++.
+  __ mov(ecx, kRootRegister);
+  __ LoadAddress(kRootRegister, ExternalReference::isolate_root(isolate()));
+  __ set_root_array_available(true);
   __ set_abort_hard(true);
 
   // Fail if the first parameter is 17.
   __ mov(eax, 17);
   __ cmp(eax, Operand(esp, 4));  // compare with 1st parameter.
   __ Check(Condition::not_equal, AbortReason::kNoReason);
+  // Restore the original value of `kRootRegister`.
+  __ mov(kRootRegister, ecx);
   __ ret(0);
 
   CodeDesc desc;
@@ -64,6 +77,12 @@ TEST_F(MacroAssemblerTest, TestPCRelLea) {
   MacroAssembler masm(isolate(), AssemblerOptions{}, CodeObjectRequired::kNo,
                       buffer->CreateView());
   __ set_root_array_available(false);
+  // Initialize the root register, as we need it for `Check()`.
+  // Save the value in `kRootRegister` to restore it later after the call. In
+  // some configurations `kRootRegister` is callee-saved for C++.
+  __ mov(edi, kRootRegister);
+  __ LoadAddress(kRootRegister, ExternalReference::isolate_root(isolate()));
+  __ set_root_array_available(true);
   __ set_abort_hard(true);
 
   Label pt;
@@ -72,6 +91,8 @@ TEST_F(MacroAssemblerTest, TestPCRelLea) {
   __ call(ecx);
   __ cmp(eax, 56);
   __ Check(Condition::equal, AbortReason::kNoReason);
+  // Restore the original value of `kRootRegister`.
+  __ mov(kRootRegister, edi);
   __ ret(0);
   __ bind(&pt);
   __ mov(eax, 56);
@@ -90,6 +111,12 @@ TEST_F(MacroAssemblerTest, TestDefinedPCRelLea) {
   MacroAssembler masm(isolate(), AssemblerOptions{}, CodeObjectRequired::kNo,
                       buffer->CreateView());
   __ set_root_array_available(false);
+  // Initialize the root register, as we need it for `Check()`.
+  // Save the value in `kRootRegister` to restore it later after the call. In
+  // some configurations `kRootRegister` is callee-saved for C++.
+  __ mov(edi, kRootRegister);
+  __ LoadAddress(kRootRegister, ExternalReference::isolate_root(isolate()));
+  __ set_root_array_available(true);
   __ set_abort_hard(true);
 
   Label pt, start;
@@ -103,6 +130,8 @@ TEST_F(MacroAssemblerTest, TestDefinedPCRelLea) {
   __ call(ecx);
   __ cmp(eax, 56);
   __ Check(Condition::equal, AbortReason::kNoReason);
+  // Restore the original value of `kRootRegister`.
+  __ mov(kRootRegister, edi);
   __ ret(0);
 
   CodeDesc desc;

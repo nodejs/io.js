@@ -1,6 +1,6 @@
 // mix-in implementing the loadActual method
 
-const { relative, dirname, resolve, join, normalize } = require('path')
+const { relative, dirname, resolve, join, normalize } = require('node:path')
 
 const rpj = require('read-package-json-fast')
 const { readdirScoped } = require('@npmcli/fs')
@@ -336,8 +336,8 @@ module.exports = cls => class ActualLoader extends cls {
       await this.#loadFSChildren(node.target)
       return Promise.all(
         [...node.target.children.entries()]
-          .filter(([name, kid]) => !did.has(kid.realpath))
-          .map(([name, kid]) => this.#loadFSTree(kid))
+          .filter(([, kid]) => !did.has(kid.realpath))
+          .map(([, kid]) => this.#loadFSTree(kid))
       )
     }
   }

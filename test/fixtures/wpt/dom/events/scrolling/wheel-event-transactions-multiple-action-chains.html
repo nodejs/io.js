@@ -1,0 +1,101 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="scroll_support.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  height: 200vh;
+}
+
+#initial {
+  background: red;
+  width: 100%;
+  height: 25px;
+  padding: 0;
+  margin: 0;
+}
+
+#second {
+  background: green;
+  width: 100%;
+  height: 200vh;
+  padding: 0;
+  margin: 0;
+}
+
+</style>
+<head>
+<body>
+<div id="initial"></div>
+<div id="second"></div>
+</body>
+
+<script>
+
+promise_test(async (t) => {
+  await new Promise(resolve => addEventListener("load", resolve, {once: true}));
+
+  await waitForCompositorReady();
+
+  await waitForCompositorCommit();
+
+  let firstEventTargets = [];
+  let secondEventTargets = [];
+  let isFirstGroup = true;
+  window.addEventListener("wheel", (e) => {
+    if (isFirstGroup) {
+      firstEventTargets.push(e.target);
+    } else {
+      secondEventTargets.push(e.target);
+    }
+  }, {passive: true});
+
+  await waitForCompositorCommit();
+
+  // The first action chain should target the initial element
+  await new test_driver.Actions()
+    .addWheel("wheel1")
+    .scroll(40, 2, 0, 30, {origin: "viewport"})
+    .send();
+
+  // Start logging event targets in the second transaction
+  isFirstGroup = false;
+
+  // The second chain should target the second element and the prior wheel event
+  // group should have no impact on this action chain.
+  await new test_driver.Actions()
+    .addWheel("wheel1")
+    .scroll(40, 30, 0, 30, {origin: "viewport"})
+    .send();
+
+  // TODO(dlrobertson): Use the scrollend event here to wait for the
+  // wheel scroll to finish instead of waitForAnimationEnd().
+  await waitForAnimationEnd(() => { return document.scrollingElement.scrollTop; });
+  await waitForCompositorCommit();
+
+  assert_greater_than(firstEventTargets.length, 0,
+                      "There should be at least one event in the first transaction");
+  assert_greater_than(secondEventTargets.length, 0,
+                      "There should be at least one event in the second transaction");
+
+  firstEventTargets.forEach((wheelEventTarget, i) => {
+    assert_equals(wheelEventTarget, initial,
+                  "Wheel event at index `" + i + "` did not target the initial element");
+  });
+
+  secondEventTargets.forEach((wheelEventTarget, i) => {
+    assert_equals(wheelEventTarget, second,
+                  "Wheel event at index `" + i + "` did not target the second element");
+  });
+}, "Two separate webdriver action chains should have different wheel event transactions");
+</script>
+</html>

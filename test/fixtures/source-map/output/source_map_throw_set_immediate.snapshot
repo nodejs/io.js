@@ -6,6 +6,6 @@
 Error: goodbye
     at Hello (*uglify-throw-original.js:5:9)
     at Immediate.<anonymous> (*uglify-throw-original.js:9:3)
-    at process.processImmediate (node:internal*timers:478:21)
+    *
 
 Node.js *

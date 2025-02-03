@@ -2,7 +2,7 @@ name: Label Flaky Test Issues
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
 
 permissions:
   contents: read

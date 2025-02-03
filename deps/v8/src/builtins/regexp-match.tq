@@ -6,18 +6,16 @@
 
 namespace regexp {
 
-const kATOM: constexpr int31
-    generates 'JSRegExp::ATOM';
-const kTagIndex: constexpr int31
-    generates 'JSRegExp::kTagIndex';
-const kAtomPatternIndex: constexpr int31
-    generates 'JSRegExp::kAtomPatternIndex';
+const kATOM: constexpr uint8
+    generates 'static_cast<uint8_t>(RegExpData::Type::ATOM)';
+const kRegExpDataIndirectPointerTag:
+    constexpr uint64 generates 'kRegExpDataIndirectPointerTag';
 
 extern transitioning macro RegExpBuiltinsAssembler::FlagGetter(
     implicit context: Context)(Object, constexpr Flag, constexpr bool): bool;
 
-extern macro UnsafeLoadFixedArrayElement(RegExpMatchInfo, constexpr int31):
-    Object;
+extern macro LoadTrustedPointerFromObject(
+    HeapObject, constexpr int31, constexpr uint64): TrustedObject;
 
 transitioning macro RegExpPrototypeMatchBody(
     implicit context: Context)(regexp: JSReceiver, string: String,
@@ -49,9 +47,12 @@ transitioning macro RegExpPrototypeMatchBody(
   let searchString: String = EmptyStringConstant();
   if constexpr (isFastPath) {
     const maybeAtomRegexp = UnsafeCast<JSRegExp>(regexp);
-    const data = UnsafeCast<FixedArray>(maybeAtomRegexp.data);
-    if (UnsafeCast<Smi>(data.objects[kTagIndex]) == kATOM) {
-      searchString = UnsafeCast<String>(data.objects[kAtomPatternIndex]);
+    const data: RegExpData =
+        UnsafeCast<RegExpData>(LoadTrustedPointerFromObject(
+            maybeAtomRegexp, kJSRegExpRegExpDataOffset,
+            kRegExpDataIndirectPointerTag));
+    if (data.type_tag == kATOM) {
+      searchString = UnsafeCast<AtomRegExpData>(data).pattern;
       atom = true;
     }
   }

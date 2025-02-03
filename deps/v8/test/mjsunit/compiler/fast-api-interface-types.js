@@ -7,14 +7,15 @@
 // Flags: --turbo-fast-api-calls --expose-fast-api --allow-natives-syntax --turbofan
 // Flags: --no-always-turbofan
 // Flags: --deopt-every-n-times=0
+// Flags: --fast-api-allow-float-in-sim
 
 const fast_c_api = new d8.test.FastCAPI();
 // We create another API object to avoid migrating the map of fast_c_api
 // when using it as a prototype.
 const another_fast_c_api = new d8.test.FastCAPI();
 
-function is_fast_c_api_object(obj, should_fallback = false) {
-  return fast_c_api.is_fast_c_api_object(should_fallback, obj);
+function is_fast_c_api_object(obj) {
+  return fast_c_api.is_fast_c_api_object(obj);
 }
 
 %PrepareFunctionForOptimization(is_fast_c_api_object);
@@ -27,13 +28,6 @@ assertTrue(is_fast_c_api_object(another_fast_c_api));
 assertOptimized(is_fast_c_api_object);
 assertEquals(1, fast_c_api.fast_call_count());
 assertEquals(0, fast_c_api.slow_call_count());
-
-// Same test but taking the fallback to the slow path.
-fast_c_api.reset_counts();
-assertTrue(is_fast_c_api_object(another_fast_c_api, true));
-assertOptimized(is_fast_c_api_object);
-assertEquals(1, fast_c_api.fast_call_count());
-assertEquals(1, fast_c_api.slow_call_count());
 
 // Test that a regular JS object returns false.
 fast_c_api.reset_counts();

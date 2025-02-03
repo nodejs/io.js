@@ -7,8 +7,7 @@
 #include <string>
 #include "defs.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // CIDS are used to identify endpoints participating in a QUIC session.
 // Once created, CID instances are immutable.
@@ -122,8 +121,7 @@ class CID::Factory {
   // of CID::Factory that implement the QUIC Load Balancers spec.
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

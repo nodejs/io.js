@@ -1,5 +1,5 @@
 # -*- mode: perl; -*-
-# Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -320,6 +320,39 @@ our @tests = (
             "HandshakeMode" => "Resume",
             "ResumptionExpected" => "Yes",
             "ExpectedALPNProtocol" => undef,
+        },
+    },
+    {
+        name => "alpn-empty-client-list",
+        server => {
+            extra => {
+                "ALPNProtocols" => "foo",
+            },
+        },
+        client => {
+            extra => {
+                "ALPNProtocols" => "",
+            },
+        },
+        test => {
+            "ExpectedALPNProtocol" => undef,
+        },
+    },
+    {
+        name => "alpn-empty-server-list",
+        server => {
+            extra => {
+                "ALPNProtocols" => "",
+            },
+        },
+        client => {
+            extra => {
+                "ALPNProtocols" => "foo",
+            },
+        },
+        test => {
+            "ExpectedResult" => "ServerFail",
+            "ExpectedServerAlert" => "NoApplicationProtocol",
         },
     },
 );

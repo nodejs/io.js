@@ -11,6 +11,8 @@
 #define ULOCIMP_H
 
 #include <cstddef>
+#include <optional>
+#include <string_view>
 
 #include "unicode/bytestream.h"
 #include "unicode/uloc.h"
@@ -52,6 +54,18 @@ uloc_getCurrentCountryID(const char* oldID);
 
 U_CFUNC const char* 
 uloc_getCurrentLanguageID(const char* oldID);
+
+U_EXPORT std::optional<std::string_view>
+ulocimp_toBcpKeyWithFallback(std::string_view keyword);
+
+U_EXPORT std::optional<std::string_view>
+ulocimp_toBcpTypeWithFallback(std::string_view keyword, std::string_view value);
+
+U_EXPORT std::optional<std::string_view>
+ulocimp_toLegacyKeyWithFallback(std::string_view keyword);
+
+U_EXPORT std::optional<std::string_view>
+ulocimp_toLegacyTypeWithFallback(std::string_view keyword, std::string_view value);
 
 U_EXPORT icu::CharString
 ulocimp_getKeywords(const char* localeID,
@@ -95,12 +109,12 @@ ulocimp_canonicalize(const char* localeID,
 
 U_EXPORT icu::CharString
 ulocimp_getKeywordValue(const char* localeID,
-                        const char* keywordName,
+                        std::string_view keywordName,
                         UErrorCode& status);
 
 U_EXPORT void
 ulocimp_getKeywordValue(const char* localeID,
-                        const char* keywordName,
+                        std::string_view keywordName,
                         icu::ByteSink& sink,
                         UErrorCode& status);
 
@@ -117,15 +131,15 @@ U_EXPORT icu::CharString
 ulocimp_getVariant(const char* localeID, UErrorCode& status);
 
 U_EXPORT void
-ulocimp_setKeywordValue(const char* keywordName,
-                        const char* keywordValue,
+ulocimp_setKeywordValue(std::string_view keywordName,
+                        std::string_view keywordValue,
                         icu::CharString& localeID,
                         UErrorCode& status);
 
 U_EXPORT int32_t
-ulocimp_setKeywordValue(const char* keywords,
-                        const char* keywordName,
-                        const char* keywordValue,
+ulocimp_setKeywordValue(std::string_view keywords,
+                        std::string_view keywordName,
+                        std::string_view keywordValue,
                         icu::ByteSink& sink,
                         UErrorCode& status);
 
@@ -391,17 +405,17 @@ ultag_isVariantSubtags(const char* s, int32_t len);
 const char*
 ultag_getTKeyStart(const char* localeID);
 
-U_EXPORT const char*
-ulocimp_toBcpKey(const char* key);
+U_EXPORT std::optional<std::string_view>
+ulocimp_toBcpKey(std::string_view key);
 
-U_EXPORT const char*
-ulocimp_toLegacyKey(const char* key);
+U_EXPORT std::optional<std::string_view>
+ulocimp_toLegacyKey(std::string_view key);
 
-U_EXPORT const char*
-ulocimp_toBcpType(const char* key, const char* type, bool* isKnownKey, bool* isSpecialType);
+U_EXPORT std::optional<std::string_view>
+ulocimp_toBcpType(std::string_view key, std::string_view type);
 
-U_EXPORT const char*
-ulocimp_toLegacyType(const char* key, const char* type, bool* isKnownKey, bool* isSpecialType);
+U_EXPORT std::optional<std::string_view>
+ulocimp_toLegacyType(std::string_view key, std::string_view type);
 
 /* Function for testing purpose */
 U_EXPORT const char* const*
@@ -410,5 +424,20 @@ ulocimp_getKnownCanonicalizedLocaleForTest(int32_t& length);
 // Return true if the value is already canonicalized.
 U_EXPORT bool
 ulocimp_isCanonicalizedLocaleForTest(const char* localeName);
+
+#ifdef __cplusplus
+U_NAMESPACE_BEGIN
+class U_COMMON_API RegionValidateMap : public UObject {
+ public:
+  RegionValidateMap();
+  virtual ~RegionValidateMap();
+  bool isSet(const char* region) const;
+  bool equals(const RegionValidateMap& that) const;
+ protected:
+  int32_t value(const char* region) const;
+  uint32_t map[22]; // 26x26/32 = 22;
+};
+U_NAMESPACE_END
+#endif /* __cplusplus */
 
 #endif

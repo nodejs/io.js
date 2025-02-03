@@ -4,6 +4,8 @@
 
 #include "src/torque/type-visitor.h"
 
+#include <optional>
+
 #include "src/common/globals.h"
 #include "src/torque/declarable.h"
 #include "src/torque/global-context.h"
@@ -12,9 +14,7 @@
 #include "src/torque/type-inference.h"
 #include "src/torque/type-oracle.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 const Type* TypeVisitor::ComputeType(TypeDeclaration* decl,
                                      MaybeSpecializationKey specialized_from,
@@ -59,7 +59,7 @@ const Type* TypeVisitor::ComputeType(TypeAliasDeclaration* decl,
 }
 
 namespace {
-std::string ComputeGeneratesType(base::Optional<std::string> opt_gen,
+std::string ComputeGeneratesType(std::optional<std::string> opt_gen,
                                  bool enforce_tnode_type) {
   if (!opt_gen) return "";
   const std::string& generates = *opt_gen;
@@ -206,7 +206,7 @@ const StructType* TypeVisitor::ComputeType(
     }
     Field f{field.name_and_type.name->pos,
             struct_type,
-            base::nullopt,
+            std::nullopt,
             {field.name_and_type.name->value, field_type},
             offset.SingleValue(),
             false,
@@ -399,7 +399,7 @@ Signature TypeVisitor::MakeSignature(const CallableDeclaration* declaration) {
     LabelDeclaration def = {label.name, ComputeTypeVector(label.types)};
     definition_vector.push_back(def);
   }
-  base::Optional<std::string> arguments_variable;
+  std::optional<std::string> arguments_variable;
   if (declaration->parameters.has_varargs)
     arguments_variable = declaration->parameters.arguments_variable;
   Signature result{declaration->parameters.names,
@@ -439,7 +439,7 @@ void TypeVisitor::VisitClassFieldsAndMethods(
         ReportError("in-object properties cannot use @customWeakMarking");
       }
     }
-    base::Optional<ClassFieldIndexInfo> array_length = field_expression.index;
+    std::optional<ClassFieldIndexInfo> array_length = field_expression.index;
     const Field& field = class_type->RegisterField(
         {field_expression.name_and_type.name->pos,
          class_type,
@@ -502,7 +502,7 @@ const Type* TypeVisitor::ComputeTypeForStructExpression(
 
   QualifiedName qualified_name{basic->namespace_qualification,
                                basic->name->value};
-  base::Optional<GenericType*> maybe_generic_type =
+  std::optional<GenericType*> maybe_generic_type =
       Declarations::TryLookupGenericType(qualified_name);
 
   StructDeclaration* decl =
@@ -534,7 +534,7 @@ const Type* TypeVisitor::ComputeTypeForStructExpression(
   TypeArgumentInference inference(
       generic_type->generic_parameters(), explicit_type_arguments,
       term_parameters,
-      TransformVector<base::Optional<const Type*>>(term_argument_types));
+      TransformVector<std::optional<const Type*>>(term_argument_types));
 
   if (inference.HasFailed()) {
     ReportError("failed to infer type arguments for struct ", basic->name,
@@ -548,6 +548,4 @@ const Type* TypeVisitor::ComputeTypeForStructExpression(
       TypeOracle::GetGenericTypeInstance(generic_type, inference.GetResult()));
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

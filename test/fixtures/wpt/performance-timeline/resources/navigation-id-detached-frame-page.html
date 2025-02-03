@@ -1,0 +1,21 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>The navigation_id Detached iframe Page.</title>
+</head>
+
+<body>
+  <script>
+      window.addEventListener("load", () => {
+        setTimeout(() => {
+          const container = window.frameElement;
+          container.remove();
+        }, 10);
+        performance.mark('mark-window-detached-frame');
+      });
+  </script>
+</body>
+
+</html>

@@ -1,4 +1,5 @@
 .\"
+.\" Copyright 2024 by the c-ares project and its contributors
 .\" SPDX-License-Identifier: MIT
 .\"
 .TH ARES_QUEUE 3 "16 February 2024"
@@ -9,7 +10,7 @@ c-ares queue status
 .nf
 #include <ares.h>
 
-size_t ares_queue_active_queries(ares_channel_t *channel);
+size_t ares_queue_active_queries(const ares_channel_t *channel);
 
 ares_status_t ares_queue_wait_empty(ares_channel_t *channel,
                                     int timeout_ms);
@@ -49,5 +50,3 @@ c-ares library to be built with threading support.
 .SH SEE ALSO
 .BR ares_init_options (3),
 .BR ares_threadsafety (3)
-.SH AUTHOR
-Copyright (C) 2024 The c-ares project and its members.

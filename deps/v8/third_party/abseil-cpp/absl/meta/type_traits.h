@@ -37,10 +37,20 @@
 
 #include <cstddef>
 #include <functional>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
+
+#ifdef __cpp_lib_span
+#include <span>  // NOLINT(build/c++20)
+#endif
+
+#ifdef ABSL_HAVE_STD_STRING_VIEW
+#include <string_view>
+#endif
 
 // Defines the default alignment. `__STDCPP_DEFAULT_NEW_ALIGNMENT__` is a C++17
 // feature.
@@ -152,8 +162,8 @@ template <typename... Ts>
 struct disjunction : std::false_type {};
 
 template <typename T, typename... Ts>
-struct disjunction<T, Ts...> :
-      std::conditional<T::value, T, disjunction<Ts...>>::type {};
+struct disjunction<T, Ts...>
+    : std::conditional<T::value, T, disjunction<Ts...>>::type {};
 
 template <typename T>
 struct disjunction<T> : T {};
@@ -279,27 +289,6 @@ using remove_extent_t = typename std::remove_extent<T>::type;
 template <typename T>
 using remove_all_extents_t = typename std::remove_all_extents<T>::type;
 
-ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING
-namespace type_traits_internal {
-// This trick to retrieve a default alignment is necessary for our
-// implementation of aligned_storage_t to be consistent with any
-// implementation of std::aligned_storage.
-template <size_t Len, typename T = std::aligned_storage<Len>>
-struct default_alignment_of_aligned_storage;
-
-template <size_t Len, size_t Align>
-struct default_alignment_of_aligned_storage<
-    Len, std::aligned_storage<Len, Align>> {
-  static constexpr size_t value = Align;
-};
-}  // namespace type_traits_internal
-
-// TODO(b/260219225): std::aligned_storage(_t) is deprecated in C++23.
-template <size_t Len, size_t Align = type_traits_internal::
-                          default_alignment_of_aligned_storage<Len>::value>
-using aligned_storage_t = typename std::aligned_storage<Len, Align>::type;
-ABSL_INTERNAL_RESTORE_DEPRECATED_DECLARATION_WARNING
-
 template <typename T>
 using decay_t = typename std::decay<T>::type;
 
@@ -315,22 +304,23 @@ using common_type_t = typename std::common_type<T...>::type;
 template <typename T>
 using underlying_type_t = typename std::underlying_type<T>::type;
 
-
 namespace type_traits_internal {
 
 #if (defined(__cpp_lib_is_invocable) && __cpp_lib_is_invocable >= 201703L) || \
     (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
 // std::result_of is deprecated (C++17) or removed (C++20)
-template<typename> struct result_of;
-template<typename F, typename... Args>
+template <typename>
+struct result_of;
+template <typename F, typename... Args>
 struct result_of<F(Args...)> : std::invoke_result<F, Args...> {};
 #else
-template<typename F> using result_of = std::result_of<F>;
+template <typename F>
+using result_of = std::result_of<F>;
 #endif
 
 }  // namespace type_traits_internal
 
-template<typename F>
+template <typename F>
 using result_of_t = typename type_traits_internal::result_of<F>::type;
 
 namespace type_traits_internal {
@@ -463,20 +453,23 @@ namespace type_traits_internal {
 // Make the swap-related traits/function accessible from this namespace.
 using swap_internal::IsNothrowSwappable;
 using swap_internal::IsSwappable;
-using swap_internal::Swap;
 using swap_internal::StdSwapIsUnconstrained;
+using swap_internal::Swap;
 
 }  // namespace type_traits_internal
 
 // absl::is_trivially_relocatable<T>
 //
 // Detects whether a type is known to be "trivially relocatable" -- meaning it
-// can be relocated without invoking the constructor/destructor, using a form of
-// move elision.
+// can be relocated from one place to another as if by memcpy/memmove.
+// This implies that its object representation doesn't depend on its address,
+// and also none of its special member functions do anything strange.
 //
-// This trait is conservative, for backwards compatibility. If it's true then
-// the type is definitely trivially relocatable, but if it's false then the type
-// may or may not be.
+// This trait is conservative. If it's true then the type is definitely
+// trivially relocatable, but if it's false then the type may or may not be. For
+// example, std::vector<int> is trivially relocatable on every known STL
+// implementation, but absl::is_trivially_relocatable<std::vector<int>> remains
+// false.
 //
 // Example:
 //
@@ -509,22 +502,26 @@ using swap_internal::StdSwapIsUnconstrained;
 // TODO(b/324278148): If all versions we use have the bug fixed, then
 // remove the condition.
 //
+// Clang on all platforms fails to detect that a type with a user-provided
+// move-assignment operator is not trivially relocatable. So in fact we
+// opt out of Clang altogether, for now.
+//
+// TODO(b/325479096): Remove the opt-out once Clang's behavior is fixed.
+//
 // According to https://github.com/abseil/abseil-cpp/issues/1479, this does not
 // work with NVCC either.
-#if ABSL_HAVE_BUILTIN(__is_trivially_relocatable) &&                 \
-    !(defined(__clang__) && (defined(_WIN32) || defined(_WIN64))) && \
-    !(defined(__APPLE__)) && !defined(__NVCC__)
+#if ABSL_HAVE_BUILTIN(__is_trivially_relocatable) && \
+    (defined(__cpp_impl_trivially_relocatable) ||    \
+     (!defined(__clang__) && !defined(__APPLE__) && !defined(__NVCC__)))
 template <class T>
 struct is_trivially_relocatable
     : std::integral_constant<bool, __is_trivially_relocatable(T)> {};
 #else
 // Otherwise we use a fallback that detects only those types we can feasibly
-// detect. Any time that has trivial move-construction and destruction
-// operations is by definition trivially relocatable.
+// detect. Any type that is trivially copyable is by definition trivially
+// relocatable.
 template <class T>
-struct is_trivially_relocatable
-    : absl::conjunction<absl::is_trivially_move_constructible<T>,
-                        absl::is_trivially_destructible<T>> {};
+struct is_trivially_relocatable : std::is_trivially_copyable<T> {};
 #endif
 
 // absl::is_constant_evaluated()
@@ -566,6 +563,97 @@ constexpr bool is_constant_evaluated() noexcept {
 #endif
 }
 #endif  // ABSL_HAVE_CONSTANT_EVALUATED
+
+namespace type_traits_internal {
+
+// Detects if a class's definition has declared itself to be an owner by
+// declaring
+//   using absl_internal_is_view = std::true_type;
+// as a member.
+// Types that don't want either must either omit this declaration entirely, or
+// (if e.g. inheriting from a base class) define the member to something that
+// isn't a Boolean trait class, such as `void`.
+// Do not specialize or use this directly. It's an implementation detail.
+template <typename T, typename = void>
+struct IsOwnerImpl : std::false_type {
+  static_assert(std::is_same<T, absl::remove_cvref_t<T>>::value,
+                "type must lack qualifiers");
+};
+
+template <typename T>
+struct IsOwnerImpl<
+    T,
+    std::enable_if_t<std::is_class<typename T::absl_internal_is_view>::value>>
+    : absl::negation<typename T::absl_internal_is_view> {};
+
+// A trait to determine whether a type is an owner.
+// Do *not* depend on the correctness of this trait for correct code behavior.
+// It is only a safety feature and its value may change in the future.
+// Do not specialize this; instead, define the member trait inside your type so
+// that it can be auto-detected, and to prevent ODR violations.
+// If it ever becomes possible to detect [[gsl::Owner]], we should leverage it:
+// https://wg21.link/p1179
+template <typename T>
+struct IsOwner : IsOwnerImpl<T> {};
+
+template <typename T, typename Traits, typename Alloc>
+struct IsOwner<std::basic_string<T, Traits, Alloc>> : std::true_type {};
+
+template <typename T, typename Alloc>
+struct IsOwner<std::vector<T, Alloc>> : std::true_type {};
+
+// Detects if a class's definition has declared itself to be a view by declaring
+//   using absl_internal_is_view = std::true_type;
+// as a member.
+// Do not specialize or use this directly.
+template <typename T, typename = void>
+struct IsViewImpl : std::false_type {
+  static_assert(std::is_same<T, absl::remove_cvref_t<T>>::value,
+                "type must lack qualifiers");
+};
+
+template <typename T>
+struct IsViewImpl<
+    T,
+    std::enable_if_t<std::is_class<typename T::absl_internal_is_view>::value>>
+    : T::absl_internal_is_view {};
+
+// A trait to determine whether a type is a view.
+// Do *not* depend on the correctness of this trait for correct code behavior.
+// It is only a safety feature, and its value may change in the future.
+// Do not specialize this trait. Instead, define the member
+//   using absl_internal_is_view = std::true_type;
+// in your class to allow its detection while preventing ODR violations.
+// If it ever becomes possible to detect [[gsl::Pointer]], we should leverage
+// it: https://wg21.link/p1179
+template <typename T>
+struct IsView : std::integral_constant<bool, std::is_pointer<T>::value ||
+                                                 IsViewImpl<T>::value> {};
+
+#ifdef ABSL_HAVE_STD_STRING_VIEW
+template <typename Char, typename Traits>
+struct IsView<std::basic_string_view<Char, Traits>> : std::true_type {};
+#endif
+
+#ifdef __cpp_lib_span
+template <typename T>
+struct IsView<std::span<T>> : std::true_type {};
+#endif
+
+// Determines whether the assignment of the given types is lifetime-bound.
+// Do *not* depend on the correctness of this trait for correct code behavior.
+// It is only a safety feature and its value may change in the future.
+// If it ever becomes possible to detect [[clang::lifetimebound]] directly,
+// we should change the implementation to leverage that.
+// Until then, we consider an assignment from an "owner" (such as std::string)
+// to a "view" (such as std::string_view) to be a lifetime-bound assignment.
+template <typename T, typename U>
+using IsLifetimeBoundAssignment =
+    std::integral_constant<bool, IsView<absl::remove_cvref_t<T>>::value &&
+                                     IsOwner<absl::remove_cvref_t<U>>::value>;
+
+}  // namespace type_traits_internal
+
 ABSL_NAMESPACE_END
 }  // namespace absl
 

@@ -1,0 +1,97 @@
+[stdin]:1
+enum Foo{};
+^^^^
+  x TypeScript enum is not supported in strip-only mode
+   ,----
+ 1 | enum Foo{};
+   : ^^^^^^^^^^
+   `----
+
+SyntaxError: Unexpected reserved word
+
+Node.js *
+[stdin]:1
+enum Foo{};
+^^^^
+  x TypeScript enum is not supported in strip-only mode
+   ,----
+ 1 | enum Foo{};
+   : ^^^^^^^^^^
+   `----
+
+SyntaxError: Unexpected reserved word
+
+Node.js *
+[stdin]:1
+throw new SyntaxError("hello")
+^
+
+SyntaxError: hello
+
+Node.js *
+[stdin]:1
+throw new SyntaxError("hello")
+^
+
+SyntaxError: hello
+
+Node.js *
+[stdin]:1
+const foo;
+      ^^^
+
+SyntaxError: Missing initializer in const declaration
+
+Node.js *
+[stdin]:1
+const foo;
+      ^^^
+
+SyntaxError: Missing initializer in const declaration
+
+Node.js *
+100
+100
+undefined
+undefined
+false
+false
+[stdin]:1
+               ;const foo;
+                      ^^^
+
+SyntaxError: Missing initializer in const declaration
+
+Node.js *
+[stdin]:1
+               ;const foo;
+                      ^^^
+
+SyntaxError: Missing initializer in const declaration
+
+Node.js *
+[stdin]:1
+function foo(){ await Promise.resolve(1)};
+                ^^^^^
+  x await isn't allowed in non-async function
+   ,----
+ 1 | function foo(){ await Promise.resolve(1)};
+   :                       ^^^^^^^
+   `----
+
+SyntaxError: await is only valid in async functions and the top level bodies of modules
+
+Node.js *
+[stdin]:1
+function foo(){ await Promise.resolve(1)};
+                ^^^^^
+  x await isn't allowed in non-async function
+   ,----
+ 1 | function foo(){ await Promise.resolve(1)};
+   :                       ^^^^^^^
+   `----
+
+SyntaxError: await is only valid in async functions and the top level bodies of modules
+
+Node.js *
+done

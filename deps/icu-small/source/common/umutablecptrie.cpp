@@ -45,10 +45,10 @@ constexpr uint8_t MIXED = 1;
 constexpr uint8_t SAME_AS = 2;
 
 /** Start with allocation of 16k data entries. */
-constexpr int32_t INITIAL_DATA_LENGTH = ((int32_t)1 << 14);
+constexpr int32_t INITIAL_DATA_LENGTH = static_cast<int32_t>(1) << 14;
 
 /** Grow about 8x each time. */
-constexpr int32_t MEDIUM_DATA_LENGTH = ((int32_t)1 << 17);
+constexpr int32_t MEDIUM_DATA_LENGTH = static_cast<int32_t>(1) << 17;
 
 /**
  * Maximum length of the build-time data array.
@@ -135,8 +135,8 @@ MutableCodePointTrie::MutableCodePointTrie(uint32_t iniValue, uint32_t errValue,
 #endif
         {
     if (U_FAILURE(errorCode)) { return; }
-    index = (uint32_t *)uprv_malloc(BMP_I_LIMIT * 4);
-    data = (uint32_t *)uprv_malloc(INITIAL_DATA_LENGTH * 4);
+    index = static_cast<uint32_t*>(uprv_malloc(BMP_I_LIMIT * 4));
+    data = static_cast<uint32_t*>(uprv_malloc(INITIAL_DATA_LENGTH * 4));
     if (index == nullptr || data == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return;
@@ -157,8 +157,8 @@ MutableCodePointTrie::MutableCodePointTrie(const MutableCodePointTrie &other, UE
         {
     if (U_FAILURE(errorCode)) { return; }
     int32_t iCapacity = highStart <= BMP_LIMIT ? BMP_I_LIMIT : I_LIMIT;
-    index = (uint32_t *)uprv_malloc(iCapacity * 4);
-    data = (uint32_t *)uprv_malloc(other.dataCapacity * 4);
+    index = static_cast<uint32_t*>(uprv_malloc(iCapacity * 4));
+    data = static_cast<uint32_t*>(uprv_malloc(other.dataCapacity * 4));
     if (index == nullptr || data == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return;
@@ -268,7 +268,7 @@ void MutableCodePointTrie::clear() {
 }
 
 uint32_t MutableCodePointTrie::get(UChar32 c) const {
-    if ((uint32_t)c > MAX_UNICODE) {
+    if (static_cast<uint32_t>(c) > MAX_UNICODE) {
         return errorValue;
     }
     if (c >= highStart) {
@@ -295,7 +295,7 @@ inline uint32_t maybeFilterValue(uint32_t value, uint32_t initialValue, uint32_t
 UChar32 MutableCodePointTrie::getRange(
         UChar32 start, UCPMapValueFilter *filter, const void *context,
         uint32_t *pValue) const {
-    if ((uint32_t)start > MAX_UNICODE) {
+    if (static_cast<uint32_t>(start) > MAX_UNICODE) {
         return U_SENTINEL;
     }
     if (start >= highStart) {
@@ -387,7 +387,7 @@ bool MutableCodePointTrie::ensureHighStart(UChar32 c) {
         int32_t i = highStart >> UCPTRIE_SHIFT_3;
         int32_t iLimit = c >> UCPTRIE_SHIFT_3;
         if (iLimit > indexCapacity) {
-            uint32_t *newIndex = (uint32_t *)uprv_malloc(I_LIMIT * 4);
+            uint32_t* newIndex = static_cast<uint32_t*>(uprv_malloc(I_LIMIT * 4));
             if (newIndex == nullptr) { return false; }
             uprv_memcpy(newIndex, index, i * 4);
             uprv_free(index);
@@ -418,7 +418,7 @@ int32_t MutableCodePointTrie::allocDataBlock(int32_t blockLength) {
             // or the code writes more values than should be possible.
             return -1;
         }
-        uint32_t *newData = (uint32_t *)uprv_malloc(capacity * 4);
+        uint32_t* newData = static_cast<uint32_t*>(uprv_malloc(capacity * 4));
         if (newData == nullptr) {
             return -1;
         }
@@ -468,7 +468,7 @@ void MutableCodePointTrie::set(UChar32 c, uint32_t value, UErrorCode &errorCode)
     if (U_FAILURE(errorCode)) {
         return;
     }
-    if ((uint32_t)c > MAX_UNICODE) {
+    if (static_cast<uint32_t>(c) > MAX_UNICODE) {
         errorCode = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
@@ -495,7 +495,7 @@ void MutableCodePointTrie::setRange(UChar32 start, UChar32 end, uint32_t value, 
     if (U_FAILURE(errorCode)) {
         return;
     }
-    if ((uint32_t)start > MAX_UNICODE || (uint32_t)end > MAX_UNICODE || start > end) {
+    if (static_cast<uint32_t>(start) > MAX_UNICODE || static_cast<uint32_t>(end) > MAX_UNICODE || start > end) {
         errorCode = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
@@ -792,7 +792,7 @@ public:
         }
         if (newLength > capacity) {
             uprv_free(table);
-            table = (uint32_t *)uprv_malloc(newLength * 4);
+            table = static_cast<uint32_t*>(uprv_malloc(newLength * 4));
             if (table == nullptr) {
                 return false;
             }
@@ -1207,8 +1207,8 @@ int32_t MutableCodePointTrie::compactIndex(int32_t fastILimit, MixedBlocks &mixe
     int32_t i3FirstNull = -1;
     for (int32_t i = 0, j = 0; i < fastILimit; ++j) {
         uint32_t i3 = index[i];
-        fastIndex[j] = (uint16_t)i3;
-        if (i3 == (uint32_t)dataNullOffset) {
+        fastIndex[j] = static_cast<uint16_t>(i3);
+        if (i3 == static_cast<uint32_t>(dataNullOffset)) {
             if (i3FirstNull < 0) {
                 i3FirstNull = j;
             } else if (index3NullOffset < 0 &&
@@ -1257,7 +1257,7 @@ int32_t MutableCodePointTrie::compactIndex(int32_t fastILimit, MixedBlocks &mixe
         do {
             uint32_t i3 = index[j];
             oredI3 |= i3;
-            if (i3 != (uint32_t)dataNullOffset) {
+            if (i3 != static_cast<uint32_t>(dataNullOffset)) {
                 isNull = false;
             }
         } while (++j < jLimit);
@@ -1299,7 +1299,7 @@ int32_t MutableCodePointTrie::compactIndex(int32_t fastILimit, MixedBlocks &mixe
     // Index table: Fast index, index-1, index-3, index-2.
     // +1 for possible index table padding.
     int32_t index16Capacity = fastIndexLength + index1Length + index3Capacity + index2Capacity + 1;
-    index16 = (uint16_t *)uprv_malloc(index16Capacity * 2);
+    index16 = static_cast<uint16_t*>(uprv_malloc(index16Capacity * 2));
     if (index16 == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return 0;
@@ -1531,7 +1531,7 @@ int32_t MutableCodePointTrie::compactTrie(int32_t fastILimit, UErrorCode &errorC
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return 0;
     }
-    uint32_t *newData = (uint32_t *)uprv_malloc(newDataCapacity * 4);
+    uint32_t* newData = static_cast<uint32_t*>(uprv_malloc(newDataCapacity * 4));
     if (newData == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         return 0;
@@ -1654,7 +1654,7 @@ UCPTrie *MutableCodePointTrie::build(UCPTrieType type, UCPTrieValueWidth valueWi
     length += sizeof(UCPTrie);
     U_ASSERT((length & 3) == 0);
 
-    uint8_t *bytes = (uint8_t *)uprv_malloc(length);
+    uint8_t* bytes = static_cast<uint8_t*>(uprv_malloc(length));
     if (bytes == nullptr) {
         errorCode = U_MEMORY_ALLOCATION_ERROR;
         clear();
@@ -1679,13 +1679,13 @@ UCPTrie *MutableCodePointTrie::build(UCPTrieType type, UCPTrieValueWidth valueWi
     bytes += sizeof(UCPTrie);
 
     // Fill the index and data arrays.
-    uint16_t *dest16 = (uint16_t *)bytes;
+    uint16_t* dest16 = reinterpret_cast<uint16_t*>(bytes);
     trie->index = dest16;
 
     if (highStart <= fastLimit) {
         // Condense only the fast index from the mutable-trie index.
         for (int32_t i = 0, j = 0; j < indexLength; i += SMALL_DATA_BLOCKS_PER_BMP_BLOCK, ++j) {
-            *dest16++ = (uint16_t)index[i];  // dest16[j]
+            *dest16++ = static_cast<uint16_t>(index[i]); // dest16[j]
         }
     } else {
         uprv_memcpy(dest16, index16, indexLength * 2);
@@ -1700,19 +1700,19 @@ UCPTrie *MutableCodePointTrie::build(UCPTrieType type, UCPTrieValueWidth valueWi
         // Write 16-bit data values.
         trie->data.ptr16 = dest16;
         for (int32_t i = dataLength; i > 0; --i) {
-            *dest16++ = (uint16_t)*p++;
+            *dest16++ = static_cast<uint16_t>(*p++);
         }
         break;
     case UCPTRIE_VALUE_BITS_32:
         // Write 32-bit data values.
-        trie->data.ptr32 = (uint32_t *)bytes;
+        trie->data.ptr32 = reinterpret_cast<uint32_t*>(bytes);
         uprv_memcpy(bytes, p, (size_t)dataLength * 4);
         break;
     case UCPTRIE_VALUE_BITS_8:
         // Write 8-bit data values.
         trie->data.ptr8 = bytes;
         for (int32_t i = dataLength; i > 0; --i) {
-            *bytes++ = (uint8_t)*p++;
+            *bytes++ = static_cast<uint8_t>(*p++);
         }
         break;
     default:

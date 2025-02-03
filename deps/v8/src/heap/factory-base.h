@@ -25,8 +25,8 @@ class CoverageInfo;
 class DeoptimizationLiteralArray;
 class DeoptimizationFrameTranslation;
 class FixedArray;
-template <typename T>
-class FixedIntegerArray;
+template <typename T, typename Base>
+class FixedIntegerArrayBase;
 class FreshlyAllocatedBigInt;
 class FunctionLiteral;
 class HeapObject;
@@ -56,8 +56,8 @@ class FactoryBase;
 
 enum class NumberCacheMode { kIgnore, kSetOnly, kBoth };
 
-using FixedInt32Array = FixedIntegerArray<int32_t>;
-using FixedUInt32Array = FixedIntegerArray<uint32_t>;
+using FixedInt32Array = FixedIntegerArrayBase<int32_t, ByteArray>;
+using FixedUInt32Array = FixedIntegerArrayBase<uint32_t, ByteArray>;
 
 // Putting Torque-generated definitions in a superclass allows to shadow them
 // easily when they shouldn't be used and to reference them when they happen to
@@ -74,8 +74,10 @@ class EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) TorqueGeneratedFactory {
 struct NewCodeOptions {
   CodeKind kind;
   Builtin builtin;
+  bool is_context_specialized;
   bool is_turbofanned;
   int stack_slots;
+  uint16_t parameter_count;
   int instruction_size;
   int metadata_size;
   unsigned int inlined_bytecode_size;
@@ -83,10 +85,12 @@ struct NewCodeOptions {
   int handler_table_offset;
   int constant_pool_offset;
   int code_comments_offset;
+  int32_t builtin_jump_table_info_offset;
   int32_t unwinding_info_offset;
-  MaybeHandle<HeapObject> bytecode_or_interpreter_data;
+  MaybeHandle<TrustedObject> bytecode_or_interpreter_data;
   MaybeHandle<DeoptimizationData> deoptimization_data;
-  Handle<ByteArray> bytecode_offsets_or_source_position_table;
+  MaybeHandle<TrustedByteArray> bytecode_offset_table;
+  MaybeHandle<TrustedByteArray> source_position_table;
   // Either instruction_stream is set and instruction_start is kNullAddress, or
   // instruction_stream is empty and instruction_start a valid target.
   MaybeHandle<InstructionStream> instruction_stream;
@@ -111,15 +115,15 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
   // Numbers (e.g. literals) are pretenured by the parser.
   // The return value may be a smi or a heap number.
   template <AllocationType allocation = AllocationType::kYoung>
-  inline Handle<Object> NewNumber(double value);
+  inline Handle<Number> NewNumber(double value);
   template <AllocationType allocation = AllocationType::kYoung>
-  inline Handle<Object> NewNumberFromInt(int32_t value);
+  inline Handle<Number> NewNumberFromInt(int32_t value);
   template <AllocationType allocation = AllocationType::kYoung>
-  inline Handle<Object> NewNumberFromUint(uint32_t value);
+  inline Handle<Number> NewNumberFromUint(uint32_t value);
   template <AllocationType allocation = AllocationType::kYoung>
-  inline Handle<Object> NewNumberFromSize(size_t value);
+  inline Handle<Number> NewNumberFromSize(size_t value);
   template <AllocationType allocation = AllocationType::kYoung>
-  inline Handle<Object> NewNumberFromInt64(int64_t value);
+  inline Handle<Number> NewNumberFromInt64(int64_t value);
   template <AllocationType allocation = AllocationType::kYoung>
   inline Handle<HeapNumber> NewHeapNumber(double value);
   template <AllocationType allocation = AllocationType::kYoung>
@@ -141,7 +145,8 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
       int length, AllocationType allocation = AllocationType::kYoung);
 
   // Allocates a trusted fixed array in trusted space, initialized with zeros.
-  Handle<TrustedFixedArray> NewTrustedFixedArray(int length);
+  Handle<TrustedFixedArray> NewTrustedFixedArray(
+      int length, AllocationType allocation = AllocationType::kTrusted);
 
   // Allocates a protected fixed array in trusted space, initialized with zeros.
   Handle<ProtectedFixedArray> NewProtectedFixedArray(int length);
@@ -178,15 +183,17 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
   Handle<WeakFixedArray> NewWeakFixedArray(
       int length, AllocationType allocation = AllocationType::kYoung);
 
+  // Allocates a trusted weak fixed array in trusted space, initialized with
+  // zeros.
+  Handle<TrustedWeakFixedArray> NewTrustedWeakFixedArray(int length);
+
   // The function returns a pre-allocated empty byte array for length = 0.
   Handle<ByteArray> NewByteArray(
       int length, AllocationType allocation = AllocationType::kYoung);
 
   // Allocates a trusted byte array in trusted space, initialized with zeros.
-  Handle<TrustedByteArray> NewTrustedByteArray(int length);
-
-  Handle<ExternalPointerArray> NewExternalPointerArray(
-      int length, AllocationType allocation = AllocationType::kYoung);
+  Handle<TrustedByteArray> NewTrustedByteArray(
+      int length, AllocationType allocation_type = AllocationType::kTrusted);
 
   Handle<DeoptimizationLiteralArray> NewDeoptimizationLiteralArray(int length);
   Handle<DeoptimizationFrameTranslation> NewDeoptimizationFrameTranslation(
@@ -194,15 +201,13 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
 
   Handle<BytecodeArray> NewBytecodeArray(
       int length, const uint8_t* raw_bytecodes, int frame_size,
-      int parameter_count, DirectHandle<TrustedFixedArray> constant_pool,
-      DirectHandle<TrustedByteArray> handler_table);
+      uint16_t parameter_count, uint16_t max_arguments,
+      DirectHandle<TrustedFixedArray> constant_pool,
+      DirectHandle<TrustedByteArray> handler_table,
+      AllocationType allocation = AllocationType::kTrusted);
 
-  Handle<BytecodeWrapper> NewBytecodeWrapper();
-
-#if V8_ENABLE_WEBASSEMBLY
-  Handle<WasmTrustedInstanceData> NewWasmTrustedInstanceData();
-  Handle<WasmDispatchTable> NewWasmDispatchTable(int length);
-#endif  // V8_ENABLE_WEBASSEMBLY
+  Handle<BytecodeWrapper> NewBytecodeWrapper(
+      AllocationType allocation = AllocationType::kOld);
 
   // Allocates a fixed array for name-value pairs of boilerplate properties and
   // calculates the number of properties we need to store in the backing store.
@@ -213,8 +218,10 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
   Handle<ArrayBoilerplateDescription> NewArrayBoilerplateDescription(
       ElementsKind elements_kind, DirectHandle<FixedArrayBase> constant_values);
 
+  Handle<RegExpDataWrapper> NewRegExpDataWrapper();
+
   Handle<RegExpBoilerplateDescription> NewRegExpBoilerplateDescription(
-      DirectHandle<FixedArray> data, DirectHandle<String> source,
+      DirectHandle<RegExpData> data, DirectHandle<String> source,
       Tagged<Smi> flags);
 
   // Create a new TemplateObjectDescription struct.
@@ -223,10 +230,10 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
       DirectHandle<FixedArray> cooked_strings);
 
   Handle<Script> NewScript(
-      DirectHandle<PrimitiveHeapObject> source,
+      DirectHandle<UnionOf<String, Undefined>> source,
       ScriptEventType event_type = ScriptEventType::kCreate);
   Handle<Script> NewScriptWithId(
-      DirectHandle<PrimitiveHeapObject> source, int script_id,
+      DirectHandle<UnionOf<String, Undefined>> source, int script_id,
       ScriptEventType event_type = ScriptEventType::kCreate);
 
   Handle<SloppyArgumentsElements> NewSloppyArgumentsElements(
@@ -243,6 +250,9 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
   // off-thread compilation
   Handle<SharedFunctionInfo> CloneSharedFunctionInfo(
       DirectHandle<SharedFunctionInfo> other);
+
+  Handle<SharedFunctionInfoWrapper> NewSharedFunctionInfoWrapper(
+      DirectHandle<SharedFunctionInfo> sfi);
 
   Handle<PreparseData> NewPreparseData(int data_length, int children_length);
 
@@ -363,7 +373,8 @@ class FactoryBase : public TorqueGeneratedFactory<Impl> {
 
   Handle<FunctionTemplateRareData> NewFunctionTemplateRareData();
 
-  MaybeHandle<Map> GetInPlaceInternalizedStringMap(Tagged<Map> from_string_map);
+  MaybeDirectHandle<Map> GetInPlaceInternalizedStringMap(
+      Tagged<Map> from_string_map);
 
   AllocationType RefineAllocationTypeForInPlaceInternalizableString(
       AllocationType allocation, Tagged<Map> string_map);

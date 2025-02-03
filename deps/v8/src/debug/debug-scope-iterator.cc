@@ -12,15 +12,15 @@ namespace v8 {
 
 std::unique_ptr<debug::ScopeIterator> debug::ScopeIterator::CreateForFunction(
     v8::Isolate* v8_isolate, v8::Local<v8::Function> v8_func) {
-  internal::Handle<internal::JSReceiver> receiver = Utils::OpenHandle(*v8_func);
+  internal::DirectHandle<internal::JSReceiver> receiver =
+      Utils::OpenDirectHandle(*v8_func);
 
   // Besides JSFunction and JSBoundFunction, {v8_func} could be an
   // ObjectTemplate with a CallAsFunctionHandler. We only handle plain
   // JSFunctions.
   if (!IsJSFunction(*receiver)) return nullptr;
 
-  internal::Handle<internal::JSFunction> function =
-      internal::Handle<internal::JSFunction>::cast(receiver);
+  auto function = internal::Cast<internal::JSFunction>(receiver);
 
   CHECK(function->has_context());
   return std::unique_ptr<debug::ScopeIterator>(new internal::DebugScopeIterator(
@@ -35,7 +35,7 @@ debug::ScopeIterator::CreateForGeneratorObject(
   DCHECK(IsJSGeneratorObject(*generator));
   return std::unique_ptr<debug::ScopeIterator>(new internal::DebugScopeIterator(
       reinterpret_cast<internal::Isolate*>(v8_isolate),
-      internal::Handle<internal::JSGeneratorObject>::cast(generator)));
+      internal::Cast<internal::JSGeneratorObject>(generator)));
 }
 
 namespace internal {
@@ -49,7 +49,7 @@ DebugScopeIterator::DebugScopeIterator(Isolate* isolate,
 }
 
 DebugScopeIterator::DebugScopeIterator(Isolate* isolate,
-                                       Handle<JSFunction> function)
+                                       DirectHandle<JSFunction> function)
     : iterator_(isolate, function) {
   if (!Done() && ShouldIgnore()) Advance();
 }

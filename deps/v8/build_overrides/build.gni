@@ -17,12 +17,6 @@ build_with_node = false
 # chromium build.
 perfetto_build_with_embedder = true
 
-# When embedding perfetto, its build files need to know in which BUILD.gn file
-# the embedder (v8) declared the protobuf targets. In the v8 case they are
-# declared in the root v8/BUILD.gn.
-perfetto_protobuf_target_prefix = "//"
-perfetto_protobuf_gni = "//gni/proto_library.gni"
-
 # We use Perfetto's Trace Processor to convert traces to the legacy JSON
 # format.
 enable_perfetto_trace_processor = true
@@ -41,6 +35,12 @@ enable_java_templates = false
 
 # Enables assertions on safety checks in libc++.
 enable_safe_libcxx = true
+
+# Enable assertions on safety checks, also in libstdc++
+#
+# In case the C++ standard library implementation used is libstdc++, then
+# enable its own hardening checks.
+enable_safe_libstdcxx = true
 
 # Allows different projects to specify their own suppressions files.
 asan_suppressions_file = "//build/sanitizers/asan_suppressions.cc"

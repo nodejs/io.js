@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/base/optional.h"
 #include "src/builtins/builtins-utils-gen.h"
 #include "src/builtins/builtins.h"
 #include "src/codegen/code-stub-assembler-inl.h"
@@ -13,6 +12,8 @@
 
 namespace v8 {
 namespace internal {
+
+#include "src/codegen/define-code-stub-assembler-macros.inc"
 
 class HandlerBuiltinsAssembler : public CodeStubAssembler {
  public:
@@ -159,7 +160,7 @@ void HandlerBuiltinsAssembler::Generate_ElementsTransitionAndStore(
     // TODO(v8:8481): Pass from_kind and to_kind in feedback vector slots.
     DispatchForElementsKindTransition(
         LoadElementsKind(receiver), LoadMapElementsKind(map),
-        [=, &miss](ElementsKind from_kind, ElementsKind to_kind) {
+        [=, this, &miss](ElementsKind from_kind, ElementsKind to_kind) {
           TransitionElementsKind(receiver, map, from_kind, to_kind, &miss);
           EmitElementStore(receiver, key, value, to_kind, store_mode, &miss,
                            context, nullptr);
@@ -212,6 +213,7 @@ TF_BUILTIN(ElementsTransitionAndStore_NoTransitionHandleCOW,
   V(INT16_ELEMENTS)                  \
   V(UINT32_ELEMENTS)                 \
   V(INT32_ELEMENTS)                  \
+  V(FLOAT16_ELEMENTS)                \
   V(FLOAT32_ELEMENTS)                \
   V(FLOAT64_ELEMENTS)                \
   V(UINT8_CLAMPED_ELEMENTS)          \
@@ -223,6 +225,7 @@ TF_BUILTIN(ElementsTransitionAndStore_NoTransitionHandleCOW,
   V(RAB_GSAB_INT16_ELEMENTS)         \
   V(RAB_GSAB_UINT32_ELEMENTS)        \
   V(RAB_GSAB_INT32_ELEMENTS)         \
+  V(RAB_GSAB_FLOAT16_ELEMENTS)       \
   V(RAB_GSAB_FLOAT32_ELEMENTS)       \
   V(RAB_GSAB_FLOAT64_ELEMENTS)       \
   V(RAB_GSAB_UINT8_CLAMPED_ELEMENTS) \
@@ -303,7 +306,7 @@ void HandlerBuiltinsAssembler::Generate_StoreFastElementIC(
   // TODO(v8:8481): Pass elements_kind in feedback vector slots.
   DispatchByElementsKind(
       LoadElementsKind(receiver),
-      [=, &miss, &maybe_converted_value](ElementsKind elements_kind) {
+      [=, this, &miss, &maybe_converted_value](ElementsKind elements_kind) {
         EmitElementStore(receiver, key, value, elements_kind, store_mode, &miss,
                          context, &maybe_converted_value);
       },
@@ -472,6 +475,8 @@ TF_BUILTIN(HasIndexedInterceptorIC, CodeStubAssembler) {
   TailCallRuntime(Runtime::kKeyedHasIC_Miss, context, receiver, key, slot,
                   vector);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

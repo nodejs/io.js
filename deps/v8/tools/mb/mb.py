@@ -127,16 +127,18 @@ class MetaBuildWrapper():
                         default=self.default_config,
                         help='path to config file '
                              '(default is %(default)s)')
-      subp.add_argument('-i', '--isolate-map-file', metavar='PATH',
-                        help='path to isolate map file '
-                             '(default is %(default)s)',
-                        default=[],
-                        action='append',
-                        dest='isolate_map_files')
-      subp.add_argument('-g', '--goma-dir',
-                        help='path to goma directory')
-      subp.add_argument('--android-version-code',
-                        help='Sets GN arg android_default_version_code')
+      subp.add_argument(
+          '-i',
+          '--isolate-map-file',
+          metavar='PATH',
+          help='path to isolate map file '
+          '(default is %(default)s)',
+          default=[],
+          action='append',
+          dest='isolate_map_files')
+      subp.add_argument(
+          '--android-version-code',
+          help='Sets GN arg android_default_version_code')
       subp.add_argument('--android-version-name',
                         help='Sets GN arg android_default_version_name')
       subp.add_argument('-n', '--dryrun', action='store_true',
@@ -167,11 +169,12 @@ class MetaBuildWrapper():
     subp = subps.add_parser('export',
                             help='print out the expanded configuration for'
                                  'each builder as a JSON object')
-    subp.add_argument('-f', '--config-file', metavar='PATH',
-                      default=self.default_config,
-                      help='path to config file (default is %(default)s)')
-    subp.add_argument('-g', '--goma-dir',
-                      help='path to goma directory')
+    subp.add_argument(
+        '-f',
+        '--config-file',
+        metavar='PATH',
+        default=self.default_config,
+        help='path to config file (default is %(default)s)')
     subp.set_defaults(func=self.CmdExport)
 
     subp = subps.add_parser('gen',
@@ -657,9 +660,9 @@ class MetaBuildWrapper():
         vals['cros_passthrough'] = mixin_vals['cros_passthrough']
       if 'args_file' in mixin_vals:
         if vals['args_file']:
-            raise MBErr('args_file specified multiple times in mixins '
-                        'for %s on %s' %
-                        (self.args.builder, self.args.builder_group))
+          raise MBErr('args_file specified multiple times in mixins '
+                      'for %s on %s' %
+                      (self.args.builder, self.args.builder_group))
         vals['args_file'] = mixin_vals['args_file']
       if 'gn_args' in mixin_vals:
         if vals['gn_args']:
@@ -699,9 +702,11 @@ class MetaBuildWrapper():
       swarming_targets = set(contents.splitlines())
 
       isolate_map = self.ReadIsolateMap()
+      self.RemovePossiblyStaleRuntimeDepsFiles(vals, swarming_targets,
+                                               isolate_map, build_dir)
       err, labels = self.MapTargetsToLabels(isolate_map, swarming_targets)
       if err:
-          raise MBErr(err)
+        raise MBErr(err)
 
       gn_runtime_deps_path = self.ToAbsPath(build_dir, 'runtime_deps')
       self.WriteFile(gn_runtime_deps_path, '\n'.join(labels) + '\n')
@@ -709,13 +714,13 @@ class MetaBuildWrapper():
 
     ret, output, _ = self.Run(cmd)
     if ret:
-        if self.args.json_output:
-          # write errors to json.output
-          self.WriteJSON({'output': output}, self.args.json_output)
-        # If `gn gen` failed, we should exit early rather than trying to
-        # generate isolates. Run() will have already logged any error output.
-        self.Print('GN gen failed: %d' % ret)
-        return ret
+      if self.args.json_output:
+        # write errors to json.output
+        self.WriteJSON({'output': output}, self.args.json_output)
+      # If `gn gen` failed, we should exit early rather than trying to
+      # generate isolates. Run() will have already logged any error output.
+      self.Print('GN gen failed: %d' % ret)
+      return ret
 
     android = 'target_os="android"' in vals['gn_args']
     for target in swarming_targets:
@@ -726,6 +731,7 @@ class MetaBuildWrapper():
         label = isolate_map[target]['label']
         runtime_deps_targets = [
             target + '.runtime_deps',
+            'obj/%s.runtime_deps' % label.replace(':', '/'),
             'obj/%s.stamp.runtime_deps' % label.replace(':', '/')]
       elif (isolate_map[target]['type'] == 'script' or
             isolate_map[target].get('label_type') == 'group'):
@@ -735,6 +741,7 @@ class MetaBuildWrapper():
         # also be an executable.
         label = isolate_map[target]['label']
         runtime_deps_targets = [
+            'obj/%s.runtime_deps' % label.replace(':', '/'),
             'obj/%s.stamp.runtime_deps' % label.replace(':', '/')]
         if self.platform == 'win32':
           runtime_deps_targets += [ target + '.exe.runtime_deps' ]
@@ -789,6 +796,99 @@ class MetaBuildWrapper():
         buffer_output=False)
 
     return ret
+
+  def RemovePossiblyStaleRuntimeDepsFiles(self, vals, targets, isolate_map,
+                                          build_dir):
+    # TODO(crbug.com/41441724): Because `gn gen --runtime-deps-list-file`
+    # puts the runtime_deps file in different locations based on the actual
+    # type of a target, we may end up with multiple possible runtime_deps
+    # files in a given build directory, where some of the entries might be
+    # stale (since we might be reusing an existing build directory).
+    #
+    # We need to be able to get the right one reliably; you might think
+    # we can just pick the newest file, but because GN won't update timestamps
+    # if the contents of the files change, an older runtime_deps
+    # file might actually be the one we should use over a newer one (see
+    # crbug.com/932387 for a more complete explanation and example).
+    #
+    # In order to avoid this, we need to delete any possible runtime_deps
+    # files *prior* to running GN. As long as the files aren't actually
+    # needed during the build, this hopefully will not cause unnecessary
+    # build work, and so it should be safe.
+    #
+    # Ultimately, we should just make sure we get the runtime_deps files
+    # in predictable locations so we don't have this issue at all, and
+    # that's what crbug.com/932700 is for.
+    possible_rpaths = self.PossibleRuntimeDepsPaths(vals, targets, isolate_map)
+    for rpaths in possible_rpaths.values():
+      for rpath in rpaths:
+        path = self.ToAbsPath(build_dir, rpath)
+        if self.Exists(path):
+          self.RemoveFile(path)
+
+  def PossibleRuntimeDepsPaths(self, vals, ninja_targets, isolate_map):
+    """Returns a map of targets to possible .runtime_deps paths.
+
+    Each ninja target maps on to a GN label, but depending on the type
+    of the GN target, `gn gen --runtime-deps-list-file` will write
+    the .runtime_deps files into different locations. Unfortunately, in
+    some cases we don't actually know which of multiple locations will
+    actually be used, so we return all plausible candidates.
+
+    The paths that are returned are relative to the build directory.
+    """
+
+    android = 'target_os="android"' in vals['gn_args']
+    ios = 'target_os="ios"' in vals['gn_args']
+    fuchsia = 'target_os="fuchsia"' in vals['gn_args']
+    win = self.platform == 'win32' or 'target_os="win"' in vals['gn_args']
+    possible_runtime_deps_rpaths = {}
+    for target in ninja_targets:
+      target_type = isolate_map[target]['type']
+      label = isolate_map[target]['label']
+      target_runtime_deps = 'obj/%s.runtime_deps' % label.replace(':', '/')
+      stamp_runtime_deps = 'obj/%s.stamp.runtime_deps' % label.replace(':', '/')
+      # TODO(crbug.com/40590196): 'official_tests' use
+      # type='additional_compile_target' to isolate tests. This is not the
+      # intended use for 'additional_compile_target'.
+      if (target_type == 'additional_compile_target' and
+          target != 'official_tests'):
+        # By definition, additional_compile_targets are not tests, so we
+        # shouldn't generate isolates for them.
+        raise MBErr('Cannot generate isolate for %s since it is an '
+                    'additional_compile_target.' % target)
+      if fuchsia or ios or target_type == 'generated_script':
+        # iOS and Fuchsia targets end up as groups.
+        # generated_script targets are always actions.
+        rpaths = [stamp_runtime_deps, target_runtime_deps]
+      elif android:
+        # Android targets may be either android_apk or executable. The former
+        # will result in runtime_deps associated with the stamp file, while the
+        # latter will result in runtime_deps associated with the executable.
+        label = isolate_map[target]['label']
+        rpaths = [
+            target + '.runtime_deps', stamp_runtime_deps, target_runtime_deps
+        ]
+      elif (target_type == 'script' or
+            isolate_map[target].get('label_type') == 'group'):
+        # For script targets, the build target is usually a group,
+        # for which gn generates the runtime_deps next to the stamp file
+        # for the label, which lives under the obj/ directory, but it may
+        # also be an executable.
+        label = isolate_map[target]['label']
+        rpaths = [stamp_runtime_deps, target_runtime_deps]
+        if win:
+          rpaths += [target + '.exe.runtime_deps']
+        else:
+          rpaths += [target + '.runtime_deps']
+      elif win:
+        rpaths = [target + '.exe.runtime_deps']
+      else:
+        rpaths = [target + '.runtime_deps']
+
+      possible_runtime_deps_rpaths[target] = rpaths
+
+    return possible_runtime_deps_rpaths
 
   def WriteIsolateFiles(self, build_dir, target, runtime_deps):
     isolate_path = self.ToAbsPath(build_dir, target + '.isolate')
@@ -860,9 +960,6 @@ class MetaBuildWrapper():
                     gn_args)
     else:
       gn_args = vals['gn_args']
-
-    if self.args.goma_dir:
-      gn_args += ' goma_dir="%s"' % self.args.goma_dir
 
     android_version_code = self.args.android_version_code
     if android_version_code:

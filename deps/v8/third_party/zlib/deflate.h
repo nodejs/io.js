@@ -282,6 +282,13 @@ typedef struct internal_state {
      * hash is enabled.
      */
 
+#if defined(QAT_COMPRESSION_ENABLED)
+    /* Pointer to a struct that contains the current state of the QAT
+     * stream.
+     */
+    struct qat_deflate *qat_s;
+#endif
+
 } FAR deflate_state;
 
 /* Output a byte on the stream.

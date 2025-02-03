@@ -10,6 +10,7 @@
 #include "src/logging/runtime-call-stats-scope.h"
 #include "src/objects/objects.h"
 #include "src/objects/slots.h"
+#include "src/sandbox/check.h"
 #include "src/tracing/trace-event.h"
 #include "src/utils/allocation.h"
 
@@ -73,6 +74,8 @@ class Arguments {
     // Corruption of certain heap objects (see e.g. crbug.com/1507223) can lead
     // to OOB arguments access, and therefore OOB stack access. This SBXCHECK
     // defends against that.
+    // Note: "LE" is intentional: it's okay to compute the address of the
+    // first nonexistent entry.
     SBXCHECK_LE(static_cast<uint32_t>(index), static_cast<uint32_t>(length_));
     uintptr_t offset = index * kSystemPointerSize;
     if (arguments_type == ArgumentsType::kJS) {
@@ -94,7 +97,7 @@ template <ArgumentsType T>
 template <class S>
 Handle<S> Arguments<T>::at(int index) const {
   Handle<Object> obj = Handle<Object>(address_of_arg_at(index));
-  return Handle<S>::cast(obj);
+  return Cast<S>(obj);
 }
 
 template <ArgumentsType T>

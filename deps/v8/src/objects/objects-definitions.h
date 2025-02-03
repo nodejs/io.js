@@ -12,20 +12,17 @@ namespace v8 {
 
 namespace internal {
 
-// All Maps have a field instance_type containing a InstanceType.
+// All Maps have a field instance_type containing an InstanceType.
 // It describes the type of the instances.
 //
 // As an example, a JavaScript object is a heap object and its map
 // instance_type is JS_OBJECT_TYPE.
 //
-// The names of the string instance types are intended to systematically
-// mirror their encoding in the instance_type field of the map.  The default
-// encoding is considered TWO_BYTE.  It is not mentioned in the name.  ONE_BYTE
-// encoding is mentioned explicitly in the name.  Likewise, the default
-// representation is considered sequential.  It is not mentioned in the
-// name.  The other representations (e.g. CONS, EXTERNAL) are explicitly
-// mentioned.  Finally, the string is either a STRING_TYPE (if it is a normal
-// string) or a INTERNALIZED_STRING_TYPE (if it is a internalized string).
+// The names of the string instance types are intended to systematically mirror
+// their encoding in the instance_type field of the map.  The other
+// representations (e.g. CONS, EXTERNAL) are explicitly mentioned.  Finally,
+// the string is either a STRING_TYPE (if it is a normal string) or an
+// INTERNALIZED_STRING_TYPE (if it is an internalized string).
 //
 // NOTE: The following things are some that depend on the string types having
 // instance_types that are less than those of all other types:
@@ -65,42 +62,27 @@ namespace internal {
 // them. The order matters for read only heap layout. The maps are placed such
 // that string types map to address ranges of maps.
 #define STRING_TYPE_LIST(V)                                                    \
+  /* Start sequential strings*/                                                \
   V(SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel, seq_two_byte_string,      \
     SeqTwoByteString)                                                          \
   V(SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel, seq_one_byte_string,      \
     SeqOneByteString)                                                          \
-  V(CONS_TWO_BYTE_STRING_TYPE, sizeof(ConsString), cons_two_byte_string,       \
-    ConsTwoByteString)                                                         \
-  V(CONS_ONE_BYTE_STRING_TYPE, sizeof(ConsString), cons_one_byte_string,       \
-    ConsOneByteString)                                                         \
-  V(SLICED_TWO_BYTE_STRING_TYPE, sizeof(SlicedString), sliced_two_byte_string, \
-    SlicedTwoByteString)                                                       \
-  V(SLICED_ONE_BYTE_STRING_TYPE, sizeof(SlicedString), sliced_one_byte_string, \
-    SlicedOneByteString)                                                       \
-  V(EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString),              \
-    external_two_byte_string, ExternalTwoByteString)                           \
-  V(EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString),              \
-    external_one_byte_string, ExternalOneByteString)                           \
-  V(UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(UncachedExternalString),    \
-    uncached_external_two_byte_string, UncachedExternalTwoByteString)          \
-  V(UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(UncachedExternalString),    \
-    uncached_external_one_byte_string, UncachedExternalOneByteString)          \
-                                                                               \
-  V(SHARED_EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString),       \
-    shared_external_two_byte_string, SharedExternalTwoByteString)              \
-  V(SHARED_EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString),       \
-    shared_external_one_byte_string, SharedExternalOneByteString)              \
-  V(SHARED_UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE,                             \
-    sizeof(UncachedExternalString), shared_uncached_external_two_byte_string,  \
-    SharedUncachedExternalTwoByteString)                                       \
-  V(SHARED_UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE,                             \
-    sizeof(UncachedExternalString), shared_uncached_external_one_byte_string,  \
-    SharedUncachedExternalOneByteString)                                       \
-                                                                               \
+  V(SHARED_SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                    \
+    shared_seq_two_byte_string, SharedSeqTwoByteString)                        \
+  V(SHARED_SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                    \
+    shared_seq_one_byte_string, SharedSeqOneByteString)                        \
+  /* Start internalized strings*/                                              \
+  V(INTERNALIZED_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                  \
+    internalized_two_byte_string, InternalizedTwoByteString)                   \
+  V(INTERNALIZED_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                  \
+    internalized_one_byte_string, InternalizedOneByteString)                   \
+  /* End sequential strings*/                                                  \
+  /* Start external strings*/                                                  \
   V(EXTERNAL_INTERNALIZED_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString), \
     external_internalized_two_byte_string, ExternalInternalizedTwoByteString)  \
   V(EXTERNAL_INTERNALIZED_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString), \
     external_internalized_one_byte_string, ExternalInternalizedOneByteString)  \
+  /* Start uncached external strings*/                                         \
   V(UNCACHED_EXTERNAL_INTERNALIZED_TWO_BYTE_STRING_TYPE,                       \
     sizeof(UncachedExternalString),                                            \
     uncached_external_internalized_two_byte_string,                            \
@@ -109,20 +91,40 @@ namespace internal {
     sizeof(UncachedExternalString),                                            \
     uncached_external_internalized_one_byte_string,                            \
     UncachedExternalInternalizedOneByteString)                                 \
+  /* End internalized strings*/                                                \
+  V(UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(UncachedExternalString),    \
+    uncached_external_two_byte_string, UncachedExternalTwoByteString)          \
+  V(UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(UncachedExternalString),    \
+    uncached_external_one_byte_string, UncachedExternalOneByteString)          \
+  V(SHARED_UNCACHED_EXTERNAL_TWO_BYTE_STRING_TYPE,                             \
+    sizeof(UncachedExternalString), shared_uncached_external_two_byte_string,  \
+    SharedUncachedExternalTwoByteString)                                       \
+  V(SHARED_UNCACHED_EXTERNAL_ONE_BYTE_STRING_TYPE,                             \
+    sizeof(UncachedExternalString), shared_uncached_external_one_byte_string,  \
+    SharedUncachedExternalOneByteString)                                       \
+  /* End uncached external strings*/                                           \
+  V(EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString),              \
+    external_two_byte_string, ExternalTwoByteString)                           \
+  V(EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString),              \
+    external_one_byte_string, ExternalOneByteString)                           \
+  V(SHARED_EXTERNAL_TWO_BYTE_STRING_TYPE, sizeof(ExternalTwoByteString),       \
+    shared_external_two_byte_string, SharedExternalTwoByteString)              \
+  V(SHARED_EXTERNAL_ONE_BYTE_STRING_TYPE, sizeof(ExternalOneByteString),       \
+    shared_external_one_byte_string, SharedExternalOneByteString)              \
+  /* End external strings*/                                                    \
                                                                                \
-  V(INTERNALIZED_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                  \
-    internalized_two_byte_string, InternalizedTwoByteString)                   \
-  V(INTERNALIZED_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                  \
-    internalized_one_byte_string, InternalizedOneByteString)                   \
-                                                                               \
+  V(CONS_TWO_BYTE_STRING_TYPE, sizeof(ConsString), cons_two_byte_string,       \
+    ConsTwoByteString)                                                         \
+  V(CONS_ONE_BYTE_STRING_TYPE, sizeof(ConsString), cons_one_byte_string,       \
+    ConsOneByteString)                                                         \
+  V(SLICED_TWO_BYTE_STRING_TYPE, sizeof(SlicedString), sliced_two_byte_string, \
+    SlicedTwoByteString)                                                       \
+  V(SLICED_ONE_BYTE_STRING_TYPE, sizeof(SlicedString), sliced_one_byte_string, \
+    SlicedOneByteString)                                                       \
   V(THIN_TWO_BYTE_STRING_TYPE, sizeof(ThinString), thin_two_byte_string,       \
     ThinTwoByteString)                                                         \
   V(THIN_ONE_BYTE_STRING_TYPE, sizeof(ThinString), thin_one_byte_string,       \
-    ThinOneByteString)                                                         \
-  V(SHARED_SEQ_TWO_BYTE_STRING_TYPE, kVariableSizeSentinel,                    \
-    shared_seq_two_byte_string, SharedSeqTwoByteString)                        \
-  V(SHARED_SEQ_ONE_BYTE_STRING_TYPE, kVariableSizeSentinel,                    \
-    shared_seq_one_byte_string, SharedSeqOneByteString)
+    ThinOneByteString)
 
 // A struct is a simple object a set of object-valued fields.  Including an
 // object type in this causes the compiler to generate most of the boilerplate
@@ -138,9 +140,6 @@ namespace internal {
   V(_, CALLBACK_TASK_TYPE, CallbackTask, callback_task)                       \
   V(_, PROMISE_RESOLVE_THENABLE_JOB_TASK_TYPE, PromiseResolveThenableJobTask, \
     promise_resolve_thenable_job_task)                                        \
-  V(_, FUNCTION_TEMPLATE_INFO_TYPE, FunctionTemplateInfo,                     \
-    function_template_info)                                                   \
-  V(_, OBJECT_TEMPLATE_INFO_TYPE, ObjectTemplateInfo, object_template_info)   \
   V(_, ACCESS_CHECK_INFO_TYPE, AccessCheckInfo, access_check_info)            \
   V(_, ACCESSOR_PAIR_TYPE, AccessorPair, accessor_pair)                       \
   V(_, ALIASED_ARGUMENTS_ENTRY_TYPE, AliasedArgumentsEntry,                   \
@@ -166,13 +165,13 @@ namespace internal {
   V(_, INTERCEPTOR_INFO_TYPE, InterceptorInfo, interceptor_info)              \
   V(_, MODULE_REQUEST_TYPE, ModuleRequest, module_request)                    \
   V(_, PROMISE_CAPABILITY_TYPE, PromiseCapability, promise_capability)        \
-  V(_, PROMISE_ON_STACK_TYPE, PromiseOnStack, promise_on_stack)               \
   V(_, PROMISE_REACTION_TYPE, PromiseReaction, promise_reaction)              \
   V(_, PROPERTY_DESCRIPTOR_OBJECT_TYPE, PropertyDescriptorObject,             \
     property_descriptor_object)                                               \
   V(_, PROTOTYPE_INFO_TYPE, PrototypeInfo, prototype_info)                    \
   V(_, REG_EXP_BOILERPLATE_DESCRIPTION_TYPE, RegExpBoilerplateDescription,    \
     regexp_boilerplate_description)                                           \
+  V(_, REG_EXP_DATA_WRAPPER_TYPE, RegExpDataWrapper, regexp_data_wrapper)     \
   V(_, SCRIPT_TYPE, Script, script)                                           \
   V(_, SCRIPT_OR_MODULE_TYPE, ScriptOrModule, script_or_module)               \
   V(_, SOURCE_TEXT_MODULE_INFO_ENTRY_TYPE, SourceTextModuleInfoEntry,         \

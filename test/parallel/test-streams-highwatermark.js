@@ -85,3 +85,27 @@ const { inspect } = require('util');
              hwm,
   }));
 }
+
+{
+  const res = [];
+  const r = new stream.Readable({
+    read() {},
+  });
+  const w = new stream.Writable({
+    highWaterMark: 0,
+    write(chunk, encoding, callback) {
+      res.push(chunk.toString());
+      callback();
+    },
+  });
+
+  r.pipe(w);
+  r.push('a');
+  r.push('b');
+  r.push('c');
+  r.push(null);
+
+  r.on('end', common.mustCall(() => {
+    assert.deepStrictEqual(res, ['a', 'b', 'c']);
+  }));
+}

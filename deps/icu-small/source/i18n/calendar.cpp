@@ -232,7 +232,7 @@ const SharedCalendar *LocaleCacheKey<SharedCalendar>::createObject(
 static ECalType getCalendarType(const char *s) {
     for (int i = 0; gCalTypes[i] != nullptr; i++) {
         if (uprv_stricmp(s, gCalTypes[i]) == 0) {
-            return (ECalType)i;
+            return static_cast<ECalType>(i);
         }
     }
     return CALTYPE_UNKNOWN;
@@ -407,7 +407,7 @@ protected:
     {
         if (U_SUCCESS(status)) {
             for(int32_t i=0;gCalTypes[i] != nullptr;i++) {
-                UnicodeString id((char16_t)0x40); /* '@' a variant character */
+                UnicodeString id(static_cast<char16_t>(0x40)); /* '@' a variant character */
                 id.append(UNICODE_STRING_SIMPLE("calendar="));
                 id.append(UnicodeString(gCalTypes[i], -1, US_INV));
                 result.put(id, (void*)this, status);
@@ -433,7 +433,7 @@ protected:
         lkey->canonicalLocale(canLoc);
 
         char keyword[ULOC_FULLNAME_CAPACITY];
-        curLoc.getKeywordValue("calendar", keyword, (int32_t) sizeof(keyword), status);
+        curLoc.getKeywordValue("calendar", keyword, static_cast<int32_t>(sizeof(keyword)), status);
 
 #ifdef U_DEBUG_CALSVC
         fprintf(stderr, "BasicCalendarFactory::create() - cur %s, can %s\n", (const char*)curLoc.getName(), (const char*)canLoc.getName());
@@ -476,7 +476,7 @@ protected:
         if (ret == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
         } else {
-            ret->append((char16_t)0x40); // '@' is a variant character
+            ret->append(static_cast<char16_t>(0x40)); // '@' is a variant character
             ret->append(UNICODE_STRING("calendar=", 9));
             ret->append(UnicodeString(gCalTypes[getCalendarTypeForLocale(loc.getName())], -1, US_INV));
         }
@@ -700,7 +700,7 @@ fIsTimeSet(false),
 fAreFieldsSet(false),
 fAreAllFieldsSet(false),
 fAreFieldsVirtuallySet(false),
-fNextStamp((int32_t)kMinimumUserStamp),
+fNextStamp(static_cast<int32_t>(kMinimumUserStamp)),
 fTime(0),
 fLenient(true),
 fZone(nullptr),
@@ -728,7 +728,7 @@ fIsTimeSet(false),
 fAreFieldsSet(false),
 fAreAllFieldsSet(false),
 fAreFieldsVirtuallySet(false),
-fNextStamp((int32_t)kMinimumUserStamp),
+fNextStamp(static_cast<int32_t>(kMinimumUserStamp)),
 fTime(0),
 fLenient(true),
 fZone(nullptr),
@@ -763,7 +763,7 @@ fIsTimeSet(false),
 fAreFieldsSet(false),
 fAreAllFieldsSet(false),
 fAreFieldsVirtuallySet(false),
-fNextStamp((int32_t)kMinimumUserStamp),
+fNextStamp(static_cast<int32_t>(kMinimumUserStamp)),
 fTime(0),
 fLenient(true),
 fZone(nullptr),
@@ -1121,7 +1121,7 @@ Calendar::getTimeInMillis(UErrorCode& status) const
         return 0.0;
 
     if ( ! fIsTimeSet)
-        ((Calendar*)this)->updateTime(status);
+        const_cast<Calendar*>(this)->updateTime(status);
 
     /* Test for buffer overflows */
     if(U_FAILURE(status)) {
@@ -1191,7 +1191,7 @@ Calendar::get(UCalendarDateFields field, UErrorCode& status) const
     // field values are only computed when actually requested; for more on when computation
     // of various things happens, see the "data flow in Calendar" description at the top
     // of this file
-    if (U_SUCCESS(status)) ((Calendar*)this)->complete(status); // Cast away const
+    if (U_SUCCESS(status)) const_cast<Calendar*>(this)->complete(status); // Cast away const
     return U_SUCCESS(status) ? fFields[field] : 0;
 }
 
@@ -1321,7 +1321,7 @@ Calendar::isSet(UCalendarDateFields field) const
 int32_t Calendar::newestStamp(UCalendarDateFields first, UCalendarDateFields last, int32_t bestStampSoFar) const
 {
     int32_t bestStamp = bestStampSoFar;
-    for (int32_t i=(int32_t)first; i<=(int32_t)last; ++i) {
+    for (int32_t i = static_cast<int32_t>(first); i <= static_cast<int32_t>(last); ++i) {
         if (fStamp[i] > bestStamp) {
             bestStamp = fStamp[i];
         }
@@ -1532,9 +1532,9 @@ uint8_t Calendar::julianDayToDayOfWeek(int32_t julian)
 {
     // If julian is negative, then julian%7 will be negative, so we adjust
     // accordingly.  We add 1 because Julian day 0 is Monday.
-    int8_t dayOfWeek = (int8_t) ((julian + 1LL) % 7);
+    int8_t dayOfWeek = static_cast<int8_t>((julian + 1LL) % 7);
 
-    uint8_t result = (uint8_t)(dayOfWeek + ((dayOfWeek < 0) ? (7+UCAL_SUNDAY ) : UCAL_SUNDAY));
+    uint8_t result = static_cast<uint8_t>(dayOfWeek + ((dayOfWeek < 0) ? (7 + UCAL_SUNDAY) : UCAL_SUNDAY));
     return result;
 }
 
@@ -1583,7 +1583,7 @@ void Calendar::computeGregorianFields(int32_t julianDay, UErrorCode& ec) {
     }
     Grego::dayToFields(julianDay, fGregorianYear, fGregorianMonth,
                        fGregorianDayOfMonth, gregorianDayOfWeekUnused,
-                       fGregorianDayOfYear);
+                       fGregorianDayOfYear, ec);
 }
 
 /**
@@ -1731,7 +1731,7 @@ void Calendar::handleComputeFields(int32_t /* julianDay */, UErrorCode& status)
 
 void Calendar::roll(EDateFields field, int32_t amount, UErrorCode& status)
 {
-    roll((UCalendarDateFields)field, amount, status);
+    roll(static_cast<UCalendarDateFields>(field), amount, status);
 }
 
 void Calendar::roll(UCalendarDateFields field, int32_t amount, UErrorCode& status) UPRV_NO_SANITIZE_UNDEFINED {
@@ -1762,6 +1762,9 @@ void Calendar::roll(UCalendarDateFields field, int32_t amount, UErrorCode& statu
         {
             int32_t min = getActualMinimum(field,status);
             int32_t max = getActualMaximum(field,status);
+            if (U_FAILURE(status)) {
+               return;
+            }
             int32_t gap = max - min + 1;
 
             int64_t value = internalGet(field);
@@ -2103,7 +2106,7 @@ void Calendar::roll(UCalendarDateFields field, int32_t amount, UErrorCode& statu
 
 void Calendar::add(EDateFields field, int32_t amount, UErrorCode& status)
 {
-    Calendar::add((UCalendarDateFields)field, amount, status);
+    Calendar::add(static_cast<UCalendarDateFields>(field), amount, status);
 }
 
 // -------------------------------------
@@ -2280,7 +2283,7 @@ void Calendar::add(UCalendarDateFields field, int32_t amount, UErrorCode& status
                 // to roll over/back the date. For now, this only happens
                 // in Samoa (Pacific/Apia) on Dec 30, 2011. See ticket:9452.
                 int32_t adjAmount = prevOffset - newOffset;
-                adjAmount = adjAmount >= 0 ? adjAmount % (int32_t)kOneDay : -(-adjAmount % (int32_t)kOneDay);
+                adjAmount = adjAmount >= 0 ? adjAmount % static_cast<int32_t>(kOneDay) : -(-adjAmount % static_cast<int32_t>(kOneDay));
                 if (adjAmount != 0) {
                     setTimeInMillis(t + adjAmount, status);
                     newWallTime = get(UCAL_MILLISECONDS_IN_DAY, status);
@@ -2316,7 +2319,7 @@ void Calendar::add(UCalendarDateFields field, int32_t amount, UErrorCode& status
 
 // -------------------------------------
 int32_t Calendar::fieldDifference(UDate when, EDateFields field, UErrorCode& status) {
-    return fieldDifference(when, (UCalendarDateFields) field, status);
+    return fieldDifference(when, static_cast<UCalendarDateFields>(field), status);
 }
 
 int32_t Calendar::fieldDifference(UDate targetMs, UCalendarDateFields field, UErrorCode& ec) {
@@ -2389,7 +2392,7 @@ int32_t Calendar::fieldDifference(UDate targetMs, UCalendarDateFields field, UEr
                 break;
             } else {
                 min = max;
-                max = (int32_t)((uint32_t)(max) << 1);
+                max = static_cast<int32_t>(static_cast<uint32_t>(max) << 1);
                 if (max == 0) {
                     // Field difference too large to fit into int32_t
 #if defined (U_DEBUG_CAL)
@@ -2543,7 +2546,7 @@ Calendar::setFirstDayOfWeek(UCalendarDaysOfWeek value) UPRV_NO_SANITIZE_UNDEFINE
 Calendar::EDaysOfWeek
 Calendar::getFirstDayOfWeek() const
 {
-    return (Calendar::EDaysOfWeek)fFirstDayOfWeek;
+    return static_cast<Calendar::EDaysOfWeek>(fFirstDayOfWeek);
 }
 
 UCalendarDaysOfWeek
@@ -2654,7 +2657,7 @@ UBool
 Calendar::isWeekend() const
 {
     UErrorCode status = U_ZERO_ERROR;
-    UCalendarDaysOfWeek dayOfWeek = (UCalendarDaysOfWeek)get(UCAL_DAY_OF_WEEK, status);
+    UCalendarDaysOfWeek dayOfWeek = static_cast<UCalendarDaysOfWeek>(get(UCAL_DAY_OF_WEEK, status));
     UCalendarWeekdayType dayType = getDayOfWeekType(dayOfWeek, status);
     if (U_SUCCESS(status)) {
         switch (dayType) {
@@ -2687,7 +2690,7 @@ Calendar::isWeekend() const
 
 int32_t
 Calendar::getMinimum(EDateFields field) const {
-    return getLimit((UCalendarDateFields) field,UCAL_LIMIT_MINIMUM);
+    return getLimit(static_cast<UCalendarDateFields>(field), UCAL_LIMIT_MINIMUM);
 }
 
 int32_t
@@ -2700,7 +2703,7 @@ Calendar::getMinimum(UCalendarDateFields field) const
 int32_t
 Calendar::getMaximum(EDateFields field) const
 {
-    return getLimit((UCalendarDateFields) field,UCAL_LIMIT_MAXIMUM);
+    return getLimit(static_cast<UCalendarDateFields>(field), UCAL_LIMIT_MAXIMUM);
 }
 
 int32_t
@@ -2713,7 +2716,7 @@ Calendar::getMaximum(UCalendarDateFields field) const
 int32_t
 Calendar::getGreatestMinimum(EDateFields field) const
 {
-    return getLimit((UCalendarDateFields)field,UCAL_LIMIT_GREATEST_MINIMUM);
+    return getLimit(static_cast<UCalendarDateFields>(field), UCAL_LIMIT_GREATEST_MINIMUM);
 }
 
 int32_t
@@ -2726,7 +2729,7 @@ Calendar::getGreatestMinimum(UCalendarDateFields field) const
 int32_t
 Calendar::getLeastMaximum(EDateFields field) const
 {
-    return getLimit((UCalendarDateFields) field,UCAL_LIMIT_LEAST_MAXIMUM);
+    return getLimit(static_cast<UCalendarDateFields>(field), UCAL_LIMIT_LEAST_MAXIMUM);
 }
 
 int32_t
@@ -2739,7 +2742,7 @@ Calendar::getLeastMaximum(UCalendarDateFields field) const
 int32_t
 Calendar::getActualMinimum(EDateFields field, UErrorCode& status) const
 {
-    return getActualMinimum((UCalendarDateFields) field, status);
+    return getActualMinimum(static_cast<UCalendarDateFields>(field), status);
 }
 
 int32_t Calendar::getLimit(UCalendarDateFields field, ELimitType limitType) const {
@@ -2844,9 +2847,9 @@ Calendar::inDaylightTime(UErrorCode& status) const
     }
 
     // Force an update of the state of the Calendar.
-    ((Calendar*)this)->complete(status); // cast away const
+    const_cast<Calendar*>(this)->complete(status); // cast away const
 
-    return (UBool)(U_SUCCESS(status) ? (internalGet(UCAL_DST_OFFSET) != 0) : false);
+    return U_SUCCESS(status) ? internalGet(UCAL_DST_OFFSET) != 0 : false;
 }
 
 bool
@@ -2909,7 +2912,7 @@ void Calendar::validateFields(UErrorCode &status) {
     }
     for (int32_t field = 0; U_SUCCESS(status) && (field < UCAL_FIELD_COUNT); field++) {
         if (fStamp[field] >= kMinimumUserStamp) {
-            validateField((UCalendarDateFields)field, status);
+            validateField(static_cast<UCalendarDateFields>(field), status);
         }
     }
 }
@@ -3043,7 +3046,7 @@ linesInGroup:
             ;
         }
     }
-    return (UCalendarDateFields)bestField;
+    return static_cast<UCalendarDateFields>(bestField);
 }
 
 const UFieldResolutionTable Calendar::kDatePrecedence[] =
@@ -3144,7 +3147,7 @@ void Calendar::computeTime(UErrorCode& status) {
     // time and call clear(MONTH) to reset the MONTH to January.  This
     // is legacy behavior.  Without this, clear(MONTH) has no effect,
     // since the internally set JULIAN_DAY is used.
-    if (fStamp[UCAL_MILLISECONDS_IN_DAY] >= ((int32_t)kMinimumUserStamp) &&
+    if (fStamp[UCAL_MILLISECONDS_IN_DAY] >= static_cast<int32_t>(kMinimumUserStamp) &&
             newestStamp(UCAL_AM_PM, UCAL_MILLISECOND, kUnset) <= fStamp[UCAL_MILLISECONDS_IN_DAY]) {
         millisInDay = internalGet(UCAL_MILLISECONDS_IN_DAY);
     } else {
@@ -3152,7 +3155,8 @@ void Calendar::computeTime(UErrorCode& status) {
     }
 
     UDate t = 0;
-    if (fStamp[UCAL_ZONE_OFFSET] >= ((int32_t)kMinimumUserStamp) || fStamp[UCAL_DST_OFFSET] >= ((int32_t)kMinimumUserStamp)) {
+    if (fStamp[UCAL_ZONE_OFFSET] >= static_cast<int32_t>(kMinimumUserStamp) ||
+        fStamp[UCAL_DST_OFFSET] >= static_cast<int32_t>(kMinimumUserStamp)) {
         t = millis + millisInDay - internalGet(UCAL_ZONE_OFFSET) - internalGet(UCAL_DST_OFFSET);
     } else {
         // Compute the time zone offset and DST offset.  There are two potential
@@ -3367,7 +3371,7 @@ int32_t Calendar::computeJulianDay(UErrorCode &status)
     // to January.  This is legacy behavior.  Without this,
     // clear(MONTH) has no effect, since the internally set JULIAN_DAY
     // is used.
-    if (fStamp[UCAL_JULIAN_DAY] >= (int32_t)kMinimumUserStamp) {
+    if (fStamp[UCAL_JULIAN_DAY] >= static_cast<int32_t>(kMinimumUserStamp)) {
         int32_t bestStamp = newestStamp(UCAL_ERA, UCAL_DAY_OF_WEEK_IN_MONTH, kUnset);
         bestStamp = newestStamp(UCAL_YEAR_WOY, UCAL_EXTENDED_YEAR, bestStamp);
         bestStamp = newestStamp(UCAL_ORDINAL_MONTH, UCAL_ORDINAL_MONTH, bestStamp);
@@ -3446,7 +3450,10 @@ int32_t Calendar::handleComputeJulianDay(UCalendarDateFields bestField, UErrorCo
         if(isSet(UCAL_DAY_OF_MONTH)) {
             dayOfMonth = internalGet(UCAL_DAY_OF_MONTH,1);
         } else {
-            dayOfMonth = getDefaultDayInMonth(year, month);
+            dayOfMonth = getDefaultDayInMonth(year, month, status);
+            if (U_FAILURE(status)) {
+               return 0;
+            }
         }
         if (uprv_add32_overflow(dayOfMonth, julianDay, &dayOfMonth)) {
             status = U_ILLEGAL_ARGUMENT_ERROR;
@@ -3654,7 +3661,7 @@ Calendar::getDefaultMonthInYear(int32_t /*eyear*/, UErrorCode& /* status */)
 }
 
 int32_t
-Calendar::getDefaultDayInMonth(int32_t /*eyear*/, int32_t /*month*/)
+Calendar::getDefaultDayInMonth(int32_t /*eyear*/, int32_t /*month*/, UErrorCode& /* status */)
 {
     return 1;
 }
@@ -4161,11 +4168,11 @@ Calendar::setWeekData(const Locale& desiredLocale, const char *type, UErrorCode&
                 && 1 <= weekDataArr[1] && weekDataArr[1] <= 7
                 && 1 <= weekDataArr[2] && weekDataArr[2] <= 7
                 && 1 <= weekDataArr[4] && weekDataArr[4] <= 7) {
-            fFirstDayOfWeek = (UCalendarDaysOfWeek)weekDataArr[0];
-            fMinimalDaysInFirstWeek = (uint8_t)weekDataArr[1];
-            fWeekendOnset = (UCalendarDaysOfWeek)weekDataArr[2];
+            fFirstDayOfWeek = static_cast<UCalendarDaysOfWeek>(weekDataArr[0]);
+            fMinimalDaysInFirstWeek = static_cast<uint8_t>(weekDataArr[1]);
+            fWeekendOnset = static_cast<UCalendarDaysOfWeek>(weekDataArr[2]);
             fWeekendOnsetMillis = weekDataArr[3];
-            fWeekendCease = (UCalendarDaysOfWeek)weekDataArr[4];
+            fWeekendCease = static_cast<UCalendarDaysOfWeek>(weekDataArr[4]);
             fWeekendCeaseMillis = weekDataArr[5];
         } else {
             status = U_INVALID_FORMAT_ERROR;
@@ -4263,7 +4270,7 @@ Calendar::recalculateStamp() {
 void
 Calendar::internalSet(EDateFields field, int32_t value)
 {
-    internalSet((UCalendarDateFields) field, value);
+    internalSet(static_cast<UCalendarDateFields>(field), value);
 }
 
 int32_t Calendar::internalGetMonth(UErrorCode& status) const {

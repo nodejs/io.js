@@ -121,6 +121,7 @@ namespace {
   V(F32x4SConvertI32x4, F32x8SConvertI32x8) \
   V(F32x4UConvertI32x4, F32x8UConvertI32x8) \
   V(I32x4UConvertF32x4, I32x8UConvertF32x8) \
+  V(I32x4SConvertF32x4, I32x8SConvertF32x8) \
   V(S128And, S256And)                       \
   V(S128Or, S256Or)                         \
   V(S128Xor, S256Xor)                       \

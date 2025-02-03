@@ -5,6 +5,7 @@ if (!common.hasCrypto)
 
 const assert = require('assert');
 const crypto = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 assert.throws(() => crypto.diffieHellman(), {
   name: 'TypeError',
@@ -150,7 +151,7 @@ const list = [
 
 // TODO(danbev): Take a closer look if there should be a check in OpenSSL3
 // when the dh parameters differ.
-if (!common.hasOpenSSL3) {
+if (!hasOpenSSL3) {
   // Same primes, but different generator.
   list.push([{ group: 'modp5' }, { prime: group.getPrime(), generator: 5 }]);
   // Same generator, but different primes.
@@ -161,7 +162,7 @@ for (const [params1, params2] of list) {
   assert.throws(() => {
     test(crypto.generateKeyPairSync('dh', params1),
          crypto.generateKeyPairSync('dh', params2));
-  }, common.hasOpenSSL3 ? {
+  }, hasOpenSSL3 ? {
     name: 'Error',
     code: 'ERR_OSSL_MISMATCHING_DOMAIN_PARAMETERS'
   } : {
@@ -220,7 +221,7 @@ const not256k1 = crypto.getCurves().find((c) => /^sec.*(224|384|512)/.test(c));
 assert.throws(() => {
   test(crypto.generateKeyPairSync('ec', { namedCurve: 'secp256k1' }),
        crypto.generateKeyPairSync('ec', { namedCurve: not256k1 }));
-}, common.hasOpenSSL3 ? {
+}, hasOpenSSL3 ? {
   name: 'Error',
   code: 'ERR_OSSL_MISMATCHING_DOMAIN_PARAMETERS'
 } : {

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyMerkleInclusion = void 0;
+exports.verifyMerkleInclusion = verifyMerkleInclusion;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -53,7 +53,6 @@ function verifyMerkleInclusion(entry) {
         });
     }
 }
-exports.verifyMerkleInclusion = verifyMerkleInclusion;
 // Breaks down inclusion proof for a leaf at the specified index in a tree of
 // the specified size. The split point is where paths to the index leaf and
 // the (size - 1) leaf diverge. Returns lengths of the bottom and upper proof
@@ -98,8 +97,8 @@ function bitLength(n) {
 // Hashing logic according to RFC6962.
 // https://datatracker.ietf.org/doc/html/rfc6962#section-2
 function hashChildren(left, right) {
-    return core_1.crypto.hash(RFC6962_NODE_HASH_PREFIX, left, right);
+    return core_1.crypto.digest('sha256', RFC6962_NODE_HASH_PREFIX, left, right);
 }
 function hashLeaf(leaf) {
-    return core_1.crypto.hash(RFC6962_LEAF_HASH_PREFIX, leaf);
+    return core_1.crypto.digest('sha256', RFC6962_LEAF_HASH_PREFIX, leaf);
 }

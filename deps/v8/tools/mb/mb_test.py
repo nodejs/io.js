@@ -8,11 +8,14 @@
 import json
 import io
 import os
+import re
 import sys
 import unittest
 
 import mb
 
+# Call has argument input to match subprocess.run
+# pylint: disable=redefined-builtin
 
 class FakeMBW(mb.MetaBuildWrapper):
 
@@ -28,6 +31,7 @@ class FakeMBW(mb.MetaBuildWrapper):
       self.platform = 'win32'
       self.executable = 'c:\\python\\python.exe'
       self.sep = '\\'
+      self.cwd = 'c:\\fake_src\\out\\Default'
     else:
       self.chromium_src_dir = '/fake_src'
       self.default_config = '/fake_src/tools/mb/mb_config.pyl'
@@ -35,6 +39,7 @@ class FakeMBW(mb.MetaBuildWrapper):
       self.executable = '/usr/bin/python'
       self.platform = 'linux2'
       self.sep = '/'
+      self.cwd = '/fake_src/out/Default'
 
     self.files = {}
     self.calls = []
@@ -48,21 +53,23 @@ class FakeMBW(mb.MetaBuildWrapper):
     return '$HOME/%s' % path
 
   def Exists(self, path):
-    return self.files.get(path) is not None
+    return self.files.get(self._AbsPath(path)) is not None
 
   def MaybeMakeDirectory(self, path):
-    self.files[path] = True
+    abpath = self._AbsPath(path)
+    self.files[abpath] = True
 
   def PathJoin(self, *comps):
     return self.sep.join(comps)
 
   def ReadFile(self, path):
-    return self.files[path]
+    return self.files[self._AbsPath(path)]
 
   def WriteFile(self, path, contents, force_verbose=False):
     if self.args.dryrun or self.args.verbose or force_verbose:
       self.Print('\nWriting """\\\n%s""" to %s.\n' % (contents, path))
-    self.files[path] = contents
+    abpath = self._AbsPath(path)
+    self.files[abpath] = contents
 
   def Call(self, cmd, env=None, buffer_output=True):
     self.calls.append(cmd)
@@ -83,13 +90,23 @@ class FakeMBW(mb.MetaBuildWrapper):
     return FakeFile(self.files)
 
   def RemoveFile(self, path):
-    del self.files[path]
+    abpath = self._AbsPath(path)
+    self.files[abpath] = None
 
   def RemoveDirectory(self, abs_path):
-    self.rmdirs.append(abs_path)
-    files_to_delete = [f for f in self.files if f.startswith(abs_path)]
+    abpath = self._AbsPath(path)
+    self.rmdirs.append(abpath)
+    files_to_delete = [f for f in self.files if f.startswith(abpath)]
     for f in files_to_delete:
       self.files[f] = None
+
+  def _AbsPath(self, path):
+    if not ((self.platform == 'win32' and path.startswith('c:')) or
+            (self.platform != 'win32' and path.startswith('/'))):
+      path = self.PathJoin(self.cwd, path)
+    if self.sep == '\\':
+      return re.sub(r'\\+', r'\\', path)
+    return re.sub('/+', '/', path)
 
 
 class FakeFile():
@@ -112,18 +129,18 @@ TEST_CONFIG = """\
     'chromium': {},
     'fake_builder_group': {
       'fake_builder': 'rel_bot',
-      'fake_debug_builder': 'debug_goma',
+      'fake_debug_builder': 'debug_remoteexec',
       'fake_args_bot': '//build/args/bots/fake_builder_group/fake_args_bot.gn',
       'fake_multi_phase': { 'phase_1': 'phase_1', 'phase_2': 'phase_2'},
-      'fake_args_file': 'args_file_goma',
+      'fake_args_file': 'args_file_remoteexec',
       'fake_args_file_twice': 'args_file_twice',
     },
   },
   'configs': {
-    'args_file_goma': ['args_file', 'goma'],
+    'args_file_remoteexec': ['args_file', 'remoteexec'],
     'args_file_twice': ['args_file', 'args_file'],
-    'rel_bot': ['rel', 'goma', 'fake_feature1'],
-    'debug_goma': ['debug', 'goma'],
+    'rel_bot': ['rel', 'remoteexec', 'fake_feature1'],
+    'debug_remoteexec': ['debug', 'remoteexec'],
     'phase_1': ['phase_1'],
     'phase_2': ['phase_2'],
   },
@@ -131,8 +148,8 @@ TEST_CONFIG = """\
     'fake_feature1': {
       'gn_args': 'enable_doom_melon=true',
     },
-    'goma': {
-      'gn_args': 'use_goma=true',
+    'remoteexec': {
+      'gn_args': 'use_remoteexec=true',
     },
     'args_file': {
       'args_file': '//build/args/fake.gn',
@@ -191,7 +208,9 @@ class UnitTest(unittest.TestCase):
       }''')
     mbw.files.setdefault(
         mbw.ToAbsPath('//build/args/bots/fake_builder_group/fake_args_bot.gn'),
-        'is_debug = false\n')
+        'is_debug = false\ndcheck_always_on=false\n')
+    mbw.files.setdefault(
+        mbw.ToAbsPath('//tools/mb/rts_banned_suites.json'), '{}')
     if files:
       for path, contents in files.items():
         mbw.files[path] = contents
@@ -202,7 +221,6 @@ class UnitTest(unittest.TestCase):
       mbw = self.fake_mbw(files)
 
     actual_ret = mbw.Main(args)
-
     self.assertEqual(actual_ret, ret)
     if out is not None:
       self.assertEqual(mbw.out, out)
@@ -230,7 +248,7 @@ class UnitTest(unittest.TestCase):
     mbw.Call = lambda cmd, env=None, buffer_output=True: (0, '', '')
 
     self.check([
-        'analyze', '-c', 'debug_goma', '//out/Default', '/tmp/in.json',
+        'analyze', '-c', 'debug_remoteexec', '//out/Default', '/tmp/in.json',
         '/tmp/out.json'
     ],
                mbw=mbw,
@@ -263,7 +281,7 @@ class UnitTest(unittest.TestCase):
     mbw.Call = lambda cmd, env=None, buffer_output=True: (0, '', '')
 
     self.check([
-        'analyze', '-c', 'debug_goma', '//out/Default', '/tmp/in.json',
+        'analyze', '-c', 'debug_remoteexec', '//out/Default', '/tmp/in.json',
         '/tmp/out.json'
     ],
                mbw=mbw,
@@ -294,7 +312,7 @@ class UnitTest(unittest.TestCase):
     mbw.Call = lambda cmd, env=None, buffer_output=True: (0, '', '')
 
     self.check([
-        'analyze', '-c', 'debug_goma', '//out/Default', '/tmp/in.json',
+        'analyze', '-c', 'debug_remoteexec', '//out/Default', '/tmp/in.json',
         '/tmp/out.json'
     ],
                mbw=mbw,
@@ -329,7 +347,7 @@ class UnitTest(unittest.TestCase):
     mbw.Call = lambda cmd, env=None, buffer_output=True: (0, '', '')
 
     self.check([
-        'analyze', '-c', 'debug_goma', '//out/Default', '/tmp/in.json',
+        'analyze', '-c', 'debug_remoteexec', '//out/Default', '/tmp/in.json',
         '/tmp/out.json'
     ],
                mbw=mbw,
@@ -344,13 +362,12 @@ class UnitTest(unittest.TestCase):
 
   def test_gen(self):
     mbw = self.fake_mbw()
-    self.check(['gen', '-c', 'debug_goma', '//out/Default', '-g', '/goma'],
+    self.check(['gen', '-c', 'debug_remoteexec', '//out/Default'],
                mbw=mbw,
                ret=0)
     self.assertMultiLineEqual(mbw.files['/fake_src/out/Default/args.gn'],
-                              ('goma_dir = "/goma"\n'
-                               'is_debug = true\n'
-                               'use_goma = true\n'))
+                              ('is_debug = true\n'
+                               'use_remoteexec = true\n'))
 
     # Make sure we log both what is written to args.gn and the command line.
     self.assertIn('Writing """', mbw.out)
@@ -358,13 +375,10 @@ class UnitTest(unittest.TestCase):
                   mbw.out)
 
     mbw = self.fake_mbw(win32=True)
-    self.check(['gen', '-c', 'debug_goma', '-g', 'c:\\goma', '//out/Debug'],
-               mbw=mbw,
-               ret=0)
+    self.check(['gen', '-c', 'debug_remoteexec', '//out/Debug'], mbw=mbw, ret=0)
     self.assertMultiLineEqual(mbw.files['c:\\fake_src\\out\\Debug\\args.gn'],
-                              ('goma_dir = "c:\\\\goma"\n'
-                               'is_debug = true\n'
-                               'use_goma = true\n'))
+                              ('is_debug = true\n'
+                               'use_remoteexec = true\n'))
     self.assertIn(
         'c:\\fake_src\\buildtools\\win\\gn.exe gen //out/Debug '
         '--check\n', mbw.out)
@@ -391,7 +405,7 @@ class UnitTest(unittest.TestCase):
 
     self.assertEqual(mbw.files['/fake_src/out/Debug/args.gn'],
                      ('import("//build/args/fake.gn")\n'
-                      'use_goma = true\n'))
+                      'use_remoteexec = true\n'))
 
     mbw = self.fake_mbw()
     self.check([
@@ -404,7 +418,9 @@ class UnitTest(unittest.TestCase):
   def test_gen_fails(self):
     mbw = self.fake_mbw()
     mbw.Call = lambda cmd, env=None, buffer_output=True: (1, '', '')
-    self.check(['gen', '-c', 'debug_goma', '//out/Default'], mbw=mbw, ret=1)
+    self.check(['gen', '-c', 'debug_remoteexec', '//out/Default'],
+               mbw=mbw,
+               ret=1)
 
   def test_gen_swarming(self):
     files = {
@@ -413,15 +429,25 @@ class UnitTest(unittest.TestCase):
         '/fake_src/testing/buildbot/gn_isolate_map.pyl':
             ("{'base_unittests': {"
              "  'label': '//base:base_unittests',"
-             "  'type': 'raw',"
-             "  'args': [],"
+             "  'type': 'console_test_launcher',"
              "}}\n"),
-        '/fake_src/out/Default/base_unittests.runtime_deps':
-            ("base_unittests\n"),
     }
+
     mbw = self.fake_mbw(files)
+
+    def fake_call(cmd, env=None, buffer_output=True, input=''):
+      del cmd
+      del env
+      del buffer_output
+      del input
+      mbw.files['/fake_src/out/Default/base_unittests.runtime_deps'] = (
+          'base_unittests\n')
+      return 0, '', ''
+
+    mbw.Call = fake_call
+
     self.check([
-        'gen', '-c', 'debug_goma', '--swarming-targets-file',
+        'gen', '-c', 'debug_remoteexec', '--swarming-targets-file',
         '/tmp/swarming_targets', '//out/Default'
     ],
                mbw=mbw,
@@ -439,21 +465,30 @@ class UnitTest(unittest.TestCase):
              "  'label': '//cc:cc_perftests',"
              "  'type': 'script',"
              "  'script': '/fake_src/out/Default/test_script.py',"
-             "  'args': [],"
              "}}\n"),
-        'c:\\fake_src\out\Default\cc_perftests.exe.runtime_deps':
-            ("cc_perftests\n"),
     }
-    mbw = self.fake_mbw(files=files, win32=True)
+    mbw = self.fake_mbw(files=files)
+
+    def fake_call(cmd, env=None, buffer_output=True, input=''):
+      del cmd
+      del env
+      del buffer_output
+      del input
+      mbw.files['/fake_src/out/Default/cc_perftests.runtime_deps'] = (
+          'cc_perftests\n')
+      return 0, '', ''
+
+    mbw.Call = fake_call
+
     self.check([
-        'gen', '-c', 'debug_goma', '--swarming-targets-file',
+        'gen', '-c', 'debug_remoteexec', '--swarming-targets-file',
         '/tmp/swarming_targets', '--isolate-map-file',
         '/fake_src/testing/buildbot/gn_isolate_map.pyl', '//out/Default'
     ],
                mbw=mbw,
                ret=0)
-    self.assertIn('c:\\fake_src\\out\\Default\\cc_perftests.isolate', mbw.files)
-    self.assertIn('c:\\fake_src\\out\\Default\\cc_perftests.isolated.gen.json',
+    self.assertIn('/fake_src/out/Default/cc_perftests.isolate', mbw.files)
+    self.assertIn('/fake_src/out/Default/cc_perftests.isolated.gen.json',
                   mbw.files)
 
   def test_multiple_isolate_maps(self):
@@ -463,29 +498,37 @@ class UnitTest(unittest.TestCase):
         '/fake_src/testing/buildbot/gn_isolate_map.pyl':
             ("{'cc_perftests': {"
              "  'label': '//cc:cc_perftests',"
-             "  'type': 'raw',"
-             "  'args': [],"
+             "  'type': 'console_test_launcher',"
              "}}\n"),
         '/fake_src/testing/buildbot/gn_isolate_map2.pyl':
             ("{'cc_perftests2': {"
              "  'label': '//cc:cc_perftests',"
-             "  'type': 'raw',"
-             "  'args': [],"
+             "  'type': 'console_test_launcher',"
              "}}\n"),
-        'c:\\fake_src\out\Default\cc_perftests.exe.runtime_deps':
-            ("cc_perftests\n"),
     }
-    mbw = self.fake_mbw(files=files, win32=True)
+    mbw = self.fake_mbw(files=files)
+
+    def fake_call(cmd, env=None, buffer_output=True, input=''):
+      del cmd
+      del env
+      del buffer_output
+      del input
+      mbw.files['/fake_src/out/Default/cc_perftests.runtime_deps'] = (
+          'cc_perftests_fuzzer\n')
+      return 0, '', ''
+
+    mbw.Call = fake_call
+
     self.check([
-        'gen', '-c', 'debug_goma', '--swarming-targets-file',
+        'gen', '-c', 'debug_remoteexec', '--swarming-targets-file',
         '/tmp/swarming_targets', '--isolate-map-file',
         '/fake_src/testing/buildbot/gn_isolate_map.pyl', '--isolate-map-file',
         '/fake_src/testing/buildbot/gn_isolate_map2.pyl', '//out/Default'
     ],
                mbw=mbw,
                ret=0)
-    self.assertIn('c:\\fake_src\\out\\Default\\cc_perftests.isolate', mbw.files)
-    self.assertIn('c:\\fake_src\\out\\Default\\cc_perftests.isolated.gen.json',
+    self.assertIn('/fake_src/out/Default/cc_perftests.isolate', mbw.files)
+    self.assertIn('/fake_src/out/Default/cc_perftests.isolated.gen.json',
                   mbw.files)
 
   def test_duplicate_isolate_maps(self):
@@ -510,7 +553,7 @@ class UnitTest(unittest.TestCase):
     mbw = self.fake_mbw(files=files, win32=True)
     # Check that passing duplicate targets into mb fails.
     self.check([
-        'gen', '-c', 'debug_goma', '--swarming-targets-file',
+        'gen', '-c', 'debug_remoteexec', '--swarming-targets-file',
         '/tmp/swarming_targets', '--isolate-map-file',
         '/fake_src/testing/buildbot/gn_isolate_map.pyl', '--isolate-map-file',
         '/fake_src/testing/buildbot/gn_isolate_map2.pyl', '//out/Default'
@@ -531,10 +574,11 @@ class UnitTest(unittest.TestCase):
         '/fake_src/out/Default/base_unittests.runtime_deps':
             ("base_unittests\n"),
     }
-    self.check(
-        ['isolate', '-c', 'debug_goma', '//out/Default', 'base_unittests'],
-        files=files,
-        ret=0)
+    self.check([
+        'isolate', '-c', 'debug_remoteexec', '//out/Default', 'base_unittests'
+    ],
+               files=files,
+               ret=0)
 
     # test running isolate on an existing build_dir
     files['/fake_src/out/Default/args.gn'] = 'is_debug = True\n'
@@ -557,37 +601,26 @@ class UnitTest(unittest.TestCase):
         '/fake_src/out/Default/base_unittests.runtime_deps':
             ("base_unittests\n"),
     }
-    self.check(['run', '-c', 'debug_goma', '//out/Default', 'base_unittests'],
-               files=files,
-               ret=0)
+    self.check(
+        ['run', '-c', 'debug_remoteexec', '//out/Default', 'base_unittests'],
+        files=files,
+        ret=0)
 
   def test_lookup(self):
-    self.check(['lookup', '-c', 'debug_goma'],
+    self.check(['lookup', '-c', 'debug_remoteexec'],
                ret=0,
                out=('\n'
                     'Writing """\\\n'
                     'is_debug = true\n'
-                    'use_goma = true\n'
+                    'use_remoteexec = true\n'
                     '""" to _path_/args.gn.\n\n'
                     '/fake_src/buildtools/linux64/gn gen _path_\n'))
 
   def test_quiet_lookup(self):
-    self.check(['lookup', '-c', 'debug_goma', '--quiet'],
+    self.check(['lookup', '-c', 'debug_remoteexec', '--quiet'],
                ret=0,
                out=('is_debug = true\n'
-                    'use_goma = true\n'))
-
-  def test_lookup_goma_dir_expansion(self):
-    self.check(['lookup', '-c', 'rel_bot', '-g', '/foo'],
-               ret=0,
-               out=('\n'
-                    'Writing """\\\n'
-                    'enable_doom_melon = true\n'
-                    'goma_dir = "/foo"\n'
-                    'is_debug = false\n'
-                    'use_goma = true\n'
-                    '""" to _path_/args.gn.\n\n'
-                    '/fake_src/buildtools/linux64/gn gen _path_\n'))
+                    'use_remoteexec = true\n'))
 
   def test_help(self):
     orig_stdout = sys.stdout
@@ -649,7 +682,7 @@ class UnitTest(unittest.TestCase):
                ret=0,
                out=('enable_antidoom_banana = true\n'
                     'enable_doom_melon = true\n'
-                    'use_goma = true\n'))
+                    'use_remoteexec = true\n'))
 
   def test_validate(self):
     mbw = self.fake_mbw()

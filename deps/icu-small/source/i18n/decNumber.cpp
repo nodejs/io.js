@@ -3876,7 +3876,7 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
     /* [following code does not require input rounding]  */
 
     /* note whether signs differ [used all paths]  */
-    diffsign=(Flag)((lhs->bits^rhs->bits^negate)&DECNEG);
+    diffsign = static_cast<Flag>((lhs->bits ^ rhs->bits ^ negate) & DECNEG);
 
     /* handle infinities and NaNs  */
     if (SPECIALARGS) {                  /* a special bit set  */
@@ -3982,9 +3982,9 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
         partial+=*rhs->lsu;
         if ((partial<=DECDPUNMAX)       /* result fits in unit  */
          && (lhs->digits>=DECDPUN ||    /* .. and no digits-count change  */
-             partial<(Int)powers[lhs->digits])) { /* ..  */
+             partial < static_cast<Int>(powers[lhs->digits]))) { /* ..  */
           if (res!=lhs) uprv_decNumberCopy(res, lhs);  /* not in place  */
-          *res->lsu=(Unit)partial;      /* [copy could have overwritten RHS]  */
+          *res->lsu = static_cast<Unit>(partial); /* [copy could have overwritten RHS]  */
           break;
           }
         /* else drop out for careful add  */
@@ -3993,7 +3993,7 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
         partial-=*rhs->lsu;
         if (partial>0) { /* no borrow needed, and non-0 result  */
           if (res!=lhs) uprv_decNumberCopy(res, lhs);  /* not in place  */
-          *res->lsu=(Unit)partial;
+          *res->lsu = static_cast<Unit>(partial);
           /* this could have reduced digits [but result>0]  */
           res->digits=decGetDigits(res->lsu, D2U(res->digits));
           break;
@@ -4022,7 +4022,7 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
       if (padding<0) {                  /* LHS needs the padding  */
         const decNumber *t;
         padding=-padding;               /* will be +ve  */
-        bits=(uByte)(rhs->bits^negate); /* assumed sign is now that of RHS  */
+        bits = static_cast<uByte>(rhs->bits ^ negate); /* assumed sign is now that of RHS  */
         t=lhs; lhs=rhs; rhs=t;
         swapped=1;
         }
@@ -4073,7 +4073,7 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
       acc=accbuff;                      /* assume use local buffer  */
       if (need*sizeof(Unit)>sizeof(accbuff)) {
         /* printf("malloc add %ld %ld\n", need, sizeof(accbuff));  */
-        allocacc=(Unit *)malloc(need*sizeof(Unit));
+        allocacc = static_cast<Unit*>(malloc(need * sizeof(Unit)));
         if (allocacc==nullptr) {           /* hopeless -- abandon  */
           *status|=DEC_Insufficient_storage;
           break;}
@@ -4081,7 +4081,7 @@ static decNumber * decAddOp(decNumber *res, const decNumber *lhs,
         }
       }
 
-    res->bits=(uByte)(bits&DECNEG);     /* it's now safe to overwrite..  */
+    res->bits = static_cast<uByte>(bits & DECNEG); /* it's now safe to overwrite..  */
     res->exponent=lhs->exponent;        /* .. operands (even if aliased)  */
 
     #if DECTRACE
@@ -4438,7 +4438,7 @@ static decNumber * decDivideOp(decNumber *res,
     acclength=D2U(reqdigits+DECDPUN);   /* in Units  */
     if (acclength*sizeof(Unit)>sizeof(accbuff)) {
       /* printf("malloc dvacc %ld units\n", acclength);  */
-      allocacc=(Unit *)malloc(acclength*sizeof(Unit));
+      allocacc = static_cast<Unit*>(malloc(acclength * sizeof(Unit)));
       if (allocacc==nullptr) {             /* hopeless -- abandon  */
         *status|=DEC_Insufficient_storage;
         break;}
@@ -4463,7 +4463,7 @@ static decNumber * decDivideOp(decNumber *res,
     if (!(op&DIVIDE)) var1units++;
     if ((var1units+1)*sizeof(Unit)>sizeof(varbuff)) {
       /* printf("malloc dvvar %ld units\n", var1units+1);  */
-      varalloc=(Unit *)malloc((var1units+1)*sizeof(Unit));
+      varalloc = static_cast<Unit*>(malloc((var1units + 1) * sizeof(Unit)));
       if (varalloc==nullptr) {             /* hopeless -- abandon  */
         *status|=DEC_Insufficient_storage;
         break;}
@@ -4491,7 +4491,7 @@ static decNumber * decDivideOp(decNumber *res,
     /* 1 to make sure that the multiplier is never overestimated.  */
     msu2plus=*msu2;                     /* it's value ..  */
     if (var2units>1) msu2plus++;        /* .. +1 if any more  */
-    msu2pair=(eInt)*msu2*(DECDPUNMAX+1);/* top two pair ..  */
+    msu2pair = static_cast<eInt>(*msu2) * (DECDPUNMAX + 1); /* top two pair ..  */
     if (var2units>1) {                  /* .. [else treat 2nd as 0]  */
       msu2pair+=*(msu2-1);              /* ..  */
       if (var2units>2) msu2pair++;      /* .. +1 if any more  */
@@ -4573,16 +4573,16 @@ static decNumber * decDivideOp(decNumber *res,
           /* *pv1>v2.  Prepare for real subtraction; the lengths are equal  */
           /* Estimate the multiplier (there's always a msu1-1)...  */
           /* Bring in two units of var2 to provide a good estimate.  */
-          mult=(Int)(((eInt)*msu1*(DECDPUNMAX+1)+*(msu1-1))/msu2pair);
+            mult = static_cast<Int>((static_cast<eInt>(*msu1) * (DECDPUNMAX + 1) + *(msu1 - 1)) / msu2pair);
           } /* lengths the same  */
          else { /* var1units > var2ulen, so subtraction is safe  */
           /* The var2 msu is one unit towards the lsu of the var1 msu,  */
           /* so only one unit for var2 can be used.  */
-          mult=(Int)(((eInt)*msu1*(DECDPUNMAX+1)+*(msu1-1))/msu2plus);
+          mult = static_cast<Int>((static_cast<eInt>(*msu1) * (DECDPUNMAX + 1) + *(msu1 - 1)) / msu2plus);
           }
         if (mult==0) mult=1;                 /* must always be at least 1  */
         /* subtraction needed; var1 is > var2  */
-        thisunit=(Unit)(thisunit+mult);      /* accumulate  */
+        thisunit = static_cast<Unit>(thisunit + mult); /* accumulate  */
         /* subtract var1-var2, into var1; only the overlap needs  */
         /* processing, as this is an in-place calculation  */
         shift=var2ulen-var2units;
@@ -4706,7 +4706,7 @@ static decNumber * decDivideOp(decNumber *res,
           if (set->extended)
           #endif
           res->exponent=exp;                 /* .. with proper exponent  */
-          res->bits=(uByte)(bits&DECNEG);          /* [cleaned]  */
+          res->bits = static_cast<uByte>(bits & DECNEG); /* [cleaned]  */
           decFinish(res, set, &residue, status);   /* might clamp  */
           break;
           }
@@ -4797,7 +4797,7 @@ static decNumber * decDivideOp(decNumber *res,
             /* subtract [A+B*(-m)]; the result will always be negative  */
             accunits=-decUnitAddSub(accnext, accunits,
                                     rhs->lsu, D2U(rhs->digits),
-                                    expunits, accnext, -(Int)powers[exprem]);
+                                    expunits, accnext, -static_cast<Int>(powers[exprem]));
             accdigits=decGetDigits(accnext, accunits); /* count digits exactly  */
             accunits=D2U(accdigits);    /* and recalculate the units for copy  */
             /* [exponent is as for original remainder]  */
@@ -4809,7 +4809,7 @@ static decNumber * decDivideOp(decNumber *res,
 
     /* Set exponent and bits  */
     res->exponent=exponent;
-    res->bits=(uByte)(bits&DECNEG);          /* [cleaned]  */
+    res->bits = static_cast<uByte>(bits & DECNEG); /* [cleaned]  */
 
     /* Now the coefficient.  */
     decSetCoeff(res, set, accnext, accdigits, &residue, status);
@@ -4934,7 +4934,7 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
   #endif
 
   /* precalculate result sign  */
-  bits=(uByte)((lhs->bits^rhs->bits)&DECNEG);
+  bits = static_cast<uByte>((lhs->bits ^ rhs->bits) & DECNEG);
 
   /* handle infinities and NaNs  */
   if (SPECIALARGS) {               /* a special bit set  */
@@ -4990,12 +4990,12 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
 
       /* allocate buffers if required, as usual  */
       needbytes=ilhs*sizeof(uInt);
-      if (needbytes>(Int)sizeof(zlhibuff)) {
-        alloclhi=(uInt *)malloc(needbytes);
+      if (needbytes > static_cast<Int>(sizeof(zlhibuff))) {
+        alloclhi = static_cast<uInt*>(malloc(needbytes));
         zlhi=alloclhi;}
       needbytes=irhs*sizeof(uInt);
-      if (needbytes>(Int)sizeof(zrhibuff)) {
-        allocrhi=(uInt *)malloc(needbytes);
+      if (needbytes > static_cast<Int>(sizeof(zrhibuff))) {
+        allocrhi = static_cast<uInt*>(malloc(needbytes));
         zrhi=allocrhi;}
 
       /* Allocating the accumulator space needs a special case when  */
@@ -5014,14 +5014,14 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
       zoff=(iacc+7)/8;        /* items to offset by  */
       needbytes+=zoff*8;
       #endif
-      if (needbytes>(Int)sizeof(zaccbuff)) {
-        allocacc=(uLong *)malloc(needbytes);
-        zacc=(uLong *)allocacc;}
+      if (needbytes > static_cast<Int>(sizeof(zaccbuff))) {
+        allocacc = static_cast<uLong*>(malloc(needbytes));
+        zacc = static_cast<uLong*>(allocacc);}
       if (zlhi==nullptr||zrhi==nullptr||zacc==nullptr) {
         *status|=DEC_Insufficient_storage;
         break;}
 
-      acc=(Unit *)zacc;       /* -> target Unit array  */
+      acc = reinterpret_cast<Unit*>(zacc); /* -> target Unit array  */
       #if DECDPUN==1
       zacc+=zoff;             /* start uLong accumulator to right  */
       #endif
@@ -5062,7 +5062,7 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
       for (rip=zrhi; rip<=rmsi; rip++) {     /* over each item in rhs  */
         lp=zacc+(rip-zrhi);                  /* where to add the lhs  */
         for (lip=zlhi; lip<=lmsi; lip++, lp++) { /* over each item in lhs  */
-          *lp+=(uLong)(*lip)*(*rip);         /* [this should in-line]  */
+          *lp += static_cast<uLong>(*lip) * (*rip); /* [this should in-line]  */
           } /* lip loop  */
         lazy--;
         if (lazy>0 && rip!=rmsi) continue;
@@ -5075,15 +5075,15 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
           /* and occasional extra divide (slow) is well worth it, as  */
           /* it allows FASTLAZY to be increased to 18 rather than 4  */
           /* in the FASTDIGS=9 case  */
-          if (lcarry<FASTBASE) carry=(uInt)lcarry;  /* [usual]  */
+          if (lcarry<FASTBASE) carry = static_cast<uInt>(lcarry); /* [usual]  */
            else { /* two-place carry [fairly rare]  */
-            uInt carry2=(uInt)(lcarry/FASTBASE);    /* top top part  */
+            uInt carry2 = static_cast<uInt>(lcarry / FASTBASE);        /* top top part  */
             *(lp+2)+=carry2;                        /* add to item+2  */
-            *lp-=((uLong)FASTBASE*FASTBASE*carry2); /* [slow]  */
-            carry=(uInt)(lcarry-((uLong)FASTBASE*carry2)); /* [inline]  */
+            *lp -= (static_cast<uLong>(FASTBASE) * FASTBASE * carry2); /* [slow]  */
+            carry = static_cast<uInt>(lcarry - (static_cast<uLong>(FASTBASE) * carry2)); /* [inline]  */
             }
           *(lp+1)+=carry;                    /* add to item above [inline]  */
-          *lp-=((uLong)FASTBASE*carry);      /* [inline]  */
+          *lp -= (static_cast<uLong>(FASTBASE) * carry); /* [inline]  */
           } /* carry resolution  */
         } /* rip loop  */
 
@@ -5094,13 +5094,13 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
       /* each item in the accumulator (which will become up to N  */
       /* units, where 2<=N<=9).  */
       for (lp=zacc, up=acc; lp<zacc+iacc; lp++) {
-        uInt item=(uInt)*lp;                 /* decapitate to uInt  */
+        uInt item = static_cast<uInt>(*lp); /* decapitate to uInt  */
         for (p=0; p<FASTDIGS-DECDPUN; p+=DECDPUN, up++) {
           uInt part=item/(DECDPUNMAX+1);
-          *up=(Unit)(item-(part*(DECDPUNMAX+1)));
+          *up = static_cast<Unit>(item - (part * (DECDPUNMAX + 1)));
           item=part;
           } /* p  */
-        *up=(Unit)item; up++;                /* [final needs no division]  */
+        *up = static_cast<Unit>(item); up++; /* [final needs no division]  */
         } /* lp  */
       accunits = static_cast<int32_t>(up-acc);                       /* count of units  */
       }
@@ -5110,10 +5110,10 @@ static decNumber * decMultiplyOp(decNumber *res, const decNumber *lhs,
       /* if accumulator will be too long for local storage, then allocate  */
       acc=accbuff;                 /* -> assume buffer for accumulator  */
       needbytes=(D2U(lhs->digits)+D2U(rhs->digits))*sizeof(Unit);
-      if (needbytes>(Int)sizeof(accbuff)) {
-        allocacc=(Unit *)malloc(needbytes);
+      if (needbytes > static_cast<Int>(sizeof(accbuff))) {
+        allocacc = static_cast<Unit*>(malloc(needbytes));
         if (allocacc==nullptr) {*status|=DEC_Insufficient_storage; break;}
-        acc=(Unit *)allocacc;                /* use the allocated space  */
+        acc = static_cast<Unit*>(allocacc); /* use the allocated space  */
         }
 
       /* Now the main long multiplication loop */
@@ -5398,7 +5398,7 @@ decNumber * decExpOp(decNumber *res, const decNumber *rhs,
         decNumber *newrhs=bufr;         /* assume will fit on stack  */
         needbytes=sizeof(decNumber)+(D2U(rhs->digits)-1)*sizeof(Unit);
         if (needbytes>sizeof(bufr)) {   /* need malloc space  */
-          allocrhs=(decNumber *)malloc(needbytes);
+          allocrhs = static_cast<decNumber*>(malloc(needbytes));
           if (allocrhs==nullptr) {         /* hopeless -- abandon  */
             *status|=DEC_Insufficient_storage;
             break;}
@@ -5430,7 +5430,7 @@ decNumber * decExpOp(decNumber *res, const decNumber *rhs,
       /* sufficiently exact.  */
       needbytes=sizeof(decNumber)+(D2U(p*2)-1)*sizeof(Unit);
       if (needbytes>sizeof(bufa)) {     /* need malloc space  */
-        allocbufa=(decNumber *)malloc(needbytes);
+        allocbufa = static_cast<decNumber*>(malloc(needbytes));
         if (allocbufa==nullptr) {          /* hopeless -- abandon  */
           *status|=DEC_Insufficient_storage;
           break;}
@@ -5442,7 +5442,7 @@ decNumber * decExpOp(decNumber *res, const decNumber *rhs,
       /* calculation below, which needs an extra two digits  */
       needbytes=sizeof(decNumber)+(D2U(p+2)-1)*sizeof(Unit);
       if (needbytes>sizeof(buft)) {     /* need malloc space  */
-        allocbuft=(decNumber *)malloc(needbytes);
+        allocbuft = static_cast<decNumber*>(malloc(needbytes));
         if (allocbuft==nullptr) {          /* hopeless -- abandon  */
           *status|=DEC_Insufficient_storage;
           break;}
@@ -5711,7 +5711,7 @@ decNumber * decLnOp(decNumber *res, const decNumber *rhs,
     /* estimate.  */
     needbytes=sizeof(decNumber)+(D2U(MAXI(p,16))-1)*sizeof(Unit);
     if (needbytes>sizeof(bufa)) {     /* need malloc space  */
-      allocbufa=(decNumber *)malloc(needbytes);
+      allocbufa = static_cast<decNumber*>(malloc(needbytes));
       if (allocbufa==nullptr) {          /* hopeless -- abandon  */
         *status|=DEC_Insufficient_storage;
         break;}
@@ -5720,7 +5720,7 @@ decNumber * decLnOp(decNumber *res, const decNumber *rhs,
     pp=p+rhs->digits;
     needbytes=sizeof(decNumber)+(D2U(MAXI(pp,16))-1)*sizeof(Unit);
     if (needbytes>sizeof(bufb)) {     /* need malloc space  */
-      allocbufb=(decNumber *)malloc(needbytes);
+      allocbufb = static_cast<decNumber*>(malloc(needbytes));
       if (allocbufb==nullptr) {          /* hopeless -- abandon  */
         *status|=DEC_Insufficient_storage;
         break;}
@@ -6299,8 +6299,8 @@ static Int decUnitCompare(const Unit *a, Int alength,
 
   /* Unaligned.  If one is >1 unit longer than the other, padded  */
   /* approximately, then can return easily  */
-  if (alength>blength+(Int)D2U(exp)) return 1;
-  if (alength+1<blength+(Int)D2U(exp)) return -1;
+  if (alength > blength + static_cast<Int>(D2U(exp))) return 1;
+  if (alength + 1 < blength + static_cast<Int>(D2U(exp))) return -1;
 
   /* Need to do a real subtract.  For this, a result buffer is needed  */
   /* even though only the sign is of interest.  Its length needs  */
@@ -6310,7 +6310,7 @@ static Int decUnitCompare(const Unit *a, Int alength,
   need+=2;
   acc=accbuff;                          /* assume use local buffer  */
   if (need*sizeof(Unit)>sizeof(accbuff)) {
-    allocacc=(Unit *)malloc(need*sizeof(Unit));
+    allocacc = static_cast<Unit*>(malloc(need * sizeof(Unit)));
     if (allocacc==nullptr) return BADINT;  /* hopeless -- abandon  */
     acc=allocacc;
     }
@@ -6319,7 +6319,7 @@ static Int decUnitCompare(const Unit *a, Int alength,
   exprem=exp%DECDPUN;
   /* subtract [A+B*(-m)]  */
   accunits=decUnitAddSub(a, alength, b, blength, expunits, acc,
-                         -(Int)powers[exprem]);
+                         -static_cast<Int>(powers[exprem]));
   /* [UnitAddSub result may have leading zeros, even on zero]  */
   if (accunits<0) result=-1;            /* negative result  */
    else {                               /* non-negative result  */
@@ -6424,11 +6424,11 @@ static Int decUnitAddSub(const Unit *a, Int alength,
   for (; c<minC; c++) {
     carry+=*a;
     a++;
-    carry+=((eInt)*b)*m;                /* [special-casing m=1/-1  */
+    carry += (static_cast<eInt>(*b)) * m; /* [special-casing m=1/-1  */
     b++;                                /* here is not a win]  */
     /* here carry is new Unit of digits; it could be +ve or -ve  */
-    if ((ueInt)carry<=DECDPUNMAX) {     /* fastpath 0-DECDPUNMAX  */
-      *c=(Unit)carry;
+    if (static_cast<ueInt>(carry) <= DECDPUNMAX) { /* fastpath 0-DECDPUNMAX  */
+      *c = static_cast<Unit>(carry);
       carry=0;
       continue;
       }
@@ -6472,14 +6472,14 @@ static Int decUnitAddSub(const Unit *a, Int alength,
       /* Can use QUOT10 as carry <= 4 digits  */
       if (carry>=0) {
         est=QUOT10(carry, DECDPUN);
-        *c=(Unit)(carry-est*(DECDPUNMAX+1)); /* remainder  */
+        *c = static_cast<Unit>(carry - est * (DECDPUNMAX + 1)); /* remainder  */
         carry=est;                           /* quotient  */
         continue;
         }
       /* negative case  */
-      carry=carry+(eInt)(DECDPUNMAX+1)*(DECDPUNMAX+1); /* make positive  */
+      carry = carry + static_cast<eInt>(DECDPUNMAX + 1) * (DECDPUNMAX + 1); /* make positive  */
       est=QUOT10(carry, DECDPUN);
-      *c=(Unit)(carry-est*(DECDPUNMAX+1));
+      *c = static_cast<Unit>(carry - est * (DECDPUNMAX + 1));
       carry=est-(DECDPUNMAX+1);              /* correctly negative  */
     #else
       /* remainder operator is undefined if negative, so must test  */
@@ -6508,13 +6508,13 @@ static Int decUnitAddSub(const Unit *a, Int alength,
       a++;
       }
      else {                             /* inside B  */
-      carry+=((eInt)*b)*m;
+      carry += static_cast<eInt>(*b) * m;
       b++;
       }
     /* here carry is new Unit of digits; it could be +ve or -ve and  */
     /* magnitude up to DECDPUNMAX squared  */
-    if ((ueInt)carry<=DECDPUNMAX) {     /* fastpath 0-DECDPUNMAX  */
-      *c=(Unit)carry;
+    if (static_cast<ueInt>(carry) <= DECDPUNMAX) { /* fastpath 0-DECDPUNMAX  */
+      *c = static_cast<Unit>(carry);
       carry=0;
       continue;
       }
@@ -6558,14 +6558,14 @@ static Int decUnitAddSub(const Unit *a, Int alength,
     #elif DECDPUN<=2
       if (carry>=0) {
         est=QUOT10(carry, DECDPUN);
-        *c=(Unit)(carry-est*(DECDPUNMAX+1)); /* remainder  */
+        *c = static_cast<Unit>(carry - est * (DECDPUNMAX + 1)); /* remainder  */
         carry=est;                           /* quotient  */
         continue;
         }
       /* negative case  */
-      carry=carry+(eInt)(DECDPUNMAX+1)*(DECDPUNMAX+1); /* make positive  */
+      carry = carry + static_cast<eInt>(DECDPUNMAX + 1) * (DECDPUNMAX + 1); /* make positive  */
       est=QUOT10(carry, DECDPUN);
-      *c=(Unit)(carry-est*(DECDPUNMAX+1));
+      *c = static_cast<Unit>(carry - est * (DECDPUNMAX + 1));
       carry=est-(DECDPUNMAX+1);              /* correctly negative  */
     #else
       if ((ueInt)carry<(DECDPUNMAX+1)*2){    /* fastpath carry 1  */
@@ -6590,7 +6590,7 @@ static Int decUnitAddSub(const Unit *a, Int alength,
   /* return number of Units in the result, negated if a borrow  */
   if (carry==0) return static_cast<int32_t>(c-clsu);     /* no carry, so no more to do  */
   if (carry>0) {                   /* positive carry  */
-    *c=(Unit)carry;                /* place as new unit  */
+    *c = static_cast<Unit>(carry); /* place as new unit  */
     c++;                           /* ..  */
     return static_cast<int32_t>(c-clsu);
     }
@@ -6599,7 +6599,7 @@ static Int decUnitAddSub(const Unit *a, Int alength,
   for (c=clsu; c<maxC; c++) {
     add=DECDPUNMAX+add-*c;
     if (add<=DECDPUNMAX) {
-      *c=(Unit)add;
+      *c = static_cast<Unit>(add);
       add=0;
       }
      else {
@@ -6612,7 +6612,7 @@ static Int decUnitAddSub(const Unit *a, Int alength,
     printf("UAS borrow: add %ld, carry %ld\n", add, carry);
   #endif
   if ((add-carry-1)!=0) {
-    *c=(Unit)(add-carry-1);
+    *c = static_cast<Unit>(add - carry - 1);
     c++;                      /* interesting, include it  */
     }
   return static_cast<int32_t>(clsu-c);              /* -ve result indicates borrowed  */
@@ -6733,7 +6733,7 @@ static Int decShiftToMost(Unit *uar, Int digits, Int shift) {
 
   if (shift==0) return digits;     /* [fastpath] nothing to do  */
   if ((digits+shift)<=DECDPUN) {   /* [fastpath] single-unit case  */
-    *uar=(Unit)(*uar*powers[shift]);
+    *uar = static_cast<Unit>(*uar * powers[shift]);
     return digits+shift;
     }
 
@@ -6756,14 +6756,14 @@ static Int decShiftToMost(Unit *uar, Int digits, Int shift) {
         uInt rem=*source%powers[cut];
         next+=*source/powers[cut];
       #endif
-      if (target<=first) *target=(Unit)next;   /* write to target iff valid  */
+      if (target <= first) *target = static_cast<Unit>(next); /* write to target iff valid  */
       next=rem*powers[DECDPUN-cut];            /* save remainder for next Unit  */
       }
     } /* shift-move  */
 
   /* propagate any partial unit to one below and clear the rest  */
   for (; target>=uar; target--) {
-    *target=(Unit)next;
+    *target = static_cast<Unit>(next);
     next=0;
     }
   return digits+shift;
@@ -6810,7 +6810,7 @@ static Int decShiftToLeast(Unit *uar, Int units, Int shift) {
     quot=*up/powers[cut];
   #endif
   for (; ; target++) {
-    *target=(Unit)quot;
+    *target = static_cast<Unit>(quot);
     count-=(DECDPUN-cut);
     if (count<=0) break;
     up++;
@@ -6822,7 +6822,7 @@ static Int decShiftToLeast(Unit *uar, Int units, Int shift) {
       rem=quot%powers[cut];
       quot=quot/powers[cut];
     #endif
-    *target=(Unit)(*target+rem*powers[DECDPUN-cut]);
+    *target = static_cast<Unit>(*target + rem * powers[DECDPUN - cut]);
     count-=cut;
     if (count<=0) break;
     }
@@ -6993,7 +6993,7 @@ static void decSetCoeff(decNumber *dn, decContext *set, const Unit *lsu,
   /* here up -> Unit with first discarded digit  */
   cut=discard-(count-DECDPUN)-1;
   if (cut==DECDPUN-1) {       /* unit-boundary case (fast)  */
-    Unit half=(Unit)powers[DECDPUN]>>1;
+    Unit half = static_cast<Unit>(powers[DECDPUN]) >> 1;
     /* set residue directly  */
     if (*up>=half) {
       if (*up>half) *residue=7;
@@ -7057,7 +7057,7 @@ static void decSetCoeff(decNumber *dn, decContext *set, const Unit *lsu,
       dn->digits=count;            /* set the new length  */
       /* shift-copy the coefficient array to the result number  */
       for (target=dn->lsu; ; target++) {
-        *target=(Unit)quot;
+        *target = static_cast<Unit>(quot);
         count-=(DECDPUN-cut);
         if (count<=0) break;
         up++;
@@ -7069,7 +7069,7 @@ static void decSetCoeff(decNumber *dn, decContext *set, const Unit *lsu,
           rem=quot%powers[cut];
           quot=quot/powers[cut];
         #endif
-        *target=(Unit)(*target+rem*powers[DECDPUN-cut]);
+        *target = static_cast<Unit>(*target + rem * powers[DECDPUN - cut]);
         count-=cut;
         if (count<=0) break;
         } /* shift-copy loop  */
@@ -7205,7 +7205,7 @@ static void decApplyRound(decNumber *dn, decContext *set, Int residue,
         /* this is the last Unit (the msu)  */
         if (*up!=powers[count]-1) break;     /* not still 9s  */
         /* here if it, too, is all nines  */
-        *up=(Unit)powers[count-1];           /* here 999 -> 100 etc.  */
+        *up = static_cast<Unit>(powers[count - 1]); /* here 999 -> 100 etc.  */
         for (up=up-1; up>=dn->lsu; up--) *up=0; /* others all to 0  */
         dn->exponent++;                      /* and bump exponent  */
         /* [which, very rarely, could cause Overflow...]  */
@@ -7230,9 +7230,9 @@ static void decApplyRound(decNumber *dn, decContext *set, Int residue,
         if (*up!=powers[count-1]) break;     /* not 100..  */
         /* here if have the 1000... case  */
         sup=up;                              /* save msu pointer  */
-        *up=(Unit)powers[count]-1;           /* here 100 in msu -> 999  */
+        *up = static_cast<Unit>(powers[count]) - 1; /* here 100 in msu -> 999  */
         /* others all to all-nines, too  */
-        for (up=up-1; up>=dn->lsu; up--) *up=(Unit)powers[DECDPUN]-1;
+        for (up=up-1; up>=dn->lsu; up--) *up = static_cast<Unit>(powers[DECDPUN]) - 1;
         dn->exponent--;                      /* and bump exponent  */
 
         /* iff the number was at the subnormal boundary (exponent=etiny)  */
@@ -7243,7 +7243,7 @@ static void decApplyRound(decNumber *dn, decContext *set, Int residue,
         if (dn->exponent+1==set->emin-set->digits+1) {
           if (count==1 && dn->digits==1) *sup=0;  /* here 9 -> 0[.9]  */
            else {
-            *sup=(Unit)powers[count-1]-1;    /* here 999.. in msu -> 99..  */
+            *sup = static_cast<Unit>(powers[count - 1]) - 1; /* here 999.. in msu -> 99..  */
             dn->digits--;
             }
           dn->exponent++;
@@ -7442,7 +7442,7 @@ static void decSetMaxValue(decNumber *dn, decContext *set) {
   for (up=dn->lsu; ; up++) {
     if (count>DECDPUN) *up=DECDPUNMAX;  /* unit full o'nines  */
      else {                             /* this is the msu  */
-      *up=(Unit)(powers[count]-1);
+      *up = static_cast<Unit>(powers[count] - 1);
       break;
       }
     count-=DECDPUN;                /* filled those digits  */
@@ -7642,7 +7642,7 @@ static Int decGetInt(const decNumber *dn) {
       got+=DECDPUN;
       }
     if (ilength==10) {                  /* need to check for wrap  */
-      if (theInt/(Int)powers[got-DECDPUN]!=(Int)*(up-1)) ilength=11;
+      if (theInt / static_cast<Int>(powers[got - DECDPUN]) != static_cast<Int>(*(up - 1))) ilength = 11;
          /* [that test also disallows the BADINT result case]  */
        else if (neg && theInt>1999999997) ilength=11;
        else if (!neg && theInt>999999999) ilength=11;

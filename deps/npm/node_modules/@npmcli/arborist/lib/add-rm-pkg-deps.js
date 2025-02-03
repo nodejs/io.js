@@ -1,6 +1,6 @@
 // add and remove dependency specs to/from pkg manifest
 
-const log = require('proc-log')
+const { log } = require('proc-log')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
 
 const add = ({ pkg, add, saveBundle, saveType }) => {

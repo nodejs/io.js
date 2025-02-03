@@ -11,6 +11,7 @@
 #include "src/snapshot/embedded/platform-embedded-file-writer-generic.h"
 #include "src/snapshot/embedded/platform-embedded-file-writer-mac.h"
 #include "src/snapshot/embedded/platform-embedded-file-writer-win.h"
+#include "src/snapshot/embedded/platform-embedded-file-writer-zos.h"
 
 namespace v8 {
 namespace internal {
@@ -119,6 +120,8 @@ EmbeddedTargetOs DefaultEmbeddedTargetOs() {
   return EmbeddedTargetOs::kMac;
 #elif defined(V8_OS_WIN)
   return EmbeddedTargetOs::kWin;
+#elif defined(V8_OS_ZOS)
+  return EmbeddedTargetOs::kZOS;
 #else
   return EmbeddedTargetOs::kGeneric;
 #endif
@@ -143,6 +146,8 @@ EmbeddedTargetOs ToEmbeddedTargetOs(const char* s) {
     return EmbeddedTargetOs::kWin;
   } else if (string == "starboard") {
     return EmbeddedTargetOs::kStarboard;
+  } else if (string == "zos") {
+    return EmbeddedTargetOs::kZOS;
   } else {
     return EmbeddedTargetOs::kGeneric;
   }
@@ -184,6 +189,9 @@ std::unique_ptr<PlatformEmbeddedFileWriterBase> NewPlatformEmbeddedFileWriter(
                                                            embedded_target_os);
   } else if (embedded_target_os == EmbeddedTargetOs::kWin) {
     return std::make_unique<PlatformEmbeddedFileWriterWin>(embedded_target_arch,
+                                                           embedded_target_os);
+  } else if (embedded_target_os == EmbeddedTargetOs::kZOS) {
+    return std::make_unique<PlatformEmbeddedFileWriterZOS>(embedded_target_arch,
                                                            embedded_target_os);
   } else {
     return std::make_unique<PlatformEmbeddedFileWriterGeneric>(

@@ -7,13 +7,13 @@ const encoder = new TextEncoder()
 /**
  * @see https://mimesniff.spec.whatwg.org/#http-token-code-point
  */
-const HTTP_TOKEN_CODEPOINTS = /^[!#$%&'*+-.^_|~A-Za-z0-9]+$/
+const HTTP_TOKEN_CODEPOINTS = /^[!#$%&'*+\-.^_|~A-Za-z0-9]+$/
 const HTTP_WHITESPACE_REGEX = /[\u000A\u000D\u0009\u0020]/ // eslint-disable-line
 const ASCII_WHITESPACE_REPLACE_REGEX = /[\u0009\u000A\u000C\u000D\u0020]/g // eslint-disable-line
 /**
  * @see https://mimesniff.spec.whatwg.org/#http-quoted-string-token-code-point
  */
-const HTTP_QUOTED_STRING_TOKENS = /[\u0009\u0020-\u007E\u0080-\u00FF]/ // eslint-disable-line
+const HTTP_QUOTED_STRING_TOKENS = /^[\u0009\u0020-\u007E\u0080-\u00FF]+$/ // eslint-disable-line
 
 // https://fetch.spec.whatwg.org/#data-url-processor
 /** @param {URL} dataURL */
@@ -283,7 +283,7 @@ function parseMIMEType (input) {
 
   // 5. If position is past the end of input, then return
   // failure
-  if (position.position > input.length) {
+  if (position.position >= input.length) {
     return 'failure'
   }
 
@@ -364,7 +364,7 @@ function parseMIMEType (input) {
     }
 
     // 6. If position is past the end of input, then break.
-    if (position.position > input.length) {
+    if (position.position >= input.length) {
       break
     }
 
@@ -431,7 +431,7 @@ function parseMIMEType (input) {
 /** @param {string} data */
 function forgivingBase64 (data) {
   // 1. Remove all ASCII whitespace from data.
-  data = data.replace(ASCII_WHITESPACE_REPLACE_REGEX, '')  // eslint-disable-line
+  data = data.replace(ASCII_WHITESPACE_REPLACE_REGEX, '')
 
   let dataLength = data.length
   // 2. If data’s code point length divides by 4 leaving
@@ -471,9 +471,9 @@ function forgivingBase64 (data) {
 /**
  * @param {string} input
  * @param {{ position: number }} position
- * @param {boolean?} extractValue
+ * @param {boolean} [extractValue=false]
  */
-function collectAnHTTPQuotedString (input, position, extractValue) {
+function collectAnHTTPQuotedString (input, position, extractValue = false) {
   // 1. Let positionStart be position.
   const positionStart = position.position
 
@@ -737,6 +737,7 @@ module.exports = {
   collectAnHTTPQuotedString,
   serializeAMimeType,
   removeChars,
+  removeHTTPWhitespace,
   minimizeSupportedMimeType,
   HTTP_TOKEN_CODEPOINTS,
   isomorphicDecode

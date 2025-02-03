@@ -24,10 +24,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
-#include <assert.h>
-
-#include "ares.h"
 #include "ares_private.h"
 
 /*
@@ -41,53 +37,51 @@ void ares_cancel(ares_channel_t *channel)
     return;
   }
 
-  ares__channel_lock(channel);
+  ares_channel_lock(channel);
 
-  if (ares__llist_len(channel->all_queries) > 0) {
-    ares__llist_node_t *node = NULL;
-    ares__llist_node_t *next = NULL;
+  if (ares_llist_len(channel->all_queries) > 0) {
+    ares_llist_node_t *node = NULL;
+    ares_llist_node_t *next = NULL;
 
     /* Swap list heads, so that only those queries which were present on entry
      * into this function are cancelled. New queries added by callbacks of
      * queries being cancelled will not be cancelled themselves.
      */
-    ares__llist_t      *list_copy = channel->all_queries;
-    channel->all_queries          = ares__llist_create(NULL);
+    ares_llist_t      *list_copy = channel->all_queries;
+    channel->all_queries         = ares_llist_create(NULL);
 
     /* Out of memory, this function doesn't return a result code though so we
      * can't report to caller */
     if (channel->all_queries == NULL) {
-      channel->all_queries = list_copy;
-      goto done;
+      channel->all_queries = list_copy; /* LCOV_EXCL_LINE: OutOfMemory */
+      goto done;                        /* LCOV_EXCL_LINE: OutOfMemory */
     }
 
-    node = ares__llist_node_first(list_copy);
+    node = ares_llist_node_first(list_copy);
     while (node != NULL) {
-      struct query             *query;
-      struct server_connection *conn;
+      ares_query_t *query;
 
       /* Cache next since this node is being deleted */
-      next = ares__llist_node_next(node);
+      next = ares_llist_node_next(node);
 
-      query                   = ares__llist_node_claim(node);
-      conn                    = query->conn;
+      query                   = ares_llist_node_claim(node);
       query->node_all_queries = NULL;
 
       /* NOTE: its possible this may enqueue new queries */
       query->callback(query->arg, ARES_ECANCELLED, 0, NULL);
-      ares__free_query(query);
-
-      /* See if the connection should be cleaned up */
-      ares__check_cleanup_conn(channel, conn);
+      ares_free_query(query);
 
       node = next;
     }
 
-    ares__llist_destroy(list_copy);
+    ares_llist_destroy(list_copy);
   }
+
+  /* See if the connections should be cleaned up */
+  ares_check_cleanup_conns(channel);
 
   ares_queue_notify_empty(channel);
 
 done:
-  ares__channel_unlock(channel);
+  ares_channel_unlock(channel);
 }

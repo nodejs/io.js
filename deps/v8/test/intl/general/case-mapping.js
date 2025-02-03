@@ -146,13 +146,13 @@ assertEquals("Α", "α\u0301".toLocaleUpperCase("el-Grek"));
 assertEquals("Α", "α\u0301".toLocaleUpperCase("el-Grek-GR"));
 assertEquals("Α", "ά".toLocaleUpperCase("el"));
 assertEquals("ΑΟΫΩ", "άόύώ".toLocaleUpperCase("el"));
-assertEquals("ΑΟΫΩ", "α\u0301ο\u0301υ\u0301ω\u0301".toLocaleUpperCase("el"));
+assertEquals("ΑΟΥ\u0308Ω", "α\u0301ο\u0301υ\u0301ω\u0301".toLocaleUpperCase("el"));
 assertEquals("ΑΟΫΩ", "άόύώ".toLocaleUpperCase("el"));
 assertEquals("ΟΕ", "Ό\u1f15".toLocaleUpperCase("el"));
 assertEquals("ΟΕ", "Ο\u0301ε\u0314\u0301".toLocaleUpperCase("el"));
 assertEquals("ΡΩΜΕΪΚΑ", "ρωμέικα".toLocaleUpperCase("el"));
 assertEquals("ΜΑΪΟΥ, ΤΡΟΛΕΪ", "Μαΐου, τρόλεϊ".toLocaleUpperCase("el"));
-assertEquals("ΤΟ ΕΝΑ Ή ΤΟ ΑΛΛΟ.", "Το ένα ή το άλλο.".toLocaleUpperCase("el"));
+assertEquals("ΤΟ ΕΝΑ Ή ΤΟ ΑΛΛΟ.", "Το ένα ή το άλλο.".toLocaleUpperCase("el"));
 
 // Input and output are identical.
 assertEquals("αβγδε", "αβγδε".toLocaleLowerCase("el"));

@@ -28,7 +28,7 @@ export function load(url, context, next) {
       source: generateBuiltinModule(urlObj.pathname),
       format: 'commonjs',
     };
-  } else if (context.format === 'commonjs') {
+  } else if (context.format === undefined || context.format === null || context.format === 'commonjs') {
     return {
       shortCircuit: true,
       source: readFileSync(new URL(url)),

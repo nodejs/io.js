@@ -17,7 +17,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
@@ -27,12 +27,23 @@
 #endif
 
 #include "ares_nameser.h"
-
-#include "ares.h"
 #include "ares_ipv6.h"
-#include "ares_private.h"
 
-#ifndef HAVE_INET_NTOP
+#ifdef USE_WINSOCK
+#  define SOCKERRNO        ((int)WSAGetLastError())
+#  define SET_SOCKERRNO(x) (WSASetLastError((int)(x)))
+#  undef EMSGSIZE
+#  define EMSGSIZE WSAEMSGSIZE
+#  undef ENOENT
+#  define ENOENT WSA_INVALID_PARAMETER
+#  undef EAFNOSUPPORT
+#  define EAFNOSUPPORT WSAEAFNOSUPPORT
+#  undef ENOSPC
+#  define ENOSPC WSA_INVALID_PARAMETER
+#else
+#  define SOCKERRNO        (errno)
+#  define SET_SOCKERRNO(x) (errno = (x))
+#endif
 
 /*
  * WARNING: Don't even consider trying to compile this on a system where
@@ -47,11 +58,6 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size);
  *     convert a network format address to presentation format.
  * return:
  *     pointer to presentation format address (`dst'), or NULL (see errno).
- * note:
- *     On Windows we store the error in the thread errno, not
- *     in the winsock error code. This is to avoid losing the
- *     actual last winsock error. So use macro ERRNO to fetch the
- *     errno this function sets when returning NULL, not SOCKERRNO.
  * author:
  *     Paul Vixie, 1996.
  */
@@ -60,14 +66,14 @@ const char        *ares_inet_ntop(int af, const void *src, char *dst,
 {
   switch (af) {
     case AF_INET:
-      return (inet_ntop4(src, dst, (size_t)size));
+      return inet_ntop4(src, dst, (size_t)size);
     case AF_INET6:
-      return (inet_ntop6(src, dst, (size_t)size));
+      return inet_ntop6(src, dst, (size_t)size);
     default:
-      SET_ERRNO(EAFNOSUPPORT);
-      return (NULL);
+      break;
   }
-  /* NOTREACHED */
+  SET_SOCKERRNO(EAFNOSUPPORT);
+  return NULL;
 }
 
 /* const char *
@@ -86,13 +92,18 @@ static const char *inet_ntop4(const unsigned char *src, char *dst, size_t size)
   static const char fmt[] = "%u.%u.%u.%u";
   char              tmp[sizeof("255.255.255.255")];
 
+  if (size < sizeof(tmp)) {
+    SET_SOCKERRNO(ENOSPC);
+    return NULL;
+  }
+
   if ((size_t)snprintf(tmp, sizeof(tmp), fmt, src[0], src[1], src[2], src[3]) >=
       size) {
-    SET_ERRNO(ENOSPC);
-    return (NULL);
+    SET_SOCKERRNO(ENOSPC);
+    return NULL;
   }
   ares_strcpy(dst, tmp, size);
-  return (dst);
+  return dst;
 }
 
 /* const char *
@@ -114,11 +125,12 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
   char *tp;
 
   struct {
-    int base, len;
+    ares_ssize_t base;
+    size_t       len;
   } best, cur;
 
   unsigned int words[NS_IN6ADDRSZ / NS_INT16SZ];
-  int          i;
+  size_t       i;
 
   /*
    * Preprocess:
@@ -136,7 +148,8 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
   for (i = 0; i < (NS_IN6ADDRSZ / NS_INT16SZ); i++) {
     if (words[i] == 0) {
       if (cur.base == -1) {
-        cur.base = i, cur.len = 1;
+        cur.base = (ares_ssize_t)i;
+        cur.len  = 1;
       } else {
         cur.len++;
       }
@@ -164,8 +177,9 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
   tp = tmp;
   for (i = 0; i < (NS_IN6ADDRSZ / NS_INT16SZ); i++) {
     /* Are we inside the best run of 0x00's? */
-    if (best.base != -1 && i >= best.base && i < (best.base + best.len)) {
-      if (i == best.base) {
+    if (best.base != -1 && i >= (size_t)best.base &&
+        i < ((size_t)best.base + best.len)) {
+      if (i == (size_t)best.base) {
         *tp++ = ':';
       }
       continue;
@@ -188,7 +202,7 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
   }
   /* Was it a trailing run of 0x00's? */
   if (best.base != -1 &&
-      (best.base + best.len) == (NS_IN6ADDRSZ / NS_INT16SZ)) {
+      ((size_t)best.base + best.len) == (NS_IN6ADDRSZ / NS_INT16SZ)) {
     *tp++ = ':';
   }
   *tp++ = '\0';
@@ -197,20 +211,9 @@ static const char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
    * Check for overflow, copy, and we're done.
    */
   if ((size_t)(tp - tmp) > size) {
-    SET_ERRNO(ENOSPC);
-    return (NULL);
+    SET_SOCKERRNO(ENOSPC);
+    return NULL;
   }
   ares_strcpy(dst, tmp, size);
-  return (dst);
+  return dst;
 }
-
-#else  /* HAVE_INET_NTOP */
-
-const char *ares_inet_ntop(int af, const void *src, char *dst,
-                           ares_socklen_t size)
-{
-  /* just relay this to the underlying function */
-  return inet_ntop(af, src, dst, size);
-}
-
-#endif /* HAVE_INET_NTOP */

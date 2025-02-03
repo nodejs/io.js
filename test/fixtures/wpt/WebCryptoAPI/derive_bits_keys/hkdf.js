@@ -45,13 +45,13 @@ function define_tests() {
                             });
                         }, testName);
 
-                        // 0 length (OperationError)
+                        // 0 length
                         subsetTest(promise_test, function(test) {
                             return subtle.deriveBits(algorithm, baseKeys[derivedKeySize], 0)
                             .then(function(derivation) {
                                 assert_equals(derivation.byteLength, 0, "Derived correctly empty key");
                             }, function(err) {
-                                assert_equals(err.name, "OperationError", "deriveBits with 0 length correctly threw OperationError: " + err.message);
+                                assert_unreached("deriveBits failed with error " + err.name + ": " + err.message);
                             });
                         }, testName + " with 0 length");
 
@@ -138,25 +138,6 @@ function define_tests() {
                                 assert_equals(err.name, "TypeError", "deriveBits missing info correctly threw OperationError: " + err.message);
                             });
                         }, testName + " with missing info");
-
-                        // length null (OperationError)
-                        // "Null" is not valid per the current spec
-                        //   - https://github.com/w3c/webcrypto/issues/322
-                        //   - https://github.com/w3c/webcrypto/issues/329
-                        //
-                        // Proposal for a spec change:
-                        //   - https://github.com/w3c/webcrypto/pull/345
-                        //
-                        // This test case may be replaced by these new tests:
-                        //   - https://github.com/web-platform-tests/wpt/pull/43400
-                        subsetTest(promise_test, function(test) {
-                            return subtle.deriveBits(algorithm, baseKeys[derivedKeySize], null)
-                            .then(function(derivation) {
-                                assert_unreached("null length should have thrown an OperationError");
-                            }, function(err) {
-                                assert_equals(err.name, "OperationError", "deriveBits with null length correctly threw OperationError: " + err.message);
-                            });
-                        }, testName + " with null length");
 
                         // length not multiple of 8 (OperationError)
                         subsetTest(promise_test, function(test) {

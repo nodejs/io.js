@@ -310,9 +310,9 @@ void
 SimpleTimeZone::setStartRule(int32_t month, int32_t dayOfWeekInMonth, int32_t dayOfWeek,
                              int32_t time, TimeMode mode, UErrorCode& status)
 {
-    startMonth     = (int8_t)month;
-    startDay       = (int8_t)dayOfWeekInMonth;
-    startDayOfWeek = (int8_t)dayOfWeek;
+    startMonth = static_cast<int8_t>(month);
+    startDay = static_cast<int8_t>(dayOfWeekInMonth);
+    startDayOfWeek = static_cast<int8_t>(dayOfWeek);
     startTime      = time;
     startTimeMode  = mode;
     decodeStartRule(status);
@@ -362,9 +362,9 @@ void
 SimpleTimeZone::setEndRule(int32_t month, int32_t dayOfWeekInMonth, int32_t dayOfWeek,
                            int32_t time, TimeMode mode, UErrorCode& status)
 {
-    endMonth     = (int8_t)month;
-    endDay       = (int8_t)dayOfWeekInMonth;
-    endDayOfWeek = (int8_t)dayOfWeek;
+    endMonth = static_cast<int8_t>(month);
+    endDay = static_cast<int8_t>(dayOfWeekInMonth);
+    endDayOfWeek = static_cast<int8_t>(dayOfWeek);
     endTime      = time;
     endTimeMode  = mode;
     decodeEndRule(status);
@@ -475,11 +475,11 @@ SimpleTimeZone::getOffset(uint8_t era, int32_t year, int32_t month, int32_t day,
 
     // Compare the date to the starting and ending rules.+1 = date>rule, -1
     // = date<rule, 0 = date==rule.
-    int32_t startCompare = compareToRule((int8_t)month, (int8_t)monthLength, (int8_t)prevMonthLength,
-                                         (int8_t)day, (int8_t)dayOfWeek, millis,
+    int32_t startCompare = compareToRule(static_cast<int8_t>(month), static_cast<int8_t>(monthLength), static_cast<int8_t>(prevMonthLength),
+                                         static_cast<int8_t>(day), static_cast<int8_t>(dayOfWeek), millis,
                                          startTimeMode == UTC_TIME ? -rawOffset : 0,
-                                         startMode, (int8_t)startMonth, (int8_t)startDayOfWeek,
-                                         (int8_t)startDay, startTime);
+                                         startMode, startMonth, startDayOfWeek,
+                                         startDay, startTime);
     int32_t endCompare = 0;
 
     /* We don't always have to compute endCompare.  For many instances,
@@ -489,12 +489,12 @@ SimpleTimeZone::getOffset(uint8_t era, int32_t year, int32_t month, int32_t day,
      * must have DST.  This is reflected in the way the next if statement
      * (not the one immediately following) short circuits. */
     if(southern != (startCompare >= 0)) {
-        endCompare = compareToRule((int8_t)month, (int8_t)monthLength, (int8_t)prevMonthLength,
-                                   (int8_t)day, (int8_t)dayOfWeek, millis,
+        endCompare = compareToRule(static_cast<int8_t>(month), static_cast<int8_t>(monthLength), static_cast<int8_t>(prevMonthLength),
+                                   static_cast<int8_t>(day), static_cast<int8_t>(dayOfWeek), millis,
                                    endTimeMode == WALL_TIME ? dstSavings :
                                     (endTimeMode == UTC_TIME ? -rawOffset : 0),
-                                   endMode, (int8_t)endMonth, (int8_t)endDayOfWeek,
-                                   (int8_t)endDay, endTime);
+                                   endMode, endMonth, endDayOfWeek,
+                                   endDay, endTime);
     }
 
     // Check for both the northern and southern hemisphere cases.  We
@@ -526,10 +526,11 @@ SimpleTimeZone::getOffsetFromLocal(UDate date, UTimeZoneLocalOption nonExistingT
     }
     int32_t day = dday;
 
-    Grego::dayToFields(day, year, month, dom, dow);
+    Grego::dayToFields(day, year, month, dom, dow, status);
+    if (U_FAILURE(status)) return;
 
     savingsDST = getOffset(GregorianCalendar::AD, year, month, dom,
-                          (uint8_t) dow, millis,
+                          static_cast<uint8_t>(dow), millis,
                           Grego::monthLength(year, month),
                           status) - rawOffsetGMT;
     if (U_FAILURE(status)) {
@@ -554,9 +555,10 @@ SimpleTimeZone::getOffsetFromLocal(UDate date, UTimeZoneLocalOption nonExistingT
     }
     if (recalc) {
         day = ClockMath::floorDivide(date, U_MILLIS_PER_DAY, &millis);
-        Grego::dayToFields(day, year, month, dom, dow);
+        Grego::dayToFields(day, year, month, dom, dow, status);
+        if (U_FAILURE(status)) return;
         savingsDST = getOffset(GregorianCalendar::AD, year, month, dom,
-                          (uint8_t) dow, millis,
+                          static_cast<uint8_t>(dow), millis,
                           Grego::monthLength(year, month),
                           status) - rawOffsetGMT;
     }
@@ -585,7 +587,7 @@ SimpleTimeZone::compareToRule(int8_t month, int8_t monthLen, int8_t prevMonthLen
     while (millis >= U_MILLIS_PER_DAY) {
         millis -= U_MILLIS_PER_DAY;
         ++dayOfMonth;
-        dayOfWeek = (int8_t)(1 + (dayOfWeek % 7)); // dayOfWeek is one-based
+        dayOfWeek = static_cast<int8_t>(1 + (dayOfWeek % 7)); // dayOfWeek is one-based
         if (dayOfMonth > monthLen) {
             dayOfMonth = 1;
             /* When incrementing the month, it is desirable to overflow
@@ -598,7 +600,7 @@ SimpleTimeZone::compareToRule(int8_t month, int8_t monthLen, int8_t prevMonthLen
     while (millis < 0) {
         millis += U_MILLIS_PER_DAY;
         --dayOfMonth;
-        dayOfWeek = (int8_t)(1 + ((dayOfWeek+5) % 7)); // dayOfWeek is one-based
+        dayOfWeek = static_cast<int8_t>(1 + ((dayOfWeek + 5) % 7)); // dayOfWeek is one-based
         if (dayOfMonth < 1) {
             dayOfMonth = prevMonthLen;
             --month;
@@ -875,7 +877,7 @@ SimpleTimeZone::decodeStartRule(UErrorCode& status)
 {
     if(U_FAILURE(status)) return;
 
-    useDaylight = (UBool)((startDay != 0) && (endDay != 0) ? true : false);
+    useDaylight = static_cast<UBool>(startDay != 0 && endDay != 0);
     if (useDaylight && dstSavings == 0) {
         dstSavings = U_MILLIS_PER_HOUR;
     }
@@ -895,11 +897,11 @@ SimpleTimeZone::decodeStartRule(UErrorCode& status)
             if (startDayOfWeek > 0) {
                 startMode = DOW_IN_MONTH_MODE;
             } else {
-                startDayOfWeek = (int8_t)-startDayOfWeek;
+                startDayOfWeek = static_cast<int8_t>(-startDayOfWeek);
                 if (startDay > 0) {
                     startMode = DOW_GE_DOM_MODE;
                 } else {
-                    startDay = (int8_t)-startDay;
+                    startDay = static_cast<int8_t>(-startDay);
                     startMode = DOW_LE_DOM_MODE;
                 }
             }
@@ -930,7 +932,7 @@ SimpleTimeZone::decodeEndRule(UErrorCode& status)
 {
     if(U_FAILURE(status)) return;
 
-    useDaylight = (UBool)((startDay != 0) && (endDay != 0) ? true : false);
+    useDaylight = static_cast<UBool>(startDay != 0 && endDay != 0);
     if (useDaylight && dstSavings == 0) {
         dstSavings = U_MILLIS_PER_HOUR;
     }
@@ -950,11 +952,11 @@ SimpleTimeZone::decodeEndRule(UErrorCode& status)
             if (endDayOfWeek > 0) {
                 endMode = DOW_IN_MONTH_MODE;
             } else {
-                endDayOfWeek = (int8_t)-endDayOfWeek;
+                endDayOfWeek = static_cast<int8_t>(-endDayOfWeek);
                 if (endDay > 0) {
                     endMode = DOW_GE_DOM_MODE;
                 } else {
-                    endDay = (int8_t)-endDay;
+                    endDay = static_cast<int8_t>(-endDay);
                     endMode = DOW_LE_DOM_MODE;
                 }
             }

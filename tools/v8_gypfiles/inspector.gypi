@@ -105,7 +105,7 @@
       # Flat merge `third_party/inspector_protocol:inspector_string_conversions`
       '<(inspector_path)/v8-string-conversions.cc',
       '<(inspector_path)/v8-string-conversions.h',
-      # Flat merge `third_party/inspector_protocal:crdtp_platform`
+      # Flat merge `third_party/inspector_protocol:crdtp_platform`
       '<(inspector_protocol_path)/crdtp/json_platform.h',
       '<(inspector_protocol_path)/crdtp/json_platform_v8.cc',
       # Flat merge `third_party/inspector_protocol:crdtp`

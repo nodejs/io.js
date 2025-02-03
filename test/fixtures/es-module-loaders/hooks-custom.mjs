@@ -105,5 +105,12 @@ export function load(url, context, next) {
     };
   }
 
+  if (url.endsWith('esmHook/maximumCallStack.mjs')) {
+    function recurse() {
+      recurse();
+    }
+    recurse();
+  }
+
   return next(url);
 }

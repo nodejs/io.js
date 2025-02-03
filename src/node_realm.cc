@@ -34,7 +34,7 @@ void Realm::MemoryInfo(MemoryTracker* tracker) const {
   PER_REALM_STRONG_PERSISTENT_VALUES(V)
 #undef V
 
-  tracker->TrackField("cleanup_queue", cleanup_queue_);
+  tracker->TrackField("base_object_list", base_object_list_);
   tracker->TrackField("builtins_with_cache", builtins_with_cache);
   tracker->TrackField("builtins_without_cache", builtins_without_cache);
 }
@@ -215,7 +215,7 @@ void Realm::RunCleanup() {
   for (size_t i = 0; i < binding_data_store_.size(); ++i) {
     binding_data_store_[i].reset();
   }
-  cleanup_queue_.Drain();
+  base_object_list_.Cleanup();
 }
 
 void Realm::PrintInfoForSnapshot() {

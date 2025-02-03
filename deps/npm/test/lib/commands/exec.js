@@ -1,6 +1,6 @@
 const t = require('tap')
-const fs = require('fs/promises')
-const path = require('path')
+const fs = require('node:fs/promises')
+const path = require('node:path')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const MockRegistry = require('@npmcli/mock-registry')
 
@@ -76,7 +76,7 @@ t.test('--prefix', async t => {
   })
 
   // This is what `--prefix` does
-  npm.globalPrefix = npm.localPrefix
+  npm.config.globalPrefix = npm.config.localPrefix
 
   await registry.package({
     manifest,
@@ -252,5 +252,29 @@ t.test('npx --no-install @npmcli/npx-test', async t => {
       'npx canceled due to missing packages and no YES option: ',
       'Expected error message thrown'
     )
+  }
+})
+
+t.test('packs from git spec', async t => {
+  const spec = 'test/test#111111aaaaaaaabbbbbbbbccccccdddddddeeeee'
+  const pkgPath = path.resolve(__dirname, '../../fixtures/git-test.tgz')
+
+  const srv = MockRegistry.tnock(t, 'https://codeload.github.com')
+  srv.get('/test/test/tar.gz/111111aaaaaaaabbbbbbbbccccccdddddddeeeee')
+    .times(2)
+    .reply(200, await fs.readFile(pkgPath))
+
+  const { npm } = await loadMockNpm(t, {
+    config: {
+      audit: false,
+      yes: true,
+    },
+  })
+  try {
+    await npm.exec('exec', [spec])
+    const exists = await fs.stat(path.join(npm.prefix, 'npm-exec-test-success'))
+    t.ok(exists.isFile(), 'bin ran, creating file')
+  } catch (err) {
+    t.fail(err, "shouldn't throw")
   }
 })

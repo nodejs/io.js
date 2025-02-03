@@ -28,5 +28,5 @@
 
 (function testTypedArrayConstructByArrayLikeInvalidArrayProtector() {
   Array.prototype[2] = undefined;
-  load("test/mjsunit/es6/typedarray-construct-by-array-like.js");
+  d8.file.execute("test/mjsunit/es6/typedarray-construct-by-array-like.js");
 })();

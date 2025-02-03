@@ -1,4 +1,4 @@
-# Copyright 2016-2019 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -72,6 +72,8 @@ Returns an item from the %config hash in \$TOP/configdata.pm.
 =item B<have_IPv6>
 
 Return true if IPv4 / IPv6 is possible to use on the current system.
+Additionally, B<have_IPv6> also checks how OpenSSL was configured,
+i.e. if IPv6 was explicitly disabled with -DOPENSSL_USE_IPv6=0.
 
 =back
 
@@ -80,6 +82,7 @@ Return true if IPv4 / IPv6 is possible to use on the current system.
 our %available_protocols;
 our %disabled;
 our %config;
+our %target;
 my $configdata_loaded = 0;
 
 sub load_configdata {
@@ -91,6 +94,7 @@ sub load_configdata {
 	   %available_protocols = %configdata::available_protocols;
 	   %disabled = %configdata::disabled;
 	   %config = %configdata::config;
+	   %target = %configdata::target;
     };
     $configdata_loaded = 1;
 }
@@ -221,6 +225,18 @@ sub have_IPv4 {
 }
 
 sub have_IPv6 {
+    if ($have_IPv6 < 0) {
+        load_configdata() unless $configdata_loaded;
+        # If OpenSSL is configured with IPv6 explicitly disabled, no IPv6
+        # related tests should be performed.  In other words, pretend IPv6
+        # isn't present.
+        $have_IPv6 = 0
+            if grep { $_ eq 'OPENSSL_USE_IPV6=0' } @{$config{CPPDEFINES}};
+        # Similarly, if a config target has explicitly disabled IPv6, no
+        # IPv6 related tests should be performed.
+        $have_IPv6 = 0
+            if grep { $_ eq 'OPENSSL_USE_IPV6=0' } @{$target{defines}};
+    }
     if ($have_IPv6 < 0) {
         $have_IPv6 = check_IP("::1");
     }

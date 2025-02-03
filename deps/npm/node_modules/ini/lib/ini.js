@@ -140,7 +140,9 @@ const decode = (str, opt = {}) => {
       duplicates[keyRaw] = (duplicates?.[keyRaw] || 0) + 1
       isArray = duplicates[keyRaw] > 1
     }
-    const key = isArray ? keyRaw.slice(0, -2) : keyRaw
+    const key = isArray && keyRaw.endsWith('[]')
+      ? keyRaw.slice(0, -2) : keyRaw
+
     if (key === '__proto__') {
       continue
     }

@@ -22,7 +22,7 @@
     "src/phases/graph-phase/graph-edge.ts",
     "src/phases/turboshaft-graph-phase/turboshaft-graph-phase.ts",
     "src/phases/turboshaft-graph-phase/turboshaft-graph-block.ts",
-    "src/phases/turboshaft-graph-phase/turboshaft-graph-node.ts",
+    "src/phases/turboshaft-graph-phase/turboshaft-graph-operation.ts",
     "src/phases/turboshaft-graph-phase/turboshaft-graph-edge.ts",
     "src/phases/disassembly-phase.ts",
     "src/phases/instructions-phase.ts",

@@ -14,7 +14,7 @@
 <p>Test that a reused resource only appears in the buffer once.</p>
 <script>
 // Need our own image loading helper because the one in resource-loaders.js
-// is desgined to always side-step the HTTP cache but this test relies on the
+// is designed to always side-step the HTTP cache but this test relies on the
 // second request being resolved from the cache.
 const load_image = path => new Promise(resolve => {
   const img = document.createElement('img');

@@ -140,6 +140,31 @@ namespace message2 {
         const MFDataModel& getDataModel() const;
 
         /**
+         * Used in conjunction with the
+         * MessageFormatter::Builder::setErrorHandlingBehavior() method.
+         *
+         * @internal ICU 76 technology preview
+         * @deprecated This API is for technology preview only.
+         */
+        typedef enum UMFErrorHandlingBehavior {
+            /**
+             * Suppress errors and return best-effort output.
+             *
+             * @internal ICU 76 technology preview
+             * @deprecated This API is for technology preview only.
+             */
+            U_MF_BEST_EFFORT = 0,
+            /**
+             * Signal all MessageFormat errors using the UErrorCode
+             * argument.
+             *
+             * @internal ICU 76 technology preview
+             * @deprecated This API is for technology preview only.
+             */
+            U_MF_STRICT
+        } UMFErrorHandlingBehavior;
+
+        /**
          * The mutable Builder class allows each part of the MessageFormatter to be initialized
          * separately; calling its `build()` method yields an immutable MessageFormatter.
          *
@@ -166,7 +191,10 @@ namespace message2 {
             Locale locale;
             // Not owned
             const MFFunctionRegistry* customMFFunctionRegistry;
+            // Error behavior; see comment in `MessageFormatter` class
+            bool signalErrors = false;
 
+            void clearState();
         public:
             /**
              * Sets the locale to use for formatting.
@@ -218,6 +246,36 @@ namespace message2 {
              * @deprecated This API is for technology preview only.
              */
             Builder& setDataModel(MFDataModel&& dataModel);
+            /**
+             * Set the error handling behavior for this formatter.
+             *
+             * "Strict" error behavior means that that formatting methods
+             * will set their UErrorCode arguments to signal MessageFormat
+             * data model, resolution, and runtime errors. Syntax errors are
+             * always signaled.
+             *
+             * "Best effort" error behavior means that MessageFormat errors are
+             * suppressed:  formatting methods will _not_ set their
+             * UErrorCode arguments to signal MessageFormat data model,
+             * resolution, or runtime errors. Best-effort output
+             * will be returned. Syntax errors are always signaled.
+             * This is the default behavior.
+             *
+             * @param type An enum with type UMFErrorHandlingBehavior;
+             *             if type == `U_MF_STRICT`, then
+             *             errors are handled strictly.
+             *             If type == `U_MF_BEST_EFFORT`, then
+             *             best-effort output is returned.
+             *
+             * The default is to suppress all MessageFormat errors
+             * and return best-effort output.
+             *
+             * @return       A reference to the builder.
+             *
+             * @internal ICU 76 technology preview
+             * @deprecated This API is for technology preview only.
+             */
+            Builder& setErrorHandlingBehavior(UMFErrorHandlingBehavior type);
             /**
              * Constructs a new immutable MessageFormatter using the pattern or data model
              * that was previously set, and the locale (if it was previously set)
@@ -378,8 +436,15 @@ namespace message2 {
         // Must be a raw pointer to avoid including the internal header file
         // defining StaticErrors
         // Owned by `this`
-        StaticErrors* errors;
+        StaticErrors* errors = nullptr;
 
+        // Error handling behavior.
+        // If true, then formatting methods set their UErrorCode arguments
+        // to signal MessageFormat errors, and no useful output is returned.
+        // If false, then MessageFormat errors are not signaled and the
+        // formatting methods return best-effort output.
+        // The default is false.
+        bool signalErrors = false;
     }; // class MessageFormatter
 
 } // namespace message2

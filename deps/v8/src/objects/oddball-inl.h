@@ -17,11 +17,6 @@
 namespace v8 {
 namespace internal {
 
-Tagged<Oddball> Oddball::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsOddball(object));
-  return Tagged<Oddball>(object.ptr());
-}
-
 double Oddball::to_number_raw() const { return to_number_raw_.value(); }
 void Oddball::set_to_number_raw(double value) {
   to_number_raw_.set_value(value);
@@ -37,8 +32,8 @@ void Oddball::set_to_string(Tagged<String> value, WriteBarrierMode mode) {
   to_string_.store(this, value);
 }
 
-Tagged<Object> Oddball::to_number() const { return to_number_.load(); }
-void Oddball::set_to_number(Tagged<Object> value, WriteBarrierMode mode) {
+Tagged<Number> Oddball::to_number() const { return to_number_.load(); }
+void Oddball::set_to_number(Tagged<Number> value, WriteBarrierMode mode) {
   to_number_.store(this, value);
 }
 
@@ -54,43 +49,19 @@ void Oddball::set_kind(uint8_t value) {
 }
 
 // static
-Handle<Object> Oddball::ToNumber(Isolate* isolate, Handle<Oddball> input) {
-  return Handle<Object>(input->to_number(), isolate);
+Handle<Number> Oddball::ToNumber(Isolate* isolate,
+                                 DirectHandle<Oddball> input) {
+  return handle(input->to_number(), isolate);
 }
 
 DEF_HEAP_OBJECT_PREDICATE(HeapObject, IsBoolean) {
   return IsOddball(obj, cage_base) &&
-         ((Oddball::cast(obj)->kind() & Oddball::kNotBooleanMask) == 0);
-}
-
-Tagged<Null> Null::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsNull(object));
-  return Tagged<Null>(object.ptr());
-}
-
-Tagged<Undefined> Undefined::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsUndefined(object));
-  return Tagged<Undefined>(object.ptr());
-}
-
-Tagged<Boolean> Boolean::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsBoolean(object));
-  return Tagged<Boolean>(object.ptr());
+         ((Cast<Oddball>(obj)->kind() & Oddball::kNotBooleanMask) == 0);
 }
 
 bool Boolean::ToBool(Isolate* isolate) const {
   DCHECK(IsBoolean(this, isolate));
   return IsTrue(this, isolate);
-}
-
-Tagged<True> True::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsTrue(object));
-  return Tagged<True>(object.ptr());
-}
-
-Tagged<False> False::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsFalse(object));
-  return Tagged<False>(object.ptr());
 }
 
 }  // namespace internal

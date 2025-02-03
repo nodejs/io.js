@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyCheckpoint = void 0;
+exports.verifyCheckpoint = verifyCheckpoint;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -61,7 +61,6 @@ function verifyCheckpoint(entry, tlogs) {
         });
     }
 }
-exports.verifyCheckpoint = verifyCheckpoint;
 // Verifies the signatures in the SignedNote. For each signature, the
 // corresponding transparency log is looked up by the key hint and the
 // signature is verified against the public key in the transparency log.

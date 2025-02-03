@@ -19,14 +19,11 @@ constexpr int kMaxSupportedVersion = TLS1_3_VERSION;
 void GetRootCertificates(
     const v8::FunctionCallbackInfo<v8::Value>& args);
 
-void IsExtraRootCertsFileLoaded(
-    const v8::FunctionCallbackInfo<v8::Value>& args);
-
 X509_STORE* NewRootCertStore();
 
 X509_STORE* GetOrCreateRootCertStore();
 
-BIOPointer LoadBIO(Environment* env, v8::Local<v8::Value> v);
+ncrypto::BIOPointer LoadBIO(Environment* env, v8::Local<v8::Value> v);
 
 class SecureContext final : public BaseObject {
  public:
@@ -44,28 +41,31 @@ class SecureContext final : public BaseObject {
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
   static SecureContext* Create(Environment* env);
 
-  const SSLCtxPointer& ctx() const { return ctx_; }
+  const ncrypto::SSLCtxPointer& ctx() const { return ctx_; }
 
   // Non-const ctx() that allows for non-default initialization of
   // the SecureContext.
-  SSLCtxPointer& ctx() { return ctx_; }
+  ncrypto::SSLCtxPointer& ctx() { return ctx_; }
 
-  SSLPointer CreateSSL();
+  ncrypto::SSLPointer CreateSSL();
 
   void SetGetSessionCallback(GetSessionCb cb);
   void SetKeylogCallback(KeylogCb cb);
   void SetNewSessionCallback(NewSessionCb cb);
   void SetSelectSNIContextCallback(SelectSNIContextCb cb);
 
-  inline const X509Pointer& issuer() const { return issuer_; }
-  inline const X509Pointer& cert() const { return cert_; }
+  inline const ncrypto::X509Pointer& issuer() const { return issuer_; }
+  inline const ncrypto::X509Pointer& cert() const { return cert_; }
 
-  v8::Maybe<bool> AddCert(Environment* env, BIOPointer&& bio);
-  v8::Maybe<bool> SetCRL(Environment* env, const BIOPointer& bio);
-  v8::Maybe<bool> UseKey(Environment* env, std::shared_ptr<KeyObjectData> key);
+  v8::Maybe<void> AddCert(Environment* env, ncrypto::BIOPointer&& bio);
+  v8::Maybe<void> SetCRL(Environment* env, const ncrypto::BIOPointer& bio);
+  v8::Maybe<void> UseKey(Environment* env, const KeyObjectData& key);
 
-  void SetCACert(const BIOPointer& bio);
+  void SetCACert(const ncrypto::BIOPointer& bio);
   void SetRootCerts();
+
+  void SetX509StoreFlag(unsigned long flags);  // NOLINT(runtime/int)
+  X509_STORE* GetCertStoreOwnedByThisSecureContext();
 
   // TODO(joyeecheung): track the memory used by OpenSSL types
   SET_NO_MEMORY_INFO()
@@ -93,6 +93,8 @@ class SecureContext final : public BaseObject {
 #endif  // !OPENSSL_NO_ENGINE
   static void SetCert(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddCACert(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void SetAllowPartialTrustChain(
+      const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddCRL(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void AddRootCerts(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetCipherSuites(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -142,12 +144,14 @@ class SecureContext final : public BaseObject {
   void Reset();
 
  private:
-  SSLCtxPointer ctx_;
-  X509Pointer cert_;
-  X509Pointer issuer_;
+  ncrypto::SSLCtxPointer ctx_;
+  ncrypto::X509Pointer cert_;
+  ncrypto::X509Pointer issuer_;
+  // Non-owning cache for SSL_CTX_get_cert_store(ctx_.get())
+  X509_STORE* own_cert_store_cache_ = nullptr;
 #ifndef OPENSSL_NO_ENGINE
   bool client_cert_engine_provided_ = false;
-  EnginePointer private_key_engine_;
+  ncrypto::EnginePointer private_key_engine_;
 #endif  // !OPENSSL_NO_ENGINE
 
   unsigned char ticket_key_name_[16];
@@ -156,9 +160,9 @@ class SecureContext final : public BaseObject {
 };
 
 int SSL_CTX_use_certificate_chain(SSL_CTX* ctx,
-                                  BIOPointer&& in,
-                                  X509Pointer* cert,
-                                  X509Pointer* issuer);
+                                  ncrypto::BIOPointer&& in,
+                                  ncrypto::X509Pointer* cert,
+                                  ncrypto::X509Pointer* issuer);
 
 }  // namespace crypto
 }  // namespace node

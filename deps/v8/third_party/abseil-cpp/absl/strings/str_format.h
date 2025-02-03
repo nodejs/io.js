@@ -181,7 +181,7 @@ class FormatCountCapture {
 // For a `FormatSpec` to be valid at compile-time, it must be provided as
 // either:
 //
-// * A `constexpr` literal or `absl::string_view`, which is how it most often
+// * A `constexpr` literal or `absl::string_view`, which is how it is most often
 //   used.
 // * A `ParsedFormat` instantiation, which ensures the format string is
 //   valid before use. (See below.)

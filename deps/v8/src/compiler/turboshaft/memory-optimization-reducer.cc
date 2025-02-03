@@ -4,6 +4,8 @@
 
 #include "src/compiler/turboshaft/memory-optimization-reducer.h"
 
+#include <optional>
+
 #include "src/codegen/interface-descriptors-inl.h"
 #include "src/compiler/linkage.h"
 #include "src/roots/roots-inl.h"
@@ -19,7 +21,7 @@ const TSCallDescriptor* CreateAllocateBuiltinDescriptor(Zone* zone,
           CallDescriptor::kCanUseRoots, Operator::kNoThrow,
           isolate != nullptr ? StubCallMode::kCallCodeObject
                              : StubCallMode::kCallBuiltinPointer),
-      CanThrow::kNo, zone);
+      CanThrow::kNo, LazyDeoptOnThrow::kNo, zone);
 }
 
 void MemoryAnalyzer::Run() {
@@ -65,7 +67,7 @@ void MemoryAnalyzer::Process(const Operation& op) {
 void MemoryAnalyzer::ProcessBlockTerminator(const Operation& op) {
   if (auto* goto_op = op.TryCast<GotoOp>()) {
     if (input_graph.IsLoopBackedge(*goto_op)) {
-      base::Optional<BlockState>& target_state =
+      std::optional<BlockState>& target_state =
           block_states[goto_op->destination->index()];
       BlockState old_state = *target_state;
       MergeCurrentStateIntoSuccessor(goto_op->destination);
@@ -74,7 +76,7 @@ void MemoryAnalyzer::ProcessBlockTerminator(const Operation& op) {
         // allocation before the loop, since this leads to unbounded
         // allocation size. An unknown `reserved_size` will prevent adding
         // allocations inside of the loop.
-        target_state->reserved_size = base::nullopt;
+        target_state->reserved_size = std::nullopt;
         // Redo the analysis from the beginning of the loop.
         current_block = goto_op->destination->index();
       }
@@ -101,7 +103,7 @@ void MemoryAnalyzer::ProcessBlockTerminator(const Operation& op) {
 // dominating relationship.
 void MemoryAnalyzer::ProcessAllocation(const AllocateOp& alloc) {
   if (ShouldSkipOptimizationStep()) return;
-  base::Optional<uint64_t> new_size;
+  std::optional<uint64_t> new_size;
   if (auto* size =
           input_graph.Get(alloc.size()).template TryCast<ConstantOp>()) {
     new_size = size->integral();
@@ -122,7 +124,7 @@ void MemoryAnalyzer::ProcessAllocation(const AllocateOp& alloc) {
     return;
   }
   state.last_allocation = &alloc;
-  state.reserved_size = base::nullopt;
+  state.reserved_size = std::nullopt;
   if (new_size.has_value() && *new_size <= kMaxRegularHeapObjectSize) {
     state.reserved_size = static_cast<uint32_t>(*new_size);
   }
@@ -133,7 +135,7 @@ void MemoryAnalyzer::ProcessAllocation(const AllocateOp& alloc) {
 }
 
 void MemoryAnalyzer::ProcessStore(const StoreOp& store) {
-  OpIndex store_op_index = input_graph.Index(store);
+  V<None> store_op_index = input_graph.Index(store);
   if (SkipWriteBarrier(store)) {
     skipped_write_barriers.insert(store_op_index);
   } else {
@@ -145,7 +147,7 @@ void MemoryAnalyzer::ProcessStore(const StoreOp& store) {
 }
 
 void MemoryAnalyzer::MergeCurrentStateIntoSuccessor(const Block* successor) {
-  base::Optional<BlockState>& target_state = block_states[successor->index()];
+  std::optional<BlockState>& target_state = block_states[successor->index()];
   if (!target_state.has_value()) {
     target_state = state;
     return;
@@ -164,7 +166,7 @@ void MemoryAnalyzer::MergeCurrentStateIntoSuccessor(const Block* successor) {
     target_state->reserved_size =
         std::max(*target_state->reserved_size, *state.reserved_size);
   } else {
-    target_state->reserved_size = base::nullopt;
+    target_state->reserved_size = std::nullopt;
   }
 }
 

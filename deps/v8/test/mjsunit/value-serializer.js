@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // Test the basic d8 value serializer interface
+// Flags: --js-float16array
 
 var largeArray = [];
 largeArray[0xFFFF00] = 123;
@@ -34,7 +35,9 @@ var objects = [
     [], [{}, {}], [1, 1, 1], [1.1, 1.1, 1.1, 1.1, 2], largeArray,
     // new Proxy({},{}),
     new Date(), new String(" a"),
-    new Uint8Array(12), new Float32Array([1, 2, 4, 5]),
+    new Uint8Array(12), new Float16Array([1, 2, 3, 4, 5]),
+    new Float16Array([NaN, Infinity, -Infinity]),
+    new Float32Array([1, 2, 4, 5]),
     new Uint8ClampedArray(2048),
     /asdf/, new RegExp(),
     new Map(), new Set(),

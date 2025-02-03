@@ -200,7 +200,8 @@ uint32_t ZLIB_INTERNAL crc32_avx512_simd_(  /* AVX512+PCLMUL */
     return _mm_extract_epi32(a1, 1);
 }
 
-#elif defined(CRC32_SIMD_SSE42_PCLMUL)
+#endif
+#if defined(CRC32_SIMD_SSE42_PCLMUL)
 
 /*
  * crc32_sse42_simd_(): compute the crc32 of the buffer, where the buffer
@@ -386,9 +387,9 @@ uint32_t ZLIB_INTERNAL crc32_sse42_simd_(  /* SSE4.2+PCLMUL */
 #endif
 
 #if defined(__aarch64__)
-#define TARGET_ARMV8_WITH_CRC __attribute__((target("aes,crc")))
+#define TARGET_ARMV8_WITH_CRC __attribute__((target("arch=armv8-a+aes+crc")))
 #else  // !defined(__aarch64__)
-#define TARGET_ARMV8_WITH_CRC __attribute__((target("armv8-a,crc")))
+#define TARGET_ARMV8_WITH_CRC __attribute__((target("crc")))
 #endif  // defined(__aarch64__)
 
 #elif defined(__GNUC__)
@@ -397,7 +398,7 @@ uint32_t ZLIB_INTERNAL crc32_sse42_simd_(  /* SSE4.2+PCLMUL */
  */
 #include <arm_acle.h>
 #include <arm_neon.h>
-#define TARGET_ARMV8_WITH_CRC
+#define TARGET_ARMV8_WITH_CRC __attribute__((target("arch=armv8-a+crc+crypto")))
 #else  // !defined(__GNUC__) && !defined(_aarch64__)
 #error ARM CRC32 SIMD extensions only supported for Clang and GCC
 #endif

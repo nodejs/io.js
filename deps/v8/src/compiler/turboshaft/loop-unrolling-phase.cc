@@ -4,9 +4,11 @@
 
 #include "src/compiler/turboshaft/loop-unrolling-phase.h"
 
+#include "src/base/logging.h"
 #include "src/compiler/turboshaft/copying-phase.h"
 #include "src/compiler/turboshaft/loop-unrolling-reducer.h"
 #include "src/compiler/turboshaft/machine-optimization-reducer.h"
+#include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/required-optimization-reducer.h"
 #include "src/compiler/turboshaft/value-numbering-reducer.h"
 #include "src/compiler/turboshaft/variable-reducer.h"
@@ -14,14 +16,20 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void LoopUnrollingPhase::Run(Zone* temp_zone) {
-  LoopUnrollingAnalyzer analyzer(temp_zone, &PipelineData::Get().graph());
+void LoopUnrollingPhase::Run(PipelineData* data, Zone* temp_zone) {
+  LoopUnrollingAnalyzer analyzer(temp_zone, &data->graph(), data->is_wasm());
   if (analyzer.CanUnrollAtLeastOneLoop()) {
-    PipelineData::Get().set_loop_unrolling_analyzer(&analyzer);
-    turboshaft::CopyingPhase<turboshaft::LoopUnrollingReducer,
-                             turboshaft::MachineOptimizationReducer,
-                             turboshaft::ValueNumberingReducer>::Run(temp_zone);
-    PipelineData::Get().clear_loop_unrolling_analyzer();
+    data->graph().set_loop_unrolling_analyzer(&analyzer);
+    turboshaft::CopyingPhase<LoopStackCheckElisionReducer, LoopUnrollingReducer,
+                             MachineOptimizationReducer,
+                             ValueNumberingReducer>::Run(data, temp_zone);
+    // When the CopyingPhase finishes, it calls SwapWithCompanion, which resets
+    // the current graph's LoopUnrollingAnalyzer (since the old input_graph is
+    // now somewhat out-dated).
+    DCHECK(!data->graph().has_loop_unrolling_analyzer());
+    // The LoopUnrollingAnalyzer should not be copied to the output_graph during
+    // CopyingPhase, since it's refering to the input_graph.
+    DCHECK(!data->graph().GetOrCreateCompanion().has_loop_unrolling_analyzer());
   }
 }
 

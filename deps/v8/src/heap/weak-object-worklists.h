@@ -18,8 +18,24 @@ struct Ephemeron {
   Tagged<HeapObject> value;
 };
 
-using HeapObjectAndSlot = std::pair<Tagged<HeapObject>, HeapObjectSlot>;
-using HeapObjectAndCode = std::pair<Tagged<HeapObject>, Tagged<Code>>;
+namespace detail {
+// SlotType will be HeapObjectSlot, which is defined in "globals.h" as an
+// incomplete type. Its definition depends on whether pointer compression
+// is used. It needs to be defined before this type is used.
+template <typename SlotType>
+struct HeapObjectAndSlotPOD {
+  Tagged<HeapObject> heap_object;
+  SlotType slot;
+};
+}  // namespace detail
+
+using HeapObjectAndSlot = detail::HeapObjectAndSlotPOD<HeapObjectSlot>;
+
+struct HeapObjectAndCode {
+  Tagged<HeapObject> heap_object;
+  Tagged<Code> code;
+};
+
 class EphemeronHashTable;
 class JSFunction;
 class SharedFunctionInfo;
@@ -34,33 +50,36 @@ class TransitionArray;
 //
 // If you add a new entry, then you also need to implement the corresponding
 // Update*() function in the cc file for updating pointers after Scavenge.
-#define WEAK_OBJECT_WORKLISTS(F)                                             \
-  F(Tagged<TransitionArray>, transition_arrays, TransitionArrays)            \
-  /* Keep track of all EphemeronHashTables in the heap to process            \
-     them in the atomic pause. */                                            \
-  F(Tagged<EphemeronHashTable>, ephemeron_hash_tables, EphemeronHashTables)  \
-  /* Keep track of all ephemerons for concurrent marking tasks. Only store   \
-     ephemerons in these worklists if both (key, value) are unreachable at   \
-     the moment.                                                             \
-     MarkCompactCollector::MarkTransitiveClosureUntilFixpoint drains/fills   \
-     these worklists. current_ephemerons is used as draining worklist in     \
-     the current fixpoint iteration. */                                      \
-  F(Ephemeron, current_ephemerons, CurrentEphemerons)                        \
-  /* Stores ephemerons to visit in the next fixpoint iteration. */           \
-  F(Ephemeron, next_ephemerons, NextEphemerons)                              \
-  /* When draining the marking worklist new discovered ephemerons are pushed \
-      into this worklist. */                                                 \
-  F(Ephemeron, discovered_ephemerons, DiscoveredEphemerons)                  \
-  /* TODO(marja): For old space, we only need the slot, not the host object. \
-     Optimize this by adding a different storage for old space. */           \
-  F(HeapObjectAndSlot, weak_references, WeakReferences)                      \
-  F(HeapObjectAndCode, weak_objects_in_code, WeakObjectsInCode)              \
-  F(Tagged<JSWeakRef>, js_weak_refs, JSWeakRefs)                             \
-  F(Tagged<WeakCell>, weak_cells, WeakCells)                                 \
-  F(Tagged<SharedFunctionInfo>, code_flushing_candidates,                    \
-    CodeFlushingCandidates)                                                  \
-  F(Tagged<JSFunction>, baseline_flushing_candidates,                        \
-    BaselineFlushingCandidates)                                              \
+#define WEAK_OBJECT_WORKLISTS(F)                                              \
+  F(Tagged<TransitionArray>, transition_arrays, TransitionArrays)             \
+  /* Keep track of all EphemeronHashTables in the heap to process             \
+     them in the atomic pause. */                                             \
+  F(Tagged<EphemeronHashTable>, ephemeron_hash_tables, EphemeronHashTables)   \
+  /* Keep track of all ephemerons for concurrent marking tasks. Only store    \
+     ephemerons in these worklists if both (key, value) are unreachable at    \
+     the moment.                                                              \
+     MarkCompactCollector::MarkTransitiveClosureUntilFixpoint drains/fills    \
+     these worklists. current_ephemerons is used as draining worklist in      \
+     the current fixpoint iteration. */                                       \
+  F(Ephemeron, current_ephemerons, CurrentEphemerons)                         \
+  /* Stores ephemerons to visit in the next fixpoint iteration. */            \
+  F(Ephemeron, next_ephemerons, NextEphemerons)                               \
+  /* When draining the marking worklist new discovered ephemerons are pushed  \
+      into this worklist. */                                                  \
+  F(Ephemeron, discovered_ephemerons, DiscoveredEphemerons)                   \
+  /* TODO(marja): For old space, we only need the slot, not the host object.  \
+     Optimize this by adding a different storage for old space. */            \
+  F(HeapObjectAndSlot, weak_references_trivial, WeakReferencesTrivial)        \
+  F(HeapObjectAndSlot, weak_references_non_trivial, WeakReferencesNonTrivial) \
+  F(HeapObjectAndSlot, weak_references_non_trivial_unmarked,                  \
+    WeakReferencesNonTrivialUnmarked)                                         \
+  F(HeapObjectAndCode, weak_objects_in_code, WeakObjectsInCode)               \
+  F(Tagged<JSWeakRef>, js_weak_refs, JSWeakRefs)                              \
+  F(Tagged<WeakCell>, weak_cells, WeakCells)                                  \
+  F(Tagged<SharedFunctionInfo>, code_flushing_candidates,                     \
+    CodeFlushingCandidates)                                                   \
+  F(Tagged<JSFunction>, baseline_flushing_candidates,                         \
+    BaselineFlushingCandidates)                                               \
   F(Tagged<JSFunction>, flushed_js_functions, FlushedJSFunctions)
 
 class WeakObjects final {

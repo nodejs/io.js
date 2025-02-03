@@ -135,7 +135,7 @@ function start(callback) {
         connect();
     });
     s.on('session', (session) => {
-      sess = sess || session;
+      sess ||= session;
     });
     s.once('session', (session) => onNewSession(s, session));
     s.once('session', () => ticketLog.push(s.getTLSTicket().toString('hex')));

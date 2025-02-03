@@ -15,7 +15,7 @@ namespace internal {
 #define DEFINE_PROTECTOR_ON_ISOLATE_CHECK(name, root_index, unused_cell) \
   bool Protectors::Is##name##Intact(Isolate* isolate) {                  \
     Tagged<PropertyCell> cell =                                          \
-        PropertyCell::cast(isolate->root(RootIndex::k##root_index));     \
+        Cast<PropertyCell>(isolate->root(RootIndex::k##root_index));     \
     return IsSmi(cell->value()) &&                                       \
            Smi::ToInt(cell->value()) == kProtectorValid;                 \
   }

@@ -48,6 +48,7 @@ using v8::Int32;
 using v8::Integer;
 using v8::Isolate;
 using v8::Local;
+using v8::LocalVector;
 using v8::MaybeLocal;
 using v8::NewStringType;
 using v8::Null;
@@ -112,7 +113,7 @@ static void GetCPUInfo(const FunctionCallbackInfo<Value>& args) {
   // assemble them into objects in JS than to call Object::Set() repeatedly
   // The array is in the format
   // [model, speed, (5 entries of cpu_times), model2, speed2, ...]
-  std::vector<Local<Value>> result;
+  LocalVector<Value> result(isolate);
   result.reserve(count * 7);
   for (int i = 0; i < count; i++) {
     uv_cpu_info_t* ci = cpu_infos + i;
@@ -193,7 +194,7 @@ static void GetInterfaceAddresses(const FunctionCallbackInfo<Value>& args) {
   }
 
   Local<Value> no_scope_id = Integer::New(isolate, -1);
-  std::vector<Local<Value>> result;
+  LocalVector<Value> result(isolate);
   result.reserve(count * 7);
   for (i = 0; i < count; i++) {
     const char* const raw_name = interfaces[i].name;
@@ -287,21 +288,29 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
     encoding = UTF8;
   }
 
-  const int err = uv_os_get_passwd(&pwd);
-
-  if (err) {
+  if (const int err = uv_os_get_passwd(&pwd)) {
     CHECK_GE(args.Length(), 2);
     env->CollectUVExceptionInfo(args[args.Length() - 1], err,
                                 "uv_os_get_passwd");
     return args.GetReturnValue().SetUndefined();
   }
 
-  auto free_passwd = OnScopeLeave([&]() { uv_os_free_passwd(&pwd); });
+  auto free_passwd = OnScopeLeave([&] { uv_os_free_passwd(&pwd); });
 
   Local<Value> error;
 
+#ifdef _WIN32
+  Local<Value> uid = Number::New(
+      env->isolate(),
+      static_cast<double>(static_cast<int32_t>(pwd.uid & 0xFFFFFFFF)));
+  Local<Value> gid = Number::New(
+      env->isolate(),
+      static_cast<double>(static_cast<int32_t>(pwd.gid & 0xFFFFFFFF)));
+#else
   Local<Value> uid = Number::New(env->isolate(), pwd.uid);
   Local<Value> gid = Number::New(env->isolate(), pwd.gid);
+#endif
+
   MaybeLocal<Value> username = StringBytes::Encode(env->isolate(),
                                                    pwd.username,
                                                    encoding,
@@ -323,21 +332,22 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  Local<Object> entry = Object::New(env->isolate());
-
-  entry->Set(env->context(), env->uid_string(), uid).Check();
-  entry->Set(env->context(), env->gid_string(), gid).Check();
-  entry->Set(env->context(),
-             env->username_string(),
-             username.ToLocalChecked()).Check();
-  entry->Set(env->context(),
-             env->homedir_string(),
-             homedir.ToLocalChecked()).Check();
-  entry->Set(env->context(),
-             env->shell_string(),
-             shell.ToLocalChecked()).Check();
-
-  args.GetReturnValue().Set(entry);
+  constexpr size_t kRetLength = 5;
+  std::array<Local<v8::Name>, kRetLength> names = {env->uid_string(),
+                                                   env->gid_string(),
+                                                   env->username_string(),
+                                                   env->homedir_string(),
+                                                   env->shell_string()};
+  std::array values = {uid,
+                       gid,
+                       username.ToLocalChecked(),
+                       homedir.ToLocalChecked(),
+                       shell.ToLocalChecked()};
+  args.GetReturnValue().Set(Object::New(env->isolate(),
+                                        Null(env->isolate()),
+                                        names.data(),
+                                        values.data(),
+                                        kRetLength));
 }
 
 

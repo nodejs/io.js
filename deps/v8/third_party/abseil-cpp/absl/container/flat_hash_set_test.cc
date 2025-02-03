@@ -181,15 +181,46 @@ TEST(FlatHashSet, EraseIf) {
   }
 }
 
-class PoisonInline {
+TEST(FlatHashSet, CForEach) {
+  using ValueType = std::pair<int, int>;
+  flat_hash_set<ValueType> s;
+  std::vector<ValueType> expected;
+  for (int i = 0; i < 100; ++i) {
+    {
+      SCOPED_TRACE("mutable object iteration");
+      std::vector<ValueType> v;
+      absl::container_internal::c_for_each_fast(
+          s, [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("const object iteration");
+      std::vector<ValueType> v;
+      const flat_hash_set<ValueType>& cs = s;
+      absl::container_internal::c_for_each_fast(
+          cs, [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("temporary object iteration");
+      std::vector<ValueType> v;
+      absl::container_internal::c_for_each_fast(
+          flat_hash_set<ValueType>(s),
+          [&v](const ValueType& p) { v.push_back(p); });
+      ASSERT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    s.emplace(i, i);
+    expected.emplace_back(i, i);
+  }
+}
+
+class PoisonSoo {
   int64_t data_;
 
  public:
-  explicit PoisonInline(int64_t d) : data_(d) {
-    SanitizerPoisonObject(&data_);
-  }
-  PoisonInline(const PoisonInline& that) : PoisonInline(*that) {}
-  ~PoisonInline() { SanitizerUnpoisonObject(&data_); }
+  explicit PoisonSoo(int64_t d) : data_(d) { SanitizerPoisonObject(&data_); }
+  PoisonSoo(const PoisonSoo& that) : PoisonSoo(*that) {}
+  ~PoisonSoo() { SanitizerUnpoisonObject(&data_); }
 
   int64_t operator*() const {
     SanitizerUnpoisonObject(&data_);
@@ -198,45 +229,56 @@ class PoisonInline {
     return ret;
   }
   template <typename H>
-  friend H AbslHashValue(H h, const PoisonInline& pi) {
+  friend H AbslHashValue(H h, const PoisonSoo& pi) {
     return H::combine(std::move(h), *pi);
   }
-  bool operator==(const PoisonInline& rhs) const { return **this == *rhs; }
+  bool operator==(const PoisonSoo& rhs) const { return **this == *rhs; }
 };
 
-// Tests that we don't touch the poison_ member of PoisonInline.
-TEST(FlatHashSet, PoisonInline) {
-  PoisonInline a(0), b(1);
-  {  // basic usage
-    flat_hash_set<PoisonInline> set;
-    set.insert(a);
-    EXPECT_THAT(set, UnorderedElementsAre(a));
-    set.insert(b);
-    EXPECT_THAT(set, UnorderedElementsAre(a, b));
-    set.erase(a);
-    EXPECT_THAT(set, UnorderedElementsAre(b));
-    set.rehash(0);  // shrink to inline
-    EXPECT_THAT(set, UnorderedElementsAre(b));
-  }
-  {  // test move constructor from inline to inline
-    flat_hash_set<PoisonInline> set;
-    set.insert(a);
-    flat_hash_set<PoisonInline> set2(std::move(set));
-    EXPECT_THAT(set2, UnorderedElementsAre(a));
-  }
-  {  // test move assignment from inline to inline
-    flat_hash_set<PoisonInline> set, set2;
-    set.insert(a);
-    set2 = std::move(set);
-    EXPECT_THAT(set2, UnorderedElementsAre(a));
-  }
-  {  // test alloc move constructor from inline to inline
-    flat_hash_set<PoisonInline> set;
-    set.insert(a);
-    flat_hash_set<PoisonInline> set2(std::move(set),
-                                     std::allocator<PoisonInline>());
-    EXPECT_THAT(set2, UnorderedElementsAre(a));
-  }
+TEST(FlatHashSet, PoisonSooBasic) {
+  PoisonSoo a(0), b(1);
+  flat_hash_set<PoisonSoo> set;
+  set.insert(a);
+  EXPECT_THAT(set, UnorderedElementsAre(a));
+  set.insert(b);
+  EXPECT_THAT(set, UnorderedElementsAre(a, b));
+  set.erase(a);
+  EXPECT_THAT(set, UnorderedElementsAre(b));
+  set.rehash(0);  // Shrink to SOO.
+  EXPECT_THAT(set, UnorderedElementsAre(b));
+}
+
+TEST(FlatHashSet, PoisonSooMoveConstructSooToSoo) {
+  PoisonSoo a(0);
+  flat_hash_set<PoisonSoo> set;
+  set.insert(a);
+  flat_hash_set<PoisonSoo> set2(std::move(set));
+  EXPECT_THAT(set2, UnorderedElementsAre(a));
+}
+
+TEST(FlatHashSet, PoisonSooAllocMoveConstructSooToSoo) {
+  PoisonSoo a(0);
+  flat_hash_set<PoisonSoo> set;
+  set.insert(a);
+  flat_hash_set<PoisonSoo> set2(std::move(set), std::allocator<PoisonSoo>());
+  EXPECT_THAT(set2, UnorderedElementsAre(a));
+}
+
+TEST(FlatHashSet, PoisonSooMoveAssignFullSooToEmptySoo) {
+  PoisonSoo a(0);
+  flat_hash_set<PoisonSoo> set, set2;
+  set.insert(a);
+  set2 = std::move(set);
+  EXPECT_THAT(set2, UnorderedElementsAre(a));
+}
+
+TEST(FlatHashSet, PoisonSooMoveAssignFullSooToFullSoo) {
+  PoisonSoo a(0), b(1);
+  flat_hash_set<PoisonSoo> set, set2;
+  set.insert(a);
+  set2.insert(b);
+  set2 = std::move(set);
+  EXPECT_THAT(set2, UnorderedElementsAre(a));
 }
 
 TEST(FlatHashSet, FlatHashSetPolicyDestroyReturnsTrue) {

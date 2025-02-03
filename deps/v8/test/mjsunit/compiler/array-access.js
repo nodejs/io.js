@@ -63,8 +63,7 @@ function RunGetTests(packed=true) {
     assertEquals(0, GetAAN(a,0));
     assertEquals(1, GetAAN(a,1));
     assertEquals(2, GetAAN(a,2));
-  }
-  else {
+  } else {
     var a = ['2','0','1'];
     assertEquals('2', Get0(a));
 

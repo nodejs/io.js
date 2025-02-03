@@ -36,7 +36,8 @@ void DefaultWorkerThreadsTaskRunner::Terminate() {
   thread_pool_.clear();
 }
 
-void DefaultWorkerThreadsTaskRunner::PostTask(std::unique_ptr<Task> task) {
+void DefaultWorkerThreadsTaskRunner::PostTaskImpl(
+    std::unique_ptr<Task> task, const SourceLocation& location) {
   base::MutexGuard guard(&lock_);
   if (terminated_) return;
   queue_.Append(std::move(task));
@@ -47,8 +48,9 @@ void DefaultWorkerThreadsTaskRunner::PostTask(std::unique_ptr<Task> task) {
   }
 }
 
-void DefaultWorkerThreadsTaskRunner::PostDelayedTask(std::unique_ptr<Task> task,
-                                                     double delay_in_seconds) {
+void DefaultWorkerThreadsTaskRunner::PostDelayedTaskImpl(
+    std::unique_ptr<Task> task, double delay_in_seconds,
+    const SourceLocation& location) {
   base::MutexGuard guard(&lock_);
   if (terminated_) return;
   queue_.AppendDelayed(std::move(task), delay_in_seconds);
@@ -59,8 +61,8 @@ void DefaultWorkerThreadsTaskRunner::PostDelayedTask(std::unique_ptr<Task> task,
   }
 }
 
-void DefaultWorkerThreadsTaskRunner::PostIdleTask(
-    std::unique_ptr<IdleTask> task) {
+void DefaultWorkerThreadsTaskRunner::PostIdleTaskImpl(
+    std::unique_ptr<IdleTask> task, const SourceLocation& location) {
   // There are no idle worker tasks.
   UNREACHABLE();
 }

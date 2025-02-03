@@ -41,356 +41,368 @@
 #define GETSERVBYNAME_R_ARGS @GETSERVBYNAME_R_ARGS@
 
 /* Define to 1 if you have AF_INET6. */
-#cmakedefine HAVE_AF_INET6
+#cmakedefine HAVE_AF_INET6 1
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
-#cmakedefine HAVE_ARPA_INET_H
+#cmakedefine HAVE_ARPA_INET_H 1
 
 /* Define to 1 if you have the <arpa/nameser_compat.h> header file. */
-#cmakedefine HAVE_ARPA_NAMESER_COMPAT_H
+#cmakedefine HAVE_ARPA_NAMESER_COMPAT_H 1
 
 /* Define to 1 if you have the <arpa/nameser.h> header file. */
-#cmakedefine HAVE_ARPA_NAMESER_H
+#cmakedefine HAVE_ARPA_NAMESER_H 1
 
 /* Define to 1 if you have the <assert.h> header file. */
-#cmakedefine HAVE_ASSERT_H
+#cmakedefine HAVE_ASSERT_H 1
 
 /* Define to 1 if you have the clock_gettime function and monotonic timer. */
-#cmakedefine HAVE_CLOCK_GETTIME_MONOTONIC
+#cmakedefine HAVE_CLOCK_GETTIME_MONOTONIC 1
 
 /* Define to 1 if you have the closesocket function. */
-#cmakedefine HAVE_CLOSESOCKET
+#cmakedefine HAVE_CLOSESOCKET 1
 
 /* Define to 1 if you have the CloseSocket camel case function. */
-#cmakedefine HAVE_CLOSESOCKET_CAMEL
+#cmakedefine HAVE_CLOSESOCKET_CAMEL 1
 
 /* Define to 1 if you have the connect function. */
-#cmakedefine HAVE_CONNECT
+#cmakedefine HAVE_CONNECT 1
+
+/* Define to 1 if you have the connectx function. */
+#cmakedefine HAVE_CONNECTX 1
 
 /* define if the compiler supports basic C++11 syntax */
-#cmakedefine HAVE_CXX11
+#cmakedefine HAVE_CXX11 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
-#cmakedefine HAVE_DLFCN_H
+#cmakedefine HAVE_DLFCN_H 1
 
 /* Define to 1 if you have the <errno.h> header file. */
-#cmakedefine HAVE_ERRNO_H
+#cmakedefine HAVE_ERRNO_H 1
 
 /* Define to 1 if you have the <poll.h> header file. */
-#cmakedefine HAVE_POLL_H
+#cmakedefine HAVE_POLL_H 1
+
+/* Define to 1 if you have the memmem function. */
+#cmakedefine HAVE_MEMMEM 1
 
 /* Define to 1 if you have the poll function. */
-#cmakedefine HAVE_POLL
+#cmakedefine HAVE_POLL 1
 
 /* Define to 1 if you have the pipe function. */
-#cmakedefine HAVE_PIPE
+#cmakedefine HAVE_PIPE 1
 
 /* Define to 1 if you have the pipe2 function. */
-#cmakedefine HAVE_PIPE2
+#cmakedefine HAVE_PIPE2 1
 
 /* Define to 1 if you have the kqueue function. */
-#cmakedefine HAVE_KQUEUE
+#cmakedefine HAVE_KQUEUE 1
 
 /* Define to 1 if you have the epoll{_create,ctl,wait} functions. */
-#cmakedefine HAVE_EPOLL
+#cmakedefine HAVE_EPOLL 1
 
 /* Define to 1 if you have the fcntl function. */
-#cmakedefine HAVE_FCNTL
+#cmakedefine HAVE_FCNTL 1
 
 /* Define to 1 if you have the <fcntl.h> header file. */
-#cmakedefine HAVE_FCNTL_H
+#cmakedefine HAVE_FCNTL_H 1
 
 /* Define to 1 if you have a working fcntl O_NONBLOCK function. */
-#cmakedefine HAVE_FCNTL_O_NONBLOCK
+#cmakedefine HAVE_FCNTL_O_NONBLOCK 1
 
 /* Define to 1 if you have the freeaddrinfo function. */
-#cmakedefine HAVE_FREEADDRINFO
+#cmakedefine HAVE_FREEADDRINFO 1
 
 /* Define to 1 if you have a working getaddrinfo function. */
-#cmakedefine HAVE_GETADDRINFO
+#cmakedefine HAVE_GETADDRINFO 1
 
 /* Define to 1 if the getaddrinfo function is threadsafe. */
-#cmakedefine HAVE_GETADDRINFO_THREADSAFE
+#cmakedefine HAVE_GETADDRINFO_THREADSAFE 1
 
 /* Define to 1 if you have the getenv function. */
-#cmakedefine HAVE_GETENV
+#cmakedefine HAVE_GETENV 1
 
 /* Define to 1 if you have the gethostname function. */
-#cmakedefine HAVE_GETHOSTNAME
+#cmakedefine HAVE_GETHOSTNAME 1
 
 /* Define to 1 if you have the getnameinfo function. */
-#cmakedefine HAVE_GETNAMEINFO
+#cmakedefine HAVE_GETNAMEINFO 1
 
 /* Define to 1 if you have the getrandom function. */
-#cmakedefine HAVE_GETRANDOM
+#cmakedefine HAVE_GETRANDOM 1
 
 /* Define to 1 if you have the getservbyport_r function. */
-#cmakedefine HAVE_GETSERVBYPORT_R
+#cmakedefine HAVE_GETSERVBYPORT_R 1
 
 /* Define to 1 if you have the getservbyname_r function. */
-#cmakedefine HAVE_GETSERVBYNAME_R
+#cmakedefine HAVE_GETSERVBYNAME_R 1
 
 /* Define to 1 if you have the `gettimeofday' function. */
-#cmakedefine HAVE_GETTIMEOFDAY
+#cmakedefine HAVE_GETTIMEOFDAY 1
 
 /* Define to 1 if you have the `if_indextoname' function. */
-#cmakedefine HAVE_IF_INDEXTONAME
+#cmakedefine HAVE_IF_INDEXTONAME 1
 
 /* Define to 1 if you have the `if_nametoindex' function. */
-#cmakedefine HAVE_IF_NAMETOINDEX
+#cmakedefine HAVE_IF_NAMETOINDEX 1
 
 /* Define to 1 if you have the `ConvertInterfaceIndexToLuid' function. */
-#cmakedefine HAVE_CONVERTINTERFACEINDEXTOLUID
+#cmakedefine HAVE_CONVERTINTERFACEINDEXTOLUID 1
 
 /* Define to 1 if you have the `ConvertInterfaceLuidToNameA' function. */
-#cmakedefine HAVE_CONVERTINTERFACELUIDTONAMEA
+#cmakedefine HAVE_CONVERTINTERFACELUIDTONAMEA 1
+
+/* Define to 1 if you have the `NotifyIpInterfaceChange' function. */
+#cmakedefine HAVE_NOTIFYIPINTERFACECHANGE 1
+
+/* Define to 1 if you have the `RegisterWaitForSingleObject' function. */
+#cmakedefine HAVE_REGISTERWAITFORSINGLEOBJECT 1
 
 /* Define to 1 if you have a IPv6 capable working inet_net_pton function. */
-#cmakedefine HAVE_INET_NET_PTON
+#cmakedefine HAVE_INET_NET_PTON 1
 
 /* Define to 1 if you have a IPv6 capable working inet_ntop function. */
-#cmakedefine HAVE_INET_NTOP
+#cmakedefine HAVE_INET_NTOP 1
 
 /* Define to 1 if you have a IPv6 capable working inet_pton function. */
-#cmakedefine HAVE_INET_PTON
+#cmakedefine HAVE_INET_PTON 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-#cmakedefine HAVE_INTTYPES_H
+#cmakedefine HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the ioctl function. */
-#cmakedefine HAVE_IOCTL
+#cmakedefine HAVE_IOCTL 1
 
 /* Define to 1 if you have the ioctlsocket function. */
-#cmakedefine HAVE_IOCTLSOCKET
+#cmakedefine HAVE_IOCTLSOCKET 1
 
 /* Define to 1 if you have the IoctlSocket camel case function. */
-#cmakedefine HAVE_IOCTLSOCKET_CAMEL
+#cmakedefine HAVE_IOCTLSOCKET_CAMEL 1
 
 /* Define to 1 if you have a working IoctlSocket camel case FIONBIO function.
    */
-#cmakedefine HAVE_IOCTLSOCKET_CAMEL_FIONBIO
+#cmakedefine HAVE_IOCTLSOCKET_CAMEL_FIONBIO 1
 
 /* Define to 1 if you have a working ioctlsocket FIONBIO function. */
-#cmakedefine HAVE_IOCTLSOCKET_FIONBIO
+#cmakedefine HAVE_IOCTLSOCKET_FIONBIO 1
 
 /* Define to 1 if you have a working ioctl FIONBIO function. */
-#cmakedefine HAVE_IOCTL_FIONBIO
+#cmakedefine HAVE_IOCTL_FIONBIO 1
 
 /* Define to 1 if you have a working ioctl SIOCGIFADDR function. */
-#cmakedefine HAVE_IOCTL_SIOCGIFADDR
+#cmakedefine HAVE_IOCTL_SIOCGIFADDR 1
 
 /* Define to 1 if you have the `resolve' library (-lresolve). */
-#cmakedefine HAVE_LIBRESOLV
+#cmakedefine HAVE_LIBRESOLV 1
 
 /* Define to 1 if you have iphlpapi.h */
-#cmakedefine HAVE_IPHLPAPI_H
+#cmakedefine HAVE_IPHLPAPI_H 1
 
 /* Define to 1 if you have netioapi.h */
-#cmakedefine HAVE_NETIOAPI_H
+#cmakedefine HAVE_NETIOAPI_H 1
 
 /* Define to 1 if you have the <limits.h> header file. */
-#cmakedefine HAVE_LIMITS_H
+#cmakedefine HAVE_LIMITS_H 1
 
 /* Define to 1 if the compiler supports the 'long long' data type. */
-#cmakedefine HAVE_LONGLONG
+#cmakedefine HAVE_LONGLONG 1
 
 /* Define to 1 if you have the malloc.h header file. */
-#cmakedefine HAVE_MALLOC_H
+#cmakedefine HAVE_MALLOC_H 1
 
 /* Define to 1 if you have the memory.h header file. */
-#cmakedefine HAVE_MEMORY_H
+#cmakedefine HAVE_MEMORY_H 1
 
 /* Define to 1 if you have the AvailabilityMacros.h header file. */
-#cmakedefine HAVE_AVAILABILITYMACROS_H
+#cmakedefine HAVE_AVAILABILITYMACROS_H 1
 
 /* Define to 1 if you have the MSG_NOSIGNAL flag. */
-#cmakedefine HAVE_MSG_NOSIGNAL
+#cmakedefine HAVE_MSG_NOSIGNAL 1
 
 /* Define to 1 if you have the <netdb.h> header file. */
-#cmakedefine HAVE_NETDB_H
+#cmakedefine HAVE_NETDB_H 1
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
-#cmakedefine HAVE_NETINET_IN_H
+#cmakedefine HAVE_NETINET_IN_H 1
 
 /* Define to 1 if you have the <netinet6/in6.h> header file. */
-#cmakedefine HAVE_NETINET6_IN6_H
+#cmakedefine HAVE_NETINET6_IN6_H 1
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
-#cmakedefine HAVE_NETINET_TCP_H
+#cmakedefine HAVE_NETINET_TCP_H 1
 
 /* Define to 1 if you have the <net/if.h> header file. */
-#cmakedefine HAVE_NET_IF_H
+#cmakedefine HAVE_NET_IF_H 1
 
 /* Define to 1 if you have PF_INET6. */
-#cmakedefine HAVE_PF_INET6
+#cmakedefine HAVE_PF_INET6 1
 
 /* Define to 1 if you have the recv function. */
-#cmakedefine HAVE_RECV
+#cmakedefine HAVE_RECV 1
 
 /* Define to 1 if you have the recvfrom function. */
-#cmakedefine HAVE_RECVFROM
+#cmakedefine HAVE_RECVFROM 1
 
 /* Define to 1 if you have the send function. */
-#cmakedefine HAVE_SEND
+#cmakedefine HAVE_SEND 1
+
+/* Define to 1 if you have the sendto function. */
+#cmakedefine HAVE_SENDTO 1
 
 /* Define to 1 if you have the setsockopt function. */
-#cmakedefine HAVE_SETSOCKOPT
+#cmakedefine HAVE_SETSOCKOPT 1
 
 /* Define to 1 if you have a working setsockopt SO_NONBLOCK function. */
-#cmakedefine HAVE_SETSOCKOPT_SO_NONBLOCK
+#cmakedefine HAVE_SETSOCKOPT_SO_NONBLOCK 1
 
 /* Define to 1 if you have the <signal.h> header file. */
-#cmakedefine HAVE_SIGNAL_H
+#cmakedefine HAVE_SIGNAL_H 1
+
+/* Define to 1 if you have the strnlen function. */
+#cmakedefine HAVE_STRNLEN 1
 
 /* Define to 1 if your struct sockaddr_in6 has sin6_scope_id. */
-#cmakedefine HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID
+#cmakedefine HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID 1
 
 /* Define to 1 if you have the socket function. */
-#cmakedefine HAVE_SOCKET
+#cmakedefine HAVE_SOCKET 1
 
 /* Define to 1 if you have the <socket.h> header file. */
-#cmakedefine HAVE_SOCKET_H
+#cmakedefine HAVE_SOCKET_H 1
 
 /* Define to 1 if you have the <stdbool.h> header file. */
-#cmakedefine HAVE_STDBOOL_H
+#cmakedefine HAVE_STDBOOL_H 1
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#cmakedefine HAVE_STDINT_H
+#cmakedefine HAVE_STDINT_H 1
 
 /* Define to 1 if you have the <stdlib.h> header file. */
-#cmakedefine HAVE_STDLIB_H
+#cmakedefine HAVE_STDLIB_H 1
 
 /* Define to 1 if you have the strcasecmp function. */
-#cmakedefine HAVE_STRCASECMP
+#cmakedefine HAVE_STRCASECMP 1
 
 /* Define to 1 if you have the strcmpi function. */
-#cmakedefine HAVE_STRCMPI
+#cmakedefine HAVE_STRCMPI 1
 
 /* Define to 1 if you have the strdup function. */
-#cmakedefine HAVE_STRDUP
+#cmakedefine HAVE_STRDUP 1
 
 /* Define to 1 if you have the stricmp function. */
-#cmakedefine HAVE_STRICMP
+#cmakedefine HAVE_STRICMP 1
 
 /* Define to 1 if you have the <strings.h> header file. */
-#cmakedefine HAVE_STRINGS_H
+#cmakedefine HAVE_STRINGS_H 1
 
 /* Define to 1 if you have the <string.h> header file. */
-#cmakedefine HAVE_STRING_H
+#cmakedefine HAVE_STRING_H 1
 
 /* Define to 1 if you have the strncasecmp function. */
-#cmakedefine HAVE_STRNCASECMP
+#cmakedefine HAVE_STRNCASECMP 1
 
 /* Define to 1 if you have the strncmpi function. */
-#cmakedefine HAVE_STRNCMPI
+#cmakedefine HAVE_STRNCMPI 1
 
 /* Define to 1 if you have the strnicmp function. */
-#cmakedefine HAVE_STRNICMP
+#cmakedefine HAVE_STRNICMP 1
 
 /* Define to 1 if you have the <stropts.h> header file. */
-#cmakedefine HAVE_STROPTS_H
+#cmakedefine HAVE_STROPTS_H 1
 
 /* Define to 1 if you have struct addrinfo. */
-#cmakedefine HAVE_STRUCT_ADDRINFO
+#cmakedefine HAVE_STRUCT_ADDRINFO 1
 
 /* Define to 1 if you have struct in6_addr. */
-#cmakedefine HAVE_STRUCT_IN6_ADDR
+#cmakedefine HAVE_STRUCT_IN6_ADDR 1
 
 /* Define to 1 if you have struct sockaddr_in6. */
-#cmakedefine HAVE_STRUCT_SOCKADDR_IN6
+#cmakedefine HAVE_STRUCT_SOCKADDR_IN6 1
 
 /* if struct sockaddr_storage is defined */
-#cmakedefine HAVE_STRUCT_SOCKADDR_STORAGE
+#cmakedefine HAVE_STRUCT_SOCKADDR_STORAGE 1
 
 /* Define to 1 if you have the timeval struct. */
-#cmakedefine HAVE_STRUCT_TIMEVAL
+#cmakedefine HAVE_STRUCT_TIMEVAL 1
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
-#cmakedefine HAVE_SYS_IOCTL_H
+#cmakedefine HAVE_SYS_IOCTL_H 1
 
 /* Define to 1 if you have the <sys/param.h> header file. */
-#cmakedefine HAVE_SYS_PARAM_H
+#cmakedefine HAVE_SYS_PARAM_H 1
 
 /* Define to 1 if you have the <sys/random.h> header file. */
-#cmakedefine HAVE_SYS_RANDOM_H
+#cmakedefine HAVE_SYS_RANDOM_H 1
 
 /* Define to 1 if you have the <sys/event.h> header file. */
-#cmakedefine HAVE_SYS_EVENT_H
+#cmakedefine HAVE_SYS_EVENT_H 1
 
 /* Define to 1 if you have the <sys/epoll.h> header file. */
-#cmakedefine HAVE_SYS_EPOLL_H
+#cmakedefine HAVE_SYS_EPOLL_H 1
 
 /* Define to 1 if you have the <sys/select.h> header file. */
-#cmakedefine HAVE_SYS_SELECT_H
+#cmakedefine HAVE_SYS_SELECT_H 1
 
 /* Define to 1 if you have the <sys/socket.h> header file. */
-#cmakedefine HAVE_SYS_SOCKET_H
+#cmakedefine HAVE_SYS_SOCKET_H 1
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
-#cmakedefine HAVE_SYS_STAT_H
+#cmakedefine HAVE_SYS_STAT_H 1
 
 /* Define to 1 if you have the <sys/time.h> header file. */
-#cmakedefine HAVE_SYS_TIME_H
+#cmakedefine HAVE_SYS_TIME_H 1
 
 /* Define to 1 if you have the <sys/types.h> header file. */
-#cmakedefine HAVE_SYS_TYPES_H
+#cmakedefine HAVE_SYS_TYPES_H 1
 
 /* Define to 1 if you have the <sys/uio.h> header file. */
-#cmakedefine HAVE_SYS_UIO_H
+#cmakedefine HAVE_SYS_UIO_H 1
 
 /* Define to 1 if you have the <time.h> header file. */
-#cmakedefine HAVE_TIME_H
+#cmakedefine HAVE_TIME_H 1
 
 /* Define to 1 if you have the <ifaddrs.h> header file. */
-#cmakedefine HAVE_IFADDRS_H
+#cmakedefine HAVE_IFADDRS_H 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
-#cmakedefine HAVE_UNISTD_H
+#cmakedefine HAVE_UNISTD_H 1
 
 /* Define to 1 if you have the windows.h header file. */
-#cmakedefine HAVE_WINDOWS_H
+#cmakedefine HAVE_WINDOWS_H 1
 
 /* Define to 1 if you have the winsock2.h header file. */
-#cmakedefine HAVE_WINSOCK2_H
+#cmakedefine HAVE_WINSOCK2_H 1
 
 /* Define to 1 if you have the winsock.h header file. */
-#cmakedefine HAVE_WINSOCK_H
+#cmakedefine HAVE_WINSOCK_H 1
 
 /* Define to 1 if you have the mswsock.h header file. */
-#cmakedefine HAVE_MSWSOCK_H
+#cmakedefine HAVE_MSWSOCK_H 1
 
 /* Define to 1 if you have the winternl.h header file. */
-#cmakedefine HAVE_WINTERNL_H
+#cmakedefine HAVE_WINTERNL_H 1
 
 /* Define to 1 if you have the ntstatus.h header file. */
-#cmakedefine HAVE_NTSTATUS_H
+#cmakedefine HAVE_NTSTATUS_H 1
 
 /* Define to 1 if you have the ntdef.h header file. */
-#cmakedefine HAVE_NTDEF_H
+#cmakedefine HAVE_NTDEF_H 1
 
 /* Define to 1 if you have the writev function. */
-#cmakedefine HAVE_WRITEV
+#cmakedefine HAVE_WRITEV 1
 
 /* Define to 1 if you have the ws2tcpip.h header file. */
-#cmakedefine HAVE_WS2TCPIP_H
+#cmakedefine HAVE_WS2TCPIP_H 1
 
 /* Define to 1 if you have the __system_property_get function */
-#cmakedefine HAVE___SYSTEM_PROPERTY_GET
-
-/* Define to 1 if you need the malloc.h header file even with stdlib.h */
-#cmakedefine NEED_MALLOC_H
-
-/* Define to 1 if you need the memory.h header file even with stdlib.h */
-#cmakedefine NEED_MEMORY_H
+#cmakedefine HAVE___SYSTEM_PROPERTY_GET 1
 
 /* Define if have arc4random_buf() */
-#cmakedefine HAVE_ARC4RANDOM_BUF
+#cmakedefine HAVE_ARC4RANDOM_BUF 1
 
 /* Define if have getifaddrs() */
-#cmakedefine HAVE_GETIFADDRS
+#cmakedefine HAVE_GETIFADDRS 1
 
 /* Define if have stat() */
-#cmakedefine HAVE_STAT
+#cmakedefine HAVE_STAT 1
 
 /* a suitable file/device to read random data from */
 #cmakedefine CARES_RANDOM_FILE "@CARES_RANDOM_FILE@"
@@ -443,9 +455,6 @@
 /* Define to the function return type for recv. */
 #define RECV_TYPE_RETV @RECV_TYPE_RETV@
 
-/* Define to the type qualifier of arg 2 for send. */
-#define SEND_QUAL_ARG2 @SEND_QUAL_ARG2@
-
 /* Define to the type of arg 1 for send. */
 #define SEND_TYPE_ARG1 @SEND_TYPE_ARG1@
 
@@ -468,14 +477,14 @@
 #undef WIN32_LEAN_AND_MEAN
 
 /* Define to 1 if you have the pthread.h header file. */
-#cmakedefine HAVE_PTHREAD_H
+#cmakedefine HAVE_PTHREAD_H 1
 
 /* Define to 1 if you have the pthread_np.h header file. */
-#cmakedefine HAVE_PTHREAD_NP_H
+#cmakedefine HAVE_PTHREAD_NP_H 1
 
 /* Define to 1 if threads are enabled */
-#cmakedefine CARES_THREADS
+#cmakedefine CARES_THREADS 1
 
 /* Define to 1 if pthread_init() exists */
-#cmakedefine HAVE_PTHREAD_INIT
+#cmakedefine HAVE_PTHREAD_INIT 1
 

@@ -69,6 +69,7 @@ CRYPTO_THREAD_unlock() unlocks the previously locked I<lock>.
 =item *
 
 CRYPTO_THREAD_lock_free() frees the provided I<lock>.
+If the argument is NULL, nothing is done.
 
 =item *
 
@@ -163,10 +164,13 @@ This example safely initializes and uses a lock.
  {
      int ret = 0;
 
-     if (mylock()) {
-         /* Your code here, do not return without releasing the lock! */
-         ret = ... ;
+     if (!mylock()) {
+        /* Do not unlock unless the lock was successfully acquired. */
+        return 0;
      }
+
+     /* Your code here, do not return without releasing the lock! */
+     ret = ... ;
      myunlock();
      return ret;
  }
@@ -183,7 +187,7 @@ L<crypto(7)>, L<openssl-threads(7)>.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

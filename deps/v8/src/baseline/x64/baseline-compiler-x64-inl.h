@@ -23,8 +23,7 @@ constexpr BuiltinCallJumpMode kFallbackBuiltinCallJumpModeForBaseline =
 void BaselineCompiler::Prologue() {
   ASM_CODE_COMMENT(&masm_);
   DCHECK_EQ(kJSFunctionRegister, kJavaScriptCallTargetRegister);
-  int max_frame_size =
-      bytecode_->frame_size() + max_call_args_ * kSystemPointerSize;
+  int max_frame_size = bytecode_->max_frame_size();
   CallBuiltin<Builtin::kBaselineOutOfLinePrologue>(
       kContextRegister, kJSFunctionRegister, kJavaScriptCallArgCountRegister,
       max_frame_size, kJavaScriptCallNewTargetRegister, bytecode_);

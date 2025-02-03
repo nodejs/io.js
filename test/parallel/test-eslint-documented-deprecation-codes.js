@@ -7,7 +7,7 @@ if (!common.hasIntl)
   common.skip('missing Intl');
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/documented-deprecation-codes');
 
 const mdFile = 'doc/api/deprecations.md';

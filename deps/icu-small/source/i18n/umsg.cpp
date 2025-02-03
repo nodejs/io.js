@@ -558,7 +558,7 @@ umsg_vparse(const UMessageFormat *fmt,
         case Formattable::kLong:
             aInt = va_arg(ap, int32_t*);
             if(aInt){
-                *aInt = (int32_t) args[i].getLong();
+                *aInt = args[i].getLong();
             }else{
                 *status=U_ILLEGAL_ARGUMENT_ERROR;
             }

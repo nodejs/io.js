@@ -5,14 +5,14 @@
       "sources": [
         "test_cannot_run_js.c"
       ],
-      "defines": [ "NAPI_EXPERIMENTAL" ],
+      "defines": [ "NAPI_VERSION=10" ],
     },
     {
       "target_name": "test_pending_exception",
       "sources": [
         "test_cannot_run_js.c"
       ],
-      "defines": [ "NAPI_VERSION=8" ],
+      "defines": [ "NAPI_VERSION=9" ],
     }
   ]
 }

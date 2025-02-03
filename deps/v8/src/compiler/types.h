@@ -142,7 +142,8 @@ namespace compiler {
 // turbofan-types.tq uses two 32bit bitfield structs.
 #define PROPER_ATOMIC_BITSET_TYPE_HIGH_LIST(V)                             \
   V(Machine,                  uint64_t{1} << 32)                           \
-  V(Hole,                     uint64_t{1} << 33)
+  V(Hole,                     uint64_t{1} << 33) \
+  V(StringWrapper,            uint64_t{1} << 34)
 
 #define PROPER_BITSET_TYPE_LIST(V) \
   V(None,                     uint64_t{0}) \
@@ -172,6 +173,7 @@ namespace compiler {
                                   kOtherBigInt) \
   V(Numeric,                      kNumber | kBigInt) \
   V(String,                       kInternalizedString | kOtherString) \
+  V(StringOrStringWrapper,        kString | kStringWrapper) \
   V(UniqueName,                   kSymbol | kInternalizedString) \
   V(Name,                         kSymbol | kString) \
   V(InternalizedStringOrNull,     kInternalizedString | kNull) \
@@ -194,14 +196,17 @@ namespace compiler {
   V(Proxy,                        kCallableProxy | kOtherProxy) \
   V(ArrayOrOtherObject,           kArray | kOtherObject) \
   V(ArrayOrProxy,                 kArray | kProxy) \
+  V(StringWrapperOrOtherObject,   kStringWrapper | kOtherObject) \
   V(Function,                     kCallableFunction | kClassConstructor) \
   V(DetectableCallable,           kFunction | kBoundFunction | \
                                   kOtherCallable | kCallableProxy) \
   V(Callable,                     kDetectableCallable | kOtherUndetectable) \
-  V(NonCallable,                  kArray | kOtherObject | kOtherProxy) \
+  V(NonCallable,                  kArray | kStringWrapper | kOtherObject | \
+                                  kOtherProxy) \
   V(NonCallableOrNull,            kNonCallable | kNull) \
   V(DetectableObject,             kArray | kFunction | kBoundFunction | \
-                                  kOtherCallable | kOtherObject) \
+                                  kStringWrapper | kOtherCallable | \
+                                  kOtherObject) \
   V(DetectableReceiver,           kDetectableObject | kProxy | kWasmObject) \
   V(DetectableReceiverOrNull,     kDetectableReceiver | kNull) \
   V(Object,                       kDetectableObject | kOtherUndetectable) \

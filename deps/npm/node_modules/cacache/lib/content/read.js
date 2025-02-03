@@ -71,7 +71,7 @@ function readStream (cache, integrity, opts = {}) {
 module.exports.copy = copy
 
 function copy (cache, integrity, dest) {
-  return withContentSri(cache, integrity, (cpath, sri) => {
+  return withContentSri(cache, integrity, (cpath) => {
     return fs.copyFile(cpath, dest)
   })
 }

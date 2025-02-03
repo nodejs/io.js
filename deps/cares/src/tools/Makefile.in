@@ -91,7 +91,9 @@ host_triplet = @host@
 noinst_PROGRAMS = $(am__EXEEXT_1)
 subdir = src/tools
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/m4/ax_ac_append_to_file.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/m4/ares_check_user_namespace.m4 \
+	$(top_srcdir)/m4/ares_check_uts_namespace.m4 \
+	$(top_srcdir)/m4/ax_ac_append_to_file.m4 \
 	$(top_srcdir)/m4/ax_ac_print_to_file.m4 \
 	$(top_srcdir)/m4/ax_add_am_macro_static.m4 \
 	$(top_srcdir)/m4/ax_am_macros_static.m4 \
@@ -101,8 +103,6 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ax_ac_append_to_file.m4 \
 	$(top_srcdir)/m4/ax_check_compile_flag.m4 \
 	$(top_srcdir)/m4/ax_check_gnu_make.m4 \
 	$(top_srcdir)/m4/ax_check_link_flag.m4 \
-	$(top_srcdir)/m4/ax_check_user_namespace.m4 \
-	$(top_srcdir)/m4/ax_check_uts_namespace.m4 \
 	$(top_srcdir)/m4/ax_code_coverage.m4 \
 	$(top_srcdir)/m4/ax_compiler_vendor.m4 \
 	$(top_srcdir)/m4/ax_cxx_compile_stdcxx.m4 \
@@ -124,12 +124,7 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__EXEEXT_1 = ahost$(EXEEXT) adig$(EXEEXT)
 PROGRAMS = $(noinst_PROGRAMS)
-am__dirstamp = $(am__leading_dot)dirstamp
-am__objects_1 = adig-ares_getopt.$(OBJEXT) \
-	../lib/adig-ares_strcasecmp.$(OBJEXT)
-am__objects_2 =
-am_adig_OBJECTS = adig-adig.$(OBJEXT) $(am__objects_1) \
-	$(am__objects_2)
+am_adig_OBJECTS = adig-adig.$(OBJEXT)
 adig_OBJECTS = $(am_adig_OBJECTS)
 adig_LDADD = $(LDADD)
 am__DEPENDENCIES_1 =
@@ -142,9 +137,9 @@ am__v_lt_1 =
 adig_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(adig_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
-am__objects_3 = ahost-ares_getopt.$(OBJEXT) \
-	../lib/ahost-ares_strcasecmp.$(OBJEXT)
-am_ahost_OBJECTS = ahost-ahost.$(OBJEXT) $(am__objects_3) \
+am__objects_1 = ahost-ares_getopt.$(OBJEXT)
+am__objects_2 =
+am_ahost_OBJECTS = ahost-ahost.$(OBJEXT) $(am__objects_1) \
 	$(am__objects_2)
 ahost_OBJECTS = $(am_ahost_OBJECTS)
 ahost_LDADD = $(LDADD)
@@ -168,9 +163,7 @@ am__v_at_1 =
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__maybe_remake_depfiles = depfiles
-am__depfiles_remade = ../lib/$(DEPDIR)/adig-ares_strcasecmp.Po \
-	../lib/$(DEPDIR)/ahost-ares_strcasecmp.Po \
-	./$(DEPDIR)/adig-adig.Po ./$(DEPDIR)/adig-ares_getopt.Po \
+am__depfiles_remade = ./$(DEPDIR)/adig-adig.Po \
 	./$(DEPDIR)/ahost-ahost.Po ./$(DEPDIR)/ahost-ares_getopt.Po
 am__mv = mv -f
 COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
@@ -228,7 +221,8 @@ AM_CFLAGS = @AM_CFLAGS@
 # might possibly already be installed in the system.
 AM_CPPFLAGS = @AM_CPPFLAGS@ -I$(top_builddir)/include \
 	-I$(top_builddir)/src/lib -I$(top_srcdir)/include \
-	-I$(top_srcdir)/src/lib -DCARES_NO_DEPRECATED
+	-I$(top_srcdir)/src/lib -I$(top_srcdir)/src/lib/include \
+	-DCARES_NO_DEPRECATED
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AR = @AR@
 AS = @AS@
@@ -270,9 +264,10 @@ EGREP = @EGREP@
 ETAGS = @ETAGS@
 EXEEXT = @EXEEXT@
 FGREP = @FGREP@
-FILECMD = @FILECMD@
 GCOV = @GCOV@
 GENHTML = @GENHTML@
+GMOCK112_CFLAGS = @GMOCK112_CFLAGS@
+GMOCK112_LIBS = @GMOCK112_LIBS@
 GMOCK_CFLAGS = @GMOCK_CFLAGS@
 GMOCK_LIBS = @GMOCK_LIBS@
 GREP = @GREP@
@@ -390,12 +385,8 @@ EXTRA_DIST = CMakeLists.txt Makefile.inc
 
 # Copyright (C) The c-ares project and its contributors
 # SPDX-License-Identifier: MIT
-SAMPLESOURCES = ares_getopt.c		\
-  ../lib/ares_strcasecmp.c
-
-SAMPLEHEADERS = ares_getopt.h		\
-  ../lib/ares_strcasecmp.h
-
+SAMPLESOURCES = ares_getopt.c
+SAMPLEHEADERS = ares_getopt.h
 
 # We're not interested in code coverage of the test apps themselves, but need
 # to link with gcov if building with code coverage enabled
@@ -403,7 +394,7 @@ LDADD = $(top_builddir)/src/lib/libcares.la $(CODE_COVERAGE_LIBS)
 ahost_SOURCES = ahost.c $(SAMPLESOURCES) $(SAMPLEHEADERS)
 ahost_CFLAGS = $(AM_CFLAGS)
 ahost_CPPFLAGS = $(AM_CPPFLAGS)
-adig_SOURCES = adig.c $(SAMPLESOURCES) $(SAMPLEHEADERS)
+adig_SOURCES = adig.c
 adig_CFLAGS = $(AM_CFLAGS)
 adig_CPPFLAGS = $(AM_CPPFLAGS)
 all: all-am
@@ -449,20 +440,10 @@ clean-noinstPROGRAMS:
 	list=`for p in $$list; do echo "$$p"; done | sed 's/$(EXEEXT)$$//'`; \
 	echo " rm -f" $$list; \
 	rm -f $$list
-../lib/$(am__dirstamp):
-	@$(MKDIR_P) ../lib
-	@: > ../lib/$(am__dirstamp)
-../lib/$(DEPDIR)/$(am__dirstamp):
-	@$(MKDIR_P) ../lib/$(DEPDIR)
-	@: > ../lib/$(DEPDIR)/$(am__dirstamp)
-../lib/adig-ares_strcasecmp.$(OBJEXT): ../lib/$(am__dirstamp) \
-	../lib/$(DEPDIR)/$(am__dirstamp)
 
 adig$(EXEEXT): $(adig_OBJECTS) $(adig_DEPENDENCIES) $(EXTRA_adig_DEPENDENCIES) 
 	@rm -f adig$(EXEEXT)
 	$(AM_V_CCLD)$(adig_LINK) $(adig_OBJECTS) $(adig_LDADD) $(LIBS)
-../lib/ahost-ares_strcasecmp.$(OBJEXT): ../lib/$(am__dirstamp) \
-	../lib/$(DEPDIR)/$(am__dirstamp)
 
 ahost$(EXEEXT): $(ahost_OBJECTS) $(ahost_DEPENDENCIES) $(EXTRA_ahost_DEPENDENCIES) 
 	@rm -f ahost$(EXEEXT)
@@ -470,15 +451,11 @@ ahost$(EXEEXT): $(ahost_OBJECTS) $(ahost_DEPENDENCIES) $(EXTRA_ahost_DEPENDENCIE
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
-	-rm -f ../lib/*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@../lib/$(DEPDIR)/adig-ares_strcasecmp.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@../lib/$(DEPDIR)/ahost-ares_strcasecmp.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/adig-adig.Po@am__quote@ # am--include-marker
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/adig-ares_getopt.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ahost-ahost.Po@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ahost-ares_getopt.Po@am__quote@ # am--include-marker
 
@@ -526,34 +503,6 @@ adig-adig.obj: adig.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -c -o adig-adig.obj `if test -f 'adig.c'; then $(CYGPATH_W) 'adig.c'; else $(CYGPATH_W) '$(srcdir)/adig.c'; fi`
 
-adig-ares_getopt.o: ares_getopt.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -MT adig-ares_getopt.o -MD -MP -MF $(DEPDIR)/adig-ares_getopt.Tpo -c -o adig-ares_getopt.o `test -f 'ares_getopt.c' || echo '$(srcdir)/'`ares_getopt.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/adig-ares_getopt.Tpo $(DEPDIR)/adig-ares_getopt.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ares_getopt.c' object='adig-ares_getopt.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -c -o adig-ares_getopt.o `test -f 'ares_getopt.c' || echo '$(srcdir)/'`ares_getopt.c
-
-adig-ares_getopt.obj: ares_getopt.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -MT adig-ares_getopt.obj -MD -MP -MF $(DEPDIR)/adig-ares_getopt.Tpo -c -o adig-ares_getopt.obj `if test -f 'ares_getopt.c'; then $(CYGPATH_W) 'ares_getopt.c'; else $(CYGPATH_W) '$(srcdir)/ares_getopt.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/adig-ares_getopt.Tpo $(DEPDIR)/adig-ares_getopt.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ares_getopt.c' object='adig-ares_getopt.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -c -o adig-ares_getopt.obj `if test -f 'ares_getopt.c'; then $(CYGPATH_W) 'ares_getopt.c'; else $(CYGPATH_W) '$(srcdir)/ares_getopt.c'; fi`
-
-../lib/adig-ares_strcasecmp.o: ../lib/ares_strcasecmp.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -MT ../lib/adig-ares_strcasecmp.o -MD -MP -MF ../lib/$(DEPDIR)/adig-ares_strcasecmp.Tpo -c -o ../lib/adig-ares_strcasecmp.o `test -f '../lib/ares_strcasecmp.c' || echo '$(srcdir)/'`../lib/ares_strcasecmp.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ../lib/$(DEPDIR)/adig-ares_strcasecmp.Tpo ../lib/$(DEPDIR)/adig-ares_strcasecmp.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='../lib/ares_strcasecmp.c' object='../lib/adig-ares_strcasecmp.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -c -o ../lib/adig-ares_strcasecmp.o `test -f '../lib/ares_strcasecmp.c' || echo '$(srcdir)/'`../lib/ares_strcasecmp.c
-
-../lib/adig-ares_strcasecmp.obj: ../lib/ares_strcasecmp.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -MT ../lib/adig-ares_strcasecmp.obj -MD -MP -MF ../lib/$(DEPDIR)/adig-ares_strcasecmp.Tpo -c -o ../lib/adig-ares_strcasecmp.obj `if test -f '../lib/ares_strcasecmp.c'; then $(CYGPATH_W) '../lib/ares_strcasecmp.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ares_strcasecmp.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ../lib/$(DEPDIR)/adig-ares_strcasecmp.Tpo ../lib/$(DEPDIR)/adig-ares_strcasecmp.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='../lib/ares_strcasecmp.c' object='../lib/adig-ares_strcasecmp.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(adig_CPPFLAGS) $(CPPFLAGS) $(adig_CFLAGS) $(CFLAGS) -c -o ../lib/adig-ares_strcasecmp.obj `if test -f '../lib/ares_strcasecmp.c'; then $(CYGPATH_W) '../lib/ares_strcasecmp.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ares_strcasecmp.c'; fi`
-
 ahost-ahost.o: ahost.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ahost_CPPFLAGS) $(CPPFLAGS) $(ahost_CFLAGS) $(CFLAGS) -MT ahost-ahost.o -MD -MP -MF $(DEPDIR)/ahost-ahost.Tpo -c -o ahost-ahost.o `test -f 'ahost.c' || echo '$(srcdir)/'`ahost.c
 @am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/ahost-ahost.Tpo $(DEPDIR)/ahost-ahost.Po
@@ -581,20 +530,6 @@ ahost-ares_getopt.obj: ares_getopt.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='ares_getopt.c' object='ahost-ares_getopt.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ahost_CPPFLAGS) $(CPPFLAGS) $(ahost_CFLAGS) $(CFLAGS) -c -o ahost-ares_getopt.obj `if test -f 'ares_getopt.c'; then $(CYGPATH_W) 'ares_getopt.c'; else $(CYGPATH_W) '$(srcdir)/ares_getopt.c'; fi`
-
-../lib/ahost-ares_strcasecmp.o: ../lib/ares_strcasecmp.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ahost_CPPFLAGS) $(CPPFLAGS) $(ahost_CFLAGS) $(CFLAGS) -MT ../lib/ahost-ares_strcasecmp.o -MD -MP -MF ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Tpo -c -o ../lib/ahost-ares_strcasecmp.o `test -f '../lib/ares_strcasecmp.c' || echo '$(srcdir)/'`../lib/ares_strcasecmp.c
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Tpo ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='../lib/ares_strcasecmp.c' object='../lib/ahost-ares_strcasecmp.o' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ahost_CPPFLAGS) $(CPPFLAGS) $(ahost_CFLAGS) $(CFLAGS) -c -o ../lib/ahost-ares_strcasecmp.o `test -f '../lib/ares_strcasecmp.c' || echo '$(srcdir)/'`../lib/ares_strcasecmp.c
-
-../lib/ahost-ares_strcasecmp.obj: ../lib/ares_strcasecmp.c
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ahost_CPPFLAGS) $(CPPFLAGS) $(ahost_CFLAGS) $(CFLAGS) -MT ../lib/ahost-ares_strcasecmp.obj -MD -MP -MF ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Tpo -c -o ../lib/ahost-ares_strcasecmp.obj `if test -f '../lib/ares_strcasecmp.c'; then $(CYGPATH_W) '../lib/ares_strcasecmp.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ares_strcasecmp.c'; fi`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Tpo ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Po
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='../lib/ares_strcasecmp.c' object='../lib/ahost-ares_strcasecmp.obj' libtool=no @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(ahost_CPPFLAGS) $(CPPFLAGS) $(ahost_CFLAGS) $(CFLAGS) -c -o ../lib/ahost-ares_strcasecmp.obj `if test -f '../lib/ares_strcasecmp.c'; then $(CYGPATH_W) '../lib/ares_strcasecmp.c'; else $(CYGPATH_W) '$(srcdir)/../lib/ares_strcasecmp.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo
@@ -716,8 +651,6 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
-	-rm -f ../lib/$(DEPDIR)/$(am__dirstamp)
-	-rm -f ../lib/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -728,10 +661,7 @@ clean-am: clean-generic clean-libtool clean-noinstPROGRAMS \
 	mostlyclean-am
 
 distclean: distclean-am
-		-rm -f ../lib/$(DEPDIR)/adig-ares_strcasecmp.Po
-	-rm -f ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Po
-	-rm -f ./$(DEPDIR)/adig-adig.Po
-	-rm -f ./$(DEPDIR)/adig-ares_getopt.Po
+		-rm -f ./$(DEPDIR)/adig-adig.Po
 	-rm -f ./$(DEPDIR)/ahost-ahost.Po
 	-rm -f ./$(DEPDIR)/ahost-ares_getopt.Po
 	-rm -f Makefile
@@ -779,10 +709,7 @@ install-ps-am:
 installcheck-am:
 
 maintainer-clean: maintainer-clean-am
-		-rm -f ../lib/$(DEPDIR)/adig-ares_strcasecmp.Po
-	-rm -f ../lib/$(DEPDIR)/ahost-ares_strcasecmp.Po
-	-rm -f ./$(DEPDIR)/adig-adig.Po
-	-rm -f ./$(DEPDIR)/adig-ares_getopt.Po
+		-rm -f ./$(DEPDIR)/adig-adig.Po
 	-rm -f ./$(DEPDIR)/ahost-ahost.Po
 	-rm -f ./$(DEPDIR)/ahost-ares_getopt.Po
 	-rm -f Makefile

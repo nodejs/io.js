@@ -31,6 +31,8 @@ various purposes:
   picture of the package tree, reducing the need to read `package.json`
   files, and allowing for significant performance improvements.
 
+When `npm` creates or updates `package-lock.json`, it will infer line endings and indentation from `package.json` so that the formatting of both files matches.
+
 ### `package-lock.json` vs `npm-shrinkwrap.json`
 
 Both of these files have the same format, and perform similar functions in

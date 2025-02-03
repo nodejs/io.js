@@ -1,11 +1,17 @@
 'use strict';
 
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const buffer = require('buffer');
 const SlowBuffer = buffer.SlowBuffer;
 
 const ones = [1, 1, 1, 1];
+
+common.expectWarning(
+  'DeprecationWarning',
+  'SlowBuffer() is deprecated. Please use Buffer.allocUnsafeSlow()',
+  'DEP0030'
+);
 
 // Should create a Buffer
 let sb = SlowBuffer(4);

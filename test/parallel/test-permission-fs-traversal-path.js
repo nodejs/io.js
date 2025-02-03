@@ -1,14 +1,21 @@
-// Flags: --experimental-permission --allow-fs-read=* --allow-fs-write=* --allow-child-process
+// Flags: --permission --allow-fs-read=* --allow-fs-write=* --allow-child-process
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 const fixtures = require('../common/fixtures');
-if (!common.canCreateSymLink())
+if (!common.canCreateSymLink()) {
   common.skip('insufficient privileges');
-if (!common.hasCrypto)
+}
+
+if (!common.hasCrypto) {
   common.skip('no crypto');
+}
 
 const assert = require('assert');
 const fs = require('fs');
@@ -30,7 +37,7 @@ const commonPathWildcard = path.join(__filename, '../../common*');
   const { status, stderr } = spawnSync(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${file}`, `--allow-fs-read=${commonPathWildcard}`, `--allow-fs-read=${allowedFolder}`,
       `--allow-fs-write=${allowedFolder}`,
       file,

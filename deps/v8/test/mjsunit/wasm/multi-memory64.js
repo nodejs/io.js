@@ -134,3 +134,119 @@ function assertMemoryEquals(expected, memory) {
         kTrapMemOutOfBounds, () => init64(BigInt(mem64_size - 1), 0, 2));
   }
 })();
+
+(function testTypingForCopyBetween32And64Bit() {
+  print(arguments.callee.name);
+  for (let [src, dst, src_type, dst_type, size_type, expect_valid] of [
+    // Copy from 32 to 64 bit with correct types.
+    [32, 64, kWasmI32, kWasmI64, kWasmI32, true],
+    // Copy from 64 to 32 bit with correct types.
+    [64, 32, kWasmI64, kWasmI32, kWasmI32, true],
+    // Copy from 32 to 64 bit with always one type wrong.
+    [32, 64, kWasmI64, kWasmI64, kWasmI32, false],
+    [32, 64, kWasmI32, kWasmI32, kWasmI32, false],
+    [32, 64, kWasmI32, kWasmI64, kWasmI64, false],
+    // Copy from 64 to 32 bit with always one type wrong.
+    [64, 32, kWasmI32, kWasmI32, kWasmI32, false],
+    [64, 32, kWasmI64, kWasmI64, kWasmI32, false],
+    [64, 32, kWasmI64, kWasmI32, kWasmI64, false],
+  ]) {
+    let type_str = type => type == kWasmI32 ? 'i32' : 'i64';
+    print(`- copy from ${src} to ${dst} using types src=${
+        type_str(src_type)}, dst=${type_str(dst_type)}, size=${
+        type_str(size_type)}`);
+    let builder = new WasmModuleBuilder();
+    const kMemSizeInPages = 10;
+    const kMemSize = kMemSizeInPages * kPageSize;
+    let mem64_index = builder.addMemory64(kMemSizeInPages, kMemSizeInPages);
+    let mem32_index = builder.addMemory(kMemSizeInPages, kMemSizeInPages);
+    builder.exportMemoryAs('mem64', mem64_index);
+    builder.exportMemoryAs('mem32', mem32_index);
+
+    let src_index = src == 32 ? mem32_index : mem64_index;
+    let dst_index = dst == 32 ? mem32_index : mem64_index;
+
+    builder.addFunction('copy', makeSig([dst_type, src_type, size_type], []))
+        .addBody([
+          kExprLocalGet, 0,                                      // dst
+          kExprLocalGet, 1,                                      // src
+          kExprLocalGet, 2,                                      // size
+          kNumericPrefix, kExprMemoryCopy, dst_index, src_index  // memcpy
+        ])
+        .exportFunc();
+
+    if (expect_valid) {
+      builder.toModule();
+    } else {
+      assertThrows(
+          () => builder.toModule(), WebAssembly.CompileError,
+          /expected type i(32|64), found local.get of type i(32|64)/);
+    }
+  }
+})();
+
+(function testCopyBetween32And64Bit() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+  const kMemSizeInPages = 10;
+  const kMemSize = kMemSizeInPages * kPageSize;
+  let mem64_index = builder.addMemory64(kMemSizeInPages, kMemSizeInPages);
+  let mem32_index = builder.addMemory(kMemSizeInPages, kMemSizeInPages);
+  builder.exportMemoryAs('mem64', mem64_index);
+  builder.exportMemoryAs('mem32', mem32_index);
+
+  builder
+      .addFunction('copy_32_to_64', makeSig([kWasmI64, kWasmI32, kWasmI32], []))
+      .addBody([
+        kExprLocalGet, 0,                                          // dst
+        kExprLocalGet, 1,                                          // src
+        kExprLocalGet, 2,                                          // size
+        kNumericPrefix, kExprMemoryCopy, mem64_index, mem32_index  // memcpy
+      ])
+      .exportFunc();
+  builder
+      .addFunction('copy_64_to_32', makeSig([kWasmI32, kWasmI64, kWasmI32], []))
+      .addBody([
+        kExprLocalGet, 0,                                          // dst
+        kExprLocalGet, 1,                                          // src
+        kExprLocalGet, 2,                                          // size
+        kNumericPrefix, kExprMemoryCopy, mem32_index, mem64_index  // memcpy
+      ])
+      .exportFunc();
+
+  let instance = builder.instantiate();
+  let {mem32, mem64, copy_32_to_64, copy_64_to_32} = instance.exports;
+
+  // These helpers extract the memory at [offset, offset+size)] into an Array.
+  let memory32 = (offset, size) =>
+      Array.from(new Uint8Array(mem32.buffer.slice(offset, offset + size)));
+  let memory64 = (offset, size) =>
+      Array.from(new Uint8Array(mem64.buffer.slice(offset, offset + size)));
+
+  // Init mem32[3] to 11.
+  new Uint8Array(mem32.buffer)[3] = 11;
+  // Copy mem32[2..4] to mem64[1..3].
+  copy_32_to_64(1n, 2, 3);
+  assertEquals([0, 0, 0, 11, 0], memory32(0, 5));
+  assertEquals([0, 0, 11, 0, 0], memory64(0, 5));
+  // Copy mem64[2..3] to mem32[1..2].
+  copy_64_to_32(1, 2n, 2);
+  assertEquals([0, 11, 0, 11, 0], memory32(0, 5));
+  assertEquals([0, 0, 11, 0, 0], memory64(0, 5));
+
+  // Just before OOB.
+  copy_32_to_64(BigInt(kMemSize), 0, 0);
+  copy_64_to_32(kMemSize, 0n, 0);
+  copy_32_to_64(BigInt(kMemSize - 3), 0, 3);
+  copy_64_to_32(kMemSize - 3, 0n, 3);
+  assertEquals([0, 11, 0], memory64(kMemSize - 3, 3));
+  // OOB.
+  assertTraps(
+      kTrapMemOutOfBounds, () => copy_32_to_64(BigInt(kMemSize + 1), 0, 0));
+  assertTraps(
+      kTrapMemOutOfBounds, () => copy_64_to_32(kMemSize + 1, 0n, 0));
+  assertTraps(
+      kTrapMemOutOfBounds, () => copy_32_to_64(BigInt(kMemSize - 2), 0, 3));
+  assertTraps(
+      kTrapMemOutOfBounds, () => copy_64_to_32(kMemSize - 2, 0n, 3));
+})();

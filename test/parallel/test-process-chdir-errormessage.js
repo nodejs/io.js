@@ -1,8 +1,11 @@
 'use strict';
 
 const common = require('../common');
-if (!common.isMainThread)
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 const assert = require('assert');
 
 assert.throws(

@@ -33,7 +33,7 @@ const mismatch = (a, b) => a && b && a !== b
 // After calling this.commit(), any nodes not present in the tree will have
 // been removed from the shrinkwrap data as well.
 
-const log = require('proc-log')
+const { log } = require('proc-log')
 const YarnLock = require('./yarn-lock.js')
 const {
   readFile,
@@ -42,14 +42,15 @@ const {
   rm,
   stat,
   writeFile,
-} = require('fs/promises')
+} = require('node:fs/promises')
 
-const { resolve, basename, relative } = require('path')
+const { resolve, basename, relative } = require('node:path')
 const specFromLock = require('./spec-from-lock.js')
 const versionFromTgz = require('./version-from-tgz.js')
 const npa = require('npm-package-arg')
 const pkgJson = require('@npmcli/package-json')
 const parseJSON = require('parse-conflict-json')
+const nameFromFolder = require('@npmcli/name-from-folder')
 
 const stringify = require('json-stringify-nice')
 const swKeyOrder = [
@@ -233,7 +234,8 @@ class Shrinkwrap {
     // root to help prevent churn based on the name of the directory the
     // project is in
     const pname = node.packageName
-    if (pname && (node === node.root || pname !== node.name)) {
+    // when Target package name and Target node share the same name, we include the name, target node should have name as per realpath.
+    if (pname && (node === node.root || pname !== node.name || nameFromFolder(node.realpath) !== pname)) {
       meta.name = pname
     }
 
@@ -1145,6 +1147,7 @@ class Shrinkwrap {
       throw new Error('run load() before saving data')
     }
 
+    // This must be called before the lockfile conversion check below since it sets properties as part of `commit()`
     const json = this.toString(options)
     if (
       !this.hiddenLockfile
@@ -1152,9 +1155,11 @@ class Shrinkwrap {
       && this.originalLockfileVersion !== this.lockfileVersion
     ) {
       log.warn(
-      `Converting lock file (${relative(process.cwd(), this.filename)}) from v${this.originalLockfileVersion} -> v${this.lockfileVersion}`
+        'shrinkwrap',
+        `Converting lock file (${relative(process.cwd(), this.filename)}) from v${this.originalLockfileVersion} -> v${this.lockfileVersion}`
       )
     }
+
     return Promise.all([
       writeFile(this.filename, json).catch(er => {
         if (this.hiddenLockfile) {

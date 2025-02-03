@@ -15,7 +15,7 @@ import watcher from 'internal/watch_mode/files_watcher';
 if (common.isIBMi)
   common.skip('IBMi does not support `fs.watch()`');
 
-const supportsRecursiveWatching = common.isOSX || common.isWindows;
+const supportsRecursiveWatching = common.isMacOS || common.isWindows;
 
 const { FilesWatcher } = watcher;
 tmpdir.refresh();
@@ -65,6 +65,29 @@ describe('watch mode file watcher', () => {
     writeFileSync(file, '5');
     const changed = once(watcher, 'changed');
     writeFileSync(file, 'after');
+    await changed;
+    // Unfortunately testing that changesCount === 2 is flaky
+    assert.ok(changesCount < 5);
+  });
+
+  it('should debounce changes on multiple files', async () => {
+    const files = [];
+    for (let i = 0; i < 10; i++) {
+      const file = tmpdir.resolve(`file-debounced-${i}`);
+      writeFileSync(file, 'written');
+      watcher.filterFile(file);
+      files.push(file);
+    }
+
+    files.forEach((file) => writeFileSync(file, '1'));
+    files.forEach((file) => writeFileSync(file, '2'));
+    files.forEach((file) => writeFileSync(file, '3'));
+    files.forEach((file) => writeFileSync(file, '4'));
+
+    await setTimeout(200); // debounce * 2
+    files.forEach((file) => writeFileSync(file, '5'));
+    const changed = once(watcher, 'changed');
+    files.forEach((file) => writeFileSync(file, 'after'));
     await changed;
     // Unfortunately testing that changesCount === 2 is flaky
     assert.ok(changesCount < 5);

@@ -202,6 +202,38 @@ function TestHelperPrototypeSurface(helper) {
   });
 })();
 
+(function TestMapOnNullNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.map.call({next: null}, (x, i) => {
+      return x;
+    })];
+  }, TypeError);
+})();
+
+(function TestMapOnUndefinedNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.map.call({next: undefined}, (x, i) => {
+      return x;
+    })];
+  }, TypeError);
+})();
+
+(function TestMapOnNullThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.map.call(null, (x, i) => {
+      return x;
+    });
+  }, TypeError);
+})();
+
+(function TestMapOnUndefinedThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.map.call(undefined, (x, i) => {
+      return x;
+    });
+  }, TypeError);
+})();
+
 // --- Test filter helper
 
 (function TestFilter() {
@@ -379,6 +411,38 @@ function TestHelperPrototypeSurface(helper) {
     filterIter.next();
   });
   assertEquals({value: undefined, done: true}, filterIter.next());
+})();
+
+(function TestFilterOnNullNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.filter.call({next: null}, (x, i) => {
+      return x == x;
+    })];
+  }, TypeError);
+})();
+
+(function TestFilterOnUndefinedNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.filter.call({next: undefined}, (x, i) => {
+      return x == x;
+    })];
+  }, TypeError);
+})();
+
+(function TestFilterOnNullThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.filter.call(null, (x, i) => {
+      return x == x;
+    });
+  }, TypeError);
+})();
+
+(function TestFilterOnUndefinedThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.filter.call(undefined, (x, i) => {
+      return x == x;
+    });
+  }, TypeError);
 })();
 
 // --- Test take helper
@@ -642,6 +706,30 @@ function TestHelperPrototypeSurface(helper) {
   assertEquals({value: undefined, done: true}, takeIter.next());
 })();
 
+(function TestTakeOnNullNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.take.call({next: null}, 1)];
+  }, TypeError);
+})();
+
+(function TestTakeOnUndefinedNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.take.call({next: undefined}, 1)];
+  }, TypeError);
+})();
+
+(function TestTakeOnNullThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.take.call(null, 1);
+  }, TypeError);
+})();
+
+(function TestTakeOnUndefinedThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.take.call(undefined, 1);
+  }, TypeError);
+})();
+
 // --- Test drop helper
 
 (function TestDrop() {
@@ -805,6 +893,30 @@ function TestHelperPrototypeSurface(helper) {
     dropIter.next();
   });
   assertEquals({value: undefined, done: true}, dropIter.next());
+})();
+
+(function TestDropOnNullNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.drop.call({next: null}, 1)];
+  }, TypeError);
+})();
+
+(function TestDropOnUndefinedNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.drop.call({next: undefined}, 1)];
+  }, TypeError);
+})();
+
+(function TestDropOnNullThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.drop.call(null, 1);
+  }, TypeError);
+})();
+
+(function TestDropOnUndefinedThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.drop.call(undefined, 1);
+  }, TypeError);
 })();
 
 // --- Test flatMap helper
@@ -1182,6 +1294,30 @@ function TestHelperPrototypeSurface(helper) {
     flatMapIter.next();
   });
   assertEquals({value: undefined, done: true}, flatMapIter.next());
+})();
+
+(function TestFlatMapOnNullNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.flatMap.call({next: null}, x => [x])];
+  }, TypeError);
+})();
+
+(function TestFlatMapOnUndefinedNext() {
+  assertThrows(() => {
+    [...Iterator.prototype.flatMap.call({next: undefined}, x => [x])];
+  }, TypeError);
+})();
+
+(function TestFlatMapOnNullThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.flatMap.call(null, x => [x]);
+  }, TypeError);
+})();
+
+(function TestFlatMapOnUndefinedThisValue() {
+  assertThrows(() => {
+    Iterator.prototype.flatMap.call(undefined, x => [x]);
+  }, TypeError);
 })();
 
 // --- Test reduce helper

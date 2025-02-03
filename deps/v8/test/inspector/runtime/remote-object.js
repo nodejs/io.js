@@ -610,16 +610,16 @@ InspectorTest.runAsyncTestSuite([
       expression: 'new (class Bar {})'
     })).result);
     InspectorTest.logMessage((await evaluate({
-      expression: 'inspector.createObjectWithAccessor(\'title\', true)',
+      expression: 'inspector.createObjectWithNativeDataProperty(\'title\', true)',
       generatePreview: true
     })));
     InspectorTest.logMessage((await evaluate({
-      expression: 'inspector.createObjectWithAccessor(\'title\', false)',
+      expression: 'inspector.createObjectWithNativeDataProperty(\'title\', false)',
       generatePreview: true
     })));
     // TODO(kozyatinskiy): fix this one.
     InspectorTest.logMessage((await evaluate({
-      expression: 'inspector.createObjectWithAccessor(\'title\', true)',
+      expression: 'inspector.createObjectWithNativeDataProperty(\'title\', true)',
       returnByValue: true
     })));
     InspectorTest.logMessage((await evaluate({

@@ -1,11 +1,19 @@
 <!DOCTYPE HTML>
-<meta name="timeout" content="long">
 <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
 <script src="/resources/testdriver.js"></script>
 <script src="/resources/testdriver-actions.js"></script>
 <script src="/resources/testdriver-vendor.js"></script>
+<script src="/common/subset-tests-by-key.js"></script>
+<meta name="variant" content="?include=subframe-scrollTo-auto"/>
+<meta name="variant" content="?include=subframe-scrollTo-smooth"/>
+<meta name="variant" content="?include=subframe-scrollBy-auto"/>
+<meta name="variant" content="?include=subframe-scrollBy-smooth"/>
+<meta name="variant" content="?include=root-scrollTo-auto"/>
+<meta name="variant" content="?include=root-scrollTo-smooth"/>
+<meta name="variant" content="?include=root-scrollBy-auto"/>
+<meta name="variant" content="?include=root-scrollBy-smooth"/>
 <script src="scroll_support.js"></script>
 <style>
 html {
@@ -31,8 +39,8 @@ html {
 </div>
 </body>
 <script>
-var element_scrollend_arrived = false;
-var document_scrollend_arrived = false;
+let element_scrollend_arrived = false;
+let document_scrollend_arrived = false;
 
 function onElementScrollEnd(event) {
   assert_false(event.cancelable);
@@ -47,89 +55,95 @@ function onDocumentScrollEnd(event) {
   document_scrollend_arrived = true;
 }
 
-function callScrollFunction([scrollTarget, scrollFunction, args]) {
-  scrollTarget[scrollFunction](args);
-}
+let scroll_fn_variants = [
+  {
+    key: "subframe-scrollTo-auto",
+    target: targetDiv,
+    fn: "scrollTo",
+    behavior: "auto",
+    title: "Tests scrollend event for calling scrollTo with behavior 'auto' on subframe."
+  },
+  {
+    key: "subframe-scrollTo-smooth",
+    target: targetDiv,
+    fn: "scrollTo",
+    behavior: "smooth",
+    title: "Tests scrollend event for calling scrollTo with behavior 'smooth' on subframe."
+  },
+  {
+    key: "subframe-scrollBy-auto",
+    target: targetDiv,
+    fn: "scrollBy",
+    behavior: "auto",
+    title: "Tests scrollend event for calling scrollBy with behavior 'auto' on subframe."
+  },
+  {
+    key: "subframe-scrollBy-smooth",
+    target: targetDiv,
+    fn: "scrollBy",
+    behavior: "smooth",
+    title: "Tests scrollend event for calling scrollBy with behavior 'smooth' on subframe."
+  },
+  {
+    key: "root-scrollTo-auto",
+    target: document.scrollingElement,
+    fn: "scrollTo",
+    behavior: "auto",
+    title: "Tests scrollend event for calling scrollTo with behavior 'auto' on root."
+  },
+  {
+    key: "root-scrollTo-smooth",
+    target: document.scrollingElement,
+    fn: "scrollTo",
+    behavior: "smooth",
+    title: "Tests scrollend event for calling scrollTo with behavior 'smooth' on root."
+  },
+  {
+    key: "root-scrollBy-auto",
+    target: document.scrollingElement,
+    fn: "scrollBy",
+    behavior: "auto",
+    title: "Tests scrollend event for calling scrollBy with behavior 'auto' on root."
+  },
+  {
+    key: "root-scrollBy-smooth",
+    target: document.scrollingElement,
+    fn: "scrollBy",
+    behavior: "smooth",
+    title: "Tests scrollend event for calling scrollBy with behavior 'smooth' on root."
+  },
+];
 
 function runTest() {
-  let root_element = document.scrollingElement;
-  let target_div = document.getElementById("targetDiv");
 
-  promise_test (async (t) => {
+  async function testScrollFn(testInfo, t) {
     await waitForCompositorCommit();
-    target_div.addEventListener("scrollend", onElementScrollEnd);
+
+    targetDiv.addEventListener("scrollend", onElementScrollEnd);
     document.addEventListener("scrollend", onDocumentScrollEnd);
 
-    let test_cases = [
-      [target_div, 200, 200, [target_div, "scrollTo", { top: 200, left: 200, behavior: "auto" }]],
-      [target_div, 0, 0, [target_div, "scrollTo", { top: 0, left: 0, behavior: "smooth" }]],
-      [root_element, 200, 200, [root_element, "scrollTo", { top: 200, left: 200, behavior: "auto" }]],
-      [root_element, 0, 0, [root_element, "scrollTo", { top: 0, left: 0, behavior: "smooth" }]],
-      [target_div, 200, 200, [target_div, "scrollBy", { top: 200, left: 200, behavior: "auto" }]],
-      [target_div, 0, 0, [target_div, "scrollBy", { top: -200, left: -200, behavior: "smooth" }]],
-      [root_element, 200, 200, [root_element, "scrollBy", { top: 200, left: 200, behavior: "auto" }]],
-      [root_element, 0, 0, [root_element, "scrollBy", { top: -200, left: -200, behavior: "smooth" }]]
-    ];
+    testInfo.target[testInfo.fn]({ top: 200, left: 200,
+                                   behavior: testInfo.behavior });
 
-    for(i = 0; i < test_cases.length; i++) {
-      let t = test_cases[i];
-      let target = t[0];
-      let expected_x = t[1];
-      let expected_y = t[2];
-      let scroll_datas = t[3];
-
-      callScrollFunction(scroll_datas);
-      await waitFor(() => { return element_scrollend_arrived || document_scrollend_arrived; }, target.tagName + "." + scroll_datas[1] + " did not receive scrollend event.");
-      if (target == root_element)
-        assert_false(element_scrollend_arrived);
-      else
-        assert_false(document_scrollend_arrived);
-      assert_equals(target.scrollLeft, expected_x, target.tagName + "." + scroll_datas[1] + " scrollLeft");
-      assert_equals(target.scrollTop, expected_y, target.tagName + "." + scroll_datas[1] + " scrollTop");
-
-      element_scrollend_arrived = false;
-      document_scrollend_arrived = false;
+    await waitFor(() => {
+      return element_scrollend_arrived || document_scrollend_arrived;
+    }, testInfo.target.tagName + "." + testInfo.fn + " did not receive scrollend event.");
+    if (testInfo.target == document.scrollingElement) {
+      assert_false(element_scrollend_arrived);
+    } else {
+      assert_false(document_scrollend_arrived);
     }
-  }, "Tests scrollend event for calling scroll functions.");
 
-  promise_test(async (t) => {
-    await waitForCompositorCommit();
+    assert_equals(testInfo.target.scrollLeft, 200,
+                  testInfo.target.tagName + "." + testInfo.fn + " scrollLeft");
+    assert_equals(testInfo.target.scrollTop, 200,
+                  testInfo.target.tagName + "." + testInfo.fn + " scrollTop");
+  }
 
-    let test_cases = [
-      [target_div, "scrollTop"],
-      [target_div, "scrollLeft"],
-      [root_element, "scrollTop"],
-      [root_element, "scrollLeft"]
-    ];
-    for (i = 0; i < test_cases.length; i++) {
-      let t = test_cases[i];
-      let target = t[0];
-      let attribute = t[1];
-      let position = 200;
+  scroll_fn_variants.forEach((testInfo) => {
+    subsetTestByKey(testInfo.key, promise_test,
+                    async (t) => testScrollFn(testInfo, t), testInfo.title);
+  });
 
-      target.style.scrollBehavior = "smooth";
-      target[attribute] = position;
-      await waitFor(() => { return element_scrollend_arrived || document_scrollend_arrived; }, target.tagName + "." + attribute + " did not receive scrollend event.");
-      if (target == root_element)
-        assert_false(element_scrollend_arrived);
-      else
-        assert_false(document_scrollend_arrived);
-      assert_equals(target[attribute], position, target.tagName + "." + attribute + " ");
-      element_scrollend_arrived = false;
-      document_scrollend_arrived = false;
-
-      await waitForCompositorCommit();
-      target.style.scrollBehavior = "auto";
-      target[attribute] = 0;
-      await waitFor(() => { return element_scrollend_arrived || document_scrollend_arrived; }, target.tagName + "." + attribute + " did not receive scrollend event.");
-      if (target == root_element)
-        assert_false(element_scrollend_arrived);
-      else
-        assert_false(document_scrollend_arrived);
-      assert_equals(target[attribute], 0, target.tagName + "." + attribute + " ");
-      element_scrollend_arrived = false;
-      document_scrollend_arrived = false;
-    }
-  }, "Tests scrollend event for changing scroll attributes.");
 }
 </script>

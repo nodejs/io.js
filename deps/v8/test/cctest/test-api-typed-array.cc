@@ -178,8 +178,8 @@ void ObjectWithExternalArrayTestHelper(Local<Context> context,
   CHECK_EQ(0, result->Int32Value(context).FromJust());
   if (array_type == i::kExternalFloat64Array ||
       array_type == i::kExternalFloat32Array) {
-    CHECK(std::isnan(i::Object::Number(
-        *i::Object::GetElement(isolate, jsobj, 7).ToHandleChecked())));
+    CHECK(std::isnan(i::Object::NumberValue(Cast<i::Number>(
+        *i::Object::GetElement(isolate, jsobj, 7).ToHandleChecked()))));
   } else {
     CheckElementValue(isolate, 0, jsobj, 7);
   }
@@ -191,8 +191,8 @@ void ObjectWithExternalArrayTestHelper(Local<Context> context,
       "ext_array[6];");
   CHECK_EQ(2, result->Int32Value(context).FromJust());
   CHECK_EQ(2,
-           static_cast<int>(i::Object::Number(
-               *i::Object::GetElement(isolate, jsobj, 6).ToHandleChecked())));
+           static_cast<int>(i::Object::NumberValue(Cast<i::Number>(
+               *i::Object::GetElement(isolate, jsobj, 6).ToHandleChecked()))));
 
   if (array_type != i::kExternalFloat32Array &&
       array_type != i::kExternalFloat64Array) {
@@ -388,7 +388,7 @@ void TypedArrayTestHelper(i::ExternalArrayType array_type, int64_t low,
 
   // TODO(v8:11111): Use API functions for testing these, once they're exposed
   // via the API.
-  i::Handle<i::JSTypedArray> i_ta = v8::Utils::OpenHandle(*ta);
+  i::DirectHandle<i::JSTypedArray> i_ta = v8::Utils::OpenDirectHandle(*ta);
   CHECK(!i_ta->is_length_tracking());
   CHECK(!i_ta->is_backed_by_rab());
 }
@@ -456,7 +456,8 @@ THREADED_TEST(DataView) {
 
   // TODO(v8:11111): Use API functions for testing these, once they're exposed
   // via the API.
-  i::Handle<i::JSDataViewOrRabGsabDataView> i_dv = v8::Utils::OpenHandle(*dv);
+  i::DirectHandle<i::JSDataViewOrRabGsabDataView> i_dv =
+      v8::Utils::OpenDirectHandle(*dv);
   CHECK(!i_dv->is_length_tracking());
   CHECK(!i_dv->is_backed_by_rab());
 }
@@ -523,7 +524,8 @@ THREADED_TEST(SharedDataView) {
 
   // TODO(v8:11111): Use API functions for testing these, once they're exposed
   // via the API.
-  i::Handle<i::JSDataViewOrRabGsabDataView> i_dv = v8::Utils::OpenHandle(*dv);
+  i::DirectHandle<i::JSDataViewOrRabGsabDataView> i_dv =
+      v8::Utils::OpenDirectHandle(*dv);
   CHECK(!i_dv->is_length_tracking());
   CHECK(!i_dv->is_backed_by_rab());
 }
@@ -604,8 +606,8 @@ void TestOnHeapHasBuffer(const char* array_name, size_t elem_size) {
     CHECK(!typed_array->HasBuffer());
 
     // Get the buffer and check its length.
-    i::Handle<i::JSTypedArray> i_typed_array =
-        v8::Utils::OpenHandle(*typed_array);
+    i::DirectHandle<i::JSTypedArray> i_typed_array =
+        v8::Utils::OpenDirectHandle(*typed_array);
     auto i_array_buffer1 = i_typed_array->GetBuffer();
     CHECK_EQ(size, i_array_buffer1->byte_length());
     CHECK(typed_array->HasBuffer());
@@ -635,8 +637,8 @@ void TestOffHeapHasBuffer(const char* array_name, size_t elem_size) {
     CHECK(typed_array->HasBuffer());
 
     // Get the buffer and check its length.
-    i::Handle<i::JSTypedArray> i_typed_array =
-        v8::Utils::OpenHandle(*typed_array);
+    i::DirectHandle<i::JSTypedArray> i_typed_array =
+        v8::Utils::OpenDirectHandle(*typed_array);
     auto i_array_buffer1 = i_typed_array->GetBuffer();
     CHECK_EQ(length * elem_size, i_array_buffer1->byte_length());
 

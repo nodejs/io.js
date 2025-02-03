@@ -4,6 +4,8 @@
 
 #include "src/objects/contexts.h"
 
+#include <optional>
+
 #include "src/ast/modules.h"
 #include "src/debug/debug.h"
 #include "src/execution/isolate-inl.h"
@@ -12,8 +14,7 @@
 #include "src/objects/module-inl.h"
 #include "src/objects/string-set-inl.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 // static
 Handle<ScriptContextTable> ScriptContextTable::New(Isolate* isolate,
@@ -24,7 +25,7 @@ Handle<ScriptContextTable> ScriptContextTable::New(Isolate* isolate,
 
   auto names = NameToIndexHashTable::New(isolate, 16);
 
-  base::Optional<DisallowGarbageCollection> no_gc;
+  std::optional<DisallowGarbageCollection> no_gc;
   Handle<ScriptContextTable> result =
       Allocate(isolate, capacity, &no_gc, allocation);
   result->set_length(0, kReleaseStore);
@@ -40,7 +41,7 @@ namespace {
 // Adds local names from `script_context` to the hash table.
 Handle<NameToIndexHashTable> AddLocalNamesFromContext(
     Isolate* isolate, Handle<NameToIndexHashTable> names_table,
-    Handle<Context> script_context, bool ignore_duplicates,
+    DirectHandle<Context> script_context, bool ignore_duplicates,
     int script_context_index) {
   ReadOnlyRoots roots(isolate);
   Handle<ScopeInfo> scope_info(script_context->scope_info(), isolate);
@@ -66,7 +67,7 @@ Handle<NameToIndexHashTable> AddLocalNamesFromContext(
 
 Handle<ScriptContextTable> ScriptContextTable::Add(
     Isolate* isolate, Handle<ScriptContextTable> table,
-    Handle<Context> script_context, bool ignore_duplicates) {
+    DirectHandle<Context> script_context, bool ignore_duplicates) {
   DCHECK(script_context->IsScriptContext());
 
   int old_length = table->length(kAcquireLoad);
@@ -159,13 +160,13 @@ Tagged<JSObject> Context::extension_object() const {
   if (IsUndefined(object)) return JSObject();
   DCHECK(IsJSContextExtensionObject(object) ||
          (IsNativeContext(*this) && IsJSGlobalObject(object)));
-  return JSObject::cast(object);
+  return Cast<JSObject>(object);
 }
 
 Tagged<JSReceiver> Context::extension_receiver() const {
   DCHECK(IsNativeContext(*this) || IsWithContext() || IsEvalContext() ||
          IsFunctionContext() || IsBlockContext());
-  return IsWithContext() ? JSReceiver::cast(extension()) : extension_object();
+  return IsWithContext() ? Cast<JSReceiver>(extension()) : extension_object();
 }
 
 Tagged<SourceTextModule> Context::module() const {
@@ -173,11 +174,11 @@ Tagged<SourceTextModule> Context::module() const {
   while (!current->IsModuleContext()) {
     current = current->previous();
   }
-  return SourceTextModule::cast(current->extension());
+  return Cast<SourceTextModule>(current->extension());
 }
 
 Tagged<JSGlobalObject> Context::global_object() const {
-  return JSGlobalObject::cast(native_context()->extension());
+  return Cast<JSGlobalObject>(native_context()->extension());
 }
 
 Tagged<Context> Context::script_context() const {
@@ -205,15 +206,14 @@ static Maybe<bool> UnscopableLookup(LookupIterator* it, bool is_with_context) {
   Handle<Object> unscopables;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, unscopables,
-      JSReceiver::GetProperty(isolate,
-                              Handle<JSReceiver>::cast(it->GetReceiver()),
+      JSReceiver::GetProperty(isolate, Cast<JSReceiver>(it->GetReceiver()),
                               isolate->factory()->unscopables_symbol()),
       Nothing<bool>());
   if (!IsJSReceiver(*unscopables)) return Just(true);
   Handle<Object> blocklist;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, blocklist,
-      JSReceiver::GetProperty(isolate, Handle<JSReceiver>::cast(unscopables),
+      JSReceiver::GetProperty(isolate, Cast<JSReceiver>(unscopables),
                               it->name()),
       Nothing<bool>());
   return Just(!Object::BooleanValue(*blocklist, isolate));
@@ -221,7 +221,7 @@ static Maybe<bool> UnscopableLookup(LookupIterator* it, bool is_with_context) {
 
 static PropertyAttributes GetAttributesForMode(VariableMode mode) {
   DCHECK(IsSerializableVariableMode(mode));
-  return IsConstVariableMode(mode) ? READ_ONLY : NONE;
+  return IsImmutableLexicalOrPrivateVariableMode(mode) ? READ_ONLY : NONE;
 }
 
 // static
@@ -419,7 +419,7 @@ Handle<Object> Context::Lookup(Handle<Context> context, Handle<String> name,
       // Check materialized locals.
       Tagged<Object> ext = context->get(EXTENSION_INDEX);
       if (IsJSReceiver(ext)) {
-        Handle<JSReceiver> extension(JSReceiver::cast(ext), isolate);
+        Handle<JSReceiver> extension(Cast<JSReceiver>(ext), isolate);
         LookupIterator it(isolate, extension, name, extension);
         Maybe<bool> found = JSReceiver::HasProperty(&it);
         if (found.FromMaybe(false)) {
@@ -431,7 +431,7 @@ Handle<Object> Context::Lookup(Handle<Context> context, Handle<String> name,
       // Check the original context, but do not follow its context chain.
       Tagged<Object> obj = context->get(WRAPPED_CONTEXT_INDEX);
       if (IsContext(obj)) {
-        Handle<Context> wrapped_context(Context::cast(obj), isolate);
+        Handle<Context> wrapped_context(Cast<Context>(obj), isolate);
         Handle<Object> result =
             Context::Lookup(wrapped_context, name, DONT_FOLLOW_CHAINS, index,
                             attributes, init_flag, variable_mode);
@@ -454,7 +454,7 @@ Handle<Object> Context::Lookup(Handle<Context> context, Handle<String> name,
       Tagged<Object> maybe_outer_block_list =
           isolate->LocalsBlockListCacheGet(scope_info);
       if (IsStringSet(maybe_outer_block_list) &&
-          StringSet::cast(maybe_outer_block_list)->Has(isolate, name)) {
+          Cast<StringSet>(maybe_outer_block_list)->Has(isolate, name)) {
         if (v8_flags.trace_contexts) {
           PrintF(" - name is blocklisted. Aborting.\n");
         }
@@ -472,13 +472,13 @@ Handle<Object> Context::Lookup(Handle<Context> context, Handle<String> name,
 }
 
 Tagged<ConstTrackingLetCell> Context::GetOrCreateConstTrackingLetCell(
-    Handle<Context> script_context, size_t index, Isolate* isolate) {
+    DirectHandle<Context> script_context, size_t index, Isolate* isolate) {
   DCHECK(v8_flags.const_tracking_let);
   DCHECK(script_context->IsScriptContext());
   int side_data_index =
       static_cast<int>(index - Context::MIN_CONTEXT_EXTENDED_SLOTS);
-  Handle<FixedArray> side_data = handle(
-      FixedArray::cast(script_context->get(CONST_TRACKING_LET_SIDE_DATA_INDEX)),
+  DirectHandle<FixedArray> side_data(
+      Cast<FixedArray>(script_context->get(CONST_TRACKING_LET_SIDE_DATA_INDEX)),
       isolate);
   Tagged<Object> object = side_data->get(side_data_index);
   if (!IsConstTrackingLetCell(object)) {
@@ -488,7 +488,7 @@ Tagged<ConstTrackingLetCell> Context::GetOrCreateConstTrackingLetCell(
     object = *isolate->factory()->NewConstTrackingLetCell();
     side_data->set(side_data_index, object);
   }
-  return ConstTrackingLetCell::cast(object);
+  return Cast<ConstTrackingLetCell>(object);
 }
 
 bool Context::ConstTrackingLetSideDataIsConst(size_t index) const {
@@ -497,21 +497,20 @@ bool Context::ConstTrackingLetSideDataIsConst(size_t index) const {
   int side_data_index =
       static_cast<int>(index - Context::MIN_CONTEXT_EXTENDED_SLOTS);
   Tagged<FixedArray> side_data =
-      FixedArray::cast(get(CONST_TRACKING_LET_SIDE_DATA_INDEX));
+      Cast<FixedArray>(get(CONST_TRACKING_LET_SIDE_DATA_INDEX));
   Tagged<Object> object = side_data->get(side_data_index);
   return !ConstTrackingLetCell::IsNotConst(object);
 }
 
-void Context::UpdateConstTrackingLetSideData(Handle<Context> script_context,
-                                             int index,
-                                             Handle<Object> new_value,
-                                             Isolate* isolate) {
+void Context::UpdateConstTrackingLetSideData(
+    DirectHandle<Context> script_context, int index,
+    DirectHandle<Object> new_value, Isolate* isolate) {
   DCHECK(v8_flags.const_tracking_let);
   DCHECK(script_context->IsScriptContext());
-  Handle<Object> old_value = handle(script_context->get(index), isolate);
+  DirectHandle<Object> old_value(script_context->get(index), isolate);
   const int side_data_index = index - Context::MIN_CONTEXT_EXTENDED_SLOTS;
-  Handle<FixedArray> side_data = handle(
-      FixedArray::cast(
+  DirectHandle<FixedArray> side_data(
+      Cast<FixedArray>(
           script_context->get(Context::CONST_TRACKING_LET_SIDE_DATA_INDEX)),
       isolate);
   if (IsTheHole(*old_value)) {
@@ -528,7 +527,7 @@ void Context::UpdateConstTrackingLetSideData(Handle<Context> script_context,
   Tagged<Object> data = side_data->get(side_data_index);
   if (IsConstTrackingLetCell(data)) {
     DependentCode::DeoptimizeDependencyGroups(
-        isolate, ConstTrackingLetCell::cast(data),
+        isolate, Cast<ConstTrackingLetCell>(data),
         DependentCode::kConstTrackingLetChangedGroup);
   } else {
     // The value is not constant, but it also was not used as a constant
@@ -562,32 +561,6 @@ Handle<Object> Context::ErrorMessageForWasmCodeGeneration() {
       "Wasm code generation disallowed by embedder");
 }
 
-#define COMPARE_NAME(index, type, name) \
-  if (string->IsOneByteEqualTo(base::StaticCharVector(#name))) return index;
-
-int Context::IntrinsicIndexForName(Handle<String> string) {
-  NATIVE_CONTEXT_INTRINSIC_FUNCTIONS(COMPARE_NAME);
-  return kNotFound;
-}
-
-#undef COMPARE_NAME
-
-#define COMPARE_NAME(index, type, name)                                      \
-  {                                                                          \
-    const int name_length = static_cast<int>(arraysize(#name)) - 1;          \
-    if ((length == name_length) && strncmp(string, #name, name_length) == 0) \
-      return index;                                                          \
-  }
-
-int Context::IntrinsicIndexForName(const unsigned char* unsigned_string,
-                                   int length) {
-  const char* string = reinterpret_cast<const char*>(unsigned_string);
-  NATIVE_CONTEXT_INTRINSIC_FUNCTIONS(COMPARE_NAME);
-  return kNotFound;
-}
-
-#undef COMPARE_NAME
-
 #ifdef VERIFY_HEAP
 namespace {
 // TODO(v8:12298): Fix js-context-specialization cctests to set up full
@@ -595,7 +568,7 @@ namespace {
 // extensions.
 bool IsContexExtensionTestObject(Tagged<HeapObject> extension) {
   return IsInternalizedString(extension) &&
-         String::cast(extension)->length() == 1;
+         Cast<String>(extension)->length() == 1;
 }
 }  // namespace
 
@@ -637,7 +610,7 @@ bool Context::IsBootstrappingOrValidParentContext(Tagged<Object> object,
   // contexts. This is necessary to fix circular dependencies.
   if (child->GetIsolate()->bootstrapper()->IsActive()) return true;
   if (!IsContext(object)) return false;
-  Tagged<Context> context = Context::cast(object);
+  Tagged<Context> context = Cast<Context>(object);
   return IsNativeContext(context) || context->IsScriptContext() ||
          context->IsModuleContext() || !child->IsModuleContext();
 }
@@ -701,10 +674,7 @@ void NativeContext::RunPromiseHook(PromiseHookType type,
   if (IsUndefined(*hook)) return;
 
   int argc = type == PromiseHookType::kInit ? 2 : 1;
-  Handle<Object> argv[2] = {
-    Handle<Object>::cast(promise),
-    parent
-  };
+  Handle<Object> argv[2] = {Cast<Object>(promise), parent};
 
   Handle<Object> receiver = isolate->global_proxy();
 
@@ -730,5 +700,4 @@ void NativeContext::RunPromiseHook(PromiseHookType type,
 }
 #endif
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

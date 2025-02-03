@@ -38,13 +38,8 @@ if (module !== require.main) {
   function testProcessExit(addonName) {
     // Make sure that process exit is clean when the instance data has
     // references to JS objects.
-    const path = require
-      .resolve(`./build/${common.buildType}/${addonName}`)
-      // Replace any backslashes with double backslashes because they'll be re-
-      // interpreted back to single backslashes in the command line argument
-      // to the child process. Windows needs this.
-      .replace(/\\/g, '\\\\');
-    const child = spawnSync(process.execPath, ['-e', `require('${path}');`]);
+    const path = require.resolve(`./build/${common.buildType}/${addonName}`);
+    const child = spawnSync(process.execPath, ['-e', `require(${JSON.stringify(path)});`]);
     assert.strictEqual(child.signal, null);
     assert.strictEqual(child.status, 0);
     assert.strictEqual(child.stderr.toString(), 'addon_free');

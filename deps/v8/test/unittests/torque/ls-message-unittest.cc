@@ -92,7 +92,7 @@ TEST(LanguageServerMessage, GotoDefinition) {
       {definition_id, LineAndColumn::WithUnknownOffset(4, 1),
        LineAndColumn::WithUnknownOffset(4, 5)});
 
-  // First, check a unknown definition. The result must be null.
+  // First, check an unknown definition. The result must be null.
   GotoDefinitionRequest request;
   request.set_id(42);
   request.set_method("textDocument/definition");

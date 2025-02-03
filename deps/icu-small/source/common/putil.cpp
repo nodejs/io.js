@@ -46,11 +46,6 @@
 // First, the platform type. Need this for U_PLATFORM.
 #include "unicode/platform.h"
 
-#if U_PLATFORM == U_PF_MINGW && defined __STRICT_ANSI__
-/* tzset isn't defined in strict ANSI on MinGW. */
-#undef __STRICT_ANSI__
-#endif
-
 /*
  * Cygwin with GCC requires inclusion of time.h after the above disabling strict asci mode statement.
  */
@@ -180,8 +175,8 @@ typedef union {
     int64_t i64; /* This must be defined first in order to allow the initialization to work. This is a C89 feature. */
     double d64;
 } BitPatternConversion;
-static const BitPatternConversion gNan = { (int64_t) INT64_C(0x7FF8000000000000) };
-static const BitPatternConversion gInf = { (int64_t) INT64_C(0x7FF0000000000000) };
+static const BitPatternConversion gNan = {static_cast<int64_t>(INT64_C(0x7FF8000000000000))};
+static const BitPatternConversion gInf = {static_cast<int64_t>(INT64_C(0x7FF0000000000000))};
 
 /*---------------------------------------------------------------------------
   Platform utilities
@@ -230,7 +225,7 @@ u_signBit(double d) {
 #if U_IS_BIG_ENDIAN
     hiByte = *(uint8_t *)&d;
 #else
-    hiByte = *(((uint8_t *)&d) + sizeof(double) - 1);
+    hiByte = *(reinterpret_cast<uint8_t*>(&d) + sizeof(double) - 1);
 #endif
     return (hiByte & 0x80) != 0;
 }
@@ -347,7 +342,7 @@ uprv_isNaN(double number)
     BitPatternConversion convertedNumber;
     convertedNumber.d64 = number;
     /* Infinity is 0x7FF0000000000000U. Anything greater than that is a NaN */
-    return (UBool)((convertedNumber.i64 & U_INT64_MAX) > gInf.i64);
+    return (convertedNumber.i64 & U_INT64_MAX) > gInf.i64;
 
 #elif U_PLATFORM == U_PF_OS390
     uint32_t highBits = *(uint32_t*)u_topNBytesOfDouble(&number,
@@ -373,7 +368,7 @@ uprv_isInfinite(double number)
     BitPatternConversion convertedNumber;
     convertedNumber.d64 = number;
     /* Infinity is exactly 0x7FF0000000000000U. */
-    return (UBool)((convertedNumber.i64 & U_INT64_MAX) == gInf.i64);
+    return (convertedNumber.i64 & U_INT64_MAX) == gInf.i64;
 #elif U_PLATFORM == U_PF_OS390
     uint32_t highBits = *(uint32_t*)u_topNBytesOfDouble(&number,
                         sizeof(uint32_t));
@@ -394,7 +389,7 @@ U_CAPI UBool U_EXPORT2
 uprv_isPositiveInfinity(double number)
 {
 #if IEEE_754 || U_PLATFORM == U_PF_OS390
-    return (UBool)(number > 0 && uprv_isInfinite(number));
+    return number > 0 && uprv_isInfinite(number);
 #else
     return uprv_isInfinite(number);
 #endif
@@ -404,7 +399,7 @@ U_CAPI UBool U_EXPORT2
 uprv_isNegativeInfinity(double number)
 {
 #if IEEE_754 || U_PLATFORM == U_PF_OS390
-    return (UBool)(number < 0 && uprv_isInfinite(number));
+    return number < 0 && uprv_isInfinite(number);
 
 #else
     uint32_t highBits = *(uint32_t*)u_topNBytesOfDouble(&number,
@@ -749,11 +744,11 @@ static UBool isValidOlsonID(const char *id) {
     The timezone is sometimes set to "CST-7CDT", "CST6CDT5,J129,J131/19:30",
     "GRNLNDST3GRNLNDDT" or similar, so we cannot use it.
     The rest of the time it could be an Olson ID. George */
-    return (UBool)(id[idx] == 0
+    return id[idx] == 0
         || uprv_strcmp(id, "PST8PDT") == 0
         || uprv_strcmp(id, "MST7MDT") == 0
         || uprv_strcmp(id, "CST6CDT") == 0
-        || uprv_strcmp(id, "EST5EDT") == 0);
+        || uprv_strcmp(id, "EST5EDT") == 0;
 }
 
 /* On some Unix-like OS, 'posix' subdirectory in
@@ -932,7 +927,7 @@ static UBool compareBinaryFiles(const char* defaultTZFileName, const char* TZFil
              */
             if (tzInfo->defaultTZBuffer == nullptr) {
                 rewind(tzInfo->defaultTZFilePtr);
-                tzInfo->defaultTZBuffer = (char*)uprv_malloc(sizeof(char) * tzInfo->defaultTZFileSize);
+                tzInfo->defaultTZBuffer = static_cast<char*>(uprv_malloc(sizeof(char) * tzInfo->defaultTZFileSize));
                 sizeFileRead = fread(tzInfo->defaultTZBuffer, 1, tzInfo->defaultTZFileSize, tzInfo->defaultTZFilePtr);
             }
             rewind(file);

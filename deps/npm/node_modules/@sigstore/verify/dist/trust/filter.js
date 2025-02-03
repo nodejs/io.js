@@ -1,12 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.filterTLogAuthorities = exports.filterCertAuthorities = void 0;
+exports.filterCertAuthorities = filterCertAuthorities;
+exports.filterTLogAuthorities = filterTLogAuthorities;
 function filterCertAuthorities(certAuthorities, criteria) {
     return certAuthorities.filter((ca) => {
         return (ca.validFor.start <= criteria.start && ca.validFor.end >= criteria.end);
     });
 }
-exports.filterCertAuthorities = filterCertAuthorities;
 // Filter the list of tlog instances to only those which match the given log
 // ID and have public keys which are valid for the given integrated time.
 function filterTLogAuthorities(tlogAuthorities, criteria) {
@@ -21,4 +21,3 @@ function filterTLogAuthorities(tlogAuthorities, criteria) {
             criteria.targetDate <= tlog.validFor.end);
     });
 }
-exports.filterTLogAuthorities = filterTLogAuthorities;

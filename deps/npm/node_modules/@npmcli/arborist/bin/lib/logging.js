@@ -1,8 +1,8 @@
-const log = require('proc-log')
-const fs = require('fs')
-const { dirname } = require('path')
-const os = require('os')
-const { inspect, format } = require('util')
+const { log } = require('proc-log')
+const fs = require('node:fs')
+const { dirname } = require('node:path')
+const os = require('node:os')
+const { inspect, format } = require('node:util')
 
 const { bin: options } = require('./options.js')
 

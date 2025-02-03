@@ -87,6 +87,11 @@ function listener4() {
 }
 
 {
+  const ee = new events.EventEmitter();
+  assert.deepStrictEqual(ee.listeners(), []);
+}
+
+{
   class TestStream extends events.EventEmitter {}
   const s = new TestStream();
   assert.deepStrictEqual(s.listeners('foo'), []);

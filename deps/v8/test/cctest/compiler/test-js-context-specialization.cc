@@ -66,9 +66,9 @@ class ContextSpecializationTester : public HandleAndZoneScope,
   JSGraph* jsgraph() { return &jsgraph_; }
   Graph* graph() { return graph_; }
 
-  void CheckChangesToValue(Node* node, Handle<HeapObject> expected_value);
+  void CheckChangesToValue(Node* node, DirectHandle<HeapObject> expected_value);
   void CheckContextInputAndDepthChanges(
-      Node* node, Handle<Context> expected_new_context_object,
+      Node* node, DirectHandle<Context> expected_new_context_object,
       size_t expected_new_depth);
   void CheckContextInputAndDepthChanges(Node* node, Node* expected_new_context,
                                         size_t expected_new_depth);
@@ -87,7 +87,7 @@ class ContextSpecializationTester : public HandleAndZoneScope,
 };
 
 void ContextSpecializationTester::CheckChangesToValue(
-    Node* node, Handle<HeapObject> expected_value) {
+    Node* node, DirectHandle<HeapObject> expected_value) {
   Reduction r = spec()->Reduce(node);
   CHECK(r.Changed());
   HeapObjectMatcher match(r.replacement());
@@ -96,7 +96,7 @@ void ContextSpecializationTester::CheckChangesToValue(
 }
 
 void ContextSpecializationTester::CheckContextInputAndDepthChanges(
-    Node* node, Handle<Context> expected_new_context_object,
+    Node* node, DirectHandle<Context> expected_new_context_object,
     size_t expected_new_depth) {
   ContextAccess access = ContextAccessOf(node->op());
   Reduction r = spec()->Reduce(node);
@@ -105,7 +105,7 @@ void ContextSpecializationTester::CheckContextInputAndDepthChanges(
   Node* new_context = NodeProperties::GetContextInput(r.replacement());
   CHECK_EQ(IrOpcode::kHeapConstant, new_context->opcode());
   HeapObjectMatcher match(new_context);
-  CHECK_EQ(Context::cast(*match.ResolvedValue()), *expected_new_context_object);
+  CHECK_EQ(Cast<Context>(*match.ResolvedValue()), *expected_new_context_object);
 
   ContextAccess new_access = ContextAccessOf(r.replacement()->op());
   CHECK_EQ(new_access.depth(), expected_new_depth);
@@ -131,17 +131,19 @@ void ContextSpecializationTester::CheckContextInputAndDepthChanges(
 namespace {
 
 Handle<Context> NewContextForTesting(Isolate* isolate,
-                                     Handle<Context> previous) {
-  Handle<ScopeInfo> scope_info = ScopeInfo::CreateForWithScope(isolate, {});
-  Handle<JSObject> extension = isolate->factory()->NewJSObjectWithNullProto();
+                                     DirectHandle<Context> previous) {
+  DirectHandle<ScopeInfo> scope_info =
+      ScopeInfo::CreateForWithScope(isolate, {});
+  DirectHandle<JSObject> extension =
+      isolate->factory()->NewJSObjectWithNullProto();
   return isolate->factory()->NewWithContext(previous, scope_info, extension);
 }
 
 Handle<Context> NewCanonicalContextForTesting(ContextSpecializationTester& t,
-                                              Handle<Context> previous) {
-  Handle<ScopeInfo> scope_info =
+                                              DirectHandle<Context> previous) {
+  DirectHandle<ScopeInfo> scope_info =
       t.CanonicalHandle(*ScopeInfo::CreateForWithScope(t.isolate(), {}));
-  Handle<JSObject> extension =
+  DirectHandle<JSObject> extension =
       t.CanonicalHandle(*t.isolate()->factory()->NewJSObjectWithNullProto());
   return t.CanonicalHandle(
       *t.isolate()->factory()->NewWithContext(previous, scope_info, extension));
@@ -159,9 +161,9 @@ TEST(ReduceJSLoadContext0) {
 
   // Make a context and initialize it a bit for this test.
   Handle<Context> native = t.CanonicalHandle(*t.factory()->NewNativeContext());
-  Handle<Context> subcontext1 = NewCanonicalContextForTesting(t, native);
+  DirectHandle<Context> subcontext1 = NewCanonicalContextForTesting(t, native);
   Handle<Context> subcontext2 = NewCanonicalContextForTesting(t, subcontext1);
-  Handle<Object> expected =
+  DirectHandle<Object> expected =
       t.CanonicalHandle(*t.factory()->InternalizeUtf8String("gboy!"));
   const int slot = 5;
   native->set(slot, *expected);
@@ -198,7 +200,7 @@ TEST(ReduceJSLoadContext0) {
     Node* new_context_input = NodeProperties::GetContextInput(r.replacement());
     CHECK_EQ(IrOpcode::kHeapConstant, new_context_input->opcode());
     HeapObjectMatcher match(new_context_input);
-    CHECK_EQ(*native, Context::cast(*match.ResolvedValue()));
+    CHECK_EQ(*native, Cast<Context>(*match.ResolvedValue()));
     ContextAccess access = ContextAccessOf(r.replacement()->op());
     CHECK_EQ(Context::GLOBAL_EVAL_FUN_INDEX, static_cast<int>(access.index()));
     CHECK_EQ(0, static_cast<int>(access.depth()));
@@ -306,12 +308,12 @@ TEST(ReduceJSLoadContext2) {
   const i::compiler::Operator* create_function_context =
       t.javascript()->CreateFunctionContext(empty, 42, FUNCTION_SCOPE);
 
-  Handle<HeapObject> slot_value0 =
+  DirectHandle<HeapObject> slot_value0 =
       t.CanonicalHandle(*t.factory()->InternalizeUtf8String("0"));
-  Handle<HeapObject> slot_value1 =
+  DirectHandle<HeapObject> slot_value1 =
       t.CanonicalHandle(*t.factory()->InternalizeUtf8String("1"));
 
-  Handle<Context> context_object0 =
+  DirectHandle<Context> context_object0 =
       t.CanonicalHandle(*t.factory()->NewNativeContext());
   Handle<Context> context_object1 =
       NewCanonicalContextForTesting(t, context_object0);
@@ -387,12 +389,12 @@ TEST(ReduceJSLoadContext3) {
   auto isolate = handle_zone_scope.main_isolate();
   auto factory = isolate->factory();
 
-  Handle<HeapObject> slot_value0 = factory->InternalizeUtf8String("0");
-  Handle<HeapObject> slot_value1 = factory->InternalizeUtf8String("1");
+  DirectHandle<HeapObject> slot_value0 = factory->InternalizeUtf8String("0");
+  DirectHandle<HeapObject> slot_value1 = factory->InternalizeUtf8String("1");
 
   CanonicalHandles canonical_handles(isolate, handle_zone_scope.main_zone());
 
-  Handle<Context> context_object0 =
+  DirectHandle<Context> context_object0 =
       canonical_handles.Create(factory->NewNativeContext());
   Handle<Context> context_object1 =
       canonical_handles.Create(NewContextForTesting(isolate, context_object0));
@@ -473,9 +475,9 @@ TEST(ReduceJSStoreContext0) {
 
   // Make a context and initialize it a bit for this test.
   Handle<Context> native = t.CanonicalHandle(*t.factory()->NewNativeContext());
-  Handle<Context> subcontext1 = NewCanonicalContextForTesting(t, native);
+  DirectHandle<Context> subcontext1 = NewCanonicalContextForTesting(t, native);
   Handle<Context> subcontext2 = NewCanonicalContextForTesting(t, subcontext1);
-  Handle<Object> expected =
+  DirectHandle<Object> expected =
       t.CanonicalHandle(*t.factory()->InternalizeUtf8String("gboy!"));
   const int slot = 5;
   native->set(slot, *expected);
@@ -520,7 +522,7 @@ TEST(ReduceJSStoreContext0) {
     Node* new_context_input = NodeProperties::GetContextInput(r.replacement());
     CHECK_EQ(IrOpcode::kHeapConstant, new_context_input->opcode());
     HeapObjectMatcher match(new_context_input);
-    CHECK_EQ(*native, Context::cast(*match.ResolvedValue()));
+    CHECK_EQ(*native, Cast<Context>(*match.ResolvedValue()));
     ContextAccess access = ContextAccessOf(r.replacement()->op());
     CHECK_EQ(Context::GLOBAL_EVAL_FUN_INDEX, static_cast<int>(access.index()));
     CHECK_EQ(0, static_cast<int>(access.depth()));
@@ -584,12 +586,12 @@ TEST(ReduceJSStoreContext2) {
   const i::compiler::Operator* create_function_context =
       t.javascript()->CreateFunctionContext(empty, 42, FUNCTION_SCOPE);
 
-  Handle<HeapObject> slot_value0 =
+  DirectHandle<HeapObject> slot_value0 =
       t.CanonicalHandle(*t.factory()->InternalizeUtf8String("0"));
-  Handle<HeapObject> slot_value1 =
+  DirectHandle<HeapObject> slot_value1 =
       t.CanonicalHandle(*t.factory()->InternalizeUtf8String("1"));
 
-  Handle<Context> context_object0 =
+  DirectHandle<Context> context_object0 =
       t.CanonicalHandle(*t.factory()->NewNativeContext());
   Handle<Context> context_object1 =
       NewCanonicalContextForTesting(t, context_object0);
@@ -639,12 +641,12 @@ TEST(ReduceJSStoreContext3) {
 
   CanonicalHandles canonical_handles(isolate, handle_zone_scope.main_zone());
 
-  Handle<HeapObject> slot_value0 =
+  DirectHandle<HeapObject> slot_value0 =
       canonical_handles.Create(factory->InternalizeUtf8String("0"));
-  Handle<HeapObject> slot_value1 =
+  DirectHandle<HeapObject> slot_value1 =
       canonical_handles.Create(factory->InternalizeUtf8String("1"));
 
-  Handle<Context> context_object0 =
+  DirectHandle<Context> context_object0 =
       canonical_handles.Create(factory->NewNativeContext());
   Handle<Context> context_object1 =
       canonical_handles.Create(NewContextForTesting(isolate, context_object0));

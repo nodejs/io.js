@@ -1,4 +1,4 @@
-.TH "DEVELOPERS" "7" "April 2024" "" ""
+.TH "DEVELOPERS" "7" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBdevelopers\fR - Developer Guide
 .SS "Description"
@@ -91,7 +91,7 @@ You can negate a pattern by starting it with an exclamation point \fB!\fR.
 .RE 0
 
 .P
-By default, the following paths and files are ignored, so there's no need to add them to \fB.npmignore\fR explicitly:
+By default, some paths and files are ignored, so there's no need to add them to \fB.npmignore\fR explicitly. Some examples are:
 .RS 0
 .IP \(bu 4
 \fB.*.swp\fR
@@ -140,6 +140,8 @@ The following paths and files are never ignored, so adding them to \fB.npmignore
 
 .P
 If, given the structure of your project, you find \fB.npmignore\fR to be a maintenance headache, you might instead try populating the \fBfiles\fR property of \fBpackage.json\fR, which is an array of file or directory names that should be included in your package. Sometimes manually picking which items to allow is easier to manage than building a block list.
+.P
+See \fB\fBpackage.json\fR\fR \fI\(la/configuring-npm/package-json\(ra\fR for more info on what can and can't be ignored.
 .SS "Testing whether your \fB.npmignore\fR or \fBfiles\fR config works"
 .P
 If you want to double check that your package will include only the files you intend it to when published, you can run the \fBnpm pack\fR command locally which will generate a tarball in the working directory, the same way it does for publishing.

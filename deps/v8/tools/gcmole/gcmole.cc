@@ -160,7 +160,7 @@ struct Resolver {
       }
 
       if (llvm::isa<T>(decl)) {
-        return llvm::cast<T>(decl);
+        return Cast<llvm><T>(decl);
       }
 
       llvm::errs() << "Didn't match declaration template for " << n
@@ -645,7 +645,6 @@ class FunctionAnalyzer {
  public:
   FunctionAnalyzer(clang::MangleContext* ctx,
                    clang::CXXRecordDecl* heap_object_decl,
-                   clang::CXXRecordDecl* maybe_object_decl,
                    clang::CXXRecordDecl* smi_decl,
                    clang::CXXRecordDecl* tagged_index_decl,
                    clang::ClassTemplateDecl* tagged_decl,
@@ -653,7 +652,6 @@ class FunctionAnalyzer {
                    clang::DiagnosticsEngine& d, clang::SourceManager& sm)
       : ctx_(ctx),
         heap_object_decl_(heap_object_decl),
-        maybe_object_decl_(maybe_object_decl),
         smi_decl_(smi_decl),
         tagged_index_decl_(tagged_index_decl),
         tagged_decl_(tagged_decl),
@@ -795,7 +793,7 @@ class FunctionAnalyzer {
   bool IsRawPointerVar(clang::Expr* expr, std::string* var_name) {
     if (llvm::isa<clang::DeclRefExpr>(expr)) {
       *var_name =
-          llvm::cast<clang::DeclRefExpr>(expr)->getDecl()->getNameAsString();
+          Cast<llvm><clang::DeclRefExpr>(expr)->getDecl()->getNameAsString();
       return true;
     }
 
@@ -1248,9 +1246,9 @@ class FunctionAnalyzer {
     if (t == nullptr) {
       return nullptr;
     } else if (llvm::isa<clang::TagType>(t)) {
-      return llvm::cast<clang::TagType>(t);
+      return Cast<llvm><clang::TagType>(t);
     } else if (llvm::isa<clang::SubstTemplateTypeParmType>(t)) {
-      return ToTagType(llvm::cast<clang::SubstTemplateTypeParmType>(t)
+      return ToTagType(Cast<llvm><clang::SubstTemplateTypeParmType>(t)
                            ->getReplacementType()
                            .getTypePtr());
     } else {
@@ -1304,9 +1302,6 @@ class FunctionAnalyzer {
     const clang::CXXRecordDecl* definition = GetDefinitionOrNull(record);
     if (!definition) return false;
     if (IsDerivedFrom(record, heap_object_decl_)) {
-      return true;
-    }
-    if (IsDerivedFrom(record, maybe_object_decl_)) {
       return true;
     }
     return false;
@@ -1471,12 +1466,10 @@ class FunctionAnalyzer {
 
   clang::MangleContext* ctx_;
   clang::CXXRecordDecl* heap_object_decl_;
-  clang::CXXRecordDecl* maybe_object_decl_;
   clang::CXXRecordDecl* smi_decl_;
   clang::CXXRecordDecl* tagged_index_decl_;
   clang::ClassTemplateDecl* tagged_decl_;
   clang::CXXRecordDecl* no_gc_mole_decl_;
-  clang::CXXRecordDecl* no_heap_access_decl_;
 
   clang::DiagnosticsEngine& d_;
   clang::SourceManager& sm_;
@@ -1556,9 +1549,6 @@ class ProblemsFinder : public clang::ASTConsumer,
     clang::CXXRecordDecl* heap_object_decl =
         v8_internal.Resolve<clang::CXXRecordDecl>("HeapObject");
 
-    clang::CXXRecordDecl* maybe_object_decl =
-        v8_internal.Resolve<clang::CXXRecordDecl>("MaybeObject");
-
     clang::CXXRecordDecl* smi_decl =
         v8_internal.Resolve<clang::CXXRecordDecl>("Smi");
 
@@ -1570,10 +1560,6 @@ class ProblemsFinder : public clang::ASTConsumer,
 
     if (heap_object_decl != nullptr) {
       heap_object_decl = heap_object_decl->getDefinition();
-    }
-
-    if (maybe_object_decl != nullptr) {
-      maybe_object_decl = maybe_object_decl->getDefinition();
     }
 
     if (smi_decl != nullptr) {
@@ -1589,19 +1575,14 @@ class ProblemsFinder : public clang::ASTConsumer,
     }
 
     if (heap_object_decl != nullptr && smi_decl != nullptr &&
-        tagged_index_decl != nullptr && maybe_object_decl != nullptr &&
-        tagged_decl != nullptr) {
+        tagged_index_decl != nullptr && tagged_decl != nullptr) {
       function_analyzer_ = new FunctionAnalyzer(
           clang::ItaniumMangleContext::create(ctx, d_), heap_object_decl,
-          maybe_object_decl, smi_decl, tagged_index_decl, tagged_decl,
-          no_gc_mole_decl, d_, sm_);
+          smi_decl, tagged_index_decl, tagged_decl, no_gc_mole_decl, d_, sm_);
       TraverseDecl(ctx.getTranslationUnitDecl());
     } else if (g_verbose) {
       if (heap_object_decl == nullptr) {
         llvm::errs() << "Failed to resolve v8::internal::HeapObject\n";
-      }
-      if (maybe_object_decl == nullptr) {
-        llvm::errs() << "Failed to resolve v8::internal::MaybeObject\n";
       }
       if (smi_decl == nullptr) {
         llvm::errs() << "Failed to resolve v8::internal::Smi\n";

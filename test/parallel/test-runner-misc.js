@@ -18,9 +18,8 @@ if (process.argv[2] === 'child') {
       assert.strictEqual(signal.aborted, false);
       testSignal = signal;
       await setTimeout(50);
-    })).finally(common.mustCall(() => {
-      test(() => assert.strictEqual(testSignal.aborted, true));
     }));
+    test(() => assert.strictEqual(testSignal.aborted, true));
 
     // TODO(benjamingr) add more tests to describe + AbortSignal
     // this just tests the parameter is passed
@@ -33,9 +32,9 @@ if (process.argv[2] === 'child') {
 } else {
   const child = spawnSync(process.execPath, [__filename, 'child', 'abortSignal']);
   const stdout = child.stdout.toString();
-  assert.match(stdout, /^# pass 2$/m);
-  assert.match(stdout, /^# fail 0$/m);
-  assert.match(stdout, /^# cancelled 1$/m);
+  assert.match(stdout, /pass 2$/m);
+  assert.match(stdout, /fail 0$/m);
+  assert.match(stdout, /cancelled 1$/m);
   assert.strictEqual(child.status, 1);
   assert.strictEqual(child.signal, null);
 }

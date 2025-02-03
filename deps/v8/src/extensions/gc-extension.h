@@ -23,6 +23,9 @@ namespace internal {
 // - truthy parameter that is not setting any options:
 //   {type: 'minor', execution: 'sync'}.
 //
+// Exceptions that occur during parsing the options bag are preserved and result
+// in skipping the GC call.
+//
 // Supported options:
 // - type:
 //     - 'major': Full GC.

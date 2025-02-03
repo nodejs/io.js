@@ -1,8 +1,0 @@
-Checks preview for Error object
-{
-    className : TypeError
-    description : TypeError: [].     at is not a function     at <anonymous>:1:15
-    objectId : <objectId>
-    subtype : error
-    type : object
-}

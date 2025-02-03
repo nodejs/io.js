@@ -23,7 +23,7 @@ a Node.js-specific environment.
 
 The full code can be found [in the Node.js source tree][embedtest.cc].
 
-### Setting up per-process state
+### Setting up a per-process state
 
 Node.js requires some per-process state management in order to run:
 
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 }
 ```
 
-### Per-instance state
+### Setting up a per-instance state
 
 <!-- YAML
 changes:
@@ -86,11 +86,12 @@ Node.js has a concept of a “Node.js instance”, that is commonly being referr
 to as `node::Environment`. Each `node::Environment` is associated with:
 
 * Exactly one `v8::Isolate`, i.e. one JS Engine instance,
-* Exactly one `uv_loop_t`, i.e. one event loop, and
-* A number of `v8::Context`s, but exactly one main `v8::Context`.
+* Exactly one `uv_loop_t`, i.e. one event loop,
+* A number of `v8::Context`s, but exactly one main `v8::Context`, and
 * One `node::IsolateData` instance that contains information that could be
-  shared by multiple `node::Environment`s that use the same `v8::Isolate`.
-  Currently, no testing if performed for this scenario.
+  shared by multiple `node::Environment`s. The embedder should make sure
+  that `node::IsolateData` is shared only among `node::Environment`s that
+  use the same `v8::Isolate`, Node.js does not perform this check.
 
 In order to set up a `v8::Isolate`, an `v8::ArrayBuffer::Allocator` needs
 to be provided. One possible choice is the default Node.js allocator, which

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -42,6 +42,13 @@ typedef int (PROV_CIPHER_HW_FN)(PROV_CIPHER_CTX *dat, unsigned char *out,
 #define PROV_CIPHER_FLAG_INVERSE_CIPHER   0x0200
 
 struct prov_cipher_ctx_st {
+    /* place buffer at the beginning for memory alignment */
+    /* The original value of the iv */
+    unsigned char oiv[GENERIC_BLOCK_SIZE];
+    /* Buffer of partial blocks processed via update calls */
+    unsigned char buf[GENERIC_BLOCK_SIZE];
+    unsigned char iv[GENERIC_BLOCK_SIZE];
+
     block128_f block;
     union {
         cbc128_f cbc;
@@ -83,12 +90,6 @@ struct prov_cipher_ctx_st {
      * manage partial blocks themselves.
      */
     unsigned int num;
-
-    /* The original value of the iv */
-    unsigned char oiv[GENERIC_BLOCK_SIZE];
-    /* Buffer of partial blocks processed via update calls */
-    unsigned char buf[GENERIC_BLOCK_SIZE];
-    unsigned char iv[GENERIC_BLOCK_SIZE];
     const PROV_CIPHER_HW *hw; /* hardware specific functions */
     const void *ks; /* Pointer to algorithm specific key data */
     OSSL_LIB_CTX *libctx;

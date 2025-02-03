@@ -62,9 +62,9 @@ EnabledDebugList enabled_debug_list;
 using v8::Local;
 using v8::StackTrace;
 
-void EnabledDebugList::Parse(std::shared_ptr<KVStore> env_vars) {
+void EnabledDebugList::Parse(Environment* env) {
   std::string cats;
-  credentials::SafeGetenv("NODE_DEBUG_NATIVE", &cats, env_vars);
+  credentials::SafeGetenv("NODE_DEBUG_NATIVE", &cats, env);
   Parse(cats);
 }
 
@@ -182,10 +182,13 @@ class Win32SymbolDebuggingContext final : public NativeSymbolDebuggingContext {
       return NameAndDisplacement(pSymbol->Name, dwDisplacement);
     } else {
       // SymFromAddr failed
-      const DWORD error = GetLastError();  // "eat" the error anyway
 #ifdef DEBUG
+      const DWORD error = GetLastError();
       fprintf(stderr, "SymFromAddr returned error : %lu\n", error);
-#endif
+#else
+      // Consume the error anyway
+      USE(GetLastError());
+#endif  // DEBUG
     }
     // End MSDN code
 
@@ -217,10 +220,13 @@ class Win32SymbolDebuggingContext final : public NativeSymbolDebuggingContext {
       sym.line = line.LineNumber;
     } else {
       // SymGetLineFromAddr64 failed
-      const DWORD error = GetLastError();  // "eat" the error anyway
 #ifdef DEBUG
+      const DWORD error = GetLastError();
       fprintf(stderr, "SymGetLineFromAddr64 returned error : %lu\n", error);
-#endif
+#else
+      // Consume the error anyway
+      USE(GetLastError());
+#endif  // DEBUG
     }
     // End MSDN code
 
@@ -240,10 +246,13 @@ class Win32SymbolDebuggingContext final : public NativeSymbolDebuggingContext {
       return szUndName;
     } else {
       // UnDecorateSymbolName failed
-      const DWORD error = GetLastError();  // "eat" the error anyway
 #ifdef DEBUG
+      const DWORD error = GetLastError();
       fprintf(stderr, "UnDecorateSymbolName returned error %lu\n", error);
-#endif
+#else
+      // Consume the error anyway
+      USE(GetLastError());
+#endif  // DEBUG
     }
     return nullptr;
   }

@@ -89,6 +89,22 @@ async_test(function(t) { // as above with <a>
 
 async_test(function(t) {
   var input = document.createElement("input")
+  input.type = "radio"
+  dump.appendChild(input)
+  input.onclick = t.step_func(function() {
+    assert_false(input.checked, "input pre-click must not be triggered")
+  })
+  var child = input.appendChild(document.createElement("input"))
+  child.type = "radio"
+  child.onclick = t.step_func(function() {
+    assert_true(child.checked, "child pre-click must be triggered")
+  })
+  child.dispatchEvent(new MouseEvent("click", {bubbles:true}))
+  t.done()
+}, "pick the first with activation behavior <input type=radio>")
+
+async_test(function(t) {
+  var input = document.createElement("input")
   input.type = "checkbox"
   dump.appendChild(input)
   var clickEvent = new MouseEvent("click")
@@ -172,6 +188,46 @@ async_test(function(t) {
 
   t.done()
 }, "disabled checkbox still has activation behavior, part 2")
+
+async_test(function(t) {
+  var state = "start"
+
+  var form = document.createElement("form")
+  form.onsubmit = t.step_func(() => {
+    if(state == "start" || state == "radio") {
+      state = "failure"
+    } else if(state == "form") {
+      state = "done"
+    }
+    return false
+  })
+  dump.appendChild(form)
+  var button = form.appendChild(document.createElement("button"))
+  button.type = "submit"
+  var radio = button.appendChild(document.createElement("input"))
+  radio.type = "radio"
+  radio.onclick = t.step_func(() => {
+    if(state == "start") {
+      assert_unreached()
+    } else if(state == "radio") {
+      assert_true(radio.checked)
+    }
+  })
+  radio.disabled = true
+  radio.click()
+  assert_equals(state, "start")
+
+  state = "radio"
+  radio.disabled = false
+  radio.click()
+  assert_equals(state, "radio")
+
+  state = "form"
+  button.click()
+  assert_equals(state, "done")
+
+  t.done()
+}, "disabled radio still has activation behavior")
 
 async_test(function(t) {
   var input = document.createElement("input")

@@ -156,7 +156,7 @@ private:
 };
 
 inline UBool BMPSet::containsSlow(UChar32 c, int32_t lo, int32_t hi) const {
-    return (UBool)(findCodePoint(c, lo, hi) & 1);
+    return findCodePoint(c, lo, hi) & 1;
 }
 
 U_NAMESPACE_END

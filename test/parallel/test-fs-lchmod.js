@@ -9,7 +9,7 @@ const f = __filename;
 // This test ensures that input for lchmod is valid, testing for valid
 // inputs for path, mode and callback
 
-if (!common.isOSX) {
+if (!common.isMacOS) {
   common.skip('lchmod is only available on macOS');
 }
 

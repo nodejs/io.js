@@ -1,0 +1,5 @@
+{
+  "name": "main-no-index",
+  "main": "./main.js",
+  "type":"commonjs"
+}

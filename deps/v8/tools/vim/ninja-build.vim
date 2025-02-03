@@ -13,8 +13,6 @@
 "
 " Requires that gyp has already generated build.ninja files, and that ninja is
 " in your path (which it is automatically if depot_tools is in your path).
-" Bumps the number of parallel jobs in ninja automatically if goma is
-" detected.
 "
 " Add the following to your .vimrc file:
 "     so /path/to/src/tools/vim/ninja-build.vim

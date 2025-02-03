@@ -14,7 +14,7 @@ extern enum TrimMode extends uint31 constexpr 'String::TrimMode' {
 
 @export
 macro IsWhiteSpaceOrLineTerminator(charCode: char16|char8): bool {
-  // 0x0020 - SPACE (Intentionally out of order to fast path a commmon case)
+  // 0x0020 - SPACE (Intentionally out of order to fast path a common case)
   if (charCode == 0x0020) {
     return true;
   }

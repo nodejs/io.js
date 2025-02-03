@@ -47,6 +47,44 @@ decode([0x83, 0x36, 0xC8, 0x30], "\uE7C8", "legacy ICU special case 1");
 decode([0xA1, 0xAD], "\u2026", "legacy ICU special case 2");
 decode([0xA1, 0xAB], "\uFF5E", "legacy ICU special case 3");
 
+// GB18030-2022
+decode([0xA6, 0xD9], "\uFE10", "GB18030-2022 1");
+decode([0xA6, 0xDA], "\uFE12", "GB18030-2022 2");
+decode([0xA6, 0xDB], "\uFE11", "GB18030-2022 3");
+decode([0xA6, 0xDC], "\uFE13", "GB18030-2022 4");
+decode([0xA6, 0xDD], "\uFE14", "GB18030-2022 5");
+decode([0xA6, 0xDE], "\uFE15", "GB18030-2022 6");
+decode([0xA6, 0xDF], "\uFE16", "GB18030-2022 7");
+decode([0xA6, 0xEC], "\uFE17", "GB18030-2022 8");
+decode([0xA6, 0xED], "\uFE18", "GB18030-2022 9");
+decode([0xA6, 0xF3], "\uFE19", "GB18030-2022 10");
+decode([0xFE, 0x59], "\u9FB4", "GB18030-2022 11");
+decode([0xFE, 0x61], "\u9FB5", "GB18030-2022 12");
+decode([0xFE, 0x66], "\u9FB6", "GB18030-2022 13");
+decode([0xFE, 0x67], "\u9FB7", "GB18030-2022 14");
+decode([0xFE, 0x6D], "\u9FB8", "GB18030-2022 15");
+decode([0xFE, 0x7E], "\u9FB9", "GB18030-2022 16");
+decode([0xFE, 0x90], "\u9FBA", "GB18030-2022 17");
+decode([0xFE, 0xA0], "\u9FBB", "GB18030-2022 18");
+decode([0x82, 0x35, 0x90, 0x37], "\u9FB4", "GB18030-2022 19");
+decode([0x82, 0x35, 0x90, 0x38], "\u9FB5", "GB18030-2022 20");
+decode([0x82, 0x35, 0x90, 0x39], "\u9FB6", "GB18030-2022 21");
+decode([0x82, 0x35, 0x91, 0x30], "\u9FB7", "GB18030-2022 22");
+decode([0x82, 0x35, 0x91, 0x31], "\u9FB8", "GB18030-2022 23");
+decode([0x82, 0x35, 0x91, 0x32], "\u9FB9", "GB18030-2022 24");
+decode([0x82, 0x35, 0x91, 0x33], "\u9FBA", "GB18030-2022 25");
+decode([0x82, 0x35, 0x91, 0x34], "\u9FBB", "GB18030-2022 26");
+decode([0x84, 0x31, 0x82, 0x36], "\uFE10", "GB18030-2022 27");
+decode([0x84, 0x31, 0x82, 0x37], "\uFE11", "GB18030-2022 28");
+decode([0x84, 0x31, 0x82, 0x38], "\uFE12", "GB18030-2022 29");
+decode([0x84, 0x31, 0x82, 0x39], "\uFE13", "GB18030-2022 30");
+decode([0x84, 0x31, 0x83, 0x30], "\uFE14", "GB18030-2022 31");
+decode([0x84, 0x31, 0x83, 0x31], "\uFE15", "GB18030-2022 32");
+decode([0x84, 0x31, 0x83, 0x32], "\uFE16", "GB18030-2022 33");
+decode([0x84, 0x31, 0x83, 0x33], "\uFE17", "GB18030-2022 34");
+decode([0x84, 0x31, 0x83, 0x34], "\uFE18", "GB18030-2022 35");
+decode([0x84, 0x31, 0x83, 0x35], "\uFE19", "GB18030-2022 36");
+
 let i = 0;
 for (const range of ranges) {
   const pointer = range[0];

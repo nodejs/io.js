@@ -1,12 +1,12 @@
-const npmlog = require('npmlog')
+const proggy = require('proggy')
 
 module.exports = cls => class Tracker extends cls {
   #progress = new Map()
-  #setProgress
 
-  constructor (options = {}) {
-    super(options)
-    this.#setProgress = !!options.progress
+  #createTracker (key, name) {
+    const tracker = new proggy.Tracker(name ?? key)
+    tracker.on('done', () => this.#progress.delete(key))
+    this.#progress.set(key, tracker)
   }
 
   addTracker (section, subsection = null, key = null) {
@@ -26,22 +26,17 @@ module.exports = cls => class Tracker extends cls {
       this.#onError(`Tracker "${section}" already exists`)
     } else if (!hasTracker && subsection === null) {
       // 1. no existing tracker, no subsection
-      // Create a new tracker from npmlog
-      // starts progress bar
-      if (this.#setProgress && this.#progress.size === 0) {
-        npmlog.enableProgress()
-      }
-
-      this.#progress.set(section, npmlog.newGroup(section))
+      // Create a new progress tracker
+      this.#createTracker(section)
     } else if (!hasTracker && subsection !== null) {
       // 2. no parent tracker and subsection
       this.#onError(`Parent tracker "${section}" does not exist`)
     } else if (!hasTracker || !hasSubtracker) {
       // 3. existing parent tracker, no subsection tracker
-      // Create a new subtracker in this.#progress from parent tracker
-      this.#progress.set(`${section}:${key}`,
-        this.#progress.get(section).newGroup(`${section}:${subsection}`)
-      )
+      // Create a new subtracker and update parents
+      const parentTracker = this.#progress.get(section)
+      parentTracker.update(parentTracker.value, parentTracker.total + 1)
+      this.#createTracker(`${section}:${key}`, `${section}:${subsection}`)
     }
     // 4. existing parent tracker, existing subsection tracker
     // skip it
@@ -70,32 +65,22 @@ module.exports = cls => class Tracker extends cls {
           this.finishTracker(section, key)
         }
       }
-
       // remove parent tracker
       this.#progress.get(section).finish()
-      this.#progress.delete(section)
-
-      // remove progress bar if all
-      // trackers are finished
-      if (this.#setProgress && this.#progress.size === 0) {
-        npmlog.disableProgress()
-      }
     } else if (!hasTracker && subsection === null) {
       // 1. no existing parent tracker, no subsection
       this.#onError(`Tracker "${section}" does not exist`)
     } else if (!hasTracker || hasSubtracker) {
       // 2. subtracker exists
       // Finish subtracker and remove from this.#progress
+      const parentTracker = this.#progress.get(section)
+      parentTracker.update(parentTracker.value + 1)
       this.#progress.get(`${section}:${key}`).finish()
-      this.#progress.delete(`${section}:${key}`)
     }
     // 3. existing parent tracker, no subsection
   }
 
   #onError (msg) {
-    if (this.#setProgress) {
-      npmlog.disableProgress()
-    }
     throw new Error(msg)
   }
 }

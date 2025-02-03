@@ -1,13 +1,18 @@
-// Flags: --experimental-permission --allow-fs-read=*
+// Flags: --permission --allow-fs-read=*
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
-if (!common.hasCrypto)
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
+
+if (!common.hasCrypto) {
   common.skip('no crypto');
+}
 
 const assert = require('assert');
-const path = require('path');
 
 {
   assert.throws(() => {
@@ -15,7 +20,7 @@ const path = require('path');
   }, common.expectsError({
     code: 'ERR_ACCESS_DENIED',
     permission: 'FileSystemWrite',
-    resource: path.resolve('./secret.txt'),
+    resource: './secret.txt',
   }));
 }
 

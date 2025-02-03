@@ -1,5 +1,7 @@
 # <img src="./icon.svg" height="25" /> corepack
 
+[![Join us on OpenJS slack (channel #nodejs-corepack)](https://img.shields.io/badge/OpenJS%20Slack-%23nodejs--corepack-blue)](https://slack-invite.openjsf.org/)
+
 Corepack is a zero-runtime-dependency Node.js script that acts as a bridge
 between Node.js projects and the package managers they are intended to be used
 with during development. In practical terms, **Corepack lets you use Yarn, npm,
@@ -54,7 +56,7 @@ projects, `pnpm install` in pnpm projects, and `npm` in npm projects. Corepack
 will catch these calls, and depending on the situation:
 
 - **If the local project is configured for the package manager you're using**,
-  Corepack will silently download and cache the latest compatible version.
+  Corepack will download and cache the latest compatible version.
 
 - **If the local project is configured for a different package manager**,
   Corepack will request you to run the command again using the right package
@@ -245,7 +247,7 @@ same major line. Should you need to upgrade to a new major, use an explicit
   prevent Corepack showing the URL when it needs to download software, or can be
   set to `1` to have the URL shown. By default, when Corepack is called
   explicitly (e.g. `corepack pnpm …`), it is set to `0`; when Corepack is called
-  implicitely (e.g. `pnpm …`), it is set to `1`.
+  implicitly (e.g. `pnpm …`), it is set to `1`.
   When standard input is a TTY and no CI environment is detected, Corepack will
   ask for user input before starting the download.
 
@@ -294,11 +296,18 @@ same major line. Should you need to upgrade to a new major, use an explicit
 - `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` are supported through
   [`node-proxy-agent`](https://github.com/TooTallNate/node-proxy-agent).
 
+- `COREPACK_INTEGRITY_KEYS` can be set to an empty string or `0` to
+  instruct Corepack to skip integrity checks, or to a JSON string containing
+  custom keys.
+
 ## Troubleshooting
+
+The environment variable `DEBUG` can be set to `corepack` to enable additional debug logging.
 
 ### Networking
 
-There are a wide variety of networking issues that can occur while running `corepack` commands. Things to check:
+There are a wide variety of networking issues that can occur while running
+`corepack` commands. Things to check:
 
 - Make sure your network connection is active.
 - Make sure the host for your request can be resolved by your DNS; try using

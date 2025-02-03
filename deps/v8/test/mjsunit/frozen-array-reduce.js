@@ -747,7 +747,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -756,7 +755,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceThrow() {
@@ -783,7 +781,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -792,7 +789,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceFinally() {
@@ -819,7 +815,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -828,7 +823,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceFinallyNoInline() {
@@ -856,7 +850,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -865,7 +858,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceNonCallableOpt() {
@@ -916,7 +908,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -925,7 +916,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceFinallyInlineDeopt() {
@@ -955,7 +945,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -964,7 +953,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function OptimizedReduceRight() {
@@ -1124,7 +1112,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceThrow() {
@@ -1151,7 +1138,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -1160,7 +1146,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceFinally() {
@@ -1187,7 +1172,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -1196,7 +1180,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceFinallyNoInline() {
@@ -1233,7 +1216,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceNonCallableOpt() {
@@ -1283,7 +1265,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -1292,7 +1273,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceFinallyInlineDeopt() {
@@ -1322,7 +1302,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
   done = false;
   %PrepareFunctionForOptimization(g);
   g(); g();
@@ -1331,7 +1310,6 @@ assertEquals(undefined, Object.freeze(arr).reduceRight(function(val) { return va
   assertEquals(6, g());
   done = true;
   assertEquals(null, g());
-  assertOptimized(g);
 })();
 
 (function ReduceHoleyArrayWithDefaultAccumulator() {

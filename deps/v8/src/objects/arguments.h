@@ -149,7 +149,6 @@ class SloppyArgumentsElements : public FixedArrayBase {
     return kHeaderSize + index * kTaggedSize;
   }
 
-  DECL_CAST(SloppyArgumentsElements)
   DECL_PRINTER(SloppyArgumentsElements)
   DECL_VERIFIER(SloppyArgumentsElements)
 

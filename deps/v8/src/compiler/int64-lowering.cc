@@ -4,7 +4,6 @@
 
 #include "src/compiler/int64-lowering.h"
 
-#include "src/base/v8-fallthrough.h"
 #include "src/compiler/common-operator.h"
 #include "src/compiler/diamond.h"
 #include "src/compiler/graph.h"
@@ -672,7 +671,7 @@ void Int64Lowering::LowerNode(Node* node) {
     }
     case IrOpcode::kWord64RolLowerable:
       DCHECK(machine()->Word32Rol().IsSupported());
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case IrOpcode::kWord64RorLowerable: {
       DCHECK_EQ(3, node->InputCount());
       Node* input = node->InputAt(0);

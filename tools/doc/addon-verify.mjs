@@ -61,9 +61,9 @@ function verifyFiles(files, blockName) {
       files[name] = `'use strict';
 const common = require('../../common');
 ${files[name].replace(
-    "'./build/Release/addon'",
-    // eslint-disable-next-line no-template-curly-in-string
-    '`./build/${common.buildType}/addon`')}
+  "'./build/Release/addon'",
+  // eslint-disable-next-line no-template-curly-in-string
+  '`./build/${common.buildType}/addon`')}
 `;
     }
     return {

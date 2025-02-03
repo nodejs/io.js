@@ -22,7 +22,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 description(
-"This test checks that toString() round-trip on a function that has a array with elision does not remove a comma."
+"This test checks that toString() round-trip on a function that has an array with elision does not remove a comma."
 );
 
 function f1() {

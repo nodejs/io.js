@@ -27,9 +27,12 @@ const oob = 11;
   print(arguments.callee.name);
   const builder = new WasmModuleBuilder();
   builder.setTableBounds(oob);
+
+  const err_msg = `WebAssembly.Module(): initial table size \
+(11 elements) is larger than implementation limit (10 elements) @+13`;
   assertThrows(
     () => builder.instantiate(),
-    RangeError, /is larger than implementation limit/);
+    WebAssembly.CompileError, err_msg);
 })();
 
 (function TestDecodeTableMaximumAboveTheLimit() {

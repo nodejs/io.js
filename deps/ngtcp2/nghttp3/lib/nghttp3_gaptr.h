@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -40,8 +40,9 @@
  * nghttp3_gaptr maintains the gap in the range [0, UINT64_MAX).
  */
 typedef struct nghttp3_gaptr {
-  /* gap maintains the range of offset which is not received
-     yet. Initially, its range is [0, UINT64_MAX). */
+  /* gap maintains the range of offset which is not pushed
+     yet. Initially, its range is [0, UINT64_MAX).  "gap" is the range
+     that is not pushed yet. */
   nghttp3_ksl gap;
   /* mem is custom memory allocator */
   const nghttp3_mem *mem;
@@ -58,8 +59,7 @@ void nghttp3_gaptr_init(nghttp3_gaptr *gaptr, const nghttp3_mem *mem);
 void nghttp3_gaptr_free(nghttp3_gaptr *gaptr);
 
 /*
- * nghttp3_gaptr_push adds new data of length |datalen| at the stream
- * offset |offset|.
+ * nghttp3_gaptr_push pushes the range [offset, offset + datalen).
  *
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
@@ -77,7 +77,7 @@ uint64_t nghttp3_gaptr_first_gap_offset(nghttp3_gaptr *gaptr);
 
 /*
  * nghttp3_gaptr_get_first_gap_after returns the first gap which
- * overlaps or comes after |offset|.
+ * includes or comes after |offset|.
  */
 nghttp3_range nghttp3_gaptr_get_first_gap_after(nghttp3_gaptr *gaptr,
                                                 uint64_t offset);
@@ -96,4 +96,4 @@ int nghttp3_gaptr_is_pushed(nghttp3_gaptr *gaptr, uint64_t offset,
  */
 void nghttp3_gaptr_drop_first_gap(nghttp3_gaptr *gaptr);
 
-#endif /* NGHTTP3_GAPTR_H */
+#endif /* !defined(NGHTTP3_GAPTR_H) */

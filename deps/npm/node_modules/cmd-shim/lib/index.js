@@ -56,7 +56,7 @@ const writeShim = (from, to) =>
       const prog = shebang[2]
       const args = shebang[3] || ''
       return writeShim_(from, to, prog, args, vars)
-    }, er => writeShim_(from, to))
+    }, () => writeShim_(from, to))
 
 const writeShim_ = (from, to, prog, args, variables) => {
   let shTarget = relative(dirname(to), from)

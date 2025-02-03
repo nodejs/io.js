@@ -241,24 +241,6 @@ FunctionOptions MessageFormatter::resolveOptions(const Environment& env, const O
     return FormattedPlaceholder(fallback);
 }
 
-// Per https://github.com/unicode-org/message-format-wg/blob/main/spec/formatting.md#fallback-resolution
-static UnicodeString reservedFallback (const Expression& e) {
-    UErrorCode localErrorCode = U_ZERO_ERROR;
-    const Operator* rator = e.getOperator(localErrorCode);
-    U_ASSERT(U_SUCCESS(localErrorCode));
-    const Reserved& r = rator->asReserved();
-
-    // An empty Reserved isn't representable in the syntax
-    U_ASSERT(r.numParts() > 0);
-
-    const UnicodeString& contents = r.getPart(0).unquoted();
-    // Parts should never be empty
-    U_ASSERT(contents.length() > 0);
-
-    // Return first character of string
-    return UnicodeString(contents, 0, 1);
-}
-
 // Formats an expression using `globalEnv` for the values of variables
 [[nodiscard]] FormattedPlaceholder MessageFormatter::formatExpression(const Environment& globalEnv,
                                                                 const Expression& expr,
@@ -266,12 +248,6 @@ static UnicodeString reservedFallback (const Expression& e) {
                                                                 UErrorCode &status) const {
     if (U_FAILURE(status)) {
         return {};
-    }
-
-    // Formatting error
-    if (expr.isReserved()) {
-        context.getErrors().setReservedError(status);
-        return FormattedPlaceholder(reservedFallback(expr));
     }
 
     const Operand& rand = expr.getOperand();
@@ -467,7 +443,7 @@ void MessageFormatter::resolvePreferences(MessageContext& context, UVector& res,
     int32_t numVariants = dataModel.numVariants();
     const Variant* variants = dataModel.getVariantsInternal();
     // 2. For each index i in res
-    for (int32_t i = 0; i < (int32_t) res.size(); i++) {
+    for (int32_t i = 0; i < res.size(); i++) {
         // 2i. Let keys be a new empty list of strings.
         LocalPointer<UVector> keys(createUVector(status));
         CHECK_ERROR(status);
@@ -535,7 +511,7 @@ void MessageFormatter::filterVariants(const UVector& pref, UVector& vars, UError
         const Key* var = selectorKeys.getKeysInternal();
         // 2i. For each index `i` in `pref`:
         bool noMatch = false;
-        for (int32_t i = 0; i < (int32_t) pref.size(); i++) {
+        for (int32_t i = 0; i < pref.size(); i++) {
             // 2i(a). Let `key` be the `var` key at position `i`.
             U_ASSERT(i < selectorKeys.len);
             const Key& key = var[i];
@@ -675,12 +651,6 @@ ResolvedSelector MessageFormatter::resolveVariables(const Environment& env,
         return {};
     }
 
-    // A `reserved` is an error
-    if (expr.isReserved()) {
-        context.getErrors().setReservedError(status);
-        return ResolvedSelector(FormattedPlaceholder(reservedFallback(expr)));
-    }
-
     // Function call -- resolve the operand and options
     if (expr.isFunctionCall()) {
         const Operator* rator = expr.getOperator(status);
@@ -814,7 +784,12 @@ UnicodeString MessageFormatter::formatToString(const MessageArguments& arguments
         }
     }
     // Update status according to all errors seen while formatting
-    context.checkErrors(status);
+    if (signalErrors) {
+        context.checkErrors(status);
+    }
+    if (U_FAILURE(status)) {
+        result.remove();
+    }
     return result;
 }
 
@@ -869,7 +844,7 @@ void MessageFormatter::checkDeclarations(MessageContext& context, Environment*& 
     CHECK_ERROR(status);
 
     const Binding* decls = getDataModel().getLocalVariablesInternal();
-    U_ASSERT(env != nullptr && decls != nullptr);
+    U_ASSERT(env != nullptr && (decls != nullptr || getDataModel().bindingsLen == 0));
 
     for (int32_t i = 0; i < getDataModel().bindingsLen; i++) {
         const Binding& decl = decls[i];

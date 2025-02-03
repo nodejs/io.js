@@ -17,6 +17,7 @@
 #include "src/handles/handles.h"
 #include "src/objects/function-kind.h"
 #include "src/objects/tagged.h"
+#include "src/tracing/perfetto-utils.h"
 
 namespace v8 {
 namespace internal {
@@ -122,9 +123,8 @@ class CodeDataSourceIncrementalState {
 
   uint64_t next_function_iid() const { return functions_.size() + 1; }
 
-  uint64_t next_function_name_iid() const {
-    return one_byte_function_names_.size() + two_byte_function_names_.size() +
-           1;
+  uint64_t next_js_function_name_iid() const {
+    return js_function_names_.size() + 1;
   }
 
   // Stores newly seen interned data while in the middle of writing a new
@@ -138,7 +138,8 @@ class CodeDataSourceIncrementalState {
   std::unordered_map<int, uint64_t> isolates_;
   std::unordered_map<ScriptUniqueId, uint64_t, ScriptUniqueId::Hash> scripts_;
   std::unordered_map<Function, uint64_t, Function::Hash> functions_;
-  std::unordered_map<std::string, uint64_t> one_byte_function_names_;
+  std::unordered_map<PerfettoV8String, uint64_t, PerfettoV8String::Hasher>
+      js_function_names_;
   std::unordered_map<std::string, uint64_t> two_byte_function_names_;
 
   bool log_script_sources_ = false;

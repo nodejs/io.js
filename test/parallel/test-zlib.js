@@ -1,3 +1,4 @@
+// Flags: --no-warnings
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -230,3 +231,10 @@ testKeys.forEach(common.mustCall((file) => {
     }, trickle.length));
   }, chunkSize.length));
 }, testKeys.length));
+
+{
+  // Test instantiation without 'new'
+  common.expectWarning('DeprecationWarning', `Instantiating Gzip without the 'new' keyword has been deprecated.`, 'DEP0184');
+  const gzip = zlib.Gzip();
+  assert.ok(gzip instanceof zlib.Gzip);
+}

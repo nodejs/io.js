@@ -1208,4 +1208,32 @@ TEST_F(ModuleTest, IsGraphAsyncTopLevelAwait) {
   cycle_two_module_global.Reset();
 }
 
+TEST_F(ModuleTest, AsyncEvaluatingInEvaluateEntryPoint) {
+  // This test relies on v8::Module::Evaluate _not_ performing a microtask
+  // checkpoint.
+  isolate()->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
+
+  Local<String> source_text = NewString("await 0;");
+  ScriptOrigin origin = ModuleOrigin(NewString("async_leaf.js"), isolate());
+  ScriptCompiler::Source source(source_text, origin);
+  Local<Module> async_leaf_module =
+      ScriptCompiler::CompileModule(isolate(), &source).ToLocalChecked();
+  CHECK_EQ(Module::kUninstantiated, async_leaf_module->GetStatus());
+  CHECK(async_leaf_module
+            ->InstantiateModule(context(),
+                                CompileSpecifierAsModuleResolveCallback)
+            .FromJust());
+  CHECK_EQ(Module::kInstantiated, async_leaf_module->GetStatus());
+  Local<Promise> promise1 = Local<Promise>::Cast(
+      async_leaf_module->Evaluate(context()).ToLocalChecked());
+  CHECK_EQ(Module::kEvaluated, async_leaf_module->GetStatus());
+  Local<Promise> promise2 = Local<Promise>::Cast(
+      async_leaf_module->Evaluate(context()).ToLocalChecked());
+  CHECK_EQ(promise1, promise2);
+
+  isolate()->PerformMicrotaskCheckpoint();
+
+  CHECK_EQ(v8::Promise::kFulfilled, promise1->State());
+}
+
 }  // anonymous namespace

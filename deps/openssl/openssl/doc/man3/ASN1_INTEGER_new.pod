@@ -18,6 +18,7 @@ ASN1_INTEGER_new, ASN1_INTEGER_free - ASN1_INTEGER allocation functions
 ASN1_INTEGER_new() returns an allocated B<ASN1_INTEGER> structure.
 
 ASN1_INTEGER_free() frees up a single B<ASN1_INTEGER> object.
+If the argument is NULL, nothing is done.
 
 B<ASN1_INTEGER> structure representing the ASN.1 INTEGER type
 
@@ -34,7 +35,7 @@ L<ERR_get_error(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

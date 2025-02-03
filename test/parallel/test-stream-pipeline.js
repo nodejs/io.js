@@ -17,6 +17,8 @@ const http = require('http');
 const { promisify } = require('util');
 const net = require('net');
 const tsp = require('timers/promises');
+const tmpdir = require('../common/tmpdir');
+const fs = require('fs');
 
 {
   let finished = false;
@@ -67,6 +69,17 @@ const tsp = require('timers/promises');
   assert.throws(() => {
     pipeline();
   }, /ERR_INVALID_ARG_TYPE/);
+}
+
+tmpdir.refresh();
+{
+  assert.rejects(async () => {
+    const read = fs.createReadStream(__filename);
+    const write = fs.createWriteStream(tmpdir.resolve('a'));
+    const close = promisify(write.close);
+    await close.call(write);
+    await pipelinep(read, write);
+  }, /ERR_STREAM_UNABLE_TO_PIPE/).then(common.mustCall());
 }
 
 {
@@ -1331,12 +1344,13 @@ const tsp = require('timers/promises');
 
 {
   const ac = new AbortController();
+  const reason = new Error('Reason');
   const r = Readable.from(async function* () {
     for (let i = 0; i < 10; i++) {
       await Promise.resolve();
       yield String(i);
       if (i === 5) {
-        ac.abort();
+        ac.abort(reason);
       }
     }
   }());
@@ -1349,6 +1363,7 @@ const tsp = require('timers/promises');
   });
   const cb = common.mustCall((err) => {
     assert.strictEqual(err.name, 'AbortError');
+    assert.strictEqual(err.cause, reason);
     assert.strictEqual(res, '012345');
     assert.strictEqual(w.destroyed, true);
     assert.strictEqual(r.destroyed, true);
@@ -1476,10 +1491,14 @@ const tsp = require('timers/promises');
     });
 
     const duplex = new PassThrough();
+    const transform = new PassThrough();
 
     read.push(null);
 
-    await pipelinePromise(read, duplex, { end: false });
+    await pipelinePromise(read, transform, duplex, { end: false });
+
+    assert.strictEqual(transform.destroyed, true);
+    assert.strictEqual(transform.writableEnded, true);
 
     assert.strictEqual(duplex.destroyed, false);
     assert.strictEqual(duplex.writableEnded, false);
@@ -1660,5 +1679,74 @@ const tsp = require('timers/promises');
   pipeline(r, w, common.mustCall((err) => {
     assert.strictEqual(err, undefined);
   }));
+}
 
+{
+  // See https://github.com/nodejs/node/issues/51540 for the following 2 tests
+  const src = new Readable();
+  const dst = new Writable({
+    destroy(error, cb) {
+      // Takes a while to destroy
+      setImmediate(cb);
+    },
+  });
+
+  pipeline(src, dst, (err) => {
+    assert.strictEqual(src.closed, true);
+    assert.strictEqual(dst.closed, true);
+    assert.strictEqual(err.message, 'problem');
+  });
+  src.destroy(new Error('problem'));
+}
+
+{
+  const src = new Readable();
+  const dst = new Writable({
+    destroy(error, cb) {
+      // Takes a while to destroy
+      setImmediate(cb);
+    },
+  });
+  const passThroughs = [];
+  for (let i = 0; i < 10; i++) {
+    passThroughs.push(new PassThrough());
+  }
+
+  pipeline(src, ...passThroughs, dst, (err) => {
+    assert.strictEqual(src.closed, true);
+    assert.strictEqual(dst.closed, true);
+    assert.strictEqual(err.message, 'problem');
+
+    for (let i = 0; i < passThroughs.length; i++) {
+      assert.strictEqual(passThroughs[i].closed, true);
+    }
+  });
+  src.destroy(new Error('problem'));
+}
+
+{
+  async function* myAsyncGenerator(ag) {
+    for await (const data of ag) {
+      yield data;
+    }
+  }
+
+  const duplexStream = Duplex.from(myAsyncGenerator);
+
+  const r = new Readable({
+    read() {
+      this.push('data1\n');
+      throw new Error('booom');
+    },
+  });
+
+  const w = new Writable({
+    write(chunk, encoding, callback) {
+      callback();
+    },
+  });
+
+  pipeline(r, duplexStream, w, common.mustCall((err) => {
+    assert.deepStrictEqual(err, new Error('booom'));
+  }));
 }

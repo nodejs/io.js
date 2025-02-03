@@ -10,7 +10,7 @@ if (this.Worker) {
 
 (function TestWait() {
   let workerScript =
-      `onmessage = function(msg) {
+      `onmessage = function({data:msg}) {
          let mutex = msg.mutex;
          let cv = msg.cv;
          let res = Atomics.Mutex.lock(mutex, function() {
@@ -29,7 +29,7 @@ if (this.Worker) {
   worker2.postMessage(msg);
 
   // Spin until both workers are waiting.
-  while (%AtomicsConditionNumWaitersForTesting(cv) != 2) {}
+  while (%AtomicsSynchronizationPrimitiveNumWaitersForTesting(cv) != 2) {}
 
   assertEquals(2, Atomics.Condition.notify(cv, 2));
 

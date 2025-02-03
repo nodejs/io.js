@@ -7,12 +7,10 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/avoid-prototype-pollution');
 
-new RuleTester({
-  parserOptions: { ecmaVersion: 2022 },
-})
+new RuleTester()
   .run('property-descriptor-no-prototype-pollution', rule, {
     valid: [
       'ObjectDefineProperties({}, {})',
@@ -125,19 +123,46 @@ new RuleTester({
       },
       {
         code: 'ObjectDefineProperty({}, "key", ObjectGetOwnPropertyDescriptor({}, "key"))',
-        errors: [{ message: /prototype pollution/ }],
+        errors: [{
+          message: /prototype pollution/,
+          suggestions: [{
+            desc: 'Wrap the property descriptor in a null-prototype object',
+            output: 'ObjectDefineProperty({}, "key", { __proto__: null,...ObjectGetOwnPropertyDescriptor({}, "key") })',
+          }],
+        }],
       },
       {
         code: 'ReflectDefineProperty({}, "key", ObjectGetOwnPropertyDescriptor({}, "key"))',
-        errors: [{ message: /prototype pollution/ }],
+        errors: [{
+          message: /prototype pollution/,
+          suggestions: [{
+            desc: 'Wrap the property descriptor in a null-prototype object',
+            output:
+              'ReflectDefineProperty({}, "key", { __proto__: null,...ObjectGetOwnPropertyDescriptor({}, "key") })',
+          }],
+        }],
       },
       {
         code: 'ObjectDefineProperty({}, "key", ReflectGetOwnPropertyDescriptor({}, "key"))',
-        errors: [{ message: /prototype pollution/ }],
+        errors: [{
+          message: /prototype pollution/,
+          suggestions: [{
+            desc: 'Wrap the property descriptor in a null-prototype object',
+            output:
+              'ObjectDefineProperty({}, "key", { __proto__: null,...ReflectGetOwnPropertyDescriptor({}, "key") })',
+          }],
+        }],
       },
       {
         code: 'ReflectDefineProperty({}, "key", ReflectGetOwnPropertyDescriptor({}, "key"))',
-        errors: [{ message: /prototype pollution/ }],
+        errors: [{
+          message: /prototype pollution/,
+          suggestions: [{
+            desc: 'Wrap the property descriptor in a null-prototype object',
+            output:
+              'ReflectDefineProperty({}, "key", { __proto__: null,...ReflectGetOwnPropertyDescriptor({}, "key") })',
+          }],
+        }],
       },
       {
         code: 'ObjectDefineProperty({}, "key", { __proto__: Object.prototype })',
@@ -193,7 +218,13 @@ new RuleTester({
       },
       {
         code: 'RegExpPrototypeTest(/some regex/, "some string")',
-        errors: [{ message: /looks up the "exec" property/ }],
+        errors: [{
+          message: /looks up the "exec" property/,
+          suggestions: [{
+            desc: 'Use RegexpPrototypeExec instead',
+            output: 'RegExpPrototypeExec(/some regex/, "some string") !== null',
+          }],
+        }],
       },
       {
         code: 'RegExpPrototypeSymbolMatch(/some regex/, "some string")',

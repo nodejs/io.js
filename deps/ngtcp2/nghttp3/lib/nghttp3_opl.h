@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -63,4 +63,4 @@ nghttp3_opl_entry *nghttp3_opl_pop(nghttp3_opl *opl);
 
 void nghttp3_opl_clear(nghttp3_opl *opl);
 
-#endif /* NGHTTP3_OPL_H */
+#endif /* !defined(NGHTTP3_OPL_H) */

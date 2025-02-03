@@ -754,6 +754,32 @@ void SharedMacroAssemblerBase::I32x4DotI8x16I7x16AddS(
     XMMRegister dst, XMMRegister src1, XMMRegister src2, XMMRegister src3,
     XMMRegister scratch, XMMRegister splat_reg) {
   ASM_CODE_COMMENT(this);
+#if V8_TARGET_ARCH_X64
+  if (CpuFeatures::IsSupported(AVX_VNNI_INT8)) {
+    CpuFeatureScope avx_vnni_int8_scope(this, AVX_VNNI_INT8);
+    if (dst == src3) {
+      vpdpbssd(dst, src2, src1);
+    } else {
+      DCHECK_NE(dst, src1);
+      DCHECK_NE(dst, src2);
+      Movdqa(dst, src3);
+      vpdpbssd(dst, src2, src1);
+    }
+    return;
+  } else if (CpuFeatures::IsSupported(AVX_VNNI)) {
+    CpuFeatureScope avx_scope(this, AVX_VNNI);
+    if (dst == src3) {
+      vpdpbusd(dst, src2, src1);
+    } else {
+      DCHECK_NE(dst, src1);
+      DCHECK_NE(dst, src2);
+      Movdqa(dst, src3);
+      vpdpbusd(dst, src2, src1);
+    }
+    return;
+  }
+#endif
+
   // k = i16x8.splat(1)
   Pcmpeqd(splat_reg, splat_reg);
   Psrlw(splat_reg, splat_reg, uint8_t{15});
@@ -1280,75 +1306,6 @@ void SharedMacroAssemblerBase::S128Store64Lane(Operand dst, XMMRegister src,
     Movhps(dst, src);
   }
 }
-
-// Helper macro to define qfma macro-assembler. This takes care of every
-// possible case of register aliasing to minimize the number of instructions.
-#define QFMA(ps_or_pd)                        \
-  if (CpuFeatures::IsSupported(FMA3)) {       \
-    CpuFeatureScope fma3_scope(this, FMA3);   \
-    if (dst == src1) {                        \
-      vfmadd213##ps_or_pd(dst, src2, src3);   \
-    } else if (dst == src2) {                 \
-      vfmadd213##ps_or_pd(dst, src1, src3);   \
-    } else if (dst == src3) {                 \
-      vfmadd231##ps_or_pd(dst, src2, src1);   \
-    } else {                                  \
-      CpuFeatureScope avx_scope(this, AVX);   \
-      vmovups(dst, src1);                     \
-      vfmadd213##ps_or_pd(dst, src2, src3);   \
-    }                                         \
-  } else if (CpuFeatures::IsSupported(AVX)) { \
-    CpuFeatureScope avx_scope(this, AVX);     \
-    vmul##ps_or_pd(tmp, src1, src2);          \
-    vadd##ps_or_pd(dst, tmp, src3);           \
-  } else {                                    \
-    if (dst == src1) {                        \
-      mul##ps_or_pd(dst, src2);               \
-      add##ps_or_pd(dst, src3);               \
-    } else if (dst == src2) {                 \
-      DCHECK_NE(src2, src1);                  \
-      mul##ps_or_pd(dst, src1);               \
-      add##ps_or_pd(dst, src3);               \
-    } else if (dst == src3) {                 \
-      DCHECK_NE(src3, src1);                  \
-      movaps(tmp, src1);                      \
-      mul##ps_or_pd(tmp, src2);               \
-      add##ps_or_pd(dst, tmp);                \
-    } else {                                  \
-      movaps(dst, src1);                      \
-      mul##ps_or_pd(dst, src2);               \
-      add##ps_or_pd(dst, src3);               \
-    }                                         \
-  }
-
-// Helper macro to define qfms macro-assembler. This takes care of every
-// possible case of register aliasing to minimize the number of instructions.
-#define QFMS(ps_or_pd)                        \
-  if (CpuFeatures::IsSupported(FMA3)) {       \
-    CpuFeatureScope fma3_scope(this, FMA3);   \
-    if (dst == src1) {                        \
-      vfnmadd213##ps_or_pd(dst, src2, src3);  \
-    } else if (dst == src2) {                 \
-      vfnmadd213##ps_or_pd(dst, src1, src3);  \
-    } else if (dst == src3) {                 \
-      vfnmadd231##ps_or_pd(dst, src2, src1);  \
-    } else {                                  \
-      CpuFeatureScope avx_scope(this, AVX);   \
-      vmovups(dst, src1);                     \
-      vfnmadd213##ps_or_pd(dst, src2, src3);  \
-    }                                         \
-  } else if (CpuFeatures::IsSupported(AVX)) { \
-    CpuFeatureScope avx_scope(this, AVX);     \
-    vmul##ps_or_pd(tmp, src1, src2);          \
-    vsub##ps_or_pd(dst, src3, tmp);           \
-  } else {                                    \
-    movaps(tmp, src1);                        \
-    mul##ps_or_pd(tmp, src2);                 \
-    if (dst != src3) {                        \
-      movaps(dst, src3);                      \
-    }                                         \
-    sub##ps_or_pd(dst, tmp);                  \
-  }
 
 void SharedMacroAssemblerBase::F32x4Qfma(XMMRegister dst, XMMRegister src1,
                                          XMMRegister src2, XMMRegister src3,

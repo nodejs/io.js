@@ -1,11 +1,15 @@
 import * as common from '../common/index.mjs';
 import tmpdir from '../common/tmpdir.js';
-import { resolve, dirname, sep } from 'node:path';
+import { resolve, dirname, sep, relative, join, isAbsolute } from 'node:path';
 import { mkdir, writeFile, symlink, glob as asyncGlob } from 'node:fs/promises';
-import { glob, globSync } from 'node:fs';
+import { glob, globSync, Dirent } from 'node:fs';
 import { test, describe } from 'node:test';
 import { promisify } from 'node:util';
 import assert from 'node:assert';
+
+function assertDirents(dirents) {
+  assert.ok(dirents.every((dirent) => dirent instanceof Dirent));
+}
 
 tmpdir.refresh();
 
@@ -330,6 +334,149 @@ describe('fsPromises glob', function() {
       actual.sort();
       const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
       assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+const normalizeDirent = (dirent) => relative(fixtureDir, join(dirent.parentPath, dirent.name));
+// The call to `join()` with only one argument is important, as
+// it ensures that the proper path seperators are applied.
+const normalizePath = (path) => (isAbsolute(path) ? relative(fixtureDir, path) : join(path));
+
+describe('glob - withFileTypes', function() {
+  const promisified = promisify(glob);
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, async () => {
+      const actual = await promisified(pattern, {
+        cwd: fixtureDir,
+        withFileTypes: true,
+        exclude: (dirent) => assert.ok(dirent instanceof Dirent),
+      });
+      assertDirents(actual);
+      assert.deepStrictEqual(actual.map(normalizeDirent).sort(), expected.filter(Boolean).map(normalizePath).sort());
+    });
+  }
+});
+
+describe('globSync - withFileTypes', function() {
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, () => {
+      const actual = globSync(pattern, {
+        cwd: fixtureDir,
+        withFileTypes: true,
+        exclude: (dirent) => assert.ok(dirent instanceof Dirent),
+      });
+      assertDirents(actual);
+      assert.deepStrictEqual(actual.map(normalizeDirent).sort(), expected.filter(Boolean).map(normalizePath).sort());
+    });
+  }
+});
+
+describe('fsPromises glob - withFileTypes', function() {
+  for (const [pattern, expected] of Object.entries(patterns)) {
+    test(pattern, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, {
+        cwd: fixtureDir,
+        withFileTypes: true,
+        exclude: (dirent) => assert.ok(dirent instanceof Dirent),
+      })) actual.push(item);
+      assertDirents(actual);
+      assert.deepStrictEqual(actual.map(normalizeDirent).sort(), expected.filter(Boolean).map(normalizePath).sort());
+    });
+  }
+});
+
+// [pattern, exclude option, expected result]
+const pattern2 = [
+  ['a/{b,c}*', ['a/*c'], ['a/b', 'a/cb']],
+  ['a/{a,b,c}*', ['a/*bc*', 'a/cb'], ['a/b', 'a/c']],
+  ['a/**/[cg]', ['**/c'], ['a/abcdef/g', 'a/abcfed/g']],
+  ['a/**/[cg]', ['./**/c'], ['a/abcdef/g', 'a/abcfed/g']],
+  ['a/**/[cg]', ['a/**/[cg]/../c'], ['a/abcdef/g', 'a/abcfed/g']],
+  ['a/*/+(c|g)/*', ['**/./h'], ['a/b/c/d']],
+  [
+    'a/**/[cg]/../[cg]',
+    ['a/ab{cde,cfe}*'],
+    [
+      'a/b/c',
+      'a/c',
+      'a/c/d/c',
+      ...(common.isWindows ? [] : ['a/symlink/a/b/c']),
+    ],
+  ],
+  [
+    `${absDir}/*`,
+    [`${absDir}/asdf`, `${absDir}/ba*`],
+    [`${absDir}/foo`, `${absDir}/quux`, `${absDir}/qwer`, `${absDir}/rewq`],
+  ],
+  [
+    `${absDir}/*`,
+    [`${absDir}/asdf`, `**/ba*`],
+    [
+      `${absDir}/bar`,
+      `${absDir}/baz`,
+      `${absDir}/foo`,
+      `${absDir}/quux`,
+      `${absDir}/qwer`,
+      `${absDir}/rewq`,
+    ],
+  ],
+  [
+    [`${absDir}/*`, 'a/**/[cg]'],
+    [`${absDir}/*{a,q}*`, './a/*{c,b}*/*'],
+    [`${absDir}/foo`, 'a/c', ...(common.isWindows ? [] : ['a/symlink/a/b/c'])],
+  ],
+];
+
+describe('globSync - exclude', function() {
+  for (const [pattern, exclude] of Object.entries(patterns).map(([k, v]) => [k, v.filter(Boolean)])) {
+    test(`${pattern} - exclude: ${exclude}`, () => {
+      const actual = globSync(pattern, { cwd: fixtureDir, exclude }).sort();
+      assert.strictEqual(actual.length, 0);
+    });
+  }
+  for (const [pattern, exclude, expected] of pattern2) {
+    test(`${pattern} - exclude: ${exclude}`, () => {
+      const actual = globSync(pattern, { cwd: fixtureDir, exclude }).sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('glob - exclude', function() {
+  const promisified = promisify(glob);
+  for (const [pattern, exclude] of Object.entries(patterns).map(([k, v]) => [k, v.filter(Boolean)])) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = (await promisified(pattern, { cwd: fixtureDir, exclude })).sort();
+      assert.strictEqual(actual.length, 0);
+    });
+  }
+  for (const [pattern, exclude, expected] of pattern2) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = (await promisified(pattern, { cwd: fixtureDir, exclude })).sort();
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual, normalized);
+    });
+  }
+});
+
+describe('fsPromises glob - exclude', function() {
+  for (const [pattern, exclude] of Object.entries(patterns).map(([k, v]) => [k, v.filter(Boolean)])) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, { cwd: fixtureDir, exclude })) actual.push(item);
+      actual.sort();
+      assert.strictEqual(actual.length, 0);
+    });
+  }
+  for (const [pattern, exclude, expected] of pattern2) {
+    test(`${pattern} - exclude: ${exclude}`, async () => {
+      const actual = [];
+      for await (const item of asyncGlob(pattern, { cwd: fixtureDir, exclude })) actual.push(item);
+      const normalized = expected.filter(Boolean).map((item) => item.replaceAll('/', sep)).sort();
+      assert.deepStrictEqual(actual.sort(), normalized);
     });
   }
 });

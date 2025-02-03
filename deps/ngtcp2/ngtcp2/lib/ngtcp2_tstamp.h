@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -65,4 +65,4 @@ static inline int ngtcp2_tstamp_not_elapsed(ngtcp2_tstamp base,
   return base != UINT64_MAX && (base >= UINT64_MAX - d || base + d > ts);
 }
 
-#endif /* NGTCP2_TSTAMP_H */
+#endif /* !defined(NGTCP2_TSTAMP_H) */

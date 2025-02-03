@@ -80,3 +80,17 @@ Running test: testConsoleCountForNamedConsoleContext
         value : 239: 2
     }
 ]
+
+Running test: testConsoleTimeInDifferentConsoleContexts
+[
+    [0] : {
+        type : string
+        value : foo: 1 ms
+    }
+]
+[
+    [0] : {
+        type : string
+        value : foo: 2 ms
+    }
+]

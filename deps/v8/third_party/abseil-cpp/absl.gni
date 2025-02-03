@@ -19,69 +19,79 @@
 
 import("//build_overrides/build.gni")
 
+declare_args() {
+  absl_build_tests = build_with_chromium
+}
+
 template("absl_source_set") {
   source_set(target_name) {
-    forward_variables_from(invoker, "*")
-    configs -= [ "//build/config/compiler:chromium_code" ]
-    configs += [
-      "//build/config/compiler:no_chromium_code",
-      "//build/config/compiler:prevent_unsafe_narrowing",
-      "//third_party/abseil-cpp:absl_default_cflags_cc",
-      "//third_party/abseil-cpp:absl_define_config",
-    ]
+    if (defined(invoker.testonly) && invoker.testonly && !absl_build_tests) {
+      not_needed(invoker, "*")
+    } else {
+      forward_variables_from(invoker, "*")
+      configs -= [ "//build/config/compiler:chromium_code" ]
+      configs += [
+        "//build/config/compiler:no_chromium_code",
+        "//build/config/compiler:prevent_unsafe_narrowing",
+        "//third_party/abseil-cpp:absl_default_cflags_cc",
+        "//third_party/abseil-cpp:absl_define_config",
+      ]
 
-    if (is_component_build) {
-      defines = [ "ABSL_BUILD_DLL" ]
-      if (!is_win && (current_os != "aix")) {
-        configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
-        configs += [ "//build/config/gcc:symbol_visibility_default" ]
+      if (is_component_build) {
+        defines = [ "ABSL_BUILD_DLL" ]
+        if (!is_win && current_os != "aix") {
+          configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
+          configs += [ "//build/config/gcc:symbol_visibility_default" ]
+        }
       }
-    }
 
-    if (!defined(public_configs)) {
-      public_configs = []
-    }
-    public_configs += [ "//third_party/abseil-cpp:absl_include_config" ]
+      if (!defined(public_configs)) {
+        public_configs = []
+      }
+      public_configs += [
+        "//third_party/abseil-cpp:absl_include_config",
+        "//third_party/abseil-cpp:absl_public_cflags_cc",
+      ]
 
-    if (!defined(visibility)) {
-      # Within Chromium builds, restrict direct visibility of Abseil sources, so
-      # users must depend on //third_party/abseil-cpp:absl. This prevents use of
-      # banned targets like absl/types:any. A few targets require exceptions.
-      # TODO(crbug.com/1096380): Consider replacing build_with_chromium with
-      # is_component_build for a narrower, more accurate condition.
-      if (build_with_chromium) {
-        visibility = [
-          # Abseil itself.
-          "//third_party/abseil-cpp/*",
+      if (!defined(visibility)) {
+        # Within Chromium builds, restrict direct visibility of Abseil sources, so
+        # users must depend on //third_party/abseil-cpp:absl. This prevents use of
+        # banned targets like absl/types:any. A few targets require exceptions.
+        # TODO(crbug.com/1096380): Consider replacing build_with_chromium with
+        # is_component_build for a narrower, more accurate condition.
+        if (build_with_chromium) {
+          visibility = [
+            # Abseil itself.
+            "//third_party/abseil-cpp/*",
 
-          # GTest.  It unconditionally #includes any.h if pretty-print support
-          # for absl types is enabled.
-          "//third_party/googletest/*",
+            # GTest.  It unconditionally #includes any.h if pretty-print support
+            # for absl types is enabled.
+            "//third_party/googletest/*",
 
-          # Centipede, a fuzz test runner
-          "//third_party/fuzztest/*",
+            # WebRTC binary to run PSNR and SSIM video quality analysis. It
+            # statically links absl and it is used by "browser_tests" when
+            # is_component_build=false but it cannot depend on the absl
+            # component because it uses absl/flags.
+            "//third_party/webrtc/rtc_tools:frame_analyzer",
 
-          # WebRTC binary to run PSNR and SSIM video quality analysis. It
-          # statically links absl and it is used by "browser_tests" when
-          # is_component_build=false but it cannot depend on the absl
-          # component because it uses absl/flags.
-          "//third_party/webrtc/rtc_tools:frame_analyzer",
+            # WebRTC binaries used by //:chromium_builder_asan. They both
+            # statically link absl (because they depend on absl/flags) and are
+            # used by Chromium only when is_component_build=false.
+            "//third_party/webrtc/rtc_tools:rtp_generator",
+            "//third_party/webrtc/rtc_tools:video_replay",
 
-          # WebRTC binaries used by //:chromium_builder_asan. They both
-          # statically link absl (because they depend on absl/flags) and are
-          # used by Chromium only when is_component_build=false.
-          "//third_party/webrtc/rtc_tools:rtp_generator",
-          "//third_party/webrtc/rtc_tools:video_replay",
+            # Not used by Chromium directly.
+            "//chromecast/internal/*",
+            "//libassistant/*",
 
-          # Not used by Chromium directly.
-          "//chromecast/internal/*",
-          "//libassistant/*",
-
-          # Not built into Chrome.
-          "//components/optimization_guide/internal/*",
-        ]
-      } else {
-        visibility = [ "*" ]
+            # Not built into Chrome.
+            # TODO(crbug.com/357147248): Remove after these targets depend
+            # on absl_full instead.
+            "//components/optimization_guide/internal/*",
+          ]
+        } else {
+          visibility = [ "*" ]
+        }
       }
     }
   }
@@ -89,25 +99,32 @@ template("absl_source_set") {
 
 template("absl_test") {
   source_set(target_name) {
-    forward_variables_from(invoker, "*")
-    testonly = true
-    configs -= [ "//build/config/compiler:chromium_code" ]
-    configs += [
-      "//build/config/compiler:no_chromium_code",
-      "//third_party/abseil-cpp:absl_default_cflags_cc",
-      "//third_party/abseil-cpp:absl_define_config",
-      "//third_party/abseil-cpp:absl_test_config",
-    ]
+    if (!absl_build_tests) {
+      not_needed(invoker, "*")
+    } else {
+      forward_variables_from(invoker, "*")
+      testonly = true
+      configs -= [ "//build/config/compiler:chromium_code" ]
+      configs += [
+        "//build/config/compiler:no_chromium_code",
+        "//third_party/abseil-cpp:absl_default_cflags_cc",
+        "//third_party/abseil-cpp:absl_define_config",
+        "//third_party/abseil-cpp:absl_test_config",
+      ]
 
-    if (!defined(public_configs)) {
-      public_configs = []
+      if (!defined(public_configs)) {
+        public_configs = []
+      }
+      public_configs += [
+        "//third_party/abseil-cpp:absl_include_config",
+        "//third_party/abseil-cpp:absl_public_cflags_cc",
+      ]
+
+      visibility = [ "//third_party/abseil-cpp/:*" ]
+      deps += [
+        "//third_party/googletest:gmock",
+        "//third_party/googletest:gtest",
+      ]
     }
-    public_configs += [ "//third_party/abseil-cpp:absl_include_config" ]
-
-    visibility = [ "//third_party/abseil-cpp/:*" ]
-    deps += [
-      "//third_party/googletest:gmock",
-      "//third_party/googletest:gtest",
-    ]
   }
 }

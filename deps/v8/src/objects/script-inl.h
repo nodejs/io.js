@@ -32,7 +32,7 @@ ACCESSORS_CHECKED(Script, wasm_breakpoint_infos, Tagged<FixedArray>,
 ACCESSORS_CHECKED(Script, wasm_managed_native_module, Tagged<Object>,
                   kEvalFromPositionOffset, this->type() == Type::kWasm)
 ACCESSORS_CHECKED(Script, wasm_weak_instance_list, Tagged<WeakArrayList>,
-                  kSharedFunctionInfosOffset, this->type() == Type::kWasm)
+                  kInfosOffset, this->type() == Type::kWasm)
 #define CHECK_SCRIPT_NOT_WASM this->type() != Type::kWasm
 #else
 #define CHECK_SCRIPT_NOT_WASM true
@@ -73,7 +73,7 @@ void Script::set_eval_from_shared(Tagged<SharedFunctionInfo> shared,
 
 Tagged<SharedFunctionInfo> Script::eval_from_shared() const {
   DCHECK(has_eval_from_shared());
-  return SharedFunctionInfo::cast(eval_from_shared_or_wrapped_arguments());
+  return Cast<SharedFunctionInfo>(eval_from_shared_or_wrapped_arguments());
 }
 
 void Script::set_wrapped_arguments(Tagged<FixedArray> value,
@@ -84,29 +84,24 @@ void Script::set_wrapped_arguments(Tagged<FixedArray> value,
 
 Tagged<FixedArray> Script::wrapped_arguments() const {
   DCHECK(is_wrapped());
-  return FixedArray::cast(eval_from_shared_or_wrapped_arguments());
+  return Cast<FixedArray>(eval_from_shared_or_wrapped_arguments());
 }
 
-DEF_GETTER(Script, shared_function_infos, Tagged<WeakFixedArray>) {
+DEF_GETTER(Script, infos, Tagged<WeakFixedArray>) {
 #if V8_ENABLE_WEBASSEMBLY
   if (type() == Type::kWasm) {
     return ReadOnlyRoots(GetHeap()).empty_weak_fixed_array();
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
-  return TaggedField<WeakFixedArray, kSharedFunctionInfosOffset>::load(*this);
+  return TaggedField<WeakFixedArray, kInfosOffset>::load(*this);
 }
 
-void Script::set_shared_function_infos(Tagged<WeakFixedArray> value,
-                                       WriteBarrierMode mode) {
+void Script::set_infos(Tagged<WeakFixedArray> value, WriteBarrierMode mode) {
 #if V8_ENABLE_WEBASSEMBLY
   DCHECK_NE(Type::kWasm, type());
 #endif  // V8_ENABLE_WEBASSEMBLY
-  TaggedField<WeakFixedArray, kSharedFunctionInfosOffset>::store(*this, value);
-  CONDITIONAL_WRITE_BARRIER(*this, kSharedFunctionInfosOffset, value, mode);
-}
-
-int Script::shared_function_info_count() const {
-  return shared_function_infos()->length();
+  TaggedField<WeakFixedArray, kInfosOffset>::store(*this, value);
+  CONDITIONAL_WRITE_BARRIER(*this, kInfosOffset, value, mode);
 }
 
 #if V8_ENABLE_WEBASSEMBLY
@@ -115,7 +110,7 @@ bool Script::has_wasm_breakpoint_infos() const {
 }
 
 wasm::NativeModule* Script::wasm_native_module() const {
-  return Managed<wasm::NativeModule>::cast(wasm_managed_native_module())->raw();
+  return Cast<Managed<wasm::NativeModule>>(wasm_managed_native_module())->raw();
 }
 
 bool Script::break_on_entry() const { return BreakOnEntryBit::decode(flags()); }
@@ -125,7 +120,19 @@ void Script::set_break_on_entry(bool value) {
 }
 #endif  // V8_ENABLE_WEBASSEMBLY
 
-Script::CompilationType Script::compilation_type() {
+uint32_t Script::flags() const {
+  // Use a relaxed load since background compile threads read the
+  // {compilation_type()} while the foreground thread might update e.g. the
+  // {origin_options}.
+  return TaggedField<Smi>::Relaxed_Load(*this, kFlagsOffset).value();
+}
+
+void Script::set_flags(uint32_t new_flags) {
+  DCHECK(is_int31(new_flags));
+  TaggedField<Smi>::Relaxed_Store(*this, kFlagsOffset, Smi::FromInt(new_flags));
+}
+
+Script::CompilationType Script::compilation_type() const {
   return CompilationTypeBit::decode(flags());
 }
 void Script::set_compilation_type(CompilationType type) {
@@ -169,12 +176,12 @@ void Script::set_origin_options(ScriptOriginOptions origin_options) {
 bool Script::HasValidSource() {
   Tagged<Object> src = this->source();
   if (!IsString(src)) return true;
-  Tagged<String> src_str = Tagged<String>::cast(src);
+  Tagged<String> src_str = Cast<String>(src);
   if (!StringShape(src_str).IsExternal()) return true;
   if (src_str->IsOneByteRepresentation()) {
-    return ExternalOneByteString::cast(src)->resource() != nullptr;
+    return Cast<ExternalOneByteString>(src)->resource() != nullptr;
   } else if (src_str->IsTwoByteRepresentation()) {
-    return ExternalTwoByteString::cast(src)->resource() != nullptr;
+    return Cast<ExternalTwoByteString>(src)->resource() != nullptr;
   }
   return true;
 }
@@ -190,25 +197,37 @@ bool Script::CanHaveLineEnds() const {
 }
 
 // static
-void Script::InitLineEnds(Isolate* isolate, Handle<Script> script) {
+void Script::InitLineEnds(Isolate* isolate, DirectHandle<Script> script) {
   if (script->has_line_ends()) return;
   Script::InitLineEndsInternal(isolate, script);
 }
 // static
-void Script::InitLineEnds(LocalIsolate* isolate, Handle<Script> script) {
+void Script::InitLineEnds(LocalIsolate* isolate, DirectHandle<Script> script) {
   if (script->has_line_ends()) return;
   Script::InitLineEndsInternal(isolate, script);
 }
 
 bool Script::HasSourceURLComment() const {
-  return IsString(source_url()) && String::cast(source_url())->length() != 0;
+  return IsString(source_url()) && Cast<String>(source_url())->length() != 0;
 }
 
 bool Script::IsMaybeUnfinalized(Isolate* isolate) const {
   // TODO(v8:12051): A more robust detection, e.g. with a dedicated sentinel
   // value.
   return IsUndefined(source(), isolate) ||
-         String::cast(source())->length() == 0;
+         Cast<String>(source())->length() == 0;
+}
+
+Tagged<Script> Script::GetEvalOrigin() {
+  DisallowGarbageCollection no_gc;
+  Tagged<Script> origin_script = *this;
+  while (origin_script->has_eval_from_shared()) {
+    Tagged<HeapObject> maybe_script =
+        origin_script->eval_from_shared()->script();
+    CHECK(IsScript(maybe_script));
+    origin_script = Cast<Script>(maybe_script);
+  }
+  return origin_script;
 }
 
 }  // namespace internal

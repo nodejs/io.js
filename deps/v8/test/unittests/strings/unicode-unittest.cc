@@ -497,39 +497,40 @@ TEST(UnicodeTest, IncrementalUTF8DecodingVsNonIncrementalUtf8Decoding) {
 
 class UnicodeWithGCTest : public TestWithHeapInternals {};
 
-#define GC_INSIDE_NEW_STRING_FROM_UTF8_SUB_STRING(NAME, STRING)                \
-  TEST_F(UnicodeWithGCTest, GCInsideNewStringFromUtf8SubStringWith##NAME) {    \
-    v8_flags.stress_concurrent_allocation =                                    \
-        false; /* For SimulateFullSpace. */                                    \
-    v8::HandleScope scope(reinterpret_cast<v8::Isolate*>(isolate()));          \
-    Factory* factory = isolate()->factory();                                   \
-    /* Length must be bigger than the buffer size of the Utf8Decoder. */       \
-    const char* buf = STRING;                                                  \
-    size_t len = strlen(buf);                                                  \
-    Handle<String> main_string =                                               \
-        factory                                                                \
-            ->NewStringFromOneByte(v8::base::Vector<const uint8_t>(            \
-                reinterpret_cast<const uint8_t*>(buf), len))                   \
-            .ToHandleChecked();                                                \
-    if (v8_flags.single_generation) {                                          \
-      CHECK(!Heap::InYoungGeneration(*main_string));                           \
-      SimulateFullSpace(heap()->old_space());                                  \
-    } else {                                                                   \
-      CHECK(Heap::InYoungGeneration(*main_string));                            \
-      SimulateFullSpace(heap()->new_space());                                  \
-    }                                                                          \
-    /* Offset by two to check substring-ing. */                                \
-    Handle<String> s = factory                                                 \
-                           ->NewStringFromUtf8SubString(                       \
-                               Handle<SeqOneByteString>::cast(main_string), 2, \
-                               static_cast<int>(len - 2))                      \
-                           .ToHandleChecked();                                 \
-    Handle<String> expected_string =                                           \
-        factory                                                                \
-            ->NewStringFromUtf8(                                               \
-                v8::base::Vector<const char>(buf + 2, len - 2))                \
-            .ToHandleChecked();                                                \
-    CHECK(s->Equals(*expected_string));                                        \
+#define GC_INSIDE_NEW_STRING_FROM_UTF8_SUB_STRING(NAME, STRING)               \
+  TEST_F(UnicodeWithGCTest, GCInsideNewStringFromUtf8SubStringWith##NAME) {   \
+    v8_flags.stress_concurrent_allocation =                                   \
+        false; /* For SimulateFullSpace. */                                   \
+    ManualGCScope manual_gc_scope(isolate());                                 \
+    v8::HandleScope scope(reinterpret_cast<v8::Isolate*>(isolate()));         \
+    Factory* factory = isolate()->factory();                                  \
+    /* Length must be bigger than the buffer size of the Utf8Decoder. */      \
+    const char* buf = STRING;                                                 \
+    size_t len = strlen(buf);                                                 \
+    Handle<String> main_string =                                              \
+        factory                                                               \
+            ->NewStringFromOneByte(v8::base::Vector<const uint8_t>(           \
+                reinterpret_cast<const uint8_t*>(buf), len))                  \
+            .ToHandleChecked();                                               \
+    if (v8_flags.single_generation) {                                         \
+      CHECK(!Heap::InYoungGeneration(*main_string));                          \
+      SimulateFullSpace(heap()->old_space());                                 \
+    } else {                                                                  \
+      CHECK(Heap::InYoungGeneration(*main_string));                           \
+      SimulateFullSpace(heap()->new_space());                                 \
+    }                                                                         \
+    /* Offset by two to check substring-ing. */                               \
+    DirectHandle<String> s =                                                  \
+        factory                                                               \
+            ->NewStringFromUtf8SubString(Cast<SeqOneByteString>(main_string), \
+                                         2, static_cast<int>(len - 2))        \
+            .ToHandleChecked();                                               \
+    DirectHandle<String> expected_string =                                    \
+        factory                                                               \
+            ->NewStringFromUtf8(                                              \
+                v8::base::Vector<const char>(buf + 2, len - 2))               \
+            .ToHandleChecked();                                               \
+    CHECK(s->Equals(*expected_string));                                       \
   }
 
 GC_INSIDE_NEW_STRING_FROM_UTF8_SUB_STRING(

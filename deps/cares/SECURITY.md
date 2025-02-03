@@ -43,7 +43,7 @@ announcement.
 
 - If the report is rejected, the team writes to the reporter to explain why.
 
-- If the report is accepted, the team writes to the reporter to let him/her
+- If the report is accepted, the team writes to the reporter to let them
   know it is accepted and that they are working on a fix.
 
 - The security team discusses the problem, works out a fix, considers the

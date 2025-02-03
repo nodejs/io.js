@@ -12,7 +12,7 @@ async function runAndKill(file) {
     return;
   }
   let stdout = '';
-  const child = spawn(process.execPath, ['--test', file]);
+  const child = spawn(process.execPath, ['--test', '--test-reporter=tap', file]);
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk) => {
     if (!stdout.length) child.kill('SIGINT');
@@ -58,10 +58,10 @@ if (process.argv[2] === 'child') {
   assert.strictEqual(child.status, 0);
   assert.strictEqual(child.signal, null);
   const stdout = child.stdout.toString();
-  assert.match(stdout, /# tests 3/);
-  assert.match(stdout, /# pass 0/);
-  assert.match(stdout, /# fail 0/);
-  assert.match(stdout, /# todo 3/);
+  assert.match(stdout, /tests 3/);
+  assert.match(stdout, /pass 0/);
+  assert.match(stdout, /fail 0/);
+  assert.match(stdout, /todo 3/);
 
   child = spawnSync(process.execPath, [__filename, 'child', 'fail']);
   assert.strictEqual(child.status, 1);

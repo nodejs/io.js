@@ -2,6 +2,7 @@
 #include "memory_tracker.h"
 #include "node.h"
 #include "node_builtins.h"
+#include "node_external_reference.h"
 #include "node_i18n.h"
 #include "node_options.h"
 #include "util-inl.h"
@@ -9,11 +10,22 @@
 namespace node {
 
 using v8::Context;
+using v8::FunctionCallbackInfo;
 using v8::Isolate;
 using v8::Local;
 using v8::Number;
 using v8::Object;
 using v8::Value;
+
+void GetDefaultLocale(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  Local<Context> context = isolate->GetCurrentContext();
+  std::string locale = isolate->GetDefaultLocale();
+  Local<Value> result;
+  if (ToV8Value(context, locale).ToLocal(&result)) {
+    args.GetReturnValue().Set(result);
+  }
+}
 
 // The config binding is used to provide an internal view of compile time
 // config options that are required internally by lib/*.js code. This is an
@@ -23,7 +35,7 @@ using v8::Value;
 // Command line arguments are already accessible in the JS land via
 // require('internal/options').getOptionValue('--some-option'). Do not add them
 // here.
-static void Initialize(Local<Object> target,
+static void InitConfig(Local<Object> target,
                        Local<Value> unused,
                        Local<Context> context,
                        void* priv) {
@@ -76,8 +88,15 @@ static void Initialize(Local<Object> target,
 #endif  // NODE_NO_BROWSER_GLOBALS
 
   READONLY_PROPERTY(target, "bits", Number::New(isolate, 8 * sizeof(intptr_t)));
+
+  SetMethodNoSideEffect(context, target, "getDefaultLocale", GetDefaultLocale);
 }  // InitConfig
+
+void RegisterConfigExternalReferences(ExternalReferenceRegistry* registry) {
+  registry->Register(GetDefaultLocale);
+}
 
 }  // namespace node
 
-NODE_BINDING_CONTEXT_AWARE_INTERNAL(config, node::Initialize)
+NODE_BINDING_CONTEXT_AWARE_INTERNAL(config, node::InitConfig)
+NODE_BINDING_EXTERNAL_REFERENCE(config, node::RegisterConfigExternalReferences)

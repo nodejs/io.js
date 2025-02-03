@@ -1,0 +1,15 @@
+<!DOCTYPE HTML>
+<html>
+<head></head>
+<body>
+<script>
+
+function handleStorageEvent(e) {
+    window.parent.storageEventList.push(e);
+}
+
+document.body.setAttribute("onstorage", "handleStorageEvent(event);");
+
+</script>
+</body>
+</html>

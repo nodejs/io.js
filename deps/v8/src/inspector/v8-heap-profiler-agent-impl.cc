@@ -8,7 +8,6 @@
 #include "include/v8-inspector.h"
 #include "include/v8-platform.h"
 #include "include/v8-profiler.h"
-#include "include/v8-version.h"
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/time.h"
 #include "src/inspector/injected-script.h"
@@ -90,7 +89,7 @@ class HeapSnapshotOutputStream final : public v8::OutputStream {
   explicit HeapSnapshotOutputStream(protocol::HeapProfiler::Frontend* frontend)
       : m_frontend(frontend) {}
   void EndOfStream() override {}
-  int GetChunkSize() override { return 102400; }
+  int GetChunkSize() override { return 1 * v8::internal::MB; }
   WriteResult WriteAsciiChunk(char* data, int size) override {
     m_frontend->addHeapSnapshotChunk(String16(data, size));
     m_frontend->flush();

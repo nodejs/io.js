@@ -1,7 +1,7 @@
 const reifyOutput = require('./reify-output.js')
 const ini = require('ini')
-const { writeFile } = require('fs').promises
-const { resolve } = require('path')
+const { writeFile } = require('node:fs/promises')
+const { resolve } = require('node:path')
 
 const reifyFinish = async (npm, arb) => {
   await saveBuiltinConfig(npm, arb)

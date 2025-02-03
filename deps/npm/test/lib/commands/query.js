@@ -258,7 +258,7 @@ t.test('expect entries', t => {
     npm.config.set('expect-results', false)
     await npm.exec('query', ['#a'])
     t.not(joinedOutput(), '[]', 'has entries')
-    t.same(logs.warn, [['query', 'Expected no results, got 1']])
+    t.same(logs.warn.byTitle('query'), ['query Expected no results, got 1'])
     t.ok(process.exitCode, 'exits with code')
   })
   t.test('false, no entries', async t => {
@@ -286,7 +286,7 @@ t.test('expect entries', t => {
     npm.config.set('expect-results', true)
     await npm.exec('query', ['#b'])
     t.equal(joinedOutput(), '[]', 'does not have entries')
-    t.same(logs.warn, [['query', 'Expected results, got 0']])
+    t.same(logs.warn.byTitle('query'), ['query Expected results, got 0'])
     t.ok(process.exitCode, 'exits with code')
   })
   t.test('count, matches', async t => {
@@ -305,7 +305,7 @@ t.test('expect entries', t => {
     npm.config.set('expect-result-count', 1)
     await npm.exec('query', ['#b'])
     t.equal(joinedOutput(), '[]', 'does not have entries')
-    t.same(logs.warn, [['query', 'Expected 1 result, got 0']])
+    t.same(logs.warn.byTitle('query'), ['query Expected 1 result, got 0'])
     t.ok(process.exitCode, 'exits with code')
   })
   t.test('count 3, does not match', async t => {
@@ -315,7 +315,7 @@ t.test('expect entries', t => {
     npm.config.set('expect-result-count', 3)
     await npm.exec('query', ['#b'])
     t.equal(joinedOutput(), '[]', 'does not have entries')
-    t.same(logs.warn, [['query', 'Expected 3 results, got 0']])
+    t.same(logs.warn.byTitle('query'), ['query Expected 3 results, got 0'])
     t.ok(process.exitCode, 'exits with code')
   })
   t.end()

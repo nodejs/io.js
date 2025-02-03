@@ -4,10 +4,10 @@ exclude = [
   "tools/cpplint.py",
   "tools/gyp",
   "tools/inspector_protocol",
-  "tools/node_modules",
+  "tools/eslint/node_modules"
 ]
 line-length = 172
-target-version = "py37"
+target-version = "py39"
 
 [tool.ruff.lint]
 select = [
@@ -32,19 +32,11 @@ ignore = [
   "E401",
   "E402",
   "E7",
-  "PLC1901",
   "RUF005",
-  "RUF100",
 ]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 100
-
-[tool.ruff.lint.per-file-ignores]
-"tools/checkimports.py" = ["W605"]
-"tools/gyp/pylib/gyp/xcodeproj_file.py" = ["PLE0101"]
-"tools/icu/shrink-icu-src.py" = ["W605"]
-"tools/mkssldef.py" = ["W605"]
 
 [tool.ruff.lint.pylint]
 max-args = 12

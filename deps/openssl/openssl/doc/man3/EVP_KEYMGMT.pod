@@ -62,6 +62,7 @@ B<EVP_KEYMGMT> I<keymgmt>.
 
 EVP_KEYMGMT_free() decrements the reference count for the given
 B<EVP_KEYMGMT> I<keymgmt>, and when the count reaches zero, frees it.
+If the argument is NULL, nothing is done.
 
 EVP_KEYMGMT_get0_provider() returns the provider that has this particular
 implementation.
@@ -140,7 +141,7 @@ The functions described here were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

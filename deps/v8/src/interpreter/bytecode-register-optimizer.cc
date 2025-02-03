@@ -14,6 +14,19 @@ const uint32_t BytecodeRegisterOptimizer::kInvalidEquivalenceId = kMaxUInt32;
 
 using TypeHint = BytecodeRegisterOptimizer::TypeHint;
 
+// kDefinitelyHasVariable means that the variable is definitely in the register.
+// kMightHaveVariable means that the variable might be in the register.
+enum class VariableHintMode { kDefinitelyHasVariable, kMightHaveVariable };
+
+struct VariableHint {
+  Variable* variable;
+  VariableHintMode mode;
+};
+
+enum class MaterializedInfo { kNotMaterialized, kMaterialized };
+
+enum class ResetVariableHint { kDontReset, kReset };
+
 // A class for tracking the state of a register. This class tracks
 // which equivalence set a register is a member of and also whether a
 // register is materialized in the bytecode stream.
@@ -27,17 +40,17 @@ class BytecodeRegisterOptimizer::RegisterInfo final : public ZoneObject {
         allocated_(allocated),
         needs_flush_(false),
         type_hint_(TypeHint::kAny),
-        var_in_reg_(nullptr),
+        variable_hint_({nullptr, VariableHintMode::kDefinitelyHasVariable}),
         next_(this),
         prev_(this) {}
   RegisterInfo(const RegisterInfo&) = delete;
   RegisterInfo& operator=(const RegisterInfo&) = delete;
 
   void AddToEquivalenceSetOf(RegisterInfo* info);
-  void MoveToNewEquivalenceSet(uint32_t equivalence_id, bool materialized,
-                               Variable* var = nullptr);
+  void MoveToNewEquivalenceSet(
+      uint32_t equivalence_id, MaterializedInfo materialized,
+      ResetVariableHint reset = ResetVariableHint::kReset);
   bool IsOnlyMemberOfEquivalenceSet() const;
-  bool IsOnlyMaterializedMemberOfEquivalenceSet() const;
   bool IsInSameEquivalenceSet(RegisterInfo* info) const;
 
   // Get a member of the register's equivalence set that is allocated.
@@ -86,8 +99,17 @@ class BytecodeRegisterOptimizer::RegisterInfo final : public ZoneObject {
   TypeHint type_hint() const { return type_hint_; }
   void set_type_hint(TypeHint hint) { type_hint_ = hint; }
 
-  Variable* var_in_reg() const { return var_in_reg_; }
-  void set_var_in_reg(Variable* var) { var_in_reg_ = var; }
+  VariableHint variable_hint() const { return variable_hint_; }
+  void set_variable_hint(VariableHint hint) { variable_hint_ = hint; }
+  void flush_variable_hint(bool reset_variable_hint) {
+    if (reset_variable_hint) {
+      variable_hint_ = {nullptr, VariableHintMode::kDefinitelyHasVariable};
+    } else if (variable_hint_.variable != nullptr) {
+      variable_hint_.mode = VariableHintMode::kMightHaveVariable;
+    }
+  }
+
+  RegisterInfo* next() const { return next_; }
 
  private:
   Register register_;
@@ -96,7 +118,7 @@ class BytecodeRegisterOptimizer::RegisterInfo final : public ZoneObject {
   bool allocated_;
   bool needs_flush_;
   TypeHint type_hint_;
-  Variable* var_in_reg_;
+  VariableHint variable_hint_;
 
   // Equivalence set pointers.
   RegisterInfo* next_;
@@ -116,18 +138,19 @@ void BytecodeRegisterOptimizer::RegisterInfo::AddToEquivalenceSetOf(
   next_->prev_ = this;
   set_equivalence_id(info->equivalence_id());
   set_materialized(false);
-  set_var_in_reg(info->var_in_reg());
+  set_variable_hint(info->variable_hint());
   type_hint_ = info->type_hint();
 }
 
 void BytecodeRegisterOptimizer::RegisterInfo::MoveToNewEquivalenceSet(
-    uint32_t equivalence_id, bool materialized, Variable* var) {
+    uint32_t equivalence_id, MaterializedInfo materialized,
+    ResetVariableHint reset) {
   next_->prev_ = prev_;
   prev_->next_ = next_;
   next_ = prev_ = this;
   equivalence_id_ = equivalence_id;
-  materialized_ = materialized;
-  var_in_reg_ = var;
+  materialized_ = materialized == MaterializedInfo::kMaterialized;
+  flush_variable_hint(reset == ResetVariableHint::kReset);
   type_hint_ = TypeHint::kAny;
 }
 
@@ -139,20 +162,27 @@ bool BytecodeRegisterOptimizer::RegisterInfo::IsOnlyMemberOfEquivalenceSet()
 void BytecodeRegisterOptimizer::SetVariableInRegister(Variable* var,
                                                       Register reg) {
   RegisterInfo* info = GetRegisterInfo(reg);
-  PushToRegistersNeedingFlush(info);
-  info->set_var_in_reg(var);
+  RegisterInfo* it = info;
+  do {
+    PushToRegistersNeedingFlush(it);
+    it->set_variable_hint({var, VariableHintMode::kDefinitelyHasVariable});
+    it = it->next();
+  } while (it != info);
 }
 
-Variable* BytecodeRegisterOptimizer::GetVariableInRegister(Register reg) {
+Variable* BytecodeRegisterOptimizer::GetPotentialVariableInRegister(
+    Register reg) {
   RegisterInfo* info = GetRegisterInfo(reg);
-  return info->var_in_reg();
+  return info->variable_hint().variable;
 }
 
 bool BytecodeRegisterOptimizer::IsVariableInRegister(Variable* var,
                                                      Register reg) {
   DCHECK_NOT_NULL(var);
   RegisterInfo* info = GetRegisterInfo(reg);
-  return info->var_in_reg() == var;
+  VariableHint hint = info->variable_hint();
+  return hint.mode == VariableHintMode::kDefinitelyHasVariable &&
+         hint.variable == var;
 }
 
 TypeHint BytecodeRegisterOptimizer::GetTypeHint(Register reg) {
@@ -174,20 +204,6 @@ void BytecodeRegisterOptimizer::ResetTypeHintForAccumulator() {
 
 bool BytecodeRegisterOptimizer::IsAccumulatorReset() {
   return accumulator_info_->type_hint() == TypeHint::kAny;
-}
-
-bool BytecodeRegisterOptimizer::RegisterInfo::
-    IsOnlyMaterializedMemberOfEquivalenceSet() const {
-  DCHECK(materialized());
-
-  const RegisterInfo* visitor = this->next_;
-  while (visitor != this) {
-    if (visitor->materialized()) {
-      return false;
-    }
-    visitor = visitor->next_;
-  }
-  return true;
 }
 
 bool BytecodeRegisterOptimizer::RegisterInfo::IsInSameEquivalenceSet(
@@ -342,7 +358,7 @@ void BytecodeRegisterOptimizer::Flush() {
   for (RegisterInfo* reg_info : registers_needing_flushed_) {
     if (!reg_info->needs_flush()) continue;
     reg_info->set_needs_flush(false);
-    reg_info->set_var_in_reg(nullptr);
+    reg_info->flush_variable_hint(false);
     reg_info->set_type_hint(TypeHint::kAny);
 
     RegisterInfo* materialized = reg_info->materialized()
@@ -358,13 +374,17 @@ void BytecodeRegisterOptimizer::Flush() {
         if (equivalent->allocated() && !equivalent->materialized()) {
           OutputRegisterTransfer(materialized, equivalent);
         }
-        equivalent->MoveToNewEquivalenceSet(NextEquivalenceId(), true);
+        equivalent->MoveToNewEquivalenceSet(NextEquivalenceId(),
+                                            MaterializedInfo::kMaterialized,
+                                            ResetVariableHint::kDontReset);
         equivalent->set_needs_flush(false);
       }
     } else {
-      // Equivalernce class containing only unallocated registers.
+      // Equivalence class containing only unallocated registers.
       DCHECK_NULL(reg_info->GetAllocatedEquivalent());
-      reg_info->MoveToNewEquivalenceSet(NextEquivalenceId(), false);
+      reg_info->MoveToNewEquivalenceSet(NextEquivalenceId(),
+                                        MaterializedInfo::kNotMaterialized,
+                                        ResetVariableHint::kDontReset);
     }
   }
 
@@ -400,11 +420,6 @@ void BytecodeRegisterOptimizer::CreateMaterializedEquivalent(
   if (unmaterialized) {
     OutputRegisterTransfer(info, unmaterialized);
   }
-}
-
-BytecodeRegisterOptimizer::RegisterInfo*
-BytecodeRegisterOptimizer::GetMaterializedEquivalent(RegisterInfo* info) {
-  return info->materialized() ? info : info->GetMaterializedEquivalent();
 }
 
 BytecodeRegisterOptimizer::RegisterInfo*
@@ -480,7 +495,8 @@ void BytecodeRegisterOptimizer::PrepareOutputRegister(Register reg) {
   if (reg_info->materialized()) {
     CreateMaterializedEquivalent(reg_info);
   }
-  reg_info->MoveToNewEquivalenceSet(NextEquivalenceId(), true);
+  reg_info->MoveToNewEquivalenceSet(NextEquivalenceId(),
+                                    MaterializedInfo::kMaterialized);
   max_register_index_ =
       std::max(max_register_index_, reg_info->register_value().index());
 }
@@ -540,7 +556,8 @@ void BytecodeRegisterOptimizer::GrowRegisterMap(Register reg) {
 void BytecodeRegisterOptimizer::AllocateRegister(RegisterInfo* info) {
   info->set_allocated(true);
   if (!info->materialized()) {
-    info->MoveToNewEquivalenceSet(NextEquivalenceId(), true);
+    info->MoveToNewEquivalenceSet(NextEquivalenceId(),
+                                  MaterializedInfo::kMaterialized);
   }
 }
 

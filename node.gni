@@ -7,8 +7,14 @@ declare_args() {
   # The location of Node.js in source code tree.
   node_path = "//node"
 
-  # The location of V8, use the one from node's deps by default.
+  # The location of V8 - use the one from node's deps by default.
   node_v8_path = "$node_path/deps/v8"
+
+  # The location of OpenSSL - use the one from node's deps by default.
+  node_openssl_path = "$node_path/deps/openssl"
+
+  # The location of simdutf - use the one from node's deps by default.
+  node_simdutf_path = "$node_path/deps/simdutf"
 
   # The NODE_MODULE_VERSION defined in node_version.h.
   node_module_version = exec_script("$node_path/tools/getmoduleversion.py", [], "value")
@@ -20,6 +26,7 @@ declare_args() {
     "deps/cjs-module-lexer/lexer.js",
     "deps/cjs-module-lexer/dist/lexer.js",
     "deps/undici/undici.js",
+    "deps/amaro/dist/index.js",
   ]
 }
 
@@ -58,6 +65,9 @@ declare_args() {
   #   1. cross-os compilation is not supported.
   #   2. node_mksnapshot crashes when cross-compiling for x64 from arm64.
   node_use_node_snapshot = (host_os == target_os) && !(host_cpu == "arm64" && target_cpu == "x64")
+
+  # Build with Amaro (TypeScript utils).
+  node_use_amaro = true
 }
 
 assert(!node_enable_inspector || node_use_openssl,

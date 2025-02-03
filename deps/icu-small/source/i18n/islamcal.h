@@ -201,7 +201,7 @@ class U_I18N_API IslamicCalendar : public Calendar {
    * Return the day # on which the given year starts.  Days are counted
    * from the Hijri epoch, origin 0.
    */
-  virtual int64_t yearStart(int32_t year) const;
+  virtual int64_t yearStart(int32_t year, UErrorCode& status) const;
 
   /**
    * Return the day # on which the given month starts.  Days are counted
@@ -413,7 +413,7 @@ class U_I18N_API IslamicCivilCalendar : public IslamicCalendar {
    * from the Hijri epoch, origin 0.
    * @internal
    */
-  virtual int64_t yearStart(int32_t year) const override;
+  virtual int64_t yearStart(int32_t year, UErrorCode& status) const override;
 
   /**
    * Return the day # on which the given month starts.  Days are counted
@@ -596,7 +596,7 @@ class U_I18N_API IslamicUmalquraCalendar : public IslamicCivilCalendar {
    * from the Hijri epoch, origin 0.
    * @internal
    */
-  virtual int64_t yearStart(int32_t year) const override;
+  virtual int64_t yearStart(int32_t year, UErrorCode& status) const override;
 
   /**
    * Return the day # on which the given month starts.  Days are counted
@@ -640,6 +640,9 @@ class U_I18N_API IslamicUmalquraCalendar : public IslamicCivilCalendar {
    * @internal
    */
   virtual void handleComputeFields(int32_t julianDay, UErrorCode &status) override;
+
+ private:
+  virtual int32_t yearLength(int32_t extendedYear, UErrorCode& status) const;
 };
 
 

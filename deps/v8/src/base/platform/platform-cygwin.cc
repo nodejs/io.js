@@ -9,10 +9,10 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdarg.h>
-#include <strings.h>    // index
-#include <sys/mman.h>   // mmap & munmap
+#include <strings.h>   // index
+#include <sys/mman.h>  // mmap & munmap
 #include <sys/time.h>
-#include <unistd.h>     // sysconf
+#include <unistd.h>  // sysconf
 
 #include <cmath>
 
@@ -76,7 +76,7 @@ class CygwinTimezoneCache : public PosixTimezoneCache {
 
 const char* CygwinTimezoneCache::LocalTimezone(double time) {
   if (std::isnan(time)) return "";
-  time_t tv = static_cast<time_t>(std::floor(time/msPerSecond));
+  time_t tv = static_cast<time_t>(std::floor(time / msPerSecond));
   struct tm tm;
   struct tm* t = localtime_r(&tv, &tm);
   if (nullptr == t) return "";
@@ -205,6 +205,9 @@ bool OS::DiscardSystemPages(void* address, size_t size) {
 }
 
 // static
+bool OS::SealPages(void* address, size_t size) { return false; }
+
+// static
 bool OS::HasLazyCommits() {
   // TODO(alph): implement for the platform.
   return false;
@@ -252,8 +255,8 @@ std::vector<OS::SharedLibraryAddress> OS::GetSharedLibraryAddresses() {
         lib_name[strlen(lib_name) - 1] = '\0';
       } else {
         // No library name found, just record the raw address range.
-        snprintf(lib_name, kLibNameLen,
-                 "%08" V8PRIxPTR "-%08" V8PRIxPTR, start, end);
+        snprintf(lib_name, kLibNameLen, "%08" V8PRIxPTR "-%08" V8PRIxPTR, start,
+                 end);
       }
       result.push_back(SharedLibraryAddress(lib_name, start, end));
     } else {
@@ -276,10 +279,10 @@ void OS::SignalCodeMovingGC() {
 
 void OS::AdjustSchedulingParams() {}
 
-std::vector<OS::MemoryRange> OS::GetFreeMemoryRangesWithin(
+std::optional<OS::MemoryRange> OS::GetFirstFreeMemoryRangeWithin(
     OS::Address boundary_start, OS::Address boundary_end, size_t minimum_size,
     size_t alignment) {
-  return {};
+  return std::nullopt;
 }
 
 }  // namespace base

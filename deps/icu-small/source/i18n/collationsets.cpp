@@ -222,7 +222,7 @@ TailoredSet::comparePrefixes(UChar32 c, const char16_t *p, const char16_t *q) {
     const UnicodeString *bp = nullptr;  // Base prefix.
     // Use a string with a U+FFFF as the limit sentinel.
     // U+FFFF is untailorable and will not occur in prefixes.
-    UnicodeString none((char16_t)0xffff);
+    UnicodeString none(static_cast<char16_t>(0xffff));
     for(;;) {
         if(tp == nullptr) {
             if(prefixes.next(errorCode)) {
@@ -242,15 +242,15 @@ TailoredSet::comparePrefixes(UChar32 c, const char16_t *p, const char16_t *q) {
         int32_t cmp = tp->compare(*bp);
         if(cmp < 0) {
             // tp occurs in the tailoring but not in the base.
-            addPrefix(data, *tp, c, (uint32_t)prefixes.getValue());
+            addPrefix(data, *tp, c, static_cast<uint32_t>(prefixes.getValue()));
             tp = nullptr;
         } else if(cmp > 0) {
             // bp occurs in the base but not in the tailoring.
-            addPrefix(baseData, *bp, c, (uint32_t)basePrefixes.getValue());
+            addPrefix(baseData, *bp, c, static_cast<uint32_t>(basePrefixes.getValue()));
             bp = nullptr;
         } else {
             setPrefix(*tp);
-            compare(c, (uint32_t)prefixes.getValue(), (uint32_t)basePrefixes.getValue());
+            compare(c, static_cast<uint32_t>(prefixes.getValue()), static_cast<uint32_t>(basePrefixes.getValue()));
             resetPrefix();
             tp = nullptr;
             bp = nullptr;
@@ -268,8 +268,8 @@ TailoredSet::compareContractions(UChar32 c, const char16_t *p, const char16_t *q
     // Use a string with two U+FFFF as the limit sentinel.
     // U+FFFF is untailorable and will not occur in contractions except maybe
     // as a single suffix character for a root-collator boundary contraction.
-    UnicodeString none((char16_t)0xffff);
-    none.append((char16_t)0xffff);
+    UnicodeString none(static_cast<char16_t>(0xffff));
+    none.append(static_cast<char16_t>(0xffff));
     for(;;) {
         if(ts == nullptr) {
             if(suffixes.next(errorCode)) {
@@ -297,7 +297,7 @@ TailoredSet::compareContractions(UChar32 c, const char16_t *p, const char16_t *q
             bs = nullptr;
         } else {
             suffix = ts;
-            compare(c, (uint32_t)suffixes.getValue(), (uint32_t)baseSuffixes.getValue());
+            compare(c, static_cast<uint32_t>(suffixes.getValue()), static_cast<uint32_t>(baseSuffixes.getValue()));
             suffix = nullptr;
             ts = nullptr;
             bs = nullptr;
@@ -309,7 +309,7 @@ void
 TailoredSet::addPrefixes(const CollationData *d, UChar32 c, const char16_t *p) {
     UCharsTrie::Iterator prefixes(p, 0, errorCode);
     while(prefixes.next(errorCode)) {
-        addPrefix(d, prefixes.getString(), c, (uint32_t)prefixes.getValue());
+        addPrefix(d, prefixes.getString(), c, static_cast<uint32_t>(prefixes.getValue()));
     }
 }
 
@@ -512,7 +512,7 @@ ContractionsAndExpansions::handleCE32(UChar32 start, UChar32 end, uint32_t ce32)
                 UTF16CollationIterator iter(data, false, nullptr, nullptr, nullptr);
                 char16_t hangul[1] = { 0 };
                 for(UChar32 c = start; c <= end; ++c) {
-                    hangul[0] = (char16_t)c;
+                    hangul[0] = static_cast<char16_t>(c);
                     iter.setText(hangul, hangul + 1);
                     int32_t length = iter.fetchCEs(errorCode);
                     if(U_FAILURE(errorCode)) { return; }
@@ -551,7 +551,7 @@ ContractionsAndExpansions::handlePrefixes(
         // that always yield expansions.
         addStrings(start, end, contractions);
         addStrings(start, end, expansions);
-        handleCE32(start, end, (uint32_t)prefixes.getValue());
+        handleCE32(start, end, static_cast<uint32_t>(prefixes.getValue()));
     }
     resetPrefix();
 }
@@ -577,7 +577,7 @@ ContractionsAndExpansions::handleContractions(
         if(!unreversedPrefix.isEmpty()) {
             addStrings(start, end, expansions);
         }
-        handleCE32(start, end, (uint32_t)suffixes.getValue());
+        handleCE32(start, end, static_cast<uint32_t>(suffixes.getValue()));
     }
     suffix = nullptr;
 }

@@ -12,6 +12,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // ES6 section 7.1.3 ToNumber ( argument )
 TF_BUILTIN(ToNumber, CodeStubAssembler) {
   auto context = Parameter<Context>(Descriptor::kContext);
@@ -119,6 +121,15 @@ TF_BUILTIN(Typeof, CodeStubAssembler) {
 
   Return(Typeof(object));
 }
+
+TF_BUILTIN(Typeof_Baseline, CodeStubAssembler) {
+  auto object = Parameter<Object>(Descriptor::kValue);
+  auto slot = UncheckedParameter<UintPtrT>(Descriptor::kSlot);
+  auto feedback_vector = LoadFeedbackVectorFromBaseline();
+  Return(Typeof(object, slot, feedback_vector));
+}
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

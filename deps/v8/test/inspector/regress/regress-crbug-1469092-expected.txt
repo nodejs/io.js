@@ -1,1 +1,1 @@
-Don't crash when pausing in a untrusted session.
+Don't crash when pausing in an untrusted session.

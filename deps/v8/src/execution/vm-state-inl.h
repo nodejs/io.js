@@ -37,6 +37,8 @@ inline const char* StateToString(StateTag state) {
       return "ATOMICS_WAIT";
     case IDLE:
       return "IDLE";
+    case LOGGING:
+      return "LOGGING";
   }
 }
 
@@ -51,10 +53,14 @@ VMState<Tag>::~VMState() {
   isolate_->set_current_vm_state(previous_tag_);
 }
 
-ExternalCallbackScope::ExternalCallbackScope(Isolate* isolate, Address callback)
+ExternalCallbackScope::ExternalCallbackScope(
+    Isolate* isolate, Address callback, v8::ExceptionContext exception_context,
+    const void* callback_info)
     : callback_(callback),
+      callback_info_(callback_info),
       previous_scope_(isolate->external_callback_scope()),
       vm_state_(isolate),
+      exception_context_(exception_context),
       pause_timed_histogram_scope_(isolate->counters()->execute()) {
 #ifdef USE_SIMULATOR
   scope_address_ = Simulator::current(isolate)->get_sp();

@@ -258,11 +258,11 @@ inline uint32_t maybeFilterValue(uint32_t value, uint32_t trieNullValue, uint32_
 
 UChar32 getRange(const void *t, UChar32 start,
                  UCPMapValueFilter *filter, const void *context, uint32_t *pValue) {
-    if ((uint32_t)start > MAX_UNICODE) {
+    if (static_cast<uint32_t>(start) > MAX_UNICODE) {
         return U_SENTINEL;
     }
     const UCPTrie *trie = reinterpret_cast<const UCPTrie *>(t);
-    UCPTrieValueWidth valueWidth = (UCPTrieValueWidth)trie->valueWidth;
+    UCPTrieValueWidth valueWidth = static_cast<UCPTrieValueWidth>(trie->valueWidth);
     if (start >= trie->highStart) {
         if (pValue != nullptr) {
             int32_t di = trie->dataLength - UCPTRIE_HIGH_VALUE_NEG_DATA_OFFSET;
@@ -304,7 +304,7 @@ UChar32 getRange(const void *t, UChar32 start,
                 i1 += UCPTRIE_SMALL_INDEX_LENGTH;
             }
             i3Block = trie->index[
-                (int32_t)trie->index[i1] + ((c >> UCPTRIE_SHIFT_2) & UCPTRIE_INDEX_2_MASK)];
+                static_cast<int32_t>(trie->index[i1]) + ((c >> UCPTRIE_SHIFT_2) & UCPTRIE_INDEX_2_MASK)];
             if (i3Block == prevI3Block && (c - start) >= UCPTRIE_CP_PER_INDEX_2_ENTRY) {
                 // The index-3 block is the same as the previous one, and filled with value.
                 U_ASSERT((c & (UCPTRIE_CP_PER_INDEX_2_ENTRY - 1)) == 0);
@@ -341,7 +341,7 @@ UChar32 getRange(const void *t, UChar32 start,
                 // 18-bit indexes stored in groups of 9 entries per 8 indexes.
                 int32_t group = (i3Block & 0x7fff) + (i3 & ~7) + (i3 >> 3);
                 int32_t gi = i3 & 7;
-                block = ((int32_t)index[group++] << (2 + (2 * gi))) & 0x30000;
+                block = (static_cast<int32_t>(index[group++]) << (2 + (2 * gi))) & 0x30000;
                 block |= index[group + gi];
             }
             if (block == prevBlock && (c - start) >= dataBlockLength) {

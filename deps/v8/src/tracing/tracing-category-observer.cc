@@ -7,6 +7,7 @@
 #include "src/base/atomic-utils.h"
 #include "src/init/v8.h"
 #include "src/logging/counters.h"
+#include "src/logging/tracing-flags.h"
 #include "src/tracing/trace-event.h"
 
 namespace v8 {

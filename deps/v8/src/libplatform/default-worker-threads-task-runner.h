@@ -34,16 +34,19 @@ class V8_PLATFORM_EXPORT DefaultWorkerThreadsTaskRunner
   double MonotonicallyIncreasingTime();
 
   // v8::TaskRunner implementation.
-  void PostTask(std::unique_ptr<Task> task) override;
-
-  void PostDelayedTask(std::unique_ptr<Task> task,
-                       double delay_in_seconds) override;
-
-  void PostIdleTask(std::unique_ptr<IdleTask> task) override;
-
   bool IdleTasksEnabled() override;
 
  private:
+  // v8::TaskRunner implementation.
+  void PostTaskImpl(std::unique_ptr<Task> task,
+                    const SourceLocation& location) override;
+
+  void PostDelayedTaskImpl(std::unique_ptr<Task> task, double delay_in_seconds,
+                           const SourceLocation& location) override;
+
+  void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                        const SourceLocation& location) override;
+
   class WorkerThread : public base::Thread {
    public:
     explicit WorkerThread(DefaultWorkerThreadsTaskRunner* runner,

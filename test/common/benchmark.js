@@ -27,16 +27,27 @@ function runBenchmark(name, env) {
   child.on('exit', (code, signal) => {
     assert.strictEqual(code, 0);
     assert.strictEqual(signal, null);
+
     // This bit makes sure that each benchmark file is being sent settings such
     // that the benchmark file runs just one set of options. This helps keep the
-    // benchmark tests from taking a long time to run. Therefore, each benchmark
-    // file should result in three lines of output: a blank line, a line with
-    // the name of the benchmark file, and a line with the only results that we
-    // get from testing the benchmark file.
-    assert.ok(
-      /^(?:\n.+?\n.+?\n)+$/.test(stdout),
-      `benchmark file not running exactly one configuration in test: ${stdout}`,
-    );
+    // benchmark tests from taking a long time to run. Therefore, stdout should be composed as follows:
+    // The first and last lines should be empty.
+    // Each test should be separated by a blank line.
+    // The first line of each test should contain the test's name.
+    // The second line of each test should contain the configuration for the test.
+    // If the test configuration is not a group, there should be exactly two lines.
+    // Otherwise, it is possible to have more than two lines.
+
+    const splitTests = stdout.split(/\n\s*\n/);
+
+    for (let testIdx = 1; testIdx < splitTests.length - 1; testIdx++) {
+      const lines = splitTests[testIdx].split('\n');
+      assert.ok(/.+/.test(lines[0]));
+
+      if (!lines[1].includes('group="')) {
+        assert.strictEqual(lines.length, 2, `benchmark file not running exactly one configuration in test: ${stdout}`);
+      }
+    }
   });
 }
 

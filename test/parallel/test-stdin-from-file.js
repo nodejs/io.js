@@ -10,15 +10,11 @@ const stdoutScript = fixtures.path('echo-close-check.js');
 const tmpFile = tmpdir.resolve('stdin.txt');
 const string = fixtures.utf8TestText;
 
-const cmd = `"${process.argv[0]}" "${stdoutScript}" < "${tmpFile}"`;
-
 tmpdir.refresh();
-
-console.log(`${cmd}\n\n`);
 
 fs.writeFileSync(tmpFile, string);
 
-childProcess.exec(cmd, common.mustCall(function(err, stdout, stderr) {
+childProcess.exec(...common.escapePOSIXShell`"${process.argv0}" "${stdoutScript}" < "${tmpFile}"`, common.mustCall(function(err, stdout, stderr) {
   fs.unlinkSync(tmpFile);
 
   assert.ifError(err);

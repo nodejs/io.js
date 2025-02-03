@@ -267,27 +267,35 @@ NFRuleSet::parseRules(UnicodeString& description, UErrorCode& status)
  * @param rule The rule to set.
  */
 void NFRuleSet::setNonNumericalRule(NFRule *rule) {
-    int64_t baseValue = rule->getBaseValue();
-    if (baseValue == NFRule::kNegativeNumberRule) {
-        delete nonNumericalRules[NEGATIVE_RULE_INDEX];
-        nonNumericalRules[NEGATIVE_RULE_INDEX] = rule;
-    }
-    else if (baseValue == NFRule::kImproperFractionRule) {
-        setBestFractionRule(IMPROPER_FRACTION_RULE_INDEX, rule, true);
-    }
-    else if (baseValue == NFRule::kProperFractionRule) {
-        setBestFractionRule(PROPER_FRACTION_RULE_INDEX, rule, true);
-    }
-    else if (baseValue == NFRule::kDefaultRule) {
-        setBestFractionRule(DEFAULT_RULE_INDEX, rule, true);
-    }
-    else if (baseValue == NFRule::kInfinityRule) {
-        delete nonNumericalRules[INFINITY_RULE_INDEX];
-        nonNumericalRules[INFINITY_RULE_INDEX] = rule;
-    }
-    else if (baseValue == NFRule::kNaNRule) {
-        delete nonNumericalRules[NAN_RULE_INDEX];
-        nonNumericalRules[NAN_RULE_INDEX] = rule;
+    switch (rule->getBaseValue()) {
+        case NFRule::kNegativeNumberRule:
+            delete nonNumericalRules[NEGATIVE_RULE_INDEX];
+            nonNumericalRules[NEGATIVE_RULE_INDEX] = rule;
+            return;
+        case NFRule::kImproperFractionRule:
+            setBestFractionRule(IMPROPER_FRACTION_RULE_INDEX, rule, true);
+            return;
+        case NFRule::kProperFractionRule:
+            setBestFractionRule(PROPER_FRACTION_RULE_INDEX, rule, true);
+            return;
+        case NFRule::kDefaultRule:
+            setBestFractionRule(DEFAULT_RULE_INDEX, rule, true);
+            return;
+        case NFRule::kInfinityRule:
+            delete nonNumericalRules[INFINITY_RULE_INDEX];
+            nonNumericalRules[INFINITY_RULE_INDEX] = rule;
+            return;
+        case NFRule::kNaNRule:
+            delete nonNumericalRules[NAN_RULE_INDEX];
+            nonNumericalRules[NAN_RULE_INDEX] = rule;
+            return;
+        case NFRule::kNoBase:
+        case NFRule::kOtherRule:
+        default:
+            // If we do not remember the rule inside the object.
+            // delete it here to prevent memory leak.
+            delete rule;
+            return;
     }
 }
 
@@ -490,7 +498,7 @@ NFRuleSet::findNormalRule(int64_t number) const
     // to find the rule (we should only go into this clause if the
     // value is 0)
     if (fIsFractionRuleSet) {
-        return findFractionRuleSetRule((double)number);
+        return findFractionRuleSetRule(static_cast<double>(number));
     }
 
     // if the number is negative, return the negative-number rule
@@ -590,7 +598,7 @@ NFRuleSet::findFractionRuleSetRule(double number) const
         for (uint32_t i = 1; i < rules.size(); ++i) {
             leastCommonMultiple = util_lcm(leastCommonMultiple, rules[i]->getBaseValue());
         }
-        numerator = util64_fromDouble(number * (double)leastCommonMultiple + 0.5);
+        numerator = util64_fromDouble(number * static_cast<double>(leastCommonMultiple) + 0.5);
     }
     // for each rule, do the following...
     int64_t tempDifference;
@@ -632,9 +640,9 @@ NFRuleSet::findFractionRuleSetRule(double number) const
     // the numerator of the fraction is anything else (this lets us
     // do things like "one third"/"two thirds" without having to define
     // a whole bunch of extra rule sets)
-    if ((unsigned)(winner + 1) < rules.size() &&
+    if (static_cast<unsigned>(winner + 1) < rules.size() &&
         rules[winner + 1]->getBaseValue() == rules[winner]->getBaseValue()) {
-        double n = ((double)rules[winner]->getBaseValue()) * number;
+        double n = static_cast<double>(rules[winner]->getBaseValue()) * number;
         if (n < 0.5 || n >= 2) {
             ++winner;
         }
@@ -681,13 +689,19 @@ static void dumpUS(FILE* f, const UnicodeString& us) {
 #endif
 
 UBool
-NFRuleSet::parse(const UnicodeString& text, ParsePosition& pos, double upperBound, uint32_t nonNumericalExecutedRuleMask, Formattable& result) const
+NFRuleSet::parse(const UnicodeString& text, ParsePosition& pos, double upperBound, uint32_t nonNumericalExecutedRuleMask, int32_t recursionCount, Formattable& result) const
 {
     // try matching each rule in the rule set against the text being
     // parsed.  Whichever one matches the most characters is the one
     // that determines the value we return.
 
     result.setLong(0);
+
+    // dump out if we've reached the recursion limit
+    if (recursionCount >= RECURSION_LIMIT) {
+        // stop recursion
+        return false;
+    }
 
     // dump out if there's no text to parse
     if (text.length() == 0) {
@@ -712,7 +726,7 @@ NFRuleSet::parse(const UnicodeString& text, ParsePosition& pos, double upperBoun
             nonNumericalExecutedRuleMask |= 1 << i;
 
             Formattable tempResult;
-            UBool success = nonNumericalRules[i]->doParse(text, workingPos, 0, upperBound, nonNumericalExecutedRuleMask, tempResult);
+            UBool success = nonNumericalRules[i]->doParse(text, workingPos, 0, upperBound, nonNumericalExecutedRuleMask, recursionCount + 1, tempResult);
             if (success && (workingPos.getIndex() > highWaterMark.getIndex())) {
                 result = tempResult;
                 highWaterMark = workingPos;
@@ -751,7 +765,7 @@ NFRuleSet::parse(const UnicodeString& text, ParsePosition& pos, double upperBoun
                 continue;
             }
             Formattable tempResult;
-            UBool success = rules[i]->doParse(text, workingPos, fIsFractionRuleSet, upperBound, nonNumericalExecutedRuleMask, tempResult);
+            UBool success = rules[i]->doParse(text, workingPos, fIsFractionRuleSet, upperBound, nonNumericalExecutedRuleMask, recursionCount + 1, tempResult);
             if (success && workingPos.getIndex() > highWaterMark.getIndex()) {
                 result = tempResult;
                 highWaterMark = workingPos;
@@ -825,7 +839,7 @@ int64_t util64_fromDouble(double d) {
         if (neg) {
             d = -d;
         }
-        result = (int64_t)uprv_floor(d);
+        result = static_cast<int64_t>(uprv_floor(d));
         if (neg) {
             result = -result;
         }
@@ -860,7 +874,7 @@ static const uint8_t asciiDigits[] = {
     0x77u, 0x78u, 0x79u, 0x7au,  
 };
 
-static const char16_t kUMinus = (char16_t)0x002d;
+static const char16_t kUMinus = static_cast<char16_t>(0x002d);
 
 #ifdef RBNF_DEBUG
 static const char kMinus = '-';
@@ -998,15 +1012,15 @@ uint32_t util64_tou(int64_t w, char16_t* buf, uint32_t len, uint32_t radix, UBoo
         *p++ = kUMinus;
         --len;
     } else if (len && (w == 0)) {
-        *p++ = (char16_t)raw ? 0 : asciiDigits[0];
+        *p++ = static_cast<char16_t>(raw) ? 0 : asciiDigits[0];
         --len;
     }
 
     while (len && (w != 0)) {
         int64_t n = w / base;
         int64_t m = n * base;
-        int32_t d = (int32_t)(w-m);
-        *p++ = (char16_t)(raw ? d : asciiDigits[d]);
+        int32_t d = static_cast<int32_t>(w - m);
+        *p++ = static_cast<char16_t>(raw ? d : asciiDigits[d]);
         w = n;
         --len;
     }
@@ -1014,7 +1028,7 @@ uint32_t util64_tou(int64_t w, char16_t* buf, uint32_t len, uint32_t radix, UBoo
         *p = 0; // null terminate if room for caller convenience
     }
 
-    len = (uint32_t)(p - buf);
+    len = static_cast<uint32_t>(p - buf);
     if (*buf == kUMinus) {
         ++buf;
     }

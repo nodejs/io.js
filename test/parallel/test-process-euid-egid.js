@@ -3,6 +3,8 @@
 const common = require('../common');
 const assert = require('assert');
 
+const { isMainThread } = require('worker_threads');
+
 if (common.isWindows) {
   assert.strictEqual(process.geteuid, undefined);
   assert.strictEqual(process.getegid, undefined);
@@ -11,8 +13,9 @@ if (common.isWindows) {
   return;
 }
 
-if (!common.isMainThread)
+if (!isMainThread) {
   return;
+}
 
 assert.throws(() => {
   process.seteuid({});

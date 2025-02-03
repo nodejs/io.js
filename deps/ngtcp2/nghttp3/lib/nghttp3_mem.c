@@ -73,7 +73,7 @@ void *nghttp3_mem_calloc(const nghttp3_mem *mem, size_t nmemb, size_t size) {
 void *nghttp3_mem_realloc(const nghttp3_mem *mem, void *ptr, size_t size) {
   return mem->realloc(ptr, size, mem->user_data);
 }
-#else  /* MEMDEBUG */
+#else  /* defined(MEMDEBUG) */
 void *nghttp3_mem_malloc_debug(const nghttp3_mem *mem, size_t size,
                                const char *func, const char *file,
                                size_t line) {
@@ -121,4 +121,4 @@ void *nghttp3_mem_realloc_debug(const nghttp3_mem *mem, void *ptr, size_t size,
 
   return nptr;
 }
-#endif /* MEMDEBUG */
+#endif /* defined(MEMDEBUG) */

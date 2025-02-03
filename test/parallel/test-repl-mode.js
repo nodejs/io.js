@@ -1,8 +1,12 @@
 'use strict';
-require('../common');
+const common = require('../common');
 const assert = require('assert');
 const Stream = require('stream');
 const repl = require('repl');
+
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const tests = [
   testSloppyMode,

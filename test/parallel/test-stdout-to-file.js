@@ -13,9 +13,6 @@ const tmpFile = tmpdir.resolve('stdout.txt');
 tmpdir.refresh();
 
 function test(size, useBuffer, cb) {
-  const cmd = `"${process.argv[0]}" "${
-    useBuffer ? scriptBuffer : scriptString}" ${size} > "${tmpFile}"`;
-
   try {
     fs.unlinkSync(tmpFile);
   } catch {
@@ -24,7 +21,9 @@ function test(size, useBuffer, cb) {
 
   console.log(`${size} chars to ${tmpFile}...`);
 
-  childProcess.exec(cmd, common.mustSucceed(() => {
+  childProcess.exec(...common.escapePOSIXShell`"${
+    process.execPath}" "${useBuffer ? scriptBuffer : scriptString}" ${size} > "${tmpFile
+  }"`, common.mustSucceed(() => {
     console.log('done!');
 
     const stat = fs.statSync(tmpFile);

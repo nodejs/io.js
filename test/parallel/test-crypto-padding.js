@@ -26,6 +26,7 @@ if (!common.hasCrypto)
 
 const assert = require('assert');
 const crypto = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // Input data.
 const ODD_LENGTH_PLAIN = 'Hello node world!';
@@ -82,7 +83,7 @@ assert.strictEqual(enc(EVEN_LENGTH_PLAIN, true), EVEN_LENGTH_ENCRYPTED);
 assert.throws(function() {
   // Input must have block length %.
   enc(ODD_LENGTH_PLAIN, false);
-}, common.hasOpenSSL3 ? {
+}, hasOpenSSL3 ? {
   message: 'error:1C80006B:Provider routines::wrong final block length',
   code: 'ERR_OSSL_WRONG_FINAL_BLOCK_LENGTH',
   reason: 'wrong final block length',
@@ -109,7 +110,7 @@ assert.strictEqual(dec(EVEN_LENGTH_ENCRYPTED, false).length, 48);
 assert.throws(function() {
   // Must have at least 1 byte of padding (PKCS):
   assert.strictEqual(dec(EVEN_LENGTH_ENCRYPTED_NOPAD, true), EVEN_LENGTH_PLAIN);
-}, common.hasOpenSSL3 ? {
+}, hasOpenSSL3 ? {
   message: 'error:1C800064:Provider routines::bad decrypt',
   reason: 'bad decrypt',
   code: 'ERR_OSSL_BAD_DECRYPT',

@@ -63,29 +63,21 @@ process.on('multipleResolves', common.mustNotCall());
 }
 
 {
-  Promise.all(
-    [1, '', false, Infinity].map(
-      (i) => assert.rejects(setPromiseTimeout(10, null, i), {
-        code: 'ERR_INVALID_ARG_TYPE'
-      })
-    )
-  ).then(common.mustCall());
+  for (const delay of ['', false]) {
+    assert.rejects(() => setPromiseTimeout(delay, null, {}), /ERR_INVALID_ARG_TYPE/).then(common.mustCall());
+  }
 
-  Promise.all(
-    [1, '', false, Infinity, null, {}].map(
-      (signal) => assert.rejects(setPromiseTimeout(10, null, { signal }), {
-        code: 'ERR_INVALID_ARG_TYPE'
-      })
-    )
-  ).then(common.mustCall());
+  for (const options of [1, '', false, Infinity]) {
+    assert.rejects(() => setPromiseTimeout(10, null, options), /ERR_INVALID_ARG_TYPE/).then(common.mustCall());
+  }
 
-  Promise.all(
-    [1, '', Infinity, null, {}].map(
-      (ref) => assert.rejects(setPromiseTimeout(10, null, { ref }), {
-        code: 'ERR_INVALID_ARG_TYPE'
-      })
-    )
-  ).then(common.mustCall());
+  for (const signal of [1, '', false, Infinity, null, {}]) {
+    assert.rejects(() => setPromiseTimeout(10, null, { signal }), /ERR_INVALID_ARG_TYPE/).then(common.mustCall());
+  }
+
+  for (const ref of [1, '', Infinity, null, {}]) {
+    assert.rejects(() => setPromiseTimeout(10, null, { ref }), /ERR_INVALID_ARG_TYPE/).then(common.mustCall());
+  }
 }
 
 {

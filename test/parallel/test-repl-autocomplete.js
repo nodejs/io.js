@@ -9,7 +9,9 @@ const assert = require('assert');
 const fs = require('fs');
 const { inspect } = require('util');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const tmpdir = require('../common/tmpdir');
 tmpdir.refresh();

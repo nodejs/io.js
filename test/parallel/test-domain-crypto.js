@@ -31,7 +31,7 @@ const crypto = require('crypto');
 // Pollution of global is intentional as part of test.
 common.allowGlobals(require('domain'));
 // See https://github.com/nodejs/node/commit/d1eff9ab
-global.domain = require('domain');
+globalThis.domain = require('domain');
 
 // Should not throw a 'TypeError: undefined is not a function' exception
 crypto.randomBytes(8);

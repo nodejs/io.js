@@ -8,6 +8,7 @@
 #include <iterator>
 #include <map>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <string>
 #include <unordered_map>
@@ -22,6 +23,7 @@
 #include "src/base/platform/time.h"
 #include "src/base/platform/wrappers.h"
 #include "src/d8/async-hooks-wrapper.h"
+#include "src/handles/global-handles.h"
 #include "src/heap/parked-scope.h"
 
 namespace v8 {
@@ -32,7 +34,7 @@ class D8Console;
 class Message;
 class TryCatch;
 
-enum class ModuleType { kJavaScript, kJSON, kInvalid };
+enum class ModuleType { kJavaScript, kJSON, kWebAssembly, kInvalid };
 
 namespace internal {
 class CancelableTaskManager;
@@ -150,7 +152,7 @@ class SerializationData {
   const std::vector<CompiledWasmModule>& compiled_wasm_modules() {
     return compiled_wasm_modules_;
   }
-  const base::Optional<v8::SharedValueConveyor>& shared_value_conveyor() {
+  const std::optional<v8::SharedValueConveyor>& shared_value_conveyor() {
     return shared_value_conveyor_;
   }
 
@@ -164,7 +166,7 @@ class SerializationData {
   std::vector<std::shared_ptr<v8::BackingStore>> backing_stores_;
   std::vector<std::shared_ptr<v8::BackingStore>> sab_backing_stores_;
   std::vector<CompiledWasmModule> compiled_wasm_modules_;
-  base::Optional<v8::SharedValueConveyor> shared_value_conveyor_;
+  std::optional<v8::SharedValueConveyor> shared_value_conveyor_;
 
  private:
   friend class Serializer;
@@ -184,7 +186,9 @@ class SerializationDataQueue {
 
 class Worker : public std::enable_shared_from_this<Worker> {
  public:
-  explicit Worker(const char* script);
+  static constexpr i::ExternalPointerTag kManagedTag = i::kGenericManagedTag;
+
+  explicit Worker(Isolate* parent_isolate, const char* script);
   ~Worker();
 
   // Post a message to the worker. The worker will take ownership of the
@@ -197,6 +201,11 @@ class Worker : public std::enable_shared_from_this<Worker> {
   // return nullptr.
   // This function should only be called by the thread that created the Worker.
   std::unique_ptr<SerializationData> GetMessage(Isolate* requester);
+  // Synchronously retrieve messages from the worker's outgoing message queue.
+  // If there is no message in the queue, or the worker is no longer running,
+  // return nullptr.
+  // This function should only be called by the thread that created the Worker.
+  std::unique_ptr<SerializationData> TryGetMessage();
   // Terminate the worker's event loop. Messages from the worker that have been
   // queued can still be read via GetMessage().
   // This function can be called by any thread.
@@ -212,6 +221,7 @@ class Worker : public std::enable_shared_from_this<Worker> {
 
   // Enters State::kTerminated for the Worker and resets the task runner.
   void EnterTerminatedState();
+  bool IsTerminated() const { return state_ == State::kTerminated; }
 
   // Returns the Worker instance for this thread.
   static Worker* GetCurrentWorker();
@@ -247,11 +257,14 @@ class Worker : public std::enable_shared_from_this<Worker> {
 
   void ExecuteInThread();
   static void PostMessageOut(const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void ImportScripts(const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void Close(const v8::FunctionCallbackInfo<v8::Value>& info);
 
   static void SetCurrentWorker(Worker* worker);
 
   i::ParkingSemaphore out_semaphore_{0};
   SerializationDataQueue out_queue_;
+
   base::Thread* thread_ = nullptr;
   char* script_;
   std::atomic<State> state_;
@@ -270,6 +283,7 @@ class Worker : public std::enable_shared_from_this<Worker> {
   // The isolate should only be accessed by the worker itself, or when holding
   // the worker_mutex_ and after checking the worker state.
   Isolate* isolate_ = nullptr;
+  Isolate* parent_isolate_;
 
   // Only accessed by the worker thread.
   Global<Context> context_;
@@ -310,10 +324,6 @@ class PerIsolateData {
     int previous_index_;
   };
 
-  inline void SetTimeout(Local<Function> callback, Local<Context> context);
-  inline MaybeLocal<Function> GetTimeoutCallback();
-  inline MaybeLocal<Context> GetTimeoutContext();
-
   AsyncHooks* GetAsyncHooks() { return async_hooks_wrapper_; }
 
   void RemoveUnhandledPromise(Local<Promise> promise);
@@ -332,6 +342,15 @@ class PerIsolateData {
   Local<FunctionTemplate> GetDomNodeCtor() const;
   void SetDomNodeCtor(Local<FunctionTemplate> ctor);
 
+  bool HasRunningSubscribedWorkers();
+  void RegisterWorker(std::shared_ptr<Worker> worker);
+  void SubscribeWorkerOnMessage(const std::shared_ptr<Worker>& worker,
+                                Local<Context> context,
+                                Local<Function> callback);
+  std::pair<Local<Context>, Local<Function>> GetWorkerOnMessage(
+      const std::shared_ptr<Worker>& worker) const;
+  void UnregisterWorker(const std::shared_ptr<Worker>& worker);
+
  private:
   friend class Shell;
   friend class RealmScope;
@@ -341,8 +360,6 @@ class PerIsolateData {
   int realm_switch_;
   Global<Context>* realms_;
   Global<Value> realm_shared_;
-  std::queue<Global<Function>> set_timeout_callbacks_;
-  std::queue<Global<Context>> set_timeout_contexts_;
   bool ignore_unhandled_promises_;
   std::vector<std::tuple<Global<Promise>, Global<Message>, Global<Value>>>
       unhandled_promises_;
@@ -352,6 +369,14 @@ class PerIsolateData {
 #endif
   Global<FunctionTemplate> test_api_object_ctor_;
   Global<FunctionTemplate> dom_node_ctor_;
+  // Track workers and their callbacks separately, so that we know both which
+  // workers are still registered, and which of them have callbacks. We can't
+  // rely on Shell::running_workers_ or worker.IsTerminated(), because these are
+  // set concurrently and may race with callback subscription.
+  std::set<std::shared_ptr<Worker>> registered_workers_;
+  std::map<std::shared_ptr<Worker>,
+           std::pair<Global<Context>, Global<Function>>>
+      worker_message_callbacks_;
 
   int RealmIndexOrThrow(const v8::FunctionCallbackInfo<v8::Value>& info,
                         int arg_offset);
@@ -453,6 +478,14 @@ class ShellOptions {
   DisallowReassignment<const char*> trace_path = {"trace-path", nullptr};
   DisallowReassignment<const char*> trace_config = {"trace-config", nullptr};
   DisallowReassignment<const char*> lcov_file = {"lcov", nullptr};
+#ifdef V8_OS_LINUX
+  // Allow linux perf to be started and stopped by performance.mark and
+  // performance.measure, respectively.
+  DisallowReassignment<bool> scope_linux_perf_to_mark_measure = {
+      "scope-linux-perf-to-mark-measure", false};
+  DisallowReassignment<int> perf_ctl_fd = {"perf-ctl-fd", -1};
+  DisallowReassignment<int> perf_ack_fd = {"perf-ack-fd", -1};
+#endif
   DisallowReassignment<bool> disable_in_process_stack_traces = {
       "disable-in-process-stack-traces", false};
   DisallowReassignment<int> read_from_tcp_port = {"read-from-tcp-port", -1};
@@ -479,10 +512,6 @@ class ShellOptions {
   DisallowReassignment<bool> wasm_trap_handler = {"wasm-trap-handler", true};
 #endif  // V8_ENABLE_WEBASSEMBLY
   DisallowReassignment<bool> expose_fast_api = {"expose-fast-api", false};
-#if V8_ENABLE_SANDBOX
-  DisallowReassignment<bool> enable_sandbox_crash_filter = {
-      "enable-sandbox-crash-filter", false};
-#endif  // V8_ENABLE_SANDBOX
   DisallowReassignment<size_t> max_serializer_memory = {"max-serializer-memory",
                                                         1 * i::MB};
 };
@@ -511,6 +540,8 @@ class Shell : public i::AllStatic {
   static void ReportException(Isolate* isolate, const TryCatch& try_catch);
   static MaybeLocal<String> ReadFile(Isolate* isolate, const char* name,
                                      bool should_throw = true);
+  static std::unique_ptr<base::OS::MemoryMappedFile> ReadFileData(
+      Isolate* isolate, const char* name, bool should_throw = true);
   static Local<String> WasmLoadSourceMapCallback(Isolate* isolate,
                                                  const char* name);
   static MaybeLocal<Context> CreateEvaluationContext(Isolate* isolate);
@@ -558,9 +589,9 @@ class Shell : public i::AllStatic {
   static void RealmDispose(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RealmSwitch(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RealmEval(const v8::FunctionCallbackInfo<v8::Value>& info);
-  static void RealmSharedGet(Local<String> property,
+  static void RealmSharedGet(Local<Name> property,
                              const PropertyCallbackInfo<Value>& info);
-  static void RealmSharedSet(Local<String> property, Local<Value> value,
+  static void RealmSharedSet(Local<Name> property, Local<Value> value,
                              const PropertyCallbackInfo<void>& info);
 
   static void LogGetAndStop(const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -569,6 +600,7 @@ class Shell : public i::AllStatic {
 
   static void InstallConditionalFeatures(
       const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void EnableJSPI(const v8::FunctionCallbackInfo<v8::Value>& info);
 
   static void AsyncHooksCreateHook(
       const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -633,6 +665,10 @@ class Shell : public i::AllStatic {
   static void WorkerPostMessage(
       const v8::FunctionCallbackInfo<v8::Value>& info);
   static void WorkerGetMessage(const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void WorkerOnMessageGetter(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void WorkerOnMessageSetter(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
   static void WorkerTerminate(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void WorkerTerminateAndWait(
       const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -669,6 +705,15 @@ class Shell : public i::AllStatic {
   // the "mkdir -p" command.
   static void MakeDirectory(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void RemoveDirectory(const v8::FunctionCallbackInfo<v8::Value>& info);
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  static void GetContinuationPreservedEmbedderData(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+#endif  // V8_ENABLE_CONTINUATION_PRESERVER_EMBEDDER_DATA
+
+  static void GetExtrasBindingObject(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
+
   static MaybeLocal<Promise> HostImportModuleDynamically(
       Local<Context> context, Local<Data> host_defined_options,
       Local<Value> resource_name, Local<String> specifier,
@@ -700,8 +745,6 @@ class Shell : public i::AllStatic {
   static ArrayBuffer::Allocator* array_buffer_allocator;
 
   static void SetWaitUntilDone(Isolate* isolate, bool value);
-  static void NotifyStartStreamingTask(Isolate* isolate);
-  static void NotifyFinishStreamingTask(Isolate* isolate);
 
   static char* ReadCharsFromTcpPort(const char* name, int* size_out);
 
@@ -788,6 +831,10 @@ class Shell : public i::AllStatic {
       v8::MaybeLocal<Value> global_object);
   static void DisposeRealm(const v8::FunctionCallbackInfo<v8::Value>& info,
                            int index);
+
+  static MaybeLocal<Object> FetchModuleSource(
+      v8::Local<v8::Module> origin_module, v8::Local<v8::Context> context,
+      const std::string& file_name, ModuleType module_type);
   static MaybeLocal<Module> FetchModuleTree(v8::Local<v8::Module> origin_module,
                                             v8::Local<v8::Context> context,
                                             const std::string& file_name,

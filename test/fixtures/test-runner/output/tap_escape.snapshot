@@ -3,21 +3,25 @@ TAP version 13
 ok 1 - escaped description \\ \# \\\#\\ \\n \\t \\f \\v \\b \\r
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: escaped skip message
 ok 2 - escaped skip message # SKIP \#skip
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: escaped todo message
 ok 3 - escaped todo message # TODO \#todo
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: escaped diagnostic
 ok 4 - escaped diagnostic
   ---
   duration_ms: *
+  type: 'test'
   ...
 # \#diagnostic
 1..4

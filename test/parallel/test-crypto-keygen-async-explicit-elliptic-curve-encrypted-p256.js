@@ -14,6 +14,8 @@ const {
   pkcs8EncExp,
 } = require('../common/crypto');
 
+const { hasOpenSSL3 } = require('../common/crypto');
+
 // Test async elliptic curve key generation, e.g. for ECDSA, with an encrypted
 // private key with paramEncoding explicit.
 {
@@ -38,7 +40,7 @@ const {
 
     // Since the private key is encrypted, signing shouldn't work anymore.
     assert.throws(() => testSignVerify(publicKey, privateKey),
-                  common.hasOpenSSL3 ? {
+                  hasOpenSSL3 ? {
                     message: 'error:07880109:common libcrypto ' +
                              'routines::interrupted or cancelled'
                   } : {

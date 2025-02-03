@@ -25,17 +25,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
 #endif
-
-#include "ares_nameser.h"
-
-#include "ares.h"
-#include "ares_dns.h"
-#include "ares_private.h"
 
 typedef struct {
   ares_callback_dnsrec callback;
@@ -64,11 +58,11 @@ static void ares_query_dnsrec_cb(void *arg, ares_status_t status,
   ares_free(qquery);
 }
 
-static ares_status_t ares_query_int(ares_channel_t *channel, const char *name,
-                                    ares_dns_class_t     dnsclass,
-                                    ares_dns_rec_type_t  type,
-                                    ares_callback_dnsrec callback, void *arg,
-                                    unsigned short *qid)
+ares_status_t ares_query_nolock(ares_channel_t *channel, const char *name,
+                                ares_dns_class_t     dnsclass,
+                                ares_dns_rec_type_t  type,
+                                ares_callback_dnsrec callback, void *arg,
+                                unsigned short *qid)
 {
   ares_status_t            status;
   ares_dns_record_t       *dnsrec = NULL;
@@ -76,11 +70,13 @@ static ares_status_t ares_query_int(ares_channel_t *channel, const char *name,
   ares_query_dnsrec_arg_t *qquery = NULL;
 
   if (channel == NULL || name == NULL || callback == NULL) {
+    /* LCOV_EXCL_START: DefensiveCoding */
     status = ARES_EFORMERR;
     if (callback != NULL) {
       callback(arg, status, 0, NULL);
     }
     return status;
+    /* LCOV_EXCL_STOP */
   }
 
   if (!(channel->flags & ARES_FLAG_NORECURSE)) {
@@ -91,23 +87,26 @@ static ares_status_t ares_query_int(ares_channel_t *channel, const char *name,
     &dnsrec, name, dnsclass, type, 0, flags,
     (size_t)(channel->flags & ARES_FLAG_EDNS) ? channel->ednspsz : 0);
   if (status != ARES_SUCCESS) {
-    callback(arg, status, 0, NULL);
-    return status;
+    callback(arg, status, 0, NULL); /* LCOV_EXCL_LINE: OutOfMemory */
+    return status;                  /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
   qquery = ares_malloc(sizeof(*qquery));
   if (qquery == NULL) {
+    /* LCOV_EXCL_START: OutOfMemory */
     status = ARES_ENOMEM;
     callback(arg, status, 0, NULL);
     ares_dns_record_destroy(dnsrec);
     return status;
+    /* LCOV_EXCL_STOP */
   }
 
   qquery->callback = callback;
   qquery->arg      = arg;
 
   /* Send it off.  qcallback will be called when we get an answer. */
-  status = ares_send_dnsrec(channel, dnsrec, ares_query_dnsrec_cb, qquery, qid);
+  status = ares_send_nolock(channel, NULL, 0, dnsrec, ares_query_dnsrec_cb,
+                            qquery, qid);
 
   ares_dns_record_destroy(dnsrec);
   return status;
@@ -125,9 +124,9 @@ ares_status_t ares_query_dnsrec(ares_channel_t *channel, const char *name,
     return ARES_EFORMERR;
   }
 
-  ares__channel_lock(channel);
-  status = ares_query_int(channel, name, dnsclass, type, callback, arg, qid);
-  ares__channel_unlock(channel);
+  ares_channel_lock(channel);
+  status = ares_query_nolock(channel, name, dnsclass, type, callback, arg, qid);
+  ares_channel_unlock(channel);
   return status;
 }
 
@@ -140,13 +139,13 @@ void ares_query(ares_channel_t *channel, const char *name, int dnsclass,
     return;
   }
 
-  carg = ares__dnsrec_convert_arg(callback, arg);
+  carg = ares_dnsrec_convert_arg(callback, arg);
   if (carg == NULL) {
-    callback(arg, ARES_ENOMEM, 0, NULL, 0);
-    return;
+    callback(arg, ARES_ENOMEM, 0, NULL, 0); /* LCOV_EXCL_LINE: OutOfMemory */
+    return;                                 /* LCOV_EXCL_LINE: OutOfMemory */
   }
 
   ares_query_dnsrec(channel, name, (ares_dns_class_t)dnsclass,
-                    (ares_dns_rec_type_t)type, ares__dnsrec_convert_cb, carg,
+                    (ares_dns_rec_type_t)type, ares_dnsrec_convert_cb, carg,
                     NULL);
 }

@@ -1,14 +1,15 @@
-#include "env-inl.h"
+#include "node_wasi.h"
 #include "base_object-inl.h"
 #include "debug_utils-inl.h"
+#include "env-inl.h"
 #include "memory_tracker-inl.h"
-#include "node_mem-inl.h"
-#include "util-inl.h"
 #include "node.h"
 #include "node_errors.h"
+#include "node_mem-inl.h"
+#include "permission/permission.h"
+#include "util-inl.h"
 #include "uv.h"
 #include "uvwasi.h"
-#include "node_wasi.h"
 
 namespace node {
 namespace wasi {
@@ -34,6 +35,7 @@ using v8::Exception;
 using v8::FastApiCallbackOptions;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
+using v8::HandleScope;
 using v8::Integer;
 using v8::Isolate;
 using v8::Local;
@@ -120,8 +122,9 @@ void WASI::New(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[1]->IsArray());
   CHECK(args[2]->IsArray());
   CHECK(args[3]->IsArray());
-
   Environment* env = Environment::GetCurrent(args);
+  THROW_IF_INSUFFICIENT_PERMISSIONS(
+      env, permission::PermissionScope::kWASI, "");
   Local<Context> context = env->context();
   Local<Array> argv = args[0].As<Array>();
   const uint32_t argc = argv->Length();
@@ -239,24 +242,28 @@ inline void EinvalError() {}
 
 template <typename FT, FT F, typename R, typename... Args>
 R WASI::WasiFunction<FT, F, R, Args...>::FastCallback(
+    Local<Object> unused,
     Local<Object> receiver,
     Args... args,
     // NOLINTNEXTLINE(runtime/references) This is V8 api.
     FastApiCallbackOptions& options) {
   WASI* wasi = reinterpret_cast<WASI*>(BaseObject::FromJSObject(receiver));
-  if (UNLIKELY(wasi == nullptr)) return EinvalError<R>();
-
-  if (UNLIKELY(options.wasm_memory == nullptr || wasi->memory_.IsEmpty())) {
-    // fallback to slow path which to throw an error about missing memory.
-    options.fallback = true;
+  if (wasi == nullptr) [[unlikely]] {
     return EinvalError<R>();
   }
-  uint8_t* memory = nullptr;
-  CHECK(LIKELY(options.wasm_memory->getStorageIfAligned(&memory)));
 
-  return F(*wasi,
-           {reinterpret_cast<char*>(memory), options.wasm_memory->length()},
-           args...);
+  Isolate* isolate = receiver->GetIsolate();
+  HandleScope scope(isolate);
+  if (wasi->memory_.IsEmpty()) {
+    THROW_ERR_WASI_NOT_STARTED(isolate);
+    return EinvalError<R>();
+  }
+  Local<ArrayBuffer> ab = wasi->memory_.Get(isolate)->Buffer();
+  size_t mem_size = ab->ByteLength();
+  char* mem_data = static_cast<char*>(ab->Data());
+  CHECK_NOT_NULL(mem_data);
+
+  return F(*wasi, {mem_data, mem_size}, args...);
 }
 
 namespace {

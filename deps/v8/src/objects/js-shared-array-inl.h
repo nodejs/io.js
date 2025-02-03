@@ -21,8 +21,6 @@ namespace internal {
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(JSSharedArray)
 
-CAST_ACCESSOR(JSSharedArray)
-
 }  // namespace internal
 }  // namespace v8
 

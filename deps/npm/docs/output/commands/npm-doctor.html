@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,17 +141,20 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npm-doctor">npm-doctor</h1>
+<h1 id="----npm-doctor----1110">
+    <span>npm-doctor</span>
+    <span class="version">@11.1.0</span>
+</h1>
 <span class="description">Check the health of your npm environment</span>
 </header>
 
 <section id="table_of_contents">
 <h2 id="table-of-contents">Table of contents</h2>
-<div id="_table_of_contents"><ul><li><a href="#synopsis">Synopsis</a></li><li><a href="#description">Description</a></li><ul><li><a href="#npm-ping"><code>npm ping</code></a></li><li><a href="#npm--v"><code>npm -v</code></a></li><li><a href="#node--v"><code>node -v</code></a></li><li><a href="#npm-config-get-registry"><code>npm config get registry</code></a></li><li><a href="#which-git"><code>which git</code></a></li><li><a href="#permissions-checks">Permissions checks</a></li><li><a href="#validate-the-checksums-of-cached-packages">Validate the checksums of cached packages</a></li></ul><li><a href="#configuration">Configuration</a></li><ul><li><a href="#registry"><code>registry</code></a></li></ul><li><a href="#see-also">See Also</a></li></ul></div>
+<div id="_table_of_contents"><ul><li><a href="#synopsis">Synopsis</a></li><li><a href="#description">Description</a></li><ul><li><a href="#connecting-to-the-registry"><code>Connecting to the registry</code></a></li><li><a href="#checking-npm-version"><code>Checking npm version</code></a></li><li><a href="#checking-node-version"><code>Checking node version</code></a></li><li><a href="#checking-configured-npm-registry"><code>Checking configured npm registry</code></a></li><li><a href="#checking-for-git-executable-in-path"><code>Checking for git executable in PATH</code></a></li><li><a href="#permissions-checks">Permissions checks</a></li><li><a href="#validate-the-checksums-of-cached-packages">Validate the checksums of cached packages</a></li></ul><li><a href="#configuration">Configuration</a></li><ul><li><a href="#registry"><code>registry</code></a></li></ul><li><a href="#see-also">See Also</a></li></ul></div>
 </section>
 
 <div id="_content"><h3 id="synopsis">Synopsis</h3>
-<pre><code class="language-bash">npm doctor [ping] [registry] [versions] [environment] [permissions] [cache]
+<pre><code class="language-bash">npm doctor [connection] [registry] [versions] [environment] [permissions] [cache]
 </code></pre>
 <p>Note: This command is unaware of workspaces.</p>
 <h3 id="description">Description</h3>
@@ -171,17 +179,18 @@ using old versions of npm. Since npm is constantly improving, running
 there are any recommended changes, it will display them.  By default npm
 runs all of these checks. You can limit what checks are ran by
 specifying them as extra arguments.</p>
-<h4 id="npm-ping"><code>npm ping</code></h4>
+<h4 id="connecting-to-the-registry"><code>Connecting to the registry</code></h4>
 <p>By default, npm installs from the primary npm registry,
-<code>registry.npmjs.org</code>.  <code>npm doctor</code> hits a special ping endpoint within the
-registry. This can also be checked with <code>npm ping</code>. If this check fails,
-you may be using a proxy that needs to be configured, or may need to talk
-to your IT staff to get access over HTTPS to <code>registry.npmjs.org</code>.</p>
+<code>registry.npmjs.org</code>.  <code>npm doctor</code> hits a special connection testing
+endpoint within the registry. This can also be checked with <code>npm ping</code>.
+If this check fails, you may be using a proxy that needs to be
+configured, or may need to talk to your IT staff to get access over
+HTTPS to <code>registry.npmjs.org</code>.</p>
 <p>This check is done against whichever registry you've configured (you can
 see what that is by running <code>npm config get registry</code>), and if you're using
 a private registry that doesn't support the <code>/whoami</code> endpoint supported by
 the primary registry, this check may fail.</p>
-<h4 id="npm--v"><code>npm -v</code></h4>
+<h4 id="checking-npm-version"><code>Checking npm version</code></h4>
 <p>While Node.js may come bundled with a particular version of npm, it's the
 policy of the CLI team that we recommend all users run <code>npm@latest</code> if they
 can. As the CLI is maintained by a small team of contributors, there are
@@ -189,21 +198,21 @@ only resources for a single line of development, so npm's own long-term
 support releases typically only receive critical security and regression
 fixes. The team believes that the latest tested version of npm is almost
 always likely to be the most functional and defect-free version of npm.</p>
-<h4 id="node--v"><code>node -v</code></h4>
+<h4 id="checking-node-version"><code>Checking node version</code></h4>
 <p>For most users, in most circumstances, the best version of Node will be the
 latest long-term support (LTS) release. Those of you who want access to new
 ECMAscript features or bleeding-edge changes to Node's standard library may
 be running a newer version, and some may be required to run an older
 version of Node because of enterprise change control policies. That's OK!
 But in general, the npm team recommends that most users run Node.js LTS.</p>
-<h4 id="npm-config-get-registry"><code>npm config get registry</code></h4>
+<h4 id="checking-configured-npm-registry"><code>Checking configured npm registry</code></h4>
 <p>You may be installing from private package registries for your project or
 company. That's great! Others may be following tutorials or StackOverflow
 questions in an effort to troubleshoot problems you may be having.
 Sometimes, this may entail changing the registry you're pointing at.  This
 part of <code>npm doctor</code> just lets you, and maybe whoever's helping you with
 support, know that you're not using the default registry.</p>
-<h4 id="which-git"><code>which git</code></h4>
+<h4 id="checking-for-git-executable-in-path"><code>Checking for git executable in PATH</code></h4>
 <p>While it's documented in the README, it may not be obvious that npm needs
 Git installed to do many of the things that it does. Also, in some cases
 –&nbsp;especially on Windows –&nbsp;you may have Git set up in such a way that it's

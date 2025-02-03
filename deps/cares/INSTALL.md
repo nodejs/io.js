@@ -1,5 +1,3 @@
-** This file is adapted from libcurl and not yet fully rewritten for c-ares! **
-
 ```
                           ___       __ _ _ __ ___  ___
                          / __| ___ / _` | '__/ _ \/ __|
@@ -44,7 +42,7 @@ unpacked the source archive):
 You probably need to be root when doing the last command.
 
 If you have checked out the sources from the git repository, read the
-[GIT-INFO](GIT_INFO) on how to proceed.
+[GIT-INFO](GIT-INFO) on how to proceed.
 
 Get a full listing of all available configure options by invoking it like:
 
@@ -309,6 +307,16 @@ first to rebuild every single library your app uses as well as your
 app using the debug multithreaded dynamic C runtime.
 
 
+### MSYS
+
+Building is supported for native windows via both AutoTools and CMake.  When
+building with autotools, you can only build either a shared version or a static
+version (use `--disable-shared` or `--disable-static`).  CMake can build both
+simultaneously.
+
+All of the MSYS environments are supported: `MINGW32`, `MINGW64`, `UCRT64`,
+`CLANG32`, `CLANG64`, `CLANGARM64`.
+
 ### MingW32
 
 Make sure that MinGW32's bin dir is in the search path, for example:
@@ -339,6 +347,26 @@ Further details in [README.msvc](README.msvc)
 When building an application that uses the static c-ares library, you must
 add `-DCARES_STATICLIB` to your `CFLAGS`.  Otherwise the linker will look for
 dynamic import symbols.
+
+
+DOS
+---
+
+c-ares supports building as a 32bit protected mode application via
+[DJGPP](https://www.delorie.com/djgpp/).  It is recommended to use a DJGPP
+cross compiler from [Andrew Wu](https://github.com/andrewwutw/build-djgpp)
+as building directly in a DOS environment can be difficult.
+
+It is required to also have [Watt-32](https://www.watt-32.net/) available
+built using the same compiler.  It is recommended to build the latest `master`
+branch from [GitHub](https://github.com/sezero/watt32/tree/master).
+
+Finally, the `DJ_PREFIX` and `WATT_ROOT` environment variables must be set
+appropriately before calling `make Makefile.dj` to build c-ares.
+
+Please refer to our CI
+[GitHub Actions Workflow](https://github.com/c-ares/c-ares/blob/main/.github/workflows/djgpp.yml)
+for a full build example, including building the latest Watt-32 release.
 
 
 IBM OS/2
@@ -420,20 +448,25 @@ This is a probably incomplete list of known hardware and operating systems
 that c-ares has been compiled for. If you know a system c-ares compiles and
 runs on, that isn't listed, please let us know!
 
-     - Alpha Tru64 v5.0 5.1
-     - ARM Android 1.5, 2.1, 2.3
-     - MIPS IRIX 6.2, 6.5
-     - Power AIX 3.2.5, 4.2, 4.3.1, 4.3.2, 5.1, 5.2
-     - i386 Linux 1.3, 2.0, 2.2, 2.3, 2.4, 2.6
-     - i386 Novell NetWare
-     - i386 Windows 95, 98, ME, NT, 2000, XP, 2003
-     - x86_64 Linux
+     - Linux (i686, x86_64, AARCH64, and more)
+     - MacOS 10.4+
+     - iOS
+     - Windows 8+ (i686, x86_64)
+     - Android (ARM, AARCH64, x86_64)
+     - FreeBSD
+     - NetBSD
+     - OpenBSD
+     - Solaris (SPARC, x86_64)
+     - AIX (POWER)
+     - Tru64 (Alpha)
+     - IRIX (MIPS)
+     - Novell NetWare (i386)
 
 
 Useful URLs
 ===========
 
  - c-ares: https://c-ares.org/
- - MingW: http://www.mingw.org/
  - MinGW-w64: http://mingw-w64.sourceforge.net/
+ - MSYS2: https://msys2.org
  - OpenWatcom: http://www.openwatcom.org/

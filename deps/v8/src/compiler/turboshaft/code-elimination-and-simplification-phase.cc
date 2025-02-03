@@ -8,6 +8,7 @@
 #include "src/compiler/turboshaft/copying-phase.h"
 #include "src/compiler/turboshaft/dead-code-elimination-reducer.h"
 #include "src/compiler/turboshaft/duplication-optimization-reducer.h"
+#include "src/compiler/turboshaft/instruction-selection-normalization-reducer.h"
 #include "src/compiler/turboshaft/load-store-simplification-reducer.h"
 #include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/stack-check-lowering-reducer.h"
@@ -18,8 +19,9 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void CodeEliminationAndSimplificationPhase::Run(Zone* temp_zone) {
-  UnparkedScopeIfNeeded scope(PipelineData::Get().broker(), DEBUG_BOOL);
+void CodeEliminationAndSimplificationPhase::Run(PipelineData* data,
+                                                Zone* temp_zone) {
+  UnparkedScopeIfNeeded scope(data->broker(), DEBUG_BOOL);
 
   CopyingPhase<DeadCodeEliminationReducer, StackCheckLoweringReducer,
 #if V8_ENABLE_WEBASSEMBLY
@@ -32,7 +34,8 @@ void CodeEliminationAndSimplificationPhase::Run(Zone* temp_zone) {
                // (which, for simplificy, doesn't use the Assembler helper
                // methods, but only calls Next::ReduceLoad/Store).
                DuplicationOptimizationReducer,
-               ValueNumberingReducer>::Run(temp_zone);
+               InstructionSelectionNormalizationReducer,
+               ValueNumberingReducer>::Run(data, temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

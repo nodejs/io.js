@@ -110,6 +110,7 @@ namespace compiler {
   V(PPC_DoubleToFloat32)             \
   V(PPC_DoubleExtractLowWord32)      \
   V(PPC_DoubleExtractHighWord32)     \
+  V(PPC_DoubleFromWord32Pair)        \
   V(PPC_DoubleInsertLowWord32)       \
   V(PPC_DoubleInsertHighWord32)      \
   V(PPC_DoubleConstruct)             \

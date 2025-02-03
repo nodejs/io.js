@@ -49,7 +49,7 @@ struct PBKDF2Traits final {
   static constexpr AsyncWrap::ProviderType Provider =
       AsyncWrap::PROVIDER_PBKDF2REQUEST;
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int offset,
@@ -60,11 +60,9 @@ struct PBKDF2Traits final {
       const PBKDF2Config& params,
       ByteSource* out);
 
-  static v8::Maybe<bool> EncodeOutput(
-      Environment* env,
-      const PBKDF2Config& params,
-      ByteSource* out,
-      v8::Local<v8::Value>* result);
+  static v8::MaybeLocal<v8::Value> EncodeOutput(Environment* env,
+                                                const PBKDF2Config& params,
+                                                ByteSource* out);
 };
 
 using PBKDF2Job = DeriveBitsJob<PBKDF2Traits>;

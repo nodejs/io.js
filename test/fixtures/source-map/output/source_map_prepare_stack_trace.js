@@ -2,7 +2,8 @@
 
 'use strict';
 require('../../../common');
-const assert = require('assert');
+const assert = require('node:assert');
+const Module = require('node:module');
 Error.stackTraceLimit = 5;
 
 assert.strictEqual(typeof Error.prepareStackTrace, 'function');
@@ -20,12 +21,15 @@ try {
   console.log(e);
 }
 
-delete require.cache[require
-  .resolve('../enclosing-call-site-min.js')];
-
-// Disable
-process.setSourceMapsEnabled(false);
-assert.strictEqual(process.sourceMapsEnabled, false);
+// Source maps support is disabled programmatically even without deleting the
+// CJS module cache.
+Module.setSourceMapsSupport(false);
+assert.deepStrictEqual(Module.getSourceMapsSupport(), {
+  __proto__: null,
+  enabled: false,
+  nodeModules: false,
+  generatedCode: false,
+});
 
 try {
   require('../enclosing-call-site-min.js');

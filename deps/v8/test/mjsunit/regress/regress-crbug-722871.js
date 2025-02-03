@@ -50,7 +50,7 @@ let shared = `
 `;
 
 let worker1 = startWorker(shared + `
-  onmessage = function(msg) {
+  onmessage = function({data:msg}) {
     let memory = msg;
     const didStartIdx = 0;
     const shouldGoIdx = 1;
@@ -68,7 +68,7 @@ let worker1 = startWorker(shared + `
 `);
 
 let worker2 = startWorker(shared + `
-  onmessage = function(msg) {
+  onmessage = function({data:msg}) {
     let memory = msg;
     const didStartIdx = 0;
     const shouldGoIdx = 1;

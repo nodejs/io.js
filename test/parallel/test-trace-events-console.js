@@ -10,6 +10,7 @@ const tmpdir = require('../common/tmpdir');
 
 const names = [
   'time::foo',
+  'time::\\winvalid_char',
   'count::bar',
 ];
 const expectedCounts = [ 1, 2, 0 ];
@@ -21,8 +22,10 @@ if (process.argv[2] === 'child') {
   console.count('bar');
   console.count('bar');
   console.countReset('bar');
+  console.time('\\winvalid_char');
   console.time('foo');
   setImmediate(() => {
+    console.timeEnd('\\winvalid_char');
     console.timeLog('foo');
     setImmediate(() => {
       console.timeEnd('foo');

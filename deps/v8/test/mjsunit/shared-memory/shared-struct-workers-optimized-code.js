@@ -11,7 +11,7 @@ if (this.Worker) {
 
 (function TestSharedStructOptimizedCode() {
   let workerScript =
-      `onmessage = function(struct) {
+      `onmessage = function({data:struct}) {
          %PrepareFunctionForOptimization(writePayload);
          for (let i = 0; i < 5; i++) writePayload(struct);
          %OptimizeFunctionOnNextCall(writePayload);

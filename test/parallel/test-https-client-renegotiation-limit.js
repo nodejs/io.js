@@ -21,11 +21,9 @@
 
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
-
-if (!common.opensslCli)
-  common.skip('node compiled without OpenSSL CLI.');
+}
 
 const assert = require('assert');
 const tls = require('tls');

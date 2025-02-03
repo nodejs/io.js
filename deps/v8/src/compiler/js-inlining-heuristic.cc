@@ -299,10 +299,7 @@ void JSInliningHeuristic::Finalize() {
     int total_size =
         total_inlined_bytecode_size_ + static_cast<int>(size_of_candidate);
     if (total_size > max_inlined_bytecode_size_cumulative_) {
-      if (v8_flags.profile_guided_optimization) {
-        info_->shared_info()->set_cached_tiering_decision(
-            CachedTieringDecision::kNormal);
-      }
+      info_->set_could_not_inline_all_candidates();
       // Try if any smaller functions are available to inline.
       continue;
     }

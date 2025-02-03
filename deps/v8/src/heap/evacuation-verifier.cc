@@ -16,7 +16,7 @@ EvacuationVerifier::EvacuationVerifier(Heap* heap)
     : ObjectVisitorWithCageBases(heap), heap_(heap) {}
 
 void EvacuationVerifier::Run() {
-  DCHECK(!heap_->sweeping_in_progress());
+  CHECK(!heap_->sweeping_in_progress());
   VerifyRoots();
   VerifyEvacuation(heap_->new_space());
   VerifyEvacuation(heap_->old_space());
@@ -92,14 +92,14 @@ void EvacuationVerifier::VerifyEvacuation(NewSpace* space) {
     return;
   }
 
-  for (Page* p : *space) {
+  for (PageMetadata* p : *space) {
     VerifyEvacuationOnPage(p->area_start(), p->area_end());
   }
 }
 
 void EvacuationVerifier::VerifyEvacuation(PagedSpaceBase* space) {
-  for (Page* p : *space) {
-    if (p->IsEvacuationCandidate()) continue;
+  for (PageMetadata* p : *space) {
+    if (p->Chunk()->IsEvacuationCandidate()) continue;
     VerifyEvacuationOnPage(p->area_start(), p->area_end());
   }
 }

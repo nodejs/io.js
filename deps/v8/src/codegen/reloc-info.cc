@@ -18,7 +18,7 @@
 namespace v8 {
 namespace internal {
 
-using namespace detail;
+using namespace detail;  // NOLINT(build/namespaces)
 
 uint32_t RelocInfoWriter::WriteLongPCJump(uint32_t pc_delta) {
   // Return if the pc_delta can fit in kSmallPCDeltaBits bits.
@@ -28,12 +28,7 @@ uint32_t RelocInfoWriter::WriteLongPCJump(uint32_t pc_delta) {
   WriteMode(RelocInfo::PC_JUMP);
   uint32_t pc_jump = pc_delta >> kSmallPCDeltaBits;
   DCHECK_GT(pc_jump, 0);
-  base::VLQEncodeUnsigned(
-      [this](uint8_t byte) {
-        *--pos_ = byte;
-        return pos_;
-      },
-      pc_jump);
+  base::VLQEncodeUnsigned([this](uint8_t byte) { *--pos_ = byte; }, pc_jump);
   // Return the remaining kSmallPCDeltaBits of the pc_delta.
   return pc_delta & kSmallPCDeltaMask;
 }
@@ -95,8 +90,7 @@ void RelocInfoWriter::Write(const RelocInfo* rinfo) {
     } else if (RelocInfo::IsConstPool(rmode) ||
                RelocInfo::IsVeneerPool(rmode) || RelocInfo::IsDeoptId(rmode) ||
                RelocInfo::IsDeoptPosition(rmode) ||
-               RelocInfo::IsDeoptNodeId(rmode) ||
-               RelocInfo::IsRelativeSwitchTableEntry(rmode)) {
+               RelocInfo::IsDeoptNodeId(rmode)) {
       WriteIntData(static_cast<int>(rinfo->data()));
     }
   }
@@ -167,8 +161,7 @@ void RelocIteratorBase<RelocInfoT>::next() {
                    RelocInfo::IsVeneerPool(rmode) ||
                    RelocInfo::IsDeoptId(rmode) ||
                    RelocInfo::IsDeoptPosition(rmode) ||
-                   RelocInfo::IsDeoptNodeId(rmode) ||
-                   RelocInfo::IsRelativeSwitchTableEntry(rmode)) {
+                   RelocInfo::IsDeoptNodeId(rmode)) {
           if (SetMode(rmode)) {
             AdvanceReadInt();
             return;
@@ -248,10 +241,10 @@ bool RelocInfo::OffHeapTargetIsCodedSpecially() {
 #if defined(V8_TARGET_ARCH_ARM) || defined(V8_TARGET_ARCH_ARM64) || \
     defined(V8_TARGET_ARCH_X64)
   return false;
-#elif defined(V8_TARGET_ARCH_IA32) || defined(V8_TARGET_ARCH_MIPS64) || \
-    defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64) ||     \
-    defined(V8_TARGET_ARCH_S390) || defined(V8_TARGET_ARCH_RISCV64) ||  \
-    defined(V8_TARGET_ARCH_LOONG64) || defined(V8_TARGET_ARCH_RISCV32)
+#elif defined(V8_TARGET_ARCH_IA32) || defined(V8_TARGET_ARCH_MIPS64) ||   \
+    defined(V8_TARGET_ARCH_PPC64) || defined(V8_TARGET_ARCH_S390) ||      \
+    defined(V8_TARGET_ARCH_RISCV64) || defined(V8_TARGET_ARCH_LOONG64) || \
+    defined(V8_TARGET_ARCH_RISCV32)
   return true;
 #endif
 }
@@ -261,11 +254,10 @@ Address RelocInfo::wasm_call_address() const {
   return Assembler::target_address_at(pc_, constant_pool_);
 }
 
-void WritableRelocInfo::set_wasm_call_address(
-    Address address, ICacheFlushMode icache_flush_mode) {
+void WritableRelocInfo::set_wasm_call_address(Address address) {
   DCHECK_EQ(rmode_, WASM_CALL);
   Assembler::set_target_address_at(pc_, constant_pool_, address,
-                                   icache_flush_mode);
+                                   SKIP_ICACHE_FLUSH);
 }
 
 Address RelocInfo::wasm_stub_call_address() const {
@@ -273,11 +265,21 @@ Address RelocInfo::wasm_stub_call_address() const {
   return Assembler::target_address_at(pc_, constant_pool_);
 }
 
-void WritableRelocInfo::set_wasm_stub_call_address(
-    Address address, ICacheFlushMode icache_flush_mode) {
+void WritableRelocInfo::set_wasm_stub_call_address(Address address) {
   DCHECK_EQ(rmode_, WASM_STUB_CALL);
   Assembler::set_target_address_at(pc_, constant_pool_, address,
-                                   icache_flush_mode);
+                                   SKIP_ICACHE_FLUSH);
+}
+
+uint32_t RelocInfo::wasm_canonical_sig_id() const {
+  DCHECK_EQ(rmode_, WASM_CANONICAL_SIG_ID);
+  return Assembler::uint32_constant_at(pc_, constant_pool_);
+}
+
+void WritableRelocInfo::set_wasm_canonical_sig_id(uint32_t canonical_sig_id) {
+  DCHECK_EQ(rmode_, WASM_CANONICAL_SIG_ID);
+  Assembler::set_uint32_constant_at(pc_, constant_pool_, canonical_sig_id,
+                                    SKIP_ICACHE_FLUSH);
 }
 
 void WritableRelocInfo::set_target_address(Address target,
@@ -296,7 +298,7 @@ void WritableRelocInfo::set_target_address(Tagged<InstructionStream> host,
   if (IsCodeTargetMode(rmode_) && !v8_flags.disable_write_barriers) {
     Tagged<InstructionStream> target_code =
         InstructionStream::FromTargetAddress(target);
-    WriteBarrierForCode(host, this, target_code, write_barrier_mode);
+    WriteBarrier::ForRelocInfo(host, this, target_code, write_barrier_mode);
   }
 }
 
@@ -344,8 +346,6 @@ const char* RelocInfo::RelocModeName(RelocInfo::Mode rmode) {
       return "internal reference";
     case INTERNAL_REFERENCE_ENCODED:
       return "encoded internal reference";
-    case RELATIVE_SWITCH_TABLE_ENTRY:
-      return "relative switch table entry";
     case OFF_HEAP_TARGET:
       return "off heap target";
     case NEAR_BUILTIN_ENTRY:
@@ -368,6 +368,8 @@ const char* RelocInfo::RelocModeName(RelocInfo::Mode rmode) {
       return "internal wasm call";
     case WASM_STUB_CALL:
       return "wasm stub call";
+    case WASM_CANONICAL_SIG_ID:
+      return "wasm canonical signature id";
     case NUMBER_OF_MODES:
     case PC_JUMP:
       UNREACHABLE();
@@ -477,7 +479,7 @@ void RelocInfo::Verify(Isolate* isolate) {
     case VENEER_POOL:
     case WASM_CALL:
     case NO_INFO:
-    case RELATIVE_SWITCH_TABLE_ENTRY:
+    case WASM_CANONICAL_SIG_ID:
       break;
     case NUMBER_OF_MODES:
     case PC_JUMP:

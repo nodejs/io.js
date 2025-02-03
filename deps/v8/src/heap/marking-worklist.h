@@ -12,8 +12,8 @@
 
 #include "src/heap/base/worklist.h"
 #include "src/heap/cppgc-js/cpp-marking-state.h"
-#include "src/heap/marking.h"
 #include "src/objects/heap-object.h"
+#include "src/utils/address-map.h"
 
 namespace v8 {
 namespace internal {
@@ -155,12 +155,6 @@ class V8_EXPORT_PRIVATE MarkingWorklists::Local final {
   inline void PushOnHold(Tagged<HeapObject> object);
   inline bool PopOnHold(Tagged<HeapObject>* object);
 
-  using WrapperSnapshot = CppMarkingState::EmbedderDataSnapshot;
-  inline bool ExtractWrapper(Tagged<Map> map, Tagged<JSObject> object,
-                             WrapperSnapshot& snapshot);
-  inline void PushExtractedWrapper(const WrapperSnapshot& snapshot);
-  inline bool SupportsExtractWrapper();
-
   void Publish();
   bool IsEmpty();
   bool IsWrapperEmpty() const;
@@ -174,9 +168,8 @@ class V8_EXPORT_PRIVATE MarkingWorklists::Local final {
   // Merges the on-hold worklist to the shared worklist.
   void MergeOnHold();
 
-  // Returns true if wrapper objects could be directly pushed. Otherwise,
-  // objects need to be processed one by one.
-  inline bool PublishWrapper();
+  // Publishes CppHeap objects.
+  inline void PublishCppHeapObjects();
 
   // Returns the context of the active worklist.
   Address Context() const { return active_context_; }
@@ -202,8 +195,9 @@ class V8_EXPORT_PRIVATE MarkingWorklists::Local final {
   MarkingWorklist::Local on_hold_;
   Address active_context_;
   const bool is_per_context_mode_;
-  const std::unordered_map<Address, std::unique_ptr<MarkingWorklist::Local>>
-      worklist_by_context_;
+
+  std::vector<MarkingWorklist::Local> context_worklists_;
+  AddressToIndexHashMap worklist_by_context_;
   MarkingWorklist::Local other_;
   std::unique_ptr<CppMarkingState> cpp_marking_state_;
 };

@@ -7,7 +7,9 @@ const assert = require('assert');
 
 const ctrlU = { ctrl: true, name: 'u' };
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 {
   const input = new PassThrough();

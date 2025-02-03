@@ -30,8 +30,7 @@ BUILTIN(FinalizationRegistryUnregister) {
   }
 
   bool success = JSFinalizationRegistry::Unregister(
-      finalization_registry, Handle<HeapObject>::cast(unregister_token),
-      isolate);
+      finalization_registry, Cast<HeapObject>(unregister_token), isolate);
 
   return *isolate->factory()->ToBoolean(success);
 }

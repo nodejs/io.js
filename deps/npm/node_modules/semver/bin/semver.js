@@ -119,7 +119,11 @@ const main = () => {
       return fail()
     }
   }
-  return success(versions)
+  versions
+    .sort((a, b) => semver[reverse ? 'rcompare' : 'compare'](a, b, options))
+    .map(v => semver.clean(v, options))
+    .map(v => inc ? semver.inc(v, inc, options, identifier, identifierBase) : v)
+    .forEach(v => console.log(v))
 }
 
 const failInc = () => {
@@ -128,19 +132,6 @@ const failInc = () => {
 }
 
 const fail = () => process.exit(1)
-
-const success = () => {
-  const compare = reverse ? 'rcompare' : 'compare'
-  versions.sort((a, b) => {
-    return semver[compare](a, b, options)
-  }).map((v) => {
-    return semver.clean(v, options)
-  }).map((v) => {
-    return inc ? semver.inc(v, inc, options, identifier, identifierBase) : v
-  }).forEach((v, i, _) => {
-    console.log(v)
-  })
-}
 
 const help = () => console.log(
 `SemVer ${version}

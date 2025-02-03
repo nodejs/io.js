@@ -209,7 +209,8 @@ TEST_F(ConcurrentStringTest, InspectOneByteExternalizing_ThinString) {
   EXPECT_TRUE(!IsInternalizedString(*thin_string));
 
   // Crate an internalized one-byte version of that string string.
-  Handle<String> internalized_string = factory->InternalizeString(thin_string);
+  DirectHandle<String> internalized_string =
+      factory->InternalizeString(thin_string);
   EXPECT_TRUE(internalized_string->IsOneByteRepresentation());
   EXPECT_TRUE(!IsExternalString(*internalized_string));
   EXPECT_TRUE(IsInternalizedString(*internalized_string));
@@ -277,7 +278,8 @@ TEST_F(ConcurrentStringTest, InspectTwoByteExternalizing_ThinString) {
     thin_string = raw;
   }
 
-  Handle<String> internalized_string = factory->InternalizeString(thin_string);
+  DirectHandle<String> internalized_string =
+      factory->InternalizeString(thin_string);
   EXPECT_TRUE(internalized_string->IsTwoByteRepresentation());
   EXPECT_TRUE(!IsExternalString(*internalized_string));
   EXPECT_TRUE(IsInternalizedString(*internalized_string));

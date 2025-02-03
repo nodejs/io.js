@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -95,9 +95,10 @@ typedef struct ngtcp2_cc_bbr {
   uint64_t round_count;
 
   /* Full pipe */
-  int filled_pipe;
   uint64_t full_bw;
   size_t full_bw_count;
+  int full_bw_reached;
+  int full_bw_now;
 
   /* Pacing rate */
   uint64_t pacing_gain_h;
@@ -123,19 +124,13 @@ typedef struct ngtcp2_cc_bbr {
   size_t bw_probe_up_rounds;
   uint64_t bw_probe_up_acks;
   uint64_t inflight_hi;
-  uint64_t bw_hi;
   int probe_rtt_expired;
   ngtcp2_duration probe_rtt_min_delay;
   ngtcp2_tstamp probe_rtt_min_stamp;
   int in_loss_recovery;
-  int packet_conservation;
+  uint64_t round_count_at_recovery;
   uint64_t max_inflight;
   ngtcp2_tstamp congestion_recovery_start_ts;
-  uint64_t congestion_recovery_next_round_delivered;
-
-  uint64_t prior_inflight_lo;
-  uint64_t prior_inflight_hi;
-  uint64_t prior_bw_lo;
 } ngtcp2_cc_bbr;
 
 void ngtcp2_cc_bbr_init(ngtcp2_cc_bbr *bbr, ngtcp2_log *log,
@@ -143,4 +138,4 @@ void ngtcp2_cc_bbr_init(ngtcp2_cc_bbr *bbr, ngtcp2_log *log,
                         ngtcp2_tstamp initial_ts, ngtcp2_rand rand,
                         const ngtcp2_rand_ctx *rand_ctx);
 
-#endif /* NGTCP2_BBR_H */
+#endif /* !defined(NGTCP2_BBR_H) */

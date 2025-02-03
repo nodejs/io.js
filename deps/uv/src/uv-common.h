@@ -191,6 +191,12 @@ int uv__udp_try_send(uv_udp_t* handle,
                      const struct sockaddr* addr,
                      unsigned int addrlen);
 
+int uv__udp_try_send2(uv_udp_t* handle,
+                      unsigned int count,
+                      uv_buf_t* bufs[/*count*/],
+                      unsigned int nbufs[/*count*/],
+                      struct sockaddr* addrs[/*count*/]);
+
 int uv__udp_recv_start(uv_udp_t* handle, uv_alloc_cb alloccb,
                        uv_udp_recv_cb recv_cb);
 
@@ -233,13 +239,13 @@ void uv__threadpool_cleanup(void);
 #define uv__has_active_reqs(loop)                                             \
   ((loop)->active_reqs.count > 0)
 
-#define uv__req_register(loop, req)                                           \
+#define uv__req_register(loop)                                                \
   do {                                                                        \
     (loop)->active_reqs.count++;                                              \
   }                                                                           \
   while (0)
 
-#define uv__req_unregister(loop, req)                                         \
+#define uv__req_unregister(loop)                                              \
   do {                                                                        \
     assert(uv__has_active_reqs(loop));                                        \
     (loop)->active_reqs.count--;                                              \
@@ -349,7 +355,7 @@ void uv__threadpool_cleanup(void);
 #define uv__req_init(loop, req, typ)                                          \
   do {                                                                        \
     UV_REQ_INIT(req, typ);                                                    \
-    uv__req_register(loop, req);                                              \
+    uv__req_register(loop);                                                   \
   }                                                                           \
   while (0)
 
@@ -400,7 +406,6 @@ void uv__metrics_set_provider_entry_time(uv_loop_t* loop);
 struct uv__iou {
   uint32_t* sqhead;
   uint32_t* sqtail;
-  uint32_t* sqarray;
   uint32_t sqmask;
   uint32_t* sqflags;
   uint32_t* cqhead;
@@ -415,7 +420,6 @@ struct uv__iou {
   size_t sqelen;
   int ringfd;
   uint32_t in_flight;
-  uint32_t flags;
 };
 #endif  /* __linux__ */
 
@@ -429,5 +433,19 @@ struct uv__loop_internal_fields_s {
   void* inv;  /* used by uv__platform_invalidate_fd() */
 #endif  /* __linux__ */
 };
+
+#if defined(_WIN32)
+# define UV_PTHREAD_MAX_NAMELEN_NP 32767
+#elif defined(__APPLE__)
+# define UV_PTHREAD_MAX_NAMELEN_NP 64
+#elif defined(__NetBSD__) || defined(__illumos__)
+# define UV_PTHREAD_MAX_NAMELEN_NP PTHREAD_MAX_NAMELEN_NP
+#elif defined (__linux__)
+# define UV_PTHREAD_MAX_NAMELEN_NP 16
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
+# define UV_PTHREAD_MAX_NAMELEN_NP (MAXCOMLEN + 1)
+#else
+# define UV_PTHREAD_MAX_NAMELEN_NP 16
+#endif
 
 #endif /* UV_COMMON_H_ */

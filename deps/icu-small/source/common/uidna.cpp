@@ -107,7 +107,7 @@ compareCaseInsensitiveASCII(const char16_t* s1, int32_t s1Len,
         
         /* Case-insensitive comparison */
         if(c1!=c2) {
-            rc=(int32_t)toASCIILower(c1)-(int32_t)toASCIILower(c2);
+            rc = static_cast<int32_t>(toASCIILower(c1)) - static_cast<int32_t>(toASCIILower(c2));
             if(rc!=0) {
                 lengthResult=rc;
                 break;
@@ -219,7 +219,7 @@ _internal_toASCII(const char16_t* src, int32_t srcLength,
     int32_t j=0;
 
     //get the options
-    UBool useSTD3ASCIIRules = (UBool)((options & UIDNA_USE_STD3_RULES) != 0);
+    UBool useSTD3ASCIIRules = static_cast<UBool>((options & UIDNA_USE_STD3_RULES) != 0);
 
     int32_t failPos = -1;
     
@@ -228,7 +228,7 @@ _internal_toASCII(const char16_t* src, int32_t srcLength,
     }
     
     if(srcLength > b1Capacity){
-        b1 = (char16_t*) uprv_malloc(srcLength * U_SIZEOF_UCHAR);
+        b1 = static_cast<char16_t*>(uprv_malloc(srcLength * U_SIZEOF_UCHAR));
         if(b1==nullptr){
             *status = U_MEMORY_ALLOCATION_ERROR;
             goto CLEANUP;
@@ -256,7 +256,7 @@ _internal_toASCII(const char16_t* src, int32_t srcLength,
             if(b1 != b1Stack){
                 uprv_free(b1);
             }
-            b1 = (char16_t*) uprv_malloc(b1Len * U_SIZEOF_UCHAR);
+            b1 = static_cast<char16_t*>(uprv_malloc(b1Len * U_SIZEOF_UCHAR));
             if(b1==nullptr){
                 *status = U_MEMORY_ALLOCATION_ERROR;
                 goto CLEANUP;
@@ -338,7 +338,7 @@ _internal_toASCII(const char16_t* src, int32_t srcLength,
             if(*status == U_BUFFER_OVERFLOW_ERROR){
                 // redo processing of string
                 /* we do not have enough room so grow the buffer*/
-                b2 = (char16_t*) uprv_malloc(b2Len * U_SIZEOF_UCHAR);
+                b2 = static_cast<char16_t*>(uprv_malloc(b2Len * U_SIZEOF_UCHAR));
                 if(b2 == nullptr){
                     *status = U_MEMORY_ALLOCATION_ERROR;
                     goto CLEANUP;
@@ -458,7 +458,7 @@ _internal_toUnicode(const char16_t* src, int32_t srcLength,
         if(*status == U_BUFFER_OVERFLOW_ERROR){
             // redo processing of string
             /* we do not have enough room so grow the buffer*/
-            b1 = (char16_t*) uprv_malloc(b1Len * U_SIZEOF_UCHAR);
+            b1 = static_cast<char16_t*>(uprv_malloc(b1Len * U_SIZEOF_UCHAR));
             if(b1==nullptr){
                 *status = U_MEMORY_ALLOCATION_ERROR;
                 goto CLEANUP;
@@ -475,7 +475,7 @@ _internal_toUnicode(const char16_t* src, int32_t srcLength,
     }else{
 
         //just point src to b1
-        b1 = (char16_t*) src;
+        b1 = const_cast<char16_t*>(src);
         b1Len = srcLength;
     }
 
@@ -498,7 +498,7 @@ _internal_toUnicode(const char16_t* src, int32_t srcLength,
         if(*status == U_BUFFER_OVERFLOW_ERROR){
             // redo processing of string
             /* we do not have enough room so grow the buffer*/
-            b2 = (char16_t*) uprv_malloc(b2Len * U_SIZEOF_UCHAR);
+            b2 = static_cast<char16_t*>(uprv_malloc(b2Len * U_SIZEOF_UCHAR));
             if(b2==nullptr){
                 *status = U_MEMORY_ALLOCATION_ERROR;
                 goto CLEANUP;
@@ -516,7 +516,7 @@ _internal_toUnicode(const char16_t* src, int32_t srcLength,
         if(*status == U_BUFFER_OVERFLOW_ERROR){
             // redo processing of string
             /* we do not have enough room so grow the buffer*/
-            b3 = (char16_t*) uprv_malloc(b3Len * U_SIZEOF_UCHAR);
+            b3 = static_cast<char16_t*>(uprv_malloc(b3Len * U_SIZEOF_UCHAR));
             if(b3==nullptr){
                 *status = U_MEMORY_ALLOCATION_ERROR;
                 goto CLEANUP;
@@ -584,6 +584,9 @@ CLEANUP:
     }
     if(b2 != b2Stack){
         uprv_free(b2);
+    }
+    if(b3 != b3Stack){
+        uprv_free(b3);
     }
     uprv_free(caseFlags);
 
@@ -689,9 +692,9 @@ uidna_IDNToASCII(  const char16_t *src, int32_t srcLength,
     }
 
     //initialize pointers 
-    char16_t *delimiter = (char16_t*)src;
-    char16_t *labelStart = (char16_t*)src;
-    char16_t *currentDest = (char16_t*) dest;
+    char16_t* delimiter = const_cast<char16_t*>(src);
+    char16_t* labelStart = const_cast<char16_t*>(src);
+    char16_t* currentDest = dest;
     int32_t remainingLen = srcLength;
     int32_t remainingDestCapacity = destCapacity;
     int32_t labelLen = 0, labelReqLength = 0;
@@ -782,9 +785,9 @@ uidna_IDNToUnicode(  const char16_t* src, int32_t srcLength,
     }
 
     //initialize pointers
-    char16_t *delimiter = (char16_t*)src;
-    char16_t *labelStart = (char16_t*)src;
-    char16_t *currentDest = (char16_t*) dest;
+    char16_t* delimiter = const_cast<char16_t*>(src);
+    char16_t* labelStart = const_cast<char16_t*>(src);
+    char16_t* currentDest = dest;
     int32_t remainingLen = srcLength;
     int32_t remainingDestCapacity = destCapacity;
     int32_t labelLen = 0, labelReqLength = 0;

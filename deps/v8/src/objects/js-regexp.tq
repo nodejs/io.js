@@ -14,8 +14,41 @@ bitfield struct JSRegExpFlags extends uint31 {
   unicode_sets: bool: 1 bit;
 }
 
+@cppObjectDefinition
+extern class RegExpData extends ExposedTrustedObject {
+  type_tag: Smi;
+  source: String;
+  flags: Smi;
+  wrapper: RegExpDataWrapper;
+}
+
+@cppObjectDefinition
+extern class AtomRegExpData extends RegExpData {
+  const pattern: String;
+}
+
+@cppObjectDefinition
+extern class IrRegExpData extends RegExpData {
+  // TODO(pthier): Change code pointers to ProtectedPointer<Code> once builtins
+  // reside in trusted space.
+  latin1_bytecode: ProtectedPointer<TrustedByteArray>;
+  uc16_bytecode: ProtectedPointer<TrustedByteArray>;
+  latin1_code: TrustedPointer<Code>;
+  uc16_code: TrustedPointer<Code>;
+  capture_name_map: FixedArray;
+  max_register_count: Smi;
+  capture_count: Smi;
+  ticks_until_tier_up: Smi;
+  backtrack_limit: Smi;
+}
+
+@cppObjectDefinition
+extern class RegExpDataWrapper extends Struct {
+  data: TrustedPointer<RegExpData>;
+}
+
 extern class JSRegExp extends JSObject {
-  data: FixedArray|Undefined;
+  data: TrustedPointer<RegExpData>;
   source: String|Undefined;
   flags: SmiTagged<JSRegExpFlags>|Undefined;
 }

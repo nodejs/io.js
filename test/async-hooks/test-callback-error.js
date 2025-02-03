@@ -62,12 +62,14 @@ assert.ok(!arg);
   let program = process.execPath;
   let args = [
     '--abort-on-uncaught-exception', __filename, 'test_callback_abort' ];
-  const options = { encoding: 'utf8' };
+  let options = {};
   if (!common.isWindows) {
-    program = `ulimit -c 0 && exec ${program} ${args.join(' ')}`;
+    [program, options] = common.escapePOSIXShell`ulimit -c 0 && exec "${program}" ${args[0]} "${args[1]}" ${args[2]}`;
     args = [];
     options.shell = true;
   }
+
+  options.encoding = 'utf8';
   const child = spawnSync(program, args, options);
   if (common.isWindows) {
     assert.strictEqual(child.status, 134);

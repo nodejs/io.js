@@ -61,7 +61,7 @@ int BuildSnapshot(int argc, char* argv[]) {
     return 1;
   }
 
-  std::unique_ptr<node::InitializationResult> result =
+  std::shared_ptr<node::InitializationResult> result =
       node::InitializeOncePerProcess(
           std::vector<std::string>(argv, argv + argc),
           node::ProcessInitializationFlags::kGeneratePredictableSnapshot);

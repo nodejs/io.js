@@ -16,7 +16,7 @@ namespace v8::internal::compiler::turboshaft {
 struct WasmGCOptimizePhase {
   DECL_TURBOSHAFT_PHASE_CONSTANTS(WasmGCOptimize)
 
-  void Run(Zone* temp_zone);
+  void Run(PipelineData* data, Zone* temp_zone);
 };
 
 }  // namespace v8::internal::compiler::turboshaft

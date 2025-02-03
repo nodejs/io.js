@@ -43,10 +43,10 @@ template <typename Visitor>
 inline void ClientRootVisitor<Visitor>::VisitRunningCode(
     FullObjectSlot code_slot, FullObjectSlot maybe_istream_slot) {
 #if DEBUG
-  DCHECK(!InWritableSharedSpace(HeapObject::cast(*code_slot)));
+  DCHECK(!InWritableSharedSpace(Cast<HeapObject>(*code_slot)));
   Tagged<Object> maybe_istream = *maybe_istream_slot;
   DCHECK(maybe_istream == Smi::zero() ||
-         !InWritableSharedSpace(HeapObject::cast(maybe_istream)));
+         !InWritableSharedSpace(Cast<HeapObject>(maybe_istream)));
 #endif
 }
 

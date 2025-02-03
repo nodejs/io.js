@@ -59,6 +59,7 @@ class BindingData : public SnapshotableObject {
   static void Format(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void GetOrigin(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Parse(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void PathToFileURL(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void Update(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   static void CreatePerIsolateProperties(IsolateData* isolate_data,
@@ -85,7 +86,6 @@ void ThrowInvalidURL(Environment* env,
 std::string FromFilePath(std::string_view file_path);
 std::optional<std::string> FileURLToPath(Environment* env,
                                          const ada::url_aggregator& file_url);
-void FromNamespacedPath(std::string* path);
 
 }  // namespace url
 

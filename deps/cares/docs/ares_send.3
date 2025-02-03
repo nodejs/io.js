@@ -113,6 +113,9 @@ is being destroyed; the query will not be completed.
 .B ARES_ENOSERVER
 The query will not be completed because no DNS servers were configured on the
 channel.
+.TP 19
+.B ARES_EBADQUERY
+Misformatted DNS query.
 .PP
 
 The callback argument
@@ -151,8 +154,3 @@ does not reflect as much about the response as for other query functions.
 .BR ares_process (3),
 .BR ares_search (3),
 .BR ares_dns_record (3)
-
-.SH AUTHOR
-Greg Hudson, MIT Information Systems
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.

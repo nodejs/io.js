@@ -611,6 +611,5 @@ def main():
     with open(arg_options.stamp, 'a') as _:
       pass
 
-
 if __name__ == '__main__':
   sys.exit(main())

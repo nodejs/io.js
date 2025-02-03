@@ -155,7 +155,7 @@ class SyncProcessRunner {
   inline Environment* env() const;
 
   v8::MaybeLocal<v8::Object> Run(v8::Local<v8::Value> options);
-  v8::Maybe<bool> TryInitializeAndRunLoop(v8::Local<v8::Value> options);
+  v8::Maybe<void> TryInitializeAndRunLoop(v8::Local<v8::Value> options);
   void CloseHandlesAndDeleteLoop();
 
   void CloseStdioPipes();

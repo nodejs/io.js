@@ -107,7 +107,6 @@ t.test('single node - with author object', t => {
 })
 
 t.test('single node - with integrity', t => {
-  /* eslint-disable-next-line max-len */
   const node = { ...root, integrity: 'sha512-1RkbFGUKex4lvsB9yhIfWltJM5cZKUftB2eNajaDv3dCMEp49iBG0K14uH8NnX9IPux2+mK7JGEOB0jn48/J6w==' }
   const res = cyclonedxOutput({ npm, nodes: [node] })
   t.matchSnapshot(JSON.stringify(res))
@@ -229,6 +228,18 @@ t.test('node - with deps', t => {
     ],
   }
   const res = cyclonedxOutput({ npm, nodes: [node, dep1, dep2, dep2Link] })
+  t.matchSnapshot(JSON.stringify(res))
+  t.end()
+})
+
+t.test('node - with duplicate deps', t => {
+  const node = {
+    ...root,
+    edgesOut: [
+      { to: dep1 },
+    ],
+  }
+  const res = cyclonedxOutput({ npm, nodes: [node, dep1, dep1] })
   t.matchSnapshot(JSON.stringify(res))
   t.end()
 })

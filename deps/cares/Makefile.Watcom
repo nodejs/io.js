@@ -42,8 +42,9 @@ RD = rmdir /q /s 2>NUL
 CP = copy
 
 CFLAGS = -3r -mf -hc -zff -zgf -zq -zm -zc -s -fr=con -w2 -fpi -oilrtfm -aa   &
-         -wcd=201 -bt=nt -d+ -dWIN32 -dCARES_BUILDING_LIBRARY &
-         -dNTDDI_VERSION=0x06020000 -I. -I.\include -I.\src\lib $(SYS_INCL)
+         -wcd=201 -bt=nt -d+ -dCARES_BUILDING_LIBRARY &
+         -dNTDDI_VERSION=0x06020000 -I. -I.\include -I.\src\lib -I.\src\lib\include &
+         $(SYS_INCL)
 
 LFLAGS = option quiet, map, caseexact, eliminate
 
@@ -97,7 +98,19 @@ all: $(ARESBUILDH) $(OBJ_BASE) $(TARGETS) $(DEMOS) .SYMBOLIC
 $(OBJ_BASE):
 	-$(MD) $^@
 	-$(MD) $^@\stat
+	-$(MD) $^@\stat\dsa
+	-$(MD) $^@\stat\event
+	-$(MD) $^@\stat\legacy
+	-$(MD) $^@\stat\record
+	-$(MD) $^@\stat\str
+	-$(MD) $^@\stat\util
 	-$(MD) $^@\dyn
+	-$(MD) $^@\dyn\dsa
+	-$(MD) $^@\dyn\event
+	-$(MD) $^@\dyn\legacy
+	-$(MD) $^@\dyn\record
+	-$(MD) $^@\dyn\str
+	-$(MD) $^@\dyn\util
 	-$(MD) $^@\tools
 
 $(ARESBUILDH): .EXISTSONLY
@@ -112,7 +125,7 @@ $(LIBNAME).lib: $(OBJS_STAT) $(LIB_ARG)
 $(OBJ_BASE)\tools\ares_getopt.obj:
 	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\tools\ares_getopt.c -fo=$^@
 
-adig.exe: $(OBJ_BASE)\tools\ares_getopt.obj $(LIBNAME).lib
+adig.exe: $(LIBNAME).lib
 	$(CC) $(CFLAGS) src\tools\adig.c -fo=$(OBJ_BASE)\tools\adig.obj
 	$(LD) name $^@ system nt $(LFLAGS) file { $(OBJ_BASE)\tools\adig.obj $[@ } library $]@, ws2_32.lib, iphlpapi.lib
 
@@ -129,7 +142,19 @@ vclean realclean: clean .SYMBOLIC
 	-$(RM) $(TARGETS) $(LIBNAME).map
 	-$(RM) $(DEMOS) $(DEMOS:.exe=.map)
 	-$(RD) $(OBJ_BASE)\stat
+	-$(RD) $(OBJ_BASE)\stat\dsa
+	-$(RD) $(OBJ_BASE)\stat\event
+	-$(RD) $(OBJ_BASE)\stat\legacy
+	-$(RD) $(OBJ_BASE)\stat\record
+	-$(RD) $(OBJ_BASE)\stat\str
+	-$(RD) $(OBJ_BASE)\stat\util
 	-$(RD) $(OBJ_BASE)\dyn
+	-$(RD) $(OBJ_BASE)\dyn\dsa
+	-$(RD) $(OBJ_BASE)\dyn\event
+	-$(RD) $(OBJ_BASE)\dyn\legacy
+	-$(RD) $(OBJ_BASE)\dyn\record
+	-$(RD) $(OBJ_BASE)\dyn\str
+	-$(RD) $(OBJ_BASE)\dyn\util
 	-$(RD) $(OBJ_BASE)\tools
 	-$(RD) $(OBJ_BASE)
 
@@ -145,8 +170,56 @@ $(RESOURCE): src\lib\cares.rc .AUTODEPEND
 	$(CC) $(CFLAGS) -bd .\src\lib\$^& -fo=$^@
 
 .ERASE
+{dsa}.c{$(OBJ_BASE)\dyn\dsa}.obj:
+	$(CC) $(CFLAGS) -bd .\src\lib\dsa\$^& -fo=$^@
+
+.ERASE
+{event}.c{$(OBJ_BASE)\dyn\event}.obj:
+	$(CC) $(CFLAGS) -bd .\src\lib\event\$^& -fo=$^@
+
+.ERASE
+{legacy}.c{$(OBJ_BASE)\dyn\legacy}.obj:
+	$(CC) $(CFLAGS) -bd .\src\lib\legacy\$^& -fo=$^@
+
+.ERASE
+{record}.c{$(OBJ_BASE)\dyn\record}.obj:
+	$(CC) $(CFLAGS) -bd .\src\lib\record\$^& -fo=$^@
+
+.ERASE
+{str}.c{$(OBJ_BASE)\dyn\str}.obj:
+	$(CC) $(CFLAGS) -bd .\src\lib\str\$^& -fo=$^@
+
+.ERASE
+{util}.c{$(OBJ_BASE)\dyn\util}.obj:
+	$(CC) $(CFLAGS) -bd .\src\lib\util\$^& -fo=$^@
+
+.ERASE
 .c{$(OBJ_BASE)\stat}.obj:
 	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\$^& -fo=$^@
+
+.ERASE
+{dsa}.c{$(OBJ_BASE)\stat\dsa}.obj:
+	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\dsa\$^& -fo=$^@
+
+.ERASE
+{event}.c{$(OBJ_BASE)\stat\event}.obj:
+	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\event\$^& -fo=$^@
+
+.ERASE
+{legacy}.c{$(OBJ_BASE)\stat\legacy}.obj:
+	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\legacy\$^& -fo=$^@
+
+.ERASE
+{record}.c{$(OBJ_BASE)\stat\record}.obj:
+	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\record\$^& -fo=$^@
+
+.ERASE
+{str}.c{$(OBJ_BASE)\stat\str}.obj:
+	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\str\$^& -fo=$^@
+
+.ERASE
+{util}.c{$(OBJ_BASE)\stat\util}.obj:
+	$(CC) $(CFLAGS) -DCARES_STATICLIB .\src\lib\util\$^& -fo=$^@
 
 $(LINK_ARG): $(__MAKEFILES__)
 	%create $^@

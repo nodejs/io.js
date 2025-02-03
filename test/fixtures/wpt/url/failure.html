@@ -6,7 +6,10 @@
 <script src=/resources/testharnessreport.js></script>
 <div id=log></div>
 <script>
-promise_test(() => fetch("resources/urltestdata.json").then(res => res.json()).then(runTests), "Loading data…")
+promise_test(() => Promise.all([
+  fetch("resources/urltestdata.json").then(res => res.json()),
+  fetch("resources/urltestdata-javascript-only.json").then(res => res.json()),
+]).then((tests) => tests.flat()).then(runTests), "Loading data…");
 
 function runTests(testData) {
   for (const test of testData) {

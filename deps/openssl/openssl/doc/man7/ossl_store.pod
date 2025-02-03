@@ -44,7 +44,11 @@ other encoding is undefined.
 
 =head2 A generic call
 
- OSSL_STORE_CTX *ctx = OSSL_STORE_open("file:/foo/bar/data.pem");
+ #include <openssl/ui.h> /* for UI_get_default_method */
+ #include <openssl/store.h>
+
+ OSSL_STORE_CTX *ctx = OSSL_STORE_open("file:/foo/bar/data.pem",
+                        UI_get_default_method(), NULL, NULL, NULL);
 
  /*
   * OSSL_STORE_eof() simulates file semantics for any repository to signal
@@ -65,6 +69,7 @@ other encoding is undefined.
          PEM_write_X509(stdout, OSSL_STORE_INFO_get0_CERT(info));
          break;
      }
+     OSSL_STORE_INFO_free(info);
  }
 
  OSSL_STORE_close(ctx);
@@ -77,7 +82,7 @@ L<OSSL_STORE_SEARCH(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

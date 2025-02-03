@@ -19,10 +19,6 @@ namespace message2 {
     // Errors
     // -----------
 
-    void DynamicErrors::setReservedError(UErrorCode& status) {
-        addError(DynamicError(DynamicErrorType::ReservedError), status);
-    }
-
     void DynamicErrors::setFormattingError(const FunctionName& formatterName, UErrorCode& status) {
         addError(DynamicError(DynamicErrorType::FormattingError, formatterName), status);
     }
@@ -121,37 +117,10 @@ namespace message2 {
         if (count() == 0) {
             return;
         }
-        if (staticErrors.syntaxAndDataModelErrors->size() > 0) {
-            switch (staticErrors.first().type) {
-            case StaticErrorType::DuplicateDeclarationError: {
-                status = U_MF_DUPLICATE_DECLARATION_ERROR;
-                break;
-            }
-            case StaticErrorType::DuplicateOptionName: {
-                status = U_MF_DUPLICATE_OPTION_NAME_ERROR;
-                break;
-            }
-            case StaticErrorType::VariantKeyMismatchError: {
-                status = U_MF_VARIANT_KEY_MISMATCH_ERROR;
-                break;
-            }
-            case StaticErrorType::NonexhaustivePattern: {
-                status = U_MF_NONEXHAUSTIVE_PATTERN_ERROR;
-                break;
-            }
-            case StaticErrorType::MissingSelectorAnnotation: {
-                status = U_MF_MISSING_SELECTOR_ANNOTATION_ERROR;
-                break;
-            }
-            case StaticErrorType::SyntaxError: {
-                status = U_MF_SYNTAX_ERROR;
-                break;
-            }
-            case StaticErrorType::UnsupportedStatementError: {
-                status = U_MF_UNSUPPORTED_STATEMENT_ERROR;
-            }
-            }
-        } else {
+        staticErrors.checkErrors(status);
+        if (U_FAILURE(status)) {
+            return;
+        }
             U_ASSERT(resolutionAndFormattingErrors->size() > 0);
             switch (first().type) {
             case DynamicErrorType::UnknownFunction: {
@@ -170,16 +139,11 @@ namespace message2 {
                 status = U_MF_OPERAND_MISMATCH_ERROR;
                 break;
             }
-            case DynamicErrorType::ReservedError: {
-                status = U_MF_UNSUPPORTED_EXPRESSION_ERROR;
-                break;
-            }
             case DynamicErrorType::SelectorError: {
                 status = U_MF_SELECTOR_ERROR;
                 break;
             }
             }
-        }
     }
 
     void StaticErrors::addSyntaxError(UErrorCode& status) {
@@ -189,10 +153,12 @@ namespace message2 {
     void StaticErrors::addError(StaticError&& e, UErrorCode& status) {
         CHECK_ERROR(status);
 
+        StaticErrorType type = e.type;
+
         void* errorP = static_cast<void*>(create<StaticError>(std::move(e), status));
         U_ASSERT(syntaxAndDataModelErrors.isValid());
 
-        switch (e.type) {
+        switch (type) {
         case StaticErrorType::SyntaxError: {
             syntaxError = true;
             break;
@@ -209,16 +175,16 @@ namespace message2 {
             dataModelError = true;
             break;
         }
+        case StaticErrorType::DuplicateVariant: {
+            dataModelError = true;
+            break;
+        }
         case StaticErrorType::NonexhaustivePattern: {
             dataModelError = true;
             break;
         }
         case StaticErrorType::MissingSelectorAnnotation: {
             missingSelectorAnnotationError = true;
-            dataModelError = true;
-            break;
-        }
-        case StaticErrorType::UnsupportedStatementError: {
             dataModelError = true;
             break;
         }
@@ -229,10 +195,12 @@ namespace message2 {
     void DynamicErrors::addError(DynamicError&& e, UErrorCode& status) {
         CHECK_ERROR(status);
 
+        DynamicErrorType type = e.type;
+
         void* errorP = static_cast<void*>(create<DynamicError>(std::move(e), status));
         U_ASSERT(resolutionAndFormattingErrors.isValid());
 
-        switch (e.type) {
+        switch (type) {
         case DynamicErrorType::UnresolvedVariable: {
             unresolvedVariableError = true;
             resolutionAndFormattingErrors->adoptElement(errorP, status);
@@ -248,10 +216,6 @@ namespace message2 {
             resolutionAndFormattingErrors->adoptElement(errorP, status);
             break;
         }
-        case DynamicErrorType::ReservedError: {
-            resolutionAndFormattingErrors->adoptElement(errorP, status);
-            break;
-        }
         case DynamicErrorType::SelectorError: {
             selectorError = true;
             resolutionAndFormattingErrors->adoptElement(errorP, status);
@@ -262,6 +226,44 @@ namespace message2 {
             resolutionAndFormattingErrors->adoptElement(errorP, status);
             break;
         }
+        }
+    }
+
+    void StaticErrors::checkErrors(UErrorCode& status) const {
+        if (U_FAILURE(status)) {
+            return;
+        }
+        if (syntaxAndDataModelErrors->size() > 0) {
+            switch (first().type) {
+            case StaticErrorType::DuplicateDeclarationError: {
+                status = U_MF_DUPLICATE_DECLARATION_ERROR;
+                break;
+            }
+            case StaticErrorType::DuplicateOptionName: {
+                status = U_MF_DUPLICATE_OPTION_NAME_ERROR;
+                break;
+            }
+            case StaticErrorType::VariantKeyMismatchError: {
+                status = U_MF_VARIANT_KEY_MISMATCH_ERROR;
+                break;
+            }
+            case StaticErrorType::DuplicateVariant: {
+                status = U_MF_DUPLICATE_VARIANT_ERROR;
+                break;
+            }
+            case StaticErrorType::NonexhaustivePattern: {
+                status = U_MF_NONEXHAUSTIVE_PATTERN_ERROR;
+                break;
+            }
+            case StaticErrorType::MissingSelectorAnnotation: {
+                status = U_MF_MISSING_SELECTOR_ANNOTATION_ERROR;
+                break;
+            }
+            case StaticErrorType::SyntaxError: {
+                status = U_MF_SYNTAX_ERROR;
+                break;
+            }
+            }
         }
     }
 

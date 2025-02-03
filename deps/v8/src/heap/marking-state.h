@@ -12,8 +12,8 @@
 namespace v8 {
 namespace internal {
 
-class BasicMemoryChunk;
-class MemoryChunk;
+class MemoryChunkMetadata;
+class MutablePageMetadata;
 
 template <typename ConcreteState, AccessMode access_mode>
 class MarkingStateBase {

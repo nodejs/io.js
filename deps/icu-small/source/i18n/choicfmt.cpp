@@ -380,7 +380,7 @@ ChoiceFormat::format(int64_t number,
                      UnicodeString& appendTo, 
                      FieldPosition& status) const
 {
-    return format((double) number, appendTo, status);
+    return format(static_cast<double>(number), appendTo, status);
 }
 
 // -------------------------------------
@@ -392,7 +392,7 @@ ChoiceFormat::format(int32_t number,
                      UnicodeString& appendTo, 
                      FieldPosition& status) const
 {
-    return format((double) number, appendTo, status);
+    return format(static_cast<double>(number), appendTo, status);
 }
 
 // -------------------------------------

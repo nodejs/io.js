@@ -18,7 +18,7 @@ TEST_F(DirectHandlesTest, CreateDirectHandleFromLocal) {
   Local<String> foo = String::NewFromUtf8Literal(isolate(), "foo");
 
   i::DirectHandle<i::String> direct = Utils::OpenDirectHandle(*foo);
-  i::Handle<i::String> handle = Utils::OpenHandle(*foo);
+  i::IndirectHandle<i::String> handle = Utils::OpenIndirectHandle(*foo);
 
   EXPECT_EQ(*direct, *handle);
 }
@@ -29,7 +29,7 @@ TEST_F(DirectHandlesTest, CreateLocalFromDirectHandle) {
       i_isolate()->factory()->NewStringFromAsciiChecked("foo");
   i::DirectHandle<i::String> direct = handle;
 
-  Local<String> l1 = Utils::ToLocal(direct, i_isolate());
+  Local<String> l1 = Utils::ToLocal(direct);
   Local<String> l2 = Utils::ToLocal(handle);
 
   EXPECT_EQ(l1, l2);
@@ -134,11 +134,10 @@ class BackgroundThread final : public v8::base::Thread {
     i::DirectHandle<i::String> direct = isolate.factory()->empty_string();
     // Park and wait, if we must.
     if (park_and_wait_) {
-      // Parking a background thread while holding a direct handle fails.
-      ExpectFailure([&isolate]() {
-        isolate.heap()->BlockWhileParked([]() {
-          // nothing
-        });
+      // Parking a background thread through the trampoline while holding a
+      // direct handle is also allowed.
+      isolate.heap()->ExecuteWhileParked([]() {
+        // nothing
       });
     }
     // Keep the direct handle alive.
@@ -159,7 +158,7 @@ TEST_F(DirectHandlesTest, DirectHandleInBackgroundThread) {
   thread->Join();
 }
 
-TEST_F(DirectHandlesTest, DirectHandleInParkedBackgroundThreadFails) {
+TEST_F(DirectHandlesTest, DirectHandleInParkedBackgroundThread) {
   i::LocalHeap lh(i_isolate()->heap(), i::ThreadKind::kMain);
   lh.SetUpMainThreadForTesting();
   auto thread = std::make_unique<BackgroundThread>(i_isolate(), true);
@@ -222,8 +221,7 @@ TEST_F(DirectHandlesSharedTest, DirectHandleInClientBackgroundThread) {
   thread->ParkedJoin(i_isolate()->main_thread_local_isolate());
 }
 
-TEST_F(DirectHandlesSharedTest,
-       DirectHandleInParkedClientBackgroundThreadFails) {
+TEST_F(DirectHandlesSharedTest, DirectHandleInParkedClientBackgroundThread) {
   auto thread = std::make_unique<ClientMainThread>(true);
   CHECK(thread->Start());
   thread->ParkedJoin(i_isolate()->main_thread_local_isolate());

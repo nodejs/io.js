@@ -51,7 +51,7 @@ _enumPropertyStartsRange(const void *context, UChar32 start, UChar32 end, uint32
     (void)end;
     (void)value;
     /* add the start code point to the USet */
-    const USetAdder *sa=(const USetAdder *)context;
+    const USetAdder* sa = static_cast<const USetAdder*>(context);
     sa->add(sa->set, start);
     return true;
 }
@@ -139,7 +139,7 @@ ubidi_getClass(UChar32 c) {
 U_CFUNC UBool
 ubidi_isMirrored(UChar32 c) {
     uint16_t props=UTRIE2_GET16(&ubidi_props_singleton.trie, c);
-    return (UBool)UBIDI_GET_FLAG(props, UBIDI_IS_MIRRORED_SHIFT);
+    return UBIDI_GET_FLAG(props, UBIDI_IS_MIRRORED_SHIFT);
 }
 
 static UChar32
@@ -183,13 +183,13 @@ ubidi_getMirror(UChar32 c) {
 U_CFUNC UBool
 ubidi_isBidiControl(UChar32 c) {
     uint16_t props=UTRIE2_GET16(&ubidi_props_singleton.trie, c);
-    return (UBool)UBIDI_GET_FLAG(props, UBIDI_BIDI_CONTROL_SHIFT);
+    return UBIDI_GET_FLAG(props, UBIDI_BIDI_CONTROL_SHIFT);
 }
 
 U_CFUNC UBool
 ubidi_isJoinControl(UChar32 c) {
     uint16_t props=UTRIE2_GET16(&ubidi_props_singleton.trie, c);
-    return (UBool)UBIDI_GET_FLAG(props, UBIDI_JOIN_CONTROL_SHIFT);
+    return UBIDI_GET_FLAG(props, UBIDI_JOIN_CONTROL_SHIFT);
 }
 
 U_CFUNC UJoiningType

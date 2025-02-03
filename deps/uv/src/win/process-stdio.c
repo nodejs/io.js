@@ -46,12 +46,12 @@
 #define CHILD_STDIO_CRT_FLAGS(buffer, fd)           \
     *((unsigned char*) (buffer) + sizeof(int) + fd)
 
-#define CHILD_STDIO_HANDLE(buffer, fd)              \
-    *((HANDLE*) ((unsigned char*) (buffer) +        \
-                 sizeof(int) +                      \
-                 sizeof(unsigned char) *            \
-                 CHILD_STDIO_COUNT((buffer)) +      \
-                 sizeof(HANDLE) * (fd)))
+#define CHILD_STDIO_HANDLE(buffer, fd)           \
+    ((void*) ((unsigned char*) (buffer) +        \
+              sizeof(int) +                      \
+              sizeof(unsigned char) *            \
+              CHILD_STDIO_COUNT((buffer)) +      \
+              sizeof(HANDLE) * (fd)))
 
 
 /* CRT file descriptor mode flags */
@@ -194,7 +194,7 @@ int uv__stdio_create(uv_loop_t* loop,
   CHILD_STDIO_COUNT(buffer) = count;
   for (i = 0; i < count; i++) {
     CHILD_STDIO_CRT_FLAGS(buffer, i) = 0;
-    CHILD_STDIO_HANDLE(buffer, i) = INVALID_HANDLE_VALUE;
+    memset(CHILD_STDIO_HANDLE(buffer, i), 0xFF, sizeof(HANDLE));
   }
 
   for (i = 0; i < count; i++) {
@@ -215,14 +215,15 @@ int uv__stdio_create(uv_loop_t* loop,
          * handles in the stdio buffer are initialized with.
          * INVALID_HANDLE_VALUE, which should be okay. */
         if (i <= 2) {
+          HANDLE nul;
           DWORD access = (i == 0) ? FILE_GENERIC_READ :
                                     FILE_GENERIC_WRITE | FILE_READ_ATTRIBUTES;
 
-          err = uv__create_nul_handle(&CHILD_STDIO_HANDLE(buffer, i),
-                                      access);
+          err = uv__create_nul_handle(&nul, access);
           if (err)
             goto error;
 
+		  memcpy(CHILD_STDIO_HANDLE(buffer, i), &nul, sizeof(HANDLE));
           CHILD_STDIO_CRT_FLAGS(buffer, i) = FOPEN | FDEV;
         }
         break;
@@ -247,7 +248,7 @@ int uv__stdio_create(uv_loop_t* loop,
         if (err)
           goto error;
 
-        CHILD_STDIO_HANDLE(buffer, i) = child_pipe;
+		memcpy(CHILD_STDIO_HANDLE(buffer, i), &child_pipe, sizeof(HANDLE));
         CHILD_STDIO_CRT_FLAGS(buffer, i) = FOPEN | FPIPE;
         break;
       }
@@ -263,7 +264,7 @@ int uv__stdio_create(uv_loop_t* loop,
            * error. */
           if (fdopt.data.fd <= 2 && err == ERROR_INVALID_HANDLE) {
             CHILD_STDIO_CRT_FLAGS(buffer, i) = 0;
-            CHILD_STDIO_HANDLE(buffer, i) = INVALID_HANDLE_VALUE;
+            memset(CHILD_STDIO_HANDLE(buffer, i), 0xFF, sizeof(HANDLE));
             break;
           }
           goto error;
@@ -298,7 +299,7 @@ int uv__stdio_create(uv_loop_t* loop,
             return -1;
         }
 
-        CHILD_STDIO_HANDLE(buffer, i) = child_handle;
+		memcpy(CHILD_STDIO_HANDLE(buffer, i), &child_handle, sizeof(HANDLE));
         break;
       }
 
@@ -334,7 +335,7 @@ int uv__stdio_create(uv_loop_t* loop,
         if (err)
           goto error;
 
-        CHILD_STDIO_HANDLE(buffer, i) = child_handle;
+		memcpy(CHILD_STDIO_HANDLE(buffer, i), &child_handle, sizeof(HANDLE));
         CHILD_STDIO_CRT_FLAGS(buffer, i) = crt_flags;
         break;
       }
@@ -359,7 +360,7 @@ void uv__stdio_destroy(BYTE* buffer) {
 
   count = CHILD_STDIO_COUNT(buffer);
   for (i = 0; i < count; i++) {
-    HANDLE handle = CHILD_STDIO_HANDLE(buffer, i);
+    HANDLE handle = uv__stdio_handle(buffer, i);
     if (handle != INVALID_HANDLE_VALUE) {
       CloseHandle(handle);
     }
@@ -374,7 +375,7 @@ void uv__stdio_noinherit(BYTE* buffer) {
 
   count = CHILD_STDIO_COUNT(buffer);
   for (i = 0; i < count; i++) {
-    HANDLE handle = CHILD_STDIO_HANDLE(buffer, i);
+    HANDLE handle = uv__stdio_handle(buffer, i);
     if (handle != INVALID_HANDLE_VALUE) {
       SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0);
     }
@@ -412,5 +413,7 @@ WORD uv__stdio_size(BYTE* buffer) {
 
 
 HANDLE uv__stdio_handle(BYTE* buffer, int fd) {
-  return CHILD_STDIO_HANDLE(buffer, fd);
+  HANDLE handle;
+  memcpy(&handle, CHILD_STDIO_HANDLE(buffer, fd), sizeof(HANDLE));
+  return handle;
 }

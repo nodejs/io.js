@@ -81,8 +81,8 @@ void CreateDataPropertyForOptions(Isolate* isolate, Handle<JSObject> options,
 }  // anonymous namespace
 
 // static
-Handle<JSObject> JSCollator::ResolvedOptions(Isolate* isolate,
-                                             Handle<JSCollator> collator) {
+Handle<JSObject> JSCollator::ResolvedOptions(
+    Isolate* isolate, DirectHandle<JSCollator> collator) {
   Handle<JSObject> options =
       isolate->factory()->NewJSObject(isolate->object_function());
 
@@ -274,7 +274,7 @@ void SetCaseFirstOption(icu::Collator* icu_collator, CaseFirst case_first) {
 }  // anonymous namespace
 
 // static
-MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
+MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, DirectHandle<Map> map,
                                         Handle<Object> locales,
                                         Handle<Object> options_obj,
                                         const char* service) {
@@ -288,8 +288,7 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
   // 2. Set options to ? CoerceOptionsToObject(options).
   Handle<JSReceiver> options;
   ASSIGN_RETURN_ON_EXCEPTION(
-      isolate, options, CoerceOptionsToObject(isolate, options_obj, service),
-      JSCollator);
+      isolate, options, CoerceOptionsToObject(isolate, options_obj, service));
 
   // 4. Let usage be ? GetOption(options, "usage", "string", « "sort",
   // "search" », "sort").
@@ -364,8 +363,7 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
       Intl::ResolveLocale(isolate, JSCollator::GetAvailableLocales(),
                           requested_locales, matcher, relevant_extension_keys);
   if (maybe_resolve_locale.IsNothing()) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                    JSCollator);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
   }
   Intl::ResolvedLocale r = maybe_resolve_locale.FromJust();
 
@@ -429,8 +427,7 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
         icu::Collator::createInstance(no_extension_locale, status));
 
     if (U_FAILURE(status) || icu_collator == nullptr) {
-      THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                      JSCollator);
+      THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
     }
   }
   DCHECK(U_SUCCESS(status));
@@ -540,16 +537,16 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, Handle<Map> map,
     DCHECK(U_SUCCESS(status));
   }
 
-  Handle<Managed<icu::Collator>> managed_collator =
-      Managed<icu::Collator>::FromUniquePtr(isolate, 0,
-                                            std::move(icu_collator));
+  DirectHandle<Managed<icu::Collator>> managed_collator =
+      Managed<icu::Collator>::From(isolate, 0, std::move(icu_collator));
 
   // We only need to do so if it is different from the collator would return.
-  Handle<String> locale_str = isolate->factory()->NewStringFromAsciiChecked(
-      (collator_locale != icu_locale) ? r.locale.c_str() : "");
+  DirectHandle<String> locale_str =
+      isolate->factory()->NewStringFromAsciiChecked(
+          (collator_locale != icu_locale) ? r.locale.c_str() : "");
   // Now all properties are ready, so we can allocate the result object.
-  Handle<JSCollator> collator = Handle<JSCollator>::cast(
-      isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
+  Handle<JSCollator> collator =
+      Cast<JSCollator>(isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
   DisallowGarbageCollection no_gc;
   collator->set_icu_collator(*managed_collator);
   collator->set_locale(*locale_str);

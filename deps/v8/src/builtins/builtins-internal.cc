@@ -15,6 +15,12 @@ BUILTIN(Illegal) {
   UNREACHABLE();
 }
 
+BUILTIN(IllegalInvocationThrower) {
+  HandleScope scope(isolate);
+  THROW_NEW_ERROR_RETURN_FAILURE(
+      isolate, NewTypeError(MessageTemplate::kIllegalInvocation));
+}
+
 BUILTIN(EmptyFunction) { return ReadOnlyRoots(isolate).undefined_value(); }
 
 BUILTIN(UnsupportedThrower) {

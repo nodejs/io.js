@@ -21,11 +21,18 @@
 
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
+const {
+  hasOpenSSL,
+  opensslCli,
+} = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('node compiled without OpenSSL CLI.');
+}
 
 const assert = require('assert');
 const { execFile } = require('child_process');
@@ -42,10 +49,10 @@ const server = tls.Server({
   cert: loadPEM('agent2-cert')
 }, null).listen(0, common.mustCall(() => {
   const args = ['s_client', '-quiet', '-tls1_1',
-                '-cipher', (common.hasOpenSSL31 ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT'),
+                '-cipher', (hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT'),
                 '-connect', `127.0.0.1:${server.address().port}`];
 
-  execFile(common.opensslCli, args, common.mustCall((err, _, stderr) => {
+  execFile(opensslCli, args, common.mustCall((err, _, stderr) => {
     assert.strictEqual(err.code, 1);
     assert.match(stderr, /SSL alert number 70/);
     server.close();

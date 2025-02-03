@@ -15,8 +15,9 @@ extern class ArrayBoilerplateDescription extends Struct {
   constant_elements: FixedArrayBase;
 }
 
+@cppObjectDefinition
 extern class RegExpBoilerplateDescription extends Struct {
-  data: FixedArray;
+  data: TrustedPointer<RegExpData>;
   source: String;
   flags: SmiTagged<JSRegExpFlags>;
 }

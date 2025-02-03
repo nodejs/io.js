@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Cross-realm access of supportedEntryTypes returns Array of another realm</title>
+<link rel="help" href="https://w3c.github.io/performance-timeline/#supportedentrytypes-attribute">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+test(t => {
+  const iframe = document.createElement("iframe");
+  t.add_cleanup(() => { iframe.remove(); });
+  iframe.onload = t.step_func_done(() => {
+    const otherWindow = iframe.contentWindow;
+    assert_true(otherWindow.PerformanceObserver.supportedEntryTypes instanceof otherWindow.Array);
+  });
+  document.body.append(iframe);
+});
+</script>

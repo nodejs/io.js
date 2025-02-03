@@ -1,5 +1,5 @@
 const git = require('@npmcli/git')
-const log = require('proc-log')
+const { log } = require('proc-log')
 
 // returns true if it's cool to do git stuff
 // throws if it's unclean, and not forced.

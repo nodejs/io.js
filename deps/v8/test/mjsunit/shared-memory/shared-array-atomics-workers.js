@@ -8,7 +8,7 @@
 
 if (this.Worker) {
   (function TestSharedArrayPostMessage() {
-    let workerScript = `onmessage = function(arr) {
+    let workerScript = `onmessage = function({data:arr}) {
          // Non-atomic write that will be made visible once main thread
          // observes the atomic write below.
          arr[0][0] = 42;
@@ -55,7 +55,7 @@ if (this.Worker) {
     let sharedtestValues = new SharedArray(testValues.length);
     Object.assign(sharedtestValues, testValues);
 
-    let workerScript = `onmessage = function(e) {
+    let workerScript = `onmessage = function({data:e}) {
       const arr = e[0];
       let i = 0;
       const testValues = e[1];

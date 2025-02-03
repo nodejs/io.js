@@ -178,6 +178,9 @@ operation, normally it is detected by a polling function or an interrupt, as the
 user code set a callback by calling ASYNC_WAIT_CTX_set_callback() previously,
 then the registered callback will be called.
 
+ASYNC_WAIT_CTX_free() frees up a single B<ASYNC_WAIT_CTX> object.
+If the argument is NULL, nothing is done.
+
 =head1 RETURN VALUES
 
 ASYNC_WAIT_CTX_new() returns a pointer to the newly allocated B<ASYNC_WAIT_CTX>
@@ -216,7 +219,7 @@ were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

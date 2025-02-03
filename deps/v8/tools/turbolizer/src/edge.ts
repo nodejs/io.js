@@ -4,12 +4,12 @@
 
 import * as C from "./common/constants";
 import { GraphNode } from "./phases/graph-phase/graph-node";
-import { TurboshaftGraphNode } from "./phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "./phases/turboshaft-graph-phase/turboshaft-graph-operation";
 import { TurboshaftGraphBlock } from "./phases/turboshaft-graph-phase/turboshaft-graph-block";
 import { Graph } from "./graph";
 import { TurboshaftGraph } from "./turboshaft-graph";
 
-export abstract class Edge<NodeType extends GraphNode | TurboshaftGraphNode
+export abstract class Edge<NodeType extends GraphNode | TurboshaftGraphOperation
   | TurboshaftGraphBlock> {
   target: NodeType;
   source: NodeType;
@@ -42,13 +42,13 @@ export abstract class Edge<NodeType extends GraphNode | TurboshaftGraphNode
       : target.x - inputOffset;
   }
 
-  public generatePath(graph: Graph | TurboshaftGraph, extendHeight: boolean): string {
+  public generatePath(graph: Graph | TurboshaftGraph, extendHeight: boolean, compactView: boolean = false): string {
     const target = this.target;
     const source = this.source;
     const inputX = target.x + target.getInputX(this.index);
     const inputY = target.y - 2 * C.DEFAULT_NODE_BUBBLE_RADIUS - C.ARROW_HEAD_HEIGHT;
     const outputX = source.x + source.getOutputX();
-    const outputY = source.y + source.getHeight(extendHeight) + C.DEFAULT_NODE_BUBBLE_RADIUS;
+    const outputY = source.y + source.getHeight(extendHeight, compactView) + C.DEFAULT_NODE_BUBBLE_RADIUS;
     let inputApproach = target.getInputApproach(this.index);
     const outputApproach = source.getOutputApproach(extendHeight);
     const horizontalPos = this.getInputHorizontalPosition(graph, extendHeight);

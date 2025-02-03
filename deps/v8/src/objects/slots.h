@@ -129,6 +129,9 @@ class FullObjectSlot : public SlotBase<FullObjectSlot, Address> {
   inline Tagged<Object> Acquire_Load(PtrComprCageBase cage_base) const;
   inline Tagged<Object> Relaxed_Load() const;
   inline Tagged<Object> Relaxed_Load(PtrComprCageBase cage_base) const;
+  inline Address Relaxed_Load_Raw() const;
+  static inline Tagged<Object> RawToTagged(PtrComprCageBase cage_base,
+                                           Address raw);
   inline void Relaxed_Store(Tagged<Object> value) const;
   inline void Release_Store(Tagged<Object> value) const;
   inline Tagged<Object> Relaxed_CompareAndSwap(Tagged<Object> old,
@@ -138,13 +141,13 @@ class FullObjectSlot : public SlotBase<FullObjectSlot, Address> {
 };
 
 // A FullMaybeObjectSlot instance describes a kSystemPointerSize-sized field
-// ("slot") holding a possibly-weak tagged pointer (think: MaybeObject).
+// ("slot") holding a possibly-weak tagged pointer (think: Tagged<MaybeObject>).
 // Its address() is the address of the slot.
 // The slot's contents can be read and written using operator* and store().
 class FullMaybeObjectSlot
     : public SlotBase<FullMaybeObjectSlot, Address, kSystemPointerSize> {
  public:
-  using TObject = MaybeObject;
+  using TObject = Tagged<MaybeObject>;
   using THeapObjectSlot = FullHeapObjectSlot;
 
   // Tagged value stored in this slot can be a weak pointer.
@@ -154,25 +157,29 @@ class FullMaybeObjectSlot
   explicit FullMaybeObjectSlot(Address ptr) : SlotBase(ptr) {}
   explicit FullMaybeObjectSlot(TaggedBase* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
-  explicit FullMaybeObjectSlot(MaybeObject* ptr)
+  explicit FullMaybeObjectSlot(Tagged<MaybeObject>* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
   template <typename T>
   explicit FullMaybeObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  inline MaybeObject operator*() const;
-  inline MaybeObject load(PtrComprCageBase cage_base) const;
-  inline void store(MaybeObject value) const;
+  inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> load(PtrComprCageBase cage_base) const;
+  inline void store(Tagged<MaybeObject> value) const;
 
-  inline MaybeObject Relaxed_Load() const;
-  inline MaybeObject Relaxed_Load(PtrComprCageBase cage_base) const;
-  inline void Relaxed_Store(MaybeObject value) const;
-  inline void Release_CompareAndSwap(MaybeObject old, MaybeObject target) const;
+  inline Tagged<MaybeObject> Relaxed_Load() const;
+  inline Tagged<MaybeObject> Relaxed_Load(PtrComprCageBase cage_base) const;
+  inline Address Relaxed_Load_Raw() const;
+  static inline Tagged<Object> RawToTagged(PtrComprCageBase cage_base,
+                                           Address raw);
+  inline void Relaxed_Store(Tagged<MaybeObject> value) const;
+  inline void Release_CompareAndSwap(Tagged<MaybeObject> old,
+                                     Tagged<MaybeObject> target) const;
 };
 
 // A FullHeapObjectSlot instance describes a kSystemPointerSize-sized field
 // ("slot") holding a weak or strong pointer to a heap object (think:
-// HeapObjectReference).
+// Tagged<HeapObjectReference>).
 // Its address() is the address of the slot.
 // The slot's contents can be read and written using operator* and store().
 // In case it is known that that slot contains a strong heap object pointer,
@@ -187,9 +194,9 @@ class FullHeapObjectSlot : public SlotBase<FullHeapObjectSlot, Address> {
   explicit FullHeapObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
 
-  inline HeapObjectReference operator*() const;
-  inline HeapObjectReference load(PtrComprCageBase cage_base) const;
-  inline void store(HeapObjectReference value) const;
+  inline Tagged<HeapObjectReference> operator*() const;
+  inline Tagged<HeapObjectReference> load(PtrComprCageBase cage_base) const;
+  inline void store(Tagged<HeapObjectReference> value) const;
 
   inline Tagged<HeapObject> ToHeapObject() const;
 
@@ -299,7 +306,7 @@ class ExternalPointerSlot
  public:
   ExternalPointerSlot()
       : SlotBase(kNullAddress)
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_COMPRESS_POINTERS
         ,
         tag_(kExternalPointerNullTag)
 #endif
@@ -308,7 +315,7 @@ class ExternalPointerSlot
 
   explicit ExternalPointerSlot(Address ptr, ExternalPointerTag tag)
       : SlotBase(ptr)
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_COMPRESS_POINTERS
         ,
         tag_(tag)
 #endif
@@ -318,26 +325,33 @@ class ExternalPointerSlot
   template <ExternalPointerTag tag>
   explicit ExternalPointerSlot(ExternalPointerMember<tag>* member)
       : SlotBase(member->storage_address())
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_COMPRESS_POINTERS
         ,
         tag_(tag)
 #endif
   {
   }
 
-  inline void init(IsolateForSandbox isolate, Address value);
+  inline void init(IsolateForSandbox isolate, Tagged<HeapObject> host,
+                   Address value);
 
-#ifdef V8_ENABLE_SANDBOX
-  // When the external pointer is sandboxed, its slot stores a handle to an
-  // entry in an ExternalPointerTable. These methods allow access to the
-  // underlying handle while the load/store methods below resolve the handle to
-  // the real pointer.
+#ifdef V8_COMPRESS_POINTERS
+  // When the external pointer is sandboxed, or for array buffer extensions when
+  // pointer compression is on, its slot stores a handle to an entry in an
+  // ExternalPointerTable. These methods allow access to the underlying handle
+  // while the load/store methods below resolve the handle to the real pointer.
   // Handles should generally be accessed atomically as they may be accessed
   // from other threads, for example GC marking threads.
+  //
+  // TODO(wingo): Remove if we switch to use the EPT for all external pointers
+  // when pointer compression is enabled.
+  bool HasExternalPointerHandle() const {
+    return V8_ENABLE_SANDBOX_BOOL || tag() == kArrayBufferExtensionTag;
+  }
   inline ExternalPointerHandle Relaxed_LoadHandle() const;
   inline void Relaxed_StoreHandle(ExternalPointerHandle handle) const;
   inline void Release_StoreHandle(ExternalPointerHandle handle) const;
-#endif  // V8_ENABLE_SANDBOX
+#endif  // V8_COMPRESS_POINTERS
 
   inline Address load(IsolateForSandbox isolate);
   inline void store(IsolateForSandbox isolate, Address value);
@@ -361,17 +375,54 @@ class ExternalPointerSlot
   inline uint32_t GetContentAsIndexAfterDeserialization(
       const DisallowGarbageCollection& no_gc);
 
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_COMPRESS_POINTERS
   ExternalPointerTag tag() const { return tag_; }
 #else
   ExternalPointerTag tag() const { return kExternalPointerNullTag; }
-#endif  // V8_ENABLE_SANDBOX
+#endif  // V8_COMPRESS_POINTERS
 
  private:
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_COMPRESS_POINTERS
+  ExternalPointerHandle* handle_location() const {
+    DCHECK(HasExternalPointerHandle());
+    return reinterpret_cast<ExternalPointerHandle*>(address());
+  }
+
   // The tag associated with this slot.
   ExternalPointerTag tag_;
-#endif  // V8_ENABLE_SANDBOX
+#endif  // V8_COMPRESS_POINTERS
+};
+
+// Similar to ExternalPointerSlot with the difference that it refers to an
+// `CppHeapPointer_t` which has different sizing and alignment than
+// `ExternalPointer_t`.
+class CppHeapPointerSlot
+    : public SlotBase<CppHeapPointerSlot, CppHeapPointer_t,
+                      /*SlotDataAlignment=*/sizeof(CppHeapPointer_t)> {
+ public:
+  CppHeapPointerSlot() : SlotBase(kNullAddress) {}
+
+  CppHeapPointerSlot(Address ptr) : SlotBase(ptr) {}
+
+#ifdef V8_COMPRESS_POINTERS
+
+  // When V8 runs with pointer compression, the slots here store a handle to an
+  // entry in a dedicated ExternalPointerTable that is only used for CppHeap
+  // references. These methods allow access to the underlying handle while the
+  // load/store methods below resolve the handle to the real pointer. Handles
+  // should generally be accessed atomically as they may be accessed from other
+  // threads, for example GC marking threads.
+  inline CppHeapPointerHandle Relaxed_LoadHandle() const;
+  inline void Relaxed_StoreHandle(CppHeapPointerHandle handle) const;
+  inline void Release_StoreHandle(CppHeapPointerHandle handle) const;
+
+#endif  // V8_COMPRESS_POINTERS
+
+  inline Address try_load(IsolateForPointerCompression isolate,
+                          CppHeapPointerTagRange tag_range) const;
+  inline void store(IsolateForPointerCompression isolate, Address value,
+                    CppHeapPointerTag tag) const;
+  inline void init() const;
 };
 
 // An IndirectPointerSlot instance describes a 32-bit field ("slot") containing

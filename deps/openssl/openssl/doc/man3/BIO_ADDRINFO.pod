@@ -78,7 +78,7 @@ BIO_ADDRINFO_next() returns the next B<BIO_ADDRINFO> in the chain
 from the given one.
 
 BIO_ADDRINFO_free() frees the chain of B<BIO_ADDRINFO> starting
-with the given one.
+with the given one. If the argument is NULL, nothing is done.
 
 =head1 RETURN VALUES
 
@@ -103,7 +103,7 @@ The BIO_lookup_ex() function was added in OpenSSL 1.1.1.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

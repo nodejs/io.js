@@ -424,7 +424,7 @@ ICUService::getKey(ICUServiceKey& key, UnicodeString* actualReturn, const ICUSer
         return handleDefault(key, actualReturn, status);
     }
 
-    ICUService* ncthis = (ICUService*)this; // cast away semantic const
+    ICUService* ncthis = const_cast<ICUService*>(this); // cast away semantic const
 
     CacheEntry* result = nullptr;
     {
@@ -462,7 +462,7 @@ ICUService::getKey(ICUServiceKey& key, UnicodeString* actualReturn, const ICUSer
 
         if (factory != nullptr) {
             for (int32_t i = 0; i < limit; ++i) {
-                if (factory == (const ICUServiceFactory*)factories->elementAt(i)) {
+                if (factory == static_cast<const ICUServiceFactory*>(factories->elementAt(i))) {
                     startIndex = i + 1;
                     break;
                 }
@@ -478,7 +478,7 @@ ICUService::getKey(ICUServiceKey& key, UnicodeString* actualReturn, const ICUSer
         do {
             currentDescriptor.remove();
             key.currentDescriptor(currentDescriptor);
-            result = (CacheEntry*)serviceCache->get(currentDescriptor);
+            result = static_cast<CacheEntry*>(serviceCache->get(currentDescriptor));
             if (result != nullptr) {
                 break;
             }
@@ -490,7 +490,7 @@ ICUService::getKey(ICUServiceKey& key, UnicodeString* actualReturn, const ICUSer
 
             int32_t index = startIndex;
             while (index < limit) {
-                ICUServiceFactory* f = (ICUServiceFactory*)factories->elementAt(index++);
+                ICUServiceFactory* f = static_cast<ICUServiceFactory*>(factories->elementAt(index++));
                 LocalPointer<UObject> service(f->create(key, this, status));
                 if (U_FAILURE(status)) {
                     return nullptr;
@@ -543,7 +543,7 @@ outerEnd:
 
                 if (cacheDescriptorList.isValid()) {
                     for (int32_t i = cacheDescriptorList->size(); --i >= 0;) {
-                        UnicodeString* desc = (UnicodeString*)cacheDescriptorList->elementAt(i);
+                        UnicodeString* desc = static_cast<UnicodeString*>(cacheDescriptorList->elementAt(i));
 
                         serviceCache->put(*desc, result, status);
                         if (U_FAILURE(status)) {
@@ -558,7 +558,7 @@ outerEnd:
 
             if (actualReturn != nullptr) {
                 // strip null prefix
-                if (result->actualDescriptor.indexOf((char16_t)0x2f) == 0) { // U+002f=slash (/)
+                if (result->actualDescriptor.indexOf(static_cast<char16_t>(0x2f)) == 0) { // U+002f=slash (/)
                     actualReturn->remove();
                     actualReturn->append(result->actualDescriptor, 
                         1, 
@@ -618,7 +618,7 @@ ICUService::getVisibleIDs(UVector& result, const UnicodeString* matchID, UErrorC
                     break;
                 }
 
-                const UnicodeString* id = (const UnicodeString*)e->key.pointer;
+                const UnicodeString* id = static_cast<const UnicodeString*>(e->key.pointer);
                 if (fallbackKey != nullptr) {
                     if (!fallbackKey->isFallbackOf(*id)) {
                         continue;
@@ -644,14 +644,14 @@ ICUService::getVisibleIDMap(UErrorCode& status) const {
 
     // must only be called when lock is already held
 
-    ICUService* ncthis = (ICUService*)this; // cast away semantic const
+    ICUService* ncthis = const_cast<ICUService*>(this); // cast away semantic const
     if (idCache == nullptr) {
         ncthis->idCache = new Hashtable(status);
         if (idCache == nullptr) {
             status = U_MEMORY_ALLOCATION_ERROR;
         } else if (factories != nullptr) {
             for (int32_t pos = factories->size(); --pos >= 0;) {
-                ICUServiceFactory* f = (ICUServiceFactory*)factories->elementAt(pos);
+                ICUServiceFactory* f = static_cast<ICUServiceFactory*>(factories->elementAt(pos));
                 f->updateVisibleIDs(*idCache, status);
             }
             if (U_FAILURE(status)) {
@@ -679,7 +679,7 @@ ICUService::getDisplayName(const UnicodeString& id, UnicodeString& result, const
         Mutex mutex(&lock);
         const Hashtable* map = getVisibleIDMap(status);
         if (map != nullptr) {
-            ICUServiceFactory* f = (ICUServiceFactory*)map->get(id);
+            ICUServiceFactory* f = static_cast<ICUServiceFactory*>(map->get(id));
             if (f != nullptr) {
                 f->getDisplayName(id, locale, result);
                 return result;
@@ -691,7 +691,7 @@ ICUService::getDisplayName(const UnicodeString& id, UnicodeString& result, const
             while (fallbackKey != nullptr && fallbackKey->fallback()) {
                 UnicodeString us;
                 fallbackKey->currentID(us);
-                f = (ICUServiceFactory*)map->get(us);
+                f = static_cast<ICUServiceFactory*>(map->get(us));
                 if (f != nullptr) {
                     f->getDisplayName(id, locale, result);
                     delete fallbackKey;
@@ -727,7 +727,7 @@ ICUService::getDisplayNames(UVector& result,
     result.removeAllElements();
     result.setDeleter(userv_deleteStringPair);
     if (U_SUCCESS(status)) {
-        ICUService* ncthis = (ICUService*)this; // cast away semantic const
+        ICUService* ncthis = const_cast<ICUService*>(this); // cast away semantic const
         Mutex mutex(&lock);
 
         if (dnCache != nullptr && dnCache->locale != locale) {
@@ -749,8 +749,8 @@ ICUService::getDisplayNames(UVector& result,
             int32_t pos = UHASH_FIRST;
             const UHashElement* entry = nullptr;
             while ((entry = m->nextElement(pos)) != nullptr) {
-                const UnicodeString* id = (const UnicodeString*)entry->key.pointer;
-                ICUServiceFactory* f = (ICUServiceFactory*)entry->value.pointer;
+                const UnicodeString* id = static_cast<const UnicodeString*>(entry->key.pointer);
+                ICUServiceFactory* f = static_cast<ICUServiceFactory*>(entry->value.pointer);
                 UnicodeString dname;
                 f->getDisplayName(*id, locale, dname);
                 if (dname.isBogus()) {
@@ -776,11 +776,11 @@ ICUService::getDisplayNames(UVector& result,
     int32_t pos = UHASH_FIRST; 
     const UHashElement *entry = nullptr;
     while ((entry = dnCache->cache.nextElement(pos)) != nullptr) {
-        const UnicodeString* id = (const UnicodeString*)entry->value.pointer;
+        const UnicodeString* id = static_cast<const UnicodeString*>(entry->value.pointer);
         if (matchKey != nullptr && !matchKey->isFallbackOf(*id)) {
             continue;
         }
-        const UnicodeString* dn = (const UnicodeString*)entry->key.pointer;
+        const UnicodeString* dn = static_cast<const UnicodeString*>(entry->key.pointer);
         StringPair* sp = StringPair::create(*id, *dn, status);
         result.adoptElement(sp, status);
         if (U_FAILURE(status)) {

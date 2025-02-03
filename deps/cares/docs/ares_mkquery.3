@@ -14,7 +14,8 @@ int ares_mkquery(const char *\fIname\fP, int \fIdnsclass\fP, int \fItype\fP,
                  int *\fIbuflen\fP)
 .fi
 .SH DESCRIPTION
-Deprecated function. See \fIares_create_query(3)\fP instead!
+This function is deprecated as of c-ares 1.10, please use
+\fIares_dns_record_create(3)\fP instead.
 
 The
 .B ares_mkquery
@@ -73,7 +74,3 @@ Memory was exhausted.
 .BR ares_expand_name (3),
 .BR ares_dns_record (3),
 .BR ares_free_string (3)
-.SH AUTHOR
-Greg Hudson, MIT Information Systems
-.br
-Copyright 1998, 2000 by the Massachusetts Institute of Technology.

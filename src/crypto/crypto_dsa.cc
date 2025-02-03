@@ -12,22 +12,13 @@
 
 #include <cstdio>
 
-// EVP_PKEY_CTX_set_dsa_paramgen_q_bits was added in OpenSSL 1.1.1e.
-#if OPENSSL_VERSION_NUMBER < 0x1010105fL
-#define EVP_PKEY_CTX_set_dsa_paramgen_q_bits(ctx, qbits)                       \
-  EVP_PKEY_CTX_ctrl((ctx),                                                     \
-                    EVP_PKEY_DSA,                                              \
-                    EVP_PKEY_OP_PARAMGEN,                                      \
-                    EVP_PKEY_CTRL_DSA_PARAMGEN_Q_BITS,                         \
-                    (qbits),                                                   \
-                    nullptr)
-#endif
-
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::EVPKeyCtxPointer;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
-using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::Nothing;
@@ -38,33 +29,22 @@ using v8::Value;
 
 namespace crypto {
 EVPKeyCtxPointer DsaKeyGenTraits::Setup(DsaKeyPairGenConfig* params) {
-  EVPKeyCtxPointer param_ctx(EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, nullptr));
-  EVP_PKEY* raw_params = nullptr;
+  auto param_ctx = EVPKeyCtxPointer::NewFromID(EVP_PKEY_DSA);
 
-  if (!param_ctx ||
-      EVP_PKEY_paramgen_init(param_ctx.get()) <= 0 ||
-      EVP_PKEY_CTX_set_dsa_paramgen_bits(
-          param_ctx.get(),
-          params->params.modulus_bits) <= 0) {
-    return EVPKeyCtxPointer();
+  if (!param_ctx.initForParamgen() ||
+      !param_ctx.setDsaParameters(
+          params->params.modulus_bits,
+          params->params.divisor_bits != -1
+              ? std::optional<int>(params->params.divisor_bits)
+              : std::nullopt)) {
+    return {};
   }
 
-  if (params->params.divisor_bits != -1) {
-    if (EVP_PKEY_CTX_set_dsa_paramgen_q_bits(
-            param_ctx.get(), params->params.divisor_bits) <= 0) {
-      return EVPKeyCtxPointer();
-    }
-  }
+  auto key_params = param_ctx.paramgen();
+  if (!key_params) return {};
 
-  if (EVP_PKEY_paramgen(param_ctx.get(), &raw_params) <= 0)
-    return EVPKeyCtxPointer();
-
-  EVPKeyPointer key_params(raw_params);
-  EVPKeyCtxPointer key_ctx(EVP_PKEY_CTX_new(key_params.get(), nullptr));
-
-  if (!key_ctx || EVP_PKEY_keygen_init(key_ctx.get()) <= 0)
-    return EVPKeyCtxPointer();
-
+  EVPKeyCtxPointer key_ctx = key_params.newCtx();
+  if (!key_ctx.initForKeygen()) return {};
   return key_ctx;
 }
 
@@ -78,7 +58,7 @@ EVPKeyCtxPointer DsaKeyGenTraits::Setup(DsaKeyPairGenConfig* params) {
 //   7. Private Type
 //   8. Cipher
 //   9. Passphrase
-Maybe<bool> DsaKeyGenTraits::AdditionalConfig(
+Maybe<void> DsaKeyGenTraits::AdditionalConfig(
     CryptoJobMode mode,
     const FunctionCallbackInfo<Value>& args,
     unsigned int* offset,
@@ -92,50 +72,49 @@ Maybe<bool> DsaKeyGenTraits::AdditionalConfig(
 
   *offset += 2;
 
-  return Just(true);
+  return JustVoid();
 }
 
-Maybe<bool> DSAKeyExportTraits::AdditionalConfig(
+Maybe<void> DSAKeyExportTraits::AdditionalConfig(
     const FunctionCallbackInfo<Value>& args,
     unsigned int offset,
     DSAKeyExportConfig* params) {
-  return Just(true);
+  return JustVoid();
 }
 
 WebCryptoKeyExportStatus DSAKeyExportTraits::DoExport(
-    std::shared_ptr<KeyObjectData> key_data,
+    const KeyObjectData& key_data,
     WebCryptoKeyFormat format,
     const DSAKeyExportConfig& params,
     ByteSource* out) {
-  CHECK_NE(key_data->GetKeyType(), kKeyTypeSecret);
+  CHECK_NE(key_data.GetKeyType(), kKeyTypeSecret);
 
   switch (format) {
     case kWebCryptoKeyFormatRaw:
       // Not supported for RSA keys of either type
       return WebCryptoKeyExportStatus::FAILED;
     case kWebCryptoKeyFormatPKCS8:
-      if (key_data->GetKeyType() != kKeyTypePrivate)
+      if (key_data.GetKeyType() != kKeyTypePrivate)
         return WebCryptoKeyExportStatus::INVALID_KEY_TYPE;
-      return PKEY_PKCS8_Export(key_data.get(), out);
+      return PKEY_PKCS8_Export(key_data, out);
     case kWebCryptoKeyFormatSPKI:
-      if (key_data->GetKeyType() != kKeyTypePublic)
+      if (key_data.GetKeyType() != kKeyTypePublic)
         return WebCryptoKeyExportStatus::INVALID_KEY_TYPE;
-      return PKEY_SPKI_Export(key_data.get(), out);
+      return PKEY_SPKI_Export(key_data, out);
     default:
       UNREACHABLE();
   }
 }
 
-Maybe<bool> GetDsaKeyDetail(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    Local<Object> target) {
+Maybe<void> GetDsaKeyDetail(Environment* env,
+                            const KeyObjectData& key,
+                            Local<Object> target) {
   const BIGNUM* p;  // Modulus length
   const BIGNUM* q;  // Divisor length
 
-  ManagedEVPPKey m_pkey = key->GetAsymmetricKey();
-  Mutex::ScopedLock lock(*m_pkey.mutex());
-  int type = EVP_PKEY_id(m_pkey.get());
+  Mutex::ScopedLock lock(key.mutex());
+  const auto& m_pkey = key.GetAsymmetricKey();
+  int type = m_pkey.id();
   CHECK(type == EVP_PKEY_DSA);
 
   const DSA* dsa = EVP_PKEY_get0_DSA(m_pkey.get());
@@ -143,8 +122,8 @@ Maybe<bool> GetDsaKeyDetail(
 
   DSA_get0_pqg(dsa, &p, &q, nullptr);
 
-  size_t modulus_length = BN_num_bits(p);
-  size_t divisor_length = BN_num_bits(q);
+  size_t modulus_length = BignumPointer::GetBitCount(p);
+  size_t divisor_length = BignumPointer::GetBitCount(q);
 
   if (target
           ->Set(
@@ -158,10 +137,10 @@ Maybe<bool> GetDsaKeyDetail(
               env->divisor_length_string(),
               Number::New(env->isolate(), static_cast<double>(divisor_length)))
           .IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
 namespace DSAAlg {

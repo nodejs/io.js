@@ -5,6 +5,7 @@
 #include "third_party/zlib/google/zip_reader.h"
 
 #include <algorithm>
+#include <string_view>
 #include <utility>
 
 #include "base/check.h"
@@ -15,7 +16,6 @@
 #include "base/logging.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
@@ -267,7 +267,7 @@ bool ZipReader::OpenEntry() {
   return true;
 }
 
-void ZipReader::Normalize(base::StringPiece16 in) {
+void ZipReader::Normalize(std::u16string_view in) {
   entry_.is_unsafe = true;
 
   // Directory entries in ZIP have a path ending with "/".
@@ -281,15 +281,16 @@ void ZipReader::Normalize(base::StringPiece16 in) {
 
   for (;;) {
     // Consume initial path separators.
-    const base::StringPiece16::size_type i = in.find_first_not_of(u'/');
-    if (i == base::StringPiece16::npos)
+    const std::u16string_view::size_type i = in.find_first_not_of(u'/');
+    if (i == std::u16string_view::npos) {
       break;
+    }
 
     in.remove_prefix(i);
     DCHECK(!in.empty());
 
     // Isolate next path component.
-    const base::StringPiece16 part = in.substr(0, in.find_first_of(u'/'));
+    const std::u16string_view part = in.substr(0, in.find_first_of(u'/'));
     DCHECK(!part.empty());
 
     in.remove_prefix(part.size());

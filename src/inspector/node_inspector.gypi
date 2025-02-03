@@ -1,6 +1,7 @@
 {
   'variables': {
-    'protocol_tool_path': '../../tools/inspector_protocol',
+    'protocol_tool_path': '../../deps/inspector_protocol',
+    'jinja_dir': '../../tools/inspector_protocol',
     'node_inspector_sources': [
       'src/inspector_agent.cc',
       'src/inspector_io.cc',
@@ -15,6 +16,8 @@
       'src/inspector_socket_server.h',
       'src/inspector/main_thread_interface.cc',
       'src/inspector/main_thread_interface.h',
+      'src/inspector/node_json.cc',
+      'src/inspector/node_json.h',
       'src/inspector/node_string.cc',
       'src/inspector/node_string.h',
       'src/inspector/runtime_agent.cc',
@@ -23,6 +26,10 @@
       'src/inspector/tracing_agent.h',
       'src/inspector/worker_agent.cc',
       'src/inspector/worker_agent.h',
+      'src/inspector/network_inspector.cc',
+      'src/inspector/network_inspector.h',
+      'src/inspector/network_agent.cc',
+      'src/inspector/network_agent.h',
       'src/inspector/worker_inspector.cc',
       'src/inspector/worker_inspector.h',
     ],
@@ -36,25 +43,15 @@
       '<(SHARED_INTERMEDIATE_DIR)/src/node/inspector/protocol/NodeTracing.h',
       '<(SHARED_INTERMEDIATE_DIR)/src/node/inspector/protocol/NodeRuntime.cpp',
       '<(SHARED_INTERMEDIATE_DIR)/src/node/inspector/protocol/NodeRuntime.h',
+      '<(SHARED_INTERMEDIATE_DIR)/src/node/inspector/protocol/Network.cpp',
+      '<(SHARED_INTERMEDIATE_DIR)/src/node/inspector/protocol/Network.h',
     ],
     'node_protocol_files': [
-      '<(protocol_tool_path)/lib/Allocator_h.template',
-      '<(protocol_tool_path)/lib/base_string_adapter_cc.template',
-      '<(protocol_tool_path)/lib/base_string_adapter_h.template',
-      '<(protocol_tool_path)/lib/DispatcherBase_cpp.template',
-      '<(protocol_tool_path)/lib/DispatcherBase_h.template',
-      '<(protocol_tool_path)/lib/encoding_cpp.template',
-      '<(protocol_tool_path)/lib/encoding_h.template',
-      '<(protocol_tool_path)/lib/ErrorSupport_cpp.template',
-      '<(protocol_tool_path)/lib/ErrorSupport_h.template',
       '<(protocol_tool_path)/lib/Forward_h.template',
-      '<(protocol_tool_path)/lib/FrontendChannel_h.template',
-      '<(protocol_tool_path)/lib/Maybe_h.template',
       '<(protocol_tool_path)/lib/Object_cpp.template',
       '<(protocol_tool_path)/lib/Object_h.template',
-      '<(protocol_tool_path)/lib/Parser_cpp.template',
-      '<(protocol_tool_path)/lib/Parser_h.template',
       '<(protocol_tool_path)/lib/Protocol_cpp.template',
+      '<(protocol_tool_path)/lib/ValueConversions_cpp.template',
       '<(protocol_tool_path)/lib/ValueConversions_h.template',
       '<(protocol_tool_path)/lib/Values_cpp.template',
       '<(protocol_tool_path)/lib/Values_h.template',
@@ -75,6 +72,9 @@
     '<(SHARED_INTERMEDIATE_DIR)',
     '<(SHARED_INTERMEDIATE_DIR)/src', # for inspector
   ],
+  'dependencies': [
+    '<(protocol_tool_path)/inspector_protocol.gyp:crdtp',
+  ],
   'actions': [
     {
       'action_name': 'convert_node_protocol_to_json',
@@ -86,7 +86,7 @@
       ],
       'action': [
         '<(python)',
-        'tools/inspector_protocol/convert_protocol_to_json.py',
+        '<(protocol_tool_path)/convert_protocol_to_json.py',
         '<@(_inputs)',
         '<@(_outputs)',
       ],
@@ -105,8 +105,9 @@
       'process_outputs_as_sources': 1,
       'action': [
         '<(python)',
-        'tools/inspector_protocol/code_generator.py',
-        '--jinja_dir', '<@(protocol_tool_path)',
+        '<(protocol_tool_path)/code_generator.py',
+        '--inspector_protocol_dir', '<(protocol_tool_path)',
+        '--jinja_dir', '<(jinja_dir)',
         '--output_base', '<(SHARED_INTERMEDIATE_DIR)/src/',
         '--config', 'src/inspector/node_protocol_config.json',
       ],
@@ -123,7 +124,7 @@
       ],
       'action': [
         '<(python)',
-        'tools/inspector_protocol/concatenate_protocols.py',
+        '<(protocol_tool_path)/concatenate_protocols.py',
         '<@(_inputs)',
         '<@(_outputs)',
       ],

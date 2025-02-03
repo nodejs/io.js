@@ -1,76 +1,87 @@
-// Flags: --expose-internals
+// Flags: --expose-internals --no-warnings
 'use strict';
 
-const common = require('../common');
-if (!common.hasQuic)
-  common.skip('missing quic');
-
-const { internalBinding } = require('internal/test/binding');
-const {
-  ok,
-  strictEqual,
-  deepStrictEqual,
-} = require('node:assert');
+const { hasQuic } = require('../common');
 
 const {
-  SocketAddress: _SocketAddress,
-  AF_INET,
-} = internalBinding('block_list');
-const quic = internalBinding('quic');
+  describe,
+  it,
+} = require('node:test');
 
-quic.setCallbacks({
-  onEndpointClose: common.mustCall((...args) => {
-    deepStrictEqual(args, [0, 0]);
-  }),
+describe('quic internal endpoint listen defaults', { skip: !hasQuic }, async () => {
+  const {
+    ok,
+    rejects,
+    strictEqual,
+    throws,
+  } = require('node:assert');
 
-  // The following are unused in this test
-  onSessionNew() {},
-  onSessionClose() {},
-  onSessionDatagram() {},
-  onSessionDatagramStatus() {},
-  onSessionHandshake() {},
-  onSessionPathValidation() {},
-  onSessionTicket() {},
-  onSessionVersionNegotiation() {},
-  onStreamCreated() {},
-  onStreamBlocked() {},
-  onStreamClose() {},
-  onStreamReset() {},
-  onStreamHeaders() {},
-  onStreamTrailers() {},
+  const {
+    kState,
+  } = require('internal/quic/symbols');
+
+  const { createPrivateKey } = require('node:crypto');
+  const fixtures = require('../common/fixtures');
+  const keys = createPrivateKey(fixtures.readKey('agent1-key.pem'));
+  const certs = fixtures.readKey('agent1-cert.pem');
+
+  const {
+    SocketAddress,
+  } = require('net');
+
+  const {
+    QuicEndpoint,
+    listen,
+  } = require('internal/quic/quic');
+
+  it('are reasonable and work as expected', async () => {
+    const endpoint = new QuicEndpoint();
+
+    ok(!endpoint[kState].isBound);
+    ok(!endpoint[kState].isReceiving);
+    ok(!endpoint[kState].isListening);
+
+    strictEqual(endpoint.address, undefined);
+
+    await rejects(listen(123, { keys, certs, endpoint }), {
+      code: 'ERR_INVALID_ARG_TYPE',
+    });
+
+    await rejects(listen(() => {}, 123), {
+      code: 'ERR_INVALID_ARG_TYPE',
+    });
+
+    await listen(() => {}, { keys, certs, endpoint });
+    await rejects(listen(() => {}, { keys, certs, endpoint }), {
+      code: 'ERR_INVALID_STATE',
+    });
+
+    ok(endpoint[kState].isBound);
+    ok(endpoint[kState].isReceiving);
+    ok(endpoint[kState].isListening);
+
+    const address = endpoint.address;
+    ok(address instanceof SocketAddress);
+
+    strictEqual(address.address, '127.0.0.1');
+    strictEqual(address.family, 'ipv4');
+    strictEqual(address.flowlabel, 0);
+    ok(address.port !== 0);
+
+    ok(!endpoint.destroyed);
+    endpoint.destroy();
+    strictEqual(endpoint.closed, endpoint.close());
+    await endpoint.closed;
+    ok(endpoint.destroyed);
+
+    await rejects(listen(() => {}, { keys, certs, endpoint }), {
+      code: 'ERR_INVALID_STATE',
+    });
+    throws(() => { endpoint.busy = true; }, {
+      code: 'ERR_INVALID_STATE',
+    });
+    await endpoint[Symbol.asyncDispose]();
+
+    strictEqual(endpoint.address, undefined);
+  });
 });
-
-const endpoint = new quic.Endpoint({});
-
-const state = new DataView(endpoint.state);
-ok(!state.getUint8(quic.IDX_STATE_ENDPOINT_LISTENING));
-ok(!state.getUint8(quic.IDX_STATE_ENDPOINT_RECEIVING));
-ok(!state.getUint8(quic.IDX_STATE_ENDPOINT_BOUND));
-strictEqual(endpoint.address(), undefined);
-
-endpoint.listen({});
-
-ok(state.getUint8(quic.IDX_STATE_ENDPOINT_LISTENING));
-ok(state.getUint8(quic.IDX_STATE_ENDPOINT_RECEIVING));
-ok(state.getUint8(quic.IDX_STATE_ENDPOINT_BOUND));
-const address = endpoint.address();
-ok(address instanceof _SocketAddress);
-
-const detail = address.detail({
-  address: undefined,
-  port: undefined,
-  family: undefined,
-  flowlabel: undefined,
-});
-
-strictEqual(detail.address, '127.0.0.1');
-strictEqual(detail.family, AF_INET);
-strictEqual(detail.flowlabel, 0);
-ok(detail.port !== 0);
-
-endpoint.closeGracefully();
-
-ok(!state.getUint8(quic.IDX_STATE_ENDPOINT_LISTENING));
-ok(!state.getUint8(quic.IDX_STATE_ENDPOINT_RECEIVING));
-ok(!state.getUint8(quic.IDX_STATE_ENDPOINT_BOUND));
-strictEqual(endpoint.address(), undefined);

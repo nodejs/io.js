@@ -5,7 +5,7 @@
 import { GenericPosition, SourceResolver } from "../source-resolver";
 import { GraphNode } from "../phases/graph-phase/graph-node";
 import { BytecodePosition } from "../position";
-import { TurboshaftGraphNode } from "../phases/turboshaft-graph-phase/turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "../phases/turboshaft-graph-phase/turboshaft-graph-operation";
 import {
   ClearableHandler,
   SourcePositionSelectionHandler,
@@ -91,7 +91,7 @@ export class SelectionBroker {
     this.registerAllocationHandlers.push(handler);
   }
 
-  public broadcastHistoryShow(from, node: GraphNode | TurboshaftGraphNode, phaseName: string):
+  public broadcastHistoryShow(from, node: GraphNode | TurboshaftGraphOperation, phaseName: string):
     void {
     for (const handler of this.historyHandlers) {
       if (handler != from) handler.showNodeHistory(node, phaseName);

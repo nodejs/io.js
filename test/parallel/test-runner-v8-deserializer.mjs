@@ -26,7 +26,10 @@ describe('v8 deserializer', () => {
   let reported;
   beforeEach(() => {
     reported = [];
-    fileTest = new runner.FileTest({ name: 'filetest' });
+    fileTest = new runner.FileTest({
+      name: 'filetest',
+      harness: { config: {} },
+    });
     fileTest.reporter.on('data', (data) => reported.push(data));
     assert(fileTest.isClearToSend());
   });

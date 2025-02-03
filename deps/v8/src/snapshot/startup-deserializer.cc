@@ -36,6 +36,8 @@ void StartupDeserializer::DeserializeIntoIsolate() {
   DCHECK(!isolate()->builtins()->is_initialized());
 
   {
+    DeserializeAndCheckExternalReferenceTable();
+
     isolate()->heap()->IterateSmiRoots(this);
     isolate()->heap()->IterateRoots(
         this,
@@ -46,10 +48,10 @@ void StartupDeserializer::DeserializeIntoIsolate() {
     isolate()->heap()->IterateWeakRoots(
         this, base::EnumSet<SkipRoot>{SkipRoot::kUnserializable});
     DeserializeDeferredObjects();
-    for (Handle<AccessorInfo> info : accessor_infos()) {
+    for (DirectHandle<AccessorInfo> info : accessor_infos()) {
       RestoreExternalReferenceRedirector(isolate(), *info);
     }
-    for (Handle<CallHandlerInfo> info : call_handler_infos()) {
+    for (DirectHandle<FunctionTemplateInfo> info : function_template_infos()) {
       RestoreExternalReferenceRedirector(isolate(), *info);
     }
 
@@ -90,6 +92,18 @@ void StartupDeserializer::DeserializeIntoIsolate() {
   }
 }
 
+void StartupDeserializer::DeserializeAndCheckExternalReferenceTable() {
+  // Verify that any external reference entries that were deduplicated in the
+  // serializer are also deduplicated in this isolate.
+  ExternalReferenceTable* table = isolate()->external_reference_table();
+  while (true) {
+    uint32_t index = source()->GetUint30();
+    if (index == ExternalReferenceTable::kSizeIsolateIndependent) break;
+    uint32_t encoded_index = source()->GetUint30();
+    CHECK_EQ(table->address(index), table->address(encoded_index));
+  }
+}
+
 void StartupDeserializer::LogNewMapEvents() {
   if (v8_flags.log_maps) LOG(isolate(), LogAllMaps());
 }
@@ -97,7 +111,7 @@ void StartupDeserializer::LogNewMapEvents() {
 void StartupDeserializer::FlushICache() {
   DCHECK(!deserializing_user_code());
   // The entire isolate is newly deserialized. Simply flush all code pages.
-  for (Page* p : *isolate()->heap()->code_space()) {
+  for (PageMetadata* p : *isolate()->heap()->code_space()) {
     FlushInstructionCache(p->area_start(), p->area_end() - p->area_start());
   }
 }

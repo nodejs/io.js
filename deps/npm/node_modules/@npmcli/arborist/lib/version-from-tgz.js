@@ -1,6 +1,6 @@
 const semver = require('semver')
-const { basename } = require('path')
-const { URL } = require('url')
+const { basename } = require('node:path')
+const { URL } = require('node:url')
 module.exports = (name, tgz) => {
   const base = basename(tgz)
   if (!base.endsWith('.tgz')) {

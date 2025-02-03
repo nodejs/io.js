@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2011-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -203,6 +203,11 @@ static size_t get_entropy(PROV_DRBG *drbg, unsigned char **pout, int entropy,
         return ossl_crngt_get_entropy(drbg, pout, entropy, min_len, max_len,
                                       prediction_resistance);
 #else
+        /*
+         * In normal use (i.e. OpenSSL's own uses), this is never called.
+         * Outside of the FIPS provider, OpenSSL sets its DRBGs up so that
+         * they always have a parent.  This remains purely for legacy reasons.
+         */
         return ossl_prov_get_entropy(drbg->provctx, pout, entropy, min_len,
                                      max_len);
 #endif
@@ -765,6 +770,7 @@ int ossl_drbg_enable_locking(void *vctx)
 PROV_DRBG *ossl_rand_drbg_new
     (void *provctx, void *parent, const OSSL_DISPATCH *p_dispatch,
      int (*dnew)(PROV_DRBG *ctx),
+     void (*dfree)(void *vctx),
      int (*instantiate)(PROV_DRBG *drbg,
                         const unsigned char *entropy, size_t entropylen,
                         const unsigned char *nonce, size_t noncelen,
@@ -844,7 +850,7 @@ PROV_DRBG *ossl_rand_drbg_new
     return drbg;
 
  err:
-    ossl_rand_drbg_free(drbg);
+    dfree(drbg);
     return NULL;
 }
 

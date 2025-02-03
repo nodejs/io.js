@@ -7,14 +7,14 @@
 #include <crypto/crypto_context.h>
 #include <crypto/crypto_keys.h>
 #include <memory_tracker.h>
+#include <ncrypto.h>
 #include <ngtcp2/ngtcp2_crypto.h>
 #include "bindingdata.h"
 #include "data.h"
 #include "defs.h"
 #include "sessionticket.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 class Session;
 class TLSContext;
@@ -29,12 +29,13 @@ class TLSSession final : public MemoryRetainer {
  public:
   static const TLSSession& From(const SSL* ssl);
 
-  // The constructor is public in order to satisify the call to std::make_unique
+  // The constructor is public in order to satisfy the call to std::make_unique
   // in TLSContext::NewSession. It should not be called directly.
   TLSSession(Session* session,
              std::shared_ptr<TLSContext> context,
              const std::optional<SessionTicket>& maybeSessionTicket);
   DISALLOW_COPY_AND_MOVE(TLSSession)
+  ~TLSSession();
 
   inline operator bool() const { return ssl_ != nullptr; }
   inline Session& session() const { return *session_; }
@@ -55,7 +56,7 @@ class TLSSession final : public MemoryRetainer {
   const std::string_view servername() const;
 
   // The ALPN (protocol name) negotiated for the session
-  const std::string_view alpn() const;
+  const std::string_view protocol() const;
 
   // Triggers key update to begin. This will fail and return false if either a
   // previous key update is in progress or if the initial handshake has not yet
@@ -84,7 +85,7 @@ class TLSSession final : public MemoryRetainer {
 
  private:
   operator SSL*() const;
-  crypto::SSLPointer Initialize(
+  ncrypto::SSLPointer Initialize(
       const std::optional<SessionTicket>& maybeSessionTicket);
 
   static ngtcp2_conn* connection(ngtcp2_crypto_conn_ref* ref);
@@ -92,8 +93,8 @@ class TLSSession final : public MemoryRetainer {
   ngtcp2_crypto_conn_ref ref_;
   std::shared_ptr<TLSContext> context_;
   Session* session_;
-  crypto::SSLPointer ssl_;
-  crypto::BIOPointer bio_trace_;
+  ncrypto::SSLPointer ssl_;
+  ncrypto::BIOPointer bio_trace_;
   std::string validation_error_ = "";
   bool in_key_update_ = false;
 };
@@ -114,11 +115,11 @@ class TLSContext final : public MemoryRetainer,
   struct Options final : public MemoryRetainer {
     // The SNI servername to use for this session. This option is only used by
     // the client.
-    std::string sni = "localhost";
+    std::string servername = "localhost";
 
     // The ALPN (protocol name) to use for this session. This option is only
     // used by the client.
-    std::string alpn = NGHTTP3_ALPN_H3;
+    std::string protocol = NGHTTP3_ALPN_H3;
 
     // The list of TLS ciphers to use for this session.
     std::string ciphers = DEFAULT_CIPHERS;
@@ -147,7 +148,7 @@ class TLSContext final : public MemoryRetainer,
 
     // The TLS private key(s) to use for this session.
     // JavaScript option name "keys"
-    std::vector<std::shared_ptr<crypto::KeyObjectData>> keys;
+    std::vector<crypto::KeyObjectData> keys;
 
     // Collection of certificates to use for this session.
     // JavaScript option name "certs"
@@ -198,7 +199,7 @@ class TLSContext final : public MemoryRetainer,
   SET_SELF_SIZE(TLSContext)
 
  private:
-  crypto::SSLCtxPointer Initialize();
+  ncrypto::SSLCtxPointer Initialize();
   operator SSL_CTX*() const;
 
   static void OnKeylog(const SSL* ssl, const char* line);
@@ -213,16 +214,15 @@ class TLSContext final : public MemoryRetainer,
 
   Side side_;
   Options options_;
-  crypto::X509Pointer cert_;
-  crypto::X509Pointer issuer_;
-  crypto::SSLCtxPointer ctx_;
+  ncrypto::X509Pointer cert_;
+  ncrypto::X509Pointer issuer_;
+  ncrypto::SSLCtxPointer ctx_;
   std::string validation_error_ = "";
 
   friend class TLSSession;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

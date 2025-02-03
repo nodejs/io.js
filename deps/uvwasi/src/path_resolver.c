@@ -269,7 +269,7 @@ static uvwasi_errno_t uvwasi__normalize_relative_path(
      normalized. */
   uvwasi_errno_t err;
   char* combined;
-  char* normalized;
+  char* normalized = NULL;
   uvwasi_size_t combined_len;
   uvwasi_size_t fd_path_len;
   uvwasi_size_t norm_len;

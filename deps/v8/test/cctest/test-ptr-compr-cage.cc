@@ -68,8 +68,8 @@ UNINITIALIZED_TEST(SharedPtrComprCage) {
     HandleScope scope1(i_isolate1);
     HandleScope scope2(i_isolate2);
 
-    Handle<FixedArray> isolate1_object = factory1->NewFixedArray(100);
-    Handle<FixedArray> isolate2_object = factory2->NewFixedArray(100);
+    DirectHandle<FixedArray> isolate1_object = factory1->NewFixedArray(100);
+    DirectHandle<FixedArray> isolate2_object = factory2->NewFixedArray(100);
 
     CHECK_EQ(GetPtrComprCageBase(*isolate1_object),
              GetPtrComprCageBase(*isolate2_object));

@@ -51,7 +51,7 @@ double ClockMath::floorDivide(double numerator, int32_t denominator,
       // expression `(int32_t) (x + n)` evaluated with rounding to nearest
       // differs from ⌊x+n⌋ if 0 < ⌈x⌉−x ≪ x+n, as `x + n` is rounded up to
       // n+⌈x⌉ = ⌊x+n⌋ + 1.  Rewriting it as ⌊x⌋+n makes the addition exact.
-      *remainder = (int32_t) (uprv_floor(numerator) - (quotient * denominator));
+      *remainder = static_cast<int32_t>(uprv_floor(numerator) - (quotient * denominator));
     }
     return quotient;
 }
@@ -118,10 +118,14 @@ int64_t Grego::fieldsToDay(int32_t year, int32_t month, int32_t dom) {
 }
 
 void Grego::dayToFields(int32_t day, int32_t& year, int32_t& month,
-                        int32_t& dom, int32_t& dow, int32_t& doy) {
+                        int32_t& dom, int32_t& dow, int32_t& doy, UErrorCode& status) {
 
+    if (U_FAILURE(status)) return;
     // Convert from 1970 CE epoch to 1 CE epoch (Gregorian calendar)
-    day += JULIAN_1970_CE - JULIAN_1_CE;
+    if (uprv_add32_overflow(day, JULIAN_1970_CE - JULIAN_1_CE, &day)) {
+        status = U_ILLEGAL_ARGUMENT_ERROR;
+        return;
+    }
 
     // Convert from the day number to the multiple radix
     // representation.  We use 400-year, 100-year, and 4-year cycles.
@@ -156,11 +160,12 @@ void Grego::dayToFields(int32_t day, int32_t& year, int32_t& month,
 }
 
 void Grego::timeToFields(UDate time, int32_t& year, int32_t& month,
-                        int32_t& dom, int32_t& dow, int32_t& doy, int32_t& mid) {
+                        int32_t& dom, int32_t& dow, int32_t& doy, int32_t& mid, UErrorCode& status) {
+    if (U_FAILURE(status)) return;
     double millisInDay;
-    double day = ClockMath::floorDivide((double)time, (double)U_MILLIS_PER_DAY, &millisInDay);
-    mid = (int32_t)millisInDay;
-    dayToFields(day, year, month, dom, dow, doy);
+    double day = ClockMath::floorDivide(static_cast<double>(time), static_cast<double>(U_MILLIS_PER_DAY), &millisInDay);
+    mid = static_cast<int32_t>(millisInDay);
+    dayToFields(day, year, month, dom, dow, doy, status);
 }
 
 int32_t Grego::dayOfWeek(int32_t day) {

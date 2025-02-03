@@ -53,6 +53,22 @@ function readFloat64(offset, little_endian) {
   return dataview.getFloat64(offset, little_endian);
 }
 
+function readBigInt64Handled(offset, little_endian) {
+  try {
+    return dataview.getBigInt64(offset, little_endian);
+  } catch (e) {
+    return e;
+  }
+}
+
+function readBigUint64Handled(offset, little_endian) {
+  try {
+    return dataview.getBigUint64(offset, little_endian);
+  } catch(e) {
+    return e;
+  }
+}
+
 function warmup(f) {
   %PrepareFunctionForOptimization(f);
   f(0);
@@ -131,6 +147,24 @@ assertOptimized(readFloat64);
 assertEquals(b4, readFloat64(16));
 dataview.setFloat64(16, b4, true);
 assertEquals(b4, readFloat64(16, true));
+
+// TurboFan valid getBigInt64.
+let b5 = -0x12345678912345n;
+dataview.setBigInt64(16, b5);
+warmup(readBigInt64Handled);
+assertOptimized(readBigInt64Handled);
+assertEquals(b5, readBigInt64Handled(16));
+dataview.setBigInt64(16, b5, true);
+assertEquals(b5, readBigInt64Handled(16, true));
+
+// TurboFan valid getBigUint64.
+let b6 = 0x12345678912345n;
+dataview.setBigUint64(16, b6);
+warmup(readBigUint64Handled);
+assertOptimized(readBigUint64Handled);
+assertEquals(b6, readBigUint64Handled(16));
+dataview.setBigUint64(16, b6, true);
+assertEquals(b6, readBigUint64Handled(16, true));
 
 // TurboFan out of bounds reads deopt.
 assertOptimized(readInt8Handled);

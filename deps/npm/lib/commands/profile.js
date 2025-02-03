@@ -1,13 +1,11 @@
-const inspect = require('util').inspect
-const { URL } = require('url')
-const log = require('../utils/log-shim.js')
-const npmProfile = require('npm-profile')
+const { inspect } = require('node:util')
+const { URL } = require('node:url')
+const { log, output } = require('proc-log')
+const { get, set, createToken } = require('npm-profile')
 const qrcodeTerminal = require('qrcode-terminal')
-const Table = require('cli-table3')
-
-const otplease = require('../utils/otplease.js')
-const pulseTillDone = require('../utils/pulse-till-done.js')
+const { otplease } = require('../utils/auth.js')
 const readUserInfo = require('../utils/read-user-info.js')
+const BaseCommand = require('../base-cmd.js')
 
 const qrcode = url =>
   new Promise((resolve) => qrcodeTerminal.generate(url, resolve))
@@ -35,7 +33,6 @@ const writableProfileKeys = [
   'github',
 ]
 
-const BaseCommand = require('../base-command.js')
 class Profile extends BaseCommand {
   static description = 'Change settings on your registry profile'
   static name = 'profile'
@@ -80,8 +77,6 @@ class Profile extends BaseCommand {
       throw this.usageError()
     }
 
-    log.gauge.show('profile')
-
     const [subcmd, ...opts] = args
 
     switch (subcmd) {
@@ -106,16 +101,14 @@ class Profile extends BaseCommand {
 
   async get (args) {
     const tfa = 'two-factor auth'
-    const info = await pulseTillDone.withPromise(
-      npmProfile.get({ ...this.npm.flatOptions })
-    )
+    const info = await get({ ...this.npm.flatOptions })
 
     if (!info.cidr_whitelist) {
       delete info.cidr_whitelist
     }
 
     if (this.npm.config.get('json')) {
-      this.npm.output(JSON.stringify(info, null, 2))
+      output.buffer(info)
       return
     }
 
@@ -147,23 +140,20 @@ class Profile extends BaseCommand {
         .filter((arg) => arg.trim() !== '')
         .map((arg) => cleaned[arg])
         .join('\t')
-      this.npm.output(values)
+      output.standard(values)
     } else {
       if (this.npm.config.get('parseable')) {
         for (const key of Object.keys(info)) {
           if (key === 'tfa') {
-            this.npm.output(`${key}\t${cleaned[tfa]}`)
+            output.standard(`${key}\t${cleaned[tfa]}`)
           } else {
-            this.npm.output(`${key}\t${info[key]}`)
+            output.standard(`${key}\t${info[key]}`)
           }
         }
       } else {
-        const table = new Table()
-        for (const key of Object.keys(cleaned)) {
-          table.push({ [this.npm.chalk.bold(key)]: cleaned[key] })
+        for (const [key, value] of Object.entries(cleaned)) {
+          output.standard(`${key}: ${value}`)
         }
-
-        this.npm.output(table.toString())
       }
     }
   }
@@ -209,7 +199,7 @@ class Profile extends BaseCommand {
     }
 
     // FIXME: Work around to not clear everything other than what we're setting
-    const user = await pulseTillDone.withPromise(npmProfile.get(conf))
+    const user = await get(conf)
     const newUser = {}
 
     for (const key of writableProfileKeys) {
@@ -218,16 +208,16 @@ class Profile extends BaseCommand {
 
     newUser[prop] = value
 
-    const result = await otplease(this.npm, conf, c => npmProfile.set(newUser, c))
+    const result = await otplease(this.npm, conf, c => set(newUser, c))
 
     if (this.npm.config.get('json')) {
-      this.npm.output(JSON.stringify({ [prop]: result[prop] }, null, 2))
+      output.buffer({ [prop]: result[prop] })
     } else if (this.npm.config.get('parseable')) {
-      this.npm.output(prop + '\t' + result[prop])
+      output.standard(prop + '\t' + result[prop])
     } else if (result[prop] != null) {
-      this.npm.output('Set', prop, 'to', result[prop])
+      output.standard('Set', prop, 'to', result[prop])
     } else {
-      this.npm.output('Set', prop)
+      output.standard('Set', prop)
     }
   }
 
@@ -283,7 +273,7 @@ class Profile extends BaseCommand {
 
     if (auth.basic) {
       log.info('profile', 'Updating authentication to bearer token')
-      const result = await npmProfile.createToken(
+      const result = await createToken(
         auth.basic.password, false, [], { ...this.npm.flatOptions }
       )
 
@@ -307,16 +297,12 @@ class Profile extends BaseCommand {
     info.tfa.password = password
 
     log.info('profile', 'Determine if tfa is pending')
-    const userInfo = await pulseTillDone.withPromise(
-      npmProfile.get({ ...this.npm.flatOptions })
-    )
+    const userInfo = await get({ ...this.npm.flatOptions })
 
     const conf = { ...this.npm.flatOptions }
     if (userInfo && userInfo.tfa && userInfo.tfa.pending) {
       log.info('profile', 'Resetting two-factor authentication')
-      await pulseTillDone.withPromise(
-        npmProfile.set({ tfa: { password, mode: 'disable' } }, conf)
-      )
+      await set({ tfa: { password, mode: 'disable' } }, conf)
     } else if (userInfo && userInfo.tfa) {
       if (!conf.otp) {
         conf.otp = await readUserInfo.otp(
@@ -326,12 +312,10 @@ class Profile extends BaseCommand {
     }
 
     log.info('profile', 'Setting two-factor authentication to ' + mode)
-    const challenge = await pulseTillDone.withPromise(
-      npmProfile.set(info, conf)
-    )
+    const challenge = await set(info, conf)
 
     if (challenge.tfa === null) {
-      this.npm.output('Two factor authentication mode changed to: ' + mode)
+      output.standard('Two factor authentication mode changed to: ' + mode)
       return
     }
 
@@ -348,7 +332,7 @@ class Profile extends BaseCommand {
     const secret = otpauth.searchParams.get('secret')
     const code = await qrcode(challenge.tfa)
 
-    this.npm.output(
+    output.standard(
       'Scan into your authenticator app:\n' + code + '\n Or enter code:', secret
     )
 
@@ -357,28 +341,28 @@ class Profile extends BaseCommand {
 
     log.info('profile', 'Finalizing two-factor authentication')
 
-    const result = await npmProfile.set({ tfa: [interactiveOTP] }, conf)
+    const result = await set({ tfa: [interactiveOTP] }, conf)
 
-    this.npm.output(
+    output.standard(
       '2FA successfully enabled. Below are your recovery codes, ' +
       'please print these out.'
     )
-    this.npm.output(
+    output.standard(
       'You will need these to recover access to your account ' +
       'if you lose your authentication device.'
     )
 
     for (const tfaCode of result.tfa) {
-      this.npm.output('\t' + tfaCode)
+      output.standard('\t' + tfaCode)
     }
   }
 
-  async disable2fa (args) {
+  async disable2fa () {
     const conf = { ...this.npm.flatOptions }
-    const info = await pulseTillDone.withPromise(npmProfile.get(conf))
+    const info = await get(conf)
 
     if (!info.tfa || info.tfa.pending) {
-      this.npm.output('Two factor authentication not enabled.')
+      output.standard('Two factor authentication not enabled.')
       return
     }
 
@@ -391,17 +375,16 @@ class Profile extends BaseCommand {
 
     log.info('profile', 'disabling tfa')
 
-    await pulseTillDone.withPromise(npmProfile.set({
-      tfa: { password: password, mode: 'disable' },
-    }, conf))
+    await set({ tfa: { password: password, mode: 'disable' } }, conf)
 
     if (this.npm.config.get('json')) {
-      this.npm.output(JSON.stringify({ tfa: false }, null, 2))
+      output.buffer({ tfa: false })
     } else if (this.npm.config.get('parseable')) {
-      this.npm.output('tfa\tfalse')
+      output.standard('tfa\tfalse')
     } else {
-      this.npm.output('Two factor authentication disabled.')
+      output.standard('Two factor authentication disabled.')
     }
   }
 }
+
 module.exports = Profile

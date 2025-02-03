@@ -71,6 +71,7 @@ which collects the HTTP request header lines.
 
 OSSL_HTTP_REQ_CTX_free() frees up the HTTP request context I<rctx>.
 The I<rbio> is not free'd, I<wbio> will be free'd if I<free_wbio> is set.
+If the argument is NULL, nothing is done.
 
 OSSL_HTTP_REQ_CTX_set_request_line() adds the 1st HTTP request line to I<rctx>.
 The HTTP method is determined by I<method_POST>,
@@ -260,7 +261,7 @@ The functions described here were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2015-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2015-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

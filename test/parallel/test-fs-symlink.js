@@ -76,13 +76,26 @@ fs.symlink(linkData, linkPath, common.mustSucceed(() => {
 });
 
 const errObj = {
-  code: 'ERR_FS_INVALID_SYMLINK_TYPE',
-  name: 'Error',
-  message:
-    'Symlink type must be one of "dir", "file", or "junction". Received "🍏"'
+  code: 'ERR_INVALID_ARG_VALUE',
+  name: 'TypeError',
 };
 assert.throws(() => fs.symlink('', '', '🍏', common.mustNotCall()), errObj);
 assert.throws(() => fs.symlinkSync('', '', '🍏'), errObj);
+
+assert.throws(() => fs.symlink('', '', 'nonExistentType', common.mustNotCall()), errObj);
+assert.throws(() => fs.symlinkSync('', '', 'nonExistentType'), errObj);
+assert.rejects(() => fs.promises.symlink('', '', 'nonExistentType'), errObj)
+  .then(common.mustCall());
+
+assert.throws(() => fs.symlink('', '', false, common.mustNotCall()), errObj);
+assert.throws(() => fs.symlinkSync('', '', false), errObj);
+assert.rejects(() => fs.promises.symlink('', '', false), errObj)
+  .then(common.mustCall());
+
+assert.throws(() => fs.symlink('', '', {}, common.mustNotCall()), errObj);
+assert.throws(() => fs.symlinkSync('', '', {}), errObj);
+assert.rejects(() => fs.promises.symlink('', '', {}), errObj)
+  .then(common.mustCall());
 
 process.on('exit', () => {
   assert.notStrictEqual(linkTime, fileTime);

@@ -168,7 +168,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // but it may be bound only once.
   void bind(Label* L);  // Binds an unbound label L to current code position.
 
-  enum OffsetSize : int { kOffset26 = 26, kOffset21 = 21, kOffset16 = 16 };
+  enum OffsetSize : int {
+    kOffset26 = 26,
+    kOffset21 = 21,
+    kOffset20 = 20,
+    kOffset16 = 16
+  };
 
   // Determines if Label is bound and near enough so that branch instruction
   // can be used to reach it, instead of jump instruction.
@@ -268,6 +273,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
       Address pc, Address constant_pool);
   inline Handle<HeapObject> embedded_object_handle_at(Address pc,
                                                       Address constant_pool);
+
+  // Read/modify the uint32 constant used at pc.
+  static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
+  static inline void set_uint32_constant_at(
+      Address pc, Address constant_pool, uint32_t new_constant,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Here we are patching the address in the LUI/ORI instruction pair.
   // These values are used in the serialization process and must be zero for
@@ -804,7 +815,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
 
   static bool IsJump(Instr instr);
   static bool IsMov(Instr instr, Register rd, Register rs);
-  static bool IsPcAddi(Instr instr, Register rd, int32_t si20);
+  static bool IsPcAddi(Instr instr);
 
   static bool IsJ(Instr instr);
   static bool IsLu12i_w(Instr instr);

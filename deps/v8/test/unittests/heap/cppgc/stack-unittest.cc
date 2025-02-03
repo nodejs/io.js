@@ -8,7 +8,6 @@
 #include <ostream>
 
 #include "include/v8config.h"
-#include "src/base/platform/platform.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if V8_OS_LINUX && (V8_HOST_ARCH_IA32 || V8_HOST_ARCH_X64)
@@ -25,8 +24,7 @@ namespace {
 
 class GCStackTest : public ::testing::Test {
  public:
-  GCStackTest()
-      : stack_(std::make_unique<Stack>(v8::base::Stack::GetStackStart())) {}
+  GCStackTest() : stack_(std::make_unique<Stack>()) { stack_->SetStackStart(); }
 
   Stack* GetStack() const { return stack_.get(); }
 

@@ -3,7 +3,7 @@
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 export ROOT
 
-# This function compare new version with current version of a depdendency and
+# This function compare new version with current version of a dependency and
 # exit the script if the versions are the same
 #
 # $1 is the package name e.g. 'acorn', 'ada', 'base64' etc. See the file
@@ -55,7 +55,7 @@ finalize_version_update() {
 # https://github.com/nodejs/node/blob/main/doc/contributing/maintaining/maintaining-dependencies.md
 # for a complete list of package name
 # $2 is the downloaded archive
-# $3 (optional) is the deposited sha256 cheksum. When provided, it is checked
+# $3 (optional) is the deposited sha256 checksum. When provided, it is checked
 # against the checksum generated from the archive
 log_and_verify_sha256sum() {
   package_name="$1"

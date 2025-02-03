@@ -775,7 +775,7 @@ public:
         UMessagePatternArgType getArgType() const {
             UMessagePatternPartType msgType=getType();
             if(msgType ==UMSGPAT_PART_TYPE_ARG_START || msgType ==UMSGPAT_PART_TYPE_ARG_LIMIT) {
-                return (UMessagePatternArgType)value;
+                return static_cast<UMessagePatternArgType>(value);
             } else {
                 return UMSGPAT_ARG_TYPE_NONE;
             }
@@ -821,6 +821,7 @@ public:
 
         static const int32_t MAX_LENGTH=0xffff;
         static const int32_t MAX_VALUE=0x7fff;
+        static const int32_t MAX_NESTED_LEVELS=0x03ff;
 
         // Some fields are not final because they are modified during pattern parsing.
         // After pattern parsing, the parts are effectively immutable.

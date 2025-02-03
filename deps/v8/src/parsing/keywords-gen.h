@@ -49,14 +49,14 @@ struct PerfectKeywordHashTableEntry {
   Token::Value value;
 };
 enum {
-  TOTAL_KEYWORDS = 51,
+  TOTAL_KEYWORDS = 52,
   MIN_WORD_LENGTH = 2,
   MAX_WORD_LENGTH = 10,
   MIN_HASH_VALUE = 3,
-  MAX_HASH_VALUE = 75
+  MAX_HASH_VALUE = 64
 };
 
-/* maximum key range = 73, duplicates = 0 */
+/* maximum key range = 62, duplicates = 0 */
 
 class PerfectKeywordHash {
  private:
@@ -67,27 +67,28 @@ class PerfectKeywordHash {
 };
 
 inline unsigned int PerfectKeywordHash::Hash(const char* str, int len) {
-  DCHECK_LT(str[0], 128);
-  static const unsigned char asso_values[128] = {
-      76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76,
-      76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76,
-      76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76,
-      76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76,
-      76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76,
-      76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76, 76,
-      76, 43, 0,  28, 23, 1,  0,  33, 76, 14, 20, 76, 0,  42, 20, 19,
-      1,  76, 0,  10, 3,  37, 4,  22, 9,  31, 1,  76, 76, 76, 76, 76};
+  DCHECK_LT(str[1] + 1, 129);
+  DCHECK_LT(str[0], 129);
+  static const unsigned char asso_values[129] = {
+      65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+      65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+      65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+      65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+      65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65,
+      65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 33, 0,  24, 18, 17,
+      0,  31, 65, 15, 33, 65, 0,  25, 24, 14, 1,  65, 0,  10, 3,  36, 4,
+      23, 26, 13, 1,  65, 65, 65, 65, 65, 65};
   return len + asso_values[static_cast<unsigned char>(str[1] + 1)] +
          asso_values[static_cast<unsigned char>(str[0])];
 }
 
 static const unsigned char kPerfectKeywordLengthTable[128] = {
-    0,  0, 0, 3, 3, 5, 6, 3, 7, 4, 6, 6, 8, 3, 0, 5, 3, 4, 7, 5, 9, 4,
-    5,  3, 4, 6, 2, 7, 4, 6, 7, 8, 4, 5, 5, 2, 3, 8, 6, 7, 6, 5, 9, 10,
-    10, 5, 4, 4, 0, 2, 0, 5, 0, 6, 2, 0, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,  0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    0, 0, 0, 3, 3, 5,  6, 3, 7, 4, 6, 6, 8, 3, 0, 5, 3, 4,  7, 5, 9, 2,
+    4, 5, 6, 7, 8, 3,  4, 5, 5, 2, 4, 8, 3, 4, 6, 7, 9, 10, 7, 5, 6, 5,
+    5, 6, 4, 2, 2, 10, 0, 5, 6, 0, 5, 0, 0, 0, 0, 8, 4, 0,  0, 0, 5, 0,
+    0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 static const struct PerfectKeywordHashTableEntry kPerfectKeywordHashTable[128] =
     {{"", Token::kIdentifier},
@@ -111,42 +112,49 @@ static const struct PerfectKeywordHashTableEntry kPerfectKeywordHashTable[128] =
      {"private", Token::kFutureStrictReservedWord},
      {"super", Token::kSuper},
      {"protected", Token::kFutureStrictReservedWord},
+     {"do", Token::kDo},
      {"this", Token::kThis},
      {"throw", Token::kThrow},
-     {"new", Token::kNew},
-     {"enum", Token::kEnum},
-     {"switch", Token::kSwitch},
-     {"do", Token::kDo},
-     {"finally", Token::kFinally},
-     {"null", Token::kNullLiteral},
      {"delete", Token::kDelete},
      {"default", Token::kDefault},
      {"debugger", Token::kDebugger},
+     {"new", Token::kNew},
      {"case", Token::kCase},
      {"catch", Token::kCatch},
      {"const", Token::kConst},
      {"in", Token::kIn},
-     {"get", Token::kGet},
+     {"null", Token::kNullLiteral},
      {"continue", Token::kContinue},
+     {"get", Token::kGet},
+     {"enum", Token::kEnum},
      {"export", Token::kExport},
      {"extends", Token::kExtends},
-     {"import", Token::kImport},
-     {"while", Token::kWhile},
      {"interface", Token::kFutureStrictReservedWord},
      {"instanceof", Token::kInstanceOf},
-     {"implements", Token::kFutureStrictReservedWord},
-     {"using", Token::kUsing},
-     {"with", Token::kWith},
-     {"else", Token::kElse},
-     {"", Token::kIdentifier},
-     {"if", Token::kIf},
-     {"", Token::kIdentifier},
+     {"finally", Token::kFinally},
      {"async", Token::kAsync},
-     {"", Token::kIdentifier},
-     {"static", Token::kStatic},
+     {"switch", Token::kSwitch},
+     {"while", Token::kWhile},
+     {"using", Token::kUsing},
+     {"import", Token::kImport},
+     {"else", Token::kElse},
      {"of", Token::kOf},
+     {"if", Token::kIf},
+     {"implements", Token::kFutureStrictReservedWord},
      {"", Token::kIdentifier},
      {"yield", Token::kYield},
+     {"static", Token::kStatic},
+     {"", Token::kIdentifier},
+     {"class", Token::kClass},
+     {"", Token::kIdentifier},
+     {"", Token::kIdentifier},
+     {"", Token::kIdentifier},
+     {"", Token::kIdentifier},
+     {"accessor", Token::kAccessor},
+     {"with", Token::kWith},
+     {"", Token::kIdentifier},
+     {"", Token::kIdentifier},
+     {"", Token::kIdentifier},
      {"await", Token::kAwait},
      {"", Token::kIdentifier},
      {"", Token::kIdentifier},
@@ -159,13 +167,6 @@ static const struct PerfectKeywordHashTableEntry kPerfectKeywordHashTable[128] =
      {"", Token::kIdentifier},
      {"", Token::kIdentifier},
      {"", Token::kIdentifier},
-     {"", Token::kIdentifier},
-     {"", Token::kIdentifier},
-     {"", Token::kIdentifier},
-     {"", Token::kIdentifier},
-     {"", Token::kIdentifier},
-     {"", Token::kIdentifier},
-     {"class", Token::kClass},
      {"", Token::kIdentifier},
      {"", Token::kIdentifier},
      {"", Token::kIdentifier},

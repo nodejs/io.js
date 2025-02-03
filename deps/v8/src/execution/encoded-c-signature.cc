@@ -33,7 +33,11 @@ EncodedCSignature::EncodedCSignature(const CFunctionInfo* signature) {
   if (signature->ReturnInfo().GetSequenceType() ==
           CTypeInfo::SequenceType::kScalar &&
       CTypeInfo::IsFloatingPointType(signature->ReturnInfo().GetType())) {
-    SetFloat(EncodedCSignature::kReturnIndex);
+    if (signature->ReturnInfo().GetType() == CTypeInfo::Type::kFloat64) {
+      SetReturnFloat64();
+    } else {
+      SetReturnFloat32();
+    }
   }
 }
 

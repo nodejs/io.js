@@ -34,6 +34,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/optimization.h"
+#include "absl/base/options.h"
 #include "absl/base/port.h"
 
 // ABSL_ARRAYSIZE()
@@ -120,12 +121,31 @@ ABSL_NAMESPACE_END
 //
 // See `ABSL_OPTION_HARDENED` in `absl/base/options.h` for more information on
 // hardened mode.
-#if ABSL_OPTION_HARDENED == 1 && defined(NDEBUG)
+#if (ABSL_OPTION_HARDENED == 1 || ABSL_OPTION_HARDENED == 2) && defined(NDEBUG)
 #define ABSL_HARDENING_ASSERT(expr)                 \
   (ABSL_PREDICT_TRUE((expr)) ? static_cast<void>(0) \
                              : [] { ABSL_INTERNAL_HARDENING_ABORT(); }())
 #else
 #define ABSL_HARDENING_ASSERT(expr) ABSL_ASSERT(expr)
+#endif
+
+// ABSL_HARDENING_ASSERT_SLOW()
+//
+// `ABSL_HARDENING_ASSERT()` is like `ABSL_HARDENING_ASSERT()`,
+//  but specifically for assertions whose predicates are too slow
+//  to be enabled in many applications.
+//
+// When `NDEBUG` is not defined, `ABSL_HARDENING_ASSERT_SLOW()` is identical to
+// `ABSL_ASSERT()`.
+//
+// See `ABSL_OPTION_HARDENED` in `absl/base/options.h` for more information on
+// hardened mode.
+#if ABSL_OPTION_HARDENED == 1 && defined(NDEBUG)
+#define ABSL_HARDENING_ASSERT_SLOW(expr)            \
+  (ABSL_PREDICT_TRUE((expr)) ? static_cast<void>(0) \
+                             : [] { ABSL_INTERNAL_HARDENING_ABORT(); }())
+#else
+#define ABSL_HARDENING_ASSERT_SLOW(expr) ABSL_ASSERT(expr)
 #endif
 
 #ifdef ABSL_HAVE_EXCEPTIONS
@@ -172,6 +192,18 @@ ABSL_NAMESPACE_END
 #define ABSL_DEPRECATE_AND_INLINE() [[deprecated]]
 #else
 #define ABSL_DEPRECATE_AND_INLINE()
+#endif
+
+// Requires the compiler to prove that the size of the given object is at least
+// the expected amount.
+#if ABSL_HAVE_ATTRIBUTE(diagnose_if) && ABSL_HAVE_BUILTIN(__builtin_object_size)
+#define ABSL_INTERNAL_NEED_MIN_SIZE(Obj, N)                     \
+  __attribute__((diagnose_if(__builtin_object_size(Obj, 0) < N, \
+                             "object size provably too small "  \
+                             "(this would corrupt memory)",     \
+                             "error")))
+#else
+#define ABSL_INTERNAL_NEED_MIN_SIZE(Obj, N)
 #endif
 
 #endif  // ABSL_BASE_MACROS_H_

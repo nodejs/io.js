@@ -88,7 +88,6 @@
         'v8_enable_private_mapping_fork_optimization': 0,
       }],
     ],
-    'is_debug%': 0,
 
     # Variables from BUILD.gn
 
@@ -217,15 +216,6 @@
     # Enable lazy source positions by default.
     'v8_enable_lazy_source_positions%': 1,
 
-    # Enable third party HEAP library
-    'v8_enable_third_party_heap%': 0,
-
-    # Libaries used by third party heap
-    'v8_third_party_heap_libs%': [],
-
-    # Source code used by third party heap
-    'v8_third_party_heap_files%': [],
-
     # Disable write barriers when GCs are non-incremental and
     # heap has single generation.
     'v8_disable_write_barriers%': 0,
@@ -329,7 +319,10 @@
 
     # Enable advanced BigInt algorithms, costing about 10-30 KiB binary size
     # depending on platform.
-    'v8_advanced_bigint_algorithms%': 1
+    'v8_advanced_bigint_algorithms%': 1,
+
+    # Enable 256-bit long vector re-vectorization pass in WASM compilation pipeline.
+    'v8_enable_wasm_simd256_revec%' : 0
   },
 
   'target_defaults': {
@@ -435,9 +428,6 @@
       ['v8_disable_write_barriers==1', {
         'defines': ['V8_DISABLE_WRITE_BARRIERS',],
       }],
-      ['v8_enable_third_party_heap==1', {
-        'defines': ['V8_ENABLE_THIRD_PARTY_HEAP',],
-      }],
       ['v8_enable_atomic_object_field_writes==1', {
         'defines': ['V8_ATOMIC_OBJECT_FIELD_WRITES',],
       }],
@@ -541,6 +531,9 @@
       }],
       ['v8_advanced_bigint_algorithms==1', {
         'defines': ['V8_ADVANCED_BIGINT_ALGORITHMS',],
+      }],
+      ['v8_enable_wasm_simd256_revec==1', {
+        'defines': ['V8_ENABLE_WASM_SIMD256_REVEC',],
       }],
     ],  # conditions
     'defines': [

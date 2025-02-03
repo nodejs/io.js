@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Increase the profiler sampling interval to avoid a data race between
+// interval-triggered samples and explicitly triggered samples. The goal of the
+// big interval is to avoid any interval-triggered samples.
+// Flags: --cpu-profiler-sampling-interval=1000000
+
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 let sampleCollected = false;

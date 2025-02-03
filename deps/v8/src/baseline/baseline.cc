@@ -60,7 +60,7 @@ MaybeHandle<Code> GenerateBaselineCode(Isolate* isolate,
   LocalIsolate* local_isolate = isolate->main_thread_local_isolate();
   baseline::BaselineCompiler compiler(local_isolate, shared, bytecode);
   compiler.GenerateCode();
-  MaybeHandle<Code> code = compiler.Build(local_isolate);
+  MaybeHandle<Code> code = compiler.Build();
   if (v8_flags.print_code && !code.is_null()) {
     Print(*code.ToHandleChecked());
   }

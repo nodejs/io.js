@@ -86,6 +86,11 @@
 #endif
 #define TRAP_SEQUENCE2_() asm volatile("")
 
+#elif V8_OS_ZOS
+
+#define TRAP_SEQUENCE1_() __builtin_trap()
+#define TRAP_SEQUENCE2_() asm volatile("")
+
 #elif V8_HOST_ARCH_S390
 
 // GDB software breakpoint instruction.

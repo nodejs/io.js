@@ -23,7 +23,7 @@ module.exports = {
     const requiredModules = options ? Object.keys(options).map((x) => {
       return [ x, new RegExp(options[x]) ];
     }) : [];
-    const isESM = context.parserOptions.sourceType === 'module';
+    const isESM = context.languageOptions.sourceType === 'module';
 
     const foundModules = [];
 

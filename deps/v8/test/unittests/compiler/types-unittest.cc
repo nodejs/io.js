@@ -186,10 +186,11 @@ class TypesTest : public TestWithNativeContextAndZone {
         CHECK(value.address() == type.AsHeapConstant()->Value().address());
       } else if (type.IsOtherNumberConstant()) {
         CHECK(IsHeapNumber(*value));
-        CHECK(Object::Number(*value) == type.AsOtherNumberConstant()->Value());
+        CHECK(Object::NumberValue(*value) ==
+              type.AsOtherNumberConstant()->Value());
       } else if (type.IsRange()) {
         CHECK(type.IsRange());
-        double v = Object::Number(*value);
+        double v = Object::NumberValue(*value);
         CHECK(v == type.AsRange()->Min() && v == type.AsRange()->Max());
       } else {
         CHECK(type.IsSingleton() || type.Is(Type::Hole()) ||
@@ -333,8 +334,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     // Constructor
     for (ValueIterator i = T.integers.begin(); i != T.integers.end(); ++i) {
       for (ValueIterator j = T.integers.begin(); j != T.integers.end(); ++j) {
-        double min = Object::Number(**i);
-        double max = Object::Number(**j);
+        double min = Object::NumberValue(**i);
+        double max = Object::NumberValue(**j);
         if (min > max) std::swap(min, max);
         Type type = T.Range(min, max);
         CHECK(type.IsRange());
@@ -344,8 +345,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     // Range attributes
     for (ValueIterator i = T.integers.begin(); i != T.integers.end(); ++i) {
       for (ValueIterator j = T.integers.begin(); j != T.integers.end(); ++j) {
-        double min = Object::Number(**i);
-        double max = Object::Number(**j);
+        double min = Object::NumberValue(**i);
+        double max = Object::NumberValue(**j);
         if (min > max) std::swap(min, max);
         Type type = T.Range(min, max);
         CHECK(min == type.AsRange()->Min());
@@ -360,10 +361,10 @@ class TypesTest : public TestWithNativeContextAndZone {
         for (ValueIterator i2 = T.integers.begin(); i2 != T.integers.end();
              ++i2) {
           for (ValueIterator j2 = i2; j2 != T.integers.end(); ++j2) {
-            double min1 = Object::Number(**i1);
-            double max1 = Object::Number(**j1);
-            double min2 = Object::Number(**i2);
-            double max2 = Object::Number(**j2);
+            double min1 = Object::NumberValue(**i1);
+            double max1 = Object::NumberValue(**j1);
+            double min2 = Object::NumberValue(**i2);
+            double max2 = Object::NumberValue(**j2);
             if (min1 > max1) std::swap(min1, max1);
             if (min2 > max2) std::swap(min2, max2);
             Type type1 = T.Range(min1, max1);
@@ -567,10 +568,10 @@ class TypesTest : public TestWithNativeContextAndZone {
         for (ValueIterator i2 = T.integers.begin(); i2 != T.integers.end();
              ++i2) {
           for (ValueIterator j2 = i2; j2 != T.integers.end(); ++j2) {
-            double min1 = Object::Number(**i1);
-            double max1 = Object::Number(**j1);
-            double min2 = Object::Number(**i2);
-            double max2 = Object::Number(**j2);
+            double min1 = Object::NumberValue(**i1);
+            double max1 = Object::NumberValue(**j1);
+            double min2 = Object::NumberValue(**i2);
+            double max2 = Object::NumberValue(**j2);
             if (min1 > max1) std::swap(min1, max1);
             if (min2 > max2) std::swap(min2, max2);
             Type type1 = T.Range(min1, max1);

@@ -42,8 +42,7 @@ extern transitioning runtime StringParseInt(
     implicit context: Context)(JSAny, JSAny): Number;
 
 extern runtime BigIntUnaryOp(Context, BigInt, SmiTagged<Operation>): BigInt;
-extern runtime BigIntBinaryOp(Context, Numeric, Numeric, SmiTagged<Operation>):
-    BigInt;
+extern runtime BigIntExponentiate(Context, Numeric, Numeric): BigInt;
 }  // namespace runtime
 
 namespace number {
@@ -735,8 +734,7 @@ builtin Exponentiate(implicit context: Context)(left: JSAny, right: JSAny):
   } label Numbers(left: Number, right: Number) {
     return math::MathPowImpl(left, right);
   } label AtLeastOneBigInt(left: Numeric, right: Numeric) {
-    tail runtime::BigIntBinaryOp(
-        context, left, right, SmiTag<Operation>(Operation::kExponentiate));
+    tail runtime::BigIntExponentiate(context, left, right);
   }
 }
 

@@ -8,6 +8,9 @@
 * [Technical steering committee](#technical-steering-committee)
   * [TSC meetings](#tsc-meetings)
 * [Collaborator nominations](#collaborator-nominations)
+  * [Who can nominate Collaborators?](#who-can-nominate-collaborators)
+  * [Ideal Nominees](#ideal-nominees)
+  * [Nominating a new Collaborator](#nominating-a-new-collaborator)
   * [Onboarding](#onboarding)
 * [Consensus seeking process](#consensus-seeking-process)
 
@@ -124,11 +127,26 @@ the issue tracker is:
 
 ## Collaborator nominations
 
-Existing collaborators can nominate someone to become a collaborator. Nominees
-should have significant and valuable contributions across the Node.js
+### Who can nominate Collaborators?
+
+Existing Collaborators can nominate someone to become a Collaborator.
+
+### Ideal Nominees
+
+Nominees should have significant and valuable contributions across the Node.js
 organization.
 
-To nominate a new collaborator, open an issue in the [nodejs/node][] repository.
+Contributions can be:
+
+* Opening pull requests.
+* Comments and reviews.
+* Opening new issues.
+* Participation in other projects, teams, and working groups of the Node.js
+  organization.
+
+### Nominating a new Collaborator
+
+To nominate a new Collaborator, open an issue in the [nodejs/node][] repository.
 Provide a summary of the nominee's contributions. For example:
 
 * Commits in the [nodejs/node][] repository.

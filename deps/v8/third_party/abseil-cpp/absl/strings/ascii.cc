@@ -15,13 +15,14 @@
 #include "absl/strings/ascii.h"
 
 #include <climits>
-#include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <string>
-#include <type_traits>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/nullability.h"
+#include "absl/base/optimization.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -162,19 +163,6 @@ ABSL_DLL const char kToUpper[256] = {
 };
 // clang-format on
 
-template <class T>
-static constexpr T BroadcastByte(unsigned char value) {
-  static_assert(std::is_integral<T>::value && sizeof(T) <= sizeof(uint64_t) &&
-                    std::is_unsigned<T>::value,
-                "only unsigned integers up to 64-bit allowed");
-  T result = value;
-  constexpr size_t result_bit_width = sizeof(result) * CHAR_BIT;
-  result |= result << ((CHAR_BIT << 0) & (result_bit_width - 1));
-  result |= result << ((CHAR_BIT << 1) & (result_bit_width - 1));
-  result |= result << ((CHAR_BIT << 2) & (result_bit_width - 1));
-  return result;
-}
-
 // Returns whether `c` is in the a-z/A-Z range (w.r.t. `ToUpper`).
 // Implemented by:
 //  1. Pushing the a-z/A-Z range to [SCHAR_MIN, SCHAR_MIN + 26).
@@ -189,47 +177,10 @@ constexpr bool AsciiInAZRange(unsigned char c) {
   return static_cast<signed char>(u) < threshold;
 }
 
+// Force-inline so the compiler won't merge the short and long implementations.
 template <bool ToUpper>
-static constexpr char* PartialAsciiStrCaseFold(absl::Nonnull<char*> p,
-                                               absl::Nonnull<char*> end) {
-  using vec_t = size_t;
-  const size_t n = static_cast<size_t>(end - p);
-
-  // SWAR algorithm: http://0x80.pl/notesen/2016-01-06-swar-swap-case.html
-  constexpr char ch_a = ToUpper ? 'a' : 'A', ch_z = ToUpper ? 'z' : 'Z';
-  char* const swar_end = p + (n / sizeof(vec_t)) * sizeof(vec_t);
-  while (p < swar_end) {
-    vec_t v = vec_t();
-
-    // memcpy the vector, but constexpr
-    for (size_t i = 0; i < sizeof(vec_t); ++i) {
-      v |= static_cast<vec_t>(static_cast<unsigned char>(p[i]))
-           << (i * CHAR_BIT);
-    }
-
-    constexpr unsigned int msb = 1u << (CHAR_BIT - 1);
-    const vec_t v_msb = v & BroadcastByte<vec_t>(msb);
-    const vec_t v_nonascii_mask = (v_msb << 1) - (v_msb >> (CHAR_BIT - 1));
-    const vec_t v_nonascii = v & v_nonascii_mask;
-    const vec_t v_ascii = v & ~v_nonascii_mask;
-    const vec_t a = v_ascii + BroadcastByte<vec_t>(msb - ch_a - 0),
-                z = v_ascii + BroadcastByte<vec_t>(msb - ch_z - 1);
-    v = v_nonascii | (v_ascii ^ ((a ^ z) & BroadcastByte<vec_t>(msb)) >> 2);
-
-    // memcpy the vector, but constexpr
-    for (size_t i = 0; i < sizeof(vec_t); ++i) {
-      p[i] = static_cast<char>(v >> (i * CHAR_BIT));
-    }
-
-    p += sizeof(v);
-  }
-
-  return p;
-}
-
-template <bool ToUpper>
-static constexpr void AsciiStrCaseFold(absl::Nonnull<char*> p,
-                                       absl::Nonnull<char*> end) {
+ABSL_ATTRIBUTE_ALWAYS_INLINE inline constexpr void AsciiStrCaseFoldImpl(
+    absl::Nonnull<char*> dst, absl::Nonnull<const char*> src, size_t size) {
   // The upper- and lowercase versions of ASCII characters differ by only 1 bit.
   // When we need to flip the case, we can xor with this bit to achieve the
   // desired result. Note that the choice of 'a' and 'A' here is arbitrary. We
@@ -237,18 +188,41 @@ static constexpr void AsciiStrCaseFold(absl::Nonnull<char*> p,
   // have the same single bit difference.
   constexpr unsigned char kAsciiCaseBitFlip = 'a' ^ 'A';
 
-  using vec_t = size_t;
-  // TODO(b/316380338): When FDO becomes able to vectorize these,
-  // revert this manual optimization and just leave the naive loop.
-  if (static_cast<size_t>(end - p) >= sizeof(vec_t)) {
-    p = ascii_internal::PartialAsciiStrCaseFold<ToUpper>(p, end);
-  }
-  while (p < end) {
-    unsigned char v = static_cast<unsigned char>(*p);
+  for (size_t i = 0; i < size; ++i) {
+    unsigned char v = static_cast<unsigned char>(src[i]);
     v ^= AsciiInAZRange<ToUpper>(v) ? kAsciiCaseBitFlip : 0;
-    *p = static_cast<char>(v);
-    ++p;
+    dst[i] = static_cast<char>(v);
   }
+}
+
+// The string size threshold for starting using the long string version.
+constexpr size_t kCaseFoldThreshold = 16;
+
+// No-inline so the compiler won't merge the short and long implementations.
+template <bool ToUpper>
+ABSL_ATTRIBUTE_NOINLINE constexpr void AsciiStrCaseFoldLong(
+    absl::Nonnull<char*> dst, absl::Nonnull<const char*> src, size_t size) {
+  ABSL_ASSUME(size >= kCaseFoldThreshold);
+  AsciiStrCaseFoldImpl<ToUpper>(dst, src, size);
+}
+
+// Splitting to short and long strings to allow vectorization decisions
+// to be made separately in the long and short cases.
+template <bool ToUpper>
+constexpr void AsciiStrCaseFold(absl::Nonnull<char*> dst,
+                                absl::Nonnull<const char*> src, size_t size) {
+  size < kCaseFoldThreshold ? AsciiStrCaseFoldImpl<ToUpper>(dst, src, size)
+                            : AsciiStrCaseFoldLong<ToUpper>(dst, src, size);
+}
+
+void AsciiStrToLower(absl::Nonnull<char*> dst, absl::Nonnull<const char*> src,
+                     size_t n) {
+  return AsciiStrCaseFold<false>(dst, src, n);
+}
+
+void AsciiStrToUpper(absl::Nonnull<char*> dst, absl::Nonnull<const char*> src,
+                     size_t n) {
+  return AsciiStrCaseFold<true>(dst, src, n);
 }
 
 static constexpr size_t ValidateAsciiCasefold() {
@@ -259,8 +233,8 @@ static constexpr size_t ValidateAsciiCasefold() {
   for (unsigned int i = 0; i < num_chars; ++i) {
     uppered[i] = lowered[i] = static_cast<char>(i);
   }
-  AsciiStrCaseFold<false>(&lowered[0], &lowered[num_chars]);
-  AsciiStrCaseFold<true>(&uppered[0], &uppered[num_chars]);
+  AsciiStrCaseFold<false>(&lowered[0], &lowered[0], num_chars);
+  AsciiStrCaseFold<true>(&uppered[0], &uppered[0], num_chars);
   for (size_t i = 0; i < num_chars; ++i) {
     const char ch = static_cast<char>(i),
                ch_upper = ('a' <= ch && ch <= 'z' ? 'A' + (ch - 'a') : ch),
@@ -278,13 +252,13 @@ static_assert(ValidateAsciiCasefold() == 0, "error in case conversion");
 }  // namespace ascii_internal
 
 void AsciiStrToLower(absl::Nonnull<std::string*> s) {
-  char* p = &(*s)[0];  // Guaranteed to be valid for empty strings
-  return ascii_internal::AsciiStrCaseFold<false>(p, p + s->size());
+  char* p = &(*s)[0];
+  return ascii_internal::AsciiStrCaseFold<false>(p, p, s->size());
 }
 
 void AsciiStrToUpper(absl::Nonnull<std::string*> s) {
-  char* p = &(*s)[0];  // Guaranteed to be valid for empty strings
-  return ascii_internal::AsciiStrCaseFold<true>(p, p + s->size());
+  char* p = &(*s)[0];
+  return ascii_internal::AsciiStrCaseFold<true>(p, p, s->size());
 }
 
 void RemoveExtraAsciiWhitespace(absl::Nonnull<std::string*> str) {

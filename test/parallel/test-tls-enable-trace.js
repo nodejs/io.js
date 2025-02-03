@@ -23,7 +23,7 @@ let stderr = '';
 child.stderr.setEncoding('utf8');
 child.stderr.on('data', (data) => stderr += data);
 child.on('close', common.mustCall(() => {
-  assert.match(stderr, /Received Record/);
+  assert.match(stderr, /Received (?:TLS )?Record/);
   assert.match(stderr, /ClientHello/);
 }));
 

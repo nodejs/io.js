@@ -16,7 +16,7 @@ const bench = common.createBenchmark(main, {
   files: [5e2],
   n: [1, 1e3],
   cache: ['true', 'false'],
-});
+}, { flags: '--no-warnings' });
 
 function main({ n, name, cache, files, dir }) {
   tmpdir.refresh();

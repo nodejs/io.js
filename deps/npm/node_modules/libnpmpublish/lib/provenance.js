@@ -1,5 +1,5 @@
 const sigstore = require('sigstore')
-const { readFile } = require('fs/promises')
+const { readFile } = require('node:fs/promises')
 const ci = require('ci-info')
 const { env } = process
 

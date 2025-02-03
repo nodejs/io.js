@@ -5,7 +5,7 @@
 #ifndef V8_CODEGEN_PPC_INTERFACE_DESCRIPTORS_PPC_INL_H_
 #define V8_CODEGEN_PPC_INTERFACE_DESCRIPTORS_PPC_INL_H_
 
-#if V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#if V8_TARGET_ARCH_PPC64
 
 #include "src/codegen/interface-descriptors.h"
 #include "src/execution/frames.h"
@@ -82,6 +82,21 @@ constexpr Register KeyedLoadBaselineDescriptor::SlotRegister() { return r5; }
 // static
 constexpr Register KeyedLoadWithVectorDescriptor::VectorRegister() {
   return r6;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::EnumIndexRegister() {
+  return r7;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::CacheTypeRegister() {
+  return r8;
+}
+
+// static
+constexpr Register EnumeratedKeyedLoadBaselineDescriptor::SlotRegister() {
+  return r5;
 }
 
 // static
@@ -295,7 +310,8 @@ CallApiCallbackOptimizedDescriptor::ActualArgumentsCountRegister() {
   return r5;
 }
 // static
-constexpr Register CallApiCallbackOptimizedDescriptor::CallDataRegister() {
+constexpr Register
+CallApiCallbackOptimizedDescriptor::FunctionTemplateInfoRegister() {
   return r6;
 }
 // static
@@ -313,7 +329,8 @@ CallApiCallbackGenericDescriptor::TopmostScriptHavingContextRegister() {
   return r4;
 }
 // static
-constexpr Register CallApiCallbackGenericDescriptor::CallHandlerInfoRegister() {
+constexpr Register
+CallApiCallbackGenericDescriptor::FunctionTemplateInfoRegister() {
   return r6;
 }
 // static
@@ -364,11 +381,11 @@ constexpr auto RunMicrotasksEntryDescriptor::registers() {
 
 constexpr auto WasmJSToWasmWrapperDescriptor::registers() {
   // Arbitrarily picked register.
-  return RegisterArray(r3);
+  return RegisterArray(r14);
 }
 }  // namespace internal
 }  // namespace v8
 
-#endif  // V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#endif  // V8_TARGET_ARCH_PPC64
 
 #endif  // V8_CODEGEN_PPC_INTERFACE_DESCRIPTORS_PPC_INL_H_

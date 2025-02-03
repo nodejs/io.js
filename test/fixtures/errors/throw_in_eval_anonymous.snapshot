@@ -1,0 +1,8 @@
+<anonymous_script>:*
+  throw new Error('error in anonymous script');
+  ^
+
+Error: error in anonymous script
+    at eval (eval at <anonymous> (*throw_in_eval_anonymous.js:*:*), <anonymous>:*:*)
+
+Node.js *

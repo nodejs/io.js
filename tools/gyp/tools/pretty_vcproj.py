@@ -118,8 +118,8 @@ def FixFilenames(filenames, current_directory):
     new_list = []
     for filename in filenames:
         if filename:
-            for key in REPLACEMENTS:
-                filename = filename.replace(key, REPLACEMENTS[key])
+            for key, value in REPLACEMENTS.items():
+                filename = filename.replace(key, value)
             os.chdir(current_directory)
             filename = filename.strip("\"' ")
             if filename.startswith("$"):
@@ -207,7 +207,7 @@ def CleanupVcproj(node):
         node.appendChild(new_node)
 
 
-def GetConfiguationNodes(vcproj):
+def GetConfigurationNodes(vcproj):
     # TODO(nsylvain): Find a better way to navigate the xml.
     nodes = []
     for node in vcproj.childNodes:
@@ -307,7 +307,7 @@ def main(argv):
 
     # First thing we need to do is find the Configuration Node and merge them
     # with the vsprops they include.
-    for configuration_node in GetConfiguationNodes(dom.documentElement):
+    for configuration_node in GetConfigurationNodes(dom.documentElement):
         # Get the property sheets associated with this configuration.
         vsprops = configuration_node.getAttribute("InheritedPropertySheets")
 

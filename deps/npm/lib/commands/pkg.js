@@ -1,5 +1,6 @@
+const { output } = require('proc-log')
 const PackageJson = require('@npmcli/package-json')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 const Queryable = require('../utils/queryable.js')
 
 class Pkg extends BaseCommand {
@@ -24,13 +25,7 @@ class Pkg extends BaseCommand {
   static workspaces = true
   static ignoreImplicitWorkspace = false
 
-  async exec (args, { prefix } = {}) {
-    if (!prefix) {
-      this.prefix = this.npm.localPrefix
-    } else {
-      this.prefix = prefix
-    }
-
+  async exec (args, { path = this.npm.localPrefix, workspace } = {}) {
     if (this.npm.global) {
       throw Object.assign(
         new Error(`There's no package.json file to manage on global mode`),
@@ -41,13 +36,13 @@ class Pkg extends BaseCommand {
     const [cmd, ..._args] = args
     switch (cmd) {
       case 'get':
-        return this.get(_args)
+        return this.get(_args, { path, workspace })
       case 'set':
-        return this.set(_args)
+        return this.set(_args, { path, workspace }).then(p => p.save())
       case 'delete':
-        return this.delete(_args)
+        return this.delete(_args, { path, workspace }).then(p => p.save())
       case 'fix':
-        return this.fix(_args)
+        return PackageJson.fix(path).then(p => p.save())
       default:
         throw this.usageError()
     }
@@ -55,43 +50,36 @@ class Pkg extends BaseCommand {
 
   async execWorkspaces (args) {
     await this.setWorkspaces()
-    const result = {}
-    for (const [workspaceName, workspacePath] of this.workspaces.entries()) {
-      this.prefix = workspacePath
-      result[workspaceName] = await this.exec(args, { prefix: workspacePath })
+    for (const [workspace, path] of this.workspaces.entries()) {
+      await this.exec(args, { path, workspace })
     }
-    // when running in workspaces names, make sure to key by workspace
-    // name the results of each value retrieved in each ws
-    this.npm.output(JSON.stringify(result, null, 2))
   }
 
-  async get (args) {
-    const pkgJson = await PackageJson.load(this.prefix)
+  async get (args, { path, workspace }) {
+    this.npm.config.set('json', true)
+    const pkgJson = await PackageJson.load(path)
 
-    const { content } = pkgJson
-    let result = !args.length && content
+    let result = pkgJson.content
 
-    if (!result) {
-      const q = new Queryable(content)
-      result = q.query(args)
-
-      // in case there's only a single result from the query
-      // just prints that one element to stdout
-      if (Object.keys(result).length === 1) {
+    if (args.length) {
+      result = new Queryable(result).query(args)
+      // in case there's only a single argument and a single result from the query
+      // just prints that one element to stdout.
+      // TODO(BREAKING_CHANGE): much like other places where we unwrap single
+      // item arrays this should go away. it makes the behavior unknown for users
+      // who don't already know the shape of the data.
+      if (Object.keys(result).length === 1 && args.length === 1) {
         result = result[args]
       }
     }
 
-    // only outputs if not running with workspaces config
-    // execWorkspaces will handle the output otherwise
-    if (!this.workspaces) {
-      this.npm.output(JSON.stringify(result, null, 2))
-    }
-
-    return result
+    // The display layer is responsible for calling JSON.stringify on the result
+    // TODO: https://github.com/npm/cli/issues/5508 a raw mode has been requested similar
+    // to jq -r. If that was added then this method should no longer set `json:true` all the time
+    output.buffer(workspace ? { [workspace]: result } : result)
   }
 
-  async set (args) {
+  async set (args, { path }) {
     const setError = () =>
       this.usageError('npm pkg set expects a key=value pair of args.')
 
@@ -101,7 +89,7 @@ class Pkg extends BaseCommand {
 
     const force = this.npm.config.get('force')
     const json = this.npm.config.get('json')
-    const pkgJson = await PackageJson.load(this.prefix)
+    const pkgJson = await PackageJson.load(path)
     const q = new Queryable(pkgJson.content)
     for (const arg of args) {
       const [key, ...rest] = arg.split('=')
@@ -113,11 +101,10 @@ class Pkg extends BaseCommand {
       q.set(key, json ? JSON.parse(value) : value, { force })
     }
 
-    pkgJson.update(q.toJSON())
-    await pkgJson.save()
+    return pkgJson.update(q.toJSON())
   }
 
-  async delete (args) {
+  async delete (args, { path }) {
     const setError = () =>
       this.usageError('npm pkg delete expects key args.')
 
@@ -125,7 +112,7 @@ class Pkg extends BaseCommand {
       throw setError()
     }
 
-    const pkgJson = await PackageJson.load(this.prefix)
+    const pkgJson = await PackageJson.load(path)
     const q = new Queryable(pkgJson.content)
     for (const key of args) {
       if (!key) {
@@ -135,13 +122,7 @@ class Pkg extends BaseCommand {
       q.delete(key)
     }
 
-    pkgJson.update(q.toJSON())
-    await pkgJson.save()
-  }
-
-  async fix () {
-    const pkgJson = await PackageJson.fix(this.prefix)
-    await pkgJson.save()
+    return pkgJson.update(q.toJSON())
   }
 }
 

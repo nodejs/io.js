@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src=/common/get-host-info.sub.js></script>
+  <script src="../resources/include-frames-helper.js"></script>
+</head>
+
+<body>
+  <script>
+    const verifyMainFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('include-frames-originA-B', 'navigation', 1, 'Main Frame'),
+        createFilterOption('child-frame.html', 'resource', 1, 'Main Frame'),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyChildFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('child-frame.html', 'navigation', 0, 'Child Frame'),
+        createFilterOption('mark_child_frame', 'mark', 0, 'Child Frame'),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    promise_test(async () => {
+      performance.clearResourceTimings();
+
+      await loadChildFrame(
+        get_host_info().HTTP_REMOTE_ORIGIN + '/performance_timeline/resources/child-frame.html');
+
+      const entries = performance.getEntries({ includeChildFrames: true });
+
+      const navigationEntries = performance.getEntries({ entryType: "navigation", includeChildFrames: true });
+
+      const markedEntries = performance.getEntries(
+        { name: 'mark_subframe', includeChildFrames: true });
+
+      // 1 entry for main frame.
+      assert_equals(navigationEntries.length, 1, 'Navigation entries should 1.');
+
+      // 0 entry since child frame is cross origin.
+      assert_equals(markedEntries.length, 0, 'Mark entries should 0.');
+    }, 'GetEntries of a parent Frame of origin A and its child frame of origin B');
+  </script>
+</body>

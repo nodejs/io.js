@@ -134,73 +134,58 @@
 #elif defined(_WIN32_WCE)
 #  define CARES_TYPEOF_ARES_SOCKLEN_T int
 
-#elif defined(__MINGW32__)
-#  define CARES_TYPEOF_ARES_SOCKLEN_T int
-
 #elif defined(__VMS)
 #  define CARES_TYPEOF_ARES_SOCKLEN_T unsigned int
 
 #elif defined(__OS400__)
 #  if defined(__ILEC400__)
 #    define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
-#    define CARES_PULL_SYS_TYPES_H      1
-#    define CARES_PULL_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_TYPES_H      1
+#    define CARES_HAVE_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_SELECT_H     1
 #  endif
 
 #elif defined(__MVS__)
 #  if defined(__IBMC__) || defined(__IBMCPP__)
 #    define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
-#    define CARES_PULL_SYS_TYPES_H      1
-#    define CARES_PULL_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_TYPES_H      1
+#    define CARES_HAVE_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_SELECT_H     1
 #  endif
 
 #elif defined(__370__)
 #  if defined(__IBMC__) || defined(__IBMCPP__)
 #    define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
-#    define CARES_PULL_SYS_TYPES_H      1
-#    define CARES_PULL_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_TYPES_H      1
+#    define CARES_HAVE_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_SELECT_H     1
 #  endif
 
 #elif defined(TPF)
 #  define CARES_TYPEOF_ARES_SOCKLEN_T int
 
-/* ===================================== */
-/*    KEEP MSVC THE PENULTIMATE ENTRY    */
-/* ===================================== */
-
-#elif defined(_MSC_VER)
+#elif defined(_WIN32)
 #  define CARES_TYPEOF_ARES_SOCKLEN_T int
+#  define CARES_HAVE_WINDOWS_H          1
+#  define CARES_HAVE_SYS_TYPES_H        1
 
-/* ===================================== */
-/*    KEEP GENERIC GCC THE LAST ENTRY    */
-/* ===================================== */
+#  if defined(WATT32)
+#    define CARES_HAVE_SYS_SOCKET_H     1
+#    define CARES_HAVE_SYS_SELECT_H     1
+#  else
+#    define CARES_HAVE_WS2TCPIP_H       1
+#    define CARES_HAVE_WINSOCK2_H       1
+#  endif
 
 #elif defined(__GNUC__)
 #  define CARES_TYPEOF_ARES_SOCKLEN_T socklen_t
-#  define CARES_PULL_SYS_TYPES_H      1
-#  define CARES_PULL_SYS_SOCKET_H     1
+#  define CARES_HAVE_SYS_TYPES_H      1
+#  define CARES_HAVE_SYS_SOCKET_H     1
+#  define CARES_HAVE_SYS_SELECT_H     1
 
 #else
 #  error "Unknown non-configure build target!"
    Error Compilation_aborted_Unknown_non_configure_build_target
-#endif
-
-/* CARES_PULL_SYS_TYPES_H is defined above when inclusion of header file  */
-/* sys/types.h is required here to properly make type definitions below.  */
-#ifdef CARES_PULL_SYS_TYPES_H
-#  include <sys/types.h>
-#endif
-
-/* CARES_PULL_SYS_SOCKET_H is defined above when inclusion of header file  */
-/* sys/socket.h is required here to properly make type definitions below.  */
-#ifdef CARES_PULL_SYS_SOCKET_H
-#  include <sys/socket.h>
-#endif
-
-/* Data type definition of ares_socklen_t. */
-
-#ifdef CARES_TYPEOF_ARES_SOCKLEN_T
-  typedef CARES_TYPEOF_ARES_SOCKLEN_T ares_socklen_t;
 #endif
 
 /* Data type definition of ares_ssize_t. */
@@ -213,7 +198,5 @@
 #else
 #  define CARES_TYPEOF_ARES_SSIZE_T ssize_t
 #endif
-
-typedef CARES_TYPEOF_ARES_SSIZE_T ares_ssize_t;
 
 #endif /* __CARES_BUILD_H */

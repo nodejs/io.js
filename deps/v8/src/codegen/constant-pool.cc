@@ -9,7 +9,7 @@
 namespace v8 {
 namespace internal {
 
-#if defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64)
+#if defined(V8_TARGET_ARCH_PPC64)
 
 ConstantPoolBuilder::ConstantPoolBuilder(int ptr_reach_bits,
                                          int double_reach_bits) {
@@ -209,7 +209,7 @@ int ConstantPoolBuilder::Emit(Assembler* assm) {
   return !empty ? (assm->pc_offset() - emitted_label_.pos()) : 0;
 }
 
-#endif  // defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64)
+#endif  // defined(V8_TARGET_ARCH_PPC64)
 
 #if defined(V8_TARGET_ARCH_ARM64)
 

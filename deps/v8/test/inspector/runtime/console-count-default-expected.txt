@@ -1,0 +1,25 @@
+Test for default label with console.count() and console.countReset()
+[
+    [0] : {
+        type : string
+        value : default: 2
+    }
+]
+[
+    [0] : {
+        type : string
+        value : default: 1
+    }
+]
+[
+    [0] : {
+        type : string
+        value : default: 2
+    }
+]
+[
+    [0] : {
+        type : string
+        value : default: 1
+    }
+]

@@ -15,6 +15,7 @@ namespace internal {
 AllocationResult EvacuationAllocator::Allocate(AllocationSpace space,
                                                int object_size,
                                                AllocationAlignment alignment) {
+  DCHECK_IMPLIES(!shared_space_allocator_, space != SHARED_SPACE);
   object_size = ALIGN_TO_ALLOCATION_ALIGNMENT(object_size);
   switch (space) {
     case NEW_SPACE:

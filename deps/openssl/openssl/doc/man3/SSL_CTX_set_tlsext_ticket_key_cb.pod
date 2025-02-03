@@ -126,9 +126,9 @@ The I<hctx> key material can be set using L<HMAC_Init_ex(3)>.
 
 =head1 NOTES
 
-Session resumption shortcuts the TLS so that the client certificate
-negotiation don't occur. It makes up for this by storing client certificate
-an all other negotiated state information encrypted within the ticket. In a
+Session resumption shortcuts the TLS handshake so that the client certificate
+negotiation doesn't occur. It makes up for this by storing the client certificate
+and all other negotiated state information encrypted within the ticket. In a
 resumed session the applications will have all this state information available
 exactly as if a full negotiation had occurred.
 
@@ -241,7 +241,7 @@ OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2014-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2014-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

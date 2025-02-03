@@ -132,24 +132,22 @@ function makeHook(trackedTypes) {
   ]));
 })().then(common.mustCall());
 
-// Member methods ERR_INVALID_THIS
 throws(
   () => EventEmitterAsyncResource.prototype.emit(),
-  { code: 'ERR_INVALID_THIS' }
+  { name: 'TypeError', message: /Cannot read private member/ }
 );
 
 throws(
   () => EventEmitterAsyncResource.prototype.emitDestroy(),
-  { code: 'ERR_INVALID_THIS' }
+  { name: 'TypeError', message: /Cannot read private member/ }
 );
 
 ['asyncId', 'triggerAsyncId', 'asyncResource'].forEach((getter) => {
   throws(
     () => Reflect.get(EventEmitterAsyncResource.prototype, getter, {}),
     {
-      code: 'ERR_INVALID_THIS',
-      name: /TypeError/,
-      message: 'Value of "this" must be of type EventEmitterAsyncResource',
+      name: 'TypeError',
+      message: /Cannot read private member/,
       stack: new RegExp(`at get ${getter}`),
     }
   );

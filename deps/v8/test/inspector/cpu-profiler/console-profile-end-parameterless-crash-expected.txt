@@ -1,3 +1,0 @@
-Tests that "console.profileEnd()" does not cause crash. (webkit:105759)
-SUCCESS: found 2 profile headers
-SUCCESS: titled profile found

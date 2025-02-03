@@ -1,13 +1,11 @@
 // Flags: --experimental-require-module
 'use strict';
 
-require('../common');
+const { expectRequiredModule } = require('../common');
 const assert = require('assert');
-const { isModuleNamespaceObject } = require('util/types');
 
 const mod = require('../fixtures/es-modules/package-default-extension/index.mjs');
-assert.deepStrictEqual({ ...mod }, { entry: 'mjs' });
-assert(isModuleNamespaceObject(mod));
+expectRequiredModule(mod, { entry: 'mjs' });
 
 assert.throws(() => {
   const mod = require('../fixtures/es-modules/package-default-extension');

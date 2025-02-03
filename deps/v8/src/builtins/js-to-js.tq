@@ -4,8 +4,6 @@
 
 namespace runtime {
 extern runtime IsWasmExternalFunction(NoContext, JSAny): Boolean;
-extern runtime TierUpJSToJSWrapper(
-    NoContext, WasmApiFunctionRef, WasmFunctionData): JSAny;
 }  // namespace runtime
 
 namespace wasm {
@@ -65,25 +63,23 @@ macro ConvertToAndFromWasm(context: Context, wasmType: int32, value: JSAny):
 
 extern runtime WasmThrowJSTypeError(Context): never;
 
+// The varargs arguments is just there so that the generated Code has a
+// parameter_count of 0 (kDontAdaptArgumentsSentinel) and so becomes compatible
+// with an existing entry in the JSDispatchTable.
 transitioning javascript builtin JSToJSWrapperInvalidSig(
-    js-implicit context: NativeContext)(): JSAny {
+    js-implicit context: NativeContext)(...arguments): JSAny {
   runtime::WasmThrowJSTypeError(context);
 }
 
 transitioning javascript builtin JSToJSWrapper(
     js-implicit context: NativeContext, receiver: JSAny, target: JSFunction)(
     ...arguments): JSAny {
-  const functionData =
-      UnsafeCast<WasmFunctionData>(target.shared_function_info.function_data);
-  const ref = UnsafeCast<WasmApiFunctionRef>(functionData.internal.ref);
+  const functionData = target.shared_function_info.wasm_js_function_data;
 
-  dcheck(ref.wrapper_budget > 0);
-  ref.wrapper_budget = ref.wrapper_budget - 1;
-  if (ref.wrapper_budget == 0) {
-    runtime::TierUpJSToJSWrapper(kNoContext, ref, functionData);
-  }
+  const importData =
+      UnsafeCast<WasmImportData>(functionData.internal.implicit_arg);
 
-  const signaturePod = &ref.sig.bytes;
+  const signaturePod = &importData.sig.bytes;
   const serializedSig = torque_internal::unsafe::NewConstSlice<int32>(
       signaturePod.object, signaturePod.offset,
       signaturePod.length / torque_internal::SizeOf<int32>());
@@ -114,7 +110,7 @@ transitioning javascript builtin JSToJSWrapper(
 
   dcheck(nextIndex == numOutParams);
   const calleeResult = CallVarargs(
-      context, ref.callable, 0, Convert<int32>(numOutParams), outParams);
+      context, importData.callable, 0, Convert<int32>(numOutParams), outParams);
 
   let result: JSAny;
   if (returnCount == 0) {

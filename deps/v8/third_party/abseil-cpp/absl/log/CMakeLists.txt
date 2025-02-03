@@ -49,6 +49,7 @@ absl_cc_library(
     absl::log_internal_nullguard
     absl::log_internal_nullstream
     absl::log_internal_strip
+    absl::nullability
     absl::strings
 )
 
@@ -290,6 +291,7 @@ absl_cc_library(
   LINKOPTS
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
+    absl::core_headers
     absl::log_internal_message
     absl::log_internal_nullstream
     absl::log_severity
@@ -788,6 +790,8 @@ absl_cc_test(
     absl::core_headers
     absl::log_internal_test_helpers
     absl::status
+    absl::strings
+    absl::string_view
     GTest::gmock_main
 )
 
@@ -807,6 +811,7 @@ absl_cc_test(
     absl::log_entry
     absl::log_globals
     absl::log_severity
+    absl::log_internal_globals
     absl::log_internal_test_actions
     absl::log_internal_test_helpers
     absl::log_internal_test_matchers
@@ -830,6 +835,8 @@ absl_cc_test(
     absl::core_headers
     absl::log_internal_test_helpers
     absl::status
+    absl::strings
+    absl::string_view
     GTest::gmock_main
 )
 

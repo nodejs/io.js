@@ -115,6 +115,8 @@ async function testImportSpki({ name, publicUsages }, extractable) {
   assert.strictEqual(key.extractable, extractable);
   assert.deepStrictEqual(key.usages, publicUsages);
   assert.deepStrictEqual(key.algorithm.name, name);
+  assert.strictEqual(key.algorithm, key.algorithm);
+  assert.strictEqual(key.usages, key.usages);
 
   if (extractable) {
     // Test the roundtrip
@@ -151,6 +153,8 @@ async function testImportPkcs8({ name, privateUsages }, extractable) {
   assert.strictEqual(key.extractable, extractable);
   assert.deepStrictEqual(key.usages, privateUsages);
   assert.deepStrictEqual(key.algorithm.name, name);
+  assert.strictEqual(key.algorithm, key.algorithm);
+  assert.strictEqual(key.usages, key.usages);
 
   if (extractable) {
     // Test the roundtrip
@@ -227,6 +231,10 @@ async function testImportJwk({ name, publicUsages, privateUsages }, extractable)
   assert.deepStrictEqual(privateKey.usages, privateUsages);
   assert.strictEqual(publicKey.algorithm.name, name);
   assert.strictEqual(privateKey.algorithm.name, name);
+  assert.strictEqual(privateKey.algorithm, privateKey.algorithm);
+  assert.strictEqual(privateKey.usages, privateKey.usages);
+  assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
+  assert.strictEqual(publicKey.usages, publicKey.usages);
 
   if (extractable) {
     // Test the round trip
@@ -322,6 +330,15 @@ async function testImportJwk({ name, publicUsages, privateUsages }, extractable)
       extractable,
       [/* empty usages */]),
     { name: 'SyntaxError', message: 'Usages cannot be empty when importing a private key.' });
+
+  await assert.rejects(
+    subtle.importKey(
+      'jwk',
+      { kty: jwk.kty, /* missing x */ crv: jwk.crv },
+      { name },
+      extractable,
+      publicUsages),
+    { name: 'DataError', message: 'Invalid keyData' });
 }
 
 async function testImportRaw({ name, publicUsages }) {
@@ -336,6 +353,8 @@ async function testImportRaw({ name, publicUsages }) {
   assert.strictEqual(publicKey.type, 'public');
   assert.deepStrictEqual(publicKey.usages, publicUsages);
   assert.strictEqual(publicKey.algorithm.name, name);
+  assert.strictEqual(publicKey.algorithm, publicKey.algorithm);
+  assert.strictEqual(publicKey.usages, publicKey.usages);
 }
 
 (async function() {

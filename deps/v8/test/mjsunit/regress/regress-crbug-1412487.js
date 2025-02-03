@@ -23,7 +23,7 @@ for (i = 0; i < 1600; i++) {
 }
 
 function workerCode() {
-  onmessage = function(data) {
+  onmessage = function({data:data}) {
     postMessage('done');
   }
 }

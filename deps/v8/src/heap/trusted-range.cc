@@ -20,7 +20,7 @@ bool TrustedRange::InitReservation(size_t requested) {
 
   auto page_allocator = GetPlatformPageAllocator();
 
-  const size_t kPageSize = MemoryChunk::kPageSize;
+  const size_t kPageSize = MutablePageMetadata::kPageSize;
   CHECK(IsAligned(kPageSize, page_allocator->AllocatePageSize()));
 
   // We want the trusted range to be allocated above 4GB, for a few reasons:
@@ -47,7 +47,10 @@ bool TrustedRange::InitReservation(size_t requested) {
   params.page_size = kPageSize;
   params.base_alignment = base_alignment;
   params.requested_start_hint = requested_start_hint;
-  params.jit = JitPermission::kNoJit;
+  params.permissions = PageAllocator::Permission::kNoAccess;
+  params.page_initialization_mode =
+      base::PageInitializationMode::kAllocatedPagesCanBeUninitialized;
+  params.page_freeing_mode = base::PageFreeingMode::kMakeInaccessible;
   return VirtualMemoryCage::InitReservation(params);
 }
 

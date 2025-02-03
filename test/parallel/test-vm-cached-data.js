@@ -9,8 +9,7 @@ function getSource(tag) {
 }
 
 function produce(source, count) {
-  if (!count)
-    count = 1;
+  count ||= 1;
 
   const out = spawnSync(process.execPath, [ '-e', `
     'use strict';

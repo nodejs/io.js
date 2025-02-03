@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src=/common/get-host-info.sub.js></script>
+  <script src="../resources/include-frames-helper.js"></script>
+</head>
+
+<body>
+  <script>
+    const verifyMainFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('include-frames-originA-AB', 'navigation', 1, 'Main Frame'),
+        createFilterOption('child-frame.html', 'navigation', 1, 'Child Frames'),
+        createFilterOption('child-frame.html', 'resource', 2, 'Main Frame'),
+        createFilterOption('mark_child_frame', 'mark', 1, 'Child frames')
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyPerformanceEntries = () => {
+      const entries = performance.getEntries({ includeChildFrames: true });
+
+      const navigationEntries = performance.getEntries({ entryType: "navigation", includeChildFrames: true });
+
+      const markedEntries = performance.getEntries(
+        { name: 'mark_child_frame', includeChildFrames: true });
+
+      verifyMainFrameEntries(entries);
+
+      // 1 entry for main frame, 1 for local child frame.
+      assert_equals(navigationEntries.length, 2, 'Navigation entries should be 2.');
+
+      // 1 entry for local child frame.
+      assert_equals(markedEntries.length, 1, 'Mark entries should be 1.');
+    }
+
+    promise_test(() => {
+      performance.clearResourceTimings();
+
+      // Load first child iframe.
+      sameOriginPromise = loadChildFrame('../resources/child-frame.html');
+
+      // Create second child iframe.
+      crossOriginPromise = loadChildFrame(
+        get_host_info().HTTP_REMOTE_ORIGIN + '/resources/child-frame.html');
+
+      return Promise.all([sameOriginPromise, crossOriginPromise]).then(verifyPerformanceEntries);
+    }, 'GetEntries of a document of origin A and its two child frames of origin A and B respectively.');
+  </script>
+</body>

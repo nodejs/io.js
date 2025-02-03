@@ -11,8 +11,9 @@ namespace node {
 
 using v8::FunctionCallbackInfo;
 using v8::Int32;
-using v8::Just;
+using v8::JustVoid;
 using v8::Maybe;
+using v8::MaybeLocal;
 using v8::Nothing;
 using v8::Uint32;
 using v8::Value;
@@ -43,16 +44,13 @@ void ScryptConfig::MemoryInfo(MemoryTracker* tracker) const {
   }
 }
 
-Maybe<bool> ScryptTraits::EncodeOutput(
-    Environment* env,
-    const ScryptConfig& params,
-    ByteSource* out,
-    v8::Local<v8::Value>* result) {
-  *result = out->ToArrayBuffer(env);
-  return Just(!result->IsEmpty());
+MaybeLocal<Value> ScryptTraits::EncodeOutput(Environment* env,
+                                             const ScryptConfig& params,
+                                             ByteSource* out) {
+  return out->ToArrayBuffer(env);
 }
 
-Maybe<bool> ScryptTraits::AdditionalConfig(
+Maybe<void> ScryptTraits::AdditionalConfig(
     CryptoJobMode mode,
     const FunctionCallbackInfo<Value>& args,
     unsigned int offset,
@@ -64,14 +62,14 @@ Maybe<bool> ScryptTraits::AdditionalConfig(
   ArrayBufferOrViewContents<char> pass(args[offset]);
   ArrayBufferOrViewContents<char> salt(args[offset + 1]);
 
-  if (UNLIKELY(!pass.CheckSizeInt32())) {
+  if (!pass.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "pass is too large");
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
-  if (UNLIKELY(!salt.CheckSizeInt32())) {
+  if (!salt.CheckSizeInt32()) [[unlikely]] {
     THROW_ERR_OUT_OF_RANGE(env, "salt is too large");
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
   params->pass = mode == kCryptoJobAsync
@@ -93,48 +91,56 @@ Maybe<bool> ScryptTraits::AdditionalConfig(
   params->p = args[offset + 4].As<Uint32>()->Value();
   params->maxmem = args[offset + 5]->IntegerValue(env->context()).ToChecked();
 
-  if (EVP_PBE_scrypt(
-          nullptr,
-          0,
-          nullptr,
-          0,
-          params->N,
-          params->r,
-          params->p,
-          params->maxmem,
-          nullptr,
-          0) != 1) {
-    THROW_ERR_CRYPTO_INVALID_SCRYPT_PARAMS(env);
-    return Nothing<bool>();
-  }
-
   params->length = args[offset + 6].As<Int32>()->Value();
   CHECK_GE(params->length, 0);
 
-  return Just(true);
+  if (!ncrypto::checkScryptParams(
+          params->N, params->r, params->p, params->maxmem)) {
+    // Do not use CryptoErrorStore or ThrowCryptoError here in order to maintain
+    // backward compatibility with ERR_CRYPTO_INVALID_SCRYPT_PARAMS.
+    uint32_t err = ERR_peek_last_error();
+    if (err != 0) {
+      char buf[256];
+      ERR_error_string_n(err, buf, sizeof(buf));
+      THROW_ERR_CRYPTO_INVALID_SCRYPT_PARAMS(
+          env, "Invalid scrypt params: %s", buf);
+    } else {
+      THROW_ERR_CRYPTO_INVALID_SCRYPT_PARAMS(env);
+    }
+    return Nothing<void>();
+  }
+
+  return JustVoid();
 }
 
 bool ScryptTraits::DeriveBits(
     Environment* env,
     const ScryptConfig& params,
     ByteSource* out) {
-  ByteSource::Builder buf(params.length);
-
-  // Both the pass and salt may be zero-length at this point
-
-  if (!EVP_PBE_scrypt(params.pass.data<char>(),
-                      params.pass.size(),
-                      params.salt.data<unsigned char>(),
-                      params.salt.size(),
-                      params.N,
-                      params.r,
-                      params.p,
-                      params.maxmem,
-                      buf.data<unsigned char>(),
-                      params.length)) {
-    return false;
+  // If the params.length is zero-length, just return an empty buffer.
+  // It's useless, yes, but allowed via the API.
+  if (params.length == 0) {
+    *out = ByteSource();
+    return true;
   }
-  *out = std::move(buf).release();
+
+  auto dp = ncrypto::scrypt(
+      ncrypto::Buffer<const char>{
+          .data = params.pass.data<char>(),
+          .len = params.pass.size(),
+      },
+      ncrypto::Buffer<const unsigned char>{
+          .data = params.salt.data<unsigned char>(),
+          .len = params.salt.size(),
+      },
+      params.N,
+      params.r,
+      params.p,
+      params.maxmem,
+      params.length);
+
+  if (!dp) return false;
+  *out = ByteSource::Allocated(dp.release());
   return true;
 }
 

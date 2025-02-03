@@ -99,7 +99,8 @@ OPENSSL_zalloc() calls memset() to zero the memory before returning.
 OPENSSL_clear_realloc() and OPENSSL_clear_free() should be used
 when the buffer at B<addr> holds sensitive information.
 The old buffer is filled with zero's by calling OPENSSL_cleanse()
-before ultimately calling OPENSSL_free().
+before ultimately calling OPENSSL_free(). If the argument to OPENSSL_free() is
+NULL, nothing is done.
 
 OPENSSL_cleanse() fills B<ptr> of size B<len> with a string of 0's.
 Use OPENSSL_cleanse() with care if the memory is a mapping of a file.
@@ -198,7 +199,7 @@ clang's memory and leak sanitizer.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

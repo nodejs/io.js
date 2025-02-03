@@ -5,6 +5,9 @@
 // Original: mjsunit/mjsunit.js
 var fakeMjsunit = 'fake';
 
+// Original: mjsunit/fake-wasm-module-builder.js
+var fakeWasmModuleBuilder = 'fake';
+
 // Original: mjsunit/test_load_2.js
 var testLoad2 = 'test_load_2';
 

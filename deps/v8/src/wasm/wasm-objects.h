@@ -10,11 +10,13 @@
 #define V8_WASM_WASM_OBJECTS_H_
 
 #include <memory>
+#include <optional>
 
 #include "src/base/bit-field.h"
 #include "src/debug/interface-types.h"
 #include "src/heap/heap.h"
 #include "src/objects/backing-store.h"
+#include "src/objects/casting.h"
 #include "src/objects/foreign.h"
 #include "src/objects/js-function.h"
 #include "src/objects/js-objects.h"
@@ -58,8 +60,13 @@ class WasmModuleObject;
 
 enum class SharedFlag : uint8_t;
 
-template <class CppType>
+enum class WasmTableFlag : uint8_t { kTable32, kTable64 };
+enum class IsAWrapper : uint8_t { kYes, kMaybe, kNo };
+
+template <typename CppType>
 class Managed;
+template <typename CppType>
+class TrustedManaged;
 
 #include "torque-generated/src/wasm/wasm-objects-tq.inc"
 
@@ -67,22 +74,29 @@ class Managed;
   DECL_GETTER(has_##name, bool)             \
   DECL_ACCESSORS(name, type)
 
-class V8_EXPORT_PRIVATE FunctionTargetAndRef {
+class V8_EXPORT_PRIVATE FunctionTargetAndImplicitArg {
  public:
-  FunctionTargetAndRef(Handle<WasmInstanceObject> target_instance_object,
-                       int target_func_index);
-  // The "ref" will be a WasmInstanceObject or a WasmApiFunctionRef.
-  Handle<HeapObject> ref() { return ref_; }
+  FunctionTargetAndImplicitArg(
+      Isolate* isolate, Handle<WasmTrustedInstanceData> target_instance_data,
+      int target_func_index);
+  // The "implicit_arg" will be a WasmTrustedInstanceData or a WasmImportData.
+  Handle<TrustedObject> implicit_arg() { return implicit_arg_; }
   Address call_target() { return call_target_; }
 
+#if V8_ENABLE_DRUMBRAKE
+  int target_func_index() { return target_func_index_; }
+#endif  // V8_ENABLE_DRUMBRAKE
+
  private:
-  Handle<HeapObject> ref_;
+  Handle<TrustedObject> implicit_arg_;
   Address call_target_;
+
+#if V8_ENABLE_DRUMBRAKE
+  int target_func_index_;
+#endif  // V8_ENABLE_DRUMBRAKE
 };
 
 namespace wasm {
-enum Suspend : bool { kSuspend = true, kNoSuspend = false };
-enum Promise : bool { kPromise = true, kNoPromise = false };
 enum class OnResume : int { kContinue, kThrow };
 }  // namespace wasm
 
@@ -91,39 +105,49 @@ enum class OnResume : int { kContinue, kThrow };
 // call imported functions at runtime.
 // Each entry is either:
 //   - Wasm to JS, which has fields
-//      - object = a WasmApiFunctionRef
+//      - object = a WasmImportData
 //      - target = entrypoint to import wrapper code
 //   - Wasm to Wasm, which has fields
-//      - object = target instance
+//      - object = target instance data
 //      - target = entrypoint for the function
 class ImportedFunctionEntry {
  public:
-  inline ImportedFunctionEntry(Handle<WasmInstanceObject>, int index);
-  inline ImportedFunctionEntry(Isolate*, Handle<WasmTrustedInstanceData>,
+  inline ImportedFunctionEntry(Isolate*, DirectHandle<WasmInstanceObject>,
                                int index);
+  inline ImportedFunctionEntry(Handle<WasmTrustedInstanceData>, int index);
 
   // Initialize this entry as a Wasm to JS call. This accepts the isolate as a
-  // parameter, since it must allocate a tuple.
-  void SetWasmToJs(Isolate*, Handle<JSReceiver> callable, wasm::Suspend suspend,
-                   const wasm::FunctionSig* sig);
-  V8_EXPORT_PRIVATE void SetWasmToJs(Isolate*, Handle<JSReceiver> callable,
-                                     const wasm::WasmCode* wasm_to_js_wrapper,
-                                     wasm::Suspend suspend,
-                                     const wasm::FunctionSig* sig);
+  // parameter since it allocates a WasmImportData.
+  void SetGenericWasmToJs(Isolate*, DirectHandle<JSReceiver> callable,
+                          wasm::Suspend suspend, const wasm::FunctionSig* sig);
+  V8_EXPORT_PRIVATE void SetCompiledWasmToJs(Isolate*,
+                                             DirectHandle<JSReceiver> callable,
+                                             wasm::WasmCode* wasm_to_js_wrapper,
+                                             wasm::Suspend suspend,
+                                             const wasm::FunctionSig* sig);
 
   // Initialize this entry as a Wasm to Wasm call.
-  void SetWasmToWasm(Tagged<WasmInstanceObject> target_instance_object,
-                     Address call_target);
+  void SetWasmToWasm(Tagged<WasmTrustedInstanceData> target_instance_object,
+                     Address call_target
+#if V8_ENABLE_DRUMBRAKE
+                     ,
+                     int exported_function_index
+#endif  // V8_ENABLE_DRUMBRAKE
+  );
 
   Tagged<JSReceiver> callable();
   Tagged<Object> maybe_callable();
-  Tagged<Object> object_ref();
+  Tagged<Object> implicit_arg();
   Address target();
-  void set_target(Address new_target);
+  void set_target(Address new_target, wasm::WasmCode* wrapper_if_known,
+                  IsAWrapper contextual_knowledge);
+
+#if V8_ENABLE_DRUMBRAKE
+  int function_index_in_called_module();
+#endif  // V8_ENABLE_DRUMBRAKE
 
  private:
-  // TODO(14499): Less back-and-forth between trusted and untrusted data.
-  Handle<WasmInstanceObject> const instance_object_;
+  Handle<WasmTrustedInstanceData> const instance_data_;
   int const index_;
 };
 
@@ -145,21 +169,20 @@ class WasmModuleObject
   // reference counted and might be shared between multiple Isolates.
   V8_EXPORT_PRIVATE static Handle<WasmModuleObject> New(
       Isolate* isolate, std::shared_ptr<wasm::NativeModule> native_module,
-      Handle<Script> script);
+      DirectHandle<Script> script);
 
   // Check whether this module was generated from asm.js source.
   inline bool is_asm_js();
 
   // Get the module name, if set. Returns an empty handle otherwise.
-  static MaybeHandle<String> GetModuleNameOrNull(Isolate*,
-                                                 Handle<WasmModuleObject>);
+  static MaybeHandle<String> GetModuleNameOrNull(
+      Isolate*, DirectHandle<WasmModuleObject>);
 
   // Get the function name of the function identified by the given index.
   // Returns a null handle if the function is unnamed or the name is not a valid
   // UTF-8 string.
-  static MaybeHandle<String> GetFunctionNameOrNull(Isolate*,
-                                                   Handle<WasmModuleObject>,
-                                                   uint32_t func_index);
+  static MaybeHandle<String> GetFunctionNameOrNull(
+      Isolate*, DirectHandle<WasmModuleObject>, uint32_t func_index);
 
   // Get the raw bytes of the function name of the function identified by the
   // given index.
@@ -171,7 +194,7 @@ class WasmModuleObject
   // internalized. (Prefer to internalize early if the string will be used for a
   // property lookup anyway.)
   static Handle<String> ExtractUtf8StringFromModuleBytes(
-      Isolate*, Handle<WasmModuleObject>, wasm::WireBytesRef,
+      Isolate*, DirectHandle<WasmModuleObject>, wasm::WireBytesRef,
       InternalizeString);
   static Handle<String> ExtractUtf8StringFromModuleBytes(
       Isolate*, base::Vector<const uint8_t> wire_byte, wasm::WireBytesRef,
@@ -180,85 +203,105 @@ class WasmModuleObject
   TQ_OBJECT_CONSTRUCTORS(WasmModuleObject)
 };
 
+#if V8_ENABLE_SANDBOX || DEBUG
+// This should be checked before writing an untrusted function reference
+// into a dispatch table (e.g. via WasmTableObject::Set).
+bool FunctionSigMatchesTable(uint32_t canonical_sig_id,
+                             const wasm::WasmModule* module, int table_index);
+#endif
+
 // Representation of a WebAssembly.Table JavaScript-level object.
 class WasmTableObject
     : public TorqueGeneratedWasmTableObject<WasmTableObject, JSObject> {
  public:
+  class BodyDescriptor;
+
   inline wasm::ValueType type();
 
+  DECL_TRUSTED_POINTER_ACCESSORS(trusted_data, WasmTrustedInstanceData)
+
   V8_EXPORT_PRIVATE static int Grow(Isolate* isolate,
-                                    Handle<WasmTableObject> table,
-                                    uint32_t count, Handle<Object> init_value);
+                                    DirectHandle<WasmTableObject> table,
+                                    uint32_t count,
+                                    DirectHandle<Object> init_value);
 
   V8_EXPORT_PRIVATE static Handle<WasmTableObject> New(
-      Isolate* isolate, Handle<WasmInstanceObject> instance_object,
+      Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_data,
       wasm::ValueType type, uint32_t initial, bool has_maximum,
-      uint32_t maximum, Handle<Object> initial_value);
+      uint32_t maximum, DirectHandle<Object> initial_value,
+      WasmTableFlag table_type = WasmTableFlag::kTable32);
 
   // Store that a specific instance uses this table, in order to update the
   // instance's dispatch table when this table grows (and hence needs to
   // allocate a new dispatch table).
   V8_EXPORT_PRIVATE static void AddUse(
-      Isolate* isolate, Handle<WasmTableObject> table,
-      Handle<WasmTrustedInstanceData> instance_object, int table_index);
+      Isolate* isolate, DirectHandle<WasmTableObject> table,
+      Handle<WasmInstanceObject> instance_object, int table_index);
 
   bool is_in_bounds(uint32_t entry_index);
 
+  // Overwrite the Torque-generated method that returns an int.
+  inline bool is_table64() const;
+
   // Thin wrapper around {JsToWasmObject}.
-  static MaybeHandle<Object> JSToWasmElement(Isolate* isolate,
-                                             Handle<WasmTableObject> table,
-                                             Handle<Object> entry,
-                                             const char** error_message);
+  static MaybeHandle<Object> JSToWasmElement(
+      Isolate* isolate, DirectHandle<WasmTableObject> table,
+      Handle<Object> entry, const char** error_message);
 
   // This function will not handle JS objects; i.e., {entry} needs to be in wasm
   // representation.
   V8_EXPORT_PRIVATE static void Set(Isolate* isolate,
-                                    Handle<WasmTableObject> table,
-                                    uint32_t index, Handle<Object> entry);
+                                    DirectHandle<WasmTableObject> table,
+                                    uint32_t index, DirectHandle<Object> entry);
 
-  V8_EXPORT_PRIVATE static Handle<Object> Get(Isolate* isolate,
-                                              Handle<WasmTableObject> table,
-                                              uint32_t index);
+  V8_EXPORT_PRIVATE static Handle<Object> Get(
+      Isolate* isolate, DirectHandle<WasmTableObject> table, uint32_t index);
 
   V8_EXPORT_PRIVATE static void Fill(Isolate* isolate,
-                                     Handle<WasmTableObject> table,
-                                     uint32_t start, Handle<Object> entry,
+                                     DirectHandle<WasmTableObject> table,
+                                     uint32_t start, DirectHandle<Object> entry,
                                      uint32_t count);
 
   // TODO(wasm): Unify these three methods into one.
   static void UpdateDispatchTables(
-      Isolate* isolate, Handle<WasmTableObject> table, int entry_index,
+      Isolate* isolate, DirectHandle<WasmTableObject> table, int entry_index,
       const wasm::WasmFunction* func,
-      Handle<WasmTrustedInstanceData> target_instance);
+      DirectHandle<WasmTrustedInstanceData> target_instance
+#if V8_ENABLE_DRUMBRAKE
+      ,
+      int target_func_index
+#endif  // V8_ENABLE_DRUMBRAKE
+  );
   static void UpdateDispatchTables(Isolate* isolate,
-                                   Handle<WasmTableObject> table,
+                                   DirectHandle<WasmTableObject> table,
                                    int entry_index,
-                                   Handle<WasmJSFunction> function);
-  static void UpdateDispatchTables(Isolate* isolate,
-                                   Handle<WasmTableObject> table,
-                                   int entry_index,
-                                   Handle<WasmCapiFunction> capi_function);
+                                   DirectHandle<WasmJSFunction> function);
+  static void UpdateDispatchTables(
+      Isolate* isolate, DirectHandle<WasmTableObject> table, int entry_index,
+      DirectHandle<WasmCapiFunction> capi_function);
 
   void ClearDispatchTables(int index);
 
   V8_EXPORT_PRIVATE static void SetFunctionTablePlaceholder(
-      Isolate* isolate, Handle<WasmTableObject> table, int entry_index,
-      Handle<WasmTrustedInstanceData> trusted_instance_data, int func_index);
+      Isolate* isolate, DirectHandle<WasmTableObject> table, int entry_index,
+      DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
+      int func_index);
 
   // This function reads the content of a function table entry and returns it
   // through the output parameters.
   static void GetFunctionTableEntry(
       Isolate* isolate, const wasm::WasmModule* module,
-      Handle<WasmTableObject> table, int entry_index, bool* is_valid,
-      bool* is_null, MaybeHandle<WasmInstanceObject>* instance_object,
-      int* function_index, MaybeHandle<WasmJSFunction>* maybe_js_function);
+      DirectHandle<WasmTableObject> table, int entry_index, bool* is_valid,
+      bool* is_null, MaybeHandle<WasmTrustedInstanceData>* instance_data,
+      int* function_index,
+      MaybeDirectHandle<WasmJSFunction>* maybe_js_function);
 
  private:
   // {entry} is either {Null} or a {WasmInternalFunction}.
   static void SetFunctionTableEntry(Isolate* isolate,
-                                    Handle<WasmTableObject> table,
-                                    Handle<FixedArray> entries, int entry_index,
-                                    Handle<Object> entry);
+                                    DirectHandle<WasmTableObject> table,
+                                    int entry_index,
+                                    DirectHandle<Object> entry);
 
   TQ_OBJECT_CONSTRUCTORS(WasmTableObject)
 };
@@ -272,9 +315,12 @@ class WasmMemoryObject
   // Add a use of this memory object to the given instance. This updates the
   // internal weak list of instances that use this memory and also updates the
   // fields of the instance to reference this memory's buffer.
+  // Note that we update both the non-shared and shared (if any) parts of the
+  // instance for faster access to shared memory.
   V8_EXPORT_PRIVATE static void UseInInstance(
-      Isolate* isolate, Handle<WasmMemoryObject> memory,
-      Handle<WasmTrustedInstanceData> trusted_instance_data,
+      Isolate* isolate, DirectHandle<WasmMemoryObject> memory,
+      DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
+      Handle<WasmTrustedInstanceData> shared_trusted_instance_data,
       int memory_index_in_instance);
   inline bool has_maximum_pages();
 
@@ -305,15 +351,18 @@ class WasmMemoryObject
 class WasmGlobalObject
     : public TorqueGeneratedWasmGlobalObject<WasmGlobalObject, JSObject> {
  public:
+  class BodyDescriptor;
+
   DECL_ACCESSORS(untagged_buffer, Tagged<JSArrayBuffer>)
   DECL_ACCESSORS(tagged_buffer, Tagged<FixedArray>)
   DECL_PRIMITIVE_ACCESSORS(type, wasm::ValueType)
+  DECL_TRUSTED_POINTER_ACCESSORS(trusted_data, WasmTrustedInstanceData)
 
   // Dispatched behavior.
   DECL_PRINTER(WasmGlobalObject)
 
   V8_EXPORT_PRIVATE static MaybeHandle<WasmGlobalObject> New(
-      Isolate* isolate, Handle<WasmInstanceObject> instance_object,
+      Isolate* isolate, Handle<WasmTrustedInstanceData> instance_object,
       MaybeHandle<JSArrayBuffer> maybe_untagged_buffer,
       MaybeHandle<FixedArray> maybe_tagged_buffer, wasm::ValueType type,
       int32_t offset, bool is_mutable);
@@ -332,7 +381,7 @@ class WasmGlobalObject
   inline void SetF32(float value);
   inline void SetF64(double value);
   // {value} must be an object in Wasm representation.
-  inline void SetRef(Handle<Object> value);
+  inline void SetRef(DirectHandle<Object> value);
 
  private:
   // This function returns the address of the global's data in the
@@ -347,42 +396,53 @@ class WasmGlobalObject
 // This object lives in trusted space and is never modified from user space.
 class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
  public:
-  DECL_CAST(WasmTrustedInstanceData)
-
-  DECL_ACCESSORS(instance_object, Tagged<WasmInstanceObject>)
+  DECL_OPTIONAL_ACCESSORS(instance_object, Tagged<WasmInstanceObject>)
   DECL_ACCESSORS(native_context, Tagged<Context>)
   DECL_ACCESSORS(memory_objects, Tagged<FixedArray>)
+#if V8_ENABLE_DRUMBRAKE
+  DECL_OPTIONAL_ACCESSORS(interpreter_object, Tagged<Tuple2>)
+#endif  // V8_ENABLE_DRUMBRAKE
   DECL_OPTIONAL_ACCESSORS(untagged_globals_buffer, Tagged<JSArrayBuffer>)
   DECL_OPTIONAL_ACCESSORS(tagged_globals_buffer, Tagged<FixedArray>)
   DECL_OPTIONAL_ACCESSORS(imported_mutable_globals_buffers, Tagged<FixedArray>)
   // tables: FixedArray of WasmTableObject.
   DECL_OPTIONAL_ACCESSORS(tables, Tagged<FixedArray>)
-  DECL_ACCESSORS(imported_function_refs, Tagged<FixedArray>)
+  DECL_PROTECTED_POINTER_ACCESSORS(dispatch_table_for_imports,
+                                   WasmDispatchTable)
   DECL_ACCESSORS(imported_mutable_globals, Tagged<FixedAddressArray>)
-  DECL_ACCESSORS(imported_function_targets, Tagged<FixedAddressArray>)
+#if V8_ENABLE_DRUMBRAKE
+  // Points to an array that contains the function index for each imported Wasm
+  // function. This is required to call imported functions from the Wasm
+  // interpreter.
+  DECL_ACCESSORS(imported_function_indices, Tagged<FixedInt32Array>)
+#endif  // V8_ENABLE_DRUMBRAKE
+  DECL_PROTECTED_POINTER_ACCESSORS(shared_part, WasmTrustedInstanceData)
   DECL_PROTECTED_POINTER_ACCESSORS(dispatch_table0, WasmDispatchTable)
   DECL_PROTECTED_POINTER_ACCESSORS(dispatch_tables, ProtectedFixedArray)
   DECL_OPTIONAL_ACCESSORS(tags_table, Tagged<FixedArray>)
-  DECL_ACCESSORS(wasm_internal_functions, Tagged<FixedArray>)
+  DECL_ACCESSORS(func_refs, Tagged<FixedArray>)
   DECL_ACCESSORS(managed_object_maps, Tagged<FixedArray>)
   DECL_ACCESSORS(feedback_vectors, Tagged<FixedArray>)
   DECL_ACCESSORS(well_known_imports, Tagged<FixedArray>)
   DECL_PRIMITIVE_ACCESSORS(memory0_start, uint8_t*)
   DECL_PRIMITIVE_ACCESSORS(memory0_size, size_t)
+  DECL_PROTECTED_POINTER_ACCESSORS(managed_native_module,
+                                   TrustedManaged<wasm::NativeModule>)
   DECL_PRIMITIVE_ACCESSORS(new_allocation_limit_address, Address*)
   DECL_PRIMITIVE_ACCESSORS(new_allocation_top_address, Address*)
   DECL_PRIMITIVE_ACCESSORS(old_allocation_limit_address, Address*)
   DECL_PRIMITIVE_ACCESSORS(old_allocation_top_address, Address*)
-  DECL_PRIMITIVE_ACCESSORS(isorecursive_canonical_types, const uint32_t*)
   DECL_PRIMITIVE_ACCESSORS(globals_start, uint8_t*)
   DECL_PRIMITIVE_ACCESSORS(jump_table_start, Address)
   DECL_PRIMITIVE_ACCESSORS(hook_on_function_call_address, Address)
-  DECL_PRIMITIVE_ACCESSORS(tiering_budget_array, uint32_t*)
-  DECL_ACCESSORS(memory_bases_and_sizes, Tagged<FixedAddressArray>)
+  DECL_PRIMITIVE_ACCESSORS(tiering_budget_array, std::atomic<uint32_t>*)
+  DECL_PROTECTED_POINTER_ACCESSORS(memory_bases_and_sizes,
+                                   TrustedFixedAddressArray)
   DECL_ACCESSORS(data_segment_starts, Tagged<FixedAddressArray>)
   DECL_ACCESSORS(data_segment_sizes, Tagged<FixedUInt32Array>)
   DECL_ACCESSORS(element_segments, Tagged<FixedArray>)
   DECL_PRIMITIVE_ACCESSORS(break_on_entry, uint8_t)
+  DECL_PRIMITIVE_ACCESSORS(stress_deopt_counter_address, Address)
 
   // Clear uninitialized padding space. This ensures that the snapshot content
   // is deterministic. Depending on the V8 build mode there could be no padding.
@@ -391,6 +451,8 @@ class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
   inline Tagged<WasmMemoryObject> memory_object(int memory_index) const;
   inline uint8_t* memory_base(int memory_index) const;
   inline size_t memory_size(int memory_index) const;
+
+  inline wasm::NativeModule* native_module() const;
 
   inline Tagged<WasmModuleObject> module_object() const;
   inline const wasm::WasmModule* module() const;
@@ -403,15 +465,14 @@ class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
 #define FIELD_LIST(V)                                                     \
   /* Often-accessed fields go first to minimize generated code size. */   \
   /* Less than system pointer sized fields come first. */                 \
-  V(kImportedFunctionRefsOffset, kTaggedSize)                             \
-  V(kDispatchTable0Offset, kTaggedSize)                                   \
+  V(kProtectedDispatchTable0Offset, kTaggedSize)                          \
+  V(kProtectedDispatchTableForImportsOffset, kTaggedSize)                 \
   V(kImportedMutableGlobalsOffset, kTaggedSize)                           \
-  V(kImportedFunctionTargetsOffset, kTaggedSize)                          \
+  IF_WASM_DRUMBRAKE(V, kImportedFunctionIndicesOffset, kTaggedSize)       \
   /* Optional padding to align system pointer size fields */              \
   V(kOptionalPaddingOffset, POINTER_SIZE_PADDING(kOptionalPaddingOffset)) \
   V(kMemory0StartOffset, kSystemPointerSize)                              \
   V(kMemory0SizeOffset, kSizetSize)                                       \
-  V(kIsorecursiveCanonicalTypesOffset, kSystemPointerSize)                \
   V(kGlobalsStartOffset, kSystemPointerSize)                              \
   V(kJumpTableStartOffset, kSystemPointerSize)                            \
   /* End of often-accessed fields. */                                     \
@@ -422,24 +483,28 @@ class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
   V(kOldAllocationTopAddressOffset, kSystemPointerSize)                   \
   V(kHookOnFunctionCallAddressOffset, kSystemPointerSize)                 \
   V(kTieringBudgetArrayOffset, kSystemPointerSize)                        \
+  V(kStressDeoptCounterOffset, kSystemPointerSize)                        \
   /* Less than system pointer size aligned fields are below. */           \
-  V(kMemoryBasesAndSizesOffset, kTaggedSize)                              \
+  V(kProtectedMemoryBasesAndSizesOffset, kTaggedSize)                     \
   V(kDataSegmentStartsOffset, kTaggedSize)                                \
   V(kDataSegmentSizesOffset, kTaggedSize)                                 \
   V(kElementSegmentsOffset, kTaggedSize)                                  \
   V(kInstanceObjectOffset, kTaggedSize)                                   \
   V(kNativeContextOffset, kTaggedSize)                                    \
+  V(kProtectedSharedPartOffset, kTaggedSize)                              \
   V(kMemoryObjectsOffset, kTaggedSize)                                    \
   V(kUntaggedGlobalsBufferOffset, kTaggedSize)                            \
   V(kTaggedGlobalsBufferOffset, kTaggedSize)                              \
   V(kImportedMutableGlobalsBuffersOffset, kTaggedSize)                    \
+  IF_WASM_DRUMBRAKE(V, kInterpreterObjectOffset, kTaggedSize)             \
   V(kTablesOffset, kTaggedSize)                                           \
-  V(kDispatchTablesOffset, kTaggedSize)                                   \
+  V(kProtectedDispatchTablesOffset, kTaggedSize)                          \
   V(kTagsTableOffset, kTaggedSize)                                        \
-  V(kWasmInternalFunctionsOffset, kTaggedSize)                            \
+  V(kFuncRefsOffset, kTaggedSize)                                         \
   V(kManagedObjectMapsOffset, kTaggedSize)                                \
   V(kFeedbackVectorsOffset, kTaggedSize)                                  \
   V(kWellKnownImportsOffset, kTaggedSize)                                 \
+  V(kProtectedManagedNativeModuleOffset, kTaggedSize)                     \
   V(kBreakOnEntryOffset, kUInt8Size)                                      \
   /* More padding to make the header pointer-size aligned */              \
   V(kHeaderPaddingOffset, POINTER_SIZE_PADDING(kHeaderPaddingOffset))     \
@@ -460,55 +525,86 @@ class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
 #undef ASSERT_FIELD_ALIGNED
 #undef FIELD_LIST
 
-  // GC support: List all tagged fields.
+  // GC support: List all tagged fields and protected fields.
   // V(offset, name)
-#define WASM_TAGGED_INSTANCE_OBJECT_FIELDS(V)                                 \
-  V(kImportedFunctionRefsOffset, "imported_function_refs")                    \
+#define WASM_TAGGED_INSTANCE_DATA_FIELDS(V)                                   \
   V(kInstanceObjectOffset, "instance_object")                                 \
   V(kNativeContextOffset, "native_context")                                   \
   V(kMemoryObjectsOffset, "memory_objects")                                   \
   V(kUntaggedGlobalsBufferOffset, "untagged_globals_buffer")                  \
   V(kTaggedGlobalsBufferOffset, "tagged_globals_buffer")                      \
   V(kImportedMutableGlobalsBuffersOffset, "imported_mutable_globals_buffers") \
+  IF_WASM_DRUMBRAKE(V, kInterpreterObjectOffset, "interpreter_object")        \
   V(kTablesOffset, "tables")                                                  \
   V(kTagsTableOffset, "tags_table")                                           \
-  V(kWasmInternalFunctionsOffset, "wasm_internal_functions")                  \
+  V(kFuncRefsOffset, "func_refs")                                             \
   V(kManagedObjectMapsOffset, "managed_object_maps")                          \
   V(kFeedbackVectorsOffset, "feedback_vectors")                               \
   V(kWellKnownImportsOffset, "well_known_imports")                            \
   V(kImportedMutableGlobalsOffset, "imported_mutable_globals")                \
-  V(kImportedFunctionTargetsOffset, "imported_function_targets")              \
-  V(kMemoryBasesAndSizesOffset, "memory_bases_and_sizes")                     \
+  IF_WASM_DRUMBRAKE(V, kImportedFunctionIndicesOffset,                        \
+                    "imported_function_indices")                              \
   V(kDataSegmentStartsOffset, "data_segment_starts")                          \
   V(kDataSegmentSizesOffset, "data_segment_sizes")                            \
   V(kElementSegmentsOffset, "element_segments")
+#define WASM_PROTECTED_INSTANCE_DATA_FIELDS(V)                             \
+  V(kProtectedSharedPartOffset, "shared_part")                             \
+  V(kProtectedMemoryBasesAndSizesOffset, "memory_bases_and_sizes")         \
+  V(kProtectedDispatchTable0Offset, "dispatch_table0")                     \
+  V(kProtectedDispatchTablesOffset, "dispatch_tables")                     \
+  V(kProtectedDispatchTableForImportsOffset, "dispatch_table_for_imports") \
+  V(kProtectedManagedNativeModuleOffset, "managed_native_module")
 
-  static constexpr std::array<uint16_t, 19> kTaggedFieldOffsets = {
-#define WASM_INSTANCE_TAGGED_FIELD_OFFSET(offset, _) offset,
-      WASM_TAGGED_INSTANCE_OBJECT_FIELDS(WASM_INSTANCE_TAGGED_FIELD_OFFSET)
-#undef WASM_INSTANCE_TAGGED_FIELD_OFFSET
-  };
+#define WASM_INSTANCE_FIELD_OFFSET(offset, _) offset,
+#define WASM_INSTANCE_FIELD_NAME(_, name) name,
 
-  static constexpr std::array<const char*, 19> kTaggedFieldNames = {
-#define WASM_INSTANCE_TAGGED_FIELD_NAME(_, name) name,
-      WASM_TAGGED_INSTANCE_OBJECT_FIELDS(WASM_INSTANCE_TAGGED_FIELD_NAME)
-#undef WASM_INSTANCE_TAGGED_FIELD_NAME
-  };
-#undef WASM_TAGGED_INSTANCE_OBJECT_FIELDS
+#if V8_ENABLE_DRUMBRAKE
+  static constexpr size_t kWasmInterpreterAdditionalFields = 2;
+#else
+  static constexpr size_t kWasmInterpreterAdditionalFields = 0;
+#endif  // V8_ENABLE_DRUMBRAKE
+  static constexpr size_t kTaggedFieldsCount =
+      16 + kWasmInterpreterAdditionalFields;
+
+  static constexpr std::array<uint16_t, kTaggedFieldsCount>
+      kTaggedFieldOffsets = {
+          WASM_TAGGED_INSTANCE_DATA_FIELDS(WASM_INSTANCE_FIELD_OFFSET)};
+  static constexpr std::array<const char*, kTaggedFieldsCount>
+      kTaggedFieldNames = {
+          WASM_TAGGED_INSTANCE_DATA_FIELDS(WASM_INSTANCE_FIELD_NAME)};
+  static constexpr std::array<uint16_t, 6> kProtectedFieldOffsets = {
+      WASM_PROTECTED_INSTANCE_DATA_FIELDS(WASM_INSTANCE_FIELD_OFFSET)};
+  static constexpr std::array<const char*, 6> kProtectedFieldNames = {
+      WASM_PROTECTED_INSTANCE_DATA_FIELDS(WASM_INSTANCE_FIELD_NAME)};
+
+#undef WASM_INSTANCE_FIELD_OFFSET
+#undef WASM_INSTANCE_FIELD_NAME
+#undef WASM_TAGGED_INSTANCE_DATA_FIELDS
+#undef WASM_PROTECTED_INSTANCE_DATA_FIELDS
 
   static_assert(kTaggedFieldOffsets.size() == kTaggedFieldNames.size(),
-                "every field offset needs a name");
-
-  const wasm::WasmModule* module();
+                "every tagged field offset needs a name");
+  static_assert(kProtectedFieldOffsets.size() == kProtectedFieldNames.size(),
+                "every protected field offset needs a name");
 
   static void EnsureMinimumDispatchTableSize(
-      Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_instance_data,
+      Isolate* isolate,
+      DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
       int table_index, int minimum_size);
 
   void SetRawMemory(int memory_index, uint8_t* mem_start, size_t mem_size);
 
+#if V8_ENABLE_DRUMBRAKE
+  // Get the interpreter object associated with the given wasm object.
+  // If no interpreter object exists yet, it is created automatically.
+  static Handle<Tuple2> GetOrCreateInterpreterObject(
+      Handle<WasmInstanceObject>);
+  static Handle<Tuple2> GetInterpreterObject(Handle<WasmInstanceObject>);
+#endif  // V8_ENABLE_DRUMBRAKE
+
   static Handle<WasmTrustedInstanceData> New(Isolate*,
-                                             Handle<WasmModuleObject>);
+                                             DirectHandle<WasmModuleObject>,
+                                             bool shared);
 
   Address GetCallTarget(uint32_t func_index);
 
@@ -517,44 +613,44 @@ class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
 
   // Copies table entries. Returns {false} if the ranges are out-of-bounds.
   static bool CopyTableEntries(
-      Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_instance_data,
+      Isolate* isolate,
+      DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
       uint32_t table_dst_index, uint32_t table_src_index, uint32_t dst,
       uint32_t src, uint32_t count) V8_WARN_UNUSED_RESULT;
 
   // Loads a range of elements from element segment into a table.
   // Returns the empty {Optional} if the operation succeeds, or an {Optional}
   // with the error {MessageTemplate} if it fails.
-  static base::Optional<MessageTemplate> InitTableEntries(
+  static std::optional<MessageTemplate> InitTableEntries(
       Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_instance_data,
+      Handle<WasmTrustedInstanceData> shared_trusted_instance_data,
       uint32_t table_index, uint32_t segment_index, uint32_t dst, uint32_t src,
       uint32_t count) V8_WARN_UNUSED_RESULT;
 
-  // Iterates all fields in the object except the untagged fields.
   class BodyDescriptor;
 
-  static MaybeHandle<WasmInternalFunction> GetWasmInternalFunction(
-      Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_instance_data,
-      int index);
+  // Read a WasmFuncRef from the func_refs FixedArray. Returns true on success
+  // and writes the result in the output parameter. Returns false if no func_ref
+  // exists yet for this function. Use GetOrCreateFuncRef to always create one.
+  bool try_get_func_ref(int index, Tagged<WasmFuncRef>* result);
 
-  // Acquires the {WasmInternalFunction} for a given {function_index} from the
-  // cache of the given {trusted_instance_data}, or creates a new
-  // {WasmInternalFunction} if it does not exist yet. The new
-  // {WasmInternalFunction} is added to the cache of the {trusted_instance_data}
-  // immediately.
-  static Handle<WasmInternalFunction> GetOrCreateWasmInternalFunction(
-      Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_instance_data,
+  // Acquires the {WasmFuncRef} for a given {function_index} from the cache of
+  // the given {trusted_instance_data}, or creates a new {WasmInternalFunction}
+  // and {WasmFuncRef} if it does not exist yet. The new objects are added to
+  // the cache of the {trusted_instance_data} immediately.
+  static Handle<WasmFuncRef> GetOrCreateFuncRef(
+      Isolate* isolate,
+      DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
       int function_index);
-
-  static void SetWasmInternalFunction(
-      Handle<WasmTrustedInstanceData> trusted_instance_data, int index,
-      Handle<WasmInternalFunction> val);
 
   // Imports a constructed {WasmJSFunction} into the indirect function table of
   // this instance. Note that this might trigger wrapper compilation, since a
   // {WasmJSFunction} is instance-independent and just wraps a JS callable.
   static void ImportWasmJSFunctionIntoTable(
-      Isolate* isolate, Handle<WasmTrustedInstanceData> trusted_instance_data,
-      int table_index, int entry_index, Handle<WasmJSFunction> js_function);
+      Isolate* isolate,
+      DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
+      int table_index, int entry_index,
+      DirectHandle<WasmJSFunction> js_function);
 
   // Get a raw pointer to the location where the given global is stored.
   // {global} must not be a reference type.
@@ -571,7 +667,7 @@ class V8_EXPORT_PRIVATE WasmTrustedInstanceData : public ExposedTrustedObject {
   OBJECT_CONSTRUCTORS(WasmTrustedInstanceData, ExposedTrustedObject);
 
  private:
-  void InitDataSegmentArrays(Tagged<WasmModuleObject>);
+  void InitDataSegmentArrays(const wasm::NativeModule*);
 };
 
 // Representation of a WebAssembly.Instance JavaScript-level object.
@@ -586,6 +682,7 @@ class WasmInstanceObject
 
   class BodyDescriptor;
 
+  DECL_PRINTER(WasmInstanceObject)
   TQ_OBJECT_CONSTRUCTORS(WasmInstanceObject)
 };
 
@@ -593,40 +690,93 @@ class WasmInstanceObject
 class WasmTagObject
     : public TorqueGeneratedWasmTagObject<WasmTagObject, JSObject> {
  public:
+  class BodyDescriptor;
+
   // Checks whether the given {sig} has the same parameter types as the
   // serialized signature stored within this tag object.
   bool MatchesSignature(uint32_t expected_canonical_type_index);
 
-  static Handle<WasmTagObject> New(Isolate* isolate,
-                                   const wasm::FunctionSig* sig,
-                                   uint32_t canonical_type_index,
-                                   Handle<HeapObject> tag);
+  static Handle<WasmTagObject> New(
+      Isolate* isolate, const wasm::FunctionSig* sig,
+      uint32_t canonical_type_index, DirectHandle<HeapObject> tag,
+      DirectHandle<WasmTrustedInstanceData> instance);
+
+  DECL_TRUSTED_POINTER_ACCESSORS(trusted_data, WasmTrustedInstanceData)
 
   TQ_OBJECT_CONSTRUCTORS(WasmTagObject)
+};
+
+// Off-heap data object owned by a WasmDispatchTable. Currently used for
+// tracking referenced WasmToJS wrappers (shared per process), so we can
+// decrement their refcounts when the WasmDispatchTable is freed.
+class WasmDispatchTableData {
+ public:
+  WasmDispatchTableData() = default;
+  ~WasmDispatchTableData();
+
+  // We need to map {call_target} to a WasmCode* if it is an import wrapper.
+  // Doing that via the wrapper cache has overhead, so as a performance
+  // optimization, callers can avoid that lookup by providing additional
+  // information: a non-nullptr WasmCode* if they have it; and otherwise
+  // {contextual_knowledge == kNo} when they know for sure that {call_target}
+  // does not belong to a wrapper.
+  // Passing {wrapper_if_known == nullptr} and {contextual_knowledge == kMaybe}
+  // is always safe, but might be slower.
+  void Add(Address call_target, wasm::WasmCode* wrapper_if_known,
+           IsAWrapper contextual_knowledge);
+  void Remove(Address call_target);
+
+ private:
+  // The {wrappers_} data structure serves two purposes:
+  // 1) It maps call targets to wrappers.
+  //    When an entry's value is {nullptr}, that means we know for sure it's not
+  //    a wrapper. This duplicates information we could get from
+  //    {wasm::GetWasmImportWrapperCache()->FindWrapper}, but doesn't require
+  //    any locks, which is important for applications with many worker threads.
+  // 2) It keeps track of all wrappers that are currently installed in this
+  //    table, and how often they are stored in this table. The first time a
+  //    wrapper is added to the table, we increment the ref count. When we
+  //    remove the last reference, we decrement the ref count, which potentially
+  //    triggers code GC.
+  struct WrapperEntry {
+    wasm::WasmCode* code;  // {nullptr} if this is not a wrapper.
+    int count = 1;         // irrelevant if this is not a wrapper.
+  };
+  std::unordered_map<Address, WrapperEntry> wrappers_;
 };
 
 // The dispatch table is referenced from a WasmTableObject and from every
 // WasmTrustedInstanceData which uses the table. It is used from generated code
 // for executing indirect calls.
-// The WasmDispatchTable lives in trusted space and holds tuples of
-// <ref, target, sig>.
 class WasmDispatchTable : public TrustedObject {
  public:
+#if V8_ENABLE_DRUMBRAKE
+  static const uint32_t kInvalidFunctionIndex = UINT_MAX;
+#endif  // V8_ENABLE_DRUMBRAKE
   class BodyDescriptor;
 
   static constexpr size_t kLengthOffset = kHeaderSize;
   static constexpr size_t kCapacityOffset = kLengthOffset + kUInt32Size;
-  static constexpr size_t kEntriesOffset = kCapacityOffset + kUInt32Size;
+  static constexpr size_t kProtectedOffheapDataOffset =
+      kCapacityOffset + kUInt32Size;
+  static constexpr size_t kEntriesOffset =
+      kProtectedOffheapDataOffset + kTaggedSize;
 
   // Entries consist of
   // - target (pointer)
-  // - ref (tagged)
-  // - sig (int32_t)
-  // TODO(14564): Make "ref" a protected pointer by moving WasmApiFunctionRef to
-  // the trusted space and linking either that or WasmTrustedInstanceData.
+#if V8_ENABLE_DRUMBRAKE
+  // - function_index (uint32_t) (located in place of target pointer).
+#endif  // V8_ENABLE_DRUMBRAKE
+  // - implicit_arg (protected pointer, tagged sized)
+  // - sig (int32_t); unused for imports which check the signature statically.
   static constexpr size_t kTargetBias = 0;
-  static constexpr size_t kRefBias = kTargetBias + kSystemPointerSize;
-  static constexpr size_t kSigBias = kRefBias + kTaggedSize;
+#if V8_ENABLE_DRUMBRAKE
+  // In jitless mode, reuse the 'target' field storage to hold the (uint32_t)
+  // function index.
+  static constexpr size_t kFunctionIndexBias = kTargetBias;
+#endif  // V8_ENABLE_DRUMBRAKE
+  static constexpr size_t kImplicitArgBias = kTargetBias + kSystemPointerSize;
+  static constexpr size_t kSigBias = kImplicitArgBias + kTaggedSize;
   static constexpr size_t kEntryPaddingOffset = kSigBias + kInt32Size;
   static constexpr size_t kEntryPaddingBytes =
       kEntryPaddingOffset % kTaggedSize;
@@ -637,7 +787,7 @@ class WasmDispatchTable : public TrustedObject {
   static_assert(IsAligned(kEntriesOffset, kTaggedSize));
   static_assert(IsAligned(kEntrySize, kTaggedSize));
   static_assert(IsAligned(kTargetBias, kTaggedSize));
-  static_assert(IsAligned(kRefBias, kTaggedSize));
+  static_assert(IsAligned(kImplicitArgBias, kTaggedSize));
 
   // TODO(clemensb): If we ever enable allocation alignment we will needs to add
   // more padding to make the "target" fields system-pointer-size aligned.
@@ -667,16 +817,38 @@ class WasmDispatchTable : public TrustedObject {
   // more efficient growing.
   inline int capacity() const;
 
+  DECL_PROTECTED_POINTER_ACCESSORS(protected_offheap_data,
+                                   TrustedManaged<WasmDispatchTableData>)
+  inline WasmDispatchTableData* offheap_data() const;
+
   // Accessors.
-  // {ref} will be a WasmApiFunctionRef, a WasmInstanceObject, or Smi::zero()
-  // (if the entry was cleared).
-  inline Tagged<Object> ref(int index) const;
+  // {implicit_arg} will be a WasmImportData, a WasmTrustedInstanceData, or
+  // Smi::zero() (if the entry was cleared).
+  inline Tagged<Object> implicit_arg(int index) const;
   inline Address target(int index) const;
   inline int sig(int index) const;
 
-  // {ref} has to be a WasmApiFunctionRef, a WasmInstanceObject, or Smi::zero().
-  void V8_EXPORT_PRIVATE Set(int index, Tagged<Object> ref, Address call_target,
-                             int sig_id);
+  // Set an entry for indirect calls.
+  // {implicit_arg} has to be a WasmImportData, a WasmTrustedInstanceData, or
+  // Smi::zero().
+  void V8_EXPORT_PRIVATE Set(int index, Tagged<Object> implicit_arg,
+                             Address call_target, int sig_id
+#if V8_ENABLE_DRUMBRAKE
+                             ,
+                             uint32_t function_index
+#endif  // V8_ENABLE_DRUMBRAKE
+  );
+#if V8_ENABLE_DRUMBRAKE
+  inline uint32_t function_index(int index) const;
+#endif  // V8_ENABLE_DRUMBRAKE
+
+  // Set an entry for an import. We check signatures statically there, so the
+  // signature is not updated in the dispatch table.
+  // {implicit_arg} has to be a WasmImportData or a WasmTrustedInstanceData.
+  void V8_EXPORT_PRIVATE SetForImport(int index,
+                                      Tagged<TrustedObject> implicit_arg,
+                                      Address call_target);
+
   void Clear(int index);
   void SetTarget(int index, Address call_target);
 
@@ -685,7 +857,6 @@ class WasmDispatchTable : public TrustedObject {
   static V8_WARN_UNUSED_RESULT Handle<WasmDispatchTable> Grow(
       Isolate*, Handle<WasmDispatchTable>, int new_length);
 
-  DECL_CAST(WasmDispatchTable)
   DECL_PRINTER(WasmDispatchTable)
   DECL_VERIFIER(WasmDispatchTable)
   OBJECT_CONSTRUCTORS(WasmDispatchTable, TrustedObject);
@@ -695,12 +866,12 @@ class WasmDispatchTable : public TrustedObject {
 class V8_EXPORT_PRIVATE WasmExceptionPackage : public JSObject {
  public:
   static Handle<WasmExceptionPackage> New(
-      Isolate* isolate, Handle<WasmExceptionTag> exception_tag,
+      Isolate* isolate, DirectHandle<WasmExceptionTag> exception_tag,
       int encoded_size);
 
   static Handle<WasmExceptionPackage> New(
-      Isolate* isolate, Handle<WasmExceptionTag> exception_tag,
-      Handle<FixedArray> values);
+      Isolate* isolate, DirectHandle<WasmExceptionTag> exception_tag,
+      DirectHandle<FixedArray> values);
 
   // The below getters return {undefined} in case the given exception package
   // does not carry the requested values (i.e. is of a different type).
@@ -718,24 +889,25 @@ class V8_EXPORT_PRIVATE WasmExceptionPackage : public JSObject {
   static constexpr int kSize =
       kHeaderSize + (kTaggedSize * kInObjectFieldCount);
 
-  DECL_CAST(WasmExceptionPackage)
   DECL_PRINTER(WasmExceptionPackage)
   DECL_VERIFIER(WasmExceptionPackage)
   OBJECT_CONSTRUCTORS(WasmExceptionPackage, JSObject);
 };
 
-void V8_EXPORT_PRIVATE EncodeI32ExceptionValue(
-    Handle<FixedArray> encoded_values, uint32_t* encoded_index, uint32_t value);
-
-void V8_EXPORT_PRIVATE EncodeI64ExceptionValue(
-    Handle<FixedArray> encoded_values, uint32_t* encoded_index, uint64_t value);
+void V8_EXPORT_PRIVATE
+EncodeI32ExceptionValue(DirectHandle<FixedArray> encoded_values,
+                        uint32_t* encoded_index, uint32_t value);
 
 void V8_EXPORT_PRIVATE
-DecodeI32ExceptionValue(Handle<FixedArray> encoded_values,
+EncodeI64ExceptionValue(DirectHandle<FixedArray> encoded_values,
+                        uint32_t* encoded_index, uint64_t value);
+
+void V8_EXPORT_PRIVATE
+DecodeI32ExceptionValue(DirectHandle<FixedArray> encoded_values,
                         uint32_t* encoded_index, uint32_t* value);
 
 void V8_EXPORT_PRIVATE
-DecodeI64ExceptionValue(Handle<FixedArray> encoded_values,
+DecodeI64ExceptionValue(DirectHandle<FixedArray> encoded_values,
                         uint32_t* encoded_index, uint64_t* value);
 
 bool UseGenericWasmToJSWrapper(wasm::ImportCallKind kind,
@@ -746,27 +918,18 @@ bool UseGenericWasmToJSWrapper(wasm::ImportCallKind kind,
 // Representation of WebAssembly.Function JavaScript-level object.
 class WasmExportedFunction : public JSFunction {
  public:
-  Tagged<WasmInstanceObject> instance();
-  V8_EXPORT_PRIVATE int function_index();
-
   V8_EXPORT_PRIVATE static bool IsWasmExportedFunction(Tagged<Object> object);
 
   V8_EXPORT_PRIVATE static Handle<WasmExportedFunction> New(
-      Isolate* isolate, Handle<WasmInstanceObject> instance_object,
-      Handle<WasmInternalFunction> internal, int func_index, int arity,
-      Handle<Code> export_wrapper);
-
-  Address GetWasmCallTarget();
-
-  V8_EXPORT_PRIVATE const wasm::FunctionSig* sig();
-
-  bool MatchesSignature(uint32_t other_canonical_sig_index);
+      Isolate* isolate, DirectHandle<WasmTrustedInstanceData> instance_data,
+      DirectHandle<WasmFuncRef> func_ref,
+      DirectHandle<WasmInternalFunction> internal_function, int arity,
+      DirectHandle<Code> export_wrapper);
 
   // Return a null-terminated string with the debug name in the form
   // 'js-to-wasm:<sig>'.
   static std::unique_ptr<char[]> GetDebugName(const wasm::FunctionSig* sig);
 
-  DECL_CAST(WasmExportedFunction)
   OBJECT_CONSTRUCTORS(WasmExportedFunction, JSFunction);
 };
 
@@ -781,14 +944,6 @@ class WasmJSFunction : public JSFunction {
                                     Handle<JSReceiver> callable,
                                     wasm::Suspend suspend);
 
-  Tagged<JSReceiver> GetCallable() const;
-  wasm::Suspend GetSuspend() const;
-  // Deserializes the signature of this function using the provided zone. Note
-  // that lifetime of the signature is hence directly coupled to the zone.
-  const wasm::FunctionSig* GetSignature(Zone* zone) const;
-  bool MatchesSignature(uint32_t other_canonical_sig_index) const;
-
-  DECL_CAST(WasmJSFunction)
   OBJECT_CONSTRUCTORS(WasmJSFunction, JSFunction);
 };
 
@@ -798,8 +953,10 @@ class WasmCapiFunction : public JSFunction {
   static bool IsWasmCapiFunction(Tagged<Object> object);
 
   static Handle<WasmCapiFunction> New(
-      Isolate* isolate, Address call_target, Handle<Foreign> embedder_data,
-      Handle<PodArray<wasm::ValueType>> serialized_signature);
+      Isolate* isolate, Address call_target,
+      DirectHandle<Foreign> embedder_data,
+      DirectHandle<PodArray<wasm::ValueType>> serialized_signature,
+      uintptr_t signature_hash);
 
   Tagged<PodArray<wasm::ValueType>> GetSerializedSignature() const;
   // Checks whether the given {sig} has the same parameter types as the
@@ -807,7 +964,6 @@ class WasmCapiFunction : public JSFunction {
   bool MatchesSignature(uint32_t other_canonical_sig_index) const;
   const wasm::FunctionSig* GetSignature(Zone* zone) const;
 
-  DECL_CAST(WasmCapiFunction)
   OBJECT_CONSTRUCTORS(WasmCapiFunction, JSFunction);
 };
 
@@ -815,29 +971,33 @@ class WasmCapiFunction : public JSFunction {
 // class just dispatches to the following concrete classes:
 //  - {WasmExportedFunction}: A proper Wasm function exported from a module.
 //  - {WasmJSFunction}: A function constructed via WebAssembly.Function in JS.
-// // TODO(wasm): Potentially {WasmCapiFunction} will be added here as well.
+//  - {WasmCapiFunction}: A function constructed via the C/C++ API.
 class WasmExternalFunction : public JSFunction {
  public:
   static bool IsWasmExternalFunction(Tagged<Object> object);
 
-  DECL_CAST(WasmExternalFunction)
+  inline Tagged<WasmFuncRef> func_ref() const;
+
   OBJECT_CONSTRUCTORS(WasmExternalFunction, JSFunction);
 };
 
 class WasmFunctionData
-    : public TorqueGeneratedWasmFunctionData<WasmFunctionData, HeapObject> {
+    : public TorqueGeneratedWasmFunctionData<WasmFunctionData,
+                                             ExposedTrustedObject> {
  public:
   DECL_CODE_POINTER_ACCESSORS(wrapper_code)
-
-  DECL_ACCESSORS(internal, Tagged<WasmInternalFunction>)
+  DECL_PROTECTED_POINTER_ACCESSORS(internal, WasmInternalFunction)
 
   DECL_PRINTER(WasmFunctionData)
 
-  using BodyDescriptor = FixedBodyDescriptor<kStartOfStrongFieldsOffset,
-                                             kEndOfStrongFieldsOffset, kSize>;
+  using BodyDescriptor = StackedBodyDescriptor<
+      FixedExposedTrustedObjectBodyDescriptor<
+          WasmFunctionData, kWasmFunctionDataIndirectPointerTag>,
+      WithStrongCodePointer<kWrapperCodeOffset>,
+      WithProtectedPointer<kProtectedInternalOffset>>;
 
-  using SuspendField = base::BitField<wasm::Suspend, 0, 1>;
-  using PromiseField = base::BitField<wasm::Promise, 1, 1>;
+  using SuspendField = base::BitField<wasm::Suspend, 0, 2>;
+  using PromiseField = base::BitField<wasm::Promise, 2, 2>;
 
   TQ_OBJECT_CONSTRUCTORS(WasmFunctionData)
 };
@@ -849,76 +1009,101 @@ class WasmExportedFunctionData
     : public TorqueGeneratedWasmExportedFunctionData<WasmExportedFunctionData,
                                                      WasmFunctionData> {
  public:
+  DECL_PROTECTED_POINTER_ACCESSORS(instance_data, WasmTrustedInstanceData)
   DECL_CODE_POINTER_ACCESSORS(c_wrapper_code)
 
-  DECL_EXTERNAL_POINTER_ACCESSORS(sig, wasm::FunctionSig*)
+  DECL_PRIMITIVE_ACCESSORS(sig, const wasm::FunctionSig*)
+
+  bool MatchesSignature(uint32_t other_canonical_sig_index);
 
   // Dispatched behavior.
   DECL_PRINTER(WasmExportedFunctionData)
   DECL_VERIFIER(WasmExportedFunctionData)
 
-  class BodyDescriptor;
+  using BodyDescriptor = StackedBodyDescriptor<
+      SubclassBodyDescriptor<WasmFunctionData::BodyDescriptor,
+                             FixedBodyDescriptorFor<WasmExportedFunctionData>>,
+      WithProtectedPointer<kProtectedInstanceDataOffset>,
+      WithStrongCodePointer<kCWrapperCodeOffset>>;
 
   TQ_OBJECT_CONSTRUCTORS(WasmExportedFunctionData)
 };
 
-class WasmApiFunctionRef
-    : public TorqueGeneratedWasmApiFunctionRef<WasmApiFunctionRef, HeapObject> {
+class WasmImportData
+    : public TorqueGeneratedWasmImportData<WasmImportData, TrustedObject> {
  public:
   // Dispatched behavior.
-  DECL_PRINTER(WasmApiFunctionRef)
+  DECL_PRINTER(WasmImportData)
+
+  DECL_CODE_POINTER_ACCESSORS(code)
+
+  DECL_PROTECTED_POINTER_ACCESSORS(instance_data, WasmTrustedInstanceData)
+
   static constexpr int kInvalidCallOrigin = 0;
 
-  static void SetImportIndexAsCallOrigin(Handle<WasmApiFunctionRef> ref,
-                                         int entry_index);
+  static void SetImportIndexAsCallOrigin(
+      DirectHandle<WasmImportData> import_data, int entry_index);
 
-  static bool CallOriginIsImportIndex(Handle<Object> call_origin);
+  static bool CallOriginIsImportIndex(DirectHandle<Object> call_origin);
 
-  static bool CallOriginIsIndexInTable(Handle<Object> call_origin);
+  static bool CallOriginIsIndexInTable(DirectHandle<Object> call_origin);
 
-  static int CallOriginAsIndex(Handle<Object> call_origin);
+  static int CallOriginAsIndex(DirectHandle<Object> call_origin);
 
-  static void SetIndexInTableAsCallOrigin(Handle<WasmApiFunctionRef> ref,
-                                          int entry_index);
+  static void SetIndexInTableAsCallOrigin(
+      DirectHandle<WasmImportData> import_data, int entry_index);
 
   static void SetCrossInstanceTableIndexAsCallOrigin(
-      Isolate* isolate, Handle<WasmApiFunctionRef> ref,
-      Handle<WasmInstanceObject> instance_object, int entry_index);
+      Isolate* isolate, DirectHandle<WasmImportData> import_data,
+      DirectHandle<WasmInstanceObject> instance_object, int entry_index);
 
-  static void SetInternalFunctionAsCallOrigin(
-      Handle<WasmApiFunctionRef> ref, Handle<WasmInternalFunction> internal);
+  static void SetFuncRefAsCallOrigin(DirectHandle<WasmImportData> import_data,
+                                     DirectHandle<WasmFuncRef> func_ref);
 
-  class BodyDescriptor;
+  using BodyDescriptor =
+      StackedBodyDescriptor<FixedBodyDescriptorFor<WasmImportData>,
+                            WithProtectedPointer<kProtectedInstanceDataOffset>,
+                            WithStrongCodePointer<kCodeOffset>>;
 
-  TQ_OBJECT_CONSTRUCTORS(WasmApiFunctionRef)
+  TQ_OBJECT_CONSTRUCTORS(WasmImportData)
 };
 
 class WasmInternalFunction
     : public TorqueGeneratedWasmInternalFunction<WasmInternalFunction,
-                                                 HeapObject> {
+                                                 ExposedTrustedObject> {
  public:
-  // Returns a handle to the corresponding WasmInternalFunction if {external} is
-  // a WasmExternalFunction, or an empty handle otherwise.
-  static MaybeHandle<WasmInternalFunction> FromExternal(Handle<Object> external,
-                                                        Isolate* isolate);
+  // Get the external function if it exists. Returns true and writes to the
+  // output parameter if an external function exists. Returns false otherwise.
+  bool try_get_external(Tagged<JSFunction>* result);
 
   V8_EXPORT_PRIVATE static Handle<JSFunction> GetOrCreateExternal(
-      Handle<WasmInternalFunction> internal);
+      DirectHandle<WasmInternalFunction> internal);
 
-  DECL_EXTERNAL_POINTER_ACCESSORS(call_target, Address)
-
-  DECL_CODE_POINTER_ACCESSORS(code)
+  DECL_PROTECTED_POINTER_ACCESSORS(implicit_arg, TrustedObject)
 
   // Dispatched behavior.
   DECL_PRINTER(WasmInternalFunction)
 
-  class BodyDescriptor;
+  using BodyDescriptor = StackedBodyDescriptor<
+      FixedExposedTrustedObjectBodyDescriptor<
+          WasmInternalFunction, kWasmInternalFunctionIndirectPointerTag>,
+      WithProtectedPointer<kProtectedImplicitArgOffset>>;
 
   TQ_OBJECT_CONSTRUCTORS(WasmInternalFunction)
- private:
-  // Make this private so it is not use by accident. Use {GetOrCreateExternal}
-  // instead.
-  Tagged<HeapObject> external();
+};
+
+class WasmFuncRef : public TorqueGeneratedWasmFuncRef<WasmFuncRef, HeapObject> {
+ public:
+  DECL_TRUSTED_POINTER_ACCESSORS(internal, WasmInternalFunction)
+
+  DECL_PRINTER(WasmFuncRef)
+
+  using BodyDescriptor = StackedBodyDescriptor<
+      FixedBodyDescriptorFor<WasmFuncRef>,
+      WithStrongTrustedPointer<kTrustedInternalOffset,
+                               kWasmInternalFunctionIndirectPointerTag>>;
+
+  TQ_OBJECT_CONSTRUCTORS(WasmFuncRef)
 };
 
 // Information for a WasmJSFunction which is referenced as the function data of
@@ -928,11 +1113,17 @@ class WasmJSFunctionData
     : public TorqueGeneratedWasmJSFunctionData<WasmJSFunctionData,
                                                WasmFunctionData> {
  public:
+  Tagged<JSReceiver> GetCallable() const;
+  wasm::Suspend GetSuspend() const;
+  const wasm::FunctionSig* GetSignature() const;
+  bool MatchesSignature(uint32_t other_canonical_sig_index) const;
+
   // Dispatched behavior.
   DECL_PRINTER(WasmJSFunctionData)
 
   using BodyDescriptor =
-      FlexibleBodyDescriptor<WasmFunctionData::kStartOfStrongFieldsOffset>;
+      SubclassBodyDescriptor<WasmFunctionData::BodyDescriptor,
+                             FixedBodyDescriptorFor<WasmJSFunctionData>>;
 
  private:
   TQ_OBJECT_CONSTRUCTORS(WasmJSFunctionData)
@@ -945,7 +1136,8 @@ class WasmCapiFunctionData
   DECL_PRINTER(WasmCapiFunctionData)
 
   using BodyDescriptor =
-      FlexibleBodyDescriptor<WasmFunctionData::kStartOfStrongFieldsOffset>;
+      SubclassBodyDescriptor<WasmFunctionData::BodyDescriptor,
+                             FixedBodyDescriptorFor<WasmCapiFunctionData>>;
 
   TQ_OBJECT_CONSTRUCTORS(WasmCapiFunctionData)
 };
@@ -971,36 +1163,38 @@ class WasmScript : public AllStatic {
   // location inside the same function.
   // If it points outside a function, or behind the last breakable location,
   // this function returns false and does not set any breakpoint.
-  V8_EXPORT_PRIVATE static bool SetBreakPoint(Handle<Script>, int* position,
-                                              Handle<BreakPoint> break_point);
+  V8_EXPORT_PRIVATE static bool SetBreakPoint(
+      DirectHandle<Script>, int* position,
+      DirectHandle<BreakPoint> break_point);
 
   // Set an "on entry" breakpoint (a.k.a. instrumentation breakpoint) inside
   // the given module. This will affect all live and future instances of the
   // module.
   V8_EXPORT_PRIVATE static void SetInstrumentationBreakpoint(
-      Handle<Script>, Handle<BreakPoint> break_point);
+      DirectHandle<Script>, DirectHandle<BreakPoint> break_point);
 
   // Set a breakpoint on first breakable position of the given function index
   // inside the given module. This will affect all live and future instances of
   // the module.
   V8_EXPORT_PRIVATE static bool SetBreakPointOnFirstBreakableForFunction(
-      Handle<Script>, int function_index, Handle<BreakPoint> break_point);
+      DirectHandle<Script>, int function_index,
+      DirectHandle<BreakPoint> break_point);
 
   // Set a breakpoint at the breakable offset of the given function index
   // inside the given module. This will affect all live and future instances of
   // the module.
   V8_EXPORT_PRIVATE static bool SetBreakPointForFunction(
-      Handle<Script>, int function_index, int breakable_offset,
-      Handle<BreakPoint> break_point);
+      DirectHandle<Script>, int function_index, int breakable_offset,
+      DirectHandle<BreakPoint> break_point);
 
   // Remove a previously set breakpoint at the given byte position inside the
   // given module. If this breakpoint is not found this function returns false.
-  V8_EXPORT_PRIVATE static bool ClearBreakPoint(Handle<Script>, int position,
-                                                Handle<BreakPoint> break_point);
+  V8_EXPORT_PRIVATE static bool ClearBreakPoint(
+      DirectHandle<Script>, int position, DirectHandle<BreakPoint> break_point);
 
   // Remove a previously set breakpoint by id. If this breakpoint is not found,
   // returns false.
-  V8_EXPORT_PRIVATE static bool ClearBreakPointById(Handle<Script>,
+  V8_EXPORT_PRIVATE static bool ClearBreakPointById(DirectHandle<Script>,
                                                     int breakpoint_id);
 
   // Remove all set breakpoints.
@@ -1013,14 +1207,15 @@ class WasmScript : public AllStatic {
 
   // Return an empty handle if no breakpoint is hit at that location, or a
   // FixedArray with all hit breakpoint objects.
-  static MaybeHandle<FixedArray> CheckBreakPoints(Isolate*, Handle<Script>,
+  static MaybeHandle<FixedArray> CheckBreakPoints(Isolate*,
+                                                  DirectHandle<Script>,
                                                   int position,
                                                   StackFrameId stack_frame_id);
 
  private:
   // Helper functions that update the breakpoint info list.
-  static void AddBreakpointToInfo(Handle<Script>, int position,
-                                  Handle<BreakPoint> break_point);
+  static void AddBreakpointToInfo(DirectHandle<Script>, int position,
+                                  DirectHandle<BreakPoint> break_point);
 };
 
 // Tags provide an object identity for each exception defined in a wasm module
@@ -1044,7 +1239,7 @@ class AsmWasmData : public TorqueGeneratedAsmWasmData<AsmWasmData, Struct> {
  public:
   static Handle<AsmWasmData> New(
       Isolate* isolate, std::shared_ptr<wasm::NativeModule> native_module,
-      Handle<HeapNumber> uses_bitset);
+      DirectHandle<HeapNumber> uses_bitset);
 
   DECL_PRINTER(AsmWasmData)
 
@@ -1057,6 +1252,7 @@ class WasmTypeInfo
     : public TorqueGeneratedWasmTypeInfo<WasmTypeInfo, HeapObject> {
  public:
   DECL_EXTERNAL_POINTER_ACCESSORS(native_type, Address)
+  DECL_TRUSTED_POINTER_ACCESSORS(trusted_data, WasmTrustedInstanceData)
 
   DECL_PRINTER(WasmTypeInfo)
 
@@ -1070,9 +1266,10 @@ class WasmObject : public TorqueGeneratedWasmObject<WasmObject, JSReceiver> {
   // Returns boxed value of the object's field/element with given type and
   // offset.
   static inline Handle<Object> ReadValueAt(Isolate* isolate,
-                                           Handle<HeapObject> obj,
+                                           DirectHandle<HeapObject> obj,
                                            wasm::ValueType type,
                                            uint32_t offset);
+
  private:
   template <typename ElementType>
   static ElementType FromNumber(Tagged<Object> value);
@@ -1097,7 +1294,7 @@ class WasmStruct : public TorqueGeneratedWasmStruct<WasmStruct, WasmObject> {
   // Returns the ObjectSlot for tagged value at given offset.
   inline ObjectSlot RawField(int raw_offset);
 
-  wasm::WasmValue GetFieldValue(uint32_t field_index);
+  V8_EXPORT_PRIVATE wasm::WasmValue GetFieldValue(uint32_t field_index);
 
   static inline void SetField(Isolate* isolate, Handle<WasmStruct> obj,
                               uint32_t field_index, Handle<Object> value);
@@ -1133,10 +1330,10 @@ class WasmArray : public TorqueGeneratedWasmArray<WasmArray, WasmObject> {
 
   // Returns boxed value of the array's element.
   static inline Handle<Object> GetElement(Isolate* isolate,
-                                          Handle<WasmArray> array,
+                                          DirectHandle<WasmArray> array,
                                           uint32_t index);
 
-  void SetTaggedElement(uint32_t index, Handle<Object> value,
+  void SetTaggedElement(uint32_t index, DirectHandle<Object> value,
                         WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // Returns the offset/Address of the element at {index}.
@@ -1170,40 +1367,48 @@ class WasmContinuationObject
                                                    HeapObject> {
  public:
   static Handle<WasmContinuationObject> New(
-      Isolate* isolate, std::unique_ptr<wasm::StackMemory> stack,
+      Isolate* isolate, wasm::StackMemory* stack,
       wasm::JumpBuffer::StackState state,
       AllocationType allocation_type = AllocationType::kYoung);
   static Handle<WasmContinuationObject> New(
-      Isolate* isolate, wasm::JumpBuffer::StackState state,
-      Handle<WasmContinuationObject> parent);
+      Isolate* isolate, wasm::StackMemory* stack,
+      wasm::JumpBuffer::StackState state, DirectHandle<HeapObject> parent,
+      AllocationType allocation_type = AllocationType::kYoung);
 
   DECL_EXTERNAL_POINTER_ACCESSORS(jmpbuf, Address)
+  DECL_EXTERNAL_POINTER_ACCESSORS(stack, Address)
 
   DECL_PRINTER(WasmContinuationObject)
 
-  class BodyDescriptor;
+  using BodyDescriptor = StackedBodyDescriptor<
+      FixedBodyDescriptorFor<WasmContinuationObject>,
+      WithExternalPointer<kStackOffset, kWasmStackMemoryTag>,
+      WithExternalPointer<kJmpbufOffset, kWasmContinuationJmpbufTag>>;
 
  private:
-  static Handle<WasmContinuationObject> New(
-      Isolate* isolate, std::unique_ptr<wasm::StackMemory> stack,
-      wasm::JumpBuffer::StackState state, Handle<HeapObject> parent,
-      AllocationType allocation_type = AllocationType::kYoung);
-
   TQ_OBJECT_CONSTRUCTORS(WasmContinuationObject)
 };
 
 // The suspender object provides an API to suspend and resume wasm code using
 // promises. See: https://github.com/WebAssembly/js-promise-integration.
 class WasmSuspenderObject
-    : public TorqueGeneratedWasmSuspenderObject<WasmSuspenderObject, JSObject> {
+    : public TorqueGeneratedWasmSuspenderObject<WasmSuspenderObject,
+                                                HeapObject> {
  public:
+  using BodyDescriptor = FixedBodyDescriptorFor<WasmSuspenderObject>;
   enum State : int { kInactive = 0, kActive, kSuspended };
-  static Handle<WasmSuspenderObject> New(Isolate* isolate);
   DECL_PRINTER(WasmSuspenderObject)
-  using BodyDescriptor =
-      FixedBodyDescriptor<kStartOfStrongFieldsOffset, kEndOfStrongFieldsOffset,
-                          kHeaderSize>;
   TQ_OBJECT_CONSTRUCTORS(WasmSuspenderObject)
+};
+
+class WasmSuspendingObject
+    : public TorqueGeneratedWasmSuspendingObject<WasmSuspendingObject,
+                                                 JSObject> {
+ public:
+  V8_EXPORT_PRIVATE static Handle<WasmSuspendingObject> New(
+      Isolate* isolate, DirectHandle<JSReceiver> callable);
+  DECL_PRINTER(WasmSuspendingObject)
+  TQ_OBJECT_CONSTRUCTORS(WasmSuspendingObject)
 };
 
 class WasmNull : public TorqueGeneratedWasmNull<WasmNull, HeapObject> {
@@ -1224,6 +1429,9 @@ class WasmNull : public TorqueGeneratedWasmNull<WasmNull, HeapObject> {
 #else
   static constexpr int kSize = kTaggedSize;
 #endif
+
+  // WasmNull cannot use `FixedBodyDescriptorFor()` as its map is variable size
+  // (not fixed size) as kSize is too large for a fixed-size map.
   class BodyDescriptor;
 
   TQ_OBJECT_CONSTRUCTORS(WasmNull)
@@ -1238,7 +1446,7 @@ namespace wasm {
 // {expected}. If the typecheck succeeds, returns the wasm representation of the
 // object; otherwise, returns the empty handle.
 MaybeHandle<Object> JSToWasmObject(Isolate* isolate, Handle<Object> value,
-                                   ValueType expected_canonical,
+                                   ValueType expected, uint32_t canonical_index,
                                    const char** error_message);
 
 // Utility which canonicalizes {expected} in addition.

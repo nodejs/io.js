@@ -1,9 +1,11 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
+const { hasOpenSSL } = require('../common/crypto');
 const assert = require('assert');
 const tls = require('tls');
 
@@ -62,9 +64,12 @@ test({ psk: USERS.UserA, identity: 'UserA' }, { minVersion: 'TLSv1.3' });
 test({ psk: USERS.UserB, identity: 'UserB' });
 test({ psk: USERS.UserB, identity: 'UserB' }, { minVersion: 'TLSv1.3' });
 // Unrecognized user should fail handshake
-test({ psk: USERS.UserB, identity: 'UserC' }, {},
-     'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE');
+const expectedHandshakeErr = hasOpenSSL(3, 2) ?
+  'ERR_SSL_SSL/TLS_ALERT_HANDSHAKE_FAILURE' : 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE';
+test({ psk: USERS.UserB, identity: 'UserC' }, {}, expectedHandshakeErr);
 // Recognized user but incorrect secret should fail handshake
-test({ psk: USERS.UserA, identity: 'UserB' }, {},
-     'ERR_SSL_SSLV3_ALERT_ILLEGAL_PARAMETER');
+const expectedIllegalParameterErr = hasOpenSSL(3, 4) ? 'ERR_SSL_TLSV1_ALERT_DECRYPT_ERROR' :
+  hasOpenSSL(3, 2) ?
+    'ERR_SSL_SSL/TLS_ALERT_ILLEGAL_PARAMETER' : 'ERR_SSL_SSLV3_ALERT_ILLEGAL_PARAMETER';
+test({ psk: USERS.UserA, identity: 'UserB' }, {}, expectedIllegalParameterErr);
 test({ psk: USERS.UserB, identity: 'UserB' });

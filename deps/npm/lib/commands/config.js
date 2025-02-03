@@ -1,23 +1,42 @@
-const { mkdir, readFile, writeFile } = require('fs/promises')
-const { dirname, resolve } = require('path')
-const { spawn } = require('child_process')
-const { EOL } = require('os')
-const ini = require('ini')
+const { mkdir, readFile, writeFile } = require('node:fs/promises')
+const { dirname, resolve } = require('node:path')
+const { spawn } = require('node:child_process')
+const { EOL } = require('node:os')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
 const pkgJson = require('@npmcli/package-json')
 const { defaults, definitions } = require('@npmcli/config/lib/definitions')
-const log = require('../utils/log-shim.js')
+const { log, output } = require('proc-log')
+const BaseCommand = require('../base-cmd.js')
+const { redact } = require('@npmcli/redact')
 
 // These are the configs that we can nerf-dart. Not all of them currently even
-// *have* config definitions so we have to explicitly validate them here
+// *have* config definitions so we have to explicitly validate them here.
+// This is used to validate during "npm config set"
 const nerfDarts = [
   '_auth',
   '_authToken',
-  'username',
   '_password',
-  'email',
   'certfile',
+  'email',
   'keyfile',
+  'username',
+]
+// These are the config values to swap with "protected".  It does not catch
+// every single sensitive thing a user may put in the npmrc file but it gets
+// the common ones.  This is distinct from nerfDarts because that is used to
+// validate valid configs during "npm config set", and folks may have old
+// invalid entries lying around in a config file that we still want to protect
+// when running "npm config list"
+// This is a more general list of values to consider protected.  You can not
+// "npm config get" them, and they will not display during "npm config list"
+const protected = [
+  'auth',
+  'authToken',
+  'certfile',
+  'email',
+  'keyfile',
+  'password',
+  'username',
 ]
 
 // take an array of `[key, value, k2=v2, k3, v3, ...]` and turn into
@@ -35,19 +54,35 @@ const keyValues = args => {
   return kv
 }
 
-const publicVar = k => {
+const isProtected = (k) => {
   // _password
   if (k.startsWith('_')) {
-    return false
+    return true
+  }
+  if (protected.includes(k)) {
+    return true
   }
   // //localhost:8080/:_password
-  if (k.startsWith('//') && k.includes(':_')) {
-    return false
+  if (k.startsWith('//')) {
+    if (k.includes(':_')) {
+      return true
+    }
+    // //registry:_authToken or //registry:authToken
+    for (const p of protected) {
+      if (k.endsWith(`:${p}`) || k.endsWith(`:_${p}`)) {
+        return true
+      }
+    }
   }
-  return true
+  return false
 }
 
-const BaseCommand = require('../base-command.js')
+// Private fields are either protected or they can redacted info
+const isPrivate = (k, v) => isProtected(k) || redact(v) !== v
+
+const displayVar = (k, v) =>
+  `${k} = ${isProtected(k, v) ? '(protected)' : JSON.stringify(redact(v))}`
+
 class Config extends BaseCommand {
   static description = 'Manage the npm configuration files'
   static name = 'config'
@@ -111,35 +146,30 @@ class Config extends BaseCommand {
   }
 
   async exec ([action, ...args]) {
-    log.disableProgress()
-    try {
-      switch (action) {
-        case 'set':
-          await this.set(args)
-          break
-        case 'get':
-          await this.get(args)
-          break
-        case 'delete':
-        case 'rm':
-        case 'del':
-          await this.del(args)
-          break
-        case 'list':
-        case 'ls':
-          await (this.npm.flatOptions.json ? this.listJson() : this.list())
-          break
-        case 'edit':
-          await this.edit()
-          break
-        case 'fix':
-          await this.fix()
-          break
-        default:
-          throw this.usageError()
-      }
-    } finally {
-      log.enableProgress()
+    switch (action) {
+      case 'set':
+        await this.set(args)
+        break
+      case 'get':
+        await this.get(args)
+        break
+      case 'delete':
+      case 'rm':
+      case 'del':
+        await this.del(args)
+        break
+      case 'list':
+      case 'ls':
+        await (this.npm.flatOptions.json ? this.listJson() : this.list())
+        break
+      case 'edit':
+        await this.edit()
+        break
+      case 'fix':
+        await this.fix()
+        break
+      default:
+        throw this.usageError()
     }
   }
 
@@ -183,14 +213,15 @@ class Config extends BaseCommand {
 
     const out = []
     for (const key of keys) {
-      if (!publicVar(key)) {
+      const val = this.npm.config.get(key)
+      if (isPrivate(key, val)) {
         throw new Error(`The ${key} option is protected, and can not be retrieved in this way`)
       }
 
       const pref = keys.length > 1 ? `${key}=` : ''
-      out.push(pref + this.npm.config.get(key))
+      out.push(pref + val)
     }
-    this.npm.output(out.join('\n'))
+    output.standard(out.join('\n'))
   }
 
   async del (keys) {
@@ -206,6 +237,7 @@ class Config extends BaseCommand {
   }
 
   async edit () {
+    const ini = require('ini')
     const e = this.npm.flatOptions.editor
     const where = this.npm.flatOptions.location
     const file = this.npm.config.data.get(where).source
@@ -287,7 +319,7 @@ ${defData}
     this.npm.config.repair(problems)
     const locations = []
 
-    this.npm.output('The following configuration problems have been repaired:\n')
+    output.standard('The following configuration problems have been repaired:\n')
     const summary = problems.map(({ action, from, to, key, where }) => {
       // coverage disabled for else branch because it is intentionally omitted
       // istanbul ignore else
@@ -300,7 +332,7 @@ ${defData}
         return `- \`${key}\` deleted from ${where} config`
       }
     }).join('\n')
-    this.npm.output(summary)
+    output.standard(summary)
 
     return await Promise.all(locations.map((location) => this.npm.config.save(location)))
   }
@@ -314,18 +346,17 @@ ${defData}
         continue
       }
 
-      const keys = Object.keys(data).sort(localeCompare)
-      if (!keys.length) {
+      const entries = Object.entries(data).sort(([a], [b]) => localeCompare(a, b))
+      if (!entries.length) {
         continue
       }
 
       msg.push(`; "${where}" config from ${source}`, '')
-      for (const k of keys) {
-        const v = publicVar(k) ? JSON.stringify(data[k]) : '(protected)'
+      for (const [k, v] of entries) {
+        const display = displayVar(k, v)
         const src = this.npm.config.find(k)
-        const overridden = src !== where
-        msg.push((overridden ? '; ' : '') +
-          `${k} = ${v} ${overridden ? `; overridden by ${src}` : ''}`)
+        msg.push(src === where ? display : `; ${display} ; overridden by ${src}`)
+        msg.push()
       }
       msg.push('')
     }
@@ -350,28 +381,29 @@ ${defData}
         const pkgPath = resolve(this.npm.prefix, 'package.json')
         msg.push(`; "publishConfig" from ${pkgPath}`)
         msg.push('; This set of config values will be used at publish-time.', '')
-        const pkgKeys = Object.keys(content.publishConfig).sort(localeCompare)
-        for (const k of pkgKeys) {
-          const v = publicVar(k) ? JSON.stringify(content.publishConfig[k]) : '(protected)'
-          msg.push(`${k} = ${v}`)
+        const entries = Object.entries(content.publishConfig)
+          .sort(([a], [b]) => localeCompare(a, b))
+        for (const [k, value] of entries) {
+          msg.push(displayVar(k, value))
         }
         msg.push('')
       }
     }
 
-    this.npm.output(msg.join('\n').trim())
+    output.standard(msg.join('\n').trim())
   }
 
   async listJson () {
     const publicConf = {}
     for (const key in this.npm.config.list[0]) {
-      if (!publicVar(key)) {
+      const value = this.npm.config.get(key)
+      if (isPrivate(key, value)) {
         continue
       }
 
-      publicConf[key] = this.npm.config.get(key)
+      publicConf[key] = value
     }
-    this.npm.output(JSON.stringify(publicConf, null, 2))
+    output.buffer(publicConf)
   }
 }
 

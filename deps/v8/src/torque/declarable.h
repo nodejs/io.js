@@ -6,6 +6,7 @@
 #define V8_TORQUE_DECLARABLE_H_
 
 #include <cassert>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -15,9 +16,7 @@
 #include "src/torque/types.h"
 #include "src/torque/utils.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 class Scope;
 class Namespace;
@@ -258,7 +257,7 @@ class Value : public Declarable {
  private:
   const Type* type_;
   Identifier* name_;
-  base::Optional<VisitResult> value_;
+  std::optional<VisitResult> value_;
 };
 
 class NamespaceConstant : public Value {
@@ -314,7 +313,7 @@ class Callable : public Scope {
   }
   void IncrementReturns() { ++returns_; }
   bool HasReturns() const { return returns_; }
-  base::Optional<Statement*> body() const { return body_; }
+  std::optional<Statement*> body() const { return body_; }
   bool IsExternal() const { return !body_.has_value(); }
   virtual bool ShouldBeInlined(OutputType output_type) const {
     // C++ output doesn't support exiting to labels, so functions with labels in
@@ -352,7 +351,7 @@ class Callable : public Scope {
  protected:
   Callable(Declarable::Kind kind, std::string external_name,
            std::string readable_name, Signature signature,
-           base::Optional<Statement*> body)
+           std::optional<Statement*> body)
       : Scope(kind),
         external_name_(std::move(external_name)),
 
@@ -368,7 +367,7 @@ class Callable : public Scope {
   std::string readable_name_;
   Signature signature_;
   size_t returns_;
-  base::Optional<Statement*> body_;
+  std::optional<Statement*> body_;
 };
 
 class Macro : public Callable {
@@ -392,7 +391,7 @@ class Macro : public Callable {
  protected:
   Macro(Declarable::Kind kind, std::string external_name,
         std::string readable_name, const Signature& signature,
-        base::Optional<Statement*> body)
+        std::optional<Statement*> body)
       : Callable(kind, std::move(external_name), std::move(readable_name),
                  signature, body),
         used_(false) {
@@ -428,7 +427,7 @@ class ExternMacro : public Macro {
   ExternMacro(const std::string& name, std::string external_assembler_name,
               Signature signature)
       : Macro(Declarable::kExternMacro, name, name, std::move(signature),
-              base::nullopt),
+              std::nullopt),
         external_assembler_name_(std::move(external_assembler_name)) {}
 
   std::string external_assembler_name_;
@@ -454,7 +453,7 @@ class TorqueMacro : public Macro {
  protected:
   TorqueMacro(Declarable::Kind kind, std::string external_name,
               std::string readable_name, const Signature& signature,
-              base::Optional<Statement*> body, bool is_user_defined,
+              std::optional<Statement*> body, bool is_user_defined,
               bool exported_to_csa)
       : Macro(kind, std::move(external_name), std::move(readable_name),
               signature, body),
@@ -465,7 +464,7 @@ class TorqueMacro : public Macro {
  private:
   friend class Declarations;
   TorqueMacro(std::string external_name, std::string readable_name,
-              const Signature& signature, base::Optional<Statement*> body,
+              const Signature& signature, std::optional<Statement*> body,
               bool is_user_defined, bool exported_to_csa)
       : TorqueMacro(Declarable::kTorqueMacro, std::move(external_name),
                     std::move(readable_name), signature, body, is_user_defined,
@@ -514,7 +513,7 @@ class Builtin : public Callable {
   friend class Declarations;
   Builtin(std::string external_name, std::string readable_name,
           Builtin::Kind kind, Flags flags, const Signature& signature,
-          base::Optional<Statement*> body)
+          std::optional<Statement*> body)
       : Callable(Declarable::kBuiltin, std::move(external_name),
                  std::move(readable_name), signature, body),
         kind_(kind),
@@ -532,7 +531,7 @@ class RuntimeFunction : public Callable {
   friend class Declarations;
   RuntimeFunction(const std::string& name, const Signature& signature)
       : Callable(Declarable::kRuntimeFunction, name, name, signature,
-                 base::nullopt) {}
+                 std::nullopt) {}
 };
 
 class Intrinsic : public Callable {
@@ -542,7 +541,7 @@ class Intrinsic : public Callable {
  private:
   friend class Declarations;
   Intrinsic(std::string name, const Signature& signature)
-      : Callable(Declarable::kIntrinsic, name, name, signature, base::nullopt) {
+      : Callable(Declarable::kIntrinsic, name, name, signature, std::nullopt) {
     if (signature.parameter_types.var_args) {
       ReportError("Varargs are not supported for intrinsics.");
     }
@@ -551,7 +550,7 @@ class Intrinsic : public Callable {
 
 class TypeConstraint {
  public:
-  base::Optional<std::string> IsViolated(const Type*) const;
+  std::optional<std::string> IsViolated(const Type*) const;
 
   static TypeConstraint Unconstrained() { return {}; }
   static TypeConstraint SubtypeConstraint(const Type* upper_bound) {
@@ -561,10 +560,10 @@ class TypeConstraint {
   }
 
  private:
-  base::Optional<const Type*> upper_bound;
+  std::optional<const Type*> upper_bound;
 };
 
-base::Optional<std::string> FindConstraintViolation(
+std::optional<std::string> FindConstraintViolation(
     const std::vector<const Type*>& types,
     const std::vector<TypeConstraint>& constraints);
 
@@ -587,11 +586,11 @@ class GenericDeclarable : public Declarable {
     }
     specializations_[type_arguments] = specialization;
   }
-  base::Optional<SpecializationType> GetSpecialization(
+  std::optional<SpecializationType> GetSpecialization(
       const TypeVector& type_arguments) const {
     auto it = specializations_.find(type_arguments);
     if (it != specializations_.end()) return it->second;
-    return base::nullopt;
+    return std::nullopt;
   }
 
   using iterator = typename Map::const_iterator;
@@ -623,7 +622,7 @@ class GenericDeclarable : public Declarable {
   std::string name_;
   DeclarationType generic_declaration_;
   Map specializations_;
-  base::Optional<std::vector<TypeConstraint>> constraints_;
+  std::optional<std::vector<TypeConstraint>> constraints_;
 };
 
 class GenericCallable
@@ -631,11 +630,11 @@ class GenericCallable
  public:
   DECLARE_DECLARABLE_BOILERPLATE(GenericCallable, generic_callable)
 
-  base::Optional<Statement*> CallableBody();
+  std::optional<Statement*> CallableBody();
 
   TypeArgumentInference InferSpecializationTypes(
       const TypeVector& explicit_specialization_types,
-      const std::vector<base::Optional<const Type*>>& arguments);
+      const std::vector<std::optional<const Type*>>& arguments);
 
  private:
   friend class Declarations;
@@ -692,8 +691,8 @@ class TypeAlias : public Declarable {
         declaration_position_(declaration_position) {}
 
   mutable bool being_resolved_ = false;
-  mutable base::Optional<TypeDeclaration*> delayed_;
-  mutable base::Optional<const Type*> type_;
+  mutable std::optional<TypeDeclaration*> delayed_;
+  mutable std::optional<const Type*> type_;
   bool redeclaration_;
   const SourcePosition declaration_position_;
 };
@@ -705,8 +704,6 @@ std::ostream& operator<<(std::ostream& os, const GenericCallable& g);
 
 #undef DECLARE_DECLARABLE_BOILERPLATE
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque
 
 #endif  // V8_TORQUE_DECLARABLE_H_

@@ -74,7 +74,8 @@ void U_I18N_API Factor::applyPrefix(UMeasurePrefix unitPrefix) {
     }
 
     int32_t prefixPower = umeas_getPrefixPower(unitPrefix);
-    double prefixFactor = std::pow((double)umeas_getPrefixBase(unitPrefix), (double)std::abs(prefixPower));
+    double prefixFactor = std::pow(static_cast<double>(umeas_getPrefixBase(unitPrefix)),
+                                   static_cast<double>(std::abs(prefixPower)));
     if (prefixPower >= 0) {
         factorNum *= prefixFactor;
     } else {
@@ -697,10 +698,10 @@ double UnitsConverter::scaleToBase(double scaleValue, double minBaseForScaleValu
         scaleValue = -scaleValue;
     }
     scaleValue += 0.5; // adjust up for later truncation
-    if (scaleValue > (double)scaleMax) {
-        scaleValue = (double)scaleMax;
+    if (scaleValue > static_cast<double>(scaleMax)) {
+        scaleValue = static_cast<double>(scaleMax);
     }
-    int scaleInt = (int)scaleValue;
+    int scaleInt = static_cast<int>(scaleValue);
     return (minBaseForScaleValues[scaleInt] + minBaseForScaleValues[scaleInt+1])/2.0;
 }
 
@@ -737,7 +738,7 @@ double UnitsConverter::baseToScale(double baseValue, double minBaseForScaleValue
         baseValue = -baseValue;
     }
     int scaleIndex = bsearchRanges(minBaseForScaleValues, scaleMax, baseValue);
-    return (double)scaleIndex;
+    return static_cast<double>(scaleIndex);
 }
 
 double UnitsConverter::convert(double inputValue) const {

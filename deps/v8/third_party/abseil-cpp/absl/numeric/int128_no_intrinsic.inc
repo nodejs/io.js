@@ -186,6 +186,24 @@ constexpr bool operator<=(int128 lhs, int128 rhs) { return !(lhs > rhs); }
 
 constexpr bool operator>=(int128 lhs, int128 rhs) { return !(lhs < rhs); }
 
+#ifdef __cpp_impl_three_way_comparison
+constexpr absl::strong_ordering operator<=>(int128 lhs, int128 rhs) {
+  if (int64_t lhs_high = Int128High64(lhs), rhs_high = Int128High64(rhs);
+      lhs_high < rhs_high) {
+    return absl::strong_ordering::less;
+  } else if (lhs_high > rhs_high) {
+    return absl::strong_ordering::greater;
+  } else if (uint64_t lhs_low = Uint128Low64(lhs), rhs_low = Uint128Low64(rhs);
+             lhs_low < rhs_low) {
+    return absl::strong_ordering::less;
+  } else if (lhs_low > rhs_low) {
+    return absl::strong_ordering::greater;
+  } else {
+    return absl::strong_ordering::equal;
+  }
+}
+#endif
+
 // Unary operators.
 
 constexpr int128 operator-(int128 v) {

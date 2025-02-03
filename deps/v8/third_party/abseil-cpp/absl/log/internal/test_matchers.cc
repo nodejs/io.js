@@ -26,6 +26,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/log/internal/test_helpers.h"
+#include "absl/log/log_entry.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
@@ -131,11 +132,9 @@ Matcher<const absl::LogEntry&> Timestamp(
   return Property("timestamp", &absl::LogEntry::timestamp, timestamp);
 }
 
-Matcher<const absl::LogEntry&> TimestampInMatchWindow() {
-  return Property("timestamp", &absl::LogEntry::timestamp,
-                  AllOf(Ge(absl::Now()), Truly([](absl::Time arg) {
-                          return arg <= absl::Now();
-                        })));
+Matcher<absl::Time> InMatchWindow() {
+  return AllOf(Ge(absl::Now()),
+               Truly([](absl::Time arg) { return arg <= absl::Now(); }));
 }
 
 Matcher<const absl::LogEntry&> ThreadID(

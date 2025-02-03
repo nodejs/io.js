@@ -26,7 +26,7 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const assert = require('assert');
 const tls = require('tls');
 const fixtures = require('../common/fixtures');
@@ -57,7 +57,7 @@ const gcListener = { ongc() { collected = true; } };
 }
 
 function done(sock) {
-  global.gc();
+  globalThis.gc();
   setImmediate(() => {
     assert.strictEqual(collected, true);
     sock.end();

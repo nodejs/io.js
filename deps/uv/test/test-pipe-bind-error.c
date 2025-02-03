@@ -172,19 +172,36 @@ TEST_IMPL(pipe_overlong_path) {
 #ifndef _WIN32
   char path[512];
   memset(path, '@', sizeof(path));
-  ASSERT_EQ(UV_EINVAL,
-            uv_pipe_bind2(&pipe, path, sizeof(path), UV_PIPE_NO_TRUNCATE));
-  ASSERT_EQ(UV_EINVAL,
-            uv_pipe_connect2(&req,
-                             &pipe,
-                             path,
-                             sizeof(path),
-                             UV_PIPE_NO_TRUNCATE,
-                             (uv_connect_cb) abort));
-  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
-#endif
 
-  ASSERT_EQ(UV_EINVAL, uv_pipe_bind(&pipe, ""));
+  /* On most platforms sun_path is smaller than the NAME_MAX
+   * Though there is nothing in the POSIX spec that says it needs to be.
+   * POSIX allows PATH_MAX length paths in saddr.sun_path BUT individual
+   * components of the path can only be NAME_MAX long.
+   * So in this case we end up with UV_ENAMETOOLONG error rather than
+   * UV_EINVAL.
+   * ref: https://github.com/libuv/libuv/issues/4231#issuecomment-2194612711
+   * On AIX the sun_path is larger than the NAME_MAX
+   */
+#if defined(_AIX) && !defined(__PASE__)
+  ASSERT_EQ(UV_ENAMETOOLONG,
+          uv_pipe_bind2(&pipe, path, sizeof(path), UV_PIPE_NO_TRUNCATE));
+  /* UV_ENAMETOOLONG is delayed in uv_pipe_connect2 and won't propagate until
+   * uv_run is called and causes timeouts, therefore in this case we skip calling
+   * uv_pipe_connect2
+   */
+#else
+  ASSERT_EQ(UV_EINVAL,
+          uv_pipe_bind2(&pipe, path, sizeof(path), UV_PIPE_NO_TRUNCATE));
+  ASSERT_EQ(UV_EINVAL,
+          uv_pipe_connect2(&req,
+                           &pipe,
+                           path,
+                           sizeof(path),
+                           UV_PIPE_NO_TRUNCATE,
+                           (uv_connect_cb) abort));
+  ASSERT_OK(uv_run(uv_default_loop(), UV_RUN_DEFAULT));
+#endif /*if defined(_AIX) && !defined(__PASE__)*/
+#endif /* ifndef _WIN32 */
   uv_pipe_connect(&req,
                   &pipe,
                   "",
@@ -195,5 +212,4 @@ TEST_IMPL(pipe_overlong_path) {
 
   MAKE_VALGRIND_HAPPY(uv_default_loop());
   return 0;
-
 }

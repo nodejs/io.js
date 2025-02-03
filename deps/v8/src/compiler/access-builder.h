@@ -95,14 +95,19 @@ class V8_EXPORT_PRIVATE AccessBuilder final
   // Provides access to JSFunction::context() field.
   static FieldAccess ForJSFunctionContext();
 
-  // Provides access to JSFunction::code() field.
-  static FieldAccess ForJSFunctionCode();
-
   // Provides access to JSFunction::shared() field.
   static FieldAccess ForJSFunctionSharedFunctionInfo();
 
   // Provides access to JSFunction::feedback_cell() field.
   static FieldAccess ForJSFunctionFeedbackCell();
+
+#ifdef V8_ENABLE_LEAPTIERING
+  // Provides access to JSFunction::dispatch_handle() field.
+  static FieldAccess ForJSFunctionDispatchHandleNoWriteBarrier();
+#else
+  // Provides access to JSFunction::code() field.
+  static FieldAccess ForJSFunctionCode();
+#endif  // V8_ENABLE_LEAPTIERING
 
   // Provides access to JSBoundFunction::bound_target_function() field.
   static FieldAccess ForJSBoundFunctionBoundTargetFunction();
@@ -167,6 +172,11 @@ class V8_EXPORT_PRIVATE AccessBuilder final
   // Provides access to JSTypedArray::length() field.
   static FieldAccess ForJSTypedArrayLength();
 
+  // Provides access to JSTypedArray::byteLength() field.
+  static FieldAccess ForJSTypedArrayByteLength() {
+    return ForJSArrayBufferViewByteLength();
+  }
+
   // Provides access to JSTypedArray::base_pointer() field.
   static FieldAccess ForJSTypedArrayBasePointer();
 
@@ -175,6 +185,10 @@ class V8_EXPORT_PRIVATE AccessBuilder final
 
   // Provides access to JSDataView::data_pointer() field.
   static FieldAccess ForJSDataViewDataPointer();
+
+  static FieldAccess ForJSDataViewByteLength() {
+    return ForJSArrayBufferViewByteLength();
+  }
 
   // Provides access to JSDate::value() field.
   static FieldAccess ForJSDateValue();
@@ -187,6 +201,8 @@ class V8_EXPORT_PRIVATE AccessBuilder final
 
   // Provides access to JSIteratorResult::value() field.
   static FieldAccess ForJSIteratorResultValue();
+
+  static FieldAccess ForJSPrimitiveWrapperValue();
 
   // Provides access to JSRegExp::data() field.
   static FieldAccess ForJSRegExpData();
@@ -306,6 +322,9 @@ class V8_EXPORT_PRIVATE AccessBuilder final
 
   static FieldAccess ForFeedbackVectorSlot(int index);
 
+  // Provides access to PropertyArray slots.
+  static FieldAccess ForPropertyArraySlot(int index);
+
   // Provides access to ScopeInfo flags.
   static FieldAccess ForScopeInfoFlags();
 
@@ -325,9 +344,6 @@ class V8_EXPORT_PRIVATE AccessBuilder final
 
   // Provides access to SloppyArgumentsElements elements.
   static ElementAccess ForSloppyArgumentsElementsMappedEntry();
-
-  // Provides access to stack arguments
-  static ElementAccess ForStackArgument();
 
   // Provides access to FixedDoubleArray elements.
   static ElementAccess ForFixedDoubleArrayElement();
@@ -368,6 +384,9 @@ class V8_EXPORT_PRIVATE AccessBuilder final
 
   // Provides access to FeedbackCell fields.
   static FieldAccess ForFeedbackCellInterruptBudget();
+#ifdef V8_ENABLE_LEAPTIERING
+  static FieldAccess ForFeedbackCellDispatchHandleNoWriteBarrier();
+#endif  // V8_ENABLE_LEAPTIERING
 
   // Provides access to a FeedbackVector fields.
   static FieldAccess ForFeedbackVectorInvocationCount();

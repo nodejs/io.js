@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include 'src/objects/js-segment-iterator.h'
+#include 'src/objects/js-segment-iterator-inl.h'
 
 bitfield struct JSSegmentIteratorFlags extends uint31 {
   granularity: JSSegmenterGranularity: 2 bit;
@@ -13,4 +13,18 @@ extern class JSSegmentIterator extends JSObject {
   raw_string: String;
   unicode_string: Foreign;  // Managed<icu::UnicodeString>
   flags: SmiTagged<JSSegmentIteratorFlags>;
+}
+
+@doNotGenerateCast
+@hasSameInstanceTypeAsParent
+extern class JSSegmentDataObject extends JSObject {
+  segment: String;
+  index: Number;
+  input: String;
+}
+
+@doNotGenerateCast
+@hasSameInstanceTypeAsParent
+extern class JSSegmentDataObjectWithIsWordLike extends JSSegmentDataObject {
+  is_word_like: Boolean;
 }

@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -39,21 +39,17 @@
  * nghttp3_idtr tracks the usage of stream ID.
  */
 typedef struct nghttp3_idtr {
-  /* gap maintains the range of ID which is not used yet. Initially,
-     its range is [0, UINT64_MAX). */
+  /* gap maintains the range of an internal ID which is not used yet.
+     Initially, its range is [0, UINT64_MAX).  The internal ID and
+     stream ID are in the different number spaces.  See
+     id_from_stream_id to convert a stream ID to an internal ID. */
   nghttp3_gaptr gap;
-  /* server is nonzero if this object records server initiated stream
-     ID. */
-  int server;
 } nghttp3_idtr;
 
 /*
  * nghttp3_idtr_init initializes |idtr|.
- *
- * If this object records server initiated ID (even number), set
- * |server| to nonzero.
  */
-void nghttp3_idtr_init(nghttp3_idtr *idtr, int server, const nghttp3_mem *mem);
+void nghttp3_idtr_init(nghttp3_idtr *idtr, const nghttp3_mem *mem);
 
 /*
  * nghttp3_idtr_free frees resources allocated for |idtr|.
@@ -61,30 +57,21 @@ void nghttp3_idtr_init(nghttp3_idtr *idtr, int server, const nghttp3_mem *mem);
 void nghttp3_idtr_free(nghttp3_idtr *idtr);
 
 /*
- * nghttp3_idtr_open claims that |stream_id| is in used.
+ * nghttp3_idtr_open claims that |stream_id| is in use.
  *
  * It returns 0 if it succeeds, or one of the following negative error
  * codes:
  *
  * NGHTTP3_ERR_STREAM_IN_USE
- *     ID has already been used.
+ *     |stream_id| has already been used.
  * NGHTTP3_ERR_NOMEM
  *     Out of memory.
  */
 int nghttp3_idtr_open(nghttp3_idtr *idtr, int64_t stream_id);
 
 /*
- * nghttp3_idtr_open tells whether ID |stream_id| is in used or not.
- *
- * It returns nonzero if |stream_id| is used.
+ * nghttp3_idtr_open returns nonzero if |stream_id| is in use.
  */
 int nghttp3_idtr_is_open(nghttp3_idtr *idtr, int64_t stream_id);
 
-/*
- * nghttp3_idtr_first_gap returns the first id of first gap.  If there
- * is no gap, it returns UINT64_MAX.  The returned id is an id space
- * used in this object internally, and not stream ID.
- */
-uint64_t nghttp3_idtr_first_gap(nghttp3_idtr *idtr);
-
-#endif /* NGHTTP3_IDTR_H */
+#endif /* !defined(NGHTTP3_IDTR_H) */

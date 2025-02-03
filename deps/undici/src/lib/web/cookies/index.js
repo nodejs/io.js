@@ -1,22 +1,24 @@
 'use strict'
 
 const { parseSetCookie } = require('./parse')
-const { stringify, getHeadersList } = require('./util')
+const { stringify } = require('./util')
 const { webidl } = require('../fetch/webidl')
 const { Headers } = require('../fetch/headers')
+
+const brandChecks = webidl.brandCheckMultiple([Headers, globalThis.Headers].filter(Boolean))
 
 /**
  * @typedef {Object} Cookie
  * @property {string} name
  * @property {string} value
- * @property {Date|number|undefined} expires
- * @property {number|undefined} maxAge
- * @property {string|undefined} domain
- * @property {string|undefined} path
- * @property {boolean|undefined} secure
- * @property {boolean|undefined} httpOnly
- * @property {'Strict'|'Lax'|'None'} sameSite
- * @property {string[]} unparsed
+ * @property {Date|number} [expires]
+ * @property {number} [maxAge]
+ * @property {string} [domain]
+ * @property {string} [path]
+ * @property {boolean} [secure]
+ * @property {boolean} [httpOnly]
+ * @property {'Strict'|'Lax'|'None'} [sameSite]
+ * @property {string[]} [unparsed]
  */
 
 /**
@@ -24,11 +26,13 @@ const { Headers } = require('../fetch/headers')
  * @returns {Record<string, string>}
  */
 function getCookies (headers) {
-  webidl.argumentLengthCheck(arguments, 1, { header: 'getCookies' })
+  webidl.argumentLengthCheck(arguments, 1, 'getCookies')
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
   const cookie = headers.get('cookie')
+
+  /** @type {Record<string, string>} */
   const out = {}
 
   if (!cookie) {
@@ -51,11 +55,12 @@ function getCookies (headers) {
  * @returns {void}
  */
 function deleteCookie (headers, name, attributes) {
-  webidl.argumentLengthCheck(arguments, 2, { header: 'deleteCookie' })
+  brandChecks(headers)
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  const prefix = 'deleteCookie'
+  webidl.argumentLengthCheck(arguments, 2, prefix)
 
-  name = webidl.converters.DOMString(name)
+  name = webidl.converters.DOMString(name, prefix, 'name')
   attributes = webidl.converters.DeleteCookieAttributes(attributes)
 
   // Matches behavior of
@@ -73,18 +78,27 @@ function deleteCookie (headers, name, attributes) {
  * @returns {Cookie[]}
  */
 function getSetCookies (headers) {
-  webidl.argumentLengthCheck(arguments, 1, { header: 'getSetCookies' })
+  webidl.argumentLengthCheck(arguments, 1, 'getSetCookies')
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
-  const cookies = getHeadersList(headers).cookies
+  const cookies = headers.getSetCookie()
 
   if (!cookies) {
     return []
   }
 
-  // In older versions of undici, cookies is a list of name:value.
-  return cookies.map((pair) => parseSetCookie(Array.isArray(pair) ? pair[1] : pair))
+  return cookies.map((pair) => parseSetCookie(pair))
+}
+
+/**
+ * Parses a cookie string
+ * @param {string} cookie
+ */
+function parseCookie (cookie) {
+  cookie = webidl.converters.DOMString(cookie)
+
+  return parseSetCookie(cookie)
 }
 
 /**
@@ -93,16 +107,16 @@ function getSetCookies (headers) {
  * @returns {void}
  */
 function setCookie (headers, cookie) {
-  webidl.argumentLengthCheck(arguments, 2, { header: 'setCookie' })
+  webidl.argumentLengthCheck(arguments, 2, 'setCookie')
 
-  webidl.brandCheck(headers, Headers, { strict: false })
+  brandChecks(headers)
 
   cookie = webidl.converters.Cookie(cookie)
 
   const str = stringify(cookie)
 
   if (str) {
-    headers.append('Set-Cookie', str)
+    headers.append('set-cookie', str, true)
   }
 }
 
@@ -110,12 +124,12 @@ webidl.converters.DeleteCookieAttributes = webidl.dictionaryConverter([
   {
     converter: webidl.nullableConverter(webidl.converters.DOMString),
     key: 'path',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.nullableConverter(webidl.converters.DOMString),
     key: 'domain',
-    defaultValue: null
+    defaultValue: () => null
   }
 ])
 
@@ -137,32 +151,32 @@ webidl.converters.Cookie = webidl.dictionaryConverter([
       return new Date(value)
     }),
     key: 'expires',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.nullableConverter(webidl.converters['long long']),
     key: 'maxAge',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.nullableConverter(webidl.converters.DOMString),
     key: 'domain',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.nullableConverter(webidl.converters.DOMString),
     key: 'path',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.nullableConverter(webidl.converters.boolean),
     key: 'secure',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.nullableConverter(webidl.converters.boolean),
     key: 'httpOnly',
-    defaultValue: null
+    defaultValue: () => null
   },
   {
     converter: webidl.converters.USVString,
@@ -172,7 +186,7 @@ webidl.converters.Cookie = webidl.dictionaryConverter([
   {
     converter: webidl.sequenceConverter(webidl.converters.DOMString),
     key: 'unparsed',
-    defaultValue: []
+    defaultValue: () => new Array(0)
   }
 ])
 
@@ -180,5 +194,6 @@ module.exports = {
   getCookies,
   deleteCookie,
   getSetCookies,
-  setCookie
+  setCookie,
+  parseCookie
 }

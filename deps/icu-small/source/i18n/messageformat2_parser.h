@@ -91,10 +91,6 @@ namespace message2 {
 	  parseError.postContext[0] = '\0';
 	}
 
-	// Used so `parseEscapeSequence()` can handle all types of escape sequences
-	// (literal, text, and reserved)
-	typedef enum { LITERAL, TEXT, RESERVED } EscapeKind;
-
 	static void translateParseError(const MessageParseError&, UParseError&);
 	static void setParseError(MessageParseError&, uint32_t);
 	void maybeAdvanceLine();
@@ -111,19 +107,16 @@ namespace message2 {
 	void parseOptionalWhitespace(UErrorCode&);
 	void parseToken(UChar32, UErrorCode&);
 	void parseTokenWithWhitespace(UChar32, UErrorCode&);
-	template <int32_t N>
-	void parseToken(const UChar32 (&)[N], UErrorCode&);
-	template <int32_t N>
-	void parseTokenWithWhitespace(const UChar32 (&)[N], UErrorCode&);
-        bool nextIsMatch() const;
+	void parseToken(const std::u16string_view&, UErrorCode&);
+	void parseTokenWithWhitespace(const std::u16string_view&, UErrorCode&);
+        bool nextIs(const std::u16string_view&) const;
 	UnicodeString parseName(UErrorCode&);
         UnicodeString parseIdentifier(UErrorCode&);
         UnicodeString parseDigits(UErrorCode&);
 	VariableName parseVariableName(UErrorCode&);
 	FunctionName parseFunction(UErrorCode&);
-	void parseEscapeSequence(EscapeKind, UnicodeString&, UErrorCode&);
-	void parseLiteralEscape(UnicodeString&, UErrorCode&);
-        Literal parseUnquotedLiteral(UErrorCode&);
+	UnicodeString parseEscapeSequence(UErrorCode&);
+	Literal parseUnquotedLiteral(UErrorCode&);
         Literal parseQuotedLiteral(UErrorCode&);
 	Literal parseLiteral(UErrorCode&);
         template<class T>
@@ -134,25 +127,31 @@ namespace message2 {
         void parseOption(OptionAdder<T>&, UErrorCode&);
         template<class T>
         void parseOptions(OptionAdder<T>&, UErrorCode&);
-	void parseReservedEscape(UnicodeString&, UErrorCode&);
-	void parseReservedChunk(Reserved::Builder&, UErrorCode&);
-	Reserved parseReserved(UErrorCode&);
-        Reserved parseReservedBody(Reserved::Builder&, UErrorCode&);
 	Operator parseAnnotation(UErrorCode&);
 	void parseLiteralOrVariableWithAnnotation(bool, Expression::Builder&, UErrorCode&);
         Markup parseMarkup(UErrorCode&);
 	Expression parseExpression(UErrorCode&);
         std::variant<Expression, Markup> parsePlaceholder(UErrorCode&);
-	void parseTextEscape(UnicodeString&, UErrorCode&);
-	UnicodeString parseText(UErrorCode&);
+	UnicodeString parseTextChar(UErrorCode&);
 	Key parseKey(UErrorCode&);
 	SelectorKeys parseNonEmptyKeys(UErrorCode&);
 	void errorPattern(UErrorCode& status);
 	Pattern parseQuotedPattern(UErrorCode&);
+        bool isDeclarationStart();
+
+        UChar32 peek() const { return source.char32At(index) ; }
+        UChar32 peek(uint32_t i) const {
+            return source.char32At(source.moveIndex32(index, i));
+        }
+        void next() { index = source.moveIndex32(index, 1); }
+
+        bool inBounds() const { return (int32_t) index < source.length(); }
+        bool inBounds(uint32_t i) const { return source.moveIndex32(index, i) < source.length(); }
+        bool allConsumed() const { return (int32_t) index == source.length(); }
 
 	// The input string
 	const UnicodeString &source;
-	// The current position within the input string
+	// The current position within the input string -- counting in UChar32
 	uint32_t index;
 	// Represents the current line (and when an error is indicated),
 	// character offset within the line of the parse error

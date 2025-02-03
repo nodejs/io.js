@@ -13,9 +13,11 @@
 
 namespace v8::internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 TNode<WasmTrustedInstanceData>
 WasmBuiltinsAssembler::LoadInstanceDataFromFrame() {
-  return CAST(LoadFromParentFrame(WasmFrameConstants::kWasmInstanceOffset));
+  return CAST(LoadFromParentFrame(WasmFrameConstants::kWasmInstanceDataOffset));
 }
 
 TNode<WasmTrustedInstanceData>
@@ -28,32 +30,32 @@ WasmBuiltinsAssembler::LoadTrustedDataFromInstance(
 
 TNode<NativeContext> WasmBuiltinsAssembler::LoadContextFromWasmOrJsFrame() {
   static_assert(BuiltinFrameConstants::kFunctionOffset ==
-                WasmFrameConstants::kWasmInstanceOffset);
+                WasmFrameConstants::kWasmInstanceDataOffset);
   TVARIABLE(NativeContext, context_result);
   TNode<HeapObject> function_or_instance =
-      CAST(LoadFromParentFrame(WasmFrameConstants::kWasmInstanceOffset));
-  Label js(this);
-  Label apifunc(this);
+      CAST(LoadFromParentFrame(WasmFrameConstants::kWasmInstanceDataOffset));
+  Label is_js_function(this);
+  Label is_import_data(this);
   Label done(this);
   TNode<Uint16T> instance_type =
       LoadMapInstanceType(LoadMap(function_or_instance));
-  GotoIf(IsJSFunctionInstanceType(instance_type), &js);
-  GotoIf(Word32Equal(instance_type, Int32Constant(WASM_API_FUNCTION_REF_TYPE)),
-         &apifunc);
+  GotoIf(IsJSFunctionInstanceType(instance_type), &is_js_function);
+  GotoIf(Word32Equal(instance_type, Int32Constant(WASM_IMPORT_DATA_TYPE)),
+         &is_import_data);
   context_result = LoadContextFromInstanceData(CAST(function_or_instance));
   Goto(&done);
 
-  BIND(&js);
+  BIND(&is_js_function);
   TNode<JSFunction> function = CAST(function_or_instance);
   TNode<Context> context =
       LoadObjectField<Context>(function, JSFunction::kContextOffset);
   context_result = LoadNativeContext(context);
   Goto(&done);
 
-  BIND(&apifunc);
-  TNode<WasmApiFunctionRef> apiref = CAST(function_or_instance);
+  BIND(&is_import_data);
+  TNode<WasmImportData> import_data = CAST(function_or_instance);
   context_result = LoadObjectField<NativeContext>(
-      apiref, WasmApiFunctionRef::kNativeContextOffset);
+      import_data, WasmImportData::kNativeContextOffset);
   Goto(&done);
 
   BIND(&done);
@@ -68,16 +70,25 @@ TNode<NativeContext> WasmBuiltinsAssembler::LoadContextFromInstanceData(
                           kHeapObjectTag)));
 }
 
+TNode<WasmTrustedInstanceData>
+WasmBuiltinsAssembler::LoadSharedPartFromInstanceData(
+    TNode<WasmTrustedInstanceData> trusted_data) {
+  return CAST(LoadProtectedPointerFromObject(
+      trusted_data,
+      IntPtrConstant(WasmTrustedInstanceData::kProtectedSharedPartOffset -
+                     kHeapObjectTag)));
+}
+
 TNode<FixedArray> WasmBuiltinsAssembler::LoadTablesFromInstanceData(
     TNode<WasmTrustedInstanceData> trusted_data) {
   return LoadObjectField<FixedArray>(trusted_data,
                                      WasmTrustedInstanceData::kTablesOffset);
 }
 
-TNode<FixedArray> WasmBuiltinsAssembler::LoadInternalFunctionsFromInstanceData(
+TNode<FixedArray> WasmBuiltinsAssembler::LoadFuncRefsFromInstanceData(
     TNode<WasmTrustedInstanceData> trusted_data) {
-  return LoadObjectField<FixedArray>(
-      trusted_data, WasmTrustedInstanceData::kWasmInternalFunctionsOffset);
+  return LoadObjectField<FixedArray>(trusted_data,
+                                     WasmTrustedInstanceData::kFuncRefsOffset);
 }
 
 TNode<FixedArray> WasmBuiltinsAssembler::LoadManagedObjectMapsFromInstanceData(
@@ -100,6 +111,20 @@ TNode<Float64T> WasmBuiltinsAssembler::StringToFloat64(TNode<String> input) {
       CallRuntime(Runtime::kStringParseFloat, NoContextConstant(), input);
   return ChangeNumberToFloat64(CAST(result));
 #endif
+}
+
+TNode<Smi> WasmBuiltinsAssembler::SignatureCheckFail(
+    TNode<WasmInternalFunction> internal_function,
+    TNode<UintPtrT> expected_hash) {
+  TNode<ExternalReference> function =
+      ExternalConstant(ExternalReference::wasm_signature_check_fail());
+  // The C-side return type is "void", but "None()" isn't supported here.
+  // Since we ignore the result anyway, it doesn't matter to pretend there's
+  // a pointer in the return register.
+  CallCFunction(function, MachineType::Pointer(),
+                std::make_pair(MachineType::AnyTagged(), internal_function),
+                std::make_pair(MachineType::UintPtr(), expected_hash));
+  return SmiConstant(0);
 }
 
 TF_BUILTIN(WasmFloat32ToNumber, WasmBuiltinsAssembler) {
@@ -138,19 +163,21 @@ TF_BUILTIN(JSToWasmLazyDeoptContinuation, WasmBuiltinsAssembler) {
 
 TF_BUILTIN(WasmToJsWrapperCSA, WasmBuiltinsAssembler) {
   TorqueStructWasmToJSResult result = WasmToJSWrapper(
-      UncheckedParameter<WasmApiFunctionRef>(Descriptor::kWasmApiFunctionRef));
+      UncheckedParameter<WasmImportData>(Descriptor::kWasmImportData));
   PopAndReturn(result.popCount, result.result0, result.result1, result.result2,
                result.result3);
 }
 
 TF_BUILTIN(WasmToJsWrapperInvalidSig, WasmBuiltinsAssembler) {
-  TNode<WasmApiFunctionRef> ref =
-      UncheckedParameter<WasmApiFunctionRef>(Descriptor::kWasmApiFunctionRef);
+  TNode<WasmImportData> data =
+      UncheckedParameter<WasmImportData>(Descriptor::kWasmImportData);
   TNode<Context> context =
-      LoadObjectField<Context>(ref, WasmApiFunctionRef::kNativeContextOffset);
+      LoadObjectField<Context>(data, WasmImportData::kNativeContextOffset);
 
   CallRuntime(Runtime::kWasmThrowJSTypeError, context);
   Unreachable();
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace v8::internal

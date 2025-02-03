@@ -12,19 +12,22 @@ const { setTimeout } = require('timers/promises');
 common.expectWarning({
   MaxListenersExceededWarning: [
     ['Possible EventTarget memory leak detected. 3 foo listeners added to ' +
-     'EventTarget. Use events.setMaxListeners() ' +
+        'EventTarget. MaxListeners is 2. Use events.setMaxListeners() ' +
      'to increase limit'],
     ['Possible EventTarget memory leak detected. 3 foo listeners added to ' +
-     '[MessagePort [EventTarget]]. ' +
-     'Use events.setMaxListeners() to increase ' +
+        '[MessagePort [EventTarget]]. ' +
+        'MaxListeners is 2. ' +
+        'Use events.setMaxListeners() to increase ' +
      'limit'],
     ['Possible EventTarget memory leak detected. 3 foo listeners added to ' +
-     '[MessagePort [EventTarget]]. ' +
-     'Use events.setMaxListeners() to increase ' +
+        '[MessagePort [EventTarget]]. ' +
+        'MaxListeners is 2. ' +
+        'Use events.setMaxListeners() to increase ' +
      'limit'],
-    ['Possible EventTarget memory leak detected. 3 foo listeners added to ' +
-     '[AbortSignal]. ' +
-     'Use events.setMaxListeners() to increase ' +
+    ['Possible EventTarget memory leak detected. 2 foo listeners added to ' +
+        '[AbortSignal]. ' +
+        'MaxListeners is 1. ' +
+        'Use events.setMaxListeners() to increase ' +
      'limit'],
   ],
 });
@@ -62,9 +65,21 @@ common.expectWarning({
   mc.port1.addEventListener('foo', () => {});
   mc.port1.addEventListener('foo', () => {});
   mc.port1.addEventListener('foo', () => {});
+}
 
+{
+  // No warning emitted because AbortController ignores `EventEmitter.defaultMaxListeners`
+  setMaxListeners(2);
   const ac = new AbortController();
   ac.signal.addEventListener('foo', () => {});
+  ac.signal.addEventListener('foo', () => {});
+  ac.signal.addEventListener('foo', () => {});
+}
+
+{
+  // Will still warn as `setMaxListeners` can still manually set a limit
+  const ac = new AbortController();
+  setMaxListeners(1, ac.signal);
   ac.signal.addEventListener('foo', () => {});
   ac.signal.addEventListener('foo', () => {});
 }
@@ -88,7 +103,7 @@ common.expectWarning({
       });
 
       await setTimeout(0);
-      global.gc();
+      globalThis.gc();
     }
   })().then(common.mustCall(), common.mustNotCall());
 }

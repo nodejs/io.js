@@ -30,12 +30,14 @@ const fs = require('fs');
 
 const ulimit = Number(child_process.execSync('ulimit -Hn'));
 if (ulimit > 64 || Number.isNaN(ulimit)) {
+  const [cmd, opts] = common.escapePOSIXShell`ulimit -n 64 && "${process.execPath}" "${__filename}"`;
   // Sorry about this nonsense. It can be replaced if
   // https://github.com/nodejs/node-v0.x-archive/pull/2143#issuecomment-2847886
   // ever happens.
   const result = child_process.spawnSync(
     '/bin/sh',
-    ['-c', `ulimit -n 64 && '${process.execPath}' '${__filename}'`]
+    ['-c', cmd],
+    opts,
   );
   assert.strictEqual(result.stdout.toString(), '');
   assert.strictEqual(result.stderr.toString(), '');

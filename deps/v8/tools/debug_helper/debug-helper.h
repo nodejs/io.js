@@ -166,9 +166,12 @@ struct HeapAddresses {
 
   // Any valid heap pointer address. On platforms where pointer compression is
   // enabled, this can allow us to get data from compressed pointers even if the
-  // other data above is not provided. The Isolate pointer is valid for this
-  // purpose if you have it.
+  // other data above is not provided.
   uintptr_t any_heap_pointer;
+
+  // A pointer to the static array
+  // v8::internal::MemoryChunk::metadata_pointer_table_.
+  uintptr_t metadata_pointer_table;
 };
 
 }  // namespace debug_helper

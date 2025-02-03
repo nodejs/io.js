@@ -35,26 +35,26 @@ function CreateWasmObjects() {
   };
 }
 
-function testThrowsRepeated(fn, ErrorType, ignoreDeopts = false) {
+function testThrowsRepeated(fn, ErrorType) {
   const maxRuns = 3;
   for (let run = 0; run < maxRuns; ++run) {
     %PrepareFunctionForOptimization(fn);
     for (let i = 0; i < 5; i++) assertThrows(fn, ErrorType);
     %OptimizeFunctionOnNextCall(fn);
     assertThrows(fn, ErrorType);
-    if (isOptimized(fn) || ignoreDeopts) return;
+    if (isOptimized(fn)) return;
   }
   assertOptimized(fn);
 }
 
-function repeated(fn, ignoreDeopts = false) {
+function repeated(fn) {
   const maxRuns = 3;
   for (let run = 0; run < maxRuns; ++run) {
     %PrepareFunctionForOptimization(fn);
     for (let i = 0; i < 5; i++) fn();
     %OptimizeFunctionOnNextCall(fn);
     fn();
-    if (isOptimized(fn) || ignoreDeopts) return;
+    if (isOptimized(fn)) return;
   }
   assertOptimized(fn);
 }

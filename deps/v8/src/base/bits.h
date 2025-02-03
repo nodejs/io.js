@@ -485,6 +485,11 @@ V8_BASE_EXPORT int64_t SignedSaturatedAdd64(int64_t lhs, int64_t rhs);
 // checks and returns the result.
 V8_BASE_EXPORT int64_t SignedSaturatedSub64(int64_t lhs, int64_t rhs);
 
+template <class T>
+V8_BASE_EXPORT constexpr int BitWidth(T x) {
+  return std::numeric_limits<T>::digits - CountLeadingZeros(x);
+}
+
 }  // namespace bits
 }  // namespace base
 }  // namespace v8

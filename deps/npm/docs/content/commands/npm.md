@@ -14,7 +14,7 @@ Note: This command is unaware of workspaces.
 
 ### Version
 
-10.5.2
+11.1.0
 
 ### Description
 
@@ -158,7 +158,7 @@ Please be sure to follow the template and bug reporting guidelines.
 
 Discuss new feature ideas on our discussion forum:
 
-* <https://github.com/npm/feedback>
+* <https://github.com/orgs/community/discussions/categories/npm>
 
 Or suggest formal RFC proposals:
 

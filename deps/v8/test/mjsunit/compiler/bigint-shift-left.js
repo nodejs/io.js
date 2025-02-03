@@ -87,7 +87,7 @@
 })();
 
 (function OptimizeAndTest() {
-  const bi = 2n ** 64n;
+  const bi = 2n ** 62n;
   function ShiftLeftByLarge(a) {
     return BigInt.asIntN(62, a << bi);
   }

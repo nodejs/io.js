@@ -58,15 +58,17 @@ class TLSWrap : public AsyncWrap,
 
   ~TLSWrap() override;
 
-  bool is_cert_cb_running() const { return cert_cb_running_; }
-  bool is_waiting_cert_cb() const { return cert_cb_ != nullptr; }
-  bool has_session_callbacks() const { return session_callbacks_; }
-  void set_cert_cb_running(bool on = true) { cert_cb_running_ = on; }
-  void set_awaiting_new_session(bool on = true) { awaiting_new_session_ = on; }
-  void enable_session_callbacks() { session_callbacks_ = true; }
-  bool is_server() const { return kind_ == Kind::kServer; }
-  bool is_client() const { return kind_ == Kind::kClient; }
-  bool is_awaiting_new_session() const { return awaiting_new_session_; }
+  inline bool is_cert_cb_running() const { return cert_cb_running_; }
+  inline bool is_waiting_cert_cb() const { return cert_cb_ != nullptr; }
+  inline bool has_session_callbacks() const { return session_callbacks_; }
+  inline void set_cert_cb_running(bool on = true) { cert_cb_running_ = on; }
+  inline void set_awaiting_new_session(bool on = true) {
+    awaiting_new_session_ = on;
+  }
+  inline void enable_session_callbacks() { session_callbacks_ = true; }
+  inline bool is_server() const { return kind_ == Kind::kServer; }
+  inline bool is_client() const { return kind_ == Kind::kClient; }
+  inline bool is_awaiting_new_session() const { return awaiting_new_session_; }
 
   // Implement StreamBase:
   bool IsAlive() override;
@@ -128,7 +130,7 @@ class TLSWrap : public AsyncWrap,
 
   // Alternative to StreamListener::stream(), that returns a StreamBase instead
   // of a StreamResource.
-  StreamBase* underlying_stream() const {
+  inline StreamBase* underlying_stream() const {
     return static_cast<StreamBase*>(stream());
   }
 
@@ -213,6 +215,7 @@ class TLSWrap : public AsyncWrap,
   static void Renegotiate(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void RequestOCSP(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetALPNProtocols(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void SetKeyCert(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetOCSPResponse(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetServername(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void SetSession(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -247,8 +250,8 @@ class TLSWrap : public AsyncWrap,
 
   Environment* const env_;
   Kind kind_;
-  SSLSessionPointer next_sess_;
-  SSLPointer ssl_;
+  ncrypto::SSLSessionPointer next_sess_;
+  ncrypto::SSLPointer ssl_;
   ClientHelloParser hello_parser_;
   v8::Global<v8::ArrayBufferView> ocsp_response_;
   BaseObjectPtr<SecureContext> sni_context_;
@@ -287,7 +290,7 @@ class TLSWrap : public AsyncWrap,
   CertCb cert_cb_ = nullptr;
   void* cert_cb_arg_ = nullptr;
 
-  BIOPointer bio_trace_;
+  ncrypto::BIOPointer bio_trace_;
 
   bool has_active_write_issued_by_prev_listener_ = false;
 

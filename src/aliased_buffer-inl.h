@@ -4,6 +4,7 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include "aliased_buffer.h"
+#include "memory_tracker-inl.h"
 #include "util-inl.h"
 
 namespace node {

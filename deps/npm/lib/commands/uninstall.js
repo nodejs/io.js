@@ -1,10 +1,9 @@
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const pkgJson = require('@npmcli/package-json')
-
 const reifyFinish = require('../utils/reify-finish.js')
-const completion = require('../utils/completion/installed-shallow.js')
-
+const completion = require('../utils/installed-shallow.js')
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
+
 class Uninstall extends ArboristWorkspaceCmd {
   static description = 'Remove a package'
   static name = 'uninstall'
@@ -53,4 +52,5 @@ class Uninstall extends ArboristWorkspaceCmd {
     await reifyFinish(this.npm, arb)
   }
 }
+
 module.exports = Uninstall

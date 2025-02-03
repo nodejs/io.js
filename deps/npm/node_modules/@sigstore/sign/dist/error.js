@@ -15,7 +15,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.internalError = exports.InternalError = void 0;
+exports.InternalError = void 0;
+exports.internalError = internalError;
 const error_1 = require("./external/error");
 class InternalError extends Error {
     constructor({ code, message, cause, }) {
@@ -36,4 +37,3 @@ function internalError(err, code, message) {
         cause: err,
     });
 }
-exports.internalError = internalError;

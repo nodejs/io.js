@@ -10,13 +10,16 @@
 
 namespace v8::internal {
 
+class IsolateGroup;
+
 // This is just a collection of common compression scheme related functions.
 // Each pointer compression cage then has its own compression scheme, which
 // mainly differes in the cage base address they use.
 template <typename Cage>
 class V8HeapCompressionSchemeImpl {
  public:
-  V8_INLINE static Address GetPtrComprCageBaseAddress(Address on_heap_addr);
+  V8_INLINE static constexpr Address GetPtrComprCageBaseAddress(
+      Address on_heap_addr);
 
   V8_INLINE static Address GetPtrComprCageBaseAddress(
       PtrComprCageBase cage_base);
@@ -28,7 +31,7 @@ class V8HeapCompressionSchemeImpl {
   // cage.
   V8_INLINE static Tagged_t CompressObject(Address tagged);
   // Compress a potentially invalid pointer.
-  V8_INLINE static Tagged_t CompressAny(Address tagged);
+  V8_INLINE static constexpr Tagged_t CompressAny(Address tagged);
 
   // Decompresses smi value.
   V8_INLINE static Address DecompressTaggedSigned(Tagged_t raw_value);
@@ -126,7 +129,7 @@ class ExternalCodeCompressionScheme {
   V8_INLINE static Tagged_t CompressObject(Address tagged);
   // Compress anything that does not follow the above requirements (e.g. a maybe
   // object, or a marker bit pattern).
-  V8_INLINE static Tagged_t CompressAny(Address tagged);
+  V8_INLINE static constexpr Tagged_t CompressAny(Address tagged);
 
   // Decompresses smi value.
   V8_INLINE static Address DecompressTaggedSigned(Tagged_t raw_value);
@@ -139,6 +142,15 @@ class ExternalCodeCompressionScheme {
   // Process-wide cage base value used for decompression.
   V8_INLINE static void InitBase(Address base);
   V8_INLINE static Address base();
+
+  // Given a 64bit raw value, found on the stack, calls the callback function
+  // with all possible pointers that may be "contained" in compressed form in
+  // this value, either as complete compressed pointers or as intermediate
+  // (half-computed) results.
+  template <typename ProcessPointerCallback>
+  V8_INLINE static void ProcessIntermediatePointers(
+      PtrComprCageBase cage_base, Address raw_value,
+      ProcessPointerCallback callback);
 
  private:
   // These non-inlined accessors to base_ field are used in component builds
@@ -198,7 +210,7 @@ static inline void WriteMaybeUnalignedValue(Address p, V value) {
 // For all other configurations this scope object is a no-op.
 class PtrComprCageAccessScope final {
  public:
-#ifdef V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
   V8_INLINE explicit PtrComprCageAccessScope(Isolate* isolate);
   V8_INLINE ~PtrComprCageAccessScope();
 #else
@@ -207,13 +219,13 @@ class PtrComprCageAccessScope final {
 #endif
 
  private:
-#ifdef V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
   const Address cage_base_;
 #ifdef V8_EXTERNAL_CODE_SPACE
-// In case this configuration is necessary the code cage base must be saved too.
-#error Multi-cage pointer compression with external code space is not supported
+  const Address code_cage_base_;
 #endif  // V8_EXTERNAL_CODE_SPACE
-#endif  // V8_COMPRESS_POINTERS_IN_ISOLATE_CAGE
+  IsolateGroup* saved_current_isolate_group_;
+#endif  // V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
 };
 
 }  // namespace v8::internal

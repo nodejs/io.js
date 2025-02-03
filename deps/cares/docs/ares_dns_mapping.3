@@ -89,6 +89,13 @@ set and \fIares_dns_rr_get_bin(3)\fP to get.
 - Array of options.  16bit identifier, Binary data. Use \fIares_dns_rr_set_opt(3)\fP to
 set and \fIares_dns_rr_get_opt(3)\fP to get.
 .br
+.B ARES_DATATYPE_ABINP
+- Array of binary data, but likely printable. Guaranteed to have a NULL terminator
+for convenience (not included in length). Use \fIares_dns_rr_add_abin(3)\fP to
+set and \fIares_dns_rr_get_abin(3)\fP to get.  Can also use
+\fIares_dns_rr_set_bin(3)\fP and \fIares_dns_rr_get_bin(3)\fP if only concatenated
+strings are desired.
+.br
 .RE
 
 .B ares_dns_opt_datatype_t -
@@ -298,5 +305,3 @@ These functions were first introduced in c-ares version 1.22.0.
 .BR ares_dns_record (3),
 .BR ares_dns_rr (3),
 .BR ares_init (3)
-.SH AUTHOR
-Copyright (C) 2023 The c-ares project and its members.

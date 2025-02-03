@@ -40,9 +40,8 @@ const relativePath = path.join(file, path.basename(subfolderPath), childrenFile)
 const watcher = fs.watch(testDirectory, { recursive: true });
 let watcherClosed = false;
 watcher.on('change', function(event, filename) {
-  assert.strictEqual(event, 'rename');
-
   if (filename === relativePath) {
+    assert.strictEqual(event, 'rename');
     watcher.close();
     watcherClosed = true;
   }

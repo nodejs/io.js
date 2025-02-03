@@ -1,6 +1,6 @@
 'use strict'
 
-const { URL } = require('url')
+const { URL } = require('node:url')
 const npa = require('npm-package-arg')
 const npmFetch = require('npm-registry-fetch')
 const semver = require('semver')

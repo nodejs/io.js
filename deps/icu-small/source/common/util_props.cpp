@@ -120,7 +120,7 @@ int32_t ICU_Utility::parsePattern(const UnicodeString& rule, int32_t pos, int32_
             if (pos >= limit) {
                 return -1;
             }
-            c = (char16_t) u_tolower(rule.charAt(pos++));
+            c = static_cast<char16_t>(u_tolower(rule.charAt(pos++)));
             if (c != cpat) {
                 return -1;
             }

@@ -6,13 +6,13 @@
 typedef (Int8Array or Int16Array or Int32Array or
          Uint8Array or Uint16Array or Uint32Array or Uint8ClampedArray or
          BigInt64Array or BigUint64Array or
-         Float32Array or Float64Array or DataView) ArrayBufferView;
+         Float16Array or Float32Array or Float64Array or DataView) ArrayBufferView;
 
 typedef (ArrayBufferView or ArrayBuffer) BufferSource;
 typedef (ArrayBuffer or SharedArrayBuffer or [AllowShared] ArrayBufferView) AllowSharedBufferSource;
 [Exposed=*,
  Serializable]
-interface DOMException { // but see below note about ECMAScript binding
+interface DOMException { // but see below note about JavaScript binding
   constructor(optional DOMString message = "", optional DOMString name = "Error");
   readonly attribute DOMString name;
   readonly attribute DOMString message;

@@ -73,7 +73,7 @@ public:
     /** The few bytes at [src, nextSrc[ were mapped/changed to valid code point c. */
     static inline void appendCodePoint(const uint8_t *src, const uint8_t *nextSrc, UChar32 c,
                                        ByteSink &sink, Edits *edits = nullptr) {
-        appendCodePoint((int32_t)(nextSrc - src), c, sink, edits);
+        appendCodePoint(static_cast<int32_t>(nextSrc - src), c, sink, edits);
     }
 
     /** Append the two-byte character (U+0080..U+07FF). */

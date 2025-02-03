@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/torque/implementation-visitor.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 namespace {
 
@@ -257,7 +257,7 @@ int SolveInstanceTypeConstraints(
   }
   root->num_values = root->end - root->start + 1;
   root->type->InitializeInstanceTypes(
-      root->value == -1 ? base::Optional<int>{} : root->value,
+      root->value == -1 ? std::optional<int>{} : root->value,
       std::make_pair(root->start, root->end));
 
   if (root->num_values > 0) {
@@ -506,6 +506,4 @@ void ImplementationVisitor::GenerateInstanceTypes(
   GlobalContext::SetInstanceTypesInitialized();
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

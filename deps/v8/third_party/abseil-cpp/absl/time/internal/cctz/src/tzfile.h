@@ -77,11 +77,11 @@ struct tzhead {
 ** time uses 8 rather than 4 chars,
 ** then a POSIX-TZ-environment-variable-style string for use in handling
 ** instants after the last transition time stored in the file
-** (with nothing between the newlines if there is no POSIX representation for
-** such instants).
+** (with nothing between the newlines if there is no POSIX.1-2017
+** representation for such instants).
 **
 ** If tz_version is '3' or greater, the above is extended as follows.
-** First, the POSIX TZ string's hour offset may range from -167
+** First, the TZ string's hour offset may range from -167
 ** through 167 as compared to the POSIX-required 0 through 24.
 ** Second, its DST start time may be January 1 at 00:00 and its stop
 ** time December 31 at 24:00 plus the difference between DST and

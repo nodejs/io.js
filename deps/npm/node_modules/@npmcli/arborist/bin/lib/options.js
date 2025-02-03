@@ -1,5 +1,5 @@
 const nopt = require('nopt')
-const path = require('path')
+const path = require('node:path')
 
 const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k)
 

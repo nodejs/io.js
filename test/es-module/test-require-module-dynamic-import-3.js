@@ -5,10 +5,9 @@
 // be loaded by dynamic import().
 
 const common = require('../common');
-const assert = require('assert');
 
 (async () => {
   const required = require('../fixtures/es-modules/require-and-import/load.cjs');
   const imported = await import('../fixtures/es-modules/require-and-import/load.mjs');
-  assert.deepStrictEqual({ ...required }, { ...imported });
+  common.expectRequiredModule(required, imported);
 })().then(common.mustCall());

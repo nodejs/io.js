@@ -116,7 +116,7 @@ class Accessors : public AllStatic {
 
   // Returns true for properties that are accessors to object fields.
   // If true, the matching FieldIndex is returned through |field_index|.
-  static bool IsJSObjectFieldAccessor(Isolate* isolate, Handle<Map> map,
+  static bool IsJSObjectFieldAccessor(Isolate* isolate, DirectHandle<Map> map,
                                       Handle<Name> name,
                                       FieldIndex* field_index);
 

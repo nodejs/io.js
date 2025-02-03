@@ -213,9 +213,7 @@ const { PassThrough, Transform } = require('stream');
   pt.state = '';
 
   pt._transform = function(chunk, encoding, cb) {
-    if (!chunk)
-      chunk = '';
-    const s = chunk.toString();
+    const s = (chunk ||= '').toString();
     setTimeout(() => {
       this.state += s.charAt(0);
       if (this.state.length === 3) {

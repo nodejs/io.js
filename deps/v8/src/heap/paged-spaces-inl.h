@@ -17,7 +17,7 @@ namespace internal {
 
 HeapObjectRange::iterator::iterator() : cage_base_(kNullAddress) {}
 
-HeapObjectRange::iterator::iterator(const Page* page)
+HeapObjectRange::iterator::iterator(const PageMetadata* page)
     : cage_base_(page->heap()->isolate()),
       cur_addr_(page->area_start()),
       cur_end_(page->area_end()) {
@@ -48,7 +48,8 @@ void HeapObjectRange::iterator::AdvanceToNextObject() {
       cur_addr_ += cur_size_;
     } else {
       if (IsInstructionStream(obj, cage_base())) {
-        DCHECK_EQ(Page::FromHeapObject(obj)->owner_identity(), CODE_SPACE);
+        DCHECK_EQ(PageMetadata::FromHeapObject(obj)->owner_identity(),
+                  CODE_SPACE);
         DCHECK_CODEOBJECT_SIZE(cur_size_);
       } else {
         DCHECK_OBJECT_SIZE(cur_size_);
@@ -73,15 +74,12 @@ Tagged<HeapObject> PagedSpaceObjectIterator::Next() {
 }
 
 bool PagedSpaceBase::Contains(Address addr) const {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return true;
-  }
-  return Page::FromAddress(addr)->owner() == this;
+  return PageMetadata::FromAddress(addr)->owner() == this;
 }
 
 bool PagedSpaceBase::Contains(Tagged<Object> o) const {
   if (!IsHeapObject(o)) return false;
-  return Page::FromAddress(o.ptr())->owner() == this;
+  return PageMetadata::FromAddress(o.ptr())->owner() == this;
 }
 
 template <bool during_sweep>
@@ -103,7 +101,7 @@ size_t PagedSpaceBase::FreeInternal(Address start, size_t size_in_bytes) {
   }
 
   if constexpr (!during_sweep) {
-    Page* page = Page::FromAddress(start);
+    PageMetadata* page = PageMetadata::FromAddress(start);
     accounting_stats_.DecreaseAllocatedBytes(size_in_bytes, page);
     free_list()->increase_wasted_bytes(wasted);
   }

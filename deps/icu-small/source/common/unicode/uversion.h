@@ -124,6 +124,49 @@ typedef uint8_t UVersionInfo[U_MAX_VERSION_LENGTH];
 #   if U_USING_ICU_NAMESPACE
         U_NAMESPACE_USE
 #   endif
+
+#ifndef U_HIDE_DRAFT_API
+/**
+ * \def U_HEADER_NESTED_NAMESPACE
+ * Nested namespace used inside U_ICU_NAMESPACE for header-only APIs.
+ * Different when used inside ICU to prevent public use of internal instantiations:
+ * "header" when compiling calling code; "internal" when compiling ICU library code.
+ *
+ * When compiling for Windows, where DLL exports of APIs are explicit,
+ * this is always "header". Header-only types are not marked for export,
+ * which on Windows already avoids callers linking with library instantiations.
+ *
+ * @draft ICU 76
+ * @see U_HEADER_ONLY_NAMESPACE
+ */
+
+/**
+ * \def U_HEADER_ONLY_NAMESPACE
+ * Namespace used for header-only APIs.
+ * Different when used inside ICU to prevent public use of internal instantiations.
+ * "U_ICU_NAMESPACE::header" or "U_ICU_NAMESPACE::internal",
+ * see U_HEADER_NESTED_NAMESPACE for details.
+ *
+ * @draft ICU 76
+ */
+
+// The first test is the same as for defining U_EXPORT for Windows.
+#if defined(_MSC_VER) || (UPRV_HAS_DECLSPEC_ATTRIBUTE(__dllexport__) && \
+                          UPRV_HAS_DECLSPEC_ATTRIBUTE(__dllimport__))
+#   define U_HEADER_NESTED_NAMESPACE header
+#elif defined(U_COMBINED_IMPLEMENTATION) || defined(U_COMMON_IMPLEMENTATION) || \
+        defined(U_I18N_IMPLEMENTATION) || defined(U_IO_IMPLEMENTATION) || \
+        defined(U_LAYOUTEX_IMPLEMENTATION) || defined(U_TOOLUTIL_IMPLEMENTATION)
+#   define U_HEADER_NESTED_NAMESPACE internal
+#else
+#   define U_HEADER_NESTED_NAMESPACE header
+#endif
+
+#define U_HEADER_ONLY_NAMESPACE U_ICU_NAMESPACE::U_HEADER_NESTED_NAMESPACE
+
+namespace U_HEADER_ONLY_NAMESPACE {}
+#endif  // U_HIDE_DRAFT_API
+
 #endif /* __cplusplus */
 
 /*===========================================================================*/

@@ -3,6 +3,11 @@
 const common = require('../common');
 const fixtures = require('../common/fixtures');
 
+if (!common.hasCrypto) {
+  common.skip('missing crypto');
+}
+const { hasOpenSSL } = require('../common/crypto');
+
 const {
   assert, connect, keys, tls
 } = require(fixtures.path('tls-connect'));
@@ -79,8 +84,10 @@ connect({
 }, function(err, pair, cleanup) {
   assert.strictEqual(pair.server.err.code,
                      'ERR_SSL_PEER_DID_NOT_RETURN_A_CERTIFICATE');
+  const expectedErr = hasOpenSSL(3, 2) ?
+    'ERR_SSL_SSL/TLS_ALERT_HANDSHAKE_FAILURE' : 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE';
   assert.strictEqual(pair.client.err.code,
-                     'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE');
+                     expectedErr);
   return cleanup();
 });
 

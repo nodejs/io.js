@@ -14,18 +14,55 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #include "torque-generated/src/objects/foreign-tq-inl.inc"
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(Foreign)
 
-EXTERNAL_POINTER_ACCESSORS(Foreign, foreign_address, Address,
-                           kForeignAddressOffset, kForeignForeignAddressTag)
+template <ExternalPointerTag tag>
+Address Foreign::foreign_address(IsolateForSandbox isolate) const {
+  return HeapObject::ReadExternalPointerField<tag>(kForeignAddressOffset,
+                                                   isolate);
+}
 
-}  // namespace internal
-}  // namespace v8
+template <ExternalPointerTag tag>
+Address Foreign::foreign_address() const {
+  IsolateForSandbox isolate = GetIsolateForSandbox(*this);
+  return ReadExternalPointerField<tag>(kForeignAddressOffset, isolate);
+}
+
+template <ExternalPointerTag tag>
+void Foreign::set_foreign_address(IsolateForSandbox isolate,
+                                  const Address value) {
+  WriteExternalPointerField<tag>(kForeignAddressOffset, isolate, value);
+}
+
+template <ExternalPointerTag tag>
+void Foreign::init_foreign_address(IsolateForSandbox isolate,
+                                   const Address initial_value) {
+  InitExternalPointerField<tag>(kForeignAddressOffset, isolate, initial_value);
+}
+
+Address Foreign::foreign_address_unchecked() const {
+  Isolate* isolate = GetIsolateForSandbox(*this);
+  return ReadExternalPointerField<kAnyForeignTag>(kForeignAddressOffset,
+                                                  isolate);
+}
+
+ExternalPointerTag Foreign::GetTag() const {
+#ifdef V8_ENABLE_SANDBOX
+  ExternalPointerHandle handle =
+      RawExternalPointerField(kForeignAddressOffset, kAnyExternalPointerTag)
+          .Relaxed_LoadHandle();
+  return GetIsolateForSandbox(*this)->external_pointer_table().GetTag(handle);
+#endif  // V8_ENABLE_SANDBOX
+  // Without the sandbox the address is stored untagged; just return
+  // kAnyExternalPointerTag.
+  return kAnyExternalPointerTag;
+}
+
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

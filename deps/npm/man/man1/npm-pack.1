@@ -1,4 +1,4 @@
-.TH "NPM-PACK" "1" "April 2024" "" ""
+.TH "NPM-PACK" "1" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBnpm-pack\fR - Create a tarball from a package
 .SS "Synopsis"
@@ -106,6 +106,18 @@ Include the workspace root when workspaces are enabled for a command.
 When false, specifying individual workspaces via the \fBworkspace\fR config, or all workspaces via the \fBworkspaces\fR flag, will cause npm to operate only on the specified workspaces, and not on the root project.
 .P
 This value is not exported to the environment for child processes.
+.SS "\fBignore-scripts\fR"
+.RS 0
+.IP \(bu 4
+Default: false
+.IP \(bu 4
+Type: Boolean
+.RE 0
+
+.P
+If true, npm does not run scripts specified in package.json files.
+.P
+Note that commands explicitly intended to run a particular script, such as \fBnpm start\fR, \fBnpm stop\fR, \fBnpm restart\fR, \fBnpm test\fR, and \fBnpm run-script\fR will still run their intended script if \fBignore-scripts\fR is set, but they will \fInot\fR run any pre- or post-scripts.
 .SS "Description"
 .P
 For anything that's installable (that is, a package folder, tarball, tarball url, git url, name@tag, name@version, name, or scoped name), this command will fetch it to the cache, copy the tarball to the current working directory as \fB<name>-<version>.tgz\fR, and then write the filenames out to stdout.

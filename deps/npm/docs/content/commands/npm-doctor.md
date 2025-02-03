@@ -7,7 +7,7 @@ description: Check the health of your npm environment
 ### Synopsis
 
 ```bash
-npm doctor [ping] [registry] [versions] [environment] [permissions] [cache]
+npm doctor [connection] [registry] [versions] [environment] [permissions] [cache]
 ```
 
 Note: This command is unaware of workspaces.
@@ -38,20 +38,21 @@ there are any recommended changes, it will display them.  By default npm
 runs all of these checks. You can limit what checks are ran by
 specifying them as extra arguments.
 
-#### `npm ping`
+#### `Connecting to the registry`
 
 By default, npm installs from the primary npm registry,
-`registry.npmjs.org`.  `npm doctor` hits a special ping endpoint within the
-registry. This can also be checked with `npm ping`. If this check fails,
-you may be using a proxy that needs to be configured, or may need to talk
-to your IT staff to get access over HTTPS to `registry.npmjs.org`.
+`registry.npmjs.org`.  `npm doctor` hits a special connection testing
+endpoint within the registry. This can also be checked with `npm ping`.
+If this check fails, you may be using a proxy that needs to be
+configured, or may need to talk to your IT staff to get access over
+HTTPS to `registry.npmjs.org`.
 
 This check is done against whichever registry you've configured (you can
 see what that is by running `npm config get registry`), and if you're using
 a private registry that doesn't support the `/whoami` endpoint supported by
 the primary registry, this check may fail.
 
-#### `npm -v`
+#### `Checking npm version`
 
 While Node.js may come bundled with a particular version of npm, it's the
 policy of the CLI team that we recommend all users run `npm@latest` if they
@@ -61,7 +62,7 @@ support releases typically only receive critical security and regression
 fixes. The team believes that the latest tested version of npm is almost
 always likely to be the most functional and defect-free version of npm.
 
-#### `node -v`
+#### `Checking node version`
 
 For most users, in most circumstances, the best version of Node will be the
 latest long-term support (LTS) release. Those of you who want access to new
@@ -70,7 +71,7 @@ be running a newer version, and some may be required to run an older
 version of Node because of enterprise change control policies. That's OK!
 But in general, the npm team recommends that most users run Node.js LTS.
 
-#### `npm config get registry`
+#### `Checking configured npm registry`
 
 You may be installing from private package registries for your project or
 company. That's great! Others may be following tutorials or StackOverflow
@@ -79,7 +80,7 @@ Sometimes, this may entail changing the registry you're pointing at.  This
 part of `npm doctor` just lets you, and maybe whoever's helping you with
 support, know that you're not using the default registry.
 
-#### `which git`
+#### `Checking for git executable in PATH`
 
 While it's documented in the README, it may not be obvious that npm needs
 Git installed to do many of the things that it does. Also, in some cases

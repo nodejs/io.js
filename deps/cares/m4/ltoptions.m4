@@ -1,7 +1,7 @@
 # Helper functions for option handling.                    -*- Autoconf -*-
 #
-#   Copyright (C) 2004-2005, 2007-2009, 2011-2019, 2021-2022 Free
-#   Software Foundation, Inc.
+#   Copyright (C) 2004-2005, 2007-2009, 2011-2015 Free Software
+#   Foundation, Inc.
 #   Written by Gary V. Vaughan, 2004
 #
 # This file is free software; the Free Software Foundation gives

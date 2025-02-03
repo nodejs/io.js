@@ -5,6 +5,7 @@
 #error("This header can only be used when inspector is enabled")
 #endif
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <unordered_map>

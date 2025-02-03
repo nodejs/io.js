@@ -26,7 +26,7 @@ function normalize (data, warn, strict) {
     strict = false
   }
   if (!warn || data.private) {
-    warn = function (msg) { /* noop */ }
+    warn = function () { /* noop */ }
   }
 
   if (data.scripts &&

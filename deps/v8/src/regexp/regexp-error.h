@@ -38,7 +38,6 @@ namespace internal {
   T(DuplicateCaptureGroupName, "Duplicate capture group name")            \
   T(InvalidNamedReference, "Invalid named reference")                     \
   T(InvalidNamedCaptureReference, "Invalid named capture referenced")     \
-  T(InvalidClassEscape, "Invalid class escape")                           \
   T(InvalidClassPropertyName, "Invalid property name in character class") \
   T(InvalidCharacterClass, "Invalid character class")                     \
   T(UnterminatedCharacterClass, "Unterminated character class")           \

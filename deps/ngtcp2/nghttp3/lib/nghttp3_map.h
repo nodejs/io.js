@@ -29,7 +29,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -40,7 +40,7 @@
 typedef uint64_t nghttp3_map_key_type;
 
 typedef struct nghttp3_map_bucket {
-  uint32_t hash;
+  uint32_t psl;
   nghttp3_map_key_type key;
   void *data;
 } nghttp3_map_bucket;
@@ -49,33 +49,24 @@ typedef struct nghttp3_map {
   nghttp3_map_bucket *table;
   const nghttp3_mem *mem;
   size_t size;
-  uint32_t tablelen;
-  uint32_t tablelenbits;
+  size_t hashbits;
 } nghttp3_map;
 
 /*
- * Initializes the map |map|.
+ * nghttp3_map_init initializes the map |map|.
  */
 void nghttp3_map_init(nghttp3_map *map, const nghttp3_mem *mem);
 
 /*
- * Deallocates any resources allocated for |map|. The stored entries
- * are not freed by this function. Use nghttp3_map_each_free() to free
- * each entries.
+ * nghttp3_map_free deallocates any resources allocated for |map|.
+ * The stored entries are not freed by this function.  Use
+ * nghttp3_map_each() to free each entry.
  */
 void nghttp3_map_free(nghttp3_map *map);
 
 /*
- * Deallocates each entries using |func| function and any resources
- * allocated for |map|. The |func| function is responsible for freeing
- * given the |data| object. The |ptr| will be passed to the |func| as
- * send argument. The return value of the |func| will be ignored.
- */
-void nghttp3_map_each_free(nghttp3_map *map, int (*func)(void *data, void *ptr),
-                           void *ptr);
-
-/*
- * Inserts the new |data| with the |key| to the map |map|.
+ * nghttp3_map_insert inserts the new |data| with the |key| to the map
+ * |map|.
  *
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
@@ -83,57 +74,56 @@ void nghttp3_map_each_free(nghttp3_map *map, int (*func)(void *data, void *ptr),
  * NGHTTP3_ERR_INVALID_ARGUMENT
  *     The item associated by |key| already exists.
  * NGHTTP3_ERR_NOMEM
- *   Out of memory
+ *     Out of memory
  */
 int nghttp3_map_insert(nghttp3_map *map, nghttp3_map_key_type key, void *data);
 
 /*
- * Returns the data associated by the key |key|.  If there is no such
- * data, this function returns NULL.
+ * nghttp3_map_find returns the entry associated by the key |key|.  If
+ * there is no such entry, this function returns NULL.
  */
-void *nghttp3_map_find(nghttp3_map *map, nghttp3_map_key_type key);
+void *nghttp3_map_find(const nghttp3_map *map, nghttp3_map_key_type key);
 
 /*
- * Removes the data associated by the key |key| from the |map|.  The
- * removed data is not freed by this function.
+ * nghttp3_map_remove removes the entry associated by the key |key|
+ * from the |map|.  The removed entry is not freed by this function.
  *
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
  *
  * NGHTTP3_ERR_INVALID_ARGUMENT
- *     The data associated by |key| does not exist.
+ *     The entry associated by |key| does not exist.
  */
 int nghttp3_map_remove(nghttp3_map *map, nghttp3_map_key_type key);
 
 /*
- * Removes all entries from |map|.
+ * nghttp3_map_clear removes all entries from |map|.  The removed
+ * entry is not freed by this function.
  */
 void nghttp3_map_clear(nghttp3_map *map);
 
 /*
- * Returns the number of items stored in the map |map|.
+ * nghttp3_map_size returns the number of items stored in the map
+ * |map|.
  */
-size_t nghttp3_map_size(nghttp3_map *map);
+size_t nghttp3_map_size(const nghttp3_map *map);
 
 /*
- * Applies the function |func| to each data in the |map| with the
- * optional user supplied pointer |ptr|.
+ * nghttp3_map_each applies the function |func| to each entry in the
+ * |map| with the optional user supplied pointer |ptr|.
  *
  * If the |func| returns 0, this function calls the |func| with the
- * next data.  If the |func| returns nonzero, it will not call the
+ * next entry.  If the |func| returns nonzero, it will not call the
  * |func| for further entries and return the return value of the
  * |func| immediately.  Thus, this function returns 0 if all the
  * invocations of the |func| return 0, or nonzero value which the last
  * invocation of |func| returns.
- *
- * Don't use this function to free each data. Use
- * nghttp3_map_each_free() instead.
  */
-int nghttp3_map_each(nghttp3_map *map, int (*func)(void *data, void *ptr),
+int nghttp3_map_each(const nghttp3_map *map, int (*func)(void *data, void *ptr),
                      void *ptr);
 
 #ifndef WIN32
-void nghttp3_map_print_distance(nghttp3_map *map);
-#endif /* !WIN32 */
+void nghttp3_map_print_distance(const nghttp3_map *map);
+#endif /* !defined(WIN32) */
 
-#endif /* NGHTTP3_MAP_H */
+#endif /* !defined(NGHTTP3_MAP_H) */

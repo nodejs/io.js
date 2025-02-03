@@ -4,15 +4,15 @@
 
 #include "src/torque/type-inference.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+#include <optional>
+
+namespace v8::internal::torque {
 
 TypeArgumentInference::TypeArgumentInference(
     const GenericParameters& type_parameters,
     const TypeVector& explicit_type_arguments,
     const std::vector<TypeExpression*>& term_parameters,
-    const std::vector<base::Optional<const Type*>>& term_argument_types)
+    const std::vector<std::optional<const Type*>>& term_argument_types)
     : num_explicit_(explicit_type_arguments.size()),
       type_parameter_from_name_(type_parameters.size()),
       inferred_(type_parameters.size()) {
@@ -51,7 +51,7 @@ TypeVector TypeArgumentInference::GetResult() const {
   TypeVector result(inferred_.size());
   std::transform(
       inferred_.begin(), inferred_.end(), result.begin(),
-      [](base::Optional<const Type*> maybe_type) { return *maybe_type; });
+      [](std::optional<const Type*> maybe_type) { return *maybe_type; });
   return result;
 }
 
@@ -67,7 +67,7 @@ void TypeArgumentInference::Match(TypeExpression* parameter,
         if (type_parameter_index < num_explicit_) {
           return;
         }
-        base::Optional<const Type*>& maybe_inferred =
+        std::optional<const Type*>& maybe_inferred =
             inferred_[type_parameter_index];
         if (maybe_inferred && *maybe_inferred != argument_type) {
           Fail("found conflicting types for generic parameter");
@@ -114,6 +114,4 @@ void TypeArgumentInference::MatchGeneric(BasicTypeExpression* parameter,
   }
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

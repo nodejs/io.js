@@ -1127,8 +1127,8 @@ class XcodeSettings:
     be deployed to a device.  This should be run as the very last step of the
     build."""
         if not (
-            self.isIOS
-            and (self.spec["type"] == "executable" or self._IsXCTest())
+            (self.isIOS
+            and (self.spec["type"] == "executable" or self._IsXCTest()))
             or self.IsIosFramework()
         ):
             return []
@@ -1174,8 +1174,9 @@ class XcodeSettings:
                 # Then re-sign everything with 'preserve=True'
                 postbuilds.extend(
                     [
-                        '%s code-sign-bundle "%s" "%s" "%s" "%s" %s'
+                        '%s %s code-sign-bundle "%s" "%s" "%s" "%s" %s'
                         % (
+                            sys.executable,
                             os.path.join("${TARGET_BUILD_DIR}", "gyp-mac-tool"),
                             key,
                             settings.get("CODE_SIGN_ENTITLEMENTS", ""),
@@ -1190,8 +1191,9 @@ class XcodeSettings:
             for target in targets:
                 postbuilds.extend(
                     [
-                        '%s code-sign-bundle "%s" "%s" "%s" "%s" %s'
+                        '%s %s code-sign-bundle "%s" "%s" "%s" "%s" %s'
                         % (
+                            sys.executable,
                             os.path.join("${TARGET_BUILD_DIR}", "gyp-mac-tool"),
                             key,
                             settings.get("CODE_SIGN_ENTITLEMENTS", ""),
@@ -1204,8 +1206,9 @@ class XcodeSettings:
 
         postbuilds.extend(
             [
-                '%s code-sign-bundle "%s" "%s" "%s" "%s" %s'
+                '%s %s code-sign-bundle "%s" "%s" "%s" "%s" %s'
                 % (
+                    sys.executable,
                     os.path.join("${TARGET_BUILD_DIR}", "gyp-mac-tool"),
                     key,
                     settings.get("CODE_SIGN_ENTITLEMENTS", ""),
@@ -1858,7 +1861,7 @@ def _TopologicallySortedEnvVarKeys(env):
     regex = re.compile(r"\$\{([a-zA-Z0-9\-_]+)\}")
 
     def GetEdges(node):
-        # Use a definition of edges such that user_of_variable -> used_varible.
+        # Use a definition of edges such that user_of_variable -> used_variable.
         # This happens to be easier in this case, since a variable's
         # definition contains all variables it references in a single string.
         # We can then reverse the result of the topological sort at the end.

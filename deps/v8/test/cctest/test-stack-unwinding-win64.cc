@@ -29,7 +29,7 @@ class UnwindingWin64Callbacks {
  public:
   UnwindingWin64Callbacks() = default;
 
-  static void Getter(v8::Local<v8::String> name,
+  static void Getter(v8::Local<v8::Name> name,
                      const v8::PropertyCallbackInfo<v8::Value>& info) {
     // Expects to find at least 15 stack frames in the call stack.
     // The stack walking should fail on stack frames for builtin functions if
@@ -37,7 +37,7 @@ class UnwindingWin64Callbacks {
     int stack_frames = CountCallStackFrames(15);
     CHECK_GE(stack_frames, 15);
   }
-  static void Setter(v8::Local<v8::String> name, v8::Local<v8::Value> value,
+  static void Setter(v8::Local<v8::Name> name, v8::Local<v8::Value> value,
                      const v8::PropertyCallbackInfo<void>& info) {}
 
  private:
@@ -101,9 +101,9 @@ UNINITIALIZED_TEST(StackUnwindingWin64) {
 
     UnwindingWin64Callbacks accessors;
     v8::Local<v8::External> data = v8::External::New(isolate, &accessors);
-    instance_template->SetAccessor(v8_str("foo"),
-                                   &UnwindingWin64Callbacks::Getter,
-                                   &UnwindingWin64Callbacks::Setter, data);
+    instance_template->SetNativeDataProperty(
+        v8_str("foo"), &UnwindingWin64Callbacks::Getter,
+        &UnwindingWin64Callbacks::Setter, data);
     v8::Local<v8::Function> func =
         func_template->GetFunction(env.local()).ToLocalChecked();
     v8::Local<v8::Object> instance =

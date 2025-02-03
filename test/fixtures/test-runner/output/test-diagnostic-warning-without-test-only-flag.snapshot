@@ -1,0 +1,137 @@
+TAP version 13
+# Subtest: should NOT print --test-only diagnostic warning - describe-only-false
+    # Subtest: only false in describe
+    ok 1 - only false in describe
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 1 - should NOT print --test-only diagnostic warning - describe-only-false
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: should NOT print --test-only diagnostic warning - it-only-false
+    # Subtest: only false in the subtest
+    ok 1 - only false in the subtest
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 2 - should NOT print --test-only diagnostic warning - it-only-false
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: should NOT print --test-only diagnostic warning - no-only
+    # Subtest: no only
+    ok 1 - no only
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 3 - should NOT print --test-only diagnostic warning - no-only
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: should NOT print --test-only diagnostic warning - test-only-false
+    # Subtest: only false in parent test
+    ok 1 - only false in parent test
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 4 - should NOT print --test-only diagnostic warning - test-only-false
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+# Subtest: should NOT print --test-only diagnostic warning - t.test-only-false
+    # Subtest: only false in subtest
+    ok 1 - only false in subtest
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 5 - should NOT print --test-only diagnostic warning - t.test-only-false
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+# Subtest: should NOT print --test-only diagnostic warning - no-only
+    # Subtest: no only
+    ok 1 - no only
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 6 - should NOT print --test-only diagnostic warning - no-only
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+# Subtest: should print --test-only diagnostic warning - test-only-true
+    # Subtest: only true in parent test
+    ok 1 - only true in parent test
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 7 - should print --test-only diagnostic warning - test-only-true
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+# 'only' and 'runOnly' require the --test-only command-line option.
+# Subtest: should print --test-only diagnostic warning - t.test-only-true
+    # Subtest: only true in subtest
+    ok 1 - only true in subtest
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # 'only' and 'runOnly' require the --test-only command-line option.
+    1..1
+ok 8 - should print --test-only diagnostic warning - t.test-only-true
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+# Subtest: should print --test-only diagnostic warning - 2 levels of only
+    # Subtest: only true in parent test
+        # Subtest: only true in subtest
+        ok 1 - only true in subtest
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        # 'only' and 'runOnly' require the --test-only command-line option.
+        1..1
+    ok 1 - only true in parent test
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 9 - should print --test-only diagnostic warning - 2 levels of only
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+1..9
+# tests 16
+# suites 3
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

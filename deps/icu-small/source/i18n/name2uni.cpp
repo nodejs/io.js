@@ -66,7 +66,7 @@ NameUnicodeTransliterator::NameUnicodeTransliterator(UnicodeFilter* adoptedFilte
     UnicodeSet *legalPtr = &legal;
     // Get the legal character set
     USetAdder sa = {
-        (USet *)legalPtr, // USet* == UnicodeSet*
+        reinterpret_cast<USet*>(legalPtr), // USet* == UnicodeSet*
         _set_add,
         nullptr, // Don't need _set_addRange
         nullptr, // Don't need _set_addString
@@ -121,7 +121,7 @@ void NameUnicodeTransliterator::handleTransliterate(Replaceable& text, UTransPos
 
     // Accommodate the longest possible name
     ++maxLen; // allow for temporary trailing space
-    char* cbuf = (char*) uprv_malloc(maxLen);
+    char* cbuf = static_cast<char*>(uprv_malloc(maxLen));
     if (cbuf == nullptr) {
         offsets.start = offsets.limit;
         return;

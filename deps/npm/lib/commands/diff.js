@@ -1,12 +1,12 @@
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const semver = require('semver')
 const libnpmdiff = require('libnpmdiff')
 const npa = require('npm-package-arg')
 const pacote = require('pacote')
 const pickManifest = require('npm-pick-manifest')
-const log = require('../utils/log-shim')
+const { log, output } = require('proc-log')
 const pkgJson = require('@npmcli/package-json')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 class Diff extends BaseCommand {
   static description = 'The registry diff command'
@@ -64,7 +64,7 @@ class Diff extends BaseCommand {
       diffFiles: args,
       where: this.top,
     })
-    return this.npm.output(res)
+    return output.standard(res)
   }
 
   async execWorkspaces (args) {
@@ -78,12 +78,12 @@ class Diff extends BaseCommand {
 
   // get the package name from the packument at `path`
   // throws if no packument is present OR if it does not have `name` attribute
-  async packageName (path) {
+  async packageName () {
     let name
     try {
       const { content: pkg } = await pkgJson.normalize(this.prefix)
       name = pkg.name
-    } catch (e) {
+    } catch {
       log.verbose('diff', 'could not read project dir package.json')
     }
 
@@ -103,7 +103,7 @@ class Diff extends BaseCommand {
     // no arguments, defaults to comparing cwd
     // to its latest published registry version
     if (!a) {
-      const pkgName = await this.packageName(this.prefix)
+      const pkgName = await this.packageName()
       return [
         `${pkgName}@${this.npm.config.get('tag')}`,
         `file:${this.prefix.replace(/#/g, '%23')}`,
@@ -117,7 +117,7 @@ class Diff extends BaseCommand {
     try {
       const { content: pkg } = await pkgJson.normalize(this.prefix)
       pkgName = pkg.name
-    } catch (e) {
+    } catch {
       log.verbose('diff', 'could not read project dir package.json')
       noPackageJson = true
     }
@@ -156,7 +156,7 @@ class Diff extends BaseCommand {
         node = actualTree &&
           actualTree.inventory.query('name', spec.name)
             .values().next().value
-      } catch (e) {
+      } catch {
         log.verbose('diff', 'failed to load actual install tree')
       }
 
@@ -230,7 +230,7 @@ class Diff extends BaseCommand {
       try {
         const { content: pkg } = await pkgJson.normalize(this.prefix)
         pkgName = pkg.name
-      } catch (e) {
+      } catch {
         log.verbose('diff', 'could not read project dir package.json')
       }
 
@@ -265,7 +265,7 @@ class Diff extends BaseCommand {
       }
       const arb = new Arborist(opts)
       actualTree = await arb.loadActual(opts)
-    } catch (e) {
+    } catch {
       log.verbose('diff', 'failed to load actual install tree')
     }
 

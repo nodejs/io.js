@@ -286,8 +286,6 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
   V(_, FreeSpaceMap, free_space_map, FreeSpace)                                \
   V(_, FeedbackVectorMap, feedback_vector_map, FeedbackVector)                 \
   V(_, FixedDoubleArrayMap, fixed_double_array_map, FixedDoubleArray)          \
-  V(_, FunctionTemplateInfoMap, function_template_info_map,                    \
-    FunctionTemplateInfo)                                                      \
   V(_, InterpreterDataMap, interpreter_data_map, InterpreterData)              \
   V(_, MegaDomHandlerMap, mega_dom_handler_map, MegaDomHandler)                \
   V(_, PreparseDataMap, preparse_data_map, PreparseData)                       \

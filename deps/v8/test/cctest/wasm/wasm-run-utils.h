@@ -39,9 +39,16 @@
 #include "test/common/value-helper.h"
 #include "test/common/wasm/flag-utils.h"
 
+#if V8_ENABLE_DRUMBRAKE
+#include "src/wasm/interpreter/wasm-interpreter.h"
+#endif  // V8_ENABLE_DRUMBRAKE
+
 namespace v8::internal::wasm {
 
 enum class TestExecutionTier : int8_t {
+#if V8_ENABLE_DRUMBRAKE
+  kInterpreter = static_cast<int8_t>(ExecutionTier::kInterpreter),
+#endif  // V8_ENABLE_DRUMBRAKE
   kLiftoff = static_cast<int8_t>(ExecutionTier::kLiftoff),
   kTurbofan = static_cast<int8_t>(ExecutionTier::kTurbofan),
   kLiftoffForFuzzing
@@ -92,6 +99,7 @@ struct ManuallyImportedJSFunction {
 };
 
 // Helper Functions.
+bool IsSameNan(uint16_t expected, uint16_t actual);
 bool IsSameNan(float expected, float actual);
 bool IsSameNan(double expected, double actual);
 
@@ -105,7 +113,8 @@ class TestingModuleBuilder {
   ~TestingModuleBuilder();
 
   uint8_t* AddMemory(uint32_t size, SharedFlag shared = SharedFlag::kNotShared,
-                     TestingModuleMemoryType = kMemory32);
+                     TestingModuleMemoryType = kMemory32,
+                     std::optional<size_t> max_size = {});
 
   size_t CodeTableLength() const { return native_module_->num_functions(); }
 
@@ -129,8 +138,6 @@ class TestingModuleBuilder {
     test_module_->AddSignatureForTesting(sig, kNoSuperType, is_final,
                                          is_shared);
     GetTypeCanonicalizer()->AddRecursiveGroup(test_module_.get(), 1);
-    trusted_instance_data_->set_isorecursive_canonical_types(
-        test_module_->isorecursive_canonical_type_ids.data());
     size_t size = test_module_->types.size();
     CHECK_GT(127, size);
     return static_cast<uint8_t>(size - 1);
@@ -189,14 +196,6 @@ class TestingModuleBuilder {
     rng.NextBytes(raw, end - raw);
   }
 
-  void SetMaxMemPages(uint32_t maximum_pages) {
-    CHECK_EQ(1, test_module_->memories.size());
-    test_module_->memories[0].maximum_pages = maximum_pages;
-    DCHECK_EQ(trusted_instance_data_->memory_objects()->length(),
-              test_module_->memories.size());
-    trusted_instance_data_->memory_object(0)->set_maximum_pages(maximum_pages);
-  }
-
   void SetMemoryShared() {
     CHECK_EQ(1, test_module_->memories.size());
     test_module_->memories[0].is_shared = true;
@@ -250,6 +249,7 @@ class TestingModuleBuilder {
 
   void SwitchToDebug() {
     SetDebugState();
+    WasmCodeRefScope ref_scope;
     native_module_->RemoveCompiledCode(
         NativeModule::RemoveFilter::kRemoveNonDebugCode);
   }
@@ -258,6 +258,10 @@ class TestingModuleBuilder {
 
   ExecutionTier execution_tier() const {
     switch (execution_tier_) {
+#if V8_ENABLE_DRUMBRAKE
+      case TestExecutionTier::kInterpreter:
+        return ExecutionTier::kInterpreter;
+#endif  // V8_ENABLE_DRUMBRAKE
       case TestExecutionTier::kTurbofan:
         return ExecutionTier::kTurbofan;
       case TestExecutionTier::kLiftoff:
@@ -272,12 +276,14 @@ class TestingModuleBuilder {
   int32_t nondeterminism() { return nondeterminism_; }
   int32_t* non_determinism_ptr() { return &nondeterminism_; }
 
-  void EnableFeature(WasmFeature feature) { enabled_features_.Add(feature); }
+  void EnableFeature(WasmEnabledFeature feature) {
+    enabled_features_.Add(feature);
+  }
 
  private:
   std::shared_ptr<WasmModule> test_module_;
   Isolate* isolate_;
-  WasmFeatures enabled_features_;
+  WasmEnabledFeatures enabled_features_;
   uint32_t global_offset = 0;
   // The TestingModuleBuilder only supports one memory currently.
   uint8_t* mem0_start_ = nullptr;
@@ -421,12 +427,12 @@ class WasmRunnerBase : public InitializedHandleScope {
     if (retval.is_null()) {
       CHECK_EQ(expected, static_cast<double>(0xDEADBEEF));
     } else {
-      Handle<Object> result = retval.ToHandleChecked();
+      DirectHandle<Object> result = retval.ToHandleChecked();
       if (IsSmi(*result)) {
         CHECK_EQ(expected, Smi::ToInt(*result));
       } else {
         CHECK(IsHeapNumber(*result));
-        CHECK_DOUBLE_EQ(expected, HeapNumber::cast(*result)->value());
+        CHECK_DOUBLE_EQ(expected, Cast<HeapNumber>(*result)->value());
       }
     }
   }
@@ -542,17 +548,17 @@ class WasmRunner : public WasmRunnerBase {
       return static_cast<ReturnType>(0xDEADBEEFDEADBEEF);
     }
 
-    Handle<Object> result = retval.ToHandleChecked();
+    DirectHandle<Object> result = retval.ToHandleChecked();
     // For int64_t and uint64_t returns we will get a BigInt.
     if constexpr (std::is_integral_v<ReturnType> &&
                   sizeof(ReturnType) == sizeof(int64_t)) {
       CHECK(IsBigInt(*result));
-      return BigInt::cast(*result)->AsInt64();
+      return Cast<BigInt>(*result)->AsInt64();
     }
 
     // Otherwise it must be a number (Smi or HeapNumber).
     CHECK(IsNumber(*result));
-    double value = Object::Number(*result);
+    double value = Object::NumberValue(Cast<Number>(*result));
     // The JS API interprets all Wasm values as signed, hence we cast via the
     // signed equivalent type to avoid undefined behaviour in the casting.
     if constexpr (std::is_integral_v<ReturnType> &&
@@ -587,12 +593,24 @@ class WasmRunner : public WasmRunnerBase {
 };
 
 // A macro to define tests that run in different engine configurations.
+#if V8_ENABLE_DRUMBRAKE
+#define TEST_IF_DRUMBRAKE(name)                      \
+  TEST(RunWasmInterpreter_##name) {                  \
+    FLAG_SCOPE(wasm_jitless);                        \
+    WasmInterpreterThread::Initialize();             \
+    RunWasm_##name(TestExecutionTier::kInterpreter); \
+    WasmInterpreterThread::Terminate();              \
+  }
+#else
+#define TEST_IF_DRUMBRAKE(name)
+#endif  // V8_ENABLE_DRUMBRAKE
 #define WASM_EXEC_TEST(name)                                                   \
   void RunWasm_##name(TestExecutionTier execution_tier);                       \
   TEST(RunWasmTurbofan_##name) {                                               \
     RunWasm_##name(TestExecutionTier::kTurbofan);                              \
   }                                                                            \
   TEST(RunWasmLiftoff_##name) { RunWasm_##name(TestExecutionTier::kLiftoff); } \
+  TEST_IF_DRUMBRAKE(name)                                                      \
   void RunWasm_##name(TestExecutionTier execution_tier)
 
 #define UNINITIALIZED_WASM_EXEC_TEST(name)               \

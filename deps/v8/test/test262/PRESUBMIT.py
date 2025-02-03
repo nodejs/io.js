@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 import pathlib
+import platform
 from subprocess import STDOUT, PIPE, Popen
 
 # This line is 'magic' in that git-cl looks for it to decide whether to
@@ -29,7 +30,12 @@ def _CheckLint(input_api, output_api):
       staging_path / 'features.txt',
       staging_path,
   ]
-  proc = Popen(command, cwd=workdir, stderr=STDOUT, stdout=PIPE)
+  proc = Popen(
+      command,
+      cwd=workdir,
+      stderr=STDOUT,
+      stdout=PIPE,
+      shell=platform.system() == 'Windows')
   output, exit_code = proc.communicate()[0], proc.returncode
   if exit_code == 0:
     return []

@@ -49,13 +49,13 @@ class PreParserTest : public TestWithNativeContext {
 TEST_F(PreParserTest, LazyFunctionLength) {
   const char* script_source = "function lazy(a, b, c) { } lazy";
 
-  Handle<JSFunction> lazy_function = RunJS<JSFunction>(script_source);
+  DirectHandle<JSFunction> lazy_function = RunJS<JSFunction>(script_source);
 
-  Handle<SharedFunctionInfo> shared(lazy_function->shared(),
-                                    lazy_function->GetIsolate());
+  DirectHandle<SharedFunctionInfo> shared(lazy_function->shared(),
+                                          lazy_function->GetIsolate());
   CHECK_EQ(3, shared->length());
 
-  Handle<Smi> length = RunJS<Smi>("lazy.length");
+  DirectHandle<Smi> length = RunJS<Smi>("lazy.length");
   int32_t value;
   CHECK(Object::ToInt32(*length, &value));
   CHECK_EQ(3, value);
@@ -713,15 +713,15 @@ TEST_F(PreParserTest, PreParserScopeAnalysis) {
       i::HandleScope scope(isolate);
       i::ReusableUnoptimizedCompileState reusable_state(isolate);
 
-      i::Handle<i::String> source =
+      i::DirectHandle<i::String> source =
           factory->InternalizeUtf8String(program.begin());
       source->PrintOn(stdout);
       printf("\n");
 
       // Compile and run the script to get a pointer to the lazy function.
       v8::Local<v8::Value> v = TryRunJS(program.begin()).ToLocalChecked();
-      i::Handle<i::Object> o = v8::Utils::OpenHandle(*v);
-      i::Handle<i::JSFunction> f = i::Handle<i::JSFunction>::cast(o);
+      i::DirectHandle<i::Object> o = v8::Utils::OpenDirectHandle(*v);
+      i::DirectHandle<i::JSFunction> f = i::Cast<i::JSFunction>(o);
       i::Handle<i::SharedFunctionInfo> shared = i::handle(f->shared(), isolate);
 
       if (inner.bailout == Bailout::BAILOUT_IF_OUTER_SLOPPY &&
@@ -732,7 +732,7 @@ TEST_F(PreParserTest, PreParserScopeAnalysis) {
 
       CHECK(shared->HasUncompiledDataWithPreparseData());
       i::Handle<i::PreparseData> produced_data_on_heap(
-          shared->uncompiled_data_with_preparse_data()->preparse_data(),
+          shared->uncompiled_data_with_preparse_data(isolate)->preparse_data(),
           isolate);
 
       i::UnoptimizedCompileFlags flags =
@@ -785,9 +785,9 @@ TEST_F(PreParserTest, Regress753896) {
   i::Factory* factory = isolate->factory();
   i::HandleScope scope(isolate);
 
-  i::Handle<i::String> source = factory->InternalizeUtf8String(
+  i::DirectHandle<i::String> source = factory->InternalizeUtf8String(
       "function lazy() { let v = 0; if (true) { var v = 0; } }");
-  i::Handle<i::Script> script = factory->NewScript(source);
+  i::DirectHandle<i::Script> script = factory->NewScript(source);
   i::UnoptimizedCompileState state;
   i::ReusableUnoptimizedCompileState reusable_state(isolate);
   i::UnoptimizedCompileFlags flags =
@@ -798,6 +798,43 @@ TEST_F(PreParserTest, Regress753896) {
   // error is not detected inside lazy functions, but it might be in the future.
   i::parsing::ParseProgram(&info, script, isolate,
                            i::parsing::ReportStatisticsMode::kYes);
+}
+
+TEST_F(PreParserTest, TopLevelArrowFunctions) {
+  constexpr char kSource[] = R"(
+    var a = () => { return 4; };
+    var b = (() => { return 4; });
+    var c = x => x + 2;
+    var d = (x => x + 2);
+    var e = (x, y, z) => x + y + z;
+    var f = ((x, y, z) => x + y + z);
+    // Functions declared within default parameters are also top-level.
+    var g = (x = (y => y * 2)) => { return x; };
+    var h = ((x = y => y * 2) => { return x; });
+    var i = (x = (y) => 0) => { return x; };
+  )";
+  i::Isolate* isolate = i_isolate();
+  i::HandleScope scope(isolate);
+  TryRunJS(kSource).ToLocalChecked();
+  auto IsCompiled = [&](const char* name) {
+    Local<Value> v = TryRunJS(name).ToLocalChecked();
+    i::DirectHandle<i::Object> o = v8::Utils::OpenDirectHandle(*v);
+    i::DirectHandle<i::JSFunction> f = i::Cast<i::JSFunction>(o);
+    i::DirectHandle<i::SharedFunctionInfo> shared(f->shared(), isolate);
+    return shared->is_compiled();
+  };
+  EXPECT_FALSE(IsCompiled("a"));
+  EXPECT_TRUE(IsCompiled("b"));
+  EXPECT_FALSE(IsCompiled("c"));
+  EXPECT_TRUE(IsCompiled("d"));
+  EXPECT_FALSE(IsCompiled("e"));
+  EXPECT_TRUE(IsCompiled("f"));
+  EXPECT_FALSE(IsCompiled("g"));
+  EXPECT_TRUE(IsCompiled("h"));
+  EXPECT_FALSE(IsCompiled("i"));
+  EXPECT_TRUE(IsCompiled("g()"));
+  EXPECT_FALSE(IsCompiled("h()"));
+  EXPECT_FALSE(IsCompiled("i()"));
 }
 
 TEST_F(PreParserTest, ProducingAndConsumingByteData) {
@@ -927,7 +964,8 @@ TEST_F(PreParserTest, ProducingAndConsumingByteData) {
 
   {
     // Serialize as an OnHeapConsumedPreparseData, and read back data.
-    i::Handle<i::PreparseData> data_on_heap = bytes.CopyToHeap(isolate, 0);
+    i::DirectHandle<i::PreparseData> data_on_heap =
+        bytes.CopyToHeap(isolate, 0);
     CHECK_EQ(data_on_heap->data_length(), kDataSize);
     CHECK_EQ(data_on_heap->children_length(), 0);
     i::OnHeapConsumedPreparseData::ByteData bytes_for_reading;

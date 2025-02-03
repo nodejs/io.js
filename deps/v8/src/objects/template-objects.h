@@ -28,9 +28,9 @@ class TemplateObjectDescription final
                                                       Struct> {
  public:
   static Handle<JSArray> GetTemplateObject(
-      Isolate* isolate, Handle<NativeContext> native_context,
-      Handle<TemplateObjectDescription> description,
-      Handle<SharedFunctionInfo> shared_info, int slot_id);
+      Isolate* isolate, DirectHandle<NativeContext> native_context,
+      DirectHandle<TemplateObjectDescription> description,
+      DirectHandle<SharedFunctionInfo> shared_info, int slot_id);
 
   using BodyDescriptor = StructBodyDescriptor;
 

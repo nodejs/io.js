@@ -197,9 +197,9 @@ assert.strictEqual(util.format('%s', -Infinity), '-Infinity');
     util.format('%s', Object.setPrototypeOf(new Foo(), null)),
     '[Foo: null prototype] {}'
   );
-  global.Foo = Foo;
+  globalThis.Foo = Foo;
   assert.strictEqual(util.format('%s', new Foo()), 'Bar');
-  delete global.Foo;
+  delete globalThis.Foo;
   class Bar { abc = true; }
   assert.strictEqual(util.format('%s', new Bar()), 'Bar { abc: true }');
   class Foobar extends Array { aaa = true; }
@@ -267,6 +267,27 @@ assert.strictEqual(util.format('%s', -Infinity), '-Infinity');
     util.format('%s', { __proto__: null }),
     '[Object: null prototype] {}'
   );
+}
+
+// Symbol.toPrimitive handling for string format specifier
+{
+  const objectWithToPrimitive = {
+    [Symbol.toPrimitive](hint) {
+      switch (hint) {
+        case 'number':
+          return 42;
+        case 'string':
+          return 'string representation';
+        case 'default':
+        default:
+          return 'default context';
+      }
+    }
+  };
+
+  assert.strictEqual(util.format('%s', +objectWithToPrimitive), '42');
+  assert.strictEqual(util.format('%s', objectWithToPrimitive), 'string representation');
+  assert.strictEqual(util.format('%s', objectWithToPrimitive + ''), 'default context');
 }
 
 // JSON format specifier

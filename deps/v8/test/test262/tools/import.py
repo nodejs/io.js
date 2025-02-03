@@ -60,7 +60,7 @@ def main():
       phase=args.phase,
       host=host,
       test262_failure_file=args.test262_failure_file,
-      v8_test262_last_revision=args.v8_test262_last_revision)
+      v8_test262_last_rev=args.v8_test262_last_revision)
   try:
     success = importer.main(exporter_args[1:])
     host.exit(0 if success else 1)

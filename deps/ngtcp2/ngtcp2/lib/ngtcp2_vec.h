@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -74,19 +74,21 @@ uint64_t ngtcp2_vec_len(const ngtcp2_vec *vec, size_t n);
 int64_t ngtcp2_vec_len_varint(const ngtcp2_vec *vec, size_t n);
 
 /*
- * ngtcp2_vec_split splits |src| to |dst| so that the sum of the
- * length in |src| does not exceed |left| bytes.  The |maxcnt| is the
- * maximum number of elements which |dst| array can contain.  The
- * caller must set |*psrccnt| to the number of elements of |src|.
- * Similarly, the caller must set |*pdstcnt| to the number of elements
- * of |dst|.  The split does not necessarily occur at the boundary of
- * ngtcp2_vec object.  After split has done, this function updates
- * |*psrccnt| and |*pdstcnt|.  This function returns the number of
- * bytes moved from |src| to |dst|.  If split cannot be made because
- * doing so exceeds |maxcnt|, this function returns -1.
+ * ngtcp2_vec_split splits |src| at the data position where
+ * ngtcp2_vec_len(|src|) does not exceed |left| bytes.  The removed
+ * vectors are moved to |dst|.  The existing elements in |dst| are
+ * moved forward to make up a space.  The |maxcnt| is the maximum
+ * number of elements which |dst| array can contain.  The caller must
+ * set |*psrccnt| to the number of elements of |src|.  Similarly, the
+ * caller must set |*pdstcnt| to the number of elements of |dst|.  The
+ * split does not necessarily occur at the boundary of ngtcp2_vec
+ * object.  After split has done, this function updates |*psrccnt| and
+ * |*pdstcnt|.  This function returns the number of bytes moved from
+ * |src| to |dst|.  If split cannot be made because doing so exceeds
+ * |maxcnt|, this function returns -1.
  */
-ngtcp2_ssize ngtcp2_vec_split(ngtcp2_vec *src, size_t *psrccnt, ngtcp2_vec *dst,
-                              size_t *pdstcnt, size_t left, size_t maxcnt);
+ngtcp2_ssize ngtcp2_vec_split(ngtcp2_vec *dst, size_t *pdstcnt, ngtcp2_vec *src,
+                              size_t *psrccnt, size_t left, size_t maxcnt);
 
 /*
  * ngtcp2_vec_merge merges |src| into |dst| by moving at most |left|
@@ -117,4 +119,4 @@ size_t ngtcp2_vec_copy_at_most(ngtcp2_vec *dst, size_t dstcnt,
  */
 void ngtcp2_vec_copy(ngtcp2_vec *dst, const ngtcp2_vec *src, size_t cnt);
 
-#endif /* NGTCP2_VEC_H */
+#endif /* !defined(NGTCP2_VEC_H) */

@@ -12,6 +12,7 @@ let codeKinds = [
     "CPP_COMP",
     "CPP_GC",
     "CPP_EXT",
+    "CPP_LOGGING",
     "CPP",
     "LIB",
     "IC",
@@ -62,8 +63,6 @@ function resolveCodeKind(code) {
       return "JS_SPARKPLUG";
     } else if (kind === "Maglev") {
       return "JS_MAGLEV";
-    } else if (kind === "Turboprop") {
-      return "JS_TURBOPROP";
     } else if (kind === "Opt" || kind === "Turbofan") {
       return "JS_TURBOFAN";
     }
@@ -84,6 +83,8 @@ function resolveCodeKindAndVmState(code, vmState) {
       kind = "CPP_COMP";
     } else if (vmState === 6) {
       kind = "CPP_EXT";
+    } else if (vmState === 9) {
+      kind = "CPP_LOGGING";
     }
     // TODO(cbruni): add CPP_COMP_BASELINE
   }
@@ -285,6 +286,7 @@ function buildCategoryTreeAndLookup() {
   addCategory("C++/Baseline Compiler", [ "CPP_COMP_BASELINE" ]);
   addCategory("C++/Compiler", [ "CPP_COMP" ]);
   addCategory("C++/External", [ "CPP_EXT" ]);
+  addCategory("C++/Logging", [ "CPP_LOGGING" ]);
   addCategory("Unknown", [ "UNKNOWN" ]);
 
   return { categories, root };
@@ -538,16 +540,16 @@ function computeOptimizationStats(file,
   }
 
   let functionCount = 0;
+  let baselineFunctionCount = 0;
   let optimizedFunctionCount = 0;
-  let turbopropOptimizedFunctionCount = 0;
+  let maglevOptimizedFunctionCount = 0;
   let deoptimizedFunctionCount = 0;
+  let baselineCompilations = newCollection();
   let optimizations = newCollection();
-  let turbopropOptimizations = newCollection();
+  let maglevOptimizations = newCollection();
   let eagerDeoptimizations = newCollection();
-  let softDeoptimizations = newCollection();
   let lazyDeoptimizations = newCollection();
-  let softBailouts = newCollection();
-  let eagerBailouts = newCollection();
+  let dependencyChangeDeoptimizations = newCollection();
 
   for (let i = 0; i < file.functions.length; i++) {
     let f = file.functions[i];
@@ -557,29 +559,34 @@ function computeOptimizationStats(file,
     if (file.code[f.codes[0]].type !== "JS") continue;
 
     functionCount++;
+    let baselineCompiled = false;
     let optimized = false;
-    let turboprop_optimized = false;
+    let maglev_optimized = false;
     let deoptimized = false;
 
     for (let j = 0; j < f.codes.length; j++) {
       let code = file.code[f.codes[j]];
       console.assert(code.type === "JS");
+      if (code.kind === "Sparkplug") {
+        baselineCompiled = true;
+        if (code.tm >= timeStart && code.tm <= timeEnd) {
+          addToCollection(baselineCompilations, code);
+        }
+      }
       if (code.kind === "Opt") {
         optimized = true;
         if (code.tm >= timeStart && code.tm <= timeEnd) {
           addToCollection(optimizations, code);
         }
       }
-      if (code.kind === "Turboprop") {
-        turboprop_optimized = true;
+      if (code.kind === "Maglev") {
+        maglev_optimized = true;
         if (code.tm >= timeStart && code.tm <= timeEnd) {
-          addToCollection(turbopropOptimizations, code);
+          addToCollection(maglevOptimizations, code);
         }
       }
       if (code.deopt) {
-        if (code.deopt.bailoutType === "deopt-lazy" || code.deopt.bailoutType === "deopt-eager" || code.deopt.bailoutType === "deopt-soft") {
-          deoptimized = true;
-        }
+        deoptimized = true;
         if (code.deopt.tm >= timeStart && code.deopt.tm <= timeEnd) {
           switch (code.deopt.bailoutType) {
             case "deopt-lazy":
@@ -588,24 +595,21 @@ function computeOptimizationStats(file,
             case "deopt-eager":
               addToCollection(eagerDeoptimizations, code);
               break;
-            case "deopt-soft":
-              addToCollection(softDeoptimizations, code);
-              break;
-            case "bailout-soft":
-              addToCollection(softBailouts, code);
-              break;
-            case "bailout":
-              addToCollection(eagerBailouts, code);
+            case "dependency-change":
+              addToCollection(dependencyChangeDeoptimizations, code);
               break;
           }
         }
       }
     }
+    if (baselineCompiled) {
+      baselineFunctionCount++;
+    }
     if (optimized) {
       optimizedFunctionCount++;
     }
-    if (turboprop_optimized) {
-      turbopropOptimizedFunctionCount++;
+    if (maglev_optimized) {
+      maglevOptimizedFunctionCount++;
     }
     if (deoptimized) {
       deoptimizedFunctionCount++;
@@ -619,22 +623,23 @@ function computeOptimizationStats(file,
 
   sortCollection(eagerDeoptimizations);
   sortCollection(lazyDeoptimizations);
-  sortCollection(softDeoptimizations);
+  sortCollection(dependencyChangeDeoptimizations);
+  sortCollection(baselineCompilations);
   sortCollection(optimizations);
-  sortCollection(turbopropOptimizations);
+  sortCollection(maglevOptimizations);
 
   return {
     functionCount,
+    baselineFunctionCount,
     optimizedFunctionCount,
-    turbopropOptimizedFunctionCount,
+    maglevOptimizedFunctionCount,
     deoptimizedFunctionCount,
+    baselineCompilations,
     optimizations,
-    turbopropOptimizations,
+    maglevOptimizations,
     eagerDeoptimizations,
     lazyDeoptimizations,
-    softDeoptimizations,
-    softBailouts,
-    eagerBailouts,
+    dependencyChangeDeoptimizations,
   };
 }
 

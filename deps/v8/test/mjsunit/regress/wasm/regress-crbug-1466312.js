@@ -8,10 +8,12 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 const builder = new WasmModuleBuilder();
 
-builder.addFunction("main", kSig_i_v).exportFunc().addBodyWithEnd([
-  kExprRefNull, kStringViewIterCode,
-  kGCPrefix, kExprRefTestNull, kAnyRefCode,
-  kExprEnd,
-]);
+builder.addFunction("main", makeSig([kWasmStringRef], [kWasmI32])).exportFunc()
+  .addBodyWithEnd([
+    kExprLocalGet, 0,
+    ...GCInstr(kExprStringAsIter),
+    kGCPrefix, kExprRefTestNull, kAnyRefCode,
+    kExprEnd,
+  ]);
 const instance = builder.instantiate();
-assertEquals(0, instance.exports.main());
+assertEquals(0, instance.exports.main("foo"));

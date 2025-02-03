@@ -45,7 +45,6 @@ V8_OBJECT class HeapNumber : public PrimitiveHeapObject {
   static const int kMantissaBitsInTopWord = 20;
   static const int kNonMantissaBitsInTopWord = 12;
 
-  DECL_CAST(HeapNumber)
   DECL_PRINTER(HeapNumber)
   DECL_VERIFIER(HeapNumber)
   V8_EXPORT_PRIVATE void HeapNumberShortPrint(std::ostream& os);

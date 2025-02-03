@@ -47,7 +47,6 @@ absl_source_set("strings") {
     "escaping.h",
     "has_absl_stringify.h",
     "internal/damerau_levenshtein_distance.h",
-    "internal/has_absl_stringify.h",
     "internal/string_constant.h",
     "match.h",
     "numbers.h",
@@ -384,6 +383,7 @@ absl_source_set("cord") {
     "//third_party/abseil-cpp/absl/functional:function_ref",
     "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/numeric:bits",
+    "//third_party/abseil-cpp/absl/types:compare",
     "//third_party/abseil-cpp/absl/types:optional",
     "//third_party/abseil-cpp/absl/types:span",
   ]
@@ -611,6 +611,7 @@ absl_source_set("cordz_test_helpers") {
 #     "//third_party/abseil-cpp/absl/base:config",
 #     "//third_party/abseil-cpp/absl/base:core_headers",
 #     "//third_party/abseil-cpp/absl/base:endian",
+#     "//third_party/abseil-cpp/absl/base:no_destructor",
 #     "//third_party/abseil-cpp/absl/container:fixed_array",
 #     "//third_party/abseil-cpp/absl/functional:function_ref",
 #     "//third_party/abseil-cpp/absl/hash",
@@ -618,6 +619,7 @@ absl_source_set("cordz_test_helpers") {
 #     "//third_party/abseil-cpp/absl/log",
 #     "//third_party/abseil-cpp/absl/log:check",
 #     "//third_party/abseil-cpp/absl/random",
+#     "//third_party/abseil-cpp/absl/types:compare",
 #     "//third_party/abseil-cpp/absl/types:optional",
 #   ]
 # }
@@ -713,6 +715,7 @@ absl_test("string_view_test") {
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:dynamic_annotations",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
   ]
 }
 

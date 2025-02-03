@@ -160,7 +160,7 @@ async function makeTmp (cache, opts) {
   }
 }
 
-async function moveToDestination (tmp, cache, sri, opts) {
+async function moveToDestination (tmp, cache, sri) {
   const destination = contentPath(cache, sri)
   const destDir = path.dirname(destination)
   if (moveOperations.has(destination)) {

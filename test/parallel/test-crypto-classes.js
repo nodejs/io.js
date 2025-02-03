@@ -4,9 +4,9 @@ const assert = require('assert');
 
 if (!common.hasCrypto) {
   common.skip('missing crypto');
-  return;
 }
 const crypto = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // 'ClassName' : ['args', 'for', 'constructor']
 const TEST_CASES = {
@@ -21,8 +21,8 @@ const TEST_CASES = {
   'ECDH': ['prime256v1'],
 };
 
-if (!common.hasFipsCrypto) {
-  TEST_CASES.DiffieHellman = [common.hasOpenSSL3 ? 1024 : 256];
+if (!crypto.getFips()) {
+  TEST_CASES.DiffieHellman = [hasOpenSSL3 ? 1024 : 256];
 }
 
 for (const [clazz, args] of Object.entries(TEST_CASES)) {

@@ -61,31 +61,31 @@ const dummyPort = new MessageChannel().port1;
   assert.throws(() => {
     new MessageEvent('message', { source: 1 });
   }, {
-    code: 'ERR_INVALID_ARG_TYPE',
-    message: /The "init\.source" property must be an instance of MessagePort/,
+    name: 'TypeError',
+    message: /MessageEvent constructor: Expected eventInitDict\.source \("1"\) to be an instance of MessagePort\./,
   });
   assert.throws(() => {
     new MessageEvent('message', { source: {} });
   }, {
-    code: 'ERR_INVALID_ARG_TYPE',
-    message: /The "init\.source" property must be an instance of MessagePort/,
+    name: 'TypeError',
+    message: /MessageEvent constructor: Expected eventInitDict\.source \("\{\}"\) to be an instance of MessagePort\./,
   });
   assert.throws(() => {
     new MessageEvent('message', { ports: 0 });
   }, {
-    message: /ports is not iterable/,
+    message: /MessageEvent constructor: eventInitDict\.ports \(0\) is not iterable\./,
   });
   assert.throws(() => {
     new MessageEvent('message', { ports: [ null ] });
   }, {
-    code: 'ERR_INVALID_ARG_TYPE',
-    message: /The "init\.ports\[0\]" property must be an instance of MessagePort/,
+    name: 'TypeError',
+    message: /MessageEvent constructor: Expected eventInitDict\.ports(\[0\])? \("null"\) to be an instance of MessagePort\./,
   });
   assert.throws(() => {
     new MessageEvent('message', { ports: [ {} ] });
   }, {
-    code: 'ERR_INVALID_ARG_TYPE',
-    message: /The "init\.ports\[0\]" property must be an instance of MessagePort/,
+    name: 'TypeError',
+    message: /MessageEvent constructor: Expected eventInitDict\.ports(\[0\])? \("\{\}"\) to be an instance of MessagePort\./,
   });
 }
 

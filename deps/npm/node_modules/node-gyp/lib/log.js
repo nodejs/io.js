@@ -1,12 +1,11 @@
 'use strict'
 
-const procLog = require('proc-log')
+const { log } = require('proc-log')
 const { format } = require('util')
 
 // helper to emit log messages with a predefined prefix
-const logLevels = Object.keys(procLog).filter((k) => typeof procLog[k] === 'function')
-const withPrefix = (prefix) => logLevels.reduce((acc, level) => {
-  acc[level] = (...args) => procLog[level](prefix, ...args)
+const withPrefix = (prefix) => log.LEVELS.reduce((acc, level) => {
+  acc[level] = (...args) => log[level](prefix, ...args)
   return acc
 }, {})
 
@@ -78,7 +77,7 @@ class Logger {
     this.#levels = new Map(this.#levels.map((level, index) => [level.id, { ...level, index }]))
     this.level = 'info'
     this.stream = stream
-    procLog.pause()
+    log.pause()
   }
 
   get stream () {
@@ -165,5 +164,5 @@ module.exports = {
   logger: new Logger(NULL_LOGGER ? null : process.stderr),
   stdout: NULL_LOGGER ? () => {} : (...args) => console.log(...args),
   withPrefix,
-  ...procLog
+  ...log
 }

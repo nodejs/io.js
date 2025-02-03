@@ -27,6 +27,7 @@
 
 #include <stdlib.h>
 
+#include "src/flags/flags-impl.h"
 #include "src/flags/flags.h"
 #include "src/init/v8.h"
 #include "test/unittests/fuzztest.h"
@@ -194,6 +195,22 @@ TEST_F(FlagDefinitionsTest, FlagsJitlessImplications) {
   }
 }
 
+TEST_F(FlagDefinitionsTest, FlagsDisableOptimizingCompilersImplications) {
+  if (v8_flags.disable_optimizing_compilers) {
+    // Double-check implications work as expected. Our implication system is
+    // fairly primitive and can break easily depending on the implication
+    // definition order in flag-definitions.h.
+    CHECK(!v8_flags.turbofan);
+    CHECK(!v8_flags.turboshaft);
+    CHECK(!v8_flags.maglev);
+#ifdef V8_ENABLE_WEBASSEMBLY
+    CHECK(!v8_flags.wasm_tier_up);
+    CHECK(!v8_flags.wasm_dynamic_tiering);
+    CHECK(!v8_flags.validate_asm);
+#endif  // V8_ENABLE_WEBASSEMBLY
+  }
+}
+
 TEST_F(FlagDefinitionsTest, FreezeFlags) {
   // Before freezing, we can arbitrarily change values.
   CHECK_EQ(13, v8_flags.testing_int_flag);  // Initial (default) value.
@@ -220,6 +237,22 @@ TEST_F(FlagDefinitionsTest, FreezeFlags) {
   CHECK_EQ(42, v8_flags.testing_int_flag);
   CHECK_EQ(42, *direct_testing_int_ptr);
 }
+
+// Stress implications after setting a flag. We only set one flag, as multiple
+// might just lead to known flag contradictions.
+void StressFlagImplications(const std::string& s1) {
+  int result = FlagList::SetFlagsFromString(s1.c_str(), s1.length());
+  // Only process implications if a flag was set successfully (which happens
+  // only in a small portion of fuzz runs).
+  if (result == 0) FlagList::EnforceFlagImplications();
+  // Ensure a clean state in each iteration.
+  for (Flag& flag : Flags()) {
+    if (!flag.IsReadOnly()) flag.Reset();
+  }
+}
+
+V8_FUZZ_TEST(FlagDefinitionsFuzzTest, StressFlagImplications)
+    .WithDomains(fuzztest::InRegexp("^--(\\w|\\-){1,50}(=\\w{1,5})?$"));
 
 struct FlagAndName {
   FlagValue<bool>* value;
@@ -332,5 +365,25 @@ void CheckFlagInvariants(const std::string& s1, const std::string& s2) {
 
 V8_FUZZ_TEST(FlagHelpersFuzzTest, CheckFlagInvariants)
     .WithDomains(fuzztest::AsciiString(), fuzztest::AsciiString());
+
+TEST(FlagInternalsTest, LookupFlagByName) {
+  CHECK_EQ(0, strcmp("trace_opt", FindFlagByName("trace_opt")->name()));
+  CHECK_EQ(0, strcmp("trace_opt", FindFlagByName("trace-opt")->name()));
+  CHECK_EQ(nullptr, FindFlagByName("trace?opt"));
+}
+
+TEST(FlagInternalsTest, LookupAllFlagsByName) {
+  for (const Flag& flag : Flags()) {
+    CHECK_EQ(&flag, FindFlagByName(flag.name()));
+  }
+}
+
+TEST(FlagInternalsTest, LookupAllImplicationFlagsByName) {
+  for (const Flag& flag : Flags()) {
+    CHECK_EQ(&flag, FindImplicationFlagByName(flag.name()));
+    auto name_with_suffix = std::string(flag.name()) + " < 3";
+    CHECK_EQ(&flag, FindImplicationFlagByName(name_with_suffix.c_str()));
+  }
+}
 
 }  // namespace v8::internal

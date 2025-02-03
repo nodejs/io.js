@@ -148,6 +148,21 @@
 })();
 
 
+(function testReflectConstructNewTargetProxy() {
+  const proto = {};
+  let counter = 0;
+  Object.setPrototypeOf(Proxy, {
+    get prototype() {
+      counter++;
+      return proto;
+    },
+  });
+  const obj = Reflect.construct(Object, [], Proxy);
+  assertEquals(1, counter);
+  assertTrue(Object.getPrototypeOf(obj) === proto);
+})();
+
+
 (function testAppliedArgumentsLength() {
   function lengthStrict() { 'use strict'; this.a = arguments.length; }
   function lengthSloppy() { this.a = arguments.length; }

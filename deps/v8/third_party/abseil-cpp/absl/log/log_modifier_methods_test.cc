@@ -156,9 +156,11 @@ TEST(TailCallsModifiesTest, WithMetadataFrom) {
                  Timestamp(Eq(absl::UnixEpoch())),
                  ThreadID(Eq(absl::LogEntry::tid_t{456})),
                  TextMessage(Eq("forwarded: hello world")), Verbosity(Eq(7)),
-                 ENCODED_MESSAGE(
-                     EqualsProto(R"pb(value { literal: "forwarded: " }
-                                      value { str: "hello world" })pb")))));
+                 ENCODED_MESSAGE(MatchesEvent(
+                     Eq("fake/file"), Eq(123), Eq(absl::UnixEpoch()),
+                     Eq(logging::proto::WARNING), Eq(456),
+                     ElementsAre(EqualsProto(R"pb(literal: "forwarded: ")pb"),
+                                 EqualsProto(R"pb(str: "hello world")pb")))))));
 
   test_sink.StartCapturingLogs();
   LOG(WARNING)
@@ -179,25 +181,15 @@ TEST(TailCallsModifiesTest, WithPerror) {
       Send(AllOf(TextMessage(AnyOf(Eq("hello world: Bad file number [9]"),
                                    Eq("hello world: Bad file descriptor [9]"),
                                    Eq("hello world: Bad file descriptor [8]"))),
-                 ENCODED_MESSAGE(
-                     AnyOf(EqualsProto(R"pb(value { literal: "hello world" }
-                                            value { literal: ": " }
-                                            value { str: "Bad file number" }
-                                            value { literal: " [" }
-                                            value { str: "9" }
-                                            value { literal: "]" })pb"),
-                           EqualsProto(R"pb(value { literal: "hello world" }
-                                            value { literal: ": " }
-                                            value { str: "Bad file descriptor" }
-                                            value { literal: " [" }
-                                            value { str: "9" }
-                                            value { literal: "]" })pb"),
-                           EqualsProto(R"pb(value { literal: "hello world" }
-                                            value { literal: ": " }
-                                            value { str: "Bad file descriptor" }
-                                            value { literal: " [" }
-                                            value { str: "8" }
-                                            value { literal: "]" })pb"))))));
+                 ENCODED_MESSAGE(HasValues(ElementsAre(
+                     EqualsProto(R"pb(literal: "hello world")pb"),
+                     EqualsProto(R"pb(literal: ": ")pb"),
+                     AnyOf(EqualsProto(R"pb(str: "Bad file number")pb"),
+                           EqualsProto(R"pb(str: "Bad file descriptor")pb")),
+                     EqualsProto(R"pb(literal: " [")pb"),
+                     AnyOf(EqualsProto(R"pb(str: "8")pb"),
+                           EqualsProto(R"pb(str: "9")pb")),
+                     EqualsProto(R"pb(literal: "]")pb")))))));
 
   test_sink.StartCapturingLogs();
   errno = EBADF;

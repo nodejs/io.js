@@ -1,5 +1,3 @@
-#! /usr/bin/env node
-
 // to GET CONTENTS for folder at PATH (which may be a PACKAGE):
 // - if PACKAGE, read path/package.json
 //   - if bins in ../node_modules/.bin, add those to result
@@ -19,53 +17,46 @@
 //     - add GET CONTENTS of bundled deps, PACKAGE=true, depth + 1
 
 const bundled = require('npm-bundled')
-const { promisify } = require('util')
-const fs = require('fs')
-const readFile = promisify(fs.readFile)
-const readdir = promisify(fs.readdir)
-const stat = promisify(fs.stat)
-const lstat = promisify(fs.lstat)
-const { relative, resolve, basename, dirname } = require('path')
+const { readFile, readdir, stat } = require('fs/promises')
+const { resolve, basename, dirname } = require('path')
 const normalizePackageBin = require('npm-normalize-package-bin')
 
-const readPackage = ({ path, packageJsonCache }) =>
-  packageJsonCache.has(path) ? Promise.resolve(packageJsonCache.get(path))
+const readPackage = ({ path, packageJsonCache }) => packageJsonCache.has(path)
+  ? Promise.resolve(packageJsonCache.get(path))
   : readFile(path).then(json => {
     const pkg = normalizePackageBin(JSON.parse(json))
     packageJsonCache.set(path, pkg)
     return pkg
-  })
-    .catch(er => null)
+  }).catch(() => null)
 
 // just normalize bundle deps and bin, that's all we care about here.
 const normalized = Symbol('package data has been normalized')
-const rpj = ({ path, packageJsonCache }) =>
-  readPackage({ path, packageJsonCache })
-    .then(pkg => {
-      if (!pkg || pkg[normalized]) {
-        return pkg
-      }
-      if (pkg.bundledDependencies && !pkg.bundleDependencies) {
-        pkg.bundleDependencies = pkg.bundledDependencies
-        delete pkg.bundledDependencies
-      }
-      const bd = pkg.bundleDependencies
-      if (bd === true) {
-        pkg.bundleDependencies = [
-          ...Object.keys(pkg.dependencies || {}),
-          ...Object.keys(pkg.optionalDependencies || {}),
-        ]
-      }
-      if (typeof bd === 'object' && !Array.isArray(bd)) {
-        pkg.bundleDependencies = Object.keys(bd)
-      }
-      pkg[normalized] = true
+const rpj = ({ path, packageJsonCache }) => readPackage({ path, packageJsonCache })
+  .then(pkg => {
+    if (!pkg || pkg[normalized]) {
       return pkg
-    })
+    }
+    if (pkg.bundledDependencies && !pkg.bundleDependencies) {
+      pkg.bundleDependencies = pkg.bundledDependencies
+      delete pkg.bundledDependencies
+    }
+    const bd = pkg.bundleDependencies
+    if (bd === true) {
+      pkg.bundleDependencies = [
+        ...Object.keys(pkg.dependencies || {}),
+        ...Object.keys(pkg.optionalDependencies || {}),
+      ]
+    }
+    if (typeof bd === 'object' && !Array.isArray(bd)) {
+      pkg.bundleDependencies = Object.keys(bd)
+    }
+    pkg[normalized] = true
+    return pkg
+  })
 
 const pkgContents = async ({
   path,
-  depth,
+  depth = 1,
   currentDepth = 0,
   pkg = null,
   result = null,
@@ -105,7 +96,7 @@ const pkgContents = async ({
       })
 
       const bins = await Promise.all(
-        binFiles.map(b => stat(b).then(() => b).catch((er) => null))
+        binFiles.map(b => stat(b).then(() => b).catch(() => null))
       )
       bins.filter(b => b).forEach(b => result.add(b))
     }
@@ -135,18 +126,6 @@ const pkgContents = async ({
   }
 
   const recursePromises = []
-
-  // if we didn't get withFileTypes support, tack that on
-  if (typeof dirEntries[0] === 'string') {
-    // use a map so we can return a promise, but we mutate dirEntries in place
-    // this is much slower than getting the entries from the readdir call,
-    // but polyfills support for node versions before 10.10
-    await Promise.all(dirEntries.map(async (name, index) => {
-      const p = resolve(path, name)
-      const st = await lstat(p)
-      dirEntries[index] = Object.assign(st, { name })
-    }))
-  }
 
   for (const entry of dirEntries) {
     const p = resolve(path, entry.name)
@@ -195,48 +174,8 @@ const pkgContents = async ({
   return result
 }
 
-module.exports = ({ path, depth = 1, packageJsonCache }) => pkgContents({
+module.exports = ({ path, ...opts }) => pkgContents({
   path: resolve(path),
-  depth,
+  ...opts,
   pkg: true,
-  packageJsonCache,
 }).then(results => [...results])
-
-if (require.main === module) {
-  const options = { path: null, depth: 1 }
-  const usage = `Usage:
-  installed-package-contents <path> [-d<n> --depth=<n>]
-
-Lists the files installed for a package specified by <path>.
-
-Options:
-  -d<n> --depth=<n>   Provide a numeric value ("Infinity" is allowed)
-                      to specify how deep in the file tree to traverse.
-                      Default=1
-  -h --help           Show this usage information`
-
-  process.argv.slice(2).forEach(arg => {
-    let match
-    if ((match = arg.match(/^--depth=([0-9]+|Infinity)/)) ||
-        (match = arg.match(/^-d([0-9]+|Infinity)/))) {
-      options.depth = +match[1]
-    } else if (arg === '-h' || arg === '--help') {
-      console.log(usage)
-      process.exit(0)
-    } else {
-      options.path = arg
-    }
-  })
-  if (!options.path) {
-    console.error('ERROR: no path provided')
-    console.error(usage)
-    process.exit(1)
-  }
-  const cwd = process.cwd()
-  module.exports(options)
-    .then(list => list.sort().forEach(p => console.log(relative(cwd, p))))
-    .catch(/* istanbul ignore next - pretty unusual */ er => {
-      console.error(er)
-      process.exit(1)
-    })
-}

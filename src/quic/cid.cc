@@ -4,10 +4,11 @@
 #include <memory_tracker-inl.h>
 #include <node_mutex.h>
 #include <string_bytes.h>
+#include "nbytes.h"
+#include "ncrypto.h"
 #include "quic/defs.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // ============================================================================
 // CID
@@ -19,14 +20,12 @@ CID::CID() : ptr_(&cid_) {
 CID::CID(const ngtcp2_cid& cid) : CID(cid.data, cid.datalen) {}
 
 CID::CID(const uint8_t* data, size_t len) : CID() {
-  DCHECK_GE(len, kMinLength);
   DCHECK_LE(len, kMaxLength);
   ngtcp2_cid_init(&cid_, data, len);
 }
 
 CID::CID(const ngtcp2_cid* cid) : ptr_(cid) {
   CHECK_NOT_NULL(cid);
-  DCHECK_GE(cid->datalen, kMinLength);
   DCHECK_LE(cid->datalen, kMaxLength);
 }
 
@@ -71,11 +70,10 @@ size_t CID::length() const {
 
 std::string CID::ToString() const {
   char dest[kMaxLength * 2];
-  size_t written =
-      StringBytes::hex_encode(reinterpret_cast<const char*>(ptr_->data),
-                              ptr_->datalen,
-                              dest,
-                              arraysize(dest));
+  size_t written = nbytes::HexEncode(reinterpret_cast<const char*>(ptr_->data),
+                                     ptr_->datalen,
+                                     dest,
+                                     arraysize(dest));
   return std::string(dest, written);
 }
 
@@ -132,7 +130,7 @@ class RandomCIDFactory : public CID::Factory {
     // a CID of the requested size, we regenerate the pool
     // and reset it to zero.
     if (pos_ + length_hint > kPoolSize) {
-      CHECK(crypto::CSPRNG(pool_, kPoolSize).is_ok());
+      CHECK(ncrypto::CSPRNG(pool_, kPoolSize));
       pos_ = 0;
     }
   }
@@ -149,6 +147,5 @@ const CID::Factory& CID::Factory::random() {
   return instance;
 }
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC

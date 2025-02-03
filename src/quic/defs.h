@@ -9,15 +9,14 @@
 #include <v8.h>
 #include <limits>
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 #define NGTCP2_SUCCESS 0
 #define NGTCP2_ERR(V) (V != NGTCP2_SUCCESS)
 #define NGTCP2_OK(V) (V == NGTCP2_SUCCESS)
 
 #define IF_QUIC_DEBUG(env)                                                     \
-  if (UNLIKELY(env->enabled_debug_list()->enabled(DebugCategory::QUIC)))
+  if (env->enabled_debug_list()->enabled(DebugCategory::QUIC)) [[unlikely]]
 
 #define DISALLOW_COPY(Name)                                                    \
   Name(const Name&) = delete;                                                  \
@@ -213,6 +212,15 @@ enum class DatagramStatus : uint8_t {
   LOST,
 };
 
+#define CC_ALGOS(V)                                                            \
+  V(RENO, reno)                                                                \
+  V(CUBIC, cubic)                                                              \
+  V(BBR, bbr)
+
+#define V(name, _) static constexpr auto CC_ALGO_##name = NGTCP2_CC_ALGO_##name;
+CC_ALGOS(V)
+#undef V
+
 constexpr uint64_t NGTCP2_APP_NOERROR = 65280;
 constexpr size_t kDefaultMaxPacketLength = NGTCP2_MAX_UDP_PAYLOAD_SIZE;
 constexpr size_t kMaxSizeT = std::numeric_limits<size_t>::max();
@@ -243,5 +251,4 @@ class DebugIndentScope {
   static int indent_;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic

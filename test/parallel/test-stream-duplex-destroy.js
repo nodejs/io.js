@@ -269,3 +269,18 @@ const assert = require('assert');
   }));
   duplex.destroy();
 }
+
+{
+  // Check Symbol.asyncDispose
+  const duplex = new Duplex({
+    write(chunk, enc, cb) { cb(); },
+    read() {},
+  });
+  let count = 0;
+  duplex.on('error', common.mustCall((e) => {
+    assert.strictEqual(count++, 0); // Ensure not called twice
+    assert.strictEqual(e.name, 'AbortError');
+  }));
+  duplex.on('close', common.mustCall());
+  duplex[Symbol.asyncDispose]().then(common.mustCall());
+}

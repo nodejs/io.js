@@ -43,11 +43,11 @@ function f(a) {
   // important). One of its predecessor is removed during graph building because
   // the `x += 25` is replaced by a Deopt.
   while (i < 5) {
-    // We now have a Int32 use of `x`. It should be recorded as such, and should
-    // be propagated upwards in the Phi inputs of `x`. However, the backedge
-    // hasn't been bound yet, so we should skip it. Note that the backedge is at
-    // offset 1 rather than 2 because we've reduced the number of predecessors
-    // of `x`.
+    // We now have an Int32 use of `x`. It should be recorded as such, and
+    // should be propagated upwards in the Phi inputs of `x`. However, the
+    // backedge hasn't been bound yet, so we should skip it. Note that the
+    // backedge is at offset 1 rather than 2 because we've reduced the number
+    // of predecessors of `x`.
     x ^ 2;
     x = a ? i - 2 : 8;
     i++;

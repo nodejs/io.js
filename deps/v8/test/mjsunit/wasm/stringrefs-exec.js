@@ -720,27 +720,12 @@ function makeWtf16TestDataSegment() {
       ...GCInstr(kExprStringViewWtf16Length)
     ]);
 
-  builder.addFunction("length_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf16Code,
-      ...GCInstr(kExprStringViewWtf16Length)
-    ]);
-
   builder.addFunction("get_codeunit", kSig_i_wi)
     .exportFunc()
     .addBody([
       kExprLocalGet, 0,
       ...GCInstr(kExprStringAsWtf16),
       kExprLocalGet, 1,
-      ...GCInstr(kExprStringViewWtf16GetCodeunit)
-    ]);
-
-  builder.addFunction("get_codeunit_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf16Code,
-      kExprI32Const, 0,
       ...GCInstr(kExprStringViewWtf16GetCodeunit)
     ]);
 
@@ -755,16 +740,6 @@ function makeWtf16TestDataSegment() {
       ...GCInstr(kExprStringViewWtf16Encode), 0
     ]);
 
-  builder.addFunction("encode_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf16Code,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      ...GCInstr(kExprStringViewWtf16Encode), 0
-    ]);
-
   builder.addFunction("slice", kSig_w_wii)
     .exportFunc()
     .addBody([
@@ -775,14 +750,33 @@ function makeWtf16TestDataSegment() {
       ...GCInstr(kExprStringViewWtf16Slice)
     ]);
 
-  builder.addFunction("slice_null", kSig_w_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf16Code,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      ...GCInstr(kExprStringViewWtf16Slice)
-    ]);
+  // Non-nullable stringview references are still encoded as regular
+  // non-nullable references, so they Just Work with br_on_* instructions.
+  builder.addFunction("br_on_null", kSig_i_w).exportFunc().addBody([
+    kExprBlock, kWasmI32,
+      kExprI32Const, 11,
+      kExprLocalGet, 0,
+      ...GCInstr(kExprStringAsWtf16),
+      kExprBrOnNull, 0,  // Never taken.
+      kExprDrop,  // Drop the string view.
+      kExprDrop,  // Drop the "11".
+      kExprI32Const, 42,
+    kExprEnd,
+  ]);
+
+  builder.addFunction("br_on_non_null", kSig_i_w).exportFunc().addBody([
+    kExprBlock, kWasmI32,
+      kExprBlock, kStringViewWtf16Code,
+        kExprLocalGet, 0,
+        ...GCInstr(kExprStringAsWtf16),
+        kExprBrOnNonNull, 0,  // Always taken.
+        kExprI32Const, 11,
+        kExprBr, 1,
+      kExprEnd,
+      kExprDrop,  // Drop the string view.
+      kExprI32Const, 42,
+    kExprEnd,
+  ]);
 
   let instance = builder.instantiate();
   let memory = new Uint8Array(instance.exports.memory.buffer);
@@ -866,18 +860,13 @@ function makeWtf16TestDataSegment() {
   assertEquals("foo", instance.exports.slice("foo", 0, -1));
   assertEquals("", instance.exports.slice("foo", -1, 1));
 
+  assertEquals(42, instance.exports.br_on_null("foo"));
+  assertEquals(42, instance.exports.br_on_non_null("foo"));
+
   assertThrows(() => instance.exports.view_from_null(),
                WebAssembly.RuntimeError, 'dereferencing a null pointer');
-  assertThrows(() => instance.exports.length_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.get_codeunit_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
   assertThrows(() => instance.exports.get_codeunit("", 0),
                WebAssembly.RuntimeError, "string offset out of bounds");
-  assertThrows(() => instance.exports.encode_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.slice_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
 
   // Cover runtime code path for long slices.
   const prefix = "a".repeat(10);
@@ -928,15 +917,6 @@ function makeWtf16TestDataSegment() {
       ...GCInstr(kExprStringViewWtf8Advance)
     ]);
 
-  builder.addFunction("advance_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf8Code,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      ...GCInstr(kExprStringViewWtf8Advance)
-    ]);
-
   for (let [instr, name] of
        [[kExprStringViewWtf8EncodeUtf8, "utf8"],
         [kExprStringViewWtf8EncodeWtf8, "wtf8"],
@@ -952,17 +932,6 @@ function makeWtf16TestDataSegment() {
         ...GCInstr(instr), 0
       ]);
   }
-  builder.addFunction("encode_null", kSig_v_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf8Code,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      ...GCInstr(kExprStringViewWtf8EncodeWtf8), 0,
-      kExprDrop,
-      kExprDrop
-    ]);
 
   builder.addFunction(`slice`, kSig_w_wii)
     .exportFunc()
@@ -972,15 +941,6 @@ function makeWtf16TestDataSegment() {
       kExprLocalGet, 1,
       kExprLocalGet, 2,
       ...GCInstr(kExprStringViewWtf8Slice)
-    ]);
-  builder.addFunction("slice_null", kSig_v_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewWtf8Code,
-      kExprI32Const, 0,
-      kExprI32Const, 0,
-      ...GCInstr(kExprStringViewWtf8Slice),
-      kExprDrop
     ]);
 
   function Wtf8StartsCodepoint(wtf8, offset) {
@@ -1117,48 +1077,29 @@ function makeWtf16TestDataSegment() {
       }
     }
   }
-
-  assertThrows(() => instance.exports.advance_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.encode_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.slice_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
 })();
 
 (function TestStringViewIter() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
+  let wrapper = builder.addStruct([makeField(kWasmStringViewIter, true)]);
 
-  let global = builder.addGlobal(kWasmStringViewIter, true, false);
+  let global = builder.addGlobal(wasmRefNullType(wrapper), true, false);
 
   builder.addFunction("iterate", kSig_v_w)
     .exportFunc()
     .addBody([
       kExprLocalGet, 0,
       ...GCInstr(kExprStringAsIter),
+      kGCPrefix, kExprStructNew, wrapper,
       kExprGlobalSet, global.index
-    ]);
-
-  builder.addFunction("iterate_null", kSig_v_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringRefCode,
-      ...GCInstr(kExprStringAsIter),
-      kExprDrop
     ]);
 
   builder.addFunction("next", kSig_i_v)
     .exportFunc()
     .addBody([
       kExprGlobalGet, global.index,
-      ...GCInstr(kExprStringViewIterNext)
-    ]);
-
-  builder.addFunction("next_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewIterCode,
+      kGCPrefix, kExprStructGet, wrapper, 0,
       ...GCInstr(kExprStringViewIterNext)
     ]);
 
@@ -1166,15 +1107,8 @@ function makeWtf16TestDataSegment() {
     .exportFunc()
     .addBody([
       kExprGlobalGet, global.index,
+      kGCPrefix, kExprStructGet, wrapper, 0,
       kExprLocalGet, 0,
-      ...GCInstr(kExprStringViewIterAdvance)
-    ]);
-
-  builder.addFunction("advance_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewIterCode,
-      kExprI32Const, 0,
       ...GCInstr(kExprStringViewIterAdvance)
     ]);
 
@@ -1182,15 +1116,8 @@ function makeWtf16TestDataSegment() {
     .exportFunc()
     .addBody([
       kExprGlobalGet, global.index,
+      kGCPrefix, kExprStructGet, wrapper, 0,
       kExprLocalGet, 0,
-      ...GCInstr(kExprStringViewIterRewind)
-    ]);
-
-  builder.addFunction("rewind_null", kSig_i_v)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewIterCode,
-      kExprI32Const, 0,
       ...GCInstr(kExprStringViewIterRewind)
     ]);
 
@@ -1198,15 +1125,8 @@ function makeWtf16TestDataSegment() {
     .exportFunc()
     .addBody([
       kExprGlobalGet, global.index,
+      kGCPrefix, kExprStructGet, wrapper, 0,
       kExprLocalGet, 0,
-      ...GCInstr(kExprStringViewIterSlice)
-    ]);
-
-  builder.addFunction("slice_null", kSig_w_i)
-    .exportFunc()
-    .addBody([
-      kExprRefNull, kStringViewIterCode,
-      kExprI32Const, 0,
       ...GCInstr(kExprStringViewIterSlice)
     ]);
 
@@ -1257,17 +1177,6 @@ function makeWtf16TestDataSegment() {
     assertEquals(codepoints.length, instance.exports.advance(-1));
     assertEquals("", instance.exports.slice(-1));
   }
-
-  assertThrows(() => instance.exports.iterate_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.next_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.advance_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.rewind_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
-  assertThrows(() => instance.exports.slice_null(),
-               WebAssembly.RuntimeError, "dereferencing a null pointer");
 })();
 
 (function TestStringCompare() {

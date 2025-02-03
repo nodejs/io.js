@@ -162,7 +162,8 @@ class TargetArchitecture : public base::ContextualClass<TargetArchitecture> {
   static size_t TaggedSize() { return Get().tagged_size_; }
   static size_t RawPtrSize() { return Get().raw_ptr_size_; }
   static size_t ExternalPointerSize() { return Get().external_ptr_size_; }
-  static size_t IndirectPointerSize() { return Get().indirect_ptr_size_; }
+  static size_t CppHeapPointerSize() { return Get().cppheap_ptr_size_; }
+  static size_t TrustedPointerSize() { return Get().trusted_ptr_size_; }
   static size_t ProtectedPointerSize() { return TaggedSize(); }
   static size_t MaxHeapAlignment() { return TaggedSize(); }
   static bool ArePointersCompressed() { return TaggedSize() < RawPtrSize(); }
@@ -173,7 +174,8 @@ class TargetArchitecture : public base::ContextualClass<TargetArchitecture> {
   const size_t raw_ptr_size_;
   const int smi_tag_and_shift_size_;
   const size_t external_ptr_size_;
-  const size_t indirect_ptr_size_;
+  const size_t cppheap_ptr_size_;
+  const size_t trusted_ptr_size_;
 };
 
 }  // namespace torque

@@ -1,5 +1,5 @@
 const t = require('tap')
-const { join, extname } = require('path')
+const { join, extname } = require('node:path')
 const MockRegistry = require('@npmcli/mock-registry')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm')
 

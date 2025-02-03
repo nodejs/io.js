@@ -32,45 +32,23 @@
 #include "uv.h"
 #include "internal.h"
 
-static void uv__once_inner(uv_once_t* guard, void (*callback)(void)) {
-  DWORD result;
-  HANDLE existing_event, created_event;
+typedef void (*uv__once_cb)(void);
 
-  created_event = CreateEvent(NULL, 1, 0, NULL);
-  if (created_event == 0) {
-    /* Could fail in a low-memory situation? */
-    uv_fatal_error(GetLastError(), "CreateEvent");
-  }
+typedef struct {
+  uv__once_cb callback;
+} uv__once_data_t;
 
-  existing_event = InterlockedCompareExchangePointer(&guard->event,
-                                                     created_event,
-                                                     NULL);
+static BOOL WINAPI uv__once_inner(INIT_ONCE *once, void* param, void** context) {
+  uv__once_data_t* data = param;
 
-  if (existing_event == NULL) {
-    /* We won the race */
-    callback();
+  data->callback();
 
-    result = SetEvent(created_event);
-    assert(result);
-    guard->ran = 1;
-
-  } else {
-    /* We lost the race. Destroy the event we created and wait for the existing
-     * one to become signaled. */
-    CloseHandle(created_event);
-    result = WaitForSingleObject(existing_event, INFINITE);
-    assert(result == WAIT_OBJECT_0);
-  }
+  return TRUE;
 }
 
-
-void uv_once(uv_once_t* guard, void (*callback)(void)) {
-  /* Fast case - avoid WaitForSingleObject. */
-  if (guard->ran) {
-    return;
-  }
-
-  uv__once_inner(guard, callback);
+void uv_once(uv_once_t* guard, uv__once_cb callback) {
+  uv__once_data_t data = { .callback = callback };
+  InitOnceExecuteOnce(&guard->init_once, uv__once_inner, (void*) &data, NULL);
 }
 
 
@@ -116,6 +94,15 @@ int uv_thread_create(uv_thread_t *tid, void (*entry)(void *arg), void *arg) {
   params.flags = UV_THREAD_NO_FLAGS;
   return uv_thread_create_ex(tid, &params, entry, arg);
 }
+
+
+int uv_thread_detach(uv_thread_t *tid) {
+  if (CloseHandle(*tid) == 0)
+    return uv_translate_sys_error(GetLastError());
+
+  return 0;
+}
+
 
 int uv_thread_create_ex(uv_thread_t* tid,
                         const uv_thread_options_t* params,
@@ -288,6 +275,71 @@ int uv_thread_join(uv_thread_t *tid) {
 
 int uv_thread_equal(const uv_thread_t* t1, const uv_thread_t* t2) {
   return *t1 == *t2;
+}
+
+
+int uv_thread_setname(const char* name) {
+  HRESULT hr;
+  WCHAR* namew;
+  int err;
+  char namebuf[UV_PTHREAD_MAX_NAMELEN_NP];
+
+  if (name == NULL)
+    return UV_EINVAL;
+
+  strncpy(namebuf, name, sizeof(namebuf) - 1);
+  namebuf[sizeof(namebuf) - 1] = '\0';
+
+  namew = NULL;
+  err = uv__convert_utf8_to_utf16(namebuf, &namew);
+  if (err)
+    return err;
+
+  hr = SetThreadDescription(GetCurrentThread(), namew);
+  uv__free(namew);
+  if (FAILED(hr))
+    return uv_translate_sys_error(HRESULT_CODE(hr));
+
+  return 0;
+}
+
+
+int uv_thread_getname(uv_thread_t* tid, char* name, size_t size) {
+  HRESULT hr;
+  WCHAR* namew;
+  char* thread_name;
+  size_t buf_size;
+  int r;
+  DWORD exit_code;
+
+  if (name == NULL || size == 0)
+    return UV_EINVAL;
+
+  if (tid == NULL || *tid == NULL)
+    return UV_EINVAL;
+
+  /* Check if the thread handle is valid */
+  if (!GetExitCodeThread(*tid, &exit_code) || exit_code != STILL_ACTIVE)
+    return UV_ENOENT;
+
+  namew = NULL;
+  thread_name = NULL;
+  hr = GetThreadDescription(*tid, &namew);
+  if (FAILED(hr))
+    return uv_translate_sys_error(HRESULT_CODE(hr));
+
+  buf_size = size;
+  r = uv__copy_utf16_to_utf8(namew, -1, name, &buf_size);
+  if (r == UV_ENOBUFS) {
+    r = uv__convert_utf16_to_utf8(namew, wcslen(namew), &thread_name);
+    if (r == 0) {
+      uv__strscpy(name, thread_name, size);
+      uv__free(thread_name);
+    }
+  }
+
+  LocalFree(namew);
+  return r;
 }
 
 

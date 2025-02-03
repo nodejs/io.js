@@ -1,12 +1,12 @@
 'use strict'
 
 const assert = require('node:assert')
-const { Readable } = require('./readable')
-const { InvalidArgumentError } = require('../core/errors')
-const util = require('../core/util')
-const { getResolveErrorBodyCallback } = require('./util')
 const { AsyncResource } = require('node:async_hooks')
-const { addSignal, removeSignal } = require('./abort-signal')
+const { Readable } = require('./readable')
+const { InvalidArgumentError, RequestAbortedError } = require('../core/errors')
+const util = require('../core/util')
+
+function noop () {}
 
 class RequestHandler extends AsyncResource {
   constructor (opts, callback) {
@@ -14,7 +14,7 @@ class RequestHandler extends AsyncResource {
       throw new InvalidArgumentError('invalid opts')
     }
 
-    const { signal, method, opaque, body, onInfo, responseHeaders, throwOnError, highWaterMark } = opts
+    const { signal, method, opaque, body, onInfo, responseHeaders, highWaterMark } = opts
 
     try {
       if (typeof callback !== 'function') {
@@ -40,11 +40,12 @@ class RequestHandler extends AsyncResource {
       super('UNDICI_REQUEST')
     } catch (err) {
       if (util.isStream(body)) {
-        util.destroy(body.on('error', util.nop), err)
+        util.destroy(body.on('error', noop), err)
       }
       throw err
     }
 
+    this.method = method
     this.responseHeaders = responseHeaders || null
     this.opaque = opaque || null
     this.callback = callback
@@ -54,16 +55,22 @@ class RequestHandler extends AsyncResource {
     this.trailers = {}
     this.context = null
     this.onInfo = onInfo || null
-    this.throwOnError = throwOnError
     this.highWaterMark = highWaterMark
+    this.reason = null
+    this.removeAbortListener = null
 
-    if (util.isStream(body)) {
-      body.on('error', (err) => {
-        this.onError(err)
+    if (signal?.aborted) {
+      this.reason = signal.reason ?? new RequestAbortedError()
+    } else if (signal) {
+      this.removeAbortListener = util.addAbortListener(signal, () => {
+        this.reason = signal.reason ?? new RequestAbortedError()
+        if (this.res) {
+          util.destroy(this.res.on('error', noop), this.reason)
+        } else if (this.abort) {
+          this.abort(this.reason)
+        }
       })
     }
-
-    addSignal(this, signal)
   }
 
   onConnect (abort, context) {
@@ -93,47 +100,46 @@ class RequestHandler extends AsyncResource {
     const parsedHeaders = responseHeaders === 'raw' ? util.parseHeaders(rawHeaders) : headers
     const contentType = parsedHeaders['content-type']
     const contentLength = parsedHeaders['content-length']
-    const body = new Readable({ resume, abort, contentType, contentLength, highWaterMark })
+    const res = new Readable({
+      resume,
+      abort,
+      contentType,
+      contentLength: this.method !== 'HEAD' && contentLength
+        ? Number(contentLength)
+        : null,
+      highWaterMark
+    })
+
+    if (this.removeAbortListener) {
+      res.on('close', this.removeAbortListener)
+      this.removeAbortListener = null
+    }
 
     this.callback = null
-    this.res = body
+    this.res = res
     if (callback !== null) {
-      if (this.throwOnError && statusCode >= 400) {
-        this.runInAsyncScope(getResolveErrorBodyCallback, null,
-          { callback, body, contentType, statusCode, statusMessage, headers }
-        )
-      } else {
-        this.runInAsyncScope(callback, null, null, {
-          statusCode,
-          headers,
-          trailers: this.trailers,
-          opaque,
-          body,
-          context
-        })
-      }
+      this.runInAsyncScope(callback, null, null, {
+        statusCode,
+        headers,
+        trailers: this.trailers,
+        opaque,
+        body: res,
+        context
+      })
     }
   }
 
   onData (chunk) {
-    const { res } = this
-    return res.push(chunk)
+    return this.res.push(chunk)
   }
 
   onComplete (trailers) {
-    const { res } = this
-
-    removeSignal(this)
-
     util.parseHeaders(trailers, this.trailers)
-
-    res.push(null)
+    this.res.push(null)
   }
 
   onError (err) {
     const { res, callback, body, opaque } = this
-
-    removeSignal(this)
 
     if (callback) {
       // TODO: Does this need queueMicrotask?
@@ -147,13 +153,22 @@ class RequestHandler extends AsyncResource {
       this.res = null
       // Ensure all queued handlers are invoked before destroying res.
       queueMicrotask(() => {
-        util.destroy(res, err)
+        util.destroy(res.on('error', noop), err)
       })
     }
 
     if (body) {
       this.body = null
-      util.destroy(body, err)
+
+      if (util.isStream(body)) {
+        body.on('error', noop)
+        util.destroy(body, err)
+      }
+    }
+
+    if (this.removeAbortListener) {
+      this.removeAbortListener()
+      this.removeAbortListener = null
     }
   }
 }
@@ -168,7 +183,9 @@ function request (opts, callback) {
   }
 
   try {
-    this.dispatch(opts, new RequestHandler(opts, callback))
+    const handler = new RequestHandler(opts, callback)
+
+    this.dispatch(opts, handler)
   } catch (err) {
     if (typeof callback !== 'function') {
       throw err

@@ -24,9 +24,9 @@ class DataHandler : public TorqueGeneratedDataHandler<DataHandler, Struct> {
 
   // [data1-3]: These are optional general-purpose fields whose content and
   // presence depends on the handler kind.
-  DECL_ACCESSORS(data1, MaybeObject)
-  DECL_ACCESSORS(data2, MaybeObject)
-  DECL_ACCESSORS(data3, MaybeObject)
+  DECL_ACCESSORS(data1, Tagged<MaybeObject>)
+  DECL_ACCESSORS(data2, Tagged<MaybeObject>)
+  DECL_ACCESSORS(data3, Tagged<MaybeObject>)
 
   static const int kSizeWithData0 = kData1Offset;
   static const int kSizeWithData1 = kData2Offset;

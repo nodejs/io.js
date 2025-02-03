@@ -95,8 +95,8 @@ class HeapTester {
   static Handle<Object> TestAllocateAfterFailures();
 
   // test-invalidated-slots.cc
-  static Page* AllocateByteArraysOnPage(Heap* heap,
-                                        std::vector<ByteArray>* byte_arrays);
+  static PageMetadata* AllocateByteArraysOnPage(
+      Heap* heap, std::vector<ByteArray>* byte_arrays);
 
   // test-api.cc
   static void ResetWeakHandle(bool global_gc);

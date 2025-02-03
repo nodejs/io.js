@@ -140,7 +140,7 @@ namespace {
 void SetInstructionBitsInCodeSpace(Instruction* instr, Instr value,
                                    Heap* heap) {
   CodePageMemoryModificationScopeForDebugging scope(
-      BasicMemoryChunk::FromAddress(reinterpret_cast<Address>(instr)));
+      MemoryChunkMetadata::FromAddress(reinterpret_cast<Address>(instr)));
   instr->SetInstructionBits(value);
 }
 }  // namespace
@@ -429,7 +429,7 @@ void S390Debugger::Debug() {
           if (!skip_obj_print) {
             if (IsSmi(obj)) {
               PrintF(" (smi %d)", Smi::ToInt(obj));
-            } else if (IsValidHeapObject(current_heap, HeapObject::cast(obj))) {
+            } else if (IsValidHeapObject(current_heap, Cast<HeapObject>(obj))) {
               PrintF(" (");
               ShortPrint(obj);
               PrintF(")");

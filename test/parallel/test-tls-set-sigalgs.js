@@ -1,6 +1,9 @@
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto) common.skip('missing crypto');
+if (!common.hasCrypto) {
+  common.skip('missing crypto');
+}
+const { hasOpenSSL } = require('../common/crypto');
 const fixtures = require('../common/fixtures');
 
 // Test sigalgs: option for TLS.
@@ -8,13 +11,6 @@ const fixtures = require('../common/fixtures');
 const {
   assert, connect, keys
 } = require(fixtures.path('tls-connect'));
-
-function assert_arrays_equal(left, right) {
-  assert.strictEqual(left.length, right.length);
-  for (let i = 0; i < left.length; i++) {
-    assert.strictEqual(left[i], right[i]);
-  }
-}
 
 function test(csigalgs, ssigalgs, shared_sigalgs, cerr, serr) {
   assert(shared_sigalgs || serr || cerr, 'test missing any expectations');
@@ -43,16 +39,19 @@ function test(csigalgs, ssigalgs, shared_sigalgs, cerr, serr) {
       assert.ifError(pair.client.err);
       assert(pair.server.conn);
       assert(pair.client.conn);
-      assert_arrays_equal(pair.server.conn.getSharedSigalgs(), shared_sigalgs);
+      assert.deepStrictEqual(
+        pair.server.conn.getSharedSigalgs(),
+        shared_sigalgs
+      );
     } else {
       if (serr) {
         assert(pair.server.err);
-        assert(pair.server.err.code, serr);
+        assert.strictEqual(pair.server.err.code, serr);
       }
 
       if (cerr) {
         assert(pair.client.err);
-        assert(pair.client.err.code, cerr);
+        assert.strictEqual(pair.client.err.code, cerr);
       }
     }
 
@@ -67,8 +66,12 @@ test('RSA-PSS+SHA256:RSA-PSS+SHA512:ECDSA+SHA256',
      ['RSA-PSS+SHA256', 'ECDSA+SHA256']);
 
 // Do not have shared sigalgs.
+const handshakeErr = hasOpenSSL(3, 2) ?
+  'ERR_SSL_SSL/TLS_ALERT_HANDSHAKE_FAILURE' : 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE';
 test('RSA-PSS+SHA384', 'ECDSA+SHA256',
-     undefined, 'ECONNRESET', 'ERR_SSL_NO_SHARED_SIGNATURE_ALGORITMS');
+     undefined, handshakeErr,
+     'ERR_SSL_NO_SHARED_SIGNATURE_ALGORITHMS');
 
 test('RSA-PSS+SHA384:ECDSA+SHA256', 'ECDSA+SHA384:RSA-PSS+SHA256',
-     undefined, 'ECONNRESET', 'ERR_SSL_NO_SHARED_SIGNATURE_ALGORITMS');
+     undefined, handshakeErr,
+     'ERR_SSL_NO_SHARED_SIGNATURE_ALGORITHMS');

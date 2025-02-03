@@ -69,6 +69,11 @@ class MaglevCodeGenState {
   }
   int stack_slots() const { return untagged_slots_ + tagged_slots_; }
   int tagged_slots() const { return tagged_slots_; }
+
+  uint16_t parameter_count() const {
+    return compilation_info_->toplevel_compilation_unit()->parameter_count();
+  }
+
   MaglevSafepointTableBuilder* safepoint_table_builder() const {
     return safepoint_table_builder_;
   }
@@ -103,11 +108,6 @@ class MaglevCodeGenState {
         signed_max_unoptimized_frame_height - optimized_frame_height, 0));
     uint32_t max_pushed_argument_bytes =
         static_cast<uint32_t>(max_call_stack_args_ * kSystemPointerSize);
-    if (v8_flags.deopt_to_baseline) {
-      // If we deopt to baseline, we need to be sure that we have enough space
-      // to recreate the unoptimize frame plus arguments to the largest call.
-      return frame_height_delta + max_pushed_argument_bytes;
-    }
     return std::max(frame_height_delta, max_pushed_argument_bytes);
   }
 

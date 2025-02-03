@@ -18,9 +18,10 @@ if (process.argv[2] === 'child') {
   return;
 }
 
-const cmd = `"${process.execPath}" "${__filename}" child`;
+const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" "${__filename}" child`;
 
 cp.exec(cmd, {
+  ...opts,
   timeout: kExpiringParentTimer,
 }, common.mustCall((err, stdout, stderr) => {
   console.log('[stdout]', stdout.trim());
@@ -38,7 +39,7 @@ cp.exec(cmd, {
   // At least starting with Darwin Kernel Version 16.4.0, sending a SIGTERM to a
   // process that is still starting up kills it with SIGKILL instead of SIGTERM.
   // See: https://github.com/libuv/libuv/issues/1226
-  if (common.isOSX)
+  if (common.isMacOS)
     assert.ok(err.signal === 'SIGTERM' || err.signal === 'SIGKILL');
   else
     assert.strictEqual(err.signal, sigterm);

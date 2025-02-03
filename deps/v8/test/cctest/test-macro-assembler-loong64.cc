@@ -60,9 +60,7 @@ TEST(BYTESWAP) {
   struct T {
     uint64_t s8;
     uint64_t s4;
-    uint64_t s2;
     uint64_t u4;
-    uint64_t u2;
   };
 
   T t;
@@ -82,24 +80,16 @@ TEST(BYTESWAP) {
   MacroAssembler* masm = &assembler;
 
   __ Ld_d(a4, MemOperand(a0, offsetof(T, s8)));
-  __ ByteSwapSigned(a4, a4, 8);
+  __ ByteSwap(a4, a4, 8);
   __ St_d(a4, MemOperand(a0, offsetof(T, s8)));
 
   __ Ld_d(a4, MemOperand(a0, offsetof(T, s4)));
-  __ ByteSwapSigned(a4, a4, 4);
+  __ ByteSwap(a4, a4, 4);
   __ St_d(a4, MemOperand(a0, offsetof(T, s4)));
 
-  __ Ld_d(a4, MemOperand(a0, offsetof(T, s2)));
-  __ ByteSwapSigned(a4, a4, 2);
-  __ St_d(a4, MemOperand(a0, offsetof(T, s2)));
-
   __ Ld_d(a4, MemOperand(a0, offsetof(T, u4)));
-  __ ByteSwapSigned(a4, a4, 4);
+  __ ByteSwap(a4, a4, 4);
   __ St_d(a4, MemOperand(a0, offsetof(T, u4)));
-
-  __ Ld_d(a4, MemOperand(a0, offsetof(T, u2)));
-  __ ByteSwapSigned(a4, a4, 2);
-  __ St_d(a4, MemOperand(a0, offsetof(T, u2)));
 
   __ jirl(zero_reg, ra, 0);
 
@@ -111,23 +101,17 @@ TEST(BYTESWAP) {
 
   for (size_t i = 0; i < arraysize(test_values); i++) {
     int32_t in_s4 = static_cast<int32_t>(test_values[i]);
-    int16_t in_s2 = static_cast<int16_t>(test_values[i]);
     uint32_t in_u4 = static_cast<uint32_t>(test_values[i]);
-    uint16_t in_u2 = static_cast<uint16_t>(test_values[i]);
 
     t.s8 = test_values[i];
     t.s4 = static_cast<uint64_t>(in_s4);
-    t.s2 = static_cast<uint64_t>(in_s2);
     t.u4 = static_cast<uint64_t>(in_u4);
-    t.u2 = static_cast<uint64_t>(in_u2);
 
     f.Call(&t, 0, 0, 0, 0);
 
     CHECK_EQ(ByteReverse<uint64_t>(test_values[i]), t.s8);
     CHECK_EQ(ByteReverse<int32_t>(in_s4), static_cast<int32_t>(t.s4));
-    CHECK_EQ(ByteReverse<int16_t>(in_s2), static_cast<int16_t>(t.s2));
     CHECK_EQ(ByteReverse<uint32_t>(in_u4), static_cast<uint32_t>(t.u4));
-    CHECK_EQ(ByteReverse<uint16_t>(in_u2), static_cast<uint16_t>(t.u2));
   }
 }
 

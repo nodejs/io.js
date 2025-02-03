@@ -15,10 +15,15 @@
 #include "absl/synchronization/notification.h"
 
 #include <thread>  // NOLINT(build/c++11)
+#include <tuple>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/attributes.h"
+#include "absl/base/config.h"
+#include "absl/base/internal/tracing.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -128,6 +133,94 @@ TEST(NotificationTest, SanityTest) {
   BasicTests(false, &local_notification1);
   BasicTests(true, &local_notification2);
 }
+
+#if ABSL_HAVE_ATTRIBUTE_WEAK
+
+namespace base_internal {
+
+namespace {
+
+using TraceRecord = std::tuple<const void*, ObjectKind>;
+
+thread_local TraceRecord tls_signal;
+thread_local TraceRecord tls_wait;
+thread_local TraceRecord tls_continue;
+thread_local TraceRecord tls_observed;
+
+}  // namespace
+
+// Strong extern "C" implementation.
+extern "C" {
+
+void ABSL_INTERNAL_C_SYMBOL(AbslInternalTraceWait)(const void* object,
+                                                   ObjectKind kind) {
+  tls_wait = {object, kind};
+}
+
+void ABSL_INTERNAL_C_SYMBOL(AbslInternalTraceContinue)(const void* object,
+                                                       ObjectKind kind) {
+  tls_continue = {object, kind};
+}
+
+void ABSL_INTERNAL_C_SYMBOL(AbslInternalTraceSignal)(const void* object,
+                                                     ObjectKind kind) {
+  tls_signal = {object, kind};
+}
+
+void ABSL_INTERNAL_C_SYMBOL(AbslInternalTraceObserved)(const void* object,
+                                                       ObjectKind kind) {
+  tls_observed = {object, kind};
+}
+
+}  // extern "C"
+
+TEST(NotificationTest, TracesNotify) {
+  Notification n;
+  tls_signal = {};
+  n.Notify();
+  EXPECT_EQ(tls_signal, TraceRecord(&n, ObjectKind::kNotification));
+}
+
+TEST(NotificationTest, TracesWaitForNotification) {
+  Notification n;
+  n.Notify();
+  tls_wait = tls_continue = {};
+  n.WaitForNotification();
+  EXPECT_EQ(tls_wait, TraceRecord(&n, ObjectKind::kNotification));
+  EXPECT_EQ(tls_continue, TraceRecord(&n, ObjectKind::kNotification));
+}
+
+TEST(NotificationTest, TracesWaitForNotificationWithTimeout) {
+  Notification n;
+
+  tls_wait = tls_continue = {};
+  n.WaitForNotificationWithTimeout(absl::Milliseconds(1));
+  EXPECT_EQ(tls_wait, TraceRecord(&n, ObjectKind::kNotification));
+  EXPECT_EQ(tls_continue, TraceRecord(nullptr, ObjectKind::kNotification));
+
+  n.Notify();
+  tls_wait = tls_continue = {};
+  n.WaitForNotificationWithTimeout(absl::Milliseconds(1));
+  EXPECT_EQ(tls_wait, TraceRecord(&n, ObjectKind::kNotification));
+  EXPECT_EQ(tls_continue, TraceRecord(&n, ObjectKind::kNotification));
+}
+
+TEST(NotificationTest, TracesHasBeenNotified) {
+  Notification n;
+
+  tls_observed = {};
+  ASSERT_FALSE(n.HasBeenNotified());
+  EXPECT_EQ(tls_observed, TraceRecord(nullptr, ObjectKind::kUnknown));
+
+  n.Notify();
+  tls_observed = {};
+  ASSERT_TRUE(n.HasBeenNotified());
+  EXPECT_EQ(tls_observed, TraceRecord(&n, ObjectKind::kNotification));
+}
+
+}  // namespace base_internal
+
+#endif  // ABSL_HAVE_ATTRIBUTE_WEAK
 
 ABSL_NAMESPACE_END
 }  // namespace absl

@@ -205,8 +205,12 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
   // this point to make CodeDesc initialization less fiddly.
 
   static constexpr int kConstantPoolSize = 0;
+  static constexpr int kBuiltinJumpTableInfoSize = 0;
   const int instruction_size = pc_offset();
-  const int code_comments_offset = instruction_size - code_comments_size;
+  const int builtin_jump_table_info_offset =
+      instruction_size - kBuiltinJumpTableInfoSize;
+  const int code_comments_offset =
+      builtin_jump_table_info_offset - code_comments_size;
   const int constant_pool_offset = code_comments_offset - kConstantPoolSize;
   const int handler_table_offset2 = (handler_table_offset == kNoHandlerTable)
                                         ? constant_pool_offset
@@ -219,7 +223,8 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
       static_cast<int>(reloc_info_writer.pos() - buffer_->start());
   CodeDesc::Initialize(desc, this, safepoint_table_offset,
                        handler_table_offset2, constant_pool_offset,
-                       code_comments_offset, reloc_info_offset);
+                       code_comments_offset, builtin_jump_table_info_offset,
+                       reloc_info_offset);
 }
 
 void Assembler::Align(int m) {
@@ -361,10 +366,9 @@ bool Assembler::IsMov(Instr instr, Register rd, Register rj) {
   return instr == instr1;
 }
 
-bool Assembler::IsPcAddi(Instr instr, Register rd, int32_t si20) {
-  DCHECK(is_int20(si20));
-  Instr instr1 = PCADDI | (si20 & 0xfffff) << kRjShift | rd.code();
-  return instr == instr1;
+bool Assembler::IsPcAddi(Instr instr) {
+  uint32_t opcode = (instr >> 25) << 25;
+  return opcode == PCADDI;
 }
 
 bool Assembler::IsNop(Instr instr, unsigned int type) {
@@ -453,26 +457,23 @@ int Assembler::target_at(int pos, bool is_internal) {
     }
   }
 
-  // Check we have a branch or jump instruction.
-  DCHECK(IsBranch(instr) || IsPcAddi(instr, t8, 16));
+  // Check we have a branch, jump or pcaddi instruction.
+  DCHECK(IsBranch(instr) || IsPcAddi(instr));
   // Do NOT change this to <<2. We rely on arithmetic shifts here, assuming
   // the compiler uses arithmetic shifts for signed integers.
   if (IsBranch(instr)) {
     return AddBranchOffset(pos, instr);
-  } else {
-    DCHECK(IsPcAddi(instr, t8, 16));
-    // see BranchLong(Label* L) and BranchAndLinkLong ??
-    int32_t imm32;
-    Instr instr_lu12i_w = instr_at(pos + 1 * kInstrSize);
-    Instr instr_ori = instr_at(pos + 2 * kInstrSize);
-    DCHECK(IsLu12i_w(instr_lu12i_w));
-    imm32 = ((instr_lu12i_w >> 5) & 0xfffff) << 12;
-    imm32 |= ((instr_ori >> 10) & static_cast<int32_t>(kImm12Mask));
-    if (imm32 == kEndOfJumpChain) {
+  } else if (IsPcAddi(instr)) {
+    // see LoadLabelRelative
+    int32_t si20;
+    si20 = (instr >> kRjShift) & 0xfffff;
+    if (si20 == kEndOfJumpChain) {
       // EndOfChain sentinel is returned directly, not relative to pc or pos.
       return kEndOfChain;
     }
-    return pos + imm32;
+    return pos + (si20 << 2);
+  } else {
+    UNREACHABLE();
   }
 }
 
@@ -518,6 +519,18 @@ void Assembler::target_at_put(int pos, int target_pos, bool is_internal) {
     // Make label relative to Code pointer of generated Code object.
     instr_at_put(
         pos, target_pos + (InstructionStream::kHeaderSize - kHeapObjectTag));
+    return;
+  }
+
+  if (IsPcAddi(instr)) {
+    // For LoadLabelRelative function.
+    int32_t imm = target_pos - pos;
+    DCHECK_EQ(imm & 3, 0);
+    DCHECK(is_int22(imm));
+    uint32_t siMask = 0xfffff << kRjShift;
+    uint32_t si20 = ((imm >> 2) << kRjShift) & siMask;
+    instr = (instr & ~siMask) | si20;
+    instr_at_put(pos, instr);
     return;
   }
 
@@ -585,7 +598,7 @@ void Assembler::bind_to(Label* L, int pos) {
         target_at_put(fixup_pos, pos, false);
       } else {
         DCHECK(IsJ(instr) || IsLu12i_w(instr) || IsEmittedConstant(instr) ||
-               IsPcAddi(instr, t8, 8));
+               IsPcAddi(instr));
         target_at_put(fixup_pos, pos, false);
       }
     }

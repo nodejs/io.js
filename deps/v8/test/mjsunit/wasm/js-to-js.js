@@ -1,8 +1,7 @@
 // Copyright 2023 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-// Flags: --experimental-wasm-type-reflection --wasm-js-js-generic-wrapper
-// Flags: --wasm-wrapper-tiering-budget=2 --allow-natives-syntax
+// Flags: --experimental-wasm-type-reflection
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -89,17 +88,6 @@ const tests = [
       {parameters: ['f32', 'anyfunc'], results: []}, () => 'no function');
 
   assertThrows(() => jsFunc(32, 'no function'), TypeError);
-})();
-
-(function TestTierup() {
-  print(arguments.callee.name);
-  const jsFunc =
-      new WebAssembly.Function({parameters: [], results: []}, () => 15);
-
-  assertTrue(%HasUnoptimizedJSToJSWrapper(jsFunc));
-  jsFunc();
-  jsFunc();
-  assertTrue(!%HasUnoptimizedJSToJSWrapper(jsFunc));
 })();
 
 (function TestParamPops() {

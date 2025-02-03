@@ -229,6 +229,11 @@ overhead.
 <!-- YAML
 added: v0.3.1
 changes:
+  - version:
+    - v22.8.0
+    - v20.18.0
+    pr-url: https://github.com/nodejs/node/pull/54394
+    description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
   - version: v14.6.0
     pr-url: https://github.com/nodejs/node/pull/34023
     description: The `microtaskMode` option is supported now.
@@ -240,8 +245,9 @@ changes:
     description: The `breakOnSigint` option is supported now.
 -->
 
-* `contextObject` {Object} An object that will be [contextified][]. If
-  `undefined`, a new object will be created.
+* `contextObject` {Object|vm.constants.DONT\_CONTEXTIFY|undefined}
+  Either [`vm.constants.DONT_CONTEXTIFY`][] or an object that will be [contextified][].
+  If `undefined`, an empty contextified object will be created for backwards compatibility.
 * `options` {Object}
   * `displayErrors` {boolean} When `true`, if an [`Error`][] occurs
     while compiling the `code`, the line of code causing the error is attached
@@ -275,9 +281,16 @@ changes:
     `breakOnSigint` scopes in that case.
 * Returns: {any} the result of the very last statement executed in the script.
 
-First contextifies the given `contextObject`, runs the compiled code contained
-by the `vm.Script` object within the created context, and returns the result.
-Running code does not have access to local scope.
+This method is a shortcut to `script.runInContext(vm.createContext(options), options)`.
+It does several things at once:
+
+1. Creates a new context.
+2. If `contextObject` is an object, [contextifies][contextified] it with the new context.
+   If  `contextObject` is undefined, creates a new object and [contextifies][contextified] it.
+   If `contextObject` is [`vm.constants.DONT_CONTEXTIFY`][], don't [contextify][contextified] anything.
+3. Runs the compiled code contained by the `vm.Script` object within the created context. The code
+   does not have access to the scope in which this method is called.
+4. Returns the result.
 
 The following example compiles code that sets a global variable, then executes
 the code multiple times in different contexts. The globals are set on and
@@ -295,6 +308,12 @@ contexts.forEach((context) => {
 
 console.log(contexts);
 // Prints: [{ globalVar: 'set' }, { globalVar: 'set' }, { globalVar: 'set' }]
+
+// This would throw if the context is created from a contextified object.
+// vm.constants.DONT_CONTEXTIFY allows creating contexts with ordinary
+// global objects that can be frozen.
+const freezeScript = new vm.Script('Object.freeze(globalThis); globalThis;');
+const frozenContext = freezeScript.runInNewContext(vm.constants.DONT_CONTEXTIFY);
 ```
 
 ### `script.runInThisContext([options])`
@@ -1073,6 +1092,11 @@ For detailed information, see
 added: v0.3.1
 changes:
   - version:
+    - v22.8.0
+    - v20.18.0
+    pr-url: https://github.com/nodejs/node/pull/54394
+    description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
+  - version:
     - v21.7.0
     - v20.12.0
     pr-url: https://github.com/nodejs/node/pull/51244
@@ -1094,7 +1118,9 @@ changes:
     description: The `codeGeneration` option is supported now.
 -->
 
-* `contextObject` {Object}
+* `contextObject` {Object|vm.constants.DONT\_CONTEXTIFY|undefined}
+  Either [`vm.constants.DONT_CONTEXTIFY`][] or an object that will be [contextified][].
+  If `undefined`, an empty contextified object will be created for backwards compatibility.
 * `options` {Object}
   * `name` {string} Human-readable name of the newly created context.
     **Default:** `'VM Context i'`, where `i` is an ascending numerical index of
@@ -1124,10 +1150,10 @@ changes:
     [Support of dynamic `import()` in compilation APIs][].
 * Returns: {Object} contextified object.
 
-If given a `contextObject`, the `vm.createContext()` method will [prepare that
+If the given `contextObject` is an object, the `vm.createContext()` method will [prepare that
 object][contextified] and return a reference to it so that it can be used in
 calls to [`vm.runInContext()`][] or [`script.runInContext()`][]. Inside such
-scripts, the `contextObject` will be the global object, retaining all of its
+scripts, the global object will be wrapped by the `contextObject`, retaining all of its
 existing properties but also having the built-in objects and functions any
 standard [global object][] has. Outside of scripts run by the vm module, global
 variables will remain unchanged.
@@ -1152,6 +1178,11 @@ console.log(global.globalVar);
 If `contextObject` is omitted (or passed explicitly as `undefined`), a new,
 empty [contextified][] object will be returned.
 
+When the global object in the newly created context is [contextified][], it has some quirks
+compared to ordinary global objects. For example, it cannot be frozen. To create a context
+without the contextifying quirks, pass [`vm.constants.DONT_CONTEXTIFY`][] as the `contextObject`
+argument. See the documentation of [`vm.constants.DONT_CONTEXTIFY`][] for details.
+
 The `vm.createContext()` method is primarily useful for creating a single
 context that can be used to run multiple scripts. For instance, if emulating a
 web browser, the method can be used to create a single context representing a
@@ -1171,7 +1202,8 @@ added: v0.11.7
 * Returns: {boolean}
 
 Returns `true` if the given `object` object has been [contextified][] using
-[`vm.createContext()`][].
+[`vm.createContext()`][], or if it's the global object of a context created
+using [`vm.constants.DONT_CONTEXTIFY`][].
 
 ## `vm.measureMemory([options])`
 
@@ -1333,6 +1365,11 @@ console.log(contextObject);
 added: v0.3.1
 changes:
   - version:
+    - v22.8.0
+    - v20.18.0
+    pr-url: https://github.com/nodejs/node/pull/54394
+    description: The `contextObject` argument now accepts `vm.constants.DONT_CONTEXTIFY`.
+  - version:
     - v21.7.0
     - v20.12.0
     pr-url: https://github.com/nodejs/node/pull/51244
@@ -1356,8 +1393,9 @@ changes:
 -->
 
 * `code` {string} The JavaScript code to compile and run.
-* `contextObject` {Object} An object that will be [contextified][]. If
-  `undefined`, a new object will be created.
+* `contextObject` {Object|vm.constants.DONT\_CONTEXTIFY|undefined}
+  Either [`vm.constants.DONT_CONTEXTIFY`][] or an object that will be [contextified][].
+  If `undefined`, an empty contextified object will be created for backwards compatibility.
 * `options` {Object|string}
   * `filename` {string} Specifies the filename used in stack traces produced
     by this script. **Default:** `'evalmachine.<anonymous>'`.
@@ -1407,12 +1445,20 @@ changes:
     `breakOnSigint` scopes in that case.
 * Returns: {any} the result of the very last statement executed in the script.
 
-The `vm.runInNewContext()` first contextifies the given `contextObject` (or
-creates a new `contextObject` if passed as `undefined`), compiles the `code`,
-runs it within the created context, then returns the result. Running code
-does not have access to the local scope.
-
+This method is a shortcut to
+`(new vm.Script(code, options)).runInContext(vm.createContext(options), options)`.
 If `options` is a string, then it specifies the filename.
+
+It does several things at once:
+
+1. Creates a new context.
+2. If `contextObject` is an object, [contextifies][contextified] it with the new context.
+   If  `contextObject` is undefined, creates a new object and [contextifies][contextified] it.
+   If `contextObject` is [`vm.constants.DONT_CONTEXTIFY`][], don't [contextify][contextified] anything.
+3. Compiles the code as a`vm.Script`
+4. Runs the compield code within the created context. The code does not have access to the scope in
+   which this method is called.
+5. Returns the result.
 
 The following example compiles and executes code that increments a global
 variable and sets a new one. These globals are contained in the `contextObject`.
@@ -1428,6 +1474,11 @@ const contextObject = {
 vm.runInNewContext('count += 1; name = "kitty"', contextObject);
 console.log(contextObject);
 // Prints: { animal: 'cat', count: 3, name: 'kitty' }
+
+// This would throw if the context is created from a contextified object.
+// vm.constants.DONT_CONTEXTIFY allows creating contexts with ordinary global objects that
+// can be frozen.
+const frozenContext = vm.runInNewContext('Object.freeze(globalThis); globalThis;', vm.constants.DONT_CONTEXTIFY);
 ```
 
 ## `vm.runInThisContext(code[, options])`
@@ -1555,13 +1606,85 @@ According to the [V8 Embedder's Guide][]:
 > JavaScript applications to run in a single instance of V8. You must explicitly
 > specify the context in which you want any JavaScript code to be run.
 
-When the method `vm.createContext()` is called, the `contextObject` argument
-(or a newly-created object if `contextObject` is `undefined`) is associated
-internally with a new instance of a V8 Context. This V8 Context provides the
-`code` run using the `node:vm` module's methods with an isolated global
-environment within which it can operate. The process of creating the V8 Context
-and associating it with the `contextObject` is what this document refers to as
-"contextifying" the object.
+When the method `vm.createContext()` is called with an object, the `contextObject` argument
+will be used to wrap the global object of a new instance of a V8 Context
+(if `contextObject` is `undefined`, a new object will be created from the current context
+before its contextified). This V8 Context provides the `code` run using the `node:vm`
+module's methods with an isolated global environment within which it can operate.
+The process of creating the V8 Context and associating it with the `contextObject`
+in the outer context is what this document refers to as "contextifying" the object.
+
+The contextifying would introduce some quirks to the `globalThis` value in the context.
+For example, it cannot be frozen, and it is not reference equal to the `contextObject`
+in the outer context.
+
+```js
+const vm = require('node:vm');
+
+// An undefined `contextObject` option makes the global object contextified.
+const context = vm.createContext();
+console.log(vm.runInContext('globalThis', context) === context);  // false
+// A contextified global object cannot be frozen.
+try {
+  vm.runInContext('Object.freeze(globalThis);', context);
+} catch (e) {
+  console.log(e); // TypeError: Cannot freeze
+}
+console.log(vm.runInContext('globalThis.foo = 1; foo;', context));  // 1
+```
+
+To create a context with an ordinary global object and get access to a global proxy in
+the outer context with fewer quirks, specify `vm.constants.DONT_CONTEXTIFY` as the
+`contextObject` argument.
+
+### `vm.constants.DONT_CONTEXTIFY`
+
+This constant, when used as the `contextObject` argument in vm APIs, instructs Node.js to create
+a context without wrapping its global object with another object in a Node.js-specific manner.
+As a result, the `globalThis` value inside the new context would behave more closely to an ordinary
+one.
+
+```js
+const vm = require('node:vm');
+
+// Use vm.constants.DONT_CONTEXTIFY to freeze the global object.
+const context = vm.createContext(vm.constants.DONT_CONTEXTIFY);
+vm.runInContext('Object.freeze(globalThis);', context);
+try {
+  vm.runInContext('bar = 1; bar;', context);
+} catch (e) {
+  console.log(e); // Uncaught ReferenceError: bar is not defined
+}
+```
+
+When `vm.constants.DONT_CONTEXTIFY` is used as the `contextObject` argument to [`vm.createContext()`][],
+the returned object is a proxy-like object to the global object in the newly created context with
+fewer Node.js-specific quirks. It is reference equal to the `globalThis` value in the new context,
+can be modified from outside the context, and can be used to access built-ins in the new context directly.
+
+```js
+const vm = require('node:vm');
+
+const context = vm.createContext(vm.constants.DONT_CONTEXTIFY);
+
+// Returned object is reference equal to globalThis in the new context.
+console.log(vm.runInContext('globalThis', context) === context);  // true
+
+// Can be used to access globals in the new context directly.
+console.log(context.Array);  // [Function: Array]
+vm.runInContext('foo = 1;', context);
+console.log(context.foo);  // 1
+context.bar = 1;
+console.log(vm.runInContext('bar;', context));  // 1
+
+// Can be frozen and it affects the inner context.
+Object.freeze(context);
+try {
+  vm.runInContext('baz = 1; baz;', context);
+} catch (e) {
+  console.log(e); // Uncaught ReferenceError: baz is not defined
+}
+```
 
 ## Timeout interactions with asynchronous tasks and Promises
 
@@ -1851,6 +1974,7 @@ const { Script, SyntheticModule } = require('node:vm');
 [`script.runInThisContext()`]: #scriptruninthiscontextoptions
 [`url.origin`]: url.md#urlorigin
 [`vm.compileFunction()`]: #vmcompilefunctioncode-params-options
+[`vm.constants.DONT_CONTEXTIFY`]: #vmconstantsdont_contextify
 [`vm.createContext()`]: #vmcreatecontextcontextobject-options
 [`vm.runInContext()`]: #vmrunincontextcode-contextifiedobject-options
 [`vm.runInThisContext()`]: #vmruninthiscontextcode-options

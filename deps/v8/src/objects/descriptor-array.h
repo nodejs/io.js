@@ -62,8 +62,8 @@ class DescriptorArray
   void ClearEnumCache();
   inline void CopyEnumCacheFrom(Tagged<DescriptorArray> array);
   static void InitializeOrChangeEnumCache(
-      Handle<DescriptorArray> descriptors, Isolate* isolate,
-      Handle<FixedArray> keys, Handle<FixedArray> indices,
+      DirectHandle<DescriptorArray> descriptors, Isolate* isolate,
+      DirectHandle<FixedArray> keys, DirectHandle<FixedArray> indices,
       AllocationType allocation_if_initialize);
 
   // Accessors for fetching instance descriptor at descriptor number.
@@ -73,9 +73,9 @@ class DescriptorArray
   inline Tagged<Object> GetStrongValue(InternalIndex descriptor_number);
   inline Tagged<Object> GetStrongValue(PtrComprCageBase cage_base,
                                        InternalIndex descriptor_number);
-  inline MaybeObject GetValue(InternalIndex descriptor_number);
-  inline MaybeObject GetValue(PtrComprCageBase cage_base,
-                              InternalIndex descriptor_number);
+  inline Tagged<MaybeObject> GetValue(InternalIndex descriptor_number);
+  inline Tagged<MaybeObject> GetValue(PtrComprCageBase cage_base,
+                                      InternalIndex descriptor_number);
   inline PropertyDetails GetDetails(InternalIndex descriptor_number);
   inline int GetFieldIndex(InternalIndex descriptor_number);
   inline Tagged<FieldType> GetFieldType(InternalIndex descriptor_number);
@@ -90,12 +90,12 @@ class DescriptorArray
   // Accessor for complete descriptor.
   inline void Set(InternalIndex descriptor_number, Descriptor* desc);
   inline void Set(InternalIndex descriptor_number, Tagged<Name> key,
-                  MaybeObject value, PropertyDetails details);
+                  Tagged<MaybeObject> value, PropertyDetails details);
   void Replace(InternalIndex descriptor_number, Descriptor* descriptor);
 
   // Generalizes constness, representation and field type of all field
   // descriptors.
-  void GeneralizeAllFields();
+  void GeneralizeAllFields(bool clear_constness);
 
   // Append automatically sets the enumeration index. This should only be used
   // to add descriptors in bulk at the end, followed by sorting the descriptor
@@ -103,12 +103,12 @@ class DescriptorArray
   inline void Append(Descriptor* desc);
 
   static Handle<DescriptorArray> CopyUpTo(Isolate* isolate,
-                                          Handle<DescriptorArray> desc,
+                                          DirectHandle<DescriptorArray> desc,
                                           int enumeration_index, int slack = 0);
 
   static Handle<DescriptorArray> CopyUpToAddAttributes(
-      Isolate* isolate, Handle<DescriptorArray> desc, int enumeration_index,
-      PropertyAttributes attributes, int slack = 0);
+      Isolate* isolate, DirectHandle<DescriptorArray> desc,
+      int enumeration_index, PropertyAttributes attributes, int slack = 0);
 
   // Sort the instance descriptors by the hash codes of their keys.
   V8_EXPORT_PRIVATE void Sort();
@@ -227,7 +227,8 @@ class DescriptorArray
 
  private:
   inline void SetKey(InternalIndex descriptor_number, Tagged<Name> key);
-  inline void SetValue(InternalIndex descriptor_number, MaybeObject value);
+  inline void SetValue(InternalIndex descriptor_number,
+                       Tagged<MaybeObject> value);
   inline void SetDetails(InternalIndex descriptor_number,
                          PropertyDetails details);
 

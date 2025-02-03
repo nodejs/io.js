@@ -4,7 +4,7 @@ const common = require('../common');
 if (!common.hasCrypto) common.skip('missing crypto');
 
 const fixtures = require('../common/fixtures');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 const net = require('net');
 const assert = require('assert');
 const tls = require('tls');
@@ -41,7 +41,7 @@ const server = net.createServer((conn) => {
   conn.on('error', common.mustNotCall());
   // Assume that we want to use data to determine what to do with connections.
   conn.once('data', common.mustCall((chunk) => {
-    const { clientSide, serverSide } = makeDuplexPair();
+    const [ clientSide, serverSide ] = duplexPair();
     serverSide.on('close', common.mustCall(() => {
       conn.destroy();
     }));

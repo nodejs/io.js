@@ -84,26 +84,21 @@ enum class DecodingMethod {
   kDeserialize
 };
 
-enum PopulateExplicitRecGroups {
-  kDoNotPopulateExplicitRecGroups,
-  kPopulateExplicitRecGroups
-};
-
 // Decodes the bytes of a wasm module in {wire_bytes} while recording events and
 // updating counters.
 V8_EXPORT_PRIVATE ModuleResult DecodeWasmModule(
-    WasmFeatures enabled_features, base::Vector<const uint8_t> wire_bytes,
-    bool validate_functions, ModuleOrigin origin, Counters* counters,
+    WasmEnabledFeatures enabled_features,
+    base::Vector<const uint8_t> wire_bytes, bool validate_functions,
+    ModuleOrigin origin, Counters* counters,
     std::shared_ptr<metrics::Recorder> metrics_recorder,
     v8::metrics::Recorder::ContextId context_id,
     DecodingMethod decoding_method);
 // Decodes the bytes of a wasm module in {wire_bytes} without recording events
 // or updating counters.
-V8_EXPORT_PRIVATE ModuleResult DecodeWasmModule(
-    WasmFeatures enabled_features, base::Vector<const uint8_t> wire_bytes,
-    bool validate_functions, ModuleOrigin origin,
-    PopulateExplicitRecGroups populate_explicit_rec_groups =
-        kDoNotPopulateExplicitRecGroups);
+V8_EXPORT_PRIVATE ModuleResult
+DecodeWasmModule(WasmEnabledFeatures enabled_features,
+                 base::Vector<const uint8_t> wire_bytes,
+                 bool validate_functions, ModuleOrigin origin);
 // Stripped down version for disassembler needs.
 V8_EXPORT_PRIVATE ModuleResult DecodeWasmModuleForDisassembler(
     base::Vector<const uint8_t> wire_bytes, ITracer* tracer);
@@ -111,17 +106,17 @@ V8_EXPORT_PRIVATE ModuleResult DecodeWasmModuleForDisassembler(
 // Exposed for testing. Decodes a single function signature, allocating it
 // in the given zone.
 V8_EXPORT_PRIVATE Result<const FunctionSig*> DecodeWasmSignatureForTesting(
-    WasmFeatures enabled_features, Zone* zone,
+    WasmEnabledFeatures enabled_features, Zone* zone,
     base::Vector<const uint8_t> bytes);
 
 // Decodes the bytes of a wasm function in {function_bytes} (part of
 // {wire_bytes}).
 V8_EXPORT_PRIVATE FunctionResult DecodeWasmFunctionForTesting(
-    WasmFeatures enabled, Zone* zone, ModuleWireBytes wire_bytes,
+    WasmEnabledFeatures enabled, Zone* zone, ModuleWireBytes wire_bytes,
     const WasmModule* module, base::Vector<const uint8_t> function_bytes);
 
 V8_EXPORT_PRIVATE ConstantExpression DecodeWasmInitExprForTesting(
-    WasmFeatures enabled_features, base::Vector<const uint8_t> bytes,
+    WasmEnabledFeatures enabled_features, base::Vector<const uint8_t> bytes,
     ValueType expected);
 
 struct CustomSectionOffset {
@@ -149,7 +144,7 @@ void DecodeFunctionNames(base::Vector<const uint8_t> wire_bytes,
 // valid. {filter} determines which functions are validated. Pass an empty
 // function for "all functions". The {filter} callback needs to be thread-safe.
 V8_EXPORT_PRIVATE WasmError ValidateFunctions(
-    const WasmModule*, WasmFeatures enabled_features,
+    const WasmModule*, WasmEnabledFeatures enabled_features,
     base::Vector<const uint8_t> wire_bytes, std::function<bool(int)> filter);
 
 WasmError GetWasmErrorWithName(base::Vector<const uint8_t> wire_bytes,
@@ -160,7 +155,7 @@ class ModuleDecoderImpl;
 
 class ModuleDecoder {
  public:
-  explicit ModuleDecoder(WasmFeatures enabled_feature);
+  explicit ModuleDecoder(WasmEnabledFeatures enabled_feature);
   ~ModuleDecoder();
 
   void DecodeModuleHeader(base::Vector<const uint8_t> bytes);

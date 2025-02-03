@@ -101,13 +101,17 @@ constexpr size_t kMediumCutoff = 2048;
 namespace {
 
 uint32_t multiply(uint32_t a, uint32_t b) {
-  V128 shifts = V128_From2x64(0, 1);
-  V128 power = V128_From2x64(0, a);
-  V128 crc = V128_From2x64(0, b);
+  V128 power = V128_From64WithZeroFill(a);
+  V128 crc = V128_From64WithZeroFill(b);
   V128 res = V128_PMulLow(power, crc);
 
-  // Combine crc values
-  res = V128_ShiftLeft64(res, shifts);
+  // Combine crc values.
+  //
+  // Adding res to itself is equivalent to multiplying by 2,
+  // or shifting left by 1. Addition is used as not all compilers
+  // are able to generate optimal code without this hint.
+  // https://godbolt.org/z/rr3fMnf39
+  res = V128_Add64(res, res);
   return static_cast<uint32_t>(V128_Extract32<1>(res)) ^
          CRC32_u32(0, static_cast<uint32_t>(V128_Low64(res)));
 }
@@ -444,11 +448,11 @@ class CRC32AcceleratedX86ARMCombinedMultipleStreams
 
         V128 magic = *(reinterpret_cast<const V128*>(kClmulConstants) + bs - 1);
 
-        V128 tmp = V128_From2x64(0, l64);
+        V128 tmp = V128_From64WithZeroFill(l64);
 
         V128 res1 = V128_PMulLow(tmp, magic);
 
-        tmp = V128_From2x64(0, l641);
+        tmp = V128_From64WithZeroFill(l641);
 
         V128 res2 = V128_PMul10(tmp, magic);
         V128 x = V128_Xor(res1, res2);

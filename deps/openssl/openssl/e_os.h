@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2022 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -296,20 +296,18 @@ static ossl_inline void ossl_sleep(unsigned long millis)
     ts.tv_sec = (long int) (millis / 1000);
     ts.tv_nsec = (long int) (millis % 1000) * 1000000ul;
     nanosleep(&ts, NULL);
-# elif defined(__TANDEM)
-#  if !defined(_REENTRANT)
+# elif defined(__TANDEM) && !defined(_REENTRANT)
 #   include <cextdecs.h(PROCESS_DELAY_)>
+
     /* HPNS does not support usleep for non threaded apps */
     PROCESS_DELAY_(millis * 1000);
-#  elif defined(_SPT_MODEL_)
-#   include <spthread.h>
-#   include <spt_extensions.h>
-    usleep(millis * 1000);
-#  else
-    usleep(millis * 1000);
-#  endif
 # else
-    usleep(millis * 1000);
+    unsigned int s = (unsigned int)(millis / 1000);
+    unsigned int us = (unsigned int)((millis % 1000) * 1000);
+
+    if (s > 0)
+        sleep(s);
+    usleep(us);
 # endif
 }
 #elif defined(_WIN32)

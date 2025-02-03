@@ -156,7 +156,7 @@ FormattedStringBuilder::insertCodePoint(int32_t index, UChar32 codePoint, Field 
     auto* charPtr = getCharPtr();
     auto* fieldPtr = getFieldPtr();
     if (count == 1) {
-        charPtr[position] = (char16_t) codePoint;
+        charPtr[position] = static_cast<char16_t>(codePoint);
         fieldPtr[position] = field;
     } else {
         charPtr[position] = U16_LEAD(codePoint);

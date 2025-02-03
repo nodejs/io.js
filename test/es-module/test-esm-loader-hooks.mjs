@@ -179,10 +179,10 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
     });
   });
 
-  it('should work without worker permission', async () => {
+  it('should not work without worker permission', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read',
       '*',
       '--experimental-loader',
@@ -190,16 +190,16 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
       fixtures.path('es-modules/esm-top-level-await.mjs'),
     ]);
 
-    assert.strictEqual(stderr, '');
-    assert.match(stdout, /^1\r?\n2\r?\n$/);
-    assert.strictEqual(code, 0);
+    assert.match(stderr, /Error: Access to this API has been restricted/);
+    assert.strictEqual(stdout, '');
+    assert.strictEqual(code, 1);
     assert.strictEqual(signal, null);
   });
 
   it('should allow loader hooks to spawn workers when allowed by the CLI flags', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
-      '--experimental-permission',
+      '--permission',
       '--allow-worker',
       '--allow-fs-read',
       '*',
@@ -217,7 +217,7 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should not allow loader hooks to spawn workers if restricted by the CLI flags', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
-      '--experimental-permission',
+      '--permission',
       '--allow-fs-read',
       '*',
       '--experimental-loader',
@@ -751,15 +751,15 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
       '--no-warnings',
       '--experimental-loader',
       `data:text/javascript,import{readFile}from"node:fs/promises";import{fileURLToPath}from"node:url";export ${
-        async function load(u, c, n) {
-          const r = await n(u, c);
-          if (u.endsWith('/common/index.js')) {
-            r.source = '"use strict";module.exports=require("node:module").createRequire(' +
-                     `${JSON.stringify(u)})(${JSON.stringify(fileURLToPath(u))});\n`;
-          } else if (c.format === 'commonjs') {
-            r.source = await readFile(new URL(u));
+        async function load(url, context, nextLoad) {
+          const result = await nextLoad(url, context);
+          if (url.endsWith('/common/index.js')) {
+            result.source = '"use strict";module.exports=require("node:module").createRequire(' +
+                     `${JSON.stringify(url)})(${JSON.stringify(fileURLToPath(url))});\n`;
+          } else if (url.startsWith('file:') && (context.format == null || context.format === 'commonjs')) {
+            result.source = await readFile(new URL(url));
           }
-          return r;
+          return result;
         }}`,
       '--experimental-loader',
       fixtures.fileURL('es-module-loaders/loader-resolve-passthru.mjs'),
@@ -772,19 +772,33 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
     assert.strictEqual(signal, null);
   });
 
+  describe('should use hooks', async () => {
+    const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
+      '--no-experimental-require-module',
+      '--import',
+      fixtures.fileURL('es-module-loaders/builtin-named-exports.mjs'),
+      fixtures.path('es-modules/require-esm-throws-with-loaders.js'),
+    ]);
+
+    assert.strictEqual(stderr, '');
+    assert.strictEqual(stdout, '');
+    assert.strictEqual(code, 0);
+    assert.strictEqual(signal, null);
+  });
+
   it('should support source maps in commonjs translator', async () => {
     const readFile = async () => {};
     const hook = `
     import { readFile } from 'node:fs/promises';
     export ${
-  async function load(url, context, nextLoad) {
-    const resolved = await nextLoad(url, context);
-    if (context.format === 'commonjs') {
-      resolved.source = await readFile(new URL(url));
-    }
-    return resolved;
-  }
-}`;
+      async function load(url, context, nextLoad) {
+        const resolved = await nextLoad(url, context);
+        if (context.format === 'commonjs') {
+          resolved.source = await readFile(new URL(url));
+        }
+        return resolved;
+      }
+    }`;
 
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
@@ -793,8 +807,8 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
       `data:text/javascript,${encodeURIComponent(`
       import{ register } from "node:module";
       register(${
-  JSON.stringify('data:text/javascript,' + encodeURIComponent(hook))
-});
+        JSON.stringify('data:text/javascript,' + encodeURIComponent(hook))
+      });
       `)}`,
       fixtures.path('source-map/throw-on-require.js'),
     ]);
@@ -809,7 +823,7 @@ describe('Loader hooks', { concurrency: !process.env.TEST_PARALLEL }, () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(execPath, [
       '--no-warnings',
       '--experimental-loader',
-      `data:text/javascript,const fixtures=${JSON.stringify(fixtures.path('empty.js'))};export ${
+      `data:text/javascript,const fixtures=${encodeURI(JSON.stringify(fixtures.path('empty.js')))};export ${
         encodeURIComponent(function resolve(s, c, n) {
           if (s.endsWith('entry-point')) {
             return {

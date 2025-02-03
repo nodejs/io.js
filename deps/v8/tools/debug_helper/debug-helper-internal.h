@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "debug-helper.h"
+#include "src/common/globals.h"
 #include "src/objects/instance-type.h"
 
 namespace d = v8::debug_helper;

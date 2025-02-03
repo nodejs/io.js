@@ -141,28 +141,6 @@ module.exports = [
     ],
   },
   {
-    name: 'libnpmhook',
-    scope: 'unscoped',
-    version: '6.0.1',
-    description: 'programmatic API for managing npm registry hooks',
-    keywords: ['npm', 'hooks', 'registry', 'npm api'],
-    date: '2020-11-03T19:20:45.818Z',
-    links: {
-      npm: 'https://www.npmjs.com/package/libnpmhook',
-      homepage: 'https://github.com/npm/libnpmhook#readme',
-      repository: 'https://github.com/npm/libnpmhook',
-      bugs: 'https://github.com/npm/libnpmhook/issues',
-    },
-    author: { name: 'Kat Marchán', email: 'kzm@sykosomatic.org' },
-    publisher: { username: 'nlf', email: 'quitlahok@gmail.com' },
-    maintainers: [
-      { username: 'nlf', email: 'quitlahok@gmail.com' },
-      { username: 'ruyadorno', email: 'ruyadorno@hotmail.com' },
-      { username: 'darcyclarke', email: 'darcy@darcyclarke.me' },
-      { username: 'isaacs', email: 'i@izs.me' },
-    ],
-  },
-  {
     name: 'libnpmpublish',
     scope: 'unscoped',
     version: '4.0.0',
@@ -283,6 +261,7 @@ module.exports = [
     scope: 'unscoped',
     version: '1.0.0',
     date: '2019-09-26T22:24:28.713Z',
+    publisher: { username: 'lukekarrys', email: 'lukekarrys' },
     maintainers: [{ username: 'lukekarrys', email: 'lukekarrys' }],
   },
 ]

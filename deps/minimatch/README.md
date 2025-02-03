@@ -337,7 +337,7 @@ A number indicating the level of optimization that should be done
 to the pattern prior to parsing and using it for matches.
 
 Globstar parts `**` are always converted to `*` when `noglobstar`
-is set, and multiple adjascent `**` parts are converted into a
+is set, and multiple adjacent `**` parts are converted into a
 single `**` (ie, `a/**/**/b` will be treated as `a/**/b`, as this
 is equivalent in all cases).
 

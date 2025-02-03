@@ -202,25 +202,9 @@ selects.config_setting_group(
 )
 
 selects.config_setting_group(
-    name = "is_non_android_posix",
-    match_any = [
-        ":is_linux",
-        ":is_macos",
-    ],
-)
-
-selects.config_setting_group(
     name = "is_posix_x64",
     match_all = [
         ":is_posix",
-        ":is_x64",
-    ],
-)
-
-selects.config_setting_group(
-    name = "is_non_android_posix_x64",
-    match_all = [
-        ":is_non_android_posix",
         ":is_x64",
     ],
 )
@@ -301,14 +285,6 @@ selects.config_setting_group(
     name = "is_msvc_asm_arm64",
     match_all = [
         ":is_windows",
-        ":is_arm64",
-    ],
-)
-
-selects.config_setting_group(
-    name = "is_macos_arm64",
-    match_all = [
-        ":is_macos",
         ":is_arm64",
     ],
 )

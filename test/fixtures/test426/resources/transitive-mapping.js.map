@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "names": ["foo","x"],
+  "sources": ["transitive-mapping-original.js"],
+  "mappings":"AAAA,SAASA,IAAIC,GACT,OAAOA,CACX,CACAD,IAAI"
+}

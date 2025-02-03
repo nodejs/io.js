@@ -2,15 +2,9 @@
 const common = require('../common.js');
 
 const bench = common.createBenchmark(main, {
-  bytes: [0, 8, 128, 32 * 1024],
+  bytes: [8, 128, 1024],
   partial: ['true', 'false'],
   n: [6e6],
-}, {
-  combinationFilter: (p) => {
-    return (p.partial === 'false' && p.bytes === 0) ||
-           (p.partial !== 'false' && p.bytes !== 0);
-  },
-  test: { partial: 'false', bytes: 0 },
 });
 
 function main({ n, bytes, partial }) {

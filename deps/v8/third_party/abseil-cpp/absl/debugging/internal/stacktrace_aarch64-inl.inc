@@ -89,6 +89,8 @@ struct StackInfo {
 
 static bool InsideSignalStack(void** ptr, const StackInfo* stack_info) {
   uintptr_t comparable_ptr = reinterpret_cast<uintptr_t>(ptr);
+  if (stack_info->sig_stack_high == kUnknownStackEnd)
+    return false;
   return (comparable_ptr >= stack_info->sig_stack_low &&
           comparable_ptr < stack_info->sig_stack_high);
 }

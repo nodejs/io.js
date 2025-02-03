@@ -147,7 +147,7 @@ void TraceSigintWatchdog::New(const FunctionCallbackInfo<Value>& args) {
 
 void TraceSigintWatchdog::Start(const FunctionCallbackInfo<Value>& args) {
   TraceSigintWatchdog* watchdog;
-  ASSIGN_OR_RETURN_UNWRAP(&watchdog, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&watchdog, args.This());
   Mutex::ScopedLock lock(SigintWatchdogHelper::GetInstanceActionMutex());
   // Register this watchdog with the global SIGINT/Ctrl+C listener.
   SigintWatchdogHelper::GetInstance()->Register(watchdog);
@@ -158,7 +158,7 @@ void TraceSigintWatchdog::Start(const FunctionCallbackInfo<Value>& args) {
 
 void TraceSigintWatchdog::Stop(const FunctionCallbackInfo<Value>& args) {
   TraceSigintWatchdog* watchdog;
-  ASSIGN_OR_RETURN_UNWRAP(&watchdog, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&watchdog, args.This());
   Mutex::ScopedLock lock(SigintWatchdogHelper::GetInstanceActionMutex());
   SigintWatchdogHelper::GetInstance()->Unregister(watchdog);
   SigintWatchdogHelper::GetInstance()->Stop();

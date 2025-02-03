@@ -276,10 +276,6 @@ static void uv__fsevents_event_cb(const FSEventStreamRef streamRef,
         path += handle->realpath_len;
         len -= handle->realpath_len;
 
-        /* Ignore events with path equal to directory itself */
-        if (len <= 1 && (flags & kFSEventStreamEventFlagItemIsDir))
-          continue;
-
         if (len == 0) {
           /* Since we're using fsevents to watch the file itself,
            * realpath == path, and we now need to get the basename of the file back
@@ -793,6 +789,7 @@ int uv__cf_loop_signal(uv_loop_t* loop,
 
 /* Runs in UV loop to initialize handle */
 int uv__fsevents_init(uv_fs_event_t* handle) {
+  char* buf;
   int err;
   uv__cf_loop_state_t* state;
 
@@ -801,9 +798,13 @@ int uv__fsevents_init(uv_fs_event_t* handle) {
     return err;
 
   /* Get absolute path to file */
-  handle->realpath = realpath(handle->path, NULL);
-  if (handle->realpath == NULL)
+  buf = realpath(handle->path, NULL);
+  if (buf == NULL)
     return UV__ERR(errno);
+  handle->realpath = uv__strdup(buf);
+  free(buf); /* _Not_ uv__free. */
+  if (handle->realpath == NULL)
+    return UV_ENOMEM;
   handle->realpath_len = strlen(handle->realpath);
 
   /* Initialize event queue */

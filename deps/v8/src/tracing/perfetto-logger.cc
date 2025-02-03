@@ -196,7 +196,6 @@ void WriteJsCode(const CodeTraceContext& ctx,
     case CodeKind::WASM_TO_CAPI_FUNCTION:
     case CodeKind::WASM_TO_JS_FUNCTION:
     case CodeKind::JS_TO_WASM_FUNCTION:
-    case CodeKind::JS_TO_JS_FUNCTION:
     case CodeKind::C_WASM_ENTRY:
       UNREACHABLE();
   }
@@ -283,9 +282,6 @@ void PerfettoLogger::CodeCreateEvent(CodeTag tag,
     case CodeKind::JS_TO_WASM_FUNCTION:
       type = V8InternalCode::TYPE_JS_TO_WASM_FUNCTION;
       break;
-    case CodeKind::JS_TO_JS_FUNCTION:
-      type = V8InternalCode::TYPE_JS_TO_JS_FUNCTION;
-      break;
     case CodeKind::C_WASM_ENTRY:
       type = V8InternalCode::TYPE_C_WASM_ENTRY;
       break;
@@ -323,7 +319,7 @@ void PerfettoLogger::CodeCreateEvent(CodeTag tag,
                                      Handle<Name> name) {
   DisallowGarbageCollection no_gc;
   if (!IsString(*name)) return;
-  CodeCreateEvent(tag, abstract_code, String::cast(*name)->ToCString().get());
+  CodeCreateEvent(tag, abstract_code, Cast<String>(*name)->ToCString().get());
 }
 
 void PerfettoLogger::CodeCreateEvent(CodeTag tag,
@@ -349,7 +345,7 @@ void PerfettoLogger::CodeCreateEvent(CodeTag tag,
         code_proto->set_v8_isolate_iid(ctx.InternIsolate(isolate_));
         code_proto->set_v8_js_function_iid(ctx.InternJsFunction(
             isolate_, info,
-            ctx.InternJsScript(isolate_, Script::cast(info->script())), line,
+            ctx.InternJsScript(isolate_, Cast<Script>(info->script())), line,
             column));
         WriteJsCode(ctx, *abstract_code, *code_proto);
       });

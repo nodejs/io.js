@@ -10,6 +10,9 @@
 #include "include/cppgc/trace-trait.h"
 #include "include/cppgc/visitor.h"
 #include "src/base/logging.h"
+#include "src/base/macros.h"
+#include "src/heap/base/cached-unordered-map.h"
+#include "src/heap/base/stack.h"
 #include "src/heap/cppgc/compaction-worklists.h"
 #include "src/heap/cppgc/globals.h"
 #include "src/heap/cppgc/heap-object-header.h"
@@ -120,7 +123,13 @@ class BasicMarkingState : public MarkingStateBase {
   inline void RegisterWeakCustomCallback(WeakCallback, const void*);
 
   void RegisterMovableReference(const void** slot) {
-    if (!movable_slots_worklist_) return;
+    if (V8_LIKELY(!movable_slots_worklist_)) return;
+#if defined(CPPGC_CAGED_HEAP)
+    if (V8_UNLIKELY(!CagedHeapBase::IsWithinCage(slot))) return;
+#else   // !defined(CPPGC_CAGED_HEAP)
+    if (V8_UNLIKELY(heap::base::Stack::IsOnStack(slot))) return;
+#endif  // !defined(CPPGC_CAGED_HEAP)
+
     movable_slots_worklist_->Push(slot);
   }
 
@@ -135,7 +144,7 @@ class BasicMarkingState : public MarkingStateBase {
                                Visitor&);
 
   inline void AccountMarkedBytes(const HeapObjectHeader&);
-  inline void AccountMarkedBytes(size_t);
+  inline void AccountMarkedBytes(BasePage*, size_t);
   size_t marked_bytes() const { return marked_bytes_; }
 
   V8_EXPORT_PRIVATE void Publish() override;
@@ -218,6 +227,8 @@ class BasicMarkingState : public MarkingStateBase {
   bool in_ephemeron_processing_ = false;
   bool discovered_new_ephemeron_pairs_ = false;
   bool in_atomic_pause_ = false;
+  heap::base::CachedUnorderedMap<BasePage*, int64_t, v8::base::hash<BasePage*>>
+      marked_bytes_map_;
 };
 
 void BasicMarkingState::RegisterWeakReferenceIfNeeded(
@@ -321,15 +332,20 @@ void BasicMarkingState::ProcessEphemeron(const void* key, const void* value,
 }
 
 void BasicMarkingState::AccountMarkedBytes(const HeapObjectHeader& header) {
-  AccountMarkedBytes(
+  const size_t marked_bytes =
       header.IsLargeObject<AccessMode::kAtomic>()
           ? reinterpret_cast<const LargePage*>(BasePage::FromPayload(&header))
                 ->PayloadSize()
-          : header.AllocatedSize<AccessMode::kAtomic>());
+          : header.AllocatedSize<AccessMode::kAtomic>();
+  auto* base_page =
+      BasePage::FromPayload(&const_cast<HeapObjectHeader&>(header));
+  AccountMarkedBytes(base_page, marked_bytes);
 }
 
-void BasicMarkingState::AccountMarkedBytes(size_t marked_bytes) {
+void BasicMarkingState::AccountMarkedBytes(BasePage* base_page,
+                                           size_t marked_bytes) {
   marked_bytes_ += marked_bytes;
+  marked_bytes_map_[base_page] += static_cast<int64_t>(marked_bytes);
 }
 
 class MutatorMarkingState final : public BasicMarkingState {
@@ -462,11 +478,13 @@ class ConcurrentMarkingState final : public BasicMarkingState {
     return marked_bytes_ - std::exchange(last_marked_bytes_, marked_bytes_);
   }
 
-  inline void AccountDeferredMarkedBytes(size_t deferred_bytes) {
+  inline void AccountDeferredMarkedBytes(BasePage* base_page,
+                                         size_t deferred_bytes) {
     // AccountDeferredMarkedBytes is called from Trace methods, which are always
     // called after AccountMarkedBytes, so there should be no underflow here.
     DCHECK_LE(deferred_bytes, marked_bytes_);
     marked_bytes_ -= deferred_bytes;
+    marked_bytes_map_[base_page] -= static_cast<int64_t>(deferred_bytes);
   }
 
  private:

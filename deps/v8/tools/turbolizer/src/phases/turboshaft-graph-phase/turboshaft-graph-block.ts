@@ -4,7 +4,7 @@
 
 import * as C from "../../common/constants";
 import { measureText } from "../../common/util";
-import { TurboshaftGraphNode } from "./turboshaft-graph-node";
+import { TurboshaftGraphOperation } from "./turboshaft-graph-operation";
 import { Node } from "../../node";
 import { TurboshaftGraphEdge } from "./turboshaft-graph-edge";
 
@@ -12,8 +12,9 @@ export class TurboshaftGraphBlock extends Node<TurboshaftGraphEdge<TurboshaftGra
   type: TurboshaftGraphBlockType;
   deferred: boolean;
   predecessors: Array<string>;
-  nodes: Array<TurboshaftGraphNode>;
+  nodes: Array<TurboshaftGraphOperation>;
   showCustomData: boolean;
+  compactView: boolean;
   collapsed: boolean;
   collapsedLabel: string;
   collapsedLabelBox: { width: number, height: number };
@@ -26,16 +27,16 @@ export class TurboshaftGraphBlock extends Node<TurboshaftGraphEdge<TurboshaftGra
     this.type = type;
     this.deferred = deferred;
     this.predecessors = predecessors ?? new Array<string>();
-    this.nodes = new Array<TurboshaftGraphNode>();
+    this.nodes = new Array<TurboshaftGraphOperation>();
     this.visible = true;
   }
 
-  public getHeight(showCustomData: boolean): number {
+  public override getHeight(showCustomData: boolean, compactView: boolean): number {
     if (this.collapsed) return this.labelBox.height + this.collapsedLabelBox.height;
 
-    if (this.showCustomData != showCustomData) {
-      this.height = this.nodes.reduce<number>((accumulator: number, node: TurboshaftGraphNode) => {
-        return accumulator + node.getHeight(showCustomData);
+    if (this.showCustomData != showCustomData || this.compactView != compactView) {
+      this.height = this.nodes.reduce<number>((accumulator: number, node: TurboshaftGraphOperation) => {
+        return accumulator + node.getHeight(showCustomData, compactView);
       }, this.labelBox.height);
       this.showCustomData = showCustomData;
     }
@@ -47,7 +48,7 @@ export class TurboshaftGraphBlock extends Node<TurboshaftGraphEdge<TurboshaftGra
     if (!this.width) {
       const labelWidth = this.labelBox.width + this.labelBox.height
         + C.TURBOSHAFT_COLLAPSE_ICON_X_INDENT;
-      const maxNodesWidth = Math.max(...this.nodes.map((node: TurboshaftGraphNode) =>
+      const maxNodesWidth = Math.max(...this.nodes.map((node: TurboshaftGraphOperation) =>
         node.getWidth()));
       this.width = Math.max(maxNodesWidth, labelWidth, this.collapsedLabelBox.width)
         + C.TURBOSHAFT_NODE_X_INDENT * 2;
@@ -57,7 +58,7 @@ export class TurboshaftGraphBlock extends Node<TurboshaftGraphEdge<TurboshaftGra
 
   public compressHeight(): void {
     if (this.collapsed) {
-      this.height = this.getHeight(null);
+      this.height = this.getHeight(null, false);
       this.showCustomData = null;
     }
   }

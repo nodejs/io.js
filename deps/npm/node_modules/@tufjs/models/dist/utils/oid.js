@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.encodeOIDString = void 0;
+exports.encodeOIDString = encodeOIDString;
 const ANS1_TAG_OID = 0x06;
 function encodeOIDString(oid) {
     const parts = oid.split('.');
@@ -14,7 +14,6 @@ function encodeOIDString(oid) {
     const der = Buffer.from([first, ...rest]);
     return Buffer.from([ANS1_TAG_OID, der.length, ...der]);
 }
-exports.encodeOIDString = encodeOIDString;
 function encodeVariableLengthInteger(value) {
     const bytes = [];
     let mask = 0x00;

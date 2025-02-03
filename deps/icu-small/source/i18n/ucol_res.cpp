@@ -654,7 +654,7 @@ public:
                     }
                 }
             } else if (type == URES_TABLE && uprv_strncmp(key, "private-", 8) != 0) {
-                if (!ulist_containsString(values, key, (int32_t)uprv_strlen(key))) {
+                if (!ulist_containsString(values, key, static_cast<int32_t>(uprv_strlen(key)))) {
                     ulist_addItemEndList(values, key, false, &errorCode);
                 }
             }

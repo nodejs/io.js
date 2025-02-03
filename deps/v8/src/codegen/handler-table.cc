@@ -78,12 +78,16 @@ int HandlerTable::GetRangeEnd(int index) const {
   return Memory<int32_t>(raw_encoded_data_ + offset * sizeof(int32_t));
 }
 
-int HandlerTable::GetRangeHandler(int index) const {
+int HandlerTable::GetRangeHandlerBitfield(int index) const {
   DCHECK_EQ(kRangeBasedEncoding, mode_);
   DCHECK_LT(index, NumberOfRangeEntries());
   int offset = index * kRangeEntrySize + kRangeHandlerIndex;
-  return HandlerOffsetField::decode(
-      Memory<int32_t>(raw_encoded_data_ + offset * sizeof(int32_t)));
+  return base::Relaxed_Load(
+      &Memory<int32_t>(raw_encoded_data_ + offset * sizeof(int32_t)));
+}
+
+int HandlerTable::GetRangeHandler(int index) const {
+  return HandlerOffsetField::decode(GetRangeHandlerBitfield(index));
 }
 
 int HandlerTable::GetRangeData(int index) const {
@@ -95,11 +99,19 @@ int HandlerTable::GetRangeData(int index) const {
 
 HandlerTable::CatchPrediction HandlerTable::GetRangePrediction(
     int index) const {
+  return HandlerPredictionField::decode(GetRangeHandlerBitfield(index));
+}
+
+bool HandlerTable::HandlerWasUsed(int index) const {
+  return HandlerWasUsedField::decode(GetRangeHandlerBitfield(index));
+}
+
+void HandlerTable::MarkHandlerUsed(int index) {
   DCHECK_EQ(kRangeBasedEncoding, mode_);
   DCHECK_LT(index, NumberOfRangeEntries());
   int offset = index * kRangeEntrySize + kRangeHandlerIndex;
-  return HandlerPredictionField::decode(
-      Memory<int32_t>(raw_encoded_data_ + offset * sizeof(int32_t)));
+  auto& mem = Memory<int32_t>(raw_encoded_data_ + offset * sizeof(int32_t));
+  base::Relaxed_Store(&mem, HandlerWasUsedField::update(mem, true));
 }
 
 int HandlerTable::GetReturnOffset(int index) const {
@@ -130,6 +142,7 @@ void HandlerTable::SetRangeEnd(int index, int value) {
 void HandlerTable::SetRangeHandler(int index, int handler_offset,
                                    CatchPrediction prediction) {
   int value = HandlerOffsetField::encode(handler_offset) |
+              HandlerWasUsedField::encode(false) |
               HandlerPredictionField::encode(prediction);
   int offset = index * kRangeEntrySize + kRangeHandlerIndex;
   Memory<int32_t>(raw_encoded_data_ + offset * sizeof(int32_t)) = value;
@@ -169,9 +182,8 @@ int HandlerTable::NumberOfReturnEntries() const {
   return number_of_entries_;
 }
 
-int HandlerTable::LookupRange(int pc_offset, int* data_out,
-                              CatchPrediction* prediction_out) {
-  int innermost_handler = -1;
+int HandlerTable::LookupHandlerIndexForRange(int pc_offset) const {
+  int innermost_handler = kNoHandlerFound;
 #ifdef DEBUG
   // Assuming that ranges are well nested, we don't need to track the innermost
   // offsets. This is just to verify that the table is actually well nested.
@@ -181,20 +193,15 @@ int HandlerTable::LookupRange(int pc_offset, int* data_out,
   for (int i = 0; i < NumberOfRangeEntries(); ++i) {
     int start_offset = GetRangeStart(i);
     int end_offset = GetRangeEnd(i);
-    int handler_offset = GetRangeHandler(i);
-    int handler_data = GetRangeData(i);
-    CatchPrediction prediction = GetRangePrediction(i);
-    if (pc_offset >= start_offset && pc_offset < end_offset) {
-      DCHECK_GE(start_offset, innermost_start);
-      DCHECK_LT(end_offset, innermost_end);
-      innermost_handler = handler_offset;
+    if (end_offset <= pc_offset) continue;
+    if (start_offset > pc_offset) break;
+    DCHECK_GE(start_offset, innermost_start);
+    DCHECK_LT(end_offset, innermost_end);
+    innermost_handler = i;
 #ifdef DEBUG
-      innermost_start = start_offset;
-      innermost_end = end_offset;
+    innermost_start = start_offset;
+    innermost_end = end_offset;
 #endif
-      if (data_out) *data_out = handler_data;
-      if (prediction_out) *prediction_out = prediction;
-    }
   }
   return innermost_handler;
 }
@@ -232,8 +239,10 @@ int HandlerTable::LookupReturn(int pc_offset) {
   Iterator begin{this, 0}, end{this, NumberOfReturnEntries()};
   SLOW_DCHECK(std::is_sorted(begin, end));  // Must be sorted.
   Iterator result = std::lower_bound(begin, end, pc_offset);
-  bool exact_match = result != end && *result == pc_offset;
-  return exact_match ? GetReturnHandler(result.index) : -1;
+  if (result != end && *result == pc_offset) {
+    return GetReturnHandler(result.index);
+  }
+  return -1;
 }
 
 #ifdef ENABLE_DISASSEMBLER

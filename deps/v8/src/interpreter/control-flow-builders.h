@@ -53,11 +53,9 @@ class V8_EXPORT_PRIVATE BreakableControlFlowBuilder
   void BreakIfTrue(BytecodeArrayBuilder::ToBooleanMode mode) {
     EmitJumpIfTrue(mode, &break_labels_);
   }
-  void BreakIfFalse(BytecodeArrayBuilder::ToBooleanMode mode) {
-    EmitJumpIfFalse(mode, &break_labels_);
+  void BreakIfForInDone(Register index, Register cache_length) {
+    EmitJumpIfForInDone(&break_labels_, index, cache_length);
   }
-  void BreakIfUndefined() { EmitJumpIfUndefined(&break_labels_); }
-  void BreakIfNull() { EmitJumpIfNull(&break_labels_); }
 
   BytecodeLabels* break_labels() { return &break_labels_; }
 
@@ -68,7 +66,8 @@ class V8_EXPORT_PRIVATE BreakableControlFlowBuilder
   void EmitJumpIfFalse(BytecodeArrayBuilder::ToBooleanMode mode,
                        BytecodeLabels* labels);
   void EmitJumpIfUndefined(BytecodeLabels* labels);
-  void EmitJumpIfNull(BytecodeLabels* labels);
+  void EmitJumpIfForInDone(BytecodeLabels* labels, Register index,
+                           Register cache_length);
 
   // Called from the destructor to update sites that emit jumps for break.
   void BindBreakTarget();
@@ -123,7 +122,6 @@ class V8_EXPORT_PRIVATE LoopBuilder final : public BreakableControlFlowBuilder {
   // is called.
   void Continue() { EmitJump(&continue_labels_); }
   void ContinueIfUndefined() { EmitJumpIfUndefined(&continue_labels_); }
-  void ContinueIfNull() { EmitJumpIfNull(&continue_labels_); }
 
  private:
   // Emit a Jump to our parent_loop_'s end label which could be a JumpLoop or,

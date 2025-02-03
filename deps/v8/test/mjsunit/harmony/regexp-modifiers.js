@@ -24,6 +24,18 @@ test_invalid('(?i-i:.)');
 test_invalid('(?s-s:.)');
 test_invalid('(?msi-ims:.)');
 test_invalid('(?i--m:.)');
+test_invalid('(?i<)');
+test_invalid('(?i=)');
+test_invalid('(?i!)');
+test_invalid('(?m<)');
+test_invalid('(?m=)');
+test_invalid('(?m!)');
+test_invalid('(?s<)');
+test_invalid('(?s=)');
+test_invalid('(?s!)');
+test_invalid('(?-<)');
+test_invalid('(?-=)');
+test_invalid('(?-!)');
 
 function test(re, expectedMatch, expectedNoMatch = []) {
   for (const match of expectedMatch) {
@@ -56,3 +68,4 @@ test(
 test(
     /(?m:^f(?si:.o)$)/, ['foo', '\nfoO', 'f\no\n', '\nf\rO\n'],
     ['Foo', 'F\no\n']);
+test(/(?i:.oo)/, ['Foo', 'FOO', 'fOo', 'foO']);

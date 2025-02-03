@@ -1,3 +1,5 @@
+'use strict'
+
 const assert = require('node:assert')
 const {
   ResponseStatusCodeError
@@ -12,18 +14,25 @@ async function getResolveErrorBodyCallback ({ callback, body, contentType, statu
   let chunks = []
   let length = 0
 
-  for await (const chunk of body) {
-    chunks.push(chunk)
-    length += chunk.length
-    if (length > CHUNK_LIMIT) {
-      chunks = null
-      break
+  try {
+    for await (const chunk of body) {
+      chunks.push(chunk)
+      length += chunk.length
+      if (length > CHUNK_LIMIT) {
+        chunks = []
+        length = 0
+        break
+      }
     }
+  } catch {
+    chunks = []
+    length = 0
+    // Do nothing....
   }
 
   const message = `Response status code ${statusCode}${statusMessage ? `: ${statusMessage}` : ''}`
 
-  if (statusCode === 204 || !contentType || !chunks) {
+  if (statusCode === 204 || !contentType || !length) {
     queueMicrotask(() => callback(new ResponseStatusCodeError(message, statusCode, headers)))
     return
   }

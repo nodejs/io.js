@@ -29,7 +29,7 @@
 
 const localeCompare = require('@isaacs/string-locale-compare')('en')
 const consistentResolve = require('./consistent-resolve.js')
-const { dirname } = require('path')
+const { dirname } = require('node:path')
 const { breadth } = require('treeverse')
 
 // Sort Yarn entries respecting the yarn.lock sort order

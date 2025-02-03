@@ -16,7 +16,7 @@
 #include "src/wasm/baseline/arm64/liftoff-assembler-arm64-inl.h"
 #elif V8_TARGET_ARCH_ARM
 #include "src/wasm/baseline/arm/liftoff-assembler-arm-inl.h"
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
 #include "src/wasm/baseline/ppc/liftoff-assembler-ppc-inl.h"
 #elif V8_TARGET_ARCH_MIPS64
 #include "src/wasm/baseline/mips64/liftoff-assembler-mips64-inl.h"
@@ -206,6 +206,12 @@ void LiftoffAssembler::bailout(LiftoffBailoutReason reason,
 
 #ifdef V8_TARGET_ARCH_32_BIT
 
+void LiftoffAssembler::emit_ptrsize_cond_jumpi(Condition cond, Label* label,
+                                               Register lhs, int32_t imm,
+                                               const FreezeCacheState& frozen) {
+  emit_i32_cond_jumpi(cond, label, lhs, imm, frozen);
+}
+
 namespace liftoff {
 template <void (LiftoffAssembler::*op)(Register, Register, Register)>
 void EmitI64IndependentHalfOperation(LiftoffAssembler* assm,
@@ -299,6 +305,8 @@ void LiftoffAssembler::emit_i64_xori(LiftoffRegister dst, LiftoffRegister lhs,
 void LiftoffAssembler::emit_u32_to_uintptr(Register dst, Register src) {
   if (dst != src) Move(dst, src, kI32);
 }
+
+void LiftoffAssembler::clear_i32_upper_half(Register dst) { UNREACHABLE(); }
 
 #endif  // V8_TARGET_ARCH_32_BIT
 

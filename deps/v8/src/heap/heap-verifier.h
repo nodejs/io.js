@@ -7,7 +7,7 @@
 
 #include "src/common/globals.h"
 #include "src/flags/flags.h"
-#include "src/heap/basic-memory-chunk.h"
+#include "src/heap/memory-chunk-metadata.h"
 #include "src/heap/read-only-heap.h"
 #include "src/objects/map.h"
 
@@ -27,10 +27,10 @@ class SpaceVerificationVisitor {
 
   // This method will be invoked for each page in the space before verifying an
   // object on it.
-  virtual void VerifyPage(const BasicMemoryChunk* chunk) = 0;
+  virtual void VerifyPage(const MemoryChunkMetadata* chunk) = 0;
 
   // This method will be invoked after verifying all objects on that page.
-  virtual void VerifyPageDone(const BasicMemoryChunk* chunk) = 0;
+  virtual void VerifyPageDone(const MemoryChunkMetadata* chunk) = 0;
 };
 
 class HeapVerifier final {

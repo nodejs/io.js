@@ -20,7 +20,11 @@
 //
 // NOTE: This test runs only on linux, as that is the only platform supported by perf, and
 // accordingly the only platform where `perf-basic-prof*` v8 flags are available.
-
+//
+// MAINTAINERS' NOTE: As of early 2024, the most common failure mode for this test suite
+// is for v8 options to change from version to version. If this suite fails, look there first.
+// We use options to forcibly require certain test cases to JIT code, and the nodeFlags to do
+// so can change.
 
 const common = require('../common');
 if (!common.isLinux) {
@@ -48,7 +52,8 @@ const testCases = [
   },
   {
     title: '--perf-basic-prof compiled',
-    nodeFlags: ['--perf-basic-prof', '--no-turbo-inlining', '--always-turbofan'],
+    nodeFlags: ['--perf-basic-prof', '--no-turbo-inlining', '--always-turbofan',
+                '--minimum-invocations-before-optimization=0'],
     matches: [
       'test-regex',
       '~functionOne .+/linux-perf-logger.js',
@@ -66,7 +71,8 @@ const testCases = [
   },
   {
     title: '--perf-basic-prof-only-functions compiled',
-    nodeFlags: ['--perf-basic-prof-only-functions', '--no-turbo-inlining', '--always-turbofan'],
+    nodeFlags: ['--perf-basic-prof-only-functions', '--no-turbo-inlining', '--always-turbofan',
+                '--minimum-invocations-before-optimization=0'],
     matches: [
       '~functionOne .+/linux-perf-logger.js',
       '~functionTwo .+/linux-perf-logger.js',

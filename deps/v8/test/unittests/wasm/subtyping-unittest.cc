@@ -98,7 +98,8 @@ TEST_F(WasmSubtypingTest, Subtyping) {
                          false);
     /* 20 */ DefineSignature(module, {kWasmI32}, {kWasmI32}, kNoSuperType,
                              false, false, false);
-    /* 21 */ DefineSignature(module, {kWasmI32}, {kWasmI32}, 20, false, false);
+    /* 21 */ DefineSignature(module, {kWasmI32}, {kWasmI32}, 20, false, false,
+                             false);
     GetTypeCanonicalizer()->AddRecursiveGroup(module, 4);
 
     // Identical rec. group.
@@ -141,6 +142,7 @@ TEST_F(WasmSubtypingTest, Subtyping) {
     /* 39 */ DefineStruct(module, {mut(kWasmI32), mut(kWasmI64)}, 38, false,
                           true);
     /* 40 */ DefineStruct(module, {mut(kWasmI32)}, kNoSuperType, false, true);
+    /* 41 */ DefineSignature(module, {kWasmI32}, {kWasmI32}, false, true, true);
   }
 
   constexpr ValueType numeric_types[] = {kWasmI32, kWasmI64, kWasmF32, kWasmF64,
@@ -361,7 +363,7 @@ TEST_F(WasmSubtypingTest, Subtyping) {
     // A final and a non-final type are distinct.
     DISTINCT(32, 35);
 
-    // Shared types
+    /* Shared types */
     // A shared type can be a subtype of a shared type.
     VALID_SUBTYPE(ref(39), ref(38));
     // A shared type is not a valid subtype of a non-shared type and vice versa.
@@ -371,6 +373,30 @@ TEST_F(WasmSubtypingTest, Subtyping) {
     // distinct.
     IDENTICAL(38, 40);
     DISTINCT(36, 38);
+    // Abstract types
+    SUBTYPE(ValueType::Ref(HeapType::kEqShared),
+            ValueType::Ref(HeapType::kAnyShared));
+    NOT_SUBTYPE(ValueType::Ref(HeapType::kEqShared),
+                ValueType::Ref(HeapType::kAny));
+    NOT_SUBTYPE(ValueType::Ref(HeapType::kEq),
+                ValueType::Ref(HeapType::kAnyShared));
+    NOT_SUBTYPE(ValueType::Ref(HeapType::kFuncShared),
+                ValueType::Ref(HeapType::kAnyShared));
+    SUBTYPE(ValueType::RefNull(HeapType::kNoneShared),
+            ValueType::RefNull(HeapType::kI31Shared));
+    SUBTYPE(ValueType::RefNull(HeapType::kNoFuncShared),
+            ValueType::RefNull(HeapType::kFuncShared));
+    SUBTYPE(ref(40), ValueType::RefNull(HeapType::kEqShared));
+    SUBTYPE(ValueType::RefNull(HeapType::kNoneShared), refNull(40));
+    NOT_SUBTYPE(ref(40), ValueType::RefNull(HeapType::kEq));
+    NOT_SUBTYPE(ref(40), ValueType::RefNull(HeapType::kExternShared));
+    SUBTYPE(ref(41), ValueType::RefNull(HeapType::kFuncShared));
+    SUBTYPE(ValueType::RefNull(HeapType::kNoFuncShared), refNull(41));
+    NOT_SUBTYPE(ref(41), ValueType::RefNull(HeapType::kAnyShared));
+    NOT_SUBTYPE(ref(41), ValueType::RefNull(HeapType::kFunc));
+    NOT_SUBTYPE(ref(0), ValueType::Ref(HeapType::kStructShared));
+    NOT_SUBTYPE(ref(2), ValueType::Ref(HeapType::kArrayShared));
+    NOT_SUBTYPE(ref(10), ValueType::Ref(HeapType::kFuncShared));
 
     // Rtts of identical types are subtype-related.
     SUBTYPE(ValueType::Rtt(8), ValueType::Rtt(17));
@@ -399,9 +425,9 @@ TEST_F(WasmSubtypingTest, Subtyping) {
       INTERSECTION(type, type, type);
       if (type == kWasmStringViewIter || type == kWasmStringViewWtf8 ||
           type == kWasmStringViewWtf16) {
-        // String view and string iter aren't subtypes of any but have the same
-        // null sentinel nullref (ref null none).
-        INTERSECTION(type, kWasmAnyRef, kWasmNullRef);
+        // String views aren't subtypes of any nor supertypes of null.
+        INTERSECTION(type, kWasmAnyRef, kWasmBottom);
+        INTERSECTION(type, kWasmNullRef, kWasmBottom);
         continue;
       }
       if (type == kWasmFuncRef || type == kWasmNullFuncRef || type == ref(11) ||
@@ -629,6 +655,50 @@ TEST_F(WasmSubtypingTest, Subtyping) {
     INTERSECTION(ref(0), ref(17), kWasmBottom);
     UNION(ref(10), refNull(11), kWasmFuncRef);
     INTERSECTION(ref(10), refNull(11), kWasmBottom);
+
+    // Shared types
+    ValueType struct_shared = ref(40);
+    ValueType function_shared = ref(41);
+    UNION(struct_shared, struct_shared.AsNullable(),
+          struct_shared.AsNullable());
+    UNION(struct_shared, struct_type, kWasmBottom);
+    UNION(struct_shared, function_shared, kWasmBottom);
+    UNION(struct_shared, ValueType::Ref(HeapType::kI31Shared),
+          ValueType::Ref(HeapType::kEqShared));
+    UNION(struct_shared, ValueType::Ref(HeapType::kAnyShared),
+          ValueType::Ref(HeapType::kAnyShared));
+    UNION(struct_shared, ValueType::Ref(HeapType::kNoneShared), struct_shared);
+    UNION(struct_shared, ValueType::Ref(HeapType::kAny), kWasmBottom);
+    INTERSECTION(struct_shared, struct_shared.AsNullable(), struct_shared);
+    INTERSECTION(struct_shared, struct_type, kWasmBottom);
+    INTERSECTION(struct_shared, function_shared, kWasmBottom);
+    INTERSECTION(struct_shared.AsNullable(),
+                 ValueType::RefNull(HeapType::kI31Shared),
+                 ValueType::RefNull(HeapType::kNoneShared));
+    INTERSECTION(struct_shared, ValueType::Ref(HeapType::kAnyShared),
+                 struct_shared);
+    INTERSECTION(struct_shared.AsNullable(),
+                 ValueType::RefNull(HeapType::kNoneShared),
+                 ValueType::RefNull(HeapType::kNoneShared));
+    INTERSECTION(struct_shared, ValueType::Ref(HeapType::kAny), kWasmBottom);
+    UNION(function_shared, ValueType::Ref(HeapType::kFuncShared),
+          ValueType::Ref(HeapType::kFuncShared));
+    UNION(function_shared, ValueType::Ref(HeapType::kFunc), kWasmBottom);
+    UNION(function_shared, ValueType::Ref(HeapType::kEqShared), kWasmBottom);
+    UNION(function_shared, ValueType::Ref(HeapType::kNoFuncShared),
+          function_shared);
+    UNION(function_shared, ValueType::Ref(HeapType::kNoExternShared),
+          kWasmBottom);
+    INTERSECTION(function_shared, ValueType::Ref(HeapType::kFuncShared),
+                 function_shared);
+    INTERSECTION(function_shared, ValueType::Ref(HeapType::kFunc), kWasmBottom);
+    INTERSECTION(function_shared, ValueType::Ref(HeapType::kEqShared),
+                 kWasmBottom);
+    INTERSECTION(function_shared.AsNullable(),
+                 ValueType::RefNull(HeapType::kNoFuncShared),
+                 ValueType::RefNull(HeapType::kNoFuncShared));
+    INTERSECTION(function_shared, ValueType::Ref(HeapType::kNoExternShared),
+                 kWasmBottom);
   }
 #undef SUBTYPE
 #undef NOT_SUBTYPE

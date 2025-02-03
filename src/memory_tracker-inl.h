@@ -28,7 +28,8 @@ class MemoryRetainerNode : public v8::EmbedderGraph::Node {
     CHECK_NOT_NULL(retainer_);
     v8::HandleScope handle_scope(tracker->isolate());
     v8::Local<v8::Object> obj = retainer_->WrappedObject();
-    if (!obj.IsEmpty()) wrapper_node_ = tracker->graph()->V8Node(obj);
+    if (!obj.IsEmpty())
+      wrapper_node_ = tracker->graph()->V8Node(obj.As<v8::Value>());
 
     name_ = retainer_->MemoryInfoName();
     size_ = retainer_->SelfSize();
@@ -230,7 +231,9 @@ void MemoryTracker::TrackField(const char* edge_name,
                                const v8::Local<T>& value,
                                const char* node_name) {
   if (!value.IsEmpty())
-    graph_->AddEdge(CurrentNode(), graph_->V8Node(value), edge_name);
+    graph_->AddEdge(CurrentNode(),
+                    graph_->V8Node(value.template As<v8::Value>()),
+                    edge_name);
 }
 
 template <typename T>

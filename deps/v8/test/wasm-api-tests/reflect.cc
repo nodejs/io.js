@@ -46,7 +46,7 @@ TEST_F(WasmCapiTest, Reflect) {
   builder()->AddTable(kWasmFuncRef, 12, 12);
   builder()->AddExport(base::CStrVector(kTableName), kExternalTable, 0);
 
-  builder()->SetMinMemorySize(1);
+  builder()->AddMemory(1);
   builder()->AddExport(base::CStrVector(kMemoryName), kExternalMemory, 0);
 
   Instantiate(nullptr);

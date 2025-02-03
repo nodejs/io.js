@@ -38,6 +38,7 @@
   'octane/regexp': [PASS, SLOW],
   'octane/splay': [PASS, SLOW],
   'octane/typescript': [PASS, SLOW],
+  'octane/zlib': [PASS, SLOW],
 
   # https://crbug.com/v8/11905
   'kraken/stanford-crypto-pbkdf2': [PASS, SLOW],
@@ -62,6 +63,7 @@
   'octane/gbemu-part1': [PASS, SLOW],
   'octane/navier-stokes': [PASS, SLOW],
   'octane/pdfjs': [PASS, SLOW],
+  'octane/zlib': [PASS, SLOW, ['mode == debug', SKIP]],
 }],
 
 ['variant == stress', {
@@ -120,11 +122,17 @@
   # https://crbug.com/v8/8537
   'octane/typescript': [SKIP],
 
-  # https://crbug.com/v8/13234
+  # https://crbug.com/42203172
+  'kraken/ai-astar': [SKIP],
+  'kraken/stanford-crypto-aes': [SKIP],
+  'kraken/stanford-crypto-ccm': [SKIP],
   'octane/box2d': [SKIP],
+  'octane/crypto': [SKIP],
   'octane/earley-boyer': [SKIP],
   'octane/gbemu-part1': [SKIP],
+  'octane/mandreel': [SKIP],
   'octane/pdfjs': [SKIP],
+  'octane/regexp': [SKIP],
 
   # https://crbug.com/v8/14512
   'octane/raytrace': [SKIP],

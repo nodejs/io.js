@@ -15,17 +15,11 @@ UnifiedHeapMarkingState::UnifiedHeapMarkingState(
     Heap* heap, MarkingWorklists::Local* local_marking_worklist,
     cppgc::internal::CollectionType collection_type)
     : heap_(heap),
-      has_shared_space_(heap && heap->isolate()->has_shared_space()),
-      is_shared_space_isolate_(heap &&
-                               heap->isolate()->is_shared_space_isolate()),
       marking_state_(heap_ ? heap_->marking_state() : nullptr),
       local_marking_worklist_(local_marking_worklist),
-      track_retaining_path_(v8_flags.track_retaining_path),
       mark_mode_(collection_type == cppgc::internal::CollectionType::kMinor
                      ? TracedHandles::MarkMode::kOnlyYoung
                      : TracedHandles::MarkMode::kAll) {
-  DCHECK_IMPLIES(v8_flags.track_retaining_path,
-                 !v8_flags.concurrent_marking && !v8_flags.parallel_marking);
   DCHECK_IMPLIES(heap_, marking_state_);
 }
 

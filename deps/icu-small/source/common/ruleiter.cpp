@@ -139,7 +139,7 @@ UChar32 RuleCharacterIterator::_current() const {
         return buf->char32At(bufPos);
     } else {
         int i = pos.getIndex();
-        return (i < text.length()) ? text.char32At(i) : (UChar32)DONE;
+        return (i < text.length()) ? text.char32At(i) : static_cast<UChar32>(DONE);
     }
 }
 

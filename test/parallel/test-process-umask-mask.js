@@ -5,8 +5,9 @@
 
 const common = require('../common');
 const assert = require('assert');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread)
   common.skip('Setting process.umask is not supported in Workers');
 
 let mask;

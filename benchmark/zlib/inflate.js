@@ -10,7 +10,7 @@ const bench = common.createBenchmark(main, {
 
 function main({ n, method, inputLen }) {
   // Default method value for tests.
-  method = method || 'inflate';
+  method ||= 'inflate';
   const chunk = zlib.deflateSync(Buffer.alloc(inputLen, 'a'));
 
   let i = 0;

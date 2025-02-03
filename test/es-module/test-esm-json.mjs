@@ -16,12 +16,12 @@ describe('ESM: importing JSON', () => {
     assert.strictEqual(secret.ofLife, 42);
   });
 
-  it('should print an experimental warning', async () => {
+  it('should not print an experimental warning', async () => {
     const { code, signal, stderr } = await spawnPromisified(execPath, [
       fixtures.path('/es-modules/json-modules.mjs'),
     ]);
 
-    assert.match(stderr, /ExperimentalWarning: Importing JSON modules/);
+    assert.strictEqual(stderr, '');
     assert.strictEqual(code, 0);
     assert.strictEqual(signal, null);
   });

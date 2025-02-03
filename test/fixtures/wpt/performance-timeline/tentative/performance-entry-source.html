@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+</head>
+
+<body>
+</body>
+<script>
+  promise_test(() => {
+    return new Promise(resolve => {
+      const navigationEntries = performance.getEntries({ type: 'navigation' })
+      const parentEntry = navigationEntries[0]
+
+      // Parent NavigationTiming source is current window.
+      assert_equals(parentEntry.source, window)
+
+      // Create child iframe.
+      const childFrame = document.createElement('iframe')
+      childFrame.src = "../resources/child-frame.html"
+      document.body.appendChild(childFrame)
+
+      childFrame.addEventListener('load', () => {
+        const markedEntries = performance.getEntries(
+          { name: 'mark_child_frame', includeChildFrames: true });
+
+        const childEntry = markedEntries[0]
+
+        // Child PerformanceMark source is the child's Window.
+        assert_equals(childEntry.source, childFrame.contentWindow)
+
+        resolve()
+      })
+    })
+  }, "PerformanceEntry source is equal to its respective Window")
+</script>

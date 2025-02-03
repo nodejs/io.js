@@ -110,7 +110,7 @@ class TestDoubleBenchmarker {
   }
 
   create(options) {
-    process.env.duration = process.env.duration || options.duration || 5;
+    process.env.duration ||= options.duration || 5;
 
     const scheme = options.scheme || 'http';
     const env = {

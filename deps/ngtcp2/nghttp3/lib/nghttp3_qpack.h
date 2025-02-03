@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -48,6 +48,14 @@
 /* NGHTTP3_QPACK_MAX_VALUELEN is the maximum (compressed) length of
    header value this library can decode. */
 #define NGHTTP3_QPACK_MAX_VALUELEN 65536
+/* NGHTTP3_QPACK_MAX_ENCODERLEN is the maximum encoder stream length
+   that a decoder accepts without completely processing a single field
+   section. */
+#define NGHTTP3_QPACK_MAX_ENCODERLEN (128 * 1024)
+/* NGHTTP3_QPACK_MAX_DECODERLEN is the maximum decoder stream length
+   that an encoder accepts without completely encoding a single field
+   section. */
+#define NGHTTP3_QPACK_MAX_DECODERLEN (4 * 1024)
 
 /* nghttp3_qpack_indexing_mode is a indexing strategy. */
 typedef enum nghttp3_qpack_indexing_mode {
@@ -250,6 +258,9 @@ struct nghttp3_qpack_encoder {
   /* last_max_dtable_update is the dynamic table size last
      requested. */
   size_t last_max_dtable_update;
+  /* uninterrupted_decoderlen is the number of bytes read from decoder
+     stream without encoding a single field section. */
+  size_t uninterrupted_decoderlen;
   /* flags is bitwise OR of zero or more of
      NGHTTP3_QPACK_ENCODER_FLAG_*. */
   uint8_t flags;
@@ -325,9 +336,9 @@ nghttp3_qpack_lookup_stable(const nghttp3_nv *nv, int32_t token,
  * blocked (or it has been blocked already).
  */
 nghttp3_qpack_lookup_result nghttp3_qpack_encoder_lookup_dtable(
-    nghttp3_qpack_encoder *encoder, const nghttp3_nv *nv, int32_t token,
-    uint32_t hash, nghttp3_qpack_indexing_mode indexing_mode, uint64_t krcnt,
-    int allow_blocking);
+  nghttp3_qpack_encoder *encoder, const nghttp3_nv *nv, int32_t token,
+  uint32_t hash, nghttp3_qpack_indexing_mode indexing_mode, uint64_t krcnt,
+  int allow_blocking);
 
 /*
  * nghttp3_qpack_encoder_write_field_section_prefix writes Encoded
@@ -341,8 +352,8 @@ nghttp3_qpack_lookup_result nghttp3_qpack_encoder_lookup_dtable(
  *     Out of memory.
  */
 int nghttp3_qpack_encoder_write_field_section_prefix(
-    nghttp3_qpack_encoder *encoder, nghttp3_buf *pbuf, uint64_t ricnt,
-    uint64_t base);
+  nghttp3_qpack_encoder *encoder, nghttp3_buf *pbuf, uint64_t ricnt,
+  uint64_t base);
 
 /*
  * nghttp3_qpack_encoder_write_static_indexed writes Indexed Header
@@ -386,8 +397,8 @@ int nghttp3_qpack_encoder_write_dynamic_indexed(nghttp3_qpack_encoder *encoder,
  *     Out of memory.
  */
 int nghttp3_qpack_encoder_write_static_indexed_name(
-    nghttp3_qpack_encoder *encoder, nghttp3_buf *rbuf, uint64_t absidx,
-    const nghttp3_nv *nv);
+  nghttp3_qpack_encoder *encoder, nghttp3_buf *rbuf, uint64_t absidx,
+  const nghttp3_nv *nv);
 
 /*
  * nghttp3_qpack_encoder_write_dynamic_indexed writes Literal Header
@@ -402,8 +413,8 @@ int nghttp3_qpack_encoder_write_static_indexed_name(
  *     Out of memory.
  */
 int nghttp3_qpack_encoder_write_dynamic_indexed_name(
-    nghttp3_qpack_encoder *encoder, nghttp3_buf *rbuf, uint64_t absidx,
-    uint64_t base, const nghttp3_nv *nv);
+  nghttp3_qpack_encoder *encoder, nghttp3_buf *rbuf, uint64_t absidx,
+  uint64_t base, const nghttp3_nv *nv);
 
 /*
  * nghttp3_qpack_encoder_write_literal writes Literal Header Field
@@ -779,6 +790,9 @@ struct nghttp3_qpack_decoder {
      unidirectional streams which potentially receives QPACK encoded
      HEADER frame. */
   size_t max_concurrent_streams;
+  /* uninterrupted_encoderlen is the number of bytes read from encoder
+     stream without completing a single field section. */
+  size_t uninterrupted_encoderlen;
 };
 
 /*
@@ -880,19 +894,19 @@ int nghttp3_qpack_decoder_dtable_duplicate_add(nghttp3_qpack_decoder *decoder);
 int nghttp3_qpack_decoder_dtable_literal_add(nghttp3_qpack_decoder *decoder);
 
 struct nghttp3_qpack_stream_context {
-  /* state is a current state of reading request stream. */
-  nghttp3_qpack_request_stream_state state;
   /* rstate is a set of intermediate state which are used to process
      request stream. */
   nghttp3_qpack_read_state rstate;
   const nghttp3_mem *mem;
-  /* opcode is a request stream opcode being processed. */
-  nghttp3_qpack_request_stream_opcode opcode;
   int64_t stream_id;
   /* ricnt is Required Insert Count to decode this header block. */
   uint64_t ricnt;
   /* base is Base in Header Block Prefix. */
   uint64_t base;
+  /* state is a current state of reading request stream. */
+  nghttp3_qpack_request_stream_state state;
+  /* opcode is a request stream opcode being processed. */
+  nghttp3_qpack_request_stream_opcode opcode;
   /* dbase_sign is the delta base sign in Header Block Prefix. */
   int dbase_sign;
 };
@@ -991,6 +1005,6 @@ void nghttp3_qpack_decoder_emit_literal(nghttp3_qpack_decoder *decoder,
  *     Decoder stream overflow.
  */
 int nghttp3_qpack_decoder_write_section_ack(
-    nghttp3_qpack_decoder *decoder, const nghttp3_qpack_stream_context *sctx);
+  nghttp3_qpack_decoder *decoder, const nghttp3_qpack_stream_context *sctx);
 
-#endif /* NGHTTP3_QPACK_H */
+#endif /* !defined(NGHTTP3_QPACK_H) */

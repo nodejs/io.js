@@ -1,9 +1,9 @@
 'use strict'
 
-const { kConstruct } = require('./symbols')
 const { Cache } = require('./cache')
 const { webidl } = require('../fetch/webidl')
 const { kEnumerableProperty } = require('../../core/util')
+const { kConstruct } = require('../../core/symbols')
 
 class CacheStorage {
   /**
@@ -16,11 +16,13 @@ class CacheStorage {
     if (arguments[0] !== kConstruct) {
       webidl.illegalConstructor()
     }
+
+    webidl.util.markAsUncloneable(this)
   }
 
   async match (request, options = {}) {
     webidl.brandCheck(this, CacheStorage)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'CacheStorage.match' })
+    webidl.argumentLengthCheck(arguments, 1, 'CacheStorage.match')
 
     request = webidl.converters.RequestInfo(request)
     options = webidl.converters.MultiCacheQueryOptions(options)
@@ -57,9 +59,11 @@ class CacheStorage {
    */
   async has (cacheName) {
     webidl.brandCheck(this, CacheStorage)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'CacheStorage.has' })
 
-    cacheName = webidl.converters.DOMString(cacheName)
+    const prefix = 'CacheStorage.has'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
+
+    cacheName = webidl.converters.DOMString(cacheName, prefix, 'cacheName')
 
     // 2.1.1
     // 2.2
@@ -73,9 +77,11 @@ class CacheStorage {
    */
   async open (cacheName) {
     webidl.brandCheck(this, CacheStorage)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'CacheStorage.open' })
 
-    cacheName = webidl.converters.DOMString(cacheName)
+    const prefix = 'CacheStorage.open'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
+
+    cacheName = webidl.converters.DOMString(cacheName, prefix, 'cacheName')
 
     // 2.1
     if (this.#caches.has(cacheName)) {
@@ -105,9 +111,11 @@ class CacheStorage {
    */
   async delete (cacheName) {
     webidl.brandCheck(this, CacheStorage)
-    webidl.argumentLengthCheck(arguments, 1, { header: 'CacheStorage.delete' })
 
-    cacheName = webidl.converters.DOMString(cacheName)
+    const prefix = 'CacheStorage.delete'
+    webidl.argumentLengthCheck(arguments, 1, prefix)
+
+    cacheName = webidl.converters.DOMString(cacheName, prefix, 'cacheName')
 
     return this.#caches.delete(cacheName)
   }

@@ -707,7 +707,7 @@ Type Typer::Visitor::ToNumeric(Type type, Typer* t) {
 Type Typer::Visitor::ToObject(Type type, Typer* t) {
   // ES6 section 7.1.13 ToObject ( argument )
   if (type.Is(Type::Receiver())) return type;
-  if (type.Is(Type::Primitive())) return Type::OtherObject();
+  if (type.Is(Type::Primitive())) return Type::StringWrapperOrOtherObject();
   if (!type.Maybe(Type::OtherUndetectable())) {
     return Type::DetectableReceiver();
   }
@@ -911,6 +911,10 @@ Type Typer::Visitor::TypeHeapConstant(Node* node) {
 }
 
 Type Typer::Visitor::TypeCompressedHeapConstant(Node* node) { UNREACHABLE(); }
+
+Type Typer::Visitor::TypeTrustedHeapConstant(Node* node) {
+  return TypeConstant(HeapConstantOf(node->op()));
+}
 
 Type Typer::Visitor::TypeExternalConstant(Node* node) {
   return Type::ExternalPointer();
@@ -1190,7 +1194,65 @@ Type Typer::Visitor::TypeTypedObjectState(Node* node) {
 
 Type Typer::Visitor::TypeCall(Node* node) { return Type::Any(); }
 
-Type Typer::Visitor::TypeFastApiCall(Node* node) { return Type::Any(); }
+Type Typer::Visitor::TypeFastApiCall(Node* node) {
+  FastApiCallParameters const& op_params = FastApiCallParametersOf(node->op());
+  if (op_params.c_functions().empty()) {
+    return Type::Undefined();
+  }
+
+  const CFunctionInfo* c_signature = op_params.c_functions()[0].signature;
+  CTypeInfo return_type = c_signature->ReturnInfo();
+
+  switch (return_type.GetType()) {
+    case CTypeInfo::Type::kBool:
+      return Type::Boolean();
+    case CTypeInfo::Type::kFloat32:
+    case CTypeInfo::Type::kFloat64:
+      return Type::Number();
+    case CTypeInfo::Type::kInt32:
+      return Type::Signed32();
+    case CTypeInfo::Type::kInt64:
+      if (c_signature->GetInt64Representation() ==
+          CFunctionInfo::Int64Representation::kBigInt) {
+        return Type::SignedBigInt64();
+      }
+      DCHECK_EQ(c_signature->GetInt64Representation(),
+                CFunctionInfo::Int64Representation::kNumber);
+      return Type::Number();
+    case CTypeInfo::Type::kSeqOneByteString:
+      return Type::String();
+    case CTypeInfo::Type::kUint32:
+      return Type::Unsigned32();
+    case CTypeInfo::Type::kUint64:
+      if (c_signature->GetInt64Representation() ==
+          CFunctionInfo::Int64Representation::kBigInt) {
+        return Type::UnsignedBigInt64();
+      }
+      DCHECK_EQ(c_signature->GetInt64Representation(),
+                CFunctionInfo::Int64Representation::kNumber);
+      return Type::Number();
+    case CTypeInfo::Type::kUint8:
+      return Type::UnsignedSmall();
+    case CTypeInfo::Type::kAny:
+      // This type is only supposed to be used for parameters, not returns.
+      UNREACHABLE();
+    case CTypeInfo::Type::kPointer:
+    case CTypeInfo::Type::kApiObject:
+    case CTypeInfo::Type::kV8Value:
+    case CTypeInfo::Type::kVoid:
+      return Type::Any();
+  }
+}
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+Type Typer::Visitor::TypeGetContinuationPreservedEmbedderData(Node* node) {
+  return Type::Any();
+}
+
+Type Typer::Visitor::TypeSetContinuationPreservedEmbedderData(Node* node) {
+  UNREACHABLE();
+}
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 
 #if V8_ENABLE_WEBASSEMBLY
 Type Typer::Visitor::TypeJSWasmCall(Node* node) {
@@ -1253,7 +1315,7 @@ Type Typer::Visitor::JSStrictEqualTyper(Type lhs, Type rhs, Typer* t) {
   return t->operation_typer()->StrictEqual(lhs, rhs);
 }
 
-// The EcmaScript specification defines the four relational comparison operators
+// The ECMAScript specification defines the four relational comparison operators
 // (<, <=, >=, >) with the help of a single abstract one.  It behaves like <
 // but returns undefined when the inputs cannot be compared.
 // We implement the typing analogously.
@@ -1479,6 +1541,10 @@ Type Typer::Visitor::TypeJSCreateKeyValueArray(Node* node) {
 
 Type Typer::Visitor::TypeJSCreateObject(Node* node) {
   return Type::OtherObject();
+}
+
+Type Typer::Visitor::TypeJSCreateStringWrapper(Node* node) {
+  return Type::StringWrapper();
 }
 
 Type Typer::Visitor::TypeJSCreatePromise(Node* node) {
@@ -2363,6 +2429,11 @@ Type Typer::Visitor::TypeCheckSmi(Node* node) {
 Type Typer::Visitor::TypeCheckString(Node* node) {
   Type arg = Operand(node, 0);
   return Type::Intersect(arg, Type::String(), zone());
+}
+
+Type Typer::Visitor::TypeCheckStringOrStringWrapper(Node* node) {
+  Type arg = Operand(node, 0);
+  return Type::Intersect(arg, Type::StringOrStringWrapper(), zone());
 }
 
 Type Typer::Visitor::TypeCheckSymbol(Node* node) {

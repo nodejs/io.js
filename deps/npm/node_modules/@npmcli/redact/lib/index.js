@@ -1,29 +1,15 @@
-const { URL } = require('url')
+const matchers = require('./matchers')
+const { redactUrlPassword } = require('./utils')
 
 const REPLACE = '***'
-const TOKEN_REGEX = /\bnpm_[a-zA-Z0-9]{36}\b/g
-const GUID_REGEX = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 
 const redact = (value) => {
   if (typeof value !== 'string' || !value) {
     return value
   }
-
-  let urlValue
-  try {
-    urlValue = new URL(value)
-  } catch {
-    // If it's not a URL then we can ignore all errors
-  }
-
-  if (urlValue?.password) {
-    urlValue.password = REPLACE
-    value = urlValue.toString()
-  }
-
-  return value
-    .replace(TOKEN_REGEX, `npm_${REPLACE}`)
-    .replace(GUID_REGEX, REPLACE)
+  return redactUrlPassword(value, REPLACE)
+    .replace(matchers.NPM_SECRET.pattern, `npm_${REPLACE}`)
+    .replace(matchers.UUID.pattern, REPLACE)
 }
 
 // split on \s|= similar to how nopt parses options
@@ -49,7 +35,6 @@ const redactLog = (arg) => {
   } else if (Array.isArray(arg)) {
     return arg.map((a) => typeof a === 'string' ? splitAndRedact(a) : a)
   }
-
   return arg
 }
 

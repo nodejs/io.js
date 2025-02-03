@@ -1,6 +1,6 @@
 const spawn = require('@npmcli/promise-spawn')
 const promiseRetry = require('promise-retry')
-const log = require('proc-log')
+const { log } = require('proc-log')
 const makeError = require('./make-error.js')
 const makeOpts = require('./opts.js')
 

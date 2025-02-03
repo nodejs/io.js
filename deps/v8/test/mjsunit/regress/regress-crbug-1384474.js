@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-rab-gsab
-
 const ta = new Int8Array(4);
 const rab = new ArrayBuffer(10, {"maxByteLength": 20});
 const lengthTracking = new Int8Array(rab);

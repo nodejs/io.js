@@ -1,17 +1,24 @@
 
 # Copyright (C) 2009-2013 by Daniel Stenberg
 #
-# Permission to use, copy, modify, and distribute this
-# software and its documentation for any purpose and without
-# fee is hereby granted, provided that the above copyright
-# notice appear in all copies and that both that copyright
-# notice and this permission notice appear in supporting
-# documentation, and that the name of M.I.T. not be used in
-# advertising or publicity pertaining to distribution of the
-# software without specific, written prior permission.
-# M.I.T. makes no representations about the suitability of
-# this software for any purpose.  It is provided "as is"
-# without express or implied warranty.
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice (including the next
+# paragraph) shall be included in all copies or substantial portions of the
+# Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 #
 # SPDX-License-Identifier: MIT
 
@@ -71,12 +78,9 @@ RTLIBD = /MTd
 # otherwise Winsock tcp/ip stack will be used as default.
 # --------------------------------------------------------
 
+!IFNDEF USE_WATT32
 USE_WATT32 = 0
-
-# --------------------------------------------------------
-# Detect compiler version.
-# --------------------------------------------------------
-!INCLUDE .\msvc_ver.inc
+!ENDIF
 
 # ----------------------------------------------------
 # Verify that current subdir is the c-ares source one
@@ -176,40 +180,26 @@ PROG3_OBJDIR = $(PROG3_OUTDIR)\obj
 # -------------------------------------
 
 !IF "$(USE_WATT32)" == "1"
-CFLAGS  = /UWIN32 /DWATT32 /I$(WATT_ROOT)\inc
-EX_LIBS_REL = $(WATT_ROOT)\lib\wattcpvc_imp.lib
-EX_LIBS_DBG = $(WATT_ROOT)\lib\wattcpvc_imp_d.lib
+CFLAGS  = /D_WIN32_WINNT=0x0602 /DWATT32 /I$(WATT_ROOT)\inc
+!  IFNDEF PLATFORM
+PLATFORM = x86
+!  ENDIF
+EX_LIBS_REL = $(WATT_ROOT)\lib\$(PLATFORM)\wattcpvc_imp.lib advapi32.lib
+EX_LIBS_DBG = $(WATT_ROOT)\lib\$(PLATFORM)\wattcpvc_imp_d.lib advapi32.lib
 !ELSE
-CFLAGS  = /DWIN32 /D_WIN32_WINNT=0x0602
+CFLAGS  = /D_WIN32_WINNT=0x0602
 EX_LIBS_REL = ws2_32.lib advapi32.lib kernel32.lib iphlpapi.lib
 EX_LIBS_DBG = ws2_32.lib advapi32.lib kernel32.lib iphlpapi.lib
 !ENDIF
 
-# -------------------------------------------------
-# Switches that depend on ancient compiler versions
-# -------------------------------------------------
-
-!IF $(CC_VERS_NUM) == 60
-PDB_NONE            = /pdb:none
-PDBTYPE_CONSOLIDATE = /pdbtype:consolidate
-!ELSE
-!UNDEF PDB_NONE
-!UNDEF PDBTYPE_CONSOLIDATE
-!ENDIF
-
-!IF $(CC_VERS_NUM) <= 70
-RT_ERROR_CHECKING = /GZ
-!ELSE
-RT_ERROR_CHECKING = /RTCsu
-!ENDIF
 
 # ----------------------------
 # Assorted commands and flags
 # ----------------------------
 
 CC_CMD_REL = cl.exe /nologo $(RTLIB) /DNDEBUG /O2
-CC_CMD_DBG = cl.exe /nologo $(RTLIBD) /D_DEBUG /Od /Zi $(RT_ERROR_CHECKING)
-CC_CFLAGS  = $(CFLAGS) /I.\src\lib /I.\include /W3 /EHsc /FD
+CC_CMD_DBG = cl.exe /nologo $(RTLIBD) /D_DEBUG /Od /Zi /RTCsu
+CC_CFLAGS  = $(CFLAGS) /D_REENTRANT /I.\src\lib /I.\include /I.\src\lib\include /W3 /EHsc /FD
 
 RC_CMD_REL = rc.exe /l 0x409 /d "NDEBUG"
 RC_CMD_DBG = rc.exe /l 0x409 /d "_DEBUG"
@@ -218,8 +208,8 @@ LINK_CMD_LIB = link.exe /lib /nologo
 LINK_CMD_DLL = link.exe /dll /nologo /incremental:no /fixed:no
 LINK_CMD_EXE = link.exe /nologo /incremental:no /fixed:no /subsystem:console
 
-LINK_CMD_EXE_REL = $(LINK_CMD_EXE) /release $(PDB_NONE)
-LINK_CMD_EXE_DBG = $(LINK_CMD_EXE) /debug $(PDBTYPE_CONSOLIDATE)
+LINK_CMD_EXE_REL = $(LINK_CMD_EXE) /release
+LINK_CMD_EXE_DBG = $(LINK_CMD_EXE) /debug
 
 # ---------------------------------
 # Configuration dependent settings
@@ -250,7 +240,7 @@ CC_CMD       = $(CC_CMD_DBG)
 !IF "$(CFG)" == "dll-release"
 CARES_TARGET = $(DYN_LIB_REL).dll
 CARES_CFLAGS = /DCARES_BUILDING_LIBRARY
-CARES_LFLAGS = /release $(EX_LIBS_REL) /implib:$(CARES_OUTDIR)\$(IMP_LIB_REL).lib $(PDB_NONE)
+CARES_LFLAGS = /release $(EX_LIBS_REL) /implib:$(CARES_OUTDIR)\$(IMP_LIB_REL).lib
 SPROG_CFLAGS = /DCARES_NO_DEPRECATED
 SPROG_LFLAGS = /libpath:$(CARES_OUTDIR) $(EX_LIBS_REL) $(IMP_LIB_REL).lib
 CARES_LINK   = $(LINK_CMD_DLL)
@@ -263,7 +253,7 @@ RC_CMD       = $(RC_CMD_REL)
 !IF "$(CFG)" == "dll-debug"
 CARES_TARGET = $(DYN_LIB_DBG).dll
 CARES_CFLAGS = /DCARES_BUILDING_LIBRARY /DDEBUGBUILD
-CARES_LFLAGS = /debug $(EX_LIBS_DBG) /implib:$(CARES_OUTDIR)\$(IMP_LIB_DBG).lib /pdb:$(CARES_OUTDIR)\$(DYN_LIB_DBG).pdb $(PDBTYPE_CONSOLIDATE)
+CARES_LFLAGS = /debug $(EX_LIBS_DBG) /implib:$(CARES_OUTDIR)\$(IMP_LIB_DBG).lib /pdb:$(CARES_OUTDIR)\$(DYN_LIB_DBG).pdb
 SPROG_CFLAGS = /DCARES_NO_DEPRECATED
 SPROG_LFLAGS = /libpath:$(CARES_OUTDIR) $(EX_LIBS_DBG) $(IMP_LIB_DBG).lib
 CARES_LINK   = $(LINK_CMD_DLL)
@@ -294,6 +284,7 @@ RC_CMD       = $(RC_CMD_DBG)
 !ERROR Problem generating CARES_OBJS list.
 !ENDIF
 CARES_OBJS = $(CARES_OBJS:.c=.obj)
+CARES_OBJS = $(CARES_OBJS:/=\)
 !IF "$(USE_RES_FILE)" == "TRUE"
 CARES_OBJS = $(CARES_OBJS) $(CARES_OBJDIR)\cares.res
 !ENDIF
@@ -336,20 +327,29 @@ PROG3_OBJS = $(PROG3_OBJS) $(PROG3_OBJDIR)\ahost.obj
 {$(SRCDIR)\src\lib}.c{$(CARES_OBJDIR)}.obj:
     $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
 
+{$(SRCDIR)\src\lib\dsa}.c{$(CARES_OBJDIR)\dsa}.obj:
+    $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+
+{$(SRCDIR)\src\lib\event}.c{$(CARES_OBJDIR)\event}.obj:
+    $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+
+{$(SRCDIR)\src\lib\legacy}.c{$(CARES_OBJDIR)\legacy}.obj:
+    $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+
+{$(SRCDIR)\src\lib\record}.c{$(CARES_OBJDIR)\record}.obj:
+    $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+
+{$(SRCDIR)\src\lib\str}.c{$(CARES_OBJDIR)\str}.obj:
+    $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+
+{$(SRCDIR)\src\lib\util}.c{$(CARES_OBJDIR)\util}.obj:
+    $(CC_CMD) $(CC_CFLAGS) $(CARES_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+
 {$(SRCDIR)\src\tools}.c{$(PROG2_OBJDIR)}.obj:
-    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
+    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$@ /Fd$(PROG2_OBJDIR)\ /c $<
 
 {$(SRCDIR)\src\tools}.c{$(PROG3_OBJDIR)}.obj:
-    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$@ /Fd$(@D)\ /c $<
-
-# Hack Alert! we reference ../lib/ files in the Makefile.inc for tools as they
-# share some files with the library itself.  We need to hack around that here.
-
-{$(SRCDIR)\src\lib}.c{$(PROG2_OBJDIR)\..\lib}.obj:
-    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$(PROG2_OBJDIR)\$(@F) /Fd$(PROG2_OBJDIR)\ /c $<
-
-{$(SRCDIR)\src\lib}.c{$(PROG3_OBJDIR)\..\lib}.obj:
-    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$(PROG3_OBJDIR)\$(@F) /Fd$(PROG3_OBJDIR)\ /c $<
+    $(CC_CMD) $(CC_CFLAGS) $(SPROG_CFLAGS) /Fo$@ /Fd$(PROG3_OBJDIR)\ /c $<
 
 # ------------------------------------------------------------- #
 # ------------------------------------------------------------- #
@@ -414,16 +414,32 @@ $(PROG3_OUTDIR): $(PROG3_DIR)
 
 $(CARES_OBJDIR): $(CARES_OUTDIR)
     @if not exist $(CARES_OBJDIR) mkdir $(CARES_OBJDIR)
+    @if not exist $(CARES_OBJDIR)\dsa mkdir $(CARES_OBJDIR)\dsa
+    @if not exist $(CARES_OBJDIR)\event mkdir $(CARES_OBJDIR)\event
+    @if not exist $(CARES_OBJDIR)\legacy mkdir $(CARES_OBJDIR)\legacy
+    @if not exist $(CARES_OBJDIR)\record mkdir $(CARES_OBJDIR)\record
+    @if not exist $(CARES_OBJDIR)\str mkdir $(CARES_OBJDIR)\str
+    @if not exist $(CARES_OBJDIR)\util mkdir $(CARES_OBJDIR)\util
 
 $(PROG2_OBJDIR): $(PROG2_OUTDIR)
     @if not exist $(PROG2_OBJDIR) mkdir $(PROG2_OBJDIR)
+    @if not exist $(PROG2_OBJDIR)\str mkdir $(PROG2_OBJDIR)\str
 
 $(PROG3_OBJDIR): $(PROG3_OUTDIR)
     @if not exist $(PROG3_OBJDIR) mkdir $(PROG3_OBJDIR)
+    @if not exist $(PROG3_OBJDIR)\str mkdir $(PROG3_OBJDIR)\str
 
 clean:
+    @-RMDIR /S /Q $(CARES_OBJDIR)\dsa >NUL 2>&1
+    @-RMDIR /S /Q $(CARES_OBJDIR)\event >NUL 2>&1
+    @-RMDIR /S /Q $(CARES_OBJDIR)\legacy >NUL 2>&1
+    @-RMDIR /S /Q $(CARES_OBJDIR)\record >NUL 2>&1
+    @-RMDIR /S /Q $(CARES_OBJDIR)\str >NUL 2>&1
+    @-RMDIR /S /Q $(CARES_OBJDIR)\util >NUL 2>&1
     @-RMDIR /S /Q $(CARES_OUTDIR) >NUL 2>&1
+    @-RMDIR /S /Q $(PROG2_OBJDIR)\str >NUL 2>&1
     @-RMDIR /S /Q $(PROG2_OUTDIR) >NUL 2>&1
+    @-RMDIR /S /Q $(PROG3_OBJDIR)\str >NUL 2>&1
     @-RMDIR /S /Q $(PROG3_OUTDIR) >NUL 2>&1
 
 install:
@@ -435,7 +451,6 @@ install:
     @copy /y $(CARES_OUTDIR)\*.*              "$(INSTALL_DIR_LIB)" >NUL
     @copy /y $(SRCDIR)\include\ares.h         "$(INSTALL_DIR_INC)" >NUL
     @copy /y $(SRCDIR)\include\ares_build.h   "$(INSTALL_DIR_INC)" >NUL
-    @copy /y $(SRCDIR)\include\ares_rules.h   "$(INSTALL_DIR_INC)" >NUL
     @copy /y $(SRCDIR)\include\ares_version.h "$(INSTALL_DIR_INC)" >NUL
     @copy /y $(SRCDIR)\include\ares_dns_record.h "$(INSTALL_DIR_INC)" >NUL
     @echo Installed c-ares $(CFG)

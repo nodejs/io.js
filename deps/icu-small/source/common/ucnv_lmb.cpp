@@ -633,7 +633,7 @@ _LMBCSOpenWorker(UConverter*  _this,
                  UErrorCode*  err,
                  ulmbcs_byte_t OptGroup)
 {
-    UConverterDataLMBCS * extraInfo = (UConverterDataLMBCS*)uprv_malloc (sizeof (UConverterDataLMBCS));
+    UConverterDataLMBCS* extraInfo = static_cast<UConverterDataLMBCS*>(uprv_malloc(sizeof(UConverterDataLMBCS)));
     _this->extraInfo = extraInfo;
     if(extraInfo != nullptr)
     {

@@ -3,7 +3,7 @@
 // Flags: --expose-gc
 
 const common = require('../../common');
-
+const { gcUntil } = require('../../common/gc');
 // Verify that addons can create GarbageCollected objects and
 // have them traced properly.
 
@@ -35,7 +35,7 @@ setTimeout(async function() {
   for (let i = 0; i < count; ++i) {
     array[i] = new CppGCed();
   }
-  await common.gcUntil(
+  await gcUntil(
     'All old CppGCed are destroyed',
     () => states[kDestructCount] === count,
   );
@@ -44,7 +44,7 @@ setTimeout(async function() {
   array = null;
   globalThis.gc();
 
-  await common.gcUntil(
+  await gcUntil(
     'All old CppGCed are destroyed',
     () => states[kDestructCount] === count * 2,
   );

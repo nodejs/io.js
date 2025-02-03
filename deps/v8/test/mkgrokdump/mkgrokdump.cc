@@ -53,9 +53,9 @@ static void DumpKnownMap(FILE* out, i::Heap* heap, const char* space_name,
 
   i::ReadOnlyRoots roots(heap);
   const char* root_name = nullptr;
-  i::Tagged<i::Map> map = i::Map::cast(object);
+  i::Tagged<i::Map> map = i::Cast<i::Map>(object);
   intptr_t root_ptr =
-      static_cast<intptr_t>(map.ptr()) & (i::Page::kPageSize - 1);
+      static_cast<intptr_t>(map.ptr()) & (i::PageMetadata::kPageSize - 1);
 
   READ_ONLY_ROOT_LIST(RO_ROOT_LIST_CASE)
   MUTABLE_ROOT_LIST(MUTABLE_ROOT_LIST_CASE)
@@ -84,7 +84,7 @@ static void DumpKnownObject(FILE* out, i::Heap* heap, const char* space_name,
   i::ReadOnlyRoots roots(heap);
   const char* root_name = nullptr;
   i::RootIndex root_index = i::RootIndex::kFirstSmiRoot;
-  intptr_t root_ptr = object.ptr() & (i::Page::kPageSize - 1);
+  intptr_t root_ptr = object.ptr() & (i::PageMetadata::kPageSize - 1);
 
   STRONG_READ_ONLY_ROOT_LIST(RO_ROOT_LIST_CASE)
   MUTABLE_ROOT_LIST(ROOT_LIST_CASE)

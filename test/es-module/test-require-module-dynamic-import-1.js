@@ -21,8 +21,7 @@ const { pathToFileURL } = require('url');
     const url = pathToFileURL(path.resolve(__dirname, id));
     const imported = await import(url);
     const required = require(id);
-    assert.strictEqual(imported, required,
-                       `import()'ed and require()'ed result of ${id} was not reference equal`);
+    common.expectRequiredModule(required, imported);
   }
 
   const id = '../fixtures/es-modules/data-import.mjs';

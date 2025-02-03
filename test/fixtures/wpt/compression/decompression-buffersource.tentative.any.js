@@ -48,6 +48,10 @@ const bufferSourceChunksForDeflate = [
     value: new Uint32Array(new Uint8Array(compressedBytesWithDeflate).buffer)
   },
   {
+    name: 'Float16Array',
+    value: () => new Float16Array(new Uint8Array(compressedBytesWithDeflate).buffer)
+  },
+  {
     name: 'Float32Array',
     value: new Float32Array(new Uint8Array(compressedBytesWithDeflate).buffer)
   },
@@ -93,6 +97,10 @@ const bufferSourceChunksForGzip = [
   {
     name: 'Uint32Array',
     value: new Uint32Array(new Uint8Array(compressedBytesWithGzip).buffer)
+  },
+  {
+    name: 'Float16Array',
+    value: () => new Float16Array(new Uint8Array(compressedBytesWithGzip).buffer)
   },
   {
     name: 'Float32Array',
@@ -142,6 +150,10 @@ const bufferSourceChunksForDeflateRaw = [
     value: new Uint32Array(new Uint8Array(compressedBytesWithDeflateRaw).buffer)
   },
   {
+    name: 'Float16Array',
+    value: () => new Float16Array(new Uint8Array(compressedBytesWithDeflateRaw).buffer)
+  },
+  {
     name: 'Float32Array',
     value: new Float32Array(new Uint8Array(compressedBytesWithDeflateRaw).buffer)
   },
@@ -160,7 +172,7 @@ for (const chunk of bufferSourceChunksForDeflate) {
     const ds = new DecompressionStream('deflate');
     const reader = ds.readable.getReader();
     const writer = ds.writable.getWriter();
-    const writePromise = writer.write(chunk.value);
+    const writePromise = writer.write(typeof chunk.value === 'function' ? chunk.value() : chunk.value);
     writer.close();
     const { value } = await reader.read();
     assert_array_equals(Array.from(value), deflateExpectedChunkValue, 'value should match');
@@ -172,7 +184,7 @@ for (const chunk of bufferSourceChunksForGzip) {
     const ds = new DecompressionStream('gzip');
     const reader = ds.readable.getReader();
     const writer = ds.writable.getWriter();
-    const writePromise = writer.write(chunk.value);
+    const writePromise = writer.write(typeof chunk.value === 'function' ? chunk.value() : chunk.value);
     writer.close();
     const { value } = await reader.read();
     assert_array_equals(Array.from(value), gzipExpectedChunkValue, 'value should match');
@@ -184,7 +196,7 @@ for (const chunk of bufferSourceChunksForDeflateRaw) {
     const ds = new DecompressionStream('deflate-raw');
     const reader = ds.readable.getReader();
     const writer = ds.writable.getWriter();
-    const writePromise = writer.write(chunk.value);
+    const writePromise = writer.write(typeof chunk.value === 'function' ? chunk.value() : chunk.value);
     writer.close();
     const { value } = await reader.read();
     assert_array_equals(Array.from(value), deflateRawExpectedChunkValue, 'value should match');

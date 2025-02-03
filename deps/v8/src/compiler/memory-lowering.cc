@@ -122,7 +122,7 @@ Node* MemoryLowering::GetWasmInstanceNode() {
   if (wasm_instance_node_.is_set()) return wasm_instance_node_.get();
   for (Node* use : graph()->start()->uses()) {
     if (use->opcode() == IrOpcode::kParameter &&
-        ParameterIndexOf(use->op()) == wasm::kWasmInstanceParameterIndex) {
+        ParameterIndexOf(use->op()) == wasm::kWasmInstanceDataParameterIndex) {
       wasm_instance_node_.set(use);
       return use;
     }

@@ -42,6 +42,7 @@
   V(_, fallback_string, "fallback")                                 \
   V(_, first_string, "first")                                       \
   V(_, firstDay_string, "firstDay")                                 \
+  V(_, firstDayOfWeek_string, "firstDayOfWeek")                     \
   V(_, floor_string, "floor")                                       \
   V(_, format_string, "format")                                     \
   V(_, fraction_string, "fraction")                                 \
@@ -172,7 +173,6 @@
   V(_, add_string, "add")                                                     \
   V(_, AggregateError_string, "AggregateError")                               \
   V(_, always_string, "always")                                               \
-  V(_, anonymous_function_string, "(anonymous function)")                     \
   V(_, anonymous_string, "anonymous")                                         \
   V(_, apply_string, "apply")                                                 \
   V(_, Arguments_string, "Arguments")                                         \
@@ -188,7 +188,6 @@
   V(_, AtomicsCondition_string, "Atomics.Condition")                          \
   V(_, AtomicsMutex_string, "Atomics.Mutex")                                  \
   V(_, auto_string, "auto")                                                   \
-  V(_, await_string, "await")                                                 \
   V(_, BigInt_string, "BigInt")                                               \
   V(_, bigint_string, "bigint")                                               \
   V(_, BigInt64Array_string, "BigInt64Array")                                 \
@@ -233,6 +232,7 @@
   V(_, deleteProperty_string, "deleteProperty")                               \
   V(_, detached_string, "detached")                                           \
   V(_, disjunction_string, "disjunction")                                     \
+  V(_, disposed_string, "disposed")                                           \
   V(_, done_string, "done")                                                   \
   V(_, dot_brand_string, ".brand")                                            \
   V(_, dot_catch_string, ".catch")                                            \
@@ -266,6 +266,7 @@
   V(_, fields_string, "fields")                                               \
   V(_, FinalizationRegistry_string, "FinalizationRegistry")                   \
   V(_, flags_string, "flags")                                                 \
+  V(_, Float16Array_string, "Float16Array")                                   \
   V(_, Float32Array_string, "Float32Array")                                   \
   V(_, Float64Array_string, "Float64Array")                                   \
   V(_, fractionalSecondDigits_string, "fractionalSecondDigits")               \
@@ -367,7 +368,6 @@
   V(_, object_string, "object")                                               \
   V(_, object_to_string, "[object Object]")                                   \
   V(_, Object_prototype_string, "Object.prototype")                           \
-  V(_, of_string, "of")                                                       \
   V(_, offset_string, "offset")                                               \
   V(_, offsetNanoseconds_string, "offsetNanoseconds")                         \
   V(_, ok_string, "ok")                                                       \
@@ -404,6 +404,7 @@
   V(_, roundingIncrement_string, "roundingIncrement")                         \
   V(_, RuntimeError_string, "RuntimeError")                                   \
   V(_, WebAssemblyException_string, "WebAssembly.Exception")                  \
+  V(_, WebAssemblyModule_string, "WebAssembly.Module")                        \
   V(_, Script_string, "Script")                                               \
   V(_, script_string, "script")                                               \
   V(_, second_string, "second")                                               \
@@ -464,7 +465,6 @@
   V(_, unit_string, "unit")                                                   \
   V(_, URIError_string, "URIError")                                           \
   V(_, UTC_string, "UTC")                                                     \
-  V(_, valueOf_string, "valueOf")                                             \
   V(_, WeakMap_string, "WeakMap")                                             \
   V(_, WeakRef_string, "WeakRef")                                             \
   V(_, WeakSet_string, "WeakSet")                                             \
@@ -494,11 +494,10 @@
 #define NOT_IMPORTANT_PRIVATE_SYMBOL_LIST_GENERATOR(V, _) \
   V(_, array_buffer_wasm_memory_symbol)                   \
   V(_, call_site_info_symbol)                             \
-  V(_, console_context_id_symbol)                         \
-  V(_, console_context_name_symbol)                       \
   V(_, class_fields_symbol)                               \
   V(_, class_positions_symbol)                            \
   V(_, error_end_pos_symbol)                              \
+  V(_, error_message_symbol)                              \
   V(_, error_script_symbol)                               \
   V(_, error_stack_symbol)                                \
   V(_, error_start_pos_symbol)                            \
@@ -535,8 +534,9 @@
   V(_, intl_fallback_symbol, IntlLegacyConstructedSymbol) \
   V(_, match_symbol, Symbol.match)                        \
   V(_, search_symbol, Symbol.search)                      \
-  V(_, to_primitive_symbol, Symbol.toPrimitive)           \
-  V(_, unscopables_symbol, Symbol.unscopables)
+  V(_, unscopables_symbol, Symbol.unscopables)            \
+  V(_, dispose_symbol, Symbol.dispose)                    \
+  V(_, async_dispose_symbol, Symbol.asyncDispose)
 
 // Well-Known Symbols are "Public" symbols, which have a bit set which causes
 // them to produce an undefined value when a load results in a failed access
@@ -552,7 +552,8 @@
   V(_, constructor_string, "constructor")                      \
   V(_, next_string, "next")                                    \
   V(_, resolve_string, "resolve")                              \
-  V(_, then_string, "then")
+  V(_, then_string, "then")                                    \
+  V(_, valueOf_string, "valueOf")
 
 // Note that the description string should be part of the internalized
 // string roots to make sure we don't accidentally end up allocating the
@@ -563,6 +564,9 @@
   V(_, replace_symbol, Symbol.replace)            \
   V(_, species_symbol, Symbol.species)            \
   V(_, split_symbol, Symbol.split)
+
+#define PUBLIC_SYMBOL_FOR_PROTECTOR_LIST_GENERATOR(V, _) \
+  V(_, to_primitive_symbol, Symbol.toPrimitive)
 
 #define WELL_KNOWN_SYMBOL_FOR_PROTECTOR_LIST_GENERATOR(V, _) \
   V(_, is_concat_spreadable_symbol, Symbol.isConcatSpreadable)
@@ -639,67 +643,74 @@
   F(SCAVENGER_SCAVENGE_FINALIZE)                     \
   F(SCAVENGER_SWEEP_ARRAY_BUFFERS)
 
-#define MC_MAIN_THREAD_SCOPES(F)                \
-  F(MARK_COMPACTOR)                             \
-  TOP_MC_SCOPES(F)                              \
-  F(MC_CLEAR_DEPENDENT_CODE)                    \
-  F(MC_CLEAR_EXTERNAL_STRING_TABLE)             \
-  F(MC_CLEAR_STRING_FORWARDING_TABLE)           \
-  F(MC_CLEAR_FLUSHABLE_BYTECODE)                \
-  F(MC_CLEAR_FLUSHED_JS_FUNCTIONS)              \
-  F(MC_CLEAR_JOIN_JOB)                          \
-  F(MC_CLEAR_MAPS)                              \
-  F(MC_CLEAR_SLOTS_BUFFER)                      \
-  F(MC_CLEAR_STRING_TABLE)                      \
-  F(MC_CLEAR_WEAK_COLLECTIONS)                  \
-  F(MC_CLEAR_WEAK_GLOBAL_HANDLES)               \
-  F(MC_CLEAR_WEAK_LISTS)                        \
-  F(MC_CLEAR_WEAK_REFERENCES)                   \
-  F(MC_SWEEP_EXTERNAL_POINTER_TABLE)            \
-  F(MC_SWEEP_TRUSTED_POINTER_TABLE)             \
-  F(MC_SWEEP_CODE_POINTER_TABLE)                \
-  F(MC_COMPLETE_SWEEP_ARRAY_BUFFERS)            \
-  F(MC_COMPLETE_SWEEPING)                       \
-  F(MC_EVACUATE_CANDIDATES)                     \
-  F(MC_EVACUATE_CLEAN_UP)                       \
-  F(MC_EVACUATE_COPY)                           \
-  F(MC_EVACUATE_COPY_PARALLEL)                  \
-  F(MC_EVACUATE_EPILOGUE)                       \
-  F(MC_EVACUATE_PROLOGUE)                       \
-  F(MC_EVACUATE_REBALANCE)                      \
-  F(MC_EVACUATE_UPDATE_POINTERS)                \
-  F(MC_EVACUATE_UPDATE_POINTERS_CLIENT_HEAPS)   \
-  F(MC_EVACUATE_UPDATE_POINTERS_PARALLEL)       \
-  F(MC_EVACUATE_UPDATE_POINTERS_SLOTS_MAIN)     \
-  F(MC_EVACUATE_UPDATE_POINTERS_TO_NEW_ROOTS)   \
-  F(MC_EVACUATE_UPDATE_POINTERS_WEAK)           \
-  F(MC_EVACUATE_UPDATE_POINTERS_POINTER_TABLES) \
-  F(MC_FINISH_SWEEP_ARRAY_BUFFERS)              \
-  F(MC_MARK_CLIENT_HEAPS)                       \
-  F(MC_MARK_EMBEDDER_PROLOGUE)                  \
-  F(MC_MARK_EMBEDDER_TRACING)                   \
-  F(MC_MARK_FINISH_INCREMENTAL)                 \
-  F(MC_MARK_FULL_CLOSURE_PARALLEL)              \
-  F(MC_MARK_FULL_CLOSURE_PARALLEL_JOIN)         \
-  F(MC_MARK_FULL_CLOSURE_SERIAL)                \
-  F(MC_MARK_RETAIN_MAPS)                        \
-  F(MC_MARK_ROOTS)                              \
-  F(MC_MARK_FULL_CLOSURE)                       \
-  F(MC_MARK_WEAK_CLOSURE_EPHEMERON_MARKING)     \
-  F(MC_MARK_WEAK_CLOSURE_EPHEMERON_LINEAR)      \
-  F(MC_MARK_VERIFY)                             \
-  F(MC_SWEEP_CODE)                              \
-  F(MC_SWEEP_CODE_LO)                           \
-  F(MC_SWEEP_LO)                                \
-  F(MC_SWEEP_MAP)                               \
-  F(MC_SWEEP_NEW)                               \
-  F(MC_SWEEP_NEW_LO)                            \
-  F(MC_SWEEP_OLD)                               \
-  F(MC_SWEEP_SHARED)                            \
-  F(MC_SWEEP_SHARED_LO)                         \
-  F(MC_SWEEP_TRUSTED)                           \
-  F(MC_SWEEP_TRUSTED_LO)                        \
-  F(MC_SWEEP_START_JOBS)
+#define MC_MAIN_THREAD_SCOPES(F)                 \
+  F(MARK_COMPACTOR)                              \
+  TOP_MC_SCOPES(F)                               \
+  F(MC_CLEAR_DEPENDENT_CODE)                     \
+  F(MC_CLEAR_EXTERNAL_STRING_TABLE)              \
+  F(MC_CLEAR_STRING_FORWARDING_TABLE)            \
+  F(MC_CLEAR_FLUSHABLE_BYTECODE)                 \
+  F(MC_CLEAR_FLUSHED_JS_FUNCTIONS)               \
+  F(MC_CLEAR_JOIN_JOB)                           \
+  F(MC_CLEAR_JS_WEAK_REFERENCES)                 \
+  F(MC_CLEAR_MAPS)                               \
+  F(MC_CLEAR_SLOTS_BUFFER)                       \
+  F(MC_CLEAR_STRING_TABLE)                       \
+  F(MC_CLEAR_WEAK_COLLECTIONS)                   \
+  F(MC_CLEAR_WEAK_GLOBAL_HANDLES)                \
+  F(MC_CLEAR_WEAK_LISTS)                         \
+  F(MC_CLEAR_WEAK_REFERENCES_FILTER_NON_TRIVIAL) \
+  F(MC_CLEAR_WEAK_REFERENCES_JOIN_FILTER_JOB)    \
+  F(MC_CLEAR_WEAK_REFERENCES_NON_TRIVIAL)        \
+  F(MC_CLEAR_WEAK_REFERENCES_TRIVIAL)            \
+  F(MC_SWEEP_EXTERNAL_POINTER_TABLE)             \
+  F(MC_SWEEP_TRUSTED_POINTER_TABLE)              \
+  F(MC_SWEEP_CODE_POINTER_TABLE)                 \
+  F(MC_SWEEP_WASM_CODE_POINTER_TABLE)            \
+  F(MC_SWEEP_JS_DISPATCH_TABLE)                  \
+  F(MC_COMPLETE_SWEEP_ARRAY_BUFFERS)             \
+  F(MC_COMPLETE_SWEEPING)                        \
+  F(MC_EVACUATE_CANDIDATES)                      \
+  F(MC_EVACUATE_CLEAN_UP)                        \
+  F(MC_EVACUATE_COPY)                            \
+  F(MC_EVACUATE_COPY_PARALLEL)                   \
+  F(MC_EVACUATE_EPILOGUE)                        \
+  F(MC_EVACUATE_PROLOGUE)                        \
+  F(MC_EVACUATE_REBALANCE)                       \
+  F(MC_EVACUATE_UPDATE_POINTERS)                 \
+  F(MC_EVACUATE_UPDATE_POINTERS_CLIENT_HEAPS)    \
+  F(MC_EVACUATE_UPDATE_POINTERS_PARALLEL)        \
+  F(MC_EVACUATE_UPDATE_POINTERS_SLOTS_MAIN)      \
+  F(MC_EVACUATE_UPDATE_POINTERS_TO_NEW_ROOTS)    \
+  F(MC_EVACUATE_UPDATE_POINTERS_WEAK)            \
+  F(MC_EVACUATE_UPDATE_POINTERS_POINTER_TABLES)  \
+  F(MC_FINISH_SWEEP_ARRAY_BUFFERS)               \
+  F(MC_MARK_CLIENT_HEAPS)                        \
+  F(MC_MARK_EMBEDDER_PROLOGUE)                   \
+  F(MC_MARK_EMBEDDER_TRACING)                    \
+  F(MC_MARK_FINISH_INCREMENTAL)                  \
+  F(MC_MARK_FULL_CLOSURE_PARALLEL)               \
+  F(MC_MARK_FULL_CLOSURE_PARALLEL_JOIN)          \
+  F(MC_MARK_FULL_CLOSURE_SERIAL)                 \
+  F(MC_MARK_RETAIN_MAPS)                         \
+  F(MC_MARK_ROOTS)                               \
+  F(MC_MARK_FULL_CLOSURE)                        \
+  F(MC_MARK_WEAK_CLOSURE_EPHEMERON_MARKING)      \
+  F(MC_MARK_WEAK_CLOSURE_EPHEMERON_LINEAR)       \
+  F(MC_MARK_VERIFY)                              \
+  F(MC_SWEEP_CODE)                               \
+  F(MC_SWEEP_CODE_LO)                            \
+  F(MC_SWEEP_LO)                                 \
+  F(MC_SWEEP_MAP)                                \
+  F(MC_SWEEP_NEW)                                \
+  F(MC_SWEEP_NEW_LO)                             \
+  F(MC_SWEEP_OLD)                                \
+  F(MC_SWEEP_SHARED)                             \
+  F(MC_SWEEP_SHARED_LO)                          \
+  F(MC_SWEEP_TRUSTED)                            \
+  F(MC_SWEEP_TRUSTED_LO)                         \
+  F(MC_SWEEP_START_JOBS)                         \
+  F(MC_WEAKNESS_HANDLING)
 
 #define TRACER_SCOPES(F)                 \
   MC_INCREMENTAL_SCOPES(F)               \

@@ -27,9 +27,8 @@ that promotes a specific company or commercial interest.
 
 ## Teams doing updates
 
-* [Node.js core](https://github.com/orgs/nodejs/discussions/47703).
 * [node-api/node-addon-api](https://github.com/nodejs/abi-stable-node/issues/459).
 * [uvwasi](https://github.com/nodejs/uvwasi/issues/201).
-* [security-team](https://github.com/nodejs/security-wg/issues/1006).
 * [Website team](https://github.com/nodejs/nodejs.org/issues/5602).
 * [diagnostics team](https://github.com/nodejs/diagnostics/issues/619).
+* [ambassadors](https://github.com/nodejs/nodejs-ambassadors/issues/2).

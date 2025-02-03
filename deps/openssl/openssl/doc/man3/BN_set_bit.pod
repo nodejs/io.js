@@ -33,8 +33,11 @@ error occurs if B<a> is shorter than B<n> bits.
 BN_is_bit_set() tests if bit B<n> in B<a> is set.
 
 BN_mask_bits() truncates B<a> to an B<n> bit number
-(C<a&=~((~0)E<lt>E<lt>n)>).  An error occurs if B<a> already is
-shorter than B<n> bits.
+(C<a&=~((~0)E<lt>E<lt>n)>). An error occurs if B<n> is negative. An error is
+also returned if the internal representation of B<a> is already shorter than
+B<n> bits. The internal representation depends on the platform's word size, and
+this error can be safely ignored. Use L<BN_num_bits(3)> to determine the exact
+number of bits if needed.
 
 BN_lshift() shifts B<a> left by B<n> bits and places the result in
 B<r> (C<r=a*2^n>). Note that B<n> must be nonnegative. BN_lshift1() shifts
@@ -59,7 +62,7 @@ L<BN_num_bytes(3)>, L<BN_add(3)>
 
 =head1 COPYRIGHT
 
-Copyright 2000-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

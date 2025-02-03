@@ -33,18 +33,17 @@
    for each probe. */
 #define NGTCP2_PMTUD_PROBE_NUM_MAX 3
 
-static size_t mtu_probes[] = {
-    1454 - 48, /* The well known MTU used by a domestic optic fiber
-                  service in Japan. */
-    1390 - 48, /* Typical Tunneled MTU */
-    1280 - 48, /* IPv6 minimum MTU */
-    1492 - 48, /* PPPoE */
+static uint16_t pmtud_default_probes[] = {
+  1454 - 48, /* The well known MTU used by a domestic optic fiber
+                service in Japan. */
+  1390 - 48, /* Typical Tunneled MTU */
+  1280 - 48, /* IPv6 minimum MTU */
+  1492 - 48, /* PPPoE */
 };
-
-#define NGTCP2_MTU_PROBESLEN ngtcp2_arraylen(mtu_probes)
 
 int ngtcp2_pmtud_new(ngtcp2_pmtud **ppmtud, size_t max_udp_payload_size,
                      size_t hard_max_udp_payload_size, int64_t tx_pkt_num,
+                     const uint16_t *probes, size_t probeslen,
                      const ngtcp2_mem *mem) {
   ngtcp2_pmtud *pmtud = ngtcp2_mem_malloc(mem, sizeof(ngtcp2_pmtud));
 
@@ -61,11 +60,19 @@ int ngtcp2_pmtud_new(ngtcp2_pmtud **ppmtud, size_t max_udp_payload_size,
   pmtud->hard_max_udp_payload_size = hard_max_udp_payload_size;
   pmtud->min_fail_udp_payload_size = SIZE_MAX;
 
-  for (; pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN; ++pmtud->mtu_idx) {
-    if (mtu_probes[pmtud->mtu_idx] > pmtud->hard_max_udp_payload_size) {
+  if (probeslen) {
+    pmtud->probes = probes;
+    pmtud->probeslen = probeslen;
+  } else {
+    pmtud->probes = pmtud_default_probes;
+    pmtud->probeslen = ngtcp2_arraylen(pmtud_default_probes);
+  }
+
+  for (; pmtud->mtu_idx < pmtud->probeslen; ++pmtud->mtu_idx) {
+    if (pmtud->probes[pmtud->mtu_idx] > pmtud->hard_max_udp_payload_size) {
       continue;
     }
-    if (mtu_probes[pmtud->mtu_idx] > pmtud->max_udp_payload_size) {
+    if (pmtud->probes[pmtud->mtu_idx] > pmtud->max_udp_payload_size) {
       break;
     }
   }
@@ -84,9 +91,9 @@ void ngtcp2_pmtud_del(ngtcp2_pmtud *pmtud) {
 }
 
 size_t ngtcp2_pmtud_probelen(ngtcp2_pmtud *pmtud) {
-  assert(pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN);
+  assert(pmtud->mtu_idx < pmtud->probeslen);
 
-  return mtu_probes[pmtud->mtu_idx];
+  return pmtud->probes[pmtud->mtu_idx];
 }
 
 void ngtcp2_pmtud_probe_sent(ngtcp2_pmtud *pmtud, ngtcp2_duration pto,
@@ -107,19 +114,19 @@ int ngtcp2_pmtud_require_probe(ngtcp2_pmtud *pmtud) {
 }
 
 static void pmtud_next_probe(ngtcp2_pmtud *pmtud) {
-  assert(pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN);
+  assert(pmtud->mtu_idx < pmtud->probeslen);
 
   ++pmtud->mtu_idx;
   pmtud->num_pkts_sent = 0;
   pmtud->expiry = UINT64_MAX;
 
-  for (; pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN; ++pmtud->mtu_idx) {
-    if (mtu_probes[pmtud->mtu_idx] <= pmtud->max_udp_payload_size ||
-        mtu_probes[pmtud->mtu_idx] > pmtud->hard_max_udp_payload_size) {
+  for (; pmtud->mtu_idx < pmtud->probeslen; ++pmtud->mtu_idx) {
+    if (pmtud->probes[pmtud->mtu_idx] <= pmtud->max_udp_payload_size ||
+        pmtud->probes[pmtud->mtu_idx] > pmtud->hard_max_udp_payload_size) {
       continue;
     }
 
-    if (mtu_probes[pmtud->mtu_idx] < pmtud->min_fail_udp_payload_size) {
+    if (pmtud->probes[pmtud->mtu_idx] < pmtud->min_fail_udp_payload_size) {
       break;
     }
   }
@@ -127,11 +134,11 @@ static void pmtud_next_probe(ngtcp2_pmtud *pmtud) {
 
 void ngtcp2_pmtud_probe_success(ngtcp2_pmtud *pmtud, size_t payloadlen) {
   pmtud->max_udp_payload_size =
-      ngtcp2_max(pmtud->max_udp_payload_size, payloadlen);
+    ngtcp2_max_size(pmtud->max_udp_payload_size, payloadlen);
 
-  assert(pmtud->mtu_idx < NGTCP2_MTU_PROBESLEN);
+  assert(pmtud->mtu_idx < pmtud->probeslen);
 
-  if (mtu_probes[pmtud->mtu_idx] > pmtud->max_udp_payload_size) {
+  if (pmtud->probes[pmtud->mtu_idx] > pmtud->max_udp_payload_size) {
     return;
   }
 
@@ -149,12 +156,12 @@ void ngtcp2_pmtud_handle_expiry(ngtcp2_pmtud *pmtud, ngtcp2_tstamp ts) {
     return;
   }
 
-  pmtud->min_fail_udp_payload_size =
-      ngtcp2_min(pmtud->min_fail_udp_payload_size, mtu_probes[pmtud->mtu_idx]);
+  pmtud->min_fail_udp_payload_size = ngtcp2_min_size(
+    pmtud->min_fail_udp_payload_size, pmtud->probes[pmtud->mtu_idx]);
 
   pmtud_next_probe(pmtud);
 }
 
 int ngtcp2_pmtud_finished(ngtcp2_pmtud *pmtud) {
-  return pmtud->mtu_idx >= NGTCP2_MTU_PROBESLEN;
+  return pmtud->mtu_idx >= pmtud->probeslen;
 }

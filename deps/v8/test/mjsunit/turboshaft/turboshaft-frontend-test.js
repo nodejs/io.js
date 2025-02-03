@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --turboshaft-frontend --turbofan
-// Flags: --no-always-turbofan
+// Flags: --no-always-turbofan --no-stress-concurrent-inlining
 
 function simple1() {
   return 0;

@@ -9,8 +9,7 @@
 #include <stream_base.h>
 #include <deque>
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // The LogStream is a utility that the QUIC impl uses to publish both QLog
 // and Keylog diagnostic data (one instance for each).
@@ -76,8 +75,7 @@ class LogStream : public AsyncWrap, public StreamBase {
   void ensure_space(size_t amt);
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

@@ -30,25 +30,25 @@ HEAP_TEST(WriteBarrier_Marking) {
     // Make sure that these objects are not immediately reachable from
     // the roots to prevent them being marked grey at the start of marking.
     HandleScope inner(isolate);
-    Handle<FixedArray> host = factory->NewFixedArray(1);
-    Handle<HeapNumber> value1 = factory->NewHeapNumber(1.1);
-    Handle<HeapNumber> value2 = factory->NewHeapNumber(1.2);
+    DirectHandle<FixedArray> host = factory->NewFixedArray(1);
+    DirectHandle<HeapNumber> value1 = factory->NewHeapNumber(1.1);
+    DirectHandle<HeapNumber> value2 = factory->NewHeapNumber(1.2);
     objects->set(0, *host);
     objects->set(1, *value1);
     objects->set(2, *value2);
   }
   heap::SimulateIncrementalMarking(CcTest::heap(), false);
-  Tagged<FixedArray> host = FixedArray::cast(objects->get(0));
-  Tagged<HeapObject> value1 = HeapObject::cast(objects->get(1));
-  Tagged<HeapObject> value2 = HeapObject::cast(objects->get(2));
+  Tagged<FixedArray> host = Cast<FixedArray>(objects->get(0));
+  Tagged<HeapObject> value1 = Cast<HeapObject>(objects->get(1));
+  Tagged<HeapObject> value2 = Cast<HeapObject>(objects->get(2));
   CHECK(heap->marking_state()->IsUnmarked(host));
   CHECK(heap->marking_state()->IsUnmarked(value1));
   // Trigger the barrier for the unmarked host and expect the bail out.
-  WriteBarrier::Marking(host, host->RawFieldOfElementAt(0), value1);
+  WriteBarrier::MarkingForTesting(host, host->RawFieldOfElementAt(0), value1);
   CHECK(heap->marking_state()->IsMarked(value1));
 
   CHECK(heap->marking_state()->IsUnmarked(value2));
-  WriteBarrier::Marking(host, host->RawFieldOfElementAt(0), value2);
+  WriteBarrier::MarkingForTesting(host, host->RawFieldOfElementAt(0), value2);
   CHECK(heap->marking_state()->IsMarked(value2));
   heap::SimulateIncrementalMarking(CcTest::heap(), true);
   CHECK(heap->marking_state()->IsMarked(host));
@@ -64,20 +64,20 @@ HEAP_TEST(WriteBarrier_MarkingExtension) {
   Factory* factory = isolate->factory();
   Heap* heap = isolate->heap();
   HandleScope outer(isolate);
-  Handle<FixedArray> objects = factory->NewFixedArray(1);
+  DirectHandle<FixedArray> objects = factory->NewFixedArray(1);
   ArrayBufferExtension* extension;
   {
     HandleScope inner(isolate);
     Local<v8::ArrayBuffer> ab = v8::ArrayBuffer::New(CcTest::isolate(), 100);
-    Handle<JSArrayBuffer> host = v8::Utils::OpenHandle(*ab);
+    DirectHandle<JSArrayBuffer> host = v8::Utils::OpenDirectHandle(*ab);
     extension = host->extension();
     objects->set(0, *host);
   }
   heap::SimulateIncrementalMarking(CcTest::heap(), false);
-  Tagged<JSArrayBuffer> host = JSArrayBuffer::cast(objects->get(0));
+  Tagged<JSArrayBuffer> host = Cast<JSArrayBuffer>(objects->get(0));
   CHECK(heap->marking_state()->IsUnmarked(host));
   CHECK(!extension->IsMarked());
-  WriteBarrier::Marking(host, extension);
+  WriteBarrier::ForArrayBufferExtension(host, extension);
   CHECK(extension->IsMarked());
   // Concurrent marking barrier should mark the value now.
   CHECK(extension->IsMarked());

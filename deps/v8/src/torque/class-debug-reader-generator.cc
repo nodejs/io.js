@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/flags/flags.h"
 #include "src/torque/implementation-visitor.h"
 #include "src/torque/type-oracle.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 constexpr char kTqObjectOverrideDecls[] =
     R"(  std::vector<std::unique_ptr<ObjectProperty>> GetProperties(
@@ -80,7 +80,7 @@ class ValueTypeFieldsRange {
   ValueTypeFieldIterator begin() { return {type_, 0}; }
   ValueTypeFieldIterator end() {
     size_t index = 0;
-    base::Optional<const StructType*> struct_type = type_->StructSupertype();
+    std::optional<const StructType*> struct_type = type_->StructSupertype();
     if (struct_type && *struct_type != TypeOracle::GetFloat64OrHoleType()) {
       index = (*struct_type)->fields().size();
     }
@@ -141,7 +141,7 @@ class DebugFieldType {
       return "";
     }
     if (IsTagged()) {
-      base::Optional<const ClassType*> field_class_type =
+      std::optional<const ClassType*> field_class_type =
           name_and_type_.type->ClassSupertype();
       std::string result =
           "v8::internal::" +
@@ -532,7 +532,12 @@ void ImplementationVisitor::GenerateClassDebugReaders(
     IncludeGuardScope include_guard(h_contents, file_name + ".h");
 
     h_contents << "#include <cstdint>\n";
-    h_contents << "#include <vector>\n";
+    h_contents << "#include <vector>\n\n";
+
+    for (const std::string& include_path : GlobalContext::CppIncludes()) {
+      h_contents << "#include " << StringLiteralQuote(include_path) << "\n";
+    }
+
     h_contents
         << "\n#include \"tools/debug_helper/debug-helper-internal.h\"\n\n";
 
@@ -572,6 +577,4 @@ void ImplementationVisitor::GenerateClassDebugReaders(
   WriteFile(output_directory + "/" + file_name + ".cc", cc_contents.str());
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

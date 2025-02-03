@@ -27,6 +27,11 @@
 #include "task.h"
 #include "uv.h"
 
+/* Refs: https://github.com/libuv/libuv/issues/4369 */
+#if defined(__ANDROID__)
+#include <android/fdsan.h>
+#endif
+
 char executable_path[sizeof(executable_path)];
 
 
@@ -142,6 +147,13 @@ void log_tap_result(int test_count,
   fflush(stdout);
 }
 
+void enable_fdsan(void) {
+/* Refs: https://github.com/libuv/libuv/issues/4369 */
+#if defined(__ANDROID__)
+  android_fdsan_set_error_level(ANDROID_FDSAN_ERROR_LEVEL_WARN_ALWAYS);
+#endif
+}
+
 
 int run_test(const char* test,
              int benchmark_output,
@@ -159,6 +171,8 @@ int run_test(const char* test,
   status = 255;
   main_proc = NULL;
   process_count = 0;
+
+  enable_fdsan();
 
 #ifndef _WIN32
   /* Clean up stale socket from previous run. */

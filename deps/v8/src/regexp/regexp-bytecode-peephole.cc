@@ -1011,13 +1011,14 @@ Zone* RegExpBytecodePeephole::zone() const { return zone_; }
 }  // namespace
 
 // static
-Handle<ByteArray> RegExpBytecodePeepholeOptimization::OptimizeBytecode(
-    Isolate* isolate, Zone* zone, Handle<String> source,
+Handle<TrustedByteArray> RegExpBytecodePeepholeOptimization::OptimizeBytecode(
+    Isolate* isolate, Zone* zone, DirectHandle<String> source,
     const uint8_t* bytecode, int length,
     const ZoneUnorderedMap<int, int>& jump_edges) {
   RegExpBytecodePeephole peephole(zone, length, jump_edges);
   bool did_optimize = peephole.OptimizeBytecode(bytecode, length);
-  Handle<ByteArray> array = isolate->factory()->NewByteArray(peephole.Length());
+  Handle<TrustedByteArray> array =
+      isolate->factory()->NewTrustedByteArray(peephole.Length());
   peephole.CopyOptimizedBytecode(array->begin());
 
   if (did_optimize && v8_flags.trace_regexp_peephole_optimization) {

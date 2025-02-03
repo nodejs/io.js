@@ -15,7 +15,7 @@
 
 # A simple CMakeLists.txt for testing cmake installation
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.16)
 project(absl_cmake_testing CXX)
 
 add_executable(simple simple.cc)

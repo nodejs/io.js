@@ -24,7 +24,7 @@ void LocalLogger::ScriptEvent(ScriptEventType type, int script_id) {
   v8_file_logger_->ScriptEvent(type, script_id);
 }
 void LocalLogger::CodeLinePosInfoRecordEvent(
-    Address code_start, Tagged<ByteArray> source_position_table,
+    Address code_start, Tagged<TrustedByteArray> source_position_table,
     JitCodeEvent::CodeType code_type) {
   v8_file_logger_->CodeLinePosInfoRecordEvent(code_start, source_position_table,
                                               code_type);

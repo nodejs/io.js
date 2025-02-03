@@ -311,7 +311,7 @@ public:
      * @return    the long value of this object.
      * @stable ICU 2.0
      */
-    int32_t getLong() const { return (int32_t)fValue.fInt64; }
+    int32_t getLong() const { return static_cast<int32_t>(fValue.fInt64); }
 
     /**
      * Gets the long value of this object. If the magnitude is too

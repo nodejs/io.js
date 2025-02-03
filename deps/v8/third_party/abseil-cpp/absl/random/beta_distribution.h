@@ -181,18 +181,18 @@ class beta_distribution {
     result_type alpha_;
     result_type beta_;
 
-    result_type a_;  // the smaller of {alpha, beta}, or 1.0/alpha_ in JOEHNK
-    result_type b_;  // the larger of {alpha, beta}, or 1.0/beta_ in JOEHNK
-    result_type x_;  // alpha + beta, or the result in degenerate cases
-    result_type log_x_;  // log(x_)
-    result_type y_;      // "beta" in Cheng
-    result_type gamma_;  // "gamma" in Cheng
+    result_type a_{};  // the smaller of {alpha, beta}, or 1.0/alpha_ in JOEHNK
+    result_type b_{};  // the larger of {alpha, beta}, or 1.0/beta_ in JOEHNK
+    result_type x_{};  // alpha + beta, or the result in degenerate cases
+    result_type log_x_{};  // log(x_)
+    result_type y_{};      // "beta" in Cheng
+    result_type gamma_{};  // "gamma" in Cheng
 
-    Method method_;
+    Method method_{};
 
     // Placing this last for optimal alignment.
     // Whether alpha_ != a_, i.e. true iff alpha_ > beta_.
-    bool inverted_;
+    bool inverted_{};
 
     static_assert(std::is_floating_point<RealType>::value,
                   "Class-template absl::beta_distribution<> must be "

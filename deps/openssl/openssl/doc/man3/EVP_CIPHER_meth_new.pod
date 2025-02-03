@@ -80,6 +80,7 @@ EVP_CIPHER_meth_new() creates a new B<EVP_CIPHER> structure.
 EVP_CIPHER_meth_dup() creates a copy of B<cipher>.
 
 EVP_CIPHER_meth_free() destroys a B<EVP_CIPHER> structure.
+If the argument is NULL, nothing is done.
 
 EVP_CIPHER_meth_set_iv_length() sets the length of the IV.
 This is only needed when the implemented cipher mode requires it.
@@ -249,7 +250,7 @@ counted in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

@@ -60,8 +60,8 @@ class JSHeapBrokerTestBase {
     // TODO(v8:13897): Remove once PersistentHandlesScopes can be opened
     // uncontionally.
     if (!PersistentHandlesScope::IsActive(isolate)) {
-      Handle<Object> dummy(ReadOnlyRoots(isolate->heap()).empty_string(),
-                           isolate);
+      IndirectHandle<Object> dummy(
+          ReadOnlyRoots(isolate->heap()).empty_string(), isolate);
       persistent_scope_ = std::make_unique<PersistentHandlesScope>(isolate);
     }
   }
@@ -75,8 +75,8 @@ class JSHeapBrokerTestBase {
     // TODO(v8:13897): Remove once PersistentHandlesScopes can be opened
     // uncontionally.
     if (!PersistentHandlesScope::IsActive(isolate)) {
-      Handle<Object> dummy(ReadOnlyRoots(isolate->heap()).empty_string(),
-                           isolate);
+      IndirectHandle<Object> dummy(
+          ReadOnlyRoots(isolate->heap()).empty_string(), isolate);
       persistent_scope_ = std::make_unique<PersistentHandlesScope>(isolate);
     }
   }

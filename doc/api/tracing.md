@@ -46,6 +46,7 @@ The available categories are:
   `runInNewContext()`, `runInContext()`, and `runInThisContext()` methods.
 * `v8`: The [V8][] events are GC, compiling, and execution related.
 * `node.http`: Enables capture of trace data for http request / response.
+* `node.module_timer`: Enables capture of trace data for CJS Module loading.
 
 By default the `node`, `node.async_hooks`, and `v8` categories are enabled.
 
@@ -68,9 +69,19 @@ node --trace-event-categories v8,node,node.async_hooks
 
 Alternatively, trace events may be enabled using the `node:trace_events` module:
 
-```js
-const trace_events = require('node:trace_events');
-const tracing = trace_events.createTracing({ categories: ['node.perf'] });
+```mjs
+import { createTracing } from 'node:trace_events';
+const tracing = createTracing({ categories: ['node.perf'] });
+tracing.enable();  // Enable trace event capture for the 'node.perf' category
+
+// do work
+
+tracing.disable();  // Disable trace event capture for the 'node.perf' category
+```
+
+```cjs
+const { createTracing } = require('node:trace_events');
+const tracing = createTracing({ categories: ['node.perf'] });
 tracing.enable();  // Enable trace event capture for the 'node.perf' category
 
 // do work
@@ -152,20 +163,36 @@ Disables this `Tracing` object.
 Only trace event categories _not_ covered by other enabled `Tracing` objects
 and _not_ specified by the `--trace-event-categories` flag will be disabled.
 
-```js
-const trace_events = require('node:trace_events');
-const t1 = trace_events.createTracing({ categories: ['node', 'v8'] });
-const t2 = trace_events.createTracing({ categories: ['node.perf', 'node'] });
+```mjs
+import { createTracing, getEnabledCategories } from 'node:trace_events';
+const t1 = createTracing({ categories: ['node', 'v8'] });
+const t2 = createTracing({ categories: ['node.perf', 'node'] });
 t1.enable();
 t2.enable();
 
 // Prints 'node,node.perf,v8'
-console.log(trace_events.getEnabledCategories());
+console.log(getEnabledCategories());
 
 t2.disable(); // Will only disable emission of the 'node.perf' category
 
 // Prints 'node,v8'
-console.log(trace_events.getEnabledCategories());
+console.log(getEnabledCategories());
+```
+
+```cjs
+const { createTracing, getEnabledCategories } = require('node:trace_events');
+const t1 = createTracing({ categories: ['node', 'v8'] });
+const t2 = createTracing({ categories: ['node.perf', 'node'] });
+t1.enable();
+t2.enable();
+
+// Prints 'node,node.perf,v8'
+console.log(getEnabledCategories());
+
+t2.disable(); // Will only disable emission of the 'node.perf' category
+
+// Prints 'node,v8'
+console.log(getEnabledCategories());
 ```
 
 #### `tracing.enable()`
@@ -199,10 +226,19 @@ added: v10.0.0
 
 Creates and returns a `Tracing` object for the given set of `categories`.
 
-```js
-const trace_events = require('node:trace_events');
+```mjs
+import { createTracing } from 'node:trace_events';
 const categories = ['node.perf', 'node.async_hooks'];
-const tracing = trace_events.createTracing({ categories });
+const tracing = createTracing({ categories });
+tracing.enable();
+// do stuff
+tracing.disable();
+```
+
+```cjs
+const { createTracing } = require('node:trace_events');
+const categories = ['node.perf', 'node.async_hooks'];
+const tracing = createTracing({ categories });
 tracing.enable();
 // do stuff
 tracing.disable();
@@ -225,26 +261,74 @@ Given the file `test.js` below, the command
 `node --trace-event-categories node.perf test.js` will print
 `'node.async_hooks,node.perf'` to the console.
 
-```js
-const trace_events = require('node:trace_events');
-const t1 = trace_events.createTracing({ categories: ['node.async_hooks'] });
-const t2 = trace_events.createTracing({ categories: ['node.perf'] });
-const t3 = trace_events.createTracing({ categories: ['v8'] });
+```mjs
+import { createTracing, getEnabledCategories } from 'node:trace_events';
+const t1 = createTracing({ categories: ['node.async_hooks'] });
+const t2 = createTracing({ categories: ['node.perf'] });
+const t3 = createTracing({ categories: ['v8'] });
 
 t1.enable();
 t2.enable();
 
-console.log(trace_events.getEnabledCategories());
+console.log(getEnabledCategories());
+```
+
+```cjs
+const { createTracing, getEnabledCategories } = require('node:trace_events');
+const t1 = createTracing({ categories: ['node.async_hooks'] });
+const t2 = createTracing({ categories: ['node.perf'] });
+const t3 = createTracing({ categories: ['v8'] });
+
+t1.enable();
+t2.enable();
+
+console.log(getEnabledCategories());
 ```
 
 ## Examples
 
 ### Collect trace events data by inspector
 
-```js
+```mjs
+import { Session } from 'node:inspector';
+const session = new Session();
+session.connect();
+
+function post(message, data) {
+  return new Promise((resolve, reject) => {
+    session.post(message, data, (err, result) => {
+      if (err)
+        reject(new Error(JSON.stringify(err)));
+      else
+        resolve(result);
+    });
+  });
+}
+
+async function collect() {
+  const data = [];
+  session.on('NodeTracing.dataCollected', (chunk) => data.push(chunk));
+  session.on('NodeTracing.tracingComplete', () => {
+    // done
+  });
+  const traceConfig = { includedCategories: ['v8'] };
+  await post('NodeTracing.start', { traceConfig });
+  // do something
+  setTimeout(() => {
+    post('NodeTracing.stop').then(() => {
+      session.disconnect();
+      console.log(data);
+    });
+  }, 1000);
+}
+
+collect();
+```
+
+```cjs
 'use strict';
 
-const { Session } = require('inspector');
+const { Session } = require('node:inspector');
 const session = new Session();
 session.connect();
 

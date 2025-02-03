@@ -14,9 +14,11 @@ Returns: `MockAgent`
 
 ### Parameter: `MockAgentOptions`
 
-Extends: [`AgentOptions`](Agent.md#parameter-agentoptions)
+Extends: [`AgentOptions`](/docs/docs/api/Agent.md#parameter-agentoptions)
 
 * **agent** `Agent` (optional) - Default: `new Agent([options])` - a custom agent encapsulated by the MockAgent.
+
+* **ignoreTrailingSlash** `boolean` (optional) - Default: `false` - set the default value for `ignoreTrailingSlash` for interceptors.
 
 ### Example - Basic MockAgent instantiation
 
@@ -299,11 +301,11 @@ await mockAgent.close()
 
 ### `MockAgent.dispatch(options, handlers)`
 
-Implements [`Agent.dispatch(options, handlers)`](Agent.md#parameter-agentdispatchoptions).
+Implements [`Agent.dispatch(options, handlers)`](/docs/docs/api/Agent.md#parameter-agentdispatchoptions).
 
 ### `MockAgent.request(options[, callback])`
 
-See [`Dispatcher.request(options [, callback])`](Dispatcher.md#dispatcherrequestoptions-callback).
+See [`Dispatcher.request(options [, callback])`](/docs/docs/api/Dispatcher.md#dispatcherrequestoptions-callback).
 
 #### Example - MockAgent request
 

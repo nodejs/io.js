@@ -396,7 +396,7 @@ FCDUTF8CollationIterator::nextSegment(UErrorCode &errorCode) {
         UChar32 c;
         U8_NEXT_OR_FFFD(u8, pos, length, c);
         uint16_t fcd16 = nfcImpl.getFCD16(c);
-        uint8_t leadCC = (uint8_t)(fcd16 >> 8);
+        uint8_t leadCC = static_cast<uint8_t>(fcd16 >> 8);
         if(leadCC == 0 && cpStart != segmentStart) {
             // FCD boundary before this character.
             pos = cpStart;
@@ -421,7 +421,7 @@ FCDUTF8CollationIterator::nextSegment(UErrorCode &errorCode) {
             pos = 0;
             return true;
         }
-        prevCC = (uint8_t)fcd16;
+        prevCC = static_cast<uint8_t>(fcd16);
         if(pos == length || prevCC == 0) {
             // FCD boundary after the last character.
             break;
@@ -475,7 +475,7 @@ FCDUTF8CollationIterator::previousSegment(UErrorCode &errorCode) {
         UChar32 c;
         U8_PREV_OR_FFFD(u8, 0, pos, c);
         uint16_t fcd16 = nfcImpl.getFCD16(c);
-        uint8_t trailCC = (uint8_t)fcd16;
+        uint8_t trailCC = static_cast<uint8_t>(fcd16);
         if(trailCC == 0 && cpLimit != segmentLimit) {
             // FCD boundary after this character.
             pos = cpLimit;
@@ -503,7 +503,7 @@ FCDUTF8CollationIterator::previousSegment(UErrorCode &errorCode) {
             pos = normalized.length();
             return true;
         }
-        nextCC = (uint8_t)(fcd16 >> 8);
+        nextCC = static_cast<uint8_t>(fcd16 >> 8);
         if(pos == 0 || nextCC == 0) {
             // FCD boundary before the following character.
             break;

@@ -26,6 +26,7 @@
 #ifdef __cplusplus
 
 #include "unicode/errorcode.h"
+#include "unicode/umutablecptrie.h"
 
 U_NAMESPACE_BEGIN
 
@@ -45,6 +46,30 @@ protected:
 private:
     const char *location;
 };
+
+namespace toolutil {
+
+/**
+ * Sets one bit in the trie values of the start..end range,
+ * without changing the other bits in the trie values of that range.
+ */
+U_TOOLUTIL_API void
+setCPTrieBit(UMutableCPTrie *mutableCPTrie,
+             UChar32 start, UChar32 end, int32_t shift, bool on, UErrorCode &errorCode);
+
+/**
+ * Sets a bit set (defined by the mask) in the trie values of the start..end range,
+ * without changing the other bits in the trie values of that range.
+ * The given value must not have any bits set outside of the mask.
+ */
+U_TOOLUTIL_API void
+setCPTrieBits(UMutableCPTrie *mutableCPTrie,
+              UChar32 start, UChar32 end, uint32_t mask, uint32_t value, UErrorCode &errorCode);
+
+U_TOOLUTIL_API int32_t
+getCPTrieSize(UMutableCPTrie *mt, UCPTrieType type, UCPTrieValueWidth valueWidth);
+
+}  // toolutil
 
 U_NAMESPACE_END
 

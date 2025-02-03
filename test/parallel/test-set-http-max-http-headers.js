@@ -4,17 +4,10 @@ const common = require('../common');
 const assert = require('assert');
 const { spawn } = require('child_process');
 const path = require('path');
+const { suite, test } = require('node:test');
 const testName = path.join(__dirname, 'test-http-max-http-headers.js');
 
-const timeout = common.platformTimeout(100);
-
-const tests = [];
-
-function test(fn) {
-  tests.push(fn);
-}
-
-test(function(cb) {
+test(function(_, cb) {
   console.log('running subtest expecting failure');
 
   // Validate that the test fails if the max header size is too small.
@@ -30,7 +23,7 @@ test(function(cb) {
   }));
 });
 
-test(function(cb) {
+test(function(_, cb) {
   console.log('running subtest expecting success');
 
   const env = Object.assign({}, process.env, {
@@ -54,13 +47,13 @@ test(function(cb) {
   }));
 });
 
-// Next, repeat the same checks using NODE_OPTIONS if it is supported.
-if (!process.config.variables.node_without_node_options) {
+const skip = process.config.variables.node_without_node_options;
+suite('same checks using NODE_OPTIONS if it is supported', { skip }, () => {
   const env = Object.assign({}, process.env, {
     NODE_OPTIONS: '--max-http-header-size=1024'
   });
 
-  test(function(cb) {
+  test(function(_, cb) {
     console.log('running subtest expecting failure');
 
     // Validate that the test fails if the max header size is too small.
@@ -74,7 +67,7 @@ if (!process.config.variables.node_without_node_options) {
     }));
   });
 
-  test(function(cb) {
+  test(function(_, cb) {
     // Validate that the test now passes if the same limit is large enough.
     const args = ['--expose-internals', testName, '1024'];
     const cp = spawn(process.execPath, args, { env, stdio: 'inherit' });
@@ -85,18 +78,4 @@ if (!process.config.variables.node_without_node_options) {
       cb();
     }));
   });
-}
-
-function runTest() {
-  const fn = tests.shift();
-
-  if (!fn) {
-    return;
-  }
-
-  fn(() => {
-    setTimeout(runTest, timeout);
-  });
-}
-
-runTest();
+});

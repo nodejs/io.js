@@ -1,0 +1,32 @@
+# This file is used by GN for building, which is NOT the build system used for
+# building official binaries.
+# Please edit the gyp files if you are making changes to build system.
+
+import("../../node.gni")
+import("$node_v8_path/gni/v8.gni")
+
+# The actual configurations are put inside a template in unofficial.gni to
+# prevent accidental edits from contributors.
+template("ncrypto_gn_build") {
+  config("ncrypto_config") {
+    include_dirs = [ "." ]
+    cflags = [
+      "-Wno-deprecated-declarations",
+      "-Wno-pessimizing-move",
+      "-Wno-shadow",
+      "-Wno-unused-variable",
+    ]
+  }
+
+  gypi_values = exec_script("../../tools/gypi_to_gn.py",
+                            [ rebase_path("ncrypto.gyp") ],
+                            "scope",
+                            [ "ncrypto.gyp" ])
+
+  source_set(target_name) {
+    forward_variables_from(invoker, "*")
+    public_configs = [ ":ncrypto_config" ]
+    sources = gypi_values.ncrypto_sources
+    deps = [ "$node_openssl_path" ]
+  }
+}

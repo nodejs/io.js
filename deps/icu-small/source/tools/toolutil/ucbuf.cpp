@@ -174,7 +174,7 @@ ucbuf_fillucbuf( UCHARBUF* buf,UErrorCode* error){
     pTarget = buf->buffer;
     /* check if we arrived here without exhausting the buffer*/
     if(buf->currentPos<buf->bufLimit){
-        offset = (int32_t)(buf->bufLimit-buf->currentPos);
+        offset = static_cast<int32_t>(buf->bufLimit - buf->currentPos);
         memmove(buf->buffer,buf->currentPos,offset* sizeof(char16_t));
     }
 
@@ -189,7 +189,7 @@ ucbuf_fillucbuf( UCHARBUF* buf,UErrorCode* error){
         
     }else{
         cbufSize = T_FileStream_size(buf->in);
-        cbuf = (char*)uprv_malloc(cbufSize);
+        cbuf = static_cast<char*>(uprv_malloc(cbufSize));
         if (cbuf == nullptr) {
         	*error = U_MEMORY_ALLOCATION_ERROR;
         	return nullptr;
@@ -221,7 +221,7 @@ ucbuf_fillucbuf( UCHARBUF* buf,UErrorCode* error){
         sourceLimit = source + inputRead;
         ucnv_toUnicode(buf->conv,&target,target+(buf->bufCapacity-offset),
                         &source,sourceLimit,nullptr,
-                        (UBool)(buf->remaining==0),error);
+                        static_cast<UBool>(buf->remaining == 0), error);
 
         if(U_FAILURE(*error)){
             char context[CONTEXT_LEN+1];
@@ -245,7 +245,7 @@ ucbuf_fillucbuf( UCHARBUF* buf,UErrorCode* error){
             ucnv_getInvalidChars(buf->conv,context,&len,&error1);
             context[len]= 0 ; /* null terminate the buffer */
 
-            pos = (int32_t)(source - cbuf - len);
+            pos = static_cast<int32_t>(source - cbuf - len);
 
             /* for pre-context */
             start = (pos <=CONTEXT_LEN)? 0 : (pos - (CONTEXT_LEN-1));
@@ -257,7 +257,7 @@ ucbuf_fillucbuf( UCHARBUF* buf,UErrorCode* error){
 
             /* for post-context */
             start = pos+len;
-            stop  = (int32_t)(((pos+CONTEXT_LEN)<= (sourceLimit-cbuf) )? (pos+(CONTEXT_LEN-1)) : (sourceLimit-cbuf));
+            stop = static_cast<int32_t>(pos + CONTEXT_LEN <= sourceLimit - cbuf ? pos + (CONTEXT_LEN - 1) : sourceLimit - cbuf);
 
             memcpy(postContext,source,stop-start);
             /* null terminate the buffer */
@@ -290,10 +290,10 @@ ucbuf_fillucbuf( UCHARBUF* buf,UErrorCode* error){
             /* re convert */
             ucnv_toUnicode(buf->conv,&target,target+(buf->bufCapacity-offset),
                             &source,sourceLimit,nullptr,
-                            (UBool)(buf->remaining==0),&error1);
+                            static_cast<UBool>(buf->remaining == 0), &error1);
 
         }
-        outputWritten = (int32_t)(target - pTarget);
+        outputWritten = static_cast<int32_t>(target - pTarget);
 
 #ifdef UCBUF_DEBUG
         {
@@ -342,7 +342,7 @@ ucbuf_getc(UCHARBUF* buf,UErrorCode* error){
 /* get a UChar32 from the stream*/
 U_CAPI int32_t U_EXPORT2
 ucbuf_getc32(UCHARBUF* buf,UErrorCode* error){
-    int32_t retVal = (int32_t)U_EOF;
+    int32_t retVal = U_EOF;
     if(error==nullptr || U_FAILURE(*error)){
         return false;
     }
@@ -367,7 +367,7 @@ ucbuf_getc32(UCHARBUF* buf,UErrorCode* error){
 /* u_unescapeAt() callback to return a char16_t*/
 static char16_t U_CALLCONV
 _charAt(int32_t offset, void *context) {
-    return ((UCHARBUF*) context)->currentPos[offset];
+    return static_cast<UCHARBUF*>(context)->currentPos[offset];
 }
 
 /* getc and escape it */

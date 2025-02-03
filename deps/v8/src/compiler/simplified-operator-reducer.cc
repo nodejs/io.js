@@ -4,6 +4,8 @@
 
 #include "src/compiler/simplified-operator-reducer.h"
 
+#include <optional>
+
 #include "src/compiler/common-operator.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/js-heap-broker.h"
@@ -64,7 +66,7 @@ Reduction SimplifiedOperatorReducer::Reduce(Node* node) {
     case IrOpcode::kChangeTaggedToBit: {
       HeapObjectMatcher m(node->InputAt(0));
       if (m.HasResolvedValue()) {
-        base::Optional<bool> maybe_result =
+        std::optional<bool> maybe_result =
             m.Ref(broker()).TryGetBooleanValue(broker());
         if (maybe_result.has_value()) return ReplaceInt32(*maybe_result);
       }

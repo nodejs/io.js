@@ -163,7 +163,7 @@ our %config = (
     ],
     "dynamic_engines" => "0",
     "ex_libs" => [],
-    "full_version" => "3.0.13+quic",
+    "full_version" => "3.0.15+quic",
     "includes" => [],
     "lflags" => [],
     "lib_defines" => [
@@ -213,7 +213,7 @@ our %config = (
     "openssl_sys_defines" => [],
     "openssldir" => "",
     "options" => "enable-ssl-trace enable-fips no-afalgeng no-asan no-asm no-buildtest-c++ no-comp no-crypto-mdebug no-crypto-mdebug-backtrace no-devcryptoeng no-dynamic-engine no-ec_nistp_64_gcc_128 no-egd no-external-tests no-fuzz-afl no-fuzz-libfuzzer no-ktls no-loadereng no-md2 no-msan no-rc5 no-sctp no-shared no-ssl3 no-ssl3-method no-trace no-ubsan no-unit-test no-uplink no-weak-ssl-ciphers no-zlib no-zlib-dynamic",
-    "patch" => "13",
+    "patch" => "15",
     "perl_archname" => "x86_64-linux-gnu-thread-multi",
     "perl_cmd" => "/usr/bin/perl",
     "perl_version" => "5.34.0",
@@ -266,11 +266,11 @@ our %config = (
     "prerelease" => "",
     "processor" => "",
     "rc4_int" => "unsigned char",
-    "release_date" => "30 Jan 2024",
+    "release_date" => "3 Sep 2024",
     "shlib_version" => "81.3",
     "sourcedir" => ".",
     "target" => "VC-WIN64-ARM",
-    "version" => "3.0.13"
+    "version" => "3.0.15"
 );
 our %target = (
     "AR" => "lib",
@@ -283,7 +283,7 @@ our %target = (
     "LDFLAGS" => "/nologo /debug",
     "MT" => "mt",
     "MTFLAGS" => "-nologo",
-    "RANLIB" => "CODE(0x55d9bc8048e0)",
+    "RANLIB" => "CODE(0x563ab4010d40)",
     "RC" => "rc",
     "_conf_fname_int" => [
         "Configurations/00-base-templates.conf",
@@ -366,6 +366,7 @@ our @disablables = (
     "asan",
     "asm",
     "async",
+    "atexit",
     "autoalginit",
     "autoerrinit",
     "autoload-config",
@@ -1281,6 +1282,9 @@ our %unified_info = (
                 "noinst" => "1"
             },
             "test/errtest" => {
+                "noinst" => "1"
+            },
+            "test/evp_byname_test" => {
                 "noinst" => "1"
             },
             "test/evp_extra_test" => {
@@ -7719,6 +7723,10 @@ our %unified_info = (
             "test/libtestutil.a"
         ],
         "test/errtest" => [
+            "libcrypto",
+            "test/libtestutil.a"
+        ],
+        "test/evp_byname_test" => [
             "libcrypto",
             "test/libtestutil.a"
         ],
@@ -18764,6 +18772,10 @@ our %unified_info = (
             "include",
             "apps/include"
         ],
+        "test/evp_byname_test" => [
+            "include",
+            "apps/include"
+        ],
         "test/evp_extra_test" => [
             "include",
             "apps/include",
@@ -20326,6 +20338,7 @@ our %unified_info = (
         "test/endecoder_legacy_test",
         "test/enginetest",
         "test/errtest",
+        "test/evp_byname_test",
         "test/evp_extra_test",
         "test/evp_extra_test2",
         "test/evp_fetch_prov_test",
@@ -26603,6 +26616,12 @@ our %unified_info = (
         ],
         "test/errtest-bin-errtest.o" => [
             "test/errtest.c"
+        ],
+        "test/evp_byname_test" => [
+            "test/evp_byname_test-bin-evp_byname_test.o"
+        ],
+        "test/evp_byname_test-bin-evp_byname_test.o" => [
+            "test/evp_byname_test.c"
         ],
         "test/evp_extra_test" => [
             "providers/evp_extra_test-bin-legacyprov.o",

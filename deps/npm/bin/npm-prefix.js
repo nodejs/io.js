@@ -3,7 +3,7 @@
 // without having to load all of npm first
 // It does not accept argv params
 
-const path = require('path')
+const path = require('node:path')
 const Config = require('@npmcli/config')
 const { definitions, flatten, shorthands } = require('@npmcli/config/lib/definitions')
 const config = new Config({

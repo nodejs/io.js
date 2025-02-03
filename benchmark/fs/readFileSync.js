@@ -4,7 +4,7 @@ const common = require('../common.js');
 const fs = require('fs');
 
 const bench = common.createBenchmark(main, {
-  encoding: ['undefined', 'utf8'],
+  encoding: ['undefined', 'utf8', 'ascii'],
   path: ['existing', 'non-existing'],
   hasFileDescriptor: ['true', 'false'],
   n: [1e4],

@@ -130,7 +130,7 @@ class Inventory extends Map {
     return super.get(node.location) === node
   }
 
-  set (k, v) {
+  set () {
     throw new Error('direct set() not supported, use inventory.add(node)')
   }
 }

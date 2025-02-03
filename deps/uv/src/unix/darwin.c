@@ -25,7 +25,6 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include <dlfcn.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <mach-o/dyld.h> /* _NSGetExecutablePath */
@@ -34,7 +33,6 @@
 #include <unistd.h>  /* sysconf */
 
 static uv_once_t once = UV_ONCE_INIT;
-static uint64_t (*time_func)(void);
 static mach_timebase_info_data_t timebase;
 
 
@@ -56,16 +54,12 @@ void uv__platform_loop_delete(uv_loop_t* loop) {
 static void uv__hrtime_init_once(void) {
   if (KERN_SUCCESS != mach_timebase_info(&timebase))
     abort();
-
-  time_func = (uint64_t (*)(void)) dlsym(RTLD_DEFAULT, "mach_continuous_time");
-  if (time_func == NULL)
-    time_func = mach_absolute_time;
 }
 
 
 uint64_t uv__hrtime(uv_clocktype_t type) {
   uv_once(&once, uv__hrtime_init_once);
-  return time_func() * timebase.numer / timebase.denom;
+  return mach_continuous_time() * timebase.numer / timebase.denom;
 }
 
 

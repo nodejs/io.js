@@ -1,0 +1,29 @@
+Test for default label with console.time() and friends
+[
+    [0] : {
+        type : string
+        value : default: 1 ms
+    }
+    [1] : {
+        type : string
+        value : a
+    }
+]
+[
+    [0] : {
+        type : string
+        value : default: 2 ms
+    }
+]
+[
+    [0] : {
+        type : string
+        value : default: 1 ms
+    }
+]
+[
+    [0] : {
+        type : string
+        value : default: 2 ms
+    }
+]

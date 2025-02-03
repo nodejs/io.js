@@ -1,6 +1,5 @@
-const { stripVTControlCharacters } = require('node:util')
+const { stripVTControlCharacters: strip } = require('node:util')
 const { Minipass } = require('minipass')
-const columnify = require('columnify')
 
 // This module consumes package data in the following format:
 //
@@ -16,14 +15,48 @@ const columnify = require('columnify')
 // The returned stream will format this package data
 // into a byte stream of formatted, displayable output.
 
-module.exports = async (opts) => {
-  return opts.json ? new JSONOutputStream() : new TextOutputStream(opts)
+function filter (data, exclude) {
+  const words = [data.name]
+    .concat(data.maintainers.map(m => m.username))
+    .concat(data.keywords || [])
+    .map(f => f?.trim?.())
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+
+  if (exclude.find(pattern => {
+    // Treats both /foo and /foo/ as regex searches
+    if (pattern.startsWith('/')) {
+      if (pattern.endsWith('/')) {
+        pattern = pattern.slice(0, -1)
+      }
+      return words.match(new RegExp(pattern.slice(1)))
+    }
+    return words.includes(pattern)
+  })) {
+    return false
+  }
+
+  return true
+}
+
+module.exports = (opts) => {
+  return opts.json ? new JSONOutputStream(opts) : new TextOutputStream(opts)
 }
 
 class JSONOutputStream extends Minipass {
   #didFirst = false
+  #exclude
+
+  constructor (opts) {
+    super()
+    this.#exclude = opts.exclude
+  }
 
   write (obj) {
+    if (!filter(obj, this.#exclude)) {
+      return
+    }
     if (!this.#didFirst) {
       super.write('[\n')
       this.#didFirst = true
@@ -41,94 +74,100 @@ class JSONOutputStream extends Minipass {
 }
 
 class TextOutputStream extends Minipass {
-  #opts
-  #line = 0
+  #args
+  #chalk
+  #exclude
+  #parseable
 
   constructor (opts) {
     super()
-    this.#opts = opts
+    // Consider a search for "cowboys" and "boy".  If we highlight "boys" first the "cowboys" string will no longer string match because of the ansi highlighting added to "boys".  If we highlight "boy" second then the ansi reset at the end will make the highlighting only on "cowboy" with a normal "s".  Neither is perfect but at least the first option doesn't do partial highlighting. So, we sort strings smaller to larger
+    this.#args = opts.args
+      .map(s => s.toLowerCase())
+      .filter(Boolean)
+      .sort((a, b) => a.length - b.length)
+    this.#chalk = opts.npm.chalk
+    this.#exclude = opts.exclude
+    this.#parseable = opts.parseable
   }
 
-  write (pkg) {
-    return super.write(this.#prettify(pkg))
-  }
-
-  #prettify (data) {
+  write (data) {
+    if (!filter(data, this.#exclude)) {
+      return
+    }
+    // Normalize
     const pkg = {
-      author: data.maintainers.map((m) => `=${stripVTControlCharacters(m.username)}`).join(' '),
-      date: 'prehistoric',
-      description: stripVTControlCharacters(data.description ?? ''),
-      keywords: '',
-      name: stripVTControlCharacters(data.name),
+      authors: data.maintainers.map((m) => `${strip(m.username)}`).join(' '),
+      publisher: strip(data.publisher?.username || ''),
+      date: data.date ? data.date.toISOString().slice(0, 10) : 'prehistoric',
+      description: strip(data.description ?? ''),
+      keywords: [],
+      name: strip(data.name),
       version: data.version,
     }
     if (Array.isArray(data.keywords)) {
-      pkg.keywords = data.keywords.map((k) => stripVTControlCharacters(k)).join(' ')
+      pkg.keywords = data.keywords.map(strip)
     } else if (typeof data.keywords === 'string') {
-      pkg.keywords = stripVTControlCharacters(data.keywords.replace(/[,\s]+/, ' '))
-    }
-    if (data.date) {
-      pkg.date = data.date.toISOString().split('T')[0] // remove time
+      pkg.keywords = strip(data.keywords.replace(/[,\s]+/, ' ')).split(' ')
     }
 
-    const columns = ['name', 'description', 'author', 'date', 'version', 'keywords']
-    if (this.#opts.parseable) {
-      return columns.map((col) => pkg[col] && ('' + pkg[col]).replace(/\t/g, ' ')).join('\t')
+    let output
+    if (this.#parseable) {
+      output = [pkg.name, pkg.description, pkg.author, pkg.date, pkg.version, pkg.keywords]
+        .filter(Boolean)
+        .map(col => ('' + col).replace(/\t/g, ' ')).join('\t')
+      return super.write(output)
     }
 
-    // stdout in tap is never a tty
-    /* istanbul ignore next */
-    const maxWidth = process.stdout.isTTY ? process.stdout.getWindowSize()[0] : Infinity
-    let output = columnify(
-      [pkg],
-      {
-        include: columns,
-        showHeaders: ++this.#line <= 1,
-        columnSplitter: ' | ',
-        truncate: !this.#opts.long,
-        config: {
-          name: { minWidth: 25, maxWidth: 25, truncate: false, truncateMarker: '' },
-          description: { minWidth: 20, maxWidth: 20 },
-          author: { minWidth: 15, maxWidth: 15 },
-          date: { maxWidth: 11 },
-          version: { minWidth: 8, maxWidth: 8 },
-          keywords: { maxWidth: Infinity },
-        },
-      }
-    ).split('\n').map(line => line.slice(0, maxWidth)).join('\n')
-
-    if (!this.#opts.color) {
-      return output
-    }
-
-    const colors = ['31m', '33m', '32m', '36m', '34m', '35m']
-
-    this.#opts.args.forEach((arg, i) => {
-      const markStart = String.fromCharCode(i % colors.length + 1)
-      const markEnd = String.fromCharCode(0)
-
-      if (arg.charAt(0) === '/') {
-        output = output.replace(
-          new RegExp(arg.slice(1, -1), 'gi'),
-          bit => `${markStart}${bit}${markEnd}`
-        )
+    const keywords = pkg.keywords.map(k => {
+      if (this.#args.includes(k)) {
+        return this.#chalk.cyan(k)
       } else {
-        // just a normal string, do the split/map thing
-        let p = 0
-
-        output = output.toLowerCase().split(arg.toLowerCase()).map(piece => {
-          piece = output.slice(p, p + piece.length)
-          p += piece.length
-          const mark = `${markStart}${output.slice(p, p + arg.length)}${markEnd}`
-          p += arg.length
-          return `${piece}${mark}`
-        }).join('')
+        return k
       }
-    })
+    }).join(' ')
 
-    for (let i = 1; i <= colors.length; i++) {
-      output = output.split(String.fromCharCode(i)).join(`\u001B[${colors[i - 1]}`)
+    const description = this.#highlight(pkg.description)
+    let name
+    if (this.#args.includes(pkg.name)) {
+      name = this.#chalk.cyan(pkg.name)
+    } else {
+      name = this.#highlight(pkg.name)
+      name = this.#chalk.blue(name)
     }
-    return output.split('\u0000').join('\u001B[0m').trim()
+
+    if (description.length) {
+      output = `${name}\n${description}\n`
+    } else {
+      output = `${name}\n`
+    }
+    if (pkg.publisher) {
+      output += `Version ${this.#chalk.blue(pkg.version)} published ${this.#chalk.blue(pkg.date)} by ${this.#chalk.blue(pkg.publisher)}\n`
+    } else {
+      output += `Version ${this.#chalk.blue(pkg.version)} published ${this.#chalk.blue(pkg.date)} by ${this.#chalk.yellow('???')}\n`
+    }
+    output += `Maintainers: ${pkg.authors}\n`
+    if (keywords) {
+      output += `Keywords: ${keywords}\n`
+    }
+    output += `${this.#chalk.blue(`https://npm.im/${pkg.name}`)}\n`
+    return super.write(output)
+  }
+
+  #highlight (input) {
+    let output = input
+    for (const arg of this.#args) {
+      let i = output.toLowerCase().indexOf(arg)
+      while (i > -1) {
+        const highlit = this.#chalk.cyan(output.slice(i, i + arg.length))
+        output = [
+          output.slice(0, i),
+          highlit,
+          output.slice(i + arg.length),
+        ].join('')
+        i = output.toLowerCase().indexOf(arg, i + highlit.length)
+      }
+    }
+    return output
   }
 }

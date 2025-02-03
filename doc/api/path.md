@@ -9,8 +9,12 @@
 The `node:path` module provides utilities for working with file and directory
 paths. It can be accessed using:
 
-```js
+```cjs
 const path = require('node:path');
+```
+
+```mjs
+import path from 'node:path';
 ```
 
 ## Windows vs. POSIX
@@ -278,6 +282,31 @@ path.format({
 });
 // Returns: 'C:\\path\\dir\\file.txt'
 ```
+
+## `path.matchesGlob(path, pattern)`
+
+<!-- YAML
+added:
+  - v22.5.0
+  - v20.17.0
+-->
+
+> Stability: 1 - Experimental
+
+* `path` {string} The path to glob-match against.
+* `pattern` {string} The glob to check the path against.
+* Returns: {boolean} Whether or not the `path` matched the `pattern`.
+
+The `path.matchesGlob()` method determines if `path` matches the `pattern`.
+
+For example:
+
+```js
+path.matchesGlob('/foo/bar', '/foo/*'); // true
+path.matchesGlob('/foo/bar*', 'foo/bird'); // false
+```
+
+A [`TypeError`][] is thrown if `path` or `pattern` are not strings.
 
 ## `path.isAbsolute(path)`
 

@@ -69,7 +69,7 @@ class VisualStudioVersion:
 
     def ProjectExtension(self):
         """Returns the file extension for the project."""
-        return self.uses_vcxproj and ".vcxproj" or ".vcproj"
+        return (self.uses_vcxproj and ".vcxproj") or ".vcproj"
 
     def Path(self):
         """Returns the path to Visual Studio installation."""

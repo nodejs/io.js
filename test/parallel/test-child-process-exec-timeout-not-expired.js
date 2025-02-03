@@ -22,10 +22,11 @@ if (process.argv[2] === 'child') {
   return;
 }
 
-const cmd = `"${process.execPath}" "${__filename}" child`;
+const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" "${__filename}" child`;
 
 cp.exec(cmd, {
-  timeout: kTimeoutNotSupposedToExpire
+  ...opts,
+  timeout: kTimeoutNotSupposedToExpire,
 }, common.mustSucceed((stdout, stderr) => {
   assert.strictEqual(stdout.trim(), 'child stdout');
   assert.strictEqual(stderr.trim(), 'child stderr');

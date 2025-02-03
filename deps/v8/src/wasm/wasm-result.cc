@@ -125,9 +125,10 @@ Handle<Object> ErrorThrower::Reify() {
       constructor = isolate_->wasm_runtime_error_function();
       break;
   }
-  Handle<String> message = isolate_->factory()
-                               ->NewStringFromUtf8(base::VectorOf(error_msg_))
-                               .ToHandleChecked();
+  DirectHandle<String> message =
+      isolate_->factory()
+          ->NewStringFromUtf8(base::VectorOf(error_msg_))
+          .ToHandleChecked();
   Reset();
   return isolate_->factory()->NewError(constructor, message);
 }
@@ -135,14 +136,6 @@ Handle<Object> ErrorThrower::Reify() {
 void ErrorThrower::Reset() {
   error_type_ = kNone;
   error_msg_.clear();
-}
-
-ErrorThrower::ErrorThrower(ErrorThrower&& other) V8_NOEXCEPT
-    : isolate_(other.isolate_),
-      context_(other.context_),
-      error_type_(other.error_type_),
-      error_msg_(std::move(other.error_msg_)) {
-  other.error_type_ = kNone;
 }
 
 ErrorThrower::~ErrorThrower() {

@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -188,7 +188,7 @@ nghttp3_frame_write_priority_update(uint8_t *dest,
  * stores payload length in |*ppayloadlen|.
  */
 size_t nghttp3_frame_write_priority_update_len(
-    int64_t *ppayloadlen, const nghttp3_frame_priority_update *fr);
+  int64_t *ppayloadlen, const nghttp3_frame_priority_update *fr);
 
 /*
  * nghttp3_nva_copy copies name/value pairs from |nva|, which contains
@@ -227,4 +227,4 @@ void nghttp3_frame_headers_free(nghttp3_frame_headers *fr,
 void nghttp3_frame_priority_update_free(nghttp3_frame_priority_update *fr,
                                         const nghttp3_mem *mem);
 
-#endif /* NGHTTP3_FRAME_H */
+#endif /* !defined(NGHTTP3_FRAME_H) */

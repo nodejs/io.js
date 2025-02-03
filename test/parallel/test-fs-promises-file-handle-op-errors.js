@@ -54,7 +54,7 @@ async function checkOperationError(op) {
   await checkOperationError((filePath) => truncate(filePath));
   await checkOperationError((filePath) => readFile(filePath));
   await checkOperationError((filePath) => writeFile(filePath, '123'));
-  if (common.isOSX) {
+  if (common.isMacOS) {
     await checkOperationError((filePath) => lchmod(filePath, 0o777));
   }
 })().then(common.mustCall());

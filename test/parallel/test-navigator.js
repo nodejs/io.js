@@ -2,8 +2,36 @@
 
 'use strict';
 
-const common = require('../common');
+/* eslint node-core/require-common-first: 0 */
+
 const assert = require('assert');
+
+{
+
+  // Ensures `navigator` has not been evaluated yet
+  assert.strictEqual(require.resolve('../common') in require.cache, false);
+
+  const { version, platform, arch } = process;
+  try {
+    let called = false;
+    Object.defineProperty(process, 'arch', { get() { called += 'arch|'; return arch; } });
+    Object.defineProperty(process, 'platform', { get() { called = 'platform|'; return platform; } });
+    Object.defineProperty(process, 'version', { get() { called = 'version|'; return version; } });
+
+    navigator; // eslint-disable-line no-unused-expressions
+
+    assert.strictEqual(
+      called,
+      false
+    );
+  } finally {
+    Object.defineProperty(process, 'arch', { value: arch });
+    Object.defineProperty(process, 'platform', { value: platform });
+    Object.defineProperty(process, 'version', { value: version });
+  }
+}
+
+const common = require('../common');
 const { getNavigatorPlatform } = require('internal/navigator');
 const { execFile } = require('child_process');
 
@@ -57,24 +85,23 @@ if (process.platform === 'darwin') {
   assert.strictEqual(navigator.platform, `${process.platform[0].toUpperCase()}${process.platform.slice(1)} ${process.arch}`);
 }
 
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'darwin' }), 'MacIntel');
-assert.strictEqual(getNavigatorPlatform({ arch: 'arm64', platform: 'darwin' }), 'MacIntel');
-assert.strictEqual(getNavigatorPlatform({ arch: 'ia32', platform: 'linux' }), 'Linux i686');
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'linux' }), 'Linux x86_64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'arm64', platform: 'linux' }), 'Linux arm64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'ia32', platform: 'win32' }), 'Win32');
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'win32' }), 'Win32');
-assert.strictEqual(getNavigatorPlatform({ arch: 'arm64', platform: 'win32' }), 'Win32');
-assert.strictEqual(getNavigatorPlatform({ arch: 'ia32', platform: 'freebsd' }), 'FreeBSD i386');
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'freebsd' }), 'FreeBSD amd64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'arm64', platform: 'freebsd' }), 'FreeBSD arm64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'ia32', platform: 'openbsd' }), 'OpenBSD i386');
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'openbsd' }), 'OpenBSD amd64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'arm64', platform: 'openbsd' }), 'OpenBSD arm64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'ia32', platform: 'sunos' }), 'SunOS i86pc');
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'sunos' }), 'SunOS x64');
-assert.strictEqual(getNavigatorPlatform({ arch: 'ppc', platform: 'aix' }), 'AIX');
-assert.strictEqual(getNavigatorPlatform({ arch: 'x64', platform: 'reactos' }), 'Reactos x64');
+assert.strictEqual(getNavigatorPlatform('x64', 'darwin'), 'MacIntel');
+assert.strictEqual(getNavigatorPlatform('arm64', 'darwin'), 'MacIntel');
+assert.strictEqual(getNavigatorPlatform('ia32', 'linux'), 'Linux i686');
+assert.strictEqual(getNavigatorPlatform('x64', 'linux'), 'Linux x86_64');
+assert.strictEqual(getNavigatorPlatform('arm64', 'linux'), 'Linux arm64');
+assert.strictEqual(getNavigatorPlatform('x64', 'win32'), 'Win32');
+assert.strictEqual(getNavigatorPlatform('arm64', 'win32'), 'Win32');
+assert.strictEqual(getNavigatorPlatform('ia32', 'freebsd'), 'FreeBSD i386');
+assert.strictEqual(getNavigatorPlatform('x64', 'freebsd'), 'FreeBSD amd64');
+assert.strictEqual(getNavigatorPlatform('arm64', 'freebsd'), 'FreeBSD arm64');
+assert.strictEqual(getNavigatorPlatform('ia32', 'openbsd'), 'OpenBSD i386');
+assert.strictEqual(getNavigatorPlatform('x64', 'openbsd'), 'OpenBSD amd64');
+assert.strictEqual(getNavigatorPlatform('arm64', 'openbsd'), 'OpenBSD arm64');
+assert.strictEqual(getNavigatorPlatform('ia32', 'sunos'), 'SunOS i86pc');
+assert.strictEqual(getNavigatorPlatform('x64', 'sunos'), 'SunOS x64');
+assert.strictEqual(getNavigatorPlatform('ppc64', 'aix'), 'AIX');
+assert.strictEqual(getNavigatorPlatform('x64', 'reactos'), 'Reactos x64');
 
 assert.strictEqual(typeof navigator.language, 'string');
 assert.strictEqual(navigator.language.length !== 0, true);

@@ -29,7 +29,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -37,4 +37,4 @@ uint8_t *nghttp3_cpymem(uint8_t *dest, const uint8_t *src, size_t n);
 
 void nghttp3_downcase(uint8_t *s, size_t len);
 
-#endif /* NGHTTP3_STR_H */
+#endif /* !defined(NGHTTP3_STR_H) */

@@ -200,6 +200,12 @@ static int uv__udp_maybe_bind(uv_udp_t* handle,
   if (handle->flags & UV_HANDLE_BOUND)
     return 0;
 
+  /* There is no SO_REUSEPORT on Windows, Windows only knows SO_REUSEADDR.
+   * so we just return an error directly when UV_UDP_REUSEPORT is requested
+   * for binding the socket. */
+  if (flags & UV_UDP_REUSEPORT)
+    return ERROR_NOT_SUPPORTED;
+
   if ((flags & UV_UDP_IPV6ONLY) && addr->sa_family != AF_INET6) {
     /* UV_UDP_IPV6ONLY is supported only for IPV6 sockets */
     return ERROR_INVALID_PARAMETER;
@@ -376,7 +382,7 @@ static int uv__send(uv_udp_send_t* req,
     handle->reqs_pending++;
     handle->send_queue_size += req->u.io.queued_bytes;
     handle->send_queue_count++;
-    REGISTER_HANDLE_REQ(loop, handle, req);
+    REGISTER_HANDLE_REQ(loop, handle);
     uv__insert_pending_req(loop, (uv_req_t*)req);
   } else if (UV_SUCCEEDED_WITH_IOCP(result == 0)) {
     /* Request queued by the kernel. */
@@ -384,7 +390,7 @@ static int uv__send(uv_udp_send_t* req,
     handle->reqs_pending++;
     handle->send_queue_size += req->u.io.queued_bytes;
     handle->send_queue_count++;
-    REGISTER_HANDLE_REQ(loop, handle, req);
+    REGISTER_HANDLE_REQ(loop, handle);
   } else {
     /* Send failed due to an error. */
     return WSAGetLastError();
@@ -527,7 +533,7 @@ void uv__process_udp_send_req(uv_loop_t* loop, uv_udp_t* handle,
   handle->send_queue_size -= req->u.io.queued_bytes;
   handle->send_queue_count--;
 
-  UNREGISTER_HANDLE_REQ(loop, handle, req);
+  UNREGISTER_HANDLE_REQ(loop, handle);
 
   if (req->cb) {
     err = 0;
@@ -1095,7 +1101,8 @@ int uv__udp_try_send(uv_udp_t* handle,
   struct sockaddr_storage converted;
   int err;
 
-  assert(nbufs > 0);
+  if (nbufs < 1)
+    return UV_EINVAL;
 
   if (addr != NULL) {
     err = uv__convert_to_localhost_if_unspecified(addr, &converted);
@@ -1134,4 +1141,22 @@ int uv__udp_try_send(uv_udp_t* handle,
     return uv_translate_sys_error(WSAGetLastError());
 
   return bytes;
+}
+
+
+int uv__udp_try_send2(uv_udp_t* handle,
+                      unsigned int count,
+                      uv_buf_t* bufs[/*count*/],
+                      unsigned int nbufs[/*count*/],
+                      struct sockaddr* addrs[/*count*/]) {
+  unsigned int i;
+  int r;
+
+  for (i = 0; i < count; i++) {
+    r = uv_udp_try_send(handle, bufs[i], nbufs[i], addrs[i]);
+    if (r < 0)
+      return i > 0 ? i : r;  /* Error if first packet, else send count. */
+  }
+
+  return i;
 }

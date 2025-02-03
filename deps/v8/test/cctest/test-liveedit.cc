@@ -207,7 +207,7 @@ void PatchFunctions(v8::Local<v8::Context> context, const char* source_a,
       v8::Script::Compile(context, v8_str(isolate, source_a)).ToLocalChecked();
   script_a->Run(context).ToLocalChecked();
   i::Handle<i::Script> i_script_a(
-      i::Script::cast(
+      i::Cast<i::Script>(
           v8::Utils::OpenDirectHandle(*script_a)->shared()->script()),
       i_isolate);
 
@@ -544,7 +544,8 @@ TEST(LiveEditFunctionExpression) {
   v8::Local<v8::Function> f =
       script->Run(context).ToLocalChecked().As<v8::Function>();
   i::Handle<i::Script> i_script(
-      i::Script::cast(v8::Utils::OpenDirectHandle(*script)->shared()->script()),
+      i::Cast<i::Script>(
+          v8::Utils::OpenDirectHandle(*script)->shared()->script()),
       i_isolate);
   debug::LiveEditResult result;
   LiveEdit::PatchScript(

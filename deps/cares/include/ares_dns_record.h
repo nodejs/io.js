@@ -51,6 +51,7 @@ typedef enum {
   ARES_REC_TYPE_HINFO = 13,    /*!< Host information. */
   ARES_REC_TYPE_MX    = 15,    /*!< Mail routing information. */
   ARES_REC_TYPE_TXT   = 16,    /*!< Text strings. */
+  ARES_REC_TYPE_SIG   = 24,    /*!< RFC 2535 / RFC 2931. SIG Record */
   ARES_REC_TYPE_AAAA  = 28,    /*!< RFC 3596. Ip6 Address. */
   ARES_REC_TYPE_SRV   = 33,    /*!< RFC 2782. Server Selection. */
   ARES_REC_TYPE_NAPTR = 35,    /*!< RFC 3403. Naming Authority Pointer */
@@ -93,7 +94,7 @@ typedef enum {
   ARES_OPCODE_IQUERY = 1, /*!< Inverse query. Obsolete. */
   ARES_OPCODE_STATUS = 2, /*!< Name server status query */
   ARES_OPCODE_NOTIFY = 4, /*!< Zone change notification (RFC 1996) */
-  ARES_OPCODE_UPDATE = 5, /*!< Zone update message (RFC2136) */
+  ARES_OPCODE_UPDATE = 5  /*!< Zone update message (RFC2136) */
 } ares_dns_opcode_t;
 
 /*! DNS Header flags */
@@ -107,7 +108,7 @@ typedef enum {
   ARES_FLAG_AD = 1 << 5, /*!< RFC 2065. Authentic Data bit indicates in a
                           * response that the data included has been verified by
                           * the server providing it */
-  ARES_FLAG_CD = 1 << 6, /*!< RFC 2065. Checking Disabled bit indicates in a
+  ARES_FLAG_CD = 1 << 6  /*!< RFC 2065. Checking Disabled bit indicates in a
                           * query that non-verified data is acceptable to the
                           * resolver sending the query. */
 } ares_dns_flags_t;
@@ -151,7 +152,7 @@ typedef enum {
   ARES_RCODE_BADNAME   = 20, /*!< RFC 2930. Duplicate Key Name */
   ARES_RCODE_BADALG    = 21, /*!< RFC 2930. Algorithm not supported */
   ARES_RCODE_BADTRUNC  = 22, /*!< RFC 8945. Bad Truncation */
-  ARES_RCODE_BADCOOKIE = 23, /*!< RVC 7973. Bad/missing Server Cookie */
+  ARES_RCODE_BADCOOKIE = 23  /*!< RFC 7873. Bad/missing Server Cookie */
 } ares_dns_rcode_t;
 
 /*! Data types used */
@@ -170,6 +171,9 @@ typedef enum {
                               *   length) */
   ARES_DATATYPE_OPT = 10,    /*!< Array of options.  16bit identifier, BIN
                               *   data. */
+  ARES_DATATYPE_ABINP = 11   /*!< Array of binary data, likely printable.
+                              *   Guaranteed to have a NULL terminator for
+                              *   convenience (not included in length) */
 } ares_dns_datatype_t;
 
 /*! Keys used for all RR Types.  We take the record type and multiply by 100
@@ -206,8 +210,26 @@ typedef enum {
   ARES_RR_MX_PREFERENCE = (ARES_REC_TYPE_MX * 100) + 1,
   /*! MX Record. Exchange, domain. Datatype: NAME */
   ARES_RR_MX_EXCHANGE = (ARES_REC_TYPE_MX * 100) + 2,
-  /*! TXT Record. Data. Datatype: BINP */
+  /*! TXT Record. Data. Datatype: ABINP */
   ARES_RR_TXT_DATA = (ARES_REC_TYPE_TXT * 100) + 1,
+  /*! SIG Record. Type Covered. Datatype: U16 */
+  ARES_RR_SIG_TYPE_COVERED = (ARES_REC_TYPE_SIG * 100) + 1,
+  /*! SIG Record. Algorithm. Datatype: U8 */
+  ARES_RR_SIG_ALGORITHM = (ARES_REC_TYPE_SIG * 100) + 2,
+  /*! SIG Record. Labels. Datatype: U8 */
+  ARES_RR_SIG_LABELS = (ARES_REC_TYPE_SIG * 100) + 3,
+  /*! SIG Record. Original TTL. Datatype: U32 */
+  ARES_RR_SIG_ORIGINAL_TTL = (ARES_REC_TYPE_SIG * 100) + 4,
+  /*! SIG Record. Signature Expiration. Datatype: U32 */
+  ARES_RR_SIG_EXPIRATION = (ARES_REC_TYPE_SIG * 100) + 5,
+  /*! SIG Record. Signature Inception. Datatype: U32 */
+  ARES_RR_SIG_INCEPTION = (ARES_REC_TYPE_SIG * 100) + 6,
+  /*! SIG Record. Key Tag. Datatype: U16 */
+  ARES_RR_SIG_KEY_TAG = (ARES_REC_TYPE_SIG * 100) + 7,
+  /*! SIG Record. Signers Name. Datatype: NAME */
+  ARES_RR_SIG_SIGNERS_NAME = (ARES_REC_TYPE_SIG * 100) + 8,
+  /*! SIG Record. Signature. Datatype: BIN */
+  ARES_RR_SIG_SIGNATURE = (ARES_REC_TYPE_SIG * 100) + 9,
   /*! AAAA Record. Address. Datatype: INADDR6 */
   ARES_RR_AAAA_ADDR = (ARES_REC_TYPE_AAAA * 100) + 1,
   /*! SRV Record. Priority. Datatype: U16 */
@@ -273,7 +295,7 @@ typedef enum {
   /*! RAW Record. RR Type. Datatype: U16 */
   ARES_RR_RAW_RR_TYPE = (ARES_REC_TYPE_RAW_RR * 100) + 1,
   /*! RAW Record. RR Data. Datatype: BIN */
-  ARES_RR_RAW_RR_DATA = (ARES_REC_TYPE_RAW_RR * 100) + 2,
+  ARES_RR_RAW_RR_DATA = (ARES_REC_TYPE_RAW_RR * 100) + 2
 } ares_dns_rr_key_t;
 
 /*! TLSA Record ARES_RR_TLSA_CERT_USAGE known values */
@@ -353,7 +375,7 @@ typedef enum {
   /*! RFC 8145. Signaling Trust Anchor Knowledge in DNSSEC */
   ARES_OPT_PARAM_EDNS_KEY_TAG = 14,
   /*! RFC 8914. Extended ERROR code and message */
-  ARES_OPT_PARAM_EXTENDED_DNS_ERROR = 15,
+  ARES_OPT_PARAM_EXTENDED_DNS_ERROR = 15
 } ares_opt_param_t;
 
 /*! Data type for option records for keys like ARES_RR_OPT_OPTIONS and
@@ -580,6 +602,15 @@ CARES_EXTERN void          ares_dns_record_destroy(ares_dns_record_t *dnsrec);
  */
 CARES_EXTERN unsigned short
   ares_dns_record_get_id(const ares_dns_record_t *dnsrec);
+
+/*! Overwrite the DNS query id
+ *
+ * \param[in] dnsrec  Initialized record object
+ * \param[in] id      DNS query id
+ * \return ARES_TRUE on success, ARES_FALSE on usage error
+ */
+CARES_EXTERN ares_bool_t ares_dns_record_set_id(ares_dns_record_t *dnsrec,
+                                                unsigned short     id);
 
 /*! Get the DNS Record Flags
  *
@@ -844,6 +875,34 @@ CARES_EXTERN ares_status_t ares_dns_rr_set_bin(ares_dns_rr_t       *dns_rr,
                                                const unsigned char *val,
                                                size_t               len);
 
+/*! Add binary array value (ABINP) data for specified resource record and key.
+ *  Can only be used on keys with datatype ARES_DATATYPE_ABINP.  The value will
+ *  Be added as the last element in the array.
+ *
+ *  \param[in] dns_rr Pointer to resource record
+ *  \param[in] key    DNS Resource Record Key
+ *  \param[in] val    Pointer to binary data.
+ *  \param[in] len    Length of binary data
+ *  \return ARES_SUCCESS on success
+ */
+CARES_EXTERN ares_status_t ares_dns_rr_add_abin(ares_dns_rr_t       *dns_rr,
+                                                ares_dns_rr_key_t    key,
+                                                const unsigned char *val,
+                                                size_t               len);
+
+/*! Delete binary array value (ABINP) data for specified resource record and
+ *  key by specified index. Can only be used on keys with datatype
+ *  ARES_DATATYPE_ABINP.  The value at the index will be deleted.
+ *
+ *  \param[in] dns_rr Pointer to resource record
+ *  \param[in] key    DNS Resource Record Key
+ *  \param[in] idx    Index to delete
+ *  \return ARES_SUCCESS on success
+ */
+CARES_EXTERN ares_status_t ares_dns_rr_del_abin(ares_dns_rr_t    *dns_rr,
+                                                ares_dns_rr_key_t key,
+                                                size_t            idx);
+
 /*! Set the option for the RR
  *
  *  \param[in]  dns_rr   Pointer to resource record
@@ -858,6 +917,17 @@ CARES_EXTERN ares_status_t ares_dns_rr_set_opt(ares_dns_rr_t       *dns_rr,
                                                unsigned short       opt,
                                                const unsigned char *val,
                                                size_t               val_len);
+
+/*! Delete the option for the RR by id
+ *
+ *  \param[in] dns_rr   Pointer to resource record
+ *  \param[in] key      DNS Resource Record Key
+ *  \param[in] opt      Option record key id.
+ *  \return ARES_SUCCESS if removed, ARES_ENOTFOUND if not found
+ */
+CARES_EXTERN ares_status_t ares_dns_rr_del_opt_byid(ares_dns_rr_t    *dns_rr,
+                                                    ares_dns_rr_key_t key,
+                                                    unsigned short    opt);
 
 /*! Retrieve a pointer to the ipv4 address.  Can only be used on keys with
  *  datatype ARES_DATATYPE_INADDR.
@@ -920,8 +990,9 @@ CARES_EXTERN unsigned int   ares_dns_rr_get_u32(const ares_dns_rr_t *dns_rr,
                                                 ares_dns_rr_key_t    key);
 
 /*! Retrieve a pointer to the binary data.  Can only be used on keys with
- *  datatype ARES_DATATYPE_BIN or ARES_DATATYPE_BINP.  If BINP, the data is
- *  guaranteed to have a NULL terminator which is NOT included in the length.
+ *  datatype ARES_DATATYPE_BIN, ARES_DATATYPE_BINP, or ARES_DATATYPE_ABINP.
+ *  If BINP or ABINP, the data is guaranteed to have a NULL terminator which
+ *  is NOT included in the length.
  *
  *  \param[in]  dns_rr Pointer to resource record
  *  \param[in]  key    DNS Resource Record Key
@@ -931,6 +1002,33 @@ CARES_EXTERN unsigned int   ares_dns_rr_get_u32(const ares_dns_rr_t *dns_rr,
 CARES_EXTERN const unsigned char *
   ares_dns_rr_get_bin(const ares_dns_rr_t *dns_rr, ares_dns_rr_key_t key,
                       size_t *len);
+
+/*! Retrieve the count of the array of stored binary values. Can only be used on
+ *  keys with datatype ARES_DATATYPE_ABINP.
+ *
+ *  \param[in]  dns_rr Pointer to resource record
+ *  \param[in]  key    DNS Resource Record Key
+ *  \return count of values
+ */
+CARES_EXTERN size_t ares_dns_rr_get_abin_cnt(const ares_dns_rr_t *dns_rr,
+                                             ares_dns_rr_key_t    key);
+
+/*! Retrieve a pointer to the binary array data from the specified index.  Can
+ *  only be used on keys with datatype ARES_DATATYPE_ABINP.  If ABINP, the data
+ *  is guaranteed to have a NULL terminator which is NOT included in the length.
+ *  If want all array membersconcatenated, may use ares_dns_rr_get_bin()
+ *  instead.
+ *
+ *  \param[in]  dns_rr Pointer to resource record
+ *  \param[in]  key    DNS Resource Record Key
+ *  \param[in]  idx    Index of value to retrieve
+ *  \param[out] len    Length of binary data returned
+ *  \return pointer binary data or NULL on error
+ */
+CARES_EXTERN const unsigned char *
+  ares_dns_rr_get_abin(const ares_dns_rr_t *dns_rr, ares_dns_rr_key_t key,
+                       size_t idx, size_t *len);
+
 
 /*! Retrieve the number of options stored for the RR.
  *

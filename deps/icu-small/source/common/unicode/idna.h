@@ -70,6 +70,7 @@ public:
      * The worker functions use transitional processing, including deviation mappings,
      * unless UIDNA_NONTRANSITIONAL_TO_ASCII or UIDNA_NONTRANSITIONAL_TO_UNICODE
      * is used in which case the deviation characters are passed through without change.
+     * <b>Unicode 15.1 UTS #46 deprecated transitional processing.</b>
      *
      * Disallowed characters are mapped to U+FFFD.
      *
@@ -82,6 +83,8 @@ public:
      * letters, digits, hyphen (LDH) and dot/full stop are disallowed and mapped to U+FFFD.
      *
      * @param options Bit set to modify the processing and error checking.
+     *                These should include UIDNA_DEFAULT, or
+     *                UIDNA_NONTRANSITIONAL_TO_ASCII | UIDNA_NONTRANSITIONAL_TO_UNICODE.
      *                See option bit set values in uidna.h.
      * @param errorCode Standard ICU error code. Its input value must
      *                  pass the U_SUCCESS() test, or else the function returns

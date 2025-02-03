@@ -387,7 +387,9 @@ B<d2i_I<TYPE>>() attempts to decode I<len> bytes at I<*ppin>. If successful a
 pointer to the B<I<TYPE>> structure is returned and I<*ppin> is incremented to
 the byte following the parsed data.  If I<a> is not NULL then a pointer
 to the returned structure is also written to I<*a>.  If an error occurred
-then NULL is returned.
+then NULL is returned. The caller retains ownership of the
+returned object and needs to free it when it is no longer needed, e.g.
+using X509_free() for X509 objects or DSA_SIG_free() for DSA_SIG objects.
 
 On a successful return, if I<*a> is not NULL then it is assumed that I<*a>
 contains a valid B<I<TYPE>> structure and an attempt is made to reuse it.
@@ -615,7 +617,7 @@ efficiency reasons.
 
 =head1 COPYRIGHT
 
-Copyright 1998-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 1998-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

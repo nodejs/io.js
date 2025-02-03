@@ -89,6 +89,7 @@ cc_library(
         ":bits",
         "//absl/base:config",
         "//absl/base:core_headers",
+        "//absl/types:compare",
     ],
 )
 
@@ -107,6 +108,7 @@ cc_test(
         "//absl/hash:hash_testing",
         "//absl/meta:type_traits",
         "//absl/strings",
+        "//absl/types:compare",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
     ],

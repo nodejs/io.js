@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/asmjs/asm-js.h"
 #include "src/codegen/compilation-cache.h"
 #include "src/codegen/compiler.h"
@@ -16,16 +18,15 @@
 #include "src/objects/objects-inl.h"
 #include "src/objects/shared-function-info.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 namespace {
-void LogExecution(Isolate* isolate, Handle<JSFunction> function) {
+void LogExecution(Isolate* isolate, DirectHandle<JSFunction> function) {
   DCHECK(v8_flags.log_function_events);
   if (!function->has_feedback_vector()) return;
   if (!function->feedback_vector()->log_next_execution()) return;
-  Handle<SharedFunctionInfo> sfi(function->shared(), isolate);
-  Handle<String> name = SharedFunctionInfo::DebugName(isolate, sfi);
+  DirectHandle<SharedFunctionInfo> sfi(function->shared(), isolate);
+  DirectHandle<String> name = SharedFunctionInfo::DebugName(isolate, sfi);
   DisallowGarbageCollection no_gc;
   Tagged<SharedFunctionInfo> raw_sfi = *sfi;
   std::string event_name = "first-execution";
@@ -36,7 +37,7 @@ void LogExecution(Isolate* isolate, Handle<JSFunction> function) {
     event_name += CodeKindToString(kind);
   }
   LOG(isolate, FunctionEvent(
-                   event_name.c_str(), Script::cast(raw_sfi->script())->id(), 0,
+                   event_name.c_str(), Cast<Script>(raw_sfi->script())->id(), 0,
                    raw_sfi->StartPosition(), raw_sfi->EndPosition(), *name));
   function->feedback_vector()->set_log_next_execution(false);
 }
@@ -52,7 +53,7 @@ RUNTIME_FUNCTION(Runtime_CompileLazy) {
     return isolate->StackOverflow();
   }
 
-  Handle<SharedFunctionInfo> sfi(function->shared(), isolate);
+  DirectHandle<SharedFunctionInfo> sfi(function->shared(), isolate);
 
   DCHECK(!function->is_compiled(isolate));
 #ifdef DEBUG
@@ -75,24 +76,53 @@ RUNTIME_FUNCTION(Runtime_CompileLazy) {
 RUNTIME_FUNCTION(Runtime_InstallBaselineCode) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFunction> function = args.at<JSFunction>(0);
-  Handle<SharedFunctionInfo> sfi(function->shared(), isolate);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<SharedFunctionInfo> sfi(function->shared(), isolate);
   DCHECK(sfi->HasBaselineCode());
-  IsCompiledScope is_compiled_scope(*sfi, isolate);
-  DCHECK(!function->HasAvailableOptimizedCode(isolate));
-  DCHECK(!function->has_feedback_vector());
-  JSFunction::CreateAndAttachFeedbackVector(isolate, function,
-                                            &is_compiled_scope);
   {
+    if (!V8_ENABLE_LEAPTIERING_BOOL || !function->has_feedback_vector()) {
+      IsCompiledScope is_compiled_scope(*sfi, isolate);
+      DCHECK(!function->HasAvailableOptimizedCode(isolate));
+      DCHECK(!function->has_feedback_vector());
+      JSFunction::CreateAndAttachFeedbackVector(isolate, function,
+                                                &is_compiled_scope);
+    }
     DisallowGarbageCollection no_gc;
     Tagged<Code> baseline_code = sfi->baseline_code(kAcquireLoad);
-    function->set_code(baseline_code);
+    function->UpdateCode(baseline_code);
     if V8_LIKELY (!v8_flags.log_function_events) return baseline_code;
   }
   DCHECK(v8_flags.log_function_events);
   LogExecution(isolate, function);
   // LogExecution might allocate, reload the baseline code
   return sfi->baseline_code(kAcquireLoad);
+}
+
+RUNTIME_FUNCTION(Runtime_InstallSFICode) {
+  HandleScope scope(isolate);
+  DCHECK_EQ(1, args.length());
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
+  {
+    DisallowGarbageCollection no_gc;
+    Tagged<SharedFunctionInfo> sfi = function->shared();
+    DCHECK(sfi->is_compiled());
+    Tagged<Code> sfi_code = sfi->GetCode(isolate);
+    if (V8_LIKELY(sfi_code->kind() != CodeKind::BASELINE ||
+                  function->has_feedback_vector())) {
+      function->UpdateCode(sfi_code);
+      return sfi_code;
+    }
+  }
+  // This could be the first time we are installing baseline code so we need to
+  // ensure that a feedback vectors is allocated.
+  IsCompiledScope is_compiled_scope(function->shared(), isolate);
+  DCHECK(!function->HasAvailableOptimizedCode(isolate));
+  DCHECK(!function->has_feedback_vector());
+  JSFunction::CreateAndAttachFeedbackVector(isolate, function,
+                                            &is_compiled_scope);
+  Tagged<Code> sfi_code = function->shared()->GetCode(isolate);
+  function->UpdateCode(sfi_code);
+  return sfi_code;
 }
 
 RUNTIME_FUNCTION(Runtime_CompileOptimized) {
@@ -149,7 +179,7 @@ RUNTIME_FUNCTION(Runtime_CompileOptimized) {
 RUNTIME_FUNCTION(Runtime_FunctionLogNextExecution) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFunction> js_function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> js_function = args.at<JSFunction>(0);
   DCHECK(v8_flags.log_function_events);
   LogExecution(isolate, js_function);
   return js_function->code(isolate);
@@ -158,7 +188,7 @@ RUNTIME_FUNCTION(Runtime_FunctionLogNextExecution) {
 RUNTIME_FUNCTION(Runtime_HealOptimizedCodeSlot) {
   SealHandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
 
   DCHECK(function->shared()->is_compiled());
 
@@ -177,7 +207,7 @@ enum AsmJsInstantiateResult {
 RUNTIME_FUNCTION(Runtime_InstantiateAsmJs) {
   HandleScope scope(isolate);
   DCHECK_EQ(args.length(), 4);
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
 
   Handle<JSReceiver> stdlib;
   if (IsJSReceiver(args[1])) {
@@ -191,10 +221,10 @@ RUNTIME_FUNCTION(Runtime_InstantiateAsmJs) {
   if (IsJSArrayBuffer(args[3])) {
     memory = args.at<JSArrayBuffer>(3);
   }
-  Handle<SharedFunctionInfo> shared(function->shared(), isolate);
+  DirectHandle<SharedFunctionInfo> shared(function->shared(), isolate);
 #if V8_ENABLE_WEBASSEMBLY
   if (shared->HasAsmWasmData()) {
-    Handle<AsmWasmData> data(shared->asm_wasm_data(), isolate);
+    DirectHandle<AsmWasmData> data(shared->asm_wasm_data(), isolate);
     MaybeHandle<Object> result = AsmJs::InstantiateAsmWasm(
         isolate, shared, data, stdlib, foreign, memory);
     if (!result.is_null()) {
@@ -212,14 +242,15 @@ RUNTIME_FUNCTION(Runtime_InstantiateAsmJs) {
     isolate->counters()->asmjs_instantiate_result()->AddSample(
         kAsmJsInstantiateFail);
 
-    // Remove wasm data, mark as broken for asm->wasm, replace function code
-    // with UncompiledData, and return a smi 0 to indicate failure.
+    // Remove wasm data, mark as broken for asm->wasm, replace AsmWasmData on
+    // the SFI with UncompiledData and set entrypoint to CompileLazy builtin,
+    // and return a smi 0 to indicate failure.
     SharedFunctionInfo::DiscardCompiled(isolate, shared);
   }
   shared->set_is_asm_wasm_broken(true);
 #endif
   DCHECK_EQ(function->code(isolate), *BUILTIN_CODE(isolate, InstantiateAsmJs));
-  function->set_code(*BUILTIN_CODE(isolate, CompileLazy));
+  function->UpdateCode(*BUILTIN_CODE(isolate, CompileLazy));
   DCHECK(!isolate->has_exception());
   return Smi::zero();
 }
@@ -229,7 +260,7 @@ namespace {
 bool TryGetOptimizedOsrCode(Isolate* isolate, Tagged<FeedbackVector> vector,
                             const interpreter::BytecodeArrayIterator& it,
                             Tagged<Code>* code_out) {
-  base::Optional<Tagged<Code>> maybe_code =
+  std::optional<Tagged<Code>> maybe_code =
       vector->GetOptimizedOsrCode(isolate, it.GetSlotOperand(2));
   if (maybe_code.has_value()) {
     *code_out = maybe_code.value();
@@ -344,14 +375,10 @@ RUNTIME_FUNCTION(Runtime_NotifyDeoptimized) {
 
   TimerEventScope<TimerEventDeoptimizeCode> timer(isolate);
   TRACE_EVENT0("v8", "V8.DeoptimizeCode");
-  Handle<JSFunction> function = deoptimizer->function();
-  if (v8_flags.profile_guided_optimization) {
-    function->shared()->set_cached_tiering_decision(
-        CachedTieringDecision::kNormal);
-  }
+  DirectHandle<JSFunction> function = deoptimizer->function();
   // For OSR the optimized code isn't installed on the function, so get the
   // code object from deoptimizer.
-  Handle<Code> optimized_code = deoptimizer->compiled_code();
+  DirectHandle<Code> optimized_code = deoptimizer->compiled_code();
   const DeoptimizeKind deopt_kind = deoptimizer->deopt_kind();
   const DeoptimizeReason deopt_reason =
       deoptimizer->GetDeoptInfo().deopt_reason;
@@ -369,7 +396,7 @@ RUNTIME_FUNCTION(Runtime_NotifyDeoptimized) {
   // Ensure the context register is updated for materialized objects.
   JavaScriptStackFrameIterator top_it(isolate);
   JavaScriptFrame* top_frame = top_it.frame();
-  isolate->set_context(Context::cast(top_frame->context()));
+  isolate->set_context(Cast<Context>(top_frame->context()));
 
   // Lazy deopts don't invalidate the underlying optimized code since the code
   // object itself is still valid (as far as we know); the called function
@@ -413,7 +440,7 @@ RUNTIME_FUNCTION(Runtime_ObserveNode) {
   // code compiled by TurboFan.
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> obj = args.at(0);
+  DirectHandle<Object> obj = args.at(0);
   return *obj;
 }
 
@@ -421,7 +448,7 @@ RUNTIME_FUNCTION(Runtime_VerifyType) {
   // %VerifyType has no effect in the interpreter.
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> obj = args.at(0);
+  DirectHandle<Object> obj = args.at(0);
   return *obj;
 }
 
@@ -429,7 +456,7 @@ RUNTIME_FUNCTION(Runtime_CheckTurboshaftTypeOf) {
   // %CheckTurboshaftTypeOf has no effect in the interpreter.
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<Object> obj = args.at(0);
+  DirectHandle<Object> obj = args.at(0);
   return *obj;
 }
 
@@ -459,12 +486,16 @@ Tagged<Object> CompileOptimizedOSR(Isolate* isolate,
                                    Handle<JSFunction> function,
                                    CodeKind min_opt_level,
                                    BytecodeOffset osr_offset) {
-  const ConcurrencyMode mode =
+  ConcurrencyMode mode =
       V8_LIKELY(isolate->concurrent_recompilation_enabled() &&
-                v8_flags.concurrent_osr &&
-                !isolate->UseEfficiencyModeForTiering())
+                v8_flags.concurrent_osr)
           ? ConcurrencyMode::kConcurrent
           : ConcurrencyMode::kSynchronous;
+
+  if (V8_UNLIKELY(isolate->EfficiencyModeEnabledForTiering() &&
+                  min_opt_level == CodeKind::MAGLEV)) {
+    mode = ConcurrencyMode::kSynchronous;
+  }
 
   Handle<Code> result;
   if (!Compiler::CompileOptimizedOSR(
@@ -478,8 +509,10 @@ Tagged<Object> CompileOptimizedOSR(Isolate* isolate,
     // 1) we've started a concurrent compilation job - everything is fine.
     // 2) synchronous compilation failed for some reason.
 
+    // TODO(olivf, 42204201) With leaptiering enabled, we should just check that
+    // it's up-to-date already.
     if (!function->HasAttachedOptimizedCode(isolate)) {
-      function->set_code(function->shared()->GetCode(isolate));
+      function->UpdateCode(function->shared()->GetCode(isolate));
     }
 
     return Smi::zero();
@@ -491,7 +524,7 @@ Tagged<Object> CompileOptimizedOSR(Isolate* isolate,
 
 #ifdef DEBUG
   Tagged<DeoptimizationData> data =
-      DeoptimizationData::cast(result->deoptimization_data());
+      Cast<DeoptimizationData>(result->deoptimization_data());
   DCHECK_EQ(BytecodeOffset(data->OsrBytecodeOffset().value()), osr_offset);
   DCHECK_GE(data->OsrPcOffset().value(), 0);
 #endif  // DEBUG
@@ -545,6 +578,13 @@ Tagged<Object> CompileOptimizedOSRFromMaglev(Isolate* isolate,
              function->DebugNameCStr().get(), osr_offset.ToInt());
     }
     return function->code(isolate);
+  }
+
+  if (V8_UNLIKELY(isolate->EfficiencyModeEnabledForTiering() ||
+                  isolate->BatterySaverModeEnabled())) {
+    function->feedback_vector()->reset_osr_urgency();
+    function->SetInterruptBudget(isolate);
+    return Smi::zero();
   }
 
   return CompileOptimizedOSR(isolate, function, CodeKind::TURBOFAN, osr_offset);
@@ -615,7 +655,7 @@ static Tagged<Object> CompileGlobalEval(Isolate* isolate,
                                         Handle<i::Object> source_object,
                                         Handle<SharedFunctionInfo> outer_info,
                                         LanguageMode language_mode,
-                                        int eval_scope_position,
+                                        int eval_scope_info_index,
                                         int eval_position) {
   Handle<NativeContext> native_context = isolate->native_context();
 
@@ -644,11 +684,21 @@ static Tagged<Object> CompileGlobalEval(Isolate* isolate,
   static const ParseRestriction restriction = NO_PARSE_RESTRICTION;
   Handle<JSFunction> compiled;
   Handle<Context> context(isolate->context(), isolate);
+  if (!Is<NativeContext>(*context) && v8_flags.reuse_scope_infos) {
+    Tagged<WeakFixedArray> array = Cast<Script>(outer_info->script())->infos();
+    Tagged<ScopeInfo> stored_info;
+    if (array->get(eval_scope_info_index)
+            .GetHeapObjectIfWeak(isolate, &stored_info)) {
+      CHECK_EQ(stored_info, context->scope_info());
+    } else {
+      array->set(eval_scope_info_index, MakeWeak(context->scope_info()));
+    }
+  }
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, compiled,
-      Compiler::GetFunctionFromEval(
-          source.ToHandleChecked(), outer_info, context, language_mode,
-          restriction, kNoSourcePosition, eval_scope_position, eval_position),
+      Compiler::GetFunctionFromEval(source.ToHandleChecked(), outer_info,
+                                    context, language_mode, restriction,
+                                    kNoSourcePosition, eval_position),
       ReadOnlyRoots(isolate).exception());
   return *compiled;
 }
@@ -657,7 +707,7 @@ RUNTIME_FUNCTION(Runtime_ResolvePossiblyDirectEval) {
   HandleScope scope(isolate);
   DCHECK_EQ(6, args.length());
 
-  Handle<Object> callee = args.at(0);
+  DirectHandle<Object> callee = args.at(0);
 
   // If "eval" didn't refer to the original GlobalEval, it's not a
   // direct call to eval.
@@ -674,5 +724,4 @@ RUNTIME_FUNCTION(Runtime_ResolvePossiblyDirectEval) {
                            args.smi_value_at(5));
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

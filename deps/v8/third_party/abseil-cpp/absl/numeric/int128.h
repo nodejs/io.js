@@ -38,6 +38,7 @@
 #include "absl/base/config.h"
 #include "absl/base/macros.h"
 #include "absl/base/port.h"
+#include "absl/types/compare.h"
 
 #if defined(_MSC_VER)
 // In very old versions of MSVC and when the /Zc:wchar_t flag is off, wchar_t is
@@ -269,7 +270,9 @@ class numeric_limits<absl::uint128> {
   static constexpr bool has_infinity = false;
   static constexpr bool has_quiet_NaN = false;
   static constexpr bool has_signaling_NaN = false;
+  ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING
   static constexpr float_denorm_style has_denorm = denorm_absent;
+  ABSL_INTERNAL_RESTORE_DEPRECATED_DECLARATION_WARNING
   static constexpr bool has_denorm_loss = false;
   static constexpr float_round_style round_style = round_toward_zero;
   static constexpr bool is_iec559 = false;
@@ -512,7 +515,9 @@ class numeric_limits<absl::int128> {
   static constexpr bool has_infinity = false;
   static constexpr bool has_quiet_NaN = false;
   static constexpr bool has_signaling_NaN = false;
+  ABSL_INTERNAL_DISABLE_DEPRECATED_DECLARATION_WARNING
   static constexpr float_denorm_style has_denorm = denorm_absent;
+  ABSL_INTERNAL_RESTORE_DEPRECATED_DECLARATION_WARNING
   static constexpr bool has_denorm_loss = false;
   static constexpr float_round_style round_style = round_toward_zero;
   static constexpr bool is_iec559 = false;
@@ -818,6 +823,36 @@ constexpr bool operator>(uint128 lhs, uint128 rhs) { return rhs < lhs; }
 constexpr bool operator<=(uint128 lhs, uint128 rhs) { return !(rhs < lhs); }
 
 constexpr bool operator>=(uint128 lhs, uint128 rhs) { return !(lhs < rhs); }
+
+#ifdef __cpp_impl_three_way_comparison
+constexpr absl::strong_ordering operator<=>(uint128 lhs, uint128 rhs) {
+#if defined(ABSL_HAVE_INTRINSIC_INT128)
+  if (auto lhs_128 = static_cast<unsigned __int128>(lhs),
+      rhs_128 = static_cast<unsigned __int128>(rhs);
+      lhs_128 < rhs_128) {
+    return absl::strong_ordering::less;
+  } else if (lhs_128 > rhs_128) {
+    return absl::strong_ordering::greater;
+  } else {
+    return absl::strong_ordering::equal;
+  }
+#else
+  if (uint64_t lhs_high = Uint128High64(lhs), rhs_high = Uint128High64(rhs);
+      lhs_high < rhs_high) {
+    return absl::strong_ordering::less;
+  } else if (lhs_high > rhs_high) {
+    return absl::strong_ordering::greater;
+  } else if (uint64_t lhs_low = Uint128Low64(lhs), rhs_low = Uint128Low64(rhs);
+             lhs_low < rhs_low) {
+    return absl::strong_ordering::less;
+  } else if (lhs_low > rhs_low) {
+    return absl::strong_ordering::greater;
+  } else {
+    return absl::strong_ordering::equal;
+  }
+#endif
+}
+#endif
 
 // Unary operators.
 

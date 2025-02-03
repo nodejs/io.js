@@ -52,7 +52,12 @@ void ProcessorImpl::Multiply(RWDigits Z, Digits X, Digits Y) {
 void ProcessorImpl::Divide(RWDigits Q, Digits A, Digits B) {
   A.Normalize();
   B.Normalize();
-  DCHECK(B.len() > 0);
+  // While callers are not required to normalize inputs, they must not
+  // provide divisors that normalize to zero.
+  // This must be a Release-mode CHECK because it is load bearing for
+  // security fuzzing: subsequent operations would perform illegal memory
+  // accesses if they attempted to work with zero divisors.
+  CHECK(B.len() > 0);
   int cmp = Compare(A, B);
   if (cmp < 0) return Q.Clear();
   if (cmp == 0) {
@@ -82,7 +87,12 @@ void ProcessorImpl::Divide(RWDigits Q, Digits A, Digits B) {
 void ProcessorImpl::Modulo(RWDigits R, Digits A, Digits B) {
   A.Normalize();
   B.Normalize();
-  DCHECK(B.len() > 0);
+  // While callers are not required to normalize inputs, they must not
+  // provide divisors that normalize to zero.
+  // This must be a Release-mode CHECK because it is load bearing for
+  // security fuzzing: subsequent operations would perform illegal memory
+  // accesses if they attempted to work with zero divisors.
+  CHECK(B.len() > 0);
   int cmp = Compare(A, B);
   if (cmp < 0) {
     for (int i = 0; i < B.len(); i++) R[i] = B[i];

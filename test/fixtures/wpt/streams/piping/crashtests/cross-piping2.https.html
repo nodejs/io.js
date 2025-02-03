@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<script type="module">
+  let a = self.open()
+  let d = await a.navigator.storage.getDirectory()
+  let h = await d.getFileHandle("c5c9960b-a637-4232-be3d-3ccc5704852f", {"create": true})
+  let r = new ReadableStream({
+    start(c) {
+      c.enqueue(h)
+      c.close();
+    }
+  });
+  let w = await h.createWritable({ })
+  r.pipeThrough({"readable": r, "writable": w}, {})
+</script>

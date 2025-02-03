@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const constants = crypto.constants;
 
 const fixtures = require('../common/fixtures');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // Test certificates
 const certPem = fixtures.readKey('rsa_cert.crt');
@@ -36,11 +37,11 @@ const openssl1DecryptError = {
   library: 'digital envelope routines',
 };
 
-const decryptError = common.hasOpenSSL3 ?
+const decryptError = hasOpenSSL3 ?
   { message: 'error:1C800064:Provider routines::bad decrypt' } :
   openssl1DecryptError;
 
-const decryptPrivateKeyError = common.hasOpenSSL3 ? {
+const decryptPrivateKeyError = hasOpenSSL3 ? {
   message: 'error:1C800064:Provider routines::bad decrypt',
 } : openssl1DecryptError;
 
@@ -146,7 +147,7 @@ function getBufferCopy(buf) {
   // Now with RSA_NO_PADDING. Plaintext needs to match key size.
   // OpenSSL 3.x has a rsa_check_padding that will cause an error if
   // RSA_NO_PADDING is used.
-  if (!common.hasOpenSSL3) {
+  if (!hasOpenSSL3) {
     {
       const plaintext = 'x'.repeat(rsaKeySize / 8);
       encryptedBuffer = crypto.privateEncrypt({
@@ -223,8 +224,6 @@ function test_rsa(padding, encryptOaepHash, decryptOaepHash) {
 
 
   if (padding === constants.RSA_PKCS1_PADDING) {
-    // TODO(richardlau): see if it's possible to determine implicit rejection
-    // support when dynamically linked against OpenSSL.
     if (!process.config.variables.node_shared_openssl) {
       assert.throws(() => {
         crypto.privateDecrypt({
@@ -240,6 +239,55 @@ function test_rsa(padding, encryptOaepHash, decryptOaepHash) {
           oaepHash: decryptOaepHash
         }, encryptedBuffer);
       }, { code: 'ERR_INVALID_ARG_VALUE' });
+    } else {
+      // The version of a linked against OpenSSL. May
+      // or may not support implicit rejection. Figuring
+      // this out in the test is not feasible but we
+      // require that it pass based on one of the two
+      // cases of supporting it or not.
+      try {
+        // The expected exceptions should be thrown if implicit rejection
+        // is not supported
+        assert.throws(() => {
+          crypto.privateDecrypt({
+            key: rsaKeyPem,
+            padding: padding,
+            oaepHash: decryptOaepHash
+          }, encryptedBuffer);
+        }, { code: 'ERR_INVALID_ARG_VALUE' });
+        assert.throws(() => {
+          crypto.privateDecrypt({
+            key: rsaPkcs8KeyPem,
+            padding: padding,
+            oaepHash: decryptOaepHash
+          }, encryptedBuffer);
+        }, { code: 'ERR_INVALID_ARG_VALUE' });
+      } catch (e) {
+        if (e.toString() ===
+            'AssertionError [ERR_ASSERTION]: Missing expected exception.') {
+          // Implicit rejection must be supported since
+          // we did not get the exceptions that are thrown
+          // when it is not, we should be able to decrypt
+          let decryptedBuffer = crypto.privateDecrypt({
+            key: rsaKeyPem,
+            padding: padding,
+            oaepHash: decryptOaepHash
+          }, encryptedBuffer);
+          assert.deepStrictEqual(decryptedBuffer, input);
+
+          decryptedBuffer = crypto.privateDecrypt({
+            key: rsaPkcs8KeyPem,
+            padding: padding,
+            oaepHash: decryptOaepHash
+          }, encryptedBuffer);
+          assert.deepStrictEqual(decryptedBuffer, input);
+        } else {
+          // There was an exception but it is not the one we expect if implicit
+          // rejection is not supported so there was some other failure,
+          // re-throw it so the test fails
+          throw e;
+        }
+      }
     }
   } else {
     let decryptedBuffer = crypto.privateDecrypt({

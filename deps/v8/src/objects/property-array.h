@@ -29,11 +29,11 @@ class PropertyArray
   inline void SetHash(int hash);
   inline int Hash() const;
 
-  inline Tagged<Object> get(int index) const;
-  inline Tagged<Object> get(PtrComprCageBase cage_base, int index) const;
-  inline Tagged<Object> get(int index, SeqCstAccessTag tag) const;
-  inline Tagged<Object> get(PtrComprCageBase cage_base, int index,
-                            SeqCstAccessTag tag) const;
+  inline Tagged<JSAny> get(int index) const;
+  inline Tagged<JSAny> get(PtrComprCageBase cage_base, int index) const;
+  inline Tagged<JSAny> get(int index, SeqCstAccessTag tag) const;
+  inline Tagged<JSAny> get(PtrComprCageBase cage_base, int index,
+                           SeqCstAccessTag tag) const;
 
   inline void set(int index, Tagged<Object> value);
   inline void set(int index, Tagged<Object> value, SeqCstAccessTag tag);

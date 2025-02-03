@@ -69,7 +69,7 @@ int nghttp2_pq_push(nghttp2_pq *pq, nghttp2_pq_entry *item) {
     void *nq;
     size_t ncapacity;
 
-    ncapacity = nghttp2_max(4, (pq->capacity * 2));
+    ncapacity = nghttp2_max_size(4, (pq->capacity * 2));
 
     nq = nghttp2_mem_realloc(pq->mem, pq->q,
                              ncapacity * sizeof(nghttp2_pq_entry *));

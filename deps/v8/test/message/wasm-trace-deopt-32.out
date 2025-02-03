@@ -1,0 +1,29 @@
+[bailout (kind: deopt-eager, reason: wrong call target, type: Wasm): begin. deoptimizing main, function index 2, bytecode offset 107, deopt exit 0, FP to SP delta {NUMBER}, pc {ADDRESS}]
+  reading input for liftoff frame => bailout_id=107, height=13, function_id=2 ; inputs:
+      0: 2 ; *(int32)*
+      1: 3 ; *(int32)*
+      2: {ADDRESS} ; * {ADDRESS} <Other heap object (WASM_FUNC_REF_TYPE)>
+      3: (wasm int32 literal 32)
+      4: (wasm int32 literal 64)
+      5: (wasm int32 literal 0)
+      6: (wasm float literal 3.200000)
+      7: (wasm double literal 6.400000)
+      8: 28 51 00 00 00 00 00 00 28 51 00 00 00 00 00 00 ; * (Simd128)
+      9: {ADDRESS} ; * {ADDRESS} <Other heap object (WASM_NULL_TYPE)>
+     10: 2 ; *(int32)*
+     11: 3 ; *(int32)*
+     12: {ADDRESS} ; * {ADDRESS} <Other heap object (WASM_FUNC_REF_TYPE)>
+  Liftoff stack & register state for function index 2, frame size {NUMBER}, total frame size {NUMBER}
+     0: i32:*
+     1: i32:*
+     2: ref:*
+     3: i32:c32
+     4: i64:c64
+     5: f32:*
+     6: f64:*
+     7: v128:*
+     8: ref null:*
+     9: i32:*
+     10: i32:*
+     11: ref:*
+[bailout end. took {NUMBER} ms]

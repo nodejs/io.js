@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Flags: --experimental-wasm-exnref
+
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 (function TestRefTestInvalid() {
@@ -20,6 +22,11 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     [wasmRefType(sig),    kExternRefCode],
     [kWasmAnyRef,         kExternRefCode],
     [kWasmAnyRef,         kFuncRefCode],
+    [kWasmAnyRef,         kExnRefCode],
+    [wasmRefType(sig),    kExnRefCode],
+    [kWasmNullExternRef,  kExnRefCode],
+    [wasmRefType(array),  kNullExnRefCode],
+    [kWasmNullFuncRef,    kNullExnRefCode],
   ];
   let casts = [
     kExprRefTest,
@@ -120,7 +127,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
     .addBody([
       kExprBlock, kAnyRefCode,
         kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastGeneric,
+        kGCPrefix, kExprBrOnCast,
           ...wasmUnsignedLeb(value), 0, kAnyRefCode, struct,
         kExprDrop,
         kExprReturn,

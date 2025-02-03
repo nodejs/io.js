@@ -5,8 +5,9 @@
 #ifndef V8_HEAP_INCREMENTAL_MARKING_JOB_H_
 #define V8_HEAP_INCREMENTAL_MARKING_JOB_H_
 
+#include <optional>
+
 #include "include/v8-platform.h"
-#include "src/base/optional.h"
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/time.h"
 
@@ -20,45 +21,32 @@ class Isolate;
 // tasks or delayed foreground tasks if marking progress allows.
 class IncrementalMarkingJob final {
  public:
-  enum class TaskType {
-    kNormal,
-    kPending,
-  };
-
   explicit IncrementalMarkingJob(Heap* heap);
 
   IncrementalMarkingJob(const IncrementalMarkingJob&) = delete;
   IncrementalMarkingJob& operator=(const IncrementalMarkingJob&) = delete;
 
-  // Schedules a task with a given `task_type`. Safe to be called from any
+  // Schedules a task with the given `priority`. Safe to be called from any
   // thread.
-  void ScheduleTask(TaskType task_type = TaskType::kNormal);
+  void ScheduleTask(TaskPriority priority = TaskPriority::kUserBlocking);
 
   // Returns a weighted average of time to task. For delayed tasks the time to
   // task is only recorded after the initial delay. In case a task is currently
   // running, it is added to the average.
-  base::Optional<v8::base::TimeDelta> AverageTimeToTask() const;
+  std::optional<v8::base::TimeDelta> AverageTimeToTask() const;
 
-  base::Optional<v8::base::TimeDelta> CurrentTimeToTask() const;
+  std::optional<v8::base::TimeDelta> CurrentTimeToTask() const;
 
  private:
   class Task;
 
   Heap* const heap_;
-  const std::shared_ptr<v8::TaskRunner> foreground_task_runner_;
+  const std::shared_ptr<v8::TaskRunner> user_blocking_task_runner_;
+  const std::shared_ptr<v8::TaskRunner> user_visible_task_runner_;
   mutable base::Mutex mutex_;
   v8::base::TimeTicks scheduled_time_;
-  base::Optional<TaskType> pending_task_;
+  bool pending_task_ = false;
 };
-
-constexpr const char* ToString(IncrementalMarkingJob::TaskType task_type) {
-  switch (task_type) {
-    case IncrementalMarkingJob::TaskType::kNormal:
-      return "normal";
-    case IncrementalMarkingJob::TaskType::kPending:
-      return "pending";
-  }
-}
 
 }  // namespace v8::internal
 

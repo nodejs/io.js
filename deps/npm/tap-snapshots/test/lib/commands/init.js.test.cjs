@@ -20,5 +20,6 @@ Press ^C at any time to quit.
 
 exports[`test/lib/commands/init.js TAP workspaces no args -- yes > should print helper info 1`] = `
 
+
 added 1 package in {TIME}
 `

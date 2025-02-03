@@ -457,7 +457,7 @@ void uv__stream_destroy(uv_stream_t* stream) {
   assert(stream->flags & UV_HANDLE_CLOSED);
 
   if (stream->connect_req) {
-    uv__req_unregister(stream->loop, stream->connect_req);
+    uv__req_unregister(stream->loop);
     stream->connect_req->cb(stream->connect_req, UV_ECANCELED);
     stream->connect_req = NULL;
   }
@@ -642,7 +642,7 @@ static void uv__drain(uv_stream_t* stream) {
   if ((stream->flags & UV_HANDLE_CLOSING) ||
       !(stream->flags & UV_HANDLE_SHUT)) {
     stream->shutdown_req = NULL;
-    uv__req_unregister(stream->loop, req);
+    uv__req_unregister(stream->loop);
 
     err = 0;
     if (stream->flags & UV_HANDLE_CLOSING)
@@ -698,7 +698,8 @@ static int uv__write_req_update(uv_stream_t* stream,
 
   do {
     len = n < buf->len ? n : buf->len;
-    buf->base += len;
+    if (buf->len != 0)
+      buf->base += len;
     buf->len -= len;
     buf += (buf->len == 0);  /* Advance to next buffer if this one is empty. */
     n -= len;
@@ -912,7 +913,7 @@ static void uv__write_callbacks(uv_stream_t* stream) {
     q = uv__queue_head(&pq);
     req = uv__queue_data(q, uv_write_t, queue);
     uv__queue_remove(q);
-    uv__req_unregister(stream->loop, req);
+    uv__req_unregister(stream->loop);
 
     if (req->bufs != NULL) {
       stream->write_queue_size -= uv__write_req_size(req);
@@ -979,11 +980,13 @@ static int uv__stream_queue_fd(uv_stream_t* stream, int fd) {
 
 static int uv__stream_recv_cmsg(uv_stream_t* stream, struct msghdr* msg) {
   struct cmsghdr* cmsg;
+  char* p;
+  char* pe;
   int fd;
   int err;
-  size_t i;
   size_t count;
 
+  err = 0;
   for (cmsg = CMSG_FIRSTHDR(msg); cmsg != NULL; cmsg = CMSG_NXTHDR(msg, cmsg)) {
     if (cmsg->cmsg_type != SCM_RIGHTS) {
       fprintf(stderr, "ignoring non-SCM_RIGHTS ancillary data: %d\n",
@@ -996,24 +999,26 @@ static int uv__stream_recv_cmsg(uv_stream_t* stream, struct msghdr* msg) {
     assert(count % sizeof(fd) == 0);
     count /= sizeof(fd);
 
-    for (i = 0; i < count; i++) {
-      memcpy(&fd, (char*) CMSG_DATA(cmsg) + i * sizeof(fd), sizeof(fd));
-      /* Already has accepted fd, queue now */
-      if (stream->accepted_fd != -1) {
-        err = uv__stream_queue_fd(stream, fd);
-        if (err != 0) {
-          /* Close rest */
-          for (; i < count; i++)
-            uv__close(fd);
-          return err;
-        }
-      } else {
-        stream->accepted_fd = fd;
+    p = (void*) CMSG_DATA(cmsg);
+    pe = p + count * sizeof(fd);
+
+    while (p < pe) {
+      memcpy(&fd, p, sizeof(fd));
+      p += sizeof(fd);
+
+      if (err == 0) {
+        if (stream->accepted_fd == -1)
+          stream->accepted_fd = fd;
+        else
+          err = uv__stream_queue_fd(stream, fd);
       }
+
+      if (err != 0)
+        uv__close(fd);
     }
   }
 
-  return 0;
+  return err;
 }
 
 
@@ -1268,7 +1273,7 @@ static void uv__stream_connect(uv_stream_t* stream) {
     return;
 
   stream->connect_req = NULL;
-  uv__req_unregister(stream->loop, req);
+  uv__req_unregister(stream->loop);
 
   if (error < 0 || uv__queue_empty(&stream->write_queue)) {
     uv__io_stop(stream->loop, &stream->io_watcher, POLLOUT);

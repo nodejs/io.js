@@ -1,7 +1,7 @@
 // Worker script used by d8-worker-script.js.
 // This file is named `.txt` to prevent it being treated as a test itself.
 
-onmessage = function(m) {
+onmessage = function({data:m}) {
   postMessage('DONE');
 }
 

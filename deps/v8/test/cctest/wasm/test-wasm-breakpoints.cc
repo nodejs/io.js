@@ -145,9 +145,10 @@ Handle<BreakPoint> SetBreakpoint(WasmRunnerBase* runner, int function_index,
       runner->builder().GetFunctionAt(function_index)->code.offset();
   int code_offset = func_offset + byte_offset;
   if (expected_set_byte_offset == -1) expected_set_byte_offset = byte_offset;
-  Handle<WasmInstanceObject> instance = runner->builder().instance_object();
-  Handle<Script> script(instance->module_object()->script(),
-                        runner->main_isolate());
+  DirectHandle<WasmInstanceObject> instance =
+      runner->builder().instance_object();
+  DirectHandle<Script> script(instance->module_object()->script(),
+                              runner->main_isolate());
   static int break_index = 0;
   Handle<BreakPoint> break_point =
       runner->main_isolate()->factory()->NewBreakPoint(
@@ -157,13 +158,14 @@ Handle<BreakPoint> SetBreakpoint(WasmRunnerBase* runner, int function_index,
 }
 
 void ClearBreakpoint(WasmRunnerBase* runner, int function_index,
-                     int byte_offset, Handle<BreakPoint> break_point) {
+                     int byte_offset, DirectHandle<BreakPoint> break_point) {
   int func_offset =
       runner->builder().GetFunctionAt(function_index)->code.offset();
   int code_offset = func_offset + byte_offset;
-  Handle<WasmInstanceObject> instance = runner->builder().instance_object();
-  Handle<Script> script(instance->module_object()->script(),
-                        runner->main_isolate());
+  DirectHandle<WasmInstanceObject> instance =
+      runner->builder().instance_object();
+  DirectHandle<Script> script(instance->module_object()->script(),
+                              runner->main_isolate());
   CHECK(WasmScript::ClearBreakPoint(script, code_offset, break_point));
 }
 

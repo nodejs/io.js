@@ -1,0 +1,24 @@
+{
+  "version": 3,
+  "file": "index-map-two-concatenated-sources.js",
+  "sections": [
+    {
+      "offset": { "line": 0, "column": 0 },
+      "map": {
+        "version": 3,
+        "names": ["foo","bar"],
+        "sources": ["basic-mapping-original.js"],
+        "mappings": "AAAA,SAASA,MACP,OAAO,EACT,CACA,SAASC,MACP,OAAO,EACT,CACAD,MACAC"
+      }
+    },
+    {
+      "offset": { "line": 0, "column": 62 },
+      "map": {
+        "version": 3,
+        "names": ["baz"],
+        "sources": ["second-source-original.js"],
+        "mappings":"AAAA,SAASA,MACP,MAAO,KACT,CACAA"
+      }
+    }
+  ]
+}

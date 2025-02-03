@@ -30,9 +30,14 @@ static constexpr size_t kFullyConstructedBitFieldOffsetFromPayload =
 // Mask for in-construction bit.
 static constexpr uint16_t kFullyConstructedBitMask = uint16_t{1};
 
-static constexpr size_t kPageSize = size_t{1} << 17;
+static constexpr size_t kPageSizeBits = 17;
+static constexpr size_t kPageSize = size_t{1} << kPageSizeBits;
 
 #if defined(V8_HOST_ARCH_ARM64) && defined(V8_OS_DARWIN)
+constexpr size_t kGuardPageSize = 0;
+#elif defined(V8_HOST_ARCH_PPC64)
+constexpr size_t kGuardPageSize = 0;
+#elif defined(V8_HOST_ARCH_LOONG64) || defined(V8_HOST_ARCH_MIPS64)
 constexpr size_t kGuardPageSize = 0;
 #else
 constexpr size_t kGuardPageSize = 4096;

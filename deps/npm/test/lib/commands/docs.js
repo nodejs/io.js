@@ -1,6 +1,6 @@
 const t = require('tap')
 const mockNpm = require('../../fixtures/mock-npm.js')
-const { sep } = require('path')
+const { sep } = require('node:path')
 
 const fixtures = {
   pkg: {
@@ -84,7 +84,7 @@ const setup = async (t, { prefixDir = fixtures.pkg, config } = {}) => {
   const res = await mockNpm(t, {
     prefixDir,
     mocks: {
-      '{LIB}/utils/open-url.js': openUrl,
+      '{LIB}/utils/open-url.js': { openUrl },
     },
     config,
   })

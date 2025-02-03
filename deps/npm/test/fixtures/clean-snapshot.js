@@ -1,4 +1,4 @@
-const { relative, dirname } = require('path')
+const { relative, dirname } = require('node:path')
 
 // normalize line endings (for ini)
 const cleanNewlines = (s) => s.replace(/\r\n/g, '\n')
@@ -42,12 +42,18 @@ const cleanZlib = str => str
   .replace(/"integrity": ".*",/g, '"integrity": "{integrity}",')
   .replace(/"size": [0-9]*,/g, '"size": "{size}",')
 
+const cleanPackumentCache = str => str
+  .replace(/heap:[0-9]*/g, 'heap:{heap}')
+  .replace(/maxSize:[0-9]*/g, 'maxSize:{maxSize}')
+  .replace(/maxEntrySize:[0-9]*/g, 'maxEntrySize:{maxEntrySize}')
+
 module.exports = {
   cleanCwd,
   cleanDate,
   cleanNewlines,
   cleanTime,
   cleanZlib,
+  cleanPackumentCache,
   normalizePath,
   pathRegex,
 }

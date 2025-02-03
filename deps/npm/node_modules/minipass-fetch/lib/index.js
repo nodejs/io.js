@@ -103,7 +103,7 @@ const fetch = async (url, opts) => {
 
     let reqTimeout = null
     if (request.timeout) {
-      req.once('socket', socket => {
+      req.once('socket', () => {
         reqTimeout = setTimeout(() => {
           reject(new FetchError(`network timeout at: ${
             request.url}`, 'request-timeout'))

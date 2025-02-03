@@ -1,11 +1,12 @@
 'use strict';
 
-const common = require('../common');
+require('../common');
 const { performance } = require('perf_hooks');
 // Get the start time as soon as possible.
 const testStartTime = performance.now();
 const assert = require('assert');
 const { writeSync } = require('fs');
+const { isMainThread } = require('worker_threads');
 
 // Use writeSync to stdout to avoid disturbing the loop.
 function log(str) {
@@ -131,7 +132,7 @@ function checkValue(timing, name, min, max) {
 }
 
 let loopStart = initialTiming.loopStart;
-if (common.isMainThread) {
+if (isMainThread) {
   // In the main thread, the loop does not start until we start an operation
   // that requires it, e.g. setTimeout().
   assert.strictEqual(initialTiming.loopStart, -1);

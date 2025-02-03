@@ -67,6 +67,14 @@ MODULE_FROM_RESOURCES_PATTERN = re.compile(
 MODULE_IMPORT_RESOURCES_PATTERN = re.compile(
     r"import\s*\(?['\"]([^'\"\n]+)['\"]",
     re.MULTILINE)
+# Pattern to detect files to push on Android for statements like:
+# import source x from "path/to/file.js"
+# import.source("module.mjs").catch()...
+# Require the matched path in one line. Note this might include some
+# false matches, which is safe, since files are tested for existence.
+MODULE_IMPORT_SOURCE_RESOURCES_PATTERN = re.compile(
+    r"import\s*\.?\s*source\s*\(?['\"]([^'\"\n]+)['\"]",
+    re.MULTILINE)
 # Pattern to detect files to push on Android for expressions like:
 # shadowRealm.importValue("path/to/file.js", "obj")
 SHADOWREALM_IMPORTVALUE_RESOURCES_PATTERN = re.compile(
@@ -216,17 +224,21 @@ class TestCase(object):
     def negate_flags(normalized_flags):
       return [negate_flag(flag) for flag in normalized_flags]
 
-    def has_flag(conflicting_flag, flags):
+    def find_flag(conflicting_flag, flags):
       conflicting_flag = normalize_flag(conflicting_flag)
       if conflicting_flag in flags:
-        return True
+        return conflicting_flag
       if conflicting_flag.endswith("*"):
-        return any(flag.startswith(conflicting_flag[:-1]) for flag in flags)
-      return False
+        conflicting_flag = conflicting_flag[:-1]
+        for flag in flags:
+          if flag.startswith(conflicting_flag):
+            return flag
+      return None
 
-    def check_flags(incompatible_flags, actual_flags, rule):
+    def check_flags(incompatible_flags, actual_flags, rule, other_flag=None):
       for incompatible_flag in incompatible_flags:
-        if has_flag(incompatible_flag, actual_flags):
+        conflicting_flag = find_flag(incompatible_flag, actual_flags)
+        if conflicting_flag and (conflicting_flag != other_flag):
           self._statusfile_outcomes = outproc.OUTCOMES_FAIL
           self._expected_outcomes = outproc.OUTCOMES_FAIL
           self.expected_failure_reason = (
@@ -237,9 +249,9 @@ class TestCase(object):
     if not self._checked_flag_contradictions:
       self._checked_flag_contradictions = True
 
-      file_specific_flags = (self._get_source_flags() + self._get_suite_flags()
-                             + self._get_statusfile_flags())
-      file_specific_flags = normalize_flags(file_specific_flags)
+      file_specific_flags = normalize_flags(self._get_source_flags() +
+                                            self._get_suite_flags() +
+                                            self._get_statusfile_flags())
       extra_flags = normalize_flags(self._get_extra_flags())
 
       # Contradiction: flags contains both a flag --foo and its negation
@@ -253,8 +265,9 @@ class TestCase(object):
       # Contradiction: flags specified through the "Flags:" annotation are
       # incompatible with the variant.
       if self.variant in INCOMPATIBLE_FLAGS_PER_VARIANT:
-        check_flags(INCOMPATIBLE_FLAGS_PER_VARIANT[self.variant], file_specific_flags,
-                    "INCOMPATIBLE_FLAGS_PER_VARIANT[\""+self.variant+"\"]")
+        check_flags(INCOMPATIBLE_FLAGS_PER_VARIANT[self.variant],
+                    file_specific_flags,
+                    "INCOMPATIBLE_FLAGS_PER_VARIANT[\"" + self.variant + "\"]")
 
       # Contradiction: flags specified through the "Flags:" annotation are
       # incompatible with the build.
@@ -273,10 +286,12 @@ class TestCase(object):
 
       # Contradiction: flags passed through --extra-flags are incompatible.
       for extra_flag, incompatible_flags in INCOMPATIBLE_FLAGS_PER_EXTRA_FLAG.items():
-        if has_flag(extra_flag, extra_flags):
-          check_flags(
-              incompatible_flags, file_specific_flags,
-              "INCOMPATIBLE_FLAGS_PER_EXTRA_FLAG[\"" + extra_flag + "\"]")
+        flag = find_flag(extra_flag, extra_flags)
+        if not flag:
+          continue
+        check_flags(incompatible_flags, file_specific_flags,
+                    "INCOMPATIBLE_FLAGS_PER_EXTRA_FLAG[\"" + extra_flag + "\"]",
+                    flag)
     return self._expected_outcomes
 
   @property
@@ -540,6 +555,8 @@ class TestCase(object):
     for match in MODULE_FROM_RESOURCES_PATTERN.finditer(source):
       add_import_path(match.group(1))
     for match in MODULE_IMPORT_RESOURCES_PATTERN.finditer(source):
+      add_import_path(match.group(1))
+    for match in MODULE_IMPORT_SOURCE_RESOURCES_PATTERN.finditer(source):
       add_import_path(match.group(1))
     for match in SHADOWREALM_IMPORTVALUE_RESOURCES_PATTERN.finditer(source):
       add_import_path(match.group(1))

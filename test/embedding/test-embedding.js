@@ -10,6 +10,7 @@ const {
 } = require('../common/child_process');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 tmpdir.refresh();
 common.allowGlobals(global.require);
@@ -150,4 +151,22 @@ for (const extraSnapshotArgs of [
     binary,
     [ '--', ...runEmbeddedArgs ],
     { cwd: tmpdir.path });
+}
+
+// Guarantee NODE_REPL_EXTERNAL_MODULE won't bypass kDisableNodeOptionsEnv
+{
+  spawnSyncAndExit(
+    binary,
+    ['require("os")'],
+    {
+      env: {
+        ...process.env,
+        'NODE_REPL_EXTERNAL_MODULE': 'fs',
+      },
+    },
+    {
+      status: 9,
+      signal: null,
+      stderr: `${binary}: NODE_REPL_EXTERNAL_MODULE can't be used with kDisableNodeOptionsEnv${os.EOL}`,
+    });
 }

@@ -102,6 +102,8 @@ struct HeapStatistics final {
   size_t resident_size_bytes = 0;
   /** Amount of memory actually used on the heap. */
   size_t used_size_bytes = 0;
+  /** Memory retained in the page pool, not used directly by the heap. */
+  size_t pooled_memory_size_bytes = 0;
   /** Detail level of this HeapStatistics. */
   DetailLevel detail_level;
 

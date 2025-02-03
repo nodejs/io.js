@@ -1,16 +1,8 @@
 # npm - a JavaScript package manager
 
-[![npm version](https://img.shields.io/npm/v/npm.svg)](https://npm.im/npm)
-[![license](https://img.shields.io/npm/l/npm.svg)](https://npm.im/npm)
-[![CI - cli](https://github.com/npm/cli/actions/workflows/ci.yml/badge.svg)](https://github.com/npm/cli/actions/workflows/ci.yml)
-[![Benchmark Suite](https://github.com/npm/cli/actions/workflows/benchmark.yml/badge.svg)](https://github.com/npm/cli/actions/workflows/benchmark.yml)
-
 ### Requirements
 
-One of the following versions of [Node.js](https://nodejs.org/en/download/) must be installed to run **`npm`**:
-
-* `18.x.x` >= `18.17.0`
-* `20.5.0` or higher
+You should be running a currently supported version of [Node.js](https://nodejs.org/en/download/) to run **`npm`**.  For a list of which versions of Node.js are currently supported, please see the [Node.js releases](https://nodejs.org/en/about/previous-releases) page.
 
 ### Installation
 
@@ -40,7 +32,7 @@ npm <command>
     * Note: you can also search docs locally with `npm help-search <query>`
 * [**Bug Tracker**](https://github.com/npm/cli/issues) - Search or submit bugs against the CLI
 * [**Roadmap**](https://github.com/orgs/github/projects/4247/views/1?filterQuery=npm) - Track & follow along with our public roadmap
-* [**Feedback**](https://github.com/npm/feedback) - Contribute ideas & discussion around the npm registry, website & CLI
+* [**Community Feedback and Discussions**](https://github.com/orgs/community/discussions/categories/npm) - Contribute ideas & discussion around the npm registry, website & CLI
 * [**RFCs**](https://github.com/npm/rfcs) - Contribute ideas & specifications for the API/design of the npm CLI
 * [**Service Status**](https://status.npmjs.org/) - Monitor the current status & see incident reports for the website & registry
 * [**Project Status**](https://npm.github.io/statusboard/) - See the health of all our maintained OSS projects in one view

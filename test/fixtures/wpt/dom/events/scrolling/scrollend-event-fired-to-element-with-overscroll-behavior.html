@@ -7,96 +7,167 @@
 <script src="/resources/testdriver-vendor.js"></script>
 <script src="scroll_support.js"></script>
 <style>
-#overscrollXDiv {
-  width: 600px;
-  height: 600px;
-  overflow: scroll;
-  overscroll-behavior-x: contain;
-}
-#overscrollYDiv {
-  width: 500px;
-  height: 500px;
-  overflow: scroll;
-  overscroll-behavior-y: none;
-}
-#targetDiv {
-  width: 400px;
-  height: 400px;
-  overflow: scroll;
-}
-.content {
-  width:800px;
-  height:800px;
-}
+  #overscrollXDiv {
+    width: 200px;
+    height: 200px;
+    overflow: scroll;
+    overscroll-behavior-x: contain;
+    border: solid 1px black;
+    display: grid;
+    /* Places content and targetXDiv beside each other. */
+    grid-template-columns: 500px 100px;
+  }
+
+  #overscrollYDiv {
+    width: 200px;
+    height: 200px;
+    overflow: scroll;
+    overscroll-behavior-y: none;
+    border: solid 1px black;
+  }
+
+  #targetXDiv {
+    width: 100px;
+    height: 100px;
+    overflow: scroll;
+    border: solid 1px black;
+  }
+
+  #targetYDiv {
+    width: 100px;
+    height: 100px;
+    overflow: scroll;
+    border: solid 1px black;
+  }
+
+  .content {
+    width: 500px;
+    height: 500px;
+  }
+
+  #spacer {
+    height: 200vh;
+    width: 200vw;
+    border: solid 1px black;
+  }
 </style>
 
 <body style="margin:0" onload=runTest()>
-<div id="overscrollXDiv">
-  <div class=content>
-    <div id="overscrollYDiv">
-      <div class=content>
-        <div id="targetDiv">
-          <div class="content">
-          </div>
-        </div>
+  <div id="overscrollXDiv">
+    <div class="content"></div>
+    <div id="targetXDiv">
+      <div class="content">
       </div>
     </div>
   </div>
-</div>
+  <div id="overscrollYDiv">
+    <div class="content"></div>
+    <!-- Place targetYDiv below content so that is in view when
+         overscrollYDiv is scrolled all the way down -->
+    <div id="targetYDiv">
+      <div class="content">
+      </div>
+    </div>
+  </div>
+  <div id="spacer"></div>
 </body>
 
 <script>
-var target_div = document.getElementById('targetDiv');
-var horizontal_scrollend_arrived = false;
-var vertical_scrollend_arrived = false;
-function onHorizontalScrollEnd(event) {
-  assert_false(event.cancelable);
-  assert_false(event.bubbles);
-  horizontal_scrollend_arrived = true;
-}
-function onVerticalScrollEnd(event) {
-  assert_false(event.cancelable);
-  assert_false(event.bubbles);
-  vertical_scrollend_arrived = true;
-}
-// Test that both "onscrollend" and addEventListener("scrollend"... work.
-document.getElementById('overscrollXDiv').onscrollend = onHorizontalScrollEnd;
-document.getElementById('overscrollYDiv').
+  var horizontal_scrollend_arrived = false;
+  var vertical_scrollend_arrived = false;
+  let scrollers = [document.scrollingElement, targetXDiv, targetYDiv,
+                   overscrollXDiv, overscrollYDiv];
+
+  async function resetScrollers(test) {
+    for (const scroller of scrollers) {
+      await resetTargetScrollState(test, scroller);
+    }
+  }
+  function onHorizontalScrollEnd(event) {
+    assert_false(event.cancelable);
+    assert_false(event.bubbles);
+    horizontal_scrollend_arrived = true;
+  }
+  function onVerticalScrollEnd(event) {
+    assert_false(event.cancelable);
+    assert_false(event.bubbles);
+    vertical_scrollend_arrived = true;
+  }
+  // Test that both "onscrollend" and addEventListener("scrollend"... work.
+  document.getElementById('overscrollXDiv').onscrollend = onHorizontalScrollEnd;
+  document.getElementById('overscrollYDiv').
     addEventListener("scrollend", onVerticalScrollEnd);
 
-function runTest() {
-  promise_test (async (t) => {
-    // Make sure that no scrollend event is sent to document or target_div.
-    document.addEventListener("scrollend",
-        t.unreached_func("Document got unexpected scrollend event."));
-    target_div.addEventListener("scrollend",
-        t.unreached_func("target_div got unexpected scrollend event."));
-    await waitForCompositorCommit();
+  function runTest() {
+    promise_test(async (t) => {
+      await resetScrollers(t);
+      await waitForCompositorCommit();
 
-    // Scroll left on target div and wait for the element with overscroll-x to
-    // get scrollend event.
-    await touchScrollInTarget(300, target_div, 'left');
-    await waitFor(() => { return horizontal_scrollend_arrived; },
-        'Expected element did not receive scrollend event after scroll left ' +
-        'on target.');
-    assert_equals(target_div.scrollLeft, 0);
+      // Make sure that no scrollend event is sent to document.
+      document.addEventListener("scrollend",
+      t.unreached_func("Document got unexpected scrollend event."));
+      let scrollend_promise;
 
-    let touchEndPromise = new Promise((resolve) => {
-      target_div.addEventListener("touchend", resolve);
-    });
-    await touchScrollInTarget(300, target_div, 'up');
+      scrollend_promise = waitForScrollendEvent(t, targetXDiv, 2000);
+      targetXDiv.scrollLeft = targetXDiv.scrollWidth;
+      await scrollend_promise;
 
-    // The scrollend event should never be fired before the gesture has completed.
-    await touchEndPromise;
+      scrollend_promise = waitForScrollendEvent(t, overscrollXDiv, 2000);
+      overscrollXDiv.scrollLeft = overscrollXDiv.scrollWidth;
+      await scrollend_promise;
+      horizontal_scrollend_arrived = false;
 
-    // Ensure we wait at least a tick after the touch end.
-    await waitForCompositorCommit();
+      assert_equals(targetXDiv.scrollLeft,
+                    targetXDiv.scrollWidth - targetXDiv.clientWidth);
+      assert_equals(overscrollXDiv.scrollLeft,
+                    overscrollXDiv.scrollWidth - overscrollXDiv.clientWidth);
+      // Attempt to scroll targetXDiv further to the right.
+      // targetXDiv and overscrollXDiv are already fully scrolled right but the
+      // scroll should not propagate to the document because of
+      // overscroll-behavior-x: contain on overscrollXDiv.
+      let touchEndPromise = new Promise((resolve) => {
+        targetXDiv.addEventListener("touchend", resolve);
+      });
+      await touchScrollInTarget(100, targetXDiv, 'right');
+      // The scrollend event should never be fired before the gesture has
+      // completed.
+      await touchEndPromise;
 
-    // We should not trigger a scrollend event for a scroll that did not change
-    // the scroll position.
-    assert_equals(vertical_scrollend_arrived, false);
-    assert_equals(target_div.scrollTop, 0);
-  }, 'Tests that the last element in the cut scroll chain gets scrollend ' +
-     'event when no element scrolls by touch.');
-}
+      scrollend_promise = waitForScrollendEvent(t, targetYDiv, 2000);
+      targetYDiv.scrollTop = targetXDiv.scrollHeight;
+      await scrollend_promise;
+
+      scrollend_promise = waitForScrollendEvent(t, overscrollYDiv, 2000);
+      overscrollYDiv.scrollTop = overscrollYDiv.scrollHeight;
+      await scrollend_promise;
+      vertical_scrollend_arrived = false;
+
+      assert_equals(targetYDiv.scrollTop,
+                    targetYDiv.scrollHeight - targetYDiv.clientHeight);
+      assert_equals(overscrollYDiv.scrollTop,
+                    overscrollYDiv.scrollHeight - overscrollYDiv.clientHeight);
+      // Attempt to scroll targetYDiv further down.
+      // targetYDiv and overscrollYDiv are already fully scrolled down but the
+      // scroll should not propagate to the document because of
+      // overscroll-behavior-y: none on overscrollYDiv.
+      touchEndPromise = new Promise((resolve) => {
+        targetYDiv.addEventListener("touchend", resolve);
+      });
+      await touchScrollInTarget(50, targetYDiv, 'down');
+      // The scrollend event should never be fired before the gesture has
+      // completed.
+      await touchEndPromise;
+
+      // Ensure we wait at least a tick after the touch end.
+      await waitForCompositorCommit();
+
+      // We should not trigger a scrollend event for a scroll that did not
+      // change the scroll position.
+      assert_equals(horizontal_scrollend_arrived, false,
+                    "overscrollXDiv should not receive scrollend");
+      assert_equals(vertical_scrollend_arrived, false,
+                    "overscrollYDiv should not receive scrollend");
+    }, "Tests that the scroll is not propagated beyond div with non-auto " +
+       "overscroll-behavior.");
+  }
 </script>

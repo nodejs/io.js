@@ -164,7 +164,7 @@ public:
     Array1D() : memory_(nullptr), data_(nullptr), d1_(0) {}
     Array1D(int32_t d1, UErrorCode &status)
         : memory_(uprv_malloc(d1 * sizeof(float))),
-          data_((float*)memory_), d1_(d1) {
+          data_(static_cast<float*>(memory_)), d1_(d1) {
         if (U_SUCCESS(status)) {
             if (memory_ == nullptr) {
                 status = U_MEMORY_ALLOCATION_ERROR;
@@ -301,7 +301,7 @@ public:
     Array2D() : memory_(nullptr), data_(nullptr), d1_(0), d2_(0) {}
     Array2D(int32_t d1, int32_t d2, UErrorCode &status)
         : memory_(uprv_malloc(d1 * d2 * sizeof(float))),
-          data_((float*)memory_), d1_(d1), d2_(d2) {
+          data_(static_cast<float*>(memory_)), d1_(d1), d2_(d2) {
         if (U_SUCCESS(status)) {
             if (memory_ == nullptr) {
                 status = U_MEMORY_ALLOCATION_ERROR;
@@ -526,11 +526,11 @@ void CodePointsVectorizer::vectorize(
         int32_t current;
         char16_t str[2] = {0, 0};
         while (U_SUCCESS(status) &&
-               (current = (int32_t)utext_getNativeIndex(text)) < endPos) {
+               (current = static_cast<int32_t>(utext_getNativeIndex(text))) < endPos) {
             // Since the LSTMBreakEngine is currently only accept chars in BMP,
             // we can ignore the possibility of hitting supplementary code
             // point.
-            str[0] = (char16_t) utext_next32(text);
+            str[0] = static_cast<char16_t>(utext_next32(text));
             U_ASSERT(!U_IS_SURROGATE(str[0]));
             offsets.addElement(current, status);
             indices.addElement(stringToIndex(str), status);
@@ -733,7 +733,7 @@ LSTMBreakEngine::divideUpDictionaryRange( UText *text,
 #endif  // LSTM_DEBUG
 
         // current = argmax(logp)
-        LSTMClass current = (LSTMClass)logp.maxIndex();
+        LSTMClass current = static_cast<LSTMClass>(logp.maxIndex());
         // BIES logic.
         if (current == BEGIN || current == SINGLE) {
             if (i != 0) {

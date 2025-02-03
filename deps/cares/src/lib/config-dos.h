@@ -21,6 +21,7 @@
 #define HAVE_RECV                1
 #define HAVE_RECVFROM            1
 #define HAVE_SEND                1
+#define HAVE_SENDTO              1
 #define HAVE_STRDUP              1
 #define HAVE_STRICMP             1
 #define HAVE_STRUCT_IN6_ADDR     1
@@ -32,14 +33,13 @@
 #define HAVE_TIME_H              1
 #define HAVE_UNISTD_H            1
 #define HAVE_WRITEV              1
-
-#define NEED_MALLOC_H 1
+#define HAVE_STAT                1
+#define HAVE_MALLOC_H            1
 
 /* Qualifiers for send(), recv(), recvfrom() and getnameinfo(). */
 
 #define SEND_TYPE_ARG1 int
-#define SEND_QUAL_ARG2 const
-#define SEND_TYPE_ARG2 void *
+#define SEND_TYPE_ARG2 const void *
 #define SEND_TYPE_ARG3 int
 #define SEND_TYPE_ARG4 int
 #define SEND_TYPE_RETV int
@@ -73,7 +73,7 @@
 #  define HAVE_VARIADIC_MACROS_GCC 1
 
 /* Because djgpp <= 2.03 doesn't have snprintf() etc. */
-#  if (DJGPP_MINOR < 4)
+#  if defined(DJGPP_MINOR) && DJGPP_MINOR < 4
 #    define _MPRINTF_REPLACE
 #  endif
 
@@ -85,30 +85,30 @@
 #  define strerror(e)     strerror_s_((e))
 #endif
 
+/* This seems odd, can DOS build without WATT32? */
 #ifdef WATT32
-#  define HAVE_AF_INET6                   1
-#  define HAVE_ARPA_INET_H                1
-#  define HAVE_ARPA_NAMESER_H             1
-#  define HAVE_CLOSE_S                    1
-#  define HAVE_GETHOSTNAME                1
-#  define HAVE_NETDB_H                    1
-#  define HAVE_NETINET_IN_H               1
-#  define HAVE_NETINET_TCP_H              1
-#  define HAVE_PF_INET6                   1
-#  define HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID 1
-#  define HAVE_STRUCT_ADDRINFO            1
-#  define HAVE_STRUCT_IN6_ADDR            1
-#  define HAVE_STRUCT_SOCKADDR_IN6        1
-#  define HAVE_SYS_SOCKET_H               1
-#  define HAVE_SYS_UIO_H                  1
-#  define NS_INADDRSZ                     4
-#  define HAVE_STRUCT_SOCKADDR_IN6        1
-
-#  define HAVE_GETSERVBYPORT_R 1
-#  define GETSERVBYPORT_R_ARGS 5
+#  define HAVE_AF_INET6                          1
+#  define HAVE_ARPA_INET_H                       1
+#  define HAVE_ARPA_NAMESER_H                    1
+#  define HAVE_CLOSE_S                           1
+#  define HAVE_GETHOSTNAME                       1
+#  define HAVE_NETDB_H                           1
+#  define HAVE_NETINET_IN_H                      1
+#  define HAVE_NETINET_TCP_H                     1
+#  define HAVE_PF_INET6                          1
+#  define HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID 1
+#  define HAVE_STRUCT_ADDRINFO                   1
+#  define HAVE_STRUCT_IN6_ADDR                   1
+#  define HAVE_STRUCT_SOCKADDR_IN6               1
+#  define HAVE_SYS_SOCKET_H                      1
+#  define HAVE_SYS_IOCTL_H                       1
+#  define HAVE_SYS_UIO_H                         1
+#  define NS_INADDRSZ                            4
+#  define HAVE_GETSERVBYPORT_R                   1
+#  define GETSERVBYPORT_R_ARGS                   6
+#  define HAVE_WRITEV                            1
+#  define HAVE_IF_NAMETOINDEX                    1
+#  define HAVE_IF_INDEXTONAME                    1
 #endif
-
-#undef word
-#undef byte
 
 #endif /* HEADER_CONFIG_DOS_H */

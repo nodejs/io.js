@@ -1,7 +1,7 @@
 const npmFetch = require('npm-registry-fetch')
 const { getAuth } = npmFetch
-const log = require('../utils/log-shim')
-const BaseCommand = require('../base-command.js')
+const { log } = require('proc-log')
+const BaseCommand = require('../base-cmd.js')
 
 class Logout extends BaseCommand {
   static description = 'Log out of the registry'
@@ -11,7 +11,7 @@ class Logout extends BaseCommand {
     'scope',
   ]
 
-  async exec (args) {
+  async exec () {
     const registry = this.npm.config.get('registry')
     const scope = this.npm.config.get('scope')
     const regRef = scope ? `${scope}:registry` : 'registry'
@@ -46,4 +46,5 @@ class Logout extends BaseCommand {
     await this.npm.config.save(level)
   }
 }
+
 module.exports = Logout

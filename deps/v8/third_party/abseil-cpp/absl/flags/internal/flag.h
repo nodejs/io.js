@@ -295,11 +295,8 @@ constexpr FlagDefaultArg DefaultArg(char) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Flag current value auxiliary structs.
-
-constexpr int64_t UninitializedFlagValue() {
-  return static_cast<int64_t>(0xababababababababll);
-}
+// Flag storage selector traits. Each trait indicates what kind of storage kind
+// to use for the flag value.
 
 template <typename T>
 using FlagUseValueAndInitBitStorage =
@@ -321,9 +318,11 @@ enum class FlagValueStorageKind : uint8_t {
   kValueAndInitBit = 0,
   kOneWordAtomic = 1,
   kSequenceLocked = 2,
-  kAlignedBuffer = 3,
+  kHeapAllocated = 3,
 };
 
+// This constexpr function returns the storage kind for the given flag value
+// type.
 template <typename T>
 static constexpr FlagValueStorageKind StorageKind() {
   return FlagUseValueAndInitBitStorage<T>::value
@@ -332,14 +331,24 @@ static constexpr FlagValueStorageKind StorageKind() {
              ? FlagValueStorageKind::kOneWordAtomic
          : FlagUseSequenceLockStorage<T>::value
              ? FlagValueStorageKind::kSequenceLocked
-             : FlagValueStorageKind::kAlignedBuffer;
+             : FlagValueStorageKind::kHeapAllocated;
 }
 
+// This is a base class for the storage classes used by kOneWordAtomic and
+// kValueAndInitBit storage kinds. It literally just stores the one word value
+// as an atomic. By default, it is initialized to a magic value that is unlikely
+// a valid value for the flag value type.
 struct FlagOneWordValue {
+  constexpr static int64_t Uninitialized() {
+    return static_cast<int64_t>(0xababababababababll);
+  }
+
+  constexpr FlagOneWordValue() : value(Uninitialized()) {}
   constexpr explicit FlagOneWordValue(int64_t v) : value(v) {}
   std::atomic<int64_t> value;
 };
 
+// This class represents a memory layout used by kValueAndInitBit storage kind.
 template <typename T>
 struct alignas(8) FlagValueAndInitBit {
   T value;
@@ -348,16 +357,91 @@ struct alignas(8) FlagValueAndInitBit {
   uint8_t init;
 };
 
+// This class implements an aligned pointer with two options stored via masks
+// in unused bits of the pointer value (due to alignment requirement).
+//  - IsUnprotectedReadCandidate - indicates that the value can be switched to
+//    unprotected read without a lock.
+//  - HasBeenRead - indicates that the value has been read at least once.
+//  - AllowsUnprotectedRead - combination of the two options above and indicates
+//    that the value can now be read without a lock.
+// Further details of these options and their use is covered in the description
+// of the FlagValue<T, FlagValueStorageKind::kHeapAllocated> specialization.
+class MaskedPointer {
+ public:
+  using mask_t = uintptr_t;
+  using ptr_t = void*;
+
+  static constexpr int RequiredAlignment() { return 4; }
+
+  constexpr explicit MaskedPointer(ptr_t rhs) : ptr_(rhs) {}
+  MaskedPointer(ptr_t rhs, bool is_candidate);
+
+  void* Ptr() const {
+    return reinterpret_cast<void*>(reinterpret_cast<mask_t>(ptr_) &
+                                   kPtrValueMask);
+  }
+  bool AllowsUnprotectedRead() const {
+    return (reinterpret_cast<mask_t>(ptr_) & kAllowsUnprotectedRead) ==
+           kAllowsUnprotectedRead;
+  }
+  bool IsUnprotectedReadCandidate() const;
+  bool HasBeenRead() const;
+
+  void Set(FlagOpFn op, const void* src, bool is_candidate);
+  void MarkAsRead();
+
+ private:
+  // Masks
+  // Indicates that the flag value either default or originated from command
+  // line.
+  static constexpr mask_t kUnprotectedReadCandidate = 0x1u;
+  // Indicates that flag has been read.
+  static constexpr mask_t kHasBeenRead = 0x2u;
+  static constexpr mask_t kAllowsUnprotectedRead =
+      kUnprotectedReadCandidate | kHasBeenRead;
+  static constexpr mask_t kPtrValueMask = ~kAllowsUnprotectedRead;
+
+  void ApplyMask(mask_t mask);
+  bool CheckMask(mask_t mask) const;
+
+  ptr_t ptr_;
+};
+
+// This class implements a type erased storage of the heap allocated flag value.
+// It is used as a base class for the storage class for kHeapAllocated storage
+// kind. The initial_buffer is expected to have an alignment of at least
+// MaskedPointer::RequiredAlignment(), so that the bits used by the
+// MaskedPointer to store masks are set to 0. This guarantees that value starts
+// in an uninitialized state.
+struct FlagMaskedPointerValue {
+  constexpr explicit FlagMaskedPointerValue(MaskedPointer::ptr_t initial_buffer)
+      : value(MaskedPointer(initial_buffer)) {}
+
+  std::atomic<MaskedPointer> value;
+};
+
+// This is the forward declaration for the template that represents a storage
+// for the flag values. This template is expected to be explicitly specialized
+// for each storage kind and it does not have a generic default
+// implementation.
 template <typename T,
           FlagValueStorageKind Kind = flags_internal::StorageKind<T>()>
 struct FlagValue;
 
+// This specialization represents the storage of flag values types with the
+// kValueAndInitBit storage kind. It is based on the FlagOneWordValue class
+// and relies on memory layout in FlagValueAndInitBit<T> to indicate that the
+// value has been initialized or not.
 template <typename T>
 struct FlagValue<T, FlagValueStorageKind::kValueAndInitBit> : FlagOneWordValue {
   constexpr FlagValue() : FlagOneWordValue(0) {}
   bool Get(const SequenceLock&, T& dst) const {
     int64_t storage = value.load(std::memory_order_acquire);
     if (ABSL_PREDICT_FALSE(storage == 0)) {
+      // This assert is to ensure that the initialization inside FlagImpl::Init
+      // is able to set init member correctly.
+      static_assert(offsetof(FlagValueAndInitBit<T>, init) == sizeof(T),
+                    "Unexpected memory layout of FlagValueAndInitBit");
       return false;
     }
     dst = absl::bit_cast<FlagValueAndInitBit<T>>(storage).value;
@@ -365,12 +449,16 @@ struct FlagValue<T, FlagValueStorageKind::kValueAndInitBit> : FlagOneWordValue {
   }
 };
 
+// This specialization represents the storage of flag values types with the
+// kOneWordAtomic storage kind. It is based on the FlagOneWordValue class
+// and relies on the magic uninitialized state of default constructed instead of
+// FlagOneWordValue to indicate that the value has been initialized or not.
 template <typename T>
 struct FlagValue<T, FlagValueStorageKind::kOneWordAtomic> : FlagOneWordValue {
-  constexpr FlagValue() : FlagOneWordValue(UninitializedFlagValue()) {}
+  constexpr FlagValue() : FlagOneWordValue() {}
   bool Get(const SequenceLock&, T& dst) const {
     int64_t one_word_val = value.load(std::memory_order_acquire);
-    if (ABSL_PREDICT_FALSE(one_word_val == UninitializedFlagValue())) {
+    if (ABSL_PREDICT_FALSE(one_word_val == FlagOneWordValue::Uninitialized())) {
       return false;
     }
     std::memcpy(&dst, static_cast<const void*>(&one_word_val), sizeof(T));
@@ -378,6 +466,12 @@ struct FlagValue<T, FlagValueStorageKind::kOneWordAtomic> : FlagOneWordValue {
   }
 };
 
+// This specialization represents the storage of flag values types with the
+// kSequenceLocked storage kind. This storage is used by trivially copyable
+// types with size greater than 8 bytes. This storage relies on uninitialized
+// state of the SequenceLock to indicate that the value has been initialized or
+// not. This storage also provides lock-free read access to the underlying
+// value once it is initialized.
 template <typename T>
 struct FlagValue<T, FlagValueStorageKind::kSequenceLocked> {
   bool Get(const SequenceLock& lock, T& dst) const {
@@ -391,11 +485,62 @@ struct FlagValue<T, FlagValueStorageKind::kSequenceLocked> {
       std::atomic<uint64_t>) std::atomic<uint64_t> value_words[kNumWords];
 };
 
+// This specialization represents the storage of flag values types with the
+// kHeapAllocated storage kind. This is a storage of last resort and is used
+// if none of other storage kinds are applicable.
+//
+// Generally speaking the values with this storage kind can't be accessed
+// atomically and thus can't be read without holding a lock. If we would ever
+// want to avoid the lock, we'd need to leak the old value every time new flag
+// value is being set (since we are in danger of having a race condition
+// otherwise).
+//
+// Instead of doing that, this implementation attempts to cater to some common
+// use cases by allowing at most 2 values to be leaked - default value and
+// value set from the command line.
+//
+// This specialization provides an initial buffer for the first flag value. This
+// is where the default value is going to be stored. We attempt to reuse this
+// buffer if possible, including storing the value set from the command line
+// there.
+//
+// As long as we only read this value, we can access it without a lock (in
+// practice we still use the lock for the very first read to be able set
+// "has been read" option on this flag).
+//
+// If flag is specified on the command line we store the parsed value either
+// in the internal buffer (if the default value never been read) or we leak the
+// default value and allocate the new storage for the parse value. This value is
+// also a candidate for an unprotected read. If flag is set programmatically
+// after the command line is parsed, the storage for this value is going to be
+// leaked. Note that in both scenarios we are not going to have a real leak.
+// Instead we'll store the leaked value pointers in the internal freelist to
+// avoid triggering the memory leak checker complains.
+//
+// If the flag is ever set programmatically, it stops being the candidate for an
+// unprotected read, and any follow up access to the flag value requires a lock.
+// Note that if the value if set programmatically before the command line is
+// parsed, we can switch back to enabling unprotected reads for that value.
 template <typename T>
-struct FlagValue<T, FlagValueStorageKind::kAlignedBuffer> {
-  bool Get(const SequenceLock&, T&) const { return false; }
+struct FlagValue<T, FlagValueStorageKind::kHeapAllocated>
+    : FlagMaskedPointerValue {
+  // We const initialize the value with unmasked pointer to the internal buffer,
+  // making sure it is not a candidate for unprotected read. This way we can
+  // ensure Init is done before any access to the flag value.
+  constexpr FlagValue() : FlagMaskedPointerValue(&buffer[0]) {}
 
-  alignas(T) char value[sizeof(T)];
+  bool Get(const SequenceLock&, T& dst) const {
+    MaskedPointer ptr_value = value.load(std::memory_order_acquire);
+
+    if (ABSL_PREDICT_TRUE(ptr_value.AllowsUnprotectedRead())) {
+      ::new (static_cast<void*>(&dst)) T(*static_cast<T*>(ptr_value.Ptr()));
+      return true;
+    }
+    return false;
+  }
+
+  alignas(MaskedPointer::RequiredAlignment()) alignas(
+      T) char buffer[sizeof(T)]{};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -424,6 +569,13 @@ struct DynValueDeleter {
 
 class FlagState;
 
+// These are only used as constexpr global objects.
+// They do not use a virtual destructor to simplify their implementation.
+// They are not destroyed except at program exit, so leaks do not matter.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
+#endif
 class FlagImpl final : public CommandLineFlag {
  public:
   constexpr FlagImpl(const char* name, const char* filename, FlagOpFn op,
@@ -476,7 +628,7 @@ class FlagImpl final : public CommandLineFlag {
   // Used in read/write operations to validate source/target has correct type.
   // For example if flag is declared as absl::Flag<int> FLAGS_foo, a call to
   // absl::GetFlag(FLAGS_foo) validates that the type of FLAGS_foo is indeed
-  // int. To do that we pass the "assumed" type id (which is deduced from type
+  // int. To do that we pass the assumed type id (which is deduced from type
   // int) as an argument `type_id`, which is in turn is validated against the
   // type id stored in flag object by flag definition statement.
   void AssertValidType(FlagFastTypeId type_id,
@@ -497,17 +649,13 @@ class FlagImpl final : public CommandLineFlag {
   void Init();
 
   // Offset value access methods. One per storage kind. These methods to not
-  // respect const correctness, so be very carefull using them.
+  // respect const correctness, so be very careful using them.
 
   // This is a shared helper routine which encapsulates most of the magic. Since
   // it is only used inside the three routines below, which are defined in
   // flag.cc, we can define it in that file as well.
   template <typename StorageT>
   StorageT* OffsetValue() const;
-  // This is an accessor for a value stored in an aligned buffer storage
-  // used for non-trivially-copyable data types.
-  // Returns a mutable pointer to the start of a buffer.
-  void* AlignedBufferValue() const;
 
   // The same as above, but used for sequencelock-protected storage.
   std::atomic<uint64_t>* AtomicBufferValue() const;
@@ -516,13 +664,16 @@ class FlagImpl final : public CommandLineFlag {
   // mutable reference to an atomic value.
   std::atomic<int64_t>& OneWordValue() const;
 
+  std::atomic<MaskedPointer>& PtrStorage() const;
+
   // Attempts to parse supplied `value` string. If parsing is successful,
   // returns new value. Otherwise returns nullptr.
   std::unique_ptr<void, DynValueDeleter> TryParse(absl::string_view value,
                                                   std::string& err) const
       ABSL_EXCLUSIVE_LOCKS_REQUIRED(*DataGuard());
   // Stores the flag value based on the pointer to the source.
-  void StoreValue(const void* src) ABSL_EXCLUSIVE_LOCKS_REQUIRED(*DataGuard());
+  void StoreValue(const void* src, ValueSource source)
+      ABSL_EXCLUSIVE_LOCKS_REQUIRED(*DataGuard());
 
   // Copy the flag data, protected by `seq_lock_` into `dst`.
   //
@@ -578,7 +729,7 @@ class FlagImpl final : public CommandLineFlag {
   const char* const name_;
   // The file name where ABSL_FLAG resides.
   const char* const filename_;
-  // Type-specific operations "vtable".
+  // Type-specific operations vtable.
   const FlagOpFn op_;
   // Help message literal or function to generate it.
   const FlagHelpMsg help_;
@@ -623,6 +774,9 @@ class FlagImpl final : public CommandLineFlag {
   // problems.
   alignas(absl::Mutex) mutable char data_guard_[sizeof(absl::Mutex)];
 };
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // The Flag object parameterized by the flag's value type. This class implements
@@ -710,16 +864,21 @@ class FlagImplPeer {
 // Implementation of Flag value specific operations routine.
 template <typename T>
 void* FlagOps(FlagOp op, const void* v1, void* v2, void* v3) {
+  struct AlignedSpace {
+    alignas(MaskedPointer::RequiredAlignment()) alignas(T) char buf[sizeof(T)];
+  };
+  using Allocator = std::allocator<AlignedSpace>;
   switch (op) {
     case FlagOp::kAlloc: {
-      std::allocator<T> alloc;
-      return std::allocator_traits<std::allocator<T>>::allocate(alloc, 1);
+      Allocator alloc;
+      return std::allocator_traits<Allocator>::allocate(alloc, 1);
     }
     case FlagOp::kDelete: {
       T* p = static_cast<T*>(v2);
       p->~T();
-      std::allocator<T> alloc;
-      std::allocator_traits<std::allocator<T>>::deallocate(alloc, p, 1);
+      Allocator alloc;
+      std::allocator_traits<Allocator>::deallocate(
+          alloc, reinterpret_cast<AlignedSpace*>(p), 1);
       return nullptr;
     }
     case FlagOp::kCopy:
@@ -753,8 +912,7 @@ void* FlagOps(FlagOp op, const void* v1, void* v2, void* v3) {
       // Round sizeof(FlagImp) to a multiple of alignof(FlagValue<T>) to get the
       // offset of the data.
       size_t round_to = alignof(FlagValue<T>);
-      size_t offset =
-          (sizeof(FlagImpl) + round_to - 1) / round_to * round_to;
+      size_t offset = (sizeof(FlagImpl) + round_to - 1) / round_to * round_to;
       return reinterpret_cast<void*>(offset);
     }
   }
@@ -780,7 +938,7 @@ class FlagRegistrar {
     return *this;
   }
 
-  // Make the registrar "die" gracefully as an empty struct on a line where
+  // Makes the registrar die gracefully as an empty struct on a line where
   // registration happens. Registrar objects are intended to live only as
   // temporary.
   constexpr operator FlagRegistrarEmpty() const { return {}; }  // NOLINT
@@ -788,6 +946,10 @@ class FlagRegistrar {
  private:
   Flag<T>& flag_;  // Flag being registered (not owned).
 };
+
+///////////////////////////////////////////////////////////////////////////////
+// Test only API
+uint64_t NumLeakedFlagValues();
 
 }  // namespace flags_internal
 ABSL_NAMESPACE_END

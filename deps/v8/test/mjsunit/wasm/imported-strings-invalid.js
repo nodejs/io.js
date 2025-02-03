@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --experimental-wasm-imported-strings
+// Flags: --experimental-wasm-imported-strings-utf8
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -87,7 +88,7 @@ assertThrows(() => instance.exports.use_i16_array(bad_a16, 0, length),
 assertThrows(() => instance.exports.use_i8_array(bad_a8, 0, length),
              TypeError);
 
-// Part II: Test that instantiating the module throws a LinkError when the
+// Part II: Test that instantiating the module throws a CompileError when the
 // string imports use incorrect types.
 
 let array_i16;
@@ -137,13 +138,13 @@ b99.addImport('wasm:js-string', 'charCodeAt',
              makeSig([kWasmExternRef, kWasmI32], [kWasmI64]));
 
 let kBuiltins = { builtins: ['js-string', 'text-encoder', 'text-decoder'] };
-assertThrows(() => b1.instantiate({}, kBuiltins), WebAssembly.LinkError);
-assertThrows(() => b2.instantiate({}, kBuiltins), WebAssembly.LinkError);
-assertThrows(() => b3.instantiate({}, kBuiltins), WebAssembly.LinkError);
-assertThrows(() => b4.instantiate({}, kBuiltins), WebAssembly.LinkError);
-assertThrows(() => b5.instantiate({}, kBuiltins), WebAssembly.LinkError);
-assertThrows(() => b6.instantiate({}, kBuiltins), WebAssembly.LinkError);
-assertThrows(() => b99.instantiate({}, kBuiltins), WebAssembly.LinkError);
+assertThrows(() => b1.instantiate({}, kBuiltins), WebAssembly.CompileError);
+assertThrows(() => b2.instantiate({}, kBuiltins), WebAssembly.CompileError);
+assertThrows(() => b3.instantiate({}, kBuiltins), WebAssembly.CompileError);
+assertThrows(() => b4.instantiate({}, kBuiltins), WebAssembly.CompileError);
+assertThrows(() => b5.instantiate({}, kBuiltins), WebAssembly.CompileError);
+assertThrows(() => b6.instantiate({}, kBuiltins), WebAssembly.CompileError);
+assertThrows(() => b99.instantiate({}, kBuiltins), WebAssembly.CompileError);
 
 (function () {
   let bytes = b99.toBuffer();
@@ -152,15 +153,15 @@ assertThrows(() => b99.instantiate({}, kBuiltins), WebAssembly.LinkError);
   // an invalid signature.
   // (1) new WebAssembly.Module
   assertThrows(
-    () => new WebAssembly.Module(bytes, kBuiltins), WebAssembly.LinkError);
+    () => new WebAssembly.Module(bytes, kBuiltins), WebAssembly.CompileError);
   // (2) WebAssembly.validate
   assertFalse(WebAssembly.validate(bytes, kBuiltins));
   // (3) WebAssembly.compile
   assertThrowsAsync(
-      WebAssembly.compile(bytes, kBuiltins), WebAssembly.LinkError);
+      WebAssembly.compile(bytes, kBuiltins), WebAssembly.CompileError);
   // (4) WebAssembly.instantiate
   assertThrowsAsync(
-    WebAssembly.instantiate(bytes, {}, kBuiltins), WebAssembly.LinkError);
+    WebAssembly.instantiate(bytes, {}, kBuiltins), WebAssembly.CompileError);
 
   // For compileStreaming/instantiateStreaming, see separate test.
 })();

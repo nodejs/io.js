@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -59,7 +59,7 @@ uint64_t nghttp3_range_len(const nghttp3_range *r);
 
 /*
  * nghttp3_range_eq returns nonzero if |a| equals |b|, such that
- * a->begin == b->begin, and a->end == b->end hold.
+ * a->begin == b->begin and a->end == b->end hold.
  */
 int nghttp3_range_eq(const nghttp3_range *a, const nghttp3_range *b);
 
@@ -78,4 +78,4 @@ void nghttp3_range_cut(nghttp3_range *left, nghttp3_range *right,
  */
 int nghttp3_range_not_after(const nghttp3_range *a, const nghttp3_range *b);
 
-#endif /* NGHTTP3_RANGE_H */
+#endif /* !defined(NGHTTP3_RANGE_H) */

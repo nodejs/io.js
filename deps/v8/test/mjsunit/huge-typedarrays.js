@@ -6,6 +6,8 @@
 // Enable memory64 so we can also test the ArrayBuffer of a 16GB Wasm memory.
 // Flags: --experimental-wasm-memory64
 
+// Flags: --js-float16array
+
 // This file tests all TypedArray method that an be tested without iterating the
 // whole TypedArray.
 // This excludes `filter`, `forEach`, `join`, `map`, `reduce`, `reduceRight`,
@@ -296,13 +298,13 @@ function* GetTestConfigs() {
 
   // Test wait / notify.
   let worker = new Worker(function() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       if (msg.action == 'wait') {
         let ta = new Int32Array(msg.buf);
         postMessage(Atomics.wait(ta, msg.index, msg.value, msg.timeout));
         return;
       }
-      postMessage(`Unknown action: ${msg.action}`);
+      postMessage(`Unknown action: ${msg.data.action}`);
     }
   }, {type: 'function'});
 

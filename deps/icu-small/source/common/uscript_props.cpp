@@ -244,6 +244,14 @@ const int32_t SCRIPT_PROPS[] = {
     0x10582 | EXCLUSION | CASED,  // Vith
     0x11F1B | EXCLUSION | LB_LETTERS,  // Kawi
     0x1E4E6 | EXCLUSION,  // Nagm
+    0,
+    0x10D5D | EXCLUSION | RTL | CASED,  // Gara
+    0x1611C | EXCLUSION,  // Gukh
+    0x16D45 | EXCLUSION,  // Krai
+    0x1E5D0 | EXCLUSION,  // Onao
+    0x11BC4 | EXCLUSION,  // Sunu
+    0x105C2 | EXCLUSION,  // Todr
+    0x11392 | EXCLUSION,  // Tutg
     // End copy-paste from parsescriptmetadata.py
 };
 

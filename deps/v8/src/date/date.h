@@ -5,6 +5,8 @@
 #ifndef V8_DATE_DATE_H_
 #define V8_DATE_DATE_H_
 
+#include <cmath>
+
 #include "src/base/small-vector.h"
 #include "src/base/timezone-cache.h"
 #include "src/common/globals.h"
@@ -61,8 +63,19 @@ class V8_EXPORT_PRIVATE DateCache {
     return static_cast<int>(time_ms - days * kMsPerDay);
   }
 
+  // Performs the success path of the ECMA 262 TimeClip operation (when the
+  // value is within the range, truncates it to an integer). Returns false if
+  // the value is outside the range, and should be clipped to NaN.
   // ECMA 262 - ES#sec-timeclip TimeClip (time)
-  static double TimeClip(double time);
+  static bool TryTimeClip(double* time) {
+    if (-kMaxTimeInMs <= *time && *time <= kMaxTimeInMs) {
+      // Inline the finite part of DoubleToInteger here, since the range check
+      // already covers the non-finite checks.
+      *time = ((*time > 0) ? std::floor(*time) : std::ceil(*time)) + 0.0;
+      return true;
+    }
+    return false;
+  }
 
   // Given the number of days since the epoch, computes the weekday.
   // ECMA 262 - 15.9.1.6.
@@ -261,6 +274,8 @@ enum class ToDateStringMode {
 // ES6 section 20.3.4.41.1 ToDateString(tv)
 DateBuffer ToDateString(double time_val, DateCache* date_cache,
                         ToDateStringMode mode);
+
+double ParseDateTimeString(Isolate* isolate, Handle<String> str);
 
 }  // namespace internal
 }  // namespace v8

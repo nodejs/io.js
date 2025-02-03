@@ -24,7 +24,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,  // No read or write permission for cache dir.
       `--allow-fs-write=${dummyDir}`,
       script,
@@ -39,7 +39,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
     },
     {
       stderr(output) {
-        assert.match(output, /skipping cache because write permission for .* is not granted/);
+        assert.match(output, /Skipping compile cache because write permission for .* is not granted/);
         return true;
       }
     });
@@ -47,7 +47,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,
       `--allow-fs-read=${cacheDirInPermission}`,  // Read-only
       `--allow-fs-write=${dummyDir}`,
@@ -63,7 +63,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
     },
     {
       stderr(output) {
-        assert.match(output, /skipping cache because write permission for .* is not granted/);
+        assert.match(output, /Skipping compile cache because write permission for .* is not granted/);
         return true;
       }
     });
@@ -71,7 +71,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
   spawnSyncAndAssert(
     process.execPath,
     [
-      '--experimental-permission',
+      '--permission',
       `--allow-fs-read=${dummyDir}`,
       `--allow-fs-write=${cacheDirInPermission}`,  // Write-only
       script,
@@ -86,7 +86,7 @@ function testDisallowed(dummyDir, cacheDirInPermission, cacheDirInEnv) {
     },
     {
       stderr(output) {
-        assert.match(output, /skipping cache because read permission for .* is not granted/);
+        assert.match(output, /Skipping compile cache because read permission for .* is not granted/);
         return true;
       }
     });

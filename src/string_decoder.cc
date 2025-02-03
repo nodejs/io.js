@@ -31,11 +31,11 @@ MaybeLocal<String> MakeString(Isolate* isolate,
   Local<Value> error;
   MaybeLocal<Value> ret;
   if (encoding == UTF8) {
-    MaybeLocal<String> utf8_string = String::NewFromUtf8(
-        isolate,
-        data,
-        v8::NewStringType::kNormal,
-        length);
+    MaybeLocal<String> utf8_string;
+    if (length <= static_cast<size_t>(v8::String::kMaxLength)) {
+      utf8_string = String::NewFromUtf8(
+          isolate, data, v8::NewStringType::kNormal, length);
+    }
     if (utf8_string.IsEmpty()) {
       isolate->ThrowException(node::ERR_STRING_TOO_LONG(isolate));
       return MaybeLocal<String>();
@@ -114,7 +114,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
       state_[kMissingBytes] -= found_bytes;
       state_[kBufferedBytes] += found_bytes;
 
-      if (LIKELY(MissingBytes() == 0)) {
+      if (MissingBytes() == 0) [[likely]] {
         // If no more bytes are missing, create a small string that we
         // will later prepend.
         if (!MakeString(isolate,
@@ -132,7 +132,7 @@ MaybeLocal<String> StringDecoder::DecodeData(Isolate* isolate,
 
     // It could be that trying to finish the previous chunk already
     // consumed all data that we received in this chunk.
-    if (UNLIKELY(nread == 0)) {
+    if (nread == 0) [[unlikely]] {
       body = !prepend.IsEmpty() ? prepend : String::Empty(isolate);
       prepend = Local<String>();
     } else {

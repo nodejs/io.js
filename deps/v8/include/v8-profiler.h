@@ -899,8 +899,27 @@ class V8_EXPORT EmbedderGraph {
   /**
    * Returns a node corresponding to the given V8 value. Ownership is not
    * transferred. The result pointer is valid while the graph is alive.
+   *
+   * For now the variant that takes v8::Data is not marked as abstract for
+   * compatibility, but embedders who subclass EmbedderGraph are expected to
+   * implement it. Then in the implementation of the variant that takes
+   * v8::Value, they can simply forward the call to the one that takes
+   * v8::Local<v8::Data>.
    */
   virtual Node* V8Node(const v8::Local<v8::Value>& value) = 0;
+
+  /**
+   * Returns a node corresponding to the given V8 value. Ownership is not
+   * transferred. The result pointer is valid while the graph is alive.
+   *
+   * For API compatibility, this default implementation just checks that the
+   * data is a v8::Value and forward it to the variant that takes v8::Value,
+   * which is currently required to be implemented. In the future we'll remove
+   * the v8::Value variant, and make this variant that takes v8::Data abstract
+   * instead. If the embedder subclasses v8::EmbedderGraph and also use
+   * v8::TracedReference<v8::Data>, they must override this variant.
+   */
+  virtual Node* V8Node(const v8::Local<v8::Data>& value);
 
   /**
    * Adds the given node to the graph and takes ownership of the node.
@@ -956,7 +975,7 @@ class V8_EXPORT HeapProfiler {
 
   /**
    * Callback function invoked during heap snapshot generation to retrieve
-   * the detachedness state of an object referenced by a TracedReference.
+   * the detachedness state of a JS object referenced by a TracedReference.
    *
    * The callback takes Local<Value> as parameter to allow the embedder to
    * unpack the TracedReference into a Local and reuse that Local for different
@@ -1091,6 +1110,12 @@ class V8_EXPORT HeapProfiler {
       bool hide_internals = true, bool capture_numeric_value = false);
 
   /**
+   * Obtains list of Detached JS Wrapper Objects. This functon calls garbage
+   * collection, then iterates over traced handles in the isolate
+   */
+  std::vector<v8::Local<v8::Value>> GetDetachedJSWrapperObjects();
+
+  /**
    * Starts tracking of heap objects population statistics. After calling
    * this method, all heap objects relocations done by the garbage collector
    * are being registered.
@@ -1178,6 +1203,18 @@ class V8_EXPORT HeapProfiler {
                                         void* data);
 
   void SetGetDetachednessCallback(GetDetachednessCallback callback, void* data);
+
+  /**
+   * Returns whether the heap profiler is currently taking a snapshot.
+   */
+  bool IsTakingSnapshot();
+
+  /**
+   * Allocates a copy of the provided string within the heap snapshot generator
+   * and returns a pointer to the copy. May only be called during heap snapshot
+   * generation.
+   */
+  const char* CopyNameForHeapSnapshot(const char* name);
 
   /**
    * Default value of persistent handle class ID. Must not be used to

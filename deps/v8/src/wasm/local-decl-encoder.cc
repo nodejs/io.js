@@ -40,6 +40,10 @@ size_t LocalDeclEncoder::Emit(uint8_t* buffer) const {
     if (locals_type.is_rtt()) {
       LEBHelper::write_u32v(&pos, locals_type.ref_index());
     }
+    if (locals_type.encoding_needs_shared()) {
+      *pos = kSharedFlagCode;
+      ++pos;
+    }
     if (locals_type.encoding_needs_heap_type()) {
       LEBHelper::write_i32v(&pos, locals_type.heap_type().code());
     }
@@ -68,6 +72,7 @@ size_t LocalDeclEncoder::Size() const {
     size +=
         LEBHelper::sizeof_u32v(p.first) +  // number of locals
         1 +                                // Opcode
+        (p.second.encoding_needs_shared() ? 1 : 0) +
         (p.second.encoding_needs_heap_type()
              ? LEBHelper::sizeof_i32v(p.second.heap_type().code())
              : 0) +

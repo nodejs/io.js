@@ -55,6 +55,6 @@ if [ "$ARCH" = "s390x" ] || [ "$ARCH" = "ppc64le" ]; then
 else
   DEPOT_TOOLS_DIR="$(cd _depot_tools && pwd)"
   # shellcheck disable=SC2086
-  PATH="$DEPOT_TOOLS_DIR":$PATH tools/dev/v8gen.py "$BUILD_ARCH_TYPE" --no-goma $V8_BUILD_OPTIONS
+  PATH="$DEPOT_TOOLS_DIR":$PATH tools/dev/v8gen.py "$BUILD_ARCH_TYPE" $V8_BUILD_OPTIONS
   PATH="$DEPOT_TOOLS_DIR":$PATH ninja -C "out.gn/$BUILD_ARCH_TYPE/" "${JOBS_ARG}" d8 cctest inspector-test
 fi

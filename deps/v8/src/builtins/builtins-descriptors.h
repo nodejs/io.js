@@ -29,6 +29,12 @@ namespace internal {
     static_assert(kJSTarget == -1, "Unexpected kJSTarget index value");  \
   };
 
+#define DEFINE_TSJ_INTERFACE_DESCRIPTOR(...) \
+  DEFINE_TFJ_INTERFACE_DESCRIPTOR(__VA_ARGS__)
+
+#define DEFINE_TSC_INTERFACE_DESCRIPTOR(Name, InterfaceDescriptor) \
+  using Builtin_##Name##_InterfaceDescriptor = InterfaceDescriptor##Descriptor;
+
 // Define interface descriptors for builtins with StubCall linkage.
 #define DEFINE_TFC_INTERFACE_DESCRIPTOR(Name, InterfaceDescriptor) \
   using Builtin_##Name##_InterfaceDescriptor = InterfaceDescriptor##Descriptor;
@@ -43,12 +49,15 @@ namespace internal {
 #define DEFINE_ASM_INTERFACE_DESCRIPTOR(Name, InterfaceDescriptor) \
   using Builtin_##Name##_InterfaceDescriptor = InterfaceDescriptor##Descriptor;
 
-BUILTIN_LIST(IGNORE_BUILTIN, DEFINE_TFJ_INTERFACE_DESCRIPTOR,
+BUILTIN_LIST(IGNORE_BUILTIN, DEFINE_TSJ_INTERFACE_DESCRIPTOR,
+             DEFINE_TFJ_INTERFACE_DESCRIPTOR, DEFINE_TSC_INTERFACE_DESCRIPTOR,
              DEFINE_TFC_INTERFACE_DESCRIPTOR, DEFINE_TFS_INTERFACE_DESCRIPTOR,
              DEFINE_TFH_INTERFACE_DESCRIPTOR, IGNORE_BUILTIN,
              DEFINE_ASM_INTERFACE_DESCRIPTOR)
 
 #undef DEFINE_TFJ_INTERFACE_DESCRIPTOR
+#undef DEFINE_TSJ_INTERFACE_DESCRIPTOR
+#undef DEFINE_TSC_INTERFACE_DESCRIPTOR
 #undef DEFINE_TFC_INTERFACE_DESCRIPTOR
 #undef DEFINE_TFS_INTERFACE_DESCRIPTOR
 #undef DEFINE_TFH_INTERFACE_DESCRIPTOR

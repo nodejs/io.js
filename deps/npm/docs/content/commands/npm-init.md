@@ -7,7 +7,7 @@ description: Create a package.json file
 ### Synopsis
 
 ```bash
-npm init <package-spec> (same as `npx <package-spec>`)
+npm init <package-spec> (same as `npx create-<package-spec>`)
 npm init <@scope> (same as `npx <@scope>/create`)
 
 aliases: create, innit

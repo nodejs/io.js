@@ -27,6 +27,12 @@ namespace node {
 #define NODE_HAS_RELEASE_URLS
 #endif
 
+#if HAVE_AMARO && !defined(NODE_SHARED_BUILTIN_AMARO_DIST_INDEX_PATH)
+#define NODE_VERSIONS_KEY_AMARO(V) V(amaro)
+#else
+#define NODE_VERSIONS_KEY_AMARO(V)
+#endif
+
 #ifndef NODE_SHARED_BUILTIN_UNDICI_UNDICI_PATH
 #define NODE_VERSIONS_KEY_UNDICI(V) V(undici)
 #else
@@ -48,13 +54,15 @@ namespace node {
   V(acorn)                                                                     \
   V(simdjson)                                                                  \
   V(simdutf)                                                                   \
+  V(sqlite)                                                                    \
   V(ada)                                                                       \
+  V(nbytes)                                                                    \
+  NODE_VERSIONS_KEY_AMARO(V)                                                   \
   NODE_VERSIONS_KEY_UNDICI(V)                                                  \
-  V(cjs_module_lexer)                                                          \
-  V(base64)
+  V(cjs_module_lexer)
 
 #if HAVE_OPENSSL
-#define NODE_VERSIONS_KEY_CRYPTO(V) V(openssl)
+#define NODE_VERSIONS_KEY_CRYPTO(V) V(openssl) V(ncrypto)
 #else
 #define NODE_VERSIONS_KEY_CRYPTO(V)
 #endif

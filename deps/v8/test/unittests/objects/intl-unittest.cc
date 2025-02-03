@@ -280,10 +280,10 @@ TEST_F(IntlTest, StringLocaleCompareFastPath) {
   }
 
   Handle<JSFunction> collator_constructor = Handle<JSFunction>(
-      JSFunction::cast(
+      Cast<JSFunction>(
           i_isolate()->context()->native_context()->intl_collator_function()),
       i_isolate());
-  Handle<Map> constructor_map =
+  DirectHandle<Map> constructor_map =
       JSFunction::GetDerivedMap(i_isolate(), collator_constructor,
                                 collator_constructor)
           .ToHandleChecked();
@@ -304,7 +304,7 @@ TEST_F(IntlTest, StringLocaleCompareFastPath) {
       continue;
     }
 
-    Handle<JSCollator> collator =
+    DirectHandle<JSCollator> collator =
         JSCollator::New(i_isolate(), constructor_map, locale_string, options,
                         kMethodName)
             .ToHandleChecked();

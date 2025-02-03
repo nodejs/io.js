@@ -1,6 +1,6 @@
 const t = require('tap')
-const { resolve, join } = require('path')
-const fs = require('fs')
+const { resolve, join } = require('node:path')
+const fs = require('node:fs')
 const Arborist = require('@npmcli/arborist')
 const { cleanCwd } = require('../../fixtures/clean-snapshot.js')
 const mockNpm = require('../../fixtures/mock-npm')

@@ -44,6 +44,14 @@ namespace trap_handler {
 #elif V8_TARGET_ARCH_LOONG64 && V8_HOST_ARCH_X64 && V8_OS_LINUX
 #define V8_TRAP_HANDLER_VIA_SIMULATOR
 #define V8_TRAP_HANDLER_SUPPORTED true
+// RISCV64 (non-simulator) on Linux.
+#elif V8_TARGET_ARCH_RISCV64 && V8_HOST_ARCH_RISCV64 && V8_OS_LINUX && \
+    !V8_OS_ANDROID
+#define V8_TRAP_HANDLER_SUPPORTED true
+// RISCV64 simulator on x64 on Linux
+#elif V8_TARGET_ARCH_RISCV64 && V8_HOST_ARCH_X64 && V8_OS_LINUX
+#define V8_TRAP_HANDLER_VIA_SIMULATOR
+#define V8_TRAP_HANDLER_SUPPORTED true
 // Everything else is unsupported.
 #else
 #define V8_TRAP_HANDLER_SUPPORTED false
@@ -106,6 +114,12 @@ int TH_EXPORT_PRIVATE RegisterHandlerData(
 /// TODO(mtrofin): We can switch to using size_t for index and not need
 /// kInvalidIndex.
 void TH_EXPORT_PRIVATE ReleaseHandlerData(int index);
+
+/// Sets the base and size of the V8 sandbox region. If set, these will be used
+/// by the trap handler: only faulting accesses to memory inside the V8 sandbox
+/// should be handled by the trap handler since all Wasm memory objects are
+/// located inside the sandbox.
+void TH_EXPORT_PRIVATE SetV8SandboxBaseAndSize(uintptr_t base, size_t size);
 
 // Initially false, set to true if when trap handlers are enabled. Never goes
 // back to false then.

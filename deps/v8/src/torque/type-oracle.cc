@@ -3,13 +3,13 @@
 // found in the LICENSE file.
 
 #include "src/torque/type-oracle.h"
-#include "src/base/optional.h"
+
+#include <optional>
+
 #include "src/torque/type-visitor.h"
 #include "src/torque/types.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 // static
 const std::vector<std::unique_ptr<AggregateType>>&
@@ -79,7 +79,7 @@ std::vector<const ClassType*> TypeOracle::GetClasses() {
   return result;
 }
 
-base::Optional<const Type*> TypeOracle::MatchReferenceGeneric(
+std::optional<const Type*> TypeOracle::MatchReferenceGeneric(
     const Type* reference_type, bool* is_const) {
   if (auto type = Type::MatchUnaryGeneric(reference_type,
                                           GetMutableReferenceGeneric())) {
@@ -91,9 +91,7 @@ base::Optional<const Type*> TypeOracle::MatchReferenceGeneric(
     if (is_const) *is_const = true;
     return type;
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

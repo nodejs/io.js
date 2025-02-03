@@ -446,7 +446,7 @@ void MipsDebugger::Debug() {
           Heap* current_heap = sim_->isolate_->heap();
           if (!skip_obj_print) {
             if (IsSmi(obj) ||
-                IsValidHeapObject(current_heap, HeapObject::cast(obj))) {
+                IsValidHeapObject(current_heap, Cast<HeapObject>(obj))) {
               PrintF(" (");
               if (IsSmi(obj)) {
                 PrintF("smi %d", Smi::ToInt(obj));
@@ -6104,7 +6104,7 @@ void Simulator::DecodeTypeMsa3RF() {
     case MADDR_Q:
     case MSUBR_Q:
       get_msa_register(wd_reg(), &wd);
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case MUL_Q:
     case MULR_Q:
       switch (DecodeMsaDataFormat()) {

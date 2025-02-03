@@ -34,11 +34,13 @@ void nghttp3_range_init(nghttp3_range *r, uint64_t begin, uint64_t end) {
 nghttp3_range nghttp3_range_intersect(const nghttp3_range *a,
                                       const nghttp3_range *b) {
   nghttp3_range r = {0, 0};
-  uint64_t begin = nghttp3_max(a->begin, b->begin);
-  uint64_t end = nghttp3_min(a->end, b->end);
+  uint64_t begin = nghttp3_max_uint64(a->begin, b->begin);
+  uint64_t end = nghttp3_min_uint64(a->end, b->end);
+
   if (begin < end) {
     nghttp3_range_init(&r, begin, end);
   }
+
   return r;
 }
 

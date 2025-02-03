@@ -192,6 +192,7 @@ public:
         double upperBound, 
         UBool lenientParse,
         uint32_t nonNumericalExecutedRuleMask,
+        int32_t recursionCount,
         Formattable& result) const;
     
     /**

@@ -41,6 +41,10 @@ proposal_flags = [
         # This flag enables the *new* exception handling proposal. The legacy
         # proposal is enabled by default.
         'flags': ['--experimental-wasm-exnref', '--turboshaft-wasm']
+    },
+    {
+        'name': 'js-promise-integration',
+        'flags': ['--experimental-wasm-jspi']
     }
 ]
 

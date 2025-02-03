@@ -219,9 +219,9 @@ int32_t CharsetRecog_mbcs::match_mbcs(InputText *det, const uint16_t commonChars
         // Frequency of occurrence statistics exist.
         //
 
-        double maxVal = log((double)doubleByteCharCount / 4); /*(float)?*/
+        double maxVal = log(static_cast<double>(doubleByteCharCount) / 4); /*(float)?*/
         double scaleFactor = 90.0 / maxVal;
-        confidence = (int32_t)(log((double)commonCharCount+1) * scaleFactor + 10.0);
+        confidence = static_cast<int32_t>(log(static_cast<double>(commonCharCount) + 1) * scaleFactor + 10.0);
 
         confidence = min(confidence, 100);
     }

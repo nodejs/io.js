@@ -1,5 +1,6 @@
-#include "node.h"
+#include "async_context_frame.h"
 #include "env-inl.h"
+#include "node.h"
 
 namespace node {
 
@@ -16,38 +17,48 @@ AsyncResource::AsyncResource(Isolate* isolate,
                              const char* name,
                              async_id trigger_async_id)
     : env_(Environment::GetCurrent(isolate)),
-      resource_(isolate, resource) {
+      resource_(isolate, resource),
+      context_frame_(isolate, async_context_frame::current(isolate)) {
   CHECK_NOT_NULL(env_);
-  async_context_ = EmitAsyncInit(isolate, resource, name,
-                                 trigger_async_id);
+  async_context_ = EmitAsyncInit(isolate, resource, name, trigger_async_id);
 }
 
 AsyncResource::~AsyncResource() {
+  CHECK_NOT_NULL(env_);
   EmitAsyncDestroy(env_, async_context_);
 }
 
 MaybeLocal<Value> AsyncResource::MakeCallback(Local<Function> callback,
                                               int argc,
                                               Local<Value>* argv) {
-  return node::MakeCallback(env_->isolate(), get_resource(),
-                            callback, argc, argv,
-                            async_context_);
+  auto isolate = env_->isolate();
+  async_context_frame::Scope async_context_frame_scope(
+      isolate, context_frame_.Get(isolate));
+
+  return node::MakeCallback(
+      isolate, get_resource(), callback, argc, argv, async_context_);
 }
 
 MaybeLocal<Value> AsyncResource::MakeCallback(const char* method,
                                               int argc,
                                               Local<Value>* argv) {
-  return node::MakeCallback(env_->isolate(), get_resource(),
-                            method, argc, argv,
-                            async_context_);
+  auto isolate = env_->isolate();
+  async_context_frame::Scope async_context_frame_scope(
+      isolate, context_frame_.Get(isolate));
+
+  return node::MakeCallback(
+      isolate, get_resource(), method, argc, argv, async_context_);
 }
 
 MaybeLocal<Value> AsyncResource::MakeCallback(Local<String> symbol,
                                               int argc,
                                               Local<Value>* argv) {
-  return node::MakeCallback(env_->isolate(), get_resource(),
-                            symbol, argc, argv,
-                            async_context_);
+  auto isolate = env_->isolate();
+  async_context_frame::Scope async_context_frame_scope(
+      isolate, context_frame_.Get(isolate));
+
+  return node::MakeCallback(
+      isolate, get_resource(), symbol, argc, argv, async_context_);
 }
 
 Local<Object> AsyncResource::get_resource() {

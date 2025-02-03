@@ -211,7 +211,7 @@
 // Serialize and deserialize error object
 (function () {
   const err = Error('message', { cause: 'a cause' });
-  const worker = new Worker('onmessage = (msg) => postMessage(msg)', { type: 'string' });
+  const worker = new Worker('onmessage = ({data:msg}) => postMessage(msg)', { type: 'string' });
   worker.postMessage(err);
   const serialized_err = worker.getMessage();
   assertEquals(err, serialized_err);

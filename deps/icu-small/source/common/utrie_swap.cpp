@@ -64,7 +64,7 @@ utrie_swap(const UDataSwapper *ds,
         return 0;
     }
 
-    dataIs32=(UBool)((trie.options&UTRIE_OPTIONS_DATA_IS_32_BIT)!=0);
+    dataIs32 = (trie.options & UTRIE_OPTIONS_DATA_IS_32_BIT) != 0;
     size=sizeof(UTrieHeader)+trie.indexLength*2+trie.dataLength*(dataIs32?4:2);
 
     if(length>=0) {
@@ -305,7 +305,7 @@ getVersion(const void *data, int32_t length, UBool anyEndianOk) {
     if(length<16 || data==nullptr || (U_POINTER_MASK_LSB(data, 3)!=0)) {
         return 0;
     }
-    signature=*(const uint32_t *)data;
+    signature = *static_cast<const uint32_t*>(data);
     if(signature==UCPTRIE_SIG) {
         return 3;
     }

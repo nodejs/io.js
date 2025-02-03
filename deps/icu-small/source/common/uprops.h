@@ -39,16 +39,18 @@ enum {
 
     UPROPS_SCRIPT_EXTENSIONS_INDEX,
 
-    UPROPS_RESERVED_INDEX_7,
+    UPROPS_BLOCK_TRIE_INDEX,
     UPROPS_RESERVED_INDEX_8,
 
-    /* size of the data file (number of 32-bit units after the header) */
+    /** size of the data file (number of 32-bit units after the header) */
     UPROPS_DATA_TOP_INDEX,
 
-    /* maximum values for code values in vector word 0 */
+    /** maximum values for code values in vector word 0 */
     UPROPS_MAX_VALUES_INDEX=10,
-    /* maximum values for code values in vector word 2 */
+    /** maximum values for code values in vector word 2 */
     UPROPS_MAX_VALUES_2_INDEX,
+    /** maximum values for other code values */
+    UPROPS_MAX_VALUES_OTHER_INDEX,
 
     UPROPS_INDEX_COUNT=16
 };
@@ -117,62 +119,57 @@ enum {
 /* number of properties vector words */
 #define UPROPS_VECTOR_WORDS     3
 
-/*
- * Properties in vector word 0
- * Bits
- * 31..24   DerivedAge version major/minor one nibble each
- * 23..22   3..1: Bits 21..20 & 7..0 = Script_Extensions index
- *             3: Script value from Script_Extensions
- *             2: Script=Inherited
- *             1: Script=Common
- *             0: Script=bits 21..20 & 7..0
- * 21..20   Bits 9..8 of the UScriptCode, or index to Script_Extensions
- * 19..17   East Asian Width
- * 16.. 8   UBlockCode
- *  7.. 0   UScriptCode, or index to Script_Extensions
- */
-
-/* derived age: one nibble each for major and minor version numbers */
-#define UPROPS_AGE_MASK         0xff000000
-#define UPROPS_AGE_SHIFT        24
-
-/* Script_Extensions: mask includes Script */
-#define UPROPS_SCRIPT_X_MASK    0x00f000ff
-#define UPROPS_SCRIPT_X_SHIFT   22
-
-// The UScriptCode or Script_Extensions index is split across two bit fields.
-// (Starting with Unicode 13/ICU 66/2019 due to more varied Script_Extensions.)
-// Shift the high bits right by 12 to assemble the full value.
-#define UPROPS_SCRIPT_HIGH_MASK    0x00300000
-#define UPROPS_SCRIPT_HIGH_SHIFT   12
-#define UPROPS_MAX_SCRIPT          0x3ff
-
-#define UPROPS_EA_MASK          0x000e0000
-#define UPROPS_EA_SHIFT         17
-
-#define UPROPS_BLOCK_MASK       0x0001ff00
-#define UPROPS_BLOCK_SHIFT      8
-
-#define UPROPS_SCRIPT_LOW_MASK  0x000000ff
-
-/* UPROPS_SCRIPT_X_WITH_COMMON must be the lowest value that involves Script_Extensions. */
-#define UPROPS_SCRIPT_X_WITH_COMMON     0x400000
-#define UPROPS_SCRIPT_X_WITH_INHERITED  0x800000
-#define UPROPS_SCRIPT_X_WITH_OTHER      0xc00000
-
 #ifdef __cplusplus
 
 namespace {
 
-inline uint32_t uprops_mergeScriptCodeOrIndex(uint32_t scriptX) {
-    return
-        ((scriptX & UPROPS_SCRIPT_HIGH_MASK) >> UPROPS_SCRIPT_HIGH_SHIFT) |
-        (scriptX & UPROPS_SCRIPT_LOW_MASK);
-}
+// Properties in vector word 0
+// Bits
+// 31..26   Age major version (major=0..63)
+// 25..24   Age minor version (minor=0..3)
+// 23..17   reserved
+// 16..15   Indic Conjunct Break
+// 14..12   East Asian Width
+// 11..10   3..1: Bits 9..0 = Script_Extensions index
+//             3: Script value from Script_Extensions
+//             2: Script=Inherited
+//             1: Script=Common
+//             0: Script=bits 9..0
+//  9.. 0   UScriptCode, or index to Script_Extensions
 
-}  // namespace
+// *Note*: If we need more than the available bits for new properties,
+// then we could move the Age property out of the properties vectors.
+// For example, we could store the Age property in its own trie.
+// In a small, 8-bit-value-width CodePointTrie, it would be larger than
+// the amount of data that we would save in the properties vectors and their trie,
+// but the size increase would be a small percentage of the total uprops.icu size.
+// It would certainly be a much smaller increase than widening the properties vectors.
+// The savings in the properties vectors+trie from pulling out the Age property
+// are partly from mediocre correlation between Age and other property values.
+// (Adding new characters to existing scripts tends to split property vectors where
+// new characters are similar to old ones.)
+// See https://github.com/unicode-org/icu/pull/3025 for details.
 
-#endif  // __cplusplus
+inline constexpr uint32_t UPROPS_AGE_MASK = 0xff000000;
+inline constexpr int32_t UPROPS_AGE_SHIFT = 24;
+
+inline constexpr uint8_t UPROPS_AGE_MAJOR_MAX = 63;
+inline constexpr uint8_t UPROPS_AGE_MINOR_MAX = 3;
+
+inline constexpr uint32_t UPROPS_EA_MASK = 0x00007000;
+inline constexpr int32_t UPROPS_EA_SHIFT = 12;
+
+inline constexpr uint32_t UPROPS_INCB_MASK = 0x00018000;
+inline constexpr int32_t UPROPS_INCB_SHIFT = 15;
+
+/** Script_Extensions: mask includes Script */
+inline constexpr uint32_t UPROPS_SCRIPT_X_MASK = 0x00000fff;
+
+// UPROPS_SCRIPT_X_WITH_COMMON must be the lowest value that involves Script_Extensions.
+inline constexpr uint32_t UPROPS_SCRIPT_X_WITH_OTHER = 0xc00;
+inline constexpr uint32_t UPROPS_SCRIPT_X_WITH_INHERITED = 0x800;
+inline constexpr uint32_t UPROPS_SCRIPT_X_WITH_COMMON = 0x400;
+inline constexpr int32_t UPROPS_MAX_SCRIPT = 0x3ff;
 
 /*
  * Properties in vector word 1
@@ -234,8 +231,6 @@ enum {
  *  4.. 0   Decomposition Type
  */
 
-#ifdef __cplusplus
-
 // https://www.unicode.org/reports/tr39/#Identifier_Status_and_Type
 // The Identifier_Type maps each code point to a *set* of one or more values.
 // Some can be combined with others, some can only occur alone.
@@ -296,6 +291,8 @@ inline constexpr uint8_t uprops_idTypeToEncoded[] = {
     UPROPS_ID_TYPE_RECOMMENDED
 };
 
+}  // namespace
+
 #endif  // __cplusplus
 
 #define UPROPS_LB_MASK          0x03f00000
@@ -311,6 +308,17 @@ inline constexpr uint8_t uprops_idTypeToEncoded[] = {
 #define UPROPS_GCB_SHIFT        5
 
 #define UPROPS_DT_MASK          0x0000001f
+
+#ifdef __cplusplus
+
+namespace {
+
+// Bits 9..0 in UPROPS_MAX_VALUES_OTHER_INDEX
+inline constexpr uint32_t UPROPS_MAX_BLOCK = 0x3ff;
+
+}  // namespace
+
+#endif  // __cplusplus
 
 /**
  * Gets the main properties value for a code point.
@@ -385,6 +393,8 @@ enum {
     ZWNBSP  =0xfeff
 };
 
+// TODO: Move these two functions into a different header file (new unames.h?) so that uprops.h
+// need not be C-compatible any more.
 /**
  * Get the maximum length of a (regular/1.0/extended) character name.
  * @return 0 if no character names available.
@@ -438,6 +448,8 @@ enum UPropertySource {
     UPROPS_SRC_EMOJI,
     UPROPS_SRC_IDSU,
     UPROPS_SRC_ID_COMPAT_MATH,
+    UPROPS_SRC_BLOCK,
+    UPROPS_SRC_MCM,
     /** One more than the highest UPropertySource (UPROPS_SRC_) constant. */
     UPROPS_SRC_COUNT
 };
@@ -469,6 +481,13 @@ upropsvec_addPropertyStarts(const USetAdder *sa, UErrorCode *pErrorCode);
 U_CFUNC void U_EXPORT2
 uprops_addPropertyStarts(UPropertySource src, const USetAdder *sa, UErrorCode *pErrorCode);
 
+#ifdef __cplusplus
+
+U_CFUNC void U_EXPORT2
+ublock_addPropertyStarts(const USetAdder *sa, UErrorCode &errorCode);
+
+#endif  // __cplusplus
+
 /**
  * Return a set of characters for property enumeration.
  * For each two consecutive characters (start, limit) in the set,
@@ -481,6 +500,8 @@ uprops_addPropertyStarts(UPropertySource src, const USetAdder *sa, UErrorCode *p
 uprv_getInclusions(const USetAdder *sa, UErrorCode *pErrorCode);
 */
 
+// TODO: Move this into a different header file (udataswp.h? new unames.h?) so that uprops.h
+// need not be C-compatible any more.
 /**
  * Swap the ICU Unicode character names file. See uchar.c.
  * @internal

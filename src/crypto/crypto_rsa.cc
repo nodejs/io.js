@@ -14,11 +14,17 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::DataPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::RSAPointer;
 using v8::ArrayBuffer;
-using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
-using v8::Just;
+using v8::Integer;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::Nothing;
@@ -30,38 +36,28 @@ using v8::Value;
 
 namespace crypto {
 EVPKeyCtxPointer RsaKeyGenTraits::Setup(RsaKeyPairGenConfig* params) {
-  EVPKeyCtxPointer ctx(
-      EVP_PKEY_CTX_new_id(
-          params->params.variant == kKeyVariantRSA_PSS
-              ? EVP_PKEY_RSA_PSS
-              : EVP_PKEY_RSA,
-          nullptr));
+  auto ctx = EVPKeyCtxPointer::NewFromID(
+      params->params.variant == kKeyVariantRSA_PSS ? EVP_PKEY_RSA_PSS
+                                                   : EVP_PKEY_RSA);
 
-  if (EVP_PKEY_keygen_init(ctx.get()) <= 0)
-    return EVPKeyCtxPointer();
-
-  if (EVP_PKEY_CTX_set_rsa_keygen_bits(
-          ctx.get(),
-          params->params.modulus_bits) <= 0) {
-    return EVPKeyCtxPointer();
+  if (!ctx.initForKeygen() ||
+      !ctx.setRsaKeygenBits(params->params.modulus_bits)) {
+    return {};
   }
 
   // 0x10001 is the default RSA exponent.
-  if (params->params.exponent != 0x10001) {
-    BignumPointer bn(BN_new());
-    CHECK_NOT_NULL(bn.get());
-    CHECK(BN_set_word(bn.get(), params->params.exponent));
-    // EVP_CTX accepts ownership of bn on success.
-    if (EVP_PKEY_CTX_set_rsa_keygen_pubexp(ctx.get(), bn.get()) <= 0)
-      return EVPKeyCtxPointer();
-
-    bn.release();
+  if (params->params.exponent != EVPKeyCtxPointer::kDefaultRsaExponent) {
+    auto bn = BignumPointer::New();
+    if (!bn.setWord(params->params.exponent) ||
+        !ctx.setRsaKeygenPubExp(std::move(bn))) {
+      return {};
+    }
   }
 
   if (params->params.variant == kKeyVariantRSA_PSS) {
     if (params->params.md != nullptr &&
-        EVP_PKEY_CTX_set_rsa_pss_keygen_md(ctx.get(), params->params.md) <= 0) {
-      return EVPKeyCtxPointer();
+        !ctx.setRsaPssKeygenMd(params->params.md)) {
+      return {};
     }
 
     // TODO(tniessen): This appears to only be necessary in OpenSSL 3, while
@@ -73,11 +69,8 @@ EVPKeyCtxPointer RsaKeyGenTraits::Setup(RsaKeyPairGenConfig* params) {
       mgf1_md = params->params.md;
     }
 
-    if (mgf1_md != nullptr &&
-        EVP_PKEY_CTX_set_rsa_pss_keygen_mgf1_md(
-            ctx.get(),
-            mgf1_md) <= 0) {
-      return EVPKeyCtxPointer();
+    if (mgf1_md != nullptr && !ctx.setRsaPssKeygenMgf1Md(mgf1_md)) {
+      return {};
     }
 
     int saltlen = params->params.saltlen;
@@ -85,11 +78,8 @@ EVPKeyCtxPointer RsaKeyGenTraits::Setup(RsaKeyPairGenConfig* params) {
       saltlen = EVP_MD_size(params->params.md);
     }
 
-    if (saltlen >= 0 &&
-        EVP_PKEY_CTX_set_rsa_pss_keygen_saltlen(
-            ctx.get(),
-            saltlen) <= 0) {
-      return EVPKeyCtxPointer();
+    if (saltlen >= 0 && !ctx.setRsaPssSaltlen(saltlen)) {
+      return {};
     }
   }
 
@@ -123,7 +113,7 @@ EVPKeyCtxPointer RsaKeyGenTraits::Setup(RsaKeyPairGenConfig* params) {
 //   11. Private Type
 //   12. Cipher
 //   13. Passphrase
-Maybe<bool> RsaKeyGenTraits::AdditionalConfig(
+Maybe<void> RsaKeyGenTraits::AdditionalConfig(
     CryptoJobMode mode,
     const FunctionCallbackInfo<Value>& args,
     unsigned int* offset,
@@ -151,21 +141,21 @@ Maybe<bool> RsaKeyGenTraits::AdditionalConfig(
     if (!args[*offset]->IsUndefined()) {
       CHECK(args[*offset]->IsString());
       Utf8Value digest(env->isolate(), args[*offset]);
-      params->params.md = EVP_get_digestbyname(*digest);
+      params->params.md = ncrypto::getDigestByName(digest.ToStringView());
       if (params->params.md == nullptr) {
         THROW_ERR_CRYPTO_INVALID_DIGEST(env, "Invalid digest: %s", *digest);
-        return Nothing<bool>();
+        return Nothing<void>();
       }
     }
 
     if (!args[*offset + 1]->IsUndefined()) {
       CHECK(args[*offset + 1]->IsString());
       Utf8Value digest(env->isolate(), args[*offset + 1]);
-      params->params.mgf1_md = EVP_get_digestbyname(*digest);
+      params->params.mgf1_md = ncrypto::getDigestByName(digest.ToStringView());
       if (params->params.mgf1_md == nullptr) {
         THROW_ERR_CRYPTO_INVALID_DIGEST(
             env, "Invalid MGF1 digest: %s", *digest);
-        return Nothing<bool>();
+        return Nothing<void>();
       }
     }
 
@@ -176,109 +166,81 @@ Maybe<bool> RsaKeyGenTraits::AdditionalConfig(
         THROW_ERR_OUT_OF_RANGE(
           env,
           "salt length is out of range");
-        return Nothing<bool>();
+        return Nothing<void>();
       }
     }
 
     *offset += 3;
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
 namespace {
-WebCryptoKeyExportStatus RSA_JWK_Export(
-    KeyObjectData* key_data,
-    const RSAKeyExportConfig& params,
-    ByteSource* out) {
+WebCryptoKeyExportStatus RSA_JWK_Export(const KeyObjectData& key_data,
+                                        const RSAKeyExportConfig& params,
+                                        ByteSource* out) {
   return WebCryptoKeyExportStatus::FAILED;
 }
 
-template <PublicKeyCipher::EVP_PKEY_cipher_init_t init,
-          PublicKeyCipher::EVP_PKEY_cipher_t cipher>
-WebCryptoCipherStatus RSA_Cipher(
-    Environment* env,
-    KeyObjectData* key_data,
-    const RSACipherConfig& params,
-    const ByteSource& in,
-    ByteSource* out) {
-  CHECK_NE(key_data->GetKeyType(), kKeyTypeSecret);
-  ManagedEVPPKey m_pkey = key_data->GetAsymmetricKey();
-  Mutex::ScopedLock lock(*m_pkey.mutex());
+using Cipher_t = DataPointer(const EVPKeyPointer& key,
+                             const ncrypto::Rsa::CipherParams& params,
+                             const ncrypto::Buffer<const void> in);
 
-  EVPKeyCtxPointer ctx(EVP_PKEY_CTX_new(m_pkey.get(), nullptr));
+template <Cipher_t cipher>
+WebCryptoCipherStatus RSA_Cipher(Environment* env,
+                                 const KeyObjectData& key_data,
+                                 const RSACipherConfig& params,
+                                 const ByteSource& in,
+                                 ByteSource* out) {
+  CHECK_NE(key_data.GetKeyType(), kKeyTypeSecret);
+  Mutex::ScopedLock lock(key_data.mutex());
+  const auto& m_pkey = key_data.GetAsymmetricKey();
+  const ncrypto::Rsa::CipherParams nparams{
+      .padding = params.padding,
+      .digest = params.digest,
+      .label = params.label,
+  };
 
-  if (!ctx || init(ctx.get()) <= 0)
-    return WebCryptoCipherStatus::FAILED;
+  auto data = cipher(m_pkey, nparams, in);
+  if (!data) return WebCryptoCipherStatus::FAILED;
 
-  if (EVP_PKEY_CTX_set_rsa_padding(ctx.get(), params.padding) <= 0) {
-    return WebCryptoCipherStatus::FAILED;
-  }
-
-  if (params.digest != nullptr &&
-      (EVP_PKEY_CTX_set_rsa_oaep_md(ctx.get(), params.digest) <= 0 ||
-       EVP_PKEY_CTX_set_rsa_mgf1_md(ctx.get(), params.digest) <= 0)) {
-    return WebCryptoCipherStatus::FAILED;
-  }
-
-  if (!SetRsaOaepLabel(ctx, params.label)) return WebCryptoCipherStatus::FAILED;
-
-  size_t out_len = 0;
-  if (cipher(
-          ctx.get(),
-          nullptr,
-          &out_len,
-          in.data<unsigned char>(),
-          in.size()) <= 0) {
-    return WebCryptoCipherStatus::FAILED;
-  }
-
-  ByteSource::Builder buf(out_len);
-
-  if (cipher(ctx.get(),
-             buf.data<unsigned char>(),
-             &out_len,
-             in.data<unsigned char>(),
-             in.size()) <= 0) {
-    return WebCryptoCipherStatus::FAILED;
-  }
-
-  *out = std::move(buf).release(out_len);
+  *out = ByteSource::Allocated(data.release());
   return WebCryptoCipherStatus::OK;
 }
 }  // namespace
 
-Maybe<bool> RSAKeyExportTraits::AdditionalConfig(
+Maybe<void> RSAKeyExportTraits::AdditionalConfig(
     const FunctionCallbackInfo<Value>& args,
     unsigned int offset,
     RSAKeyExportConfig* params) {
   CHECK(args[offset]->IsUint32());  // RSAKeyVariant
   params->variant =
       static_cast<RSAKeyVariant>(args[offset].As<Uint32>()->Value());
-  return Just(true);
+  return JustVoid();
 }
 
 WebCryptoKeyExportStatus RSAKeyExportTraits::DoExport(
-    std::shared_ptr<KeyObjectData> key_data,
+    const KeyObjectData& key_data,
     WebCryptoKeyFormat format,
     const RSAKeyExportConfig& params,
     ByteSource* out) {
-  CHECK_NE(key_data->GetKeyType(), kKeyTypeSecret);
+  CHECK_NE(key_data.GetKeyType(), kKeyTypeSecret);
 
   switch (format) {
     case kWebCryptoKeyFormatRaw:
       // Not supported for RSA keys of either type
       return WebCryptoKeyExportStatus::FAILED;
     case kWebCryptoKeyFormatJWK:
-      return RSA_JWK_Export(key_data.get(), params, out);
+      return RSA_JWK_Export(key_data, params, out);
     case kWebCryptoKeyFormatPKCS8:
-      if (key_data->GetKeyType() != kKeyTypePrivate)
+      if (key_data.GetKeyType() != kKeyTypePrivate)
         return WebCryptoKeyExportStatus::INVALID_KEY_TYPE;
-      return PKEY_PKCS8_Export(key_data.get(), out);
+      return PKEY_PKCS8_Export(key_data, out);
     case kWebCryptoKeyFormatSPKI:
-      if (key_data->GetKeyType() != kKeyTypePublic)
+      if (key_data.GetKeyType() != kKeyTypePublic)
         return WebCryptoKeyExportStatus::INVALID_KEY_TYPE;
-      return PKEY_SPKI_Export(key_data.get(), out);
+      return PKEY_SPKI_Export(key_data, out);
     default:
       UNREACHABLE();
   }
@@ -295,7 +257,7 @@ void RSACipherConfig::MemoryInfo(MemoryTracker* tracker) const {
     tracker->TrackFieldWithSize("label", label.size());
 }
 
-Maybe<bool> RSACipherTraits::AdditionalConfig(
+Maybe<void> RSACipherTraits::AdditionalConfig(
     CryptoJobMode mode,
     const FunctionCallbackInfo<Value>& args,
     unsigned int offset,
@@ -315,17 +277,17 @@ Maybe<bool> RSACipherTraits::AdditionalConfig(
       CHECK(args[offset + 1]->IsString());  // digest
       Utf8Value digest(env->isolate(), args[offset + 1]);
 
-      params->digest = EVP_get_digestbyname(*digest);
+      params->digest = ncrypto::getDigestByName(digest.ToStringView());
       if (params->digest == nullptr) {
         THROW_ERR_CRYPTO_INVALID_DIGEST(env, "Invalid digest: %s", *digest);
-        return Nothing<bool>();
+        return Nothing<void>();
       }
 
       if (IsAnyBufferSource(args[offset + 2])) {
         ArrayBufferOrViewContents<char> label(args[offset + 2]);
-        if (UNLIKELY(!label.CheckSizeInt32())) {
+        if (!label.CheckSizeInt32()) [[unlikely]] {
           THROW_ERR_OUT_OF_RANGE(env, "label is too big");
-          return Nothing<bool>();
+          return Nothing<void>();
         }
         params->label = label.ToCopy();
       }
@@ -333,94 +295,76 @@ Maybe<bool> RSACipherTraits::AdditionalConfig(
     }
     default:
       THROW_ERR_CRYPTO_INVALID_KEYTYPE(env);
-      return Nothing<bool>();
+      return Nothing<void>();
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
-WebCryptoCipherStatus RSACipherTraits::DoCipher(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key_data,
-    WebCryptoCipherMode cipher_mode,
-    const RSACipherConfig& params,
-    const ByteSource& in,
-    ByteSource* out) {
+WebCryptoCipherStatus RSACipherTraits::DoCipher(Environment* env,
+                                                const KeyObjectData& key_data,
+                                                WebCryptoCipherMode cipher_mode,
+                                                const RSACipherConfig& params,
+                                                const ByteSource& in,
+                                                ByteSource* out) {
   switch (cipher_mode) {
     case kWebCryptoCipherEncrypt:
-      CHECK_EQ(key_data->GetKeyType(), kKeyTypePublic);
-      return RSA_Cipher<EVP_PKEY_encrypt_init, EVP_PKEY_encrypt>(
-          env, key_data.get(), params, in, out);
+      CHECK_EQ(key_data.GetKeyType(), kKeyTypePublic);
+      return RSA_Cipher<ncrypto::Rsa::encrypt>(env, key_data, params, in, out);
     case kWebCryptoCipherDecrypt:
-      CHECK_EQ(key_data->GetKeyType(), kKeyTypePrivate);
-      return RSA_Cipher<EVP_PKEY_decrypt_init, EVP_PKEY_decrypt>(
-          env, key_data.get(), params, in, out);
+      CHECK_EQ(key_data.GetKeyType(), kKeyTypePrivate);
+      return RSA_Cipher<ncrypto::Rsa::decrypt>(env, key_data, params, in, out);
   }
   return WebCryptoCipherStatus::FAILED;
 }
 
-Maybe<bool> ExportJWKRsaKey(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    Local<Object> target) {
-  ManagedEVPPKey m_pkey = key->GetAsymmetricKey();
-  Mutex::ScopedLock lock(*m_pkey.mutex());
-  int type = EVP_PKEY_id(m_pkey.get());
-  CHECK(type == EVP_PKEY_RSA || type == EVP_PKEY_RSA_PSS);
+Maybe<void> ExportJWKRsaKey(Environment* env,
+                            const KeyObjectData& key,
+                            Local<Object> target) {
+  Mutex::ScopedLock lock(key.mutex());
+  const auto& m_pkey = key.GetAsymmetricKey();
 
-  // TODO(tniessen): Remove the "else" branch once we drop support for OpenSSL
-  // versions older than 1.1.1e via FIPS / dynamic linking.
-  const RSA* rsa;
-  if (OpenSSL_version_num() >= 0x1010105fL) {
-    rsa = EVP_PKEY_get0_RSA(m_pkey.get());
-  } else {
-    rsa = static_cast<const RSA*>(EVP_PKEY_get0(m_pkey.get()));
-  }
-  CHECK_NOT_NULL(rsa);
-
-  const BIGNUM* n;
-  const BIGNUM* e;
-  const BIGNUM* d;
-  const BIGNUM* p;
-  const BIGNUM* q;
-  const BIGNUM* dp;
-  const BIGNUM* dq;
-  const BIGNUM* qi;
-  RSA_get0_key(rsa, &n, &e, &d);
-
-  if (target->Set(
-          env->context(),
-          env->jwk_kty_string(),
-          env->jwk_rsa_string()).IsNothing()) {
-    return Nothing<bool>();
+  const ncrypto::Rsa rsa = m_pkey;
+  if (!rsa ||
+      target->Set(env->context(), env->jwk_kty_string(), env->jwk_rsa_string())
+          .IsNothing()) {
+    return Nothing<void>();
   }
 
-  if (SetEncodedValue(env, target, env->jwk_n_string(), n).IsNothing() ||
-      SetEncodedValue(env, target, env->jwk_e_string(), e).IsNothing()) {
-    return Nothing<bool>();
+  auto pub_key = rsa.getPublicKey();
+
+  if (SetEncodedValue(env, target, env->jwk_n_string(), pub_key.n)
+          .IsNothing() ||
+      SetEncodedValue(env, target, env->jwk_e_string(), pub_key.e)
+          .IsNothing()) {
+    return Nothing<void>();
   }
 
-  if (key->GetKeyType() == kKeyTypePrivate) {
-    RSA_get0_factors(rsa, &p, &q);
-    RSA_get0_crt_params(rsa, &dp, &dq, &qi);
-    if (SetEncodedValue(env, target, env->jwk_d_string(), d).IsNothing() ||
-        SetEncodedValue(env, target, env->jwk_p_string(), p).IsNothing() ||
-        SetEncodedValue(env, target, env->jwk_q_string(), q).IsNothing() ||
-        SetEncodedValue(env, target, env->jwk_dp_string(), dp).IsNothing() ||
-        SetEncodedValue(env, target, env->jwk_dq_string(), dq).IsNothing() ||
-        SetEncodedValue(env, target, env->jwk_qi_string(), qi).IsNothing()) {
-      return Nothing<bool>();
+  if (key.GetKeyType() == kKeyTypePrivate) {
+    auto pvt_key = rsa.getPrivateKey();
+    if (SetEncodedValue(env, target, env->jwk_d_string(), pub_key.d)
+            .IsNothing() ||
+        SetEncodedValue(env, target, env->jwk_p_string(), pvt_key.p)
+            .IsNothing() ||
+        SetEncodedValue(env, target, env->jwk_q_string(), pvt_key.q)
+            .IsNothing() ||
+        SetEncodedValue(env, target, env->jwk_dp_string(), pvt_key.dp)
+            .IsNothing() ||
+        SetEncodedValue(env, target, env->jwk_dq_string(), pvt_key.dq)
+            .IsNothing() ||
+        SetEncodedValue(env, target, env->jwk_qi_string(), pvt_key.qi)
+            .IsNothing()) {
+      return Nothing<void>();
     }
   }
 
-  return Just(true);
+  return JustVoid();
 }
 
-std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
-    Environment* env,
-    Local<Object> jwk,
-    const FunctionCallbackInfo<Value>& args,
-    unsigned int offset) {
+KeyObjectData ImportJWKRsaKey(Environment* env,
+                              Local<Object> jwk,
+                              const FunctionCallbackInfo<Value>& args,
+                              unsigned int offset) {
   Local<Value> n_value;
   Local<Value> e_value;
   Local<Value> d_value;
@@ -431,28 +375,25 @@ std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
       !n_value->IsString() ||
       !e_value->IsString()) {
     THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK RSA key");
-    return std::shared_ptr<KeyObjectData>();
+    return {};
   }
 
   if (!d_value->IsUndefined() && !d_value->IsString()) {
     THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK RSA key");
-    return std::shared_ptr<KeyObjectData>();
+    return {};
   }
 
   KeyType type = d_value->IsString() ? kKeyTypePrivate : kKeyTypePublic;
 
-  RsaPointer rsa(RSA_new());
+  RSAPointer rsa(RSA_new());
+  ncrypto::Rsa rsa_view(rsa.get());
 
   ByteSource n = ByteSource::FromEncodedString(env, n_value.As<String>());
   ByteSource e = ByteSource::FromEncodedString(env, e_value.As<String>());
 
-  if (!RSA_set0_key(
-          rsa.get(),
-          n.ToBN().release(),
-          e.ToBN().release(),
-          nullptr)) {
+  if (!rsa_view.setPublicKey(n.ToBN(), e.ToBN())) {
     THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK RSA key");
-    return std::shared_ptr<KeyObjectData>();
+    return {};
   }
 
   if (type == kKeyTypePrivate) {
@@ -468,7 +409,7 @@ std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
         !jwk->Get(env->context(), env->jwk_dq_string()).ToLocal(&dq_value) ||
         !jwk->Get(env->context(), env->jwk_qi_string()).ToLocal(&qi_value)) {
       THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK RSA key");
-      return std::shared_ptr<KeyObjectData>();
+      return {};
     }
 
     if (!p_value->IsString() ||
@@ -477,7 +418,7 @@ std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
         !dq_value->IsString() ||
         !qi_value->IsString()) {
       THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK RSA key");
-      return std::shared_ptr<KeyObjectData>();
+      return {};
     }
 
     ByteSource d = ByteSource::FromEncodedString(env, d_value.As<String>());
@@ -487,79 +428,61 @@ std::shared_ptr<KeyObjectData> ImportJWKRsaKey(
     ByteSource dq = ByteSource::FromEncodedString(env, dq_value.As<String>());
     ByteSource qi = ByteSource::FromEncodedString(env, qi_value.As<String>());
 
-    if (!RSA_set0_key(rsa.get(), nullptr, nullptr, d.ToBN().release()) ||
-        !RSA_set0_factors(rsa.get(), p.ToBN().release(), q.ToBN().release()) ||
-        !RSA_set0_crt_params(
-            rsa.get(),
-            dp.ToBN().release(),
-            dq.ToBN().release(),
-            qi.ToBN().release())) {
+    if (!rsa_view.setPrivateKey(
+            d.ToBN(), q.ToBN(), p.ToBN(), dp.ToBN(), dq.ToBN(), qi.ToBN())) {
       THROW_ERR_CRYPTO_INVALID_JWK(env, "Invalid JWK RSA key");
-      return std::shared_ptr<KeyObjectData>();
+      return {};
     }
   }
 
-  EVPKeyPointer pkey(EVP_PKEY_new());
-  CHECK_EQ(EVP_PKEY_set1_RSA(pkey.get(), rsa.get()), 1);
+  auto pkey = EVPKeyPointer::NewRSA(std::move(rsa));
+  if (!pkey) return {};
 
-  return KeyObjectData::CreateAsymmetric(type, ManagedEVPPKey(std::move(pkey)));
+  return KeyObjectData::CreateAsymmetric(type, std::move(pkey));
 }
 
-Maybe<bool> GetRsaKeyDetail(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    Local<Object> target) {
-  const BIGNUM* e;  // Public Exponent
-  const BIGNUM* n;  // Modulus
-
-  ManagedEVPPKey m_pkey = key->GetAsymmetricKey();
-  Mutex::ScopedLock lock(*m_pkey.mutex());
-  int type = EVP_PKEY_id(m_pkey.get());
-  CHECK(type == EVP_PKEY_RSA || type == EVP_PKEY_RSA_PSS);
+Maybe<void> GetRsaKeyDetail(Environment* env,
+                            const KeyObjectData& key,
+                            Local<Object> target) {
+  Mutex::ScopedLock lock(key.mutex());
+  const auto& m_pkey = key.GetAsymmetricKey();
 
   // TODO(tniessen): Remove the "else" branch once we drop support for OpenSSL
   // versions older than 1.1.1e via FIPS / dynamic linking.
-  const RSA* rsa;
-  if (OpenSSL_version_num() >= 0x1010105fL) {
-    rsa = EVP_PKEY_get0_RSA(m_pkey.get());
-  } else {
-    rsa = static_cast<const RSA*>(EVP_PKEY_get0(m_pkey.get()));
-  }
-  CHECK_NOT_NULL(rsa);
+  const ncrypto::Rsa rsa = m_pkey;
+  if (!rsa) return Nothing<void>();
 
-  RSA_get0_key(rsa, &n, &e, nullptr);
-
-  size_t modulus_length = BN_num_bits(n);
+  auto pub_key = rsa.getPublicKey();
 
   if (target
-          ->Set(
-              env->context(),
-              env->modulus_length_string(),
-              Number::New(env->isolate(), static_cast<double>(modulus_length)))
+          ->Set(env->context(),
+                env->modulus_length_string(),
+                Number::New(
+                    env->isolate(),
+                    static_cast<double>(BignumPointer::GetBitCount(pub_key.n))))
           .IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
-  std::unique_ptr<BackingStore> public_exponent;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    public_exponent =
-        ArrayBuffer::NewBackingStore(env->isolate(), BN_num_bytes(e));
-  }
-  CHECK_EQ(BN_bn2binpad(e,
-                        static_cast<unsigned char*>(public_exponent->Data()),
-                        public_exponent->ByteLength()),
-           static_cast<int>(public_exponent->ByteLength()));
+  auto public_exponent = ArrayBuffer::NewBackingStore(
+      env->isolate(),
+      BignumPointer::GetByteCount(pub_key.e),
+      BackingStoreInitializationMode::kUninitialized);
+  CHECK_EQ(BignumPointer::EncodePaddedInto(
+               pub_key.e,
+               static_cast<unsigned char*>(public_exponent->Data()),
+               public_exponent->ByteLength()),
+           public_exponent->ByteLength());
 
   if (target
           ->Set(env->context(),
                 env->public_exponent_string(),
                 ArrayBuffer::New(env->isolate(), std::move(public_exponent)))
           .IsNothing()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
 
-  if (type == EVP_PKEY_RSA_PSS) {
+  if (m_pkey.id() == EVP_PKEY_RSA_PSS) {
     // Due to the way ASN.1 encoding works, default values are omitted when
     // encoding the data structure. However, there are also RSA-PSS keys for
     // which no parameters are set. In that case, the ASN.1 RSASSA-PSS-params
@@ -569,71 +492,41 @@ Maybe<bool> GetRsaKeyDetail(
     // In that case, RSA_get0_pss_params does not return nullptr but all fields
     // of the returned RSA_PSS_PARAMS will be set to nullptr.
 
-    const RSA_PSS_PARAMS* params = RSA_get0_pss_params(rsa);
-    if (params != nullptr) {
-      int hash_nid = NID_sha1;
-      int mgf_nid = NID_mgf1;
-      int mgf1_hash_nid = NID_sha1;
-      int64_t salt_length = 20;
-
-      if (params->hashAlgorithm != nullptr) {
-        const ASN1_OBJECT* hash_obj;
-        X509_ALGOR_get0(&hash_obj, nullptr, nullptr, params->hashAlgorithm);
-        hash_nid = OBJ_obj2nid(hash_obj);
-      }
-
+    auto maybe_params = rsa.getPssParams();
+    if (maybe_params.has_value()) {
+      auto& params = maybe_params.value();
       if (target
-              ->Set(
-                  env->context(),
-                  env->hash_algorithm_string(),
-                  OneByteString(env->isolate(), OBJ_nid2ln(hash_nid)))
+              ->Set(env->context(),
+                    env->hash_algorithm_string(),
+                    OneByteString(env->isolate(), params.digest))
               .IsNothing()) {
-        return Nothing<bool>();
-      }
-
-      if (params->maskGenAlgorithm != nullptr) {
-        const ASN1_OBJECT* mgf_obj;
-        X509_ALGOR_get0(&mgf_obj, nullptr, nullptr, params->maskGenAlgorithm);
-        mgf_nid = OBJ_obj2nid(mgf_obj);
-        if (mgf_nid == NID_mgf1) {
-          const ASN1_OBJECT* mgf1_hash_obj;
-          X509_ALGOR_get0(&mgf1_hash_obj, nullptr, nullptr, params->maskHash);
-          mgf1_hash_nid = OBJ_obj2nid(mgf1_hash_obj);
-        }
+        return Nothing<void>();
       }
 
       // If, for some reason, the MGF is not MGF1, then the MGF1 hash function
       // is intentionally not added to the object.
-      if (mgf_nid == NID_mgf1) {
+      if (params.mgf1_digest.has_value()) {
+        auto digest = params.mgf1_digest.value();
         if (target
-                ->Set(
-                    env->context(),
-                    env->mgf1_hash_algorithm_string(),
-                    OneByteString(env->isolate(), OBJ_nid2ln(mgf1_hash_nid)))
+                ->Set(env->context(),
+                      env->mgf1_hash_algorithm_string(),
+                      OneByteString(env->isolate(), digest))
                 .IsNothing()) {
-          return Nothing<bool>();
-        }
-      }
-
-      if (params->saltLength != nullptr) {
-        if (ASN1_INTEGER_get_int64(&salt_length, params->saltLength) != 1) {
-          ThrowCryptoError(env, ERR_get_error(), "ASN1_INTEGER_get_in64 error");
-          return Nothing<bool>();
+          return Nothing<void>();
         }
       }
 
       if (target
-              ->Set(
-                  env->context(),
-                  env->salt_length_string(),
-                  Number::New(env->isolate(), static_cast<double>(salt_length)))
+              ->Set(env->context(),
+                    env->salt_length_string(),
+                    Integer::New(env->isolate(), params.salt_length))
               .IsNothing()) {
-        return Nothing<bool>();
+        return Nothing<void>();
       }
     }
   }
 
-  return Just<bool>(true);
+  return JustVoid();
 }
 
 namespace RSAAlg {

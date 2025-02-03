@@ -130,7 +130,7 @@ if (this.Worker) {
     var i32a = new Int32Array(sab);
 
     var workerScript =
-      `onmessage = function(msg) {
+      `onmessage = function({data:msg}) {
          var i32a = new Int32Array(msg.sab, msg.offset);
          var result = Atomics.wait(i32a, 0, 0, ${timeout});
          postMessage(result);
@@ -190,7 +190,7 @@ if (this.Worker) {
     //   always 0. Each worker is waiting on this index.
 
     function workerCode() {
-      onmessage = function(msg) {
+      onmessage = function({data:msg}) {
         var id = msg.id;
         var i32a = new Int32Array(msg.sab);
 

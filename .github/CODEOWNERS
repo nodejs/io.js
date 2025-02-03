@@ -15,7 +15,7 @@
 /.github/ISSUE_TEMPLATE/* @nodejs/tsc
 /CODE_OF_CONDUCT.md @nodejs/tsc
 /CONTRIBUTING.md @nodejs/tsc
-/doc/contributing/*.md @nodejs/tsc
+/doc/contributing/**/* @nodejs/tsc
 /GOVERNANCE.md @nodejs/tsc
 /SECURITY.md @nodejs/tsc
 /LICENSE @nodejs/tsc
@@ -35,7 +35,6 @@
 
 # net
 
-/deps/ada @nodejs/url
 /deps/cares @nodejs/net
 /doc/api/dgram.md @nodejs/net
 /doc/api/dns.md @nodejs/net
@@ -47,14 +46,11 @@
 /lib/internal/js_stream_socket.js @nodejs/net
 /lib/internal/net.js @nodejs/net
 /lib/internal/socket_list.js @nodejs/net
-/lib/internal/url.js @nodejs/url
 /lib/net.js @nodejs/net
-/lib/url.js @nodejs/url
 /src/cares_wrap.cc @nodejs/net
 /src/connect_wrap.* @nodejs/net
 /src/connection_wrap.* @nodejs/net
 /src/node_sockaddr* @nodejs/net
-/src/node_url.* @nodejs/url
 /src/tcp_wrap.* @nodejs/net
 /src/udp_wrap.* @nodejs/net
 
@@ -68,6 +64,7 @@
 /lib/tls.js @nodejs/crypto @nodejs/net
 /src/crypto/* @nodejs/crypto
 /src/node_crypto* @nodejs/crypto
+/deps/ncrypto/* @nodejs/crypto
 
 # http
 
@@ -142,6 +139,7 @@
 # Actions
 
 /.github/workflows/* @nodejs/actions
+/.github/workflows/create-release-proposal.yml @nodejs/releasers
 /tools/actions/* @nodejs/actions
 
 # Test runner
@@ -167,6 +165,10 @@
 /doc/api/permissions.md @nodejs/security-wg
 /lib/internal/process/permission.js @nodejs/security-wg
 /src/permission/* @nodejs/security-wg
+/test/parallel/test-permission-* @nodejs/security-wg
+
+# Security Release
+/doc/contributing/security-release-process.md @nodejs/security-stewards
 
 # Dependency Update Tools
 
@@ -181,3 +183,20 @@
 /lib/internal/navigator.js @nodejs/web-standards
 /test/fixtures/wpt/ @nodejs/web-standards
 /test/wpt/ @nodejs/web-standards
+
+# TypeScript
+
+/deps/amaro/ @nodejs/typescript
+/doc/api/typescript.md @nodejs/typescript
+/test/fixtures/typescript/ @nodejs/typescript
+/tools/dep_updaters/update-amaro.sh @nodejs/typescript
+
+# Performance
+/benchmark/* @nodejs/performance
+
+# URL
+/deps/ada @nodejs/url
+/lib/internal/url.js @nodejs/url
+/lib/url.js @nodejs/url
+/src/node_url.* @nodejs/url
+/test/fixtures/wpt/url @nodejs/url

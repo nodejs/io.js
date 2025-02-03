@@ -1,4 +1,4 @@
-.TH "NPMRC" "5" "April 2024" "" ""
+.TH "NPMRC" "5" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBnpmrc\fR - The npm config files
 .SS "Description"
@@ -27,7 +27,7 @@ All npm config files are an ini-formatted list of \fBkey = value\fR parameters. 
 .P
 .RS 2
 .nf
-prefix = ${HOME}/.npm-packages
+cache = ${HOME}/.npm-packages
 .fi
 .RE
 .P
@@ -89,7 +89,7 @@ The full list is:
 .IP \(bu 4
 \fBemail\fR
 .IP \(bu 4
-\fBcertfile\fR (path to certificate file)
+\fBcafile\fR (path to certificate authority file)
 .IP \(bu 4
 \fBkeyfile\fR (path to key file)
 .RE 0
@@ -106,10 +106,13 @@ _authToken=MYTOKEN
 @myorg:registry=https://somewhere-else.com/myorg
 @another:registry=https://somewhere-else.com/another
 //registry.npmjs.org/:_authToken=MYTOKEN
+
 ; would apply to both @myorg and @another
-; //somewhere-else.com/:_authToken=MYTOKEN
+//somewhere-else.com/:_authToken=MYTOKEN
+
 ; would apply only to @myorg
 //somewhere-else.com/myorg/:_authToken=MYTOKEN1
+
 ; would apply only to @another
 //somewhere-else.com/another/:_authToken=MYTOKEN2
 .fi

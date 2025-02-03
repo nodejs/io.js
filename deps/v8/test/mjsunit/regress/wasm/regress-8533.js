@@ -43,7 +43,7 @@ const sync_address = 12;
   let memory = new WebAssembly.Memory({initial: 1, maximum: 1, shared: true});
 
   let workerScript = `
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       try {
         let worker_instance = new WebAssembly.Instance(msg.module,
             {m: {imported_mem: msg.memory,

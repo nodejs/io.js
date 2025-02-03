@@ -15,6 +15,8 @@ namespace v8 {
 namespace internal {
 namespace interpreter {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class IntrinsicsGenerator {
  public:
   explicit IntrinsicsGenerator(InterpreterAssembler* assembler)
@@ -195,18 +197,11 @@ TNode<Object> IntrinsicsGenerator::GetImportMetaObject(
   return __ GetImportMetaObject(context);
 }
 
-TNode<Object> IntrinsicsGenerator::AsyncFunctionAwaitCaught(
+TNode<Object> IntrinsicsGenerator::AsyncFunctionAwait(
     const InterpreterAssembler::RegListNodePair& args, TNode<Context> context,
     int arg_count) {
-  return IntrinsicAsBuiltinCall(args, context,
-                                Builtin::kAsyncFunctionAwaitCaught, arg_count);
-}
-
-TNode<Object> IntrinsicsGenerator::AsyncFunctionAwaitUncaught(
-    const InterpreterAssembler::RegListNodePair& args, TNode<Context> context,
-    int arg_count) {
-  return IntrinsicAsBuiltinCall(
-      args, context, Builtin::kAsyncFunctionAwaitUncaught, arg_count);
+  return IntrinsicAsBuiltinCall(args, context, Builtin::kAsyncFunctionAwait,
+                                arg_count);
 }
 
 TNode<Object> IntrinsicsGenerator::AsyncFunctionEnter(
@@ -230,18 +225,11 @@ TNode<Object> IntrinsicsGenerator::AsyncFunctionResolve(
                                 arg_count);
 }
 
-TNode<Object> IntrinsicsGenerator::AsyncGeneratorAwaitCaught(
+TNode<Object> IntrinsicsGenerator::AsyncGeneratorAwait(
     const InterpreterAssembler::RegListNodePair& args, TNode<Context> context,
     int arg_count) {
-  return IntrinsicAsBuiltinCall(args, context,
-                                Builtin::kAsyncGeneratorAwaitCaught, arg_count);
-}
-
-TNode<Object> IntrinsicsGenerator::AsyncGeneratorAwaitUncaught(
-    const InterpreterAssembler::RegListNodePair& args, TNode<Context> context,
-    int arg_count) {
-  return IntrinsicAsBuiltinCall(
-      args, context, Builtin::kAsyncGeneratorAwaitUncaught, arg_count);
+  return IntrinsicAsBuiltinCall(args, context, Builtin::kAsyncGeneratorAwait,
+                                arg_count);
 }
 
 TNode<Object> IntrinsicsGenerator::AsyncGeneratorReject(
@@ -276,6 +264,8 @@ void IntrinsicsGenerator::AbortIfArgCountMismatch(int expected,
 }
 
 #undef __
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace interpreter
 }  // namespace internal

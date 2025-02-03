@@ -53,17 +53,18 @@ transitioning macro CreatePromiseAnyRejectElementContext(
   return rejectContext;
 }
 
+const kPromiseAnyRejectElementClosureSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseAnyRejectElementClosureSharedFun';
+
 macro CreatePromiseAnyRejectElementFunction(
     implicit context: Context)(
     rejectElementContext: PromiseAnyRejectElementContext, index: Smi,
     nativeContext: NativeContext): JSFunction {
   dcheck(index > 0);
   dcheck(index < kPropertyArrayHashFieldMax);
-  const map = *ContextSlot(
-      nativeContext, ContextSlot::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX);
-  const rejectInfo = PromiseAnyRejectElementSharedFunConstant();
-  const reject =
-      AllocateFunctionWithMapAndContext(map, rejectInfo, rejectElementContext);
+  const reject = AllocateRootFunctionWithContext(
+      kPromiseAnyRejectElementClosureSharedFun, rejectElementContext,
+      nativeContext);
   dcheck(kPropertyArrayNoHashSentinel == 0);
   reject.properties_or_hash = index;
   return reject;

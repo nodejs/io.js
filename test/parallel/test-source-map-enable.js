@@ -242,6 +242,7 @@ function nextdir() {
 
 // Persists line lengths for in-memory representation of source file.
 {
+  const checkoutEOL = fs.readFileSync(__filename).includes('\r\n') ? '\r\n' : '\n';
   const coverageDirectory = nextdir();
   spawnSync(process.execPath, [
     require.resolve('../fixtures/source-map/istanbul-throw.js'),
@@ -250,7 +251,7 @@ function nextdir() {
     'istanbul-throw.js',
     coverageDirectory
   );
-  if (common.checkoutEOL === '\r\n') {
+  if (checkoutEOL === '\r\n') {
     assert.deepStrictEqual(sourceMap.lineLengths, [1086, 31, 185, 649, 0]);
   } else {
     assert.deepStrictEqual(sourceMap.lineLengths, [1085, 30, 184, 648, 0]);

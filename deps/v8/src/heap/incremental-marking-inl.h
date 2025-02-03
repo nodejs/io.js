@@ -17,19 +17,17 @@ namespace internal {
 
 void IncrementalMarking::TransferColor(Tagged<HeapObject> from,
                                        Tagged<HeapObject> to) {
-  if (marking_state()->IsMarked(to)) {
-    DCHECK(black_allocation());
-    return;
-  }
   DCHECK(marking_state()->IsUnmarked(to));
+  DCHECK(!black_allocation());
+
   if (marking_state()->IsMarked(from)) {
     bool success = marking_state()->TryMark(to);
     DCHECK(success);
     USE(success);
     if (!IsDescriptorArray(to) ||
         (DescriptorArrayMarkingState::Marked::decode(
-             DescriptorArray::cast(to)->raw_gc_state(kRelaxedLoad)) != 0)) {
-      MemoryChunk::FromHeapObject(to)->IncrementLiveBytesAtomically(
+             Cast<DescriptorArray>(to)->raw_gc_state(kRelaxedLoad)) != 0)) {
+      MutablePageMetadata::FromHeapObject(to)->IncrementLiveBytesAtomically(
           ALIGN_TO_ALLOCATION_ALIGNMENT(to->Size()));
     }
   }

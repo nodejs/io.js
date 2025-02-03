@@ -459,7 +459,7 @@ CollationIterator::getCE32FromPrefix(const CollationData *d, uint32_t ce32,
         ++lookBehind;
         UStringTrieResult match = prefixes.nextForCodePoint(c);
         if(USTRINGTRIE_HAS_VALUE(match)) {
-            ce32 = (uint32_t)prefixes.getValue();
+            ce32 = static_cast<uint32_t>(prefixes.getValue());
         }
         if(!USTRINGTRIE_HAS_NEXT(match)) { break; }
     }
@@ -506,7 +506,7 @@ CollationIterator::nextCE32FromContraction(const CollationData *d, uint32_t cont
     for(;;) {
         UChar32 nextCp;
         if(USTRINGTRIE_HAS_VALUE(match)) {
-            ce32 = (uint32_t)suffixes.getValue();
+            ce32 = static_cast<uint32_t>(suffixes.getValue());
             if(!USTRINGTRIE_HAS_NEXT(match) || (c = nextSkippedCodePoint(errorCode)) < 0) {
                 return ce32;
             }
@@ -586,7 +586,7 @@ CollationIterator::nextCE32FromDiscontiguousContraction(
         return ce32;
     }
     ++lookAhead;
-    uint8_t prevCC = (uint8_t)fcd16;
+    uint8_t prevCC = static_cast<uint8_t>(fcd16);
     fcd16 = d->getFCD16(nextCp);
     if(fcd16 <= 0xff) {
         // The next code point after c is a starter (S2.1.1 "process each non-starter").
@@ -632,7 +632,7 @@ CollationIterator::nextCE32FromDiscontiguousContraction(
         if(prevCC < (fcd16 >> 8) && USTRINGTRIE_HAS_VALUE(match = suffixes.nextForCodePoint(c))) {
             // "If there is a match, replace S by S + C, and remove C." (S2.1.3)
             // Keep prevCC unchanged.
-            ce32 = (uint32_t)suffixes.getValue();
+            ce32 = static_cast<uint32_t>(suffixes.getValue());
             sinceMatch = 0;
             skipped->recordMatch();
             if(!USTRINGTRIE_HAS_NEXT(match)) { break; }
@@ -641,7 +641,7 @@ CollationIterator::nextCE32FromDiscontiguousContraction(
             // No match for "S + C", skip C.
             skipped->skip(c);
             skipped->resetToTrieState(suffixes);
-            prevCC = (uint8_t)fcd16;
+            prevCC = static_cast<uint8_t>(fcd16);
         }
         if((c = nextSkippedCodePoint(errorCode)) < 0) { break; }
         ++sinceMatch;

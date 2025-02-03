@@ -297,8 +297,8 @@ static const SharedNumberFormat *createSharedNumberFormat(
 }
 
 static const SharedNumberFormat **allocSharedNumberFormatters() {
-    const SharedNumberFormat **result = (const SharedNumberFormat**)
-            uprv_malloc(UDAT_FIELD_COUNT * sizeof(const SharedNumberFormat*));
+    const SharedNumberFormat** result = static_cast<const SharedNumberFormat**>(
+            uprv_malloc(UDAT_FIELD_COUNT * sizeof(const SharedNumberFormat*)));
     if (result == nullptr) {
         return nullptr;
     }
@@ -346,7 +346,7 @@ SimpleDateFormat::SimpleDateFormat(UErrorCode& status)
   :   fLocale(Locale::getDefault())
 {
     initializeBooleanAttributes();
-    construct(kShort, (EStyle) (kShort + kDateOffset), fLocale, status);
+    construct(kShort, static_cast<EStyle>(kShort + kDateOffset), fLocale, status);
     initializeDefaultCentury();
 }
 
@@ -772,7 +772,7 @@ void SimpleDateFormat::construct(EStyle timeStyle,
         UnicodeString tempus1(timePattern);
         if (tempus1.length() == 0) {
             currentBundle.adoptInstead(
-                    ures_getByIndex(dateTimePatterns.getAlias(), (int32_t)timeStyle, nullptr, &status));
+                    ures_getByIndex(dateTimePatterns.getAlias(), static_cast<int32_t>(timeStyle), nullptr, &status));
             if (U_FAILURE(status)) {
                status = U_INVALID_FORMAT_ERROR;
                return;
@@ -798,7 +798,7 @@ void SimpleDateFormat::construct(EStyle timeStyle,
         }
 
         currentBundle.adoptInstead(
-                ures_getByIndex(dateTimePatterns.getAlias(), (int32_t)dateStyle, nullptr, &status));
+                ures_getByIndex(dateTimePatterns.getAlias(), static_cast<int32_t>(dateStyle), nullptr, &status));
         if (U_FAILURE(status)) {
            status = U_INVALID_FORMAT_ERROR;
            return;
@@ -848,7 +848,7 @@ void SimpleDateFormat::construct(EStyle timeStyle,
             int32_t patternsSize = ures_getSize(dateTimePatterns.getAlias());
             if (patternsSize >= (kDateTimeOffset + kShort + 1)) {
                 // Get proper date time format
-                glueIndex = (int32_t)(kDateTimeOffset + (dateStyle - kDateOffset));
+                glueIndex = static_cast<int32_t>(kDateTimeOffset + (dateStyle - kDateOffset));
             }
 
             resStr = ures_getStringByIndex(dateTimePatterns.getAlias(), glueIndex, &resStrLen, &status);
@@ -863,7 +863,7 @@ void SimpleDateFormat::construct(EStyle timeStyle,
         fPattern.setTo(timePattern);
         if (fPattern.length() == 0) {
             currentBundle.adoptInstead(
-                    ures_getByIndex(dateTimePatterns.getAlias(), (int32_t)timeStyle, nullptr, &status));
+                    ures_getByIndex(dateTimePatterns.getAlias(), static_cast<int32_t>(timeStyle), nullptr, &status));
             if (U_FAILURE(status)) {
                status = U_INVALID_FORMAT_ERROR;
                return;
@@ -889,7 +889,7 @@ void SimpleDateFormat::construct(EStyle timeStyle,
     }
     else if (dateStyle != kNone) {
         currentBundle.adoptInstead(
-                ures_getByIndex(dateTimePatterns.getAlias(), (int32_t)dateStyle, nullptr, &status));
+                ures_getByIndex(dateTimePatterns.getAlias(), static_cast<int32_t>(dateStyle), nullptr, &status));
         if (U_FAILURE(status)) {
            status = U_INVALID_FORMAT_ERROR;
            return;
@@ -1088,7 +1088,7 @@ SimpleDateFormat::_format(Calendar& cal, UnicodeString& appendTo,
             // Consecutive single quotes are a single quote literal,
             // either outside of quotes or between quotes
             if ((i+1) < patternLength && fPattern[i+1] == QUOTE) {
-                appendTo += (char16_t)QUOTE;
+                appendTo += QUOTE;
                 ++i;
             } else {
                 inQuote = ! inQuote;
@@ -1365,7 +1365,7 @@ SimpleDateFormat::processOverrideString(const Locale &locale, const UnicodeStrin
     NSOverride *overrideList = nullptr;
 
     while (moreToProcess) {
-        int32_t delimiterPosition = str.indexOf((char16_t)ULOC_KEYWORD_ITEM_SEPARATOR_UNICODE,start);
+        int32_t delimiterPosition = str.indexOf(static_cast<char16_t>(ULOC_KEYWORD_ITEM_SEPARATOR_UNICODE), start);
         if (delimiterPosition == -1) {
             moreToProcess = false;
             len = str.length() - start;
@@ -1373,7 +1373,7 @@ SimpleDateFormat::processOverrideString(const Locale &locale, const UnicodeStrin
             len = delimiterPosition - start;
         }
         UnicodeString currentString(str,start,len);
-        int32_t equalSignPosition = currentString.indexOf((char16_t)ULOC_KEYWORD_ASSIGN_UNICODE,0);
+        int32_t equalSignPosition = currentString.indexOf(static_cast<char16_t>(ULOC_KEYWORD_ASSIGN_UNICODE), 0);
         if (equalSignPosition == -1) { // Simple override string such as "hebrew"
             nsName.setTo(currentString);
             ovrField.setToBogus();
@@ -1576,10 +1576,9 @@ SimpleDateFormat::subFormat(UnicodeString &appendTo,
     case UDAT_MONTH_FIELD:
     case UDAT_STANDALONE_MONTH_FIELD:
         if (uprv_strcmp(cal.getType(),"hebrew") == 0) {
-           HebrewCalendar *hc = (HebrewCalendar*)&cal;
-           if (hc->isLeapYear(hc->get(UCAL_YEAR,status)) && value == 6 && count >= 3 )
+           if (HebrewCalendar::isLeapYear(cal.get(UCAL_YEAR,status)) && value == 6 && count >= 3 )
                value = 13; // Show alternate form for Adar II in leap years in Hebrew calendar.
-           if (!hc->isLeapYear(hc->get(UCAL_YEAR,status)) && value >= 6 && count < 3 )
+           if (!HebrewCalendar::isLeapYear(cal.get(UCAL_YEAR,status)) && value >= 6 && count < 3 )
                value--; // Adjust the month number down 1 in Hebrew non-leap years, i.e. Adar is 6, not 7.
         }
         {
@@ -1992,7 +1991,7 @@ SimpleDateFormat::subFormat(UnicodeString &appendTo,
         if (periodType != DayPeriodRules::DAYPERIOD_AM &&
                 periodType != DayPeriodRules::DAYPERIOD_PM &&
                 periodType != DayPeriodRules::DAYPERIOD_MIDNIGHT) {
-            index = (int32_t)periodType;
+            index = static_cast<int32_t>(periodType);
             if (count <= 3) {
                 toAppend = &fSymbols->fAbbreviatedDayPeriods[index];  // i.e. short
             } else if (count == 4 || count > 5) {
@@ -2010,7 +2009,7 @@ SimpleDateFormat::subFormat(UnicodeString &appendTo,
                 (periodType == DayPeriodRules::DAYPERIOD_MIDNIGHT ||
                  periodType == DayPeriodRules::DAYPERIOD_NOON)) {
             periodType = ruleSet->getDayPeriodForHour(hour);
-            index = (int32_t)periodType;
+            index = static_cast<int32_t>(periodType);
 
             if (count <= 3) {
                 toAppend = &fSymbols->fAbbreviatedDayPeriods[index];  // i.e. short
@@ -2420,7 +2419,7 @@ SimpleDateFormat::parse(const UnicodeString& text, Calendar& cal, ParsePosition&
 
     // If dayPeriod is set, use it in conjunction with hour-of-day to determine am/pm.
     if (dayPeriodInt >= 0) {
-        DayPeriodRules::DayPeriod dayPeriod = (DayPeriodRules::DayPeriod)dayPeriodInt;
+        DayPeriodRules::DayPeriod dayPeriod = static_cast<DayPeriodRules::DayPeriod>(dayPeriodInt);
         const DayPeriodRules *ruleSet = DayPeriodRules::getInstance(this->getSmpFmtLocale(), status);
 
         if (!cal.isSet(UCAL_HOUR) && !cal.isSet(UCAL_HOUR_OF_DAY)) {
@@ -2432,7 +2431,7 @@ SimpleDateFormat::parse(const UnicodeString& text, Calendar& cal, ParsePosition&
             if (U_SUCCESS(status)) {
                 // Truncate midPoint toward zero to get the hour.
                 // Any leftover means it was a half-hour.
-                int32_t midPointHour = (int32_t) midPoint;
+                int32_t midPointHour = static_cast<int32_t>(midPoint);
                 int32_t midPointMinute = (midPoint - midPointHour) > 0 ? 30 : 0;
 
                 // No need to set am/pm because hour-of-day is set last therefore takes precedence.
@@ -3051,7 +3050,7 @@ int32_t SimpleDateFormat::subParse(const UnicodeString& text, int32_t& start, ch
     UnicodeString hebr("hebr", 4, US_INV);
 
     if (numericLeapMonthFormatter != nullptr) {
-        numericLeapMonthFormatter->setFormats((const Format **)&currentNumberFormat, 1);
+        numericLeapMonthFormatter->setFormats(reinterpret_cast<const Format**>(&currentNumberFormat), 1);
     }
     UBool isChineseCalendar = (uprv_strcmp(cal.getType(),"chinese") == 0 || uprv_strcmp(cal.getType(),"dangi") == 0);
 
@@ -4362,7 +4361,7 @@ SimpleDateFormat::compareSimpleAffix(const UnicodeString& affix,
 int32_t
 SimpleDateFormat::skipPatternWhiteSpace(const UnicodeString& text, int32_t pos) const {
     const char16_t* s = text.getBuffer();
-    return (int32_t)(PatternProps::skipWhiteSpace(s + pos, text.length() - pos) - s);
+    return static_cast<int32_t>(PatternProps::skipWhiteSpace(s + pos, text.length() - pos) - s);
 }
 
 //----------------------------------------------------------------------

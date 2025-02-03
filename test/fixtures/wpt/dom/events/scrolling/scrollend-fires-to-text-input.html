@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="/resources/testharness.js"></script>
+    <script src="/resources/testharnessreport.js"></script>
+  </head>
+  <body>
+    <style>
+      #inputscroller {
+        width: 100px;
+        height: 50px;
+      }
+    </style>
+    <input type="text" id="inputscroller"
+    value="qwertyuiopasddfghjklzxcvbnmqwertyuiopasddfghjklzxcvbnmqwer">
+    <script>
+      promise_test(async() => {
+        const inputscroller = document.getElementById("inputscroller");
+        assert_equals(inputscroller.scrollLeft, 0,
+          "text input field is not initially scrolled.");
+
+        const scrollend_promise = new Promise((resolve) => {
+          inputscroller.addEventListener("scrollend", resolve);
+        });
+        inputscroller.scrollLeft = 10;
+        await scrollend_promise;
+        assert_equals(inputscroller.scrollLeft, 10,
+          "text input field is scrolled by the correct amount");
+      }, "scrolled input field should receive scrollend.");
+    </script>
+  </body>
+</html>

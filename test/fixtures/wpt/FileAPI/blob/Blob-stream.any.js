@@ -70,7 +70,18 @@ promise_test(async() => {
   await garbageCollect();
   const chunks = await read_all_chunks(stream, { perform_gc: true });
   assert_array_equals(chunks, input_arr);
-}, "Blob.stream() garbage collection of blob shouldn't break stream" +
+}, "Blob.stream() garbage collection of blob shouldn't break stream " +
+      "consumption")
+
+promise_test(async() => {
+  const input_arr = [8, 241, 48, 123, 151];
+  const typed_arr = new Uint8Array(input_arr);
+  let blob = new Blob([typed_arr]);
+  const chunksPromise = read_all_chunks(blob.stream());
+  // It somehow matters to do GC here instead of doing `perform_gc: true`
+  await garbageCollect();
+  assert_array_equals(await chunksPromise, input_arr);
+}, "Blob.stream() garbage collection of stream shouldn't break stream " +
       "consumption")
 
 promise_test(async () => {

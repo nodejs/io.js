@@ -27,7 +27,7 @@
 
 #include "ares_setup.h"
 
-#if !defined(WIN32) || defined(WATT32)
+#if !defined(_WIN32) || defined(WATT32)
 #  include <netinet/in.h>
 #  include <arpa/inet.h>
 #  include <netdb.h>
@@ -42,20 +42,7 @@
 #include "ares_getopt.h"
 #include "ares_ipv6.h"
 
-#ifndef HAVE_STRDUP
-#  include "ares_str.h"
-#  define strdup(ptr) ares_strdup(ptr)
-#endif
-
-#ifndef HAVE_STRCASECMP
-#  include "ares_strcasecmp.h"
-#  define strcasecmp(p1, p2) ares_strcasecmp(p1, p2)
-#endif
-
-#ifndef HAVE_STRNCASECMP
-#  include "ares_strcasecmp.h"
-#  define strncasecmp(p1, p2, n) ares_strncasecmp(p1, p2, n)
-#endif
+#include "ares_str.h"
 
 static void callback(void *arg, int status, int timeouts, struct hostent *host);
 static void ai_callback(void *arg, int status, int timeouts,
@@ -95,7 +82,7 @@ int         main(int argc, char **argv)
     return 1;
   }
 
-  ares_getopt_init(&state, argc, (const char **)argv);
+  ares_getopt_init(&state, argc, (const char * const *)argv);
   while ((c = ares_getopt(&state, "dt:h?D:s:")) != -1) {
     switch (c) {
       case 'd':
@@ -111,11 +98,11 @@ int         main(int argc, char **argv)
         options.domains[options.ndomains - 1] = strdup(state.optarg);
         break;
       case 't':
-        if (!strcasecmp(state.optarg, "a")) {
+        if (ares_strcaseeq(state.optarg, "a")) {
           addr_family = AF_INET;
-        } else if (!strcasecmp(state.optarg, "aaaa")) {
+        } else if (ares_strcaseeq(state.optarg, "aaaa")) {
           addr_family = AF_INET6;
-        } else if (!strcasecmp(state.optarg, "u")) {
+        } else if (ares_strcaseeq(state.optarg, "u")) {
           addr_family = AF_UNSPEC;
         } else {
           usage();
@@ -276,18 +263,22 @@ static void usage(void)
 /* Information from the man page. Formatting taken from man -h */
 static void print_help_info_ahost(void)
 {
+  /* Split due to maximum c89 string literal of 509 bytes */
   printf("ahost, version %s\n\n", ARES_VERSION_STR);
   printf(
     "usage: ahost [-h] [-d] [-D domain] [-s server] [-t a|aaaa|u] host|addr "
-    "...\n\n"
+    "...\n\n");
+  printf(
     "  -h : Display this help and exit.\n"
     "  -d : Print some extra debugging output.\n\n"
     "  -D domain : Specify the domain to search instead of using the default "
-    "values\n"
+    "values\n");
+  printf(
     "  -s server : Connect to the specified DNS server, instead of the\n"
     "              system's default one(s). Servers are tried in round-robin,\n"
     "              if the previous one failed.\n"
-    "  -t type   : If type is \"a\", print the A record.\n"
+    "  -t type   : If type is \"a\", print the A record.\n");
+  printf(
     "              If type is \"aaaa\", print the AAAA record.\n"
     "              If type is \"u\" (default), print both A and AAAA records.\n"
     "\n");

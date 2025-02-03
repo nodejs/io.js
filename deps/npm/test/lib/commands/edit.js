@@ -1,5 +1,5 @@
 const t = require('tap')
-const path = require('path')
+const path = require('node:path')
 const tspawk = require('../../fixtures/tspawk')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm')
 

@@ -1,11 +1,9 @@
-const Fetcher = require('./fetcher.js')
-const fsm = require('fs-minipass')
+const { resolve } = require('node:path')
+const { stat, chmod } = require('node:fs/promises')
 const cacache = require('cacache')
-const _tarballFromResolved = Symbol.for('pacote.Fetcher._tarballFromResolved')
-const _exeBins = Symbol('_exeBins')
-const { resolve } = require('path')
-const fs = require('fs')
-const _readPackageJson = Symbol.for('package.Fetcher._readPackageJson')
+const fsm = require('fs-minipass')
+const Fetcher = require('./fetcher.js')
+const _ = require('./util/protected.js')
 
 class FileFetcher extends Fetcher {
   constructor (spec, opts) {
@@ -26,7 +24,7 @@ class FileFetcher extends Fetcher {
     // have to unpack the tarball for this.
     return cacache.tmp.withTmp(this.cache, this.opts, dir =>
       this.extract(dir)
-        .then(() => this[_readPackageJson](dir + '/package.json'))
+        .then(() => this[_.readPackageJson](dir))
         .then(mani => this.package = {
           ...mani,
           _integrity: this.integrity && String(this.integrity),
@@ -35,28 +33,28 @@ class FileFetcher extends Fetcher {
         }))
   }
 
-  [_exeBins] (pkg, dest) {
+  #exeBins (pkg, dest) {
     if (!pkg.bin) {
       return Promise.resolve()
     }
 
-    return Promise.all(Object.keys(pkg.bin).map(k => new Promise(res => {
+    return Promise.all(Object.keys(pkg.bin).map(async k => {
       const script = resolve(dest, pkg.bin[k])
       // Best effort.  Ignore errors here, the only result is that
       // a bin script is not executable.  But if it's missing or
       // something, we just leave it for a later stage to trip over
       // when we can provide a more useful contextual error.
-      fs.stat(script, (er, st) => {
-        if (er) {
-          return res()
-        }
+      try {
+        const st = await stat(script)
         const mode = st.mode | 0o111
         if (mode === st.mode) {
-          return res()
+          return
         }
-        fs.chmod(script, mode, res)
-      })
-    })))
+        await chmod(script, mode)
+      } catch {
+        // Ignore errors here
+      }
+    }))
   }
 
   extract (dest) {
@@ -64,11 +62,11 @@ class FileFetcher extends Fetcher {
     // but if not, read the unpacked manifest and chmod properly.
     return super.extract(dest)
       .then(result => this.package ? result
-      : this[_readPackageJson](dest + '/package.json').then(pkg =>
-        this[_exeBins](pkg, dest)).then(() => result))
+      : this[_.readPackageJson](dest).then(pkg =>
+        this.#exeBins(pkg, dest)).then(() => result))
   }
 
-  [_tarballFromResolved] () {
+  [_.tarballFromResolved] () {
     // create a read stream and return it
     return new fsm.ReadStream(this.resolved)
   }

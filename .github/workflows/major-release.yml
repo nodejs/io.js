@@ -1,0 +1,48 @@
+name: Major Release
+
+on:
+  schedule:
+    - cron: 0 0 15 2,8 *  # runs at midnight UTC every 15 February and 15 August
+
+permissions:
+  contents: read
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Check for release schedule
+        id: check-date
+        run: |
+          # Get the current month and day
+          MONTH=$(date +'%m')
+          DAY=$(date +'%d')
+          # We'll create the reminder issue two months prior the release
+          if [[ "$MONTH" == "02" || "$MONTH" == "08" ]] && [[ "$DAY" == "15" ]]; then
+            echo "create_issue=true" >> "$GITHUB_ENV"
+          fi
+      - name: Retrieve next major release info from nodejs/Release
+        if: env.create_issue == 'true'
+        run: |
+          curl -L https://github.com/nodejs/Release/raw/HEAD/schedule.json | \
+          jq -r 'to_entries | map(select(.value.start | strptime("%Y-%m-%d") | mktime > now)) | first | "VERSION=" + .key + "\nRELEASE_DATE=" + .value.start' >> "$GITHUB_ENV"
+      - name: Compute max date for landing semver-major PRs
+        if: env.create_issue == 'true'
+        run: |
+          echo "PR_MAX_DATE=$(date -d "$RELEASE_DATE -1 month" +%Y-%m-%d)" >> "$GITHUB_ENV"
+      - name: Create release announcement issue
+        if: env.create_issue == 'true'
+        run: |
+         gh issue create --repo "${GITHUB_REPOSITORY}" \
+           --title "Upcoming Node.js Major Release ($VERSION)" \
+           --body-file -<<EOF
+            A reminder that the next Node.js **SemVer Major release** is scheduled for **${RELEASE_DATE}**.
+            All commits that were landed until **${PR_MAX_DATE}** (one month prior to the release) will be included in the next semver major release. Please ensure that any necessary preparations are made in advance.
+            For more details on the release process, consult the [Node.js Release Working Group repository](https://github.com/nodejs/release).
+
+            cc: @nodejs/collaborators
+         EOF
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.signatureContent = exports.toSignedEntity = void 0;
+exports.toSignedEntity = toSignedEntity;
+exports.signatureContent = signatureContent;
 const core_1 = require("@sigstore/core");
 const dsse_1 = require("./dsse");
 const message_1 = require("./message");
@@ -26,7 +27,6 @@ function toSignedEntity(bundle, artifact) {
         timestamps,
     };
 }
-exports.toSignedEntity = toSignedEntity;
 function signatureContent(bundle, artifact) {
     switch (bundle.content.$case) {
         case 'dsseEnvelope':
@@ -35,7 +35,6 @@ function signatureContent(bundle, artifact) {
             return new message_1.MessageSignatureContent(bundle.content.messageSignature, artifact);
     }
 }
-exports.signatureContent = signatureContent;
 function key(bundle) {
     switch (bundle.verificationMaterial.content.$case) {
         case 'publicKey':

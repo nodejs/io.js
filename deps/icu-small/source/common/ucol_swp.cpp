@@ -108,11 +108,11 @@ swapFormatVersion3(const UDataSwapper *ds,
         return 0;
     }
 
-    inBytes=(const uint8_t *)inData;
-    outBytes=(uint8_t *)outData;
+    inBytes = static_cast<const uint8_t*>(inData);
+    outBytes = static_cast<uint8_t*>(outData);
 
-    inHeader=(const UCATableHeader *)inData;
-    outHeader=(UCATableHeader *)outData;
+    inHeader = static_cast<const UCATableHeader*>(inData);
+    outHeader = static_cast<UCATableHeader*>(outData);
 
     /*
      * The collation binary must contain at least the UCATableHeader,
@@ -175,7 +175,7 @@ swapFormatVersion3(const UDataSwapper *ds,
         header.leadByteToScript=        ds->readUInt32(inHeader->leadByteToScript);
         
         /* swap the 32-bit integers in the header */
-        ds->swapArray32(ds, inHeader, (int32_t)((const char *)&inHeader->jamoSpecial-(const char *)inHeader),
+        ds->swapArray32(ds, inHeader, static_cast<int32_t>(reinterpret_cast<const char*>(&inHeader->jamoSpecial) - reinterpret_cast<const char*>(inHeader)),
                            outHeader, pErrorCode);
         ds->swapArray32(ds, &(inHeader->scriptToLeadByte), sizeof(header.scriptToLeadByte) + sizeof(header.leadByteToScript),
                            &(outHeader->scriptToLeadByte), pErrorCode);
@@ -198,7 +198,7 @@ swapFormatVersion3(const UDataSwapper *ds,
                 /* no contractions: expansions bounded by the main trie */
                 count=header.mappingPosition-header.expansion;
             }
-            ds->swapArray32(ds, inBytes+header.expansion, (int32_t)count,
+            ds->swapArray32(ds, inBytes + header.expansion, static_cast<int32_t>(count),
                                outBytes+header.expansion, pErrorCode);
         }
 
@@ -216,7 +216,7 @@ swapFormatVersion3(const UDataSwapper *ds,
         /* swap the main trie */
         if(header.mappingPosition!=0) {
             count=header.endExpansionCE-header.mappingPosition;
-            utrie_swap(ds, inBytes+header.mappingPosition, (int32_t)count,
+            utrie_swap(ds, inBytes + header.mappingPosition, static_cast<int32_t>(count),
                           outBytes+header.mappingPosition, pErrorCode);
         }
 
@@ -241,7 +241,7 @@ swapFormatVersion3(const UDataSwapper *ds,
         /* swap UCA contractions */
         if(header.contractionUCACombosSize!=0) {
             count=header.contractionUCACombosSize*inHeader->contractionUCACombosWidth*U_SIZEOF_UCHAR;
-            ds->swapArray16(ds, inBytes+header.contractionUCACombos, (int32_t)count,
+            ds->swapArray16(ds, inBytes + header.contractionUCACombos, static_cast<int32_t>(count),
                                outBytes+header.contractionUCACombos, pErrorCode);
         }
         
@@ -306,10 +306,10 @@ swapFormatVersion4(const UDataSwapper *ds,
                    UErrorCode &errorCode) {
     if(U_FAILURE(errorCode)) { return 0; }
 
-    const uint8_t *inBytes=(const uint8_t *)inData;
-    uint8_t *outBytes=(uint8_t *)outData;
+    const uint8_t* inBytes = static_cast<const uint8_t*>(inData);
+    uint8_t* outBytes = static_cast<uint8_t*>(outData);
 
-    const int32_t *inIndexes=(const int32_t *)inBytes;
+    const int32_t* inIndexes = reinterpret_cast<const int32_t*>(inBytes);
     int32_t indexes[IX_TOTAL_SIZE+1];
 
     // Need at least IX_INDEXES_LENGTH and IX_OPTIONS.

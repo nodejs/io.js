@@ -18,10 +18,6 @@
   assertTrue(isMaglevved(f));
 })();
 
-// TODO(victorgomes): Array literal.
-
-// TODO(victorgomes): Empty object.
-
 // Calls builtin create shallow object.
 (function() {
   function f() {

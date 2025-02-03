@@ -1,8 +1,13 @@
-// Flags: --experimental-permission --allow-fs-read=* --allow-fs-write=*
+// Flags: --permission --allow-fs-read=* --allow-fs-write=*
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
+
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 const assert = require('assert');
 const path = require('path');

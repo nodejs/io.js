@@ -44,9 +44,14 @@ Pod::Spec.new do |s|
     'ALWAYS_SEARCH_USER_PATHS' => 'NO',
   }
   s.ios.deployment_target = '9.0'
-  s.osx.deployment_target = '10.10'
+  s.osx.deployment_target = '10.11'
   s.tvos.deployment_target = '9.0'
   s.watchos.deployment_target = '2.0'
+  s.subspec 'xcprivacy' do |ss|
+    ss.resource_bundles = {
+      ss.module_name => 'PrivacyInfo.xcprivacy',
+    }
+  end
 """
 
 # Rule object representing the rule of Bazel BUILD.
@@ -191,6 +196,12 @@ def write_podspec_rule(f, rule, depth):
     name = get_spec_name(dep.replace(":", "/"))
     f.write("{indent}{var}.dependency '{dep}'\n".format(
         indent=indent, var=spec_var, dep=name))
+  # Writes dependency to xcprivacy
+  f.write(
+      "{indent}{var}.dependency '{dep}'\n".format(
+          indent=indent, var=spec_var, dep="abseil/xcprivacy"
+      )
+  )
 
 
 def write_indented_list(f, leading, values):

@@ -4,6 +4,8 @@
 
 #include "src/compiler/pair-load-store-reducer.h"
 
+#include <optional>
+
 #include "src/compiler/machine-graph.h"
 
 namespace v8 {
@@ -12,7 +14,7 @@ namespace compiler {
 
 namespace {
 
-base::Optional<std::tuple<int, const Operator*>> CanBePaired(
+std::optional<std::tuple<int, const Operator*>> CanBePaired(
     Node* node1, Node* node2, MachineOperatorBuilder* machine,
     Isolate* isolate) {
   DCHECK(node1->opcode() == IrOpcode::kStore &&

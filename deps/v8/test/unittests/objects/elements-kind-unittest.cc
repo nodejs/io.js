@@ -31,8 +31,7 @@ namespace {
 template <typename T, typename M>
 bool EQUALS(Isolate* isolate, Handle<T> left, Handle<M> right) {
   if (*left == *right) return true;
-  return Object::Equals(isolate, Handle<Object>::cast(left),
-                        Handle<Object>::cast(right))
+  return Object::Equals(isolate, Cast<Object>(left), Cast<Object>(right))
       .FromJust();
 }
 
@@ -105,7 +104,7 @@ TEST_F(ElementsKindTest, JSObjectAddingProperties) {
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
   Handle<JSObject> object = factory->NewJSObject(function);
-  Handle<Map> previous_map(object->map(), i_isolate());
+  DirectHandle<Map> previous_map(object->map(), i_isolate());
   CHECK_EQ(HOLEY_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
@@ -136,7 +135,7 @@ TEST_F(ElementsKindTest, JSObjectInObjectAddingProperties) {
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
   Handle<JSObject> object = factory->NewJSObject(function);
-  Handle<Map> previous_map(object->map(), i_isolate());
+  DirectHandle<Map> previous_map(object->map(), i_isolate());
   CHECK_EQ(HOLEY_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
@@ -178,7 +177,7 @@ TEST_F(ElementsKindTest, JSObjectAddingElements) {
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
   Handle<JSObject> object = factory->NewJSObject(function);
-  Handle<Map> previous_map(object->map(), i_isolate());
+  DirectHandle<Map> previous_map(object->map(), i_isolate());
   CHECK_EQ(HOLEY_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
@@ -228,7 +227,7 @@ TEST_F(ElementsKindTest, JSArrayAddingProperties) {
 
   Handle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
-  Handle<Map> previous_map(array->map(), i_isolate());
+  DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_SMI_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), array->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), array->elements(), empty_fixed_array));
@@ -258,7 +257,7 @@ TEST_F(ElementsKindTest, JSArrayAddingElements) {
 
   Handle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
-  Handle<Map> previous_map(array->map(), i_isolate());
+  DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_SMI_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), array->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), array->elements(), empty_fixed_array));
@@ -315,7 +314,7 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastSmiElements) {
 
   Handle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
-  Handle<Map> previous_map(array->map(), i_isolate());
+  DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_SMI_ELEMENTS, previous_map->elements_kind());
   CHECK_EQ(0, Smi::ToInt(array->length()));
 
@@ -385,7 +384,7 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingFastElements) {
 
   Handle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_ELEMENTS, 0, 0);
-  Handle<Map> previous_map(array->map(), i_isolate());
+  DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_ELEMENTS, previous_map->elements_kind());
   CHECK_EQ(0, Smi::ToInt(array->length()));
 
@@ -432,7 +431,7 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastDoubleElements) {
 
   Handle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
-  Handle<Map> previous_map(array->map(), i_isolate());
+  DirectHandle<Map> previous_map(array->map(), i_isolate());
 
   // `array[0] = value_double` changes |elements_kind| to PACKED_DOUBLE_ELEMENTS
   name = MakeString("0");

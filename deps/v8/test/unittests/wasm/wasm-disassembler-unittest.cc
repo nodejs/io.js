@@ -24,7 +24,7 @@ void CheckDisassemblerOutput(base::Vector<const uint8_t> module_bytes,
                              std::string expected_output) {
   AccountingAllocator allocator;
 
-  std::unique_ptr<ITracer> offsets = AllocateOffsetsProvider();
+  std::unique_ptr<OffsetsProvider> offsets = AllocateOffsetsProvider();
   ModuleResult module_result =
       DecodeWasmModuleForDisassembler(module_bytes, offsets.get());
   ASSERT_TRUE(module_result.ok())

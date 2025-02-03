@@ -1,7 +1,7 @@
 Error: test
     at one (*fixtures*async-error.js:4:9)
     at two (*fixtures*async-error.js:17:9)
-    at process.processTicksAndRejections (node:internal*process*task_queues:95:5)
+    at process.processTicksAndRejections (node:internal*process*task_queues:105:5)
     at async three (*fixtures*async-error.js:20:3)
     at async four (*fixtures*async-error.js:24:3)
     at async main (*async_error_nexttick_main.js:7:5)

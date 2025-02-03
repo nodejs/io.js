@@ -7,6 +7,9 @@ const fs = require('fs');
 if (common.isSunOS)
   common.skip('SunOS behaves differently');
 
+if (common.isIBMi)
+  common.skip('IBMi does not support `fs.watch()`');
+
 tmpdir.refresh();
 
 fs.mkdirSync(tmpdir.resolve('./parent/child'), { recursive: true });

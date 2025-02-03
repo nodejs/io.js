@@ -12,7 +12,7 @@
   (global $global2 i32 (global.get $env.imported_global))
   (global $exported_global (;3;) (export "exported_global") i64 (i64.const 0))
   ;; Element section for table initialization.
-  (elem $elem0 (i32.const 0) funcref (ref.func $env.imported_function) (ref.func $func1) (ref.func $func1) (ref.func $func3))
+  (elem $elem0 (i32.const 0) (ref func) (ref.func $env.imported_function) (ref.func $func1) (ref.func $func1) (ref.func $func3))
   ;; Instructions on globals, locals, parameters.
   (func $func1 (param $var0 i32)
     (local $var1 i64)

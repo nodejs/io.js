@@ -10,9 +10,9 @@
 #include <atomic>
 #include <cstdarg>
 #include <memory>
+#include <optional>
 
 #include "src/base/compiler-specific.h"
-#include "src/base/optional.h"
 #include "src/base/platform/mutex.h"
 #include "src/common/assert-scope.h"
 #include "src/flags/flags.h"
@@ -62,7 +62,7 @@ class LogFile {
     ~MessageBuilder() = default;
 
     void AppendString(Tagged<String> str,
-                      base::Optional<int> length_limit = base::nullopt);
+                      std::optional<int> length_limit = std::nullopt);
     void AppendString(base::Vector<const char> str);
     void AppendString(const char* str);
     void AppendString(const char* str, size_t length, bool is_one_byte = true);

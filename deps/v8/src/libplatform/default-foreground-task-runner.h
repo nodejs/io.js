@@ -44,51 +44,54 @@ class V8_PLATFORM_EXPORT DefaultForegroundTaskRunner
   double MonotonicallyIncreasingTime();
 
   // v8::TaskRunner implementation.
-  void PostTask(std::unique_ptr<Task> task) override;
-  void PostDelayedTask(std::unique_ptr<Task> task,
-                       double delay_in_seconds) override;
-
-  void PostIdleTask(std::unique_ptr<IdleTask> task) override;
   bool IdleTasksEnabled() override;
-
-  void PostNonNestableTask(std::unique_ptr<Task> task) override;
-  void PostNonNestableDelayedTask(std::unique_ptr<Task> task,
-                                  double delay_in_seconds) override;
   bool NonNestableTasksEnabled() const override;
 
  private:
+  // v8::TaskRunner implementation.
+  void PostTaskImpl(std::unique_ptr<Task> task,
+                    const SourceLocation& location) override;
+  void PostDelayedTaskImpl(std::unique_ptr<Task> task, double delay_in_seconds,
+                           const SourceLocation& location) override;
+  void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                        const SourceLocation& location) override;
+  void PostNonNestableTaskImpl(std::unique_ptr<Task> task,
+                               const SourceLocation& location) override;
+  void PostNonNestableDelayedTaskImpl(std::unique_ptr<Task> task,
+                                      double delay_in_seconds,
+                                      const SourceLocation& location) override;
+
   enum Nestability { kNestable, kNonNestable };
 
-  void WaitForTaskLocked(const base::MutexGuard&);
+  void WaitForTaskLocked();
 
   // The same as PostTask or PostNonNestableTask, but the lock is already held
-  // by the caller. The {guard} parameter should make sure that the caller is
-  // holding the lock.
-  void PostTaskLocked(std::unique_ptr<Task> task, Nestability nestability,
-                      const base::MutexGuard&);
+  // by the caller. If the task runner is already terminated, the task is
+  // returned (such that it can be deleted later, after releasing the lock).
+  // Otherwise, nullptr is returned.
+  std::unique_ptr<Task> PostTaskLocked(std::unique_ptr<Task> task,
+                                       Nestability nestability);
 
   // The same as PostDelayedTask or PostNonNestableDelayedTask, but the lock is
-  // already held by the caller. The {guard} parameter should make sure that the
-  // caller is holding the lock.
+  // already held by the caller.
   void PostDelayedTaskLocked(std::unique_ptr<Task> task,
-                             double delay_in_seconds, Nestability nestability,
-                             const base::MutexGuard&);
+                             double delay_in_seconds, Nestability nestability);
 
-  // A caller of this function has to hold {lock_}. The {guard} parameter should
-  // make sure that the caller is holding the lock.
-  std::unique_ptr<Task> PopTaskFromDelayedQueueLocked(const base::MutexGuard&,
-                                                      Nestability* nestability);
+  // A caller of this function has to hold {mutex_}.
+  std::unique_ptr<Task> PopTaskFromDelayedQueueLocked(Nestability* nestability);
 
   // A non-nestable task is poppable only if the task runner is not nested,
   // i.e. if a task is not being run from within a task. A nestable task is
   // always poppable.
   bool HasPoppableTaskInQueue() const;
 
-  // Move delayed tasks that hit their deadline to the main queue.
-  void MoveExpiredDelayedTasks(const base::MutexGuard& guard);
+  // Move delayed tasks that hit their deadline to the main queue. Returns all
+  // tasks that expired but were not scheduled because the task runner was
+  // terminated.
+  std::vector<std::unique_ptr<Task>> MoveExpiredDelayedTasksLocked();
 
   bool terminated_ = false;
-  base::Mutex lock_;
+  base::Mutex mutex_;
   base::ConditionVariable event_loop_control_;
   int nesting_depth_ = 0;
 

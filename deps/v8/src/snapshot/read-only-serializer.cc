@@ -23,14 +23,14 @@ class ObjectPreProcessor final {
 
 #define PRE_PROCESS_TYPE_LIST(V) \
   V(AccessorInfo)                \
-  V(CallHandlerInfo)             \
+  V(FunctionTemplateInfo)        \
   V(Code)
 
   void PreProcessIfNeeded(Tagged<HeapObject> o) {
     const InstanceType itype = o->map(isolate_)->instance_type();
 #define V(TYPE)                               \
   if (InstanceTypeChecker::Is##TYPE(itype)) { \
-    return PreProcess##TYPE(TYPE::cast(o));   \
+    return PreProcess##TYPE(Cast<TYPE>(o));   \
   }
     PRE_PROCESS_TYPE_LIST(V)
 #undef V
@@ -68,15 +68,17 @@ class ObjectPreProcessor final {
     EncodeExternalPointerSlot(o->RawExternalPointerField(
         AccessorInfo::kSetterOffset, kAccessorInfoSetterTag));
   }
-  void PreProcessCallHandlerInfo(Tagged<CallHandlerInfo> o) {
+  void PreProcessFunctionTemplateInfo(Tagged<FunctionTemplateInfo> o) {
     EncodeExternalPointerSlot(
         o->RawExternalPointerField(
-            CallHandlerInfo::kMaybeRedirectedCallbackOffset,
-            kCallHandlerInfoCallbackTag),
+            FunctionTemplateInfo::kMaybeRedirectedCallbackOffset,
+            kFunctionTemplateInfoCallbackTag),
         o->callback(isolate_));  // Pass the non-redirected value.
   }
   void PreProcessCode(Tagged<Code> o) {
     o->ClearInstructionStartForSerialization(isolate_);
+    DCHECK(!o->has_source_position_table_or_bytecode_offset_table());
+    DCHECK(!o->has_deoptimization_data_or_interpreter_data());
   }
 
   Isolate* const isolate_;
@@ -84,7 +86,8 @@ class ObjectPreProcessor final {
 };
 
 struct ReadOnlySegmentForSerialization {
-  ReadOnlySegmentForSerialization(Isolate* isolate, const ReadOnlyPage* page,
+  ReadOnlySegmentForSerialization(Isolate* isolate,
+                                  const ReadOnlyPageMetadata* page,
                                   Address segment_start, size_t segment_size,
                                   ObjectPreProcessor* pre_processor)
       : page(page),
@@ -95,6 +98,9 @@ struct ReadOnlySegmentForSerialization {
         tagged_slots(segment_size / kTaggedSize) {
     // .. because tagged_slots records a bit for each slot:
     DCHECK(IsAligned(segment_size, kTaggedSize));
+    // Ensure incoming pointers to this page are representable.
+    CHECK_LT(isolate->read_only_heap()->read_only_space()->IndexOf(page),
+             1UL << ro::EncodedTagged::kPageIndexBits);
 
     MemCopy(contents.get(), reinterpret_cast<void*>(segment_start),
             segment_size);
@@ -115,13 +121,13 @@ struct ReadOnlySegmentForSerialization {
       size_t o_offset = o.ptr() - segment_start;
       Address o_dst = reinterpret_cast<Address>(contents.get()) + o_offset;
       pre_processor->PreProcessIfNeeded(
-          HeapObject::cast(Tagged<Object>(o_dst)));
+          Cast<HeapObject>(Tagged<Object>(o_dst)));
     }
   }
 
   void EncodeTaggedSlots(Isolate* isolate);
 
-  const ReadOnlyPage* const page;
+  const ReadOnlyPageMetadata* const page;
   const Address segment_start;
   const size_t segment_size;
   const size_t segment_offset;
@@ -135,19 +141,14 @@ struct ReadOnlySegmentForSerialization {
 
 ro::EncodedTagged Encode(Isolate* isolate, Tagged<HeapObject> o) {
   Address o_address = o.address();
-  BasicMemoryChunk* chunk = BasicMemoryChunk::FromAddress(o_address);
+  MemoryChunkMetadata* chunk = MemoryChunkMetadata::FromAddress(o_address);
 
-  ro::EncodedTagged encoded;
   ReadOnlySpace* ro_space = isolate->read_only_heap()->read_only_space();
   int index = static_cast<int>(ro_space->IndexOf(chunk));
-  DCHECK_LT(index, 1UL << ro::EncodedTagged::kPageIndexBits);
-  encoded.page_index = index;
   uint32_t offset = static_cast<int>(chunk->Offset(o_address));
   DCHECK(IsAligned(offset, kTaggedSize));
-  DCHECK_LT(offset / kTaggedSize, 1UL << ro::EncodedTagged::kOffsetBits);
-  encoded.offset = offset / kTaggedSize;
 
-  return encoded;
+  return ro::EncodedTagged(index, offset / kTaggedSize);
 }
 
 // If relocations are needed, this class
@@ -225,7 +226,7 @@ class EncodeRelocationsVisitor final : public ObjectVisitor {
 
  private:
   void ProcessSlot(MaybeObjectSlot slot) {
-    MaybeObject o = *slot;
+    Tagged<MaybeObject> o = *slot;
     if (!o.IsStrongOrWeak()) return;  // Smis don't need relocation.
     DCHECK(o.IsStrong());
 
@@ -297,12 +298,12 @@ class ReadOnlyHeapImageSerializer {
 
     // Allocate all pages first s.t. the deserializer can easily handle forward
     // references (e.g.: an object on page i points at an object on page i+1).
-    for (const ReadOnlyPage* page : ro_space->pages()) {
+    for (const ReadOnlyPageMetadata* page : ro_space->pages()) {
       EmitAllocatePage(page, unmapped_regions);
     }
 
     // Now write the page contents.
-    for (const ReadOnlyPage* page : ro_space->pages()) {
+    for (const ReadOnlyPageMetadata* page : ro_space->pages()) {
       SerializePage(page, unmapped_regions);
     }
 
@@ -310,26 +311,30 @@ class ReadOnlyHeapImageSerializer {
     sink_->Put(Bytecode::kFinalizeReadOnlySpace, "space end");
   }
 
-  uint32_t IndexOf(const ReadOnlyPage* page) {
+  uint32_t IndexOf(const ReadOnlyPageMetadata* page) {
     ReadOnlySpace* ro_space = isolate_->read_only_heap()->read_only_space();
     return static_cast<uint32_t>(ro_space->IndexOf(page));
   }
 
-  void EmitAllocatePage(const ReadOnlyPage* page,
+  void EmitAllocatePage(const ReadOnlyPageMetadata* page,
                         const std::vector<MemoryRegion>& unmapped_regions) {
-    sink_->Put(Bytecode::kAllocatePage, "page begin");
+    if (V8_STATIC_ROOTS_BOOL) {
+      sink_->Put(Bytecode::kAllocatePageAt, "fixed page begin");
+    } else {
+      sink_->Put(Bytecode::kAllocatePage, "page begin");
+    }
     sink_->PutUint30(IndexOf(page), "page index");
     sink_->PutUint30(
         static_cast<uint32_t>(page->HighWaterMark() - page->area_start()),
         "area size in bytes");
     if (V8_STATIC_ROOTS_BOOL) {
-      auto page_addr = page->address();
+      auto page_addr = page->ChunkAddress();
       sink_->PutUint32(V8HeapCompressionScheme::CompressAny(page_addr),
                        "page start offset");
     }
   }
 
-  void SerializePage(const ReadOnlyPage* page,
+  void SerializePage(const ReadOnlyPageMetadata* page,
                      const std::vector<MemoryRegion>& unmapped_regions) {
     Address pos = page->area_start();
 
@@ -380,7 +385,7 @@ class ReadOnlyHeapImageSerializer {
       ReadOnlyRoots roots(isolate_);
       for (size_t i = 0; i < ReadOnlyRoots::kEntriesCount; i++) {
         RootIndex rudi = static_cast<RootIndex>(i);
-        Tagged<HeapObject> rudolf = HeapObject::cast(roots.object_at(rudi));
+        Tagged<HeapObject> rudolf = Cast<HeapObject>(roots.object_at(rudi));
         ro::EncodedTagged encoded = Encode(isolate_, rudolf);
         sink_->PutUint32(encoded.ToUint32(), "read only roots entry");
       }

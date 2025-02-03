@@ -1,7 +1,8 @@
 #include "inspector_socket.h"
 #include "llhttp.h"
 
-#include "base64-inl.h"
+#include "nbytes.h"
+#include "simdutf.h"
 #include "util-inl.h"
 
 #include "openssl/sha.h"  // Sha-1 hash
@@ -10,7 +11,7 @@
 #include <cstring>
 #include <map>
 
-#define ACCEPT_KEY_LENGTH base64_encoded_size(20)
+#define ACCEPT_KEY_LENGTH nbytes::Base64EncodedSize(20)
 
 #define DUMP_READS 0
 #define DUMP_WRITES 0
@@ -147,10 +148,13 @@ static void generate_accept_string(const std::string& client_key,
   static const char ws_magic[] = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
   std::string input(client_key + ws_magic);
   char hash[SHA_DIGEST_LENGTH];
+
+  CHECK(ACCEPT_KEY_LENGTH >= nbytes::Base64EncodedSize(SHA_DIGEST_LENGTH) &&
+        "not enough space provided for base64 encode");
   USE(SHA1(reinterpret_cast<const unsigned char*>(input.data()),
            input.size(),
            reinterpret_cast<unsigned char*>(hash)));
-  node::base64_encode(hash, sizeof(hash), *buffer, sizeof(*buffer));
+  simdutf::binary_to_base64(hash, sizeof(hash), *buffer);
 }
 
 static std::string TrimPort(const std::string& host) {
@@ -188,7 +192,7 @@ static bool IsIPAddress(const std::string& host) {
     // Parse the IPv6 address to ensure it is syntactically valid.
     char ipv6_str[INET6_ADDRSTRLEN];
     std::copy(host.begin() + 1, host.end() - 1, ipv6_str);
-    ipv6_str[host.length()] = '\0';
+    ipv6_str[host.length() - 2] = '\0';
     unsigned char ipv6[sizeof(struct in6_addr)];
     if (uv_inet_pton(AF_INET6, ipv6_str, ipv6) != 0) return false;
 

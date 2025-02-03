@@ -16,7 +16,7 @@
  * ENTER_V8, ENTER_V8_NO_SCRIPT, ENTER_V8_NO_SCRIPT_NO_EXCEPTION.
  *
  * The latter two assume that no script is executed, and no exceptions are
- * scheduled in addition (respectively). Creating a exception and
+ * scheduled in addition (respectively). Creating an exception and
  * removing it before returning is ok.
  *
  * Exceptions should be handled either by invoking one of the

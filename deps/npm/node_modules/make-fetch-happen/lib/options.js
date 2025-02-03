@@ -11,7 +11,12 @@ const conditionalHeaders = [
 const configureOptions = (opts) => {
   const { strictSSL, ...options } = { ...opts }
   options.method = options.method ? options.method.toUpperCase() : 'GET'
-  options.rejectUnauthorized = strictSSL !== false
+
+  if (strictSSL === undefined || strictSSL === null) {
+    options.rejectUnauthorized = process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0'
+  } else {
+    options.rejectUnauthorized = strictSSL !== false
+  }
 
   if (!options.retry) {
     options.retry = { retries: 0 }

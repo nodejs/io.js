@@ -140,7 +140,7 @@ isAcceptable(void *context,
              const char * /*type*/, const char * /*name*/,
              const UDataInfo *pInfo) {
     uprv_memcpy(context, pInfo->formatVersion, 4);
-    return (UBool)(
+    return
         pInfo->size>=20 &&
         pInfo->isBigEndian==U_IS_BIG_ENDIAN &&
         pInfo->charsetFamily==U_CHARSET_FAMILY &&
@@ -149,7 +149,7 @@ isAcceptable(void *context,
         pInfo->dataFormat[1]==0x65 &&
         pInfo->dataFormat[2]==0x73 &&
         pInfo->dataFormat[3]==0x42 &&
-        (1<=pInfo->formatVersion[0] && pInfo->formatVersion[0]<=3));
+        (1<=pInfo->formatVersion[0] && pInfo->formatVersion[0]<=3);
 }
 
 /* semi-public functions ---------------------------------------------------- */
@@ -161,8 +161,8 @@ res_init(ResourceData *pResData,
     UResType rootType;
 
     /* get the root resource */
-    pResData->pRoot=(const int32_t *)inBytes;
-    pResData->rootRes=(Resource)*pResData->pRoot;
+    pResData->pRoot = static_cast<const int32_t*>(inBytes);
+    pResData->rootRes = static_cast<Resource>(*pResData->pRoot);
     pResData->p16BitUnits=&gEmpty16;
 
     /* formatVersion 1.1 must have a root item and at least 5 indexes */
@@ -173,7 +173,7 @@ res_init(ResourceData *pResData,
     }
 
     /* currently, we accept only resources that have a Table as their roots */
-    rootType=(UResType)RES_GET_TYPE(pResData->rootRes);
+    rootType = static_cast<UResType>(RES_GET_TYPE(pResData->rootRes));
     if(!URES_IS_TABLE(rootType)) {
         *errorCode=U_INVALID_FORMAT_ERROR;
         res_unload(pResData);
@@ -207,15 +207,15 @@ res_init(ResourceData *pResData,
             // In version 2, bits 31..8 were reserved and always 0.
             // In version 3, they contain bits 23..0 of the poolStringIndexLimit.
             // Bits 27..24 are in indexes[URES_INDEX_ATTRIBUTES] bits 15..12.
-            pResData->poolStringIndexLimit=(int32_t)((uint32_t)indexes[URES_INDEX_LENGTH]>>8);
+            pResData->poolStringIndexLimit = static_cast<int32_t>(static_cast<uint32_t>(indexes[URES_INDEX_LENGTH]) >> 8);
         }
         if(indexLength>URES_INDEX_ATTRIBUTES) {
             int32_t att=indexes[URES_INDEX_ATTRIBUTES];
-            pResData->noFallback=(UBool)(att&URES_ATT_NO_FALLBACK);
-            pResData->isPoolBundle=(UBool)((att&URES_ATT_IS_POOL_BUNDLE)!=0);
-            pResData->usesPoolBundle=(UBool)((att&URES_ATT_USES_POOL_BUNDLE)!=0);
+            pResData->noFallback = static_cast<UBool>(att & URES_ATT_NO_FALLBACK);
+            pResData->isPoolBundle = static_cast<UBool>((att & URES_ATT_IS_POOL_BUNDLE) != 0);
+            pResData->usesPoolBundle = static_cast<UBool>((att & URES_ATT_USES_POOL_BUNDLE) != 0);
             pResData->poolStringIndexLimit|=(att&0xf000)<<12;  // bits 15..12 -> 27..24
-            pResData->poolStringIndex16Limit=(int32_t)((uint32_t)att>>16);
+            pResData->poolStringIndex16Limit = static_cast<int32_t>(static_cast<uint32_t>(att) >> 16);
         }
         if((pResData->isPoolBundle || pResData->usesPoolBundle) && indexLength<=URES_INDEX_POOL_CHECKSUM) {
             *errorCode=U_INVALID_FORMAT_ERROR;
@@ -225,7 +225,7 @@ res_init(ResourceData *pResData,
         if( indexLength>URES_INDEX_16BIT_TOP &&
             indexes[URES_INDEX_16BIT_TOP]>indexes[URES_INDEX_KEYS_TOP]
         ) {
-            pResData->p16BitUnits=(const uint16_t *)(pResData->pRoot+indexes[URES_INDEX_KEYS_TOP]);
+            pResData->p16BitUnits = reinterpret_cast<const uint16_t*>(pResData->pRoot + indexes[URES_INDEX_KEYS_TOP]);
         }
     }
 
@@ -361,14 +361,14 @@ UBool isNoInheritanceMarker(const ResourceData *pResData, Resource res) {
     } else if (res == offset) {
         const int32_t *p32=pResData->pRoot+res;
         int32_t length=*p32;
-        const char16_t *p=(const char16_t *)p32;
+        const char16_t* p = reinterpret_cast<const char16_t*>(p32);
         return length == 3 && p[2] == 0x2205 && p[3] == 0x2205 && p[4] == 0x2205;
     } else if (RES_GET_TYPE(res) == URES_STRING_V2) {
         const char16_t *p;
-        if((int32_t)offset<pResData->poolStringIndexLimit) {
-            p=(const char16_t *)pResData->poolBundleStrings+offset;
+        if (static_cast<int32_t>(offset) < pResData->poolStringIndexLimit) {
+            p = reinterpret_cast<const char16_t*>(pResData->poolBundleStrings) + offset;
         } else {
-            p=(const char16_t *)pResData->p16BitUnits+(offset-pResData->poolStringIndexLimit);
+            p = reinterpret_cast<const char16_t*>(pResData->p16BitUnits) + (offset - pResData->poolStringIndexLimit);
         }
         int32_t first=*p;
         if (first == 0x2205) {  // implicit length
@@ -580,7 +580,7 @@ ResourceArray ResourceDataValue::getArray(UErrorCode &errorCode) const {
     switch(RES_GET_TYPE(res)) {
     case URES_ARRAY:
         if (offset!=0) {  // empty if offset==0
-            items32 = (const Resource *)getData().pRoot+offset;
+            items32 = reinterpret_cast<const Resource*>(getData().pRoot) + offset;
             length = *items32++;
         }
         break;
@@ -608,9 +608,9 @@ ResourceTable ResourceDataValue::getTable(UErrorCode &errorCode) const {
     switch(RES_GET_TYPE(res)) {
     case URES_TABLE:
         if (offset != 0) {  // empty if offset==0
-            keys16 = (const uint16_t *)(getData().pRoot+offset);
+            keys16 = reinterpret_cast<const uint16_t*>(getData().pRoot + offset);
             length = *keys16++;
-            items32 = (const Resource *)(keys16+length+(~length&1));
+            items32 = reinterpret_cast<const Resource*>(keys16 + length + (~length & 1));
         }
         break;
     case URES_TABLE16:
@@ -622,7 +622,7 @@ ResourceTable ResourceDataValue::getTable(UErrorCode &errorCode) const {
         if (offset != 0) {  // empty if offset==0
             keys32 = getData().pRoot+offset;
             length = *keys32++;
-            items32 = (const Resource *)keys32 + length;
+            items32 = reinterpret_cast<const Resource*>(keys32) + length;
         }
         break;
     default:
@@ -1019,9 +1019,9 @@ typedef struct Row {
 
 static int32_t U_CALLCONV
 ures_compareRows(const void *context, const void *left, const void *right) {
-    const char *keyChars=(const char *)context;
-    return (int32_t)uprv_strcmp(keyChars+((const Row *)left)->keyIndex,
-                                keyChars+((const Row *)right)->keyIndex);
+    const char* keyChars = static_cast<const char*>(context);
+    return static_cast<int32_t>(uprv_strcmp(keyChars + static_cast<const Row*>(left)->keyIndex,
+                                            keyChars + static_cast<const Row*>(right)->keyIndex));
 }
 
 typedef struct TempTable {
@@ -1040,13 +1040,10 @@ enum {
 /* The table item key string is not locally available. */
 static const char *const gUnknownKey="";
 
-/* resource table key for collation binaries: "%%CollationBin" */
-static const char16_t gCollationBinKey[]={
-    0x25, 0x25,
-    0x43, 0x6f, 0x6c, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e,
-    0x42, 0x69, 0x6e,
-    0
-};
+#if !UCONFIG_NO_COLLATION
+// resource table key for collation binaries
+static const char16_t gCollationBinKey[]=u"%%CollationBin";
+#endif
 
 /*
  * swap one resource item
@@ -1074,17 +1071,17 @@ ures_swapResource(const UDataSwapper *ds,
     }
 
     /* all other types use an offset to point to their data */
-    offset=(int32_t)RES_GET_OFFSET(res);
+    offset = static_cast<int32_t>(RES_GET_OFFSET(res));
     if(offset==0) {
         /* special offset indicating an empty item */
         return;
     }
-    if(pTempTable->resFlags[offset>>5]&((uint32_t)1<<(offset&0x1f))) {
+    if (pTempTable->resFlags[offset >> 5] & (static_cast<uint32_t>(1) << (offset & 0x1f))) {
         /* we already swapped this resource item */
         return;
     } else {
         /* mark it as swapped now */
-        pTempTable->resFlags[offset>>5]|=((uint32_t)1<<(offset&0x1f));
+        pTempTable->resFlags[offset >> 5] |= static_cast<uint32_t>(1) << (offset & 0x1f);
     }
 
     p=inBundle+offset;
@@ -1095,14 +1092,14 @@ ures_swapResource(const UDataSwapper *ds,
         /* physically same value layout as string, fall through */
         U_FALLTHROUGH;
     case URES_STRING:
-        count=udata_readInt32(ds, (int32_t)*p);
+        count = udata_readInt32(ds, static_cast<int32_t>(*p));
         /* swap length */
         ds->swapArray32(ds, p, 4, q, pErrorCode);
         /* swap each char16_t (the terminating NUL would not change) */
         ds->swapArray16(ds, p+1, 2*count, q+1, pErrorCode);
         break;
     case URES_BINARY:
-        count=udata_readInt32(ds, (int32_t)*p);
+        count = udata_readInt32(ds, static_cast<int32_t>(*p));
         /* swap length */
         ds->swapArray32(ds, p, 4, q, pErrorCode);
         /* no need to swap or copy bytes - ures_swap() copied them all */
@@ -1135,8 +1132,8 @@ ures_swapResource(const UDataSwapper *ds,
 
             if(RES_GET_TYPE(res)==URES_TABLE) {
                 /* get table item count */
-                pKey16=(const uint16_t *)p;
-                qKey16=(uint16_t *)q;
+                pKey16 = reinterpret_cast<const uint16_t*>(p);
+                qKey16 = reinterpret_cast<uint16_t*>(q);
                 count=ds->readUInt16(*pKey16);
 
                 pKey32=qKey32=nullptr;
@@ -1147,8 +1144,8 @@ ures_swapResource(const UDataSwapper *ds,
                 offset+=((1+count)+1)/2;
             } else {
                 /* get table item count */
-                pKey32=(const int32_t *)p;
-                qKey32=(int32_t *)q;
+                pKey32 = reinterpret_cast<const int32_t*>(p);
+                qKey32 = reinterpret_cast<int32_t*>(q);
                 count=udata_readInt32(ds, *pKey32);
 
                 pKey16=qKey16=nullptr;
@@ -1172,12 +1169,12 @@ ures_swapResource(const UDataSwapper *ds,
                 if(pKey16!=nullptr) {
                     int32_t keyOffset=ds->readUInt16(pKey16[i]);
                     if(keyOffset<pTempTable->localKeyLimit) {
-                        itemKey=(const char *)outBundle+keyOffset;
+                        itemKey = reinterpret_cast<const char*>(outBundle) + keyOffset;
                     }
                 } else {
                     int32_t keyOffset=udata_readInt32(ds, pKey32[i]);
                     if(keyOffset>=0) {
-                        itemKey=(const char *)outBundle+keyOffset;
+                        itemKey = reinterpret_cast<const char*>(outBundle) + keyOffset;
                     }
                 }
                 item=ds->readUInt32(p[i]);
@@ -1243,7 +1240,7 @@ ures_swapResource(const UDataSwapper *ds,
                 if(pKey16!=qKey16) {
                     rKey16=qKey16;
                 } else {
-                    rKey16=(uint16_t *)pTempTable->resort;
+                    rKey16 = reinterpret_cast<uint16_t*>(pTempTable->resort);
                 }
                 for(i=0; i<count; ++i) {
                     oldIndex=pTempTable->rows[i].sortIndex;
@@ -1277,7 +1274,7 @@ ures_swapResource(const UDataSwapper *ds,
                 if(p!=q) {
                     r=q;
                 } else {
-                    r=(Resource *)pTempTable->resort;
+                    r = reinterpret_cast<Resource*>(pTempTable->resort);
                 }
                 for(i=0; i<count; ++i) {
                     oldIndex=pTempTable->rows[i].sortIndex;
@@ -1294,7 +1291,7 @@ ures_swapResource(const UDataSwapper *ds,
             Resource item;
             int32_t i;
 
-            count=udata_readInt32(ds, (int32_t)*p);
+            count = udata_readInt32(ds, static_cast<int32_t>(*p));
             /* swap length */
             ds->swapArray32(ds, p++, 4, q++, pErrorCode);
 
@@ -1314,7 +1311,7 @@ ures_swapResource(const UDataSwapper *ds,
         }
         break;
     case URES_INT_VECTOR:
-        count=udata_readInt32(ds, (int32_t)*p);
+        count = udata_readInt32(ds, static_cast<int32_t>(*p));
         /* swap length and each integer */
         ds->swapArray32(ds, p, 4*(1+count), q, pErrorCode);
         break;
@@ -1457,6 +1454,9 @@ ures_swap(const UDataSwapper *ds,
                                     outBundle+keysBottom, pErrorCode);
         if(U_FAILURE(*pErrorCode)) {
             udata_printError(ds, "ures_swap().udata_swapInvStringBlock(keys[%d]) failed\n", 4*(keysTop-keysBottom));
+            if(tempTable.resFlags!=stackResFlags) {
+                uprv_free(tempTable.resFlags);
+            }
             return 0;
         }
 
@@ -1465,6 +1465,9 @@ ures_swap(const UDataSwapper *ds,
             ds->swapArray16(ds, inBundle+keysTop, (resBottom-keysTop)*4, outBundle+keysTop, pErrorCode);
             if(U_FAILURE(*pErrorCode)) {
                 udata_printError(ds, "ures_swap().swapArray16(16-bit units[%d]) failed\n", 2*(resBottom-keysTop));
+                if(tempTable.resFlags!=stackResFlags) {
+                    uprv_free(tempTable.resFlags);
+                }
                 return 0;
             }
         }

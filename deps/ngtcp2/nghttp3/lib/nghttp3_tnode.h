@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -63,4 +63,4 @@ int nghttp3_tnode_schedule(nghttp3_tnode *tnode, nghttp3_pq *pq,
  */
 int nghttp3_tnode_is_scheduled(nghttp3_tnode *tnode);
 
-#endif /* NGHTTP3_TNODE_H */
+#endif /* !defined(NGHTTP3_TNODE_H) */

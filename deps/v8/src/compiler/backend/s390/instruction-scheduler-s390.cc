@@ -123,6 +123,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kS390_DoubleToFloat32:
     case kS390_DoubleExtractLowWord32:
     case kS390_DoubleExtractHighWord32:
+    case kS390_DoubleFromWord32Pair:
     case kS390_DoubleInsertLowWord32:
     case kS390_DoubleInsertHighWord32:
     case kS390_DoubleConstruct:

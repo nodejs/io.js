@@ -596,7 +596,10 @@ void V8ConsoleMessageStorage::clear() {
                               [](V8InspectorSessionImpl* session) {
                                 session->releaseObjectGroup("console");
                               });
-  m_data.clear();
+  for (auto& data : m_data) {
+    data.second.m_counters.clear();
+    data.second.m_reportedDeprecationMessages.clear();
+  }
 }
 
 bool V8ConsoleMessageStorage::shouldReportDeprecationMessage(
@@ -609,41 +612,47 @@ bool V8ConsoleMessageStorage::shouldReportDeprecationMessage(
   return true;
 }
 
-int V8ConsoleMessageStorage::count(int contextId, const String16& id) {
-  return ++m_data[contextId].m_count[id];
+int V8ConsoleMessageStorage::count(int contextId, int consoleContextId,
+                                   const String16& label) {
+  return ++m_data[contextId].m_counters[LabelKey{consoleContextId, label}];
 }
 
-void V8ConsoleMessageStorage::time(int contextId, const String16& id) {
-  m_data[contextId].m_time[id] = m_inspector->client()->currentTimeMS();
-}
-
-bool V8ConsoleMessageStorage::countReset(int contextId, const String16& id) {
-  std::map<String16, int>& count_map = m_data[contextId].m_count;
-  if (count_map.find(id) == count_map.end()) return false;
-
-  count_map[id] = 0;
+bool V8ConsoleMessageStorage::countReset(int contextId, int consoleContextId,
+                                         const String16& label) {
+  std::map<LabelKey, int>& counters = m_data[contextId].m_counters;
+  auto it = counters.find(LabelKey{consoleContextId, label});
+  if (it == counters.end()) return false;
+  counters.erase(it);
   return true;
 }
 
-double V8ConsoleMessageStorage::timeLog(int contextId, const String16& id) {
-  std::map<String16, double>& time = m_data[contextId].m_time;
-  auto it = time.find(id);
-  if (it == time.end()) return 0.0;
+bool V8ConsoleMessageStorage::time(int contextId, int consoleContextId,
+                                   const String16& label) {
+  return m_data[contextId]
+      .m_timers
+      .try_emplace(LabelKey{consoleContextId, label},
+                   m_inspector->client()->currentTimeMS())
+      .second;
+}
+
+std::optional<double> V8ConsoleMessageStorage::timeLog(int contextId,
+                                                       int consoleContextId,
+                                                       const String16& label) {
+  auto& timers = m_data[contextId].m_timers;
+  auto it = timers.find(std::make_pair(consoleContextId, label));
+  if (it == timers.end()) return std::nullopt;
   return m_inspector->client()->currentTimeMS() - it->second;
 }
 
-double V8ConsoleMessageStorage::timeEnd(int contextId, const String16& id) {
-  std::map<String16, double>& time = m_data[contextId].m_time;
-  auto it = time.find(id);
-  if (it == time.end()) return 0.0;
-  double elapsed = m_inspector->client()->currentTimeMS() - it->second;
-  time.erase(it);
-  return elapsed;
-}
-
-bool V8ConsoleMessageStorage::hasTimer(int contextId, const String16& id) {
-  const std::map<String16, double>& time = m_data[contextId].m_time;
-  return time.find(id) != time.end();
+std::optional<double> V8ConsoleMessageStorage::timeEnd(int contextId,
+                                                       int consoleContextId,
+                                                       const String16& label) {
+  auto& timers = m_data[contextId].m_timers;
+  auto it = timers.find(std::make_pair(consoleContextId, label));
+  if (it == timers.end()) return std::nullopt;
+  double result = m_inspector->client()->currentTimeMS() - it->second;
+  timers.erase(it);
+  return result;
 }
 
 void V8ConsoleMessageStorage::contextDestroyed(int contextId) {
@@ -652,8 +661,10 @@ void V8ConsoleMessageStorage::contextDestroyed(int contextId) {
     m_messages[i]->contextDestroyed(contextId);
     m_estimatedSize += m_messages[i]->estimatedSize();
   }
-  auto it = m_data.find(contextId);
-  if (it != m_data.end()) m_data.erase(contextId);
+  {
+    auto it = m_data.find(contextId);
+    if (it != m_data.end()) m_data.erase(contextId);
+  }
 }
 
 }  // namespace v8_inspector

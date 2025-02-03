@@ -192,6 +192,9 @@ SamplingHeapProfiler::AllocationNode* SamplingHeapProfiler::AddStack() {
       case EXTERNAL:
         name = "(EXTERNAL)";
         break;
+      case LOGGING:
+        name = "(LOGGING)";
+        break;
       case IDLE:
         name = "(IDLE)";
         break;
@@ -212,7 +215,7 @@ SamplingHeapProfiler::AllocationNode* SamplingHeapProfiler::AddStack() {
     const char* name = this->names()->GetCopy(shared->DebugNameCStr().get());
     int script_id = v8::UnboundScript::kNoScriptId;
     if (IsScript(shared->script())) {
-      Tagged<Script> script = Script::cast(shared->script());
+      Tagged<Script> script = Cast<Script>(shared->script());
       script_id = script->id();
     }
     node = FindOrAddChildNode(node, name, script_id, shared->StartPosition());
@@ -241,9 +244,9 @@ v8::AllocationProfile::Node* SamplingHeapProfiler::TranslateAllocationNode(
   if (node->script_id_ != v8::UnboundScript::kNoScriptId) {
     auto script_iterator = scripts.find(node->script_id_);
     if (script_iterator != scripts.end()) {
-      Handle<Script> script = script_iterator->second;
+      DirectHandle<Script> script = script_iterator->second;
       if (IsName(script->name())) {
-        Tagged<Name> name = Name::cast(script->name());
+        Tagged<Name> name = Cast<Name>(script->name());
         script_name = ToApiHandle<v8::String>(
             isolate_->factory()->InternalizeUtf8String(names_->GetName(name)));
       }

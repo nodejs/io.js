@@ -4,7 +4,10 @@
 
 @abstract
 extern class JSIteratorHelper extends JSObject {
-  underlying: iterator::IteratorRecord;
+  // We cannot use  `IteratorRecord` because we use `Null` and `Undefined` as
+  // sentinel values to track the status of the iterator.
+  underlying_object: JSReceiver|Null|Undefined;
+  underlying_next: JSAny;
 }
 
 extern class JSIteratorMapHelper extends JSIteratorHelper {

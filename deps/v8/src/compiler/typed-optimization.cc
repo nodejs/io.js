@@ -4,7 +4,8 @@
 
 #include "src/compiler/typed-optimization.h"
 
-#include "src/base/optional.h"
+#include <optional>
+
 #include "src/compiler/compilation-dependencies.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/js-heap-broker.h"
@@ -50,6 +51,8 @@ Reduction TypedOptimization::Reduce(Node* node) {
       return ReduceCheckNumber(node);
     case IrOpcode::kCheckString:
       return ReduceCheckString(node);
+    case IrOpcode::kCheckStringOrStringWrapper:
+      return ReduceCheckStringOrStringWrapper(node);
     case IrOpcode::kCheckEqualsInternalizedString:
       return ReduceCheckEqualsInternalizedString(node);
     case IrOpcode::kCheckEqualsSymbol:
@@ -265,6 +268,16 @@ Reduction TypedOptimization::ReduceCheckString(Node* node) {
   return NoChange();
 }
 
+Reduction TypedOptimization::ReduceCheckStringOrStringWrapper(Node* node) {
+  Node* const input = NodeProperties::GetValueInput(node, 0);
+  Type const input_type = NodeProperties::GetType(input);
+  if (input_type.Is(Type::StringOrStringWrapper())) {
+    ReplaceWithValue(node, input);
+    return Replace(input);
+  }
+  return NoChange();
+}
+
 Reduction TypedOptimization::ReduceCheckEqualsInternalizedString(Node* node) {
   Node* const exp = NodeProperties::GetValueInput(node, 0);
   Type const exp_type = NodeProperties::GetType(exp);
@@ -414,7 +427,7 @@ Reduction TypedOptimization::ReduceReferenceEqual(Node* node) {
   }
   if (rhs_type.Is(Type::Boolean()) && rhs_type.IsHeapConstant() &&
       lhs_type.Is(Type::Boolean())) {
-    base::Optional<bool> maybe_result =
+    std::optional<bool> maybe_result =
         rhs_type.AsHeapConstant()->Ref().TryGetBooleanValue(broker());
     if (maybe_result.has_value()) {
       if (maybe_result.value()) {
@@ -454,7 +467,7 @@ Reduction TypedOptimization::
       }
       break;
     case IrOpcode::kStringLessThan:
-      V8_FALLTHROUGH;
+      [[fallthrough]];
     case IrOpcode::kStringLessThanOrEqual:
       if (string.length() == 0) {
         // String.fromCharCode(x) <= "" is always false,
@@ -839,7 +852,7 @@ Reduction TypedOptimization::ReduceJSToNumberInput(Node* input) {
     HeapObjectMatcher m(input);
     if (m.HasResolvedValue() && m.Ref(broker()).IsString()) {
       StringRef input_value = m.Ref(broker()).AsString();
-      base::Optional<double> number = input_value.ToNumber(broker());
+      std::optional<double> number = input_value.ToNumber(broker());
       if (!number.has_value()) return NoChange();
       return Replace(jsgraph()->ConstantNoHole(number.value()));
     }

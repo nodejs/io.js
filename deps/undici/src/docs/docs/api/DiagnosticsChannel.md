@@ -40,7 +40,7 @@ diagnosticsChannel.channel('undici:request:bodySent').subscribe(({ request }) =>
 
 ## `undici:request:headers`
 
-This message is published after the response headers have been received, i.e. the response has been completed.
+This message is published after the response headers have been received.
 
 ```js
 import diagnosticsChannel from 'diagnostics_channel'

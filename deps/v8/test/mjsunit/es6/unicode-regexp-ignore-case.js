@@ -32,6 +32,15 @@ assertTrue(/[\ud801\udc28]/ui.test("\u{10400}"));
 assertEquals(["\uff21\u{10400}"],
              /[\uff40-\u{10428}]+/ui.exec("\uff21\u{10400}abc"));
 assertEquals(["abc"], /[^\uff40-\u{10428}]+/ui.exec("\uff21\u{10400}abc\uff23"));
+assertTrue(/\u{10c80}/ui.test("\u{10cc0}"));
+assertTrue(/\u{10c80}/vi.test("\u{10cc0}"));
+assertFalse(/\u{10c80}/u.test("\u{10cc0}"));
+assertFalse(/\u{10c80}/v.test("\u{10cc0}"));
+assertTrue(/\u{10cc0}/ui.test("\u{10c80}"));
+assertTrue(/\u{10cc0}/vi.test("\u{10c80}"));
+assertFalse(/\u{10cc0}/u.test("\u{10c80}"));
+assertFalse(/\u{10cc0}/v.test("\u{10c80}"));
+
 assertEquals(["\uff53\u24bb"],
              /[\u24d5-\uff33]+/ui.exec("\uff54\uff53\u24bb\u24ba"));
 

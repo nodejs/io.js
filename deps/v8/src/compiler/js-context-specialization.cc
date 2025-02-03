@@ -254,7 +254,7 @@ Reduction JSContextSpecialization::ReduceJSStoreScriptContext(Node* node) {
     // The value is not a constant any more, so we don't need to generate
     // code for invalidating the side data.
     const Operator* op =
-        jsgraph_->javascript()->StoreContext(0, access.index());
+        jsgraph_->javascript()->StoreContext(access.depth(), access.index());
     NodeProperties::ChangeOp(node, op);
     return Changed(node);
   }

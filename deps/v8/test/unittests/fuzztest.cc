@@ -11,11 +11,13 @@
 #include <string>
 #include <vector>
 
+#include "src/base/logging.h"
+
 namespace v8::internal {
 
 #ifdef V8_ENABLE_FUZZTEST
 
-static void ManyConditions(std::vector<int> input) {
+static void ManyConditions(std::vector<int> input, int failure) {
   int i = 0;
 
   if (input.size() > 4) {
@@ -36,18 +38,32 @@ static void ManyConditions(std::vector<int> input) {
     }
   }
 
-  // Fake Heap-buffer-overflow.
-  if (i >= 5) {
-    int* adr = new int(3);
-    std::cout << *(adr + 3);
+  if (i >= 4) {
+    switch (failure) {
+      case 0:
+        ASSERT_LT(failure, 0);
+        break;
+      case 1:
+        CHECK_WITH_MSG(false, "Fake fuzz-test check failure");
+        break;
+      case 2:
+        // The message here needs to be different enough from the one above to
+        // avoid grouping the resulting test cases.
+        DCHECK_WITH_MSG(false,
+                        "A very different fake f-u-z-z-t-e-s-t dcheck failure");
+        break;
+      case 3:
+        // Fake Heap-buffer-overflow.
+        int* adr = new int(3);
+        std::cout << *(adr + 3);
+        break;
+    }
   }
-
-  // Fake assert.
-  ASSERT_LT(i, 4);
 }
 
 V8_FUZZ_TEST(SmokeTest, ManyConditions)
-    .WithDomains(fuzztest::VectorOf(fuzztest::InRange(1, 2000)));
+    .WithDomains(fuzztest::VectorOf(fuzztest::InRange(1, 2000)),
+                 fuzztest::InRange(0, 3));
 
 static void SingleString(std::string input) { ASSERT_NE(input, "V8"); }
 

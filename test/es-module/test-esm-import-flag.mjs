@@ -146,9 +146,9 @@ describe('import modules using --import', { concurrency: !process.env.TEST_PARAL
       ]
     );
 
-    assert.match(stderr, /SyntaxError: Unexpected token 'export'/);
+    assert.strictEqual(stderr, '');
     assert.match(stdout, /^\.mjs file\r?\n$/);
-    assert.strictEqual(code, 1);
+    assert.strictEqual(code, 0);
     assert.strictEqual(signal, null);
   });
 

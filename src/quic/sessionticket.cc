@@ -155,9 +155,8 @@ std::optional<const uv_buf_t> SessionTicket::AppData::Get() const {
 }
 
 void SessionTicket::AppData::Collect(SSL* ssl) {
-  auto source = GetAppDataSource(ssl);
-  if (source != nullptr) {
-    SessionTicket::AppData app_data(ssl);
+  SessionTicket::AppData app_data(ssl);
+  if (auto source = GetAppDataSource(ssl)) {
     source->CollectSessionTicketAppData(&app_data);
   }
 }

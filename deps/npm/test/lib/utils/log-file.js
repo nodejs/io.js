@@ -1,8 +1,8 @@
 const t = require('tap')
-const _fs = require('fs')
+const _fs = require('node:fs')
 const fs = _fs.promises
-const path = require('path')
-const os = require('os')
+const path = require('node:path')
+const os = require('node:os')
 const fsMiniPass = require('fs-minipass')
 const tmock = require('../../fixtures/tmock')
 const LogFile = require('../../../lib/utils/log-file.js')
@@ -46,6 +46,8 @@ const loadLogFile = async (t, { buffer = [], mocks, testdir = {}, ...options } =
   const MockLogFile = tmock(t, '{LIB}/utils/log-file.js', mocks)
   const logFile = new MockLogFile(Object.keys(options).length ? options : undefined)
 
+  // Create a fake public method since there is not one on logFile anymore
+  logFile.log = (...b) => process.emit('log', ...b)
   buffer.forEach((b) => logFile.log(...b))
 
   const id = getId()
@@ -165,7 +167,7 @@ t.test('initial stream error', async t => {
     mocks: {
       'fs-minipass': {
         WriteStreamSync: class {
-          constructor (...args) {
+          constructor () {
             throw new Error('no stream')
           }
         },
@@ -278,7 +280,7 @@ t.test('rimraf error', async t => {
     logsMax,
     testdir: makeOldLogs(oldLogs),
     mocks: {
-      'fs/promises': {
+      'node:fs/promises': {
         readdir: fs.readdir,
         rm: async (...args) => {
           if (count >= 3) {

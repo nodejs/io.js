@@ -9,7 +9,7 @@ ares_fds \- return file descriptors to select on (deprecated)
 .nf
 #include <ares.h>
 
-int ares_fds(ares_channel_t *\fIchannel\fP,
+int ares_fds(const ares_channel_t *\fIchannel\fP,
              fd_set *\fIread_fds\fP,
              fd_set *\fIwrite_fds\fP)
 .fi
@@ -55,7 +55,3 @@ more modern methods to check for socket readable/writable state such as
 .BR ares_init_options (3),
 .BR ares_timeout (3),
 .BR ares_process (3)
-.SH AUTHOR
-Greg Hudson, MIT Information Systems
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.

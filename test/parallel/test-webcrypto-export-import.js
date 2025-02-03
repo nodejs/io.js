@@ -22,6 +22,11 @@ const { subtle } = globalThis.crypto;
         code: 'ERR_INVALID_ARG_VALUE'
       });
     await assert.rejects(
+      subtle.importKey('KeyObject', keyData, {}, false, ['wrapKey']), {
+        message: /'KeyObject' is not a valid enum value of type KeyFormat/,
+        code: 'ERR_INVALID_ARG_VALUE'
+      });
+    await assert.rejects(
       subtle.importKey('raw', 1, {}, false, ['deriveBits']), {
         code: 'ERR_INVALID_ARG_TYPE'
       });
@@ -81,6 +86,10 @@ const { subtle } = globalThis.crypto;
         hash: 'SHA-256'
       }, true, ['sign', 'verify']);
 
+
+    assert.strictEqual(key.algorithm, key.algorithm);
+    assert.strictEqual(key.usages, key.usages);
+
     const raw = await subtle.exportKey('raw', key);
 
     assert.deepStrictEqual(
@@ -122,6 +131,8 @@ const { subtle } = globalThis.crypto;
         name: 'AES-CTR',
         length: 256,
       }, true, ['encrypt', 'decrypt']);
+    assert.strictEqual(key.algorithm, key.algorithm);
+    assert.strictEqual(key.usages, key.usages);
 
     const raw = await subtle.exportKey('raw', key);
 

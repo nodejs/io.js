@@ -5,8 +5,9 @@
 #ifndef V8_COMPILER_JS_NATIVE_CONTEXT_SPECIALIZATION_H_
 #define V8_COMPILER_JS_NATIVE_CONTEXT_SPECIALIZATION_H_
 
+#include <optional>
+
 #include "src/base/flags.h"
-#include "src/base/optional.h"
 #include "src/compiler/graph-assembler.h"
 #include "src/compiler/graph-reducer.h"
 #include "src/compiler/js-heap-broker.h"
@@ -66,8 +67,8 @@ class V8_EXPORT_PRIVATE JSNativeContextSpecialization final
   // Utility for folding string constant concatenation.
   // Supports JSAdd nodes and nodes typed as string or number.
   // Public for the sake of unit testing.
-  static base::Optional<size_t> GetMaxStringLength(JSHeapBroker* broker,
-                                                   Node* node);
+  static std::optional<size_t> GetMaxStringLength(JSHeapBroker* broker,
+                                                  Node* node);
 
  private:
   Reduction ReduceJSAdd(Node* node);
@@ -148,12 +149,12 @@ class V8_EXPORT_PRIVATE JSNativeContextSpecialization final
 
   // Construct the appropriate subgraph for property access. Return {} if the
   // property access couldn't be built.
-  base::Optional<ValueEffectControl> BuildPropertyAccess(
+  std::optional<ValueEffectControl> BuildPropertyAccess(
       Node* lookup_start_object, Node* receiver, Node* value, Node* context,
       Node* frame_state, Node* effect, Node* control, NameRef name,
       ZoneVector<Node*>* if_exceptions, PropertyAccessInfo const& access_info,
       AccessMode access_mode);
-  base::Optional<ValueEffectControl> BuildPropertyLoad(
+  std::optional<ValueEffectControl> BuildPropertyLoad(
       Node* lookup_start_object, Node* receiver, Node* context,
       Node* frame_state, Node* effect, Node* control, NameRef name,
       ZoneVector<Node*>* if_exceptions, PropertyAccessInfo const& access_info);

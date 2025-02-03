@@ -19,6 +19,12 @@ class EntryFrameConstants : public AllStatic {
   // Isolate::c_entry_fp onto the stack.
   static constexpr int kNextExitFrameFPOffset = -6 * kSystemPointerSize;
 
+  // The offsets for storing the FP and PC of fast API calls.
+  static constexpr int kNextFastCallFrameFPOffset =
+      kNextExitFrameFPOffset - kSystemPointerSize;
+  static constexpr int kNextFastCallFramePCOffset =
+      kNextFastCallFrameFPOffset - kSystemPointerSize;
+
   // EntryFrame is used by JSEntry, JSConstructEntry and JSRunMicrotasksEntry.
   // All of them take |root_register_value| as the first parameter.
   static constexpr int kRootRegisterValueOffset = +2 * kSystemPointerSize;
@@ -49,9 +55,15 @@ class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
       TYPED_FRAME_PUSHED_VALUE_OFFSET(4)};
 
   // SP-relative.
-  static constexpr int kWasmInstanceOffset = 2 * kSystemPointerSize;
+  static constexpr int kWasmInstanceDataOffset = 2 * kSystemPointerSize;
   static constexpr int kDeclaredFunctionIndexOffset = 1 * kSystemPointerSize;
   static constexpr int kNativeModuleOffset = 0;
+};
+
+class WasmLiftoffFrameConstants : public TypedFrameConstants {
+ public:
+  static constexpr int kFeedbackVectorOffset = 3 * kSystemPointerSize;
+  static constexpr int kInstanceDataOffset = 2 * kSystemPointerSize;
 };
 
 // Frame constructed by the {WasmDebugBreak} builtin.
@@ -62,8 +74,9 @@ class WasmDebugBreakFrameConstants : public TypedFrameConstants {
   // Omit ebx, which is the root register.
   static constexpr RegList kPushedGpRegs = {eax, ecx, edx, esi, edi};
 
+  // Omit xmm0, which is not an allocatable fp register.
   // Omit xmm7, which is the kScratchDoubleReg.
-  static constexpr DoubleRegList kPushedFpRegs = {xmm0, xmm1, xmm2, xmm3,
+  static constexpr DoubleRegList kPushedFpRegs = {xmm1, xmm2, xmm3,
                                                   xmm4, xmm5, xmm6};
 
   static constexpr int kNumPushedGpRegisters = kPushedGpRegs.Count();

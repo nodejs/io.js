@@ -25,7 +25,7 @@ macro CollectInstanceOfFeedback(
 @export
 macro CollectConstructFeedback(
     implicit context: Context)(target: JSAny, newTarget: JSAny,
-    maybeFeedbackVector: Undefined|FeedbackVector, slotId: uintptr,
+    maybeFeedbackVector: Undefined|FeedbackVector, slotId: TaggedIndex,
     updateFeedbackMode: constexpr UpdateFeedbackMode):
     never labels ConstructGeneric,
     ConstructArray(AllocationSite) {

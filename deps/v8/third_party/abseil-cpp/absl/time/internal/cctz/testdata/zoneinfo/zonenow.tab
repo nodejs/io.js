@@ -199,7 +199,7 @@ XX	+2518+05518	Asia/Dubai	Russia; Caucasus; Persian Gulf; Seychelles; Réunion
 XX	+3431+06912	Asia/Kabul	Afghanistan
 #
 # +05
-XX	+4120+06918	Asia/Tashkent	Russia; Tajikistan; Turkmenistan; Uzbekistan; Maldives
+XX	+4120+06918	Asia/Tashkent	Russia; west Kazakhstan; Tajikistan; Turkmenistan; Uzbekistan; Maldives
 #
 # +05 - PKT
 XX	+2452+06703	Asia/Karachi	Pakistan ("PKT")
@@ -215,6 +215,8 @@ XX	+2743+08519	Asia/Kathmandu	Nepal
 #
 # +06
 XX	+2343+09025	Asia/Dhaka	Russia; Kyrgyzstan; Bhutan; Bangladesh; Chagos
+# +06 until 2024-03-01; then +05
+XX	+4315+07657	Asia/Almaty	Kazakhstan (except western areas)
 #
 # +06:30
 XX	+1647+09610	Asia/Yangon	Myanmar; Cocos

@@ -50,7 +50,7 @@ property query string are used.
 Regardless of whether CTLOG_new() or CTLOG_new_from_base64() is used, it is the
 caller's responsibility to pass the CTLOG to CTLOG_free() once it is no longer
 needed. This will delete it and, if created by CTLOG_new(), the EVP_PKEY that
-was passed to it.
+was passed to it. If the argument to CTLOG_free() is NULL, nothing is done.
 
 CTLOG_get0_name() returns the name of the log, as provided when the CTLOG was
 created. Ownership of the string remains with the CTLOG.
@@ -80,7 +80,7 @@ were added in OpenSSL 3.0. All other functions were added in OpenSSL 1.1.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

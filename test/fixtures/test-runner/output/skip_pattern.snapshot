@@ -3,16 +3,19 @@ TAP version 13
 ok 1 - top level skipped test enabled # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level it enabled
 ok 2 - top level it enabled
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level skipped it enabled
 ok 3 - top level skipped it enabled # SKIP
   ---
   duration_ms: *
+  type: 'test'
   ...
 # Subtest: top level describe
 ok 4 - top level describe

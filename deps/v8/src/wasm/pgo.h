@@ -42,7 +42,7 @@ class ProfileInformation {
 
 void DumpProfileToFile(const WasmModule* module,
                        base::Vector<const uint8_t> wire_bytes,
-                       uint32_t* tiering_budget_array);
+                       std::atomic<uint32_t>* tiering_budget_array);
 
 V8_WARN_UNUSED_RESULT std::unique_ptr<ProfileInformation> LoadProfileFromFile(
     const WasmModule* module, base::Vector<const uint8_t> wire_bytes);

@@ -1,8 +1,9 @@
 const { explainNode } = require('../utils/explain-dep.js')
 const npa = require('npm-package-arg')
 const semver = require('semver')
-const { relative, resolve } = require('path')
+const { relative, resolve } = require('node:path')
 const validName = require('validate-npm-package-name')
+const { output } = require('proc-log')
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
 
 class Explain extends ArboristWorkspaceCmd {
@@ -19,7 +20,7 @@ class Explain extends ArboristWorkspaceCmd {
   // TODO
   /* istanbul ignore next */
   static async completion (opts, npm) {
-    const completion = require('../utils/completion/installed-deep.js')
+    const completion = require('../utils/installed-deep.js')
     return completion(npm, opts)
   }
 
@@ -75,9 +76,9 @@ class Explain extends ArboristWorkspaceCmd {
     }
 
     if (this.npm.flatOptions.json) {
-      this.npm.output(JSON.stringify(expls, null, 2))
+      output.buffer(expls)
     } else {
-      this.npm.output(expls.map(expl => {
+      output.standard(expls.map(expl => {
         return explainNode(expl, Infinity, this.npm.chalk)
       }).join('\n\n'))
     }
@@ -108,7 +109,7 @@ class Explain extends ArboristWorkspaceCmd {
     // otherwise, try to select all matching nodes
     try {
       return this.getNodesByVersion(tree, arg)
-    } catch (er) {
+    } catch {
       return []
     }
   }
@@ -125,4 +126,5 @@ class Explain extends ArboristWorkspaceCmd {
     })
   }
 }
+
 module.exports = Explain

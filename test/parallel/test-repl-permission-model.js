@@ -1,6 +1,6 @@
 'use strict';
 
-// Flags: --expose-internals --experimental-permission --allow-fs-read=*
+// Flags: --expose-internals --permission --allow-fs-read=*
 
 const common = require('../common');
 const stream = require('stream');
@@ -8,7 +8,9 @@ const REPL = require('internal/repl');
 const assert = require('assert');
 const { inspect } = require('util');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 // Create an input stream specialized for testing an array of actions
 class ActionStream extends stream.Stream {

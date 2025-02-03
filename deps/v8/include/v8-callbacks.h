@@ -152,9 +152,6 @@ using JitCodeEventHandler = void (*)(const JitCodeEvent* event);
 enum GCType {
   kGCTypeScavenge = 1 << 0,
   kGCTypeMinorMarkSweep = 1 << 1,
-  kGCTypeMinorMarkCompact V8_DEPRECATE_SOON(
-      "Use kGCTypeMinorMarkSweep instead of kGCTypeMinorMarkCompact.") =
-      kGCTypeMinorMarkSweep,
   kGCTypeMarkSweepCompact = 1 << 2,
   kGCTypeIncrementalMarking = 1 << 3,
   kGCTypeProcessWeakCallbacks = 1 << 4,
@@ -234,7 +231,7 @@ using MessageCallback = void (*)(Local<Message> message, Local<Value> data);
 
 // --- Tracing ---
 
-enum LogEventStatus : int { kStart = 0, kEnd = 1, kStamp = 2 };
+enum LogEventStatus : int { kStart = 0, kEnd = 1, kLog = 2 };
 using LogEventCallback = void (*)(const char* name,
                                   int /* LogEventStatus */ status);
 
@@ -257,15 +254,7 @@ using AddCrashKeyCallback = void (*)(CrashKeyId id, const std::string& value);
 using BeforeCallEnteredCallback = void (*)(Isolate*);
 using CallCompletedCallback = void (*)(Isolate*);
 
-// --- AllowCodeGenerationFromStrings callbacks ---
-
-/**
- * Callback to check if code generation from strings is allowed. See
- * Context::AllowCodeGenerationFromStrings.
- */
-using AllowCodeGenerationFromStringsCallback = bool (*)(Local<Context> context,
-                                                        Local<String> source);
-
+// --- Modify Code Generation From Strings Callback ---
 struct ModifyCodeGenerationFromStringsResult {
   // If true, proceed with the codegen algorithm. Otherwise, block it.
   bool codegen_allowed = false;
@@ -274,22 +263,6 @@ struct ModifyCodeGenerationFromStringsResult {
   // This field is considered only if codegen_allowed is true.
   MaybeLocal<String> modified_source;
 };
-
-/**
- * Access type specification.
- */
-enum AccessType {
-  ACCESS_GET,
-  ACCESS_SET,
-  ACCESS_HAS,
-  ACCESS_DELETE,
-  ACCESS_KEYS
-};
-
-// --- Failed Access Check Callback ---
-
-using FailedAccessCheckCallback = void (*)(Local<Object> target,
-                                           AccessType type, Local<Value> data);
 
 /**
  * Callback to check if codegen is allowed from a source object, and convert
@@ -302,6 +275,22 @@ using ModifyCodeGenerationFromStringsCallback2 =
     ModifyCodeGenerationFromStringsResult (*)(Local<Context> context,
                                               Local<Value> source,
                                               bool is_code_like);
+
+// --- Failed Access Check Callback ---
+
+/**
+ * Access type specification.
+ */
+enum AccessType {
+  ACCESS_GET,
+  ACCESS_SET,
+  ACCESS_HAS,
+  ACCESS_DELETE,
+  ACCESS_KEYS
+};
+
+using FailedAccessCheckCallback = void (*)(Local<Object> target,
+                                           AccessType type, Local<Value> data);
 
 // --- WebAssembly compilation callbacks ---
 using ExtensionCallback = bool (*)(const FunctionCallbackInfo<Value>&);
@@ -342,6 +331,14 @@ using JavaScriptCompileHintsMagicEnabledCallback =
 using WasmJSPIEnabledCallback = bool (*)(Local<Context> context);
 
 /**
+ * Import phases in import requests.
+ */
+enum class ModuleImportPhase {
+  kSource,
+  kEvaluation,
+};
+
+/**
  * HostImportModuleDynamicallyCallback is called when we
  * require the embedder to load a module. This is used as part of the dynamic
  * import syntax.
@@ -354,7 +351,7 @@ using WasmJSPIEnabledCallback = bool (*)(Local<Context> context);
  * The import_attributes are import attributes for this request in the form:
  * [key1, value1, key2, value2, ...] where the keys and values are of type
  * v8::String. Note, unlike the FixedArray passed to ResolveModuleCallback and
- * returned from ModuleRequest::GetImportAssertions(), this array does not
+ * returned from ModuleRequest::GetImportAttributes(), this array does not
  * contain the source Locations of the attributes.
  *
  * The embedder must compile, instantiate, evaluate the Module, and

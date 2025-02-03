@@ -511,7 +511,7 @@
          *
          * @param {SendChannel|string} [dest] - Either a SendChannel
          * to the destination, or the UUID of the destination. If
-         * ommitted, a new UUID is generated, which can be used when
+         * omitted, a new UUID is generated, which can be used when
          * constructing the URL for the global.
          *
          */

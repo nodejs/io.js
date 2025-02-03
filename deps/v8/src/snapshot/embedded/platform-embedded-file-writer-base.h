@@ -9,6 +9,10 @@
 #include <cstdio>  // For FILE.
 #include <memory>
 
+#if V8_ENABLE_DRUMBRAKE
+#include <string>
+#endif  // V8_ENABLE_DRUMBRAKE
+
 namespace v8 {
 namespace internal {
 
@@ -31,6 +35,7 @@ enum class EmbeddedTargetOs {
   kMac,
   kWin,
   kStarboard,
+  kZOS,
   kGeneric,  // Everything not covered above falls in here.
 };
 
@@ -62,6 +67,8 @@ class PlatformEmbeddedFileWriterBase {
 
   virtual void DeclareSymbolGlobal(const char* name) = 0;
   virtual void DeclareLabel(const char* name) = 0;
+  virtual void DeclareLabelProlog(const char* name) {}
+  virtual void DeclareLabelEpilogue() {}
 
   virtual void SourceInfo(int fileid, const char* filename, int line) = 0;
   virtual void DeclareFunctionBegin(const char* name, uint32_t size) = 0;
@@ -99,6 +106,16 @@ class PlatformEmbeddedFileWriterBase {
 // The factory function. Returns the appropriate platform-specific instance.
 std::unique_ptr<PlatformEmbeddedFileWriterBase> NewPlatformEmbeddedFileWriter(
     const char* target_arch, const char* target_os);
+
+#if V8_ENABLE_DRUMBRAKE
+inline bool IsDrumBrakeInstructionHandler(const char* name) {
+  std::string builtin_name(name);
+  return builtin_name.find("Builtins_r2r_") == 0 ||
+         builtin_name.find("Builtins_r2s_") == 0 ||
+         builtin_name.find("Builtins_s2r_") == 0 ||
+         builtin_name.find("Builtins_s2s_") == 0;
+}
+#endif  // V8_ENABLE_DRUMBRAKE
 
 }  // namespace internal
 }  // namespace v8

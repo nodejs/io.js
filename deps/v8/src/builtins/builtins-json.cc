@@ -48,7 +48,7 @@ BUILTIN(JsonRawJson) {
 // https://tc39.es/proposal-json-parse-with-source/#sec-json.israwjson
 BUILTIN(JsonIsRawJson) {
   HandleScope scope(isolate);
-  Handle<Object> text = args.atOrUndefined(isolate, 1);
+  DirectHandle<Object> text = args.atOrUndefined(isolate, 1);
   return isolate->heap()->ToBoolean(IsJSRawJson(*text));
 }
 

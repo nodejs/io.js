@@ -2,6 +2,10 @@
 ---
   Checks:          '-*,
                     bugprone-unique-ptr-array-mismatch,
+                    # google-build-explicit-make-pair,
+                    google-default-arguments,
+                    google-explicit-constructor,
+                    google-readability-casting,
                     modernize-redundant-void-arg,
                     modernize-replace-random-shuffle,
                     modernize-shrink-to-fit,
@@ -11,12 +15,10 @@
                     # modernize-use-equals-delete,
                     modernize-use-nullptr,
                     modernize-use-override,
-                    # google-build-explicit-make-pair,
-                    google-default-arguments,
-                    google-explicit-constructor,
-                    google-readability-casting'
+                    performance-inefficient-vector-operation,
+                    performance-trivially-destructible,
+                    performance-unnecessary-copy-initialization'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
 AnalyzeTemporaryDtors: false
 ...
-

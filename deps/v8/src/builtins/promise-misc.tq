@@ -30,7 +30,15 @@ extern macro PromiseBuiltinsAssembler::IsIsolatePromiseHookEnabled(uint32):
 
 extern macro PromiseBuiltinsAssembler::PromiseHookFlags(): uint32;
 
+namespace macros {
+extern macro GetContinuationPreservedEmbedderData(): Object;
+extern macro SetContinuationPreservedEmbedderData(Object): void;
+}
+
 namespace promise {
+const kInvalidAsyncTaskId:
+    constexpr uint32 generates 'JSPromise::kInvalidAsyncTaskId';
+
 extern macro IsFunctionWithPrototypeSlotMap(Map): bool;
 
 @export
@@ -44,9 +52,8 @@ macro PromiseInit(promise: JSPromise): void {
   promise.flags = SmiTag(JSPromiseFlags{
     status: PromiseState::kPending,
     has_handler: false,
-    handled_hint: false,
     is_silent: false,
-    async_task_id: 0
+    async_task_id: kInvalidAsyncTaskId
   });
   promise_internal::ZeroOutEmbedderOffsets(promise);
 }
@@ -64,9 +71,8 @@ macro InnerNewJSPromise(implicit context: Context)(): JSPromise {
   promise.flags = SmiTag(JSPromiseFlags{
     status: PromiseState::kPending,
     has_handler: false,
-    handled_hint: false,
     is_silent: false,
-    async_task_id: 0
+    async_task_id: kInvalidAsyncTaskId
   });
   return promise;
 }
@@ -77,19 +83,14 @@ macro NewPromiseFulfillReactionJobTask(
     promiseOrCapability: JSPromise|PromiseCapability|
     Undefined): PromiseFulfillReactionJobTask {
   @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA) {
-    const isolateContinuationData = GetContinuationPreservedEmbedderData();
-    const nativeContext = LoadNativeContext(handlerContext);
     return new PromiseFulfillReactionJobTask{
       map: PromiseFulfillReactionJobTaskMapConstant(),
+      continuation_preserved_embedder_data:
+          macros::GetContinuationPreservedEmbedderData(),
       argument,
       context: handlerContext,
       handler,
-      promise_or_capability: promiseOrCapability,
-      isolate_continuation_preserved_embedder_data: isolateContinuationData,
-      context_continuation_preserved_embedder_data:
-          *ContextSlot(
-          nativeContext,
-          ContextSlot::CONTINUATION_PRESERVED_EMBEDDER_DATA_INDEX)
+      promise_or_capability: promiseOrCapability
     };
   }
 
@@ -110,19 +111,14 @@ macro NewPromiseRejectReactionJobTask(
     promiseOrCapability: JSPromise|PromiseCapability|
     Undefined): PromiseRejectReactionJobTask {
   @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA) {
-    const isolateContinuationData = GetContinuationPreservedEmbedderData();
-    const nativeContext = LoadNativeContext(handlerContext);
     return new PromiseRejectReactionJobTask{
       map: PromiseRejectReactionJobTaskMapConstant(),
+      continuation_preserved_embedder_data:
+          macros::GetContinuationPreservedEmbedderData(),
       argument,
       context: handlerContext,
       handler,
-      promise_or_capability: promiseOrCapability,
-      isolate_continuation_preserved_embedder_data: isolateContinuationData,
-      context_continuation_preserved_embedder_data:
-          *ContextSlot(
-          nativeContext,
-          ContextSlot::CONTINUATION_PRESERVED_EMBEDDER_DATA_INDEX)
+      promise_or_capability: promiseOrCapability
     };
   }
 
@@ -305,30 +301,23 @@ transitioning macro NewJSPromise(
 }
 
 macro NewPromiseReaction(
-    implicit context: Context)(handlerContext: Context,
-    next: Zero|PromiseReaction,
+    implicit context: Context)(next: Zero|PromiseReaction,
     promiseOrCapability: JSPromise|PromiseCapability|Undefined,
     fulfillHandler: Callable|Undefined,
     rejectHandler: Callable|Undefined): PromiseReaction {
   @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA) {
-    const isolateContinuationData = GetContinuationPreservedEmbedderData();
-    const nativeContext = LoadNativeContext(handlerContext);
     return new PromiseReaction{
       map: PromiseReactionMapConstant(),
+      continuation_preserved_embedder_data:
+          macros::GetContinuationPreservedEmbedderData(),
       next: next,
       reject_handler: rejectHandler,
       fulfill_handler: fulfillHandler,
-      promise_or_capability: promiseOrCapability,
-      isolate_continuation_preserved_embedder_data: isolateContinuationData,
-      context_continuation_preserved_embedder_data:
-          *ContextSlot(
-          nativeContext,
-          ContextSlot::CONTINUATION_PRESERVED_EMBEDDER_DATA_INDEX)
+      promise_or_capability: promiseOrCapability
     };
   }
 
   @ifnot(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA) {
-    dcheck(IsContext(handlerContext));
     return new PromiseReaction{
       map: PromiseReactionMapConstant(),
       next: next,
@@ -360,13 +349,27 @@ macro NewPromiseResolveThenableJobTask(
   // 1. Let job be a new Job abstract closure with no parameters that
   //    captures promiseToResolve, thenable, and then...
   // 5. Return { [[Job]]: job, [[Realm]]: thenRealm }.
-  return new PromiseResolveThenableJobTask{
-    map: PromiseResolveThenableJobTaskMapConstant(),
-    context: nativeContext,
-    promise_to_resolve: promiseToResolve,
-    thenable,
-    then
-  };
+  @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA) {
+    return new PromiseResolveThenableJobTask{
+      map: PromiseResolveThenableJobTaskMapConstant(),
+      continuation_preserved_embedder_data:
+          macros::GetContinuationPreservedEmbedderData(),
+      context: nativeContext,
+      promise_to_resolve: promiseToResolve,
+      thenable,
+      then
+    };
+  }
+
+  @ifnot(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA) {
+    return new PromiseResolveThenableJobTask{
+      map: PromiseResolveThenableJobTaskMapConstant(),
+      context: nativeContext,
+      promise_to_resolve: promiseToResolve,
+      thenable,
+      then
+    };
+  }
 }
 
 struct InvokeThenOneArgFunctor {
@@ -455,4 +458,18 @@ transitioning macro BranchIfAccessCheckFailed(
     }
   } label HasAccess {}
 }
+
+@if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+transitioning javascript builtin GetContinuationPreservedEmbedderData(
+    js-implicit context: Context, receiver: JSAny)(): JSAny {
+  return UnsafeCast<JSAny>(macros::GetContinuationPreservedEmbedderData());
+}
+
+@if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+transitioning javascript builtin SetContinuationPreservedEmbedderData(
+    js-implicit context: Context, receiver: JSAny)(data: Object): Undefined {
+  macros::SetContinuationPreservedEmbedderData(data);
+  return Undefined;
+}
+
 }

@@ -1,0 +1,180 @@
+Execution order was:
+ * A > A
+ * A > C > A
+ * A > D > A
+ * B > A
+ * B > B
+ * B > C > A
+ * C > A
+ * C > C > A
+ * C > C > B
+ * C > D > B
+ * D > B
+ * E > A
+ * E > B
+ * F
+with global after()
+TAP version 13
+# Subtest: A
+    # Subtest: A
+    ok 1 - A
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: C
+        # Subtest: A
+        ok 1 - A
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        1..1
+    ok 2 - C
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    # Subtest: D
+        # Subtest: A
+        ok 1 - A
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        1..1
+    ok 3 - D
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..3
+ok 1 - A
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: B
+    # Subtest: A
+    ok 1 - A
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: B
+    ok 2 - B
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: C
+        # Subtest: A
+        ok 1 - A
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        1..1
+    ok 3 - C
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..3
+ok 2 - B
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: C
+    # Subtest: A
+    ok 1 - A
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: C
+        # Subtest: A
+        ok 1 - A
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        # Subtest: B
+        ok 2 - B
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        1..2
+    ok 2 - C
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    # Subtest: D
+        # Subtest: B
+        ok 1 - B
+          ---
+          duration_ms: *
+          type: 'test'
+          ...
+        1..1
+    ok 3 - D
+      ---
+      duration_ms: *
+      type: 'suite'
+      ...
+    1..3
+ok 3 - C
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: D
+    # Subtest: B
+    ok 1 - B
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 4 - D
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: E
+    # Subtest: A
+    ok 1 - A
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: B
+    ok 2 - B
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..2
+ok 5 - E
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: F
+ok 6 - F
+  ---
+  duration_ms: *
+  type: 'test'
+  ...
+1..6
+# tests 14
+# suites 10
+# pass 14
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

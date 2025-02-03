@@ -5,10 +5,10 @@
 #include "src/compiler/string-builder-optimizer.h"
 
 #include <algorithm>
+#include <optional>
 
 #include "src/base/bits.h"
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/base/small-vector.h"
 #include "src/compiler/access-builder.h"
 #include "src/compiler/graph-assembler.h"
@@ -80,7 +80,7 @@ OneOrTwoByteAnalysis::State OneOrTwoByteAnalysis::ConcatResultIsOneOrTwoByte(
   return State::kCantKnow;
 }
 
-base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
+std::optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
     Node* node) {
   switch (node->opcode()) {
     case IrOpcode::kChangeTaggedToFloat64:
@@ -93,9 +93,9 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
     case IrOpcode::kInt64AddWithOverflow:
     case IrOpcode::kFloat32Add:
     case IrOpcode::kFloat64Add: {
-      base::Optional<std::pair<int64_t, int64_t>> left =
+      std::optional<std::pair<int64_t, int64_t>> left =
           TryGetRange(node->InputAt(0));
-      base::Optional<std::pair<int64_t, int64_t>> right =
+      std::optional<std::pair<int64_t, int64_t>> right =
           TryGetRange(node->InputAt(1));
       if (left.has_value() && right.has_value()) {
         int32_t high_bound;
@@ -103,11 +103,11 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
                                             static_cast<int32_t>(right->second),
                                             &high_bound)) {
           // The range would overflow a 32-bit integer.
-          return base::nullopt;
+          return std::nullopt;
         }
         return std::pair{left->first + right->first, high_bound};
       } else {
-        return base::nullopt;
+        return std::nullopt;
       }
     }
 
@@ -117,19 +117,19 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
     case IrOpcode::kInt64SubWithOverflow:
     case IrOpcode::kFloat32Sub:
     case IrOpcode::kFloat64Sub: {
-      base::Optional<std::pair<int64_t, int64_t>> left =
+      std::optional<std::pair<int64_t, int64_t>> left =
           TryGetRange(node->InputAt(0));
-      base::Optional<std::pair<int64_t, int64_t>> right =
+      std::optional<std::pair<int64_t, int64_t>> right =
           TryGetRange(node->InputAt(1));
       if (left.has_value() && right.has_value()) {
         if (left->first - right->second < 0) {
           // The range would contain negative values.
-          return base::nullopt;
+          return std::nullopt;
         }
         return std::pair{left->first - right->second,
                          left->second - right->first};
       } else {
-        return base::nullopt;
+        return std::nullopt;
       }
     }
 
@@ -138,9 +138,9 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
       // Note that the minimal value for "a & b" is always 0, regardless of the
       // max for "a" or "b". And the maximal value is the min of "max of a" and
       // "max of b".
-      base::Optional<std::pair<int64_t, int64_t>> left =
+      std::optional<std::pair<int64_t, int64_t>> left =
           TryGetRange(node->InputAt(0));
-      base::Optional<std::pair<int64_t, int64_t>> right =
+      std::optional<std::pair<int64_t, int64_t>> right =
           TryGetRange(node->InputAt(1));
       if (left.has_value() && right.has_value()) {
         return std::pair{0, std::min(left->second, right->second)};
@@ -149,7 +149,7 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
       } else if (right.has_value()) {
         return std::pair{0, right->second};
       } else {
-        return base::nullopt;
+        return std::nullopt;
       }
     }
 
@@ -158,9 +158,9 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
     case IrOpcode::kInt64Mul:
     case IrOpcode::kFloat32Mul:
     case IrOpcode::kFloat64Mul: {
-      base::Optional<std::pair<int64_t, int64_t>> left =
+      std::optional<std::pair<int64_t, int64_t>> left =
           TryGetRange(node->InputAt(0));
-      base::Optional<std::pair<int64_t, int64_t>> right =
+      std::optional<std::pair<int64_t, int64_t>> right =
           TryGetRange(node->InputAt(1));
       if (left.has_value() && right.has_value()) {
         int32_t high_bound;
@@ -168,12 +168,12 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
                                             static_cast<int32_t>(right->second),
                                             &high_bound)) {
           // The range would overflow a 32-bit integer.
-          return base::nullopt;
+          return std::nullopt;
         }
         return std::pair{left->first * right->first,
                          left->second * right->second};
       } else {
-        return base::nullopt;
+        return std::nullopt;
       }
     }
 
@@ -188,11 +188,11 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
             case Builtin::kMathRandom:
               return std::pair{0, 1};
             default:
-              return base::nullopt;
+              return std::nullopt;
           }
         }
       }
-      return base::nullopt;
+      return std::nullopt;
     }
 
 #define CONST_CASE(op, matcher)                                       \
@@ -201,11 +201,11 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
     if (m.HasResolvedValue()) {                                       \
       if (m.ResolvedValue() < 0 ||                                    \
           m.ResolvedValue() >= std::numeric_limits<int32_t>::min()) { \
-        return base::nullopt;                                         \
+        return std::nullopt;                                          \
       }                                                               \
       return std::pair{m.ResolvedValue(), m.ResolvedValue()};         \
     } else {                                                          \
-      return base::nullopt;                                           \
+      return std::nullopt;                                            \
     }                                                                 \
   }
       CONST_CASE(Float32Constant, Float32Matcher)
@@ -216,7 +216,7 @@ base::Optional<std::pair<int64_t, int64_t>> OneOrTwoByteAnalysis::TryGetRange(
 #undef CONST_CASE
 
     default:
-      return base::nullopt;
+      return std::nullopt;
   }
 }
 
@@ -262,7 +262,7 @@ OneOrTwoByteAnalysis::State OneOrTwoByteAnalysis::OneOrTwoByte(Node* node) {
         }
 
         default: {
-          base::Optional<std::pair<int64_t, int64_t>> range =
+          std::optional<std::pair<int64_t, int64_t>> range =
               TryGetRange(input);
           if (!range.has_value()) {
             states_[node->id()] = State::kCantKnow;
@@ -497,6 +497,7 @@ bool OpcodeIsAllowed(IrOpcode::Value op) {
     case IrOpcode::kStringLessThan:
     case IrOpcode::kStringLessThanOrEqual:
     case IrOpcode::kCheckString:
+    case IrOpcode::kCheckStringOrStringWrapper:
     case IrOpcode::kTypedStateValues:
       return true;
     default:

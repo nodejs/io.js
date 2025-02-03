@@ -8,5 +8,5 @@ import { MinimatchOptions } from './index.js';
  * that exact character.  In this mode, `\` is _not_ escaped, because it is
  * not interpreted as a magic character, but instead as a path separator.
  */
-export declare const escape: (s: string, { windowsPathsNoEscape, }?: Pick<MinimatchOptions, 'windowsPathsNoEscape'>) => string;
+export declare const escape: (s: string, { windowsPathsNoEscape, }?: Pick<MinimatchOptions, "windowsPathsNoEscape">) => string;
 //# sourceMappingURL=escape.d.ts.map

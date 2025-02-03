@@ -48,7 +48,7 @@ vm.runInContext('(' + function() {
   {
     let threw = false;
     try {
-      port.postMessage(global);
+      port.postMessage(globalThis);
     } catch (e) {
       assert.strictEqual(e.constructor.name, 'DOMException');
       assert(e instanceof Object);

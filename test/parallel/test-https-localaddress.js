@@ -25,8 +25,10 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-if (!common.hasMultiLocalhost())
+const { hasMultiLocalhost } = require('../common/net');
+if (!hasMultiLocalhost()) {
   common.skip('platform-specific test.');
+}
 
 const fixtures = require('../common/fixtures');
 const assert = require('assert');

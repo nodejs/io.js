@@ -15,7 +15,9 @@
 #include "src/base/virtual-address-space-page-allocator.h"
 #include "src/base/virtual-address-space.h"
 #include "src/flags/flags.h"
+#include "src/sandbox/hardware-support.h"
 #include "src/sandbox/sandboxed-pointer.h"
+#include "src/trap-handler/trap-handler.h"
 #include "src/utils/allocation.h"
 
 namespace v8 {
@@ -135,6 +137,12 @@ void Sandbox::Initialize(v8::VirtualAddressSpace* vas) {
         nullptr,
         "Failed to reserve the virtual address space for the V8 sandbox");
   }
+
+#if V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
+  trap_handler::SetV8SandboxBaseAndSize(base(), size());
+#endif  // V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
+
+  SandboxHardwareSupport::TryEnable(base(), size());
 
   DCHECK(initialized_);
 }
@@ -258,7 +266,7 @@ void Sandbox::FinishInitialization() {
   // to cause a fault on any accidental access.
   // Further, this also prevents the accidental construction of invalid
   // SandboxedPointers: if an ArrayBuffer is placed right at the end of the
-  // sandbox, a ArrayBufferView could be constructed with byteLength=0 and
+  // sandbox, an ArrayBufferView could be constructed with byteLength=0 and
   // offset=buffer.byteLength, which would lead to a pointer that points just
   // outside of the sandbox.
   size_t allocation_granularity = address_space_->allocation_granularity();

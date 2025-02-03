@@ -59,7 +59,7 @@ checkExports('☺☺mul☺☺', '☺☺mul☺☺', '☺☺add☺☺', '☺☺add
   builder.addImport('three snowmen: ☃☃☃', 'foo', kSig_i_v);
   assertThrows(
       () => builder.instantiate({}), TypeError,
-      /WebAssembly.Instance\(\): Import #0 module="three snowmen: ☃☃☃": /);
+      /WebAssembly.Instance\(\): Import #0 "three snowmen: ☃☃☃": /);
 })();
 
 (function errorMessageUnicodeInImportElemName() {
@@ -67,8 +67,8 @@ checkExports('☺☺mul☺☺', '☺☺mul☺☺', '☺☺add☺☺', '☺☺add
   builder.addImport('mod', 'three snowmen: ☃☃☃', kSig_i_v);
   assertThrows(
       () => builder.instantiate({mod: {}}), WebAssembly.LinkError,
-      'WebAssembly.Instance\(\): Import #0 module="mod" function="three ' +
-          'snowmen: ☃☃☃": function import requires a callable');
+      'WebAssembly.Instance\(\): Import #0 "mod" "three snowmen: ☃☃☃": ' +
+          'function import requires a callable');
 })();
 
 (function errorMessageUnicodeInImportModAndElemName() {
@@ -78,7 +78,6 @@ checkExports('☺☺mul☺☺', '☺☺mul☺☺', '☺☺add☺☺', '☺☺add
   builder.addImport(mod_name, func_name, kSig_i_v);
   assertThrows(
       () => builder.instantiate({[mod_name]: {}}), WebAssembly.LinkError,
-      'WebAssembly.Instance(): Import #0 module="' + mod_name +
-          '" function="' + func_name +
+      'WebAssembly.Instance(): Import #0 "' + mod_name + '" "' + func_name +
           '": function import requires a callable');
 })();

@@ -89,16 +89,9 @@ class EmbedderDataSlot
 
   static constexpr int kRequiredPtrAlignment = kSmiTagSize;
 
-  using EmbedderDataSlotSnapshot = Address;
-  V8_INLINE static void PopulateEmbedderDataSnapshot(Tagged<Map> map,
-                                                     Tagged<JSObject> js_object,
-                                                     int entry_index,
-                                                     EmbedderDataSlotSnapshot&);
-
   EmbedderDataSlot() : SlotBase(kNullAddress) {}
   V8_INLINE EmbedderDataSlot(Tagged<EmbedderDataArray> array, int entry_index);
   V8_INLINE EmbedderDataSlot(Tagged<JSObject> object, int embedder_field_index);
-  V8_INLINE explicit EmbedderDataSlot(const EmbedderDataSlotSnapshot& snapshot);
 
   // Opaque type used for storing raw embedder data.
   using RawData = Address;
@@ -128,9 +121,11 @@ class EmbedderDataSlot
 
   // Returns true if the pointer was successfully stored or false it the pointer
   // was improperly aligned.
-  V8_INLINE V8_WARN_UNUSED_RESULT bool store_aligned_pointer(Isolate* isolate,
-                                                             void* ptr);
+  V8_INLINE V8_WARN_UNUSED_RESULT bool store_aligned_pointer(
+      Isolate* isolate, Tagged<HeapObject> host, void* ptr);
 
+  V8_INLINE bool MustClearDuringSerialization(
+      const DisallowGarbageCollection& no_gc);
   V8_INLINE RawData load_raw(Isolate* isolate,
                              const DisallowGarbageCollection& no_gc) const;
   V8_INLINE void store_raw(Isolate* isolate, RawData data,

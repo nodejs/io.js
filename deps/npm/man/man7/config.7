@@ -1,4 +1,4 @@
-.TH "CONFIG" "7" "April 2024" "" ""
+.TH "CONFIG" "7" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBconfig\fR - More than you probably want to know about npm configuration
 .SS "Description"
@@ -365,7 +365,7 @@ Override CPU architecture of native modules to install. Acceptable values are sa
 .SS "\fBdepth\fR"
 .RS 0
 .IP \(bu 4
-Default: \fBInfinity\fR if \fB--all\fR is set, otherwise \fB1\fR
+Default: \fBInfinity\fR if \fB--all\fR is set, otherwise \fB0\fR
 .IP \(bu 4
 Type: null or Number
 .RE 0
@@ -1219,7 +1219,7 @@ Type: Boolean
 .RE 0
 
 .P
-When set to \fBtrue\fR, npm will display a progress bar during time intensive operations, if \fBprocess.stderr\fR is a TTY.
+When set to \fBtrue\fR, npm will display a progress bar during time intensive operations, if \fBprocess.stderr\fR and \fBprocess.stdout\fR are a TTY.
 .P
 Set to \fBfalse\fR to suppress the progress bar.
 .SS "\fBprovenance\fR"
@@ -1567,9 +1567,12 @@ Type: String
 .P
 If you ask npm to install a package and don't tell it a specific version, then it will install the specified tag.
 .P
-Also the tag that is added to the package@version specified by the \fBnpm tag\fR command, if no explicit tag is given.
+It is the tag added to the package@version specified in the \fBnpm dist-tag
+add\fR command, if no explicit tag is given.
 .P
 When used by the \fBnpm diff\fR command, this is the tag used to fetch the tarball that will be compared with the local files by default.
+.P
+If used in the \fBnpm publish\fR command, this is the tag that will be added to the package submitted to the registry.
 .SS "\fBtag-version-prefix\fR"
 .RS 0
 .IP \(bu 4
@@ -1832,7 +1835,7 @@ Default: null
 .IP \(bu 4
 Type: null or String
 .IP \(bu 4
-DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcertfile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:certfile=/path/to/cert.crt
+DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcafile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:cafile=/path/to/cert.crt
 .RE 0
 
 .P
@@ -1844,7 +1847,7 @@ cert="-----BEGIN CERTIFICATE-----\[rs]nXXXX\[rs]nXXXX\[rs]n-----END CERTIFICATE-
 .fi
 .RE
 .P
-It is \fInot\fR the path to a certificate file, though you can set a registry-scoped "certfile" path like "//other-registry.tld/:certfile=/path/to/cert.pem".
+It is \fInot\fR the path to a certificate file, though you can set a registry-scoped "cafile" path like "//other-registry.tld/:cafile=/path/to/cert.pem".
 .SS "\fBdev\fR"
 .RS 0
 .IP \(bu 4
@@ -1948,7 +1951,7 @@ Default: null
 .IP \(bu 4
 Type: null or String
 .IP \(bu 4
-DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcertfile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:certfile=/path/to/cert.crt
+DEPRECATED: \fBkey\fR and \fBcert\fR are no longer used for most registry operations. Use registry scoped \fBkeyfile\fR and \fBcafile\fR instead. Example: //other-registry.tld/:keyfile=/path/to/key.pem //other-registry.tld/:cafile=/path/to/cert.crt
 .RE 0
 
 .P

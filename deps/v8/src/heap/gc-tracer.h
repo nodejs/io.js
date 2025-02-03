@@ -5,10 +5,11 @@
 #ifndef V8_HEAP_GC_TRACER_H_
 #define V8_HEAP_GC_TRACER_H_
 
+#include <optional>
+
 #include "include/v8-metrics.h"
 #include "src/base/compiler-specific.h"
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/base/ring-buffer.h"
 #include "src/common/globals.h"
 #include "src/heap/base/bytes.h"
@@ -19,7 +20,10 @@
 namespace v8 {
 namespace internal {
 
-enum ScavengeSpeedMode { kForAllObjects, kForSurvivedObjects };
+enum YoungGenerationSpeedMode {
+  kUpToAndIncludingAtomicPause,
+  kOnlyAtomicPause
+};
 
 #define TRACE_GC_CATEGORIES \
   "devtools.timeline," TRACE_DISABLED_BY_DEFAULT("v8.gc")
@@ -144,7 +148,7 @@ class V8_EXPORT_PRIVATE GCTracer {
 #ifdef V8_RUNTIME_CALL_STATS
     RuntimeCallTimer timer_;
     RuntimeCallStats* runtime_stats_ = nullptr;
-    base::Optional<WorkerThreadRuntimeCallStatsScope> runtime_call_stats_scope_;
+    std::optional<WorkerThreadRuntimeCallStatsScope> runtime_call_stats_scope_;
 #endif  // defined(V8_RUNTIME_CALL_STATS)
   };
 
@@ -218,6 +222,9 @@ class V8_EXPORT_PRIVATE GCTracer {
 
     // Bytes marked incrementally for INCREMENTAL_MARK_COMPACTOR
     size_t incremental_marking_bytes = 0;
+
+    // Approximate number of threads that contributed in garbage collection.
+    size_t concurrency_estimate = 1;
 
     // Duration (in ms) of incremental marking steps for
     // INCREMENTAL_MARK_COMPACTOR.
@@ -330,6 +337,8 @@ class V8_EXPORT_PRIVATE GCTracer {
 
   void AddSurvivalRatio(double survival_ratio);
 
+  void SampleConcurrencyEsimate(size_t concurrency);
+
   // Log an incremental marking step.
   void AddIncrementalMarkingStep(double duration, size_t bytes);
 
@@ -344,10 +353,14 @@ class V8_EXPORT_PRIVATE GCTracer {
   // Returns a conservative value if no events have been recorded.
   double EmbedderSpeedInBytesPerMillisecond() const;
 
-  // Compute the average scavenge speed in bytes/millisecond.
+  // Average estimaged young generation speed in bytes/millisecond. This factors
+  // in concurrency and assumes that the level of concurrency provided by the
+  // embedder is stable. E.g., receiving lower concurrency than previously
+  // recorded events will yield in lower current speed.
+  //
   // Returns 0 if no events have been recorded.
-  double ScavengeSpeedInBytesPerMillisecond(
-      ScavengeSpeedMode mode = kForAllObjects) const;
+  double YoungGenerationSpeedInBytesPerMillisecond(
+      YoungGenerationSpeedMode mode) const;
 
   // Compute the average compaction speed in bytes/millisecond.
   // Returns 0 if not enough events have been recorded.
@@ -369,25 +382,25 @@ class V8_EXPORT_PRIVATE GCTracer {
   // Allocation throughput in the new space in bytes/millisecond.
   // Returns 0 if no allocation events have been recorded.
   double NewSpaceAllocationThroughputInBytesPerMillisecond(
-      base::Optional<base::TimeDelta> selected_duration = base::nullopt) const;
+      std::optional<base::TimeDelta> selected_duration = std::nullopt) const;
 
   // Allocation throughput in the old generation in bytes/millisecond in the
   // last time_ms milliseconds.
   // Returns 0 if no allocation events have been recorded.
   double OldGenerationAllocationThroughputInBytesPerMillisecond(
-      base::Optional<base::TimeDelta> selected_duration = base::nullopt) const;
+      std::optional<base::TimeDelta> selected_duration = std::nullopt) const;
 
   // Allocation throughput in the embedder in bytes/millisecond in the
   // last time_ms milliseconds.
   // Returns 0 if no allocation events have been recorded.
   double EmbedderAllocationThroughputInBytesPerMillisecond(
-      base::Optional<base::TimeDelta> selected_duration = base::nullopt) const;
+      std::optional<base::TimeDelta> selected_duration = std::nullopt) const;
 
   // Allocation throughput in heap in bytes/millisecond in the last time_ms
   // milliseconds.
   // Returns 0 if no allocation events have been recorded.
   double AllocationThroughputInBytesPerMillisecond(
-      base::Optional<base::TimeDelta> selected_duration) const;
+      std::optional<base::TimeDelta> selected_duration) const;
 
   // Allocation throughput in heap in bytes/milliseconds in the last
   // kThroughputTimeFrameMs seconds.
@@ -437,7 +450,7 @@ class V8_EXPORT_PRIVATE GCTracer {
 
   // Returns the average time between scheduling and invocation of an
   // incremental marking task.
-  base::Optional<base::TimeDelta> AverageTimeToIncrementalMarkingTask() const;
+  std::optional<base::TimeDelta> AverageTimeToIncrementalMarkingTask() const;
   void RecordTimeToIncrementalMarkingTask(base::TimeDelta time_to_task);
 
 #ifdef V8_RUNTIME_CALL_STATS
@@ -504,7 +517,7 @@ class V8_EXPORT_PRIVATE GCTracer {
   Event previous_;
 
   // The starting time of the observable pause if set.
-  base::Optional<base::TimeTicks> start_of_observable_pause_;
+  std::optional<base::TimeTicks> start_of_observable_pause_;
 
   // We need two epochs, since there can be scavenges during incremental
   // marking.
@@ -514,11 +527,13 @@ class V8_EXPORT_PRIVATE GCTracer {
   // Incremental marking speed for major GCs. Marking for minor GCs is ignored.
   double recorded_major_incremental_marking_speed_ = 0.0;
 
-  base::Optional<base::TimeDelta> average_time_to_incremental_marking_task_;
+  std::optional<base::TimeDelta> average_time_to_incremental_marking_task_;
 
   double recorded_embedder_speed_ = 0.0;
 
-  base::Optional<base::TimeTicks> last_marking_start_time_;
+  // This is not the general last marking start time as it's only updated when
+  // we reach the minimum threshold for code flushing which is 1 sec.
+  std::optional<base::TimeTicks> last_marking_start_time_for_code_flushing_;
   uint16_t code_flushing_increase_s_ = 0;
 
   // Incremental scopes carry more information than just the duration. The infos
@@ -541,15 +556,19 @@ class V8_EXPORT_PRIVATE GCTracer {
   // The end of the last mark-compact GC. Is set to isolate/heap setup time
   // before the first one.
   base::TimeTicks previous_mark_compact_end_time_;
+  base::TimeDelta total_duration_since_last_mark_compact_;
 
   BytesAndDurationBuffer recorded_minor_gcs_total_;
-  BytesAndDurationBuffer recorded_minor_gcs_survived_;
   BytesAndDurationBuffer recorded_compactions_;
   BytesAndDurationBuffer recorded_incremental_mark_compacts_;
   BytesAndDurationBuffer recorded_mark_compacts_;
   BytesAndDurationBuffer recorded_new_generation_allocations_;
   BytesAndDurationBuffer recorded_old_generation_allocations_;
   BytesAndDurationBuffer recorded_embedder_generation_allocations_;
+  // Estimate for young generation speed. Based on walltime and concurrency
+  // estimates.
+  BytesAndDurationBuffer recorded_minor_gc_per_thread_;
+  BytesAndDurationBuffer recorded_minor_gc_atomic_pause_;
   base::RingBuffer<double> recorded_survival_ratios_;
 
   // A full GC cycle stops only when both v8 and cppgc (if available) GCs have

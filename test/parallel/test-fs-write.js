@@ -39,14 +39,18 @@ const {
   createExternalizableString,
   externalizeString,
   isOneByteString,
-} = global;
+} = globalThis;
+
+assert.notStrictEqual(createExternalizableString, undefined);
+assert.notStrictEqual(externalizeString, undefined);
+assert.notStrictEqual(isOneByteString, undefined);
 
 // Account for extra globals exposed by --expose_externalize_string.
 common.allowGlobals(
   createExternalizableString,
   externalizeString,
   isOneByteString,
-  global.x,
+  globalThis.x,
 );
 
 {

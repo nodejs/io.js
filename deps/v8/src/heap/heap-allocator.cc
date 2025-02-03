@@ -25,21 +25,35 @@ void HeapAllocator::Setup(LinearAllocationArea* new_allocation_info,
     spaces_[i] = heap_->space(i);
   }
 
-  if (heap_->new_space() && local_heap_->is_main_thread()) {
-    new_space_allocator_.emplace(local_heap_, heap_->new_space(),
-                                 new_allocation_info);
+  if ((heap_->new_space() || v8_flags.sticky_mark_bits) &&
+      local_heap_->is_main_thread()) {
+    new_space_allocator_.emplace(
+        local_heap_,
+        v8_flags.sticky_mark_bits
+            ? static_cast<SpaceWithLinearArea*>(heap_->sticky_space())
+            : static_cast<SpaceWithLinearArea*>(heap_->new_space()),
+        MainAllocator::IsNewGeneration::kYes, new_allocation_info);
   }
 
   old_space_allocator_.emplace(local_heap_, heap_->old_space(),
+                               MainAllocator::IsNewGeneration::kNo,
                                old_allocation_info);
 
-  trusted_space_allocator_.emplace(local_heap_, heap_->trusted_space());
-  code_space_allocator_.emplace(local_heap_, heap_->code_space());
+  trusted_space_allocator_.emplace(local_heap_, heap_->trusted_space(),
+                                   MainAllocator::IsNewGeneration::kNo);
+  code_space_allocator_.emplace(local_heap_, heap_->code_space(),
+                                MainAllocator::IsNewGeneration::kNo);
 
   if (heap_->isolate()->has_shared_space()) {
     shared_space_allocator_.emplace(local_heap_,
-                                    heap_->shared_allocation_space());
+                                    heap_->shared_allocation_space(),
+                                    MainAllocator::IsNewGeneration::kNo);
     shared_lo_space_ = heap_->shared_lo_allocation_space();
+
+    shared_trusted_space_allocator_.emplace(
+        local_heap_, heap_->shared_trusted_allocation_space(),
+        MainAllocator::IsNewGeneration::kNo);
+    shared_trusted_lo_space_ = heap_->shared_trusted_lo_allocation_space();
   }
 }
 
@@ -62,6 +76,8 @@ AllocationResult HeapAllocator::AllocateRawLargeInternal(
       return shared_lo_space()->AllocateRaw(local_heap_, size_in_bytes);
     case AllocationType::kTrusted:
       return trusted_lo_space()->AllocateRaw(local_heap_, size_in_bytes);
+    case AllocationType::kSharedTrusted:
+      return shared_trusted_lo_space()->AllocateRaw(local_heap_, size_in_bytes);
     case AllocationType::kMap:
     case AllocationType::kReadOnly:
     case AllocationType::kSharedMap:
@@ -84,6 +100,7 @@ constexpr AllocationSpace AllocationTypeToGCSpace(AllocationType type) {
     case AllocationType::kReadOnly:
     case AllocationType::kSharedMap:
     case AllocationType::kSharedOld:
+    case AllocationType::kSharedTrusted:
       UNREACHABLE();
   }
 }
@@ -100,20 +117,28 @@ AllocationResult HeapAllocator::AllocateRawWithLightRetrySlowPath(
 
   // Two GCs before returning failure.
   for (int i = 0; i < 2; i++) {
-    if (IsSharedAllocationType(allocation)) {
-      heap_->CollectGarbageShared(heap_->main_thread_local_heap(),
-                                  GarbageCollectionReason::kAllocationFailure);
-    } else {
-      AllocationSpace space_to_gc = AllocationTypeToGCSpace(allocation);
-      heap_->CollectGarbage(space_to_gc,
-                            GarbageCollectionReason::kAllocationFailure);
-    }
-    result = AllocateRaw(size, allocation, origin, alignment);
+    CollectGarbage(allocation);
+    result = RetryAllocateRaw(size, allocation, origin, alignment);
     if (!result.IsFailure()) {
       return result;
     }
   }
   return result;
+}
+
+void HeapAllocator::CollectGarbage(AllocationType allocation) {
+  if (IsSharedAllocationType(allocation)) {
+    heap_->CollectGarbageShared(local_heap_,
+                                GarbageCollectionReason::kAllocationFailure);
+  } else if (local_heap_->is_main_thread()) {
+    // On the main thread we can directly start the GC.
+    AllocationSpace space_to_gc = AllocationTypeToGCSpace(allocation);
+    heap_->CollectGarbage(space_to_gc,
+                          GarbageCollectionReason::kAllocationFailure);
+  } else {
+    // Request GC from main thread.
+    heap_->CollectGarbageFromAnyThread(local_heap_);
+  }
 }
 
 AllocationResult HeapAllocator::AllocateRawWithRetryOrFailSlowPath(
@@ -123,22 +148,8 @@ AllocationResult HeapAllocator::AllocateRawWithRetryOrFailSlowPath(
       AllocateRawWithLightRetrySlowPath(size, allocation, origin, alignment);
   if (!result.IsFailure()) return result;
 
-  if (IsSharedAllocationType(allocation)) {
-    heap_->CollectGarbageShared(heap_->main_thread_local_heap(),
-                                GarbageCollectionReason::kLastResort);
-
-    // We need always_allocate() to be true both on the client- and
-    // server-isolate. It is used in both code paths.
-    AlwaysAllocateScope shared_scope(
-        heap_->isolate()->shared_space_isolate()->heap());
-    AlwaysAllocateScope client_scope(heap_);
-    result = AllocateRaw(size, allocation, origin, alignment);
-  } else {
-    heap_->CollectAllAvailableGarbage(GarbageCollectionReason::kLastResort);
-
-    AlwaysAllocateScope scope(heap_);
-    result = AllocateRaw(size, allocation, origin, alignment);
-  }
+  CollectAllAvailableGarbage(allocation);
+  result = RetryAllocateRaw(size, allocation, origin, alignment);
 
   if (!result.IsFailure()) {
     return result;
@@ -146,6 +157,32 @@ AllocationResult HeapAllocator::AllocateRawWithRetryOrFailSlowPath(
 
   V8::FatalProcessOutOfMemory(heap_->isolate(), "CALL_AND_RETRY_LAST",
                               V8::kHeapOOM);
+}
+
+void HeapAllocator::CollectAllAvailableGarbage(AllocationType allocation) {
+  if (IsSharedAllocationType(allocation)) {
+    heap_->CollectGarbageShared(heap_->main_thread_local_heap(),
+                                GarbageCollectionReason::kLastResort);
+  } else if (local_heap_->is_main_thread()) {
+    // On the main thread we can directly start the GC.
+    heap_->CollectAllAvailableGarbage(GarbageCollectionReason::kLastResort);
+  } else {
+    // Request GC from main thread.
+    heap_->CollectGarbageFromAnyThread(local_heap_);
+  }
+}
+
+AllocationResult HeapAllocator::RetryAllocateRaw(
+    int size_in_bytes, AllocationType allocation, AllocationOrigin origin,
+    AllocationAlignment alignment) {
+  // Initially flags on the LocalHeap are always disabled. They are only
+  // active while this method is running.
+  DCHECK(!local_heap_->IsRetryOfFailedAllocation());
+  local_heap_->SetRetryOfFailedAllocation(true);
+  AllocationResult result =
+      AllocateRaw(size_in_bytes, allocation, origin, alignment);
+  local_heap_->SetRetryOfFailedAllocation(false);
+  return result;
 }
 
 void HeapAllocator::MakeLinearAllocationAreasIterable() {
@@ -158,6 +195,10 @@ void HeapAllocator::MakeLinearAllocationAreasIterable() {
 
   if (shared_space_allocator_) {
     shared_space_allocator_->MakeLinearAllocationAreaIterable();
+  }
+
+  if (shared_trusted_space_allocator_) {
+    shared_trusted_space_allocator_->MakeLinearAllocationAreaIterable();
   }
 }
 
@@ -173,40 +214,40 @@ void HeapAllocator::VerifyLinearAllocationAreas() const {
   if (shared_space_allocator_) {
     shared_space_allocator_->Verify();
   }
+
+  if (shared_trusted_space_allocator_) {
+    shared_trusted_space_allocator_->Verify();
+  }
 }
 #endif  // DEBUG
 
 void HeapAllocator::MarkLinearAllocationAreasBlack() {
   old_space_allocator_->MarkLinearAllocationAreaBlack();
   trusted_space_allocator_->MarkLinearAllocationAreaBlack();
-
-  {
-    CodePageHeaderModificationScope rwx_write_scope(
-        "Marking Code objects requires write access to the Code page header");
-    code_space_allocator_->MarkLinearAllocationAreaBlack();
-  }
+  code_space_allocator_->MarkLinearAllocationAreaBlack();
 }
 
 void HeapAllocator::UnmarkLinearAllocationsArea() {
   old_space_allocator_->UnmarkLinearAllocationArea();
   trusted_space_allocator_->UnmarkLinearAllocationArea();
-
-  {
-    CodePageHeaderModificationScope rwx_write_scope(
-        "Marking Code objects requires write access to the Code page header");
-    code_space_allocator_->UnmarkLinearAllocationArea();
-  }
+  code_space_allocator_->UnmarkLinearAllocationArea();
 }
 
 void HeapAllocator::MarkSharedLinearAllocationAreasBlack() {
   if (shared_space_allocator_) {
     shared_space_allocator_->MarkLinearAllocationAreaBlack();
   }
+  if (shared_trusted_space_allocator_) {
+    shared_trusted_space_allocator_->MarkLinearAllocationAreaBlack();
+  }
 }
 
 void HeapAllocator::UnmarkSharedLinearAllocationAreas() {
   if (shared_space_allocator_) {
     shared_space_allocator_->UnmarkLinearAllocationArea();
+  }
+  if (shared_trusted_space_allocator_) {
+    shared_trusted_space_allocator_->UnmarkLinearAllocationArea();
   }
 }
 
@@ -216,16 +257,14 @@ void HeapAllocator::FreeLinearAllocationAreas() {
   }
   old_space_allocator_->FreeLinearAllocationArea();
   trusted_space_allocator_->FreeLinearAllocationArea();
-
-  {
-    CodePageHeaderModificationScope rwx_write_scope(
-        "Setting the high water mark requires write access to the Code page "
-        "header");
-    code_space_allocator_->FreeLinearAllocationArea();
-  }
+  code_space_allocator_->FreeLinearAllocationArea();
 
   if (shared_space_allocator_) {
     shared_space_allocator_->FreeLinearAllocationArea();
+  }
+
+  if (shared_trusted_space_allocator_) {
+    shared_trusted_space_allocator_->FreeLinearAllocationArea();
   }
 }
 
@@ -319,28 +358,41 @@ void HeapAllocator::SetAllocationGcInterval(int allocation_gc_interval) {
 std::atomic<int> HeapAllocator::allocation_gc_interval_{-1};
 
 void HeapAllocator::SetAllocationTimeout(int allocation_timeout) {
-  // See `allocation_timeout_` for description. We map negative values to 0 to
-  // avoid underflows as allocation decrements this value as well.
-  allocation_timeout_ = std::max(0, allocation_timeout);
+  if (allocation_timeout > 0) {
+    allocation_timeout_ = allocation_timeout;
+  } else {
+    allocation_timeout_.reset();
+  }
 }
 
 void HeapAllocator::UpdateAllocationTimeout() {
   if (v8_flags.random_gc_interval > 0) {
-    const int new_timeout = allocation_timeout_ <= 0
-                                ? heap_->isolate()->fuzzer_rng()->NextInt(
-                                      v8_flags.random_gc_interval + 1)
-                                : allocation_timeout_;
+    const int new_timeout = heap_->isolate()->fuzzer_rng()->NextInt(
+        v8_flags.random_gc_interval + 1);
     // Reset the allocation timeout, but make sure to allow at least a few
     // allocations after a collection. The reason for this is that we have a lot
     // of allocation sequences and we assume that a garbage collection will
     // allow the subsequent allocation attempts to go through.
     constexpr int kFewAllocationsHeadroom = 6;
-    allocation_timeout_ = std::max(kFewAllocationsHeadroom, new_timeout);
+    int timeout = std::max(kFewAllocationsHeadroom, new_timeout);
+    SetAllocationTimeout(timeout);
+    DCHECK(allocation_timeout_.has_value());
     return;
   }
 
-  int interval = allocation_gc_interval_.load(std::memory_order_relaxed);
-  allocation_timeout_ = std::max(0, interval);
+  int timeout = allocation_gc_interval_.load(std::memory_order_relaxed);
+  SetAllocationTimeout(timeout);
+}
+
+bool HeapAllocator::ReachedAllocationTimeout() {
+  DCHECK(allocation_timeout_.has_value());
+
+  if (heap_->always_allocate() || local_heap_->IsRetryOfFailedAllocation()) {
+    return false;
+  }
+
+  allocation_timeout_ = std::max(0, allocation_timeout_.value() - 1);
+  return allocation_timeout_.value() <= 0;
 }
 
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT

@@ -6,7 +6,7 @@ const sync_arr = new Int32Array(new SharedArrayBuffer(4));
 function waitForWorker() {
   while (Atomics.load(sync_arr) == 0) {}
 }
-function onmessage([sab, lock]) {
+function onmessage({data:[sab, lock]}) {
   const i32a = new Int32Array(sab);
   Atomics.store(lock, 0, 1);
   for (let j = 1; j < 1000; ++j) {

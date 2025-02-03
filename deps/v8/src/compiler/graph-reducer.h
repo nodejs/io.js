@@ -130,9 +130,9 @@ class AdvancedReducer : public Reducer {
   }
 
   // Relax the control uses of {node} by immediately replacing them with the
-  // control input to {node}.
-  void RelaxControls(Node* node) {
-    ReplaceWithValue(node, node, node, nullptr);
+  // either the given {control} node, or the control input to {node}.
+  void RelaxControls(Node* node, Node* control = nullptr) {
+    ReplaceWithValue(node, node, node, control);
   }
 
   void MergeControlToEnd(Graph* graph, CommonOperatorBuilder* common,

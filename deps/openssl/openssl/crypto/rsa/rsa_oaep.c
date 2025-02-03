@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1999-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -186,7 +186,7 @@ int RSA_padding_check_PKCS1_OAEP_mgf1(unsigned char *to, int tlen,
 
     mdlen = EVP_MD_get_size(md);
 
-    if (tlen <= 0 || flen <= 0)
+    if (tlen <= 0 || flen <= 0 || mdlen <= 0)
         return -1;
     /*
      * |num| is the length of the modulus; |flen| is the length of the

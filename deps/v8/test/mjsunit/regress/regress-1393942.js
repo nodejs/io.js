@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Flags: --harmony-rab-gsab --allow-natives-syntax
+// Flags: --allow-natives-syntax
 
 const gsab = new SharedArrayBuffer(4,{"maxByteLength":8});
 const u16arr = new Uint16Array(gsab);

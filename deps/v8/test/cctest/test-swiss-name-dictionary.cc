@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <optional>
+
 #include "src/objects/swiss-name-dictionary-inl.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/test-swiss-name-dictionary-infra.h"
@@ -24,10 +26,11 @@ class RuntimeTestRunner {
   // therefore always work.
   static bool IsEnabled() { return true; }
 
-  void Add(Handle<Name> key, Handle<Object> value, PropertyDetails details);
-  InternalIndex FindEntry(Handle<Name> key);
+  void Add(DirectHandle<Name> key, DirectHandle<Object> value,
+           PropertyDetails details);
+  InternalIndex FindEntry(DirectHandle<Name> key);
   // Updates the value and property details of the given entry.
-  void Put(InternalIndex entry, Handle<Object> new_value,
+  void Put(InternalIndex entry, DirectHandle<Object> new_value,
            PropertyDetails new_details);
   void Delete(InternalIndex entry);
   void RehashInplace();
@@ -40,8 +43,8 @@ class RuntimeTestRunner {
 
   // Tests that the current table has the given capacity, and number of
   // (deleted) elements, based on which optional values are present.
-  void CheckCounts(base::Optional<int> capacity, base::Optional<int> elements,
-                   base::Optional<int> deleted);
+  void CheckCounts(std::optional<int> capacity, std::optional<int> elements,
+                   std::optional<int> deleted);
   // Checks that |expected_keys| contains exactly the keys in the current table,
   // in the given order.
   void CheckEnumerationOrder(const std::vector<std::string>& expected_keys);
@@ -58,14 +61,14 @@ class RuntimeTestRunner {
   KeyCache& keys_;
 };
 
-void RuntimeTestRunner::Add(Handle<Name> key, Handle<Object> value,
+void RuntimeTestRunner::Add(DirectHandle<Name> key, DirectHandle<Object> value,
                             PropertyDetails details) {
   Handle<SwissNameDictionary> updated_table =
       SwissNameDictionary::Add(isolate_, this->table, key, value, details);
   this->table = updated_table;
 }
 
-InternalIndex RuntimeTestRunner::FindEntry(Handle<Name> key) {
+InternalIndex RuntimeTestRunner::FindEntry(DirectHandle<Name> key) {
   return table->FindEntry(isolate_, key);
 }
 
@@ -81,7 +84,7 @@ Handle<FixedArray> RuntimeTestRunner::GetData(InternalIndex entry) {
   }
 }
 
-void RuntimeTestRunner::Put(InternalIndex entry, Handle<Object> new_value,
+void RuntimeTestRunner::Put(InternalIndex entry, DirectHandle<Object> new_value,
                             PropertyDetails new_details) {
   CHECK(entry.is_found());
 
@@ -94,9 +97,9 @@ void RuntimeTestRunner::Delete(InternalIndex entry) {
   table = table->DeleteEntry(isolate_, table, entry);
 }
 
-void RuntimeTestRunner::CheckCounts(base::Optional<int> capacity,
-                                    base::Optional<int> elements,
-                                    base::Optional<int> deleted) {
+void RuntimeTestRunner::CheckCounts(std::optional<int> capacity,
+                                    std::optional<int> elements,
+                                    std::optional<int> deleted) {
   if (capacity.has_value()) {
     CHECK_EQ(capacity.value(), table->Capacity());
   }
@@ -116,7 +119,7 @@ void RuntimeTestRunner::CheckEnumerationOrder(
     Tagged<Object> key;
     if (table->ToKey(roots, index, &key)) {
       CHECK_LT(i, expected_keys.size());
-      Handle<Name> expected_key =
+      DirectHandle<Name> expected_key =
           CreateKeyWithHash(isolate_, this->keys_, Key{expected_keys[i]});
 
       CHECK_EQ(key, *expected_key);
@@ -133,7 +136,7 @@ void RuntimeTestRunner::Shrink() {
 }
 
 void RuntimeTestRunner::CheckCopy() {
-  Handle<SwissNameDictionary> copy =
+  DirectHandle<SwissNameDictionary> copy =
       SwissNameDictionary::ShallowCopy(isolate_, table);
 
   CHECK(table->EqualsForTesting(*copy));

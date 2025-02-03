@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "file" : "transitive-mapping-original.js",
+  "sourceRoot": "",
+  "sources": ["typescript-original.ts"],
+  "names": [],
+  "mappings": "AACA,SAAS,GAAG,CAAC,CAAU;IACrB,OAAO,CAAC,CAAC;AACX,CAAC;AACD,GAAG,CAAC,KAAK,CAAC,CAAC"
+}

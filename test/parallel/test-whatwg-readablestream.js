@@ -1701,3 +1701,50 @@ class Source {
     assert.deepStrictEqual(value, new Uint8Array([1, 1, 1]));
   }));
 }
+
+// Initial Pull Delay
+{
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue('data');
+      controller.close();
+    }
+  });
+
+  const iterator = stream.values();
+
+  let microtaskCompleted = false;
+  Promise.resolve().then(() => { microtaskCompleted = true; });
+
+  iterator.next().then(common.mustCall(({ done, value }) => {
+    assert.strictEqual(done, false);
+    assert.strictEqual(value, 'data');
+    assert.strictEqual(microtaskCompleted, true);
+  }));
+}
+
+// Avoiding Prototype Pollution
+{
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue('data');
+      controller.close();
+    }
+  });
+
+  const iterator = stream.values();
+
+  // Modify Promise.prototype.then to simulate prototype pollution
+  const originalThen = Promise.prototype.then;
+  Promise.prototype.then = function(onFulfilled, onRejected) {
+    return originalThen.call(this, onFulfilled, onRejected);
+  };
+
+  iterator.next().then(common.mustCall(({ done, value }) => {
+    assert.strictEqual(done, false);
+    assert.strictEqual(value, 'data');
+
+    // Restore original then method
+    Promise.prototype.then = originalThen;
+  }));
+}

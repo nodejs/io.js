@@ -151,7 +151,7 @@ class V8_EXPORT_PRIVATE SamplerManager {
   // global lazy instance.
   friend class base::LeakyObject<SamplerManager>;
 
-  std::unordered_map<pthread_t, SamplerList> sampler_map_;
+  std::unordered_map<int, SamplerList> sampler_map_;
   AtomicMutex samplers_access_counter_{false};
 };
 

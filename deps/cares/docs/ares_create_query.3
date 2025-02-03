@@ -19,6 +19,9 @@ int ares_create_query(const char *\fIname\fP,
                       int \fImax_udp_size\fP)
 .fi
 .SH DESCRIPTION
+This function is deprecated as of c-ares 1.22, please use
+\fIares_dns_record_create(3)\fP instead.
+
 The \fIares_create_query(3)\fP function composes a DNS query with a single
 question.  The parameter \fIname\fP gives the query name as a NUL-terminated C
 string of period-separated labels optionally ending with a period; periods and
@@ -70,4 +73,3 @@ Added in c-ares 1.10.0
 .BR ares_expand_name (3),
 .BR ares_free_string (3),
 .BR ares_mkquery (3)
-.SH AUTHOR

@@ -11,8 +11,10 @@ const rootPath = path.resolve(__dirname, '../../..');
 
 const options = {
   flags: [
-    '--experimental-permission',
+    '--permission',
     `--allow-fs-read=${rootPath}`,
+    '--allow-child-process',
+    '--no-warnings',
   ],
 };
 

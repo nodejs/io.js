@@ -272,6 +272,15 @@ builtin NewRestArgumentsElements(
       frame, formalParameterCount, Convert<intptr>(argumentCount));
 }
 
+macro NewRestArgumentsFromArguments(
+    implicit context: Context)(arguments: Arguments, start: intptr): JSArray {
+  dcheck(start <= arguments.length);
+  const map = GetFastPackedElementsJSArrayMap();
+  const it = ArgumentsIterator{arguments, current: start};
+  const elements = NewFixedArray(arguments.length - start, it);
+  return NewJSArray(map, elements);
+}
+
 builtin FastNewSloppyArguments(
     implicit context: Context)(f: JSFunction): JSSloppyArgumentsObject {
   return EmitFastNewSloppyArguments(f);

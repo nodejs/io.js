@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -567,8 +567,15 @@ OSSL_PROVIDER *ossl_provider_new(OSSL_LIB_CTX *libctx, const char *name,
     }
 
     /* provider_new() generates an error, so no need here */
-    if ((prov = provider_new(name, template.init, template.parameters)) == NULL)
+    prov = provider_new(name, template.init, template.parameters);
+
+    if (prov == NULL)
         return NULL;
+
+    if (!ossl_provider_set_module_path(prov, template.path)) {
+        ossl_provider_free(prov);
+        return NULL;
+    }
 
     prov->libctx = libctx;
 #ifndef FIPS_MODULE

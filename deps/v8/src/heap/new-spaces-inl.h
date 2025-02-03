@@ -22,14 +22,14 @@ namespace internal {
 // SemiSpace
 
 bool SemiSpace::Contains(Tagged<HeapObject> o) const {
-  BasicMemoryChunk* memory_chunk = BasicMemoryChunk::FromHeapObject(o);
+  MemoryChunk* memory_chunk = MemoryChunk::FromHeapObject(o);
   if (memory_chunk->IsLargePage()) return false;
   return id_ == kToSpace ? memory_chunk->IsToPage()
                          : memory_chunk->IsFromPage();
 }
 
 bool SemiSpace::Contains(Tagged<Object> o) const {
-  return IsHeapObject(o) && Contains(HeapObject::cast(o));
+  return IsHeapObject(o) && Contains(Cast<HeapObject>(o));
 }
 
 template <typename T>
@@ -39,8 +39,8 @@ inline bool SemiSpace::Contains(Tagged<T> o) const {
 }
 
 bool SemiSpace::ContainsSlow(Address a) const {
-  for (const Page* p : *this) {
-    if (p == BasicMemoryChunk::FromAddress(a)) return true;
+  for (const PageMetadata* p : *this) {
+    if (p == MemoryChunkMetadata::FromAddress(a)) return true;
   }
   return false;
 }
@@ -49,11 +49,11 @@ bool SemiSpace::ContainsSlow(Address a) const {
 // NewSpace
 
 bool NewSpace::Contains(Tagged<Object> o) const {
-  return IsHeapObject(o) && Contains(HeapObject::cast(o));
+  return IsHeapObject(o) && Contains(Cast<HeapObject>(o));
 }
 
 bool NewSpace::Contains(Tagged<HeapObject> o) const {
-  return BasicMemoryChunk::FromHeapObject(o)->InNewSpace();
+  return MemoryChunk::FromHeapObject(o)->InNewSpace();
 }
 
 // -----------------------------------------------------------------------------
@@ -64,8 +64,8 @@ SemiSpaceObjectIterator::SemiSpaceObjectIterator(const SemiSpaceNewSpace* space)
 
 Tagged<HeapObject> SemiSpaceObjectIterator::Next() {
   while (true) {
-    if (Page::IsAlignedToPageSize(current_)) {
-      Page* page = Page::FromAllocationAreaAddress(current_);
+    if (PageMetadata::IsAlignedToPageSize(current_)) {
+      PageMetadata* page = PageMetadata::FromAllocationAreaAddress(current_);
       page = page->next_page();
       if (page == nullptr) return Tagged<HeapObject>();
       current_ = page->area_start();
@@ -74,6 +74,20 @@ Tagged<HeapObject> SemiSpaceObjectIterator::Next() {
     current_ += ALIGN_TO_ALLOCATION_ALIGNMENT(object->Size());
     if (!IsFreeSpaceOrFiller(object)) return object;
   }
+}
+
+void SemiSpaceNewSpace::IncrementAllocationTop(Address new_top) {
+  DCHECK_LE(allocation_top_, new_top);
+  DCHECK_EQ(PageMetadata::FromAllocationAreaAddress(allocation_top_),
+            PageMetadata::FromAllocationAreaAddress(new_top));
+  allocation_top_ = new_top;
+}
+
+void SemiSpaceNewSpace::DecrementAllocationTop(Address new_top) {
+  DCHECK_LE(new_top, allocation_top_);
+  DCHECK_EQ(PageMetadata::FromAllocationAreaAddress(allocation_top_),
+            PageMetadata::FromAllocationAreaAddress(new_top));
+  allocation_top_ = new_top;
 }
 
 }  // namespace internal

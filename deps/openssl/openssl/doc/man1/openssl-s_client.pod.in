@@ -616,7 +616,11 @@ For example strings, see L<SSL_CTX_set1_sigalgs(3)>
 =item B<-curves> I<curvelist>
 
 Specifies the list of supported curves to be sent by the client. The curve is
-ultimately selected by the server. For a list of all curves, use:
+ultimately selected by the server.
+
+The list of all supported groups includes named EC parameters as well as X25519
+and X448 or FFDHE groups, and may also include groups implemented in 3rd-party
+providers. For a list of named EC parameters, use:
 
     $ openssl ecparam -list_curves
 
@@ -910,7 +914,7 @@ The B<-engine> option was deprecated in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

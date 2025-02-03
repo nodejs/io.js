@@ -19,19 +19,19 @@ void CodeStatistics::RecordCodeAndMetadataStatistics(Tagged<HeapObject> object,
                                                      Isolate* isolate) {
   PtrComprCageBase cage_base(isolate);
   if (IsScript(object, cage_base)) {
-    Tagged<Script> script = Script::cast(object);
+    Tagged<Script> script = Cast<Script>(object);
     // Log the size of external source code.
     Tagged<Object> source = script->source(cage_base);
     if (IsExternalString(source, cage_base)) {
       Tagged<ExternalString> external_source_string =
-          ExternalString::cast(source);
+          Cast<ExternalString>(source);
       int size = isolate->external_script_source_size();
       size += external_source_string->ExternalPayloadSize();
       isolate->set_external_script_source_size(size);
     }
   } else if (IsAbstractCode(object, cage_base)) {
     // Record code+metadata statistics.
-    Tagged<AbstractCode> abstract_code = AbstractCode::cast(object);
+    Tagged<AbstractCode> abstract_code = Cast<AbstractCode>(object);
     int size = abstract_code->SizeIncludingMetadata(cage_base);
     if (IsCode(abstract_code, cage_base)) {
       size += isolate->code_and_metadata_size();
@@ -206,7 +206,7 @@ void CodeStatistics::CollectCodeCommentStatistics(Tagged<AbstractCode> obj,
   PtrComprCageBase cage_base{isolate};
   if (!IsCode(obj, cage_base)) return;
 
-  Tagged<Code> code = Code::cast(obj);
+  Tagged<Code> code = Cast<Code>(obj);
 
   // Off-heap builtins might contain comments but they are a part of binary so
   // it doesn't make sense to account them in the stats.

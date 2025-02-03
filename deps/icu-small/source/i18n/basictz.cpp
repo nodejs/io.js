@@ -165,7 +165,8 @@ BasicTimeZone::getSimpleRulesNear(UDate date, InitialTimeZoneRule*& initial,
 
             // Get local wall time for the next transition time
             Grego::timeToFields(nextTransitionTime + initialRaw + initialDst,
-                year, month, dom, dow, doy, mid);
+                year, month, dom, dow, doy, mid, status);
+            if (U_FAILURE(status)) return;
             int32_t weekInMonth = Grego::dayOfWeekInMonth(year, month, dom);
             // Create DOW rule
             DateTimeRule *dtr = new DateTimeRule(month, weekInMonth, dow, mid, DateTimeRule::WALL_TIME);
@@ -192,7 +193,8 @@ BasicTimeZone::getSimpleRulesNear(UDate date, InitialTimeZoneRule*& initial,
 
                         // Get local wall time for the next transition time
                         Grego::timeToFields(tr.getTime() + tr.getFrom()->getRawOffset() + tr.getFrom()->getDSTSavings(),
-                            year, month, dom, dow, doy, mid);
+                            year, month, dom, dow, doy, mid, status);
+                        if (U_FAILURE(status)) return;
                         weekInMonth = Grego::dayOfWeekInMonth(year, month, dom);
                         // Generate another DOW rule
                         dtr = new DateTimeRule(month, weekInMonth, dow, mid, DateTimeRule::WALL_TIME);
@@ -223,7 +225,8 @@ BasicTimeZone::getSimpleRulesNear(UDate date, InitialTimeZoneRule*& initial,
 
                         // Generate another DOW rule
                         Grego::timeToFields(tr.getTime() + tr.getFrom()->getRawOffset() + tr.getFrom()->getDSTSavings(),
-                            year, month, dom, dow, doy, mid);
+                            year, month, dom, dow, doy, mid, status);
+                        if (U_FAILURE(status)) return;
                         weekInMonth = Grego::dayOfWeekInMonth(year, month, dom);
                         dtr = new DateTimeRule(month, weekInMonth, dow, mid, DateTimeRule::WALL_TIME);
                         tr.getTo()->getName(name);
@@ -367,7 +370,7 @@ BasicTimeZone::getTimeZoneRulesAfter(UDate start, InitialTimeZoneRule*& initial,
 
     // Mark rules which does not need to be processed
     for (i = 0; i < ruleCount; i++) {
-        r = (TimeZoneRule*)orgRules->elementAt(i);
+        r = static_cast<TimeZoneRule*>(orgRules->elementAt(i));
         avail = r->getNextStart(start, res_initial->getRawOffset(), res_initial->getDSTSavings(), false, time);
         done[i] = !avail;
     }
@@ -390,7 +393,7 @@ BasicTimeZone::getTimeZoneRulesAfter(UDate start, InitialTimeZoneRule*& initial,
  
         const TimeZoneRule *toRule = tzt.getTo();
         for (i = 0; i < ruleCount; i++) {
-            r = (TimeZoneRule*)orgRules->elementAt(i);
+            r = static_cast<TimeZoneRule*>(orgRules->elementAt(i));
             if (*r == *toRule) {
                 break;
             }
@@ -484,7 +487,10 @@ BasicTimeZone::getTimeZoneRulesAfter(UDate start, InitialTimeZoneRule*& initial,
             } else {
                 // Calculate the transition year
                 int32_t year, month, dom, dow, doy, mid;
-                Grego::timeToFields(tzt.getTime(), year, month, dom, dow, doy, mid);
+                Grego::timeToFields(tzt.getTime(), year, month, dom, dow, doy, mid, status);
+                if (U_FAILURE(status)) {
+                    return;
+                }
                 // Re-create the rule
                 ar->getName(name);
                 LocalPointer<AnnualTimeZoneRule> newAr(new AnnualTimeZoneRule(name, ar->getRawOffset(), ar->getDSTSavings(),
@@ -527,8 +533,8 @@ BasicTimeZone::getOffsetFromLocal(UDate /*date*/, UTimeZoneLocalOption /*nonExis
 void BasicTimeZone::getOffsetFromLocal(UDate date, int32_t nonExistingTimeOpt, int32_t duplicatedTimeOpt,
                                        int32_t& rawOffset, int32_t& dstOffset,
                                        UErrorCode& status) const {
-    getOffsetFromLocal(date, (UTimeZoneLocalOption)nonExistingTimeOpt,
-                       (UTimeZoneLocalOption)duplicatedTimeOpt, rawOffset, dstOffset, status);
+    getOffsetFromLocal(date, static_cast<UTimeZoneLocalOption>(nonExistingTimeOpt),
+                       static_cast<UTimeZoneLocalOption>(duplicatedTimeOpt), rawOffset, dstOffset, status);
 }
 
 U_NAMESPACE_END

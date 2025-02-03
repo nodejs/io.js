@@ -31,7 +31,7 @@ var window_received_overscroll = false;
 
 function onOverscroll(event) {
   assert_false(event.cancelable);
-  // overscroll events targetting document are bubbled to the window.
+  // overscroll events targeting document are bubbled to the window.
   assert_true(event.bubbles);
   window_received_overscroll = true;
 }

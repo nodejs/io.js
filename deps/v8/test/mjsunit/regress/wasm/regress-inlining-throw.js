@@ -19,7 +19,7 @@ let sig = makeSig([wasmRefNullType(supertype)], [kWasmI32]);
 let callee1 = builder.addFunction('callee1', sig).addBody([
     kExprBlock, kWasmRef, subtype,
         kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, supertype, subtype,
+        kGCPrefix, kExprBrOnCast, 0b01, 0, supertype, subtype,
         kGCPrefix, kExprRefCast, unused_type,
         kGCPrefix, kExprStructGet, unused_type, 0,
         kExprReturn,
@@ -30,7 +30,7 @@ let callee1 = builder.addFunction('callee1', sig).addBody([
 let callee2 = builder.addFunction('callee2', sig).addBody([
     kExprBlock, kWasmRef, subtype,
         kExprLocalGet, 0,
-        kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, supertype, subtype,
+        kGCPrefix, kExprBrOnCast, 0b01, 0, supertype, subtype,
         kExprUnreachable,
         kExprReturn,
     kExprEnd,

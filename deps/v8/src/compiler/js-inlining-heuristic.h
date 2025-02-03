@@ -25,10 +25,14 @@ class JSInliningHeuristic final : public AdvancedReducer {
                       JSHeapBroker* broker,
                       SourcePositionTable* source_positions,
                       NodeOriginTable* node_origins, Mode mode,
-                      const wasm::WasmModule* wasm_module = nullptr)
+                      // The two following arguments should be `nullptr` iff
+                      // inlining with `mode == kJSOnly`.
+                      const wasm::WasmModule* wasm_module,
+                      JsWasmCallsSidetable* js_wasm_calls_sidetable)
       : AdvancedReducer(editor),
         inliner_(editor, local_zone, info, jsgraph, broker, source_positions,
-                 node_origins, wasm_module, mode == kWasmFullInlining),
+                 node_origins, wasm_module, js_wasm_calls_sidetable,
+                 mode == kWasmFullInlining),
         candidates_(local_zone),
         seen_(local_zone),
         source_positions_(source_positions),
@@ -41,7 +45,7 @@ class JSInliningHeuristic final : public AdvancedReducer {
         max_inlined_bytecode_size_absolute_(
             v8_flags.max_inlined_bytecode_size_absolute) {
     DCHECK_EQ(mode == kWasmWrappersOnly || mode == kWasmFullInlining,
-              wasm_module != nullptr);
+              wasm_module != nullptr && js_wasm_calls_sidetable != nullptr);
   }
 
   const char* reducer_name() const override { return "JSInliningHeuristic"; }

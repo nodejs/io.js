@@ -3,11 +3,11 @@ const common = require('../common');
 const assert = require('assert');
 const http = require('http');
 
-const REQ_TIMEOUT = 500; // Set max ms of request time before abort
+const REQ_TIMEOUT = common.platformTimeout(500); // Set max ms of request time before abort
 
 // Set total allowed test timeout to avoid infinite loop
 // that will hang test suite
-const TOTAL_TEST_TIMEOUT = 1000;
+const TOTAL_TEST_TIMEOUT = common.platformTimeout(1000);
 
 // Placeholder for sockets handled, to make sure that we
 // will reach a socket re-use case.

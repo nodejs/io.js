@@ -59,4 +59,10 @@ asm(
 #endif
     // Drop all callee-saved registers.
     "  add sp, sp, #80                                  \n"
-    "  ret                                              \n");
+    "  ret                                              \n"
+#if !defined(__APPLE__) && !defined(_WIN64)
+    ".Lfunc_end0:                                       \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack\n"
+#endif  // !defined(__APPLE__) && !defined(_WIN64)
+    );

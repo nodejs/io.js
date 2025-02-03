@@ -6,7 +6,7 @@
  */
 'use strict'
 exports[`test/lib/commands/publish.js TAP _auth config default registry > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP bare _auth and registry config > new package version 1`] = `
@@ -15,130 +15,55 @@ exports[`test/lib/commands/publish.js TAP bare _auth and registry config > new p
 
 exports[`test/lib/commands/publish.js TAP dry-run > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-  ],
-  Array [
-    "",
-    "package: test-package@1.0.0",
-  ],
-  Array [
-    "=== Tarball Contents ===",
-  ],
-  Array [
-    "",
-    "87B package.json",
-  ],
-  Array [
-    "=== Tarball Details ===",
-  ],
-  Array [
-    "",
-    String(
-      name:          test-package
-      version:       1.0.0
-      filename:      test-package-1.0.0.tgz
-      package size:  {size}
-      unpacked size: 87 B
-      shasum:        {sha}
-      integrity:     {integrity}
-      total files:   1
-    ),
-  ],
-  Array [
-    "",
-    "",
-  ],
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and default access (dry-run)",
-  ],
+  "package: @npmcli/test-package@1.0.0",
+  "Tarball Contents",
+  "95B package.json",
+  "Tarball Details",
+  "name: @npmcli/test-package",
+  "version: 1.0.0",
+  "filename: npmcli-test-package-1.0.0.tgz",
+  "package size: {size}",
+  "unpacked size: 95 B",
+  "shasum: {sha}",
+  "integrity: {integrity}
+  "total files: 1",
+  "Publishing to https://registry.npmjs.org/ with tag latest and default access (dry-run)",
 ]
 `
 
 exports[`test/lib/commands/publish.js TAP foreground-scripts can still be set to false > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-  ],
-  Array [
-    "",
-    "package: test-fg-scripts@0.0.0",
-  ],
-  Array [
-    "=== Tarball Contents ===",
-  ],
-  Array [
-    "",
-    "110B package.json",
-  ],
-  Array [
-    "=== Tarball Details ===",
-  ],
-  Array [
-    "",
-    String(
-      name:          test-fg-scripts
-      version:       0.0.0
-      filename:      test-fg-scripts-0.0.0.tgz
-      package size:  {size}
-      unpacked size: 110 B
-      shasum:        {sha}
-      integrity:     {integrity}
-      total files:   1
-    ),
-  ],
-  Array [
-    "",
-    "",
-  ],
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and default access (dry-run)",
-  ],
+  "package: test-fg-scripts@0.0.0",
+  "Tarball Contents",
+  "110B package.json",
+  "Tarball Details",
+  "name: test-fg-scripts",
+  "version: 0.0.0",
+  "filename: test-fg-scripts-0.0.0.tgz",
+  "package size: {size}",
+  "unpacked size: 110 B",
+  "shasum: {sha}",
+  "integrity: {integrity}
+  "total files: 1",
+  "Publishing to https://registry.npmjs.org/ with tag latest and default access (dry-run)",
 ]
 `
 
 exports[`test/lib/commands/publish.js TAP foreground-scripts defaults to true > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-  ],
-  Array [
-    "",
-    "package: test-fg-scripts@0.0.0",
-  ],
-  Array [
-    "=== Tarball Contents ===",
-  ],
-  Array [
-    "",
-    "110B package.json",
-  ],
-  Array [
-    "=== Tarball Details ===",
-  ],
-  Array [
-    "",
-    String(
-      name:          test-fg-scripts
-      version:       0.0.0
-      filename:      test-fg-scripts-0.0.0.tgz
-      package size:  {size}
-      unpacked size: 110 B
-      shasum:        {sha}
-      integrity:     {integrity}
-      total files:   1
-    ),
-  ],
-  Array [
-    "",
-    "",
-  ],
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and default access (dry-run)",
-  ],
+  "package: test-fg-scripts@0.0.0",
+  "Tarball Contents",
+  "110B package.json",
+  "Tarball Details",
+  "name: test-fg-scripts",
+  "version: 0.0.0",
+  "filename: test-fg-scripts-0.0.0.tgz",
+  "package size: {size}",
+  "unpacked size: 110 B",
+  "shasum: {sha}",
+  "integrity: {integrity}
+  "total files: 1",
+  "Publishing to https://registry.npmjs.org/ with tag latest and default access (dry-run)",
 ]
 `
 
@@ -151,28 +76,25 @@ exports[`test/lib/commands/publish.js TAP has token auth for scope configured re
 `
 
 exports[`test/lib/commands/publish.js TAP ignore-scripts > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP json > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and default access",
-  ],
+  "Publishing to https://registry.npmjs.org/ with tag latest and default access",
 ]
 `
 
 exports[`test/lib/commands/publish.js TAP json > new package json 1`] = `
 {
-  "id": "test-package@1.0.0",
-  "name": "test-package",
+  "id": "@npmcli/test-package@1.0.0",
+  "name": "@npmcli/test-package",
   "version": "1.0.0",
   "size": "{size}",
-  "unpackedSize": 87,
+  "unpackedSize": 95,
   "shasum": "{sha}",
   "integrity": "{integrity}",
-  "filename": "test-package-1.0.0.tgz",
+  "filename": "npmcli-test-package-1.0.0.tgz",
   "files": [
     {
       "path": "package.json",
@@ -252,7 +174,6 @@ Object {
     "man/man1/npm-fund.1",
     "man/man1/npm-help-search.1",
     "man/man1/npm-help.1",
-    "man/man1/npm-hook.1",
     "man/man1/npm-init.1",
     "man/man1/npm-install-ci-test.1",
     "man/man1/npm-install-test.1",
@@ -287,6 +208,7 @@ Object {
     "man/man1/npm-team.1",
     "man/man1/npm-test.1",
     "man/man1/npm-token.1",
+    "man/man1/npm-undeprecate.1",
     "man/man1/npm-uninstall.1",
     "man/man1/npm-unpublish.1",
     "man/man1/npm-unstar.1",
@@ -327,73 +249,34 @@ Object {
 `
 
 exports[`test/lib/commands/publish.js TAP no auth dry-run > must match snapshot 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP no auth dry-run > warns about auth being needed 1`] = `
 Array [
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-    ),
-  ],
-  Array [
-    "",
-    "This command requires you to be logged in to https://registry.npmjs.org/ (dry-run)",
-  ],
+  "This command requires you to be logged in to https://registry.npmjs.org/ (dry-run)",
 ]
 `
 
 exports[`test/lib/commands/publish.js TAP prioritize CLI flags over publishConfig > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP public access > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-  ],
-  Array [
-    "",
-    "package: @npm/test-package@1.0.0",
-  ],
-  Array [
-    "=== Tarball Contents ===",
-  ],
-  Array [
-    "",
-    "55B package.json",
-  ],
-  Array [
-    "=== Tarball Details ===",
-  ],
-  Array [
-    "",
-    String(
-      name:          @npm/test-package
-      version:       1.0.0
-      filename:      npm-test-package-1.0.0.tgz
-      package size:  {size}
-      unpacked size: 55 B
-      shasum:        {sha}
-      integrity:     {integrity}
-      total files:   1
-    ),
-  ],
-  Array [
-    "",
-    "",
-  ],
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and public access",
-  ],
+  "package: @npm/test-package@1.0.0",
+  "Tarball Contents",
+  "55B package.json",
+  "Tarball Details",
+  "name: @npm/test-package",
+  "version: 1.0.0",
+  "filename: npm-test-package-1.0.0.tgz",
+  "package size: {size}",
+  "unpacked size: 55 B",
+  "shasum: {sha}",
+  "integrity: {integrity}
+  "total files: 1",
+  "Publishing to https://registry.npmjs.org/ with tag latest and public access",
 ]
 `
 
@@ -402,7 +285,7 @@ exports[`test/lib/commands/publish.js TAP public access > new package version 1`
 `
 
 exports[`test/lib/commands/publish.js TAP re-loads publishConfig.registry if added during script process > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP respects publishConfig.registry, runs appropriate scripts > new package version 1`] = `
@@ -411,44 +294,19 @@ exports[`test/lib/commands/publish.js TAP respects publishConfig.registry, runs 
 
 exports[`test/lib/commands/publish.js TAP restricted access > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-  ],
-  Array [
-    "",
-    "package: @npm/test-package@1.0.0",
-  ],
-  Array [
-    "=== Tarball Contents ===",
-  ],
-  Array [
-    "",
-    "55B package.json",
-  ],
-  Array [
-    "=== Tarball Details ===",
-  ],
-  Array [
-    "",
-    String(
-      name:          @npm/test-package
-      version:       1.0.0
-      filename:      npm-test-package-1.0.0.tgz
-      package size:  {size}
-      unpacked size: 55 B
-      shasum:        {sha}
-      integrity:     {integrity}
-      total files:   1
-    ),
-  ],
-  Array [
-    "",
-    "",
-  ],
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and restricted access",
-  ],
+  "package: @npm/test-package@1.0.0",
+  "Tarball Contents",
+  "55B package.json",
+  "Tarball Details",
+  "name: @npm/test-package",
+  "version: 1.0.0",
+  "filename: npm-test-package-1.0.0.tgz",
+  "package size: {size}",
+  "unpacked size: 55 B",
+  "shasum: {sha}",
+  "integrity: {integrity}
+  "total files: 1",
+  "Publishing to https://registry.npmjs.org/ with tag latest and restricted access",
 ]
 `
 
@@ -462,47 +320,22 @@ exports[`test/lib/commands/publish.js TAP scoped _auth config scoped registry > 
 
 exports[`test/lib/commands/publish.js TAP tarball > must match snapshot 1`] = `
 Array [
-  Array [
-    "",
-  ],
-  Array [
-    "",
-    "package: test-tar-package@1.0.0",
-  ],
-  Array [
-    "=== Tarball Contents ===",
-  ],
-  Array [
-    "",
-    String(
-      26B index.js
-      98B package.json
-    ),
-  ],
-  Array [
-    "=== Tarball Details ===",
-  ],
-  Array [
-    "",
-    String(
-      name:          test-tar-package
-      version:       1.0.0
-      filename:      test-tar-package-1.0.0.tgz
-      package size:  {size}
-      unpacked size: 124 B
-      shasum:        {sha}
-      integrity:     {integrity}
-      total files:   2
-    ),
-  ],
-  Array [
-    "",
-    "",
-  ],
-  Array [
-    "",
-    "Publishing to https://registry.npmjs.org/ with tag latest and default access",
-  ],
+  "package: test-tar-package@1.0.0",
+  "Tarball Contents",
+  String(
+    26B index.js
+    98B package.json
+  ),
+  "Tarball Details",
+  "name: test-tar-package",
+  "version: 1.0.0",
+  "filename: test-tar-package-1.0.0.tgz",
+  "package size: {size}",
+  "unpacked size: 124 B",
+  "shasum: {sha}",
+  "integrity: {integrity}
+  "total files: 2",
+  "Publishing to https://registry.npmjs.org/ with tag latest and default access",
 ]
 `
 
@@ -518,57 +351,18 @@ exports[`test/lib/commands/publish.js TAP workspaces all workspaces - color > al
 
 exports[`test/lib/commands/publish.js TAP workspaces all workspaces - color > warns about skipped private workspace in color 1`] = `
 Array [
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-      "repository" was changed from a string to an object
-    ),
-  ],
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-      "repository" was changed from a string to an object
-      "repository.url" was normalized to "git+https://github.com/npm/workspace-b.git"
-    ),
-  ],
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-    ),
-  ],
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-    ),
-  ],
-  Array [
-    "publish",
-    "Skipping workspace \\u001b[32mworkspace-p\\u001b[39m, marked as \\u001b[1mprivate\\u001b[22m",
-  ],
+  "\\u001b[94mpublish\\u001b[39m npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
+  String(
+    \\u001b[94mpublish\\u001b[39m errors corrected:
+    \\u001b[94mpublish\\u001b[39m "repository" was changed from a string to an object
+  ),
+  "\\u001b[94mpublish\\u001b[39m npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
+  String(
+    \\u001b[94mpublish\\u001b[39m errors corrected:
+    \\u001b[94mpublish\\u001b[39m "repository" was changed from a string to an object
+    \\u001b[94mpublish\\u001b[39m "repository.url" was normalized to "git+https://github.com/npm/workspace-b.git"
+  ),
+  "\\u001b[94mpublish\\u001b[39m Skipping workspace \\u001b[36mworkspace-p\\u001b[39m, marked as \\u001b[1mprivate\\u001b[22m",
 ]
 `
 
@@ -580,58 +374,27 @@ exports[`test/lib/commands/publish.js TAP workspaces all workspaces - no color >
 
 exports[`test/lib/commands/publish.js TAP workspaces all workspaces - no color > warns about skipped private workspace 1`] = `
 Array [
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-      "repository" was changed from a string to an object
-    ),
-  ],
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-      "repository" was changed from a string to an object
-      "repository.url" was normalized to "git+https://github.com/npm/workspace-b.git"
-    ),
-  ],
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-    ),
-  ],
-  Array [
-    "publish",
-    "npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
-  ],
-  Array [
-    "publish",
-    String(
-      errors corrected:
-      Removed invalid "scripts"
-    ),
-  ],
-  Array [
-    "publish",
-    "Skipping workspace workspace-p, marked as private",
-  ],
+  "publish npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
+  String(
+    publish errors corrected:
+    publish "repository" was changed from a string to an object
+  ),
+  "publish npm auto-corrected some errors in your package.json when publishing.  Please run \\"npm pkg fix\\" to address these errors.",
+  String(
+    publish errors corrected:
+    publish "repository" was changed from a string to an object
+    publish "repository.url" was normalized to "git+https://github.com/npm/workspace-b.git"
+  ),
+  "publish Skipping workspace workspace-p, marked as private",
 ]
+`
+
+exports[`test/lib/commands/publish.js TAP workspaces all workspaces - some marked private > one marked private 1`] = `
++ workspace-a@1.2.3-a
+`
+
+exports[`test/lib/commands/publish.js TAP workspaces differet package spec > publish different package spec 1`] = `
++ pkg@1.2.3
 `
 
 exports[`test/lib/commands/publish.js TAP workspaces json > all workspaces in json 1`] = `

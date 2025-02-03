@@ -331,7 +331,7 @@ TEST(4) {
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto f = GeneratedCode<F_piiii>::FromCode(isolate, *code);
     t.a = 1.5;
@@ -391,7 +391,7 @@ TEST(5) {
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto f = GeneratedCode<F_iiiii>::FromCode(isolate, *code);
     int res = reinterpret_cast<int>(f.Call(0xAAAAAAAA, 0, 0, 0, 0));
@@ -426,7 +426,7 @@ TEST(6) {
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto f = GeneratedCode<F_iiiii>::FromCode(isolate, *code);
     int res = reinterpret_cast<int>(f.Call(0xFFFF, 0, 0, 0, 0));
@@ -501,7 +501,7 @@ static void TestRoundingMode(VCVTTypes types,
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto f = GeneratedCode<F_iiiii>::FromCode(isolate, *code);
     int res = reinterpret_cast<int>(f.Call(0, 0, 0, 0, 0));
@@ -688,7 +688,7 @@ TEST(8) {
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto fn = GeneratedCode<F_ppiii>::FromCode(isolate, *code);
     d.a = 1.1;
@@ -803,7 +803,7 @@ TEST(9) {
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto fn = GeneratedCode<F_ppiii>::FromCode(isolate, *code);
     d.a = 1.1;
@@ -914,7 +914,7 @@ TEST(10) {
         Handle<Code>())->ToObjectChecked();
     CHECK(code->IsCode());
 #ifdef DEBUG
-    Code::cast(code)->Print();
+    Cast<Code>(code)->Print();
 #endif
     auto fn = GeneratedCode<F_ppiii>::FromCode(isolate, *code);
     d.a = 1.1;
@@ -1011,7 +1011,7 @@ TEST(11) {
       Handle<Code>())->ToObjectChecked();
   CHECK(code->IsCode());
 #ifdef DEBUG
-  Code::cast(code)->Print();
+  Cast<Code>(code)->Print();
 #endif
   auto f = GeneratedCode<F_piiii>::FromCode(isolate, *code);
   f.Call(&i, 0, 0, 0, 0);

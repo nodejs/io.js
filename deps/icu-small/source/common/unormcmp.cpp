@@ -313,7 +313,7 @@ unorm_cmpEquivFold(const char16_t *s1, int32_t length1,
          */
 
         if( level1==0 && (options&U_COMPARE_IGNORE_CASE) &&
-            (length=ucase_toFullFolding((UChar32)cp1, &p, options))>=0
+            (length = ucase_toFullFolding(cp1, &p, options)) >= 0
         ) {
             /* cp1 case-folds to the code point "length" or to p[length] */
             if(U_IS_SURROGATE(c1)) {
@@ -358,7 +358,7 @@ unorm_cmpEquivFold(const char16_t *s1, int32_t length1,
         }
 
         if( level2==0 && (options&U_COMPARE_IGNORE_CASE) &&
-            (length=ucase_toFullFolding((UChar32)cp2, &p, options))>=0
+            (length = ucase_toFullFolding(cp2, &p, options)) >= 0
         ) {
             /* cp2 case-folds to the code point "length" or to p[length] */
             if(U_IS_SURROGATE(c2)) {
@@ -403,7 +403,7 @@ unorm_cmpEquivFold(const char16_t *s1, int32_t length1,
         }
 
         if( level1<2 && (options&_COMPARE_EQUIV) &&
-            nullptr != (p = nfcImpl->getDecomposition((UChar32)cp1, decomp1, length))
+            nullptr != (p = nfcImpl->getDecomposition(cp1, decomp1, length))
         ) {
             /* cp1 decomposes into p[length] */
             if(U_IS_SURROGATE(c1)) {
@@ -444,7 +444,7 @@ unorm_cmpEquivFold(const char16_t *s1, int32_t length1,
         }
 
         if( level2<2 && (options&_COMPARE_EQUIV) &&
-            nullptr != (p = nfcImpl->getDecomposition((UChar32)cp2, decomp2, length))
+            nullptr != (p = nfcImpl->getDecomposition(cp2, decomp2, length))
         ) {
             /* cp2 decomposes into p[length] */
             if(U_IS_SURROGATE(c2)) {

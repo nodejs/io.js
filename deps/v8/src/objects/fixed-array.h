@@ -5,12 +5,16 @@
 #ifndef V8_OBJECTS_FIXED_ARRAY_H_
 #define V8_OBJECTS_FIXED_ARRAY_H_
 
+#include <optional>
+
+#include "src/common/globals.h"
 #include "src/handles/maybe-handles.h"
 #include "src/objects/heap-object.h"
 #include "src/objects/instance-type.h"
 #include "src/objects/maybe-object.h"
 #include "src/objects/objects.h"
 #include "src/objects/smi.h"
+#include "src/objects/tagged.h"
 #include "src/objects/trusted-object.h"
 #include "src/roots/roots.h"
 #include "src/utils/memcopy.h"
@@ -18,45 +22,39 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #include "torque-generated/src/objects/fixed-array-tq.inc"
 
 // Derived: must have a Smi slot at kCapacityOffset.
-template <class Derived, class Shape, class Super = HeapObject>
+template <class Derived, class ShapeT, class Super = HeapObject>
 class TaggedArrayBase : public Super {
   static_assert(std::is_base_of<HeapObject, Super>::value);
   OBJECT_CONSTRUCTORS(TaggedArrayBase, Super);
 
-  using ElementT = typename Shape::ElementT;
-  static_assert(Shape::kElementSize == kTaggedSize);
-  static_assert(is_subtype_v<ElementT, Object> ||
-                is_subtype_v<ElementT, MaybeObject>);
+  using ElementT = typename ShapeT::ElementT;
+  static_assert(ShapeT::kElementSize == kTaggedSize);
+  static_assert(is_subtype_v<ElementT, MaybeObject>);
 
   using ElementFieldT =
-      TaggedField<ElementT, 0, typename Shape::CompressionScheme>;
+      TaggedField<ElementT, 0, typename ShapeT::CompressionScheme>;
 
+  template <typename ElementT>
   static constexpr bool kSupportsSmiElements =
       std::is_convertible_v<Smi, ElementT>;
+
   static constexpr WriteBarrierMode kDefaultMode =
       std::is_same_v<ElementT, Smi> ? SKIP_WRITE_BARRIER : UPDATE_WRITE_BARRIER;
 
  public:
-  static constexpr bool kElementsAreMaybeObject =
-      std::is_base_of_v<MaybeObject, ElementT>;
+  static constexpr bool kElementsAreMaybeObject = is_maybe_weak_v<ElementT>;
 
  private:
-  // Usually the PtrType is Tagged<T>, but for MaybeObject it's just the raw
-  // MaybeObject.
-  // TODO(leszeks): Clean this up to be more uniform.
-  using PtrType =
-      std::conditional_t<is_taggable_v<ElementT>, Tagged<ElementT>, ElementT>;
   using SlotType =
       std::conditional_t<kElementsAreMaybeObject, MaybeObjectSlot, ObjectSlot>;
 
  public:
-  using ShapeT = Shape;
+  using Shape = ShapeT;
 
   inline int capacity() const;
   inline int capacity(AcquireLoadTag) const;
@@ -65,42 +63,51 @@ class TaggedArrayBase : public Super {
 
   // For most arraylike objects, length equals capacity. Provide these
   // convenience accessors:
-  template <typename = std::enable_if<Shape::kLengthEqualsCapacity>>
+  template <typename T = Shape,
+            typename = std::enable_if<T::kLengthEqualsCapacity>>
   inline int length() const;
-  template <typename = std::enable_if<Shape::kLengthEqualsCapacity>>
+  template <typename T = Shape,
+            typename = std::enable_if<T::kLengthEqualsCapacity>>
   inline int length(AcquireLoadTag tag) const;
-  template <typename = std::enable_if<Shape::kLengthEqualsCapacity>>
+  template <typename T = Shape,
+            typename = std::enable_if<T::kLengthEqualsCapacity>>
   inline void set_length(int value);
-  template <typename = std::enable_if<Shape::kLengthEqualsCapacity>>
+  template <typename T = Shape,
+            typename = std::enable_if<T::kLengthEqualsCapacity>>
   inline void set_length(int value, ReleaseStoreTag tag);
 
-  inline PtrType get(int index) const;
-  inline PtrType get(int index, RelaxedLoadTag) const;
-  inline PtrType get(int index, AcquireLoadTag) const;
-  inline PtrType get(int index, SeqCstAccessTag) const;
+  inline Tagged<ElementT> get(int index) const;
+  inline Tagged<ElementT> get(int index, RelaxedLoadTag) const;
+  inline Tagged<ElementT> get(int index, AcquireLoadTag) const;
+  inline Tagged<ElementT> get(int index, SeqCstAccessTag) const;
 
-  inline void set(int index, PtrType value,
+  inline void set(int index, Tagged<ElementT> value,
                   WriteBarrierMode mode = kDefaultMode);
-  template <typename = std::enable_if<kSupportsSmiElements>>
+  template <typename T = ElementT,
+            typename = std::enable_if<kSupportsSmiElements<T>>>
   inline void set(int index, Tagged<Smi> value);
-  inline void set(int index, PtrType value, RelaxedStoreTag,
+  inline void set(int index, Tagged<ElementT> value, RelaxedStoreTag,
                   WriteBarrierMode mode = kDefaultMode);
-  template <typename = std::enable_if<kSupportsSmiElements>>
+  template <typename T = ElementT,
+            typename = std::enable_if<kSupportsSmiElements<T>>>
   inline void set(int index, Tagged<Smi> value, RelaxedStoreTag);
-  inline void set(int index, PtrType value, ReleaseStoreTag,
+  inline void set(int index, Tagged<ElementT> value, ReleaseStoreTag,
                   WriteBarrierMode mode = kDefaultMode);
-  template <typename = std::enable_if<kSupportsSmiElements>>
+  template <typename T = ElementT,
+            typename = std::enable_if<kSupportsSmiElements<T>>>
   inline void set(int index, Tagged<Smi> value, ReleaseStoreTag);
-  inline void set(int index, PtrType value, SeqCstAccessTag,
+  inline void set(int index, Tagged<ElementT> value, SeqCstAccessTag,
                   WriteBarrierMode mode = kDefaultMode);
-  template <typename = std::enable_if<kSupportsSmiElements>>
+  template <typename T = ElementT,
+            typename = std::enable_if<kSupportsSmiElements<T>>>
   inline void set(int index, Tagged<Smi> value, SeqCstAccessTag);
 
-  inline PtrType swap(int index, PtrType value, SeqCstAccessTag,
-                      WriteBarrierMode mode = kDefaultMode);
-  inline PtrType compare_and_swap(int index, PtrType expected, PtrType value,
-                                  SeqCstAccessTag,
-                                  WriteBarrierMode mode = kDefaultMode);
+  inline Tagged<ElementT> swap(int index, Tagged<ElementT> value,
+                               SeqCstAccessTag,
+                               WriteBarrierMode mode = kDefaultMode);
+  inline Tagged<ElementT> compare_and_swap(
+      int index, Tagged<ElementT> expected, Tagged<ElementT> value,
+      SeqCstAccessTag, WriteBarrierMode mode = kDefaultMode);
 
   // Move vs. Copy behaves like memmove vs. memcpy: for Move, the memory
   // regions may overlap, for Copy they must not overlap.
@@ -153,13 +160,14 @@ class TaggedArrayBase : public Super {
   template <class IsolateT>
   static Handle<Derived> Allocate(
       IsolateT* isolate, int capacity,
-      base::Optional<DisallowGarbageCollection>* no_gc_out,
+      std::optional<DisallowGarbageCollection>* no_gc_out,
       AllocationType allocation = AllocationType::kYoung);
 
   static constexpr int NewCapacityForIndex(int index, int old_capacity);
 
   inline void ConditionalWriteBarrier(Tagged<HeapObject> object, int offset,
-                                      PtrType value, WriteBarrierMode mode);
+                                      Tagged<ElementT> value,
+                                      WriteBarrierMode mode);
 
   inline bool IsInBounds(int index) const;
   inline bool IsCowArray() const;
@@ -187,7 +195,6 @@ class FixedArray : public TaggedArrayBase<FixedArray, TaggedArrayShape> {
   OBJECT_CONSTRUCTORS(FixedArray, Super);
 
  public:
-  using HotfixShape = TaggedArrayShape;
   template <class IsolateT>
   static inline Handle<FixedArray> New(
       IsolateT* isolate, int capacity,
@@ -206,7 +213,7 @@ class FixedArray : public TaggedArrayBase<FixedArray, TaggedArrayShape> {
   // Return a grown copy if the index is bigger than the array's length.
   V8_EXPORT_PRIVATE static Handle<FixedArray> SetAndGrow(
       Isolate* isolate, Handle<FixedArray> array, int index,
-      Handle<Object> value);
+      DirectHandle<Object> value);
 
   // Right-trim the array.
   // Invariant: 0 < new_length <= length()
@@ -227,19 +234,18 @@ class FixedArray : public TaggedArrayBase<FixedArray, TaggedArrayShape> {
 
   static_assert(kHeaderSize == Internals::kFixedArrayHeaderSize);
 
-  DECL_CAST(FixedArray)
   DECL_PRINTER(FixedArray)
   DECL_VERIFIER(FixedArray)
 
   class BodyDescriptor;
 
-  static constexpr int kLengthOffset = ShapeT::kCapacityOffset;
+  static constexpr int kLengthOffset = Shape::kCapacityOffset;
   static constexpr int kMaxLength = FixedArray::kMaxCapacity;
   static constexpr int kMaxRegularLength = FixedArray::kMaxRegularCapacity;
 
  private:
   inline static Handle<FixedArray> Resize(
-      Isolate* isolate, Handle<FixedArray> xs, int new_capacity,
+      Isolate* isolate, DirectHandle<FixedArray> xs, int new_capacity,
       AllocationType allocation = AllocationType::kYoung,
       WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 };
@@ -275,16 +281,17 @@ class TrustedFixedArray
 
  public:
   template <class IsolateT>
-  static inline Handle<TrustedFixedArray> New(IsolateT* isolate, int capacity);
+  static inline Handle<TrustedFixedArray> New(
+      IsolateT* isolate, int capacity,
+      AllocationType allocation = AllocationType::kTrusted);
 
-  DECL_CAST(TrustedFixedArray)
   DECL_PRINTER(TrustedFixedArray)
   DECL_VERIFIER(TrustedFixedArray)
 
   class BodyDescriptor;
 
   static constexpr int kLengthOffset =
-      TrustedFixedArray::ShapeT::kCapacityOffset;
+      TrustedFixedArray::Shape::kCapacityOffset;
   static constexpr int kMaxLength = TrustedFixedArray::kMaxCapacity;
   static constexpr int kMaxRegularLength =
       TrustedFixedArray::kMaxRegularCapacity;
@@ -325,14 +332,13 @@ class ProtectedFixedArray
   static inline Handle<ProtectedFixedArray> New(IsolateT* isolate,
                                                 int capacity);
 
-  DECL_CAST(ProtectedFixedArray)
   DECL_PRINTER(ProtectedFixedArray)
   DECL_VERIFIER(ProtectedFixedArray)
 
   class BodyDescriptor;
 
   static constexpr int kLengthOffset =
-      ProtectedFixedArray::ShapeT::kCapacityOffset;
+      ProtectedFixedArray::Shape::kCapacityOffset;
   static constexpr int kMaxLength = ProtectedFixedArray::kMaxCapacity;
   static constexpr int kMaxRegularLength =
       ProtectedFixedArray::kMaxRegularCapacity;
@@ -374,7 +380,6 @@ class FixedArrayBase : public HeapObject {
   static constexpr int kMaxSize = 128 * kTaggedSize * MB;
   static_assert(Smi::IsValid(kMaxSize));
 
-  DECL_CAST(FixedArrayBase)
   DECL_VERIFIER(FixedArrayBase)
 };
 
@@ -389,7 +394,6 @@ class PrimitiveArrayBase : public Super {
 
  public:
   using Shape = ShapeT;
-  using HotfixShape = ShapeT;
   static constexpr bool kElementsAreMaybeObject = false;
 
   inline int length() const;
@@ -447,7 +451,7 @@ class PrimitiveArrayBase : public Super {
   template <class IsolateT>
   static Handle<Derived> Allocate(
       IsolateT* isolate, int length,
-      base::Optional<DisallowGarbageCollection>* no_gc_out,
+      std::optional<DisallowGarbageCollection>* no_gc_out,
       AllocationType allocation = AllocationType::kYoung);
 
   inline bool IsInBounds(int index) const;
@@ -457,9 +461,13 @@ class FixedDoubleArrayShape final : public AllStatic {
  public:
   static constexpr int kElementSize = kDoubleSize;
   using ElementT = double;
-  static constexpr int kLengthOffset = HeapObject::kHeaderSize;
-  static constexpr int kHeaderSize = kLengthOffset + kTaggedSize;
   static constexpr RootIndex kMapRootIndex = RootIndex::kFixedDoubleArrayMap;
+
+#define FIELD_LIST(V)           \
+  V(kLengthOffset, kTaggedSize) \
+  V(kHeaderSize, 0)
+  DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize, FIELD_LIST)
+#undef FIELD_LIST
 };
 
 // FixedDoubleArray describes fixed-sized arrays with element type double.
@@ -493,7 +501,6 @@ class FixedDoubleArray
 
   inline void FillWithHoles(int from, int to);
 
-  DECL_CAST(FixedDoubleArray)
   DECL_PRINTER(FixedDoubleArray)
   DECL_VERIFIER(FixedDoubleArray)
 
@@ -518,27 +525,64 @@ class WeakFixedArrayShape final : public AllStatic {
 #undef FIELD_LIST
 };
 
-// WeakFixedArray describes fixed-sized arrays with element type MaybeObject.
+// WeakFixedArray describes fixed-sized arrays with element type
+// Tagged<MaybeObject>.
 class WeakFixedArray
     : public TaggedArrayBase<WeakFixedArray, WeakFixedArrayShape> {
   using Super = TaggedArrayBase<WeakFixedArray, WeakFixedArrayShape>;
   OBJECT_CONSTRUCTORS(WeakFixedArray, Super);
 
  public:
-  using Shape = WeakFixedArrayShape;
-  using HotfixShape = WeakFixedArrayShape;
   template <class IsolateT>
   static inline Handle<WeakFixedArray> New(
       IsolateT* isolate, int capacity,
-      AllocationType allocation = AllocationType::kYoung);
+      AllocationType allocation = AllocationType::kYoung,
+      MaybeHandle<Object> initial_value = {});
 
-  DECL_CAST(WeakFixedArray)
   DECL_PRINTER(WeakFixedArray)
   DECL_VERIFIER(WeakFixedArray)
 
   class BodyDescriptor;
 
-  static constexpr int kLengthOffset = ShapeT::kCapacityOffset;
+  static constexpr int kLengthOffset = Shape::kCapacityOffset;
+};
+
+class TrustedWeakFixedArrayShape final : public AllStatic {
+ public:
+  static constexpr int kElementSize = kTaggedSize;
+  using ElementT = MaybeObject;
+  using CompressionScheme = V8HeapCompressionScheme;
+  static constexpr RootIndex kMapRootIndex =
+      RootIndex::kTrustedWeakFixedArrayMap;
+  static constexpr bool kLengthEqualsCapacity = true;
+
+#define FIELD_LIST(V)                                                   \
+  V(kCapacityOffset, kTaggedSize)                                       \
+  V(kUnalignedHeaderSize, OBJECT_POINTER_PADDING(kUnalignedHeaderSize)) \
+  V(kHeaderSize, 0)
+  DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize, FIELD_LIST)
+#undef FIELD_LIST
+};
+
+// A WeakFixedArray in trusted space and with a unique instance type.
+class TrustedWeakFixedArray
+    : public TaggedArrayBase<TrustedWeakFixedArray,
+                             TrustedWeakFixedArrayShape> {
+  using Super =
+      TaggedArrayBase<TrustedWeakFixedArray, TrustedWeakFixedArrayShape>;
+  OBJECT_CONSTRUCTORS(TrustedWeakFixedArray, Super);
+
+ public:
+  template <class IsolateT>
+  static inline Handle<TrustedWeakFixedArray> New(IsolateT* isolate,
+                                                  int capacity);
+
+  DECL_PRINTER(TrustedWeakFixedArray)
+  DECL_VERIFIER(TrustedWeakFixedArray)
+
+  class BodyDescriptor;
+
+  static constexpr int kLengthOffset = Shape::kCapacityOffset;
 };
 
 // WeakArrayList is like a WeakFixedArray with static convenience methods for
@@ -571,16 +615,16 @@ class WeakArrayList
   // Compact weak references to the beginning of the array.
   V8_EXPORT_PRIVATE void Compact(Isolate* isolate);
 
-  inline MaybeObject Get(int index) const;
-  inline MaybeObject Get(PtrComprCageBase cage_base, int index) const;
+  inline Tagged<MaybeObject> Get(int index) const;
+  inline Tagged<MaybeObject> Get(PtrComprCageBase cage_base, int index) const;
   // TODO(jgruber): Remove this once it's no longer needed for compatibility
   // with WeakFixedArray.
-  inline MaybeObject get(int index) const;
+  inline Tagged<MaybeObject> get(int index) const;
 
   // Set the element at index to obj. The underlying array must be large enough.
   // If you need to grow the WeakArrayList, use the static AddToEnd() method
   // instead.
-  inline void Set(int index, MaybeObject value,
+  inline void Set(int index, Tagged<MaybeObject> value,
                   WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
   inline void Set(int index, Tagged<Smi> value);
 
@@ -625,7 +669,7 @@ class WeakArrayList
   V8_EXPORT_PRIVATE bool RemoveOne(MaybeObjectHandle value);
 
   // Searches the array (linear time) and returns whether it contains the value.
-  V8_EXPORT_PRIVATE bool Contains(MaybeObject value);
+  V8_EXPORT_PRIVATE bool Contains(Tagged<MaybeObject> value);
 
   class Iterator;
 
@@ -675,7 +719,6 @@ class ArrayList : public TaggedArrayBase<ArrayList, ArrayListShape> {
 
  public:
   using Shape = ArrayListShape;
-  using HotfixShape = ArrayListShape;
 
   template <class IsolateT>
   static inline Handle<ArrayList> New(
@@ -689,21 +732,21 @@ class ArrayList : public TaggedArrayBase<ArrayList, ArrayListShape> {
       Isolate* isolate, Handle<ArrayList> array, Tagged<Smi> obj,
       AllocationType allocation = AllocationType::kYoung);
   V8_EXPORT_PRIVATE static Handle<ArrayList> Add(
-      Isolate* isolate, Handle<ArrayList> array, Handle<Object> obj,
+      Isolate* isolate, Handle<ArrayList> array, DirectHandle<Object> obj,
       AllocationType allocation = AllocationType::kYoung);
   V8_EXPORT_PRIVATE static Handle<ArrayList> Add(
-      Isolate* isolate, Handle<ArrayList> array, Handle<Object> obj0,
-      Handle<Object> obj1, AllocationType allocation = AllocationType::kYoung);
+      Isolate* isolate, Handle<ArrayList> array, DirectHandle<Object> obj0,
+      DirectHandle<Object> obj1,
+      AllocationType allocation = AllocationType::kYoung);
 
   V8_EXPORT_PRIVATE static Handle<FixedArray> ToFixedArray(
-      Isolate* isolate, Handle<ArrayList> array,
+      Isolate* isolate, DirectHandle<ArrayList> array,
       AllocationType allocation = AllocationType::kYoung);
 
   // Right-trim the array.
   // Invariant: 0 < new_length <= length()
   void RightTrim(Isolate* isolate, int new_capacity);
 
-  DECL_CAST(ArrayList)
   DECL_PRINTER(ArrayList)
   DECL_VERIFIER(ArrayList)
 
@@ -729,6 +772,7 @@ class ByteArrayShape final : public AllStatic {
   static constexpr int kElementSize = kUInt8Size;
   using ElementT = uint8_t;
   static constexpr RootIndex kMapRootIndex = RootIndex::kByteArrayMap;
+  static constexpr bool kLengthEqualsCapacity = true;
 
 #define FIELD_LIST(V)                                                   \
   V(kLengthOffset, kTaggedSize)                                         \
@@ -747,7 +791,6 @@ class ByteArray : public PrimitiveArrayBase<ByteArray, ByteArrayShape> {
 
  public:
   using Shape = ByteArrayShape;
-  using HotfixShape = ByteArrayShape;
 
   template <class IsolateT>
   static inline Handle<ByteArray> New(
@@ -765,7 +808,6 @@ class ByteArray : public PrimitiveArrayBase<ByteArray, ByteArrayShape> {
     return size_in_bytes - Shape::kHeaderSize;
   }
 
-  DECL_CAST(ByteArray)
   DECL_PRINTER(ByteArray)
   DECL_VERIFIER(ByteArray)
 
@@ -779,6 +821,7 @@ class TrustedByteArrayShape final : public AllStatic {
   static constexpr int kElementSize = kUInt8Size;
   using ElementT = uint8_t;
   static constexpr RootIndex kMapRootIndex = RootIndex::kTrustedByteArrayMap;
+  static constexpr bool kLengthEqualsCapacity = true;
 
 #define FIELD_LIST(V)                                                   \
   V(kLengthOffset, kTaggedSize)                                         \
@@ -801,7 +844,9 @@ class TrustedByteArray
   using Shape = TrustedByteArrayShape;
 
   template <class IsolateT>
-  static inline Handle<TrustedByteArray> New(IsolateT* isolate, int capacity);
+  static inline Handle<TrustedByteArray> New(
+      IsolateT* isolate, int capacity,
+      AllocationType allocation_type = AllocationType::kTrusted);
 
   // Given the full object size in bytes, return the length that should be
   // passed to New s.t. an object of the same size is created.
@@ -811,7 +856,6 @@ class TrustedByteArray
     return size_in_bytes - Shape::kHeaderSize;
   }
 
-  DECL_CAST(TrustedByteArray)
   DECL_PRINTER(TrustedByteArray)
   DECL_VERIFIER(TrustedByteArray)
 
@@ -820,15 +864,18 @@ class TrustedByteArray
   static constexpr int kBytesOffset = Shape::kHeaderSize;
 };
 
-// Convenience class for treating a ByteArray as array of fixed-size integers.
-template <typename T>
-class FixedIntegerArray : public ByteArray {
+// Convenience class for treating a ByteArray / TrustedByteArray as array of
+// fixed-size integers.
+template <typename T, typename Base>
+class FixedIntegerArrayBase : public Base {
   static_assert(std::is_integral<T>::value);
 
  public:
-  static Handle<FixedIntegerArray<T>> New(
-      Isolate* isolate, int length,
-      AllocationType allocation = AllocationType::kYoung);
+  // {MoreArgs...} allows passing the `AllocationType` if `Base` is `ByteArray`.
+  template <typename... MoreArgs>
+  static Handle<FixedIntegerArrayBase<T, Base>> New(Isolate* isolate,
+                                                    int length,
+                                                    MoreArgs&&... more_args);
 
   // Get/set the contents of this array.
   T get(int index) const;
@@ -836,116 +883,69 @@ class FixedIntegerArray : public ByteArray {
 
   // Code Generation support.
   static constexpr int OffsetOfElementAt(int index) {
-    return kHeaderSize + index * sizeof(T);
+    return Base::kHeaderSize + index * sizeof(T);
   }
 
   inline int length() const;
 
-  DECL_CAST(FixedIntegerArray<T>)
-
-  OBJECT_CONSTRUCTORS(FixedIntegerArray<T>, ByteArray);
+  OBJECT_CONSTRUCTORS(FixedIntegerArrayBase, Base);
 };
 
-using FixedInt8Array = FixedIntegerArray<int8_t>;
-using FixedUInt8Array = FixedIntegerArray<uint8_t>;
-using FixedInt16Array = FixedIntegerArray<int16_t>;
-using FixedUInt16Array = FixedIntegerArray<uint16_t>;
-using FixedInt32Array = FixedIntegerArray<int32_t>;
-using FixedUInt32Array = FixedIntegerArray<uint32_t>;
-using FixedInt64Array = FixedIntegerArray<int64_t>;
-using FixedUInt64Array = FixedIntegerArray<uint64_t>;
+using FixedInt8Array = FixedIntegerArrayBase<int8_t, ByteArray>;
+using FixedUInt8Array = FixedIntegerArrayBase<uint8_t, ByteArray>;
+using FixedInt16Array = FixedIntegerArrayBase<int16_t, ByteArray>;
+using FixedUInt16Array = FixedIntegerArrayBase<uint16_t, ByteArray>;
+using FixedInt32Array = FixedIntegerArrayBase<int32_t, ByteArray>;
+using FixedUInt32Array = FixedIntegerArrayBase<uint32_t, ByteArray>;
+using FixedInt64Array = FixedIntegerArrayBase<int64_t, ByteArray>;
+using FixedUInt64Array = FixedIntegerArrayBase<uint64_t, ByteArray>;
 
 // Use with care! Raw addresses on the heap are not safe in combination with
-// the sandbox. Use an ExternalPointerArray instead. However, this can for
-// example be used to store sandboxed pointers, which is safe.
-class FixedAddressArray : public FixedIntegerArray<Address> {
+// the sandbox. However, this can for example be used to store sandboxed
+// pointers, which is safe.
+template <typename Base>
+class FixedAddressArrayBase : public FixedIntegerArrayBase<Address, Base> {
+  using Underlying = FixedIntegerArrayBase<Address, Base>;
+
  public:
   // Get/set a sandboxed pointer from this array.
   inline Address get_sandboxed_pointer(int offset) const;
   inline void set_sandboxed_pointer(int offset, Address value);
 
-  static inline Handle<FixedAddressArray> New(
-      Isolate* isolate, int length,
-      AllocationType allocation = AllocationType::kYoung);
+  // {MoreArgs...} allows passing the `AllocationType` if `Base` is `ByteArray`.
+  template <typename... MoreArgs>
+  static inline Handle<FixedAddressArrayBase> New(Isolate* isolate, int length,
+                                                  MoreArgs&&... more_args);
 
-  DECL_CAST(FixedAddressArray)
-
-  OBJECT_CONSTRUCTORS(FixedAddressArray, FixedIntegerArray<Address>);
+  OBJECT_CONSTRUCTORS(FixedAddressArrayBase, Underlying);
 };
 
-// An array containing external pointers.
-// When the sandbox is off, this will simply contain system-pointer sized words.
-// Otherwise, it contains external pointer handles, i.e. indices into the
-// external pointer table.
-// This class uses lazily-initialized external pointer slots. As such, its
-// content can simply be zero-initialized, and the external pointer table
-// entries are only allocated when an element is written to for the first time.
-class ExternalPointerArray : public FixedArrayBase {
+using FixedAddressArray = FixedAddressArrayBase<ByteArray>;
+using TrustedFixedAddressArray = FixedAddressArrayBase<TrustedByteArray>;
+
+template <class T, class Super>
+class PodArrayBase : public Super {
  public:
-  template <ExternalPointerTag tag>
-  inline Address get(int index, Isolate* isolate);
-  template <ExternalPointerTag tag>
-  inline void set(int index, Isolate* isolate, Address value);
-  inline void clear(int index);
-
-  static inline Handle<ExternalPointerArray> New(
-      Isolate* isolate, int length,
-      AllocationType allocation = AllocationType::kYoung);
-
-  static constexpr int SizeFor(int length) {
-    return kHeaderSize + length * kExternalPointerSlotSize;
-  }
-
-  static constexpr int OffsetOfElementAt(int index) {
-    return kHeaderSize + index * kExternalPointerSlotSize;
-  }
-
-  // Maximal length of a single ExternalPointerArray.
-  static const int kMaxLength = FixedArrayBase::kMaxSize - kHeaderSize;
-  static_assert(Internals::IsValidSmi(kMaxLength),
-                "ExternalPointerArray maxLength not a Smi");
-
-  class BodyDescriptor;
-
-  static constexpr int kPointersOffset = kHeaderSize;
-
-  DECL_CAST(ExternalPointerArray)
-  DECL_PRINTER(ExternalPointerArray)
-  DECL_VERIFIER(ExternalPointerArray)
-
-  OBJECT_CONSTRUCTORS(ExternalPointerArray, FixedArrayBase);
-};
-
-// Wrapper class for ByteArray which can store arbitrary C++ classes, as long
-// as they can be copied with memcpy.
-template <class T>
-class PodArray : public ByteArray {
- public:
-  static Handle<PodArray<T>> New(
-      Isolate* isolate, int length,
-      AllocationType allocation = AllocationType::kYoung);
-  static Handle<PodArray<T>> New(
-      LocalIsolate* isolate, int length,
-      AllocationType allocation = AllocationType::kOld);
-
   void copy_out(int index, T* result, int length) {
-    MemCopy(result, AddressOfElementAt(index * sizeof(T)), length * sizeof(T));
+    MemCopy(result, Super::AddressOfElementAt(index * sizeof(T)),
+            length * sizeof(T));
   }
 
   void copy_in(int index, const T* buffer, int length) {
-    MemCopy(AddressOfElementAt(index * sizeof(T)), buffer, length * sizeof(T));
+    MemCopy(Super::AddressOfElementAt(index * sizeof(T)), buffer,
+            length * sizeof(T));
   }
 
   bool matches(const T* buffer, int length) {
     DCHECK_LE(length, this->length());
-    return memcmp(begin(), buffer, length * sizeof(T)) == 0;
+    return memcmp(Super::begin(), buffer, length * sizeof(T)) == 0;
   }
 
   bool matches(int offset, const T* buffer, int length) {
     DCHECK_LE(offset, this->length());
     DCHECK_LE(offset + length, this->length());
-    return memcmp(begin() + sizeof(T) * offset, buffer, length * sizeof(T)) ==
-           0;
+    return memcmp(Super::begin() + sizeof(T) * offset, buffer,
+                  length * sizeof(T)) == 0;
   }
 
   T get(int index) {
@@ -957,13 +957,35 @@ class PodArray : public ByteArray {
   void set(int index, const T& value) { copy_in(index, &value, 1); }
 
   inline int length() const;
-  DECL_CAST(PodArray<T>)
 
-  OBJECT_CONSTRUCTORS(PodArray<T>, ByteArray);
+  OBJECT_CONSTRUCTORS(PodArrayBase, Super);
 };
 
-}  // namespace internal
-}  // namespace v8
+// Wrapper class for ByteArray which can store arbitrary C++ classes, as long
+// as they can be copied with memcpy.
+template <class T>
+class PodArray : public PodArrayBase<T, ByteArray> {
+ public:
+  static Handle<PodArray<T>> New(
+      Isolate* isolate, int length,
+      AllocationType allocation = AllocationType::kYoung);
+  static Handle<PodArray<T>> New(
+      LocalIsolate* isolate, int length,
+      AllocationType allocation = AllocationType::kOld);
+
+  OBJECT_CONSTRUCTORS(PodArray, PodArrayBase<T, ByteArray>);
+};
+
+template <class T>
+class TrustedPodArray : public PodArrayBase<T, TrustedByteArray> {
+ public:
+  static Handle<TrustedPodArray<T>> New(Isolate* isolate, int length);
+  static Handle<TrustedPodArray<T>> New(LocalIsolate* isolate, int length);
+
+  OBJECT_CONSTRUCTORS(TrustedPodArray, PodArrayBase<T, TrustedByteArray>);
+};
+
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

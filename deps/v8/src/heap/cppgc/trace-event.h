@@ -12,13 +12,13 @@ using ConvertableToTraceFormat = v8::ConvertableToTraceFormat;
 // This is a subset of stc/tracing/trace-event.h required to support
 // tracing in the cppgc standalone library using TracingController.
 
-#include "base/trace_event/common/trace_event_common.h"
 #include "include/cppgc/platform.h"
 #include "src/base/atomicops.h"
 #include "src/base/macros.h"
+#include "src/tracing/trace-event-no-perfetto.h"
 
 // This header file defines implementation details of how the trace macros in
-// trace_event_common.h collect and store trace events. Anything not
+// trace-event-no-erfetto.h collect and store trace events. Anything not
 // implementation-specific should go in trace_macros_common.h instead of here.
 
 // The pointer returned from GetCategoryGroupEnabled() points to a

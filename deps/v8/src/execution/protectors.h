@@ -94,6 +94,10 @@ class Protectors : public AllStatic {
     string_iterator_protector)                                                \
   V(StringLengthOverflowLookupChain, StringLengthProtector,                   \
     string_length_protector)                                                  \
+  /* This protects the ToPrimitive conversion of string wrappers (with the */ \
+  /* default type hint NUMBER). */                                            \
+  V(StringWrapperToPrimitive, StringWrapperToPrimitiveProtector,              \
+    string_wrapper_to_primitive_protector)                                    \
   V(TypedArraySpeciesLookupChain, TypedArraySpeciesProtector,                 \
     typed_array_species_protector)
 

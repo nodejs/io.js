@@ -106,3 +106,31 @@ assert.strictEqual(Buffer.alloc(4)
   assert.strictEqual(buf.write('ыы', 1, 'utf16le'), 4);
   assert.deepStrictEqual([...buf], [0, 0x4b, 0x04, 0x4b, 0x04, 0, 0, 0]);
 }
+
+{
+  const buf = Buffer.alloc(1);
+  assert.strictEqual(buf.write('ww'), 1);
+  assert.strictEqual(buf.toString(), 'w');
+}
+
+assert.throws(() => {
+  const buf = Buffer.alloc(1);
+  assert.strictEqual(buf.asciiWrite('ww', 0, -1));
+  assert.strictEqual(buf.latin1Write('ww', 0, -1));
+  assert.strictEqual(buf.utf8Write('ww', 0, -1));
+}, common.expectsError({
+  code: 'ERR_BUFFER_OUT_OF_BOUNDS',
+}));
+
+
+assert.throws(() => {
+  Buffer.alloc(1).asciiWrite('ww', 0, 2);
+}, common.expectsError({
+  code: 'ERR_BUFFER_OUT_OF_BOUNDS',
+}));
+
+assert.throws(() => {
+  Buffer.alloc(1).asciiWrite('ww', 1, 1);
+}, common.expectsError({
+  code: 'ERR_BUFFER_OUT_OF_BOUNDS',
+}));

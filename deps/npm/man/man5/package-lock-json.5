@@ -1,4 +1,4 @@
-.TH "PACKAGE-LOCK.JSON" "5" "April 2024" "" ""
+.TH "PACKAGE-LOCK.JSON" "5" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBpackage-lock.json\fR - A manifestation of the manifest
 .SS "Description"
@@ -19,6 +19,8 @@ Optimize the installation process by allowing npm to skip repeated metadata reso
 As of npm v7, lockfiles include enough information to gain a complete picture of the package tree, reducing the need to read \fBpackage.json\fR files, and allowing for significant performance improvements.
 .RE 0
 
+.P
+When \fBnpm\fR creates or updates \fBpackage-lock.json\fR, it will infer line endings and indentation from \fBpackage.json\fR so that the formatting of both files matches.
 .SS "\fBpackage-lock.json\fR vs \fBnpm-shrinkwrap.json\fR"
 .P
 Both of these files have the same format, and perform similar functions in the root of a project.

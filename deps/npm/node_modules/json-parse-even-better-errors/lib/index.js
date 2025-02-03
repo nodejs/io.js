@@ -52,7 +52,9 @@ const parseError = (e, txt, context = 20) => {
   let errIdx
   if (badIndexMatch) {
     errIdx = +badIndexMatch[1]
-  } else if (msg.match(/^Unexpected end of JSON.*/i)) {
+  } else /* istanbul ignore next - doesnt happen in Node 22 */ if (
+    msg.match(/^Unexpected end of JSON.*/i)
+  ) {
     errIdx = txt.length - 1
   }
 

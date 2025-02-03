@@ -26,7 +26,7 @@ const removed = new Set([
 
 const { definitions, shorthands } = require('@npmcli/config/lib/definitions')
 const npmSwitches = Object.entries(definitions)
-  .filter(([key, { type }]) => type === Boolean ||
+  .filter(([, { type }]) => type === Boolean ||
     (Array.isArray(type) && type.includes(Boolean)))
   .map(([key]) => key)
 

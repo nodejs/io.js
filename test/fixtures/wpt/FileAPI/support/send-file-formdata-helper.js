@@ -34,7 +34,7 @@ const formDataPostFileUploadTest = ({
 
     // Used to verify that the browser agrees with the test about
     // field value replacement and encoding independently of file system
-    // idiosyncracies.
+    // idiosyncrasies.
     formData.append("filename", fileBaseName);
 
     // Same, but with name and value reversed to ensure field names

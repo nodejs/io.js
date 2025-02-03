@@ -11,7 +11,7 @@ bitfield struct JSArrayBufferFlags extends uint32 {
   is_resizable_by_js: bool: 1 bit;
 }
 
-extern class JSArrayBuffer extends JSObjectWithEmbedderSlots {
+extern class JSArrayBuffer extends JSAPIObjectWithEmbedderSlots {
   detach_key: Object;
   // A BoundedSize if the sandbox is enabled
   raw_byte_length: uintptr;
@@ -61,16 +61,14 @@ bitfield struct JSArrayBufferViewFlags extends uint32 {
 }
 
 @abstract
-extern class JSArrayBufferView extends JSObjectWithEmbedderSlots {
+extern class JSArrayBufferView extends JSAPIObjectWithEmbedderSlots {
   buffer: JSArrayBuffer;
+  bit_field: JSArrayBufferViewFlags;  // 32bit
+  @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
   // A BoundedSize if the sandbox is enabled
   raw_byte_offset: uintptr;
   // A BoundedSize if the sandbox is enabled
   raw_byte_length: uintptr;
-  bit_field: JSArrayBufferViewFlags;
-  // Pads header size to be a multiple of kTaggedSize.
-  @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
-  @ifnot(TAGGED_SIZE_8_BYTES) optional_padding: void;
 }
 
 extern operator '.byte_offset' macro LoadJSArrayBufferViewByteOffset(
@@ -155,6 +153,9 @@ extern class Uint32TypedArrayConstructor extends TypedArrayConstructor
     generates 'TNode<JSFunction>';
 @doNotGenerateCast
 extern class Int32TypedArrayConstructor extends TypedArrayConstructor
+    generates 'TNode<JSFunction>';
+@doNotGenerateCast
+extern class Float16TypedArrayConstructor extends TypedArrayConstructor
     generates 'TNode<JSFunction>';
 @doNotGenerateCast
 extern class Float32TypedArrayConstructor extends TypedArrayConstructor

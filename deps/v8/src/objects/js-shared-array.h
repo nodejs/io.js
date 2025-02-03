@@ -20,7 +20,6 @@ class JSSharedArray
     : public TorqueGeneratedJSSharedArray<JSSharedArray,
                                           AlwaysSharedSpaceJSObject> {
  public:
-  DECL_CAST(JSSharedArray)
   DECL_PRINTER(JSSharedArray)
   EXPORT_DECL_VERIFIER(JSSharedArray)
 

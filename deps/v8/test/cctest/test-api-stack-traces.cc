@@ -659,10 +659,11 @@ static void RethrowBogusErrorStackTraceHandler(v8::Local<v8::Message> message,
   v8::Local<v8::StackTrace> stack_trace = message->GetStackTrace();
   CHECK(!stack_trace.IsEmpty());
   CHECK_EQ(1, stack_trace->GetFrameCount());
-  CHECK_EQ(2, stack_trace->GetFrame(message->GetIsolate(), 0)->GetLineNumber());
+  CHECK_EQ(1, stack_trace->GetFrame(message->GetIsolate(), 0)->GetLineNumber());
 }
 
-// Test that the stack trace is captured where the bogus Error object is thrown.
+// Test that the stack trace is captured where the bogus Error object is created
+// and not where it is thrown.
 TEST(RethrowBogusErrorStackTrace) {
   LocalContext env;
   v8::Isolate* isolate = env->GetIsolate();

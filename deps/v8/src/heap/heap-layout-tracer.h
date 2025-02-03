@@ -12,7 +12,7 @@ namespace v8 {
 namespace internal {
 
 class Heap;
-class BasicMemoryChunk;
+class MemoryChunkMetadata;
 
 class HeapLayoutTracer : AllStatic {
  public:
@@ -24,9 +24,9 @@ class HeapLayoutTracer : AllStatic {
                                         v8::GCCallbackFlags flags, void* data);
 
  private:
-  static void PrintBasicMemoryChunk(std::ostream& os,
-                                    const BasicMemoryChunk& chunk,
-                                    const char* owner_name);
+  static void PrintMemoryChunk(std::ostream& os,
+                               const MemoryChunkMetadata& chunk,
+                               const char* owner_name);
   static void PrintHeapLayout(std::ostream& os, Heap* heap);
 };
 }  // namespace internal

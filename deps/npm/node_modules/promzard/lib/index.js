@@ -133,6 +133,7 @@ class PromZard {
           o[k] = await this.#prompt(prompt, def, tx)
         } catch (er) {
           if (er.notValid) {
+            // eslint-disable-next-line no-console
             console.log(er.message)
             i--
           } else {

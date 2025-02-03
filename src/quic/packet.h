@@ -18,8 +18,7 @@
 #include "defs.h"
 #include "tokens.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 struct PathDescriptor {
   uint32_t version;
@@ -90,13 +89,14 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
   // tells us how many of the packets bytes were used.
   void Truncate(size_t len);
 
-  static Packet* Create(Environment* env,
-                        Listener* listener,
-                        const SocketAddress& destination,
-                        size_t length = kDefaultMaxPacketLength,
-                        const char* diagnostic_label = "<unknown>");
+  static BaseObjectPtr<Packet> Create(
+      Environment* env,
+      Listener* listener,
+      const SocketAddress& destination,
+      size_t length = kDefaultMaxPacketLength,
+      const char* diagnostic_label = "<unknown>");
 
-  Packet* Clone() const;
+  BaseObjectPtr<Packet> Clone() const;
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(Packet)
@@ -104,31 +104,33 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
 
   std::string ToString() const;
 
-  static Packet* CreateRetryPacket(Environment* env,
-                                   Listener* listener,
-                                   const PathDescriptor& path_descriptor,
-                                   const TokenSecret& token_secret);
+  static BaseObjectPtr<Packet> CreateRetryPacket(
+      Environment* env,
+      Listener* listener,
+      const PathDescriptor& path_descriptor,
+      const TokenSecret& token_secret);
 
-  static Packet* CreateConnectionClosePacket(Environment* env,
-                                             Listener* listener,
-                                             const SocketAddress& destination,
-                                             ngtcp2_conn* conn,
-                                             const QuicError& error);
+  static BaseObjectPtr<Packet> CreateConnectionClosePacket(
+      Environment* env,
+      Listener* listener,
+      const SocketAddress& destination,
+      ngtcp2_conn* conn,
+      const QuicError& error);
 
-  static Packet* CreateImmediateConnectionClosePacket(
+  static BaseObjectPtr<Packet> CreateImmediateConnectionClosePacket(
       Environment* env,
       Listener* listener,
       const PathDescriptor& path_descriptor,
       const QuicError& reason);
 
-  static Packet* CreateStatelessResetPacket(
+  static BaseObjectPtr<Packet> CreateStatelessResetPacket(
       Environment* env,
       Listener* listener,
       const PathDescriptor& path_descriptor,
       const TokenSecret& token_secret,
       size_t source_len);
 
-  static Packet* CreateVersionNegotiationPacket(
+  static BaseObjectPtr<Packet> CreateVersionNegotiationPacket(
       Environment* env,
       Listener* listener,
       const PathDescriptor& path_descriptor);
@@ -137,18 +139,17 @@ class Packet final : public ReqWrap<uv_udp_send_t> {
   void Done(int status);
 
  private:
-  static Packet* FromFreeList(Environment* env,
-                              std::shared_ptr<Data> data,
-                              Listener* listener,
-                              const SocketAddress& destination);
+  static BaseObjectPtr<Packet> FromFreeList(Environment* env,
+                                            std::shared_ptr<Data> data,
+                                            Listener* listener,
+                                            const SocketAddress& destination);
 
   Listener* listener_;
   SocketAddress destination_;
   std::shared_ptr<Data> data_;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

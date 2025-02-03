@@ -418,7 +418,7 @@ class V8_EXPORT_PRIVATE Node::Inputs final {
   int count_;
 };
 
-// An encapsulation for information associated with a single use of node as a
+// An encapsulation for information associated with a single use of a node as an
 // input from another node, allowing access to both the defining node and
 // the node having the input.
 class Edge final {

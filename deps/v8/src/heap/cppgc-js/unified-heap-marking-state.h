@@ -27,15 +27,11 @@ class UnifiedHeapMarkingState final {
   void Update(MarkingWorklists::Local*);
 
   V8_INLINE void MarkAndPush(const TracedReferenceBase&);
-  V8_INLINE bool ShouldMarkObject(Tagged<HeapObject> object) const;
 
  private:
   Heap* const heap_;
-  const bool has_shared_space_;
-  const bool is_shared_space_isolate_;
   MarkingState* const marking_state_;
   MarkingWorklists::Local* local_marking_worklist_ = nullptr;
-  const bool track_retaining_path_;
   const TracedHandles::MarkMode mark_mode_;
 };
 

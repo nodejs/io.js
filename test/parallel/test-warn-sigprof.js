@@ -7,10 +7,15 @@ const common = require('../common');
 
 common.skipIfInspectorDisabled();
 
-if (common.isWindows)
+if (common.isWindows) {
   common.skip('test does not apply to Windows');
+}
 
-common.skipIfWorker(); // Worker inspector never has a server running
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 common.expectWarning('Warning',
                      'process.on(SIGPROF) is reserved while debugging');

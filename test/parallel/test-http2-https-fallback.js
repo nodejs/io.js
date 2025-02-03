@@ -151,7 +151,8 @@ function onSession(session, next) {
       // Incompatible ALPN TLS client
       tls(Object.assign({ port, ALPNProtocols: ['fake'] }, clientOptions))
         .on('error', common.mustCall((err) => {
-          strictEqual(err.code, 'ECONNRESET');
+          const allowedErrors = ['ECONNRESET', 'ERR_SSL_TLSV1_ALERT_NO_APPLICATION_PROTOCOL'];
+          ok(allowedErrors.includes(err.code), `'${err.code}' was not one of ${allowedErrors}.`);
           cleanup();
           testNoALPN();
         }));

@@ -54,7 +54,8 @@ it is not limited to CA certificates.
 
 =head1 RETURN VALUES
 
-The following return values can occur:
+The following return values can occur for SSL_load_client_CA_file_ex(), and
+SSL_load_client_CA_file():
 
 =over 4
 
@@ -65,6 +66,21 @@ The operation failed, check out the error stack for the reason.
 =item Pointer to STACK_OF(X509_NAME)
 
 Pointer to the subject names of the successfully read certificates.
+
+=back
+
+The following return values can occur for SSL_add_file_cert_subjects_to_stack(),
+SSL_add_dir_cert_subjects_to_stack(), and SSL_add_store_cert_subjects_to_stack():
+
+=over 4
+
+=item 0 (Failure)
+
+The operation failed.
+
+=item 1 (Success)
+
+The operation succeeded.
 
 =back
 
@@ -96,7 +112,7 @@ were added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2000-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

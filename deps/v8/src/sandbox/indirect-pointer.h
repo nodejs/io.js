@@ -43,7 +43,8 @@ V8_INLINE void InitSelfIndirectPointerField(Address field_address,
 // Only available when the sandbox is enabled.
 template <IndirectPointerTag tag>
 V8_INLINE Tagged<Object> ReadIndirectPointerField(Address field_address,
-                                                  IsolateForSandbox isolate);
+                                                  IsolateForSandbox isolate,
+                                                  AcquireLoadTag);
 
 // Loads the 'self' IndirectPointerHandle from the given object and stores it
 // into the indirect pointer field. In this way, the field becomes a (indirect)
@@ -52,7 +53,8 @@ V8_INLINE Tagged<Object> ReadIndirectPointerField(Address field_address,
 // Only available when the sandbox is enabled.
 template <IndirectPointerTag tag>
 V8_INLINE void WriteIndirectPointerField(Address field_address,
-                                         Tagged<ExposedTrustedObject> value);
+                                         Tagged<ExposedTrustedObject> value,
+                                         ReleaseStoreTag);
 
 }  // namespace internal
 }  // namespace v8

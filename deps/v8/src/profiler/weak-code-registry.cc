@@ -23,7 +23,8 @@ void Untrack(CodeEntry* entry) {
 
 }  // namespace
 
-void WeakCodeRegistry::Track(CodeEntry* entry, Handle<AbstractCode> code) {
+void WeakCodeRegistry::Track(CodeEntry* entry,
+                             DirectHandle<AbstractCode> code) {
   DCHECK(!*entry->heap_object_location_address());
   DisallowGarbageCollection no_gc;
   Handle<AbstractCode> handle = isolate_->global_handles()->Create(*code);

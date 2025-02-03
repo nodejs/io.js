@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="developers">developers</h1>
+<h1 id="----developers----1110">
+    <span>developers</span>
+    <span class="version">@11.1.0</span>
+</h1>
 <span class="description">Developer Guide</span>
 </header>
 
@@ -241,8 +249,8 @@ as <code>.gitignore</code> files:</p>
 <li>You can end patterns with a forward slash <code>/</code> to specify a directory.</li>
 <li>You can negate a pattern by starting it with an exclamation point <code>!</code>.</li>
 </ul>
-<p>By default, the following paths and files are ignored, so there's no
-need to add them to <code>.npmignore</code> explicitly:</p>
+<p>By default, some paths and files are ignored, so there's no
+need to add them to <code>.npmignore</code> explicitly. Some examples are:</p>
 <ul>
 <li><code>.*.swp</code></li>
 <li><code>._*</code></li>
@@ -275,6 +283,8 @@ maintenance headache, you might instead try populating the <code>files</code>
 property of <code>package.json</code>, which is an array of file or directory names
 that should be included in your package. Sometimes manually picking
 which items to allow is easier to manage than building a block list.</p>
+<p>See <a href="../configuring-npm/package-json.html"><code>package.json</code></a> for more info on
+what can and can't be ignored.</p>
 <h4 id="testing-whether-your-npmignore-or-files-config-works">Testing whether your <code>.npmignore</code> or <code>files</code> config works</h4>
 <p>If you want to double check that your package will include only the files
 you intend it to when published, you can run the <code>npm pack</code> command locally

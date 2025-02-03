@@ -67,10 +67,10 @@ namespace testing {
 // To implement a matcher Foo for type T, define:
 //   1. a class FooMatcherMatcher that implements the matcher interface:
 //     using is_gtest_matcher = void;
-//     bool MatchAndExplain(const T&, std::ostream*);
+//     bool MatchAndExplain(const T&, std::ostream*) const;
 //       (MatchResultListener* can also be used instead of std::ostream*)
-//     void DescribeTo(std::ostream*);
-//     void DescribeNegationTo(std::ostream*);
+//     void DescribeTo(std::ostream*) const;
+//     void DescribeNegationTo(std::ostream*) const;
 //
 //   2. a factory function that creates a Matcher<T> object from a
 //      FooMatcherMatcher.

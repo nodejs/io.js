@@ -52,6 +52,8 @@ class V8_BASE_EXPORT PageAllocator
 
   bool DecommitPages(void* address, size_t size) override;
 
+  bool SealPages(void* address, size_t size) override;
+
  private:
   friend class v8::base::SharedMemory;
 

@@ -73,7 +73,7 @@ namespace message2 {
             if (U_FAILURE(status)) {
                 return;
             }
-            argumentNames = LocalArray<UnicodeString>(new UnicodeString[argsLen = (int32_t) args.size()]);
+            argumentNames = LocalArray<UnicodeString>(new UnicodeString[argsLen = static_cast<int32_t>(args.size())]);
             arguments = LocalArray<Formattable>(new Formattable[argsLen]);
             if (!argumentNames.isValid() || !arguments.isValid()) {
                 status = U_MEMORY_ALLOCATION_ERROR;

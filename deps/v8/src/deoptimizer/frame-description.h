@@ -5,8 +5,10 @@
 #ifndef V8_DEOPTIMIZER_FRAME_DESCRIPTION_H_
 #define V8_DEOPTIMIZER_FRAME_DESCRIPTION_H_
 
+#include "src/base/memory.h"
 #include "src/base/platform/memory.h"
 #include "src/codegen/register.h"
+#include "src/common/simd128.h"
 #include "src/execution/frame-constants.h"
 #include "src/utils/boxed-float.h"
 
@@ -25,46 +27,189 @@ namespace internal {
 class RegisterValues {
  public:
   intptr_t GetRegister(unsigned n) const {
-#if DEBUG
-    // This convoluted DCHECK is needed to work around a gcc problem that
-    // improperly detects an array bounds overflow in optimized debug builds
-    // when using a plain DCHECK.
-    if (n >= arraysize(registers_)) {
-      DCHECK(false);
-      return 0;
-    }
-#endif
+    V8_ASSUME(n < arraysize(registers_));
     return registers_[n];
   }
 
   Float32 GetFloatRegister(unsigned n) const;
+  Float64 GetDoubleRegister(unsigned n) const;
 
-  Float64 GetDoubleRegister(unsigned n) const {
-    DCHECK(n < arraysize(double_registers_));
-    return double_registers_[n];
+  void SetDoubleRegister(unsigned n, Float64 value);
+
+  Simd128 GetSimd128Register(unsigned n) const {
+    V8_ASSUME(n < arraysize(simd128_registers_));
+    return simd128_registers_[n];
   }
 
   void SetRegister(unsigned n, intptr_t value) {
-    DCHECK(n < arraysize(registers_));
+    V8_ASSUME(n < arraysize(registers_));
     registers_[n] = value;
+  }
+
+  void SetSimd128Register(unsigned n, Simd128 value) {
+    V8_ASSUME(n < arraysize(simd128_registers_));
+    simd128_registers_[n] = value;
   }
 
   intptr_t registers_[Register::kNumRegisters];
   // Generated code writes directly into the following array, make sure the
   // element size matches what the machine instructions expect.
-  static_assert(sizeof(Float64) == kDoubleSize, "size mismatch");
+  static_assert(sizeof(Simd128) == kSimd128Size, "size mismatch");
+
+#if defined(V8_TARGET_ARCH_RISCV64) || defined(V8_TARGET_ARCH_RISCV32)
   Float64 double_registers_[DoubleRegister::kNumRegisters];
+  Simd128 simd128_registers_[Simd128Register::kNumRegisters];
+#else
+  Simd128 simd128_registers_[Simd128Register::kNumRegisters];
+#endif
 };
 
 class FrameDescription {
  public:
+  static FrameDescription* Create(uint32_t frame_size, int parameter_count,
+                                  Isolate* isolate) {
+    return new (frame_size)
+        FrameDescription(frame_size, parameter_count, isolate);
+  }
+
+  void operator delete(void* description) { base::Free(description); }
+
+  uint32_t GetFrameSize() const {
+    USE(frame_content_);
+    DCHECK(static_cast<uint32_t>(frame_size_) == frame_size_);
+    return static_cast<uint32_t>(frame_size_);
+  }
+
+  intptr_t GetFrameSlot(unsigned offset) {
+    return *GetFrameSlotPointer(offset);
+  }
+
+  unsigned GetLastArgumentSlotOffset(bool pad_arguments = true) {
+    int parameter_slots = parameter_count();
+    if (pad_arguments) {
+      parameter_slots = AddArgumentPaddingSlots(parameter_slots);
+    }
+    return GetFrameSize() - parameter_slots * kSystemPointerSize;
+  }
+
+  Address GetFramePointerAddress() {
+    // We should not pad arguments in the bottom frame, since this
+    // already contains a padding if necessary and it might contain
+    // extra arguments (actual argument count > parameter count).
+    const bool pad_arguments_bottom_frame = false;
+    int fp_offset = GetLastArgumentSlotOffset(pad_arguments_bottom_frame) -
+                    StandardFrameConstants::kCallerSPOffset;
+    return reinterpret_cast<Address>(GetFrameSlotPointer(fp_offset));
+  }
+
+  RegisterValues* GetRegisterValues() { return &register_values_; }
+
+  void SetFrameSlot(unsigned offset, intptr_t value) {
+    *GetFrameSlotPointer(offset) = value;
+  }
+
+  // Same as SetFrameSlot but only writes 32 bits. This is needed as liftoff
+  // has 32 bit frame slots.
+  void SetLiftoffFrameSlot32(unsigned offset, int32_t value) {
+    base::WriteUnalignedValue(
+        reinterpret_cast<char*>(GetFrameSlotPointer(offset)), value);
+  }
+
+  // Same as SetFrameSlot but also supports the offset to be unaligned (4 Byte
+  // aligned) as liftoff doesn't align frame slots if they aren't references.
+  void SetLiftoffFrameSlot64(unsigned offset, int64_t value) {
+    base::WriteUnalignedValue(
+        reinterpret_cast<char*>(GetFrameSlotPointer(offset)), value);
+  }
+
+  void SetLiftoffFrameSlotPointer(unsigned offset, intptr_t value) {
+    if constexpr (Is64()) {
+      SetLiftoffFrameSlot64(offset, value);
+    } else {
+      SetLiftoffFrameSlot32(offset, value);
+    }
+  }
+
+  void SetCallerPc(unsigned offset, intptr_t value);
+
+  void SetCallerFp(unsigned offset, intptr_t value);
+
+  void SetCallerConstantPool(unsigned offset, intptr_t value);
+
+  intptr_t GetRegister(unsigned n) const {
+    return register_values_.GetRegister(n);
+  }
+
+  Float64 GetDoubleRegister(unsigned n) const {
+    return register_values_.GetDoubleRegister(n);
+  }
+
+  void SetRegister(unsigned n, intptr_t value) {
+    register_values_.SetRegister(n, value);
+  }
+
+  void SetDoubleRegister(unsigned n, Float64 value) {
+    register_values_.SetDoubleRegister(n, value);
+  }
+
+  void SetSimd128Register(unsigned n, Simd128 value) {
+    register_values_.SetSimd128Register(n, value);
+  }
+
+  intptr_t GetTop() const { return top_; }
+  void SetTop(intptr_t top) { top_ = top; }
+
+  intptr_t GetPc() const { return pc_; }
+  void SetPc(intptr_t pc);
+
+  intptr_t GetFp() const { return fp_; }
+  void SetFp(intptr_t fp) { fp_ = fp; }
+
+  intptr_t GetConstantPool() const { return constant_pool_; }
+  void SetConstantPool(intptr_t constant_pool) {
+    constant_pool_ = constant_pool;
+  }
+
+  void SetContinuation(intptr_t pc) { continuation_ = pc; }
+
+  // Argument count, including receiver.
+  int parameter_count() { return parameter_count_; }
+
+  static int registers_offset() {
+    return offsetof(FrameDescription, register_values_.registers_);
+  }
+
+#if defined(V8_TARGET_ARCH_RISCV64) || defined(V8_TARGET_ARCH_RISCV32)
+  static constexpr int double_registers_offset() {
+    return offsetof(FrameDescription, register_values_.double_registers_);
+  }
+#endif
+
+  static constexpr int simd128_registers_offset() {
+    return offsetof(FrameDescription, register_values_.simd128_registers_);
+  }
+
+  static int frame_size_offset() {
+    return offsetof(FrameDescription, frame_size_);
+  }
+
+  static int pc_offset() { return offsetof(FrameDescription, pc_); }
+
+  static int continuation_offset() {
+    return offsetof(FrameDescription, continuation_);
+  }
+
+  static int frame_content_offset() {
+    return offsetof(FrameDescription, frame_content_);
+  }
+
+ private:
   FrameDescription(uint32_t frame_size, int parameter_count, Isolate* isolate)
       : frame_size_(frame_size),
         parameter_count_(parameter_count),
         top_(kZapUint32),
         pc_(kZapUint32),
         fp_(kZapUint32),
-        context_(kZapUint32),
         constant_pool_(kZapUint32),
         isolate_(isolate) {
     USE(isolate_);
@@ -97,109 +242,6 @@ class FrameDescription {
     return base::Malloc(size + frame_size - kSystemPointerSize);
   }
 
-  void operator delete(void* pointer, uint32_t frame_size) {
-    base::Free(pointer);
-  }
-
-  void operator delete(void* description) { base::Free(description); }
-
-  uint32_t GetFrameSize() const {
-    USE(frame_content_);
-    DCHECK(static_cast<uint32_t>(frame_size_) == frame_size_);
-    return static_cast<uint32_t>(frame_size_);
-  }
-
-  intptr_t GetFrameSlot(unsigned offset) {
-    return *GetFrameSlotPointer(offset);
-  }
-
-  unsigned GetLastArgumentSlotOffset(bool pad_arguments = true) {
-    int parameter_slots = parameter_count();
-    if (pad_arguments) {
-      parameter_slots = AddArgumentPaddingSlots(parameter_slots);
-    }
-    return GetFrameSize() - parameter_slots * kSystemPointerSize;
-  }
-
-  Address GetFramePointerAddress() {
-    // We should not pad arguments in the bottom frame, since this
-    // already contain a padding if necessary and it might contain
-    // extra arguments (actual argument count > parameter count).
-    const bool pad_arguments_bottom_frame = false;
-    int fp_offset = GetLastArgumentSlotOffset(pad_arguments_bottom_frame) -
-                    StandardFrameConstants::kCallerSPOffset;
-    return reinterpret_cast<Address>(GetFrameSlotPointer(fp_offset));
-  }
-
-  RegisterValues* GetRegisterValues() { return &register_values_; }
-
-  void SetFrameSlot(unsigned offset, intptr_t value) {
-    *GetFrameSlotPointer(offset) = value;
-  }
-
-  void SetCallerPc(unsigned offset, intptr_t value);
-
-  void SetCallerFp(unsigned offset, intptr_t value);
-
-  void SetCallerConstantPool(unsigned offset, intptr_t value);
-
-  intptr_t GetRegister(unsigned n) const {
-    return register_values_.GetRegister(n);
-  }
-
-  Float64 GetDoubleRegister(unsigned n) const {
-    return register_values_.GetDoubleRegister(n);
-  }
-
-  void SetRegister(unsigned n, intptr_t value) {
-    register_values_.SetRegister(n, value);
-  }
-
-  intptr_t GetTop() const { return top_; }
-  void SetTop(intptr_t top) { top_ = top; }
-
-  intptr_t GetPc() const { return pc_; }
-  void SetPc(intptr_t pc);
-
-  intptr_t GetFp() const { return fp_; }
-  void SetFp(intptr_t fp) { fp_ = fp; }
-
-  intptr_t GetContext() const { return context_; }
-  void SetContext(intptr_t context) { context_ = context; }
-
-  intptr_t GetConstantPool() const { return constant_pool_; }
-  void SetConstantPool(intptr_t constant_pool) {
-    constant_pool_ = constant_pool;
-  }
-
-  void SetContinuation(intptr_t pc) { continuation_ = pc; }
-
-  // Argument count, including receiver.
-  int parameter_count() { return parameter_count_; }
-
-  static int registers_offset() {
-    return offsetof(FrameDescription, register_values_.registers_);
-  }
-
-  static constexpr int double_registers_offset() {
-    return offsetof(FrameDescription, register_values_.double_registers_);
-  }
-
-  static int frame_size_offset() {
-    return offsetof(FrameDescription, frame_size_);
-  }
-
-  static int pc_offset() { return offsetof(FrameDescription, pc_); }
-
-  static int continuation_offset() {
-    return offsetof(FrameDescription, continuation_);
-  }
-
-  static int frame_content_offset() {
-    return offsetof(FrameDescription, frame_content_);
-  }
-
- private:
   static const uint32_t kZapUint32 = 0xbeeddead;
 
   // Frame_size_ must hold a uint32_t value.  It is only a uintptr_t to
@@ -211,7 +253,6 @@ class FrameDescription {
   intptr_t top_;
   intptr_t pc_;
   intptr_t fp_;
-  intptr_t context_;
   intptr_t constant_pool_;
 
   Isolate* isolate_;

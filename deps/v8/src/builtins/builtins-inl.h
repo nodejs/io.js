@@ -6,6 +6,7 @@
 #define V8_BUILTINS_BUILTINS_INL_H_
 
 #include "src/builtins/builtins.h"
+#include "src/execution/isolate.h"
 
 namespace v8 {
 namespace internal {
@@ -199,6 +200,11 @@ constexpr Builtin Builtins::InterpreterPushArgsThenConstruct(
 }
 
 // static
+Address Builtins::EntryOf(Builtin builtin, Isolate* isolate) {
+  return isolate->builtin_entry_table()[Builtins::ToInt(builtin)];
+}
+
+// static
 constexpr bool Builtins::IsJSEntryVariant(Builtin builtin) {
   switch (builtin) {
     case Builtin::kJSEntry:
@@ -210,6 +216,29 @@ constexpr bool Builtins::IsJSEntryVariant(Builtin builtin) {
   }
   UNREACHABLE();
 }
+
+#ifdef V8_ENABLE_WEBASSEMBLY
+
+// static
+template <Builtin builtin>
+constexpr size_t Builtins::WasmBuiltinHandleArrayIndex() {
+  constexpr size_t index =
+      std::find(std::begin(Builtins::kWasmIndirectlyCallableBuiltins),
+                std::end(Builtins::kWasmIndirectlyCallableBuiltins), builtin) -
+      std::begin(Builtins::kWasmIndirectlyCallableBuiltins);
+  static_assert(Builtins::kWasmIndirectlyCallableBuiltins[index] == builtin);
+  return index;
+}
+
+// static
+template <Builtin builtin>
+wasm::WasmCodePointerTable::Handle Builtins::WasmBuiltinHandleOf(
+    Isolate* isolate) {
+  return isolate
+      ->wasm_builtin_code_handles()[WasmBuiltinHandleArrayIndex<builtin>()];
+}
+
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 }  // namespace internal
 }  // namespace v8

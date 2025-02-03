@@ -1,0 +1,20 @@
+<!doctype html>
+<title>localStorage and document.domain</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
+<div id="log"></div>
+<iframe></iframe>
+<script>
+  async_test(function(t) {
+    frames[0].addEventListener("storage", function(e) {
+      t.step(function() {
+        localStorage.clear()
+        t.done()
+      })
+    })
+    frames[0].document.domain = document.domain
+    localStorage.setItem("test", "test")
+  })
+</script>

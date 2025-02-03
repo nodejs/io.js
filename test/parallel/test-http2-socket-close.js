@@ -42,6 +42,7 @@ netServer.listen(0, common.mustCall(() => {
     rejectUnauthorized: false
   });
 
+  proxyClient.on('error', () => {});
   proxyClient.on('close', common.mustCall(() => {
     netServer.close();
   }));
@@ -51,6 +52,7 @@ netServer.listen(0, common.mustCall(() => {
     ':path': '/'
   });
 
+  req.on('error', () => {});
   req.on('response', common.mustCall((response) => {
     assert.strictEqual(response[':status'], 200);
 

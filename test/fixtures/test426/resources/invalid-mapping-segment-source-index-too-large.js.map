@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "names": [],
+  "file": "invalid-mapping-segment-source-index-too-large.js",
+  "sources": ["empty-original.js"],
+  "sourcesContent": [""],
+  "mappings": "AggggggEAA"
+}

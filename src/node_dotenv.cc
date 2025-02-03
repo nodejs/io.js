@@ -11,41 +11,55 @@ using v8::NewStringType;
 using v8::Object;
 using v8::String;
 
-std::vector<std::string> Dotenv::GetPathFromArgs(
+std::vector<Dotenv::env_file_data> Dotenv::GetDataFromArgs(
     const std::vector<std::string>& args) {
+  const std::string_view optional_env_file_flag = "--env-file-if-exists";
+
   const auto find_match = [](const std::string& arg) {
-    const std::string_view flag = "--env-file";
-    return strncmp(arg.c_str(), flag.data(), flag.size()) == 0;
+    return arg == "--" || arg == "--env-file" ||
+           arg.starts_with("--env-file=") || arg == "--env-file-if-exists" ||
+           arg.starts_with("--env-file-if-exists=");
   };
-  std::vector<std::string> paths;
-  auto path = std::find_if(args.begin(), args.end(), find_match);
 
-  while (path != args.end()) {
-    auto equal_char = path->find('=');
+  std::vector<Dotenv::env_file_data> env_files;
+  // This will be an iterator, pointing to args.end() if no matches are found
+  auto matched_arg = std::find_if(args.begin(), args.end(), find_match);
 
-    if (equal_char != std::string::npos) {
-      paths.push_back(path->substr(equal_char + 1));
-    } else {
-      auto next_path = std::next(path);
-
-      if (next_path == args.end()) {
-        return paths;
-      }
-
-      paths.push_back(*next_path);
+  while (matched_arg != args.end()) {
+    if (*matched_arg == "--") {
+      return env_files;
     }
 
-    path = std::find_if(++path, args.end(), find_match);
+    auto equal_char_index = matched_arg->find('=');
+
+    if (equal_char_index != std::string::npos) {
+      // `--env-file=path`
+      auto flag = matched_arg->substr(0, equal_char_index);
+      auto file_path = matched_arg->substr(equal_char_index + 1);
+
+      struct env_file_data env_file_data = {
+          file_path, flag.starts_with(optional_env_file_flag)};
+      env_files.push_back(env_file_data);
+    } else {
+      // `--env-file path`
+      auto file_path = std::next(matched_arg);
+
+      if (file_path == args.end()) {
+        return env_files;
+      }
+
+      struct env_file_data env_file_data = {
+          *file_path, matched_arg->starts_with(optional_env_file_flag)};
+      env_files.push_back(env_file_data);
+    }
+
+    matched_arg = std::find_if(++matched_arg, args.end(), find_match);
   }
 
-  return paths;
+  return env_files;
 }
 
 void Dotenv::SetEnvironment(node::Environment* env) {
-  if (store_.empty()) {
-    return;
-  }
-
   auto isolate = env->isolate();
 
   for (const auto& entry : store_) {
@@ -54,7 +68,7 @@ void Dotenv::SetEnvironment(node::Environment* env) {
 
     auto existing = env->env_vars()->Get(key.data());
 
-    if (existing.IsNothing()) {
+    if (!existing.has_value()) {
       env->env_vars()->Set(
           isolate,
           v8::String::NewFromUtf8(
@@ -67,7 +81,7 @@ void Dotenv::SetEnvironment(node::Environment* env) {
   }
 }
 
-Local<Object> Dotenv::ToObject(Environment* env) {
+Local<Object> Dotenv::ToObject(Environment* env) const {
   Local<Object> result = Object::New(env->isolate());
 
   for (const auto& entry : store_) {
@@ -133,14 +147,14 @@ void Dotenv::ParseContent(const std::string_view input) {
     key = content.substr(0, equal);
     content.remove_prefix(equal + 1);
     key = trim_spaces(key);
+    content = trim_spaces(content);
 
     if (key.empty()) {
       break;
     }
 
     // Remove export prefix from key
-    auto have_export = key.compare(0, 7, "export ") == 0;
-    if (have_export) {
+    if (key.starts_with("export ")) {
       key.remove_prefix(7);
     }
 
@@ -168,7 +182,10 @@ void Dotenv::ParseContent(const std::string_view input) {
         }
 
         store_.insert_or_assign(std::string(key), multi_line_value);
-        content.remove_prefix(content.find('\n', closing_quote + 1));
+        auto newline = content.find('\n', closing_quote + 1);
+        if (newline != std::string_view::npos) {
+          content.remove_prefix(newline);
+        }
         continue;
       }
     }
@@ -196,7 +213,10 @@ void Dotenv::ParseContent(const std::string_view input) {
         store_.insert_or_assign(std::string(key), value);
         // Select the first newline after the closing quotation mark
         // since there could be newline characters inside the value.
-        content.remove_prefix(content.find('\n', closing_quote + 1));
+        auto newline = content.find('\n', closing_quote + 1);
+        if (newline != std::string_view::npos) {
+          content.remove_prefix(newline);
+        }
       }
     } else {
       // Regular key value pair.
@@ -263,7 +283,7 @@ Dotenv::ParseResult Dotenv::ParsePath(const std::string_view path) {
   return ParseResult::Valid;
 }
 
-void Dotenv::AssignNodeOptionsIfAvailable(std::string* node_options) {
+void Dotenv::AssignNodeOptionsIfAvailable(std::string* node_options) const {
   auto match = store_.find("NODE_OPTIONS");
 
   if (match != store_.end()) {

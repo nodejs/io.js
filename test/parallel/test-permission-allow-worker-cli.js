@@ -1,4 +1,4 @@
-// Flags: --experimental-permission --allow-worker --allow-fs-read=*
+// Flags: --permission --allow-worker --allow-fs-read=*
 'use strict';
 
 require('../common');

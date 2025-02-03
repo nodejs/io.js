@@ -1,0 +1,50 @@
+{
+  "name": "proggy",
+  "version": "3.0.0",
+  "files": [
+    "bin/",
+    "lib/"
+  ],
+  "main": "lib/index.js",
+  "description": "Progress bar updates at a distance",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/npm/proggy.git"
+  },
+  "author": "GitHub Inc.",
+  "license": "ISC",
+  "scripts": {
+    "test": "tap",
+    "posttest": "npm run lint",
+    "snap": "tap",
+    "postsnap": "eslint lib test --fix",
+    "lint": "npm run eslint",
+    "postlint": "template-oss-check",
+    "lintfix": "npm run eslint -- --fix",
+    "template-oss-apply": "template-oss-apply --force",
+    "eslint": "eslint \"**/*.{js,cjs,ts,mjs,jsx,tsx}\""
+  },
+  "devDependencies": {
+    "@npmcli/eslint-config": "^5.0.0",
+    "@npmcli/template-oss": "4.23.3",
+    "chalk": "^4.1.2",
+    "cli-progress": "^3.10.0",
+    "npmlog": "^7.0.0",
+    "tap": "^16.0.1"
+  },
+  "tap": {
+    "coverage-map": "map.js",
+    "nyc-arg": [
+      "--exclude",
+      "tap-snapshots/**"
+    ]
+  },
+  "engines": {
+    "node": "^18.17.0 || >=20.5.0"
+  },
+  "templateOSS": {
+    "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
+    "version": "4.23.3",
+    "publish": true
+  }
+}

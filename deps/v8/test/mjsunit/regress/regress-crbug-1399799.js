@@ -1,8 +1,8 @@
 // Copyright 2022 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-//
-// Flags: --harmony-rab-gsab --allow-natives-syntax
+
+// Flags: --allow-natives-syntax
 
 const ab = new ArrayBuffer(3000);
 const ta = new Uint16Array(ab);

@@ -1,6 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parseBitString = exports.parseBoolean = exports.parseOID = exports.parseTime = exports.parseStringASCII = exports.parseInteger = void 0;
+exports.parseInteger = parseInteger;
+exports.parseStringASCII = parseStringASCII;
+exports.parseTime = parseTime;
+exports.parseOID = parseOID;
+exports.parseBoolean = parseBoolean;
+exports.parseBitString = parseBitString;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -43,13 +48,11 @@ function parseInteger(buf) {
     }
     return n;
 }
-exports.parseInteger = parseInteger;
 // Parse an ASCII string from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-basic-types#boolean
 function parseStringASCII(buf) {
     return buf.toString('ascii');
 }
-exports.parseStringASCII = parseStringASCII;
 // Parse a Date from the DER-encoded buffer
 // https://www.rfc-editor.org/rfc/rfc5280#section-4.1.2.5.1
 function parseTime(buf, shortYear) {
@@ -70,7 +73,6 @@ function parseTime(buf, shortYear) {
     // Translate to ISO8601 format and parse
     return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
 }
-exports.parseTime = parseTime;
 // Parse an OID from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-object-identifier
 function parseOID(buf) {
@@ -95,13 +97,11 @@ function parseOID(buf) {
     }
     return oid;
 }
-exports.parseOID = parseOID;
 // Parse a boolean from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-basic-types#boolean
 function parseBoolean(buf) {
     return buf[0] !== 0;
 }
-exports.parseBoolean = parseBoolean;
 // Parse a bit string from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-bit-string
 function parseBitString(buf) {
@@ -122,4 +122,3 @@ function parseBitString(buf) {
     }
     return bits;
 }
-exports.parseBitString = parseBitString;

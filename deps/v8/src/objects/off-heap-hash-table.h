@@ -8,7 +8,6 @@
 #include "src/common/globals.h"
 #include "src/execution/isolate-utils.h"
 #include "src/objects/compressed-slots.h"
-#include "src/objects/fixed-array.h"
 #include "src/objects/slots.h"
 #include "src/objects/smi.h"
 #include "src/objects/visitors.h"

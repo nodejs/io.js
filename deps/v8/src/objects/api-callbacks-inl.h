@@ -26,8 +26,6 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(AccessCheckInfo)
 TQ_OBJECT_CONSTRUCTORS_IMPL(AccessorInfo)
 TQ_OBJECT_CONSTRUCTORS_IMPL(InterceptorInfo)
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(CallHandlerInfo)
-
 EXTERNAL_POINTER_ACCESSORS_MAYBE_READ_ONLY_HOST(AccessorInfo,
                                                 maybe_redirected_getter,
                                                 Address,
@@ -82,8 +80,6 @@ bool AccessorInfo::has_setter(Isolate* isolate) {
   return setter(isolate) != kNullAddress;
 }
 
-BIT_FIELD_ACCESSORS(AccessorInfo, flags, is_special_data_property,
-                    AccessorInfo::IsSpecialDataPropertyBit)
 BIT_FIELD_ACCESSORS(AccessorInfo, flags, replace_on_access,
                     AccessorInfo::ReplaceOnAccessBit)
 BIT_FIELD_ACCESSORS(AccessorInfo, flags, is_sloppy, AccessorInfo::IsSloppyBit)
@@ -118,65 +114,9 @@ BOOL_ACCESSORS(InterceptorInfo, flags, non_masking, NonMaskingBit::kShift)
 BOOL_ACCESSORS(InterceptorInfo, flags, is_named, NamedBit::kShift)
 BOOL_ACCESSORS(InterceptorInfo, flags, has_no_side_effect,
                HasNoSideEffectBit::kShift)
-
-bool CallHandlerInfo::IsSideEffectFreeCallHandlerInfo() const {
-  ReadOnlyRoots roots = GetReadOnlyRoots();
-  DCHECK(map() == roots.side_effect_call_handler_info_map() ||
-         map() == roots.side_effect_free_call_handler_info_map());
-  return map() == roots.side_effect_free_call_handler_info_map();
-}
-
-bool CallHandlerInfo::IsSideEffectCallHandlerInfo() const {
-  ReadOnlyRoots roots = GetReadOnlyRoots();
-  DCHECK(map() == roots.side_effect_call_handler_info_map() ||
-         map() == roots.side_effect_free_call_handler_info_map());
-  return map() == roots.side_effect_call_handler_info_map();
-}
-
-EXTERNAL_POINTER_ACCESSORS_MAYBE_READ_ONLY_HOST(CallHandlerInfo,
-                                                maybe_redirected_callback,
-                                                Address,
-                                                kMaybeRedirectedCallbackOffset,
-                                                kCallHandlerInfoCallbackTag)
-
-Address CallHandlerInfo::callback(i::IsolateForSandbox isolate) const {
-  Address result = maybe_redirected_callback(isolate);
-  if (!USE_SIMULATOR_BOOL) return result;
-  if (result == kNullAddress) return kNullAddress;
-  return ExternalReference::UnwrapRedirection(result);
-}
-
-void CallHandlerInfo::init_callback(i::IsolateForSandbox isolate,
-                                    Address initial_value) {
-  init_maybe_redirected_callback(isolate, initial_value);
-  if (USE_SIMULATOR_BOOL) {
-    init_callback_redirection(isolate);
-  }
-}
-
-void CallHandlerInfo::set_callback(i::IsolateForSandbox isolate,
-                                   Address value) {
-  set_maybe_redirected_callback(isolate, value);
-  if (USE_SIMULATOR_BOOL) {
-    init_callback_redirection(isolate);
-  }
-}
-
-void CallHandlerInfo::init_callback_redirection(i::IsolateForSandbox isolate) {
-  CHECK(USE_SIMULATOR_BOOL);
-  Address value = maybe_redirected_callback(isolate);
-  if (value == kNullAddress) return;
-  value =
-      ExternalReference::Redirect(value, ExternalReference::DIRECT_API_CALL);
-  set_maybe_redirected_callback(isolate, value);
-}
-
-void CallHandlerInfo::remove_callback_redirection(
-    i::IsolateForSandbox isolate) {
-  CHECK(USE_SIMULATOR_BOOL);
-  Address value = callback(isolate);
-  set_maybe_redirected_callback(isolate, value);
-}
+// TODO(ishell): remove once all the Api changes are done.
+BOOL_ACCESSORS(InterceptorInfo, flags, has_new_callbacks_signature,
+               HasNewCallbacksSignatureBit::kShift)
 
 }  // namespace internal
 }  // namespace v8

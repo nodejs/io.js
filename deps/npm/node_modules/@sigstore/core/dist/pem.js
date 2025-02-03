@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fromDER = exports.toDER = void 0;
+exports.toDER = toDER;
+exports.fromDER = fromDER;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -28,7 +29,6 @@ function toDER(certificate) {
     });
     return Buffer.from(der, 'base64');
 }
-exports.toDER = toDER;
 // Translates a DER-encoded buffer into a PEM-encoded string. Standard PEM
 // encoding dictates that each certificate should have a trailing newline after
 // the footer.
@@ -41,4 +41,3 @@ function fromDER(certificate, type = 'CERTIFICATE') {
         .join('\n')
         .concat('\n');
 }
-exports.fromDER = fromDER;

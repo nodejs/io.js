@@ -35,7 +35,7 @@ RUNTIME_FUNCTION(Runtime_StringParseInt) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, radix,
                                        Object::ToNumber(isolate, radix));
   }
-  int radix32 = DoubleToInt32(Object::Number(*radix));
+  int radix32 = DoubleToInt32(Object::NumberValue(*radix));
   if (radix32 != 0 && (radix32 < 2 || radix32 > 36)) {
     return ReadOnlyRoots(isolate).nan_value();
   }

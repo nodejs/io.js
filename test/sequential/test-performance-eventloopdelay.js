@@ -3,6 +3,7 @@
 
 const common = require('../common');
 const assert = require('assert');
+const os = require('os');
 const {
   monitorEventLoopDelay
 } = require('perf_hooks');
@@ -51,9 +52,13 @@ const { sleep } = require('internal/util');
 }
 
 {
+  const s390x = os.arch() === 's390x';
   const histogram = monitorEventLoopDelay({ resolution: 1 });
   histogram.enable();
   let m = 5;
+  if (s390x) {
+    m = m * 2;
+  }
   function spinAWhile() {
     sleep(1000);
     if (--m > 0) {
@@ -101,5 +106,5 @@ const { sleep } = require('internal/util');
 }
 
 // Make sure that the histogram instances can be garbage-collected without
-// and not just implictly destroyed when the Environment is torn down.
+// and not just implicitly destroyed when the Environment is torn down.
 process.on('exit', global.gc);

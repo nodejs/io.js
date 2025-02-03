@@ -1,9 +1,22 @@
-const t = require('tap')
 const tspawk = require('../../fixtures/tspawk')
-const MockRegistry = require('@npmcli/mock-registry')
-const { load: loadMockNpm } = require('../../fixtures/mock-npm')
-const path = require('node:path')
+const {
+  cleanCwd,
+  cleanTime,
+  cleanDate,
+  cleanPackumentCache,
+} = require('../../fixtures/clean-snapshot.js')
 
+const path = require('node:path')
+const t = require('tap')
+
+t.cleanSnapshot = (str) => cleanPackumentCache(cleanDate(cleanTime(cleanCwd(str))))
+
+const {
+  loadNpmWithRegistry: loadMockNpm,
+  workspaceMock,
+} = require('../../fixtures/mock-npm')
+
+// tspawk calls preventUnmatched which assures that no scripts run if we don't mock any
 const spawk = tspawk(t)
 
 const abbrev = {
@@ -19,11 +32,9 @@ const packageJson = {
   },
 }
 
-// tspawk calls preventUnmatched which assures that no scripts run if we don't mock any
-
 t.test('exec commands', async t => {
   await t.test('with args does not run lifecycle scripts', async t => {
-    const { npm } = await loadMockNpm(t, {
+    const { npm, registry } = await loadMockNpm(t, {
       config: {
         audit: false,
       },
@@ -37,11 +48,6 @@ t.test('exec commands', async t => {
         abbrev,
       },
     })
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
-    })
-
     const manifest = registry.manifest({ name: 'abbrev' })
     await registry.package({ manifest })
     await registry.tarball({
@@ -70,7 +76,7 @@ t.test('exec commands', async t => {
       })
       scripts[script] = `${script} lifecycle script`
     }
-    const { npm } = await loadMockNpm(t, {
+    const { npm, registry } = await loadMockNpm(t, {
       config: {
         audit: false,
       },
@@ -83,10 +89,6 @@ t.test('exec commands', async t => {
       },
     })
     const runOrder = []
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
-    })
     const manifest = registry.manifest({ name: 'abbrev' })
     await registry.package({ manifest })
     await registry.tarball({
@@ -99,7 +101,7 @@ t.test('exec commands', async t => {
   })
 
   await t.test('should ignore scripts with --ignore-scripts', async t => {
-    const { npm } = await loadMockNpm(t, {
+    const { npm, registry } = await loadMockNpm(t, {
       config: {
         'ignore-scripts': true,
         audit: false,
@@ -114,11 +116,6 @@ t.test('exec commands', async t => {
         abbrev,
       },
     })
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
-    })
-
     const manifest = registry.manifest({ name: 'abbrev' })
     await registry.package({ manifest })
     await registry.tarball({
@@ -143,7 +140,7 @@ t.test('exec commands', async t => {
   })
 
   await t.test('npm i -g npm engines check success', async t => {
-    const { npm } = await loadMockNpm(t, {
+    const { npm, registry } = await loadMockNpm(t, {
       prefixDir: {
         npm: {
           'package.json': JSON.stringify({ name: 'npm', version: '1.0.0' }),
@@ -151,10 +148,6 @@ t.test('exec commands', async t => {
         },
       },
       config: { global: true },
-    })
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
     })
     const manifest = registry.manifest({
       name: 'npm',
@@ -170,7 +163,7 @@ t.test('exec commands', async t => {
   })
 
   await t.test('npm i -g npm engines check failure', async t => {
-    const { npm } = await loadMockNpm(t, {
+    const { npm, registry } = await loadMockNpm(t, {
       prefixDir: {
         npm: {
           'package.json': JSON.stringify({ name: 'npm', version: '1.0.0' }),
@@ -179,10 +172,7 @@ t.test('exec commands', async t => {
       },
       config: { global: true },
     })
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
-    })
+
     const manifest = registry.manifest({
       name: 'npm',
       packuments: [{ version: '1.0.0', engines: { node: '~1' } }],
@@ -206,7 +196,7 @@ t.test('exec commands', async t => {
   })
 
   await t.test('npm i -g npm engines check failure forced override', async t => {
-    const { npm } = await loadMockNpm(t, {
+    const { npm, registry } = await loadMockNpm(t, {
       prefixDir: {
         npm: {
           'package.json': JSON.stringify({ name: 'npm', version: '1.0.0' }),
@@ -214,10 +204,6 @@ t.test('exec commands', async t => {
         },
       },
       config: { global: true, force: true },
-    })
-    const registry = new MockRegistry({
-      tap: t,
-      registry: npm.config.get('registry'),
     })
     const manifest = registry.manifest({
       name: 'npm',
@@ -286,5 +272,448 @@ t.test('completion', async t => {
     const { install } = await mockComp(t)
     const res = await install.completion({ partialWord: '/' })
     t.strictSame(res, [])
+  })
+})
+
+t.test('should install in workspace with unhoisted module', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    prefixDir: workspaceMock(t, {
+      clean: true,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { hoist: true },
+        },
+        'workspace-b': {
+          'abbrev@1.1.1': { hoist: false },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'abbrev@1.1.0': path.join(npm.prefix, 'tarballs/abbrev@1.1.0'),
+    'abbrev@1.1.1': path.join(npm.prefix, 'tarballs/abbrev@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('workspace-b/node_modules/abbrev@1.1.1')
+  await npm.exec('install', [])
+  assert.packageInstalled('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('workspace-b/node_modules/abbrev@1.1.1')
+})
+
+t.test('should install in workspace with hoisted modules', async t => {
+  const prefixDir = workspaceMock(t, {
+    clean: true,
+    workspaces: {
+      'workspace-a': {
+        'abbrev@1.1.0': { hoist: true },
+      },
+      'workspace-b': {
+        'lodash@1.1.1': { hoist: true },
+      },
+    },
+  })
+  const { npm, registry, assert } = await loadMockNpm(t, { prefixDir })
+  await registry.setup({
+    'abbrev@1.1.0': path.join(npm.prefix, 'tarballs/abbrev@1.1.0'),
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('node_modules/lodash@1.1.1')
+  await npm.exec('install', [])
+  assert.packageInstalled('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
+})
+
+t.test('should install unhoisted module with --workspace flag', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      clean: true,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { hoist: true },
+        },
+        'workspace-b': {
+          'abbrev@1.1.1': { hoist: false },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'abbrev@1.1.1': path.join(npm.prefix, 'tarballs/abbrev@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('workspace-b/node_modules/abbrev@1.1.1')
+  await npm.exec('install', [])
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('workspace-b/node_modules/abbrev@1.1.1')
+})
+
+t.test('should install hoisted module with --workspace flag', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      clean: true,
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { hoist: true },
+        },
+        'workspace-b': {
+          'lodash@1.1.1': { hoist: true },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageMissing('node_modules/lodash@1.1.1')
+  await npm.exec('install', [])
+  assert.packageMissing('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
+})
+
+t.test('should show install keeps dirty --workspace flag', async t => {
+  const { npm, registry, assert } = await loadMockNpm(t, {
+    config: {
+      workspace: 'workspace-b',
+    },
+    prefixDir: workspaceMock(t, {
+      workspaces: {
+        'workspace-a': {
+          'abbrev@1.1.0': { clean: false, hoist: true },
+        },
+        'workspace-b': {
+          'lodash@1.1.1': { clean: true, hoist: true },
+        },
+      },
+    }),
+  })
+  await registry.setup({
+    'lodash@1.1.1': path.join(npm.prefix, 'tarballs/lodash@1.1.1'),
+  })
+  registry.nock.post('/-/npm/v1/security/advisories/bulk').reply(200, {})
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageMissing('node_modules/lodash@1.1.1')
+  await npm.exec('install', [])
+  assert.packageDirty('node_modules/abbrev@1.1.0')
+  assert.packageInstalled('node_modules/lodash@1.1.1')
+})
+
+t.test('devEngines', async t => {
+  const mockArguments = {
+    globals: {
+      'process.platform': 'linux',
+      'process.arch': 'x86',
+      'process.version': 'v1337.0.0',
+    },
+    mocks: {
+      '{ROOT}/package.json': { version: '42.0.0' },
+    },
+  }
+
+  t.test('should utilize devEngines success case', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'test-package',
+          version: '1.0.0',
+          devEngines: {
+            runtime: {
+              name: 'node',
+            },
+          },
+        }),
+      },
+    })
+    await npm.exec('install', [])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(!output.includes('EBADDEVENGINES'))
+  })
+
+  t.test('should utilize devEngines failure case', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'test-package',
+          version: '1.0.0',
+          devEngines: {
+            runtime: {
+              name: 'nondescript',
+            },
+          },
+        }),
+      },
+    })
+    await t.rejects(
+      npm.exec('install', [])
+    )
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('error EBADDEVENGINES'))
+  })
+
+  t.test('should utilize devEngines failure force case', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      config: {
+        force: true,
+      },
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'test-package',
+          version: '1.0.0',
+          devEngines: {
+            runtime: {
+              name: 'nondescript',
+            },
+          },
+        }),
+      },
+    })
+    await npm.exec('install', [])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('warn EBADDEVENGINES'))
+  })
+
+  t.test('should utilize devEngines 2x warning case', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'test-package',
+          version: '1.0.0',
+          devEngines: {
+            runtime: {
+              name: 'nondescript',
+              onFail: 'warn',
+            },
+            cpu: {
+              name: 'risv',
+              onFail: 'warn',
+            },
+          },
+        }),
+      },
+    })
+    await npm.exec('install', [])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('warn EBADDEVENGINES'))
+  })
+
+  t.test('should utilize devEngines 2x error case', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'test-package',
+          version: '1.0.0',
+          devEngines: {
+            runtime: {
+              name: 'nondescript',
+              onFail: 'error',
+            },
+            cpu: {
+              name: 'risv',
+              onFail: 'error',
+            },
+          },
+        }),
+      },
+    })
+    await t.rejects(
+      npm.exec('install', [])
+    )
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('error EBADDEVENGINES'))
+  })
+
+  t.test('should utilize devEngines failure and warning case', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'test-package',
+          version: '1.0.0',
+          devEngines: {
+            runtime: {
+              name: 'nondescript',
+            },
+            cpu: {
+              name: 'risv',
+              onFail: 'warn',
+            },
+          },
+        }),
+      },
+    })
+    await t.rejects(
+      npm.exec('install', [])
+    )
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('EBADDEVENGINES'))
+  })
+
+  t.test('should show devEngines has no effect on package install', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        alpha: {
+          'package.json': JSON.stringify({
+            name: 'alpha',
+            devEngines: { runtime: { name: 'node', version: '1.0.0' } },
+          }),
+          'index.js': 'console.log("this is alpha index")',
+        },
+        'package.json': JSON.stringify({
+          name: 'project',
+        }),
+      },
+    })
+    await npm.exec('install', ['./alpha'])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(!output.includes('EBADDEVENGINES'))
+  })
+
+  t.test('should show devEngines has no effect on dev package install', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        alpha: {
+          'package.json': JSON.stringify({
+            name: 'alpha',
+            devEngines: { runtime: { name: 'node', version: '1.0.0' } },
+          }),
+          'index.js': 'console.log("this is alpha index")',
+        },
+        'package.json': JSON.stringify({
+          name: 'project',
+        }),
+      },
+      config: {
+        'save-dev': true,
+      },
+    })
+    await npm.exec('install', ['./alpha'])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(!output.includes('EBADDEVENGINES'))
+  })
+
+  t.test('should show devEngines doesnt break engines', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        alpha: {
+          'package.json': JSON.stringify({
+            name: 'alpha',
+            devEngines: { runtime: { name: 'node', version: '1.0.0' } },
+            engines: { node: '1.0.0' },
+          }),
+          'index.js': 'console.log("this is alpha index")',
+        },
+        'package.json': JSON.stringify({
+          name: 'project',
+        }),
+      },
+      config: { global: true },
+    })
+    await npm.exec('install', ['./alpha'])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('warn EBADENGINE'))
+  })
+
+  t.test('should not utilize engines in root if devEngines is provided', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'alpha',
+          engines: {
+            node: '0.0.1',
+          },
+          devEngines: {
+            runtime: {
+              name: 'node',
+              version: '0.0.1',
+              onFail: 'warn',
+            },
+          },
+        }),
+        'index.js': 'console.log("this is alpha index")',
+      },
+    })
+    await npm.exec('install')
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(!output.includes('EBADENGINE'))
+    t.ok(output.includes('warn EBADDEVENGINES'))
+  })
+
+  t.test('should utilize engines in root if devEngines is not provided', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'alpha',
+          engines: {
+            node: '0.0.1',
+          },
+        }),
+        'index.js': 'console.log("this is alpha index")',
+      },
+    })
+    await npm.exec('install')
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(output.includes('EBADENGINE'))
+    t.ok(!output.includes('EBADDEVENGINES'))
+  })
+
+  t.test('should show devEngines has no effect on global package install', async t => {
+    const { npm, joinedFullOutput } = await loadMockNpm(t, {
+      ...mockArguments,
+      prefixDir: {
+        'package.json': JSON.stringify({
+          name: 'alpha',
+          bin: {
+            alpha: 'index.js',
+          },
+          devEngines: {
+            runtime: {
+              name: 'node',
+              version: '0.0.1',
+            },
+          },
+        }),
+        'index.js': 'console.log("this is alpha index")',
+      },
+      config: {
+        global: true,
+      },
+    })
+    await npm.exec('install', ['.'])
+    const output = joinedFullOutput()
+    t.matchSnapshot(output)
+    t.ok(!output.includes('EBADENGINE'))
+    t.ok(!output.includes('EBADDEVENGINES'))
   })
 })

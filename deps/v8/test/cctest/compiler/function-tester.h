@@ -17,13 +17,9 @@ class Isolate;
 
 namespace compiler {
 
-class Graph;
-
 class FunctionTester : public InitializedHandleScope {
  public:
   explicit FunctionTester(const char* source, uint32_t flags = 0);
-
-  FunctionTester(Graph* graph, int param_count);
 
   FunctionTester(Handle<Code> code, int param_count);
 
@@ -47,30 +43,33 @@ class FunctionTester : public InitializedHandleScope {
   template <typename T, typename... Args>
   Handle<T> CallChecked(Args... args) {
     Handle<Object> result = Call(args...).ToHandleChecked();
-    return Handle<T>::cast(result);
+    return Cast<T>(result);
   }
 
   void CheckThrows(Handle<Object> a);
   void CheckThrows(Handle<Object> a, Handle<Object> b);
   v8::Local<v8::Message> CheckThrowsReturnMessage(Handle<Object> a,
                                                   Handle<Object> b);
-  void CheckCall(Handle<Object> expected, Handle<Object> a, Handle<Object> b,
-                 Handle<Object> c, Handle<Object> d);
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a,
+                 Handle<Object> b, Handle<Object> c, Handle<Object> d);
 
-  void CheckCall(Handle<Object> expected, Handle<Object> a, Handle<Object> b,
-                 Handle<Object> c) {
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a,
+                 Handle<Object> b, Handle<Object> c) {
     return CheckCall(expected, a, b, c, undefined());
   }
 
-  void CheckCall(Handle<Object> expected, Handle<Object> a, Handle<Object> b) {
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a,
+                 Handle<Object> b) {
     return CheckCall(expected, a, b, undefined());
   }
 
-  void CheckCall(Handle<Object> expected, Handle<Object> a) {
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a) {
     CheckCall(expected, a, undefined());
   }
 
-  void CheckCall(Handle<Object> expected) { CheckCall(expected, undefined()); }
+  void CheckCall(DirectHandle<Object> expected) {
+    CheckCall(expected, undefined());
+  }
 
   void CheckCall(double expected, double a, double b) {
     CheckCall(Val(expected), Val(a), Val(b));
@@ -118,8 +117,6 @@ class FunctionTester : public InitializedHandleScope {
   Handle<Object> true_value();
   Handle<Object> false_value();
 
-  static Handle<JSFunction> ForMachineGraph(Graph* graph, int param_count);
-
  private:
   uint32_t flags_;
 
@@ -136,10 +133,6 @@ class FunctionTester : public InitializedHandleScope {
     function_string += "){})";
     return function_string;
   }
-
-  // Compile the given machine graph instead of the source of the function
-  // and replace the JSFunction's code with the result.
-  Handle<JSFunction> CompileGraph(Graph* graph);
 };
 }  // namespace compiler
 }  // namespace internal

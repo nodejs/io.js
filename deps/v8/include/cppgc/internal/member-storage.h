@@ -158,6 +158,12 @@ class V8_TRIVIAL_ABI CompressedPointer final {
   static V8_INLINE void* Decompress(IntegralType ptr) {
     CPPGC_DCHECK(CageBaseGlobal::IsSet());
     const uintptr_t base = CageBaseGlobal::Get();
+    return Decompress(ptr, base);
+  }
+
+  static V8_INLINE void* Decompress(IntegralType ptr, uintptr_t base) {
+    CPPGC_DCHECK(CageBaseGlobal::IsSet());
+    CPPGC_DCHECK(base == CageBaseGlobal::Get());
     // Treat compressed pointer as signed and cast it to uint64_t, which will
     // sign-extend it.
 #if defined(CPPGC_2GB_CAGE)

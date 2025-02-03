@@ -57,12 +57,12 @@ int32_t MlBreakEngine::divideUpRange(UText *inText, int32_t rangeStart, int32_t 
     // moving forward, finally the last six values in the indexList are
     // [length-4, length-3, length-2, length-1, -1, -1]. The "+4" here means four extra "-1".
     int32_t indexSize = codePointLength + 4;
-    int32_t *indexList = (int32_t *)uprv_malloc(indexSize * sizeof(int32_t));
-    if (indexList == nullptr) {
+    LocalMemory<int32_t> indexList(static_cast<int32_t*>(uprv_malloc(indexSize * sizeof(int32_t))));
+    if (indexList.isNull()) {
         status = U_MEMORY_ALLOCATION_ERROR;
         return 0;
     }
-    int32_t numCodeUnits = initIndexList(inString, indexList, status);
+    int32_t numCodeUnits = initIndexList(inString, indexList.getAlias(), status);
 
     // Add a break for the start.
     boundary.addElement(0, status);
@@ -71,13 +71,12 @@ int32_t MlBreakEngine::divideUpRange(UText *inText, int32_t rangeStart, int32_t 
 
     for (int32_t idx = 0; idx + 1 < codePointLength && U_SUCCESS(status); idx++) {
         numBreaks =
-            evaluateBreakpoint(inString, indexList, idx, numCodeUnits, numBreaks, boundary, status);
+            evaluateBreakpoint(inString, indexList.getAlias(), idx, numCodeUnits, numBreaks, boundary, status);
         if (idx + 4 < codePointLength) {
             indexList[idx + 6] = numCodeUnits;
             numCodeUnits += U16_LENGTH(inString.char32At(indexList[idx + 6]));
         }
     }
-    uprv_free(indexList);
 
     if (U_FAILURE(status)) return 0;
 

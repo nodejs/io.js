@@ -63,7 +63,7 @@ static void fail_cb2(void) {
 }
 
 
-static void req_cb(uv_handle_t* req, int status) {
+static void req_cb(uv_udp_send_t* req, int status) {
   req_cb_called++;
 }
 
@@ -334,7 +334,7 @@ TEST_IMPL(udp_ref3) {
               &buf,
               1,
               (const struct sockaddr*) &addr,
-              (uv_udp_send_cb) req_cb);
+              req_cb);
   uv_unref((uv_handle_t*)&h);
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
   ASSERT_EQ(1, req_cb_called);

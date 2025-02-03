@@ -1,0 +1,81 @@
+# This action requires the following secrets to be set on the repository:
+#   GH_USER_TOKEN: GitHub user token, to be used by ncu and to push changes
+
+name: Create Release Proposal
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-line:
+        required: true
+        type: number
+        description: 'The release line (without dots or prefix). e.g: 22'
+      release-date:
+        required: true
+        type: string
+        description: The release date in YYYY-MM-DD format
+
+concurrency: ${{ github.workflow }}
+
+env:
+  NODE_VERSION: lts/*
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  releasePrepare:
+    env:
+      STAGING_BRANCH: v${{ inputs.release-line }}.x-staging
+      RELEASE_BRANCH: v${{ inputs.release-line }}.x
+      RELEASE_DATE: ${{ inputs.release-date }}
+      RELEASE_LINE: ${{ inputs.release-line }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: ${{ env.STAGING_BRANCH }}
+          persist-credentials: false
+
+      # Install dependencies
+      - name: Install Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install @node-core/utils
+        run: npm install -g @node-core/utils
+
+      - name: Configure @node-core/utils
+        run: |
+          ncu-config set branch "${RELEASE_BRANCH}"
+          ncu-config set upstream origin
+          ncu-config set username "$GITHUB_ACTOR"
+          ncu-config set token "$GH_TOKEN"
+          ncu-config set repo "$(echo "$GITHUB_REPOSITORY" | cut -d/ -f2)"
+          ncu-config set owner "${GITHUB_REPOSITORY_OWNER}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Set up ghauth config (Ubuntu)
+        run: |
+          mkdir -p "${XDG_CONFIG_HOME:-~/.config}/changelog-maker"
+          jq --null-input '{user: env.GITHUB_ACTOR, token: env.TOKEN}' > "${XDG_CONFIG_HOME:-~/.config}/changelog-maker/config.json"
+        env:
+          TOKEN: ${{ github.token }}
+
+      - name: Setup git author
+        run: |
+          git config --local user.email "github-bot@iojs.org"
+          git config --local user.name "Node.js GitHub Bot"
+
+      - name: Start git node release prepare
+        # The curl command is to make sure we run the version of the script corresponding to the current workflow.
+        run: |
+          curl -fsSL https://github.com/${GITHUB_REPOSITORY}/raw/${GITHUB_SHA}/tools/actions/create-release-proposal.sh |\
+          sh -s -- "${RELEASE_DATE}" "${RELEASE_LINE}" "${GITHUB_ACTOR}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # We want the bot to push the push the release commit so CI runs on it.
+          BOT_TOKEN: ${{ secrets.GH_USER_TOKEN }}

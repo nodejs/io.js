@@ -43,7 +43,13 @@ const {session, contextGroup, Protocol} =
       hasBody: (x, config) => config && config.info,
       body: (x, config) => ['span', {}, 'body', 'info: ', config.info]
     }
-    this.devtoolsFormatters = [formatter1, formatter2, formatterWithConfig1, formatterWithConfig2];
+    var nullBodyTest = {name: 'nullBodyTest'};
+    var formatterWithNullBody = {
+      header: (x) => x === nullBodyTest ? ['span', {}, 'Null body: ', x.name] : null,
+      hasBody: (x) => true,
+      body: (x) => null
+    }
+    this.devtoolsFormatters = [formatter1, formatter2, formatterWithConfig1, formatterWithConfig2, formatterWithNullBody];
   `);
 
   Protocol.Runtime.enable();
@@ -55,14 +61,16 @@ const {session, contextGroup, Protocol} =
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'b'}));
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'c'}));
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'configTest'}));
+  await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'nullBodyTest'}));
   InspectorTest.log('Change formatters order and dump again..');
   await Protocol.Runtime.evaluate({
-    expression: 'this.devtoolsFormatters = [formatter2, formatter1, formatterWithConfig1, formatterWithConfig2]'
+    expression: 'this.devtoolsFormatters = [formatter2, formatter1, formatterWithConfig1, formatterWithConfig2, formatterWithNullBody]'
   });
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'a'}));
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'b'}));
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'c'}));
   await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'configTest'}));
+  await dumpCustomPreviewForEvaluate(await Protocol.Runtime.evaluate({expression: 'nullBodyTest'}));
 
   InspectorTest.log('Test Runtime.getProperties');
   const {result:{result:{objectId}}} = await Protocol.Runtime.evaluate({expression: '({a})'});

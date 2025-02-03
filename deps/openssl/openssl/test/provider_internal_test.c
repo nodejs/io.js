@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -22,7 +22,7 @@ static OSSL_PARAM greeting_request[] = {
 
 static int test_provider(OSSL_PROVIDER *prov, const char *expected_greeting)
 {
-    const char *greeting = NULL;
+    const char *greeting = "no greeting received";
     int ret = 0;
 
     ret =

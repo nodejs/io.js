@@ -1,3 +1,4 @@
 include_rules = [
   "+src",
+  "+tools/wasm",
 ]

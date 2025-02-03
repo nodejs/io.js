@@ -27,7 +27,7 @@
 #include <string.h>
 #include <assert.h>
 
-ngtcp2_objalloc_def(frame_chain, ngtcp2_frame_chain, oplent);
+ngtcp2_objalloc_def(frame_chain, ngtcp2_frame_chain, oplent)
 
 int ngtcp2_frame_chain_new(ngtcp2_frame_chain **pfrc, const ngtcp2_mem *mem) {
   *pfrc = ngtcp2_mem_malloc(mem, sizeof(ngtcp2_frame_chain));
@@ -68,14 +68,11 @@ int ngtcp2_frame_chain_stream_datacnt_objalloc_new(ngtcp2_frame_chain **pfrc,
                                                    size_t datacnt,
                                                    ngtcp2_objalloc *objalloc,
                                                    const ngtcp2_mem *mem) {
-  size_t need, avail = sizeof(ngtcp2_frame) - sizeof(ngtcp2_stream);
-
-  if (datacnt > 1) {
-    need = sizeof(ngtcp2_vec) * (datacnt - 1);
-
-    if (need > avail) {
-      return ngtcp2_frame_chain_extralen_new(pfrc, need - avail, mem);
-    }
+  if (datacnt > NGTCP2_FRAME_CHAIN_STREAM_DATACNT_THRES) {
+    return ngtcp2_frame_chain_extralen_new(pfrc,
+                                           sizeof(ngtcp2_vec) * (datacnt - 1) -
+                                             NGTCP2_FRAME_CHAIN_STREAM_AVAIL,
+                                           mem);
   }
 
   return ngtcp2_frame_chain_objalloc_new(pfrc, objalloc);
@@ -139,9 +136,7 @@ void ngtcp2_frame_chain_objalloc_del(ngtcp2_frame_chain *frc,
   switch (frc->fr.type) {
   case NGTCP2_FRAME_CRYPTO:
   case NGTCP2_FRAME_STREAM:
-    if (frc->fr.stream.datacnt &&
-        sizeof(ngtcp2_vec) * (frc->fr.stream.datacnt - 1) >
-            sizeof(ngtcp2_frame) - sizeof(ngtcp2_stream)) {
+    if (frc->fr.stream.datacnt > NGTCP2_FRAME_CHAIN_STREAM_DATACNT_THRES) {
       ngtcp2_frame_chain_del(frc, mem);
 
       return;

@@ -1,11 +1,16 @@
 'use strict';
 const common = require('../common');
 
-if (common.isWindows)
+if (common.isWindows) {
   common.skip('On Windows named pipes live in their own ' +
               'filesystem and don\'t have a ~100 byte limit');
-if (!common.isMainThread)
+}
+
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 const assert = require('assert');
 const cluster = require('cluster');

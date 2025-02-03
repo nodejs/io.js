@@ -15,7 +15,7 @@ Address CheckObjectType(Address raw_value, Address raw_type,
                         Address raw_location) {
 #ifdef DEBUG
   ObjectType type = static_cast<ObjectType>(Tagged<Smi>(raw_type).value());
-  Tagged<String> location = String::cast(Tagged<Object>(raw_location));
+  Tagged<String> location = Cast<String>(Tagged<Object>(raw_location));
   const char* expected;
 
   if (HAS_WEAK_HEAP_OBJECT_TAG(raw_value)) {
@@ -73,7 +73,7 @@ Address CheckObjectType(Address raw_value, Address raw_type,
 #undef TYPE_STRUCT_CASE
     }
   }
-  MaybeObject maybe_value(raw_value);
+  Tagged<MaybeObject> maybe_value(raw_value);
   std::stringstream value_description;
   Print(maybe_value, value_description);
   FATAL(

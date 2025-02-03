@@ -21,6 +21,9 @@ function t() {
   return re.exec(str);
 }
 
-for (var q = 0; q < 10000; q++) {
+// Triggering the original bug required about 10K iterations here, but
+// having verified the fix, there's not much value in spending so much
+// time here on every test run.
+for (var q = 0; q < 10; q++) {
   t();  // Needs repetitions to trigger a crash.
 }

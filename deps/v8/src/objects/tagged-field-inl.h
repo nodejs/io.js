@@ -6,6 +6,7 @@
 #define V8_OBJECTS_TAGGED_FIELD_INL_H_
 
 #include "src/common/ptr-compr-inl.h"
+#include "src/heap/heap-write-barrier-inl.h"
 #include "src/objects/tagged-field.h"
 #include "src/objects/tagged.h"
 
@@ -56,7 +57,7 @@ void TaggedMember<T, CompressionScheme>::store(HeapObjectLayout* host,
     mode = UPDATE_WRITE_BARRIER;
 #endif
     DCHECK_NOT_NULL(GetHeapFromWritableObject(Tagged(host)));
-    CombinedWriteBarrier(host, this, value, mode);
+    WriteBarrier::ForValue(host, this, value, mode);
   }
 #endif
 }

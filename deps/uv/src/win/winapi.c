@@ -36,9 +36,6 @@ sNtQueryDirectoryFile pNtQueryDirectoryFile;
 sNtQuerySystemInformation pNtQuerySystemInformation;
 sNtQueryInformationProcess pNtQueryInformationProcess;
 
-/* Kernel32 function pointers */
-sGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx;
-
 /* Powrprof.dll function pointer */
 sPowerRegisterSuspendResumeNotification pPowerRegisterSuspendResumeNotification;
 
@@ -48,12 +45,15 @@ sSetWinEventHook pSetWinEventHook;
 /* ws2_32.dll function pointer */
 uv_sGetHostNameW pGetHostNameW;
 
+/* api-ms-win-core-file-l2-1-4.dll function pointer */
+sGetFileInformationByName pGetFileInformationByName;
+
 void uv__winapi_init(void) {
   HMODULE ntdll_module;
   HMODULE powrprof_module;
   HMODULE user32_module;
-  HMODULE kernel32_module;
   HMODULE ws2_32_module;
+  HMODULE api_win_core_file_module;
 
   ntdll_module = GetModuleHandleA("ntdll.dll");
   if (ntdll_module == NULL) {
@@ -99,7 +99,7 @@ void uv__winapi_init(void) {
 
   pNtQueryDirectoryFile = (sNtQueryDirectoryFile)
       GetProcAddress(ntdll_module, "NtQueryDirectoryFile");
-  if (pNtQueryVolumeInformationFile == NULL) {
+  if (pNtQueryDirectoryFile == NULL) {
     uv_fatal_error(GetLastError(), "GetProcAddress");
   }
 
@@ -116,15 +116,6 @@ void uv__winapi_init(void) {
   if (pNtQueryInformationProcess == NULL) {
     uv_fatal_error(GetLastError(), "GetProcAddress");
   }
-
-  kernel32_module = GetModuleHandleA("kernel32.dll");
-  if (kernel32_module == NULL) {
-    uv_fatal_error(GetLastError(), "GetModuleHandleA");
-  }
-
-  pGetQueuedCompletionStatusEx = (sGetQueuedCompletionStatusEx) GetProcAddress(
-      kernel32_module,
-      "GetQueuedCompletionStatusEx");
 
   powrprof_module = LoadLibraryExA("powrprof.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
   if (powrprof_module != NULL) {
@@ -143,5 +134,11 @@ void uv__winapi_init(void) {
     pGetHostNameW = (uv_sGetHostNameW) GetProcAddress(
         ws2_32_module,
         "GetHostNameW");
+  }
+
+  api_win_core_file_module = GetModuleHandleA("api-ms-win-core-file-l2-1-4.dll");
+  if (api_win_core_file_module != NULL) {
+    pGetFileInformationByName = (sGetFileInformationByName)GetProcAddress(
+        api_win_core_file_module, "GetFileInformationByName");
   }
 }

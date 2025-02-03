@@ -7,6 +7,7 @@
 #include "src/heap/heap-inl.h"
 #include "src/heap/mark-compact-inl.h"
 #include "src/heap/objects-visiting-inl.h"
+#include "src/objects/js-weak-refs.h"
 
 namespace v8 {
 namespace internal {
@@ -34,7 +35,7 @@ Tagged<Object> VisitWeakList(Heap* heap, Tagged<Object> list,
 
   while (list != undefined) {
     // Check whether to keep the candidate in the list.
-    Tagged<T> candidate = T::cast(list);
+    Tagged<T> candidate = Cast<T>(list);
 
     Tagged<Object> retained = retainer->RetainAs(list);
 
@@ -48,19 +49,19 @@ Tagged<Object> VisitWeakList(Heap* heap, Tagged<Object> list,
       } else {
         // Subsequent elements in the list.
         DCHECK(!tail.is_null());
-        WeakListVisitor<T>::SetWeakNext(tail, HeapObject::cast(retained));
+        WeakListVisitor<T>::SetWeakNext(tail, Cast<HeapObject>(retained));
         if (record_slots) {
           Tagged<HeapObject> slot_holder =
               WeakListVisitor<T>::WeakNextHolder(tail);
           int slot_offset = WeakListVisitor<T>::WeakNextOffset();
           ObjectSlot slot = slot_holder->RawField(slot_offset);
           MarkCompactCollector::RecordSlot(slot_holder, slot,
-                                           HeapObject::cast(retained));
+                                           Cast<HeapObject>(retained));
         }
       }
       // Retained object is new tail.
       DCHECK(!IsUndefined(retained, heap->isolate()));
-      candidate = T::cast(retained);
+      candidate = Cast<T>(retained);
       tail = candidate;
 
       // tail is a live object, visit it.
@@ -80,7 +81,7 @@ template <class T>
 static void ClearWeakList(Heap* heap, Tagged<Object> list) {
   Tagged<Object> undefined = ReadOnlyRoots(heap).undefined_value();
   while (list != undefined) {
-    Tagged<T> candidate = T::cast(list);
+    Tagged<T> candidate = Cast<T>(list);
     list = WeakListVisitor<T>::WeakNext(candidate);
     WeakListVisitor<T>::SetWeakNext(candidate, undefined);
   }
@@ -88,7 +89,7 @@ static void ClearWeakList(Heap* heap, Tagged<Object> list) {
 
 template <>
 struct WeakListVisitor<Context> {
-  static void SetWeakNext(Tagged<Context> context, Tagged<Object> next) {
+  static void SetWeakNext(Tagged<Context> context, Tagged<HeapObject> next) {
     context->set(Context::NEXT_CONTEXT_LINK, next, UPDATE_WRITE_BARRIER);
   }
 
@@ -112,7 +113,7 @@ struct WeakListVisitor<Context> {
            idx < Context::NATIVE_CONTEXT_SLOTS; ++idx) {
         ObjectSlot slot = context->RawField(Context::OffsetOfElementAt(idx));
         MarkCompactCollector::RecordSlot(context, slot,
-                                         HeapObject::cast(*slot));
+                                         Cast<HeapObject>(*slot));
       }
     }
   }
@@ -131,7 +132,7 @@ struct WeakListVisitor<Context> {
       // Record the updated slot if necessary.
       ObjectSlot head_slot = context->RawField(FixedArray::SizeFor(index));
       heap->mark_compact_collector()->RecordSlot(context, head_slot,
-                                                 HeapObject::cast(list_head));
+                                                 Cast<HeapObject>(list_head));
     }
   }
 
@@ -141,7 +142,7 @@ struct WeakListVisitor<Context> {
 
 template <>
 struct WeakListVisitor<AllocationSite> {
-  static void SetWeakNext(Tagged<AllocationSite> obj, Tagged<Object> next) {
+  static void SetWeakNext(Tagged<AllocationSite> obj, Tagged<HeapObject> next) {
     obj->set_weak_next(next, UPDATE_WRITE_BARRIER);
   }
 
@@ -165,7 +166,8 @@ template <>
 struct WeakListVisitor<JSFinalizationRegistry> {
   static void SetWeakNext(Tagged<JSFinalizationRegistry> obj,
                           Tagged<HeapObject> next) {
-    obj->set_next_dirty(next, UPDATE_WRITE_BARRIER);
+    obj->set_next_dirty(Cast<UnionOf<Undefined, JSFinalizationRegistry>>(next),
+                        UPDATE_WRITE_BARRIER);
   }
 
   static Tagged<Object> WeakNext(Tagged<JSFinalizationRegistry> obj) {

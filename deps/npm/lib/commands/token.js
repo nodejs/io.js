@@ -1,12 +1,9 @@
-const Table = require('cli-table3')
-const log = require('../utils/log-shim.js')
-const profile = require('npm-profile')
-
-const otplease = require('../utils/otplease.js')
-const pulseTillDone = require('../utils/pulse-till-done.js')
+const { log, output } = require('proc-log')
+const { listTokens, createToken, removeToken } = require('npm-profile')
+const { otplease } = require('../utils/auth.js')
 const readUserInfo = require('../utils/read-user-info.js')
+const BaseCommand = require('../base-cmd.js')
 
-const BaseCommand = require('../base-command.js')
 class Token extends BaseCommand {
   static description = 'Manage your authentication tokens'
   static name = 'token'
@@ -28,7 +25,6 @@ class Token extends BaseCommand {
   }
 
   async exec (args) {
-    log.gauge.show('token')
     if (args.length === 0) {
       return this.list()
     }
@@ -36,10 +32,10 @@ class Token extends BaseCommand {
       case 'list':
       case 'ls':
         return this.list()
+      case 'rm':
       case 'delete':
       case 'revoke':
       case 'remove':
-      case 'rm':
         return this.rm(args.slice(1))
       case 'create':
         return this.create(args.slice(1))
@@ -49,16 +45,18 @@ class Token extends BaseCommand {
   }
 
   async list () {
-    const conf = this.config()
+    const json = this.npm.config.get('json')
+    const parseable = this.npm.config.get('parseable')
     log.info('token', 'getting list')
-    const tokens = await pulseTillDone.withPromise(profile.listTokens(conf))
-    if (conf.json) {
-      this.npm.output(JSON.stringify(tokens, null, 2))
+    const tokens = await listTokens(this.npm.flatOptions)
+    if (json) {
+      output.buffer(tokens)
       return
-    } else if (conf.parseable) {
-      this.npm.output(['key', 'token', 'created', 'readonly', 'CIDR whitelist'].join('\t'))
+    }
+    if (parseable) {
+      output.standard(['key', 'token', 'created', 'readonly', 'CIDR whitelist'].join('\t'))
       tokens.forEach(token => {
-        this.npm.output(
+        output.standard(
           [
             token.key,
             token.token,
@@ -71,21 +69,16 @@ class Token extends BaseCommand {
       return
     }
     this.generateTokenIds(tokens, 6)
-    const idWidth = tokens.reduce((acc, token) => Math.max(acc, token.id.length), 0)
-    const table = new Table({
-      head: ['id', 'token', 'created', 'readonly', 'CIDR whitelist'],
-      colWidths: [Math.max(idWidth, 2) + 2, 9, 12, 10],
-    })
-    tokens.forEach(token => {
-      table.push([
-        token.id,
-        token.token + '…',
-        String(token.created).slice(0, 10),
-        token.readonly ? 'yes' : 'no',
-        token.cidr_whitelist ? token.cidr_whitelist.join(', ') : '',
-      ])
-    })
-    this.npm.output(table.toString())
+    const chalk = this.npm.chalk
+    for (const token of tokens) {
+      const level = token.readonly ? 'Read only token' : 'Publish token'
+      const created = String(token.created).slice(0, 10)
+      output.standard(`${chalk.blue(level)} ${token.token}… with id ${chalk.cyan(token.id)} created ${created}`)
+      if (token.cidr_whitelist) {
+        output.standard(`with IP whitelist: ${chalk.green(token.cidr_whitelist.join(','))}`)
+      }
+      output.standard()
+    }
   }
 
   async rm (args) {
@@ -93,18 +86,18 @@ class Token extends BaseCommand {
       throw this.usageError('`<tokenKey>` argument is required.')
     }
 
-    const conf = this.config()
+    const json = this.npm.config.get('json')
+    const parseable = this.npm.config.get('parseable')
     const toRemove = []
-    const progress = log.newItem('removing tokens', toRemove.length)
-    progress.info('token', 'getting existing list')
-    const tokens = await pulseTillDone.withPromise(profile.listTokens(conf))
+    const opts = { ...this.npm.flatOptions }
+    log.info('token', `removing ${toRemove.length} tokens`)
+    const tokens = await listTokens(opts)
     args.forEach(id => {
       const matches = tokens.filter(token => token.key.indexOf(id) === 0)
       if (matches.length === 1) {
         toRemove.push(matches[0].key)
       } else if (matches.length > 1) {
         throw new Error(
-          /* eslint-disable-next-line max-len */
           `Token ID "${id}" was ambiguous, a new token may have been created since you last ran \`npm token list\`.`
         )
       } else {
@@ -118,72 +111,47 @@ class Token extends BaseCommand {
     })
     await Promise.all(
       toRemove.map(key => {
-        return otplease(this.npm, conf, c => profile.removeToken(key, c))
+        return otplease(this.npm, opts, c => removeToken(key, c))
       })
     )
-    if (conf.json) {
-      this.npm.output(JSON.stringify(toRemove))
-    } else if (conf.parseable) {
-      this.npm.output(toRemove.join('\t'))
+    if (json) {
+      output.buffer(toRemove)
+    } else if (parseable) {
+      output.standard(toRemove.join('\t'))
     } else {
-      this.npm.output('Removed ' + toRemove.length + ' token' + (toRemove.length !== 1 ? 's' : ''))
+      output.standard('Removed ' + toRemove.length + ' token' + (toRemove.length !== 1 ? 's' : ''))
     }
   }
 
-  async create (args) {
-    const conf = this.config()
-    const cidr = conf.cidr
-    const readonly = conf.readOnly
+  async create () {
+    const json = this.npm.config.get('json')
+    const parseable = this.npm.config.get('parseable')
+    const cidr = this.npm.config.get('cidr')
+    const readonly = this.npm.config.get('read-only')
 
-    const password = await readUserInfo.password()
     const validCIDR = await this.validateCIDRList(cidr)
+    const password = await readUserInfo.password()
     log.info('token', 'creating')
-    const result = await pulseTillDone.withPromise(
-      otplease(this.npm, conf, c => profile.createToken(password, readonly, validCIDR, c))
+    const result = await otplease(
+      this.npm,
+      { ...this.npm.flatOptions },
+      c => createToken(password, readonly, validCIDR, c)
     )
     delete result.key
     delete result.updated
-    if (conf.json) {
-      this.npm.output(JSON.stringify(result))
-    } else if (conf.parseable) {
-      Object.keys(result).forEach(k => this.npm.output(k + '\t' + result[k]))
+    if (json) {
+      output.buffer(result)
+    } else if (parseable) {
+      Object.keys(result).forEach(k => output.standard(k + '\t' + result[k]))
     } else {
-      const table = new Table()
-      for (const k of Object.keys(result)) {
-        table.push({ [this.npm.chalk.bold(k)]: String(result[k]) })
+      const chalk = this.npm.chalk
+      // Identical to list
+      const level = result.readonly ? 'read only' : 'publish'
+      output.standard(`Created ${chalk.blue(level)} token ${result.token}`)
+      if (result.cidr_whitelist?.length) {
+        output.standard(`with IP whitelist: ${chalk.green(result.cidr_whitelist.join(','))}`)
       }
-      this.npm.output(table.toString())
     }
-  }
-
-  config () {
-    const conf = { ...this.npm.flatOptions }
-    const creds = this.npm.config.getCredentialsByURI(conf.registry)
-    if (creds.token) {
-      conf.auth = { token: creds.token }
-    } else if (creds.username) {
-      conf.auth = {
-        basic: {
-          username: creds.username,
-          password: creds.password,
-        },
-      }
-    } else if (creds.auth) {
-      const auth = Buffer.from(creds.auth, 'base64').toString().split(':', 2)
-      conf.auth = {
-        basic: {
-          username: auth[0],
-          password: auth[1],
-        },
-      }
-    } else {
-      conf.auth = {}
-    }
-
-    if (conf.otp) {
-      conf.auth.otp = conf.otp
-    }
-    return conf
   }
 
   invalidCIDRError (msg) {
@@ -191,7 +159,6 @@ class Token extends BaseCommand {
   }
 
   generateTokenIds (tokens, minLength) {
-    const byId = {}
     for (const token of tokens) {
       token.id = token.key
       for (let ii = minLength; ii < token.key.length; ++ii) {
@@ -203,9 +170,7 @@ class Token extends BaseCommand {
           break
         }
       }
-      byId[token.id] = token
     }
-    return byId
   }
 
   async validateCIDRList (cidrs) {
@@ -215,15 +180,16 @@ class Token extends BaseCommand {
     for (const cidr of list) {
       if (isCidrV6(cidr)) {
         throw this.invalidCIDRError(
-          'CIDR whitelist can only contain IPv4 addresses, ' + cidr + ' is IPv6'
+          `CIDR whitelist can only contain IPv4 addresses${cidr} is IPv6`
         )
       }
 
       if (!isCidrV4(cidr)) {
-        throw this.invalidCIDRError('CIDR whitelist contains invalid CIDR entry: ' + cidr)
+        throw this.invalidCIDRError(`CIDR whitelist contains invalid CIDR entry: ${cidr}`)
       }
     }
     return list
   }
 }
+
 module.exports = Token

@@ -55,6 +55,7 @@
 #include "src/codegen/riscv/extension-riscv-f.h"
 #include "src/codegen/riscv/extension-riscv-m.h"
 #include "src/codegen/riscv/extension-riscv-v.h"
+#include "src/codegen/riscv/extension-riscv-zicond.h"
 #include "src/codegen/riscv/extension-riscv-zicsr.h"
 #include "src/codegen/riscv/extension-riscv-zifencei.h"
 #include "src/codegen/riscv/register-riscv.h"
@@ -173,6 +174,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
                                     public AssemblerRISCVC,
                                     public AssemblerRISCVZifencei,
                                     public AssemblerRISCVZicsr,
+                                    public AssemblerRISCVZicond,
                                     public AssemblerRISCVV {
  public:
   // Create an assembler. Instructions and relocation information are emitted
@@ -186,6 +188,10 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
                      std::unique_ptr<AssemblerBuffer> = {});
 
   virtual ~Assembler();
+
+  static RegList DefaultTmpList();
+  static DoubleRegList DefaultFPTmpList();
+
   void AbortedCodeGeneration();
   // GetCode emits any pending (non-emitted) code and fills the descriptor desc.
   static constexpr int kNoHandlerTable = 0;
@@ -280,9 +286,19 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   // See Assembler::CheckConstPool for more info.
   void EmitPoolGuard();
 
+#if defined(V8_TARGET_ARCH_RISCV64)
   static void set_target_value_at(
-      Address pc, uintptr_t target,
+      Address pc, uint64_t target,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+#elif defined(V8_TARGET_ARCH_RISCV32)
+  static void set_target_value_at(
+      Address pc, uint32_t target,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
+#endif
+
+  static inline int32_t target_constant32_at(Address pc);
+  static inline void set_target_constant32_at(
+      Address pc, uint32_t target, ICacheFlushMode icache_flush_mode);
 
   static void JumpLabelToJumpRegister(Address pc);
 
@@ -301,6 +317,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   inline static void deserialization_set_target_internal_reference_at(
       Address pc, Address target,
       RelocInfo::Mode mode = RelocInfo::INTERNAL_REFERENCE);
+
+  // Read/modify the uint32 constant used at pc.
+  static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
+  static inline void set_uint32_constant_at(
+      Address pc, Address constant_pool, uint32_t new_constant,
+      ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Here we are patching the address in the LUI/ADDI instruction pair.
   // These values are used in the serialization process and must be zero for
@@ -342,6 +364,9 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   static constexpr int kTrampolineSlotsSize = 2 * kInstrSize;
 
   RegList* GetScratchRegisterList() { return &scratch_register_list_; }
+  DoubleRegList* GetScratchDoubleRegisterList() {
+    return &scratch_double_register_list_;
+  }
 
   // ---------------------------------------------------------------------------
   // InstructionStream generation.
@@ -377,24 +402,28 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   // Assembler Pseudo Instructions (Tables 25.2, 25.3, RISC-V Unprivileged ISA)
   void nop();
 #if defined(V8_TARGET_ARCH_RISCV64)
-  void RecursiveLiImpl(Register rd, intptr_t imm);
-  void RecursiveLi(Register rd, intptr_t imm);
-  static int RecursiveLiCount(intptr_t imm);
-  static int RecursiveLiImplCount(intptr_t imm);
-  void RV_li(Register rd, intptr_t imm);
+  void RecursiveLiImpl(Register rd, int64_t imm);
+  void RecursiveLi(Register rd, int64_t imm);
+  static int RecursiveLiCount(int64_t imm);
+  static int RecursiveLiImplCount(int64_t imm);
+  void RV_li(Register rd, int64_t imm);
   static int RV_li_count(int64_t imm, bool is_get_temp_reg = false);
   // Returns the number of instructions required to load the immediate
   void GeneralLi(Register rd, int64_t imm);
-  static int GeneralLiCount(intptr_t imm, bool is_get_temp_reg = false);
+  static int GeneralLiCount(int64_t imm, bool is_get_temp_reg = false);
+  // Loads an immediate, always using 8 instructions, regardless of the value,
+  // so that it can be modified later.
+  void li_constant(Register rd, int64_t imm);
+  void li_constant32(Register rd, int32_t imm);
+  void li_ptr(Register rd, int64_t imm);
 #endif
 #if defined(V8_TARGET_ARCH_RISCV32)
   void RV_li(Register rd, int32_t imm);
   static int RV_li_count(int32_t imm, bool is_get_temp_reg = false);
+
+  void li_constant(Register rd, int32_t imm);
+  void li_ptr(Register rd, int32_t imm);
 #endif
-  // Loads an immediate, always using 8 instructions, regardless of the value,
-  // so that it can be modified later.
-  void li_constant(Register rd, intptr_t imm);
-  void li_ptr(Register rd, intptr_t imm);
 
   void break_(uint32_t code, bool break_as_stop = false);
   void stop(uint32_t code = kMaxStopCode);
@@ -427,6 +456,24 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
    private:
     Assembler* assem_;
     DISALLOW_IMPLICIT_CONSTRUCTORS(BlockTrampolinePoolScope);
+  };
+
+  class V8_NODISCARD BlockPoolsScope {
+   public:
+    // Block Trampoline Pool and Constant Pool. Emits pools if necessary to
+    // ensure that {margin} more bytes can be emitted without triggering pool
+    // emission.
+    explicit BlockPoolsScope(Assembler* assem, size_t margin = 0)
+        : block_const_pool_(assem, margin), block_trampoline_pool_(assem) {}
+
+    BlockPoolsScope(Assembler* assem, PoolEmissionCheck check)
+        : block_const_pool_(assem, check), block_trampoline_pool_(assem) {}
+    ~BlockPoolsScope() {}
+
+   private:
+    BlockConstPoolScope block_const_pool_;
+    BlockTrampolinePoolScope block_trampoline_pool_;
+    DISALLOW_IMPLICIT_CONSTRUCTORS(BlockPoolsScope);
   };
 
   // Class for postponing the assembly buffer growth. Typically used for
@@ -511,8 +558,6 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
       Address pc_) const;
 
   inline int UnboundLabelsCount() { return unbound_labels_count_; }
-
-  using BlockPoolsScope = BlockTrampolinePoolScope;
 
   void RecordConstPool(int size);
 
@@ -649,8 +694,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   int target_at(int pos, bool is_internal);
 
   // Patch branch instruction at pos to branch to given branch target pos.
-  void target_at_put(int pos, int target_pos, bool is_internal,
-                     bool trampoline = false);
+  void target_at_put(int pos, int target_pos, bool is_internal);
 
   // Say if we need to relocate with this mode.
   bool MustUseReg(RelocInfo::Mode rmode);
@@ -794,6 +838,8 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
         trampoline_slot = next_slot_;
         free_slot_count_--;
         next_slot_ += kTrampolineSlotsSize;
+        DEBUG_PRINTF("\ttrampoline  slot %d next %d free %d\n", trampoline_slot,
+                     next_slot_, free_slot_count_)
       }
       return trampoline_slot;
     }
@@ -827,6 +873,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   bool internal_trampoline_exception_;
 
   RegList scratch_register_list_;
+  DoubleRegList scratch_double_register_list_;
 
  private:
   ConstantPool constpool_;
@@ -848,49 +895,104 @@ class EnsureSpace {
 };
 
 // This scope utility allows scratch registers to be managed safely. The
-// Assembler's GetScratchRegisterList() is used as a pool of scratch
-// registers. These registers can be allocated on demand, and will be returned
+// Assembler's {GetScratchRegisterList()}/{GetScratchDoubleRegisterList()}
+// are used as pools of general-purpose/double scratch registers.
+// These registers can be allocated on demand, and will be returned
 // at the end of the scope.
 //
-// When the scope ends, the Assembler's list will be restored to its original
-// state, even if the list is modified by some other means. Note that this scope
-// can be nested but the destructors need to run in the opposite order as the
-// constructors. We do not have assertions for this.
+// When the scope ends, the Assembler's lists will be restored to their original
+// states, even if the lists are modified by some other means. Note that this
+// scope can be nested but the destructors need to run in the opposite order as
+// the constructors. We do not have assertions for this.
 class V8_EXPORT_PRIVATE UseScratchRegisterScope {
  public:
   explicit UseScratchRegisterScope(Assembler* assembler)
-      : available_(assembler->GetScratchRegisterList()),
-        old_available_(*available_) {}
+      : assembler_(assembler),
+        old_available_(*assembler->GetScratchRegisterList()),
+        old_available_double_(*assembler->GetScratchDoubleRegisterList()) {}
 
-  ~UseScratchRegisterScope() { *available_ = old_available_; }
+  ~UseScratchRegisterScope() {
+    RegList* available = assembler_->GetScratchRegisterList();
+    DoubleRegList* available_double =
+        assembler_->GetScratchDoubleRegisterList();
+    *available = old_available_;
+    *available_double = old_available_double_;
+  }
 
-  // Take a register from the list and return it.
   Register Acquire() {
-    DCHECK_NOT_NULL(available_);
-    DCHECK(!available_->is_empty());
-    int index =
-        static_cast<int>(base::bits::CountTrailingZeros32(available_->bits()));
-    *available_ &= RegList::FromBits(~(1U << index));
+    RegList* available = assembler_->GetScratchRegisterList();
+    return available->PopFirst();
+  }
 
-    return Register::from_code(index);
+  DoubleRegister AcquireDouble() {
+    DoubleRegList* available_double =
+        assembler_->GetScratchDoubleRegisterList();
+    return available_double->PopFirst();
   }
-  bool hasAvailable() const;
-  void Include(const RegList& list) { *available_ |= list; }
+
+  // Check if we have registers available to acquire.
+  bool CanAcquire() const {
+    RegList* available = assembler_->GetScratchRegisterList();
+    return !available->is_empty();
+  }
+
+  void Include(const Register& reg1, const Register& reg2) {
+    Include(reg1);
+    Include(reg2);
+  }
+  void Include(const Register& reg) {
+    DCHECK_NE(reg, no_reg);
+    RegList* available = assembler_->GetScratchRegisterList();
+    DCHECK_NOT_NULL(available);
+    DCHECK(!available->has(reg));
+    available->set(reg);
+  }
+  void Include(RegList list) {
+    RegList* available = assembler_->GetScratchRegisterList();
+    DCHECK_NOT_NULL(available);
+    *available = *available | list;
+  }
   void Exclude(const RegList& list) {
-    *available_ &= RegList::FromBits(~list.bits());
+    RegList* available = assembler_->GetScratchRegisterList();
+    DCHECK_NOT_NULL(available);
+    available->clear(list);
   }
-  void Include(const Register& reg1, const Register& reg2 = no_reg) {
-    RegList list({reg1, reg2});
-    Include(list);
+  void Exclude(const Register& reg1, const Register& reg2) {
+    Exclude(reg1);
+    Exclude(reg2);
   }
-  void Exclude(const Register& reg1, const Register& reg2 = no_reg) {
-    RegList list({reg1, reg2});
+  void Exclude(const Register& reg) {
+    DCHECK_NE(reg, no_reg);
+    RegList list({reg});
     Exclude(list);
   }
 
+  void Include(DoubleRegList list) {
+    DoubleRegList* available_double =
+        assembler_->GetScratchDoubleRegisterList();
+    DCHECK_NOT_NULL(available_double);
+    DCHECK_EQ((*available_double & list).bits(), 0x0);
+    *available_double = *available_double | list;
+  }
+
+  RegList Available() { return *assembler_->GetScratchRegisterList(); }
+  void SetAvailable(RegList available) {
+    *assembler_->GetScratchRegisterList() = available;
+  }
+  DoubleRegList AvailableDouble() {
+    return *assembler_->GetScratchDoubleRegisterList();
+  }
+  void SetAvailableDouble(DoubleRegList available_double) {
+    *assembler_->GetScratchDoubleRegisterList() = available_double;
+  }
+
  private:
-  RegList* available_;
+  friend class Assembler;
+  friend class MacroAssembler;
+
+  Assembler* assembler_;
   RegList old_available_;
+  DoubleRegList old_available_double_;
 };
 
 }  // namespace internal

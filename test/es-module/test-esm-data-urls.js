@@ -96,12 +96,7 @@ function createBase64URL(mime, body) {
   {
     const body = 'null';
     const plainESMURL = createURL('invalid', body);
-    try {
-      await import(plainESMURL);
-      common.mustNotCall()();
-    } catch (e) {
-      assert.strictEqual(e.code, 'ERR_INVALID_URL');
-    }
+    await assert.rejects(import(plainESMURL), { code: 'ERR_UNKNOWN_MODULE_FORMAT' });
   }
   {
     const plainESMURL = 'data:text/javascript,export%20default%202';
@@ -110,6 +105,10 @@ function createBase64URL(mime, body) {
   }
   {
     const plainESMURL = `data:text/javascript,${encodeURIComponent(`import ${JSON.stringify(fixtures.fileURL('es-module-url', 'empty.js'))}`)}`;
+    await import(plainESMURL);
+  }
+  {
+    const plainESMURL = 'data:text/javascript,var x = "hello world?"';
     await import(plainESMURL);
   }
 })().then(common.mustCall());

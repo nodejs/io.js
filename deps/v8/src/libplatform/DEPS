@@ -5,4 +5,5 @@ include_rules = [
   "-src",
   "+src/base",
   "+src/libplatform",
+  "+src/tracing/trace-event-no-perfetto.h",
 ]

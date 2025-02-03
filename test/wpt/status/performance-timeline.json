@@ -7,10 +7,72 @@
       ]
     }
   },
+  "idlharness.any.js": {
+    "fail": {
+      "note": "not implemented",
+      "expected": [
+        "PerformanceEntry interface: attribute id",
+        "PerformanceEntry interface: attribute navigationId"
+      ]
+    }
+  },
   "navigation-id.helper.js": {
     "skip": "This is not a test file."
   },
   "webtiming-resolution.any.js": {
     "skip": "flaky"
+  },
+  "not-restored-reasons/performance-navigation-timing-attributes.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-bfcache-reasons-stay.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-bfcache.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-cross-origin-bfcache.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-fetch.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-iframes-without-attributes.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-lock.https.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-navigation-failure.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-not-bfcached.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-redirect-on-history.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-reload.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-same-origin-bfcache.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/performance-navigation-timing-same-origin-replace.tentative.window.js": {
+    "skip": "Depends on HTML WPT"
+  },
+  "not-restored-reasons/abort-block-bfcache.window.js": {
+    "fail": {
+      "note": "Requires window.stop()",
+      "expected": [
+        "aborting a parser should block bfcache."
+      ]
+    }
+  },
+  "idlharness-shadowrealm.window.js": {
+    "skip": "ShadowRealm support is not enabled"
+  },
+  "droppedentriescount.any.js": {
+    "skip": "WPTRunner does not support fetch()"
   }
 }

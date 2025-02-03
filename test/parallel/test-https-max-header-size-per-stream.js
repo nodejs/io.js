@@ -10,8 +10,7 @@ const assert = require('assert');
 const https = require('https');
 const http = require('http');
 const tls = require('tls');
-const MakeDuplexPair = require('../common/duplexpair');
-const { finished } = require('stream');
+const { finished, duplexPair } = require('stream');
 
 const certFixture = {
   key: fixtures.readKey('agent1-key.pem'),
@@ -24,7 +23,7 @@ const certFixture = {
 
 // Test 1: The server sends larger headers than what would otherwise be allowed.
 {
-  const { clientSide, serverSide } = MakeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   const req = https.request({
     createConnection: common.mustCall(() => clientSide),
@@ -46,7 +45,7 @@ const certFixture = {
 
 // Test 2: The same as Test 1 except without the option, to make sure it fails.
 {
-  const { clientSide, serverSide } = MakeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   const req = https.request({
     createConnection: common.mustCall(() => clientSide)

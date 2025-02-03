@@ -199,6 +199,18 @@ Data types
             char* homedir;
         } uv_passwd_t;
 
+.. c:type:: uv_group_t
+
+    Data type for group file information.
+
+    ::
+
+        typedef struct uv_group_s {
+          char* groupname;
+          unsigned long gid;
+          char** members;
+        } uv_group_t;
+
 .. c:type:: uv_utsname_t
 
     Data type for operating system name and version information.
@@ -346,6 +358,17 @@ API
 
     .. note::
         On Windows not all fields are set, the unsupported fields are filled with zeroes.
+        See :c:type:`uv_rusage_t` for more details.
+
+.. c:function:: int uv_getrusage_thread(uv_rusage_t* rusage)
+
+    Gets the resource usage measures for the calling thread.
+
+    .. versionadded:: 1.50.0
+
+    .. note::
+        Not supported on all platforms. May return `UV_ENOTSUP`.
+        On macOS and Windows not all fields are set, the unsupported fields are filled with zeroes.
         See :c:type:`uv_rusage_t` for more details.
 
 .. c:function:: uv_pid_t uv_os_getpid(void)
@@ -565,6 +588,35 @@ API
     :c:func:`uv_os_free_passwd`.
 
     .. versionadded:: 1.9.0
+
+.. c:function:: int uv_os_get_passwd2(uv_passwd_t* pwd, uv_uid_t uid)
+
+    Gets a subset of the password file entry for the provided uid.
+    The populated data includes the username, euid, gid, shell,
+    and home directory. On non-Windows systems, all data comes from
+    :man:`getpwuid_r(3)`. On Windows, uid and gid are set to -1 and have no
+    meaning, and shell is `NULL`. After successfully calling this function, the
+    memory allocated to `pwd` needs to be freed with
+    :c:func:`uv_os_free_passwd`.
+
+    .. versionadded:: 1.45.0
+
+.. c:function:: int uv_os_get_group(uv_group_t* group, uv_uid_t gid)
+
+    Gets a subset of the group file entry for the provided uid.
+    The populated data includes the group name, gid, and members. On non-Windows
+    systems, all data comes from :man:`getgrgid_r(3)`. On Windows, uid and gid
+    are set to -1 and have no meaning. After successfully calling this function,
+    the memory allocated to `group` needs to be freed with
+    :c:func:`uv_os_free_group`.
+
+    .. versionadded:: 1.45.0
+
+.. c:function:: void uv_os_free_group(uv_passwd_t* pwd)
+
+    Frees the memory previously allocated with :c:func:`uv_os_get_group`.
+
+    .. versionadded:: 1.45.0
 
 .. c:function:: void uv_os_free_passwd(uv_passwd_t* pwd)
 

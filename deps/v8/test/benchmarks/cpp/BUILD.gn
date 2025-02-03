@@ -45,4 +45,22 @@ if (v8_enable_google_benchmark) {
       "//third_party/google_benchmark_chrome:google_benchmark",
     ]
   }
+
+  v8_executable("bindings_benchmark") {
+    testonly = true
+
+    configs = []
+
+    sources = [
+      "benchmark-main.cc",
+      "benchmark-utils.cc",
+      "benchmark-utils.h",
+      "bindings.cc",
+    ]
+
+    deps = [
+      "//:v8",
+      "//third_party/google_benchmark_chrome:google_benchmark",
+    ]
+  }
 }

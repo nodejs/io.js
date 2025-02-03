@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-rab-gsab --allow-natives-syntax
+// Flags: --allow-natives-syntax --js-float16array
 
 "use strict";
 
@@ -523,7 +523,7 @@ const arrayBufferCtors = [[ArrayBuffer, (b) => b.resizable],
         postMessage('error');
       }
     }
-    onmessage = function(params) {
+    onmessage = function({data:params}) {
       const gsab = params.gsab;
       assert(!(gsab instanceof ArrayBuffer));
       assert(gsab instanceof SharedArrayBuffer);

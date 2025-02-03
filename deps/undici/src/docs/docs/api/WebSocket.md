@@ -1,7 +1,5 @@
 # Class: WebSocket
 
-> ⚠️ Warning: the WebSocket API is experimental.
-
 Extends: [`EventTarget`](https://developer.mozilla.org/en-US/docs/Web/API/EventTarget)
 
 The WebSocket object provides a way to manage a WebSocket connection to a server, allowing bidirectional communication. The API follows the [WebSocket spec](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket) and [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455).
@@ -10,8 +8,8 @@ The WebSocket object provides a way to manage a WebSocket connection to a server
 
 Arguments:
 
-* **url** `URL | string` - The url's protocol *must* be `ws` or `wss`.
-* **protocol** `string | string[] | WebSocketInit` (optional) - Subprotocol(s) to request the server use, or a [`Dispatcher`](./Dispatcher.md).
+* **url** `URL | string`
+* **protocol** `string | string[] | WebSocketInit` (optional) - Subprotocol(s) to request the server use, or a [`Dispatcher`](/docs/docs/api/Dispatcher.md).
 
 ### Example:
 
@@ -34,6 +32,50 @@ If you do not need a custom Dispatcher, it's recommended to use the following pa
 import { WebSocket } from 'undici'
 
 const ws = new WebSocket('wss://echo.websocket.events', ['echo', 'chat'])
+```
+
+# Class: WebSocketStream
+
+> ⚠️ Warning: the WebSocketStream API has not been finalized and is likely to change.
+
+See [MDN](https://developer.mozilla.org/en-US/docs/Web/API/WebSocketStream) for more information.
+
+## `new WebSocketStream(url[, protocol])`
+
+Arguments:
+
+* **url** `URL | string`
+* **options** `WebSocketStreamOptions` (optional)
+
+### WebSocketStream Example
+
+```js
+const stream = new WebSocketStream('https://echo.websocket.org/')
+const { readable, writable } = await stream.opened
+
+async function read () {
+  /** @type {ReadableStreamReader} */
+  const reader = readable.getReader()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    // do something with value
+  }
+}
+
+async function write () {
+  /** @type {WritableStreamDefaultWriter} */
+  const writer = writable.getWriter()
+  writer.write('Hello, world!')
+  writer.releaseLock()
+}
+
+read()
+
+setInterval(() => write(), 5000)
+
 ```
 
 ## Read More

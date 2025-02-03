@@ -228,9 +228,12 @@ cc_library(
         "//absl/debugging:__pkg__",
     ],
     deps = [
+        ":demangle_rust",
         "//absl/base",
         "//absl/base:config",
         "//absl/base:core_headers",
+        "//absl/base:nullability",
+        "//absl/numeric:bits",
     ],
 )
 
@@ -246,6 +249,106 @@ cc_test(
         "//absl/base:core_headers",
         "//absl/log",
         "//absl/memory",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "bounded_utf8_length_sequence",
+    hdrs = ["internal/bounded_utf8_length_sequence.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        "//absl/base:config",
+        "//absl/numeric:bits",
+    ],
+)
+
+cc_test(
+    name = "bounded_utf8_length_sequence_test",
+    srcs = ["internal/bounded_utf8_length_sequence_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":bounded_utf8_length_sequence",
+        "//absl/base:config",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "decode_rust_punycode",
+    srcs = ["internal/decode_rust_punycode.cc"],
+    hdrs = ["internal/decode_rust_punycode.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":bounded_utf8_length_sequence",
+        ":utf8_for_code_point",
+        "//absl/base:config",
+        "//absl/base:nullability",
+    ],
+)
+
+cc_test(
+    name = "decode_rust_punycode_test",
+    srcs = ["internal/decode_rust_punycode_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":decode_rust_punycode",
+        "//absl/base:config",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "demangle_rust",
+    srcs = ["internal/demangle_rust.cc"],
+    hdrs = ["internal/demangle_rust.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":decode_rust_punycode",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+    ],
+)
+
+cc_test(
+    name = "demangle_rust_test",
+    srcs = ["internal/demangle_rust_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":demangle_rust",
+        "//absl/base:config",
+        "//absl/base:core_headers",
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "utf8_for_code_point",
+    srcs = ["internal/utf8_for_code_point.cc"],
+    hdrs = ["internal/utf8_for_code_point.h"],
+    copts = ABSL_DEFAULT_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = ["//absl/base:config"],
+)
+
+cc_test(
+    name = "utf8_for_code_point_test",
+    srcs = ["internal/utf8_for_code_point_test.cc"],
+    copts = ABSL_TEST_COPTS,
+    linkopts = ABSL_DEFAULT_LINKOPTS,
+    deps = [
+        ":utf8_for_code_point",
+        "//absl/base:config",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
     ],

@@ -89,7 +89,7 @@ public:
             fSkeleton(other.fSkeleton) { }
     virtual ~DateFmtBestPatternKey();
     virtual int32_t hashCode() const override {
-        return (int32_t)(37u * (uint32_t)LocaleCacheKey<DateFmtBestPattern>::hashCode() + (uint32_t)fSkeleton.hashCode());
+        return static_cast<int32_t>(37u * static_cast<uint32_t>(LocaleCacheKey<DateFmtBestPattern>::hashCode()) + static_cast<uint32_t>(fSkeleton.hashCode()));
     }
     inline bool operator==(const DateFmtBestPatternKey &other) const {
         return fSkeleton == other.fSkeleton;
@@ -207,10 +207,10 @@ DateFormat::format(const Formattable& obj,
         date = obj.getDate();
         break;
     case Formattable::kDouble:
-        date = (UDate)obj.getDouble();
+        date = static_cast<UDate>(obj.getDouble());
         break;
     case Formattable::kLong:
-        date = (UDate)obj.getLong();
+        date = static_cast<UDate>(obj.getLong());
         break;
     default:
         status = U_ILLEGAL_ARGUMENT_ERROR;
@@ -242,10 +242,10 @@ DateFormat::format(const Formattable& obj,
         date = obj.getDate();
         break;
     case Formattable::kDouble:
-        date = (UDate)obj.getDouble();
+        date = static_cast<UDate>(obj.getDouble());
         break;
     case Formattable::kLong:
-        date = (UDate)obj.getLong();
+        date = static_cast<UDate>(obj.getLong());
         break;
     default:
         status = U_ILLEGAL_ARGUMENT_ERROR;
@@ -430,7 +430,7 @@ DateFormat::createDateTimeInstance(EStyle dateStyle,
 {
    if(dateStyle != kNone)
    {
-       dateStyle = (EStyle) (dateStyle + kDateOffset);
+       dateStyle = static_cast<EStyle>(dateStyle + kDateOffset);
    }
    return create(timeStyle, dateStyle, aLocale);
 }
@@ -540,7 +540,7 @@ DateFormat::create(EStyle timeStyle, EStyle dateStyle, const Locale& locale)
 
     // is it relative?
     if(/*((timeStyle!=UDAT_NONE)&&(timeStyle & UDAT_RELATIVE)) || */((dateStyle!=kNone)&&((dateStyle-kDateOffset) & UDAT_RELATIVE))) {
-        RelativeDateFormat *r = new RelativeDateFormat((UDateFormatStyle)timeStyle, (UDateFormatStyle)(dateStyle-kDateOffset), locale, status);
+        RelativeDateFormat* r = new RelativeDateFormat(static_cast<UDateFormatStyle>(timeStyle), static_cast<UDateFormatStyle>(dateStyle - kDateOffset), locale, status);
         if(U_SUCCESS(status)) return r;
         delete r;
         status = U_ZERO_ERROR;
@@ -719,7 +719,7 @@ void DateFormat::setContext(UDisplayContext value, UErrorCode& status)
 {
     if (U_FAILURE(status))
         return;
-    if ( (UDisplayContextType)((uint32_t)value >> 8) == UDISPCTX_TYPE_CAPITALIZATION ) {
+    if (static_cast<UDisplayContextType>(static_cast<uint32_t>(value) >> 8) == UDISPCTX_TYPE_CAPITALIZATION) {
         fCapitalizationContext = value;
     } else {
         status = U_ILLEGAL_ARGUMENT_ERROR;
@@ -733,10 +733,10 @@ void DateFormat::setContext(UDisplayContext value, UErrorCode& status)
 UDisplayContext DateFormat::getContext(UDisplayContextType type, UErrorCode& status) const
 {
     if (U_FAILURE(status))
-        return (UDisplayContext)0;
+        return static_cast<UDisplayContext>(0);
     if (type != UDISPCTX_TYPE_CAPITALIZATION) {
         status = U_ILLEGAL_ARGUMENT_ERROR;
-        return (UDisplayContext)0;
+        return static_cast<UDisplayContext>(0);
     }
     return fCapitalizationContext;
 }
@@ -763,7 +763,7 @@ DateFormat::setBooleanAttribute(UDateFormatBooleanAttribute attr,
 UBool 
 DateFormat::getBooleanAttribute(UDateFormatBooleanAttribute attr, UErrorCode &/*status*/) const {
 
-    return static_cast<UBool>(fBoolFlags.get(attr));
+    return fBoolFlags.get(attr);
 }
 
 U_NAMESPACE_END

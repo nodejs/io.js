@@ -3,12 +3,13 @@
 // found in the LICENSE file.
 
 #include "src/torque/instructions.h"
+
+#include <optional>
+
 #include "src/torque/cfg.h"
 #include "src/torque/type-oracle.h"
 
-namespace v8 {
-namespace internal {
-namespace torque {
+namespace v8::internal::torque {
 
 #define TORQUE_INSTRUCTION_BOILERPLATE_DEFINITIONS(Name)        \
   const InstructionKind Name::kKind = InstructionKind::k##Name; \
@@ -248,9 +249,9 @@ void CallCsaMacroInstruction::RecomputeDefinitionLocations(
   }
 }
 
-base::Optional<DefinitionLocation>
+std::optional<DefinitionLocation>
 CallCsaMacroInstruction::GetExceptionObjectDefinition() const {
-  if (!catch_block) return base::nullopt;
+  if (!catch_block) return std::nullopt;
   return DefinitionLocation::Instruction(this, GetValueDefinitionCount());
 }
 
@@ -313,12 +314,12 @@ void CallCsaMacroAndBranchInstruction::TypeInstruction(
   if (macro->signature().return_type != TypeOracle::GetNeverType()) {
     Stack<const Type*> return_stack = *stack;
     return_stack.PushMany(LowerType(macro->signature().return_type));
-    if (return_continuation == base::nullopt) {
+    if (return_continuation == std::nullopt) {
       ReportError("missing return continuation.");
     }
     (*return_continuation)->SetInputTypes(return_stack);
   } else {
-    if (return_continuation != base::nullopt) {
+    if (return_continuation != std::nullopt) {
       ReportError("unreachable return continuation.");
     }
   }
@@ -390,9 +391,9 @@ DefinitionLocation CallCsaMacroAndBranchInstruction::GetValueDefinition(
   return DefinitionLocation::Instruction(this, index);
 }
 
-base::Optional<DefinitionLocation>
+std::optional<DefinitionLocation>
 CallCsaMacroAndBranchInstruction::GetExceptionObjectDefinition() const {
-  if (!catch_block) return base::nullopt;
+  if (!catch_block) return std::nullopt;
   return DefinitionLocation::Instruction(this, GetValueDefinitionCount());
 }
 
@@ -461,9 +462,9 @@ DefinitionLocation CallBuiltinInstruction::GetValueDefinition(
   return DefinitionLocation::Instruction(this, index);
 }
 
-base::Optional<DefinitionLocation>
+std::optional<DefinitionLocation>
 CallBuiltinInstruction::GetExceptionObjectDefinition() const {
-  if (!catch_block) return base::nullopt;
+  if (!catch_block) return std::nullopt;
   return DefinitionLocation::Instruction(this, GetValueDefinitionCount());
 }
 
@@ -567,9 +568,9 @@ DefinitionLocation CallRuntimeInstruction::GetValueDefinition(
   return DefinitionLocation::Instruction(this, index);
 }
 
-base::Optional<DefinitionLocation>
+std::optional<DefinitionLocation>
 CallRuntimeInstruction::GetExceptionObjectDefinition() const {
-  if (!catch_block) return base::nullopt;
+  if (!catch_block) return std::nullopt;
   return DefinitionLocation::Instruction(this, GetValueDefinitionCount());
 }
 
@@ -804,6 +805,4 @@ bool CallRuntimeInstruction::IsBlockTerminator() const {
                             TypeOracle::GetNeverType();
 }
 
-}  // namespace torque
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::torque

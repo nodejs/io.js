@@ -5,7 +5,7 @@
 let sab = new SharedArrayBuffer(40);
 let i32arr = new Int32Array(sab);
 let worker = new Worker(
-    'onmessage = function(memory) { while (memory[1] == 0) {} };',
+    'onmessage = function({data:memory}) { while (memory[1] == 0) {} };',
     {type: 'string'});
 worker.postMessage(i32arr);
 i32arr.copyWithin(Array(0x8000).fill("a"), 0);

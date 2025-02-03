@@ -56,7 +56,7 @@ using v8::Value;
 namespace {
 template <int (*fn)(uv_udp_t*, int)>
 void SetLibuvInt32(const FunctionCallbackInfo<Value>& args) {
-  UDPWrap* wrap = Unwrap<UDPWrap>(args.Holder());
+  UDPWrap* wrap = BaseObject::Unwrap<UDPWrap>(args.This());
   if (wrap == nullptr) {
     args.GetReturnValue().Set(UV_EBADF);
     return;
@@ -231,6 +231,7 @@ void UDPWrap::Initialize(Local<Object> target,
   Local<Object> constants = Object::New(isolate);
   NODE_DEFINE_CONSTANT(constants, UV_UDP_IPV6ONLY);
   NODE_DEFINE_CONSTANT(constants, UV_UDP_REUSEADDR);
+  NODE_DEFINE_CONSTANT(constants, UV_UDP_REUSEPORT);
   target->Set(context,
               env->constants_string(),
               constants).Check();
@@ -298,9 +299,8 @@ int sockaddr_for_family(int address_family,
 
 void UDPWrap::DoBind(const FunctionCallbackInfo<Value>& args, int family) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   // bind(ip, port, flags)
   CHECK_EQ(args.Length(), 3);
@@ -328,9 +328,8 @@ void UDPWrap::DoBind(const FunctionCallbackInfo<Value>& args, int family) {
 
 void UDPWrap::DoConnect(const FunctionCallbackInfo<Value>& args, int family) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK_EQ(args.Length(), 2);
 
@@ -352,9 +351,8 @@ void UDPWrap::DoConnect(const FunctionCallbackInfo<Value>& args, int family) {
 
 void UDPWrap::Open(const FunctionCallbackInfo<Value>& args) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
   CHECK(args[0]->IsNumber());
   int fd = static_cast<int>(args[0].As<Integer>()->Value());
   int err = uv_udp_open(&wrap->handle_, fd);
@@ -376,9 +374,8 @@ void UDPWrap::Bind6(const FunctionCallbackInfo<Value>& args) {
 void UDPWrap::BufferSize(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK(args[0]->IsUint32());
   CHECK(args[1]->IsBoolean());
@@ -421,9 +418,8 @@ void UDPWrap::Connect6(const FunctionCallbackInfo<Value>& args) {
 
 void UDPWrap::Disconnect(const FunctionCallbackInfo<Value>& args) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK_EQ(args.Length(), 0);
 
@@ -434,9 +430,8 @@ void UDPWrap::Disconnect(const FunctionCallbackInfo<Value>& args) {
 
 void UDPWrap::SetMulticastInterface(const FunctionCallbackInfo<Value>& args) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK_EQ(args.Length(), 1);
   CHECK(args[0]->IsString());
@@ -452,9 +447,8 @@ void UDPWrap::SetMulticastInterface(const FunctionCallbackInfo<Value>& args) {
 void UDPWrap::SetMembership(const FunctionCallbackInfo<Value>& args,
                             uv_membership membership) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK_EQ(args.Length(), 2);
 
@@ -486,9 +480,8 @@ void UDPWrap::DropMembership(const FunctionCallbackInfo<Value>& args) {
 void UDPWrap::SetSourceMembership(const FunctionCallbackInfo<Value>& args,
                                   uv_membership membership) {
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK_EQ(args.Length(), 3);
 
@@ -526,9 +519,8 @@ void UDPWrap::DoSend(const FunctionCallbackInfo<Value>& args, int family) {
   Environment* env = Environment::GetCurrent(args);
 
   UDPWrap* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap,
-                          args.Holder(),
-                          args.GetReturnValue().Set(UV_EBADF));
+  ASSIGN_OR_RETURN_UNWRAP(
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   CHECK(args.Length() == 4 || args.Length() == 6);
   CHECK(args[0]->IsObject());
@@ -598,7 +590,7 @@ ssize_t UDPWrap::Send(uv_buf_t* bufs_ptr,
     msg_size += bufs_ptr[i].len;
 
   int err = 0;
-  if (!UNLIKELY(env()->options()->test_udp_no_try_send)) {
+  if (!env()->options()->test_udp_no_try_send) [[unlikely]] {
     err = uv_udp_try_send(&handle_, bufs_ptr, count, addr);
     if (err == UV_ENOSYS || err == UV_EAGAIN) {
       err = 0;
@@ -678,7 +670,7 @@ SocketAddress UDPWrap::GetSockName() {
 }
 
 void UDPWrapBase::RecvStart(const FunctionCallbackInfo<Value>& args) {
-  UDPWrapBase* wrap = UDPWrapBase::FromObject(args.Holder());
+  UDPWrapBase* wrap = UDPWrapBase::FromObject(args.This());
   args.GetReturnValue().Set(wrap == nullptr ? UV_EBADF : wrap->RecvStart());
 }
 
@@ -693,7 +685,7 @@ int UDPWrap::RecvStart() {
 
 
 void UDPWrapBase::RecvStop(const FunctionCallbackInfo<Value>& args) {
-  UDPWrapBase* wrap = UDPWrapBase::FromObject(args.Holder());
+  UDPWrapBase* wrap = UDPWrapBase::FromObject(args.This());
   args.GetReturnValue().Set(wrap == nullptr ? UV_EBADF : wrap->RecvStop());
 }
 
@@ -828,7 +820,7 @@ MaybeLocal<Object> UDPWrap::Instantiate(Environment* env,
 void UDPWrap::GetSendQueueSize(const FunctionCallbackInfo<Value>& args) {
   UDPWrap* wrap;
   ASSIGN_OR_RETURN_UNWRAP(
-      &wrap, args.Holder(), args.GetReturnValue().Set(UV_EBADF));
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   size_t size = uv_udp_get_send_queue_size(&wrap->handle_);
   args.GetReturnValue().Set(static_cast<double>(size));
@@ -837,7 +829,7 @@ void UDPWrap::GetSendQueueSize(const FunctionCallbackInfo<Value>& args) {
 void UDPWrap::GetSendQueueCount(const FunctionCallbackInfo<Value>& args) {
   UDPWrap* wrap;
   ASSIGN_OR_RETURN_UNWRAP(
-      &wrap, args.Holder(), args.GetReturnValue().Set(UV_EBADF));
+      &wrap, args.This(), args.GetReturnValue().Set(UV_EBADF));
 
   size_t count = uv_udp_get_send_queue_count(&wrap->handle_);
   args.GetReturnValue().Set(static_cast<double>(count));

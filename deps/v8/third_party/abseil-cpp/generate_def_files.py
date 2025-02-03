@@ -81,10 +81,11 @@ def _GenerateDefFile(cpu, is_debug, extra_gn_args=[], suffix=None):
     if not shutil.which('dumpbin'):
       logging.error('dumpbin not found. Run tools\win\setenv.bat.')
       exit(1)
-  with tempfile.TemporaryDirectory() as out_dir:
+  cwd = os.getcwd()
+  with tempfile.TemporaryDirectory(dir=cwd) as out_dir:
     logging.info('[%s - %s] Creating tmp out dir in %s', cpu, flavor, out_dir)
     subprocess.check_call([gn, 'gen', out_dir, '--args=' + ' '.join(gn_args)],
-                          cwd=os.getcwd())
+                          cwd=cwd)
     logging.info('[%s - %s] gn gen completed', cpu, flavor)
     subprocess.check_call(
         [autoninja, '-C', out_dir, 'third_party/abseil-cpp:absl_component_deps'],

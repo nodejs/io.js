@@ -4,10 +4,9 @@ const common = require('../common.js');
 const assert = require('assert');
 
 const bench = common.createBenchmark(main, {
-  n: [25, 2e2, 2e3],
-  size: [1e2, 1e3, 1e4],
-  strict: [1],
-  method: ['deepEqual', 'notDeepEqual'],
+  n: [25, 2e2],
+  size: [1e2, 1e4],
+  method: ['deepEqual', 'notDeepEqual', 'deepStrictEqual', 'notDeepStrictEqual'],
 }, {
   combinationFilter: (p) => {
     return p.size === 1e4 && p.n === 25 ||
@@ -30,10 +29,7 @@ function createObj(size, add = '') {
   }));
 }
 
-function main({ size, n, method, strict }) {
-  if (strict) {
-    method = method.replace('eep', 'eepStrict');
-  }
+function main({ size, n, method }) {
   const fn = assert[method];
 
   const actual = createObj(size);

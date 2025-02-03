@@ -54,21 +54,36 @@
  * integer and other types.
  */
 
+/** @{ API visibility control */
 
 /**
  * \def U_SHOW_CPLUSPLUS_API
+ * When defined to 1 (=default) and compiled with a C++ compiler, both C and C++ APIs are visible.
+ * Otherwise, only C APIs are visible; this is for C++ users who want to
+ * restrict their usage to binary stable C APIs exported by ICU DLLs.
+ * @internal
+ */
+/**
+ * \def U_SHOW_CPLUSPLUS_HEADER_API
+ * When defined to 1 (=default) and compiled with a C++ compiler, C++ header-only APIs are visible.
+ * This is for C++ users who restrict their usage to binary stable C APIs exported by ICU DLLs
+ * (U_SHOW_CPLUSPLUS_API=0)
+ * but who still want to use C++ header-only APIs which do not rely on ICU DLL exports.
  * @internal
  */
 #ifdef __cplusplus
 #   ifndef U_SHOW_CPLUSPLUS_API
 #       define U_SHOW_CPLUSPLUS_API 1
 #   endif
+#   ifndef U_SHOW_CPLUSPLUS_HEADER_API
+#       define U_SHOW_CPLUSPLUS_HEADER_API 1
+#   endif
 #else
 #   undef U_SHOW_CPLUSPLUS_API
 #   define U_SHOW_CPLUSPLUS_API 0
+#   undef U_SHOW_CPLUSPLUS_HEADER_API
+#   define U_SHOW_CPLUSPLUS_HEADER_API 0
 #endif
-
-/** @{ API visibility control */
 
 /**
  * \def U_HIDE_DRAFT_API
@@ -582,14 +597,13 @@ typedef enum UErrorCode {
     U_MF_MISSING_SELECTOR_ANNOTATION_ERROR,  /**< A selector expression evaluates to an unannotated operand. @internal ICU 75 technology preview @deprecated This API is for technology preview only. */
     U_MF_DUPLICATE_DECLARATION_ERROR, /**< The same variable is declared in more than one .local or .input declaration. @internal ICU 75 technology preview @deprecated This API is for technology preview only. */
     U_MF_OPERAND_MISMATCH_ERROR,     /**< An operand provided to a function does not have the required form for that function @internal ICU 75 technology preview @deprecated This API is for technology preview only. */
-    U_MF_UNSUPPORTED_STATEMENT_ERROR, /**< A message includes a reserved statement. @internal ICU 75 technology preview @deprecated This API is for technology preview only. */
-    U_MF_UNSUPPORTED_EXPRESSION_ERROR, /**< A message includes syntax reserved for future standardization or private implementation use. @internal ICU 75 technology preview @deprecated This API is for technology preview only. */
+    U_MF_DUPLICATE_VARIANT_ERROR, /**< A message includes a variant with the same key list as another variant. @internal ICU 76 technology preview @deprecated This API is for technology preview only. */
 #ifndef U_HIDE_DEPRECATED_API
     /**
      * One more than the highest normal formatting API error code.
      * @deprecated ICU 58 The numeric value may change over time, see ICU ticket #12420.
      */
-    U_FMT_PARSE_ERROR_LIMIT = 0x10121,
+    U_FMT_PARSE_ERROR_LIMIT = 0x10120,
 #endif  // U_HIDE_DEPRECATED_API
 
     /*
@@ -713,13 +727,13 @@ typedef enum UErrorCode {
      * @stable ICU 2.0
      */
     static
-    inline UBool U_SUCCESS(UErrorCode code) { return (UBool)(code<=U_ZERO_ERROR); }
+    inline UBool U_SUCCESS(UErrorCode code) { return code <= U_ZERO_ERROR; }
     /**
      * Does the error code indicate a failure?
      * @stable ICU 2.0
      */
     static
-    inline UBool U_FAILURE(UErrorCode code) { return (UBool)(code>U_ZERO_ERROR); }
+    inline UBool U_FAILURE(UErrorCode code) { return code > U_ZERO_ERROR; }
 #else
     /**
      * Does the error code indicate success?

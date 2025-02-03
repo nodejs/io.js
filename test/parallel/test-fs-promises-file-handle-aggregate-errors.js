@@ -65,7 +65,7 @@ async function checkAggregateError(op) {
   await checkAggregateError((filePath) => truncate(filePath));
   await checkAggregateError((filePath) => readFile(filePath));
   await checkAggregateError((filePath) => writeFile(filePath, '123'));
-  if (common.isOSX) {
+  if (common.isMacOS) {
     await checkAggregateError((filePath) => lchmod(filePath, 0o777));
   }
 })().then(common.mustCall());

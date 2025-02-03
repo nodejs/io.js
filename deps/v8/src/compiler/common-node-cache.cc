@@ -12,7 +12,7 @@ namespace internal {
 namespace compiler {
 
 Node** CommonNodeCache::FindExternalConstant(ExternalReference value) {
-  return external_constants_.Find(base::bit_cast<intptr_t>(value.address()));
+  return external_constants_.Find(base::bit_cast<intptr_t>(value.raw()));
 }
 
 

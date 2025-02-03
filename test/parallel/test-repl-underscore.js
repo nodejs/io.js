@@ -150,8 +150,8 @@ function testResetContextGlobal() {
   ]);
 
   // Delete globals leaked by REPL when `useGlobal` is `true`
-  delete global.module;
-  delete global.require;
+  delete globalThis.module;
+  delete globalThis.require;
 }
 
 function testError() {

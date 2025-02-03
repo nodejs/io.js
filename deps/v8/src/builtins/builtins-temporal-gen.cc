@@ -13,6 +13,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class TemporalBuiltinsAssembler : public IteratorBuiltinsAssembler {
  public:
   explicit TemporalBuiltinsAssembler(compiler::CodeAssemblerState* state)
@@ -217,6 +219,8 @@ TF_BUILTIN(TemporalCalendarPrototypeFields, TemporalBuiltinsAssembler) {
   TNode<Object> iterable = args.GetOptionalArgumentValue(0);
   Return(CalendarFieldsArrayFromIterable(context, calendar, iterable));
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

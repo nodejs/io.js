@@ -192,6 +192,16 @@ d.setTime(Math.pow(-2, 64));
 assertTrue(isNaN(d.getTime()));
 
 
+// Test setting with non-integer values, including the return value of setTime.
+d = new Date();
+assertEquals(42, d.setTime(42.5));
+assertEquals(42, d.getTime());
+assertEquals(-42, d.setTime(-42.5));
+assertEquals(-42, d.getTime());
+assertEquals(0, d.setTime(-0));
+assertEquals(0, d.getTime());
+
+
 // Test creation with obscure date values.
 assertEquals(8640000000000000, Date.UTC(1970, 0, 1 + 100000001, -24));
 assertEquals(-8640000000000000, Date.UTC(1970, 0, 1 - 100000001, 24));

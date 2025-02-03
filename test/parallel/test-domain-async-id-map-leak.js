@@ -1,7 +1,8 @@
 // Flags: --expose-gc
 'use strict';
 const common = require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
+const { gcUntil } = require('../common/gc');
 const assert = require('assert');
 const async_hooks = require('async_hooks');
 const domain = require('domain');
@@ -40,7 +41,7 @@ d.run(() => {
 d = null;
 
 async function main() {
-  await common.gcUntil(
+  await gcUntil(
     'All objects garbage collected',
     () => resourceGCed && domainGCed && emitterGCed);
 }

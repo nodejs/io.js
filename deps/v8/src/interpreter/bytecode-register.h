@@ -5,12 +5,13 @@
 #ifndef V8_INTERPRETER_BYTECODE_REGISTER_H_
 #define V8_INTERPRETER_BYTECODE_REGISTER_H_
 
-#include "src/interpreter/bytecodes.h"
+#include <optional>
 
 #include "src/base/macros.h"
 #include "src/base/platform/platform.h"
 #include "src/common/globals.h"
 #include "src/execution/frame-constants.h"
+#include "src/interpreter/bytecodes.h"
 
 namespace v8 {
 namespace internal {
@@ -83,7 +84,7 @@ class V8_EXPORT_PRIVATE Register final {
                     static_cast<int>(bytecode));
   }
 
-  constexpr base::Optional<Bytecode> TryToShortStar() const {
+  constexpr std::optional<Bytecode> TryToShortStar() const {
     if (index() >= 0 && index() < Bytecodes::kShortStarCount) {
       Bytecode bytecode =
           static_cast<Bytecode>(static_cast<int>(Bytecode::kStar0) - index());

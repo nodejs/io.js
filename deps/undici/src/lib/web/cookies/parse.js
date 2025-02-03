@@ -4,12 +4,13 @@ const { maxNameValuePairSize, maxAttributeValueSize } = require('./constants')
 const { isCTLExcludingHtab } = require('./util')
 const { collectASequenceOfCodePointsFast } = require('../fetch/data-url')
 const assert = require('node:assert')
+const { unescape } = require('node:querystring')
 
 /**
  * @description Parses the field-value attributes of a set-cookie header string.
  * @see https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4
  * @param {string} header
- * @returns if the header is invalid, null will be returned
+ * @returns {import('./index').Cookie|null} if the header is invalid, null will be returned
  */
 function parseSetCookie (header) {
   // 1. If the set-cookie-string contains a %x00-08 / %x0A-1F / %x7F
@@ -76,8 +77,12 @@ function parseSetCookie (header) {
 
   // 6. The cookie-name is the name string, and the cookie-value is the
   //    value string.
+  // https://datatracker.ietf.org/doc/html/rfc6265
+  // To maximize compatibility with user agents, servers that wish to
+  // store arbitrary data in a cookie-value SHOULD encode that data, for
+  // example, using Base64 [RFC4648].
   return {
-    name, value, ...parseUnparsedAttributes(unparsedAttributes)
+    name, value: unescape(value), ...parseUnparsedAttributes(unparsedAttributes)
   }
 }
 
@@ -85,7 +90,7 @@ function parseSetCookie (header) {
  * Parses the remaining attributes of a set-cookie header
  * @see https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-5.4
  * @param {string} unparsedAttributes
- * @param {[Object.<string, unknown>]={}} cookieAttributeList
+ * @param {Object.<string, unknown>} [cookieAttributeList={}]
  */
 function parseUnparsedAttributes (unparsedAttributes, cookieAttributeList = {}) {
   // 1. If the unparsed-attributes string is empty, skip the rest of

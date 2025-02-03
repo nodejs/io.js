@@ -1,17 +1,16 @@
 const t = require('tap')
-const fs = require('fs')
-const path = require('path')
+const fs = require('node:fs')
+const path = require('node:path')
 const ini = require('ini')
 
 const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const mockGlobals = require('@npmcli/mock-globals')
 const MockRegistry = require('@npmcli/mock-registry')
-const stream = require('stream')
+const stream = require('node:stream')
 
 const mockAddUser = async (t, { stdin: stdinLines, registry: registryUrl, ...options } = {}) => {
-  let stdin
   if (stdinLines) {
-    stdin = new stream.PassThrough()
+    const stdin = new stream.PassThrough()
     for (const l of stdinLines) {
       stdin.write(l + '\n')
     }
@@ -30,7 +29,6 @@ const mockAddUser = async (t, { stdin: stdinLines, registry: registryUrl, ...opt
   })
   return {
     registry,
-    stdin,
     rc: () => ini.parse(fs.readFileSync(path.join(mock.home, '.npmrc'), 'utf8')),
     ...mock,
   }

@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.readTarget = void 0;
+exports.readTarget = readTarget;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -39,7 +39,6 @@ async function readTarget(tuf, targetPath) {
         });
     });
 }
-exports.readTarget = readTarget;
 // Returns the local path to the specified target. If the target is not yet
 // cached locally, the provided TUF Updater will be used to download and
 // cache the target.

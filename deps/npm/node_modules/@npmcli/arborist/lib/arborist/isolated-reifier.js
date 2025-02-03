@@ -1,11 +1,11 @@
 const _makeIdealGraph = Symbol('makeIdealGraph')
 const _createIsolatedTree = Symbol.for('createIsolatedTree')
 const _createBundledTree = Symbol('createBundledTree')
-const fs = require('fs')
+const { mkdirSync } = require('node:fs')
 const pacote = require('pacote')
-const { join } = require('path')
+const { join } = require('node:path')
 const { depth } = require('treeverse')
-const crypto = require('crypto')
+const crypto = require('node:crypto')
 
 // cache complicated function results
 const memoize = (fn) => {
@@ -108,7 +108,7 @@ module.exports = cls => class IsolatedReifier extends cls {
         '.store',
         `${node.name}@${node.version}`
       )
-      fs.mkdirSync(dir, { recursive: true })
+      mkdirSync(dir, { recursive: true })
       // TODO this approach feels wrong
       // and shouldn't be necessary for shrinkwraps
       await pacote.extract(node.resolved, dir, {
@@ -212,7 +212,7 @@ module.exports = cls => class IsolatedReifier extends cls {
     return { edges, nodes }
   }
 
-  async [_createIsolatedTree] (idealTree) {
+  async [_createIsolatedTree] () {
     await this[_makeIdealGraph](this.options)
 
     const proxiedIdealTree = this.idealGraph

@@ -285,10 +285,7 @@ assert.strictEqual(-1, asciiString.indexOf('\x2061'));
 assert.strictEqual(asciiString.indexOf('leb', 0), 3);
 
 // Search in string containing many non-ASCII chars.
-const allCodePoints = [];
-for (let i = 0; i < 65534; i++) allCodePoints[i] = i;
-const allCharsString = String.fromCharCode.apply(String, allCodePoints) +
-    String.fromCharCode(65534, 65535);
+const allCharsString = Array.from({ length: 65536 }, (_, i) => String.fromCharCode(i)).join('');
 const allCharsBufferUtf8 = Buffer.from(allCharsString);
 const allCharsBufferUcs2 = Buffer.from(allCharsString, 'ucs2');
 

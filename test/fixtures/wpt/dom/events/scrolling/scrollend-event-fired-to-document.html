@@ -7,64 +7,100 @@
 <script src="/resources/testdriver-vendor.js"></script>
 <script src="scroll_support.js"></script>
 <style>
-#targetDiv {
-  width: 200px;
-  height: 200px;
-  overflow: scroll;
-}
+  #hspacer {
+    height: 100px;
+    width: 100vw;
+    top: 0;
+    left: 200px;
+    /* on the right edge od targetDiv */
+    position: absolute;
+  }
 
-#innerDiv {
-  width: 400px;
-  height: 400px;
-}
+  #vspacer {
+    height: 100vh;
+    width: 100px;
+    position: absolute;
+  }
+
+  #targetDiv {
+    width: 200px;
+    height: 200px;
+    overflow: scroll;
+  }
+
+  #innerDiv {
+    width: 400px;
+    height: 400px;
+  }
 </style>
 
 <body style="margin:0" onload=runTest()>
-<div id="targetDiv">
-  <div id="innerDiv">
+  <div id="targetDiv">
+    <div id="innerDiv"></div>
   </div>
-</div>
+  <div id="hspacer"></div>
+  <div id="vspacer"></div>
 </body>
 
 <script>
-var target_div = document.getElementById('targetDiv');
-var horizontal_scrollend_arrived = false;
-var vertical_scrollend_arrived = false;
-function onHorizontalScrollEnd(event) {
-  assert_false(event.cancelable);
-  // scrollend events are bubbled when the target node is document.
-  assert_true(event.bubbles);
-  horizontal_scrollend_arrived = true;
-}
-function onVerticalScrollEnd(event) {
-  assert_false(event.cancelable);
-  // scrollend events are bubbled when the target node is document.
-  assert_true(event.bubbles);
-  vertical_scrollend_arrived = true;
-}
+  var target_div = document.getElementById('targetDiv');
+  async function resetScrollers(test) {
+    await waitForScrollReset(test, target_div);
+    await waitForScrollReset(test, document.scrollingElement);
+  }
 
-function runTest() {
-  promise_test (async (t) => {
-    // Make sure that no scrollend event is sent to target_div.
-    target_div.addEventListener("scrollend",
-        t.unreached_func("target_div got unexpected scrollend event."));
-    await waitForCompositorCommit();
+  function fail() {
+    assert_true(false);
+  }
 
-    // Scroll left on target div and wait for the doc to get scrollend event.
-    document.addEventListener("scrollend", onHorizontalScrollEnd);
-    await touchScrollInTarget(300, target_div, 'left');
-    await waitFor(() => { return horizontal_scrollend_arrived; },
-        'Document did not receive scrollend event after scroll left on target.');
-    assert_equals(target_div.scrollLeft, 0);
-    document.removeEventListener("scrollend", onHorizontalScrollEnd);
+  function runTest() {
+    promise_test(async (t) => {
+      await resetScrollers(t);
+      await waitForCompositorCommit();
 
-    // Scroll up on target div and wait for the doc to get scrollend event.
-    document.addEventListener("scrollend", onVerticalScrollEnd);
-    await touchScrollInTarget(300, target_div, 'up');
-    await waitFor(() => { return vertical_scrollend_arrived; },
-        'Document did not receive scrollend event after scroll up on target.');
-    assert_equals(target_div.scrollTop, 0);
-  }, 'Tests that the document gets scrollend event when no element scrolls by ' +
-     'touch.');
-}
+      assert_equals(document.scrollingElement.scrollTop, 0,
+        "document should not be scrolled");
+
+      let scrollend_promise = waitForScrollendEvent(t, target_div);
+      let max_target_div_scroll_top = target_div.scrollHeight - target_div.clientHeight;
+      target_div.scrollTo({ top: target_div.scrollHeight, left: 0 });
+      await scrollend_promise;
+      assert_approx_equals(target_div.scrollTop, max_target_div_scroll_top, 1,
+        "target_div should be fully scrolled down");
+
+      scrollend_promise = waitForScrollendEvent(t, document, 2000);
+      target_div.addEventListener("scrollend", fail);
+      // Scroll up on target div and wait for the doc to get scrollend event.
+      await scrollElementDown(target_div, target_div.clientHeight + 25);
+      await scrollend_promise;
+
+      target_div.removeEventListener("scrollend", fail);
+      assert_greater_than(document.scrollingElement.scrollTop, target_div.clientHeight - 1,
+        "document is scrolled by the height of target_div");
+    }, "testing, vertical");
+
+    promise_test(async (t) => {
+      await resetScrollers(t);
+      await waitForCompositorCommit();
+
+      assert_equals(document.scrollingElement.scrollLeft, 0,
+        "document should not be scrolled");
+
+      let scrollend_promise = waitForScrollendEvent(t, target_div);
+      let max_target_div_scroll_left = target_div.scrollWidth - target_div.clientWidth;
+      target_div.scrollTo({ left: target_div.scrollWidth, top: 0 });
+      await scrollend_promise;
+      assert_approx_equals(target_div.scrollLeft, max_target_div_scroll_left, 1,
+        "target_div should be fully scrolled right");
+
+      scrollend_promise = waitForScrollendEvent(t, document, 2000);
+      target_div.addEventListener("scrollend", fail);
+      await scrollElementLeft(target_div, target_div.clientWidth + 25);
+      await scrollend_promise;
+
+      target_div.removeEventListener("scrollend", fail);
+      assert_greater_than(document.scrollingElement.scrollLeft, target_div.clientWidth - 1,
+        "document is scrolled by the height of target_div");
+    }, "testing, horizontal");
+  }
 </script>

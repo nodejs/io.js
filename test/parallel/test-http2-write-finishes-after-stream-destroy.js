@@ -5,14 +5,14 @@ if (!common.hasCrypto)
   common.skip('missing crypto');
 const assert = require('assert');
 const http2 = require('http2');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 
 // Make sure the Http2Stream destructor works, since we don't clean the
 // stream up like we would otherwise do.
-process.on('exit', global.gc);
+process.on('exit', globalThis.gc);
 
 {
-  const { clientSide, serverSide } = makeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   let serverSideHttp2Stream;
   let serverSideHttp2StreamDestroyed = false;

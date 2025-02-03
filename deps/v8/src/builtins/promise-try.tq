@@ -1,0 +1,48 @@
+// Copyright 2024 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+namespace promise {
+
+// https://tc39.es/proposal-promise-try/#sec-promise.try
+transitioning javascript builtin PromiseTry(
+    js-implicit context: Context, receiver: JSAny)(...arguments): JSAny {
+  // 1. Let C be the this value.
+  // 2. If C is not an Object, throw a TypeError exception.
+  const receiver = Cast<JSReceiver>(receiver)
+      otherwise ThrowTypeError(MessageTemplate::kCalledOnNonObject, 'Promise.try');
+
+  // 3. Let promiseCapability be ? NewPromiseCapability(C).
+  const capability = NewPromiseCapability(receiver, False);
+
+  // 4. Let status be Completion(Call(callbackfn, undefined, args)).
+  const callbackfn = arguments[0];
+  let result: JSAny;
+  try {
+    if (arguments.length <= 1) {
+      result = Call(context, callbackfn, Undefined);
+    } else {
+      const rest = NewRestArgumentsFromArguments(arguments, 1);
+      result = Call(
+          context, GetReflectApply(), Undefined, callbackfn, Undefined, rest);
+    }
+  } catch (e, _message) {
+    // 5. If status is an abrupt completion, then
+    //   a. Perform ? Call(promiseCapability.[[Reject]], undefined, «
+    //      status.[[Value]] »).
+    Call(context, UnsafeCast<Callable>(capability.reject), Undefined, e);
+
+    // 7. Return promiseCapability.[[Promise]].
+    return capability.promise;
+  }
+
+  // 6. Else,
+  //   a. Perform ? Call(promiseCapability.[[Resolve]], undefined, «
+  //      status.[[Value]] »).
+  Call(context, UnsafeCast<Callable>(capability.resolve), Undefined, result);
+
+  // 7. Return promiseCapability.[[Promise]].
+  return capability.promise;
+}
+
+}  // namespace promise

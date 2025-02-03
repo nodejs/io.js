@@ -60,10 +60,10 @@ class TestApiCallbacks {
  public:
   TestApiCallbacks() = default;
 
-  static void Getter(v8::Local<v8::String> name,
+  static void Getter(v8::Local<v8::Name> name,
                      const v8::PropertyCallbackInfo<v8::Value>& info) {}
 
-  static void Setter(v8::Local<v8::String> name, v8::Local<v8::Value> value,
+  static void Setter(v8::Local<v8::Name> name, v8::Local<v8::Value> value,
                      const v8::PropertyCallbackInfo<void>& info) {}
 };
 
@@ -113,8 +113,9 @@ TEST_F(SamplerTest, LibSamplerCollectSample) {
 
   TestApiCallbacks accessors;
   v8::Local<v8::External> data = v8::External::New(isolate(), &accessors);
-  instance_template->SetAccessor(NewString("foo"), &TestApiCallbacks::Getter,
-                                 &TestApiCallbacks::Setter, data);
+  instance_template->SetNativeDataProperty(NewString("foo"),
+                                           &TestApiCallbacks::Getter,
+                                           &TestApiCallbacks::Setter, data);
   v8::Local<v8::Function> func =
       func_template->GetFunction(context()).ToLocalChecked();
   v8::Local<v8::Object> instance =

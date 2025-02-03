@@ -8,6 +8,7 @@
 
 #include "src/codegen/handler-table.h"
 #include "src/codegen/source-position-table.h"
+#include "src/common/globals.h"
 #include "src/interpreter/bytecode-array-iterator.h"
 #include "src/interpreter/bytecode-decoder.h"
 #include "src/objects/bytecode-array-inl.h"
@@ -15,6 +16,31 @@
 
 namespace v8 {
 namespace internal {
+
+int BytecodeArray::SourcePosition(int offset) const {
+  int position = 0;
+  if (!HasSourcePositionTable()) return position;
+  for (SourcePositionTableIterator it(
+           source_position_table(kAcquireLoad),
+           SourcePositionTableIterator::kJavaScriptOnly,
+           SourcePositionTableIterator::kDontSkipFunctionEntry);
+       !it.done() && it.code_offset() <= offset; it.Advance()) {
+    position = it.source_position().ScriptOffset();
+  }
+  return position;
+}
+
+int BytecodeArray::SourceStatementPosition(int offset) const {
+  int position = 0;
+  if (!HasSourcePositionTable()) return position;
+  for (SourcePositionTableIterator it(source_position_table(kAcquireLoad));
+       !it.done() && it.code_offset() <= offset; it.Advance()) {
+    if (it.is_statement()) {
+      position = it.source_position().ScriptOffset();
+    }
+  }
+  return position;
+}
 
 void BytecodeArray::PrintJson(std::ostream& os) {
   DisallowGarbageCollection no_gc;
@@ -58,10 +84,10 @@ void BytecodeArray::PrintJson(std::ostream& os) {
 
   os << "]";
 
-  int constant_pool_lenght = constant_pool()->length();
-  if (constant_pool_lenght > 0) {
+  int constant_pool_length = constant_pool()->length();
+  if (constant_pool_length > 0) {
     os << ", \"constantPool\": [";
-    for (int i = 0; i < constant_pool_lenght; i++) {
+    for (int i = 0; i < constant_pool_length; i++) {
       Tagged<Object> object = constant_pool()->get(i);
       if (i > 0) os << ", ";
       os << "\"" << object << "\"";
@@ -146,7 +172,8 @@ void BytecodeArray::Disassemble(Handle<BytecodeArray> handle,
   }
 #endif
 
-  Tagged<ByteArray> source_position_table = handle->SourcePositionTable();
+  Tagged<TrustedByteArray> source_position_table =
+      handle->SourcePositionTable();
   os << "Source Position Table (size = " << source_position_table->length()
      << ")\n";
 #ifdef OBJECT_PRINT

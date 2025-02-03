@@ -175,12 +175,13 @@ namespace message2 {
                 PLURAL_CARDINAL,
                 PLURAL_EXACT
             } PluralType;
-            Plural(const Locale& loc) : locale(loc) {}
-            Plural(const Locale& loc, bool isInt) : locale(loc), isInteger(isInt) {}
-            static Plural integer(const Locale& loc) { return Plural(loc, true); }
+            Plural(const Locale& loc, UErrorCode& errorCode);
+            Plural(const Locale& loc, bool isInt, UErrorCode& errorCode);
+            static Plural integer(const Locale& loc, UErrorCode& errorCode) { return Plural(loc, true, errorCode); }
             PluralType pluralType(const FunctionOptions& opts) const;
             const Locale& locale;
             const bool isInteger = false;
+            LocalPointer<StandardFunctions::Number> numberFormatter;
         };
 
         class TextFactory : public SelectorFactory {

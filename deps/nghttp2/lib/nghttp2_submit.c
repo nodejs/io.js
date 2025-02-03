@@ -94,8 +94,8 @@ static int32_t submit_headers_shared(nghttp2_session *session, uint8_t flags,
   item->aux_data.headers.stream_user_data = stream_user_data;
 
   flags_copy =
-      (uint8_t)((flags & (NGHTTP2_FLAG_END_STREAM | NGHTTP2_FLAG_PRIORITY)) |
-                NGHTTP2_FLAG_END_HEADERS);
+    (uint8_t)((flags & (NGHTTP2_FLAG_END_STREAM | NGHTTP2_FLAG_PRIORITY)) |
+              NGHTTP2_FLAG_END_HEADERS);
 
   if (stream_id == -1) {
     if (session->next_stream_id > INT32_MAX) {
@@ -174,9 +174,8 @@ int nghttp2_submit_trailer(nghttp2_session *session, int32_t stream_id,
     return NGHTTP2_ERR_INVALID_ARGUMENT;
   }
 
-  return (int)submit_headers_shared_nva(session, NGHTTP2_FLAG_END_STREAM,
-                                        stream_id, NULL, nva, nvlen, NULL,
-                                        NULL);
+  return (int)submit_headers_shared_nva(
+    session, NGHTTP2_FLAG_END_STREAM, stream_id, NULL, nva, nvlen, NULL, NULL);
 }
 
 int32_t nghttp2_submit_headers(nghttp2_session *session, uint8_t flags,
@@ -389,8 +388,8 @@ int nghttp2_submit_window_update(nghttp2_session *session, uint8_t flags,
   }
   if (stream_id == 0) {
     rv = nghttp2_adjust_local_window_size(
-        &session->local_window_size, &session->recv_window_size,
-        &session->recv_reduction, &window_size_increment);
+      &session->local_window_size, &session->recv_window_size,
+      &session->recv_reduction, &window_size_increment);
     if (rv != 0) {
       return rv;
     }
@@ -401,8 +400,8 @@ int nghttp2_submit_window_update(nghttp2_session *session, uint8_t flags,
     }
 
     rv = nghttp2_adjust_local_window_size(
-        &stream->local_window_size, &stream->recv_window_size,
-        &stream->recv_reduction, &window_size_increment);
+      &stream->local_window_size, &stream->recv_window_size,
+      &stream->recv_reduction, &window_size_increment);
     if (rv != 0) {
       return rv;
     }
@@ -411,10 +410,10 @@ int nghttp2_submit_window_update(nghttp2_session *session, uint8_t flags,
   if (window_size_increment > 0) {
     if (stream_id == 0) {
       session->consumed_size =
-          nghttp2_max(0, session->consumed_size - window_size_increment);
+        nghttp2_max_int32(0, session->consumed_size - window_size_increment);
     } else {
       stream->consumed_size =
-          nghttp2_max(0, stream->consumed_size - window_size_increment);
+        nghttp2_max_int32(0, stream->consumed_size - window_size_increment);
     }
 
     return nghttp2_session_add_window_update(session, 0, stream_id,
@@ -444,13 +443,13 @@ int nghttp2_session_set_local_window_size(nghttp2_session *session,
 
     if (window_size_increment < 0) {
       return nghttp2_adjust_local_window_size(
-          &session->local_window_size, &session->recv_window_size,
-          &session->recv_reduction, &window_size_increment);
+        &session->local_window_size, &session->recv_window_size,
+        &session->recv_reduction, &window_size_increment);
     }
 
     rv = nghttp2_increase_local_window_size(
-        &session->local_window_size, &session->recv_window_size,
-        &session->recv_reduction, &window_size_increment);
+      &session->local_window_size, &session->recv_window_size,
+      &session->recv_reduction, &window_size_increment);
 
     if (rv != 0) {
       return rv;
@@ -477,13 +476,13 @@ int nghttp2_session_set_local_window_size(nghttp2_session *session,
 
     if (window_size_increment < 0) {
       return nghttp2_adjust_local_window_size(
-          &stream->local_window_size, &stream->recv_window_size,
-          &stream->recv_reduction, &window_size_increment);
+        &stream->local_window_size, &stream->recv_window_size,
+        &stream->recv_reduction, &window_size_increment);
     }
 
     rv = nghttp2_increase_local_window_size(
-        &stream->local_window_size, &stream->recv_window_size,
-        &stream->recv_reduction, &window_size_increment);
+      &stream->local_window_size, &stream->recv_window_size,
+      &stream->recv_reduction, &window_size_increment);
 
     if (rv != 0) {
       return rv;
@@ -614,7 +613,7 @@ int nghttp2_submit_origin(nghttp2_session *session, uint8_t flags,
 
     /* The last nov is added for terminal NULL character. */
     ov_copy =
-        nghttp2_mem_malloc(mem, nov * sizeof(nghttp2_origin_entry) + len + nov);
+      nghttp2_mem_malloc(mem, nov * sizeof(nghttp2_origin_entry) + len + nov);
     if (ov_copy == NULL) {
       return NGHTTP2_ERR_NOMEM;
     }
@@ -898,7 +897,7 @@ int nghttp2_submit_data(nghttp2_session *session, uint8_t flags,
   assert(data_prd);
 
   return nghttp2_submit_data_shared(
-      session, flags, stream_id, nghttp2_data_provider_wrap_v1(&dpw, data_prd));
+    session, flags, stream_id, nghttp2_data_provider_wrap_v1(&dpw, data_prd));
 }
 
 int nghttp2_submit_data2(nghttp2_session *session, uint8_t flags,
@@ -909,7 +908,7 @@ int nghttp2_submit_data2(nghttp2_session *session, uint8_t flags,
   assert(data_prd);
 
   return nghttp2_submit_data_shared(
-      session, flags, stream_id, nghttp2_data_provider_wrap_v2(&dpw, data_prd));
+    session, flags, stream_id, nghttp2_data_provider_wrap_v2(&dpw, data_prd));
 }
 
 ssize_t nghttp2_pack_settings_payload(uint8_t *buf, size_t buflen,

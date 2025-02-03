@@ -45,7 +45,7 @@ Data types
 
     Type definition for callback passed to :c:func:`uv_poll_start`.
 
-.. c:type:: uv_poll_event
+.. c:enum:: uv_poll_event
 
     Poll event types
 

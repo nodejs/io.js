@@ -10,6 +10,7 @@ using v8::FunctionCallbackInfo;
 using v8::Global;
 using v8::Isolate;
 using v8::Local;
+using v8::LocalVector;
 using v8::Object;
 using v8::Value;
 
@@ -32,8 +33,8 @@ class PrototypeChainHas : public v8::QueryObjectPredicate {
     if (creation_context != context_) {
       return false;
     }
-    for (Local<Value> proto = object->GetPrototype(); proto->IsObject();
-         proto = proto.As<Object>()->GetPrototype()) {
+    for (Local<Value> proto = object->GetPrototypeV2(); proto->IsObject();
+         proto = proto.As<Object>()->GetPrototypeV2()) {
       if (search_ == proto) return true;
     }
     return false;
@@ -56,7 +57,7 @@ void QueryObjects(const FunctionCallbackInfo<Value>& args) {
   PrototypeChainHas prototype_chain_has(context, proto.As<Object>());
   std::vector<Global<Object>> out;
   isolate->GetHeapProfiler()->QueryObjects(context, &prototype_chain_has, &out);
-  std::vector<Local<Value>> result;
+  LocalVector<Value> result(isolate);
   result.reserve(out.size());
   for (size_t i = 0; i < out.size(); ++i) {
     result.push_back(out[i].Get(isolate));

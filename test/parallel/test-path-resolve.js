@@ -33,6 +33,8 @@ const resolveTests = [
      [['c:/', '///some//dir'], 'c:\\some\\dir'],
      [['C:\\foo\\tmp.3\\', '..\\tmp.3\\cycles\\root.js'],
       'C:\\foo\\tmp.3\\cycles\\root.js'],
+     [['\\\\.\\PHYSICALDRIVE0'], '\\\\.\\PHYSICALDRIVE0'],
+     [['\\\\?\\PHYSICALDRIVE0'], '\\\\?\\PHYSICALDRIVE0'],
     ],
   ],
   [ path.posix.resolve,

@@ -158,7 +158,7 @@ static_assert(BuiltinArguments::kNumExtraArgsWithReceiver ==
                      isolate->factory()->NewStringFromAsciiChecked(method), \
                      args.receiver()));                                     \
   }                                                                         \
-  Handle<Type> name = Handle<Type>::cast(args.receiver())
+  auto name = Cast<Type>(args.receiver())
 
 // Throws a TypeError for {method} if the receiver is not coercible to Object,
 // or converts the receiver to a String otherwise and assigns it to a new var

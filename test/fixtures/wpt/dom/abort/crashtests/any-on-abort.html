@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<script>
+  let b;
+  window.addEventListener("DOMContentLoaded", () => {
+    let a = new AbortController()
+    b = AbortSignal.any([a.signal])
+    a.signal.addEventListener("abort", () => { AbortSignal.any([b]) }, { })
+    a.abort(undefined)
+  })
+</script>

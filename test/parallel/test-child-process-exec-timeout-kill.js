@@ -18,10 +18,11 @@ if (process.argv[2] === 'child') {
   return;
 }
 
-const cmd = `"${process.execPath}" "${__filename}" child`;
+const [cmd, opts] = common.escapePOSIXShell`"${process.execPath}" "${__filename}" child`;
 
 // Test with a different kill signal.
 cp.exec(cmd, {
+  ...opts,
   timeout: kExpiringParentTimer,
   killSignal: 'SIGKILL'
 }, common.mustCall((err, stdout, stderr) => {

@@ -3,7 +3,10 @@
 // found in the LICENSE file.
 
 @abstract
-extern class Microtask extends Struct {}
+extern class Microtask extends Struct {
+  @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+  continuation_preserved_embedder_data: Object|Undefined;
+}
 
 extern class CallbackTask extends Microtask {
   callback: Foreign;

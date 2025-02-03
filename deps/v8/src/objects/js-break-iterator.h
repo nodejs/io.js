@@ -32,26 +32,26 @@ class JSV8BreakIterator
     : public TorqueGeneratedJSV8BreakIterator<JSV8BreakIterator, JSObject> {
  public:
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSV8BreakIterator> New(
-      Isolate* isolate, Handle<Map> map, Handle<Object> input_locales,
+      Isolate* isolate, DirectHandle<Map> map, Handle<Object> input_locales,
       Handle<Object> input_options, const char* service);
 
   static Handle<JSObject> ResolvedOptions(
-      Isolate* isolate, Handle<JSV8BreakIterator> break_iterator);
+      Isolate* isolate, DirectHandle<JSV8BreakIterator> break_iterator);
 
   V8_EXPORT_PRIVATE static const std::set<std::string>& GetAvailableLocales();
 
   static void AdoptText(Isolate* isolate,
-                        Handle<JSV8BreakIterator> break_iterator,
+                        DirectHandle<JSV8BreakIterator> break_iterator,
                         Handle<String> text);
 
   static Handle<Object> Current(Isolate* isolate,
-                                Handle<JSV8BreakIterator> break_iterator);
+                                DirectHandle<JSV8BreakIterator> break_iterator);
   static Handle<Object> First(Isolate* isolate,
-                              Handle<JSV8BreakIterator> break_iterator);
+                              DirectHandle<JSV8BreakIterator> break_iterator);
   static Handle<Object> Next(Isolate* isolate,
-                             Handle<JSV8BreakIterator> break_iterator);
-  static Tagged<String> BreakType(Isolate* isolate,
-                                  Handle<JSV8BreakIterator> break_iterator);
+                             DirectHandle<JSV8BreakIterator> break_iterator);
+  static Tagged<String> BreakType(
+      Isolate* isolate, DirectHandle<JSV8BreakIterator> break_iterator);
 
   DECL_PRINTER(JSV8BreakIterator)
 

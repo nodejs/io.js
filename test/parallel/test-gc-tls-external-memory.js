@@ -8,8 +8,8 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
-const makeDuplexPair = require('../common/duplexpair');
-const onGC = require('../common/ongc');
+const { duplexPair } = require('stream');
+const { onGC } = require('../common/gc');
 const assert = require('assert');
 const tls = require('tls');
 
@@ -27,7 +27,7 @@ connect();
 
 function connect() {
   if (runs % 64 === 0)
-    global.gc();
+    globalThis.gc();
   const externalMemoryUsage = process.memoryUsage().external;
   assert(externalMemoryUsage >= 0, `${externalMemoryUsage} < 0`);
   if (runs++ === 512) {
@@ -37,7 +37,7 @@ function connect() {
     return;
   }
 
-  const { clientSide, serverSide } = makeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   const tlsSocket = tls.connect({ socket: clientSide });
   tlsSocket.on('error', common.mustCall(connect));

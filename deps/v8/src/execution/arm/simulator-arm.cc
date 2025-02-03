@@ -160,7 +160,7 @@ namespace {
 void SetInstructionBitsInCodeSpace(Instruction* instr, Instr value,
                                    Heap* heap) {
   CodePageMemoryModificationScopeForDebugging scope(
-      BasicMemoryChunk::FromAddress(reinterpret_cast<Address>(instr)));
+      MemoryChunkMetadata::FromAddress(reinterpret_cast<Address>(instr)));
   instr->SetInstructionBits(value);
 }
 }  // namespace
@@ -359,7 +359,7 @@ bool ArmDebugger::ExecDebugCommand(ArrayUniquePtr<char> line_ptr) {
       Heap* current_heap = sim_->isolate_->heap();
       if (!skip_obj_print) {
         if (IsSmi(obj) ||
-            IsValidHeapObject(current_heap, HeapObject::cast(obj))) {
+            IsValidHeapObject(current_heap, Cast<HeapObject>(obj))) {
           PrintF(" (");
           if (IsSmi(obj)) {
             PrintF("smi %d", Smi::ToInt(obj));

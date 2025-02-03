@@ -7,7 +7,7 @@ description: Display prefix
 ### Synopsis
 
 ```bash
-npm prefix [-g]
+npm prefix
 ```
 
 Note: This command is unaware of workspaces.

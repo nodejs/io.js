@@ -42,7 +42,7 @@ function main({ n, type }) {
         }
       }
       bench.end(n);
-      assert(hasError);
+      assert.ok(hasError);
       break;
     }
     default:

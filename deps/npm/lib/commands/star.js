@@ -1,9 +1,9 @@
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const npa = require('npm-package-arg')
-const log = require('../utils/log-shim')
+const { log, output } = require('proc-log')
 const getIdentity = require('../utils/get-identity')
+const BaseCommand = require('../base-cmd.js')
 
-const BaseCommand = require('../base-command.js')
 class Star extends BaseCommand {
   static description = 'Mark your favorite packages'
   static name = 'star'
@@ -32,7 +32,7 @@ class Star extends BaseCommand {
     const username = await getIdentity(this.npm, this.npm.flatOptions)
 
     for (const pkg of pkgs) {
-      const fullData = await fetch.json(pkg.escapedName, {
+      const fullData = await npmFetch.json(pkg.escapedName, {
         ...this.npm.flatOptions,
         spec: pkg,
         query: { write: true },
@@ -55,17 +55,18 @@ class Star extends BaseCommand {
         log.verbose('unstar', 'unstarring', body)
       }
 
-      const data = await fetch.json(pkg.escapedName, {
+      const data = await npmFetch.json(pkg.escapedName, {
         ...this.npm.flatOptions,
         spec: pkg,
         method: 'PUT',
         body,
       })
 
-      this.npm.output(show + ' ' + pkg.name)
+      output.standard(show + ' ' + pkg.name)
       log.verbose('star', data)
       return data
     }
   }
 }
+
 module.exports = Star

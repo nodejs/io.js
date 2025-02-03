@@ -852,6 +852,12 @@ class Environment:
             if zip:
                 info = ZipInfo(filename)
                 info.external_attr = 0o755 << 16
+                # Set create_system=3 (Unix). Otherwise, the generated
+                # zipfiles on Windows aren't identical to the ones on
+                # Linux and Mac.
+                # This is problematic for local/remote deterministic checks.
+                # See also http://crbug.com/341239674#comment14
+                info.create_system = 3
                 zip_file.writestr(info, data)
             else:
                 with open(os.path.join(target, filename), "wb") as f:

@@ -39,7 +39,7 @@ protected:
     uint32_t fCapacity;
 public:
     NFRuleList(uint32_t capacity = 10) 
-        : fStuff(capacity ? (NFRule**)uprv_malloc(capacity * sizeof(NFRule*)) : nullptr)
+        : fStuff(capacity ? static_cast<NFRule**>(uprv_malloc(capacity * sizeof(NFRule*))) : nullptr)
         , fCount(0)
         , fCapacity(capacity) {}
     ~NFRuleList() {
@@ -65,7 +65,7 @@ public:
     void add(NFRule* thing) {
         if (fCount == fCapacity) {
             fCapacity += 10;
-            fStuff = (NFRule**)uprv_realloc(fStuff, fCapacity * sizeof(NFRule*)); // assume success
+            fStuff = static_cast<NFRule**>(uprv_realloc(fStuff, fCapacity * sizeof(NFRule*))); // assume success
         }
         if (fStuff != nullptr) {
         	fStuff[fCount++] = thing;

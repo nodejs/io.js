@@ -218,12 +218,12 @@ TEST_F(TracedReferenceTest, NoWriteBarrierOnConstruction) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     auto ref =
         std::make_unique<v8::TracedReference<v8::Object>>(v8_isolate(), local);
     USE(ref);
     EXPECT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 
@@ -241,10 +241,10 @@ TEST_F(TracedReferenceTest, WriteBarrierForOnHeapReset) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     ref->Reset(v8_isolate(), local);
     EXPECT_FALSE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 
@@ -262,10 +262,10 @@ TEST_F(TracedReferenceTest, WriteBarrierForOnStackReset) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     ref.Reset(v8_isolate(), local);
     EXPECT_FALSE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 
@@ -285,11 +285,11 @@ TEST_F(TracedReferenceTest, WriteBarrierOnHeapCopy) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     *ref_to = *ref_from;
     EXPECT_TRUE(!ref_from->IsEmpty());
     EXPECT_FALSE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 
@@ -309,11 +309,11 @@ TEST_F(TracedReferenceTest, WriteBarrierForOnStackCopy) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     ref_to = *ref_from;
     EXPECT_TRUE(!ref_from->IsEmpty());
     EXPECT_FALSE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 
@@ -333,11 +333,11 @@ TEST_F(TracedReferenceTest, WriteBarrierForOnHeapMove) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     *ref_to = std::move(*ref_from);
     ASSERT_TRUE(ref_from->IsEmpty());
     EXPECT_FALSE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 
@@ -357,11 +357,11 @@ TEST_F(TracedReferenceTest, WriteBarrierForOnStackMove) {
     SimulateIncrementalMarking();
     MarkingState state(i_isolate());
     ASSERT_TRUE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
     ref_to = std::move(*ref_from);
     ASSERT_TRUE(ref_from->IsEmpty());
     EXPECT_FALSE(
-        state.IsUnmarked(HeapObject::cast(*Utils::OpenDirectHandle(*local))));
+        state.IsUnmarked(Cast<HeapObject>(*Utils::OpenDirectHandle(*local))));
   }
 }
 

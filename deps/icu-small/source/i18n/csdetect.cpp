@@ -162,7 +162,7 @@ CharsetDetector::CharsetDetector(UErrorCode &status)
         return;
     }
 
-    resultArray = (CharsetMatch **)uprv_malloc(sizeof(CharsetMatch *)*fCSRecognizers_size);
+    resultArray = static_cast<CharsetMatch**>(uprv_malloc(sizeof(CharsetMatch*) * fCSRecognizers_size));
 
     if (resultArray == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
@@ -459,7 +459,7 @@ UEnumeration * CharsetDetector::getAllDetectableCharsets(UErrorCode &status)
         return nullptr;
     }
     uprv_memset(en->context, 0, sizeof(Context));
-    ((Context*)en->context)->all = true;
+    static_cast<Context*>(en->context)->all = true;
     return en;
 }
 
@@ -482,8 +482,8 @@ UEnumeration * CharsetDetector::getDetectableCharsets(UErrorCode &status) const
         return nullptr;
     }
     uprv_memset(en->context, 0, sizeof(Context));
-    ((Context*)en->context)->all = false;
-    ((Context*)en->context)->enabledRecognizers = fEnabledRecognizers;
+    static_cast<Context*>(en->context)->all = false;
+    static_cast<Context*>(en->context)->enabledRecognizers = fEnabledRecognizers;
     return en;
 }
 

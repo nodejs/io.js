@@ -110,7 +110,7 @@ RuleBasedBreakIterator::RuleBasedBreakIterator(const uint8_t *compiledRules,
         status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
     }
-    const RBBIDataHeader *data = (const RBBIDataHeader *)compiledRules;
+    const RBBIDataHeader* data = reinterpret_cast<const RBBIDataHeader*>(compiledRules);
     if (data->fLength > ruleLength) {
         status = U_ILLEGAL_ARGUMENT_ERROR;
         return;
@@ -553,7 +553,7 @@ int32_t RuleBasedBreakIterator::first() {
  * @return The text's past-the-end offset.
  */
 int32_t RuleBasedBreakIterator::last() {
-    int32_t endPos = (int32_t)utext_nativeLength(&fText);
+    int32_t endPos = static_cast<int32_t>(utext_nativeLength(&fText));
     UBool endShouldBeBoundary = isBoundary(endPos);      // Has side effect of setting iterator position.
     (void)endShouldBeBoundary;
     U_ASSERT(endShouldBeBoundary);
@@ -625,7 +625,7 @@ int32_t RuleBasedBreakIterator::following(int32_t startPos) {
     // Move requested offset to a code point start. It might be on a trail surrogate,
     // or on a trail byte if the input is UTF-8. Or it may be beyond the end of the text.
     utext_setNativeIndex(&fText, startPos);
-    startPos = (int32_t)utext_getNativeIndex(&fText);
+    startPos = static_cast<int32_t>(utext_getNativeIndex(&fText));
 
     UErrorCode status = U_ZERO_ERROR;
     fBreakCache->following(startPos, status);
@@ -881,7 +881,7 @@ int32_t RuleBasedBreakIterator::handleNext() {
         if (accepting == ACCEPTING_UNCONDITIONAL) {
             // Match found, common case.
             if (mode != RBBI_START) {
-                result = (int32_t)UTEXT_GETNATIVEINDEX(&fText);
+                result = static_cast<int32_t>(UTEXT_GETNATIVEINDEX(&fText));
             }
             fRuleStatusIndex = row->fTagsIdx;   // Remember the break status (tag) values.
         } else if (accepting > ACCEPTING_UNCONDITIONAL) {
@@ -905,7 +905,7 @@ int32_t RuleBasedBreakIterator::handleNext() {
         U_ASSERT(rule == 0 || rule > ACCEPTING_UNCONDITIONAL);
         U_ASSERT(rule == 0 || rule < fData->fForwardTable->fLookAheadResultsSize);
         if (rule > ACCEPTING_UNCONDITIONAL) {
-            int32_t  pos = (int32_t)UTEXT_GETNATIVEINDEX(&fText);
+            int32_t pos = static_cast<int32_t>(UTEXT_GETNATIVEINDEX(&fText));
             fLookAheadMatches[rule] = pos;
         }
 
@@ -937,7 +937,7 @@ int32_t RuleBasedBreakIterator::handleNext() {
     if (result == initialPosition) {
         utext_setNativeIndex(&fText, initialPosition);
         utext_next32(&fText);
-        result = (int32_t)utext_getNativeIndex(&fText);
+        result = static_cast<int32_t>(utext_getNativeIndex(&fText));
         fRuleStatusIndex = 0;
     }
 
@@ -1027,7 +1027,7 @@ int32_t RuleBasedBreakIterator::handleSafePrevious(int32_t fromPosition) {
     }
 
     // The state machine is done.  Check whether it found a match...
-    result = (int32_t)UTEXT_GETNATIVEINDEX(&fText);
+    result = static_cast<int32_t>(UTEXT_GETNATIVEINDEX(&fText));
     #ifdef RBBI_DEBUG
         if (gTrace) {
             RBBIDebugPrintf("result = %d\n\n", result);
@@ -1091,7 +1091,7 @@ const uint8_t  *RuleBasedBreakIterator::getBinaryRules(uint32_t &length) {
     length = 0;
 
     if (fData != nullptr) {
-        retPtr = (const uint8_t *)fData->fHeader;
+        retPtr = reinterpret_cast<const uint8_t*>(fData->fHeader);
         length = fData->fHeader->fLength;
     }
     return retPtr;
@@ -1187,7 +1187,7 @@ getLanguageBreakEngineFromFactory(UChar32 c, const char* locale)
     int32_t i = gLanguageBreakFactories->size();
     const LanguageBreakEngine *lbe = nullptr;
     while (--i >= 0) {
-        LanguageBreakFactory *factory = (LanguageBreakFactory *)(gLanguageBreakFactories->elementAt(i));
+        LanguageBreakFactory* factory = static_cast<LanguageBreakFactory*>(gLanguageBreakFactories->elementAt(i));
         lbe = factory->getEngineFor(c, locale);
         if (lbe != nullptr) {
             break;
@@ -1219,7 +1219,7 @@ RuleBasedBreakIterator::getLanguageBreakEngine(UChar32 c, const char* locale) {
 
     int32_t i = fLanguageBreakEngines->size();
     while (--i >= 0) {
-        lbe = (const LanguageBreakEngine *)(fLanguageBreakEngines->elementAt(i));
+        lbe = static_cast<const LanguageBreakEngine*>(fLanguageBreakEngines->elementAt(i));
         if (lbe->handles(c, locale)) {
             return lbe;
         }

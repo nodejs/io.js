@@ -1,0 +1,147 @@
+<!DOCTYPE HTML>
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="/common/subset-tests-by-key.js"></script>
+<meta name="variant" content="?include=subframe-scrollTop-smooth"/>
+<meta name="variant" content="?include=subframe-scrollLeft-smooth"/>
+<meta name="variant" content="?include=root-scrollTop-smooth"/>
+<meta name="variant" content="?include=root-scrollLeft-smooth"/>
+<meta name="variant" content="?include=subframe-scrollTop-auto"/>
+<meta name="variant" content="?include=subframe-scrollLeft-auto"/>
+<meta name="variant" content="?include=root-scrollTop-auto"/>
+<meta name="variant" content="?include=root-scrollLeft-auto"/>
+<script src="scroll_support.js"></script>
+<style>
+html {
+  height: 3000px;
+  width: 3000px;
+}
+#targetDiv {
+  width: 200px;
+  height: 200px;
+  overflow: scroll;
+}
+
+#innerDiv {
+  width: 400px;
+  height: 400px;
+}
+</style>
+
+<body style="margin:0" onload=runTest()>
+<div id="targetDiv">
+  <div id="innerDiv">
+  </div>
+</div>
+</body>
+<script>
+var element_scrollend_arrived = false;
+var document_scrollend_arrived = false;
+
+function onElementScrollEnd(event) {
+  assert_false(event.cancelable);
+  assert_false(event.bubbles);
+  element_scrollend_arrived = true;
+}
+
+function onDocumentScrollEnd(event) {
+  assert_false(event.cancelable);
+  // scrollend events are bubbled when the target node is document.
+  assert_true(event.bubbles);
+  document_scrollend_arrived = true;
+}
+
+let scroll_attr_change_variants = [
+  {
+    key: "subframe-scrollTop-smooth",
+    target: targetDiv,
+    behavior: "smooth",
+    attribute: "scrollTop",
+    title: "Tests scrollend event for [scrollTop] behavior:'smooth' on subframe."
+  },
+  {
+    key: "subframe-scrollLeft-smooth",
+    target: targetDiv,
+    behavior: "smooth",
+    attribute: "scrollLeft",
+    title: "Tests scrollend event for [scrollLeft] behavior:'smooth' on subframe."
+  },
+  {
+    key: "root-scrollTop-smooth",
+    target: document.scrollingElement,
+    behavior: "smooth",
+    attribute: "scrollTop",
+    title: "Tests scrollend event for [scrollTop] behavior:'smooth' on root."
+  },
+  {
+    key: "root-scrollLeft-smooth",
+    target: document.scrollingElement,
+    behavior: "smooth",
+    attribute: "scrollLeft",
+    title: "Tests scrollend event for [scrollLeft] behavior:'smooth' on root."
+  },
+  {
+    key: "subframe-scrollTop-auto",
+    target: targetDiv,
+    behavior: "auto",
+    attribute: "scrollTop",
+    title: "Tests scrollend event for [scrollTop] behavior:'auto' on subframe."
+  },
+  {
+    key: "subframe-scrollLeft-auto",
+    target: targetDiv,
+    behavior: "auto",
+    attribute: "scrollLeft",
+    title: "Tests scrollend event for [scrollLeft] behavior:'auto' on subframe."
+  },
+  {
+    key: "root-scrollTop-auto",
+    target: document.scrollingElement,
+    behavior: "auto",
+    attribute: "scrollTop",
+    title: "Tests scrollend event for [scrollTop] behavior:'auto' on root."
+  },
+  {
+    key: "root-scrollLeft-auto",
+    target: document.scrollingElement,
+    behavior: "auto",
+    attribute: "scrollLeft",
+    title: "Tests scrollend event for [scrollLeft] behavior:'auto' on root."
+  },
+];
+
+function runTest() {
+
+  async function testScrollAttrChange(testInfo, t) {
+    targetDiv.addEventListener("scrollend", onElementScrollEnd);
+    document.addEventListener("scrollend", onDocumentScrollEnd);
+
+    testInfo.target.style.scrollBehavior = testInfo.behavior;
+
+    await waitForCompositorCommit();
+
+    testInfo.target[testInfo.attribute] = 200;
+
+    await waitFor(() => {
+      return element_scrollend_arrived || document_scrollend_arrived;
+    }, testInfo.target.tagName + "." + testInfo.attribute + " did not receive scrollend event.");
+
+    if (testInfo.target == document.scrollingElement) {
+      assert_false(element_scrollend_arrived);
+    } else {
+      assert_false(document_scrollend_arrived);
+    }
+    assert_equals(testInfo.target[testInfo.attribute], 200,
+                  testInfo.target.tagName + "." + testInfo.attribute + " " + testInfo.behavior);
+  }
+
+  scroll_attr_change_variants.forEach((testInfo) => {
+    subsetTestByKey(testInfo.key, promise_test,
+                    async (t) => testScrollAttrChange(testInfo, t), testInfo.title);
+  })
+}
+</script>

@@ -346,7 +346,7 @@ const relativeTests2 = [
    'file:///C:/DEV/Haskell/lib/HXmlToolbox-3.01/examples/mini1.xml'],
   ['../b/c', 'foo:a/y/z', 'foo:a/b/c'],
 
-  // changeing auth
+  // changing auth
   ['http://diff:auth@www.example.com',
    'http://asdf:qwer@www.example.com',
    'http://diff:auth@www.example.com/'],

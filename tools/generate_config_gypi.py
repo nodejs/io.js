@@ -8,6 +8,7 @@
 # will be used to populate process.config.variables.
 
 import argparse
+import json
 import re
 import os
 import subprocess
@@ -16,33 +17,9 @@ import sys
 sys.path.append(os.path.dirname(__file__))
 import getnapibuildversion
 
-# The defines bellow must include all things from the external_v8_defines list
-# in v8/BUILD.gn.
-# TODO(zcbenz): Import from v8_features.json once this change gets into Node:
-# https://chromium-review.googlesource.com/c/v8/v8/+/5040612
-V8_FEATURE_DEFINES = {
-  'v8_enable_v8_checks': 'V8_ENABLE_CHECKS',
-  'v8_enable_pointer_compression': 'V8_COMPRESS_POINTERS',
-  'v8_enable_pointer_compression_shared_cage': 'V8_COMPRESS_POINTERS_IN_SHARED_CAGE',
-  'v8_enable_31bit_smis_on_64bit_arch': 'V8_31BIT_SMIS_ON_64BIT_ARCH',
-  'v8_enable_zone_compression': 'V8_COMPRESS_ZONES',
-  'v8_enable_sandbox': 'V8_ENABLE_SANDBOX',
-  'v8_deprecation_warnings': 'V8_DEPRECATION_WARNINGS',
-  'v8_imminent_deprecation_warnings': 'V8_IMMINENT_DEPRECATION_WARNINGS',
-  'v8_use_perfetto': 'V8_USE_PERFETTO',
-  'v8_enable_map_packing': 'V8_MAP_PACKING',
-  'tsan': 'V8_IS_TSAN',
-  'v8_enable_conservative_stack_scanning': 'V8_ENABLE_CONSERVATIVE_STACK_SCANNING',
-  'v8_enable_direct_local': 'V8_ENABLE_DIRECT_LOCAL',
-}
-
 # Regex used for parsing results of "gn args".
 GN_RE = re.compile(r'(\w+)\s+=\s+(.*?)$', re.MULTILINE)
-
-if sys.platform == 'win32':
-  GN = 'gn.exe'
-else:
-  GN = 'gn'
+GN = 'gn.bat' if sys.platform == 'win32' else 'gn'
 
 def bool_to_number(v):
   return 1 if v else 0
@@ -60,15 +37,11 @@ def get_gn_config(out_dir):
   return config
 
 def get_v8_config(out_dir, node_gn_path):
-  # For args that have default values in V8's GN configurations, we can not rely
-  # on the values printed by "gn args", because most of them would be empty
-  # strings, and the actual value would depend on the logics in v8/BUILD.gn.
-  # So we print out the defines and deduce the feature from them instead.
-  node_defines = subprocess.check_output(
-      [GN, 'desc', '-C', out_dir, node_gn_path + ":libnode", 'defines']).decode().split('\n')
-  v8_config = {}
-  for feature, define in V8_FEATURE_DEFINES.items():
-    v8_config[feature] = bool_to_number(define in node_defines)
+  with open(os.path.join(out_dir, 'v8_features.json')) as f:
+    v8_config = json.load(f)
+  for key, value in v8_config.items():
+    if isinstance(value, bool):
+      v8_config[key] = bool_to_number(value)
   return v8_config
 
 def translate_config(out_dir, config, v8_config):
@@ -79,6 +52,7 @@ def translate_config(out_dir, config, v8_config):
     },
     'variables': {
       'asan': bool_string_to_number(config['is_asan']),
+      'clang': bool_to_number(config['is_clang']),
       'enable_lto': config['use_thin_lto'],
       'is_debug': bool_string_to_number(config['is_debug']),
       'llvm_version': 13,
@@ -87,10 +61,9 @@ def translate_config(out_dir, config, v8_config):
           eval(config['node_builtin_shareable_builtins']),
       'node_module_version': int(config['node_module_version']),
       'node_use_openssl': config['node_use_openssl'],
+      'node_use_amaro': config['node_use_amaro'],
       'node_use_node_code_cache': config['node_use_node_code_cache'],
       'node_use_node_snapshot': config['node_use_node_snapshot'],
-      'v8_enable_i18n_support':
-          bool_string_to_number(config['v8_enable_i18n_support']),
       'v8_enable_inspector':  # this is actually a node misnomer
           bool_string_to_number(config['node_enable_inspector']),
       'shlib_suffix': 'dylib' if sys.platform == 'darwin' else 'so',
@@ -105,6 +78,7 @@ def translate_config(out_dir, config, v8_config):
       'node_shared_nghttp3': 'false',
       'node_shared_ngtcp2': 'false',
       'node_shared_openssl': 'false',
+      'node_shared_sqlite': 'false',
       'node_shared_zlib': 'false',
     }
   }

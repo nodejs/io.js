@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -110,4 +110,4 @@ int nghttp3_ringbuf_full(nghttp3_ringbuf *rb);
 
 int nghttp3_ringbuf_reserve(nghttp3_ringbuf *rb, size_t nmemb);
 
-#endif /* NGHTTP3_RINGBUF_H */
+#endif /* !defined(NGHTTP3_RINGBUF_H) */

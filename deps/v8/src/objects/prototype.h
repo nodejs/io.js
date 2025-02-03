@@ -38,7 +38,8 @@ class PrototypeIterator {
   inline explicit PrototypeIterator(Isolate* isolate, Tagged<Map> receiver_map,
                                     WhereToEnd where_to_end = END_AT_NULL);
 
-  inline explicit PrototypeIterator(Isolate* isolate, Handle<Map> receiver_map,
+  inline explicit PrototypeIterator(Isolate* isolate,
+                                    DirectHandle<Map> receiver_map,
                                     WhereToEnd where_to_end = END_AT_NULL);
 
   ~PrototypeIterator() = default;
@@ -50,14 +51,14 @@ class PrototypeIterator {
   template <typename T = HeapObject>
   Tagged<T> GetCurrent() const {
     DCHECK(handle_.is_null());
-    return T::cast(object_);
+    return Cast<T>(object_);
   }
 
   template <typename T = HeapObject>
   static Handle<T> GetCurrent(const PrototypeIterator& iterator) {
     DCHECK(!iterator.handle_.is_null());
     DCHECK_EQ(iterator.object_, Tagged<HeapObject>());
-    return Handle<T>::cast(iterator.handle_);
+    return Cast<T>(iterator.handle_);
   }
 
   inline void Advance();

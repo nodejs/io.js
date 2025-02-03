@@ -60,7 +60,7 @@ class SortState extends HeapObject {
   // uses ToString and a lexicographical compare.
   sortComparePtr: CompareBuiltinFn;
 
-  // The following four function pointer represent a Accessor/Path.
+  // The following four function pointer represent an Accessor/Path.
   // These are used to Load/Store/Delete elements and to check whether
   // to bail to the baseline GenericElementsAccessor.
   loadFn: LoadFn;
@@ -512,7 +512,7 @@ transitioning builtin Copy(
 // elements. This is an advantage since comparisons are more expensive due
 // to calling into JS.
 //
-//  [low, high) is a contiguous range of a array, and is sorted via
+//  [low, high) is a contiguous range of an array, and is sorted via
 // binary insertion. This sort is stable.
 //
 // On entry, must have low <= start <= high, and that [low, start) is

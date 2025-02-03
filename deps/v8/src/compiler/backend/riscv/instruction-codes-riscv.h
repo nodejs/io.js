@@ -12,66 +12,94 @@ namespace compiler {
 // RISC-V-specific opcodes that specify which assembly sequence to emit.
 // Most opcodes specify a single instruction.
 #if V8_TARGET_ARCH_RISCV64
-#define TARGET_ARCH_OPCODE_LIST_SPECAIL(V)  \
-  V(RiscvAdd64)                             \
-  V(RiscvAddOvf64)                          \
-  V(RiscvSub64)                             \
-  V(RiscvSubOvf64)                          \
-  V(RiscvMulHigh64)                         \
-  V(RiscvMulHighU64)                        \
-  V(RiscvMul64)                             \
-  V(RiscvMulOvf64)                          \
-  V(RiscvDiv64)                             \
-  V(RiscvDivU64)                            \
-  V(RiscvMod64)                             \
-  V(RiscvModU64)                            \
-  V(RiscvZeroExtendWord)                    \
-  V(RiscvSignExtendWord)                    \
-  V(RiscvClz64)                             \
-  V(RiscvCtz64)                             \
-  V(RiscvPopcnt64)                          \
-  V(RiscvShl64)                             \
-  V(RiscvShr64)                             \
-  V(RiscvSar64)                             \
-  V(RiscvRor64)                             \
-  V(RiscvFloat64RoundDown)                  \
-  V(RiscvFloat64RoundTruncate)              \
-  V(RiscvFloat64RoundUp)                    \
-  V(RiscvFloat64RoundTiesEven)              \
-  V(RiscvTruncLS)                           \
-  V(RiscvTruncLD)                           \
-  V(RiscvTruncUlS)                          \
-  V(RiscvTruncUlD)                          \
-  V(RiscvCvtSL)                             \
-  V(RiscvCvtSUl)                            \
-  V(RiscvCvtDL)                             \
-  V(RiscvCvtDUl)                            \
-  V(RiscvLd)                                \
-  V(RiscvSd)                                \
-  V(RiscvUsd)                               \
-  V(RiscvLwu)                               \
-  V(RiscvUlwu)                              \
-  V(RiscvBitcastDL)                         \
-  V(RiscvBitcastLD)                         \
-  V(RiscvByteSwap64)                        \
-  V(RiscvWord64AtomicLoadUint64)            \
-  V(RiscvWord64AtomicStoreWord64)           \
-  V(RiscvWord64AtomicAddUint64)             \
-  V(RiscvWord64AtomicSubUint64)             \
-  V(RiscvWord64AtomicAndUint64)             \
-  V(RiscvWord64AtomicOrUint64)              \
-  V(RiscvWord64AtomicXorUint64)             \
-  V(RiscvWord64AtomicExchangeUint64)        \
-  V(RiscvStoreCompressTagged)               \
-  V(RiscvLoadDecompressTaggedSigned)        \
-  V(RiscvLoadDecompressTagged)              \
-  V(RiscvLoadDecodeSandboxedPointer)        \
-  V(RiscvStoreEncodeSandboxedPointer)       \
-  V(RiscvAtomicLoadDecompressTaggedSigned)  \
-  V(RiscvAtomicLoadDecompressTagged)        \
-  V(RiscvAtomicStoreCompressTagged)         \
-  V(RiscvWord64AtomicCompareExchangeUint64) \
-  V(RiscvCmp32)                             \
+// Opcodes that support a MemoryAccessMode.
+#define TARGET_ARCH_OPCODE_WITH_MEMORY_ACCESS_MODE_LIST(V) \
+  V(RiscvLd)                                               \
+  V(RiscvSd)                                               \
+  V(RiscvLwu)                                              \
+  V(RiscvWord64AtomicLoadUint64)                           \
+  V(RiscvWord64AtomicStoreWord64)                          \
+  V(RiscvLb)                                               \
+  V(RiscvLbu)                                              \
+  V(RiscvSb)                                               \
+  V(RiscvLh)                                               \
+  V(RiscvLhu)                                              \
+  V(RiscvSh)                                               \
+  V(RiscvLw)                                               \
+  V(RiscvSw)                                               \
+  V(RiscvLoadDouble)                                       \
+  V(RiscvStoreDouble)                                      \
+  V(RiscvStoreFloat)                                       \
+  V(RiscvLoadFloat)                                        \
+  V(RiscvStoreCompressTagged)                              \
+  V(RiscvLoadDecompressTaggedSigned)                       \
+  V(RiscvLoadDecompressTagged)                             \
+  V(RiscvS128LoadSplat)                                    \
+  V(RiscvS128Load64ExtendS)                                \
+  V(RiscvS128Load64ExtendU)                                \
+  V(RiscvS128Load64Zero)                                   \
+  V(RiscvS128Load32Zero)                                   \
+  V(RiscvS128LoadLane)                                     \
+  V(RiscvS128StoreLane)                                    \
+  V(RiscvRvvLd)                                            \
+  V(RiscvRvvSt)
+
+#define TARGET_ARCH_OPCODE_LIST_SPECAIL(V)           \
+  TARGET_ARCH_OPCODE_WITH_MEMORY_ACCESS_MODE_LIST(V) \
+  V(RiscvAdd64)                                      \
+  V(RiscvAddOvf64)                                   \
+  V(RiscvSub64)                                      \
+  V(RiscvSubOvf64)                                   \
+  V(RiscvMulHigh64)                                  \
+  V(RiscvMulHighU64)                                 \
+  V(RiscvMul64)                                      \
+  V(RiscvMulOvf64)                                   \
+  V(RiscvDiv64)                                      \
+  V(RiscvDivU64)                                     \
+  V(RiscvMod64)                                      \
+  V(RiscvModU64)                                     \
+  V(RiscvZeroExtendWord)                             \
+  V(RiscvSignExtendWord)                             \
+  V(RiscvClz64)                                      \
+  V(RiscvCtz64)                                      \
+  V(RiscvPopcnt64)                                   \
+  V(RiscvShl64)                                      \
+  V(RiscvShr64)                                      \
+  V(RiscvSar64)                                      \
+  V(RiscvRor64)                                      \
+  V(RiscvFloat64RoundDown)                           \
+  V(RiscvFloat64RoundTruncate)                       \
+  V(RiscvFloat64RoundUp)                             \
+  V(RiscvFloat64RoundTiesEven)                       \
+  V(RiscvTruncLS)                                    \
+  V(RiscvTruncLD)                                    \
+  V(RiscvTruncUlS)                                   \
+  V(RiscvTruncUlD)                                   \
+  V(RiscvCvtSL)                                      \
+  V(RiscvCvtSUl)                                     \
+  V(RiscvCvtDL)                                      \
+  V(RiscvCvtDUl)                                     \
+  V(RiscvUsd)                                        \
+  V(RiscvUlwu)                                       \
+  V(RiscvBitcastDL)                                  \
+  V(RiscvBitcastLD)                                  \
+  V(RiscvByteSwap64)                                 \
+  V(RiscvWord64AtomicAddUint64)                      \
+  V(RiscvWord64AtomicSubUint64)                      \
+  V(RiscvWord64AtomicAndUint64)                      \
+  V(RiscvWord64AtomicOrUint64)                       \
+  V(RiscvWord64AtomicXorUint64)                      \
+  V(RiscvWord64AtomicExchangeUint64)                 \
+  V(RiscvLoadDecodeSandboxedPointer)                 \
+  V(RiscvStoreEncodeSandboxedPointer)                \
+  V(RiscvStoreIndirectPointer)                       \
+  V(RiscvAtomicLoadDecompressTaggedSigned)           \
+  V(RiscvAtomicLoadDecompressTagged)                 \
+  V(RiscvLoadDecompressProtected)                    \
+  V(RiscvAtomicStoreCompressTagged)                  \
+  V(RiscvWord64AtomicCompareExchangeUint64)          \
+  V(RiscvCmp32)                                      \
+  V(RiscvCmpZero32)                                  \
   V(RiscvTst64)
 #elif V8_TARGET_ARCH_RISCV32
 #define TARGET_ARCH_OPCODE_LIST_SPECAIL(V) \
@@ -94,7 +122,28 @@ namespace compiler {
   V(RiscvWord32AtomicPairOr)               \
   V(RiscvWord32AtomicPairXor)              \
   V(RiscvWord32AtomicPairExchange)         \
-  V(RiscvWord32AtomicPairCompareExchange)
+  V(RiscvWord32AtomicPairCompareExchange)  \
+  V(RiscvLb)                               \
+  V(RiscvLbu)                              \
+  V(RiscvSb)                               \
+  V(RiscvLh)                               \
+  V(RiscvLhu)                              \
+  V(RiscvSh)                               \
+  V(RiscvLw)                               \
+  V(RiscvSw)                               \
+  V(RiscvLoadDouble)                       \
+  V(RiscvStoreDouble)                      \
+  V(RiscvStoreFloat)                       \
+  V(RiscvLoadFloat)                        \
+  V(RiscvS128LoadSplat)                    \
+  V(RiscvS128Load64ExtendS)                \
+  V(RiscvS128Load64ExtendU)                \
+  V(RiscvS128Load64Zero)                   \
+  V(RiscvS128Load32Zero)                   \
+  V(RiscvS128LoadLane)                     \
+  V(RiscvS128StoreLane)                    \
+  V(RiscvRvvLd)                            \
+  V(RiscvRvvSt)
 #endif
 
 #define TARGET_ARCH_OPCODE_LIST_COMMON(V) \
@@ -112,8 +161,6 @@ namespace compiler {
   V(RiscvAnd32)                           \
   V(RiscvOr)                              \
   V(RiscvOr32)                            \
-  V(RiscvNor)                             \
-  V(RiscvNor32)                           \
   V(RiscvXor)                             \
   V(RiscvXor32)                           \
   V(RiscvClz32)                           \
@@ -169,27 +216,15 @@ namespace compiler {
   V(RiscvCvtSW)                           \
   V(RiscvCvtSUw)                          \
   V(RiscvCvtDUw)                          \
-  V(RiscvLb)                              \
-  V(RiscvLbu)                             \
-  V(RiscvSb)                              \
-  V(RiscvLh)                              \
   V(RiscvUlh)                             \
-  V(RiscvLhu)                             \
   V(RiscvUlhu)                            \
-  V(RiscvSh)                              \
   V(RiscvUsh)                             \
   V(RiscvUld)                             \
-  V(RiscvLw)                              \
   V(RiscvUlw)                             \
-  V(RiscvSw)                              \
   V(RiscvUsw)                             \
-  V(RiscvLoadFloat)                       \
-  V(RiscvULoadFloat)                      \
-  V(RiscvStoreFloat)                      \
   V(RiscvUStoreFloat)                     \
-  V(RiscvLoadDouble)                      \
+  V(RiscvULoadFloat)                      \
   V(RiscvULoadDouble)                     \
-  V(RiscvStoreDouble)                     \
   V(RiscvUStoreDouble)                    \
   V(RiscvBitcastInt32ToFloat32)           \
   V(RiscvBitcastFloat32ToInt32)           \
@@ -280,17 +315,8 @@ namespace compiler {
   V(RiscvI8x16Popcnt)                     \
   V(RiscvVnot)                            \
   V(RiscvS128Select)                      \
-  V(RiscvS128Load64Zero)                  \
-  V(RiscvS128Load32Zero)                  \
   V(RiscvV128AnyTrue)                     \
   V(RiscvI8x16Shuffle)                    \
-  V(RiscvS128LoadSplat)                   \
-  V(RiscvS128Load64ExtendS)               \
-  V(RiscvS128Load64ExtendU)               \
-  V(RiscvS128LoadLane)                    \
-  V(RiscvS128StoreLane)                   \
-  V(RiscvRvvLd)                           \
-  V(RiscvRvvSt)                           \
   V(RiscvVmv)                             \
   V(RiscvVandVv)                          \
   V(RiscvVnotVv)                          \
@@ -349,7 +375,6 @@ namespace compiler {
   V(RiscvVzextVf2)                        \
   V(RiscvVsextVf2)
 
-#ifdef CAN_USE_ZBB_INSTRUCTIONS
 #define TARGET_ARCH_OPCODE_LIST_ZBB(V) \
   V(RiscvAndn)                         \
   V(RiscvOrn)                          \
@@ -375,13 +400,6 @@ namespace compiler {
 #define TARGET_ARCH_OPCODE_LIST_ZBB_32(V)
 #endif
 
-#else
-#define TARGET_ARCH_OPCODE_LIST_ZBB(V)
-
-#define TARGET_ARCH_OPCODE_LIST_ZBB_32(V)
-#endif
-
-#ifdef CAN_USE_ZBA_INSTRUCTIONS
 #define TARGET_ARCH_OPCODE_LIST_ZBA(V) \
   V(RiscvSh1add)                       \
   V(RiscvSh2add)                       \
@@ -397,12 +415,7 @@ namespace compiler {
 #else
 #define TARGET_ARCH_OPCODE_LIST_ZBA_32(V)
 #endif
-#else
-#define TARGET_ARCH_OPCODE_LIST_ZBA(V)
-#define TARGET_ARCH_OPCODE_LIST_ZBA_32(V)
-#endif
 
-#ifdef CAN_USE_ZBS_INSTRUCTIONS
 #define TARGET_ARCH_OPCODE_LIST_ZBS(V) \
   V(RiscvBclr)                         \
   V(RiscvBclri)                        \
@@ -412,9 +425,6 @@ namespace compiler {
   V(RiscvBinvi)                        \
   V(RiscvBset)                         \
   V(RiscvBseti)
-#else
-#define TARGET_ARCH_OPCODE_LIST_ZBS(V)
-#endif
 
 #define TARGET_ARCH_OPCODE_LIST(V)   \
   TARGET_ARCH_OPCODE_LIST_COMMON(V)  \

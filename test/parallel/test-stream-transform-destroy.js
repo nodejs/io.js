@@ -141,3 +141,14 @@ const assert = require('assert');
 
   transform.destroy();
 }
+
+{
+  const transform = new Transform({
+    transform(chunk, enc, cb) {}
+  });
+  transform.on('error', common.mustCall((err) => {
+    assert.strictEqual(err.name, 'AbortError');
+  }));
+  transform.on('close', common.mustCall());
+  transform[Symbol.asyncDispose]().then(common.mustCall());
+}

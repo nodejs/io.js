@@ -47,10 +47,10 @@ function spawnProcess(script, bench, state) {
 
 function main({ count, script, nFiles, prefixPath }) {
   script = path.resolve(__dirname, '../../', `${script}.js`);
-  const files = mockFiles(nFiles, prefixPath).join(',');
   const optionsWithScript = [
-    '--experimental-permission',
-    `--allow-fs-read=${files},${script}`,
+    '--permission',
+    `--allow-fs-read=${script}`,
+    ...mockFiles(nFiles, prefixPath).map((file) => '--allow-fs-read=' + file),
     script,
   ];
   const warmup = 3;

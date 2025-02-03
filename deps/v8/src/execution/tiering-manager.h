@@ -28,7 +28,7 @@ class TieringManager {
  public:
   explicit TieringManager(Isolate* isolate) : isolate_(isolate) {}
 
-  void OnInterruptTick(Handle<JSFunction> function, CodeKind code_kind);
+  void OnInterruptTick(DirectHandle<JSFunction> function, CodeKind code_kind);
 
   void NotifyICChanged(Tagged<FeedbackVector> vector);
 
@@ -38,7 +38,7 @@ class TieringManager {
   // For use when a JSFunction is available.
   static int InterruptBudgetFor(
       Isolate* isolate, Tagged<JSFunction> function,
-      base::Optional<CodeKind> override_active_tier = {});
+      std::optional<CodeKind> override_active_tier = {});
 
   void MarkForTurboFanOptimization(Tagged<JSFunction> function);
 

@@ -3,7 +3,7 @@ const common = require('../common');
 const assert = require('assert');
 const { MessageChannel } = require('worker_threads');
 
-// Test that passing duplicate transferrables in the transfer list throws
+// Test that passing duplicate transferables in the transfer list throws
 // DataCloneError exceptions.
 
 {

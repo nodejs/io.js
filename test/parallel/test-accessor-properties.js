@@ -1,21 +1,21 @@
-// Flags: --expose-internals
+// Flags: --expose-internals --no-warnings
 'use strict';
 
-const common = require('../common');
+const { hasCrypto } = require('../common');
 
 // This tests that the accessor properties do not raise assertions
 // when called with incompatible receivers.
 
 const assert = require('assert');
+const { test } = require('node:test');
 
 // Objects that call StreamBase::AddMethods, when setting up
 // their prototype
 const { internalBinding } = require('internal/test/binding');
-const TTY = internalBinding('tty_wrap').TTY;
-const UDP = internalBinding('udp_wrap').UDP;
+const { TTY } = internalBinding('tty_wrap');
+const { UDP } = internalBinding('udp_wrap');
 
-{
-  // Should throw instead of raise assertions
+test('Should throw instead of raise assertions', () => {
   assert.throws(() => {
     UDP.prototype.fd; // eslint-disable-line no-unused-expressions
   }, TypeError);
@@ -36,20 +36,20 @@ const UDP = internalBinding('udp_wrap').UDP;
       'typeof property descriptor ' + property + ' is not \'object\''
     );
   });
+});
 
-  if (common.hasCrypto) { // eslint-disable-line node-core/crypto-check
-    // There are accessor properties in crypto too
-    const crypto = internalBinding('crypto');
+test('There are accessor properties in crypto too', { skip: !hasCrypto }, () => {
+  // There are accessor properties in crypto too
+  const crypto = internalBinding('crypto');  // eslint-disable-line node-core/crypto-check
 
-    assert.throws(() => {
-      // eslint-disable-next-line no-unused-expressions
-      crypto.SecureContext.prototype._external;
-    }, TypeError);
+  assert.throws(() => {
+    // eslint-disable-next-line no-unused-expressions
+    crypto.SecureContext.prototype._external;
+  }, TypeError);
 
-    assert.strictEqual(
-      typeof Object.getOwnPropertyDescriptor(
-        crypto.SecureContext.prototype, '_external'),
-      'object'
-    );
-  }
-}
+  assert.strictEqual(
+    typeof Object.getOwnPropertyDescriptor(
+      crypto.SecureContext.prototype, '_external'),
+    'object'
+  );
+});

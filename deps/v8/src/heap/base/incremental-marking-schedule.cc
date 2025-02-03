@@ -4,7 +4,10 @@
 
 #include "src/heap/base/incremental-marking-schedule.h"
 
+#include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <memory>
 
 #include "src/base/platform/time.h"
 
@@ -79,7 +82,7 @@ v8::base::TimeDelta IncrementalMarkingSchedule::GetElapsedTime() {
   return v8::base::TimeTicks::Now() - incremental_marking_start_time_;
 }
 
-const IncrementalMarkingSchedule::StepInfo
+IncrementalMarkingSchedule::StepInfo
 IncrementalMarkingSchedule::GetCurrentStepInfo() const {
   return current_step_;
 }

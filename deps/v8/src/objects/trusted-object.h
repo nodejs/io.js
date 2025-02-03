@@ -32,7 +32,6 @@ namespace internal {
 // referenced via indirect pointers, which guarantee memory-safe access.
 class TrustedObject : public HeapObject {
  public:
-  DECL_CAST(TrustedObject)
   DECL_VERIFIER(TrustedObject)
 
   // Protected pointers.
@@ -44,17 +43,23 @@ class TrustedObject : public HeapObject {
   // such, the slot accessors for these slots only exist on TrustedObjects but
   // not on other HeapObjects.
   inline Tagged<TrustedObject> ReadProtectedPointerField(int offset) const;
-  inline Tagged<TrustedObject> ReadProtectedPointerField(
-      int offset, AcquireLoadTag tag) const;
+  inline Tagged<TrustedObject> ReadProtectedPointerField(int offset,
+                                                         AcquireLoadTag) const;
   inline void WriteProtectedPointerField(int offset,
                                          Tagged<TrustedObject> value);
   inline void WriteProtectedPointerField(int offset,
                                          Tagged<TrustedObject> value,
-                                         ReleaseStoreTag tag);
-  inline bool IsProtectedPointerFieldCleared(int offset) const;
+                                         ReleaseStoreTag);
+  inline bool IsProtectedPointerFieldEmpty(int offset) const;
+  inline bool IsProtectedPointerFieldEmpty(int offset, AcquireLoadTag) const;
   inline void ClearProtectedPointerField(int offset);
+  inline void ClearProtectedPointerField(int offset, ReleaseStoreTag);
 
   inline ProtectedPointerSlot RawProtectedPointerField(int byte_offset) const;
+
+#ifdef VERIFY_HEAP
+  inline void VerifyProtectedPointerField(Isolate* isolate, int offset);
+#endif
 
   static constexpr int kHeaderSize = HeapObject::kHeaderSize;
 
@@ -104,7 +109,6 @@ class ExposedTrustedObject : public TrustedObject {
   // which this object can be referenced from inside the sandbox.
   inline IndirectPointerHandle self_indirect_pointer_handle() const;
 
-  DECL_CAST(ExposedTrustedObject)
   DECL_VERIFIER(ExposedTrustedObject)
 
 #ifdef V8_ENABLE_SANDBOX

@@ -23,11 +23,15 @@
 const common = require('../common');
 const fixtures = require('../common/fixtures');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('missing openssl-cli');
+}
 
 const assert = require('assert');
 const tls = require('tls');
@@ -49,10 +53,10 @@ const server = tls.createServer(options, common.mustCall(function(conn) {
 }));
 
 server.listen(0, '127.0.0.1', common.mustCall(function() {
-  const cmd = `"${common.opensslCli}" s_client -cipher ${
+  const cmd = common.escapePOSIXShell`"${opensslCli}" s_client -cipher ${
     options.ciphers} -connect 127.0.0.1:${this.address().port}`;
 
-  exec(cmd, common.mustSucceed((stdout, stderr) => {
+  exec(...cmd, common.mustSucceed((stdout, stderr) => {
     assert(stdout.includes(reply));
     server.close();
   }));

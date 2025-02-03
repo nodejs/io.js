@@ -14,7 +14,7 @@ namespace internal {
 class MathRandom : public AllStatic {
  public:
   static void InitializeContext(Isolate* isolate,
-                                Handle<Context> native_context);
+                                DirectHandle<Context> native_context);
 
   static void ResetContext(Tagged<Context> native_context);
   // Takes native context as a raw Address for ExternalReference usage.

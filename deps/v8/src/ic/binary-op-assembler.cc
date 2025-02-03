@@ -5,9 +5,13 @@
 #include "src/ic/binary-op-assembler.h"
 
 #include "src/common/globals.h"
+#include "src/execution/protectors.h"
+#include "src/objects/property-cell.h"
 
 namespace v8 {
 namespace internal {
+
+#include "src/codegen/define-code-stub-assembler-macros.inc"
 
 namespace {
 
@@ -182,12 +186,14 @@ TNode<Object> BinaryOpAssembler::Generate_AddWithFeedback(
 
       BIND(&lhs_is_string);
       {
+        Label lhs_is_string_rhs_is_not_string(this);
+
         TNode<Uint16T> rhs_instance_type = LoadInstanceType(rhs_heap_object);
 
-        // Exit unless {rhs} is a string. Since {lhs} is a string we no longer
-        // need an Oddball check.
+        // Fast path where both {lhs} and {rhs} are strings. Since {lhs} is a
+        // string we no longer need an Oddball check.
         GotoIfNot(IsStringInstanceType(rhs_instance_type),
-                  &call_with_any_feedback);
+                  &lhs_is_string_rhs_is_not_string);
 
         var_type_feedback = SmiConstant(BinaryOperationFeedback::kString);
         UpdateFeedback(var_type_feedback.value(), maybe_feedback_vector(),
@@ -196,9 +202,33 @@ TNode<Object> BinaryOpAssembler::Generate_AddWithFeedback(
             CallBuiltin(Builtin::kStringAdd_CheckNone, context(), lhs, rhs);
 
         Goto(&end);
+
+        BIND(&lhs_is_string_rhs_is_not_string);
+
+        GotoIfNot(IsStringWrapper(rhs_heap_object), &call_with_any_feedback);
+
+        // lhs is a string and rhs is a string wrapper.
+
+        TNode<PropertyCell> to_primitive_protector =
+            StringWrapperToPrimitiveProtectorConstant();
+        GotoIf(TaggedEqual(LoadObjectField(to_primitive_protector,
+                                           PropertyCell::kValueOffset),
+                           SmiConstant(Protectors::kProtectorInvalid)),
+               &call_with_any_feedback);
+
+        var_type_feedback =
+            SmiConstant(BinaryOperationFeedback::kStringOrStringWrapper);
+        UpdateFeedback(var_type_feedback.value(), maybe_feedback_vector(),
+                       slot_id, update_feedback_mode);
+        TNode<String> rhs_string =
+            CAST(LoadJSPrimitiveWrapperValue(CAST(rhs_heap_object)));
+        var_result = CallBuiltin(Builtin::kStringAdd_CheckNone, context(), lhs,
+                                 rhs_string);
+        Goto(&end);
       }
     }
   }
+  // TODO(v8:12199): Support "string wrapper + string" concatenation too.
 
   BIND(&check_rhsisoddball);
   {
@@ -596,8 +626,8 @@ TNode<Object> BinaryOpAssembler::Generate_BinaryOperationWithFeedback(
       }
       case Operation::kExponentiate: {
         // TODO(panq): replace the runtime with builtin once it is implemented.
-        var_result = CallRuntime(Runtime::kBigIntBinaryOp, context(), lhs, rhs,
-                                 SmiConstant(op));
+        var_result =
+            CallRuntime(Runtime::kBigIntExponentiate, context(), lhs, rhs);
         Goto(&end);
         break;
       }
@@ -648,8 +678,8 @@ TNode<Object> BinaryOpAssembler::Generate_SubtractWithFeedback(
     const LazyNode<Context>& context, TNode<Object> lhs, TNode<Object> rhs,
     TNode<UintPtrT> slot_id, const LazyNode<HeapObject>& maybe_feedback_vector,
     UpdateFeedbackMode update_feedback_mode, bool rhs_known_smi) {
-  auto smiFunction = [=](TNode<Smi> lhs, TNode<Smi> rhs,
-                         TVariable<Smi>* var_type_feedback) {
+  auto smiFunction = [=, this](TNode<Smi> lhs, TNode<Smi> rhs,
+                               TVariable<Smi>* var_type_feedback) {
     Label end(this);
     TVARIABLE(Number, var_result);
     // If rhs is known to be an Smi (for SubSmi) we want to fast path Smi
@@ -672,7 +702,7 @@ TNode<Object> BinaryOpAssembler::Generate_SubtractWithFeedback(
     BIND(&end);
     return var_result.value();
   };
-  auto floatFunction = [=](TNode<Float64T> lhs, TNode<Float64T> rhs) {
+  auto floatFunction = [=, this](TNode<Float64T> lhs, TNode<Float64T> rhs) {
     return Float64Sub(lhs, rhs);
   };
   return Generate_BinaryOperationWithFeedback(
@@ -684,15 +714,15 @@ TNode<Object> BinaryOpAssembler::Generate_MultiplyWithFeedback(
     const LazyNode<Context>& context, TNode<Object> lhs, TNode<Object> rhs,
     TNode<UintPtrT> slot_id, const LazyNode<HeapObject>& maybe_feedback_vector,
     UpdateFeedbackMode update_feedback_mode, bool rhs_known_smi) {
-  auto smiFunction = [=](TNode<Smi> lhs, TNode<Smi> rhs,
-                         TVariable<Smi>* var_type_feedback) {
+  auto smiFunction = [=, this](TNode<Smi> lhs, TNode<Smi> rhs,
+                               TVariable<Smi>* var_type_feedback) {
     TNode<Number> result = SmiMul(lhs, rhs);
     *var_type_feedback = SelectSmiConstant(
         TaggedIsSmi(result), BinaryOperationFeedback::kSignedSmall,
         BinaryOperationFeedback::kNumber);
     return result;
   };
-  auto floatFunction = [=](TNode<Float64T> lhs, TNode<Float64T> rhs) {
+  auto floatFunction = [=, this](TNode<Float64T> lhs, TNode<Float64T> rhs) {
     return Float64Mul(lhs, rhs);
   };
   return Generate_BinaryOperationWithFeedback(
@@ -705,8 +735,8 @@ TNode<Object> BinaryOpAssembler::Generate_DivideWithFeedback(
     TNode<Object> divisor, TNode<UintPtrT> slot_id,
     const LazyNode<HeapObject>& maybe_feedback_vector,
     UpdateFeedbackMode update_feedback_mode, bool rhs_known_smi) {
-  auto smiFunction = [=](TNode<Smi> lhs, TNode<Smi> rhs,
-                         TVariable<Smi>* var_type_feedback) {
+  auto smiFunction = [=, this](TNode<Smi> lhs, TNode<Smi> rhs,
+                               TVariable<Smi>* var_type_feedback) {
     TVARIABLE(Object, var_result);
     // If rhs is known to be an Smi (for DivSmi) we want to fast path Smi
     // operation. For the normal Div operation, we want to fast path both
@@ -729,7 +759,7 @@ TNode<Object> BinaryOpAssembler::Generate_DivideWithFeedback(
     BIND(&end);
     return var_result.value();
   };
-  auto floatFunction = [=](TNode<Float64T> lhs, TNode<Float64T> rhs) {
+  auto floatFunction = [=, this](TNode<Float64T> lhs, TNode<Float64T> rhs) {
     return Float64Div(lhs, rhs);
   };
   return Generate_BinaryOperationWithFeedback(
@@ -742,15 +772,15 @@ TNode<Object> BinaryOpAssembler::Generate_ModulusWithFeedback(
     TNode<Object> divisor, TNode<UintPtrT> slot_id,
     const LazyNode<HeapObject>& maybe_feedback_vector,
     UpdateFeedbackMode update_feedback_mode, bool rhs_known_smi) {
-  auto smiFunction = [=](TNode<Smi> lhs, TNode<Smi> rhs,
-                         TVariable<Smi>* var_type_feedback) {
+  auto smiFunction = [=, this](TNode<Smi> lhs, TNode<Smi> rhs,
+                               TVariable<Smi>* var_type_feedback) {
     TNode<Number> result = SmiMod(lhs, rhs);
     *var_type_feedback = SelectSmiConstant(
         TaggedIsSmi(result), BinaryOperationFeedback::kSignedSmall,
         BinaryOperationFeedback::kNumber);
     return result;
   };
-  auto floatFunction = [=](TNode<Float64T> lhs, TNode<Float64T> rhs) {
+  auto floatFunction = [=, this](TNode<Float64T> lhs, TNode<Float64T> rhs) {
     return Float64Mod(lhs, rhs);
   };
   return Generate_BinaryOperationWithFeedback(
@@ -763,13 +793,14 @@ TNode<Object> BinaryOpAssembler::Generate_ExponentiateWithFeedback(
     TNode<Object> exponent, TNode<UintPtrT> slot_id,
     const LazyNode<HeapObject>& maybe_feedback_vector,
     UpdateFeedbackMode update_feedback_mode, bool rhs_known_smi) {
-  auto smiFunction = [=](TNode<Smi> base, TNode<Smi> exponent,
-                         TVariable<Smi>* var_type_feedback) {
+  auto smiFunction = [=, this](TNode<Smi> base, TNode<Smi> exponent,
+                               TVariable<Smi>* var_type_feedback) {
     *var_type_feedback = SmiConstant(BinaryOperationFeedback::kNumber);
     return AllocateHeapNumberWithValue(
         Float64Pow(SmiToFloat64(base), SmiToFloat64(exponent)));
   };
-  auto floatFunction = [=](TNode<Float64T> base, TNode<Float64T> exponent) {
+  auto floatFunction = [=, this](TNode<Float64T> base,
+                                 TNode<Float64T> exponent) {
     return Float64Pow(base, exponent);
   };
   return Generate_BinaryOperationWithFeedback(
@@ -1088,6 +1119,8 @@ BinaryOpAssembler::Generate_BitwiseBinaryOpWithSmiOperandAndOptionalFeedback(
   }
   return result.value();
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

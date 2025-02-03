@@ -42,6 +42,8 @@ class D8Console : public debug::ConsoleDelegate {
                   const v8::debug::ConsoleContext& context) override;
   void Time(const debug::ConsoleCallArguments& args,
             const v8::debug::ConsoleContext&) override;
+  void TimeLog(const debug::ConsoleCallArguments& args,
+               const v8::debug::ConsoleContext&) override;
   void TimeEnd(const debug::ConsoleCallArguments& args,
                const v8::debug::ConsoleContext&) override;
   void TimeStamp(const debug::ConsoleCallArguments& args,
@@ -50,8 +52,13 @@ class D8Console : public debug::ConsoleDelegate {
              const v8::debug::ConsoleContext&) override;
 
   Isolate* isolate_;
+  // Start times for the named timers created with console.time('foo') calls.
+  // Calling console.time() and console.timeEnd() without an explicit timer
+  // name will use the 'default' timer (similar to what the browser does).
+  // See https://console.spec.whatwg.org/#timer-table for the specification.
   std::map<std::string, base::TimeTicks> timers_;
-  base::TimeTicks default_timer_;
+  // Origin for the timer used by console.timeStamp() calls.
+  base::TimeTicks origin_;
   CpuProfiler* profiler_{nullptr};
   bool profiler_active_{false};
 };

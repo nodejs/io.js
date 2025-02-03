@@ -9,9 +9,9 @@ builder.addFunction("testFailNull", makeSig([], [kWasmAnyRef]))
 .exportFunc()
 .addBody([
   kExprRefNull, kAnyRefCode,
-  kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, kAnyRefCode, kStructRefCode,
-  kGCPrefix, kExprBrOnCastFailGeneric, 0b11, 0, kAnyRefCode, kNullRefCode,
-  kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, kAnyRefCode, kStructRefCode,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
+  kGCPrefix, kExprBrOnCastFail, 0b11, 0, kAnyRefCode, kNullRefCode,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
   kExprUnreachable,
 ]);
 
@@ -19,9 +19,9 @@ builder.addFunction("testNull", makeSig([], [kWasmAnyRef]))
 .exportFunc()
 .addBody([
   kExprRefNull, kAnyRefCode,
-  kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, kAnyRefCode, kStructRefCode,
-  kGCPrefix, kExprBrOnCastGeneric, 0b11, 0, kAnyRefCode, kNullRefCode,
-  kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, kAnyRefCode, kStructRefCode,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
+  kGCPrefix, kExprBrOnCast, 0b11, 0, kAnyRefCode, kNullRefCode,
+  kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kStructRefCode,
   kExprUnreachable,
 ]);
 

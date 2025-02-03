@@ -418,7 +418,7 @@ ucol_open(const char *loc, UErrorCode *status);
  * Produce a UCollator instance according to the rules supplied.
  * The rules are used to change the default ordering, defined in the
  * UCA in a process called tailoring. The resulting UCollator pointer
- * can be used in the same way as the one obtained by {@link #ucol_strcoll }.
+ * can be used in the same way as the one obtained by {@link #ucol_open }.
  * @param rules A string describing the collation rules. For the syntax
  *              of the rules please see users guide.
  * @param rulesLength The length of rules, or -1 if null-terminated.
@@ -1519,6 +1519,130 @@ ucol_openBinary(const uint8_t *bin, int32_t length,
                 const UCollator *base, 
                 UErrorCode *status);
 
+#if U_SHOW_CPLUSPLUS_API || U_SHOW_CPLUSPLUS_HEADER_API
+
+#include <functional>
+#include <string_view>
+#include <type_traits>
+
+#include "unicode/char16ptr.h"
+#include "unicode/stringpiece.h"
+#include "unicode/unistr.h"
+
+namespace U_HEADER_ONLY_NAMESPACE {
+
+#ifndef U_HIDE_DRAFT_API
+
+namespace collator {
+
+namespace internal {
+
+/**
+ * Function object for performing comparisons using a UCollator.
+ * @internal
+ */
+template <template <typename...> typename Compare, UCollationResult result>
+class Predicate {
+  public:
+    /** @internal */
+    explicit Predicate(const UCollator* ucol) : collator(ucol) {}
+
+    /** @internal */
+    template <
+        typename T, typename U,
+        typename = std::enable_if_t<ConvertibleToU16StringView<T> && ConvertibleToU16StringView<U>>>
+    bool operator()(const T& lhs, const U& rhs) const {
+        return match(UnicodeString::readOnlyAlias(lhs), UnicodeString::readOnlyAlias(rhs));
+    }
+
+    /** @internal */
+    bool operator()(std::string_view lhs, std::string_view rhs) const {
+        return match(lhs, rhs);
+    }
+
+#if defined(__cpp_char8_t)
+    /** @internal */
+    bool operator()(std::u8string_view lhs, std::u8string_view rhs) const {
+        return match(lhs, rhs);
+    }
+#endif
+
+  private:
+    bool match(UnicodeString lhs, UnicodeString rhs) const {
+        return compare(
+            ucol_strcoll(
+                collator,
+                toUCharPtr(lhs.getBuffer()), lhs.length(),
+                toUCharPtr(rhs.getBuffer()), rhs.length()),
+            result);
+    }
+
+    bool match(StringPiece lhs, StringPiece rhs) const {
+        UErrorCode status = U_ZERO_ERROR;
+        return compare(
+            ucol_strcollUTF8(
+                collator,
+                lhs.data(), lhs.length(),
+                rhs.data(), rhs.length(),
+                &status),
+            result);
+    }
+
+    const UCollator* const collator;
+    static constexpr Compare<UCollationResult> compare{};
+};
+
+}  // namespace internal
+
+/**
+ * Function object for performing comparisons using this collator.
+ * Like <code>std::equal_to</code> but uses the collator instead of <code>operator==</code>.
+ * @draft ICU 76
+ */
+using equal_to = internal::Predicate<std::equal_to, UCOL_EQUAL>;
+
+/**
+ * Function object for performing comparisons using this collator.
+ * Like <code>std::greater</code> but uses the collator instead of <code>operator&gt;</code>.
+ * @draft ICU 76
+ */
+using greater = internal::Predicate<std::equal_to, UCOL_GREATER>;
+
+/**
+ * Function object for performing comparisons using this collator.
+ * Like <code>std::less</code> but uses the collator instead of <code>operator&lt;</code>.
+ * @draft ICU 76
+ */
+using less = internal::Predicate<std::equal_to, UCOL_LESS>;
+
+/**
+ * Function object for performing comparisons using this collator.
+ * Like <code>std::not_equal_to</code> but uses the collator instead of <code>operator!=</code>.
+ * @draft ICU 76
+ */
+using not_equal_to = internal::Predicate<std::not_equal_to, UCOL_EQUAL>;
+
+/**
+ * Function object for performing comparisons using this collator.
+ * Like <code>std::greater_equal</code> but uses the collator instead of <code>operator&gt;=</code>.
+ * @draft ICU 76
+ */
+using greater_equal = internal::Predicate<std::not_equal_to, UCOL_LESS>;
+
+/**
+ * Function object for performing comparisons using this collator.
+ * Like <code>std::less_equal</code> but uses the collator instead of <code>operator&lt;=</code>.
+ * @draft ICU 76
+ */
+using less_equal = internal::Predicate<std::not_equal_to, UCOL_GREATER>;
+
+}  // namespace collator
+
+#endif  // U_HIDE_DRAFT_API
+
+}  // namespace U_HEADER_ONLY_NAMESPACE
+
+#endif  // U_SHOW_CPLUSPLUS_API || U_SHOW_CPLUSPLUS_HEADER_API
 
 #endif /* #if !UCONFIG_NO_COLLATION */
 

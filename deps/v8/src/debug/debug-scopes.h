@@ -51,7 +51,7 @@ class V8_EXPORT_PRIVATE ScopeIterator {
   ScopeIterator(Isolate* isolate, FrameInspector* frame_inspector,
                 ReparseStrategy strategy);
 
-  ScopeIterator(Isolate* isolate, Handle<JSFunction> function);
+  ScopeIterator(Isolate* isolate, DirectHandle<JSFunction> function);
   ScopeIterator(Isolate* isolate, Handle<JSGeneratorObject> generator);
   ~ScopeIterator();
 
@@ -160,15 +160,15 @@ class V8_EXPORT_PRIVATE ScopeIterator {
   Handle<JSObject> WithContextExtension();
 
   bool SetLocalVariableValue(Handle<String> variable_name,
-                             Handle<Object> new_value);
+                             DirectHandle<Object> new_value);
   bool SetContextVariableValue(Handle<String> variable_name,
-                               Handle<Object> new_value);
+                               DirectHandle<Object> new_value);
   bool SetContextExtensionValue(Handle<String> variable_name,
                                 Handle<Object> new_value);
   bool SetScriptVariableValue(Handle<String> variable_name,
-                              Handle<Object> new_value);
-  bool SetModuleVariableValue(Handle<String> variable_name,
-                              Handle<Object> new_value);
+                              DirectHandle<Object> new_value);
+  bool SetModuleVariableValue(DirectHandle<String> variable_name,
+                              DirectHandle<Object> new_value);
 
   // Helper functions.
   void VisitScope(const Visitor& visitor, Mode mode) const;
@@ -179,7 +179,8 @@ class V8_EXPORT_PRIVATE ScopeIterator {
   bool VisitLocals(const Visitor& visitor, Mode mode,
                    ScopeType scope_type) const;
   bool VisitContextLocals(const Visitor& visitor, Handle<ScopeInfo> scope_info,
-                          Handle<Context> context, ScopeType scope_type) const;
+                          DirectHandle<Context> context,
+                          ScopeType scope_type) const;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ScopeIterator);
 };

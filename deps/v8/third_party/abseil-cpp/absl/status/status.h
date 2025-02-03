@@ -456,7 +456,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI Status final {
 
   // The moved-from state is valid but unspecified.
   Status(Status&&) noexcept;
-  Status& operator=(Status&&);
+  Status& operator=(Status&&) noexcept;
 
   ~Status();
 
@@ -543,7 +543,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI Status final {
   // swap()
   //
   // Swap the contents of one status with another.
-  friend void swap(Status& a, Status& b);
+  friend void swap(Status& a, Status& b) noexcept;
 
   //----------------------------------------------------------------------------
   // Payload Management APIs
@@ -653,7 +653,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI Status final {
 
   // Converts between StatusRep* and the external uintptr_t representation used
   // by rep_. See rep_ for details.
-  static uintptr_t PointerToRep(status_internal::StatusRep* r);
+  static uintptr_t PointerToRep(absl::Nonnull<status_internal::StatusRep*> r);
   static absl::Nonnull<const status_internal::StatusRep*> RepToPointer(
       uintptr_t r);
 
@@ -793,7 +793,7 @@ inline Status::Status(Status&& x) noexcept : Status(x.rep_) {
   x.rep_ = MovedFromRep();
 }
 
-inline Status& Status::operator=(Status&& x) {
+inline Status& Status::operator=(Status&& x) noexcept {
   uintptr_t old_rep = rep_;
   if (x.rep_ != old_rep) {
     rep_ = x.rep_;
@@ -856,7 +856,7 @@ inline void Status::IgnoreError() const {
   // no-op
 }
 
-inline void swap(absl::Status& a, absl::Status& b) {
+inline void swap(absl::Status& a, absl::Status& b) noexcept {
   using std::swap;
   swap(a.rep_, b.rep_);
 }

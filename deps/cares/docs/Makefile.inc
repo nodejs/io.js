@@ -36,9 +36,16 @@ MANPAGES = ares_cancel.3		\
   ares_dns_record_rr_del.3		\
   ares_dns_record_rr_get.3		\
   ares_dns_record_rr_get_const.3	\
+  ares_dns_record_set_id.3		\
   ares_dns_rec_type_fromstr.3		\
+  ares_dns_rec_type_tostr.3		\
   ares_dns_rec_type_t.3			\
   ares_dns_rr.3				\
+  ares_dns_rr_add_abin.3		\
+  ares_dns_rr_del_abin.3		\
+  ares_dns_rr_del_opt_byid.3		\
+  ares_dns_rr_get_abin.3		\
+  ares_dns_rr_get_abin_cnt.3		\
   ares_dns_rr_get_addr.3		\
   ares_dns_rr_get_addr6.3		\
   ares_dns_rr_get_bin.3			\
@@ -108,6 +115,9 @@ MANPAGES = ares_cancel.3		\
   ares_parse_txt_reply.3		\
   ares_parse_uri_reply.3		\
   ares_process.3			\
+  ares_process_fd.3			\
+  ares_process_fds.3			\
+  ares_process_pending_write.3		\
   ares_query.3				\
   ares_query_dnsrec.3			\
   ares_queue.3				\
@@ -122,6 +132,8 @@ MANPAGES = ares_cancel.3		\
   ares_set_local_dev.3			\
   ares_set_local_ip4.3			\
   ares_set_local_ip6.3			\
+  ares_set_pending_write_cb.3	\
+  ares_set_server_state_callback.3	\
   ares_set_servers.3			\
   ares_set_servers_csv.3		\
   ares_set_servers_ports.3		\
@@ -129,6 +141,7 @@ MANPAGES = ares_cancel.3		\
   ares_set_socket_callback.3		\
   ares_set_socket_configure_callback.3	\
   ares_set_socket_functions.3		\
+  ares_set_socket_functions_ex.3	\
   ares_set_sortlist.3			\
   ares_strerror.3			\
   ares_svcb_param_t.3			\

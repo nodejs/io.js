@@ -1,7 +1,4 @@
 {
-  "idlharness-shadowrealm.window.js": {
-    "skip": "ShadowRealm support is not enabled"
-  },
   "percent-encoding.window.js": {
     "skip": "TODO: port from .window.js"
   },
@@ -10,6 +7,16 @@
       "note": "We are faking location with a URL object for the sake of the testharness and it has searchParams.",
       "expected": [
         "searchParams on location object"
+      ]
+    }
+  },
+  "toascii.window.js": {
+    "fail": {
+      "note": "Unicode 15.1",
+      "expected": [
+        "\uD87E\uDC68.com (using URL)",
+        "\uD87E\uDC68.com (using URL.host)",
+        "\uD87E\uDC68.com (using URL.hostname)"
       ]
     }
   },

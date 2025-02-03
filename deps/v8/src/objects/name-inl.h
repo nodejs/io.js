@@ -20,11 +20,6 @@
 namespace v8 {
 namespace internal {
 
-inline Tagged<Symbol> Symbol::cast(Tagged<Object> obj) {
-  SLOW_DCHECK(IsSymbol(obj));
-  return Symbol::unchecked_cast(obj);
-}
-
 Tagged<PrimitiveHeapObject> Symbol::description() const {
   return description_.load();
 }
@@ -67,16 +62,11 @@ void Symbol::set_is_private_name() {
   set_flags(Symbol::IsPrivateNameBit::update(flags(), true));
 }
 
-inline Tagged<Name> Name::cast(Tagged<Object> obj) {
-  SLOW_DCHECK(IsName(obj));
-  return Name::unchecked_cast(obj);
-}
-
 DEF_HEAP_OBJECT_PREDICATE(Name, IsUniqueName) {
   uint32_t type = obj->map()->instance_type();
   bool result = (type & (kIsNotStringMask | kIsNotInternalizedMask)) !=
                 (kStringTag | kNotInternalizedTag);
-  SLOW_DCHECK(result == IsUniqueName(Tagged<HeapObject>::cast(obj)));
+  SLOW_DCHECK(result == IsUniqueName(Cast<HeapObject>(obj)));
   DCHECK_IMPLIES(result, obj->HasHashCode());
   return result;
 }
@@ -87,7 +77,7 @@ bool Name::Equals(Tagged<Name> other) {
       IsSymbol(this) || IsSymbol(other)) {
     return false;
   }
-  return String::cast(this)->SlowEquals(String::cast(other));
+  return Cast<String>(this)->SlowEquals(Cast<String>(other));
 }
 
 bool Name::Equals(Isolate* isolate, Handle<Name> one, Handle<Name> two) {
@@ -96,8 +86,7 @@ bool Name::Equals(Isolate* isolate, Handle<Name> one, Handle<Name> two) {
       IsSymbol(*one) || IsSymbol(*two)) {
     return false;
   }
-  return String::SlowEquals(isolate, Handle<String>::cast(one),
-                            Handle<String>::cast(two));
+  return String::SlowEquals(isolate, Cast<String>(one), Cast<String>(two));
 }
 
 // static
@@ -189,7 +178,7 @@ uint32_t Name::EnsureRawHash() {
     return GetRawHashFromForwardingTable(field);
   }
   // Slow case: compute hash code and set it. Has to be a string.
-  return String::cast(this)->ComputeAndSetRawHash();
+  return Cast<String>(this)->ComputeAndSetRawHash();
 }
 
 uint32_t Name::EnsureRawHash(
@@ -202,7 +191,7 @@ uint32_t Name::EnsureRawHash(
     return GetRawHashFromForwardingTable(field);
   }
   // Slow case: compute hash code and set it. Has to be a string.
-  return String::cast(this)->ComputeAndSetRawHash(access_guard);
+  return Cast<String>(this)->ComputeAndSetRawHash(access_guard);
 }
 
 uint32_t Name::RawHash() {
@@ -228,7 +217,7 @@ void Name::set_raw_hash_field_if_empty(uint32_t hash) {
   // a forwarding index (that overwrites the previous hash).
   // In all cases we don't want overwrite the old value, so we don't handle the
   // failure case.
-  DCHECK_IMPLIES(!result, (String::cast(this)->IsShared() ||
+  DCHECK_IMPLIES(!result, (Cast<String>(this)->IsShared() ||
                            v8_flags.always_use_string_forwarding_table) &&
                               (field_value == hash || IsForwardingIndex(hash)));
 }
@@ -258,35 +247,35 @@ bool Name::TryGetHash(uint32_t* hash) const {
 bool Name::IsInteresting(Isolate* isolate) {
   // TODO(ishell): consider using ReadOnlyRoots::IsNameForProtector() trick for
   // these strings and interesting symbols.
-  return (IsSymbol(this) && Symbol::cast(this)->is_interesting_symbol()) ||
+  return (IsSymbol(this) && Cast<Symbol>(this)->is_interesting_symbol()) ||
          this == *isolate->factory()->toJSON_string() ||
          this == *isolate->factory()->get_string();
 }
 
 bool Name::IsPrivate() {
-  return IsSymbol(this) && Symbol::cast(this)->is_private();
+  return IsSymbol(this) && Cast<Symbol>(this)->is_private();
 }
 
 bool Name::IsPrivateName() {
   bool is_private_name =
-      IsSymbol(this) && Symbol::cast(this)->is_private_name();
+      IsSymbol(this) && Cast<Symbol>(this)->is_private_name();
   DCHECK_IMPLIES(is_private_name, IsPrivate());
   return is_private_name;
 }
 
 bool Name::IsPrivateBrand() {
   bool is_private_brand =
-      IsSymbol(this) && Symbol::cast(this)->is_private_brand();
+      IsSymbol(this) && Cast<Symbol>(this)->is_private_brand();
   DCHECK_IMPLIES(is_private_brand, IsPrivateName());
   return is_private_brand;
 }
 
 bool Name::AsArrayIndex(uint32_t* index) {
-  return IsString(this) && String::cast(this)->AsArrayIndex(index);
+  return IsString(this) && Cast<String>(this)->AsArrayIndex(index);
 }
 
 bool Name::AsIntegerIndex(size_t* index) {
-  return IsString(this) && String::cast(this)->AsIntegerIndex(index);
+  return IsString(this) && Cast<String>(this)->AsIntegerIndex(index);
 }
 
 // static

@@ -31,43 +31,53 @@ class JSLocale : public TorqueGeneratedJSLocale<JSLocale, JSObject> {
  public:
   // Creates locale object with properties derived from input locale string
   // and options.
-  static MaybeHandle<JSLocale> New(Isolate* isolate, Handle<Map> map,
+  static MaybeHandle<JSLocale> New(Isolate* isolate, DirectHandle<Map> map,
                                    Handle<String> locale,
                                    Handle<JSReceiver> options);
 
   static MaybeHandle<JSLocale> Maximize(Isolate* isolate,
-                                        Handle<JSLocale> locale);
+                                        DirectHandle<JSLocale> locale);
   static MaybeHandle<JSLocale> Minimize(Isolate* isolate,
-                                        Handle<JSLocale> locale);
+                                        DirectHandle<JSLocale> locale);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> GetCalendars(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> GetCollations(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> GetHourCycles(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> GetNumberingSystems(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSObject> GetTextInfo(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
   V8_WARN_UNUSED_RESULT static MaybeHandle<Object> GetTimeZones(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSObject> GetWeekInfo(
-      Isolate* isolate, Handle<JSLocale> locale);
+      Isolate* isolate, DirectHandle<JSLocale> locale);
 
-  static Handle<Object> Language(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> Script(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> Region(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<String> BaseName(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> Calendar(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> CaseFirst(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> Collation(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> HourCycle(Isolate* isolate, Handle<JSLocale> locale);
-  static Handle<Object> Numeric(Isolate* isolate, Handle<JSLocale> locale);
+  static Handle<Object> Language(Isolate* isolate,
+                                 DirectHandle<JSLocale> locale);
+  static Handle<Object> Script(Isolate* isolate, DirectHandle<JSLocale> locale);
+  static Handle<Object> Region(Isolate* isolate, DirectHandle<JSLocale> locale);
+  static Handle<String> BaseName(Isolate* isolate,
+                                 DirectHandle<JSLocale> locale);
+  static Handle<Object> Calendar(Isolate* isolate,
+                                 DirectHandle<JSLocale> locale);
+  static Handle<Object> CaseFirst(Isolate* isolate,
+                                  DirectHandle<JSLocale> locale);
+  static Handle<Object> Collation(Isolate* isolate,
+                                  DirectHandle<JSLocale> locale);
+  static Handle<Object> HourCycle(Isolate* isolate,
+                                  DirectHandle<JSLocale> locale);
+  static Handle<Object> FirstDayOfWeek(Isolate* isolate,
+                                       DirectHandle<JSLocale> locale);
+  static Handle<Object> Numeric(Isolate* isolate,
+                                DirectHandle<JSLocale> locale);
   static Handle<Object> NumberingSystem(Isolate* isolate,
-                                        Handle<JSLocale> locale);
-  static Handle<String> ToString(Isolate* isolate, Handle<JSLocale> locale);
-  static std::string ToString(Handle<JSLocale> locale);
+                                        DirectHandle<JSLocale> locale);
+  static Handle<String> ToString(Isolate* isolate,
+                                 DirectHandle<JSLocale> locale);
+  static std::string ToString(DirectHandle<JSLocale> locale);
 
   // Help function to validate locale by other Intl objects.
   static bool StartsWithUnicodeLanguageId(const std::string& value);

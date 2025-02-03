@@ -7,7 +7,7 @@ let {session, contextGroup, Protocol} =
 
 (async function test() {
   let {result:{result:{objectId}}} = await Protocol.Runtime.evaluate({
-    expression: 'inspector.createObjectWithAccessor(\'title\', true)'
+    expression: 'inspector.createObjectWithNativeDataProperty(\'title\', true)'
   });
   let {result:{result}} = await Protocol.Runtime.getProperties({
     objectId,
@@ -17,7 +17,7 @@ let {session, contextGroup, Protocol} =
   InspectorTest.logMessage(result.find(property => property.name === 'title'));
 
   ({result:{result:{objectId}}} = await Protocol.Runtime.evaluate({
-    expression: 'inspector.createObjectWithAccessor(\'title\', false)'
+    expression: 'inspector.createObjectWithNativeDataProperty(\'title\', false)'
   }));
   ({result:{result}} = await Protocol.Runtime.getProperties({
     objectId,

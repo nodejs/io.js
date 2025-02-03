@@ -38,7 +38,7 @@ def rebuild_addons(args):
 
   # Copy node.lib.
   if args.is_win:
-    node_lib_dir = os.path.join(headers_dir, 'Release')
+    node_lib_dir = os.path.join(headers_dir, args.config)
     os.makedirs(node_lib_dir)
     shutil.copy2(os.path.join(args.out_dir, 'node.lib'),
                  os.path.join(node_lib_dir, 'node.lib'))
@@ -66,6 +66,7 @@ def rebuild_addons(args):
           print(stdout.decode())
         if stderr:
           print(stderr.decode())
+      return return_code
 
     except Exception as e:
       print(f'Unexpected error when building addon in {test_dir}. Error: {e}')
@@ -86,20 +87,21 @@ def rebuild_addons(args):
     test_dirs.append(full_path)
 
   with ThreadPoolExecutor() as executor:
-    executor.map(node_gyp_rebuild, test_dirs)
+    codes = executor.map(node_gyp_rebuild, test_dirs)
+    return 0 if all(code == 0 for code in codes) else 1
 
 def get_default_out_dir(args):
-  default_out_dir = os.path.join('out', 'Release')
+  default_out_dir = os.path.join('out', args.config)
   if not args.is_win:
     # POSIX platforms only have one out dir.
     return default_out_dir
   # On Windows depending on the args of GYP and configure script, the out dir
-  # could be 'out/Release' or just 'Release'.
+  # could be 'out/Release', 'out/Debug' or just 'Release' or 'Debug'.
   if os.path.exists(default_out_dir):
     return default_out_dir
-  if os.path.exists('Release'):
-    return 'Release'
-  raise RuntimeError('Can not find out dir, did you run configure?')
+  if os.path.exists(args.config):
+    return args.config
+  raise RuntimeError('Cannot find out dir, did you run build?')
 
 def main():
   if sys.platform == 'cygwin':
@@ -124,22 +126,26 @@ def main():
                       default='deps/npm/node_modules/node-gyp/bin/node-gyp.js')
   parser.add_argument('--is-win', help='build for Windows target',
                       action='store_true', default=(sys.platform == 'win32'))
+  parser.add_argument('--config', help='build config (Release or Debug)',
+                      default='Release')
   args, unknown_args = parser.parse_known_args()
 
   if not args.out_dir:
     args.out_dir = get_default_out_dir(args)
 
+  exit_code = 1
   if args.headers_dir:
-    rebuild_addons(args)
+    exit_code = rebuild_addons(args)
   else:
     # When --headers-dir is not specified, generate headers into a temp dir and
     # build with the new headers.
     try:
       args.headers_dir = tempfile.mkdtemp()
       generate_headers(args.headers_dir, unknown_args)
-      rebuild_addons(args)
+      exit_code = rebuild_addons(args)
     finally:
       shutil.rmtree(args.headers_dir)
+  return exit_code
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())

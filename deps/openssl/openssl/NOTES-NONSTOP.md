@@ -56,7 +56,10 @@ relating to `atexit()` processing when a shared library is unloaded and when
 the program terminates. This limitation applies to all OpenSSL shared library
 components.
 
-A resolution to this situation is under investigation.
+It is possible to configure the build with `no-atexit` to avoid the SIGSEGV.
+Preferably, you can explicitly call `OPENSSL_cleanup()` from your application.
+It is not mandatory as it just deallocates various global data structures
+OpenSSL allocated.
 
 About Prefix and OpenSSLDir
 ---------------------------

@@ -28,7 +28,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -71,4 +71,4 @@ void nghttp3_typed_buf_init(nghttp3_typed_buf *tbuf, const nghttp3_buf *buf,
 
 void nghttp3_typed_buf_free(nghttp3_typed_buf *tbuf);
 
-#endif /* NGHTTP3_BUF_H */
+#endif /* !defined(NGHTTP3_BUF_H) */

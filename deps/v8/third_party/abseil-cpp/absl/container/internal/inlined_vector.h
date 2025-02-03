@@ -27,6 +27,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
+#include "absl/base/internal/identity.h"
 #include "absl/base/macros.h"
 #include "absl/container/internal/compressed_tuple.h"
 #include "absl/memory/memory.h"
@@ -82,16 +83,6 @@ using IsMoveAssignOk = std::is_move_assignable<ValueType<A>>;
 template <typename A>
 using IsSwapOk = absl::type_traits_internal::IsSwappable<ValueType<A>>;
 
-template <typename T>
-struct TypeIdentity {
-  using type = T;
-};
-
-// Used for function arguments in template functions to prevent ADL by forcing
-// callers to explicitly specify the template parameter.
-template <typename T>
-using NoTypeDeduction = typename TypeIdentity<T>::type;
-
 template <typename A, bool IsTriviallyDestructible =
                           absl::is_trivially_destructible<ValueType<A>>::value>
 struct DestroyAdapter;
@@ -139,7 +130,7 @@ struct MallocAdapter {
 };
 
 template <typename A, typename ValueAdapter>
-void ConstructElements(NoTypeDeduction<A>& allocator,
+void ConstructElements(absl::internal::type_identity_t<A>& allocator,
                        Pointer<A> construct_first, ValueAdapter& values,
                        SizeType<A> construct_size) {
   for (SizeType<A> i = 0; i < construct_size; ++i) {
@@ -322,14 +313,13 @@ class Storage {
 
   // The policy to be used specifically when swapping inlined elements.
   using SwapInlinedElementsPolicy = absl::conditional_t<
-      // Fast path: if the value type can be trivially move constructed/assigned
-      // and destroyed, and we know the allocator doesn't do anything fancy,
-      // then it's safe for us to simply swap the bytes in the inline storage.
-      // It's as if we had move-constructed a temporary vector, move-assigned
-      // one to the other, then move-assigned the first from the temporary.
-      absl::conjunction<absl::is_trivially_move_constructible<ValueType<A>>,
-                        absl::is_trivially_move_assignable<ValueType<A>>,
-                        absl::is_trivially_destructible<ValueType<A>>,
+      // Fast path: if the value type can be trivially relocated, and we
+      // know the allocator doesn't do anything fancy, then it's safe for us
+      // to simply swap the bytes in the inline storage. It's as if we had
+      // relocated the first vector's elements into temporary storage,
+      // relocated the second's elements into the (now-empty) first's,
+      // and then relocated from temporary storage into the second.
+      absl::conjunction<absl::is_trivially_relocatable<ValueType<A>>,
                         std::is_same<A, std::allocator<ValueType<A>>>>::value,
       MemcpyPolicy,
       absl::conditional_t<IsSwapOk<A>::value, ElementwiseSwapPolicy,
@@ -624,8 +614,8 @@ void Storage<T, N, A>::InitFrom(const Storage& other) {
 
 template <typename T, size_t N, typename A>
 template <typename ValueAdapter>
-auto Storage<T, N, A>::Initialize(ValueAdapter values, SizeType<A> new_size)
-    -> void {
+auto Storage<T, N, A>::Initialize(ValueAdapter values,
+                                  SizeType<A> new_size) -> void {
   // Only callable from constructors!
   ABSL_HARDENING_ASSERT(!GetIsAllocated());
   ABSL_HARDENING_ASSERT(GetSize() == 0);
@@ -656,8 +646,8 @@ auto Storage<T, N, A>::Initialize(ValueAdapter values, SizeType<A> new_size)
 
 template <typename T, size_t N, typename A>
 template <typename ValueAdapter>
-auto Storage<T, N, A>::Assign(ValueAdapter values, SizeType<A> new_size)
-    -> void {
+auto Storage<T, N, A>::Assign(ValueAdapter values,
+                              SizeType<A> new_size) -> void {
   StorageView<A> storage_view = MakeStorageView();
 
   AllocationTransaction<A> allocation_tx(GetAllocator());
@@ -699,8 +689,8 @@ auto Storage<T, N, A>::Assign(ValueAdapter values, SizeType<A> new_size)
 
 template <typename T, size_t N, typename A>
 template <typename ValueAdapter>
-auto Storage<T, N, A>::Resize(ValueAdapter values, SizeType<A> new_size)
-    -> void {
+auto Storage<T, N, A>::Resize(ValueAdapter values,
+                              SizeType<A> new_size) -> void {
   StorageView<A> storage_view = MakeStorageView();
   Pointer<A> const base = storage_view.data;
   const SizeType<A> size = storage_view.size;
@@ -885,8 +875,8 @@ auto Storage<T, N, A>::EmplaceBackSlow(Args&&... args) -> Reference<A> {
 }
 
 template <typename T, size_t N, typename A>
-auto Storage<T, N, A>::Erase(ConstIterator<A> from, ConstIterator<A> to)
-    -> Iterator<A> {
+auto Storage<T, N, A>::Erase(ConstIterator<A> from,
+                             ConstIterator<A> to) -> Iterator<A> {
   StorageView<A> storage_view = MakeStorageView();
 
   auto erase_size = static_cast<SizeType<A>>(std::distance(from, to));
@@ -894,16 +884,30 @@ auto Storage<T, N, A>::Erase(ConstIterator<A> from, ConstIterator<A> to)
       std::distance(ConstIterator<A>(storage_view.data), from));
   SizeType<A> erase_end_index = erase_index + erase_size;
 
-  IteratorValueAdapter<A, MoveIterator<A>> move_values(
-      MoveIterator<A>(storage_view.data + erase_end_index));
+  // Fast path: if the value type is trivially relocatable and we know
+  // the allocator doesn't do anything fancy, then we know it is legal for us to
+  // simply destroy the elements in the "erasure window" (which cannot throw)
+  // and then memcpy downward to close the window.
+  if (absl::is_trivially_relocatable<ValueType<A>>::value &&
+      std::is_nothrow_destructible<ValueType<A>>::value &&
+      std::is_same<A, std::allocator<ValueType<A>>>::value) {
+    DestroyAdapter<A>::DestroyElements(
+        GetAllocator(), storage_view.data + erase_index, erase_size);
+    std::memmove(
+        reinterpret_cast<char*>(storage_view.data + erase_index),
+        reinterpret_cast<const char*>(storage_view.data + erase_end_index),
+        (storage_view.size - erase_end_index) * sizeof(ValueType<A>));
+  } else {
+    IteratorValueAdapter<A, MoveIterator<A>> move_values(
+        MoveIterator<A>(storage_view.data + erase_end_index));
 
-  AssignElements<A>(storage_view.data + erase_index, move_values,
-                    storage_view.size - erase_end_index);
+    AssignElements<A>(storage_view.data + erase_index, move_values,
+                      storage_view.size - erase_end_index);
 
-  DestroyAdapter<A>::DestroyElements(
-      GetAllocator(), storage_view.data + (storage_view.size - erase_size),
-      erase_size);
-
+    DestroyAdapter<A>::DestroyElements(
+        GetAllocator(), storage_view.data + (storage_view.size - erase_size),
+        erase_size);
+  }
   SubtractSize(erase_size);
   return Iterator<A>(storage_view.data + erase_index);
 }

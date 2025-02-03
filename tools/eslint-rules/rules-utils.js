@@ -100,9 +100,5 @@ module.exports.inSkipBlock = function(node) {
 };
 
 function hasSkip(expression) {
-  return expression &&
-         expression.callee &&
-         (expression.callee.name === 'skip' ||
-         expression.callee.property &&
-         expression.callee.property.name === 'skip');
+  return expression?.callee?.name === 'skip' || expression?.callee?.property?.name === 'skip';
 }

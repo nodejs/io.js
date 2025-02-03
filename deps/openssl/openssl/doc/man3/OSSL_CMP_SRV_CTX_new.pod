@@ -104,6 +104,7 @@ associated with the library context I<libctx> and property query string
 I<propq>, both of which may be NULL to select the defaults.
 
 OSSL_CMP_SRV_CTX_free() deletes the given I<srv_ctx>.
+If the argument is NULL, nothing is done.
 
 OSSL_CMP_SRV_CTX_init() sets in the given I<srv_ctx> a custom server context
 pointer as well as callback functions performing the specific processing of CMP
@@ -158,7 +159,7 @@ The OpenSSL CMP support was added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2007-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2007-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

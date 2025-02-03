@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TUFError = exports.initTUF = exports.getTrustedRoot = exports.DEFAULT_MIRROR_URL = void 0;
+exports.TUFError = exports.DEFAULT_MIRROR_URL = void 0;
+exports.getTrustedRoot = getTrustedRoot;
+exports.initTUF = initTUF;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -31,14 +33,12 @@ options = {}) {
     const trustedRoot = await client.getTarget(TRUSTED_ROOT_TARGET);
     return protobuf_specs_1.TrustedRoot.fromJSON(JSON.parse(trustedRoot));
 }
-exports.getTrustedRoot = getTrustedRoot;
 async function initTUF(
 /* istanbul ignore next */
 options = {}) {
     const client = createClient(options);
     return client.refresh().then(() => client);
 }
-exports.initTUF = initTUF;
 // Create a TUF client with default options
 function createClient(options) {
     /* istanbul ignore next */

@@ -164,7 +164,7 @@ void JSStream::Finish(const FunctionCallbackInfo<Value>& args) {
 
 void JSStream::ReadBuffer(const FunctionCallbackInfo<Value>& args) {
   JSStream* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
 
   ArrayBufferViewContents<char> buffer(args[0]);
   const char* data = buffer.data();
@@ -194,7 +194,7 @@ void JSStream::ReadBuffer(const FunctionCallbackInfo<Value>& args) {
 
 void JSStream::EmitEOF(const FunctionCallbackInfo<Value>& args) {
   JSStream* wrap;
-  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
 
   wrap->EmitRead(UV_EOF);
 }

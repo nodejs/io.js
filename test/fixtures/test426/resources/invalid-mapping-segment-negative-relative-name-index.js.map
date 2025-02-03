@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "names": [],
+  "file": "invalid-mapping-segment-negative-relative-name-index.js",
+  "sources": ["empty-original.js"],
+  "sourcesContent": [""],
+  "mappings": "AAAAC,AAAAF"
+}

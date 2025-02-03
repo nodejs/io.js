@@ -145,17 +145,18 @@ Node* WasmGraphAssembler::LoadFromObject(MachineType type, Node* base,
 }
 
 Node* WasmGraphAssembler::LoadProtectedPointerFromObject(Node* object,
-                                                         int offset) {
-#if V8_ENABLE_SANDBOX
-  static_assert(COMPRESS_POINTERS_BOOL);
-  Node* tagged =
-      LoadFromObject(MachineType::Int32(), object, IntPtrConstant(offset));
-  Node* trusted_cage_base = Load(MachineType::Pointer(), LoadRootRegister(),
-                                 IsolateData::trusted_cage_base_offset());
-  return WordOr(trusted_cage_base, BuildChangeUint32ToUintPtr(tagged));
-#else
-  return LoadFromObject(MachineType::AnyTagged(), object, offset);
-#endif  // V8_ENABLE_SANDBOX
+                                                         Node* offset) {
+  return LoadFromObject(V8_ENABLE_SANDBOX_BOOL ? MachineType::ProtectedPointer()
+                                               : MachineType::AnyTagged(),
+                        object, offset);
+}
+
+Node* WasmGraphAssembler::LoadImmutableProtectedPointerFromObject(
+    Node* object, Node* offset) {
+  return LoadImmutableFromObject(V8_ENABLE_SANDBOX_BOOL
+                                     ? MachineType::ProtectedPointer()
+                                     : MachineType::AnyTagged(),
+                                 object, offset);
 }
 
 Node* WasmGraphAssembler::LoadImmutableFromObject(MachineType type, Node* base,
@@ -220,11 +221,9 @@ Node* WasmGraphAssembler::BuildDecodeTrustedPointer(Node* handle,
                      IsolateData::trusted_pointer_table_offset() +
                          Internals::kTrustedPointerTableBasePointerOffset);
   Node* decoded_ptr = Load(MachineType::Pointer(), table, offset);
-  // Mask out the tag.
-  // TODO(saelo): Enable this once we tag pointers in the trusted table.
-  // decoded_ptr = WordAnd(decoded_ptr, IntPtrConstant(~tag));
-  // Always set the tagged bit, used as a marking bit in that table.
-  decoded_ptr = WordOr(decoded_ptr, IntPtrConstant(kHeapObjectTag));
+  // Untag the pointer and remove the marking bit in one operation.
+  decoded_ptr = WordAnd(decoded_ptr,
+                        IntPtrConstant(~(tag | kTrustedPointerTableMarkBit)));
   // We have to change the type of the result value to Tagged, so if the value
   // gets spilled on the stack, it will get processed by the GC.
   decoded_ptr = BitcastWordToTagged(decoded_ptr);
@@ -308,13 +307,12 @@ Node* WasmGraphAssembler::LoadFixedArrayElement(Node* fixed_array,
   return LoadFromObject(type, fixed_array, offset);
 }
 
-Node* WasmGraphAssembler::LoadWeakArrayListElement(Node* fixed_array,
-                                                   Node* index_intptr,
-                                                   MachineType type) {
-  Node* offset = IntAdd(
-      IntMul(index_intptr, IntPtrConstant(kTaggedSize)),
-      IntPtrConstant(wasm::ObjectAccess::ToTagged(WeakArrayList::kHeaderSize)));
-  return LoadFromObject(type, fixed_array, offset);
+Node* WasmGraphAssembler::LoadWeakFixedArrayElement(Node* fixed_array,
+                                                    Node* index_intptr) {
+  Node* offset = IntAdd(IntMul(index_intptr, IntPtrConstant(kTaggedSize)),
+                        IntPtrConstant(wasm::ObjectAccess::ToTagged(
+                            WeakFixedArray::kHeaderSize)));
+  return LoadFromObject(MachineType::AnyTagged(), fixed_array, offset);
 }
 
 Node* WasmGraphAssembler::LoadImmutableFixedArrayElement(Node* fixed_array,
@@ -332,6 +330,20 @@ Node* WasmGraphAssembler::LoadFixedArrayElement(Node* array, int index,
       type, array, wasm::ObjectAccess::ElementOffsetInTaggedFixedArray(index));
 }
 
+Node* WasmGraphAssembler::LoadProtectedFixedArrayElement(Node* array,
+                                                         int index) {
+  return LoadProtectedPointerFromObject(
+      array, wasm::ObjectAccess::ElementOffsetInProtectedFixedArray(index));
+}
+
+Node* WasmGraphAssembler::LoadProtectedFixedArrayElement(Node* array,
+                                                         Node* index_intptr) {
+  Node* offset = IntAdd(WordShl(index_intptr, IntPtrConstant(kTaggedSizeLog2)),
+                        IntPtrConstant(wasm::ObjectAccess::ToTagged(
+                            ProtectedFixedArray::kHeaderSize)));
+  return LoadProtectedPointerFromObject(array, offset);
+}
+
 Node* WasmGraphAssembler::LoadByteArrayElement(Node* byte_array,
                                                Node* index_intptr,
                                                MachineType type) {
@@ -342,21 +354,6 @@ Node* WasmGraphAssembler::LoadByteArrayElement(Node* byte_array,
   return LoadFromObject(type, byte_array, offset);
 }
 
-Node* WasmGraphAssembler::LoadExternalPointerArrayElement(
-    Node* array, Node* index_intptr, ExternalPointerTag tag,
-    Node* isolate_root) {
-  Node* offset = IntAdd(
-      IntMul(index_intptr, IntPtrConstant(kExternalPointerSlotSize)),
-      IntPtrConstant(
-          wasm::ObjectAccess::ToTagged(ExternalPointerArray::kHeaderSize)));
-#ifdef V8_ENABLE_SANDBOX
-  Node* handle = LoadFromObject(MachineType::Uint32(), array, offset);
-  return BuildDecodeSandboxedExternalPointer(handle, tag, isolate_root);
-#else
-  return LoadFromObject(MachineType::Pointer(), array, offset);
-#endif
-}
-
 Node* WasmGraphAssembler::LoadImmutableTrustedPointerFromObject(
     Node* object, int field_offset, IndirectPointerTag tag) {
   Node* offset = IntPtrConstant(field_offset);
@@ -365,6 +362,31 @@ Node* WasmGraphAssembler::LoadImmutableTrustedPointerFromObject(
   return BuildDecodeTrustedPointer(handle, tag);
 #else
   return LoadImmutableFromObject(MachineType::TaggedPointer(), object, offset);
+#endif
+}
+
+Node* WasmGraphAssembler::LoadTrustedPointerFromObject(Node* object,
+                                                       int field_offset,
+                                                       IndirectPointerTag tag) {
+  Node* offset = IntPtrConstant(field_offset);
+#ifdef V8_ENABLE_SANDBOX
+  Node* handle = LoadFromObject(MachineType::Uint32(), object, offset);
+  return BuildDecodeTrustedPointer(handle, tag);
+#else
+  return LoadFromObject(MachineType::TaggedPointer(), object, offset);
+#endif
+}
+
+std::pair<Node*, Node*>
+WasmGraphAssembler::LoadTrustedPointerFromObjectTrapOnNull(
+    Node* object, int field_offset, IndirectPointerTag tag) {
+  Node* offset = IntPtrConstant(field_offset);
+#ifdef V8_ENABLE_SANDBOX
+  Node* handle = LoadTrapOnNull(MachineType::Uint32(), object, offset);
+  return {handle, BuildDecodeTrustedPointer(handle, tag)};
+#else
+  Node* value = LoadTrapOnNull(MachineType::TaggedPointer(), object, offset);
+  return {value, value};
 #endif
 }
 
@@ -390,9 +412,11 @@ Node* WasmGraphAssembler::LoadContextFromJSFunction(Node* js_function) {
 
 Node* WasmGraphAssembler::LoadFunctionDataFromJSFunction(Node* js_function) {
   Node* shared = LoadSharedFunctionInfo(js_function);
-  return LoadFromObject(
-      MachineType::TaggedPointer(), shared,
-      wasm::ObjectAccess::ToTagged(SharedFunctionInfo::kFunctionDataOffset));
+  return LoadTrustedPointerFromObject(
+      shared,
+      wasm::ObjectAccess::ToTagged(
+          SharedFunctionInfo::kTrustedFunctionDataOffset),
+      kWasmFunctionDataIndirectPointerTag);
 }
 
 Node* WasmGraphAssembler::LoadExportedFunctionIndexAsSmi(
@@ -402,11 +426,12 @@ Node* WasmGraphAssembler::LoadExportedFunctionIndexAsSmi(
       wasm::ObjectAccess::ToTagged(
           WasmExportedFunctionData::kFunctionIndexOffset));
 }
-Node* WasmGraphAssembler::LoadExportedFunctionInstance(
+Node* WasmGraphAssembler::LoadExportedFunctionInstanceData(
     Node* exported_function_data) {
-  return LoadImmutableFromObject(
-      MachineType::TaggedPointer(), exported_function_data,
-      wasm::ObjectAccess::ToTagged(WasmExportedFunctionData::kInstanceOffset));
+  return LoadImmutableProtectedPointerFromObject(
+      exported_function_data,
+      wasm::ObjectAccess::ToTagged(
+          WasmExportedFunctionData::kProtectedInstanceDataOffset));
 }
 
 // JavaScript objects.

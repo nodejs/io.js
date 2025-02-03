@@ -20,7 +20,7 @@
 #if V8_OS_QNX
 #include <sys/syspage.h>  // cpuinfo
 #endif
-#if V8_OS_LINUX && (V8_HOST_ARCH_PPC || V8_HOST_ARCH_PPC64)
+#if V8_OS_LINUX && V8_HOST_ARCH_PPC64
 #include <elf.h>
 #endif
 #if V8_OS_AIX
@@ -54,8 +54,6 @@
 #include "src/base/platform/wrappers.h"
 #if V8_OS_WIN
 #include <windows.h>
-
-#include "src/base/win32-headers.h"
 #endif
 
 namespace v8 {
@@ -84,6 +82,30 @@ static V8_INLINE void __cpuid(int cpu_info[4], int info_type) {
                    : "=a"(cpu_info[0]), "=b"(cpu_info[1]), "=c"(cpu_info[2]),
                      "=d"(cpu_info[3])
                    : "a"(info_type), "c"(0));
+#endif  // defined(__i386__) && defined(__pic__)
+}
+
+static V8_INLINE void __cpuidex(int cpu_info[4], int info_type,
+                                int sub_info_type) {
+// Gather additional information about the processor.
+// Set the value of the ECX register to sub_info_type before it generates the
+// cpuid instruction, align with __cpuidex() of MSVC:
+// https://msdn.microsoft.com/en-us/library/hskdteyh.aspx
+#if defined(__i386__) && defined(__pic__)
+  // Make sure to preserve ebx, which contains the pointer
+  // to the GOT in case we're generating PIC.
+  __asm__ volatile(
+      "mov %%ebx, %%edi\n\t"
+      "cpuid\n\t"
+      "xchg %%edi, %%ebx\n\t"
+      : "=a"(cpu_info[0]), "=D"(cpu_info[1]), "=c"(cpu_info[2]),
+        "=d"(cpu_info[3])
+      : "a"(info_type), "c"(sub_info_type));
+#else
+  __asm__ volatile("cpuid \n\t"
+                   : "=a"(cpu_info[0]), "=b"(cpu_info[1]), "=c"(cpu_info[2]),
+                     "=d"(cpu_info[3])
+                   : "a"(info_type), "c"(sub_info_type));
 #endif  // defined(__i386__) && defined(__pic__)
 }
 
@@ -359,11 +381,13 @@ bool CPU::StarboardDetectCPU() {
       has_sahf_ = features.x86.has_sahf;
       has_avx_ = features.x86.has_avx;
       has_avx2_ = features.x86.has_avx2;
+      // TODO: Support AVX-VNNI on Starboard
       has_fma3_ = features.x86.has_fma3;
       has_bmi1_ = features.x86.has_bmi1;
       has_bmi2_ = features.x86.has_bmi2;
       has_lzcnt_ = features.x86.has_lzcnt;
       has_popcnt_ = features.x86.has_popcnt;
+      has_f16c_ = features.x86.has_f16c;
       break;
     default:
       return false;
@@ -403,7 +427,10 @@ CPU::CPU()
       has_osxsave_(false),
       has_avx_(false),
       has_avx2_(false),
+      has_avx_vnni_(false),
+      has_avx_vnni_int8_(false),
       has_fma3_(false),
+      has_f16c_(false),
       has_bmi1_(false),
       has_bmi2_(false),
       has_lzcnt_(false),
@@ -418,6 +445,8 @@ CPU::CPU()
       has_dot_prod_(false),
       has_lse_(false),
       has_mte_(false),
+      has_pmull1q_(false),
+      has_fp16_(false),
       is_fp64_mode_(false),
       has_non_stop_time_stamp_counter_(false),
       is_running_in_vm_(false),
@@ -452,9 +481,14 @@ CPU::CPU()
   if (num_ids > 0) {
     __cpuid(cpu_info, 1);
 
-    int cpu_info7[4] = {0};
+    int cpu_info70[4] = {0};
+    int cpu_info71[4] = {0};
     if (num_ids >= 7) {
-      __cpuid(cpu_info7, 7);
+      __cpuid(cpu_info70, 7);
+      // Check the maximum input value for supported leaf 7 sub-leaves
+      if (cpu_info70[0] >= 1) {
+        __cpuidex(cpu_info71, 7, 1);
+      }
     }
 
     stepping_ = cpu_info[0] & 0xF;
@@ -475,11 +509,14 @@ CPU::CPU()
     has_popcnt_ = (cpu_info[2] & 0x00800000) != 0;
     has_osxsave_ = (cpu_info[2] & 0x08000000) != 0;
     has_avx_ = (cpu_info[2] & 0x10000000) != 0;
-    has_avx2_ = (cpu_info7[1] & 0x00000020) != 0;
+    has_avx2_ = (cpu_info70[1] & 0x00000020) != 0;
+    has_avx_vnni_ = (cpu_info71[0] & 0x00000010) != 0;
+    has_avx_vnni_int8_ = (cpu_info71[3] & 0x00000020) != 0;
     has_fma3_ = (cpu_info[2] & 0x00001000) != 0;
+    has_f16c_ = (cpu_info[2] & 0x20000000) != 0;
     // CET shadow stack feature flag. See
     // https://en.wikipedia.org/wiki/CPUID#EAX=7,_ECX=0:_Extended_Features
-    has_cetss_ = (cpu_info7[2] & 0x00000080) != 0;
+    has_cetss_ = (cpu_info70[2] & 0x00000080) != 0;
     // "Hypervisor Present Bit: Bit 31 of ECX of CPUID leaf 0x1."
     // See https://lwn.net/Articles/301888/
     // This is checking for any hypervisor. Hypervisors may choose not to
@@ -773,11 +810,21 @@ CPU::CPU()
 #if !defined(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE)
   constexpr int PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE = 43;
 #endif
+#if !defined(PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE)
+  constexpr int PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE = 34;
+#endif
+#if !defined(PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE)
+  constexpr int PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE = 30;
+#endif
 
   has_jscvt_ =
       IsProcessorFeaturePresent(PF_ARM_V83_JSCVT_INSTRUCTIONS_AVAILABLE);
   has_dot_prod_ =
       IsProcessorFeaturePresent(PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE);
+  has_lse_ =
+      IsProcessorFeaturePresent(PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE);
+  has_pmull1q_ =
+      IsProcessorFeaturePresent(PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE);
 
 #elif V8_OS_LINUX
   // Try to extract the list of CPU features from ELF hwcaps.
@@ -788,6 +835,8 @@ CPU::CPU()
     has_jscvt_ = (hwcaps & HWCAP_JSCVT) != 0;
     has_dot_prod_ = (hwcaps & HWCAP_ASIMDDP) != 0;
     has_lse_ = (hwcaps & HWCAP_ATOMICS) != 0;
+    has_pmull1q_ = (hwcaps & HWCAP_PMULL) != 0;
+    has_fp16_ = (hwcaps & HWCAP_FPHP) != 0;
   } else {
     // Try to fallback to "Features" CPUInfo field
     CPUInfo cpu_info;
@@ -795,6 +844,8 @@ CPU::CPU()
     has_jscvt_ = HasListItem(features, "jscvt");
     has_dot_prod_ = HasListItem(features, "asimddp");
     has_lse_ = HasListItem(features, "atomics");
+    has_pmull1q_ = HasListItem(features, "pmull");
+    has_fp16_ = HasListItem(features, "half");
     delete[] features;
   }
 #elif V8_OS_DARWIN
@@ -823,15 +874,33 @@ CPU::CPU()
   } else {
     has_lse_ = feat_lse;
   }
+  int64_t feat_pmull = 0;
+  size_t feat_pmull_size = sizeof(feat_pmull);
+  if (sysctlbyname("hw.optional.arm.FEAT_PMULL", &feat_pmull, &feat_pmull_size,
+                   nullptr, 0) == -1) {
+    has_pmull1q_ = false;
+  } else {
+    has_pmull1q_ = feat_pmull;
+  }
+  int64_t fp16 = 0;
+  size_t fp16_size = sizeof(fp16);
+  if (sysctlbyname("hw.optional.arm.FEAT_FP16", &fp16, &fp16_size, nullptr,
+                   0) == -1) {
+    has_fp16_ = false;
+  } else {
+    has_fp16_ = fp16;
+  }
 #else
-  // ARM64 Macs always have JSCVT, ASIMDDP and LSE.
+  // ARM64 Macs always have JSCVT, ASIMDDP, FP16 and LSE.
   has_jscvt_ = true;
   has_dot_prod_ = true;
   has_lse_ = true;
+  has_pmull1q_ = true;
+  has_fp16_ = true;
 #endif  // V8_OS_IOS
 #endif  // V8_OS_WIN
 
-#elif V8_HOST_ARCH_PPC || V8_HOST_ARCH_PPC64
+#elif V8_HOST_ARCH_PPC64
 
 #ifndef USE_SIMULATOR
 #if V8_OS_LINUX
@@ -839,11 +908,7 @@ CPU::CPU()
   char* auxv_cpu_type = nullptr;
   FILE* fp = base::Fopen("/proc/self/auxv", "r");
   if (fp != nullptr) {
-#if V8_TARGET_ARCH_PPC64
     Elf64_auxv_t entry;
-#else
-    Elf32_auxv_t entry;
-#endif
     for (;;) {
       size_t n = fread(&entry, sizeof(entry), 1, fp);
       if (n == 0 || entry.a_type == AT_NULL) {
@@ -872,18 +937,6 @@ CPU::CPU()
       part_ = kPPCPower9;
     } else if (strcmp(auxv_cpu_type, "power8") == 0) {
       part_ = kPPCPower8;
-    } else if (strcmp(auxv_cpu_type, "power7") == 0) {
-      part_ = kPPCPower7;
-    } else if (strcmp(auxv_cpu_type, "power6") == 0) {
-      part_ = kPPCPower6;
-    } else if (strcmp(auxv_cpu_type, "power5") == 0) {
-      part_ = kPPCPower5;
-    } else if (strcmp(auxv_cpu_type, "ppc970") == 0) {
-      part_ = kPPCG5;
-    } else if (strcmp(auxv_cpu_type, "ppc7450") == 0) {
-      part_ = kPPCG4;
-    } else if (strcmp(auxv_cpu_type, "pa6t") == 0) {
-      part_ = kPPCPA6T;
     }
   }
 
@@ -898,15 +951,6 @@ CPU::CPU()
     case POWER_8:
       part_ = kPPCPower8;
       break;
-    case POWER_7:
-      part_ = kPPCPower7;
-      break;
-    case POWER_6:
-      part_ = kPPCPower6;
-      break;
-    case POWER_5:
-      part_ = kPPCPower5;
-      break;
   }
 #endif  // V8_OS_AIX
 #endif  // !USE_SIMULATOR
@@ -914,6 +958,20 @@ CPU::CPU()
 #elif V8_HOST_ARCH_RISCV64
 #if V8_OS_LINUX
   CPUInfo cpu_info;
+#if (V8_GLIBC_PREREQ(2, 39))
+#include <asm/hwprobe.h>
+#include <asm/unistd.h>
+  riscv_hwprobe pairs[] = {{RISCV_HWPROBE_KEY_IMA_EXT_0, 0}};
+  if (!syscall(__NR_riscv_hwprobe, &pairs,
+               sizeof(pairs) / sizeof(riscv_hwprobe), 0, nullptr, 0)) {
+    if (pairs[0].value & RISCV_HWPROBE_IMA_V) {
+      has_rvv_ = true;
+    }
+    if (pairs[0].value & RISCV_HWPROBE_IMA_FD) {
+      has_fpu_ = true;
+    }
+  }
+#else
   char* features = cpu_info.ExtractField("isa");
 
   if (HasListItem(features, "rv64imafdc")) {
@@ -923,6 +981,8 @@ CPU::CPU()
     has_fpu_ = true;
     has_rvv_ = true;
   }
+#endif
+
   char* mmu = cpu_info.ExtractField("mmu");
   if (HasListItem(mmu, "sv48")) {
     riscv_mmu_ = RV_MMU_MODE::kRiscvSV48;

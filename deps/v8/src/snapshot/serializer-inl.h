@@ -15,7 +15,7 @@ bool Serializer::IsNotMappedSymbol(Tagged<HeapObject> obj) const {
   Tagged<Object> not_mapped_symbol =
       ReadOnlyRoots(isolate()).not_mapped_symbol();
   if (V8_EXTERNAL_CODE_SPACE_BOOL) {
-    // It's possible that a InstructionStream object might have the same
+    // It's possible that an InstructionStream object might have the same
     // compressed value as the not_mapped_symbol, so we must compare full
     // pointers.
     // TODO(v8:11880): Avoid the need for this special case by never putting

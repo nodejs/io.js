@@ -8,7 +8,8 @@ const {
 function spawn() {
   const { spawnSync, execFileSync, execSync } = require('child_process');
   spawnSync(process.execPath, [ __filename, 'spawnSync' ], { stdio: 'inherit' });
-  execSync(`"${process.execPath}" "${__filename}" "execSync"`, { stdio: 'inherit' });
+  if (!process.env.DIRNAME_CONTAINS_SHELL_UNSAFE_CHARS)
+    execSync(`"${process.execPath}" "${__filename}" "execSync"`, { stdio: 'inherit' });
   execFileSync(process.execPath, [ __filename, 'execFileSync' ], { stdio: 'inherit' });
 }
 

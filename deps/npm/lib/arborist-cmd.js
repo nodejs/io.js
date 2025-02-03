@@ -1,10 +1,9 @@
-const log = require('./utils/log-shim.js')
+const { log } = require('proc-log')
+const BaseCommand = require('./base-cmd.js')
 
 // This is the base for all commands whose execWorkspaces just gets
 // a list of workspace names and passes it on to new Arborist() to
 // be able to run a filtered Arborist.reify() at some point.
-
-const BaseCommand = require('./base-command.js')
 class ArboristCmd extends BaseCommand {
   get isArboristCmd () {
     return true
@@ -19,6 +18,7 @@ class ArboristCmd extends BaseCommand {
 
   static workspaces = true
   static ignoreImplicitWorkspace = false
+  static checkDevEngines = true
 
   constructor (npm) {
     super(npm)

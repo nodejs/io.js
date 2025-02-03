@@ -15,22 +15,22 @@ constexpr size_t kAesBlockSize = 16;
 constexpr unsigned kNoAuthTagLength = static_cast<unsigned>(-1);
 constexpr const char* kDefaultWrapIV = "\xa6\xa6\xa6\xa6\xa6\xa6\xa6\xa6";
 
-#define VARIANTS(V)                                                           \
-  V(CTR_128, AES_CTR_Cipher)                                                  \
-  V(CTR_192, AES_CTR_Cipher)                                                  \
-  V(CTR_256, AES_CTR_Cipher)                                                  \
-  V(CBC_128, AES_Cipher)                                                      \
-  V(CBC_192, AES_Cipher)                                                      \
-  V(CBC_256, AES_Cipher)                                                      \
-  V(GCM_128, AES_Cipher)                                                      \
-  V(GCM_192, AES_Cipher)                                                      \
-  V(GCM_256, AES_Cipher)                                                      \
-  V(KW_128, AES_Cipher)                                                       \
-  V(KW_192, AES_Cipher)                                                       \
-  V(KW_256, AES_Cipher)
+#define VARIANTS(V)                                                            \
+  V(CTR_128, AES_CTR_Cipher, NID_aes_128_ctr)                                  \
+  V(CTR_192, AES_CTR_Cipher, NID_aes_192_ctr)                                  \
+  V(CTR_256, AES_CTR_Cipher, NID_aes_256_ctr)                                  \
+  V(CBC_128, AES_Cipher, NID_aes_128_cbc)                                      \
+  V(CBC_192, AES_Cipher, NID_aes_192_cbc)                                      \
+  V(CBC_256, AES_Cipher, NID_aes_256_cbc)                                      \
+  V(GCM_128, AES_Cipher, NID_aes_128_gcm)                                      \
+  V(GCM_192, AES_Cipher, NID_aes_192_gcm)                                      \
+  V(GCM_256, AES_Cipher, NID_aes_256_gcm)                                      \
+  V(KW_128, AES_Cipher, NID_id_aes128_wrap)                                    \
+  V(KW_192, AES_Cipher, NID_id_aes192_wrap)                                    \
+  V(KW_256, AES_Cipher, NID_id_aes256_wrap)
 
 enum AESKeyVariant {
-#define V(name, _) kKeyVariantAES_ ## name,
+#define V(name, _, __) kKeyVariantAES_##name,
   VARIANTS(V)
 #undef V
 };
@@ -38,7 +38,7 @@ enum AESKeyVariant {
 struct AESCipherConfig final : public MemoryRetainer {
   CryptoJobMode mode;
   AESKeyVariant variant;
-  const EVP_CIPHER* cipher;
+  ncrypto::Cipher cipher;
   size_t length;
   ByteSource iv;  // Used for both iv or counter
   ByteSource additional_data;
@@ -60,20 +60,19 @@ struct AESCipherTraits final {
 
   using AdditionalParameters = AESCipherConfig;
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int offset,
       WebCryptoCipherMode cipher_mode,
       AESCipherConfig* config);
 
-  static WebCryptoCipherStatus DoCipher(
-      Environment* env,
-      std::shared_ptr<KeyObjectData> key_data,
-      WebCryptoCipherMode cipher_mode,
-      const AESCipherConfig& params,
-      const ByteSource& in,
-      ByteSource* out);
+  static WebCryptoCipherStatus DoCipher(Environment* env,
+                                        const KeyObjectData& key_data,
+                                        WebCryptoCipherMode cipher_mode,
+                                        const AESCipherConfig& params,
+                                        const ByteSource& in,
+                                        ByteSource* out);
 };
 
 using AESCryptoJob = CipherJob<AESCipherTraits>;

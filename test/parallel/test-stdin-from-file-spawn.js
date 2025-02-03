@@ -8,7 +8,7 @@ if (process.platform === 'linux' || process.platform === 'darwin') {
 } else if (process.platform === 'win32') {
   defaultShell = 'cmd.exe';
 } else {
-  common.skip('This is test exists only on Linux/Win32/OSX');
+  common.skip('This is test exists only on Linux/Win32/macOS');
 }
 
 const { execSync } = require('child_process');
@@ -39,4 +39,13 @@ setTimeout(() => {
 }, 100);
 `);
 
-execSync(`${process.argv[0]} ${tmpJsFile} < ${tmpCmdFile}`);
+// The execPath might contain chars that should be escaped in a shell context.
+// On non-Windows, we can pass the path via the env; `"` is not a valid char on
+// Windows, so we can simply pass the path.
+execSync(
+  `"${common.isWindows ? process.execPath : '$NODE'}" "${
+    common.isWindows ? tmpJsFile : '$FILE'}" < "${common.isWindows ? tmpCmdFile : '$CMD_FILE'}"`,
+  common.isWindows ? undefined : {
+    env: { ...process.env, NODE: process.execPath, FILE: tmpJsFile, CMD_FILE: tmpCmdFile },
+  },
+);

@@ -37,7 +37,7 @@ TEST(CordzUpdateScopeTest, ScopeNullptr) {
 
 TEST(CordzUpdateScopeTest, ScopeSampledCord) {
   TestCordData cord;
-  CordzInfo::TrackCord(cord.data, kTrackCordMethod);
+  CordzInfo::TrackCord(cord.data, kTrackCordMethod, 1);
   CordzUpdateScope scope(cord.data.cordz_info(), kTrackCordMethod);
   cord.data.cordz_info()->SetCordRep(nullptr);
 }

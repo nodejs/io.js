@@ -739,9 +739,9 @@ class AndroidMkWriter:
                     % (self.android_class, self.android_module)
                 )
             else:
-                path = "$(call intermediates-dir-for,{},{},,,$(GYP_VAR_PREFIX))".format(
-                    self.android_class,
-                    self.android_module,
+                path = (
+                    f"$(call intermediates-dir-for,{self.android_class},"
+                    f"{self.android_module},,,$(GYP_VAR_PREFIX))"
                 )
 
         assert spec.get("product_dir") is None  # TODO: not supported?
@@ -769,7 +769,7 @@ class AndroidMkWriter:
         Args:
           cflags: A list of compiler flags, which may be mixed with "-I.."
         Returns:
-          A tuple of lists: (clean_clfags, include_paths). "-I.." is trimmed.
+          A tuple of lists: (clean_cflags, include_paths). "-I.." is trimmed.
         """
         clean_cflags = []
         include_paths = []

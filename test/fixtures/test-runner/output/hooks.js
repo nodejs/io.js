@@ -2,6 +2,7 @@
 const common = require('../../../common');
 const assert = require('assert');
 const { test, describe, it, before, after, beforeEach, afterEach } = require('node:test');
+const { setTimeout } = require('node:timers/promises');
 
 before((t) => t.diagnostic('before 1 called'));
 after((t) => t.diagnostic('after 1 called'));
@@ -148,7 +149,6 @@ test('test hooks', async (t) => {
   }));
 });
 
-
 test('test hooks - no subtests', async (t) => {
   const testArr = [];
 
@@ -251,6 +251,55 @@ describe('run after when before throws', () => {
   }));
   before(() => { throw new Error('before')});
   it('1', () => {});
+});
+
+
+test('test hooks - async', async (t) => {
+  const testArr = [];
+
+  t.before(async (t) => {
+    testArr.push('before starting ' + t.name);
+    await setTimeout(10);
+    testArr.push('before ending ' + t.name);
+  });
+  t.after(async (t) => {
+    testArr.push('after starting ' + t.name);
+    await setTimeout(10);
+    testArr.push('after ending ' + t.name);
+  });
+  t.beforeEach(async (t) => {
+    testArr.push('beforeEach starting ' + t.name);
+    await setTimeout(10);
+    testArr.push('beforeEach ending ' + t.name);
+  });
+  t.afterEach(async (t) => {
+    testArr.push('afterEach starting ' + t.name);
+    await setTimeout(10);
+    testArr.push('afterEach ending ' + t.name);
+  });
+  await t.test('1', async () => {
+    testArr.push('1 starting');
+    await setTimeout(10);
+    testArr.push('1 ending');
+  });
+  await t.test('2', async () => {
+    testArr.push('2 starting');
+    await setTimeout(10);
+    testArr.push('2 ending');
+  });
+
+  t.after(common.mustCall(() => {
+    assert.deepStrictEqual(testArr, [
+      'before starting test hooks - async', 'before ending test hooks - async',
+      'beforeEach starting 1', 'beforeEach ending 1',
+      '1 starting', '1 ending',
+      'afterEach starting 1', 'afterEach ending 1',
+      'beforeEach starting 2', 'beforeEach ending 2',
+      '2 starting', '2 ending',
+      'afterEach starting 2', 'afterEach ending 2',
+      'after starting test hooks - async', 'after ending test hooks - async',
+    ]);
+  }));
 });
 
 before((t) => t.diagnostic('before 2 called'));

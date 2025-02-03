@@ -535,7 +535,7 @@ function createIntegrity (opts) {
       hashes.forEach(h => h.update(chunk, enc))
       return this
     },
-    digest: function (enc) {
+    digest: function () {
       const integrity = algorithms.reduce((acc, algo) => {
         const digest = hashes.shift().digest('base64')
         const hash = new Hash(

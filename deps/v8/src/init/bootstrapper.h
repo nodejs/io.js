@@ -12,6 +12,7 @@
 #include "src/objects/fixed-array.h"
 #include "src/objects/shared-function-info.h"
 #include "src/objects/visitors.h"
+#include "src/snapshot/serializer-deserializer.h"
 
 namespace v8 {
 namespace internal {
@@ -33,7 +34,7 @@ class SourceCodeCache final {
               Handle<SharedFunctionInfo>* handle);
 
   void Add(Isolate* isolate, base::Vector<const char> name,
-           Handle<SharedFunctionInfo> shared);
+           DirectHandle<SharedFunctionInfo> shared);
 
  private:
   Script::Type type_;
@@ -59,7 +60,7 @@ class Bootstrapper final {
       MaybeHandle<JSGlobalProxy> maybe_global_proxy,
       v8::Local<v8::ObjectTemplate> global_object_template,
       v8::ExtensionConfiguration* extensions, size_t context_snapshot_index,
-      v8::DeserializeEmbedderFieldsCallback embedder_fields_deserializer,
+      DeserializeEmbedderFieldsCallback embedder_fields_deserializer,
       v8::MicrotaskQueue* microtask_queue);
 
   // Used for testing context deserialization. No code runs in the generated
@@ -69,7 +70,7 @@ class Bootstrapper final {
     v8::Local<v8::ObjectTemplate> no_global_object_template;
     ExtensionConfiguration no_extensions;
     static constexpr int kDefaultContextIndex = 0;
-    v8::DeserializeEmbedderFieldsCallback no_callback;
+    DeserializeEmbedderFieldsCallback no_callback;
     v8::MicrotaskQueue* no_microtask_queue = nullptr;
     return CreateEnvironment(no_global_proxy, no_global_object_template,
                              &no_extensions, kDefaultContextIndex, no_callback,

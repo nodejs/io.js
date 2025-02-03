@@ -5,9 +5,10 @@
 #ifndef V8_COMPILER_TURBOSHAFT_BRANCH_ELIMINATION_REDUCER_H_
 #define V8_COMPILER_TURBOSHAFT_BRANCH_ELIMINATION_REDUCER_H_
 
+#include <optional>
+
 #include "src/base/bits.h"
 #include "src/base/logging.h"
-#include "src/base/optional.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/layered-hash-map.h"
@@ -274,9 +275,9 @@ class BranchEliminationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE(Select)(OpIndex cond, OpIndex vtrue, OpIndex vfalse,
-                         RegisterRepresentation rep, BranchHint hint,
-                         SelectOp::Implementation implem) {
+  V<Any> REDUCE(Select)(V<Word32> cond, V<Any> vtrue, V<Any> vfalse,
+                        RegisterRepresentation rep, BranchHint hint,
+                        SelectOp::Implementation implem) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceSelect(cond, vtrue, vfalse, rep, hint, implem);
     }
@@ -292,7 +293,7 @@ class BranchEliminationReducer : public Next {
     goto no_change;
   }
 
-  OpIndex REDUCE(Goto)(Block* destination, bool is_backedge) {
+  V<None> REDUCE(Goto)(Block* destination, bool is_backedge) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceGoto(destination, is_backedge);
     }
@@ -323,9 +324,10 @@ class BranchEliminationReducer : public Next {
     }
 
     if (const BranchOp* branch = last_op.template TryCast<BranchOp>()) {
-      OpIndex condition = __ template MapToNewGraph<true>(branch->condition());
+      V<Word32> condition =
+          __ template MapToNewGraph<true>(branch->condition());
       if (condition.valid()) {
-        base::Optional<bool> condition_value = known_conditions_.Get(condition);
+        std::optional<bool> condition_value = known_conditions_.Get(condition);
         if (!condition_value.has_value()) {
           // We've already visited the subsequent block's Branch condition, but
           // we don't know its value right now.
@@ -337,7 +339,7 @@ class BranchEliminationReducer : public Next {
         // process {new_dst} right away, and we'll end it with a Goto instead of
         // its current Branch.
         __ CloneBlockAndGoto(destination_origin);
-        return OpIndex::Invalid();
+        return {};
       } else {
         // Optimization 2bis:
         // {condition} hasn't been visited yet, and thus it doesn't have a
@@ -345,18 +347,16 @@ class BranchEliminationReducer : public Next {
         // input is coming from the current block, then it still makes sense to
         // inline {destination_origin}: the condition will then be known.
         if (destination_origin->Contains(branch->condition())) {
-          if (const PhiOp* cond = __ input_graph()
-                                      .Get(branch->condition())
-                                      .template TryCast<PhiOp>()) {
+          if (__ input_graph().Get(branch->condition()).template Is<PhiOp>()) {
             __ CloneBlockAndGoto(destination_origin);
-            return OpIndex::Invalid();
+            return {};
           } else if (CanBeConstantFolded(branch->condition(),
                                          destination_origin)) {
             // If the {cond} only uses constant Phis that come from the current
             // block, it's probably worth it to clone the block in order to
             // constant-fold away the Branch.
             __ CloneBlockAndGoto(destination_origin);
-            return OpIndex::Invalid();
+            return {};
           } else {
             goto no_change;
           }
@@ -368,13 +368,13 @@ class BranchEliminationReducer : public Next {
       // and the old destination is a merge block, so we can directly
       // inline the destination block in place of the Goto.
       Asm().CloneAndInlineBlock(destination_origin);
-      return OpIndex::Invalid();
+      return {};
     }
 
     goto no_change;
   }
 
-  OpIndex REDUCE(DeoptimizeIf)(OpIndex condition, OpIndex frame_state,
+  V<None> REDUCE(DeoptimizeIf)(V<Word32> condition, V<FrameState> frame_state,
                                bool negated,
                                const DeoptimizeParameters* parameters) {
     LABEL_BLOCK(no_change) {
@@ -383,7 +383,7 @@ class BranchEliminationReducer : public Next {
     }
     if (ShouldSkipOptimizationStep()) goto no_change;
 
-    base::Optional<bool> condition_value = known_conditions_.Get(condition);
+    std::optional<bool> condition_value = known_conditions_.Get(condition);
     if (!condition_value.has_value()) {
       known_conditions_.InsertNewKey(condition, negated);
       goto no_change;
@@ -394,19 +394,19 @@ class BranchEliminationReducer : public Next {
       return Next::ReduceDeoptimize(frame_state, parameters);
     } else {
       // The condition is false, so we never deoptimize.
-      return OpIndex::Invalid();
+      return V<None>::Invalid();
     }
   }
 
 #if V8_ENABLE_WEBASSEMBLY
-  OpIndex REDUCE(TrapIf)(OpIndex condition, OptionalOpIndex frame_state,
+  V<None> REDUCE(TrapIf)(V<Word32> condition, OptionalV<FrameState> frame_state,
                          bool negated, const TrapId trap_id) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceTrapIf(condition, frame_state, negated, trap_id);
     }
     if (ShouldSkipOptimizationStep()) goto no_change;
 
-    base::Optional<bool> condition_value = known_conditions_.Get(condition);
+    std::optional<bool> condition_value = known_conditions_.Get(condition);
     if (!condition_value.has_value()) {
       known_conditions_.InsertNewKey(condition, negated);
       goto no_change;
@@ -416,13 +416,13 @@ class BranchEliminationReducer : public Next {
       goto no_change;
     }
 
-    OpIndex static_condition = __ Word32Constant(*condition_value);
+    V<Word32> static_condition = __ Word32Constant(*condition_value);
     if (negated) {
       __ TrapIfNot(static_condition, frame_state, trap_id);
     } else {
       __ TrapIf(static_condition, frame_state, trap_id);
     }
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
 

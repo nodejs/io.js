@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<meta charset=utf-8>
+<title> Only one activation behavior is executed during dispatch</title>
+<link rel="author" title="Vincent Hilla" href="mailto:vhilla@mozilla.com">
+<link rel="help" href="https://dom.spec.whatwg.org/#eventtarget-activation-behavior">
+<link rel="help" href="https://dom.spec.whatwg.org/#concept-event-dispatch">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<div id=log></div>
+
+<div id=test_container></div>
+
+<!--
+    Three classes:
+    click
+        Element to be clicked to cause activation behavior
+    activates
+        Element that registers the activation behavior
+    container
+        Element in which other elements with activation behavior are placed.
+        We test that those won't be activated too.
+-->
+<template>
+    <!--input, change event bubble, so have to check if checked is true-->
+    <input class="click activates container" type="checkbox" oninput="this.checked ? activated(this) : null">
+    <input class="click activates container" type="radio" oninput="this.checked ? activated(this) : null">
+    <form onsubmit="activated(this); return false" class="activates">
+        <input class="click container" type="submit">
+    </form>
+    <form onsubmit="activated(this); return false" class="activates">
+        <input class="click container" type="image">
+    </form>
+    <form onreset="activated(this)" class="activates">
+        <input class="click container" type="reset">
+    </form>
+    <form onsubmit="activated(this); return false" class="activates">
+        <button class="click container" type="submit"></button>
+    </form>
+    <form onreset="activated(this)" class="activates">
+        <button class="click container" type="reset"></button>
+    </form>
+    <a href="#link" class="click container activates"></a>
+    <area href="#link" class="click container activates">
+    <details ontoggle="activated(this)" class="activates">
+        <summary class="click container"></summary>
+    </details>
+    <label>
+      <input type=checkbox onclick="this.checked ? activated(this) : null" class="activates">
+      <span class="click container">label</span>
+    </label>
+    <!--activation behavior of label for event targeted at interactive content descendant is to do nothing-->
+    <label class="container">
+        <button class="click" type="button"></button>
+    </label>
+</template>
+
+<script>
+let activations = [];
+function activated(e) {
+    activations.push(e);
+}
+
+function getActivations(testidx) {
+    return activations.filter(a =>
+        (a.endsWith && a.endsWith("test"+testidx+"_link"))
+        || (a.classList && a.classList.contains("test"+testidx))
+    );
+}
+
+// for a and area elements
+window.onhashchange = function(e) {
+    if (e.newURL.endsWith("link")) {
+        activated(e.newURL);
+    }
+    window.location.hash = "";
+};
+
+function getElementsByClassNameInclusive(e, clsname) {
+    let ls = Array.from(e.getElementsByClassName(clsname));
+    if (e.classList.contains(clsname)) ls.push(e);
+    return ls;
+}
+
+function getClickTarget(e) {
+    return getElementsByClassNameInclusive(e, "click")[0];
+}
+
+function getContainer(e) {
+    return getElementsByClassNameInclusive(e, "container")[0];
+}
+
+function getExpectedActivations(e) {
+    let ls = getElementsByClassNameInclusive(e, "activates");
+
+    // special case, for a and area the window registers the activation
+    // have to use string, as testrunner cannot stringify the window object
+    ls = ls.map(e => e.tagName === "A" || e.tagName === "AREA" ? e.href : e);
+
+    return ls;
+}
+
+function toString(e) {
+    const children = Array.from(e.children);
+    const childstr = (children.map(toString)).join("");
+    const tag = e.tagName;
+    const typestr = e.type ? " type="+e.type : "";
+    return `<${tag}${typestr}>${childstr}</${tag}>`;
+}
+
+// generate O(n^2) test combinations
+const template = document.querySelector("template");
+const elements = Array.from(template.content.children);
+const tests = []
+for (const target of elements) {
+    for (const parent of elements) {
+        if (target === parent) continue;
+        tests.push([target.cloneNode(true), parent.cloneNode(true)])
+    }
+}
+
+const test_container = document.getElementById("test_container");
+
+/**
+ * Test that if two elements in an event target chain have activation behavior,
+ * only one of them will be activated.
+ *
+ * Each child of <template> represents one case of activation behavior.
+ * The behavior should be triggered by clicking the element of class click
+ * and will manifest as a call to activated().
+ *
+ * For each [target, parent] in tests, we make target a descendant of parent
+ * and test that only target gets activated when dispatching a click.
+ */
+for (let i = 0; i < tests.length; i++) {
+    let [target, parent] = tests[i];
+    async_test(function(t) {
+        let test = document.createElement("div");
+        test_container.appendChild(test);
+        test.appendChild(parent);
+        getContainer(parent).appendChild(target);
+
+        // for later filtering out the activations belonging to this test
+        for (let e of test.getElementsByClassName("activates")) {
+            e.classList.add("test"+i);
+        }
+        for (let e of test.querySelectorAll("a, area")) {
+            e.href = "#test"+i+"_link";
+        }
+
+        getClickTarget(target).click();
+
+        // Need to spin event loop twice, as some clicks might dispatch another task
+        t.step_timeout(() => {
+            t.step_timeout(t.step_func_done(() => {
+                    assert_array_equals(getActivations(i), getExpectedActivations(target));
+            }), 0);
+        }, 0);
+
+        t.add_cleanup(function() {
+            test_container.removeChild(test);
+        });
+    }, `When clicking child ${toString(target)} of parent ${toString(parent)}, only child should be activated.`);
+}
+</script>

@@ -17,11 +17,6 @@ namespace internal {
 
 #include "torque-generated/src/objects/primitive-heap-object-tq-inl.inc"
 
-Tagged<PrimitiveHeapObject> PrimitiveHeapObject::cast(Tagged<Object> object) {
-  SLOW_DCHECK(IsPrimitiveHeapObject(object));
-  return PrimitiveHeapObject::unchecked_cast(object);
-}
-
 }  // namespace internal
 }  // namespace v8
 

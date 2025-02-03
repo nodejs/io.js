@@ -4,6 +4,10 @@
 
 #include "src/objects/type-hints.h"
 
+#include <ostream>
+
+#include "src/base/logging.h"
+
 namespace v8 {
 namespace internal {
 
@@ -21,6 +25,8 @@ std::ostream& operator<<(std::ostream& os, BinaryOperationHint hint) {
       return os << "NumberOrOddball";
     case BinaryOperationHint::kString:
       return os << "String";
+    case BinaryOperationHint::kStringOrStringWrapper:
+      return os << "StringOrStringWrapper";
     case BinaryOperationHint::kBigInt:
       return os << "BigInt";
     case BinaryOperationHint::kBigInt64:

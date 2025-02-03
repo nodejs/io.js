@@ -37,19 +37,19 @@ class StringBytes {
  public:
   class InlineDecoder : public MaybeStackBuffer<char> {
    public:
-    inline v8::Maybe<bool> Decode(Environment* env,
+    inline v8::Maybe<void> Decode(Environment* env,
                                   v8::Local<v8::String> string,
                                   enum encoding enc) {
       size_t storage;
       if (!StringBytes::StorageSize(env->isolate(), string, enc).To(&storage))
-        return v8::Nothing<bool>();
+        return v8::Nothing<void>();
       AllocateSufficientStorage(storage);
       const size_t length =
           StringBytes::Write(env->isolate(), out(), storage, string, enc);
 
       // No zero terminator is included when using this method.
       SetLength(length);
-      return v8::Just(true);
+      return v8::JustVoid();
     }
 
     inline size_t size() const { return length(); }
@@ -97,13 +97,6 @@ class StringBytes {
                                           const char* buf,
                                           enum encoding encoding,
                                           v8::Local<v8::Value>* error);
-
-  static size_t hex_encode(const char* src,
-                           size_t slen,
-                           char* dst,
-                           size_t dlen);
-
-  static std::string hex_encode(const char* src, size_t slen);
 
  private:
   static size_t WriteUCS2(v8::Isolate* isolate,

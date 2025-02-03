@@ -24,21 +24,25 @@
 console.count();
 console.countReset();
 console.count();
+console.countReset();
 
 console.count(undefined);
 console.countReset(undefined);
 console.count(undefined);
+console.countReset(undefined);
 
 console.count("default");
 console.countReset("default");
 console.count("default");
+console.countReset("default");
 
 console.count({toString() {return "default"}});
 console.countReset({toString() {return "default"}});
 console.count({toString() {return "default"}});
+console.countReset({toString() {return "default"}});
 
 console.count("a label");
-console.countReset();
+console.countReset("a label");
 console.count("a label");
 
 console.countReset("b"); // should produce a warning

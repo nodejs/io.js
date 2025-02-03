@@ -846,7 +846,7 @@ TEST_F(InstructionSelectorTest, Int32AddMinNegativeDisplacement) {
   // https://crbug.com/1091892. The key here is that we match on a
   // sequence like: Int32Add(Int32Sub(-524288, -2147483648), -26048), which
   // matches on an EmitLea, with -2147483648 as the displacement. Since we
-  // have a Int32Sub node, it sets kNegativeDisplacement, and later we try to
+  // have an Int32Sub node, it sets kNegativeDisplacement, and later we try to
   // negate -2147483648, which overflows.
   StreamBuilder m(this, MachineType::Int32());
   Node* const c0 = m.Int32Constant(-524288);

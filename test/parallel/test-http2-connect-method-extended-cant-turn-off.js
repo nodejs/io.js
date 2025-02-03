@@ -27,4 +27,10 @@ server.listen(0, common.mustCall(() => {
       server.close();
     }));
   }));
+
+  client.on('error', common.expectsError({
+    code: 'ERR_HTTP2_ERROR',
+    name: 'Error',
+    message: 'Protocol error'
+  }));
 }));

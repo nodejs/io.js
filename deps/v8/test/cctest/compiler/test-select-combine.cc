@@ -9,7 +9,7 @@
 
 namespace v8::internal::compiler {
 
-// Generates a binop arithmetic instruction, followed by a integer compare zero
+// Generates a binop arithmetic instruction, followed by an integer compare zero
 // and select. This is to test a possible merge of the arithmetic op and the
 // compare for use by the select. We test a matrix of configurations:
 // - floating-point and integer select.

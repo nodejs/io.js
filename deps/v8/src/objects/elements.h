@@ -70,7 +70,7 @@ class ElementsAccessor {
 
   // Modifies the length data property as specified for JSArrays and resizes the
   // underlying backing store accordingly. The method honors the semantics of
-  // changing array sizes as defined in EcmaScript 5.1 15.4.5.2, i.e. array that
+  // changing array sizes as defined in ECMAScript 5.1 15.4.5.2, i.e. array that
   // have non-deletable elements can only be shrunk to the size of highest
   // element that is non-deletable.
   V8_WARN_UNUSED_RESULT virtual Maybe<bool> SetLength(Handle<JSArray> holder,
@@ -136,7 +136,7 @@ class ElementsAccessor {
 
   V8_WARN_UNUSED_RESULT virtual Maybe<bool> Add(Handle<JSObject> object,
                                                 uint32_t index,
-                                                Handle<Object> value,
+                                                DirectHandle<Object> value,
                                                 PropertyAttributes attributes,
                                                 uint32_t new_capacity) = 0;
 
@@ -231,7 +231,7 @@ class ElementsAccessor {
   // raw pointer parameter |source_holder| in the function that allocates.
   // This is done intentionally to avoid ArrayConcat() builtin performance
   // degradation.
-  virtual void CopyElements(Tagged<JSObject> source_holder,
+  virtual void CopyElements(Isolate* isolate, Tagged<JSObject> source_holder,
                             uint32_t source_start, ElementsKind source_kind,
                             Handle<FixedArrayBase> destination,
                             uint32_t destination_start, int copy_size) = 0;

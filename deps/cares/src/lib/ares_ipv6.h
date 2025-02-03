@@ -31,6 +31,15 @@
 #  include <netinet6/in6.h>
 #endif
 
+#if defined(USE_WINSOCK)
+#  if defined(HAVE_IPHLPAPI_H)
+#    include <iphlpapi.h>
+#  endif
+#  if defined(HAVE_NETIOAPI_H)
+#    include <netioapi.h>
+#  endif
+#endif
+
 #ifndef HAVE_PF_INET6
 #  define PF_INET6 AF_INET6
 #endif
@@ -85,7 +94,7 @@ struct addrinfo {
 #  ifdef IFNAMSIZ
 #    define IF_NAMESIZE IFNAMSIZ
 #  else
-#    define IF_NAMESIZE 256
+#    define IF_NAMESIZE 32
 #  endif
 #endif
 

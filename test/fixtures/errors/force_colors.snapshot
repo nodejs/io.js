@@ -10,5 +10,7 @@ Error: Should include grayed stack trace
 [90m    at *[39m
 [90m    at *[39m
 [90m    at *[39m
+[90m    at *[39m
+[90m    at *[39m
 
 Node.js *

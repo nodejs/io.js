@@ -78,7 +78,7 @@ udatpg_getBestPatternWithOptions(UDateTimePatternGenerator *dtpg,
         *pErrorCode=U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }
-    UnicodeString skeletonString((UBool)(length<0), skeleton, length);
+    UnicodeString skeletonString(length < 0, skeleton, length);
     UnicodeString result=((DateTimePatternGenerator *)dtpg)->getBestPattern(skeletonString, options, *pErrorCode);
     return result.extract(bestPattern, capacity, *pErrorCode);
 }
@@ -95,7 +95,7 @@ udatpg_getSkeleton(UDateTimePatternGenerator * /* dtpg */,
         *pErrorCode=U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }
-    UnicodeString patternString((UBool)(length<0), pattern, length);
+    UnicodeString patternString(length < 0, pattern, length);
     UnicodeString result=DateTimePatternGenerator::staticGetSkeleton(
             patternString, *pErrorCode);
     return result.extract(skeleton, capacity, *pErrorCode);
@@ -113,7 +113,7 @@ udatpg_getBaseSkeleton(UDateTimePatternGenerator * /* dtpg */,
         *pErrorCode=U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }
-    UnicodeString patternString((UBool)(length<0), pattern, length);
+    UnicodeString patternString(length < 0, pattern, length);
     UnicodeString result=DateTimePatternGenerator::staticGetBaseSkeleton(
             patternString, *pErrorCode);
     return result.extract(skeleton, capacity, *pErrorCode);
@@ -132,7 +132,7 @@ udatpg_addPattern(UDateTimePatternGenerator *dtpg,
         *pErrorCode=U_ILLEGAL_ARGUMENT_ERROR;
         return UDATPG_NO_CONFLICT;
     }
-    UnicodeString patternString((UBool)(patternLength<0), pattern, patternLength);
+    UnicodeString patternString(patternLength < 0, pattern, patternLength);
     UnicodeString conflictingPatternString;
     UDateTimePatternConflict result=((DateTimePatternGenerator *)dtpg)->
             addPattern(patternString, override, conflictingPatternString, *pErrorCode);
@@ -147,7 +147,7 @@ U_CAPI void U_EXPORT2
 udatpg_setAppendItemFormat(UDateTimePatternGenerator *dtpg,
                            UDateTimePatternField field,
                            const char16_t *value, int32_t length) {
-    UnicodeString valueString((UBool)(length<0), value, length);
+    UnicodeString valueString(length < 0, value, length);
     ((DateTimePatternGenerator *)dtpg)->setAppendItemFormat(field, valueString);
 }
 
@@ -166,7 +166,7 @@ U_CAPI void U_EXPORT2
 udatpg_setAppendItemName(UDateTimePatternGenerator *dtpg,
                          UDateTimePatternField field,
                          const char16_t *value, int32_t length) {
-    UnicodeString valueString((UBool)(length<0), value, length);
+    UnicodeString valueString(length < 0, value, length);
     ((DateTimePatternGenerator *)dtpg)->setAppendItemName(field, valueString);
 }
 
@@ -203,7 +203,7 @@ udatpg_getFieldDisplayName(const UDateTimePatternGenerator *dtpg,
 U_CAPI void U_EXPORT2
 udatpg_setDateTimeFormat(const UDateTimePatternGenerator *dtpg,
                          const char16_t *dtFormat, int32_t length) {
-    UnicodeString dtFormatString((UBool)(length<0), dtFormat, length);
+    UnicodeString dtFormatString(length < 0, dtFormat, length);
     ((DateTimePatternGenerator *)dtpg)->setDateTimeFormat(dtFormatString);
 }
 
@@ -226,7 +226,7 @@ udatpg_setDateTimeFormatForStyle(UDateTimePatternGenerator *udtpg,
         return;
     }
     DateTimePatternGenerator *dtpg = reinterpret_cast<DateTimePatternGenerator *>(udtpg);
-    UnicodeString dtFormatString((UBool)(length<0), dateTimeFormat, length);
+    UnicodeString dtFormatString(length < 0, dateTimeFormat, length);
     dtpg->setDateTimeFormat(style, dtFormatString, *pErrorCode);
 }
 
@@ -255,7 +255,7 @@ udatpg_getDateTimeFormatForStyle(const UDateTimePatternGenerator *udtpg,
 U_CAPI void U_EXPORT2
 udatpg_setDecimal(UDateTimePatternGenerator *dtpg,
                   const char16_t *decimal, int32_t length) {
-    UnicodeString decimalString((UBool)(length<0), decimal, length);
+    UnicodeString decimalString(length < 0, decimal, length);
     ((DateTimePatternGenerator *)dtpg)->setDecimal(decimalString);
 }
 
@@ -294,8 +294,8 @@ udatpg_replaceFieldTypesWithOptions(UDateTimePatternGenerator *dtpg,
         *pErrorCode=U_ILLEGAL_ARGUMENT_ERROR;
         return 0;
     }
-    UnicodeString patternString((UBool)(patternLength<0), pattern, patternLength);
-    UnicodeString skeletonString((UBool)(skeletonLength<0), skeleton, skeletonLength);
+    UnicodeString patternString(patternLength < 0, pattern, patternLength);
+    UnicodeString skeletonString(skeletonLength < 0, skeleton, skeletonLength);
     UnicodeString result=((DateTimePatternGenerator *)dtpg)->replaceFieldTypes(patternString, skeletonString, options, *pErrorCode);
     return result.extract(dest, destCapacity, *pErrorCode);
 }
@@ -318,7 +318,7 @@ U_CAPI const char16_t * U_EXPORT2
 udatpg_getPatternForSkeleton(const UDateTimePatternGenerator *dtpg,
                              const char16_t *skeleton, int32_t skeletonLength,
                              int32_t *pLength) {
-    UnicodeString skeletonString((UBool)(skeletonLength<0), skeleton, skeletonLength);
+    UnicodeString skeletonString(skeletonLength < 0, skeleton, skeletonLength);
     const UnicodeString &result=((const DateTimePatternGenerator *)dtpg)->getPatternForSkeleton(skeletonString);
     if(pLength!=nullptr) {
         *pLength=result.length();

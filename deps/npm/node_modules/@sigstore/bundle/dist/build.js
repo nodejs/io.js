@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toDSSEBundle = exports.toMessageSignatureBundle = void 0;
+exports.toMessageSignatureBundle = toMessageSignatureBundle;
+exports.toDSSEBundle = toDSSEBundle;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -21,9 +22,9 @@ const bundle_1 = require("./bundle");
 // Message signature bundle - $case: 'messageSignature'
 function toMessageSignatureBundle(options) {
     return {
-        mediaType: options.singleCertificate
-            ? bundle_1.BUNDLE_V03_MEDIA_TYPE
-            : bundle_1.BUNDLE_V02_MEDIA_TYPE,
+        mediaType: options.certificateChain
+            ? bundle_1.BUNDLE_V02_MEDIA_TYPE
+            : bundle_1.BUNDLE_V03_MEDIA_TYPE,
         content: {
             $case: 'messageSignature',
             messageSignature: {
@@ -37,13 +38,12 @@ function toMessageSignatureBundle(options) {
         verificationMaterial: toVerificationMaterial(options),
     };
 }
-exports.toMessageSignatureBundle = toMessageSignatureBundle;
 // DSSE envelope bundle - $case: 'dsseEnvelope'
 function toDSSEBundle(options) {
     return {
-        mediaType: options.singleCertificate
-            ? bundle_1.BUNDLE_V03_MEDIA_TYPE
-            : bundle_1.BUNDLE_V02_MEDIA_TYPE,
+        mediaType: options.certificateChain
+            ? bundle_1.BUNDLE_V02_MEDIA_TYPE
+            : bundle_1.BUNDLE_V03_MEDIA_TYPE,
         content: {
             $case: 'dsseEnvelope',
             dsseEnvelope: toEnvelope(options),
@@ -51,7 +51,6 @@ function toDSSEBundle(options) {
         verificationMaterial: toVerificationMaterial(options),
     };
 }
-exports.toDSSEBundle = toDSSEBundle;
 function toEnvelope(options) {
     return {
         payloadType: options.artifactType,
@@ -75,18 +74,18 @@ function toVerificationMaterial(options) {
 }
 function toKeyContent(options) {
     if (options.certificate) {
-        if (options.singleCertificate) {
-            return {
-                $case: 'certificate',
-                certificate: { rawBytes: options.certificate },
-            };
-        }
-        else {
+        if (options.certificateChain) {
             return {
                 $case: 'x509CertificateChain',
                 x509CertificateChain: {
                     certificates: [{ rawBytes: options.certificate }],
                 },
+            };
+        }
+        else {
+            return {
+                $case: 'certificate',
+                certificate: { rawBytes: options.certificate },
             };
         }
     }

@@ -26,7 +26,7 @@ namespace internal {
 class Heap;
 class LocalHandles;
 class MarkingBarrier;
-class MemoryChunk;
+class MutablePageMetadata;
 class Safepoint;
 
 // LocalHeap is used by the GC to track all threads with heap access in order to
@@ -101,6 +101,10 @@ class V8_EXPORT_PRIVATE LocalHeap {
   bool IsParked() const;
   bool IsRunning() const;
 
+  bool IsRetryOfFailedAllocation() const { return allocation_failed_; }
+
+  void SetRetryOfFailedAllocation(bool value) { allocation_failed_ = value; }
+
   Heap* heap() const { return heap_; }
   Heap* AsHeap() const { return heap(); }
 
@@ -149,8 +153,7 @@ class V8_EXPORT_PRIVATE LocalHeap {
       AllocationAlignment alignment = kTaggedAligned);
 
   // Allocate an uninitialized object.
-  enum AllocationRetryMode { kLightRetry, kRetryOrFail };
-  template <AllocationRetryMode mode>
+  template <HeapAllocator::AllocationRetryMode mode>
   Tagged<HeapObject> AllocateRawWith(
       int size_in_bytes, AllocationType allocation,
       AllocationOrigin origin = AllocationOrigin::kRuntime,
@@ -171,7 +174,8 @@ class V8_EXPORT_PRIVATE LocalHeap {
   bool is_main_thread_for(Heap* heap) const {
     return is_main_thread() && heap_ == heap;
   }
-  bool is_in_trampoline() const { return heap_->stack().IsMarkerSet(); }
+  V8_INLINE bool is_in_trampoline() const;
+
   bool deserialization_complete() const {
     return heap_->deserialization_complete();
   }
@@ -193,18 +197,18 @@ class V8_EXPORT_PRIVATE LocalHeap {
   // Used to make SetupMainThread() available to unit tests.
   void SetUpMainThreadForTesting();
 
-  // Execute the callback while the local heap is parked. The main thread must
-  // always park via this method, not directly with `ParkedScope`. The callback
-  // is only allowed to execute blocking operations.
-  //
+  // Execute the callback while the local heap is parked. All threads must
+  // always park via these methods, not directly with `ParkedScope`.
   // The callback must be a callable object, expecting either no parameters or a
-  // const ParkedScope&, which serves as a witness for parking. Use the second
-  // method, if it is guaranteed that we are on the main thread, or the first
-  // one if it is uncertain.
+  // const ParkedScope&, which serves as a witness for parking. The first
+  // variant checks if we are on the main thread or not. Use the other two
+  // variants if this already known.
   template <typename Callback>
-  V8_INLINE void BlockWhileParked(Callback callback);
+  V8_INLINE void ExecuteWhileParked(Callback callback);
   template <typename Callback>
-  V8_INLINE void BlockMainThreadWhileParked(Callback callback);
+  V8_INLINE void ExecuteMainThreadWhileParked(Callback callback);
+  template <typename Callback>
+  V8_INLINE void ExecuteBackgroundThreadWhileParked(Callback callback);
 
  private:
   using ParkedBit = base::BitField8<bool, 0, 1>;
@@ -296,20 +300,12 @@ class V8_EXPORT_PRIVATE LocalHeap {
     std::atomic<uint8_t> raw_state_;
   };
 
-  // Slow path of allocation that performs GC and then retries allocation in
-  // loop.
-  AllocationResult PerformCollectionAndAllocateAgain(
-      int object_size, AllocationType type, AllocationOrigin origin,
-      AllocationAlignment alignment);
-
 #ifdef DEBUG
   bool IsSafeForConservativeStackScanning() const;
 #endif
 
   template <typename Callback>
   V8_INLINE void ExecuteWithStackMarker(Callback callback);
-  template <typename Callback>
-  V8_INLINE void ExecuteWithStackMarkerIfNeeded(Callback callback);
 
   void Park() {
     DCHECK(AllowSafepoints::IsAllowed());
@@ -357,7 +353,7 @@ class V8_EXPORT_PRIVATE LocalHeap {
   AtomicThreadState state_;
 
   bool allocation_failed_;
-  bool main_thread_parked_;
+  int nested_parked_scopes_;
 
   LocalHeap* prev_;
   LocalHeap* next_;

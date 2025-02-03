@@ -200,5 +200,7 @@
 #define cpu_check_features Cr_z_cpu_check_features
 #define x86_cpu_enable_sse2 Cr_z_x86_cpu_enable_sse2
 #define x86_cpu_enable_avx512 Cr_z_x86_cpu_enable_avx512
+#define riscv_cpu_enable_rvv Cr_z_riscv_cpu_enable_rvv
+#define riscv_cpu_enable_vclmul Cr_z_riscv_cpu_enable_vclmul
 
 #endif /* THIRD_PARTY_ZLIB_CHROMECONF_H_ */

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "include/v8-embedder-heap.h"
+#include "include/v8-traced-handle.h"
 #include "src/handles/handles.h"
 #include "src/handles/traced-handles.h"
 #include "test/unittests/heap/cppgc-js/unified-heap-utils.h"
@@ -34,84 +35,37 @@ class V8_NODISCARD TemporaryEmbedderRootsHandleScope final {
 // TracedReference.
 class ClearingEmbedderRootsHandler final : public v8::EmbedderRootsHandler {
  public:
-  ClearingEmbedderRootsHandler()
+START_ALLOW_USE_DEPRECATED()
+  explicit ClearingEmbedderRootsHandler(v8::Isolate* isolate)
       : EmbedderRootsHandler(EmbedderRootsHandler::RootHandling::
-                                 kQueryEmbedderForNonDroppableReferences) {}
+                                 kDontQueryEmbedderForAnyReference),
+        isolate_(isolate) {}
+END_ALLOW_USE_DEPRECATED()
 
   bool IsRoot(const v8::TracedReference<v8::Value>& handle) final {
-    // Convention for test: Objects that are optimized have their first field
-    // set as a back pointer. The `handle` passed here may be different from the
-    // original handle, so we cannot check equality against `&handle`.
-    return v8::Object::GetAlignedPointerFromInternalField(
-               handle.As<v8::Object>(), 0) == nullptr;
+    // Every handle that's droppable will not be considered as root and thus
+    // dropped.
+    return false;
   }
 
   void ResetRoot(const v8::TracedReference<v8::Value>& handle) final {
     CHECK(!IsRoot(handle));
-    // Convention for test: Objects that are optimized have their first field
-    // set as a back pointer.
+    // Convention for test: Objects that are optimized have use a back pointer
+    // in the wrappable field.
     BasicTracedReference<v8::Value>* original_handle =
         reinterpret_cast<BasicTracedReference<v8::Value>*>(
-            v8::Object::GetAlignedPointerFromInternalField(
-                handle.As<v8::Object>(), 0));
+            v8::Object::Unwrap<CppHeapPointerTag::kDefaultTag>(
+                isolate_, handle.As<v8::Object>()));
     original_handle->Reset();
   }
+
+ private:
+  v8::Isolate* const isolate_;
 };
 
-template <typename T>
-void SetupOptimizedAndNonOptimizedHandle(v8::Isolate* isolate,
-                                         T* optimized_handle,
-                                         T* non_optimized_handle) {
-  v8::HandleScope scope(isolate);
-
-  v8::Local<v8::Object> optimized_object = WrapperHelper::CreateWrapper(
-      isolate->GetCurrentContext(), optimized_handle, nullptr);
-  EXPECT_TRUE(optimized_handle->IsEmpty());
-  *optimized_handle = T(isolate, optimized_object);
-  EXPECT_FALSE(optimized_handle->IsEmpty());
-
-  v8::Local<v8::Object> non_optimized_object = WrapperHelper::CreateWrapper(
-      isolate->GetCurrentContext(), nullptr, nullptr);
-  EXPECT_TRUE(non_optimized_handle->IsEmpty());
-  *non_optimized_handle = T(isolate, non_optimized_object);
-  EXPECT_FALSE(non_optimized_handle->IsEmpty());
-}
-
-}  // namespace
-
-TEST_F(EmbedderRootsHandlerTest,
-       TracedReferenceNoDestructorReclaimedOnScavenge) {
-  if (v8_flags.single_generation) return;
-
-  ManualGCScope manual_gc(i_isolate());
-  v8::HandleScope scope(v8_isolate());
-
-  DisableConservativeStackScanningScopeForTesting no_stack_scanning(heap());
-
-  ClearingEmbedderRootsHandler handler;
-  TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
-
-  auto* traced_handles = i_isolate()->traced_handles();
-  const size_t initial_count = traced_handles->used_node_count();
-  auto* optimized_handle = new v8::TracedReference<v8::Value>();
-  auto* non_optimized_handle = new v8::TracedReference<v8::Value>();
-  SetupOptimizedAndNonOptimizedHandle(v8_isolate(), optimized_handle,
-                                      non_optimized_handle);
-  EXPECT_EQ(initial_count + 2, traced_handles->used_node_count());
-  InvokeMinorGC();
-  EXPECT_EQ(initial_count + 1, traced_handles->used_node_count());
-  EXPECT_TRUE(optimized_handle->IsEmpty());
-  delete optimized_handle;
-  EXPECT_FALSE(non_optimized_handle->IsEmpty());
-  non_optimized_handle->Reset();
-  delete non_optimized_handle;
-  EXPECT_EQ(initial_count, traced_handles->used_node_count());
-}
-
-namespace {
-
-void ConstructJSObject(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                       v8::TracedReference<v8::Object>* handle) {
+void ConstructNonDroppableJSObject(v8::Isolate* isolate,
+                                   v8::Local<v8::Context> context,
+                                   v8::TracedReference<v8::Object>* handle) {
   v8::HandleScope scope(isolate);
   v8::Local<v8::Object> object(v8::Object::New(isolate));
   EXPECT_FALSE(object.IsEmpty());
@@ -119,16 +73,30 @@ void ConstructJSObject(v8::Isolate* isolate, v8::Local<v8::Context> context,
   EXPECT_FALSE(handle->IsEmpty());
 }
 
-template <typename T>
-void ConstructJSApiObject(v8::Isolate* isolate, v8::Local<v8::Context> context,
-                          T* global) {
+void ConstructNonDroppableJSApiObject(v8::Isolate* isolate,
+                                      v8::Local<v8::Context> context,
+                                      v8::TracedReference<v8::Object>* handle) {
   v8::HandleScope scope(isolate);
-  v8::Local<v8::Object> object =
-      WrapperHelper::CreateWrapper(context, nullptr, nullptr);
+  v8::Local<v8::Object> object = WrapperHelper::CreateWrapper(context, nullptr);
   EXPECT_FALSE(object.IsEmpty());
-  *global = T(isolate, object);
-  EXPECT_FALSE(global->IsEmpty());
+  *handle = v8::TracedReference<v8::Object>(isolate, object);
+  EXPECT_FALSE(handle->IsEmpty());
 }
+
+void ConstructDroppableJSApiObject(v8::Isolate* isolate,
+                                   v8::Local<v8::Context> context,
+                                   v8::TracedReference<v8::Object>* handle) {
+  v8::HandleScope scope(isolate);
+  v8::Local<v8::Object> object = WrapperHelper::CreateWrapper(context, handle);
+  EXPECT_FALSE(object.IsEmpty());
+  *handle = v8::TracedReference<v8::Object>(
+      isolate, object, typename v8::TracedReference<v8::Object>::IsDroppable{});
+  EXPECT_FALSE(handle->IsEmpty());
+}
+
+}  // namespace
+
+namespace {
 
 enum class SurvivalMode { kSurvives, kDies };
 
@@ -139,6 +107,7 @@ void TracedReferenceTest(v8::Isolate* isolate,
                          ModifierFunction modifier_function,
                          GCFunction gc_function, SurvivalMode survives) {
   auto i_isolate = reinterpret_cast<i::Isolate*>(isolate);
+  ManualGCScope manual_gc_scope(i_isolate);
   DisableConservativeStackScanningScopeForTesting no_stack_scanning(
       i_isolate->heap());
   v8::HandleScope scope(isolate);
@@ -162,33 +131,30 @@ void TracedReferenceTest(v8::Isolate* isolate,
 
 }  // namespace
 
-// EmbedderRootsHandler does not affect full GCs.
 TEST_F(EmbedderRootsHandlerTest,
-       TracedReferenceToUnmodifiedJSObjectDiesOnFullGC) {
-  // When stressing incremental marking, a write barrier may keep the object
-  // alive.
-  if (v8_flags.stress_incremental_marking) return;
+       FullGC_UnreachableTracedReferenceToNonDroppableDies) {
+  if (v8_flags.stress_incremental_marking)
+    GTEST_SKIP() << "When stressing incremental marking, a write barrier may "
+                    "keep the object alive.";
 
-  ClearingEmbedderRootsHandler handler;
+  ClearingEmbedderRootsHandler handler(v8_isolate());
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
-      v8_isolate(), ConstructJSObject,
+      v8_isolate(), ConstructNonDroppableJSObject,
       [](const TracedReference<v8::Object>&) {}, [this]() { InvokeMajorGC(); },
       SurvivalMode::kDies);
 }
 
-// EmbedderRootsHandler does not affect full GCs.
-TEST_F(
-    EmbedderRootsHandlerTest,
-    TracedReferenceToUnmodifiedJSObjectDiesOnFullGCEvenWhenPointeeIsHeldAlive) {
+TEST_F(EmbedderRootsHandlerTest,
+       FullGC_UnreachableTracedReferenceToNonDroppableDies2) {
   ManualGCScope manual_gcs(i_isolate());
-  ClearingEmbedderRootsHandler handler;
+  ClearingEmbedderRootsHandler handler(v8_isolate());
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   // The TracedReference itself will die as it's not found by the full GC. The
   // pointee will be kept alive through other means.
   v8::Global<v8::Object> strong_global;
   TracedReferenceTest(
-      v8_isolate(), ConstructJSObject,
+      v8_isolate(), ConstructNonDroppableJSObject,
       [this, &strong_global](const TracedReference<v8::Object>& handle) {
         v8::HandleScope scope(v8_isolate());
         strong_global =
@@ -201,70 +167,44 @@ TEST_F(
       SurvivalMode::kDies);
 }
 
-// EmbedderRootsHandler does not affect non-API objects.
 TEST_F(EmbedderRootsHandlerTest,
-       TracedReferenceToUnmodifiedJSObjectSurvivesYoungGC) {
-  if (v8_flags.single_generation) return;
+       YoungGC_UnreachableTracedReferenceToNonDroppableSurvives) {
+  if (v8_flags.single_generation) GTEST_SKIP();
 
   ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler;
+  ClearingEmbedderRootsHandler handler(v8_isolate());
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
-      v8_isolate(), ConstructJSObject,
+      v8_isolate(), ConstructNonDroppableJSObject,
       [](const TracedReference<v8::Object>&) {}, [this]() { InvokeMinorGC(); },
       SurvivalMode::kSurvives);
 }
 
-// EmbedderRootsHandler does not affect non-API objects.
-TEST_F(
-    EmbedderRootsHandlerTest,
-    TracedReferenceToUnmodifiedJSObjectSurvivesYoungGCWhenExcludedFromRoots) {
-  if (v8_flags.single_generation) return;
+TEST_F(EmbedderRootsHandlerTest,
+       YoungGC_UnreachableTracedReferenceToNonDroppableAPIObjectSurvives) {
+  if (v8_flags.single_generation) GTEST_SKIP();
 
   ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler;
+  ClearingEmbedderRootsHandler handler(v8_isolate());
   TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
   TracedReferenceTest(
-      v8_isolate(), ConstructJSObject,
+      v8_isolate(), ConstructNonDroppableJSApiObject,
+      [](const TracedReference<v8::Object>&) {}, [this]() { InvokeMinorGC(); },
+      SurvivalMode::kSurvives);
+}
+
+TEST_F(EmbedderRootsHandlerTest,
+       YoungGC_UnreachableTracedReferenceToDroppableDies) {
+  if (v8_flags.single_generation || !v8_flags.reclaim_unmodified_wrappers)
+    GTEST_SKIP();
+
+  ManualGCScope manual_gc(i_isolate());
+  ClearingEmbedderRootsHandler handler(v8_isolate());
+  TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
+  TracedReferenceTest(
+      v8_isolate(), ConstructDroppableJSApiObject,
       [](TracedReference<v8::Object>& handle) {}, [this]() { InvokeMinorGC(); },
-      SurvivalMode::kSurvives);
-}
-
-// EmbedderRootsHandler does not affect API objects for handles that have
-// their class ids not set up.
-TEST_F(EmbedderRootsHandlerTest,
-       TracedReferenceToUnmodifiedJSApiObjectSurvivesScavengePerDefault) {
-  if (v8_flags.single_generation) return;
-
-  ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler;
-  TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
-  TracedReferenceTest(
-      v8_isolate(), ConstructJSApiObject<TracedReference<v8::Object>>,
-      [](const TracedReference<v8::Object>&) {}, [this]() { InvokeMinorGC(); },
-      SurvivalMode::kSurvives);
-}
-
-// EmbedderRootsHandler resets API objects for handles that have their class ids
-// set to being optimized.
-TEST_F(
-    EmbedderRootsHandlerTest,
-    TracedReferenceToUnmodifiedJSApiObjectDiesOnScavengeWhenExcludedFromRoots) {
-  if (v8_flags.single_generation) return;
-
-  ManualGCScope manual_gc(i_isolate());
-  ClearingEmbedderRootsHandler handler;
-  TemporaryEmbedderRootsHandleScope roots_handler_scope(v8_isolate(), &handler);
-  TracedReferenceTest(
-      v8_isolate(), ConstructJSApiObject<TracedReference<v8::Object>>,
-      [this](TracedReference<v8::Object>& handle) {
-        {
-          HandleScope handles(i_isolate());
-          auto local = handle.Get(v8_isolate());
-          local->SetAlignedPointerInInternalField(0, &handle);
-        }
-      },
-      [this]() { InvokeMinorGC(); }, SurvivalMode::kDies);
+      SurvivalMode::kDies);
 }
 
 }  // namespace v8::internal

@@ -1,11 +1,13 @@
-## urltestdata.json
+## urltestdata.json / urltestdata-javascript-only.json
 
-`resources/urltestdata.json` contains URL parsing tests suitable for any URL parser implementation.
+[`resources/urltestdata.json`](resources/urltestdata.json) contains URL parsing tests suitable for any URL parser implementation.
+[`resources/urltestdata-javascript-only.json`](resources/urltestdata-javascript-only.json) contains URL parsing tests specifically meant
+for JavaScript's `URL()` class as well as other languages accepting non-scalar-value strings.
 
-It's used as a source of tests by `a-element.html`, `failure.html`, `url-constructor.any.js`, and
-other test files in this directory.
+These files are used as a source of tests by `a-element.html`, `failure.html`, `url-constructor.any.js`,
+and other test files in this directory.
 
-The format of `resources/urltestdata.json` is a JSON array of comments as strings and test cases as
+Both files share the same format. They consist of a JSON array of comments as strings and test cases as
 objects. The keys for each test case are:
 
 * `input`: a string to be parsed as URL.

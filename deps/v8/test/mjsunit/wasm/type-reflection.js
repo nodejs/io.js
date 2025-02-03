@@ -84,28 +84,36 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   assertEquals(1, type.minimum);
   assertEquals("funcref", type.element);
   assertEquals(undefined, type.maximum);
-  assertEquals(2, Object.getOwnPropertyNames(type).length);
+  assertEquals("i32", type.index);
+  // The index type is a default property (set to i32 by default).
+  assertEquals(3, Object.getOwnPropertyNames(type).length);
 
   table = new WebAssembly.Table({initial: 2, maximum: 15, element: "funcref"});
   type = table.type();
   assertEquals(2, type.minimum);
   assertEquals(15, type.maximum);
   assertEquals("funcref", type.element);
-  assertEquals(3, Object.getOwnPropertyNames(type).length);
+  assertEquals("i32", type.index);
+  // The index type is a default property (set to i32 by default).
+  assertEquals(4, Object.getOwnPropertyNames(type).length);
 
   table = new WebAssembly.Table({initial: 1, element: "anyfunc"});
   type = table.type();
   assertEquals(1, type.minimum);
   assertEquals("funcref", type.element);
   assertEquals(undefined, type.maximum);
-  assertEquals(2, Object.getOwnPropertyNames(type).length);
+  // The index type is a default property (set to i32 by default).
+  assertEquals("i32", type.index);
+  assertEquals(3, Object.getOwnPropertyNames(type).length);
 
   table = new WebAssembly.Table({initial: 2, maximum: 15, element: "anyfunc"});
   type = table.type();
   assertEquals(2, type.minimum);
   assertEquals(15, type.maximum);
   assertEquals("funcref", type.element);
-  assertEquals(3, Object.getOwnPropertyNames(type).length);
+  // The index type is a default property (set to i32 by default).
+  assertEquals("i32", type.index);
+  assertEquals(4, Object.getOwnPropertyNames(type).length);
 })();
 
 (function TestTableExports() {
@@ -278,7 +286,9 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   let type = table.type();
   assertEquals(1, type.minimum);
   assertEquals('funcref', type.element);
-  assertEquals(2, Object.getOwnPropertyNames(type).length);
+  assertEquals("i32", type.index);
+  // The index type is a default property (set to i32 by default).
+  assertEquals(3, Object.getOwnPropertyNames(type).length);
 
   table = new WebAssembly.Table({minimum: 1, element: 'funcref', maximum: 5});
   assertTrue(table instanceof WebAssembly.Table);
@@ -286,7 +296,9 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   assertEquals(1, type.minimum);
   assertEquals(5, type.maximum);
   assertEquals('funcref', type.element);
-  assertEquals(3, Object.getOwnPropertyNames(type).length);
+  assertEquals("i32", type.index);
+  // The index type is a default property (set to i32 by default).
+  assertEquals(4, Object.getOwnPropertyNames(type).length);
 
   assertThrows(
       () => new WebAssembly.Table({minimum: 1, initial: 2, element: 'funcref'}),

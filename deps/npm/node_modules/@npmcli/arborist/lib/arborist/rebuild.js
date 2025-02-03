@@ -8,12 +8,9 @@ const rpj = require('read-package-json-fast')
 const binLinks = require('bin-links')
 const runScript = require('@npmcli/run-script')
 const { callLimit: promiseCallLimit } = require('promise-call-limit')
-const { resolve } = require('path')
-const {
-  isNodeGypPackage,
-  defaultGypInstallScript,
-} = require('@npmcli/node-gyp')
-const log = require('proc-log')
+const { resolve } = require('node:path')
+const { isNodeGypPackage, defaultGypInstallScript } = require('@npmcli/node-gyp')
+const { log, time } = require('proc-log')
 
 const boolEnv = b => b ? '1' : ''
 const sortNodes = (a, b) =>
@@ -54,7 +51,7 @@ module.exports = cls => class Builder extends cls {
 
     // separates links nodes so that it can run
     // prepare scripts and link bins in the expected order
-    process.emit('time', 'build')
+    const timeEnd = time.start('build')
 
     const {
       depNodes,
@@ -70,7 +67,7 @@ module.exports = cls => class Builder extends cls {
       await this.#build(linkNodes, { type: 'links' })
     }
 
-    process.emit('timeEnd', 'build')
+    timeEnd()
   }
 
   // if we don't have a set of nodes, then just rebuild
@@ -147,7 +144,7 @@ module.exports = cls => class Builder extends cls {
   }
 
   async #build (nodes, { type = 'deps' }) {
-    process.emit('time', `build:${type}`)
+    const timeEnd = time.start(`build:${type}`)
 
     await this.#buildQueues(nodes)
 
@@ -157,7 +154,9 @@ module.exports = cls => class Builder extends cls {
 
     // links should run prepare scripts and only link bins after that
     if (type === 'links') {
-      await this.#runScripts('prepare')
+      if (!this.options.ignoreScripts) {
+        await this.#runScripts('prepare')
+      }
     }
     if (this.options.binLinks) {
       await this.#linkAllBins()
@@ -168,11 +167,11 @@ module.exports = cls => class Builder extends cls {
       await this.#runScripts('postinstall')
     }
 
-    process.emit('timeEnd', `build:${type}`)
+    timeEnd()
   }
 
   async #buildQueues (nodes) {
-    process.emit('time', 'build:queue')
+    const timeEnd = time.start('build:queue')
     const set = new Set()
 
     const promises = []
@@ -210,7 +209,7 @@ module.exports = cls => class Builder extends cls {
         }
       }
     }
-    process.emit('timeEnd', 'build:queue')
+    timeEnd()
   }
 
   async [_checkBins] (node) {
@@ -286,7 +285,7 @@ module.exports = cls => class Builder extends cls {
       return
     }
 
-    process.emit('time', `build:run:${event}`)
+    const timeEnd = time.start(`build:run:${event}`)
     const stdio = this.options.foregroundScripts ? 'inherit' : 'pipe'
     const limit = this.options.foregroundScripts ? 1 : undefined
     await promiseCallLimit(queue.map(node => async () => {
@@ -309,8 +308,7 @@ module.exports = cls => class Builder extends cls {
         return
       }
 
-      const timer = `build:run:${event}:${location}`
-      process.emit('time', timer)
+      const timeEndLocation = time.start(`build:run:${event}:${location}`)
       log.info('run', pkg._id, event, location, pkg.scripts[event])
       const env = {
         npm_package_resolved: resolved,
@@ -356,9 +354,9 @@ module.exports = cls => class Builder extends cls {
         ? this[_handleOptionalFailure](node, p)
         : p)
 
-      process.emit('timeEnd', timer)
+      timeEndLocation()
     }), { limit })
-    process.emit('timeEnd', `build:run:${event}`)
+    timeEnd()
   }
 
   async #linkAllBins () {
@@ -367,7 +365,7 @@ module.exports = cls => class Builder extends cls {
       return
     }
 
-    process.emit('time', 'build:link')
+    const timeEnd = time.start('build:link')
     const promises = []
     // sort the queue by node path, so that the module-local collision
     // detector in bin-links will always resolve the same way.
@@ -377,7 +375,7 @@ module.exports = cls => class Builder extends cls {
     }
 
     await promiseAllRejectLate(promises)
-    process.emit('timeEnd', 'build:link')
+    timeEnd()
   }
 
   async #createBinLinks (node) {
@@ -385,7 +383,7 @@ module.exports = cls => class Builder extends cls {
       return
     }
 
-    process.emit('time', `build:link:${node.location}`)
+    const timeEnd = time.start(`build:link:${node.location}`)
 
     const p = binLinks({
       pkg: node.package,
@@ -399,6 +397,6 @@ module.exports = cls => class Builder extends cls {
       ? this[_handleOptionalFailure](node, p)
       : p)
 
-    process.emit('timeEnd', `build:link:${node.location}`)
+    timeEnd()
   }
 }

@@ -49,7 +49,7 @@ FeedbackCellRef JSCreateClosureNode::GetFeedbackCellRefChecked(
     JSHeapBroker* broker) const {
   HeapObjectMatcher m(feedback_cell());
   CHECK(m.HasResolvedValue());
-  return MakeRef(broker, Handle<FeedbackCell>::cast(m.ResolvedValue()));
+  return MakeRef(broker, Cast<FeedbackCell>(m.ResolvedValue()));
 }
 
 std::ostream& operator<<(std::ostream& os, CallFrequency const& f) {
@@ -760,6 +760,7 @@ Type JSWasmCallNode::TypeForWasmReturnType(const wasm::ValueType& type) {
   V(CreatePromise, Operator::kEliminatable, 0, 1)                        \
   V(CreateTypedArray, Operator::kNoProperties, 5, 1)                     \
   V(CreateObject, Operator::kNoProperties, 1, 1)                         \
+  V(CreateStringWrapper, Operator::kEliminatable, 1, 1)                  \
   V(ObjectIsArray, Operator::kNoProperties, 1, 1)                        \
   V(HasInPrototypeChain, Operator::kNoProperties, 2, 1)                  \
   V(OrdinaryHasInstance, Operator::kNoProperties, 2, 1)                  \

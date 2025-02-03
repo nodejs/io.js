@@ -47,20 +47,20 @@ U_NAMESPACE_BEGIN
 
 int32_t U_EXPORT2
 ucache_hashKeys(const UHashTok key) {
-    const CacheKeyBase *ckey = (const CacheKeyBase *) key.pointer;
+    const CacheKeyBase* ckey = static_cast<const CacheKeyBase*>(key.pointer);
     return ckey->hashCode();
 }
 
 UBool U_EXPORT2
 ucache_compareKeys(const UHashTok key1, const UHashTok key2) {
-    const CacheKeyBase *p1 = (const CacheKeyBase *) key1.pointer;
-    const CacheKeyBase *p2 = (const CacheKeyBase *) key2.pointer;
+    const CacheKeyBase* p1 = static_cast<const CacheKeyBase*>(key1.pointer);
+    const CacheKeyBase* p2 = static_cast<const CacheKeyBase*>(key2.pointer);
     return *p1 == *p2;
 }
 
 void U_EXPORT2
 ucache_deleteKey(void *obj) {
-    CacheKeyBase *p = (CacheKeyBase *) obj;
+    CacheKeyBase* p = static_cast<CacheKeyBase*>(obj);
     delete p;
 }
 
@@ -253,7 +253,7 @@ UBool UnifiedCache::_flush(UBool all) const {
         }
         if (all || _isEvictable(element)) {
             const SharedObject *sharedObject =
-                    (const SharedObject *) element->value.pointer;
+                    static_cast<const SharedObject*>(element->value.pointer);
             U_ASSERT(sharedObject->cachePtr == this);
             uhash_removeElement(fHashtable, element);
             removeSoftRef(sharedObject);    // Deletes the sharedObject when softRefCount goes to zero.
@@ -269,7 +269,7 @@ int32_t UnifiedCache::_computeCountOfItemsToEvict() const {
 
     int32_t unusedLimitByPercentage = fNumValuesInUse * fMaxPercentageOfInUse / 100;
     int32_t unusedLimit = std::max(unusedLimitByPercentage, fMaxUnused);
-    int32_t countOfItemsToEvict = std::max(0, evictableItems - unusedLimit);
+    int32_t countOfItemsToEvict = std::max<int32_t>(0, evictableItems - unusedLimit);
     return countOfItemsToEvict;
 }
 
@@ -285,7 +285,7 @@ void UnifiedCache::_runEvictionSlice() const {
         }
         if (_isEvictable(element)) {
             const SharedObject *sharedObject =
-                    (const SharedObject *) element->value.pointer;
+                    static_cast<const SharedObject*>(element->value.pointer);
             uhash_removeElement(fHashtable, element);
             removeSoftRef(sharedObject);   // Deletes sharedObject when SoftRefCount goes to zero.
             ++fAutoEvictedCount;
@@ -416,8 +416,8 @@ void UnifiedCache::_put(
         const SharedObject *value,
         const UErrorCode status) const {
     U_ASSERT(_inProgress(element));
-    const CacheKeyBase *theKey = (const CacheKeyBase *) element->key.pointer;
-    const SharedObject *oldValue = (const SharedObject *) element->value.pointer;
+    const CacheKeyBase* theKey = static_cast<const CacheKeyBase*>(element->key.pointer);
+    const SharedObject* oldValue = static_cast<const SharedObject*>(element->value.pointer);
     theKey->fCreationStatus = status;
     if (value->softRefCount == 0) {
         _registerPrimary(theKey, value);
@@ -437,7 +437,7 @@ void UnifiedCache::_fetch(
         const UHashElement *element,
         const SharedObject *&value,
         UErrorCode &status) const {
-    const CacheKeyBase *theKey = (const CacheKeyBase *) element->key.pointer;
+    const CacheKeyBase* theKey = static_cast<const CacheKeyBase*>(element->key.pointer);
     status = theKey->fCreationStatus;
 
     // Since we have the cache lock, calling regular SharedObject add/removeRef
@@ -465,9 +465,8 @@ UBool UnifiedCache::_inProgress(
 
 UBool UnifiedCache::_isEvictable(const UHashElement *element) const
 {
-    const CacheKeyBase *theKey = (const CacheKeyBase *) element->key.pointer;
-    const SharedObject *theValue =
-            (const SharedObject *) element->value.pointer;
+    const CacheKeyBase* theKey = static_cast<const CacheKeyBase*>(element->key.pointer);
+    const SharedObject* theValue = static_cast<const SharedObject*>(element->value.pointer);
 
     // Entries that are under construction are never evictable
     if (_inProgress(theValue, theKey->fCreationStatus)) {

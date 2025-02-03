@@ -31,10 +31,12 @@ See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
 for more details about the presubmit API built into gcl.
 """
 
+import ast
 import json
 import os
 import re
 import sys
+import traceback
 
 # This line is 'magic' in that git-cl looks for it to decide whether to
 # use Python3 instead of Python2 when running the code in this file.
@@ -136,6 +138,27 @@ def _V8PresubmitChecks(input_api, output_api):
         'v8-ci-test262-import-export@chops-service-accounts.iam.gserviceaccount.com',
       ]))
   return results
+
+
+def _CheckPythonLiterals(input_api, output_api):
+  """Checks that all .pyl files are valid python literals."""
+  affected_files = [
+      af for af in input_api.AffectedFiles()
+      if af.LocalPath().endswith('.pyl')
+  ]
+
+  results = []
+  for af in affected_files:
+    try:
+      ast.literal_eval('\n'.join(af.NewContents()))
+    except SyntaxError as e:
+      results.append(output_api.PresubmitError(
+          f'Failed to parse python literal {af.LocalPath()}:\n' +
+          traceback.format_exc(0)
+      ))
+
+  return results
+
 
 
 def _CheckUnwantedDependencies(input_api, output_api):
@@ -416,6 +439,7 @@ def _CommonChecks(input_api, output_api):
     _CheckJSONFiles,
     _CheckNoexceptAnnotations,
     _RunTestsWithVPythonSpec,
+    _CheckPythonLiterals,
   ]
 
   return sum([check(input_api, output_api) for check in checks], [])

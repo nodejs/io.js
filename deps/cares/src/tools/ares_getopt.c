@@ -47,9 +47,10 @@
 
 #define BADCH  (int)'?'
 #define BADARG (int)':'
-#define EMSG   (char *)""
+#define EMSG   ""
 
-void ares_getopt_init(ares_getopt_state_t *state, int nargc, const char **nargv)
+void ares_getopt_init(ares_getopt_state_t *state, int nargc,
+                      const char * const *nargv)
 {
   memset(state, 0, sizeof(*state));
   state->opterr = 1;

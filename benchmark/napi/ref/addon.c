@@ -1,6 +1,5 @@
-#include <stdlib.h>
-#define NAPI_EXPERIMENTAL
 #include <node_api.h>
+#include <stdlib.h>
 
 #define NAPI_CALL(env, call)                          \
   do {                                                \
@@ -34,8 +33,7 @@ SetCount(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-static void
-IncrementCounter(napi_env env, void* data, void* hint) {
+static void IncrementCounter(node_api_basic_env env, void* data, void* hint) {
   size_t* count = data;
   (*count) = (*count) + 1;
 }

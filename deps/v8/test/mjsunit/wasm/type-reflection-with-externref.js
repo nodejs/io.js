@@ -12,14 +12,18 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
   let type = table.type();
   assertEquals(1, type.minimum);
   assertEquals("externref", type.element);
-  assertEquals(2, Object.getOwnPropertyNames(type).length);
+  // The index type is a default property (set to i32 by default).
+  assertEquals("i32", type.index);
+  assertEquals(3, Object.getOwnPropertyNames(type).length);
 
   table = new WebAssembly.Table({initial: 2, maximum: 15, element: "externref"});
   type = table.type();
   assertEquals(2, type.minimum);
   assertEquals(15, type.maximum);
   assertEquals("externref", type.element);
-  assertEquals(3, Object.getOwnPropertyNames(type).length);
+  // The index type is a default property (set to i32 by default).
+  assertEquals("i32", type.index);
+  assertEquals(4, Object.getOwnPropertyNames(type).length);
 })();
 
 (function TestGlobalType() {

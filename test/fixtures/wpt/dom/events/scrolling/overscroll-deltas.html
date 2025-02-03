@@ -6,80 +6,152 @@
 <script src="/resources/testdriver-vendor.js"></script>
 <script src="scroll_support.js"></script>
 <style>
-#targetDiv {
-  width: 500px;
-  height: 500px;
-  background: red;
-}
-html, body {
-  /* Prevent any built-in browser overscroll features from consuming the scroll
-   * deltas */
-  overscroll-behavior: none;
-}
+  #hspacer {
+    height: 100px;
+    width: 100vw;
+    top: 0;
+    /* on the right edge of targetDiv */
+    left: 200px;
+    position: absolute;
+  }
 
+  #vspacer {
+    height: 100vh;
+    width: 100px;
+    position: absolute;
+  }
+
+  #targetDiv {
+    width: 200px;
+    height: 200px;
+    overflow: scroll;
+  }
+
+  #innerDiv {
+    width: 400px;
+    height: 400px;
+  }
 </style>
 
-<body style="margin:0;" onload=runTest()>
-<div id="targetDiv">
-</div>
+<body style="margin:0" onload=runTest()>
+  <div id="targetDiv">
+    <div id="innerDiv"></div>
+  </div>
+  <div id="hspacer"></div>
+  <div id="vspacer"></div>
 </body>
 
 <script>
-var target_div = document.getElementById('targetDiv');
-var overscrolled_x_deltas = [];
-var overscrolled_y_deltas = [];
-var scrollend_received = false;
+  var target_div = document.getElementById('targetDiv');
+  var overscrolled_x_deltas = [];
+  var overscrolled_y_deltas = [];
+  var scrollend_received = false;
 
-function onOverscroll(event) {
-  overscrolled_x_deltas.push(event.deltaX);
-  overscrolled_y_deltas.push(event.deltaY);
-}
+  function onOverscroll(event) {
+    overscrolled_x_deltas.push(event.deltaX);
+    overscrolled_y_deltas.push(event.deltaY);
+  }
 
-function onScrollend(event) {
-  scrollend_received = true;
-}
+  async function resetScrollers(test) {
+    await waitForScrollReset(test, target_div);
+    await waitForScrollReset(test, document.scrollingElement);
+  }
 
-document.addEventListener("overscroll", onOverscroll);
-document.addEventListener("scrollend", onScrollend);
-
-function runTest() {
-  promise_test (async (t) => {
-    await waitForCompositorCommit();
-
-    // Scroll up on target div and wait for the doc to get overscroll event.
-    await touchScrollInTarget(300, target_div, 'up');
-    await waitFor(() => { return scrollend_received; },
-        'Document did not receive scrollend event.');
-
-    // Even though we request 300 pixels of scroll, the API above doesn't
-    // guarantee how much scroll delta will be generated - different browsers
-    // can consume different amounts for "touch slop" (for example). Ensure the
-    // overscroll reaches at least 100 pixels which is a fairly conservative
-    // value.
-    assert_greater_than(overscrolled_y_deltas.length, 0, "There should be at least one overscroll events when overscrolling.");
-    assert_equals(overscrolled_x_deltas.filter(function(x){ return x!=0; }).length, 0, "The deltaX attribute must be 0 when there is no scrolling in x direction.");
-    assert_less_than_equal(Math.max(...overscrolled_y_deltas), 0, "The deltaY attribute must be <= 0 when there is overscrolling in up direction.");
-    assert_less_than_equal(Math.min(...overscrolled_y_deltas),-100, "The deltaY attribute must be the number of pixels overscrolled.");
-
-    await waitForCompositorCommit();
+  function resetOverScrollDeltas() {
     overscrolled_x_deltas = [];
     overscrolled_y_deltas = [];
-    scrollend_received = false;
+  }
 
-    // Scroll left on target div and wait for the doc to get overscroll event.
-    await touchScrollInTarget(300, target_div, 'left');
-    await waitFor(() => { return scrollend_received; },
-        'Document did not receive scrollend event.');
+  function waitForOverscrollEventWithMinDelta(target, min_x = 0, min_y = 0) {
+    return new Promise((resolve) => {
+      target.addEventListener("overscroll", (evt) => {
+        if (evt.deltaX >= min_x && evt.deltaY >= min_y) {
+          resolve();
+        }
+      });
+    });
+  }
 
-    // TODO(bokan): It looks like Chrome inappropriately filters some scroll
-    // events despite |overscroll-behavior| being set to none. The overscroll
-    // amount here has been loosened but this should be fixed in Chrome.
-    // https://crbug.com/1112183.
-    assert_greater_than(overscrolled_y_deltas.length, 0, "There should be at least one overscroll events when overscrolling.");
-    assert_equals(overscrolled_y_deltas.filter(function(x){ return x!=0; }).length, 0, "The deltaY attribute must be 0 when there is no scrolling in y direction.");
-    assert_less_than_equal(Math.max(...overscrolled_x_deltas), 0, "The deltaX attribute must be <= 0 when there is overscrolling in left direction.");
-    assert_less_than_equal(Math.min(...overscrolled_x_deltas),-50, "The deltaX attribute must be the number of pixels overscrolled.");
+  function unreachedScrollendListener() {
+    assert_unreached('Unexpected scrollend event');
+  }
 
-  }, 'Tests that the document gets overscroll event with right deltaX/Y attributes.');
-}
+  document.addEventListener("overscroll", onOverscroll);
+
+  function runTest() {
+    promise_test(async (t) => {
+      await resetScrollers(t);
+      await waitForCompositorCommit();
+      resetOverScrollDeltas();
+
+      assert_equals(document.scrollingElement.scrollTop, 0,
+        "document should not be scrolled");
+
+      let scrollend_promise = waitForScrollendEvent(t, target_div);
+      let max_target_div_scroll_top = target_div.scrollHeight - target_div.clientHeight;
+      target_div.scrollTop = target_div.scrollHeight;
+      await scrollend_promise;
+      assert_equals(target_div.scrollTop, max_target_div_scroll_top,
+      "target_div should be fully scrolled down");
+
+      // Even though we request 300 extra pixels of scroll, the API above doesn't
+      // guarantee how much scroll delta will be generated - different browsers
+      // can consume different amounts for "touch slop" (for example). Ensure the
+      // overscroll reaches at least 250 pixels which is a fairly conservative
+      // value.
+      let overscroll_promise = waitForOverscrollEventWithMinDelta(document,
+          /*min_x*/0, /*min_y*/250);
+      scrollend_promise = waitForScrollendEvent(t, document, 2000);
+      target_div.addEventListener("scrollend", unreachedScrollendListener);
+      // Scroll target div vertically and wait for the doc to get scrollend event.
+      await scrollElementDown(target_div, target_div.clientHeight + 300);
+      await waitForCompositorCommit();
+      await overscroll_promise;
+      await scrollend_promise;
+
+      target_div.removeEventListener("scrollend", unreachedScrollendListener);
+      assert_greater_than(overscrolled_y_deltas.length, 0, "There should be at least one overscroll events when overscrolling.");
+      assert_equals(overscrolled_x_deltas.filter(function (x) { return x != 0; }).length, 0, "The deltaX attribute must be 0 when there is no scrolling in x direction.");
+      assert_less_than_equal(Math.max(...overscrolled_y_deltas), 300, "The deltaY attribute must be <= the number of pixels overscrolled (300)");
+      assert_greater_than(document.scrollingElement.scrollTop, target_div.clientHeight - 1,
+        "document is scrolled by the height of target_div");
+    }, "testing, vertical");
+
+    promise_test(async (t) => {
+      await resetScrollers(t);
+      await waitForCompositorCommit();
+      resetOverScrollDeltas();
+
+      assert_equals(document.scrollingElement.scrollLeft, 0,
+        "document should not be scrolled");
+
+      let scrollend_promise = waitForScrollendEvent(t, target_div);
+      let max_target_div_scroll_left = target_div.scrollWidth - target_div.clientWidth;
+      target_div.scrollLeft = target_div.scrollWidth;
+      await scrollend_promise;
+      assert_equals(target_div.scrollLeft, max_target_div_scroll_left,
+        "target_div should be fully scrolled right");
+
+      let overscroll_promise = waitForOverscrollEventWithMinDelta(document,
+          /*min_x*/250, /*min_y*/ 0);
+      scrollend_promise = waitForScrollendEvent(t, document, 2000);
+      target_div.addEventListener("scrollend", unreachedScrollendListener);
+      // Scroll target div horizontally and wait for the doc to get scrollend event.
+      await scrollElementLeft(target_div, target_div.clientWidth + 300);
+      await waitForCompositorCommit();
+      await overscroll_promise;
+      await scrollend_promise;
+
+      target_div.removeEventListener("scrollend", unreachedScrollendListener);
+      assert_greater_than(document.scrollingElement.scrollLeft, target_div.clientWidth - 1,
+        "document is scrolled by the height of target_div");
+      // TODO(bokan): It looks like Chrome inappropriately filters some scroll
+      // events despite |overscroll-behavior| being set to none. The overscroll
+      // amount here has been loosened but this should be fixed in Chrome.
+      // https://crbug.com/1112183.
+      assert_greater_than(overscrolled_x_deltas.length, 0, "There should be at least one overscroll events when overscrolling.");
+      assert_equals(overscrolled_y_deltas.filter(function(x){ return x!=0; }).length, 0, "The deltaY attribute must be 0 when there is no scrolling in y direction.");
+      assert_less_than_equal(Math.max(...overscrolled_x_deltas), 300, "The deltaX attribute must be <= number of pixels overscrolled (300)");
+    }, "testing, horizontal");
+  }
 </script>

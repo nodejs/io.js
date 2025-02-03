@@ -277,9 +277,9 @@ void nghttp2_stream_change_weight(nghttp2_stream *stream, int32_t weight) {
   /* Compute old stream->pending_penalty we used to calculate
      stream->cycle */
   stream->pending_penalty =
-      (uint32_t)((stream->pending_penalty + (uint32_t)old_weight -
-                  (wlen_penalty % (uint32_t)old_weight)) %
-                 (uint32_t)old_weight);
+    (uint32_t)((stream->pending_penalty + (uint32_t)old_weight -
+                (wlen_penalty % (uint32_t)old_weight)) %
+               (uint32_t)old_weight);
 
   last_cycle = stream->cycle -
                (wlen_penalty + stream->pending_penalty) / (uint32_t)old_weight;
@@ -312,7 +312,7 @@ int32_t nghttp2_stream_dep_distributed_weight(nghttp2_stream *stream,
                                               int32_t weight) {
   weight = stream->weight * weight / stream->sum_dep_weight;
 
-  return nghttp2_max(1, weight);
+  return nghttp2_max_int32(1, weight);
 }
 
 #ifdef STREAM_DEP_DEBUG
@@ -571,16 +571,16 @@ static int update_initial_window_size(int32_t *window_size_ptr,
 }
 
 int nghttp2_stream_update_remote_initial_window_size(
-    nghttp2_stream *stream, int32_t new_initial_window_size,
-    int32_t old_initial_window_size) {
+  nghttp2_stream *stream, int32_t new_initial_window_size,
+  int32_t old_initial_window_size) {
   return update_initial_window_size(&stream->remote_window_size,
                                     new_initial_window_size,
                                     old_initial_window_size);
 }
 
 int nghttp2_stream_update_local_initial_window_size(
-    nghttp2_stream *stream, int32_t new_initial_window_size,
-    int32_t old_initial_window_size) {
+  nghttp2_stream *stream, int32_t new_initial_window_size,
+  int32_t old_initial_window_size) {
   return update_initial_window_size(&stream->local_window_size,
                                     new_initial_window_size,
                                     old_initial_window_size);

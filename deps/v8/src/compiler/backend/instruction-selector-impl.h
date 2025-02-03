@@ -387,6 +387,7 @@ class OperandGeneratorT : public Adapter {
             }
           case Kind::kHeapObject:
           case Kind::kCompressedHeapObject:
+          case Kind::kTrustedHeapObject:
             return Constant(constant->handle(),
                             constant->kind == Kind::kCompressedHeapObject);
           case Kind::kExternal:
@@ -415,14 +416,14 @@ class OperandGeneratorT : public Adapter {
             auto mode = constant->kind == Kind::kRelocatableWasmCall
                             ? RelocInfo::WASM_CALL
                             : RelocInfo::WASM_STUB_CALL;
-            if (Is64()) {
-              return Constant(RelocatablePtrConstantInfo(
-                  base::checked_cast<int64_t>(value), mode));
-            } else {
-              return Constant(RelocatablePtrConstantInfo(
-                  base::checked_cast<int32_t>(value), mode));
-            }
+            using constant_type = std::conditional_t<Is64(), int64_t, int32_t>;
+            return Constant(RelocatablePtrConstantInfo(
+                base::checked_cast<constant_type>(value), mode));
           }
+          case Kind::kRelocatableWasmCanonicalSignatureId:
+            return Constant(RelocatablePtrConstantInfo(
+                base::checked_cast<int32_t>(constant->integral()),
+                RelocInfo::WASM_CANONICAL_SIG_ID));
         }
       }
       UNREACHABLE();

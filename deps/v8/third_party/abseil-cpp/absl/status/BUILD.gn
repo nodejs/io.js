@@ -35,6 +35,11 @@ absl_source_set("status") {
     "//third_party/abseil-cpp/absl/types:optional",
     "//third_party/abseil-cpp/absl/types:span",
   ]
+
+  if (!is_win || is_clang) {
+    # TODO(crbug.com/331100926): Remove once fixed in upstream absl.
+    cflags_cc = [ "-Wno-deprecated-pragma" ]
+  }
 }
 
 absl_test("status_test") {
@@ -74,6 +79,7 @@ absl_test("statusor_test") {
   sources = [ "statusor_test.cc" ]
   deps = [
     ":status",
+    ":status_matchers",
     ":statusor",
     "//third_party/abseil-cpp/absl/base",
     "//third_party/abseil-cpp/absl/memory",
@@ -82,5 +88,32 @@ absl_test("statusor_test") {
     "//third_party/abseil-cpp/absl/types:any",
     "//third_party/abseil-cpp/absl/types:variant",
     "//third_party/abseil-cpp/absl/utility",
+  ]
+}
+
+absl_source_set("status_matchers") {
+  testonly = true
+  public = [ "status_matchers.h" ]
+  sources = [
+    "internal/status_matchers.cc",
+    "internal/status_matchers.h",
+  ]
+  deps = [
+    ":status",
+    ":statusor",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/googletest:gmock",
+    "//third_party/googletest:gtest",
+  ]
+}
+
+absl_test("status_matchers_test") {
+  sources = [ "status_matchers_test.cc" ]
+  deps = [
+    ":status",
+    ":status_matchers",
+    ":statusor",
+    "//third_party/abseil-cpp/absl/strings",
   ]
 }

@@ -223,6 +223,12 @@ class V8_EXPORT String : public Name {
    */
   bool IsExternalOneByte() const;
 
+  /**
+   * Returns the internalized string. See `NewStringType::kInternalized` for
+   * details on internalized strings.
+   */
+  Local<String> InternalizeString(Isolate* isolate);
+
   class V8_EXPORT ExternalStringResourceBase {
    public:
     virtual ~ExternalStringResourceBase() = default;
@@ -383,6 +389,8 @@ class V8_EXPORT String : public Name {
    * string is returned in encoding_out.
    */
   V8_INLINE ExternalStringResourceBase* GetExternalStringResourceBase(
+      v8::Isolate* isolate, Encoding* encoding_out) const;
+  V8_INLINE ExternalStringResourceBase* GetExternalStringResourceBase(
       Encoding* encoding_out) const;
 
   /**
@@ -507,10 +515,15 @@ class V8_EXPORT String : public Name {
    * (e.g. due to an exception in the toString() method of the object)
    * then the length() method returns 0 and the * operator returns
    * NULL.
+   *
+   * WARNING: This will unconditionally copy the contents of the JavaScript
+   * string, and should be avoided in situations where performance is a concern.
+   * Consider using WriteUtf8() instead.
    */
   class V8_EXPORT Utf8Value {
    public:
-    Utf8Value(Isolate* isolate, Local<v8::Value> obj);
+    Utf8Value(Isolate* isolate, Local<v8::Value> obj,
+              WriteOptions options = REPLACE_INVALID_UTF8);
     ~Utf8Value();
     char* operator*() { return str_; }
     const char* operator*() const { return str_; }
@@ -527,12 +540,19 @@ class V8_EXPORT String : public Name {
 
   /**
    * Converts an object to a two-byte (UTF-16-encoded) string.
+   *
    * If conversion to a string fails (eg. due to an exception in the toString()
    * method of the object) then the length() method returns 0 and the * operator
    * returns NULL.
+   *
+   * WARNING: This will unconditionally copy the contents of the JavaScript
+   * string, and should be avoided in situations where performance is a concern.
    */
   class V8_EXPORT Value {
    public:
+    V8_DEPRECATE_SOON(
+        "Prefer using String::ValueView if you can, or string->Write to a "
+        "buffer if you cannot.")
     Value(Isolate* isolate, Local<v8::Value> obj);
     ~Value();
     uint16_t* operator*() { return str_; }
@@ -546,6 +566,55 @@ class V8_EXPORT String : public Name {
    private:
     uint16_t* str_;
     int length_;
+  };
+
+  /**
+   * Returns a view onto a string's contents.
+   *
+   * WARNING: This does not copy the string's contents, and will therefore be
+   * invalidated if the GC can move the string while the ValueView is alive. It
+   * is therefore required that no GC or allocation can happen while there is an
+   * active ValueView. This requirement may be relaxed in the future.
+   *
+   * V8 strings are either encoded as one-byte or two-bytes per character.
+   */
+  class V8_EXPORT ValueView {
+   public:
+    ValueView(Isolate* isolate, Local<v8::String> str);
+    ~ValueView();
+    const uint8_t* data8() const {
+#if V8_ENABLE_CHECKS
+      CheckOneByte(true);
+#endif
+      return data8_;
+    }
+    const uint16_t* data16() const {
+#if V8_ENABLE_CHECKS
+      CheckOneByte(false);
+#endif
+      return data16_;
+    }
+    int length() const { return length_; }
+    bool is_one_byte() const { return is_one_byte_; }
+
+    // Disallow copying and assigning.
+    ValueView(const ValueView&) = delete;
+    void operator=(const ValueView&) = delete;
+
+   private:
+    void CheckOneByte(bool is_one_byte) const;
+
+    Local<v8::String> flat_str_;
+    union {
+      const uint8_t* data8_;
+      const uint16_t* data16_;
+    };
+    int length_;
+    bool is_one_byte_;
+    // Avoid exposing the internal DisallowGarbageCollection scope.
+    alignas(internal::Internals::
+                kDisallowGarbageCollectionAlign) char no_gc_debug_scope_
+        [internal::Internals::kDisallowGarbageCollectionSize];
   };
 
  private:
@@ -809,6 +878,28 @@ String::ExternalStringResource* String::GetExternalStringResource() const {
   VerifyExternalStringResource(result);
 #endif
   return result;
+}
+
+String::ExternalStringResourceBase* String::GetExternalStringResourceBase(
+    v8::Isolate* isolate, String::Encoding* encoding_out) const {
+  using A = internal::Address;
+  using I = internal::Internals;
+  A obj = internal::ValueHelper::ValueAsAddress(this);
+  int type = I::GetInstanceType(obj) & I::kStringRepresentationAndEncodingMask;
+  *encoding_out = static_cast<Encoding>(type & I::kStringEncodingMask);
+  ExternalStringResourceBase* resource;
+  if (type == I::kExternalOneByteRepresentationTag ||
+      type == I::kExternalTwoByteRepresentationTag) {
+    A value = I::ReadExternalPointerField<internal::kExternalStringResourceTag>(
+        isolate, obj, I::kStringResourceOffset);
+    resource = reinterpret_cast<ExternalStringResourceBase*>(value);
+  } else {
+    resource = GetExternalStringResourceBaseSlow(encoding_out);
+  }
+#ifdef V8_ENABLE_CHECKS
+  VerifyExternalStringResourceBase(resource, *encoding_out);
+#endif
+  return resource;
 }
 
 String::ExternalStringResourceBase* String::GetExternalStringResourceBase(

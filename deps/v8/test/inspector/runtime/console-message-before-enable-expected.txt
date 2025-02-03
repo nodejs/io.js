@@ -62,6 +62,13 @@ Running test: testEnable
                 scriptId : <scriptId>
                 url : test.js
             }
+            [1] : {
+                columnNumber : 0
+                functionName : 
+                lineNumber : 12
+                scriptId : <scriptId>
+                url : test.js
+            }
         ]
     }
     timestamp : <timestamp>

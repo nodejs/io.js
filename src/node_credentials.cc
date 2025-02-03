@@ -72,9 +72,7 @@ static bool HasOnly(int capability) {
 // process only has the capability CAP_NET_BIND_SERVICE set. If the current
 // process does not have any capabilities set and the process is running as
 // setuid root then lookup will not be allowed.
-bool SafeGetenv(const char* key,
-                std::string* text,
-                std::shared_ptr<KVStore> env_vars) {
+bool SafeGetenv(const char* key, std::string* text, Environment* env) {
 #if !defined(__CloudABI__) && !defined(_WIN32)
 #if defined(__linux__)
   if ((!HasOnly(CAP_NET_BIND_SERVICE) && linux_at_secure()) ||
@@ -87,11 +85,23 @@ bool SafeGetenv(const char* key,
 
   // Fallback to system environment which reads the real environment variable
   // through uv_os_getenv.
-  if (env_vars == nullptr) {
+  std::shared_ptr<KVStore> env_vars;
+  if (env == nullptr) {
     env_vars = per_process::system_environment;
+  } else {
+    env_vars = env->env_vars();
   }
 
-  return env_vars->Get(key).To(text);
+  std::optional<std::string> value = env_vars->Get(key);
+
+  bool has_env = value.has_value();
+  if (has_env) {
+    *text = value.value();
+  }
+
+  TraceEnvVar(env, "get", key);
+
+  return has_env;
 }
 
 static void SafeGetenv(const FunctionCallbackInfo<Value>& args) {
@@ -100,10 +110,35 @@ static void SafeGetenv(const FunctionCallbackInfo<Value>& args) {
   Isolate* isolate = env->isolate();
   Utf8Value strenvtag(isolate, args[0]);
   std::string text;
-  if (!SafeGetenv(*strenvtag, &text, env->env_vars())) return;
+  if (!SafeGetenv(*strenvtag, &text, env)) return;
   Local<Value> result =
       ToV8Value(isolate->GetCurrentContext(), text).ToLocalChecked();
   args.GetReturnValue().Set(result);
+}
+
+static void GetTempDir(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+
+  std::string dir;
+
+  // Let's wrap SafeGetEnv since it returns true for empty string.
+  auto get_env = [&dir, &env](std::string_view key) {
+    USE(SafeGetenv(key.data(), &dir, env));
+    return !dir.empty();
+  };
+
+  // Try TMPDIR, TMP, and TEMP in that order.
+  if (!get_env("TMPDIR") && !get_env("TMP") && !get_env("TEMP")) {
+    return;
+  }
+
+  if (dir.size() > 1 && dir.ends_with("/")) {
+    dir.pop_back();
+  }
+
+  args.GetReturnValue().Set(
+      ToV8Value(isolate->GetCurrentContext(), dir).ToLocalChecked());
 }
 
 #ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
@@ -200,31 +235,13 @@ static gid_t gid_by_name(Isolate* isolate, Local<Value> value) {
   }
 }
 
-#ifdef __linux__
-extern "C" {
-int uv__node_patch_is_using_io_uring(void);
-
-int uv__node_patch_is_using_io_uring(void) __attribute__((weak));
-
-typedef int (*is_using_io_uring_fn)(void);
-}
-#endif  // __linux__
-
 static bool UvMightBeUsingIoUring() {
 #ifdef __linux__
-  // Support for io_uring is only included in libuv 1.45.0 and later, and only
-  // on Linux (and Android, but there it is always disabled). The patch that we
-  // apply to libuv to work around the io_uring security issue adds a function
-  // that tells us whether io_uring is being used. If that function is not
-  // present, we assume that we are dynamically linking against an unpatched
-  // version.
-  static std::atomic<is_using_io_uring_fn> check =
-      uv__node_patch_is_using_io_uring;
-  if (check == nullptr) {
-    check = reinterpret_cast<is_using_io_uring_fn>(
-        dlsym(RTLD_DEFAULT, "uv__node_patch_is_using_io_uring"));
-  }
-  return uv_version() >= 0x012d00u && (check == nullptr || (*check)());
+  // Support for io_uring is only included in libuv 1.45.0 and later. Starting
+  // with 1.49.0 is disabled by default. Check the version in case Node.js is
+  // dynamically to an io_uring-enabled version of libuv.
+  unsigned int version = uv_version();
+  return version >= 0x012d00u && version < 0x013100u;
 #else
   return false;
 #endif
@@ -453,6 +470,7 @@ static void InitGroups(const FunctionCallbackInfo<Value>& args) {
 
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(SafeGetenv);
+  registry->Register(GetTempDir);
 
 #ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
   registry->Register(GetUid);
@@ -475,6 +493,7 @@ static void Initialize(Local<Object> target,
                        Local<Context> context,
                        void* priv) {
   SetMethod(context, target, "safeGetenv", SafeGetenv);
+  SetMethod(context, target, "getTempDir", GetTempDir);
 
 #ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
   Environment* env = Environment::GetCurrent(context);

@@ -136,12 +136,12 @@ function switchDotCatch(producer) {
 let catches = [caught,
                indirectCaught,
                indirectAwaitCatch,
+               indirectAwaitDotCatch,
+               indirectReturnDotCatch,
                switchCatch,
                switchDotCatch];
 let noncatches = [uncaught, indirectUncaught];
 let lateCatches = [dotCatch,
-                   indirectReturnDotCatch,
-                   indirectAwaitDotCatch,
                    nestedDotCatch];
 
 let throws = [rejectConstructor, thrower, reject, argThrower, suppressThrow];

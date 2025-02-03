@@ -386,13 +386,13 @@ parseRes(Formattable& res,
     if(U_FAILURE(*status))
         return;
     
-    const UnicodeString src((UBool)(textLength == -1), text, textLength);
+    const UnicodeString src(static_cast<UBool>(textLength == -1), text, textLength);
     ParsePosition pp;
 
     if (parsePos != nullptr)
         pp.setIndex(*parsePos);
     
-    ((const NumberFormat*)fmt)->parse(src, res, pp);
+    reinterpret_cast<const NumberFormat*>(fmt)->parse(src, res, pp);
     
     if(pp.getErrorIndex() != -1) {
         *status = U_PARSE_ERROR;
@@ -485,7 +485,7 @@ unum_parseDoubleCurrency(const UNumberFormat* fmt,
     if (U_FAILURE(*status)) {
         return doubleVal;
     }
-    const UnicodeString src((UBool)(textLength == -1), text, textLength);
+    const UnicodeString src(textLength == -1, text, textLength);
     ParsePosition pp;
     if (parsePos != nullptr) {
         pp.setIndex(*parsePos);

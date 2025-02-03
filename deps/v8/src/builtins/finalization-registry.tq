@@ -96,14 +96,17 @@ transitioning macro FinalizationRegistryCleanupLoop(
 
 transitioning javascript builtin FinalizationRegistryConstructor(
     js-implicit context: NativeContext, receiver: JSAny, newTarget: JSAny,
-    target: JSFunction)(cleanupCallback: JSAny): JSFinalizationRegistry {
+    target: JSFunction)(...arguments): JSFinalizationRegistry {
   // 1. If NewTarget is undefined, throw a TypeError exception.
   if (newTarget == Undefined) {
     ThrowTypeError(
         MessageTemplate::kConstructorNotFunction, 'FinalizationRegistry');
   }
   // 2. If IsCallable(cleanupCallback) is false, throw a TypeError exception.
-  const cleanupCallback = Cast<Callable>(cleanupCallback) otherwise
+  if (arguments.actual_count == 0) {
+    ThrowTypeError(MessageTemplate::kWeakRefsCleanupMustBeCallable);
+  }
+  const cleanupCallback = Cast<Callable>(arguments[0]) otherwise
   ThrowTypeError(MessageTemplate::kWeakRefsCleanupMustBeCallable);
   // 3. Let finalizationRegistry be ? OrdinaryCreateFromConstructor(NewTarget,
   // "%FinalizationRegistryPrototype%", « [[Realm]], [[CleanupCallback]],

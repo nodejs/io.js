@@ -54,7 +54,7 @@ static UBool isValidRuleStartDate(int32_t year, int32_t month, int32_t day) {
  * @return  an encoded date.
  */
 static int32_t encodeDate(int32_t year, int32_t month, int32_t day) {
-    return (int32_t)((uint32_t)year << 16) | month << 8 | day;
+    return static_cast<int32_t>(static_cast<uint32_t>(year) << 16) | month << 8 | day;
 }
 
 static void decodeDate(int32_t encodedDate, int32_t (&fields)[3]) {
@@ -141,8 +141,8 @@ EraRules* EraRules::createInstance(const char *calType, UBool includeTentativeEr
         }
         const char *eraIdxStr = ures_getKey(eraRuleRes.getAlias());
         char *endp;
-        int32_t eraIdx = (int32_t)strtol(eraIdxStr, &endp, 10);
-        if ((size_t)(endp - eraIdxStr) != uprv_strlen(eraIdxStr)) {
+        int32_t eraIdx = static_cast<int32_t>(strtol(eraIdxStr, &endp, 10));
+        if (static_cast<size_t>(endp - eraIdxStr) != uprv_strlen(eraIdxStr)) {
             status = U_INVALID_FORMAT_ERROR;
             return nullptr;
         }
@@ -306,7 +306,8 @@ void EraRules::initCurrentEra() {
     }
 
     int year, month0, dom, dow, doy, mid;
-    Grego::timeToFields(localMillis, year, month0, dom, dow, doy, mid);
+    Grego::timeToFields(localMillis, year, month0, dom, dow, doy, mid, ec);
+    if (U_FAILURE(ec)) return;
     int currentEncodedDate = encodeDate(year, month0 + 1 /* changes to 1-base */, dom);
     int eraIdx = numEras - 1;
     while (eraIdx > 0) {

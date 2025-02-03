@@ -3,18 +3,19 @@
 // found in the LICENSE file.
 
 #include "src/compiler/turboshaft/operations.h"
-#define TURBOSHAFT_OPMASK_EXPORT_FIELD_MACRO_FOR_UNITTESTS
 #include "src/compiler/turboshaft/opmasks.h"
 #include "testing/gtest-support.h"
 
 namespace v8::internal::compiler::turboshaft {
+
+#include "src/compiler/turboshaft/field-macro.inc"
 
 struct MyFakeOp;
 
 // We reuse `Opcode::kConstant` because extending the opcode enum is hard from
 // within the test.
 template <>
-struct operation_to_opcode_map<MyFakeOp>
+struct operation_to_opcode<MyFakeOp>
     : std::integral_constant<Opcode, Opcode::kConstant> {};
 
 struct MyFakeOp : FixedArityOperationT<0, MyFakeOp> {
@@ -120,5 +121,7 @@ TEST_F(OpmaskTest, PartialMask) {
     ASSERT_TRUE(op.Is<kC>());
   }
 }
+
+#undef FIELD
 
 }  // namespace v8::internal::compiler::turboshaft

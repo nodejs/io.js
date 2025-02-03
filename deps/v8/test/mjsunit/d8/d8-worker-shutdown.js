@@ -8,12 +8,11 @@ const kBatchSize = 10;
 const kNumBatches = 10;
 
 function RunWorkerBatch(count) {
-  let script = `onmessage =
-   function(msg) {
-     if (msg.array) {
-        msg.array[0] = 99;
-        postMessage({array : msg.array});
-     }
+  let script = `onmessage = function({data:msg}) {
+    if (msg.array) {
+      msg.array[0] = 99;
+      postMessage({array : msg.array});
+    }
 }`;
 
   // Launch workers.

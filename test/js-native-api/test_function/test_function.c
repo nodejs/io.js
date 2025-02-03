@@ -146,7 +146,7 @@ static napi_value TestBadReturnExceptionPending(napi_env env, napi_callback_info
   // exception occurs, but we have seen that the C++ wrapper
   // with exceptions enabled sometimes returns an invalid value
   // when an exception is thrown. Test that we ignore the return
-  // value then an exeption is pending. We use 0xFFFFFFFF as a value
+  // value then an exception is pending. We use 0xFFFFFFFF as a value
   // that should never be a valid napi_value and node seems to
   // crash if it is not ignored indicating that it is indeed invalid.
   return (napi_value)(0xFFFFFFFFF);

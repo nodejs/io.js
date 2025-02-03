@@ -167,7 +167,9 @@ CountLeadingZeroes32(uint32_t x) {
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE ABSL_INTERNAL_CONSTEXPR_CLZ inline int
 CountLeadingZeroes16(uint16_t x) {
-#if ABSL_HAVE_BUILTIN(__builtin_clzs)
+#if ABSL_HAVE_BUILTIN(__builtin_clzg)
+  return x == 0 ? 16 : __builtin_clzg(x);
+#elif ABSL_HAVE_BUILTIN(__builtin_clzs)
   static_assert(sizeof(unsigned short) == sizeof(x),  // NOLINT(runtime/int)
                 "__builtin_clzs does not take 16-bit arg");
   return x == 0 ? 16 : __builtin_clzs(x);
@@ -303,7 +305,9 @@ CountTrailingZeroesNonzero64(uint64_t x) {
 
 ABSL_ATTRIBUTE_ALWAYS_INLINE ABSL_INTERNAL_CONSTEXPR_CTZ inline int
 CountTrailingZeroesNonzero16(uint16_t x) {
-#if ABSL_HAVE_BUILTIN(__builtin_ctzs)
+#if ABSL_HAVE_BUILTIN(__builtin_ctzg)
+  return __builtin_ctzg(x);
+#elif ABSL_HAVE_BUILTIN(__builtin_ctzs)
   static_assert(sizeof(unsigned short) == sizeof(x),  // NOLINT(runtime/int)
                 "__builtin_ctzs does not take 16-bit arg");
   return __builtin_ctzs(x);

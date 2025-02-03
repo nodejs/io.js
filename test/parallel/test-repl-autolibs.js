@@ -41,7 +41,7 @@ function test1() {
       assert.strictEqual(data,
                          `${util.inspect(require('fs'), null, 2, false)}\n`);
       // Globally added lib matches required lib
-      assert.strictEqual(global.fs, require('fs'));
+      assert.strictEqual(globalThis.fs, require('fs'));
       test2();
     }
   };
@@ -58,11 +58,11 @@ function test2() {
       // REPL response error message
       assert.strictEqual(data, '{}\n');
       // Original value wasn't overwritten
-      assert.strictEqual(val, global.url);
+      assert.strictEqual(val, globalThis.url);
     }
   };
   const val = {};
-  global.url = val;
+  globalThis.url = val;
   common.allowGlobals(val);
   assert(!gotWrite);
   putIn.run(['url']);

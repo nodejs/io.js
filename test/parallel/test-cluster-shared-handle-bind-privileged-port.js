@@ -22,8 +22,8 @@
 'use strict';
 const common = require('../common');
 
-// Skip on OS X Mojave. https://github.com/nodejs/node/issues/21679
-if (common.isOSX)
+// Skip on macOS Mojave. https://github.com/nodejs/node/issues/21679
+if (common.isMacOS)
   common.skip('macOS may allow ordinary processes to use any port');
 
 if (common.isIBMi)
@@ -34,6 +34,22 @@ if (common.isWindows)
 
 if (process.getuid() === 0)
   common.skip('as this test should not be run as `root`');
+
+// Some systems won't have port 42 set as a privileged port, in that
+// case, skip the test.
+if (common.isLinux) {
+  const { readFileSync } = require('fs');
+
+  try {
+    const unprivilegedPortStart = parseInt(readFileSync('/proc/sys/net/ipv4/ip_unprivileged_port_start'));
+    if (unprivilegedPortStart <= 42) {
+      common.skip('Port 42 is unprivileged');
+    }
+  } catch {
+    // Do nothing, feature doesn't exist, minimum is 1024 so 42 is usable.
+    // Continue...
+  }
+}
 
 const assert = require('assert');
 const cluster = require('cluster');

@@ -160,7 +160,7 @@ absl::flat_hash_set<T> FlatHashSet(size_t count) {
     return hash<decltype(__VA_ARGS__)>{}(arg);                   \
   }                                                              \
   bool absl_hash_test_odr_use##hash##name =                      \
-      (benchmark::DoNotOptimize(&Codegen##hash##name), false);
+      (benchmark::DoNotOptimize(&Codegen##hash##name), false)
 
 MAKE_BENCHMARK(AbslHash, Int32, int32_t{});
 MAKE_BENCHMARK(AbslHash, Int64, int64_t{});
@@ -315,9 +315,9 @@ struct StringRand {
   BENCHMARK(BM_latency_##hash##_##name);                     \
   }  // namespace
 
-MAKE_LATENCY_BENCHMARK(AbslHash, Int32, PodRand<int32_t>);
-MAKE_LATENCY_BENCHMARK(AbslHash, Int64, PodRand<int64_t>);
-MAKE_LATENCY_BENCHMARK(AbslHash, String9, StringRand<9>);
-MAKE_LATENCY_BENCHMARK(AbslHash, String33, StringRand<33>);
-MAKE_LATENCY_BENCHMARK(AbslHash, String65, StringRand<65>);
-MAKE_LATENCY_BENCHMARK(AbslHash, String257, StringRand<257>);
+MAKE_LATENCY_BENCHMARK(AbslHash, Int32, PodRand<int32_t>)
+MAKE_LATENCY_BENCHMARK(AbslHash, Int64, PodRand<int64_t>)
+MAKE_LATENCY_BENCHMARK(AbslHash, String9, StringRand<9>)
+MAKE_LATENCY_BENCHMARK(AbslHash, String33, StringRand<33>)
+MAKE_LATENCY_BENCHMARK(AbslHash, String65, StringRand<65>)
+MAKE_LATENCY_BENCHMARK(AbslHash, String257, StringRand<257>)

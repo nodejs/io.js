@@ -17,7 +17,7 @@ operating system via a collection of POSIX-like functions.
 
 ```mjs
 import { readFile } from 'node:fs/promises';
-import { WASI } from 'wasi';
+import { WASI } from 'node:wasi';
 import { argv, env } from 'node:process';
 
 const wasi = new WASI({
@@ -40,7 +40,7 @@ wasi.start(instance);
 ```cjs
 'use strict';
 const { readFile } = require('node:fs/promises');
-const { WASI } = require('wasi');
+const { WASI } = require('node:wasi');
 const { argv, env } = require('node:process');
 const { join } = require('node:path');
 

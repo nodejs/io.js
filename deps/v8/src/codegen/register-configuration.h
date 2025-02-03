@@ -75,6 +75,9 @@ class V8_EXPORT_PRIVATE RegisterConfiguration {
   int32_t allocatable_float_codes_mask() const {
     return allocatable_float_codes_mask_;
   }
+  int32_t allocatable_simd128_codes_mask() const {
+    return allocatable_simd128_codes_mask_;
+  }
   int GetAllocatableGeneralCode(int index) const {
     DCHECK(index >= 0 && index < num_allocatable_general_registers());
     return allocatable_general_codes_[index];

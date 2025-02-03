@@ -23,14 +23,17 @@ EvacuationAllocator::EvacuationAllocator(
                                MainAllocator::kInGC);
   code_space_allocator_.emplace(heap, compaction_spaces_.Get(CODE_SPACE),
                                 MainAllocator::kInGC);
-  shared_space_allocator_.emplace(heap, compaction_spaces_.Get(SHARED_SPACE),
-                                  MainAllocator::kInGC);
+  if (heap_->isolate()->has_shared_space()) {
+    shared_space_allocator_.emplace(heap, compaction_spaces_.Get(SHARED_SPACE),
+                                    MainAllocator::kInGC);
+  }
   trusted_space_allocator_.emplace(heap, compaction_spaces_.Get(TRUSTED_SPACE),
                                    MainAllocator::kInGC);
 }
 
 void EvacuationAllocator::FreeLast(AllocationSpace space,
                                    Tagged<HeapObject> object, int object_size) {
+  DCHECK_IMPLIES(!shared_space_allocator_, space != SHARED_SPACE);
   object_size = ALIGN_TO_ALLOCATION_ALIGNMENT(object_size);
   switch (space) {
     case NEW_SPACE:
@@ -68,9 +71,9 @@ void EvacuationAllocator::Finalize() {
   code_space_allocator()->FreeLinearAllocationArea();
   heap_->code_space()->MergeCompactionSpace(compaction_spaces_.Get(CODE_SPACE));
 
-  if (heap_->shared_space()) {
-    shared_space_allocator()->FreeLinearAllocationArea();
-    heap_->shared_space()->MergeCompactionSpace(
+  if (shared_space_allocator_) {
+    shared_space_allocator_->FreeLinearAllocationArea();
+    heap_->shared_allocation_space()->MergeCompactionSpace(
         compaction_spaces_.Get(SHARED_SPACE));
   }
 

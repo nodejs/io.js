@@ -16,7 +16,7 @@ namespace internal {
 
 // static
 Handle<String> RegExpUtils::GenericCaptureGetter(
-    Isolate* isolate, Handle<RegExpMatchInfo> match_info, int capture,
+    Isolate* isolate, DirectHandle<RegExpMatchInfo> match_info, int capture,
     bool* ok) {
   const int capture_start_index = RegExpMatchInfo::capture_start_index(capture);
   if (capture_start_index >= match_info->number_of_capture_registers()) {
@@ -68,7 +68,7 @@ MaybeHandle<Object> RegExpUtils::SetLastIndex(Isolate* isolate,
   Handle<Object> value_as_object =
       isolate->factory()->NewNumberFromInt64(value);
   if (HasInitialRegExpMap(isolate, *recv)) {
-    JSRegExp::cast(*recv)->set_last_index(*value_as_object,
+    Cast<JSRegExp>(*recv)->set_last_index(*value_as_object,
                                           UPDATE_WRITE_BARRIER);
     return recv;
   } else {
@@ -81,7 +81,7 @@ MaybeHandle<Object> RegExpUtils::SetLastIndex(Isolate* isolate,
 MaybeHandle<Object> RegExpUtils::GetLastIndex(Isolate* isolate,
                                               Handle<JSReceiver> recv) {
   if (HasInitialRegExpMap(isolate, *recv)) {
-    return handle(JSRegExp::cast(*recv)->last_index(), isolate);
+    return handle(Cast<JSRegExp>(*recv)->last_index(), isolate);
   } else {
     return Object::GetProperty(isolate, recv,
                                isolate->factory()->lastIndex_string());
@@ -98,8 +98,8 @@ MaybeHandle<Object> RegExpUtils::RegExpExec(Isolate* isolate,
   if (IsUndefined(*exec, isolate)) {
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, exec,
-        Object::GetProperty(isolate, regexp, isolate->factory()->exec_string()),
-        Object);
+        Object::GetProperty(isolate, regexp,
+                            isolate->factory()->exec_string()));
   }
 
   if (IsCallable(*exec)) {
@@ -110,12 +110,11 @@ MaybeHandle<Object> RegExpUtils::RegExpExec(Isolate* isolate,
     Handle<Object> result;
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, result,
-        Execution::Call(isolate, exec, regexp, argc, argv.begin()), Object);
+        Execution::Call(isolate, exec, regexp, argc, argv.begin()));
 
     if (!IsJSReceiver(*result) && !IsNull(*result, isolate)) {
       THROW_NEW_ERROR(isolate,
-                      NewTypeError(MessageTemplate::kInvalidRegExpExecResult),
-                      Object);
+                      NewTypeError(MessageTemplate::kInvalidRegExpExecResult));
     }
     return result;
   }
@@ -125,8 +124,7 @@ MaybeHandle<Object> RegExpUtils::RegExpExec(Isolate* isolate,
                     NewTypeError(MessageTemplate::kIncompatibleMethodReceiver,
                                  isolate->factory()->NewStringFromAsciiChecked(
                                      "RegExp.prototype.exec"),
-                                 regexp),
-                    Object);
+                                 regexp));
   }
 
   {
@@ -140,14 +138,15 @@ MaybeHandle<Object> RegExpUtils::RegExpExec(Isolate* isolate,
   }
 }
 
-bool RegExpUtils::IsUnmodifiedRegExp(Isolate* isolate, Handle<Object> obj) {
+bool RegExpUtils::IsUnmodifiedRegExp(Isolate* isolate,
+                                     DirectHandle<Object> obj) {
 #ifdef V8_ENABLE_FORCE_SLOW_PATH
   if (isolate->force_slow_path()) return false;
 #endif
 
   if (!IsJSReceiver(*obj)) return false;
 
-  Tagged<JSReceiver> recv = JSReceiver::cast(*obj);
+  Tagged<JSReceiver> recv = Cast<JSReceiver>(*obj);
 
   if (!HasInitialRegExpMap(isolate, recv)) return false;
 
@@ -155,8 +154,8 @@ bool RegExpUtils::IsUnmodifiedRegExp(Isolate* isolate, Handle<Object> obj) {
   Tagged<Object> proto = recv->map()->prototype();
   if (!IsJSReceiver(proto)) return false;
 
-  Handle<Map> initial_proto_initial_map = isolate->regexp_prototype_map();
-  Tagged<Map> proto_map = JSReceiver::cast(proto)->map();
+  DirectHandle<Map> initial_proto_initial_map = isolate->regexp_prototype_map();
+  Tagged<Map> proto_map = Cast<JSReceiver>(proto)->map();
   if (proto_map != *initial_proto_initial_map) {
     return false;
   }
@@ -183,12 +182,12 @@ bool RegExpUtils::IsUnmodifiedRegExp(Isolate* isolate, Handle<Object> obj) {
 
   // The smi check is required to omit ToLength(lastIndex) calls with possible
   // user-code execution on the fast path.
-  Tagged<Object> last_index = JSRegExp::cast(recv)->last_index();
+  Tagged<Object> last_index = Cast<JSRegExp>(recv)->last_index();
   return IsSmi(last_index) && Smi::ToInt(last_index) >= 0;
 }
 
-uint64_t RegExpUtils::AdvanceStringIndex(Handle<String> string, uint64_t index,
-                                         bool unicode) {
+uint64_t RegExpUtils::AdvanceStringIndex(DirectHandle<String> string,
+                                         uint64_t index, bool unicode) {
   DCHECK_LE(static_cast<double>(index), kMaxSafeInteger);
   const uint64_t string_length = static_cast<uint64_t>(string->length());
   if (unicode && index < string_length) {
@@ -206,17 +205,16 @@ uint64_t RegExpUtils::AdvanceStringIndex(Handle<String> string, uint64_t index,
 }
 
 MaybeHandle<Object> RegExpUtils::SetAdvancedStringIndex(
-    Isolate* isolate, Handle<JSReceiver> regexp, Handle<String> string,
+    Isolate* isolate, Handle<JSReceiver> regexp, DirectHandle<String> string,
     bool unicode) {
   Handle<Object> last_index_obj;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, last_index_obj,
       Object::GetProperty(isolate, regexp,
-                          isolate->factory()->lastIndex_string()),
-      Object);
+                          isolate->factory()->lastIndex_string()));
 
   ASSIGN_RETURN_ON_EXCEPTION(isolate, last_index_obj,
-                             Object::ToLength(isolate, last_index_obj), Object);
+                             Object::ToLength(isolate, last_index_obj));
   const uint64_t last_index = PositiveNumberToUint64(*last_index_obj);
   const uint64_t new_last_index =
       AdvanceStringIndex(string, last_index, unicode);

@@ -7,6 +7,7 @@
 
 #include "src/base/atomicops.h"
 #include "src/base/macros.h"
+#include "src/base/template-meta-programming/functional.h"
 #include "src/common/globals.h"
 #include "src/common/ptr-compr.h"
 #include "src/objects/tagged-value.h"
@@ -112,13 +113,25 @@ static_assert(sizeof(UnalignedDoubleMember) == sizeof(double));
 // GCC and clang allow zero length arrays in base classes. Return the zero
 // length array by reference, to avoid array-to-pointer decay which can lose
 // aliasing information.
-#define FLEXIBLE_ARRAY_MEMBER(Type, name)                                \
-  using FlexibleDataReturnType = Type[0];                                \
-  FlexibleDataReturnType& name() { return flexible_array_member_data_; } \
-  const FlexibleDataReturnType& name() const {                           \
-    return flexible_array_member_data_;                                  \
-  }                                                                      \
-  Type flexible_array_member_data_[0];                                   \
+#define FLEXIBLE_ARRAY_MEMBER(Type, name)                                  \
+  using FlexibleDataReturnType = Type[0];                                  \
+  FlexibleDataReturnType& name() { return flexible_array_member_data_; }   \
+  const FlexibleDataReturnType& name() const {                             \
+    return flexible_array_member_data_;                                    \
+  }                                                                        \
+  Type flexible_array_member_data_[0];                                     \
+                                                                           \
+ public:                                                                   \
+  template <typename Class>                                                \
+  static constexpr auto OffsetOfDataStart() {                              \
+    /* Produce a compiler error if {Class} is not this class */            \
+    static_assert(base::tmp::lazy_true<                                    \
+                  decltype(std::declval<Class>()                           \
+                               .flexible_array_member_data_)>::value);     \
+    return static_cast<int>(offsetof(Class, flexible_array_member_data_)); \
+  }                                                                        \
+                                                                           \
+ private:                                                                  \
   using FlexibleDataType = Type
 #endif
 
@@ -127,7 +140,7 @@ static_assert(sizeof(UnalignedDoubleMember) == sizeof(double));
 #if V8_CC_MSVC && !defined(__clang__)
 #define OFFSET_OF_DATA_START(Type) sizeof(Type)
 #else
-#define OFFSET_OF_DATA_START(Type) offsetof(Type, flexible_array_member_data_)
+#define OFFSET_OF_DATA_START(Type) Type::OffsetOfDataStart<Type>()
 #endif
 
 // This helper static class represents a tagged field of type T at offset
@@ -139,8 +152,7 @@ template <typename T, int kFieldOffset = 0,
           typename CompressionScheme = V8HeapCompressionScheme>
 class TaggedField : public AllStatic {
  public:
-  static_assert(is_taggable_v<T> || std::is_same<MapWord, T>::value ||
-                    std::is_same<MaybeObject, T>::value,
+  static_assert(is_taggable_v<T> || std::is_same<MapWord, T>::value,
                 "T must be strong or weak tagged type or MapWord");
 
   // True for Smi fields.
@@ -150,11 +162,13 @@ class TaggedField : public AllStatic {
   // if it contains forwarding pointer but still requires tagged pointer
   // decompression.
   static constexpr bool kIsHeapObject =
-      is_subtype<T, HeapObject>::value || std::is_same<MapWord, T>::value;
+      is_subtype<T, HeapObject>::value || std::is_same_v<MapWord, T>;
 
-  // Object subclasses should be wrapped in Tagged<>, otherwise use T directly.
+  // Types should be wrapped in Tagged<>, except for MapWord which is used
+  // directly.
   // TODO(leszeks): Clean this up to be more uniform.
-  using PtrType = std::conditional_t<is_taggable_v<T>, Tagged<T>, T>;
+  using PtrType =
+      std::conditional_t<std::is_same_v<MapWord, T>, MapWord, Tagged<T>>;
 
   static inline Address address(Tagged<HeapObject> host, int offset = 0);
 
@@ -222,6 +236,13 @@ class TaggedField : public AllStatic {
 
   static inline Tagged_t full_to_tagged(Address value);
 };
+
+template <typename T>
+class TaggedField<Tagged<T>> : public TaggedField<T> {};
+
+template <typename T, int kFieldOffset>
+class TaggedField<Tagged<T>, kFieldOffset>
+    : public TaggedField<T, kFieldOffset> {};
 
 template <typename T, int kFieldOffset, typename CompressionScheme>
 class TaggedField<Tagged<T>, kFieldOffset, CompressionScheme>

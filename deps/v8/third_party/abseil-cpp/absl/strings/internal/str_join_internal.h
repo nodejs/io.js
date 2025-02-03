@@ -31,16 +31,23 @@
 #ifndef ABSL_STRINGS_INTERNAL_STR_JOIN_INTERNAL_H_
 #define ABSL_STRINGS_INTERNAL_STR_JOIN_INTERNAL_H_
 
+#include <cstdint>
 #include <cstring>
+#include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
+#include "absl/base/config.h"
+#include "absl/base/internal/raw_logging.h"
 #include "absl/strings/internal/ostringstream.h"
 #include "absl/strings/internal/resize_uninitialized.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -230,14 +237,19 @@ std::string JoinAlgorithm(Iterator start, Iterator end, absl::string_view s,
   if (start != end) {
     // Sums size
     auto&& start_value = *start;
-    size_t result_size = start_value.size();
+    // Use uint64_t to prevent size_t overflow. We assume it is not possible for
+    // in memory strings to overflow a uint64_t.
+    uint64_t result_size = start_value.size();
     for (Iterator it = start; ++it != end;) {
       result_size += s.size();
       result_size += (*it).size();
     }
 
     if (result_size > 0) {
-      STLStringResizeUninitialized(&result, result_size);
+      constexpr uint64_t kMaxSize =
+          uint64_t{(std::numeric_limits<size_t>::max)()};
+      ABSL_INTERNAL_CHECK(result_size <= kMaxSize, "size_t overflow");
+      STLStringResizeUninitialized(&result, static_cast<size_t>(result_size));
 
       // Joins strings
       char* result_buf = &*result.begin();
@@ -308,6 +320,15 @@ std::string JoinRange(const Range& range, absl::string_view separator) {
   using std::begin;
   using std::end;
   return JoinRange(begin(range), end(range), separator);
+}
+
+template <typename Tuple, std::size_t... I>
+std::string JoinTuple(const Tuple& value, absl::string_view separator,
+                      std::index_sequence<I...>) {
+  return JoinRange(
+      std::initializer_list<absl::string_view>{
+          static_cast<const AlphaNum&>(std::get<I>(value)).Piece()...},
+      separator);
 }
 
 }  // namespace strings_internal

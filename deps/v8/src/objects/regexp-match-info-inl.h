@@ -14,7 +14,6 @@
 namespace v8 {
 namespace internal {
 
-CAST_ACCESSOR(RegExpMatchInfo)
 OBJECT_CONSTRUCTORS_IMPL(RegExpMatchInfo, RegExpMatchInfo::Super)
 
 SMI_ACCESSORS(RegExpMatchInfo, number_of_capture_registers,

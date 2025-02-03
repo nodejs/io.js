@@ -17,12 +17,15 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // -----------------------------------------------------------------------------
 // ES6 section 22.2 TypedArray Objects
 
 // Sets the embedder fields to 0 for a TypedArray which is under construction.
 void TypedArrayBuiltinsAssembler::SetupTypedArrayEmbedderFields(
     TNode<JSTypedArray> holder) {
+  InitializeJSAPIObjectWithEmbedderSlotsCppHeapWrapperPtr(holder);
   for (int offset = JSTypedArray::kHeaderSize;
        offset < JSTypedArray::kSizeWithEmbedderFields; offset += kTaggedSize) {
     // TODO(v8:10391, saelo): Handle external pointers in EmbedderDataSlot
@@ -68,6 +71,8 @@ TNode<JSArrayBuffer> TypedArrayBuiltinsAssembler::AllocateEmptyOnHeapBuffer(
                                  UndefinedConstant());
   StoreBoundedSizeToObject(buffer, JSArrayBuffer::kRawByteLengthOffset,
                            UintPtrConstant(0));
+  StoreBoundedSizeToObject(buffer, JSArrayBuffer::kRawMaxByteLengthOffset,
+                           UintPtrConstant(0));
   StoreSandboxedPointerToObject(buffer, JSArrayBuffer::kBackingStoreOffset,
                                 EmptyBackingStoreBufferConstant());
 #ifdef V8_COMPRESS_POINTERS
@@ -79,6 +84,7 @@ TNode<JSArrayBuffer> TypedArrayBuiltinsAssembler::AllocateEmptyOnHeapBuffer(
   StoreObjectFieldNoWriteBarrier(buffer, JSArrayBuffer::kExtensionOffset,
                                  IntPtrConstant(0));
 #endif
+  InitializeJSAPIObjectWithEmbedderSlotsCppHeapWrapperPtr(buffer);
   for (int offset = JSArrayBuffer::kHeaderSize;
        offset < JSArrayBuffer::kSizeWithEmbedderFields; offset += kTaggedSize) {
     // TODO(v8:10391, saelo): Handle external pointers in EmbedderDataSlot
@@ -149,8 +155,9 @@ TF_BUILTIN(TypedArrayPrototypeByteLength, TypedArrayBuiltinsAssembler) {
   {
     // Default to zero if the {receiver}s buffer was detached.
     TNode<UintPtrT> byte_length = Select<UintPtrT>(
-        IsDetachedBuffer(receiver_buffer), [=] { return UintPtrConstant(0); },
-        [=] { return LoadJSArrayBufferViewByteLength(receiver_array); });
+        IsDetachedBuffer(receiver_buffer),
+        [=, this] { return UintPtrConstant(0); },
+        [=, this] { return LoadJSArrayBufferViewByteLength(receiver_array); });
     Return(ChangeUintPtrToTagged(byte_length));
   }
 }
@@ -488,6 +495,10 @@ void TypedArrayBuiltinsAssembler::StoreJSTypedArrayElementFromNumeric(
       StoreElement(data_ptr, elements_kind, index,
                    TruncateTaggedToWord32(context, value));
       break;
+    case FLOAT16_ELEMENTS:
+      StoreElement(data_ptr, elements_kind, index,
+                   TruncateFloat64ToFloat16(LoadHeapNumberValue(CAST(value))));
+      break;
     case FLOAT32_ELEMENTS:
       StoreElement(data_ptr, elements_kind, index,
                    TruncateFloat64ToFloat32(LoadHeapNumberValue(CAST(value))));
@@ -511,12 +522,13 @@ void TypedArrayBuiltinsAssembler::StoreJSTypedArrayElementFromPreparedValue(
     TNode<Context> context, TNode<JSTypedArray> typed_array,
     TNode<UintPtrT> index, TNode<TValue> prepared_value,
     ElementsKind elements_kind, Label* if_detached_or_out_of_bounds) {
-  static_assert(
-      std::is_same<TValue, Word32T>::value ||
-          std::is_same<TValue, Float32T>::value ||
-          std::is_same<TValue, Float64T>::value ||
-          std::is_same<TValue, BigInt>::value,
-      "Only Word32T, Float32T, Float64T or BigInt values are allowed");
+  static_assert(std::is_same<TValue, Word32T>::value ||
+                    std::is_same<TValue, Float16T>::value ||
+                    std::is_same<TValue, Float32T>::value ||
+                    std::is_same<TValue, Float64T>::value ||
+                    std::is_same<TValue, BigInt>::value,
+                "Only Word32T, Float16T, Float32T, Float64T or BigInt values "
+                "are allowed");
   // ToNumber/ToBigInt (or other functions called by the upper level) may
   // execute JavaScript code, which could detach the TypedArray's buffer or make
   // the TypedArray out of bounds.
@@ -542,6 +554,14 @@ void TypedArrayBuiltinsAssembler::StoreJSTypedArrayElementFromTagged(
     case INT32_ELEMENTS:
     case UINT8_CLAMPED_ELEMENTS: {
       auto prepared_value = PrepareValueForWriteToTypedArray<Word32T>(
+          value, elements_kind, context);
+      StoreJSTypedArrayElementFromPreparedValue(context, typed_array, index,
+                                                prepared_value, elements_kind,
+                                                if_detached_or_out_of_bounds);
+      break;
+    }
+    case FLOAT16_ELEMENTS: {
+      auto prepared_value = PrepareValueForWriteToTypedArray<Float16T>(
           value, elements_kind, context);
       StoreJSTypedArrayElementFromPreparedValue(context, typed_array, index,
                                                 prepared_value, elements_kind,
@@ -637,5 +657,8 @@ TF_BUILTIN(TypedArrayPrototypeToStringTag, TypedArrayBuiltinsAssembler) {
   BIND(&return_undefined);
   Return(UndefinedConstant());
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
+
 }  // namespace internal
 }  // namespace v8

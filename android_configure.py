@@ -10,8 +10,8 @@ def patch_android():
         os.system('patch -f ./deps/v8/src/trap-handler/trap-handler.h < ./android-patches/trap-handler.h.patch')
     print("\033[92mInfo: \033[0m" + "Tried to patch.")
 
-if platform.system() == "Windows":
-    print("android-configure is not supported on Windows yet.")
+if platform.system() != "Linux" and platform.system() != "Darwin":
+    print("android-configure is currently only supported on Linux and Darwin.")
     sys.exit(1)
 
 if len(sys.argv) == 2 and sys.argv[1] == "patch":

@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -83,7 +83,7 @@ void ngtcp2_pv_entry_init(ngtcp2_pv_entry *pvent, const uint8_t *data,
 typedef struct ngtcp2_pv ngtcp2_pv;
 
 ngtcp2_static_ringbuf_def(pv_ents, NGTCP2_PV_MAX_ENTRIES,
-                          sizeof(ngtcp2_pv_entry));
+                          sizeof(ngtcp2_pv_entry))
 /*
  * ngtcp2_pv is the context of a single path validation.
  */
@@ -191,4 +191,4 @@ ngtcp2_tstamp ngtcp2_pv_next_expiry(ngtcp2_pv *pv);
  */
 void ngtcp2_pv_cancel_expired_timer(ngtcp2_pv *pv, ngtcp2_tstamp ts);
 
-#endif /* NGTCP2_PV_H */
+#endif /* !defined(NGTCP2_PV_H) */

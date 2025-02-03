@@ -1,5 +1,5 @@
 # -*- mode: perl; -*-
-# Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -108,6 +108,41 @@ our @tests = (
         },
         test => {
             "ExpectedNPNProtocol" => undef,
+        },
+    },
+    {
+        name => "npn-empty-client-list",
+        server => {
+            extra => {
+                "NPNProtocols" => "foo",
+            },
+        },
+        client => {
+            extra => {
+                "NPNProtocols" => "",
+            },
+            "MaxProtocol" => "TLSv1.2"
+        },
+        test => {
+            "ExpectedResult" => "ClientFail",
+            "ExpectedClientAlert" => "HandshakeFailure"
+        },
+    },
+    {
+        name => "npn-empty-server-list",
+        server => {
+            extra => {
+                "NPNProtocols" => "",
+            },
+        },
+        client => {
+            extra => {
+                "NPNProtocols" => "foo",
+            },
+            "MaxProtocol" => "TLSv1.2"
+        },
+        test => {
+            "ExpectedNPNProtocol" => "foo"
         },
     },
     {

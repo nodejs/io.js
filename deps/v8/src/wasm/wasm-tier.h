@@ -18,6 +18,9 @@ namespace wasm {
 // All the tiers of Wasm execution.
 enum class ExecutionTier : int8_t {
   kNone,
+#if V8_ENABLE_DRUMBRAKE
+  kInterpreter,
+#endif  // V8_ENABLE_DRUMBRAKE
   kLiftoff,
   kTurbofan,
 };
@@ -28,6 +31,10 @@ inline const char* ExecutionTierToString(ExecutionTier tier) {
       return "turbofan";
     case ExecutionTier::kLiftoff:
       return "liftoff";
+#if V8_ENABLE_DRUMBRAKE
+    case ExecutionTier::kInterpreter:
+      return "interpreter";
+#endif  // V8_ENABLE_DRUMBRAKE
     case ExecutionTier::kNone:
       return "none";
   }

@@ -113,6 +113,7 @@ class V8_EXPORT_PRIVATE NodeOriginTable final
   };
 
   explicit NodeOriginTable(Graph* graph);
+  explicit NodeOriginTable(Zone* zone);
   NodeOriginTable(const NodeOriginTable&) = delete;
   NodeOriginTable& operator=(const NodeOriginTable&) = delete;
 

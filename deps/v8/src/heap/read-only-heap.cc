@@ -11,14 +11,14 @@
 #include "src/base/platform/mutex.h"
 #include "src/common/globals.h"
 #include "src/common/ptr-compr-inl.h"
-#include "src/heap/basic-memory-chunk.h"
 #include "src/heap/heap-write-barrier-inl.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/memory-chunk-metadata.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/read-only-spaces.h"
-#include "src/heap/third-party/heap-api.h"
 #include "src/objects/heap-object-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/smi.h"
+#include "src/sandbox/js-dispatch-table-inl.h"
 #include "src/snapshot/read-only-deserializer.h"
 #include "src/utils/allocation.h"
 
@@ -38,7 +38,7 @@ base::LazyInstance<std::weak_ptr<ReadOnlyArtifacts>>::type
 
 std::shared_ptr<ReadOnlyArtifacts> InitializeSharedReadOnlyArtifacts() {
   std::shared_ptr<ReadOnlyArtifacts> artifacts;
-  if (COMPRESS_POINTERS_IN_ISOLATE_CAGE_BOOL) {
+  if (COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL) {
     artifacts = std::make_shared<PointerCompressedReadOnlyArtifacts>();
   } else {
     artifacts = std::make_shared<SingleCopyReadOnlyArtifacts>();
@@ -51,6 +51,11 @@ std::shared_ptr<ReadOnlyArtifacts> InitializeSharedReadOnlyArtifacts() {
 ReadOnlyHeap::~ReadOnlyHeap() {
 #ifdef V8_ENABLE_SANDBOX
   GetProcessWideCodePointerTable()->TearDownSpace(&code_pointer_space_);
+#endif
+#ifdef V8_ENABLE_LEAPTIERING
+  GetProcessWideJSDispatchTable()->DetachSpaceFromReadOnlySegment(
+      &js_dispatch_table_space_);
+  GetProcessWideJSDispatchTable()->TearDownSpace(&js_dispatch_table_space_);
 #endif
 }
 
@@ -170,7 +175,10 @@ void ReadOnlyHeap::OnCreateHeapObjectsComplete(Isolate* isolate) {
   InitFromIsolate(isolate);
 
 #ifdef VERIFY_HEAP
-  if (v8_flags.verify_heap) HeapVerifier::VerifyReadOnlyHeap(isolate->heap());
+  if (v8_flags.verify_heap) {
+    HeapVerifier::VerifyReadOnlyHeap(isolate->heap());
+    HeapVerifier::VerifyHeap(isolate->heap());
+  }
 #endif
 }
 
@@ -178,7 +186,7 @@ void ReadOnlyHeap::OnCreateHeapObjectsComplete(Isolate* isolate) {
 ReadOnlyHeap::ReadOnlyHeap(ReadOnlyHeap* ro_heap, ReadOnlySpace* ro_space)
     : read_only_space_(ro_space) {
   DCHECK(ReadOnlyHeap::IsReadOnlySpaceShared());
-  DCHECK(COMPRESS_POINTERS_IN_ISOLATE_CAGE_BOOL);
+  DCHECK(COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL);
 }
 
 // static
@@ -188,7 +196,7 @@ ReadOnlyHeap* ReadOnlyHeap::CreateInitialHeapForBootstrapping(
 
   std::unique_ptr<ReadOnlyHeap> ro_heap;
   auto* ro_space = new ReadOnlySpace(isolate->heap());
-  if (COMPRESS_POINTERS_IN_ISOLATE_CAGE_BOOL) {
+  if (COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL) {
     ro_heap.reset(new ReadOnlyHeap(ro_space));
   } else {
     std::unique_ptr<SoleReadOnlyHeap> sole_ro_heap(
@@ -241,7 +249,19 @@ ReadOnlyHeap::ReadOnlyHeap(ReadOnlySpace* ro_space)
     : read_only_space_(ro_space) {
 #ifdef V8_ENABLE_SANDBOX
   GetProcessWideCodePointerTable()->InitializeSpace(&code_pointer_space_);
-#endif
+#endif  // V8_ENABLE_SANDBOX
+#ifdef V8_ENABLE_LEAPTIERING
+  GetProcessWideJSDispatchTable()->InitializeSpace(&js_dispatch_table_space_);
+  // To avoid marking trying to write to these read-only cells they are
+  // allocated black. Target code objects in the read-only dispatch table are
+  // read-only code objects.
+  js_dispatch_table_space_.set_allocate_black(true);
+  GetProcessWideJSDispatchTable()->AttachSpaceToReadOnlySegment(
+      &js_dispatch_table_space_);
+  GetProcessWideJSDispatchTable()->PreAllocateEntries(
+      &js_dispatch_table_space_, JSBuiltinDispatchHandleRoot::kCount,
+      Isolate::kBuiltinDispatchHandlesAreStatic);
+#endif  // V8_ENABLE_LEAPTIERING
 }
 
 void ReadOnlyHeap::OnHeapTearDown(Heap* heap) {
@@ -274,20 +294,21 @@ void ReadOnlyHeap::PopulateReadOnlySpaceStatistics(
 
 // static
 bool ReadOnlyHeap::Contains(Address address) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return third_party_heap::Heap::InReadOnlySpace(address);
-  } else {
-    return BasicMemoryChunk::FromAddress(address)->InReadOnlySpace();
-  }
+  return MemoryChunk::FromAddress(address)->InReadOnlySpace();
 }
 
 // static
 bool ReadOnlyHeap::Contains(Tagged<HeapObject> object) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return third_party_heap::Heap::InReadOnlySpace(object.address());
-  } else {
-    return BasicMemoryChunk::FromHeapObject(object)->InReadOnlySpace();
-  }
+  return Contains(object.address());
+}
+
+// static
+bool ReadOnlyHeap::SandboxSafeContains(Tagged<HeapObject> object) {
+#ifdef V8_ENABLE_SANDBOX
+  return MemoryChunk::FromHeapObject(object)->SandboxSafeInReadOnlySpace();
+#else
+  return Contains(object);
+#endif
 }
 
 ReadOnlyHeapObjectIterator::ReadOnlyHeapObjectIterator(
@@ -300,7 +321,6 @@ ReadOnlyHeapObjectIterator::ReadOnlyHeapObjectIterator(
       current_page_(ro_space->pages().begin()),
       page_iterator_(
           current_page_ == ro_space->pages().end() ? nullptr : *current_page_) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
 }
 
 Tagged<HeapObject> ReadOnlyHeapObjectIterator::Next() {
@@ -318,18 +338,18 @@ Tagged<HeapObject> ReadOnlyHeapObjectIterator::Next() {
 }
 
 ReadOnlyPageObjectIterator::ReadOnlyPageObjectIterator(
-    const ReadOnlyPage* page, SkipFreeSpaceOrFiller skip_free_space_or_filler)
+    const ReadOnlyPageMetadata* page,
+    SkipFreeSpaceOrFiller skip_free_space_or_filler)
     : ReadOnlyPageObjectIterator(
           page, page == nullptr ? kNullAddress : page->GetAreaStart(),
           skip_free_space_or_filler) {}
 
 ReadOnlyPageObjectIterator::ReadOnlyPageObjectIterator(
-    const ReadOnlyPage* page, Address current_addr,
+    const ReadOnlyPageMetadata* page, Address current_addr,
     SkipFreeSpaceOrFiller skip_free_space_or_filler)
     : page_(page),
       current_addr_(current_addr),
       skip_free_space_or_filler_(skip_free_space_or_filler) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   DCHECK_GE(current_addr, page->GetAreaStart());
   DCHECK_LT(current_addr, page->GetAreaStart() + page->area_size());
 }
@@ -356,7 +376,7 @@ Tagged<HeapObject> ReadOnlyPageObjectIterator::Next() {
   }
 }
 
-void ReadOnlyPageObjectIterator::Reset(const ReadOnlyPage* page) {
+void ReadOnlyPageObjectIterator::Reset(const ReadOnlyPageMetadata* page) {
   page_ = page;
   current_addr_ = page->GetAreaStart();
 }

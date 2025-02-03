@@ -1,5 +1,5 @@
 #
-# Copyright 2001-2022 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2001-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -216,6 +216,7 @@ Result = DIGESTSIGNINIT_ERROR
 
 # Test that SHA1 is not allowed in fips mode for signing
 Availablein = fips
+FIPSversion = <3.4.0
 Sign = P-256
 Securitycheck = 1
 Ctrl = digest:SHA1

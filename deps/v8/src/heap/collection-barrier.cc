@@ -4,6 +4,8 @@
 
 #include "src/heap/collection-barrier.h"
 
+#include <memory>
+
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/time.h"
 #include "src/common/globals.h"
@@ -114,7 +116,7 @@ bool CollectionBarrier::AwaitCollectionBackground(LocalHeap* local_heap) {
   }
 
   bool collection_performed = false;
-  local_heap->BlockWhileParked([this, &collection_performed]() {
+  local_heap->ExecuteWhileParked([this, &collection_performed]() {
     base::MutexGuard guard(&mutex_);
 
     while (block_for_collection_) {

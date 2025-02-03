@@ -13,7 +13,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let module = builder.toModule();
 
   let workerScript = `
-    onmessage = function(module) {
+    onmessage = function({data:module}) {
       try {
         let instance = new WebAssembly.Instance(module);
         let result = instance.exports.add(40, 2);

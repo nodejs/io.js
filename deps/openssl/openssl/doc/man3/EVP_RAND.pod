@@ -284,7 +284,7 @@ associated RAND ctx.
 Reads or set the number of elapsed seconds before reseeding the
 associated RAND ctx.
 
-=item "max_request" (B<OSSL_DRBG_PARAM_RESEED_REQUESTS>) <unsigned integer>
+=item "max_request" (B<OSSL_RAND_PARAM_MAX_REQUEST>) <unsigned integer>
 
 Specifies the maximum number of bytes that can be generated in a single
 call to OSSL_FUNC_rand_generate.
@@ -406,7 +406,7 @@ This functionality was added to OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2020-2023 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2020-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

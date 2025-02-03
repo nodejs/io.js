@@ -182,6 +182,95 @@ exports[`test/lib/utils/sbom-spdx.js TAP node - with deps > must match snapshot 
 }
 `
 
+exports[`test/lib/utils/sbom-spdx.js TAP node - with duplicate deps > must match snapshot 1`] = `
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "root@1.0.0",
+  "documentNamespace": "docns",
+  "creationInfo": {
+    "created": "2020-01-01T00:00:00.000Z",
+    "creators": [
+      "Tool: npm/cli-10.0.0 "
+    ]
+  },
+  "documentDescribes": [
+    "SPDXRef-Package-root-1.0.0"
+  ],
+  "packages": [
+    {
+      "name": "root",
+      "SPDXID": "SPDXRef-Package-root-1.0.0",
+      "versionInfo": "1.0.0",
+      "packageFileName": "",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/root@1.0.0"
+        }
+      ]
+    },
+    {
+      "name": "dep1",
+      "SPDXID": "SPDXRef-Package-dep1-0.0.1",
+      "versionInfo": "0.0.1",
+      "packageFileName": "node_modules/dep1",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/dep1@0.0.1"
+        }
+      ]
+    },
+    {
+      "name": "dep2",
+      "SPDXID": "SPDXRef-Package-dep2-0.0.2",
+      "versionInfo": "0.0.2",
+      "packageFileName": "node_modules/dep2",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/dep2@0.0.2"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-root-1.0.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-dep1-0.0.1",
+      "relatedSpdxElement": "SPDXRef-Package-root-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-dep2-0.0.2",
+      "relatedSpdxElement": "SPDXRef-Package-root-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    }
+  ]
+}
+`
+
 exports[`test/lib/utils/sbom-spdx.js TAP single node - application package type > must match snapshot 1`] = `
 {
   "spdxVersion": "SPDX-2.3",

@@ -122,8 +122,10 @@ CodeProtectionInfo* CreateHandlerData(
   data->size = size;
   data->num_protected_instructions = num_protected_instructions;
 
-  memcpy(data->instructions, protected_instructions,
-         num_protected_instructions * sizeof(ProtectedInstructionData));
+  if (num_protected_instructions > 0) {
+    memcpy(data->instructions, protected_instructions,
+           num_protected_instructions * sizeof(ProtectedInstructionData));
+  }
 
   return data;
 }
@@ -229,6 +231,13 @@ void ReleaseHandlerData(int index) {
   // the list.
   TH_DCHECK(data);  // make sure we're releasing legitimate handler data.
   free(data);
+}
+
+void SetV8SandboxBaseAndSize(uintptr_t base, size_t size) {
+  TH_DCHECK(gV8SandboxBase == 0 && base != 0);
+  TH_DCHECK(gV8SandboxSize == 0 && size != 0);
+  gV8SandboxBase = base;
+  gV8SandboxSize = size;
 }
 
 int* GetThreadInWasmThreadLocalAddress() { return &g_thread_in_wasm_code; }

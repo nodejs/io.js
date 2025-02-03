@@ -21,14 +21,13 @@
 // such an object survives during program exit (and can be safely accessed at
 // any time).
 //
-// Objects of such type, if constructed safely and under the right conditions,
-// provide two main benefits over other alternatives:
-//
-//   * Global objects not normally allowed due to concerns of destruction order
-//     (i.e. no "complex globals") can be safely allowed, provided that such
-//     objects can be constant initialized.
-//   * Function scope static objects can be optimized to avoid heap allocation,
-//     pointer chasing, and allow lazy construction.
+// absl::NoDestructor<T> is useful when when a variable has static storage
+// duration but its type has a non-trivial destructor. Global constructors are
+// not recommended because of the C++'s static initialization order fiasco (See
+// https://en.cppreference.com/w/cpp/language/siof). Global destructors are not
+// allowed due to similar concerns about destruction ordering. Using
+// absl::NoDestructor<T> as a function-local static prevents both of these
+// issues.
 //
 // See below for complete details.
 
@@ -41,6 +40,7 @@
 #include <utility>
 
 #include "absl/base/config.h"
+#include "absl/base/nullability.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -49,8 +49,8 @@ ABSL_NAMESPACE_BEGIN
 //
 // NoDestructor<T> is a wrapper around an object of type T that behaves as an
 // object of type T but never calls T's destructor. NoDestructor<T> makes it
-// safer and/or more efficient to use such objects in static storage contexts:
-// as global or function scope static variables.
+// safer and/or more efficient to use such objects in static storage contexts,
+// ideally as function scope static variables.
 //
 // An instance of absl::NoDestructor<T> has similar type semantics to an
 // instance of T:
@@ -61,9 +61,6 @@ ABSL_NAMESPACE_BEGIN
 //   `->`, `*`, and `get()`.
 //   (Note that `const NoDestructor<T>` works like a pointer to const `T`.)
 //
-// An object of type NoDestructor<T> should be defined in static storage:
-// as either a global static object, or as a function scope static variable.
-//
 // Additionally, NoDestructor<T> provides the following benefits:
 //
 // * Never calls T's destructor for the object
@@ -71,24 +68,7 @@ ABSL_NAMESPACE_BEGIN
 //   lazily constructed.
 //
 // An object of type NoDestructor<T> is "trivially destructible" in the notion
-// that its destructor is never run. Provided that an object of this type can be
-// safely initialized and does not need to be cleaned up on program shutdown,
-// NoDestructor<T> allows you to define global static variables, since Google's
-// C++ style guide ban on such objects doesn't apply to objects that are
-// trivially destructible.
-//
-// Usage as Global Static Variables
-//
-// NoDestructor<T> allows declaration of a global object with a non-trivial
-// constructor in static storage without needing to add a destructor.
-// However, such objects still need to worry about initialization order, so
-// such objects should be const initialized:
-//
-//    // Global or namespace scope.
-//    ABSL_CONST_INIT absl::NoDestructor<MyRegistry> reg{"foo", "bar", 8008};
-//
-// Note that if your object already has a trivial destructor, you don't need to
-// use NoDestructor<T>.
+// that its destructor is never run.
 //
 // Usage as Function Scope Static Variables
 //
@@ -113,6 +93,21 @@ ABSL_NAMESPACE_BEGIN
 //     static const std::string* x = new std::string("foo");
 //     return *x;
 //   }
+//
+// Usage as Global Static Variables
+//
+// NoDestructor<T> allows declaration of a global object of type T that has a
+// non-trivial destructor since its destructor is never run. However, such
+// objects still need to worry about initialization order, so such use is not
+// recommended, strongly discouraged by the Google C++ Style Guide, and outright
+// banned in Chromium.
+// See https://google.github.io/styleguide/cppguide.html#Static_and_Global_Variables
+//
+//    // Global or namespace scope.
+//    absl::NoDestructor<MyRegistry> reg{"foo", "bar", 8008};
+//
+// Note that if your object already has a trivial destructor, you don't need to
+// use NoDestructor<T>.
 //
 template <typename T>
 class NoDestructor {
@@ -140,11 +135,11 @@ class NoDestructor {
   // Pretend to be a smart pointer to T with deep constness.
   // Never returns a null pointer.
   T& operator*() { return *get(); }
-  T* operator->() { return get(); }
-  T* get() { return impl_.get(); }
+  absl::Nonnull<T*> operator->() { return get(); }
+  absl::Nonnull<T*> get() { return impl_.get(); }
   const T& operator*() const { return *get(); }
-  const T* operator->() const { return get(); }
-  const T* get() const { return impl_.get(); }
+  absl::Nonnull<const T*> operator->() const { return get(); }
+  absl::Nonnull<const T*> get() const { return impl_.get(); }
 
  private:
   class DirectImpl {
@@ -152,8 +147,8 @@ class NoDestructor {
     template <typename... Args>
     explicit constexpr DirectImpl(Args&&... args)
         : value_(std::forward<Args>(args)...) {}
-    const T* get() const { return &value_; }
-    T* get() { return &value_; }
+    absl::Nonnull<const T*> get() const { return &value_; }
+    absl::Nonnull<T*> get() { return &value_; }
 
    private:
     T value_;
@@ -165,14 +160,14 @@ class NoDestructor {
     explicit PlacementImpl(Args&&... args) {
       new (&space_) T(std::forward<Args>(args)...);
     }
-    const T* get() const {
+    absl::Nonnull<const T*> get() const {
       return Launder(reinterpret_cast<const T*>(&space_));
     }
-    T* get() { return Launder(reinterpret_cast<T*>(&space_)); }
+    absl::Nonnull<T*> get() { return Launder(reinterpret_cast<T*>(&space_)); }
 
    private:
     template <typename P>
-    static P* Launder(P* p) {
+    static absl::Nonnull<P*> Launder(absl::Nonnull<P*> p) {
 #if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606L
       return std::launder(p);
 #elif ABSL_HAVE_BUILTIN(__builtin_launder)

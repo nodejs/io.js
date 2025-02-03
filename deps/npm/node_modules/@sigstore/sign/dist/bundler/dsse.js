@@ -23,7 +23,7 @@ const bundle_1 = require("./bundle");
 class DSSEBundleBuilder extends base_1.BaseBundleBuilder {
     constructor(options) {
         super(options);
-        this.singleCertificate = options.singleCertificate ?? false;
+        this.certificateChain = options.certificateChain ?? false;
     }
     // DSSE requires the artifact to be pre-encoded with the payload type
     // before the signature is generated.
@@ -33,7 +33,7 @@ class DSSEBundleBuilder extends base_1.BaseBundleBuilder {
     }
     // Packages the artifact and signature into a DSSE bundle
     async package(artifact, signature) {
-        return (0, bundle_1.toDSSEBundle)(artifactDefaults(artifact), signature, this.singleCertificate);
+        return (0, bundle_1.toDSSEBundle)(artifactDefaults(artifact), signature, this.certificateChain);
     }
 }
 exports.DSSEBundleBuilder = DSSEBundleBuilder;

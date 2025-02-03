@@ -351,7 +351,7 @@ MessagePattern::autoQuoteApostropheDeep() const {
     for(int32_t i=count; i>0;) {
         const Part &part=getPart(--i);
         if(part.getType()==UMSGPAT_PART_TYPE_INSERT_CHAR) {
-           modified.insert(part.index, (char16_t)part.value);
+           modified.insert(part.index, static_cast<char16_t>(part.value));
         }
     }
     return modified;
@@ -437,7 +437,7 @@ MessagePattern::parseMessage(int32_t index, int32_t msgStartLength,
     if(U_FAILURE(errorCode)) {
         return 0;
     }
-    if(nestingLevel>Part::MAX_VALUE) {
+    if(nestingLevel>Part::MAX_NESTED_LEVELS) {
         errorCode=U_INDEX_OUTOFBOUNDS_ERROR;
         return 0;
     }
@@ -628,7 +628,7 @@ MessagePattern::parseArg(int32_t index, int32_t argStartLength, int32_t nestingL
             }
         }
         // change the ARG_START type from NONE to argType
-        partsList->a[argStart].value=(int16_t)argType;
+        partsList->a[argStart].value = static_cast<int16_t>(argType);
         if(argType==UMSGPAT_ARG_TYPE_SIMPLE) {
             addPart(UMSGPAT_PART_TYPE_ARG_TYPE, typeIndex, length, 0, errorCode);
         }
@@ -980,13 +980,13 @@ MessagePattern::parseDouble(int32_t start, int32_t limit, UBool allowInfinity,
         }
         // Let Double.parseDouble() throw a NumberFormatException.
         char numberChars[128];
-        int32_t capacity=(int32_t)sizeof(numberChars);
+        int32_t capacity = static_cast<int32_t>(sizeof(numberChars));
         int32_t length=limit-start;
         if(length>=capacity) {
             break;  // number too long
         }
         msg.extract(start, length, numberChars, capacity, US_INV);
-        if((int32_t)uprv_strlen(numberChars)<length) {
+        if (static_cast<int32_t>(uprv_strlen(numberChars)) < length) {
             break;  // contains non-invariant character that was turned into NUL
         }
         char *end;
@@ -1006,7 +1006,7 @@ MessagePattern::skipWhiteSpace(int32_t index) {
     const char16_t *s=msg.getBuffer();
     int32_t msgLength=msg.length();
     const char16_t *t=PatternProps::skipWhiteSpace(s+index, msgLength-index);
-    return (int32_t)(t-s);
+    return static_cast<int32_t>(t - s);
 }
 
 int32_t
@@ -1014,7 +1014,7 @@ MessagePattern::skipIdentifier(int32_t index) {
     const char16_t *s=msg.getBuffer();
     int32_t msgLength=msg.length();
     const char16_t *t=PatternProps::skipIdentifier(s+index, msgLength-index);
-    return (int32_t)(t-s);
+    return static_cast<int32_t>(t - s);
 }
 
 int32_t
@@ -1105,8 +1105,8 @@ MessagePattern::addPart(UMessagePatternPartType type, int32_t index, int32_t len
         Part &part=partsList->a[partsLength++];
         part.type=type;
         part.index=index;
-        part.length=(uint16_t)length;
-        part.value=(int16_t)value;
+        part.length = static_cast<uint16_t>(length);
+        part.value = static_cast<int16_t>(value);
         part.limitPartIndex=0;
     }
 }

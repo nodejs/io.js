@@ -182,7 +182,7 @@ RuleBasedCollator::internalBuildTailoring(const UnicodeString &rules,
     // Set attributes after building the collator,
     // to keep the default settings consistent with the rule string.
     if(strength != UCOL_DEFAULT) {
-        setAttribute(UCOL_STRENGTH, (UColAttributeValue)strength, errorCode);
+        setAttribute(UCOL_STRENGTH, static_cast<UColAttributeValue>(strength), errorCode);
     }
     if(decompositionMode != UCOL_DEFAULT) {
         setAttribute(UCOL_NORMALIZATION_MODE, decompositionMode, errorCode);
@@ -601,7 +601,7 @@ CollationBuilder::getSpecialResetPosition(const UnicodeString &str,
                 ce = tempCEFromIndexAndStrength(index, strength);
             } else {
                 U_ASSERT(strength == UCOL_PRIMARY);
-                uint32_t p = (uint32_t)(ce >> 32);
+                uint32_t p = static_cast<uint32_t>(ce >> 32);
                 int32_t pIndex = rootElements.findPrimary(p);
                 UBool isCompressible = baseData->isCompressiblePrimary(p);
                 p = rootElements.getPrimaryAfter(p, pIndex, isCompressible);
@@ -700,7 +700,7 @@ CollationBuilder::addRelation(int32_t strength, const UnicodeString &prefix,
         int32_t index = findOrInsertNodeForCEs(strength, parserErrorReason, errorCode);
         U_ASSERT(cesLength > 0);
         int64_t ce = ces[cesLength - 1];
-        if(strength == UCOL_PRIMARY && !isTempCE(ce) && (uint32_t)(ce >> 32) == 0) {
+        if (strength == UCOL_PRIMARY && !isTempCE(ce) && static_cast<uint32_t>(ce >> 32) == 0) {
             // There is no primary gap between ignorables and the space-first-primary.
             errorCode = U_UNSUPPORTED_ERROR;
             parserErrorReason = "tailoring primary after ignorables not supported";
@@ -791,7 +791,7 @@ CollationBuilder::findOrInsertNodeForCEs(int32_t strength, const char *&parserEr
     }
 
     // root CE
-    if((uint8_t)(ce >> 56) == Collation::UNASSIGNED_IMPLICIT_BYTE) {
+    if (static_cast<uint8_t>(ce >> 56) == Collation::UNASSIGNED_IMPLICIT_BYTE) {
         errorCode = U_UNSUPPORTED_ERROR;
         parserErrorReason = "tailoring relative to an unassigned code point not supported";
         return 0;
@@ -808,9 +808,9 @@ CollationBuilder::findOrInsertNodeForRootCE(int64_t ce, int32_t strength, UError
     // down to the requested level/strength.
     // Root CEs must have common=zero quaternary weights (for which we never insert any nodes).
     U_ASSERT((ce & 0xc0) == 0);
-    int32_t index = findOrInsertNodeForPrimary((uint32_t)(ce >> 32), errorCode);
+    int32_t index = findOrInsertNodeForPrimary(static_cast<uint32_t>(ce >> 32), errorCode);
     if(strength >= UCOL_SECONDARY) {
-        uint32_t lower32 = (uint32_t)ce;
+        uint32_t lower32 = static_cast<uint32_t>(ce);
         index = findOrInsertWeakNode(index, lower32 >> 16, UCOL_SECONDARY, errorCode);
         if(strength >= UCOL_TERTIARY) {
             index = findOrInsertWeakNode(index, lower32 & Collation::ONLY_TERTIARY_MASK,
@@ -838,7 +838,7 @@ binarySearchForRootPrimaryNode(const int32_t *rootPrimaryIndexes, int32_t length
     for (;;) {
         int32_t i = (start + limit) / 2;
         int64_t node = nodes[rootPrimaryIndexes[i]];
-        uint32_t nodePrimary = (uint32_t)(node >> 32);  // weight32FromNode(node)
+        uint32_t nodePrimary = static_cast<uint32_t>(node >> 32); // weight32FromNode(node)
         if (p == nodePrimary) {
             return i;
         } else if (p < nodePrimary) {
@@ -898,7 +898,7 @@ CollationBuilder::findOrInsertWeakNode(int32_t index, uint32_t weight16, int32_t
                 // Move the HAS_BEFORE3 flag from the parent node
                 // to the new secondary common node.
                 commonNode |= node & HAS_BEFORE3;
-                node &= ~(int64_t)HAS_BEFORE3;
+                node &= ~static_cast<int64_t>(HAS_BEFORE3);
             }
             nodes.setElementAt(node | hasThisLevelBefore, index);
             // Insert below-common-weight node.
@@ -1045,10 +1045,10 @@ CollationBuilder::setCaseBits(const UnicodeString &nfdString,
             int64_t ce = baseCEs.getCE(i);
             if((ce >> 32) != 0) {
                 ++numBasePrimaries;
-                uint32_t c = ((uint32_t)ce >> 14) & 3;
+                uint32_t c = (static_cast<uint32_t>(ce) >> 14) & 3;
                 U_ASSERT(c == 0 || c == 2);  // lowercase or uppercase, no mixed case in any base CE
                 if(numBasePrimaries < numTailoredPrimaries) {
-                    cases |= (int64_t)c << ((numBasePrimaries - 1) * 2);
+                    cases |= static_cast<int64_t>(c) << ((numBasePrimaries - 1) * 2);
                 } else if(numBasePrimaries == numTailoredPrimaries) {
                     lastCase = c;
                 } else if(c != lastCase) {
@@ -1061,7 +1061,7 @@ CollationBuilder::setCaseBits(const UnicodeString &nfdString,
             }
         }
         if(numBasePrimaries >= numTailoredPrimaries) {
-            cases |= (int64_t)lastCase << ((numTailoredPrimaries - 1) * 2);
+            cases |= static_cast<int64_t>(lastCase) << ((numTailoredPrimaries - 1) * 2);
         }
     }
 
@@ -1138,12 +1138,12 @@ CollationBuilder::addOnlyClosure(const UnicodeString &nfdPrefix, const UnicodeSt
         for(;;) {
             UnicodeString str = stringIter.next();
             if(str.isBogus()) { break; }
-            if(ignoreString(str, errorCode) || str == nfdString) { continue; }
             if (loop++ > kClosureLoopLimit) {
                 // To avoid hang as in ICU-22517, return with error.
                 errorCode = U_INPUT_TOO_LONG_ERROR;
                 return ce32;
             }
+            if(ignoreString(str, errorCode) || str == nfdString) { continue; }
             ce32 = addIfDifferent(prefix, str, newCEs, newCEsLength, ce32, errorCode);
             if(U_FAILURE(errorCode)) { return ce32; }
         }
@@ -1159,12 +1159,12 @@ CollationBuilder::addOnlyClosure(const UnicodeString &nfdPrefix, const UnicodeSt
             for(;;) {
                 UnicodeString str = stringIter.next();
                 if(str.isBogus()) { break; }
-                if(ignoreString(str, errorCode) || (samePrefix && str == nfdString)) { continue; }
                 if (loop++ > kClosureLoopLimit) {
                     // To avoid hang as in ICU-22517, return with error.
                     errorCode = U_INPUT_TOO_LONG_ERROR;
                     return ce32;
                 }
+                if(ignoreString(str, errorCode) || (samePrefix && str == nfdString)) { continue; }
                 ce32 = addIfDifferent(prefix, str, newCEs, newCEsLength, ce32, errorCode);
                 if(U_FAILURE(errorCode)) { return ce32; }
             }
@@ -1652,7 +1652,7 @@ CollationBuilder::ceStrength(int64_t ce) {
     return
         isTempCE(ce) ? strengthFromTempCE(ce) :
         (ce & INT64_C(0xff00000000000000)) != 0 ? UCOL_PRIMARY :
-        ((uint32_t)ce & 0xff000000) != 0 ? UCOL_SECONDARY :
+        (static_cast<uint32_t>(ce) & 0xff000000) != 0 ? UCOL_SECONDARY :
         ce != 0 ? UCOL_TERTIARY :
         UCOL_IDENTICAL;
 }
@@ -1675,7 +1675,7 @@ ucol_openRules(const char16_t *rules, int32_t rulesLength,
         *pErrorCode = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
     }
-    UnicodeString r((UBool)(rulesLength < 0), rules, rulesLength);
+    UnicodeString r(rulesLength < 0, rules, rulesLength);
     coll->internalBuildTailoring(r, strength, normalizationMode, parseError, nullptr, *pErrorCode);
     if(U_FAILURE(*pErrorCode)) {
         delete coll;

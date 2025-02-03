@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["index.ts"],
+  "sourcesContent": ["1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\n1;\nfunction a() {\n  console.log(1);\n}\na();\n"],
+  "mappings": "AAAA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA;AACA,SAAS,IAAI;AACX,UAAQ,IAAI,CAAC;AACf;AACA,EAAE;",
+  "names": []
+}

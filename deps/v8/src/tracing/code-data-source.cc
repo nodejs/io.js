@@ -60,7 +60,7 @@ InternedV8JsFunction::Kind GetJsFunctionKind(FunctionKind kind) {
       return InternedV8JsFunction::KIND_NORMAL_FUNCTION;
     case FunctionKind::kModule:
       return InternedV8JsFunction::KIND_MODULE;
-    case FunctionKind::kAsyncModule:
+    case FunctionKind::kModuleWithTopLevelAwait:
       return InternedV8JsFunction::KIND_ASYNC_MODULE;
     case FunctionKind::kBaseConstructor:
       return InternedV8JsFunction::KIND_BASE_CONSTRUCTOR;
@@ -153,7 +153,8 @@ uint64_t CodeDataSourceIncrementalState::InternIsolate(Isolate& isolate) {
     auto* v8_code_range = isolate_proto->set_code_range();
     v8_code_range->set_base_address(code_range->base());
     v8_code_range->set_size(code_range->size());
-    if (code_range == CodeRange::GetProcessWideCodeRange()) {
+    if (code_range == IsolateGroup::current()->GetCodeRange()) {
+      // FIXME(42204573): Belongs to isolate group, not process.
       v8_code_range->set_is_process_wide(true);
     }
     if (auto* embedded_builtins_start = code_range->embedded_blob_code_copy();
@@ -182,11 +183,11 @@ uint64_t CodeDataSourceIncrementalState::InternJsScript(Isolate& isolate,
   proto->set_script_id(script->id());
   proto->set_type(GetJsScriptType(script));
   if (IsString(script->name())) {
-    PerfettoV8String(String::cast(script->name()))
+    PerfettoV8String(Cast<String>(script->name()))
         .WriteToProto(*proto->set_name());
   }
   if (log_script_sources() && IsString(script->source())) {
-    PerfettoV8String(String::cast(script->source()))
+    PerfettoV8String(Cast<String>(script->source()))
         .WriteToProto(*proto->set_source());
   }
 
@@ -243,11 +244,8 @@ uint64_t CodeDataSourceIncrementalState::InternWasmScript(
 
 uint64_t CodeDataSourceIncrementalState::InternJsFunctionName(
     Tagged<String> function_name) {
-  PerfettoV8String v8_string(function_name);
-  auto& function_names = v8_string.is_one_byte() ? one_byte_function_names_
-                                                 : two_byte_function_names_;
-  auto [it, was_inserted] =
-      function_names.emplace(v8_string.buffer(), next_function_name_iid());
+  auto [it, was_inserted] = js_function_names_.emplace(
+      PerfettoV8String(function_name), next_js_function_name_iid());
   uint64_t iid = it->second;
   if (!was_inserted) {
     return iid;
@@ -255,7 +253,7 @@ uint64_t CodeDataSourceIncrementalState::InternJsFunctionName(
 
   auto* v8_function_name = serialized_interned_data_->add_v8_js_function_name();
   v8_function_name->set_iid(iid);
-  v8_string.WriteToProto(*v8_function_name);
+  it->first.WriteToProto(*v8_function_name);
   return iid;
 }
 

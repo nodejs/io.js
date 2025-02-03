@@ -3,6 +3,9 @@
 // found in the LICENSE file.
 
 #include "src/torque/earley-parser.h"
+
+#include <optional>
+
 #include "test/unittests/test-utils.h"
 
 namespace v8 {
@@ -12,7 +15,7 @@ namespace torque {
 namespace {
 
 template <int op(int, int)>
-base::Optional<ParseResult> MakeBinop(ParseResultIterator* child_results) {
+std::optional<ParseResult> MakeBinop(ParseResultIterator* child_results) {
   // Ideally, we would want to use int as a result type here instead of
   // std::string. This is possible, but requires adding int to the list of
   // supported ParseResult types in torque-parser.cc. To avoid changing that

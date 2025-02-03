@@ -13,7 +13,7 @@
 #include "src/heap/heap-inl.h"
 #include "src/heap/local-factory-inl.h"
 #include "src/heap/local-heap-inl.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/heap/read-only-heap.h"
 #include "src/numbers/conversions.h"
 #include "src/objects/instance-type.h"
@@ -43,7 +43,7 @@ Handle<String> String::SlowFlatten(Isolate* isolate, Handle<ConsString> cons,
     // String::Flatten only in those cases where String::SlowFlatten is not
     // called again.
     if (IsConsString(cons->second()) && !cons->second()->IsFlat()) {
-      cons = handle(ConsString::cast(cons->second()), isolate);
+      cons = handle(Cast<ConsString>(cons->second()), isolate);
     } else {
       return String::Flatten(isolate, handle(cons->second(), isolate),
                              allocation);
@@ -107,7 +107,7 @@ Handle<String> String::SlowShare(Isolate* isolate, Handle<String> source) {
   // Do not recursively call Share, so directly compute the sharing strategy for
   // the flat string, which could already be a copy or an existing string from
   // e.g. a shortcut ConsString.
-  MaybeHandle<Map> new_map;
+  MaybeDirectHandle<Map> new_map;
   switch (isolate->factory()->ComputeSharingStrategyForString(flat, &new_map)) {
     case StringTransitionStrategy::kCopy:
       break;
@@ -144,13 +144,13 @@ void MigrateExternalStringResource(Isolate* isolate,
                                    Tagged<StringClass> to) {
   Address to_resource_address = to->resource_as_address();
   if (to_resource_address == kNullAddress) {
-    Tagged<StringClass> cast_from = StringClass::cast(from);
+    Tagged<StringClass> cast_from = Cast<StringClass>(from);
     // |to| is a just-created internalized copy of |from|. Migrate the resource.
     to->SetResource(isolate, cast_from->resource());
     // Zap |from|'s resource pointer to reflect the fact that |from| has
     // relinquished ownership of its resource.
     isolate->heap()->UpdateExternalString(
-        from, ExternalString::cast(from)->ExternalPayloadSize(), 0);
+        from, Cast<ExternalString>(from)->ExternalPayloadSize(), 0);
     cast_from->SetResource(isolate, nullptr);
   } else if (to_resource_address != from->resource_as_address()) {
     // |to| already existed and has its own resource. Finalize |from|.
@@ -161,11 +161,11 @@ void MigrateExternalStringResource(Isolate* isolate,
 void MigrateExternalString(Isolate* isolate, Tagged<String> string,
                            Tagged<String> internalized) {
   if (IsExternalOneByteString(internalized)) {
-    MigrateExternalStringResource(isolate, ExternalString::cast(string),
-                                  ExternalOneByteString::cast(internalized));
+    MigrateExternalStringResource(isolate, Cast<ExternalString>(string),
+                                  Cast<ExternalOneByteString>(internalized));
   } else if (IsExternalTwoByteString(internalized)) {
-    MigrateExternalStringResource(isolate, ExternalString::cast(string),
-                                  ExternalTwoByteString::cast(internalized));
+    MigrateExternalStringResource(isolate, Cast<ExternalString>(string),
+                                  Cast<ExternalTwoByteString>(internalized));
   } else {
     // If the external string is duped into an existing non-external
     // internalized string, free its resource (it's about to be rewritten
@@ -178,11 +178,11 @@ void MigrateExternalString(Isolate* isolate, Tagged<String> string,
 
 void ExternalString::InitExternalPointerFieldsDuringExternalization(
     Tagged<Map> new_map, Isolate* isolate) {
-  resource_.Init(isolate, kNullAddress);
+  resource_.Init(address(), isolate, kNullAddress);
   bool is_uncached = (new_map->instance_type() & kUncachedExternalStringMask) ==
                      kUncachedExternalStringTag;
   if (!is_uncached) {
-    resource_data_.Init(isolate, kNullAddress);
+    resource_data_.Init(address(), isolate, kNullAddress);
   }
 }
 
@@ -229,7 +229,7 @@ void String::MakeThin(IsolateT* isolate, Tagged<String> internalized) {
   // Update actual first and then do release store on the map word. This ensures
   // that the concurrent marker will read the pointer when visiting a
   // ThinString.
-  Tagged<ThinString> thin = ThinString::unchecked_cast(Tagged(this));
+  Tagged<ThinString> thin = UncheckedCast<ThinString>(Tagged(this));
   thin->set_actual(internalized);
 
   DCHECK_GE(old_size, sizeof(ThinString));
@@ -382,10 +382,10 @@ void String::MakeExternalDuringGC(Isolate* isolate, T* resource) {
   this->set_map(new_map, kReleaseStore);
 
   if constexpr (is_one_byte) {
-    Tagged<ExternalOneByteString> self = ExternalOneByteString::cast(this);
+    Tagged<ExternalOneByteString> self = Cast<ExternalOneByteString>(this);
     self->SetResource(isolate, resource);
   } else {
-    Tagged<ExternalTwoByteString> self = ExternalTwoByteString::cast(this);
+    Tagged<ExternalTwoByteString> self = Cast<ExternalTwoByteString>(this);
     self->SetResource(isolate, resource);
   }
   isolate->heap()->RegisterExternalString(this);
@@ -475,7 +475,7 @@ bool String::MakeExternal(v8::String::ExternalStringResource* resource) {
   // the sweeper thread.
   this->set_map(new_map, kReleaseStore);
 
-  Tagged<ExternalTwoByteString> self = ExternalTwoByteString::cast(this);
+  Tagged<ExternalTwoByteString> self = Cast<ExternalTwoByteString>(this);
   self->SetResource(isolate, resource);
   isolate->heap()->RegisterExternalString(this);
   // Force regeneration of the hash value.
@@ -566,7 +566,7 @@ bool String::MakeExternal(v8::String::ExternalOneByteStringResource* resource) {
   // the sweeper thread.
   this->set_map(new_map, kReleaseStore);
 
-  Tagged<ExternalOneByteString> self = ExternalOneByteString::cast(this);
+  Tagged<ExternalOneByteString> self = Cast<ExternalOneByteString>(this);
   self->SetResource(isolate, resource);
   isolate->heap()->RegisterExternalString(this);
   // Force regeneration of the hash value.
@@ -576,7 +576,7 @@ bool String::MakeExternal(v8::String::ExternalOneByteStringResource* resource) {
 
 bool String::SupportsExternalization(v8::String::Encoding encoding) {
   if (IsThinString(this)) {
-    return i::ThinString::cast(this)->actual()->SupportsExternalization(
+    return i::Cast<i::ThinString>(this)->actual()->SupportsExternalization(
         encoding);
   }
 
@@ -712,94 +712,16 @@ bool String::LooksValid() {
   // TODO(leszeks): Maybe remove this check entirely, Heap::Contains uses
   // basically the same logic as the way we access the heap in the first place.
   // RO_SPACE objects should always be valid.
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) return true;
   if (ReadOnlyHeap::Contains(this)) return true;
-  BasicMemoryChunk* chunk = BasicMemoryChunk::FromHeapObject(this);
+  MemoryChunkMetadata* chunk = MemoryChunkMetadata::FromHeapObject(this);
   if (chunk->heap() == nullptr) return false;
   return chunk->heap()->Contains(this);
 }
 
-namespace {
-
-bool AreDigits(const uint8_t* s, int from, int to) {
-  for (int i = from; i < to; i++) {
-    if (s[i] < '0' || s[i] > '9') return false;
-  }
-
-  return true;
-}
-
-int ParseDecimalInteger(const uint8_t* s, int from, int to) {
-  DCHECK_LT(to - from, 10);  // Overflow is not possible.
-  DCHECK(from < to);
-  int d = s[from] - '0';
-
-  for (int i = from + 1; i < to; i++) {
-    d = 10 * d + (s[i] - '0');
-  }
-
-  return d;
-}
-
-}  // namespace
-
 // static
-Handle<Object> String::ToNumber(Isolate* isolate, Handle<String> subject) {
-  // Flatten {subject} string first.
-  subject = String::Flatten(isolate, subject);
-
-  // Fast array index case.
-  uint32_t index;
-  if (subject->AsArrayIndex(&index)) {
-    return isolate->factory()->NewNumberFromUint(index);
-  }
-
-  // Fast case: short integer or some sorts of junk values.
-  if (IsSeqOneByteString(*subject)) {
-    int len = subject->length();
-    if (len == 0) return handle(Smi::zero(), isolate);
-
-    DisallowGarbageCollection no_gc;
-    uint8_t const* data =
-        Handle<SeqOneByteString>::cast(subject)->GetChars(no_gc);
-    bool minus = (data[0] == '-');
-    int start_pos = (minus ? 1 : 0);
-
-    if (start_pos == len) {
-      return isolate->factory()->nan_value();
-    } else if (data[start_pos] > '9') {
-      // Fast check for a junk value. A valid string may start from a
-      // whitespace, a sign ('+' or '-'), the decimal point, a decimal digit
-      // or the 'I' character ('Infinity'). All of that have codes not greater
-      // than '9' except 'I' and &nbsp;.
-      if (data[start_pos] != 'I' && data[start_pos] != 0xA0) {
-        return isolate->factory()->nan_value();
-      }
-    } else if (len - start_pos < 10 && AreDigits(data, start_pos, len)) {
-      // The maximal/minimal smi has 10 digits. If the string has less digits
-      // we know it will fit into the smi-data type.
-      int d = ParseDecimalInteger(data, start_pos, len);
-      if (minus) {
-        if (d == 0) return isolate->factory()->minus_zero_value();
-        d = -d;
-      } else if (!subject->HasHashCode() && len <= String::kMaxArrayIndexSize &&
-                 (len == 1 || data[0] != '0')) {
-        // String hash is not calculated yet but all the data are present.
-        // Update the hash field to speed up sequential convertions.
-        uint32_t raw_hash_field = StringHasher::MakeArrayIndexHash(d, len);
-#ifdef DEBUG
-        subject->EnsureHash();  // Force hash calculation.
-        DCHECK_EQ(subject->raw_hash_field(), raw_hash_field);
-#endif
-        subject->set_raw_hash_field_if_empty(raw_hash_field);
-      }
-      return handle(Smi::FromInt(d), isolate);
-    }
-  }
-
-  // Slower case.
-  int flags = ALLOW_HEX | ALLOW_OCTAL | ALLOW_BINARY;
-  return isolate->factory()->NewNumber(StringToDouble(isolate, subject, flags));
+Handle<Number> String::ToNumber(Isolate* isolate, Handle<String> subject) {
+  return isolate->factory()->NewNumber(
+      StringToDouble(isolate, subject, ALLOW_NON_DECIMAL_PREFIX));
 }
 
 String::FlatContent String::SlowGetFlatContent(
@@ -812,12 +734,12 @@ String::FlatContent String::SlowGetFlatContent(
 
   // Extract cons- and sliced strings.
   if (shape.IsCons()) {
-    Tagged<ConsString> cons = ConsString::cast(string);
+    Tagged<ConsString> cons = Cast<ConsString>(string);
     if (!cons->IsFlat()) return FlatContent(no_gc);
     string = cons->first();
     shape = StringShape(string);
   } else if (shape.IsSliced()) {
-    Tagged<SlicedString> slice = SlicedString::cast(string);
+    Tagged<SlicedString> slice = Cast<SlicedString>(string);
     offset = slice->offset();
     string = slice->parent();
     shape = StringShape(string);
@@ -828,7 +750,7 @@ String::FlatContent String::SlowGetFlatContent(
 
   // Extract thin strings.
   if (shape.IsThin()) {
-    Tagged<ThinString> thin = ThinString::cast(string);
+    Tagged<ThinString> thin = Cast<ThinString>(string);
     string = thin->actual();
     shape = StringShape(string);
   }
@@ -912,30 +834,30 @@ void String::WriteToFlat(Tagged<String> source, sinkchar* sink, int start,
     DCHECK_LE(length, source->length());
     switch (StringShape(source).representation_and_encoding_tag()) {
       case kOneByteStringTag | kExternalStringTag:
-        CopyChars(sink, ExternalOneByteString::cast(source)->GetChars() + start,
+        CopyChars(sink, Cast<ExternalOneByteString>(source)->GetChars() + start,
                   length);
         return;
       case kTwoByteStringTag | kExternalStringTag:
-        CopyChars(sink, ExternalTwoByteString::cast(source)->GetChars() + start,
+        CopyChars(sink, Cast<ExternalTwoByteString>(source)->GetChars() + start,
                   length);
         return;
       case kOneByteStringTag | kSeqStringTag:
         CopyChars(
             sink,
-            SeqOneByteString::cast(source)->GetChars(no_gc, access_guard) +
+            Cast<SeqOneByteString>(source)->GetChars(no_gc, access_guard) +
                 start,
             length);
         return;
       case kTwoByteStringTag | kSeqStringTag:
         CopyChars(
             sink,
-            SeqTwoByteString::cast(source)->GetChars(no_gc, access_guard) +
+            Cast<SeqTwoByteString>(source)->GetChars(no_gc, access_guard) +
                 start,
             length);
         return;
       case kOneByteStringTag | kConsStringTag:
       case kTwoByteStringTag | kConsStringTag: {
-        Tagged<ConsString> cons_string = ConsString::cast(source);
+        Tagged<ConsString> cons_string = Cast<ConsString>(source);
         Tagged<String> first = cons_string->first();
         int boundary = first->length();
         int first_length = boundary - start;
@@ -968,7 +890,7 @@ void String::WriteToFlat(Tagged<String> source, sinkchar* sink, int start,
             } else if (IsSeqOneByteString(second)) {
               CopyChars(
                   sink + boundary - start,
-                  SeqOneByteString::cast(second)->GetChars(no_gc, access_guard),
+                  Cast<SeqOneByteString>(second)->GetChars(no_gc, access_guard),
                   second_length);
             } else {
               WriteToFlat(second, sink + boundary - start, 0, second_length,
@@ -983,7 +905,7 @@ void String::WriteToFlat(Tagged<String> source, sinkchar* sink, int start,
       }
       case kOneByteStringTag | kSlicedStringTag:
       case kTwoByteStringTag | kSlicedStringTag: {
-        Tagged<SlicedString> slice = SlicedString::cast(source);
+        Tagged<SlicedString> slice = Cast<SlicedString>(source);
         unsigned offset = slice->offset();
         source = slice->parent();
         start += offset;
@@ -991,7 +913,7 @@ void String::WriteToFlat(Tagged<String> source, sinkchar* sink, int start,
       }
       case kOneByteStringTag | kThinStringTag:
       case kTwoByteStringTag | kThinStringTag:
-        source = ThinString::cast(source)->actual();
+        source = Cast<ThinString>(source)->actual();
         continue;
     }
     UNREACHABLE();
@@ -999,14 +921,10 @@ void String::WriteToFlat(Tagged<String> source, sinkchar* sink, int start,
   UNREACHABLE();
 }
 
-namespace {
-static int constexpr kInlineLineEndsSize = 32;
-}
-
 template <typename SourceChar>
-static void CalculateLineEndsImpl(
-    base::SmallVector<int32_t, kInlineLineEndsSize>* line_ends,
-    base::Vector<const SourceChar> src, bool include_ending_line) {
+static void CalculateLineEndsImpl(String::LineEndsVector* line_ends,
+                                  base::Vector<const SourceChar> src,
+                                  bool include_ending_line) {
   const int src_len = src.length();
   for (int i = 0; i < src_len - 1; i++) {
     SourceChar current = src[i];
@@ -1025,14 +943,13 @@ static void CalculateLineEndsImpl(
 }
 
 template <typename IsolateT>
-Handle<FixedArray> String::CalculateLineEnds(IsolateT* isolate,
-                                             Handle<String> src,
-                                             bool include_ending_line) {
+String::LineEndsVector String::CalculateLineEndsVector(
+    IsolateT* isolate, Handle<String> src, bool include_ending_line) {
   src = Flatten(isolate, src);
   // Rough estimate of line count based on a roughly estimated average
   // length of packed code. Most scripts have < 32 lines.
   int line_count_estimate = (src->length() >> 6) + 16;
-  base::SmallVector<int32_t, kInlineLineEndsSize> line_ends;
+  LineEndsVector line_ends;
   line_ends.reserve(line_count_estimate);
   {
     DisallowGarbageCollection no_gc;
@@ -1047,6 +964,20 @@ Handle<FixedArray> String::CalculateLineEnds(IsolateT* isolate,
                             include_ending_line);
     }
   }
+  return line_ends;
+}
+
+template String::LineEndsVector String::CalculateLineEndsVector(
+    Isolate* isolate, Handle<String> src, bool include_ending_line);
+template String::LineEndsVector String::CalculateLineEndsVector(
+    LocalIsolate* isolate, Handle<String> src, bool include_ending_line);
+
+template <typename IsolateT>
+Handle<FixedArray> String::CalculateLineEnds(IsolateT* isolate,
+                                             Handle<String> src,
+                                             bool include_ending_line) {
+  LineEndsVector line_ends =
+      CalculateLineEndsVector(isolate, src, include_ending_line);
   int line_count = static_cast<int>(line_ends.size());
   Handle<FixedArray> array =
       isolate->factory()->NewFixedArray(line_count, AllocationType::kOld);
@@ -1085,9 +1016,9 @@ bool String::SlowEquals(
   // Fast check: if at least one ThinString is involved, dereference it/them
   // and restart.
   if (IsThinString(this) || IsThinString(other)) {
-    if (IsThinString(other)) other = ThinString::cast(other)->actual();
+    if (IsThinString(other)) other = Cast<ThinString>(other)->actual();
     if (IsThinString(this)) {
-      return ThinString::cast(this)->actual()->Equals(other);
+      return Cast<ThinString>(this)->actual()->Equals(other);
     } else {
       return this->Equals(other);
     }
@@ -1121,9 +1052,9 @@ bool String::SlowEquals(
 
   if (IsSeqOneByteString(this) && IsSeqOneByteString(other)) {
     const uint8_t* str1 =
-        SeqOneByteString::cast(this)->GetChars(no_gc, access_guard);
+        Cast<SeqOneByteString>(this)->GetChars(no_gc, access_guard);
     const uint8_t* str2 =
-        SeqOneByteString::cast(other)->GetChars(no_gc, access_guard);
+        Cast<SeqOneByteString>(other)->GetChars(no_gc, access_guard);
     return CompareCharsEqual(str1, str2, len);
   }
 
@@ -1143,10 +1074,10 @@ bool String::SlowEquals(Isolate* isolate, Handle<String> one,
   // and restart.
   if (IsThinString(*one) || IsThinString(*two)) {
     if (IsThinString(*one)) {
-      one = handle(ThinString::cast(*one)->actual(), isolate);
+      one = handle(Cast<ThinString>(*one)->actual(), isolate);
     }
     if (IsThinString(*two)) {
-      two = handle(ThinString::cast(*two)->actual(), isolate);
+      two = handle(Cast<ThinString>(*two)->actual(), isolate);
     }
     return String::Equals(isolate, one, two);
   }
@@ -1373,7 +1304,7 @@ MaybeHandle<String> String::GetSubstitution(Isolate* isolate, Match* match,
     const int peek_ix = next_dollar_ix + 1;
     if (peek_ix >= replacement_length) {
       builder.AppendCharacter('$');
-      return builder.Finish();
+      return indirect_handle(builder.Finish(), isolate);
     }
 
     int continue_from_ix = -1;
@@ -1429,8 +1360,7 @@ MaybeHandle<String> String::GetSubstitution(Isolate* isolate, Match* match,
         bool capture_exists;
         Handle<String> capture;
         ASSIGN_RETURN_ON_EXCEPTION(
-            isolate, capture, match->GetCapture(scaled_index, &capture_exists),
-            String);
+            isolate, capture, match->GetCapture(scaled_index, &capture_exists));
         if (capture_exists) builder.AppendString(capture);
         continue_from_ix = peek_ix + advance;
         break;
@@ -1462,7 +1392,7 @@ MaybeHandle<String> String::GetSubstitution(Isolate* isolate, Match* match,
         CaptureState capture_state;
         ASSIGN_RETURN_ON_EXCEPTION(
             isolate, capture,
-            match->GetNamedCapture(capture_name, &capture_state), String);
+            match->GetNamedCapture(capture_name, &capture_state));
 
         if (capture_state == CaptureState::MATCHED) {
           builder.AppendString(capture);
@@ -1490,7 +1420,7 @@ MaybeHandle<String> String::GetSubstitution(Isolate* isolate, Match* match,
         builder.AppendString(factory->NewSubString(
             replacement, continue_from_ix, replacement_length));
       }
-      return builder.Finish();
+      return indirect_handle(builder.Finish(), isolate);
     }
 
     // Append substring between the previous and the next $ character.
@@ -1699,17 +1629,17 @@ uint32_t String::ComputeAndSetRawHash(
   Tagged<String> string = this;
   StringShape shape(string);
   if (shape.IsSliced()) {
-    Tagged<SlicedString> sliced = SlicedString::cast(string);
+    Tagged<SlicedString> sliced = Cast<SlicedString>(string);
     start = sliced->offset();
     string = sliced->parent();
     shape = StringShape(string);
   }
   if (shape.IsCons() && string->IsFlat()) {
-    string = ConsString::cast(string)->first();
+    string = Cast<ConsString>(string)->first();
     shape = StringShape(string);
   }
   if (shape.IsThin()) {
-    string = ThinString::cast(string)->actual();
+    string = Cast<ThinString>(string)->actual();
     shape = StringShape(string);
     if (length() == string->length()) {
       uint32_t raw_hash = string->RawHash();
@@ -1816,9 +1746,9 @@ Handle<String> SeqString::Truncate(Isolate* isolate, Handle<SeqString> string,
 
 SeqString::DataAndPaddingSizes SeqString::GetDataAndPaddingSizes() const {
   if (IsSeqOneByteString(this)) {
-    return SeqOneByteString::cast(this)->GetDataAndPaddingSizes();
+    return Cast<SeqOneByteString>(this)->GetDataAndPaddingSizes();
   }
-  return SeqTwoByteString::cast(this)->GetDataAndPaddingSizes();
+  return Cast<SeqTwoByteString>(this)->GetDataAndPaddingSizes();
 }
 
 SeqString::DataAndPaddingSizes SeqOneByteString::GetDataAndPaddingSizes()
@@ -1865,11 +1795,11 @@ uint16_t ConsString::Get(
     return left->Get(index);
   }
 
-  Tagged<String> string = String::cast(this);
+  Tagged<String> string = Cast<String>(this);
 
   while (true) {
     if (StringShape(string).IsCons()) {
-      Tagged<ConsString> cons_string = ConsString::cast(string);
+      Tagged<ConsString> cons_string = Cast<ConsString>(string);
       Tagged<String> left = cons_string->first();
       if (left->length() > index) {
         string = left;
@@ -1969,7 +1899,7 @@ Tagged<String> ConsStringIterator::Search(int* offset_out) {
       // Keep going if we're still in a ConString.
       type = string->map()->instance_type();
       if ((type & kStringRepresentationMask) == kConsStringTag) {
-        cons_string = ConsString::cast(string);
+        cons_string = Cast<ConsString>(string);
         PushLeft(cons_string);
         continue;
       }
@@ -1983,7 +1913,7 @@ Tagged<String> ConsStringIterator::Search(int* offset_out) {
       string = cons_string->second();
       type = string->map()->instance_type();
       if ((type & kStringRepresentationMask) == kConsStringTag) {
-        cons_string = ConsString::cast(string);
+        cons_string = Cast<ConsString>(string);
         PushRight(cons_string);
         continue;
       }
@@ -2035,7 +1965,7 @@ Tagged<String> ConsStringIterator::NextLeaf(bool* blew_stack) {
       consumed_ += length;
       return string;
     }
-    cons_string = ConsString::cast(string);
+    cons_string = Cast<ConsString>(string);
     PushRight(cons_string);
     // Need to traverse all the way left.
     while (true) {
@@ -2049,7 +1979,7 @@ Tagged<String> ConsStringIterator::NextLeaf(bool* blew_stack) {
         consumed_ += length;
         return string;
       }
-      cons_string = ConsString::cast(string);
+      cons_string = Cast<ConsString>(string);
       PushLeft(cons_string);
     }
   }
@@ -2062,15 +1992,15 @@ const uint8_t* String::AddressOfCharacterAt(
   Tagged<String> subject = this;
   StringShape shape(subject);
   if (IsConsString(subject)) {
-    subject = ConsString::cast(subject)->first();
+    subject = Cast<ConsString>(subject)->first();
     shape = StringShape(subject);
   } else if (IsSlicedString(subject)) {
-    start_index += SlicedString::cast(subject)->offset();
-    subject = SlicedString::cast(subject)->parent();
+    start_index += Cast<SlicedString>(subject)->offset();
+    subject = Cast<SlicedString>(subject)->parent();
     shape = StringShape(subject);
   }
   if (IsThinString(subject)) {
-    subject = ThinString::cast(subject)->actual();
+    subject = Cast<ThinString>(subject)->actual();
     shape = StringShape(subject);
   }
   CHECK_LE(0, start_index);
@@ -2078,16 +2008,16 @@ const uint8_t* String::AddressOfCharacterAt(
   switch (shape.representation_and_encoding_tag()) {
     case kOneByteStringTag | kSeqStringTag:
       return reinterpret_cast<const uint8_t*>(
-          SeqOneByteString::cast(subject)->GetChars(no_gc) + start_index);
+          Cast<SeqOneByteString>(subject)->GetChars(no_gc) + start_index);
     case kTwoByteStringTag | kSeqStringTag:
       return reinterpret_cast<const uint8_t*>(
-          SeqTwoByteString::cast(subject)->GetChars(no_gc) + start_index);
+          Cast<SeqTwoByteString>(subject)->GetChars(no_gc) + start_index);
     case kOneByteStringTag | kExternalStringTag:
       return reinterpret_cast<const uint8_t*>(
-          ExternalOneByteString::cast(subject)->GetChars() + start_index);
+          Cast<ExternalOneByteString>(subject)->GetChars() + start_index);
     case kTwoByteStringTag | kExternalStringTag:
       return reinterpret_cast<const uint8_t*>(
-          ExternalTwoByteString::cast(subject)->GetChars() + start_index);
+          Cast<ExternalTwoByteString>(subject)->GetChars() + start_index);
     default:
       UNREACHABLE();
   }

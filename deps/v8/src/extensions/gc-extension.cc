@@ -4,6 +4,7 @@
 
 #include "src/extensions/gc-extension.h"
 
+#include "include/v8-exception.h"
 #include "include/v8-isolate.h"
 #include "include/v8-maybe.h"
 #include "include/v8-microtask-queue.h"
@@ -19,9 +20,7 @@
 #include "src/profiler/heap-profiler.h"
 #include "src/tasks/cancelable-task.h"
 
-namespace v8 {
-namespace internal {
-
+namespace v8::internal {
 namespace {
 
 enum class GCType { kMinor, kMajor, kMajorWithSnapshot };
@@ -37,6 +36,9 @@ struct GCOptions {
     return {GCType::kMinor, ExecutionType::kSync, Flavor::kRegular,
             "heap.heapsnapshot"};
   }
+
+  // Used with Nothing<GCOptions>.
+  GCOptions() = default;
 
   GCType type;
   ExecutionType execution;
@@ -55,11 +57,9 @@ MaybeLocal<v8::String> ReadProperty(v8::Isolate* isolate,
                                     const char* key) {
   auto k = v8::String::NewFromUtf8(isolate, key).ToLocalChecked();
   auto maybe_property = object->Get(ctx, k);
-  // Handle the exception.
-  if (maybe_property.IsEmpty()) return MaybeLocal<v8::String>();
-  auto property = maybe_property.ToLocalChecked();
-  if (!property->IsString()) {
-    return MaybeLocal<v8::String>();
+  v8::Local<v8::Value> property;
+  if (!maybe_property.ToLocal(&property) || !property->IsString()) {
+    return {};
   }
   return MaybeLocal<v8::String>(property.As<v8::String>());
 }
@@ -134,15 +134,32 @@ Maybe<GCOptions> Parse(v8::Isolate* isolate,
     auto ctx = isolate->GetCurrentContext();
     auto param = v8::Local<v8::Object>::Cast(info[0]);
 
+    v8::TryCatch catch_block(isolate);
     ParseType(isolate, ReadProperty(isolate, ctx, param, "type"), &options,
               &found_options_object);
+    if (catch_block.HasCaught()) {
+      catch_block.ReThrow();
+      return Nothing<GCOptions>();
+    }
     ParseExecution(isolate, ReadProperty(isolate, ctx, param, "execution"),
                    &options, &found_options_object);
+    if (catch_block.HasCaught()) {
+      catch_block.ReThrow();
+      return Nothing<GCOptions>();
+    }
     ParseFlavor(isolate, ReadProperty(isolate, ctx, param, "flavor"), &options,
                 &found_options_object);
+    if (catch_block.HasCaught()) {
+      catch_block.ReThrow();
+      return Nothing<GCOptions>();
+    }
 
     if (options.type == GCType::kMajorWithSnapshot) {
       auto maybe_filename = ReadProperty(isolate, ctx, param, "filename");
+      if (catch_block.HasCaught()) {
+        catch_block.ReThrow();
+        return Nothing<GCOptions>();
+      }
       Local<v8::String> filename;
       if (maybe_filename.ToLocal(&filename)) {
         std::unique_ptr<char[]> buffer(
@@ -170,8 +187,8 @@ void InvokeGC(v8::Isolate* isolate, const GCOptions gc_options) {
   EmbedderStackStateScope stack_scope(
       heap,
       gc_options.execution == ExecutionType::kAsync
-          ? EmbedderStackStateScope::kImplicitThroughTask
-          : EmbedderStackStateScope::kExplicitInvocation,
+          ? EmbedderStackStateOrigin::kImplicitThroughTask
+          : EmbedderStackStateOrigin::kExplicitInvocation,
       gc_options.execution == ExecutionType::kAsync
           ? StackState::kNoHeapPointers
           : StackState::kMayContainHeapPointers);
@@ -260,9 +277,11 @@ void GCExtension::GC(const v8::FunctionCallbackInfo<v8::Value>& info) {
     return;
   }
 
-  auto maybe_options = Parse(isolate, info);
-  if (maybe_options.IsNothing()) return;
-  GCOptions options = maybe_options.ToChecked();
+  GCOptions options;
+  if (!Parse(isolate, info).To(&options)) {
+    // Parsing ran into an exception. Just bail out without GC in this case.
+    return;
+  }
   switch (options.execution) {
     case ExecutionType::kSync:
       InvokeGC(isolate, options);
@@ -281,5 +300,4 @@ void GCExtension::GC(const v8::FunctionCallbackInfo<v8::Value>& info) {
   }
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

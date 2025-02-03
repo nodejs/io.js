@@ -1,14 +1,16 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
+const { isMainThread } = require('worker_threads');
 
 if (common.isWindows) {
   assert.strictEqual(process.setgroups, undefined);
   return;
 }
 
-if (!common.isMainThread)
+if (!isMainThread) {
   return;
+}
 
 assert.throws(
   () => {

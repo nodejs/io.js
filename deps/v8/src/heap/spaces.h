@@ -14,14 +14,14 @@
 #include "src/heap/allocation-observer.h"
 #include "src/heap/base-space.h"
 #include "src/heap/base/active-system-pages.h"
-#include "src/heap/basic-memory-chunk.h"
 #include "src/heap/free-list.h"
 #include "src/heap/linear-allocation-area.h"
 #include "src/heap/list.h"
 #include "src/heap/main-allocator.h"
 #include "src/heap/memory-chunk-layout.h"
-#include "src/heap/memory-chunk.h"
-#include "src/heap/page.h"
+#include "src/heap/memory-chunk-metadata.h"
+#include "src/heap/mutable-page-metadata.h"
+#include "src/heap/page-metadata.h"
 #include "src/heap/slot-set.h"
 #include "src/objects/objects.h"
 #include "src/utils/allocation.h"
@@ -41,7 +41,7 @@ class FreeList;
 class Heap;
 class Isolate;
 class LargeObjectSpace;
-class LargePage;
+class LargePageMetadata;
 class ObjectIterator;
 class PagedSpaceBase;
 class SemiSpace;
@@ -97,27 +97,34 @@ class V8_EXPORT_PRIVATE Space : public BaseSpace {
     return external_backing_store_bytes_[static_cast<int>(type)];
   }
 
-  virtual MemoryChunk* first_page() { return memory_chunk_list_.front(); }
-  virtual MemoryChunk* last_page() { return memory_chunk_list_.back(); }
-
-  virtual const MemoryChunk* first_page() const {
+  virtual MutablePageMetadata* first_page() {
     return memory_chunk_list_.front();
   }
-  virtual const MemoryChunk* last_page() const {
+  virtual MutablePageMetadata* last_page() { return memory_chunk_list_.back(); }
+
+  virtual const MutablePageMetadata* first_page() const {
+    return memory_chunk_list_.front();
+  }
+  virtual const MutablePageMetadata* last_page() const {
     return memory_chunk_list_.back();
   }
 
-  virtual heap::List<MemoryChunk>& memory_chunk_list() {
+  virtual heap::List<MutablePageMetadata>& memory_chunk_list() {
     return memory_chunk_list_;
   }
 
-  virtual Page* InitializePage(MemoryChunk* chunk) { UNREACHABLE(); }
+  virtual PageMetadata* InitializePage(MutablePageMetadata* chunk) {
+    UNREACHABLE();
+  }
+
+  virtual void NotifyBlackAreaCreated(size_t size) {}
+  virtual void NotifyBlackAreaDestroyed(size_t size) {}
 
   FreeList* free_list() { return free_list_.get(); }
 
   Address FirstPageAddress() const {
     DCHECK_NOT_NULL(first_page());
-    return first_page()->address();
+    return first_page()->ChunkAddress();
   }
 
 #ifdef DEBUG
@@ -126,7 +133,7 @@ class V8_EXPORT_PRIVATE Space : public BaseSpace {
 
  protected:
   // The List manages the pages that belong to the given space.
-  heap::List<MemoryChunk> memory_chunk_list_;
+  heap::List<MutablePageMetadata> memory_chunk_list_;
   // Tracks off-heap memory used by this space.
   std::atomic<size_t> external_backing_store_bytes_[static_cast<int>(
       ExternalBackingStoreType::kNumValues)] = {0};
@@ -171,38 +178,39 @@ class PageIteratorImpl
   PageType* p_;
 };
 
-using PageIterator = PageIteratorImpl<Page>;
-using ConstPageIterator = PageIteratorImpl<const Page>;
-using LargePageIterator = PageIteratorImpl<LargePage>;
-using ConstLargePageIterator = PageIteratorImpl<const LargePage>;
+using PageIterator = PageIteratorImpl<PageMetadata>;
+using ConstPageIterator = PageIteratorImpl<const PageMetadata>;
+using LargePageIterator = PageIteratorImpl<LargePageMetadata>;
+using ConstLargePageIterator = PageIteratorImpl<const LargePageMetadata>;
 
 class PageRange {
  public:
   using iterator = PageIterator;
-  PageRange(Page* begin, Page* end) : begin_(begin), end_(end) {}
-  inline explicit PageRange(Page* page);
+  PageRange(PageMetadata* begin, PageMetadata* end)
+      : begin_(begin), end_(end) {}
+  inline explicit PageRange(PageMetadata* page);
 
   iterator begin() { return iterator(begin_); }
   iterator end() { return iterator(end_); }
 
  private:
-  Page* begin_;
-  Page* end_;
+  PageMetadata* begin_;
+  PageMetadata* end_;
 };
 
 class ConstPageRange {
  public:
   using iterator = ConstPageIterator;
-  ConstPageRange(const Page* begin, const Page* end)
+  ConstPageRange(const PageMetadata* begin, const PageMetadata* end)
       : begin_(begin), end_(end) {}
-  inline explicit ConstPageRange(const Page* page);
+  inline explicit ConstPageRange(const PageMetadata* page);
 
   iterator begin() { return iterator(begin_); }
   iterator end() { return iterator(end_); }
 
  private:
-  const Page* begin_;
-  const Page* end_;
+  const PageMetadata* begin_;
+  const PageMetadata* end_;
 };
 
 class V8_EXPORT_PRIVATE SpaceWithLinearArea : public Space {
@@ -236,11 +244,11 @@ class MemoryChunkIterator {
   explicit MemoryChunkIterator(Heap* heap) : space_iterator_(heap) {}
 
   V8_INLINE bool HasNext();
-  V8_INLINE MemoryChunk* Next();
+  V8_INLINE MutablePageMetadata* Next();
 
  private:
   SpaceIterator space_iterator_;
-  MemoryChunk* current_chunk_ = nullptr;
+  MutablePageMetadata* current_chunk_ = nullptr;
 };
 
 }  // namespace internal

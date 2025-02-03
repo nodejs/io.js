@@ -20,7 +20,7 @@ class MaterializedObjectStore {
   explicit MaterializedObjectStore(Isolate* isolate) : isolate_(isolate) {}
 
   Handle<FixedArray> Get(Address fp);
-  void Set(Address fp, Handle<FixedArray> materialized_objects);
+  void Set(Address fp, DirectHandle<FixedArray> materialized_objects);
   bool Remove(Address fp);
 
  private:

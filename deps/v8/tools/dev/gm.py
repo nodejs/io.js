@@ -6,7 +6,7 @@
 Convenience wrapper for compiling V8 with gn/ninja and running tests.
 Sets up build output directories if they don't exist.
 Produces simulator builds for non-Intel target architectures.
-Uses Goma by default if it is detected (at output directory setup time).
+Uses reclient by default if it is detected (at output directory setup time).
 Expects to be run from the root of a V8 checkout.
 
 Usage:
@@ -51,9 +51,9 @@ BUILD_TARGETS_ALL = ["all"]
 
 # All arches that this script understands.
 ARCHES = [
-    "ia32", "x64", "arm", "arm64", "mips64el", "ppc", "ppc64", "riscv32",
-    "riscv64", "s390", "s390x", "android_arm", "android_arm64", "loong64",
-    "fuchsia_x64", "fuchsia_arm64"
+    "ia32", "x64", "arm", "arm64", "mips64el", "ppc64", "riscv32", "riscv64",
+    "s390", "s390x", "android_arm", "android_arm64", "loong64", "fuchsia_x64",
+    "fuchsia_arm64", "android_riscv64"
 ]
 # Arches that get built/run when you don't specify any.
 DEFAULT_ARCHES = ["ia32", "x64", "arm", "arm64"]
@@ -155,8 +155,10 @@ V8_DIR = Path(__file__).resolve().parent.parent.parent
 GCLIENT_FILE_PATH = V8_DIR.parent / ".gclient"
 RECLIENT_CERT_CACHE = V8_DIR / ".#gm_reclient_cert_cache"
 
-BUILD_DISTRIBUTION_RE = re.compile(r"use_(remoteexec|goma) = (false|true)")
-RECLIENT_CFG_RE = re.compile(r"rbe_cfg_dir = \"[^\"]+\"\n")
+BUILD_DISTRIBUTION_RE = re.compile(r"\nuse_(remoteexec|goma) = (false|true)")
+GOMA_DIR_LINE = re.compile(r"\ngoma_dir = \"[^\"]+\"")
+DEPRECATED_RBE_CFG_RE = re.compile(r"\nrbe_cfg_dir = \"[^\"]+\"")
+RECLIENT_CFG_RE = re.compile(r"\nreclient_cfg_dir = \"[^\"]+\"")
 
 class Reclient(IntEnum):
   NONE = 0
@@ -221,49 +223,23 @@ def detect_reclient_cert():
   return True
 
 
-# Deprecated.
-def detect_goma():
-  if os.environ.get("GOMA_DIR"):
-    return Path(os.environ.get("GOMA_DIR"))
-  if os.environ.get("GOMADIR"):
-    return Path(os.environ.get("GOMADIR"))
-  # There is a copy of goma in depot_tools, but it might not be in use on
-  # this machine.
-  goma = shutil.which("goma_ctl")
-  if goma is None: return None
-  cipd_bin = Path(goma).parent / ".cipd_bin"
-  if not cipd_bin.exists():
-    return None
-  # Some machines have one of these files, some have the other, some have both.
-  goma_auth = Path("~/.goma_client_oauth2_config").expanduser()
-  if goma_auth.exists():
-    return cipd_bin
-  goma_auth = Path("~/.goma_oauth2_config").expanduser()
-  if goma_auth.exists():
-    return cipd_bin
-  return None
-
-
 RECLIENT_MODE = detect_reclient()
-GOMADIR = detect_goma()
 
-# Let reclient have precendence over goma.
-IS_GOMA_MACHINE = not RECLIENT_MODE and GOMADIR is not None
+if platform.system() == "Linux":
+  RECLIENT_CFG_REL = "../../buildtools/reclient_cfgs/linux"
+else:
+  RECLIENT_CFG_REL = "../../buildtools/reclient_cfgs"
 
-RECLIENT_CFG_REL = "../../buildtools/reclient_cfgs/linux"
 BUILD_DISTRIBUTION_LINE = ""
 if RECLIENT_MODE:
-  BUILD_DISTRIBUTION_LINE = "use_remoteexec = true"
+  BUILD_DISTRIBUTION_LINE = "\nuse_remoteexec = true"
   if RECLIENT_MODE == Reclient.CUSTOM:
-    BUILD_DISTRIBUTION_LINE += f"\nrbe_cfg_dir = \"{RECLIENT_CFG_REL}\""
-elif IS_GOMA_MACHINE:
-  BUILD_DISTRIBUTION_LINE = "use_goma = true"
+    BUILD_DISTRIBUTION_LINE += f"\nreclient_cfg_dir = \"{RECLIENT_CFG_REL}\""
 
 RELEASE_ARGS_TEMPLATE = f"""\
 is_component_build = false
 is_debug = false
-%s
-{BUILD_DISTRIBUTION_LINE}
+%s{BUILD_DISTRIBUTION_LINE}
 v8_enable_backtrace = true
 v8_enable_disassembler = true
 v8_enable_object_print = true
@@ -275,8 +251,7 @@ DEBUG_ARGS_TEMPLATE = f"""\
 is_component_build = true
 is_debug = true
 symbol_level = 2
-%s
-{BUILD_DISTRIBUTION_LINE}
+%s{BUILD_DISTRIBUTION_LINE}
 v8_enable_backtrace = true
 v8_enable_fast_mksnapshot = true
 v8_enable_slow_dchecks = true
@@ -287,8 +262,7 @@ OPTDEBUG_ARGS_TEMPLATE = f"""\
 is_component_build = true
 is_debug = true
 symbol_level = 1
-%s
-{BUILD_DISTRIBUTION_LINE}
+%s{BUILD_DISTRIBUTION_LINE}
 v8_enable_backtrace = true
 v8_enable_fast_mksnapshot = true
 v8_enable_verify_heap = true
@@ -308,15 +282,20 @@ def print_help_and_exit():
   sys.exit(0)
 
 
+# Used by `tools/bash-completion.sh`
 def print_completions_and_exit():
   for a in ARCHES:
     print(str(a))
     for m in set(MODES.values()):
-      print(str(m))
       print(f"{a}.{m}")
       for t in TARGETS:
-        print(str(t))
-        print("{a}.{m}.{t}")
+        print(f"{a}.{m}.{t}")
+      for k in ACTIONS.keys():
+        print(f"{a}.{m}.{k}")
+  for t in TARGETS:
+    print(str(t))
+  for m in set(MODES.values()):
+    print(str(m))
   sys.exit(0)
 
 
@@ -414,7 +393,31 @@ class RawConfig:
     self.tests.update(tests)
     self.clean |= clean
 
+  def update_build_distribution_args(self):
+    args_gn = self.path / "args.gn"
+    assert args_gn.exists()
+    with open(args_gn) as f:
+      gn_args = f.read()
+    # Remove custom reclient config path (it will be added again as part of
+    # the config line below if needed).
+    new_gn_args = DEPRECATED_RBE_CFG_RE.sub("", gn_args)
+    new_gn_args = RECLIENT_CFG_RE.sub("", new_gn_args)
+    new_gn_args = BUILD_DISTRIBUTION_RE.sub(BUILD_DISTRIBUTION_LINE,
+                                            new_gn_args)
+    # Remove stale goma_dir to silence GN warnings about unused options.
+    new_gn_args = GOMA_DIR_LINE.sub("", new_gn_args)
+    if gn_args != new_gn_args:
+      print(f"# Updated gn args:{BUILD_DISTRIBUTION_LINE}")
+      _write(args_gn, new_gn_args, log=False)
+
   def build(self):
+    self.update_build_distribution_args()
+    # If the target is to just build args.gn then we are done here; otherwise
+    # drop that target because it's not something ninja can build.
+    if 'gn_args' in self.targets:
+      self.targets.remove('gn_args')
+    if len(self.targets) == 0:
+      return 0
     build_ninja = self.path / "build.ninja"
     if not build_ninja.exists():
       code = _call(f"gn gen {self.path}")
@@ -497,6 +500,8 @@ class ManagedConfig(RawConfig):
       cpu = "arm"
     elif self.arch == "android_arm64" or self.arch == "fuchsia_arm64":
       cpu = "arm64"
+    elif self.arch == "android_riscv64":
+      cpu = "riscv64"
     elif self.arch == "arm64" and _get_machine() in ("aarch64", "arm64"):
       # arm64 build host:
       cpu = "arm64"
@@ -516,7 +521,9 @@ class ManagedConfig(RawConfig):
       v8_cpu = "arm"
     elif self.arch == "android_arm64" or self.arch == "fuchsia_arm64":
       v8_cpu = "arm64"
-    elif self.arch in ("arm", "arm64", "mips64el", "ppc", "ppc64", "riscv64",
+    elif self.arch == "android_riscv64":
+      v8_cpu = "riscv64"
+    elif self.arch in ("arm", "arm64", "mips64el", "ppc64", "riscv64",
                        "riscv32", "s390", "s390x", "loong64"):
       v8_cpu = self.arch
     else:
@@ -524,7 +531,7 @@ class ManagedConfig(RawConfig):
     return [f"v8_target_cpu = \"{v8_cpu}\""]
 
   def get_target_os(self):
-    if self.arch in ("android_arm", "android_arm64"):
+    if self.arch in ("android_arm", "android_arm64", "android_riscv64"):
       return ["target_os = \"android\""]
     elif self.arch in ("fuchsia_x64", "fuchsia_arm64"):
       return ["target_os = \"fuchsia\""]
@@ -552,20 +559,6 @@ class ManagedConfig(RawConfig):
         self.get_sandbox_flag())
     return template % "\n".join(arch_specific)
 
-  def update_build_distribution_args(self):
-    args_gn = self.path / "args.gn"
-    assert args_gn.exists()
-    with open(args_gn) as f:
-      gn_args = f.read()
-    # Remove custom reclient config path (it will be added again as part of
-    # the config line below if needed).
-    new_gn_args = RECLIENT_CFG_RE.sub("", gn_args)
-    new_gn_args = BUILD_DISTRIBUTION_RE.sub(
-        BUILD_DISTRIBUTION_LINE, new_gn_args)
-    if gn_args != new_gn_args:
-      print(f"# Updated gn args:\n{BUILD_DISTRIBUTION_LINE}")
-      _write(args_gn, new_gn_args, log=False)
-
   def build(self):
     path = self.path
     args_gn = path / "args.gn"
@@ -574,20 +567,25 @@ class ManagedConfig(RawConfig):
       path.mkdir(parents=True)
     if not args_gn.exists():
       _write(args_gn, self.get_gn_args())
-    else:
-      self.update_build_distribution_args()
-    # If the target is to just build args.gn then we are done here; otherwise
-    # drop that target because it's not something ninja can build.
-    if 'gn_args' in self.targets:
-      self.targets.remove('gn_args')
-    if len(self.targets) == 0:
-      return 0
     return super().build()
 
   def run_tests(self):
+    host_arch = _get_machine()
+    if host_arch == "arm64":
+      if platform.system() == "Darwin" and self.arch != "arm64":
+        # MacOS-arm64 doesn't provide a good experience when users
+        # accidentally try to run x64 tests.
+        print(f"Running {self.arch} tests on Mac-arm64 isn't going to work.")
+        return 1
+      if platform.system() == "Linux" and "arm" not in self.arch:
+        # Assume that an arm64 Linux machine may have been set up to run
+        # arm32 binaries and Android on-device tests; refuse everything else.
+        print(f"Running {self.arch} tests on Linux-arm64 isn't going to work.")
+        return 1
     # Special handling for "mkgrokdump": if it was built, run it.
-    if (self.arch == "x64" and self.mode == "release" and
-        "mkgrokdump" in self.targets):
+    if ("mkgrokdump" in self.targets and self.mode == "release" and
+        (host_arch == "x86_64" and self.arch == "x64") or
+        (host_arch == "arm64" and self.arch == "arm64")):
       mkgrokdump_bin = self.path / "mkgrokdump"
       _call(f"{mkgrokdump_bin} > tools/v8heapconst.py")
     return super().run_tests()
@@ -680,9 +678,12 @@ class ArgumentParser(object):
     actions = []
     tests = []
     clean = False
-    # Special handling for "mkgrokdump": build it for x64.release.
+    # Special handling for "mkgrokdump": build it for (arm64|x64).release.
     if argstring == "mkgrokdump":
-      self.populate_configs(["x64"], ["release"], ["mkgrokdump"], [], False)
+      arch = "x64"
+      if _get_machine() in ("aarch64", "arm64"):
+        arch = "arm64"
+      self.populate_configs([arch], ["release"], ["mkgrokdump"], [], False)
       return
     if argstring.startswith("--"):
       # Pass all other flags to test runner.
@@ -693,7 +694,9 @@ class ArgumentParser(object):
       return
     # Specifying a single unit test looks like "unittests/Foo.Bar", test262
     # tests have names like "S15.4.4.7_A4_T1", don't split these.
-    if argstring.startswith("unittests/") or argstring.startswith("test262/"):
+    if (argstring.startswith("unittests/") or
+        argstring.startswith("test262/") or
+        argstring.startswith("wasm-api-tests/")):
       words = [argstring]
     else:
       # Assume it's a word like "x64.release" -> split at the dot.
@@ -758,11 +761,6 @@ def main(argv):
   parser = ArgumentParser()
   configs = parser.parse_arguments(argv[1:])
   return_code = 0
-  # If we have Goma but it is not running, start it.
-  if (IS_GOMA_MACHINE and
-      _call("pgrep -x compiler_proxy > /dev/null", silent=True) != 0):
-    goma_ctl = GOMADIR / "goma_ctl.py"
-    _call(f"{goma_ctl} ensure_start")
   # If we have Reclient with the Google configuration, check for current
   # certificate.
   if (RECLIENT_MODE == Reclient.GOOGLE and not detect_reclient_cert()):

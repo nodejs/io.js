@@ -5,6 +5,7 @@
 #include "src/objects/managed.h"
 
 #include "src/handles/global-handles-inl.h"
+#include "src/sandbox/external-pointer-table-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -19,6 +20,9 @@ void ManagedObjectFinalizerSecondPass(const v8::WeakCallbackInfo<void>& data) {
   isolate->UnregisterManagedPtrDestructor(destructor);
   int64_t adjustment = 0 - static_cast<int64_t>(destructor->estimated_size_);
   destructor->destructor_(destructor->shared_ptr_ptr_);
+#ifdef V8_ENABLE_SANDBOX
+  destructor->ZapExternalPointerTableEntry();
+#endif  // V8_ENABLE_SANDBOX
   delete destructor;
   data.GetIsolate()->AdjustAmountOfExternalAllocatedMemory(adjustment);
 }

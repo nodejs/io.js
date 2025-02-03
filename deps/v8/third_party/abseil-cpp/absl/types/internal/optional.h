@@ -81,7 +81,7 @@ class optional_data_dtor_base {
 
   template <typename... Args>
   constexpr explicit optional_data_dtor_base(in_place_t, Args&&... args)
-      : engaged_(true), data_(absl::forward<Args>(args)...) {}
+      : engaged_(true), data_(std::forward<Args>(args)...) {}
 
   ~optional_data_dtor_base() { destruct(); }
 };
@@ -110,7 +110,7 @@ class optional_data_dtor_base<T, true> {
 
   template <typename... Args>
   constexpr explicit optional_data_dtor_base(in_place_t, Args&&... args)
-      : engaged_(true), data_(absl::forward<Args>(args)...) {}
+      : engaged_(true), data_(std::forward<Args>(args)...) {}
 };
 
 template <typename T>

@@ -4,11 +4,10 @@ import { spawn } from 'node:child_process';
 import { describe, it } from 'node:test';
 import { strictEqual, match } from 'node:assert';
 
-describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALLEL }, () => {
+describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL }, () => {
   describe('string input', { concurrency: !process.env.TEST_PARALLEL }, () => {
     it('permits ESM syntax in --eval input without requiring --input-type=module', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'import { version } from "node:process"; console.log(version);',
       ]);
@@ -22,9 +21,7 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
     // ESM is unsupported for --print via --input-type=module
 
     it('permits ESM syntax in STDIN input without requiring --input-type=module', async () => {
-      const child = spawn(process.execPath, [
-        '--experimental-detect-module',
-      ]);
+      const child = spawn(process.execPath, []);
       child.stdin.end('console.log(typeof import.meta.resolve)');
 
       match((await child.stdout.toArray()).toString(), /^function\r?\n$/);
@@ -32,7 +29,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
 
     it('should be overridden by --input-type', async () => {
       const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--input-type=commonjs',
         '--eval',
         'import.meta.url',
@@ -44,23 +40,20 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
       strictEqual(signal, null);
     });
 
-    it('should be overridden by --experimental-default-type', async () => {
+    it('should not switch to module if code is parsable as script', async () => {
       const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
-        '--experimental-default-type=commonjs',
         '--eval',
-        'import.meta.url',
+        'let __filename,__dirname,require,module,exports;this.a',
       ]);
 
-      match(stderr, /SyntaxError: Cannot use 'import\.meta' outside a module/);
+      strictEqual(stderr, '');
       strictEqual(stdout, '');
-      strictEqual(code, 1);
+      strictEqual(code, 0);
       strictEqual(signal, null);
     });
 
     it('does not trigger detection via source code `eval()`', async () => {
       const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'eval("import \'nonexistent\';");',
       ]);
@@ -102,7 +95,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
       it(testName, async () => {
         const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
           '--no-warnings',
-          '--experimental-detect-module',
           entryPath,
         ]);
 
@@ -144,7 +136,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
       it(testName, async () => {
         const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
           '--no-warnings',
-          '--experimental-detect-module',
           entryPath,
         ]);
 
@@ -158,7 +149,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
     it('should not hint wrong format in resolve hook', async () => {
       let writeSync;
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--no-warnings',
         '--loader',
         `data:text/javascript,import { writeSync } from "node:fs"; export ${encodeURIComponent(
@@ -196,7 +186,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
     ]) {
       it(testName, async () => {
         const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-          '--experimental-detect-module',
           entryPath,
         ]);
 
@@ -225,7 +214,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
     ]) {
       it(testName, async () => {
         const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-          '--experimental-detect-module',
           entryPath,
         ]);
 
@@ -241,7 +229,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
   describe('syntax that errors in CommonJS but works in ESM', { concurrency: !process.env.TEST_PARALLEL }, () => {
     it('permits top-level `await`', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'await Promise.resolve(); console.log("executed");',
       ]);
@@ -252,9 +239,20 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
       strictEqual(signal, null);
     });
 
+    it('reports unfinished top-level `await`', async () => {
+      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--no-warnings',
+        fixtures.path('es-modules/tla/unresolved.js'),
+      ]);
+
+      strictEqual(stderr, '');
+      strictEqual(stdout, '');
+      strictEqual(code, 13);
+      strictEqual(signal, null);
+    });
+
     it('permits top-level `await` above import/export syntax', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'await Promise.resolve(); import "node:os"; console.log("executed");',
       ]);
@@ -267,7 +265,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
 
     it('still throws on `await` in an ordinary sync function', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'function fn() { await Promise.resolve(); } fn();',
       ]);
@@ -280,7 +277,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
 
     it('throws on undefined `require` when top-level `await` triggers ESM parsing', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'const fs = require("node:fs"); await Promise.resolve();',
       ]);
@@ -294,7 +290,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
     it('permits declaration of CommonJS module variables', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
         '--no-warnings',
-        '--experimental-detect-module',
         fixtures.path('es-modules/package-without-type/commonjs-wrapper-variables.js'),
       ]);
 
@@ -306,7 +301,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
 
     it('permits declaration of CommonJS module variables above import/export', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'const module = 3; import "node:os"; console.log("executed");',
       ]);
@@ -319,7 +313,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
 
     it('still throws on double `const` declaration not at the top level', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         '--eval',
         'function fn() { const require = 1; const require = 2; } fn();',
       ]);
@@ -348,7 +341,6 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
     ]) {
       it(testName, async () => {
         const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-          '--experimental-detect-module',
           entryPath,
         ]);
 
@@ -359,9 +351,20 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
       });
     }
 
+    it('does not warn when there are no package.json', async () => {
+      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        fixtures.path('es-modules/loose.js'),
+      ]);
+
+      strictEqual(stderr, '');
+      strictEqual(stdout, 'executed\n');
+      strictEqual(code, 0);
+      strictEqual(signal, null);
+    });
+
+
     it('warns only once for a package.json that affects multiple files', async () => {
       const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
-        '--experimental-detect-module',
         fixtures.path('es-modules/package-without-type/detected-as-esm.js'),
       ]);
 
@@ -371,21 +374,48 @@ describe('--experimental-detect-module', { concurrency: !process.env.TEST_PARALL
       strictEqual(code, 0);
       strictEqual(signal, null);
     });
+
+    it('can be disabled via --no-experimental-detect-module', async () => {
+      const { stdout, stderr, code, signal } = await spawnPromisified(process.execPath, [
+        '--no-experimental-detect-module',
+        fixtures.path('es-modules/package-without-type/module.js'),
+      ]);
+
+      match(stderr, /SyntaxError: Unexpected token 'export'/);
+      strictEqual(stdout, '');
+      strictEqual(code, 1);
+      strictEqual(signal, null);
+    });
   });
 });
 
-// Validate temporarily disabling `--abort-on-uncaught-exception`
-// while running `containsModuleSyntax`.
+// Checks the error caught during module detection does not trigger abort when
+// `--abort-on-uncaught-exception` is passed in (as that's a caught internal error).
 // Ref: https://github.com/nodejs/node/issues/50878
 describe('Wrapping a `require` of an ES module while using `--abort-on-uncaught-exception`', () => {
   it('should work', async () => {
     const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
       '--abort-on-uncaught-exception',
+      '--no-warnings',
       '--eval',
-      'assert.throws(() => require("./package-type-module/esm.js"), { code: "ERR_REQUIRE_ESM" })',
+      'require("./package-type-module/esm.js")',
     ], {
       cwd: fixtures.path('es-modules'),
     });
+
+    strictEqual(stderr, '');
+    strictEqual(stdout, '');
+    strictEqual(code, 0);
+    strictEqual(signal, null);
+  });
+});
+
+describe('when working with Worker threads', () => {
+  it('should support sloppy scripts that declare CJS "global-like" variables', async () => {
+    const { code, signal, stdout, stderr } = await spawnPromisified(process.execPath, [
+      '--eval',
+      'new worker_threads.Worker("let __filename,__dirname,require,module,exports;this.a",{eval:true})',
+    ]);
 
     strictEqual(stderr, '');
     strictEqual(stdout, '');

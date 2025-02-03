@@ -8,7 +8,7 @@ tmpdir.refresh();
 
 const testFiles = fs.readdirSync('test', { withFileTypes: true })
   .filter((f) => f.isDirectory())
-  .map((f) => path.join(f.path, f.name));
+  .map((f) => path.join(f.parentPath, f.name));
 const bench = common.createBenchmark(main, {
   type: ['existing', 'non-existing'],
   n: [1e3],

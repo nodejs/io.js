@@ -1,11 +1,9 @@
 const t = require('tap')
-const mockLogs = require('../../fixtures/mock-logs')
 const mockNpm = require('../../fixtures/mock-npm')
 const tmock = require('../../fixtures/tmock')
 
 const auditError = async (t, { command, error, ...config } = {}) => {
-  const { logs, logMocks } = mockLogs()
-  const mockAuditError = tmock(t, '{LIB}/utils/audit-error', logMocks)
+  const mockAuditError = tmock(t, '{LIB}/utils/audit-error')
 
   const mock = await mockNpm(t, {
     command,
@@ -21,9 +19,11 @@ const auditError = async (t, { command, error, ...config } = {}) => {
     res.error = err
   }
 
+  mock.npm.finish()
+
   return {
     ...res,
-    logs: logs.warn.filter((l) => l[0] === 'audit'),
+    logs: mock.logs.warn.byTitle('audit'),
     output: mock.joinedOutput(),
   }
 }
@@ -80,7 +80,7 @@ t.test('error, audit command, not json', async t => {
 
   t.ok(error, 'throws error')
   t.match(output, 'body error text', 'some output')
-  t.strictSame(logs, [['audit', 'message']], 'some warnings')
+  t.strictSame(logs, ['audit message'], 'some warnings')
 })
 
 t.test('error, audit command, json', async t => {
@@ -117,5 +117,5 @@ t.test('error, audit command, json', async t => {
       '  }\n' +
       '}'
     , 'some output')
-  t.strictSame(logs, [['audit', 'message']], 'some warnings')
+  t.strictSame(logs, ['audit message'], 'some warnings')
 })

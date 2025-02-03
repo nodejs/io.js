@@ -576,7 +576,7 @@ DecimalFormatSymbols::setSymbol(ENumberFormatSymbol symbol, const UnicodeString 
             fCodePointZero = sym;
             for ( int8_t i = 1 ; i<= 9 ; i++ ) {
                 sym++;
-                fSymbols[(int)kOneDigitSymbol+i-1] = UnicodeString(sym);
+                fSymbols[static_cast<int>(kOneDigitSymbol) + i - 1] = UnicodeString(sym);
             }
         } else {
             fCodePointZero = -1;

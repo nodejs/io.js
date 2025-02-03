@@ -97,12 +97,12 @@ digitToBasic(int32_t digit, UBool uppercase) {
     /* 26..35 map to ASCII 0..9         */
     if(digit<26) {
         if(uppercase) {
-            return (char)(_CAPITAL_A+digit);
+            return static_cast<char>(_CAPITAL_A + digit);
         } else {
-            return (char)(_SMALL_A+digit);
+            return static_cast<char>(_SMALL_A + digit);
         }
     } else {
-        return (char)((_ZERO_-26)+digit);
+        return static_cast<char>((_ZERO_ - 26) + digit);
     }
 }
 
@@ -353,10 +353,10 @@ u_strToPunycode(const char16_t *src, int32_t srcLength,
                 }
 
                 if(destLength<destCapacity) {
-                    dest[destLength]=digitToBasic(q, (UBool)(cpBuffer[j]<0));
+                    dest[destLength] = digitToBasic(q, cpBuffer[j] < 0);
                 }
                 ++destLength;
-                bias=adaptBias(delta, handledCPCount+1, (UBool)(handledCPCount==basicLength));
+                bias = adaptBias(delta, handledCPCount + 1, handledCPCount == basicLength);
                 delta=0;
                 ++handledCPCount;
             }
@@ -421,7 +421,7 @@ u_strFromPunycode(const char16_t *src, int32_t srcLength,
         }
 
         if(j<destCapacity) {
-            dest[j]=(char16_t)b;
+            dest[j] = b;
 
             if(caseFlags!=nullptr) {
                 caseFlags[j]=IS_BASIC_UPPERCASE(b);
@@ -500,7 +500,7 @@ u_strFromPunycode(const char16_t *src, int32_t srcLength,
          * where needed instead of in for() loop tail.
          */
         ++destCPCount;
-        bias=adaptBias(i-oldi, destCPCount, (UBool)(oldi==0));
+        bias = adaptBias(i - oldi, destCPCount, oldi == 0);
 
         /*
          * i was supposed to wrap around from (incremented) destCPCount to 0,

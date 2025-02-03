@@ -1,0 +1,77 @@
+name: Linters (release proposals)
+
+on:
+  push:
+    branches:
+      - v[0-9]+.[0-9]+.[0-9]+-proposal
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: lts/*
+
+permissions:
+  contents: read
+
+jobs:
+  lint-release-commit:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Lint release commit title format
+        run: |
+          EXPECTED_TITLE='^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}, Version [[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+ (\(Current|'.+' \(LTS)\)$'
+          echo "Expected commit title format: $EXPECTED_TITLE"
+          COMMIT_SUBJECT="$(git --no-pager log -1 --format=%s)"
+          echo "Actual: $ACTUAL"
+          echo "$COMMIT_SUBJECT" | grep -q -E "$EXPECTED_TITLE"
+          echo "COMMIT_SUBJECT=$COMMIT_SUBJECT" >> "$GITHUB_ENV"
+      - name: Lint release commit message trailers
+        run: |
+          EXPECTED_TRAILER="^$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/[[:digit:]]+\$"
+          echo "Expected trailer format: $EXPECTED_TRAILER"
+          PR_URL="$(git --no-pager log -1 --format='%(trailers:key=PR-URL,valueonly)')"
+          echo "Actual: $ACTUAL"
+          echo "$PR_URL" | grep -E -q "$EXPECTED_TRAILER"
+
+          PR_HEAD="$(gh pr view "$PR_URL" --json headRefOid -q .headRefOid)"
+          echo "Head of $PR_URL: $PR_HEAD"
+          echo "Current commit: $GITHUB_SHA"
+          [ "$PR_HEAD" = "$GITHUB_SHA" ]
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Verify it's release-ready
+        run: |
+          SKIP_XZ=1 make release-only
+      - name: Validate CHANGELOG
+        id: releaser-info
+        run: |
+          EXPECTED_CHANGELOG_TITLE_INTRO="## $COMMIT_SUBJECT, @"
+          echo "Expected CHANGELOG section title: $EXPECTED_CHANGELOG_TITLE_INTRO"
+          MAJOR="$(awk '/^#define NODE_MAJOR_VERSION / { print $3 }' src/node_version.h)"
+          CHANGELOG_PATH="doc/changelogs/CHANGELOG_V${MAJOR}.md"
+          CHANGELOG_TITLE="$(grep "$EXPECTED_CHANGELOG_TITLE_INTRO" "$CHANGELOG_PATH")"
+          echo "Actual: $CHANGELOG_TITLE"
+          [ "${CHANGELOG_TITLE%%@*}@" = "$EXPECTED_CHANGELOG_TITLE_INTRO" ]
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            --jq '.commits.[] | { smallSha: .sha[0:10] } + (.commit.message|capture("^(?<title>.+)\n\n(.*\n)*PR-URL: (?<prURL>.+)\n"))' \
+            "/repos/${GITHUB_REPOSITORY}/compare/v${MAJOR}.x...$GITHUB_SHA" --paginate \
+          | node tools/actions/lint-release-proposal-commit-list.mjs "$CHANGELOG_PATH" "$GITHUB_SHA" \
+          | while IFS= read -r PR_URL; do
+            LABEL="dont-land-on-v${MAJOR}.x" gh pr view \
+              --json labels,url \
+              --jq 'if (.labels|map(.name==env.LABEL)|any) then error("\(.url) has the \(env.LABEL) label, forbidding it to be in this release proposal") end' \
+              "$PR_URL" > /dev/null
+          done
+        shell: bash  # See https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#exit-codes-and-error-action-preference, we want the pipefail option.
+        env:
+          GH_TOKEN: ${{ github.token }}

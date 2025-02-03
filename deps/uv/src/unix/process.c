@@ -55,7 +55,8 @@
 extern char **environ;
 #endif
 
-#if defined(__linux__)
+#if defined(__linux__) || \
+    defined(__GNU__)
 # include <grp.h>
 #endif
 
@@ -63,11 +64,7 @@ extern char **environ;
 # include "zos-base.h"
 #endif
 
-#if defined(__APPLE__) || \
-    defined(__DragonFly__) || \
-    defined(__FreeBSD__) || \
-    defined(__NetBSD__) || \
-    defined(__OpenBSD__)
+#ifdef UV_HAVE_KQUEUE
 #include <sys/event.h>
 #else
 #define UV_USE_SIGCHLD

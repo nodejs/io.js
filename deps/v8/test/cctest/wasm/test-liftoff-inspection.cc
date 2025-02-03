@@ -41,12 +41,10 @@ class LiftoffCompileEnvironment {
     auto test_func = AddFunction(return_types, param_types, raw_function_bytes);
 
     // Now compile the function with Liftoff two times.
-    CompilationEnv env = CompilationEnv::ForModule(wasm_runner_.builder()
-                                                       .instance_object()
-                                                       ->module_object()
-                                                       ->native_module());
-    WasmFeatures detected1;
-    WasmFeatures detected2;
+    CompilationEnv env = CompilationEnv::ForModule(
+        wasm_runner_.builder().trusted_instance_data()->native_module());
+    WasmDetectedFeatures detected1;
+    WasmDetectedFeatures detected2;
     WasmCompilationResult result1 =
         ExecuteLiftoffCompilation(&env, test_func.body,
                                   LiftoffOptions{}
@@ -77,10 +75,8 @@ class LiftoffCompileEnvironment {
       std::vector<int> breakpoints = {}) {
     auto test_func = AddFunction(return_types, param_types, raw_function_bytes);
 
-    CompilationEnv env = CompilationEnv::ForModule(wasm_runner_.builder()
-                                                       .instance_object()
-                                                       ->module_object()
-                                                       ->native_module());
+    CompilationEnv env = CompilationEnv::ForModule(
+        wasm_runner_.builder().trusted_instance_data()->native_module());
     std::unique_ptr<DebugSideTable> debug_side_table_via_compilation;
     auto result = ExecuteLiftoffCompilation(
         &env, test_func.body,

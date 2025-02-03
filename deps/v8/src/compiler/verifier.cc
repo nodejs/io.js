@@ -458,6 +458,7 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
       break;
     case IrOpcode::kHeapConstant:
     case IrOpcode::kCompressedHeapConstant:
+    case IrOpcode::kTrustedHeapConstant:
       // Constants have no inputs.
       CHECK_EQ(0, input_count);
       CheckTypeIs(node, Type::Any());
@@ -733,6 +734,9 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
       break;
     case IrOpcode::kJSCreateObject:
       CheckTypeIs(node, Type::OtherObject());
+      break;
+    case IrOpcode::kJSCreateStringWrapper:
+      CheckTypeIs(node, Type::StringWrapper());
       break;
     case IrOpcode::kJSCreatePromise:
       CheckTypeIs(node, Type::OtherObject());
@@ -1533,6 +1537,10 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
       CheckValueInputIs(node, 0, Type::Any());
       CheckTypeIs(node, Type::String());
       break;
+    case IrOpcode::kCheckStringOrStringWrapper:
+      CheckValueInputIs(node, 0, Type::Any());
+      CheckTypeIs(node, Type::StringOrStringWrapper());
+      break;
     case IrOpcode::kCheckSymbol:
       CheckValueInputIs(node, 0, Type::Any());
       CheckTypeIs(node, Type::Symbol());
@@ -1703,6 +1711,19 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
       CHECK_GE(value_count, 1);
       CheckValueInputIs(node, 0, Type::Any());  // receiver
       break;
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+    case IrOpcode::kGetContinuationPreservedEmbedderData:
+      CHECK_EQ(value_count, 0);
+      CHECK_EQ(effect_count, 1);
+      CheckTypeIs(node, Type::Any());
+      break;
+    case IrOpcode::kSetContinuationPreservedEmbedderData:
+      CHECK_EQ(value_count, 1);
+      CHECK_EQ(effect_count, 1);
+      CheckValueInputIs(node, 0, Type::Any());
+      CheckNotTyped(node);
+      break;
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
     case IrOpcode::kSLVerifierHint:
       // SLVerifierHint is internal to SimplifiedLowering and should never be
       // seen by the verifier.

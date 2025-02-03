@@ -322,6 +322,19 @@ added: v0.0.1
 
 [`clearTimeout`][] is described in the [timers][] section.
 
+## `CloseEvent`
+
+<!-- YAML
+added: v23.0.0
+-->
+
+<!-- type=global -->
+
+The `CloseEvent` class. See [`CloseEvent`][] for more details.
+
+A browser-compatible implementation of [`CloseEvent`][]. Disable this API
+with the [`--no-experimental-websocket`][] CLI flag.
+
 ## Class: `CompressionStream`
 
 <!-- YAML
@@ -361,7 +374,7 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52564
     description: No longer experimental.
   - version: v19.0.0
@@ -382,7 +395,7 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52564
     description: No longer experimental.
   - version: v19.0.0
@@ -401,7 +414,7 @@ added:
   - v17.6.0
   - v16.15.0
 changes:
-  - version: REPLACEME
+  - version: v23.0.0
     pr-url: https://github.com/nodejs/node/pull/52564
     description: No longer experimental.
   - version: v19.0.0
@@ -422,13 +435,20 @@ added:
   - v18.7.0
   - v16.17.0
 changes:
+  - version: v23.0.0
+    pr-url: https://github.com/nodejs/node/pull/52723
+    description: No longer experimental.
+  - version:
+    - v22.1.0
+    - v20.13.0
+    pr-url: https://github.com/nodejs/node/pull/52618
+    description: CustomEvent is now stable.
   - version: v19.0.0
     pr-url: https://github.com/nodejs/node/pull/44860
     description: No longer behind `--experimental-global-customevent` CLI flag.
 -->
 
-> Stability: 1 - Experimental. Disable this API with the
-> [`--no-experimental-global-customevent`][] CLI flag.
+> Stability: 2 - Stable
 
 <!-- type=global -->
 
@@ -458,6 +478,19 @@ changes:
 
 A browser-compatible implementation of the `Event` class. See
 [`EventTarget` and `Event` API][] for more details.
+
+## `EventSource`
+
+<!-- YAML
+added:
+  - v22.3.0
+  - v20.18.0
+-->
+
+> Stability: 1 - Experimental. Enable this API with the [`--experimental-eventsource`][]
+> CLI flag.
+
+A browser-compatible implementation of the [`EventSource`][] class.
 
 ## `EventTarget`
 
@@ -566,6 +599,22 @@ changes:
 > Stability: 2 - Stable
 
 A browser-compatible implementation of {Headers}.
+
+## `localStorage`
+
+<!-- YAML
+added: v22.4.0
+-->
+
+> Stability: 1.0 - Early development.
+
+A browser-compatible implementation of [`localStorage`][]. Data is stored
+unencrypted in the file specified by the [`--localstorage-file`][] CLI flag.
+The maximum amount of data that can be stored is 10 MB.
+Any modification of this data outside of the Web Storage API is not supported.
+Enable this API with the [`--experimental-webstorage`][] CLI flag.
+`localStorage` data is not stored per user or per request when used in the context
+of a server, it is shared across all users and requests.
 
 ## `MessageChannel`
 
@@ -935,6 +984,18 @@ changes:
 
 A browser-compatible implementation of {Request}.
 
+## `sessionStorage`
+
+<!-- YAML
+added: v22.4.0
+-->
+
+> Stability: 1.0 - Early development.
+
+A browser-compatible implementation of [`sessionStorage`][]. Data is stored in
+memory, with a storage quota of 10 MB. `sessionStorage` data persists only within
+the currently running process, and is not shared between workers.
+
 ## `setImmediate(callback[, ...args])`
 
 <!-- YAML
@@ -964,6 +1025,17 @@ added: v0.0.1
 <!-- type=global -->
 
 [`setTimeout`][] is described in the [timers][] section.
+
+## Class: `Storage`
+
+<!-- YAML
+added: v22.4.0
+-->
+
+> Stability: 1.0 - Early development.
+
+A browser-compatible implementation of [`Storage`][]. Enable this API with the
+[`--experimental-webstorage`][] CLI flag.
 
 ## `structuredClone(value[, options])`
 
@@ -1104,12 +1176,15 @@ added:
   - v21.0.0
   - v20.10.0
 changes:
-  - version: REPLACEME
+  - version: v22.4.0
+    pr-url: https://github.com/nodejs/node/pull/53352
+    description: No longer experimental.
+  - version: v22.0.0
     pr-url: https://github.com/nodejs/node/pull/51594
     description: No longer behind `--experimental-websocket` CLI flag.
 -->
 
-> Stability: 1 - Experimental.
+> Stability: 2 - Stable.
 
 A browser-compatible implementation of [`WebSocket`][]. Disable this API
 with the [`--no-experimental-websocket`][] CLI flag.
@@ -1150,16 +1225,20 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [Navigator API]: https://html.spec.whatwg.org/multipage/system-state.html#the-navigator-object
 [RFC 5646]: https://www.rfc-editor.org/rfc/rfc5646.txt
 [Web Crypto API]: webcrypto.md
-[`--no-experimental-global-customevent`]: cli.md#--no-experimental-global-customevent
+[`--experimental-eventsource`]: cli.md#--experimental-eventsource
+[`--experimental-webstorage`]: cli.md#--experimental-webstorage
+[`--localstorage-file`]: cli.md#--localstorage-filefile
 [`--no-experimental-global-navigator`]: cli.md#--no-experimental-global-navigator
 [`--no-experimental-websocket`]: cli.md#--no-experimental-websocket
 [`AbortController`]: https://developer.mozilla.org/en-US/docs/Web/API/AbortController
 [`ByteLengthQueuingStrategy`]: webstreams.md#class-bytelengthqueuingstrategy
+[`CloseEvent`]: https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/CloseEvent
 [`CompressionStream`]: webstreams.md#class-compressionstream
 [`CountQueuingStrategy`]: webstreams.md#class-countqueuingstrategy
 [`CustomEvent` Web API]: https://dom.spec.whatwg.org/#customevent
 [`DOMException`]: https://developer.mozilla.org/en-US/docs/Web/API/DOMException
 [`DecompressionStream`]: webstreams.md#class-decompressionstream
+[`EventSource`]: https://developer.mozilla.org/en-US/docs/Web/API/EventSource
 [`EventTarget` and `Event` API]: events.md#eventtarget-and-event-api
 [`MessageChannel`]: worker_threads.md#class-messagechannel
 [`MessageEvent`]: https://developer.mozilla.org/en-US/docs/Web/API/MessageEvent/MessageEvent
@@ -1176,6 +1255,7 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`ReadableStreamDefaultController`]: webstreams.md#class-readablestreamdefaultcontroller
 [`ReadableStreamDefaultReader`]: webstreams.md#class-readablestreamdefaultreader
 [`ReadableStream`]: webstreams.md#class-readablestream
+[`Storage`]: https://developer.mozilla.org/en-US/docs/Web/API/Storage
 [`TextDecoderStream`]: webstreams.md#class-textdecoderstream
 [`TextDecoder`]: util.md#class-utiltextdecoder
 [`TextEncoderStream`]: webstreams.md#class-textencoderstream
@@ -1200,11 +1280,13 @@ A browser-compatible implementation of [`WritableStreamDefaultWriter`][].
 [`exports`]: modules.md#exports
 [`fetch()`]: https://developer.mozilla.org/en-US/docs/Web/API/fetch
 [`globalThis`]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis
+[`localStorage`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage
 [`module`]: modules.md#module
 [`perf_hooks.performance`]: perf_hooks.md#perf_hooksperformance
 [`process.nextTick()`]: process.md#processnexttickcallback-args
 [`process` object]: process.md#process
 [`require()`]: modules.md#requireid
+[`sessionStorage`]: https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage
 [`setImmediate`]: timers.md#setimmediatecallback-args
 [`setInterval`]: timers.md#setintervalcallback-delay-args
 [`setTimeout`]: timers.md#settimeoutcallback-delay-args

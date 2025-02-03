@@ -80,7 +80,7 @@ class MaglevCompilationJob final : public OptimizedCompilationJob {
   void BeginPhaseKind(const char* name);
   void EndPhaseKind();
   GlobalHandleVector<Map> CollectRetainedMaps(Isolate* isolate,
-                                              Handle<Code> code);
+                                              DirectHandle<Code> code);
 
   MaglevCompilationInfo* info() const { return info_.get(); }
 

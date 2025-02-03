@@ -1,0 +1,51 @@
+{
+	"name": "amaro",
+	"version": "0.3.1",
+	"description": "Node.js TypeScript wrapper",
+	"license": "MIT",
+	"type": "commonjs",
+	"main": "dist/index.js",
+	"homepage": "https://github.com/nodejs/amaro#readme",
+	"bugs": {
+		"url": "https://github.com/nodejs/amaro/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/nodejs/amaro.git"
+	},
+	"scripts": {
+		"clean": "rimraf dist",
+		"lint": "biome lint --write",
+		"format": "biome format --write",
+		"ci": "biome ci",
+		"ci:fix": "biome check --write",
+		"prepack": "npm run build",
+		"postpack": "npm run clean",
+		"build": "node esbuild.config.mjs",
+		"build:wasm": "node tools/build-wasm.js",
+		"typecheck": "tsc --noEmit",
+		"test": "node --test --experimental-test-snapshots \"**/*.test.js\"",
+		"test:regenerate": "node --test --experimental-test-snapshots --test-update-snapshots \"**/*.test.js\""
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.8.3",
+		"@types/node": "^22.0.0",
+		"esbuild": "^0.23.0",
+		"esbuild-plugin-copy": "^2.1.1",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.5.3"
+	},
+	"exports": {
+		".": "./dist/index.js",
+		"./register": "./dist/register-strip.mjs",
+		"./strip": "./dist/register-strip.mjs",
+		"./transform": "./dist/register-transform.mjs"
+	},
+	"files": [
+		"dist",
+		"LICENSE.md"
+	],
+	"engines": {
+		"node": ">=22"
+	}
+}

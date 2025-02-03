@@ -1,6 +1,0 @@
-# This file is used by git-cl to get repository specific information.
-CC_LIST: chromium-reviews@chromium.org
-CODE_REVIEW_SERVER: codereview.chromium.org
-GERRIT_HOST: True
-PROJECT: inspector_protocol
-VIEW_VC: https://chromium.googlesource.com/deps/inspector_protocol/+/

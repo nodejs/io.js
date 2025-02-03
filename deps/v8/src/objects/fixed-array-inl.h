@@ -5,6 +5,9 @@
 #ifndef V8_OBJECTS_FIXED_ARRAY_INL_H_
 #define V8_OBJECTS_FIXED_ARRAY_INL_H_
 
+#include <optional>
+
+#include "src/common/globals.h"
 #include "src/handles/handles-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/numbers/conversions.h"
@@ -24,8 +27,7 @@
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #include "torque-generated/src/objects/fixed-array-tq-inl.inc"
 
@@ -51,25 +53,25 @@ void TaggedArrayBase<D, S, P>::set_capacity(int value, ReleaseStoreTag tag) {
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 int TaggedArrayBase<D, S, P>::length() const {
   return capacity();
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 int TaggedArrayBase<D, S, P>::length(AcquireLoadTag tag) const {
   return capacity(tag);
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 void TaggedArrayBase<D, S, P>::set_length(int value) {
   set_capacity(value);
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 void TaggedArrayBase<D, S, P>::set_length(int value, ReleaseStoreTag tag) {
   set_capacity(value, tag);
 }
@@ -86,37 +88,37 @@ bool TaggedArrayBase<D, S, P>::IsCowArray() const {
 }
 
 template <class D, class S, class P>
-typename TaggedArrayBase<D, S, P>::PtrType TaggedArrayBase<D, S, P>::get(
-    int index) const {
+Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+TaggedArrayBase<D, S, P>::get(int index) const {
   DCHECK(IsInBounds(index));
   // TODO(jgruber): This tag-less overload shouldn't be relaxed.
   return ElementFieldT::Relaxed_Load(*this, OffsetOfElementAt(index));
 }
 
 template <class D, class S, class P>
-typename TaggedArrayBase<D, S, P>::PtrType TaggedArrayBase<D, S, P>::get(
-    int index, RelaxedLoadTag) const {
+Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+TaggedArrayBase<D, S, P>::get(int index, RelaxedLoadTag) const {
   DCHECK(IsInBounds(index));
   return ElementFieldT::Relaxed_Load(*this, OffsetOfElementAt(index));
 }
 
 template <class D, class S, class P>
-typename TaggedArrayBase<D, S, P>::PtrType TaggedArrayBase<D, S, P>::get(
-    int index, AcquireLoadTag) const {
+Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+TaggedArrayBase<D, S, P>::get(int index, AcquireLoadTag) const {
   DCHECK(IsInBounds(index));
   return ElementFieldT::Acquire_Load(*this, OffsetOfElementAt(index));
 }
 
 template <class D, class S, class P>
-typename TaggedArrayBase<D, S, P>::PtrType TaggedArrayBase<D, S, P>::get(
-    int index, SeqCstAccessTag) const {
+Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+TaggedArrayBase<D, S, P>::get(int index, SeqCstAccessTag) const {
   DCHECK(IsInBounds(index));
   return ElementFieldT::SeqCst_Load(*this, OffsetOfElementAt(index));
 }
 
 template <class D, class S, class P>
 void TaggedArrayBase<D, S, P>::ConditionalWriteBarrier(
-    Tagged<HeapObject> object, int offset, PtrType value,
+    Tagged<HeapObject> object, int offset, Tagged<ElementT> value,
     WriteBarrierMode mode) {
   if constexpr (kElementsAreMaybeObject) {
     CONDITIONAL_WEAK_WRITE_BARRIER(object, offset, value, mode);
@@ -126,7 +128,7 @@ void TaggedArrayBase<D, S, P>::ConditionalWriteBarrier(
 }
 
 template <class D, class S, class P>
-void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
+void TaggedArrayBase<D, S, P>::set(int index, Tagged<ElementT> value,
                                    WriteBarrierMode mode) {
   DCHECK(!IsCowArray());
   DCHECK(IsInBounds(index));
@@ -137,13 +139,13 @@ void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 void TaggedArrayBase<D, S, P>::set(int index, Tagged<Smi> value) {
   set(index, value, SKIP_WRITE_BARRIER);
 }
 
 template <class D, class S, class P>
-void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
+void TaggedArrayBase<D, S, P>::set(int index, Tagged<ElementT> value,
                                    RelaxedStoreTag tag, WriteBarrierMode mode) {
   DCHECK(!IsCowArray());
   DCHECK(IsInBounds(index));
@@ -153,14 +155,14 @@ void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 void TaggedArrayBase<D, S, P>::set(int index, Tagged<Smi> value,
                                    RelaxedStoreTag tag) {
   set(index, value, tag, SKIP_WRITE_BARRIER);
 }
 
 template <class D, class S, class P>
-void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
+void TaggedArrayBase<D, S, P>::set(int index, Tagged<ElementT> value,
                                    ReleaseStoreTag tag, WriteBarrierMode mode) {
   DCHECK(!IsCowArray());
   DCHECK(IsInBounds(index));
@@ -170,14 +172,14 @@ void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 void TaggedArrayBase<D, S, P>::set(int index, Tagged<Smi> value,
                                    ReleaseStoreTag tag) {
   set(index, value, tag, SKIP_WRITE_BARRIER);
 }
 
 template <class D, class S, class P>
-void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
+void TaggedArrayBase<D, S, P>::set(int index, Tagged<ElementT> value,
                                    SeqCstAccessTag tag, WriteBarrierMode mode) {
   DCHECK(!IsCowArray());
   DCHECK(IsInBounds(index));
@@ -187,31 +189,33 @@ void TaggedArrayBase<D, S, P>::set(int index, PtrType value,
 }
 
 template <class D, class S, class P>
-template <typename>
+template <typename, typename>
 void TaggedArrayBase<D, S, P>::set(int index, Tagged<Smi> value,
                                    SeqCstAccessTag tag) {
   set(index, value, tag, SKIP_WRITE_BARRIER);
 }
 
 template <class D, class S, class P>
-typename TaggedArrayBase<D, S, P>::PtrType TaggedArrayBase<D, S, P>::swap(
-    int index, PtrType value, SeqCstAccessTag, WriteBarrierMode mode) {
+Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+TaggedArrayBase<D, S, P>::swap(int index, Tagged<ElementT> value,
+                               SeqCstAccessTag, WriteBarrierMode mode) {
   DCHECK(!IsCowArray());
   DCHECK(IsInBounds(index));
-  PtrType previous_value =
+  Tagged<ElementT> previous_value =
       SEQ_CST_SWAP_FIELD(*this, OffsetOfElementAt(index), value);
   ConditionalWriteBarrier(*this, OffsetOfElementAt(index), value, mode);
   return previous_value;
 }
 
 template <class D, class S, class P>
-typename TaggedArrayBase<D, S, P>::PtrType
-TaggedArrayBase<D, S, P>::compare_and_swap(int index, PtrType expected,
-                                           PtrType value, SeqCstAccessTag,
+Tagged<typename TaggedArrayBase<D, S, P>::ElementT>
+TaggedArrayBase<D, S, P>::compare_and_swap(int index, Tagged<ElementT> expected,
+                                           Tagged<ElementT> value,
+                                           SeqCstAccessTag,
                                            WriteBarrierMode mode) {
   DCHECK(!IsCowArray());
   DCHECK(IsInBounds(index));
-  PtrType previous_value = SEQ_CST_COMPARE_AND_SWAP_FIELD(
+  Tagged<ElementT> previous_value = SEQ_CST_COMPARE_AND_SWAP_FIELD(
       *this, OffsetOfElementAt(index), expected, value);
   if (previous_value == expected) {
     ConditionalWriteBarrier(*this, OffsetOfElementAt(index), value, mode);
@@ -263,7 +267,7 @@ void TaggedArrayBase<D, S, P>::RightTrim(Isolate* isolate, int new_capacity) {
   CHECK_GT(new_capacity, 0);  // Due to possible canonicalization.
   CHECK_LE(new_capacity, old_capacity);
   if (new_capacity == old_capacity) return;
-  isolate->heap()->RightTrimArray(D::cast(*this), new_capacity, old_capacity);
+  isolate->heap()->RightTrimArray(Cast<D>(*this), new_capacity, old_capacity);
 }
 
 // Due to right-trimming (which creates a filler object before publishing the
@@ -302,9 +306,9 @@ Handle<FixedArray> FixedArray::New(IsolateT* isolate, int capacity,
     return isolate->factory()->empty_fixed_array();
   }
 
-  base::Optional<DisallowGarbageCollection> no_gc;
+  std::optional<DisallowGarbageCollection> no_gc;
   Handle<FixedArray> result =
-      Handle<FixedArray>::cast(Allocate(isolate, capacity, &no_gc, allocation));
+      Cast<FixedArray>(Allocate(isolate, capacity, &no_gc, allocation));
   ReadOnlyRoots roots{isolate};
   MemsetTagged((*result)->RawFieldOfFirstElement(), roots.undefined_value(),
                capacity);
@@ -314,7 +318,11 @@ Handle<FixedArray> FixedArray::New(IsolateT* isolate, int capacity,
 // static
 template <class IsolateT>
 Handle<TrustedFixedArray> TrustedFixedArray::New(IsolateT* isolate,
-                                                 int capacity) {
+                                                 int capacity,
+                                                 AllocationType allocation) {
+  DCHECK(allocation == AllocationType::kTrusted ||
+         allocation == AllocationType::kSharedTrusted);
+
   if (V8_UNLIKELY(static_cast<unsigned>(capacity) >
                   TrustedFixedArray::kMaxLength)) {
     FATAL("Fatal JavaScript invalid size error %d (see crbug.com/1201626)",
@@ -325,9 +333,9 @@ Handle<TrustedFixedArray> TrustedFixedArray::New(IsolateT* isolate,
   // (mutable) empty_trusted_fixed_array will be created via this function.
   // The same is true for the other trusted-space arrays below.
 
-  base::Optional<DisallowGarbageCollection> no_gc;
-  Handle<TrustedFixedArray> result = Handle<TrustedFixedArray>::cast(
-      Allocate(isolate, capacity, &no_gc, AllocationType::kTrusted));
+  std::optional<DisallowGarbageCollection> no_gc;
+  Handle<TrustedFixedArray> result =
+      Cast<TrustedFixedArray>(Allocate(isolate, capacity, &no_gc, allocation));
   MemsetTagged((*result)->RawFieldOfFirstElement(), Smi::zero(), capacity);
   return result;
 }
@@ -342,8 +350,8 @@ Handle<ProtectedFixedArray> ProtectedFixedArray::New(IsolateT* isolate,
           capacity);
   }
 
-  base::Optional<DisallowGarbageCollection> no_gc;
-  Handle<ProtectedFixedArray> result = Handle<ProtectedFixedArray>::cast(
+  std::optional<DisallowGarbageCollection> no_gc;
+  Handle<ProtectedFixedArray> result = Cast<ProtectedFixedArray>(
       Allocate(isolate, capacity, &no_gc, AllocationType::kTrusted));
   MemsetTagged((*result)->RawFieldOfFirstElement(), Smi::zero(), capacity);
   return result;
@@ -354,7 +362,7 @@ template <class D, class S, class P>
 template <class IsolateT>
 Handle<D> TaggedArrayBase<D, S, P>::Allocate(
     IsolateT* isolate, int capacity,
-    base::Optional<DisallowGarbageCollection>* no_gc_out,
+    std::optional<DisallowGarbageCollection>* no_gc_out,
     AllocationType allocation) {
   // Note 0-capacity is explicitly allowed since not all subtypes can be
   // assumed to have canonical 0-capacity instances.
@@ -362,12 +370,12 @@ Handle<D> TaggedArrayBase<D, S, P>::Allocate(
   DCHECK_LE(capacity, kMaxCapacity);
   DCHECK(!no_gc_out->has_value());
 
-  Tagged<D> xs = D::unchecked_cast(
+  Tagged<D> xs = UncheckedCast<D>(
       isolate->factory()->AllocateRawArray(SizeFor(capacity), allocation));
 
   ReadOnlyRoots roots{isolate};
   if (DEBUG_BOOL) no_gc_out->emplace();
-  Tagged<Map> map = Map::cast(roots.object_at(S::kMapRootIndex));
+  Tagged<Map> map = Cast<Map>(roots.object_at(S::kMapRootIndex));
   DCHECK(ReadOnlyHeap::Contains(map));
 
   xs->set_map_after_allocation(map, SKIP_WRITE_BARRIER);
@@ -409,8 +417,9 @@ void FixedArrayBase::set_length(int value, ReleaseStoreTag tag) {
       *this, Smi::FromInt(value));
 }
 
-CAST_ACCESSOR(WeakFixedArray)
 OBJECT_CONSTRUCTORS_IMPL(WeakFixedArray, WeakFixedArray::Super)
+
+OBJECT_CONSTRUCTORS_IMPL(TrustedWeakFixedArray, TrustedWeakFixedArray::Super)
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(WeakArrayList)
 
@@ -419,31 +428,20 @@ TaggedArrayBase<D, S, P>::TaggedArrayBase(Address ptr) : P(ptr) {}
 template <class D, class S, class P>
 PrimitiveArrayBase<D, S, P>::PrimitiveArrayBase(Address ptr) : P(ptr) {}
 
-CAST_ACCESSOR(FixedArrayBase)
 OBJECT_CONSTRUCTORS_IMPL(FixedArrayBase, HeapObject)
 
-CAST_ACCESSOR(FixedArray)
 OBJECT_CONSTRUCTORS_IMPL(FixedArray, FixedArray::Super)
 
-CAST_ACCESSOR(TrustedFixedArray)
 OBJECT_CONSTRUCTORS_IMPL(TrustedFixedArray, TrustedFixedArray::Super)
 
-CAST_ACCESSOR(ProtectedFixedArray)
 OBJECT_CONSTRUCTORS_IMPL(ProtectedFixedArray, ProtectedFixedArray::Super)
 
-CAST_ACCESSOR(FixedDoubleArray)
 OBJECT_CONSTRUCTORS_IMPL(FixedDoubleArray, FixedDoubleArray::Super)
 
-CAST_ACCESSOR(ByteArray)
 OBJECT_CONSTRUCTORS_IMPL(ByteArray, ByteArray::Super)
 
-CAST_ACCESSOR(TrustedByteArray)
 OBJECT_CONSTRUCTORS_IMPL(TrustedByteArray, TrustedByteArray::Super)
 
-CAST_ACCESSOR(ExternalPointerArray)
-OBJECT_CONSTRUCTORS_IMPL(ExternalPointerArray, FixedArrayBase)
-
-CAST_ACCESSOR(ArrayList)
 OBJECT_CONSTRUCTORS_IMPL(ArrayList, ArrayList::Super)
 
 NEVER_READ_ONLY_SPACE_IMPL(WeakArrayList)
@@ -479,7 +477,8 @@ void FixedArray::CopyElements(Isolate* isolate, int dst_index,
 }
 
 // static
-Handle<FixedArray> FixedArray::Resize(Isolate* isolate, Handle<FixedArray> xs,
+Handle<FixedArray> FixedArray::Resize(Isolate* isolate,
+                                      DirectHandle<FixedArray> xs,
                                       int new_capacity,
                                       AllocationType allocation,
                                       WriteBarrierMode mode) {
@@ -696,7 +695,7 @@ template <class D, class S, class P>
 inline Tagged<D> PrimitiveArrayBase<D, S, P>::FromAddressOfFirstElement(
     Address address) {
   DCHECK_TAG_ALIGNED(address);
-  return D::cast(Tagged<Object>(address - S::kHeaderSize + kHeapObjectTag));
+  return Cast<D>(Tagged<Object>(address - S::kHeaderSize + kHeapObjectTag));
 }
 
 // static
@@ -710,9 +709,8 @@ Handle<FixedArrayBase> FixedDoubleArray::New(IsolateT* isolate, int length,
     return isolate->factory()->empty_fixed_array();
   }
 
-  base::Optional<DisallowGarbageCollection> no_gc;
-  return Handle<FixedDoubleArray>::cast(
-      Allocate(isolate, length, &no_gc, allocation));
+  std::optional<DisallowGarbageCollection> no_gc;
+  return Cast<FixedDoubleArray>(Allocate(isolate, length, &no_gc, allocation));
 }
 
 // static
@@ -720,7 +718,7 @@ template <class D, class S, class P>
 template <class IsolateT>
 Handle<D> PrimitiveArrayBase<D, S, P>::Allocate(
     IsolateT* isolate, int length,
-    base::Optional<DisallowGarbageCollection>* no_gc_out,
+    std::optional<DisallowGarbageCollection>* no_gc_out,
     AllocationType allocation) {
   // Note 0-length is explicitly allowed since not all subtypes can be
   // assumed to have canonical 0-length instances.
@@ -728,12 +726,12 @@ Handle<D> PrimitiveArrayBase<D, S, P>::Allocate(
   DCHECK_LE(length, kMaxLength);
   DCHECK(!no_gc_out->has_value());
 
-  Tagged<D> xs = D::unchecked_cast(
+  Tagged<D> xs = UncheckedCast<D>(
       isolate->factory()->AllocateRawArray(SizeFor(length), allocation));
 
   ReadOnlyRoots roots{isolate};
   if (DEBUG_BOOL) no_gc_out->emplace();
-  Tagged<Map> map = Map::cast(roots.object_at(S::kMapRootIndex));
+  Tagged<Map> map = Cast<Map>(roots.object_at(S::kMapRootIndex));
   DCHECK(ReadOnlyHeap::Contains(map));
 
   xs->set_map_after_allocation(map, SKIP_WRITE_BARRIER);
@@ -806,39 +804,60 @@ void FixedDoubleArray::FillWithHoles(int from, int to) {
 // static
 template <class IsolateT>
 Handle<WeakFixedArray> WeakFixedArray::New(IsolateT* isolate, int capacity,
-                                           AllocationType allocation) {
+                                           AllocationType allocation,
+                                           MaybeHandle<Object> initial_value) {
   CHECK_LE(static_cast<unsigned>(capacity), kMaxCapacity);
 
   if (V8_UNLIKELY(capacity == 0)) {
     return isolate->factory()->empty_weak_fixed_array();
   }
 
-  base::Optional<DisallowGarbageCollection> no_gc;
-  Handle<WeakFixedArray> result = Handle<WeakFixedArray>::cast(
-      Allocate(isolate, capacity, &no_gc, allocation));
+  std::optional<DisallowGarbageCollection> no_gc;
+  Handle<WeakFixedArray> result =
+      Cast<WeakFixedArray>(Allocate(isolate, capacity, &no_gc, allocation));
   ReadOnlyRoots roots{isolate};
-  MemsetTagged((*result)->RawFieldOfFirstElement(), roots.undefined_value(),
+  MemsetTagged((*result)->RawFieldOfFirstElement(),
+               initial_value.is_null() ? roots.undefined_value()
+                                       : *initial_value.ToHandleChecked(),
                capacity);
   return result;
 }
 
-MaybeObject WeakArrayList::Get(int index) const {
+template <class IsolateT>
+Handle<TrustedWeakFixedArray> TrustedWeakFixedArray::New(IsolateT* isolate,
+                                                         int capacity) {
+  if (V8_UNLIKELY(static_cast<unsigned>(capacity) >
+                  TrustedFixedArray::kMaxLength)) {
+    FATAL("Fatal JavaScript invalid size error %d (see crbug.com/1201626)",
+          capacity);
+  }
+
+  std::optional<DisallowGarbageCollection> no_gc;
+  Handle<TrustedWeakFixedArray> result = Cast<TrustedWeakFixedArray>(
+      Allocate(isolate, capacity, &no_gc, AllocationType::kTrusted));
+  MemsetTagged((*result)->RawFieldOfFirstElement(), Smi::zero(), capacity);
+  return result;
+}
+
+Tagged<MaybeObject> WeakArrayList::Get(int index) const {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
   return Get(cage_base, index);
 }
-MaybeObject WeakArrayList::get(int index) const { return Get(index); }
+Tagged<MaybeObject> WeakArrayList::get(int index) const { return Get(index); }
 
-MaybeObject WeakArrayList::Get(PtrComprCageBase cage_base, int index) const {
+Tagged<MaybeObject> WeakArrayList::Get(PtrComprCageBase cage_base,
+                                       int index) const {
   DCHECK_LT(static_cast<unsigned>(index), static_cast<unsigned>(capacity()));
   return objects(cage_base, index, kRelaxedLoad);
 }
 
-void WeakArrayList::Set(int index, MaybeObject value, WriteBarrierMode mode) {
+void WeakArrayList::Set(int index, Tagged<MaybeObject> value,
+                        WriteBarrierMode mode) {
   set_objects(index, value, mode);
 }
 
 void WeakArrayList::Set(int index, Tagged<Smi> value) {
-  Set(index, MaybeObject::FromSmi(value), SKIP_WRITE_BARRIER);
+  Set(index, value, SKIP_WRITE_BARRIER);
 }
 
 MaybeObjectSlot WeakArrayList::data_start() {
@@ -861,9 +880,9 @@ void WeakArrayList::CopyElements(Isolate* isolate, int dst_index,
 Tagged<HeapObject> WeakArrayList::Iterator::Next() {
   if (!array_.is_null()) {
     while (index_ < array_->length()) {
-      MaybeObject item = array_->Get(index_++);
-      DCHECK(item->IsWeakOrCleared());
-      if (!item->IsCleared()) return item.GetHeapObjectAssumeWeak();
+      Tagged<MaybeObject> item = array_->Get(index_++);
+      DCHECK(item.IsWeakOrCleared());
+      if (!item.IsCleared()) return item.GetHeapObjectAssumeWeak();
     }
     array_ = WeakArrayList();
   }
@@ -881,9 +900,9 @@ Handle<ArrayList> ArrayList::New(IsolateT* isolate, int capacity,
   DCHECK_GT(capacity, 0);
   DCHECK_LE(capacity, kMaxCapacity);
 
-  base::Optional<DisallowGarbageCollection> no_gc;
+  std::optional<DisallowGarbageCollection> no_gc;
   Handle<ArrayList> result =
-      Handle<ArrayList>::cast(Allocate(isolate, capacity, &no_gc, allocation));
+      Cast<ArrayList>(Allocate(isolate, capacity, &no_gc, allocation));
   result->set_length(0);
   ReadOnlyRoots roots{isolate};
   MemsetTagged(result->RawFieldOfFirstElement(), roots.undefined_value(),
@@ -901,9 +920,9 @@ Handle<ByteArray> ByteArray::New(IsolateT* isolate, int length,
     return isolate->factory()->empty_byte_array();
   }
 
-  base::Optional<DisallowGarbageCollection> no_gc;
+  std::optional<DisallowGarbageCollection> no_gc;
   Handle<ByteArray> result =
-      Handle<ByteArray>::cast(Allocate(isolate, length, &no_gc, allocation));
+      Cast<ByteArray>(Allocate(isolate, length, &no_gc, allocation));
 
   int padding_size = SizeFor(length) - OffsetOfElementAt(length);
   memset(result->AddressOfElementAt(length), 0, padding_size);
@@ -925,14 +944,17 @@ void ByteArray::set_int(int offset, uint32_t value) {
 
 // static
 template <class IsolateT>
-Handle<TrustedByteArray> TrustedByteArray::New(IsolateT* isolate, int length) {
+Handle<TrustedByteArray> TrustedByteArray::New(IsolateT* isolate, int length,
+                                               AllocationType allocation_type) {
+  DCHECK(allocation_type == AllocationType::kTrusted ||
+         allocation_type == AllocationType::kSharedTrusted);
   if (V8_UNLIKELY(static_cast<unsigned>(length) > kMaxLength)) {
     FATAL("Fatal JavaScript invalid size error %d", length);
   }
 
-  base::Optional<DisallowGarbageCollection> no_gc;
-  Handle<TrustedByteArray> result = Handle<TrustedByteArray>::cast(
-      Allocate(isolate, length, &no_gc, AllocationType::kTrusted));
+  std::optional<DisallowGarbageCollection> no_gc;
+  Handle<TrustedByteArray> result = Cast<TrustedByteArray>(
+      Allocate(isolate, length, &no_gc, allocation_type));
 
   int padding_size = SizeFor(length) - OffsetOfElementAt(length);
   memset(result->AddressOfElementAt(length), 0, padding_size);
@@ -940,101 +962,83 @@ Handle<TrustedByteArray> TrustedByteArray::New(IsolateT* isolate, int length) {
   return result;
 }
 
-Address FixedAddressArray::get_sandboxed_pointer(int offset) const {
+template <typename Base>
+Address FixedAddressArrayBase<Base>::get_sandboxed_pointer(int offset) const {
   DCHECK_GE(offset, 0);
-  DCHECK_GT(length(), offset);
-  int actual_offset = offset * sizeof(Address);
+  DCHECK_GT(this->length(), offset);
   PtrComprCageBase sandbox_base = GetPtrComprCageBase(*this);
-  return ReadSandboxedPointerField(kHeaderSize + actual_offset, sandbox_base);
+  return this->ReadSandboxedPointerField(
+      FixedAddressArrayBase::OffsetOfElementAt(offset), sandbox_base);
 }
 
-void FixedAddressArray::set_sandboxed_pointer(int offset, Address value) {
+template <typename Base>
+void FixedAddressArrayBase<Base>::set_sandboxed_pointer(int offset,
+                                                        Address value) {
   DCHECK_GE(offset, 0);
-  DCHECK_GT(length(), offset);
-  int actual_offset = offset * sizeof(Address);
+  DCHECK_GT(this->length(), offset);
   PtrComprCageBase sandbox_base = GetPtrComprCageBase(*this);
-  WriteSandboxedPointerField(kHeaderSize + actual_offset, sandbox_base, value);
+  this->WriteSandboxedPointerField(
+      FixedAddressArrayBase::OffsetOfElementAt(offset), sandbox_base, value);
 }
 
+template <typename Base>
+template <typename... MoreArgs>
 // static
-Handle<FixedAddressArray> FixedAddressArray::New(Isolate* isolate, int length,
-                                                 AllocationType allocation) {
-  return Handle<FixedAddressArray>::cast(
-      FixedIntegerArray<Address>::New(isolate, length, allocation));
+Handle<FixedAddressArrayBase<Base>> FixedAddressArrayBase<Base>::New(
+    Isolate* isolate, int length, MoreArgs&&... more_args) {
+  return Cast<FixedAddressArrayBase>(
+      Underlying::New(isolate, length, std::forward<MoreArgs>(more_args)...));
 }
 
-FixedAddressArray::FixedAddressArray(Address ptr)
-    : FixedIntegerArray<Address>(ptr) {}
+template <typename Base>
+FixedAddressArrayBase<Base>::FixedAddressArrayBase(Address ptr)
+    : Underlying(ptr) {}
 
-CAST_ACCESSOR(FixedAddressArray)
-
-template <typename T>
-FixedIntegerArray<T>::FixedIntegerArray(Address ptr) : ByteArray(ptr) {
-  DCHECK_EQ(ByteArray::length() % sizeof(T), 0);
+template <typename T, typename Base>
+FixedIntegerArrayBase<T, Base>::FixedIntegerArrayBase(Address ptr) : Base(ptr) {
+  DCHECK_EQ(Base::length() % sizeof(T), 0);
 }
 
-template <typename T>
-CAST_ACCESSOR(FixedIntegerArray<T>)
-
+template <typename T, typename Base>
+template <typename... MoreArgs>
 // static
-template <typename T>
-Handle<FixedIntegerArray<T>> FixedIntegerArray<T>::New(
-    Isolate* isolate, int length, AllocationType allocation) {
+Handle<FixedIntegerArrayBase<T, Base>> FixedIntegerArrayBase<T, Base>::New(
+    Isolate* isolate, int length, MoreArgs&&... more_args) {
   int byte_length;
   CHECK(!base::bits::SignedMulOverflow32(length, sizeof(T), &byte_length));
-  return Handle<FixedIntegerArray<T>>::cast(
-      isolate->factory()->NewByteArray(byte_length, allocation));
+  return Cast<FixedIntegerArrayBase<T, Base>>(
+      Base::New(isolate, byte_length, std::forward<MoreArgs>(more_args)...));
 }
 
-template <typename T>
-T FixedIntegerArray<T>::get(int index) const {
+template <typename T, typename Base>
+T FixedIntegerArrayBase<T, Base>::get(int index) const {
   static_assert(std::is_integral<T>::value);
   DCHECK_GE(index, 0);
   DCHECK_LT(index, length());
-  return ReadField<T>(kHeaderSize + index * sizeof(T));
+  return this->template ReadField<T>(Base::kHeaderSize + index * sizeof(T));
 }
 
-template <typename T>
-void FixedIntegerArray<T>::set(int index, T value) {
+template <typename T, typename Base>
+void FixedIntegerArrayBase<T, Base>::set(int index, T value) {
   static_assert(std::is_integral<T>::value);
   DCHECK_GE(index, 0);
   DCHECK_LT(index, length());
-  WriteField<T>(kHeaderSize + index * sizeof(T), value);
+  this->template WriteField<T>(Base::kHeaderSize + index * sizeof(T), value);
 }
 
-template <typename T>
-int FixedIntegerArray<T>::length() const {
-  DCHECK_EQ(ByteArray::length() % sizeof(T), 0);
-  return ByteArray::length() / sizeof(T);
+template <typename T, typename Base>
+int FixedIntegerArrayBase<T, Base>::length() const {
+  DCHECK_EQ(Base::length() % sizeof(T), 0);
+  return Base::length() / sizeof(T);
 }
 
-template <ExternalPointerTag tag>
-inline Address ExternalPointerArray::get(int index, Isolate* isolate) {
-  return ReadExternalPointerField<tag>(OffsetOfElementAt(index), isolate);
+template <class T, class Super>
+int PodArrayBase<T, Super>::length() const {
+  return Super::length() / sizeof(T);
 }
 
-template <ExternalPointerTag tag>
-inline void ExternalPointerArray::set(int index, Isolate* isolate,
-                                      Address value) {
-  WriteLazilyInitializedExternalPointerField<tag>(OffsetOfElementAt(index),
-                                                  isolate, value);
-}
-
-inline void ExternalPointerArray::clear(int index) {
-  ResetLazilyInitializedExternalPointerField(OffsetOfElementAt(index));
-}
-
-// static
-Handle<ExternalPointerArray> ExternalPointerArray::New(
-    Isolate* isolate, int length, AllocationType allocation) {
-  return isolate->factory()->NewExternalPointerArray(length, allocation);
-}
-
-template <class T>
-PodArray<T>::PodArray(Address ptr) : ByteArray(ptr) {}
-
-template <class T>
-CAST_ACCESSOR(PodArray<T>)
+template <class T, class Super>
+PodArrayBase<T, Super>::PodArrayBase(Address ptr) : Super(ptr) {}
 
 // static
 template <class T>
@@ -1042,7 +1046,7 @@ Handle<PodArray<T>> PodArray<T>::New(Isolate* isolate, int length,
                                      AllocationType allocation) {
   int byte_length;
   CHECK(!base::bits::SignedMulOverflow32(length, sizeof(T), &byte_length));
-  return Handle<PodArray<T>>::cast(
+  return Cast<PodArray<T>>(
       isolate->factory()->NewByteArray(byte_length, allocation));
 }
 
@@ -1052,17 +1056,38 @@ Handle<PodArray<T>> PodArray<T>::New(LocalIsolate* isolate, int length,
                                      AllocationType allocation) {
   int byte_length;
   CHECK(!base::bits::SignedMulOverflow32(length, sizeof(T), &byte_length));
-  return Handle<PodArray<T>>::cast(
+  return Cast<PodArray<T>>(
       isolate->factory()->NewByteArray(byte_length, allocation));
 }
 
 template <class T>
-int PodArray<T>::length() const {
-  return ByteArray::length() / sizeof(T);
+PodArray<T>::PodArray(Address ptr) : PodArrayBase<T, ByteArray>(ptr) {}
+
+// static
+template <class T>
+Handle<TrustedPodArray<T>> TrustedPodArray<T>::New(Isolate* isolate,
+                                                   int length) {
+  int byte_length;
+  CHECK(!base::bits::SignedMulOverflow32(length, sizeof(T), &byte_length));
+  return Cast<TrustedPodArray<T>>(
+      isolate->factory()->NewTrustedByteArray(byte_length));
 }
 
-}  // namespace internal
-}  // namespace v8
+// static
+template <class T>
+Handle<TrustedPodArray<T>> TrustedPodArray<T>::New(LocalIsolate* isolate,
+                                                   int length) {
+  int byte_length;
+  CHECK(!base::bits::SignedMulOverflow32(length, sizeof(T), &byte_length));
+  return Cast<TrustedPodArray<T>>(
+      isolate->factory()->NewTrustedByteArray(byte_length));
+}
+
+template <class T>
+TrustedPodArray<T>::TrustedPodArray(Address ptr)
+    : PodArrayBase<T, TrustedByteArray>(ptr) {}
+
+}  // namespace v8::internal
 
 #include "src/objects/object-macros-undef.h"
 

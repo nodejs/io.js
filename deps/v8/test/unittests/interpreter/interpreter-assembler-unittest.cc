@@ -32,7 +32,7 @@ InterpreterAssemblerTestState::InterpreterAssemblerTestState(
 
 const interpreter::Bytecode kBytecodes[] = {
 #define DEFINE_BYTECODE(Name, ...) interpreter::Bytecode::k##Name,
-    BYTECODE_LIST(DEFINE_BYTECODE)
+    BYTECODE_LIST(DEFINE_BYTECODE, DEFINE_BYTECODE)
 #undef DEFINE_BYTECODE
 };
 
@@ -362,6 +362,7 @@ TARGET_TEST_F(InterpreterAssemblerTest, BytecodeOperand) {
           case interpreter::OperandType::kRegOutList:
           case interpreter::OperandType::kRegOutPair:
           case interpreter::OperandType::kRegOutTriple:
+          case interpreter::OperandType::kRegInOut:
             EXPECT_THAT(m.LoadRegisterAtOperandIndex(i),
                         m.IsLoadRegisterOperand(offset, operand_size));
             break;

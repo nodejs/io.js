@@ -1,5 +1,5 @@
 /*
- * Copyright 1995-2023 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 1995-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -478,7 +478,7 @@ int dgst_main(int argc, char **argv)
 static void show_digests(const OBJ_NAME *name, void *arg)
 {
     struct doall_dgst_digests *dec = (struct doall_dgst_digests *)arg;
-    const EVP_MD *md = NULL;
+    EVP_MD *md = NULL;
 
     /* Filter out signed digests (a.k.a signature algorithms) */
     if (strstr(name->name, "rsa") != NULL || strstr(name->name, "RSA") != NULL)
@@ -490,8 +490,7 @@ static void show_digests(const OBJ_NAME *name, void *arg)
     /* Filter out message digests that we cannot use */
     md = EVP_MD_fetch(app_get0_libctx(), name->name, app_get0_propq());
     if (md == NULL) {
-        md = EVP_get_digestbyname(name->name);
-        if (md == NULL)
+        if (EVP_get_digestbyname(name->name) == NULL)
             return;
     }
 
@@ -502,6 +501,8 @@ static void show_digests(const OBJ_NAME *name, void *arg)
     } else {
         BIO_printf(dec->bio, " ");
     }
+
+    EVP_MD_free(md);
 }
 
 /*

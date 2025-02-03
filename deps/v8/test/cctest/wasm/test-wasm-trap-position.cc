@@ -48,13 +48,13 @@ void CheckExceptionInfos(v8::internal::Isolate* isolate, Handle<Object> exc,
 
   Print(*exc);
   // Extract stack frame from the exception.
-  auto stack = isolate->GetSimpleStackTrace(Handle<JSObject>::cast(exc));
+  auto stack = isolate->GetSimpleStackTrace(Cast<JSObject>(exc));
   CHECK_EQ(N, stack->length());
 
   for (int i = 0; i < N; ++i) {
-    Handle<CallSiteInfo> info(CallSiteInfo::cast(stack->get(i)), isolate);
+    DirectHandle<CallSiteInfo> info(Cast<CallSiteInfo>(stack->get(i)), isolate);
     auto func_name =
-        Handle<String>::cast(CallSiteInfo::GetFunctionName(info))->ToCString();
+        Cast<String>(CallSiteInfo::GetFunctionName(info))->ToCString();
     CHECK_CSTREQ(excInfos[i].func_name, func_name.get());
     CHECK_EQ(excInfos[i].line_nr, CallSiteInfo::GetLineNumber(info));
     CHECK_EQ(excInfos[i].column, CallSiteInfo::GetColumnNumber(info));
@@ -76,8 +76,8 @@ WASM_COMPILED_EXEC_TEST(Unreachable) {
 
   Handle<JSFunction> js_wasm_wrapper = r.builder().WrapCode(wasm_index);
 
-  Handle<JSFunction> js_trampoline = Handle<JSFunction>::cast(
-      v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+  Handle<JSFunction> js_trampoline =
+      Cast<JSFunction>(v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
           CompileRun("(function callFn(fn) { fn(); })"))));
 
   Isolate* isolate = js_wasm_wrapper->GetIsolate();
@@ -118,8 +118,8 @@ WASM_COMPILED_EXEC_TEST(IllegalLoad) {
 
   Handle<JSFunction> js_wasm_wrapper = r.builder().WrapCode(wasm_index_2);
 
-  Handle<JSFunction> js_trampoline = Handle<JSFunction>::cast(
-      v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
+  Handle<JSFunction> js_trampoline =
+      Cast<JSFunction>(v8::Utils::OpenHandle(*v8::Local<v8::Function>::Cast(
           CompileRun("(function callFn(fn) { fn(); })"))));
 
   Isolate* isolate = js_wasm_wrapper->GetIsolate();

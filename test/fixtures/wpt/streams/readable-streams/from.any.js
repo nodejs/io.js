@@ -51,44 +51,50 @@ const iterableFactories = [
 
   ['a sync iterable of values', () => {
     const chunks = ['a', 'b'];
-    const it = {
+    const iterator = {
       next() {
         return {
           done: chunks.length === 0,
           value: chunks.shift()
         };
-      },
-      [Symbol.iterator]: () => it
+      }
     };
-    return it;
+    const iterable = {
+      [Symbol.iterator]: () => iterator
+    };
+    return iterable;
   }],
 
   ['a sync iterable of promises', () => {
     const chunks = ['a', 'b'];
-    const it = {
+    const iterator = {
       next() {
         return chunks.length === 0 ? { done: true } : {
           done: false,
           value: Promise.resolve(chunks.shift())
         };
-      },
-      [Symbol.iterator]: () => it
+      }
     };
-    return it;
+    const iterable = {
+      [Symbol.iterator]: () => iterator
+    };
+    return iterable;
   }],
 
   ['an async iterable', () => {
     const chunks = ['a', 'b'];
-    const it = {
+    const asyncIterator = {
       next() {
         return Promise.resolve({
           done: chunks.length === 0,
           value: chunks.shift()
         })
-      },
-      [Symbol.asyncIterator]: () => it
+      }
     };
-    return it;
+    const asyncIterable = {
+      [Symbol.asyncIterator]: () => asyncIterator
+    };
+    return asyncIterable;
   }],
 
   ['a ReadableStream', () => {
@@ -185,6 +191,18 @@ test(t => {
 
   assert_throws_exactly(theError, () => ReadableStream.from(iterable), 'from() should re-throw the error');
 }, `ReadableStream.from ignores @@iterator if @@asyncIterator exists`);
+
+test(() => {
+  const theError = new Error('a unique string');
+  const iterable = {
+    [Symbol.asyncIterator]: null,
+    [Symbol.iterator]() {
+      throw theError
+    }
+  };
+
+  assert_throws_exactly(theError, () => ReadableStream.from(iterable), 'from() should re-throw the error');
+}, `ReadableStream.from ignores a null @@asyncIterator`);
 
 promise_test(async () => {
 

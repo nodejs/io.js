@@ -450,7 +450,7 @@ class PropertyDetails {
     kPrintRepresentation = 1 << 2,
     kPrintPointer = 1 << 3,
 
-    kForProperties = kPrintFieldIndex,
+    kForProperties = kPrintFieldIndex | kPrintAttributes,
     kForTransitions = kPrintAttributes,
     kPrintFull = -1,
   };

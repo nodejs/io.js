@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CertificateChainVerifier = exports.verifyCertificateChain = void 0;
+exports.CertificateChainVerifier = void 0;
+exports.verifyCertificateChain = verifyCertificateChain;
 const error_1 = require("../error");
 const trust_1 = require("../trust");
 function verifyCertificateChain(leaf, certificateAuthorities) {
@@ -32,7 +33,6 @@ function verifyCertificateChain(leaf, certificateAuthorities) {
         cause: error,
     });
 }
-exports.verifyCertificateChain = verifyCertificateChain;
 class CertificateChainVerifier {
     constructor(opts) {
         this.untrustedCert = opts.untrustedCert;

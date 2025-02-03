@@ -488,6 +488,95 @@ Blocks until a client (existing or connected later) has sent
 
 An exception will be thrown if there is no active inspector.
 
+## Integration with DevTools
+
+The `node:inspector` module provides an API for integrating with devtools that support Chrome DevTools Protocol.
+DevTools frontends connected to a running Node.js instance can capture protocol events emitted from the instance
+and display them accordingly to facilitate debugging.
+The following methods broadcast a protocol event to all connected frontends.
+The `params` passed to the methods can be optional, depending on the protocol.
+
+```js
+// The `Network.requestWillBeSent` event will be fired.
+inspector.Network.requestWillBeSent({
+  requestId: 'request-id-1',
+  timestamp: Date.now() / 1000,
+  wallTime: Date.now(),
+  request: {
+    url: 'https://nodejs.org/en',
+    method: 'GET',
+  },
+});
+```
+
+### `inspector.Network.requestWillBeSent([params])`
+
+<!-- YAML
+added:
+ - v22.6.0
+ - v20.18.0
+-->
+
+> Stability: 1 - Experimental
+
+* `params` {Object}
+
+This feature is only available with the `--experimental-network-inspection` flag enabled.
+
+Broadcasts the `Network.requestWillBeSent` event to connected frontends. This event indicates that
+the application is about to send an HTTP request.
+
+### `inspector.Network.responseReceived([params])`
+
+<!-- YAML
+added:
+ - v22.6.0
+ - v20.18.0
+-->
+
+> Stability: 1 - Experimental
+
+* `params` {Object}
+
+This feature is only available with the `--experimental-network-inspection` flag enabled.
+
+Broadcasts the `Network.responseReceived` event to connected frontends. This event indicates that
+HTTP response is available.
+
+### `inspector.Network.loadingFinished([params])`
+
+<!-- YAML
+added:
+ - v22.6.0
+ - v20.18.0
+-->
+
+> Stability: 1 - Experimental
+
+* `params` {Object}
+
+This feature is only available with the `--experimental-network-inspection` flag enabled.
+
+Broadcasts the `Network.loadingFinished` event to connected frontends. This event indicates that
+HTTP request has finished loading.
+
+### `inspector.Network.loadingFailed([params])`
+
+<!-- YAML
+added:
+ - v22.7.0
+ - v20.18.0
+-->
+
+> Stability: 1 - Experimental
+
+* `params` {Object}
+
+This feature is only available with the `--experimental-network-inspection` flag enabled.
+
+Broadcasts the `Network.loadingFailed` event to connected frontends. This event indicates that
+HTTP request has failed to load.
+
 ## Support of breakpoints
 
 The Chrome DevTools Protocol [`Debugger` domain][] allows an

@@ -1,0 +1,8 @@
+{
+  "version" : 3,
+  "sources": [],
+  "names": [],
+  "mappings": "",
+  "foobar": 42,
+  "unusedProperty": [1, 2, 3, 4]
+}

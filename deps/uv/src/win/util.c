@@ -191,7 +191,7 @@ int uv_cwd(char* buffer, size_t* size) {
   WCHAR *utf16_buffer;
   int r;
 
-  if (buffer == NULL || size == NULL) {
+  if (buffer == NULL || size == NULL || *size == 0) {
     return UV_EINVAL;
   }
 
@@ -316,25 +316,19 @@ uv_pid_t uv_os_getpid(void) {
 
 
 uv_pid_t uv_os_getppid(void) {
-  int parent_pid = -1;
-  HANDLE handle;
-  PROCESSENTRY32 pe;
-  DWORD current_pid = GetCurrentProcessId();
+  NTSTATUS nt_status;
+  PROCESS_BASIC_INFORMATION basic_info;
 
-  pe.dwSize = sizeof(PROCESSENTRY32);
-  handle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-
-  if (Process32First(handle, &pe)) {
-    do {
-      if (pe.th32ProcessID == current_pid) {
-        parent_pid = pe.th32ParentProcessID;
-        break;
-      }
-    } while( Process32Next(handle, &pe));
+  nt_status = pNtQueryInformationProcess(GetCurrentProcess(),
+    ProcessBasicInformation,
+    &basic_info,
+    sizeof(basic_info),
+    NULL);
+  if (NT_SUCCESS(nt_status)) {
+    return basic_info.InheritedFromUniqueProcessId;
+  } else {
+    return -1;
   }
-
-  CloseHandle(handle);
-  return parent_pid;
 }
 
 
@@ -512,19 +506,23 @@ int uv_uptime(double* uptime) {
 
 
 unsigned int uv_available_parallelism(void) {
-  SYSTEM_INFO info;
-  unsigned rc;
+  DWORD_PTR procmask;
+  DWORD_PTR sysmask;
+  int count;
+  int i;
 
   /* TODO(bnoordhuis) Use GetLogicalProcessorInformationEx() to support systems
    * with > 64 CPUs? See https://github.com/libuv/libuv/pull/3458
    */
-  GetSystemInfo(&info);
+  count = 0;
+  if (GetProcessAffinityMask(GetCurrentProcess(), &procmask, &sysmask))
+    for (i = 0; i < 8 * sizeof(procmask); i++)
+      count += 1 & (procmask >> i);
 
-  rc = info.dwNumberOfProcessors;
-  if (rc < 1)
-    rc = 1;
+  if (count > 0)
+    return count;
 
-  return rc;
+  return 1;
 }
 
 
@@ -876,56 +874,100 @@ void uv_free_interface_addresses(uv_interface_address_t* addresses,
 
 
 int uv_getrusage(uv_rusage_t *uv_rusage) {
-  FILETIME createTime, exitTime, kernelTime, userTime;
-  SYSTEMTIME kernelSystemTime, userSystemTime;
-  PROCESS_MEMORY_COUNTERS memCounters;
-  IO_COUNTERS ioCounters;
+  FILETIME create_time, exit_time, kernel_time, user_time;
+  SYSTEMTIME kernel_system_time, user_system_time;
+  PROCESS_MEMORY_COUNTERS mem_counters;
+  IO_COUNTERS io_counters;
   int ret;
 
-  ret = GetProcessTimes(GetCurrentProcess(), &createTime, &exitTime, &kernelTime, &userTime);
+  ret = GetProcessTimes(GetCurrentProcess(),
+                        &create_time,
+                        &exit_time,
+                        &kernel_time,
+                        &user_time);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = FileTimeToSystemTime(&kernelTime, &kernelSystemTime);
+  ret = FileTimeToSystemTime(&kernel_time, &kernel_system_time);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = FileTimeToSystemTime(&userTime, &userSystemTime);
+  ret = FileTimeToSystemTime(&user_time, &user_system_time);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
   ret = GetProcessMemoryInfo(GetCurrentProcess(),
-                             &memCounters,
-                             sizeof(memCounters));
+                             &mem_counters,
+                             sizeof(mem_counters));
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
-  ret = GetProcessIoCounters(GetCurrentProcess(), &ioCounters);
+  ret = GetProcessIoCounters(GetCurrentProcess(), &io_counters);
   if (ret == 0) {
     return uv_translate_sys_error(GetLastError());
   }
 
   memset(uv_rusage, 0, sizeof(*uv_rusage));
 
-  uv_rusage->ru_utime.tv_sec = userSystemTime.wHour * 3600 +
-                               userSystemTime.wMinute * 60 +
-                               userSystemTime.wSecond;
-  uv_rusage->ru_utime.tv_usec = userSystemTime.wMilliseconds * 1000;
+  uv_rusage->ru_utime.tv_sec = user_system_time.wHour * 3600 +
+                               user_system_time.wMinute * 60 +
+                               user_system_time.wSecond;
+  uv_rusage->ru_utime.tv_usec = user_system_time.wMilliseconds * 1000;
 
-  uv_rusage->ru_stime.tv_sec = kernelSystemTime.wHour * 3600 +
-                               kernelSystemTime.wMinute * 60 +
-                               kernelSystemTime.wSecond;
-  uv_rusage->ru_stime.tv_usec = kernelSystemTime.wMilliseconds * 1000;
+  uv_rusage->ru_stime.tv_sec = kernel_system_time.wHour * 3600 +
+                               kernel_system_time.wMinute * 60 +
+                               kernel_system_time.wSecond;
+  uv_rusage->ru_stime.tv_usec = kernel_system_time.wMilliseconds * 1000;
 
-  uv_rusage->ru_majflt = (uint64_t) memCounters.PageFaultCount;
-  uv_rusage->ru_maxrss = (uint64_t) memCounters.PeakWorkingSetSize / 1024;
+  uv_rusage->ru_majflt = (uint64_t) mem_counters.PageFaultCount;
+  uv_rusage->ru_maxrss = (uint64_t) mem_counters.PeakWorkingSetSize / 1024;
 
-  uv_rusage->ru_oublock = (uint64_t) ioCounters.WriteOperationCount;
-  uv_rusage->ru_inblock = (uint64_t) ioCounters.ReadOperationCount;
+  uv_rusage->ru_oublock = (uint64_t) io_counters.WriteOperationCount;
+  uv_rusage->ru_inblock = (uint64_t) io_counters.ReadOperationCount;
+
+  return 0;
+}
+
+
+int uv_getrusage_thread(uv_rusage_t* uv_rusage) {
+  FILETIME create_time, exit_time, kernel_time, user_time;
+  SYSTEMTIME kernel_system_time, user_system_time;
+  int ret;
+
+  ret = GetThreadTimes(GetCurrentThread(),
+                       &create_time,
+                       &exit_time,
+                       &kernel_time,
+                       &user_time);
+  if (ret == 0) {
+    return uv_translate_sys_error(GetLastError());
+  }
+
+  ret = FileTimeToSystemTime(&kernel_time, &kernel_system_time);
+  if (ret == 0) {
+    return uv_translate_sys_error(GetLastError());
+  }
+
+  ret = FileTimeToSystemTime(&user_time, &user_system_time);
+  if (ret == 0) {
+    return uv_translate_sys_error(GetLastError());
+  }
+
+  memset(uv_rusage, 0, sizeof(*uv_rusage));
+
+  uv_rusage->ru_utime.tv_sec = user_system_time.wHour * 3600 +
+                               user_system_time.wMinute * 60 +
+                               user_system_time.wSecond;
+  uv_rusage->ru_utime.tv_usec = user_system_time.wMilliseconds * 1000;
+
+  uv_rusage->ru_stime.tv_sec = kernel_system_time.wHour * 3600 +
+                               kernel_system_time.wMinute * 60 +
+                               kernel_system_time.wSecond;
+  uv_rusage->ru_stime.tv_usec = kernel_system_time.wMilliseconds * 1000;
 
   return 0;
 }
@@ -942,8 +984,13 @@ int uv_os_homedir(char* buffer, size_t* size) {
   r = uv_os_getenv("USERPROFILE", buffer, size);
 
   /* Don't return an error if USERPROFILE was not found. */
-  if (r != UV_ENOENT)
+  if (r != UV_ENOENT) {
+    /* USERPROFILE is empty or invalid */
+    if (r == 0 && *size < 3) {
+      return UV_ENOENT;
+    }
     return r;
+  }
 
   /* USERPROFILE is not set, so call uv_os_get_passwd() */
   r = uv_os_get_passwd(&pwd);
@@ -980,6 +1027,12 @@ int uv_os_tmpdir(char* buffer, size_t* size) {
   if (len == 0) {
     return uv_translate_sys_error(GetLastError());
   }
+
+  /* tmp path is empty or invalid */
+  if (len < 3) {
+    return UV_ENOENT;
+  }
+
   /* Include space for terminating null char. */
   len += 1;
   path = uv__malloc(len * sizeof(wchar_t));
@@ -1259,6 +1312,9 @@ int uv_os_getenv(const char* name, char* buffer, size_t* size) {
     SetLastError(ERROR_SUCCESS);
     len = GetEnvironmentVariableW(name_w, var, varlen);
 
+    if (len == 0)
+      r = uv_translate_sys_error(GetLastError());
+
     if (len < varlen)
       break;
 
@@ -1280,15 +1336,8 @@ int uv_os_getenv(const char* name, char* buffer, size_t* size) {
   uv__free(name_w);
   name_w = NULL;
 
-  if (len == 0) {
-    r = GetLastError();
-    if (r != ERROR_SUCCESS) {
-      r = uv_translate_sys_error(r);
-      goto fail;
-    }
-  }
-
-  r = uv__copy_utf16_to_utf8(var, len, buffer, size);
+  if (r == 0)
+    r = uv__copy_utf16_to_utf8(var, len, buffer, size);
 
 fail:
 
@@ -1528,20 +1577,7 @@ int uv_os_uname(uv_utsname_t* buffer) {
   os_info.dwOSVersionInfoSize = sizeof(os_info);
   os_info.szCSDVersion[0] = L'\0';
 
-  /* Try calling RtlGetVersion(), and fall back to the deprecated GetVersionEx()
-     if RtlGetVersion() is not available. */
-  if (pRtlGetVersion) {
-    pRtlGetVersion(&os_info);
-  } else {
-    /* Silence GetVersionEx() deprecation warning. */
-    #ifdef _MSC_VER
-    #pragma warning(suppress : 4996)
-    #endif
-    if (GetVersionExW(&os_info) == 0) {
-      r = uv_translate_sys_error(GetLastError());
-      goto error;
-    }
-  }
+  pRtlGetVersion(&os_info);
 
   /* Populate the version field. */
   version_size = 0;
@@ -1597,7 +1633,7 @@ int uv_os_uname(uv_utsname_t* buffer) {
     version_size = sizeof(buffer->version) - version_size;
     r = uv__copy_utf16_to_utf8(os_info.szCSDVersion,
                                -1,
-                               buffer->version + 
+                               buffer->version +
                                  sizeof(buffer->version) - version_size,
                                &version_size);
     if (r)

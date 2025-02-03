@@ -49,7 +49,10 @@ asm(".global PushAllRegistersAndIterateStack             \n"
     // Restore frame pointer.
     "  ld s0, 0(sp)                                      \n"
     "  addi sp, sp, 112                                  \n"
-    "  jr ra                                             \n");
+    "  jr ra                                             \n"
+    ".Lfunc_end0:                                        \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack         \n");
 #elif V8_TARGET_ARCH_RISCV32
 asm(".global PushAllRegistersAndIterateStack             \n"
     ".type PushAllRegistersAndIterateStack, %function    \n"
@@ -89,5 +92,8 @@ asm(".global PushAllRegistersAndIterateStack             \n"
     // Restore frame pointer.
     "  lw s0, 0(sp)                                      \n"
     "  addi sp, sp, 56                                   \n"
-    "  jr ra                                             \n");
+    "  jr ra                                             \n"
+    ".Lfunc_end0:                                        \n"
+    ".size PushAllRegistersAndIterateStack, "
+    ".Lfunc_end0-PushAllRegistersAndIterateStack         \n");
 #endif

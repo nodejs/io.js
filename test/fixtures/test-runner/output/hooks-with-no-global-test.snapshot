@@ -4,22 +4,26 @@ TAP version 13
     ok 1 - 1
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: 2
     ok 2 - 2
       ---
       duration_ms: *
+      type: 'test'
       ...
     # Subtest: nested
         # Subtest: nested 1
         ok 1 - nested 1
           ---
           duration_ms: *
+          type: 'test'
           ...
         # Subtest: nested 2
         ok 2 - nested 2
           ---
           duration_ms: *
+          type: 'test'
           ...
         1..2
     ok 3 - nested

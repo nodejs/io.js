@@ -62,14 +62,6 @@ rm -rf node_modules
 
 mv ./* "$DEPS_DIR/minimatch"
 
-echo "All done!"
-echo ""
-echo "Please git add minimatch, commit the new version:"
-echo ""
-echo "$ git add -A deps/minimatch"
-echo "$ git commit -m \"deps: update minimatch to $NEW_VERSION\""
-echo ""
-
 # Update the version number on maintaining-dependencies.md
 # and print the new version as the last line of the script as we need
 # to add it to $GITHUB_ENV variable

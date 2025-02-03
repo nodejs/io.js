@@ -143,7 +143,7 @@ constexpr size_t kNumFlags = 0 REPLICATE(COUNT, _, _);
 #pragma clang section data = ".benchmark_flags"
 #endif
 #define DEFINE_FLAG(T, name, index) ABSL_FLAG(T, name##_##index, {}, "");
-#define FLAG_DEF(T) REPLICATE(DEFINE_FLAG, T, T##_flag);
+#define FLAG_DEF(T) REPLICATE(DEFINE_FLAG, T, T##_flag)
 BENCHMARKED_TYPES(FLAG_DEF)
 #if defined(__clang__) && defined(__linux__)
 #pragma clang section data = ""

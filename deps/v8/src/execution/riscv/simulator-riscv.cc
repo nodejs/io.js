@@ -62,6 +62,10 @@
 #include "src/utils/ostreams.h"
 #include "src/utils/utils.h"
 
+#if V8_ENABLE_WEBASSEMBLY
+#include "src/trap-handler/trap-handler-simulator.h"
+#endif  // V8_ENABLE_WEBASSEMBLY
+
 #if V8_TARGET_ARCH_RISCV64
 #define REGIx_FORMAT PRIx64
 #define REGId_FORMAT PRId64
@@ -1279,10 +1283,13 @@ struct type_sew_t<128> {
     VI_STRIP(i);                                                               \
     set_rvv_vstart(i);                                                         \
     for (reg_t fn = 0; fn < nf; ++fn) {                                        \
-      auto val = ReadMem<elt_width##_t>(                                       \
-          baseAddr + (stride) + (offset) * sizeof(elt_width##_t),              \
-          instr_.instr());                                                     \
-      type_sew_t<sizeof(elt_width##_t)* 8>::type& vd =                         \
+      auto addr = baseAddr + (stride) + (offset) * sizeof(elt_width##_t);      \
+      if (!ProbeMemory(addr, sizeof(elt_width##_t))) {                         \
+        set_rvv_vstart(0);                                                     \
+        return true;                                                           \
+      }                                                                        \
+      auto val = ReadMem<elt_width##_t>(addr, instr_.instr());                 \
+      type_sew_t<sizeof(elt_width##_t) * 8>::type& vd =                        \
           Rvvelt<type_sew_t<sizeof(elt_width##_t) * 8>::type>(rvv_vd_reg(),    \
                                                               vreg_inx, true); \
       vd = val;                                                                \
@@ -1308,10 +1315,14 @@ struct type_sew_t<128> {
     VI_ELEMENT_SKIP(i);                                                        \
     set_rvv_vstart(i);                                                         \
     for (reg_t fn = 0; fn < nf; ++fn) {                                        \
+      auto addr = baseAddr + (stride) + (offset) * sizeof(elt_width##_t);      \
+      if (!ProbeMemory(addr, sizeof(elt_width##_t))) {                         \
+        set_rvv_vstart(0);                                                     \
+        return true;                                                           \
+      }                                                                        \
       elt_width##_t vs1 = Rvvelt<type_sew_t<sizeof(elt_width##_t) * 8>::type>( \
           rvv_vs3_reg(), vreg_inx);                                            \
-      WriteMem(baseAddr + (stride) + (offset) * sizeof(elt_width##_t), vs1,    \
-               instr_.instr());                                                \
+      WriteMem(addr, vs1, instr_.instr());                                     \
     }                                                                          \
   }                                                                            \
   set_rvv_vstart(0);                                                           \
@@ -1938,18 +1949,16 @@ void RiscvDebugger::Debug() {
           PrintF("  0x%012" PRIxPTR " :  0x%016" REGIx_FORMAT
                  "  %14" REGId_FORMAT " ",
                  reinterpret_cast<intptr_t>(cur), *cur, *cur);
-          Tagged<Object> obj(*cur);
-          Heap* current_heap = sim_->isolate_->heap();
-          if (IsSmi(obj) ||
-              IsValidHeapObject(current_heap, HeapObject::cast(obj))) {
-            PrintF(" (");
-            if (IsSmi(obj)) {
-              PrintF("smi %d", Smi::ToInt(obj));
-            } else {
-              ShortPrint(obj);
-            }
-            PrintF(")");
-          }
+          // Tagged<Object> obj(*cur);
+          // Heap* current_heap = sim_->isolate_->heap();
+          // if (IsSmi(obj) ||
+          //     IsValidHeapObject(current_heap, Cast<HeapObject>(obj))) {
+          //   PrintF(" (");
+          //   if (IsSmi(obj)) {
+          //     PrintF("smi %d", Smi::ToInt(obj));
+          //   }
+          //   PrintF(")");
+          // }
           PrintF("\n");
           cur++;
         }
@@ -2406,6 +2415,19 @@ Simulator::Simulator(Isolate* isolate) : isolate_(isolate), builtins_(isolate) {
   registers_[ra] = bad_ra;
 
   last_debugger_input_ = nullptr;
+#ifdef CAN_USE_RVV_INSTRUCTIONS
+  for (int i = 0; i < kNumVRegisters; ++i) {
+    Vregister_[i] = 0;
+  }
+  vxrm_ = 0;
+  vstart_ = 0;
+  vxsat_ = 0;
+  vxrm_ = 0;
+  vcsr_ = 0;
+  vtype_ = 0;
+  vl_ = 0;
+  vlenb_ = 0;
+#endif
 }
 
 Simulator::~Simulator() {
@@ -2920,12 +2942,8 @@ void Simulator::TraceMemWr(sreg_t addr, T value) {
                    static_cast<uint64_t>(value), addr);
         } else {
           SNPrintF(trace_buf_,
-                   "                    (%" PRIu64
-#if V8_TARGET_ARCH_RISCV64
-                   ")    dbl:%e bit:%lx --> [addr: %" REGIx_FORMAT "]",
-#elif V8_TARGET_ARCH_RISCV32
-                   ")    dbl:%e bit:%llx --> [addr: %" REGIx_FORMAT "]",
-#endif
+                   "                    (%" PRIu64 ")    dbl:%e bit:%" PRIx64
+                   " --> [addr: %" REGIx_FORMAT "]",
                    icount_, static_cast<double>(value),
                    base::bit_cast<int64_t, double>(value), addr);
         }
@@ -2939,16 +2957,27 @@ void Simulator::TraceMemWr(sreg_t addr, T value) {
 void Simulator::TraceMemWrDouble(sreg_t addr, double value) {
   if (v8_flags.trace_sim) {
     SNPrintF(trace_buf_,
-             "                    (%" PRIu64
-#if V8_TARGET_ARCH_RISCV64
-             ")    dbl:%e bit:%lx--> [addr: %" REGIx_FORMAT "]",
-#elif V8_TARGET_ARCH_RISCV32
-             ")    dbl:%e bit:%llx--> [addr: %" REGIx_FORMAT "]",
-#endif
+             "                    (%" PRIu64 ")    dbl:%e bit:%" PRIx64
+             "--> [addr: %" REGIx_FORMAT "]",
              icount_, value, base::bit_cast<int64_t, double>(value), addr);
   }
 }
 // RISCV Memory Read/Write functions
+
+bool Simulator::ProbeMemory(uintptr_t address, uintptr_t access_size) {
+#if V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
+  uintptr_t last_accessed_byte = address + access_size - 1;
+  uintptr_t current_pc = registers_[pc];
+  uintptr_t landing_pad =
+      trap_handler::ProbeMemory(last_accessed_byte, current_pc);
+  if (!landing_pad) return true;
+  set_pc(landing_pad);
+  set_register(kWasmTrapHandlerFaultAddressRegister.code(), current_pc);
+  return false;
+#else
+  return true;
+#endif
+}
 
 // TODO(RISCV): check whether the specific board supports unaligned load/store
 // (determined by EEI). For now, we assume the board does not support unaligned
@@ -3106,6 +3135,124 @@ using SimulatorRuntimeDirectGetterCall = void (*)(sreg_t arg0, sreg_t arg1);
 using SimulatorRuntimeFPTaggedCall = double (*)(int64_t arg0, int64_t arg1,
                                                 int64_t arg2, int64_t arg3);
 
+#ifdef V8_TARGET_ARCH_RISCV64
+using MixedRuntimeCall_0 = AnyCType (*)();
+#define BRACKETS(ident, N) ident[N]
+#define REP_0(expr, FMT)
+#define REP_1(expr, FMT) FMT(expr, 0)
+#define REP_2(expr, FMT) REP_1(expr, FMT), FMT(expr, 1)
+#define REP_3(expr, FMT) REP_2(expr, FMT), FMT(expr, 2)
+#define REP_4(expr, FMT) REP_3(expr, FMT), FMT(expr, 3)
+#define REP_5(expr, FMT) REP_4(expr, FMT), FMT(expr, 4)
+#define REP_6(expr, FMT) REP_5(expr, FMT), FMT(expr, 5)
+#define REP_7(expr, FMT) REP_6(expr, FMT), FMT(expr, 6)
+#define REP_8(expr, FMT) REP_7(expr, FMT), FMT(expr, 7)
+#define REP_9(expr, FMT) REP_8(expr, FMT), FMT(expr, 8)
+#define REP_10(expr, FMT) REP_9(expr, FMT), FMT(expr, 9)
+#define REP_11(expr, FMT) REP_10(expr, FMT), FMT(expr, 10)
+#define REP_12(expr, FMT) REP_11(expr, FMT), FMT(expr, 11)
+#define REP_13(expr, FMT) REP_12(expr, FMT), FMT(expr, 12)
+#define REP_14(expr, FMT) REP_13(expr, FMT), FMT(expr, 13)
+#define REP_15(expr, FMT) REP_14(expr, FMT), FMT(expr, 14)
+#define REP_16(expr, FMT) REP_15(expr, FMT), FMT(expr, 15)
+#define REP_17(expr, FMT) REP_16(expr, FMT), FMT(expr, 16)
+#define REP_18(expr, FMT) REP_17(expr, FMT), FMT(expr, 17)
+#define REP_19(expr, FMT) REP_18(expr, FMT), FMT(expr, 18)
+#define REP_20(expr, FMT) REP_19(expr, FMT), FMT(expr, 19)
+#define GEN_MAX_PARAM_COUNT(V) \
+  V(0)                         \
+  V(1)                         \
+  V(2)                         \
+  V(3)                         \
+  V(4)                         \
+  V(5)                         \
+  V(6)                         \
+  V(7)                         \
+  V(8)                         \
+  V(9)                         \
+  V(10)                        \
+  V(11)                        \
+  V(12)                        \
+  V(13)                        \
+  V(14)                        \
+  V(15)                        \
+  V(16)                        \
+  V(17)                        \
+  V(18)                        \
+  V(19)                        \
+  V(20)
+#define MIXED_RUNTIME_CALL(N) \
+  using MixedRuntimeCall_##N = AnyCType (*)(REP_##N(AnyCType arg, CONCAT));
+GEN_MAX_PARAM_COUNT(MIXED_RUNTIME_CALL)
+#undef MIXED_RUNTIME_CALL
+#define CALL_ARGS(N) REP_##N(args, BRACKETS)
+#define CALL_TARGET_VARARG(N)                                   \
+  if (signature.ParameterCount() == N) { /* NOLINT */           \
+    MixedRuntimeCall_##N target =                               \
+        reinterpret_cast<MixedRuntimeCall_##N>(target_address); \
+    result = target(CALL_ARGS(N));                              \
+  } else /* NOLINT */
+#define PARAM_REGISTERS a0, a1, a2, a3, a4, a5, a6, a7
+#define RETURN_REGISTER a0
+#define FP_PARAM_REGISTERS fa0, fa1, fa2, fa3, fa4, fa5, fa6, fa7
+#define FP_RETURN_REGISTER fa0
+void Simulator::CallAnyCTypeFunction(Address target_address,
+                                     const EncodedCSignature& signature) {
+  const int64_t* stack_pointer = reinterpret_cast<int64_t*>(get_register(sp));
+  const double* double_stack_pointer =
+      reinterpret_cast<double*>(get_register(sp));
+  const Register kParamRegisters[] = {PARAM_REGISTERS};
+  const FPURegister kFPParamRegisters[] = {FP_PARAM_REGISTERS};
+  CHECK_LE(signature.ParameterCount(), kMaxCParameters);
+  static_assert(sizeof(AnyCType) == 8, "AnyCType is assumed to be 64-bit.");
+  AnyCType args[kMaxCParameters];
+  int num_gp_params = 0, num_fp_params = 0, num_stack_params = 0;
+  for (int i = 0; i < signature.ParameterCount(); ++i) {
+    if (signature.IsFloat(i)) {
+      if (num_fp_params < 8) {
+        args[i].double_value =
+            get_fpu_register_double(kFPParamRegisters[num_fp_params++]);
+      } else {
+        args[i].double_value = double_stack_pointer[num_stack_params++];
+      }
+    } else {
+      if (num_gp_params < 8) {
+        args[i].int64_value = get_register(kParamRegisters[num_gp_params++]);
+      } else {
+        args[i].int64_value = stack_pointer[num_stack_params++];
+      }
+    }
+  }
+  AnyCType result;
+  GEN_MAX_PARAM_COUNT(CALL_TARGET_VARARG)
+  /* else */ {
+    UNREACHABLE();
+  }
+  static_assert(20 == kMaxCParameters,
+                "If you've changed kMaxCParameters, please change the "
+                "GEN_MAX_PARAM_COUNT macro.");
+  if (v8_flags.trace_sim) {
+    printf("CallAnyCTypeFunction end result \n");
+  }
+#undef CALL_TARGET_VARARG
+#undef CALL_ARGS
+#undef GEN_MAX_PARAM_COUNT
+  if (signature.IsReturnFloat()) {
+    if (signature.IsReturnFloat64()) {
+      set_fpu_register_double(FP_RETURN_REGISTER, result.double_value);
+    } else {
+      set_fpu_register_float(FP_RETURN_REGISTER, result.float_value);
+    }
+  } else {
+    set_register(RETURN_REGISTER, result.int64_value);
+  }
+}
+#undef PARAM_REGISTERS
+#undef RETURN_REGISTER
+#undef FP_PARAM_REGISTERS
+#undef FP_RETURN_REGISTER
+#endif  // V8_TARGET_ARCH_RISCV64
+
 // Software interrupt instructions are used by the simulator to call into the
 // C-based V8 runtime. They are also used for debugging with simulator.
 void Simulator::SoftwareInterrupt() {
@@ -3116,6 +3263,26 @@ void Simulator::SoftwareInterrupt() {
   // We first check if we met a call_rt_redirected.
   if (instr_.InstructionBits() == rtCallRedirInstr) {  // ECALL
     Redirection* redirection = Redirection::FromInstruction(instr_.instr());
+
+    // This is dodgy but it works because the C entry stubs are never moved.
+    int64_t saved_ra = get_register(ra);
+    intptr_t external =
+        reinterpret_cast<intptr_t>(redirection->external_function());
+#ifdef V8_TARGET_ARCH_RISCV64
+    Address func_addr =
+        reinterpret_cast<Address>(redirection->external_function());
+    SimulatorData* simulator_data = isolate_->simulator_data();
+    DCHECK_NOT_NULL(simulator_data);
+    const EncodedCSignature& signature =
+        simulator_data->GetSignatureForTarget(func_addr);
+    if (signature.IsValid()) {
+      CHECK_EQ(redirection->type(), ExternalReference::FAST_C_CALL);
+      CallAnyCTypeFunction(external, signature);
+      set_register(ra, saved_ra);
+      set_pc(get_register(ra));
+      return;
+    }
+#endif
 
     sreg_t* stack_pointer = reinterpret_cast<sreg_t*>(get_register(sp));
 
@@ -3147,14 +3314,7 @@ void Simulator::SoftwareInterrupt() {
         (redirection->type() == ExternalReference::BUILTIN_FP_CALL) ||
         (redirection->type() == ExternalReference::BUILTIN_FP_INT_CALL);
 
-    // This is dodgy but it works because the C entry stubs are never moved.
-    // See comment in codegen-arm.cc and bug 1242173.
-    sreg_t saved_ra = get_register(ra);
-
     sreg_t pc = get_pc();
-
-    intptr_t external =
-        reinterpret_cast<intptr_t>(redirection->external_function());
 
     if (fp_call) {
       double dval0, dval1;  // one or two double parameters
@@ -3169,19 +3329,22 @@ void Simulator::SoftwareInterrupt() {
           case ExternalReference::BUILTIN_FP_FP_CALL:
           case ExternalReference::BUILTIN_COMPARE_CALL:
             PrintF("Call to host function %s at %p with args %f, %f",
-                   ExternalReferenceTable::NameOfIsolateIndependentAddress(pc),
+                   ExternalReferenceTable::NameOfIsolateIndependentAddress(
+                       pc, IsolateGroup::current()->external_ref_table()),
                    reinterpret_cast<void*>(FUNCTION_ADDR(generic_target)),
                    dval0, dval1);
             break;
           case ExternalReference::BUILTIN_FP_CALL:
             PrintF("Call to host function %s at %p with arg %f",
-                   ExternalReferenceTable::NameOfIsolateIndependentAddress(pc),
+                   ExternalReferenceTable::NameOfIsolateIndependentAddress(
+                       pc, IsolateGroup::current()->external_ref_table()),
                    reinterpret_cast<void*>(FUNCTION_ADDR(generic_target)),
                    dval0);
             break;
           case ExternalReference::BUILTIN_FP_INT_CALL:
             PrintF("Call to host function %s at %p with args %f, %d",
-                   ExternalReferenceTable::NameOfIsolateIndependentAddress(pc),
+                   ExternalReferenceTable::NameOfIsolateIndependentAddress(
+                       pc, IsolateGroup::current()->external_ref_table()),
                    reinterpret_cast<void*>(FUNCTION_ADDR(generic_target)),
                    dval0, ival);
             break;
@@ -3255,7 +3418,8 @@ void Simulator::SoftwareInterrupt() {
       // void f(v8::FunctionCallbackInfo&)
       if (v8_flags.trace_sim) {
         PrintF("Call to host function %s at %p args %08" REGIx_FORMAT " \n",
-               ExternalReferenceTable::NameOfIsolateIndependentAddress(pc),
+               ExternalReferenceTable::NameOfIsolateIndependentAddress(
+                   pc, IsolateGroup::current()->external_ref_table()),
                reinterpret_cast<void*>(external), arg0);
       }
       SimulatorRuntimeDirectApiCall target =
@@ -3274,20 +3438,24 @@ void Simulator::SoftwareInterrupt() {
           reinterpret_cast<SimulatorRuntimeDirectGetterCall>(external);
       target(arg0, arg1);
     } else {
-      DCHECK(
-          redirection->type() == ExternalReference::BUILTIN_CALL ||
-          redirection->type() == ExternalReference::BUILTIN_CALL_PAIR ||
-          // FAST_C_CALL is temporarily handled here as well, because we lack
-          // proper support for direct C calls with FP params in the simulator.
-          // The generic BUILTIN_CALL path assumes all parameters are passed in
-          // the GP registers, thus supporting calling the slow callback without
-          // crashing. The reason for that is that in the mjsunit tests we check
-          // the `fast_c_api.supports_fp_params` (which is false on
-          // non-simulator builds for arm/arm64), thus we expect that the slow
-          // path will be called. And since the slow path passes the arguments
-          // as a `const FunctionCallbackInfo<Value>&` (which is a GP argument),
-          // the call is made correctly.
-          redirection->type() == ExternalReference::FAST_C_CALL);
+#ifdef V8_TARGET_ARCH_RISCV64
+      DCHECK(redirection->type() == ExternalReference::BUILTIN_CALL ||
+             redirection->type() == ExternalReference::BUILTIN_CALL_PAIR);
+#else   // V8_TARGET_ARCH_RISCV32
+        //  FAST_C_CALL is temporarily handled here as well, because we lack
+        //  proper support for direct C calls with FP params in the simulator.
+        //  The generic BUILTIN_CALL path assumes all parameters are passed in
+        //  the GP registers, thus supporting calling the slow callback without
+        //  crashing. The reason for that is that in the mjsunit tests we check
+        //  the `fast_c_api.supports_fp_params` (which is false on non-simulator
+        //  builds for arm/arm64), thus we expect that the slow path will be
+        //  called. And since the slow path passes the arguments as a `const
+        //  FunctionCallbackInfo<Value>&` (which is a GP argument), the call is
+        //  made correctly.
+      DCHECK(redirection->type() == ExternalReference::BUILTIN_CALL ||
+             redirection->type() == ExternalReference::BUILTIN_CALL_PAIR ||
+             redirection->type() == ExternalReference::FAST_C_CALL);
+#endif  // V8_TARGET_ARCH_RISCV64
       SimulatorRuntimeCall target =
           reinterpret_cast<SimulatorRuntimeCall>(external);
       if (v8_flags.trace_sim) {
@@ -3300,7 +3468,8 @@ void Simulator::SoftwareInterrupt() {
             " , %016" REGIx_FORMAT " , %016" REGIx_FORMAT " , %016" REGIx_FORMAT
             " , %016" REGIx_FORMAT " , %016" REGIx_FORMAT " , %016" REGIx_FORMAT
             " , %016" REGIx_FORMAT " , %016" REGIx_FORMAT " \n",
-            ExternalReferenceTable::NameOfIsolateIndependentAddress(pc),
+            ExternalReferenceTable::NameOfIsolateIndependentAddress(
+                pc, IsolateGroup::current()->external_ref_table()),
             reinterpret_cast<void*>(FUNCTION_ADDR(target)), arg0, arg1, arg2,
             arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12,
             arg13, arg14, arg15, arg16, arg17, arg18, arg19);
@@ -3557,6 +3726,18 @@ void Simulator::DecodeRVRType() {
       set_rd(rs2() + (zext32(rs1()) << 3));
       break;
     }
+    case RO_ROLW: {
+      reg_t extz_rs1 = zext32(rs1());
+      sreg_t shamt = rs2() & 31;
+      set_rd(sext32((extz_rs1 << shamt) | (extz_rs1 >> (32 - shamt))));
+      break;
+    }
+    case RO_RORW: {
+      reg_t extz_rs1 = zext32(rs1());
+      sreg_t shamt = rs2() & 31;
+      set_rd(sext32((extz_rs1 >> shamt) | (extz_rs1 << (32 - shamt))));
+      break;
+    }
 #endif /* V8_TARGET_ARCH_RISCV64 */
       // TODO(riscv): Add RISCV M extension macro
     case RO_MUL: {
@@ -3693,6 +3874,16 @@ void Simulator::DecodeRVRType() {
     case RO_ZEXTH:
       set_rd(zext_xlen(uint16_t(rs1())));
       break;
+    case RO_ROL: {
+      sreg_t shamt = rs2() & (xlen - 1);
+      set_rd((reg_t(rs1()) << shamt) | (reg_t(rs1()) >> (xlen - shamt)));
+      break;
+    }
+    case RO_ROR: {
+      sreg_t shamt = rs2() & (xlen - 1);
+      set_rd((reg_t(rs1()) >> shamt) | (reg_t(rs1()) << (xlen - shamt)));
+      break;
+    }
     case RO_BCLR: {
       sreg_t index = rs2() & (xlen - 1);
       set_rd(rs1() & ~(1l << index));
@@ -3713,7 +3904,16 @@ void Simulator::DecodeRVRType() {
       set_rd(rs1() | (1 << index));
       break;
     }
-      // TODO(riscv): End Add RISCV M extension macro
+    case RO_CZERO_EQZ: {
+      sreg_t condition = rs2();
+      set_rd(condition == 0 ? 0 : rs1());
+      break;
+    }
+    case RO_CZERO_NEZ: {
+      sreg_t condition = rs2();
+      set_rd(condition != 0 ? 0 : rs1());
+      break;
+    }
     default: {
       switch (instr_.BaseOpcode()) {
         case AMO:
@@ -3977,21 +4177,25 @@ void Simulator::DecodeRVRAType() {
   // Memory address lock or other synchronizaiton behaviors.
   switch (instr_.InstructionBits() & kRATypeMask) {
     case RO_LR_W: {
-      base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
       sreg_t addr = rs1();
-      if ((addr & 0x3) != 0) {
-        DieOrDebug();
+      if (!ProbeMemory(addr, sizeof(int32_t))) return;
+      {
+        base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+        if ((addr & 0x3) != 0) {
+          DieOrDebug();
+        }
+        auto val = ReadMem<int32_t>(addr, instr_.instr());
+        set_rd(sext32(val), false);
+        TraceMemRd(addr, val, get_register(rd_reg()));
+        local_monitor_.NotifyLoadLinked(addr, TransactionSize::Word);
+        GlobalMonitor::Get()->NotifyLoadLinked_Locked(addr,
+                                                      &global_monitor_thread_);
       }
-      auto val = ReadMem<int32_t>(addr, instr_.instr());
-      set_rd(sext32(val), false);
-      TraceMemRd(addr, val, get_register(rd_reg()));
-      local_monitor_.NotifyLoadLinked(addr, TransactionSize::Word);
-      GlobalMonitor::Get()->NotifyLoadLinked_Locked(addr,
-                                                    &global_monitor_thread_);
       break;
     }
     case RO_SC_W: {
       sreg_t addr = rs1();
+      if (!ProbeMemory(addr, sizeof(int32_t))) return;
       if ((addr & 0x3) != 0) {
         DieOrDebug();
       }
@@ -4091,18 +4295,22 @@ void Simulator::DecodeRVRAType() {
     }
 #ifdef V8_TARGET_ARCH_RISCV64
     case RO_LR_D: {
-      base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
       int64_t addr = rs1();
-      auto val = ReadMem<int64_t>(addr, instr_.instr());
-      set_rd(val, false);
-      TraceMemRd(addr, val, get_register(rd_reg()));
-      local_monitor_.NotifyLoadLinked(addr, TransactionSize::DoubleWord);
-      GlobalMonitor::Get()->NotifyLoadLinked_Locked(addr,
-                                                    &global_monitor_thread_);
-      break;
+      if (!ProbeMemory(addr, sizeof(int64_t))) return;
+      {
+        base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+        auto val = ReadMem<int64_t>(addr, instr_.instr());
+        set_rd(val, false);
+        TraceMemRd(addr, val, get_register(rd_reg()));
+        local_monitor_.NotifyLoadLinked(addr, TransactionSize::DoubleWord);
+        GlobalMonitor::Get()->NotifyLoadLinked_Locked(addr,
+                                                      &global_monitor_thread_);
+        break;
+      }
     }
     case RO_SC_D: {
       int64_t addr = rs1();
+      if (!ProbeMemory(addr, sizeof(int64_t))) return;
       base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
       if (local_monitor_.NotifyStoreConditional(addr,
                                                 TransactionSize::DoubleWord) &&
@@ -4935,6 +5143,7 @@ void Simulator::DecodeRVIType() {
     }
     case RO_LB: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int8_t))) return;
       int8_t val = ReadMem<int8_t>(addr, instr_.instr());
       set_rd(sext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -4942,6 +5151,7 @@ void Simulator::DecodeRVIType() {
     }
     case RO_LH: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int16_t))) return;
       int16_t val = ReadMem<int16_t>(addr, instr_.instr());
       set_rd(sext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -4949,6 +5159,7 @@ void Simulator::DecodeRVIType() {
     }
     case RO_LW: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int32_t))) return;
       int32_t val = ReadMem<int32_t>(addr, instr_.instr());
       set_rd(sext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -4956,6 +5167,7 @@ void Simulator::DecodeRVIType() {
     }
     case RO_LBU: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int8_t))) return;
       uint8_t val = ReadMem<uint8_t>(addr, instr_.instr());
       set_rd(zext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -4963,6 +5175,7 @@ void Simulator::DecodeRVIType() {
     }
     case RO_LHU: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int16_t))) return;
       uint16_t val = ReadMem<uint16_t>(addr, instr_.instr());
       set_rd(zext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -4971,6 +5184,7 @@ void Simulator::DecodeRVIType() {
 #ifdef V8_TARGET_ARCH_RISCV64
     case RO_LWU: {
       int64_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int32_t))) return;
       uint32_t val = ReadMem<uint32_t>(addr, instr_.instr());
       set_rd(zext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -4978,6 +5192,7 @@ void Simulator::DecodeRVIType() {
     }
     case RO_LD: {
       int64_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(int64_t))) return;
       int64_t val = ReadMem<int64_t>(addr, instr_.instr());
       set_rd(sext_xlen(val), false);
       TraceMemRd(addr, val, get_register(rd_reg()));
@@ -5099,6 +5314,29 @@ void Simulator::DecodeRVIType() {
           set_rd((rs1() >> index) & 1);
           break;
         }
+        case RO_ORCB&(kFunct6Mask | OP_SHR): {
+          reg_t rs1_val = rs1();
+          reg_t result = 0;
+          reg_t mask = 0xFF;
+          reg_t step = 8;
+          for (reg_t i = 0; i < xlen; i += step) {
+            if ((rs1_val & mask) != 0) {
+              result |= mask;
+            }
+            mask <<= step;
+          }
+          set_rd(result);
+          break;
+        }
+        case RO_RORI: {
+#ifdef V8_TARGET_ARCH_RISCV64
+          int16_t shamt = shamt6();
+#else
+          int16_t shamt = shamt5();
+#endif
+          set_rd((reg_t(rs1()) >> shamt) | (reg_t(rs1()) << (xlen - shamt)));
+          break;
+        }
         case RO_REV8: {
           if (imm12() == RO_REV8_IMM12) {
             reg_t input = rs1();
@@ -5184,6 +5422,12 @@ void Simulator::DecodeRVIType() {
         case RO_SRAIW:
           set_rd(sext32(int32_t(rs1()) >> shamt5()));
           break;
+        case RO_RORIW: {
+          reg_t extz_rs1 = zext32(rs1());
+          int16_t shamt = shamt5();
+          set_rd(sext32((extz_rs1 >> shamt) | (extz_rs1 << (32 - shamt))));
+          break;
+        }
         default:
           UNSUPPORTED_RISCV();
       }
@@ -5255,6 +5499,7 @@ void Simulator::DecodeRVIType() {
     // TODO(riscv): use F Extension macro block
     case RO_FLW: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(float))) return;
       uint32_t val = ReadMem<uint32_t>(addr, instr_.instr());
       set_frd(Float32::FromBits(val), false);
       TraceMemRdFloat(addr, Float32::FromBits(val),
@@ -5264,6 +5509,7 @@ void Simulator::DecodeRVIType() {
     // TODO(riscv): use D Extension macro block
     case RO_FLD: {
       sreg_t addr = rs1() + imm12();
+      if (!ProbeMemory(addr, sizeof(double))) return;
       uint64_t val = ReadMem<uint64_t>(addr, instr_.instr());
       set_drd(Float64::FromBits(val), false);
       TraceMemRdDouble(addr, Float64::FromBits(val),
@@ -5286,21 +5532,26 @@ void Simulator::DecodeRVIType() {
 void Simulator::DecodeRVSType() {
   switch (instr_.InstructionBits() & kSTypeMask) {
     case RO_SB:
+      if (!ProbeMemory(rs1() + s_imm12(), sizeof(int8_t))) return;
       WriteMem<uint8_t>(rs1() + s_imm12(), (uint8_t)rs2(), instr_.instr());
       break;
     case RO_SH:
+      if (!ProbeMemory(rs1() + s_imm12(), sizeof(int16_t))) return;
       WriteMem<uint16_t>(rs1() + s_imm12(), (uint16_t)rs2(), instr_.instr());
       break;
     case RO_SW:
+      if (!ProbeMemory(rs1() + s_imm12(), sizeof(int32_t))) return;
       WriteMem<uint32_t>(rs1() + s_imm12(), (uint32_t)rs2(), instr_.instr());
       break;
 #ifdef V8_TARGET_ARCH_RISCV64
     case RO_SD:
+      if (!ProbeMemory(rs1() + s_imm12(), sizeof(int64_t))) return;
       WriteMem<uint64_t>(rs1() + s_imm12(), (uint64_t)rs2(), instr_.instr());
       break;
 #endif /*V8_TARGET_ARCH_RISCV64*/
     // TODO(riscv): use F Extension macro block
     case RO_FSW: {
+      if (!ProbeMemory(rs1() + s_imm12(), sizeof(float))) return;
       WriteMem<Float32>(rs1() + s_imm12(),
                         get_fpu_register_Float32(rs2_reg(), false),
                         instr_.instr());
@@ -5308,6 +5559,7 @@ void Simulator::DecodeRVSType() {
     }
     // TODO(riscv): use D Extension macro block
     case RO_FSD: {
+      if (!ProbeMemory(rs1() + s_imm12(), sizeof(double))) return;
       WriteMem<Float64>(rs1() + s_imm12(), get_fpu_register_Float64(rs2_reg()),
                         instr_.instr());
       break;
@@ -7777,6 +8029,7 @@ void Simulator::DecodeVType() {
       avl = avl <= rvv_vlmax() ? avl : rvv_vlmax();
       set_rvv_vl(avl);
       set_rd(rvv_vl());
+      set_rvv_vstart(0);
       rvv_trace_status();
       break;
     }
@@ -7924,7 +8177,7 @@ void Simulator::InstructionDecode(Instruction* instr) {
     // Object obj(*watch_address_);
     // Heap* current_heap = isolate_->heap();
     // if (obj.IsSmi() || IsValidHeapObject(current_heap,
-    // HeapObject::cast(obj))) {
+    // Cast<HeapObject>(obj))) {
     //   PrintF(" (");
     //   if (obj.IsSmi()) {
     //     PrintF("smi %d", Smi::ToInt(obj));
@@ -8040,11 +8293,58 @@ void Simulator::CallInternal(Address entry) {
   set_register(sp, sp_val);
 }
 
+#ifdef V8_TARGET_ARCH_RISCV64
+void Simulator::CallImpl(Address entry, CallArgument* args) {
+  int index_gp = 0;
+  int index_fp = 0;
+  std::vector<int64_t> stack_args(0);
+  for (int i = 0; !args[i].IsEnd(); i++) {
+    CallArgument arg = args[i];
+    if (arg.IsGP() && (index_gp < 8)) {
+      set_register(index_gp + kRegCode_a0, arg.bits());
+      index_gp++;
+    } else if (arg.IsFP() && (index_fp < 8)) {
+      set_fpu_register(index_fp + kDoubleCode_fa0, arg.bits());
+      index_fp++;
+    } else {
+      DCHECK(arg.IsFP() || arg.IsGP());
+      stack_args.push_back(arg.bits());
+    }
+  }
+  if (v8_flags.trace_sim) {
+    std::cout << "CallImpl: reg_arg_count = " << index_fp + index_gp << std::hex
+              << " entry-pc (JSEntry) = 0x" << entry
+              << " a0 (Isolate-root) = 0x" << get_register(a0)
+              << " a1 (orig_func/new_target) = 0x" << get_register(a1)
+              << " a2 (func/target) = 0x" << get_register(a2)
+              << " a3 (receiver) = 0x" << get_register(a3) << " a4 (argc) = 0x"
+              << get_register(a4) << " a5 (argv) = 0x" << get_register(a5)
+              << std::endl;
+  }
+  // Remaining arguments passed on stack.
+  int64_t original_stack = get_register(sp);
+  // Compute position of stack on entry to generated code.
+  int64_t stack_args_size =
+      stack_args.size() * sizeof(stack_args[0]) + kCArgsSlotsSize;
+  int64_t entry_stack = original_stack - stack_args_size;
+  if (base::OS::ActivationFrameAlignment() != 0) {
+    entry_stack &= -base::OS::ActivationFrameAlignment();
+  }
+  // Store remaining arguments on stack, from low to high memory.
+  char* stack_argument = reinterpret_cast<char*>(entry_stack);
+  memcpy(stack_argument + kCArgSlotCount, stack_args.data(),
+         stack_args.size() * sizeof(int64_t));
+  set_register(sp, entry_stack);
+  CallInternal(entry);
+  // Pop stack passed arguments.
+  CHECK_EQ(entry_stack, get_register(sp));
+  set_register(sp, original_stack);
+}
+#else
 intptr_t Simulator::CallImpl(Address entry, int argument_count,
                              const intptr_t* arguments) {
   constexpr int kRegisterPassedArguments = 8;
   // Set up arguments.
-
   // RISC-V 64G ISA has a0-a7 for passing arguments
   int reg_arg_count = std::min(kRegisterPassedArguments, argument_count);
   if (reg_arg_count > 0) set_register(a0, arguments[0]);
@@ -8055,7 +8355,6 @@ intptr_t Simulator::CallImpl(Address entry, int argument_count,
   if (reg_arg_count > 5) set_register(a5, arguments[5]);
   if (reg_arg_count > 6) set_register(a6, arguments[6]);
   if (reg_arg_count > 7) set_register(a7, arguments[7]);
-
   if (v8_flags.trace_sim) {
     std::cout << "CallImpl: reg_arg_count = " << reg_arg_count << std::hex
               << " entry-pc (JSEntry) = 0x" << entry
@@ -8066,14 +8365,12 @@ intptr_t Simulator::CallImpl(Address entry, int argument_count,
               << get_register(a4) << " a5 (argv) = 0x" << get_register(a5)
               << std::endl;
   }
-
   // Remaining arguments passed on stack.
   sreg_t original_stack = get_register(sp);
   // Compute position of stack on entry to generated code.
   int stack_args_count = argument_count - reg_arg_count;
   int stack_args_size = stack_args_count * sizeof(*arguments) + kCArgsSlotsSize;
   sreg_t entry_stack = original_stack - stack_args_size;
-
   if (base::OS::ActivationFrameAlignment() != 0) {
     entry_stack &= -base::OS::ActivationFrameAlignment();
   }
@@ -8082,17 +8379,15 @@ intptr_t Simulator::CallImpl(Address entry, int argument_count,
   memcpy(stack_argument + kCArgSlotCount, arguments + reg_arg_count,
          stack_args_count * sizeof(*arguments));
   set_register(sp, entry_stack);
-
   CallInternal(entry);
-
   // Pop stack passed arguments.
   CHECK_EQ(entry_stack, get_register(sp));
   set_register(sp, original_stack);
-
   // return get_register(a0);
   // RISCV uses a0 to return result
   return get_register(a0);
 }
+#endif  // V8_TARGET_ARCH_RISCV64
 
 double Simulator::CallFP(Address entry, double d0, double d1) {
   set_fpu_register_double(fa0, d0);
@@ -8290,6 +8585,7 @@ void Simulator::GlobalMonitor::RemoveLinkedAddress(
 }
 
 #undef SScanF
+#undef BRACKETS
 
 }  // namespace internal
 }  // namespace v8

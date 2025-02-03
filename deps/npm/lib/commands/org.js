@@ -1,7 +1,7 @@
 const liborg = require('libnpmorg')
-const otplease = require('../utils/otplease.js')
-const Table = require('cli-table3')
-const BaseCommand = require('../base-command.js')
+const { otplease } = require('../utils/auth.js')
+const BaseCommand = require('../base-cmd.js')
+const { output } = require('proc-log')
 
 class Org extends BaseCommand {
   static description = 'Manage orgs'
@@ -61,21 +61,20 @@ class Org extends BaseCommand {
 
     if (!['owner', 'admin', 'developer'].find(x => x === role)) {
       throw new Error(
-        /* eslint-disable-next-line max-len */
         'Third argument `role` must be one of `owner`, `admin`, or `developer`, with `developer` being the default value if omitted.'
       )
     }
 
     const memDeets = await liborg.set(org, user, role, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify(memDeets, null, 2))
+      output.standard(JSON.stringify(memDeets, null, 2))
     } else if (opts.parseable) {
-      this.npm.output(['org', 'orgsize', 'user', 'role'].join('\t'))
-      this.npm.output(
+      output.standard(['org', 'orgsize', 'user', 'role'].join('\t'))
+      output.standard(
         [memDeets.org.name, memDeets.org.size, memDeets.user, memDeets.role].join('\t')
       )
     } else if (!this.npm.silent) {
-      this.npm.output(
+      output.standard(
         `Added ${memDeets.user} as ${memDeets.role} to ${memDeets.org.name}. You now have ${
             memDeets.org.size
           } member${memDeets.org.size === 1 ? '' : 's'} in this org.`
@@ -100,19 +99,17 @@ class Org extends BaseCommand {
     org = org.replace(/^[~@]?/, '')
     const userCount = Object.keys(roster).length
     if (opts.json) {
-      this.npm.output(
-        JSON.stringify({
-          user,
-          org,
-          userCount,
-          deleted: true,
-        })
-      )
+      output.buffer({
+        user,
+        org,
+        userCount,
+        deleted: true,
+      })
     } else if (opts.parseable) {
-      this.npm.output(['user', 'org', 'userCount', 'deleted'].join('\t'))
-      this.npm.output([user, org, userCount, true].join('\t'))
+      output.standard(['user', 'org', 'userCount', 'deleted'].join('\t'))
+      output.standard([user, org, userCount, true].join('\t'))
     } else if (!this.npm.silent) {
-      this.npm.output(
+      output.standard(
         `Successfully removed ${user} from ${org}. You now have ${userCount} member${
           userCount === 1 ? '' : 's'
         } in this org.`
@@ -135,21 +132,19 @@ class Org extends BaseCommand {
       roster = newRoster
     }
     if (opts.json) {
-      this.npm.output(JSON.stringify(roster, null, 2))
+      output.buffer(roster)
     } else if (opts.parseable) {
-      this.npm.output(['user', 'role'].join('\t'))
+      output.standard(['user', 'role'].join('\t'))
       Object.keys(roster).forEach(u => {
-        this.npm.output([u, roster[u]].join('\t'))
+        output.standard([u, roster[u]].join('\t'))
       })
     } else if (!this.npm.silent) {
-      const table = new Table({ head: ['user', 'role'] })
-      Object.keys(roster)
-        .sort()
-        .forEach(u => {
-          table.push([u, roster[u]])
-        })
-      this.npm.output(table.toString())
+      const chalk = this.npm.chalk
+      for (const u of Object.keys(roster).sort()) {
+        output.standard(`${u} - ${chalk.cyan(roster[u])}`)
+      }
     }
   }
 }
+
 module.exports = Org

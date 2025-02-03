@@ -19,6 +19,7 @@ limitations under the License.
 const error_1 = require("../../error");
 const tsa_1 = require("../../external/tsa");
 const util_1 = require("../../util");
+const SHA256_ALGORITHM = 'sha256';
 class TSAClient {
     constructor(options) {
         this.tsa = new tsa_1.TimestampAuthority({
@@ -29,8 +30,10 @@ class TSAClient {
     }
     async createTimestamp(signature) {
         const request = {
-            artifactHash: util_1.crypto.hash(signature).toString('base64'),
-            hashAlgorithm: 'sha256',
+            artifactHash: util_1.crypto
+                .digest(SHA256_ALGORITHM, signature)
+                .toString('base64'),
+            hashAlgorithm: SHA256_ALGORITHM,
         };
         try {
             return await this.tsa.createTimestamp(request);

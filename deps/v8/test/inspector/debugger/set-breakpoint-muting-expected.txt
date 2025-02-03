@@ -1,0 +1,90 @@
+Checks that conditional breakpoints can mute other break reasons.
+
+Running test: testCase
+> Testing pause muting in function rejectInPromiseConstructor() {
+  return new Promise((pass, reject) => reject('f'));
+}
+Paused on promiseRejection
+(anonymous) (breaking-functions.js:10:39)
+rejectInPromiseConstructor (breaking-functions.js:10:9)
+(anonymous) (:0:0)
+
+> Running again with location 10:39 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function promiseReject() {
+  return Promise.reject('f');
+}
+Paused on promiseRejection
+promiseReject (breaking-functions.js:14:17)
+(anonymous) (:0:0)
+
+> Running again with location 14:17 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function throwStatement() {
+  throw 'f';
+}
+Paused on exception
+throwStatement (breaking-functions.js:18:2)
+(anonymous) (:0:0)
+
+> Running again with location 18:2 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function debuggerStatement() {
+  debugger;
+}
+Paused on other
+debuggerStatement (breaking-functions.js:22:2)
+(anonymous) (:0:0)
+
+> Running again with location 22:2 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function runtimeError(unused) {
+  unused.x();
+}
+Paused on exception
+runtimeError (breaking-functions.js:26:9)
+(anonymous) (:0:0)
+
+> Running again with location 26:9 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function runtimeFunctionThrows() {
+  return JSON.parse('}');
+}
+Paused on exception
+runtimeFunctionThrows (breaking-functions.js:30:14)
+(anonymous) (:0:0)
+
+> Running again with location 30:14 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function domBreakpoint() {
+  inspector.breakProgram('DOM', '');
+}
+Paused on DOM
+domBreakpoint (breaking-functions.js:34:12)
+(anonymous) (:0:0)
+
+> Running again with location 34:12 muted
+console: log instead of break
+
+Running test: testCase
+> Testing pause muting in function badConstructor() {
+  Set();  // Requires new
+}
+Paused on exception
+badConstructor (breaking-functions.js:38:2)
+(anonymous) (:0:0)
+
+> Running again with location 38:2 muted
+console: log instead of break

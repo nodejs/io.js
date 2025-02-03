@@ -27,6 +27,7 @@
 #include <type_traits>  // std::remove_reference
 #include "base_object_types.h"
 #include "memory_tracker.h"
+#include "util.h"
 #include "v8.h"
 
 namespace node {
@@ -84,6 +85,11 @@ class BaseObject : public MemoryRetainer {
   static inline BaseObject* FromJSObject(v8::Local<v8::Value> object);
   template <typename T>
   static inline T* FromJSObject(v8::Local<v8::Value> object);
+  // Global alias for FromJSObject() to avoid churn.
+  template <typename T>
+  static inline T* Unwrap(v8::Local<v8::Value> obj) {
+    return BaseObject::FromJSObject<T>(obj);
+  }
 
   // Make the `v8::Global` a weak reference and, `delete` this object once
   // the JS object has been garbage collected and there are no (strong)
@@ -111,12 +117,9 @@ class BaseObject : public MemoryRetainer {
 
   // Setter/Getter pair for internal fields that can be passed to SetAccessor.
   template <int Field>
-  static void InternalFieldGet(v8::Local<v8::String> property,
-                               const v8::PropertyCallbackInfo<v8::Value>& info);
+  static void InternalFieldGet(const v8::FunctionCallbackInfo<v8::Value>& args);
   template <int Field, bool (v8::Value::*typecheck)() const>
-  static void InternalFieldSet(v8::Local<v8::String> property,
-                               v8::Local<v8::Value> value,
-                               const v8::PropertyCallbackInfo<void>& info);
+  static void InternalFieldSet(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   // This is a bit of a hack. See the override in async_wrap.cc for details.
   virtual bool IsDoneInitializing() const;
@@ -176,7 +179,7 @@ class BaseObject : public MemoryRetainer {
   virtual std::unique_ptr<worker::TransferData> CloneForMessaging() const;
   virtual v8::Maybe<std::vector<BaseObjectPtrImpl<BaseObject, false>>>
       NestedTransferables() const;
-  virtual v8::Maybe<bool> FinalizeTransferRead(
+  virtual v8::Maybe<void> FinalizeTransferRead(
       v8::Local<v8::Context> context, v8::ValueDeserializer* deserializer);
 
   // Indicates whether this object is expected to use a strong reference during
@@ -190,7 +193,7 @@ class BaseObject : public MemoryRetainer {
  private:
   v8::Local<v8::Object> WrappedObject() const override;
   bool IsRootNode() const override;
-  static void DeleteMe(void* data);
+  void DeleteMe();
 
   // persistent_handle_ needs to be at a fixed offset from the start of the
   // class because it is used by src/node_postmortem_metadata.cc to calculate
@@ -235,13 +238,21 @@ class BaseObject : public MemoryRetainer {
 
   Realm* realm_;
   PointerData* pointer_data_ = nullptr;
+  ListNode<BaseObject> base_object_list_node_;
+
+  friend class BaseObjectList;
 };
 
-// Global alias for FromJSObject() to avoid churn.
-template <typename T>
-inline T* Unwrap(v8::Local<v8::Value> obj) {
-  return BaseObject::FromJSObject<T>(obj);
-}
+class BaseObjectList
+    : public ListHead<BaseObject, &BaseObject::base_object_list_node_>,
+      public MemoryRetainer {
+ public:
+  void Cleanup();
+
+  SET_MEMORY_INFO_NAME(BaseObjectList)
+  SET_SELF_SIZE(BaseObjectList)
+  void MemoryInfo(node::MemoryTracker* tracker) const override;
+};
 
 #define ASSIGN_OR_RETURN_UNWRAP(ptr, obj, ...)                                 \
   do {                                                                         \

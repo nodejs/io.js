@@ -1,7 +1,7 @@
 'use strict'
 
 const eu = encodeURIComponent
-const fetch = require('npm-registry-fetch')
+const npmFetch = require('npm-registry-fetch')
 const validate = require('aproba')
 
 // From https://github.com/npm/registry/blob/master/docs/orgs/memberships.md
@@ -19,7 +19,7 @@ cmd.set = (org, user, role, opts = {}) => {
   validate('SSSO|SSZO', [org, user, role, opts])
   user = user.replace(/^@?/, '')
   org = org.replace(/^@?/, '')
-  return fetch.json(`/-/org/${eu(org)}/user`, {
+  return npmFetch.json(`/-/org/${eu(org)}/user`, {
     ...opts,
     method: 'PUT',
     body: { user, role },
@@ -30,7 +30,7 @@ cmd.rm = (org, user, opts = {}) => {
   validate('SSO', [org, user, opts])
   user = user.replace(/^@?/, '')
   org = org.replace(/^@?/, '')
-  return fetch(`/-/org/${eu(org)}/user`, {
+  return npmFetch(`/-/org/${eu(org)}/user`, {
     ...opts,
     method: 'DELETE',
     body: { user },
@@ -55,7 +55,7 @@ cmd.ls = (org, opts = {}) => {
 cmd.ls.stream = (org, opts = {}) => {
   validate('SO', [org, opts])
   org = org.replace(/^@?/, '')
-  return fetch.json.stream(`/-/org/${eu(org)}/user`, '*', {
+  return npmFetch.json.stream(`/-/org/${eu(org)}/user`, '*', {
     ...opts,
     mapJSON: (value, [key]) => {
       return [key, value]

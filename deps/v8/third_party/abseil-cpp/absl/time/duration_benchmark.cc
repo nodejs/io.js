@@ -290,6 +290,26 @@ void BM_Duration_IDivDuration_Hours(benchmark::State& state) {
 }
 BENCHMARK(BM_Duration_IDivDuration_Hours);
 
+void BM_Duration_Modulo(benchmark::State& state) {
+  int i = 0;
+  while (state.KeepRunning()) {
+    auto mod = absl::Seconds(i) % absl::Nanoseconds(12345);
+    benchmark::DoNotOptimize(mod);
+    ++i;
+  }
+}
+BENCHMARK(BM_Duration_Modulo);
+
+void BM_Duration_Modulo_FastPath(benchmark::State& state) {
+  int i = 0;
+  while (state.KeepRunning()) {
+    auto mod = absl::Seconds(i) % absl::Milliseconds(1);
+    benchmark::DoNotOptimize(mod);
+    ++i;
+  }
+}
+BENCHMARK(BM_Duration_Modulo_FastPath);
+
 void BM_Duration_ToInt64Nanoseconds(benchmark::State& state) {
   absl::Duration d = absl::Seconds(100000);
   while (state.KeepRunning()) {

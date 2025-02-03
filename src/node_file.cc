@@ -30,6 +30,7 @@
 #include "node_process-inl.h"
 #include "node_stat_watcher.h"
 #include "node_url.h"
+#include "path.h"
 #include "permission/permission.h"
 #include "util-inl.h"
 
@@ -39,9 +40,18 @@
 #include "stream_base-inl.h"
 #include "string_bytes.h"
 #include "uv.h"
+#include "v8-fast-api-calls.h"
+
+#include <filesystem>
 
 #if defined(__MINGW32__) || defined(_MSC_VER)
 # include <io.h>
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace node {
@@ -52,6 +62,8 @@ using v8::Array;
 using v8::BigInt;
 using v8::Context;
 using v8::EscapableHandleScope;
+using v8::FastApiCallbackOptions;
+using v8::FastOneByteString;
 using v8::Function;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
@@ -61,6 +73,7 @@ using v8::Integer;
 using v8::Isolate;
 using v8::JustVoid;
 using v8::Local;
+using v8::LocalVector;
 using v8::Maybe;
 using v8::MaybeLocal;
 using v8::Nothing;
@@ -81,29 +94,6 @@ constexpr char kPathSeparator = '/';
 #else
 const char* const kPathSeparator = "\\/";
 #endif
-
-std::string Basename(const std::string& str, const std::string& extension) {
-  // Remove everything leading up to and including the final path separator.
-  std::string::size_type pos = str.find_last_of(kPathSeparator);
-
-  // Starting index for the resulting string
-  std::size_t start_pos = 0;
-  // String size to return
-  std::size_t str_size = str.size();
-  if (pos != std::string::npos) {
-    start_pos = pos + 1;
-    str_size -= start_pos;
-  }
-
-  // Strip away the extension, if any.
-  if (str_size >= extension.size() &&
-      str.compare(str.size() - extension.size(),
-        extension.size(), extension) == 0) {
-    str_size -= extension.size();
-  }
-
-  return str.substr(start_pos, str_size);
-}
 
 inline int64_t GetOffset(Local<Value> value) {
   return IsSafeJsInt(value) ? value.As<Integer>()->Value() : -1;
@@ -460,7 +450,8 @@ MaybeLocal<Promise> FileHandle::ClosePromise() {
 
   auto maybe_resolver = Promise::Resolver::New(context);
   CHECK(!maybe_resolver.IsEmpty());
-  Local<Promise::Resolver> resolver = maybe_resolver.ToLocalChecked();
+  Local<Promise::Resolver> resolver;
+  if (!maybe_resolver.ToLocal(&resolver)) return {};
   Local<Promise> promise = resolver.As<Promise>();
 
   Local<Object> close_req_obj;
@@ -502,7 +493,7 @@ MaybeLocal<Promise> FileHandle::ClosePromise() {
 
 void FileHandle::Close(const FunctionCallbackInfo<Value>& args) {
   FileHandle* fd;
-  ASSIGN_OR_RETURN_UNWRAP(&fd, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&fd, args.This());
   Local<Promise> ret;
   if (!fd->ClosePromise().ToLocal(&ret)) return;
   args.GetReturnValue().Set(ret);
@@ -511,7 +502,7 @@ void FileHandle::Close(const FunctionCallbackInfo<Value>& args) {
 
 void FileHandle::ReleaseFD(const FunctionCallbackInfo<Value>& args) {
   FileHandle* fd;
-  ASSIGN_OR_RETURN_UNWRAP(&fd, args.Holder());
+  ASSIGN_OR_RETURN_UNWRAP(&fd, args.This());
   fd->Release();
 }
 
@@ -843,7 +834,6 @@ void AfterMkdirp(uv_fs_t* req) {
     std::string first_path(req_wrap->continuation_data()->first_path());
     if (first_path.empty())
       return req_wrap->Resolve(Undefined(req_wrap->env()->isolate()));
-    node::url::FromNamespacedPath(&first_path);
     Local<Value> path;
     Local<Value> error;
     if (!StringBytes::Encode(req_wrap->env()->isolate(), first_path.c_str(),
@@ -868,10 +858,12 @@ void AfterStringPath(uv_fs_t* req) {
                                req->path,
                                req_wrap->encoding(),
                                &error);
-    if (link.IsEmpty())
+    if (link.IsEmpty()) {
       req_wrap->Reject(error);
-    else
-      req_wrap->Resolve(link.ToLocalChecked());
+    } else {
+      Local<Value> val;
+      if (link.ToLocal(&val)) req_wrap->Resolve(val);
+    }
   }
 }
 
@@ -888,10 +880,12 @@ void AfterStringPtr(uv_fs_t* req) {
                                static_cast<const char*>(req->ptr),
                                req_wrap->encoding(),
                                &error);
-    if (link.IsEmpty())
+    if (link.IsEmpty()) {
       req_wrap->Reject(error);
-    else
-      req_wrap->Resolve(link.ToLocalChecked());
+    } else {
+      Local<Value> val;
+      if (link.ToLocal(&val)) req_wrap->Resolve(val);
+    }
   }
 }
 
@@ -909,8 +903,8 @@ void AfterScanDir(uv_fs_t* req) {
   Local<Value> error;
   int r;
 
-  std::vector<Local<Value>> name_v;
-  std::vector<Local<Value>> type_v;
+  LocalVector<Value> name_v(isolate);
+  LocalVector<Value> type_v(isolate);
 
   const bool with_file_types = req_wrap->with_file_types();
 
@@ -960,17 +954,23 @@ void Access(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   if (argc > 2) {  // access(path, mode, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);
     CHECK_NOT_NULL(req_wrap_async);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        path.ToStringView());
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_ACCESS, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "access", UTF8, AfterNoArgs,
               uv_fs_access, *path, mode);
   } else {  // access(path, mode)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
     FSReqWrapSync req_wrap_sync("access", *path);
     FS_SYNC_TRACE_BEGIN(access);
     SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_access, *path, mode);
@@ -1011,6 +1011,7 @@ static void ExistsSync(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
 
@@ -1037,24 +1038,51 @@ static void ExistsSync(const FunctionCallbackInfo<Value>& args) {
 // Used to speed up module loading.  Returns 0 if the path refers to
 // a file, 1 when it's a directory or < 0 on error (usually -ENOENT.)
 // The speedup comes from not creating thousands of Stat and Error objects.
+// Do not expose this function through public API as it doesn't hold
+// Permission Model checks.
 static void InternalModuleStat(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
-  CHECK(args[0]->IsString());
-  node::Utf8Value path(env->isolate(), args[0]);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+  CHECK_GE(args.Length(), 2);
+  CHECK(args[1]->IsString());
+  BufferValue path(env->isolate(), args[1]);
+  CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
 
   uv_fs_t req;
   int rc = uv_fs_stat(env->event_loop(), &req, *path, nullptr);
   if (rc == 0) {
     const uv_stat_t* const s = static_cast<const uv_stat_t*>(req.ptr);
-    rc = !!(s->st_mode & S_IFDIR);
+    rc = S_ISDIR(s->st_mode);
   }
   uv_fs_req_cleanup(&req);
 
   args.GetReturnValue().Set(rc);
 }
+
+static int32_t FastInternalModuleStat(
+    Local<Object> unused,
+    Local<Object> recv,
+    const FastOneByteString& input,
+    // NOLINTNEXTLINE(runtime/references) This is V8 api.
+    FastApiCallbackOptions& options) {
+  Environment* env = Environment::GetCurrent(options.isolate);
+  HandleScope scope(env->isolate());
+
+  auto path = std::filesystem::path(input.data, input.data + input.length);
+
+  switch (std::filesystem::status(path).type()) {
+    case std::filesystem::file_type::directory:
+      return 1;
+    case std::filesystem::file_type::regular:
+      return 0;
+    default:
+      return -1;
+  }
+}
+
+v8::CFunction fast_internal_module_stat_(
+    v8::CFunction::Make(FastInternalModuleStat));
 
 constexpr bool is_uv_error_except_no_entry(int result) {
   return result < 0 && result != UV_ENOENT;
@@ -1070,18 +1098,24 @@ static void Stat(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(realm->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   bool use_bigint = args[1]->IsTrue();
   if (!args[2]->IsUndefined()) {  // stat(path, use_bigint, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2, use_bigint);
     CHECK_NOT_NULL(req_wrap_async);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        path.ToStringView());
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_STAT, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "stat", UTF8, AfterStat,
               uv_fs_stat, *path);
   } else {  // stat(path, use_bigint, undefined, do_not_throw_if_no_entry)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
     bool do_not_throw_if_no_entry = args[3]->IsFalse();
     FSReqWrapSync req_wrap_sync("stat", *path);
     FS_SYNC_TRACE_BEGIN(stat);
@@ -1112,6 +1146,7 @@ static void LStat(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(realm->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
 
   bool use_bigint = args[1]->IsTrue();
   if (!args[2]->IsUndefined()) {  // lstat(path, use_bigint, req)
@@ -1191,13 +1226,17 @@ static void StatFs(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(realm->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   bool use_bigint = args[1]->IsTrue();
   if (argc > 2) {  // statfs(path, use_bigint, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2, use_bigint);
     CHECK_NOT_NULL(req_wrap_async);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        path.ToStringView());
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_STATFS, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env,
@@ -1209,6 +1248,8 @@ static void StatFs(const FunctionCallbackInfo<Value>& args) {
               uv_fs_statfs,
               *path);
   } else {  // statfs(path, use_bigint)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
     FSReqWrapSync req_wrap_sync("statfs", *path);
     FS_SYNC_TRACE_BEGIN(statfs);
     int result =
@@ -1244,6 +1285,7 @@ static void Symlink(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[1]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
 
@@ -1278,22 +1320,35 @@ static void Link(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue src(isolate, args[0]);
   CHECK_NOT_NULL(*src);
+  ToNamespacedPath(env, &src);
 
   const auto src_view = src.ToStringView();
-  // To avoid bypass the link target should be allowed to read and write
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, src_view);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, src_view);
 
   BufferValue dest(isolate, args[1]);
   CHECK_NOT_NULL(*dest);
+  ToNamespacedPath(env, &dest);
+
   const auto dest_view = dest.ToStringView();
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, dest_view);
 
   if (argc > 2) {  // link(src, dest, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);
+    // To avoid bypass the link target should be allowed to read and write
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        src_view);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        src_view);
+
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        dest_view);
     FS_ASYNC_TRACE_BEGIN2(UV_FS_LINK,
                           req_wrap_async,
                           "src",
@@ -1303,6 +1358,14 @@ static void Link(const FunctionCallbackInfo<Value>& args) {
     AsyncDestCall(env, req_wrap_async, args, "link", *dest, dest.length(), UTF8,
                   AfterNoArgs, uv_fs_link, *src, *dest);
   } else {  // link(src, dest)
+    // To avoid bypass the link target should be allowed to read and write
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, src_view);
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemWrite, src_view);
+
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemWrite, dest_view);
     FSReqWrapSync req_wrap_sync("link", *src, *dest);
     FS_SYNC_TRACE_BEGIN(link);
     SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_link, *src, *dest);
@@ -1319,6 +1382,7 @@ static void ReadLink(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
 
@@ -1342,16 +1406,15 @@ static void ReadLink(const FunctionCallbackInfo<Value>& args) {
     const char* link_path = static_cast<const char*>(req_wrap_sync.req.ptr);
 
     Local<Value> error;
-    MaybeLocal<Value> rc = StringBytes::Encode(isolate,
-                                               link_path,
-                                               encoding,
-                                               &error);
-    if (rc.IsEmpty()) {
+    Local<Value> ret;
+    if (!StringBytes::Encode(isolate, link_path, encoding, &error)
+             .ToLocal(&ret)) {
+      DCHECK(!error.IsEmpty());
       env->isolate()->ThrowException(error);
       return;
     }
 
-    args.GetReturnValue().Set(rc.ToLocalChecked());
+    args.GetReturnValue().Set(ret);
   }
 }
 
@@ -1364,21 +1427,30 @@ static void Rename(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue old_path(isolate, args[0]);
   CHECK_NOT_NULL(*old_path);
+  ToNamespacedPath(env, &old_path);
   auto view_old_path = old_path.ToStringView();
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, view_old_path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, view_old_path);
 
   BufferValue new_path(isolate, args[1]);
   CHECK_NOT_NULL(*new_path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env,
-      permission::PermissionScope::kFileSystemWrite,
-      new_path.ToStringView());
+  ToNamespacedPath(env, &new_path);
 
   if (argc > 2) {  // rename(old_path, new_path, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        view_old_path);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        view_old_path);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        new_path.ToStringView());
     FS_ASYNC_TRACE_BEGIN2(UV_FS_RENAME,
                           req_wrap_async,
                           "old_path",
@@ -1389,6 +1461,14 @@ static void Rename(const FunctionCallbackInfo<Value>& args) {
                   new_path.length(), UTF8, AfterNoArgs, uv_fs_rename,
                   *old_path, *new_path);
   } else {  // rename(old_path, new_path)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, view_old_path);
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemWrite, view_old_path);
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kFileSystemWrite,
+        new_path.ToStringView());
     FSReqWrapSync req_wrap_sync("rename", *old_path, *new_path);
     FS_SYNC_TRACE_BEGIN(rename);
     SyncCallAndThrowOnError(
@@ -1482,17 +1562,25 @@ static void Unlink(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   if (argc > 1) {  // unlink(path, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 1);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        path.ToStringView());
     CHECK_NOT_NULL(req_wrap_async);
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_UNLINK, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "unlink", UTF8, AfterNoArgs,
               uv_fs_unlink, *path);
   } else {  // unlink(path)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kFileSystemWrite,
+        path.ToStringView());
     FSReqWrapSync req_wrap_sync("unlink", *path);
     FS_SYNC_TRACE_BEGIN(unlink);
     SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_unlink, *path);
@@ -1508,6 +1596,7 @@ static void RMDir(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
 
@@ -1523,6 +1612,105 @@ static void RMDir(const FunctionCallbackInfo<Value>& args) {
     SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_rmdir, *path);
     FS_SYNC_TRACE_END(rmdir);
   }
+}
+
+static void RmSync(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+
+  CHECK_EQ(args.Length(), 4);  // path, maxRetries, recursive, retryDelay
+
+  BufferValue path(isolate, args[0]);
+  CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
+  THROW_IF_INSUFFICIENT_PERMISSIONS(
+      env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
+  auto file_path = std::filesystem::path(path.ToStringView());
+  std::error_code error;
+  auto file_status = std::filesystem::status(file_path, error);
+
+  if (file_status.type() == std::filesystem::file_type::not_found) {
+    return;
+  }
+
+  int maxRetries = args[1].As<Int32>()->Value();
+  int recursive = args[2]->IsTrue();
+  int retryDelay = args[3].As<Int32>()->Value();
+
+  // File is a directory and recursive is false
+  if (file_status.type() == std::filesystem::file_type::directory &&
+      !recursive) {
+    return THROW_ERR_FS_EISDIR(
+        isolate, "Path is a directory: %s", file_path.c_str());
+  }
+
+  // Allowed errors are:
+  // - EBUSY: std::errc::device_or_resource_busy
+  // - EMFILE: std::errc::too_many_files_open
+  // - ENFILE: std::errc::too_many_files_open_in_system
+  // - ENOTEMPTY: std::errc::directory_not_empty
+  // - EPERM: std::errc::operation_not_permitted
+  auto can_omit_error = [](std::error_code error) -> bool {
+    return (error == std::errc::device_or_resource_busy ||
+            error == std::errc::too_many_files_open ||
+            error == std::errc::too_many_files_open_in_system ||
+            error == std::errc::directory_not_empty ||
+            error == std::errc::operation_not_permitted);
+  };
+
+  int i = 1;
+
+  while (maxRetries >= 0) {
+    if (recursive) {
+      std::filesystem::remove_all(file_path, error);
+    } else {
+      std::filesystem::remove(file_path, error);
+    }
+
+    if (!error || error == std::errc::no_such_file_or_directory) {
+      return;
+    } else if (!can_omit_error(error)) {
+      break;
+    }
+
+    if (retryDelay > 0) {
+#ifdef _WIN32
+      Sleep(i * retryDelay / 1000);
+#else
+      sleep(i * retryDelay / 1000);
+#endif
+    }
+    maxRetries--;
+    i++;
+  }
+
+  // On Windows path::c_str() returns wide char, convert to std::string first.
+  std::string file_path_str = file_path.string();
+  const char* path_c_str = file_path_str.c_str();
+#ifdef _WIN32
+  int permission_denied_error = EPERM;
+#else
+  int permission_denied_error = EACCES;
+#endif  // !_WIN32
+
+  if (error == std::errc::operation_not_permitted) {
+    std::string message = "Operation not permitted: " + file_path_str;
+    return env->ThrowErrnoException(EPERM, "rm", message.c_str(), path_c_str);
+  } else if (error == std::errc::directory_not_empty) {
+    std::string message = "Directory not empty: " + file_path_str;
+    return env->ThrowErrnoException(EACCES, "rm", message.c_str(), path_c_str);
+  } else if (error == std::errc::not_a_directory) {
+    std::string message = "Not a directory: " + file_path_str;
+    return env->ThrowErrnoException(ENOTDIR, "rm", message.c_str(), path_c_str);
+  } else if (error == std::errc::permission_denied) {
+    std::string message = "Permission denied: " + file_path_str;
+    return env->ThrowErrnoException(
+        permission_denied_error, "rm", message.c_str(), path_c_str);
+  }
+
+  std::string message = "Unknown error: " + error.message();
+  return env->ThrowErrnoException(
+      UV_UNKNOWN, "rm", message.c_str(), path_c_str);
 }
 
 int MKDirpSync(uv_loop_t* loop,
@@ -1548,7 +1736,7 @@ int MKDirpSync(uv_loop_t* loop,
         // ~FSReqWrapSync():
         case 0:
           req_wrap->continuation_data()->MaybeSetFirstPath(next_path);
-          if (req_wrap->continuation_data()->paths().size() == 0) {
+          if (req_wrap->continuation_data()->paths().empty()) {
             return 0;
           }
           break;
@@ -1559,12 +1747,12 @@ int MKDirpSync(uv_loop_t* loop,
           return err;
         }
         case UV_ENOENT: {
-          std::string dirname = next_path.substr(0,
-                                        next_path.find_last_of(kPathSeparator));
+          std::string dirname =
+              next_path.substr(0, next_path.find_last_of(kPathSeparator));
           if (dirname != next_path) {
             req_wrap->continuation_data()->PushPath(std::move(next_path));
             req_wrap->continuation_data()->PushPath(std::move(dirname));
-          } else if (req_wrap->continuation_data()->paths().size() == 0) {
+          } else if (req_wrap->continuation_data()->paths().empty()) {
             err = UV_EEXIST;
             continue;
           }
@@ -1621,7 +1809,7 @@ int MKDirpAsync(uv_loop_t* loop,
         // Note: uv_fs_req_cleanup in terminal paths will be called by
         // FSReqAfterScope::~FSReqAfterScope()
         case 0: {
-          if (req_wrap->continuation_data()->paths().size() == 0) {
+          if (req_wrap->continuation_data()->paths().empty()) {
             req_wrap->continuation_data()->MaybeSetFirstPath(path);
             req_wrap->continuation_data()->Done(0);
           } else {
@@ -1639,12 +1827,12 @@ int MKDirpAsync(uv_loop_t* loop,
           break;
         }
         case UV_ENOENT: {
-          std::string dirname = path.substr(0,
-                                            path.find_last_of(kPathSeparator));
+          std::string dirname =
+              path.substr(0, path.find_last_of(kPathSeparator));
           if (dirname != path) {
             req_wrap->continuation_data()->PushPath(path);
             req_wrap->continuation_data()->PushPath(std::move(dirname));
-          } else if (req_wrap->continuation_data()->paths().size() == 0) {
+          } else if (req_wrap->continuation_data()->paths().empty()) {
             err = UV_EEXIST;
             continue;
           }
@@ -1696,6 +1884,8 @@ static void MKDir(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
+
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
 
@@ -1725,16 +1915,16 @@ static void MKDir(const FunctionCallbackInfo<Value>& args) {
       }
       if (!req_wrap_sync.continuation_data()->first_path().empty()) {
         Local<Value> error;
+        Local<Value> ret;
         std::string first_path(req_wrap_sync.continuation_data()->first_path());
-        node::url::FromNamespacedPath(&first_path);
-        MaybeLocal<Value> path = StringBytes::Encode(env->isolate(),
-                                                     first_path.c_str(),
-                                                     UTF8, &error);
-        if (path.IsEmpty()) {
+        if (!StringBytes::Encode(
+                 env->isolate(), first_path.c_str(), UTF8, &error)
+                 .ToLocal(&ret)) {
+          DCHECK(!error.IsEmpty());
           env->isolate()->ThrowException(error);
           return;
         }
-        args.GetReturnValue().Set(path.ToLocalChecked());
+        args.GetReturnValue().Set(ret);
       }
     } else {
       SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_mkdir, *path, mode);
@@ -1752,6 +1942,7 @@ static void RealPath(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
 
   const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
 
@@ -1774,16 +1965,15 @@ static void RealPath(const FunctionCallbackInfo<Value>& args) {
     const char* link_path = static_cast<const char*>(req_wrap_sync.req.ptr);
 
     Local<Value> error;
-    MaybeLocal<Value> rc = StringBytes::Encode(isolate,
-                                               link_path,
-                                               encoding,
-                                               &error);
-    if (rc.IsEmpty()) {
+    Local<Value> ret;
+    if (!StringBytes::Encode(isolate, link_path, encoding, &error)
+             .ToLocal(&ret)) {
+      DCHECK(!error.IsEmpty());
       env->isolate()->ThrowException(error);
       return;
     }
 
-    args.GetReturnValue().Set(rc.ToLocalChecked());
+    args.GetReturnValue().Set(ret);
   }
 }
 
@@ -1796,8 +1986,28 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(isolate, args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
+#ifdef _WIN32
+  // On Windows, some API functions accept paths with trailing slashes,
+  // while others do not. This code checks if the input path ends with
+  // a slash (either '/' or '\\') and, if so, ensures that the processed
+  // path also ends with a trailing backslash ('\\').
+  bool slashCheck = false;
+  if (path.ToStringView().ends_with("/") ||
+      path.ToStringView().ends_with("\\")) {
+    slashCheck = true;
+  }
+#endif
+
+  ToNamespacedPath(env, &path);
+
+#ifdef _WIN32
+  if (slashCheck) {
+    size_t new_length = path.length() + 1;
+    path.AllocateSufficientStorage(new_length + 1);
+    path.SetLengthAndZeroTerminate(new_length);
+    path.out()[new_length - 1] = '\\';
+  }
+#endif
 
   const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
 
@@ -1805,6 +2015,11 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
 
   if (argc > 3) {  // readdir(path, encoding, withTypes, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 3);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        path.ToStringView());
     req_wrap_async->set_with_file_types(with_types);
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_SCANDIR, req_wrap_async, "path", TRACE_STR_COPY(*path))
@@ -1818,6 +2033,8 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
               *path,
               0 /*flags*/);
   } else {  // readdir(path, encoding, withTypes)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
     FSReqWrapSync req_wrap_sync("scandir", *path);
     FS_SYNC_TRACE_BEGIN(readdir);
     int err = SyncCallAndThrowOnError(
@@ -1828,8 +2045,8 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
     }
 
     int r;
-    std::vector<Local<Value>> name_v;
-    std::vector<Local<Value>> type_v;
+    LocalVector<Value> name_v(isolate);
+    LocalVector<Value> type_v(isolate);
 
     for (;;) {
       uv_dirent_t ent;
@@ -1843,17 +2060,15 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
       }
 
       Local<Value> error;
-      MaybeLocal<Value> filename = StringBytes::Encode(isolate,
-                                                       ent.name,
-                                                       encoding,
-                                                       &error);
-
-      if (filename.IsEmpty()) {
+      Local<Value> fn;
+      if (!StringBytes::Encode(isolate, ent.name, encoding, &error)
+               .ToLocal(&fn)) {
+        DCHECK(!error.IsEmpty());
         isolate->ThrowException(error);
         return;
       }
 
-      name_v.push_back(filename.ToLocalChecked());
+      name_v.push_back(fn);
 
       if (with_types) {
         type_v.emplace_back(Integer::New(isolate, ent.type));
@@ -1872,6 +2087,39 @@ static void ReadDir(const FunctionCallbackInfo<Value>& args) {
       args.GetReturnValue().Set(names);
     }
   }
+}
+
+static inline Maybe<void> AsyncCheckOpenPermissions(Environment* env,
+                                                    FSReqBase* req_wrap,
+                                                    const BufferValue& path,
+                                                    int flags) {
+  // These flags capture the intention of the open() call.
+  const int rwflags = flags & (UV_FS_O_RDONLY | UV_FS_O_WRONLY | UV_FS_O_RDWR);
+
+  // These flags have write-like side effects even with O_RDONLY, at least on
+  // some operating systems. On Windows, for example, O_RDONLY | O_TEMPORARY
+  // can be used to delete a file. Bizarre.
+  const int write_as_side_effect = flags & (UV_FS_O_APPEND | UV_FS_O_CREAT |
+                                            UV_FS_O_TRUNC | UV_FS_O_TEMPORARY);
+
+  auto pathView = path.ToStringView();
+  if (rwflags != UV_FS_O_WRONLY) {
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap,
+        permission::PermissionScope::kFileSystemRead,
+        pathView,
+        Nothing<void>());
+  }
+  if (rwflags != UV_FS_O_RDONLY || write_as_side_effect) {
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap,
+        permission::PermissionScope::kFileSystemWrite,
+        pathView,
+        Nothing<void>());
+  }
+  return JustVoid();
 }
 
 static inline Maybe<void> CheckOpenPermissions(Environment* env,
@@ -1912,6 +2160,7 @@ static void Open(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
 
   CHECK(args[1]->IsInt32());
   const int flags = args[1].As<Int32>()->Value();
@@ -1919,17 +2168,18 @@ static void Open(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[2]->IsInt32());
   const int mode = args[2].As<Int32>()->Value();
 
-  if (CheckOpenPermissions(env, path, flags).IsNothing()) return;
-
   if (argc > 3) {  // open(path, flags, mode, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 3);
     CHECK_NOT_NULL(req_wrap_async);
+    if (AsyncCheckOpenPermissions(env, req_wrap_async, path, flags).IsNothing())
+      return;
     req_wrap_async->set_is_plain_open(true);
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_OPEN, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "open", UTF8, AfterInteger,
               uv_fs_open, *path, flags, mode);
   } else {  // open(path, flags, mode)
+    if (CheckOpenPermissions(env, path, flags).IsNothing()) return;
     FSReqWrapSync req_wrap_sync("open", *path);
     FS_SYNC_TRACE_BEGIN(open);
     int result = SyncCallAndThrowOnError(
@@ -1951,6 +2201,7 @@ static void OpenFileHandle(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(realm->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
 
   CHECK(args[1]->IsInt32());
   const int flags = args[1].As<Int32>()->Value();
@@ -1996,16 +2247,24 @@ static void CopyFile(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue src(isolate, args[0]);
   CHECK_NOT_NULL(*src);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, src.ToStringView());
+  ToNamespacedPath(env, &src);
 
   BufferValue dest(isolate, args[1]);
   CHECK_NOT_NULL(*dest);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, dest.ToStringView());
+  ToNamespacedPath(env, &dest);
 
   if (argc > 3) {  // copyFile(src, dest, flags, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 3);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemRead,
+        src.ToStringView());
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        dest.ToStringView());
     FS_ASYNC_TRACE_BEGIN2(UV_FS_COPYFILE,
                           req_wrap_async,
                           "src",
@@ -2016,6 +2275,12 @@ static void CopyFile(const FunctionCallbackInfo<Value>& args) {
                   *dest, dest.length(), UTF8, AfterNoArgs,
                   uv_fs_copyfile, *src, *dest, flags);
   } else {  // copyFile(src, dest, flags)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env, permission::PermissionScope::kFileSystemRead, src.ToStringView());
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kFileSystemWrite,
+        dest.ToStringView());
     FSReqWrapSync req_wrap_sync("copyfile", *src, *dest);
     FS_SYNC_TRACE_BEGIN(copyfile);
     SyncCallAndThrowOnError(
@@ -2105,7 +2370,8 @@ static void WriteBuffers(const FunctionCallbackInfo<Value>& args) {
   MaybeStackBuffer<uv_buf_t> iovs(chunks->Length());
 
   for (uint32_t i = 0; i < iovs.length(); i++) {
-    Local<Value> chunk = chunks->Get(env->context(), i).ToLocalChecked();
+    Local<Value> chunk;
+    if (!chunks->Get(env->context(), i).ToLocal(&chunk)) return;
     CHECK(Buffer::HasInstance(chunk));
     iovs[i] = uv_buf_init(Buffer::Data(chunk), Buffer::Length(chunk));
   }
@@ -2179,10 +2445,12 @@ static void WriteString(const FunctionCallbackInfo<Value>& args) {
       auto ext = string->GetExternalOneByteStringResource();
       buf = const_cast<char*>(ext->data());
       len = ext->length();
-    } else if (enc == UCS2 && IsLittleEndian() && string->IsExternalTwoByte()) {
-      auto ext = string->GetExternalStringResource();
-      buf = reinterpret_cast<char*>(const_cast<uint16_t*>(ext->data()));
-      len = ext->length() * sizeof(*ext->data());
+    } else if (enc == UCS2 && string->IsExternalTwoByte()) {
+      if constexpr (IsLittleEndian()) {
+        auto ext = string->GetExternalStringResource();
+        buf = reinterpret_cast<char*>(const_cast<uint16_t*>(ext->data()));
+        len = ext->length() * sizeof(*ext->data());
+      }
     }
   }
 
@@ -2214,7 +2482,6 @@ static void WriteString(const FunctionCallbackInfo<Value>& args) {
     }
   } else {  // write(fd, string, pos, enc, undefined, ctx)
     CHECK_EQ(argc, 6);
-    FSReqWrapSync req_wrap_sync;
     FSReqBase::FSReqBuffer stack_buffer;
     if (buf == nullptr) {
       if (!StringBytes::StorageSize(isolate, value, enc).To(&len))
@@ -2228,6 +2495,7 @@ static void WriteString(const FunctionCallbackInfo<Value>& args) {
       buf = *stack_buffer;
     }
     uv_buf_t uvbuf = uv_buf_init(buf, len);
+    FSReqWrapSync req_wrap_sync("write");
     FS_SYNC_TRACE_BEGIN(write);
     int bytesWritten = SyncCall(env, args[5], &req_wrap_sync, "write",
                                 uv_fs_write, fd, &uvbuf, 1, pos);
@@ -2264,6 +2532,7 @@ static void WriteFileUtf8(const FunctionCallbackInfo<Value>& args) {
   } else {
     BufferValue path(isolate, args[0]);
     CHECK_NOT_NULL(*path);
+    ToNamespacedPath(env, &path);
     if (CheckOpenPermissions(env, path, flags).IsNothing()) return;
 
     FSReqWrapSync req_open("open", *path);
@@ -2399,6 +2668,7 @@ static void ReadFileUtf8(const FunctionCallbackInfo<Value>& args) {
   } else {
     BufferValue path(env->isolate(), args[0]);
     CHECK_NOT_NULL(*path);
+    ToNamespacedPath(env, &path);
     if (CheckOpenPermissions(env, path, flags).IsNothing()) return;
 
     FS_SYNC_TRACE_BEGIN(open);
@@ -2407,7 +2677,8 @@ static void ReadFileUtf8(const FunctionCallbackInfo<Value>& args) {
     if (req.result < 0) {
       uv_fs_req_cleanup(&req);
       // req will be cleaned up by scope leave.
-      return env->ThrowUVException(req.result, "open", nullptr, path.out());
+      return env->ThrowUVException(
+          static_cast<int>(req.result), "open", nullptr, path.out());
     }
   }
 
@@ -2430,7 +2701,8 @@ static void ReadFileUtf8(const FunctionCallbackInfo<Value>& args) {
     if (req.result < 0) {
       FS_SYNC_TRACE_END(read);
       // req will be cleaned up by scope leave.
-      return env->ThrowUVException(req.result, "read", nullptr);
+      return env->ThrowUVException(
+          static_cast<int>(req.result), "read", nullptr);
     }
     if (r <= 0) {
       break;
@@ -2439,8 +2711,12 @@ static void ReadFileUtf8(const FunctionCallbackInfo<Value>& args) {
   }
   FS_SYNC_TRACE_END(read);
 
-  args.GetReturnValue().Set(
-      ToV8Value(env->context(), result, isolate).ToLocalChecked());
+  Local<Value> val;
+  if (!ToV8Value(env->context(), result, isolate).ToLocal(&val)) {
+    return;
+  }
+
+  args.GetReturnValue().Set(val);
 }
 
 // Wrapper for readv(2).
@@ -2468,7 +2744,8 @@ static void ReadBuffers(const FunctionCallbackInfo<Value>& args) {
 
   // Init uv buffers from ArrayBufferViews
   for (uint32_t i = 0; i < iovs.length(); i++) {
-    Local<Value> buffer = buffers->Get(env->context(), i).ToLocalChecked();
+    Local<Value> buffer;
+    if (!buffers->Get(env->context(), i).ToLocal(&buffer)) return;
     CHECK(Buffer::HasInstance(buffer));
     iovs[i] = uv_buf_init(Buffer::Data(buffer), Buffer::Length(buffer));
   }
@@ -2503,6 +2780,7 @@ static void Chmod(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
 
@@ -2565,8 +2843,7 @@ static void Chown(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   CHECK(IsSafeJsInt(args[1]));
   const uv_uid_t uid = static_cast<uv_uid_t>(args[1].As<Integer>()->Value());
@@ -2576,11 +2853,21 @@ static void Chown(const FunctionCallbackInfo<Value>& args) {
 
   if (argc > 3) {  // chown(path, uid, gid, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 3);
+    CHECK_NOT_NULL(req_wrap_async);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        path.ToStringView());
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_CHOWN, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "chown", UTF8, AfterNoArgs,
               uv_fs_chown, *path, uid, gid);
   } else {  // chown(path, uid, gid)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kFileSystemWrite,
+        path.ToStringView());
     FSReqWrapSync req_wrap_sync("chown", *path);
     FS_SYNC_TRACE_BEGIN(chown);
     SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_chown, *path, uid, gid);
@@ -2631,8 +2918,7 @@ static void LChown(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
+  ToNamespacedPath(env, &path);
 
   CHECK(IsSafeJsInt(args[1]));
   const uv_uid_t uid = static_cast<uv_uid_t>(args[1].As<Integer>()->Value());
@@ -2642,11 +2928,20 @@ static void LChown(const FunctionCallbackInfo<Value>& args) {
 
   if (argc > 3) {  // lchown(path, uid, gid, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 3);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        path.ToStringView());
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_LCHOWN, req_wrap_async, "path", TRACE_STR_COPY(*path))
     AsyncCall(env, req_wrap_async, args, "lchown", UTF8, AfterNoArgs,
               uv_fs_lchown, *path, uid, gid);
   } else {  // lchown(path, uid, gid)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kFileSystemWrite,
+        path.ToStringView());
     FSReqWrapSync req_wrap_sync("lchown", *path);
     FS_SYNC_TRACE_BEGIN(lchown);
     SyncCallAndThrowOnError(env, &req_wrap_sync, uv_fs_lchown, *path, uid, gid);
@@ -2663,6 +2958,7 @@ static void UTimes(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
 
@@ -2726,6 +3022,7 @@ static void LUTimes(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemWrite, path.ToStringView());
 
@@ -2764,18 +3061,25 @@ static void Mkdtemp(const FunctionCallbackInfo<Value>& args) {
   snprintf(tmpl.out() + length, tmpl.length(), "%s", suffix);
 
   CHECK_NOT_NULL(*tmpl);
-  THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemWrite, tmpl.ToStringView());
 
   const enum encoding encoding = ParseEncoding(isolate, args[1], UTF8);
 
   if (argc > 2) {  // mkdtemp(tmpl, encoding, req)
     FSReqBase* req_wrap_async = GetReqWrap(args, 2);
+    ASYNC_THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        req_wrap_async,
+        permission::PermissionScope::kFileSystemWrite,
+        tmpl.ToStringView());
     FS_ASYNC_TRACE_BEGIN1(
         UV_FS_MKDTEMP, req_wrap_async, "path", TRACE_STR_COPY(*tmpl))
     AsyncCall(env, req_wrap_async, args, "mkdtemp", encoding, AfterStringPath,
               uv_fs_mkdtemp, *tmpl);
   } else {  // mkdtemp(tmpl, encoding)
+    THROW_IF_INSUFFICIENT_PERMISSIONS(
+        env,
+        permission::PermissionScope::kFileSystemWrite,
+        tmpl.ToStringView());
     FSReqWrapSync req_wrap_sync("mkdtemp", *tmpl);
     FS_SYNC_TRACE_BEGIN(mkdtemp);
     int result =
@@ -2785,13 +3089,14 @@ static void Mkdtemp(const FunctionCallbackInfo<Value>& args) {
       return;
     }
     Local<Value> error;
-    MaybeLocal<Value> rc =
-        StringBytes::Encode(isolate, req_wrap_sync.req.path, encoding, &error);
-    if (rc.IsEmpty()) {
+    Local<Value> ret;
+    if (!StringBytes::Encode(isolate, req_wrap_sync.req.path, encoding, &error)
+             .ToLocal(&ret)) {
+      DCHECK(!error.IsEmpty());
       env->isolate()->ThrowException(error);
       return;
     }
-    args.GetReturnValue().Set(rc.ToLocalChecked());
+    args.GetReturnValue().Set(ret);
   }
 }
 
@@ -2801,8 +3106,8 @@ static void GetFormatOfExtensionlessFile(
   CHECK(args[0]->IsString());
 
   Environment* env = Environment::GetCurrent(args);
-  node::Utf8Value input(args.GetIsolate(), args[0]);
-
+  BufferValue input(args.GetIsolate(), args[0]);
+  ToNamespacedPath(env, &input);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
       env, permission::PermissionScope::kFileSystemRead, input.ToStringView());
 
@@ -2840,6 +3145,179 @@ static void GetFormatOfExtensionlessFile(
   return args.GetReturnValue().Set(EXTENSIONLESS_FORMAT_JAVASCRIPT);
 }
 
+#ifdef _WIN32
+#define BufferValueToPath(str)                                                 \
+  std::filesystem::path(ConvertToWideString(str.ToString(), CP_UTF8))
+
+std::string ConvertWideToUTF8(const std::wstring& wstr) {
+  if (wstr.empty()) return std::string();
+
+  int size_needed = WideCharToMultiByte(CP_UTF8,
+                                        0,
+                                        &wstr[0],
+                                        static_cast<int>(wstr.size()),
+                                        nullptr,
+                                        0,
+                                        nullptr,
+                                        nullptr);
+  std::string strTo(size_needed, 0);
+  WideCharToMultiByte(CP_UTF8,
+                      0,
+                      &wstr[0],
+                      static_cast<int>(wstr.size()),
+                      &strTo[0],
+                      size_needed,
+                      nullptr,
+                      nullptr);
+  return strTo;
+}
+
+#define PathToString(path) ConvertWideToUTF8(path.wstring());
+
+#else  // _WIN32
+
+#define BufferValueToPath(str) std::filesystem::path(str.ToStringView());
+#define PathToString(path) path.native();
+
+#endif  // _WIN32
+
+static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  Isolate* isolate = env->isolate();
+
+  CHECK_EQ(args.Length(), 4);  // src, dest, dereference, recursive
+
+  BufferValue src(isolate, args[0]);
+  CHECK_NOT_NULL(*src);
+  ToNamespacedPath(env, &src);
+  THROW_IF_INSUFFICIENT_PERMISSIONS(
+      env, permission::PermissionScope::kFileSystemRead, src.ToStringView());
+
+  auto src_path = BufferValueToPath(src);
+
+  BufferValue dest(isolate, args[1]);
+  CHECK_NOT_NULL(*dest);
+  ToNamespacedPath(env, &dest);
+  THROW_IF_INSUFFICIENT_PERMISSIONS(
+      env, permission::PermissionScope::kFileSystemWrite, dest.ToStringView());
+
+  auto dest_path = BufferValueToPath(dest);
+  bool dereference = args[2]->IsTrue();
+  bool recursive = args[3]->IsTrue();
+
+  std::error_code error_code;
+  auto src_status = dereference
+                        ? std::filesystem::symlink_status(src_path, error_code)
+                        : std::filesystem::status(src_path, error_code);
+
+  if (error_code) {
+#ifdef _WIN32
+    int errorno = uv_translate_sys_error(error_code.value());
+#else
+    int errorno =
+        error_code.value() > 0 ? -error_code.value() : error_code.value();
+#endif
+    return env->ThrowUVException(
+        errorno, dereference ? "stat" : "lstat", nullptr, src.out());
+  }
+  auto dest_status =
+      dereference ? std::filesystem::symlink_status(dest_path, error_code)
+                  : std::filesystem::status(dest_path, error_code);
+
+  bool dest_exists = !error_code && dest_status.type() !=
+                                        std::filesystem::file_type::not_found;
+  bool src_is_dir =
+      (src_status.type() == std::filesystem::file_type::directory) ||
+      (dereference && src_status.type() == std::filesystem::file_type::symlink);
+
+  auto src_path_str = PathToString(src_path);
+  auto dest_path_str = PathToString(dest_path);
+
+  if (!error_code) {
+    // Check if src and dest are identical.
+    if (std::filesystem::equivalent(src_path, dest_path)) {
+      std::string message = "src and dest cannot be the same %s";
+      return THROW_ERR_FS_CP_EINVAL(env, message.c_str(), dest_path_str);
+    }
+
+    const bool dest_is_dir =
+        dest_status.type() == std::filesystem::file_type::directory;
+    if (src_is_dir && !dest_is_dir) {
+      std::string message =
+          "Cannot overwrite non-directory %s with directory %s";
+      return THROW_ERR_FS_CP_DIR_TO_NON_DIR(
+          env, message.c_str(), src_path_str, dest_path_str);
+    }
+
+    if (!src_is_dir && dest_is_dir) {
+      std::string message =
+          "Cannot overwrite directory %s with non-directory %s";
+      return THROW_ERR_FS_CP_NON_DIR_TO_DIR(
+          env, message.c_str(), dest_path_str, src_path_str);
+    }
+  }
+
+  if (!src_path_str.ends_with(std::filesystem::path::preferred_separator)) {
+    src_path_str += std::filesystem::path::preferred_separator;
+  }
+  // Check if dest_path is a subdirectory of src_path.
+  if (src_is_dir && dest_path_str.starts_with(src_path_str)) {
+    std::string message = "Cannot copy %s to a subdirectory of self %s";
+    return THROW_ERR_FS_CP_EINVAL(
+        env, message.c_str(), src_path_str, dest_path_str);
+  }
+
+  auto dest_parent = dest_path.parent_path();
+  // "/" parent is itself. Therefore, we need to check if the parent is the same
+  // as itself.
+  while (src_path.parent_path() != dest_parent &&
+         dest_parent.has_parent_path() &&
+         dest_parent.parent_path() != dest_parent) {
+    if (std::filesystem::equivalent(
+            src_path, dest_path.parent_path(), error_code)) {
+      std::string message = "Cannot copy %s to a subdirectory of self %s";
+      return THROW_ERR_FS_CP_EINVAL(
+          env, message.c_str(), src_path_str, dest_path_str);
+    }
+
+    // If equivalent fails, it's highly likely that dest_parent does not exist
+    if (error_code) {
+      break;
+    }
+
+    dest_parent = dest_parent.parent_path();
+  }
+
+  if (src_is_dir && !recursive) {
+    std::string message =
+        "Recursive option not enabled, cannot copy a directory: %s";
+    return THROW_ERR_FS_EISDIR(env, message.c_str(), src_path_str);
+  }
+
+  switch (src_status.type()) {
+    case std::filesystem::file_type::socket: {
+      std::string message = "Cannot copy a socket file: %s";
+      return THROW_ERR_FS_CP_SOCKET(env, message.c_str(), dest_path_str);
+    }
+    case std::filesystem::file_type::fifo: {
+      std::string message = "Cannot copy a FIFO pipe: %s";
+      return THROW_ERR_FS_CP_FIFO_PIPE(env, message.c_str(), dest_path_str);
+    }
+    case std::filesystem::file_type::unknown: {
+      std::string message = "Cannot copy an unknown file type: %s";
+      return THROW_ERR_FS_CP_UNKNOWN(env, message.c_str(), dest_path_str);
+    }
+    default:
+      break;
+  }
+
+  // Optimization opportunity: Check if this "exists" call is good for
+  // performance.
+  if (!dest_exists || !std::filesystem::exists(dest_path.parent_path())) {
+    std::filesystem::create_directories(dest_path.parent_path(), error_code);
+  }
+}
+
 BindingData::FilePathIsFileReturnType BindingData::FilePathIsFile(
     Environment* env, const std::string& file_path) {
   THROW_IF_INSUFFICIENT_PERMISSIONS(
@@ -2854,7 +3332,7 @@ BindingData::FilePathIsFileReturnType BindingData::FilePathIsFile(
 
   if (rc == 0) {
     const uv_stat_t* const s = static_cast<const uv_stat_t*>(req.ptr);
-    rc = !!(s->st_mode & S_IFDIR);
+    rc = S_ISDIR(s->st_mode);
   }
 
   uv_fs_req_cleanup(&req);
@@ -2898,41 +3376,34 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   auto isolate = env->isolate();
 
-  Utf8Value utf8_package_json_url(isolate, args[0]);
-  auto package_json_url =
-      ada::parse<ada::url_aggregator>(utf8_package_json_url.ToStringView());
+  auto utf8_package_path = Utf8Value(isolate, args[0]).ToString();
 
-  if (!package_json_url) {
-    THROW_ERR_INVALID_URL(isolate, "Invalid URL");
-    return;
-  }
+  std::string package_initial_file = "";
 
-  ada::result<ada::url_aggregator> file_path_url;
   std::optional<std::string> initial_file_path;
   std::string file_path;
 
   if (args.Length() >= 2 && args[1]->IsString()) {
     auto package_config_main = Utf8Value(isolate, args[1]).ToString();
 
-    file_path_url = ada::parse<ada::url_aggregator>(
-        std::string("./") + package_config_main, &package_json_url.value());
+    initial_file_path =
+        PathResolve(env, {utf8_package_path, package_config_main});
+    FromNamespacedPath(&initial_file_path.value());
 
-    if (!file_path_url) {
-      THROW_ERR_INVALID_URL(isolate, "Invalid URL");
-      return;
-    }
-
-    initial_file_path = node::url::FileURLToPath(env, *file_path_url);
-    if (!initial_file_path.has_value()) {
-      return;
-    }
-
-    node::url::FromNamespacedPath(&initial_file_path.value());
+    package_initial_file = *initial_file_path;
 
     for (int i = 0; i < legacy_main_extensions_with_main_end; i++) {
       file_path = *initial_file_path + std::string(legacy_main_extensions[i]);
+      // TODO(anonrig): Remove this when ToNamespacedPath supports std::string
+      Local<Value> local_file_path;
+      if (!Buffer::Copy(env->isolate(), file_path.c_str(), file_path.size())
+               .ToLocal(&local_file_path)) {
+        return;
+      }
+      BufferValue buff_file_path(isolate, local_file_path);
+      ToNamespacedPath(env, &buff_file_path);
 
-      switch (FilePathIsFile(env, file_path)) {
+      switch (FilePathIsFile(env, buff_file_path.ToString())) {
         case BindingData::FilePathIsFileReturnType::kIsFile:
           return args.GetReturnValue().Set(i);
         case BindingData::FilePathIsFileReturnType::kIsNotFile:
@@ -2949,27 +3420,27 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
     }
   }
 
-  file_path_url =
-      ada::parse<ada::url_aggregator>("./index", &package_json_url.value());
-
-  if (!file_path_url) {
-    THROW_ERR_INVALID_URL(isolate, "Invalid URL");
-    return;
-  }
-
-  initial_file_path = node::url::FileURLToPath(env, *file_path_url);
+  initial_file_path = PathResolve(env, {utf8_package_path, "./index"});
   if (!initial_file_path.has_value()) {
     return;
   }
 
-  node::url::FromNamespacedPath(&initial_file_path.value());
+  FromNamespacedPath(&initial_file_path.value());
 
   for (int i = legacy_main_extensions_with_main_end;
        i < legacy_main_extensions_package_fallback_end;
        i++) {
     file_path = *initial_file_path + std::string(legacy_main_extensions[i]);
+    // TODO(anonrig): Remove this when ToNamespacedPath supports std::string
+    Local<Value> local_file_path;
+    if (!Buffer::Copy(env->isolate(), file_path.c_str(), file_path.size())
+             .ToLocal(&local_file_path)) {
+      return;
+    }
+    BufferValue buff_file_path(isolate, local_file_path);
+    ToNamespacedPath(env, &buff_file_path);
 
-    switch (FilePathIsFile(env, file_path)) {
+    switch (FilePathIsFile(env, buff_file_path.ToString())) {
       case BindingData::FilePathIsFileReturnType::kIsFile:
         return args.GetReturnValue().Set(i);
       case BindingData::FilePathIsFileReturnType::kIsNotFile:
@@ -2984,13 +3455,10 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
     }
   }
 
-  std::optional<std::string> module_path =
-      node::url::FileURLToPath(env, *package_json_url);
-  std::optional<std::string> module_base;
+  if (package_initial_file == "")
+    package_initial_file = *initial_file_path + ".js";
 
-  if (!module_path.has_value()) {
-    return;
-  }
+  std::optional<std::string> module_base;
 
   if (args.Length() >= 3 && args[2]->IsString()) {
     Utf8Value utf8_base_path(isolate, args[2]);
@@ -3015,7 +3483,7 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
 
   THROW_ERR_MODULE_NOT_FOUND(isolate,
                              "Cannot find package '%s' imported from %s",
-                             *module_path,
+                             package_initial_file,
                              *module_base);
 }
 
@@ -3152,9 +3620,14 @@ static void CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethod(isolate, target, "rename", Rename);
   SetMethod(isolate, target, "ftruncate", FTruncate);
   SetMethod(isolate, target, "rmdir", RMDir);
+  SetMethod(isolate, target, "rmSync", RmSync);
   SetMethod(isolate, target, "mkdir", MKDir);
   SetMethod(isolate, target, "readdir", ReadDir);
-  SetMethod(isolate, target, "internalModuleStat", InternalModuleStat);
+  SetFastMethod(isolate,
+                target,
+                "internalModuleStat",
+                InternalModuleStat,
+                &fast_internal_module_stat_);
   SetMethod(isolate, target, "stat", Stat);
   SetMethod(isolate, target, "lstat", LStat);
   SetMethod(isolate, target, "fstat", FStat);
@@ -3182,6 +3655,8 @@ static void CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethod(isolate, target, "lutimes", LUTimes);
 
   SetMethod(isolate, target, "mkdtemp", Mkdtemp);
+
+  SetMethod(isolate, target, "cpSyncCheckPaths", CpSyncCheckPaths);
 
   StatWatcher::CreatePerIsolateProperties(isolate_data, target);
   BindingData::CreatePerIsolateProperties(isolate_data, target);
@@ -3272,9 +3747,12 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(Rename);
   registry->Register(FTruncate);
   registry->Register(RMDir);
+  registry->Register(RmSync);
   registry->Register(MKDir);
   registry->Register(ReadDir);
   registry->Register(InternalModuleStat);
+  registry->Register(FastInternalModuleStat);
+  registry->Register(fast_internal_module_stat_.GetTypeInfo());
   registry->Register(Stat);
   registry->Register(LStat);
   registry->Register(FStat);
@@ -3289,6 +3767,8 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(WriteFileUtf8);
   registry->Register(RealPath);
   registry->Register(CopyFile);
+
+  registry->Register(CpSyncCheckPaths);
 
   registry->Register(Chmod);
   registry->Register(FChmod);

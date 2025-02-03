@@ -19,5 +19,4 @@ per-file v8-version.h=v8-ci-autoroll-builder@chops-service-accounts.iam.gservice
 
 # For branch updates:
 per-file v8-version.h=file:../INFRA_OWNERS
-per-file v8-version.h=hablich@chromium.org
 per-file v8-version.h=vahl@chromium.org

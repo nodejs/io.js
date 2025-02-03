@@ -90,3 +90,11 @@ g.turboshaft-node.output .inline-node-label tspan {
   margin: 0 3px;
 }
 
+.inline-node-label tspan {
+  font-size: 80px;
+  font-family: sans-serif;
+}
+
+tspan.subscript {
+  font-size: 30px;
+}

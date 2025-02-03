@@ -40,15 +40,16 @@ void SharedHeapDeserializer::DeserializeStringTable() {
   const int length = source()->GetUint30();
 
   // .. and the contents.
-  std::vector<Handle<String>> strings;
+  DirectHandleVector<String> strings(isolate());
   strings.reserve(length);
   for (int i = 0; i < length; ++i) {
-    strings.emplace_back(Handle<String>::cast(ReadObject()));
+    strings.emplace_back(Cast<String>(ReadObject()));
   }
 
   StringTable* t = isolate()->string_table();
   DCHECK_EQ(t->NumberOfElements(), 0);
-  t->InsertForIsolateDeserialization(isolate(), strings);
+  t->InsertForIsolateDeserialization(
+      isolate(), base::VectorOf(strings.data(), strings.size()));
   DCHECK_EQ(t->NumberOfElements(), length);
 }
 

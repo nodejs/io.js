@@ -2,7 +2,7 @@
   "author": "Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me)",
   "name": "minimatch",
   "description": "a glob matcher in javascript",
-  "version": "9.0.4",
+  "version": "10.0.1",
   "repository": {
     "type": "git",
     "url": "git://github.com/isaacs/minimatch.git"
@@ -51,24 +51,21 @@
     "endOfLine": "lf"
   },
   "engines": {
-    "node": ">=16 || 14 >=14.17"
+    "node": "20 || >=22"
   },
   "dependencies": {
     "brace-expansion": "^2.0.1"
   },
   "devDependencies": {
-    "@types/brace-expansion": "^1.1.0",
-    "@types/node": "^18.15.11",
-    "@types/tap": "^15.0.8",
-    "esbuild": "^0.20.2",
-    "eslint-config-prettier": "^8.6.0",
-    "mkdirp": "1",
-    "prettier": "^2.8.2",
-    "tap": "^18.7.2",
-    "ts-node": "^10.9.1",
-    "tshy": "^1.12.0",
-    "typedoc": "^0.23.21",
-    "typescript": "^4.9.3"
+    "@types/brace-expansion": "^1.1.2",
+    "@types/node": "^20.14.10",
+    "esbuild": "^0.23.0",
+    "mkdirp": "^3.0.1",
+    "prettier": "^3.3.2",
+    "tap": "^20.0.3",
+    "tshy": "^2.0.1",
+    "typedoc": "^0.26.3",
+    "typescript": "^5.5.3"
   },
   "funding": {
     "url": "https://github.com/sponsors/isaacs"
@@ -80,5 +77,6 @@
       ".": "./src/index.ts"
     }
   },
-  "type": "module"
+  "type": "module",
+  "module": "./dist/esm/index.js"
 }

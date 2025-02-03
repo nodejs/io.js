@@ -162,12 +162,12 @@ usArrayToRLEString(const uint16_t* src,int32_t srcLen,uint16_t* buffer, int32_t 
                 if (s == runValue && runLength < 0xFFFF){
                     ++runLength;
                 }else {
-                    buffer = encodeRunShort(buffer,bufLimit, (uint16_t)runValue, runLength,status);
+                    buffer = encodeRunShort(buffer, bufLimit, runValue, runLength, status);
                     runValue = s;
                     runLength = 1;
                 }
             }
-            buffer= encodeRunShort(buffer,bufLimit,(uint16_t)runValue, runLength,status);
+            buffer = encodeRunShort(buffer, bufLimit, runValue, runLength, status);
         }else{
             *status = U_BUFFER_OVERFLOW_ERROR;
         }

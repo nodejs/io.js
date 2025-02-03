@@ -18,11 +18,22 @@
 // -----------------------------------------------------------------------------
 //
 // This header file defines portable macros for performance optimization.
+//
+// This header is included in both C++ code and legacy C code and thus must
+// remain compatible with both C and C++. C compatibility will be removed if
+// the legacy code is removed or converted to C++. Do not include this header in
+// new code that requires C compatibility or assume C compatibility will remain
+// indefinitely.
 
 #ifndef ABSL_BASE_OPTIMIZATION_H_
 #define ABSL_BASE_OPTIMIZATION_H_
 
 #include <assert.h>
+
+#ifdef __cplusplus
+// Included for std::unreachable()
+#include <utility>
+#endif  // __cplusplus
 
 #include "absl/base/config.h"
 #include "absl/base/options.h"

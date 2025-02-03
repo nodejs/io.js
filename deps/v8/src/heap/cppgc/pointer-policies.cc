@@ -33,6 +33,10 @@ void SameThreadEnabledCheckingPolicyBase::CheckPointerImpl(
     const void* ptr, bool points_to_payload, bool check_off_heap_assignments) {
   // `ptr` must not reside on stack.
   DCHECK(!IsOnStack(ptr));
+#if defined(CPPGC_CAGED_HEAP)
+  // `ptr` must reside in the cage.
+  DCHECK(CagedHeapBase::IsWithinCage(ptr));
+#endif  // defined(CPPGC_CAGED_HEAP)
   // Check for the most commonly used wrong sentinel value (-1).
   DCHECK_NE(reinterpret_cast<void*>(-1), ptr);
   auto* base_page = BasePage::FromPayload(ptr);
@@ -63,6 +67,9 @@ void SameThreadEnabledCheckingPolicyBase::CheckPointerImpl(
   const HeapObjectHeader* header = nullptr;
   if (points_to_payload) {
     header = &HeapObjectHeader::FromObject(ptr);
+    DCHECK_EQ(
+        header,
+        &base_page->ObjectHeaderFromInnerAddress<AccessMode::kAtomic>(ptr));
   } else {
     // Mixin case. Access the ObjectStartBitmap atomically since sweeping can be
     // in progress.

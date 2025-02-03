@@ -157,21 +157,19 @@ void StatisticsExtension::GetCounters(
          obj = iterator.Next()) {
       Tagged<Object> maybe_source_positions;
       if (IsCode(obj)) {
-        Tagged<Code> code = Code::cast(obj);
+        Tagged<Code> code = Cast<Code>(obj);
         reloc_info_total += code->relocation_size();
-        // Baseline code doesn't have source positions since it uses
-        // interpreter code positions.
-        if (code->kind() == CodeKind::BASELINE) continue;
+        if (!code->has_source_position_table()) continue;
         maybe_source_positions = code->source_position_table();
       } else if (IsBytecodeArray(obj)) {
         maybe_source_positions =
-            BytecodeArray::cast(obj)->source_position_table(kAcquireLoad);
+            Cast<BytecodeArray>(obj)->raw_source_position_table(kAcquireLoad);
       } else {
         continue;
       }
-      if (!IsByteArray(maybe_source_positions)) continue;
-      Tagged<ByteArray> source_positions =
-          ByteArray::cast(maybe_source_positions);
+      if (!IsTrustedByteArray(maybe_source_positions)) continue;
+      Tagged<TrustedByteArray> source_positions =
+          Cast<TrustedByteArray>(maybe_source_positions);
       if (source_positions->length() == 0) continue;
       source_position_table_total += source_positions->AllocatedSize();
     }

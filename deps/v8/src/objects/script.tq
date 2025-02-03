@@ -47,7 +47,7 @@ extern class Script extends Struct {
   eval_from_shared_or_wrapped_arguments: SharedFunctionInfo|FixedArray|
       Undefined;
   eval_from_position: Smi|Foreign;  // Smi or Managed<wasm::NativeModule>
-  shared_function_infos: WeakFixedArray|WeakArrayList;
+  infos: WeakFixedArray|WeakArrayList;
 
   // [compiled_lazy_function_positions]: ArrayList containing SMIs marking
   // the start positions of lazy functions which got compiled.

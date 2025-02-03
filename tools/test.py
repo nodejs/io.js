@@ -46,7 +46,6 @@ import errno
 import copy
 import io
 
-
 if sys.version_info >= (3, 5):
   from importlib import machinery, util
   def get_module(name, path):
@@ -84,7 +83,7 @@ except ImportError:
 
 
 logger = logging.getLogger('testrunner')
-skip_regex = re.compile(r'# SKIP\S*\s+(.*)', re.IGNORECASE)
+skip_regex = re.compile(r'(?:\d+\.\.\d+|ok|not ok).*# SKIP\S*\s+(.*)', re.IGNORECASE)
 
 VERBOSE = False
 
@@ -318,7 +317,7 @@ class DotsProgressIndicator(SimpleProgressIndicator):
 class ActionsAnnotationProgressIndicator(DotsProgressIndicator):
   def AboutToRun(self, case):
     case.additional_flags = case.additional_flags.copy() if hasattr(case, 'additional_flags') else []
-    case.additional_flags.append('--test-reporter=./tools/github_reporter/index.js')
+    case.additional_flags.append('--test-reporter=./test/common/test-error-reporter.js')
     case.additional_flags.append('--test-reporter-destination=stdout')
 
   def GetAnnotationInfo(self, test, output):
@@ -572,6 +571,7 @@ class TestCase(object):
     self.mode = mode
     self.parallel = False
     self.disable_core_files = False
+    self.max_virtual_memory = None
     self.serial_id = 0
     self.thread_id = 0
 
@@ -595,7 +595,8 @@ class TestCase(object):
                      self.context,
                      self.context.GetTimeout(self.mode, self.config.section),
                      env,
-                     disable_core_files = self.disable_core_files)
+                     disable_core_files = self.disable_core_files,
+                     max_virtual_memory = self.max_virtual_memory)
     return TestOutput(self,
                       full_command,
                       output,
@@ -759,7 +760,8 @@ def CheckedUnlink(name):
       PrintError("os.unlink() " + str(e))
     break
 
-def Execute(args, context, timeout=None, env=None, disable_core_files=False, stdin=None):
+def Execute(args, context, timeout=None, env=None, disable_core_files=False,
+            stdin=None, max_virtual_memory=None):
   (fd_out, outname) = tempfile.mkstemp()
   (fd_err, errname) = tempfile.mkstemp()
 
@@ -781,11 +783,27 @@ def Execute(args, context, timeout=None, env=None, disable_core_files=False, std
 
   preexec_fn = None
 
+  def disableCoreFiles():
+    import resource
+    resource.setrlimit(resource.RLIMIT_CORE, (0,0))
+
   if disable_core_files and not utils.IsWindows():
-    def disableCoreFiles():
+    preexec_fn = disableCoreFiles
+
+  if max_virtual_memory is not None and utils.GuessOS() == 'linux':
+    def setMaxVirtualMemory():
       import resource
       resource.setrlimit(resource.RLIMIT_CORE, (0,0))
-    preexec_fn = disableCoreFiles
+      resource.setrlimit(resource.RLIMIT_AS, (max_virtual_memory,max_virtual_memory + 1))
+
+    if preexec_fn is not None:
+      prev_preexec_fn = preexec_fn
+      def setResourceLimits():
+        setMaxVirtualMemory()
+        prev_preexec_fn()
+      preexec_fn = setResourceLimits
+    else:
+      preexec_fn = setMaxVirtualMemory
 
   (process, exit_code, timed_out) = RunProcess(
     context,
@@ -1041,6 +1059,9 @@ class Operation(Expression):
       return self.left.Evaluate(env, defs) or self.right.Evaluate(env, defs)
     elif self.op == 'if':
       return False
+    elif self.op == '!=':
+      inter = self.left.GetOutcomes(env, defs) != self.right.GetOutcomes(env, defs)
+      return bool(inter)
     elif self.op == '==':
       inter = self.left.GetOutcomes(env, defs) & self.right.GetOutcomes(env, defs)
       return bool(inter)
@@ -1128,6 +1149,9 @@ class Tokenizer(object):
       elif self.Current(2) == '==':
         self.AddToken('==')
         self.Advance(2)
+      elif self.Current(2) == '!=':
+        self.AddToken('!=')
+        self.Advance(2)
       else:
         return None
     return self.tokens
@@ -1180,7 +1204,7 @@ def ParseAtomicExpression(scan):
     return None
 
 
-BINARIES = ['==']
+BINARIES = ['==', '!=']
 def ParseOperatorExpression(scan):
   left = ParseAtomicExpression(scan)
   if not left: return None
@@ -1560,6 +1584,7 @@ IGNORED_SUITES = [
   'js-native-api',
   'node-api',
   'pummel',
+  'sqlite',
   'tick-processor',
   'v8-updates'
 ]
@@ -1589,7 +1614,7 @@ def get_env_type(vm, options_type, context):
 
 
 def get_asan_state(vm, context):
-  asan = Execute([vm, '-p', 'process.config.variables.asan'], context).stdout
+  asan = Execute([vm, '-p', 'process.config.variables.asan'], context).stdout.strip()
   return "on" if asan == "1" else "off"
 
 

@@ -7,7 +7,7 @@
 // regular desktop machines.
 // V8 calls into generated code by using the GeneratedCode class,
 // which will start execution in the Simulator or forwards to the real entry
-// on a ARM HW platform.
+// on an ARM HW platform.
 
 #ifndef V8_EXECUTION_ARM_SIMULATOR_ARM_H_
 #define V8_EXECUTION_ARM_SIMULATOR_ARM_H_

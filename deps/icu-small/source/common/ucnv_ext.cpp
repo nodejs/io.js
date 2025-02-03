@@ -41,8 +41,8 @@ ucnv_extFindToU(const uint32_t *toUSection, int32_t length, uint8_t byte) {
     int32_t i, start, limit;
 
     /* check the input byte against the lowest and highest section bytes */
-    start=(int32_t)UCNV_EXT_TO_U_GET_BYTE(toUSection[0]);
-    limit=(int32_t)UCNV_EXT_TO_U_GET_BYTE(toUSection[length-1]);
+    start = static_cast<int32_t>(UCNV_EXT_TO_U_GET_BYTE(toUSection[0]));
+    limit = static_cast<int32_t>(UCNV_EXT_TO_U_GET_BYTE(toUSection[length - 1]));
     if(byte<start || limit<byte) {
         return 0; /* the byte is out of range */
     }
@@ -180,9 +180,9 @@ ucnv_extMatchToU(const int32_t *cx, int8_t sisoState,
 
         /* match pre[] then src[] */
         if(i<preLength) {
-            b=(uint8_t)pre[i++];
+            b = static_cast<uint8_t>(pre[i++]);
         } else if(j<srcLength) {
-            b=(uint8_t)src[j++];
+            b = static_cast<uint8_t>(src[j++]);
         } else {
             /* all input consumed, partial match */
             if(flush || (length=(i+j))>UCNV_EXT_MAX_BYTES) {
@@ -206,7 +206,7 @@ ucnv_extMatchToU(const int32_t *cx, int8_t sisoState,
         } else {
             if(UCNV_EXT_TO_U_IS_PARTIAL(value)) {
                 /* partial match, continue */
-                idx=(int32_t)UCNV_EXT_TO_U_GET_PARTIAL_INDEX(value);
+                idx = static_cast<int32_t>(UCNV_EXT_TO_U_GET_PARTIAL_INDEX(value));
             } else {
                 if( (UCNV_EXT_TO_U_IS_ROUNDTRIP(value) ||
                      TO_U_USE_FALLBACK(useFallback)) &&
@@ -572,7 +572,7 @@ ucnv_extMatchFromU(const int32_t *cx,
 
     if(UCNV_EXT_TO_U_IS_PARTIAL(value)) {
         /* partial match, enter the loop below */
-        idx=(int32_t)UCNV_EXT_FROM_U_GET_PARTIAL_INDEX(value);
+        idx = static_cast<int32_t>(UCNV_EXT_FROM_U_GET_PARTIAL_INDEX(value));
 
         /* initialize */
         fromUTableUChars=UCNV_EXT_ARRAY(cx, UCNV_EXT_FROM_U_UCHARS_INDEX, char16_t);
@@ -627,7 +627,7 @@ ucnv_extMatchFromU(const int32_t *cx,
                 value=fromUSectionValues[idx];
                 if(UCNV_EXT_FROM_U_IS_PARTIAL(value)) {
                     /* partial match, continue */
-                    idx=(int32_t)UCNV_EXT_FROM_U_GET_PARTIAL_INDEX(value);
+                    idx = static_cast<int32_t>(UCNV_EXT_FROM_U_GET_PARTIAL_INDEX(value));
                 } else {
                     if(extFromUUseMapping(useFallback, value, firstCP)) {
                         /* full match, stop with result */
@@ -679,7 +679,7 @@ ucnv_extWriteFromU(UConverter *cnv, const int32_t *cx,
     int32_t length, prevLength;
 
     length=UCNV_EXT_FROM_U_GET_LENGTH(value);
-    value=(uint32_t)UCNV_EXT_FROM_U_GET_DATA(value);
+    value = UCNV_EXT_FROM_U_GET_DATA(value);
 
     /* output the result */
     if(length<=UCNV_EXT_FROM_U_MAX_DIRECT_LENGTH) {
@@ -692,13 +692,13 @@ ucnv_extWriteFromU(UConverter *cnv, const int32_t *cx,
         uint8_t *p=buffer+1; /* reserve buffer[0] for shiftByte below */
         switch(length) {
         case 3:
-            *p++=(uint8_t)(value>>16);
+            *p++ = static_cast<uint8_t>(value >> 16);
             U_FALLTHROUGH;
         case 2:
-            *p++=(uint8_t)(value>>8);
+            *p++ = static_cast<uint8_t>(value >> 8);
             U_FALLTHROUGH;
         case 1:
-            *p++=(uint8_t)value;
+            *p++ = static_cast<uint8_t>(value);
             U_FALLTHROUGH;
         default:
             break; /* will never occur */
@@ -716,11 +716,11 @@ ucnv_extWriteFromU(UConverter *cnv, const int32_t *cx,
 
         if(prevLength>1 && length==1) {
             /* change from double-byte mode to single-byte */
-            shiftByte=(uint8_t)UCNV_SI;
+            shiftByte = static_cast<uint8_t>(UCNV_SI);
             cnv->fromUnicodeStatus=1;
         } else if(prevLength==1 && length>1) {
             /* change from single-byte mode to double-byte */
-            shiftByte=(uint8_t)UCNV_SO;
+            shiftByte = static_cast<uint8_t>(UCNV_SO);
             cnv->fromUnicodeStatus=2;
         } else {
             shiftByte=0;
@@ -737,7 +737,7 @@ ucnv_extWriteFromU(UConverter *cnv, const int32_t *cx,
         }
     }
 
-    ucnv_fromUWriteBytes(cnv, (const char *)result, length,
+    ucnv_fromUWriteBytes(cnv, reinterpret_cast<const char*>(result), length,
                          target, targetLimit,
                          offsets, srcIndex,
                          pErrorCode);
@@ -830,7 +830,7 @@ ucnv_extSimpleMatchFromU(const int32_t *cx,
 
         isRoundtrip=UCNV_EXT_FROM_U_IS_ROUNDTRIP(value);
         length=UCNV_EXT_FROM_U_GET_LENGTH(value);
-        value=(uint32_t)UCNV_EXT_FROM_U_GET_DATA(value);
+        value = UCNV_EXT_FROM_U_GET_DATA(value);
 
         if(length<=UCNV_EXT_FROM_U_MAX_DIRECT_LENGTH) {
             *pValue=value;
@@ -1018,7 +1018,7 @@ ucnv_extGetUnicodeSetString(const UConverterSharedData *sharedData,
             ucnv_extGetUnicodeSetString(
                 sharedData, cx, sa, which, minLength,
                 firstCP, s, length+1,
-                (int32_t)UCNV_EXT_FROM_U_GET_PARTIAL_INDEX(value),
+                static_cast<int32_t>(UCNV_EXT_FROM_U_GET_PARTIAL_INDEX(value)),
                 pErrorCode);
         } else if(extSetUseMapping(which, minLength, value)) {
             sa->addString(sa->set, s, length+1);

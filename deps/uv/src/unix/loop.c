@@ -217,6 +217,14 @@ int uv__loop_configure(uv_loop_t* loop, uv_loop_option option, va_list ap) {
     return 0;
   }
 
+#if defined(__linux__)
+  if (option == UV_LOOP_USE_IO_URING_SQPOLL) {
+    loop->flags |= UV_LOOP_ENABLE_IO_URING_SQPOLL;
+    return 0;
+  }
+#endif
+
+
   if (option != UV_LOOP_BLOCK_SIGNAL)
     return UV_ENOSYS;
 

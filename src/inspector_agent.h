@@ -61,10 +61,21 @@ class Agent {
 
   // Blocks till frontend connects and sends "runIfWaitingForDebugger"
   void WaitForConnect();
+  bool WaitForConnectByOptions();
+  void StopIfWaitingForConnect();
+
   // Blocks till all the sessions with "WaitForDisconnectOnShutdown" disconnect
   void WaitForDisconnect();
   void ReportUncaughtException(v8::Local<v8::Value> error,
                                v8::Local<v8::Message> message);
+
+  void EmitProtocolEvent(const v8_inspector::StringView& event,
+                         const v8_inspector::StringView& params);
+
+  void SetupNetworkTracking(v8::Local<v8::Function> enable_function,
+                            v8::Local<v8::Function> disable_function);
+  void EnableNetworkTracking();
+  void DisableNetworkTracking();
 
   // Async stack traces instrumentation.
   void AsyncTaskScheduled(const v8_inspector::StringView& taskName, void* task,
@@ -118,6 +129,7 @@ class Agent {
 
  private:
   void ToggleAsyncHook(v8::Isolate* isolate, v8::Local<v8::Function> fn);
+  void ToggleNetworkTracking(v8::Isolate* isolate, v8::Local<v8::Function> fn);
 
   node::Environment* parent_env_;
   // Encapsulates majority of the Inspector functionality
@@ -136,6 +148,10 @@ class Agent {
 
   bool pending_enable_async_hook_ = false;
   bool pending_disable_async_hook_ = false;
+
+  bool network_tracking_enabled_ = false;
+  bool pending_enable_network_tracking = false;
+  bool pending_disable_network_tracking = false;
 };
 
 }  // namespace inspector

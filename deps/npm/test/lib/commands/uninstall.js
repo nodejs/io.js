@@ -1,6 +1,6 @@
 const t = require('tap')
-const fs = require('fs')
-const { resolve } = require('path')
+const fs = require('node:fs')
+const { resolve } = require('node:path')
 const _mockNpm = require('../../fixtures/mock-npm')
 
 const mockNpm = async (t, opts = {}) => {

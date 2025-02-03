@@ -126,7 +126,7 @@ protected:
      * @internal
      */
     static void jdToCE(int32_t julianDay, int32_t jdEpochOffset,
-        int32_t& year, int32_t& month, int32_t& day);
+        int32_t& year, int32_t& month, int32_t& day, UErrorCode& status);
 };
 
 U_NAMESPACE_END

@@ -7,32 +7,23 @@ let x = |R|class {}
 
 |_|x = |R|class {
   x = |_|1;
-  y = |_|2;
-}|R|
+  y = |_|2|R|;
+}
 
 |_|x = |R|class {
   x = |C|foo();
   y = |_|2;
-  z = |C|bar();
-}|R|
+  z = |C|bar()|R|;
+}
 
 |_|x = class {
   x = |C|foo();
   y = |_|2;
-  z = |C|bar();
+  z = |C|bar()|R|;
   constructor() {
     this.|_|x;
   |R|}
-}|R|
-
-|_|x = class {
-  x = |C|foo();
-  y = |_|2;
-  constructor() {
-    this.|_|x;
-  |R|}
-  z = |C|bar();
-}|R|
+}
 
 |_|x = class {
   x = |C|foo();
@@ -40,14 +31,23 @@ let x = |R|class {}
   constructor() {
     this.|_|x;
   |R|}
-  z = |C|bar();
-}|R|
+  z = |C|bar()|R|;
+}
+
+|_|x = class {
+  x = |C|foo();
+  y = |_|2;
+  constructor() {
+    this.|_|x;
+  |R|}
+  z = |C|bar()|R|;
+}
 
 |_|x = |R|class {
   x = |_|1;
   foo() {|R|}
-  y = |_|2;
-}|R|
+  y = |_|2|R|;
+}
 
 |_|x = |R|class {
   x = (function() {
@@ -55,74 +55,74 @@ let x = |R|class {}
   |R|})|C|();
   y = (() => {
     |C|bar();
-  |R|})|C|();
-}|R|
+  |R|})|C|()|R|;
+}
 
 |_|x = |R|class {
   x = |_|function() {
     |C|foo();
-  |R|};
-}|R|
+  |R|}|R|;
+}
 
 |_|x = |R|class {
   x = |_|async function() {
     |_|await |C|foo();
-  |R|};
-}|R|
+  |R|}|R|;
+}
 
 |_|x = |R|class {
   x = |_|() => {
     |C|foo();
   |R|};
   y = |_|() => |C|bar()|R|;
-}|R|
+}
 
 |_|x = |R|class {
   x = |_|async () => {
     |_|await |C|foo();
   |R|};
   y = |_|async () => |_|await |C|bar()|R|;
-}|R|
+}
 
 |_|x = |R|class {
   [|_|x] = |_|1;
-  [|C|foo()] = |_|2;
-}|R|
+  [|C|foo()] = |_|2|R|;
+}
 
 |_|x = |R|class {
-  [|_|x] = |_|[...this];
-}|R|
+  [|_|x] = |_|[...this]|R|;
+}
 
 |_|x = |R|class {
   x;
-  [|C|foo()];
-}|R|
+  [|C|foo()]|R|;
+}
 
 |_|x = |R|class {
   x = |_|function*() {
     |_|yield 1;
-  |R|};
-}|R|
+  |R|}|R|;
+}
 
 |_|x = |R|class {
   static x = |_|1;
-  static y = |_|2;
-}|R|
+  static y = |_|2|R|;
+}
 
 |_|x = |R|class {
   static x = |C|foo();
   static y = |_|2;
-  static z = |C|bar();
-}|R|
+  static z = |C|bar()|R|;
+}
 
 |_|x = class {
   static x = |C|foo();
   static y = |_|2;
-  static z = |C|bar();
+  static z = |C|bar()|R|;
   constructor() {
     this.|_|x;
   |R|}
-}|R|
+}
 
 |_|x = class {
   static x = |C|foo();
@@ -130,15 +130,15 @@ let x = |R|class {}
   constructor() {
     this.|_|x;
   |R|}
-  static z = |C|bar();
-}|R|
+  static z = |C|bar()|R|;
+}
 
 |_|x = |R|class {
   static x = |_|1;
   static foo() {|R|}
   bar() {|R|}
-  static y = |_|2;
-}|R|
+  static y = |_|2|R|;
+}
 
 |_|x = |R|class {
   static x = (function() {
@@ -146,62 +146,62 @@ let x = |R|class {}
   |R|})|C|();
   static y = (() => {
     |C|bar();
-  |R|})|C|();
-}|R|
+  |R|})|C|()|R|;
+}
 
 |_|x = |R|class {
   static x = |_|function() {
     |C|foo();
-  |R|};
-}|R|
+  |R|}|R|;
+}
 
 |_|x = |R|class {
   static x = |_|async function() {
     |_|await |C|foo();
-  |R|};
-}|R|
+  |R|}|R|;
+}
 
 |_|x = |R|class {
   static x = |_|() => {
     |C|foo();
   |R|};
   static y = |_|() => |C|bar()|R|;
-}|R|
+}
 
 |_|x = |R|class {
   static x = |_|async () => {
     |_|await |C|foo();
   |R|};
   static y = |_|async () => |_|await |C|bar()|R|;
-}|R|
+}
 
 |_|x = |R|class {
   static [|_|x] = |_|1;
-  static [|C|foo()] = |_|2;
-}|R|
+  static [|C|foo()] = |_|2|R|;
+}
 
 |_|x = |R|class {
-  static [|_|x] = |_|[...this];
-}|R|
+  static [|_|x] = |_|[...this]|R|;
+}
 
 |_|x = |R|class {
   static x;
-  static [|C|foo()];
-}|R|
+  static [|C|foo()]|R|;
+}
 
 |_|x = |R|class {
   static x = |_|function*() {
     |_|yield 1;
-  |R|};
-}|R|
+  |R|}|R|;
+}
 
 |_|x = |R|class {
   static x = |_|1;
   y = |_|2;
   static [|_|z] = |_|3;
   [|_|p] = |_|4;
-  static [|C|foo()] = |_|5;
-  [|C|bar()] = |_|6;
-}|R|
+  static [|C|foo()] = |_|5|R|;
+  [|C|bar()] = |_|6|R|;
+}
 |R|
 

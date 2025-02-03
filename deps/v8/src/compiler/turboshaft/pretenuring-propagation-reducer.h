@@ -16,9 +16,9 @@
 namespace v8::internal::compiler::turboshaft {
 
 // This reducer propagates pretenuring (= allocations of Old objects rather than
-// Young objects) throughout the graph: if a young allocation is stored in a old
-// allocation, then we'll make it old instead. The idea being that 1) if an
-// object is stored in a old object, it makes sense for it for be considered
+// Young objects) throughout the graph: if a young allocation is stored in an
+// old allocation, then we'll make it old instead. The idea being that 1) if an
+// object is stored in an old object, it makes sense for it for be considered
 // old, and 2) this reduces the size of the remembered sets.
 // For instance, if we have:
 //

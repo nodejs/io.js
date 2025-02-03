@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <nghttp3/nghttp3.h>
 
@@ -88,8 +88,8 @@ typedef struct nghttp3_varint_read_state {
 typedef struct nghttp3_stream_read_state {
   nghttp3_varint_read_state rvint;
   nghttp3_frame fr;
-  int state;
   int64_t left;
+  int state;
 } nghttp3_stream_read_state;
 
 /* NGHTTP3_STREAM_FLAG_NONE indicates that no flag is set. */
@@ -186,9 +186,6 @@ typedef struct nghttp3_stream_callbacks {
 } nghttp3_stream_callbacks;
 
 typedef struct nghttp3_http_state {
-  /* status_code is HTTP status code received.  This field is used
-     if connection is initialized as client. */
-  int32_t status_code;
   /* content_length is the value of received content-length header
      field. */
   int64_t content_length;
@@ -196,6 +193,9 @@ typedef struct nghttp3_http_state {
      far. */
   int64_t recv_content_length;
   nghttp3_pri pri;
+  /* status_code is HTTP status code received.  This field is used
+     if connection is initialized as client. */
+  int32_t status_code;
   uint32_t flags;
 } nghttp3_http_state;
 
@@ -226,13 +226,12 @@ struct nghttp3_stream {
       /* outq_offset is write offset relative to the element at outq_idx
          in outq. */
       uint64_t outq_offset;
-      /* ack_offset is offset acknowledged by peer relative to the first
-         element in outq. */
+      /* ack_base is the number of bytes acknowledged by a remote
+         endpoint where the first element in outq is positioned at. */
+      uint64_t ack_base;
+      /* ack_offset is the number of bytes acknowledged by a remote
+         endpoint so far. */
       uint64_t ack_offset;
-      /* ack_done is the number of bytes notified to an application that
-         they are acknowledged inside the first outq element if it is of
-         type NGHTTP3_BUF_TYPE_ALIEN. */
-      uint64_t ack_done;
       uint64_t unscheduled_nwrite;
       nghttp3_stream_type type;
       nghttp3_stream_read_state rstate;
@@ -283,7 +282,8 @@ void nghttp3_varint_read_state_reset(nghttp3_varint_read_state *rvint);
 void nghttp3_stream_read_state_reset(nghttp3_stream_read_state *rstate);
 
 nghttp3_ssize nghttp3_read_varint(nghttp3_varint_read_state *rvint,
-                                  const uint8_t *src, size_t srclen, int fin);
+                                  const uint8_t *begin, const uint8_t *end,
+                                  int fin);
 
 int nghttp3_stream_frq_add(nghttp3_stream *stream,
                            const nghttp3_frame_entry *frent);
@@ -336,7 +336,11 @@ void nghttp3_stream_add_outq_offset(nghttp3_stream *stream, size_t n);
  */
 int nghttp3_stream_outq_write_done(nghttp3_stream *stream);
 
-int nghttp3_stream_add_ack_offset(nghttp3_stream *stream, uint64_t n);
+/*
+ * nghttp2_stream_update_ack_offset updates the last acknowledged
+ * offset to |offset|.
+ */
+int nghttp3_stream_update_ack_offset(nghttp3_stream *stream, uint64_t offset);
 
 /*
  * nghttp3_stream_is_active returns nonzero if |stream| is active.  In
@@ -390,4 +394,4 @@ int nghttp3_client_stream_uni(int64_t stream_id);
  */
 int nghttp3_server_stream_uni(int64_t stream_id);
 
-#endif /* NGHTTP3_STREAM_H */
+#endif /* !defined(NGHTTP3_STREAM_H) */

@@ -2,7 +2,7 @@ interface QuicCallbacks {
   onEndpointClose: (context: number, status: number) => void;
   onSessionNew: (session: Session) => void;
   onSessionClose: (type: number, code: bigint, reason?: string) => void;
-  onSessionDatagram: (datagram: Uint8Array, early: boolean) => void;);
+  onSessionDatagram: (datagram: Uint8Array, early: boolean) => void;
   onSessionDatagramStatus: (id: bigint, status: string) => void;
   onSessionHandshake: (sni: string,
                        alpn: string,

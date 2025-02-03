@@ -4,52 +4,60 @@
 
 #include "src/common/assert-scope.h"
 
-#include "src/base/bit-field.h"
-#include "src/base/lazy-instance.h"
-#include "src/base/platform/platform.h"
+#include "src/base/enum-set.h"
 #include "src/execution/isolate.h"
-#include "src/utils/utils.h"
 
 namespace v8 {
 namespace internal {
 
 namespace {
 
-// All asserts are allowed by default except for one.
-constexpr uint32_t kInitialValue =
-    ~(1 << HANDLE_DEREFERENCE_ALL_THREADS_ASSERT);
+// All asserts are allowed by default except for one, and the cleared bit is not
+// set.
+constexpr PerThreadAsserts kInitialValue =
+    ~PerThreadAsserts{HANDLE_DEREFERENCE_ALL_THREADS_ASSERT};
+static_assert(kInitialValue.contains(ASSERT_TYPE_IS_VALID_MARKER));
 
-template <PerThreadAssertType kType>
-using PerThreadDataBit = base::BitField<bool, kType, 1>;
+// The cleared value is the only one where ASSERT_TYPE_IS_VALID_MARKER is not
+// set.
+constexpr PerThreadAsserts kClearedValue = PerThreadAsserts{};
+static_assert(!kClearedValue.contains(ASSERT_TYPE_IS_VALID_MARKER));
 
 // Thread-local storage for assert data.
-thread_local uint32_t current_per_thread_assert_data(kInitialValue);
+thread_local PerThreadAsserts current_per_thread_assert_data(kInitialValue);
 
 }  // namespace
 
-template <PerThreadAssertType kType, bool kAllow>
-PerThreadAssertScope<kType, kAllow>::PerThreadAssertScope()
+template <bool kAllow, PerThreadAssertType... kTypes>
+PerThreadAssertScope<kAllow, kTypes...>::PerThreadAssertScope()
     : old_data_(current_per_thread_assert_data) {
-  current_per_thread_assert_data =
-      PerThreadDataBit<kType>::update(old_data_.value(), kAllow);
+  static_assert(((kTypes != ASSERT_TYPE_IS_VALID_MARKER) && ...),
+                "PerThreadAssertScope types should not include the "
+                "ASSERT_TYPE_IS_VALID_MARKER");
+  DCHECK(old_data_.contains(ASSERT_TYPE_IS_VALID_MARKER));
+  if (kAllow) {
+    current_per_thread_assert_data = old_data_ | PerThreadAsserts({kTypes...});
+  } else {
+    current_per_thread_assert_data = old_data_ - PerThreadAsserts({kTypes...});
+  }
 }
 
-template <PerThreadAssertType kType, bool kAllow>
-PerThreadAssertScope<kType, kAllow>::~PerThreadAssertScope() {
-  if (!old_data_.has_value()) return;
+template <bool kAllow, PerThreadAssertType... kTypes>
+PerThreadAssertScope<kAllow, kTypes...>::~PerThreadAssertScope() {
   Release();
 }
 
-template <PerThreadAssertType kType, bool kAllow>
-void PerThreadAssertScope<kType, kAllow>::Release() {
-  current_per_thread_assert_data = old_data_.value();
-  old_data_.reset();
+template <bool kAllow, PerThreadAssertType... kTypes>
+void PerThreadAssertScope<kAllow, kTypes...>::Release() {
+  if (old_data_ == kClearedValue) return;
+  current_per_thread_assert_data = old_data_;
+  old_data_ = kClearedValue;
 }
 
 // static
-template <PerThreadAssertType kType, bool kAllow>
-bool PerThreadAssertScope<kType, kAllow>::IsAllowed() {
-  return PerThreadDataBit<kType>::decode(current_per_thread_assert_data);
+template <bool kAllow, PerThreadAssertType... kTypes>
+bool PerThreadAssertScope<kAllow, kTypes...>::IsAllowed() {
+  return current_per_thread_assert_data.contains_all({kTypes...});
 }
 
 #define PER_ISOLATE_ASSERT_SCOPE_DEFINITION(ScopeType, field, enable)      \
@@ -93,21 +101,38 @@ PER_ISOLATE_CHECK_TYPE(PER_ISOLATE_ASSERT_DISABLE_SCOPE_DEFINITION, false)
 // -----------------------------------------------------------------------------
 // Instantiations.
 
-template class PerThreadAssertScope<HEAP_ALLOCATION_ASSERT, false>;
-template class PerThreadAssertScope<HEAP_ALLOCATION_ASSERT, true>;
-template class PerThreadAssertScope<SAFEPOINTS_ASSERT, false>;
-template class PerThreadAssertScope<SAFEPOINTS_ASSERT, true>;
-template class PerThreadAssertScope<HANDLE_ALLOCATION_ASSERT, false>;
-template class PerThreadAssertScope<HANDLE_ALLOCATION_ASSERT, true>;
-template class PerThreadAssertScope<HANDLE_DEREFERENCE_ASSERT, false>;
-template class PerThreadAssertScope<HANDLE_DEREFERENCE_ASSERT, true>;
-template class PerThreadAssertScope<HANDLE_DEREFERENCE_ALL_THREADS_ASSERT,
-                                    true>;
-template class PerThreadAssertScope<CODE_DEPENDENCY_CHANGE_ASSERT, false>;
-template class PerThreadAssertScope<CODE_DEPENDENCY_CHANGE_ASSERT, true>;
-template class PerThreadAssertScope<CODE_ALLOCATION_ASSERT, false>;
-template class PerThreadAssertScope<CODE_ALLOCATION_ASSERT, true>;
-template class PerThreadAssertScope<GC_MOLE, false>;
+template class PerThreadAssertScope<false, HEAP_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<true, HEAP_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<false, SAFEPOINTS_ASSERT>;
+template class PerThreadAssertScope<true, SAFEPOINTS_ASSERT>;
+template class PerThreadAssertScope<false, HANDLE_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<true, HANDLE_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<false, HANDLE_DEREFERENCE_ASSERT>;
+template class PerThreadAssertScope<true, HANDLE_DEREFERENCE_ASSERT>;
+template class PerThreadAssertScope<true,
+                                    HANDLE_DEREFERENCE_ALL_THREADS_ASSERT>;
+template class PerThreadAssertScope<false, CODE_DEPENDENCY_CHANGE_ASSERT>;
+template class PerThreadAssertScope<true, CODE_DEPENDENCY_CHANGE_ASSERT>;
+template class PerThreadAssertScope<false, CODE_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<true, CODE_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<false, GC_MOLE>;
+template class PerThreadAssertScope<false, POSITION_INFO_SLOW_ASSERT>;
+template class PerThreadAssertScope<true, POSITION_INFO_SLOW_ASSERT>;
+template class PerThreadAssertScope<false, SAFEPOINTS_ASSERT,
+                                    HEAP_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<true, SAFEPOINTS_ASSERT,
+                                    HEAP_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<
+    false, CODE_DEPENDENCY_CHANGE_ASSERT, HANDLE_DEREFERENCE_ASSERT,
+    HANDLE_ALLOCATION_ASSERT, HEAP_ALLOCATION_ASSERT>;
+template class PerThreadAssertScope<
+    true, CODE_DEPENDENCY_CHANGE_ASSERT, HANDLE_DEREFERENCE_ASSERT,
+    HANDLE_ALLOCATION_ASSERT, HEAP_ALLOCATION_ASSERT>;
+
+static_assert(Internals::kDisallowGarbageCollectionAlign ==
+              alignof(DisallowGarbageCollectionInRelease));
+static_assert(Internals::kDisallowGarbageCollectionSize ==
+              sizeof(DisallowGarbageCollectionInRelease));
 
 }  // namespace internal
 }  // namespace v8

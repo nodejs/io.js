@@ -74,7 +74,7 @@ layer of indirection between an XCBuildPhase and a PBXFileReference via a
 PBXBuildFile appears extraneous, but there's actually one reason for this:
 file-specific compiler flags are added to the PBXBuildFile object so as to
 allow a single file to be a member of multiple targets while having distinct
-compiler flags for each.  These flags can be modified in the Xcode applciation
+compiler flags for each.  These flags can be modified in the Xcode application
 in the "Build" tab of a File Info window.
 
 When a project is open in the Xcode application, Xcode will rewrite it.  As
@@ -662,7 +662,7 @@ class XCObject:
 
     tabs is an int identifying the indentation level.  If the class'
     _should_print_single_line variable is True, tabs is ignored and the
-    key-value pair will be followed by a space insead of a newline.
+    key-value pair will be followed by a space instead of a newline.
     """
 
         if self._should_print_single_line:
@@ -781,7 +781,7 @@ class XCObject:
             # Make sure the property conforms to the schema.
             (is_list, property_type, is_strong) = self._schema[property][0:3]
             if is_list:
-                if value.__class__ != list:
+                if not isinstance(value, list):
                     raise TypeError(
                         property
                         + " of "
@@ -791,7 +791,7 @@ class XCObject:
                     )
                 for item in value:
                     if not isinstance(item, property_type) and not (
-                        isinstance(item, str) and property_type == str
+                        isinstance(item, str) and isinstance(property_type, str)
                     ):
                         # Accept unicode where str is specified.  str is treated as
                         # UTF-8-encoded.
@@ -806,7 +806,7 @@ class XCObject:
                             + item.__class__.__name__
                         )
             elif not isinstance(value, property_type) and not (
-                isinstance(value, str) and property_type == str
+                isinstance(value, str) and isinstance(property_type, str)
             ):
                 # Accept unicode where str is specified.  str is treated as
                 # UTF-8-encoded.
@@ -2994,7 +2994,7 @@ class PBXProject(XCContainerPortal):
                 key=lambda x: x["ProjectRef"].Name().lower()
             )
         else:
-            # The link already exists.  Pull out the relevnt data.
+            # The link already exists.  Pull out the relevant data.
             project_ref_dict = self._other_pbxprojects[other_pbxproject]
             product_group = project_ref_dict["ProductGroup"]
             project_ref = project_ref_dict["ProjectRef"]
@@ -3017,10 +3017,10 @@ class PBXProject(XCContainerPortal):
         symroots = self._DefinedSymroots(target)
         for s in self._DefinedSymroots(target):
             if (
-                s is not None
-                and not self._IsUniqueSymrootForTarget(s)
-                or s is None
-                and not inherit_unique_symroot
+                (s is not None
+                and not self._IsUniqueSymrootForTarget(s))
+                or (s is None
+                and not inherit_unique_symroot)
             ):
                 return False
         return True if symroots else inherit_unique_symroot

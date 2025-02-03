@@ -42,18 +42,11 @@ extern class DebugInfo extends Struct {
   // The original uninstrumented bytecode array for functions with break
   // points - the instrumented bytecode is held in the shared function info.
   // Can contain Smi::zero() if cleared.
-  @ifnot(V8_ENABLE_SANDBOX)
-      @cppAcquireLoad @cppReleaseStore original_bytecode_array: Smi
-      |BytecodeArray;
-  @if(V8_ENABLE_SANDBOX) original_bytecode_array:
-      IndirectPointer<BytecodeArray>;
+  original_bytecode_array: TrustedPointer<BytecodeArray>;
   // The debug instrumented bytecode array for functions with break points
   // - also pointed to by the shared function info.
   // Can contain Smi::zero() if cleared.
-  @ifnot(V8_ENABLE_SANDBOX)
-      @cppAcquireLoad @cppReleaseStore debug_bytecode_array: Smi|BytecodeArray;
-  @if(V8_ENABLE_SANDBOX) debug_bytecode_array:
-      IndirectPointer<BytecodeArray>;
+  debug_bytecode_array: TrustedPointer<BytecodeArray>;
 }
 
 @export
@@ -129,9 +122,4 @@ extern class ErrorStackData extends Struct {
   // negative specifies the (negated) limit for the inspector
   // stack traces.
   limit_or_stack_frame_infos: Smi|FixedArray;
-}
-
-extern class PromiseOnStack extends Struct {
-  prev: PromiseOnStack|Zero;
-  promise: Weak<JSObject>;
 }

@@ -149,7 +149,7 @@ int32_t StringReplacer::replace(Replaceable& text,
             text.copy(start-len, start, tempStart);
             destStart += len;
         } else {
-            UnicodeString str((char16_t) 0xFFFF);
+            UnicodeString str(static_cast<char16_t>(0xFFFF));
             text.handleReplaceBetween(tempStart, tempStart, str);
             destStart++;
         }
@@ -249,14 +249,14 @@ UnicodeString& StringReplacer::toReplacerPattern(UnicodeString& rule,
     // Handle a cursor preceding the output
     if (hasCursor && cursor < 0) {
         while (cursor++ < 0) {
-            ICU_Utility::appendToRule(rule, (char16_t)0x0040 /*@*/, true, escapeUnprintable, quoteBuf);
+            ICU_Utility::appendToRule(rule, static_cast<char16_t>(0x0040) /*@*/, true, escapeUnprintable, quoteBuf);
         }
         // Fall through and append '|' below
     }
 
     for (int32_t i=0; i<output.length(); ++i) {
         if (hasCursor && i == cursor) {
-            ICU_Utility::appendToRule(rule, (char16_t)0x007C /*|*/, true, escapeUnprintable, quoteBuf);
+            ICU_Utility::appendToRule(rule, static_cast<char16_t>(0x007C) /*|*/, true, escapeUnprintable, quoteBuf);
         }
         char16_t c = output.charAt(i); // Ok to use 16-bits here
 
@@ -266,8 +266,8 @@ UnicodeString& StringReplacer::toReplacerPattern(UnicodeString& rule,
         } else {
             UnicodeString buf;
             r->toReplacerPattern(buf, escapeUnprintable);
-            buf.insert(0, (char16_t)0x20);
-            buf.append((char16_t)0x20);
+            buf.insert(0, static_cast<char16_t>(0x20));
+            buf.append(static_cast<char16_t>(0x20));
             ICU_Utility::appendToRule(rule, buf,
                                       true, escapeUnprintable, quoteBuf);
         }
@@ -279,9 +279,9 @@ UnicodeString& StringReplacer::toReplacerPattern(UnicodeString& rule,
     if (hasCursor && cursor > output.length()) {
         cursor -= output.length();
         while (cursor-- > 0) {
-            ICU_Utility::appendToRule(rule, (char16_t)0x0040 /*@*/, true, escapeUnprintable, quoteBuf);
+            ICU_Utility::appendToRule(rule, static_cast<char16_t>(0x0040) /*@*/, true, escapeUnprintable, quoteBuf);
         }
-        ICU_Utility::appendToRule(rule, (char16_t)0x007C /*|*/, true, escapeUnprintable, quoteBuf);
+        ICU_Utility::appendToRule(rule, static_cast<char16_t>(0x007C) /*|*/, true, escapeUnprintable, quoteBuf);
     }
     // Flush quoteBuf out to result
     ICU_Utility::appendToRule(rule, -1,

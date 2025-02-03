@@ -101,25 +101,44 @@ void WeakObjects::UpdateDiscoveredEphemerons(
   discovered_ephemerons.Update(EphemeronUpdater);
 }
 
-// static
-void WeakObjects::UpdateWeakReferences(
-    WeakObjectWorklist<HeapObjectAndSlot>& weak_references) {
+namespace {
+void UpdateWeakReferencesHelper(
+    WeakObjects::WeakObjectWorklist<HeapObjectAndSlot>& weak_references) {
   weak_references.Update(
       [](HeapObjectAndSlot slot_in, HeapObjectAndSlot* slot_out) -> bool {
-        Tagged<HeapObject> heap_obj = slot_in.first;
+        Tagged<HeapObject> heap_obj = slot_in.heap_object;
         Tagged<HeapObject> forwarded = ForwardingAddress(heap_obj);
 
         if (!forwarded.is_null()) {
           ptrdiff_t distance_to_slot =
-              slot_in.second.address() - slot_in.first.ptr();
+              slot_in.slot.address() - slot_in.heap_object.ptr();
           Address new_slot = forwarded.ptr() + distance_to_slot;
-          slot_out->first = forwarded;
-          slot_out->second = HeapObjectSlot(new_slot);
+          slot_out->heap_object = forwarded;
+          slot_out->slot = HeapObjectSlot(new_slot);
           return true;
         }
 
         return false;
       });
+}
+}  // anonymous namespace
+
+// static
+void WeakObjects::UpdateWeakReferencesTrivial(
+    WeakObjectWorklist<HeapObjectAndSlot>& weak_references) {
+  UpdateWeakReferencesHelper(weak_references);
+}
+
+// static
+void WeakObjects::UpdateWeakReferencesNonTrivial(
+    WeakObjectWorklist<HeapObjectAndSlot>& weak_references) {
+  UpdateWeakReferencesHelper(weak_references);
+}
+
+// static
+void WeakObjects::UpdateWeakReferencesNonTrivialUnmarked(
+    WeakObjectWorklist<HeapObjectAndSlot>& weak_references) {
+  UpdateWeakReferencesHelper(weak_references);
 }
 
 // static
@@ -127,12 +146,12 @@ void WeakObjects::UpdateWeakObjectsInCode(
     WeakObjectWorklist<HeapObjectAndCode>& weak_objects_in_code) {
   weak_objects_in_code.Update(
       [](HeapObjectAndCode slot_in, HeapObjectAndCode* slot_out) -> bool {
-        Tagged<HeapObject> heap_obj = slot_in.first;
+        Tagged<HeapObject> heap_obj = slot_in.heap_object;
         Tagged<HeapObject> forwarded = ForwardingAddress(heap_obj);
 
         if (!forwarded.is_null()) {
-          slot_out->first = forwarded;
-          slot_out->second = slot_in.second;
+          slot_out->heap_object = forwarded;
+          slot_out->code = slot_in.code;
           return true;
         }
 

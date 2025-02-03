@@ -13,13 +13,13 @@
 #include "src/heap/concurrent-marking.h"
 #include "src/heap/heap-verifier.h"
 #include "src/heap/incremental-marking.h"
-#include "src/heap/large-page.h"
+#include "src/heap/large-page-metadata.h"
 #include "src/heap/list.h"
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/marking.h"
 #include "src/heap/memory-allocator.h"
-#include "src/heap/memory-chunk-inl.h"
 #include "src/heap/memory-chunk-layout.h"
+#include "src/heap/mutable-page-metadata-inl.h"
 #include "src/heap/remembered-set.h"
 #include "src/heap/slot-set.h"
 #include "src/heap/spaces-inl.h"
@@ -65,10 +65,10 @@ size_t LargeObjectSpace::Available() const {
 
 void LargeObjectSpace::TearDown() {
   while (!memory_chunk_list_.Empty()) {
-    LargePage* page = first_page();
+    LargePageMetadata* page = first_page();
     LOG(heap()->isolate(),
         DeleteEvent("LargeObjectChunk",
-                    reinterpret_cast<void*>(page->address())));
+                    reinterpret_cast<void*>(page->ChunkAddress())));
     memory_chunk_list_.Remove(page);
     heap()->memory_allocator()->Free(MemoryAllocator::FreeMode::kImmediately,
                                      page);
@@ -108,7 +108,6 @@ AllocationResult OldLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
                                                   int object_size,
                                                   Executability executable) {
   object_size = ALIGN_TO_ALLOCATION_ALIGNMENT(object_size);
-  DCHECK(!v8_flags.enable_third_party_heap);
   DCHECK_IMPLIES(identity() == SHARED_LO_SPACE,
                  !allocation_counter_.HasAllocationObservers());
   DCHECK_IMPLIES(identity() == SHARED_LO_SPACE,
@@ -126,20 +125,19 @@ AllocationResult OldLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
       local_heap, heap()->GCFlagsForIncrementalMarking(),
       kGCCallbackScheduleIdleGarbageCollection);
 
-  LargePage* page = AllocateLargePage(object_size, executable);
+  LargePageMetadata* page = AllocateLargePage(object_size, executable);
   if (page == nullptr) return AllocationResult::Failure();
-  page->SetOldGenerationPageFlags(
-      heap()->incremental_marking()->marking_mode());
   Tagged<HeapObject> object = page->GetObject();
   if (local_heap->is_main_thread() && identity() != SHARED_LO_SPACE) {
     UpdatePendingObject(object);
   }
-  if (heap()->incremental_marking()->black_allocation()) {
+  if (v8_flags.sticky_mark_bits ||
+      heap()->incremental_marking()->black_allocation()) {
     heap()->marking_state()->TryMarkAndAccountLiveBytes(object, object_size);
   }
   DCHECK_IMPLIES(heap()->incremental_marking()->black_allocation(),
                  heap()->marking_state()->IsMarked(object));
-  page->InitializationMemoryFence();
+  page->Chunk()->InitializationMemoryFence();
   heap()->NotifyOldGenerationExpansion(local_heap, identity(), page);
 
   if (local_heap->is_main_thread() && identity() != SHARED_LO_SPACE) {
@@ -149,8 +147,8 @@ AllocationResult OldLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
   return AllocationResult::FromObject(object);
 }
 
-LargePage* LargeObjectSpace::AllocateLargePage(int object_size,
-                                               Executability executable) {
+LargePageMetadata* LargeObjectSpace::AllocateLargePage(
+    int object_size, Executability executable) {
   base::MutexGuard expansion_guard(heap_->heap_expansion_mutex());
 
   if (identity() != NEW_LO_SPACE &&
@@ -158,7 +156,7 @@ LargePage* LargeObjectSpace::AllocateLargePage(int object_size,
     return nullptr;
   }
 
-  LargePage* page = heap()->memory_allocator()->AllocateLargePage(
+  LargePageMetadata* page = heap()->memory_allocator()->AllocateLargePage(
       this, object_size, executable);
   if (page == nullptr) return nullptr;
   DCHECK_GE(page->area_size(), static_cast<size_t>(object_size));
@@ -178,26 +176,27 @@ size_t LargeObjectSpace::CommittedPhysicalMemory() const {
   return CommittedMemory();
 }
 
-void OldLargeObjectSpace::PromoteNewLargeObject(LargePage* page) {
+void OldLargeObjectSpace::PromoteNewLargeObject(LargePageMetadata* page) {
+  MemoryChunk* chunk = page->Chunk();
   DCHECK_EQ(page->owner_identity(), NEW_LO_SPACE);
-  DCHECK(page->IsLargePage());
-  DCHECK(page->IsFlagSet(MemoryChunk::FROM_PAGE));
-  DCHECK(!page->IsFlagSet(MemoryChunk::TO_PAGE));
+  DCHECK(chunk->IsLargePage());
+  DCHECK(chunk->IsFlagSet(MemoryChunk::FROM_PAGE));
+  DCHECK(!chunk->IsFlagSet(MemoryChunk::TO_PAGE));
   PtrComprCageBase cage_base(heap()->isolate());
   static_cast<LargeObjectSpace*>(page->owner())->RemovePage(page);
-  page->ClearFlag(MemoryChunk::FROM_PAGE);
+  chunk->ClearFlagNonExecutable(MemoryChunk::FROM_PAGE);
+  chunk->SetOldGenerationPageFlags(
+      heap()->incremental_marking()->marking_mode(), LO_SPACE);
   AddPage(page, static_cast<size_t>(page->GetObject()->Size(cage_base)));
 }
 
-void LargeObjectSpace::AddPage(LargePage* page, size_t object_size) {
+void LargeObjectSpace::AddPage(LargePageMetadata* page, size_t object_size) {
   size_ += static_cast<int>(page->size());
   AccountCommitted(page->size());
   objects_size_ += object_size;
   page_count_++;
   memory_chunk_list_.PushBack(page);
   page->set_owner(this);
-  page->SetOldGenerationPageFlags(
-      heap()->incremental_marking()->marking_mode());
   ForAll<ExternalBackingStoreType>(
       [this, page](ExternalBackingStoreType type, int index) {
         IncrementExternalBackingStoreBytes(
@@ -205,7 +204,7 @@ void LargeObjectSpace::AddPage(LargePage* page, size_t object_size) {
       });
 }
 
-void LargeObjectSpace::RemovePage(LargePage* page) {
+void LargeObjectSpace::RemovePage(LargePageMetadata* page) {
   size_ -= static_cast<int>(page->size());
   AccountUncommitted(page->size());
   page_count_--;
@@ -218,18 +217,19 @@ void LargeObjectSpace::RemovePage(LargePage* page) {
       });
 }
 
-void LargeObjectSpace::ShrinkPageToObjectSize(LargePage* page,
+void LargeObjectSpace::ShrinkPageToObjectSize(LargePageMetadata* page,
                                               Tagged<HeapObject> object,
                                               size_t object_size) {
+  MemoryChunk* chunk = page->Chunk();
 #ifdef DEBUG
   PtrComprCageBase cage_base(heap()->isolate());
   DCHECK_EQ(object, page->GetObject());
   DCHECK_EQ(object_size, page->GetObject()->Size(cage_base));
-  DCHECK_EQ(page->executable(), NOT_EXECUTABLE);
+  DCHECK_EQ(chunk->executable(), NOT_EXECUTABLE);
 #endif  // DEBUG
 
   const size_t used_committed_size =
-      ::RoundUp(object.address() - page->address() + object_size,
+      ::RoundUp(chunk->Offset(object.address()) + object_size,
                 MemoryAllocator::GetCommitPageSize());
 
   // Object shrunk since last GC.
@@ -241,7 +241,7 @@ void LargeObjectSpace::ShrinkPageToObjectSize(LargePage* page,
     if (used_committed_size < page->size()) {
       const size_t bytes_to_free = page->size() - used_committed_size;
       heap()->memory_allocator()->PartialFreeMemory(
-          page, page->address() + used_committed_size, bytes_to_free,
+          page, chunk->address() + used_committed_size, bytes_to_free,
           new_area_end);
       size_ -= bytes_to_free;
       AccountUncommitted(bytes_to_free);
@@ -256,7 +256,7 @@ void LargeObjectSpace::ShrinkPageToObjectSize(LargePage* page,
 }
 
 bool LargeObjectSpace::Contains(Tagged<HeapObject> object) const {
-  BasicMemoryChunk* chunk = BasicMemoryChunk::FromHeapObject(object);
+  MemoryChunkMetadata* chunk = MemoryChunkMetadata::FromHeapObject(object);
 
   bool owned = (chunk->owner() == this);
 
@@ -266,7 +266,7 @@ bool LargeObjectSpace::Contains(Tagged<HeapObject> object) const {
 }
 
 bool LargeObjectSpace::ContainsSlow(Address addr) const {
-  for (const LargePage* page : *this) {
+  for (const LargePageMetadata* page : *this) {
     if (page->Contains(addr)) return true;
   }
   return false;
@@ -287,14 +287,14 @@ void LargeObjectSpace::Verify(Isolate* isolate,
       ExternalBackingStoreType::kNumValues)] = {0};
 
   PtrComprCageBase cage_base(isolate);
-  for (const LargePage* chunk = first_page(); chunk != nullptr;
+  for (const LargePageMetadata* chunk = first_page(); chunk != nullptr;
        chunk = chunk->next_page()) {
     visitor->VerifyPage(chunk);
 
     // Each chunk contains an object that starts at the large object page's
     // object area start.
     Tagged<HeapObject> object = chunk->GetObject();
-    Page* page = Page::FromHeapObject(object);
+    PageMetadata* page = PageMetadata::FromHeapObject(object);
     CHECK(object.address() == page->area_start());
 
     // Only certain types may be in the large object space:
@@ -356,7 +356,6 @@ NewLargeObjectSpace::NewLargeObjectSpace(Heap* heap, size_t capacity)
 AllocationResult NewLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
                                                   int object_size) {
   object_size = ALIGN_TO_ALLOCATION_ALIGNMENT(object_size);
-  DCHECK(!v8_flags.enable_third_party_heap);
   DCHECK(local_heap->is_main_thread());
   // Do not allocate more objects if promoting the existing object would exceed
   // the old generation capacity.
@@ -366,25 +365,27 @@ AllocationResult NewLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
 
   // Allocation for the first object must succeed independent from the capacity.
   if (SizeOfObjects() > 0 && static_cast<size_t>(object_size) > Available()) {
-    return AllocationResult::Failure();
+    if (!v8_flags.separate_gc_phases ||
+        !heap()->ShouldExpandYoungGenerationOnSlowAllocation(object_size)) {
+      return AllocationResult::Failure();
+    }
   }
 
-  LargePage* page = AllocateLargePage(object_size, NOT_EXECUTABLE);
+  LargePageMetadata* page = AllocateLargePage(object_size, NOT_EXECUTABLE);
   if (page == nullptr) return AllocationResult::Failure();
 
   // The size of the first object may exceed the capacity.
   capacity_ = std::max(capacity_, SizeOfObjects());
 
   Tagged<HeapObject> result = page->GetObject();
-  page->SetYoungGenerationPageFlags(
-      heap()->incremental_marking()->marking_mode());
-  page->SetFlag(MemoryChunk::TO_PAGE);
+  MemoryChunk* chunk = page->Chunk();
+  chunk->SetFlagNonExecutable(MemoryChunk::TO_PAGE);
   UpdatePendingObject(result);
   if (v8_flags.minor_ms) {
     page->ClearLiveness();
   }
-  page->InitializationMemoryFence();
-  DCHECK(page->IsLargePage());
+  chunk->InitializationMemoryFence();
+  DCHECK(chunk->IsLargePage());
   DCHECK_EQ(page->owner_identity(), NEW_LO_SPACE);
   AdvanceAndInvokeAllocationObservers(result.address(),
                                       static_cast<size_t>(object_size));
@@ -392,14 +393,16 @@ AllocationResult NewLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
 }
 
 size_t NewLargeObjectSpace::Available() const {
+  DCHECK_GE(capacity_, SizeOfObjects());
   return capacity_ - SizeOfObjects();
 }
 
 void NewLargeObjectSpace::Flip() {
-  for (LargePage* chunk = first_page(); chunk != nullptr;
-       chunk = chunk->next_page()) {
-    chunk->SetFlag(MemoryChunk::FROM_PAGE);
-    chunk->ClearFlag(MemoryChunk::TO_PAGE);
+  for (LargePageMetadata* page = first_page(); page != nullptr;
+       page = page->next_page()) {
+    MemoryChunk* chunk = page->Chunk();
+    chunk->SetFlagNonExecutable(MemoryChunk::FROM_PAGE);
+    chunk->ClearFlagNonExecutable(MemoryChunk::TO_PAGE);
   }
 }
 
@@ -411,16 +414,16 @@ void NewLargeObjectSpace::FreeDeadObjects(
   size_t surviving_object_size = 0;
   PtrComprCageBase cage_base(heap()->isolate());
   for (auto it = begin(); it != end();) {
-    LargePage* page = *it;
+    LargePageMetadata* page = *it;
     it++;
     Tagged<HeapObject> object = page->GetObject();
     if (is_dead(object)) {
       RemovePage(page);
-      heap()->memory_allocator()->Free(MemoryAllocator::FreeMode::kImmediately,
-                                       page);
       if (v8_flags.concurrent_marking && is_marking) {
         heap()->concurrent_marking()->ClearMemoryChunkData(page);
       }
+      heap()->memory_allocator()->Free(MemoryAllocator::FreeMode::kImmediately,
+                                       page);
     } else {
       surviving_object_size += static_cast<size_t>(object->Size(cage_base));
     }
@@ -439,17 +442,15 @@ CodeLargeObjectSpace::CodeLargeObjectSpace(Heap* heap)
 
 AllocationResult CodeLargeObjectSpace::AllocateRaw(LocalHeap* local_heap,
                                                    int object_size) {
-  DCHECK(!v8_flags.enable_third_party_heap);
-  CodePageHeaderModificationScope header_modification_scope(
-      "Code allocation needs header access.");
   return OldLargeObjectSpace::AllocateRaw(local_heap, object_size, EXECUTABLE);
 }
 
-void CodeLargeObjectSpace::AddPage(LargePage* page, size_t object_size) {
+void CodeLargeObjectSpace::AddPage(LargePageMetadata* page,
+                                   size_t object_size) {
   OldLargeObjectSpace::AddPage(page, object_size);
 }
 
-void CodeLargeObjectSpace::RemovePage(LargePage* page) {
+void CodeLargeObjectSpace::RemovePage(LargePageMetadata* page) {
   heap()->isolate()->RemoveCodeMemoryChunk(page);
   OldLargeObjectSpace::RemovePage(page);
 }
@@ -457,6 +458,8 @@ void CodeLargeObjectSpace::RemovePage(LargePage* page) {
 SharedLargeObjectSpace::SharedLargeObjectSpace(Heap* heap)
     : OldLargeObjectSpace(heap, SHARED_LO_SPACE) {}
 
+SharedTrustedLargeObjectSpace::SharedTrustedLargeObjectSpace(Heap* heap)
+    : OldLargeObjectSpace(heap, SHARED_TRUSTED_LO_SPACE) {}
 
 TrustedLargeObjectSpace::TrustedLargeObjectSpace(Heap* heap)
     : OldLargeObjectSpace(heap, TRUSTED_LO_SPACE) {}

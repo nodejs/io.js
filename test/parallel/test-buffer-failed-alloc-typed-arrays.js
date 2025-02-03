@@ -12,7 +12,7 @@ const SlowBuffer = require('buffer').SlowBuffer;
 // whether or not to zero-fill was not being reset, causing TypedArrays to
 // allocate incorrectly.
 const zeroArray = new Uint32Array(10).fill(0);
-const sizes = [1e10, 0, 0.1, -1, 'a', undefined, null, NaN];
+const sizes = [1e20, 0, 0.1, -1, 'a', undefined, null, NaN];
 const allocators = [
   Buffer,
   SlowBuffer,

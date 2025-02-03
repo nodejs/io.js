@@ -8,12 +8,12 @@
 #include <string.h>
 
 #include <algorithm>
+#include <string_view>
 
 #include "base/containers/fixed_flat_set.h"
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/notreached.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 
@@ -165,7 +165,7 @@ struct ZipBuffer {
 // writing compressed data and it returns NULL for this case.)
 void* OpenZipBuffer(void* opaque, const void* /*filename*/, int mode) {
   if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER) != ZLIB_FILEFUNC_MODE_READ) {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return NULL;
   }
   ZipBuffer* buffer = static_cast<ZipBuffer*>(opaque);
@@ -196,7 +196,7 @@ uLong WriteZipBuffer(void* /*opaque*/,
                      void* /*stream*/,
                      const void* /*buf*/,
                      uLong /*size*/) {
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return 0;
 }
 
@@ -228,7 +228,7 @@ long SeekZipBuffer(void* opaque,
     buffer->offset = std::min(buffer->length, offset);
     return 0;
   }
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return -1;
 }
 
@@ -398,64 +398,64 @@ Compression GetCompressionMethod(const base::FilePath& path) {
   if (ext.empty())
     return kDeflated;
 
-  using StringPiece = base::FilePath::StringPieceType;
 
   // Skip the leading dot.
-  StringPiece ext_without_dot = ext;
+  base::FilePath::StringPieceType ext_without_dot = ext;
   DCHECK_EQ(ext_without_dot.front(), FILE_PATH_LITERAL('.'));
   ext_without_dot.remove_prefix(1);
 
   // Well known filename extensions of files that a likely to be already
   // compressed. The extensions are in lower case without the leading dot.
-  static constexpr auto kExts = base::MakeFixedFlatSet<StringPiece>({
-      FILE_PATH_LITERAL("3g2"),   //
-      FILE_PATH_LITERAL("3gp"),   //
-      FILE_PATH_LITERAL("7z"),    //
-      FILE_PATH_LITERAL("7zip"),  //
-      FILE_PATH_LITERAL("aac"),   //
-      FILE_PATH_LITERAL("avi"),   //
-      FILE_PATH_LITERAL("bz"),    //
-      FILE_PATH_LITERAL("bz2"),   //
-      FILE_PATH_LITERAL("crx"),   //
-      FILE_PATH_LITERAL("gif"),   //
-      FILE_PATH_LITERAL("gz"),    //
-      FILE_PATH_LITERAL("jar"),   //
-      FILE_PATH_LITERAL("jpeg"),  //
-      FILE_PATH_LITERAL("jpg"),   //
-      FILE_PATH_LITERAL("lz"),    //
-      FILE_PATH_LITERAL("m2v"),   //
-      FILE_PATH_LITERAL("m4p"),   //
-      FILE_PATH_LITERAL("m4v"),   //
-      FILE_PATH_LITERAL("mng"),   //
-      FILE_PATH_LITERAL("mov"),   //
-      FILE_PATH_LITERAL("mp2"),   //
-      FILE_PATH_LITERAL("mp3"),   //
-      FILE_PATH_LITERAL("mp4"),   //
-      FILE_PATH_LITERAL("mpe"),   //
-      FILE_PATH_LITERAL("mpeg"),  //
-      FILE_PATH_LITERAL("mpg"),   //
-      FILE_PATH_LITERAL("mpv"),   //
-      FILE_PATH_LITERAL("ogg"),   //
-      FILE_PATH_LITERAL("ogv"),   //
-      FILE_PATH_LITERAL("png"),   //
-      FILE_PATH_LITERAL("qt"),    //
-      FILE_PATH_LITERAL("rar"),   //
-      FILE_PATH_LITERAL("taz"),   //
-      FILE_PATH_LITERAL("tb2"),   //
-      FILE_PATH_LITERAL("tbz"),   //
-      FILE_PATH_LITERAL("tbz2"),  //
-      FILE_PATH_LITERAL("tgz"),   //
-      FILE_PATH_LITERAL("tlz"),   //
-      FILE_PATH_LITERAL("tz"),    //
-      FILE_PATH_LITERAL("tz2"),   //
-      FILE_PATH_LITERAL("vob"),   //
-      FILE_PATH_LITERAL("webm"),  //
-      FILE_PATH_LITERAL("wma"),   //
-      FILE_PATH_LITERAL("wmv"),   //
-      FILE_PATH_LITERAL("xz"),    //
-      FILE_PATH_LITERAL("z"),     //
-      FILE_PATH_LITERAL("zip"),   //
-  });
+  static constexpr auto kExts =
+      base::MakeFixedFlatSet<base::FilePath::StringPieceType>({
+          FILE_PATH_LITERAL("3g2"),   //
+          FILE_PATH_LITERAL("3gp"),   //
+          FILE_PATH_LITERAL("7z"),    //
+          FILE_PATH_LITERAL("7zip"),  //
+          FILE_PATH_LITERAL("aac"),   //
+          FILE_PATH_LITERAL("avi"),   //
+          FILE_PATH_LITERAL("bz"),    //
+          FILE_PATH_LITERAL("bz2"),   //
+          FILE_PATH_LITERAL("crx"),   //
+          FILE_PATH_LITERAL("gif"),   //
+          FILE_PATH_LITERAL("gz"),    //
+          FILE_PATH_LITERAL("jar"),   //
+          FILE_PATH_LITERAL("jpeg"),  //
+          FILE_PATH_LITERAL("jpg"),   //
+          FILE_PATH_LITERAL("lz"),    //
+          FILE_PATH_LITERAL("m2v"),   //
+          FILE_PATH_LITERAL("m4p"),   //
+          FILE_PATH_LITERAL("m4v"),   //
+          FILE_PATH_LITERAL("mng"),   //
+          FILE_PATH_LITERAL("mov"),   //
+          FILE_PATH_LITERAL("mp2"),   //
+          FILE_PATH_LITERAL("mp3"),   //
+          FILE_PATH_LITERAL("mp4"),   //
+          FILE_PATH_LITERAL("mpe"),   //
+          FILE_PATH_LITERAL("mpeg"),  //
+          FILE_PATH_LITERAL("mpg"),   //
+          FILE_PATH_LITERAL("mpv"),   //
+          FILE_PATH_LITERAL("ogg"),   //
+          FILE_PATH_LITERAL("ogv"),   //
+          FILE_PATH_LITERAL("png"),   //
+          FILE_PATH_LITERAL("qt"),    //
+          FILE_PATH_LITERAL("rar"),   //
+          FILE_PATH_LITERAL("taz"),   //
+          FILE_PATH_LITERAL("tb2"),   //
+          FILE_PATH_LITERAL("tbz"),   //
+          FILE_PATH_LITERAL("tbz2"),  //
+          FILE_PATH_LITERAL("tgz"),   //
+          FILE_PATH_LITERAL("tlz"),   //
+          FILE_PATH_LITERAL("tz"),    //
+          FILE_PATH_LITERAL("tz2"),   //
+          FILE_PATH_LITERAL("vob"),   //
+          FILE_PATH_LITERAL("webm"),  //
+          FILE_PATH_LITERAL("wma"),   //
+          FILE_PATH_LITERAL("wmv"),   //
+          FILE_PATH_LITERAL("xz"),    //
+          FILE_PATH_LITERAL("z"),     //
+          FILE_PATH_LITERAL("zip"),   //
+      });
 
   if (kExts.count(ext_without_dot)) {
     return kStored;

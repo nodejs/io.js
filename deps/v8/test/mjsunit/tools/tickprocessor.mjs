@@ -113,7 +113,7 @@ await (async function testUnixCppEntriesProvider() {
        ['v8::internal::RegExpMacroAssembler::CheckPosition(int, v8::internal::Label*)', 0x0818b220, 0x0818b220 + 0x36]],
       shell_syms);
   // With BigInts
-  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true]
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, undefined, true]
   var shell_prov = new LinuxCppEntriesProvider(...useBigIntsArgs);
   var shell_syms = [];
   await shell_prov.parseVmSymbols('shell', 0x08048000n, 0x081ee000n, 0n,
@@ -223,7 +223,7 @@ await (async function testMacOSCppEntriesProvider() {
   };
   var shell_prov = new MacOSCppEntriesProvider();
   var shell_syms = [];
-  await shell_prov.parseVmSymbols('shell', 0x00001c00, 0x00163256, 0x100,
+  await shell_prov.parseVmSymbols('shell', 0x00001b00, 0x00163256, 0x100,
       (...params) => shell_syms.push(params));
   assertEquals(
       [['start', 0x00001c00, 0x00001c40],
@@ -256,7 +256,7 @@ await (async function testMacOSCppEntriesProvider() {
   }
   assertEquals(stdc_ref_syms, stdc_syms);
   // With BigInts
-  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true];
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, undefined, true];
   var stdc_prov = new MacOSCppEntriesProvider(...useBigIntsArgs);
   var stdc_syms = [];
   await stdc_prov.parseVmSymbols('stdc++', 0x95728fb4n, 0x95770005n, 0n,
@@ -305,7 +305,7 @@ await (async function testWindowsCppEntriesProvider() {
        ['v8::EnsureInitialized', 0x004020b0, 0x0057c000]],
       shell_syms);
   // With BigInts
-  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true];
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, undefined, true];
   var shell_prov = new WindowsCppEntriesProvider(...useBigIntsArgs);
   var shell_syms = [];
   await shell_prov.parseVmSymbols('shell.exe', 0x00400000n, 0x0057c000n, 0n,
@@ -355,7 +355,7 @@ await (async function testWindowsProcessExeAndDllMapFile() {
       exe_exe_syms, '.exe with .exe symbols');
   // With BigInts
   read = exeSymbols;
-  const useBigIntsArgs = [undefined, undefined, undefined, undefined, true];
+  const useBigIntsArgs = [undefined, undefined, undefined, undefined, undefined, true];
   var exe_exe_syms = [];
   await (new WindowsCppEntriesProvider(...useBigIntsArgs)).parseVmSymbols(
       'chrome.exe', 0x00400000n, 0x00472000n, 0n,

@@ -10,12 +10,13 @@ static_assert(
     false, "V8 targets can not be built with cppgc_is_standalone set to true.");
 #endif
 
+#include <optional>
+
 #include "include/v8-callbacks.h"
 #include "include/v8-cppgc.h"
 #include "include/v8-metrics.h"
 #include "src/base/flags.h"
 #include "src/base/macros.h"
-#include "src/base/optional.h"
 #include "src/base/utils/random-number-generator.h"
 #include "src/heap/cppgc-js/cross-heap-remembered-set.h"
 #include "src/heap/cppgc/heap-base.h"
@@ -31,6 +32,7 @@ class Isolate;
 namespace internal {
 
 class CppMarkingState;
+class EmbedderStackStateScope;
 class MinorGCHeapGrowing;
 
 // A C++ heap implementation used with V8 to implement unified heap.
@@ -68,11 +70,11 @@ class V8_EXPORT_PRIVATE CppHeap final
     bool FullGCMetricsReportPending() const;
     bool YoungGCMetricsReportPending() const;
 
-    const base::Optional<cppgc::internal::MetricRecorder::GCCycle>
+    const std::optional<cppgc::internal::MetricRecorder::GCCycle>
     ExtractLastFullGcEvent();
-    const base::Optional<cppgc::internal::MetricRecorder::GCCycle>
+    const std::optional<cppgc::internal::MetricRecorder::GCCycle>
     ExtractLastYoungGcEvent();
-    const base::Optional<
+    const std::optional<
         cppgc::internal::MetricRecorder::MainThreadIncrementalMark>
     ExtractLastIncrementalMarkEvent();
 
@@ -88,11 +90,10 @@ class V8_EXPORT_PRIVATE CppHeap final
         incremental_mark_batched_events_;
     v8::metrics::GarbageCollectionFullMainThreadBatchedIncrementalSweep
         incremental_sweep_batched_events_;
-    base::Optional<cppgc::internal::MetricRecorder::GCCycle>
-        last_full_gc_event_;
-    base::Optional<cppgc::internal::MetricRecorder::GCCycle>
+    std::optional<cppgc::internal::MetricRecorder::GCCycle> last_full_gc_event_;
+    std::optional<cppgc::internal::MetricRecorder::GCCycle>
         last_young_gc_event_;
-    base::Optional<cppgc::internal::MetricRecorder::MainThreadIncrementalMark>
+    std::optional<cppgc::internal::MetricRecorder::MainThreadIncrementalMark>
         last_incremental_mark_event_;
   };
 
@@ -101,7 +102,7 @@ class V8_EXPORT_PRIVATE CppHeap final
     explicit PauseConcurrentMarkingScope(CppHeap*);
 
    private:
-    base::Optional<cppgc::internal::MarkerBase::PauseConcurrentMarkingScope>
+    std::optional<cppgc::internal::MarkerBase::PauseConcurrentMarkingScope>
         pause_scope_;
   };
 
@@ -116,8 +117,7 @@ class V8_EXPORT_PRIVATE CppHeap final
 
   CppHeap(v8::Platform*,
           const std::vector<std::unique_ptr<cppgc::CustomSpaceBase>>&,
-          const v8::WrapperDescriptor&, cppgc::Heap::MarkingType,
-          cppgc::Heap::SweepingType);
+          cppgc::Heap::MarkingType, cppgc::Heap::SweepingType);
   ~CppHeap() final;
 
   CppHeap(const CppHeap&) = delete;
@@ -145,10 +145,19 @@ class V8_EXPORT_PRIVATE CppHeap final
   void StartMarking();
   bool AdvanceTracing(v8::base::TimeDelta max_duration);
   bool IsTracingDone() const;
-  void FinishMarkingAndStartSweeping();
+  void FinishMarkingAndProcessWeakness();
+  void CompactAndSweep();
   void EnterFinalPause(cppgc::EmbedderStackState stack_state);
+  void EnterProcessGlobalAtomicPause();
   bool FinishConcurrentMarkingIfNeeded();
-  void WriteBarrier(Tagged<JSObject>);
+
+  // This method is used to re-enable concurrent marking when the isolate is
+  // moved into the foreground. This method expects that concurrent marking was
+  // not started initially because the isolate was in the background but is
+  // still generally supported.
+  void ReEnableConcurrentMarking();
+
+  void WriteBarrier(void*);
 
   bool ShouldFinalizeIncrementalMarking() const;
 
@@ -158,10 +167,6 @@ class V8_EXPORT_PRIVATE CppHeap final
   void ResetAllocatedObjectSize(size_t) final {}
 
   MetricRecorderAdapter* GetMetricRecorder() const;
-
-  v8::WrapperDescriptor wrapper_descriptor() const {
-    return wrapper_descriptor_;
-  }
 
   Isolate* isolate() const { return isolate_; }
 
@@ -177,11 +182,16 @@ class V8_EXPORT_PRIVATE CppHeap final
 
   // cppgc::internal::GarbageCollector interface.
   void CollectGarbage(cppgc::internal::GCConfig) override;
-  const cppgc::EmbedderStackState* override_stack_state() const override;
+
+  std::optional<cppgc::EmbedderStackState> overridden_stack_state()
+      const override;
+  void set_override_stack_state(cppgc::EmbedderStackState state) override;
+  void clear_overridden_stack_state() override;
+
   void StartIncrementalGarbageCollection(cppgc::internal::GCConfig) override;
   size_t epoch() const override;
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
-  v8::base::Optional<int> UpdateAllocationTimeout() final;
+  std::optional<int> UpdateAllocationTimeout() final;
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
   V8_INLINE void RememberCrossHeapReferenceIfNeeded(
@@ -201,7 +211,9 @@ class V8_EXPORT_PRIVATE CppHeap final
   void FinalizeIncrementalGarbageCollectionIfNeeded(
       cppgc::Heap::StackState) final {
     // For unified heap, CppHeap shouldn't finalize independently (i.e.
-    // finalization is not needed) thus this method is left empty.
+    // finalization is not needed). We only mark marking has done so that V8
+    // can observe that Oilpan is finished.
+    marking_done_ = true;
   }
 
   void ReportBufferedAllocationSizeIfPossible();
@@ -225,7 +237,7 @@ class V8_EXPORT_PRIVATE CppHeap final
   Heap* heap_ = nullptr;
   bool marking_done_ = true;
   // |collection_type_| is initialized when marking is in progress.
-  base::Optional<CollectionType> collection_type_;
+  std::optional<CollectionType> collection_type_;
   GarbageCollectionFlags current_gc_flags_;
 
   std::unique_ptr<MinorGCHeapGrowing> minor_gc_heap_growing_;
@@ -238,8 +250,6 @@ class V8_EXPORT_PRIVATE CppHeap final
   // atomic pause. Allocated bytes are buffer in case this is temporarily
   // prohibited.
   int64_t buffered_allocated_bytes_ = 0;
-
-  v8::WrapperDescriptor wrapper_descriptor_;
 
   bool in_detached_testing_mode_ = false;
   bool force_incremental_marking_for_testing_ = false;
@@ -254,9 +264,12 @@ class V8_EXPORT_PRIVATE CppHeap final
   // on each increment.
   size_t allocated_size_limit_for_check_ = 0;
 
+  std::optional<cppgc::EmbedderStackState> detached_override_stack_state_;
+  std::unique_ptr<v8::internal::EmbedderStackStateScope>
+      override_stack_state_scope_;
 #ifdef V8_ENABLE_ALLOCATION_TIMEOUT
   // Use standalone RNG to avoid initialization order dependency.
-  base::Optional<v8::base::RandomNumberGenerator> allocation_timeout_rng_;
+  std::optional<v8::base::RandomNumberGenerator> allocation_timeout_rng_;
 #endif  // V8_ENABLE_ALLOCATION_TIMEOUT
 
   friend class MetricRecorderAdapter;

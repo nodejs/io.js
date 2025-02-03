@@ -49,13 +49,13 @@ const {
   kMaxResponseSize,
   kOnError,
   kResume,
-  kHTTPContext
+  kHTTPContext,
+  kClosed
 } = require('../core/symbols.js')
 
 const constants = require('../llhttp/constants.js')
 const EMPTY_BUF = Buffer.alloc(0)
 const FastBuffer = Buffer[Symbol.species]
-const addListener = util.addListener
 const removeAllListeners = util.removeAllListeners
 
 let extractBody
@@ -78,75 +78,140 @@ async function lazyllhttp () {
 
   return await WebAssembly.instantiate(mod, {
     env: {
-      /* eslint-disable camelcase */
-
+      /**
+       * @param {number} p
+       * @param {number} at
+       * @param {number} len
+       * @returns {number}
+       */
       wasm_on_url: (p, at, len) => {
         /* istanbul ignore next */
         return 0
       },
+      /**
+       * @param {number} p
+       * @param {number} at
+       * @param {number} len
+       * @returns {number}
+       */
       wasm_on_status: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
-        return currentParser.onStatus(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
+        return currentParser.onStatus(new FastBuffer(currentBufferRef.buffer, start, len))
       },
+      /**
+       * @param {number} p
+       * @returns {number}
+       */
       wasm_on_message_begin: (p) => {
-        assert.strictEqual(currentParser.ptr, p)
-        return currentParser.onMessageBegin() || 0
+        assert(currentParser.ptr === p)
+        return currentParser.onMessageBegin()
       },
+      /**
+       * @param {number} p
+       * @param {number} at
+       * @param {number} len
+       * @returns {number}
+       */
       wasm_on_header_field: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
-        return currentParser.onHeaderField(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
+        return currentParser.onHeaderField(new FastBuffer(currentBufferRef.buffer, start, len))
       },
+      /**
+       * @param {number} p
+       * @param {number} at
+       * @param {number} len
+       * @returns {number}
+       */
       wasm_on_header_value: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
-        return currentParser.onHeaderValue(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
+        return currentParser.onHeaderValue(new FastBuffer(currentBufferRef.buffer, start, len))
       },
+      /**
+       * @param {number} p
+       * @param {number} statusCode
+       * @param {0|1} upgrade
+       * @param {0|1} shouldKeepAlive
+       * @returns {number}
+       */
       wasm_on_headers_complete: (p, statusCode, upgrade, shouldKeepAlive) => {
-        assert.strictEqual(currentParser.ptr, p)
-        return currentParser.onHeadersComplete(statusCode, Boolean(upgrade), Boolean(shouldKeepAlive)) || 0
+        assert(currentParser.ptr === p)
+        return currentParser.onHeadersComplete(statusCode, upgrade === 1, shouldKeepAlive === 1)
       },
+      /**
+       * @param {number} p
+       * @param {number} at
+       * @param {number} len
+       * @returns {number}
+       */
       wasm_on_body: (p, at, len) => {
-        assert.strictEqual(currentParser.ptr, p)
+        assert(currentParser.ptr === p)
         const start = at - currentBufferPtr + currentBufferRef.byteOffset
-        return currentParser.onBody(new FastBuffer(currentBufferRef.buffer, start, len)) || 0
+        return currentParser.onBody(new FastBuffer(currentBufferRef.buffer, start, len))
       },
+      /**
+       * @param {number} p
+       * @returns {number}
+       */
       wasm_on_message_complete: (p) => {
-        assert.strictEqual(currentParser.ptr, p)
-        return currentParser.onMessageComplete() || 0
+        assert(currentParser.ptr === p)
+        return currentParser.onMessageComplete()
       }
 
-      /* eslint-enable camelcase */
     }
   })
 }
 
 let llhttpInstance = null
+/**
+ * @type {Promise<WebAssembly.Instance>|null}
+ */
 let llhttpPromise = lazyllhttp()
 llhttpPromise.catch()
 
+/**
+ * @type {Parser|null}
+ */
 let currentParser = null
 let currentBufferRef = null
+/**
+ * @type {number}
+ */
 let currentBufferSize = 0
 let currentBufferPtr = null
 
-const TIMEOUT_HEADERS = 1
-const TIMEOUT_BODY = 2
-const TIMEOUT_IDLE = 3
+const USE_NATIVE_TIMER = 0
+const USE_FAST_TIMER = 1
+
+// Use fast timers for headers and body to take eventual event loop
+// latency into account.
+const TIMEOUT_HEADERS = 2 | USE_FAST_TIMER
+const TIMEOUT_BODY = 4 | USE_FAST_TIMER
+
+// Use native timers to ignore event loop latency for keep-alive
+// handling.
+const TIMEOUT_KEEP_ALIVE = 8 | USE_NATIVE_TIMER
 
 class Parser {
+  /**
+     * @param {import('./client.js')} client
+     * @param {import('net').Socket} socket
+     * @param {*} llhttp
+     */
   constructor (client, socket, { exports }) {
-    assert(Number.isFinite(client[kMaxHeadersSize]) && client[kMaxHeadersSize] > 0)
-
     this.llhttp = exports
     this.ptr = this.llhttp.llhttp_alloc(constants.TYPE.RESPONSE)
     this.client = client
+    /**
+     * @type {import('net').Socket}
+     */
     this.socket = socket
     this.timeout = null
     this.timeoutValue = null
     this.timeoutType = null
-    this.statusCode = null
+    this.statusCode = 0
     this.statusText = ''
     this.upgrade = false
     this.headers = []
@@ -164,26 +229,39 @@ class Parser {
     this.maxResponseSize = client[kMaxResponseSize]
   }
 
-  setTimeout (value, type) {
-    this.timeoutType = type
-    if (value !== this.timeoutValue) {
-      timers.clearTimeout(this.timeout)
-      if (value) {
-        this.timeout = timers.setTimeout(onParserTimeout, value, this)
-        // istanbul ignore else: only for jest
-        if (this.timeout.unref) {
-          this.timeout.unref()
-        }
-      } else {
+  setTimeout (delay, type) {
+    // If the existing timer and the new timer are of different timer type
+    // (fast or native) or have different delay, we need to clear the existing
+    // timer and set a new one.
+    if (
+      delay !== this.timeoutValue ||
+      (type & USE_FAST_TIMER) ^ (this.timeoutType & USE_FAST_TIMER)
+    ) {
+      // If a timeout is already set, clear it with clearTimeout of the fast
+      // timer implementation, as it can clear fast and native timers.
+      if (this.timeout) {
+        timers.clearTimeout(this.timeout)
         this.timeout = null
       }
-      this.timeoutValue = value
+
+      if (delay) {
+        if (type & USE_FAST_TIMER) {
+          this.timeout = timers.setFastTimeout(onParserTimeout, delay, new WeakRef(this))
+        } else {
+          this.timeout = setTimeout(onParserTimeout, delay, new WeakRef(this))
+          this.timeout.unref()
+        }
+      }
+
+      this.timeoutValue = delay
     } else if (this.timeout) {
       // istanbul ignore else: only for jest
       if (this.timeout.refresh) {
         this.timeout.refresh()
       }
     }
+
+    this.timeoutType = type
   }
 
   resume () {
@@ -192,7 +270,7 @@ class Parser {
     }
 
     assert(this.ptr != null)
-    assert(currentParser == null)
+    assert(currentParser === null)
 
     this.llhttp.llhttp_resume(this.ptr)
 
@@ -219,22 +297,27 @@ class Parser {
     }
   }
 
-  execute (data) {
+  /**
+   * @param {Buffer} chunk
+   */
+  execute (chunk) {
+    assert(currentParser === null)
     assert(this.ptr != null)
-    assert(currentParser == null)
     assert(!this.paused)
 
     const { socket, llhttp } = this
 
-    if (data.length > currentBufferSize) {
+    // Allocate a new buffer if the current buffer is too small.
+    if (chunk.length > currentBufferSize) {
       if (currentBufferPtr) {
         llhttp.free(currentBufferPtr)
       }
-      currentBufferSize = Math.ceil(data.length / 4096) * 4096
+      // Allocate a buffer that is a multiple of 4096 bytes.
+      currentBufferSize = Math.ceil(chunk.length / 4096) * 4096
       currentBufferPtr = llhttp.malloc(currentBufferSize)
     }
 
-    new Uint8Array(llhttp.memory.buffer, currentBufferPtr, currentBufferSize).set(data)
+    new Uint8Array(llhttp.memory.buffer, currentBufferPtr, currentBufferSize).set(chunk)
 
     // Call `execute` on the wasm parser.
     // We pass the `llhttp_parser` pointer address, the pointer address of buffer view data,
@@ -244,9 +327,9 @@ class Parser {
       let ret
 
       try {
-        currentBufferRef = data
+        currentBufferRef = chunk
         currentParser = this
-        ret = llhttp.llhttp_execute(this.ptr, currentBufferPtr, data.length)
+        ret = llhttp.llhttp_execute(this.ptr, currentBufferPtr, chunk.length)
         /* eslint-disable-next-line no-useless-catch */
       } catch (err) {
         /* istanbul ignore next: difficult to make a test case for */
@@ -256,25 +339,27 @@ class Parser {
         currentBufferRef = null
       }
 
-      const offset = llhttp.llhttp_get_error_pos(this.ptr) - currentBufferPtr
+      if (ret !== constants.ERROR.OK) {
+        const data = chunk.subarray(llhttp.llhttp_get_error_pos(this.ptr) - currentBufferPtr)
 
-      if (ret === constants.ERROR.PAUSED_UPGRADE) {
-        this.onUpgrade(data.slice(offset))
-      } else if (ret === constants.ERROR.PAUSED) {
-        this.paused = true
-        socket.unshift(data.slice(offset))
-      } else if (ret !== constants.ERROR.OK) {
-        const ptr = llhttp.llhttp_get_error_reason(this.ptr)
-        let message = ''
-        /* istanbul ignore else: difficult to make a test case for */
-        if (ptr) {
-          const len = new Uint8Array(llhttp.memory.buffer, ptr).indexOf(0)
-          message =
-            'Response does not match the HTTP/1.1 protocol (' +
-            Buffer.from(llhttp.memory.buffer, ptr, len).toString() +
-            ')'
+        if (ret === constants.ERROR.PAUSED_UPGRADE) {
+          this.onUpgrade(data)
+        } else if (ret === constants.ERROR.PAUSED) {
+          this.paused = true
+          socket.unshift(data)
+        } else {
+          const ptr = llhttp.llhttp_get_error_reason(this.ptr)
+          let message = ''
+          /* istanbul ignore else: difficult to make a test case for */
+          if (ptr) {
+            const len = new Uint8Array(llhttp.memory.buffer, ptr).indexOf(0)
+            message =
+              'Response does not match the HTTP/1.1 protocol (' +
+              Buffer.from(llhttp.memory.buffer, ptr, len).toString() +
+              ')'
+          }
+          throw new HTTPParserError(message, constants.ERROR[ret], data)
         }
-        throw new HTTPParserError(message, constants.ERROR[ret], data.slice(offset))
       }
     } catch (err) {
       util.destroy(socket, err)
@@ -282,13 +367,13 @@ class Parser {
   }
 
   destroy () {
+    assert(currentParser === null)
     assert(this.ptr != null)
-    assert(currentParser == null)
 
     this.llhttp.llhttp_free(this.ptr)
     this.ptr = null
 
-    timers.clearTimeout(this.timeout)
+    this.timeout && timers.clearTimeout(this.timeout)
     this.timeout = null
     this.timeoutValue = null
     this.timeoutType = null
@@ -296,10 +381,18 @@ class Parser {
     this.paused = false
   }
 
+  /**
+   * @param {Buffer} buf
+   * @returns {0}
+   */
   onStatus (buf) {
     this.statusText = buf.toString()
+    return 0
   }
 
+  /**
+   * @returns {0|-1}
+   */
   onMessageBegin () {
     const { socket, client } = this
 
@@ -313,8 +406,14 @@ class Parser {
       return -1
     }
     request.onResponseStarted()
+
+    return 0
   }
 
+  /**
+   * @param {Buffer} buf
+   * @returns {number}
+   */
   onHeaderField (buf) {
     const len = this.headers.length
 
@@ -325,8 +424,14 @@ class Parser {
     }
 
     this.trackHeader(buf.length)
+
+    return 0
   }
 
+  /**
+   * @param {Buffer} buf
+   * @returns {number}
+   */
   onHeaderValue (buf) {
     let len = this.headers.length
 
@@ -350,8 +455,13 @@ class Parser {
     }
 
     this.trackHeader(buf.length)
+
+    return 0
   }
 
+  /**
+   * @param {number} len
+   */
   trackHeader (len) {
     this.headersSize += len
     if (this.headersSize >= this.headersMaxSize) {
@@ -359,24 +469,26 @@ class Parser {
     }
   }
 
+  /**
+   * @param {Buffer} head
+   */
   onUpgrade (head) {
     const { upgrade, client, socket, headers, statusCode } = this
 
     assert(upgrade)
+    assert(client[kSocket] === socket)
+    assert(!socket.destroyed)
+    assert(!this.paused)
+    assert((headers.length & 1) === 0)
 
     const request = client[kQueue][client[kRunningIdx]]
     assert(request)
-
-    assert(!socket.destroyed)
-    assert(socket === client[kSocket])
-    assert(!this.paused)
     assert(request.upgrade || request.method === 'CONNECT')
 
-    this.statusCode = null
+    this.statusCode = 0
     this.statusText = ''
-    this.shouldKeepAlive = null
+    this.shouldKeepAlive = false
 
-    assert(this.headers.length % 2 === 0)
     this.headers = []
     this.headersSize = 0
 
@@ -404,6 +516,12 @@ class Parser {
     client[kResume]()
   }
 
+  /**
+   * @param {number} statusCode
+   * @param {boolean} upgrade
+   * @param {boolean} shouldKeepAlive
+   * @returns {number}
+   */
   onHeadersComplete (statusCode, upgrade, shouldKeepAlive) {
     const { client, socket, headers, statusText } = this
 
@@ -433,7 +551,7 @@ class Parser {
       return -1
     }
 
-    assert.strictEqual(this.timeoutType, TIMEOUT_HEADERS)
+    assert(this.timeoutType === TIMEOUT_HEADERS)
 
     this.statusCode = statusCode
     this.shouldKeepAlive = (
@@ -466,7 +584,7 @@ class Parser {
       return 2
     }
 
-    assert(this.headers.length % 2 === 0)
+    assert((this.headers.length & 1) === 0)
     this.headers = []
     this.headersSize = 0
 
@@ -513,6 +631,10 @@ class Parser {
     return pause ? constants.ERROR.PAUSED : 0
   }
 
+  /**
+   * @param {Buffer} buf
+   * @returns {number}
+   */
   onBody (buf) {
     const { client, socket, statusCode, maxResponseSize } = this
 
@@ -523,7 +645,7 @@ class Parser {
     const request = client[kQueue][client[kRunningIdx]]
     assert(request)
 
-    assert.strictEqual(this.timeoutType, TIMEOUT_BODY)
+    assert(this.timeoutType === TIMEOUT_BODY)
     if (this.timeout) {
       // istanbul ignore else: only for jest
       if (this.timeout.refresh) {
@@ -543,8 +665,13 @@ class Parser {
     if (request.onData(buf) === false) {
       return constants.ERROR.PAUSED
     }
+
+    return 0
   }
 
+  /**
+   * @returns {number}
+   */
   onMessageComplete () {
     const { client, socket, statusCode, upgrade, headers, contentLength, bytesRead, shouldKeepAlive } = this
 
@@ -553,27 +680,27 @@ class Parser {
     }
 
     if (upgrade) {
-      return
+      return 0
     }
+
+    assert(statusCode >= 100)
+    assert((this.headers.length & 1) === 0)
 
     const request = client[kQueue][client[kRunningIdx]]
     assert(request)
 
-    assert(statusCode >= 100)
-
-    this.statusCode = null
+    this.statusCode = 0
     this.statusText = ''
     this.bytesRead = 0
     this.contentLength = ''
     this.keepAlive = ''
     this.connection = ''
 
-    assert(this.headers.length % 2 === 0)
     this.headers = []
     this.headersSize = 0
 
     if (statusCode < 200) {
-      return
+      return 0
     }
 
     /* istanbul ignore next: should be handled by llhttp? */
@@ -587,7 +714,7 @@ class Parser {
     client[kQueue][client[kRunningIdx]++] = null
 
     if (socket[kWriting]) {
-      assert.strictEqual(client[kRunning], 0)
+      assert(client[kRunning] === 0)
       // Response completed before request.
       util.destroy(socket, new InformationalError('reset'))
       return constants.ERROR.PAUSED
@@ -609,34 +736,52 @@ class Parser {
     } else {
       client[kResume]()
     }
+
+    return 0
   }
 }
 
 function onParserTimeout (parser) {
-  const { socket, timeoutType, client } = parser
+  const { socket, timeoutType, client, paused } = parser.deref()
 
   /* istanbul ignore else */
   if (timeoutType === TIMEOUT_HEADERS) {
     if (!socket[kWriting] || socket.writableNeedDrain || client[kRunning] > 1) {
-      assert(!parser.paused, 'cannot be paused while waiting for headers')
+      assert(!paused, 'cannot be paused while waiting for headers')
       util.destroy(socket, new HeadersTimeoutError())
     }
   } else if (timeoutType === TIMEOUT_BODY) {
-    if (!parser.paused) {
+    if (!paused) {
       util.destroy(socket, new BodyTimeoutError())
     }
-  } else if (timeoutType === TIMEOUT_IDLE) {
+  } else if (timeoutType === TIMEOUT_KEEP_ALIVE) {
     assert(client[kRunning] === 0 && client[kKeepAliveTimeoutValue])
     util.destroy(socket, new InformationalError('socket idle timeout'))
   }
 }
 
+/**
+ * @param {import ('./client.js')} client
+ * @param {import('net').Socket} socket
+ * @returns
+ */
 async function connectH1 (client, socket) {
   client[kSocket] = socket
 
   if (!llhttpInstance) {
+    const noop = () => {}
+    socket.on('error', noop)
     llhttpInstance = await llhttpPromise
     llhttpPromise = null
+    socket.off('error', noop)
+  }
+
+  if (socket.errored) {
+    throw socket.errored
+  }
+
+  if (socket.destroyed) {
+    throw new SocketError('destroyed')
   }
 
   socket[kNoRef] = false
@@ -645,110 +790,45 @@ async function connectH1 (client, socket) {
   socket[kBlocking] = false
   socket[kParser] = new Parser(client, socket, llhttpInstance)
 
-  addListener(socket, 'error', function (err) {
-    const parser = this[kParser]
+  util.addListener(socket, 'error', onHttpSocketError)
+  util.addListener(socket, 'readable', onHttpSocketReadable)
+  util.addListener(socket, 'end', onHttpSocketEnd)
+  util.addListener(socket, 'close', onHttpSocketClose)
 
-    assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
-
-    // On Mac OS, we get an ECONNRESET even if there is a full body to be forwarded
-    // to the user.
-    if (err.code === 'ECONNRESET' && parser.statusCode && !parser.shouldKeepAlive) {
-      // We treat all incoming data so for as a valid response.
-      parser.onMessageComplete()
-      return
-    }
-
-    this[kError] = err
-
-    this[kClient][kOnError](err)
-  })
-  addListener(socket, 'readable', function () {
-    const parser = this[kParser]
-
-    if (parser) {
-      parser.readMore()
-    }
-  })
-  addListener(socket, 'end', function () {
-    const parser = this[kParser]
-
-    if (parser.statusCode && !parser.shouldKeepAlive) {
-      // We treat all incoming data so far as a valid response.
-      parser.onMessageComplete()
-      return
-    }
-
-    util.destroy(this, new SocketError('other side closed', util.getSocketInfo(this)))
-  })
-  addListener(socket, 'close', function () {
-    const client = this[kClient]
-    const parser = this[kParser]
-
-    if (parser) {
-      if (!this[kError] && parser.statusCode && !parser.shouldKeepAlive) {
-        // We treat all incoming data so far as a valid response.
-        parser.onMessageComplete()
-      }
-
-      this[kParser].destroy()
-      this[kParser] = null
-    }
-
-    const err = this[kError] || new SocketError('closed', util.getSocketInfo(this))
-
-    client[kSocket] = null
-    client[kHTTPContext] = null // TODO (fix): This is hacky...
-
-    if (client.destroyed) {
-      assert(client[kPending] === 0)
-
-      // Fail entire queue.
-      const requests = client[kQueue].splice(client[kRunningIdx])
-      for (let i = 0; i < requests.length; i++) {
-        const request = requests[i]
-        util.errorRequest(client, request, err)
-      }
-    } else if (client[kRunning] > 0 && err.code !== 'UND_ERR_INFO') {
-      // Fail head of pipeline.
-      const request = client[kQueue][client[kRunningIdx]]
-      client[kQueue][client[kRunningIdx]++] = null
-
-      util.errorRequest(client, request, err)
-    }
-
-    client[kPendingIdx] = client[kRunningIdx]
-
-    assert(client[kRunning] === 0)
-
-    client.emit('disconnect', client[kUrl], [client], err)
-
-    client[kResume]()
-  })
-
-  let closed = false
-  socket.on('close', () => {
-    closed = true
-  })
+  socket[kClosed] = false
+  socket.on('close', onSocketClose)
 
   return {
     version: 'h1',
     defaultPipelining: 1,
-    write (...args) {
-      return writeH1(client, ...args)
+    write (request) {
+      return writeH1(client, request)
     },
     resume () {
       resumeH1(client)
     },
+    /**
+     * @param {Error|undefined} err
+     * @param {() => void} callback
+     */
     destroy (err, callback) {
-      if (closed) {
+      if (socket[kClosed]) {
         queueMicrotask(callback)
       } else {
-        socket.destroy(err).on('close', callback)
+        socket.on('close', callback)
+        socket.destroy(err)
       }
     },
+    /**
+     * @returns {boolean}
+     */
     get destroyed () {
       return socket.destroyed
     },
+    /**
+     * @param {import('../core/request.js')} request
+     * @returns {boolean}
+     */
     busy (request) {
       if (socket[kWriting] || socket[kReset] || socket[kBlocking]) {
         return true
@@ -788,6 +868,93 @@ async function connectH1 (client, socket) {
   }
 }
 
+function onHttpSocketError (err) {
+  assert(err.code !== 'ERR_TLS_CERT_ALTNAME_INVALID')
+
+  const parser = this[kParser]
+
+  // On Mac OS, we get an ECONNRESET even if there is a full body to be forwarded
+  // to the user.
+  if (err.code === 'ECONNRESET' && parser.statusCode && !parser.shouldKeepAlive) {
+    // We treat all incoming data so for as a valid response.
+    parser.onMessageComplete()
+    return
+  }
+
+  this[kError] = err
+
+  this[kClient][kOnError](err)
+}
+
+function onHttpSocketReadable () {
+  this[kParser]?.readMore()
+}
+
+function onHttpSocketEnd () {
+  const parser = this[kParser]
+
+  if (parser.statusCode && !parser.shouldKeepAlive) {
+    // We treat all incoming data so far as a valid response.
+    parser.onMessageComplete()
+    return
+  }
+
+  util.destroy(this, new SocketError('other side closed', util.getSocketInfo(this)))
+}
+
+function onHttpSocketClose () {
+  const parser = this[kParser]
+
+  if (parser) {
+    if (!this[kError] && parser.statusCode && !parser.shouldKeepAlive) {
+      // We treat all incoming data so far as a valid response.
+      parser.onMessageComplete()
+    }
+
+    this[kParser].destroy()
+    this[kParser] = null
+  }
+
+  const err = this[kError] || new SocketError('closed', util.getSocketInfo(this))
+
+  const client = this[kClient]
+
+  client[kSocket] = null
+  client[kHTTPContext] = null // TODO (fix): This is hacky...
+
+  if (client.destroyed) {
+    assert(client[kPending] === 0)
+
+    // Fail entire queue.
+    const requests = client[kQueue].splice(client[kRunningIdx])
+    for (let i = 0; i < requests.length; i++) {
+      const request = requests[i]
+      util.errorRequest(client, request, err)
+    }
+  } else if (client[kRunning] > 0 && err.code !== 'UND_ERR_INFO') {
+    // Fail head of pipeline.
+    const request = client[kQueue][client[kRunningIdx]]
+    client[kQueue][client[kRunningIdx]++] = null
+
+    util.errorRequest(client, request, err)
+  }
+
+  client[kPendingIdx] = client[kRunningIdx]
+
+  assert(client[kRunning] === 0)
+
+  client.emit('disconnect', client[kUrl], [client], err)
+
+  client[kResume]()
+}
+
+function onSocketClose () {
+  this[kClosed] = true
+}
+
+/**
+ * @param {import('./client.js')} client
+ */
 function resumeH1 (client) {
   const socket = client[kSocket]
 
@@ -803,8 +970,8 @@ function resumeH1 (client) {
     }
 
     if (client[kSize] === 0) {
-      if (socket[kParser].timeoutType !== TIMEOUT_IDLE) {
-        socket[kParser].setTimeout(client[kKeepAliveTimeoutValue], TIMEOUT_IDLE)
+      if (socket[kParser].timeoutType !== TIMEOUT_KEEP_ALIVE) {
+        socket[kParser].setTimeout(client[kKeepAliveTimeoutValue], TIMEOUT_KEEP_ALIVE)
       }
     } else if (client[kRunning] > 0 && socket[kParser].statusCode < 200) {
       if (socket[kParser].timeoutType !== TIMEOUT_HEADERS) {
@@ -823,6 +990,11 @@ function shouldSendContentLength (method) {
   return method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && method !== 'TRACE' && method !== 'CONNECT'
 }
 
+/**
+ * @param {import('./client.js')} client
+ * @param {import('../core/request.js')} request
+ * @returns
+ */
 function writeH1 (client, request) {
   const { method, path, host, upgrade, blocking, reset } = request
 
@@ -840,7 +1012,10 @@ function writeH1 (client, request) {
   const expectsPayload = (
     method === 'PUT' ||
     method === 'POST' ||
-    method === 'PATCH'
+    method === 'PATCH' ||
+    method === 'QUERY' ||
+    method === 'PROPFIND' ||
+    method === 'PROPPATCH'
   )
 
   if (util.isFormDataLike(body)) {
@@ -893,6 +1068,10 @@ function writeH1 (client, request) {
 
   const socket = client[kSocket]
 
+  /**
+   * @param {Error} [err]
+   * @returns {void}
+   */
   const abort = (err) => {
     if (request.aborted || request.completed) {
       return
@@ -978,19 +1157,19 @@ function writeH1 (client, request) {
 
   /* istanbul ignore else: assertion */
   if (!body || bodyLength === 0) {
-    writeBuffer({ abort, body: null, client, request, socket, contentLength, header, expectsPayload })
+    writeBuffer(abort, null, client, request, socket, contentLength, header, expectsPayload)
   } else if (util.isBuffer(body)) {
-    writeBuffer({ abort, body, client, request, socket, contentLength, header, expectsPayload })
+    writeBuffer(abort, body, client, request, socket, contentLength, header, expectsPayload)
   } else if (util.isBlobLike(body)) {
     if (typeof body.stream === 'function') {
-      writeIterable({ abort, body: body.stream(), client, request, socket, contentLength, header, expectsPayload })
+      writeIterable(abort, body.stream(), client, request, socket, contentLength, header, expectsPayload)
     } else {
-      writeBlob({ abort, body, client, request, socket, contentLength, header, expectsPayload })
+      writeBlob(abort, body, client, request, socket, contentLength, header, expectsPayload)
     }
   } else if (util.isStream(body)) {
-    writeStream({ abort, body, client, request, socket, contentLength, header, expectsPayload })
+    writeStream(abort, body, client, request, socket, contentLength, header, expectsPayload)
   } else if (util.isIterable(body)) {
-    writeIterable({ abort, body, client, request, socket, contentLength, header, expectsPayload })
+    writeIterable(abort, body, client, request, socket, contentLength, header, expectsPayload)
   } else {
     assert(false)
   }
@@ -998,13 +1177,27 @@ function writeH1 (client, request) {
   return true
 }
 
-function writeStream ({ abort, body, client, request, socket, contentLength, header, expectsPayload }) {
+/**
+ * @param {AbortCallback} abort
+ * @param {import('stream').Stream} body
+ * @param {import('./client.js')} client
+ * @param {import('../core/request.js')} request
+ * @param {import('net').Socket} socket
+ * @param {number} contentLength
+ * @param {string} header
+ * @param {boolean} expectsPayload
+ */
+function writeStream (abort, body, client, request, socket, contentLength, header, expectsPayload) {
   assert(contentLength !== 0 || client[kRunning] === 0, 'stream body cannot be pipelined')
 
   let finished = false
 
   const writer = new AsyncWriter({ abort, socket, request, contentLength, client, expectsPayload, header })
 
+  /**
+   * @param {Buffer} chunk
+   * @returns {void}
+   */
   const onData = function (chunk) {
     if (finished) {
       return
@@ -1018,6 +1211,10 @@ function writeStream ({ abort, body, client, request, socket, contentLength, hea
       util.destroy(this, err)
     }
   }
+
+  /**
+   * @returns {void}
+   */
   const onDrain = function () {
     if (finished) {
       return
@@ -1027,6 +1224,10 @@ function writeStream ({ abort, body, client, request, socket, contentLength, hea
       body.resume()
     }
   }
+
+  /**
+   * @returns {void}
+   */
   const onClose = function () {
     // 'close' might be emitted *before* 'error' for
     // broken streams. Wait a tick to avoid this case.
@@ -1041,6 +1242,11 @@ function writeStream ({ abort, body, client, request, socket, contentLength, hea
       queueMicrotask(() => onFinished(err))
     }
   }
+
+  /**
+   * @param {Error} [err]
+   * @returns
+   */
   const onFinished = function (err) {
     if (finished) {
       return
@@ -1101,7 +1307,25 @@ function writeStream ({ abort, body, client, request, socket, contentLength, hea
   }
 }
 
-async function writeBuffer ({ abort, body, client, request, socket, contentLength, header, expectsPayload }) {
+/**
+ * @typedef AbortCallback
+ * @type {Function}
+ * @param {Error} [err]
+ * @returns {void}
+ */
+
+/**
+ * @param {AbortCallback} abort
+ * @param {Uint8Array|null} body
+ * @param {import('./client.js')} client
+ * @param {import('../core/request.js')} request
+ * @param {import('net').Socket} socket
+ * @param {number} contentLength
+ * @param {string} header
+ * @param {boolean} expectsPayload
+ * @returns {void}
+ */
+function writeBuffer (abort, body, client, request, socket, contentLength, header, expectsPayload) {
   try {
     if (!body) {
       if (contentLength === 0) {
@@ -1119,7 +1343,7 @@ async function writeBuffer ({ abort, body, client, request, socket, contentLengt
       socket.uncork()
       request.onBodySent(body)
 
-      if (!expectsPayload) {
+      if (!expectsPayload && request.reset !== false) {
         socket[kReset] = true
       }
     }
@@ -1131,7 +1355,18 @@ async function writeBuffer ({ abort, body, client, request, socket, contentLengt
   }
 }
 
-async function writeBlob ({ abort, body, client, request, socket, contentLength, header, expectsPayload }) {
+/**
+ * @param {AbortCallback} abort
+ * @param {Blob} body
+ * @param {import('./client.js')} client
+ * @param {import('../core/request.js')} request
+ * @param {import('net').Socket} socket
+ * @param {number} contentLength
+ * @param {string} header
+ * @param {boolean} expectsPayload
+ * @returns {Promise<void>}
+ */
+async function writeBlob (abort, body, client, request, socket, contentLength, header, expectsPayload) {
   assert(contentLength === body.size, 'blob body must have content length')
 
   try {
@@ -1149,7 +1384,7 @@ async function writeBlob ({ abort, body, client, request, socket, contentLength,
     request.onBodySent(buffer)
     request.onRequestSent()
 
-    if (!expectsPayload) {
+    if (!expectsPayload && request.reset !== false) {
       socket[kReset] = true
     }
 
@@ -1159,7 +1394,18 @@ async function writeBlob ({ abort, body, client, request, socket, contentLength,
   }
 }
 
-async function writeIterable ({ abort, body, client, request, socket, contentLength, header, expectsPayload }) {
+/**
+ * @param {AbortCallback} abort
+ * @param {Iterable} body
+ * @param {import('./client.js')} client
+ * @param {import('../core/request.js')} request
+ * @param {import('net').Socket} socket
+ * @param {number} contentLength
+ * @param {string} header
+ * @param {boolean} expectsPayload
+ * @returns {Promise<void>}
+ */
+async function writeIterable (abort, body, client, request, socket, contentLength, header, expectsPayload) {
   assert(contentLength !== 0 || client[kRunning] === 0, 'iterator body cannot be pipelined')
 
   let callback = null
@@ -1209,6 +1455,17 @@ async function writeIterable ({ abort, body, client, request, socket, contentLen
 }
 
 class AsyncWriter {
+  /**
+   *
+   * @param {object} arg
+   * @param {AbortCallback} arg.abort
+   * @param {import('net').Socket} arg.socket
+   * @param {import('../core/request.js')} arg.request
+   * @param {number} arg.contentLength
+   * @param {import('./client.js')} arg.client
+   * @param {boolean} arg.expectsPayload
+   * @param {string} arg.header
+   */
   constructor ({ abort, socket, request, contentLength, client, expectsPayload, header }) {
     this.socket = socket
     this.request = request
@@ -1222,6 +1479,10 @@ class AsyncWriter {
     socket[kWriting] = true
   }
 
+  /**
+   * @param {Buffer} chunk
+   * @returns
+   */
   write (chunk) {
     const { socket, request, contentLength, client, bytesWritten, expectsPayload, header } = this
 
@@ -1250,7 +1511,7 @@ class AsyncWriter {
     socket.cork()
 
     if (bytesWritten === 0) {
-      if (!expectsPayload) {
+      if (!expectsPayload && request.reset !== false) {
         socket[kReset] = true
       }
 
@@ -1285,6 +1546,9 @@ class AsyncWriter {
     return ret
   }
 
+  /**
+   * @returns {void}
+   */
   end () {
     const { socket, contentLength, client, bytesWritten, expectsPayload, header, request } = this
     request.onRequestSent()
@@ -1332,6 +1596,10 @@ class AsyncWriter {
     client[kResume]()
   }
 
+  /**
+   * @param {Error} [err]
+   * @returns {void}
+   */
   destroy (err) {
     const { socket, client, abort } = this
 

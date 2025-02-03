@@ -32,7 +32,7 @@ builder.addFunction("crash", kSig_v_v).exportFunc().addBody([
   kExprRefNull, kAnyRefCode,
   kExprLoop, loop_type,
     kExprRefNull, kAnyRefCode,
-    kGCPrefix, kExprBrOnCastGeneric, 0b01, 0, kAnyRefCode, kI31RefCode,
+    kGCPrefix, kExprBrOnCast, 0b01, 0, kAnyRefCode, kI31RefCode,
     kExprDrop,
     kExprDrop,
   kExprEnd,  // loop

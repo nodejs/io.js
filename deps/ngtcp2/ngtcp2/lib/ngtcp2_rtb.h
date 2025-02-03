@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -85,7 +85,7 @@ typedef struct ngtcp2_rtb_entry ngtcp2_rtb_entry;
 
 /*
  * ngtcp2_rtb_entry is an object stored in ngtcp2_rtb.  It corresponds
- * to the one packet which is waiting for its ACK.
+ * to the one packet which is waiting for its acknowledgement.
  */
 struct ngtcp2_rtb_entry {
   union {
@@ -98,10 +98,11 @@ struct ngtcp2_rtb_entry {
         uint8_t flags;
       } hd;
       ngtcp2_frame_chain *frc;
-      /* ts is the time point when a packet included in this entry is sent
-         to a peer. */
+      /* ts is the time point when a packet included in this entry is
+         sent to a remote endpoint. */
       ngtcp2_tstamp ts;
-      /* lost_ts is the time when this entry is marked lost. */
+      /* lost_ts is the time when this entry is declared to be
+         lost. */
       ngtcp2_tstamp lost_ts;
       /* pktlen is the length of QUIC packet */
       size_t pktlen;
@@ -111,6 +112,7 @@ struct ngtcp2_rtb_entry {
         ngtcp2_tstamp first_sent_ts;
         uint64_t tx_in_flight;
         uint64_t lost;
+        int64_t end_seq;
         int is_app_limited;
       } rst;
       /* flags is bitwise-OR of zero or more of
@@ -122,11 +124,11 @@ struct ngtcp2_rtb_entry {
   };
 };
 
-ngtcp2_objalloc_decl(rtb_entry, ngtcp2_rtb_entry, oplent);
+ngtcp2_objalloc_decl(rtb_entry, ngtcp2_rtb_entry, oplent)
 
 /*
- * ngtcp2_rtb_entry_new allocates ngtcp2_rtb_entry object, and assigns
- * its pointer to |*pent|.
+ * ngtcp2_rtb_entry_objalloc_new allocates ngtcp2_rtb_entry object via
+ * |objalloc|, and assigns its pointer to |*pent|.
  */
 int ngtcp2_rtb_entry_objalloc_new(ngtcp2_rtb_entry **pent,
                                   const ngtcp2_pkt_hd *hd,
@@ -145,7 +147,7 @@ void ngtcp2_rtb_entry_objalloc_del(ngtcp2_rtb_entry *ent,
                                    const ngtcp2_mem *mem);
 
 /*
- * ngtcp2_rtb tracks sent packets, and its ACK timeout for
+ * ngtcp2_rtb tracks sent packets, and its acknowledgement timeout for
  * retransmission.
  */
 typedef struct ngtcp2_rtb {
@@ -154,34 +156,33 @@ typedef struct ngtcp2_rtb {
   /* ents includes ngtcp2_rtb_entry sorted by decreasing order of
      packet number. */
   ngtcp2_ksl ents;
-  /* crypto is CRYPTO stream. */
-  ngtcp2_strm *crypto;
   ngtcp2_rst *rst;
   ngtcp2_cc *cc;
   ngtcp2_log *log;
   ngtcp2_qlog *qlog;
   const ngtcp2_mem *mem;
   /* largest_acked_tx_pkt_num is the largest packet number
-     acknowledged by the peer. */
+     acknowledged by a remote endpoint. */
   int64_t largest_acked_tx_pkt_num;
-  /* num_ack_eliciting is the number of ACK eliciting entries. */
+  /* num_ack_eliciting is the number of ACK eliciting entries in
+     ents. */
   size_t num_ack_eliciting;
   /* num_retransmittable is the number of packets which contain frames
-     that must be retransmitted on loss. */
+     that must be retransmitted on loss in ents. */
   size_t num_retransmittable;
   /* num_pto_eliciting is the number of packets that elicit PTO probe
-     packets. */
+     packets in ents. */
   size_t num_pto_eliciting;
   /* probe_pkt_left is the number of probe packet to send */
   size_t probe_pkt_left;
-  /* pktns_id is the identifier of packet number space. */
-  ngtcp2_pktns_id pktns_id;
   /* cc_pkt_num is the smallest packet number that is contributed to
      ngtcp2_conn_stat.bytes_in_flight. */
   int64_t cc_pkt_num;
   /* cc_bytes_in_flight is the number of in-flight bytes that is
      contributed to ngtcp2_conn_stat.bytes_in_flight.  It only
-     includes the bytes after congestion state is reset. */
+     includes the bytes after congestion state is reset, that is only
+     count a packet whose packet number is greater than or equals to
+     cc_pkt_num. */
   uint64_t cc_bytes_in_flight;
   /* persistent_congestion_start_ts is the time when persistent
      congestion evaluation is started.  It happens roughly after
@@ -199,8 +200,7 @@ typedef struct ngtcp2_rtb {
 /*
  * ngtcp2_rtb_init initializes |rtb|.
  */
-void ngtcp2_rtb_init(ngtcp2_rtb *rtb, ngtcp2_pktns_id pktns_id,
-                     ngtcp2_strm *crypto, ngtcp2_rst *rst, ngtcp2_cc *cc,
+void ngtcp2_rtb_init(ngtcp2_rtb *rtb, ngtcp2_rst *rst, ngtcp2_cc *cc,
                      int64_t cc_pkt_num, ngtcp2_log *log, ngtcp2_qlog *qlog,
                      ngtcp2_objalloc *rtb_entry_objalloc,
                      ngtcp2_objalloc *frc_objalloc, const ngtcp2_mem *mem);
@@ -227,13 +227,13 @@ int ngtcp2_rtb_add(ngtcp2_rtb *rtb, ngtcp2_rtb_entry *ent,
  * which has the largest packet number.  If there is no entry,
  * returned value satisfies ngtcp2_ksl_it_end(&it) != 0.
  */
-ngtcp2_ksl_it ngtcp2_rtb_head(ngtcp2_rtb *rtb);
+ngtcp2_ksl_it ngtcp2_rtb_head(const ngtcp2_rtb *rtb);
 
 /*
- * ngtcp2_rtb_recv_ack removes acked ngtcp2_rtb_entry from |rtb|.
- * |pkt_num| is a packet number which includes |fr|.  |pkt_ts| is the
- * timestamp when packet is received.  |ts| should be the current
- * time.  Usually they are the same, but for buffered packets,
+ * ngtcp2_rtb_recv_ack removes an acknowledged ngtcp2_rtb_entry from
+ * |rtb|.  |pkt_num| is a packet number which includes |fr|.  |pkt_ts|
+ * is the timestamp when packet is received.  |ts| should be the
+ * current time.  Usually they are the same, but for buffered packets,
  * |pkt_ts| would be earlier than |ts|.
  *
  * This function returns the number of newly acknowledged packets if
@@ -252,7 +252,7 @@ ngtcp2_ssize ngtcp2_rtb_recv_ack(ngtcp2_rtb *rtb, const ngtcp2_ack *fr,
 /*
  * ngtcp2_rtb_detect_lost_pkt detects lost packets and prepends the
  * frames contained them to |*pfrc|.  Even when this function fails,
- * some frames might be prepended to |*pfrc| and the caller should
+ * some frames might be prepended to |*pfrc|, and the caller should
  * handle them.
  */
 int ngtcp2_rtb_detect_lost_pkt(ngtcp2_rtb *rtb, ngtcp2_conn *conn,
@@ -266,16 +266,16 @@ void ngtcp2_rtb_remove_expired_lost_pkt(ngtcp2_rtb *rtb, ngtcp2_duration pto,
                                         ngtcp2_tstamp ts);
 
 /*
- * ngtcp2_rtb_lost_pkt_ts returns the earliest time when the still
- * retained packet was lost.  It returns UINT64_MAX if no such packet
- * exists.
+ * ngtcp2_rtb_lost_pkt_ts returns the timestamp when an oldest lost
+ * packet tracked by |rtb| was declared lost.  It returns UINT64_MAX
+ * if no such packet exists.
  */
-ngtcp2_tstamp ngtcp2_rtb_lost_pkt_ts(ngtcp2_rtb *rtb);
+ngtcp2_tstamp ngtcp2_rtb_lost_pkt_ts(const ngtcp2_rtb *rtb);
 
 /*
- * ngtcp2_rtb_remove_all removes all packets from |rtb| and prepends
+ * ngtcp2_rtb_remove_all removes all packets from |rtb|, and prepends
  * all frames to |*pfrc|.  Even when this function fails, some frames
- * might be prepended to |*pfrc| and the caller should handle them.
+ * might be prepended to |*pfrc|, and the caller should handle them.
  */
 int ngtcp2_rtb_remove_all(ngtcp2_rtb *rtb, ngtcp2_conn *conn,
                           ngtcp2_pktns *pktns, ngtcp2_conn_stat *cstat);
@@ -286,9 +286,9 @@ int ngtcp2_rtb_remove_all(ngtcp2_rtb *rtb, ngtcp2_conn *conn,
 void ngtcp2_rtb_remove_early_data(ngtcp2_rtb *rtb, ngtcp2_conn_stat *cstat);
 
 /*
- * ngtcp2_rtb_empty returns nonzero if |rtb| have no entry.
+ * ngtcp2_rtb_empty returns nonzero if |rtb| has no entry.
  */
-int ngtcp2_rtb_empty(ngtcp2_rtb *rtb);
+int ngtcp2_rtb_empty(const ngtcp2_rtb *rtb);
 
 /*
  * ngtcp2_rtb_reset_cc_state resets congestion state in |rtb|.
@@ -298,15 +298,15 @@ int ngtcp2_rtb_empty(ngtcp2_rtb *rtb);
 void ngtcp2_rtb_reset_cc_state(ngtcp2_rtb *rtb, int64_t cc_pkt_num);
 
 /*
- * ngtcp2_rtb_remove_expired_lost_pkt ensures that the number of lost
- * packets at most |n|.
+ * ngtcp2_rtb_remove_excessive_lost_pkt ensures that the number of
+ * lost packets is at most |n|.
  */
 void ngtcp2_rtb_remove_excessive_lost_pkt(ngtcp2_rtb *rtb, size_t n);
 
 /*
  * ngtcp2_rtb_reclaim_on_pto reclaims up to |num_pkts| packets which
- * are in-flight and not marked lost to send them in PTO probe.  The
- * reclaimed frames are chained to |*pfrc|.
+ * are in-flight and not marked lost.  The reclaimed frames may be
+ * sent in a PTO probe packet.
  *
  * This function returns the number of packets reclaimed if it
  * succeeds, or one of the following negative error codes:
@@ -317,4 +317,4 @@ void ngtcp2_rtb_remove_excessive_lost_pkt(ngtcp2_rtb *rtb, size_t n);
 ngtcp2_ssize ngtcp2_rtb_reclaim_on_pto(ngtcp2_rtb *rtb, ngtcp2_conn *conn,
                                        ngtcp2_pktns *pktns, size_t num_pkts);
 
-#endif /* NGTCP2_RTB_H */
+#endif /* !defined(NGTCP2_RTB_H) */

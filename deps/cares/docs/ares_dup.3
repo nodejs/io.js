@@ -9,7 +9,7 @@ ares_dup \- Duplicate a resolver channel
 .nf
 #include <ares.h>
 
-int ares_dup(ares_channel_t **\fIdest\fP, ares_channel_t *\fIsource\fP)
+int ares_dup(ares_channel_t **\fIdest\fP, const ares_channel_t *\fIsource\fP)
 .fi
 .SH DESCRIPTION
 The \fBares_dup(3)\fP function duplicates an existing communications channel
@@ -23,6 +23,3 @@ handle when the channel is no longer needed.
 .BR ares_library_init (3)
 .SH AVAILABILITY
 \fIares_dup(3)\fP was added in c-ares 1.6.0
-.SH AUTHOR
-Daniel Stenberg
-

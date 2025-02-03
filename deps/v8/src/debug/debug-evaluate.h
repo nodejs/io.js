@@ -49,7 +49,7 @@ class DebugEvaluate : public AllStatic {
                                                   Handle<String> source);
 
   static DebugInfo::SideEffectState FunctionGetSideEffectState(
-      Isolate* isolate, Handle<SharedFunctionInfo> info);
+      Isolate* isolate, DirectHandle<SharedFunctionInfo> info);
   static void ApplySideEffectChecks(Handle<BytecodeArray> bytecode_array);
   static bool IsSideEffectFreeIntrinsic(Runtime::FunctionId id);
 

@@ -27,7 +27,7 @@ it's not yet clear how compliant the implementation is,
 the requirements and expected failures can be figured out in a later step
 when the tests are run for the first time.
 
-See [Format of a status JSON file](#status-format) for details.
+See [Format of a status file](#status-format) for details.
 
 ### 2. Pull the WPT files
 
@@ -98,7 +98,7 @@ add this to `test/wpt/status/url.json`:
   }
 ```
 
-See [Format of a status JSON file](#status-format) for details.
+See [Format of a status file](#status-format) for details.
 
 ### 5. Commit the changes and submit a Pull Request
 
@@ -147,7 +147,7 @@ expected failures.
 
 <a id="status-format"></a>
 
-## Format of a status JSON file
+## Format of a status file
 
 ```json
 {
@@ -176,6 +176,10 @@ expected failures.
 A test may have to be skipped because it depends on another irrelevant
 Web API, or certain harness has not been ported in our test runner yet.
 In that case it needs to be marked with `skip` instead of `fail`.
+
+The status file may optionally also be a CJS module that exports the object.
+This allows for more complex logic to be used to determine the expected status
+of a test.
 
 [Web Platform Tests]: https://github.com/web-platform-tests/wpt
 [`test/fixtures/wpt/README.md`]: ../fixtures/wpt/README.md

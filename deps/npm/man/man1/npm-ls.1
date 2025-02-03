@@ -1,4 +1,4 @@
-.TH "NPM-LS" "1" "April 2024" "" ""
+.TH "NPM-LS" "1" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBnpm-ls\fR - List installed packages
 .SS "Synopsis"
@@ -20,7 +20,7 @@ Positional arguments are \fBname@version-range\fR identifiers, which will limit 
 .P
 .RS 2
 .nf
-npm@10.5.2 /path/to/npm
+npm@11.1.0 /path/to/npm
 └─┬ init-package-json@0.0.4
   └── promzard@0.1.5
 .fi
@@ -33,18 +33,6 @@ If a project specifies git urls for dependencies these are shown in parentheses 
 The tree shown is the logical dependency tree, based on package dependencies, not the physical layout of your \fBnode_modules\fR folder.
 .P
 When run as \fBll\fR or \fBla\fR, it shows extended information by default.
-.SS "Note: Design Changes Pending"
-.P
-The \fBnpm ls\fR command's output and behavior made a \fIton\fR of sense when npm created a \fBnode_modules\fR folder that naively nested every dependency. In such a case, the logical dependency graph and physical tree of packages on disk would be roughly identical.
-.P
-With the advent of automatic install-time deduplication of dependencies in npm v3, the \fBls\fR output was modified to display the logical dependency graph as a tree structure, since this was more useful to most users. However, without using \fBnpm ls -l\fR, it became impossible to show \fIwhere\fR a package was actually installed much of the time!
-.P
-With the advent of automatic installation of \fBpeerDependencies\fR in npm v7, this gets even more curious, as \fBpeerDependencies\fR are logically "underneath" their dependents in the dependency graph, but are always physically at or above their location on disk.
-.P
-Also, in the years since npm got an \fBls\fR command (in version 0.0.2!), dependency graphs have gotten much larger as a general rule. Therefore, in order to avoid dumping an excessive amount of content to the terminal, \fBnpm
-ls\fR now only shows the \fItop\fR level dependencies, unless \fB--all\fR is provided.
-.P
-A thorough re-examination of the use cases, intention, behavior, and output of this command, is currently underway. Expect significant changes to at least the default human-readable \fBnpm ls\fR output in npm v8.
 .SS "Configuration"
 .SS "\fBall\fR"
 .RS 0
@@ -115,7 +103,7 @@ man pages are linked to \fB{prefix}/share/man\fR
 .SS "\fBdepth\fR"
 .RS 0
 .IP \(bu 4
-Default: \fBInfinity\fR if \fB--all\fR is set, otherwise \fB1\fR
+Default: \fBInfinity\fR if \fB--all\fR is set, otherwise \fB0\fR
 .IP \(bu 4
 Type: null or Number
 .RE 0

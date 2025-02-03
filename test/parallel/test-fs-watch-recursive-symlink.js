@@ -35,6 +35,11 @@ tmpdir.refresh();
   const symlinkFolder = path.join(rootDirectory, 'symlink-folder');
   fs.symlinkSync(rootDirectory, symlinkFolder);
 
+  if (common.isMacOS) {
+    // On macOS delay watcher start to avoid leaking previous events.
+    // Refs: https://github.com/libuv/libuv/pull/4503
+    await setTimeout(common.platformTimeout(100));
+  }
 
   const watcher = fs.watch(rootDirectory, { recursive: true });
   let watcherClosed = false;
@@ -73,6 +78,12 @@ tmpdir.refresh();
 
   const forbiddenFile = path.join(subDirectory, 'forbidden.txt');
   const acceptableFile = path.join(trackingSubDirectory, 'acceptable.txt');
+
+  if (common.isMacOS) {
+    // On macOS delay watcher start to avoid leaking previous events.
+    // Refs: https://github.com/libuv/libuv/pull/4503
+    await setTimeout(common.platformTimeout(100));
+  }
 
   const watcher = fs.watch(trackingSubDirectory, { recursive: true });
   let watcherClosed = false;

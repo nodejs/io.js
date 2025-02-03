@@ -132,7 +132,7 @@ void TitlecaseTransliterator::handleTransliterate(
             } else {
                 result=ucase_toFullLower(c, utrans_rep_caseContextIterator, &csc, &s, UCASE_LOC_ROOT);
             }
-            doTitle = (UBool)(type==0); // doTitle=isUncased
+            doTitle = static_cast<UBool>(type == 0); // doTitle=isUncased
 
             if(csc.b1 && isIncremental) {
                 // fMap() tried to look beyond the context limit

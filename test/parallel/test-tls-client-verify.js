@@ -73,13 +73,9 @@ function testServers(index, servers, clientOptions, cb) {
 
   const ok = serverOptions.ok;
 
-  if (serverOptions.key) {
-    serverOptions.key = loadPEM(serverOptions.key);
-  }
+  serverOptions.key &&= loadPEM(serverOptions.key);
 
-  if (serverOptions.cert) {
-    serverOptions.cert = loadPEM(serverOptions.cert);
-  }
+  serverOptions.cert &&= loadPEM(serverOptions.cert);
 
   const server = tls.createServer(serverOptions, common.mustCall(function(s) {
     s.end('hello world\n');

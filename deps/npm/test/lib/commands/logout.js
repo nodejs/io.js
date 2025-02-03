@@ -1,8 +1,8 @@
 const t = require('tap')
-const fs = require('fs/promises')
+const fs = require('node:fs/promises')
 const { load: loadMockNpm } = require('../../fixtures/mock-npm.js')
 const MockRegistry = require('@npmcli/mock-registry')
-const { join } = require('path')
+const { join } = require('node:path')
 
 t.test('token logout - user config', async t => {
   const { npm, home, logs } = await loadMockNpm(t, {
@@ -18,8 +18,8 @@ t.test('token logout - user config', async t => {
   mockRegistry.logout('@foo/')
   await npm.exec('logout', [])
   t.equal(
-    logs.verbose.find(l => l[0] === 'logout')[1],
-    'clearing token for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
   const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
@@ -45,8 +45,8 @@ t.test('token scoped logout - user config', async t => {
   mockRegistry.logout('@bar/')
   await npm.exec('logout', [])
   t.equal(
-    logs.verbose.find(l => l[0] === 'logout')[1],
-    'clearing token for https://diff-registry.npmjs.com/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://diff-registry.npmjs.com/',
     'should log message with correct registry'
   )
 
@@ -67,8 +67,8 @@ t.test('user/pass logout - user config', async t => {
 
   await npm.exec('logout', [])
   t.equal(
-    logs.verbose.find(l => l[0] === 'logout')[1],
-    'clearing user credentials for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing user credentials for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
 
@@ -106,8 +106,8 @@ t.test('ignore invalid scoped registry config', async t => {
   await npm.exec('logout', [])
 
   t.equal(
-    logs.verbose.find(l => l[0] === 'logout')[1],
-    'clearing token for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
   const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
@@ -135,8 +135,8 @@ t.test('token logout - project config', async t => {
   await npm.exec('logout', [])
 
   t.equal(
-    logs.verbose.find(l => l[0] === 'logout')[1],
-    'clearing token for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
   const userRc = await fs.readFile(join(home, '.npmrc'), 'utf-8')
@@ -145,8 +145,8 @@ t.test('token logout - project config', async t => {
     'other-config=true',
   ].join('\n'), 'leaves user config alone')
   t.equal(
-    logs.verbose.find(l => l[0] === 'logout')[1],
-    'clearing token for https://registry.npmjs.org/',
+    logs.verbose.byTitle('logout')[0],
+    'logout clearing token for https://registry.npmjs.org/',
     'should log message with correct registry'
   )
   const projectRc = await fs.readFile(join(prefix, '.npmrc'), 'utf-8')

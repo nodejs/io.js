@@ -90,7 +90,7 @@ public:
         if(pInfo->isBigEndian==U_IS_BIG_ENDIAN && pInfo->charsetFamily==U_CHARSET_FAMILY) {
             bytes=pItem->data+itemHeaderLength;
         } else {
-            UDataSwapper *ds=udata_openSwapper((UBool)pInfo->isBigEndian, pInfo->charsetFamily, U_IS_BIG_ENDIAN, U_CHARSET_FAMILY, &errorCode);
+            UDataSwapper* ds = udata_openSwapper(static_cast<UBool>(pInfo->isBigEndian), pInfo->charsetFamily, U_IS_BIG_ENDIAN, U_CHARSET_FAMILY, &errorCode);
             if(U_FAILURE(errorCode)) {
                 fprintf(stderr, "icupkg: udata_openSwapper(\"%s\") failed - %s\n",
                         pItem->name, u_errorName(errorCode));
@@ -142,15 +142,15 @@ makeTargetName(const char *itemName, const char *id, int32_t idLength, const cha
     }
 
     // build the target string
-    treeLength=(int32_t)(itemID-itemName);
+    treeLength = static_cast<int32_t>(itemID - itemName);
     if(idLength<0) {
-        idLength=(int32_t)strlen(id);
+        idLength = static_cast<int32_t>(strlen(id));
     }
-    suffixLength=(int32_t)strlen(suffix);
+    suffixLength = static_cast<int32_t>(strlen(suffix));
     targetLength=treeLength+idLength+suffixLength;
     if(targetLength>=capacity) {
         fprintf(stderr, "icupkg/makeTargetName(%s) target item name length %ld too long\n",
-                        itemName, (long)targetLength);
+                        itemName, static_cast<long>(targetLength));
         *pErrorCode=U_BUFFER_OVERFLOW_ERROR;
         return;
     }
@@ -165,7 +165,7 @@ checkIDSuffix(const char *itemName, const char *id, int32_t idLength, const char
               CheckDependency check, void *context,
               UErrorCode *pErrorCode) {
     char target[200];
-    makeTargetName(itemName, id, idLength, suffix, target, (int32_t)sizeof(target), pErrorCode);
+    makeTargetName(itemName, id, idLength, suffix, target, static_cast<int32_t>(sizeof(target)), pErrorCode);
     if(U_SUCCESS(*pErrorCode)) {
         check(context, itemName, target);
     }
@@ -199,7 +199,7 @@ checkParent(const char *itemName, CheckDependency check, void *context,
     if(parentLimit!=itemID) {
         // get the parent item name by truncating the last part of this item's name */
         parent=itemID;
-        parentLength=(int32_t)(parentLimit-itemID);
+        parentLength = static_cast<int32_t>(parentLimit - itemID);
     } else {
         // no '_' in the item name: the parent is the root bundle
         parent="root";
@@ -261,9 +261,9 @@ checkAlias(const char *itemName,
 
     // convert the Unicode string to char *
     char localeID[48];
-    if(length>=(int32_t)sizeof(localeID)) {
+    if (length >= static_cast<int32_t>(sizeof(localeID))) {
         fprintf(stderr, "icupkg/ures_enumDependencies(%s res=%08x) alias locale ID length %ld too long\n",
-                        itemName, res, (long)length);
+                        itemName, res, static_cast<long>(length));
         *pErrorCode=U_BUFFER_OVERFLOW_ERROR;
         return;
     }
@@ -389,7 +389,7 @@ ures_enumDependencies(const char *itemName, const UDataInfo *pInfo,
 
     if(resData.usesPoolBundle) {
         char poolName[200];
-        makeTargetName(itemName, "pool", 4, ".res", poolName, (int32_t)sizeof(poolName), pErrorCode);
+        makeTargetName(itemName, "pool", 4, ".res", poolName, static_cast<int32_t>(sizeof(poolName)), pErrorCode);
         if(U_FAILURE(*pErrorCode)) {
             return;
         }
@@ -407,7 +407,7 @@ ures_enumDependencies(const char *itemName, const UDataInfo *pInfo,
             fprintf(stderr, "icupkg: %s is not a pool bundle\n", poolName);
             return;
         }
-        const int32_t *poolRoot=(const int32_t *)nativePool.getBytes();
+        const int32_t* poolRoot = reinterpret_cast<const int32_t*>(nativePool.getBytes());
         const int32_t *poolIndexes=poolRoot+1;
         int32_t poolIndexLength=poolIndexes[URES_INDEX_LENGTH]&0xff;
         if(!(poolIndexLength>URES_INDEX_POOL_CHECKSUM &&
@@ -417,8 +417,8 @@ ures_enumDependencies(const char *itemName, const UDataInfo *pInfo,
             return;
         }
         if(resData.pRoot[1+URES_INDEX_POOL_CHECKSUM]==poolIndexes[URES_INDEX_POOL_CHECKSUM]) {
-            resData.poolBundleKeys=(const char *)(poolIndexes+poolIndexLength);
-            resData.poolBundleStrings=(const uint16_t *)(poolRoot+poolIndexes[URES_INDEX_KEYS_TOP]);
+            resData.poolBundleKeys = reinterpret_cast<const char*>(poolIndexes + poolIndexLength);
+            resData.poolBundleStrings = reinterpret_cast<const uint16_t*>(poolRoot + poolIndexes[URES_INDEX_KEYS_TOP]);
         } else {
             fprintf(stderr, "icupkg: %s has mismatched checksum for %s\n", poolName, itemName);
             return;
@@ -475,10 +475,10 @@ ucnv_enumDependencies(const UDataSwapper *ds,
     }
 
     /* read the initial UConverterStaticData structure after the UDataInfo header */
-    inStaticData=(const UConverterStaticData *)inBytes;
+    inStaticData = reinterpret_cast<const UConverterStaticData*>(inBytes);
 
-    if( length<(int32_t)sizeof(UConverterStaticData) ||
-        (uint32_t)length<(staticDataSize=ds->readUInt32(inStaticData->structSize))
+    if (length < static_cast<int32_t>(sizeof(UConverterStaticData)) ||
+        static_cast<uint32_t>(length) < (staticDataSize = ds->readUInt32(inStaticData->structSize))
     ) {
         udata_printError(ds, "icupkg/ucnv_enumDependencies(): too few bytes (%d after header) for an ICU .cnv conversion table\n",
                             length);
@@ -487,7 +487,7 @@ ucnv_enumDependencies(const UDataSwapper *ds,
     }
 
     inBytes+=staticDataSize;
-    length-=(int32_t)staticDataSize;
+    length -= static_cast<int32_t>(staticDataSize);
 
     /* check for supported conversionType values */
     if(inStaticData->conversionType==UCNV_MBCS) {
@@ -495,9 +495,9 @@ ucnv_enumDependencies(const UDataSwapper *ds,
         uint32_t mbcsHeaderLength, mbcsHeaderFlags, mbcsHeaderOptions;
         int32_t extOffset;
 
-        inMBCSHeader=(const _MBCSHeader *)inBytes;
+        inMBCSHeader = reinterpret_cast<const _MBCSHeader*>(inBytes);
 
-        if(length<(int32_t)sizeof(_MBCSHeader)) {
+        if (length < static_cast<int32_t>(sizeof(_MBCSHeader))) {
             udata_printError(ds, "icupkg/ucnv_enumDependencies(): too few bytes (%d after headers) for an ICU MBCS .cnv conversion table\n",
                                 length);
             *pErrorCode=U_INDEX_OUTOFBOUNDS_ERROR;
@@ -518,8 +518,8 @@ ucnv_enumDependencies(const UDataSwapper *ds,
         }
 
         mbcsHeaderFlags=ds->readUInt32(inMBCSHeader->flags);
-        extOffset=(int32_t)(mbcsHeaderFlags>>8);
-        outputType=(uint8_t)mbcsHeaderFlags;
+        extOffset = static_cast<int32_t>(mbcsHeaderFlags >> 8);
+        outputType = static_cast<uint8_t>(mbcsHeaderFlags);
 
         if(outputType==MBCS_OUTPUT_EXT_ONLY) {
             /*
@@ -538,9 +538,9 @@ ucnv_enumDependencies(const UDataSwapper *ds,
             }
 
             /* swap the base name, between the header and the extension data */
-            const char *inBaseName=(const char *)inBytes+mbcsHeaderLength*4;
-            baseNameLength=(int32_t)strlen(inBaseName);
-            if(baseNameLength>=(int32_t)sizeof(baseName)) {
+            const char* inBaseName = reinterpret_cast<const char*>(inBytes) + mbcsHeaderLength * 4;
+            baseNameLength = static_cast<int32_t>(strlen(inBaseName));
+            if (baseNameLength >= static_cast<int32_t>(sizeof(baseName))) {
                 udata_printError(ds, "icupkg/ucnv_enumDependencies(%s): base name length %ld too long\n",
                                  itemName, baseNameLength);
                 *pErrorCode=U_UNSUPPORTED_ERROR;
@@ -612,7 +612,7 @@ Package::enumDependencies(Item *pItem, void *context, CheckDependency check) {
             {
                 // TODO: share/cache swappers
                 UDataSwapper *ds=udata_openSwapper(
-                                    (UBool)pInfo->isBigEndian, pInfo->charsetFamily,
+                                    static_cast<UBool>(pInfo->isBigEndian), pInfo->charsetFamily,
                                     U_IS_BIG_ENDIAN, U_CHARSET_FAMILY,
                                     &errorCode);
                 if(U_FAILURE(errorCode)) {

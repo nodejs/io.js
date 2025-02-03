@@ -57,7 +57,7 @@ function runAndWait(cmds, repl) {
 }
 
 async function tests(options) {
-  const repl = REPLServer({
+  const repl = new REPLServer({
     prompt: PROMPT,
     stream: new REPLStream(),
     ignoreUndefined: true,

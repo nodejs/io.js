@@ -26,20 +26,22 @@
 
 #include <stdio.h>
 #include <errno.h>
-#ifdef HAVE_UNISTD_H
-#  include <unistd.h>
-#endif /* HAVE_UNISTD_H */
 #include <stdlib.h>
-#ifdef WIN32
+#ifdef HAVE_UNISTD_H
+#  define NGTCP2_UNREACHABLE_LOG
+#  include <unistd.h>
+#elif defined(WIN32)
+#  define NGTCP2_UNREACHABLE_LOG
 #  include <io.h>
-#endif /* WIN32 */
+#endif /* defined(WIN32) */
 
 void ngtcp2_unreachable_fail(const char *file, int line, const char *func) {
+#ifdef NGTCP2_UNREACHABLE_LOG
   char *buf;
   size_t buflen;
   int rv;
 
-#define NGTCP2_UNREACHABLE_TEMPLATE "%s:%d %s: Unreachable.\n"
+#  define NGTCP2_UNREACHABLE_TEMPLATE "%s:%d %s: Unreachable.\n"
 
   rv = snprintf(NULL, 0, NGTCP2_UNREACHABLE_TEMPLATE, file, line, func);
   if (rv < 0) {
@@ -58,14 +60,15 @@ void ngtcp2_unreachable_fail(const char *file, int line, const char *func) {
     abort();
   }
 
-#ifndef WIN32
+#  ifndef WIN32
   while (write(STDERR_FILENO, buf, (size_t)rv) == -1 && errno == EINTR)
     ;
-#else  /* WIN32 */
+#  else  /* defined(WIN32) */
   _write(_fileno(stderr), buf, (unsigned int)rv);
-#endif /* WIN32 */
+#  endif /* defined(WIN32) */
 
   free(buf);
+#endif /* defined(NGTCP2_UNREACHABLE_LOG) */
 
   abort();
 }

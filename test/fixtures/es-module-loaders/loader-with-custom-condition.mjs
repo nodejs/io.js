@@ -5,6 +5,7 @@ export async function resolve(specifier, context, defaultResolve) {
 
   deepStrictEqual([...context.conditions].sort(), [
     'import',
+    'module-sync',
     'node',
     'node-addons',
   ]);

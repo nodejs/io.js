@@ -42,8 +42,8 @@ TEST_PAIR(TestWrongTypeInNormalField) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   v8::HandleScope scope(isolate);
   v8::Local<v8::Value> v = CompileRun("({a: 3, b: 4})");
-  Handle<JSObject> o = Handle<JSObject>::cast(v8::Utils::OpenHandle(*v));
-  Handle<Object> original_elements(
+  DirectHandle<JSObject> o = Cast<JSObject>(v8::Utils::OpenDirectHandle(*v));
+  DirectHandle<Object> original_elements(
       TaggedField<Object>::load(*o, JSObject::kElementsOffset), i_isolate);
   CHECK(IsFixedArrayBase(*original_elements));
 
@@ -68,14 +68,14 @@ TEST_PAIR(TestWrongStrongTypeInIndexedStructField) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   v8::HandleScope scope(isolate);
   v8::Local<v8::Value> v = CompileRun("({a: 3, b: 4})");
-  Handle<Object> o = v8::Utils::OpenHandle(*v);
-  Handle<Map> map(Handle<HeapObject>::cast(o)->map(), i_isolate);
-  Handle<DescriptorArray> descriptors(map->instance_descriptors(i_isolate),
-                                      i_isolate);
+  DirectHandle<Object> o = v8::Utils::OpenDirectHandle(*v);
+  DirectHandle<Map> map(Cast<HeapObject>(o)->map(), i_isolate);
+  DirectHandle<DescriptorArray> descriptors(
+      map->instance_descriptors(i_isolate), i_isolate);
   int offset = DescriptorArray::OffsetOfDescriptorAt(1) +
                DescriptorArray::kEntryKeyOffset;
-  Handle<Object> original_key(TaggedField<Object>::load(*descriptors, offset),
-                              i_isolate);
+  DirectHandle<Object> original_key(
+      TaggedField<Object>::load(*descriptors, offset), i_isolate);
   CHECK(IsString(*original_key));
 
   // There must be no GC (and therefore no verifiers running) until we can
@@ -100,14 +100,14 @@ TEST_PAIR(TestWrongWeakTypeInIndexedStructField) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   v8::HandleScope scope(isolate);
   v8::Local<v8::Value> v = CompileRun("({a: 3, b: 4})");
-  Handle<Object> o = v8::Utils::OpenHandle(*v);
-  Handle<Map> map(Handle<HeapObject>::cast(o)->map(), i_isolate);
-  Handle<DescriptorArray> descriptors(map->instance_descriptors(i_isolate),
-                                      i_isolate);
+  DirectHandle<Object> o = v8::Utils::OpenDirectHandle(*v);
+  DirectHandle<Map> map(Cast<HeapObject>(o)->map(), i_isolate);
+  DirectHandle<DescriptorArray> descriptors(
+      map->instance_descriptors(i_isolate), i_isolate);
   int offset = DescriptorArray::OffsetOfDescriptorAt(0) +
                DescriptorArray::kEntryValueOffset;
-  Handle<Object> original_value(TaggedField<Object>::load(*descriptors, offset),
-                                i_isolate);
+  DirectHandle<Object> original_value(
+      TaggedField<Object>::load(*descriptors, offset), i_isolate);
 
   // There must be no GC (and therefore no verifiers running) until we can
   // restore the modified data.
@@ -117,7 +117,7 @@ TEST_PAIR(TestWrongWeakTypeInIndexedStructField) {
   // it can't be Weak<JSObject>.
   TaggedField<Object>::store(*descriptors, offset, *o);
   TorqueGeneratedClassVerifiers::DescriptorArrayVerify(*descriptors, i_isolate);
-  MaybeObject weak = MaybeObject::MakeWeak(MaybeObject::FromObject(*o));
+  Tagged<MaybeObject> weak = MakeWeak(*o);
   TaggedField<MaybeObject>::store(*descriptors, offset, weak);
   if (should_fail) {
     TorqueGeneratedClassVerifiers::DescriptorArrayVerify(*descriptors,
@@ -134,8 +134,8 @@ TEST_PAIR(TestWrongOddball) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   v8::HandleScope scope(isolate);
   v8::Local<v8::Value> v = CompileRun("new Date()");
-  Handle<JSDate> date = Handle<JSDate>::cast(v8::Utils::OpenHandle(*v));
-  Handle<Object> original_hour(
+  DirectHandle<JSDate> date = Cast<JSDate>(v8::Utils::OpenDirectHandle(*v));
+  DirectHandle<Object> original_hour(
       TaggedField<Object>::load(*date, JSDate::kHourOffset), i_isolate);
 
   // There must be no GC (and therefore no verifiers running) until we can
@@ -159,11 +159,11 @@ TEST_PAIR(TestWrongNumber) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   v8::HandleScope scope(isolate);
   v8::Local<v8::Value> v = CompileRun("new Date()");
-  Handle<JSDate> date = Handle<JSDate>::cast(v8::Utils::OpenHandle(*v));
-  Handle<Object> original_hour(
+  DirectHandle<JSDate> date = Cast<JSDate>(v8::Utils::OpenDirectHandle(*v));
+  DirectHandle<Object> original_hour(
       TaggedField<Object>::load(*date, JSDate::kHourOffset), i_isolate);
   v8::Local<v8::Value> v2 = CompileRun("1.1");
-  Handle<Object> float_val = v8::Utils::OpenHandle(*v2);
+  DirectHandle<Object> float_val = v8::Utils::OpenDirectHandle(*v2);
 
   // There must be no GC (and therefore no verifiers running) until we can
   // restore the modified data.

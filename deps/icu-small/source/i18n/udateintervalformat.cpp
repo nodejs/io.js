@@ -51,14 +51,14 @@ udtitvfmt_open(const char*  locale,
         *status = U_ILLEGAL_ARGUMENT_ERROR;
         return nullptr;
     }
-    UnicodeString skel((UBool)(skeletonLength == -1), skeleton, skeletonLength);
+    UnicodeString skel(skeletonLength == -1, skeleton, skeletonLength);
     LocalPointer<DateIntervalFormat> formatter(
             DateIntervalFormat::createInstance(skel, Locale(locale), *status));
     if (U_FAILURE(*status)) {
         return nullptr;
     }
     if (tzID != nullptr) {
-        TimeZone *zone = TimeZone::createTimeZone(UnicodeString((UBool)(tzIDLength == -1), tzID, tzIDLength));
+        TimeZone* zone = TimeZone::createTimeZone(UnicodeString(tzIDLength == -1, tzID, tzIDLength));
         if(zone == nullptr) {
             *status = U_MEMORY_ALLOCATION_ERROR;
             return nullptr;

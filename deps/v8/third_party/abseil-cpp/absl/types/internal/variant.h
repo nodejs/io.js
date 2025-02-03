@@ -26,6 +26,7 @@
 #include <stdexcept>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 
 #include "absl/base/config.h"
 #include "absl/base/internal/identity.h"
@@ -214,7 +215,7 @@ constexpr ReturnType call_with_indices(FunctionObject&& function) {
       std::is_same<ReturnType, decltype(std::declval<FunctionObject>()(
                                    SizeT<Indices>()...))>::value,
       "Not all visitation overloads have the same return type.");
-  return absl::forward<FunctionObject>(function)(SizeT<Indices>()...);
+  return std::forward<FunctionObject>(function)(SizeT<Indices>()...);
 }
 
 template <class ReturnType, class FunctionObject, std::size_t... BoundIndices>
@@ -272,27 +273,14 @@ struct UnreachableSwitchCase {
   template <class Op>
   [[noreturn]] static VisitIndicesResultT<Op, std::size_t> Run(
       Op&& /*ignored*/) {
-#if ABSL_HAVE_BUILTIN(__builtin_unreachable) || \
-    (defined(__GNUC__) && !defined(__clang__))
-    __builtin_unreachable();
-#elif defined(_MSC_VER)
-    __assume(false);
-#else
-    // Try to use assert of false being identified as an unreachable intrinsic.
-    // NOTE: We use assert directly to increase chances of exploiting an assume
-    //       intrinsic.
-    assert(false);  // NOLINT
-
-    // Hack to silence potential no return warning -- cause an infinite loop.
-    return Run(absl::forward<Op>(op));
-#endif  // Checks for __builtin_unreachable
+    ABSL_UNREACHABLE();
   }
 };
 
 template <class Op, std::size_t I>
 struct ReachableSwitchCase {
   static VisitIndicesResultT<Op, std::size_t> Run(Op&& op) {
-    return absl::base_internal::invoke(absl::forward<Op>(op), SizeT<I>());
+    return absl::base_internal::invoke(std::forward<Op>(op), SizeT<I>());
   }
 };
 
@@ -357,74 +345,74 @@ struct VisitIndicesSwitch {
   static VisitIndicesResultT<Op, std::size_t> Run(Op&& op, std::size_t i) {
     switch (i) {
       case 0:
-        return PickCase<Op, 0, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 0, EndIndex>::Run(std::forward<Op>(op));
       case 1:
-        return PickCase<Op, 1, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 1, EndIndex>::Run(std::forward<Op>(op));
       case 2:
-        return PickCase<Op, 2, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 2, EndIndex>::Run(std::forward<Op>(op));
       case 3:
-        return PickCase<Op, 3, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 3, EndIndex>::Run(std::forward<Op>(op));
       case 4:
-        return PickCase<Op, 4, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 4, EndIndex>::Run(std::forward<Op>(op));
       case 5:
-        return PickCase<Op, 5, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 5, EndIndex>::Run(std::forward<Op>(op));
       case 6:
-        return PickCase<Op, 6, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 6, EndIndex>::Run(std::forward<Op>(op));
       case 7:
-        return PickCase<Op, 7, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 7, EndIndex>::Run(std::forward<Op>(op));
       case 8:
-        return PickCase<Op, 8, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 8, EndIndex>::Run(std::forward<Op>(op));
       case 9:
-        return PickCase<Op, 9, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 9, EndIndex>::Run(std::forward<Op>(op));
       case 10:
-        return PickCase<Op, 10, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 10, EndIndex>::Run(std::forward<Op>(op));
       case 11:
-        return PickCase<Op, 11, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 11, EndIndex>::Run(std::forward<Op>(op));
       case 12:
-        return PickCase<Op, 12, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 12, EndIndex>::Run(std::forward<Op>(op));
       case 13:
-        return PickCase<Op, 13, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 13, EndIndex>::Run(std::forward<Op>(op));
       case 14:
-        return PickCase<Op, 14, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 14, EndIndex>::Run(std::forward<Op>(op));
       case 15:
-        return PickCase<Op, 15, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 15, EndIndex>::Run(std::forward<Op>(op));
       case 16:
-        return PickCase<Op, 16, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 16, EndIndex>::Run(std::forward<Op>(op));
       case 17:
-        return PickCase<Op, 17, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 17, EndIndex>::Run(std::forward<Op>(op));
       case 18:
-        return PickCase<Op, 18, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 18, EndIndex>::Run(std::forward<Op>(op));
       case 19:
-        return PickCase<Op, 19, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 19, EndIndex>::Run(std::forward<Op>(op));
       case 20:
-        return PickCase<Op, 20, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 20, EndIndex>::Run(std::forward<Op>(op));
       case 21:
-        return PickCase<Op, 21, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 21, EndIndex>::Run(std::forward<Op>(op));
       case 22:
-        return PickCase<Op, 22, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 22, EndIndex>::Run(std::forward<Op>(op));
       case 23:
-        return PickCase<Op, 23, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 23, EndIndex>::Run(std::forward<Op>(op));
       case 24:
-        return PickCase<Op, 24, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 24, EndIndex>::Run(std::forward<Op>(op));
       case 25:
-        return PickCase<Op, 25, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 25, EndIndex>::Run(std::forward<Op>(op));
       case 26:
-        return PickCase<Op, 26, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 26, EndIndex>::Run(std::forward<Op>(op));
       case 27:
-        return PickCase<Op, 27, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 27, EndIndex>::Run(std::forward<Op>(op));
       case 28:
-        return PickCase<Op, 28, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 28, EndIndex>::Run(std::forward<Op>(op));
       case 29:
-        return PickCase<Op, 29, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 29, EndIndex>::Run(std::forward<Op>(op));
       case 30:
-        return PickCase<Op, 30, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 30, EndIndex>::Run(std::forward<Op>(op));
       case 31:
-        return PickCase<Op, 31, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 31, EndIndex>::Run(std::forward<Op>(op));
       case 32:
-        return PickCase<Op, 32, EndIndex>::Run(absl::forward<Op>(op));
+        return PickCase<Op, 32, EndIndex>::Run(std::forward<Op>(op));
       default:
         ABSL_ASSERT(i == variant_npos);
-        return absl::base_internal::invoke(absl::forward<Op>(op), NPos());
+        return absl::base_internal::invoke(std::forward<Op>(op), NPos());
     }
   }
 };
@@ -437,7 +425,7 @@ struct VisitIndicesFallback {
         MakeVisitationMatrix<VisitIndicesResultT<Op, SizeT...>, Op,
                              index_sequence<(EndIndices + 1)...>,
                              index_sequence<>>::Run(),
-        (indices + 1)...)(absl::forward<Op>(op));
+        (indices + 1)...)(std::forward<Op>(op));
   }
 };
 
@@ -489,7 +477,7 @@ struct VisitIndicesVariadicImpl<absl::index_sequence<N...>, EndIndices...> {
     VisitIndicesResultT<Op, decltype(EndIndices)...> operator()(
         SizeT<I> /*index*/) && {
       return base_internal::invoke(
-          absl::forward<Op>(op),
+          std::forward<Op>(op),
           SizeT<UnflattenIndex<I, N, (EndIndices + 1)...>::value -
                 std::size_t{1}>()...);
     }
@@ -501,7 +489,7 @@ struct VisitIndicesVariadicImpl<absl::index_sequence<N...>, EndIndices...> {
   static VisitIndicesResultT<Op, decltype(EndIndices)...> Run(Op&& op,
                                                               SizeType... i) {
     return VisitIndicesSwitch<NumCasesOfSwitch<EndIndices...>::value>::Run(
-        FlattenedOp<Op>{absl::forward<Op>(op)},
+        FlattenedOp<Op>{std::forward<Op>(op)},
         FlattenIndices<(EndIndices + std::size_t{1})...>::Run(
             (i + std::size_t{1})...));
   }
@@ -612,7 +600,7 @@ struct VariantCoreAccess {
       TypedThrowBadVariantAccess<VariantAccessResult<I, Variant>>();
     }
 
-    return Access<I>(absl::forward<Variant>(self));
+    return Access<I>(std::forward<Variant>(self));
   }
 
   // The implementation of the move-assignment operation for a variant.
@@ -684,7 +672,7 @@ struct VariantCoreAccess {
 
     void operator()(SizeT<NewIndex::value> /*old_i*/
     ) const {
-      Access<NewIndex::value>(*left) = absl::forward<QualifiedNew>(other);
+      Access<NewIndex::value>(*left) = std::forward<QualifiedNew>(other);
     }
 
     template <std::size_t OldIndex>
@@ -695,13 +683,13 @@ struct VariantCoreAccess {
       if (std::is_nothrow_constructible<New, QualifiedNew>::value ||
           !std::is_nothrow_move_constructible<New>::value) {
         left->template emplace<NewIndex::value>(
-            absl::forward<QualifiedNew>(other));
+            std::forward<QualifiedNew>(other));
       } else {
         // the standard says "equivalent to
         // operator=(variant(std::forward<T>(t)))", but we use `emplace` here
         // because the variant's move assignment operator could be deleted.
         left->template emplace<NewIndex::value>(
-            New(absl::forward<QualifiedNew>(other)));
+            New(std::forward<QualifiedNew>(other)));
       }
     }
 
@@ -712,7 +700,7 @@ struct VariantCoreAccess {
   template <class Left, class QualifiedNew>
   static ConversionAssignVisitor<Left, QualifiedNew>
   MakeConversionAssignVisitor(Left* left, QualifiedNew&& qual) {
-    return {left, absl::forward<QualifiedNew>(qual)};
+    return {left, std::forward<QualifiedNew>(qual)};
   }
 
   // Backend for operations for `emplace()` which destructs `*self` then
@@ -723,7 +711,7 @@ struct VariantCoreAccess {
     Destroy(*self);
     using New = typename absl::variant_alternative<NewIndex, Self>::type;
     New* const result = ::new (static_cast<void*>(&self->state_))
-        New(absl::forward<Args>(args)...);
+        New(std::forward<Args>(args)...);
     self->index_ = NewIndex;
     return *result;
   }
@@ -919,9 +907,9 @@ struct PerformVisitation {
                                           Is, QualifiedVariants>...)>>::value,
         "All visitation overloads must have the same return type.");
     return absl::base_internal::invoke(
-        absl::forward<Op>(op),
+        std::forward<Op>(op),
         VariantCoreAccess::Access<Is>(
-            absl::forward<QualifiedVariants>(std::get<TupIs>(variant_tup)))...);
+            std::forward<QualifiedVariants>(std::get<TupIs>(variant_tup)))...);
   }
 
   template <std::size_t... TupIs, std::size_t... Is>
@@ -969,11 +957,11 @@ union Union<Head, Tail...> {
 
   template <class... P>
   explicit constexpr Union(EmplaceTag<0>, P&&... args)
-      : head(absl::forward<P>(args)...) {}
+      : head(std::forward<P>(args)...) {}
 
   template <std::size_t I, class... P>
   explicit constexpr Union(EmplaceTag<I>, P&&... args)
-      : tail(EmplaceTag<I - 1>{}, absl::forward<P>(args)...) {}
+      : tail(EmplaceTag<I - 1>{}, std::forward<P>(args)...) {}
 
   Head head;
   TailUnion tail;
@@ -1001,11 +989,11 @@ union DestructibleUnionImpl<Head, Tail...> {
 
   template <class... P>
   explicit constexpr DestructibleUnionImpl(EmplaceTag<0>, P&&... args)
-      : head(absl::forward<P>(args)...) {}
+      : head(std::forward<P>(args)...) {}
 
   template <std::size_t I, class... P>
   explicit constexpr DestructibleUnionImpl(EmplaceTag<I>, P&&... args)
-      : tail(EmplaceTag<I - 1>{}, absl::forward<P>(args)...) {}
+      : tail(EmplaceTag<I - 1>{}, std::forward<P>(args)...) {}
 
   ~DestructibleUnionImpl() {}
 
@@ -1036,7 +1024,7 @@ class VariantStateBase {
 
   template <std::size_t I, class... P>
   explicit constexpr VariantStateBase(EmplaceTag<I> tag, P&&... args)
-      : state_(tag, absl::forward<P>(args)...), index_(I) {}
+      : state_(tag, std::forward<P>(args)...), index_(I) {}
 
   explicit constexpr VariantStateBase(NoopConstructorTag)
       : state_(NoopConstructorTag()), index_(variant_npos) {}
@@ -1321,7 +1309,7 @@ class VariantMoveBaseNontrivial : protected VariantStateBaseDestructor<T...> {
       using Alternative =
           typename absl::variant_alternative<I, variant<T...>>::type;
       ::new (static_cast<void*>(&self->state_)) Alternative(
-          variant_internal::AccessUnion(absl::move(other->state_), i));
+          variant_internal::AccessUnion(std::move(other->state_), i));
     }
 
     void operator()(SizeT<absl::variant_npos> /*i*/) const {}

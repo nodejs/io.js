@@ -5,12 +5,14 @@
 .SH NAME
 ares_dns_record_rr_add, ares_dns_record_rr_cnt, ares_dns_record_rr_del,
 ares_dns_record_rr_get, ares_dns_record_rr_get_const, ares_dns_rr_get_addr,
-ares_dns_rr_get_addr6, ares_dns_rr_get_bin, ares_dns_rr_get_class,
+ares_dns_rr_get_addr6, ares_dns_rr_get_bin, ares_dns_rr_get_abin_cnt,
+ares_dns_rr_get_abin, ares_dns_rr_get_class,
 ares_dns_rr_get_name, ares_dns_rr_get_opt, ares_dns_rr_get_opt_byid,
 ares_dns_rr_get_opt_cnt, ares_dns_rr_get_str, ares_dns_rr_get_ttl,
 ares_dns_rr_get_type, ares_dns_rr_get_u16, ares_dns_rr_get_u32,
 ares_dns_rr_get_u8, ares_dns_rr_key_t, ares_dns_rr_set_addr,
-ares_dns_rr_set_addr6, ares_dns_rr_set_bin, ares_dns_rr_set_opt,
+ares_dns_rr_set_addr6, ares_dns_rr_set_bin, ares_dns_rr_add_abin,
+ares_dns_rr_del_abin, ares_dns_rr_set_opt,
 ares_dns_rr_set_str, ares_dns_rr_set_u16, ares_dns_rr_set_u32,
 ares_dns_rr_set_u8, ares_dns_section_t, ares_tlsa_match_t,
 ares_tlsa_selector_t, ares_tlsa_usage_t \-
@@ -79,11 +81,24 @@ ares_status_t ares_dns_rr_set_bin(ares_dns_rr_t       *dns_rr,
                                   const unsigned char *val,
                                   size_t               len);
 
+ares_status_t ares_dns_rr_add_abin(ares_dns_rr_t *dns_rr,
+                                   ares_dns_rr_key_t key,
+                                   const unsigned char *val,
+                                   size_t len);
+
+ares_status_t ares_dns_rr_del_abin(ares_dns_rr_t *dns_rr,
+                                   ares_dns_rr_key_t key,
+                                   size_t idx);
+
 ares_status_t ares_dns_rr_set_opt(ares_dns_rr_t       *dns_rr,
                                   ares_dns_rr_key_t    key,
                                   unsigned short       opt,
                                   const unsigned char *val,
                                   size_t               val_len);
+
+ares_status_t ares_dns_rr_del_opt_byid(ares_dns_rr_t       *dns_rr,
+                                       ares_dns_rr_key_t    key,
+                                       unsigned short       opt);
 
 const struct in_addr *ares_dns_rr_get_addr(const ares_dns_rr_t *dns_rr,
                                            ares_dns_rr_key_t key);
@@ -106,6 +121,13 @@ unsigned int ares_dns_rr_get_u32(const ares_dns_rr_t *dns_rr,
 const unsigned char *ares_dns_rr_get_bin(const ares_dns_rr_t *dns_rr,
                                          ares_dns_rr_key_t key,
                                          size_t *len);
+
+size_t ares_dns_rr_get_abin_cnt(const ares_dns_rr_t *dns_rr,
+                                ares_dns_rr_key_t key);
+
+const unsigned char *ares_dns_rr_get_abin(const ares_dns_rr_t *dns_rr,
+                                          ares_dns_rr_key_t key, size_t idx,
+                                          size_t *len);
 
 size_t ares_dns_rr_get_opt_cnt(const ares_dns_rr_t *dns_rr,
                                ares_dns_rr_key_t    key);
@@ -188,7 +210,34 @@ Keys used for handling RR record parameters:
 - MX Record. Exchange, domain. Datatype: \fIARES_DATATYPE_NAME\fP
 .br
 .B ARES_RR_TXT_DATA
-- TXT Record. Data. Datatype: \fIARES_DATATYPE_BINP\fP
+- TXT Record. Data. Datatype: \fIARES_DATATYPE_ABINP\fP
+.br
+.B ARES_RR_SIG_TYPE_COVERED
+- SIG Record. Type Covered. Datatype: \fIARES_DATATYPE_U16\fP
+.br
+.B ARES_RR_SIG_ALGORITHM
+- SIG Record. Algorithm. Datatype: \fIARES_DATATYPE_U8\fP
+.br
+.B ARES_RR_SIG_LABELS
+- SIG Record. Labels. Datatype: \fIARES_DATATYPE_U8\fP
+.br
+.B ARES_RR_SIG_ORIGINAL_TTL
+- SIG Record. Original TTL. Datatype: \fIARES_DATATYPE_U32\fP
+.br
+.B ARES_RR_SIG_EXPIRATION
+- SIG Record. Signature Expiration. Datatype: \fIARES_DATATYPE_U32\fP
+.br
+.B ARES_RR_SIG_INCEPTION
+- SIG Record. Signature Inception. Datatype: \fIARES_DATATYPE_U32\fP
+.br
+.B ARES_RR_SIG_KEY_TAG
+- SIG Record. Key Tag. Datatype: \fIARES_DATATYPE_U16\fP
+.br
+.B ARES_RR_SIG_SIGNERS_NAME
+- SIG Record. Signer's Name. Datatype: \fIARES_DATATYPE_NAME\fP
+.br
+.B ARES_RR_SIG_SIGNATURE
+- SIG Record. Signature. Datatype: \fIARES_DATATYPE_BIN\fP
 .br
 .B ARES_RR_AAAA_ADDR
 - AAAA Record. Address. Datatype: \fIARES_DATATYPE_INADDR6\fP
@@ -470,7 +519,7 @@ parameter, and the value is provided in the
 .IR val
 parameter.
 
-The \fIares_dns_rr_set_bin(3)\fP function is used to set an binary value for the
+The \fIares_dns_rr_set_bin(3)\fP function is used to set a binary value for the
 associated resource record key/parameter when the datatype is \fIARES_DATATYPE_BIN\fP
 or \fIARES_DATATYPE_BINP\fP.
 The resource record to be modified is provided in the
@@ -483,8 +532,32 @@ parameter. And the associated value length is provided in the
 .IR len
 parameter.
 
+The \fIares_dns_rr_add_abin(3)\fP function is used to append a binary value in
+the array for the associated resource record key/parameter when the datatype
+is \fIARES_DATATYPE_ABINP\fP.
+The resource record to be modified is provided in the
+.IR dns_rr
+parameter, the key/parameter is provided in the
+.IR key
+parameter, and the value is provided in the
+.IR val
+parameter. And the associated value length is provided in the
+.IR len
+parameter.
+
+The \fIares_dns_rr_del_abin(3)\fP function is used to delete a binary value in
+the array for the associated resource record key/parameter when the datatype
+is \fIARES_DATATYPE_ABINP\fP.
+The resource record to be modified is provided in the
+.IR dns_rr
+parameter, the key/parameter is provided in the
+.IR key
+parameter, and the index to remove is provided in the
+.IR idx
+parameter.
+
 The \fIares_dns_rr_set_opt(3)\fP function is used to set option/parameter keys and
-values for the resource record when the datatype if \fIARES_DATATYPE_OPT\fP.  The
+values for the resource record when the datatype is \fIARES_DATATYPE_OPT\fP.  The
 resource record to be modified is provided in the
 .IR dns_rr
 parameter.  They key/parameter is provided in the
@@ -498,6 +571,18 @@ enumerations.  The value for the option is always provided in binary form in
 .IR val
 with length provided in
 .IR val_len.
+
+The \fIares_dns_rr_del_opt_byid(3)\fP function is used to delete option/parameter
+keys and values for the resource record when the datatype is
+\fIARES_DATATYPE_OPT\fP.  The resource record to be modified is provided in the
+.IR dns_rr
+parameter.  They key/parameter is provided in the
+.IR key
+parameter.  The option/parameter value specific to the resource record is provided
+in the
+.IR opt
+parameter.  This function returns \fIARES_SUCCESS\fP if the record is successfully
+removed, or \fIARES_ENOTFOUND\fP if the record could not be found.
 
 The \fIares_dns_rr_get_addr(3)\fP function is used to retrieve the IPv4 address
 from the resource record when the datatype is \fIARES_DATATYPE_INADDR\fP.  The
@@ -557,6 +642,26 @@ parameter and the key/parameter to retrieve is provided in the
 parameter, and length is stored into the variable pointed to by
 .IR len.
 
+The \fIares_dns_rr_get_abin_cnt(3)\fP function is used to retrieve the count
+of the array of stored binary values from the resource record when the datatype
+is \fIARES_DATATYPE_ABINP\fP.
+The resource record is provided in the
+.IR dns_rr
+parameter and the key/parameter to retrieve is provided in the
+.IR key
+parameter.
+
+The \fIares_dns_rr_get_abin(3)\fP function is used to retrieve binary data from
+the resource record array when the datatype is \fIARES_DATATYPE_ABINP\fP.
+The resource record is provided in the
+.IR dns_rr
+parameter and the key/parameter to retrieve is provided in the
+.IR key
+parameter, and the index to retrieve from the array is provided by the
+.IR idx
+parameter, and length is stored into the variable pointed to by
+.IR len.
+
 The \fIares_dns_rr_get_opt_cnt(3)\fP function is used to retrieve the count
 of options/parameters associated with the resource record when the datatype
 is \fIARES_DATATYPE_OPT\fP.
@@ -603,8 +708,9 @@ respective counts.
 \fIares_dns_rr_set_addr(3)\fP, \fIares_dns_rr_set_addr6(3)\fP,
 \fIares_dns_rr_set_str(3)\fP, \fIares_dns_rr_set_u8(3)\fP,
 \fIares_dns_rr_set_u16(3)\fP, \fIares_dns_rr_set_u32(3)\fP,
-\fIares_dns_rr_set_bin(3)\fP, and \fIares_dns_rr_set_opt(3)\fP all
-return an \fIares_status_t\fP error code.
+\fIares_dns_rr_set_bin(3)\fP, \fIares_dns_rr_add_abin(3)\fP,
+\fIares_dns_rr_del_abin(3)\fP,
+and \fIares_dns_rr_set_opt(3)\fP all return an \fIares_status_t\fP error code.
 .B ARES_SUCCESS
 is returned on success,
 .B ARES_ENOMEM
@@ -618,7 +724,8 @@ is returned on misuse.
 \fIares_dns_rr_get_addr(3)\fP, \fIares_dns_rr_get_addr6(3)\fP,
 \fIares_dns_rr_get_str(3)\fP, \fIares_dns_rr_get_u8(3)\fP,
 \fIares_dns_rr_get_u16(3)\fP, \fIares_dns_rr_get_u32(3)\fP,
-\fIares_dns_rr_get_bin(3)\fP, \fIares_dns_rr_get_opt(3)\fP all return their
+\fIares_dns_rr_get_bin(3)\fP, \fIares_dns_rr_get_abin_cnt(3)\fP,
+\fIares_dns_rr_get_abin(3)\fP, \fIares_dns_rr_get_opt(3)\fP all return their
 prescribed datatype values and in general can't fail except for misuse cases,
 in which a 0 (or NULL) may be returned, however 0 can also be a valid return
 value for most of these functions.
@@ -635,5 +742,3 @@ These functions were first introduced in c-ares version 1.22.0.
 .BR ares_dns_mapping (3),
 .BR ares_dns_record (3),
 .BR ares_free_string (3)
-.SH AUTHOR
-Copyright (C) 2023 The c-ares project and its members.

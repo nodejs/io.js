@@ -7,12 +7,10 @@ if ((!common.hasCrypto) || (!common.hasIntl)) {
 
 common.skipIfEslintMissing();
 
-const RuleTester = require('../../tools/node_modules/eslint').RuleTester;
+const RuleTester = require('../../tools/eslint/node_modules/eslint').RuleTester;
 const rule = require('../../tools/eslint-rules/prefer-proto');
 
-new RuleTester({
-  parserOptions: { ecmaVersion: 2022 }
-}).run('prefer-common-mustsucceed', rule, {
+new RuleTester().run('prefer-common-mustsucceed', rule, {
   valid: [
     '({ __proto__: null })',
     'const x = { __proto__: null };',

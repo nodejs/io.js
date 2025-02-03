@@ -1,0 +1,36 @@
+TAP version 13
+# Subtest: async suite
+    # Subtest: enabled 1
+    ok 1 - enabled 1
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 1 - async suite
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+# Subtest: sync suite
+    # Subtest: enabled 2
+    ok 1 - enabled 2
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..1
+ok 2 - sync suite
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
+1..2
+# tests 2
+# suites 2
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms *

@@ -7,9 +7,8 @@ if (!common.hasCrypto) {
 const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const https = require('https');
-const MakeDuplexPair = require('../common/duplexpair');
 const tls = require('tls');
-const { finished } = require('stream');
+const { finished, duplexPair } = require('stream');
 
 const certFixture = {
   key: fixtures.readKey('agent1-key.pem'),
@@ -22,7 +21,7 @@ const certFixture = {
 
 // Test 1: The server sends an invalid header.
 {
-  const { clientSide, serverSide } = MakeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   const req = https.request({
     rejectUnauthorized: false,
@@ -45,7 +44,7 @@ const certFixture = {
 
 // Test 2: The same as Test 1 except without the option, to make sure it fails.
 {
-  const { clientSide, serverSide } = MakeDuplexPair();
+  const [ clientSide, serverSide ] = duplexPair();
 
   const req = https.request({
     rejectUnauthorized: false,

@@ -33,9 +33,10 @@ class CompatFinalizer {
 }
 
 module.exports = function () {
-  // FIXME: remove workaround when the Node bug is fixed
+  // FIXME: remove workaround when the Node bug is backported to v18
   // https://github.com/nodejs/node/issues/49344#issuecomment-1741776308
-  if (process.env.NODE_V8_COVERAGE) {
+  if (process.env.NODE_V8_COVERAGE && process.version.startsWith('v18')) {
+    process._rawDebug('Using compatibility WeakRef and FinalizationRegistry')
     return {
       WeakRef: CompatWeakRef,
       FinalizationRegistry: CompatFinalizer

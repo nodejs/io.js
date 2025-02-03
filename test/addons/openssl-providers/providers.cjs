@@ -1,11 +1,14 @@
 'use strict';
 
 const common = require('../../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
+const { hasOpenSSL3 } = require('../../common/crypto');
 
-if (!common.hasOpenSSL3)
+if (!hasOpenSSL3) {
   common.skip('this test requires OpenSSL 3.x');
+}
 const assert = require('node:assert');
 const { createHash, getCiphers, getHashes } = require('node:crypto');
 const { debuglog } = require('node:util');
@@ -13,7 +16,7 @@ const { getProviders } = require(`./build/${common.buildType}/binding`);
 
 // For the providers defined here, the expectation is that the listed ciphers
 // and hash algorithms are only provided by the named provider. These are for
-// basic checks and are not intended to list evey cipher or hash algorithm
+// basic checks and are not intended to list every cipher or hash algorithm
 // supported by the provider.
 const providers = {
   'default': {

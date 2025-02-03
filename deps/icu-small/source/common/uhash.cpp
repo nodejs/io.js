@@ -12,6 +12,8 @@
 ******************************************************************************
 */
 
+#include <string_view>
+
 #include "uhash.h"
 #include "unicode/ustring.h"
 #include "cstring.h"
@@ -224,8 +226,8 @@ _uhash_allocate(UHashtable *hash,
     hash->primeIndex = static_cast<int8_t>(primeIndex);
     hash->length = PRIMES[primeIndex];
 
-    p = hash->elements = (UHashElement*)
-        uprv_malloc(sizeof(UHashElement) * hash->length);
+    p = hash->elements = static_cast<UHashElement*>(
+        uprv_malloc(sizeof(UHashElement) * hash->length));
 
     if (hash->elements == nullptr) {
         *status = U_MEMORY_ALLOCATION_ERROR;
@@ -244,8 +246,8 @@ _uhash_allocate(UHashtable *hash,
     }
 
     hash->count = 0;
-    hash->lowWaterMark = (int32_t)(hash->length * hash->lowWaterRatio);
-    hash->highWaterMark = (int32_t)(hash->length * hash->highWaterRatio);
+    hash->lowWaterMark = static_cast<int32_t>(hash->length * hash->lowWaterRatio);
+    hash->highWaterMark = static_cast<int32_t>(hash->length * hash->highWaterRatio);
 }
 
 static UHashtable*
@@ -287,7 +289,7 @@ _uhash_create(UHashFunction *keyHash,
 
     if (U_FAILURE(*status)) return nullptr;
 
-    result = (UHashtable*) uprv_malloc(sizeof(UHashtable));
+    result = static_cast<UHashtable*>(uprv_malloc(sizeof(UHashtable)));
     if (result == nullptr) {
         *status = U_MEMORY_ALLOCATION_ERROR;
         return nullptr;
@@ -944,6 +946,12 @@ uhash_hashIChars(const UHashTok key) {
     return s == nullptr ? 0 : ustr_hashICharsN(s, static_cast<int32_t>(uprv_strlen(s)));
 }
 
+U_CAPI int32_t U_EXPORT2
+uhash_hashIStringView(const UHashTok key) {
+    const std::string_view* s = static_cast<std::string_view*>(key.pointer);
+    return s == nullptr ? 0 : ustr_hashICharsN(s->data(), static_cast<int32_t>(s->size()));
+}
+
 U_CAPI UBool U_EXPORT2
 uhash_equals(const UHashtable* hash1, const UHashtable* hash2){
     int32_t count1, count2, pos, i;
@@ -1014,7 +1022,7 @@ uhash_compareUChars(const UHashTok key1, const UHashTok key2) {
         ++p1;
         ++p2;
     }
-    return (UBool)(*p1 == *p2);
+    return *p1 == *p2;
 }
 
 U_CAPI UBool U_EXPORT2
@@ -1031,7 +1039,7 @@ uhash_compareChars(const UHashTok key1, const UHashTok key2) {
         ++p1;
         ++p2;
     }
-    return (UBool)(*p1 == *p2);
+    return *p1 == *p2;
 }
 
 U_CAPI UBool U_EXPORT2
@@ -1048,7 +1056,30 @@ uhash_compareIChars(const UHashTok key1, const UHashTok key2) {
         ++p1;
         ++p2;
     }
-    return (UBool)(*p1 == *p2);
+    return *p1 == *p2;
+}
+
+U_CAPI UBool U_EXPORT2
+uhash_compareIStringView(const UHashTok key1, const UHashTok key2) {
+    const std::string_view* p1 = static_cast<std::string_view*>(key1.pointer);
+    const std::string_view* p2 = static_cast<std::string_view*>(key2.pointer);
+    if (p1 == p2) {
+        return true;
+    }
+    if (p1 == nullptr || p2 == nullptr) {
+        return false;
+    }
+    const std::string_view& v1 = *p1;
+    const std::string_view& v2 = *p2;
+    if (v1.size() != v2.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < v1.size(); ++i) {
+        if (uprv_tolower(v1[i]) != uprv_tolower(v2[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /********************************************************************
@@ -1062,5 +1093,5 @@ uhash_hashLong(const UHashTok key) {
 
 U_CAPI UBool U_EXPORT2
 uhash_compareLong(const UHashTok key1, const UHashTok key2) {
-    return (UBool)(key1.integer == key2.integer);
+    return key1.integer == key2.integer;
 }

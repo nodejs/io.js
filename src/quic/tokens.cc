@@ -7,9 +7,10 @@
 #include <string_bytes.h>
 #include <util-inl.h>
 #include <algorithm>
+#include "nbytes.h"
+#include "ncrypto.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // ============================================================================
 // TokenSecret
@@ -21,7 +22,7 @@ TokenSecret::TokenSecret() : buf_() {
   // If someone manages to get visibility into that cache then they would know
   // the secrets for a larger number of tokens, which could be bad. For now,
   // generating on each call is safer, even if less performant.
-  CHECK(crypto::CSPRNG(buf_, QUIC_TOKENSECRET_LEN).is_ok());
+  CHECK(ncrypto::CSPRNG(buf_, QUIC_TOKENSECRET_LEN));
 }
 
 TokenSecret::TokenSecret(const uint8_t* secret) : buf_() {
@@ -49,8 +50,8 @@ TokenSecret::operator const char*() const {
 
 std::string TokenSecret::ToString() const {
   char dest[QUIC_TOKENSECRET_LEN * 2];
-  size_t written = StringBytes::hex_encode(
-      *this, QUIC_TOKENSECRET_LEN, dest, arraysize(dest));
+  size_t written =
+      nbytes::HexEncode(*this, QUIC_TOKENSECRET_LEN, dest, arraysize(dest));
   DCHECK_EQ(written, arraysize(dest));
   return std::string(dest, written);
 }
@@ -117,7 +118,7 @@ std::string StatelessResetToken::ToString() const {
   if (ptr_ == nullptr) return std::string();
   char dest[kStatelessTokenLen * 2];
   size_t written =
-      StringBytes::hex_encode(*this, kStatelessTokenLen, dest, arraysize(dest));
+      nbytes::HexEncode(*this, kStatelessTokenLen, dest, arraysize(dest));
   DCHECK_EQ(written, arraysize(dest));
   return std::string(dest, written);
 }
@@ -230,7 +231,7 @@ std::string RetryToken::ToString() const {
   if (ptr_.base == nullptr) return std::string();
   MaybeStackBuffer<char, 32> dest(ptr_.len * 2);
   size_t written =
-      StringBytes::hex_encode(*this, ptr_.len, dest.out(), dest.length());
+      nbytes::HexEncode(*this, ptr_.len, dest.out(), dest.length());
   DCHECK_EQ(written, dest.length());
   return std::string(dest.out(), written);
 }
@@ -289,7 +290,7 @@ std::string RegularToken::ToString() const {
   if (ptr_.base == nullptr) return std::string();
   MaybeStackBuffer<char, 32> dest(ptr_.len * 2);
   size_t written =
-      StringBytes::hex_encode(*this, ptr_.len, dest.out(), dest.length());
+      nbytes::HexEncode(*this, ptr_.len, dest.out(), dest.length());
   DCHECK_EQ(written, dest.length());
   return std::string(dest.out(), written);
 }
@@ -298,7 +299,6 @@ RegularToken::operator const char*() const {
   return reinterpret_cast<const char*>(ptr_.base);
 }
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC

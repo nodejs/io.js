@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src="scroll_support.js"></script>
+  <body>
+    <style>
+      .scroller {
+        scroll-snap-type: x mandatory;
+        overflow-x: auto;
+        overflow-y: hidden;
+        position: relative;
+        height: 500px;
+        width: 500px;
+      }
+
+      .box {
+        scroll-snap-align: start;
+        width: 400px;
+        position: absolute;
+        top: 200px;
+      }
+
+      #box1 {
+        background-color: red;
+        height: 500px;
+      }
+
+      #box2 {
+        background-color: yellow;
+        height: 300px;
+        left: 700.5px;
+      }
+
+      #box3 {
+        background-color: blue;
+        height: 100px;
+        left: 1400px;
+      }
+    </style>
+    <div id="scroller" class="scroller">
+      <div class="box" id="box1">1</div>
+      <div class="box" id="box2">2</div>
+      <div class="box" id="box3">3</div>
+    </div>
+    <script>
+      let scrollendCount = 0;
+      scroller.addEventListener('scrollend', () => {
+        scroller.style.maxHeight = null;
+        scroller.style.maxHeight = `${box2.clientHeight}px`;
+        scrollendCount += 1;
+      });
+      promise_test(async (test) => {
+        // This test aims to verify that scrollend fires correctly (i.e. once)
+        // when the target snap position is not a whole number. In this case, we
+        // expect to snap to the left edge of box2 which is at a fractional
+        // offset from the scroller's origin (left: 700.5px).
+        // The scroll offset resulting from the snap may not be fractional
+        // (e.g. if the browser does not support fractional scroll offsets) so
+        // we verify the scroll offset with assert_approx_equals.
+        assert_equals(scroller.scrollLeft, 0,
+        "test precondition: scroller is not scrolled.");
+        const expected_scroll_left = box2.offsetLeft;
+        const target_offset = box2.offsetLeft + box2.clientWidth / 2;
+
+        let scrollend_promise = waitForScrollendEvent(test, scroller);
+        scroller.scrollTo( { left: target_offset });
+        await scrollend_promise;
+
+        // Instead of a time-based wait for errant scrollends, we wait a frame
+        // and then scroll back to 0.
+        await waitForCompositorCommit();
+        assert_approx_equals(scroller.scrollLeft, expected_scroll_left, 1,
+            "scroller snaps to the left edge of box 2");
+
+        scrollend_promise = waitForScrollendEvent(test, scroller);
+        scroller.scrollTo({ left: 0 });
+        await scrollend_promise;
+        assert_equals(scroller.scrollLeft, 0,
+            "scroller should be scrolled back to 0.");
+        assert_equals(scrollendCount, 2, "exactly 2 scrollends should be seen");
+      }, "snap to fractional offset fires scrollend exactly once.");
+    </script>
+  </body>
+</html>

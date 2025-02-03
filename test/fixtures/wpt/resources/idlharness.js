@@ -809,7 +809,7 @@ IdlArray.prototype.merge_partials = function()
         {
             // Special-case "Exposed". Must be a subset of original interface's exposure.
             // Exposed on a partial is the equivalent of having the same Exposed on all nested members.
-            // See https://github.com/heycam/webidl/issues/154 for discrepency between Exposed and
+            // See https://github.com/heycam/webidl/issues/154 for discrepancy between Exposed and
             // other extended attributes on partial interfaces.
             const exposureAttr = parsed_idl.extAttrs.find(a => a.name === "Exposed");
             if (exposureAttr) {

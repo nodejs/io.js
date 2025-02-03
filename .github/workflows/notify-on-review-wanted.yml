@@ -1,0 +1,44 @@
+name: Notify on Review Wanted
+on:
+  issues:
+    types: [labeled]
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  notifyOnReviewWanted:
+    name: Notify on Review Wanted
+    if: github.repository == 'nodejs/node' && github.event.label.name == 'review wanted'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine PR or Issue
+        id: define-message
+        env:
+          TITLE_ISSUE: ${{ github.event.issue.title }}
+          TITLE_PR: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ -n "${{ github.event.pull_request.number }}" ]]; then
+            number="${{ github.event.pull_request.number }}"
+            link="https://github.com/${{ github.repository }}/pull/$number"
+            echo "message=The PR (#$number) requires review from Node.js maintainers. See: $link" >> "$GITHUB_OUTPUT"
+            echo "title=$TITLE_PR" >> "$GITHUB_OUTPUT"
+          else
+            number="${{ github.event.issue.number }}"
+            link="https://github.com/${{ github.repository }}/issues/$number"
+            echo "message=The issue (#$number) requires review from Node.js maintainers. See: $link" >> "$GITHUB_OUTPUT"
+            echo "title=$TITLE_ISSUE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@c33737706dea87cd7784c687dadc9adf1be59990  # 2.3.2
+        env:
+          MSG_MINIMAL: actions url
+          SLACK_COLOR: '#3d85c6'
+          SLACK_ICON: https://github.com/nodejs.png?size=48
+          SLACK_TITLE: ${{ steps.define-message.outputs.title }}
+          SLACK_MESSAGE: ${{ steps.define-message.outputs.message }}
+          SLACK_USERNAME: nodejs-bot
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

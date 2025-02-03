@@ -113,9 +113,9 @@ class PoolBase extends DispatcherBase {
 
   async [kClose] () {
     if (this[kQueue].isEmpty()) {
-      return Promise.all(this[kClients].map(c => c.close()))
+      await Promise.all(this[kClients].map(c => c.close()))
     } else {
-      return new Promise((resolve) => {
+      await new Promise((resolve) => {
         this[kClosedResolve] = resolve
       })
     }
@@ -130,7 +130,7 @@ class PoolBase extends DispatcherBase {
       item.handler.onError(err)
     }
 
-    return Promise.all(this[kClients].map(c => c.destroy(err)))
+    await Promise.all(this[kClients].map(c => c.destroy(err)))
   }
 
   [kDispatch] (opts, handler) {

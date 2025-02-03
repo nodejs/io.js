@@ -10,10 +10,10 @@ ares_get_servers, ares_get_servers_ports \- Retrieve name servers from an initia
 .nf
 #include <ares.h>
 
-int ares_get_servers(ares_channel_t *\fIchannel\fP,
+int ares_get_servers(const ares_channel_t *\fIchannel\fP,
                      struct ares_addr_node **\fIservers\fP)
 
-int ares_get_servers_ports(ares_channel_t *\fIchannel\fP,
+int ares_get_servers_ports(const ares_channel_t *\fIchannel\fP,
                            struct ares_addr_port_node **\fIservers\fP)
 .fi
 .SH DESCRIPTION
@@ -67,13 +67,3 @@ was invalid.
 .SH NOTES
 As of c-ares 1.24, these functions are deprecated due to their lack of ability
 to store the entire server configuration.  Use \fBares_get_servers_csv(3)\fP.
-.SH AUTHOR
-Implementation of this function and associated library internals are based
-on code, comments and feedback provided in November and December of 2008 by
-Daniel Stenberg, Gregor Jasny, Phil Blundell and Yang Tse, December 2009
-by Cedric Bail, February 2010 by Jakub Hrozek. On March 2010 Yang Tse
-shuffled all the bits and this function popped out.
-.br
-Copyright 1998 by the Massachusetts Institute of Technology.
-.br
-Copyright (C) 2008-2010 by Daniel Stenberg

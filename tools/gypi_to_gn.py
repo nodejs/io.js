@@ -37,7 +37,7 @@ use "git grep" to find files in the GN build any more, and tracking everything
 in GYP down requires a level of indirection. Any calls will have to be removed
 and cleaned up once the GYP-to-GN transition is complete.
 As a result, we only use this script when the list of files is large and
-frequently-changing. In these cases, having one canonical list outweights the
+frequently-changing. In these cases, having one canonical list outweighs the
 downsides.
 As of this writing, the GN build is basically complete. It's likely that all
 large and frequently changing targets where this is appropriate use this
@@ -253,7 +253,7 @@ def LoadPythonDictionary(path):
 
 def ReplaceSubstrings(values, search_for, replace_with):
   """Recursively replaces substrings in a value.
-  Replaces all substrings of the "search_for" with "repace_with" for all
+  Replaces all substrings of the "search_for" with "replace_with" for all
   strings occurring in "values". This is done by recursively iterating into
   lists as well as the keys and values of dictionaries."""
   if isinstance(values, str):

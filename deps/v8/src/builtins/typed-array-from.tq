@@ -94,7 +94,7 @@ transitioning javascript builtin TypedArrayFrom(
             // Check that the iterator function is exactly
             // Builtin::kArrayPrototypeValues.
             if (!TaggedEqual(
-                    iteratorFn.shared_function_info.function_data,
+                    iteratorFn.shared_function_info.untrusted_function_data,
                     SmiConstant(kArrayPrototypeValues))) {
               goto UseUserProvidedIterator;
             }
@@ -113,7 +113,7 @@ transitioning javascript builtin TypedArrayFrom(
             // Check that the iterator function is exactly
             // Builtin::kTypedArrayPrototypeValues.
             if (!TaggedEqual(
-                    iteratorFn.shared_function_info.function_data,
+                    iteratorFn.shared_function_info.untrusted_function_data,
                     SmiConstant(kTypedArrayPrototypeValues)))
               goto UseUserProvidedIterator;
 
@@ -126,7 +126,7 @@ transitioning javascript builtin TypedArrayFrom(
             // Check that the iterator function is exactly
             // Builtin::kSetPrototypeValues.
             if (!TaggedEqual(
-                    iteratorFn.shared_function_info.function_data,
+                    iteratorFn.shared_function_info.untrusted_function_data,
                     SmiConstant(kSetPrototypeValues))) {
               goto UseUserProvidedIterator;
             }
@@ -220,16 +220,13 @@ transitioning javascript builtin TypedArrayFrom(
       // The buffer may be detached or the target TypedArray may go out of
       // bounds during executing ToNumber/ToBigInt or when we executed the
       // mapper function above.
-      accessor.StoreJSAny(context, targetObj, k, mappedValue)
-          otherwise IfDetachedOrOutOfBounds;
+      accessor.StoreJSAny(context, targetObj, k, mappedValue);
 
       // 12f. Set k to k + 1. (done by the loop).
     }
     return targetObj;
   } label NotConstructor deferred {
     ThrowTypeError(MessageTemplate::kNotConstructor, receiver);
-  } label IfDetachedOrOutOfBounds deferred {
-    ThrowTypeError(MessageTemplate::kDetachedOperation, kBuiltinNameFrom);
   }
 }
 }

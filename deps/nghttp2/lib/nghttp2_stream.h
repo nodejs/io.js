@@ -124,10 +124,9 @@ typedef enum {
   NGHTTP2_HTTP_FLAG_METH_HEAD = 1 << 8,
   NGHTTP2_HTTP_FLAG_METH_OPTIONS = 1 << 9,
   NGHTTP2_HTTP_FLAG_METH_UPGRADE_WORKAROUND = 1 << 10,
-  NGHTTP2_HTTP_FLAG_METH_ALL = NGHTTP2_HTTP_FLAG_METH_CONNECT |
-                               NGHTTP2_HTTP_FLAG_METH_HEAD |
-                               NGHTTP2_HTTP_FLAG_METH_OPTIONS |
-                               NGHTTP2_HTTP_FLAG_METH_UPGRADE_WORKAROUND,
+  NGHTTP2_HTTP_FLAG_METH_ALL =
+    NGHTTP2_HTTP_FLAG_METH_CONNECT | NGHTTP2_HTTP_FLAG_METH_HEAD |
+    NGHTTP2_HTTP_FLAG_METH_OPTIONS | NGHTTP2_HTTP_FLAG_METH_UPGRADE_WORKAROUND,
   /* :path category */
   /* path starts with "/" */
   NGHTTP2_HTTP_FLAG_PATH_REGULAR = 1 << 11,
@@ -296,8 +295,8 @@ int nghttp2_stream_check_deferred_by_flow_control(nghttp2_stream *stream);
  * overflow.
  */
 int nghttp2_stream_update_remote_initial_window_size(
-    nghttp2_stream *stream, int32_t new_initial_window_size,
-    int32_t old_initial_window_size);
+  nghttp2_stream *stream, int32_t new_initial_window_size,
+  int32_t old_initial_window_size);
 
 /*
  * Updates the local window size with the new value
@@ -308,8 +307,8 @@ int nghttp2_stream_update_remote_initial_window_size(
  * overflow.
  */
 int nghttp2_stream_update_local_initial_window_size(
-    nghttp2_stream *stream, int32_t new_initial_window_size,
-    int32_t old_initial_window_size);
+  nghttp2_stream *stream, int32_t new_initial_window_size,
+  int32_t old_initial_window_size);
 
 /*
  * Call this function if promised stream |stream| is replied with

@@ -22,3 +22,10 @@ function foo(y) {
     inlined(i); // Phi (representing i) can leak to the inlined function.
   }
 }
+
+%PrepareFunctionForOptimization(inlined);
+%PrepareFunctionForOptimization(foo);
+foo();
+foo();
+%OptimizeFunctionOnNextCall(foo);
+foo();

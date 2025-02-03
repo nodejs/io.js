@@ -4,11 +4,13 @@
 
 #include "src/compiler/code-assembler.h"
 
+#include <optional>
 #include <ostream>
 
 #include "src/builtins/builtins-inl.h"
 #include "src/codegen/interface-descriptors-inl.h"
 #include "src/codegen/machine-type.h"
+#include "src/codegen/tnode.h"
 #include "src/compiler/backend/instruction-selector.h"
 #include "src/compiler/graph.h"
 #include "src/compiler/js-graph.h"
@@ -36,10 +38,10 @@ namespace compiler {
 static_assert(std::is_convertible<TNode<Number>, TNode<Object>>::value,
               "test subtyping");
 static_assert(
-    std::is_convertible<TNode<Number>, TNode<UnionT<Smi, HeapObject>>>::value,
+    std::is_convertible<TNode<Number>, TNode<UnionOf<Smi, HeapObject>>>::value,
     "test subtyping");
 static_assert(
-    !std::is_convertible<TNode<UnionT<Smi, HeapObject>>, TNode<Number>>::value,
+    !std::is_convertible<TNode<UnionOf<Smi, HeapObject>>, TNode<Number>>::value,
     "test subtyping");
 
 CodeAssemblerState::CodeAssemblerState(
@@ -312,13 +314,17 @@ TNode<String> CodeAssembler::StringConstant(const char* str) {
 TNode<Boolean> CodeAssembler::BooleanConstant(bool value) {
   Handle<Boolean> object = isolate()->factory()->ToBoolean(value);
   return UncheckedCast<Boolean>(
-      jsgraph()->HeapConstantNoHole(Handle<HeapObject>::cast(object)));
+      jsgraph()->HeapConstantNoHole(i::Cast<HeapObject>(object)));
 }
 
 TNode<ExternalReference> CodeAssembler::ExternalConstant(
     ExternalReference address) {
   return UncheckedCast<ExternalReference>(
       raw_assembler()->ExternalConstant(address));
+}
+
+TNode<ExternalReference> CodeAssembler::IsolateField(IsolateFieldId id) {
+  return ExternalConstant(ExternalReference::Create(id));
 }
 
 TNode<Float32T> CodeAssembler::Float32Constant(double value) {
@@ -496,6 +502,17 @@ void CodeAssembler::Return(TNode<WordT> value1, TNode<WordT> value2) {
   return raw_assembler()->Return(value1, value2);
 }
 
+void CodeAssembler::Return(TNode<Word32T> value1, TNode<Word32T> value2) {
+  DCHECK_EQ(2, raw_assembler()->call_descriptor()->ReturnCount());
+  DCHECK_EQ(
+      MachineRepresentation::kWord32,
+      raw_assembler()->call_descriptor()->GetReturnType(0).representation());
+  DCHECK_EQ(
+      MachineRepresentation::kWord32,
+      raw_assembler()->call_descriptor()->GetReturnType(1).representation());
+  return raw_assembler()->Return(value1, value2);
+}
+
 void CodeAssembler::Return(TNode<WordT> value1, TNode<Object> value2) {
   DCHECK_EQ(2, raw_assembler()->call_descriptor()->ReturnCount());
   DCHECK_EQ(
@@ -583,9 +600,8 @@ TNode<RawPtrT> CodeAssembler::LoadStackPointer() {
   return UncheckedCast<RawPtrT>(raw_assembler()->LoadStackPointer());
 }
 
-void CodeAssembler::SetStackPointer(TNode<RawPtrT> ptr,
-                                    wasm::FPRelativeScope fp_scope) {
-  raw_assembler()->SetStackPointer(ptr, fp_scope);
+void CodeAssembler::SetStackPointer(TNode<RawPtrT> ptr) {
+  raw_assembler()->SetStackPointer(ptr);
 }
 #endif
 
@@ -610,6 +626,20 @@ TNode<RawPtrT> CodeAssembler::StackSlotPtr(int size, int alignment) {
   }
 CODE_ASSEMBLER_BINARY_OP_LIST(DEFINE_CODE_ASSEMBLER_BINARY_OP)
 #undef DEFINE_CODE_ASSEMBLER_BINARY_OP
+
+TNode<PairT<Word32T, Word32T>> CodeAssembler::Int32PairAdd(
+    TNode<Word32T> lhs_lo_word, TNode<Word32T> lhs_hi_word,
+    TNode<Word32T> rhs_lo_word, TNode<Word32T> rhs_hi_word) {
+  return UncheckedCast<PairT<Word32T, Word32T>>(raw_assembler()->Int32PairAdd(
+      lhs_lo_word, lhs_hi_word, rhs_lo_word, rhs_hi_word));
+}
+
+TNode<PairT<Word32T, Word32T>> CodeAssembler::Int32PairSub(
+    TNode<Word32T> lhs_lo_word, TNode<Word32T> lhs_hi_word,
+    TNode<Word32T> rhs_lo_word, TNode<Word32T> rhs_hi_word) {
+  return UncheckedCast<PairT<Word32T, Word32T>>(raw_assembler()->Int32PairSub(
+      lhs_lo_word, lhs_hi_word, rhs_lo_word, rhs_hi_word));
+}
 
 TNode<WordT> CodeAssembler::WordShl(TNode<WordT> value, int shift) {
   return (shift != 0) ? WordShl(value, IntPtrConstant(shift)) : value;
@@ -755,6 +785,11 @@ Node* CodeAssembler::LoadFromObject(MachineType type, TNode<Object> object,
   return raw_assembler()->LoadFromObject(type, object, offset);
 }
 
+Node* CodeAssembler::LoadProtectedPointerFromObject(TNode<Object> object,
+                                                    TNode<IntPtrT> offset) {
+  return raw_assembler()->LoadProtectedPointerFromObject(object, offset);
+}
+
 #ifdef V8_MAP_PACKING
 Node* CodeAssembler::PackMapWord(Node* value) {
   TNode<IntPtrT> map_word =
@@ -768,7 +803,7 @@ Node* CodeAssembler::PackMapWord(Node* value) {
 TNode<AnyTaggedT> CodeAssembler::LoadRootMapWord(RootIndex root_index) {
 #ifdef V8_MAP_PACKING
   Handle<Object> root = isolate()->root_handle(root_index);
-  Node* map = HeapConstantNoHole(Handle<Map>::cast(root));
+  Node* map = HeapConstantNoHole(Cast<Map>(root));
   map = PackMapWord(map);
   return ReinterpretCast<AnyTaggedT>(map);
 #else
@@ -780,9 +815,9 @@ TNode<Object> CodeAssembler::LoadRoot(RootIndex root_index) {
   if (RootsTable::IsImmortalImmovable(root_index)) {
     Handle<Object> root = isolate()->root_handle(root_index);
     if (IsSmi(*root)) {
-      return SmiConstant(Smi::cast(*root));
+      return SmiConstant(i::Cast<Smi>(*root));
     } else {
-      return HeapConstantMaybeHole(Handle<HeapObject>::cast(root));
+      return HeapConstantMaybeHole(i::Cast<HeapObject>(root));
     }
   }
 
@@ -1092,7 +1127,7 @@ Node* CodeAssembler::CallRuntimeImpl(
       Builtins::RuntimeCEntry(result_size, switch_to_the_central_stack);
   TNode<Code> centry_code =
       HeapConstantNoHole(isolate()->builtins()->code_handle(centry));
-  constexpr size_t kMaxNumArgs = 6;
+  constexpr size_t kMaxNumArgs = 7;
   DCHECK_GE(kMaxNumArgs, args.size());
   int argc = static_cast<int>(args.size());
   auto call_descriptor = Linkage::GetRuntimeCallDescriptor(
@@ -1118,6 +1153,51 @@ Node* CodeAssembler::CallRuntimeImpl(
   CallEpilogue();
   return return_value;
 }
+
+Builtin CodeAssembler::builtin() { return state()->builtin_; }
+
+#if V8_ENABLE_WEBASSEMBLY
+TNode<RawPtrT> CodeAssembler::SwitchToTheCentralStack() {
+  TNode<ExternalReference> do_switch = ExternalConstant(
+      ExternalReference::wasm_switch_to_the_central_stack_for_js());
+  TNode<RawPtrT> central_stack_sp = TNode<RawPtrT>::UncheckedCast(CallCFunction(
+      do_switch, MachineType::Pointer(),
+      std::make_pair(MachineType::Pointer(),
+                     ExternalConstant(ExternalReference::isolate_address())),
+      std::make_pair(MachineType::Pointer(), LoadFramePointer())));
+
+  TNode<RawPtrT> old_sp = LoadStackPointer();
+  SetStackPointer(central_stack_sp);
+  return old_sp;
+}
+
+void CodeAssembler::SwitchFromTheCentralStack(TNode<RawPtrT> old_sp) {
+  TNode<ExternalReference> do_switch = ExternalConstant(
+      ExternalReference::wasm_switch_from_the_central_stack_for_js());
+  CodeAssemblerLabel skip(this);
+  GotoIf(IntPtrEqual(old_sp, UintPtrConstant(0)), &skip);
+  CallCFunction(
+      do_switch, MachineType::Pointer(),
+      std::make_pair(MachineType::Pointer(),
+                     ExternalConstant(ExternalReference::isolate_address())));
+  SetStackPointer(old_sp);
+  Goto(&skip);
+  Bind(&skip);
+}
+
+TNode<RawPtrT> CodeAssembler::SwitchToTheCentralStackIfNeeded() {
+  TVariable<RawPtrT> old_sp(PointerConstant(nullptr), this);
+  Label no_switch(this);
+  Label end(this);  // -> return value of the call (kTaggedPointer)
+  TNode<Uint8T> is_on_central_stack_flag = LoadUint8FromRootRegister(
+      IntPtrConstant(IsolateData::is_on_central_stack_flag_offset()));
+  GotoIf(is_on_central_stack_flag, &no_switch);
+  old_sp = SwitchToTheCentralStack();
+  Goto(&no_switch);
+  Bind(&no_switch);
+  return old_sp.value();
+}
+#endif
 
 void CodeAssembler::TailCallRuntimeImpl(
     Runtime::FunctionId function, TNode<Int32T> arity, TNode<Object> context,
@@ -1236,7 +1316,7 @@ Node* CodeAssembler::CallStubRImpl(StubCallMode call_mode,
 Node* CodeAssembler::CallJSStubImpl(const CallInterfaceDescriptor& descriptor,
                                     TNode<Object> target, TNode<Object> context,
                                     TNode<Object> function,
-                                    base::Optional<TNode<Object>> new_target,
+                                    std::optional<TNode<Object>> new_target,
                                     TNode<Int32T> arity,
                                     std::initializer_list<Node*> args) {
   constexpr size_t kMaxNumArgs = 10;
@@ -1320,7 +1400,7 @@ Node* CodeAssembler::CallCFunctionN(Signature<MachineType>* signature,
 }
 
 Node* CodeAssembler::CallCFunction(
-    Node* function, base::Optional<MachineType> return_type,
+    Node* function, std::optional<MachineType> return_type,
     std::initializer_list<CodeAssembler::CFunctionArg> args) {
   return raw_assembler()->CallCFunction(function, return_type, args);
 }

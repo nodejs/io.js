@@ -43,7 +43,7 @@ getASCIIPropertyNameChar(const char *name) {
     ) {}
 
     if(c!=0) {
-        return (i<<8)|(uint8_t)uprv_asciitolower((char)c);
+        return (i << 8) | static_cast<uint8_t>(uprv_asciitolower(c));
     } else {
         return i<<8;
     }
@@ -66,7 +66,7 @@ getEBCDICPropertyNameChar(const char *name) {
     ) {}
 
     if(c!=0) {
-        return (i<<8)|(uint8_t)uprv_ebcdictolower((char)c);
+        return (i << 8) | static_cast<uint8_t>(uprv_ebcdictolower(c));
     } else {
         return i<<8;
     }
@@ -231,7 +231,7 @@ UBool PropNameData::containsName(BytesTrie &trie, const char *name) {
         if(!USTRINGTRIE_HAS_NEXT(result)) {
             return false;
         }
-        result=trie.next((uint8_t)c);
+        result = trie.next(static_cast<uint8_t>(c));
     }
     return USTRINGTRIE_HAS_VALUE(result);
 }

@@ -24,3 +24,17 @@ test('concurrency of two', async () => {
   const cp = spawnSync(process.execPath, args, { cwd, env });
   assert.match(cp.stderr.toString(), /concurrency: 2,/);
 });
+
+test('isolation=none uses a concurrency of one', async () => {
+  const args = ['--test', '--test-isolation=none'];
+  const cp = spawnSync(process.execPath, args, { cwd, env });
+  assert.match(cp.stderr.toString(), /concurrency: 1,/);
+});
+
+test('isolation=none overrides --test-concurrency', async () => {
+  const args = [
+    '--test', '--test-isolation=none', '--test-concurrency=2',
+  ];
+  const cp = spawnSync(process.execPath, args, { cwd, env });
+  assert.match(cp.stderr.toString(), /concurrency: 1,/);
+});

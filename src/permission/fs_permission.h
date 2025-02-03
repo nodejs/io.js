@@ -18,7 +18,8 @@ class FSPermission final : public PermissionBase {
   void Apply(Environment* env,
              const std::vector<std::string>& allow,
              PermissionScope scope) override;
-  bool is_granted(PermissionScope perm,
+  bool is_granted(Environment* env,
+                  PermissionScope perm,
                   const std::string_view& param) const override;
 
   struct RadixTree {
@@ -128,7 +129,7 @@ class FSPermission final : public PermissionBase {
       // ---> er
       // ---> n
       bool IsEndNode() const {
-        if (children.size() == 0) {
+        if (children.empty()) {
           return true;
         }
         return is_leaf;

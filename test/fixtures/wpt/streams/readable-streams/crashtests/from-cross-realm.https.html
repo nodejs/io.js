@@ -1,0 +1,18 @@
+<html class="test-wait">
+<meta charset="utf-8">
+<script type="module">
+  let a = window.open()
+  try {
+    let dir = await a.navigator.storage.getDirectory()
+    let hdl = await dir.getFileHandle("7399d8cf-9ff9-494d-89eb-d3045f229c27", {"create": true})
+    let map = new Map([[]])
+    let b = ReadableStream.from(map)
+    let c = await hdl.createWritable({ })
+    await b.pipeTo(c, { }).catch(() => {
+      // Error expected as we are not piping the right form of chunk to FileHandle
+    })
+  } finally {
+    document.documentElement.classList.remove("test-wait")
+    a.close()
+  }
+</script>

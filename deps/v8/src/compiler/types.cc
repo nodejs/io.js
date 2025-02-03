@@ -8,6 +8,7 @@
 
 #include "src/compiler/js-heap-broker.h"
 #include "src/numbers/conversions-inl.h"
+#include "src/objects/elements-kind.h"
 #include "src/objects/instance-type.h"
 #include "src/objects/turbofan-types.h"
 #include "src/utils/ostreams.h"
@@ -226,7 +227,16 @@ Type::bitset BitsetType::Lub(MapRefLike map, JSHeapBroker* broker) {
       return kOtherObject;
     case JS_ARRAY_TYPE:
       return kArray;
-    case JS_PRIMITIVE_WRAPPER_TYPE:
+    case JS_PRIMITIVE_WRAPPER_TYPE: {
+      DCHECK(!map.is_callable());
+      DCHECK(!map.is_undetectable());
+      auto elements_kind = map.elements_kind();
+      if (elements_kind == ElementsKind::FAST_STRING_WRAPPER_ELEMENTS ||
+          elements_kind == ElementsKind::SLOW_STRING_WRAPPER_ELEMENTS) {
+        return kStringWrapper;
+      }
+      return kOtherObject;
+    }
     case JS_MESSAGE_OBJECT_TYPE:
     case JS_DATE_TYPE:
 #ifdef V8_INTL_SUPPORT
@@ -245,6 +255,9 @@ Type::bitset BitsetType::Lub(MapRefLike map, JSHeapBroker* broker) {
     case JS_SEGMENTS_TYPE:
 #endif  // V8_INTL_SUPPORT
     case JS_CONTEXT_EXTENSION_OBJECT_TYPE:
+    case JS_DISPOSABLE_STACK_BASE_TYPE:
+    case JS_ASYNC_DISPOSABLE_STACK_TYPE:
+    case JS_SYNC_DISPOSABLE_STACK_TYPE:
     case JS_GENERATOR_OBJECT_TYPE:
     case JS_ASYNC_FUNCTION_OBJECT_TYPE:
     case JS_ASYNC_GENERATOR_OBJECT_TYPE:
@@ -298,6 +311,7 @@ Type::bitset BitsetType::Lub(MapRefLike map, JSHeapBroker* broker) {
     case WASM_MEMORY_OBJECT_TYPE:
     case WASM_MODULE_OBJECT_TYPE:
     case WASM_SUSPENDER_OBJECT_TYPE:
+    case WASM_SUSPENDING_OBJECT_TYPE:
     case WASM_TABLE_OBJECT_TYPE:
     case WASM_TAG_OBJECT_TYPE:
     case WASM_EXCEPTION_PACKAGE_TYPE:
@@ -395,6 +409,9 @@ Type::bitset BitsetType::Lub(MapRefLike map, JSHeapBroker* broker) {
     case UNCOMPILED_DATA_WITHOUT_PREPARSE_DATA_TYPE:
     case UNCOMPILED_DATA_WITH_PREPARSE_DATA_TYPE:
     case COVERAGE_INFO_TYPE:
+    case REG_EXP_DATA_TYPE:
+    case ATOM_REG_EXP_DATA_TYPE:
+    case IR_REG_EXP_DATA_TYPE:
 #if V8_ENABLE_WEBASSEMBLY
     case WASM_TYPE_INFO_TYPE:
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -917,6 +934,10 @@ Type Type::Constant(JSHeapBroker* broker, ObjectRef ref, Zone* zone) {
   }
   if (ref.IsString() && !ref.IsInternalizedString()) {
     return Type::String();
+  }
+  if (ref.IsJSPrimitiveWrapper() &&
+      ref.AsJSPrimitiveWrapper().IsStringWrapper(broker)) {
+    return Type::StringWrapper();
   }
   if (ref.HoleType() != HoleType::kNone) {
     return Type::Hole();

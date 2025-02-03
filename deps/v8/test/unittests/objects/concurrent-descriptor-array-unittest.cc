@@ -47,12 +47,12 @@ class ConcurrentSearchThread final : public v8::base::Thread {
 
     sema_started_->Signal();
 
-    for (Handle<JSObject> handle : handles_) {
+    for (DirectHandle<JSObject> handle : handles_) {
       // Lookup the named property on the {map}.
       EXPECT_TRUE(IsUniqueName(*name_));
-      Handle<Map> map(handle->map(), &local_heap);
+      DirectHandle<Map> map(handle->map(), &local_heap);
 
-      Handle<DescriptorArray> descriptors(
+      DirectHandle<DescriptorArray> descriptors(
           map->instance_descriptors(kAcquireLoad), &local_heap);
       bool is_background_thread = true;
       InternalIndex const number =

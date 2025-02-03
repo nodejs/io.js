@@ -35,13 +35,36 @@
 #include <nghttp2/nghttp2.h>
 #include "nghttp2_mem.h"
 
-#define nghttp2_min(A, B) ((A) < (B) ? (A) : (B))
-#define nghttp2_max(A, B) ((A) > (B) ? (A) : (B))
+#define nghttp2_max_def(SUFFIX, T)                                             \
+  static inline T nghttp2_max_##SUFFIX(T a, T b) { return a < b ? b : a; }
+
+nghttp2_max_def(int8, int8_t)
+nghttp2_max_def(int16, int16_t)
+nghttp2_max_def(int32, int32_t)
+nghttp2_max_def(int64, int64_t)
+nghttp2_max_def(uint8, uint8_t)
+nghttp2_max_def(uint16, uint16_t)
+nghttp2_max_def(uint32, uint32_t)
+nghttp2_max_def(uint64, uint64_t)
+nghttp2_max_def(size, size_t)
+
+#define nghttp2_min_def(SUFFIX, T)                                             \
+  static inline T nghttp2_min_##SUFFIX(T a, T b) { return a < b ? a : b; }
+
+nghttp2_min_def(int8, int8_t)
+nghttp2_min_def(int16, int16_t)
+nghttp2_min_def(int32, int32_t)
+nghttp2_min_def(int64, int64_t)
+nghttp2_min_def(uint8, uint8_t)
+nghttp2_min_def(uint16, uint16_t)
+nghttp2_min_def(uint32, uint32_t)
+nghttp2_min_def(uint64, uint64_t)
+nghttp2_min_def(size, size_t)
 
 #define lstreq(A, B, N) ((sizeof((A)) - 1) == (N) && memcmp((A), (B), (N)) == 0)
 
 #define nghttp2_struct_of(ptr, type, member)                                   \
-  ((type *)(void *)((char *)(ptr)-offsetof(type, member)))
+  ((type *)(void *)((char *)(ptr) - offsetof(type, member)))
 
 /*
  * Copies 2 byte unsigned integer |n| in host byte order to |buf| in

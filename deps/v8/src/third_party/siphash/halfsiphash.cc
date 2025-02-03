@@ -20,7 +20,6 @@
 #include "src/third_party/siphash/halfsiphash.h"
 
 #include "src/base/logging.h"
-#include "src/base/v8-fallthrough.h"
 
 #define ROTL(x, b) (uint32_t)(((x) << (b)) | ((x) >> (32 - (b))))
 

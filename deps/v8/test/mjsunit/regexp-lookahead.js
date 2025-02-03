@@ -164,3 +164,7 @@ testRE(re, "xya", false);
 execRE(re, "a", ["", undefined, undefined, undefined]);
 execRE(re, "xa", ["", undefined, undefined, undefined]);
 execRE(re, "xyz", ["", undefined, undefined, undefined]);
+
+// Be sure the quick check is working right for lookahead.
+re = /(?=..)abcd/;
+testRE(re, "----abcd", true);

@@ -60,6 +60,6 @@ void nghttp2_extpri_from_uint8(nghttp2_extpri *extpri, uint8_t u8extpri);
  * nghttp2_extpri_uint8_inc extracts inc from |PRI| which is supposed to
  * be constructed by nghttp2_extpri_to_uint8.
  */
-#define nghttp2_extpri_uint8_inc(PRI) (((PRI)&NGHTTP2_EXTPRI_INC_MASK) != 0)
+#define nghttp2_extpri_uint8_inc(PRI) (((PRI) & NGHTTP2_EXTPRI_INC_MASK) != 0)
 
 #endif /* NGHTTP2_EXTPRI_H */

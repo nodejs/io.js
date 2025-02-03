@@ -44,19 +44,31 @@ extern class JSExternalObject extends JSObject {
   value: ExternalPointer;
 }
 
-// A JSObject that may contain EmbedderDataSlots.
-@abstract
+// A JSObject that may contain EmbedderDataSlots for purposes other than being
+// an API wrapper object. E.g., Promise objects can be set up to have embedder
+// fields.
 extern class JSObjectWithEmbedderSlots extends JSObject {}
+
+// A JSObject that may contain EmbedderDataSlots and are considered API wrapper
+// objects.
+@abstract
+extern class JSAPIObjectWithEmbedderSlots extends JSObject {
+  cpp_heap_wrappable: CppHeapPointer;
+}
 
 @abstract
 @lowestInstanceTypeWithinParentClassRange
 extern class JSCustomElementsObject extends JSObject {}
 
 // These may also contain EmbedderDataSlots but can't be a child class of
-// JSObjectWithEmbedderSlots due to type id constraints.
+// JSAPIObjectWithEmbedderSlots due to type id constraints. These objects are
+// also considered API wrapper objects.
 @abstract
 @lowestInstanceTypeWithinParentClassRange
-extern class JSSpecialObject extends JSCustomElementsObject {}
+extern class JSSpecialObject extends JSCustomElementsObject {
+  // Mirror the same class hierarchy as with JSAPIObjectWithEmbedderSlots.
+  cpp_heap_wrappable: CppHeapPointer;
+}
 
 macro GetDerivedMap(
     implicit context: Context)(target: JSFunction,
@@ -135,7 +147,7 @@ extern class JSDate extends JSObject {
   // If one component is NaN, all of them are, indicating a NaN time value.
 
   // The time value.
-  value: NumberOrUndefined;
+  value: float64;
 
   // Cached values:
   year: Undefined|Smi|NaN;

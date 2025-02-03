@@ -151,7 +151,7 @@ class optional : private optional_internal::optional_data<T>,
                 std::is_same<InPlaceT, in_place_t>,
                 std::is_constructible<T, Args&&...> >::value>* = nullptr>
   constexpr explicit optional(InPlaceT, Args&&... args)
-      : data_base(in_place_t(), absl::forward<Args>(args)...) {}
+      : data_base(in_place_t(), std::forward<Args>(args)...) {}
 
   // Constructs a non-empty `optional` direct-initialized value of type `T` from
   // the arguments of an initializer_list and `std::forward<Args>(args)...`.
@@ -162,8 +162,7 @@ class optional : private optional_internal::optional_data<T>,
                 T, std::initializer_list<U>&, Args&&...>::value>::type>
   constexpr explicit optional(in_place_t, std::initializer_list<U> il,
                               Args&&... args)
-      : data_base(in_place_t(), il, absl::forward<Args>(args)...) {
-  }
+      : data_base(in_place_t(), il, std::forward<Args>(args)...) {}
 
   // Value constructor (implicit)
   template <
@@ -176,21 +175,21 @@ class optional : private optional_internal::optional_data<T>,
                             std::is_convertible<U&&, T>,
                             std::is_constructible<T, U&&> >::value,
           bool>::type = false>
-  constexpr optional(U&& v) : data_base(in_place_t(), absl::forward<U>(v)) {}
+  constexpr optional(U&& v) : data_base(in_place_t(), std::forward<U>(v)) {}
 
   // Value constructor (explicit)
   template <
       typename U = T,
       typename std::enable_if<
           absl::conjunction<absl::negation<std::is_same<
-                                in_place_t, typename std::decay<U>::type>>,
+                                in_place_t, typename std::decay<U>::type> >,
                             absl::negation<std::is_same<
-                                optional<T>, typename std::decay<U>::type>>,
-                            absl::negation<std::is_convertible<U&&, T>>,
-                            std::is_constructible<T, U&&>>::value,
+                                optional<T>, typename std::decay<U>::type> >,
+                            absl::negation<std::is_convertible<U&&, T> >,
+                            std::is_constructible<T, U&&> >::value,
           bool>::type = false>
   explicit constexpr optional(U&& v)
-      : data_base(in_place_t(), absl::forward<U>(v)) {}
+      : data_base(in_place_t(), std::forward<U>(v)) {}
 
   // Converting copy constructor (implicit)
   template <typename U,
@@ -437,7 +436,7 @@ class optional : private optional_internal::optional_data<T>,
     return reference();
   }
   constexpr const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return ABSL_HARDENING_ASSERT(this->engaged_), absl::move(reference());
+    return ABSL_HARDENING_ASSERT(this->engaged_), std::move(reference());
   }
   T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     ABSL_HARDENING_ASSERT(this->engaged_);
@@ -492,7 +491,7 @@ class optional : private optional_internal::optional_data<T>,
   }
   constexpr const T&& value()
       const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {  // NOLINT(build/c++11)
-    return absl::move(
+    return std::move(
         static_cast<bool>(*this)
             ? reference()
             : (optional_internal::throw_bad_optional_access(), reference()));
@@ -511,9 +510,8 @@ class optional : private optional_internal::optional_data<T>,
                   "optional<T>::value_or: T must be copy constructible");
     static_assert(std::is_convertible<U&&, value_type>::value,
                   "optional<T>::value_or: U must be convertible to T");
-    return static_cast<bool>(*this)
-               ? **this
-               : static_cast<T>(absl::forward<U>(v));
+    return static_cast<bool>(*this) ? **this
+                                    : static_cast<T>(std::forward<U>(v));
   }
   template <typename U>
   T value_or(U&& v) && {  // NOLINT(build/c++11)
@@ -573,19 +571,18 @@ void swap(optional<T>& a, optional<T>& b) noexcept(noexcept(a.swap(b))) {
 //   static_assert(opt.value() == 1, "");
 template <typename T>
 constexpr optional<typename std::decay<T>::type> make_optional(T&& v) {
-  return optional<typename std::decay<T>::type>(absl::forward<T>(v));
+  return optional<typename std::decay<T>::type>(std::forward<T>(v));
 }
 
 template <typename T, typename... Args>
 constexpr optional<T> make_optional(Args&&... args) {
-  return optional<T>(in_place_t(), absl::forward<Args>(args)...);
+  return optional<T>(in_place_t(), std::forward<Args>(args)...);
 }
 
 template <typename T, typename U, typename... Args>
 constexpr optional<T> make_optional(std::initializer_list<U> il,
                                     Args&&... args) {
-  return optional<T>(in_place_t(), il,
-                     absl::forward<Args>(args)...);
+  return optional<T>(in_place_t(), il, std::forward<Args>(args)...);
 }
 
 // Relational operators [optional.relops]

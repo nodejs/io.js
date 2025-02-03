@@ -85,6 +85,8 @@ class MaybeHandle final {
   bool is_null() const { return location_ == nullptr; }
 
  protected:
+  V8_INLINE explicit MaybeHandle(Address* location) : location_(location) {}
+
   Address* location_ = nullptr;
 
   // MaybeHandles of different classes are allowed to access each
@@ -95,6 +97,10 @@ class MaybeHandle final {
   template <typename>
   friend class MaybeDirectHandle;
 #endif
+  // Casts are allowed to access location_.
+  template <typename To, typename From>
+  friend inline MaybeHandle<To> Cast(MaybeHandle<From> value,
+                                     const v8::SourceLocation& loc);
 };
 
 template <typename T>
@@ -106,17 +112,19 @@ class MaybeObjectHandle {
  public:
   inline MaybeObjectHandle()
       : reference_type_(HeapObjectReferenceType::STRONG) {}
-  inline MaybeObjectHandle(MaybeObject object, Isolate* isolate);
+  inline MaybeObjectHandle(Tagged<MaybeObject> object, Isolate* isolate);
   inline MaybeObjectHandle(Tagged<Object> object, Isolate* isolate);
-  inline MaybeObjectHandle(MaybeObject object, LocalHeap* local_heap);
+  inline MaybeObjectHandle(Tagged<Smi> object, Isolate* isolate);
+  inline MaybeObjectHandle(Tagged<MaybeObject> object, LocalHeap* local_heap);
   inline MaybeObjectHandle(Tagged<Object> object, LocalHeap* local_heap);
+  inline MaybeObjectHandle(Tagged<Smi> object, LocalHeap* local_heap);
   inline explicit MaybeObjectHandle(Handle<Object> object);
 
   static inline MaybeObjectHandle Weak(Tagged<Object> object, Isolate* isolate);
   static inline MaybeObjectHandle Weak(Handle<Object> object);
 
-  inline MaybeObject operator*() const;
-  inline MaybeObject operator->() const;
+  inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> operator->() const;
   inline Handle<Object> object() const;
 
   inline bool is_identical_to(const MaybeObjectHandle& other) const;
@@ -167,7 +175,7 @@ class MaybeDirectHandle final {
   // Ex. MaybeHandle<JSArray> can be passed when
   // MaybeDirectHandle<Object> is expected.
   template <typename S, typename = std::enable_if_t<is_subtype_v<S, T>>>
-  V8_INLINE MaybeDirectHandle(MaybeHandle<S> maybe_handle)
+  V8_INLINE MaybeDirectHandle(MaybeIndirectHandle<S> maybe_handle)
       : location_(maybe_handle.location_ == nullptr ? kTaggedNullAddress
                                                     : *maybe_handle.location_) {
   }
@@ -201,6 +209,9 @@ class MaybeDirectHandle final {
   bool is_null() const { return location_ == kTaggedNullAddress; }
 
  protected:
+  V8_INLINE explicit MaybeDirectHandle(Address location)
+      : location_(location) {}
+
   Address location_ = kTaggedNullAddress;
 
   // MaybeDirectHandles of different classes are allowed to access each
@@ -209,15 +220,20 @@ class MaybeDirectHandle final {
   friend class MaybeDirectHandle;
   template <typename>
   friend class MaybeHandle;
+  // Casts are allowed to access location_.
+  template <typename To, typename From>
+  friend inline MaybeDirectHandle<To> Cast(MaybeDirectHandle<From> value,
+                                           const v8::SourceLocation& loc);
 };
 
 class MaybeObjectDirectHandle {
  public:
   inline MaybeObjectDirectHandle()
       : reference_type_(HeapObjectReferenceType::STRONG) {}
-  inline MaybeObjectDirectHandle(MaybeObject object, Isolate* isolate);
+  inline MaybeObjectDirectHandle(Tagged<MaybeObject> object, Isolate* isolate);
   inline MaybeObjectDirectHandle(Tagged<Object> object, Isolate* isolate);
-  inline MaybeObjectDirectHandle(MaybeObject object, LocalHeap* local_heap);
+  inline MaybeObjectDirectHandle(Tagged<MaybeObject> object,
+                                 LocalHeap* local_heap);
   inline MaybeObjectDirectHandle(Tagged<Object> object, LocalHeap* local_heap);
   inline explicit MaybeObjectDirectHandle(DirectHandle<Object> object);
 
@@ -225,8 +241,8 @@ class MaybeObjectDirectHandle {
                                              Isolate* isolate);
   static inline MaybeObjectDirectHandle Weak(DirectHandle<Object> object);
 
-  inline MaybeObject operator*() const;
-  inline MaybeObject operator->() const;
+  inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> operator->() const;
   inline DirectHandle<Object> object() const;
 
   inline bool is_identical_to(const MaybeObjectDirectHandle& other) const;

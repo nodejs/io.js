@@ -49,10 +49,10 @@ UVector::UVector(UObjectDeleter *d, UElementsAreEqual *c, int32_t initialCapacit
         return;
     }
     // Fix bogus initialCapacity values; avoid malloc(0) and integer overflow
-    if ((initialCapacity < 1) || (initialCapacity > (int32_t)(INT32_MAX / sizeof(UElement)))) {
+    if ((initialCapacity < 1) || (initialCapacity > static_cast<int32_t>(INT32_MAX / sizeof(UElement)))) {
         initialCapacity = DEFAULT_CAPACITY;
     }
-    elements = (UElement *)uprv_malloc(sizeof(UElement)*initialCapacity);
+    elements = static_cast<UElement*>(uprv_malloc(sizeof(UElement) * initialCapacity));
     if (elements == nullptr) {
         status = U_MEMORY_ALLOCATION_ERROR;
     } else {
@@ -340,12 +340,12 @@ UBool UVector::ensureCapacity(int32_t minimumCapacity, UErrorCode &status) {
         if (newCap < minimumCapacity) {
             newCap = minimumCapacity;
         }
-        if (newCap > (int32_t)(INT32_MAX / sizeof(UElement))) {	// integer overflow check
+        if (newCap > static_cast<int32_t>(INT32_MAX / sizeof(UElement))) { // integer overflow check
             // We keep the original memory contents on bad minimumCapacity.
             status = U_ILLEGAL_ARGUMENT_ERROR;
             return false;
         }
-        UElement* newElems = (UElement *)uprv_realloc(elements, sizeof(UElement)*newCap);
+        UElement* newElems = static_cast<UElement*>(uprv_realloc(elements, sizeof(UElement) * newCap));
         if (newElems == nullptr) {
             // We keep the original contents on the memory failure on realloc or bad minimumCapacity.
             status = U_MEMORY_ALLOCATION_ERROR;

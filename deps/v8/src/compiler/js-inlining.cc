@@ -4,6 +4,8 @@
 
 #include "src/compiler/js-inlining.h"
 
+#include <optional>
+
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/codegen/tick-counter.h"
 #include "src/compiler/access-builder.h"
@@ -249,8 +251,9 @@ FrameState JSInliner::CreateArtificialFrameState(
   const int parameter_count_with_receiver =
       parameter_count + JSCallOrConstructNode::kReceiverOrNewTargetInputCount;
   const FrameStateFunctionInfo* state_info =
-      common()->CreateFrameStateFunctionInfo(
-          frame_state_type, parameter_count_with_receiver, 0, shared.object());
+      common()->CreateFrameStateFunctionInfo(frame_state_type,
+                                             parameter_count_with_receiver, 0,
+                                             0, shared.object());
 
   const Operator* op = common()->FrameState(
       BytecodeOffset::None(), OutputFrameStateCombine::Ignore(), state_info);
@@ -322,7 +325,7 @@ OptionalSharedFunctionInfoRef JSInliner::DetermineCallTarget(Node* node) {
 
     // The function might have not been called yet.
     if (!function.feedback_vector(broker()).has_value()) {
-      return base::nullopt;
+      return std::nullopt;
     }
 
     // Disallow cross native-context inlining for now. This means that all parts
@@ -335,7 +338,7 @@ OptionalSharedFunctionInfoRef JSInliner::DetermineCallTarget(Node* node) {
     // in the same graph in a compositional way.
     if (!function.native_context(broker()).equals(
             broker()->target_native_context())) {
-      return base::nullopt;
+      return std::nullopt;
     }
 
     return function.shared(broker());
@@ -355,7 +358,7 @@ OptionalSharedFunctionInfoRef JSInliner::DetermineCallTarget(Node* node) {
     return cell.shared_function_info(broker());
   }
 
-  return base::nullopt;
+  return std::nullopt;
 }
 
 // Determines statically known information about the call target (assuming that
@@ -407,14 +410,6 @@ FeedbackCellRef JSInliner::DetermineCallContext(Node* node,
 }
 
 #if V8_ENABLE_WEBASSEMBLY
-static std::string WasmFunctionNameForTrace(wasm::NativeModule* native_module,
-                                            int fct_index) {
-  wasm::StringBuilder builder;
-  native_module->GetNamesProvider()->PrintFunctionName(builder, fct_index);
-  if (builder.length() == 0) return "<no name>";
-  return {builder.start(), builder.length()};
-}
-
 JSInliner::WasmInlineResult JSInliner::TryWasmInlining(
     const JSWasmCallNode& call_node) {
   const JSWasmCallParameters& wasm_call_params = call_node.Parameters();
@@ -473,7 +468,7 @@ Reduction JSInliner::ReduceJSWasmCall(Node* node) {
   if (inline_wasm_fct_if_supported_ && fct_index != -1 && native_module &&
       // Disable inlining for asm.js functions because we haven't tested it
       // and most asm.js opcodes aren't supported anyway.
-      native_module->enabled_features() != wasm::WasmFeatures::ForAsmjs()) {
+      !is_asmjs_module(native_module->module())) {
     inline_result = TryWasmInlining(call_node);
   }
 
@@ -498,13 +493,16 @@ Reduction JSInliner::ReduceJSWasmCall(Node* node) {
     // surrounding exception handler, if present.
     subgraph_min_node_id = graph()->NodeCount();
 
-    bool set_in_wasm_flag = !inline_result.can_inline_body;
+    // If we inline the body with Turboshaft later (instead of with TurboFan
+    // here), we don't know yet whether we can inline the body or not. Hence,
+    // don't set the thread-in-wasm flag now, and instead do that if _not_
+    // inlining later in Turboshaft.
+    bool set_in_wasm_flag = !(inline_result.can_inline_body ||
+                              v8_flags.turboshaft_wasm_in_js_inlining);
     BuildInlinedJSToWasmWrapper(
-        graph()->zone(), jsgraph(), sig,
-        native_module->module()->functions[fct_index].imported,
-        wasm_call_params.module(), isolate(), source_positions_,
-        wasm::WasmFeatures::FromFlags(), continuation_frame_state,
-        set_in_wasm_flag);
+        graph()->zone(), jsgraph(), sig, wasm_call_params.module(), isolate(),
+        source_positions_, wasm::WasmEnabledFeatures::FromFlags(),
+        continuation_frame_state, set_in_wasm_flag);
 
     // Extract the inlinee start/end nodes.
     wrapper_start_node = graph()->start();
@@ -541,7 +539,8 @@ Reduction JSInliner::ReduceJSWasmCall(Node* node) {
   // given JavaScript function (due to the WasmGCLowering being dependent on
   // module-specific type indices).
   Node* wasm_fct_call = nullptr;
-  if (inline_result.can_inline_body) {
+  if (inline_result.can_inline_body ||
+      v8_flags.turboshaft_wasm_in_js_inlining) {
     AllNodes inlined_nodes(local_zone_, wrapper_end_node, graph());
     for (Node* subnode : inlined_nodes.reachable) {
       // Ignore nodes that are not part of the inlinee.
@@ -554,7 +553,16 @@ Reduction JSInliner::ReduceJSWasmCall(Node* node) {
         break;
       }
     }
-    DCHECK(wasm_fct_call != nullptr);
+    DCHECK_IMPLIES(inline_result.can_inline_body, wasm_fct_call != nullptr);
+
+    // Attach information about Wasm call target for Turboshaft Wasm-in-JS-
+    // inlining (see https://crbug.com/353475584) in sidetable.
+    if (v8_flags.turboshaft_wasm_in_js_inlining && wasm_fct_call) {
+      auto [it, inserted] = js_wasm_calls_sidetable_->insert(
+          {wasm_fct_call->id(), &wasm_call_params});
+      USE(it);
+      DCHECK(inserted);
+    }
   }
 
   Node* context = NodeProperties::GetContextInput(node);
@@ -764,11 +772,13 @@ Reduction JSInliner::ReduceJSCall(Node* node) {
       info_->AddInlinedFunction(shared_info->object(), bytecode_array.object(),
                                 source_positions_->GetSourcePosition(node));
   if (v8_flags.profile_guided_optimization &&
-      FeedbackVector::cast(feedback_cell.object()->value())
-              ->invocation_count_before_stable() >
+      feedback_cell.feedback_vector(broker()).has_value() &&
+      feedback_cell.feedback_vector(broker())
+              .value()
+              .object()
+              ->invocation_count_before_stable(kRelaxedLoad) >
           v8_flags.invocation_count_for_early_optimization) {
-    shared_info->object()->set_cached_tiering_decision(
-        CachedTieringDecision::kNormal);
+    info_->set_could_not_inline_all_candidates();
   }
 
   // Create the subgraph for the inlinee.

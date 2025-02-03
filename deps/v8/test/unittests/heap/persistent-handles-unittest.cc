@@ -22,7 +22,7 @@ TEST_F(PersistentHandlesTest, OrderOfBlocks) {
 
   Address* next;
   Address* limit;
-  Handle<String> first_empty, last_empty;
+  DirectHandle<String> first_empty, last_empty;
   std::unique_ptr<PersistentHandles> ph;
 
   {
@@ -85,12 +85,12 @@ TEST_F(PersistentHandlesTest, Iterate) {
 
   size_t handles_in_empty_scope = count_handles(isolate);
 
-  Handle<Object> init(ReadOnlyRoots(heap).empty_string(), isolate);
+  IndirectHandle<Object> init(ReadOnlyRoots(heap).empty_string(), isolate);
   Address* old_limit = data->limit;
   CHECK_EQ(count_handles(isolate), handles_in_empty_scope + 1);
 
   std::unique_ptr<PersistentHandles> ph;
-  Handle<String> verify_handle;
+  IndirectHandle<String> verify_handle;
 
   {
     PersistentHandlesScope persistent_scope(isolate);
@@ -139,12 +139,9 @@ class PersistentHandlesThread final : public v8::base::Thread {
 
     sema_started_->Signal();
 
-    {
-      ParkedScope parked_scope(&local_heap);
-      sema_gc_finished_->Wait();
-    }
+    local_heap.ExecuteWhileParked([this]() { sema_gc_finished_->Wait(); });
 
-    for (Handle<HeapNumber> handle : handles_) {
+    for (DirectHandle<HeapNumber> handle : handles_) {
       CHECK_EQ(42.0, handle->value());
     }
 
@@ -202,7 +199,7 @@ TEST_F(PersistentHandlesTest, CreatePersistentHandles) {
 
 TEST_F(PersistentHandlesTest, DereferencePersistentHandle) {
   std::unique_ptr<PersistentHandles> phs = isolate()->NewPersistentHandles();
-  Handle<HeapNumber> ph;
+  IndirectHandle<HeapNumber> ph;
   {
     HandleScope handle_scope(isolate());
     Handle<HeapNumber> number = isolate()->factory()->NewHeapNumber(42.0);
@@ -219,7 +216,7 @@ TEST_F(PersistentHandlesTest, DereferencePersistentHandle) {
 TEST_F(PersistentHandlesTest, DereferencePersistentHandleFailsWhenDisallowed) {
   HandleScope handle_scope(isolate());
   std::unique_ptr<PersistentHandles> phs = isolate()->NewPersistentHandles();
-  Handle<HeapNumber> ph;
+  IndirectHandle<HeapNumber> ph;
   {
     HandleScope handle_scope(isolate());
     Handle<HeapNumber> number = isolate()->factory()->NewHeapNumber(42.0);

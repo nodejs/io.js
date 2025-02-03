@@ -412,9 +412,9 @@ addFile(const char *filename, const char *name, const char *source, UBool source
 
     if(fileCount==fileMax) {
       fileMax += CHUNK_FILE_COUNT;
-      files = (File *)uprv_realloc(files, fileMax*sizeof(files[0])); /* note: never freed. */
+      files = static_cast<File*>(uprv_realloc(files, fileMax * sizeof(files[0]))); /* note: never freed. */
       if(files==nullptr) {
-        fprintf(stderr, "pkgdata/gencmn: Could not allocate %u bytes for %d files\n", (unsigned int)(fileMax*sizeof(files[0])), fileCount);
+        fprintf(stderr, "pkgdata/gencmn: Could not allocate %u bytes for %d files\n", static_cast<unsigned int>(fileMax * sizeof(files[0])), fileCount);
         exit(U_MEMORY_ALLOCATION_ERROR);
       }
     }
@@ -428,7 +428,7 @@ addFile(const char *filename, const char *name, const char *source, UBool source
         }
         fullPath = pathToFullPath(filename, source);
         /* store the pathname */
-        length = (uint32_t)(uprv_strlen(filename) + 1 + uprv_strlen(name) + 1);
+        length = static_cast<uint32_t>(uprv_strlen(filename) + 1 + uprv_strlen(name) + 1);
         s=allocString(length);
         uprv_strcpy(s, name);
         uprv_strcat(s, U_TREE_ENTRY_SEP_STRING);
@@ -462,7 +462,7 @@ addFile(const char *filename, const char *name, const char *source, UBool source
         /* do not add files that are longer than maxSize */
         if(maxSize && length>maxSize) {
             if (verbose) {
-                printf("%s ignored (size %ld > %ld)\n", fullPath, (long)length, (long)maxSize);
+                printf("%s ignored (size %ld > %ld)\n", fullPath, static_cast<long>(length), static_cast<long>(maxSize));
             }
             return;
         }
@@ -471,7 +471,7 @@ addFile(const char *filename, const char *name, const char *source, UBool source
         char *t;
         /* get and store the basename */
         /* need to include the package name */
-        length = (uint32_t)(uprv_strlen(filename) + 1 + uprv_strlen(name) + 1);
+        length = static_cast<uint32_t>(uprv_strlen(filename) + 1 + uprv_strlen(name) + 1);
         s=allocString(length);
         uprv_strcpy(s, name);
         uprv_strcat(s, U_TREE_ENTRY_SEP_STRING);
@@ -515,16 +515,16 @@ pathToFullPath(const char *path, const char *source) {
     char *fullPath;
     int32_t n;
 
-    length = (uint32_t)(uprv_strlen(path) + 1);
-    newLength = (length + 1 + (int32_t)uprv_strlen(source));
-    fullPath = (char *)uprv_malloc(newLength);
+    length = static_cast<uint32_t>(uprv_strlen(path) + 1);
+    newLength = (length + 1 + static_cast<int32_t>(uprv_strlen(source)));
+    fullPath = static_cast<char*>(uprv_malloc(newLength));
     if(source != nullptr) {
         uprv_strcpy(fullPath, source);
         uprv_strcat(fullPath, U_FILE_SEP_STRING);
     } else {
         fullPath[0] = 0;
     }
-    n = (int32_t)uprv_strlen(fullPath);
+    n = static_cast<int32_t>(uprv_strlen(fullPath));
     fullPath[n] = 0;       /* Suppress compiler warning for unused variable n    */
                            /*  when conditional code below is not compiled.      */
     uprv_strcat(fullPath, path);

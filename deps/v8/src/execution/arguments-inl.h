@@ -40,18 +40,18 @@ uint32_t Arguments<T>::positive_smi_value_at(int index) const {
 
 template <ArgumentsType T>
 int Arguments<T>::tagged_index_value_at(int index) const {
-  return static_cast<int>(TaggedIndex::cast((*this)[index]).value());
+  return static_cast<int>(Cast<TaggedIndex>((*this)[index]).value());
 }
 
 template <ArgumentsType T>
 double Arguments<T>::number_value_at(int index) const {
-  return Object::Number((*this)[index]);
+  return Object::NumberValue((*this)[index]);
 }
 
 template <ArgumentsType T>
 Handle<Object> Arguments<T>::atOrUndefined(Isolate* isolate, int index) const {
   if (index >= length_) {
-    return Handle<Object>::cast(isolate->factory()->undefined_value());
+    return Cast<Object>(isolate->factory()->undefined_value());
   }
   return at<Object>(index);
 }

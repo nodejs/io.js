@@ -4,6 +4,7 @@
 
 #include "src/sandbox/code-pointer-table.h"
 
+#include "src/common/code-memory-access-inl.h"
 #include "src/execution/isolate.h"
 #include "src/logging/counters.h"
 #include "src/sandbox/code-pointer-table-inl.h"

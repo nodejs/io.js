@@ -33,8 +33,9 @@ bool IsJSCompatibleSignature(const FunctionSig* sig) {
     // Rtts are internal-only. They should never be part of a signature.
     DCHECK(!type.is_rtt());
     if (type == kWasmS128) return false;
+    if (type == kWasmExnRef) return false;
     if (type.is_object_reference()) {
-      switch (type.heap_type().representation()) {
+      switch (type.heap_representation_non_shared()) {
         case HeapType::kStringViewWtf8:
         case HeapType::kStringViewWtf16:
         case HeapType::kStringViewIter:

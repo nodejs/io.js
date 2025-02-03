@@ -5,9 +5,8 @@
 bitfield struct JSPromiseFlags extends uint31 {
   status: PromiseState: 2 bit;
   has_handler: bool: 1 bit;
-  handled_hint: bool: 1 bit;
   is_silent: bool: 1 bit;
-  async_task_id: int32: 22 bit;
+  async_task_id: uint32: 27 bit;
 }
 
 extern class JSPromise extends JSObjectWithEmbedderSlots {

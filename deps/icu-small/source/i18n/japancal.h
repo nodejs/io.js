@@ -195,6 +195,7 @@ protected:
      * taking year and era into account.  Will return the first month of the given era, if 
      * the current year is an ascension year.
      * @param eyear the extended year
+     * @param status Indicates the status.
      * @internal
      */
     virtual int32_t getDefaultMonthInYear(int32_t eyear, UErrorCode& status) override;
@@ -205,9 +206,10 @@ protected:
      * era, if the current month is an ascension year and month.
      * @param eyear the extended year
      * @param mon the month in the year
+     * @param status Indicates the status.
      * @internal
      */
-    virtual int32_t getDefaultDayInMonth(int32_t eyear, int32_t month) override;
+    virtual int32_t getDefaultDayInMonth(int32_t eyear, int32_t month, UErrorCode& status) override;
 
     virtual bool isEra0CountingBackward() const override { return false; }
 };

@@ -3,7 +3,7 @@
 const common = require('../common');
 const http = require('http');
 const async_hooks = require('async_hooks');
-const makeDuplexPair = require('../common/duplexpair');
+const { duplexPair } = require('stream');
 
 // Regression test for https://github.com/nodejs/node/issues/30122
 // When a domain is attached to an http Agent’s ReusedHandle object, that
@@ -26,7 +26,7 @@ async_hooks.createHook({
   },
   before(id) {
     if (id === reusedHandleId) {
-      global.gc();
+      globalThis.gc();
       checkBeforeCalled();
     }
   }
@@ -36,7 +36,7 @@ async_hooks.createHook({
 // attached to too many objects that use strong references (timers, the network
 // socket handle, etc.) and wrap the client side in a JSStreamSocket so we don’t
 // have to implement the whole _handle API ourselves.
-const { serverSide, clientSide } = makeDuplexPair();
+const [ serverSide, clientSide ] = duplexPair();
 const JSStreamSocket = require('internal/js_stream_socket');
 const wrappedClientSide = new JSStreamSocket(clientSide);
 

@@ -72,7 +72,7 @@ async function checkFiles(...files) {
           await fd.truncate(toWrite.length);
           await fd.write(toWrite, 0, toWrite.length, 0);
         } else {
-          if (!process.exitCode) process.exitCode = 1;
+          process.exitCode ||= 1;
           console.error(
             (process.env.GITHUB_ACTIONS ?
               `::error file=${file},line=1,col=1::` :

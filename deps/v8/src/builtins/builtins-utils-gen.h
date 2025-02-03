@@ -58,6 +58,35 @@ class CodeAssemblerState;
   }                                                                         \
   void Name##Assembler::Generate##Name##Impl()
 
+#define TS_BUILTIN(Name, BaseAssembler)                                     \
+  class Name##Assembler : public BaseAssembler {                            \
+   public:                                                                  \
+    using Descriptor = Builtin_##Name##_InterfaceDescriptor;                \
+    Name##Assembler(compiler::turboshaft::PipelineData* data,               \
+                    Isolate* isolate, compiler::turboshaft::Graph& graph,   \
+                    Zone* phase_zone)                                       \
+        : BaseAssembler(data, graph, phase_zone) {}                         \
+    void Generate##Name##Impl();                                            \
+  };                                                                        \
+  void Builtins::Generate_##Name(                                           \
+      compiler::turboshaft::PipelineData* data, Isolate* isolate,           \
+      compiler::turboshaft::Graph& graph, Zone* phase_zone) {               \
+    Name##Assembler assembler(data, isolate, graph, phase_zone);            \
+    assembler.EmitBuiltinProlog(Builtin::k##Name);                          \
+    Block* catch_block = nullptr;                                           \
+    std::optional<Name##Assembler::CatchScope> catch_scope;                 \
+    /* If this builtin collects feedback, we need to setup a catch block */ \
+    if (assembler.HasFeedbackCollector()) {                                 \
+      catch_block = assembler.NewBlock();                                   \
+      catch_scope.emplace(assembler, catch_block);                          \
+    }                                                                       \
+    assembler.Generate##Name##Impl();                                       \
+    /* Builtin definition must generate something! */                       \
+    DCHECK_GT(graph.op_id_count(), 0);                                      \
+    assembler.EmitEpilog(catch_block);                                      \
+  }                                                                         \
+  void Name##Assembler::Generate##Name##Impl()
+
 }  // namespace internal
 }  // namespace v8
 

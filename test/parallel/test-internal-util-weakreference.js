@@ -1,6 +1,7 @@
 // Flags: --expose-internals --expose-gc
 'use strict';
-const common = require('../common');
+require('../common');
+const { gcUntil } = require('../common/gc');
 const assert = require('assert');
 const { WeakReference } = require('internal/util');
 
@@ -10,7 +11,7 @@ assert.strictEqual(ref.get(), obj);
 
 async function main() {
   obj = null;
-  await common.gcUntil(
+  await gcUntil(
     'Reference is garbage collected',
     () => ref.get() === undefined);
 }

@@ -48,9 +48,10 @@ namespace interpreter {
   SIGNED_SCALABLE_SCALAR_OPERAND_TYPE_LIST(V)
 
 // Carefully ordered for operand type range checks below.
-#define REGISTER_OPERAND_TYPE_LIST(V) \
-  REGISTER_INPUT_OPERAND_TYPE_LIST(V) \
-  REGISTER_OUTPUT_OPERAND_TYPE_LIST(V)
+#define REGISTER_OPERAND_TYPE_LIST(V)  \
+  REGISTER_INPUT_OPERAND_TYPE_LIST(V)  \
+  REGISTER_OUTPUT_OPERAND_TYPE_LIST(V) \
+  V(RegInOut, OperandTypeInfo::kScalableSignedByte)
 
 // The list of operand types used by bytecodes.
 // Carefully ordered for operand type range checks below.
@@ -218,7 +219,7 @@ class BytecodeOperands : public AllStatic {
   // Returns true if |operand_type| is a scalable signed byte.
   static constexpr bool IsScalableSignedByte(OperandType operand_type) {
     return base::IsInRange(operand_type, OperandType::kImm,
-                           OperandType::kRegOutTriple);
+                           OperandType::kRegInOut);
   }
 
   // Returns true if |operand_type| is a scalable unsigned byte.

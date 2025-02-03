@@ -5,7 +5,6 @@
 #include "src/heap/cppgc-js/unified-heap-marking-visitor.h"
 
 #include "src/heap/cppgc-js/unified-heap-marking-state-inl.h"
-#include "src/heap/cppgc/heap.h"
 #include "src/heap/cppgc/marking-state.h"
 #include "src/heap/cppgc/visitor.h"
 #include "src/heap/heap.h"
@@ -14,8 +13,6 @@
 
 namespace v8 {
 namespace internal {
-
-struct Dummy;
 
 namespace {
 std::unique_ptr<MarkingWorklists::Local> GetV8MarkingWorklists(
@@ -136,7 +133,9 @@ bool ConcurrentUnifiedHeapMarkingVisitor::DeferTraceToMutatorThreadIfConcurrent(
   marking_state_.concurrent_marking_bailout_worklist().Push(
       {parameter, callback, deferred_size});
   static_cast<cppgc::internal::ConcurrentMarkingState&>(marking_state_)
-      .AccountDeferredMarkedBytes(deferred_size);
+      .AccountDeferredMarkedBytes(
+          cppgc::internal::BasePage::FromPayload(const_cast<void*>(parameter)),
+          deferred_size);
   return true;
 }
 

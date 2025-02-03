@@ -81,10 +81,10 @@ public:
         return 0<=c && c<HANGUL_COUNT && c%JAMO_T_COUNT==0;
     }
     static inline UBool isJamoL(UChar32 c) {
-        return (uint32_t)(c-JAMO_L_BASE)<JAMO_L_COUNT;
+        return static_cast<uint32_t>(c - JAMO_L_BASE) < JAMO_L_COUNT;
     }
     static inline UBool isJamoV(UChar32 c) {
-        return (uint32_t)(c-JAMO_V_BASE)<JAMO_V_COUNT;
+        return static_cast<uint32_t>(c - JAMO_V_BASE) < JAMO_V_COUNT;
     }
     static inline UBool isJamoT(UChar32 c) {
         int32_t t=c-JAMO_T_BASE;
@@ -103,12 +103,12 @@ public:
         c-=HANGUL_BASE;
         UChar32 c2=c%JAMO_T_COUNT;
         c/=JAMO_T_COUNT;
-        buffer[0]=(char16_t)(JAMO_L_BASE+c/JAMO_V_COUNT);
-        buffer[1]=(char16_t)(JAMO_V_BASE+c%JAMO_V_COUNT);
+        buffer[0] = static_cast<char16_t>(JAMO_L_BASE + c / JAMO_V_COUNT);
+        buffer[1] = static_cast<char16_t>(JAMO_V_BASE + c % JAMO_V_COUNT);
         if(c2==0) {
             return 2;
         } else {
-            buffer[2]=(char16_t)(JAMO_T_BASE+c2);
+            buffer[2] = static_cast<char16_t>(JAMO_T_BASE + c2);
             return 3;
         }
     }
@@ -123,11 +123,11 @@ public:
         UChar32 c2=c%JAMO_T_COUNT;
         if(c2==0) {
             c/=JAMO_T_COUNT;
-            buffer[0]=(char16_t)(JAMO_L_BASE+c/JAMO_V_COUNT);
-            buffer[1]=(char16_t)(JAMO_V_BASE+c%JAMO_V_COUNT);
+            buffer[0] = static_cast<char16_t>(JAMO_L_BASE + c / JAMO_V_COUNT);
+            buffer[1] = static_cast<char16_t>(JAMO_V_BASE + c % JAMO_V_COUNT);
         } else {
-            buffer[0]=(char16_t)(orig-c2);  // LV syllable
-            buffer[1]=(char16_t)(JAMO_T_BASE+c2);
+            buffer[0] = static_cast<char16_t>(orig - c2); // LV syllable
+            buffer[1] = static_cast<char16_t>(JAMO_T_BASE + c2);
         }
     }
 private:
@@ -147,13 +147,13 @@ public:
     ReorderingBuffer(const Normalizer2Impl &ni, UnicodeString &dest, UErrorCode &errorCode);
     ~ReorderingBuffer() {
         if (start != nullptr) {
-            str.releaseBuffer((int32_t)(limit-start));
+            str.releaseBuffer(static_cast<int32_t>(limit - start));
         }
     }
     UBool init(int32_t destCapacity, UErrorCode &errorCode);
 
     UBool isEmpty() const { return start==limit; }
-    int32_t length() const { return (int32_t)(limit-start); }
+    int32_t length() const { return static_cast<int32_t>(limit - start); }
     char16_t *getStart() { return start; }
     char16_t *getLimit() { return limit; }
     uint8_t getLastCC() const { return lastCC; }
@@ -163,7 +163,7 @@ public:
 
     UBool append(UChar32 c, uint8_t cc, UErrorCode &errorCode) {
         return (c<=0xffff) ?
-            appendBMP((char16_t)c, cc, errorCode) :
+            appendBMP(static_cast<char16_t>(c), cc, errorCode) :
             appendSupplementary(c, cc, errorCode);
     }
     UBool append(const char16_t *s, int32_t length, UBool isNFD,
@@ -190,12 +190,12 @@ public:
     void remove();
     void removeSuffix(int32_t suffixLength);
     void setReorderingLimit(char16_t *newLimit) {
-        remainingCapacity+=(int32_t)(limit-newLimit);
+        remainingCapacity += static_cast<int32_t>(limit - newLimit);
         reorderStart=limit=newLimit;
         lastCC=0;
     }
     void copyReorderableSuffixTo(UnicodeString &s) const {
-        s.setTo(ConstChar16Ptr(reorderStart), (int32_t)(limit-reorderStart));
+        s.setTo(ConstChar16Ptr(reorderStart), static_cast<int32_t>(limit - reorderStart));
     }
 private:
     /*
@@ -215,7 +215,7 @@ private:
     void insert(UChar32 c, uint8_t cc);
     static void writeCodePoint(char16_t *p, UChar32 c) {
         if(c<=0xffff) {
-            *p=(char16_t)c;
+            *p = static_cast<char16_t>(c);
         } else {
             p[0]=U16_LEAD(c);
             p[1]=U16_TRAIL(c);
@@ -241,7 +241,7 @@ private:
  * Low-level implementation of the Unicode Normalization Algorithm.
  * For the data structure and details see the documentation at the end of
  * this normalizer2impl.h and in the design doc at
- * https://icu.unicode.org/design/normalization/custom
+ * https://unicode-org.github.io/icu/design/normalization/custom.html
  */
 class U_COMMON_API Normalizer2Impl : public UObject {
 public:
@@ -271,14 +271,14 @@ public:
     UNormalizationCheckResult getCompQuickCheck(uint16_t norm16) const {
         if(norm16<minNoNo || MIN_YES_YES_WITH_CC<=norm16) {
             return UNORM_YES;
-        } else if(minMaybeYes<=norm16) {
+        } else if(minMaybeNo<=norm16) {
             return UNORM_MAYBE;
         } else {
             return UNORM_NO;
         }
     }
-    UBool isAlgorithmicNoNo(uint16_t norm16) const { return limitNoNo<=norm16 && norm16<minMaybeYes; }
-    UBool isCompNo(uint16_t norm16) const { return minNoNo<=norm16 && norm16<minMaybeYes; }
+    UBool isAlgorithmicNoNo(uint16_t norm16) const { return limitNoNo<=norm16 && norm16<minMaybeNo; }
+    UBool isCompNo(uint16_t norm16) const { return minNoNo<=norm16 && norm16<minMaybeNo; }
     UBool isDecompYes(uint16_t norm16) const { return norm16<minYesNo || minMaybeYes<=norm16; }
 
     uint8_t getCC(uint16_t norm16) const {
@@ -291,14 +291,14 @@ public:
         return getCCFromNoNo(norm16);
     }
     static uint8_t getCCFromNormalYesOrMaybe(uint16_t norm16) {
-        return (uint8_t)(norm16 >> OFFSET_SHIFT);
+        return static_cast<uint8_t>(norm16 >> OFFSET_SHIFT);
     }
-    static uint8_t getCCFromYesOrMaybe(uint16_t norm16) {
+    static uint8_t getCCFromYesOrMaybeYes(uint16_t norm16) {
         return norm16>=MIN_NORMAL_MAYBE_YES ? getCCFromNormalYesOrMaybe(norm16) : 0;
     }
-    uint8_t getCCFromYesOrMaybeCP(UChar32 c) const {
+    uint8_t getCCFromYesOrMaybeYesCP(UChar32 c) const {
         if (c < minCompNoMaybeCP) { return 0; }
-        return getCCFromYesOrMaybe(getNorm16(c));
+        return getCCFromYesOrMaybeYes(getNorm16(c));
     }
 
     /**
@@ -364,10 +364,12 @@ public:
         // 0<=lead<=0xffff
         uint8_t bits=smallFCD[lead>>8];
         if(bits==0) { return false; }
-        return (UBool)((bits>>((lead>>5)&7))&1);
+        return (bits >> ((lead >> 5) & 7)) & 1;
     }
     /** Returns the FCD value from the regular normalization data. */
     uint16_t getFCD16FromNormData(UChar32 c) const;
+
+    uint16_t getFCD16FromMaybeOrNonZeroCC(uint16_t norm16) const;
 
     /**
      * Gets the decomposition for one code point.
@@ -450,7 +452,13 @@ public:
 
         IX_MIN_LCCC_CP,
         IX_RESERVED19,
-        IX_COUNT
+
+        /** Two-way mappings; each starts with a character that combines backward. */
+        IX_MIN_MAYBE_NO,  // 20
+        /** Two-way mappings & compositions. */
+        IX_MIN_MAYBE_NO_COMBINES_FWD,
+
+        IX_COUNT  // 22
     };
 
     enum {
@@ -541,7 +549,8 @@ public:
         uint16_t norm16=getNorm16(c);
         return isCompYesAndZeroCC(norm16) &&
             (norm16 & HAS_COMP_BOUNDARY_AFTER) != 0 &&
-            (!onlyContiguous || isInert(norm16) || *getMapping(norm16) <= 0x1ff);
+            (!onlyContiguous || isInert(norm16) || *getDataForYesOrNo(norm16) <= 0x1ff);
+            // The last check fetches the mapping's first unit and checks tccc<=1.
     }
 
     UBool hasFCDBoundaryBefore(UChar32 c) const { return hasDecompBoundaryBefore(c); }
@@ -551,8 +560,8 @@ private:
     friend class InitCanonIterData;
     friend class LcccContext;
 
-    UBool isMaybe(uint16_t norm16) const { return minMaybeYes<=norm16 && norm16<=JAMO_VT; }
-    UBool isMaybeOrNonZeroCC(uint16_t norm16) const { return norm16>=minMaybeYes; }
+    UBool isMaybe(uint16_t norm16) const { return minMaybeNo<=norm16 && norm16<=JAMO_VT; }
+    UBool isMaybeYesOrNonZeroCC(uint16_t norm16) const { return norm16>=minMaybeYes; }
     static UBool isInert(uint16_t norm16) { return norm16==INERT; }
     static UBool isJamoL(uint16_t norm16) { return norm16==JAMO_L; }
     static UBool isJamoVT(uint16_t norm16) { return norm16==JAMO_VT; }
@@ -566,7 +575,7 @@ private:
     //     return norm16>=MIN_YES_YES_WITH_CC || norm16<minNoNo;
     // }
     // UBool isCompYesOrMaybe(uint16_t norm16) const {
-    //     return norm16<minNoNo || minMaybeYes<=norm16;
+    //     return norm16<minNoNo || minMaybeNo<=norm16;
     // }
     // UBool hasZeroCCFromDecompYes(uint16_t norm16) const {
     //     return norm16<=MIN_NORMAL_MAYBE_YES || norm16==JAMO_VT;
@@ -579,12 +588,12 @@ private:
     /**
      * A little faster and simpler than isDecompYesAndZeroCC() but does not include
      * the MaybeYes which combine-forward and have ccc=0.
-     * (Standard Unicode 10 normalization does not have such characters.)
      */
     UBool isMostDecompYesAndZeroCC(uint16_t norm16) const {
         return norm16<minYesNo || norm16==MIN_NORMAL_MAYBE_YES || norm16==JAMO_VT;
     }
-    UBool isDecompNoAlgorithmic(uint16_t norm16) const { return norm16>=limitNoNo; }
+    /** Since formatVersion 5: same as isAlgorithmicNoNo() */
+    UBool isDecompNoAlgorithmic(uint16_t norm16) const { return limitNoNo<=norm16 && norm16<minMaybeNo; }
 
     // For use with isCompYes().
     // Perhaps the compiler can combine the two tests for MIN_YES_YES_WITH_CC.
@@ -592,9 +601,9 @@ private:
     //     return norm16>=MIN_YES_YES_WITH_CC ? getCCFromNormalYesOrMaybe(norm16) : 0;
     // }
     uint8_t getCCFromNoNo(uint16_t norm16) const {
-        const uint16_t *mapping=getMapping(norm16);
+        const uint16_t *mapping=getDataForYesOrNo(norm16);
         if(*mapping&MAPPING_HAS_CCC_LCCC_WORD) {
-            return (uint8_t)*(mapping-1);
+            return static_cast<uint8_t>(*(mapping - 1));
         } else {
             return 0;
         }
@@ -605,7 +614,7 @@ private:
             return 0;  // yesYes and Hangul LV have ccc=tccc=0
         } else {
             // For Hangul LVT we harmlessly fetch a firstUnit with tccc=0 here.
-            return (uint8_t)(*getMapping(norm16)>>8);  // tccc from yesNo
+            return static_cast<uint8_t>(*getDataForYesOrNo(norm16) >> 8); // tccc from yesNo
         }
     }
     uint8_t getPreviousTrailCC(const char16_t *start, const char16_t *p) const;
@@ -619,27 +628,32 @@ private:
         return (norm16>>DELTA_SHIFT)-centerNoNoDelta;
     }
 
-    // Requires minYesNo<norm16<limitNoNo.
-    const uint16_t *getMapping(uint16_t norm16) const { return extraData+(norm16>>OFFSET_SHIFT); }
+    const uint16_t *getDataForYesOrNo(uint16_t norm16) const {
+        return extraData+(norm16>>OFFSET_SHIFT);
+    }
+    const uint16_t *getDataForMaybe(uint16_t norm16) const {
+        return extraData+((norm16-minMaybeNo+limitNoNo)>>OFFSET_SHIFT);
+    }
+    const uint16_t *getData(uint16_t norm16) const {
+        if(norm16>=minMaybeNo) {
+            norm16=norm16-minMaybeNo+limitNoNo;
+        }
+        return extraData+(norm16>>OFFSET_SHIFT);
+    }
     const uint16_t *getCompositionsListForDecompYes(uint16_t norm16) const {
         if(norm16<JAMO_L || MIN_NORMAL_MAYBE_YES<=norm16) {
             return nullptr;
-        } else if(norm16<minMaybeYes) {
-            return getMapping(norm16);  // for yesYes; if Jamo L: harmless empty list
         } else {
-            return maybeYesCompositions+norm16-minMaybeYes;
+            // if yesYes: if Jamo L: harmless empty list
+            return getData(norm16);
         }
     }
     const uint16_t *getCompositionsListForComposite(uint16_t norm16) const {
         // A composite has both mapping & compositions list.
-        const uint16_t *list=getMapping(norm16);
+        const uint16_t *list=getData(norm16);
         return list+  // mapping pointer
             1+  // +1 to skip the first unit with the mapping length
             (*list&MAPPING_LENGTH_MASK);  // + mapping length
-    }
-    const uint16_t *getCompositionsListForMaybe(uint16_t norm16) const {
-        // minMaybeYes<=norm16<MIN_NORMAL_MAYBE_YES
-        return maybeYesCompositions+((norm16-minMaybeYes)>>OFFSET_SHIFT);
     }
     /**
      * @param c code point must have compositions
@@ -692,11 +706,13 @@ private:
     /** For FCC: Given norm16 HAS_COMP_BOUNDARY_AFTER, does it have tccc<=1? */
     UBool isTrailCC01ForCompBoundaryAfter(uint16_t norm16) const {
         return isInert(norm16) || (isDecompNoAlgorithmic(norm16) ?
-            (norm16 & DELTA_TCCC_MASK) <= DELTA_TCCC_1 : *getMapping(norm16) <= 0x1ff);
+            (norm16 & DELTA_TCCC_MASK) <= DELTA_TCCC_1 : *getDataForYesOrNo(norm16) <= 0x1ff);
     }
 
-    const char16_t *findPreviousCompBoundary(const char16_t *start, const char16_t *p, UBool onlyContiguous) const;
-    const char16_t *findNextCompBoundary(const char16_t *p, const char16_t *limit, UBool onlyContiguous) const;
+    const char16_t *findPreviousCompBoundary(const char16_t *start, const char16_t *p,
+                                             UBool onlyContiguous) const;
+    const char16_t *findNextCompBoundary(const char16_t *p, const char16_t *limit,
+                                         UBool onlyContiguous) const;
 
     const char16_t *findPreviousFCDBoundary(const char16_t *start, const char16_t *p) const;
     const char16_t *findNextFCDBoundary(const char16_t *p, const char16_t *limit) const;
@@ -723,11 +739,12 @@ private:
     uint16_t minNoNoEmpty;
     uint16_t limitNoNo;
     uint16_t centerNoNoDelta;
+    uint16_t minMaybeNo;
+    uint16_t minMaybeNoCombinesFwd;
     uint16_t minMaybeYes;
 
     const UCPTrie *normTrie;
-    const uint16_t *maybeYesCompositions;
-    const uint16_t *extraData;  // mappings and/or compositions for yesYes, yesNo & noNo characters
+    const uint16_t *extraData;  // mappings and/or compositions
     const uint8_t *smallFCD;  // [0x100] one bit per 32 BMP code points, set if any FCD!=0
 
     UInitOnce       fCanonIterDataInitOnce {};
@@ -785,7 +802,7 @@ unorm_getFCD16(UChar32 c);
 
 /**
  * Format of Normalizer2 .nrm data files.
- * Format version 4.0.
+ * Format version 5.0.
  *
  * Normalizer2 .nrm data files provide data for the Unicode Normalization algorithms.
  * ICU ships with data files for standard Unicode Normalization Forms
@@ -807,7 +824,7 @@ unorm_getFCD16(UChar32 c);
  * Constants are defined as enum values of the Normalizer2Impl class.
  *
  * Many details of the data structures are described in the design doc
- * which is at https://icu.unicode.org/design/normalization/custom
+ * which is at https://unicode-org.github.io/icu/design/normalization/custom.html
  *
  * int32_t indexes[indexesLength]; -- indexesLength=indexes[IX_NORM_TRIE_OFFSET]/4;
  *
@@ -829,7 +846,9 @@ unorm_getFCD16(UChar32 c);
  *
  *      The next eight indexes are thresholds of 16-bit trie values for ranges of
  *      values indicating multiple normalization properties.
- *      They are listed here in threshold order, not in the order they are stored in the indexes.
+ *      Format version 5 adds the two minMaybeNo* threshold indexes.
+ *      The thresholds are listed here in threshold order,
+ *      not in the order they are stored in the indexes.
  *          minYesNo=indexes[IX_MIN_YES_NO];
  *          minYesNoMappingsOnly=indexes[IX_MIN_YES_NO_MAPPINGS_ONLY];
  *          minNoNo=indexes[IX_MIN_NO_NO];
@@ -837,6 +856,8 @@ unorm_getFCD16(UChar32 c);
  *          minNoNoCompNoMaybeCC=indexes[IX_MIN_NO_NO_COMP_NO_MAYBE_CC];
  *          minNoNoEmpty=indexes[IX_MIN_NO_NO_EMPTY];
  *          limitNoNo=indexes[IX_LIMIT_NO_NO];
+ *          minMaybeNo=indexes[IX_MIN_MAYBE_NO];
+ *          minMaybeNoCombinesFwd=indexes[IX_MIN_MAYBE_NO_COMBINES_FWD];
  *          minMaybeYes=indexes[IX_MIN_MAYBE_YES];
  *      See the normTrie description below and the design doc for details.
  *
@@ -845,13 +866,14 @@ unorm_getFCD16(UChar32 c);
  *      The trie holds the main normalization data. Each code point is mapped to a 16-bit value.
  *      Rather than using independent bits in the value (which would require more than 16 bits),
  *      information is extracted primarily via range checks.
- *      Except, format version 3 uses bit 0 for hasCompBoundaryAfter().
+ *      Except, format version 3+ uses bit 0 for hasCompBoundaryAfter().
  *      For example, a 16-bit value norm16 in the range minYesNo<=norm16<minNoNo
  *      means that the character has NF*C_QC=Yes and NF*D_QC=No properties,
  *      which means it has a two-way (round-trip) decomposition mapping.
- *      Values in the range 2<=norm16<limitNoNo are also directly indexes into the extraData
+ *      Values in the ranges 2<=norm16<limitNoNo and minMaybeNo<=norm16<minMaybeYes
+ *      are also directly indexes into the extraData
  *      pointing to mappings, compositions lists, or both.
- *      Value norm16==INERT (0 in versions 1 & 2, 1 in version 3)
+ *      Value norm16==INERT (0 in versions 1 & 2, 1 in version 3+)
  *      means that the character is normalization-inert, that is,
  *      it does not have a mapping, does not participate in composition, has a zero
  *      canonical combining class, and forms a boundary where text before it and after it
@@ -870,32 +892,37 @@ unorm_getFCD16(UChar32 c);
  *      When the lead surrogate unit's value exceeds the quick check minimum during processing,
  *      the properties for the full supplementary code point need to be looked up.
  *
- * uint16_t maybeYesCompositions[MIN_NORMAL_MAYBE_YES-minMaybeYes];
  * uint16_t extraData[];
  *
- *      There is only one byte offset for the end of these two arrays.
- *      The split between them is given by the constant and variable mentioned above.
- *      In version 3, the difference must be shifted right by OFFSET_SHIFT.
+ *      The extraData array contains many per-character data sections.
+ *      Each section contains mappings and/or composition lists.
+ *      The norm16 value of each character that has such data is directly an index to
+ *      a section of the extraData array.
  *
- *      The maybeYesCompositions array contains compositions lists for characters that
- *      combine both forward (as starters in composition pairs)
- *      and backward (as trailing characters in composition pairs).
- *      Such characters do not occur in Unicode 5.2 but are allowed by
- *      the Unicode Normalization algorithms.
- *      If there are no such characters, then minMaybeYes==MIN_NORMAL_MAYBE_YES
- *      and the maybeYesCompositions array is empty.
- *      If there are such characters, then minMaybeYes is subtracted from their norm16 values
- *      to get the index into this array.
- *
- *      The extraData array contains compositions lists for "YesYes" characters,
- *      followed by mappings and optional compositions lists for "YesNo" characters,
- *      followed by only mappings for "NoNo" characters.
- *      (Referring to pairs of NFC/NFD quick check values.)
- *      The norm16 values of those characters are directly indexes into the extraData array.
- *      In version 3, the norm16 values must be shifted right by OFFSET_SHIFT
+ *      In version 3+, the norm16 values must be shifted right by OFFSET_SHIFT
  *      for accessing extraData.
  *
  *      The data structures for compositions lists and mappings are described in the design doc.
+ *
+ *      In version 4 and below, the composition lists for MaybeYes characters were stored before
+ *      the data for other characters.
+ *      This sub-array had a length of MIN_NORMAL_MAYBE_YES-minMaybeYes.
+ *      In version 3 & 4, the difference must be shifted right by OFFSET_SHIFT.
+ *
+ *      In version 5, the data for MaybeNo and MaybeYes characters is stored after
+ *      the data for other characters.
+ *
+ *      If there are no MaybeNo and no MaybeYes characters,
+ *      then minMaybeYes==minMaybeNo==MIN_NORMAL_MAYBE_YES.
+ *      If there are such characters, then minMaybeNo is subtracted from their norm16 values
+ *      to get the index into the extraData.
+ *      In version 4 and below, the data index for Yes* and No* characters needs to be
+ *      offset by the length of the MaybeYes data.
+ *      In version 5, the data index for Maybe* characters needs to be offset by limitNoNo.
+ *
+ *      Version 5 is the first to support MaybeNo characters, and
+ *      adds the minMaybeNo and minMaybeNoCombinesFwd thresholds and
+ *      the corresponding sections of the extraData.
  *
  * uint8_t smallFCD[0x100]; -- new in format version 2
  *
@@ -936,7 +963,7 @@ unorm_getFCD16(UChar32 c);
  *   to make room for two bits (three values) indicating whether the tccc is 0, 1, or greater.
  *   See DELTA_TCCC_MASK etc.
  *   This helps with fetching tccc/FCD values and FCC hasCompBoundaryAfter().
- *   minMaybeYes is 8-aligned so that the DELTA_TCCC_MASK bits can be tested directly.
+ *   minMaybeNo is 8-aligned so that the DELTA_TCCC_MASK bits can be tested directly.
  *
  * - Algorithmic mappings are only used for mapping to "comp yes and ccc=0" characters,
  *   and ASCII characters are mapped algorithmically only to other ASCII characters.
@@ -982,6 +1009,23 @@ unorm_getFCD16(UChar32 c);
  * gennorm2 now has to reject mappings for surrogate code points.
  * UTS #46 maps unpaired surrogates to U+FFFD in code rather than via its
  * custom normalization data file.
+ *
+ * Changes from format version 4 to format version 5 (ICU 76) ------------------
+ *
+ * Unicode 16 adds the first MaybeYes characters which combine both backward and forward,
+ * taking this formerly theoretical data structure into reality.
+ *
+ * Unicode 16 also adds the first characters that have two-way mappings whose first characters
+ * combine backward. In order for normalization and the quick check to work properly,
+ * these composite characters also must be marked as NFC_QC=Maybe,
+ * corresponding to "combines back", although the composites themselves do not combine backward.
+ * Format version 5 adds two new ranges between "algorithmic NoNo" and MaybeYes,
+ * with thresholds minMaybeNo and minMaybeNoCombinesFwd,
+ * and indexes[IX_MIN_MAYBE_NO] and indexes[IX_MIN_MAYBE_NO_COMBINES_FWD],
+ * and corresponding mappings and composition lists in the extraData.
+ *
+ * Format version 5 moves the data for Maybe* characters from the start of the extraData array
+ * to its end.
  */
 
 #endif  /* !UCONFIG_NO_NORMALIZATION */

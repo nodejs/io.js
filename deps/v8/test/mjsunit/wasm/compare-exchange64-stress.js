@@ -36,7 +36,7 @@ function makeWorkerCodeForOpcode(compareExchangeOpcode, size, functionName,
     }
     const kArgMemoryCell = 0; // target for atomic ops
     const kArgSequencePtr = 1; // address of sequence
-    const kArgSeqenceLength = 2; // lenght of sequence
+    const kArgSeqenceLength = 2; // length of sequence
     const kArgWorkerId = 3; // id of this worker
     const kArgBitMask = 4; // mask to extract worker id from value
     const kLocalCurrentOffset = 5; // current position in sequence in bytes
@@ -150,7 +150,7 @@ function spawnWorker(module, memory, address, sequence) {
     let workers = [];
     for (let i = 0; i < kNumberOfWorkers; i++) {
         let worker = new Worker(
-            `onmessage = function(msg) {
+            `onmessage = function({data:msg}) {
                 this.instance = new WebAssembly.Instance(msg.module,
                     {m: {imported_mem: msg.memory}});
                 instance.exports.worker(msg.address, msg.sequence, msg.sequenceLength, msg.workerId,

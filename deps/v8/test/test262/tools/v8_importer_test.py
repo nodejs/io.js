@@ -7,7 +7,8 @@ import textwrap
 import unittest
 
 from pyfakefs import fake_filesystem_unittest
-from v8_importer import V8TestImporter, GitFileStatus
+from v8_importer import (DeletedTestsRemover, GitFileStatus,
+                         RenamedTestsUpdater, V8TestImporter)
 from v8configs import to_object
 
 fake_host = to_object({
@@ -78,7 +79,7 @@ class Test_TestV8Importer(fake_filesystem_unittest.TestCase):
     self.assertFalse(self.fs.exists(f'{destination}/f1/test1.js'))
     self.assertTrue(self.fs.exists(f'{destination}/f1/test2.js'))
 
-  def test_remove_deleted_tests(self):
+  def test_remove_and_rename_tests(self):
     self.setUpPyfakefs(allow_root_user=True)
     self.fs.create_file(
         'test/test262/test262.status',
@@ -87,22 +88,26 @@ class Test_TestV8Importer(fake_filesystem_unittest.TestCase):
                 ...
                   'folder1/sometest1': [FAIL],
                   'deleted_testname': [FAIL],
+                  'renamed_testname': [FAIL],
                   'folder2/sometest1': [FAIL],
                   'folder2/sometest2': [FAIL],
                 ...
                 """))
-
     importer = V8TestImporter('X', fake_host)
     importer.test262_git = to_object({
-        'run': lambda *args: 'test/deleted_testname.js\n',
+        'run':
+            lambda *args: 'test/deleted_testname.js\n'
+            'R001   test/renamed_testname.js    test/updated_testname.js\n',
     })
 
-    tests = importer.remove_deleted_tests(V8_REVISION, TEST262_REVISION)
+    tests = importer.remove_and_rename(V8_REVISION, TEST262_REVISION)
 
-    self.assertEquals(textwrap.dedent("""\
+    self.assertEquals(
+        textwrap.dedent("""\
                 n'importe quoi
                 ...
                   'folder1/sometest1': [FAIL],
+                  'updated_testname': [FAIL],
                   'folder2/sometest1': [FAIL],
                   'folder2/sometest2': [FAIL],
                 ...
@@ -146,7 +151,7 @@ class Test_TestV8Importer(fake_filesystem_unittest.TestCase):
                 ]
                 """), ''.join(result))
 
-  def test_get_updated_tests(self):
+  def test_deletion_updater(self):
     importer = V8TestImporter('X', fake_host)
     importer.test262_git = to_object({
         'run': lambda *args: textwrap.dedent("""\
@@ -157,8 +162,28 @@ class Test_TestV8Importer(fake_filesystem_unittest.TestCase):
                         """),
     })
 
-    tests = importer.get_updated_tests('a', 'b')
-    self.assertEquals(['some_testname'], tests)
+    updater = DeletedTestsRemover(importer, 'a', 'b')
+    self.assertEquals(['some_testname'], updater.to_update)
+
+  def test_rename_updater(self):
+    importer = V8TestImporter('X', fake_host)
+    importer.test262_git = to_object({
+        'run':
+            lambda *args: textwrap.dedent("""\
+                        M test/should_not_match.js test/should_not_match.js
+                         test/should_not_match2.js
+                        R001 test/rename_testname.js   test/updated_testname.js
+                        R002  test/folder1/rename_testname.js  test/folder2/updated_testname.js
+                        practically garbage
+                        """),
+    })
+
+    updater = RenamedTestsUpdater(importer, 'a', 'b')
+    expected = {
+        'rename_testname': 'updated_testname',
+        'folder1/rename_testname': 'folder2/updated_testname',
+    }
+    self.assertEquals(expected, updater.to_update)
 
 
 if __name__ == '__main__':

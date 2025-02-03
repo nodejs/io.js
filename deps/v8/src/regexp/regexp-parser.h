@@ -20,7 +20,8 @@ struct RegExpCompileData;
 class V8_EXPORT_PRIVATE RegExpParser : public AllStatic {
  public:
   static bool ParseRegExpFromHeapString(Isolate* isolate, Zone* zone,
-                                        Handle<String> input, RegExpFlags flags,
+                                        DirectHandle<String> input,
+                                        RegExpFlags flags,
                                         RegExpCompileData* result);
 
   template <class CharT>

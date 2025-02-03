@@ -100,7 +100,7 @@ bool TaggedImpl<kRefType, StorageType>::GetHeapObjectIfStrong(
     Tagged<HeapObject>* result) const {
   CHECK(kIsFull);
   if (IsStrong()) {
-    *result = HeapObject::cast(Tagged<Object>(ptr_));
+    *result = Cast<HeapObject>(Tagged<Object>(ptr_));
     return true;
   }
   return false;
@@ -113,7 +113,7 @@ bool TaggedImpl<kRefType, StorageType>::GetHeapObjectIfStrong(
   // Implementation for compressed pointers.
   if (IsStrong()) {
     *result =
-        HeapObject::cast(Tagged<Object>(CompressionScheme::DecompressTagged(
+        Cast<HeapObject>(Tagged<Object>(CompressionScheme::DecompressTagged(
             isolate, static_cast<Tagged_t>(ptr_))));
     return true;
   }
@@ -129,7 +129,7 @@ Tagged<HeapObject>
 TaggedImpl<kRefType, StorageType>::GetHeapObjectAssumeStrong() const {
   CHECK(kIsFull);
   DCHECK(IsStrong());
-  return HeapObject::cast(Tagged<Object>(ptr_));
+  return Cast<HeapObject>(Tagged<Object>(ptr_));
 }
 
 template <HeapObjectReferenceType kRefType, typename StorageType>
@@ -138,7 +138,7 @@ Tagged<HeapObject> TaggedImpl<kRefType, StorageType>::GetHeapObjectAssumeStrong(
   if (kIsFull) return GetHeapObjectAssumeStrong();
   // Implementation for compressed pointers.
   DCHECK(IsStrong());
-  return HeapObject::cast(Tagged<Object>(CompressionScheme::DecompressTagged(
+  return Cast<HeapObject>(Tagged<Object>(CompressionScheme::DecompressTagged(
       isolate, static_cast<Tagged_t>(ptr_))));
 }
 
@@ -210,10 +210,10 @@ Tagged<HeapObject> TaggedImpl<kRefType, StorageType>::GetHeapObject() const {
   DCHECK(!IsSmi());
   if (kCanBeWeak) {
     DCHECK(!IsCleared());
-    return HeapObject::cast(Tagged<Object>(ptr_ & ~kWeakHeapObjectMask));
+    return Cast<HeapObject>(Tagged<Object>(ptr_ & ~kWeakHeapObjectMask));
   } else {
     DCHECK(!HAS_WEAK_HEAP_OBJECT_TAG(ptr_));
-    return HeapObject::cast(Tagged<Object>(ptr_));
+    return Cast<HeapObject>(Tagged<Object>(ptr_));
   }
 }
 
@@ -225,11 +225,11 @@ Tagged<HeapObject> TaggedImpl<kRefType, StorageType>::GetHeapObject(
   DCHECK(!IsSmi());
   if (kCanBeWeak) {
     DCHECK(!IsCleared());
-    return HeapObject::cast(Tagged<Object>(CompressionScheme::DecompressTagged(
+    return Cast<HeapObject>(Tagged<Object>(CompressionScheme::DecompressTagged(
         isolate, static_cast<Tagged_t>(ptr_) & ~kWeakHeapObjectMask)));
   } else {
     DCHECK(!HAS_WEAK_HEAP_OBJECT_TAG(ptr_));
-    return HeapObject::cast(Tagged<Object>(CompressionScheme::DecompressTagged(
+    return Cast<HeapObject>(Tagged<Object>(CompressionScheme::DecompressTagged(
         isolate, static_cast<Tagged_t>(ptr_))));
   }
 }

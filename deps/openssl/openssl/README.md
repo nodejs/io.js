@@ -4,7 +4,7 @@ What This Is
 This is a fork of [OpenSSL](https://www.openssl.org) to enable QUIC. In addition
 to the website, the official source distribution is at
 <https://github.com/openssl/openssl>. The OpenSSL `README` can be found at
-[README-OpenSSL.md](https://github.com/quictls/openssl/blob/openssl-3.0.13%2Bquic/README-OpenSSL.md)
+[README-OpenSSL.md](https://github.com/quictls/openssl/blob/openssl-3.0.15%2Bquic/README-OpenSSL.md)
 
 This fork adds APIs that can be used by QUIC implementations for connection
 handshakes. Quoting the IETF Working group

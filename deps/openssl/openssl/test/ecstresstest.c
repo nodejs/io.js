@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2021 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2017-2024 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the Apache License 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ static int test_curve(void)
             || !TEST_ptr(point = EC_POINT_dup(EC_GROUP_get0_generator(group),
                                               group))
             || !TEST_ptr(result = walk_curve(group, point, num_repeats)))
-        return 0;
+        goto err;
 
     if (print_mode) {
         BN_print(bio_out, result);

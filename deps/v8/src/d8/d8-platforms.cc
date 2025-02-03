@@ -37,8 +37,8 @@ class PredictablePlatform final : public Platform {
   }
 
   std::shared_ptr<TaskRunner> GetForegroundTaskRunner(
-      v8::Isolate* isolate) override {
-    return platform_->GetForegroundTaskRunner(isolate);
+      v8::Isolate* isolate, TaskPriority priority) override {
+    return platform_->GetForegroundTaskRunner(isolate, priority);
   }
 
   int NumberOfWorkerThreads() override {
@@ -62,7 +62,7 @@ class PredictablePlatform final : public Platform {
     // the isolate but only uses it as the key in a HashMap.
     platform_
         ->GetForegroundTaskRunner(
-            kProcessGlobalPredictablePlatformWorkerTaskQueue)
+            kProcessGlobalPredictablePlatformWorkerTaskQueue, priority)
         ->PostTask(std::move(task));
   }
 
@@ -144,9 +144,9 @@ class DelayedTasksPlatform final : public Platform {
   }
 
   std::shared_ptr<TaskRunner> GetForegroundTaskRunner(
-      v8::Isolate* isolate) override {
+      v8::Isolate* isolate, TaskPriority priority) override {
     std::shared_ptr<TaskRunner> runner =
-        platform_->GetForegroundTaskRunner(isolate);
+        platform_->GetForegroundTaskRunner(isolate, priority);
 
     base::MutexGuard lock_guard(&mutex_);
     // Check if we can re-materialize the weak ptr in our map.
@@ -213,30 +213,36 @@ class DelayedTasksPlatform final : public Platform {
                       DelayedTasksPlatform* platform)
         : task_runner_(task_runner), platform_(platform) {}
 
-    void PostTask(std::unique_ptr<Task> task) final {
-      task_runner_->PostTask(platform_->MakeDelayedTask(std::move(task)));
-    }
-
-    void PostNonNestableTask(std::unique_ptr<Task> task) final {
-      task_runner_->PostNonNestableTask(
-          platform_->MakeDelayedTask(std::move(task)));
-    }
-
-    void PostDelayedTask(std::unique_ptr<Task> task,
-                         double delay_in_seconds) final {
-      task_runner_->PostDelayedTask(platform_->MakeDelayedTask(std::move(task)),
-                                    delay_in_seconds);
-    }
-
-    void PostIdleTask(std::unique_ptr<IdleTask> task) final {
-      task_runner_->PostIdleTask(
-          platform_->MakeDelayedIdleTask(std::move(task)));
-    }
-
     bool IdleTasksEnabled() final { return task_runner_->IdleTasksEnabled(); }
 
     bool NonNestableTasksEnabled() const final {
       return task_runner_->NonNestableTasksEnabled();
+    }
+
+   private:
+    void PostTaskImpl(std::unique_ptr<Task> task,
+                      const SourceLocation& location) final {
+      task_runner_->PostTask(platform_->MakeDelayedTask(std::move(task)),
+                             location);
+    }
+
+    void PostNonNestableTaskImpl(std::unique_ptr<Task> task,
+                                 const SourceLocation& location) final {
+      task_runner_->PostNonNestableTask(
+          platform_->MakeDelayedTask(std::move(task)), location);
+    }
+
+    void PostDelayedTaskImpl(std::unique_ptr<Task> task,
+                             double delay_in_seconds,
+                             const SourceLocation& location) final {
+      task_runner_->PostDelayedTask(platform_->MakeDelayedTask(std::move(task)),
+                                    delay_in_seconds, location);
+    }
+
+    void PostIdleTaskImpl(std::unique_ptr<IdleTask> task,
+                          const SourceLocation& location) final {
+      task_runner_->PostIdleTask(
+          platform_->MakeDelayedIdleTask(std::move(task)), location);
     }
 
    private:

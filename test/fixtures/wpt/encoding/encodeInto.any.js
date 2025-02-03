@@ -129,6 +129,7 @@
  "Uint8ClampedArray",
  "BigInt64Array",
  "BigUint64Array",
+ "Float16Array",
  "Float32Array",
  "Float64Array"].forEach(type => {
   ["ArrayBuffer", "SharedArrayBuffer"].forEach((arrayBufferOrSharedArrayBuffer) => {

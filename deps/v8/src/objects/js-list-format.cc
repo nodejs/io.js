@@ -57,7 +57,8 @@ UListFormatterType GetIcuType(JSListFormat::Type type) {
 
 }  // namespace
 
-MaybeHandle<JSListFormat> JSListFormat::New(Isolate* isolate, Handle<Map> map,
+MaybeHandle<JSListFormat> JSListFormat::New(Isolate* isolate,
+                                            DirectHandle<Map> map,
                                             Handle<Object> locales,
                                             Handle<Object> input_options) {
   // 3. Let requestedLocales be ? CanonicalizeLocaleList(locales).
@@ -71,8 +72,7 @@ MaybeHandle<JSListFormat> JSListFormat::New(Isolate* isolate, Handle<Map> map,
   const char* service = "Intl.ListFormat";
   // 4. Let options be GetOptionsObject(_options_).
   ASSIGN_RETURN_ON_EXCEPTION(isolate, options,
-                             GetOptionsObject(isolate, input_options, service),
-                             JSListFormat);
+                             GetOptionsObject(isolate, input_options, service));
 
   // Note: No need to create a record. It's not observable.
   // 6. Let opt be a new Record.
@@ -92,11 +92,10 @@ MaybeHandle<JSListFormat> JSListFormat::New(Isolate* isolate, Handle<Map> map,
       Intl::ResolveLocale(isolate, JSListFormat::GetAvailableLocales(),
                           requested_locales, matcher, {});
   if (maybe_resolve_locale.IsNothing()) {
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                    JSListFormat);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
   }
   Intl::ResolvedLocale r = maybe_resolve_locale.FromJust();
-  Handle<String> locale_str =
+  DirectHandle<String> locale_str =
       isolate->factory()->NewStringFromAsciiChecked(r.locale.c_str());
 
   // 12. Let t be GetOption(options, "type", "string", «"conjunction",
@@ -117,20 +116,19 @@ MaybeHandle<JSListFormat> JSListFormat::New(Isolate* isolate, Handle<Map> map,
 
   icu::Locale icu_locale = r.icu_locale;
   UErrorCode status = U_ZERO_ERROR;
-  icu::ListFormatter* formatter = icu::ListFormatter::createInstance(
-      icu_locale, GetIcuType(type_enum), GetIcuWidth(style_enum), status);
+  std::shared_ptr<icu::ListFormatter> formatter{
+      icu::ListFormatter::createInstance(icu_locale, GetIcuType(type_enum),
+                                         GetIcuWidth(style_enum), status)};
   if (U_FAILURE(status) || formatter == nullptr) {
-    delete formatter;
-    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError),
-                    JSListFormat);
+    THROW_NEW_ERROR(isolate, NewRangeError(MessageTemplate::kIcuError));
   }
 
-  Handle<Managed<icu::ListFormatter>> managed_formatter =
-      Managed<icu::ListFormatter>::FromRawPtr(isolate, 0, formatter);
+  DirectHandle<Managed<icu::ListFormatter>> managed_formatter =
+      Managed<icu::ListFormatter>::From(isolate, 0, std::move(formatter));
 
   // Now all properties are ready, so we can allocate the result object.
-  Handle<JSListFormat> list_format = Handle<JSListFormat>::cast(
-      isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
+  Handle<JSListFormat> list_format =
+      Cast<JSListFormat>(isolate->factory()->NewFastOrSlowJSObjectFromMap(map));
   DisallowGarbageCollection no_gc;
   list_format->set_flags(0);
   list_format->set_icu_formatter(*managed_formatter);
@@ -148,8 +146,8 @@ MaybeHandle<JSListFormat> JSListFormat::New(Isolate* isolate, Handle<Map> map,
 }
 
 // ecma402 #sec-intl.pluralrules.prototype.resolvedoptions
-Handle<JSObject> JSListFormat::ResolvedOptions(Isolate* isolate,
-                                               Handle<JSListFormat> format) {
+Handle<JSObject> JSListFormat::ResolvedOptions(
+    Isolate* isolate, DirectHandle<JSListFormat> format) {
   Factory* factory = isolate->factory();
   // 4. Let options be ! ObjectCreate(%ObjectPrototype%).
   Handle<JSObject> result = factory->NewJSObject(isolate->object_function());
@@ -160,7 +158,7 @@ Handle<JSObject> JSListFormat::ResolvedOptions(Isolate* isolate,
   //  [[Locale]]       "locale"
   //  [[Type]]         "type"
   //  [[Style]]        "style"
-  Handle<String> locale(format->locale(), isolate);
+  DirectHandle<String> locale(format->locale(), isolate);
   JSObject::AddProperty(isolate, result, factory->locale_string(), locale,
                         NONE);
   JSObject::AddProperty(isolate, result, factory->type_string(),
@@ -199,13 +197,13 @@ namespace {
 
 // Extract String from FixedArray into array of UnicodeString
 Maybe<std::vector<icu::UnicodeString>> ToUnicodeStringArray(
-    Isolate* isolate, Handle<FixedArray> array) {
+    Isolate* isolate, DirectHandle<FixedArray> array) {
   int length = array->length();
   std::vector<icu::UnicodeString> result;
   for (int i = 0; i < length; i++) {
     Handle<Object> item(array->get(i), isolate);
     DCHECK(IsString(*item));
-    Handle<String> item_str = Handle<String>::cast(item);
+    Handle<String> item_str = Cast<String>(item);
     if (!item_str->IsFlat()) item_str = String::Flatten(isolate, item_str);
     result.push_back(Intl::ToICUUnicodeString(isolate, item_str));
   }
@@ -214,7 +212,8 @@ Maybe<std::vector<icu::UnicodeString>> ToUnicodeStringArray(
 
 template <typename T>
 MaybeHandle<T> FormatListCommon(
-    Isolate* isolate, Handle<JSListFormat> format, Handle<FixedArray> list,
+    Isolate* isolate, DirectHandle<JSListFormat> format,
+    DirectHandle<FixedArray> list,
     const std::function<MaybeHandle<T>(Isolate*, const icu::FormattedValue&)>&
         formatToResult) {
   DCHECK(!IsUndefined(*list));
@@ -230,7 +229,7 @@ MaybeHandle<T> FormatListCommon(
   icu::FormattedList formatted = formatter->formatStringsToValue(
       array.data(), static_cast<int32_t>(array.size()), status);
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), T);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
   return formatToResult(isolate, formatted);
 }
@@ -260,13 +259,12 @@ MaybeHandle<JSArray> FormattedListToJSArray(
   while (formatted.nextPosition(cfpos, status) && U_SUCCESS(status)) {
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, substring,
-        Intl::ToString(isolate, string, cfpos.getStart(), cfpos.getLimit()),
-        JSArray);
+        Intl::ToString(isolate, string, cfpos.getStart(), cfpos.getLimit()));
     Intl::AddElement(isolate, array, index++,
                      IcuFieldIdToType(isolate, cfpos.getField()), substring);
   }
   if (U_FAILURE(status)) {
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError), JSArray);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kIcuError));
   }
   JSObject::ValidateElements(*array);
   return array;
@@ -276,15 +274,16 @@ MaybeHandle<JSArray> FormattedListToJSArray(
 
 // ecma402 #sec-formatlist
 MaybeHandle<String> JSListFormat::FormatList(Isolate* isolate,
-                                             Handle<JSListFormat> format,
-                                             Handle<FixedArray> list) {
+                                             DirectHandle<JSListFormat> format,
+                                             DirectHandle<FixedArray> list) {
   return FormatListCommon<String>(isolate, format, list,
                                   Intl::FormattedToString);
 }
 
 // ecma42 #sec-formatlisttoparts
 MaybeHandle<JSArray> JSListFormat::FormatListToParts(
-    Isolate* isolate, Handle<JSListFormat> format, Handle<FixedArray> list) {
+    Isolate* isolate, DirectHandle<JSListFormat> format,
+    DirectHandle<FixedArray> list) {
   return FormatListCommon<JSArray>(isolate, format, list,
                                    FormattedListToJSArray);
 }

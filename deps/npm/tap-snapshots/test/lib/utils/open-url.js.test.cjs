@@ -5,21 +5,39 @@
  * Make sure to inspect the output below.  Do not ignore changes!
  */
 'use strict'
-exports[`test/lib/utils/open-url.js TAP prints where to go when browser is disabled > printed expected message 1`] = `
+exports[`test/lib/utils/open-url.js TAP open url prints where to go when browser is disabled > printed expected message 1`] = `
 npm home:
-  https://www.npmjs.com
-
+https://www.npmjs.com
 `
 
-exports[`test/lib/utils/open-url.js TAP prints where to go when browser is disabled and json is enabled > printed expected message 1`] = `
+exports[`test/lib/utils/open-url.js TAP open url prints where to go when browser is disabled and json is enabled > printed expected message 1`] = `
 {
   "title": "npm home",
   "url": "https://www.npmjs.com"
 }
 `
 
-exports[`test/lib/utils/open-url.js TAP prints where to go when given browser does not exist > printed expected message 1`] = `
+exports[`test/lib/utils/open-url.js TAP open url prints where to go when given browser does not exist > printed expected message 1`] = `
 npm home:
-  https://www.npmjs.com
+https://www.npmjs.com
+`
 
+exports[`test/lib/utils/open-url.js TAP open url prompt does not error when opener can not find command > Outputs extra Browser unavailable message and url 1`] = `
+npm home:
+https://www.npmjs.com
+
+Browser unavailable. Please open the URL manually:
+https://www.npmjs.com
+`
+
+exports[`test/lib/utils/open-url.js TAP open url prompt opens a url > must match snapshot 1`] = `
+npm home:
+https://www.npmjs.com
+`
+
+exports[`test/lib/utils/open-url.js TAP open url prompt prints json output > must match snapshot 1`] = `
+{
+  "title": "npm home",
+  "url": "https://www.npmjs.com"
+}
 `

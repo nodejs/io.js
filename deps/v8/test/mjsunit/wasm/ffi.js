@@ -125,7 +125,9 @@ testCallFFI(bind_sub, check_FOREIGN_SUB);
 })();
 
 print("Callable JSObject");
-testCallFFI(%GetCallable(), function check(r, a, b) {assertEquals(a - b, r);});
+function callable_target(a, b) { return a - b; }
+let callable_obj = %GetCallable("callable_target");
+testCallFFI(callable_obj, function check(r, a, b) {assertEquals(a - b, r);});
 
 function FOREIGN_ABCD(a, b, c, d) {
 //  print("FOREIGN_ABCD(" + a + ", " + b + ", " + c + ", " + d + ")");

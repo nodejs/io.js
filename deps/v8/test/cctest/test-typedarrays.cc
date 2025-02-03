@@ -115,17 +115,20 @@ void TestSpeciesProtector(char* code,
 }
 
 UNINITIALIZED_TEST(SpeciesConstructor) {
+  v8_flags.js_float16array = true;
   char code[] = "x.constructor = MyTypedArray";
   TestSpeciesProtector(code);
 }
 
 UNINITIALIZED_TEST(SpeciesConstructorAccessor) {
+  v8_flags.js_float16array = true;
   char code[] =
       "Object.defineProperty(x, 'constructor',{get() {return MyTypedArray;}})";
   TestSpeciesProtector(code);
 }
 
 UNINITIALIZED_TEST(SpeciesModified) {
+  v8_flags.js_float16array = true;
   char code[] =
       "Object.defineProperty(constructor, Symbol.species, "
       "{value:MyTypedArray})";
@@ -133,6 +136,7 @@ UNINITIALIZED_TEST(SpeciesModified) {
 }
 
 UNINITIALIZED_TEST(SpeciesParentConstructor) {
+  v8_flags.js_float16array = true;
   char code[] = "constructor.prototype.constructor = MyTypedArray";
   TestSpeciesProtector(code);
 }

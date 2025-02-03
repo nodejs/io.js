@@ -42,7 +42,8 @@ enum StateTag : uint16_t {
   OTHER,
   EXTERNAL,
   ATOMICS_WAIT,
-  IDLE
+  IDLE,
+  LOGGING,
 };
 
 // The output structure filled up by GetStackSample API function.

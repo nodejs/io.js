@@ -5,8 +5,14 @@
 #
 include src/lib/Makefile.inc
 
-CSOURCES := $(addprefix src/lib/, $(CSOURCES))
-CSOURCES := $(filter-out src/lib/windows_port.c, $(CSOURCES))
+OBJ_DIR = djgpp
+OBJECTS = $(addprefix $(OBJ_DIR)/, \
+            $(CSOURCES:.c=.o))
+
+CSRC = $(addprefix src/lib/, $(CSOURCES))
+#CSRC := $(filter-out src/lib/windows_port.c, $(CSOURCES))
+
+OBJ_SUBDIRS = $(OBJ_DIR)/dsa $(OBJ_DIR)/event $(OBJ_DIR)/legacy $(OBJ_DIR)/record $(OBJ_DIR)/str $(OBJ_DIR)/util
 
 VPATH = src/lib src/tools
 
@@ -17,12 +23,51 @@ VPATH = src/lib src/tools
 WATT32_ROOT = $(realpath $(WATT_ROOT))
 WATT32_LIB  = $(WATT32_ROOT)/lib/libwatt.a
 
-OBJ_DIR = djgpp
-
-CFLAGS = -g -O2 -I./include -I./src/lib \
-         -I$(WATT32_ROOT)/inc -Wall \
+CFLAGS = -g -O2 -I./include -I./src/lib -I./src/lib/include \
+         -I$(WATT32_ROOT)/inc \
+         -Wall \
+         -Wextra \
+         -Waggregate-return \
+         -Wcast-align \
+         -Wcast-qual \
+         -Wconversion \
+         -Wdeclaration-after-statement \
+         -Wdouble-promotion \
+         -Wfloat-equal \
+         -Winit-self \
+         -Wjump-misses-init \
+         -Wlogical-op \
+         -Wmissing-braces \
+         -Wmissing-declarations \
+         -Wmissing-format-attribute \
+         -Wmissing-include-dirs \
+         -Wmissing-prototypes \
+         -Wnested-externs \
+         -Wno-coverage-mismatch \
+         -Wold-style-definition \
+         -Wpacked \
+         -Wpointer-arith \
+         -Wshadow \
+         -Wsign-conversion \
+         -Wstrict-overflow \
+         -Wstrict-prototypes \
+         -Wtrampolines \
+         -Wundef \
+         -Wunreachable-code \
+         -Wunused \
+         -Wvariadic-macros \
+         -Wvla \
+         -Wwrite-strings \
+         -Werror=implicit-int \
+         -Werror=implicit-function-declaration \
+         -Wno-long-long \
          -DWATT32 -DHAVE_CONFIG_H   \
+         -D_REENTRANT \
+         -DCARES_NO_DEPRECATED \
          -Dselect=select_s
+
+# Can't enable -Wredundant-decls due to WATT32 issues
+
 
 LDFLAGS = -s
 
@@ -41,9 +86,6 @@ else
   CC = gcc
 endif
 
-OBJECTS = $(addprefix $(OBJ_DIR)/, \
-            $(notdir $(CSOURCES:.c=.o)))
-
 GENERATED = src/lib/ares_config.h \
             include/ares_build.h
 
@@ -51,7 +93,7 @@ TARGETS = libcares.a adig.exe ahost.exe
 
 .SECONDARY: $(OBJ_DIR)/ares_getopt.o
 
-all: $(OBJ_DIR) $(GENERATED) $(TARGETS)
+all: $(OBJ_DIR) $(OBJ_SUBDIRS) $(GENERATED) $(TARGETS)
 	@echo Welcome to c-ares.
 
 libcares.a: $(OBJECTS)
@@ -70,15 +112,19 @@ include/ares_build.h: include/ares_build.h.dist
 #
 clean:
 	- rm -f depend.dj $(GENERATED) $(OBJ_DIR)/*.o
-	- rmdir $(OBJ_DIR)
+	- rmdir $(OBJ_SUBDIRS)
 
 # Clean everything
 #
 realclean vclean: clean
 	- rm -f $(TARGETS) $(TARGETS:.exe=.map)
 
-$(OBJ_DIR):
-	- mkdir $@
+.PHONY: obj_subdirs $(OBJ_SUBDIRS)
+
+obj_subdirs: $(OBJ_SUBDIRS)
+
+$(OBJ_SUBDIRS):
+	mkdir $@
 
 $(OBJ_DIR)/%.o: %.c
 	$(CC) $(CFLAGS) -o $@ -c $<
@@ -97,7 +143,7 @@ DEP_REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.o: @' \
 # a foreign 'curl_config.h' is making trouble.
 #
 depend: $(GENERATED) Makefile.dj
-	$(CC) -MM $(CFLAGS) $(CSOURCES) | $(DEP_REPLACE) > depend.dj
+	$(CC) -MM $(CFLAGS) $(CSRC) | $(DEP_REPLACE) > depend.dj
 
 -include depend.dj
 

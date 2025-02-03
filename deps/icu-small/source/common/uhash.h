@@ -695,6 +695,15 @@ U_CAPI int32_t U_EXPORT2
 uhash_hashIChars(const UHashTok key);
 
 /**
+ * Generate a case-insensitive hash code for a std::string_view.
+ * Use together with uhash_compareIStringView.
+ * @param key A pointer to the std::string_view to hash.
+ * @return A hash code for the key.
+ */
+U_CAPI int32_t U_EXPORT2
+uhash_hashIStringView(const UHashTok key);
+
+/**
  * Comparator for null-terminated UChar* strings.  Use together with
  * uhash_hashUChars.
  * @param key1 The string for comparison
@@ -723,6 +732,16 @@ uhash_compareChars(const UHashTok key1, const UHashTok key2);
  */
 U_CAPI UBool U_EXPORT2
 uhash_compareIChars(const UHashTok key1, const UHashTok key2);
+
+/**
+ * Case-insensitive comparator for std::string_view.
+ * Use together with uhash_hashIStringView.
+ * @param key1 A pointer to the std::string_view for comparison
+ * @param key2 A pointer to the std::string_view for comparison
+ * @return true if key1 and key2 are equal, return false otherwise.
+ */
+U_CAPI UBool U_EXPORT2
+uhash_compareIStringView(const UHashTok key1, const UHashTok key2);
 
 /********************************************************************
  * UnicodeString Support Functions

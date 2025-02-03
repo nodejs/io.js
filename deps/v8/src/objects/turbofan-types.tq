@@ -54,6 +54,7 @@ bitfield struct TurbofanTypeLowBits extends uint32 {
 bitfield struct TurbofanTypeHighBits extends uint32 {
   machine: bool: 1 bit;
   hole: bool: 1 bit;
+  string_wrapper: bool: 1 bit;
 }
 
 @export
@@ -189,6 +190,13 @@ macro TestTurbofanBitsetType(
         return bitsetLow.other_big_int ||
             (digit <= Convert<uintptr>(kMinIntPtr) &&
              bitsetLow.negative_big_int_63);
+      }
+    }
+    case (wrapper: JSPrimitiveWrapper): {
+      if (Is<String>(wrapper.value)) {
+        return bitsetHigh.string_wrapper;
+      } else {
+        return bitsetLow.other_object;
       }
     }
     case (object: JSObject): {

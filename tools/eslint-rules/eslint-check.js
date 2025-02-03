@@ -22,7 +22,7 @@ module.exports = {
     let hasEslintCheck = false;
 
     function testEslintUsage(context, node) {
-      if (utils.isRequired(node, ['../../tools/node_modules/eslint'])) {
+      if (utils.isRequired(node, ['../../tools/eslint/node_modules/eslint'])) {
         missingCheckNodes.push(node);
       }
 

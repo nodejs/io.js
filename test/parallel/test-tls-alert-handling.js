@@ -1,11 +1,14 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
-  common.skip('node compiled without OpenSSL CLI');
+const {
+  hasOpenSSL,
+  hasOpenSSL3,
+} = require('../common/crypto');
 
 const assert = require('assert');
 const net = require('net');
@@ -31,10 +34,17 @@ const max_iter = 20;
 let iter = 0;
 
 const errorHandler = common.mustCall((err) => {
-  assert.strictEqual(err.code, 'ERR_SSL_WRONG_VERSION_NUMBER');
+  let expectedErrorCode = 'ERR_SSL_WRONG_VERSION_NUMBER';
+  let expectedErrorReason = 'wrong version number';
+  if (hasOpenSSL(3, 2)) {
+    expectedErrorCode = 'ERR_SSL_PACKET_LENGTH_TOO_LONG';
+    expectedErrorReason = 'packet length too long';
+  };
+
+  assert.strictEqual(err.code, expectedErrorCode);
   assert.strictEqual(err.library, 'SSL routines');
-  if (!common.hasOpenSSL3) assert.strictEqual(err.function, 'ssl3_get_record');
-  assert.strictEqual(err.reason, 'wrong version number');
+  if (!hasOpenSSL3) assert.strictEqual(err.function, 'ssl3_get_record');
+  assert.strictEqual(err.reason, expectedErrorReason);
   errorReceived = true;
   if (canCloseServer())
     server.close();
@@ -87,10 +97,16 @@ function sendBADTLSRecord() {
     });
   }));
   client.on('error', common.mustCall((err) => {
-    assert.strictEqual(err.code, 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION');
+    let expectedErrorCode = 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION';
+    let expectedErrorReason = 'tlsv1 alert protocol version';
+    if (hasOpenSSL(3, 2)) {
+      expectedErrorCode = 'ERR_SSL_TLSV1_ALERT_RECORD_OVERFLOW';
+      expectedErrorReason = 'tlsv1 alert record overflow';
+    }
+    assert.strictEqual(err.code, expectedErrorCode);
     assert.strictEqual(err.library, 'SSL routines');
-    if (!common.hasOpenSSL3)
+    if (!hasOpenSSL3)
       assert.strictEqual(err.function, 'ssl3_read_bytes');
-    assert.strictEqual(err.reason, 'tlsv1 alert protocol version');
+    assert.strictEqual(err.reason, expectedErrorReason);
   }));
 }

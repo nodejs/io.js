@@ -52,13 +52,13 @@ const errMessage = /unexpected end of file/;
 
     // Sync truncated input test, finishFlush = Z_SYNC_FLUSH
     const result = toUTF8(zlib[methods.decompSync](truncated, syncFlushOpt));
-    assert.strictEqual(result, inputString.substr(0, result.length));
+    assert.strictEqual(result, inputString.slice(0, result.length));
 
     // Async truncated input test, finishFlush = Z_SYNC_FLUSH
     zlib[methods.decomp](truncated, syncFlushOpt, function(err, decompressed) {
       assert.ifError(err);
       const result = toUTF8(decompressed);
-      assert.strictEqual(result, inputString.substr(0, result.length));
+      assert.strictEqual(result, inputString.slice(0, result.length));
     });
   });
 });

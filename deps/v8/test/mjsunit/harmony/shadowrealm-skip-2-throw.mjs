@@ -1,2 +1,6 @@
 export const foo = 'bar';
-throw new Error('foobar');
+
+function myFunc() {
+  throw new Error('foobar');
+}
+myFunc();

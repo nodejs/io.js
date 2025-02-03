@@ -98,6 +98,106 @@ experimental domain NodeWorker
       SessionID sessionId
       string message
 
+# Partial support for Network domain of ChromeDevTools Protocol.
+# https://chromedevtools.github.io/devtools-protocol/tot/Network
+experimental domain Network
+  # Resource type as it was perceived by the rendering engine.
+  type ResourceType extends string
+    enum
+      Document
+      Stylesheet
+      Image
+      Media
+      Font
+      Script
+      TextTrack
+      XHR
+      Fetch
+      Prefetch
+      EventSource
+      WebSocket
+      Manifest
+      SignedExchange
+      Ping
+      CSPViolationReport
+      Preflight
+      Other
+
+  # Unique request identifier.
+  type RequestId extends string
+
+  # UTC time in seconds, counted from January 1, 1970.
+  type TimeSinceEpoch extends number
+
+  # Monotonically increasing time in seconds since an arbitrary point in the past.
+  type MonotonicTime extends number
+
+  # HTTP request data.
+  type Request extends object
+    properties
+      string url
+      string method
+      Headers headers
+
+  # HTTP response data.
+  type Response extends object
+    properties
+      string url
+      integer status
+      string statusText
+      Headers headers
+
+  # Request / response headers as keys / values of JSON object.
+  type Headers extends object
+
+  # Disables network tracking, prevents network events from being sent to the client.
+  command disable
+
+  # Enables network tracking, network events will now be delivered to the client.
+  command enable
+
+  # Fired when page is about to send HTTP request.
+  event requestWillBeSent
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Request data.
+      Request request
+      # Timestamp.
+      MonotonicTime timestamp
+      # Timestamp.
+      TimeSinceEpoch wallTime
+
+  # Fired when HTTP response is available.
+  event responseReceived
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Timestamp.
+      MonotonicTime timestamp
+      # Resource type.
+      ResourceType type
+      # Response data.
+      Response response
+
+  event loadingFailed
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Timestamp.
+      MonotonicTime timestamp
+      # Resource type.
+      ResourceType type
+      # Error message.
+      string errorText
+
+  event loadingFinished
+    parameters
+      # Request identifier.
+      RequestId requestId
+      # Timestamp.
+      MonotonicTime timestamp
+
 # Support for inspecting node process state.
 experimental domain NodeRuntime
   # Enable the NodeRuntime events except by `NodeRuntime.waitingForDisconnect`.

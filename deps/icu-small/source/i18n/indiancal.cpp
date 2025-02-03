@@ -148,10 +148,10 @@ static double gregorianToJD(int32_t year, int32_t month, int32_t date) {
  * Month is 0 based.
  * @param jd The Julian Day
  */
-static int32_t* jdToGregorian(double jd, int32_t gregorianDate[3]) {
+static int32_t* jdToGregorian(double jd, int32_t gregorianDate[3], UErrorCode& status) {
    int32_t gdow;
    Grego::dayToFields(jd - kEpochStartAsJulianDay,
-                      gregorianDate[0], gregorianDate[1], gregorianDate[2], gdow);
+                      gregorianDate[0], gregorianDate[1], gregorianDate[2], gdow, status);
    return gregorianDate;
 }
 
@@ -263,16 +263,17 @@ int32_t IndianCalendar::handleGetExtendedYear(UErrorCode& status) {
  * method is called. The getGregorianXxx() methods return Gregorian
  * calendar equivalents for the given Julian day.
  */
-void IndianCalendar::handleComputeFields(int32_t julianDay, UErrorCode&  /* status */) {
+void IndianCalendar::handleComputeFields(int32_t julianDay, UErrorCode&  status) {
     double jdAtStartOfGregYear;
     int32_t leapMonth, IndianYear, yday, IndianMonth, IndianDayOfMonth, mday;
     int32_t gregorianYear;      // Stores gregorian date corresponding to Julian day;
     int32_t gd[3];
 
-    gregorianYear = jdToGregorian(julianDay, gd)[0];          // Gregorian date for Julian day
+    gregorianYear = jdToGregorian(julianDay, gd, status)[0];          // Gregorian date for Julian day
+    if (U_FAILURE(status)) return;
     IndianYear = gregorianYear - INDIAN_ERA_START;            // Year in Saka era
     jdAtStartOfGregYear = gregorianToJD(gregorianYear, 0, 1); // JD at start of Gregorian year
-    yday = (int32_t)(julianDay - jdAtStartOfGregYear);        // Day number in Gregorian year (starting from 0)
+    yday = static_cast<int32_t>(julianDay - jdAtStartOfGregYear); // Day number in Gregorian year (starting from 0)
 
     if (yday < INDIAN_YEAR_START) {
         // Day is at the end of the preceding Saka year
@@ -290,11 +291,11 @@ void IndianCalendar::handleComputeFields(int32_t julianDay, UErrorCode&  /* stat
     } else {
         mday = yday - leapMonth;
         if (mday < (31 * 5)) {
-            IndianMonth = (int32_t)uprv_floor(mday / 31) + 1;
+            IndianMonth = static_cast<int32_t>(uprv_floor(mday / 31)) + 1;
             IndianDayOfMonth = (mday % 31) + 1;
         } else {
             mday -= 31 * 5;
-            IndianMonth = (int32_t)uprv_floor(mday / 30) + 6;
+            IndianMonth = static_cast<int32_t>(uprv_floor(mday / 30)) + 6;
             IndianDayOfMonth = (mday % 30) + 1;
         }
    }

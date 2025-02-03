@@ -29,25 +29,18 @@ const indexes = (() => {
   function BuildAccessors(type, load_opcode, store_opcode, offset) {
     builder = new WasmModuleBuilder();
     builder.addImportedMemory("i", "mem");
-    const h = 0x80;
-    const m = 0x7f;
-    let offset_bytes = [h|((offset >>> 0) & m),  // LEB encoding of offset
-                        h|((offset >>> 7) & m),
-                        h|((offset >>> 14) & m),
-                        h|((offset >>> 21) & m),
-                        0|((offset >>> 28) & m)];
-    builder.addFunction("load", makeSig([kWasmI32], [type]))
-      .addBody([                         // --
-        kExprLocalGet, 0,                // --
-        load_opcode, 0, ...offset_bytes, // --
-      ])                                 // --
+    builder.addFunction('load', makeSig([kWasmI32], [type]))
+      .addBody([
+        kExprLocalGet, 0,                            // --
+        load_opcode, 0, ...wasmUnsignedLeb(offset),  // --
+      ])                                             // --
       .exportFunc();
-    builder.addFunction("store", makeSig([kWasmI32, type], []))
-      .addBody([                           // --
-        kExprLocalGet, 0,                  // --
-        kExprLocalGet, 1,                  // --
-        store_opcode, 0, ...offset_bytes,  // --
-      ])                                   // --
+    builder.addFunction('store', makeSig([kWasmI32, type], []))
+      .addBody([
+        kExprLocalGet, 0,                             // --
+        kExprLocalGet, 1,                             // --
+        store_opcode, 0, ...wasmUnsignedLeb(offset),  // --
+      ])                                              // --
       .exportFunc();
     let i = builder.instantiate({i: {mem: memory}});
     return {offset: offset, load: i.exports.load, store: i.exports.store};

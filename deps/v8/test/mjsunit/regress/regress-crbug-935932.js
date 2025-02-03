@@ -75,7 +75,7 @@ test(check_v4, true);
   // Test JIT to ensure proper handling if hole is loaded.
   assertTrue(testIn(0, a));
 
-  // Repeat the same testing for access out-of-bounds of the array, but in bounds of it's prototype.
+  // Repeat the same testing for access out-of-bounds of the array, but in bounds of its prototype.
   %ClearFunctionFeedback(testIn);
   %DeoptimizeFunction(testIn);
   %PrepareFunctionForOptimization(testIn);

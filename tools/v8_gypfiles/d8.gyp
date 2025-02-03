@@ -20,6 +20,8 @@
         'v8.gyp:v8_libbase',
         'v8.gyp:v8_libplatform',
         'v8.gyp:generate_bytecode_builtins_list',
+        'v8.gyp:v8_abseil',
+        'v8.gyp:fp16',
       ],
       # Generated source files need this explicitly:
       'include_dirs+': [
@@ -28,15 +30,7 @@
         '<(SHARED_INTERMEDIATE_DIR)',
       ],
       'sources': [
-        '<(V8_ROOT)/src/d8/async-hooks-wrapper.cc',
-        '<(V8_ROOT)/src/d8/async-hooks-wrapper.h',
-        '<(V8_ROOT)/src/d8/d8-console.cc',
-        '<(V8_ROOT)/src/d8/d8-console.h',
-        '<(V8_ROOT)/src/d8/d8-js.cc',
-        '<(V8_ROOT)/src/d8/d8-platforms.cc',
-        '<(V8_ROOT)/src/d8/d8-platforms.h',
-        '<(V8_ROOT)/src/d8/d8.cc',
-        '<(V8_ROOT)/src/d8/d8.h',
+        '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "v8_executable.\\"d8\\".*?sources = ")',
       ],
       'conditions': [
         [ 'want_separate_host_toolset==1', {

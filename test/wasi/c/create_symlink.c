@@ -11,7 +11,7 @@ int main() {
 
   assert(0 == symlink(target, linkpath));
   assert(readlink(linkpath, readlink_result, result_size) ==
-         strlen(target) + 1);
+         strlen(target));
   assert(0 == strcmp(readlink_result, target));
 
   FILE* file = fopen(linkpath, "r");

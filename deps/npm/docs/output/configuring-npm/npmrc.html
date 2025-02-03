@@ -113,6 +113,11 @@ header.title > .description {
     line-height: 1;
 }
 
+header.title .version {
+    font-size: 0.8em;
+    color: #666666;
+}
+
 footer#edit {
     border-top: solid 1px #e1e4e8;
     margin: 3em 0 4em 0;
@@ -136,7 +141,10 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="npmrc">npmrc</h1>
+<h1 id="----npmrc----1110">
+    <span>npmrc</span>
+    <span class="version">@11.1.0</span>
+</h1>
 <span class="description">The npm config files</span>
 </header>
 
@@ -163,7 +171,7 @@ user and global npmrc files.</p>
 <p>All npm config files are an ini-formatted list of <code>key = value</code> parameters.
 Environment variables can be replaced using <code>${VARIABLE_NAME}</code>. For
 example:</p>
-<pre><code class="language-bash">prefix = ${HOME}/.npm-packages
+<pre><code class="language-bash">cache = ${HOME}/.npm-packages
 </code></pre>
 <p>Each of these files is loaded, and config options are resolved in priority
 order.  For example, a setting in the userconfig file would override the
@@ -215,7 +223,7 @@ credentials to the wrong host.</p>
 <li><code>username</code></li>
 <li><code>_password</code></li>
 <li><code>email</code></li>
-<li><code>certfile</code> (path to certificate file)</li>
+<li><code>cafile</code> (path to certificate authority file)</li>
 <li><code>keyfile</code> (path to key file)</li>
 </ul>
 <p>In order to scope these values, they must be prefixed by a URI fragment.
@@ -230,10 +238,13 @@ _authToken=MYTOKEN
 @myorg:registry=https://somewhere-else.com/myorg
 @another:registry=https://somewhere-else.com/another
 //registry.npmjs.org/:_authToken=MYTOKEN
+
 ; would apply to both @myorg and @another
-; //somewhere-else.com/:_authToken=MYTOKEN
+//somewhere-else.com/:_authToken=MYTOKEN
+
 ; would apply only to @myorg
 //somewhere-else.com/myorg/:_authToken=MYTOKEN1
+
 ; would apply only to @another
 //somewhere-else.com/another/:_authToken=MYTOKEN2
 </code></pre>

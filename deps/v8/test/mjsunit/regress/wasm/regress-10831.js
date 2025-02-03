@@ -5,7 +5,7 @@
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 // This test is shrunk from a test case provided at https://crbug.com/v8/10831.
-// This exercises a aligned-load bug in ia32. Some SIMD operations were using
+// This exercises an aligned-load bug in ia32. Some SIMD operations were using
 // instructions that required aligned operands (like movaps and movapd), but we
 // don't have the right memory alignment yet, see https://crbug.com/v8/9198,
 // resulting in a SIGSEGV when running the generated code.

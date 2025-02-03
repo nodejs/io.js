@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -37,4 +37,4 @@
 /* NGTCP2_GRANULARITY is kGranularity described in RFC 9002. */
 #define NGTCP2_GRANULARITY NGTCP2_MILLISECONDS
 
-#endif /* NGTCP2_RCVRY_H */
+#endif /* !defined(NGTCP2_RCVRY_H) */

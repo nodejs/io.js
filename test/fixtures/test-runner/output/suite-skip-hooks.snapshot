@@ -12,7 +12,7 @@ AFTER 2
   ✔ should run 1 (*ms)
   ﹣ should not run (*ms) # SKIP
   ✔ should run 2 (*ms)
-▶ suite runs with mixture of skipped tests (*ms)
+✔ suite runs with mixture of skipped tests (*ms)
 ℹ tests 4
 ℹ suites 2
 ℹ pass 2

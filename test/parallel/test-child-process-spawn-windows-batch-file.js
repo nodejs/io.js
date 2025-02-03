@@ -23,8 +23,8 @@ const expectedCode = isWindows ? 'EINVAL' : 'ENOENT';
 const expectedStatus = isWindows ? 1 : 127;
 
 const suffixes =
-    'BAT bAT BaT baT BAt bAt Bat bat CMD cMD CmD cmD CMd cMd Cmd cmd'
-    .split(' ');
+    'BAT|bAT|BaT|baT|BAt|bAt|Bat|bat|CMD|cMD|CmD|cmD|CMd|cMd|Cmd|cmd|cmd |cmd .|cmd ....'
+    .split('|');
 
 function testExec(filename) {
   return new Promise((resolve) => {

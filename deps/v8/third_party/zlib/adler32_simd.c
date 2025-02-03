@@ -363,4 +363,94 @@ uint32_t ZLIB_INTERNAL adler32_simd_(  /* NEON */
     return s1 | (s2 << 16);
 }
 
+#elif defined(ADLER32_SIMD_RVV)
+#include <riscv_vector.h>
+
+/*
+ * Patch by Simon Hosie, from:
+ *    https://github.com/cloudflare/zlib/pull/55
+ */
+
+uint32_t ZLIB_INTERNAL adler32_simd_(  /* RVV */
+    uint32_t adler,
+    const unsigned char *buf,
+    unsigned long len)
+{
+  size_t vl = __riscv_vsetvlmax_e8m2();
+  const vuint16m4_t zero16 = __riscv_vmv_v_x_u16m4(0, vl);
+  vuint16m4_t a_sum = zero16;
+  vuint32m8_t b_sum = __riscv_vmv_v_x_u32m8(0, vl);
+
+  /* Deal with the part which is not a multiple of vl first; because it's
+   * easier to zero-stuff the beginning of the checksum than it is to tweak the
+   * multipliers and sums for odd lengths afterwards.
+   */
+  size_t head = len & (vl - 1);
+  if (head > 0) {
+    vuint8m2_t zero8 = __riscv_vmv_v_x_u8m2(0, vl);
+    vuint8m2_t in = __riscv_vle8_v_u8m2(buf, vl);
+    in = __riscv_vslideup(zero8, in, vl - head, vl);
+    vuint16m4_t in16 = __riscv_vwcvtu_x(in, vl);
+    a_sum = in16;
+    buf += head;
+  }
+
+  /* We have a 32-bit accumulator, and in each iteration we add 22-times a
+   * 16-bit value, plus another 16-bit value.  We periodically subtract up to
+   * 65535 times BASE to avoid overflow.  b_overflow estimates how often we
+   * need to do this subtraction.
+   */
+  const int b_overflow = BASE / 23;
+  int fixup = b_overflow;
+  ssize_t iters = (len - head) / vl;
+  while (iters > 0) {
+    const vuint16m4_t a_overflow = __riscv_vrsub(a_sum, BASE, vl);
+    int batch = iters < 22 ? iters : 22;
+    iters -= batch;
+    b_sum = __riscv_vwmaccu(b_sum, batch, a_sum, vl);
+    vuint16m4_t a_batch = zero16, b_batch = zero16;
+
+    /* Do a short batch, where neither a_sum nor b_sum can overflow a 16-bit
+     * register.  Then add them back into the main accumulators.
+     */
+    while (batch-- > 0) {
+      vuint8m2_t in8 = __riscv_vle8_v_u8m2(buf, vl);
+      buf += vl;
+      b_batch = __riscv_vadd(b_batch, a_batch, vl);
+      a_batch = __riscv_vwaddu_wv(a_batch, in8, vl);
+    }
+    vbool4_t ov = __riscv_vmsgeu(a_batch, a_overflow, vl);
+    a_sum = __riscv_vadd(a_sum, a_batch, vl);
+    a_sum = __riscv_vadd_mu(ov, a_sum, a_sum, 65536 - BASE, vl);
+    b_sum = __riscv_vwaddu_wv(b_sum, b_batch, vl);
+    if (--fixup <= 0) {
+      b_sum = __riscv_vnmsac(b_sum, BASE, __riscv_vsrl(b_sum, 16, vl), vl);
+      fixup = b_overflow;
+    }
+  }
+  /* Adjust per-lane sums to have appropriate offsets from the end of the
+   * buffer.
+   */
+  const vuint16m4_t off = __riscv_vrsub(__riscv_vid_v_u16m4(vl), vl, vl);
+  vuint16m4_t bsum16 = __riscv_vncvt_x(__riscv_vremu(b_sum, BASE, vl), vl);
+  b_sum = __riscv_vadd(__riscv_vwmulu(a_sum, off, vl),
+                       __riscv_vwmulu(bsum16, vl, vl), vl);
+  bsum16 = __riscv_vncvt_x(__riscv_vremu(b_sum, BASE, vl), vl);
+
+  /* And finally, do a horizontal sum across the registers for the final
+   * result.
+   */
+  uint32_t a = adler & 0xffff;
+  uint32_t b = ((adler >> 16) + a * (len % BASE)) % BASE;
+  vuint32m1_t sca = __riscv_vmv_v_x_u32m1(a, 1);
+  vuint32m1_t scb = __riscv_vmv_v_x_u32m1(b, 1);
+  sca = __riscv_vwredsumu(a_sum, sca, vl);
+  scb = __riscv_vwredsumu(bsum16, scb, vl);
+  a = __riscv_vmv_x(sca);
+  b = __riscv_vmv_x(scb);
+  a %= BASE;
+  b %= BASE;
+  return (b << 16) | a;
+}
+
 #endif  /* ADLER32_SIMD_SSSE3 */

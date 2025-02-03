@@ -235,14 +235,14 @@ TEST(PageBackendTreeTest, AddLookupRemoveMultiple) {
 TEST(PageBackendPoolTest, ConstructorEmpty) {
   v8::base::PageAllocator allocator;
   PageBackend backend(allocator, allocator);
-  auto& pool = backend.get_page_pool_for_testing();
+  auto& pool = backend.page_pool();
   EXPECT_EQ(nullptr, pool.Take());
 }
 
 TEST(PageBackendPoolTest, AddTake) {
   v8::base::PageAllocator allocator;
   PageBackend backend(allocator, allocator);
-  auto& pool = backend.get_page_pool_for_testing();
+  auto& pool = backend.page_pool();
   auto& raw_pool = pool.get_raw_pool_for_testing();
 
   EXPECT_TRUE(raw_pool.empty());
@@ -252,13 +252,85 @@ TEST(PageBackendPoolTest, AddTake) {
   backend.FreeNormalPageMemory(writable_base1,
                                FreeMemoryHandling::kDoNotDiscard);
   EXPECT_FALSE(raw_pool.empty());
-  EXPECT_TRUE(raw_pool[0]);
-  EXPECT_EQ(raw_pool[0]->GetPageMemory().writeable_region().base(),
+  EXPECT_TRUE(raw_pool[0].region);
+  EXPECT_EQ(raw_pool[0].region->GetPageMemory().writeable_region().base(),
             writable_base1);
 
   auto* writable_base2 = backend.TryAllocateNormalPageMemory();
   EXPECT_TRUE(raw_pool.empty());
   EXPECT_EQ(writable_base1, writable_base2);
+}
+
+namespace {
+void AddTakeWithDiscardInBetween(bool decommit_pooled_pages) {
+  v8::base::PageAllocator allocator;
+  PageBackend backend(allocator, allocator);
+  auto& pool = backend.page_pool();
+  pool.SetDecommitPooledPages(decommit_pooled_pages);
+  auto& raw_pool = pool.get_raw_pool_for_testing();
+
+  EXPECT_TRUE(raw_pool.empty());
+  auto* writable_base1 = backend.TryAllocateNormalPageMemory();
+  EXPECT_TRUE(raw_pool.empty());
+  EXPECT_EQ(0u, pool.PooledMemory());
+
+  backend.FreeNormalPageMemory(writable_base1,
+                               FreeMemoryHandling::kDoNotDiscard);
+  EXPECT_FALSE(raw_pool.empty());
+  EXPECT_TRUE(raw_pool[0].region);
+  EXPECT_EQ(raw_pool[0].region->GetPageMemory().writeable_region().base(),
+            writable_base1);
+  size_t size = raw_pool[0].region->GetPageMemory().writeable_region().size();
+  EXPECT_EQ(size, pool.PooledMemory());
+
+  backend.DiscardPooledPages();
+  // Not couting discarded memory.
+  EXPECT_EQ(0u, pool.PooledMemory());
+
+  auto* writable_base2 = backend.TryAllocateNormalPageMemory();
+  EXPECT_TRUE(raw_pool.empty());
+  EXPECT_EQ(0u, pool.PooledMemory());
+  EXPECT_EQ(writable_base1, writable_base2);
+  // Should not die: memory is writable.
+  memset(writable_base2, 12, size);
+}
+}  // namespace
+
+TEST(PageBackendPoolTest, AddTakeWithDiscardInBetween) {
+  AddTakeWithDiscardInBetween(false);
+}
+
+TEST(PageBackendPoolTest, AddTakeWithDiscardInBetweenWithDecommit) {
+  AddTakeWithDiscardInBetween(true);
+}
+
+TEST(PageBackendPoolTest, PoolMemoryAccounting) {
+  v8::base::PageAllocator allocator;
+  PageBackend backend(allocator, allocator);
+  auto& pool = backend.page_pool();
+
+  auto* writable_base1 = backend.TryAllocateNormalPageMemory();
+  auto* writable_base2 = backend.TryAllocateNormalPageMemory();
+  backend.FreeNormalPageMemory(writable_base1,
+                               FreeMemoryHandling::kDoNotDiscard);
+  backend.FreeNormalPageMemory(writable_base2,
+                               FreeMemoryHandling::kDoNotDiscard);
+  size_t normal_page_size = pool.get_raw_pool_for_testing()[0]
+                                .region->GetPageMemory()
+                                .writeable_region()
+                                .size();
+
+  EXPECT_EQ(2 * normal_page_size, pool.PooledMemory());
+  backend.DiscardPooledPages();
+  EXPECT_EQ(0u, pool.PooledMemory());
+
+  auto* writable_base3 = backend.TryAllocateNormalPageMemory();
+  backend.FreeNormalPageMemory(writable_base3,
+                               FreeMemoryHandling::kDoNotDiscard);
+  // One discarded, one not discarded.
+  EXPECT_EQ(normal_page_size, pool.PooledMemory());
+  backend.DiscardPooledPages();
+  EXPECT_EQ(0u, pool.PooledMemory());
 }
 
 TEST(PageBackendTest, AllocateNormalUsesPool) {

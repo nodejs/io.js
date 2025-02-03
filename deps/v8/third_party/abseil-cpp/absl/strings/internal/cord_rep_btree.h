@@ -684,14 +684,14 @@ inline CordRepBtree* CordRepBtree::CopyRaw(size_t new_length) const {
   // except `refcount` is trivially copyable, and the compiler does not
   // efficiently coalesce member-wise copy of these members.
   // See https://gcc.godbolt.org/z/qY8zsca6z
-  // # LINT.IfChange(copy_raw)
+  // LINT.IfChange(copy_raw)
   tree->length = new_length;
   uint8_t* dst = &tree->tag;
   const uint8_t* src = &tag;
   const ptrdiff_t offset = src - reinterpret_cast<const uint8_t*>(this);
   memcpy(dst, src, sizeof(CordRepBtree) - static_cast<size_t>(offset));
   return tree;
-  // # LINT.ThenChange()
+  // LINT.ThenChange()
 }
 
 inline CordRepBtree* CordRepBtree::Copy() const {

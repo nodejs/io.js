@@ -47,7 +47,7 @@ Some tips:
   that name already, before you get too attached to it.
   <https://www.npmjs.com/>
 
-A name can be optionally prefixed by a scope, e.g. `@myorg/mypackage`. See
+A name can be optionally prefixed by a scope, e.g. `@npm/example`. See
 [`scope`](/using-npm/scope) for more detail.
 
 ### version
@@ -80,7 +80,7 @@ The URL to the project homepage.
 Example:
 
 ```json
-"homepage": "https://github.com/owner/project#readme"
+"homepage": "https://github.com/npm/example#readme"
 ```
 
 ### bugs
@@ -94,8 +94,8 @@ It should look like this:
 ```json
 {
   "bugs": {
-    "url": "https://github.com/owner/project/issues",
-    "email": "project@hostname.com"
+    "url": "https://github.com/npm/example/issues",
+    "email": "example@npmjs.com"
   }
 }
 ```
@@ -121,7 +121,7 @@ SPDX license identifier for the license you're using, like this:
 ```
 
 You can check [the full list of SPDX license
-IDs](https://spdx.org/licenses/).  Ideally you should pick one that is
+IDs](https://spdx.org/licenses/).  Ideally, you should pick one that is
 [OSI](https://opensource.org/licenses/) approved.
 
 If your package is licensed under multiple common licenses, use an [SPDX
@@ -204,8 +204,8 @@ like this:
 ```json
 {
   "name" : "Barney Rubble",
-  "email" : "b@rubble.com",
-  "url" : "http://barnyrubble.tumblr.com/"
+  "email" : "barney@npmjs.com",
+  "url" : "http://barnyrubble.npmjs.com/"
 }
 ```
 
@@ -214,7 +214,7 @@ you:
 
 ```json
 {
-  "author": "Barney Rubble <b@rubble.com> (http://barnyrubble.tumblr.com/)"
+  "author": "Barney Rubble <barney@npmjs.com> (http://barnyrubble.npmjs.com/)"
 }
 ```
 
@@ -225,32 +225,44 @@ npm also sets a top-level "maintainers" field with your npm user info.
 ### funding
 
 You can specify an object containing a URL that provides up-to-date
-information about ways to help fund development of your package, or a
-string URL, or an array of these:
+information about ways to help fund development of your package, a
+string URL, or an array of objects and string URLs:
 
 ```json
 {
   "funding": {
     "type" : "individual",
-    "url" : "http://example.com/donate"
-  },
+    "url" : "http://npmjs.com/donate"
+  }
+}
+```
 
+```json
+{
   "funding": {
     "type" : "patreon",
-    "url" : "https://www.patreon.com/my-account"
-  },
+    "url" : "https://www.patreon.com/user"
+  }
+}
+```
 
-  "funding": "http://example.com/donate",
+```json
+{
+  "funding": "http://npmjs.com/donate"
+}
+```
 
+```json
+{
   "funding": [
     {
       "type" : "individual",
-      "url" : "http://example.com/donate"
+      "url" : "http://npmjs.com/donate"
     },
-    "http://example.com/donateAlso",
+    "http://npmjs.com/donate-also",
     {
       "type" : "patreon",
-      "url" : "https://www.patreon.com/my-account"
+      "url" : "https://www.patreon.com/user"
     }
   ]
 }
@@ -258,7 +270,7 @@ string URL, or an array of these:
 
 Users can use the `npm fund` subcommand to list the `funding` URLs of all
 dependencies of their project, direct and indirect. A shortcut to visit
-each funding url is also available when providing the project name such as:
+each funding URL is also available when providing the project name such as:
 `npm fund <projectname>` (when there are multiple URLs, the first one will
 be visited)
 
@@ -312,6 +324,7 @@ Some files are always ignored by default:
   if you wish it to be published)
 * `pnpm-lock.yaml`
 * `yarn.lock`
+* `bun.lockb`
 
 Most of these ignored files can be included specifically if included in
 the `files` globs.  Exceptions to this are:
@@ -322,8 +335,13 @@ the `files` globs.  Exceptions to this are:
 * `package-lock.json`
 * `pnpm-lock.yaml`
 * `yarn.lock`
+* `bun.lockb`
 
 These can not be included.
+
+### exports
+
+The "exports" provides a modern alternative to "main" allowing multiple entry points to be defined, conditional entry resolution support between environments, and preventing any other entry points besides those defined in "exports". This encapsulation allows module authors to clearly define the public interface for their package. For more details see the [node.js documentation on package entry points](https://nodejs.org/api/packages.html#package-entry-points)
 
 ### main
 
@@ -368,7 +386,7 @@ For example, myapp could have this:
 ```json
 {
   "bin": {
-    "myapp": "./cli.js"
+    "myapp": "bin/cli.js"
   }
 }
 ```
@@ -385,7 +403,7 @@ package, then you can just supply it as a string.  For example:
 {
   "name": "my-program",
   "version": "1.2.5",
-  "bin": "./path/to/program"
+  "bin": "path/to/program"
 }
 ```
 
@@ -396,7 +414,7 @@ would be the same as this:
   "name": "my-program",
   "version": "1.2.5",
   "bin": {
-    "my-program": "./path/to/program"
+    "my-program": "path/to/program"
   }
 }
 ```
@@ -497,7 +515,7 @@ walking the folder.
 ### repository
 
 Specify the place where your code lives. This is helpful for people who
-want to contribute.  If the git repo is on GitHub, then the `npm docs`
+want to contribute.  If the git repo is on GitHub, then the `npm repo`
 command will be able to find you.
 
 Do it like this:
@@ -506,7 +524,7 @@ Do it like this:
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/cli.git"
+    "url": "git+https://github.com/npm/cli.git"
   }
 }
 ```
@@ -521,9 +539,9 @@ same shortcut syntax you use for `npm install`:
 
 ```json
 {
-  "repository": "npm/npm",
+  "repository": "npm/example",
 
-  "repository": "github:user/repo",
+  "repository": "github:npm/example",
 
   "repository": "gist:11081aaa281",
 
@@ -541,8 +559,8 @@ which it lives:
 {
   "repository": {
     "type": "git",
-    "url": "https://github.com/facebook/react.git",
-    "directory": "packages/react-dom"
+    "url": "git+https://github.com/npm/cli.git",
+    "directory": "workspaces/libnpmpublish"
   }
 }
 ```
@@ -605,6 +623,7 @@ See [semver](https://github.com/npm/node-semver#versions) for more details about
 * `tag` A specific version tagged and published as `tag`  See [`npm
   dist-tag`](/commands/npm-dist-tag)
 * `path/path/path` See [Local Paths](#local-paths) below
+* `npm:@scope/pkg@version` Custom alias for a package See [`package-spec`](/using-npm/package-spec#aliases)
 
 For example, these are all valid:
 
@@ -616,13 +635,14 @@ For example, these are all valid:
     "baz": ">1.0.2 <=2.3.4",
     "boo": "2.0.1",
     "qux": "<1.0.0 || >=2.3.1 <2.4.5 || >=2.5.2 <3.0.0",
-    "asd": "http://asdf.com/asdf.tar.gz",
+    "asd": "http://npmjs.com/example.tar.gz",
     "til": "~1.2",
     "elf": "~1.2.3",
     "two": "2.x",
     "thr": "3.3.x",
     "lat": "latest",
-    "dyl": "file:../dyl"
+    "dyl": "file:../dyl",
+    "kpg": "npm:pkg@1.0.0"
   }
 }
 ```
@@ -694,7 +714,7 @@ included.  For example:
   "dependencies": {
     "express": "expressjs/express",
     "mocha": "mochajs/mocha#4727d357ea",
-    "module": "user/repo#feature\/branch"
+    "module": "npm/example-github-repo#feature\/branch"
   }
 }
 ```
@@ -753,7 +773,7 @@ For example:
 
 ```json
 {
-  "name": "ethopia-waza",
+  "name": "@npm/ethopia-waza",
   "description": "a delightfully fruity coffee varietal",
   "version": "1.2.3",
   "devDependencies": {
@@ -783,21 +803,21 @@ For example:
 
 ```json
 {
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x"
+    "@npm/tea": "2.x"
   }
 }
 ```
 
-This ensures your package `tea-latte` can be installed *along* with the
-second major version of the host package `tea` only. `npm install
+This ensures your package `@npm/tea-latte` can be installed *along* with the
+second major version of the host package `@npm/tea` only. `npm install
 tea-latte` could possibly yield the following dependency graph:
 
 ```bash
-├── tea-latte@1.3.5
-└── tea@2.2.0
+├── @npm/tea-latte@1.3.5
+└── @npm/tea@2.2.0
 ```
 
 In npm versions 3 through 6, `peerDependencies` were not automatically
@@ -818,34 +838,30 @@ to express this. If you depend on features introduced in 1.5.2, use
 
 ### peerDependenciesMeta
 
-When a user installs your package, npm will emit warnings if packages
-specified in `peerDependencies` are not already installed. The
-`peerDependenciesMeta` field serves to provide npm more information on how
+The `peerDependenciesMeta` field serves to provide npm more information on how
 your peer dependencies are to be used. Specifically, it allows peer
-dependencies to be marked as optional.
+dependencies to be marked as optional. Npm will not automatically install
+optional peer dependencies. This allows you to
+integrate and interact with a variety of host packages without requiring
+all of them to be installed.
 
 For example:
 
 ```json
 {
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x",
-    "soy-milk": "1.2"
+    "@npm/tea": "2.x",
+    "@npm/soy-milk": "1.2"
   },
   "peerDependenciesMeta": {
-    "soy-milk": {
+    "@npm/soy-milk": {
       "optional": true
     }
   }
 }
 ```
-
-Marking a peer dependency as optional ensures npm will not emit a warning
-if the `soy-milk` package is not installed on the host. This allows you to
-integrate and interact with a variety of host packages without requiring
-all of them to be installed.
 
 ### bundleDependencies
 
@@ -863,17 +879,17 @@ If we define a package.json like this:
 
 ```json
 {
-  "name": "awesome-web-framework",
+  "name": "@npm/awesome-web-framework",
   "version": "1.0.0",
   "bundleDependencies": [
-    "renderized",
-    "super-streams"
+    "@npm/renderized",
+    "@npm/super-streams"
   ]
 }
 ```
 
-we can obtain `awesome-web-framework-1.0.0.tgz` file by running `npm pack`.
-This file contains the dependencies `renderized` and `super-streams` which
+we can obtain `@npm/awesome-web-framework-1.0.0.tgz` file by running `npm pack`.
+This file contains the dependencies `@npm/renderized` and `@npm/super-streams` which
 can be installed in a new project by executing `npm install
 awesome-web-framework-1.0.0.tgz`.  Note that the package names do not
 include any versions, as that information is specified in `dependencies`.
@@ -898,8 +914,8 @@ dependency.  For example, something like this:
 
 ```js
 try {
-  var foo = require('foo')
-  var fooVersion = require('foo/package.json').version
+  var foo = require('@npm/foo')
+  var fooVersion = require('@npm/foo/package.json').version
 } catch (er) {
   foo = null
 }
@@ -928,55 +944,62 @@ Overrides provide a way to replace a package in your dependency tree with
 another version, or another package entirely. These changes can be scoped as
 specific or as vague as desired.
 
+Overrides are only considered in the root `package.json` file for a project.
+Overrides in installed dependencies (including
+[workspaces](/using-npm/workspaces)) are not considered in dependency tree
+resolution. Published packages may dictate their resolutions by pinning
+dependencies or using an
+[`npm-shrinkwrap.json`](/configuring-npm/npm-shrinkwrap-json) file.
+
 To make sure the package `foo` is always installed as version `1.0.0` no matter
 what version your dependencies rely on:
 
 ```json
 {
   "overrides": {
-    "foo": "1.0.0"
+    "@npm/foo": "1.0.0"
   }
 }
 ```
 
 The above is a short hand notation, the full object form can be used to allow
 overriding a package itself as well as a child of the package. This will cause
-`foo` to always be `1.0.0` while also making `bar` at any depth beyond `foo`
+`@npm/foo` to always be `1.0.0` while also making `@npm/bar` at any depth beyond `@npm/foo`
 also `1.0.0`:
 
 ```json
 {
   "overrides": {
-    "foo": {
+    "@npm/foo": {
       ".": "1.0.0",
-      "bar": "1.0.0"
+      "@npm/bar": "1.0.0"
     }
   }
 }
 ```
 
-To only override `foo` to be `1.0.0` when it's a child (or grandchild, or great
+To only override `@npm/foo` to be `1.0.0` when it's a child (or grandchild, or great
 grandchild, etc) of the package `bar`:
 
 ```json
 {
   "overrides": {
-    "bar": {
-      "foo": "1.0.0"
+    "@npm/bar": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
 ```
 
-Keys can be nested to any arbitrary length. To override `foo` only when it's a
-child of `bar` and only when `bar` is a child of `baz`:
+Keys can be nested to any arbitrary length. To override `@npm/foo` only when it's a
+child of `@npm/bar` and only when `@npm/bar` is a child of `@npm/baz`:
 
 ```json
 {
   "overrides": {
-    "baz": {
-      "bar": {
-        "foo": "1.0.0"
+    "@npm/baz": {
+      "@npm/bar": {
+        "@npm/foo": "1.0.0"
       }
     }
   }
@@ -984,13 +1007,13 @@ child of `bar` and only when `bar` is a child of `baz`:
 ```
 
 The key of an override can also include a version, or range of versions.
-To override `foo` to `1.0.0`, but only when it's a child of `bar@2.0.0`:
+To override `@npm/foo` to `1.0.0`, but only when it's a child of `@npm/bar@2.0.0`:
 
 ```json
 {
   "overrides": {
-    "bar@2.0.0": {
-      "foo": "1.0.0"
+    "@npm/bar@2.0.0": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
@@ -1005,7 +1028,7 @@ package you wish the version to match with a `$`.
 ```json
 {
   "dependencies": {
-    "foo": "^1.0.0"
+    "@npm/foo": "^1.0.0"
   },
   "overrides": {
     // BAD, will throw an EOVERRIDE error
@@ -1013,9 +1036,9 @@ package you wish the version to match with a `$`.
     // GOOD, specs match so override is allowed
     // "foo": "^1.0.0"
     // BEST, the override is defined as a reference to the dependency
-    "foo": "$foo",
+    "@npm/foo": "$foo",
     // the referenced package does not need to match the overridden one
-    "bar": "$foo"
+    "@npm/bar": "$foo"
   }
 }
 ```
@@ -1107,6 +1130,44 @@ Like the `os` option, you can also block architectures:
 ```
 
 The host architecture is determined by `process.arch`
+
+### libc
+
+If your code only runs or builds in certain versions of libc, you can
+specify which ones.  This field only applies if `os` is `linux`.
+
+```json
+{
+  "os": "linux",
+  "libc": "glibc"
+}
+```
+
+### devEngines
+
+The `devEngines` field aids engineers working on a codebase to all be using the same tooling.
+
+You can specify a `devEngines` property in your `package.json` which will run before `install`, `ci`, and `run` commands.
+
+> Note: `engines` and `devEngines` differ in object shape. They also function very differently. `engines` is designed to alert the user when a dependency uses a differening npm or node version that the project it's being used in, whereas `devEngines` is used to alert people interacting with the source code of a project.
+
+The supported keys under the `devEngines` property are `cpu`, `os`, `libc`, `runtime`, and `packageManager`. Each property can be an object or an array of objects. Objects must contain `name`, and optionally can specify `version`, and `onFail`. `onFail` can be `warn`, `error`, or `ignore`, and if left undefined is of the same value as `error`. `npm` will assume that you're running with `node`.
+Here's an example of a project that will fail if the environment is not `node` and `npm`. If you set `runtime.name` or `packageManager.name` to any other string, it will fail within the npm CLI.
+
+```json
+{
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "onFail": "error"
+    }
+  }
+}
+```
 
 ### private
 

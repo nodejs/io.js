@@ -174,7 +174,7 @@ isPNJConsonant(UChar32 c) {
     if (c < 0xa00 || 0xa50 <= c) {
         return false;
     } else {
-        return (UBool)(pnjMap[c - 0xa00] & 1);
+        return pnjMap[c - 0xa00] & 1;
     }
 }
 
@@ -183,7 +183,7 @@ isPNJBindiTippi(UChar32 c) {
     if (c < 0xa00 || 0xa50 <= c) {
         return false;
     } else {
-        return (UBool)(pnjMap[c - 0xa00] >> 1);
+        return pnjMap[c - 0xa00] >> 1;
     }
 }
 U_CDECL_BEGIN
@@ -1484,7 +1484,7 @@ UConverter_toUnicode_ISCII_OFFSETS_LOGIC(UConverterToUnicodeArgs *args, UErrorCo
                  */
                 *err = U_INVALID_CHAR_FOUND;
 CALLBACK:
-                args->converter->toUBytes[0] = (uint8_t) sourceChar;
+                args->converter->toUBytes[0] = sourceChar;
                 args->converter->toULength = 1;
                 break;
             }

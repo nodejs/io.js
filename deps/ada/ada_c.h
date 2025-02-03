@@ -151,6 +151,8 @@ ada_string ada_search_params_get(ada_url_search_params result, const char* key,
                                  size_t key_length);
 ada_strings ada_search_params_get_all(ada_url_search_params result,
                                       const char* key, size_t key_length);
+void ada_search_params_reset(ada_url_search_params result, const char* input,
+                             size_t length);
 ada_url_search_params_keys_iter ada_search_params_get_keys(
     ada_url_search_params result);
 ada_url_search_params_values_iter ada_search_params_get_values(

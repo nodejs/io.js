@@ -10,8 +10,7 @@
 #include <string>
 #include "defs.h"
 
-namespace node {
-namespace quic {
+namespace node::quic {
 
 // PreferredAddress is a helper class used only when a client Session receives
 // an advertised preferred address from a server. The helper provides
@@ -67,8 +66,7 @@ class PreferredAddress final {
   const ngtcp2_preferred_addr* paddr_;
 };
 
-}  // namespace quic
-}  // namespace node
+}  // namespace node::quic
 
 #endif  // HAVE_OPENSSL && NODE_OPENSSL_HAS_QUIC
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS

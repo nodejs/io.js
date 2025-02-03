@@ -544,7 +544,7 @@ StrSplit(strings_internal::ConvertibleToStringView text, Delimiter d,
       typename strings_internal::SelectDelimiter<Delimiter>::type;
   return strings_internal::Splitter<DelimiterType, Predicate,
                                     absl::string_view>(
-      text.value(), DelimiterType(d), std::move(p));
+      text.value(), DelimiterType(std::move(d)), std::move(p));
 }
 
 template <typename Delimiter, typename Predicate, typename StringType,

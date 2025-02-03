@@ -1,114 +1,87 @@
-const EE = require('events')
-const fs = require('fs')
-const log = require('./log-shim')
+const EE = require('node:events')
+const fs = require('node:fs')
+const { log, time } = require('proc-log')
 
-// This is an event emiiter but on/off
-// only listen on a single internal event that gets
-// emitted whenever a timer ends
+const INITIAL_TIMER = 'npm'
+
 class Timers extends EE {
-  file = null
+  #file
+  #timing
 
   #unfinished = new Map()
   #finished = {}
-  #onTimeEnd = Symbol('onTimeEnd')
-  #initialListener = null
-  #initialTimer = null
 
-  constructor ({ listener = null, start = 'npm' } = {}) {
+  constructor () {
     super()
-    this.#initialListener = listener
-    this.#initialTimer = start
-    this.#init()
-  }
-
-  get unfinished () {
-    return this.#unfinished
-  }
-
-  get finished () {
-    return this.#finished
-  }
-
-  #init () {
     this.on()
-    if (this.#initialListener) {
-      this.on(this.#initialListener)
-    }
-    process.emit('time', this.#initialTimer)
-    this.started = this.#unfinished.get(this.#initialTimer)
+    time.start(INITIAL_TIMER)
+    this.started = this.#unfinished.get(INITIAL_TIMER)
   }
 
-  on (listener) {
-    if (listener) {
-      super.on(this.#onTimeEnd, listener)
-    } else {
-      process.on('time', this.#timeListener)
-      process.on('timeEnd', this.#timeEndListener)
-    }
+  on () {
+    process.on('time', this.#timeHandler)
   }
 
-  off (listener) {
-    if (listener) {
-      super.off(this.#onTimeEnd, listener)
-    } else {
-      this.removeAllListeners(this.#onTimeEnd)
-      process.off('time', this.#timeListener)
-      process.off('timeEnd', this.#timeEndListener)
-    }
+  off () {
+    process.off('time', this.#timeHandler)
   }
 
-  time (name, fn) {
-    process.emit('time', name)
-    const end = () => process.emit('timeEnd', name)
-    if (typeof fn === 'function') {
-      const res = fn()
-      return res && res.finally ? res.finally(end) : (end(), res)
-    }
-    return end
+  load ({ path, timing } = {}) {
+    this.#timing = timing
+    this.#file = `${path}timing.json`
   }
 
-  load ({ path } = {}) {
-    if (path) {
-      this.file = `${path}timing.json`
-    }
-  }
+  finish (metadata) {
+    time.end(INITIAL_TIMER)
 
-  writeFile (metadata) {
-    if (!this.file) {
+    for (const [name, timer] of this.#unfinished) {
+      log.silly('unfinished npm timer', name, timer)
+    }
+
+    if (!this.#timing) {
+      // Not in timing mode, nothing else to do here
       return
     }
 
     try {
-      const globalStart = this.started
-      const globalEnd = this.#finished.npm || Date.now()
-      const content = {
-        metadata,
-        timers: this.#finished,
-        // add any unfinished timers with their relative start/end
-        unfinishedTimers: [...this.#unfinished.entries()].reduce((acc, [name, start]) => {
-          acc[name] = [start - globalStart, globalEnd - globalStart]
-          return acc
-        }, {}),
-      }
-      fs.writeFileSync(this.file, JSON.stringify(content) + '\n')
+      this.#writeFile(metadata)
+      log.info('timing', `Timing info written to: ${this.#file}`)
     } catch (e) {
-      this.file = null
       log.warn('timing', `could not write timing file: ${e}`)
     }
   }
 
-  #timeListener = (name) => {
-    this.#unfinished.set(name, Date.now())
+  #writeFile (metadata) {
+    const globalStart = this.started
+    const globalEnd = this.#finished[INITIAL_TIMER]
+    const content = {
+      metadata,
+      timers: this.#finished,
+      // add any unfinished timers with their relative start/end
+      unfinishedTimers: [...this.#unfinished.entries()].reduce((acc, [name, start]) => {
+        acc[name] = [start - globalStart, globalEnd - globalStart]
+        return acc
+      }, {}),
+    }
+    fs.writeFileSync(this.#file, JSON.stringify(content) + '\n')
   }
 
-  #timeEndListener = (name) => {
-    if (this.#unfinished.has(name)) {
-      const ms = Date.now() - this.#unfinished.get(name)
-      this.#finished[name] = ms
-      this.#unfinished.delete(name)
-      this.emit(this.#onTimeEnd, name, ms)
-    } else {
-      log.silly('timing', "Tried to end timer that doesn't exist:", name)
+  #timeHandler = (level, name) => {
+    const now = Date.now()
+    switch (level) {
+      case time.KEYS.start:
+        this.#unfinished.set(name, now)
+        break
+      case time.KEYS.end: {
+        if (this.#unfinished.has(name)) {
+          const ms = now - this.#unfinished.get(name)
+          this.#finished[name] = ms
+          this.#unfinished.delete(name)
+          log.timing(name, `Completed in ${ms}ms`)
+        } else {
+          log.silly('timing', `Tried to end timer that doesn't exist: ${name}`)
+        }
+      }
     }
   }
 }

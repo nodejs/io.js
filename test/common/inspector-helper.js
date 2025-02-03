@@ -6,7 +6,7 @@ const http = require('http');
 const fixtures = require('../common/fixtures');
 const { spawn } = require('child_process');
 const { URL, pathToFileURL } = require('url');
-const { EventEmitter } = require('events');
+const { EventEmitter, once } = require('events');
 
 const _MAINSCRIPT = fixtures.path('loop.js');
 const DEBUG = false;
@@ -255,8 +255,8 @@ class InspectorSession {
       const callFrame = message.params.callFrames[0];
       const location = callFrame.location;
       const scriptPath = this._scriptsIdsByUrl.get(location.scriptId);
-      assert.strictEqual(scriptPath.toString(),
-                         expectedScriptPath.toString(),
+      assert.strictEqual(decodeURIComponent(scriptPath),
+                         decodeURIComponent(expectedScriptPath),
                          `${scriptPath} !== ${expectedScriptPath}`);
       assert.strictEqual(location.lineNumber, line);
       return true;
@@ -269,6 +269,14 @@ class InspectorSession {
         (notification) =>
           this._isBreakOnLineNotification(notification, line, url),
         `break on ${url}:${line}`);
+  }
+
+  waitForPauseOnStart() {
+    return this
+      .waitForNotification(
+        (notification) =>
+          notification.method === 'Debugger.paused' && notification.params.reason === 'Break on start',
+        'break on start');
   }
 
   pausedDetails() {
@@ -309,6 +317,10 @@ class InspectorSession {
       return notification.method === 'Runtime.executionContextDestroyed' &&
         notification.params.executionContextId === 1;
     });
+    await this.waitForDisconnect();
+  }
+
+  async waitForDisconnect() {
     while ((await this._instance.nextStderrString()) !==
               'Waiting for the debugger to disconnect...');
     await this.disconnect();
@@ -532,6 +544,33 @@ function fires(promise, error, timeoutMs) {
   ]);
 }
 
+/**
+ * When waiting for inspector events, there might be no handles on the event
+ * loop, and leads to process exits.
+ *
+ * This function provides a utility to wait until a inspector event for a certain
+ * time.
+ */
+function waitUntil(session, eventName, timeout = 1000) {
+  const resolvers = Promise.withResolvers();
+  const timer = setTimeout(() => {
+    resolvers.reject(new Error(`Wait for inspector event ${eventName} timed out`));
+  }, timeout);
+
+  once(session, eventName)
+    .then((res) => {
+      resolvers.resolve(res);
+      clearTimeout(timer);
+    }, (error) => {
+      // This should never happen.
+      resolvers.reject(error);
+      clearTimeout(timer);
+    });
+
+  return resolvers.promise;
+}
+
 module.exports = {
   NodeInstance,
+  waitUntil,
 };

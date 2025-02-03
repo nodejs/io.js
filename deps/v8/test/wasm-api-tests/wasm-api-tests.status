@@ -14,12 +14,4 @@
   '*': [SKIP],  # only relevant for mjsunit tests.
 }],
 
-################################################################################
-['third_party_heap', {
-  # Requires a second isolate
-  'WasmCapiTest.InstanceFinalization': [SKIP],
-  'WasmCapiTest.MultiStoresOneThread': [SKIP],
-  'WasmCapiTest.Threads': [SKIP],
-}], # third_party_heap
-
 ]

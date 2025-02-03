@@ -7,8 +7,8 @@
 
 #include <atomic>
 #include <memory>
+#include <optional>
 
-#include "src/base/optional.h"
 #include "src/base/platform/time.h"
 
 namespace heap::base {
@@ -97,7 +97,7 @@ class V8_EXPORT_PRIVATE IncrementalMarkingSchedule final {
   // Returns the step info for the current step. This function is most useful
   // after calling `GetNextIncrementalStepDuration()` to report scheduling
   // details.
-  const StepInfo GetCurrentStepInfo() const;
+  StepInfo GetCurrentStepInfo() const;
 
   // Returns whether locally cached ephemerons should be flushed and made
   // available globally. Will only return true once every
@@ -117,7 +117,7 @@ class V8_EXPORT_PRIVATE IncrementalMarkingSchedule final {
  private:
   static constexpr double kEphemeronPairsFlushingRatioIncrements = 0.25;
 
-  IncrementalMarkingSchedule(size_t minimum_marked_bytes_per_step,
+  IncrementalMarkingSchedule(size_t min_marked_bytes_per_step,
                              bool predictable_schedule);
 
   v8::base::TimeDelta GetElapsedTime();
@@ -130,7 +130,7 @@ class V8_EXPORT_PRIVATE IncrementalMarkingSchedule final {
   StepInfo current_step_;
   const size_t min_marked_bytes_per_step_;
   const bool predictable_schedule_ = false;
-  v8::base::Optional<v8::base::TimeDelta> elapsed_time_override_;
+  std::optional<v8::base::TimeDelta> elapsed_time_override_;
 };
 
 }  // namespace heap::base

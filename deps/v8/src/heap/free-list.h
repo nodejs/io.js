@@ -5,10 +5,12 @@
 #ifndef V8_HEAP_FREE_LIST_H_
 #define V8_HEAP_FREE_LIST_H_
 
+#include <atomic>
+
 #include "src/base/macros.h"
 #include "src/common/globals.h"
 #include "src/heap/allocation-result.h"
-#include "src/heap/memory-chunk.h"
+#include "src/heap/mutable-page-metadata.h"
 #include "src/objects/free-space.h"
 #include "src/objects/map.h"
 #include "src/utils/utils.h"
@@ -26,9 +28,9 @@ class AllocationObserver;
 class FreeList;
 class Isolate;
 class LargeObjectSpace;
-class LargePage;
+class LargePageMetadata;
 class LinearAllocationArea;
-class Page;
+class PageMetadata;
 class PagedSpace;
 class SemiSpace;
 
@@ -154,7 +156,8 @@ class FreeList {
       size_t size_in_bytes, size_t* node_size, AllocationOrigin origin) = 0;
 
   // Returns a page containing an entry for a given type, or nullptr otherwise.
-  V8_EXPORT_PRIVATE virtual Page* GetPageForSize(size_t size_in_bytes) = 0;
+  V8_EXPORT_PRIVATE virtual PageMetadata* GetPageForSize(
+      size_t size_in_bytes) = 0;
 
   virtual void Reset();
 
@@ -168,16 +171,22 @@ class FreeList {
   void IncreaseAvailableBytes(size_t bytes) { available_ += bytes; }
   void DecreaseAvailableBytes(size_t bytes) { available_ -= bytes; }
 
-  size_t wasted_bytes() const { return wasted_bytes_; }
-  void increase_wasted_bytes(size_t bytes) { wasted_bytes_ += bytes; }
-  void decrease_wasted_bytes(size_t bytes) { wasted_bytes_ -= bytes; }
+  size_t wasted_bytes() const {
+    return wasted_bytes_.load(std::memory_order_relaxed);
+  }
+  void increase_wasted_bytes(size_t bytes) {
+    wasted_bytes_.fetch_add(bytes, std::memory_order_relaxed);
+  }
+  void decrease_wasted_bytes(size_t bytes) {
+    wasted_bytes_.fetch_sub(bytes, std::memory_order_relaxed);
+  }
 
   inline bool IsEmpty();
 
   // Used after booting the VM.
   void RepairLists(Heap* heap);
 
-  V8_EXPORT_PRIVATE size_t EvictFreeListItems(Page* page);
+  V8_EXPORT_PRIVATE void EvictFreeListItems(PageMetadata* page);
 
   int number_of_categories() { return number_of_categories_; }
   FreeListCategoryType last_category() { return last_category_; }
@@ -252,7 +261,7 @@ class FreeList {
     return categories_[type];
   }
 
-  inline Page* GetPageForCategoryType(FreeListCategoryType type);
+  inline PageMetadata* GetPageForCategoryType(FreeListCategoryType type);
 
   const int number_of_categories_ = 0;
   const FreeListCategoryType last_category_ = 0;
@@ -264,12 +273,12 @@ class FreeList {
   size_t available_ = 0;
   // Number of wasted bytes in this free list that are not available for
   // allocation.
-  size_t wasted_bytes_ = 0;
+  std::atomic<size_t> wasted_bytes_ = 0;
 
   friend class FreeListCategory;
-  friend class Page;
-  friend class MemoryChunk;
-  friend class ReadOnlyPage;
+  friend class PageMetadata;
+  friend class MutablePageMetadata;
+  friend class ReadOnlyPageMetadata;
   friend class MapSpace;
 };
 
@@ -281,7 +290,7 @@ class FreeList {
 // consumption should be lower (since fragmentation should be lower).
 class V8_EXPORT_PRIVATE FreeListMany : public FreeList {
  public:
-  Page* GetPageForSize(size_t size_in_bytes) override;
+  PageMetadata* GetPageForSize(size_t size_in_bytes) override;
 
   FreeListMany();
   ~FreeListMany() override;
@@ -295,7 +304,7 @@ class V8_EXPORT_PRIVATE FreeListMany : public FreeList {
 
   // This is a conservative upper bound. The actual maximum block size takes
   // padding and alignment of data and code pages into account.
-  static constexpr size_t kMaxBlockSize = MemoryChunk::kPageSize;
+  static constexpr size_t kMaxBlockSize = MutablePageMetadata::kPageSize;
   // Largest size for which categories are still precise, and for which we can
   // therefore compute the category in constant time.
   static constexpr size_t kPreciseCategoryMaxSize = 256;

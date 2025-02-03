@@ -6,7 +6,7 @@ import("//third_party/abseil-cpp/absl.gni")
 
 absl_source_set("atomic_hook") {
   public = [ "internal/atomic_hook.h" ]
-  public_deps = [
+  deps = [
     ":config",
     ":core_headers",
   ]
@@ -15,14 +15,14 @@ absl_source_set("atomic_hook") {
 
 absl_source_set("errno_saver") {
   public = [ "internal/errno_saver.h" ]
-  public_deps = [ ":config" ]
+  deps = [ ":config" ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
 
 absl_source_set("log_severity") {
   sources = [ "log_severity.cc" ]
   public = [ "log_severity.h" ]
-  public_deps = [
+  deps = [
     ":config",
     ":core_headers",
   ]
@@ -30,13 +30,17 @@ absl_source_set("log_severity") {
 
 absl_source_set("no_destructor") {
   public = [ "no_destructor.h" ]
-  deps = [ ":config" ]
+  deps = [
+    ":config",
+    ":nullability",
+  ]
 }
 
 absl_source_set("nullability") {
   sources = [ "internal/nullability_impl.h" ]
   public = [ "nullability.h" ]
   deps = [
+    ":config",
     ":core_headers",
     "//third_party/abseil-cpp/absl/meta:type_traits",
   ]
@@ -45,14 +49,17 @@ absl_source_set("nullability") {
 absl_source_set("raw_logging_internal") {
   sources = [ "internal/raw_logging.cc" ]
   public = [ "internal/raw_logging.h" ]
-  public_deps = [
+  deps = [
     ":atomic_hook",
     ":config",
     ":core_headers",
     ":errno_saver",
     ":log_severity",
   ]
-  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+  visibility = [
+    "//third_party/abseil-cpp:absl_component_deps",
+    "//third_party/abseil-cpp/absl/*",
+  ]
 }
 
 absl_source_set("spinlock_wait") {
@@ -97,7 +104,10 @@ absl_source_set("dynamic_annotations") {
 
   # Abseil's dynamic annotations are only visible inside Abseil because
   # their usage is deprecated in Chromium (see README.chromium for more info).
-  visibility = [ "//third_party/abseil-cpp/absl/*" ]
+  visibility = [
+    "//third_party/abseil-cpp:absl_component_deps",
+    "//third_party/abseil-cpp/absl/*",
+  ]
   deps = [
     ":config",
     ":core_headers",
@@ -113,7 +123,7 @@ absl_source_set("core_headers") {
     "port.h",
     "thread_annotations.h",
   ]
-  public_deps = [ ":config" ]
+  deps = [ ":config" ]
 }
 
 absl_source_set("malloc_internal") {
@@ -122,7 +132,7 @@ absl_source_set("malloc_internal") {
     "internal/direct_mmap.h",
     "internal/low_level_alloc.h",
   ]
-  public_deps = [
+  deps = [
     ":base",
     ":base_internal",
     ":config",
@@ -140,7 +150,7 @@ absl_source_set("base_internal") {
     "internal/invoke.h",
     "internal/scheduling_mode.h",
   ]
-  public_deps = [
+  deps = [
     ":config",
     "//third_party/abseil-cpp/absl/meta:type_traits",
   ]
@@ -171,7 +181,7 @@ absl_source_set("base") {
   # TODO(mbonadei): The bazel file has:
   #   "-DEFAULTLIB:advapi32.lib"
   # understand if this is needed here as well.
-  public_deps = [
+  deps = [
     ":atomic_hook",
     ":base_internal",
     ":config",
@@ -186,10 +196,20 @@ absl_source_set("base") {
   ]
 }
 
+# This should be an executable() more than a test.
+# It cannot be enabled because it defines its own main() function.
+# absl_test("c_header_test") {
+#   sources = ["c_header_test.c"]
+#   deps = [
+#     ":config",
+#     ":core_headers",
+#   ]
+# }
+
 absl_source_set("throw_delegate") {
   sources = [ "internal/throw_delegate.cc" ]
   public = [ "internal/throw_delegate.h" ]
-  public_deps = [
+  deps = [
     ":config",
     ":raw_logging_internal",
   ]
@@ -199,7 +219,7 @@ absl_source_set("throw_delegate") {
 absl_source_set("exception_testing") {
   testonly = true
   public = [ "internal/exception_testing.h" ]
-  public_deps = [ ":config" ]
+  deps = [ ":config" ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
 
@@ -253,7 +273,7 @@ absl_source_set("endian") {
     "internal/endian.h",
     "internal/unaligned_access.h",
   ]
-  public_deps = [
+  deps = [
     ":base",
     ":config",
     ":core_headers",
@@ -265,16 +285,18 @@ absl_source_set("scoped_set_env") {
   testonly = true
   public = [ "internal/scoped_set_env.h" ]
   sources = [ "internal/scoped_set_env.cc" ]
-  public_deps = [ ":config" ]
-  deps = [ ":raw_logging_internal" ]
+  deps = [
+    ":config",
+    ":raw_logging_internal",
+  ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
 
 absl_source_set("strerror") {
   sources = [ "internal/strerror.cc" ]
   public = [ "internal/strerror.h" ]
-  public_deps = [ ":config" ]
   deps = [
+    ":config",
     ":core_headers",
     ":errno_saver",
   ]
@@ -283,7 +305,7 @@ absl_source_set("strerror") {
 
 absl_source_set("fast_type_id") {
   public = [ "internal/fast_type_id.h" ]
-  public_deps = [ ":config" ]
+  deps = [ ":config" ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
 
@@ -298,6 +320,47 @@ absl_source_set("prefetch") {
 absl_test("prefetch_test") {
   sources = [ "prefetch_test.cc" ]
   deps = [ ":prefetch" ]
+}
+
+absl_source_set("poison") {
+  public = [ "internal/poison.h" ]
+  sources = [ "internal/poison.cc" ]
+  deps = [
+    ":config",
+    ":core_headers",
+    ":malloc_internal",
+  ]
+}
+
+absl_test("poison_test") {
+  sources = [ "internal/poison_test.cc" ]
+  deps = [
+    ":config",
+    ":poison",
+  ]
+}
+
+absl_source_set("tracing_internal") {
+  public = [ "internal/tracing.h" ]
+  sources = [ "internal/tracing.cc" ]
+  deps = [
+    ":config",
+    ":core_headers",
+  ]
+}
+
+absl_test("tracing_internal_weak_test") {
+  sources = [ "internal/tracing_weak_test.cc" ]
+  deps = [ ":tracing_internal" ]
+}
+
+absl_test("tracing_internal_strong_test") {
+  sources = [ "internal/tracing_strong_test.cc" ]
+  deps = [
+    ":config",
+    ":core_headers",
+    ":tracing_internal",
+  ]
 }
 
 absl_test("config_test") {
@@ -323,4 +386,9 @@ absl_test("nullability_test") {
     ":core_headers",
     ":nullability",
   ]
+}
+
+absl_test("nullability_default_nonnull_test") {
+  sources = [ "nullability_default_nonnull_test.cc" ]
+  deps = [ ":nullability" ]
 }

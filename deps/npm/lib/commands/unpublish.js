@@ -2,18 +2,17 @@ const libaccess = require('libnpmaccess')
 const libunpub = require('libnpmpublish').unpublish
 const npa = require('npm-package-arg')
 const pacote = require('pacote')
+const { output, log } = require('proc-log')
 const pkgJson = require('@npmcli/package-json')
-
 const { flatten } = require('@npmcli/config/lib/definitions')
 const getIdentity = require('../utils/get-identity.js')
-const log = require('../utils/log-shim')
-const otplease = require('../utils/otplease.js')
+const { otplease } = require('../utils/auth.js')
+const BaseCommand = require('../base-cmd.js')
 
 const LAST_REMAINING_VERSION_ERROR = 'Refusing to delete the last version of the package. ' +
 'It will block from republishing a new version for 24 hours.\n' +
 'Run with --force to do this.'
 
-const BaseCommand = require('../base-command.js')
 class Unpublish extends BaseCommand {
   static description = 'Remove a package from the registry'
   static name = 'unpublish'
@@ -161,7 +160,7 @@ class Unpublish extends BaseCommand {
       await otplease(this.npm, opts, o => libunpub(spec, o))
     }
     if (!silent) {
-      this.npm.output(`- ${spec.name}${pkgVersion}`)
+      output.standard(`- ${spec.name}${pkgVersion}`)
     }
   }
 
@@ -173,4 +172,5 @@ class Unpublish extends BaseCommand {
     }
   }
 }
+
 module.exports = Unpublish

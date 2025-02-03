@@ -21,13 +21,17 @@ const tmpdir = require('../common/tmpdir');
 const testfile = tmpdir.resolve('test-file-backed-blob.txt');
 const testfile2 = tmpdir.resolve('test-file-backed-blob2.txt');
 const testfile3 = tmpdir.resolve('test-file-backed-blob3.txt');
+const testfile4 = tmpdir.resolve('test-file-backed-blob4.txt');
+const testfile5 = tmpdir.resolve('test-file-backed-blob5.txt');
 tmpdir.refresh();
 
 const data = `${'a'.repeat(1000)}${'b'.repeat(2000)}`;
 
 writeFileSync(testfile, data);
-writeFileSync(testfile2, data.repeat(100));
-writeFileSync(testfile3, '');
+writeFileSync(testfile2, data);
+writeFileSync(testfile3, data.repeat(100));
+writeFileSync(testfile4, '');
+writeFileSync(testfile5, '');
 
 (async () => {
   const blob = await openAsBlob(testfile);
@@ -69,7 +73,7 @@ writeFileSync(testfile3, '');
 
 (async () => {
   // Refs: https://github.com/nodejs/node/issues/47683
-  const blob = await openAsBlob(testfile);
+  const blob = await openAsBlob(testfile2);
   const res = blob.slice(10, 20);
   const ab = await res.arrayBuffer();
   strictEqual(res.size, ab.byteLength);
@@ -82,43 +86,55 @@ writeFileSync(testfile3, '');
 
   const res1 = blob.slice(995, 1005);
   strictEqual(await res1.text(), data.slice(995, 1005));
-})().then(common.mustCall());
 
-(async () => {
-  const blob = await openAsBlob(testfile2);
-  const stream = blob.stream();
-  const read = async () => {
-    // eslint-disable-next-line no-unused-vars
-    for await (const _ of stream) {
-      writeFileSync(testfile2, data + 'abc');
-    }
-  };
-
-  await rejects(read(), { name: 'NotReadableError' });
+  // Refs: https://github.com/nodejs/node/issues/53908
+  for (const res2 of [
+    blob.slice(995, 1005).slice(),
+    blob.slice(995).slice(0, 10),
+    blob.slice(0, 1005).slice(995),
+  ]) {
+    strictEqual(await res2.text(), data.slice(995, 1005));
+  }
 
   await unlink(testfile2);
 })().then(common.mustCall());
 
 (async () => {
   const blob = await openAsBlob(testfile3);
-  strictEqual(blob.size, 0);
-  strictEqual(await blob.text(), '');
-  writeFileSync(testfile3, 'abc');
-  await rejects(blob.text(), { name: 'NotReadableError' });
+  const stream = blob.stream();
+  const read = async () => {
+    // eslint-disable-next-line no-unused-vars
+    for await (const _ of stream) {
+      writeFileSync(testfile3, data + 'abc');
+    }
+  };
+
+  await rejects(read(), { name: 'NotReadableError' });
+
   await unlink(testfile3);
 })().then(common.mustCall());
 
 (async () => {
-  const blob = await openAsBlob(testfile3);
+  const blob = await openAsBlob(testfile4);
   strictEqual(blob.size, 0);
-  writeFileSync(testfile3, 'abc');
-  const stream = blob.stream();
-  const reader = stream.getReader();
-  await rejects(() => reader.read(), { name: 'NotReadableError' });
+  strictEqual(await blob.text(), '');
+  writeFileSync(testfile4, 'abc');
+  await rejects(blob.text(), { name: 'NotReadableError' });
+  await unlink(testfile4);
 })().then(common.mustCall());
 
 (async () => {
-  // We currently do not allow File-backed blobs to be cloned or transfered
+  const blob = await openAsBlob(testfile5);
+  strictEqual(blob.size, 0);
+  writeFileSync(testfile5, 'abc');
+  const stream = blob.stream();
+  const reader = stream.getReader();
+  await rejects(() => reader.read(), { name: 'NotReadableError' });
+  await unlink(testfile5);
+})().then(common.mustCall());
+
+(async () => {
+  // We currently do not allow File-backed blobs to be cloned or transferred
   // across worker threads. This is largely because the underlying FdEntry
   // is bound to the Environment/Realm under which is was created.
   const blob = await openAsBlob(__filename);

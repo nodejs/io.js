@@ -46,26 +46,32 @@ the environment of other processes is visible on certain platforms
 
 =item B<file:>I<pathname>
 
-The first line of I<pathname> is the password. If the same I<pathname>
-argument is supplied to B<-passin> and B<-passout> arguments then the first
-line will be used for the input password and the next line for the output
-password. I<pathname> need not refer to a regular file: it could for example
-refer to a device or named pipe.
+Reads the password from the specified file I<pathname>, which can be a regular
+file, device, or named pipe. Only the first line, up to the newline character,
+is read from the stream.
+
+If the same I<pathname> argument is supplied to both B<-passin> and B<-passout>
+arguments, the first line will be used for the input password, and the next
+line will be used for the output password.
 
 =item B<fd:>I<number>
 
-Read the password from the file descriptor I<number>. This can be used to
-send the data via a pipe for example.
+Reads the password from the file descriptor I<number>. This can be useful for
+sending data via a pipe, for example. The same line handling as described for
+B<file:> applies to passwords read from file descriptors.
+
+B<fd:> is not supported on Windows.
 
 =item B<stdin>
 
-Read the password from standard input.
+Reads the password from standard input. The same line handling as described for
+B<file:> applies to passwords read from standard input.
 
 =back
 
 =head1 COPYRIGHT
 
-Copyright 2000-2020 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2000-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

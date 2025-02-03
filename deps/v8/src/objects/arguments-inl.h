@@ -22,7 +22,6 @@ namespace internal {
 TQ_OBJECT_CONSTRUCTORS_IMPL(JSArgumentsObject)
 TQ_OBJECT_CONSTRUCTORS_IMPL(AliasedArgumentsEntry)
 
-CAST_ACCESSOR(SloppyArgumentsElements)
 OBJECT_CONSTRUCTORS_IMPL(SloppyArgumentsElements, FixedArrayBase)
 
 ACCESSORS_NOCAGE(SloppyArgumentsElements, context, Tagged<Context>,

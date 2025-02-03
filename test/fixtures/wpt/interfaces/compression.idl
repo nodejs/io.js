@@ -1,7 +1,7 @@
 // GENERATED CONTENT - DO NOT EDIT
 // Content was automatically extracted by Reffy into webref
 // (https://github.com/w3c/webref)
-// Source: Compression Streams (https://wicg.github.io/compression/)
+// Source: Compression Standard (https://compression.spec.whatwg.org/)
 
 enum CompressionFormat {
   "deflate",

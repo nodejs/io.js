@@ -1,9 +1,9 @@
 const columns = require('cli-columns')
 const libteam = require('libnpmteam')
+const { output } = require('proc-log')
+const { otplease } = require('../utils/auth.js')
 
-const otplease = require('../utils/otplease.js')
-
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 class Team extends BaseCommand {
   static description = 'Manage organization teams and team memberships'
   static name = 'team'
@@ -68,87 +68,88 @@ class Team extends BaseCommand {
   async create (entity, opts) {
     await libteam.create(entity, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify({
+      output.buffer({
         created: true,
         team: entity,
-      }))
+      })
     } else if (opts.parseable) {
-      this.npm.output(`${entity}\tcreated`)
+      output.standard(`${entity}\tcreated`)
     } else if (!this.npm.silent) {
-      this.npm.output(`+@${entity}`)
+      output.standard(`+@${entity}`)
     }
   }
 
   async destroy (entity, opts) {
     await libteam.destroy(entity, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify({
+      output.buffer({
         deleted: true,
         team: entity,
-      }))
+      })
     } else if (opts.parseable) {
-      this.npm.output(`${entity}\tdeleted`)
+      output.standard(`${entity}\tdeleted`)
     } else if (!this.npm.silent) {
-      this.npm.output(`-@${entity}`)
+      output.standard(`-@${entity}`)
     }
   }
 
   async add (entity, user, opts) {
     await libteam.add(user, entity, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify({
+      output.buffer({
         added: true,
         team: entity,
         user,
-      }))
+      })
     } else if (opts.parseable) {
-      this.npm.output(`${user}\t${entity}\tadded`)
+      output.standard(`${user}\t${entity}\tadded`)
     } else if (!this.npm.silent) {
-      this.npm.output(`${user} added to @${entity}`)
+      output.standard(`${user} added to @${entity}`)
     }
   }
 
   async rm (entity, user, opts) {
     await libteam.rm(user, entity, opts)
     if (opts.json) {
-      this.npm.output(JSON.stringify({
+      output.buffer({
         removed: true,
         team: entity,
         user,
-      }))
+      })
     } else if (opts.parseable) {
-      this.npm.output(`${user}\t${entity}\tremoved`)
+      output.standard(`${user}\t${entity}\tremoved`)
     } else if (!this.npm.silent) {
-      this.npm.output(`${user} removed from @${entity}`)
+      output.standard(`${user} removed from @${entity}`)
     }
   }
 
   async listUsers (entity, opts) {
     const users = (await libteam.lsUsers(entity, opts)).sort()
     if (opts.json) {
-      this.npm.output(JSON.stringify(users, null, 2))
+      output.buffer(users)
     } else if (opts.parseable) {
-      this.npm.output(users.join('\n'))
+      output.standard(users.join('\n'))
     } else if (!this.npm.silent) {
       const plural = users.length === 1 ? '' : 's'
       const more = users.length === 0 ? '' : ':\n'
-      this.npm.output(`\n@${entity} has ${users.length} user${plural}${more}`)
-      this.npm.output(columns(users, { padding: 1 }))
+      output.standard(`\n@${entity} has ${users.length} user${plural}${more}`)
+      output.standard(columns(users, { padding: 1 }))
     }
   }
 
   async listTeams (entity, opts) {
     const teams = (await libteam.lsTeams(entity, opts)).sort()
     if (opts.json) {
-      this.npm.output(JSON.stringify(teams, null, 2))
+      output.buffer(teams)
     } else if (opts.parseable) {
-      this.npm.output(teams.join('\n'))
+      output.standard(teams.join('\n'))
     } else if (!this.npm.silent) {
       const plural = teams.length === 1 ? '' : 's'
       const more = teams.length === 0 ? '' : ':\n'
-      this.npm.output(`\n@${entity} has ${teams.length} team${plural}${more}`)
-      this.npm.output(columns(teams.map(t => `@${t}`), { padding: 1 }))
+      output.standard(`\n@${entity} has ${teams.length} team${plural}${more}`)
+      output.standard(columns(teams.map(t => `@${t}`), { padding: 1 }))
     }
   }
 }
+
 module.exports = Team

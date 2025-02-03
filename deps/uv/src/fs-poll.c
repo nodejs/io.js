@@ -139,6 +139,9 @@ int uv_fs_poll_getpath(uv_fs_poll_t* handle, char* buffer, size_t* size) {
   struct poll_ctx* ctx;
   size_t required_len;
 
+  if (buffer == NULL || size == NULL || *size == 0)
+    return UV_EINVAL;
+
   if (!uv_is_active((uv_handle_t*)handle)) {
     *size = 0;
     return UV_EINVAL;

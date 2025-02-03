@@ -24,7 +24,7 @@ const common = require('../common');
 const assert = require('assert');
 
 const spawn = require('child_process').spawn;
-const python = process.env.PYTHON || 'python';
+const python = process.env.PYTHON || (common.isWindows ? 'python' : 'python3');
 
 const SIZE = 1000 * 1024;
 const N = 40;

@@ -62,15 +62,6 @@ cat > "$BASE_DIR/src/acorn_version.h" <<EOF
 #endif  // SRC_ACORN_VERSION_H_
 EOF
 
-echo "All done!"
-echo ""
-echo "Please git add acorn, commit the new version:"
-echo ""
-echo "$ git add -A deps/acorn/acorn"
-echo "$ git add $BASE_DIR/src/acorn_version.h"
-echo "$ git commit -m \"deps: update acorn to $NEW_VERSION\""
-echo ""
-
 # Update the version number on maintaining-dependencies.md
 # and print the new version as the last line of the script as we need
 # to add it to $GITHUB_ENV variable

@@ -15,7 +15,8 @@ void WorkerPermission::Apply(Environment* env,
   deny_all_ = true;
 }
 
-bool WorkerPermission::is_granted(PermissionScope perm,
+bool WorkerPermission::is_granted(Environment* env,
+                                  PermissionScope perm,
                                   const std::string_view& param) const {
   return deny_all_ == false;
 }

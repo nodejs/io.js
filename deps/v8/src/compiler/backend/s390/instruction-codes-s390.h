@@ -127,6 +127,7 @@ namespace compiler {
   V(S390_DoubleToFloat32)                   \
   V(S390_DoubleExtractLowWord32)            \
   V(S390_DoubleExtractHighWord32)           \
+  V(S390_DoubleFromWord32Pair)              \
   V(S390_DoubleInsertLowWord32)             \
   V(S390_DoubleInsertHighWord32)            \
   V(S390_DoubleConstruct)                   \

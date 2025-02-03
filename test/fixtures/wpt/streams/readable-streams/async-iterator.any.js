@@ -475,14 +475,84 @@ promise_test(async () => {
   const rs = new ReadableStream();
   const it = rs.values();
 
-  const iterResults = await Promise.allSettled([it.return('return value'), it.next()]);
+  const resolveOrder = [];
+  const iterResults = await Promise.allSettled([
+    it.return('return value').then(result => {
+      resolveOrder.push('return');
+      return result;
+    }),
+    it.next().then(result => {
+      resolveOrder.push('next');
+      return result;
+    })
+  ]);
 
   assert_equals(iterResults[0].status, 'fulfilled', 'return() promise status');
   assert_iter_result(iterResults[0].value, 'return value', true, 'return()');
 
   assert_equals(iterResults[1].status, 'fulfilled', 'next() promise status');
   assert_iter_result(iterResults[1].value, undefined, true, 'next()');
+
+  assert_array_equals(resolveOrder, ['return', 'next'], 'next() resolves after return()');
 }, 'return(); next() [no awaiting]');
+
+promise_test(async () => {
+  let resolveCancelPromise;
+  const rs = recordingReadableStream({
+    cancel(reason) {
+      return new Promise(r => resolveCancelPromise = r);
+    }
+  });
+  const it = rs.values();
+
+  let returnResolved = false;
+  const returnPromise = it.return('return value').then(result => {
+    returnResolved = true;
+    return result;
+  });
+  await flushAsyncEvents();
+  assert_false(returnResolved, 'return() should not resolve while cancel() promise is pending');
+
+  resolveCancelPromise();
+  const iterResult1 = await returnPromise;
+  assert_iter_result(iterResult1, 'return value', true, 'return()');
+
+  const iterResult2 = await it.next();
+  assert_iter_result(iterResult2, undefined, true, 'next()');
+}, 'return(); next() with delayed cancel()');
+
+promise_test(async () => {
+  let resolveCancelPromise;
+  const rs = recordingReadableStream({
+    cancel(reason) {
+      return new Promise(r => resolveCancelPromise = r);
+    }
+  });
+  const it = rs.values();
+
+  const resolveOrder = [];
+  const returnPromise = it.return('return value').then(result => {
+    resolveOrder.push('return');
+    return result;
+  });
+  const nextPromise = it.next().then(result => {
+    resolveOrder.push('next');
+    return result;
+  });
+
+  assert_array_equals(rs.events, ['cancel', 'return value'], 'return() should call cancel()');
+  assert_array_equals(resolveOrder, [], 'return() should not resolve before cancel() resolves');
+
+  resolveCancelPromise();
+  const iterResult1 = await returnPromise;
+  assert_iter_result(iterResult1, 'return value', true, 'return() should resolve with original reason');
+  const iterResult2 = await nextPromise;
+  assert_iter_result(iterResult2, undefined, true, 'next() should resolve with done result');
+
+  assert_array_equals(rs.events, ['cancel', 'return value'], 'no pull() after cancel()');
+  assert_array_equals(resolveOrder, ['return', 'next'], 'next() should resolve after return() resolves');
+
+}, 'return(); next() with delayed cancel() [no awaiting]');
 
 promise_test(async () => {
   const rs = new ReadableStream();
@@ -499,13 +569,25 @@ promise_test(async () => {
   const rs = new ReadableStream();
   const it = rs.values();
 
-  const iterResults = await Promise.allSettled([it.return('return value 1'), it.return('return value 2')]);
+  const resolveOrder = [];
+  const iterResults = await Promise.allSettled([
+    it.return('return value 1').then(result => {
+      resolveOrder.push('return 1');
+      return result;
+    }),
+    it.return('return value 2').then(result => {
+      resolveOrder.push('return 2');
+      return result;
+    })
+  ]);
 
   assert_equals(iterResults[0].status, 'fulfilled', '1st return() promise status');
   assert_iter_result(iterResults[0].value, 'return value 1', true, '1st return()');
 
   assert_equals(iterResults[1].status, 'fulfilled', '2nd return() promise status');
   assert_iter_result(iterResults[1].value, 'return value 2', true, '1st return()');
+
+  assert_array_equals(resolveOrder, ['return 1', 'return 2'], '2nd return() resolves after 1st return()');
 }, 'return(); return() [no awaiting]');
 
 test(() => {

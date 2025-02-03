@@ -119,7 +119,7 @@ int32_t ulocbld_buildLocaleID(ULocaleBuilder* builder,
     }
     icu::Locale l = INTERNAL(builder)->build(*err);
     if (U_FAILURE(*err)) { return 0; }
-    int32_t length = (int32_t)(uprv_strlen(l.getName()));
+    int32_t length = static_cast<int32_t>(uprv_strlen(l.getName()));
     if (0 < length && length <= bufferCapacity) {
         uprv_memcpy(buffer, l.getName(), length);
     }

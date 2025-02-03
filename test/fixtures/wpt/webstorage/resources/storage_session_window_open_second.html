@@ -1,0 +1,41 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>WebStorage Test: sessionStorage - second page</title>
+</head>
+<body>
+<script>
+
+var storage = window.sessionStorage;
+
+var assertions = [];
+
+assertions.push({
+    actual: storage.getItem("FOO"),
+    expected: "BAR",
+    message: "storage.getItem('FOO')"
+});
+
+storage.setItem("FOO", "BAR-NEWWINDOW");
+
+assertions.push({
+    actual: storage.getItem("FOO"),
+    expected: "BAR-NEWWINDOW",
+    message: "value for FOO after changing"
+});
+assertions.push({
+    actual: window.opener.sessionStorage.getItem("FOO"),
+    expected: "BAR",
+    message: "value for FOO in my opening window"
+});
+assertions.push({
+    actual: storage.getItem("BAZ"),
+    expected: null,
+    message: "value for BAZ set after window.open(), is not set in new window"
+});
+
+window.opener.postMessage(assertions, '*');
+
+</script>
+</body>
+</html>

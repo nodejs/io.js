@@ -159,7 +159,11 @@ TEST_F(PerThreadSemTest, Timeouts) {
   const absl::Duration elapsed = absl::Now() - start;
   // Allow for a slight early return, to account for quality of implementation
   // issues on various platforms.
-  const absl::Duration slop = absl::Milliseconds(1);
+  absl::Duration slop = absl::Milliseconds(1);
+#ifdef _MSC_VER
+  // Use higher slop on MSVC due to flaky test failures.
+  slop = absl::Milliseconds(16);
+#endif
   EXPECT_LE(delay - slop, elapsed)
       << "Wait returned " << delay - elapsed
       << " early (with " << slop << " slop), start time was " << start;

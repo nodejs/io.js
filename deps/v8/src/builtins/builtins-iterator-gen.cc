@@ -4,6 +4,8 @@
 
 #include "src/builtins/builtins-iterator-gen.h"
 
+#include <optional>
+
 #include "src/builtins/builtins-collections-gen.h"
 #include "src/builtins/builtins-string-gen.h"
 #include "src/builtins/builtins-utils-gen.h"
@@ -15,6 +17,8 @@
 
 namespace v8 {
 namespace internal {
+
+#include "src/codegen/define-code-stub-assembler-macros.inc"
 
 using IteratorRecord = TorqueStructIteratorRecord;
 
@@ -61,7 +65,7 @@ IteratorRecord IteratorBuiltinsAssembler::GetIterator(TNode<Context> context,
 
 TNode<JSReceiver> IteratorBuiltinsAssembler::IteratorStep(
     TNode<Context> context, const IteratorRecord& iterator, Label* if_done,
-    base::Optional<TNode<Map>> fast_iterator_result_map) {
+    std::optional<TNode<Map>> fast_iterator_result_map) {
   DCHECK_NOT_NULL(if_done);
   // 1. a. Let result be ? Invoke(iterator, "next", « »).
   TNode<Object> result = Call(context, iterator.next, iterator.object);
@@ -89,7 +93,7 @@ TNode<JSReceiver> IteratorBuiltinsAssembler::IteratorStep(
 
 void IteratorBuiltinsAssembler::IteratorComplete(
     TNode<Context> context, const TNode<HeapObject> iterator, Label* if_done,
-    base::Optional<TNode<Map>> fast_iterator_result_map) {
+    std::optional<TNode<Map>> fast_iterator_result_map) {
   DCHECK_NOT_NULL(if_done);
 
   Label return_result(this);
@@ -124,7 +128,7 @@ void IteratorBuiltinsAssembler::IteratorComplete(
 
 TNode<Object> IteratorBuiltinsAssembler::IteratorValue(
     TNode<Context> context, TNode<JSReceiver> result,
-    base::Optional<TNode<Map>> fast_iterator_result_map) {
+    std::optional<TNode<Map>> fast_iterator_result_map) {
   Label exit(this);
   TVARIABLE(Object, var_value);
   if (fast_iterator_result_map) {
@@ -532,6 +536,8 @@ TF_BUILTIN(IterableToFixedArrayWithSymbolLookupSlow,
   TailCallBuiltin(Builtin::kIterableToFixedArray, context, iterable,
                   iterator_fn);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

@@ -5,8 +5,8 @@
 type SourceTextModuleInfo extends FixedArray;
 
 bitfield struct SourceTextModuleFlags extends uint31 {
-  async: bool: 1 bit;
-  async_evaluating_ordinal: uint32: 30 bit;
+  has_toplevel_await: bool: 1 bit;
+  async_evaluation_ordinal: uint32: 30 bit;
 }
 
 extern class SourceTextModule extends Module {
@@ -47,6 +47,14 @@ extern class SourceTextModule extends Module {
   flags: SmiTagged<SourceTextModuleFlags>;
 }
 
+type ModuleImportPhase extends uint32 constexpr 'ModuleImportPhase';
+bitfield struct ModuleRequestFlags extends uint31 {
+  // Phase of the module request.
+  phase: ModuleImportPhase: 1 bit;
+  // Source text position of the module request.
+  position: uint32: 30 bit;
+}
+
 extern class ModuleRequest extends Struct {
   specifier: String;
 
@@ -54,8 +62,7 @@ extern class ModuleRequest extends Struct {
   // [key1, value1, location1, key2, value2, location2, ...]
   import_attributes: FixedArray;
 
-  // Source text position of the module request
-  position: Smi;
+  flags: SmiTagged<ModuleRequestFlags>;
 }
 
 extern class SourceTextModuleInfoEntry extends Struct {

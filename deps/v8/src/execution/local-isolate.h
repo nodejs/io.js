@@ -5,6 +5,8 @@
 #ifndef V8_EXECUTION_LOCAL_ISOLATE_H_
 #define V8_EXECUTION_LOCAL_ISOLATE_H_
 
+#include <optional>
+
 #include "src/base/macros.h"
 #include "src/execution/shared-mutex-guard-if-off-thread.h"
 #include "src/execution/thread-id.h"
@@ -106,10 +108,7 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
   void RegisterDeserializerFinished();
   bool has_active_deserializer() const;
 
-  template <typename T>
-  Handle<T> Throw(Handle<Object> exception) {
-    UNREACHABLE();
-  }
+  void Throw(Tagged<Object> exception) { UNREACHABLE(); }
   [[noreturn]] void FatalProcessOutOfHeapMemory(const char* location) {
     UNREACHABLE();
   }
@@ -156,7 +155,10 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
   int NextOptimizationId() { return isolate_->NextOptimizationId(); }
 
   template <typename Callback>
-  V8_INLINE void BlockMainThreadWhileParked(Callback callback);
+  V8_INLINE void ExecuteMainThreadWhileParked(Callback callback);
+
+  template <typename Callback>
+  V8_INLINE void ParkIfOnBackgroundAndExecute(Callback callback);
 
 #ifdef V8_INTL_SUPPORT
   // WARNING: This might be out-of-sync with the main-thread.
@@ -166,6 +168,7 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
  private:
   friend class v8::internal::LocalFactory;
   friend class LocalIsolateFactory;
+  friend class IsolateForPointerCompression;
   friend class IsolateForSandbox;
 
   // See IsolateForSandbox.
@@ -186,7 +189,7 @@ class V8_EXPORT_PRIVATE LocalIsolate final : private HiddenLocalFactory {
   bigint::Processor* bigint_processor_{nullptr};
 
 #ifdef V8_RUNTIME_CALL_STATS
-  base::Optional<WorkerThreadRuntimeCallStatsScope> rcs_scope_;
+  std::optional<WorkerThreadRuntimeCallStatsScope> rcs_scope_;
   RuntimeCallStats* runtime_call_stats_;
 #endif
 #ifdef V8_INTL_SUPPORT
@@ -208,7 +211,7 @@ class V8_NODISCARD SharedMutexGuardIfOffThread<LocalIsolate, kIsShared> final {
       delete;
 
  private:
-  base::Optional<base::SharedMutexGuard<kIsShared>> mutex_guard_;
+  std::optional<base::SharedMutexGuard<kIsShared>> mutex_guard_;
 };
 
 }  // namespace internal

@@ -40,6 +40,7 @@ directories.
 * `_cli.R`: parses the command line arguments passed to `compare.R`
 * `_http-benchmarkers.js`: selects and runs external tools for benchmarking
   the `http` subsystem.
+* `bar.R`: R script for visualizing the output of benchmarks with bar plots.
 * `common.js`: see [Common API](#common-api).
 * `compare.js`: command line tool for comparing performance between different
   Node.js binaries.

@@ -140,9 +140,9 @@ cc_library(
     deps = [
         ":distributions",
         ":mocking_bit_gen",
-        "//absl/meta:type_traits",
+        "//absl/base:config",
         "//absl/random/internal:mock_overload_set",
-        "@com_google_googletest//:gtest",
+        "//absl/random/internal:mock_validators",
     ],
 )
 
@@ -154,15 +154,13 @@ cc_library(
     ],
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
-        ":distributions",
         ":random",
+        "//absl/base:config",
+        "//absl/base:core_headers",
         "//absl/base:fast_type_id",
         "//absl/container:flat_hash_map",
         "//absl/meta:type_traits",
-        "//absl/random/internal:distribution_caller",
-        "//absl/strings",
-        "//absl/types:span",
-        "//absl/types:variant",
+        "//absl/random/internal:mock_helpers",
         "//absl/utility",
         "@com_google_googletest//:gtest",
     ],
@@ -223,6 +221,8 @@ cc_test(
     deps = [
         ":distributions",
         ":random",
+        "//absl/meta:type_traits",
+        "//absl/numeric:int128",
         "//absl/random/internal:distribution_test_util",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
@@ -474,6 +474,7 @@ cc_test(
 cc_test(
     name = "mock_distributions_test",
     size = "small",
+    timeout = "moderate",
     srcs = ["mock_distributions_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS,
@@ -481,9 +482,11 @@ cc_test(
         "no_test_wasm",
     ],
     deps = [
+        ":distributions",
         ":mock_distributions",
         ":mocking_bit_gen",
         ":random",
+        "//absl/numeric:int128",
         "@com_google_googletest//:gtest",
         "@com_google_googletest//:gtest_main",
     ],

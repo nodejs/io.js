@@ -23,7 +23,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toDSSEBundle = exports.toMessageSignatureBundle = void 0;
+exports.toMessageSignatureBundle = toMessageSignatureBundle;
+exports.toDSSEBundle = toDSSEBundle;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -44,7 +45,7 @@ const util_1 = require("../util");
 // Helper functions for assembling the parts of a Sigstore bundle
 // Message signature bundle - $case: 'messageSignature'
 function toMessageSignatureBundle(artifact, signature) {
-    const digest = util_1.crypto.hash(artifact.data);
+    const digest = util_1.crypto.digest('sha256', artifact.data);
     return sigstore.toMessageSignatureBundle({
         digest,
         signature: signature.signature,
@@ -52,11 +53,11 @@ function toMessageSignatureBundle(artifact, signature) {
             ? util_1.pem.toDER(signature.key.certificate)
             : undefined,
         keyHint: signature.key.$case === 'publicKey' ? signature.key.hint : undefined,
+        certificateChain: true,
     });
 }
-exports.toMessageSignatureBundle = toMessageSignatureBundle;
 // DSSE envelope bundle - $case: 'dsseEnvelope'
-function toDSSEBundle(artifact, signature, singleCertificate) {
+function toDSSEBundle(artifact, signature, certificateChain) {
     return sigstore.toDSSEBundle({
         artifact: artifact.data,
         artifactType: artifact.type,
@@ -65,7 +66,6 @@ function toDSSEBundle(artifact, signature, singleCertificate) {
             ? util_1.pem.toDER(signature.key.certificate)
             : undefined,
         keyHint: signature.key.$case === 'publicKey' ? signature.key.hint : undefined,
-        singleCertificate,
+        certificateChain,
     });
 }
-exports.toDSSEBundle = toDSSEBundle;

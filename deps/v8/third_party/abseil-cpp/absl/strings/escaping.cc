@@ -21,6 +21,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <utility>
 
 #include "absl/base/config.h"
 #include "absl/base/internal/raw_logging.h"
@@ -969,25 +970,27 @@ std::string WebSafeBase64Escape(absl::string_view src) {
 
 bool HexStringToBytes(absl::string_view hex,
                       absl::Nonnull<std::string*> bytes) {
+  std::string output;
+
   size_t num_bytes = hex.size() / 2;
-  bytes->clear();
   if (hex.size() != num_bytes * 2) {
     return false;
   }
 
-  absl::strings_internal::STLStringResizeUninitialized(bytes, num_bytes);
+  absl::strings_internal::STLStringResizeUninitialized(&output, num_bytes);
   auto hex_p = hex.cbegin();
-  for (std::string::iterator bin_p = bytes->begin();
-       bin_p != bytes->end(); ++bin_p) {
+  for (std::string::iterator bin_p = output.begin(); bin_p != output.end();
+       ++bin_p) {
     int h1 = absl::kHexValueStrict[static_cast<size_t>(*hex_p++)];
     int h2 = absl::kHexValueStrict[static_cast<size_t>(*hex_p++)];
     if (h1 == -1 || h2 == -1) {
-      bytes->resize(static_cast<size_t>(bin_p - bytes->begin()));
+      output.resize(static_cast<size_t>(bin_p - output.begin()));
       return false;
     }
     *bin_p = static_cast<char>((h1 << 4) + h2);
   }
 
+  *bytes = std::move(output);
   return true;
 }
 

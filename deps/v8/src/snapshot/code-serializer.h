@@ -92,7 +92,7 @@ class CodeSerializer : public Serializer {
   V8_WARN_UNUSED_RESULT static MaybeHandle<SharedFunctionInfo>
   FinishOffThreadDeserialize(
       Isolate* isolate, OffThreadDeserializeData&& data,
-      AlignedCachedData* cached_data, Handle<String> source,
+      AlignedCachedData* cached_data, DirectHandle<String> source,
       const ScriptDetails& script_details,
       BackgroundMergeTask* background_merge_task = nullptr);
 
@@ -152,7 +152,7 @@ class SerializedCodeData : public SerializedData {
 
   base::Vector<const uint8_t> Payload() const;
 
-  static uint32_t SourceHash(Handle<String> source,
+  static uint32_t SourceHash(DirectHandle<String> source,
                              ScriptOriginOptions origin_options);
 
  private:

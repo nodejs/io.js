@@ -81,9 +81,30 @@
 //   }
 //
 // The layout we used above combines fixed-size with dynamically-sized fields.
-// This is quite common. Layout is optimized for this use case and generates
-// optimal code. All computations that can be performed at compile time are
-// indeed performed at compile time.
+// This is quite common. Layout is optimized for this use case and attempts to
+// generate optimal code. To help the compiler do that in more cases, you can
+// specify the fixed sizes using `WithStaticSizes`. This ensures that all
+// computations that can be performed at compile time are indeed performed at
+// compile time. Note that sometimes the `template` keyword is needed. E.g.:
+//
+//   using SL = L::template WithStaticSizes<1, 1>;
+//
+//   void Use(unsigned char* p) {
+//     // First, extract N and M.
+//     // Using `prefix` we can access the first three arrays but not more.
+//     //
+//     // More details: The first element always has offset 0. `SL`
+//     // has offsets for the second and third array based on sizes of
+//     // the first and second array, specified via `WithStaticSizes`.
+//     constexpr auto prefix = SL::Partial();
+//     size_t n = *prefix.Pointer<0>(p);
+//     size_t m = *prefix.Pointer<1>(p);
+//
+//     // Now we can get a pointer to the final payload.
+//     const SL layout(n, m);
+//     double* a = layout.Pointer<double>(p);
+//     int* b = layout.Pointer<int>(p);
+//   }
 //
 // Efficiency tip: The order of fields matters. In `Layout<T1, ..., TN>` try to
 // ensure that `alignof(T1) >= ... >= alignof(TN)`. This way you'll have no
@@ -107,7 +128,7 @@
 //     CompactString(const char* s = "") {
 //       const size_t size = strlen(s);
 //       // size_t[1] followed by char[size + 1].
-//       const L layout(1, size + 1);
+//       const L layout(size + 1);
 //       p_.reset(new unsigned char[layout.AllocSize()]);
 //       // If running under ASAN, mark the padding bytes, if any, to catch
 //       // memory errors.
@@ -125,14 +146,13 @@
 //
 //     const char* c_str() const {
 //       // Equivalent to reinterpret_cast<char*>(p.get() + sizeof(size_t)).
-//       // The argument in Partial(1) specifies that we have size_t[1] in front
-//       // of the characters.
-//       return L::Partial(1).Pointer<char>(p_.get());
+//       return L::Partial().Pointer<char>(p_.get());
 //     }
 //
 //    private:
-//     // Our heap allocation contains a size_t followed by an array of chars.
-//     using L = Layout<size_t, char>;
+//     // Our heap allocation contains a single size_t followed by an array of
+//     // chars.
+//     using L = Layout<size_t, char>::WithStaticSizes<1>;
 //     std::unique_ptr<unsigned char[]> p_;
 //   };
 //
@@ -146,11 +166,12 @@
 //
 // The interface exported by this file consists of:
 // - class `Layout<>` and its public members.
-// - The public members of class `internal_layout::LayoutImpl<>`. That class
-//   isn't intended to be used directly, and its name and template parameter
-//   list are internal implementation details, but the class itself provides
-//   most of the functionality in this file. See comments on its members for
-//   detailed documentation.
+// - The public members of classes `internal_layout::LayoutWithStaticSizes<>`
+//   and `internal_layout::LayoutImpl<>`. Those classes aren't intended to be
+//   used directly, and their name and template parameter list are internal
+//   implementation details, but the classes themselves provide most of the
+//   functionality in this file. See comments on their members for detailed
+//   documentation.
 //
 // `Layout<T1,... Tn>::Partial(count1,..., countm)` (where `m` <= `n`) returns a
 // `LayoutImpl<>` object. `Layout<T1,..., Tn> layout(count1,..., countn)`
@@ -164,13 +185,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <ostream>
+#include <array>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
 
+#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/debugging/internal/demangle.h"
 #include "absl/meta/type_traits.h"
@@ -208,9 +230,6 @@ struct NotAligned<const Aligned<T, N>> {
 
 template <size_t>
 using IntToSize = size_t;
-
-template <class>
-using TypeToSize = size_t;
 
 template <class T>
 struct Type : NotAligned<T> {
@@ -308,7 +327,8 @@ using IsLegalElementType = std::integral_constant<
               !std::is_volatile<typename Type<T>::type>::value &&
               adl_barrier::IsPow2(AlignOf<T>::value)>;
 
-template <class Elements, class SizeSeq, class OffsetSeq>
+template <class Elements, class StaticSizeSeq, class RuntimeSizeSeq,
+          class SizeSeq, class OffsetSeq>
 class LayoutImpl;
 
 // Public base class of `Layout` and the result type of `Layout::Partial()`.
@@ -316,30 +336,48 @@ class LayoutImpl;
 // `Elements...` contains all template arguments of `Layout` that created this
 // instance.
 //
-// `SizeSeq...` is `[0, NumSizes)` where `NumSizes` is the number of arguments
-// passed to `Layout::Partial()` or `Layout::Layout()`.
+// `StaticSizeSeq...` is an index_sequence containing the sizes specified at
+// compile-time.
+//
+// `RuntimeSizeSeq...` is `[0, NumRuntimeSizes)`, where `NumRuntimeSizes` is the
+// number of arguments passed to `Layout::Partial()` or `Layout::Layout()`.
+//
+// `SizeSeq...` is `[0, NumSizes)` where `NumSizes` is `NumRuntimeSizes` plus
+// the number of sizes in `StaticSizeSeq`.
 //
 // `OffsetSeq...` is `[0, NumOffsets)` where `NumOffsets` is
 // `Min(sizeof...(Elements), NumSizes + 1)` (the number of arrays for which we
 // can compute offsets).
-template <class... Elements, size_t... SizeSeq, size_t... OffsetSeq>
-class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
-                 absl::index_sequence<OffsetSeq...>> {
+template <class... Elements, size_t... StaticSizeSeq, size_t... RuntimeSizeSeq,
+          size_t... SizeSeq, size_t... OffsetSeq>
+class LayoutImpl<
+    std::tuple<Elements...>, absl::index_sequence<StaticSizeSeq...>,
+    absl::index_sequence<RuntimeSizeSeq...>, absl::index_sequence<SizeSeq...>,
+    absl::index_sequence<OffsetSeq...>> {
  private:
   static_assert(sizeof...(Elements) > 0, "At least one field is required");
   static_assert(absl::conjunction<IsLegalElementType<Elements>...>::value,
                 "Invalid element type (see IsLegalElementType)");
+  static_assert(sizeof...(StaticSizeSeq) <= sizeof...(Elements),
+                "Too many static sizes specified");
 
   enum {
     NumTypes = sizeof...(Elements),
+    NumStaticSizes = sizeof...(StaticSizeSeq),
+    NumRuntimeSizes = sizeof...(RuntimeSizeSeq),
     NumSizes = sizeof...(SizeSeq),
     NumOffsets = sizeof...(OffsetSeq),
   };
 
   // These are guaranteed by `Layout`.
+  static_assert(NumStaticSizes + NumRuntimeSizes == NumSizes, "Internal error");
+  static_assert(NumSizes <= NumTypes, "Internal error");
   static_assert(NumOffsets == adl_barrier::Min(NumTypes, NumSizes + 1),
                 "Internal error");
   static_assert(NumTypes > 0, "Internal error");
+
+  static constexpr std::array<size_t, sizeof...(StaticSizeSeq)> kStaticSizes = {
+      StaticSizeSeq...};
 
   // Returns the index of `T` in `Elements...`. Results in a compilation error
   // if `Elements...` doesn't contain exactly one instance of `T`.
@@ -363,7 +401,7 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
   template <size_t N>
   using ElementType = typename std::tuple_element<N, ElementTypes>::type;
 
-  constexpr explicit LayoutImpl(IntToSize<SizeSeq>... sizes)
+  constexpr explicit LayoutImpl(IntToSize<RuntimeSizeSeq>... sizes)
       : size_{sizes...} {}
 
   // Alignment of the layout, equal to the strictest alignment of all elements.
@@ -389,7 +427,7 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
   constexpr size_t Offset() const {
     static_assert(N < NumOffsets, "Index out of bounds");
     return adl_barrier::Align(
-        Offset<N - 1>() + SizeOf<ElementType<N - 1>>::value * size_[N - 1],
+        Offset<N - 1>() + SizeOf<ElementType<N - 1>>::value * Size<N - 1>(),
         ElementAlignment<N>::value);
   }
 
@@ -411,8 +449,7 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
     return {{Offset<OffsetSeq>()...}};
   }
 
-  // The number of elements in the Nth array. This is the Nth argument of
-  // `Layout::Partial()` or `Layout::Layout()` (zero-based).
+  // The number of elements in the Nth array (zero-based).
   //
   //   // int[3], 4 bytes of padding, double[4].
   //   Layout<int, double> x(3, 4);
@@ -420,10 +457,15 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
   //   assert(x.Size<1>() == 4);
   //
   // Requires: `N < NumSizes`.
-  template <size_t N>
+  template <size_t N, EnableIf<(N < NumStaticSizes)> = 0>
+  constexpr size_t Size() const {
+    return kStaticSizes[N];
+  }
+
+  template <size_t N, EnableIf<(N >= NumStaticSizes)> = 0>
   constexpr size_t Size() const {
     static_assert(N < NumSizes, "Index out of bounds");
-    return size_[N];
+    return size_[N - NumStaticSizes];
   }
 
   // The number of elements in the array with the specified element type.
@@ -500,13 +542,8 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
   //   std::tie(ints, doubles) = x.Pointers(p);
   //
   // Requires: `p` is aligned to `Alignment()`.
-  //
-  // Note: We're not using ElementType alias here because it does not compile
-  // under MSVC.
   template <class Char>
-  std::tuple<CopyConst<
-      Char, typename std::tuple_element<OffsetSeq, ElementTypes>::type>*...>
-  Pointers(Char* p) const {
+  auto Pointers(Char* p) const {
     return std::tuple<CopyConst<Char, ElementType<OffsetSeq>>*...>(
         Pointer<OffsetSeq>(p)...);
   }
@@ -559,15 +596,10 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
   //
   // Requires: `p` is aligned to `Alignment()`.
   //
-  // Note: We're not using ElementType alias here because it does not compile
-  // under MSVC.
+  // Note: We mark the parameter as unused because GCC detects it is not used
+  // when `SizeSeq` is empty [-Werror=unused-but-set-parameter].
   template <class Char>
-  std::tuple<SliceType<CopyConst<
-      Char, typename std::tuple_element<SizeSeq, ElementTypes>::type>>...>
-  Slices(Char* p) const {
-    // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=63875 (fixed
-    // in 6.1).
-    (void)p;
+  auto Slices(ABSL_ATTRIBUTE_UNUSED Char* p) const {
     return std::tuple<SliceType<CopyConst<Char, ElementType<SizeSeq>>>...>(
         Slice<SizeSeq>(p)...);
   }
@@ -582,7 +614,7 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
   constexpr size_t AllocSize() const {
     static_assert(NumTypes == NumSizes, "You must specify sizes of all fields");
     return Offset<NumTypes - 1>() +
-        SizeOf<ElementType<NumTypes - 1>>::value * size_[NumTypes - 1];
+           SizeOf<ElementType<NumTypes - 1>>::value * Size<NumTypes - 1>();
   }
 
   // If built with --config=asan, poisons padding bytes (if any) in the
@@ -606,7 +638,7 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
     // The `if` is an optimization. It doesn't affect the observable behaviour.
     if (ElementAlignment<N - 1>::value % ElementAlignment<N>::value) {
       size_t start =
-          Offset<N - 1>() + SizeOf<ElementType<N - 1>>::value * size_[N - 1];
+          Offset<N - 1>() + SizeOf<ElementType<N - 1>>::value * Size<N - 1>();
       ASAN_POISON_MEMORY_REGION(p + start, Offset<N>() - start);
     }
 #endif
@@ -635,47 +667,66 @@ class LayoutImpl<std::tuple<Elements...>, absl::index_sequence<SizeSeq...>,
         adl_barrier::TypeName<ElementType<OffsetSeq>>()...};
     std::string res = absl::StrCat("@0", types[0], "(", sizes[0], ")");
     for (size_t i = 0; i != NumOffsets - 1; ++i) {
-      absl::StrAppend(&res, "[", size_[i], "]; @", offsets[i + 1], types[i + 1],
-                      "(", sizes[i + 1], ")");
+      absl::StrAppend(&res, "[", DebugSize(i), "]; @", offsets[i + 1],
+                      types[i + 1], "(", sizes[i + 1], ")");
     }
     // NumSizes is a constant that may be zero. Some compilers cannot see that
     // inside the if statement "size_[NumSizes - 1]" must be valid.
     int last = static_cast<int>(NumSizes) - 1;
     if (NumTypes == NumSizes && last >= 0) {
-      absl::StrAppend(&res, "[", size_[last], "]");
+      absl::StrAppend(&res, "[", DebugSize(static_cast<size_t>(last)), "]");
     }
     return res;
   }
 
  private:
+  size_t DebugSize(size_t n) const {
+    if (n < NumStaticSizes) {
+      return kStaticSizes[n];
+    } else {
+      return size_[n - NumStaticSizes];
+    }
+  }
+
   // Arguments of `Layout::Partial()` or `Layout::Layout()`.
-  size_t size_[NumSizes > 0 ? NumSizes : 1];
+  size_t size_[NumRuntimeSizes > 0 ? NumRuntimeSizes : 1];
 };
 
-template <size_t NumSizes, class... Ts>
+// Defining a constexpr static class member variable is redundant and deprecated
+// in C++17, but required in C++14.
+template <class... Elements, size_t... StaticSizeSeq, size_t... RuntimeSizeSeq,
+          size_t... SizeSeq, size_t... OffsetSeq>
+constexpr std::array<size_t, sizeof...(StaticSizeSeq)> LayoutImpl<
+    std::tuple<Elements...>, absl::index_sequence<StaticSizeSeq...>,
+    absl::index_sequence<RuntimeSizeSeq...>, absl::index_sequence<SizeSeq...>,
+    absl::index_sequence<OffsetSeq...>>::kStaticSizes;
+
+template <class StaticSizeSeq, size_t NumRuntimeSizes, class... Ts>
 using LayoutType = LayoutImpl<
-    std::tuple<Ts...>, absl::make_index_sequence<NumSizes>,
-    absl::make_index_sequence<adl_barrier::Min(sizeof...(Ts), NumSizes + 1)>>;
+    std::tuple<Ts...>, StaticSizeSeq,
+    absl::make_index_sequence<NumRuntimeSizes>,
+    absl::make_index_sequence<NumRuntimeSizes + StaticSizeSeq::size()>,
+    absl::make_index_sequence<adl_barrier::Min(
+        sizeof...(Ts), NumRuntimeSizes + StaticSizeSeq::size() + 1)>>;
 
-}  // namespace internal_layout
+template <class StaticSizeSeq, class... Ts>
+class LayoutWithStaticSizes
+    : public LayoutType<StaticSizeSeq,
+                        sizeof...(Ts) - adl_barrier::Min(sizeof...(Ts),
+                                                         StaticSizeSeq::size()),
+                        Ts...> {
+ private:
+  using Super =
+      LayoutType<StaticSizeSeq,
+                 sizeof...(Ts) -
+                     adl_barrier::Min(sizeof...(Ts), StaticSizeSeq::size()),
+                 Ts...>;
 
-// Descriptor of arrays of various types and sizes laid out in memory one after
-// another. See the top of the file for documentation.
-//
-// Check out the public API of internal_layout::LayoutImpl above. The type is
-// internal to the library but its methods are public, and they are inherited
-// by `Layout`.
-template <class... Ts>
-class Layout : public internal_layout::LayoutType<sizeof...(Ts), Ts...> {
  public:
-  static_assert(sizeof...(Ts) > 0, "At least one field is required");
-  static_assert(
-      absl::conjunction<internal_layout::IsLegalElementType<Ts>...>::value,
-      "Invalid element type (see IsLegalElementType)");
-
   // The result type of `Partial()` with `NumSizes` arguments.
   template <size_t NumSizes>
-  using PartialType = internal_layout::LayoutType<NumSizes, Ts...>;
+  using PartialType =
+      internal_layout::LayoutType<StaticSizeSeq, NumSizes, Ts...>;
 
   // `Layout` knows the element types of the arrays we want to lay out in
   // memory but not the number of elements in each array.
@@ -701,14 +752,18 @@ class Layout : public internal_layout::LayoutType<sizeof...(Ts), Ts...> {
   // Note: The sizes of the arrays must be specified in number of elements,
   // not in bytes.
   //
-  // Requires: `sizeof...(Sizes) <= sizeof...(Ts)`.
+  // Requires: `sizeof...(Sizes) + NumStaticSizes <= sizeof...(Ts)`.
   // Requires: all arguments are convertible to `size_t`.
   template <class... Sizes>
   static constexpr PartialType<sizeof...(Sizes)> Partial(Sizes&&... sizes) {
-    static_assert(sizeof...(Sizes) <= sizeof...(Ts), "");
-    return PartialType<sizeof...(Sizes)>(absl::forward<Sizes>(sizes)...);
+    static_assert(sizeof...(Sizes) + StaticSizeSeq::size() <= sizeof...(Ts),
+                  "");
+    return PartialType<sizeof...(Sizes)>(
+        static_cast<size_t>(std::forward<Sizes>(sizes))...);
   }
 
+  // Inherit LayoutType's constructor.
+  //
   // Creates a layout with the sizes of all arrays specified. If you know
   // only the sizes of the first N arrays (where N can be zero), you can use
   // `Partial()` defined above. The constructor is essentially equivalent to
@@ -717,8 +772,69 @@ class Layout : public internal_layout::LayoutType<sizeof...(Ts), Ts...> {
   //
   // Note: The sizes of the arrays must be specified in number of elements,
   // not in bytes.
-  constexpr explicit Layout(internal_layout::TypeToSize<Ts>... sizes)
-      : internal_layout::LayoutType<sizeof...(Ts), Ts...>(sizes...) {}
+  //
+  // Implementation note: we do this via a `using` declaration instead of
+  // defining our own explicit constructor because the signature of LayoutType's
+  // constructor depends on RuntimeSizeSeq, which we don't have access to here.
+  // If we defined our own constructor here, it would have to use a parameter
+  // pack and then cast the arguments to size_t when calling the superclass
+  // constructor, similar to what Partial() does. But that would suffer from the
+  // same problem that Partial() has, which is that the parameter types are
+  // inferred from the arguments, which may be signed types, which must then be
+  // cast to size_t. This can lead to negative values being silently (i.e. with
+  // no compiler warnings) cast to an unsigned type. Having a constructor with
+  // size_t parameters helps the compiler generate better warnings about
+  // potential bad casts, while avoiding false warnings when positive literal
+  // arguments are used. If an argument is a positive literal integer (e.g.
+  // `1`), the compiler will understand that it can be safely converted to
+  // size_t, and hence not generate a warning. But if a negative literal (e.g.
+  // `-1`) or a variable with signed type is used, then it can generate a
+  // warning about a potentially unsafe implicit cast. It would be great if we
+  // could do this for Partial() too, but unfortunately as of C++23 there seems
+  // to be no way to define a function with a variable number of parameters of a
+  // certain type, a.k.a. homogeneous function parameter packs. So we're forced
+  // to choose between explicitly casting the arguments to size_t, which
+  // suppresses all warnings, even potentially valid ones, or implicitly casting
+  // them to size_t, which generates bogus warnings whenever literal arguments
+  // are used, even if they're positive.
+  using Super::Super;
+};
+
+}  // namespace internal_layout
+
+// Descriptor of arrays of various types and sizes laid out in memory one after
+// another. See the top of the file for documentation.
+//
+// Check out the public API of internal_layout::LayoutWithStaticSizes and
+// internal_layout::LayoutImpl above. Those types are internal to the library
+// but their methods are public, and they are inherited by `Layout`.
+template <class... Ts>
+class Layout : public internal_layout::LayoutWithStaticSizes<
+                   absl::make_index_sequence<0>, Ts...> {
+ private:
+  using Super =
+      internal_layout::LayoutWithStaticSizes<absl::make_index_sequence<0>,
+                                             Ts...>;
+
+ public:
+  // If you know the sizes of some or all of the arrays at compile time, you can
+  // use `WithStaticSizes` or `WithStaticSizeSequence` to create a `Layout` type
+  // with those sizes baked in. This can help the compiler generate optimal code
+  // for calculating array offsets and AllocSize().
+  //
+  // Like `Partial()`, the N sizes you specify are for the first N arrays, and
+  // they specify the number of elements in each array, not the number of bytes.
+  template <class StaticSizeSeq>
+  using WithStaticSizeSequence =
+      internal_layout::LayoutWithStaticSizes<StaticSizeSeq, Ts...>;
+
+  template <size_t... StaticSizes>
+  using WithStaticSizes =
+      WithStaticSizeSequence<std::index_sequence<StaticSizes...>>;
+
+  // Inherit LayoutWithStaticSizes's constructor, which requires you to specify
+  // all the array sizes.
+  using Super::Super;
 };
 
 }  // namespace container_internal

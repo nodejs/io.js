@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const worker = new Worker(`function onmessage(buffer) {
+const worker = new Worker(`function onmessage({data:buffer}) {
   const shared2 = new Int32Array(buffer);
   shared2.fill(1);
 }`, {

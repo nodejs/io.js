@@ -79,7 +79,6 @@ function seedCache({ cachePath, mirrorURL, tufRootPath, forceInit, }) {
             fs_1.default.copyFileSync(tufRootPath, cachedRootPath);
         }
         else {
-            /* eslint-disable @typescript-eslint/no-var-requires */
             const seeds = require('../seeds.json');
             const repoSeed = seeds[mirrorURL];
             if (!repoSeed) {

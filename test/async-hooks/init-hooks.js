@@ -1,9 +1,10 @@
 'use strict';
 // Flags: --expose-gc
 
-const common = require('../common');
+require('../common');
 const assert = require('assert');
 const async_hooks = require('async_hooks');
+const { isMainThread } = require('worker_threads');
 const util = require('util');
 const print = process._rawDebug;
 
@@ -146,7 +147,7 @@ class ActivityCollector {
 
   _stamp(h, hook) {
     if (h == null) return;
-    if (h[hook] == null) h[hook] = [];
+    h[hook] ??= [];
     const time = process.hrtime(this._start);
     h[hook].push((time[0] * 1e9) + time[1]);
   }
@@ -161,7 +162,7 @@ class ActivityCollector {
         const stub = { uid, type: 'Unknown', handleIsObject: true, handle: {} };
         this._activities.set(uid, stub);
         return stub;
-      } else if (!common.isMainThread) {
+      } else if (!isMainThread) {
         // Worker threads start main script execution inside of an AsyncWrap
         // callback, so we don't yield errors for these.
         return null;
@@ -192,28 +193,28 @@ class ActivityCollector {
   _before(uid) {
     const h = this._getActivity(uid, 'before');
     this._stamp(h, 'before');
-    this._maybeLog(uid, h && h.type, 'before');
+    this._maybeLog(uid, h?.type, 'before');
     this.onbefore(uid);
   }
 
   _after(uid) {
     const h = this._getActivity(uid, 'after');
     this._stamp(h, 'after');
-    this._maybeLog(uid, h && h.type, 'after');
+    this._maybeLog(uid, h?.type, 'after');
     this.onafter(uid);
   }
 
   _destroy(uid) {
     const h = this._getActivity(uid, 'destroy');
     this._stamp(h, 'destroy');
-    this._maybeLog(uid, h && h.type, 'destroy');
+    this._maybeLog(uid, h?.type, 'destroy');
     this.ondestroy(uid);
   }
 
   _promiseResolve(uid) {
     const h = this._getActivity(uid, 'promiseResolve');
     this._stamp(h, 'promiseResolve');
-    this._maybeLog(uid, h && h.type, 'promiseResolve');
+    this._maybeLog(uid, h?.type, 'promiseResolve');
     this.onpromiseResolve(uid);
   }
 

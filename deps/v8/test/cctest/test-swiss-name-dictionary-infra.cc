@@ -63,7 +63,7 @@ Handle<Name> CreateKeyWithHash(Isolate* isolate, KeyCache& keys,
 
     // We use the description field to store the original string key for
     // debugging.
-    Handle<String> description =
+    DirectHandle<String> description =
         isolate->factory()->NewStringFromAsciiChecked(key.str.c_str());
     key_symbol->set_description(*description);
 

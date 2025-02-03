@@ -23,7 +23,7 @@
 // Flags: --expose-gc
 
 const common = require('../common');
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const assert = require('assert');
 const net = require('net');
 
@@ -49,7 +49,7 @@ const gcListener = { ongc() { collected = true; } };
 }
 
 function done(sock) {
-  global.gc();
+  globalThis.gc();
   setImmediate(() => {
     assert.strictEqual(collected, true);
     sock.end();

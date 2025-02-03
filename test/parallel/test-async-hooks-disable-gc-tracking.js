@@ -14,7 +14,7 @@ const hook = async_hooks.createHook({
 new async_hooks.AsyncResource('foobar', { requireManualDestroy: true });
 
 setImmediate(() => {
-  global.gc();
+  globalThis.gc();
   setImmediate(() => {
     hook.disable();
   });

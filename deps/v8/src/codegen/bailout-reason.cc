@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 
 #include "src/codegen/bailout-reason.h"
+
 #include "src/base/logging.h"
+#include "src/sandbox/check.h"
 
 namespace v8 {
 namespace internal {
@@ -11,7 +13,11 @@ namespace internal {
 #define ERROR_MESSAGES_TEXTS(C, T) T,
 
 const char* GetBailoutReason(BailoutReason reason) {
-  DCHECK_LT(reason, BailoutReason::kLastErrorMessage);
+  // Currently, the BailoutReason is read from the SharedFunctionInfo object
+  // inside the sandbox and must therefore be considered untrusted. As such, it
+  // needs to be validated here.
+  static_assert(std::is_unsigned_v<std::underlying_type_t<BailoutReason>>);
+  SBXCHECK_LT(reason, BailoutReason::kLastErrorMessage);
   DCHECK_GE(reason, BailoutReason::kNoReason);
   static const char* error_messages_[] = {
       BAILOUT_MESSAGES_LIST(ERROR_MESSAGES_TEXTS)};

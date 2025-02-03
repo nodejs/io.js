@@ -1,4 +1,4 @@
-// Flags: --experimental-permission --allow-fs-read=*
+// Flags: --permission --allow-fs-read=*
 'use strict';
 
 const common = require('../common');
@@ -20,4 +20,8 @@ const assert = require('assert');
     code: 'ERR_INVALID_ARG_TYPE',
     message: 'The "reference" argument must be of type string. Received an instance of Object',
   }));
+}
+
+{
+  assert.ok(!process.permission.has('FileSystemWrite', Buffer.from('reference')));
 }

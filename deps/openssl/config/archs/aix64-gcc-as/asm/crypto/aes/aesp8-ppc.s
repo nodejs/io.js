@@ -8,11 +8,12 @@ rcon:
 .byte	0x1b,0x00,0x00,0x00,0x1b,0x00,0x00,0x00,0x1b,0x00,0x00,0x00,0x1b,0x00,0x00,0x00
 .byte	0x0d,0x0e,0x0f,0x0c,0x0d,0x0e,0x0f,0x0c,0x0d,0x0e,0x0f,0x0c,0x0d,0x0e,0x0f,0x0c
 .byte	0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+.long	0x0f102132, 0x43546576, 0x8798a9ba, 0xcbdcedfe
 Lconsts:
 	mflr	0
 	bcl	20,31,$+4
 	mflr	6
-	addi	6,6,-0x48
+	addi	6,6,-0x58
 	mtlr	0
 	blr	
 .long	0
@@ -2338,6 +2339,18 @@ _aesp8_xts_encrypt6x:
 	li	31,0x70
 	or	0,0,0
 
+
+	xxlor	2, 32+10, 32+10
+	vsldoi	10,11,10,1
+	xxlor	1, 32+10, 32+10
+
+
+	mr	31, 6
+	bl	Lconsts
+	lxvw4x	0, 28, 6
+	mr	6, 31
+	li	31,0x70
+
 	subi	9,9,3
 
 	lvx	23,0,6
@@ -2380,69 +2393,77 @@ Load_xts_enc_key:
 	vperm	31,31,22,7
 	lvx	25,3,7
 
+
+
+
+
+
+
+
+
 	vperm	0,2,4,5
 	subi	10,10,31
 	vxor	17,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	vand	11,11,10
 	vxor	7,0,17
-	vxor	8,8,11
+	xxlor	32+1, 0, 0
+	vpermxor	8, 8, 11, 1
 
 	.long	0x7C235699
 	vxor	18,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	12,1,18
-	vxor	8,8,11
+	xxlor	32+2, 0, 0
+	vpermxor	8, 8, 11, 2
 
 	.long	0x7C5A5699
 	andi.	31,5,15
 	vxor	19,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	13,2,19
-	vxor	8,8,11
+	xxlor	32+3, 0, 0
+	vpermxor	8, 8, 11, 3
 
 	.long	0x7C7B5699
 	sub	5,5,31
 	vxor	20,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	14,3,20
-	vxor	8,8,11
+	xxlor	32+4, 0, 0
+	vpermxor	8, 8, 11, 4
 
 	.long	0x7C9C5699
 	subi	5,5,0x60
 	vxor	21,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	15,4,21
-	vxor	8,8,11
+	xxlor	32+5, 0, 0
+	vpermxor	8, 8, 11, 5
 
 	.long	0x7CBD5699
 	addi	10,10,0x60
 	vxor	22,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	16,5,22
-	vxor	8,8,11
+	xxlor	32+0, 0, 0
+	vpermxor	8, 8, 11, 0
 
 	vxor	31,31,23
 	mtctr	9
@@ -2468,6 +2489,8 @@ Loop_xts_enc6x:
 	lvx	25,3,7
 	bc	16,0,Loop_xts_enc6x
 
+	xxlor	32+10, 1, 1
+
 	subic	5,5,96
 	vxor	0,17,31
 	.long	0x10E7C508
@@ -2477,7 +2500,6 @@ Loop_xts_enc6x:
 	vaddubm	8,8,8
 	.long	0x11ADC508
 	.long	0x11CEC508
-	vsldoi	11,11,11,15
 	.long	0x11EFC508
 	.long	0x1210C508
 
@@ -2485,7 +2507,8 @@ Loop_xts_enc6x:
 	vand	11,11,10
 	.long	0x10E7CD08
 	.long	0x118CCD08
-	vxor	8,8,11
+	xxlor	32+1, 0, 0
+	vpermxor	8, 8, 11, 1
 	.long	0x11ADCD08
 	.long	0x11CECD08
 	vxor	1,18,31
@@ -2496,13 +2519,13 @@ Loop_xts_enc6x:
 
 	and	0,0,5
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	.long	0x10E7D508
 	.long	0x118CD508
 	vand	11,11,10
 	.long	0x11ADD508
 	.long	0x11CED508
-	vxor	8,8,11
+	xxlor	32+2, 0, 0
+	vpermxor	8, 8, 11, 2
 	.long	0x11EFD508
 	.long	0x1210D508
 
@@ -2516,7 +2539,6 @@ Loop_xts_enc6x:
 	vaddubm	8,8,8
 	.long	0x10E7DD08
 	.long	0x118CDD08
-	vsldoi	11,11,11,15
 	.long	0x11ADDD08
 	.long	0x11CEDD08
 	vand	11,11,10
@@ -2524,7 +2546,8 @@ Loop_xts_enc6x:
 	.long	0x1210DD08
 
 	addi	7,1,64+15
-	vxor	8,8,11
+	xxlor	32+3, 0, 0
+	vpermxor	8, 8, 11, 3
 	.long	0x10E7E508
 	.long	0x118CE508
 	vxor	3,20,31
@@ -2533,7 +2556,6 @@ Loop_xts_enc6x:
 	.long	0x11ADE508
 	.long	0x11CEE508
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	.long	0x11EFE508
 	.long	0x1210E508
 	lvx	24,0,7
@@ -2541,7 +2563,8 @@ Loop_xts_enc6x:
 
 	.long	0x10E7ED08
 	.long	0x118CED08
-	vxor	8,8,11
+	xxlor	32+4, 0, 0
+	vpermxor	8, 8, 11, 4
 	.long	0x11ADED08
 	.long	0x11CEED08
 	vxor	4,21,31
@@ -2551,14 +2574,14 @@ Loop_xts_enc6x:
 	.long	0x1210ED08
 	lvx	25,3,7
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	.long	0x10E7F508
 	.long	0x118CF508
 	vand	11,11,10
 	.long	0x11ADF508
 	.long	0x11CEF508
-	vxor	8,8,11
+	xxlor	32+5, 0, 0
+	vpermxor	8, 8, 11, 5
 	.long	0x11EFF508
 	.long	0x1210F508
 	vxor	5,22,31
@@ -2568,7 +2591,6 @@ Loop_xts_enc6x:
 	.long	0x10E70509
 	.long	0x7C005699
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	.long	0x118C0D09
 	.long	0x7C235699
 	.long	0x11AD1509
@@ -2581,7 +2603,10 @@ Loop_xts_enc6x:
 	.long	0x11EF2509
 
 	.long	0x7C9C5699
-	vxor	8,8,11
+	xxlor	10, 32+0, 32+0
+	xxlor	32+0, 0, 0
+	vpermxor	8, 8, 11, 0
+	xxlor	32+0, 10, 10
 	.long	0x11702D09
 
 
@@ -2613,6 +2638,8 @@ Loop_xts_enc6x:
 
 	mtctr	9
 	beq	Loop_xts_enc6x
+
+	xxlor	32+10, 2, 2
 
 	addic.	5,5,0x60
 	beq	Lxts_enc6x_zero
@@ -2990,6 +3017,18 @@ _aesp8_xts_decrypt6x:
 	li	31,0x70
 	or	0,0,0
 
+
+	xxlor	2, 32+10, 32+10
+	vsldoi	10,11,10,1
+	xxlor	1, 32+10, 32+10
+
+
+	mr	31, 6
+	bl	Lconsts
+	lxvw4x	0, 28, 6
+	mr	6, 31
+	li	31,0x70
+
 	subi	9,9,3
 
 	lvx	23,0,6
@@ -3037,64 +3076,64 @@ Load_xts_dec_key:
 	vxor	17,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	vand	11,11,10
 	vxor	7,0,17
-	vxor	8,8,11
+	xxlor	32+1, 0, 0
+	vpermxor	8, 8, 11, 1
 
 	.long	0x7C235699
 	vxor	18,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	12,1,18
-	vxor	8,8,11
+	xxlor	32+2, 0, 0
+	vpermxor	8, 8, 11, 2
 
 	.long	0x7C5A5699
 	andi.	31,5,15
 	vxor	19,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	13,2,19
-	vxor	8,8,11
+	xxlor	32+3, 0, 0
+	vpermxor	8, 8, 11, 3
 
 	.long	0x7C7B5699
 	sub	5,5,31
 	vxor	20,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	14,3,20
-	vxor	8,8,11
+	xxlor	32+4, 0, 0
+	vpermxor	8, 8, 11, 4
 
 	.long	0x7C9C5699
 	subi	5,5,0x60
 	vxor	21,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	15,4,21
-	vxor	8,8,11
+	xxlor	32+5, 0, 0
+	vpermxor	8, 8, 11, 5
 
 	.long	0x7CBD5699
 	addi	10,10,0x60
 	vxor	22,8,23
 	vsrab	11,8,9
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	vand	11,11,10
 	vxor	16,5,22
-	vxor	8,8,11
+	xxlor	32+0, 0, 0
+	vpermxor	8, 8, 11, 0
 
 	vxor	31,31,23
 	mtctr	9
@@ -3120,6 +3159,8 @@ Loop_xts_dec6x:
 	lvx	25,3,7
 	bc	16,0,Loop_xts_dec6x
 
+	xxlor	32+10, 1, 1
+
 	subic	5,5,96
 	vxor	0,17,31
 	.long	0x10E7C548
@@ -3129,7 +3170,6 @@ Loop_xts_dec6x:
 	vaddubm	8,8,8
 	.long	0x11ADC548
 	.long	0x11CEC548
-	vsldoi	11,11,11,15
 	.long	0x11EFC548
 	.long	0x1210C548
 
@@ -3137,7 +3177,8 @@ Loop_xts_dec6x:
 	vand	11,11,10
 	.long	0x10E7CD48
 	.long	0x118CCD48
-	vxor	8,8,11
+	xxlor	32+1, 0, 0
+	vpermxor	8, 8, 11, 1
 	.long	0x11ADCD48
 	.long	0x11CECD48
 	vxor	1,18,31
@@ -3148,13 +3189,13 @@ Loop_xts_dec6x:
 
 	and	0,0,5
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	.long	0x10E7D548
 	.long	0x118CD548
 	vand	11,11,10
 	.long	0x11ADD548
 	.long	0x11CED548
-	vxor	8,8,11
+	xxlor	32+2, 0, 0
+	vpermxor	8, 8, 11, 2
 	.long	0x11EFD548
 	.long	0x1210D548
 
@@ -3168,7 +3209,6 @@ Loop_xts_dec6x:
 	vaddubm	8,8,8
 	.long	0x10E7DD48
 	.long	0x118CDD48
-	vsldoi	11,11,11,15
 	.long	0x11ADDD48
 	.long	0x11CEDD48
 	vand	11,11,10
@@ -3176,7 +3216,8 @@ Loop_xts_dec6x:
 	.long	0x1210DD48
 
 	addi	7,1,64+15
-	vxor	8,8,11
+	xxlor	32+3, 0, 0
+	vpermxor	8, 8, 11, 3
 	.long	0x10E7E548
 	.long	0x118CE548
 	vxor	3,20,31
@@ -3185,7 +3226,6 @@ Loop_xts_dec6x:
 	.long	0x11ADE548
 	.long	0x11CEE548
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	.long	0x11EFE548
 	.long	0x1210E548
 	lvx	24,0,7
@@ -3193,7 +3233,8 @@ Loop_xts_dec6x:
 
 	.long	0x10E7ED48
 	.long	0x118CED48
-	vxor	8,8,11
+	xxlor	32+4, 0, 0
+	vpermxor	8, 8, 11, 4
 	.long	0x11ADED48
 	.long	0x11CEED48
 	vxor	4,21,31
@@ -3203,14 +3244,14 @@ Loop_xts_dec6x:
 	.long	0x1210ED48
 	lvx	25,3,7
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 
 	.long	0x10E7F548
 	.long	0x118CF548
 	vand	11,11,10
 	.long	0x11ADF548
 	.long	0x11CEF548
-	vxor	8,8,11
+	xxlor	32+5, 0, 0
+	vpermxor	8, 8, 11, 5
 	.long	0x11EFF548
 	.long	0x1210F548
 	vxor	5,22,31
@@ -3220,7 +3261,6 @@ Loop_xts_dec6x:
 	.long	0x10E70549
 	.long	0x7C005699
 	vaddubm	8,8,8
-	vsldoi	11,11,11,15
 	.long	0x118C0D49
 	.long	0x7C235699
 	.long	0x11AD1549
@@ -3233,7 +3273,10 @@ Loop_xts_dec6x:
 	.long	0x11EF2549
 
 	.long	0x7C9C5699
-	vxor	8,8,11
+	xxlor	10, 32+0, 32+0
+	xxlor	32+0, 0, 0
+	vpermxor	8, 8, 11, 0
+	xxlor	32+0, 10, 10
 	.long	0x12102D49
 
 	.long	0x7CBD5699
@@ -3263,6 +3306,8 @@ Loop_xts_dec6x:
 
 	mtctr	9
 	beq	Loop_xts_dec6x
+
+	xxlor	32+10, 2, 2
 
 	addic.	5,5,0x60
 	beq	Lxts_dec6x_zero

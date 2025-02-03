@@ -64,10 +64,8 @@ t.test('update --depth=<number>', async t => {
     config: { depth: 1 },
   })
 
-  const [title, msg] = logs.warn[0]
-  t.equal(title, 'update', 'should print expected title')
   t.match(
-    msg,
+    logs.warn.byTitle('update')[0],
     /The --depth option no longer has any effect/,
     'should print expected warning message'
   )

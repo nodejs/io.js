@@ -7,7 +7,7 @@ import("//third_party/abseil-cpp/absl.gni")
 
 absl_source_set("any") {
   public = [ "any.h" ]
-  public_deps = [
+  deps = [
     ":bad_any_cast",
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
@@ -19,22 +19,26 @@ absl_source_set("any") {
 
 absl_source_set("bad_any_cast") {
   public = [ "bad_any_cast.h" ]
-  deps = [ ":bad_any_cast_impl" ]
-  public_deps = [ "//third_party/abseil-cpp/absl/base:config" ]
+  deps = [
+    ":bad_any_cast_impl",
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
 }
 
 absl_source_set("bad_any_cast_impl") {
   sources = [ "bad_any_cast.cc" ]
   public = [ "bad_any_cast.h" ]
-  public_deps = [ "//third_party/abseil-cpp/absl/base:config" ]
-  deps = [ "//third_party/abseil-cpp/absl/base:raw_logging_internal" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+  ]
   visibility = [ ":*" ]
 }
 
 absl_source_set("span") {
   public = [ "span.h" ]
   sources = [ "internal/span.h" ]
-  public_deps = [
+  deps = [
     "//third_party/abseil-cpp/absl/algorithm",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:nullability",
@@ -43,10 +47,25 @@ absl_source_set("span") {
   ]
 }
 
+absl_test("span_test") {
+  sources = [ "span_test.cc" ]
+  deps = [
+    ":span",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:exception_testing",
+    "//third_party/abseil-cpp/absl/container:fixed_array",
+    "//third_party/abseil-cpp/absl/container:inlined_vector",
+    "//third_party/abseil-cpp/absl/hash:hash_testing",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/strings",
+  ]
+}
+
 absl_source_set("optional") {
   sources = [ "internal/optional.h" ]
   public = [ "optional.h" ]
-  public_deps = [
+  deps = [
     ":bad_optional_access",
     "//third_party/abseil-cpp/absl/base:base_internal",
     "//third_party/abseil-cpp/absl/base:config",
@@ -61,21 +80,25 @@ absl_source_set("optional") {
 absl_source_set("bad_optional_access") {
   sources = [ "bad_optional_access.cc" ]
   public = [ "bad_optional_access.h" ]
-  public_deps = [ "//third_party/abseil-cpp/absl/base:config" ]
-  deps = [ "//third_party/abseil-cpp/absl/base:raw_logging_internal" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+  ]
 }
 
 absl_source_set("bad_variant_access") {
   sources = [ "bad_variant_access.cc" ]
   public = [ "bad_variant_access.h" ]
-  public_deps = [ "//third_party/abseil-cpp/absl/base:config" ]
-  deps = [ "//third_party/abseil-cpp/absl/base:raw_logging_internal" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+  ]
 }
 
 absl_source_set("variant") {
   sources = [ "internal/variant.h" ]
   public = [ "variant.h" ]
-  public_deps = [
+  deps = [
     ":bad_variant_access",
     "//third_party/abseil-cpp/absl/base:base_internal",
     "//third_party/abseil-cpp/absl/base:config",
@@ -87,7 +110,7 @@ absl_source_set("variant") {
 
 absl_source_set("compare") {
   public = [ "compare.h" ]
-  public_deps = [
+  deps = [
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/meta:type_traits",

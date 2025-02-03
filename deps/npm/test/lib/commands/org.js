@@ -1,6 +1,5 @@
 const t = require('tap')
 const mockNpm = require('../../fixtures/mock-npm')
-const { stripVTControlCharacters } = require('node:util')
 
 const mockOrg = async (t, { orgSize = 1, orgList = {}, ...npmOpts } = {}) => {
   let setArgs = null
@@ -92,7 +91,7 @@ t.test('npm org add', async t => {
     'received the correct arguments'
   )
   t.equal(
-    outputs[0][0],
+    outputs[0],
     'Added username as developer to orgname. You now have 1 member in this org.',
     'printed the correct output'
   )
@@ -142,7 +141,7 @@ t.test('npm org add - more users', async t => {
     'received the correct arguments'
   )
   t.equal(
-    outputs[0][0],
+    outputs[0],
     'Added username as developer to orgname. You now have 5 members in this org.',
     'printed the correct output'
   )
@@ -198,7 +197,7 @@ t.test('npm org add - parseable output', async t => {
     'received the correct arguments'
   )
   t.strictSame(
-    outputs.map(line => line[0].split(/\t/)),
+    outputs.map(line => line.split(/\t/)),
     [
       ['org', 'orgsize', 'user', 'role'],
       ['orgname', '1', 'username', 'developer'],
@@ -251,7 +250,7 @@ t.test('npm org rm', async t => {
     'libnpmorg.ls received the correct args'
   )
   t.equal(
-    outputs[0][0],
+    outputs[0],
     'Successfully removed username from orgname. You now have 0 members in this org.',
     'printed the correct output'
   )
@@ -301,7 +300,7 @@ t.test('npm org rm - one user left', async t => {
     'libnpmorg.ls received the correct args'
   )
   t.equal(
-    outputs[0][0],
+    outputs[0],
     'Successfully removed username from orgname. You now have 1 member in this org.',
     'printed the correct output'
   )
@@ -370,7 +369,7 @@ t.test('npm org rm - parseable output', async t => {
     'libnpmorg.ls received the correct args'
   )
   t.strictSame(
-    outputs.map(line => line[0].split(/\t/)),
+    outputs.map(line => line.split(/\t/)),
     [
       ['user', 'org', 'userCount', 'deleted'],
       ['username', 'orgname', '0', 'true'],
@@ -427,10 +426,11 @@ t.test('npm org ls', async t => {
     },
     'receieved the correct args'
   )
-  const out = stripVTControlCharacters(outputs[0][0])
-  t.match(out, /one.*developer/, 'contains the developer member')
-  t.match(out, /two.*admin/, 'contains the admin member')
-  t.match(out, /three.*owner/, 'contains the owner member')
+  t.strictSame(outputs, [
+    'one - developer',
+    'three - owner',
+    'two - admin',
+  ])
 })
 
 t.test('npm org ls - user filter', async t => {
@@ -452,9 +452,9 @@ t.test('npm org ls - user filter', async t => {
     },
     'receieved the correct args'
   )
-  const out = stripVTControlCharacters(outputs[0][0])
-  t.match(out, /username.*admin/, 'contains the filtered member')
-  t.notMatch(out, /missing.*admin/, 'does not contain other members')
+  t.strictSame(outputs, [
+    'username - admin',
+  ])
 })
 
 t.test('npm org ls - user filter, missing user', async t => {
@@ -475,9 +475,7 @@ t.test('npm org ls - user filter, missing user', async t => {
     },
     'receieved the correct args'
   )
-  const out = stripVTControlCharacters(outputs[0][0])
-  t.notMatch(out, /username/, 'does not contain the requested member')
-  t.notMatch(out, /missing.*admin/, 'does not contain other members')
+  t.strictSame(outputs, [])
 })
 
 t.test('npm org ls - no org', async t => {
@@ -533,7 +531,7 @@ t.test('npm org ls - parseable output', async t => {
     'receieved the correct args'
   )
   t.strictSame(
-    outputs.map(line => line[0].split(/\t/)),
+    outputs.map(line => line.split(/\t/)),
     [
       ['user', 'role'],
       ['one', 'developer'],

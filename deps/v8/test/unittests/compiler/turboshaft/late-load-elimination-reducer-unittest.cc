@@ -41,7 +41,7 @@ class LateLoadEliminationReducerTest : public ReducerTest {
  */
 TEST_F(LateLoadEliminationReducerTest, Int32TruncatedLoad_Foldable) {
   auto test = CreateFromGraph(2, [](auto& Asm) {
-    V<Tagged> C(load) = __ Load(
+    V<Object> C(load) = __ Load(
         Asm.GetParameter(0), {}, LoadOp::Kind::TaggedBase(),
         MemoryRepresentation::AnyTagged(), RegisterRepresentation::Tagged(), 0);
     V<WordPtr> temp = __ BitcastTaggedToWordPtrForTagAndSmiBits(load);

@@ -513,6 +513,23 @@ added:
 Returns a promise that fulfills with an {ArrayBuffer} containing a copy of
 the `Blob` data.
 
+#### `blob.bytes()`
+
+<!-- YAML
+added:
+  - v22.3.0
+  - v20.16.0
+-->
+
+The `blob.bytes()` method returns the byte of the `Blob` object as a `Promise<Uint8Array>`.
+
+```js
+const blob = new Blob(['hello']);
+blob.bytes().then((bytes) => {
+  console.log(bytes); // Outputs: Uint8Array(5) [ 104, 101, 108, 108, 111 ]
+});
+```
+
 ### `blob.size`
 
 <!-- YAML
@@ -671,6 +688,7 @@ changes:
   with. **Default:** `0`.
 * `encoding` {string} If `fill` is a string, this is its encoding.
   **Default:** `'utf8'`.
+* Returns: {Buffer}
 
 Allocates a new `Buffer` of `size` bytes. If `fill` is `undefined`, the
 `Buffer` will be zero-filled.
@@ -765,6 +783,7 @@ changes:
 -->
 
 * `size` {integer} The desired length of the new `Buffer`.
+* Returns: {Buffer}
 
 Allocates a new `Buffer` of `size` bytes. If `size` is larger than
 [`buffer.constants.MAX_LENGTH`][] or smaller than 0, [`ERR_OUT_OF_RANGE`][]
@@ -808,7 +827,7 @@ A `TypeError` will be thrown if `size` is not a number.
 The `Buffer` module pre-allocates an internal `Buffer` instance of
 size [`Buffer.poolSize`][] that is used as a pool for the fast allocation of new
 `Buffer` instances created using [`Buffer.allocUnsafe()`][], [`Buffer.from(array)`][],
-and [`Buffer.concat()`][] only when `size` is less than
+[`Buffer.from(string)`][], and [`Buffer.concat()`][] only when `size` is less than
 `Buffer.poolSize >>> 1` (floor of [`Buffer.poolSize`][] divided by two).
 
 Use of this pre-allocated internal memory pool is a key difference between
@@ -835,6 +854,7 @@ changes:
 -->
 
 * `size` {integer} The desired length of the new `Buffer`.
+* Returns: {Buffer}
 
 Allocates a new `Buffer` of `size` bytes. If `size` is larger than
 [`buffer.constants.MAX_LENGTH`][] or smaller than 0, [`ERR_OUT_OF_RANGE`][]
@@ -846,11 +866,11 @@ _may contain sensitive data_. Use [`buf.fill(0)`][`buf.fill()`] to initialize
 such `Buffer` instances with zeroes.
 
 When using [`Buffer.allocUnsafe()`][] to allocate new `Buffer` instances,
-allocations under 4 KiB are sliced from a single pre-allocated `Buffer`. This
-allows applications to avoid the garbage collection overhead of creating many
-individually allocated `Buffer` instances. This approach improves both
-performance and memory usage by eliminating the need to track and clean up as
-many individual `ArrayBuffer` objects.
+allocations less than `Buffer.poolSize >>> 1` (4KiB when default poolSize is used) are sliced
+from a single pre-allocated `Buffer`. This allows applications to avoid the
+garbage collection overhead of creating many individually allocated `Buffer`
+instances. This approach improves both performance and memory usage by
+eliminating the need to track and clean up as many individual `ArrayBuffer` objects.
 
 However, in the case where a developer may need to retain a small chunk of
 memory from a pool for an indeterminate amount of time, it may be appropriate
@@ -1022,7 +1042,8 @@ in `list` by adding their lengths.
 
 If `totalLength` is provided, it is coerced to an unsigned integer. If the
 combined length of the `Buffer`s in `list` exceeds `totalLength`, the result is
-truncated to `totalLength`.
+truncated to `totalLength`. If the combined length of the `Buffer`s in `list` is
+less than `totalLength`, the remaining space is filled with zeros.
 
 ```mjs
 import { Buffer } from 'node:buffer';
@@ -1081,6 +1102,7 @@ added:
 * `offset` {integer} The starting offset within `view`. **Default:**: `0`.
 * `length` {integer} The number of elements from `view` to copy.
   **Default:** `view.length - offset`.
+* Returns: {Buffer}
 
 Copies the underlying memory of `view` into a new `Buffer`.
 
@@ -1100,6 +1122,7 @@ added: v5.10.0
 -->
 
 * `array` {integer\[]}
+* Returns: {Buffer}
 
 Allocates a new `Buffer` using an `array` of bytes in the range `0` – `255`.
 Array entries outside that range will be truncated to fit into it.
@@ -1142,6 +1165,7 @@ added: v5.10.0
 * `byteOffset` {integer} Index of first byte to expose. **Default:** `0`.
 * `length` {integer} Number of bytes to expose.
   **Default:** `arrayBuffer.byteLength - byteOffset`.
+* Returns: {Buffer}
 
 This creates a view of the [`ArrayBuffer`][] without copying the underlying
 memory. For example, when passed a reference to the `.buffer` property of a
@@ -1254,6 +1278,7 @@ added: v5.10.0
 
 * `buffer` {Buffer|Uint8Array} An existing `Buffer` or [`Uint8Array`][] from
   which to copy data.
+* Returns: {Buffer}
 
 Copies the passed `buffer` data onto a new `Buffer` instance.
 
@@ -1297,6 +1322,7 @@ added: v8.2.0
 * `object` {Object} An object supporting `Symbol.toPrimitive` or `valueOf()`.
 * `offsetOrEncoding` {integer|string} A byte-offset or encoding.
 * `length` {integer} A length.
+* Returns: {Buffer}
 
 For objects whose `valueOf()` function returns a value not strictly equal to
 `object`, returns `Buffer.from(object.valueOf(), offsetOrEncoding, length)`.
@@ -1355,6 +1381,7 @@ added: v5.10.0
 
 * `string` {string} A string to encode.
 * `encoding` {string} The encoding of `string`. **Default:** `'utf8'`.
+* Returns: {Buffer}
 
 Creates a new `Buffer` containing `string`. The `encoding` parameter identifies
 the character encoding to be used when converting `string` into bytes.
@@ -1389,6 +1416,9 @@ console.log(buf1.toString('latin1'));
 
 A `TypeError` will be thrown if `string` is not a string or another type
 appropriate for `Buffer.from()` variants.
+
+[`Buffer.from(string)`][] may also use the internal `Buffer` pool like
+[`Buffer.allocUnsafe()`][] does.
 
 ### Static method: `Buffer.isBuffer(obj)`
 
@@ -5074,6 +5104,9 @@ added:
   - v19.2.0
   - v18.13.0
 changes:
+  - version: v23.0.0
+    pr-url: https://github.com/nodejs/node/pull/47613
+    description: Makes File instances cloneable.
   - version: v20.0.0
     pr-url: https://github.com/nodejs/node/pull/47153
     description: No longer experimental.
@@ -5341,6 +5374,10 @@ added: v8.2.0
 <!-- YAML
 added: v8.2.0
 changes:
+  - version: v22.0.0
+    pr-url: https://github.com/nodejs/node/pull/52465
+    description: Value is changed to 2<sup>53</sup> - 1 on 64-bit
+      architectures.
   - version: v15.0.0
     pr-url: https://github.com/nodejs/node/pull/35415
     description: Value is changed to 2<sup>32</sup> on 64-bit
@@ -5356,7 +5393,7 @@ changes:
 On 32-bit architectures, this value currently is 2<sup>30</sup> - 1 (about 1
 GiB).
 
-On 64-bit architectures, this value currently is 2<sup>32</sup> (about 4 GiB).
+On 64-bit architectures, this value currently is 2<sup>53</sup> - 1 (about 8 PiB).
 
 It reflects [`v8::TypedArray::kMaxLength`][] under the hood.
 
@@ -5444,10 +5481,10 @@ to one of these new APIs._
   uninitialized, the allocated segment of memory might contain old data that is
   potentially sensitive.
 
-`Buffer` instances returned by [`Buffer.allocUnsafe()`][] and
-[`Buffer.from(array)`][] _may_ be allocated off a shared internal memory pool
-if `size` is less than or equal to half [`Buffer.poolSize`][]. Instances
-returned by [`Buffer.allocUnsafeSlow()`][] _never_ use the shared internal
+`Buffer` instances returned by [`Buffer.allocUnsafe()`][], [`Buffer.from(string)`][],
+[`Buffer.concat()`][] and [`Buffer.from(array)`][] _may_ be allocated off a shared
+internal memory pool if `size` is less than or equal to half [`Buffer.poolSize`][].
+Instances returned by [`Buffer.allocUnsafeSlow()`][] _never_ use the shared internal
 memory pool.
 
 ### The `--zero-fill-buffers` command-line option

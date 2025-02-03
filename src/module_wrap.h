@@ -88,6 +88,9 @@ class ModuleWrap : public BaseObject {
       std::optional<v8::ScriptCompiler::CachedData*> user_cached_data,
       bool* cache_rejected);
 
+  static void CreateRequiredModuleFacade(
+      const v8::FunctionCallbackInfo<v8::Value>& args);
+
  private:
   ModuleWrap(Realm* realm,
              v8::Local<v8::Object> object,
@@ -98,9 +101,7 @@ class ModuleWrap : public BaseObject {
   ~ModuleWrap() override;
 
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GetModuleRequestsSync(
-      const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void CacheResolvedWrapsSync(
+  static void GetModuleRequests(
       const v8::FunctionCallbackInfo<v8::Value>& args);
   static void InstantiateSync(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void EvaluateSync(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -112,8 +113,6 @@ class ModuleWrap : public BaseObject {
   static void GetNamespace(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void GetStatus(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void GetError(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GetStaticDependencySpecifiers(
-      const v8::FunctionCallbackInfo<v8::Value>& args);
 
   static void SetImportModuleDynamicallyCallback(
       const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -133,10 +132,9 @@ class ModuleWrap : public BaseObject {
   static ModuleWrap* GetFromModule(node::Environment*, v8::Local<v8::Module>);
 
   v8::Global<v8::Module> module_;
-  std::unordered_map<std::string, v8::Global<v8::Promise>> resolve_cache_;
+  std::unordered_map<std::string, v8::Global<v8::Object>> resolve_cache_;
   contextify::ContextifyContext* contextify_context_ = nullptr;
   bool synthetic_ = false;
-  bool linked_ = false;
   int module_hash_;
 };
 

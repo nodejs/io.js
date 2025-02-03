@@ -139,6 +139,22 @@ auto IterateWithoutLast(const iterator_range<T>& t) {
   return IterateWithoutLast(range_copy);
 }
 
+// {IterateWithoutFirst} returns a container adapter usable in a range-based
+// "for" statement for iterating all elements without the first in a forward
+// order. It performs a check whether the container is empty.
+template <typename T>
+auto IterateWithoutFirst(T& t) {
+  DCHECK_NE(std::begin(t), std::end(t));
+  auto new_begin = std::begin(t);
+  return make_iterator_range(++new_begin, std::end(t));
+}
+
+template <typename T>
+auto IterateWithoutFirst(const iterator_range<T>& t) {
+  iterator_range<T> range_copy = {t.begin(), t.end()};
+  return IterateWithoutFirst(range_copy);
+}
+
 // TupleIterator is an iterator wrapping around multiple iterators. It is use by
 // the `zip` function below to iterate over multiple containers at once.
 template <class... Iterators>

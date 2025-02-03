@@ -34,7 +34,10 @@ class VMState {
 
 class V8_NODISCARD ExternalCallbackScope {
  public:
-  inline ExternalCallbackScope(Isolate* isolate, Address callback);
+  inline ExternalCallbackScope(
+      Isolate* isolate, Address callback,
+      v8::ExceptionContext exception_context = v8::ExceptionContext::kUnknown,
+      const void* callback_info = nullptr);
   inline ~ExternalCallbackScope();
   Address callback() { return callback_; }
   Address* callback_entrypoint_address() {
@@ -48,10 +51,16 @@ class V8_NODISCARD ExternalCallbackScope {
   ExternalCallbackScope* previous() { return previous_scope_; }
   inline Address scope_address();
 
+  v8::ExceptionContext exception_context() const { return exception_context_; }
+  const void* callback_info() { return callback_info_; }
+
  private:
   Address const callback_;
+  // v8::FunctionCallbackInfo* or v8::PropertyCallbackInfo* or nullptr.
+  const void* const callback_info_;
   ExternalCallbackScope* const previous_scope_;
   VMState<EXTERNAL> const vm_state_;
+  v8::ExceptionContext exception_context_;
   PauseNestedTimedHistogramScope const pause_timed_histogram_scope_;
 #ifdef USE_SIMULATOR
   Address scope_address_;

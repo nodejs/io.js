@@ -41,12 +41,12 @@ class PropertyDescriptor {
   }
 
   // ES6 6.2.4.4
-  Handle<Object> ToObject(Isolate* isolate);
+  Handle<JSObject> ToObject(Isolate* isolate);
 
   Handle<PropertyDescriptorObject> ToPropertyDescriptorObject(Isolate* isolate);
 
   // ES6 6.2.4.5
-  static bool ToPropertyDescriptor(Isolate* isolate, Handle<Object> obj,
+  static bool ToPropertyDescriptor(Isolate* isolate, Handle<JSAny> obj,
                                    PropertyDescriptor* desc);
 
   // ES6 6.2.4.6
@@ -82,8 +82,8 @@ class PropertyDescriptor {
   }
   bool has_configurable() const { return has_configurable_; }
 
-  Handle<Object> value() const { return value_; }
-  void set_value(Handle<Object> value) { value_ = value; }
+  Handle<JSAny> value() const { return value_; }
+  void set_value(Handle<JSAny> value) { value_ = value; }
   bool has_value() const { return !value_.is_null(); }
 
   bool writable() const { return writable_; }
@@ -93,16 +93,16 @@ class PropertyDescriptor {
   }
   bool has_writable() const { return has_writable_; }
 
-  Handle<Object> get() const { return get_; }
-  void set_get(Handle<Object> get) { get_ = get; }
+  Handle<UnionOf<JSAny, FunctionTemplateInfo>> get() const { return get_; }
+  void set_get(Handle<UnionOf<JSAny, FunctionTemplateInfo>> get) { get_ = get; }
   bool has_get() const { return !get_.is_null(); }
 
-  Handle<Object> set() const { return set_; }
-  void set_set(Handle<Object> set) { set_ = set; }
+  Handle<UnionOf<JSAny, FunctionTemplateInfo>> set() const { return set_; }
+  void set_set(Handle<UnionOf<JSAny, FunctionTemplateInfo>> set) { set_ = set; }
   bool has_set() const { return !set_.is_null(); }
 
-  Handle<Object> name() const { return name_; }
-  void set_name(Handle<Object> name) { name_ = name; }
+  Handle<JSAny> name() const { return name_; }
+  void set_name(Handle<JSAny> name) { name_ = name; }
 
   PropertyAttributes ToAttributes() {
     return static_cast<PropertyAttributes>(
@@ -118,10 +118,10 @@ class PropertyDescriptor {
   bool has_configurable_ : 1;
   bool writable_ : 1;
   bool has_writable_ : 1;
-  Handle<Object> value_;
-  Handle<Object> get_;
-  Handle<Object> set_;
-  Handle<Object> name_;
+  Handle<JSAny> value_;
+  Handle<UnionOf<JSAny, FunctionTemplateInfo>> get_;
+  Handle<UnionOf<JSAny, FunctionTemplateInfo>> set_;
+  Handle<JSAny> name_;
 };
 
 }  // namespace internal

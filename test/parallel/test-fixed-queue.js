@@ -32,3 +32,15 @@ const FixedQueue = require('internal/fixed_queue');
   assert.strictEqual(queue.shift(), 'a');
   assert(queue.isEmpty());
 }
+
+{
+  // FixedQueue must not be holey array
+  // Refs: https://github.com/nodejs/node/issues/54472
+  const queue = new FixedQueue();
+  for (let i = 0; i < queue.head.list.length; i++) {
+    assert(i in queue.head.list);
+  }
+  for (let i = 0; i < queue.tail.list.length; i++) {
+    assert(i in queue.tail.list);
+  }
+}

@@ -125,6 +125,9 @@ class Metadata {
         if (type !== signed._type) {
             throw new error_1.ValueError(`expected '${type}', got ${signed['_type']}`);
         }
+        if (!utils_1.guard.isObjectArray(signatures)) {
+            throw new TypeError('signatures is not an array');
+        }
         let signedObj;
         switch (type) {
             case base_1.MetadataKind.Root:
@@ -142,17 +145,16 @@ class Metadata {
             default:
                 throw new TypeError('invalid metadata type');
         }
-        const sigMap = signaturesFromJSON(signatures);
+        const sigMap = {};
+        // Ensure that each signature is unique
+        signatures.forEach((sigData) => {
+            const sig = signature_1.Signature.fromJSON(sigData);
+            if (sigMap[sig.keyID]) {
+                throw new error_1.ValueError(`multiple signatures found for keyid: ${sig.keyID}`);
+            }
+            sigMap[sig.keyID] = sig;
+        });
         return new Metadata(signedObj, sigMap, rest);
     }
 }
 exports.Metadata = Metadata;
-function signaturesFromJSON(data) {
-    if (!utils_1.guard.isObjectArray(data)) {
-        throw new TypeError('signatures is not an array');
-    }
-    return data.reduce((acc, sigData) => {
-        const signature = signature_1.Signature.fromJSON(sigData);
-        return { ...acc, [signature.keyID]: signature };
-    }, {});
-}

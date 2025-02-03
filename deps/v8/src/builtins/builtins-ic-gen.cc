@@ -53,6 +53,16 @@ void Builtins::Generate_KeyedLoadIC(compiler::CodeAssemblerState* state) {
   AccessorAssembler assembler(state);
   assembler.GenerateKeyedLoadIC();
 }
+void Builtins::Generate_EnumeratedKeyedLoadIC(
+    compiler::CodeAssemblerState* state) {
+  AccessorAssembler assembler(state);
+  assembler.GenerateEnumeratedKeyedLoadIC();
+}
+void Builtins::Generate_EnumeratedKeyedLoadICBaseline(
+    compiler::CodeAssemblerState* state) {
+  AccessorAssembler assembler(state);
+  assembler.GenerateEnumeratedKeyedLoadICBaseline();
+}
 void Builtins::Generate_KeyedLoadIC_Megamorphic(
     compiler::CodeAssemblerState* state) {
   AccessorAssembler assembler(state);

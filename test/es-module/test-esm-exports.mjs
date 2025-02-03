@@ -8,50 +8,53 @@ import fromInside from '../fixtures/node_modules/pkgexports/lib/hole.js';
 [requireFixture, importFixture].forEach((loadFixture) => {
   const isRequire = loadFixture === requireFixture;
 
+  const maybeWrapped = isRequire ? (exports) => exports :
+    (exports) => ({ ...exports, 'module.exports': exports.default });
+
   const validSpecifiers = new Map([
     // A simple mapping of a path.
-    ['pkgexports/valid-cjs', { default: 'asdf' }],
+    ['pkgexports/valid-cjs', maybeWrapped({ default: 'asdf' })],
     // A mapping pointing to a file that needs special encoding (%20) in URLs.
-    ['pkgexports/space', { default: 'encoded path' }],
+    ['pkgexports/space', maybeWrapped({ default: 'encoded path' })],
     // Verifying that normal packages still work with exports turned on.
     isRequire ? ['baz/index', { default: 'eye catcher' }] : [null],
     // Fallbacks
-    ['pkgexports/fallbackdir/asdf.js', { default: 'asdf' }],
-    ['pkgexports/fallbackfile', { default: 'asdf' }],
+    ['pkgexports/fallbackdir/asdf.js', maybeWrapped({ default: 'asdf' })],
+    ['pkgexports/fallbackfile', maybeWrapped({ default: 'asdf' })],
     // Conditional split for require
     ['pkgexports/condition', isRequire ? { default: 'encoded path' } :
-      { default: 'asdf' }],
+      maybeWrapped({ default: 'asdf' })],
     // String exports sugar
-    ['pkgexports-sugar', { default: 'main' }],
+    ['pkgexports-sugar', maybeWrapped({ default: 'main' })],
     // Conditional object exports sugar
     ['pkgexports-sugar2', isRequire ? { default: 'not-exported' } :
-      { default: 'main' }],
+      maybeWrapped({ default: 'main' })],
     // Resolve self
     ['pkgexports/resolve-self', isRequire ?
       { default: 'self-cjs' } : { default: 'self-mjs' }],
     // Resolve self sugar
-    ['pkgexports-sugar', { default: 'main' }],
+    ['pkgexports-sugar', maybeWrapped({ default: 'main' })],
     // Path patterns
-    ['pkgexports/subpath/sub-dir1', { default: 'main' }],
-    ['pkgexports/subpath/sub-dir1.js', { default: 'main' }],
-    ['pkgexports/features/dir1', { default: 'main' }],
-    ['pkgexports/dir1/dir1/trailer', { default: 'main' }],
-    ['pkgexports/dir2/dir2/trailer', { default: 'index' }],
-    ['pkgexports/a/dir1/dir1', { default: 'main' }],
-    ['pkgexports/a/b/dir1/dir1', { default: 'main' }],
+    ['pkgexports/subpath/sub-dir1', maybeWrapped({ default: 'main' })],
+    ['pkgexports/subpath/sub-dir1.js', maybeWrapped({ default: 'main' })],
+    ['pkgexports/features/dir1', maybeWrapped({ default: 'main' })],
+    ['pkgexports/dir1/dir1/trailer', maybeWrapped({ default: 'main' })],
+    ['pkgexports/dir2/dir2/trailer', maybeWrapped({ default: 'index' })],
+    ['pkgexports/a/dir1/dir1', maybeWrapped({ default: 'main' })],
+    ['pkgexports/a/b/dir1/dir1', maybeWrapped({ default: 'main' })],
 
     // Deprecated:
     // Double slashes:
-    ['pkgexports/a//dir1/dir1', { default: 'main' }],
+    ['pkgexports/a//dir1/dir1', maybeWrapped({ default: 'main' })],
     // double slash target
-    ['pkgexports/doubleslash', { default: 'asdf' }],
+    ['pkgexports/doubleslash', maybeWrapped({ default: 'asdf' })],
     // Null target with several slashes
-    ['pkgexports/sub//internal/test.js', { default: 'internal only' }],
-    ['pkgexports/sub//internal//test.js', { default: 'internal only' }],
-    ['pkgexports/sub/////internal/////test.js', { default: 'internal only' }],
+    ['pkgexports/sub//internal/test.js', maybeWrapped({ default: 'internal only' })],
+    ['pkgexports/sub//internal//test.js', maybeWrapped({ default: 'internal only' })],
+    ['pkgexports/sub/////internal/////test.js', maybeWrapped({ default: 'internal only' })],
     // trailing slash
     ['pkgexports/trailing-pattern-slash/',
-     { default: 'trailing-pattern-slash' }],
+     maybeWrapped({ default: 'trailing-pattern-slash' })],
   ]);
 
   if (!isRequire) {
@@ -214,11 +217,15 @@ import fromInside from '../fixtures/node_modules/pkgexports/lib/hole.js';
 
 const { requireFromInside, importFromInside } = fromInside;
 [importFromInside, requireFromInside].forEach((loadFromInside) => {
+  const isRequire = loadFromInside === requireFromInside;
+  const maybeWrapped = isRequire ? (exports) => exports :
+    (exports) => ({ ...exports, 'module.exports': exports.default });
+
   const validSpecifiers = new Map([
     // A file not visible from outside of the package
-    ['../not-exported.js', { default: 'not-exported' }],
+    ['../not-exported.js', maybeWrapped({ default: 'not-exported' })],
     // Part of the public interface
-    ['pkgexports/valid-cjs', { default: 'asdf' }],
+    ['pkgexports/valid-cjs', maybeWrapped({ default: 'asdf' })],
   ]);
   for (const [validSpecifier, expected] of validSpecifiers) {
     if (validSpecifier === null) continue;
@@ -231,7 +238,7 @@ const { requireFromInside, importFromInside } = fromInside;
 });
 
 function assertStartsWith(actual, expected) {
-  const start = actual.toString().substr(0, expected.length);
+  const start = actual.toString().slice(0, expected.length);
   strictEqual(start, expected);
 }
 

@@ -15,3 +15,13 @@ const uint8_t v8_Default_embedded_blob_code_[1] = {0};
 uint32_t v8_Default_embedded_blob_code_size_ = 0;
 const uint8_t v8_Default_embedded_blob_data_[1] = {0};
 uint32_t v8_Default_embedded_blob_data_size_ = 0;
+
+#if V8_ENABLE_DRUMBRAKE
+#include "src/wasm/interpreter/instruction-handlers.h"
+typedef void (*fun_ptr)();
+#define V(name)                       \
+  extern "C" fun_ptr Builtins_##name; \
+  fun_ptr Builtins_##name = nullptr;
+FOREACH_LOAD_STORE_INSTR_HANDLER(V)
+#undef V
+#endif  // V8_ENABLE_DRUMBRAKE

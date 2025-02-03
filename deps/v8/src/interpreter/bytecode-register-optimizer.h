@@ -119,8 +119,15 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
   // Maintain the map between Variable and Register.
   void SetVariableInRegister(Variable* var, Register reg);
 
-  // Get the variable in the reg.
-  Variable* GetVariableInRegister(Register reg);
+  // Get the variable that might be in the reg. This is a variable value that
+  // is preserved across flushes.
+  Variable* GetPotentialVariableInRegister(Register reg);
+
+  // Get the variable that might be in the accumulator. This is a variable value
+  // that is preserved across flushes.
+  Variable* GetPotentialVariableInAccumulator() {
+    return GetPotentialVariableInRegister(accumulator_);
+  }
 
   // Return true if the var is in the reg.
   bool IsVariableInRegister(Variable* var, Register reg);
@@ -150,7 +157,6 @@ class V8_EXPORT_PRIVATE BytecodeRegisterOptimizer final
   void OutputRegisterTransfer(RegisterInfo* input, RegisterInfo* output);
 
   void CreateMaterializedEquivalent(RegisterInfo* info);
-  RegisterInfo* GetMaterializedEquivalent(RegisterInfo* info);
   RegisterInfo* GetMaterializedEquivalentNotAccumulator(RegisterInfo* info);
   void Materialize(RegisterInfo* info);
   void AddToEquivalenceSet(RegisterInfo* set_member,

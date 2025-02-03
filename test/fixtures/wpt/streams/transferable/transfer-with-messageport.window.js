@@ -105,7 +105,7 @@ async function transferMessagePortWith(constructor) {
   await transferMessagePortWithOrder3(new constructor());
 }
 
-async function advancedTransferMesagePortWith(constructor) {
+async function advancedTransferMessagePortWith(constructor) {
   await transferMessagePortWithOrder4(new constructor());
   await transferMessagePortWithOrder5(new constructor());
   await transferMessagePortWithOrder6(new constructor());
@@ -166,7 +166,7 @@ async function mixedTransferMessagePortWithOrder3() {
   );
 }
 
-async function mixedTransferMesagePortWith() {
+async function mixedTransferMessagePortWith() {
   await mixedTransferMessagePortWithOrder1();
   await mixedTransferMessagePortWithOrder2();
   await mixedTransferMessagePortWithOrder3();
@@ -185,19 +185,19 @@ promise_test(async t => {
 }, "Transferring a MessagePort with a TransformStream should set `.ports`");
 
 promise_test(async t => {
-  await transferMessagePortWith(ReadableStream);
+  await advancedTransferMessagePortWith(ReadableStream);
 }, "Transferring a MessagePort with a ReadableStream should set `.ports`, advanced");
 
 promise_test(async t => {
-  await transferMessagePortWith(WritableStream);
+  await advancedTransferMessagePortWith(WritableStream);
 }, "Transferring a MessagePort with a WritableStream should set `.ports`, advanced");
 
 promise_test(async t => {
-  await transferMessagePortWith(TransformStream);
+  await advancedTransferMessagePortWith(TransformStream);
 }, "Transferring a MessagePort with a TransformStream should set `.ports`, advanced");
 
 promise_test(async t => {
-  await mixedTransferMesagePortWith();
+  await mixedTransferMessagePortWith();
 }, "Transferring a MessagePort with multiple streams should set `.ports`");
 
 test(() => {

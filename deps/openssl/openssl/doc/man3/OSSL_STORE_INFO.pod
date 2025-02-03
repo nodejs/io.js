@@ -101,6 +101,7 @@ holds if the B<OSSL_STORE_INFO> type (as returned by
 OSSL_STORE_INFO_get_type()) matches the function, otherwise NULL.
 
 OSSL_STORE_INFO_free() frees a B<OSSL_STORE_INFO> and its contained type.
+If the argument is NULL, nothing is done.
 
 OSSL_STORE_INFO_new_NAME() , OSSL_STORE_INFO_new_PARAMS(),
 , OSSL_STORE_INFO_new_PUBKEY(), OSSL_STORE_INFO_new_PKEY(),
@@ -221,7 +222,7 @@ The OSSL_STORE_INFO_PUBKEY object type was added in OpenSSL 3.0.
 
 =head1 COPYRIGHT
 
-Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

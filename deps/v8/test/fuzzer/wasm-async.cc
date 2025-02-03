@@ -21,7 +21,7 @@ namespace v8::internal {
 class WasmModuleObject;
 }
 
-namespace v8::internal::wasm::fuzzer {
+namespace v8::internal::wasm::fuzzing {
 
 class AsyncFuzzerResolver : public CompilationResultResolver {
  public:
@@ -73,7 +73,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   testing::SetupIsolateForWasmModule(i_isolate);
 
   bool done = false;
-  auto enabled_features = WasmFeatures::FromIsolate(i_isolate);
+  auto enabled_features = WasmEnabledFeatures::FromIsolate(i_isolate);
   constexpr const char* kAPIMethodName = "WasmAsyncFuzzer.compile";
   GetWasmEngine()->AsyncCompile(
       i_isolate, enabled_features, CompileTimeImports{},
@@ -88,4 +88,4 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   return 0;
 }
 
-}  // namespace v8::internal::wasm::fuzzer
+}  // namespace v8::internal::wasm::fuzzing

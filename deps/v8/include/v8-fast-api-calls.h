@@ -337,7 +337,13 @@ struct FastApiTypedArrayBase {
 };
 
 template <typename T>
-struct FastApiTypedArray : public FastApiTypedArrayBase {
+struct V8_DEPRECATE_SOON(
+    "When an API function expects a TypedArray as a parameter, the type in the "
+    "signature should be `v8::Local<v8::Value>` instead of "
+    "FastApiTypedArray<>. The API function then has to type-check the "
+    "parameter and convert it to a `v8::Local<v8::TypedArray` to access the "
+    "data. In essence, the parameter should be handled the same as for a "
+    "regular API call.") FastApiTypedArray : public FastApiTypedArrayBase {
  public:
   V8_INLINE T get(size_t index) const {
 #ifdef DEBUG
@@ -458,13 +464,6 @@ union V8_TRIVIAL_ABI AnyCType {
   void* pointer_value;
   Local<Object> object_value;
   Local<Array> sequence_value;
-  const FastApiTypedArray<uint8_t>* uint8_ta_value;
-  const FastApiTypedArray<int32_t>* int32_ta_value;
-  const FastApiTypedArray<uint32_t>* uint32_ta_value;
-  const FastApiTypedArray<int64_t>* int64_ta_value;
-  const FastApiTypedArray<uint64_t>* uint64_ta_value;
-  const FastApiTypedArray<float>* float_ta_value;
-  const FastApiTypedArray<double>* double_ta_value;
   const FastOneByteString* string_value;
   FastApiCallbackOptions* options_value;
 };
@@ -529,16 +528,22 @@ class V8_EXPORT CFunction {
   }
 
   template <typename F>
-  static CFunction Make(F* func) {
-    return ArgUnwrap<F*>::Make(func);
+  static CFunction Make(F* func,
+                        CFunctionInfo::Int64Representation int64_rep =
+                            CFunctionInfo::Int64Representation::kNumber) {
+    CFunction result = ArgUnwrap<F*>::Make(func, int64_rep);
+    result.GetInt64Representation();
+    return result;
   }
 
   // Provided for testing purposes.
   template <typename R, typename... Args, typename R_Patch,
             typename... Args_Patch>
   static CFunction Make(R (*func)(Args...),
-                        R_Patch (*patching_func)(Args_Patch...)) {
-    CFunction c_func = ArgUnwrap<R (*)(Args...)>::Make(func);
+                        R_Patch (*patching_func)(Args_Patch...),
+                        CFunctionInfo::Int64Representation int64_rep =
+                            CFunctionInfo::Int64Representation::kNumber) {
+    CFunction c_func = ArgUnwrap<R (*)(Args...)>::Make(func, int64_rep);
     static_assert(
         sizeof...(Args_Patch) == sizeof...(Args),
         "The patching function must have the same number of arguments.");
@@ -561,7 +566,9 @@ class V8_EXPORT CFunction {
   template <typename R, typename... Args>
   class ArgUnwrap<R (*)(Args...)> {
    public:
-    static CFunction Make(R (*func)(Args...));
+    static CFunction Make(R (*func)(Args...),
+                          CFunctionInfo::Int64Representation int64_rep =
+                              CFunctionInfo::Int64Representation::kNumber);
   };
 };
 
@@ -577,35 +584,15 @@ struct FastApiCallbackOptions {
    * returned instance may be filled with mock data.
    */
   static FastApiCallbackOptions CreateForTesting(Isolate* isolate) {
-    return {false, {0}, nullptr};
+    return {};
   }
 
-  /**
-   * If the callback wants to signal an error condition or to perform an
-   * allocation, it must set options.fallback to true and do an early return
-   * from the fast method. Then V8 checks the value of options.fallback and if
-   * it's true, falls back to executing the SlowCallback, which is capable of
-   * reporting the error (either by throwing a JS exception or logging to the
-   * console) or doing the allocation. It's the embedder's responsibility to
-   * ensure that the fast callback is idempotent up to the point where error and
-   * fallback conditions are checked, because otherwise executing the slow
-   * callback might produce visible side-effects twice.
-   */
-  bool fallback;
+  v8::Isolate* isolate = nullptr;
 
   /**
    * The `data` passed to the FunctionTemplate constructor, or `undefined`.
-   * `data_ptr` allows for default constructing FastApiCallbackOptions.
    */
-  union {
-    uintptr_t data_ptr;
-    v8::Local<v8::Value> data;
-  };
-
-  /**
-   * When called from WebAssembly, a view of the calling module's memory.
-   */
-  FastApiTypedArray<uint8_t>* const wasm_memory;
+  v8::Local<v8::Value> data;
 };
 
 namespace internal {
@@ -929,8 +916,14 @@ class CFunctionBuilder {
 
 // static
 template <typename R, typename... Args>
-CFunction CFunction::ArgUnwrap<R (*)(Args...)>::Make(R (*func)(Args...)) {
-  return internal::CFunctionBuilder().Fn(func).Build();
+CFunction CFunction::ArgUnwrap<R (*)(Args...)>::Make(
+    R (*func)(Args...), CFunctionInfo::Int64Representation int64_rep) {
+  if (int64_rep == CFunctionInfo::Int64Representation::kNumber) {
+    return internal::CFunctionBuilder().Fn(func).Build();
+  }
+  return internal::CFunctionBuilder()
+      .Fn(func)
+      .template Build<CFunctionInfo::Int64Representation::kBigInt>();
 }
 
 using CFunctionBuilder = internal::CFunctionBuilder;

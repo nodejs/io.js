@@ -1,23 +1,23 @@
 import { ConstantsBinding } from './constants';
 
+interface ReadFileContext {
+  fd: number | undefined;
+  isUserFd: boolean | undefined;
+  size: number;
+  callback: (err?: Error, data?: string | Uint8Array) => unknown;
+  buffers: Uint8Array[];
+  buffer: Uint8Array;
+  pos: number;
+  encoding: string;
+  err: Error | null;
+  signal: unknown /* AbortSignal | undefined */;
+}
+
 declare namespace InternalFSBinding {
   class FSReqCallback<ResultType = unknown> {
     constructor(bigint?: boolean);
     oncomplete: ((error: Error) => void) | ((error: null, result: ResultType) => void);
     context: ReadFileContext;
-  }
-
-  interface ReadFileContext {
-    fd: number | undefined;
-    isUserFd: boolean | undefined;
-    size: number;
-    callback: (err?: Error, data?: string | Buffer) => unknown;
-    buffers: Buffer[];
-    buffer: Buffer;
-    pos: number;
-    encoding: string;
-    err: Error | null;
-    signal: unknown /* AbortSignal | undefined */;
   }
 
   interface FSSyncContext {
@@ -57,7 +57,7 @@ declare namespace InternalFSBinding {
   }
 
   function access(path: StringOrBuffer, mode: number, req: FSReqCallback): void;
-  function access(path: StringOrBuffer, mode: number, req: undefined, ctx: FSSyncContext): void;
+  function access(path: StringOrBuffer, mode: number): void;
   function access(path: StringOrBuffer, mode: number, usePromises: typeof kUsePromises): Promise<void>;
 
   function chmod(path: string, mode: number, req: FSReqCallback): void;
@@ -70,11 +70,13 @@ declare namespace InternalFSBinding {
   function chown(path: string, uid: number, gid: number): void;
 
   function close(fd: number, req: FSReqCallback): void;
-  function close(fd: number, req: undefined, ctx: FSSyncContext): void;
+  function close(fd: number): void;
 
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, req: FSReqCallback): void;
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, req: undefined, ctx: FSSyncContext): void;
   function copyFile(src: StringOrBuffer, dest: StringOrBuffer, mode: number, usePromises: typeof kUsePromises): Promise<void>;
+
+  function cpSyncCheckPaths(src: StringOrBuffer, dest: StringOrBuffer, dereference: boolean, recursive: boolean): void;
 
   function fchmod(fd: number, mode: number, req: FSReqCallback): void;
   function fchmod(fd: number, mode: number): void;
@@ -111,7 +113,7 @@ declare namespace InternalFSBinding {
   function futimes(fd: number, atime: number, mtime: number): void;
   function futimes(fd: number, atime: number, mtime: number, usePromises: typeof kUsePromises): Promise<void>;
 
-  function internalModuleStat(path: string): number;
+  function internalModuleStat(receiver: unknown, path: string): number;
 
   function lchown(path: string, uid: number, gid: number, req: FSReqCallback): void;
   function lchown(path: string, uid: number, gid: number, req: undefined, ctx: FSSyncContext): void;
@@ -153,7 +155,7 @@ declare namespace InternalFSBinding {
   function mkdir(path: string, mode: number, recursive: false, usePromises: typeof kUsePromises): Promise<void>;
 
   function open(path: StringOrBuffer, flags: number, mode: number, req: FSReqCallback<number>): void;
-  function open(path: StringOrBuffer, flags: number, mode: number, req: undefined, ctx: FSSyncContext): number;
+  function open(path: StringOrBuffer, flags: number, mode: number): number;
 
   function openFileHandle(path: StringOrBuffer, flags: number, mode: number, usePromises: typeof kUsePromises): Promise<FileHandle>;
 
@@ -175,6 +177,8 @@ declare namespace InternalFSBinding {
   function readdir(path: StringOrBuffer, encoding: unknown, withFileTypes: true, usePromises: typeof kUsePromises): Promise<[string[], number[]]>;
   function readdir(path: StringOrBuffer, encoding: unknown, withFileTypes: false, usePromises: typeof kUsePromises): Promise<string[]>;
 
+  function readFileUtf8(path: StringOrBuffer, flags: number): string;
+
   function readlink(path: StringOrBuffer, encoding: unknown, req: FSReqCallback<string | Buffer>): void;
   function readlink(path: StringOrBuffer, encoding: unknown, req: undefined, ctx: FSSyncContext): string | Buffer;
   function readlink(path: StringOrBuffer, encoding: unknown, usePromises: typeof kUsePromises): Promise<string | Buffer>;
@@ -193,6 +197,8 @@ declare namespace InternalFSBinding {
   function rmdir(path: string, req: FSReqCallback): void;
   function rmdir(path: string): void;
   function rmdir(path: string, usePromises: typeof kUsePromises): Promise<void>;
+
+  function rmSync(path: StringOrBuffer, maxRetries: number, recursive: boolean, retryDelay: number): void;
 
   function stat(path: StringOrBuffer, useBigint: boolean, req: FSReqCallback<Float64Array | BigUint64Array>): void;
   function stat(path: StringOrBuffer, useBigint: true, req: FSReqCallback<BigUint64Array>): void;
@@ -253,6 +259,7 @@ export interface FsBinding {
   chown: typeof InternalFSBinding.chown;
   close: typeof InternalFSBinding.close;
   copyFile: typeof InternalFSBinding.copyFile;
+  cpSyncCheckPaths: typeof InternalFSBinding.cpSyncCheckPaths;
   fchmod: typeof InternalFSBinding.fchmod;
   fchown: typeof InternalFSBinding.fchown;
   fdatasync: typeof InternalFSBinding.fdatasync;
@@ -272,16 +279,19 @@ export interface FsBinding {
   read: typeof InternalFSBinding.read;
   readBuffers: typeof InternalFSBinding.readBuffers;
   readdir: typeof InternalFSBinding.readdir;
+  readFileUtf8: typeof InternalFSBinding.readFileUtf8;
   readlink: typeof InternalFSBinding.readlink;
   realpath: typeof InternalFSBinding.realpath;
   rename: typeof InternalFSBinding.rename;
   rmdir: typeof InternalFSBinding.rmdir;
+  rmSync: typeof InternalFSBinding.rmSync;
   stat: typeof InternalFSBinding.stat;
   symlink: typeof InternalFSBinding.symlink;
   unlink: typeof InternalFSBinding.unlink;
   utimes: typeof InternalFSBinding.utimes;
   writeBuffer: typeof InternalFSBinding.writeBuffer;
   writeBuffers: typeof InternalFSBinding.writeBuffers;
+  writeFileUtf8: typeof InternalFSBinding.writeFileUtf8;
   writeString: typeof InternalFSBinding.writeString;
 
   getFormatOfExtensionlessFile: typeof InternalFSBinding.getFormatOfExtensionlessFile;

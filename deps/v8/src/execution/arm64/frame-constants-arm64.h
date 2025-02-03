@@ -40,8 +40,12 @@ namespace internal {
 //       |- - - - - - - - - - -|
 //   3   |     C entry FP      |
 //       |- - - - - - - - - - -|
-//   4   |   JS entry frame    |  <-- stack ptr
+//   4   |   JS entry frame    |
 //       |       marker        |
+//       |- - - - - - - - - - -|
+//   5   |  fast api call fp   |
+//       |- - - - - - - - - - -|
+//   6   |  fast api call pc   |  <-- stack ptr
 //  -----+---------------------+-----------------------
 //          TOP OF THE STACK     LOWEST ADDRESS
 //
@@ -50,7 +54,11 @@ class EntryFrameConstants : public AllStatic {
   // This is the offset to where JSEntry pushes the current value of
   // Isolate::c_entry_fp onto the stack.
   static constexpr int kNextExitFrameFPOffset = -3 * kSystemPointerSize;
-  static constexpr int kFixedFrameSize = 4 * kSystemPointerSize;
+  // The offsets for storing the FP and PC of fast API calls.
+  static constexpr int kNextFastCallFrameFPOffset = -5 * kSystemPointerSize;
+  static constexpr int kNextFastCallFramePCOffset = -6 * kSystemPointerSize;
+
+  static constexpr int kFixedFrameSize = 6 * kSystemPointerSize;
 
   // The following constants are defined so we can static-assert their values
   // near the relevant JSEntry assembly code, not because they're actually very
@@ -92,9 +100,15 @@ class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
       TYPED_FRAME_PUSHED_VALUE_OFFSET(2), TYPED_FRAME_PUSHED_VALUE_OFFSET(1)};
 
   // SP-relative.
-  static constexpr int kWasmInstanceOffset = 2 * kSystemPointerSize;
+  static constexpr int kWasmInstanceDataOffset = 2 * kSystemPointerSize;
   static constexpr int kDeclaredFunctionIndexOffset = 1 * kSystemPointerSize;
   static constexpr int kNativeModuleOffset = 0;
+};
+
+class WasmLiftoffFrameConstants : public TypedFrameConstants {
+ public:
+  static constexpr int kFeedbackVectorOffset = 3 * kSystemPointerSize;
+  static constexpr int kInstanceDataOffset = 2 * kSystemPointerSize;
 };
 
 // Frame constructed by the {WasmDebugBreak} builtin.
@@ -111,8 +125,8 @@ class WasmDebugBreakFrameConstants : public TypedFrameConstants {
   // We push FpRegs as 128-bit SIMD registers, so 16-byte frame alignment
   // is guaranteed regardless of register count.
   static constexpr DoubleRegList kPushedFpRegs = {
-      d0,  d1,  d2,  d3,  d4,  d5,  d6,  d7,  d8,  d9,  d10, d11, d12, d13, d14,
-      d16, d17, d18, d19, d20, d21, d22, d23, d24, d25, d26, d27, d28, d29};
+      d0,  d1,  d2,  d3,  d4,  d5,  d6,  d7,  d8,  d9,  d10, d11, d12, d13,
+      d14, d16, d17, d18, d19, d20, d21, d22, d23, d24, d25, d26, d27};
 
   static constexpr int kNumPushedGpRegisters = kPushedGpRegs.Count();
   static_assert(kNumPushedGpRegisters % 2 == 0,

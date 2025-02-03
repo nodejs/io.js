@@ -4,10 +4,13 @@
 
 #include "src/maglev/maglev.h"
 
+#include <memory>
+
 #include "src/common/globals.h"
 #include "src/logging/runtime-call-stats-scope.h"
 #include "src/maglev/maglev-compilation-info.h"
 #include "src/maglev/maglev-compiler.h"
+#include "src/utils/utils.h"
 
 namespace v8 {
 namespace internal {

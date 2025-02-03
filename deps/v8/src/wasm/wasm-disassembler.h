@@ -31,6 +31,19 @@ void Disassemble(base::Vector<const uint8_t> wire_bytes,
                  v8::debug::DisassemblyCollector* collector,
                  std::vector<int>* function_body_offsets);
 
+// Prefer this version if you have the required inputs.
+void DisassembleFunction(const WasmModule* module, int func_index,
+                         base::Vector<const uint8_t> wire_bytes,
+                         NamesProvider* names, std::ostream& os);
+
+// Use this version when you don't have ModuleWireBytes or a NamesProvider,
+// i.e. during streaming compilation.
+void DisassembleFunction(const WasmModule* module, int func_index,
+                         base::Vector<const uint8_t> function_body,
+                         base::Vector<const uint8_t> maybe_wire_bytes,
+                         uint32_t function_body_offset, std::ostream& os,
+                         std::vector<uint32_t>* offsets = nullptr);
+
 }  // namespace wasm
 }  // namespace internal
 }  // namespace v8

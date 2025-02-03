@@ -127,8 +127,8 @@ if (common.hasIntl) {
       '  encoding: \'utf-8\',\n' +
       '  fatal: false,\n' +
       '  ignoreBOM: true,\n' +
-      '  [Symbol(flags)]: 4,\n' +
-      '  [Symbol(handle)]: undefined\n' +
+      '  Symbol(flags): 4,\n' +
+      '  Symbol(handle): undefined\n' +
       '}'
     );
   } else {
@@ -138,10 +138,10 @@ if (common.hasIntl) {
       "  encoding: 'utf-8',\n" +
       '  fatal: false,\n' +
       '  ignoreBOM: true,\n' +
-      '  [Symbol(flags)]: 4,\n' +
-      '  [Symbol(handle)]: StringDecoder {\n' +
+      '  Symbol(flags): 4,\n' +
+      '  Symbol(handle): StringDecoder {\n' +
       "    encoding: 'utf8',\n" +
-      '    [Symbol(kNativeDecoder)]: <Buffer 00 00 00 00 00 00 01>\n' +
+      '    Symbol(kNativeDecoder): <Buffer 00 00 00 00 00 00 01>\n' +
       '  }\n' +
       '}'
     );

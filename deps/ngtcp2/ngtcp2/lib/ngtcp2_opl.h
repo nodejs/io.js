@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -62,4 +62,4 @@ ngtcp2_opl_entry *ngtcp2_opl_pop(ngtcp2_opl *opl);
 
 void ngtcp2_opl_clear(ngtcp2_opl *opl);
 
-#endif /* NGTCP2_OPL_H */
+#endif /* !defined(NGTCP2_OPL_H) */

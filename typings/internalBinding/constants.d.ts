@@ -130,6 +130,11 @@ export interface ConstantsBinding {
       PRIORITY_HIGHEST: -20;
     };
   };
+  sqlite: {
+    SQLITE_CHANGESET_OMIT: 0;
+    SQLITE_CHANGESET_REPLACE: 1;
+    SQLITE_CHANGESET_ABORT: 2;
+  };
   fs: {
     UV_FS_SYMLINK_DIR: 1;
     UV_FS_SYMLINK_JUNCTION: 2;

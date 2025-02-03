@@ -1,8 +1,9 @@
-const { resolve } = require('path')
+const { resolve } = require('node:path')
+const { output } = require('proc-log')
 const npa = require('npm-package-arg')
 const semver = require('semver')
-
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
+
 class Rebuild extends ArboristWorkspaceCmd {
   static description = 'Rebuild a package'
   static name = 'rebuild'
@@ -19,7 +20,7 @@ class Rebuild extends ArboristWorkspaceCmd {
   // TODO
   /* istanbul ignore next */
   static async completion (opts, npm) {
-    const completion = require('../utils/completion/installed-deep.js')
+    const completion = require('../utils/installed-deep.js')
     return completion(npm, opts)
   }
 
@@ -56,7 +57,7 @@ class Rebuild extends ArboristWorkspaceCmd {
       await arb.rebuild()
     }
 
-    this.npm.output('rebuilt dependencies successfully')
+    output.standard('rebuilt dependencies successfully')
   }
 
   isNode (specs, node) {
@@ -79,4 +80,5 @@ class Rebuild extends ArboristWorkspaceCmd {
     })
   }
 }
+
 module.exports = Rebuild

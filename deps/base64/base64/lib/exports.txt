@@ -1,7 +1,0 @@
-base64_encode
-base64_stream_encode
-base64_stream_encode_init
-base64_stream_encode_final
-base64_decode
-base64_stream_decode
-base64_stream_decode_init

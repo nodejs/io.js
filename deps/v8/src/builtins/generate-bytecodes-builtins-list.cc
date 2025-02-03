@@ -61,13 +61,13 @@ void WriteHeader(const char* header_filename) {
   WriteBytecode(out, Bytecode::k##Name, operand_scale, &count, offset_table, \
                 index++);
   OperandScale operand_scale = OperandScale::kSingle;
-  BYTECODE_LIST(ADD_BYTECODES)
+  BYTECODE_LIST(ADD_BYTECODES, ADD_BYTECODES)
   int single_count = count;
   operand_scale = OperandScale::kDouble;
-  BYTECODE_LIST(ADD_BYTECODES)
+  BYTECODE_LIST(ADD_BYTECODES, ADD_BYTECODES)
   int wide_count = count - single_count;
   operand_scale = OperandScale::kQuadruple;
-  BYTECODE_LIST(ADD_BYTECODES)
+  BYTECODE_LIST(ADD_BYTECODES, ADD_BYTECODES)
 #undef ADD_BYTECODES
   int extra_wide_count = count - wide_count - single_count;
   CHECK_GT(single_count, wide_count);

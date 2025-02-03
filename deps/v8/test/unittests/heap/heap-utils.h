@@ -125,7 +125,7 @@ class WithHeapInternals : public TMixin, HeapInternalsBase {
     heap()->EnsureSweepingCompleted(
         Heap::SweepingForcedFinalizationMode::kV8Only);
     heap()->FreeMainThreadLinearAllocationAreas();
-    for (Page* page : *heap()->old_space()) {
+    for (PageMetadata* page : *heap()->old_space()) {
       page->MarkNeverAllocateForTesting();
     }
   }

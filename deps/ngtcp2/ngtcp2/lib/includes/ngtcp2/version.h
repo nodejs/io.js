@@ -22,8 +22,8 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef VERSION_H
-#define VERSION_H
+#ifndef NGTCP2_VERSION_H
+#define NGTCP2_VERSION_H
 
 /**
  * @macrosection
@@ -36,7 +36,7 @@
  *
  * Version number of the ngtcp2 library release.
  */
-#define NGTCP2_VERSION "1.3.0"
+#define NGTCP2_VERSION "1.10.0"
 
 /**
  * @macro
@@ -46,6 +46,6 @@
  * number, 8 bits for minor and 8 bits for patch. Version 1.2.3
  * becomes 0x010203.
  */
-#define NGTCP2_VERSION_NUM 0x010300
+#define NGTCP2_VERSION_NUM 0x010a00
 
-#endif /* VERSION_H */
+#endif /* !defined(NGTCP2_VERSION_H) */

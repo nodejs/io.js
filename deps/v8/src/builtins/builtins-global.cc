@@ -84,7 +84,7 @@ BUILTIN(GlobalUnescape) {
 BUILTIN(GlobalEval) {
   HandleScope scope(isolate);
   Handle<Object> x = args.atOrUndefined(isolate, 1);
-  Handle<JSFunction> target = args.target();
+  DirectHandle<JSFunction> target = args.target();
   Handle<JSObject> target_global_proxy(target->global_proxy(), isolate);
   if (!Builtins::AllowDynamicFunction(isolate, target, target_global_proxy)) {
     isolate->CountUsage(v8::Isolate::kFunctionConstructorReturnedUndefined);

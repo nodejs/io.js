@@ -413,7 +413,7 @@ UBool TransliteratorIDParser::parseCompoundID(const UnicodeString& id, int32_t d
 
     // Construct canonical ID
     for (i=0; i<list.size(); ++i) {
-        SingleID* single = (SingleID*) list.elementAt(i);
+        SingleID* single = static_cast<SingleID*>(list.elementAt(i));
         canonID.append(single->canonID);
         if (i != (list.size()-1)) {
             canonID.append(ID_DELIM);
@@ -489,7 +489,7 @@ void TransliteratorIDParser::instantiateList(UVector& list,
             break;
         }
 
-        SingleID* single = (SingleID*) list.elementAt(i);
+        SingleID* single = static_cast<SingleID*>(list.elementAt(i));
         if (single->basicID.length() != 0) {
             t = single->createInstance();
             if (t == nullptr) {
@@ -522,7 +522,7 @@ void TransliteratorIDParser::instantiateList(UVector& list,
         list.setDeleter(_deleteTransliteratorTrIDPars);
 
         while (tlist.size() > 0) {
-            t = (Transliterator*) tlist.orphanElementAt(0);
+            t = static_cast<Transliterator*>(tlist.orphanElementAt(0));
             list.adoptElement(t, ec);
             if (U_FAILURE(ec)) {
                 list.removeAllElements();
@@ -607,7 +607,7 @@ void TransliteratorIDParser::STVtoID(const UnicodeString& source,
     }
     // NUL-terminate the ID string for getTerminatedBuffer.
     // This prevents valgrind and Purify warnings.
-    id.append((char16_t)0);
+    id.append(static_cast<char16_t>(0));
     id.truncate(id.length()-1);
 }
 
@@ -862,7 +862,7 @@ TransliteratorIDParser::specsToSpecialInverse(const Specs& specs, UErrorCode &st
     UnicodeString* inverseTarget;
 
     umtx_lock(&LOCK);
-    inverseTarget = (UnicodeString*) SPECIAL_INVERSES->get(specs.target);
+    inverseTarget = static_cast<UnicodeString*>(SPECIAL_INVERSES->get(specs.target));
     umtx_unlock(&LOCK);
 
     if (inverseTarget != nullptr) {

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gyp-next"
-version = "0.16.1"
+version = "0.18.1"
 authors = [
   { name="Node.js contributors", email="ryzokuken@disroot.org" },
 ]
@@ -12,8 +12,7 @@ description = "A fork of the GYP build system for use in the Node.js projects"
 readme = "README.md"
 license = { file="LICENSE" }
 requires-python = ">=3.8"
-# The Python module "packaging" is vendored in the "pylib/packaging" directory to support Python >= 3.12.
-# dependencies = ["packaging>=23.1"]  # Uncomment this line if the vendored version is removed.
+dependencies = ["packaging>=24.0", "setuptools>=69.5.1"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -29,7 +28,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["flake8", "ruff", "pytest"]
+dev = ["pytest", "ruff"]
 
 [project.scripts]
 gyp = "gyp:script_main"
@@ -38,7 +37,12 @@ gyp = "gyp:script_main"
 "Homepage" = "https://github.com/nodejs/gyp-next"
 
 [tool.ruff]
-lint.select = [
+extend-exclude = ["pylib/packaging"]
+line-length = 88
+target-version = "py37"
+
+[tool.ruff.lint]
+select = [
   "C4",   # flake8-comprehensions
   "C90",  # McCabe cyclomatic complexity
   "DTZ",  # flake8-datetimez
@@ -87,7 +91,7 @@ lint.select = [
   # "T20",  # flake8-print
   # "TRY",  # tryceratops
 ]
-lint.ignore = [
+ignore = [
   "E721",
   "PLC1901",
   "PLR0402",
@@ -101,9 +105,6 @@ lint.ignore = [
   "RUF012",
   "UP031",
 ]
-extend-exclude = ["pylib/packaging"]
-line-length = 88
-target-version = "py37"
 
 [tool.ruff.lint.mccabe]
 max-complexity = 101

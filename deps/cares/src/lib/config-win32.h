@@ -88,7 +88,7 @@
 #define HAVE_IPHLPAPI_H 1
 
 /* Define if you have <netioapi.h> header file */
-#ifndef __WATCOMC__
+#if !defined(__WATCOMC__) && !defined(WATT32)
 #  define HAVE_NETIOAPI_H 1
 #endif
 
@@ -187,14 +187,14 @@
 /* Define if you have the send function. */
 #define HAVE_SEND 1
 
+/* Define if you have the sendto function. */
+#define HAVE_SENDTO 1
+
 /* Define to the type of arg 1 for send. */
 #define SEND_TYPE_ARG1 SOCKET
 
-/* Define to the type qualifier of arg 2 for send. */
-#define SEND_QUAL_ARG2 const
-
 /* Define to the type of arg 2 for send. */
-#define SEND_TYPE_ARG2 char *
+#define SEND_TYPE_ARG2 const char *
 
 /* Define to the type of arg 3 for send. */
 #define SEND_TYPE_ARG3 int
@@ -207,21 +207,34 @@
 
 /* Specifics for the Watt-32 tcp/ip stack. */
 #ifdef WATT32
-#  define SOCKET                   int
+#  undef RECV_TYPE_ARG1
+#  define RECV_TYPE_ARG1 int
+#  undef SEND_TYPE_ARG1
+#  define SEND_TYPE_ARG1 int
+#  undef RECVFROM_TYPE_ARG1
+#  define RECVFROM_TYPE_ARG1       int
 #  define NS_INADDRSZ              4
 #  define HAVE_ARPA_NAMESER_H      1
 #  define HAVE_ARPA_INET_H         1
 #  define HAVE_NETDB_H             1
 #  define HAVE_NETINET_IN_H        1
 #  define HAVE_SYS_SOCKET_H        1
+#  define HAVE_SYS_IOCTL_H         1
 #  define HAVE_NETINET_TCP_H       1
 #  define HAVE_AF_INET6            1
 #  define HAVE_PF_INET6            1
 #  define HAVE_STRUCT_IN6_ADDR     1
 #  define HAVE_STRUCT_SOCKADDR_IN6 1
+#  define HAVE_WRITEV              1
+#  define HAVE_IF_NAMETOINDEX      1
+#  define HAVE_IF_INDEXTONAME      1
+#  define HAVE_GETSERVBYPORT_R     1
+#  define GETSERVBYPORT_R_ARGS     6
 #  undef HAVE_WINSOCK_H
 #  undef HAVE_WINSOCK2_H
 #  undef HAVE_WS2TCPIP_H
+#  undef HAVE_IPHLPAPI_H
+#  undef HAVE_NETIOAPI_H
 #endif
 
 /* Threading support enabled */
@@ -342,7 +355,11 @@
 #  define HAVE_STRUCT_SOCKADDR_IN6_SIN6_SCOPE_ID 1
 #endif
 
-#if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0600) && !defined(__WATCOMC__)
+/* Define to 1 if you have the `RegisterWaitForSingleObject' function. */
+#define HAVE_REGISTERWAITFORSINGLEOBJECT 1
+
+#if defined(_WIN32_WINNT) && (_WIN32_WINNT >= 0x0600) && \
+  !defined(__WATCOMC__) && !defined(WATT32)
 /* Define if you have if_nametoindex() */
 #  define HAVE_IF_NAMETOINDEX 1
 /* Define if you have if_indextoname() */
@@ -351,6 +368,8 @@
 #  define HAVE_CONVERTINTERFACEINDEXTOLUID 1
 /* Define to 1 if you have the `ConvertInterfaceLuidToNameA' function. */
 #  define HAVE_CONVERTINTERFACELUIDTONAMEA 1
+/* Define to 1 if you have the `NotifyIpInterfaceChange' function. */
+#  define HAVE_NOTIFYIPINTERFACECHANGE 1
 #endif
 
 /* ---------------------------------------------------------------- */

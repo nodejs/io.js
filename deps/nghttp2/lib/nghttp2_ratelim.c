@@ -61,7 +61,7 @@ void nghttp2_ratelim_update(nghttp2_ratelim *rl, uint64_t tstamp) {
   }
 
   rl->val += gain;
-  rl->val = nghttp2_min(rl->val, rl->burst);
+  rl->val = nghttp2_min_uint64(rl->val, rl->burst);
 }
 
 int nghttp2_ratelim_drain(nghttp2_ratelim *rl, uint64_t n) {

@@ -17,7 +17,7 @@ const fixBin = require('./fix-bin.js')
 // nondeterminism.
 const seen = new Set()
 
-const failEEXIST = ({ path, to, from }) =>
+const failEEXIST = ({ to, from }) =>
   Promise.reject(Object.assign(new Error('EEXIST: file already exists'), {
     path: to,
     dest: from,

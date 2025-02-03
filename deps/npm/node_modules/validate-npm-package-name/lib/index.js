@@ -1,7 +1,7 @@
 'use strict'
+const { builtinModules: builtins } = require('module')
 
 var scopedPackagePattern = new RegExp('^(?:@([^/]+?)[/])?([^/]+?)$')
-var builtins = require('builtins')
 var blacklist = [
   'node_modules',
   'favicon.ico',
@@ -52,11 +52,9 @@ function validate (name) {
   // Generate warnings for stuff that used to be allowed
 
   // core module names like http, events, util, etc
-  builtins({ version: '*' }).forEach(function (builtin) {
-    if (name.toLowerCase() === builtin) {
-      warnings.push(builtin + ' is a core module name')
-    }
-  })
+  if (builtins.includes(name.toLowerCase())) {
+    warnings.push(name + ' is a core module name')
+  }
 
   if (name.length > 214) {
     warnings.push('name can no longer contain more than 214 characters')

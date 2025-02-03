@@ -25,9 +25,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
-
-#include "ares.h"
 #include "ares_private.h"
 
 /* library-private global and unique instance vars */
@@ -55,8 +52,6 @@ static void        *default_malloc(size_t size)
   return malloc(size);
 }
 
-#if defined(WIN32)
-/* We need indirections to handle Windows DLL rules. */
 static void *default_realloc(void *p, size_t size)
 {
   return realloc(p, size);
@@ -66,13 +61,25 @@ static void default_free(void *p)
 {
   free(p);
 }
-#else
-#  define default_realloc realloc
-#  define default_free    free
-#endif
-void *(*ares_malloc)(size_t size)             = default_malloc;
-void *(*ares_realloc)(void *ptr, size_t size) = default_realloc;
-void (*ares_free)(void *ptr)                  = default_free;
+
+static void *(*__ares_malloc)(size_t size)             = default_malloc;
+static void *(*__ares_realloc)(void *ptr, size_t size) = default_realloc;
+static void (*__ares_free)(void *ptr)                  = default_free;
+
+void *ares_malloc(size_t size)
+{
+  return __ares_malloc(size);
+}
+
+void *ares_realloc(void *ptr, size_t size)
+{
+  return __ares_realloc(ptr, size);
+}
+
+void ares_free(void *ptr)
+{
+  __ares_free(ptr);
+}
 
 void *ares_malloc_zero(size_t size)
 {
@@ -118,13 +125,13 @@ int ares_library_init_mem(int flags, void *(*amalloc)(size_t size),
                           void *(*arealloc)(void *ptr, size_t size))
 {
   if (amalloc) {
-    ares_malloc = amalloc;
+    __ares_malloc = amalloc;
   }
   if (arealloc) {
-    ares_realloc = arealloc;
+    __ares_realloc = arealloc;
   }
   if (afree) {
-    ares_free = afree;
+    __ares_free = afree;
   }
   return ares_library_init(flags);
 }
@@ -146,9 +153,9 @@ void ares_library_cleanup(void)
 #endif
 
   ares_init_flags = ARES_LIB_INIT_NONE;
-  ares_malloc     = malloc;
-  ares_realloc    = realloc;
-  ares_free       = free;
+  __ares_malloc   = default_malloc;
+  __ares_realloc  = default_realloc;
+  __ares_free     = default_free;
 }
 
 int ares_library_initialized(void)

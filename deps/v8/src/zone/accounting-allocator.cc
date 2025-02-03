@@ -65,11 +65,7 @@ std::unique_ptr<v8::base::BoundedPageAllocator> CreateBoundedAllocator(
 
 }  // namespace
 
-AccountingAllocator::AccountingAllocator()
-    : zone_backing_malloc_(
-          V8::GetCurrentPlatform()->GetZoneBackingAllocator()->GetMallocFn()),
-      zone_backing_free_(
-          V8::GetCurrentPlatform()->GetZoneBackingAllocator()->GetFreeFn()) {
+AccountingAllocator::AccountingAllocator() {
   if (COMPRESS_ZONES_BOOL) {
     v8::PageAllocator* platform_page_allocator = GetPlatformPageAllocator();
     VirtualMemory memory = ReserveAddressSpace(platform_page_allocator);

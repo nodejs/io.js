@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>WebStorage Test: session storage</title>
+<link rel="author" title="Intel" href="http://www.intel.com">
+<meta name="flags" content="interact">
+
+<h2>Description</h2>
+<p>
+  This test validates that store the data using Session Storage which means that even if you close the page, and re-open it, the data saved before should be lost.
+</p>
+
+<ol class="instructions">
+  <li>
+    Click the "Clear" button, refresh the page once and then check if the page shows "You have viewed this page 1 time(s)"
+  </li>
+  <li>
+    Close the page, re-open it and then check if the page still shows "You have viewed this page 1 time(s)"
+  </li>
+  <li>
+    If the above two steps are all true the test case pass, otherwise it fail.<br>
+  </li>
+</ol>
+
+<p>
+  <h2>You have viewed this page
+  <span id="count">an untold number of</span>
+  time(s).</h2>
+  <button type="button" onclick="javascript:sessionStorage.pageLoadCount = 0;"><h3>Clear</h3></button>
+</p>
+
+<script>
+
+    if (!sessionStorage.pageLoadCount) {
+        sessionStorage.pageLoadCount = 0;
+    }
+    sessionStorage.pageLoadCount = parseInt(sessionStorage.pageLoadCount) + 1;
+    document.getElementById('count').textContent = sessionStorage.pageLoadCount;
+
+</script>

@@ -94,10 +94,11 @@ TEST_F(ScannerTest, AllThePushbacks) {
     const char* src;
     const Token::Value tokens[5];  // Large enough for any of the test cases.
   } test_cases[] = {
-      {"<-x", {Token::kLt, Token::kSub, Token::kIdentifier, Token::kEos}},
-      {"<!x", {Token::kLt, Token::kNot, Token::kIdentifier, Token::kEos}},
+      {"<-x", {Token::kLessThan, Token::kSub, Token::kIdentifier, Token::kEos}},
+      {"<!x", {Token::kLessThan, Token::kNot, Token::kIdentifier, Token::kEos}},
       {"<!-x",
-       {Token::kLt, Token::kNot, Token::kSub, Token::kIdentifier, Token::kEos}},
+       {Token::kLessThan, Token::kNot, Token::kSub, Token::kIdentifier,
+        Token::kEos}},
       {"<!-- xx -->\nx", {Token::kIdentifier, Token::kEos}},
   };
 
@@ -108,6 +109,50 @@ TEST_F(ScannerTest, AllThePushbacks) {
     }
     CHECK_TOK(Token::kEos, scanner->Next());
   }
+}
+
+TEST_F(ScannerTest, PeekAheadAheadAwaitUsingDeclaration) {
+  const char src[] = "await using a = 2;";
+
+  std::vector<Token::Value> tokens;
+  {
+    auto scanner = make_scanner(src);
+    do {
+      tokens.push_back(scanner->Next());
+    } while (scanner->current_token() != Token::kEos);
+  }
+
+  auto scanner = make_scanner(src);
+  Scanner::BookmarkScope bookmark(scanner.get());
+  bookmark.Set(scanner->peek_location().beg_pos);
+  bookmark.Apply();
+
+  CHECK_TOK(tokens[0], scanner->Next());
+  CHECK_TOK(tokens[1], scanner->peek());
+  CHECK_TOK(tokens[2], scanner->PeekAhead());
+  CHECK_TOK(tokens[3], scanner->PeekAheadAhead());
+}
+
+TEST_F(ScannerTest, PeekAheadAheadAwaitExpression) {
+  const char src[] = "await using + 5;";
+
+  std::vector<Token::Value> tokens;
+  {
+    auto scanner = make_scanner(src);
+    do {
+      tokens.push_back(scanner->Next());
+    } while (scanner->current_token() != Token::kEos);
+  }
+
+  auto scanner = make_scanner(src);
+  Scanner::BookmarkScope bookmark(scanner.get());
+  bookmark.Set(scanner->peek_location().beg_pos);
+  bookmark.Apply();
+
+  CHECK_TOK(tokens[0], scanner->Next());
+  CHECK_TOK(tokens[1], scanner->peek());
+  CHECK_TOK(tokens[2], scanner->PeekAhead());
+  CHECK_TOK(tokens[3], scanner->PeekAheadAhead());
 }
 
 }  // namespace internal

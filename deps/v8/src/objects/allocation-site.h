@@ -130,13 +130,12 @@ class AllocationSite : public Struct {
 
   template <AllocationSiteUpdateMode update_or_check =
                 AllocationSiteUpdateMode::kUpdate>
-  static bool DigestTransitionFeedback(Handle<AllocationSite> site,
+  static bool DigestTransitionFeedback(DirectHandle<AllocationSite> site,
                                        ElementsKind to_kind);
 
   DECL_PRINTER(AllocationSite)
   DECL_VERIFIER(AllocationSite)
 
-  DECL_CAST(AllocationSite)
   static inline bool ShouldTrack(ElementsKind boilerplate_elements_kind);
   static bool ShouldTrack(ElementsKind from, ElementsKind to);
   static inline bool CanTrack(InstanceType type);

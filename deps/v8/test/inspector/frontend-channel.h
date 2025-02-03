@@ -35,20 +35,21 @@ class FrontendChannelImpl : public v8_inspector::V8Inspector::Channel {
   void sendResponse(
       int callId,
       std::unique_ptr<v8_inspector::StringBuffer> message) override {
-    task_runner_->Append(std::make_unique<SendMessageTask>(
-        session_id_, ToVector(message->string())));
+    task_runner_->Append(
+        std::make_unique<SendMessageTask>(session_id_, std::move(message)));
   }
   void sendNotification(
       std::unique_ptr<v8_inspector::StringBuffer> message) override {
-    task_runner_->Append(std::make_unique<SendMessageTask>(
-        session_id_, ToVector(message->string())));
+    task_runner_->Append(
+        std::make_unique<SendMessageTask>(session_id_, std::move(message)));
   }
   void flushProtocolNotifications() override {}
 
   class SendMessageTask : public TaskRunner::Task {
    public:
-    SendMessageTask(int session_id, const std::vector<uint16_t>& message)
-        : session_id_(session_id), message_(message) {}
+    SendMessageTask(int session_id,
+                    std::unique_ptr<v8_inspector::StringBuffer> message)
+        : session_id_(session_id), message_(std::move(message)) {}
     ~SendMessageTask() override = default;
     bool is_priority_task() final { return false; }
 
@@ -66,13 +67,14 @@ class FrontendChannelImpl : public v8_inspector::V8Inspector::Channel {
       v8::MicrotasksScope microtasks_scope(context,
                                            v8::MicrotasksScope::kRunMicrotasks);
       v8::Context::Scope context_scope(context);
-      v8::Local<v8::Value> message = ToV8String(data->isolate(), message_);
+      v8::Local<v8::Value> message =
+          ToV8String(data->isolate(), message_->string());
       v8::MaybeLocal<v8::Value> result;
       result = channel->function_.Get(data->isolate())
                    ->Call(context, context->Global(), 1, &message);
     }
     int session_id_;
-    std::vector<uint16_t> message_;
+    std::unique_ptr<v8_inspector::StringBuffer> message_;
   };
 
   TaskRunner* task_runner_;

@@ -4,6 +4,8 @@
 
 #include "src/heap/index-generator.h"
 
+#include <optional>
+
 namespace v8 {
 namespace internal {
 
@@ -13,13 +15,13 @@ IndexGenerator::IndexGenerator(size_t size) : first_use_(size > 0) {
   ranges_to_split_.emplace(0, size);
 }
 
-base::Optional<size_t> IndexGenerator::GetNext() {
+std::optional<size_t> IndexGenerator::GetNext() {
   base::MutexGuard guard(&lock_);
   if (first_use_) {
     first_use_ = false;
     return 0;
   }
-  if (ranges_to_split_.empty()) return base::nullopt;
+  if (ranges_to_split_.empty()) return std::nullopt;
 
   // Split the oldest running range in 2 and return the middle index as
   // starting point.

@@ -517,7 +517,7 @@ void TestCharacterStreams(const char* one_byte_source, unsigned length,
 
     // This avoids the GC from trying to free a stack allocated resource.
     if (IsExternalString(*uc16_string))
-      i::Handle<i::ExternalTwoByteString>::cast(uc16_string)
+      i::Cast<i::ExternalTwoByteString>(uc16_string)
           ->SetResource(isolate, nullptr);
   }
 
@@ -537,7 +537,7 @@ void TestCharacterStreams(const char* one_byte_source, unsigned length,
                         end);
     // This avoids the GC from trying to free a stack allocated resource.
     if (IsExternalString(*ext_one_byte_string))
-      i::Handle<i::ExternalOneByteString>::cast(ext_one_byte_string)
+      i::Cast<i::ExternalOneByteString>(ext_one_byte_string)
           ->SetResource(isolate, nullptr);
   }
 
@@ -791,8 +791,9 @@ TEST_F(ScannerStreamsTest, RelocatingCharacterStream) {
   // 1st GC moves `two_byte_string` to old space and 2nd GC evacuates it within
   // old space.
   InvokeMajorGC();
-  i::Page::FromHeapObject(*two_byte_string)
-      ->SetFlag(i::MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
+  i::MemoryChunk::FromHeapObject(*two_byte_string)
+      ->SetFlagNonExecutable(
+          i::MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
   InvokeMajorGC();
   // GC moved the string.
   CHECK_NE(raw, *two_byte_string);
@@ -835,8 +836,9 @@ TEST_F(ScannerStreamsTest, RelocatingUnbufferedCharacterStream) {
   // 1st GC moves `two_byte_string` to old space and 2nd GC evacuates it within
   // old space.
   InvokeMajorGC();
-  i::Page::FromHeapObject(*two_byte_string)
-      ->SetFlag(i::MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
+  i::MemoryChunk::FromHeapObject(*two_byte_string)
+      ->SetFlagNonExecutable(
+          i::MemoryChunk::FORCE_EVACUATION_CANDIDATE_FOR_TESTING);
   InvokeMajorGC();
   // GC moved the string and buffer was updated to the correct location.
   CHECK_NE(raw, *two_byte_string);
@@ -884,7 +886,7 @@ TEST_F(ScannerStreamsTest, CloneCharacterStreams) {
 
     // This avoids the GC from trying to free a stack allocated resource.
     if (IsExternalString(*uc16_string))
-      i::Handle<i::ExternalTwoByteString>::cast(uc16_string)
+      i::Cast<i::ExternalTwoByteString>(uc16_string)
           ->SetResource(i_isolate(), nullptr);
   }
 
@@ -903,7 +905,7 @@ TEST_F(ScannerStreamsTest, CloneCharacterStreams) {
     TestCloneCharacterStream(one_byte_source, one_byte_stream.get(), length);
     // This avoids the GC from trying to free a stack allocated resource.
     if (IsExternalString(*ext_one_byte_string))
-      i::Handle<i::ExternalOneByteString>::cast(ext_one_byte_string)
+      i::Cast<i::ExternalOneByteString>(ext_one_byte_string)
           ->SetResource(i_isolate(), nullptr);
   }
 

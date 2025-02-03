@@ -3,21 +3,20 @@ jgruber@chromium.org
 manoskouk@chromium.org
 mliedtke@chromium.org
 nicohartmann@chromium.org
-tebbi@chromium.org
 thibaudm@chromium.org
+ahaas@chromium.org
 
-per-file wasm-*=ahaas@chromium.org
 per-file wasm-*=clemensb@chromium.org
 per-file wasm-*=dlehmann@chromium.org
 per-file wasm-*=gdeepti@chromium.org
 per-file wasm-*=jkummerow@chromium.org
+per-file turboshaft/wasm-*=clemensb@chromium.org
+per-file turboshaft/wasm-*=dlehmann@chromium.org
+per-file turboshaft/wasm-*=gdeepti@chromium.org
+per-file turboshaft/wasm-*=jkummerow@chromium.org
 
 per-file pipeline.*=jkummerow@chromium.org
 
-per-file int64-lowering.*=ahaas@chromium.org
-
-per-file machine-operator.*=ahaas@chromium.org
 per-file machine-operator.*=gdeepti@chromium.org
 
-per-file opcodes.*=ahaas@chromium.org
 per-file opcodes.*=gdeepti@chromium.org

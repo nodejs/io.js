@@ -16,22 +16,26 @@ namespace weakref {
 // https://tc39.es/ecma262/#sec-weak-ref-target
 transitioning javascript builtin WeakRefConstructor(
     js-implicit context: NativeContext, receiver: JSAny, newTarget: JSAny,
-    target: JSFunction)(weakTarget: JSAny): JSWeakRef {
+    target: JSFunction)(...arguments): JSWeakRef {
   // 1. If NewTarget is undefined, throw a TypeError exception.
   if (newTarget == Undefined) {
     ThrowTypeError(MessageTemplate::kConstructorNotFunction, 'WeakRef');
   }
 
+  if (arguments.actual_count == 0) {
+    ThrowTypeError(MessageTemplate::kInvalidWeakRefsWeakRefConstructorTarget);
+  }
+
   // 2. If CanBeHeldWeakly(weakTarget) is false, throw a TypeError exception.
-  GotoIfCannotBeHeldWeakly(weakTarget) otherwise ThrowTypeError(
+  GotoIfCannotBeHeldWeakly(arguments[0]) otherwise ThrowTypeError(
       MessageTemplate::kInvalidWeakRefsWeakRefConstructorTarget);
+  const weakTarget = UnsafeCast<(JSReceiver | Symbol)>(arguments[0]);
 
   // 3. Let weakRef be ? OrdinaryCreateFromConstructor(NewTarget,
   // "%WeakRefPrototype%", « [[WeakRefTarget]] »).
   const map = GetDerivedMap(target, UnsafeCast<JSReceiver>(newTarget));
   const weakRef = UnsafeCast<JSWeakRef>(AllocateFastOrSlowJSObjectFromMap(map));
   // 4. Perfom ! AddToKeptObjects(target).
-  const weakTarget = UnsafeCast<(JSReceiver | Symbol)>(weakTarget);
   runtime::JSWeakRefAddToKeptObjects(weakTarget);
   // 5. Set weakRef.[[WeakRefTarget]] to target.
   weakRef.target = weakTarget;

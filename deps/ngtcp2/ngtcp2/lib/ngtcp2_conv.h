@@ -27,51 +27,44 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
 /*
- * ngtcp2_get_uint64 reads 8 bytes from |p| as 64 bits unsigned
+ * ngtcp2_get_uint64be reads 8 bytes from |p| as 64 bits unsigned
  * integer encoded as network byte order, and stores it in the buffer
  * pointed by |dest| in host byte order.  It returns |p| + 8.
  */
-const uint8_t *ngtcp2_get_uint64(uint64_t *dest, const uint8_t *p);
+const uint8_t *ngtcp2_get_uint64be(uint64_t *dest, const uint8_t *p);
 
 /*
- * ngtcp2_get_uint48 reads 6 bytes from |p| as 48 bits unsigned
- * integer encoded as network byte order, and stores it in the buffer
- * pointed by |dest| in host byte order.  It returns |p| + 6.
- */
-const uint8_t *ngtcp2_get_uint48(uint64_t *dest, const uint8_t *p);
-
-/*
- * ngtcp2_get_uint32 reads 4 bytes from |p| as 32 bits unsigned
+ * ngtcp2_get_uint32be reads 4 bytes from |p| as 32 bits unsigned
  * integer encoded as network byte order, and stores it in the buffer
  * pointed by |dest| in host byte order.  It returns |p| + 4.
  */
-const uint8_t *ngtcp2_get_uint32(uint32_t *dest, const uint8_t *p);
+const uint8_t *ngtcp2_get_uint32be(uint32_t *dest, const uint8_t *p);
 
 /*
- * ngtcp2_get_uint24 reads 3 bytes from |p| as 24 bits unsigned
+ * ngtcp2_get_uint24be reads 3 bytes from |p| as 24 bits unsigned
  * integer encoded as network byte order, and stores it in the buffer
  * pointed by |dest| in host byte order.  It returns |p| + 3.
  */
-const uint8_t *ngtcp2_get_uint24(uint32_t *dest, const uint8_t *p);
-
-/*
- * ngtcp2_get_uint16 reads 2 bytes from |p| as 16 bits unsigned
- * integer encoded as network byte order, and stores it in the buffer
- * pointed by |dest| in host byte order.  It returns |p| + 2.
- */
-const uint8_t *ngtcp2_get_uint16(uint16_t *dest, const uint8_t *p);
+const uint8_t *ngtcp2_get_uint24be(uint32_t *dest, const uint8_t *p);
 
 /*
  * ngtcp2_get_uint16be reads 2 bytes from |p| as 16 bits unsigned
  * integer encoded as network byte order, and stores it in the buffer
- * pointed by |dest| as is.  It returns |p| + 2.
+ * pointed by |dest| in host byte order.  It returns |p| + 2.
  */
 const uint8_t *ngtcp2_get_uint16be(uint16_t *dest, const uint8_t *p);
+
+/*
+ * ngtcp2_get_uint16 reads 2 bytes from |p| as 16 bits unsigned
+ * integer encoded as network byte order, and stores it in the buffer
+ * pointed by |dest| as is.  It returns |p| + 2.
+ */
+const uint8_t *ngtcp2_get_uint16(uint16_t *dest, const uint8_t *p);
 
 /*
  * ngtcp2_get_uvarint reads variable-length unsigned integer from |p|,
@@ -101,13 +94,6 @@ int64_t ngtcp2_get_pkt_num(const uint8_t *p, size_t pkt_numlen);
  * position.
  */
 uint8_t *ngtcp2_put_uint64be(uint8_t *p, uint64_t n);
-
-/*
- * ngtcp2_put_uint48be writes |n| in host byte order in |p| in network
- * byte order.  It writes only least significant 48 bits.  It returns
- * the one beyond of the last written position.
- */
-uint8_t *ngtcp2_put_uint48be(uint8_t *p, uint64_t n);
 
 /*
  * ngtcp2_put_uint32be writes |n| in host byte order in |p| in network
@@ -169,40 +155,8 @@ size_t ngtcp2_get_uvarintlen(const uint8_t *p);
 size_t ngtcp2_put_uvarintlen(uint64_t n);
 
 /*
- * ngtcp2_nth_server_bidi_id returns |n|-th server bidirectional
- * stream ID.  If |n| is 0, it returns 0.  If the |n|-th stream ID is
- * larger than NGTCP2_MAX_SERVER_STREAM_ID_BIDI, this function returns
- * NGTCP2_MAX_SERVER_STREAM_ID_BIDI.
- */
-int64_t ngtcp2_nth_server_bidi_id(uint64_t n);
-
-/*
- * ngtcp2_nth_client_bidi_id returns |n|-th client bidirectional
- * stream ID.  If |n| is 0, it returns 0.  If the |n|-th stream ID is
- * larger than NGTCP2_MAX_CLIENT_STREAM_ID_BIDI, this function returns
- * NGTCP2_MAX_CLIENT_STREAM_ID_BIDI.
- */
-int64_t ngtcp2_nth_client_bidi_id(uint64_t n);
-
-/*
- * ngtcp2_nth_server_uni_id returns |n|-th server unidirectional
- * stream ID.  If |n| is 0, it returns 0.  If the |n|-th stream ID is
- * larger than NGTCP2_MAX_SERVER_STREAM_ID_UNI, this function returns
- * NGTCP2_MAX_SERVER_STREAM_ID_UNI.
- */
-int64_t ngtcp2_nth_server_uni_id(uint64_t n);
-
-/*
- * ngtcp2_nth_client_uni_id returns |n|-th client unidirectional
- * stream ID.  If |n| is 0, it returns 0.  If the |n|-th stream ID is
- * larger than NGTCP2_MAX_CLIENT_STREAM_ID_UNI, this function returns
- * NGTCP2_MAX_CLIENT_STREAM_ID_UNI.
- */
-int64_t ngtcp2_nth_client_uni_id(uint64_t n);
-
-/*
  * ngtcp2_ord_stream_id returns the ordinal number of |stream_id|.
  */
 uint64_t ngtcp2_ord_stream_id(int64_t stream_id);
 
-#endif /* NGTCP2_CONV_H */
+#endif /* !defined(NGTCP2_CONV_H) */

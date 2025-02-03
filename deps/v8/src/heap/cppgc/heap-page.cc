@@ -148,7 +148,7 @@ void BasePage::ResetSlotSet() { slot_set_.reset(); }
 
 BasePage::BasePage(HeapBase& heap, BaseSpace& space, PageType type)
     : BasePageHandle(heap),
-      space_(space),
+      space_(&space),
       type_(type)
 #if defined(CPPGC_YOUNG_GENERATION)
       ,
@@ -157,7 +157,12 @@ BasePage::BasePage(HeapBase& heap, BaseSpace& space, PageType type)
 {
   DCHECK_EQ(0u, (reinterpret_cast<uintptr_t>(this) - kGuardPageSize) &
                     kPageOffsetMask);
-  DCHECK_EQ(&heap.raw_heap(), space_.raw_heap());
+  DCHECK_EQ(&heap.raw_heap(), space_->raw_heap());
+}
+
+void BasePage::ChangeOwner(BaseSpace& space) {
+  DCHECK_EQ(space_->raw_heap(), space.raw_heap());
+  space_ = &space;
 }
 
 // static
@@ -195,12 +200,13 @@ NormalPage* NormalPage::TryCreate(PageBackend& page_backend,
 void NormalPage::Destroy(NormalPage* page,
                          FreeMemoryHandling free_memory_handling) {
   DCHECK(page);
+  HeapBase& heap = page->heap();
   const BaseSpace& space = page->space();
   DCHECK_EQ(space.end(), std::find(space.begin(), space.end(), page));
   USE(space);
   page->~NormalPage();
-  PageBackend* backend = page->heap().page_backend();
-  page->heap().stats_collector()->NotifyFreedMemory(kPageSize);
+  PageBackend* backend = heap.page_backend();
+  heap.stats_collector()->NotifyFreedMemory(kPageSize);
   backend->FreeNormalPageMemory(reinterpret_cast<Address>(page),
                                 free_memory_handling);
 }
@@ -210,8 +216,6 @@ NormalPage::NormalPage(HeapBase& heap, BaseSpace& space)
   DCHECK_LT(kLargeObjectSizeThreshold,
             static_cast<size_t>(PayloadEnd() - PayloadStart()));
 }
-
-NormalPage::~NormalPage() = default;
 
 NormalPage::iterator NormalPage::begin() {
   const auto& lab = NormalPageSpace::From(space()).linear_allocation_buffer();
@@ -250,8 +254,6 @@ size_t NormalPage::PayloadSize() {
 
 LargePage::LargePage(HeapBase& heap, BaseSpace& space, size_t size)
     : BasePage(heap, space, PageType::kLarge), payload_size_(size) {}
-
-LargePage::~LargePage() = default;
 
 // static
 size_t LargePage::AllocationSize(size_t payload_size) {

@@ -7,12 +7,12 @@ const common = require('../common');
 // returns the proper set of cli options when invoked
 
 const assert = require('assert');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
+const { once } = require('events');
 let stdOut;
 
-
 function startPrintHelpTest() {
-  exec(`${process.execPath} --help`, common.mustSucceed((stdout, stderr) => {
+  exec(...common.escapePOSIXShell`"${process.execPath}" --help`, common.mustSucceed((stdout, stderr) => {
     stdOut = stdout;
     validateNodePrintHelp();
   }));
@@ -26,7 +26,7 @@ function validateNodePrintHelp() {
   const cliHelpOptions = [
     { compileConstant: HAVE_OPENSSL,
       flags: [ '--openssl-config=...', '--tls-cipher-list=...',
-               '--use-bundled-ca', '--use-openssl-ca',
+               '--use-bundled-ca', '--use-openssl-ca', '--use-system-ca',
                '--enable-fips', '--force-fips' ] },
     { compileConstant: NODE_HAVE_I18N_SUPPORT,
       flags: [ '--icu-data-dir=...', 'NODE_ICU_DATA' ] },
@@ -53,3 +53,13 @@ function testForSubstring(options) {
 }
 
 startPrintHelpTest();
+
+// Test closed stdout for `node --help`. Like `node --help | head -n5`.
+(async () => {
+  const cp = spawn(process.execPath, ['--help'], {
+    stdio: ['inherit', 'pipe', 'inherit'],
+  });
+  cp.stdout.destroy();
+  const [exitCode] = await once(cp, 'exit');
+  assert.strictEqual(exitCode, 0);
+})().then(common.mustCall());

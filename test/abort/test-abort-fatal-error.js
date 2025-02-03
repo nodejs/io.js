@@ -27,11 +27,12 @@ if (common.isWindows)
 const assert = require('assert');
 const exec = require('child_process').exec;
 
-let cmdline = `ulimit -c 0; ${process.execPath}`;
-cmdline += ' --max-old-space-size=16 --max-semi-space-size=4';
-cmdline += ' -e "a = []; for (i = 0; i < 1e9; i++) { a.push({}) }"';
+const cmdline =
+  common.escapePOSIXShell`ulimit -c 0; "${
+    process.execPath
+  }" --max-old-space-size=16 --max-semi-space-size=4 -e "a = []; for (i = 0; i < 1e9; i++) { a.push({}) }"`;
 
-exec(cmdline, function(err, stdout, stderr) {
+exec(...cmdline, common.mustCall((err, stdout, stderr) => {
   if (!err) {
     console.log(stdout);
     console.log(stderr);
@@ -39,4 +40,4 @@ exec(cmdline, function(err, stdout, stderr) {
   }
 
   assert(common.nodeProcessAborted(err.code, err.signal));
-});
+}));

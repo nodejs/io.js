@@ -23,6 +23,7 @@
 const common = require('../common');
 
 const assert = require('assert');
+const { isMainThread } = require('worker_threads');
 
 if (common.isWindows) {
   // uid/gid functions are POSIX only.
@@ -33,8 +34,9 @@ if (common.isWindows) {
   return;
 }
 
-if (!common.isMainThread)
+if (!isMainThread) {
   return;
+}
 
 assert.throws(() => {
   process.setuid({});

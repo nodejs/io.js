@@ -24,13 +24,10 @@
  * SPDX-License-Identifier: MIT
  */
 #if defined(ANDROID) || defined(__ANDROID__)
-
-#  include <jni.h>
-
-#  include "ares_setup.h"
-#  include "ares.h"
-#  include "ares_android.h"
 #  include "ares_private.h"
+#  include <jni.h>
+#  include <sys/prctl.h>
+#  include "ares_android.h"
 
 static JavaVM   *android_jvm                  = NULL;
 static jobject   android_connectivity_manager = NULL;
@@ -85,6 +82,23 @@ static jmethodID jni_get_method_id(JNIEnv *env, jclass cls,
   return mid;
 }
 
+static int jvm_attach(JNIEnv **env)
+{
+  char             name[17] = { 0 };
+
+  JavaVMAttachArgs args;
+
+  args.version = JNI_VERSION_1_6;
+  if (prctl(PR_GET_NAME, name) == 0) {
+    args.name = name;
+  } else {
+    args.name = NULL;
+  }
+  args.group = NULL;
+
+  return (*android_jvm)->AttachCurrentThread(android_jvm, env, &args);
+}
+
 void ares_library_init_jvm(JavaVM *jvm)
 {
   android_jvm = jvm;
@@ -105,7 +119,7 @@ int ares_library_init_android(jobject connectivity_manager)
   res = (*android_jvm)->GetEnv(android_jvm, (void **)&env, JNI_VERSION_1_6);
   if (res == JNI_EDETACHED) {
     env          = NULL;
-    res          = (*android_jvm)->AttachCurrentThread(android_jvm, &env, NULL);
+    res          = jvm_attach(&env);
     need_detatch = 1;
   }
   if (res != JNI_OK || env == NULL) {
@@ -214,7 +228,7 @@ done:
     (*android_jvm)->DetachCurrentThread(android_jvm);
   }
 
-  return ret;
+  return (int)ret;
 }
 
 int ares_library_android_initialized(void)
@@ -238,7 +252,7 @@ void ares_library_cleanup_android(void)
   res = (*android_jvm)->GetEnv(android_jvm, (void **)&env, JNI_VERSION_1_6);
   if (res == JNI_EDETACHED) {
     env          = NULL;
-    res          = (*android_jvm)->AttachCurrentThread(android_jvm, &env, NULL);
+    res          = jvm_attach(&env);
     need_detatch = 1;
   }
   if (res != JNI_OK || env == NULL) {
@@ -290,7 +304,7 @@ char **ares_get_android_server_list(size_t max_servers, size_t *num_servers)
   res = (*android_jvm)->GetEnv(android_jvm, (void **)&env, JNI_VERSION_1_6);
   if (res == JNI_EDETACHED) {
     env          = NULL;
-    res          = (*android_jvm)->AttachCurrentThread(android_jvm, &env, NULL);
+    res          = jvm_attach(&env);
     need_detatch = 1;
   }
   if (res != JNI_OK || env == NULL) {
@@ -408,7 +422,7 @@ char *ares_get_android_search_domains_list(void)
   res = (*android_jvm)->GetEnv(android_jvm, (void **)&env, JNI_VERSION_1_6);
   if (res == JNI_EDETACHED) {
     env          = NULL;
-    res          = (*android_jvm)->AttachCurrentThread(android_jvm, &env, NULL);
+    res          = jvm_attach(&env);
     need_detatch = 1;
   }
   if (res != JNI_OK || env == NULL) {

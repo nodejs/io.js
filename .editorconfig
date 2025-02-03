@@ -23,5 +23,5 @@ indent_size = unset
 indent_style = unset
 trim_trailing_whitespace = unset
 
-[{test/fixtures,deps,tools/node_modules,tools/gyp,tools/icu,tools/msvs}/**]
+[{test/fixtures,deps,tools/eslint/node_modules,tools/gyp,tools/icu,tools/msvs}/**]
 insert_final_newline = false

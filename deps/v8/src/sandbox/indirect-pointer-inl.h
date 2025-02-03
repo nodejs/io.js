@@ -33,7 +33,7 @@ V8_INLINE void InitSelfIndirectPointerField(Address field_address,
   } else {
     TrustedPointerTable::Space* space = isolate.GetTrustedPointerTableSpace();
     handle = isolate.GetTrustedPointerTable().AllocateAndInitializeEntry(
-        space, host.address(), tag);
+        space, host.ptr(), tag);
   }
 
   // Use a Release_Store to ensure that the store of the pointer into the table
@@ -52,7 +52,7 @@ template <IndirectPointerTag tag>
 V8_INLINE Tagged<Object> ResolveTrustedPointerHandle(
     IndirectPointerHandle handle, IsolateForSandbox isolate) {
   const TrustedPointerTable& table = isolate.GetTrustedPointerTable();
-  return Tagged<Object>(table.Get(handle));
+  return Tagged<Object>(table.Get(handle, tag));
 }
 
 V8_INLINE Tagged<Object> ResolveCodePointerHandle(
@@ -65,18 +65,16 @@ V8_INLINE Tagged<Object> ResolveCodePointerHandle(
 
 template <IndirectPointerTag tag>
 V8_INLINE Tagged<Object> ReadIndirectPointerField(Address field_address,
-                                                  IsolateForSandbox isolate) {
+                                                  IsolateForSandbox isolate,
+                                                  AcquireLoadTag) {
 #ifdef V8_ENABLE_SANDBOX
   // Load the indirect pointer handle from the object.
+  // Technically, we could use memory_order_consume here as the loads are
+  // dependent, but that appears to be deprecated in favor of acquire ordering.
   auto location = reinterpret_cast<IndirectPointerHandle*>(field_address);
-  IndirectPointerHandle handle = base::AsAtomic32::Relaxed_Load(location);
-  DCHECK_NE(handle, kNullIndirectPointerHandle);
+  IndirectPointerHandle handle = base::AsAtomic32::Acquire_Load(location);
 
   // Resolve the handle. The tag implies the pointer table to use.
-  // Here we generally assume that the load from the table cannot be reordered
-  // before the load of the code object pointer due to the data dependency
-  // between the two loads and therefore use relaxed memory ordering, but
-  // technically we should use memory_order_consume here.
   if constexpr (tag == kUnknownIndirectPointerTag) {
     // In this case we need to check if the handle is a code pointer handle and
     // select the appropriate table based on that.
@@ -101,7 +99,8 @@ V8_INLINE Tagged<Object> ReadIndirectPointerField(Address field_address,
 
 template <IndirectPointerTag tag>
 V8_INLINE void WriteIndirectPointerField(Address field_address,
-                                         Tagged<ExposedTrustedObject> value) {
+                                         Tagged<ExposedTrustedObject> value,
+                                         ReleaseStoreTag) {
 #ifdef V8_ENABLE_SANDBOX
   static_assert(tag != kIndirectPointerNullTag);
   IndirectPointerHandle handle = value->self_indirect_pointer_handle();

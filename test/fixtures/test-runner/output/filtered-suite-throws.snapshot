@@ -1,0 +1,63 @@
+TAP version 13
+# Subtest: suite 1
+not ok 1 - suite 1
+  ---
+  duration_ms: *
+  type: 'suite'
+  location: '/test/fixtures/test-runner/output/filtered-suite-throws.js:(LINE):1'
+  failureType: 'testCodeFailure'
+  error: 'boom 1'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+  ...
+# Subtest: suite 2
+    # Subtest: enabled - should get cancelled
+    not ok 1 - enabled - should get cancelled
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/filtered-suite-throws.js:(LINE):3'
+      failureType: 'cancelledByParent'
+      error: 'test did not finish before its parent and was cancelled'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    1..1
+not ok 2 - suite 2
+  ---
+  duration_ms: *
+  type: 'suite'
+  location: '/test/fixtures/test-runner/output/filtered-suite-throws.js:(LINE):1'
+  failureType: 'testCodeFailure'
+  error: 'boom 1'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+    *
+  ...
+1..2
+# tests 1
+# suites 2
+# pass 0
+# fail 0
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms *

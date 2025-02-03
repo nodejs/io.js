@@ -1,0 +1,14 @@
+<!DOCTYPE HTML>
+<meta name="timeout" content="long">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/utils.js"></script>
+<script src="/common/dispatcher/dispatcher.js"></script>
+<script src="/html/browsers/browsing-the-web/back-forward-cache/resources/helper.sub.js"></script>
+<script src="navigation-id.helper.js"></script>
+<script>
+  runNavigationIdTest({
+    navigationTimes: 3,
+    testName: 'mark_measure',
+  }, "Mark/Measure navigation id test");
+</script>

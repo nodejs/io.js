@@ -1,13 +1,23 @@
-const os = require('node:os')
 const { resolve } = require('node:path')
 const { stripVTControlCharacters } = require('node:util')
 const pacote = require('pacote')
 const table = require('text-table')
 const npa = require('npm-package-arg')
 const pickManifest = require('npm-pick-manifest')
+const { output } = require('proc-log')
 const localeCompare = require('@isaacs/string-locale-compare')('en')
-
 const ArboristWorkspaceCmd = require('../arborist-cmd.js')
+
+const safeNpa = (spec) => {
+  try {
+    return npa(spec)
+  } catch {
+    return null
+  }
+}
+
+// This string is load bearing and is shared with Arborist
+const MISSING = 'MISSING'
 
 class Outdated extends ArboristWorkspaceCmd {
   static description = 'Check for outdated packages'
@@ -22,182 +32,131 @@ class Outdated extends ArboristWorkspaceCmd {
     'workspace',
   ]
 
-  async exec (args) {
-    const global = resolve(this.npm.globalDir, '..')
-    const where = this.npm.global
-      ? global
-      : this.npm.prefix
+  #tree
+  #list = []
+  #edges = new Set()
+  #filterSet
 
+  async exec (args) {
     const Arborist = require('@npmcli/arborist')
     const arb = new Arborist({
       ...this.npm.flatOptions,
-      path: where,
+      path: this.npm.global ? resolve(this.npm.globalDir, '..') : this.npm.prefix,
     })
+    this.#tree = await arb.loadActual()
 
-    this.edges = new Set()
-    this.list = []
-    this.tree = await arb.loadActual()
-
-    if (this.workspaceNames && this.workspaceNames.length) {
-      this.filterSet =
-        arb.workspaceDependencySet(
-          this.tree,
-          this.workspaceNames,
-          this.npm.flatOptions.includeWorkspaceRoot
-        )
+    if (this.workspaceNames?.length) {
+      this.#filterSet = arb.workspaceDependencySet(
+        this.#tree,
+        this.workspaceNames,
+        this.npm.flatOptions.includeWorkspaceRoot
+      )
     } else if (!this.npm.flatOptions.workspacesEnabled) {
-      this.filterSet =
-        arb.excludeWorkspacesDependencySet(this.tree)
+      this.#filterSet = arb.excludeWorkspacesDependencySet(this.#tree)
     }
 
-    if (args.length !== 0) {
-      // specific deps
-      for (let i = 0; i < args.length; i++) {
-        const nodes = this.tree.inventory.query('name', args[i])
-        this.getEdges(nodes, 'edgesIn')
+    if (args.length) {
+      for (const arg of args) {
+        // specific deps
+        this.#getEdges(this.#tree.inventory.query('name', arg), 'edgesIn')
       }
     } else {
       if (this.npm.config.get('all')) {
         // all deps in tree
-        const nodes = this.tree.inventory.values()
-        this.getEdges(nodes, 'edgesOut')
+        this.#getEdges(this.#tree.inventory.values(), 'edgesOut')
       }
       // top-level deps
-      this.getEdges()
+      this.#getEdges()
     }
 
-    await Promise.all(Array.from(this.edges).map((edge) => {
-      return this.getOutdatedInfo(edge)
-    }))
+    await Promise.all([...this.#edges].map((e) => this.#getOutdatedInfo(e)))
 
-    // sorts list alphabetically
-    const outdated = this.list.sort((a, b) => localeCompare(a.name, b.name))
+    // sorts list alphabetically by name and then dependent
+    const outdated = this.#list
+      .sort((a, b) => localeCompare(a.name, b.name) || localeCompare(a.dependent, b.dependent))
 
-    if (outdated.length > 0) {
+    if (outdated.length) {
       process.exitCode = 1
     }
 
-    // return if no outdated packages
-    if (outdated.length === 0 && !this.npm.config.get('json')) {
+    if (this.npm.config.get('json')) {
+      output.buffer(this.#json(outdated))
       return
     }
 
-    // display results
-    if (this.npm.config.get('json')) {
-      this.npm.output(this.makeJSON(outdated))
-    } else if (this.npm.config.get('parseable')) {
-      this.npm.output(this.makeParseable(outdated))
-    } else {
-      const outList = outdated.map(x => this.makePretty(x))
-      const outHead = ['Package',
-        'Current',
-        'Wanted',
-        'Latest',
-        'Location',
-        'Depended by',
-      ]
+    const res = this.npm.config.get('parseable')
+      ? this.#parseable(outdated)
+      : this.#pretty(outdated)
 
-      if (this.npm.config.get('long')) {
-        outHead.push('Package Type', 'Homepage')
-      }
-      const outTable = [outHead].concat(outList)
-
-      outTable[0] = outTable[0].map(heading => this.npm.chalk.underline(heading))
-
-      const tableOpts = {
-        align: ['l', 'r', 'r', 'r', 'l'],
-        stringLength: s => stripVTControlCharacters(s).length,
-      }
-      this.npm.output(table(outTable, tableOpts))
+    if (res) {
+      output.standard(res)
     }
   }
 
-  getEdges (nodes, type) {
+  #getEdges (nodes, type) {
     // when no nodes are provided then it should only read direct deps
     // from the root node and its workspaces direct dependencies
     if (!nodes) {
-      this.getEdgesOut(this.tree)
-      this.getWorkspacesEdges()
+      this.#getEdgesOut(this.#tree)
+      this.#getWorkspacesEdges()
       return
     }
 
     for (const node of nodes) {
-      type === 'edgesOut'
-        ? this.getEdgesOut(node)
-        : this.getEdgesIn(node)
+      if (type === 'edgesOut') {
+        this.#getEdgesOut(node)
+      } else {
+        this.#getEdgesIn(node)
+      }
     }
   }
 
-  getEdgesIn (node) {
+  #getEdgesIn (node) {
     for (const edge of node.edgesIn) {
-      this.trackEdge(edge)
+      this.#trackEdge(edge)
     }
   }
 
-  getEdgesOut (node) {
+  #getEdgesOut (node) {
     // TODO: normalize usage of edges and avoid looping through nodes here
-    if (this.npm.global) {
-      for (const child of node.children.values()) {
-        this.trackEdge(child)
-      }
-    } else {
-      for (const edge of node.edgesOut.values()) {
-        this.trackEdge(edge)
-      }
+    const edges = this.npm.global ? node.children.values() : node.edgesOut.values()
+    for (const edge of edges) {
+      this.#trackEdge(edge)
     }
   }
 
-  trackEdge (edge) {
-    const filteredOut =
-      edge.from
-        && this.filterSet
-        && this.filterSet.size > 0
-        && !this.filterSet.has(edge.from.target)
-
-    if (filteredOut) {
+  #trackEdge (edge) {
+    if (edge.from && this.#filterSet?.size > 0 && !this.#filterSet.has(edge.from.target)) {
       return
     }
-
-    this.edges.add(edge)
+    this.#edges.add(edge)
   }
 
-  getWorkspacesEdges (node) {
+  #getWorkspacesEdges () {
     if (this.npm.global) {
       return
     }
 
-    for (const edge of this.tree.edgesOut.values()) {
-      const workspace = edge
-        && edge.to
-        && edge.to.target
-        && edge.to.target.isWorkspace
-
-      if (workspace) {
-        this.getEdgesOut(edge.to.target)
+    for (const edge of this.#tree.edgesOut.values()) {
+      if (edge?.to?.target?.isWorkspace) {
+        this.#getEdgesOut(edge.to.target)
       }
     }
   }
 
-  async getPackument (spec) {
-    const packument = await pacote.packument(spec, {
+  async #getPackument (spec) {
+    return pacote.packument(spec, {
       ...this.npm.flatOptions,
       fullMetadata: this.npm.config.get('long'),
       preferOnline: true,
     })
-    return packument
   }
 
-  async getOutdatedInfo (edge) {
-    let alias = false
-    try {
-      alias = npa(edge.spec).subSpec
-    } catch (err) {
-      // ignore errors, no alias
-    }
+  async #getOutdatedInfo (edge) {
+    const alias = safeNpa(edge.spec)?.subSpec
     const spec = npa(alias ? alias.name : edge.name)
     const node = edge.to || edge
-    const { path, location } = node
-    const { version: current } = node.package || {}
+    const { path, location, package: { version: current } = {} } = node
 
     const type = edge.optional ? 'optionalDependencies'
       : edge.peer ? 'peerDependencies'
@@ -212,34 +171,22 @@ class Outdated extends ArboristWorkspaceCmd {
 
     // deps different from prod not currently
     // on disk are not included in the output
-    if (edge.error === 'MISSING' && type !== 'dependencies') {
+    if (edge.error === MISSING && type !== 'dependencies') {
       return
     }
 
+    // if it's not a range, version, or tag, skip it
+    if (!safeNpa(`${edge.name}@${edge.spec}`)?.registry) {
+      return null
+    }
+
     try {
-      const packument = await this.getPackument(spec)
+      const packument = await this.#getPackument(spec)
       const expected = alias ? alias.fetchSpec : edge.spec
-      // if it's not a range, version, or tag, skip it
-      try {
-        if (!npa(`${edge.name}@${edge.spec}`).registry) {
-          return null
-        }
-      } catch (err) {
-        return null
-      }
       const wanted = pickManifest(packument, expected, this.npm.flatOptions)
       const latest = pickManifest(packument, '*', this.npm.flatOptions)
-
-      if (
-        !current ||
-        current !== wanted.version ||
-        wanted.version !== latest.version
-      ) {
-        const dependent = edge.from ?
-          this.maybeWorkspaceName(edge.from)
-          : 'global'
-
-        this.list.push({
+      if (!current || current !== wanted.version || wanted.version !== latest.version) {
+        this.#list.push({
           name: alias ? edge.spec.replace('npm', edge.name) : edge.name,
           path,
           type,
@@ -247,123 +194,89 @@ class Outdated extends ArboristWorkspaceCmd {
           location,
           wanted: wanted.version,
           latest: latest.version,
-          dependent,
+          workspaceDependent: edge.from?.isWorkspace ? edge.from.pkgid : null,
+          dependent: edge.from?.name ?? 'global',
           homepage: packument.homepage,
         })
       }
     } catch (err) {
       // silently catch and ignore ETARGET, E403 &
       // E404 errors, deps are just skipped
-      if (!(
-        err.code === 'ETARGET' ||
-        err.code === 'E403' ||
-        err.code === 'E404')
-      ) {
+      if (!['ETARGET', 'E404', 'E404'].includes(err.code)) {
         throw err
       }
     }
   }
 
-  maybeWorkspaceName (node) {
-    if (!node.isWorkspace) {
-      return node.name
-    }
-
-    const humanOutput =
-      !this.npm.config.get('json') && !this.npm.config.get('parseable')
-
-    const workspaceName =
-      humanOutput
-        ? node.pkgid
-        : node.name
-
-    return humanOutput
-      ? this.npm.chalk.green(workspaceName)
-      : workspaceName
-  }
-
   // formatting functions
-  makePretty (dep) {
-    const {
-      current = 'MISSING',
-      location = '-',
-      homepage = '',
-      name,
-      wanted,
-      latest,
-      type,
-      dependent,
-    } = dep
 
-    const columns = [name, current, wanted, latest, location, dependent]
-
-    if (this.npm.config.get('long')) {
-      columns[6] = type
-      columns[7] = homepage
+  #pretty (list) {
+    if (!list.length) {
+      return
     }
 
-    columns[0] = this.npm.chalk[current === wanted ? 'yellow' : 'red'](columns[0]) // current
-    columns[2] = this.npm.chalk.green(columns[2]) // wanted
-    columns[3] = this.npm.chalk.magenta(columns[3]) // latest
+    const long = this.npm.config.get('long')
+    const { bold, yellow, red, cyan, blue } = this.npm.chalk
 
-    return columns
+    return table([
+      [
+        'Package',
+        'Current',
+        'Wanted',
+        'Latest',
+        'Location',
+        'Depended by',
+        ...long ? ['Package Type', 'Homepage'] : [],
+      ].map(h => bold.underline(h)),
+      ...list.map((d) => [
+        d.current === d.wanted ? yellow(d.name) : red(d.name),
+        d.current ?? 'MISSING',
+        cyan(d.wanted),
+        blue(d.latest),
+        d.location ?? '-',
+        d.workspaceDependent ? blue(d.workspaceDependent) : d.dependent,
+        ...long ? [d.type, blue(d.homepage ?? '')] : [],
+      ]),
+    ], {
+      align: ['l', 'r', 'r', 'r', 'l'],
+      stringLength: s => stripVTControlCharacters(s).length,
+    })
   }
 
   // --parseable creates output like this:
   // <fullpath>:<name@wanted>:<name@installed>:<name@latest>:<dependedby>
-  makeParseable (list) {
-    return list.map(dep => {
-      const {
-        name,
-        current,
-        wanted,
-        latest,
-        path,
-        dependent,
-        type,
-        homepage,
-      } = dep
-      const out = [
-        path,
-        name + '@' + wanted,
-        current ? (name + '@' + current) : 'MISSING',
-        name + '@' + latest,
-        dependent,
-      ]
-      if (this.npm.config.get('long')) {
-        out.push(type, homepage)
-      }
-
-      return out.join(':')
-    }).join(os.EOL)
+  #parseable (list) {
+    return list.map(d => [
+      d.path,
+      `${d.name}@${d.wanted}`,
+      d.current ? `${d.name}@${d.current}` : 'MISSING',
+      `${d.name}@${d.latest}`,
+      d.dependent,
+      ...this.npm.config.get('long') ? [d.type, d.homepage] : [],
+    ].join(':')).join('\n')
   }
 
-  makeJSON (list) {
-    const out = {}
-    list.forEach(dep => {
-      const {
-        name,
-        current,
-        wanted,
-        latest,
-        path,
-        type,
-        dependent,
-        homepage,
-      } = dep
-      out[name] = {
-        current,
-        wanted,
-        latest,
-        dependent,
-        location: path,
+  #json (list) {
+    // TODO(BREAKING_CHANGE): this should just return an array. It's a list and
+    // turing it into an object with keys is lossy since multiple items in the
+    // list could have the same key. For now we hack that by only changing
+    // top level values into arrays if they have multiple outdated items
+    return list.reduce((acc, d) => {
+      const dep = {
+        current: d.current,
+        wanted: d.wanted,
+        latest: d.latest,
+        dependent: d.dependent,
+        location: d.path,
+        ...this.npm.config.get('long') ? { type: d.type, homepage: d.homepage } : {},
       }
-      if (this.npm.config.get('long')) {
-        out[name].type = type
-        out[name].homepage = homepage
-      }
-    })
-    return JSON.stringify(out, null, 2)
+      acc[d.name] = acc[d.name]
+        // If this item alread has an outdated dep then we turn it into an array
+        ? (Array.isArray(acc[d.name]) ? acc[d.name] : [acc[d.name]]).concat(dep)
+        : dep
+      return acc
+    }, {})
   }
 }
+
 module.exports = Outdated

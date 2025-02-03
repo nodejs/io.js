@@ -1,9 +1,12 @@
 'use strict';
 // http://groups.google.com/group/nodejs/browse_thread/thread/f66cd3c960406919
 const common = require('../common');
-if (!common.hasCrypto)
-  common.skip('missing crypto');
 
+if (!common.hasCrypto) {
+  common.skip('missing crypto');
+}
+
+const fs = require('fs');
 const assert = require('assert');
 
 if (process.argv[2] === 'request') {
@@ -43,14 +46,21 @@ const filename = tmpdir.resolve('big');
 let server;
 
 function executeRequest(cb) {
-  cp.exec([`"${process.execPath}"`,
-           `"${__filename}"`,
+  // The execPath might contain chars that should be escaped in a shell context.
+  // On non-Windows, we can pass the path via the env; `"` is not a valid char on
+  // Windows, so we can simply pass the path.
+  const node = `"${common.isWindows ? process.execPath : '$NODE'}"`;
+  const file = `"${common.isWindows ? __filename : '$FILE'}"`;
+  const env = common.isWindows ? process.env : { ...process.env, NODE: process.execPath, FILE: __filename };
+  cp.exec([node,
+           file,
            'request',
            server.address().port,
            '|',
-           `"${process.execPath}"`,
-           `"${__filename}"`,
+           node,
+           file,
            'shasum' ].join(' '),
+          { env },
           (err, stdout, stderr) => {
             if (stderr.trim() !== '') {
               console.log(stderr);
@@ -66,7 +76,11 @@ function executeRequest(cb) {
 
 tmpdir.refresh();
 
-common.createZeroFilledFile(filename);
+
+// Create a zero-filled file.
+const fd = fs.openSync(filename, 'w');
+fs.ftruncateSync(fd, 10 * 1024 * 1024);
+fs.closeSync(fd);
 
 server = http.createServer(function(req, res) {
   res.writeHead(200);

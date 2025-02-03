@@ -1,5 +1,5 @@
 const Npm = require('../npm.js')
-const BaseCommand = require('../base-command.js')
+const BaseCommand = require('../base-cmd.js')
 
 class Set extends BaseCommand {
   static description = 'Set a value in the npm configuration'
@@ -22,4 +22,5 @@ class Set extends BaseCommand {
     return this.npm.exec('config', ['set'].concat(args))
   }
 }
+
 module.exports = Set

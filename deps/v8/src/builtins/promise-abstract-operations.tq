@@ -34,8 +34,8 @@ extern macro ResolveStringConstant(): String;
 const kResolveString: String = ResolveStringConstant();
 extern macro IsPromiseResolveProtectorCellInvalid(): bool;
 
-extern macro AllocateFunctionWithMapAndContext(
-    Map, SharedFunctionInfo, FunctionContext): JSFunction;
+extern macro AllocateRootFunctionWithContext(
+    constexpr intptr, FunctionContext, NativeContext): JSFunction;
 
 extern macro PromiseReactionMapConstant(): Map;
 extern macro PromiseFulfillReactionJobTaskMapConstant(): Map;
@@ -128,6 +128,10 @@ transitioning macro MorphAndEnqueuePromiseReaction(
     static_assert(
         kPromiseReactionPromiseOrCapabilityOffset ==
         kPromiseReactionJobTaskPromiseOrCapabilityOffset);
+    @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+      static_assert(
+          kPromiseReactionContinuationPreservedEmbedderDataOffset ==
+          kPromiseReactionJobTaskContinuationPreservedEmbedderDataOffset);
   } else {
     static_assert(reactionType == kPromiseReactionReject);
     *UnsafeConstCast(&promiseReaction.map) =
@@ -141,6 +145,10 @@ transitioning macro MorphAndEnqueuePromiseReaction(
     static_assert(
         kPromiseReactionPromiseOrCapabilityOffset ==
         kPromiseReactionJobTaskPromiseOrCapabilityOffset);
+    @if(V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA)
+      static_assert(
+          kPromiseReactionContinuationPreservedEmbedderDataOffset ==
+          kPromiseReactionJobTaskContinuationPreservedEmbedderDataOffset);
   }
 }
 
@@ -308,27 +316,31 @@ struct PromiseResolvingFunctions {
   context: Context;
 }
 
+const kPromiseCapabilityDefaultResolveSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseCapabilityDefaultResolveSharedFun';
+const kPromiseCapabilityDefaultRejectSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseCapabilityDefaultRejectSharedFun';
+
 @export
 macro CreatePromiseResolvingFunctions(
     implicit context: Context)(promise: JSPromise, debugEvent: Boolean,
     nativeContext: NativeContext): PromiseResolvingFunctions {
   const promiseContext = CreatePromiseResolvingFunctionsContext(
       promise, debugEvent, nativeContext);
-  const map = *NativeContextSlot(
-      nativeContext, ContextSlot::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX);
-  const resolveInfo = PromiseCapabilityDefaultResolveSharedFunConstant();
 
-  const resolve: JSFunction =
-      AllocateFunctionWithMapAndContext(map, resolveInfo, promiseContext);
-  const rejectInfo = PromiseCapabilityDefaultRejectSharedFunConstant();
-  const reject: JSFunction =
-      AllocateFunctionWithMapAndContext(map, rejectInfo, promiseContext);
+  const resolve: JSFunction = AllocateRootFunctionWithContext(
+      kPromiseCapabilityDefaultResolveSharedFun, promiseContext, nativeContext);
+  const reject: JSFunction = AllocateRootFunctionWithContext(
+      kPromiseCapabilityDefaultRejectSharedFun, promiseContext, nativeContext);
   return PromiseResolvingFunctions{
     resolve: resolve,
     reject: reject,
     context: promiseContext
   };
 }
+
+const kPromiseGetCapabilitiesExecutorSharedFun: constexpr intptr
+    generates 'RootIndex::kPromiseGetCapabilitiesExecutorSharedFun';
 
 transitioning macro InnerNewPromiseCapability(
     implicit context: Context)(constructor: HeapObject,
@@ -348,14 +360,9 @@ transitioning macro InnerNewPromiseCapability(
     const capability = CreatePromiseCapability(Undefined, Undefined, Undefined);
     const executorContext =
         CreatePromiseCapabilitiesExecutorContext(nativeContext, capability);
-
-    const executorInfo = PromiseGetCapabilitiesExecutorSharedFunConstant();
-    const functionMap =
-        *NativeContextSlot(
-        nativeContext,
-        ContextSlot::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX);
-    const executor = AllocateFunctionWithMapAndContext(
-        functionMap, executorInfo, executorContext);
+    const executor = AllocateRootFunctionWithContext(
+        kPromiseGetCapabilitiesExecutorSharedFun, executorContext,
+        nativeContext);
 
     const promiseConstructor = UnsafeCast<Constructor>(constructor);
     const promise = Construct(promiseConstructor, executor);
@@ -450,13 +457,11 @@ transitioning macro PerformPromiseThenImpl(
     // PromiseReaction holding both the onFulfilled and onRejected callbacks.
     // Once the {promise} is resolved we decide on the concrete handler to
     // push onto the microtask queue.
-    const handlerContext = ExtractHandlerContext(onFulfilled, onRejected);
     const promiseReactions =
         UnsafeCast<(Zero | PromiseReaction)>(promise.reactions_or_result);
 
     const reaction = NewPromiseReaction(
-        handlerContext, promiseReactions, resultPromiseOrCapability,
-        onFulfilled, onRejected);
+        promiseReactions, resultPromiseOrCapability, onFulfilled, onRejected);
     promise.reactions_or_result = reaction;
   } else {
     const reactionsOrResult = promise.reactions_or_result;
@@ -481,6 +486,18 @@ transitioning macro PerformPromiseThenImpl(
     EnqueueMicrotask(handlerContext, microtask);
   }
   promise.SetHasHandler();
+}
+
+transitioning javascript builtin PerformPromiseThenFunction(
+    js-implicit context: NativeContext, receiver: JSAny)(onFulfilled: JSAny,
+    onRejected: JSAny): JSAny {
+  const jsPromise = Cast<JSPromise>(receiver) otherwise unreachable;
+  const callableOnFulfilled = Cast<Callable>(onFulfilled) otherwise unreachable;
+  const callableOnRejected = Cast<Callable>(onRejected) otherwise unreachable;
+
+  PerformPromiseThenImpl(
+      jsPromise, callableOnFulfilled, callableOnRejected, Undefined);
+  return Undefined;
 }
 
 // https://tc39.es/ecma262/#sec-performpromisethen

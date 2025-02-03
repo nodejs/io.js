@@ -9,8 +9,9 @@
 #ifndef V8_WASM_VALUE_TYPE_H_
 #define V8_WASM_VALUE_TYPE_H_
 
+#include <optional>
+
 #include "src/base/bit-field.h"
-#include "src/base/optional.h"
 #include "src/codegen/machine-type.h"
 #include "src/wasm/wasm-constants.h"
 #include "src/wasm/wasm-limits.h"
@@ -21,10 +22,11 @@ namespace internal {
 template <typename T>
 class Signature;
 
-namespace wasm {
-
-// Type for holding simd values, defined in wasm-value.h.
+// Type for holding simd values, defined in simd128.h.
 class Simd128;
+class Zone;
+
+namespace wasm {
 
 // Format: kind, log2Size, code, machineType, shortName, typeName
 //
@@ -38,7 +40,8 @@ class Simd128;
   V(F64, 3, F64, Float64, 'd', "f64")    \
   V(S128, 4, S128, Simd128, 's', "v128") \
   V(I8, 0, I8, Int8, 'b', "i8")          \
-  V(I16, 1, I16, Int16, 'h', "i16")
+  V(I16, 1, I16, Int16, 'h', "i16")      \
+  V(F16, 1, F16, Float16, 'p', "f16")
 
 #define FOREACH_VALUE_TYPE(V)                                      \
   V(Void, -1, Void, None, 'v', "<void>")                           \
@@ -78,43 +81,62 @@ class HeapType {
     kNoFunc,                  //
     kNoExtern,                //
     kNoExn,                   //
+    kFuncShared,
+    kEqShared,
+    kI31Shared,
+    kStructShared,
+    kArrayShared,
+    kAnyShared,
+    kExternShared,
+    kExternStringShared,
+    kExnShared,
+    kStringShared,
+    kStringViewWtf8Shared,
+    kStringViewWtf16Shared,
+    kStringViewIterShared,
+    kNoneShared,
+    kNoFuncShared,
+    kNoExternShared,
+    kNoExnShared,
     // This value is used to represent failures in the parsing of heap types and
     // does not correspond to a wasm heap type. It has to be last in this list.
     kBottom
   };
 
-  static constexpr HeapType from_code(uint8_t code) {
+  static constexpr HeapType from_code(uint8_t code, bool is_shared) {
     switch (code) {
       case ValueTypeCode::kFuncRefCode:
-        return HeapType(kFunc);
+        return HeapType(is_shared ? kFuncShared : kFunc);
       case ValueTypeCode::kEqRefCode:
-        return HeapType(kEq);
+        return HeapType(is_shared ? kEqShared : kEq);
       case ValueTypeCode::kI31RefCode:
-        return HeapType(kI31);
+        return HeapType(is_shared ? kI31Shared : kI31);
       case ValueTypeCode::kAnyRefCode:
-        return HeapType(kAny);
+        return HeapType(is_shared ? kAnyShared : kAny);
       case ValueTypeCode::kExternRefCode:
-        return HeapType(kExtern);
+        return HeapType(is_shared ? kExternShared : kExtern);
       case ValueTypeCode::kExnRefCode:
-        return HeapType(kExn);
+        return HeapType(is_shared ? kExnShared : kExn);
       case ValueTypeCode::kStructRefCode:
-        return HeapType(kStruct);
+        return HeapType(is_shared ? kStructShared : kStruct);
       case ValueTypeCode::kArrayRefCode:
-        return HeapType(kArray);
+        return HeapType(is_shared ? kArrayShared : kArray);
       case ValueTypeCode::kStringRefCode:
-        return HeapType(kString);
+        return HeapType(is_shared ? kStringShared : kString);
       case ValueTypeCode::kStringViewWtf8Code:
-        return HeapType(kStringViewWtf8);
+        return HeapType(is_shared ? kStringViewWtf8Shared : kStringViewWtf8);
       case ValueTypeCode::kStringViewWtf16Code:
-        return HeapType(kStringViewWtf16);
+        return HeapType(is_shared ? kStringViewWtf16Shared : kStringViewWtf16);
       case ValueTypeCode::kStringViewIterCode:
-        return HeapType(kStringViewIter);
+        return HeapType(is_shared ? kStringViewIterShared : kStringViewIter);
       case ValueTypeCode::kNoneCode:
-        return HeapType(kNone);
+        return HeapType(is_shared ? kNoneShared : kNone);
       case ValueTypeCode::kNoExternCode:
-        return HeapType(kNoExtern);
+        return HeapType(is_shared ? kNoExternShared : kNoExtern);
       case ValueTypeCode::kNoFuncCode:
-        return HeapType(kNoFunc);
+        return HeapType(is_shared ? kNoFuncShared : kNoFunc);
+      case ValueTypeCode::kNoExnCode:
+        return HeapType(is_shared ? kNoExnShared : kNoExn);
       default:
         return HeapType(kBottom);
     }
@@ -147,7 +169,7 @@ class HeapType {
     return representation_;
   }
 
-  constexpr bool is_generic() const {
+  constexpr bool is_abstract() const {
     return !is_bottom() && representation_ >= kFirstSentinel;
   }
 
@@ -197,9 +219,44 @@ class HeapType {
         return std::string("noexn");
       case kExn:
         return std::string("exn");
+      case kFuncShared:
+        return std::string("shared func");
+      case kEqShared:
+        return std::string("shared eq");
+      case kI31Shared:
+        return std::string("shared i31");
+      case kStructShared:
+        return std::string("shared struct");
+      case kArrayShared:
+        return std::string("shared array");
+      case kExternShared:
+        return std::string("shared extern");
+      case kExternStringShared:
+        return std::string("shared <extern_string>");
+      case kAnyShared:
+        return std::string("shared any");
+      case kStringShared:
+        return std::string("shared string");
+      case kStringViewWtf8Shared:
+        return std::string("shared stringview_wtf8");
+      case kStringViewWtf16Shared:
+        return std::string("shared stringview_wtf16");
+      case kStringViewIterShared:
+        return std::string("shared stringview_iter");
+      case kNoneShared:
+        return std::string("shared none");
+      case kNoExternShared:
+        return std::string("shared noextern");
+      case kNoFuncShared:
+        return std::string("shared nofunc");
+      case kNoExnShared:
+        return std::string("shared noexn");
+      case kExnShared:
+        return std::string("shared exn");
       case kBottom:
         return std::string("<bot>");
       default:
+        DCHECK(is_index());
         return std::to_string(representation_);
     }
   }
@@ -211,37 +268,149 @@ class HeapType {
     int32_t mask = 0xFFFFFF80;
     switch (representation_) {
       case kFunc:
+      case kFuncShared:
         return mask | kFuncRefCode;
       case kEq:
+      case kEqShared:
         return mask | kEqRefCode;
       case kI31:
+      case kI31Shared:
         return mask | kI31RefCode;
       case kStruct:
+      case kStructShared:
         return mask | kStructRefCode;
       case kArray:
+      case kArrayShared:
         return mask | kArrayRefCode;
       case kExtern:
+      case kExternShared:
         return mask | kExternRefCode;
       case kAny:
+      case kAnyShared:
         return mask | kAnyRefCode;
       case kExn:
+      case kExnShared:
         return mask | kExnRefCode;
       case kString:
+      case kStringShared:
         return mask | kStringRefCode;
       case kStringViewWtf8:
+      case kStringViewWtf8Shared:
         return mask | kStringViewWtf8Code;
       case kStringViewWtf16:
+      case kStringViewWtf16Shared:
         return mask | kStringViewWtf16Code;
       case kStringViewIter:
+      case kStringViewIterShared:
         return mask | kStringViewIterCode;
       case kNone:
+      case kNoneShared:
         return mask | kNoneCode;
       case kNoExtern:
+      case kNoExternShared:
         return mask | kNoExternCode;
       case kNoFunc:
+      case kNoFuncShared:
         return mask | kNoFuncCode;
+      case kNoExn:
+      case kNoExnShared:
+        return mask | kNoExnCode;
       default:
+        DCHECK(is_index());
         return static_cast<int32_t>(representation_);
+    }
+  }
+
+  constexpr Representation representation_non_shared() const {
+    switch (representation_) {
+      case kFuncShared:
+        return kFunc;
+      case kEqShared:
+        return kEq;
+      case kI31Shared:
+        return kI31;
+      case kStructShared:
+        return kStruct;
+      case kArrayShared:
+        return kArray;
+      case kAnyShared:
+        return kAny;
+      case kExternShared:
+        return kExtern;
+      case kExternStringShared:
+        return kExternString;
+      case kExnShared:
+        return kExn;
+      case kStringShared:
+        return kString;
+      case kStringViewWtf8Shared:
+        return kStringViewWtf8;
+      case kStringViewWtf16Shared:
+        return kStringViewWtf16;
+      case kStringViewIterShared:
+        return kStringViewIter;
+      case kNoneShared:
+        return kNone;
+      case kNoFuncShared:
+        return kNoFunc;
+      case kNoExternShared:
+        return kNoExtern;
+      case kNoExnShared:
+        return kNoExn;
+      default:
+        return representation_;
+    }
+  }
+
+  constexpr bool is_abstract_shared() const {
+    switch (representation_) {
+      case kFuncShared:
+      case kEqShared:
+      case kI31Shared:
+      case kStructShared:
+      case kArrayShared:
+      case kAnyShared:
+      case kExternShared:
+      case kExternStringShared:
+      case kExnShared:
+      case kStringShared:
+      case kStringViewWtf8Shared:
+      case kStringViewWtf16Shared:
+      case kStringViewIterShared:
+      case kNoneShared:
+      case kNoFuncShared:
+      case kNoExternShared:
+      case kNoExnShared:
+        return true;
+      default:
+        DCHECK(is_abstract_non_shared() || is_index());
+        return false;
+    }
+  }
+
+  constexpr bool is_abstract_non_shared() const {
+    switch (representation_) {
+      case kFunc:
+      case kEq:
+      case kI31:
+      case kStruct:
+      case kArray:
+      case kAny:
+      case kExtern:
+      case kExternString:
+      case kExn:
+      case kString:
+      case kStringViewWtf8:
+      case kStringViewWtf16:
+      case kStringViewIter:
+      case kNone:
+      case kNoFunc:
+      case kNoExtern:
+      case kNoExn:
+      case kBottom:
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -276,6 +445,8 @@ constexpr bool is_numeric(ValueKind kind) {
       return false;
   }
 }
+
+constexpr bool is_valid(ValueKind kind) { return kind <= kBottom; }
 
 constexpr bool is_reference(ValueKind kind) {
   return kind == kRef || kind == kRefNull || kind == kRtt;
@@ -339,6 +510,11 @@ constexpr const char* name(ValueKind kind) {
   return kKindName[kind];
 }
 
+// Output operator, useful for DCHECKS and others.
+inline std::ostream& operator<<(std::ostream& oss, ValueKind kind) {
+  return oss << name(kind);
+}
+
 constexpr MachineType machine_type(ValueKind kind) {
   DCHECK_NE(kBottom, kind);
 
@@ -352,9 +528,11 @@ constexpr MachineType machine_type(ValueKind kind) {
   return kMachineType[kind];
 }
 
-constexpr bool is_packed(ValueKind kind) { return kind == kI8 || kind == kI16; }
+constexpr bool is_packed(ValueKind kind) {
+  return kind == kI8 || kind == kI16 || kind == kF16;
+}
 constexpr ValueKind unpacked(ValueKind kind) {
-  return is_packed(kind) ? kI32 : kind;
+  return is_packed(kind) ? (kind == kF16 ? kF32 : kI32) : kind;
 }
 
 constexpr bool is_rtt(ValueKind kind) { return kind == kRtt; }
@@ -377,7 +555,7 @@ class ValueType {
   /******************************* Constructors *******************************/
   constexpr ValueType() : bit_field_(KindField::encode(kVoid)) {}
   static constexpr ValueType Primitive(ValueKind kind) {
-    DCHECK(kind == kBottom || kind <= kI16);
+    DCHECK(kind == kBottom || kind <= kF16);
     return ValueType(KindField::encode(kind));
   }
   static constexpr ValueType Ref(uint32_t heap_type) {
@@ -416,6 +594,7 @@ class ValueType {
 
   static constexpr ValueType FromIndex(ValueKind kind, uint32_t index) {
     DCHECK(kind == kRefNull || kind == kRef || kind == kRtt);
+    CHECK_LT(index, kV8MaxWasmTypes);
     return ValueType(KindField::encode(kind) | HeapTypeField::encode(index));
   }
 
@@ -463,7 +642,10 @@ class ValueType {
     return is_bottom() ||
            (is_non_nullable() && (is_reference_to(HeapType::kNone) ||
                                   is_reference_to(HeapType::kNoExtern) ||
-                                  is_reference_to(HeapType::kNoFunc)));
+                                  is_reference_to(HeapType::kNoFunc) ||
+                                  is_reference_to(HeapType::kNoneShared) ||
+                                  is_reference_to(HeapType::kNoExternShared) ||
+                                  is_reference_to(HeapType::kNoFuncShared)));
   }
 
   constexpr bool is_packed() const { return wasm::is_packed(kind()); }
@@ -488,6 +670,10 @@ class ValueType {
     DCHECK(is_object_reference());
     return static_cast<HeapType::Representation>(
         HeapTypeField::decode(bit_field_));
+  }
+  constexpr HeapType::Representation heap_representation_non_shared() const {
+    DCHECK(is_object_reference());
+    return HeapType(heap_representation()).representation_non_shared();
   }
   constexpr HeapType heap_type() const {
     DCHECK(is_object_reference());
@@ -565,7 +751,7 @@ class ValueType {
   // format.
   // For compatibility with the reftypes and exception-handling proposals, this
   // function prioritizes shorthand encodings
-  // (e.g., Ref(HeapType::kFunc, kNullable).value_type_code will return
+  // (e.g., {Ref(HeapType::kFunc, kNullable).value_type_code()} will return
   // kFuncrefCode and not kRefNullCode).
   constexpr ValueTypeCode value_type_code() const {
     DCHECK_NE(kBottom, kind());
@@ -590,12 +776,6 @@ class ValueType {
             return kArrayRefCode;
           case HeapType::kString:
             return kStringRefCode;
-          case HeapType::kStringViewWtf8:
-            return kStringViewWtf8Code;
-          case HeapType::kStringViewWtf16:
-            return kStringViewWtf16Code;
-          case HeapType::kStringViewIter:
-            return kStringViewIterCode;
           case HeapType::kNone:
             return kNoneCode;
           case HeapType::kNoExtern:
@@ -606,7 +786,18 @@ class ValueType {
             return kRefNullCode;
         }
       case kRef:
-        return kRefCode;
+        switch (heap_representation()) {
+          // String views are non-nullable references.
+          case HeapType::kStringViewWtf8:
+            return kStringViewWtf8Code;
+          case HeapType::kStringViewWtf16:
+            return kStringViewWtf16Code;
+          case HeapType::kStringViewIter:
+            return kStringViewIterCode;
+          // Currently, no other non-nullable shorthands exist.
+          default:
+            return kRefCode;
+        }
 #define NUMERIC_TYPE_CASE(kind, ...) \
   case k##kind:                      \
     return k##kind##Code;
@@ -625,7 +816,12 @@ class ValueType {
   // Returns true iff the heap type is needed to encode this type in the wasm
   // binary format, taking into account available type shorthands.
   constexpr bool encoding_needs_heap_type() const {
-    return kind() == kRef || (kind() == kRefNull && heap_type().is_index());
+    return kind() == kRef ||
+           (kind() == kRefNull && !heap_type().is_abstract_non_shared());
+  }
+
+  constexpr bool encoding_needs_shared() const {
+    return is_object_reference() && heap_type().is_abstract_shared();
   }
 
   /****************************** Pretty-printing *****************************/
@@ -638,7 +834,8 @@ class ValueType {
         buf << "(ref " << heap_type().name() << ")";
         break;
       case kRefNull:
-        if (heap_type().is_generic()) {
+        if (heap_type().is_abstract_non_shared() &&
+            !heap_type().is_string_view()) {
           switch (heap_type().representation()) {
             case HeapType::kNone:
               buf << "nullref";
@@ -737,6 +934,7 @@ constexpr ValueType kWasmF64 = ValueType::Primitive(kF64);
 constexpr ValueType kWasmS128 = ValueType::Primitive(kS128);
 constexpr ValueType kWasmI8 = ValueType::Primitive(kI8);
 constexpr ValueType kWasmI16 = ValueType::Primitive(kI16);
+constexpr ValueType kWasmF16 = ValueType::Primitive(kF16);
 constexpr ValueType kWasmVoid = ValueType::Primitive(kVoid);
 constexpr ValueType kWasmBottom = ValueType::Primitive(kBottom);
 // Established reference-type and wasm-gc proposal shorthands.
@@ -755,11 +953,11 @@ constexpr ValueType kWasmRefNullExternString =
 constexpr ValueType kWasmRefExternString =
     ValueType::Ref(HeapType::kExternString);
 constexpr ValueType kWasmStringViewWtf8 =
-    ValueType::RefNull(HeapType::kStringViewWtf8);
+    ValueType::Ref(HeapType::kStringViewWtf8);
 constexpr ValueType kWasmStringViewWtf16 =
-    ValueType::RefNull(HeapType::kStringViewWtf16);
+    ValueType::Ref(HeapType::kStringViewWtf16);
 constexpr ValueType kWasmStringViewIter =
-    ValueType::RefNull(HeapType::kStringViewIter);
+    ValueType::Ref(HeapType::kStringViewIter);
 constexpr ValueType kWasmNullRef = ValueType::RefNull(HeapType::kNone);
 constexpr ValueType kWasmNullExternRef =
     ValueType::RefNull(HeapType::kNoExtern);
@@ -792,6 +990,7 @@ using FunctionSig = Signature<ValueType>;
   V(I64, 16U, Uint16)        \
   V(I64, 32S, Int32)         \
   V(I64, 32U, Uint32)        \
+  V(F32, F16, Float16)       \
   V(F32, , Float32)          \
   V(F64, , Float64)          \
   V(S128, , Simd128)
@@ -830,13 +1029,15 @@ class LoadType {
         return is_signed ? kI32Load8S : kI32Load8U;
       case kI16:
         return is_signed ? kI32Load16S : kI32Load16U;
+      case kF16:
+        return kF32LoadF16;
       default:
         UNREACHABLE();
     }
   }
 
  private:
-  const LoadTypeValue val_;
+  LoadTypeValue val_;
 
   static constexpr uint8_t kLoadSize[] = {
   // MSVC wants a static_cast here.
@@ -877,6 +1078,7 @@ class LoadType {
   V(I64, 8, Word8)            \
   V(I64, 16, Word16)          \
   V(I64, 32, Word32)          \
+  V(F32, F16, Float16)        \
   V(F32, , Float32)           \
   V(F64, , Float64)           \
   V(S128, , Simd128)
@@ -915,13 +1117,15 @@ class StoreType {
         return kI32Store8;
       case kI16:
         return kI32Store16;
+      case kF16:
+        return kF32StoreF16;
       default:
         UNREACHABLE();
     }
   }
 
  private:
-  const StoreTypeValue val_;
+  StoreTypeValue val_;
 
   static constexpr uint8_t kStoreSizeLog2[] = {
   // MSVC wants a static_cast here.
@@ -944,8 +1148,13 @@ class StoreType {
   };
 };
 
-base::Optional<wasm::ValueKind> WasmReturnTypeFromSignature(
+std::optional<wasm::ValueKind> WasmReturnTypeFromSignature(
     const FunctionSig* wasm_signature);
+
+// Lowers a signature for 32 bit platforms by replacing i64 parameters and
+// returns with two i32s each.
+V8_EXPORT_PRIVATE const wasm::FunctionSig* GetI32Sig(
+    Zone* zone, const wasm::FunctionSig* sig);
 
 }  // namespace wasm
 }  // namespace internal

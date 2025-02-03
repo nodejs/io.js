@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-rab-gsab --allow-natives-syntax
+// Flags: --allow-natives-syntax --js-float16array
 
 "use strict";
 
@@ -15,7 +15,7 @@ const notSharedErrorMessage =
   // Test that trying to wait on a non-shared ArrayBuffer fails, even
   // when done on a worker thread.
   const workerScript = function() {
-    onmessage = function(msg) {
+    onmessage = function({data:msg}) {
       const rab = new ArrayBuffer(100, {maxByteLength: 200});
       const i32a = new Int32Array(rab, 0);
       try {

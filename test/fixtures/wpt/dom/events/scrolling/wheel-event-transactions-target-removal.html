@@ -1,0 +1,92 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="scroll_support.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  height: 200vh;
+}
+
+.spacer {
+  width: 100%;
+  height: 25px;
+  padding: 0;
+  margin: 0;
+}
+
+</style>
+<head>
+<body>
+<div id="initialTarget" class="spacer" style="background: red"></div>
+<div id="firstRootSpacer" class="spacer" style="background: green"></div>
+<div id="secondRootSpacer" class="spacer" style="background: blue"></div>
+</body>
+
+<script>
+
+promise_test(async (t) => {
+  await new Promise(resolve => addEventListener("load", resolve, {once: true}));
+
+  await waitForCompositorReady();
+
+  await waitForCompositorCommit();
+
+
+  let initialTarget = null;
+  let wheelEventTargets = [];
+  let removedInitialTarget = false;
+
+  // Remove the initial element the wheel event is targetted at once we fire the
+  // first wheel event, then log the subsequent wheel event targets.
+  function removeInitialElement(e) {
+    wheelEventTargets.push(e.target);
+    if (!removedInitialTarget) {
+      initialTarget = e.target;
+      e.target.remove();
+      removedInitialTarget = true;
+      initialTarget.addEventListener("wheel", () => {
+        assert_true(false, "wheel event should never be fired after the target is removed")
+      }, {passive: true});
+    }
+  }
+  window.addEventListener("wheel", removeInitialElement, {passive: true});
+
+  await waitForCompositorCommit();
+
+  await new test_driver.Actions()
+    .addWheel("wheel1")
+    .scroll(40, 2, 0, 30, {origin: "viewport"})
+    .pause(1)
+    .scroll(40, 2, 0, 30, {origin: "viewport"})
+    .send();
+
+  // TODO(dlrobertson): Use the scrollend event here to wait for the
+  // wheel scroll to finish instead of waitForAnimationEnd().
+  await waitForAnimationEnd(() => { return document.scrollingElement.scrollTop; });
+  await waitForCompositorCommit();
+
+  assert_true(removedInitialTarget, "Removed the initial target");
+  // The first wheel event should be targetted at the removed element.
+  assert_equals(wheelEventTargets.shift(), initialTarget,
+                "Initial wheel event has the removed element as the target");
+
+  wheelEventTargets.forEach((wheelEventTarget, i) => {
+    // TODO(dlrobertson): This assertion is pretty weak, but browsers seem to disagree
+    // on what element the event should target. Find out what the target should be here
+    // and make this assertion more restrictive.
+    assert_not_equals(wheelEventTarget, initialTarget,
+                      "Wheel event at index `" + i + "` targetted the initial element");
+  });
+  assert_greater_than(document.scrollingElement.scrollTop, 0, "The document has scrolled");
+}, "Remove the initial wheel event target.");
+</script>
+</html>

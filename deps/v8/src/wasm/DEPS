@@ -45,9 +45,16 @@ specific_include_rules = {
     # The WasmEngine may cache common call descriptors.
     "+src/compiler/wasm-call-descriptors.h",
   ],
-  "liftoff-compiler.cc": [
-    "-src/compiler",
-    "+src/compiler/wasm-compiler.h",
-    "+src/compiler/access-builder.h",
+  "liftoff-assembler\.cc": [
+    # The LiftoffAssembler needs to know CallDescriptors.
+    "+src/compiler/linkage.h",
   ],
+  "liftoff-compiler\.cc": [
+    "-src/compiler",
+    "+src/compiler/access-builder.h",
+    "+src/compiler/wasm-compiler.h",
+  ],
+  "simd-shuffle\.h": [
+    "+src/compiler/backend/instruction-codes.h",
+  ]
 }

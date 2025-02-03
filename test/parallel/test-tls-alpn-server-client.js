@@ -1,8 +1,9 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const { spawn } = require('child_process');
@@ -184,7 +185,8 @@ function TestFatalAlert() {
   server.listen(0, serverIP, common.mustCall(() => {
     const { port } = server.address();
 
-    // The Node.js client will just report ECONNRESET because the connection
+    // The Node.js client will just report ECONNRESET (older OpenSSL) or
+    // ERR_SSL_TLSV1_ALERT_NO_APPLICATION_PROTOCOL because the connection
     // is severed before the TLS handshake completes.
     tls.connect({
       host: serverIP,
@@ -192,11 +194,12 @@ function TestFatalAlert() {
       rejectUnauthorized: false,
       ALPNProtocols: ['bar']
     }, common.mustNotCall()).on('error', common.mustCall((err) => {
-      assert.strictEqual(err.code, 'ECONNRESET');
+      const allowedErrors = ['ECONNRESET', 'ERR_SSL_TLSV1_ALERT_NO_APPLICATION_PROTOCOL'];
+      assert.ok(allowedErrors.includes(err.code), `'${err.code}' was not one of ${allowedErrors}.`);
 
       // OpenSSL's s_client should output the TLS alert number, which is 120
       // for the 'no_application_protocol' alert.
-      const { opensslCli } = common;
+      const { opensslCli } = require('../common/crypto');
       if (opensslCli) {
         const addr = `${serverIP}:${port}`;
         let stderr = '';
@@ -240,7 +243,8 @@ function TestALPNCallback() {
 
     // Callback picks 2nd preference => undefined => ALPN rejected:
     assert.strictEqual(results[1].server, undefined);
-    assert.strictEqual(results[1].client.error.code, 'ECONNRESET');
+    const allowedErrors = ['ECONNRESET', 'ERR_SSL_TLSV1_ALERT_NO_APPLICATION_PROTOCOL'];
+    assert.ok(allowedErrors.includes(results[1].client.error.code), `'${results[1].client.error.code}' was not one of ${allowedErrors}.`);
 
     TestBadALPNCallback();
   });
@@ -263,7 +267,8 @@ function TestBadALPNCallback() {
   runTest(clientsOptions, serverOptions, function(results) {
     // Callback returns 'http/5' => doesn't match client ALPN => error & reset
     assert.strictEqual(results[0].server, undefined);
-    assert.strictEqual(results[0].client.error.code, 'ECONNRESET');
+    const allowedErrors = ['ECONNRESET', 'ERR_SSL_TLSV1_ALERT_NO_APPLICATION_PROTOCOL'];
+    assert.ok(allowedErrors.includes(results[0].client.error.code), `'${results[0].client.error.code}' was not one of ${allowedErrors}.`);
 
     TestALPNOptionsCallback();
   });

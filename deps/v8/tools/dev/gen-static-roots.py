@@ -12,6 +12,7 @@ import tempfile
 import shutil
 import platform
 import re
+import sys
 from pathlib import Path
 
 # List of all supported build configurations for static roots
@@ -61,9 +62,10 @@ def run(cmd, **kwargs):
 
 def machine_target():
   raw = platform.machine()
-  if raw == "x86_64" or raw == "amd64":
+  raw_lower = raw.lower()
+  if raw_lower == "x86_64" or raw_lower == "amd64":
     return "x64"
-  if raw == "aarch64":
+  if raw_lower == "aarch64":
     return "arm64"
   return raw
 
@@ -82,16 +84,17 @@ for target in [args.configuration]:
   # Let gm create the default config
   e = dict(os.environ)
   e['V8_GM_OUTDIR'] = f"{out_dir}"
-  run([f"{GM}", f"{machine_target()}.release.gn_args"], env=e)
+  run([f"{sys.executable}", f"{GM}", f"{machine_target()}.release.gn_args"],
+      env=e)
 
   # Patch the default config according to our needs
   print("# Updating gn args")
   gn_args_template = config["gn_args"].copy()
   gn_args = (build_dir / "args.gn").open("r").read().splitlines()
   with (build_dir / "args.gn").open("w") as f:
-    for line in gn_args:
+    for line in filter(bool, gn_args):
       result = re.search(r"^([^ ]+) = (.+)$", line)
-      if len(result.groups()) != 2:
+      if not result or len(result.groups()) != 2:
         print(f"Error parsing {build_dir / 'args.gn'} at line '{line}'")
         exit(255)
       if result.group(1) in gn_args_template:
@@ -102,7 +105,8 @@ for target in [args.configuration]:
       f.write(f"{extra} = {val}\n")
 
   # Build mksnapshot
-  run([f"{GM}", f"{machine_target()}.release.mksnapshot"], env=e)
+  run([f"{sys.executable}", f"{GM}", f"{machine_target()}.release.mksnapshot"],
+      env=e)
 
   # Generate static roots file and check if it changed
   out_file = Path(tempfile.gettempdir()) / f"static-roots-{target}.h"

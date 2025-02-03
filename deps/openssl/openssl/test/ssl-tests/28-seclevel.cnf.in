@@ -1,5 +1,5 @@
 # -*- mode: perl; -*-
-# Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2016-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -56,7 +56,10 @@ our @tests_ec = (
         client => { "CipherString" => "DEFAULT:\@SECLEVEL=5",
                     "VerifyCAFile" => test_pem("root-ed448-cert.pem") },
         test   => { "ExpectedResult" => "ServerFail" },
-    },
+    }
+);
+
+our @tests_ec_non_fips = (
     {
         name => "SECLEVEL 3 with P-384 key, X25519 ECDHE",
         server => { "CipherString" => "DEFAULT:\@SECLEVEL=3",
@@ -81,5 +84,6 @@ our @tests_tls1_2 = (
     },
 );
 
+push @tests_ec, @tests_ec_non_fips unless $fips_mode;
 push @tests, @tests_ec unless disabled("ec");
 push @tests, @tests_tls1_2 unless disabled("tls1_2") || disabled("ec");

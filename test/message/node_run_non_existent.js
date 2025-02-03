@@ -7,7 +7,7 @@ const fixtures = require('../common/fixtures');
 
 const child = childProcess.spawnSync(
   process.execPath,
-  [ '--run', 'non-existent-command'],
+  [ '--no-warnings', '--run', 'non-existent-command'],
   { cwd: fixtures.path('run-script'), encoding: 'utf8' },
 );
 assert.strictEqual(child.status, 1);

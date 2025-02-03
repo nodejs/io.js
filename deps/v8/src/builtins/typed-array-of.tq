@@ -38,7 +38,7 @@ transitioning javascript builtin TypedArrayOf(
       // 7b. Let Pk be ! ToString(k).
       // 7c. Perform ? Set(newObj, Pk, kValue, true).
       // Buffer may be detached during executing ToNumber/ToBigInt.
-      accessor.StoreJSAny(context, newObj, k, kValue) otherwise IfDetached;
+      accessor.StoreJSAny(context, newObj, k, kValue);
 
       // 7d. Increase k by 1. (done by the loop).
     }
@@ -47,8 +47,6 @@ transitioning javascript builtin TypedArrayOf(
     return newObj;
   } label NotConstructor deferred {
     ThrowTypeError(MessageTemplate::kNotConstructor, receiver);
-  } label IfDetached deferred {
-    ThrowTypeError(MessageTemplate::kDetachedOperation, kBuiltinNameOf);
   }
 }
 }

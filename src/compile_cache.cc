@@ -1,11 +1,17 @@
 #include "compile_cache.h"
+#include <string>
 #include "debug_utils-inl.h"
 #include "env-inl.h"
 #include "node_file.h"
 #include "node_internals.h"
 #include "node_version.h"
 #include "path.h"
+#include "util.h"
 #include "zlib.h"
+
+#ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
+#include <unistd.h>  // getuid
+#endif
 
 namespace node {
 std::string Uint32ToHex(uint32_t crc) {
@@ -27,15 +33,19 @@ uint32_t GetHash(const char* data, size_t size) {
   return crc32(crc, reinterpret_cast<const Bytef*>(data), size);
 }
 
-uint32_t GetCacheVersionTag() {
-  std::string_view node_version(NODE_VERSION);
-  uint32_t v8_tag = v8::ScriptCompiler::CachedDataVersionTag();
-  uLong crc = crc32(0L, Z_NULL, 0);
-  crc = crc32(crc, reinterpret_cast<const Bytef*>(&v8_tag), sizeof(uint32_t));
-  crc = crc32(crc,
-              reinterpret_cast<const Bytef*>(node_version.data()),
-              node_version.size());
-  return crc;
+std::string GetCacheVersionTag() {
+  // On platforms where uids are available, use different folders for
+  // different users to avoid cache miss due to permission incompatibility.
+  // On platforms where uids are not available, bare with the cache miss.
+  // This should be fine on Windows, as there local directories tend to be
+  // user-specific.
+  std::string tag = std::string(NODE_VERSION) + '-' + std::string(NODE_ARCH) +
+                    '-' +
+                    Uint32ToHex(v8::ScriptCompiler::CachedDataVersionTag());
+#ifdef NODE_IMPLEMENTS_POSIX_CREDENTIALS
+  tag += '-' + std::to_string(getuid());
+#endif
+  return tag;
 }
 
 uint32_t GetCacheKey(std::string_view filename, CachedCodeType type) {
@@ -49,7 +59,7 @@ uint32_t GetCacheKey(std::string_view filename, CachedCodeType type) {
 template <typename... Args>
 inline void CompileCacheHandler::Debug(const char* format,
                                        Args&&... args) const {
-  if (UNLIKELY(is_debug_)) {
+  if (is_debug_) [[unlikely]] {
     FPrintF(stderr, format, std::forward<Args>(args)...);
   }
 }
@@ -63,10 +73,31 @@ v8::ScriptCompiler::CachedData* CompileCacheEntry::CopyCache() const {
       data, cache_size, v8::ScriptCompiler::CachedData::BufferOwned);
 }
 
+// Used for identifying and verifying a file is a compile cache file.
+// See comments in CompileCacheHandler::Persist().
+constexpr uint32_t kCacheMagicNumber = 0x8adfdbb2;
+
+const char* CompileCacheEntry::type_name() const {
+  switch (type) {
+    case CachedCodeType::kCommonJS:
+      return "CommonJS";
+    case CachedCodeType::kESM:
+      return "ESM";
+    case CachedCodeType::kStrippedTypeScript:
+      return "StrippedTypeScript";
+    case CachedCodeType::kTransformedTypeScript:
+      return "TransformedTypeScript";
+    case CachedCodeType::kTransformedTypeScriptWithSourceMaps:
+      return "TransformedTypeScriptWithSourceMaps";
+    default:
+      UNREACHABLE();
+  }
+}
+
 void CompileCacheHandler::ReadCacheFile(CompileCacheEntry* entry) {
   Debug("[compile cache] reading cache from %s for %s %s...",
         entry->cache_filename,
-        entry->type == CachedCodeType::kCommonJS ? "CommonJS" : "ESM",
+        entry->type_name(),
         entry->source_filename);
 
   uv_fs_t req;
@@ -100,11 +131,19 @@ void CompileCacheHandler::ReadCacheFile(CompileCacheEntry* entry) {
     return;
   }
 
-  Debug("[%d %d %d %d]...",
+  Debug("[%d %d %d %d %d]...",
+        headers[kMagicNumberOffset],
         headers[kCodeSizeOffset],
         headers[kCacheSizeOffset],
         headers[kCodeHashOffset],
         headers[kCacheHashOffset]);
+
+  if (headers[kMagicNumberOffset] != kCacheMagicNumber) {
+    Debug("magic number mismatch: expected %d, actual %d\n",
+          kCacheMagicNumber,
+          headers[kMagicNumberOffset]);
+    return;
+  }
 
   // Check the code size and hash which are already computed.
   if (headers[kCodeSizeOffset] != entry->code_size) {
@@ -198,6 +237,8 @@ CompileCacheEntry* CompileCacheHandler::GetOrInsert(
     return loaded->second.get();
   }
 
+  // If the code hash mismatches, the code has changed, discard the stale entry
+  // and create a new one.
   auto emplaced =
       compiler_cache_store_.emplace(key, std::make_unique<CompileCacheEntry>());
   auto* result = emplaced.first->second.get();
@@ -206,7 +247,7 @@ CompileCacheEntry* CompileCacheHandler::GetOrInsert(
   result->code_size = code_utf8.length();
   result->cache_key = key;
   result->cache_filename =
-      compile_cache_dir_ + kPathSeparator + Uint32ToHex(result->cache_key);
+      compile_cache_dir_ + kPathSeparator + Uint32ToHex(key);
   result->source_filename = filename_utf8.ToString();
   result->cache = nullptr;
   result->type = type;
@@ -232,7 +273,8 @@ void CompileCacheHandler::MaybeSaveImpl(CompileCacheEntry* entry,
                                         v8::Local<T> func_or_mod,
                                         bool rejected) {
   DCHECK_NOT_NULL(entry);
-  Debug("[compile cache] cache for %s was %s, ",
+  Debug("[compile cache] V8 code cache for %s %s was %s, ",
+        entry->type_name(),
         entry->source_filename,
         rejected                    ? "rejected"
         : (entry->cache == nullptr) ? "not initialized"
@@ -263,31 +305,73 @@ void CompileCacheHandler::MaybeSave(CompileCacheEntry* entry,
   MaybeSaveImpl(entry, func, rejected);
 }
 
-// Layout of a cache file:
-// [uint32_t] code size
-// [uint32_t] code hash
-// [uint32_t] cache size
-// [uint32_t] cache hash
-// .... compile cache content ....
+void CompileCacheHandler::MaybeSave(CompileCacheEntry* entry,
+                                    std::string_view transpiled) {
+  CHECK(entry->type == CachedCodeType::kStrippedTypeScript ||
+        entry->type == CachedCodeType::kTransformedTypeScript ||
+        entry->type == CachedCodeType::kTransformedTypeScriptWithSourceMaps);
+  Debug("[compile cache] saving transpilation cache for %s %s\n",
+        entry->type_name(),
+        entry->source_filename);
+
+  // TODO(joyeecheung): it's weird to copy it again here. Convert the v8::String
+  // directly into buffer held by v8::ScriptCompiler::CachedData here.
+  int cache_size = static_cast<int>(transpiled.size());
+  uint8_t* data = new uint8_t[cache_size];
+  memcpy(data, transpiled.data(), cache_size);
+  entry->cache.reset(new v8::ScriptCompiler::CachedData(
+      data, cache_size, v8::ScriptCompiler::CachedData::BufferOwned));
+  entry->refreshed = true;
+}
+
+/**
+ * Persist the compile cache accumulated in memory to disk.
+ *
+ * To avoid race conditions, the cache file includes hashes of the original
+ * source code and the cache content. It's first written to a temporary file
+ * before being renamed to the target name.
+ *
+ * Layout of a cache file:
+ *   [uint32_t] magic number
+ *   [uint32_t] code size
+ *   [uint32_t] code hash
+ *   [uint32_t] cache size
+ *   [uint32_t] cache hash
+ *   .... compile cache content ....
+ */
 void CompileCacheHandler::Persist() {
   DCHECK(!compile_cache_dir_.empty());
 
-  // NOTE(joyeecheung): in most circumstances the code caching reading
-  // writing logic is lenient enough that it's fine even if someone
-  // overwrites the cache (that leads to either size or hash mismatch
-  // in subsequent loads and the overwritten cache will be ignored).
-  // Also in most use cases users should not change the files on disk
-  // too rapidly. Therefore locking is not currently implemented to
-  // avoid the cost.
+  // TODO(joyeecheung): do this using a separate event loop to utilize the
+  // libuv thread pool and do the file system operations concurrently.
+  // TODO(joyeecheung): Currently flushing is triggered by either process
+  // shutdown or user requests. In the future we should simply start the
+  // writes right after module loading on a separate thread, and this method
+  // only blocks until all the pending writes (if any) on the other thread are
+  // finished. In that case, the off-thread writes should finish long
+  // before any attempt of flushing is made so the method would then only
+  // incur a negligible overhead from thread synchronization.
   for (auto& pair : compiler_cache_store_) {
     auto* entry = pair.second.get();
+    const char* type_name = entry->type_name();
     if (entry->cache == nullptr) {
-      Debug("[compile cache] skip %s because the cache was not initialized\n",
+      Debug("[compile cache] skip persisting %s %s because the cache was not "
+            "initialized\n",
+            type_name,
             entry->source_filename);
       continue;
     }
     if (entry->refreshed == false) {
-      Debug("[compile cache] skip %s because cache was the same\n",
+      Debug(
+          "[compile cache] skip persisting %s %s because cache was the same\n",
+          type_name,
+          entry->source_filename);
+      continue;
+    }
+    if (entry->persisted == true) {
+      Debug("[compile cache] skip persisting %s %s because cache was already "
+            "persisted\n",
+            type_name,
             entry->source_filename);
       continue;
     }
@@ -301,31 +385,103 @@ void CompileCacheHandler::Persist() {
 
     // Generating headers.
     std::vector<uint32_t> headers(kHeaderCount);
+    headers[kMagicNumberOffset] = kCacheMagicNumber;
     headers[kCodeSizeOffset] = entry->code_size;
     headers[kCacheSizeOffset] = cache_size;
     headers[kCodeHashOffset] = entry->code_hash;
     headers[kCacheHashOffset] = cache_hash;
 
-    Debug("[compile cache] writing cache for %s in %s [%d %d %d %d]...",
+    // Generate the temporary filename.
+    // The temporary file should be placed in a location like:
+    //
+    // $NODE_COMPILE_CACHE_DIR/v23.0.0-pre-arm64-5fad6d45-501/e7f8ef7f.cache.tcqrsK
+    //
+    // 1. $NODE_COMPILE_CACHE_DIR either comes from the $NODE_COMPILE_CACHE
+    // environment
+    //    variable or `module.enableCompileCache()`.
+    // 2. v23.0.0-pre-arm64-5fad6d45-501 is the sub cache directory and
+    //    e7f8ef7f is the hash for the cache (see
+    //    CompileCacheHandler::Enable()),
+    // 3. tcqrsK is generated by uv_fs_mkstemp() as a temporary identifier.
+    uv_fs_t mkstemp_req;
+    auto cleanup_mkstemp =
+        OnScopeLeave([&mkstemp_req]() { uv_fs_req_cleanup(&mkstemp_req); });
+    std::string cache_filename_tmp = entry->cache_filename + ".XXXXXX";
+    Debug("[compile cache] Creating temporary file for cache of %s (%s)...",
           entry->source_filename,
-          entry->cache_filename,
+          type_name);
+    int err = uv_fs_mkstemp(
+        nullptr, &mkstemp_req, cache_filename_tmp.c_str(), nullptr);
+    if (err < 0) {
+      Debug("failed. %s\n", uv_strerror(err));
+      continue;
+    }
+    Debug(" -> %s\n", mkstemp_req.path);
+    Debug("[compile cache] writing cache for %s %s to temporary file %s [%d "
+          "%d %d "
+          "%d %d]...",
+          type_name,
+          entry->source_filename,
+          mkstemp_req.path,
+          headers[kMagicNumberOffset],
           headers[kCodeSizeOffset],
           headers[kCacheSizeOffset],
           headers[kCodeHashOffset],
           headers[kCacheHashOffset]);
 
+    // Write to the temporary file.
     uv_buf_t headers_buf = uv_buf_init(reinterpret_cast<char*>(headers.data()),
                                        headers.size() * sizeof(uint32_t));
     uv_buf_t data_buf = uv_buf_init(cache_ptr, entry->cache->length);
     uv_buf_t bufs[] = {headers_buf, data_buf};
 
-    int err = WriteFileSync(entry->cache_filename.c_str(), bufs, 2);
+    uv_fs_t write_req;
+    auto cleanup_write =
+        OnScopeLeave([&write_req]() { uv_fs_req_cleanup(&write_req); });
+    err = uv_fs_write(
+        nullptr, &write_req, mkstemp_req.result, bufs, 2, 0, nullptr);
     if (err < 0) {
       Debug("failed: %s\n", uv_strerror(err));
-    } else {
-      Debug("success\n");
+      continue;
     }
+
+    uv_fs_t close_req;
+    auto cleanup_close =
+        OnScopeLeave([&close_req]() { uv_fs_req_cleanup(&close_req); });
+    err = uv_fs_close(nullptr, &close_req, mkstemp_req.result, nullptr);
+
+    if (err < 0) {
+      Debug("failed: %s\n", uv_strerror(err));
+      continue;
+    }
+
+    Debug("success\n");
+
+    // Rename the temporary file to the actual cache file.
+    uv_fs_t rename_req;
+    auto cleanup_rename =
+        OnScopeLeave([&rename_req]() { uv_fs_req_cleanup(&rename_req); });
+    std::string cache_filename_final = entry->cache_filename;
+    Debug("[compile cache] Renaming %s to %s...",
+          mkstemp_req.path,
+          cache_filename_final);
+    err = uv_fs_rename(nullptr,
+                       &rename_req,
+                       mkstemp_req.path,
+                       cache_filename_final.c_str(),
+                       nullptr);
+    if (err < 0) {
+      Debug("failed: %s\n", uv_strerror(err));
+      continue;
+    }
+    Debug("success\n");
+    entry->persisted = true;
   }
+
+  // Clear the map at the end in one go instead of during the iteration to
+  // avoid rehashing costs.
+  Debug("[compile cache] Clear deserialized cache.\n");
+  compiler_cache_store_.clear();
 }
 
 CompileCacheHandler::CompileCacheHandler(Environment* env)
@@ -335,53 +491,59 @@ CompileCacheHandler::CompileCacheHandler(Environment* env)
 
 // Directory structure:
 // - Compile cache directory (from NODE_COMPILE_CACHE)
-//   - <cache_version_tag_1>: hash of CachedDataVersionTag + NODE_VERESION
-//   - <cache_version_tag_2>
-//   - <cache_version_tag_3>
-//     - <cache_file_1>: a hash of filename + module type
-//     - <cache_file_2>
-//     - <cache_file_3>
-bool CompileCacheHandler::InitializeDirectory(Environment* env,
-                                              const std::string& dir) {
-  compiler_cache_key_ = GetCacheVersionTag();
-  std::string compiler_cache_key_string = Uint32ToHex(compiler_cache_key_);
-  std::vector<std::string_view> paths = {dir, compiler_cache_key_string};
-  std::string cache_dir = PathResolve(env, paths);
-
+//   - $NODE_VERSION-$ARCH-$CACHE_DATA_VERSION_TAG-$UID
+//     - $FILENAME_AND_MODULE_TYPE_HASH.cache: a hash of filename + module type
+CompileCacheEnableResult CompileCacheHandler::Enable(Environment* env,
+                                                     const std::string& dir) {
+  std::string cache_tag = GetCacheVersionTag();
+  std::string absolute_cache_dir_base = PathResolve(env, {dir});
+  std::string cache_dir_with_tag =
+      absolute_cache_dir_base + kPathSeparator + cache_tag;
+  CompileCacheEnableResult result;
   Debug("[compile cache] resolved path %s + %s -> %s\n",
         dir,
-        compiler_cache_key_string,
-        cache_dir);
+        cache_tag,
+        cache_dir_with_tag);
 
-  if (UNLIKELY(!env->permission()->is_granted(
-          permission::PermissionScope::kFileSystemWrite, cache_dir))) {
-    Debug("[compile cache] skipping cache because write permission for %s "
-          "is not granted\n",
-          cache_dir);
-    return false;
+  if (!env->permission()->is_granted(
+          env,
+          permission::PermissionScope::kFileSystemWrite,
+          cache_dir_with_tag)) [[unlikely]] {
+    result.message = "Skipping compile cache because write permission for " +
+                     cache_dir_with_tag + " is not granted";
+    result.status = CompileCacheEnableStatus::FAILED;
+    return result;
   }
 
-  if (UNLIKELY(!env->permission()->is_granted(
-          permission::PermissionScope::kFileSystemRead, cache_dir))) {
-    Debug("[compile cache] skipping cache because read permission for %s "
-          "is not granted\n",
-          cache_dir);
-    return false;
+  if (!env->permission()->is_granted(
+          env,
+          permission::PermissionScope::kFileSystemRead,
+          cache_dir_with_tag)) [[unlikely]] {
+    result.message = "Skipping compile cache because read permission for " +
+                     cache_dir_with_tag + " is not granted";
+    result.status = CompileCacheEnableStatus::FAILED;
+    return result;
   }
 
   fs::FSReqWrapSync req_wrap;
-  int err = fs::MKDirpSync(nullptr, &(req_wrap.req), cache_dir, 0777, nullptr);
+  int err = fs::MKDirpSync(
+      nullptr, &(req_wrap.req), cache_dir_with_tag, 0777, nullptr);
   if (is_debug_) {
     Debug("[compile cache] creating cache directory %s...%s\n",
-          cache_dir,
+          cache_dir_with_tag,
           err < 0 ? uv_strerror(err) : "success");
   }
   if (err != 0 && err != UV_EEXIST) {
-    return false;
+    result.message =
+        "Cannot create cache directory: " + std::string(uv_strerror(err));
+    result.status = CompileCacheEnableStatus::FAILED;
+    return result;
   }
 
-  compile_cache_dir_ = cache_dir;
-  return true;
+  result.cache_directory = absolute_cache_dir_base;
+  compile_cache_dir_ = cache_dir_with_tag;
+  result.status = CompileCacheEnableStatus::ENABLED;
+  return result;
 }
 
 }  // namespace node

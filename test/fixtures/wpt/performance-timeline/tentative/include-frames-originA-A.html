@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+
+<head>
+  <script src="/resources/testharness.js"></script>
+  <script src="/resources/testharnessreport.js"></script>
+  <script src="../resources/include-frames-helper.js"></script>
+</head>
+
+<body>
+  <script>
+    const verifyMainFrameEntries = (entries, description = '') => {
+      let filterOptions = [
+        createFilterOption('include-frames-originA-A', 'navigation', 1, 'Main Frame', description),
+        createFilterOption('child-frame.html', 'resource', 1, 'Main Frame', description),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    const verifyChildFrameEntries = (entries) => {
+      let filterOptions = [
+        createFilterOption('child-frame.html', 'navigation', 1, 'Child Frame'),
+        createFilterOption('mark_child_frame', 'mark', 1, 'Child Frame'),
+      ];
+
+      verifyEntries(entries, filterOptions);
+    }
+
+    promise_test(async () => {
+      performance.clearResourceTimings();
+
+      // Load a child frame.
+      await loadChildFrame('../resources/child-frame.html');
+
+      const entries = performance.getEntries({ includeChildFrames: true });
+
+      const navigationEntries = performance.getEntries({ entryType: "navigation", includeChildFrames: true });
+
+      const markedEntries = performance.getEntries(
+        { name: 'mark_child_frame', includeChildFrames: true });
+
+      verifyMainFrameEntries(entries);
+
+      verifyChildFrameEntries(entries);
+
+      // 1 entry for main frame, 1 for child frame.
+      assert_equals(navigationEntries.length, 2, 'Navigation entries should be 2.');
+
+      // 1 entry for child frame.
+      assert_equals(markedEntries.length, 1, 'Mark entries should be 1.');
+
+      // Test cases where includeChildFrames is false.
+      const entriesWithNoFitlerOptions = performance.getEntries();
+
+      const entriesWithoutIncludingChildFrames = performance.getEntries({ includeChildFrames: false });
+
+      const navigationEntriesWithoutIncludingChildFrames = performance.getEntries({ entryType: "navigation", includeChildFrames: false });
+
+      const markedEntriesWithoutIncludingChildFrames = performance.getEntries(
+        { name: 'mark_child_frame', includeChildFrames: false });
+
+      verifyMainFrameEntries(entriesWithNoFitlerOptions, 'with no filter options.');
+
+      verifyMainFrameEntries(entriesWithoutIncludingChildFrames, 'with includeChildFrame being false.');
+
+      // 1 entry for main frame.
+      assert_equals(navigationEntriesWithoutIncludingChildFrames.length, 1,
+        'Navigation entries with includeChildFrame being false should be 1.');
+
+      // 0 entry for child frame.
+      assert_equals(markedEntriesWithoutIncludingChildFrames.length, 0,
+        'Mark entries with includeChildFrame being false should be 0.');
+
+    }, 'GetEntries of a document of origin A and its child frame of origin A.');
+  </script>
+</body>

@@ -1,0 +1,20 @@
+// Copyright 2024 the V8 project authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --harmony-struct
+
+function Foo() {}
+
+function test_instance_shared_struct() {
+  return Foo instanceof (new SharedStructType(["foo"]));
+}
+
+%PrepareFunctionForOptimization(test_instance_shared_struct);
+assertFalse(test_instance_shared_struct());
+assertFalse(test_instance_shared_struct());
+assertFalse(test_instance_shared_struct());
+%OptimizeFunctionOnNextCall(test_instance_shared_struct);
+assertFalse(test_instance_shared_struct());
+assertOptimized(test_instance_shared_struct);

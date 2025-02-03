@@ -110,6 +110,14 @@
       },
     ],
   },
+  'v8_linux_full_dbg': {
+    'swarming_dimensions': {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'v8testing', 'variant': 'default', 'shards': 6},
+    ],
+  },
   'v8_linux_gc_stress_dbg': {
     'swarming_dimensions' : {
       'os': 'Ubuntu-22.04',
@@ -402,6 +410,9 @@
     },
     'tests': [
       {'name': 'v8testing', 'shards': 5},
+      {'name': 'benchmarks', 'shards': 5},
+      {'name': 'mozilla', 'shards': 5},
+      {'name': 'test262', 'shards': 10},
     ],
   },
   'v8_linux64_dbg': {
@@ -543,6 +554,14 @@
       {'name': 'v8testing'},
     ],
   },
+  'v8_linux64_jammy_gcc_rel': {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'v8testing'},
+    ],
+  },
   'v8_linux64_minor_mc_dbg': {
     'swarming_dimensions' : {
       'cpu': 'x86-64-avx2',
@@ -553,7 +572,6 @@
       {'name': 'benchmarks', 'variant': 'minor_ms'},
       {'name': 'mozilla', 'variant': 'minor_ms'},
       {'name': 'test262', 'variant': 'minor_ms', 'shards': 2},
-      {'name': 'mjsunit', 'variant': 'minor_ms'},
     ],
   },
   'v8_linux64_msan_rel': {
@@ -596,6 +614,14 @@
     ],
   },
   'v8_linux64_perfetto_dbg': {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'v8testing', 'shards': 3},
+    ],
+  },
+  'v8_linux64_no_leaptiering_dbg': {
     'swarming_dimensions' : {
       'os': 'Ubuntu-22.04',
     },
@@ -647,9 +673,27 @@
       {'name': 'v8testing', 'variant': 'default'},
     ],
   },
+  'v8_linux64_sandbox_testing_rel': {
+    'swarming_dimensions' : {
+      'cpu': 'x86-64',
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'mjsunit', 'variant': 'default'},
+    ],
+  },
   'v8_linux64_single_generation_dbg': {
     'swarming_dimensions' : {
       'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'v8testing', 'shards': 3},
+    ],
+  },
+  'v8_linux64_sticky_mark_bits_dbg': {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+      'cpu': 'x86-64',
     },
     'tests': [
       {'name': 'v8testing', 'shards': 3},
@@ -731,6 +775,7 @@
       {'name': 'v8testing', 'variant': 'extra', 'shards': 6},
       {'name': 'v8testing', 'variant': 'slow_path', 'shards': 2},
       {'name': 'v8testing', 'variant': 'stress_concurrent_allocation', 'shards': 2},
+      {'name': 'v8testing', 'variant': 'minor_ms', 'shards': 2},
     ],
   },
   'v8_linux64_tsan_dbg': {
@@ -868,24 +913,6 @@
     ],
   },
   ##############################################################################
-  # Odroids with native arm
-  'v8_odroid_arm_rel': {
-    'swarming_dimensions' : {
-      'cores': '8',
-      'cpu': 'armv7l-32-Hardkernel_ODROID-XU4',
-      'os': 'Ubuntu',
-    },
-    'swarming_task_attrs': {
-      # Use same prio as CI due to limited resources.
-      'priority': 25,
-    },
-    'tests': [
-      {'name': 'benchmarks'},
-      {'name': 'optimize_for_size'},
-      {'name': 'v8testing', 'shards': 2},
-    ],
-  },
-  ##############################################################################
   # Win32
   'v8_win_dbg': {
     'swarming_dimensions' : {
@@ -926,9 +953,19 @@
     'tests': [
       {'name': 'mozilla'},
       {'name': 'test262', 'variant': 'default', 'shards': 4},
-      {'name': 'v8testing', 'shards': 3},
-      {'name': 'v8testing', 'variant': 'extra', 'shards': 2},
+      {'name': 'v8testing', 'shards': 4},
+      {'name': 'v8testing', 'variant': 'extra', 'shards': 3},
       {'name': 'v8testing', 'variant': 'minor_ms'},
+    ],
+  },
+  'v8_win64_drumbrake_dbg': {
+    'swarming_dimensions': {
+      'cpu': 'x86-64',
+      'os': 'Windows-10-19045',
+    },
+    'tests': [
+      {'name': 'v8testing', 'shards': 4},
+      {'name': 'v8testing', 'variant': 'extra', 'shards': 3},
     ],
   },
   'v8_win64_msvc_rel': {
@@ -960,7 +997,7 @@
   'v8_mac64_asan_rel': {
     'swarming_dimensions' : {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'v8testing', 'shards': 8},
@@ -969,7 +1006,7 @@
   'v8_mac64_dbg': {
     'swarming_dimensions' : {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'mozilla'},
@@ -982,7 +1019,7 @@
   'v8_mac_arm64_gc_stress_dbg': {
     'swarming_dimensions' : {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'd8testing', 'test_args': ['--gc-stress'], 'shards': 3},
@@ -991,7 +1028,7 @@
   'v8_mac64_noopt_dbg': {
     'swarming_dimensions' : {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'v8testing', 'shards': 6},
@@ -1000,7 +1037,7 @@
   'v8_mac64_rel': {
     'swarming_dimensions' : {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'mozilla'},
@@ -1013,7 +1050,7 @@
   'v8_mac_arm64_rel': {
     'swarming_dimensions' : {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'pool': 'chromium.tests',
     },
     'tests': [
@@ -1029,7 +1066,7 @@
   'v8_mac_arm64_dbg': {
     'swarming_dimensions' : {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'pool': 'chromium.tests',
     },
     'tests': [
@@ -1045,7 +1082,7 @@
   'v8_mac_arm64_full_dbg': {
     'swarming_dimensions' : {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'pool': 'chromium.tests',
     },
     'tests': [
@@ -1061,7 +1098,7 @@
   'v8_mac_arm64_no_pointer_compression_dbg': {
     'swarming_dimensions' : {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'pool': 'chromium.tests',
     },
     'tests': [
@@ -1506,7 +1543,6 @@
       {'name': 'benchmarks', 'variant': 'minor_ms'},
       {'name': 'mozilla', 'variant': 'minor_ms'},
       {'name': 'test262', 'variant': 'minor_ms', 'shards': 2},
-      {'name': 'mjsunit', 'variant': 'minor_ms'},
     ],
   },
   'V8 Linux64 - disable runtime call stats': {
@@ -1619,6 +1655,14 @@
       {'name': 'v8testing'},
     ],
   },
+  'V8 Linux64 - jammy - gcc': {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'v8testing'},
+    ],
+  },
   'V8 Linux64 - gc stress': {
     'swarming_dimensions': {
       'cpu': 'x86-64-avx2',
@@ -1656,6 +1700,14 @@
     },
     'tests': [
       {'name': 'v8testing'},
+    ],
+  },
+  'V8 Linux64 - no leaptiering - debug': {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'v8testing', 'shards': 2},
     ],
   },
   'V8 Linux64 - no shared cage - debug': {
@@ -1697,6 +1749,15 @@
       {'name': 'v8testing', 'shards': 2},
     ],
   },
+  'V8 Linux64 - sandbox testing': {
+    'swarming_dimensions' : {
+      'cpu': 'x86-64',
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'mjsunit', 'variant': 'default'},
+    ],
+  },
   'V8 Linux64 - shared': {
     'swarming_dimensions' : {
       'os': 'Ubuntu-22.04',
@@ -1705,6 +1766,15 @@
       {'name': 'mozilla'},
       {'name': 'test262', 'variant': 'default', 'shards': 2},
       {'name': 'v8testing'},
+    ],
+  },
+  'V8 Linux64 - sticky mark bits - debug': {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+      'cpu': 'x86-64',
+    },
+    'tests': [
+      {'name': 'v8testing', 'shards': 3},
     ],
   },
   'V8 Linux64 - verify csa': {
@@ -1732,6 +1802,9 @@
     },
     'tests': [
       {'name': 'v8testing', 'shards': 5},
+      {'name': 'benchmarks', 'shards': 5},
+      {'name': 'mozilla', 'shards': 5},
+      {'name': 'test262', 'shards': 10},
     ],
   },
   'V8 Linux64 GC Stress - custom snapshot': {
@@ -1766,6 +1839,7 @@
       {'name': 'v8testing', 'variant': 'extra', 'shards': 5},
       {'name': 'v8testing', 'variant': 'slow_path', 'shards': 2},
       {'name': 'v8testing', 'variant': 'stress_concurrent_allocation', 'shards': 2},
+      {'name': 'v8testing', 'variant': 'minor_ms', 'shards': 2},
     ],
   },
   'V8 Linux64 TSAN - debug': {
@@ -1844,7 +1918,7 @@
   'V8 Mac64': {
     'swarming_dimensions': {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'mozilla'},
@@ -1857,7 +1931,7 @@
   'V8 Mac64 - debug': {
     'swarming_dimensions': {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'mozilla'},
@@ -1870,7 +1944,7 @@
   'V8 Mac64 ASAN': {
     'swarming_dimensions': {
       'cpu': 'x86-64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'v8testing', 'shards': 10},
@@ -1879,7 +1953,7 @@
   'V8 Mac - arm64 - gc stress': {
     'swarming_dimensions': {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
     },
     'tests': [
       {'name': 'd8testing', 'test_args': ['--gc-stress'], 'shards': 3},
@@ -1887,7 +1961,7 @@
   },
   'V8 Mac - arm64': {
     'swarming_dimensions' : {
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'cpu': 'arm64',
       'pool': 'chromium.tests',
     },
@@ -1904,7 +1978,7 @@
   },
   'V8 Mac - arm64 - release': {
     'swarming_dimensions' : {
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'cpu': 'arm64',
       'pool': 'chromium.tests',
     },
@@ -1921,7 +1995,7 @@
   },
   'V8 Mac - arm64 - debug': {
     'swarming_dimensions' : {
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'cpu': 'arm64',
       'pool': 'chromium.tests',
     },
@@ -1939,7 +2013,7 @@
   'V8 Mac - arm64 - no pointer compression debug': {
     'swarming_dimensions' : {
       'cpu': 'arm64',
-      'os': 'Mac-13',
+      'os': 'Mac-14',
       'pool': 'chromium.tests',
     },
     'tests': [
@@ -2001,6 +2075,21 @@
       {'name': 'v8testing', 'variant': 'minor_ms'},
     ],
   },
+  'V8 Win64 - drumbrake - debug': {
+    'swarming_dimensions': {
+      'cpu': 'x86-64',
+      'os': 'Windows-10-19045',
+    },
+    'swarming_task_attrs': {
+      'expiration': 14400,
+      'hard_timeout': 7200,
+      'priority': 35,
+    },
+    'tests': [
+      {'name': 'v8testing', 'shards': 4},
+      {'name': 'v8testing', 'variant': 'extra', 'shards': 3},
+    ],
+  },
   'V8 Win64 - msvc': {
     'swarming_dimensions': {
       'os': 'Windows-10-19045',
@@ -2039,83 +2128,6 @@
       {'name': 'mozilla', 'variant': 'default'},
       {'name': 'test262', 'variant': 'default', 'shards': 12},
       {'name': 'v8testing', 'variant': 'default', 'shards': 4},
-    ],
-  },
-  'V8 Arm': {
-    'swarming_dimensions': {
-      'cores': '8',
-      'cpu': 'armv7l-32-Hardkernel_ODROID-XU4',
-      'os': 'Ubuntu',
-    },
-    'swarming_task_attrs': {
-      'expiration': 21600,
-      'hard_timeout': 5400,
-    },
-    'tests': [
-      # Odroid.
-      {
-        'name': 'benchmarks',
-        'suffix': 'ODROID',
-        # Less parallelism to prevent OOMs in benchmarks.
-        'test_args': ['-j2'],
-      },
-      {
-        'name': 'optimize_for_size',
-        'suffix': 'ODROID',
-      },
-      {
-        'name': 'v8testing',
-        'suffix': 'ODROID',
-        'shards': 2,
-      },
-    ],
-  },
-  'V8 Arm - debug': {
-    'swarming_dimensions': {
-      'cores': '8',
-      'cpu': 'armv7l-32-Hardkernel_ODROID-XU4',
-      'os': 'Ubuntu',
-    },
-    'swarming_task_attrs': {
-      'expiration': 21600,
-      'hard_timeout': 3600,
-    },
-    'tests': [
-      # Odroid.
-      {
-        'name': 'optimize_for_size',
-        'suffix': 'ODROID',
-        'variant': 'default',
-        'test_args': ['--extra-flags=--verify-heap-skip-remembered-set'],
-        'shards': 2,
-      },
-      {
-        'name': 'v8testing',
-        'suffix': 'ODROID',
-        'variant': 'default',
-        'test_args': ['--extra-flags=--verify-heap-skip-remembered-set'],
-        'shards': 3,
-      },
-    ],
-  },
-  'V8 Arm GC Stress': {
-    'swarming_dimensions': {
-      'cores': '8',
-      'cpu': 'armv7l-32-Hardkernel_ODROID-XU4',
-      'os': 'Ubuntu',
-    },
-    'swarming_task_attrs': {
-      'expiration': 21600,
-      'hard_timeout': 7200,
-    },
-    'tests': [
-      {
-        'name': 'd8testing',
-        'suffix': 'ODROID',
-        'variant': 'default',
-        'test_args': ['--gc-stress', '--extra-flags=--verify-heap-skip-remembered-set'],
-        'shards': 3,
-      },
     ],
   },
   'V8 Linux - arm - sim': {
@@ -2683,6 +2695,40 @@
         'suffix': 'deopt',
         'test_args': ['--total-timeout-sec=900', '--stress-deopt=1'],
       },
+    ],
+  },
+  # PGO
+  'v8_linux_pgo_rel' : {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'pgo_instrumentation'}
+    ],
+  },
+  'v8_linux64_pgo_rel' : {
+    'swarming_dimensions' : {
+      'os': 'Ubuntu-22.04',
+    },
+    'tests': [
+      {'name': 'pgo_instrumentation'}
+    ],
+  },
+  'v8_win_pgo_rel' : {
+    'swarming_dimensions' : {
+      'cpu': 'x86-64',
+      'os': 'Windows-10-19045',
+    },
+    'tests': [
+      {'name': 'pgo_instrumentation'}
+    ],
+  },
+  'v8_win64_pgo_rel' : {
+    'swarming_dimensions' : {
+      'os': 'Windows-10-19045',
+    },
+    'tests': [
+      {'name': 'pgo_instrumentation'}
     ],
   },
   # Try perf bots

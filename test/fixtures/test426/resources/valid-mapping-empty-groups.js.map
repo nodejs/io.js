@@ -1,0 +1,8 @@
+{
+  "version": 3,
+  "names": [],
+  "file": "valid-mapping-empty-groups.js",
+  "sources": ["empty-original.js"],
+  "sourcesContent": [""],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;"
+}

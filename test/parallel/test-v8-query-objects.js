@@ -50,7 +50,7 @@ common.expectWarning(
   class TestV8QueryObjectsChildClass extends TestV8QueryObjectsBaseClass {}
   const summary = v8.queryObjects(TestV8QueryObjectsBaseClass, { format: 'summary' });
   // TestV8QueryObjectsChildClass's prototype's [[Prototype]] slot is
-  // TestV8QueryObjectsBaseClass's prototoype so it shows up in the query.
+  // TestV8QueryObjectsBaseClass's prototype so it shows up in the query.
   assert.deepStrictEqual(summary, [
     format(TestV8QueryObjectsChildClass.prototype),
   ]);

@@ -3,7 +3,7 @@
 // This tests that process.cwd() is accurate when
 // restoring state from a snapshot
 
-require('../common');
+const { isInsideDirWithUnusualChars } = require('../common');
 const { spawnSyncAndAssert } = require('../common/child_process');
 const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');
@@ -14,7 +14,7 @@ const blobPath = tmpdir.resolve('snapshot.blob');
 const file = fixtures.path('snapshot', 'child-process-sync.js');
 const expected = [
   'From child process spawnSync',
-  'From child process execSync',
+  ...(isInsideDirWithUnusualChars ? [] : ['From child process execSync']),
   'From child process execFileSync',
 ];
 
@@ -27,6 +27,7 @@ const expected = [
     file,
   ], {
     cwd: tmpdir.path,
+    env: { ...process.env, DIRNAME_CONTAINS_SHELL_UNSAFE_CHARS: isInsideDirWithUnusualChars ? 'TRUE' : '' },
   }, {
     trim: true,
     stdout(output) {
@@ -43,6 +44,7 @@ const expected = [
     file,
   ], {
     cwd: tmpdir.path,
+    env: { ...process.env, DIRNAME_CONTAINS_SHELL_UNSAFE_CHARS: isInsideDirWithUnusualChars ? 'TRUE' : '' },
   }, {
     trim: true,
     stdout(output) {

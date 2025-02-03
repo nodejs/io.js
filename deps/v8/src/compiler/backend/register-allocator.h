@@ -25,7 +25,7 @@ namespace compiler {
 
 static const int32_t kUnassignedRegister = RegisterConfiguration::kMaxRegisters;
 
-// This class represents a single point of a InstructionOperand's lifetime. For
+// This class represents a single point of an InstructionOperand's lifetime. For
 // each instruction there are four lifetime positions:
 //
 //   [[START, END], [START, END]]

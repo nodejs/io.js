@@ -12,10 +12,12 @@ typedef sequence<PerformanceEntry> PerformanceEntryList;
 
 [Exposed=(Window,Worker)]
 interface PerformanceEntry {
+  readonly    attribute unsigned long long  id;
   readonly    attribute DOMString           name;
   readonly    attribute DOMString           entryType;
   readonly    attribute DOMHighResTimeStamp startTime;
   readonly    attribute DOMHighResTimeStamp duration;
+  readonly    attribute unsigned long long  navigationId;
   [Default] object toJSON();
 };
 

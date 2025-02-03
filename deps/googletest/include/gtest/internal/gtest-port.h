@@ -194,8 +194,6 @@
 //
 // Macros for basic C++ coding:
 //   GTEST_AMBIGUOUS_ELSE_BLOCKER_ - for disabling a gcc warning.
-//   GTEST_ATTRIBUTE_UNUSED_  - declares that a class' instances or a
-//                              variable don't have to be used.
 //   GTEST_MUST_USE_RESULT_   - declares that a function's result must be used.
 //   GTEST_INTENTIONAL_CONST_COND_PUSH_ - start code section where MSVC C4127 is
 //                                        suppressed (constant conditional).
@@ -340,8 +338,8 @@
 
 #if defined(GTEST_HAS_ABSL) && !defined(GTEST_NO_ABSL_FLAGS)
 #define GTEST_INTERNAL_HAS_ABSL_FLAGS  // Used only in this file.
-#include "absl/flags/flag.h"
 #include "absl/flags/declare.h"
+#include "absl/flags/flag.h"
 #include "absl/flags/reflection.h"
 #endif
 
@@ -609,7 +607,8 @@ typedef struct _RTL_CRITICAL_SECTION GTEST_CRITICAL_SECTION;
      defined(GTEST_OS_NETBSD) || defined(GTEST_OS_FUCHSIA) ||         \
      defined(GTEST_OS_DRAGONFLY) || defined(GTEST_OS_GNU_KFREEBSD) || \
      defined(GTEST_OS_OPENBSD) || defined(GTEST_OS_HAIKU) ||          \
-     defined(GTEST_OS_GNU_HURD))
+     defined(GTEST_OS_GNU_HURD) || defined(GTEST_OS_SOLARIS) ||       \
+     defined(GTEST_OS_AIX) || defined(GTEST_OS_ZOS))
 #define GTEST_HAS_PTHREAD 1
 #else
 #define GTEST_HAS_PTHREAD 0
@@ -659,9 +658,9 @@ typedef struct _RTL_CRITICAL_SECTION GTEST_CRITICAL_SECTION;
 // platforms except known mobile / embedded ones. Also, if the port doesn't have
 // a file system, stream redirection is not supported.
 #if defined(GTEST_OS_WINDOWS_MOBILE) || defined(GTEST_OS_WINDOWS_PHONE) || \
-    defined(GTEST_OS_WINDOWS_RT) || defined(GTEST_OS_ESP8266) ||           \
-    defined(GTEST_OS_XTENSA) || defined(GTEST_OS_QURT) ||                  \
-    !GTEST_HAS_FILE_SYSTEM
+    defined(GTEST_OS_WINDOWS_RT) || defined(GTEST_OS_WINDOWS_GAMES) ||     \
+    defined(GTEST_OS_ESP8266) || defined(GTEST_OS_XTENSA) ||               \
+    defined(GTEST_OS_QURT) || !GTEST_HAS_FILE_SYSTEM
 #define GTEST_HAS_STREAM_REDIRECTION 0
 #else
 #define GTEST_HAS_STREAM_REDIRECTION 1
@@ -671,7 +670,7 @@ typedef struct _RTL_CRITICAL_SECTION GTEST_CRITICAL_SECTION;
 // Determines whether to support death tests.
 // pops up a dialog window that cannot be suppressed programmatically.
 #if (defined(GTEST_OS_LINUX) || defined(GTEST_OS_CYGWIN) ||           \
-     defined(GTEST_OS_SOLARIS) ||                                     \
+     defined(GTEST_OS_SOLARIS) || defined(GTEST_OS_ZOS) ||            \
      (defined(GTEST_OS_MAC) && !defined(GTEST_OS_IOS)) ||             \
      (defined(GTEST_OS_WINDOWS_DESKTOP) && _MSC_VER) ||               \
      defined(GTEST_OS_WINDOWS_MINGW) || defined(GTEST_OS_AIX) ||      \
@@ -749,6 +748,20 @@ typedef struct _RTL_CRITICAL_SECTION GTEST_CRITICAL_SECTION;
 #define GTEST_HAVE_ATTRIBUTE_(x) 0
 #endif
 
+// GTEST_INTERNAL_HAVE_CPP_ATTRIBUTE
+//
+// A function-like feature checking macro that accepts C++11 style attributes.
+// It's a wrapper around `__has_cpp_attribute`, defined by ISO C++ SD-6
+// (https://en.cppreference.com/w/cpp/experimental/feature_test). If we don't
+// find `__has_cpp_attribute`, will evaluate to 0.
+#if defined(__has_cpp_attribute)
+// NOTE: requiring __cplusplus above should not be necessary, but
+// works around https://bugs.llvm.org/show_bug.cgi?id=23435.
+#define GTEST_INTERNAL_HAVE_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
+#else
+#define GTEST_INTERNAL_HAVE_CPP_ATTRIBUTE(x) 0
+#endif
+
 // GTEST_HAVE_FEATURE_
 //
 // A function-like feature checking macro that is a wrapper around
@@ -760,14 +773,22 @@ typedef struct _RTL_CRITICAL_SECTION GTEST_CRITICAL_SECTION;
 #endif
 
 // Use this annotation after a variable or parameter declaration to tell the
-// compiler the variable/parameter does not have to be used.
+// compiler the variable/parameter may be used.
 // Example:
 //
-//   GTEST_ATTRIBUTE_UNUSED_ int foo = bar();
-#if GTEST_HAVE_ATTRIBUTE_(unused)
-#define GTEST_ATTRIBUTE_UNUSED_ __attribute__((unused))
+//   GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED int foo = bar();
+//
+// This can be removed once we only support only C++17 or newer and
+// [[maybe_unused]] is available on all supported platforms.
+#if GTEST_INTERNAL_HAVE_CPP_ATTRIBUTE(maybe_unused)
+#define GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED [[maybe_unused]]
+#elif GTEST_HAVE_ATTRIBUTE_(unused)
+// This is inferior to [[maybe_unused]] as it can produce a
+// -Wused-but-marked-unused warning on optionally used symbols, but it is all we
+// have.
+#define GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED __attribute__((__unused__))
 #else
-#define GTEST_ATTRIBUTE_UNUSED_
+#define GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED
 #endif
 
 // Use this annotation before a function that takes a printf format string.
@@ -2108,8 +2129,9 @@ GTEST_DISABLE_MSC_DEPRECATED_PUSH_()
 // defined there.
 #if GTEST_HAS_FILE_SYSTEM
 #if !defined(GTEST_OS_WINDOWS_MOBILE) && !defined(GTEST_OS_WINDOWS_PHONE) && \
-    !defined(GTEST_OS_WINDOWS_RT) && !defined(GTEST_OS_ESP8266) &&           \
-    !defined(GTEST_OS_XTENSA) && !defined(GTEST_OS_QURT)
+    !defined(GTEST_OS_WINDOWS_RT) && !defined(GTEST_OS_WINDOWS_GAMES) &&     \
+    !defined(GTEST_OS_ESP8266) && !defined(GTEST_OS_XTENSA) &&               \
+    !defined(GTEST_OS_QURT)
 inline int ChDir(const char* dir) { return chdir(dir); }
 #endif
 inline FILE* FOpen(const char* path, const char* mode) {
@@ -2509,6 +2531,14 @@ using Variant = ::std::variant<T...>;
     (defined(GTEST_INTERNAL_CPLUSPLUS_LANG) &&                        \
      GTEST_INTERNAL_CPLUSPLUS_LANG < 201703L)
 #define GTEST_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL 1
+#endif
+
+#if (defined(__cpp_lib_three_way_comparison) || \
+     (GTEST_INTERNAL_HAS_INCLUDE(<compare>) &&  \
+      GTEST_INTERNAL_CPLUSPLUS_LANG >= 201907L))
+#define GTEST_INTERNAL_HAS_COMPARE_LIB 1
+#else
+#define GTEST_INTERNAL_HAS_COMPARE_LIB 0
 #endif
 
 #endif  // GOOGLETEST_INCLUDE_GTEST_INTERNAL_GTEST_PORT_H_

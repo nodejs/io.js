@@ -13,7 +13,7 @@ const { isRequireCall, isString } = require('./rules-utils.js');
 module.exports = {
   create(context) {
     const requiredModule = 'common';
-    const isESM = context.parserOptions.sourceType === 'module';
+    const isESM = context.languageOptions.sourceType === 'module';
     const foundModules = [];
 
     /**
@@ -22,7 +22,7 @@ module.exports = {
      * @returns {string} module name
      */
     function getModuleName(str) {
-      if (str === '../common/index.mjs') {
+      if (str.startsWith('../') && str.endsWith('/common/index.mjs')) {
         return 'common';
       }
 

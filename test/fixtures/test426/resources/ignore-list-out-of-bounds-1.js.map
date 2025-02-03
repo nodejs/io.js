@@ -1,0 +1,8 @@
+{
+  "version" : 3,
+  "sources": ["empty-original.js"],
+  "sourcesContent": [""],
+  "mappings": "",
+  "names": [],
+  "ignoreList": [1]
+}

@@ -5,6 +5,7 @@ if (!common.hasCrypto)
 
 const assert = require('assert');
 const crypto = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // https://github.com/nodejs/node/issues/32738
 // XXX(bnoordhuis) validateInt32() throwing ERR_OUT_OF_RANGE and RangeError
@@ -24,7 +25,7 @@ assert.throws(() => crypto.createDiffieHellman('abcdef', 13.37), {
 });
 
 for (const bits of [-1, 0, 1]) {
-  if (common.hasOpenSSL3) {
+  if (hasOpenSSL3) {
     assert.throws(() => crypto.createDiffieHellman(bits), {
       code: 'ERR_OSSL_DH_MODULUS_TOO_SMALL',
       name: 'Error',
@@ -43,7 +44,7 @@ for (const g of [-1, 1]) {
   const ex = {
     code: 'ERR_OSSL_DH_BAD_GENERATOR',
     name: 'Error',
-    message: /bad generator/,
+    message: /(?:bad[_ ]generator)/i,
   };
   assert.throws(() => crypto.createDiffieHellman('abcdef', g), ex);
   assert.throws(() => crypto.createDiffieHellman('abcdef', 'hex', g), ex);
@@ -55,7 +56,7 @@ for (const g of [Buffer.from([]),
   const ex = {
     code: 'ERR_OSSL_DH_BAD_GENERATOR',
     name: 'Error',
-    message: /bad generator/,
+    message: /(?:bad[_ ]generator)/i,
   };
   assert.throws(() => crypto.createDiffieHellman('abcdef', g), ex);
   assert.throws(() => crypto.createDiffieHellman('abcdef', 'hex', g), ex);

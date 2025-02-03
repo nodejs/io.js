@@ -61,6 +61,11 @@ It is not necessary to call these functions after locally calling an approved ke
 generation method, but may be required for assurance purposes when receiving
 keys from a third party.
 
+The EVP_PKEY_pairwise_check() and EVP_PKEY_private_check() might not be bounded
+by any key size limits as private keys are not expected to be supplied by
+attackers. For that reason they might take an unbounded time if run on
+arbitrarily large keys.
+
 =head1 RETURN VALUES
 
 All functions return 1 for success or others for failure.
@@ -86,7 +91,7 @@ EVP_PKEY_private_check() and EVP_PKEY_pairwise_check() were added in OpenSSL 3.0
 
 =head1 COPYRIGHT
 
-Copyright 2006-2022 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2006-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

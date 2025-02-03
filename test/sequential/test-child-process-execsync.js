@@ -38,8 +38,6 @@ if (common.isWindows) {
   SLEEP = 10000;
 }
 
-const execOpts = { encoding: 'utf8', shell: true };
-
 // Verify that stderr is not accessed when a bad shell is used
 assert.throws(
   function() { execSync('exit -1', { shell: 'bad_shell' }); },
@@ -54,8 +52,8 @@ let caught = false;
 let ret, err;
 const start = Date.now();
 try {
-  const cmd = `"${process.execPath}" -e "setTimeout(function(){}, ${SLEEP});"`;
-  ret = execSync(cmd, { timeout: TIMER });
+  const cmd = `"${common.isWindows ? process.execPath : '$NODE'}" -e "setTimeout(function(){}, ${SLEEP});"`;
+  ret = execSync(cmd, { env: { ...process.env, NODE: process.execPath }, timeout: TIMER });
 } catch (e) {
   caught = true;
   assert.strictEqual(getSystemErrorName(e.errno), 'ETIMEDOUT');
@@ -78,16 +76,17 @@ const msgBuf = Buffer.from(`${msg}\n`);
 
 // console.log ends every line with just '\n', even on Windows.
 
-const cmd = `"${process.execPath}" -e "console.log('${msg}');"`;
+const cmd = `"${common.isWindows ? process.execPath : '$NODE'}" -e "console.log('${msg}');"`;
+const env = common.isWindows ? process.env : { ...process.env, NODE: process.execPath };
 
 {
-  const ret = execSync(cmd);
+  const ret = execSync(cmd, common.isWindows ? undefined : { env });
   assert.strictEqual(ret.length, msgBuf.length);
   assert.deepStrictEqual(ret, msgBuf);
 }
 
 {
-  const ret = execSync(cmd, { encoding: 'utf8' });
+  const ret = execSync(cmd, { encoding: 'utf8', env });
   assert.strictEqual(ret, `${msg}\n`);
 }
 
@@ -156,4 +155,6 @@ const args = [
 }
 
 // Verify the shell option works properly
-execFileSync(process.execPath, [], execOpts);
+execFileSync(`"${common.isWindows ? process.execPath : '$NODE'}"`, [], {
+  encoding: 'utf8', shell: true, env
+});

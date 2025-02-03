@@ -1,0 +1,74 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<link rel="stylesheet" type="text/css" href="/fonts/ahem.css"/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="scroll_support.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  height: 200vh;
+}
+
+.spacer {
+  width: 100%;
+  height: 25px;
+  padding: 0;
+  margin: 0;
+  font: 25px/1 Ahem;
+}
+
+</style>
+<head>
+<body>
+<div id="firstRootSpacer" class="spacer" style="background: green">X</div>
+<div id="secondRootSpacer" class="spacer" style="background: blue"></div>
+</body>
+
+<script>
+
+promise_test(async (t) => {
+  // Wheel event transactions target elements, not nodes. A wheel event
+  // transaction that begins over a text node should have an event target for
+  // the containing element.
+  await waitForCompositorReady();
+
+  await waitForCompositorCommit();
+
+  let wheelEventTargets = [];
+
+  window.addEventListener("wheel", (e) => {
+    wheelEventTargets.push(e.target);
+  }, {passive: true});
+
+  await waitForCompositorCommit();
+
+  await new test_driver.Actions()
+    .addWheel("wheel1")
+    .scroll(12, 12, 0, 30, {origin: "viewport"})
+    .pause(1)
+    .scroll(12, 12, 0, 30, {origin: "viewport"})
+    .send();
+
+  // TODO(dlrobertson): Use the scrollend event here to wait for the
+  // wheel scroll to finish instead of waitForAnimationEnd().
+  await waitForAnimationEnd(() => { return document.scrollingElement.scrollTop; });
+  await waitForCompositorCommit();
+
+  // All of the wheel events should have the first div as their target.
+  wheelEventTargets.forEach((wheelEventTarget, i) => {
+    assert_equals(wheelEventTarget, firstRootSpacer,
+                  "Wheel event at index `" + i + "` does not have the expected target");
+  });
+
+  assert_greater_than(document.scrollingElement.scrollTop, 0, "The document has scrolled");
+}, "Wheel event transactions target elements");
+</script>
+</html>

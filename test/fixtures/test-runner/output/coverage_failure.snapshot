@@ -3,6 +3,7 @@ TAP version 13
 ok 1 - ok
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..1
 # Warning: Could not report code coverage. Error: Failed to collect coverage

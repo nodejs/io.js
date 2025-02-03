@@ -309,7 +309,13 @@ TEST_F(InspectorTest, ApiCreatedTasksAreCleanedUp) {
   // Get rid of the task on the context, run GC and check we no longer have
   // the TaskInfo in the inspector.
   v8_context()->Global()->Delete(v8_context(), NewString("task")).Check();
-  InvokeMajorGC();
+  {
+    // We need to invoke GC without stack, otherwise some objects may not be
+    // reclaimed because of conservative stack scanning.
+    DisableConservativeStackScanningScopeForTesting no_stack_scanning(
+        i_isolate()->heap());
+    InvokeMajorGC();
+  }
   CHECK_EQ(console->AllConsoleTasksForTest().size(), 0);
 }
 

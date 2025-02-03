@@ -1,5 +1,5 @@
 #! /usr/bin/env perl
-# Copyright 2019-2022 The OpenSSL Project Authors. All Rights Reserved.
+# Copyright 2019-2024 The OpenSSL Project Authors. All Rights Reserved.
 #
 # Licensed under the Apache License 2.0 (the "License").  You may not use
 # this file except in compliance with the License.  You can obtain a copy
@@ -29,6 +29,9 @@ plan tests => 29;
 my $infile = bldtop_file('providers', platform->dso('fips'));
 my $fipskey = $ENV{FIPSKEY} // config('FIPSKEY') // '00';
 my $provconf = srctop_file("test", "fips-and-base.cnf");
+
+run(test(["fips_version_test", "-config", $provconf, "<3.4.0"]),
+          capture => 1, statusvar => \my $indicatorpost);
 
 # Read in a text $infile and replace the regular expression in $srch with the
 # value in $repl and output to a new file $outfile.
@@ -182,7 +185,7 @@ ok(!run(app(['openssl', 'fipsinstall', '-out', 'fips.cnf', '-module', $infile,
 ok(!run(app(['openssl', 'fipsinstall', '-out', 'fips_fail.cnf', '-module', $infile,
             '-provider_name', 'fips', '-mac_name', 'HMAC',
             '-macopt', 'digest:SHA256', '-macopt', "hexkey:$fipskey",
-            '-section_name', 'fips_sect', '-corrupt_desc', 'SHA1'])),
+            '-section_name', 'fips_sect', '-corrupt_desc', 'SHA2'])),
    "fipsinstall fails when the digest result is corrupted");
 
 # corrupt another digest
@@ -269,24 +272,27 @@ ok(replace_parent_line_file('fips_no_module_mac.cnf',
                 '-config', 'fips_parent_no_module_mac.cnf'])),
    "verify load config fail no module mac");
 
-ok(replace_parent_line_file('fips_no_install_mac.cnf',
-                            'fips_parent_no_install_mac.cnf')
-   && !run(app(['openssl', 'fipsinstall',
-                '-config', 'fips_parent_no_install_mac.cnf'])),
-   "verify load config fail no install mac");
 
-ok(replace_parent_line_file('fips_bad_indicator.cnf',
-                            'fips_parent_bad_indicator.cnf')
-   && !run(app(['openssl', 'fipsinstall',
-                '-config', 'fips_parent_bad_indicator.cnf'])),
-   "verify load config fail bad indicator");
+SKIP: {
+    skip "Newer FIPS provider version does not support this feature", 3
+        if !$indicatorpost;
 
-
-ok(replace_parent_line_file('fips_bad_install_mac.cnf',
-                            'fips_parent_bad_install_mac.cnf')
-   && !run(app(['openssl', 'fipsinstall',
-                '-config', 'fips_parent_bad_install_mac.cnf'])),
-   "verify load config fail bad install mac");
+    ok(replace_parent_line_file('fips_no_install_mac.cnf',
+                                'fips_parent_no_install_mac.cnf')
+       && !run(app(['openssl', 'fipsinstall',
+                    '-config', 'fips_parent_no_install_mac.cnf'])),
+       "verify load config fail no install mac");
+    ok(replace_parent_line_file('fips_bad_indicator.cnf',
+                                'fips_parent_bad_indicator.cnf')
+       && !run(app(['openssl', 'fipsinstall',
+                    '-config', 'fips_parent_bad_indicator.cnf'])),
+       "verify load config fail bad indicator");
+    ok(replace_parent_line_file('fips_bad_install_mac.cnf',
+                                'fips_parent_bad_install_mac.cnf')
+       && !run(app(['openssl', 'fipsinstall',
+                    '-config', 'fips_parent_bad_install_mac.cnf'])),
+       "verify load config fail bad install mac");
+}
 
 ok(replace_parent_line_file('fips_bad_module_mac.cnf',
                             'fips_parent_bad_module_mac.cnf')

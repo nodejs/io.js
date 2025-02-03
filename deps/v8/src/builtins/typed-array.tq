@@ -14,6 +14,7 @@ type Uint16Elements extends ElementsKind;
 type Int16Elements extends ElementsKind;
 type Uint32Elements extends ElementsKind;
 type Int32Elements extends ElementsKind;
+type Float16Elements extends ElementsKind;
 type Float32Elements extends ElementsKind;
 type Float64Elements extends ElementsKind;
 type Uint8ClampedElements extends ElementsKind;
@@ -110,15 +111,26 @@ struct TypedArrayAccessor {
     dcheck(result == kStoreSucceded);
   }
 
-  macro StoreJSAny(
+  macro StoreJSAnyInBounds(
       context: Context, array: JSTypedArray, index: uintptr,
-      value: JSAny): void labels IfDetachedOrOutOfBounds {
+      value: JSAny): void {
     const storefn: StoreJSAnyFn = this.storeJSAnyFn;
     const result = storefn(context, array, index, value);
-    if (result == kStoreFailureArrayDetachedOrOutOfBounds) {
-      goto IfDetachedOrOutOfBounds;
-    }
-    dcheck(result == kStoreSucceded);
+    check(result == kStoreSucceded);
+  }
+
+  macro StoreJSAny(
+      context: Context, array: JSTypedArray, index: uintptr,
+      value: JSAny): void {
+    const storefn: StoreJSAnyFn = this.storeJSAnyFn;
+    const result = storefn(context, array, index, value);
+    // ES#sec-typedarray-set
+    //
+    // A [[Set]] on a TypedArray with a detached or out-of-bounds
+    // underlying ArrayBuffer is a no-op.
+    dcheck(
+        result == kStoreSucceded ||
+        result == kStoreFailureArrayDetachedOrOutOfBounds);
   }
 
   loadNumericFn: LoadNumericFn;
@@ -146,6 +158,8 @@ macro GetTypedArrayAccessor(elementsKindParam: ElementsKind):
   if (IsElementsKindGreaterThan(elementsKind, ElementsKind::UINT32_ELEMENTS)) {
     if (elementsKind == ElementsKind::INT32_ELEMENTS) {
       return GetTypedArrayAccessor<Int32Elements>();
+    } else if (elementsKind == ElementsKind::FLOAT16_ELEMENTS) {
+      return GetTypedArrayAccessor<Float16Elements>();
     } else if (elementsKind == ElementsKind::FLOAT32_ELEMENTS) {
       return GetTypedArrayAccessor<Float32Elements>();
     } else if (elementsKind == ElementsKind::FLOAT64_ELEMENTS) {
@@ -265,6 +279,9 @@ KindForArrayType<Uint32Elements>(): constexpr ElementsKind {
 }
 KindForArrayType<Int32Elements>(): constexpr ElementsKind {
   return ElementsKind::INT32_ELEMENTS;
+}
+KindForArrayType<Float16Elements>(): constexpr ElementsKind {
+  return ElementsKind::FLOAT16_ELEMENTS;
 }
 KindForArrayType<Float32Elements>(): constexpr ElementsKind {
   return ElementsKind::FLOAT32_ELEMENTS;

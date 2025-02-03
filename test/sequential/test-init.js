@@ -24,9 +24,11 @@ const common = require('../common');
 const assert = require('assert');
 const child = require('child_process');
 const fixtures = require('../common/fixtures');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 if (process.env.TEST_INIT) {
   return process.stdout.write('Loaded successfully!');
@@ -35,8 +37,7 @@ if (process.env.TEST_INIT) {
 process.env.TEST_INIT = 1;
 
 function test(file, expected) {
-  const path = `"${process.execPath}" ${file}`;
-  child.exec(path, { env: process.env }, common.mustSucceed((out) => {
+  child.exec(...common.escapePOSIXShell`"${process.execPath}" "${file}"`, common.mustSucceed((out) => {
     assert.strictEqual(out, expected, `'node ${file}' failed!`);
   }));
 }

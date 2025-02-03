@@ -47,30 +47,33 @@ class FunctionTester {
   template <typename T, typename... Args>
   Handle<T> CallChecked(Args... args) {
     Handle<Object> result = Call(args...).ToHandleChecked();
-    return Handle<T>::cast(result);
+    return Cast<T>(result);
   }
 
   void CheckThrows(Handle<Object> a);
   void CheckThrows(Handle<Object> a, Handle<Object> b);
   v8::Local<v8::Message> CheckThrowsReturnMessage(Handle<Object> a,
                                                   Handle<Object> b);
-  void CheckCall(Handle<Object> expected, Handle<Object> a, Handle<Object> b,
-                 Handle<Object> c, Handle<Object> d);
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a,
+                 Handle<Object> b, Handle<Object> c, Handle<Object> d);
 
-  void CheckCall(Handle<Object> expected, Handle<Object> a, Handle<Object> b,
-                 Handle<Object> c) {
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a,
+                 Handle<Object> b, Handle<Object> c) {
     return CheckCall(expected, a, b, c, undefined());
   }
 
-  void CheckCall(Handle<Object> expected, Handle<Object> a, Handle<Object> b) {
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a,
+                 Handle<Object> b) {
     return CheckCall(expected, a, b, undefined());
   }
 
-  void CheckCall(Handle<Object> expected, Handle<Object> a) {
+  void CheckCall(DirectHandle<Object> expected, Handle<Object> a) {
     CheckCall(expected, a, undefined());
   }
 
-  void CheckCall(Handle<Object> expected) { CheckCall(expected, undefined()); }
+  void CheckCall(DirectHandle<Object> expected) {
+    CheckCall(expected, undefined());
+  }
 
   void CheckCall(double expected, double a, double b) {
     CheckCall(NewNumber(expected), NewNumber(a), NewNumber(b));

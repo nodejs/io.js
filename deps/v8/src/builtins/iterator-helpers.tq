@@ -8,7 +8,7 @@ namespace iterator {
 
 // Iterator helpers are specced as generators but implemented as direct
 // iterators. As such generator states need to be tracked manually. To save
-// space, this is done by assigning sentinel values to underlying.next.
+// space, this is done by assigning sentinel values to underlying_object.
 
 // Tracks the ~completed~ generator state.
 const kIteratorHelperExhausted: Null = Null;
@@ -16,15 +16,15 @@ const kIteratorHelperExhausted: Null = Null;
 const kIteratorHelperExecuting: Undefined = Undefined;
 
 macro IsIteratorHelperExhausted(helper: JSIteratorHelper): bool {
-  return helper.underlying.next == kIteratorHelperExhausted;
+  return helper.underlying_object == kIteratorHelperExhausted;
 }
 
 macro MarkIteratorHelperAsExhausted(helper: JSIteratorHelper): void {
-  helper.underlying.next = kIteratorHelperExhausted;
+  helper.underlying_object = kIteratorHelperExhausted;
 }
 
 macro IsIteratorHelperExecuting(helper: JSIteratorHelper): bool {
-  return helper.underlying.next == kIteratorHelperExecuting;
+  return helper.underlying_object == kIteratorHelperExecuting;
 }
 
 // When a generator's state is ~executing~, attempts to reenter via next() or
@@ -39,17 +39,17 @@ macro ThrowIfIteratorHelperExecuting(
 macro MarkIteratorHelperAsExecuting(helper: JSIteratorHelper):
     IteratorRecord {
   dcheck(!IsIteratorHelperExecuting(helper));
-  const underlying = helper.underlying;
-  helper.underlying.next = kIteratorHelperExecuting;
-  return underlying;
+  const object =
+      Cast<JSReceiver>(helper.underlying_object) otherwise unreachable;
+  helper.underlying_object = kIteratorHelperExecuting;
+  return IteratorRecord{object: object, next: helper.underlying_next};
 }
 
 macro MarkIteratorHelperAsFinishedExecuting(
     helper: JSIteratorHelper, underlying: IteratorRecord): void {
   dcheck(IsIteratorHelperExecuting(helper));
-  dcheck(underlying.next != kIteratorHelperExecuting);
-  dcheck(underlying.object == helper.underlying.object);
-  helper.underlying.next = underlying.next;
+  dcheck(underlying.object != kIteratorHelperExecuting);
+  helper.underlying_object = underlying.object;
 }
 
 // https://tc39.es/proposal-iterator-helpers/#sec-getiteratordirect
@@ -128,6 +128,12 @@ transitioning javascript builtin IteratorHelperPrototypeReturn(
       if (IsIteratorHelperExhausted(helper)) {
         return AllocateJSIteratorResult(Undefined, True);
       }
+
+      const object =
+          Cast<JSReceiver>(helper.underlying_object) otherwise unreachable;
+      const underlying =
+      IteratorRecord{object: object, next: helper.underlying_next};
+
       MarkIteratorHelperAsExhausted(helper);
 
       if (helper.innerAlive == True) {
@@ -139,13 +145,13 @@ transitioning javascript builtin IteratorHelperPrototypeReturn(
 
         } catch (e, message) {
           // ii. IfAbruptCloseIterator(backupCompletion, iterated).
-          IteratorCloseOnException(helper.underlying);
+          IteratorCloseOnException(underlying);
           ReThrowWithMessage(context, e, message);
         }
       }
 
       // iii. Return ? IteratorClose(completion, iterated).
-      IteratorClose(helper.underlying);
+      IteratorClose(underlying);
       return AllocateJSIteratorResult(Undefined, True);
     }
     case (Object): {
@@ -157,8 +163,13 @@ transitioning javascript builtin IteratorHelperPrototypeReturn(
           'Iterator Helper.prototype.return', receiver);
       ThrowIfIteratorHelperExecuting(helper);
       if (!IsIteratorHelperExhausted(helper)) {
+        const object =
+            Cast<JSReceiver>(helper.underlying_object) otherwise unreachable;
+        const underlying =
+        IteratorRecord{object: object, next: helper.underlying_next};
+
         MarkIteratorHelperAsExhausted(helper);
-        IteratorClose(helper.underlying);
+        IteratorClose(underlying);
       }
       return AllocateJSIteratorResult(Undefined, True);
     }
@@ -174,7 +185,8 @@ macro NewJSIteratorMapHelper(
     map: *NativeContextSlot(ContextSlot::ITERATOR_MAP_HELPER_MAP_INDEX),
     properties_or_hash: kEmptyFixedArray,
     elements: kEmptyFixedArray,
-    underlying: underlying,
+    underlying_object: underlying.object,
+    underlying_next: underlying.next,
     mapper: mapper,
     counter: 0
   };
@@ -268,7 +280,8 @@ macro NewJSIteratorFilterHelper(
     map: *NativeContextSlot(ContextSlot::ITERATOR_FILTER_HELPER_MAP_INDEX),
     properties_or_hash: kEmptyFixedArray,
     elements: kEmptyFixedArray,
-    underlying: underlying,
+    underlying_object: underlying.object,
+    underlying_next: underlying.next,
     predicate: predicate,
     counter: 0
   };
@@ -369,7 +382,8 @@ macro NewJSIteratorTakeHelper(
     map: *NativeContextSlot(ContextSlot::ITERATOR_TAKE_HELPER_MAP_INDEX),
     properties_or_hash: kEmptyFixedArray,
     elements: kEmptyFixedArray,
-    underlying: underlying,
+    underlying_object: underlying.object,
+    underlying_next: underlying.next,
     remaining: limit
   };
 }
@@ -472,7 +486,8 @@ macro NewJSIteratorDropHelper(
     map: *NativeContextSlot(ContextSlot::ITERATOR_DROP_HELPER_MAP_INDEX),
     properties_or_hash: kEmptyFixedArray,
     elements: kEmptyFixedArray,
-    underlying: underlying,
+    underlying_object: underlying.object,
+    underlying_next: underlying.next,
     remaining: limit
   };
 }
@@ -576,7 +591,8 @@ macro NewJSIteratorFlatMapHelper(
     map: *NativeContextSlot(ContextSlot::ITERATOR_FLAT_MAP_HELPER_MAP_INDEX),
     properties_or_hash: kEmptyFixedArray,
     elements: kEmptyFixedArray,
-    underlying: underlying,
+    underlying_object: underlying.object,
+    underlying_next: underlying.next,
     mapper: mapper,
     counter: 0,
     innerIterator: underlying,

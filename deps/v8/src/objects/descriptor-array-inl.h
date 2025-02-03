@@ -10,6 +10,7 @@
 #include "src/heap/heap-write-barrier.h"
 #include "src/heap/heap.h"
 #include "src/objects/descriptor-array.h"
+#include "src/objects/dictionary.h"
 #include "src/objects/field-type.h"
 #include "src/objects/heap-object-inl.h"
 #include "src/objects/lookup-cache-inl.h"
@@ -126,7 +127,7 @@ Tagged<Name> DescriptorArray::GetKey(PtrComprCageBase cage_base,
                                      InternalIndex descriptor_number) const {
   DCHECK_LT(descriptor_number.as_int(), number_of_descriptors());
   int entry_offset = OffsetOfDescriptorAt(descriptor_number.as_int());
-  return Name::cast(
+  return Cast<Name>(
       EntryKeyField::Relaxed_Load(cage_base, *this, entry_offset));
 }
 
@@ -160,29 +161,29 @@ void DescriptorArray::SetSortedKey(int descriptor_number, int pointer) {
 Tagged<Object> DescriptorArray::GetStrongValue(
     InternalIndex descriptor_number) {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
-  return GetStrongValue(cage_base, descriptor_number);
+  return Cast<Object>(GetStrongValue(cage_base, descriptor_number));
 }
 
 Tagged<Object> DescriptorArray::GetStrongValue(
     PtrComprCageBase cage_base, InternalIndex descriptor_number) {
-  return GetValue(cage_base, descriptor_number).cast<Object>();
+  return Cast<Object>(GetValue(cage_base, descriptor_number));
 }
 
 void DescriptorArray::SetValue(InternalIndex descriptor_number,
-                               MaybeObject value) {
+                               Tagged<MaybeObject> value) {
   DCHECK_LT(descriptor_number.as_int(), number_of_descriptors());
   int entry_offset = OffsetOfDescriptorAt(descriptor_number.as_int());
   EntryValueField::Relaxed_Store(*this, entry_offset, value);
   WEAK_WRITE_BARRIER(*this, entry_offset + kEntryValueOffset, value);
 }
 
-MaybeObject DescriptorArray::GetValue(InternalIndex descriptor_number) {
+Tagged<MaybeObject> DescriptorArray::GetValue(InternalIndex descriptor_number) {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*this);
   return GetValue(cage_base, descriptor_number);
 }
 
-MaybeObject DescriptorArray::GetValue(PtrComprCageBase cage_base,
-                                      InternalIndex descriptor_number) {
+Tagged<MaybeObject> DescriptorArray::GetValue(PtrComprCageBase cage_base,
+                                              InternalIndex descriptor_number) {
   DCHECK_LT(descriptor_number.as_int(), number_of_descriptors());
   int entry_offset = OffsetOfDescriptorAt(descriptor_number.as_int());
   return EntryValueField::Relaxed_Load(cage_base, *this, entry_offset);
@@ -216,12 +217,13 @@ Tagged<FieldType> DescriptorArray::GetFieldType(
 Tagged<FieldType> DescriptorArray::GetFieldType(
     PtrComprCageBase cage_base, InternalIndex descriptor_number) {
   DCHECK_EQ(GetDetails(descriptor_number).location(), PropertyLocation::kField);
-  MaybeObject wrapped_type = GetValue(cage_base, descriptor_number);
+  Tagged<MaybeObject> wrapped_type = GetValue(cage_base, descriptor_number);
   return Map::UnwrapFieldType(wrapped_type);
 }
 
 void DescriptorArray::Set(InternalIndex descriptor_number, Tagged<Name> key,
-                          MaybeObject value, PropertyDetails details) {
+                          Tagged<MaybeObject> value, PropertyDetails details) {
+  CHECK_LT(descriptor_number.as_int(), number_of_descriptors());
   SetKey(descriptor_number, key);
   SetDetails(descriptor_number, details);
   SetValue(descriptor_number, value);
@@ -229,7 +231,7 @@ void DescriptorArray::Set(InternalIndex descriptor_number, Tagged<Name> key,
 
 void DescriptorArray::Set(InternalIndex descriptor_number, Descriptor* desc) {
   Tagged<Name> key = *desc->GetKey();
-  MaybeObject value = *desc->GetValue();
+  Tagged<MaybeObject> value = *desc->GetValue();
   Set(descriptor_number, key, value, desc->GetDetails());
 }
 

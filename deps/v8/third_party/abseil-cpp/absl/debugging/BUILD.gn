@@ -30,7 +30,7 @@ absl_source_set("stacktrace") {
 }
 
 absl_test("stacktrace_test") {
-  sources = ["stacktrace_test.cc"]
+  sources = [ "stacktrace_test.cc" ]
   deps = [
     ":stacktrace",
     "//third_party/abseil-cpp/absl/base:core_headers",
@@ -126,9 +126,93 @@ absl_source_set("demangle_internal") {
     "//third_party/abseil-cpp/absl/debugging:*",
   ]
   deps = [
+    ":demangle_rust",
     "//third_party/abseil-cpp/absl/base",
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:nullability",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+  ]
+}
+
+# Disabled because this test relies on RTTI
+# absl_test("demangle_test") {
+#   sources = [ "internal/demangle_test.cc" ]
+#   deps = [
+#     ":demangle_internal",
+#     ":stack_consumption",
+#     "//third_party/abseil-cpp/absl/base:config",
+#     "//third_party/abseil-cpp/absl/base:core_headers",
+#     "//third_party/abseil-cpp/absl/log",
+#     "//third_party/abseil-cpp/absl/memory",
+#   ]
+# }
+
+absl_source_set("bounded_utf8_length_sequence") {
+  public = [ "internal/bounded_utf8_length_sequence.h" ]
+  deps = [
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/numeric:bits",
+  ]
+}
+
+absl_test("bounded_utf8_length_sequence_test") {
+  sources = [ "internal/bounded_utf8_length_sequence_test.cc" ]
+  deps = [
+    ":bounded_utf8_length_sequence",
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
+}
+
+absl_source_set("decode_rust_punycode") {
+  sources = [ "internal/decode_rust_punycode.cc" ]
+  public = [ "internal/decode_rust_punycode.h" ]
+  deps = [
+    ":bounded_utf8_length_sequence",
+    ":utf8_for_code_point",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:nullability",
+  ]
+}
+
+absl_test("decode_rust_punycode_test") {
+  sources = [ "internal/decode_rust_punycode_test.cc" ]
+  deps = [
+    ":decode_rust_punycode",
+    "//third_party/abseil-cpp/absl/base:config",
+  ]
+}
+
+absl_source_set("demangle_rust") {
+  sources = [ "internal/demangle_rust.cc" ]
+  public = [ "internal/demangle_rust.h" ]
+  deps = [
+    ":decode_rust_punycode",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+}
+
+absl_test("demangle_rust_test") {
+  sources = [ "internal/demangle_rust_test.cc" ]
+  deps = [
+    ":demangle_rust",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+  ]
+}
+
+absl_source_set("utf8_for_code_point") {
+  sources = [ "internal/utf8_for_code_point.cc" ]
+  public = [ "internal/utf8_for_code_point.h" ]
+  deps = [ "//third_party/abseil-cpp/absl/base:config" ]
+}
+
+absl_test("utf8_for_code_point_test") {
+  sources = [ "internal/utf8_for_code_point_test.cc" ]
+  deps = [
+    ":utf8_for_code_point",
+    "//third_party/abseil-cpp/absl/base:config",
   ]
 }
 

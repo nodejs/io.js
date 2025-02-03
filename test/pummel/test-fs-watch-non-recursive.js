@@ -38,14 +38,24 @@ const filepath = path.join(testsubdir, 'watch.txt');
 
 fs.mkdirSync(testsubdir, 0o700);
 
-const watcher = fs.watch(testDir, { persistent: true }, (event, filename) => {
-  // This function may be called with the directory depending on timing but
-  // must not be called with the file..
-  assert.strictEqual(filename, 'testsubdir');
-});
-setTimeout(() => {
-  fs.writeFileSync(filepath, 'test');
-}, 100);
-setTimeout(() => {
-  watcher.close();
-}, 500);
+function doWatch() {
+  const watcher = fs.watch(testDir, { persistent: true }, (event, filename) => {
+    // This function may be called with the directory depending on timing but
+    // must not be called with the file..
+    assert.strictEqual(filename, 'testsubdir');
+  });
+  setTimeout(() => {
+    fs.writeFileSync(filepath, 'test');
+  }, 100);
+  setTimeout(() => {
+    watcher.close();
+  }, 500);
+}
+
+if (common.isMacOS) {
+  // On macOS delay watcher start to avoid leaking previous events.
+  // Refs: https://github.com/libuv/libuv/pull/4503
+  setTimeout(doWatch, common.platformTimeout(100));
+} else {
+  doWatch();
+}

@@ -42,7 +42,7 @@ _createTimeZone(const char16_t* zoneID, int32_t len, UErrorCode* ec) {
         // failure we will see is a memory allocation failure.
         int32_t l = (len<0 ? u_strlen(zoneID) : len);
         UnicodeString zoneStrID;
-        zoneStrID.setTo((UBool)(len < 0), zoneID, l); /* temporary read-only alias */
+        zoneStrID.setTo(static_cast<UBool>(len < 0), zoneID, l); /* temporary read-only alias */
         zone = TimeZone::createTimeZone(zoneStrID);
         if (zone == nullptr) {
             *ec = U_MEMORY_ALLOCATION_ERROR;

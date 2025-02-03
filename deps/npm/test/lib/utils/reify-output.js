@@ -8,10 +8,22 @@ const mockReify = async (t, reify, { command, ...config } = {}) => {
   const mock = await mockNpm(t, {
     command,
     config,
-    setCmd: true,
+  })
+
+  // Hack to adapt existing fake test. Make npm.command
+  // return whatever was passed in to this function.
+  // What it should be doing is npm.exec(command) but that
+  // breaks most of these tests because they dont expect
+  // a command to actually run.
+  Object.defineProperty(mock.npm, 'command', {
+    get () {
+      return command
+    },
+    enumerable: true,
   })
 
   reifyOutput(mock.npm, reify)
+  mock.npm.finish()
 
   return mock.joinedOutput()
 }

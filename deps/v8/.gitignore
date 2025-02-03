@@ -40,6 +40,7 @@
 .torquelint-cache
 .vscode
 /_*
+/base
 /build
 /buildtools
 /check-header-includes
@@ -67,6 +68,9 @@
 /third_party/colorama/src
 !/third_party/cpu_features
 /third_party/cpu_features/src
+!/third_party/fast_float
+/third_party/fast_float/src/*
+!/third_party/fast_float/src/include
 !/third_party/glibc
 !/third_party/googletest
 /third_party/googletest/src/*
@@ -77,6 +81,8 @@
 !/third_party/googletest/src/googletest/include/gtest
 /third_party/googletest/src/googletest/include/gtest/*
 !/third_party/googletest/src/googletest/include/gtest/gtest_prod.h
+!/third_party/highway
+/third_party/highway/src
 !/third_party/inspector_protocol
 !/third_party/jsoncpp
 /third_party/jsoncpp/source
@@ -85,7 +91,8 @@
 !/third_party/test262-harness
 !/third_party/v8
 !/third_party/wasm-api
-/tools/builtins-pgo/profiles/*.profile
+/tools/builtins-pgo/profiles/*
+!/tools/builtins-pgo/profiles/.*
 /tools/clang
 /tools/gcmole/bootstrap
 /tools/gcmole/gcmole-tools
@@ -95,6 +102,7 @@
 /tools/luci-go
 /tools/oom_dump/oom_dump
 /tools/oom_dump/oom_dump.o
+/tools/protoc_wrapper
 /tools/turbolizer/build
 /tools/turbolizer/.rpt2_cache
 /tools/turbolizer/deploy
@@ -134,3 +142,6 @@ bazel-v8
 !/third_party/abseil-cpp
 /third_party/abseil-cpp/.github
 /third_party/abseil-cpp/ci
+!/third_party/fp16
+/third_party/fp16/src/*
+!/third_party/fp16/src/include

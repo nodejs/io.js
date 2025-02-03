@@ -31,6 +31,5 @@ function assert_throws_and_optimized(func, arg) {
   fast_c_api.reset_counts();
   assertThrows(() => func(arg));
   assertOptimized(func);
-  assertEquals(0, fast_c_api.fast_call_count());
-  assertEquals(1, fast_c_api.slow_call_count());
+  assertEquals(1, fast_c_api.fast_call_count());
 }

@@ -9,7 +9,9 @@
 #include <string.h>
 
 #include <iterator>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/check.h"
@@ -22,7 +24,6 @@
 #include "base/i18n/time_formatting.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
@@ -172,7 +173,7 @@ class ZipReaderTest : public PlatformTest {
   }
 
   static Paths GetPaths(const base::FilePath& zip_path,
-                        base::StringPiece encoding = {}) {
+                        std::string_view encoding = {}) {
     Paths paths;
 
     if (ZipReader reader; reader.Open(zip_path)) {
@@ -422,7 +423,7 @@ TEST_F(ZipReaderTest, EncryptedFile_WrongPassword) {
     EXPECT_EQ("This is not encrypted.\n", contents);
   }
 
-  for (const base::StringPiece path : {
+  for (const std::string_view path : {
            "Encrypted AES-128.txt",
            "Encrypted AES-192.txt",
            "Encrypted AES-256.txt",
@@ -458,7 +459,7 @@ TEST_F(ZipReaderTest, EncryptedFile_RightPassword) {
   }
 
   // TODO(crbug.com/1296838) Support AES encryption.
-  for (const base::StringPiece path : {
+  for (const std::string_view path : {
            "Encrypted AES-128.txt",
            "Encrypted AES-192.txt",
            "Encrypted AES-256.txt",
@@ -555,10 +556,10 @@ TEST_F(ZipReaderTest, ExtractToFileAsync_RegularFile) {
   const std::string md5 = base::MD5String(output);
   EXPECT_EQ(kQuuxExpectedMD5, md5);
 
-  int64_t file_size = 0;
-  ASSERT_TRUE(base::GetFileSize(target_file, &file_size));
+  std::optional<int64_t> file_size = base::GetFileSize(target_file);
+  ASSERT_TRUE(file_size.has_value());
 
-  EXPECT_EQ(file_size, listener.current_progress());
+  EXPECT_EQ(file_size.value(), listener.current_progress());
 }
 
 TEST_F(ZipReaderTest, ExtractToFileAsync_Encrypted_NoPassword) {
@@ -713,12 +714,12 @@ TEST_F(ZipReaderTest, ExtractCurrentEntryToString) {
     if (i > 0) {
       // Exact byte read limit: must pass.
       EXPECT_TRUE(reader.ExtractCurrentEntryToString(i, &contents));
-      EXPECT_EQ(std::string(base::StringPiece("0123456", i)), contents);
+      EXPECT_EQ(std::string(std::string_view("0123456", i)), contents);
     }
 
     // More than necessary byte read limit: must pass.
     EXPECT_TRUE(reader.ExtractCurrentEntryToString(&contents));
-    EXPECT_EQ(std::string(base::StringPiece("0123456", i)), contents);
+    EXPECT_EQ(std::string(std::string_view("0123456", i)), contents);
   }
   reader.Close();
 }

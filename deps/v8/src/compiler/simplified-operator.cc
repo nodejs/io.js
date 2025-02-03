@@ -589,7 +589,9 @@ BigIntOperationHint BigIntOperationHintOf(const Operator* op) {
          op->opcode() == IrOpcode::kSpeculativeBigIntEqual ||
          op->opcode() == IrOpcode::kSpeculativeBigIntLessThan ||
          op->opcode() == IrOpcode::kSpeculativeBigIntLessThanOrEqual);
-  return OpParameter<BigIntOperationHint>(op);
+  BigIntOperationHint hint = OpParameter<BigIntOperationHint>(op);
+  DCHECK_IMPLIES(hint == BigIntOperationHint::kBigInt64, Is64());
+  return hint;
 }
 
 bool operator==(NumberOperationParameters const& lhs,
@@ -934,6 +936,7 @@ bool operator==(AssertNotNullParameters const& lhs,
   V(CheckNumber, 1, 1)                   \
   V(CheckSmi, 1, 1)                      \
   V(CheckString, 1, 1)                   \
+  V(CheckStringOrStringWrapper, 1, 1)    \
   V(CheckBigInt, 1, 1)                   \
   V(CheckedBigIntToBigInt64, 1, 1)       \
   V(CheckedInt32ToTaggedSigned, 1, 1)    \
@@ -1338,6 +1341,26 @@ struct SimplifiedOperatorGlobalCache final {
       kSpeculativeToBigIntBigInt64Operator;
   SpeculativeToBigIntOperator<BigIntOperationHint::kBigInt>
       kSpeculativeToBigIntBigIntOperator;
+
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+  struct GetContinuationPreservedEmbedderDataOperator : public Operator {
+    GetContinuationPreservedEmbedderDataOperator()
+        : Operator(IrOpcode::kGetContinuationPreservedEmbedderData,
+                   Operator::kNoThrow | Operator::kNoDeopt | Operator::kNoWrite,
+                   "GetContinuationPreservedEmbedderData", 0, 1, 0, 1, 1, 0) {}
+  };
+  GetContinuationPreservedEmbedderDataOperator
+      kGetContinuationPreservedEmbedderData;
+
+  struct SetContinuationPreservedEmbedderDataOperator : public Operator {
+    SetContinuationPreservedEmbedderDataOperator()
+        : Operator(IrOpcode::kSetContinuationPreservedEmbedderData,
+                   Operator::kNoThrow | Operator::kNoDeopt | Operator::kNoRead,
+                   "SetContinuationPreservedEmbedderData", 1, 1, 0, 0, 1, 0) {}
+  };
+  SetContinuationPreservedEmbedderDataOperator
+      kSetContinuationPreservedEmbedderData;
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 };
 
 namespace {
@@ -2197,6 +2220,18 @@ const Operator* SimplifiedOperatorBuilder::StoreField(
       2, 1, 1, 0, 1, 0, store_access);
 }
 
+#ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+const Operator*
+SimplifiedOperatorBuilder::GetContinuationPreservedEmbedderData() {
+  return &cache_.kGetContinuationPreservedEmbedderData;
+}
+
+const Operator*
+SimplifiedOperatorBuilder::SetContinuationPreservedEmbedderData() {
+  return &cache_.kSetContinuationPreservedEmbedderData;
+}
+#endif  // V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
+
 const Operator* SimplifiedOperatorBuilder::LoadMessage() {
   return zone()->New<Operator>(IrOpcode::kLoadMessage, Operator::kEliminatable,
                                "LoadMessage", 1, 1, 1, 1, 1, 0);
@@ -2253,37 +2288,40 @@ const Operator* SimplifiedOperatorBuilder::FastApiCall(
 
   // All function overloads have the same number of arguments and options.
   const CFunctionInfo* signature = c_functions[0].signature;
-  const int argument_count = signature->ArgumentCount();
+  const int c_arg_count = signature->ArgumentCount();
   for (size_t i = 1; i < c_functions.size(); i++) {
     CHECK_NOT_NULL(c_functions[i].signature);
-    DCHECK_EQ(c_functions[i].signature->ArgumentCount(), argument_count);
+    DCHECK_EQ(c_functions[i].signature->ArgumentCount(), c_arg_count);
     DCHECK_EQ(c_functions[i].signature->HasOptions(),
               c_functions[0].signature->HasOptions());
   }
+  // Arguments for CallApiCallbackOptimizedXXX builtin (including context)
+  // plus JS arguments (including receiver).
+  int slow_arg_count = static_cast<int>(descriptor->ParameterCount());
 
   int value_input_count =
-      argument_count +
-      static_cast<int>(descriptor->ParameterCount()) +  // slow call
-      FastApiCallNode::kEffectAndControlInputCount;
+      FastApiCallNode::ArityForArgc(c_arg_count, slow_arg_count);
   return zone()->New<Operator1<FastApiCallParameters>>(
-      IrOpcode::kFastApiCall, Operator::kNoThrow, "FastApiCall",
-      value_input_count, 1, 1, 1, 1, 0,
+      IrOpcode::kFastApiCall, Operator::kNoProperties, "FastApiCall",
+      value_input_count, 1, 1, 1, 1, 2,
       FastApiCallParameters(c_functions, feedback, descriptor));
 }
 
-int FastApiCallNode::FastCallArgumentCount() const {
-  FastApiCallParameters p = FastApiCallParametersOf(node()->op());
+// static
+int FastApiCallNode::FastCallArgumentCount(Node* node) {
+  FastApiCallParameters p = FastApiCallParametersOf(node->op());
   const CFunctionInfo* signature = p.c_functions()[0].signature;
   CHECK_NOT_NULL(signature);
   return signature->ArgumentCount();
 }
 
-int FastApiCallNode::SlowCallArgumentCount() const {
-  FastApiCallParameters p = FastApiCallParametersOf(node()->op());
+// static
+int FastApiCallNode::SlowCallArgumentCount(Node* node) {
+  FastApiCallParameters p = FastApiCallParametersOf(node->op());
   CallDescriptor* descriptor = p.descriptor();
   CHECK_NOT_NULL(descriptor);
-  return static_cast<int>(descriptor->ParameterCount()) +
-         kContextAndFrameStateInputCount;
+  return kSlowCodeTarget + static_cast<int>(descriptor->ParameterCount()) +
+         kFrameState;
 }
 
 #undef PURE_OP_LIST

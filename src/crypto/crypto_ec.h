@@ -16,7 +16,6 @@
 namespace node {
 namespace crypto {
 int GetCurveFromName(const char* name);
-int GetOKPCurveFromName(const char* name);
 
 class ECDH final : public BaseObject {
  public:
@@ -25,9 +24,9 @@ class ECDH final : public BaseObject {
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
-  static ECPointPointer BufferToPoint(Environment* env,
-                                      const EC_GROUP* group,
-                                      v8::Local<v8::Value> buf);
+  static ncrypto::ECPointPointer BufferToPoint(Environment* env,
+                                               const EC_GROUP* group,
+                                               v8::Local<v8::Value> buf);
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(ECDH)
@@ -38,7 +37,9 @@ class ECDH final : public BaseObject {
   static void GetCurves(const v8::FunctionCallbackInfo<v8::Value>& args);
 
  protected:
-  ECDH(Environment* env, v8::Local<v8::Object> wrap, ECKeyPointer&& key);
+  ECDH(Environment* env,
+       v8::Local<v8::Object> wrap,
+       ncrypto::ECKeyPointer&& key);
 
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void GenerateKeys(const v8::FunctionCallbackInfo<v8::Value>& args);
@@ -49,16 +50,16 @@ class ECDH final : public BaseObject {
   static void SetPublicKey(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   bool IsKeyPairValid();
-  bool IsKeyValidForCurve(const BignumPointer& private_key);
+  bool IsKeyValidForCurve(const ncrypto::BignumPointer& private_key);
 
-  ECKeyPointer key_;
+  ncrypto::ECKeyPointer key_;
   const EC_GROUP* group_;
 };
 
 struct ECDHBitsConfig final : public MemoryRetainer {
   int id_;
-  std::shared_ptr<KeyObjectData> private_;
-  std::shared_ptr<KeyObjectData> public_;
+  KeyObjectData private_;
+  KeyObjectData public_;
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(ECDHBitsConfig)
@@ -71,7 +72,7 @@ struct ECDHBitsTraits final {
   static constexpr AsyncWrap::ProviderType Provider =
       AsyncWrap::PROVIDER_DERIVEBITSREQUEST;
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int offset,
@@ -82,11 +83,9 @@ struct ECDHBitsTraits final {
       const ECDHBitsConfig& params,
       ByteSource* out_);
 
-  static v8::Maybe<bool> EncodeOutput(
-      Environment* env,
-      const ECDHBitsConfig& params,
-      ByteSource* out,
-      v8::Local<v8::Value>* result);
+  static v8::MaybeLocal<v8::Value> EncodeOutput(Environment* env,
+                                                const ECDHBitsConfig& params,
+                                                ByteSource* out);
 };
 
 using ECDHBitsJob = DeriveBitsJob<ECDHBitsTraits>;
@@ -105,9 +104,9 @@ struct EcKeyGenTraits final {
   using AdditionalParameters = EcKeyPairGenConfig;
   static constexpr const char* JobName = "EcKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(EcKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(EcKeyPairGenConfig* params);
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int* offset,
@@ -129,40 +128,35 @@ struct ECKeyExportTraits final {
   static constexpr const char* JobName = "ECKeyExportJob";
   using AdditionalParameters = ECKeyExportConfig;
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int offset,
       ECKeyExportConfig* config);
 
-  static WebCryptoKeyExportStatus DoExport(
-      std::shared_ptr<KeyObjectData> key_data,
-      WebCryptoKeyFormat format,
-      const ECKeyExportConfig& params,
-      ByteSource* out);
+  static WebCryptoKeyExportStatus DoExport(const KeyObjectData& key_data,
+                                           WebCryptoKeyFormat format,
+                                           const ECKeyExportConfig& params,
+                                           ByteSource* out);
 };
 
 using ECKeyExportJob = KeyExportJob<ECKeyExportTraits>;
 
-v8::Maybe<void> ExportJWKEcKey(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    v8::Local<v8::Object> target);
+v8::Maybe<void> ExportJWKEcKey(Environment* env,
+                               const KeyObjectData& key,
+                               v8::Local<v8::Object> target);
 
-v8::Maybe<bool> ExportJWKEdKey(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    v8::Local<v8::Object> target);
+v8::Maybe<void> ExportJWKEdKey(Environment* env,
+                               const KeyObjectData& key,
+                               v8::Local<v8::Object> target);
 
-std::shared_ptr<KeyObjectData> ImportJWKEcKey(
-    Environment* env,
-    v8::Local<v8::Object> jwk,
-    const v8::FunctionCallbackInfo<v8::Value>& args,
-    unsigned int offset);
+KeyObjectData ImportJWKEcKey(Environment* env,
+                             v8::Local<v8::Object> jwk,
+                             const v8::FunctionCallbackInfo<v8::Value>& args,
+                             unsigned int offset);
 
-v8::Maybe<bool> GetEcKeyDetail(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    v8::Local<v8::Object> target);
+v8::Maybe<void> GetEcKeyDetail(Environment* env,
+                               const KeyObjectData& key,
+                               v8::Local<v8::Object> target);
 }  // namespace crypto
 }  // namespace node
 

@@ -1,4 +1,4 @@
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const t = require('tap')
 const { explainNode, printNode } = require('../../../lib/utils/explain-dep.js')
 const { cleanCwd } = require('../../fixtures/clean-snapshot')

@@ -27,7 +27,7 @@
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>
-#endif /* HAVE_CONFIG_H */
+#endif /* defined(HAVE_CONFIG_H) */
 
 #include <ngtcp2/ngtcp2.h>
 
@@ -46,4 +46,4 @@ void ngtcp2_path_init(ngtcp2_path *path, const ngtcp2_addr *local,
 void ngtcp2_path_storage_init2(ngtcp2_path_storage *ps,
                                const ngtcp2_path *path);
 
-#endif /* NGTCP2_PATH_H */
+#endif /* !defined(NGTCP2_PATH_H) */

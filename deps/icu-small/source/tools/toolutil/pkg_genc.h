@@ -59,9 +59,8 @@
 #define PKGDATA_FILE_SEP_STRING U_FILE_SEP_STRING
 #endif
 
-#define LARGE_BUFFER_MAX_SIZE 2048
-#define SMALL_BUFFER_MAX_SIZE 512
-#define SMALL_BUFFER_FLAG_NAMES 32
+#define LARGE_BUFFER_MAX_SIZE 16384
+#define SMALL_BUFFER_MAX_SIZE 4096
 #define BUFFER_PADDING_SIZE 20
 
 /** End platform defines **/
@@ -73,6 +72,9 @@ printAssemblyHeadersToStdErr(void);
 
 U_CAPI UBool U_EXPORT2
 checkAssemblyHeaderName(const char* optAssembly);
+
+U_CAPI UBool U_EXPORT2
+checkCpuArchitecture(const char* optCpuArch);
 
 U_CAPI void U_EXPORT2
 writeCCode(
@@ -99,6 +101,7 @@ writeObjectCode(
     const char *destdir,
     const char *optEntryPoint,
     const char *optMatchArch,
+    const char *optCpuArch,
     const char *optFilename,
     char *outFilePath,
     size_t outFilePathCapacity,

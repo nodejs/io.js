@@ -3,7 +3,8 @@ import { strictEqual, deepEqual } from 'assert';
 import m, { π } from './exports-cases.js';
 import * as ns from './exports-cases.js';
 
-deepEqual(Object.keys(ns), ['?invalid', 'default', 'invalid identifier', 'isObject', 'package', 'z', 'π', '\u{d83c}\u{df10}']);
+deepEqual(Object.keys(ns), ['?invalid', 'default', 'invalid identifier', 'isObject', 'module.exports', 'package', 'z', 'π', '\u{d83c}\u{df10}']);
+strictEqual(ns['module.exports'], ns.default);
 strictEqual(π, 'yes');
 strictEqual(typeof m.isObject, 'undefined');
 strictEqual(m.π, 'yes');
@@ -21,7 +22,8 @@ strictEqual(typeof m2, 'object');
 strictEqual(m2.default, 'the default');
 strictEqual(ns2.__esModule, true);
 strictEqual(ns2.name, 'name');
-deepEqual(Object.keys(ns2), ['__esModule', 'case2', 'default', 'name', 'pi']);
+strictEqual(ns2['module.exports'], ns2.default);
+deepEqual(Object.keys(ns2), ['__esModule', 'case2', 'default', 'module.exports', 'name', 'pi']);
 
 import m3, { __esModule as __esModule3, name as name3 } from './exports-cases3.js';
 import * as ns3 from './exports-cases3.js';
@@ -32,5 +34,6 @@ deepEqual(Object.keys(m3), ['name', 'default', 'pi', 'case2']);
 strictEqual(ns3.__esModule, true);
 strictEqual(ns3.name, 'name');
 strictEqual(ns3.case2, 'case2');
+strictEqual(ns3['module.exports'], ns3.default);
 
 console.log('ok');

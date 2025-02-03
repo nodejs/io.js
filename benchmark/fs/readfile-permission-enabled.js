@@ -17,7 +17,7 @@ const bench = common.createBenchmark(main, {
   concurrent: [1, 10],
 }, {
   flags: [
-    '--experimental-permission',
+    '--permission',
     '--allow-fs-read=*',
     '--allow-fs-write=*',
     '--allow-child-process',

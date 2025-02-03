@@ -187,11 +187,11 @@ class LogMessage {
  protected:
   // Call `abort()` or similar to perform `LOG(FATAL)` crash.  It is assumed
   // that the caller has already generated and written the trace as appropriate.
-  ABSL_ATTRIBUTE_NORETURN static void FailWithoutStackTrace();
+  [[noreturn]] static void FailWithoutStackTrace();
 
   // Similar to `FailWithoutStackTrace()`, but without `abort()`.  Terminates
   // the process with an error exit code.
-  ABSL_ATTRIBUTE_NORETURN static void FailQuietly();
+  [[noreturn]] static void FailQuietly();
 
   // Dispatches the completed `absl::LogEntry` to applicable `absl::LogSink`s.
   // This might as well be inlined into `~LogMessage` except that
@@ -354,15 +354,34 @@ class LogMessageFatal final : public LogMessage {
   LogMessageFatal(const char* file, int line) ABSL_ATTRIBUTE_COLD;
   LogMessageFatal(const char* file, int line,
                   absl::string_view failure_msg) ABSL_ATTRIBUTE_COLD;
-  ABSL_ATTRIBUTE_NORETURN ~LogMessageFatal();
+  [[noreturn]] ~LogMessageFatal();
 };
 
+// `LogMessageDebugFatal` ensures the process will exit in failure after logging
+// this message. It matches LogMessageFatal but is not [[noreturn]] as it's used
+// for DLOG(FATAL) variants.
+class LogMessageDebugFatal final : public LogMessage {
+ public:
+  LogMessageDebugFatal(const char* file, int line) ABSL_ATTRIBUTE_COLD;
+  ~LogMessageDebugFatal();
+};
+
+class LogMessageQuietlyDebugFatal final : public LogMessage {
+ public:
+  // DLOG(QFATAL) calls this instead of LogMessageQuietlyFatal to make sure the
+  // destructor is not [[noreturn]] even if this is always FATAL as this is only
+  // invoked when DLOG() is enabled.
+  LogMessageQuietlyDebugFatal(const char* file, int line) ABSL_ATTRIBUTE_COLD;
+  ~LogMessageQuietlyDebugFatal();
+};
+
+// Used for LOG(QFATAL) to make sure it's properly understood as [[noreturn]].
 class LogMessageQuietlyFatal final : public LogMessage {
  public:
   LogMessageQuietlyFatal(const char* file, int line) ABSL_ATTRIBUTE_COLD;
   LogMessageQuietlyFatal(const char* file, int line,
                          absl::string_view failure_msg) ABSL_ATTRIBUTE_COLD;
-  ABSL_ATTRIBUTE_NORETURN ~LogMessageQuietlyFatal();
+  [[noreturn]] ~LogMessageQuietlyFatal();
 };
 
 }  // namespace log_internal

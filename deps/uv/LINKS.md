@@ -37,6 +37,7 @@
 * [Pixie-io](https://github.com/pixie-io/pixie): Open-source observability tool for Kubernetes applications.
 * [potion](https://github.com/perl11/potion)/[p2](https://github.com/perl11/p2): runtime
 * [racer](https://libraries.io/rubygems/racer): Ruby web server written as an C extension
+* [scala-native-loop](https://github.com/scala-native/scala-native-loop): Extensible event loop and async-oriented IO for Scala Native; powered by libuv
 * [Socket Runtime](https://sockets.sh): A runtime for creating native cross-platform software on mobile and desktop using HTML, CSS, and JavaScript
 * [spider-gazelle](https://github.com/cotag/spider-gazelle): Ruby web server using libuv bindings
 * [Suave](http://suave.io/): A simple web development F# library providing a lightweight web server and a set of combinators to manipulate route flow and task composition

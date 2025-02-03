@@ -1,4 +1,4 @@
-const { inspect } = require('util')
+const { inspect } = require('node:util')
 const t = require('tap')
 const Queryable = require('../../../lib/utils/queryable.js')
 

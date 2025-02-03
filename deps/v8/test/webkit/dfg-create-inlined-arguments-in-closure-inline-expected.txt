@@ -21,7 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-Tests that if the DFG tries to create inlined arguments from within a inlined call frame corresponding to a closure call, then we don't crash.
+Tests that if the DFG tries to create inlined arguments from within an inlined call frame corresponding to a closure call, then we don't crash.
 
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 

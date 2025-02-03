@@ -16,6 +16,7 @@ TAP version 13
 ok 1 - passing test
   ---
   duration_ms: *
+  type: 'test'
   ...
 1..1
 # tests 1

@@ -1,0 +1,106 @@
+Tests stepping through wasm script with blackboxed range by byte offsets
+
+Running test: test
+Setting up global instance variable.
+Got wasm script: wasm://wasm/665d63a2
+Blackbox wasm script wasm://wasm/665d63a2 in range from 50 to 56
+Setting breakpoint on offset 78 (should be propagated to 79, the offset of the call), url wasm://wasm/665d63a2
+{
+    columnNumber : 79
+    lineNumber : 0
+    scriptId : <scriptId>
+}
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 79: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepInto called
+Function: $wasm_A
+Script wasm://wasm/665d63a2 byte offset 58: Wasm opcode 0x01 (kExprNop)
+Debugger.stepOver called
+Function: $wasm_A
+Script wasm://wasm/665d63a2 byte offset 59: Wasm opcode 0x01 (kExprNop)
+Debugger.stepOut called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 81: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepOut called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 79: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepOver called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 81: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepInto called
+Function: $not_ignored
+Script wasm://wasm/665d63a2 byte offset 47: Wasm opcode 0x01 (kExprNop)
+Debugger.stepOver called
+Function: $not_ignored
+Script wasm://wasm/665d63a2 byte offset 48: Wasm opcode 0x01 (kExprNop)
+Debugger.stepOut called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 83: Wasm opcode 0x0c (kExprBr)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 65: Wasm opcode 0x20 (kExprLocalGet)
+Debugger.resume called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 79: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepInto called
+Function: $wasm_A
+Script wasm://wasm/665d63a2 byte offset 58: Wasm opcode 0x01 (kExprNop)
+Debugger.stepOut called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 81: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepOver called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 83: Wasm opcode 0x0c (kExprBr)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 65: Wasm opcode 0x20 (kExprLocalGet)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 67: Wasm opcode 0x04 (kExprIf)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 69: Wasm opcode 0x20 (kExprLocalGet)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 71: Wasm opcode 0x41 (kExprI32Const)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 73: Wasm opcode 0x6b (kExprI32Sub)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 74: Wasm opcode 0x21 (kExprLocalSet)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 76: Wasm opcode 0x41 (kExprI32Const)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 79: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepInto called
+Function: $wasm_A
+Script wasm://wasm/665d63a2 byte offset 58: Wasm opcode 0x01 (kExprNop)
+Debugger.stepInto called
+Function: $wasm_A
+Script wasm://wasm/665d63a2 byte offset 59: Wasm opcode 0x01 (kExprNop)
+Debugger.stepInto called
+Function: $wasm_A
+Script wasm://wasm/665d63a2 byte offset 60: Wasm opcode 0x0b (kExprEnd)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 81: Wasm opcode 0x10 (kExprCallFunction)
+Debugger.stepInto called
+Function: $not_ignored
+Script wasm://wasm/665d63a2 byte offset 47: Wasm opcode 0x01 (kExprNop)
+Debugger.stepInto called
+Function: $not_ignored
+Script wasm://wasm/665d63a2 byte offset 48: Wasm opcode 0x01 (kExprNop)
+Debugger.stepInto called
+Function: $not_ignored
+Script wasm://wasm/665d63a2 byte offset 49: Wasm opcode 0x0b (kExprEnd)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 83: Wasm opcode 0x0c (kExprBr)
+Debugger.stepInto called
+Function: $wasm_B
+Script wasm://wasm/665d63a2 byte offset 65: Wasm opcode 0x20 (kExprLocalGet)
+Debugger.resume called
+exports.main returned!

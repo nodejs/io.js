@@ -21,7 +21,7 @@ assert(spawnWithFlags(['--no-max-http-header-size']).stderr.toString().includes(
   'a boolean option',
 ));
 
-// Inexistant flags cannot be negated.
+// Inexistent flags cannot be negated.
 assert(spawnWithFlags(['--no-i-dont-exist']).stderr.toString().includes(
   'bad option: --no-i-dont-exist',
 ));

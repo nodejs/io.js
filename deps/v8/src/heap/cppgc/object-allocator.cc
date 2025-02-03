@@ -156,7 +156,16 @@ void* ObjectAllocator::OutOfLineAllocateImpl(NormalPageSpace& space,
       result = TryAllocateLargeObject(page_backend_, large_space,
                                       stats_collector_, size, gcinfo);
       if (!result) {
+#if defined(CPPGC_CAGED_HEAP)
+        const auto last_alloc_status =
+            CagedHeap::Instance().page_allocator().get_last_allocation_status();
+        const std::string suffix =
+            v8::base::BoundedPageAllocator::AllocationStatusToString(
+                last_alloc_status);
+        oom_handler_("Oilpan: Large allocation. " + suffix);
+#else
         oom_handler_("Oilpan: Large allocation.");
+#endif
       }
     }
     return result;
@@ -176,7 +185,16 @@ void* ObjectAllocator::OutOfLineAllocateImpl(NormalPageSpace& space,
         GCConfig::FreeMemoryHandling::kDiscardWherePossible;
     garbage_collector_.CollectGarbage(config);
     if (!TryRefillLinearAllocationBuffer(space, request_size)) {
+#if defined(CPPGC_CAGED_HEAP)
+      const auto last_alloc_status =
+          CagedHeap::Instance().page_allocator().get_last_allocation_status();
+      const std::string suffix =
+          v8::base::BoundedPageAllocator::AllocationStatusToString(
+              last_alloc_status);
+      oom_handler_("Oilpan: Normal allocation. " + suffix);
+#else
       oom_handler_("Oilpan: Normal allocation.");
+#endif
     }
   }
 

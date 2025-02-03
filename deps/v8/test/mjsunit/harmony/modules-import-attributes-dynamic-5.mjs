@@ -5,7 +5,7 @@
 // Flags: --allow-natives-syntax --harmony-import-attributes
 
 var life;
-import('modules-skip-imports-json-1.mjs',).then(namespace => life = namespace.life());
+import('modules-skip-imports-attributes-json-1.mjs',).then(namespace => life = namespace.life());
 
 %PerformMicrotaskCheckpoint();
 

@@ -20,15 +20,16 @@
 
 namespace v8::internal::compiler::turboshaft {
 
-void OptimizePhase::Run(Zone* temp_zone) {
-  UnparkedScopeIfNeeded scope(PipelineData::Get().broker(),
+void OptimizePhase::Run(PipelineData* data, Zone* temp_zone) {
+  UnparkedScopeIfNeeded scope(data->broker(),
                               v8_flags.turboshaft_trace_reduction);
   turboshaft::CopyingPhase<turboshaft::StructuralOptimizationReducer,
                            turboshaft::LateEscapeAnalysisReducer,
                            turboshaft::PretenuringPropagationReducer,
                            turboshaft::MemoryOptimizationReducer,
                            turboshaft::MachineOptimizationReducer,
-                           turboshaft::ValueNumberingReducer>::Run(temp_zone);
+                           turboshaft::ValueNumberingReducer>::Run(data,
+                                                                   temp_zone);
 }
 
 }  // namespace v8::internal::compiler::turboshaft

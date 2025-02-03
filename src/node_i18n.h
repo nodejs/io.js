@@ -53,19 +53,6 @@ enum class idna_mode {
   kStrict
 };
 
-// Implements the WHATWG URL Standard "domain to ASCII" algorithm.
-// https://url.spec.whatwg.org/#concept-domain-to-ascii
-int32_t ToASCII(MaybeStackBuffer<char>* buf,
-                const char* input,
-                size_t length,
-                idna_mode mode = idna_mode::kDefault);
-
-// Implements the WHATWG URL Standard "domain to Unicode" algorithm.
-// https://url.spec.whatwg.org/#concept-domain-to-unicode
-int32_t ToUnicode(MaybeStackBuffer<char>* buf,
-                  const char* input,
-                  size_t length);
-
 struct ConverterDeleter {
   void operator()(UConverter* pointer) const { ucnv_close(pointer); }
 };

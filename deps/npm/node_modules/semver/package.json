@@ -1,6 +1,6 @@
 {
   "name": "semver",
-  "version": "7.6.0",
+  "version": "7.6.3",
   "description": "The semantic version parser used by npm.",
   "main": "index.js",
   "scripts": {
@@ -14,13 +14,14 @@
   },
   "devDependencies": {
     "@npmcli/eslint-config": "^4.0.0",
-    "@npmcli/template-oss": "4.21.3",
+    "@npmcli/template-oss": "4.22.0",
+    "benchmark": "^2.1.4",
     "tap": "^16.0.0"
   },
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/node-semver.git"
+    "url": "git+https://github.com/npm/node-semver.git"
   },
   "bin": {
     "semver": "bin/semver.js"
@@ -47,13 +48,10 @@
   "engines": {
     "node": ">=10"
   },
-  "dependencies": {
-    "lru-cache": "^6.0.0"
-  },
   "author": "GitHub Inc.",
   "templateOSS": {
     "//@npmcli/template-oss": "This file is partially managed by @npmcli/template-oss. Edits may be overwritten.",
-    "version": "4.21.3",
+    "version": "4.22.0",
     "engines": ">=10",
     "distPaths": [
       "classes/",
@@ -71,7 +69,8 @@
       "/ranges/",
       "/index.js",
       "/preload.js",
-      "/range.bnf"
+      "/range.bnf",
+      "/benchmarks"
     ],
     "publish": "true"
   }

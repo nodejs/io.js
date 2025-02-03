@@ -10,7 +10,7 @@ if (!common.hasCrypto) {
   common.skip('missing crypto');
 }
 
-const onGC = require('../common/ongc');
+const { onGC } = require('../common/gc');
 const Countdown = require('../common/countdown');
 
 const https = require('https');
@@ -25,5 +25,5 @@ for (let i = 0; i < max; i++) {
 }
 
 setImmediate(() => {
-  global.gc();
+  globalThis.gc();
 });

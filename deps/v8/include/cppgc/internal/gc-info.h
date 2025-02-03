@@ -94,12 +94,11 @@ struct GCInfoTrait final {
     return index;
   }
 
-  static constexpr bool CheckCallbacksAreDefined() {
+  static constexpr void CheckCallbacksAreDefined() {
     // No USE() macro available.
     (void)static_cast<TraceCallback>(TraceTrait<T>::Trace);
     (void)static_cast<FinalizationCallback>(FinalizerTrait<T>::kCallback);
     (void)static_cast<NameCallback>(NameTrait<T>::GetName);
-    return true;
   }
 };
 
@@ -127,19 +126,22 @@ struct GCInfoFolding final {
   // configuration. Only a single GCInfo (for `ResultType` below) will actually
   // be instantiated but existence (and well-formedness) of all callbacks is
   // checked.
-  static constexpr bool kCheckTypeGuardAlwaysTrue =
-      GCInfoTrait<T>::CheckCallbacksAreDefined() &&
+  static constexpr bool WantToFold() {
+    if constexpr ((kHasVirtualDestructorAtBase ||
+                   kBothTypesAreTriviallyDestructible ||
+                   kHasCustomFinalizerDispatchAtBase) &&
+                  !kWantsDetailedObjectNames) {
+      GCInfoTrait<T>::CheckCallbacksAreDefined();
       GCInfoTrait<ParentMostGarbageCollectedType>::CheckCallbacksAreDefined();
+      return true;
+    }
+    return false;
+  }
 
   // Folding would regress name resolution when deriving names from C++
   // class names as it would just folds a name to the base class name.
   using ResultType =
-      std::conditional_t<kCheckTypeGuardAlwaysTrue &&
-                             (kHasVirtualDestructorAtBase ||
-                              kBothTypesAreTriviallyDestructible ||
-                              kHasCustomFinalizerDispatchAtBase) &&
-                             !kWantsDetailedObjectNames,
-                         ParentMostGarbageCollectedType, T>;
+      std::conditional_t<WantToFold(), ParentMostGarbageCollectedType, T>;
 };
 
 }  // namespace internal

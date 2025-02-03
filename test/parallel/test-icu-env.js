@@ -2,11 +2,38 @@
 const common = require('../common');
 const assert = require('assert');
 const { execFileSync } = require('child_process');
+const { readFileSync, globSync } = require('fs');
+const { path } = require('../common/fixtures');
+const { isMainThread } = require('worker_threads');
 
-// system-icu should not be tested
-const hasBuiltinICU = process.config.variables.icu_gyp_path === 'tools/icu/icu-generic.gyp';
-if (!hasBuiltinICU)
-  common.skip('system ICU');
+// This test checks for regressions in environment variable handling and
+// caching, but the localization data originated from ICU might change
+// over time.
+//
+// The json file can be updated using `tools/icu/update-test-data.js`
+// whenever ICU is updated. Run the update script if this test fails after
+// an ICU update, and verify that only expected values are updated.
+// Typically, only a few strings change with each ICU update. If this script
+// suddenly generates identical values for all locales, it indicates a bug.
+// Editing json file manually is also fine.
+const localizationDataFile = path(`icu/localizationData-v${process.versions.icu}.json`);
+
+let localizationData;
+try {
+  localizationData = JSON.parse(readFileSync(localizationDataFile));
+} catch ({ code }) {
+  assert.strictEqual(code, 'ENOENT');
+
+  // No data for current version, try latest known version
+  const [ latestVersion ] = globSync('test/fixtures/icu/localizationData-*.json')
+    .map((file) => file.match(/localizationData-v(.*)\.json/)[1])
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+  console.log(`The ICU is v${process.versions.icu}, but there is no fixture for this version. ` +
+  `Trying the latest known version: v${latestVersion}. If this test fails with a few strings changed ` +
+  `after ICU update, run this: \n${process.argv[0]} tools/icu/update-test-data.mjs\n`);
+  localizationData = JSON.parse(readFileSync(path(`icu/localizationData-v${latestVersion}.json`)));
+}
+
 
 // small-icu doesn't support non-English locales
 const hasFullICU = (() => {
@@ -100,45 +127,11 @@ if (isMockable) {
   );
   assert.deepStrictEqual(
     locales.map((LANG) => runEnvOutside({ LANG, TZ: 'Europe/Zurich' }, 'new Date(333333333333).toString()')),
-    [
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (Central European Standard Time)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (中欧标准时间)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (मध्य यूरोपीय मानक समय)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (hora estándar de Europa central)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (heure normale d’Europe centrale)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (توقيت وسط أوروبا الرسمي)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (মধ্য ইউরোপীয় মানক সময়)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (Центральная Европа, стандартное время)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (Horário Padrão da Europa Central)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (وسطی یورپ کا معیاری وقت)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (Waktu Standar Eropa Tengah)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (Mitteleuropäische Normalzeit)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (中央ヨーロッパ標準時)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (Mídúl Yúrop Fíksd Taim)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (मध्‍य युरोपियन प्रमाण वेळ)',
-      'Fri Jul 25 1980 01:35:33 GMT+0100 (సెంట్రల్ యూరోపియన్ ప్రామాణిక సమయం)',
-    ]
+    Object.values(localizationData.dateStrings)
   );
   assert.deepStrictEqual(
     locales.map((LANG) => runEnvOutside({ LANG, TZ: 'Europe/Zurich' }, 'new Date(333333333333).toLocaleString()')),
-    [
-      '7/25/1980, 1:35:33 AM',
-      '1980/7/25 01:35:33',
-      '25/7/1980, 1:35:33 am',
-      '25/7/1980, 1:35:33',
-      '25/07/1980 01:35:33',
-      '٢٥‏/٧‏/١٩٨٠، ١:٣٥:٣٣ ص',
-      '২৫/৭/১৯৮০, ১:৩৫:৩৩ AM',
-      '25.07.1980, 01:35:33',
-      '25/07/1980, 01:35:33',
-      '25/7/1980، 1:35:33 AM',
-      '25/7/1980, 01.35.33',
-      '25.7.1980, 01:35:33',
-      '1980/7/25 1:35:33',
-      '25/7/1980 01:35:33',
-      '२५/७/१९८०, १:३५:३३ AM',
-      '25/7/1980 1:35:33 AM',
-    ]
+    Object.values(localizationData.dateTimeFormats)
   );
   assert.strictEqual(
     runEnvOutside({ LANG: 'en' }, '["z", "ä"].sort(new Intl.Collator().compare)'),
@@ -152,72 +145,23 @@ if (isMockable) {
     locales.map(
       (LANG) => runEnvOutside({ LANG, TZ: 'Europe/Zurich' }, 'new Intl.DateTimeFormat().format(333333333333)')
     ),
-    [
-      '7/25/1980', '1980/7/25',
-      '25/7/1980', '25/7/1980',
-      '25/07/1980', '٢٥‏/٧‏/١٩٨٠',
-      '২৫/৭/১৯৮০', '25.07.1980',
-      '25/07/1980', '25/7/1980',
-      '25/7/1980', '25.7.1980',
-      '1980/7/25', '25/7/1980',
-      '२५/७/१९८०', '25/7/1980',
-    ]
+    Object.values(localizationData.dateFormats)
   );
   assert.deepStrictEqual(
     locales.map((LANG) => runEnvOutside({ LANG }, 'new Intl.DisplayNames(undefined, { type: "region" }).of("CH")')),
-    [
-      'Switzerland', '瑞士',
-      'स्विट्ज़रलैंड', 'Suiza',
-      'Suisse', 'سويسرا',
-      'সুইজারল্যান্ড', 'Швейцария',
-      'Suíça', 'سوئٹزر لینڈ',
-      'Swiss', 'Schweiz',
-      'スイス', 'Swítsaland',
-      'स्वित्झर्लंड', 'స్విట్జర్లాండ్',
-    ]
+    Object.values(localizationData.displayNames)
   );
   assert.deepStrictEqual(
     locales.map((LANG) => runEnvOutside({ LANG }, 'new Intl.NumberFormat().format(275760.913)')),
-    [
-      '275,760.913', '275,760.913',
-      '2,75,760.913', '275.760,913',
-      '275 760,913', '٢٧٥٬٧٦٠٫٩١٣',
-      '২,৭৫,৭৬০.৯১৩', '275 760,913',
-      '275.760,913', '275,760.913',
-      '275.760,913', '275.760,913',
-      '275,760.913', '275,760.913',
-      '२,७५,७६०.९१३', '2,75,760.913',
-    ]
+    Object.values(localizationData.numberFormats)
   );
   assert.deepStrictEqual(
     locales.map((LANG) => runEnvOutside({ LANG }, 'new Intl.PluralRules().select(0)')),
-    [
-      'other', 'other', 'one', 'other',
-      'one', 'zero', 'one', 'many',
-      'one', 'other', 'other', 'other',
-      'other', 'one', 'other', 'other',
-    ]
+    Object.values(localizationData.pluralRules)
   );
   assert.deepStrictEqual(
     locales.map((LANG) => runEnvOutside({ LANG }, 'new Intl.RelativeTimeFormat().format(-586920.617, "hour")')),
-    [
-      '586,920.617 hours ago',
-      '586,920.617小时前',
-      '5,86,920.617 घंटे पहले',
-      'hace 586.920,617 horas',
-      'il y a 586 920,617 heures',
-      'قبل ٥٨٦٬٩٢٠٫٦١٧ ساعة',
-      '৫,৮৬,৯২০.৬১৭ ঘন্টা আগে',
-      '586 920,617 часа назад',
-      'há 586.920,617 horas',
-      '586,920.617 گھنٹے پہلے',
-      '586.920,617 jam yang lalu',
-      'vor 586.920,617 Stunden',
-      '586,920.617 時間前',
-      '586,920.617 áwa wé dọ́n pas',
-      '५,८६,९२०.६१७ तासांपूर्वी',
-      '5,86,920.617 గంటల క్రితం',
-    ]
+    Object.values(localizationData.relativeTime)
   );
 }
 
@@ -225,7 +169,7 @@ if (isMockable) {
 // Tests with process.env mutated inside
 {
   // process.env.TZ is not intercepted in Workers
-  if (common.isMainThread) {
+  if (isMainThread) {
     assert.strictEqual(
       isSet(zones.map((TZ) => runEnvInside({ TZ }, () => new Date(333333333333).toString()))),
       true

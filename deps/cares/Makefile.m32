@@ -19,7 +19,7 @@ RANLIB	= $(CROSSPREFIX)ranlib
 #RM	= rm -f
 CP	= cp -afv
 
-CFLAGS	= $(CARES_CFLAG_EXTRAS) -O2 -Wall -I./include -I./src/lib -D_WIN32_WINNT=0x0602
+CFLAGS	= $(CARES_CFLAG_EXTRAS) -O2 -Wall -I./include -I./src/lib -I./src/lib/include -D_WIN32_WINNT=0x0602
 CFLAGS	+= -DCARES_STATICLIB
 LDFLAGS	= $(CARES_LDFLAG_EXTRAS) -s
 LIBS	= -lws2_32 -liphlpapi
@@ -64,7 +64,6 @@ install:
 	${INSTALL} -m 444 ${srcdir}/include/ares.h ${DESTDIR}${includedir}
 	${INSTALL} -m 444 ${srcdir}/include/ares_build.h ${DESTDIR}${includedir}
 	${INSTALL} -m 444 ${srcdir}/include/ares_dns_record.h ${DESTDIR}${includedir}
-	${INSTALL} -m 444 ${srcdir}/include/ares_rules.h ${DESTDIR}${includedir}
 	${INSTALL} -m 444 ${srcdir}/include/ares_version.h ${DESTDIR}${includedir}
 	(for man in $(MANPAGES); do \
 	   ${INSTALL} -m 444 ${srcdir}/$${man} ${DESTDIR}${mandir}/man3; \

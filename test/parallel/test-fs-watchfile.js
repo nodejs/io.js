@@ -84,12 +84,9 @@ watcher.on('stop', common.mustCall());
 
 // Watch events should callback with a filename on supported systems.
 // Omitting AIX. It works but not reliably.
-if (common.isLinux || common.isOSX || common.isWindows) {
+if (common.isLinux || common.isMacOS || common.isWindows) {
   const dir = tmpdir.resolve('watch');
-
-  fs.mkdir(dir, common.mustCall(function(err) {
-    if (err) assert.fail(err);
-
+  function doWatch() {
     const handle = fs.watch(dir, common.mustCall(function(eventType, filename) {
       clearInterval(interval);
       handle.close();
@@ -101,5 +98,15 @@ if (common.isLinux || common.isOSX || common.isWindows) {
         if (err) assert.fail(err);
       }));
     }, 1);
+  }
+
+  fs.mkdir(dir, common.mustSucceed(() => {
+    if (common.isMacOS) {
+      // On macOS delay watcher start to avoid leaking previous events.
+      // Refs: https://github.com/libuv/libuv/pull/4503
+      setTimeout(doWatch, common.platformTimeout(100));
+    } else {
+      doWatch();
+    }
   }));
 }

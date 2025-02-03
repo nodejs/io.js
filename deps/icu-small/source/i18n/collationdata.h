@@ -91,7 +91,7 @@ struct U_I18N_API CollationData : public UMemory {
      * Access to the defaultCE32 for contraction and prefix matching.
      */
     static uint32_t readCE32(const char16_t *p) {
-        return ((uint32_t)p[0] << 16) | p[1];
+        return (static_cast<uint32_t>(p[0]) << 16) | p[1];
     }
 
     /**

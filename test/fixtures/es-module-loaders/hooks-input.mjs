@@ -37,6 +37,7 @@ export async function resolve(specifier, context, next) {
     'conditions',
     'importAttributes',
     'parentURL',
+    'importAssertions',
   ]);
   assert.ok(Array.isArray(context.conditions));
   assert.strictEqual(typeof next, 'function');
@@ -71,9 +72,10 @@ export async function load(url, context, next) {
 
   assert.ok(new URL(url));
   // Ensure `context` has all and only the properties it's supposed to
-  assert.deepStrictEqual(Object.keys(context), [
+  assert.deepStrictEqual(Reflect.ownKeys(context), [
     'format',
     'importAttributes',
+    'importAssertions',
   ]);
   assert.strictEqual(context.format, 'test');
   assert.strictEqual(typeof next, 'function');

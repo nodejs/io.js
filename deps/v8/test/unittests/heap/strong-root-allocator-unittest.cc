@@ -213,7 +213,7 @@ TEST_F(StrongRootAllocatorTest, LocalVector) {
   EXPECT_TRUE(weak.IsEmpty());
 }
 
-#ifdef V8_ENABLE_DIRECT_LOCAL
+#ifdef V8_ENABLE_DIRECT_HANDLE
 TEST_F(StrongRootAllocatorTest, LocalVectorWithDirect) {
   ManualGCScope manual_gc_scope(i_isolate());
   Global<v8::FixedArray> weak;
@@ -245,7 +245,7 @@ TEST_F(StrongRootAllocatorTest, LocalVectorWithDirect) {
   }
   EXPECT_TRUE(weak.IsEmpty());
 }
-#endif  // V8_ENABLE_DIRECT_LOCAL
+#endif  // V8_ENABLE_DIRECT_HANDLE
 
 }  // namespace internal
 }  // namespace v8

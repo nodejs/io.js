@@ -123,8 +123,7 @@ class V8_EXPORT_PRIVATE ErrorThrower {
  public:
   ErrorThrower(Isolate* isolate, const char* context)
       : isolate_(isolate), context_(context) {}
-  // Explicitly allow move-construction. Disallow copy.
-  ErrorThrower(ErrorThrower&& other) V8_NOEXCEPT;
+  // Disallow copy.
   ErrorThrower(const ErrorThrower&) = delete;
   ErrorThrower& operator=(const ErrorThrower&) = delete;
   ~ErrorThrower();

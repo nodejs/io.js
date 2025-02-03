@@ -40,6 +40,12 @@ extern class WeakFixedArray extends HeapObject {
 }
 
 @cppObjectDefinition
+extern class TrustedWeakFixedArray extends TrustedObject {
+  const length: Smi;
+  objects[length]: MaybeObject;
+}
+
+@cppObjectDefinition
 extern class ByteArray extends FixedArrayBase {
   bytes[length]: uint8;
 }
@@ -48,11 +54,6 @@ extern class ByteArray extends FixedArrayBase {
 extern class TrustedByteArray extends TrustedObject {
   const length: Smi;
   bytes[length]: uint8;
-}
-
-@cppObjectDefinition
-extern class ExternalPointerArray extends FixedArrayBase {
-  pointers[length]: ExternalPointer;
 }
 
 extern macro CodeStubAssembler::AllocateByteArray(uintptr): ByteArray;

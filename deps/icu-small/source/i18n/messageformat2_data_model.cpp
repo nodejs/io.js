@@ -186,6 +186,9 @@ bool Key::operator==(const Key& other) const {
     if (isWildcard()) {
         return other.isWildcard();
     }
+    if (other.isWildcard()) {
+        return false;
+    }
     return (asLiteral() == other.asLiteral());
 }
 
@@ -195,77 +198,6 @@ const Literal& Key::asLiteral() const {
 }
 
 Key::~Key() {}
-
-// ------------ Reserved
-
-// Copy constructor
-Reserved::Reserved(const Reserved& other) : len(other.len) {
-    U_ASSERT(!other.bogus);
-
-    UErrorCode localErrorCode = U_ZERO_ERROR;
-    if (len == 0) {
-        parts.adoptInstead(nullptr);
-    } else {
-        parts.adoptInstead(copyArray(other.parts.getAlias(), len, localErrorCode));
-    }
-    if (U_FAILURE(localErrorCode)) {
-        bogus = true;
-    }
-}
-
-Reserved& Reserved::operator=(Reserved other) noexcept {
-    swap(*this, other);
-    return *this;
-}
-
-Reserved::Reserved(const UVector& ps, UErrorCode& status) noexcept : len(ps.size()) {
-    if (U_FAILURE(status)) {
-        return;
-    }
-    parts = LocalArray<Literal>(copyVectorToArray<Literal>(ps, status));
-}
-
-int32_t Reserved::numParts() const {
-    U_ASSERT(!bogus);
-    return len;
-}
-
-const Literal& Reserved::getPart(int32_t i) const {
-    U_ASSERT(!bogus);
-    U_ASSERT(i < numParts());
-    return parts[i];
-}
-
-Reserved::Builder::Builder(UErrorCode& status) {
-    parts = createUVector(status);
-}
-
-Reserved Reserved::Builder::build(UErrorCode& status) const noexcept {
-    if (U_FAILURE(status)) {
-        return {};
-    }
-    U_ASSERT(parts != nullptr);
-    return Reserved(*parts, status);
-}
-
-Reserved::Builder& Reserved::Builder::add(Literal&& part, UErrorCode& status) noexcept {
-    U_ASSERT(parts != nullptr);
-    if (U_SUCCESS(status)) {
-        Literal* l = create<Literal>(std::move(part), status);
-        parts->adoptElement(l, status);
-    }
-    return *this;
-}
-
-Reserved::Builder::~Builder() {
-    if (parts != nullptr) {
-        delete parts;
-    }
-}
-
-Reserved::~Reserved() {
-    len = 0;
-}
 
 //------------------------ Operator
 
@@ -281,6 +213,10 @@ OptionMap::OptionMap(const UVector& opts, UErrorCode& status) : len(opts.size())
 
 OptionMap::OptionMap(const OptionMap& other) : len(other.len) {
     U_ASSERT(!other.bogus);
+    if (len == 0) {
+        bogus = false;
+        return;
+    }
     UErrorCode localErrorCode = U_ZERO_ERROR;
     Option* result = copyArray(other.options.getAlias(), len, localErrorCode);
     if (U_FAILURE(localErrorCode)) {
@@ -372,14 +308,8 @@ OptionMap::Builder::~Builder() {
     }
 }
 
-const Reserved& Operator::asReserved() const {
-    U_ASSERT(isReserved());
-    return *(std::get_if<Reserved>(&contents));
-}
-
 const OptionMap& Operator::getOptionsInternal() const {
-    U_ASSERT(!isReserved());
-    return std::get_if<Callable>(&contents)->getOptions();
+    return options;
 }
 
 Option::Option(const Option& other): name(other.name), rand(other.rand) {}
@@ -393,62 +323,28 @@ Option::~Option() {}
 
 Operator::Builder::Builder(UErrorCode& status) : options(OptionMap::Builder(status)) {}
 
-Operator::Builder& Operator::Builder::setReserved(Reserved&& reserved) {
-    isReservedSequence = true;
-    hasFunctionName = false;
-    hasOptions = false;
-    asReserved = std::move(reserved);
-    return *this;
-}
-
 Operator::Builder& Operator::Builder::setFunctionName(FunctionName&& func) {
-    isReservedSequence = false;
-    hasFunctionName = true;
     functionName = std::move(func);
     return *this;
 }
 
 const FunctionName& Operator::getFunctionName() const {
-    U_ASSERT(!isReserved());
-    return std::get_if<Callable>(&contents)->getName();
+    return name;
 }
 
 Operator::Builder& Operator::Builder::addOption(const UnicodeString &key, Operand&& value, UErrorCode& errorCode) noexcept {
     THIS_ON_ERROR(errorCode);
 
-    isReservedSequence = false;
-    hasOptions = true;
     options.add(Option(key, std::move(value)), errorCode);
     return *this;
 }
 
 Operator Operator::Builder::build(UErrorCode& errorCode) {
-    Operator result;
-    if (U_FAILURE(errorCode)) {
-        return result;
-    }
-    // Must be either reserved or function, not both; enforced by methods
-    if (isReservedSequence) {
-        // Methods enforce that the function name and options are unset
-        // if `setReserved()` is called, so if they were valid, that
-        // would indicate a bug.
-        U_ASSERT(!hasOptions && !hasFunctionName);
-        result = Operator(asReserved);
-    } else {
-        if (!hasFunctionName) {
-            // Neither function name nor reserved was set
-            // There is no default, so this case could occur if the
-            // caller creates a builder and doesn't make any calls
-            // before calling build().
-            errorCode = U_INVALID_STATE_ERROR;
-            return result;
-        }
-        result = Operator(functionName, options.build(errorCode));
-    }
-    return result;
+    return Operator(functionName, options.build(errorCode));
 }
 
-Operator::Operator(const Operator& other) noexcept : contents(other.contents) {}
+Operator::Operator(const Operator& other) noexcept
+    : name(other.name), options(other.options) {}
 
 Operator& Operator::operator=(Operator other) noexcept {
     swap(*this, other);
@@ -456,22 +352,12 @@ Operator& Operator::operator=(Operator other) noexcept {
 }
 
 // Function call
-Operator::Operator(const FunctionName& f, const UVector& optsVector, UErrorCode& status) : contents(Callable(f, OptionMap(optsVector, status))) {}
 
-Operator::Operator(const FunctionName& f, const OptionMap& opts) : contents(Callable(f, opts)) {}
+Operator::Operator(const FunctionName& f, const OptionMap& opts) : name(f), options(opts) {}
 
 Operator::Builder::~Builder() {}
 
 Operator::~Operator() {}
-
-Callable& Callable::operator=(Callable other) noexcept {
-    swap(*this, other);
-    return *this;
-}
-
-Callable::Callable(const Callable& other) : name(other.name), options(other.options) {}
-
-Callable::~Callable() {}
 
 // ------------ Markup
 
@@ -531,19 +417,14 @@ UBool Expression::isStandaloneAnnotation() const {
 
 // Returns true for function calls with operands as well as
 // standalone annotations.
-// Reserved sequences are not function calls
 UBool Expression::isFunctionCall() const {
-    return (rator.has_value() && !rator->isReserved());
-}
-
-UBool Expression::isReserved() const {
-    return (rator.has_value() && rator->isReserved());
+    return rator.has_value();
 }
 
 const Operator* Expression::getOperator(UErrorCode& status) const {
     NULL_ON_ERROR(status);
 
-    if (!(isReserved() || isFunctionCall())) {
+    if (!isFunctionCall()) {
         status = U_INVALID_STATE_ERROR;
         return nullptr;
     }
@@ -610,92 +491,6 @@ Expression::Builder::~Builder() {}
 
 Expression::~Expression() {}
 
-// ----------- UnsupportedStatement
-
-UnsupportedStatement::Builder::Builder(UErrorCode& status) {
-    expressions = createUVector(status);
-}
-
-UnsupportedStatement::Builder& UnsupportedStatement::Builder::setKeyword(const UnicodeString& k) {
-    keyword = k;
-    return *this;
-}
-
-UnsupportedStatement::Builder& UnsupportedStatement::Builder::setBody(Reserved&& r) {
-    body.emplace(r);
-    return *this;
-}
-
-UnsupportedStatement::Builder& UnsupportedStatement::Builder::addExpression(Expression&& e, UErrorCode& status) {
-    U_ASSERT(expressions != nullptr);
-    if (U_SUCCESS(status)) {
-        Expression* expr = create<Expression>(std::move(e), status);
-        expressions->adoptElement(expr, status);
-    }
-    return *this;
-}
-
-UnsupportedStatement UnsupportedStatement::Builder::build(UErrorCode& status) const {
-    if (U_SUCCESS(status)) {
-        U_ASSERT(expressions != nullptr);
-        if (keyword.length() <= 0) {
-            status = U_ILLEGAL_ARGUMENT_ERROR;
-        } else if (expressions->size() < 1) {
-            status = U_ILLEGAL_ARGUMENT_ERROR;
-        } else {
-            return UnsupportedStatement(keyword, body, *expressions, status);
-        }
-    }
-    return {};
-}
-
-const Reserved* UnsupportedStatement::getBody(UErrorCode& errorCode) const {
-    if (U_SUCCESS(errorCode)) {
-        if (body.has_value()) {
-            return &(*body);
-        }
-        errorCode = U_ILLEGAL_ARGUMENT_ERROR;
-    }
-    return nullptr;
-}
-
-UnsupportedStatement::UnsupportedStatement(const UnicodeString& k,
-                                           const std::optional<Reserved>& r,
-                                           const UVector& es,
-                                           UErrorCode& status)
-    : keyword(k), body(r), expressionsLen(es.size()) {
-    CHECK_ERROR(status);
-
-    U_ASSERT(expressionsLen >= 1);
-    Expression* result = copyVectorToArray<Expression>(es, status);
-    CHECK_ERROR(status);
-    expressions.adoptInstead(result);
-}
-
-UnsupportedStatement::UnsupportedStatement(const UnsupportedStatement& other) {
-    keyword = other.keyword;
-    body = other.body;
-    expressionsLen = other.expressionsLen;
-    U_ASSERT(expressionsLen > 0);
-    UErrorCode localErrorCode = U_ZERO_ERROR;
-    expressions.adoptInstead(copyArray(other.expressions.getAlias(), expressionsLen, localErrorCode));
-    if (U_FAILURE(localErrorCode)) {
-        expressionsLen = 0;
-    }
-}
-
-UnsupportedStatement& UnsupportedStatement::operator=(UnsupportedStatement other) noexcept {
-    swap(*this, other);
-    return *this;
-}
-
-UnsupportedStatement::Builder::~Builder() {
-    if (expressions != nullptr) {
-        delete expressions;
-    }
-}
-
-UnsupportedStatement::~UnsupportedStatement() {}
 // ----------- PatternPart
 
 // PatternPart needs a copy constructor in order to make Pattern deeply copyable
@@ -829,23 +624,19 @@ const Expression& Binding::getValue() const {
         } else {
             const Operator* rator = rhs.getOperator(errorCode);
             bool hasOperator = U_SUCCESS(errorCode);
-            if (hasOperator && rator->isReserved()) {
-                errorCode = U_INVALID_STATE_ERROR;
+            // Clear error code -- the "error" from the absent operator
+            // is handled
+            errorCode = U_ZERO_ERROR;
+            b = Binding(variableName, std::move(rhs));
+            b.local = false;
+            if (hasOperator) {
+                rator = b.getValue().getOperator(errorCode);
+                U_ASSERT(U_SUCCESS(errorCode));
+                b.annotation = rator;
             } else {
-                // Clear error code -- the "error" from the absent operator
-                // is handled
-                errorCode = U_ZERO_ERROR;
-                b = Binding(variableName, std::move(rhs));
-                b.local = false;
-                if (hasOperator) {
-                    rator = b.getValue().getOperator(errorCode);
-                    U_ASSERT(U_SUCCESS(errorCode));
-                    b.annotation = std::get_if<Callable>(&(rator->contents));
-                } else {
-                    b.annotation = nullptr;
-                }
-                U_ASSERT(!hasOperator || b.annotation != nullptr);
+                b.annotation = nullptr;
             }
+            U_ASSERT(!hasOperator || b.annotation != nullptr);
         }
     }
     return b;
@@ -853,17 +644,17 @@ const Expression& Binding::getValue() const {
 
 const OptionMap& Binding::getOptionsInternal() const {
     U_ASSERT(annotation != nullptr);
-    return annotation->getOptions();
+    return annotation->getOptionsInternal();
 }
 
 void Binding::updateAnnotation() {
     UErrorCode localErrorCode = U_ZERO_ERROR;
     const Operator* rator = expr.getOperator(localErrorCode);
-    if (U_FAILURE(localErrorCode) || rator->isReserved()) {
+    if (U_FAILURE(localErrorCode)) {
         return;
     }
-    U_ASSERT(U_SUCCESS(localErrorCode) && !rator->isReserved());
-    annotation = std::get_if<Callable>(&(rator->contents));
+    U_ASSERT(U_SUCCESS(localErrorCode));
+    annotation = rator;
 }
 
 Binding::Binding(const Binding& other) : var(other.var), expr(other.expr), local(other.local) {
@@ -926,9 +717,10 @@ const Pattern& MFDataModel::getPattern() const {
     return *(std::get_if<Pattern>(&body));
 }
 
+// Returns nullptr if no bindings
 const Binding* MFDataModel::getLocalVariablesInternal() const {
     U_ASSERT(!bogus);
-    U_ASSERT(bindings.isValid());
+    U_ASSERT(bindingsLen == 0 || bindings.isValid());
     return bindings.getAlias();
 }
 
@@ -944,16 +736,8 @@ const Variant* MFDataModel::getVariantsInternal() const {
     return std::get_if<Matcher>(&body)->variants.getAlias();
 }
 
-const UnsupportedStatement* MFDataModel::getUnsupportedStatementsInternal() const {
-    U_ASSERT(!bogus);
-    U_ASSERT(unsupportedStatements.isValid());
-    return unsupportedStatements.getAlias();
-}
-
-
 MFDataModel::Builder::Builder(UErrorCode& status) {
     bindings = createUVector(status);
-    unsupportedStatements = createUVector(status);
 }
 
 // Invalidate pattern and create selectors/variants if necessary
@@ -1002,14 +786,6 @@ MFDataModel::Builder& MFDataModel::Builder::addBinding(Binding&& b, UErrorCode& 
     return *this;
 }
 
-MFDataModel::Builder& MFDataModel::Builder::addUnsupportedStatement(UnsupportedStatement&& s, UErrorCode& status) {
-    if (U_SUCCESS(status)) {
-        U_ASSERT(unsupportedStatements != nullptr);
-        unsupportedStatements->adoptElement(create<UnsupportedStatement>(std::move(s), status), status);
-    }
-    return *this;
-}
-
 /*
   selector must be non-null
 */
@@ -1052,7 +828,6 @@ MFDataModel::MFDataModel(const MFDataModel& other) : body(Pattern()) {
     UErrorCode localErrorCode = U_ZERO_ERROR;
 
     if (other.hasPattern()) {
-        //        body.emplace<Pattern>(Pattern(*std::get_if<Pattern>(&other.body)));
         body = *std::get_if<Pattern>(&other.body);
     } else {
         const Expression* otherSelectors = other.getSelectorsInternal();
@@ -1065,17 +840,13 @@ MFDataModel::MFDataModel(const MFDataModel& other) : body(Pattern()) {
             bogus = true;
             return;
         }
-        //        body.emplace<Matcher>(Matcher(copiedSelectors, numSelectors, copiedVariants, numVariants));
         body = Matcher(copiedSelectors, numSelectors, copiedVariants, numVariants);
     }
 
     bindingsLen = other.bindingsLen;
-    bindings.adoptInstead(copyArray(other.bindings.getAlias(), bindingsLen, localErrorCode));
-    if (U_FAILURE(localErrorCode)) {
-        bogus = true;
+    if (bindingsLen > 0) {
+        bindings.adoptInstead(copyArray(other.bindings.getAlias(), bindingsLen, localErrorCode));
     }
-    unsupportedStatementsLen = other.unsupportedStatementsLen;
-    unsupportedStatements.adoptInstead(copyArray(other.unsupportedStatements.getAlias(), unsupportedStatementsLen, localErrorCode));
     if (U_FAILURE(localErrorCode)) {
         bogus = true;
     }
@@ -1091,20 +862,20 @@ MFDataModel::MFDataModel(const MFDataModel::Builder& builder, UErrorCode& errorC
         U_ASSERT(builder.selectors != nullptr);
         int32_t numVariants = builder.variants->size();
         int32_t numSelectors = builder.selectors->size();
-        Variant* variants = copyVectorToArray<Variant>(*builder.variants, errorCode);
-        Expression* selectors = copyVectorToArray<Expression>(*builder.selectors, errorCode);
+        LocalArray<Variant> variants(copyVectorToArray<Variant>(*builder.variants, errorCode), errorCode);
+        LocalArray<Expression> selectors(copyVectorToArray<Expression>(*builder.selectors, errorCode), errorCode);
         if (U_FAILURE(errorCode)) {
             bogus = true;
             return;
         }
-        body.emplace<Matcher>(Matcher(selectors, numSelectors, variants, numVariants));
+        body.emplace<Matcher>(Matcher(selectors.orphan(), numSelectors, variants.orphan(), numVariants));
     }
 
     U_ASSERT(builder.bindings != nullptr);
     bindingsLen = builder.bindings->size();
-    bindings.adoptInstead(copyVectorToArray<Binding>(*builder.bindings, errorCode));
-    unsupportedStatementsLen = builder.unsupportedStatements->size();
-    unsupportedStatements.adoptInstead(copyVectorToArray<UnsupportedStatement>(*builder.unsupportedStatements, errorCode));
+    if (bindingsLen > 0) {
+        bindings.adoptInstead(copyVectorToArray<Binding>(*builder.bindings, errorCode));
+    }
     if (U_FAILURE(errorCode)) {
         bogus = true;
     }
@@ -1138,9 +909,6 @@ MFDataModel::Builder::~Builder() {
     }
     if (bindings != nullptr) {
         delete bindings;
-    }
-    if (unsupportedStatements != nullptr) {
-        delete unsupportedStatements;
     }
 }
 } // namespace message2

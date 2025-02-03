@@ -43,8 +43,6 @@ enum class WasmValueType {
 // TODO(ishell): move to load-handler.h
 class LoadHandler final : public DataHandler {
  public:
-  DECL_CAST(LoadHandler)
-
   DECL_PRINTER(LoadHandler)
   DECL_VERIFIER(LoadHandler)
 
@@ -160,7 +158,7 @@ class LoadHandler final : public DataHandler {
   // interceptor.
   static inline Handle<Smi> LoadInterceptor(Isolate* isolate);
 
-  // Creates a Smi-handler for loading a property from a object.
+  // Creates a Smi-handler for loading a property from an object.
   static inline Handle<Smi> LoadSlow(Isolate* isolate);
 
   // Creates a Smi-handler for loading a field from fast object.
@@ -225,7 +223,8 @@ class LoadHandler final : public DataHandler {
                                               KeyedAccessLoadMode load_mode);
 
   // Decodes the KeyedAccessLoadMode from a {handler}.
-  static KeyedAccessLoadMode GetKeyedAccessLoadMode(MaybeObject handler);
+  static KeyedAccessLoadMode GetKeyedAccessLoadMode(
+      Tagged<MaybeObject> handler);
 
   // Returns true iff the handler can be used in the "holder != lookup start
   // object" case.
@@ -243,15 +242,13 @@ class LoadHandler final : public DataHandler {
 // TODO(ishell): move to store-handler.h
 class StoreHandler final : public DataHandler {
  public:
-  DECL_CAST(StoreHandler)
-
   DECL_PRINTER(StoreHandler)
   DECL_VERIFIER(StoreHandler)
 
   enum class Kind {
     kField,
     kConstField,
-    kAccessor,
+    kAccessorFromPrototype,
     kNativeDataProperty,
     kSharedStructField,
     kApiSetter,
@@ -323,7 +320,7 @@ class StoreHandler final : public DataHandler {
                                                     int descriptor);
 
   // Creates a Smi-handler for calling a setter on a fast object.
-  static inline Handle<Smi> StoreAccessor(Isolate* isolate, int descriptor);
+  static inline Handle<Smi> StoreAccessorFromPrototype(Isolate* isolate);
 
   // Creates a Smi-handler for calling a native setter on a fast object.
   static inline Handle<Smi> StoreApiSetter(Isolate* isolate,
@@ -336,9 +333,9 @@ class StoreHandler final : public DataHandler {
       MaybeObjectHandle maybe_data2 = MaybeObjectHandle());
 
   static Handle<Object> StoreElementTransition(
-      Isolate* isolate, Handle<Map> receiver_map, Handle<Map> transition,
-      KeyedAccessStoreMode store_mode,
-      MaybeHandle<Object> prev_validity_cell = MaybeHandle<Object>());
+      Isolate* isolate, DirectHandle<Map> receiver_map,
+      DirectHandle<Map> transition, KeyedAccessStoreMode store_mode,
+      MaybeHandle<UnionOf<Smi, Cell>> prev_validity_cell = kNullMaybeHandle);
 
   static Handle<Object> StoreProxy(Isolate* isolate, Handle<Map> receiver_map,
                                    Handle<JSProxy> proxy,
@@ -374,7 +371,8 @@ class StoreHandler final : public DataHandler {
   static inline Tagged<Smi> StoreProxy();
 
   // Decodes the KeyedAccessStoreMode from a {handler}.
-  static KeyedAccessStoreMode GetKeyedAccessStoreMode(MaybeObject handler);
+  static KeyedAccessStoreMode GetKeyedAccessStoreMode(
+      Tagged<MaybeObject> handler);
 
 #if defined(OBJECT_PRINT)
   static void PrintHandler(Tagged<Object> handler, std::ostream& os);

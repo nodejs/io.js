@@ -32,7 +32,8 @@ class JSONTurboshaftGraphWriter {
                             NodeOriginTable* origins, Zone* zone);
 
   JSONTurboshaftGraphWriter(const JSONTurboshaftGraphWriter&) = delete;
-  JSONTurboshaftGraphWriter& operator=(const JSONTurboshaftGraphWriter&) = delete;
+  JSONTurboshaftGraphWriter& operator=(const JSONTurboshaftGraphWriter&) =
+      delete;
 
   void Print();
 

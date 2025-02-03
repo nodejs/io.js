@@ -1,3 +1,21 @@
+## 8.3.4 (2024-09-09)
+
+### Bug fixes
+
+Walk SwitchCase nodes as separate nodes.
+
+## 8.3.3 (2024-01-11)
+
+### Bug fixes
+
+Make acorn a dependency because acorn-walk uses the types from that package.
+
+## 8.3.2 (2024-01-11)
+
+### Bug fixes
+
+Add missing type for `findNodeBefore`.
+
 ## 8.3.1 (2023-12-06)
 
 ### Bug fixes

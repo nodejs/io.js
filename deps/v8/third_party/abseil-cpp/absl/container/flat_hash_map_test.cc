@@ -16,12 +16,16 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/base/config.h"
 #include "absl/container/internal/hash_generator_testing.h"
+#include "absl/container/internal/hash_policy_testing.h"
 #include "absl/container/internal/test_allocator.h"
 #include "absl/container/internal/unordered_map_constructor_test.h"
 #include "absl/container/internal/unordered_map_lookup_test.h"
@@ -41,6 +45,7 @@ using ::testing::_;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
+using ::testing::UnorderedElementsAreArray;
 
 // Check that absl::flat_hash_map works in a global constructor.
 struct BeforeMain {
@@ -303,6 +308,58 @@ TEST(FlatHashMap, EraseIf) {
   }
 }
 
+TEST(FlatHashMap, CForEach) {
+  flat_hash_map<int, int> m;
+  std::vector<std::pair<int, int>> expected;
+  for (int i = 0; i < 100; ++i) {
+    {
+      SCOPED_TRACE("mutable object iteration");
+      std::vector<std::pair<int, int>> v;
+      absl::container_internal::c_for_each_fast(
+          m, [&v](std::pair<const int, int>& p) { v.push_back(p); });
+      EXPECT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("const object iteration");
+      std::vector<std::pair<int, int>> v;
+      const flat_hash_map<int, int>& cm = m;
+      absl::container_internal::c_for_each_fast(
+          cm, [&v](const std::pair<const int, int>& p) { v.push_back(p); });
+      EXPECT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    {
+      SCOPED_TRACE("const object iteration");
+      std::vector<std::pair<int, int>> v;
+      absl::container_internal::c_for_each_fast(
+          flat_hash_map<int, int>(m),
+          [&v](std::pair<const int, int>& p) { v.push_back(p); });
+      EXPECT_THAT(v, UnorderedElementsAreArray(expected));
+    }
+    m[i] = i;
+    expected.emplace_back(i, i);
+  }
+}
+
+TEST(FlatHashMap, CForEachMutate) {
+  flat_hash_map<int, int> s;
+  std::vector<std::pair<int, int>> expected;
+  for (int i = 0; i < 100; ++i) {
+    std::vector<std::pair<int, int>> v;
+    absl::container_internal::c_for_each_fast(
+        s, [&v](std::pair<const int, int>& p) {
+          v.push_back(p);
+          p.second++;
+        });
+    EXPECT_THAT(v, UnorderedElementsAreArray(expected));
+    for (auto& p : expected) {
+      p.second++;
+    }
+    EXPECT_THAT(s, UnorderedElementsAreArray(expected));
+    s[i] = i;
+    expected.emplace_back(i, i);
+  }
+}
+
 // This test requires std::launder for mutable key access in node handles.
 #if defined(__cpp_lib_launder) && __cpp_lib_launder >= 201606
 TEST(FlatHashMap, NodeHandleMutableKeyAccess) {
@@ -361,6 +418,38 @@ TEST(FlatHashMap, FlatHashMapPolicyDestroyReturnsTrue) {
           nullptr, nullptr))()));
   EXPECT_FALSE((decltype(FlatHashMapPolicy<int, std::unique_ptr<int>>::destroy<
                          std::allocator<char>>(nullptr, nullptr))()));
+}
+
+struct InconsistentHashEqType {
+  InconsistentHashEqType(int v1, int v2) : v1(v1), v2(v2) {}
+  template <typename H>
+  friend H AbslHashValue(H h, InconsistentHashEqType t) {
+    return H::combine(std::move(h), t.v1);
+  }
+  bool operator==(InconsistentHashEqType t) const { return v2 == t.v2; }
+  int v1, v2;
+};
+
+TEST(Iterator, InconsistentHashEqFunctorsValidation) {
+  if (!IsAssertEnabled()) GTEST_SKIP() << "Assertions not enabled.";
+
+  absl::flat_hash_map<InconsistentHashEqType, int> m;
+  for (int i = 0; i < 10; ++i) m[{i, i}] = 1;
+  // We need to insert multiple times to guarantee that we get the assertion
+  // because it's possible for the hash to collide with the inserted element
+  // that has v2==0. In those cases, the new element won't be inserted.
+  auto insert_conflicting_elems = [&] {
+    for (int i = 100; i < 20000; ++i) {
+      EXPECT_EQ((m[{i, 0}]), 1);
+    }
+  };
+
+  const char* crash_message = "hash/eq functors are inconsistent.";
+#if defined(__arm__) || defined(__aarch64__)
+  // On ARM, the crash message is garbled so don't expect a specific message.
+  crash_message = "";
+#endif
+  EXPECT_DEATH_IF_SUPPORTED(insert_conflicting_elems(), crash_message);
 }
 
 }  // namespace

@@ -3,7 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.bufferEqual = exports.verify = exports.hash = exports.digest = exports.createPublicKey = void 0;
+exports.createPublicKey = createPublicKey;
+exports.digest = digest;
+exports.verify = verify;
+exports.bufferEqual = bufferEqual;
 /*
 Copyright 2023 The Sigstore Authors.
 
@@ -20,7 +23,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 const crypto_1 = __importDefault(require("crypto"));
-const SHA256_ALGORITHM = 'sha256';
 function createPublicKey(key, type = 'spki') {
     if (typeof key === 'string') {
         return crypto_1.default.createPublicKey(key);
@@ -29,7 +31,6 @@ function createPublicKey(key, type = 'spki') {
         return crypto_1.default.createPublicKey({ key, format: 'der', type: type });
     }
 }
-exports.createPublicKey = createPublicKey;
 function digest(algorithm, ...data) {
     const hash = crypto_1.default.createHash(algorithm);
     for (const d of data) {
@@ -37,16 +38,6 @@ function digest(algorithm, ...data) {
     }
     return hash.digest();
 }
-exports.digest = digest;
-// TODO: deprecate this in favor of digest()
-function hash(...data) {
-    const hash = crypto_1.default.createHash(SHA256_ALGORITHM);
-    for (const d of data) {
-        hash.update(d);
-    }
-    return hash.digest();
-}
-exports.hash = hash;
 function verify(data, key, signature, algorithm) {
     // The try/catch is to work around an issue in Node 14.x where verify throws
     // an error in some scenarios if the signature is invalid.
@@ -58,7 +49,6 @@ function verify(data, key, signature, algorithm) {
         return false;
     }
 }
-exports.verify = verify;
 function bufferEqual(a, b) {
     try {
         return crypto_1.default.timingSafeEqual(a, b);
@@ -68,4 +58,3 @@ function bufferEqual(a, b) {
         return false;
     }
 }
-exports.bufferEqual = bufferEqual;

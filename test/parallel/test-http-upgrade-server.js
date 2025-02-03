@@ -100,7 +100,7 @@ function test_upgrade_with_listener() {
     assert.strictEqual(typeof data, 'string');
 
     if (state === 1) {
-      assert.strictEqual(data.substr(0, 12), 'HTTP/1.1 101');
+      assert.strictEqual(data.slice(0, 12), 'HTTP/1.1 101');
       assert.strictEqual(request_upgradeHead.toString('utf8'), 'WjN}|M(6');
       conn.write('test', 'utf8');
     } else if (state === 2) {
@@ -133,7 +133,7 @@ function test_upgrade_no_listener() {
 
   conn.once('data', (data) => {
     assert.strictEqual(typeof data, 'string');
-    assert.strictEqual(data.substr(0, 12), 'HTTP/1.1 200');
+    assert.strictEqual(data.slice(0, 12), 'HTTP/1.1 200');
     conn.end();
   });
 
@@ -153,7 +153,7 @@ function test_standard_http() {
 
   conn.once('data', function(data) {
     assert.strictEqual(typeof data, 'string');
-    assert.strictEqual(data.substr(0, 12), 'HTTP/1.1 200');
+    assert.strictEqual(data.slice(0, 12), 'HTTP/1.1 200');
     conn.end();
   });
 

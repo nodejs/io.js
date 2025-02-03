@@ -107,7 +107,7 @@ public:
      */
     uint64_t getState64() const {
         return (static_cast<uint64_t>(remainingMatchLength_ + 2) << kState64RemainingShift) |
-            (uint64_t)(pos_ - uchars_);
+            static_cast<uint64_t>(pos_ - uchars_);
     }
 
     /**
@@ -493,7 +493,7 @@ private:
     }
 
     static inline UStringTrieResult valueResult(int32_t node) {
-        return (UStringTrieResult)(USTRINGTRIE_INTERMEDIATE_VALUE-(node>>15));
+        return static_cast<UStringTrieResult>(USTRINGTRIE_INTERMEDIATE_VALUE - (node >> 15));
     }
 
     // Handles a branch node for both next(uchar) and next(string).

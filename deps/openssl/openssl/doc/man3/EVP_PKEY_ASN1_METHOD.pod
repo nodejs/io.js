@@ -393,7 +393,7 @@ This function is not thread safe, it's recommended to only use this
 when initializing the application.
 
 EVP_PKEY_asn1_free() frees an existing B<EVP_PKEY_ASN1_METHOD> pointed
-by B<ameth>.
+by B<ameth>. If the argument is NULL, nothing is done.
 
 EVP_PKEY_asn1_add0() adds B<ameth> to the user defined stack of
 methods unless another B<EVP_PKEY_ASN1_METHOD> with the same NID is
@@ -439,7 +439,7 @@ parameter is now constified.
 
 =head1 COPYRIGHT
 
-Copyright 2017-2021 The OpenSSL Project Authors. All Rights Reserved.
+Copyright 2017-2024 The OpenSSL Project Authors. All Rights Reserved.
 
 Licensed under the Apache License 2.0 (the "License").  You may not use
 this file except in compliance with the License.  You can obtain a copy

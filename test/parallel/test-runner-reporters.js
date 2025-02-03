@@ -16,16 +16,19 @@ describe('node:test reporters', { concurrency: true }, () => {
   it('should default to outputing TAP to stdout', async () => {
     const child = spawnSync(process.execPath, ['--test', testFile]);
     assert.strictEqual(child.stderr.toString(), '');
-    assert.match(child.stdout.toString(), /TAP version 13/);
-    assert.match(child.stdout.toString(), /ok 1 - ok/);
-    assert.match(child.stdout.toString(), /not ok 2 - failing/);
-    assert.match(child.stdout.toString(), /ok 2 - top level/);
+    assert.match(child.stdout.toString(), /✖ failing tests:/);
+    assert.match(child.stdout.toString(), /✔ ok/);
+    assert.match(child.stdout.toString(), /✖ failing/);
+    assert.match(child.stdout.toString(), /✔ top level/);
   });
 
   it('should default destination to stdout when passing a single reporter', async () => {
     const child = spawnSync(process.execPath, ['--test', '--test-reporter', 'dot', testFile]);
     assert.strictEqual(child.stderr.toString(), '');
-    assert.strictEqual(child.stdout.toString(), '.XX.\n');
+    assert.match(child.stdout.toString(), /\.XX\.\n/);
+    assert.match(child.stdout.toString(), /Failed tests:/);
+    assert.match(child.stdout.toString(), /✖ failing/);
+    assert.match(child.stdout.toString(), /✖ nested/);
   });
 
   it('should throw when passing reporters without a destination', async () => {
@@ -44,13 +47,19 @@ describe('node:test reporters', { concurrency: true }, () => {
     const child = spawnSync(process.execPath,
                             ['--test', '--test-reporter', 'dot', '--test-reporter-destination', 'stdout', testFile]);
     assert.strictEqual(child.stderr.toString(), '');
-    assert.strictEqual(child.stdout.toString(), '.XX.\n');
+    assert.match(child.stdout.toString(), /\.XX\.\n/);
+    assert.match(child.stdout.toString(), /Failed tests:/);
+    assert.match(child.stdout.toString(), /✖ failing/);
+    assert.match(child.stdout.toString(), /✖ nested/);
   });
 
   it('should support stderr as a destination', async () => {
     const child = spawnSync(process.execPath,
                             ['--test', '--test-reporter', 'dot', '--test-reporter-destination', 'stderr', testFile]);
-    assert.strictEqual(child.stderr.toString(), '.XX.\n');
+    assert.match(child.stderr.toString(), /\.XX\.\n/);
+    assert.match(child.stderr.toString(), /Failed tests:/);
+    assert.match(child.stderr.toString(), /✖ failing/);
+    assert.match(child.stderr.toString(), /✖ nested/);
     assert.strictEqual(child.stdout.toString(), '');
   });
 
@@ -60,7 +69,11 @@ describe('node:test reporters', { concurrency: true }, () => {
                             ['--test', '--test-reporter', 'dot', '--test-reporter-destination', file, testFile]);
     assert.strictEqual(child.stderr.toString(), '');
     assert.strictEqual(child.stdout.toString(), '');
-    assert.strictEqual(fs.readFileSync(file, 'utf8'), '.XX.\n');
+    const fileContents = fs.readFileSync(file, 'utf8');
+    assert.match(fileContents, /\.XX\.\n/);
+    assert.match(fileContents, /Failed tests:/);
+    assert.match(fileContents, /✖ failing/);
+    assert.match(fileContents, /✖ nested/);
   });
 
   it('should disallow using v8-serializer as reporter', async () => {
@@ -81,7 +94,11 @@ describe('node:test reporters', { concurrency: true }, () => {
                              testFile]);
     assert.match(child.stdout.toString(), /TAP version 13/);
     assert.match(child.stdout.toString(), /# duration_ms/);
-    assert.strictEqual(fs.readFileSync(file, 'utf8'), '.XX.\n');
+    const fileContents = fs.readFileSync(file, 'utf8');
+    assert.match(fileContents, /\.XX\.\n/);
+    assert.match(fileContents, /Failed tests:/);
+    assert.match(fileContents, /✖ failing/);
+    assert.match(fileContents, /✖ nested/);
     const file2Contents = fs.readFileSync(file2, 'utf8');
     assert.match(file2Contents, /▶ nested/);
     assert.match(file2Contents, /✔ ok/);
@@ -96,7 +113,7 @@ describe('node:test reporters', { concurrency: true }, () => {
                                testFile]);
       assert.strictEqual(child.stderr.toString(), '');
       const stdout = child.stdout.toString();
-      assert.match(stdout, /{"test:enqueue":5,"test:dequeue":5,"test:complete":5,"test:start":4,"test:pass":2,"test:fail":2,"test:plan":2,"test:diagnostic":\d+}$/);
+      assert.match(stdout, /{"test:enqueue":5,"test:dequeue":5,"test:complete":5,"test:start":4,"test:pass":2,"test:fail":2,"test:plan":2,"test:summary":2,"test:diagnostic":\d+}$/);
       assert.strictEqual(stdout.slice(0, filename.length + 2), `${filename} {`);
     });
   });
@@ -108,7 +125,7 @@ describe('node:test reporters', { concurrency: true }, () => {
     assert.strictEqual(child.stderr.toString(), '');
     assert.match(
       child.stdout.toString(),
-      /^package: reporter-cjs{"test:enqueue":5,"test:dequeue":5,"test:complete":5,"test:start":4,"test:pass":2,"test:fail":2,"test:plan":2,"test:diagnostic":\d+}$/,
+      /^package: reporter-cjs{"test:enqueue":5,"test:dequeue":5,"test:complete":5,"test:start":4,"test:pass":2,"test:fail":2,"test:plan":2,"test:summary":2,"test:diagnostic":\d+}$/,
     );
   });
 
@@ -119,7 +136,7 @@ describe('node:test reporters', { concurrency: true }, () => {
     assert.strictEqual(child.stderr.toString(), '');
     assert.match(
       child.stdout.toString(),
-      /^package: reporter-esm{"test:enqueue":5,"test:dequeue":5,"test:complete":5,"test:start":4,"test:pass":2,"test:fail":2,"test:plan":2,"test:diagnostic":\d+}$/,
+      /^package: reporter-esm{"test:enqueue":5,"test:dequeue":5,"test:complete":5,"test:start":4,"test:pass":2,"test:fail":2,"test:plan":2,"test:summary":2,"test:diagnostic":\d+}$/,
     );
   });
 

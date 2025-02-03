@@ -14,56 +14,29 @@
 
 namespace node {
 namespace crypto {
-class DiffieHellman : public BaseObject {
+class DiffieHellman final : public BaseObject {
  public:
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 
-  bool Init(int primeLength, int g);
-  bool Init(BignumPointer&& bn_p, int g);
-  bool Init(const char* p, int p_len, int g);
-  bool Init(const char* p, int p_len, const char* g, int g_len);
-
-  static void Stateless(const v8::FunctionCallbackInfo<v8::Value>& args);
-
- protected:
-  static void DiffieHellmanGroup(
-      const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GenerateKeys(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GetPrime(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GetGenerator(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GetPublicKey(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void GetPrivateKey(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void ComputeSecret(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void SetPublicKey(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void SetPrivateKey(const v8::FunctionCallbackInfo<v8::Value>& args);
-  static void VerifyErrorGetter(
-      const v8::FunctionCallbackInfo<v8::Value>& args);
-
-  DiffieHellman(Environment* env, v8::Local<v8::Object> wrap);
+  DiffieHellman(Environment* env,
+                v8::Local<v8::Object> wrap,
+                ncrypto::DHPointer dh);
+  operator ncrypto::DHPointer&() { return dh_; }
 
   void MemoryInfo(MemoryTracker* tracker) const override;
   SET_MEMORY_INFO_NAME(DiffieHellman)
   SET_SELF_SIZE(DiffieHellman)
 
  private:
-  static void GetField(const v8::FunctionCallbackInfo<v8::Value>& args,
-                       const BIGNUM* (*get_field)(const DH*),
-                       const char* err_if_null);
-  static void SetKey(const v8::FunctionCallbackInfo<v8::Value>& args,
-                     int (*set_field)(DH*, BIGNUM*), const char* what);
-  bool VerifyContext();
-
-  int verifyError_;
-  DHPointer dh_;
+  ncrypto::DHPointer dh_;
 };
 
 struct DhKeyPairParams final : public MemoryRetainer {
   // Diffie-Hellman can either generate keys using a fixed prime, or by first
   // generating a random prime of a given size (in bits). Only one of both
   // options may be specified.
-  std::variant<BignumPointer, int> prime;
+  std::variant<ncrypto::BignumPointer, int> prime;
   unsigned int generator;
   SET_NO_MEMORY_INFO()
   SET_MEMORY_INFO_NAME(DhKeyPairParams)
@@ -76,9 +49,9 @@ struct DhKeyGenTraits final {
   using AdditionalParameters = DhKeyPairGenConfig;
   static constexpr const char* JobName = "DhKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(DhKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(DhKeyPairGenConfig* params);
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int* offset,
@@ -97,23 +70,22 @@ struct DHKeyExportTraits final {
   static constexpr const char* JobName = "DHKeyExportJob";
   using AdditionalParameters = DHKeyExportConfig;
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int offset,
       DHKeyExportConfig* config);
 
-  static WebCryptoKeyExportStatus DoExport(
-      std::shared_ptr<KeyObjectData> key_data,
-      WebCryptoKeyFormat format,
-      const DHKeyExportConfig& params,
-      ByteSource* out);
+  static WebCryptoKeyExportStatus DoExport(const KeyObjectData& key_data,
+                                           WebCryptoKeyFormat format,
+                                           const DHKeyExportConfig& params,
+                                           ByteSource* out);
 };
 
 using DHKeyExportJob = KeyExportJob<DHKeyExportTraits>;
 
 struct DHBitsConfig final : public MemoryRetainer {
-  std::shared_ptr<KeyObjectData> private_key;
-  std::shared_ptr<KeyObjectData> public_key;
+  KeyObjectData private_key;
+  KeyObjectData public_key;
   SET_NO_MEMORY_INFO()
   SET_MEMORY_INFO_NAME(DHBitsConfig)
   SET_SELF_SIZE(DHBitsConfig)
@@ -125,7 +97,7 @@ struct DHBitsTraits final {
   static constexpr AsyncWrap::ProviderType Provider =
       AsyncWrap::PROVIDER_DERIVEBITSREQUEST;
 
-  static v8::Maybe<bool> AdditionalConfig(
+  static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
       const v8::FunctionCallbackInfo<v8::Value>& args,
       unsigned int offset,
@@ -136,19 +108,16 @@ struct DHBitsTraits final {
       const DHBitsConfig& params,
       ByteSource* out_);
 
-  static v8::Maybe<bool> EncodeOutput(
-      Environment* env,
-      const DHBitsConfig& params,
-      ByteSource* out,
-      v8::Local<v8::Value>* result);
+  static v8::MaybeLocal<v8::Value> EncodeOutput(Environment* env,
+                                                const DHBitsConfig& params,
+                                                ByteSource* out);
 };
 
 using DHBitsJob = DeriveBitsJob<DHBitsTraits>;
 
-v8::Maybe<bool> GetDhKeyDetail(
-    Environment* env,
-    std::shared_ptr<KeyObjectData> key,
-    v8::Local<v8::Object> target);
+v8::Maybe<void> GetDhKeyDetail(Environment* env,
+                               const KeyObjectData& key,
+                               v8::Local<v8::Object> target);
 
 }  // namespace crypto
 }  // namespace node

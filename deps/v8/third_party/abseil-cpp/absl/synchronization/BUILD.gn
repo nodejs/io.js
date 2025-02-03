@@ -83,21 +83,41 @@ absl_source_set("synchronization") {
     "//third_party/abseil-cpp/absl/base:dynamic_annotations",
     "//third_party/abseil-cpp/absl/base:malloc_internal",
     "//third_party/abseil-cpp/absl/base:raw_logging_internal",
+    "//third_party/abseil-cpp/absl/base:tracing_internal",
     "//third_party/abseil-cpp/absl/debugging:stacktrace",
     "//third_party/abseil-cpp/absl/debugging:symbolize",
     "//third_party/abseil-cpp/absl/time",
   ]
 }
 
-absl_test("waiter_test") {
-  sources = [ "internal/waiter_test.cc" ]
+absl_test("barrier_test") {
+  sources = [ "barrier_test.cc" ]
   deps = [
-    ":kernel_timeout_internal",
     ":synchronization",
-    ":thread_pool",
-    "//third_party/abseil-cpp/absl/base:config",
-    "//third_party/abseil-cpp/absl/random",
     "//third_party/abseil-cpp/absl/time",
+  ]
+}
+
+# Conflicts at link time with "tracing_strong_test" because also defines
+# strong functions for AbslInternalTraceWait and alike
+# absl_test("blocking_counter_test") {
+#   sources = [ "blocking_counter_test.cc" ]
+#   deps = [
+#     ":synchronization",
+#     "//third_party/abseil-cpp/absl/base:config",
+#     "//third_party/abseil-cpp/absl/base:core_headers",
+#     "//third_party/abseil-cpp/absl/base:tracing_internal",
+#     "//third_party/abseil-cpp/absl/time",
+#   ]
+# }
+
+absl_test("graphcycles_test") {
+  sources = [ "internal/graphcycles_test.cc" ]
+  deps = [
+    ":graphcycles_internal",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/log",
+    "//third_party/abseil-cpp/absl/log:check",
   ]
 }
 
@@ -111,6 +131,43 @@ absl_source_set("thread_pool") {
   ]
   visibility = [ "//third_party/abseil-cpp/absl/*" ]
 }
+
+absl_test("mutex_test") {
+  sources = [ "mutex_test.cc" ]
+  deps = [
+    ":synchronization",
+    ":thread_pool",
+    "//third_party/abseil-cpp/absl/base",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/log",
+    "//third_party/abseil-cpp/absl/log:check",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/time",
+  ]
+}
+
+# Doesn't compile.
+# absl_test("mutex_method_pointer_test") {
+#   sources = [ "mutex_method_pointer_test.cc" ]
+#   deps = [
+#     ":synchronization",
+#     "//third_party/abseil-cpp/absl/base:config",
+#   ]
+# }
+
+# Conflicts at link time with "tracing_strong_test" because also defines
+# strong functions for AbslInternalTraceWait and alike
+# absl_test("notification_test") {
+#   sources = [ "notification_test.cc" ]
+#   deps = [
+#     ":synchronization",
+#     "//third_party/abseil-cpp/absl/base:config",
+#     "//third_party/abseil-cpp/absl/base:core_headers",
+#     "//third_party/abseil-cpp/absl/base:tracing_internal",
+#     "//third_party/abseil-cpp/absl/time",
+#   ]
+# }
 
 absl_source_set("per_thread_sem_test_common") {
   testonly = true
@@ -126,10 +183,32 @@ absl_source_set("per_thread_sem_test_common") {
   visibility = [ ":*" ]
 }
 
-# absl_test("mutex_method_pointer_test") {
-#   sources = [ "mutex_method_pointer_test.cc" ]
+absl_test("per_thread_sem_test") {
+  deps = [
+    ":per_thread_sem_test_common",
+    ":synchronization",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/time",
+  ]
+}
+
+absl_test("waiter_test") {
+  sources = [ "internal/waiter_test.cc" ]
+  deps = [
+    ":kernel_timeout_internal",
+    ":synchronization",
+    ":thread_pool",
+    "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/random",
+    "//third_party/abseil-cpp/absl/time",
+  ]
+}
+# Has it's own main function and thus can't be included into absl_tests target
+# absl_test("lifetime_test") {
+#   sources = [ "lifetime_test.cc" ]
 #   deps = [
 #     ":synchronization",
-#     "//third_party/abseil-cpp/absl/base:config",
+#     "//third_party/abseil-cpp/absl/base:core_headers",
+#     "//third_party/abseil-cpp/absl/log:check",
 #   ]
 # }

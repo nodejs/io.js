@@ -1,8 +1,15 @@
+// Flags: --expose-internals
 'use strict';
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
+// OpenSSL has a set of security levels which affect what algorithms
+// are available by default. Different OpenSSL veresions have different
+// default security levels and we use this value to adjust what a test
+// expects based on the security level. You can read more in
+// https://docs.openssl.org/1.1.1/man3/SSL_CTX_set_security_level/#default-callback-behaviour
+const secLevel = require('internal/crypto/util').getOpenSSLSecLevel();
 const assert = require('assert');
 const tls = require('tls');
 const fixtures = require('../common/fixtures');
@@ -35,11 +42,13 @@ function test(size, err, next) {
   });
 
   server.listen(0, function() {
-    // Client set minimum DH parameter size to 2048 bits so that
-    // it fails when it make a connection to the tls server where
-    // dhparams is 1024 bits
+    // Client set minimum DH parameter size to 2048 or 3072 bits
+    // so that it fails when it makes a connection to the tls
+    // server where is too small. This depends on the openssl
+    // security level
+    const minDHSize = (secLevel > 1) ? 3072 : 2048;
     const client = tls.connect({
-      minDHSize: 2048,
+      minDHSize: minDHSize,
       port: this.address().port,
       rejectUnauthorized: false,
       maxVersion: 'TLSv1.2',
@@ -60,16 +69,27 @@ function test(size, err, next) {
 // A client connection fails with an error when a client has an
 // 2048 bits minDHSize option and a server has 1024 bits dhparam
 function testDHE1024() {
-  test(1024, true, testDHE2048);
+  test(1024, true, testDHE2048(false, null));
+}
+
+// Test a client connection when a client has an
+// 2048 bits minDHSize option
+function testDHE2048(expect_to_fail, next) {
+  test(2048, expect_to_fail, next);
 }
 
 // A client connection successes when a client has an
-// 2048 bits minDHSize option and a server has 2048 bits dhparam
-function testDHE2048() {
-  test(2048, false, null);
+// 3072 bits minDHSize option and a server has 3072 bits dhparam
+function testDHE3072() {
+  test(3072, false, null);
 }
 
-testDHE1024();
+if (secLevel > 1) {
+  // Minimum size for OpenSSL security level 2 and above is 2048 by default
+  testDHE2048(true, testDHE3072);
+} else {
+  testDHE1024();
+}
 
 assert.throws(() => test(512, true, common.mustNotCall()),
               /DH parameter is less than 1024 bits/);

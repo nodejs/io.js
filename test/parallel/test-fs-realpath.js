@@ -23,9 +23,11 @@
 const common = require('../common');
 const fixtures = require('../common/fixtures');
 const tmpdir = require('../common/tmpdir');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 const assert = require('assert');
 const fs = require('fs');
@@ -42,7 +44,7 @@ let root = '/';
 let assertEqualPath = assert.strictEqual;
 if (common.isWindows) {
   // Something like "C:\\"
-  root = process.cwd().substr(0, 3);
+  root = process.cwd().slice(0, 3);
   assertEqualPath = function(path_left, path_right, message) {
     assert
       .strictEqual(path_left.toLowerCase(), path_right.toLowerCase(), message);
@@ -367,7 +369,7 @@ function test_deep_symlink_mix(realpath, realpathSync, callback) {
 function test_non_symlinks(realpath, realpathSync, callback) {
   console.log('test_non_symlinks');
   const entrydir = path.dirname(tmpAbsDir);
-  const entry = `${tmpAbsDir.substr(entrydir.length + 1)}/cycles/root.js`;
+  const entry = `${tmpAbsDir.slice(entrydir.length + 1)}/cycles/root.js`;
   const expected = `${tmpAbsDir}/cycles/root.js`;
   const origcwd = process.cwd();
   process.chdir(entrydir);

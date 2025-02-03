@@ -88,7 +88,7 @@ DEFINE[../../providers/libdefault.a]=$SHA1DEF $KECCAK1600DEF
 # linked with libcrypto.  Otherwise, it already gets everything that
 # the static libcrypto.a has, and doesn't need it added again.
 IF[{- !$disabled{module} && !$disabled{shared} -}]
-  DEFINE[../providers/liblegacy.a]=$SHA1DEF $KECCAK1600DEF
+  DEFINE[../../providers/liblegacy.a]=$SHA1DEF $KECCAK1600DEF
 ENDIF
 
 GENERATE[sha1-586.S]=asm/sha1-586.pl

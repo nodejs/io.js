@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-rab-gsab --allow-natives-syntax
+// Flags: --allow-natives-syntax --js-float16array
 
 "use strict";
 
@@ -13,7 +13,7 @@ d8.file.execute('test/mjsunit/typedarray-helpers.js');
   const i32a = new Int32Array(gsab);
 
   const workerScript = function() {
-      onmessage = function(msg) {
+      onmessage = function({data:msg}) {
         const i32a = new Int32Array(msg.gsab, msg.offset);
         const result = Atomics.wait(i32a, 0, 0, 5000);
         postMessage(result);
@@ -39,7 +39,7 @@ d8.file.execute('test/mjsunit/typedarray-helpers.js');
   const index = 5;
 
   const workerScript = function() {
-      onmessage = function(msg) {
+      onmessage = function({data:msg}) {
         const i32a = new Int32Array(msg.gsab, msg.offset);
         const result = Atomics.wait(i32a, 5, 0, 5000);
         postMessage(result);

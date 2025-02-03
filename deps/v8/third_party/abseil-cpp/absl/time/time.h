@@ -74,21 +74,38 @@
 // including 'windows.h' so we are picking the lesser of two evils here.
 struct timeval;
 #endif
+
+#include "absl/base/config.h"
+
+// For feature testing and determining which headers can be included.
+#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+#include <version>
+#endif
+
 #include <chrono>  // NOLINT(build/c++11)
 #include <cmath>
+#ifdef __cpp_lib_three_way_comparison
+#include <compare>
+#endif  // __cpp_lib_three_way_comparison
 #include <cstdint>
 #include <ctime>
 #include <limits>
 #include <ostream>
+#include <ratio>  // NOLINT(build/c++11)
 #include <string>
 #include <type_traits>
 #include <utility>
 
-#include "absl/base/config.h"
+#include "absl/base/attributes.h"
 #include "absl/base/macros.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/civil_time.h"
 #include "absl/time/internal/cctz/include/cctz/time_zone.h"
+
+#if defined(__cpp_impl_three_way_comparison) && \
+    defined(__cpp_lib_three_way_comparison)
+#define ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON 1
+#endif
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -98,7 +115,6 @@ class Time;      // Defined below
 class TimeZone;  // Defined below
 
 namespace time_internal {
-int64_t IDivDuration(bool satq, Duration num, Duration den, Duration* rem);
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr Time FromUnixDuration(Duration d);
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr Duration ToUnixDuration(Time t);
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr int64_t GetRepHi(Duration d);
@@ -306,6 +322,14 @@ class Duration {
 };
 
 // Relational Operators
+
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+
+ABSL_ATTRIBUTE_CONST_FUNCTION constexpr std::strong_ordering operator<=>(
+    Duration lhs, Duration rhs);
+
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator<(Duration lhs,
                                                        Duration rhs);
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator>(Duration lhs,
@@ -338,30 +362,6 @@ ABSL_ATTRIBUTE_CONST_FUNCTION inline Duration operator-(Duration lhs,
   return lhs -= rhs;
 }
 
-// Multiplicative Operators
-// Integer operands must be representable as int64_t.
-template <typename T>
-ABSL_ATTRIBUTE_CONST_FUNCTION Duration operator*(Duration lhs, T rhs) {
-  return lhs *= rhs;
-}
-template <typename T>
-ABSL_ATTRIBUTE_CONST_FUNCTION Duration operator*(T lhs, Duration rhs) {
-  return rhs *= lhs;
-}
-template <typename T>
-ABSL_ATTRIBUTE_CONST_FUNCTION Duration operator/(Duration lhs, T rhs) {
-  return lhs /= rhs;
-}
-ABSL_ATTRIBUTE_CONST_FUNCTION inline int64_t operator/(Duration lhs,
-                                                       Duration rhs) {
-  return time_internal::IDivDuration(true, lhs, rhs,
-                                     &lhs);  // trunc towards zero
-}
-ABSL_ATTRIBUTE_CONST_FUNCTION inline Duration operator%(Duration lhs,
-                                                        Duration rhs) {
-  return lhs %= rhs;
-}
-
 // IDivDuration()
 //
 // Divides a numerator `Duration` by a denominator `Duration`, returning the
@@ -390,10 +390,7 @@ ABSL_ATTRIBUTE_CONST_FUNCTION inline Duration operator%(Duration lhs,
 //   // Here, q would overflow int64_t, so rem accounts for the difference.
 //   int64_t q = absl::IDivDuration(a, b, &rem);
 //   // q == std::numeric_limits<int64_t>::max(), rem == a - b * q
-inline int64_t IDivDuration(Duration num, Duration den, Duration* rem) {
-  return time_internal::IDivDuration(true, num, den,
-                                     rem);  // trunc towards zero
-}
+int64_t IDivDuration(Duration num, Duration den, Duration* rem);
 
 // FDivDuration()
 //
@@ -408,6 +405,30 @@ inline int64_t IDivDuration(Duration num, Duration den, Duration* rem) {
 //   double d = absl::FDivDuration(absl::Milliseconds(1500), absl::Seconds(1));
 //   // d == 1.5
 ABSL_ATTRIBUTE_CONST_FUNCTION double FDivDuration(Duration num, Duration den);
+
+// Multiplicative Operators
+// Integer operands must be representable as int64_t.
+template <typename T>
+ABSL_ATTRIBUTE_CONST_FUNCTION Duration operator*(Duration lhs, T rhs) {
+  return lhs *= rhs;
+}
+template <typename T>
+ABSL_ATTRIBUTE_CONST_FUNCTION Duration operator*(T lhs, Duration rhs) {
+  return rhs *= lhs;
+}
+template <typename T>
+ABSL_ATTRIBUTE_CONST_FUNCTION Duration operator/(Duration lhs, T rhs) {
+  return lhs /= rhs;
+}
+ABSL_ATTRIBUTE_CONST_FUNCTION inline int64_t operator/(Duration lhs,
+                                                       Duration rhs) {
+  return IDivDuration(lhs, rhs,
+                      &lhs);  // trunc towards zero
+}
+ABSL_ATTRIBUTE_CONST_FUNCTION inline Duration operator%(Duration lhs,
+                                                        Duration rhs) {
+  return lhs %= rhs;
+}
 
 // ZeroDuration()
 //
@@ -841,6 +862,11 @@ class Time {
  private:
   friend constexpr Time time_internal::FromUnixDuration(Duration d);
   friend constexpr Duration time_internal::ToUnixDuration(Time t);
+
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+  friend constexpr std::strong_ordering operator<=>(Time lhs, Time rhs);
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+
   friend constexpr bool operator<(Time lhs, Time rhs);
   friend constexpr bool operator==(Time lhs, Time rhs);
   friend Duration operator-(Time lhs, Time rhs);
@@ -852,6 +878,15 @@ class Time {
 };
 
 // Relational Operators
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+
+ABSL_ATTRIBUTE_CONST_FUNCTION constexpr std::strong_ordering operator<=>(
+    Time lhs, Time rhs) {
+  return lhs.rep_ <=> rhs.rep_;
+}
+
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator<(Time lhs, Time rhs) {
   return lhs.rep_ < rhs.rep_;
 }
@@ -1726,6 +1761,24 @@ ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator<(Duration lhs,
                    time_internal::GetRepLo(rhs) + 1
              : time_internal::GetRepLo(lhs) < time_internal::GetRepLo(rhs);
 }
+
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
+
+ABSL_ATTRIBUTE_CONST_FUNCTION constexpr std::strong_ordering operator<=>(
+    Duration lhs, Duration rhs) {
+  const int64_t lhs_hi = time_internal::GetRepHi(lhs);
+  const int64_t rhs_hi = time_internal::GetRepHi(rhs);
+  if (auto c = lhs_hi <=> rhs_hi; c != std::strong_ordering::equal) {
+    return c;
+  }
+  const uint32_t lhs_lo = time_internal::GetRepLo(lhs);
+  const uint32_t rhs_lo = time_internal::GetRepLo(rhs);
+  return (lhs_hi == (std::numeric_limits<int64_t>::min)())
+             ? (lhs_lo + 1) <=> (rhs_lo + 1)
+             : lhs_lo <=> rhs_lo;
+}
+
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 
 ABSL_ATTRIBUTE_CONST_FUNCTION constexpr bool operator==(Duration lhs,
                                                         Duration rhs) {

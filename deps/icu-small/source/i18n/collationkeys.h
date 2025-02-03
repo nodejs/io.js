@@ -44,7 +44,7 @@ public:
             --ignore_;
         } else {
             if (appended_ < capacity_ || Resize(1, appended_)) {
-                buffer_[appended_] = (char)b;
+                buffer_[appended_] = static_cast<char>(b);
             }
             ++appended_;
         }

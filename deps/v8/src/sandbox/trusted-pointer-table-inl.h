@@ -14,70 +14,103 @@
 namespace v8 {
 namespace internal {
 
-void TrustedPointerTableEntry::MakeTrustedPointerEntry(Address content,
+void TrustedPointerTableEntry::MakeTrustedPointerEntry(Address pointer,
+                                                       IndirectPointerTag tag,
                                                        bool mark_as_alive) {
-  DCHECK_EQ(content & kMarkingBit, 0);
-  if (mark_as_alive) content |= kMarkingBit;
-  content_.store(content, std::memory_order_relaxed);
+  auto payload = Payload::ForTrustedPointerEntry(pointer, tag);
+  if (mark_as_alive) payload.SetMarkBit();
+  payload_.store(payload, std::memory_order_relaxed);
 }
 
 void TrustedPointerTableEntry::MakeFreelistEntry(uint32_t next_entry_index) {
-  Address content = kFreeEntryTag | next_entry_index;
-  content_.store(content, std::memory_order_relaxed);
+  auto payload = Payload::ForFreelistEntry(next_entry_index);
+  payload_.store(payload, std::memory_order_relaxed);
 }
 
-Address TrustedPointerTableEntry::GetContent() const {
-  DCHECK(!IsFreelistEntry());
-  // We reuse the heap object tag bit as marking bit, so we need to explicitly
-  // set it here when accessing the pointer.
-  return content_.load(std::memory_order_relaxed) | kMarkingBit;
+void TrustedPointerTableEntry::MakeZappedEntry() {
+  auto payload = Payload::ForZappedEntry();
+  payload_.store(payload, std::memory_order_relaxed);
 }
 
-void TrustedPointerTableEntry::SetContent(Address new_content) {
+Address TrustedPointerTableEntry::GetPointer(IndirectPointerTag tag) const {
   DCHECK(!IsFreelistEntry());
-  // SetContent shouldn't change the marking state of the entry. Currently this
-  // is always automatically the case, but if this ever fails, we might need to
-  // manually copy the marking bit.
-  DCHECK_EQ(content_ & kMarkingBit, new_content & kMarkingBit);
-  content_.store(new_content, std::memory_order_relaxed);
+  return payload_.load(std::memory_order_relaxed).Untag(tag);
+}
+
+void TrustedPointerTableEntry::SetPointer(Address pointer,
+                                          IndirectPointerTag tag) {
+  DCHECK(!IsFreelistEntry());
+  // Currently, this method is only used when the mark bit is unset. If this
+  // ever changes, we'd need to check the marking state of the old entry and
+  // set the marking state of the new entry accordingly.
+  DCHECK(!payload_.load(std::memory_order_relaxed).HasMarkBitSet());
+  auto new_payload = Payload::ForTrustedPointerEntry(pointer, tag);
+  DCHECK(!new_payload.HasMarkBitSet());
+  payload_.store(new_payload, std::memory_order_relaxed);
+}
+
+bool TrustedPointerTableEntry::HasPointer(IndirectPointerTag tag) const {
+  auto payload = payload_.load(std::memory_order_relaxed);
+  if (!payload.ContainsPointer()) return false;
+  return tag == kUnknownIndirectPointerTag || payload.IsTaggedWith(tag);
 }
 
 bool TrustedPointerTableEntry::IsFreelistEntry() const {
-  auto content = content_.load(std::memory_order_relaxed);
-  return (content & kFreeEntryTag) == kFreeEntryTag;
+  auto payload = payload_.load(std::memory_order_relaxed);
+  return payload.ContainsFreelistLink();
 }
 
 uint32_t TrustedPointerTableEntry::GetNextFreelistEntryIndex() const {
-  return static_cast<uint32_t>(content_.load(std::memory_order_relaxed));
+  return payload_.load(std::memory_order_relaxed).ExtractFreelistLink();
 }
 
 void TrustedPointerTableEntry::Mark() {
-  Address old_value = content_.load(std::memory_order_relaxed);
-  Address new_value = old_value | kMarkingBit;
+  auto old_payload = payload_.load(std::memory_order_relaxed);
+  DCHECK(old_payload.ContainsPointer());
+
+  auto new_payload = old_payload;
+  new_payload.SetMarkBit();
 
   // We don't need to perform the CAS in a loop since it can only fail if a new
   // value has been written into the entry. This, however, will also have set
   // the marking bit.
-  bool success = content_.compare_exchange_strong(old_value, new_value,
+  bool success = payload_.compare_exchange_strong(old_payload, new_payload,
                                                   std::memory_order_relaxed);
-  DCHECK(success || (old_value & kMarkingBit) == kMarkingBit);
+  DCHECK(success || old_payload.HasMarkBitSet());
   USE(success);
 }
 
 void TrustedPointerTableEntry::Unmark() {
-  Address content = content_.load(std::memory_order_relaxed);
-  content &= ~kMarkingBit;
-  content_.store(content, std::memory_order_relaxed);
+  auto payload = payload_.load(std::memory_order_relaxed);
+  payload.ClearMarkBit();
+  payload_.store(payload, std::memory_order_relaxed);
 }
 
 bool TrustedPointerTableEntry::IsMarked() const {
-  Address value = content_.load(std::memory_order_relaxed);
-  return value & kMarkingBit;
+  return payload_.load(std::memory_order_relaxed).HasMarkBitSet();
 }
 
-Address TrustedPointerTable::Get(TrustedPointerHandle handle) const {
+Address TrustedPointerTable::Get(TrustedPointerHandle handle,
+                                 IndirectPointerTag tag) const {
   uint32_t index = HandleToIndex(handle);
-  return at(index).GetContent();
+#if defined(V8_USE_ADDRESS_SANITIZER)
+  // We rely on the tagging scheme to produce non-canonical addresses when an
+  // entry isn't tagged with the expected tag. Such "safe" crashes can then be
+  // filtered out by our sandbox crash filter. However, when ASan is active, it
+  // may perform its shadow memory access prior to the actual memory access.
+  // For a non-canonical address, this can lead to a segfault at a _canonical_
+  // address, which our crash filter can then not distinguish from a "real"
+  // crash. Therefore, in ASan builds, we perform an additional CHECK here that
+  // the entry is tagged with the expected tag. The resulting CHECK failure
+  // will then be ignored by the crash filter.
+  // This check is, however, not needed when accessing the null entry, as that
+  // is always valid (it just contains nullptr).
+  CHECK(index == 0 || at(index).HasPointer(tag));
+#else
+  // Otherwise, this is just a DCHECK.
+  DCHECK(index == 0 || at(index).HasPointer(tag));
+#endif
+  return at(index).GetPointer(tag);
 }
 
 void TrustedPointerTable::Set(TrustedPointerHandle handle, Address pointer,
@@ -85,7 +118,7 @@ void TrustedPointerTable::Set(TrustedPointerHandle handle, Address pointer,
   DCHECK_NE(kNullTrustedPointerHandle, handle);
   Validate(pointer, tag);
   uint32_t index = HandleToIndex(handle);
-  at(index).SetContent(pointer);
+  at(index).SetPointer(pointer, tag);
 }
 
 TrustedPointerHandle TrustedPointerTable::AllocateAndInitializeEntry(
@@ -93,7 +126,7 @@ TrustedPointerHandle TrustedPointerTable::AllocateAndInitializeEntry(
   DCHECK(space->BelongsTo(this));
   Validate(pointer, tag);
   uint32_t index = AllocateEntry(space);
-  at(index).MakeTrustedPointerEntry(pointer, space->allocate_black());
+  at(index).MakeTrustedPointerEntry(pointer, tag, space->allocate_black());
   return IndexToHandle(index);
 }
 
@@ -108,12 +141,18 @@ void TrustedPointerTable::Mark(Space* space, TrustedPointerHandle handle) {
   at(index).Mark();
 }
 
+void TrustedPointerTable::Zap(TrustedPointerHandle handle) {
+  uint32_t index = HandleToIndex(handle);
+  at(index).MakeZappedEntry();
+}
+
 template <typename Callback>
 void TrustedPointerTable::IterateActiveEntriesIn(Space* space,
                                                  Callback callback) {
   IterateEntriesIn(space, [&](uint32_t index) {
     if (!at(index).IsFreelistEntry()) {
-      callback(IndexToHandle(index), at(index).GetContent());
+      Address pointer = at(index).GetPointer(kUnknownIndirectPointerTag);
+      callback(IndexToHandle(index), pointer);
     }
   });
 }

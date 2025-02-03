@@ -1,0 +1,111 @@
+<!DOCTYPE HTML>
+<html>
+<title>WebStorage Test: StorageEvent - only if something changes</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<body>
+<script>
+const iframe = document.createElement('iframe');
+
+function tests(storageName) {
+  test(t => assert_true(storageName in window), storageName + ' exists');
+
+  const storage = window[storageName];
+  const iframeStorage = iframe.contentWindow[storageName];
+
+  add_completion_callback(() => {
+    storage.clear();
+  });
+
+  promise_test(t => {
+    const w = new EventWatcher(t, iframe.contentWindow, 'storage');
+
+    // Random key to make sure we don't conflict with any cruft leftover from
+    // earlier runs. Any synchronization would be really hard with localStorage
+    // limited guarantees.
+    const testKey = Math.random().toString(36).slice(2);
+
+    storage.setItem(testKey, 'foo');
+    storage.setItem(testKey, 'foo');
+    storage.setItem(testKey, 'bar');
+    return w.wait_for('storage')
+      .then(e => {
+          assert_equals(e.storageArea, iframeStorage);
+          assert_equals(e.key, testKey);
+          assert_equals(e.newValue, 'foo');
+          return w.wait_for('storage');
+        })
+      .then(e => {
+          assert_equals(e.storageArea, iframeStorage);
+          assert_equals(e.key, testKey);
+          assert_equals(e.oldValue, 'foo');
+          assert_equals(e.newValue, 'bar');
+        });
+  }, 'Setting to same value does not trigger event for ' + storageName);
+
+  promise_test(t => {
+    const w = new EventWatcher(t, iframe.contentWindow, 'storage');
+
+    // Random key to make sure we don't conflict with any cruft leftover from
+    // earlier runs. Any synchronization would be really hard with localStorage
+    // limited guarantees.
+    const testKey1 = Math.random().toString(36).slice(2);
+    const testKey2 = Math.random().toString(36).slice(2);
+
+    storage.removeItem(testKey1);
+    storage.setItem(testKey2, 'foo');
+    return w.wait_for('storage')
+      .then(e => {
+          assert_equals(e.storageArea, iframeStorage);
+          assert_equals(e.key, testKey2);
+          assert_equals(e.newValue, 'foo');
+        });
+  }, 'Deleting non-existent key does not trigger event for ' + storageName);
+
+
+  promise_test(t => {
+    const w = new EventWatcher(t, iframe.contentWindow, 'storage');
+
+    // Random key to make sure we don't conflict with any cruft leftover from
+    // earlier runs. Any synchronization would be really hard with localStorage
+    // limited guarantees.
+    const testKey = Math.random().toString(36).slice(2);
+
+    storage.setItem(testKey, 'foo');
+    storage.clear();
+    storage.clear();
+    storage.setItem(testKey, 'bar');
+    return w.wait_for('storage')
+      .then(e => {
+          assert_equals(e.storageArea, iframeStorage);
+          assert_equals(e.key, testKey);
+          assert_equals(e.newValue, 'foo');
+          return w.wait_for('storage');
+        })
+      .then(e => {
+          assert_equals(e.storageArea, iframeStorage);
+          assert_equals(e.key, null);
+          assert_equals(e.oldValue, null);
+          assert_equals(e.newValue, null);
+          return w.wait_for('storage');
+        })
+      .then(e => {
+          assert_equals(e.storageArea, iframeStorage);
+          assert_equals(e.key, testKey);
+          assert_equals(e.oldValue, null);
+          assert_equals(e.newValue, 'bar');
+        });
+  }, 'Clearing empty storage does not trigger event for ' + storageName);
+
+}
+
+iframe.src = "resources/event_basic.html";
+iframe.onload = () => {
+  tests('sessionStorage');
+  tests('localStorage');
+};
+document.body.appendChild(iframe);
+</script>
+</body>
+</html>
+

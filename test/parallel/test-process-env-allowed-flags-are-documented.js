@@ -5,6 +5,7 @@ const common = require('../common');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 const rootDir = path.resolve(__dirname, '..', '..');
 const cliMd = path.join(rootDir, 'doc', 'api', 'cli.md');
@@ -43,7 +44,7 @@ for (const line of [...nodeOptionsLines, ...v8OptionsLines]) {
   }
 }
 
-if (!common.hasOpenSSL3) {
+if (!hasOpenSSL3) {
   documented.delete('--openssl-legacy-provider');
   documented.delete('--openssl-shared-config');
 }
@@ -55,11 +56,12 @@ const conditionalOpts = [
     filter: (opt) => {
       return [
         '--openssl-config',
-        common.hasOpenSSL3 ? '--openssl-legacy-provider' : '',
-        common.hasOpenSSL3 ? '--openssl-shared-config' : '',
+        hasOpenSSL3 ? '--openssl-legacy-provider' : '',
+        hasOpenSSL3 ? '--openssl-shared-config' : '',
         '--tls-cipher-list',
         '--use-bundled-ca',
         '--use-openssl-ca',
+        common.isMacOS ? '--use-system-ca' : '',
         '--secure-heap',
         '--secure-heap-min',
         '--enable-fips',
@@ -86,6 +88,18 @@ const difference = (setA, setB) => {
   return new Set([...setA].filter((x) => !setB.has(x)));
 };
 
+// Remove heap prof options if the inspector is not enabled.
+// NOTE: this is for ubuntuXXXX_sharedlibs_withoutssl_x64, no SSL, no inspector
+// Refs: https://github.com/nodejs/node/pull/54259#issuecomment-2308256647
+if (!process.features.inspector) {
+  [
+    '--heap-prof-dir',
+    '--heap-prof-interval',
+    '--heap-prof-name',
+    '--heap-prof',
+  ].forEach((opt) => documented.delete(opt));
+}
+
 const overdocumented = difference(documented,
                                   process.allowedNodeEnvironmentFlags);
 assert.strictEqual(overdocumented.size, 0,
@@ -99,6 +113,8 @@ const undocumented = difference(process.allowedNodeEnvironmentFlags,
 assert(undocumented.delete('--debug-arraybuffer-allocations'));
 assert(undocumented.delete('--no-debug-arraybuffer-allocations'));
 assert(undocumented.delete('--es-module-specifier-resolution'));
+assert(undocumented.delete('--experimental-fetch'));
+assert(undocumented.delete('--experimental-global-customevent'));
 assert(undocumented.delete('--experimental-global-webcrypto'));
 assert(undocumented.delete('--experimental-report'));
 assert(undocumented.delete('--experimental-worker'));

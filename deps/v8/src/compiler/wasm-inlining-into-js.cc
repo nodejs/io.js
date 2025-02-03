@@ -59,7 +59,7 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
       parameters_[i] = nullptr;
     }
     // Instance node at parameter 0.
-    trusted_data_node_ = Param(wasm::kWasmInstanceParameterIndex);
+    trusted_data_node_ = Param(wasm::kWasmInstanceDataParameterIndex);
   }
 
   Node* Param(int index, const char* debug_name = nullptr) {
@@ -70,7 +70,7 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
     if (parameters_[array_index] == nullptr) {
       Node* param = graph_->NewNode(
           mcgraph_->common()->Parameter(index, debug_name), graph_->start());
-      if (index > wasm::kWasmInstanceParameterIndex) {
+      if (index > wasm::kWasmInstanceDataParameterIndex) {
         // Add a type guard to keep type information based on the inlinee's
         // signature.
         wasm::ValueType type = body_.sig->GetParam(index - 1);

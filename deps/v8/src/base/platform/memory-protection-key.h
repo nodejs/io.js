@@ -53,7 +53,10 @@ class V8_BASE_EXPORT MemoryProtectionKey {
 
   // Call exactly once per process to determine if PKU is supported on this
   // platform and initialize global data structures.
-  static bool InitializeMemoryProtectionKeySupport();
+  static bool HasMemoryProtectionKeySupport();
+
+  // Allocates a new key. Returns -1 on error.
+  static int AllocateKey();
 
   // Associates a memory protection {key} with the given {region}.
   // If {key} is {kNoMemoryProtectionKey} this behaves like "plain"

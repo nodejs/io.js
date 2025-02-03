@@ -4,7 +4,7 @@
 // may change when node-tap is updated.
 
 const t = require('tap')
-const { utimesSync } = require('fs')
+const { utimesSync } = require('node:fs')
 const mockNpm = require('../../fixtures/mock-npm.js')
 const { cleanCwd } = require('../../fixtures/clean-snapshot')
 
@@ -100,7 +100,7 @@ const mockLs = async (t, { mocks, config, ...opts } = {}) => {
     command: 'ls',
     mocks: {
       path: {
-        ...require('path'),
+        ...require('node:path'),
         sep: '/',
       },
       ...mocks,
@@ -408,7 +408,6 @@ t.test('ls', async t => {
     await ls.exec(['dog@*', 'chai@1.0.0'])
     t.matchSnapshot(
       cleanCwd(result()),
-      /* eslint-disable-next-line max-len */
       'should output tree contaning only occurrences of multiple filtered packages and their ancestors'
     )
   })
@@ -1314,7 +1313,6 @@ t.test('ls', async t => {
                 name: 'abbrev',
                 version: '1.1.1',
                 from: 'git+https://github.com/isaacs/abbrev-js.git',
-                /* eslint-disable-next-line max-len */
                 resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               },
             },
@@ -1325,7 +1323,6 @@ t.test('ls', async t => {
               version: '1.1.1',
               _id: 'abbrev@1.1.1',
               _from: 'git+https://github.com/isaacs/abbrev-js.git',
-              /* eslint-disable-next-line max-len */
               _resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               _requested: {
                 type: 'git',
@@ -1372,7 +1369,6 @@ t.test('ls', async t => {
             a: {
               version: '1.0.1',
               resolved: 'foo@dog://b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
-              /* eslint-disable-next-line max-len */
               integrity: 'sha512-8AN9lNCcBt5Xeje7fMEEpp5K3rgcAzIpTtAjYb/YMUYu8SbIVF6wz0WqACDVKvpQOUcSfNHZQNLNmue0QSwXOQ==',
             },
           },
@@ -1901,7 +1897,6 @@ t.test('ls --parseable', async t => {
     await ls.exec(['dog@*', 'chai@1.0.0'])
     t.matchSnapshot(
       cleanCwd(result()),
-      /* eslint-disable-next-line max-len */
       'should output parseable contaning only occurrences of multiple filtered packages and their ancestors'
     )
   })
@@ -2465,7 +2460,6 @@ t.test('ls --parseable', async t => {
               'node_modules/abbrev': {
                 name: 'abbrev',
                 version: '1.1.1',
-                /* eslint-disable-next-line max-len */
                 resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               },
             },
@@ -2476,7 +2470,6 @@ t.test('ls --parseable', async t => {
               version: '1.1.1',
               _id: 'abbrev@1.1.1',
               _from: 'git+https://github.com/isaacs/abbrev-js.git',
-              /* eslint-disable-next-line max-len */
               _resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               _requested: {
                 type: 'git',
@@ -3043,7 +3036,6 @@ t.test('ls --json', async t => {
           },
         },
       },
-      /* eslint-disable-next-line max-len */
       'should output json contaning only occurrences of multiple filtered packages and their ancestors'
     )
   })
@@ -3489,9 +3481,7 @@ t.test('ls --json', async t => {
             'node_modules/@isaacs/dedupe-tests-a': {
               name: '@isaacs/dedupe-tests-a',
               version: '1.0.1',
-              /* eslint-disable-next-line max-len */
               resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-a/-/dedupe-tests-a-1.0.1.tgz',
-              /* eslint-disable-next-line max-len */
               integrity: 'sha512-8AN9lNCcBt5Xeje7fMEEpp5K3rgcAzIpTtAjYb/YMUYu8SbIVF6wz0WqACDVKvpQOUcSfNHZQNLNmue0QSwXOQ==',
               dependencies: {
                 '@isaacs/dedupe-tests-b': '1',
@@ -3500,26 +3490,20 @@ t.test('ls --json', async t => {
             'node_modules/@isaacs/dedupe-tests-a/node_modules/@isaacs/dedupe-tests-b': {
               name: '@isaacs/dedupe-tests-b',
               version: '1.0.0',
-              /* eslint-disable-next-line max-len */
               resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-1.0.0.tgz',
-              /* eslint-disable-next-line max-len */
               integrity: 'sha512-3nmvzIb8QL8OXODzipwoV3U8h9OQD9g9RwOPuSBQqjqSg9JZR1CCFOWNsDUtOfmwY8HFUJV9EAZ124uhqVxq+w==',
             },
             'node_modules/@isaacs/dedupe-tests-b': {
               name: '@isaacs/dedupe-tests-b',
               version: '2.0.0',
-              /* eslint-disable-next-line max-len */
               resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-2.0.0.tgz',
-              /* eslint-disable-next-line max-len */
               integrity: 'sha512-KTYkpRv9EzlmCg4Gsm/jpclWmRYFCXow8GZKJXjK08sIZBlElTZEa5Bw/UQxIvEfcKmWXczSqItD49Kr8Ax4UA==',
             },
           },
           dependencies: {
             '@isaacs/dedupe-tests-a': {
               version: '1.0.1',
-              /* eslint-disable-next-line max-len */
               resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-a/-/dedupe-tests-a-1.0.1.tgz',
-              /* eslint-disable-next-line max-len */
               integrity: 'sha512-8AN9lNCcBt5Xeje7fMEEpp5K3rgcAzIpTtAjYb/YMUYu8SbIVF6wz0WqACDVKvpQOUcSfNHZQNLNmue0QSwXOQ==',
               requires: {
                 '@isaacs/dedupe-tests-b': '1',
@@ -3527,18 +3511,14 @@ t.test('ls --json', async t => {
               dependencies: {
                 '@isaacs/dedupe-tests-b': {
                   version: '1.0.0',
-                  /* eslint-disable-next-line max-len */
                   resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-1.0.0.tgz',
-                  /* eslint-disable-next-line max-len */
                   integrity: 'sha512-3nmvzIb8QL8OXODzipwoV3U8h9OQD9g9RwOPuSBQqjqSg9JZR1CCFOWNsDUtOfmwY8HFUJV9EAZ124uhqVxq+w==',
                 },
               },
             },
             '@isaacs/dedupe-tests-b': {
               version: '2.0.0',
-              /* eslint-disable-next-line max-len */
               resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-2.0.0.tgz',
-              /* eslint-disable-next-line max-len */
               integrity: 'sha512-KTYkpRv9EzlmCg4Gsm/jpclWmRYFCXow8GZKJXjK08sIZBlElTZEa5Bw/UQxIvEfcKmWXczSqItD49Kr8Ax4UA==',
             },
           },
@@ -3572,7 +3552,6 @@ t.test('ls --json', async t => {
                 extraneous: true,
                 overridden: false,
                 problems: [
-                  /* eslint-disable-next-line max-len */
                   'extraneous: @isaacs/dedupe-tests-b@ {CWD}/prefix/node_modules/@isaacs/dedupe-tests-a/node_modules/@isaacs/dedupe-tests-b',
                 ],
               },
@@ -3586,7 +3565,6 @@ t.test('ls --json', async t => {
           },
         },
         problems: [
-          /* eslint-disable-next-line max-len */
           'extraneous: @isaacs/dedupe-tests-b@ {CWD}/prefix/node_modules/@isaacs/dedupe-tests-a/node_modules/@isaacs/dedupe-tests-b',
         ],
       },
@@ -4212,7 +4190,6 @@ t.test('ls --json', async t => {
                 version: '1.1.1',
                 id: 'abbrev@1.1.1',
                 from: 'git+https://github.com/isaacs/abbrev-js.git',
-                /* eslint-disable-next-line max-len */
                 resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               },
             },
@@ -4223,7 +4200,6 @@ t.test('ls --json', async t => {
               version: '1.1.1',
               _id: 'abbrev@1.1.1',
               _from: 'git+https://github.com/isaacs/abbrev-js.git',
-              /* eslint-disable-next-line max-len */
               _resolved: 'git+https://github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               _requested: {
                 type: 'git',
@@ -4249,7 +4225,6 @@ t.test('ls --json', async t => {
           abbrev: {
             version: '1.1.1',
             overridden: false,
-            /* eslint-disable-next-line max-len */
             resolved: 'git+ssh://git@github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
           },
         },
@@ -4813,7 +4788,6 @@ t.test('ls --package-lock-only', async t => {
             },
           },
         },
-        /* eslint-disable-next-line max-len */
         'should output json contaning only occurrences of multiple filtered packages and their ancestors'
       )
     })
@@ -5137,9 +5111,7 @@ t.test('ls --package-lock-only', async t => {
               'node_modules/@isaacs/dedupe-tests-a': {
                 name: '@isaacs/dedupe-tests-a',
                 version: '1.0.1',
-                /* eslint-disable-next-line max-len */
                 resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-a/-/dedupe-tests-a-1.0.1.tgz',
-                /* eslint-disable-next-line max-len */
                 integrity: 'sha512-8AN9lNCcBt5Xeje7fMEEpp5K3rgcAzIpTtAjYb/YMUYu8SbIVF6wz0WqACDVKvpQOUcSfNHZQNLNmue0QSwXOQ==',
                 dependencies: {
                   '@isaacs/dedupe-tests-b': '1',
@@ -5148,26 +5120,20 @@ t.test('ls --package-lock-only', async t => {
               'node_modules/@isaacs/dedupe-tests-a/node_modules/@isaacs/dedupe-tests-b': {
                 name: '@isaacs/dedupe-tests-b',
                 version: '1.0.0',
-                /* eslint-disable-next-line max-len */
                 resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-1.0.0.tgz',
-                /* eslint-disable-next-line max-len */
                 integrity: 'sha512-3nmvzIb8QL8OXODzipwoV3U8h9OQD9g9RwOPuSBQqjqSg9JZR1CCFOWNsDUtOfmwY8HFUJV9EAZ124uhqVxq+w==',
               },
               'node_modules/@isaacs/dedupe-tests-b': {
                 name: '@isaacs/dedupe-tests-b',
                 version: '2.0.0',
-                /* eslint-disable-next-line max-len */
                 resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-2.0.0.tgz',
-                /* eslint-disable-next-line max-len */
                 integrity: 'sha512-KTYkpRv9EzlmCg4Gsm/jpclWmRYFCXow8GZKJXjK08sIZBlElTZEa5Bw/UQxIvEfcKmWXczSqItD49Kr8Ax4UA==',
               },
             },
             dependencies: {
               '@isaacs/dedupe-tests-a': {
                 version: '1.0.1',
-                /* eslint-disable-next-line max-len */
                 resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-a/-/dedupe-tests-a-1.0.1.tgz',
-                /* eslint-disable-next-line max-len */
                 integrity: 'sha512-8AN9lNCcBt5Xeje7fMEEpp5K3rgcAzIpTtAjYb/YMUYu8SbIVF6wz0WqACDVKvpQOUcSfNHZQNLNmue0QSwXOQ==',
                 requires: {
                   '@isaacs/dedupe-tests-b': '1',
@@ -5175,18 +5141,14 @@ t.test('ls --package-lock-only', async t => {
                 dependencies: {
                   '@isaacs/dedupe-tests-b': {
                     version: '1.0.0',
-                    /* eslint-disable-next-line max-len */
                     resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-1.0.0.tgz',
-                    /* eslint-disable-next-line max-len */
                     integrity: 'sha512-3nmvzIb8QL8OXODzipwoV3U8h9OQD9g9RwOPuSBQqjqSg9JZR1CCFOWNsDUtOfmwY8HFUJV9EAZ124uhqVxq+w==',
                   },
                 },
               },
               '@isaacs/dedupe-tests-b': {
                 version: '2.0.0',
-                /* eslint-disable-next-line max-len */
                 resolved: 'https://registry.npmjs.org/@isaacs/dedupe-tests-b/-/dedupe-tests-b-2.0.0.tgz',
-                /* eslint-disable-next-line max-len */
                 integrity: 'sha512-KTYkpRv9EzlmCg4Gsm/jpclWmRYFCXow8GZKJXjK08sIZBlElTZEa5Bw/UQxIvEfcKmWXczSqItD49Kr8Ax4UA==',
               },
             },
@@ -5298,7 +5260,6 @@ t.test('ls --package-lock-only', async t => {
             requires: true,
             dependencies: {
               abbrev: {
-              /* eslint-disable-next-line max-len */
                 version: 'git+ssh://git@github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
                 from: 'abbrev@git+https://github.com/isaacs/abbrev-js.git',
               },
@@ -5314,7 +5275,6 @@ t.test('ls --package-lock-only', async t => {
           version: '1.0.0',
           dependencies: {
             abbrev: {
-              /* eslint-disable-next-line max-len */
               resolved: 'git+ssh://git@github.com/isaacs/abbrev-js.git#b8f3a2fc0c3bb8ffd8b0d0072cc6b5a3667e963c',
               overridden: false,
             },

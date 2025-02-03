@@ -127,13 +127,6 @@ CagedHeap::CagedHeap(PageAllocator& platform_allocator,
 
   const size_t local_data_size =
       CagedHeapLocalData::CalculateLocalDataSizeForHeapSize(total_heap_size);
-  if (!platform_allocator.SetPermissions(
-          cage_start,
-          RoundUp(local_data_size, platform_allocator.CommitPageSize()),
-          PageAllocator::kReadWrite)) {
-    GetGlobalOOMHandler()("Oilpan: CagedHeap commit CageHeapLocalData.");
-  }
-
   const CagedAddress caged_heap_start = RoundUp(
       reinterpret_cast<CagedAddress>(cage_start) + local_data_size, kPageSize);
   const size_t local_data_size_with_padding =
@@ -148,6 +141,16 @@ CagedHeap::CagedHeap(PageAllocator& platform_allocator,
   instance_ = this;
   CagedHeapBase::g_age_table_size_ = AgeTable::CalculateAgeTableSizeForHeapSize(
       api_constants::kCagedHeapDefaultReservationSize);
+}
+
+void CagedHeap::CommitAgeTable(PageAllocator& platform_allocator) {
+  if (!platform_allocator.SetPermissions(
+          reinterpret_cast<void*>(CagedHeapBase::g_heap_base_),
+          RoundUp(CagedHeapBase::g_age_table_size_,
+                  platform_allocator.CommitPageSize()),
+          PageAllocator::kReadWrite)) {
+    GetGlobalOOMHandler()("Oilpan: CagedHeap commit CageHeapLocalData.");
+  }
 }
 
 }  // namespace internal

@@ -126,11 +126,11 @@ TEST_F(DictionaryTemplateTest, PrototypeContext) {
     object2 = v8::Object::New(isolate());
   }
 
-  EXPECT_TRUE(instance1->GetPrototype() == object1->GetPrototype());
-  EXPECT_TRUE(instance2->GetPrototype() == object2->GetPrototype());
+  EXPECT_TRUE(instance1->GetPrototypeV2() == object1->GetPrototypeV2());
+  EXPECT_TRUE(instance2->GetPrototypeV2() == object2->GetPrototypeV2());
 
-  EXPECT_FALSE(instance1->GetPrototype() == instance2->GetPrototype());
-  EXPECT_TRUE(instance2->GetPrototype() == instance3->GetPrototype());
+  EXPECT_FALSE(instance1->GetPrototypeV2() == instance2->GetPrototypeV2());
+  EXPECT_TRUE(instance2->GetPrototypeV2() == instance3->GetPrototypeV2());
 }
 
 }  // namespace v8

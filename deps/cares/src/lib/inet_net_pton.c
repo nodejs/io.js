@@ -18,7 +18,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "ares_setup.h"
+#include "ares_private.h"
 
 #ifdef HAVE_NETINET_IN_H
 #  include <netinet/in.h>
@@ -29,11 +29,22 @@
 
 #include "ares_nameser.h"
 
-#include "ares.h"
 #include "ares_ipv6.h"
 #include "ares_inet_net_pton.h"
-#include "ares_private.h"
 
+#ifdef USE_WINSOCK
+#  define SOCKERRNO        ((int)WSAGetLastError())
+#  define SET_SOCKERRNO(x) (WSASetLastError((int)(x)))
+#  undef EMSGSIZE
+#  define EMSGSIZE WSAEMSGSIZE
+#  undef ENOENT
+#  define ENOENT WSA_INVALID_PARAMETER
+#  undef EAFNOSUPPORT
+#  define EAFNOSUPPORT WSAEAFNOSUPPORT
+#else
+#  define SOCKERRNO        (errno)
+#  define SET_SOCKERRNO(x) (errno = (x))
+#endif
 
 const struct ares_in6_addr ares_in6addr_any = { { { 0, 0, 0, 0, 0, 0, 0, 0, 0,
                                                     0, 0, 0, 0, 0, 0, 0 } } };
@@ -72,17 +83,17 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
   const unsigned char *odst = dst;
 
   ch = *src++;
-  if (ch == '0' && (src[0] == 'x' || src[0] == 'X') && ISASCII(src[1]) &&
-      ISXDIGIT(src[1])) {
+  if (ch == '0' && (src[0] == 'x' || src[0] == 'X') && ares_isascii(src[1]) &&
+      ares_isxdigit(src[1])) {
     /* Hexadecimal: Eat nybble string. */
     if (!size) {
       goto emsgsize;
     }
     dirty = 0;
     src++; /* skip x or X. */
-    while ((ch = *src++) != '\0' && ISASCII(ch) && ISXDIGIT(ch)) {
-      if (ISUPPER(ch)) {
-        ch = tolower(ch);
+    while ((ch = *src++) != '\0' && ares_isascii(ch) && ares_isxdigit(ch)) {
+      if (ares_isupper(ch)) {
+        ch = ares_tolower((unsigned char)ch);
       }
       n = (int)(strchr(xdigits, ch) - xdigits);
       if (dirty == 0) {
@@ -104,7 +115,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
       }
       *dst++ = (unsigned char)(tmp << 4);
     }
-  } else if (ISASCII(ch) && ISDIGIT(ch)) {
+  } else if (ares_isascii(ch) && ares_isdigit(ch)) {
     /* Decimal: eat dotted digit string. */
     for (;;) {
       tmp = 0;
@@ -115,7 +126,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
         if (tmp > 255) {
           goto enoent;
         }
-      } while ((ch = *src++) != '\0' && ISASCII(ch) && ISDIGIT(ch));
+      } while ((ch = *src++) != '\0' && ares_isascii(ch) && ares_isdigit(ch));
       if (!size--) {
         goto emsgsize;
       }
@@ -127,7 +138,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
         goto enoent;
       }
       ch = *src++;
-      if (!ISASCII(ch) || !ISDIGIT(ch)) {
+      if (!ares_isascii(ch) || !ares_isdigit(ch)) {
         goto enoent;
       }
     }
@@ -136,7 +147,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
   }
 
   bits = -1;
-  if (ch == '/' && ISASCII(src[0]) && ISDIGIT(src[0]) && dst > odst) {
+  if (ch == '/' && ares_isascii(src[0]) && ares_isdigit(src[0]) && dst > odst) {
     /* CIDR width specifier.  Nothing can follow it. */
     ch   = *src++; /* Skip over the /. */
     bits = 0;
@@ -147,7 +158,7 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
       if (bits > 32) {
         goto enoent;
       }
-    } while ((ch = *src++) != '\0' && ISASCII(ch) && ISDIGIT(ch));
+    } while ((ch = *src++) != '\0' && ares_isascii(ch) && ares_isdigit(ch));
     if (ch != '\0') {
       goto enoent;
     }
@@ -197,11 +208,11 @@ static int ares_inet_net_pton_ipv4(const char *src, unsigned char *dst,
   return bits;
 
 enoent:
-  SET_ERRNO(ENOENT);
+  SET_SOCKERRNO(ENOENT);
   return -1;
 
 emsgsize:
-  SET_ERRNO(EMSGSIZE);
+  SET_SOCKERRNO(EMSGSIZE);
   return -1;
 }
 
@@ -345,7 +356,7 @@ static int ares_inet_pton6(const char *src, unsigned char *dst)
   return 1;
 
 enoent:
-  SET_ERRNO(ENOENT);
+  SET_SOCKERRNO(ENOENT);
   return -1;
 }
 
@@ -360,7 +371,7 @@ static int ares_inet_net_pton_ipv6(const char *src, unsigned char *dst,
   char                *sep;
 
   if (ares_strlen(src) >= sizeof buf) {
-    SET_ERRNO(EMSGSIZE);
+    SET_SOCKERRNO(EMSGSIZE);
     return -1;
   }
   ares_strcpy(buf, src, sizeof buf);
@@ -379,14 +390,14 @@ static int ares_inet_net_pton_ipv6(const char *src, unsigned char *dst,
     bits = 128;
   } else {
     if (!getbits(sep, &bits)) {
-      SET_ERRNO(ENOENT);
+      SET_SOCKERRNO(ENOENT);
       return -1;
     }
   }
 
   bytes = (bits + 7) / 8;
   if (bytes > size) {
-    SET_ERRNO(EMSGSIZE);
+    SET_SOCKERRNO(EMSGSIZE);
     return -1;
   }
   memcpy(dst, &in6, bytes);
@@ -403,13 +414,9 @@ static int ares_inet_net_pton_ipv6(const char *src, unsigned char *dst,
  *      number of bits, either imputed classfully or specified with /CIDR,
  *      or -1 if some failure occurred (check errno).  ENOENT means it was
  *      not a valid network specification.
- * note:
- *      On Windows we store the error in the thread errno, not
- *      in the winsock error code. This is to avoid losing the
- *      actual last winsock error. So use macro ERRNO to fetch the
- *      errno this function sets when returning (-1), not SOCKERRNO.
  * author:
  *      Paul Vixie (ISC), June 1996
+ *
  */
 int ares_inet_net_pton(int af, const char *src, void *dst, size_t size)
 {
@@ -419,7 +426,6 @@ int ares_inet_net_pton(int af, const char *src, void *dst, size_t size)
     case AF_INET6:
       return ares_inet_net_pton_ipv6(src, dst, size);
     default:
-      SET_ERRNO(EAFNOSUPPORT);
       return -1;
   }
 }
@@ -434,11 +440,11 @@ int ares_inet_pton(int af, const char *src, void *dst)
   } else if (af == AF_INET6) {
     size = sizeof(struct ares_in6_addr);
   } else {
-    SET_ERRNO(EAFNOSUPPORT);
+    SET_SOCKERRNO(EAFNOSUPPORT);
     return -1;
   }
   result = ares_inet_net_pton(af, src, dst, size);
-  if (result == -1 && ERRNO == ENOENT) {
+  if (result == -1 && SOCKERRNO == ENOENT) {
     return 0;
   }
   return (result > -1) ? 1 : -1;

@@ -50,6 +50,8 @@ class DataViewLoweringReducer : public Next {
       case kExternalBigInt64Array:
       case kExternalBigUint64Array:
         return __ Word64ReverseBytes(value);
+      case kExternalFloat16Array:
+        UNIMPLEMENTED();
     }
   }
 
@@ -75,15 +77,13 @@ class DataViewLoweringReducer : public Next {
 #else
       Asm().SetVariable(result, BuildReverseBytes(element_type, value));
 #endif  // V8_TARGET_LITTLE_ENDIAN
-    }
-    ELSE {
+    } ELSE {
 #if V8_TARGET_LITTLE_ENDIAN
       Asm().SetVariable(result, BuildReverseBytes(element_type, value));
 #else
       Asm().SetVariable(result, value);
 #endif  // V8_TARGET_LITTLE_ENDIAN
     }
-    END_IF
 
     // We need to keep the {object} (either the JSArrayBuffer or the JSDataView)
     // alive so that the GC will not release the JSArrayBuffer (if there's any)
@@ -107,15 +107,14 @@ class DataViewLoweringReducer : public Next {
 #else
       Asm().SetVariable(value_to_store, BuildReverseBytes(element_type, value));
 #endif  // V8_TARGET_LITTLE_ENDIAN
-    }
-    ELSE {
+    } ELSE {
 #if V8_TARGET_LITTLE_ENDIAN
       Asm().SetVariable(value_to_store, BuildReverseBytes(element_type, value));
 #else
       Asm().SetVariable(value_to_store, value);
 #endif  // V8_TARGET_LITTLE_ENDIAN
     }
-    END_IF
+
     const MemoryRepresentation memory_rep =
         MemoryRepresentation::FromMachineType(machine_type);
     __ Store(storage, index, Asm().GetVariable(value_to_store),

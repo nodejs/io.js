@@ -25,8 +25,8 @@ namespace internal {
 RUNTIME_FUNCTION(Runtime_FormatList) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSListFormat> list_format = args.at<JSListFormat>(0);
-  Handle<FixedArray> list = args.at<FixedArray>(1);
+  DirectHandle<JSListFormat> list_format = args.at<JSListFormat>(0);
+  DirectHandle<FixedArray> list = args.at<FixedArray>(1);
   RETURN_RESULT_OR_FAILURE(
       isolate, JSListFormat::FormatList(isolate, list_format, list));
 }
@@ -35,8 +35,8 @@ RUNTIME_FUNCTION(Runtime_FormatList) {
 RUNTIME_FUNCTION(Runtime_FormatListToParts) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSListFormat> list_format = args.at<JSListFormat>(0);
-  Handle<FixedArray> list = args.at<FixedArray>(1);
+  DirectHandle<JSListFormat> list_format = args.at<JSListFormat>(0);
+  DirectHandle<FixedArray> list = args.at<FixedArray>(1);
   RETURN_RESULT_OR_FAILURE(
       isolate, JSListFormat::FormatListToParts(isolate, list_format, list));
 }

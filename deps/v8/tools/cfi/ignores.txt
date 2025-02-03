@@ -8,7 +8,7 @@ type:std::*
 
 ######### Function pointers cast to incorrect type signatures
 
-# libicu is currently compiled such that in libicu the 'UChar' type is a
+# libicu is currently compiled such that in libicu the 'UChar' type is
 # defined as a char16_t internally, but for the rest of chromium it's an
 # unsigned short, causing mismatched type signatures for icalls to/from icu
 # v8/src/intl.cc

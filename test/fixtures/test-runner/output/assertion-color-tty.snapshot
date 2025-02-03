@@ -1,0 +1,25 @@
+[31m✖ failing assertion [90m(*ms)[39m[39m
+[34mℹ tests 1[39m
+[34mℹ suites 0[39m
+[34mℹ pass 0[39m
+[34mℹ fail 1[39m
+[34mℹ cancelled 0[39m
+[34mℹ skipped 0[39m
+[34mℹ todo 0[39m
+[34mℹ duration_ms *[39m
+
+[31m✖ failing tests:[39m
+
+*
+[31m✖ failing assertion [90m(*ms)[39m[39m
+  [AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  [32mactual[39m [31mexpected[39m
+  
+  [39m'[39m[32m![39m[39mH[39m[39me[39m[39ml[39m[39ml[39m[39mo[39m[39m [39m[39mW[39m[39mo[39m[39mr[39m[39ml[39m[39md[39m[31m![39m[39m'[39m
+  ] {
+    generatedMessage: [33mtrue[39m,
+    code: [32m'ERR_ASSERTION'[39m,
+    actual: [32m'!Hello World'[39m,
+    expected: [32m'Hello World!'[39m,
+    operator: [32m'strictEqual'[39m
+  }

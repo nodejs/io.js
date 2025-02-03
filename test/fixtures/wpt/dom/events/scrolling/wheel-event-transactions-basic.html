@@ -1,0 +1,140 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1">
+<meta name="variant" content="?include=target-basic"/>
+<meta name="variant" content="?include=scroll-over-scrollable-child"/>
+<meta name="variant" content="?include=transaction-not-bound-to-scroll-frame"/>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/resources/testdriver.js"></script>
+<script src="/resources/testdriver-actions.js"></script>
+<script src="/resources/testdriver-vendor.js"></script>
+<script src="/common/subset-tests-by-key.js"></script>
+<script src="scroll_support.js"></script>
+<style>
+body {
+  margin: 0;
+  padding: 0;
+  height: 200vh;
+}
+
+.spacer {
+  width: 100%;
+  height: 25px;
+  padding: 0;
+  margin: 0;
+}
+
+#scrollableDiv {
+  width: 100%;
+  height: 500px;
+  overflow: scroll;
+  background: yellow;
+}
+
+#innerDiv {
+  width: 100%;
+  height: 4000px;
+  background: red;
+}
+
+</style>
+<head>
+<body onload=runTest()>
+<div id="firstRootSpacer" class="spacer" style="background: cyan"></div>
+<div id="secondRootSpacer" class="spacer" style="background: magenta"></div>
+<div id="scrollableDiv">
+  <div id="innerDiv">
+    <div id="firstInnerSpacer" class="spacer" style="background: green">
+    </div>
+    <div id="secondInnerSpacer" class="spacer" style="background: blue">
+    </div>
+  </div>
+</div>
+</body>
+
+<script>
+
+let variants = [
+  // Ensure that the wheel transaction fires all wheel events to the initial
+  // target.
+  {
+    key: 'target-basic',
+    origin: "viewport",
+    scrollX: 40,
+    scrollY: 2,
+    scrollingElement: document.scrollingElement,
+    targetElement: firstRootSpacer,
+    title: 'Wheel events should be captured to one target #1',
+  },
+  // Ensure that the wheel transaction fires all wheel events to the initial
+  // target, even when another scroll frame is under the mouse cursor.
+  {
+    key: 'scroll-over-scrollable-child',
+    origin: "viewport",
+    scrollX: 40,
+    scrollY: 27,
+    scrollingElement: document.scrollingElement,
+    targetElement: secondRootSpacer,
+    title: 'Wheel events should be captured to one target #2',
+  },
+  // Ensure that the wheel transaction targets the topmost-element, which is
+  // not the scrollable element.
+  {
+    key: 'transaction-not-bound-to-scroll-frame',
+    origin: innerDiv,
+    scrollX: 40,
+    scrollY: 2,
+    scrollingElement: scrollableDiv,
+    targetElement: innerDiv,
+    title: 'The wheel event transactions target may not be a scroll frame',
+  },
+];
+
+function runTest() {
+  async function testBasic(testInfo, t) {
+    await waitForCompositorReady();
+
+    await waitForCompositorCommit();
+
+    let wheelEventTargets = [];
+    function pushTargetToWheelEventTargets(e) {
+      wheelEventTargets.push(e.target)
+    }
+
+    window.addEventListener("wheel", pushTargetToWheelEventTargets, {passive: true});
+
+    // Scroll past the boundary of the original element to ensure all events in
+    // transaction have the same target.
+    await new test_driver.Actions()
+      .addWheel("wheel1")
+      .scroll(testInfo.scrollX, testInfo.scrollY, 0, 30, {origin: testInfo.origin})
+      .pause(1)
+      .scroll(testInfo.scrollX, testInfo.scrollY, 0, 30, {origin: testInfo.origin})
+      .pause(1)
+      .scroll(testInfo.scrollX, testInfo.scrollY, 0, 30, {origin: testInfo.origin})
+      .send();
+
+    // TODO(dlrobertson): Use the scrollend event here to wait for the
+    // wheel scroll to finish instead of waitForAnimationEnd().
+    await waitForAnimationEnd(() => { return testInfo.scrollingElement.scrollTop; });
+    await waitForCompositorCommit();
+
+    // Ensure that all the captured wheel events are the expected target.
+    wheelEventTargets.forEach((wheelEventTarget, i) => {
+      assert_equals(wheelEventTarget, testInfo.targetElement,
+                    "Wheel event at index `" + i + "` does not have the expected target");
+    });
+
+    assert_greater_than(testInfo.scrollingElement.scrollTop, 0,
+                        "The scrolling element has scrolled");
+  }
+
+  variants.forEach((testInfo) => {
+    subsetTestByKey(testInfo.key, promise_test, t => testBasic(testInfo, t), testInfo.title);
+  });
+}
+</script>
+</html>

@@ -37,7 +37,7 @@ MaybeHandle<Object> CreateDynamicFunction(Isolate* isolate,
     HandleScopeImplementer* impl = isolate->handle_scope_implementer();
     SaveAndSwitchContext save(isolate,
                               impl->LastEnteredContext()->native_context());
-    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kNoAccess), Object);
+    THROW_NEW_ERROR(isolate, NewTypeError(MessageTemplate::kNoAccess));
   }
 
   // Build the source string.
@@ -52,8 +52,8 @@ MaybeHandle<Object> CreateDynamicFunction(Isolate* isolate,
       for (int i = 1; i < argc; ++i) {
         if (i > 1) builder.AppendCharacter(',');
         Handle<String> param;
-        ASSIGN_RETURN_ON_EXCEPTION(
-            isolate, param, Object::ToString(isolate, args.at(i)), Object);
+        ASSIGN_RETURN_ON_EXCEPTION(isolate, param,
+                                   Object::ToString(isolate, args.at(i)));
         param = String::Flatten(isolate, param);
         builder.AppendString(param);
       }
@@ -63,12 +63,13 @@ MaybeHandle<Object> CreateDynamicFunction(Isolate* isolate,
     builder.AppendCStringLiteral(") {\n");
     if (argc > 0) {
       Handle<String> body;
-      ASSIGN_RETURN_ON_EXCEPTION(
-          isolate, body, Object::ToString(isolate, args.at(argc)), Object);
+      ASSIGN_RETURN_ON_EXCEPTION(isolate, body,
+                                 Object::ToString(isolate, args.at(argc)));
       builder.AppendString(body);
     }
     builder.AppendCStringLiteral("\n})");
-    ASSIGN_RETURN_ON_EXCEPTION(isolate, source, builder.Finish(), Object);
+    ASSIGN_RETURN_ON_EXCEPTION(isolate, source,
+                               indirect_handle(builder.Finish(), isolate));
   }
 
   bool is_code_like = true;
@@ -83,18 +84,15 @@ MaybeHandle<Object> CreateDynamicFunction(Isolate* isolate,
   // come from here.
   Handle<JSFunction> function;
   {
-    ASSIGN_RETURN_ON_EXCEPTION(
-        isolate, function,
-        Compiler::GetFunctionFromString(
-            handle(target->native_context(), isolate), source,
-            ONLY_SINGLE_FUNCTION_LITERAL, parameters_end_pos, is_code_like),
-        Object);
+    ASSIGN_RETURN_ON_EXCEPTION(isolate, function,
+                               Compiler::GetFunctionFromString(
+                                   handle(target->native_context(), isolate),
+                                   source, parameters_end_pos, is_code_like));
     Handle<Object> result;
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, result,
-        Execution::Call(isolate, function, target_global_proxy, 0, nullptr),
-        Object);
-    function = Handle<JSFunction>::cast(result);
+        Execution::Call(isolate, function, target_global_proxy, 0, nullptr));
+    function = Cast<JSFunction>(result);
     function->shared()->set_name_should_print_as_anonymous(true);
   }
 
@@ -107,12 +105,11 @@ MaybeHandle<Object> CreateDynamicFunction(Isolate* isolate,
   Handle<Object> unchecked_new_target = args.new_target();
   if (!IsUndefined(*unchecked_new_target, isolate) &&
       !unchecked_new_target.is_identical_to(target)) {
-    Handle<JSReceiver> new_target =
-        Handle<JSReceiver>::cast(unchecked_new_target);
+    Handle<JSReceiver> new_target = Cast<JSReceiver>(unchecked_new_target);
     Handle<Map> initial_map;
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, initial_map,
-        JSFunction::GetDerivedMap(isolate, target, new_target), Object);
+        JSFunction::GetDerivedMap(isolate, target, new_target));
 
     Handle<SharedFunctionInfo> shared_info(function->shared(), isolate);
     Handle<Map> map = Map::AsLanguageMode(isolate, initial_map, shared_info);
@@ -154,9 +151,8 @@ BUILTIN(AsyncFunctionConstructor) {
 
   // Do not lazily compute eval position for AsyncFunction, as they may not be
   // determined after the function is resumed.
-  Handle<JSFunction> func = Handle<JSFunction>::cast(maybe_func);
-  Handle<Script> script =
-      handle(Script::cast(func->shared()->script()), isolate);
+  auto func = Cast<JSFunction>(maybe_func);
+  DirectHandle<Script> script(Cast<Script>(func->shared()->script()), isolate);
   int position = Script::GetEvalPosition(isolate, script);
   USE(position);
 
@@ -173,9 +169,8 @@ BUILTIN(AsyncGeneratorFunctionConstructor) {
 
   // Do not lazily compute eval position for AsyncFunction, as they may not be
   // determined after the function is resumed.
-  Handle<JSFunction> func = Handle<JSFunction>::cast(maybe_func);
-  Handle<Script> script =
-      handle(Script::cast(func->shared()->script()), isolate);
+  auto func = Cast<JSFunction>(maybe_func);
+  DirectHandle<Script> script(Cast<Script>(func->shared()->script()), isolate);
   int position = Script::GetEvalPosition(isolate, script);
   USE(position);
 
@@ -200,10 +195,10 @@ Tagged<Object> DoFunctionBind(Isolate* isolate, BuiltinArguments args,
 
   // Allocate the bound function with the given {this_arg} and {args}.
   Handle<JSReceiver> target = args.at<JSReceiver>(0);
-  Handle<Object> this_arg = isolate->factory()->undefined_value();
+  DirectHandle<JSAny> this_arg = isolate->factory()->undefined_value();
   base::ScopedVector<Handle<Object>> argv(std::max(0, args.length() - 2));
   if (args.length() > 1) {
-    this_arg = args.at(1);
+    this_arg = args.at<JSAny>(1);
     for (int i = 2; i < args.length(); ++i) {
       argv[i - 2] = args.at(i);
     }
@@ -215,10 +210,10 @@ Tagged<Object> DoFunctionBind(Isolate* isolate, BuiltinArguments args,
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, proto, JSReceiver::GetPrototype(isolate, target));
   } else if (proto_source == ProtoSource::kNormalFunction) {
-    Handle<NativeContext> native_context(
+    DirectHandle<NativeContext> native_context(
         isolate->global_object()->native_context(), isolate);
     auto function_proto = native_context->function_function()->prototype();
-    proto = handle(HeapObject::cast(function_proto), isolate);
+    proto = handle(Cast<HeapObject>(function_proto), isolate);
   } else {
     UNREACHABLE();
   }
@@ -256,15 +251,15 @@ BUILTIN(FunctionPrototypeToString) {
   HandleScope scope(isolate);
   Handle<Object> receiver = args.receiver();
   if (IsJSBoundFunction(*receiver)) {
-    return *JSBoundFunction::ToString(Handle<JSBoundFunction>::cast(receiver));
+    return *JSBoundFunction::ToString(Cast<JSBoundFunction>(receiver));
   }
   if (IsJSFunction(*receiver)) {
-    return *JSFunction::ToString(Handle<JSFunction>::cast(receiver));
+    return *JSFunction::ToString(Cast<JSFunction>(receiver));
   }
   // With the revised toString behavior, all callable objects are valid
   // receivers for this method.
   if (IsJSReceiver(*receiver) &&
-      JSReceiver::cast(*receiver)->map()->is_callable()) {
+      Cast<JSReceiver>(*receiver)->map()->is_callable()) {
     return ReadOnlyRoots(isolate).function_native_code_string();
   }
   THROW_NEW_ERROR_RETURN_FAILURE(

@@ -17,20 +17,20 @@ Handle<FixedArray> MaterializedObjectStore::Get(Address fp) {
   if (index == -1) {
     return Handle<FixedArray>::null();
   }
-  Handle<FixedArray> array = GetStackEntries();
+  DirectHandle<FixedArray> array = GetStackEntries();
   CHECK_GT(array->length(), index);
-  return Handle<FixedArray>::cast(Handle<Object>(array->get(index), isolate()));
+  return Cast<FixedArray>(Handle<Object>(array->get(index), isolate()));
 }
 
-void MaterializedObjectStore::Set(Address fp,
-                                  Handle<FixedArray> materialized_objects) {
+void MaterializedObjectStore::Set(
+    Address fp, DirectHandle<FixedArray> materialized_objects) {
   int index = StackIdToIndex(fp);
   if (index == -1) {
     index = static_cast<int>(frame_fps_.size());
     frame_fps_.push_back(fp);
   }
 
-  Handle<FixedArray> array = EnsureStackEntries(index + 1);
+  DirectHandle<FixedArray> array = EnsureStackEntries(index + 1);
   array->set(index, *materialized_objects);
 }
 

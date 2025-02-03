@@ -5,9 +5,11 @@ const common = require('../common');
 const assert = require('assert');
 const initHooks = require('./init-hooks');
 const async_hooks = require('async_hooks');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('Worker bootstrapping works differently -> different async IDs');
+}
 
 const promiseAsyncIds = [];
 const hooks = initHooks({

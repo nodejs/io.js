@@ -1,4 +1,4 @@
-const { resolve } = require('path')
+const { resolve } = require('node:path')
 const t = require('tap')
 const { load: loadMockNpm } = require('../fixtures/mock-npm')
 const tmock = require('../fixtures/tmock')
@@ -117,7 +117,8 @@ t.test('arborist-cmd', async t => {
       chdir: (dirs) => dirs.testdir,
     })
 
-    npm.localPrefix = prefix
+    // TODO there has to be a better way to do this
+    npm.config.localPrefix = prefix
     await cmd.execWorkspaces([])
 
     t.same(cmd.workspaceNames, ['a', 'c'], 'should set array with single ws name')
@@ -127,7 +128,7 @@ t.test('arborist-cmd', async t => {
 t.test('handle getWorkspaces raising an error', async t => {
   const { cmd } = await mockArboristCmd(t, null, 'a', {
     mocks: {
-      '{LIB}/workspaces/get-workspaces.js': async () => {
+      '{LIB}/utils/get-workspaces.js': async () => {
         throw new Error('oopsie')
       },
     },
@@ -212,7 +213,7 @@ t.test('location detection and audit', async (t) => {
     })
     t.equal(npm.config.get('location'), 'user')
     t.equal(npm.config.get('audit'), true)
-    t.equal(logs.warn[0][0], 'config')
-    t.equal(logs.warn[0][1], 'includes both --global and --audit, which is currently unsupported.')
+    t.equal(logs.warn[0],
+      'config includes both --global and --audit, which is currently unsupported.')
   })
 })

@@ -840,7 +840,9 @@ class FdEntry final : public EntryImpl {
         path_(std::move(path_)),
         stat_(stat),
         start_(start),
-        end_(end) {}
+        end_(end) {
+    CHECK_LE(start, end);
+  }
 
   std::shared_ptr<DataQueue::Reader> get_reader() override {
     return ReaderImpl::Create(this);
@@ -851,7 +853,7 @@ class FdEntry final : public EntryImpl {
     uint64_t new_start = start_ + start;
     uint64_t new_end = end_;
     if (end.has_value()) {
-      new_end = std::min(end.value(), end_);
+      new_end = std::min(end.value() + start_, end_);
     }
 
     CHECK(new_start >= start_);

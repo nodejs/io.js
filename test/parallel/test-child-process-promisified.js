@@ -8,7 +8,7 @@ const exec = promisify(child_process.exec);
 const execFile = promisify(child_process.execFile);
 
 {
-  const promise = exec(`${process.execPath} -p 42`);
+  const promise = exec(...common.escapePOSIXShell`"${process.execPath}" -p 42`);
 
   assert(promise.child instanceof child_process.ChildProcess);
   promise.then(common.mustCall((obj) => {
@@ -45,7 +45,7 @@ const execFile = promisify(child_process.execFile);
 const failingCodeWithStdoutErr =
   'console.log(42);console.error(43);process.exit(1)';
 {
-  exec(`${process.execPath} -e "${failingCodeWithStdoutErr}"`)
+  exec(...common.escapePOSIXShell`"${process.execPath}" -e "${failingCodeWithStdoutErr}"`)
     .catch(common.mustCall((err) => {
       assert.strictEqual(err.code, 1);
       assert.strictEqual(err.stdout, '42\n');

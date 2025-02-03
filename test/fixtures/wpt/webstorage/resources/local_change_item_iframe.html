@@ -1,0 +1,18 @@
+<!DOCTYPE HTML>
+<html>
+  <body>
+    <script>
+        if (('localStorage' in window) && window.localStorage !== null){
+            try {
+                localStorage.setItem("name", "user1");
+                localStorage.setItem("name", "user2");
+            } catch (e) {
+                parent.fail("setItem method is failed.");
+            }
+            localStorage.clear();
+        } else {
+            parent.fail("localStorage is not supported.");
+        }
+    </script>
+  </body>
+</html>

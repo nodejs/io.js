@@ -6,11 +6,6 @@
 #include 'src/builtins/builtins-promise-gen.h'
 
 namespace runtime {
-extern transitioning runtime DebugPushPromise(
-    implicit context: Context)(JSAny): JSAny;
-
-extern transitioning runtime DebugPopPromise(implicit context: Context)(): JSAny;
-
 extern transitioning runtime PromiseHookInit(
     implicit context: Context)(Object, Object): JSAny;
 }
@@ -73,9 +68,6 @@ transitioning javascript builtin PromiseConstructor(
     RunAnyPromiseHookInit(result, Undefined);
   }
 
-  const isDebugActive = IsDebugActive();
-  if (isDebugActive) runtime::DebugPushPromise(result);
-
   const funcs = CreatePromiseResolvingFunctions(result, True, context);
   const resolve = funcs.resolve;
   const reject = funcs.reject;
@@ -92,7 +84,6 @@ transitioning javascript builtin PromiseConstructor(
     Call(context, reject, Undefined, e);
   }
 
-  if (isDebugActive) runtime::DebugPopPromise();
   return result;
 }
 

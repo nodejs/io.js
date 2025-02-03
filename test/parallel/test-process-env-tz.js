@@ -1,12 +1,15 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.env.TZ is not intercepted in Workers');
+}
 
-if (common.isWindows)  // Using a different TZ format.
+if (common.isWindows) { // Using a different TZ format.
   common.skip('todo: test on Windows');
+}
 
 const date = new Date('2018-04-14T12:34:56.789Z');
 

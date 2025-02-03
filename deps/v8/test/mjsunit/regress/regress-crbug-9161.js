@@ -28,7 +28,7 @@ function WaitUntil(funcOfValue) {
 }
 
 const workerScript = `
-  onmessage = function([sab, lock]) {
+  onmessage = function({data:[sab, lock]}) {
     const i32a = new Int32Array(sab);
     Atomics.store(lock, ${kStageIndex}, ${kStageRunning});
 

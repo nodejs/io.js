@@ -98,6 +98,7 @@ void StaticRootsTableGen::write(Isolate* isolate, const char* file) {
 
   for (auto& entry : gen.sorted_roots()) {
     Tagged_t ptr = entry.first;
+    CHECK_LT(ptr, kRegularPageSize);
     const std::list<RootIndex>& roots = entry.second;
 
     for (RootIndex root : roots) {
@@ -111,6 +112,12 @@ void StaticRootsTableGen::write(Isolate* isolate, const char* file) {
       out << " 0x" << std::hex << ptr << std::dec << ";\n";
     }
   }
+
+  out << "\n";
+  out << "  static constexpr Tagged_t kFirstAllocatedRoot = 0x" << std::hex
+      << gen.sorted_roots().cbegin()->first << std::dec << ";\n";
+  out << "  static constexpr Tagged_t kLastAllocatedRoot = 0x" << std::hex
+      << gen.sorted_roots().crbegin()->first << std::dec << ";\n";
   out << "};\n";
 
   // Output in order of roots table

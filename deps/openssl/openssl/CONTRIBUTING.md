@@ -3,13 +3,13 @@ HOW TO CONTRIBUTE TO OpenSSL
 
 Please visit our [Getting Started] page for other ideas about how to contribute.
 
-  [Getting Started]: <https://www.openssl.org/community/getting-started.html>
+  [Getting Started]: <https://openssl-library.org/community/getting-started>
 
 Development is done on GitHub in the [openssl/openssl] repository.
 
   [openssl/openssl]: <https://github.com/openssl/openssl>
 
-To request new a feature, ask a question, or report a bug,
+To request a new feature, ask a question, or report a bug,
 please open an [issue on GitHub](https://github.com/openssl/openssl/issues).
 
 To submit a patch or implement a new feature, please open a
@@ -67,7 +67,8 @@ guidelines:
     often. We do not accept merge commits, you will have to remove them
     (usually by rebasing) before it will be acceptable.
 
- 4. Code provided should follow our [coding style] and compile without warnings.
+ 4. Code provided should follow our [coding style] and [documentation policy]
+    and compile without warnings.
     There is a [Perl tool](util/check-format.pl) that helps
     finding code formatting mistakes and other coding style nits.
     Where `gcc` or `clang` is available, you should use the
@@ -76,7 +77,8 @@ guidelines:
     Clean builds via GitHub Actions are required. They are started automatically
     whenever a PR is created or updated by committers.
 
-    [coding style]: https://www.openssl.org/policies/technical/coding-style.html
+    [coding style]: https://openssl-library.org/policies/technical/coding-style/
+    [documentation policy]: https://openssl-library.org/policies/technical/documentation-policy/
 
  5. When at all possible, code contributions should include tests. These can
     either be added to an existing test, or completely new.  Please see

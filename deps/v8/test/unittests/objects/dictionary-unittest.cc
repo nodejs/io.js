@@ -258,7 +258,7 @@ class ObjectHashTableTest {
 TEST_F(DictionaryTest, HashTableRehash) {
   // Test almost filled table.
   {
-    Handle<ObjectHashTable> table = ObjectHashTable::New(isolate(), 100);
+    DirectHandle<ObjectHashTable> table = ObjectHashTable::New(isolate(), 100);
     ObjectHashTableTest t(*table);
     int capacity = t->capacity();
     for (int i = 0; i < capacity - 1; i++) {
@@ -271,7 +271,7 @@ TEST_F(DictionaryTest, HashTableRehash) {
   }
   // Test half-filled table.
   {
-    Handle<ObjectHashTable> table = ObjectHashTable::New(isolate(), 100);
+    DirectHandle<ObjectHashTable> table = ObjectHashTable::New(isolate(), 100);
     ObjectHashTableTest t(*table);
     int capacity = t->capacity();
     for (int i = 0; i < capacity / 2; i++) {

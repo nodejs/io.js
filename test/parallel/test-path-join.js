@@ -110,6 +110,13 @@ joinTests.push([
       [['c:.', 'file'], 'c:file'],
       [['c:', '/'], 'c:\\'],
       [['c:', 'file'], 'c:\\file'],
+      // Path traversal in previous versions of Node.js.
+      [['./upload', '/../C:/Windows'], '.\\C:\\Windows'],
+      [['upload', '../', 'C:foo'], '.\\C:foo'],
+      [['test/..', '??/D:/Test'], '.\\??\\D:\\Test'],
+      [['test', '..', 'D:'], '.\\D:'],
+      [['test', '..', 'D:\\'], '.\\D:\\'],
+      [['test', '..', 'D:foo'], '.\\D:foo'],
     ]
   ),
 ]);

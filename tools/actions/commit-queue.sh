@@ -19,7 +19,7 @@ commit_queue_failed() {
 
   # shellcheck disable=SC2154
   cqurl="${GITHUB_SERVER_URL}/${OWNER}/${REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-  body="<details><summary>Commit Queue failed</summary><pre>$(cat output)</pre><a href='$cqurl'>$cqurl</a></details>"
+  body="<details><summary>Commit Queue failed</summary><pre>$(sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' output)</pre><a href='$cqurl'>$cqurl</a></details>"
   echo "$body"
 
   gh pr comment "$pr" --body "$body"
@@ -57,7 +57,7 @@ for pr in "$@"; do
   fi
 
   git node land --autorebase --yes $MULTIPLE_COMMIT_POLICY "$pr" >output 2>&1 || echo "Failed to land #${pr}"
-  # cat here otherwise we'll be supressing the output of git node land
+  # cat here otherwise we'll be suppressing the output of git node land
   cat output
 
   # TODO(mmarchini): workaround for ncu not returning the expected status code,

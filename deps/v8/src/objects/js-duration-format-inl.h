@@ -27,7 +27,7 @@ ACCESSORS(JSDurationFormat, icu_locale, Tagged<Managed<icu::Locale>>,
 
 #define IMPL_INLINE_SETTER_GETTER(T, n, B, f, M)           \
   inline void JSDurationFormat::set_##n(T value) {         \
-    DCHECK_GE(B::kMax, value);                             \
+    DCHECK(B::is_valid(value));                            \
     DCHECK_GE(T::M, value);                                \
     set_##f(B::update(f(), value));                        \
   }                                                        \
@@ -41,15 +41,15 @@ ACCESSORS(JSDurationFormat, icu_locale, Tagged<Managed<icu::Locale>>,
 
 #define IMPL_INLINE_FIELD_STYLE3_SETTER_GETTER(f, R)                          \
   IMPL_INLINE_SETTER_GETTER(FieldStyle, f##_style, R##StyleBits, style_flags, \
-                            kNarrow)
+                            kStyle3Max)
 
 #define IMPL_INLINE_FIELD_STYLE4_SETTER_GETTER(f, R)                          \
   IMPL_INLINE_SETTER_GETTER(FieldStyle, f##_style, R##StyleBits, style_flags, \
-                            kNumeric)
+                            kStyle4Max)
 
 #define IMPL_INLINE_FIELD_STYLE5_SETTER_GETTER(f, R)                          \
   IMPL_INLINE_SETTER_GETTER(FieldStyle, f##_style, R##StyleBits, style_flags, \
-                            k2Digit)
+                            kStyle5Max)
 
 IMPL_INLINE_DISPLAY_SETTER_GETTER(years, Years)
 IMPL_INLINE_DISPLAY_SETTER_GETTER(months, Months)

@@ -71,8 +71,7 @@ TEST_F(IteratorsTest, HeapObjectIterator) {
   HeapObjectIterator iterator(heap);
   for (Tagged<HeapObject> obj = iterator.Next(); !obj.is_null();
        obj = iterator.Next()) {
-    CHECK_IMPLIES(!v8_flags.enable_third_party_heap,
-                  !ReadOnlyHeap::Contains(obj));
+    CHECK(!ReadOnlyHeap::Contains(obj));
     CHECK(heap->Contains(obj));
     if (sample_object.SafeEquals(obj)) seen_sample_object = true;
   }
