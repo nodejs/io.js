@@ -361,29 +361,105 @@ suite('conflict resolution', () => {
   });
 });
 
-test('database.createSession() - filter changes', (t) => {
-  const database1 = new DatabaseSync(':memory:');
-  const database2 = new DatabaseSync(':memory:');
-  const createTableSql = 'CREATE TABLE data1(key INTEGER PRIMARY KEY); CREATE TABLE data2(key INTEGER PRIMARY KEY);';
-  database1.exec(createTableSql);
-  database2.exec(createTableSql);
+suite('filter tables', () => {
+  function testFilter(t, options) {
+    const database1 = new DatabaseSync(':memory:');
+    const database2 = new DatabaseSync(':memory:');
+    const createTableSql = 'CREATE TABLE data1(key INTEGER PRIMARY KEY); CREATE TABLE data2(key INTEGER PRIMARY KEY);';
 
-  const session = database1.createSession();
+    database1.exec(createTableSql);
+    database2.exec(createTableSql);
 
-  database1.exec('INSERT INTO data1 (key) VALUES (1), (2), (3)');
-  database1.exec('INSERT INTO data2 (key) VALUES (1), (2), (3), (4), (5)');
+    const session = database1.createSession();
+    database1.exec('INSERT INTO data1 (key) VALUES (1), (2), (3)');
+    database1.exec('INSERT INTO data2 (key) VALUES (1), (2), (3), (4), (5)');
 
-  database2.applyChangeset(session.changeset(), {
-    filter: (tableName) => tableName === 'data2'
+    const applyChangeset = () => database2.applyChangeset(session.changeset(), {
+      ...(options.filter ? { filter: options.filter } : {})
+    });
+    if (options.error) {
+      t.assert.throws(applyChangeset, options.error);
+    } else {
+      try {
+        applyChangeset();
+      } catch (error) {
+        if (!options.expectError) throw error;
+      }
+    }
+
+    t.assert.strictEqual(database2.prepare('SELECT * FROM data1').all().length, options.data1);
+    t.assert.strictEqual(database2.prepare('SELECT * FROM data2').all().length, options.data2);
+  }
+
+  test('database.createSession() - filter one table', (t) => {
+    testFilter(t, {
+      filter: (tableName) => tableName === 'data2',
+      // Only changes from data2 should be included
+      data1: 0,
+      data2: 5
+    });
   });
 
-  const data1Rows = database2.prepare('SELECT * FROM data1').all();
-  const data2Rows = database2.prepare('SELECT * FROM data2').all();
+  test('database.createSession() - throw in filter callback', (t) => {
+    const error = Error('hello world');
+    testFilter(t, {
+      filter: () => { throw error; },
+      error: error,
+      // When an exception is thrown in the filter function, no changes should be applied
+      data1: 0,
+      data2: 0
+    });
+  });
 
-  // Expect no rows since all changes were filtered out
-  t.assert.strictEqual(data1Rows.length, 0);
-  // Expect 5 rows since these changes were not filtered out
-  t.assert.strictEqual(data2Rows.length, 5);
+  test('database.createSession() - throw sometimes in filter callback', (t) => {
+    testFilter(t, {
+      filter: (tableName) => { if (tableName === 'data2') throw new Error(); else { return true; } },
+      // Only changes to data1 should be applied
+      // note that the changeset was not aborted
+      data1: 3,
+      data2: 0,
+      expectError: true
+    });
+  });
+
+
+  test('database.createSession() - do not return anything in filter callback', (t) => {
+    testFilter(t, {
+      filter: () => {},
+      // Undefined is falsy, so it is interpreted as "do not include changes from this table"
+      data1: 0,
+      data2: 0
+    });
+  });
+
+  test('database.createSession() - return true for all tables', (t) => {
+    const tables = new Set();
+    testFilter(t, {
+      filter: (tableName) => { tables.add(tableName); return true; },
+      // Changes from all tables should be included
+      data1: 3,
+      data2: 5
+    });
+    t.assert.deepEqual(tables, new Set(['data1', 'data2']));
+  });
+
+  test('database.createSession() - return truthy value for all tables', (t) => {
+    testFilter(t, {
+      filter: () => 'yes',
+      // Truthy, so changes from all tables should be included
+      data1: 3,
+      data2: 5
+    });
+  });
+
+  test('database.createSession() - no filter callback', (t) => {
+    testFilter(t, {
+      filter: undefined,
+      // All changes should be applied
+      data1: 3,
+      data2: 5
+    });
+  });
 });
 
 test('database.createSession() - specify other database', (t) => {

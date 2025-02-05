@@ -850,13 +850,21 @@ void DatabaseSync::ApplyChangeset(const FunctionCallbackInfo<Value>& args) {
       Local<Function> filterFunc = filterValue.As<Function>();
 
       filterCallback = [env, filterFunc](std::string item) -> bool {
+        TryCatch try_catch(env->isolate());
         Local<Value> argv[] = {String::NewFromUtf8(env->isolate(),
-                                                   item.c_str(),
-                                                   NewStringType::kNormal)
-                                   .ToLocalChecked()};
-        Local<Value> result =
-            filterFunc->Call(env->context(), Null(env->isolate()), 1, argv)
-                .ToLocalChecked();
+                                                  item.c_str(),
+                                                  NewStringType::kNormal)
+                                  .ToLocalChecked()};
+        MaybeLocal<Value> maybe_result =
+            filterFunc->Call(env->context(), Null(env->isolate()), 1, argv);
+        if (try_catch.HasCaught()) {
+          try_catch.ReThrow();
+          return false;
+        }
+        if (maybe_result.IsEmpty()) {
+          return false;
+        }
+        Local<Value> result = maybe_result.ToLocalChecked();
         return result->BooleanValue(env->isolate());
       };
     }
