@@ -202,11 +202,11 @@ describe('.env supports edge cases', () => {
   });
 
   it('should handle invalid syntax in .env file', async () => {
-    const invalidEnvFilePath = path.resolve(__dirname, '../fixtures/dotenv/invalid-syntax.env');
+    const invalidEnvFilePath = fixtures.path('dotenv/invalid-syntax.env');
     const code = `
       const { parseEnv } = require('node:util');
 
-      const input = fs.readFileSync('${invalidEnvFilePath}', 'utf8');
+      const input = fs.readFileSync(${JSON.stringify(invalidEnvFilePath)}, 'utf8');
       const result = parseEnv(input);
       assert.strictEqual(Object.keys(result).length, 3);
       assert.strictEqual(result.baz, 'whatever');
@@ -223,6 +223,7 @@ describe('.env supports edge cases', () => {
       { cwd: __dirname },
     );
     assert.strictEqual(child.stderr, '');
+    assert.strictEqual(child.stdout, '');
     assert.strictEqual(child.code, 0);
   });
 });
