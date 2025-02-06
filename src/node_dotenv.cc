@@ -193,7 +193,7 @@ void Dotenv::ParseContent(const std::string_view input) {
     //   "   "=value
     if (key.empty()) continue;
 
-    // Remove export prefix from key and ensure proper spacing
+    // Remove export prefix from key and ensure proper spacing.
     // Example: export FOO=bar -> FOO=bar
     if (key.starts_with("export ")) {
       key.remove_prefix(7);
