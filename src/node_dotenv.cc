@@ -149,18 +149,18 @@ void Dotenv::ParseContent(const std::string_view input) {
         auto newline = content.find('\n');
         if (newline != std::string_view::npos) {
           // If a newline is found, remove the comment line including the
-          // newline character
+          // newline character.
           content.remove_prefix(newline + 1);
         }
       }
 
       // Skip the remaining code in the loop and continue with the next
-      // iteration
+      // iteration.
       continue;
     }
 
-    // Find the next equals sign or newline in a single pass
-    // This optimizes the search by avoiding multiple iterations
+    // Find the next equals sign or newline in a single pass.
+    // This optimizes the search by avoiding multiple iterations.
     auto equal_or_newline = content.find_first_of("=\n");
 
     // If we found nothing or found a newline before equals, the line is invalid
@@ -187,7 +187,7 @@ void Dotenv::ParseContent(const std::string_view input) {
 
     content = trim_spaces(content);
 
-    // Skip lines with empty keys after trimming spaces
+    // Skip lines with empty keys after trimming spaces.
     // Examples of invalid keys that would be skipped:
     //   =value
     //   "   "=value
