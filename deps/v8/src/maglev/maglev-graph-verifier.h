@@ -16,8 +16,7 @@ namespace maglev {
 
 class Graph;
 
-// TODO(victorgomes): Currently it only verifies the inputs for all ValueNodes
-// are expected to be tagged/untagged. Add more verification later.
+// TODO(victorgomes): Add more verification.
 class MaglevGraphVerifier {
  public:
   explicit MaglevGraphVerifier(MaglevCompilationInfo* compilation_info) {

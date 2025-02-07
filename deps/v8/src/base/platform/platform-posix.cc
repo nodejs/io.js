@@ -55,6 +55,8 @@
 #if V8_OS_DARWIN
 #include <mach/mach.h>
 #include <malloc/malloc.h>
+#elif V8_OS_OPENBSD
+#include <sys/malloc.h>
 #elif !V8_OS_ZOS
 #include <malloc.h>
 #endif
@@ -336,21 +338,27 @@ void* OS::GetRandomMmapAddr() {
   raw_addr &= 0x007fffff0000ULL;
   raw_addr += 0x7e8000000000ULL;
 #else
-#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64
+#if V8_TARGET_ARCH_X64
   // Currently available CPUs have 48 bits of virtual addressing.  Truncate
   // the hint address to 46 bits to give the kernel a fighting chance of
   // fulfilling our placement request.
   raw_addr &= uint64_t{0x3FFFFFFFF000};
+#elif V8_TARGET_ARCH_ARM64
+#if defined(V8_TARGET_OS_LINUX) || defined(V8_TARGET_OS_ANDROID)
+  // On Linux, the default virtual address space is limited to 39 bits when
+  // using 4KB pages, see arch/arm64/Kconfig. We truncate to 38 bits.
+  raw_addr &= uint64_t{0x3FFFFFF000};
+#else
+  // On macOS and elsewhere, we use 46 bits, same as on x64.
+  raw_addr &= uint64_t{0x3FFFFFFFF000};
+#endif
 #elif V8_TARGET_ARCH_PPC64
 #if V8_OS_AIX
-  // AIX: 64 bits of virtual addressing, but we limit address range to:
-  //   a) minimize Segment Lookaside Buffer (SLB) misses and
+  // AIX: 64 bits of virtual addressing, but we limit address range to minimize
+  // Segment Lookaside Buffer (SLB) misses.
   raw_addr &= uint64_t{0x3FFFF000};
   // Use extra address space to isolate the mmap regions.
   raw_addr += uint64_t{0x400000000000};
-#elif V8_TARGET_BIG_ENDIAN
-  // Big-endian Linux: 42 bits of virtual addressing.
-  raw_addr &= uint64_t{0x03FFFFFFF000};
 #else
   // Little-endian Linux: 46 bits of virtual addressing.
   raw_addr &= uint64_t{0x3FFFFFFF0000};
@@ -614,6 +622,20 @@ bool OS::DecommitPages(void* address, size_t size) {
 #endif  // !V8_OS_ZOS
 
 // static
+bool OS::SealPages(void* address, size_t size) {
+#ifdef V8_ENABLE_MEMORY_SEALING
+#if V8_OS_LINUX && defined(__NR_mseal)
+  long ret = syscall(__NR_mseal, address, size, 0);
+  return ret == 0;
+#else
+  return false;
+#endif
+#else  // V8_ENABLE_MEMORY_SEALING
+  return false;
+#endif
+}
+
+// static
 bool OS::CanReserveAddressSpace() { return true; }
 
 // static
@@ -729,7 +751,7 @@ void OS::DebugBreak() {
   asm("break");
 #elif V8_HOST_ARCH_LOONG64
   asm("break 0");
-#elif V8_HOST_ARCH_PPC || V8_HOST_ARCH_PPC64
+#elif V8_HOST_ARCH_PPC64
   asm("twge 2,2");
 #elif V8_HOST_ARCH_IA32
   asm("int $3");
@@ -1349,6 +1371,15 @@ bool MainThreadIsCurrentThread() {
 Stack::StackSlot Stack::ObtainCurrentThreadStackStart() {
 #if V8_OS_ZOS
   return __get_stack_start();
+#elif V8_OS_OPENBSD
+  stack_t stack;
+  int error = pthread_stackseg_np(pthread_self(), &stack);
+  if(error) {
+    DCHECK(MainThreadIsCurrentThread());
+    return nullptr;
+  }
+  void* stack_start = reinterpret_cast<uint8_t*>(stack.ss_sp) + stack.ss_size;
+  return stack_start;
 #else
   pthread_attr_t attr;
   int error = pthread_getattr_np(pthread_self(), &attr);

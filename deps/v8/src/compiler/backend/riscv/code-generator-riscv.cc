@@ -20,14 +20,7 @@ namespace compiler {
 
 #define __ masm()->
 
-// TODO(plind): consider renaming these macros.
-#define TRACE_MSG(msg)                                                      \
-  PrintF("code_gen: \'%s\' in function %s at line %d\n", msg, __FUNCTION__, \
-         __LINE__)
-
-#define TRACE_UNIMPL()                                            \
-  PrintF("UNIMPLEMENTED code_generator_riscv64: %s at line %d\n", \
-         __FUNCTION__, __LINE__)
+#define TRACE(...) PrintF(__VA_ARGS__)
 
 // Adds RISC-V-specific methods to convert InstructionOperands.
 class RiscvOperandConverter final : public InstructionOperandConverter {
@@ -4337,7 +4330,8 @@ void CodeGenerator::AssembleArchBoolean(Instruction* instr,
   } else {
     PrintF("AssembleArchBranch Unimplemented arch_opcode is : %d\n",
            instr->arch_opcode());
-    TRACE_UNIMPL();
+    TRACE("UNIMPLEMENTED code_generator_riscv64: %s at line %d\n", __FUNCTION__,
+          __LINE__);
     UNIMPLEMENTED();
   }
 }
@@ -4412,26 +4406,9 @@ void CodeGenerator::AssembleConstructFrame() {
       if (call_descriptor->IsWasmFunctionCall() ||
           call_descriptor->IsWasmImportWrapper() ||
           call_descriptor->IsWasmCapiFunction()) {
-        __ Push(kWasmInstanceRegister);
+        __ Push(kWasmImplicitArgRegister);
       }
-      if (call_descriptor->IsWasmImportWrapper()) {
-        // If the wrapper is running on a secondary stack, it will switch to the
-        // central stack and fill these slots with the central stack pointer and
-        // secondary stack limit. Otherwise the slots remain empty.
-#if V8_TARGET_ARCH_RISCV64
-        static_assert(WasmImportWrapperFrameConstants::kCentralStackSPOffset ==
-                      -24);
-        static_assert(
-            WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset == -32);
-#elif V8_TARGET_ARCH_RISCV32
-        static_assert(WasmImportWrapperFrameConstants::kCentralStackSPOffset ==
-                      -12);
-        static_assert(
-            WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset == -16);
-#endif
-        __ push(zero_reg);
-        __ push(zero_reg);
-      } else if (call_descriptor->IsWasmCapiFunction()) {
+      if (call_descriptor->IsWasmCapiFunction()) {
         // Reserve space for saving the PC later.
         __ SubWord(sp, sp, Operand(kSystemPointerSize));
       }
@@ -4642,7 +4619,7 @@ void CodeGenerator::MoveToTempLocation(InstructionOperand* source,
   // might be needed for the move to the temp location.
   temps.Exclude(move_cycle_.scratch_regs);
   if (!IsFloatingPoint(rep)) {
-    if (temps.hasAvailable()) {
+    if (temps.CanAcquire()) {
       Register scratch = move_cycle_.temps->Acquire();
       move_cycle_.scratch_reg.emplace(scratch);
     }
@@ -5108,8 +5085,7 @@ void CodeGenerator::AssembleJumpTable(Label** targets, size_t target_count) {
 #undef ASSEMBLE_IEEE754_BINOP
 #undef ASSEMBLE_IEEE754_UNOP
 
-#undef TRACE_MSG
-#undef TRACE_UNIMPL
+#undef TRACE
 #undef __
 
 }  // namespace compiler

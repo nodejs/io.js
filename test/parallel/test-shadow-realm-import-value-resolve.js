@@ -3,8 +3,11 @@
 const common = require('../common');
 const assert = require('assert');
 const path = require('path');
+const { isMainThread } = require('worker_threads');
 
-common.skipIfWorker('process.chdir is not supported in workers.');
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 async function main() {
   const realm = new ShadowRealm();

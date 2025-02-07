@@ -51,12 +51,6 @@ std::ostream& operator<<(std::ostream& os, ObjectRef ref);
       StdoutStream{} << broker->Trace() << x << '\n';                    \
   } while (false)
 
-#define TRACE_BROKER_MEMORY(broker, x)                                  \
-  do {                                                                  \
-    if (broker->tracing_enabled() && v8_flags.trace_heap_broker_memory) \
-      StdoutStream{} << broker->Trace() << x << std::endl;              \
-  } while (false)
-
 #define TRACE_BROKER_MISSING(broker, x)                                        \
   do {                                                                         \
     if (broker->tracing_enabled())                                             \

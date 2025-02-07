@@ -37,15 +37,13 @@ enum class TracedReferenceHandling {
   kDroppable
 };
 
-V8_EXPORT internal::Address* GlobalizeTracedReference(
-    internal::Isolate* isolate, internal::Address value,
-    internal::Address* slot, TracedReferenceStoreMode store_mode,
-    internal::TracedReferenceHandling reference_handling);
-V8_EXPORT void MoveTracedReference(internal::Address** from,
-                                   internal::Address** to);
-V8_EXPORT void CopyTracedReference(const internal::Address* const* from,
-                                   internal::Address** to);
-V8_EXPORT void DisposeTracedReference(internal::Address* global_handle);
+V8_EXPORT Address* GlobalizeTracedReference(
+    Isolate* isolate, Address value, Address* slot,
+    TracedReferenceStoreMode store_mode,
+    TracedReferenceHandling reference_handling);
+V8_EXPORT void MoveTracedReference(Address** from, Address** to);
+V8_EXPORT void CopyTracedReference(const Address* const* from, Address** to);
+V8_EXPORT void DisposeTracedReference(Address* global_handle);
 
 }  // namespace internal
 
@@ -55,6 +53,9 @@ V8_EXPORT void DisposeTracedReference(internal::Address* global_handle);
  */
 class TracedReferenceBase : public api_internal::IndirectHandleBase {
  public:
+  static_assert(sizeof(std::atomic<internal::Address*>) ==
+                sizeof(internal::Address*));
+
   /**
    * If non-empty, destroy the underlying storage cell. |IsEmpty| will return
    * true after this call.
@@ -73,9 +74,7 @@ class TracedReferenceBase : public api_internal::IndirectHandleBase {
    * Returns true if this TracedReference is empty, i.e., has not been
    * assigned an object. This version of IsEmpty is thread-safe.
    */
-  bool IsEmptyThreadSafe() const {
-    return this->GetSlotThreadSafe() == nullptr;
-  }
+  bool IsEmptyThreadSafe() const { return GetSlotThreadSafe() == nullptr; }
 
  protected:
   V8_INLINE TracedReferenceBase() = default;
@@ -83,17 +82,17 @@ class TracedReferenceBase : public api_internal::IndirectHandleBase {
   /**
    * Update this reference in a thread-safe way.
    */
-  void SetSlotThreadSafe(void* new_val) {
-    reinterpret_cast<std::atomic<void*>*>(&slot())->store(
+  void SetSlotThreadSafe(internal::Address* new_val) {
+    reinterpret_cast<std::atomic<internal::Address*>*>(&slot())->store(
         new_val, std::memory_order_relaxed);
   }
 
   /**
    * Get this reference in a thread-safe way
    */
-  const void* GetSlotThreadSafe() const {
-    return reinterpret_cast<std::atomic<const void*> const*>(&slot())->load(
-        std::memory_order_relaxed);
+  const internal::Address* GetSlotThreadSafe() const {
+    return reinterpret_cast<const std::atomic<internal::Address*>*>(&slot())
+        ->load(std::memory_order_relaxed);
   }
 
   V8_EXPORT void CheckValue() const;

@@ -1,4 +1,85 @@
-2024.10.18, Version 1.49.2 (Stable)
+2025.01.15, Version 1.50.0 (Stable)
+
+Changes since version 1.49.2:
+
+* ci: run macOS and iOS tests also on macOS 14 (Saúl Ibarra Corretgé)
+
+* unix,win: map ENOEXEC errno (Saúl Ibarra Corretgé)
+
+* test: skip multicast join test on ENOEXEC (Saúl Ibarra Corretgé)
+
+* ci: make sure the macOS firewall is disabled (Saúl Ibarra Corretgé)
+
+* darwin,test: squelch EBUSY error on multicast join (Saúl Ibarra Corretgé)
+
+* build: update minimum cmake to 3.10 (Ben Noordhuis)
+
+* kqueue: use EVFILT_USER for async if available (Jameson Nash)
+
+* unix,win: fix off-by-one in uv_wtf8_to_utf16() (Ben Noordhuis)
+
+* doc: add scala-native-loop to LINKS.md (Julian A Avar C)
+
+* unix: fix build breakage on haiku, openbsd, etc (Jeffrey H. Johnson)
+
+* kqueue: lower overhead in uv__io_check_fd (Andy Pan)
+
+* doc: move cjihrig back to active maintainers (cjihrig)
+
+* build(deps): bump actions/checkout from 3 to 4 (dependabot[bot])
+
+* unix,pipe: fix handling null buffer in uv_pipe_get{sock,peer}name (Saúl
+  Ibarra Corretgé)
+
+* unix,win: harmonize buffer checking (Saúl Ibarra Corretgé)
+
+* unix,win: add support for detached threads (Juan José Arboleda)
+
+* src: add uv_thread_set/getname() methods (Santiago Gimeno)
+
+* build: fix qemu builds (Ben Noordhuis)
+
+* win: drop support for windows 8 (Ben Noordhuis)
+
+* linux: fix uv_cpu_info() arm cpu model detection (Ben Noordhuis)
+
+* linux: always use io_uring for epoll batching (Ben Noordhuis)
+
+* doc: clarify repeating timer behavior more (Ben Noordhuis)
+
+* unix,win: handle nbufs=0 in uv_udp_try_send (Ben Noordhuis)
+
+* win: use GetQueuedCompletionStatusEx directly (Saúl Ibarra Corretgé)
+
+* win: enable uv_thread_{get,set}name on MinGW (Saúl Ibarra Corretgé)
+
+* win: drop support for the legacy MinGW (Saúl Ibarra Corretgé)
+
+* win,fs: get (most) fstat when no permission (Jameson Nash)
+
+* win: plug uv_fs_event_start memory leak (amcgoogan)
+
+* test: address FreeBSD kernel bug causing NULL path in fsevents (Juan José
+  Arboleda)
+
+* unix: refactor udp sendmsg code (Ben Noordhuis)
+
+* unix,win: add uv_udp_try_send2 (Ben Noordhuis)
+
+* test: fix flaky flaky udp_mmsg test (Juan José Arboleda)
+
+* build: enable fdsan in Android (Juan José Arboleda)
+
+* test: fix udp-multicast-join for FreeBSD (Juan José Arboleda)
+
+* win: fix leak processing fs event (Saúl Ibarra Corretgé)
+
+* src: set a default thread name for workers (Rafael Gonzaga)
+
+* misc: implement uv_getrusage_thread (Juan José Arboleda)
+
+
+2024.10.18, Version 1.49.2 (Stable), e1095c7a4373ce00cd8874d8e820de5afb25776e
 
 Changes since version 1.49.1:
 

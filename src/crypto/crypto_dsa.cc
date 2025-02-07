@@ -12,25 +12,15 @@
 
 #include <cstdio>
 
-// EVP_PKEY_CTX_set_dsa_paramgen_q_bits was added in OpenSSL 1.1.1e.
-#if OPENSSL_VERSION_NUMBER < 0x1010105fL
-#define EVP_PKEY_CTX_set_dsa_paramgen_q_bits(ctx, qbits)                       \
-  EVP_PKEY_CTX_ctrl((ctx),                                                     \
-                    EVP_PKEY_DSA,                                              \
-                    EVP_PKEY_OP_PARAMGEN,                                      \
-                    EVP_PKEY_CTRL_DSA_PARAMGEN_Q_BITS,                         \
-                    (qbits),                                                   \
-                    nullptr)
-#endif
-
 namespace node {
 
+using ncrypto::Dsa;
+using ncrypto::EVPKeyCtxPointer;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
 using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
-using v8::Nothing;
 using v8::Number;
 using v8::Object;
 using v8::Uint32;
@@ -38,34 +28,28 @@ using v8::Value;
 
 namespace crypto {
 EVPKeyCtxPointer DsaKeyGenTraits::Setup(DsaKeyPairGenConfig* params) {
-  EVPKeyCtxPointer param_ctx(EVP_PKEY_CTX_new_id(EVP_PKEY_DSA, nullptr));
-  EVP_PKEY* raw_params = nullptr;
+#ifdef OPENSSL_IS_BORINGSSL
+  // Operation is unsupported in BoringSSL
+  return {};
+#else
+  auto param_ctx = EVPKeyCtxPointer::NewFromID(EVP_PKEY_DSA);
 
-  if (!param_ctx ||
-      EVP_PKEY_paramgen_init(param_ctx.get()) <= 0 ||
-      EVP_PKEY_CTX_set_dsa_paramgen_bits(
-          param_ctx.get(),
-          params->params.modulus_bits) <= 0) {
-    return EVPKeyCtxPointer();
+  if (!param_ctx.initForParamgen() ||
+      !param_ctx.setDsaParameters(
+          params->params.modulus_bits,
+          params->params.divisor_bits != -1
+              ? std::optional<int>(params->params.divisor_bits)
+              : std::nullopt)) {
+    return {};
   }
 
-  if (params->params.divisor_bits != -1) {
-    if (EVP_PKEY_CTX_set_dsa_paramgen_q_bits(
-            param_ctx.get(), params->params.divisor_bits) <= 0) {
-      return EVPKeyCtxPointer();
-    }
-  }
+  auto key_params = param_ctx.paramgen();
+  if (!key_params) return {};
 
-  if (EVP_PKEY_paramgen(param_ctx.get(), &raw_params) <= 0)
-    return EVPKeyCtxPointer();
-
-  EVPKeyPointer key_params(raw_params);
   EVPKeyCtxPointer key_ctx = key_params.newCtx();
-
-  if (!key_ctx || EVP_PKEY_keygen_init(key_ctx.get()) <= 0)
-    return EVPKeyCtxPointer();
-
+  if (!key_ctx.initForKeygen()) return {};
   return key_ctx;
+#endif
 }
 
 // Input arguments for DsaKeyPairGenJob
@@ -126,41 +110,28 @@ WebCryptoKeyExportStatus DSAKeyExportTraits::DoExport(
   }
 }
 
-Maybe<void> GetDsaKeyDetail(Environment* env,
-                            const KeyObjectData& key,
-                            Local<Object> target) {
-  const BIGNUM* p;  // Modulus length
-  const BIGNUM* q;  // Divisor length
+bool GetDsaKeyDetail(Environment* env,
+                     const KeyObjectData& key,
+                     Local<Object> target) {
+  if (!key) return false;
+  Dsa dsa = key.GetAsymmetricKey();
+  if (!dsa) return false;
 
-  Mutex::ScopedLock lock(key.mutex());
-  const auto& m_pkey = key.GetAsymmetricKey();
-  int type = m_pkey.id();
-  CHECK(type == EVP_PKEY_DSA);
+  size_t modulus_length = dsa.getModulusLength();
+  size_t divisor_length = dsa.getDivisorLength();
 
-  const DSA* dsa = EVP_PKEY_get0_DSA(m_pkey.get());
-  CHECK_NOT_NULL(dsa);
-
-  DSA_get0_pqg(dsa, &p, &q, nullptr);
-
-  size_t modulus_length = BignumPointer::GetBitCount(p);
-  size_t divisor_length = BignumPointer::GetBitCount(q);
-
-  if (target
-          ->Set(
-              env->context(),
-              env->modulus_length_string(),
-              Number::New(env->isolate(), static_cast<double>(modulus_length)))
-          .IsNothing() ||
-      target
-          ->Set(
-              env->context(),
-              env->divisor_length_string(),
-              Number::New(env->isolate(), static_cast<double>(divisor_length)))
-          .IsNothing()) {
-    return Nothing<void>();
-  }
-
-  return JustVoid();
+  return target
+             ->Set(env->context(),
+                   env->modulus_length_string(),
+                   Number::New(env->isolate(),
+                               static_cast<double>(modulus_length)))
+             .IsJust() &&
+         target
+             ->Set(env->context(),
+                   env->divisor_length_string(),
+                   Number::New(env->isolate(),
+                               static_cast<double>(divisor_length)))
+             .IsJust();
 }
 
 namespace DSAAlg {

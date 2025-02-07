@@ -155,10 +155,6 @@ extern class WasmSuspenderObject extends HeapObject {
   resume: JSObject|Undefined;
   reject: JSObject|Undefined;
   state: Smi;  // 0: Inactive, 1: Active, 2: Suspended.
-  // Number of Wasm-to-JS frames in this suspender's stack.
-  // If the value is non-zero, this means that there are JS frames on the stack
-  // and trying to suspend should trap.
-  has_js_frames: Smi;  // Boolean.
 }
 
 extern class WasmExceptionTag extends Struct {

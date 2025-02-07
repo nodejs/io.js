@@ -37,10 +37,44 @@ inline int EncodeComputedEntry(ClassBoilerplate::ValueKind value_kind,
   return flags;
 }
 
-constexpr AccessorComponent ToAccessorComponent(
-    ClassBoilerplate::ValueKind value_kind) {
-  return value_kind == ClassBoilerplate::kGetter ? ACCESSOR_GETTER
-                                                 : ACCESSOR_SETTER;
+void SetAccessorPlaceholderIndices(Tagged<AccessorPair> pair,
+                                   ClassBoilerplate::ValueKind value_kind,
+                                   Tagged<Smi> index) {
+  switch (value_kind) {
+    case ClassBoilerplate::kGetter:
+      pair->set_getter(index);
+      break;
+    case ClassBoilerplate::kSetter:
+      pair->set_setter(index);
+      break;
+    case ClassBoilerplate::kAutoAccessor:
+      // Auto-accessor set the pair of consecutive indices in a single call.
+      pair->set_getter(index);
+      pair->set_setter(Smi::FromInt(Smi::ToInt(index) + 1));
+      break;
+    default:
+      UNREACHABLE();
+  }
+}
+
+void SetAccessorPlaceholderIndices(Tagged<AccessorPair> pair,
+                                   ClassBoilerplate::ValueKind value_kind,
+                                   Tagged<Smi> index, ReleaseStoreTag tag) {
+  switch (value_kind) {
+    case ClassBoilerplate::kGetter:
+      pair->set_getter(index, tag);
+      break;
+    case ClassBoilerplate::kSetter:
+      pair->set_setter(index, tag);
+      break;
+    case ClassBoilerplate::kAutoAccessor:
+      // Auto-accessor set the pair of consecutive indices in a single call.
+      pair->set_getter(index, tag);
+      pair->set_setter(Smi::FromInt(Smi::ToInt(index) + 1), tag);
+      break;
+    default:
+      UNREACHABLE();
+  }
 }
 
 template <typename IsolateT>
@@ -59,9 +93,10 @@ void AddToDescriptorArrayTemplate(
       d = Descriptor::DataConstant(name, value, DONT_ENUM);
     } else {
       DCHECK(value_kind == ClassBoilerplate::kGetter ||
-             value_kind == ClassBoilerplate::kSetter);
+             value_kind == ClassBoilerplate::kSetter ||
+             value_kind == ClassBoilerplate::kAutoAccessor);
       Handle<AccessorPair> pair = isolate->factory()->NewAccessorPair();
-      pair->set(ToAccessorComponent(value_kind), *value);
+      SetAccessorPlaceholderIndices(*pair, value_kind, Cast<Smi>(*value));
       d = Descriptor::AccessorConstant(name, pair, DONT_ENUM);
     }
     descriptor_array_template->Append(&d);
@@ -75,7 +110,8 @@ void AddToDescriptorArrayTemplate(
       descriptor_array_template->Set(entry, &d);
     } else {
       DCHECK(value_kind == ClassBoilerplate::kGetter ||
-             value_kind == ClassBoilerplate::kSetter);
+             value_kind == ClassBoilerplate::kSetter ||
+             value_kind == ClassBoilerplate::kAutoAccessor);
       Tagged<Object> raw_accessor =
           descriptor_array_template->GetStrongValue(entry);
       Tagged<AccessorPair> pair;
@@ -88,7 +124,8 @@ void AddToDescriptorArrayTemplate(
         descriptor_array_template->Set(entry, &d);
         pair = *new_pair;
       }
-      pair->set(ToAccessorComponent(value_kind), *value, kReleaseStore);
+      SetAccessorPlaceholderIndices(*pair, value_kind, Cast<Smi>(*value),
+                                    kReleaseStore);
     }
   }
 }
@@ -183,8 +220,11 @@ void AddToDictionaryTemplate(IsolateT* isolate, Handle<Dictionary> dictionary,
     if (value_kind == ClassBoilerplate::kData) {
       value_handle = handle(value, isolate);
     } else {
+      DCHECK(value_kind == ClassBoilerplate::kGetter ||
+             value_kind == ClassBoilerplate::kSetter ||
+             value_kind == ClassBoilerplate::kAutoAccessor);
       Handle<AccessorPair> pair(isolate->factory()->NewAccessorPair());
-      pair->set(ToAccessorComponent(value_kind), value);
+      SetAccessorPlaceholderIndices(*pair, value_kind, Cast<Smi>(value));
       value_handle = pair;
     }
 
@@ -311,16 +351,55 @@ void AddToDictionaryTemplate(IsolateT* isolate, Handle<Dictionary> dictionary,
         }
       }
     } else {  // if (value_kind == ClassBoilerplate::kData) ends here
-      AccessorComponent component = ToAccessorComponent(value_kind);
       if (IsAccessorPair(existing_value)) {
         // Update respective component of existing AccessorPair.
         Tagged<AccessorPair> current_pair = Cast<AccessorPair>(existing_value);
 
-        int existing_component_index =
-            GetExistingValueIndex(current_pair->get(component));
-        if (existing_component_index < key_index) {
-          current_pair->set(component, value, kReleaseStore);
-        } else {
+        bool updated = false;
+        switch (value_kind) {
+          case ClassBoilerplate::kAutoAccessor: {
+            int existing_get_component_index =
+                GetExistingValueIndex(current_pair->get(ACCESSOR_GETTER));
+            int existing_set_component_index =
+                GetExistingValueIndex(current_pair->get(ACCESSOR_SETTER));
+            if (existing_get_component_index < key_index &&
+                existing_set_component_index < key_index) {
+              SetAccessorPlaceholderIndices(current_pair, value_kind, value,
+                                            kReleaseStore);
+              updated = true;
+            } else {
+              if (existing_get_component_index < key_index) {
+                SetAccessorPlaceholderIndices(current_pair,
+                                              ClassBoilerplate::kGetter, value,
+                                              kReleaseStore);
+                updated = true;
+              } else if (existing_set_component_index < key_index) {
+                SetAccessorPlaceholderIndices(
+                    current_pair, ClassBoilerplate::kSetter,
+                    Smi::FromInt(Smi::ToInt(value) + 1), kReleaseStore);
+                updated = true;
+              }
+            }
+            break;
+          }
+          case ClassBoilerplate::kGetter:
+          case ClassBoilerplate::kSetter: {
+            AccessorComponent component =
+                value_kind == ClassBoilerplate::kGetter ? ACCESSOR_GETTER
+                                                        : ACCESSOR_SETTER;
+            int existing_component_index =
+                GetExistingValueIndex(current_pair->get(component));
+            if (existing_component_index < key_index) {
+              SetAccessorPlaceholderIndices(current_pair, value_kind, value,
+                                            kReleaseStore);
+              updated = true;
+            }
+            break;
+          }
+          default:
+            UNREACHABLE();
+        }
+        if (!updated) {
           // The existing accessor property overwrites the computed one, update
           // its enumeration order accordingly.
 
@@ -346,7 +425,7 @@ void AddToDictionaryTemplate(IsolateT* isolate, Handle<Dictionary> dictionary,
           // the computed accessor property.
           DirectHandle<AccessorPair> pair(
               isolate->factory()->NewAccessorPair());
-          pair->set(component, value);
+          SetAccessorPlaceholderIndices(*pair, value_kind, value);
           PropertyDetails details(
               PropertyKind::kAccessor, DONT_ENUM,
               PropertyDetails::kConstIfDictConstnessTracking,
@@ -676,6 +755,7 @@ Handle<ClassBoilerplate> ClassBoilerplate::New(IsolateT* isolate,
   for (int i = 0; i < expr->public_members()->length(); i++) {
     ClassLiteral::Property* property = expr->public_members()->at(i);
     ClassBoilerplate::ValueKind value_kind;
+    int value_index = dynamic_argument_index;
     switch (property->kind()) {
       case ClassLiteral::Property::METHOD:
         value_kind = ClassBoilerplate::kData;
@@ -693,18 +773,20 @@ Handle<ClassBoilerplate> ClassBoilerplate::New(IsolateT* isolate,
         }
         continue;
       case ClassLiteral::Property::AUTO_ACCESSOR:
-        UNIMPLEMENTED();
+        value_kind = ClassBoilerplate::kAutoAccessor;
+        // Auto-accessors have two arguments (getter and setter).
+        ++dynamic_argument_index;
     }
 
     ObjectDescriptor<IsolateT>& desc =
         property->is_static() ? static_desc : instance_desc;
     if (property->is_computed_name()) {
-      int computed_name_index = dynamic_argument_index;
+      int computed_name_index = value_index;
       dynamic_argument_index += 2;  // Computed name and value indices.
       desc.AddComputed(value_kind, computed_name_index);
       continue;
     }
-    int value_index = dynamic_argument_index++;
+    dynamic_argument_index++;
 
     Literal* key_literal = property->key()->AsLiteral();
     uint32_t index;

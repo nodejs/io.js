@@ -106,10 +106,6 @@ an `ArrayBuffer` (`v8::BackingStore`), or allocated data.
 * If allocated data is used, then it must have been allocated using OpenSSL's
   allocator. It will be freed automatically when the `ByteSource` is destroyed.
 
-The `ByteSource::Builder` class can be used to allocate writable memory that can
-then be released as a `ByteSource`, making it read-only, or freed by destroying
-the `ByteSource::Builder` without releasing it as a `ByteSource`.
-
 ### `ArrayBufferOrViewContents`
 
 The `ArrayBufferOrViewContents` class is a helper utility that abstracts

@@ -9,7 +9,7 @@ const vm = require('vm');
 // Related to:
 // - https://github.com/nodejs/node/issues/45983
 
-const global = vm.runInContext('this', vm.createContext());
+const contextGlobal = vm.runInContext('this', vm.createContext());
 
 function runAssertions(data, property, viaDefine, value1, value2, value3) {
   // Define the property for the first time
@@ -35,20 +35,20 @@ function runAssertionsOnSandbox(builder) {
 }
 
 // Assertions on: define property
-runAssertions(global, 'toto', true, 1, 2, 3);
-runAssertions(global, Symbol.for('toto'), true, 1, 2, 3);
-runAssertions(global, 'tutu', true, fun1, fun2, fun3);
-runAssertions(global, Symbol.for('tutu'), true, fun1, fun2, fun3);
-runAssertions(global, 'tyty', true, fun1, 2, 3);
-runAssertions(global, Symbol.for('tyty'), true, fun1, 2, 3);
+runAssertions(contextGlobal, 'toto', true, 1, 2, 3);
+runAssertions(contextGlobal, Symbol.for('toto'), true, 1, 2, 3);
+runAssertions(contextGlobal, 'tutu', true, fun1, fun2, fun3);
+runAssertions(contextGlobal, Symbol.for('tutu'), true, fun1, fun2, fun3);
+runAssertions(contextGlobal, 'tyty', true, fun1, 2, 3);
+runAssertions(contextGlobal, Symbol.for('tyty'), true, fun1, 2, 3);
 
 // Assertions on: direct assignment
-runAssertions(global, 'titi', false, 1, 2, 3);
-runAssertions(global, Symbol.for('titi'), false, 1, 2, 3);
-runAssertions(global, 'tata', false, fun1, fun2, fun3);
-runAssertions(global, Symbol.for('tata'), false, fun1, fun2, fun3);
-runAssertions(global, 'tztz', false, fun1, 2, 3);
-runAssertions(global, Symbol.for('tztz'), false, fun1, 2, 3);
+runAssertions(contextGlobal, 'titi', false, 1, 2, 3);
+runAssertions(contextGlobal, Symbol.for('titi'), false, 1, 2, 3);
+runAssertions(contextGlobal, 'tata', false, fun1, fun2, fun3);
+runAssertions(contextGlobal, Symbol.for('tata'), false, fun1, fun2, fun3);
+runAssertions(contextGlobal, 'tztz', false, fun1, 2, 3);
+runAssertions(contextGlobal, Symbol.for('tztz'), false, fun1, 2, 3);
 
 // Assertions on: define property from sandbox
 runAssertionsOnSandbox(

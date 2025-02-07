@@ -297,6 +297,27 @@ void MemoryTracker::TrackInlineField(const MemoryRetainer* retainer,
   CurrentNode()->size_ -= retainer->SelfSize();
 }
 
+template <typename T>
+inline void MemoryTracker::TraitTrack(const T& retainer,
+                                      const char* edge_name) {
+  MemoryRetainerNode* n =
+      PushNode(MemoryRetainerTraits<T>::MemoryInfoName(retainer),
+               MemoryRetainerTraits<T>::SelfSize(retainer),
+               edge_name);
+  MemoryRetainerTraits<T>::MemoryInfo(this, retainer);
+  CHECK_EQ(CurrentNode(), n);
+  CHECK_NE(n->size_, 0);
+  PopNode();
+}
+
+template <typename T>
+inline void MemoryTracker::TraitTrackInline(const T& retainer,
+                                            const char* edge_name) {
+  TraitTrack(retainer, edge_name);
+  CHECK(CurrentNode());
+  CurrentNode()->size_ -= MemoryRetainerTraits<T>::SelfSize(retainer);
+}
+
 MemoryRetainerNode* MemoryTracker::CurrentNode() const {
   if (node_stack_.empty()) return nullptr;
   return node_stack_.top();

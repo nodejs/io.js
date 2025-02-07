@@ -18,6 +18,22 @@
 
 #include "v8config.h"  // NOLINT(build/include_directory)
 
+// TODO(pkasting): Use <compare>/spaceship unconditionally after dropping
+// support for old libstdc++ versions.
+#if __has_include(<version>)
+#include <version>
+#endif
+#if defined(__cpp_lib_three_way_comparison) &&   \
+    __cpp_lib_three_way_comparison >= 201711L && \
+    defined(__cpp_lib_concepts) && __cpp_lib_concepts >= 202002L
+#include <compare>
+#include <concepts>
+
+#define V8_HAVE_SPACESHIP_OPERATOR 1
+#else
+#define V8_HAVE_SPACESHIP_OPERATOR 0
+#endif
+
 namespace v8 {
 
 class Array;
@@ -295,7 +311,8 @@ constexpr size_t kExternalPointerTableReservationSize = 256 * MB;
 
 // The external pointer table indices stored in HeapObjects as external
 // pointers are shifted to the left by this amount to guarantee that they are
-// smaller than the maximum table size.
+// smaller than the maximum table size even after the C++ compiler multiplies
+// them by 8 to be used as indexes into a table of 64 bit pointers.
 constexpr uint32_t kExternalPointerIndexShift = 7;
 #else
 constexpr size_t kExternalPointerTableReservationSize = 512 * MB;
@@ -1351,11 +1368,11 @@ class V8_EXPORT StrongRootAllocatorBase {
  public:
   Heap* heap() const { return heap_; }
 
-  bool operator==(const StrongRootAllocatorBase& other) const {
-    return heap_ == other.heap_;
-  }
-  bool operator!=(const StrongRootAllocatorBase& other) const {
-    return heap_ != other.heap_;
+  friend bool operator==(const StrongRootAllocatorBase& a,
+                         const StrongRootAllocatorBase& b) {
+    // TODO(pkasting): Replace this body with `= default` after dropping support
+    // for old gcc versions.
+    return a.heap_ == b.heap_;
   }
 
  protected:
@@ -1390,22 +1407,60 @@ class StrongRootAllocator : private std::allocator<T> {
   using std::allocator<T>::deallocate;
 };
 
+// TODO(pkasting): Replace with `requires` clauses after dropping support for
+// old gcc versions.
+template <typename Iterator, typename = void>
+inline constexpr bool kHaveIteratorConcept = false;
+template <typename Iterator>
+inline constexpr bool kHaveIteratorConcept<
+    Iterator, std::void_t<typename Iterator::iterator_concept>> = true;
+
+template <typename Iterator, typename = void>
+inline constexpr bool kHaveIteratorCategory = false;
+template <typename Iterator>
+inline constexpr bool kHaveIteratorCategory<
+    Iterator, std::void_t<typename Iterator::iterator_category>> = true;
+
+// Helper struct that contains an `iterator_concept` type alias only when either
+// `Iterator` or `std::iterator_traits<Iterator>` do.
+// Default: no alias.
+template <typename Iterator, typename = void>
+struct MaybeDefineIteratorConcept {};
+// Use `Iterator::iterator_concept` if available.
+template <typename Iterator>
+struct MaybeDefineIteratorConcept<
+    Iterator, std::enable_if_t<kHaveIteratorConcept<Iterator>>> {
+  using iterator_concept = Iterator::iterator_concept;
+};
+// Otherwise fall back to `std::iterator_traits<Iterator>` if possible.
+template <typename Iterator>
+struct MaybeDefineIteratorConcept<
+    Iterator, std::enable_if_t<kHaveIteratorCategory<Iterator> &&
+                               !kHaveIteratorConcept<Iterator>>> {
+  // There seems to be no feature-test macro covering this, so use the
+  // presence of `<ranges>` as a crude proxy, since it was added to the
+  // standard as part of the Ranges papers.
+  // TODO(pkasting): Add this unconditionally after dropping support for old
+  // libstdc++ versions.
+#if __has_include(<ranges>)
+  using iterator_concept = std::iterator_traits<Iterator>::iterator_concept;
+#endif
+};
+
 // A class of iterators that wrap some different iterator type.
 // If specified, ElementType is the type of element accessed by the wrapper
 // iterator; in this case, the actual reference and pointer types of Iterator
 // must be convertible to ElementType& and ElementType*, respectively.
 template <typename Iterator, typename ElementType = void>
-class WrappedIterator {
+class WrappedIterator : public MaybeDefineIteratorConcept<Iterator> {
  public:
   static_assert(
-      !std::is_void_v<ElementType> ||
+      std::is_void_v<ElementType> ||
       (std::is_convertible_v<typename std::iterator_traits<Iterator>::pointer,
-                             ElementType*> &&
+                             std::add_pointer_t<ElementType>> &&
        std::is_convertible_v<typename std::iterator_traits<Iterator>::reference,
-                             ElementType&>));
+                             std::add_lvalue_reference_t<ElementType>>));
 
-  using iterator_category =
-      typename std::iterator_traits<Iterator>::iterator_category;
   using difference_type =
       typename std::iterator_traits<Iterator>::difference_type;
   using value_type =
@@ -1415,24 +1470,96 @@ class WrappedIterator {
   using pointer =
       std::conditional_t<std::is_void_v<ElementType>,
                          typename std::iterator_traits<Iterator>::pointer,
-                         ElementType*>;
+                         std::add_pointer_t<ElementType>>;
   using reference =
       std::conditional_t<std::is_void_v<ElementType>,
                          typename std::iterator_traits<Iterator>::reference,
-                         ElementType&>;
+                         std::add_lvalue_reference_t<ElementType>>;
+  using iterator_category =
+      typename std::iterator_traits<Iterator>::iterator_category;
 
-  constexpr WrappedIterator() noexcept : it_() {}
+  constexpr WrappedIterator() noexcept = default;
   constexpr explicit WrappedIterator(Iterator it) noexcept : it_(it) {}
 
+  // TODO(pkasting): Switch to `requires` and concepts after dropping support
+  // for old gcc and libstdc++ versions.
   template <typename OtherIterator, typename OtherElementType,
-            std::enable_if_t<std::is_convertible_v<OtherIterator, Iterator>,
-                             bool> = true>
+            typename = std::enable_if_t<
+                std::is_convertible_v<OtherIterator, Iterator>>>
   constexpr WrappedIterator(
-      const WrappedIterator<OtherIterator, OtherElementType>& it) noexcept
-      : it_(it.base()) {}
+      const WrappedIterator<OtherIterator, OtherElementType>& other) noexcept
+      : it_(other.base()) {}
 
-  constexpr reference operator*() const noexcept { return *it_; }
-  constexpr pointer operator->() const noexcept { return it_.operator->(); }
+  [[nodiscard]] constexpr reference operator*() const noexcept { return *it_; }
+  [[nodiscard]] constexpr pointer operator->() const noexcept {
+    return it_.operator->();
+  }
+
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr bool operator==(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ == other.base();
+  }
+#if V8_HAVE_SPACESHIP_OPERATOR
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr auto operator<=>(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    if constexpr (std::three_way_comparable_with<Iterator, OtherIterator>) {
+      return it_ <=> other.base();
+    } else if constexpr (std::totally_ordered_with<Iterator, OtherIterator>) {
+      if (it_ < other.base()) {
+        return std::strong_ordering::less;
+      }
+      return (it_ > other.base()) ? std::strong_ordering::greater
+                                  : std::strong_ordering::equal;
+    } else {
+      if (it_ < other.base()) {
+        return std::partial_ordering::less;
+      }
+      if (other.base() < it_) {
+        return std::partial_ordering::greater;
+      }
+      return (it_ == other.base()) ? std::partial_ordering::equivalent
+                                   : std::partial_ordering::unordered;
+    }
+  }
+#else
+  // Assume that if spaceship isn't present, operator rewriting might not be
+  // either.
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr bool operator!=(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ != other.base();
+  }
+
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr bool operator<(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ < other.base();
+  }
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr bool operator<=(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ <= other.base();
+  }
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr bool operator>(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ > other.base();
+  }
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr bool operator>=(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ >= other.base();
+  }
+#endif
 
   constexpr WrappedIterator& operator++() noexcept {
     ++it_;
@@ -1453,100 +1580,43 @@ class WrappedIterator {
     --(*this);
     return result;
   }
-  constexpr WrappedIterator operator+(difference_type n) const noexcept {
+  [[nodiscard]] constexpr WrappedIterator operator+(
+      difference_type n) const noexcept {
     WrappedIterator result(*this);
     result += n;
     return result;
+  }
+  [[nodiscard]] friend constexpr WrappedIterator operator+(
+      difference_type n, const WrappedIterator& x) noexcept {
+    return x + n;
   }
   constexpr WrappedIterator& operator+=(difference_type n) noexcept {
     it_ += n;
     return *this;
   }
-  constexpr WrappedIterator operator-(difference_type n) const noexcept {
-    return *this + (-n);
+  [[nodiscard]] constexpr WrappedIterator operator-(
+      difference_type n) const noexcept {
+    return *this + -n;
   }
   constexpr WrappedIterator& operator-=(difference_type n) noexcept {
-    *this += -n;
-    return *this;
+    return *this += -n;
   }
-  constexpr reference operator[](difference_type n) const noexcept {
+  template <typename OtherIterator, typename OtherElementType>
+  [[nodiscard]] constexpr auto operator-(
+      const WrappedIterator<OtherIterator, OtherElementType>& other)
+      const noexcept {
+    return it_ - other.base();
+  }
+  [[nodiscard]] constexpr reference operator[](
+      difference_type n) const noexcept {
     return it_[n];
   }
 
-  constexpr Iterator base() const noexcept { return it_; }
-
- private:
-  template <typename OtherIterator, typename OtherElementType>
-  friend class WrappedIterator;
+  [[nodiscard]] constexpr const Iterator& base() const noexcept { return it_; }
 
  private:
   Iterator it_;
 };
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr bool operator==(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept {
-  return x.base() == y.base();
-}
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr bool operator<(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept {
-  return x.base() < y.base();
-}
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr bool operator!=(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept {
-  return !(x == y);
-}
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr bool operator>(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept {
-  return y < x;
-}
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr bool operator>=(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept {
-  return !(x < y);
-}
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr bool operator<=(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept {
-  return !(y < x);
-}
-
-template <typename Iterator, typename ElementType, typename OtherIterator,
-          typename OtherElementType>
-constexpr auto operator-(
-    const WrappedIterator<Iterator, ElementType>& x,
-    const WrappedIterator<OtherIterator, OtherElementType>& y) noexcept
-    -> decltype(x.base() - y.base()) {
-  return x.base() - y.base();
-}
-
-template <typename Iterator, typename ElementType>
-constexpr WrappedIterator<Iterator> operator+(
-    typename WrappedIterator<Iterator, ElementType>::difference_type n,
-    const WrappedIterator<Iterator, ElementType>& x) noexcept {
-  x += n;
-  return x;
-}
 
 // Helper functions about values contained in handles.
 // A value is either an indirect pointer or a direct pointer, depending on

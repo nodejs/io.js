@@ -308,6 +308,22 @@ branch.
 git checkout -b v1.2.3-proposal upstream/v1.x-staging
 ```
 
+You can also run:
+
+```bash
+git node release -S --prepare --security --filterLabel vX.x
+```
+
+Example:
+
+```bash
+git checkout v20.x
+git node release -S --prepare --security --filterLabel v20.x
+```
+
+to automate the remaining steps until step 6 or you can perform it manually
+following the below steps.
+
 <details>
 <summary>Security release</summary>
 
@@ -1101,6 +1117,22 @@ The post content can be as simple as:
 > v5.8.0 of @nodejs is out: <https://nodejs.org/en/blog/release/v5.8.0/>
 > …
 > something here about notable changes
+
+You can create the PR for the release post on nodejs/bluesky with the following:
+
+```bash
+# Create a PR for a post:
+gh workflow run create-pr.yml --repo "https://github.com/nodejs/bluesky" \
+  -F prTitle='vx.x.x release announcement' \
+  -F richText='Node.js vx.x.x is out. Check the blog post at https://nodejs.org/…. TL;DR is
+
+- New feature
+- …'
+
+# Create a PR for a retweet:
+gh workflow run create-pr.yml --repo "https://github.com/nodejs/bluesky" \
+  -F prTitle='Retweet vx.x.x release announcement' -F postURL=…
+```
 
 <details>
 <summary>Security release</summary>

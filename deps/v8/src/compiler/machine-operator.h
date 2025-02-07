@@ -714,7 +714,7 @@ class V8_EXPORT_PRIVATE MachineOperatorBuilder final
   const Operator* Float64LessThan();
   const Operator* Float64LessThanOrEqual();
 
-  // Floating point min/max complying to EcmaScript 6 (double-precision).
+  // Floating point min/max complying to ECMAScript 6 (double-precision).
   const Operator* Float64Max();
   const Operator* Float64Min();
   // Floating point min/max complying to WebAssembly (single-precision).

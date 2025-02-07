@@ -62,6 +62,7 @@ const commands = [
   'team',
   'test',
   'token',
+  'undeprecate',
   'uninstall',
   'unpublish',
   'unstar',

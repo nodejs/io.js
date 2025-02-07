@@ -2,10 +2,13 @@
 'use strict';
 
 const common = require('../common');
-const { readKey } = require('../common/fixtures');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
+
+const { readKey } = require('../common/fixtures');
+const { hasOpenSSL } = require('../common/crypto');
 
 const https = require('https');
 const { SSL_OP_NO_TICKET } = require('crypto').constants;
@@ -56,7 +59,7 @@ function faultyServer(port) {
 function second(server, session) {
   const req = https.request({
     port: server.address().port,
-    ciphers: (common.hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT'),
+    ciphers: (hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT'),
     rejectUnauthorized: false
   }, function(res) {
     res.resume();

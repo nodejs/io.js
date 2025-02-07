@@ -4535,7 +4535,7 @@ TEST(RunTruncateFloat32ToInt32) {
       } else {
         DCHECK(std::isnan(i));
 #if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_S390X || \
-    V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+    V8_TARGET_ARCH_PPC64
         CHECK_EQ(std::numeric_limits<int32_t>::min(), m.Call(i));
 #elif V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_LOONG64
         CHECK_EQ(0, m.Call(i));
@@ -4557,7 +4557,7 @@ TEST(RunTruncateFloat32ToInt32) {
       } else {
         DCHECK(std::isnan(i));
 #if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_S390X || \
-    V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+    V8_TARGET_ARCH_PPC64
         CHECK_EQ(std::numeric_limits<int32_t>::min(), m.Call(i));
 #elif V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_LOONG64
         CHECK_EQ(0, m.Call(i));

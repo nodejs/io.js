@@ -18,6 +18,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 enum class StoreMode {
   // kSet implements [[Set]] in the spec and traverses the prototype
   // chain to invoke setters. it's used by KeyedStoreIC and StoreIC to
@@ -1337,6 +1339,8 @@ void KeyedStoreGenericAssembler::StoreProperty(TNode<Context> context,
 
   BIND(&done);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

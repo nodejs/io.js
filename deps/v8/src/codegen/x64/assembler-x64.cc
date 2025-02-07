@@ -102,6 +102,7 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
     SetSupported(AVX);
     if (cpu.has_avx2()) SetSupported(AVX2);
     if (cpu.has_avx_vnni()) SetSupported(AVX_VNNI);
+    if (cpu.has_avx_vnni_int8()) SetSupported(AVX_VNNI_INT8);
     if (cpu.has_fma3()) SetSupported(FMA3);
   }
 
@@ -130,6 +131,8 @@ void CpuFeatures::ProbeImpl(bool cross_compile) {
   if (!v8_flags.enable_avx || !IsSupported(SSE4_2)) SetUnsupported(AVX);
   if (!v8_flags.enable_avx2 || !IsSupported(AVX)) SetUnsupported(AVX2);
   if (!v8_flags.enable_avx_vnni || !IsSupported(AVX)) SetUnsupported(AVX_VNNI);
+  if (!v8_flags.enable_avx_vnni_int8 || !IsSupported(AVX))
+    SetUnsupported(AVX_VNNI_INT8);
   if (!v8_flags.enable_fma3 || !IsSupported(AVX)) SetUnsupported(FMA3);
   if (!v8_flags.enable_f16c || !IsSupported(AVX)) SetUnsupported(F16C);
 
@@ -150,6 +153,7 @@ void CpuFeatures::PrintTarget() {}
 void CpuFeatures::PrintFeatures() {
   printf(
       "SSE3=%d SSSE3=%d SSE4_1=%d SSE4_2=%d SAHF=%d AVX=%d AVX2=%d AVX_VNNI=%d "
+      "AVX_VNNI_INT8=%d "
       "FMA3=%d "
       "F16C=%d "
       "BMI1=%d "
@@ -160,10 +164,10 @@ void CpuFeatures::PrintFeatures() {
       CpuFeatures::IsSupported(SSE4_1), CpuFeatures::IsSupported(SSE4_2),
       CpuFeatures::IsSupported(SAHF), CpuFeatures::IsSupported(AVX),
       CpuFeatures::IsSupported(AVX2), CpuFeatures::IsSupported(AVX_VNNI),
-      CpuFeatures::IsSupported(FMA3), CpuFeatures::IsSupported(F16C),
-      CpuFeatures::IsSupported(BMI1), CpuFeatures::IsSupported(BMI2),
-      CpuFeatures::IsSupported(LZCNT), CpuFeatures::IsSupported(POPCNT),
-      CpuFeatures::IsSupported(INTEL_ATOM));
+      CpuFeatures::IsSupported(AVX_VNNI_INT8), CpuFeatures::IsSupported(FMA3),
+      CpuFeatures::IsSupported(F16C), CpuFeatures::IsSupported(BMI1),
+      CpuFeatures::IsSupported(BMI2), CpuFeatures::IsSupported(LZCNT),
+      CpuFeatures::IsSupported(POPCNT), CpuFeatures::IsSupported(INTEL_ATOM));
 }
 
 // -----------------------------------------------------------------------------
@@ -380,6 +384,7 @@ Assembler::Assembler(const AssemblerOptions& options,
 void Assembler::GetCode(Isolate* isolate, CodeDesc* desc) {
   GetCode(isolate->main_thread_local_isolate(), desc);
 }
+
 void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
                         SafepointTableBuilderBase* safepoint_table_builder,
                         int handler_table_offset) {
@@ -396,6 +401,7 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
   DCHECK(constpool_.IsEmpty());
 
   const int code_comments_size = WriteCodeComments();
+  const int builtin_jump_table_info_size = WriteBuiltinJumpTableInfos();
 
   // At this point overflow() may be true, but the gap ensures
   // that we are still not overlapping instructions and relocation info.
@@ -409,7 +415,10 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
 
   static constexpr int kConstantPoolSize = 0;
   const int instruction_size = pc_offset();
-  const int code_comments_offset = instruction_size - code_comments_size;
+  const int builtin_jump_table_info_offset =
+      instruction_size - builtin_jump_table_info_size;
+  const int code_comments_offset =
+      builtin_jump_table_info_offset - code_comments_size;
   const int constant_pool_offset = code_comments_offset - kConstantPoolSize;
   const int handler_table_offset2 = (handler_table_offset == kNoHandlerTable)
                                         ? constant_pool_offset
@@ -423,7 +432,8 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
       static_cast<int>(reloc_info_writer.pos() - buffer_->start());
   CodeDesc::Initialize(desc, this, safepoint_table_offset,
                        handler_table_offset2, constant_pool_offset,
-                       code_comments_offset, reloc_info_offset);
+                       code_comments_offset, builtin_jump_table_info_offset,
+                       reloc_info_offset);
 }
 
 void Assembler::FinalizeJumpOptimizationInfo() {
@@ -480,7 +490,7 @@ void Assembler::AlignForJCCErratum(int inst_size) {
   //       pc_offset
   //
   // However, if bbb need to be aligned at the start of a 32-byte boundary,
-  // the second run might crash because the distance is no longer a int8:
+  // the second run might crash because the distance is no longer an int8:
   //
   //   aaa......bbb
   //      ^     ^
@@ -515,6 +525,11 @@ bool Assembler::IsNop(Address addr) {
   if (*a == 0x90) return true;
   if (a[0] == 0xF && a[1] == 0x1F) return true;
   return false;
+}
+
+bool Assembler::IsJmpRel(Address addr) {
+  uint8_t* a = reinterpret_cast<uint8_t*>(addr);
+  return *a == 0xEB || *a == 0xE9;
 }
 
 void Assembler::bind_to(Label* L, int pos) {
@@ -3895,7 +3910,8 @@ void Assembler::vinstr(uint8_t op, XMMRegister dst, XMMRegister src1,
                        XMMRegister src2, SIMDPrefix pp, LeadingOpcode m, VexW w,
                        CpuFeature feature) {
   DCHECK(IsEnabled(feature));
-  DCHECK(feature == AVX || feature == AVX2 || feature == AVX_VNNI);
+  DCHECK(feature == AVX || feature == AVX2 || feature == AVX_VNNI ||
+         feature == AVX_VNNI_INT8);
   EnsureSpace ensure_space(this);
   emit_vex_prefix(dst, src1, src2, kLIG, pp, m, w);
   emit(op);
@@ -3917,7 +3933,8 @@ template <typename Reg1, typename Reg2, typename Op>
 void Assembler::vinstr(uint8_t op, Reg1 dst, Reg2 src1, Op src2, SIMDPrefix pp,
                        LeadingOpcode m, VexW w, CpuFeature feature) {
   DCHECK(IsEnabled(feature));
-  DCHECK(feature == AVX || feature == AVX2 || feature == AVX_VNNI);
+  DCHECK(feature == AVX || feature == AVX2 || feature == AVX_VNNI ||
+         feature == AVX_VNNI_INT8);
   DCHECK(
       (std::is_same_v<Reg1, YMMRegister> || std::is_same_v<Reg2, YMMRegister>));
   EnsureSpace ensure_space(this);
@@ -4689,12 +4706,24 @@ void Assembler::dq(Label* label) {
   }
 }
 
-void Assembler::WriteBuiltinJumpTableEntry(Label* label, const int table_pos) {
+void Assembler::WriteBuiltinJumpTableEntry(Label* label, int table_pos) {
   EnsureSpace ensure_space(this);
   CHECK(label->is_bound());
   int32_t value = label->pos() - table_pos;
-  RecordRelocInfo(RelocInfo::RELATIVE_SWITCH_TABLE_ENTRY, label->pos());
+  if constexpr (V8_BUILTIN_JUMP_TABLE_INFO_BOOL) {
+    builtin_jump_table_info_writer_.Add(pc_offset(), label->pos());
+  }
   emitl(value);
+}
+
+int Assembler::WriteBuiltinJumpTableInfos() {
+  if (builtin_jump_table_info_writer_.entry_count() == 0) return 0;
+  CHECK(V8_BUILTIN_JUMP_TABLE_INFO_BOOL);
+  int offset = pc_offset();
+  builtin_jump_table_info_writer_.Emit(this);
+  int size = pc_offset() - offset;
+  DCHECK_EQ(size, builtin_jump_table_info_writer_.size_in_bytes());
+  return size;
 }
 
 // Relocation information implementations.

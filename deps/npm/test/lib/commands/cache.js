@@ -78,9 +78,7 @@ t.test('cache add single pkg', async t => {
   })
   await npm.exec('cache', ['add', pkg])
   t.equal(joinedOutput(), '')
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package/-/test-package-1.0.0.tgz'))
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package'))
 })
 
@@ -113,20 +111,15 @@ t.test('cache add multiple pkgs', async t => {
   })
   await npm.exec('cache', ['add', pkg, pkg2])
   t.equal(joinedOutput(), '')
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package/-/test-package-1.0.0.tgz'))
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package'))
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package-two/-/test-package-two-1.0.0.tgz'))
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package-two'))
 })
 
 t.test('cache ls', async t => {
   const keys = [
     'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package',
-    // eslint-disable-next-line max-len
     'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package/-/test-package-1.0.0.tgz',
   ]
   const { npm, joinedOutput } = await loadMockNpm(t)
@@ -204,10 +197,8 @@ t.test('cache ls tagged', async t => {
 
 t.test('cache ls scoped and scoped slash', async t => {
   const keys = [
-    // eslint-disable-next-line max-len
     'make-fetch-happen:request-cache:https://registry.npmjs.org/@fritzy/staydown/-/@fritzy/staydown-3.1.1.tgz',
     'make-fetch-happen:request-cache:https://registry.npmjs.org/@fritzy%2fstaydown',
-    // eslint-disable-next-line max-len
     'make-fetch-happen:request-cache:https://registry.npmjs.org/@gar/npm-expansion/-/@gar/npm-expansion-2.1.0.tgz',
     'make-fetch-happen:request-cache:https://registry.npmjs.org/@gar%2fnpm-expansion',
   ]
@@ -248,16 +239,11 @@ t.test('cache ls missing packument version not an object', async t => {
 t.test('cache rm', async t => {
   const { npm, joinedOutput } = await loadMockNpm(t)
   const cache = path.join(npm.cache, '_cacache')
-  // eslint-disable-next-line max-len
   await cacache.put(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package', '{}')
-  // eslint-disable-next-line max-len
   await cacache.put(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package/-/test-package-1.0.0.tgz', 'test data')
-  // eslint-disable-next-line max-len
   await npm.exec('cache', ['rm', 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package/-/test-package-1.0.0.tgz'])
   t.matchSnapshot(joinedOutput(), 'logs deleting single entry')
-  // eslint-disable-next-line max-len
   t.resolves(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package'))
-  // eslint-disable-next-line max-len
   t.rejects(cacache.get(cache, 'make-fetch-happen:request-cache:https://registry.npmjs.org/test-package/-/test-package-1.0.0.tgz'))
 })
 

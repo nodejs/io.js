@@ -428,12 +428,22 @@ void MacroAssembler::DecompressProtected(Register destination,
 void MacroAssembler::RecordWriteField(Register object, int offset,
                                       Register value, Register slot_address,
                                       SaveFPRegsMode save_fp,
-                                      SmiCheck smi_check, SlotDescriptor slot) {
+                                      SmiCheck smi_check,
+                                      ReadOnlyCheck ro_check,
+                                      SlotDescriptor slot) {
   ASM_CODE_COMMENT(this);
   DCHECK(!AreAliased(object, value, slot_address));
   // First, check if a write barrier is even needed. The tests below
-  // catch stores of Smis.
+  // catch stores of Smis and read-only objects.
   Label done;
+
+#if V8_STATIC_ROOTS_BOOL
+  if (ro_check == ReadOnlyCheck::kInline) {
+    // Quick check for Read-only and small Smi values.
+    static_assert(StaticReadOnlyRoot::kLastAllocatedRoot < kRegularPageSize);
+    JumpIfUnsignedLessThan(value, kRegularPageSize, &done);
+  }
+#endif  // V8_STATIC_ROOTS_BOOL
 
   // Skip barrier if writing a smi.
   if (smi_check == SmiCheck::kInline) {
@@ -454,7 +464,8 @@ void MacroAssembler::RecordWriteField(Register object, int offset,
     bind(&ok);
   }
 
-  RecordWrite(object, slot_address, value, save_fp, SmiCheck::kOmit, slot);
+  RecordWrite(object, slot_address, value, save_fp, SmiCheck::kOmit,
+              ReadOnlyCheck::kOmit, slot);
 
   bind(&done);
 
@@ -659,6 +670,34 @@ void MacroAssembler::LoadCodeEntrypointViaCodePointer(Register destination,
 }
 #endif  // V8_ENABLE_SANDBOX
 
+#ifdef V8_ENABLE_LEAPTIERING
+void MacroAssembler::LoadCodeEntrypointFromJSDispatchTable(
+    Register destination, Register dispatch_handle) {
+  DCHECK(!AreAliased(destination, kScratchRegister));
+  LoadAddress(kScratchRegister, ExternalReference::js_dispatch_table_address());
+  if (destination != dispatch_handle) {
+    movq(destination, dispatch_handle);
+  }
+  shrl(destination, Immediate(kJSDispatchHandleShift));
+  shll(destination, Immediate(kJSDispatchTableEntrySizeLog2));
+  movq(destination, Operand(kScratchRegister, destination, times_1,
+                            JSDispatchEntry::kEntrypointOffset));
+}
+void MacroAssembler::LoadParameterCountFromJSDispatchTable(
+    Register destination, Register dispatch_handle) {
+  DCHECK(!AreAliased(destination, kScratchRegister));
+  LoadAddress(kScratchRegister, ExternalReference::js_dispatch_table_address());
+  if (destination != dispatch_handle) {
+    movq(destination, dispatch_handle);
+  }
+  shrl(destination, Immediate(kJSDispatchHandleShift));
+  shll(destination, Immediate(kJSDispatchTableEntrySizeLog2));
+  movq(destination, Operand(kScratchRegister, destination, times_1,
+                            JSDispatchEntry::kCodeObjectOffset));
+  andl(destination, Immediate(JSDispatchEntry::kParameterCountMask));
+}
+#endif
+
 void MacroAssembler::LoadProtectedPointerField(Register destination,
                                                Operand field_operand) {
   DCHECK(root_array_available());
@@ -776,27 +815,18 @@ void MacroAssembler::CallTSANStoreStub(Register address, Register value,
   // Prepare argument registers for calling GetTSANStoreStub.
   MovePair(address_parameter, address, value_parameter, value);
 
-  if (isolate()) {
-    CallBuiltin(CodeFactory::GetTSANStoreStub(fp_mode, size, order));
-  }
 #if V8_ENABLE_WEBASSEMBLY
-  // There are two different kinds of wasm-to-js functions: one lives in the
-  // wasm code space, and another one lives on the heap. Both of them have the
-  // same CodeKind (WASM_TO_JS_FUNCTION), but depending on where they are they
-  // have to either use the wasm stub calls, or call the builtin using the
-  // isolate like JS does. In order to know which wasm-to-js function we are
-  // compiling right now, we check if the isolate is null.
-  // TODO(solanes, v8:11600): Split CodeKind::WASM_TO_JS_FUNCTION into two
-  // different CodeKinds and pass the CodeKind as a parameter so that we can use
-  // that instead of a nullptr check.
-  // NOLINTNEXTLINE(readability/braces)
-  else {
-    DCHECK_EQ(mode, StubCallMode::kCallWasmRuntimeStub);
-    // Use {near_call} for direct Wasm call within a module.
+  if (mode != StubCallMode::kCallWasmRuntimeStub) {
+    // JS functions and Wasm wrappers.
+    CallBuiltin(CodeFactory::GetTSANStoreStub(fp_mode, size, order));
+  } else {
+    // Wasm functions should call builtins through their far jump table.
     auto wasm_target = static_cast<intptr_t>(
         wasm::WasmCode::GetTSANStoreBuiltin(fp_mode, size, order));
     near_call(wasm_target, RelocInfo::WASM_STUB_CALL);
   }
+#else
+  CallBuiltin(CodeFactory::GetTSANStoreStub(fp_mode, size, order));
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   PopAll(registers);
@@ -816,27 +846,18 @@ void MacroAssembler::CallTSANRelaxedLoadStub(Register address,
   // Prepare argument registers for calling TSANRelaxedLoad.
   Move(address_parameter, address);
 
-  if (isolate()) {
-    CallBuiltin(CodeFactory::GetTSANRelaxedLoadStub(fp_mode, size));
-  }
 #if V8_ENABLE_WEBASSEMBLY
-  // There are two different kinds of wasm-to-js functions: one lives in the
-  // wasm code space, and another one lives on the heap. Both of them have the
-  // same CodeKind (WASM_TO_JS_FUNCTION), but depending on where they are they
-  // have to either use the wasm stub calls, or call the builtin using the
-  // isolate like JS does. In order to know which wasm-to-js function we are
-  // compiling right now, we check if the isolate is null.
-  // TODO(solanes, v8:11600): Split CodeKind::WASM_TO_JS_FUNCTION into two
-  // different CodeKinds and pass the CodeKind as a parameter so that we can use
-  // that instead of a nullptr check.
-  // NOLINTNEXTLINE(readability/braces)
-  else {
-    DCHECK_EQ(mode, StubCallMode::kCallWasmRuntimeStub);
-    // Use {near_call} for direct Wasm call within a module.
+  if (mode != StubCallMode::kCallWasmRuntimeStub) {
+    // JS functions and Wasm wrappers.
+    CallBuiltin(CodeFactory::GetTSANRelaxedLoadStub(fp_mode, size));
+  } else {
+    // Wasm functions should call builtins through their far jump table.
     auto wasm_target = static_cast<intptr_t>(
         wasm::WasmCode::GetTSANRelaxedLoadBuiltin(fp_mode, size));
     near_call(wasm_target, RelocInfo::WASM_STUB_CALL);
   }
+#else
+  CallBuiltin(CodeFactory::GetTSANRelaxedLoadStub(fp_mode, size));
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   PopAll(registers);
@@ -845,7 +866,8 @@ void MacroAssembler::CallTSANRelaxedLoadStub(Register address,
 
 void MacroAssembler::RecordWrite(Register object, Register slot_address,
                                  Register value, SaveFPRegsMode fp_mode,
-                                 SmiCheck smi_check, SlotDescriptor slot) {
+                                 SmiCheck smi_check, ReadOnlyCheck ro_check,
+                                 SlotDescriptor slot) {
   ASM_CODE_COMMENT(this);
   DCHECK(!AreAliased(object, slot_address, value));
   AssertNotSmi(object);
@@ -878,8 +900,17 @@ void MacroAssembler::RecordWrite(Register object, Register slot_address,
   }
 
   // First, check if a write barrier is even needed. The tests below
-  // catch stores of smis and stores into the young generation.
+  // catch stores of smis and read-only objects, as well as stores into the
+  // young generation.
   Label done;
+
+#if V8_STATIC_ROOTS_BOOL
+  if (ro_check == ReadOnlyCheck::kInline) {
+    // Quick check for Read-only and small Smi values.
+    static_assert(StaticReadOnlyRoot::kLastAllocatedRoot < kRegularPageSize);
+    JumpIfUnsignedLessThan(value, kRegularPageSize, &done);
+  }
+#endif  // V8_STATIC_ROOTS_BOOL
 
   if (smi_check == SmiCheck::kInline) {
     // Skip barrier if writing a smi.
@@ -1063,6 +1094,8 @@ void MacroAssembler::JumpToExternalReference(const ExternalReference& ext,
 
 namespace {
 
+#ifndef V8_ENABLE_LEAPTIERING
+// Only used when leaptiering is disabled.
 void TailCallOptimizedCodeSlot(MacroAssembler* masm,
                                Register optimized_code_entry, Register closure,
                                Register scratch1, Register scratch2,
@@ -1109,6 +1142,7 @@ void TailCallOptimizedCodeSlot(MacroAssembler* masm,
   __ bind(&heal_optimized_code_slot);
   __ GenerateTailCallToReturnedCode(Runtime::kHealOptimizedCodeSlot, jump_mode);
 }
+#endif  // V8_ENABLE_LEAPTIERING
 
 }  // namespace
 
@@ -1165,6 +1199,10 @@ void MacroAssembler::ReplaceClosureCodeWithOptimizedCode(
   ASM_CODE_COMMENT(this);
   DCHECK(!AreAliased(optimized_code, closure, scratch1, slot_address));
   DCHECK_EQ(closure, kJSFunctionRegister);
+
+#ifdef V8_ENABLE_LEAPTIERING
+  UNREACHABLE();
+#else
   // Store the optimized code in the closure.
   AssertCode(optimized_code);
   StoreCodePointerField(FieldOperand(closure, JSFunction::kCodeOffset),
@@ -1176,7 +1214,8 @@ void MacroAssembler::ReplaceClosureCodeWithOptimizedCode(
 
   RecordWriteField(closure, JSFunction::kCodeOffset, value, slot_address,
                    SaveFPRegsMode::kIgnore, SmiCheck::kOmit,
-                   SlotDescriptor::ForCodePointerSlot());
+                   ReadOnlyCheck::kOmit, SlotDescriptor::ForCodePointerSlot());
+#endif  // V8_ENABLE_LEAPTIERING
 }
 
 // Read off the flags in the feedback vector and check if there
@@ -1185,14 +1224,10 @@ Condition MacroAssembler::CheckFeedbackVectorFlagsNeedsProcessing(
     Register feedback_vector, CodeKind current_code_kind) {
   ASM_CODE_COMMENT(this);
   DCHECK(CodeKindCanTierUp(current_code_kind));
-  uint32_t kFlagsMask = FeedbackVector::kFlagsTieringStateIsAnyRequested |
-                        FeedbackVector::kFlagsMaybeHasTurbofanCode |
-                        FeedbackVector::kFlagsLogNextExecution;
-  if (current_code_kind != CodeKind::MAGLEV) {
-    kFlagsMask |= FeedbackVector::kFlagsMaybeHasMaglevCode;
-  }
+  uint32_t flag_mask =
+      FeedbackVector::FlagMaskForNeedsProcessingCheckFrom(current_code_kind);
   testw(FieldOperand(feedback_vector, FeedbackVector::kFlagsOffset),
-        Immediate(kFlagsMask));
+        Immediate(flag_mask));
   return not_zero;
 }
 
@@ -1208,6 +1243,21 @@ void MacroAssembler::OptimizeCodeOrTailCallOptimizedCodeSlot(
     Register feedback_vector, Register closure, JumpMode jump_mode) {
   ASM_CODE_COMMENT(this);
   DCHECK(!AreAliased(feedback_vector, closure));
+
+#ifdef V8_ENABLE_LEAPTIERING
+  // In the leaptiering case, we don't load optimized code from the feedback
+  // vector so only need to call CompileOptimized or FunctionLogNextExecution
+  // here. See also CheckFeedbackVectorFlagsNeedsProcessing above.
+  Label needs_logging;
+  testw(FieldOperand(feedback_vector, FeedbackVector::kFlagsOffset),
+        Immediate(FeedbackVector::kFlagsTieringStateIsAnyRequested));
+  j(zero, &needs_logging);
+
+  GenerateTailCallToReturnedCode(Runtime::kCompileOptimized, jump_mode);
+
+  bind(&needs_logging);
+  GenerateTailCallToReturnedCode(Runtime::kFunctionLogNextExecution, jump_mode);
+#else
   Label maybe_has_optimized_code, maybe_needs_logging;
   // Check if optimized code is available.
   testw(FieldOperand(feedback_vector, FeedbackVector::kFlagsOffset),
@@ -1230,6 +1280,7 @@ void MacroAssembler::OptimizeCodeOrTailCallOptimizedCodeSlot(
   TailCallOptimizedCodeSlot(this, optimized_code_entry, closure, r9,
                             WriteBarrierDescriptor::SlotAddressRegister(),
                             jump_mode);
+#endif  // V8_ENABLE_LEAPTIERING
 }
 
 int MacroAssembler::RequiredStackSizeForCallerSaved(SaveFPRegsMode fp_mode,
@@ -1608,6 +1659,53 @@ void MacroAssembler::Cvttsd2siq(Register dst, Operand src) {
   } else {
     cvttsd2siq(dst, src);
   }
+}
+
+void MacroAssembler::Cvtpd2ph(XMMRegister dst, XMMRegister src, Register tmp) {
+  ASM_CODE_COMMENT(this);
+  CpuFeatureScope f16c_scope(this, F16C);
+  Register tmp2 = kScratchRegister;
+  DCHECK_NE(tmp, tmp2);
+  DCHECK_NE(dst, src);
+
+  // Conversion algo from
+  // https://github.com/tc39/proposal-float16array/issues/12#issuecomment-2256642971
+  Label f32tof16;
+  // Convert Float64 -> Float32.
+  Cvtsd2ss(dst, src);
+  vmovd(tmp, dst);
+  // Mask off sign bit.
+  andl(tmp, Immediate(kFP32WithoutSignMask));
+  // Underflow to zero.
+  cmpl(tmp, Immediate(kFP32MinFP16ZeroRepresentable));
+  j(below, &f32tof16);
+  // Overflow to infinity.
+  cmpl(tmp, Immediate(kFP32MaxFP16Representable));
+  j(above_equal, &f32tof16);
+  // Detection of subnormal numbers.
+  cmpl(tmp, Immediate(kFP32SubnormalThresholdOfFP16));
+  setcc(above_equal, tmp2);
+  movzxbl(tmp2, tmp2);
+  // Compute 0x1000 for normal and 0x0000 for denormal numbers.
+  shll(tmp2, Immediate(12));
+  // Look at the last thirteen bits of the mantissa which will be shifted out
+  // when converting from float32 to float16. (The round and sticky bits.)
+  // Normal numbers: If the round bit is set and sticky bits are zero, then
+  // adjust the float32 mantissa.
+  // Denormal numbers: If all bits are zero, then adjust the mantissa.
+  andl(tmp, Immediate(0x1fff));
+  // Check round and sticky bits.
+  cmpl(tmp, tmp2);
+  j(not_equal, &f32tof16);
+
+  // Adjust mantissa by -1/0/+1.
+  Move(kScratchDoubleReg, static_cast<uint32_t>(1));
+  psignd(kScratchDoubleReg, src);
+  paddd(dst, kScratchDoubleReg);
+
+  bind(&f32tof16);
+  // Convert Float32 -> Float16.
+  vcvtps2ph(dst, dst, 4);
 }
 
 namespace {
@@ -2205,54 +2303,6 @@ void MacroAssembler::F16x8Qfms(YMMRegister dst, XMMRegister src1,
   }
   vcvtps2ph(dst, dst, 0);
 }
-
-// Helper macro to define qfma macro-assembler. This takes care of every
-// possible case of register aliasing to minimize the number of instructions.
-#define QFMA(ps_or_pd)                        \
-  if (CpuFeatures::IsSupported(FMA3)) {       \
-    CpuFeatureScope fma3_scope(this, FMA3);   \
-    if (dst == src1) {                        \
-      vfmadd213##ps_or_pd(dst, src2, src3);   \
-    } else if (dst == src2) {                 \
-      vfmadd213##ps_or_pd(dst, src1, src3);   \
-    } else if (dst == src3) {                 \
-      vfmadd231##ps_or_pd(dst, src2, src1);   \
-    } else {                                  \
-      CpuFeatureScope avx_scope(this, AVX);   \
-      vmovups(dst, src1);                     \
-      vfmadd213##ps_or_pd(dst, src2, src3);   \
-    }                                         \
-  } else if (CpuFeatures::IsSupported(AVX)) { \
-    CpuFeatureScope avx_scope(this, AVX);     \
-    vmul##ps_or_pd(tmp, src1, src2);          \
-    vadd##ps_or_pd(dst, tmp, src3);           \
-  } else {                                    \
-    UNREACHABLE();                            \
-  }
-
-// Helper macro to define qfms macro-assembler. This takes care of every
-// possible case of register aliasing to minimize the number of instructions.
-#define QFMS(ps_or_pd)                        \
-  if (CpuFeatures::IsSupported(FMA3)) {       \
-    CpuFeatureScope fma3_scope(this, FMA3);   \
-    if (dst == src1) {                        \
-      vfnmadd213##ps_or_pd(dst, src2, src3);  \
-    } else if (dst == src2) {                 \
-      vfnmadd213##ps_or_pd(dst, src1, src3);  \
-    } else if (dst == src3) {                 \
-      vfnmadd231##ps_or_pd(dst, src2, src1);  \
-    } else {                                  \
-      CpuFeatureScope avx_scope(this, AVX);   \
-      vmovups(dst, src1);                     \
-      vfnmadd213##ps_or_pd(dst, src2, src3);  \
-    }                                         \
-  } else if (CpuFeatures::IsSupported(AVX)) { \
-    CpuFeatureScope avx_scope(this, AVX);     \
-    vmul##ps_or_pd(tmp, src1, src2);          \
-    vsub##ps_or_pd(dst, src3, tmp);           \
-  } else {                                    \
-    UNREACHABLE();                            \
-  }
 
 void MacroAssembler::F32x8Qfma(YMMRegister dst, YMMRegister src1,
                                YMMRegister src2, YMMRegister src3,
@@ -3149,7 +3199,11 @@ void MacroAssembler::JumpCodeObject(Register code_object, CodeEntrypointTag tag,
 
 void MacroAssembler::CallJSFunction(Register function_object) {
   static_assert(kJavaScriptCallCodeStartRegister == rcx, "ABI mismatch");
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_ENABLE_LEAPTIERING
+  movl(rcx, FieldOperand(function_object, JSFunction::kDispatchHandleOffset));
+  LoadCodeEntrypointFromJSDispatchTable(rcx, rcx);
+  call(rcx);
+#elif V8_ENABLE_SANDBOX
   // When the sandbox is enabled, we can directly fetch the entrypoint pointer
   // from the code pointer table instead of going through the Code object. In
   // this way, we avoid one memory load on this code path.
@@ -3166,7 +3220,12 @@ void MacroAssembler::CallJSFunction(Register function_object) {
 void MacroAssembler::JumpJSFunction(Register function_object,
                                     JumpMode jump_mode) {
   static_assert(kJavaScriptCallCodeStartRegister == rcx, "ABI mismatch");
-#ifdef V8_ENABLE_SANDBOX
+#ifdef V8_ENABLE_LEAPTIERING
+  movl(rcx, FieldOperand(function_object, JSFunction::kDispatchHandleOffset));
+  LoadCodeEntrypointFromJSDispatchTable(rcx, rcx);
+  DCHECK_EQ(jump_mode, JumpMode::kJump);
+  jmp(rcx);
+#elif V8_ENABLE_SANDBOX
   // When the sandbox is enabled, we can directly fetch the entrypoint pointer
   // from the code pointer table instead of going through the Code object. In
   // this way, we avoid one memory load on this code path.
@@ -3813,6 +3872,81 @@ void MacroAssembler::EmitDecrementCounter(StatsCounter* counter, int value) {
   }
 }
 
+#ifdef V8_ENABLE_LEAPTIERING
+void MacroAssembler::InvokeFunction(
+    Register function, Register new_target, Register actual_parameter_count,
+    InvokeType type, ArgumentAdaptionMode argument_adaption_mode) {
+  ASM_CODE_COMMENT(this);
+  DCHECK_EQ(function, rdi);
+  LoadTaggedField(rsi, FieldOperand(function, JSFunction::kContextOffset));
+  InvokeFunctionCode(rdi, new_target, actual_parameter_count, type,
+                     argument_adaption_mode);
+}
+
+void MacroAssembler::InvokeFunctionCode(
+    Register function, Register new_target, Register actual_parameter_count,
+    InvokeType type, ArgumentAdaptionMode argument_adaption_mode) {
+  ASM_CODE_COMMENT(this);
+  // You can't call a function without a valid frame.
+  DCHECK_IMPLIES(type == InvokeType::kCall, has_frame());
+  DCHECK_EQ(function, rdi);
+  DCHECK_IMPLIES(new_target.is_valid(), new_target == rdx);
+
+  Register dispatch_handle = r15;
+  movl(dispatch_handle,
+       FieldOperand(function, JSFunction::kDispatchHandleOffset));
+
+  AssertFunction(function);
+
+  // On function call, call into the debugger if necessary.
+  Label debug_hook, continue_after_hook;
+  {
+    ExternalReference debug_hook_active =
+        ExternalReference::debug_hook_on_function_call_address(isolate());
+    Operand debug_hook_active_operand =
+        ExternalReferenceAsOperand(debug_hook_active);
+    cmpb(debug_hook_active_operand, Immediate(0));
+    j(not_equal, &debug_hook);
+  }
+  bind(&continue_after_hook);
+
+  // Clear the new.target register if not given.
+  if (!new_target.is_valid()) {
+    LoadRoot(rdx, RootIndex::kUndefinedValue);
+  }
+
+  if (argument_adaption_mode == ArgumentAdaptionMode::kAdapt) {
+    Register expected_parameter_count = rbx;
+    LoadParameterCountFromJSDispatchTable(expected_parameter_count,
+                                          dispatch_handle);
+    InvokePrologue(expected_parameter_count, actual_parameter_count, type);
+  }
+
+  // We call indirectly through the code field in the function to
+  // allow recompilation to take effect without changing any of the
+  // call sites.
+  static_assert(kJavaScriptCallCodeStartRegister == rcx, "ABI mismatch");
+  LoadCodeEntrypointFromJSDispatchTable(rcx, dispatch_handle);
+  switch (type) {
+    case InvokeType::kCall:
+      call(rcx);
+      break;
+    case InvokeType::kJump:
+      jmp(rcx);
+      break;
+  }
+  Label done;
+  jmp(&done, Label::kNear);
+
+  // Deferred debug hook.
+  bind(&debug_hook);
+  CallDebugOnFunctionCall(function, new_target, dispatch_handle,
+                          actual_parameter_count);
+  jmp(&continue_after_hook);
+
+  bind(&done);
+}
+#else
 void MacroAssembler::InvokeFunction(Register function, Register new_target,
                                     Register actual_parameter_count,
                                     InvokeType type) {
@@ -3888,6 +4022,7 @@ void MacroAssembler::InvokeFunctionCode(Register function, Register new_target,
 
   bind(&done);
 }
+#endif  // V8_ENABLE_LEAPTIERING
 
 Operand MacroAssembler::StackLimitAsOperand(StackLimitKind kind) {
   DCHECK(root_array_available());
@@ -3989,9 +4124,10 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
     bind(&regular_invoke);
 }
 
-void MacroAssembler::CallDebugOnFunctionCall(Register fun, Register new_target,
-                                             Register expected_parameter_count,
-                                             Register actual_parameter_count) {
+void MacroAssembler::CallDebugOnFunctionCall(
+    Register fun, Register new_target,
+    Register expected_parameter_count_or_dispatch_handle,
+    Register actual_parameter_count) {
   ASM_CODE_COMMENT(this);
   // Load receiver to pass it later to DebugOnFunctionCall hook.
   // Receiver is located on top of the stack if we have a frame (usually a
@@ -4002,8 +4138,8 @@ void MacroAssembler::CallDebugOnFunctionCall(Register fun, Register new_target,
   FrameScope frame(
       this, has_frame() ? StackFrame::NO_FRAME_TYPE : StackFrame::INTERNAL);
 
-  SmiTag(expected_parameter_count);
-  Push(expected_parameter_count);
+  SmiTag(expected_parameter_count_or_dispatch_handle);
+  Push(expected_parameter_count_or_dispatch_handle);
 
   SmiTag(actual_parameter_count);
   Push(actual_parameter_count);
@@ -4022,8 +4158,8 @@ void MacroAssembler::CallDebugOnFunctionCall(Register fun, Register new_target,
   }
   Pop(actual_parameter_count);
   SmiUntag(actual_parameter_count);
-  Pop(expected_parameter_count);
-  SmiUntag(expected_parameter_count);
+  Pop(expected_parameter_count_or_dispatch_handle);
+  SmiUntag(expected_parameter_count_or_dispatch_handle);
 }
 
 void MacroAssembler::StubPrologue(StackFrame::Type type) {
@@ -4052,7 +4188,7 @@ void MacroAssembler::EnterFrame(StackFrame::Type type) {
     Push(Immediate(StackFrame::TypeToMarker(type)));
   }
 #if V8_ENABLE_WEBASSEMBLY
-  if (type == StackFrame::WASM) Push(kWasmInstanceRegister);
+  if (type == StackFrame::WASM) Push(kWasmImplicitArgRegister);
 #endif  // V8_ENABLE_WEBASSEMBLY
 }
 

@@ -66,6 +66,7 @@
 #include "src/objects/js-struct-inl.h"
 #include "src/objects/js-weak-refs-inl.h"
 #include "src/objects/literal-objects-inl.h"
+#include "src/objects/managed-inl.h"
 #include "src/objects/megadom-handler-inl.h"
 #include "src/objects/microtask-inl.h"
 #include "src/objects/module-inl.h"
@@ -156,11 +157,9 @@ MaybeHandle<Code> Factory::CodeBuilder::BuildInternal(
         code_desc_.body_size(), code_desc_.constant_pool_offset, *reloc_info);
     istream = handle(raw_istream, local_isolate_);
     DCHECK(IsAligned(istream->instruction_start(), kCodeAlignment));
-    DCHECK_IMPLIES(
-        !V8_ENABLE_THIRD_PARTY_HEAP_BOOL &&
-            !local_isolate_->heap()->heap()->code_region().is_empty(),
-        local_isolate_->heap()->heap()->code_region().contains(
-            istream->address()));
+    DCHECK_IMPLIES(!local_isolate_->heap()->heap()->code_region().is_empty(),
+                   local_isolate_->heap()->heap()->code_region().contains(
+                       istream->address()));
   }
 
   Handle<Code> code;
@@ -170,6 +169,7 @@ MaybeHandle<Code> Factory::CodeBuilder::BuildInternal(
     NewCodeOptions new_code_options = {
         kind_,
         builtin_,
+        is_context_specialized_,
         is_turbofanned_,
         stack_slots_,
         parameter_count_,
@@ -180,6 +180,7 @@ MaybeHandle<Code> Factory::CodeBuilder::BuildInternal(
         code_desc_.handler_table_offset_relative(),
         code_desc_.constant_pool_offset_relative(),
         code_desc_.code_comments_offset_relative(),
+        code_desc_.builtin_jump_table_info_offset_relative(),
         code_desc_.unwinding_info_offset_relative(),
         interpreter_data_,
         deoptimization_data_,
@@ -1627,12 +1628,21 @@ Handle<WasmTrustedInstanceData> Factory::NewWasmTrustedInstanceData() {
 
 Handle<WasmDispatchTable> Factory::NewWasmDispatchTable(int length) {
   CHECK_LE(length, WasmDispatchTable::kMaxLength);
+
+  // TODO(jkummerow): Any chance to get a better estimate?
+  size_t estimated_offheap_size = 0;
+  Handle<TrustedManaged<WasmDispatchTableData>> offheap_data =
+      TrustedManaged<WasmDispatchTableData>::From(
+          isolate(), estimated_offheap_size,
+          std::make_shared<WasmDispatchTableData>());
+
   int bytes = WasmDispatchTable::SizeFor(length);
   Tagged<WasmDispatchTable> result = UncheckedCast<WasmDispatchTable>(
       AllocateRawWithImmortalMap(bytes, AllocationType::kTrusted,
                                  read_only_roots().wasm_dispatch_table_map()));
   result->WriteField<int>(WasmDispatchTable::kLengthOffset, length);
   result->WriteField<int>(WasmDispatchTable::kCapacityOffset, length);
+  result->set_protected_offheap_data(*offheap_data);
   for (int i = 0; i < length; ++i) {
     result->Clear(i);
     result->clear_entry_padding(i);
@@ -1714,11 +1724,11 @@ Handle<WasmImportData> Factory::NewWasmImportData(
 }
 
 Handle<WasmImportData> Factory::NewWasmImportData(
-    DirectHandle<WasmImportData> ref) {
-  return NewWasmImportData(handle(ref->callable(), isolate()),
-                           static_cast<wasm::Suspend>(ref->suspend()),
-                           handle(ref->instance_data(), isolate()),
-                           handle(ref->sig(), isolate()));
+    DirectHandle<WasmImportData> import_data) {
+  return NewWasmImportData(handle(import_data->callable(), isolate()),
+                           static_cast<wasm::Suspend>(import_data->suspend()),
+                           handle(import_data->instance_data(), isolate()),
+                           handle(import_data->sig(), isolate()));
 }
 
 Handle<WasmFastApiCallData> Factory::NewWasmFastApiCallData(
@@ -1776,14 +1786,14 @@ Handle<WasmJSFunctionData> Factory::NewWasmJSFunctionData(
     DirectHandle<PodArray<wasm::ValueType>> serialized_sig,
     DirectHandle<Code> wrapper_code, DirectHandle<Map> rtt,
     wasm::Suspend suspend, wasm::Promise promise, uintptr_t signature_hash) {
-  DirectHandle<WasmImportData> ref = NewWasmImportData(
+  DirectHandle<WasmImportData> import_data = NewWasmImportData(
       callable, suspend, DirectHandle<WasmTrustedInstanceData>(),
       serialized_sig);
 
   DirectHandle<WasmInternalFunction> internal =
-      NewWasmInternalFunction(ref, -1, signature_hash);
+      NewWasmInternalFunction(import_data, -1, signature_hash);
   DirectHandle<WasmFuncRef> func_ref = NewWasmFuncRef(internal, rtt);
-  WasmImportData::SetFuncRefAsCallOrigin(ref, func_ref);
+  WasmImportData::SetFuncRefAsCallOrigin(import_data, func_ref);
   Tagged<Map> map = *wasm_js_function_data_map();
   Tagged<WasmJSFunctionData> result =
       Cast<WasmJSFunctionData>(AllocateRawWithImmortalMap(
@@ -1825,7 +1835,6 @@ Handle<WasmSuspenderObject> Factory::NewWasmSuspenderObject() {
   suspender->set_resume(*undefined_value());
   suspender->set_reject(*undefined_value());
   suspender->set_state(WasmSuspenderObject::kInactive);
-  suspender->set_has_js_frames(0);
   // Instantiate the callable object which resumes this Suspender. This will be
   // used implicitly as the onFulfilled callback of the returned JS promise.
   DirectHandle<WasmResumeData> resume_data =
@@ -1887,13 +1896,13 @@ Handle<WasmCapiFunctionData> Factory::NewWasmCapiFunctionData(
     DirectHandle<Code> wrapper_code, DirectHandle<Map> rtt,
     DirectHandle<PodArray<wasm::ValueType>> serialized_sig,
     uintptr_t signature_hash) {
-  DirectHandle<WasmImportData> ref = NewWasmImportData(
+  DirectHandle<WasmImportData> import_data = NewWasmImportData(
       undefined_value(), wasm::kNoSuspend,
       DirectHandle<WasmTrustedInstanceData>(), serialized_sig);
   DirectHandle<WasmInternalFunction> internal =
-      NewWasmInternalFunction(ref, -1, signature_hash);
+      NewWasmInternalFunction(import_data, -1, signature_hash);
   DirectHandle<WasmFuncRef> func_ref = NewWasmFuncRef(internal, rtt);
-  WasmImportData::SetFuncRefAsCallOrigin(ref, func_ref);
+  WasmImportData::SetFuncRefAsCallOrigin(import_data, func_ref);
   internal->set_call_target(call_target);
   Tagged<Map> map = *wasm_capi_function_data_map();
   Tagged<WasmCapiFunctionData> result =
@@ -2305,13 +2314,16 @@ Tagged<Map> Factory::InitializeMap(Tagged<Map> map, InstanceType type,
                           SKIP_WRITE_BARRIER);
   map->set_raw_transitions(Smi::zero(), SKIP_WRITE_BARRIER);
   map->SetInObjectUnusedPropertyFields(inobject_properties);
-  map->SetInstanceDescriptors(isolate(), roots.empty_descriptor_array(), 0);
+  map->SetInstanceDescriptors(isolate(), roots.empty_descriptor_array(), 0,
+                              SKIP_WRITE_BARRIER);
   // Must be called only after |instance_type| and |instance_size| are set.
   map->set_visitor_id(Map::GetVisitorId(map));
   DCHECK(!map->is_in_retained_map_list());
   map->clear_padding();
   map->set_elements_kind(elements_kind);
-  if (v8_flags.log_maps) LOG(isolate(), MapCreate(map));
+  if (V8_UNLIKELY(v8_flags.log_maps)) {
+    LOG(isolate(), MapCreate(map));
+  }
   return map;
 }
 
@@ -2465,7 +2477,7 @@ Handle<JSObject> Factory::CopyJSObjectWithAllocationSite(
     // clone will be allocated in new space.
     const ObjectSlot start(raw_clone.address());
     const ObjectSlot end(raw_clone.address() + object_size);
-    isolate()->heap()->WriteBarrierForRange(raw_clone, start, end);
+    WriteBarrier::ForRange(isolate()->heap(), raw_clone, start, end);
   }
   if (!site.is_null()) {
     Tagged<AllocationMemento> alloc_memento = UncheckedCast<AllocationMemento>(
@@ -2852,6 +2864,7 @@ Handle<Code> Factory::NewCodeObjectForEmbeddedBuiltin(DirectHandle<Code> code,
   NewCodeOptions new_code_options = {
       code->kind(),
       code->builtin_id(),
+      code->is_context_specialized(),
       code->is_turbofanned(),
       code->stack_slots(),
       code->parameter_count(),
@@ -2862,6 +2875,7 @@ Handle<Code> Factory::NewCodeObjectForEmbeddedBuiltin(DirectHandle<Code> code,
       code->handler_table_offset(),
       code->constant_pool_offset(),
       code->code_comments_offset(),
+      code->builtin_jump_table_info_offset(),
       code->unwinding_info_offset(),
       MaybeHandle<TrustedObject>{},
       MaybeHandle<DeoptimizationData>{},
@@ -4674,7 +4688,7 @@ Handle<JSFunction> Factory::JSFunctionBuilder::BuildRaw(
   // dispatch entry now. This should only be the case for functions using the
   // generic many_closures_cell (for example builtin functions), and only for
   // functions using certain kinds of code.
-  if (!feedback_cell->dispatch_handle()) {
+  if (feedback_cell->dispatch_handle() == kNullJSDispatchHandle) {
     DCHECK_EQ(*feedback_cell, *factory->many_closures_cell());
     // We currently only expect to see these kinds of Code here. For BASELINE
     // code, we will allocate a FeedbackCell after building the JSFunction. See
@@ -4685,13 +4699,27 @@ Handle<JSFunction> Factory::JSFunctionBuilder::BuildRaw(
     // TODO(saelo): in the future, we probably want to use
     // code->parameter_count() here instead, but not all Code objects know
     // their parameter count yet.
-    function->initialize_dispatch_handle(
-        isolate, sfi_->internal_formal_parameter_count_with_receiver());
+    function->allocate_dispatch_handle(
+        isolate, sfi_->internal_formal_parameter_count_with_receiver(), *code);
   } else {
-    function->set_dispatch_handle(feedback_cell->dispatch_handle());
+    // TODO(olivf, 42204201): Here we are explicitly not updating (only
+    // potentially initializing) the code. Worst case the dispatch handle still
+    // contains bytecode or CompileLazy and we'll tier on the next call. Otoh,
+    // if we would UpdateCode we would risk tiering down already existing
+    // closures with optimized code installed.
+    JSDispatchHandle handle = feedback_cell->dispatch_handle();
+    JSDispatchTable* jdt = GetProcessWideJSDispatchTable();
+    // TODO(olivf): We should go through the cases where this is still needed
+    // and maybe find some alternative to initialize it correctly from the
+    // beginning.
+    if (jdt->GetCode(handle)->is_builtin()) {
+      jdt->SetCode(handle, *code);
+    }
+    function->set_dispatch_handle(handle, mode);
   }
+#else
+  function->UpdateCode(*code, mode);
 #endif  // V8_ENABLE_LEAPTIERING
-  function->set_code(*code, kReleaseStore, mode);
   if (function->has_prototype_slot()) {
     function->set_prototype_or_initial_map(
         ReadOnlyRoots(isolate).the_hole_value(), kReleaseStore,

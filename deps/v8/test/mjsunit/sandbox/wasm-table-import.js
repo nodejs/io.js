@@ -46,7 +46,8 @@ let $t_imp =
 
 // Prepare corruption utilities.
 const kHeapObjectTag = 1;
-const kWasmTableEntriesOffset = 12;
+const kWasmTableType = Sandbox.getInstanceTypeIdFor('WASM_TABLE_OBJECT_TYPE');
+const kWasmTableEntriesOffset = Sandbox.getFieldOffset(kWasmTableType, 'entries');
 let memory = new DataView(new Sandbox.MemoryView(0, 0x100000000));
 function getPtr(obj) {
   return Sandbox.getAddressOf(obj) + kHeapObjectTag;

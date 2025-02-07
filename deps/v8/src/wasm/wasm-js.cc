@@ -578,10 +578,17 @@ CompileTimeImports ArgumentToCompileOptions(
         // style (rather than `...->StringEquals(v8_str(...))`).
         if (builtin->IsEqualTo(base::CStrVector("js-string"))) {
           result.Add(CompileTimeImport::kJsString);
-        } else if (builtin->IsEqualTo(base::CStrVector("text-encoder"))) {
-          result.Add(CompileTimeImport::kTextEncoder);
-        } else if (builtin->IsEqualTo(base::CStrVector("text-decoder"))) {
-          result.Add(CompileTimeImport::kTextDecoder);
+          continue;
+        }
+        if (enabled_features.has_imported_strings_utf8()) {
+          if (builtin->IsEqualTo(base::CStrVector("text-encoder"))) {
+            result.Add(CompileTimeImport::kTextEncoder);
+            continue;
+          }
+          if (builtin->IsEqualTo(base::CStrVector("text-decoder"))) {
+            result.Add(CompileTimeImport::kTextDecoder);
+            continue;
+          }
         }
       }
     }
@@ -1315,9 +1322,12 @@ i::Handle<i::HeapObject> DefaultReferenceValue(i::Isolate* isolate,
   DCHECK(type.is_object_reference());
   // Use undefined for JS type (externref) but null for wasm types as wasm does
   // not know undefined.
-  if (type.heap_representation() == i::wasm::HeapType::kExtern ||
-      type.heap_representation() == i::wasm::HeapType::kNoExtern) {
+  if (type.heap_representation() == i::wasm::HeapType::kExtern) {
     return isolate->factory()->undefined_value();
+  } else if (type.heap_representation() == i::wasm::HeapType::kNoExtern ||
+             type.heap_representation() == i::wasm::HeapType::kExn ||
+             type.heap_representation() == i::wasm::HeapType::kNoExn) {
+    return isolate->factory()->null_value();
   }
   return isolate->factory()->wasm_null();
 }
@@ -2116,11 +2126,11 @@ i::Handle<i::JSFunction> NewPromisingWasmExportedFunction(
       i_isolate};
 
   int num_imported_functions = module->num_imported_functions;
-  i::DirectHandle<i::TrustedObject> ref;
+  i::DirectHandle<i::TrustedObject> implicit_arg;
   if (func_index >= num_imported_functions) {
-    ref = trusted_instance_data;
+    implicit_arg = trusted_instance_data;
   } else {
-    ref = i_isolate->factory()->NewWasmImportData(direct_handle(
+    implicit_arg = i_isolate->factory()->NewWasmImportData(direct_handle(
         i::Cast<i::WasmImportData>(
             trusted_instance_data->dispatch_table_for_imports()->implicit_arg(
                 func_index)),
@@ -2135,13 +2145,13 @@ i::Handle<i::JSFunction> NewPromisingWasmExportedFunction(
 #endif
 
   i::DirectHandle<i::WasmInternalFunction> internal =
-      i_isolate->factory()->NewWasmInternalFunction(ref, func_index,
+      i_isolate->factory()->NewWasmInternalFunction(implicit_arg, func_index,
                                                     signature_hash);
   i::DirectHandle<i::WasmFuncRef> func_ref =
       i_isolate->factory()->NewWasmFuncRef(internal, rtt);
   internal->set_call_target(trusted_instance_data->GetCallTarget(func_index));
   if (func_index < num_imported_functions) {
-    i::Cast<i::WasmImportData>(ref)->set_call_origin(*func_ref);
+    i::Cast<i::WasmImportData>(implicit_arg)->set_call_origin(*func_ref);
   }
 
   i::Handle<i::JSFunction> result = i::WasmExportedFunction::New(

@@ -42,6 +42,13 @@
 #define ABSL_STACKTRACE_INL_HEADER \
   "absl/debugging/internal/stacktrace_emscripten-inl.inc"
 
+#elif defined(__ANDROID__) && __ANDROID_API__ >= 33
+
+// Use the generic implementation for Android 33+ (Android T+). This is the
+// first version of Android for which <execinfo.h> implements backtrace().
+#define ABSL_STACKTRACE_INL_HEADER \
+  "absl/debugging/internal/stacktrace_generic-inl.inc"
+
 #elif defined(__linux__) && !defined(__ANDROID__)
 
 #if defined(NO_FRAME_POINTER) && \

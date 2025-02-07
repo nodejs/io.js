@@ -124,7 +124,6 @@ class BaseCommand {
     } else if (!this.npm.config.isDefault('expect-result-count')) {
       const expected = this.npm.config.get('expect-result-count')
       if (expected !== entries) {
-        /* eslint-disable-next-line max-len */
         log.warn(this.name, `Expected ${expected} result${expected === 1 ? '' : 's'}, got ${entries}`)
         process.exitCode = 1
       }

@@ -69,7 +69,7 @@ describe('Mock Timers Test Suite', () => {
           'clearImmediate',
         ];
 
-        const globalTimersDescriptors = timers.map((fn) => getDescriptor(global, fn));
+        const globalTimersDescriptors = timers.map((fn) => getDescriptor(globalThis, fn));
         const nodeTimersDescriptors = timers.map((fn) => getDescriptor(nodeTimers, fn));
         const nodeTimersPromisesDescriptors = timers
           .filter((fn) => !fn.includes('clear'))
@@ -116,7 +116,7 @@ describe('Mock Timers Test Suite', () => {
     it('should reset all timers when calling .reset function', (t) => {
       t.mock.timers.enable();
       const fn = t.mock.fn();
-      global.setTimeout(fn, 1000);
+      globalThis.setTimeout(fn, 1000);
       t.mock.timers.reset();
       assert.deepStrictEqual(Date.now, globalThis.Date.now);
       assert.throws(() => {
@@ -131,7 +131,7 @@ describe('Mock Timers Test Suite', () => {
     it('should reset all timers when calling Symbol.dispose', (t) => {
       t.mock.timers.enable();
       const fn = t.mock.fn();
-      global.setTimeout(fn, 1000);
+      globalThis.setTimeout(fn, 1000);
       // TODO(benjamingr) refactor to `using`
       t.mock.timers[Symbol.dispose]();
       assert.throws(() => {
@@ -148,8 +148,8 @@ describe('Mock Timers Test Suite', () => {
       const order = [];
       const fn1 = t.mock.fn(() => order.push('f1'));
       const fn2 = t.mock.fn(() => order.push('f2'));
-      global.setTimeout(fn1, 1000);
-      global.setTimeout(fn2, 1000);
+      globalThis.setTimeout(fn1, 1000);
+      globalThis.setTimeout(fn2, 1000);
       t.mock.timers.tick(1000);
       assert.strictEqual(fn1.mock.callCount(), 1);
       assert.strictEqual(fn2.mock.callCount(), 1);
@@ -170,11 +170,11 @@ describe('Mock Timers Test Suite', () => {
         const intervalFn = t.mock.fn();
 
         t.mock.timers.enable();
-        global.setTimeout(timeoutFn, 1111);
-        const id = global.setInterval(intervalFn, 9999);
+        globalThis.setTimeout(timeoutFn, 1111);
+        const id = globalThis.setInterval(intervalFn, 9999);
         t.mock.timers.runAll();
 
-        global.clearInterval(id);
+        globalThis.clearInterval(id);
         assert.strictEqual(timeoutFn.mock.callCount(), 1);
         assert.strictEqual(intervalFn.mock.callCount(), 1);
       });
@@ -184,11 +184,11 @@ describe('Mock Timers Test Suite', () => {
         const intervalFn = t.mock.fn();
 
         t.mock.timers.enable();
-        global.setTimeout(timeoutFn, 1111);
-        const id = global.setInterval(intervalFn, 9999);
+        globalThis.setTimeout(timeoutFn, 1111);
+        const id = globalThis.setInterval(intervalFn, 9999);
         t.mock.timers.runAll();
 
-        global.clearInterval(id);
+        globalThis.clearInterval(id);
         assert.strictEqual(timeoutFn.mock.callCount(), 1);
         assert.strictEqual(intervalFn.mock.callCount(), 1);
         assert.strictEqual(Date.now(), 9999);
@@ -209,7 +209,7 @@ describe('Mock Timers Test Suite', () => {
 
         const fn = mock.fn();
 
-        global.setTimeout(fn, 4000);
+        globalThis.setTimeout(fn, 4000);
 
         mock.timers.tick(4000);
         assert.strictEqual(fn.mock.callCount(), 1);
@@ -220,7 +220,7 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         const fn = t.mock.fn();
 
-        global.setTimeout(fn, 2000);
+        globalThis.setTimeout(fn, 2000);
 
         t.mock.timers.tick(1000);
         assert.strictEqual(fn.mock.callCount(), 0);
@@ -234,7 +234,7 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         const fn = t.mock.fn();
         const args = ['a', 'b', 'c'];
-        global.setTimeout(fn, 2000, ...args);
+        globalThis.setTimeout(fn, 2000, ...args);
 
         t.mock.timers.tick(1000);
         t.mock.timers.tick(500);
@@ -248,7 +248,7 @@ describe('Mock Timers Test Suite', () => {
         const now = Date.now();
         const timeout = 2;
         const expected = () => now - timeout;
-        global.setTimeout(common.mustCall(() => {
+        globalThis.setTimeout(common.mustCall(() => {
           assert.strictEqual(now - timeout, expected());
           done();
         }), timeout);
@@ -257,7 +257,7 @@ describe('Mock Timers Test Suite', () => {
       it('should change timeout to 1ms when it is > TIMEOUT_MAX', (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         const fn = t.mock.fn();
-        global.setTimeout(fn, TIMEOUT_MAX + 1);
+        globalThis.setTimeout(fn, TIMEOUT_MAX + 1);
         t.mock.timers.tick(1);
         assert.strictEqual(fn.mock.callCount(), 1);
       });
@@ -265,7 +265,7 @@ describe('Mock Timers Test Suite', () => {
       it('should change the delay to one if timeout < 0', (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         const fn = t.mock.fn();
-        global.setTimeout(fn, -1);
+        globalThis.setTimeout(fn, -1);
         t.mock.timers.tick(1);
         assert.strictEqual(fn.mock.callCount(), 1);
       });
@@ -277,8 +277,8 @@ describe('Mock Timers Test Suite', () => {
 
         const fn = mock.fn();
 
-        const id = global.setTimeout(fn, 4000);
-        global.clearTimeout(id);
+        const id = globalThis.setTimeout(fn, 4000);
+        globalThis.clearTimeout(id);
         t.mock.timers.tick(4000);
 
         assert.strictEqual(fn.mock.callCount(), 0);
@@ -297,13 +297,13 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.enable({ apis: ['setInterval'] });
         const fn = t.mock.fn();
 
-        const id = global.setInterval(fn, 200);
+        const id = globalThis.setInterval(fn, 200);
 
         t.mock.timers.tick(200);
         t.mock.timers.tick(200);
         t.mock.timers.tick(200);
 
-        global.clearInterval(id);
+        globalThis.clearInterval(id);
 
         assert.strictEqual(fn.mock.callCount(), 3);
       });
@@ -312,13 +312,13 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.enable({ apis: ['setInterval'] });
         const fn = t.mock.fn();
         const args = ['a', 'b', 'c'];
-        const id = global.setInterval(fn, 200, ...args);
+        const id = globalThis.setInterval(fn, 200, ...args);
 
         t.mock.timers.tick(200);
         t.mock.timers.tick(200);
         t.mock.timers.tick(200);
 
-        global.clearInterval(id);
+        globalThis.clearInterval(id);
 
         assert.strictEqual(fn.mock.callCount(), 3);
         assert.deepStrictEqual(fn.mock.calls[0].arguments, args);
@@ -332,8 +332,8 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.enable({ apis: ['setInterval'] });
 
         const fn = mock.fn();
-        const id = global.setInterval(fn, 200);
-        global.clearInterval(id);
+        const id = globalThis.setInterval(fn, 200);
+        globalThis.clearInterval(id);
         t.mock.timers.tick(200);
 
         assert.strictEqual(fn.mock.callCount(), 0);
@@ -352,7 +352,7 @@ describe('Mock Timers Test Suite', () => {
         const now = Date.now();
         const timeout = 2;
         const expected = () => now - timeout;
-        global.setImmediate(common.mustCall(() => {
+        globalThis.setImmediate(common.mustCall(() => {
           assert.strictEqual(now - timeout, expected());
           done();
         }));
@@ -362,7 +362,7 @@ describe('Mock Timers Test Suite', () => {
         t.mock.timers.enable({ apis: ['setImmediate'] });
         const fn = t.mock.fn();
         const args = ['a', 'b', 'c'];
-        global.setImmediate(fn, ...args);
+        globalThis.setImmediate(fn, ...args);
         t.mock.timers.tick(9999);
 
         assert.strictEqual(fn.mock.callCount(), 1);
@@ -372,14 +372,14 @@ describe('Mock Timers Test Suite', () => {
       it('should not advance in time if clearImmediate was invoked', (t) => {
         t.mock.timers.enable({ apis: ['setImmediate'] });
 
-        const id = global.setImmediate(common.mustNotCall());
-        global.clearImmediate(id);
+        const id = globalThis.setImmediate(common.mustNotCall());
+        globalThis.clearImmediate(id);
         t.mock.timers.tick(200);
       });
 
       it('should advance in time and trigger timers when calling the .tick function', (t) => {
         t.mock.timers.enable({ apis: ['setImmediate'] });
-        global.setImmediate(common.mustCall(1));
+        globalThis.setImmediate(common.mustCall(1));
         t.mock.timers.tick(0);
       });
 
@@ -389,8 +389,8 @@ describe('Mock Timers Test Suite', () => {
         const fn1 = t.mock.fn(common.mustCall(() => order.push('f1'), 1));
         const fn2 = t.mock.fn(common.mustCall(() => order.push('f2'), 1));
 
-        global.setImmediate(fn1);
-        global.setImmediate(fn2);
+        globalThis.setImmediate(fn1);
+        globalThis.setImmediate(fn2);
 
         t.mock.timers.tick(0);
 
@@ -403,8 +403,8 @@ describe('Mock Timers Test Suite', () => {
         const fn1 = t.mock.fn(common.mustCall(() => order.push('f1'), 1));
         const fn2 = t.mock.fn(common.mustCall(() => order.push('f2'), 1));
 
-        global.setTimeout(fn2, 0);
-        global.setImmediate(fn1);
+        globalThis.setTimeout(fn2, 0);
+        globalThis.setImmediate(fn1);
 
         t.mock.timers.tick(100);
 

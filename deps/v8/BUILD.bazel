@@ -59,8 +59,6 @@ load(":bazel/v8-non-pointer-compression.bzl", "v8_binary_non_pointer_compression
 # v8_enable_gdbjit
 # v8_check_header_includes
 # v8_enable_lazy_source_positions
-# v8_enable_third_party_heap
-# v8_third_party_heap_files
 # v8_disable_write_barriers
 # v8_enable_unconditional_write_barriers
 # v8_enable_single_generation
@@ -492,8 +490,7 @@ v8_config(
             ],
             "@v8//bazel/config:v8_target_ppc64le": [
                 # NOTE: Bazel rules for ppc64le weren't tested on a real system.
-                "V8_TARGET_ARCH_PPC64",
-                "V8_TARGET_ARCH_PPC_LE",
+                "V8_TARGET_ARCH_PPC64"
             ],
         },
         no_match_error = "Please specify a target cpu supported by v8",
@@ -1793,8 +1790,6 @@ filegroup(
         "src/heap/stress-scavenge-observer.h",
         "src/heap/sweeper.cc",
         "src/heap/sweeper.h",
-        "src/heap/third-party/heap-api.h",
-        "src/heap/third-party/heap-api-stub.cc",
         "src/heap/traced-handles-marking-visitor.cc",
         "src/heap/traced-handles-marking-visitor.h",
         "src/heap/weak-object-worklists.cc",
@@ -2336,6 +2331,7 @@ filegroup(
         "src/runtime/runtime-test.cc",
         "src/runtime/runtime-trace.cc",
         "src/runtime/runtime-typedarray.cc",
+        "src/runtime/runtime-utils.cc",
         "src/runtime/runtime-utils.h",
         "src/runtime/runtime-weak-refs.cc",
         "src/sandbox/bounded-size.h",
@@ -2557,6 +2553,8 @@ filegroup(
             "src/codegen/x64/assembler-x64.cc",
             "src/codegen/x64/assembler-x64.h",
             "src/codegen/x64/assembler-x64-inl.h",
+            "src/codegen/x64/builtin-jump-table-info-x64.cc",
+            "src/codegen/x64/builtin-jump-table-info-x64.h",
             "src/codegen/x64/constants-x64.h",
             "src/codegen/x64/cpu-x64.cc",
             "src/codegen/x64/fma-instr.h",
@@ -2889,7 +2887,6 @@ filegroup(
             "src/wasm/leb-helper.h",
             "src/wasm/local-decl-encoder.cc",
             "src/wasm/local-decl-encoder.h",
-            "src/wasm/memory-tracing.cc",
             "src/wasm/memory-tracing.h",
             "src/wasm/module-compiler.cc",
             "src/wasm/module-compiler.h",
@@ -2924,6 +2921,9 @@ filegroup(
             "src/wasm/wasm-builtin-list.h",
             "src/wasm/wasm-code-manager.cc",
             "src/wasm/wasm-code-manager.h",
+            "src/wasm/wasm-code-pointer-table.cc",
+            "src/wasm/wasm-code-pointer-table.h",
+            "src/wasm/wasm-code-pointer-table-inl.h",
             "src/wasm/wasm-debug.cc",
             "src/wasm/wasm-debug.h",
             "src/wasm/wasm-deopt-data.cc",
@@ -3282,6 +3282,8 @@ filegroup(
         "src/compiler/turboshaft/build-graph-phase.cc",
         "src/compiler/turboshaft/build-graph-phase.h",
         "src/compiler/turboshaft/builtin-call-descriptors.h",
+        "src/compiler/turboshaft/builtin-compiler.cc",
+        "src/compiler/turboshaft/builtin-compiler.h",
         "src/compiler/turboshaft/csa-optimize-phase.cc",
         "src/compiler/turboshaft/csa-optimize-phase.h",
         "src/compiler/turboshaft/dataview-lowering-reducer.h",
@@ -3303,6 +3305,7 @@ filegroup(
         "src/compiler/turboshaft/explicit-truncation-reducer.h",
         "src/compiler/turboshaft/fast-api-call-lowering-reducer.h",
         "src/compiler/turboshaft/fast-hash.h",
+        "src/compiler/turboshaft/field-macro.inc",
         "src/compiler/turboshaft/graph.cc",
         "src/compiler/turboshaft/graph.h",
         "src/compiler/turboshaft/graph-builder.cc",
@@ -3484,6 +3487,9 @@ filegroup(
             "src/compiler/turboshaft/wasm-gc-typed-optimization-reducer.cc",
             "src/compiler/turboshaft/wasm-gc-typed-optimization-reducer.h",
             "src/compiler/turboshaft/wasm-load-elimination-reducer.h",
+            "src/compiler/turboshaft/wasm-in-js-inlining-phase.cc",
+            "src/compiler/turboshaft/wasm-in-js-inlining-phase.h",
+            "src/compiler/turboshaft/wasm-in-js-inlining-reducer-inl.h",
             "src/compiler/turboshaft/wasm-lowering-phase.cc",
             "src/compiler/turboshaft/wasm-lowering-phase.h",
             "src/compiler/turboshaft/wasm-lowering-reducer.h",
@@ -3588,6 +3594,7 @@ filegroup(
         "src/builtins/builtins-lazy-gen.h",
         "src/builtins/builtins-microtask-queue-gen.cc",
         "src/builtins/builtins-number-gen.cc",
+        "src/builtins/builtins-number-tsa.cc",
         "src/builtins/builtins-object-gen.cc",
         "src/builtins/builtins-object-gen.h",
         "src/builtins/builtins-promise-gen.cc",
@@ -3607,6 +3614,7 @@ filegroup(
         "src/builtins/builtins-utils-gen.h",
         "src/builtins/growable-fixed-array-gen.cc",
         "src/builtins/growable-fixed-array-gen.h",
+        "src/builtins/number-builtins-reducer-inl.h",
         "src/builtins/profile-data-reader.cc",
         "src/builtins/profile-data-reader.h",
         "src/builtins/setup-builtins-internal.cc",
@@ -3616,6 +3624,8 @@ filegroup(
         "third_party/v8/codegen/fp16-inl.h",
         "src/codegen/code-stub-assembler-inl.h",
         "src/codegen/code-stub-assembler.h",
+        "src/codegen/define-code-stub-assembler-macros.inc",
+        "src/codegen/undef-code-stub-assembler-macros.inc",
         "src/heap/setup-heap-internal.cc",
         "src/ic/accessor-assembler.cc",
         "src/ic/accessor-assembler.h",
@@ -3629,6 +3639,8 @@ filegroup(
         "src/interpreter/interpreter-assembler.h",
         "src/interpreter/interpreter-generator.cc",
         "src/interpreter/interpreter-generator.h",
+        "src/interpreter/interpreter-generator-tsa.cc",
+        "src/interpreter/interpreter-generator-tsa.h",
         "src/interpreter/interpreter-intrinsics-generator.cc",
         "src/interpreter/interpreter-intrinsics-generator.h",
         "src/numbers/integer-literal.h",
@@ -3794,6 +3806,25 @@ filegroup(
         "@v8//bazel/config:is_msvc_asm_x64": ["src/heap/base/asm/x64/push_registers_masm.asm"],
         "@v8//bazel/config:is_msvc_asm_arm64": ["src/heap/base/asm/arm64/push_registers_masm.S"],
     }),
+)
+
+v8_library(
+  name = "lib_fast_float",
+  srcs = [
+    "third_party/fast_float/src/include/fast_float/ascii_number.h",
+    "third_party/fast_float/src/include/fast_float/bigint.h",
+    "third_party/fast_float/src/include/fast_float/constexpr_feature_detect.h",
+    "third_party/fast_float/src/include/fast_float/decimal_to_binary.h",
+    "third_party/fast_float/src/include/fast_float/digit_comparison.h",
+    "third_party/fast_float/src/include/fast_float/fast_float.h",
+    "third_party/fast_float/src/include/fast_float/fast_table.h",
+    "third_party/fast_float/src/include/fast_float/float_common.h",
+    "third_party/fast_float/src/include/fast_float/parse_number.h",
+    ],
+  hdrs = [ "third_party/fast_float/src/include/fast_float/fast_float.h" ],
+  includes = [
+    "third_party/fast_float/src/include",
+  ],
 )
 
 v8_library(
@@ -4299,6 +4330,7 @@ v8_library(
         ":noicu/generated_torque_definitions",
     ],
     deps = [
+        ":lib_fast_float",
         ":lib_fp16",
         ":v8_libbase",
         "//external:absl_btree",

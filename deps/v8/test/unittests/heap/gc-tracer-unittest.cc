@@ -11,6 +11,7 @@
 #include "src/base/platform/platform.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
+#include "src/flags/flags.h"
 #include "src/heap/gc-tracer-inl.h"
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -320,9 +321,12 @@ TEST_F(GCTracerTest, IncrementalMarkingSpeed) {
   tracer->AddIncrementalMarkingStep(100, 1000000);
   EXPECT_EQ(1000000 / 100,
             tracer->IncrementalMarkingSpeedInBytesPerMillisecond());
-  // Scavenger has no impact on incremental marking details.
-  StartTracing(tracer, GarbageCollector::SCAVENGER, StartTracingMode::kAtomic);
-  StopTracing(tracer, GarbageCollector::SCAVENGER);
+  if (!v8_flags.separate_gc_phases) {
+    // Scavenger has no impact on incremental marking details.
+    StartTracing(tracer, GarbageCollector::SCAVENGER,
+                 StartTracingMode::kAtomic);
+    StopTracing(tracer, GarbageCollector::SCAVENGER);
+  }
   // 1000000 bytes in 100ms.
   tracer->AddIncrementalMarkingStep(100, 1000000);
   EXPECT_EQ(base::TimeDelta::FromMilliseconds(300),
@@ -448,9 +452,12 @@ TEST_F(GCTracerTest, BackgroundMajorMCScope) {
                          base::TimeDelta::FromMilliseconds(200));
   tracer->AddScopeSample(GCTracer::Scope::MC_BACKGROUND_MARKING,
                          base::TimeDelta::FromMilliseconds(10));
-  // Scavenger should not affect the major mark-compact scopes.
-  StartTracing(tracer, GarbageCollector::SCAVENGER, StartTracingMode::kAtomic);
-  StopTracing(tracer, GarbageCollector::SCAVENGER);
+  if (!v8_flags.separate_gc_phases) {
+    // Scavenger should not affect the major mark-compact scopes.
+    StartTracing(tracer, GarbageCollector::SCAVENGER,
+                 StartTracingMode::kAtomic);
+    StopTracing(tracer, GarbageCollector::SCAVENGER);
+  }
   tracer->AddScopeSample(GCTracer::Scope::MC_BACKGROUND_SWEEPING,
                          base::TimeDelta::FromMilliseconds(20));
   tracer->AddScopeSample(GCTracer::Scope::MC_BACKGROUND_MARKING,

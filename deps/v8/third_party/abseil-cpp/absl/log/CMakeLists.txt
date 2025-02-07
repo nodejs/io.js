@@ -49,6 +49,7 @@ absl_cc_library(
     absl::log_internal_nullguard
     absl::log_internal_nullstream
     absl::log_internal_strip
+    absl::nullability
     absl::strings
 )
 

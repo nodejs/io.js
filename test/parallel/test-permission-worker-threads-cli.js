@@ -2,12 +2,16 @@
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
-const assert = require('assert');
 const {
   Worker,
   isMainThread,
 } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
+
+const assert = require('assert');
 
 // Guarantee the initial state
 {

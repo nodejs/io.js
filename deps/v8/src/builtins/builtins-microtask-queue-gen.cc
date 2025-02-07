@@ -14,6 +14,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 using compiler::ScopedExceptionHandler;
 
 class MicrotaskQueueBuiltinsAssembler : public CodeStubAssembler {
@@ -622,6 +624,8 @@ TF_BUILTIN(RunMicrotasks, MicrotaskQueueBuiltinsAssembler) {
     Return(UndefinedConstant());
   }
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

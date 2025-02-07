@@ -110,8 +110,8 @@ Handle<WasmModuleObject> CompileReferenceModule(
   constexpr base::Vector<const char> kNoSourceUrl;
   DirectHandle<Script> script =
       GetWasmEngine()->GetOrCreateScript(isolate, native_module, kNoSourceUrl);
-  isolate->heap()->EnsureWasmCanonicalRttsSize(module->MaxCanonicalTypeIndex() +
-                                               1);
+  TypeCanonicalizer::PrepareForCanonicalTypeId(isolate,
+                                               module->MaxCanonicalTypeIndex());
   return WasmModuleObject::New(isolate, std::move(native_module), script);
 }
 
@@ -334,7 +334,7 @@ void WasmExecutionFuzzer::FuzzWasmModule(base::Vector<const uint8_t> data,
   // are saved as recursive groups as part of the type canonicalizer, but types
   // from previous runs just waste memory.
   GetTypeCanonicalizer()->EmptyStorageForTesting();
-  i_isolate->heap()->ClearWasmCanonicalRttsForTesting();
+  TypeCanonicalizer::ClearWasmCanonicalTypesForTesting(i_isolate);
 
   // Clear any exceptions from a prior run.
   if (i_isolate->has_exception()) {

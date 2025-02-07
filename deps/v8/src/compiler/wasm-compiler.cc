@@ -255,7 +255,7 @@ void WasmGraphBuilder::Start(unsigned params) {
   // Initialize instance node.
   switch (parameter_mode_) {
     case kInstanceParameterMode: {
-      Node* param = Param(wasm::kWasmInstanceParameterIndex);
+      Node* param = Param(wasm::kWasmInstanceDataParameterIndex);
       if (v8_flags.debug_code) {
         Assert(gasm_->HasInstanceType(param, WASM_TRUSTED_INSTANCE_DATA_TYPE),
                AbortReason::kUnexpectedInstanceType);
@@ -2991,8 +2991,7 @@ Node* WasmGraphBuilder::BuildIndirectCall(uint32_t table_index,
   // Skip check if table type matches declared signature.
   if (needs_type_check) {
     // Embed the expected signature ID as a relocatable constant.
-    uint32_t canonical_sig_id =
-        env_->module->isorecursive_canonical_type_ids[sig_index];
+    uint32_t canonical_sig_id = env_->module->canonical_sig_id(sig_index);
     Node* expected_sig_id = mcgraph()->RelocatableInt32Constant(
         canonical_sig_id, RelocInfo::WASM_CANONICAL_SIG_ID);
 
@@ -3025,7 +3024,7 @@ Node* WasmGraphBuilder::BuildIndirectCall(uint32_t table_index,
       // will have kept the type alive.
       Node* rtts = LOAD_MUTABLE_ROOT(WasmCanonicalRtts, wasm_canonical_rtts);
       Node* real_rtt =
-          gasm_->WordAnd(gasm_->LoadWeakArrayListElement(rtts, loaded_sig),
+          gasm_->WordAnd(gasm_->LoadWeakFixedArrayElement(rtts, loaded_sig),
                          gasm_->IntPtrConstant(~kWeakHeapObjectMask));
       Node* type_info = gasm_->LoadWasmTypeInfo(real_rtt);
 
@@ -7371,9 +7370,7 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
         switch (type.heap_representation_non_shared()) {
           // TODO(14034): Add more fast paths?
           case wasm::HeapType::kExtern:
-          case wasm::HeapType::kNoExtern:
           case wasm::HeapType::kExn:
-          case wasm::HeapType::kNoExn:
             if (type.kind() == wasm::kRef) {
               Node* null_value = gasm_->LoadImmutable(
                   MachineType::Pointer(), gasm_->LoadRootRegister(),
@@ -7394,6 +7391,8 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
             return input;
           case wasm::HeapType::kString:
             return BuildCheckString(input, js_context, type);
+          case wasm::HeapType::kNoExtern:
+          case wasm::HeapType::kNoExn:
           case wasm::HeapType::kNone:
           case wasm::HeapType::kNoFunc:
           case wasm::HeapType::kI31:
@@ -7909,11 +7908,6 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
   }
 
   Node* BuildSwitchToTheCentralStack() {
-    Node* stack_limit_slot = gasm_->IntPtrAdd(
-        gasm_->LoadFramePointer(),
-        gasm_->IntPtrConstant(
-            WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset));
-
     Node* do_switch = gasm_->ExternalConstant(
         ExternalReference::wasm_switch_to_the_central_stack_for_js());
     MachineType reps[] = {MachineType::Pointer(), MachineType::Pointer(),
@@ -7923,36 +7917,25 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
     Node* central_stack_sp = BuildCCall(
         &sig, do_switch,
         gasm_->ExternalConstant(ExternalReference::isolate_address()),
-        stack_limit_slot);
+        gasm_->LoadFramePointer());
     Node* old_sp = gasm_->LoadStackPointer();
     // Temporarily disallow sp-relative offsets.
     gasm_->SetStackPointer(central_stack_sp);
-    gasm_->Store(StoreRepresentation(MachineType::PointerRepresentation(),
-                                     kNoWriteBarrier),
-                 gasm_->LoadFramePointer(),
-                 WasmImportWrapperFrameConstants::kCentralStackSPOffset,
-                 central_stack_sp);
     return old_sp;
   }
 
   void BuildSwitchBackFromCentralStack(Node* old_sp) {
-    Node* stack_limit = gasm_->Load(
-        MachineType::Pointer(), gasm_->LoadFramePointer(),
-        WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset);
-
+    auto skip = gasm_->MakeLabel();
+    gasm_->GotoIf(gasm_->IntPtrEqual(old_sp, gasm_->IntPtrConstant(0)), &skip);
     Node* do_switch = gasm_->ExternalConstant(
         ExternalReference::wasm_switch_from_the_central_stack_for_js());
-    MachineType reps[] = {MachineType::Pointer(), MachineType::Pointer()};
-    MachineSignature sig(0, 2, reps);
+    MachineType reps[] = {MachineType::Pointer()};
+    MachineSignature sig(0, 1, reps);
     BuildCCall(&sig, do_switch,
-               gasm_->ExternalConstant(ExternalReference::isolate_address()),
-               stack_limit);
-    gasm_->Store(StoreRepresentation(MachineType::PointerRepresentation(),
-                                     kNoWriteBarrier),
-                 gasm_->LoadFramePointer(),
-                 WasmImportWrapperFrameConstants::kCentralStackSPOffset,
-                 gasm_->IntPtrConstant(0));
+               gasm_->ExternalConstant(ExternalReference::isolate_address()));
     gasm_->SetStackPointer(old_sp);
+    gasm_->Goto(&skip);
+    gasm_->Bind(&skip);
   }
 
   Node* BuildSwitchToTheCentralStackIfNeeded() {
@@ -8129,13 +8112,7 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
     }
     BuildModifyThreadInWasmFlag(true);
 
-    auto done = gasm_->MakeLabel();
-    gasm_->GotoIf(gasm_->IntPtrEqual(old_sp, gasm_->IntPtrConstant(0)), &done,
-                  BranchHint::kTrue);
     BuildSwitchBackFromCentralStack(old_sp);
-    gasm_->Goto(&done);
-    gasm_->Bind(&done);
-
     if (sig_->return_count() <= 1) {
       Return(val);
     } else {
@@ -8730,8 +8707,8 @@ wasm::WasmCompilationResult CompileWasmImportCallWrapper(
   return result;
 }
 
-wasm::WasmCode* CompileWasmCapiCallWrapper(wasm::NativeModule* native_module,
-                                           const wasm::FunctionSig* sig) {
+wasm::WasmCompilationResult CompileWasmCapiCallWrapper(
+    wasm::NativeModule* native_module, const wasm::FunctionSig* sig) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.wasm.detailed"),
                "wasm.CompileWasmCapiFunction");
   const char* debug_name = "WasmCapiCall";
@@ -8769,31 +8746,17 @@ wasm::WasmCode* CompileWasmCapiCallWrapper(wasm::NativeModule* native_module,
         call_descriptor, mcgraph, CodeKind::WASM_TO_CAPI_FUNCTION, debug_name,
         WasmStubAssemblerOptions(), source_positions);
   };
-  wasm::WasmCompilationResult result = v8_flags.turboshaft_wasm_wrappers
-                                           ? compile_with_turboshaft()
+  return v8_flags.turboshaft_wasm_wrappers ? compile_with_turboshaft()
                                            : compile_with_turbofan();
-  wasm::WasmCode* published_code;
-  {
-    std::unique_ptr<wasm::WasmCode> wasm_code = native_module->AddCode(
-        wasm::kAnonymousFuncIndex, result.code_desc, result.frame_slot_count,
-        result.ool_spill_count, result.tagged_parameter_slots,
-        result.protected_instructions_data.as_vector(),
-        result.source_positions.as_vector(),
-        result.inlining_positions.as_vector(), result.deopt_data.as_vector(),
-        wasm::WasmCode::kWasmToCapiWrapper, wasm::ExecutionTier::kNone,
-        wasm::kNotForDebugging);
-    published_code = native_module->PublishCode(std::move(wasm_code));
-  }
-  return published_code;
 }
 
 bool IsFastCallSupportedSignature(const v8::CFunctionInfo* sig) {
   return fast_api_call::CanOptimizeFastSignature(sig);
 }
 
-wasm::WasmCode* CompileWasmJSFastCallWrapper(wasm::NativeModule* native_module,
-                                             const wasm::FunctionSig* sig,
-                                             Handle<JSReceiver> callable) {
+wasm::WasmCompilationResult CompileWasmJSFastCallWrapper(
+    wasm::NativeModule* native_module, const wasm::FunctionSig* sig,
+    Handle<JSReceiver> callable) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("v8.wasm.detailed"),
                "wasm.CompileWasmJSFastCallWrapper");
 
@@ -8824,17 +8787,7 @@ wasm::WasmCode* CompileWasmJSFastCallWrapper(wasm::NativeModule* native_module,
   wasm::WasmCompilationResult result = Pipeline::GenerateCodeForWasmNativeStub(
       call_descriptor, mcgraph, CodeKind::WASM_TO_JS_FUNCTION, debug_name,
       WasmStubAssemblerOptions(), source_positions);
-  {
-    std::unique_ptr<wasm::WasmCode> wasm_code = native_module->AddCode(
-        wasm::kAnonymousFuncIndex, result.code_desc, result.frame_slot_count,
-        result.ool_spill_count, result.tagged_parameter_slots,
-        result.protected_instructions_data.as_vector(),
-        result.source_positions.as_vector(),
-        result.inlining_positions.as_vector(), result.deopt_data.as_vector(),
-        wasm::WasmCode::kWasmToJsWrapper, wasm::ExecutionTier::kNone,
-        wasm::kNotForDebugging);
-    return native_module->PublishCode(std::move(wasm_code));
-  }
+  return result;
 }
 
 MaybeHandle<Code> CompileWasmToJSWrapper(Isolate* isolate,
@@ -9095,6 +9048,9 @@ AssemblerOptions WasmStubAssemblerOptions() {
       // Relocation info not necessary because stubs are not serialized.
       .record_reloc_info_for_serialization = false,
       .enable_root_relative_access = false,
+      // TODO(jkummerow): Would it be better to have a far jump table in
+      // the wrapper cache's code space, and call builtins through that?
+      .builtin_call_jump_mode = BuiltinCallJumpMode::kIndirect,
       .is_wasm = true,
   };
 }

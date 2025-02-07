@@ -15,6 +15,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 template <typename TCallable, class... TArgs>
 TNode<Object> CodeStubAssembler::Call(TNode<Context> context,
                                       TNode<TCallable> callable,
@@ -241,6 +243,9 @@ TNode<Object> CodeStubAssembler::FastCloneJSObject(
   return target;
 }
 
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
+
 }  // namespace internal
 }  // namespace v8
+
 #endif  // V8_CODEGEN_CODE_STUB_ASSEMBLER_INL_H_

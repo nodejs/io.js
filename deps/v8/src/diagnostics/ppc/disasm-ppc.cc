@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#if V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#if V8_TARGET_ARCH_PPC64
 
 #include "src/base/platform/platform.h"
 #include "src/base/strings.h"
@@ -409,14 +409,12 @@ int Decoder::FormatOption(Instruction* instr, const char* format) {
         return 2;
       }
     }
-#if V8_TARGET_ARCH_PPC64
     case 'd': {  // ds value for offset
       int32_t value = SIGN_EXT_IMM16(instr->Bits(15, 0) & ~3);
       out_buffer_pos_ +=
           base::SNPrintF(out_buffer_ + out_buffer_pos_, "%d", value);
       return 1;
     }
-#endif
     default: {
       UNREACHABLE();
     }
@@ -879,22 +877,18 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "srw'.    'ra, 'rs, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case SRDX: {
       Format(instr, "srd'.    'ra, 'rs, 'rb");
       return;
     }
-#endif
     case SRAW: {
       Format(instr, "sraw'.   'ra, 'rs, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case SRAD: {
       Format(instr, "srad'.   'ra, 'rs, 'rb");
       return;
     }
-#endif
     case SYNC: {
       Format(instr, "sync");
       return;
@@ -907,7 +901,6 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "moduw  'rt, 'ra, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case MODSD: {
       Format(instr, "modsd  'rt, 'ra, 'rb");
       return;
@@ -916,7 +909,6 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "modud  'rt, 'ra, 'rb");
       return;
     }
-#endif
     case SRAWIX: {
       Format(instr, "srawi'.  'ra,'rs,'sh");
       return;
@@ -925,12 +917,10 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "extsh'.  'ra, 'rs");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case EXTSW: {
       Format(instr, "extsw'.  'ra, 'rs");
       return;
     }
-#endif
     case EXTSB: {
       Format(instr, "extsb'.  'ra, 'rs");
       return;
@@ -971,12 +961,10 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "popcntw  'ra, 'rs");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case POPCNTD: {
       Format(instr, "popcntd  'ra, 'rs");
       return;
     }
-#endif
   }
 
   switch (EXT2 | (instr->BitField(10, 2))) {
@@ -1008,27 +996,21 @@ void Decoder::DecodeExt2(Instruction* instr) {
   // ?? are all of these xo_form?
   switch (EXT2 | (instr->BitField(10, 1))) {
     case CMP: {
-#if V8_TARGET_ARCH_PPC64
       if (instr->Bit(21)) {
-#endif
         Format(instr, "cmp     'ra, 'rb");
-#if V8_TARGET_ARCH_PPC64
       } else {
         Format(instr, "cmpw    'ra, 'rb");
       }
-#endif
       return;
     }
     case SLWX: {
       Format(instr, "slw'.   'ra, 'rs, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case SLDX: {
       Format(instr, "sld'.   'ra, 'rs, 'rb");
       return;
     }
-#endif
     case SUBFCX: {
       Format(instr, "subfc'. 'rt, 'ra, 'rb");
       return;
@@ -1082,15 +1064,11 @@ void Decoder::DecodeExt2(Instruction* instr) {
       return;
     }
     case CMPL: {
-#if V8_TARGET_ARCH_PPC64
       if (instr->Bit(21)) {
-#endif
         Format(instr, "cmpl    'ra, 'rb");
-#if V8_TARGET_ARCH_PPC64
       } else {
         Format(instr, "cmplw   'ra, 'rb");
       }
-#endif
       return;
     }
     case NEGX: {
@@ -1117,12 +1095,10 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "mullw'o'.  'rt, 'ra, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case MULLD: {
       Format(instr, "mulld'o'.  'rt, 'ra, 'rb");
       return;
     }
-#endif
     case DIVW: {
       Format(instr, "divw'o'.   'rt, 'ra, 'rb");
       return;
@@ -1131,12 +1107,10 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "divwu'o'.  'rt, 'ra, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case DIVD: {
       Format(instr, "divd'o'.   'rt, 'ra, 'rb");
       return;
     }
-#endif
     case ADDX: {
       Format(instr, "add'o     'rt, 'ra, 'rb");
       return;
@@ -1245,7 +1219,6 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "lwarx   'rt, 'ra, 'rb");
       return;
     }
-#if V8_TARGET_ARCH_PPC64
     case LDX: {
       Format(instr, "ldx     'rt, 'ra, 'rb");
       return;
@@ -1318,7 +1291,6 @@ void Decoder::DecodeExt2(Instruction* instr) {
       Format(instr, "mtcrf   'FXM, 'rs");
       return;
     }
-#endif
   }
 
   switch (EXT2 | (instr->BitField(5, 1))) {
@@ -1621,27 +1593,19 @@ int Decoder::InstructionDecode(uint8_t* instr_ptr) {
       break;
     }
     case CMPLI: {
-#if V8_TARGET_ARCH_PPC64
       if (instr->Bit(21)) {
-#endif
         Format(instr, "cmpli   'ra, 'uint16");
-#if V8_TARGET_ARCH_PPC64
       } else {
         Format(instr, "cmplwi  'ra, 'uint16");
       }
-#endif
       break;
     }
     case CMPI: {
-#if V8_TARGET_ARCH_PPC64
       if (instr->Bit(21)) {
-#endif
         Format(instr, "cmpi    'ra, 'int16");
-#if V8_TARGET_ARCH_PPC64
       } else {
         Format(instr, "cmpwi   'ra, 'int16");
       }
-#endif
       break;
     }
     case ADDIC: {
@@ -1890,7 +1854,6 @@ int Decoder::InstructionDecode(uint8_t* instr_ptr) {
       DecodeExt6(instr);
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case LD: {
       switch (instr->Bits(1, 0)) {
         case 0:
@@ -1913,7 +1876,6 @@ int Decoder::InstructionDecode(uint8_t* instr_ptr) {
       }
       break;
     }
-#endif
     default: {
       Unknown(instr);
       break;
@@ -1992,4 +1954,4 @@ void Disassembler::Disassemble(FILE* f, uint8_t* begin, uint8_t* end,
 
 }  // namespace disasm
 
-#endif  // V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#endif  // V8_TARGET_ARCH_PPC64

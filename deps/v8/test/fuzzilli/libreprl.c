@@ -15,10 +15,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#if !defined(_WIN32)
+
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
 
+#include "libreprl.h"
+
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -27,14 +32,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sched.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
+#include <sys/resource.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "libreprl.h"
 
 // Well-known file descriptor numbers for reprl <-> child communication, child process side
 #define REPRL_CHILD_CTRL_IN 100
@@ -42,13 +49,72 @@
 #define REPRL_CHILD_DATA_IN 102
 #define REPRL_CHILD_DATA_OUT 103
 
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
+/// Maximum timeout in microseconds. Mostly just limited by the fact that the timeout in milliseconds has to fit into a 32-bit integer.
+#define REPRL_MAX_TIMEOUT_IN_MICROSECONDS ((uint64_t)(INT_MAX) * 1000)
 
-static uint64_t current_millis()
+static size_t min(size_t x, size_t y) {
+  return x < y ? x : y;
+}
+
+#ifdef __linux__
+// This function creates the UID/GID mapping that we need inside of the user
+// namespace. This is needed such that the files we create have a proper owner
+// attached to them.
+static void write_id_maps(uid_t uid, gid_t gid) {
+    char setgroups_path[] = "/proc/self/setgroups";
+    char uid_map_path[] = "/proc/self/uid_map";
+    char gid_map_path[] = "/proc/self/gid_map";
+
+    int setgroups_fd = open(setgroups_path, O_WRONLY);
+    int uid_map_fd = open(uid_map_path, O_WRONLY);
+    int gid_map_fd = open(gid_map_path, O_WRONLY);
+
+    if (setgroups_fd == -1 || uid_map_fd == -1 || gid_map_fd == -1) {
+        fprintf(stderr, "Error opening setgroups/uid_map/gid_map file: %s\n", strerror(errno));
+        _exit(-1);
+    }
+
+    // More context on this: https://lwn.net/Articles/626665/
+    dprintf(setgroups_fd, "deny");
+    dprintf(uid_map_fd, "%d %d 1", uid, uid);
+    dprintf(gid_map_fd, "%d %d 1", gid, gid);
+
+    close(setgroups_fd);
+    close(uid_map_fd);
+    close(gid_map_fd);
+}
+
+// Creates a tmpfs at `mount_point` in a new user namespace.
+static void create_tmpfs(const char* mount_point) {
+    // Get the UID and GID before we call unshare.
+    uid_t uid = getuid();
+    gid_t gid = getgid();
+
+    // We create a new user (CLONE_NEWUSER) and mount (CLONE_NEWNS)
+    // namespace here such that we can mount our own tmpfs onto
+    // mount_point that is only visible to this process.
+    if (unshare(CLONE_NEWUSER | CLONE_NEWNS) == -1) {
+        fprintf(stderr, "unshare failed to create a new mount namespace in the child: %s\n", strerror(errno));
+        _exit(-1);
+    };
+
+    // Now write the UID / GID mappings
+    write_id_maps(uid, gid);
+
+    // Mount a new tmpfs onto `mount_point` this allows us to add files
+    // here that get automatically cleaned up once the process exits.
+    if (mount("tmpfs", mount_point, "tmpfs", 0, NULL) == -1) {
+        fprintf(stderr, "mount failed to create a tmpfs in namespace in the child: %s\n", strerror(errno));
+        _exit(-1);
+    }
+}
+#endif
+
+static uint64_t current_usecs()
 {
     struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 
 static char** copy_string_array(const char** orig)
@@ -97,11 +163,11 @@ struct reprl_context {
     struct data_channel* data_out;
 
     // Optional data channel for the child's stdout and stderr.
-    struct data_channel* stdout;
-    struct data_channel* stderr;
+    struct data_channel* child_stdout;
+    struct data_channel* child_stderr;
 
     // PID of the child process. Will be zero if no child process is currently running.
-    int pid;
+    pid_t pid;
 
     // Arguments and environment for the child process.
     char** argv;
@@ -126,11 +192,7 @@ static struct data_channel* reprl_create_data_channel(struct reprl_context* ctx)
     int fd = memfd_create("REPRL_DATA_CHANNEL", MFD_CLOEXEC);
 #else
     char path[] = "/tmp/reprl_data_channel_XXXXXXXX";
-    if (mktemp(path) < 0) {
-        reprl_error(ctx, "Failed to create temporary filename for data channel: %s", strerror(errno));
-        return NULL;
-    }
-    int fd = open(path, O_RDWR | O_CREAT| O_CLOEXEC);
+    int fd = mkostemp(path, O_CLOEXEC);
     unlink(path);
 #endif
     if (fd == -1 || ftruncate(fd, REPRL_MAX_DATA_SIZE) != 0) {
@@ -149,7 +211,7 @@ static struct data_channel* reprl_create_data_channel(struct reprl_context* ctx)
     return channel;
 }
 
-static void reprl_destroy_data_channel(struct reprl_context* ctx, struct data_channel* channel)
+static void reprl_destroy_data_channel(struct data_channel* channel)
 {
     if (!channel) return;
     close(channel->fd);
@@ -179,8 +241,8 @@ static int reprl_spawn_child(struct reprl_context* ctx)
     // This is also a good time to ensure the data channel backing files don't grow too large.
     ftruncate(ctx->data_in->fd, REPRL_MAX_DATA_SIZE);
     ftruncate(ctx->data_out->fd, REPRL_MAX_DATA_SIZE);
-    if (ctx->stdout) ftruncate(ctx->stdout->fd, REPRL_MAX_DATA_SIZE);
-    if (ctx->stderr) ftruncate(ctx->stderr->fd, REPRL_MAX_DATA_SIZE);
+    if (ctx->child_stdout) ftruncate(ctx->child_stdout->fd, REPRL_MAX_DATA_SIZE);
+    if (ctx->child_stderr) ftruncate(ctx->child_stderr->fd, REPRL_MAX_DATA_SIZE);
 
     int crpipe[2] = { 0, 0 };          // control pipe child -> reprl
     int cwpipe[2] = { 0, 0 };          // control pipe reprl -> child
@@ -199,23 +261,81 @@ static int reprl_spawn_child(struct reprl_context* ctx)
     fcntl(ctx->ctrl_in, F_SETFD, FD_CLOEXEC);
     fcntl(ctx->ctrl_out, F_SETFD, FD_CLOEXEC);
 
-    int pid = fork();
+#ifdef __linux__
+    // This is where we will mount our own tmpfs, this is intended to be used
+    // for targets like Chrome, where we have to pass the user data directory.
+    // Even if the target does not clean up after themselves, the tmpfs in the
+    // user namespace will be removed once the process exits. Also, every child
+    // process, i.e. fuzzing instance, can then have it's own tmpfs.
+    // This only works on Linux right now, which is where we fuzz Chrome, this
+    // won't work on any other OS.
+    const char mount_point[] = "/tmp/fuzzilli_tmp";
+
+    // Create the mountpoint for our tmpfs here. This is just an empty dir.
+    // We also do not really care if this directory exists, we just need it as
+    // a mountpoint.
+    if (mkdir(mount_point, 0)) {
+        if (errno != EEXIST) {
+          fprintf(stderr, "mkdir failed to create %s to create a mountpoint: %s\n", mount_point, strerror(errno));
+        }
+    }
+#endif
+
+#ifdef __linux__
+    // Use vfork() on Linux as that considerably improves the fuzzer performance. See also https://github.com/googleprojectzero/fuzzilli/issues/174
+    // Due to vfork, the code executed in the child process *must not* modify any memory apart from its stack, as it will share the page table of its parent.
+    pid_t pid = vfork();
+#else
+    pid_t pid = fork();
+#endif
     if (pid == 0) {
-        dup2(cwpipe[0], REPRL_CHILD_CTRL_IN);
-        dup2(crpipe[1], REPRL_CHILD_CTRL_OUT);
+        if (dup2(cwpipe[0], REPRL_CHILD_CTRL_IN) < 0 ||
+            dup2(crpipe[1], REPRL_CHILD_CTRL_OUT) < 0 ||
+            dup2(ctx->data_out->fd, REPRL_CHILD_DATA_IN) < 0 ||
+            dup2(ctx->data_in->fd, REPRL_CHILD_DATA_OUT) < 0) {
+            fprintf(stderr, "dup2 failed in the child: %s\n", strerror(errno));
+            _exit(-1);
+        }
+
+#ifdef __linux__
+        // Set RLIMIT_CORE to 0, such that we don't produce core dumps. The
+        // added benefit of doing this here, in the child process, is that we
+        // can still get core dumps when Fuzzilli crashes.
+        struct rlimit core_limit;
+        core_limit.rlim_cur = 0;
+        core_limit.rlim_max = 0;
+        if (setrlimit(RLIMIT_CORE, &core_limit) < 0) {
+            fprintf(stderr, "setrlimit failed in the child: %s\n", strerror(errno));
+            _exit(-1);
+        };
+#endif
+
+        // Unblock any blocked signals. It seems that libdispatch sometimes blocks delivery of certain signals.
+        sigset_t newset;
+        sigemptyset(&newset);
+        if (sigprocmask(SIG_SETMASK, &newset, NULL) != 0) {
+            fprintf(stderr, "sigprocmask failed in the child: %s\n", strerror(errno));
+            _exit(-1);
+        }
+
         close(cwpipe[0]);
         close(crpipe[1]);
 
-        dup2(ctx->data_out->fd, REPRL_CHILD_DATA_IN);
-        dup2(ctx->data_in->fd, REPRL_CHILD_DATA_OUT);
-
         int devnull = open("/dev/null", O_RDWR);
         dup2(devnull, 0);
-        if (ctx->stdout) dup2(ctx->stdout->fd, 1);
+        if (ctx->child_stdout) dup2(ctx->child_stdout->fd, 1);
         else dup2(devnull, 1);
-        if (ctx->stderr) dup2(ctx->stderr->fd, 2);
+        if (ctx->child_stderr) dup2(ctx->child_stderr->fd, 2);
         else dup2(devnull, 2);
         close(devnull);
+
+#ifdef __linux__
+        // Create the tmpfs at the specific mount point here in the child process
+        // such that we have a tmpfs for this process only that will be cleaned up at process exit.
+        // This will also write into the necessary files in /proc, so we need to do this here after we've fork()'ed.
+        // This will only work on Linux, see the comment above where call mkdir.
+        create_tmpfs(mount_point);
+#endif
 
         // close all other FDs. We try to use FD_CLOEXEC everywhere, but let's be extra sure we don't leak any fds to the child.
         int tablesize = getdtablesize();
@@ -243,30 +363,51 @@ static int reprl_spawn_child(struct reprl_context* ctx)
     }
     ctx->pid = pid;
 
-    char helo[4] = { 0 };
+    char helo[5] = { 0 };
     if (read(ctx->ctrl_in, helo, 4) != 4) {
         reprl_terminate_child(ctx);
-        return reprl_error(ctx, "Did not receive HELO message from child");
+        return reprl_error(ctx, "Did not receive HELO message from child: %s", strerror(errno));
     }
 
     if (strncmp(helo, "HELO", 4) != 0) {
         reprl_terminate_child(ctx);
-        return reprl_error(ctx, "Received invalid HELO message from child");
+        return reprl_error(ctx, "Received invalid HELO message from child: %s", helo);
     }
 
     if (write(ctx->ctrl_out, helo, 4) != 4) {
         reprl_terminate_child(ctx);
-        return reprl_error(ctx, "Failed to send HELO reply message to child");
+        return reprl_error(ctx, "Failed to send HELO reply message to child: %s", strerror(errno));
     }
+
+#ifdef __linux__
+    struct rlimit core_limit = {};
+    if (prlimit(pid, RLIMIT_CORE, NULL, &core_limit) < 0) {
+        reprl_terminate_child(ctx);
+        return reprl_error(ctx, "prlimit failed: %s\n", strerror(errno));
+    }
+    if (core_limit.rlim_cur != 0 || core_limit.rlim_max != 0) {
+        reprl_terminate_child(ctx);
+        return reprl_error(ctx, "Detected non-zero RLIMIT_CORE. Check that the child does not set RLIMIT_CORE manually.\n");
+    }
+#endif
 
     return 0;
 }
 
 struct reprl_context* reprl_create_context()
 {
-    struct reprl_context* ctx = malloc(sizeof(struct reprl_context));
-    memset(ctx, 0, sizeof(struct reprl_context));
-    return ctx;
+    // "Reserve" the well-known REPRL fds so no other fd collides with them.
+    // This would cause various kinds of issues in reprl_spawn_child.
+    // It would be enough to do this once per process in the case of multiple
+    // REPRL instances, but it's probably not worth the implementation effort.
+    int devnull = open("/dev/null", O_RDWR);
+    dup2(devnull, REPRL_CHILD_CTRL_IN);
+    dup2(devnull, REPRL_CHILD_CTRL_OUT);
+    dup2(devnull, REPRL_CHILD_DATA_IN);
+    dup2(devnull, REPRL_CHILD_DATA_OUT);
+    close(devnull);
+
+    return calloc(1, sizeof(struct reprl_context));
 }
 
 int reprl_initialize_context(struct reprl_context* ctx, const char** argv, const char** envp, int capture_stdout, int capture_stderr)
@@ -284,12 +425,12 @@ int reprl_initialize_context(struct reprl_context* ctx, const char** argv, const
     ctx->data_in = reprl_create_data_channel(ctx);
     ctx->data_out = reprl_create_data_channel(ctx);
     if (capture_stdout) {
-        ctx->stdout = reprl_create_data_channel(ctx);
+        ctx->child_stdout = reprl_create_data_channel(ctx);
     }
     if (capture_stderr) {
-        ctx->stderr = reprl_create_data_channel(ctx);
+        ctx->child_stderr = reprl_create_data_channel(ctx);
     }
-    if (!ctx->data_in || !ctx->data_out || (capture_stdout && !ctx->stdout) || (capture_stderr && !ctx->stderr)) {
+    if (!ctx->data_in || !ctx->data_out || (capture_stdout && !ctx->child_stdout) || (capture_stderr && !ctx->child_stderr)) {
         // Proper error message will have been set by reprl_create_data_channel
         return -1;
     }
@@ -305,23 +446,29 @@ void reprl_destroy_context(struct reprl_context* ctx)
     free_string_array(ctx->argv);
     free_string_array(ctx->envp);
 
-    reprl_destroy_data_channel(ctx, ctx->data_in);
-    reprl_destroy_data_channel(ctx, ctx->data_out);
-    reprl_destroy_data_channel(ctx, ctx->stdout);
-    reprl_destroy_data_channel(ctx, ctx->stderr);
+    reprl_destroy_data_channel(ctx->data_in);
+    reprl_destroy_data_channel(ctx->data_out);
+    reprl_destroy_data_channel(ctx->child_stdout);
+    reprl_destroy_data_channel(ctx->child_stderr);
 
     free(ctx->last_error);
     free(ctx);
 }
 
-int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script_length, uint64_t timeout, uint64_t* execution_time, int fresh_instance)
+int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script_size, uint64_t timeout, uint64_t* execution_time, int fresh_instance)
 {
     if (!ctx->initialized) {
         return reprl_error(ctx, "REPRL context is not initialized");
     }
-    if (script_length > REPRL_MAX_DATA_SIZE) {
+
+    if (script_size > REPRL_MAX_DATA_SIZE) {
         return reprl_error(ctx, "Script too large");
     }
+
+    if (timeout > REPRL_MAX_TIMEOUT_IN_MICROSECONDS) {
+        return reprl_error(ctx, "Timeout too large");
+    }
+    int timeout_ms = (int)(timeout / 1000);
 
     // Terminate any existing instance if requested.
     if (fresh_instance && ctx->pid) {
@@ -331,11 +478,11 @@ int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script
     // Reset file position so the child can simply read(2) and write(2) to these fds.
     lseek(ctx->data_out->fd, 0, SEEK_SET);
     lseek(ctx->data_in->fd, 0, SEEK_SET);
-    if (ctx->stdout) {
-        lseek(ctx->stdout->fd, 0, SEEK_SET);
+    if (ctx->child_stdout) {
+        lseek(ctx->child_stdout->fd, 0, SEEK_SET);
     }
-    if (ctx->stderr) {
-        lseek(ctx->stderr->fd, 0, SEEK_SET);
+    if (ctx->child_stderr) {
+        lseek(ctx->child_stderr->fd, 0, SEEK_SET);
     }
 
     // Spawn a new instance if necessary.
@@ -345,11 +492,11 @@ int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script
     }
 
     // Copy the script to the data channel.
-    memcpy(ctx->data_out->mapping, script, script_length);
+    memcpy(ctx->data_out->mapping, script, script_size);
 
     // Tell child to execute the script.
     if (write(ctx->ctrl_out, "exec", 4) != 4 ||
-        write(ctx->ctrl_out, &script_length, 8) != 8) {
+        write(ctx->ctrl_out, &script_size, 8) != 8) {
         // These can fail if the child unexpectedly terminated between executions.
         // Check for that here to be able to provide a better error message.
         int status;
@@ -365,10 +512,10 @@ int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script
     }
 
     // Wait for child to finish execution (or crash).
-    uint64_t start_time = current_millis();
+    uint64_t start_time = current_usecs();
     struct pollfd fds = {.fd = ctx->ctrl_in, .events = POLLIN, .revents = 0};
-    int res = poll(&fds, 1, (int)timeout);
-    *execution_time = current_millis() - start_time;
+    int res = poll(&fds, 1, timeout_ms);
+    *execution_time = current_usecs() - start_time;
     if (res == 0) {
         // Execution timed out. Kill child and return a timeout status.
         reprl_terminate_child(ctx);
@@ -392,7 +539,7 @@ int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script
         do {
             success = waitpid(ctx->pid, &status, WNOHANG) == ctx->pid;
             if (!success) usleep(10);
-        } while (!success && current_millis() - start_time < timeout);
+        } while (!success && current_usecs() - start_time < timeout);
 
         if (!success) {
             // Wait failed, so something weird must have happened. Maybe somehow the control pipe was closed without the child exiting?
@@ -422,39 +569,11 @@ int reprl_execute(struct reprl_context* ctx, const char* script, uint64_t script
     return status;
 }
 
-/// The 32bit REPRL exit status as returned by reprl_execute has the following format:
-///     [ 00000000 | did_timeout | exit_code | terminating_signal ]
-/// Only one of did_timeout, exit_code, or terminating_signal may be set at one time.
-int RIFSIGNALED(int status)
-{
-    return (status & 0xff) != 0;
-}
-
-int RIFEXITED(int status)
-{
-    return !RIFSIGNALED(status) && !RIFTIMEDOUT(status);
-}
-
-int RIFTIMEDOUT(int status)
-{
-    return (status & 0xff0000) != 0;
-}
-
-int RTERMSIG(int status)
-{
-    return status & 0xff;
-}
-
-int REXITSTATUS(int status)
-{
-    return (status >> 8) & 0xff;
-}
-
 static const char* fetch_data_channel_content(struct data_channel* channel)
 {
     if (!channel) return "";
     size_t pos = lseek(channel->fd, 0, SEEK_CUR);
-    pos = MIN(pos, REPRL_MAX_DATA_SIZE - 1);
+    pos = min(pos, REPRL_MAX_DATA_SIZE - 1);
     channel->mapping[pos] = 0;
     return channel->mapping;
 }
@@ -466,15 +585,17 @@ const char* reprl_fetch_fuzzout(struct reprl_context* ctx)
 
 const char* reprl_fetch_stdout(struct reprl_context* ctx)
 {
-    return fetch_data_channel_content(ctx->stdout);
+    return fetch_data_channel_content(ctx->child_stdout);
 }
 
 const char* reprl_fetch_stderr(struct reprl_context* ctx)
 {
-    return fetch_data_channel_content(ctx->stderr);
+    return fetch_data_channel_content(ctx->child_stderr);
 }
 
 const char* reprl_get_last_error(struct reprl_context* ctx)
 {
     return ctx->last_error;
 }
+
+#endif

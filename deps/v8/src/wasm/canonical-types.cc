@@ -4,7 +4,11 @@
 
 #include "src/wasm/canonical-types.h"
 
+#include "src/execution/isolate.h"
+#include "src/handles/handles-inl.h"
+#include "src/heap/heap-inl.h"
 #include "src/init/v8.h"
+#include "src/roots/roots-inl.h"
 #include "src/utils/utils.h"
 #include "src/wasm/std-object-sizes.h"
 #include "src/wasm/wasm-engine.h"
@@ -372,6 +376,49 @@ size_t TypeCanonicalizer::EstimateCurrentMemoryConsumption() const {
 size_t TypeCanonicalizer::GetCurrentNumberOfTypes() const {
   base::MutexGuard mutex_guard(&mutex_);
   return canonical_supertypes_.size();
+}
+
+// static
+void TypeCanonicalizer::PrepareForCanonicalTypeId(Isolate* isolate, int id) {
+  Heap* heap = isolate->heap();
+  // {2 * (id + 1)} needs to fit in an int.
+  CHECK_LE(id, kMaxInt / 2 - 1);
+  // Canonical types and wrappers are zero-indexed.
+  const int length = id + 1;
+  // The fast path is non-handlified.
+  Tagged<WeakFixedArray> old_rtts_raw = heap->wasm_canonical_rtts();
+  Tagged<WeakFixedArray> old_wrappers_raw = heap->js_to_wasm_wrappers();
+
+  // Fast path: Lengths are sufficient.
+  int old_length = old_rtts_raw->length();
+  DCHECK_EQ(old_length, old_wrappers_raw->length());
+  if (old_length >= length) return;
+
+  // Allocate bigger WeakFixedArrays for rtts and wrappers. Grow them
+  // exponentially.
+  const int new_length = std::max(old_length * 3 / 2, length);
+  CHECK_LT(old_length, new_length);
+
+  // Allocation can invalidate previous unhandled pointers.
+  Handle<WeakFixedArray> old_rtts{old_rtts_raw, isolate};
+  Handle<WeakFixedArray> old_wrappers{old_wrappers_raw, isolate};
+  old_rtts_raw = old_wrappers_raw = {};
+
+  Handle<WeakFixedArray> new_rtts =
+      WeakFixedArray::New(isolate, new_length, AllocationType::kOld);
+  WeakFixedArray::CopyElements(isolate, *new_rtts, 0, *old_rtts, 0, old_length);
+  Handle<WeakFixedArray> new_wrappers =
+      WeakFixedArray::New(isolate, new_length, AllocationType::kOld);
+  WeakFixedArray::CopyElements(isolate, *new_wrappers, 0, *old_wrappers, 0,
+                               old_length);
+  heap->SetWasmCanonicalRttsAndJSToWasmWrappers(*new_rtts, *new_wrappers);
+}
+
+// static
+void TypeCanonicalizer::ClearWasmCanonicalTypesForTesting(Isolate* isolate) {
+  ReadOnlyRoots roots(isolate);
+  isolate->heap()->SetWasmCanonicalRttsAndJSToWasmWrappers(
+      roots.empty_weak_fixed_array(), roots.empty_weak_fixed_array());
 }
 
 }  // namespace v8::internal::wasm

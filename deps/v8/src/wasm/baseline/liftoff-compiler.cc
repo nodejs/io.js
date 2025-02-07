@@ -335,8 +335,8 @@ void CheckBailoutAllowed(LiftoffBailoutReason reason, const char* detail,
   }
 
   // Some externally maintained architectures don't fully implement Liftoff yet.
-#if V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_S390X || V8_TARGET_ARCH_PPC || \
-    V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_LOONG64
+#if V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_S390X || V8_TARGET_ARCH_PPC64 || \
+    V8_TARGET_ARCH_LOONG64
   return;
 #endif
 
@@ -563,10 +563,14 @@ class LiftoffCompiler {
         SpilledRegistersForInspection* spilled_regs,
         OutOfLineSafepointInfo* safepoint_info,
         DebugSideTableBuilder::EntryBuilder* debug_sidetable_entry_builder) {
+      Builtin stack_guard = Builtin::kWasmStackGuard;
+      if (v8_flags.experimental_wasm_growable_stacks) {
+        stack_guard = Builtin::kWasmGrowableStackGuard;
+      }
       return {
           MovableLabel{zone},            // label
           MovableLabel{zone},            // continuation
-          Builtin::kWasmStackGuard,      // builtin
+          stack_guard,                   // builtin
           pos,                           // position
           regs_to_save,                  // regs_to_save
           cached_instance_data,          // cached_instance_data
@@ -830,7 +834,7 @@ class LiftoffCompiler {
       return reg;
     }
 
-    // Input 0 is the code target, 1 is the instance.
+    // Input 0 is the code target, 1 is the instance data.
     static constexpr uint32_t kFirstInputIdx = 2;
 
     LiftoffCompiler* compiler_;
@@ -967,7 +971,7 @@ class LiftoffCompiler {
       if (!CheckSupportedType(decoder, __ local_kind(i), "param")) return;
     }
 
-    // Parameter 0 is the instance parameter.
+    // Parameter 0 is the instance data.
     uint32_t num_params =
         static_cast<uint32_t>(decoder->sig_->parameter_count());
 
@@ -992,14 +996,14 @@ class LiftoffCompiler {
     // LiftoffAssembler methods.
     if (DidAssemblerBailout(decoder)) return;
 
-    // Input 0 is the call target, the instance is at 1.
-    [[maybe_unused]] constexpr int kInstanceParameterIndex = 1;
-    // Check that {kWasmInstanceRegister} matches our call descriptor.
-    DCHECK_EQ(kWasmInstanceRegister,
+    // Input 0 is the call target, the trusted instance data is at 1.
+    [[maybe_unused]] constexpr int kInstanceDataParameterIndex = 1;
+    // Check that {kWasmImplicitArgRegister} matches our call descriptor.
+    DCHECK_EQ(kWasmImplicitArgRegister,
               Register::from_code(
-                  descriptor_->GetInputLocation(kInstanceParameterIndex)
+                  descriptor_->GetInputLocation(kInstanceDataParameterIndex)
                       .AsRegister()));
-    __ cache_state()->SetInstanceCacheRegister(kWasmInstanceRegister);
+    __ cache_state() -> SetInstanceCacheRegister(kWasmImplicitArgRegister);
 
     if (num_params) {
       CODE_COMMENT("process parameters");
@@ -1114,7 +1118,9 @@ class LiftoffCompiler {
   void GenerateOutOfLineCode(OutOfLineCode* ool) {
     CODE_COMMENT((std::string("OOL: ") + Builtins::name(ool->builtin)).c_str());
     __ bind(ool->label.get());
-    const bool is_stack_check = ool->builtin == Builtin::kWasmStackGuard;
+    const bool is_stack_check =
+        ool->builtin == Builtin::kWasmStackGuard ||
+        ool->builtin == Builtin::kWasmGrowableStackGuard;
     const bool is_tierup = ool->builtin == Builtin::kWasmTriggerTierUp;
 
     if (!ool->regs_to_save.is_empty()) {
@@ -1126,6 +1132,16 @@ class LiftoffCompiler {
         DCHECK(!ool->regs_to_save.has(entry.reg));
         __ Spill(entry.offset, entry.reg, entry.kind);
       }
+    }
+
+    if (ool->builtin == Builtin::kWasmGrowableStackGuard) {
+      WasmGrowableStackGuardDescriptor descriptor;
+      DCHECK_EQ(0, descriptor.GetStackParameterCount());
+      DCHECK_EQ(1, descriptor.GetRegisterParameterCount());
+      Register param_reg = descriptor.GetRegisterParameter(0);
+      __ LoadConstant(LiftoffRegister(param_reg),
+                      WasmValue::ForUintPtr(descriptor_->ParameterSlotCount() *
+                                            LiftoffAssembler::kStackSlotSize));
     }
 
     source_position_table_builder_.AddPosition(
@@ -1188,9 +1204,9 @@ class LiftoffCompiler {
       GenerateOutOfLineCode(&ool);
     }
     DCHECK_EQ(frame_size, __ GetTotalFrameSize());
-    __ PatchPrepareStackFrame(pc_offset_stack_frame_construction_,
-                              &safepoint_table_builder_,
-                              inlining_enabled(decoder));
+    __ PatchPrepareStackFrame(
+        pc_offset_stack_frame_construction_, &safepoint_table_builder_,
+        inlining_enabled(decoder), descriptor_->ParameterSlotCount());
     __ FinishCode();
     safepoint_table_builder_.Emit(&asm_, __ GetTotalFrameSlotCountForGC());
     // Emit the handler table.
@@ -2810,6 +2826,9 @@ class LiftoffCompiler {
     }
     size_t num_returns = decoder->sig_->return_count();
     if (num_returns > 0) __ MoveToReturnLocations(decoder->sig_, descriptor_);
+    if (v8_flags.experimental_wasm_growable_stacks) {
+      __ CheckStackShrink();
+    }
     __ LeaveFrame(StackFrame::WASM);
     __ DropStackSlotsAndRet(
         static_cast<uint32_t>(descriptor_->ParameterSlotCount()));
@@ -8566,7 +8585,7 @@ class LiftoffCompiler {
       // Since Liftoff code is never serialized (hence not reused across
       // isolates / processes) the canonical signature ID is a static integer.
       uint32_t canonical_sig_id =
-          decoder->module_->isorecursive_canonical_type_ids[imm.sig_imm.index];
+          decoder->module_->canonical_sig_id(imm.sig_imm.index);
       Label* sig_mismatch_label =
           AddOutOfLineTrap(decoder, Builtin::kThrowWasmTrapFuncSigMismatch);
       __ DropValues(1);
@@ -8592,7 +8611,7 @@ class LiftoffCompiler {
             IsolateData::root_slot_offset(RootIndex::kWasmCanonicalRtts));
         __ LoadTaggedPointer(
             real_rtt.gp_reg(), real_rtt.gp_reg(), real_sig_id.gp_reg(),
-            ObjectAccess::ToTagged(WeakArrayList::kHeaderSize), nullptr, true);
+            ObjectAccess::ToTagged(WeakFixedArray::kHeaderSize), nullptr, true);
         // real_sig_id is not used any more.
         real_sig_id.Reset();
         // Remove the weak reference tag.
@@ -8709,7 +8728,7 @@ class LiftoffCompiler {
 
         // CallIndirectIC(vector: FixedArray, vectorIndex: int32,
         //                target: RawPtr,
-        //                ref: WasmTrustedInstanceData|WasmImportData)
+        //                implicitArg: WasmTrustedInstanceData|WasmImportData)
         //               -> <target, implicit_arg>
         CallBuiltin(Builtin::kCallIndirectIC,
                     MakeSig::Returns(kIntPtrKind, kIntPtrKind)

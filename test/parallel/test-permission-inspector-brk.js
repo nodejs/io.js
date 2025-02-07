@@ -5,8 +5,12 @@ const assert = require('assert');
 const { spawnSync } = require('child_process');
 const fixtures = require('../common/fixtures');
 const file = fixtures.path('permission', 'inspector-brk.js');
+const { isMainThread } = require('worker_threads');
 
-common.skipIfWorker();
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
+
 common.skipIfInspectorDisabled();
 
 // See https://github.com/nodejs/node/issues/53385

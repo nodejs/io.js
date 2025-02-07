@@ -165,6 +165,17 @@ class TaggedImpl {
     return kCanBeWeak && HAS_WEAK_HEAP_OBJECT_TAG(ptr_);
   }
 
+#ifdef V8_COMPRESS_POINTERS
+  // Returns true if this tagged value is a pointer to an object in the given
+  // cage base.
+  constexpr inline bool IsInMainCageBase() {
+    DCHECK(!IsSmi());
+    using S = V8HeapCompressionScheme;
+    return S::GetPtrComprCageBaseAddress(ptr_) ==
+           S::GetPtrComprCageBaseAddress(S::base());
+  }
+#endif  // V8_COMPRESS_POINTERS
+
   //
   // The following set of methods get HeapObject out of the tagged value
   // which may involve decompression in which case the isolate root is required.

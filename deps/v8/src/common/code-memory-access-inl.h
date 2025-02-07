@@ -232,10 +232,7 @@ void RwxMemoryWriteScope::SetExecutable() {
 bool RwxMemoryWriteScope::IsSupported() {
   static_assert(base::MemoryProtectionKey::kNoMemoryProtectionKey == -1);
   DCHECK(ThreadIsolation::initialized());
-  // TODO(sroettger): can we check this at initialization time instead? The
-  // tests won't be able to run with/without pkey support anymore in the same
-  // process.
-  return v8_flags.memory_protection_keys && ThreadIsolation::pkey() >= 0;
+  return ThreadIsolation::PkeyIsAvailable();
 }
 
 // static

@@ -184,6 +184,11 @@ A good commit message should describe what changed and why.
    of the log. Use the `Fixes:` prefix and the full issue URL. For other
    references use `Refs:`.
 
+   `Fixes:` and `Refs:` trailers get automatically added to your commit message
+   when the Pull Request lands as long as they are included in the
+   Pull Request's description. If the Pull Request lands in several commits,
+   by default the trailers found in the description are added to each commits.
+
    Examples:
 
    * `Fixes: https://github.com/nodejs/node/issues/1337`

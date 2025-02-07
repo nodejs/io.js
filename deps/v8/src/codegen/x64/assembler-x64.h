@@ -46,6 +46,7 @@
 #include "src/codegen/assembler.h"
 #include "src/codegen/cpu-features.h"
 #include "src/codegen/label.h"
+#include "src/codegen/x64/builtin-jump-table-info-x64.h"
 #include "src/codegen/x64/constants-x64.h"
 #include "src/codegen/x64/fma-instr.h"
 #include "src/codegen/x64/register-x64.h"
@@ -1086,8 +1087,9 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   void call(Label* L);
 
   // Explicitly emit a near call / near jump. The displacement is relative to
-  // the next instructions (which starts at {pc_offset() + kNearJmpInstrSize}).
-  static constexpr int kNearJmpInstrSize = 5;
+  // the next instructions (which starts at
+  // {pc_offset() + kIntraSegmentJmpInstrSize}).
+  static constexpr int kIntraSegmentJmpInstrSize = 5;
   void near_call(intptr_t disp, RelocInfo::Mode rmode);
   void near_call(Builtin buitin, RelocInfo::Mode rmode);
   void near_jmp(intptr_t disp, RelocInfo::Mode rmode);
@@ -2281,6 +2283,14 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
     vinstr(0x50, dst, src1, src2, k66, k0F38, kW0, AVX_VNNI);
   }
 
+  // AVX-VNNI-INT8 instruction
+  void vpdpbssd(XMMRegister dst, XMMRegister src1, XMMRegister src2) {
+    vinstr(0x50, dst, src1, src2, kF2, k0F38, kW0, AVX_VNNI_INT8);
+  }
+  void vpdpbssd(YMMRegister dst, YMMRegister src1, YMMRegister src2) {
+    vinstr(0x50, dst, src1, src2, kF2, k0F38, kW0, AVX_VNNI_INT8);
+  }
+
   // BMI instruction
   void andnq(Register dst, Register src1, Register src2) {
     bmi1q(0xf2, dst, src1, src2);
@@ -2444,7 +2454,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   void dp(uintptr_t data) { dq(data); }
   void dq(Label* label);
 
-  void WriteBuiltinJumpTableEntry(Label* label, const int table_pos);
+  void WriteBuiltinJumpTableEntry(Label* label, int table_pos);
 
   // Patch entries for partial constant pool.
   void PatchConstPool();
@@ -2465,6 +2475,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   }
 
   static bool IsNop(Address addr);
+  static bool IsJmpRel(Address addr);
 
   // Avoid overflows for displacements etc.
   static constexpr int kMaximalBufferSize = 512 * MB;
@@ -3036,6 +3047,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   void AllocateAndInstallRequestedHeapNumbers(LocalIsolate* isolate);
 
   int WriteCodeComments();
+  int WriteBuiltinJumpTableInfos();
 
   void GetCode(LocalIsolate* isolate, CodeDesc* desc,
                int safepoint_table_offset, int handler_table_offset);
@@ -3054,6 +3066,8 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   ConstPool constpool_;
 
   friend class ConstPool;
+
+  BuiltinJumpTableInfoWriter builtin_jump_table_info_writer_;
 
 #if defined(V8_OS_WIN_X64)
   std::unique_ptr<win64_unwindinfo::XdataEncoder> xdata_encoder_;

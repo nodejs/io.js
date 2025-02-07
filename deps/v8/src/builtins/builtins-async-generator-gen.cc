@@ -13,6 +13,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 
 class AsyncGeneratorBuiltinsAssembler : public AsyncBuiltinsAssembler {
@@ -258,8 +260,8 @@ void AsyncGeneratorBuiltinsAssembler::AsyncGeneratorAwait() {
       request, AsyncGeneratorRequest::kPromiseOffset);
 
   Await(context, async_generator_object, value, outer_promise,
-        AsyncGeneratorAwaitResolveSharedFunConstant(),
-        AsyncGeneratorAwaitRejectSharedFunConstant());
+        RootIndex::kAsyncGeneratorAwaitResolveClosureSharedFun,
+        RootIndex::kAsyncGeneratorAwaitRejectClosureSharedFun);
   SetGeneratorAwaiting(async_generator_object);
   Return(UndefinedConstant());
 }
@@ -591,8 +593,8 @@ TF_BUILTIN(AsyncGeneratorYieldWithAwait, AsyncGeneratorBuiltinsAssembler) {
       LoadPromiseFromAsyncGeneratorRequest(request);
 
   Await(context, generator, value, outer_promise,
-        AsyncGeneratorYieldWithAwaitResolveSharedFunConstant(),
-        AsyncGeneratorAwaitRejectSharedFunConstant());
+        RootIndex::kAsyncGeneratorYieldWithAwaitResolveClosureSharedFun,
+        RootIndex::kAsyncGeneratorAwaitRejectClosureSharedFun);
   SetGeneratorAwaiting(generator);
   Return(UndefinedConstant());
 }
@@ -637,21 +639,35 @@ TF_BUILTIN(AsyncGeneratorReturn, AsyncGeneratorBuiltinsAssembler) {
   const TNode<AsyncGeneratorRequest> req =
       CAST(LoadFirstAsyncGeneratorRequestFromQueue(generator));
 
-  Label perform_await(this);
-  TVARIABLE(SharedFunctionInfo, var_on_resolve,
-            AsyncGeneratorReturnClosedResolveSharedFunConstant());
-
-  TVARIABLE(SharedFunctionInfo, var_on_reject,
-            AsyncGeneratorReturnClosedRejectSharedFunConstant());
-
   const TNode<Smi> state = LoadGeneratorState(generator);
-  GotoIf(IsGeneratorStateClosed(state), &perform_await);
-  var_on_resolve = AsyncGeneratorReturnResolveSharedFunConstant();
-  var_on_reject = AsyncGeneratorAwaitRejectSharedFunConstant();
+  auto MakeClosures = [&](TNode<Context> context,
+                          TNode<NativeContext> native_context) {
+    TVARIABLE(JSFunction, var_on_resolve);
+    TVARIABLE(JSFunction, var_on_reject);
+    Label closed(this), not_closed(this), done(this);
+    Branch(IsGeneratorStateClosed(state), &closed, &not_closed);
 
-  Goto(&perform_await);
+    BIND(&closed);
+    var_on_resolve = AllocateRootFunctionWithContext(
+        RootIndex::kAsyncGeneratorReturnClosedResolveClosureSharedFun, context,
+        native_context);
+    var_on_reject = AllocateRootFunctionWithContext(
+        RootIndex::kAsyncGeneratorReturnClosedRejectClosureSharedFun, context,
+        native_context);
+    Goto(&done);
 
-  BIND(&perform_await);
+    BIND(&not_closed);
+    var_on_resolve = AllocateRootFunctionWithContext(
+        RootIndex::kAsyncGeneratorReturnResolveClosureSharedFun, context,
+        native_context);
+    var_on_reject = AllocateRootFunctionWithContext(
+        RootIndex::kAsyncGeneratorAwaitRejectClosureSharedFun, context,
+        native_context);
+    Goto(&done);
+
+    BIND(&done);
+    return std::make_pair(var_on_resolve.value(), var_on_reject.value());
+  };
 
   SetGeneratorAwaiting(generator);
   auto context = Parameter<Context>(Descriptor::kContext);
@@ -664,9 +680,7 @@ TF_BUILTIN(AsyncGeneratorReturn, AsyncGeneratorBuiltinsAssembler) {
   {
     compiler::ScopedExceptionHandler handler(this, &await_exception,
                                              &var_exception);
-
-    Await(context, generator, value, outer_promise, var_on_resolve.value(),
-          var_on_reject.value());
+    Await(context, generator, value, outer_promise, MakeClosures);
   }
   Goto(&done);
 
@@ -729,6 +743,8 @@ TF_BUILTIN(AsyncGeneratorReturnClosedRejectClosure,
 
   AsyncGeneratorReturnClosedReject(context, generator, value);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

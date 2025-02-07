@@ -168,6 +168,9 @@ int FuzzIt(base::Vector<const uint8_t> data) {
   v8_fuzzer::FuzzerSupport* support = v8_fuzzer::FuzzerSupport::Get();
   v8::Isolate* isolate = support->GetIsolate();
 
+  // Strictly enforce the input size limit as in wasm-fuzzer-common.h.
+  if (data.size() > kMaxFuzzerInputSize) return 0;
+
   Isolate* i_isolate = reinterpret_cast<Isolate*>(isolate);
   v8::Isolate::Scope isolate_scope(isolate);
 
@@ -175,7 +178,7 @@ int FuzzIt(base::Vector<const uint8_t> data) {
   // are saved as recursive groups as part of the type canonicalizer, but types
   // from previous runs just waste memory.
   GetTypeCanonicalizer()->EmptyStorageForTesting();
-  i_isolate->heap()->ClearWasmCanonicalRttsForTesting();
+  TypeCanonicalizer::ClearWasmCanonicalTypesForTesting(i_isolate);
 
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(support->GetContext());

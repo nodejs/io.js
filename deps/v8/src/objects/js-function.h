@@ -123,7 +123,17 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // optimized code object, or when reading from the background thread.
   // Storing a builtin doesn't require release semantics because these objects
   // are fully initialized.
-  DECL_CODE_POINTER_ACCESSORS(code)
+  DECL_TRUSTED_POINTER_GETTERS(code, Code)
+
+  inline void UpdateContextSpecializedCode(
+      Isolate* isolate, Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
+  inline void UpdateMaybeContextSpecializedCode(
+      Isolate* isolate, Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
+  inline void UpdateCode(
+      Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 
   // Returns the raw content of the Code field. When reading from a background
   // thread, the code field may still be uninitialized, in which case the field
@@ -136,15 +146,25 @@ class JSFunction : public TorqueGeneratedJSFunction<
   inline Address instruction_start(IsolateForSandbox isolate) const;
 
   // Get the abstract code associated with the function, which will either be
-  // a InstructionStream object or a BytecodeArray.
+  // an InstructionStream object or a BytecodeArray.
   template <typename IsolateT>
   inline Tagged<AbstractCode> abstract_code(IsolateT* isolate);
 
 #ifdef V8_ENABLE_LEAPTIERING
-  inline void initialize_dispatch_handle(IsolateForSandbox isolate,
-                                         uint16_t parameter_count);
+  // TODO(olivf): This ShouldBeCamelCase.
+  inline void allocate_dispatch_handle(
+      IsolateForSandbox isolate, uint16_t parameter_count, Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
   inline void clear_dispatch_handle();
-  inline JSDispatchHandle dispatch_handle();
+  inline JSDispatchHandle dispatch_handle() const;
+  inline JSDispatchHandle dispatch_handle(AcquireLoadTag) const;
+  inline void set_dispatch_handle(
+      JSDispatchHandle handle,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
+  // Updates the Code in this function's dispatch table entry.
+  inline void set_code(
+      Tagged<Code> new_code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 #endif  // V8_ENABLE_LEAPTIERING
 
   // The predicates for querying code kinds related to this function have
@@ -267,7 +287,7 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // Resets function to clear compiled data after bytecode has been flushed.
   inline bool NeedsResetDueToFlushedBytecode(IsolateForSandbox isolate);
   inline void ResetIfCodeFlushed(
-      IsolateForSandbox isolate,
+      Isolate* isolate,
       std::optional<
           std::function<void(Tagged<HeapObject> object, ObjectSlot slot,
                              Tagged<HeapObject> target)>>

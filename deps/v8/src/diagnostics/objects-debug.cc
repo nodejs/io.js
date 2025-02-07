@@ -504,17 +504,17 @@ void JSObject::JSObjectVerify(Isolate* isolate) {
     for (InternalIndex i : map()->IterateOwnDescriptors()) {
       PropertyDetails details = descriptors->GetDetails(i);
       if (details.location() == PropertyLocation::kField) {
-        DCHECK_EQ(PropertyKind::kData, details.kind());
+        CHECK_EQ(PropertyKind::kData, details.kind());
         Representation r = details.representation();
         FieldIndex index = FieldIndex::ForDetails(map(), details);
         if (COMPRESS_POINTERS_BOOL && index.is_inobject()) {
           VerifyObjectField(isolate, index.offset());
         }
         Tagged<Object> value = RawFastPropertyAt(index);
-        if (r.IsDouble()) DCHECK(IsHeapNumber(value));
+        CHECK_IMPLIES(r.IsDouble(), IsHeapNumber(value));
         if (IsUninitialized(value, isolate)) continue;
-        if (r.IsSmi()) DCHECK(IsSmi(value));
-        if (r.IsHeapObject()) DCHECK(IsHeapObject(value));
+        CHECK_IMPLIES(r.IsSmi(), IsSmi(value));
+        CHECK_IMPLIES(r.IsHeapObject(), IsHeapObject(value));
         Tagged<FieldType> field_type = descriptors->GetFieldType(i);
         bool type_is_none = IsNone(field_type);
         bool type_is_any = IsAny(field_type);
@@ -803,6 +803,24 @@ void RegExpMatchInfo::RegExpMatchInfoVerify(Isolate* isolate) {
   }
 }
 
+void FeedbackCell::FeedbackCellVerify(Isolate* isolate) {
+  Tagged<Object> v = value();
+  Object::VerifyPointer(isolate, v);
+  CHECK(IsUndefined(v) || IsClosureFeedbackCellArray(v) || IsFeedbackVector(v));
+
+#ifdef V8_ENABLE_LEAPTIERING
+  JSDispatchHandle handle = dispatch_handle();
+  if (handle == kNullJSDispatchHandle) return;
+
+  JSDispatchTable* jdt = GetProcessWideJSDispatchTable();
+  Tagged<Code> code = jdt->GetCode(handle);
+  CodeKind kind = code->kind();
+  CHECK(kind == CodeKind::FOR_TESTING || kind == CodeKind::BUILTIN ||
+        kind == CodeKind::INTERPRETED_FUNCTION || kind == CodeKind::BASELINE ||
+        kind == CodeKind::MAGLEV || kind == CodeKind::TURBOFAN);
+#endif
+}
+
 void ClosureFeedbackCellArray::ClosureFeedbackCellArrayVerify(
     Isolate* isolate) {
   CHECK(IsSmi(TaggedField<Object>::load(*this, kCapacityOffset)));
@@ -871,10 +889,6 @@ void ByteArray::ByteArrayVerify(Isolate* isolate) {
 void TrustedByteArray::TrustedByteArrayVerify(Isolate* isolate) {
   TrustedObjectVerify(isolate);
   CHECK(IsSmi(TaggedField<Object>::load(*this, kLengthOffset)));
-}
-
-void ExternalPointerArray::ExternalPointerArrayVerify(Isolate* isolate) {
-  FixedArrayBase::FixedArrayBaseVerify(isolate);
 }
 
 void FixedDoubleArray::FixedDoubleArrayVerify(Isolate* isolate) {
@@ -1029,6 +1043,9 @@ void TransitionArray::TransitionArrayVerify(Isolate* isolate) {
       Tagged<HeapObject> target;
       if (maybe_target.GetHeapObjectIfWeak(&target)) {
         CHECK(IsMap(target));
+        if (!owner.is_null()) {
+          CHECK_EQ(target->map(), owner->map());
+        }
       } else {
         CHECK(maybe_target == SideStepTransition::Unreachable ||
               maybe_target == SideStepTransition::Empty ||
@@ -1227,7 +1244,7 @@ void JSFunction::JSFunctionVerify(Isolate* isolate) {
   // This assertion exists to encourage updating this verification function if
   // new fields are added in the Torque class layout definition.
   static_assert(JSFunction::TorqueGeneratedClass::kHeaderSize ==
-                (8 + V8_ENABLE_LEAPTIERING_BOOL) * kTaggedSize);
+                8 * kTaggedSize);
 
   JSFunctionOrBoundFunctionOrWrappedFunctionVerify(isolate);
   CHECK(IsJSFunction(*this));
@@ -1244,16 +1261,40 @@ void JSFunction::JSFunctionVerify(Isolate* isolate) {
   CHECK_EQ(map()->map()->native_context_or_null(), native_context());
 
 #ifdef V8_ENABLE_LEAPTIERING
+  JSDispatchTable* jdt = GetProcessWideJSDispatchTable();
   JSDispatchHandle handle = dispatch_handle();
-  // Currently, the handle can still be the null handle as not all places where
-  // a JSFunction object is created populate the entry correctly. However, in
-  // the future, every JSFunction must have a valid dispatch handle, and then
-  // this check should be removed.
-  if (handle != kNullJSDispatchHandle) {
-    uint16_t parameter_count =
-        GetProcessWideJSDispatchTable()->GetParameterCount(handle);
-    CHECK_EQ(parameter_count,
-             shared(isolate)->internal_formal_parameter_count_with_receiver());
+  CHECK_NE(handle, kNullJSDispatchHandle);
+  uint16_t parameter_count = jdt->GetParameterCount(handle);
+  CHECK_EQ(parameter_count,
+           shared(isolate)->internal_formal_parameter_count_with_receiver());
+  Tagged<Code> code_from_table = jdt->GetCode(handle);
+  CHECK(code_from_table->parameter_count() == kDontAdaptArgumentsSentinel ||
+        code_from_table->parameter_count() == parameter_count);
+
+  // Currently, a JSFunction must have the same dispatch entry as its
+  // FeedbackCell, unless the FeedbackCell has no entry.
+  JSDispatchHandle feedback_cell_handle =
+      raw_feedback_cell(isolate)->dispatch_handle();
+  CHECK_EQ(raw_feedback_cell(isolate) == isolate->heap()->many_closures_cell(),
+           feedback_cell_handle == kNullJSDispatchHandle);
+  if (code_from_table->is_context_specialized()) {
+    // This function is context specialized. It must have its own dispatch
+    // handle. The canonical handle must exist and be different.
+    CHECK_NE(feedback_cell_handle, handle);
+  } else {
+    // This function is not context specialized. Then we should either use the
+    // canonical dispatch handle. Except for builtins, which use the
+    // many_closures_cell (see check above).
+    // Also, after code flushing this js function can point to the CompileLazy
+    // builtin, which will unify the dispatch handles on the next UpdateCode.
+    if (feedback_cell_handle != kNullJSDispatchHandle) {
+      if (code_from_table->kind() != CodeKind::BUILTIN) {
+        CHECK_EQ(feedback_cell_handle, handle);
+      }
+    }
+  }
+  if (feedback_cell_handle != kNullJSDispatchHandle) {
+    CHECK(!jdt->GetCode(feedback_cell_handle)->is_context_specialized());
   }
 #endif  // V8_ENABLE_LEAPTIERING
 
@@ -1565,8 +1606,7 @@ void InstructionStream::InstructionStreamVerify(Isolate* isolate) {
   CHECK_IMPLIES(!ReadOnlyHeap::Contains(*this),
                 IsAligned(instruction_start(), kCodeAlignment));
   CHECK_EQ(*this, code->instruction_stream());
-  CHECK(V8_ENABLE_THIRD_PARTY_HEAP_BOOL ||
-        Size() <= MemoryChunkLayout::MaxRegularCodeObjectSize() ||
+  CHECK(Size() <= MemoryChunkLayout::MaxRegularCodeObjectSize() ||
         isolate->heap()->InSpace(*this, CODE_LO_SPACE));
   Address last_gc_pc = kNullAddress;
 
@@ -2587,7 +2627,7 @@ class StringTableVerifier : public RootVisitor {
     // Visit all HeapObject pointers in [start, end).
     for (OffHeapObjectSlot p = start; p < end; ++p) {
       Tagged<Object> o = p.load(isolate_);
-      DCHECK(!HasWeakHeapObjectTag(o));
+      CHECK(!HasWeakHeapObjectTag(o));
       if (IsHeapObject(o)) {
         Tagged<HeapObject> object = Cast<HeapObject>(o);
         // Check that the string is actually internalized.
@@ -2601,7 +2641,7 @@ class StringTableVerifier : public RootVisitor {
 };
 
 void StringTable::VerifyIfOwnedBy(Isolate* isolate) {
-  DCHECK_EQ(isolate->string_table(), this);
+  CHECK_EQ(isolate->string_table(), this);
   if (!isolate->OwnsStringTables()) return;
   StringTableVerifier verifier(isolate);
   IterateElements(&verifier);
@@ -2814,6 +2854,7 @@ bool TransitionsAccessor::IsConsistentWithBackPointers() {
           DCHECK_IMPLIES(map_->prototype() != target->prototype(),
                          IsUndefined(map_->GetBackPointer()));
         }
+        DCHECK_EQ(target->map(), map_->map());
 #endif  // DEBUG
         if (!CheckOneBackPointer(map_, target)) {
           success = false;
@@ -2828,6 +2869,7 @@ bool TransitionsAccessor::IsConsistentWithBackPointers() {
       },
       [&](Tagged<Object> side_step) {
         if (!side_step.IsSmi()) {
+          DCHECK_EQ(Cast<Map>(side_step)->map(), map_->map());
           DCHECK(!Cast<Map>(side_step)->IsInobjectSlackTrackingInProgress());
           DCHECK_EQ(
               Cast<Map>(side_step)->GetInObjectProperties() -

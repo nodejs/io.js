@@ -27,7 +27,7 @@ ACCESSORS(JSDurationFormat, icu_locale, Tagged<Managed<icu::Locale>>,
 
 #define IMPL_INLINE_SETTER_GETTER(T, n, B, f, M)           \
   inline void JSDurationFormat::set_##n(T value) {         \
-    DCHECK_GE(B::kMax, value);                             \
+    DCHECK(B::is_valid(value));                            \
     DCHECK_GE(T::M, value);                                \
     set_##f(B::update(f(), value));                        \
   }                                                        \

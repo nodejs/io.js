@@ -134,9 +134,9 @@ struct IsUnorderedContainer<std::unordered_set<Key, Hash, KeyEqual, Allocator>>
 template <typename C, typename EqualityComparable>
 ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool c_linear_search(
     const C& c, EqualityComparable&& value) {
-  return linear_search(container_algorithm_internal::c_begin(c),
-                       container_algorithm_internal::c_end(c),
-                       std::forward<EqualityComparable>(value));
+  return absl::linear_search(container_algorithm_internal::c_begin(c),
+                             container_algorithm_internal::c_end(c),
+                             std::forward<EqualityComparable>(value));
 }
 
 //------------------------------------------------------------------------------

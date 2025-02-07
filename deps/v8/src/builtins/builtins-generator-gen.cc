@@ -12,6 +12,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class GeneratorBuiltinsAssembler : public CodeStubAssembler {
  public:
   explicit GeneratorBuiltinsAssembler(compiler::CodeAssemblerState* state)
@@ -310,6 +312,8 @@ TF_BUILTIN(ResumeGeneratorBaseline, GeneratorBuiltinsAssembler) {
 
   Return(LoadJSGeneratorObjectInputOrDebugPos(generator));
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

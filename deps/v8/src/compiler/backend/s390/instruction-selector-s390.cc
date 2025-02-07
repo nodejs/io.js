@@ -246,12 +246,20 @@ class S390OperandGeneratorT final : public OperandGeneratorT<Adapter> {
     switch (opcode) {
       case kS390_Cmp64:
       case kS390_LoadAndTestWord64:
-        return rep == MachineRepresentation::kWord64 ||
-               (!COMPRESS_POINTERS_BOOL && IsAnyTagged(rep));
+        if (rep == MachineRepresentation::kWord64 ||
+            (!COMPRESS_POINTERS_BOOL && IsAnyTagged(rep))) {
+          DCHECK_EQ(ElementSizeInBits(rep), 64);
+          return true;
+        }
+        break;
       case kS390_LoadAndTestWord32:
       case kS390_Cmp32:
-        return rep == MachineRepresentation::kWord32 ||
-               (COMPRESS_POINTERS_BOOL && IsAnyTagged(rep));
+        if (rep == MachineRepresentation::kWord32 ||
+            (COMPRESS_POINTERS_BOOL && IsAnyCompressed(rep))) {
+          DCHECK_EQ(ElementSizeInBits(rep), 32);
+          return true;
+        }
+        break;
       default:
         break;
     }
@@ -1097,13 +1105,9 @@ void InstructionSelectorT<Adapter>::VisitStackSlot(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitAbortCSADcheck(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    // This is currently not used by Turboshaft.
-    UNIMPLEMENTED();
-  } else {
     S390OperandGeneratorT<Adapter> g(this);
-    Emit(kArchAbortCSADcheck, g.NoOutput(), g.UseFixed(node->InputAt(0), r3));
-  }
+    Emit(kArchAbortCSADcheck, g.NoOutput(),
+         g.UseFixed(this->input_at(node, 0), r3));
 }
 
 template <typename Adapter>

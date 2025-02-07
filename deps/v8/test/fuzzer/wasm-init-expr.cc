@@ -205,7 +205,7 @@ void FuzzIt(base::Vector<const uint8_t> data) {
   // are saved as recursive groups as part of the type canonicalizer, but types
   // from previous runs just waste memory.
   GetTypeCanonicalizer()->EmptyStorageForTesting();
-  i_isolate->heap()->ClearWasmCanonicalRttsForTesting();
+  TypeCanonicalizer::ClearWasmCanonicalTypesForTesting(i_isolate);
 
   v8::HandleScope handle_scope(isolate);
   v8::Context::Scope context_scope(support->GetContext());

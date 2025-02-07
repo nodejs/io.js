@@ -298,7 +298,7 @@ TEST_P(LoopUnrollingAnalyzerSmallLoopTest, ExactLoopIterCount) {
     using AssemblerT = std::remove_reference<decltype(Asm)>::type::Assembler;
     OpIndex cond = Asm.GetParameter(0);
 
-    ScopedVariable<Word32, AssemblerT> index(&Asm, params.init);
+    ScopedVar<Word32, AssemblerT> index(&Asm, params.init);
 
     WHILE(EmitCmp(Asm, params.cmp, index, params.max)) {
       __ JSLoopStackCheck(__ NoContextConstant(), Asm.BuildFrameState());
@@ -337,7 +337,7 @@ TEST_P(LoopUnrollingAnalyzerLargeLoopTest, LargeLoopIterCount) {
     using AssemblerT = std::remove_reference<decltype(Asm)>::type::Assembler;
     OpIndex cond = Asm.GetParameter(0);
 
-    ScopedVariable<Word32, AssemblerT> index(&Asm, params.init);
+    ScopedVar<Word32, AssemblerT> index(&Asm, params.init);
 
     WHILE(EmitCmp(Asm, params.cmp, index, params.max)) {
       __ JSLoopStackCheck(__ NoContextConstant(), Asm.BuildFrameState());
@@ -389,7 +389,7 @@ TEST_P(LoopUnrollingAnalyzerOverflowTest, LargeLoopIterCount) {
     using AssemblerT = std::remove_reference<decltype(Asm)>::type::Assembler;
     OpIndex cond = Asm.GetParameter(0);
 
-    ScopedVariable<Word32, AssemblerT> index(&Asm, params.init);
+    ScopedVar<Word32, AssemblerT> index(&Asm, params.init);
 
     WHILE(EmitCmp(Asm, params.cmp, index, params.max)) {
       __ JSLoopStackCheck(__ NoContextConstant(), Asm.BuildFrameState());

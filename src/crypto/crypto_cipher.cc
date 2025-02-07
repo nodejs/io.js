@@ -10,9 +10,17 @@
 
 namespace node {
 
+using ncrypto::Cipher;
+using ncrypto::CipherCtxPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::MarkPopErrorOnReturn;
+using ncrypto::SSLCtxPointer;
+using ncrypto::SSLPointer;
 using v8::Array;
 using v8::ArrayBuffer;
 using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
@@ -27,10 +35,6 @@ using v8::Value;
 
 namespace crypto {
 namespace {
-bool IsValidGCMTagLength(unsigned int tag_len) {
-  return tag_len == 4 || tag_len == 8 || (tag_len >= 12 && tag_len <= 16);
-}
-
 // Collects and returns information on the given cipher
 void GetCipherInfo(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
@@ -42,10 +46,10 @@ void GetCipherInfo(const FunctionCallbackInfo<Value>& args) {
   const auto cipher = ([&] {
     if (args[1]->IsString()) {
       Utf8Value name(env->isolate(), args[1]);
-      return ncrypto::Cipher::FromName(*name);
+      return Cipher::FromName(name.ToStringView());
     } else {
       int nid = args[1].As<Int32>()->Value();
-      return ncrypto::Cipher::FromNid(nid);
+      return Cipher::FromNid(nid);
     }
   })();
 
@@ -158,16 +162,19 @@ void GetCipherInfo(const FunctionCallbackInfo<Value>& args) {
 }  // namespace
 
 void CipherBase::GetSSLCiphers(const FunctionCallbackInfo<Value>& args) {
+  MarkPopErrorOnReturn mark_pop_error_on_return;
   Environment* env = Environment::GetCurrent(args);
 
   auto ctx = SSLCtxPointer::New();
   if (!ctx) {
-    return ThrowCryptoError(env, ERR_get_error(), "SSL_CTX_new");
+    return ThrowCryptoError(
+        env, mark_pop_error_on_return.peekError(), "SSL_CTX_new");
   }
 
   auto ssl = SSLPointer::New(ctx);
   if (!ssl) {
-    return ThrowCryptoError(env, ERR_get_error(), "SSL_new");
+    return ThrowCryptoError(
+        env, mark_pop_error_on_return.peekError(), "SSL_new");
   }
 
   LocalVector<Value> arr(env->isolate());
@@ -237,26 +244,22 @@ void CipherBase::Initialize(Environment* env, Local<Object> target) {
             target,
             "publicEncrypt",
             PublicKeyCipher::Cipher<PublicKeyCipher::kPublic,
-                                    EVP_PKEY_encrypt_init,
-                                    EVP_PKEY_encrypt>);
+                                    ncrypto::Cipher::encrypt>);
   SetMethod(context,
             target,
             "privateDecrypt",
             PublicKeyCipher::Cipher<PublicKeyCipher::kPrivate,
-                                    EVP_PKEY_decrypt_init,
-                                    EVP_PKEY_decrypt>);
+                                    ncrypto::Cipher::decrypt>);
   SetMethod(context,
             target,
             "privateEncrypt",
             PublicKeyCipher::Cipher<PublicKeyCipher::kPrivate,
-                                    EVP_PKEY_sign_init,
-                                    EVP_PKEY_sign>);
+                                    ncrypto::Cipher::sign>);
   SetMethod(context,
             target,
             "publicDecrypt",
             PublicKeyCipher::Cipher<PublicKeyCipher::kPublic,
-                                    EVP_PKEY_verify_recover_init,
-                                    EVP_PKEY_verify_recover>);
+                                    ncrypto::Cipher::recover>);
 
   SetMethodNoSideEffect(context, target, "getCipherInfo", GetCipherInfo);
 
@@ -281,17 +284,13 @@ void CipherBase::RegisterExternalReferences(
   registry->Register(GetCiphers);
 
   registry->Register(PublicKeyCipher::Cipher<PublicKeyCipher::kPublic,
-                                             EVP_PKEY_encrypt_init,
-                                             EVP_PKEY_encrypt>);
+                                             ncrypto::Cipher::encrypt>);
   registry->Register(PublicKeyCipher::Cipher<PublicKeyCipher::kPrivate,
-                                             EVP_PKEY_decrypt_init,
-                                             EVP_PKEY_decrypt>);
+                                             ncrypto::Cipher::decrypt>);
   registry->Register(PublicKeyCipher::Cipher<PublicKeyCipher::kPrivate,
-                                             EVP_PKEY_sign_init,
-                                             EVP_PKEY_sign>);
+                                             ncrypto::Cipher::sign>);
   registry->Register(PublicKeyCipher::Cipher<PublicKeyCipher::kPublic,
-                                             EVP_PKEY_verify_recover_init,
-                                             EVP_PKEY_verify_recover>);
+                                             ncrypto::Cipher::recover>);
 
   registry->Register(GetCipherInfo);
 }
@@ -309,6 +308,7 @@ void CipherBase::CommonInit(const char* cipher_type,
                             const unsigned char* iv,
                             int iv_len,
                             unsigned int auth_tag_len) {
+  MarkPopErrorOnReturn mark_pop_error_on_return;
   CHECK(!ctx_);
   ctx_ = CipherCtxPointer::New();
   CHECK(ctx_);
@@ -319,14 +319,16 @@ void CipherBase::CommonInit(const char* cipher_type,
 
   const bool encrypt = (kind_ == kCipher);
   if (!ctx_.init(cipher, encrypt)) {
-    return ThrowCryptoError(env(), ERR_get_error(),
+    return ThrowCryptoError(env(),
+                            mark_pop_error_on_return.peekError(),
                             "Failed to initialize cipher");
   }
 
   if (cipher.isSupportedAuthenticatedMode()) {
     CHECK_GE(iv_len, 0);
-    if (!InitAuthenticated(cipher_type, iv_len, auth_tag_len))
+    if (!InitAuthenticated(cipher_type, iv_len, auth_tag_len)) {
       return;
+    }
   }
 
   if (!ctx_.setKeyLength(key_len)) {
@@ -334,8 +336,9 @@ void CipherBase::CommonInit(const char* cipher_type,
     return THROW_ERR_CRYPTO_INVALID_KEYLEN(env());
   }
 
-  if (!ctx_.init(ncrypto::Cipher(), encrypt, key, iv)) {
-    return ThrowCryptoError(env(), ERR_get_error(),
+  if (!ctx_.init(Cipher(), encrypt, key, iv)) {
+    return ThrowCryptoError(env(),
+                            mark_pop_error_on_return.peekError(),
                             "Failed to initialize cipher");
   }
 }
@@ -345,7 +348,7 @@ void CipherBase::Init(const char* cipher_type,
                       unsigned int auth_tag_len) {
   HandleScope scope(env()->isolate());
   MarkPopErrorOnReturn mark_pop_error_on_return;
-  auto cipher = ncrypto::Cipher::FromName(cipher_type);
+  auto cipher = Cipher::FromName(cipher_type);
   if (!cipher) {
     return THROW_ERR_CRYPTO_UNKNOWN_CIPHER(env());
   }
@@ -415,15 +418,16 @@ void CipherBase::InitIv(const char* cipher_type,
   HandleScope scope(env()->isolate());
   MarkPopErrorOnReturn mark_pop_error_on_return;
 
-  auto cipher = ncrypto::Cipher::FromName(cipher_type);
+  auto cipher = Cipher::FromName(cipher_type);
   if (!cipher) return THROW_ERR_CRYPTO_UNKNOWN_CIPHER(env());
 
   const int expected_iv_len = cipher.getIvLength();
   const bool has_iv = iv_buf.size() > 0;
 
   // Throw if no IV was passed and the cipher requires an IV
-  if (!has_iv && expected_iv_len != 0)
+  if (!has_iv && expected_iv_len != 0) {
     return THROW_ERR_CRYPTO_INVALID_IV(env());
+  }
 
   // Throw if an IV was passed which does not match the cipher's fixed IV length
   // static_cast<int> for the iv_buf.size() is safe because we've verified
@@ -438,8 +442,9 @@ void CipherBase::InitIv(const char* cipher_type,
     // Check for invalid IV lengths, since OpenSSL does not under some
     // conditions:
     //   https://www.openssl.org/news/secadv/20190306.txt.
-    if (iv_buf.size() > 12)
+    if (iv_buf.size() > 12) {
       return THROW_ERR_CRYPTO_INVALID_IV(env());
+    }
   }
 
   CommonInit(
@@ -504,7 +509,7 @@ bool CipherBase::InitAuthenticated(
   const int mode = ctx_.getMode();
   if (mode == EVP_CIPH_GCM_MODE) {
     if (auth_tag_len != kNoAuthTagLength) {
-      if (!IsValidGCMTagLength(auth_tag_len)) {
+      if (!Cipher::IsValidGCMTagLength(auth_tag_len)) {
         THROW_ERR_CRYPTO_INVALID_AUTH_TAG(
           env(),
           "Invalid authentication tag length: %u",
@@ -595,9 +600,11 @@ void CipherBase::GetAuthTag(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  args.GetReturnValue().Set(
-      Buffer::Copy(env, cipher->auth_tag_, cipher->auth_tag_len_)
-          .FromMaybe(Local<Value>()));
+  Local<Value> ret;
+  if (Buffer::Copy(env, cipher->auth_tag_, cipher->auth_tag_len_)
+          .ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 void CipherBase::SetAuthTag(const FunctionCallbackInfo<Value>& args) {
@@ -624,12 +631,11 @@ void CipherBase::SetAuthTag(const FunctionCallbackInfo<Value>& args) {
     // Restrict GCM tag lengths according to NIST 800-38d, page 9.
     is_valid = (cipher->auth_tag_len_ == kNoAuthTagLength ||
                 cipher->auth_tag_len_ == tag_len) &&
-               IsValidGCMTagLength(tag_len);
+               Cipher::IsValidGCMTagLength(tag_len);
   } else {
     // At this point, the tag length is already known and must match the
     // length of the given authentication tag.
-    CHECK(
-        ncrypto::Cipher::FromCtx(cipher->ctx_).isSupportedAuthenticatedMode());
+    CHECK(Cipher::FromCtx(cipher->ctx_).isSupportedAuthenticatedMode());
     CHECK_NE(cipher->auth_tag_len_, kNoAuthTagLength);
     is_valid = cipher->auth_tag_len_ == tag_len;
   }
@@ -694,12 +700,12 @@ bool CipherBase::SetAAD(
       return false;
     }
 
-    if (!CheckCCMMessageLength(plaintext_len))
+    if (!CheckCCMMessageLength(plaintext_len)) {
       return false;
+    }
 
-    if (kind_ == kDecipher) {
-      if (!MaybePassAuthTagToOpenSSL())
-        return false;
+    if (kind_ == kDecipher && !MaybePassAuthTagToOpenSSL()) {
+      return false;
     }
 
     ncrypto::Buffer<const unsigned char> buffer{
@@ -739,19 +745,20 @@ CipherBase::UpdateResult CipherBase::Update(
     const char* data,
     size_t len,
     std::unique_ptr<BackingStore>* out) {
-  if (!ctx_ || len > INT_MAX)
-    return kErrorState;
+  if (!ctx_ || len > INT_MAX) return kErrorState;
   MarkPopErrorOnReturn mark_pop_error_on_return;
 
   const int mode = ctx_.getMode();
 
-  if (mode == EVP_CIPH_CCM_MODE && !CheckCCMMessageLength(len))
+  if (mode == EVP_CIPH_CCM_MODE && !CheckCCMMessageLength(len)) {
     return kErrorMessageSize;
+  }
 
   // Pass the authentication tag to OpenSSL if possible. This will only happen
   // once, usually on the first update.
-  if (kind_ == kDecipher && IsAuthenticatedMode())
+  if (kind_ == kDecipher && IsAuthenticatedMode()) {
     CHECK(MaybePassAuthTagToOpenSSL());
+  }
 
   const int block_size = ctx_.getBlockSize();
   CHECK_GT(block_size, 0);
@@ -767,10 +774,10 @@ CipherBase::UpdateResult CipherBase::Update(
     return kErrorState;
   }
 
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env()->isolate_data());
-    *out = ArrayBuffer::NewBackingStore(env()->isolate(), buf_len);
-  }
+  *out = ArrayBuffer::NewBackingStore(
+      env()->isolate(),
+      buf_len,
+      BackingStoreInitializationMode::kUninitialized);
 
   buffer = {
       .data = reinterpret_cast<const unsigned char*>(data),
@@ -801,34 +808,38 @@ CipherBase::UpdateResult CipherBase::Update(
 }
 
 void CipherBase::Update(const FunctionCallbackInfo<Value>& args) {
-  Decode<CipherBase>(args, [](CipherBase* cipher,
-                              const FunctionCallbackInfo<Value>& args,
-                              const char* data, size_t size) {
-    std::unique_ptr<BackingStore> out;
-    Environment* env = Environment::GetCurrent(args);
+  Decode<CipherBase>(
+      args,
+      [](CipherBase* cipher,
+         const FunctionCallbackInfo<Value>& args,
+         const char* data,
+         size_t size) {
+        MarkPopErrorOnReturn mark_pop_error_on_return;
+        std::unique_ptr<BackingStore> out;
+        Environment* env = Environment::GetCurrent(args);
 
-    if (size > INT_MAX) [[unlikely]] {
-      return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
-    }
-    UpdateResult r = cipher->Update(data, size, &out);
+        if (size > INT_MAX) [[unlikely]] {
+          return THROW_ERR_OUT_OF_RANGE(env, "data is too long");
+        }
+        UpdateResult r = cipher->Update(data, size, &out);
 
-    if (r != kSuccess) {
-      if (r == kErrorState) {
-        ThrowCryptoError(env, ERR_get_error(),
-                         "Trying to add data in unsupported state");
-      }
-      return;
-    }
+        if (r != kSuccess) {
+          if (r == kErrorState) {
+            ThrowCryptoError(env,
+                             mark_pop_error_on_return.peekError(),
+                             "Trying to add data in unsupported state");
+          }
+          return;
+        }
 
-    Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(out));
-    args.GetReturnValue().Set(
-        Buffer::New(env, ab, 0, ab->ByteLength()).FromMaybe(Local<Value>()));
-  });
+        auto ab = ArrayBuffer::New(env->isolate(), std::move(out));
+        args.GetReturnValue().Set(Buffer::New(env, ab, 0, ab->ByteLength())
+                                      .FromMaybe(Local<Value>()));
+      });
 }
 
 bool CipherBase::SetAutoPadding(bool auto_padding) {
-  if (!ctx_)
-    return false;
+  if (!ctx_) return false;
   MarkPopErrorOnReturn mark_pop_error_on_return;
   return ctx_.setPadding(auto_padding);
 }
@@ -842,19 +853,17 @@ void CipherBase::SetAutoPadding(const FunctionCallbackInfo<Value>& args) {
 }
 
 bool CipherBase::Final(std::unique_ptr<BackingStore>* out) {
-  if (!ctx_)
-    return false;
+  if (!ctx_) return false;
 
   const int mode = ctx_.getMode();
 
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env()->isolate_data());
-    *out = ArrayBuffer::NewBackingStore(
-        env()->isolate(), static_cast<size_t>(ctx_.getBlockSize()));
-  }
+  *out = ArrayBuffer::NewBackingStore(
+      env()->isolate(),
+      static_cast<size_t>(ctx_.getBlockSize()),
+      BackingStoreInitializationMode::kUninitialized);
 
   if (kind_ == kDecipher &&
-      ncrypto::Cipher::FromCtx(ctx_).isSupportedAuthenticatedMode()) {
+      Cipher::FromCtx(ctx_).isSupportedAuthenticatedMode()) {
     MaybePassAuthTagToOpenSSL();
   }
 
@@ -908,11 +917,13 @@ bool CipherBase::Final(std::unique_ptr<BackingStore>* out) {
 
 void CipherBase::Final(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
+  MarkPopErrorOnReturn mark_pop_error_on_return;
 
   CipherBase* cipher;
   ASSIGN_OR_RETURN_UNWRAP(&cipher, args.This());
-  if (cipher->ctx_ == nullptr)
+  if (cipher->ctx_ == nullptr) {
     return THROW_ERR_CRYPTO_INVALID_STATE(env);
+  }
 
   std::unique_ptr<BackingStore> out;
 
@@ -925,17 +936,15 @@ void CipherBase::Final(const FunctionCallbackInfo<Value>& args) {
                           ? "Unsupported state or unable to authenticate data"
                           : "Unsupported state";
 
-    return ThrowCryptoError(env, ERR_get_error(), msg);
+    return ThrowCryptoError(env, mark_pop_error_on_return.peekError(), msg);
   }
 
-  Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(out));
+  auto ab = ArrayBuffer::New(env->isolate(), std::move(out));
   args.GetReturnValue().Set(
       Buffer::New(env, ab, 0, ab->ByteLength()).FromMaybe(Local<Value>()));
 }
 
-template <PublicKeyCipher::Operation operation,
-          PublicKeyCipher::EVP_PKEY_cipher_init_t EVP_PKEY_cipher_init,
-          PublicKeyCipher::EVP_PKEY_cipher_t EVP_PKEY_cipher>
+template <PublicKeyCipher::Cipher_t cipher>
 bool PublicKeyCipher::Cipher(
     Environment* env,
     const EVPKeyPointer& pkey,
@@ -944,62 +953,32 @@ bool PublicKeyCipher::Cipher(
     const ArrayBufferOrViewContents<unsigned char>& oaep_label,
     const ArrayBufferOrViewContents<unsigned char>& data,
     std::unique_ptr<BackingStore>* out) {
-  EVPKeyCtxPointer ctx = pkey.newCtx();
-  if (!ctx)
-    return false;
-  if (EVP_PKEY_cipher_init(ctx.get()) <= 0)
-    return false;
-  if (EVP_PKEY_CTX_set_rsa_padding(ctx.get(), padding) <= 0)
-    return false;
+  auto label = oaep_label.ToByteSource();
+  auto in = data.ToByteSource();
 
-  if (digest != nullptr) {
-    if (EVP_PKEY_CTX_set_rsa_oaep_md(ctx.get(), digest) <= 0)
-      return false;
-  }
+  const ncrypto::Cipher::CipherParams params{
+      .padding = padding,
+      .digest = digest,
+      .label = label,
+  };
 
-  if (!SetRsaOaepLabel(ctx, oaep_label.ToByteSource())) return false;
+  auto buf = cipher(pkey, params, in);
+  if (!buf) return false;
 
-  size_t out_len = 0;
-  if (EVP_PKEY_cipher(
-          ctx.get(),
-          nullptr,
-          &out_len,
-          data.data(),
-          data.size()) <= 0) {
-    return false;
-  }
-
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    *out = ArrayBuffer::NewBackingStore(env->isolate(), out_len);
-  }
-
-  if (EVP_PKEY_cipher(
-          ctx.get(),
-          static_cast<unsigned char*>((*out)->Data()),
-          &out_len,
-          data.data(),
-          data.size()) <= 0) {
-    return false;
-  }
-
-  CHECK_LE(out_len, (*out)->ByteLength());
-  if (out_len == 0) {
+  if (buf.size() == 0) {
     *out = ArrayBuffer::NewBackingStore(env->isolate(), 0);
-  } else if (out_len != (*out)->ByteLength()) {
-    std::unique_ptr<BackingStore> old_out = std::move(*out);
-    *out = ArrayBuffer::NewBackingStore(env->isolate(), out_len);
+  } else {
+    *out = ArrayBuffer::NewBackingStore(env->isolate(), buf.size());
     memcpy(static_cast<char*>((*out)->Data()),
-           static_cast<char*>(old_out->Data()),
-           out_len);
+           static_cast<char*>(buf.get()),
+           buf.size());
   }
 
   return true;
 }
 
 template <PublicKeyCipher::Operation operation,
-          PublicKeyCipher::EVP_PKEY_cipher_init_t EVP_PKEY_cipher_init,
-          PublicKeyCipher::EVP_PKEY_cipher_t EVP_PKEY_cipher>
+          PublicKeyCipher::Cipher_t cipher>
 void PublicKeyCipher::Cipher(const FunctionCallbackInfo<Value>& args) {
   MarkPopErrorOnReturn mark_pop_error_on_return;
   Environment* env = Environment::GetCurrent(args);
@@ -1008,8 +987,7 @@ void PublicKeyCipher::Cipher(const FunctionCallbackInfo<Value>& args) {
   auto data = KeyObjectData::GetPublicOrPrivateKeyFromJs(args, &offset);
   if (!data) return;
   const auto& pkey = data.GetAsymmetricKey();
-  if (!pkey)
-    return;
+  if (!pkey) return;
 
   ArrayBufferOrViewContents<unsigned char> buf(args[offset]);
   if (!buf.CheckSizeInt32()) [[unlikely]] {
@@ -1018,35 +996,30 @@ void PublicKeyCipher::Cipher(const FunctionCallbackInfo<Value>& args) {
   uint32_t padding;
   if (!args[offset + 1]->Uint32Value(env->context()).To(&padding)) return;
 
-  if (EVP_PKEY_cipher == EVP_PKEY_decrypt &&
+  if (cipher == ncrypto::Cipher::decrypt &&
       operation == PublicKeyCipher::kPrivate && padding == RSA_PKCS1_PADDING) {
     EVPKeyCtxPointer ctx = pkey.newCtx();
     CHECK(ctx);
 
-    if (EVP_PKEY_decrypt_init(ctx.get()) <= 0) {
+    if (!ctx.initForDecrypt()) {
       return ThrowCryptoError(env, ERR_get_error());
     }
 
-    int rsa_pkcs1_implicit_rejection =
-        EVP_PKEY_CTX_ctrl_str(ctx.get(), "rsa_pkcs1_implicit_rejection", "1");
-    // From the doc -2 means that the option is not supported.
-    // The default for the option is enabled and if it has been
-    // specifically disabled we want to respect that so we will
-    // not throw an error if the option is supported regardless
-    // of how it is set. The call to set the value
-    // will not affect what is used since a different context is
-    // used in the call if the option is supported
-    if (rsa_pkcs1_implicit_rejection <= 0) {
+#ifndef OPENSSL_IS_BORINGSSL
+    // RSA implicit rejection here is not supported by BoringSSL.
+    // Skip this check when boring is used.
+    if (!ctx.setRsaImplicitRejection()) {
       return THROW_ERR_INVALID_ARG_VALUE(
           env,
           "RSA_PKCS1_PADDING is no longer supported for private decryption");
     }
+#endif
   }
 
   const EVP_MD* digest = nullptr;
   if (args[offset + 2]->IsString()) {
     const Utf8Value oaep_str(env->isolate(), args[offset + 2]);
-    digest = EVP_get_digestbyname(*oaep_str);
+    digest = ncrypto::getDigestByName(oaep_str.ToStringView());
     if (digest == nullptr)
       return THROW_ERR_OSSL_EVP_INVALID_DIGEST(env);
   }
@@ -1057,8 +1030,7 @@ void PublicKeyCipher::Cipher(const FunctionCallbackInfo<Value>& args) {
     return THROW_ERR_OUT_OF_RANGE(env, "oaepLabel is too big");
   }
   std::unique_ptr<BackingStore> out;
-  if (!Cipher<operation, EVP_PKEY_cipher_init, EVP_PKEY_cipher>(
-          env, pkey, padding, digest, oaep_label, buf, &out)) {
+  if (!Cipher<cipher>(env, pkey, padding, digest, oaep_label, buf, &out)) {
     return ThrowCryptoError(env, ERR_get_error());
   }
 

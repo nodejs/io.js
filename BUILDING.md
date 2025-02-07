@@ -140,7 +140,7 @@ platforms. This is true regardless of entries in the table below.
     Windows binary (`node.exe`) in WSL will not work without workarounds such as
     stdio redirection.
 
-[^4]: Our macOS x64 Binaries are compiled with 11.0 as a target. Xcode 13 is
+[^4]: Our macOS Binaries are compiled with 11.0 as a target. Xcode 16 is
     required to compile.
 
 <!--lint enable final-definition-->
@@ -153,7 +153,7 @@ Depending on the host platform, the selection of toolchains may vary.
 | ---------------- | -------------------------------------------------------------- |
 | Linux            | GCC >= 12.2                                                    |
 | Windows          | Visual Studio >= 2022 with the Windows 10 SDK on a 64-bit host |
-| macOS            | Xcode >= 13 (Apple LLVM >= 12)                                 |
+| macOS            | Xcode >= 16.1 (Apple LLVM >= 17)                               |
 
 ### Official binary platforms and toolchains
 

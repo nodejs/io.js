@@ -9,7 +9,7 @@ function f(x) {
   let phi = x ? 0 : x; // Creating a Phi whose inputs are Smi and Float64
   const obj = { "d" : phi }; // Storing the Phi in a Smi field, which will
                              // insert a CheckSmi
-  --phi; // Using the Smi as a Int32, which will insert a UnsafeSmiUntag
+  --phi; // Using the Smi as an Int32, which will insert a UnsafeSmiUntag
 }
 
 %PrepareFunctionForOptimization(f);

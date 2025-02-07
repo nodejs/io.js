@@ -38,7 +38,6 @@
 #include <atomic>
 
 #include "src/base/lazy-instance.h"
-#include "src/base/win32-headers.h"
 #endif
 #include "src/base/cpu.h"
 #include "src/base/logging.h"
@@ -888,8 +887,8 @@ double ThreadTicks::TSCTicksPerSecond() {
   static const uint64_t tsc_initial = __rdtsc();
   static const uint64_t perf_counter_initial = QPCNowRaw();
 
-  // Make a another reading of the TSC and the performance counter every time
-  // that this function is called.
+  // Make another reading of the TSC and the performance counter every time
+  // this function is called.
   uint64_t tsc_now = __rdtsc();
   uint64_t perf_counter_now = QPCNowRaw();
 

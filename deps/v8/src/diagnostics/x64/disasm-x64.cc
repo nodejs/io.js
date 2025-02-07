@@ -1350,6 +1350,11 @@ int DisassemblerX64::AVXInstruction(uint8_t* data) {
         current += PrintRightOperand(current);
         AppendToBuffer(",%s", NameOfCPURegister(vvvv));
         break;
+      case 0x50:
+        AppendToBuffer("vpdpbssd %s,%s,", NameOfAVXRegister(regop),
+                       NameOfAVXRegister(vvvv));
+        current += PrintRightAVXOperand(current);
+        break;
       default:
         UnimplementedInstruction();
     }

@@ -90,6 +90,7 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
   V(ERR_INVALID_STATE, Error)                                                  \
   V(ERR_INVALID_THIS, TypeError)                                               \
   V(ERR_INVALID_URL, TypeError)                                                \
+  V(ERR_INVALID_URL_PATTERN, TypeError)                                        \
   V(ERR_INVALID_URL_SCHEME, TypeError)                                         \
   V(ERR_LOAD_SQLITE_EXTENSION, Error)                                          \
   V(ERR_MEMORY_ALLOCATION_FAILED, Error)                                       \
@@ -99,6 +100,7 @@ void OOMErrorHandler(const char* location, const v8::OOMDetails& details);
   V(ERR_MISSING_PLATFORM_FOR_WORKER, Error)                                    \
   V(ERR_MODULE_NOT_FOUND, Error)                                               \
   V(ERR_NON_CONTEXT_AWARE_DISABLED, Error)                                     \
+  V(ERR_OPERATION_FAILED, TypeError)                                           \
   V(ERR_OUT_OF_RANGE, RangeError)                                              \
   V(ERR_REQUIRE_ASYNC_MODULE, Error)                                           \
   V(ERR_SCRIPT_EXECUTION_INTERRUPTED, Error)                                   \

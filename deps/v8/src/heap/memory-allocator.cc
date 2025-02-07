@@ -34,6 +34,7 @@ void DeleteMemoryChunk(MemoryChunkMetadata* metadata) {
   DCHECK(!chunk->InReadOnlySpace());
   // The Metadata contains a VirtualMemory reservation and the destructor will
   // release the MemoryChunk.
+  DiscardSealedMemoryScope discard_scope("Deleting a memory chunk");
   if (chunk->IsLargePage()) {
     delete reinterpret_cast<LargePageMetadata*>(metadata);
   } else {
@@ -278,6 +279,7 @@ void MemoryAllocator::PartialFreeMemory(MemoryChunkMetadata* chunk,
          V8_HEAP_USE_BECORE_JIT_WRITE_PROTECT) &&
         !isolate_->jitless()) {
       DCHECK(isolate_->RequiresCodeRange());
+      DiscardSealedMemoryScope discard_scope("Partially free memory.");
       reservation->DiscardSystemPages(chunk->area_end(), page_size);
     } else {
       CHECK(reservation->SetPermissions(chunk->area_end(), page_size,

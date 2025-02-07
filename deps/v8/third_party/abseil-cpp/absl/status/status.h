@@ -653,7 +653,7 @@ class ABSL_ATTRIBUTE_TRIVIAL_ABI Status final {
 
   // Converts between StatusRep* and the external uintptr_t representation used
   // by rep_. See rep_ for details.
-  static uintptr_t PointerToRep(status_internal::StatusRep* r);
+  static uintptr_t PointerToRep(absl::Nonnull<status_internal::StatusRep*> r);
   static absl::Nonnull<const status_internal::StatusRep*> RepToPointer(
       uintptr_t r);
 

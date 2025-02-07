@@ -92,7 +92,7 @@ extern enum ArrayFromAsyncIterableResolveContextSlots extends intptr
 }
 
 extern macro AllocateRootFunctionWithContext(
-    constexpr intptr, FunctionContext): JSFunction;
+    constexpr intptr, FunctionContext, NativeContext): JSFunction;
 
 const kArrayFromAsyncIterableOnFulfilledSharedFun: constexpr intptr
     generates 'RootIndex::kArrayFromAsyncIterableOnFulfilledSharedFun';
@@ -139,13 +139,15 @@ macro CreateArrayFromAsyncIterableResolveContext(
       ArrayFromAsyncIterableResolveContextSlots::
           kArrayFromAsyncIterableResolveOnFulfilledFunctionSlot,
       AllocateRootFunctionWithContext(
-          kArrayFromAsyncIterableOnFulfilledSharedFun, resolveContext));
+          kArrayFromAsyncIterableOnFulfilledSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncIterableResolveContextSlots::
           kArrayFromAsyncIterableResolveOnRejectedFunctionSlot,
       AllocateRootFunctionWithContext(
-          kArrayFromAsyncIterableOnRejectedSharedFun, resolveContext));
+          kArrayFromAsyncIterableOnRejectedSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncIterableResolveContextSlots::
@@ -559,13 +561,15 @@ macro CreateArrayFromAsyncArrayLikeResolveContext(
       ArrayFromAsyncArrayLikeResolveContextSlots::
           kArrayFromAsyncArrayLikeResolveOnFulfilledFunctionSlot,
       AllocateRootFunctionWithContext(
-          kArrayFromAsyncArrayLikeOnFulfilledSharedFun, resolveContext));
+          kArrayFromAsyncArrayLikeOnFulfilledSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncArrayLikeResolveContextSlots::
           kArrayFromAsyncArrayLikeResolveOnRejectedFunctionSlot,
       AllocateRootFunctionWithContext(
-          kArrayFromAsyncArrayLikeOnRejectedSharedFun, resolveContext));
+          kArrayFromAsyncArrayLikeOnRejectedSharedFun, resolveContext,
+          nativeContext));
   InitContextSlot(
       resolveContext,
       ArrayFromAsyncArrayLikeResolveContextSlots::

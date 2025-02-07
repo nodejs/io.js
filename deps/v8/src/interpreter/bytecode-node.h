@@ -98,7 +98,7 @@ class V8_EXPORT_PRIVATE BytecodeNode final {
                                      Operands... operands) {                 \
     return Create<Bytecode::k##Name, __VA_ARGS__>(source_info, operands...); \
   }
-  BYTECODE_LIST(DEFINE_BYTECODE_NODE_CREATOR)
+  BYTECODE_LIST(DEFINE_BYTECODE_NODE_CREATOR, DEFINE_BYTECODE_NODE_CREATOR)
 #undef DEFINE_BYTECODE_NODE_CREATOR
 
   // Print to stream |os|.

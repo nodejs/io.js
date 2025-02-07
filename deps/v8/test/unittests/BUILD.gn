@@ -616,6 +616,7 @@ v8_source_set("v8_unittests_sources") {
       "wasm/struct-types-unittest.cc",
       "wasm/subtyping-unittest.cc",
       "wasm/wasm-code-manager-unittest.cc",
+      "wasm/wasm-code-pointer-table-unittest.cc",
       "wasm/wasm-compiler-unittest.cc",
       "wasm/wasm-disassembler-unittest-bad-name-section.wasm.inc",
       "wasm/wasm-disassembler-unittest-gc.wasm.inc",
@@ -737,7 +738,7 @@ v8_source_set("v8_unittests_sources") {
     if (v8_enable_webassembly) {
       sources += [ "wasm/trap-handler-native-unittest.cc" ]
     }
-  } else if (v8_current_cpu == "ppc" || v8_current_cpu == "ppc64") {
+  } else if (v8_current_cpu == "ppc64") {
     sources += [
       "assembler/disasm-ppc-unittest.cc",
       "assembler/macro-assembler-ppc-unittest.cc",

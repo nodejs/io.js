@@ -215,9 +215,10 @@ const add_all_32bit_int_result_6args = add_all_32bit_int_result_5args +
   result = overloaded_add_all();
   assertOptimized(overloaded_add_all);
 
-  // Only the call with less arguments goes falls back to the slow path.
-  assertEquals(4, fast_c_api.fast_call_count());
-  assertEquals(1, fast_c_api.slow_call_count());
+  // Only the calls with the correct number of parameters gets called
+  // with the fast API call, which are the calls with 5 and 6 parameters.
+  assertEquals(3, fast_c_api.fast_call_count());
+  assertEquals(2, fast_c_api.slow_call_count());
 
   assertEquals(add_all_32bit_int_result_4args, result[0]);
   assertEquals(add_all_32bit_int_result_5args, result[1]);

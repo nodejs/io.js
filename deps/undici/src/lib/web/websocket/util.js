@@ -87,7 +87,7 @@ function toArrayBuffer (buffer) {
   if (buffer.byteLength === buffer.buffer.byteLength) {
     return buffer.buffer
   }
-  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+  return new Uint8Array(buffer).buffer
 }
 
 /**
@@ -154,32 +154,6 @@ function isValidStatusCode (code) {
   }
 
   return code >= 3000 && code <= 4999
-}
-
-/**
- * @param {import('./websocket').Handler} handler
- * @param {number} code
- * @param {string|undefined} reason
- * @returns {void}
- */
-function failWebsocketConnection (handler, code, reason) {
-  // If _The WebSocket Connection is Established_ prior to the point where
-  // the endpoint is required to _Fail the WebSocket Connection_, the
-  // endpoint SHOULD send a Close frame with an appropriate status code
-  // (Section 7.4) before proceeding to _Close the WebSocket Connection_.
-  if (isEstablished(handler.readyState)) {
-    // avoid circular require - performance is not important here
-    const { closeWebSocketConnection } = require('./connection')
-    closeWebSocketConnection(handler, code, reason, false)
-  }
-
-  handler.controller.abort()
-
-  if (handler.socket?.destroyed === false) {
-    handler.socket.destroy()
-  }
-
-  handler.onFail(code, reason)
 }
 
 /**
@@ -350,7 +324,6 @@ module.exports = {
   fireEvent,
   isValidSubprotocol,
   isValidStatusCode,
-  failWebsocketConnection,
   websocketMessageReceived,
   utf8Decode,
   isControlFrame,

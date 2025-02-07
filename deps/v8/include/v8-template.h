@@ -72,8 +72,6 @@ class V8_EXPORT Template : public Data {
    * \param name The name of the property for which an accessor is added.
    * \param getter The callback to invoke when getting the property.
    * \param setter The callback to invoke when setting the property.
-   * \param data A piece of data that will be passed to the getter and setter
-   *   callbacks whenever they are invoked.
    * \param attribute The attributes of the property for which an accessor
    *   is added.
    */

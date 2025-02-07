@@ -274,13 +274,18 @@ suite('DatabaseSync.prototype.function()', () => {
       db.function('retString', () => { return 'foo'; });
       db.function('retBigInt', () => { return 5n; });
       db.function('retUint8Array', () => { return new Uint8Array([1, 2, 3]); });
+      db.function('retArrayBufferView', () => {
+        const arrayBuffer = new Uint8Array([1, 2, 3]).buffer;
+        return new DataView(arrayBuffer);
+      });
       const stmt = db.prepare(`SELECT
         retUndefined() AS retUndefined,
         retNull() AS retNull,
         retNumber() AS retNumber,
         retString() AS retString,
         retBigInt() AS retBigInt,
-        retUint8Array() AS retUint8Array
+        retUint8Array() AS retUint8Array,
+        retArrayBufferView() AS retArrayBufferView
       `);
       assert.deepStrictEqual(stmt.get(), {
         __proto__: null,
@@ -290,6 +295,7 @@ suite('DatabaseSync.prototype.function()', () => {
         retString: 'foo',
         retBigInt: 5,
         retUint8Array: new Uint8Array([1, 2, 3]),
+        retArrayBufferView: new Uint8Array([1, 2, 3]),
       });
     });
 
@@ -330,6 +336,40 @@ suite('DatabaseSync.prototype.function()', () => {
         code: 'ERR_SQLITE_ERROR',
         message: /Returned JavaScript value cannot be converted to a SQLite value/,
       });
+    });
+  });
+
+  suite('handles conflicting errors from SQLite and JavaScript', () => {
+    test('throws if value cannot fit in a number', () => {
+      const db = new DatabaseSync(':memory:');
+      const expected = { __proto__: null, id: 5, data: 'foo' };
+      db.function('custom', (arg) => {});
+      db.exec('CREATE TABLE test (id NUMBER NOT NULL PRIMARY KEY, data TEXT)');
+      db.prepare('INSERT INTO test (id, data) VALUES (?, ?)').run(5, 'foo');
+      assert.deepStrictEqual(db.prepare('SELECT * FROM test').get(), expected);
+      assert.throws(() => {
+        db.exec(`UPDATE test SET data = CUSTOM(${Number.MAX_SAFE_INTEGER + 1})`);
+      }, {
+        code: 'ERR_OUT_OF_RANGE',
+        message: /Value is too large to be represented as a JavaScript number: 9007199254740992/,
+      });
+      assert.deepStrictEqual(db.prepare('SELECT * FROM test').get(), expected);
+    });
+
+    test('propagates JavaScript errors', () => {
+      const db = new DatabaseSync(':memory:');
+      const expected = { __proto__: null, id: 5, data: 'foo' };
+      const err = new Error('boom');
+      db.function('throws', () => {
+        throw err;
+      });
+      db.exec('CREATE TABLE test (id NUMBER NOT NULL PRIMARY KEY, data TEXT)');
+      db.prepare('INSERT INTO test (id, data) VALUES (?, ?)').run(5, 'foo');
+      assert.deepStrictEqual(db.prepare('SELECT * FROM test').get(), expected);
+      assert.throws(() => {
+        db.exec('UPDATE test SET data = THROWS()');
+      }, err);
+      assert.deepStrictEqual(db.prepare('SELECT * FROM test').get(), expected);
     });
   });
 

@@ -1,7 +1,17 @@
 'use strict';
 const common = require('../common');
-if (!common.hasOpenSSL3)
+if (!common.hasCrypto) {
   common.skip('missing crypto, or OpenSSL version lower than 3');
+}
+
+const {
+  hasOpenSSL,
+  hasOpenSSL3,
+} = require('../common/crypto');
+
+if (!hasOpenSSL3) {
+  common.skip('missing crypto, or OpenSSL version lower than 3');
+}
 
 const fixtures = require('../common/fixtures');
 const { inspect } = require('util');
@@ -80,7 +90,7 @@ function test(cciphers, sciphers, cipher, cerr, serr, options) {
 const U = undefined;
 
 let expectedTLSAlertError = 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE';
-if (common.hasOpenSSL(3, 2)) {
+if (hasOpenSSL(3, 2)) {
   expectedTLSAlertError = 'ERR_SSL_SSL/TLS_ALERT_HANDSHAKE_FAILURE';
 }
 
@@ -117,7 +127,7 @@ test(U, 'AES256-SHA', 'TLS_AES_256_GCM_SHA384', U, U, { maxVersion: 'TLSv1.3' })
 // default, but work.
 // However, for OpenSSL32 AES_128 is not enabled due to the
 // default security level
-if (!common.hasOpenSSL(3, 2)) {
+if (!hasOpenSSL(3, 2)) {
   test('TLS_AES_128_CCM_8_SHA256', U,
        U, 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE', 'ERR_SSL_NO_SHARED_CIPHER');
 

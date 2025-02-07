@@ -322,7 +322,8 @@ TEST_F(ConcurrentSweeperTest, IncrementalSweeping) {
   testing::TestPlatform::DisableBackgroundTasksScope disable_concurrent_sweeper(
       &GetPlatform());
 
-  auto task_runner = GetPlatform().GetForegroundTaskRunner();
+  auto task_runner =
+      GetPlatform().GetForegroundTaskRunner(TaskPriority::kUserBlocking);
 
   // Create two unmarked objects.
   MakeGarbageCollected<NormalFinalizable>(GetAllocationHandle());

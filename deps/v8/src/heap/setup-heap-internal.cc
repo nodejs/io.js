@@ -320,7 +320,8 @@ void Heap::FinalizePartialMap(Tagged<Map> map) {
   ReadOnlyRoots roots(this);
   map->set_dependent_code(DependentCode::empty_dependent_code(roots));
   map->set_raw_transitions(Smi::zero());
-  map->SetInstanceDescriptors(isolate(), roots.empty_descriptor_array(), 0);
+  map->SetInstanceDescriptors(isolate(), roots.empty_descriptor_array(), 0,
+                              SKIP_WRITE_BARRIER);
   map->init_prototype_and_constructor_or_back_pointer(roots);
 }
 
@@ -778,7 +779,6 @@ bool Heap::CreateLateReadOnlyNonJSReceiverMaps() {
             wasm_dispatch_table);
 
     ALLOCATE_MAP(WEAK_CELL_TYPE, WeakCell::kSize, weak_cell)
-    ALLOCATE_VARSIZE_MAP(EXTERNAL_POINTER_ARRAY_TYPE, external_pointer_array)
     ALLOCATE_MAP(INTERPRETER_DATA_TYPE, InterpreterData::kSize,
                  interpreter_data)
     ALLOCATE_MAP(SHARED_FUNCTION_INFO_WRAPPER_TYPE,
@@ -1226,18 +1226,6 @@ bool Heap::CreateReadOnlyObjects() {
       ScopeInfo::CreateForShadowRealmNativeContext(isolate());
   set_shadow_realm_scope_info(*shadow_realm_scope_info);
 
-  // EmptyExternalPointerArray:
-  {
-    if (!AllocateRaw(ExternalPointerArray::SizeFor(0),
-                     AllocationType::kReadOnly)
-             .To(&obj))
-      return false;
-    obj->set_map_after_allocation(roots.external_pointer_array_map(),
-                                  SKIP_WRITE_BARRIER);
-    Cast<ExternalPointerArray>(obj)->set_length(0);
-    set_empty_external_pointer_array(Cast<ExternalPointerArray>(obj));
-  }
-
   // Initialize the wasm null_value.
 
 #ifdef V8_ENABLE_WEBASSEMBLY
@@ -1352,8 +1340,8 @@ void Heap::CreateInitialMutableObjects() {
 #ifdef V8_ENABLE_WEBASSEMBLY
   set_active_continuation(roots.undefined_value());
   set_active_suspender(roots.undefined_value());
-  set_js_to_wasm_wrappers(roots.empty_weak_array_list());
-  set_wasm_canonical_rtts(roots.empty_weak_array_list());
+  set_js_to_wasm_wrappers(roots.empty_weak_fixed_array());
+  set_wasm_canonical_rtts(roots.empty_weak_fixed_array());
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   set_script_list(roots.empty_weak_array_list());
@@ -1431,38 +1419,38 @@ void Heap::CreateInitialMutableObjects() {
   {
     DirectHandle<SharedFunctionInfo> info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncFunctionAwaitRejectClosure, 1);
-    set_async_function_await_reject_shared_fun(*info);
+    set_async_function_await_reject_closure_shared_fun(*info);
 
     info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncFunctionAwaitResolveClosure, 1);
-    set_async_function_await_resolve_shared_fun(*info);
+    set_async_function_await_resolve_closure_shared_fun(*info);
   }
 
   // Async generators:
   {
     DirectHandle<SharedFunctionInfo> info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncGeneratorAwaitResolveClosure, 1);
-    set_async_generator_await_resolve_shared_fun(*info);
+    set_async_generator_await_resolve_closure_shared_fun(*info);
 
     info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncGeneratorAwaitRejectClosure, 1);
-    set_async_generator_await_reject_shared_fun(*info);
+    set_async_generator_await_reject_closure_shared_fun(*info);
 
     info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncGeneratorYieldWithAwaitResolveClosure, 1);
-    set_async_generator_yield_with_await_resolve_shared_fun(*info);
+    set_async_generator_yield_with_await_resolve_closure_shared_fun(*info);
 
     info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncGeneratorReturnResolveClosure, 1);
-    set_async_generator_return_resolve_shared_fun(*info);
+    set_async_generator_return_resolve_closure_shared_fun(*info);
 
     info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncGeneratorReturnClosedResolveClosure, 1);
-    set_async_generator_return_closed_resolve_shared_fun(*info);
+    set_async_generator_return_closed_resolve_closure_shared_fun(*info);
 
     info = CreateSharedFunctionInfo(
         isolate(), Builtin::kAsyncGeneratorReturnClosedRejectClosure, 1);
-    set_async_generator_return_closed_reject_shared_fun(*info);
+    set_async_generator_return_closed_reject_closure_shared_fun(*info);
   }
 
   // AsyncIterator:
@@ -1606,7 +1594,15 @@ void Heap::CreateInitialMutableObjects() {
   // Async Disposable Stack
   {
     DirectHandle<SharedFunctionInfo> info = CreateSharedFunctionInfo(
-        isolate_, Builtin::kAsyncDisposeFromSyncDispose, 0);
+        isolate_, Builtin::kAsyncDisposableStackOnFulfilled, 0);
+    set_async_disposable_stack_on_fulfilled_shared_fun(*info);
+
+    info = CreateSharedFunctionInfo(
+        isolate_, Builtin::kAsyncDisposableStackOnRejected, 0);
+    set_async_disposable_stack_on_rejected_shared_fun(*info);
+
+    info = CreateSharedFunctionInfo(isolate_,
+                                    Builtin::kAsyncDisposeFromSyncDispose, 0);
     set_async_dispose_from_sync_dispose_shared_fun(*info);
   }
 

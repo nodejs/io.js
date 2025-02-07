@@ -16,9 +16,7 @@
 #include <memory>
 #include <string>
 
-namespace node {
-namespace crypto {
-
+namespace node::crypto {
 enum KeyType {
   kKeyTypeSecret,
   kKeyTypePublic,
@@ -33,10 +31,11 @@ enum KeyEncodingContext {
 
 enum class ParseKeyResult {
   kParseKeyNotRecognized =
-      static_cast<int>(EVPKeyPointer::PKParseError::NOT_RECOGNIZED),
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::NOT_RECOGNIZED),
   kParseKeyNeedPassphrase =
-      static_cast<int>(EVPKeyPointer::PKParseError::NEED_PASSPHRASE),
-  kParseKeyFailed = static_cast<int>(EVPKeyPointer::PKParseError::FAILED),
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::NEED_PASSPHRASE),
+  kParseKeyFailed =
+      static_cast<int>(ncrypto::EVPKeyPointer::PKParseError::FAILED),
   kParseKeyOk,
 };
 
@@ -45,7 +44,8 @@ class KeyObjectData final : public MemoryRetainer {
  public:
   static KeyObjectData CreateSecret(ByteSource key);
 
-  static KeyObjectData CreateAsymmetric(KeyType type, EVPKeyPointer&& pkey);
+  static KeyObjectData CreateAsymmetric(KeyType type,
+                                        ncrypto::EVPKeyPointer&& pkey);
 
   KeyObjectData(std::nullptr_t = nullptr);
 
@@ -55,7 +55,7 @@ class KeyObjectData final : public MemoryRetainer {
 
   // These functions allow unprotected access to the raw key material and should
   // only be used to implement cryptographic operations requiring the key.
-  const EVPKeyPointer& GetAsymmetricKey() const;
+  const ncrypto::EVPKeyPointer& GetAsymmetricKey() const;
   const char* GetSymmetricKey() const;
   size_t GetSymmetricKeySize() const;
 
@@ -83,12 +83,12 @@ class KeyObjectData final : public MemoryRetainer {
                               unsigned int* offset,
                               KeyEncodingContext context);
 
-  v8::Maybe<void> ToEncodedPublicKey(
+  bool ToEncodedPublicKey(
       Environment* env,
       const ncrypto::EVPKeyPointer::PublicKeyEncodingConfig& config,
       v8::Local<v8::Value>* out);
 
-  v8::Maybe<void> ToEncodedPrivateKey(
+  bool ToEncodedPrivateKey(
       Environment* env,
       const ncrypto::EVPKeyPointer::PrivateKeyEncodingConfig& config,
       v8::Local<v8::Value>* out);
@@ -103,11 +103,11 @@ class KeyObjectData final : public MemoryRetainer {
 
  private:
   explicit KeyObjectData(ByteSource symmetric_key);
-  explicit KeyObjectData(KeyType type, EVPKeyPointer&& pkey);
+  explicit KeyObjectData(KeyType type, ncrypto::EVPKeyPointer&& pkey);
 
   static KeyObjectData GetParsedKey(KeyType type,
                                     Environment* env,
-                                    EVPKeyPointer&& pkey,
+                                    ncrypto::EVPKeyPointer&& pkey,
                                     ParseKeyResult ret,
                                     const char* default_msg);
 
@@ -116,10 +116,10 @@ class KeyObjectData final : public MemoryRetainer {
 
   struct Data {
     const ByteSource symmetric_key;
-    const EVPKeyPointer asymmetric_key;
+    const ncrypto::EVPKeyPointer asymmetric_key;
     explicit Data(ByteSource symmetric_key)
         : symmetric_key(std::move(symmetric_key)) {}
-    explicit Data(EVPKeyPointer asymmetric_key)
+    explicit Data(ncrypto::EVPKeyPointer asymmetric_key)
         : asymmetric_key(std::move(asymmetric_key)) {}
   };
   std::shared_ptr<Data> data_;
@@ -376,15 +376,11 @@ WebCryptoKeyExportStatus PKEY_SPKI_Export(const KeyObjectData& key_data,
 WebCryptoKeyExportStatus PKEY_PKCS8_Export(const KeyObjectData& key_data,
                                            ByteSource* out);
 
-int GetOKPCurveFromName(const char* name);
-
 namespace Keys {
 void Initialize(Environment* env, v8::Local<v8::Object> target);
 void RegisterExternalReferences(ExternalReferenceRegistry* registry);
 }  // namespace Keys
-
-}  // namespace crypto
-}  // namespace node
+}  // namespace node::crypto
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 #endif  // SRC_CRYPTO_CRYPTO_KEYS_H_

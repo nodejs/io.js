@@ -8,10 +8,13 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 // Helpers and constants.
 const kHeapObjectTag = 1;
-const kWasmInstanceObjectModuleOffset = 16;
-const kWasmModuleObjectManagedNativeModuleOffset = 12;
-const kWasmModuleObjectScriptOffset = 16;
-const kScriptManagedNativeModuleOffset = 40;
+const kWasmInstanceObjectType = Sandbox.getInstanceTypeIdFor('WASM_INSTANCE_OBJECT_TYPE');
+const kWasmModuleObjectType = Sandbox.getInstanceTypeIdFor('WASM_MODULE_OBJECT_TYPE');
+const kScriptType = Sandbox.getInstanceTypeIdFor('SCRIPT_TYPE');
+const kWasmInstanceObjectModuleOffset = Sandbox.getFieldOffset(kWasmInstanceObjectType, 'module_object');
+const kWasmModuleObjectManagedNativeModuleOffset = Sandbox.getFieldOffset(kWasmModuleObjectType, 'managed_native_module');
+const kWasmModuleObjectScriptOffset = Sandbox.getFieldOffset(kWasmModuleObjectType, 'script');
+const kScriptWasmManagedNativeModuleOffset = Sandbox.getFieldOffset(kScriptType, 'wasm_managed_native_module');
 
 const memory = new DataView(new Sandbox.MemoryView(0, 0x100000000));
 
@@ -53,9 +56,9 @@ function manipulate_instance() {
   // script2->managed_native_module.
   assertEquals(
       managed_native_module_2,
-      getField(script2_addr, kScriptManagedNativeModuleOffset));
+      getField(script2_addr, kScriptWasmManagedNativeModuleOffset));
   setField(
-      script1_addr, kScriptManagedNativeModuleOffset, managed_native_module_2);
+      script1_addr, kScriptWasmManagedNativeModuleOffset, managed_native_module_2);
 
   // Trigger GCs such that module1 is garbage-collected.
   print('Triggering GCs....');

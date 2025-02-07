@@ -20,7 +20,7 @@
 #if V8_OS_QNX
 #include <sys/syspage.h>  // cpuinfo
 #endif
-#if V8_OS_LINUX && (V8_HOST_ARCH_PPC || V8_HOST_ARCH_PPC64)
+#if V8_OS_LINUX && V8_HOST_ARCH_PPC64
 #include <elf.h>
 #endif
 #if V8_OS_AIX
@@ -54,8 +54,6 @@
 #include "src/base/platform/wrappers.h"
 #if V8_OS_WIN
 #include <windows.h>
-
-#include "src/base/win32-headers.h"
 #endif
 
 namespace v8 {
@@ -430,6 +428,7 @@ CPU::CPU()
       has_avx_(false),
       has_avx2_(false),
       has_avx_vnni_(false),
+      has_avx_vnni_int8_(false),
       has_fma3_(false),
       has_f16c_(false),
       has_bmi1_(false),
@@ -512,6 +511,7 @@ CPU::CPU()
     has_avx_ = (cpu_info[2] & 0x10000000) != 0;
     has_avx2_ = (cpu_info70[1] & 0x00000020) != 0;
     has_avx_vnni_ = (cpu_info71[0] & 0x00000010) != 0;
+    has_avx_vnni_int8_ = (cpu_info71[3] & 0x00000020) != 0;
     has_fma3_ = (cpu_info[2] & 0x00001000) != 0;
     has_f16c_ = (cpu_info[2] & 0x20000000) != 0;
     // CET shadow stack feature flag. See
@@ -900,7 +900,7 @@ CPU::CPU()
 #endif  // V8_OS_IOS
 #endif  // V8_OS_WIN
 
-#elif V8_HOST_ARCH_PPC || V8_HOST_ARCH_PPC64
+#elif V8_HOST_ARCH_PPC64
 
 #ifndef USE_SIMULATOR
 #if V8_OS_LINUX
@@ -908,11 +908,7 @@ CPU::CPU()
   char* auxv_cpu_type = nullptr;
   FILE* fp = base::Fopen("/proc/self/auxv", "r");
   if (fp != nullptr) {
-#if V8_TARGET_ARCH_PPC64
     Elf64_auxv_t entry;
-#else
-    Elf32_auxv_t entry;
-#endif
     for (;;) {
       size_t n = fread(&entry, sizeof(entry), 1, fp);
       if (n == 0 || entry.a_type == AT_NULL) {
@@ -941,18 +937,6 @@ CPU::CPU()
       part_ = kPPCPower9;
     } else if (strcmp(auxv_cpu_type, "power8") == 0) {
       part_ = kPPCPower8;
-    } else if (strcmp(auxv_cpu_type, "power7") == 0) {
-      part_ = kPPCPower7;
-    } else if (strcmp(auxv_cpu_type, "power6") == 0) {
-      part_ = kPPCPower6;
-    } else if (strcmp(auxv_cpu_type, "power5") == 0) {
-      part_ = kPPCPower5;
-    } else if (strcmp(auxv_cpu_type, "ppc970") == 0) {
-      part_ = kPPCG5;
-    } else if (strcmp(auxv_cpu_type, "ppc7450") == 0) {
-      part_ = kPPCG4;
-    } else if (strcmp(auxv_cpu_type, "pa6t") == 0) {
-      part_ = kPPCPA6T;
     }
   }
 
@@ -966,15 +950,6 @@ CPU::CPU()
       break;
     case POWER_8:
       part_ = kPPCPower8;
-      break;
-    case POWER_7:
-      part_ = kPPCPower7;
-      break;
-    case POWER_6:
-      part_ = kPPCPower6;
-      break;
-    case POWER_5:
-      part_ = kPPCPower5;
       break;
   }
 #endif  // V8_OS_AIX

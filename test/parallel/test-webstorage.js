@@ -69,7 +69,7 @@ test('sessionStorage is not persisted', async () => {
 test('localStorage throws without --localstorage-file ', async () => {
   const cp = await spawnPromisified(process.execPath, [
     '--experimental-webstorage',
-    '-pe', 'localStorage === global.localStorage',
+    '-pe', 'localStorage === globalThis.localStorage',
   ]);
   assert.strictEqual(cp.code, 1);
   assert.strictEqual(cp.signal, null);
@@ -81,7 +81,7 @@ test('localStorage is not persisted if it is unused', async () => {
   const cp = await spawnPromisified(process.execPath, [
     '--experimental-webstorage',
     '--localstorage-file', nextLocalStorage(),
-    '-pe', 'localStorage === global.localStorage',
+    '-pe', 'localStorage === globalThis.localStorage',
   ]);
   assert.strictEqual(cp.code, 0);
   assert.match(cp.stdout, /true/);

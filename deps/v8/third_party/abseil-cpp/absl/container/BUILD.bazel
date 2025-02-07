@@ -682,6 +682,7 @@ cc_library(
         ":common",
         ":compressed_tuple",
         ":container_memory",
+        ":hash_function_defaults",
         ":hash_policy_traits",
         ":hashtable_debug_hooks",
         ":hashtablez_sampler",

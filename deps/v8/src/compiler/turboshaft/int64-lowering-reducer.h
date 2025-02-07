@@ -538,7 +538,10 @@ class Int64LoweringReducer : public Next {
         auto [low, high] = Unpack(V<Word64>::Cast(inputs[i]));
         builder.AddInput(MachineType::Int32(), low);
         builder.AddInput(MachineType::Int32(), high);
-        if (i < inlined + function_info->parameter_count()) {
+        // Note that the first input (after the optional parent FrameState) is
+        // the JSClosure, so the first parameter is at index 1 (+1 in case of
+        // nested inlining).
+        if (i <= inlined + function_info->parameter_count()) {
           ++lowered_parameter_count;
         } else {
           ++lowered_local_count;

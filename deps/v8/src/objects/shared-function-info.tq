@@ -45,13 +45,12 @@ bitfield struct SharedFunctionInfoFlags2 extends uint8 {
   class_scope_has_private_brand: bool: 1 bit;
   has_static_private_methods_or_accessors: bool: 1 bit;
   // In case another bit is needed here it should be possible to combine
-  // is_sparkplug_compiling, sparkplug_compiled, cached_tiering_decision, and
-  // function_context_independent_compiled into a SharedTieringState enum
-  // using only 4 bits.
+  // is_sparkplug_compiling, cached_tiering_decision, and
+  // function_context_independent_compiled into a SharedTieringState enum using
+  // only 4 bits.
   is_sparkplug_compiling: bool: 1 bit;
   maglev_compilation_failed: bool: 1 bit;
-  sparkplug_compiled: bool: 1 bit;
-  cached_tiering_decision: CachedTieringDecision: 2 bit;
+  cached_tiering_decision: CachedTieringDecision: 3 bit;
   function_context_independent_compiled: bool: 1 bit;
 }
 

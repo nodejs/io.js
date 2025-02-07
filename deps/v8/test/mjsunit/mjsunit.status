@@ -41,8 +41,6 @@
   'compiler/fast-api-helpers': [SKIP],
   'typedarray-helpers': [SKIP],
 
-  # TODO(ahaas): Fix generic wasm-to-js wrapper tierup test.
-  'wasm/wasm-to-js-tierup': [SKIP],
   # All tests in the bug directory are expected to fail.
   'bugs/*': [FAIL],
 
@@ -411,6 +409,12 @@
 
   # https://crbug.com/v8/13916
   'readonly': [SKIP],
+
+  # Bug(362522337)
+  'wasm/growable-stacks': [SKIP],
+
+  # Bug(364804226)
+  'wasm/wrapper-compilation': [SKIP],
 }],  # 'gc_stress'
 
 ##############################################################################
@@ -564,6 +568,7 @@
   # --experimental-wasm-stack-switching
   'regress/wasm/regress-v8-14471': [SKIP],
   'wasm/stack-switching*': [SKIP],
+  'wasm/growable-stacks': [SKIP],
 
   # --experimental-wasm-stringref
   'regress/wasm/regress-324475066': [SKIP],
@@ -1126,7 +1131,7 @@
 }],  # 'arch in (mips64el, mips64)'
 
 ##############################################################################
-['arch in (mips64el, mips64, ppc, ppc64)', {
+['arch in (mips64el, mips64, ppc64)', {
   # These tests fail because qNaN and sNaN values are encoded differently on
   # MIPS and ARM/x86 architectures
   'wasm/float-constant-folding': [SKIP],
@@ -1344,7 +1349,7 @@
   'wasm/lazy-compilation': [SKIP],
 
   # Tier down/up Wasm functions is non-deterministic with
-  # multiple isolates, as dynamic tiering relies on a array shared
+  # multiple isolates, as dynamic tiering relies on an array shared
   # in the module, that can be modified by all instances.
   'wasm/code-flushing-single-isolate': [SKIP],
   'wasm/enter-and-leave-debug-state': [SKIP],
@@ -1698,7 +1703,7 @@
 
   # Goes OOM on ODROID devices: https://crbug.com/v8/9026
   # Too slow on PPC: https://crbug.com/v8/9246
-  'es6/large-classes-properties': [PASS, SLOW, ['(arch == arm and not simulator_run) or arch in [ppc, ppc64]', SKIP]],
+  'es6/large-classes-properties': [PASS, SLOW, ['(arch == arm and not simulator_run) or arch == ppc64', SKIP]],
   'regress/regress-1122': [PASS, ['tsan', SKIP]],
 
   # Too slow with gc_stress on arm64.
@@ -2064,6 +2069,7 @@
   'regress/wasm/regress-341947685': [SKIP],
   'regress/wasm/regress-343748812': [SKIP],
   'regress/wasm/regress-353913485': [SKIP],
+  'regress/wasm/regress-360052650': [SKIP],
   'regress/wasm/regress-crbug-1338980': [SKIP],
   'regress/wasm/regress-crbug-1355070': [SKIP],
   'regress/wasm/regress-crbug-1356718': [SKIP],
@@ -2135,6 +2141,8 @@
   'wasm/stack-switching-export': [SKIP],
   'wasm/stack-switching-generic-wrapper': [SKIP],
   'regress/wasm/regress-v8-14471': [SKIP],
+  'regress/wasm/regress-346597059': [SKIP],
+  'regress/wasm/regress-349640002': [SKIP],
   'compiler/regress-347724915': [SKIP],
 
   # TODO(v8:14581): Re-enable this test once TransitionElementsKindOrCheckMap is
@@ -2149,137 +2157,6 @@
   'regress/regress-crbug-820312': [SKIP],
 }], # conservative_stack_scanning
 
-################################################################################
-['third_party_heap', {
-  # Requires --concurrent_inlining / --finalize_streaming_on_background:
-  'regress/regress-1220974': [SKIP],
-  'regress-1146106': [SKIP],
-  'compiler/bound-functions-serialize': [SKIP],
-  'regress/regress-1003730': [SKIP],
-  'regress/regress-1168435': [SKIP],
-  # Asserts %InLargeObjectSpace
-  'regress/regress-542823': [SKIP],
-  # Requires --allocation_site_pretenuring
-  'compiler/deopt-pretenure': [SKIP],
-  # Requires --concurrent_recompilation
-  'compiler/concurrent-invalidate-transition-map': [SKIP],
-  'compiler/concurrent-proto-change': [SKIP],
-  'compiler/manual-concurrent-recompile': [SKIP],
-  'compiler/regress-905555': [SKIP],
-  'compiler/regress-905555-2': [SKIP],
-  'compiler/regress-9945-1': [SKIP],
-  'concurrent-initial-prototype-change-1': [SKIP],
-  'concurrent-initial-prototype-change-2': [SKIP],
-  'regress/regress-embedded-cons-string': [SKIP],
-  # Requires a second isolate
-  'regress/regress-1212404': [SKIP],
-  'resizablearraybuffer-growablesharedarraybuffer': [SKIP],
-  'regress/regress-1205290': [SKIP],
-  'compiler/regress-725743': [SKIP],
-  'd8/d8-fuzzable-worker': [SKIP],
-  'd8/d8-worker': [SKIP],
-  'd8/d8-worker-script': [SKIP],
-  'd8/d8-worker-sharedarraybuffer': [SKIP],
-  'd8/d8-worker-shutdown': [SKIP],
-  'd8/d8-worker-shutdown-empty': [SKIP],
-  'd8/d8-worker-shutdown-gc': [SKIP],
-  'd8/d8-worker-shutdown-spawn': [SKIP],
-  'd8/d8-worker-spawn-worker': [SKIP],
-  'deserialize-optimize-inner': [SKIP],
-  'deserialize-reference': [SKIP],
-  'harmony/atomics-value-check': [SKIP],
-  'harmony/atomics-waitasync-1thread-2timeout': [SKIP],
-  'harmony/atomics-waitasync-1thread-buffer-out-of-scope-timeout': [SKIP],
-  'harmony/atomics-waitasync-1thread-timeout': [SKIP],
-  'harmony/atomics-waitasync-1thread-timeouts-and-no-timeouts': [SKIP],
-  'harmony/atomics-waitasync-worker-shutdown-before-wait-finished-2-waits': [SKIP],
-  'harmony/atomics-waitasync-worker-shutdown-before-wait-finished-2-workers': [SKIP],
-  'harmony/atomics-waitasync-worker-shutdown-before-wait-finished-no-timeout': [SKIP],
-  'harmony/atomics-waitasync-worker-shutdown-before-wait-finished-timeout': [SKIP],
-  'harmony/error-cause': [SKIP],
-  'harmony/futex': [SKIP],
-  'harmony/sharedarraybuffer-worker-gc-stress': [SKIP],
-  'regress/regress-1006629': [SKIP],
-  'regress/regress-4271': [SKIP],
-  'regress/regress-821368': [SKIP],
-  'regress/regress-9383': [SKIP],
-  'regress/regress-chromium-1194026': [SKIP],
-  'regress/regress-crbug-1162473': [SKIP],
-  'regress/regress-crbug-465564': [SKIP],
-  'regress/regress-crbug-503578': [SKIP],
-  'regress/regress-crbug-503698': [SKIP],
-  'regress/regress-crbug-503968': [SKIP],
-  'regress/regress-crbug-503991': [SKIP],
-  'regress/regress-crbug-504136': [SKIP],
-  'regress/regress-crbug-504727': [SKIP],
-  'regress/regress-crbug-505778': [SKIP],
-  'regress/regress-crbug-506549': [SKIP],
-  'regress/regress-crbug-511880': [SKIP],
-  'regress/regress-crbug-514081': [SKIP],
-  'regress/regress-crbug-518747': [SKIP],
-  'regress/regress-crbug-522496': [SKIP],
-  'regress/regress-crbug-523919': [SKIP],
-  'regress/regress-crbug-722871': [SKIP],
-  'regress/wasm/regress-1010272': [SKIP],
-  'regress/wasm/regress-1067621': [SKIP],
-  'regress/wasm/regress-643595': [SKIP],
-  'regress/wasm/regress-674447': [SKIP],
-  'regress/wasm/regress-801850': [SKIP],
-  'regress/wasm/regress-803427': [SKIP],
-  'regress/wasm/regress-8059': [SKIP],
-  'regress/wasm/regress-808012': [SKIP],
-  'regress/wasm/regress-808848': [SKIP],
-  'regress/wasm/regress-8533': [SKIP],
-  'serialize-after-execute': [SKIP],
-  'serialize-ic': [SKIP],
-  'wasm/compare-exchange-stress': [SKIP],
-  'wasm/compare-exchange64-stress': [SKIP],
-  'wasm/futex': [SKIP],
-  'wasm/grow-shared-memory': [SKIP],
-  'wasm/shared-arraybuffer-worker-simple-gc': [SKIP],
-  'wasm/shared-memory-worker-simple-gc': [SKIP],
-  'wasm/shared-memory-worker-stress': [SKIP],
-  'wasm/worker-memory': [SKIP],
-  'wasm/worker-module': [SKIP],
-  # Timeout (too many GCs)
-  'wasm/many-memories-no-trap-handler': [SKIP],
-  'wasm/memory_2gb_oob': [SKIP],
-  'wasm/memory_1gb_oob': [SKIP],
-  'wasm/memory_4gb_oob': [SKIP],
-  # Performs GC
-  'code-coverage-precise': [SKIP],
-  'compiler/monomorphic-named-load-with-no-map': [SKIP],
-  'harmony/weakrefs/cleanup': [SKIP],
-  'harmony/weakrefs/cleanup-from-different-realm': [SKIP],
-  'harmony/weakrefs/cleanup-is-not-a-microtask': [SKIP],
-  'harmony/weakrefs/cleanup-on-detached-realm': [SKIP],
-  'harmony/weakrefs/cleanup-proxy-from-different-realm': [SKIP],
-  'harmony/weakrefs/cleanupsome': [SKIP],
-  'harmony/weakrefs/cleanupsome-2': [SKIP],
-  'harmony/weakrefs/finalizationregistry-and-weakref': [SKIP],
-  'harmony/weakrefs/finalizationregistry-keeps-holdings-alive': [SKIP],
-  'harmony/weakrefs/finalizationregistry-scheduled-for-cleanup-multiple-times': [SKIP],
-  'harmony/weakrefs/multiple-dirty-finalization-groups': [SKIP],
-  'harmony/weakrefs/reentrant-gc-from-cleanup': [SKIP],
-  'harmony/weakrefs/two-weakrefs': [SKIP],
-  'harmony/weakrefs/undefined-holdings': [SKIP],
-  'harmony/weakrefs/unregister-after-cleanup': [SKIP],
-  'harmony/weakrefs/unregister-inside-cleanup': [SKIP],
-  'harmony/weakrefs/unregister-inside-cleanup2': [SKIP],
-  'harmony/weakrefs/unregister-inside-cleanup3': [SKIP],
-  'harmony/weakrefs/unregister-many': [SKIP],
-  'harmony/weakrefs/weak-cell-basics': [SKIP],
-  'harmony/weakrefs/weak-unregistertoken': [SKIP],
-  'harmony/weakrefs/weakref-creation-keeps-alive': [SKIP],
-  'harmony/weakrefs/weakref-deref-keeps-alive': [SKIP],
-  'measure-memory': [SKIP],
-  'measure-memory-multiple-realms': [SKIP],
-  'regress/regress-936077': [SKIP],
-  'regress/wasm/regress-827806': [SKIP],
-  'wasm/compiled-module-management': [SKIP],
-  'wasm/shared-memory-gc-stress': [SKIP],
-}], # third_party_heap
-
 ##############################################################################
 ['(arch != x64 and arch != arm64 and arch != ia32 and arch != arm and arch != riscv64 and arch != loong64) or (simulator_run and conservative_stack_scanning)', {
   # Stack switching is only supported on x64/arm64/ia32/arm/riscv64/loong64.
@@ -2289,8 +2166,17 @@
   'wasm/stack-switching-generic-wrapper': [SKIP],
   'regress/wasm/regress-v8-14471': [SKIP],
   'regress/wasm/regress-336852356': [SKIP],
-  'regress/wasm/regress-336358915': [SKIP]
+  'regress/wasm/regress-336358915': [SKIP],
+  'regress/wasm/regress-342522151': [SKIP],
+  'regress/wasm/regress-349640002': [SKIP],
+  'regress/wasm/regress-364667545': [SKIP]
 }],  # (arch != x64 and arch != arm64 and arch != ia32 and arch != arm and arch != riscv64 and arch != loong64)
+
+##############################################################################
+['(arch != arm64 and arch != x64) or conservative_stack_scanning', {
+  # Growable stacks are only supported on arm64 and x64.
+  'wasm/growable-stacks': [SKIP]
+}],  # (arch != arm64 and arch != x64)
 
 ##############################################################################
 ['arch != x64 and arch != arm64 and arch != loong64 and arch != mips64', {
@@ -2316,6 +2202,8 @@
   'regress/wasm/regress-350779988': [SKIP],
   'regress/wasm/regress-353582136': [SKIP],
   'regress/wasm/regress-353913485': [SKIP],
+  'regress/wasm/regress-363826217': [SKIP],
+  'regress/wasm/regress-364360260': [SKIP],
 }],
 
 ##############################################################################
@@ -2479,5 +2367,12 @@
   # Random Wasm module generation is not available on official builds.
   'wasm/generate-random-module': [FAIL],
 }],  # 'official_build'
+
+##############################################################################
+['leaptiering', {
+  # Skip tests that test the old tiering behavior.
+  'baseline/test-baseline': [SKIP],
+  'baseline/cross-realm': [SKIP],
+}],  # 'leaptiering'
 
 ]

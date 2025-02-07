@@ -25,26 +25,10 @@
 
 namespace v8::internal::wasm {
 
-enum MemoryProtectionMode {
-  kNoProtection,
-  kPku,
-};
-
-const char* MemoryProtectionModeToString(MemoryProtectionMode mode) {
-  switch (mode) {
-    case kNoProtection:
-      return "NoProtection";
-    case kPku:
-      return "Pku";
-  }
-}
-
 class MemoryProtectionTest : public TestWithNativeContext {
  public:
-  void Initialize(MemoryProtectionMode mode) {
+  void SetUp() override {
     v8_flags.wasm_lazy_compilation = false;
-    mode_ = mode;
-    v8_flags.memory_protection_keys = (mode == kPku);
     // The key is initially write-protected.
     CHECK_IMPLIES(WasmCodeManager::HasMemoryProtectionKeySupport(),
                   !WasmCodeManager::MemoryProtectionKeyWritable());
@@ -86,8 +70,7 @@ class MemoryProtectionTest : public TestWithNativeContext {
     if (V8_HAS_PTHREAD_JIT_WRITE_PROTECT || V8_HAS_BECORE_JIT_WRITE_PROTECT) {
       return false;
     }
-    bool param_has_pku = mode_ == kPku;
-    return param_has_pku && WasmCodeManager::HasMemoryProtectionKeySupport();
+    return WasmCodeManager::HasMemoryProtectionKeySupport();
   }
 
  private:
@@ -117,40 +100,23 @@ class MemoryProtectionTest : public TestWithNativeContext {
     return native_module;
   }
 
-  MemoryProtectionMode mode_;
   std::shared_ptr<NativeModule> native_module_;
   WasmCodeRefScope code_refs_;
   WasmCode* code_;
 };
 
-class ParameterizedMemoryProtectionTest
-    : public MemoryProtectionTest,
-      public ::testing::WithParamInterface<MemoryProtectionMode> {
- public:
-  void SetUp() override { Initialize(GetParam()); }
-};
-
-std::string PrintMemoryProtectionTestParam(
-    ::testing::TestParamInfo<MemoryProtectionMode> info) {
-  return MemoryProtectionModeToString(info.param);
-}
-
-INSTANTIATE_TEST_SUITE_P(MemoryProtection, ParameterizedMemoryProtectionTest,
-                         ::testing::Values(kNoProtection, kPku),
-                         PrintMemoryProtectionTestParam);
-
-TEST_P(ParameterizedMemoryProtectionTest, CodeNotWritableAfterCompilation) {
+TEST_F(MemoryProtectionTest, CodeNotWritableAfterCompilation) {
   CompileModule();
   AssertCodeEventuallyProtected();
 }
 
-TEST_P(ParameterizedMemoryProtectionTest, CodeWritableWithinScope) {
+TEST_F(MemoryProtectionTest, CodeWritableWithinScope) {
   CompileModule();
   CodeSpaceWriteScope write_scope;
   WriteToCode();
 }
 
-TEST_P(ParameterizedMemoryProtectionTest, CodeNotWritableAfterScope) {
+TEST_F(MemoryProtectionTest, CodeNotWritableAfterScope) {
   CompileModule();
   {
     CodeSpaceWriteScope write_scope;
@@ -162,8 +128,7 @@ TEST_P(ParameterizedMemoryProtectionTest, CodeNotWritableAfterScope) {
 #if V8_OS_POSIX && !V8_OS_FUCHSIA
 class ParameterizedMemoryProtectionTestWithSignalHandling
     : public MemoryProtectionTest,
-      public ::testing::WithParamInterface<
-          std::tuple<MemoryProtectionMode, bool, bool>> {
+      public ::testing::WithParamInterface<std::tuple<bool, bool>> {
  public:
   class SignalHandlerScope {
    public:
@@ -218,8 +183,6 @@ class ParameterizedMemoryProtectionTestWithSignalHandling
     // These are accessed from the signal handler.
     static SignalHandlerScope* current_handler_scope_;
   };
-
-  void SetUp() override { Initialize(std::get<0>(GetParam())); }
 };
 
 // static
@@ -228,21 +191,18 @@ ParameterizedMemoryProtectionTestWithSignalHandling::SignalHandlerScope*
         current_handler_scope_ = nullptr;
 
 std::string PrintMemoryProtectionAndSignalHandlingTestParam(
-    ::testing::TestParamInfo<std::tuple<MemoryProtectionMode, bool, bool>>
-        info) {
-  MemoryProtectionMode protection_mode = std::get<0>(info.param);
-  const bool write_in_signal_handler = std::get<1>(info.param);
-  const bool open_write_scope = std::get<2>(info.param);
-  return std::string{MemoryProtectionModeToString(protection_mode)} + "_" +
-         (write_in_signal_handler ? "Write" : "NoWrite") + "_" +
+    ::testing::TestParamInfo<std::tuple<bool, bool>> info) {
+  const bool write_in_signal_handler = std::get<0>(info.param);
+  const bool open_write_scope = std::get<1>(info.param);
+  return std::string(write_in_signal_handler ? "Write" : "NoWrite") + "_" +
          (open_write_scope ? "WithScope" : "NoScope");
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    MemoryProtection, ParameterizedMemoryProtectionTestWithSignalHandling,
-    ::testing::Combine(::testing::Values(kNoProtection, kPku),
-                       ::testing::Bool(), ::testing::Bool()),
-    PrintMemoryProtectionAndSignalHandlingTestParam);
+INSTANTIATE_TEST_SUITE_P(MemoryProtection,
+                         ParameterizedMemoryProtectionTestWithSignalHandling,
+                         ::testing::Combine(::testing::Bool(),
+                                            ::testing::Bool()),
+                         PrintMemoryProtectionAndSignalHandlingTestParam);
 
 TEST_P(ParameterizedMemoryProtectionTestWithSignalHandling, TestSignalHandler) {
   // We must run in the "threadsafe" mode in order to make the spawned process
@@ -252,8 +212,8 @@ TEST_P(ParameterizedMemoryProtectionTestWithSignalHandling, TestSignalHandler) {
   // (see https://google.github.io/googletest/reference/assertions.html)
   CHECK_EQ("threadsafe", GTEST_FLAG_GET(death_test_style));
 
-  const bool write_in_signal_handler = std::get<1>(GetParam());
-  const bool open_write_scope = std::get<2>(GetParam());
+  const bool write_in_signal_handler = std::get<0>(GetParam());
+  const bool open_write_scope = std::get<1>(GetParam());
   CompileModule();
   SignalHandlerScope signal_handler_scope;
 

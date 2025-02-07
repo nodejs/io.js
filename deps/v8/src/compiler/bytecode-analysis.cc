@@ -217,7 +217,7 @@ void UpdateInLiveness(Bytecode bytecode, BytecodeLivenessState* in_liveness,
   case Bytecode::k##Name:                                                \
     return UpdateInLiveness<Bytecode::k##Name, __VA_ARGS__>(in_liveness, \
                                                             iterator);
-    BYTECODE_LIST(BYTECODE_UPDATE_IN_LIVENESS)
+    BYTECODE_LIST(BYTECODE_UPDATE_IN_LIVENESS, BYTECODE_UPDATE_IN_LIVENESS)
 #undef BYTECODE_UPDATE_IN_LIVENESS
   }
 }
@@ -365,7 +365,7 @@ void UpdateOutLiveness(Bytecode bytecode, BytecodeLiveness& liveness,
     return UpdateOutLiveness<IsFirstUpdate, Bytecode::k##Name>(        \
         liveness, next_bytecode_in_liveness, iterator, bytecode_array, \
         liveness_map, zone);
-    BYTECODE_LIST(BYTECODE_UPDATE_OUT_LIVENESS)
+    BYTECODE_LIST(BYTECODE_UPDATE_OUT_LIVENESS, BYTECODE_UPDATE_OUT_LIVENESS)
 #undef BYTECODE_UPDATE_OUT_LIVENESS
   }
 }
@@ -410,7 +410,7 @@ void UpdateLiveness(Bytecode bytecode, BytecodeLiveness& liveness,
     return UpdateLiveness<IsFirstUpdate, Bytecode::k##Name, __VA_ARGS__>( \
         liveness, next_bytecode_in_liveness, iterator, bytecode_array,    \
         liveness_map, zone);
-    BYTECODE_LIST(BYTECODE_UPDATE_LIVENESS)
+    BYTECODE_LIST(BYTECODE_UPDATE_LIVENESS, BYTECODE_UPDATE_LIVENESS)
 #undef BYTECODE_UPDATE_LIVENESS
   }
 }
@@ -604,7 +604,7 @@ void BytecodeAnalysis::BytecodeAnalysisImpl::Analyze() {
   case Bytecode::k##BC:                                                  \
     AnalyzeBCInLoop<Bytecode::k##BC>(current_offset, current_loop_info); \
     break;
-        BYTECODE_LIST(CASE)
+        BYTECODE_LIST(CASE, CASE)
 #undef CASE
       }
 

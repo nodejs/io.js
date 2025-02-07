@@ -26,6 +26,18 @@ t.test('search', t => {
     t.matchSnapshot(joinedOutput(), 'should have expected search results')
   })
 
+  t.test('multiple terms text', async t => {
+    const { npm, joinedOutput } = await loadMockNpm(t)
+    const registry = new MockRegistry({
+      tap: t,
+      registry: npm.config.get('registry'),
+    })
+
+    registry.search({ results: libnpmsearchResultFixture })
+    await npm.exec('search', ['libnpm', 'publish'])
+    t.matchSnapshot(joinedOutput(), 'should have expected search results')
+  })
+
   t.test('<name> --json', async t => {
     const { npm, joinedOutput } = await loadMockNpm(t, { config: { json: true } })
     const registry = new MockRegistry({
@@ -65,6 +77,18 @@ t.test('search', t => {
 
     registry.search({ results: libnpmsearchResultFixture })
     await npm.exec('search', ['libnpm'])
+    t.matchSnapshot(joinedOutput(), 'should have expected search results with color')
+  })
+
+  t.test('multiple terms --color', async t => {
+    const { npm, joinedOutput } = await loadMockNpm(t, { config: { color: 'always' } })
+    const registry = new MockRegistry({
+      tap: t,
+      registry: npm.config.get('registry'),
+    })
+
+    registry.search({ results: libnpmsearchResultFixture })
+    await npm.exec('search', ['libnpm', 'publish'])
     t.matchSnapshot(joinedOutput(), 'should have expected search results with color')
   })
 

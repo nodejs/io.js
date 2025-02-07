@@ -182,7 +182,7 @@ class NodePlatform : public MultiIsolatePlatform {
                                   void* data) override;
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
-      v8::Isolate* isolate) override;
+      v8::Isolate* isolate, v8::TaskPriority priority) override;
 
   Platform::StackTracePrinter GetStackTracePrinter() override;
   v8::PageAllocator* GetPageAllocator() override;

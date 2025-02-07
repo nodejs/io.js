@@ -19,5 +19,5 @@ process.on('exit', () => {
   // This is the final chance to execute JavaScript.
   register();
   // Queue a FinalizationRegistryCleanupTask by a testing gc request.
-  global.gc();
+  globalThis.gc();
 });

@@ -55,6 +55,7 @@ ALL_VARIANT_FLAGS = {
     ]],
     "minor_ms": [["--minor-ms"]],
     "no_lfa": [["--no-lazy-feedback-allocation"]],
+    "no_memory_protection_keys": [["--no-memory-protection-keys"]],
     # No optimization means disable all optimizations. OptimizeFunctionOnNextCall
     # would not force optimization too. It turns into a Nop. Please see
     # https://chromium-review.googlesource.com/c/452620/ for more discussion.

@@ -112,6 +112,7 @@ const customTypesMap = {
   'Channel': 'diagnostics_channel.html#class-channel',
   'TracingChannel': 'diagnostics_channel.html#class-tracingchannel',
 
+  'DatabaseSync': 'sqlite.html#class-databasesync',
   'Domain': 'domain.html#class-domain',
 
   'errors.Error': 'errors.html#class-error',

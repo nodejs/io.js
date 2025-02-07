@@ -116,6 +116,7 @@ class EnvironmentOptions : public Options {
   bool abort_on_uncaught_exception = false;
   std::vector<std::string> conditions;
   bool detect_module = true;
+  bool disable_sigusr1 = false;
   bool print_required_tla = false;
   bool require_module = true;
   std::string dns_result_order;
@@ -340,6 +341,7 @@ class PerProcessOptions : public Options {
   bool ssl_openssl_cert_store = false;
 #endif
   bool use_openssl_ca = false;
+  bool use_system_ca = false;
   bool use_bundled_ca = false;
   bool enable_fips_crypto = false;
   bool force_fips_crypto = false;

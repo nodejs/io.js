@@ -76,7 +76,7 @@ inline Tagged<Object> DeoptimizationLiteralArray::get(
   // literal goes away, then whatever code needed it should be unreachable. The
   // exception is currently running InstructionStream: in that case, the
   // deoptimization literals array might be the only thing keeping the target
-  // object alive. Thus, when a InstructionStream is running, we strongly mark
+  // object alive. Thus, when an InstructionStream is running, we strongly mark
   // all of its deoptimization literals.
   CHECK(!maybe.IsCleared());
 

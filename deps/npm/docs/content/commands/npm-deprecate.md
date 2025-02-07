@@ -64,6 +64,21 @@ password, npm will prompt on the command line for one.
 
 
 
+#### `dry-run`
+
+* Default: false
+* Type: Boolean
+
+Indicates that you don't want npm to make any changes and that it should
+only report what it would have done. This can be passed into any of the
+commands that modify your local installation, eg, `install`, `update`,
+`dedupe`, `uninstall`, as well as `pack` and `publish`.
+
+Note: This is NOT honored by other network related commands, eg `dist-tags`,
+`owner`, etc.
+
+
+
 ### See Also
 
 * [package spec](/using-npm/package-spec)

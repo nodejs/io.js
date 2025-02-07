@@ -271,7 +271,10 @@ typedef struct {
 
 #define UV_UDP_SEND_PRIVATE_FIELDS                                            \
   struct uv__queue queue;                                                     \
-  struct sockaddr_storage addr;                                               \
+  union {                                                                     \
+    struct sockaddr addr;                                                     \
+    struct sockaddr_storage storage;                                          \
+  } u;                                                                        \
   unsigned int nbufs;                                                         \
   uv_buf_t* bufs;                                                             \
   ssize_t status;                                                             \

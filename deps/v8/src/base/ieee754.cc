@@ -707,7 +707,7 @@ V8_INLINE double __kernel_sin(double x, double y, int iy) {
  * Algorithm
  *      1. Since tan(-x) = -tan(x), we need only to consider positive x.
  *      2. if x < 2^-28 (hx<0x3E300000 0), return x with inexact if x!=0.
- *      3. tan(x) is approximated by a odd polynomial of degree 27 on
+ *      3. tan(x) is approximated by an odd polynomial of degree 27 on
  *         [0,0.67434]
  *                               3             27
  *              tan(x) ~ x + T1*x + ... + T13*x

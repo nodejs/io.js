@@ -6,7 +6,7 @@ require('../common');
 const assert = require('assert');
 
 assert.deepStrictEqual(
-  Object.getOwnPropertyDescriptor(global, 'URL'),
+  Object.getOwnPropertyDescriptor(globalThis, 'URL'),
   {
     value: URL,
     writable: true,
@@ -16,7 +16,7 @@ assert.deepStrictEqual(
 );
 
 assert.deepStrictEqual(
-  Object.getOwnPropertyDescriptor(global, 'URLSearchParams'),
+  Object.getOwnPropertyDescriptor(globalThis, 'URLSearchParams'),
   {
     value: URLSearchParams,
     writable: true,

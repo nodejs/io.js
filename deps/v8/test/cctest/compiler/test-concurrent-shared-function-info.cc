@@ -131,7 +131,7 @@ TEST(TestConcurrentSharedFunctionInfo) {
   OptimizedCompilationInfo f_info(&zone, isolate, f_sfi, f, CodeKind::TURBOFAN);
   DirectHandle<Code> f_code =
       Pipeline::GenerateCodeForTesting(&f_info, isolate).ToHandleChecked();
-  f->set_code(*f_code, kReleaseStore);
+  f->UpdateCode(*f_code);
   IsCompiledScope compiled_scope_f(*f_sfi, isolate);
   JSFunction::EnsureFeedbackVector(isolate, f, &compiled_scope_f);
 

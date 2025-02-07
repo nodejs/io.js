@@ -17,9 +17,9 @@ namespace node {
 
 using v8::Context;
 using v8::FunctionCallbackInfo;
+using v8::IntegrityLevel;
 using v8::Local;
 using v8::MaybeLocal;
-using v8::NewStringType;
 using v8::Object;
 using v8::String;
 using v8::Value;
@@ -32,10 +32,9 @@ namespace {
 // permission.has('fs.in')
 static void Has(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-  v8::Isolate* isolate = env->isolate();
   CHECK(args[0]->IsString());
 
-  String::Utf8Value utf8_deny_scope(isolate, args[0]);
+  String::Utf8Value utf8_deny_scope(env->isolate(), args[0]);
   if (*utf8_deny_scope == nullptr) {
     return;
   }
@@ -47,7 +46,7 @@ static void Has(const FunctionCallbackInfo<Value>& args) {
   }
 
   if (args.Length() > 1 && !args[1]->IsUndefined()) {
-    String::Utf8Value utf8_arg(isolate, args[1]);
+    String::Utf8Value utf8_arg(env->isolate(), args[1]);
     if (*utf8_arg == nullptr) {
       return;
     }
@@ -111,14 +110,12 @@ MaybeLocal<Value> CreateAccessDeniedError(Environment* env,
                                           PermissionScope perm,
                                           const std::string_view& res) {
   Local<Object> err = ERR_ACCESS_DENIED(env->isolate());
-  Local<String> perm_string;
-  Local<String> resource_string;
-  if (!String::NewFromUtf8(env->isolate(),
-                           Permission::PermissionToString(perm),
-                           NewStringType::kNormal)
+  Local<Value> perm_string;
+  Local<Value> resource_string;
+  std::string_view perm_str = Permission::PermissionToString(perm);
+  if (!ToV8Value(env->context(), perm_str, env->isolate())
            .ToLocal(&perm_string) ||
-      !String::NewFromUtf8(
-           env->isolate(), std::string(res).c_str(), NewStringType::kNormal)
+      !ToV8Value(env->context(), res, env->isolate())
            .ToLocal(&resource_string) ||
       err->Set(env->context(), env->permission_string(), perm_string)
           .IsNothing() ||
@@ -132,18 +129,24 @@ MaybeLocal<Value> CreateAccessDeniedError(Environment* env,
 void Permission::ThrowAccessDenied(Environment* env,
                                    PermissionScope perm,
                                    const std::string_view& res) {
-  MaybeLocal<Value> err = CreateAccessDeniedError(env, perm, res);
-  if (err.IsEmpty()) return;
-  env->isolate()->ThrowException(err.ToLocalChecked());
+  Local<Value> err;
+  if (CreateAccessDeniedError(env, perm, res).ToLocal(&err)) {
+    env->isolate()->ThrowException(err);
+  }
+  // If ToLocal returned false, then v8 will have scheduled a
+  // superseding error to be thrown.
 }
 
 void Permission::AsyncThrowAccessDenied(Environment* env,
                                         fs::FSReqBase* req_wrap,
                                         PermissionScope perm,
                                         const std::string_view& res) {
-  MaybeLocal<Value> err = CreateAccessDeniedError(env, perm, res);
-  if (err.IsEmpty()) return;
-  return req_wrap->Reject(err.ToLocalChecked());
+  Local<Value> err;
+  if (CreateAccessDeniedError(env, perm, res).ToLocal(&err)) {
+    return req_wrap->Reject(err);
+  }
+  // If ToLocal returned false, then v8 will have scheduled a
+  // superseding error to be thrown.
 }
 
 void Permission::EnablePermissions() {
@@ -167,7 +170,7 @@ void Initialize(Local<Object> target,
                 void* priv) {
   SetMethodNoSideEffect(context, target, "has", Has);
 
-  target->SetIntegrityLevel(context, v8::IntegrityLevel::kFrozen).FromJust();
+  target->SetIntegrityLevel(context, IntegrityLevel::kFrozen).FromJust();
 }
 
 void RegisterExternalReferences(ExternalReferenceRegistry* registry) {

@@ -1,21 +1,26 @@
 'use strict';
 
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (common.isWindows)
+if (common.isWindows) {
   common.skip('Not supported on Windows');
+}
 
-if (common.isASan)
+if (common.isASan) {
   common.skip('ASan does not play well with secure heap allocations');
+}
 
 const assert = require('assert');
 const { fork } = require('child_process');
 const fixtures = require('../common/fixtures');
+const { hasOpenSSL3 } = require('../common/crypto');
 const {
   secureHeapUsed,
   createDiffieHellman,
+  getFips,
 } = require('crypto');
 
 if (process.argv[2] === 'child') {
@@ -29,7 +34,7 @@ if (process.argv[2] === 'child') {
   assert.strictEqual(a.used, 0);
 
   {
-    const size = common.hasFipsCrypto || common.hasOpenSSL3 ? 1024 : 256;
+    const size = getFips() || hasOpenSSL3 ? 1024 : 256;
     const dh1 = createDiffieHellman(size);
     const p1 = dh1.getPrime('buffer');
     const dh2 = createDiffieHellman(p1, 'buffer');

@@ -189,9 +189,6 @@ TURBOSHAFT_SIMPLIFIED_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
 TURBOSHAFT_OTHER_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
 TURBOSHAFT_WASM_OPERATION_LIST(SHOULD_HAVE_BEEN_LOWERED)
 SHOULD_HAVE_BEEN_LOWERED(Dead)
-// {AbortCSADcheck} is not emitted in pipelines that still use
-// {RecreateSchedule}.
-SHOULD_HAVE_BEEN_LOWERED(AbortCSADcheck)
 #undef SHOULD_HAVE_BEEN_LOWERED
 
 Node* ScheduleBuilder::ProcessOperation(const WordBinopOp& op) {
@@ -1658,6 +1655,10 @@ Node* ScheduleBuilder::ProcessOperation(const Word32PairBinopOp& op) {
 
 Node* ScheduleBuilder::ProcessOperation(const CommentOp& op) {
   return AddNode(machine.Comment(op.message), {});
+}
+
+Node* ScheduleBuilder::ProcessOperation(const AbortCSADcheckOp& op) {
+  return AddNode(machine.AbortCSADcheck(), {GetNode(op.message())});
 }
 
 #ifdef V8_ENABLE_WEBASSEMBLY

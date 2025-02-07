@@ -1230,6 +1230,11 @@ void MacroAssembler::JumpIfLessThan(Register x, int32_t y, Label* dest) {
   CompareAndBranch(x, y, lt, dest);
 }
 
+void MacroAssembler::JumpIfUnsignedLessThan(Register x, int32_t y,
+                                            Label* dest) {
+  CompareAndBranch(x, y, lo, dest);
+}
+
 void MacroAssembler::JumpIfNotSmi(Register value, Label* not_smi_label) {
   JumpIfSmi(value, nullptr, not_smi_label);
 }

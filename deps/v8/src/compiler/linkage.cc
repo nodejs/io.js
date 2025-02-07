@@ -214,9 +214,8 @@ int CallDescriptor::CalculateFixedFrameSize(CodeKind code_kind) const {
       return TypedFrameConstants::kFixedSlotCount;
 #if V8_ENABLE_WEBASSEMBLY
     case kCallWasmFunction:
-      return WasmFrameConstants::kFixedSlotCount;
     case kCallWasmImportWrapper:
-      return WasmImportWrapperFrameConstants::kFixedSlotCount;
+      return WasmFrameConstants::kFixedSlotCount;
     case kCallWasmCapiFunction:
       return WasmExitFrameConstants::kFixedSlotCount;
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -741,7 +740,7 @@ bool Linkage::ParameterHasSecondaryLocation(int index) const {
 #if V8_ENABLE_WEBASSEMBLY
   if (incoming_->IsWasmFunctionCall()) {
     LinkageLocation loc = GetParameterLocation(index);
-    return IsTaggedReg(loc, kWasmInstanceRegister);
+    return IsTaggedReg(loc, kWasmImplicitArgRegister);
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
   return false;
@@ -767,10 +766,11 @@ LinkageLocation Linkage::GetParameterSecondaryLocation(int index) const {
     }
   }
 #if V8_ENABLE_WEBASSEMBLY
-  static const int kWasmInstanceSlot = 3 + StandardFrameConstants::kCPSlotCount;
+  static const int kWasmInstanceDataSlot =
+      3 + StandardFrameConstants::kCPSlotCount;
   if (incoming_->IsWasmFunctionCall()) {
-    DCHECK(IsTaggedReg(loc, kWasmInstanceRegister));
-    return LinkageLocation::ForCalleeFrameSlot(kWasmInstanceSlot,
+    DCHECK(IsTaggedReg(loc, kWasmImplicitArgRegister));
+    return LinkageLocation::ForCalleeFrameSlot(kWasmInstanceDataSlot,
                                                MachineType::AnyTagged());
   }
 #endif  // V8_ENABLE_WEBASSEMBLY

@@ -240,39 +240,45 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // GC internal.
   V8_EXPORT_PRIVATE int SizeFromMap(Tagged<Map> map) const;
 
-  template <class T, typename std::enable_if<std::is_arithmetic<T>::value ||
-                                                 std::is_enum<T>::value ||
-                                                 std::is_pointer<T>::value,
-                                             int>::type = 0>
+  template <class T, typename std::enable_if_t<std::is_arithmetic_v<T> ||
+                                                   std::is_enum_v<T> ||
+                                                   std::is_pointer_v<T>,
+                                               int> = 0>
   inline T ReadField(size_t offset) const {
     return ReadMaybeUnalignedValue<T>(field_address(offset));
   }
 
-  template <class T, typename std::enable_if<std::is_arithmetic<T>::value ||
-                                                 std::is_enum<T>::value ||
-                                                 std::is_pointer<T>::value,
-                                             int>::type = 0>
+  template <class T, typename std::enable_if_t<std::is_arithmetic_v<T> ||
+                                                   std::is_enum_v<T> ||
+                                                   std::is_pointer_v<T>,
+                                               int> = 0>
   inline void WriteField(size_t offset, T value) const {
     return WriteMaybeUnalignedValue<T>(field_address(offset), value);
   }
 
   // Atomically reads a field using relaxed memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T,
-            typename std::enable_if<(std::is_arithmetic<T>::value ||
-                                     std::is_enum<T>::value) &&
-                                        !std::is_floating_point<T>::value,
-                                    int>::type = 0>
+  template <class T, typename std::enable_if_t<
+                         (std::is_arithmetic_v<T> ||
+                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                         int> = 0>
   inline T Relaxed_ReadField(size_t offset) const;
 
   // Atomically writes a field using relaxed memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T,
-            typename std::enable_if<(std::is_arithmetic<T>::value ||
-                                     std::is_enum<T>::value) &&
-                                        !std::is_floating_point<T>::value,
-                                    int>::type = 0>
+  template <class T, typename std::enable_if_t<
+                         (std::is_arithmetic_v<T> ||
+                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                         int> = 0>
   inline void Relaxed_WriteField(size_t offset, T value);
+
+  // Atomically reads a field using acquire memory ordering. Can only be used
+  // with integral types whose size is <= kTaggedSize (to guarantee alignment).
+  template <class T, typename std::enable_if_t<
+                         (std::is_arithmetic_v<T> ||
+                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                         int> = 0>
+  inline T Acquire_ReadField(size_t offset) const;
 
   // Atomically compares and swaps a field using seq cst memory ordering.
   // Contains the required logic to properly handle number comparison.
@@ -395,10 +401,11 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // JSDispatchHandles.
   //
   // These are references to entries in the JSDispatchTable, which contain the
-  // current code for a JSFunction.
-  inline void InitJSDispatchHandleField(size_t offset,
-                                        IsolateForSandbox isolate,
-                                        uint16_t parameter_count);
+  // current code for a function.
+  inline void AllocateAndInstallJSDispatchHandle(
+      size_t offset, IsolateForSandbox isolate, uint16_t parameter_count,
+      Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 
   // Returns the field at offset in obj, as a read/write Object reference.
   // Does no checking, and is safe to use during GC, while maps are invalid.
@@ -589,6 +596,7 @@ V8_INLINE bool OutsideSandboxOrInReadonlySpace(Tagged<HeapObject> obj);
 // objects or Smis. This can be used for a fast RO space/Smi check which are
 // objects for e.g. GC than can be exlucded for processing.
 V8_INLINE constexpr bool FastInReadOnlySpaceOrSmallSmi(Tagged_t obj);
+V8_INLINE constexpr bool FastInReadOnlySpaceOrSmallSmi(Tagged<MaybeObject> obj);
 
 }  // namespace internal
 }  // namespace v8

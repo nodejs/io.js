@@ -244,6 +244,10 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
   // from the JS functions referring it.
   void BailoutIfDeoptimized();
 
+  // Assemble NOP instruction for lazy deoptimization. This place will be
+  // patched later as a jump instruction to deoptimization trampoline.
+  void AssemblePlaceHolderForLazyDeopt(Instruction* instr);
+
   // Generates an architecture-specific, descriptor-specific prologue
   // to set up a stack frame.
   void AssembleConstructFrame();

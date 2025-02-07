@@ -32,6 +32,10 @@
 #include "src/compiler/turboshaft/type-assertions-phase.h"
 #include "src/compiler/turboshaft/typed-optimizations-phase.h"
 
+#if V8_ENABLE_WEBASSEMBLY
+#include "src/compiler/turboshaft/wasm-in-js-inlining-phase.h"
+#endif  // V8_ENABLE_WEBASSEMBLY
+
 namespace v8::internal::compiler::turboshaft {
 
 inline constexpr char kTempZoneName[] = "temp-zone";
@@ -167,6 +171,16 @@ class Pipeline {
     if (v8_flags.turboshaft_frontend) {
       Run<turboshaft::SimplifiedLoweringPhase>();
     }
+
+#ifdef V8_ENABLE_WEBASSEMBLY
+    // TODO(dlehmann,353475584): Once the Wasm-in-JS TS inlining MVP is feature-
+    // complete and cleaned-up, move its reducer into the beginning of the
+    // `MachineLoweringPhase` since we can reuse the `DataViewLoweringReducer`
+    // there and avoid a separate phase.
+    if (v8_flags.turboshaft_wasm_in_js_inlining) {
+      Run<turboshaft::WasmInJSInliningPhase>();
+    }
+#endif  // !V8_ENABLE_WEBASSEMBLY
 
     Run<turboshaft::MachineLoweringPhase>();
 

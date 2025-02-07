@@ -4785,10 +4785,10 @@ class WasmOpcodeLengthTest : public TestWithZone {
     }
     WasmDetectedFeatures detected;
     constexpr bool kIsShared = false;  // TODO(14616): Extend this.
-    WasmDecoder<Decoder::BooleanValidationTag> decoder(
+    WasmDecoder<Decoder::FullValidationTag> decoder(
         this->zone(), nullptr, WasmEnabledFeatures::All(), &detected, nullptr,
         kIsShared, bytes, bytes + sizeof(bytes), 0);
-    WasmDecoder<Decoder::BooleanValidationTag>::OpcodeLength(&decoder, bytes);
+    WasmDecoder<Decoder::FullValidationTag>::OpcodeLength(&decoder, bytes);
     EXPECT_TRUE(decoder.ok())
         << opcode << " aka " << WasmOpcodes::OpcodeName(opcode) << ": "
         << decoder.error().message();

@@ -345,6 +345,13 @@ ImportedFunctionEntry::ImportedFunctionEntry(
 // WasmDispatchTable
 OBJECT_CONSTRUCTORS_IMPL(WasmDispatchTable, TrustedObject)
 
+PROTECTED_POINTER_ACCESSORS(WasmDispatchTable, protected_offheap_data,
+                            TrustedManaged<WasmDispatchTableData>,
+                            kProtectedOffheapDataOffset)
+WasmDispatchTableData* WasmDispatchTable::offheap_data() const {
+  return protected_offheap_data()->get().get();
+}
+
 void WasmDispatchTable::clear_entry_padding(int index) {
   static_assert(kEntryPaddingBytes == 0 || kEntryPaddingBytes == kIntSize);
   if constexpr (kEntryPaddingBytes != 0) {

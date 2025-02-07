@@ -1,6 +1,9 @@
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto) common.skip('missing crypto');
+if (!common.hasCrypto) {
+  common.skip('missing crypto');
+}
+const { hasOpenSSL } = require('../common/crypto');
 const fixtures = require('../common/fixtures');
 
 // Test sigalgs: option for TLS.
@@ -63,7 +66,7 @@ test('RSA-PSS+SHA256:RSA-PSS+SHA512:ECDSA+SHA256',
      ['RSA-PSS+SHA256', 'ECDSA+SHA256']);
 
 // Do not have shared sigalgs.
-const handshakeErr = common.hasOpenSSL(3, 2) ?
+const handshakeErr = hasOpenSSL(3, 2) ?
   'ERR_SSL_SSL/TLS_ALERT_HANDSHAKE_FAILURE' : 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE';
 test('RSA-PSS+SHA384', 'ECDSA+SHA256',
      undefined, handshakeErr,

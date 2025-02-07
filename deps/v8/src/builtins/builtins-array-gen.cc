@@ -26,6 +26,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 ArrayBuiltinsAssembler::ArrayBuiltinsAssembler(
     compiler::CodeAssemblerState* state)
     : CodeStubAssembler(state),
@@ -2243,6 +2245,8 @@ TF_BUILTIN(CreateObjectFromSlowBoilerplateHelper,
     Return(UndefinedConstant(), UndefinedConstant());
   }
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

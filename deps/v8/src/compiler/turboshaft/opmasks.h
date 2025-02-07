@@ -43,6 +43,8 @@
 
 namespace v8::internal::compiler::turboshaft::Opmask {
 
+#include "src/compiler/turboshaft/field-macro.inc"
+
 template <typename T, size_t Offset>
 struct OpMaskField {
   using type = T;
@@ -134,10 +136,6 @@ struct MaskBuilder {
   template <typename Fields::type... Args>
   using For = OpMaskT<Op, BuildMask(), EncodeValue(Args...)>;
 };
-
-#define FIELD(op, field_name)                                       \
-  OpMaskField<UnwrapRepresentation<decltype(op::field_name)>::type, \
-              OFFSET_OF(op, field_name)>
 
 // === Definitions of masks for Turboshaft operations === //
 
@@ -356,9 +354,7 @@ FOREACH_SIMD_128_LOAD_TRANSFORM_OPCODE(SIMD_LOAD_TRANSFORM_MASK)
 
 #endif  // V8_ENABLE_WEBASSEMBLY
 
-#ifndef TURBOSHAFT_OPMASK_EXPORT_FIELD_MACRO_FOR_UNITTESTS
 #undef FIELD
-#endif
 
 }  // namespace v8::internal::compiler::turboshaft::Opmask
 

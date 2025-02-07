@@ -1,4 +1,3 @@
-// Flags: --expose-internals --no-warnings
 'use strict';
 const common = require('../common');
 if (!common.hasCrypto)
@@ -7,8 +6,7 @@ if (!common.hasCrypto)
 const assert = require('assert');
 const crypto = require('crypto');
 
-const { internalBinding } = require('internal/test/binding');
-if (typeof internalBinding('crypto').ScryptJob !== 'function')
+if (typeof crypto.scrypt !== 'function' || typeof crypto.scryptSync !== 'function')
   common.skip('no scrypt support');
 
 const good = [

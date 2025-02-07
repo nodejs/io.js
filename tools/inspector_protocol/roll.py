@@ -13,28 +13,29 @@ import shutil
 
 
 FILES_TO_SYNC = [
-    'README.md',
+    'crdtp/*',
+    'lib/*',
+    'templates/*',
+
+    'BUILD.gn',
     'check_protocol_compatibility.py',
     'code_generator.py',
     'concatenate_protocols.py',
     'convert_protocol_to_json.py',
-    'encoding/encoding.h',
-    'encoding/encoding.cc',
-    'encoding/encoding_test.cc',
     'inspector_protocol.gni',
-    'inspector_protocol.gypi',
-    'lib/*',
+    'README.md',
+    'LICENSE',
     'pdl.py',
-    'templates/*',
 ]
 
+REVISION_LINE_PREFIX = 'Revision: '
 
 def RunCmd(cmd):
   p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
   (stdoutdata, stderrdata) = p.communicate()
   if p.returncode != 0:
     raise Exception('%s: exit status %d', str(cmd), p.returncode)
-  return stdoutdata
+  return stdoutdata.decode('utf-8')
 
 
 def CheckRepoIsClean(path, suffix):
@@ -48,25 +49,18 @@ def CheckRepoIsClean(path, suffix):
     raise Exception('%s does not end with /%s' % (path, suffix))
 
 
-def CheckRepoIsNotAtMasterBranch(path):
+def CheckRepoIsNotAtMainBranch(path):
   os.chdir(path)
   stdout = RunCmd(['git', 'rev-parse', '--abbrev-ref', 'HEAD']).strip()
-  if stdout == 'master':
-    raise Exception('%s is at master branch - refusing to copy there.' % path)
-
-
-def CheckRepoIsV8Checkout(path):
-  os.chdir(path)
-  if (RunCmd(['git', 'config', '--get', 'remote.origin.url']).strip() !=
-      'https://chromium.googlesource.com/v8/v8.git'):
-    raise Exception('%s is not a proper V8 checkout.' % path)
+  if stdout == 'main':
+    raise Exception('%s is at main branch - refusing to copy there.' % path)
 
 
 def CheckRepoIsInspectorProtocolCheckout(path):
   os.chdir(path)
-  if (RunCmd(['git', 'config', '--get', 'remote.origin.url']).strip() !=
-      'https://chromium.googlesource.com/deps/inspector_protocol.git'):
-    raise Exception('%s is not a proper inspector_protocol checkout.' % path)
+  revision = RunCmd(['git', 'config', '--get', 'remote.origin.url']).strip()
+  if (revision != 'https://chromium.googlesource.com/deps/inspector_protocol.git'):
+    raise Exception('%s is not a proper inspector_protocol checkout: %s' % (path, revision))
 
 
 def FindFilesToSyncIn(path):
@@ -83,6 +77,19 @@ def FilesAreEqual(path1, path2):
           open(path1).read() == open(path2).read())
 
 
+def ReadV8IPRevision(node_src_path):
+  lines = open(os.path.join(node_src_path, 'deps/v8/third_party/inspector_protocol/README.v8')).readlines()
+  for line in lines:
+    line = line.strip()
+    if line.startswith(REVISION_LINE_PREFIX):
+      return line[len(REVISION_LINE_PREFIX):]
+  raise Exception('No V8 inspector protocol revision found')
+
+def CheckoutRevision(path, revision):
+  os.chdir(path)
+  return RunCmd(['git', 'checkout', revision])
+
+
 def GetHeadRevision(path):
   os.chdir(path)
   return RunCmd(['git', 'rev-parse', 'HEAD'])
@@ -90,14 +97,14 @@ def GetHeadRevision(path):
 
 def main(argv):
   parser = argparse.ArgumentParser(description=(
-      "Rolls the inspector_protocol project (upstream) into V8's "
-      "third_party (downstream)."))
+      "Rolls the inspector_protocol project (upstream) into node's "
+      "deps/inspector_protocol (downstream)."))
   parser.add_argument("--ip_src_upstream",
                       help="The inspector_protocol (upstream) tree.",
                       default="~/ip/src")
-  parser.add_argument("--v8_src_downstream",
-                      help="The V8 src tree.",
-                      default="~/v8/v8")
+  parser.add_argument("--node_src_downstream",
+                      help="The nodejs/node src tree.",
+                      default="~/nodejs/node")
   parser.add_argument('--force', dest='force', action='store_true',
                       help=("Whether to carry out the modifications "
                             "in the destination tree."))
@@ -106,17 +113,22 @@ def main(argv):
   args = parser.parse_args(argv)
   upstream = os.path.normpath(os.path.expanduser(args.ip_src_upstream))
   downstream = os.path.normpath(os.path.expanduser(
-      args.v8_src_downstream))
+      args.node_src_downstream))
   CheckRepoIsClean(upstream, '/src')
-  CheckRepoIsClean(downstream, '/v8')
+  CheckRepoIsClean(downstream, '/node')
   CheckRepoIsInspectorProtocolCheckout(upstream)
-  CheckRepoIsV8Checkout(downstream)
-  # Check that the destination Git repo isn't at the master branch - it's
-  # generally a bad idea to check into the master branch, so we catch this
+  # Check that the destination Git repo isn't at the main branch - it's
+  # generally a bad idea to check into the main branch, so we catch this
   # common pilot error here early.
-  CheckRepoIsNotAtMasterBranch(downstream)
+  CheckRepoIsNotAtMainBranch(downstream)
+
+  # Read V8's inspector_protocol revision
+  v8_ip_revision = ReadV8IPRevision(downstream)
+  print('Checking out %s into %s ...' % (upstream, v8_ip_revision))
+  CheckoutRevision(upstream, v8_ip_revision)
+
   src_dir = upstream
-  dest_dir = os.path.join(downstream, 'third_party/inspector_protocol')
+  dest_dir = os.path.join(downstream, 'deps/inspector_protocol')
   print('Rolling %s into %s ...' % (src_dir, dest_dir))
   src_files = set(FindFilesToSyncIn(src_dir))
   dest_files = set(FindFilesToSyncIn(dest_dir))
@@ -137,22 +149,16 @@ def main(argv):
   print('You said --force ... as you wish, modifying the destination.')
   for f in to_add + to_copy:
     contents = open(os.path.join(src_dir, f)).read()
-    contents = contents.replace(
-        'INSPECTOR_PROTOCOL_ENCODING_ENCODING_H_',
-        'V8_INSPECTOR_PROTOCOL_ENCODING_ENCODING_H_')
-    contents = contents.replace(
-        'namespace inspector_protocol_encoding',
-        'namespace v8_inspector_protocol_encoding')
     open(os.path.join(dest_dir, f), 'w').write(contents)
     shutil.copymode(os.path.join(src_dir, f), os.path.join(dest_dir, f))
   for f in to_delete:
     os.unlink(os.path.join(dest_dir, f))
   head_revision = GetHeadRevision(upstream)
-  lines = open(os.path.join(dest_dir, 'README.v8')).readlines()
-  f = open(os.path.join(dest_dir, 'README.v8'), 'w')
+  lines = open(os.path.join(dest_dir, 'README.node')).readlines()
+  f = open(os.path.join(dest_dir, 'README.node'), 'w')
   for line in lines:
-    if line.startswith('Revision: '):
-      f.write('Revision: %s' % head_revision)
+    if line.startswith(REVISION_LINE_PREFIX):
+      f.write(f'{REVISION_LINE_PREFIX}{head_revision}')
     else:
       f.write(line)
   f.close()

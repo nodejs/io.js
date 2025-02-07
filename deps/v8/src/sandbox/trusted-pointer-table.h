@@ -134,8 +134,10 @@ class V8_EXPORT_PRIVATE TrustedPointerTable
                                  kTrustedPointerTableReservationSize> {
  public:
   // Size of a TrustedPointerTable, for layout computation in IsolateData.
-  static int constexpr kSize = 2 * kSystemPointerSize;
+  static constexpr int kSize = 2 * kSystemPointerSize;
+
   static_assert(kMaxTrustedPointers == kMaxCapacity);
+  static_assert(!kSupportsCompaction);
 
   TrustedPointerTable() = default;
   TrustedPointerTable(const TrustedPointerTable&) = delete;

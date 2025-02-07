@@ -33,8 +33,6 @@ static uint64_t Mix(uint64_t v0, uint64_t v1) {
 
 uint64_t LowLevelHashLenGt16(const void* data, size_t len, uint64_t seed,
                              const uint64_t salt[5]) {
-  // Prefetch the cacheline that data resides in.
-  PrefetchToLocalCache(data);
   const uint8_t* ptr = static_cast<const uint8_t*>(data);
   uint64_t starting_length = static_cast<uint64_t>(len);
   const uint8_t* last_16_ptr = ptr + starting_length - 16;
@@ -42,8 +40,8 @@ uint64_t LowLevelHashLenGt16(const void* data, size_t len, uint64_t seed,
 
   if (len > 64) {
     // If we have more than 64 bytes, we're going to handle chunks of 64
-    // bytes at a time. We're going to build up two separate hash states
-    // which we will then hash together.
+    // bytes at a time. We're going to build up four separate hash states
+    // which we will then hash together. This avoids short dependency chains.
     uint64_t duplicated_state0 = current_state;
     uint64_t duplicated_state1 = current_state;
     uint64_t duplicated_state2 = current_state;

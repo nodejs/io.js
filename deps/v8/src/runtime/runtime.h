@@ -119,6 +119,7 @@ namespace internal {
   F(CompileBaseline, 1, 1)                      \
   F(CompileOptimized, 1, 1)                     \
   F(InstallBaselineCode, 1, 1)                  \
+  F(InstallSFICode, 1, 1)                       \
   F(HealOptimizedCodeSlot, 1, 1)                \
   F(FunctionLogNextExecution, 1, 1)             \
   F(InstantiateAsmJs, 4, 1)                     \
@@ -322,6 +323,7 @@ namespace internal {
   F(GetOwnPropertyKeys, 2, 1)                                          \
   F(GetPrivateMember, 2, 1)                                            \
   F(GetProperty, -1 /* [2, 3] */, 1)                                   \
+  F(HandleExceptionsInDisposeDisposableStack, 2, 1)                    \
   F(HasFastPackedElements, 1, 1)                                       \
   F(HasInPrototypeChain, 2, 1)                                         \
   F(HasProperty, 2, 1)                                                 \
@@ -649,7 +651,7 @@ namespace internal {
   F(WasmI32AtomicWait, 4, 1)                  \
   F(WasmI64AtomicWait, 5, 1)                  \
   F(WasmMemoryGrow, 2, 1)                     \
-  F(WasmStackGuard, 0, 1)                     \
+  F(WasmStackGuard, 1, 1)                     \
   F(WasmThrow, 2, 1)                          \
   F(WasmReThrow, 1, 1)                        \
   F(WasmThrowJSTypeError, 0, 1)               \
@@ -671,7 +673,7 @@ namespace internal {
   F(WasmCompileLazy, 2, 1)                    \
   F(WasmAllocateFeedbackVector, 3, 1)         \
   F(WasmLiftoffDeoptFinish, 1, 1)             \
-  F(WasmCompileWrapper, 1, 1)                 \
+  F(TierUpJSToWasmWrapper, 1, 1)              \
   F(IsWasmExternalFunction, 1, 1)             \
   F(TierUpWasmToJSWrapper, 1, 1)              \
   F(WasmTriggerTierUp, 1, 1)                  \
@@ -902,7 +904,7 @@ class Runtime : public AllStatic {
   static bool NeedsExactContext(FunctionId id);
 
   // Checks whether the runtime function with the given {id} never returns
-  // to it's caller normally, i.e. whether it'll always raise an exception.
+  // to its caller normally, i.e. whether it'll always raise an exception.
   // More specifically: The C++ implementation returns the Heap::exception
   // sentinel, always.
   static bool IsNonReturning(FunctionId id);

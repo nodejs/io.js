@@ -513,8 +513,8 @@ void SortIndices(Isolate* isolate, DirectHandle<FixedArray> indices,
     }
     return !IsSmi(b) && IsUndefined(b, isolate);
   });
-  isolate->heap()->WriteBarrierForRange(*indices, ObjectSlot(start),
-                                        ObjectSlot(end));
+  WriteBarrier::ForRange(isolate->heap(), *indices, ObjectSlot(start),
+                         ObjectSlot(end));
 }
 
 Maybe<bool> IncludesValueSlowPath(Isolate* isolate, Handle<JSObject> receiver,

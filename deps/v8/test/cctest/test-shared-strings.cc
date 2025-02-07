@@ -2435,7 +2435,7 @@ UNINITIALIZED_TEST(SharedObjectRetainedByClientRememberedSet) {
         v8::platform::MessageLoopBehavior::kWaitForWork);
   }
 
-  // Do shared GC. The live weak ref should be kept alive via a OLD_TO_SHARED
+  // Do shared GC. The live weak ref should be kept alive via an OLD_TO_SHARED
   // slot in the client isolate.
   CHECK(!live_weak_ref.IsEmpty());
   CHECK(!dead_weak_ref.IsEmpty());

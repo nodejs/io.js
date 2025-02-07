@@ -27,7 +27,7 @@ connect();
 
 function connect() {
   if (runs % 64 === 0)
-    global.gc();
+    globalThis.gc();
   const externalMemoryUsage = process.memoryUsage().external;
   assert(externalMemoryUsage >= 0, `${externalMemoryUsage} < 0`);
   if (runs++ === 512) {

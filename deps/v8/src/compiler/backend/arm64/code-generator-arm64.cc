@@ -5,6 +5,7 @@
 #include "src/codegen/arm64/assembler-arm64-inl.h"
 #include "src/codegen/arm64/constants-arm64.h"
 #include "src/codegen/arm64/macro-assembler-arm64-inl.h"
+#include "src/codegen/interface-descriptors-inl.h"
 #include "src/codegen/machine-type.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/compiler/backend/code-generator-impl.h"
@@ -17,6 +18,7 @@
 #include "src/heap/mutable-page-metadata.h"
 
 #if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-linkage.h"
 #include "src/wasm/wasm-objects.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
@@ -3624,21 +3626,13 @@ void CodeGenerator::AssembleConstructFrame() {
       Register scratch = temps.AcquireX();
       __ Mov(scratch,
              StackFrame::TypeToMarker(info()->GetOutputStackFrameType()));
-      __ Push<MacroAssembler::kSignLR>(lr, fp, scratch, kWasmInstanceRegister);
+      __ Push<MacroAssembler::kSignLR>(lr, fp, scratch,
+                                       kWasmImplicitArgRegister);
       static constexpr int kSPToFPDelta = 2 * kSystemPointerSize;
       __ Add(fp, sp, kSPToFPDelta);
       if (call_descriptor->IsWasmCapiFunction()) {
         // The C-API function has one extra slot for the PC.
         required_slots++;
-      } else if (call_descriptor->IsWasmImportWrapper()) {
-        // If the wrapper is running on a secondary stack, it will switch to the
-        // central stack and fill these slots with the central stack pointer and
-        // secondary stack limit. Otherwise the slots remain empty.
-        static_assert(WasmImportWrapperFrameConstants::kCentralStackSPOffset ==
-                      -24);
-        static_assert(
-            WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset == -32);
-        __ Push(xzr, xzr);
       }
 #endif  // V8_ENABLE_WEBASSEMBLY
     } else if (call_descriptor->kind() == CallDescriptor::kCallCodeObject) {
@@ -3701,13 +3695,30 @@ void CodeGenerator::AssembleConstructFrame() {
         __ B(hs, &done);
       }
 
-      __ Call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
-              RelocInfo::WASM_STUB_CALL);
-      // The call does not return, hence we can ignore any references and just
-      // define an empty safepoint.
-      ReferenceMap* reference_map = zone()->New<ReferenceMap>(zone());
-      RecordSafepoint(reference_map);
-      if (v8_flags.debug_code) __ Brk(0);
+      if (v8_flags.experimental_wasm_growable_stacks) {
+        CPURegList regs_to_save(kXRegSizeInBits, RegList{});
+        regs_to_save.Combine(WasmHandleStackOverflowDescriptor::GapRegister());
+        regs_to_save.Combine(
+            WasmHandleStackOverflowDescriptor::FrameBaseRegister());
+        for (auto reg : wasm::kGpParamRegisters) regs_to_save.Combine(reg);
+        __ PushCPURegList(regs_to_save);
+        __ Mov(WasmHandleStackOverflowDescriptor::GapRegister(),
+               required_slots * kSystemPointerSize);
+        __ Add(
+            WasmHandleStackOverflowDescriptor::FrameBaseRegister(), fp,
+            Operand(call_descriptor->ParameterSlotCount() * kSystemPointerSize +
+                    CommonFrameConstants::kFixedFrameSizeAboveFp));
+        __ CallBuiltin(Builtin::kWasmHandleStackOverflow);
+        __ PopCPURegList(regs_to_save);
+      } else {
+        __ Call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
+                RelocInfo::WASM_STUB_CALL);
+        // The call does not return, hence we can ignore any references and just
+        // define an empty safepoint.
+        ReferenceMap* reference_map = zone()->New<ReferenceMap>(zone());
+        RecordSafepoint(reference_map);
+        if (v8_flags.debug_code) __ Brk(0);
+      }
       __ Bind(&done);
     }
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -3773,6 +3784,37 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
       __ Assert(eq, AbortReason::kUnexpectedAdditionalPopValue);
     }
   }
+
+#if V8_ENABLE_WEBASSEMBLY
+  if (call_descriptor->IsWasmFunctionCall() &&
+      v8_flags.experimental_wasm_growable_stacks) {
+    {
+      UseScratchRegisterScope temps{masm()};
+      Register scratch = temps.AcquireX();
+      __ Ldr(scratch, MemOperand(fp, TypedFrameConstants::kFrameTypeOffset));
+      __ Cmp(scratch,
+             Operand(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+    }
+    Label done;
+    __ B(ne, &done);
+    CPURegList regs_to_save(kXRegSizeInBits, RegList{});
+    for (auto reg : wasm::kGpReturnRegisters) regs_to_save.Combine(reg);
+    __ PushCPURegList(regs_to_save);
+    __ Mov(kCArgRegs[0], ExternalReference::isolate_address());
+    __ CallCFunction(ExternalReference::wasm_shrink_stack(), 1);
+    __ Mov(fp, kReturnRegister0);
+    __ PopCPURegList(regs_to_save);
+    if (masm()->options().enable_simulator_code) {
+      // The next instruction after shrinking stack is leaving the frame.
+      // So SP will be set to old FP there. Switch simulator stack limit here.
+      UseScratchRegisterScope temps{masm()};
+      temps.Exclude(x16);
+      __ LoadStackLimit(x16, StackLimitKind::kRealStackLimit);
+      __ hlt(kImmExceptionIsSwitchStackLimit);
+    }
+    __ bind(&done);
+  }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
   Register argc_reg = x3;
   // Functions with JS linkage have at least one parameter (the receiver).

@@ -1,5 +1,5 @@
 {
-  "version": "11.0.0",
+  "version": "11.1.0",
   "name": "npm",
   "description": "a package manager for JavaScript",
   "workspaces": [
@@ -53,10 +53,10 @@
   "dependencies": {
     "@isaacs/string-locale-compare": "^1.1.0",
     "@npmcli/arborist": "^9.0.0",
-    "@npmcli/config": "^10.0.0",
+    "@npmcli/config": "^10.0.1",
     "@npmcli/fs": "^4.0.0",
     "@npmcli/map-workspaces": "^4.0.2",
-    "@npmcli/package-json": "^6.1.0",
+    "@npmcli/package-json": "^6.1.1",
     "@npmcli/promise-spawn": "^8.0.2",
     "@npmcli/redact": "^3.0.0",
     "@npmcli/run-script": "^9.0.1",
@@ -64,7 +64,7 @@
     "abbrev": "^3.0.0",
     "archy": "~1.0.0",
     "cacache": "^19.0.1",
-    "chalk": "^5.3.0",
+    "chalk": "^5.4.1",
     "ci-info": "^4.1.0",
     "cli-columns": "^4.0.0",
     "fastest-levenshtein": "^1.0.16",
@@ -188,7 +188,7 @@
   ],
   "devDependencies": {
     "@npmcli/docs": "^1.0.0",
-    "@npmcli/eslint-config": "^5.0.1",
+    "@npmcli/eslint-config": "^5.1.0",
     "@npmcli/git": "^6.0.1",
     "@npmcli/mock-globals": "^1.0.0",
     "@npmcli/mock-registry": "^1.0.0",

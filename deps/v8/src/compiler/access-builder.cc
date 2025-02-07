@@ -225,32 +225,6 @@ FieldAccess AccessBuilder::ForJSFunctionContext() {
   return access;
 }
 
-#ifdef V8_ENABLE_SANDBOX
-// static
-FieldAccess AccessBuilder::ForJSFunctionCode() {
-  FieldAccess access = {kTaggedBase,
-                        JSFunction::kCodeOffset,
-                        MaybeHandle<Name>(),
-                        OptionalMapRef(),
-                        Type::OtherInternal(),
-                        MachineType::IndirectPointer(),
-                        kIndirectPointerWriteBarrier,
-                        "JSFunctionCode"};
-  access.indirect_pointer_tag = kCodeIndirectPointerTag;
-  return access;
-}
-#else
-// static
-FieldAccess AccessBuilder::ForJSFunctionCode() {
-  FieldAccess access = {kTaggedBase,           JSFunction::kCodeOffset,
-                        Handle<Name>(),        OptionalMapRef(),
-                        Type::OtherInternal(), MachineType::TaggedPointer(),
-                        kPointerWriteBarrier,  "JSFunctionCode"};
-  return access;
-}
-
-#endif
-
 // static
 FieldAccess AccessBuilder::ForJSFunctionSharedFunctionInfo() {
   FieldAccess access = {
@@ -283,6 +257,31 @@ FieldAccess AccessBuilder::ForJSFunctionDispatchHandleNoWriteBarrier() {
       kNoWriteBarrier,  "JSFunctionDispatchHandle"};
   return access;
 }
+#else
+#ifdef V8_ENABLE_SANDBOX
+// static
+FieldAccess AccessBuilder::ForJSFunctionCode() {
+  FieldAccess access = {kTaggedBase,
+                        JSFunction::kCodeOffset,
+                        MaybeHandle<Name>(),
+                        OptionalMapRef(),
+                        Type::OtherInternal(),
+                        MachineType::IndirectPointer(),
+                        kIndirectPointerWriteBarrier,
+                        "JSFunctionCode"};
+  access.indirect_pointer_tag = kCodeIndirectPointerTag;
+  return access;
+}
+#else
+// static
+FieldAccess AccessBuilder::ForJSFunctionCode() {
+  FieldAccess access = {kTaggedBase,           JSFunction::kCodeOffset,
+                        Handle<Name>(),        OptionalMapRef(),
+                        Type::OtherInternal(), MachineType::TaggedPointer(),
+                        kPointerWriteBarrier,  "JSFunctionCode"};
+  return access;
+}
+#endif  // V8_ENABLE_SANDBOX
 #endif  // V8_ENABLE_LEAPTIERING
 
 // static

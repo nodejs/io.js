@@ -188,6 +188,10 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
                      std::unique_ptr<AssemblerBuffer> = {});
 
   virtual ~Assembler();
+
+  static RegList DefaultTmpList();
+  static DoubleRegList DefaultFPTmpList();
+
   void AbortedCodeGeneration();
   // GetCode emits any pending (non-emitted) code and fills the descriptor desc.
   static constexpr int kNoHandlerTable = 0;
@@ -360,6 +364,9 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   static constexpr int kTrampolineSlotsSize = 2 * kInstrSize;
 
   RegList* GetScratchRegisterList() { return &scratch_register_list_; }
+  DoubleRegList* GetScratchDoubleRegisterList() {
+    return &scratch_double_register_list_;
+  }
 
   // ---------------------------------------------------------------------------
   // InstructionStream generation.
@@ -687,8 +694,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   int target_at(int pos, bool is_internal);
 
   // Patch branch instruction at pos to branch to given branch target pos.
-  void target_at_put(int pos, int target_pos, bool is_internal,
-                     bool trampoline = false);
+  void target_at_put(int pos, int target_pos, bool is_internal);
 
   // Say if we need to relocate with this mode.
   bool MustUseReg(RelocInfo::Mode rmode);
@@ -832,6 +838,8 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
         trampoline_slot = next_slot_;
         free_slot_count_--;
         next_slot_ += kTrampolineSlotsSize;
+        DEBUG_PRINTF("\ttrampoline  slot %d next %d free %d\n", trampoline_slot,
+                     next_slot_, free_slot_count_)
       }
       return trampoline_slot;
     }
@@ -865,6 +873,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase,
   bool internal_trampoline_exception_;
 
   RegList scratch_register_list_;
+  DoubleRegList scratch_double_register_list_;
 
  private:
   ConstantPool constpool_;
@@ -886,49 +895,104 @@ class EnsureSpace {
 };
 
 // This scope utility allows scratch registers to be managed safely. The
-// Assembler's GetScratchRegisterList() is used as a pool of scratch
-// registers. These registers can be allocated on demand, and will be returned
+// Assembler's {GetScratchRegisterList()}/{GetScratchDoubleRegisterList()}
+// are used as pools of general-purpose/double scratch registers.
+// These registers can be allocated on demand, and will be returned
 // at the end of the scope.
 //
-// When the scope ends, the Assembler's list will be restored to its original
-// state, even if the list is modified by some other means. Note that this scope
-// can be nested but the destructors need to run in the opposite order as the
-// constructors. We do not have assertions for this.
+// When the scope ends, the Assembler's lists will be restored to their original
+// states, even if the lists are modified by some other means. Note that this
+// scope can be nested but the destructors need to run in the opposite order as
+// the constructors. We do not have assertions for this.
 class V8_EXPORT_PRIVATE UseScratchRegisterScope {
  public:
   explicit UseScratchRegisterScope(Assembler* assembler)
-      : available_(assembler->GetScratchRegisterList()),
-        old_available_(*available_) {}
+      : assembler_(assembler),
+        old_available_(*assembler->GetScratchRegisterList()),
+        old_available_double_(*assembler->GetScratchDoubleRegisterList()) {}
 
-  ~UseScratchRegisterScope() { *available_ = old_available_; }
+  ~UseScratchRegisterScope() {
+    RegList* available = assembler_->GetScratchRegisterList();
+    DoubleRegList* available_double =
+        assembler_->GetScratchDoubleRegisterList();
+    *available = old_available_;
+    *available_double = old_available_double_;
+  }
 
-  // Take a register from the list and return it.
   Register Acquire() {
-    DCHECK_NOT_NULL(available_);
-    DCHECK(!available_->is_empty());
-    int index =
-        static_cast<int>(base::bits::CountTrailingZeros32(available_->bits()));
-    *available_ &= RegList::FromBits(~(1U << index));
+    RegList* available = assembler_->GetScratchRegisterList();
+    return available->PopFirst();
+  }
 
-    return Register::from_code(index);
+  DoubleRegister AcquireDouble() {
+    DoubleRegList* available_double =
+        assembler_->GetScratchDoubleRegisterList();
+    return available_double->PopFirst();
   }
-  bool hasAvailable() const;
-  void Include(const RegList& list) { *available_ |= list; }
+
+  // Check if we have registers available to acquire.
+  bool CanAcquire() const {
+    RegList* available = assembler_->GetScratchRegisterList();
+    return !available->is_empty();
+  }
+
+  void Include(const Register& reg1, const Register& reg2) {
+    Include(reg1);
+    Include(reg2);
+  }
+  void Include(const Register& reg) {
+    DCHECK_NE(reg, no_reg);
+    RegList* available = assembler_->GetScratchRegisterList();
+    DCHECK_NOT_NULL(available);
+    DCHECK(!available->has(reg));
+    available->set(reg);
+  }
+  void Include(RegList list) {
+    RegList* available = assembler_->GetScratchRegisterList();
+    DCHECK_NOT_NULL(available);
+    *available = *available | list;
+  }
   void Exclude(const RegList& list) {
-    *available_ &= RegList::FromBits(~list.bits());
+    RegList* available = assembler_->GetScratchRegisterList();
+    DCHECK_NOT_NULL(available);
+    available->clear(list);
   }
-  void Include(const Register& reg1, const Register& reg2 = no_reg) {
-    RegList list({reg1, reg2});
-    Include(list);
+  void Exclude(const Register& reg1, const Register& reg2) {
+    Exclude(reg1);
+    Exclude(reg2);
   }
-  void Exclude(const Register& reg1, const Register& reg2 = no_reg) {
-    RegList list({reg1, reg2});
+  void Exclude(const Register& reg) {
+    DCHECK_NE(reg, no_reg);
+    RegList list({reg});
     Exclude(list);
   }
 
+  void Include(DoubleRegList list) {
+    DoubleRegList* available_double =
+        assembler_->GetScratchDoubleRegisterList();
+    DCHECK_NOT_NULL(available_double);
+    DCHECK_EQ((*available_double & list).bits(), 0x0);
+    *available_double = *available_double | list;
+  }
+
+  RegList Available() { return *assembler_->GetScratchRegisterList(); }
+  void SetAvailable(RegList available) {
+    *assembler_->GetScratchRegisterList() = available;
+  }
+  DoubleRegList AvailableDouble() {
+    return *assembler_->GetScratchDoubleRegisterList();
+  }
+  void SetAvailableDouble(DoubleRegList available_double) {
+    *assembler_->GetScratchDoubleRegisterList() = available_double;
+  }
+
  private:
-  RegList* available_;
+  friend class Assembler;
+  friend class MacroAssembler;
+
+  Assembler* assembler_;
   RegList old_available_;
+  DoubleRegList old_available_double_;
 };
 
 }  // namespace internal

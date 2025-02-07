@@ -70,10 +70,11 @@ V8_EXPORT_PRIVATE WasmError ValidateAndSetBuiltinImports(
 // cache entry. Assumes the key already exists in the cache but has not been
 // compiled yet.
 V8_EXPORT_PRIVATE
-WasmCode* CompileImportWrapper(
-    NativeModule* native_module, Counters* counters, ImportCallKind kind,
-    const FunctionSig* sig, uint32_t canonical_type_index, int expected_arity,
-    Suspend suspend, WasmImportWrapperCache::ModificationScope* cache_scope);
+WasmCode* CompileImportWrapperForTest(NativeModule* native_module,
+                                      Counters* counters, ImportCallKind kind,
+                                      const FunctionSig* sig,
+                                      uint32_t canonical_type_index,
+                                      int expected_arity, Suspend suspend);
 
 // Triggered by the WasmCompileLazy builtin. The return value indicates whether
 // compilation was successful. Lazy compilation can fail only if validation is

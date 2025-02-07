@@ -16,8 +16,8 @@ const server = createServer(common.mustCall((req, res) => {
   req.on('end', common.mustCall(() => {
     setImmediate(async () => {
       client.end();
-      await global.gc({ type: 'major', execution: 'async' });
-      await global.gc({ type: 'major', execution: 'async' });
+      await globalThis.gc({ type: 'major', execution: 'async' });
+      await globalThis.gc({ type: 'major', execution: 'async' });
     });
   }));
   res.end('hello world');

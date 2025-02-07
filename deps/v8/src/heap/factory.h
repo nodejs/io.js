@@ -596,24 +596,6 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
 
   Handle<FixedDoubleArray> CopyFixedDoubleArray(Handle<FixedDoubleArray> array);
 
-  template <ExternalPointerTag tag>
-  Handle<ExternalPointerArray> CopyExternalPointerArrayAndGrow(
-      DirectHandle<ExternalPointerArray> src, int grow_by,
-      AllocationType alloction = AllocationType::kYoung) {
-    int old_len = src->length();
-    int new_len = old_len + grow_by;
-    Handle<ExternalPointerArray> result = NewExternalPointerArray(new_len);
-
-    // Copy the pointers one-by-one. We can't just do a memcpy here since when
-    // the sandbox is enabled, this array will contain external pointer handles
-    // which must not be copied/moved between objects.
-    for (int i = 0; i < old_len; i++) {
-      result->set<tag>(i, isolate(), src->get<tag>(i, isolate()));
-    }
-
-    return result;
-  }
-
   // Creates a new HeapNumber in read-only space if possible otherwise old
   // space.
   Handle<HeapNumber> NewHeapNumberForCodeAssembler(double value);
@@ -1053,7 +1035,7 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
   // Returns a null handle when the given name is unknown.
   Handle<Object> GlobalConstantFor(Handle<Name> name);
 
-  // Converts the given ToPrimitive hint to it's string representation.
+  // Converts the given ToPrimitive hint to its string representation.
   Handle<String> ToPrimitiveHintString(ToPrimitiveHint hint);
 
   Handle<JSPromise> NewJSPromiseWithoutHook();
@@ -1194,6 +1176,12 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
     inline CodeBuilder& set_interpreter_data(
         Handle<TrustedObject> interpreter_data);
 
+    CodeBuilder& set_is_context_specialized() {
+      DCHECK(!CodeKindIsUnoptimizedJSFunction(kind_));
+      is_context_specialized_ = true;
+      return *this;
+    }
+
     CodeBuilder& set_is_turbofanned() {
       DCHECK(!CodeKindIsUnoptimizedJSFunction(kind_));
       is_turbofanned_ = true;
@@ -1239,6 +1227,7 @@ class V8_EXPORT_PRIVATE Factory : public FactoryBase<Factory> {
     MaybeHandle<DeoptimizationData> deoptimization_data_;
     MaybeHandle<TrustedObject> interpreter_data_;
     BasicBlockProfilerData* profiler_data_ = nullptr;
+    bool is_context_specialized_ = false;
     bool is_turbofanned_ = false;
     int stack_slots_ = 0;
     uint16_t parameter_count_ = 0;

@@ -19,11 +19,11 @@ let clientTLSHandle = clientTLS._handle;  // eslint-disable-line no-unused-vars
 
 setImmediate(() => {
   clientTLS = null;
-  global.gc();
+  globalThis.gc();
   clientTLSHandle = null;
-  global.gc();
+  globalThis.gc();
   setImmediate(() => {
     clientSide = null;
-    global.gc();
+    globalThis.gc();
   });
 });

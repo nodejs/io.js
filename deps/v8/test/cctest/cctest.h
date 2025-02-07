@@ -711,7 +711,7 @@ class TestPlatform : public v8::Platform {
   void OnCriticalMemoryPressure() override;
   int NumberOfWorkerThreads() override;
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
-      v8::Isolate* isolate) override;
+      v8::Isolate* isolate, v8::TaskPriority priority) override;
   void PostTaskOnWorkerThreadImpl(v8::TaskPriority priority,
                                   std::unique_ptr<v8::Task> task,
                                   const v8::SourceLocation& location) override;
@@ -776,7 +776,7 @@ class SimulatorHelper {
         simulator_->get_register(v8::internal::Simulator::fp));
     state->lr = reinterpret_cast<void*>(
         simulator_->get_register(v8::internal::Simulator::ra));
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
     state->pc = reinterpret_cast<void*>(simulator_->get_pc());
     state->sp = reinterpret_cast<void*>(
         simulator_->get_register(v8::internal::Simulator::sp));

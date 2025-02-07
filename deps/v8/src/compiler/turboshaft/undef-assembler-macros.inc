@@ -29,7 +29,7 @@
 #undef GOTO_IF_NOT
 #undef IF
 #undef IF_NOT
-#undef LIKLEY
+#undef LIKELY
 #undef REDUCE
 #undef REDUCE_INPUT_GRAPH
 #undef TSA_DCHECK

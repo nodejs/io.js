@@ -54,6 +54,7 @@ enum ContextLookupFlags {
     async_module_evaluate_internal)                                            \
   V(REFLECT_APPLY_INDEX, JSFunction, reflect_apply)                            \
   V(REFLECT_CONSTRUCT_INDEX, JSFunction, reflect_construct)                    \
+  V(PERFORM_PROMISE_THEN_INDEX, JSFunction, perform_promise_then)              \
   V(PROMISE_THEN_INDEX, JSFunction, promise_then)                              \
   V(PROMISE_RESOLVE_INDEX, JSFunction, promise_resolve)                        \
   V(FUNCTION_PROTOTYPE_APPLY_INDEX, JSFunction, function_prototype_apply)      \
@@ -203,6 +204,8 @@ enum ContextLookupFlags {
     js_array_template_literal_object_map)                                      \
   V(JS_DISPOSABLE_STACK_FUNCTION_INDEX, JSFunction,                            \
     js_disposable_stack_function)                                              \
+  V(JS_ASYNC_DISPOSABLE_STACK_FUNCTION_INDEX, JSFunction,                      \
+    js_async_disposable_stack_function)                                        \
   V(JS_DISPOSABLE_STACK_MAP_INDEX, Map, js_disposable_stack_map)               \
   V(JS_MAP_FUN_INDEX, JSFunction, js_map_fun)                                  \
   V(JS_MAP_MAP_INDEX, Map, js_map_map)                                         \

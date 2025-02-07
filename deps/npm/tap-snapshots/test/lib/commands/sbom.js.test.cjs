@@ -259,12 +259,7 @@ exports[`test/lib/commands/sbom.js TAP sbom basic sbom - cyclonedx > must match 
       "version": "1.0.0",
       "scope": "required",
       "purl": "pkg:npm/test-npm-sbom@1.0.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:path",
-          "value": ""
-        }
-      ],
+      "properties": [],
       "externalReferences": []
     }
   },
@@ -276,12 +271,7 @@ exports[`test/lib/commands/sbom.js TAP sbom basic sbom - cyclonedx > must match 
       "version": "1.0.0",
       "scope": "required",
       "purl": "pkg:npm/chai@1.0.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/chai"
-        }
-      ],
+      "properties": [],
       "externalReferences": []
     },
     {
@@ -291,12 +281,7 @@ exports[`test/lib/commands/sbom.js TAP sbom basic sbom - cyclonedx > must match 
       "version": "1.0.0",
       "scope": "required",
       "purl": "pkg:npm/foo@1.0.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/foo"
-        }
-      ],
+      "properties": [],
       "externalReferences": []
     },
     {
@@ -306,12 +291,7 @@ exports[`test/lib/commands/sbom.js TAP sbom basic sbom - cyclonedx > must match 
       "version": "1.0.0",
       "scope": "required",
       "purl": "pkg:npm/dog@1.0.0",
-      "properties": [
-        {
-          "name": "cdx:npm:package:path",
-          "value": "node_modules/foo/node_modules/dog"
-        }
-      ],
+      "properties": [],
       "externalReferences": []
     }
   ],
@@ -446,6 +426,252 @@ exports[`test/lib/commands/sbom.js TAP sbom basic sbom - spdx > must match snaps
     },
     {
       "spdxElementId": "SPDXRef-Package-dog-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    }
+  ]
+}
+`
+
+exports[`test/lib/commands/sbom.js TAP sbom duplicate deps - cyclonedx > must match snapshot 1`] = `
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:00000000-0000-0000-0000-000000000000",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2020-01-01T00:00:00.000Z",
+    "lifecycles": [
+      {
+        "phase": "build"
+      }
+    ],
+    "tools": [
+      {
+        "vendor": "npm",
+        "name": "cli",
+        "version": "10.0.0"
+      }
+    ],
+    "component": {
+      "bom-ref": "test-npm-sbom@1.0.0",
+      "type": "library",
+      "name": "prefix",
+      "version": "1.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/test-npm-sbom@1.0.0",
+      "properties": [],
+      "externalReferences": []
+    }
+  },
+  "components": [
+    {
+      "bom-ref": "bar@1.0.0",
+      "type": "library",
+      "name": "bar",
+      "version": "1.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/bar@1.0.0",
+      "properties": [],
+      "externalReferences": []
+    },
+    {
+      "bom-ref": "chai@1.0.0",
+      "type": "library",
+      "name": "chai",
+      "version": "1.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/chai@1.0.0",
+      "properties": [],
+      "externalReferences": []
+    },
+    {
+      "bom-ref": "chai@2.0.0",
+      "type": "library",
+      "name": "chai",
+      "version": "2.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/chai@2.0.0",
+      "properties": [],
+      "externalReferences": []
+    },
+    {
+      "bom-ref": "foo@1.0.0",
+      "type": "library",
+      "name": "foo",
+      "version": "1.0.0",
+      "scope": "required",
+      "purl": "pkg:npm/foo@1.0.0",
+      "properties": [],
+      "externalReferences": []
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "test-npm-sbom@1.0.0",
+      "dependsOn": [
+        "foo@1.0.0",
+        "bar@1.0.0",
+        "chai@2.0.0"
+      ]
+    },
+    {
+      "ref": "bar@1.0.0",
+      "dependsOn": [
+        "chai@1.0.0"
+      ]
+    },
+    {
+      "ref": "chai@1.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "chai@2.0.0",
+      "dependsOn": []
+    },
+    {
+      "ref": "foo@1.0.0",
+      "dependsOn": [
+        "chai@1.0.0"
+      ]
+    }
+  ]
+}
+`
+
+exports[`test/lib/commands/sbom.js TAP sbom duplicate deps - spdx > must match snapshot 1`] = `
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "test-npm-sbom@1.0.0",
+  "documentNamespace": "http://spdx.org/spdxdocs/test-npm-sbom-1.0.0-00000000-0000-0000-0000-000000000000",
+  "creationInfo": {
+    "created": "2020-01-01T00:00:00.000Z",
+    "creators": [
+      "Tool: npm/cli-10.0.0"
+    ]
+  },
+  "documentDescribes": [
+    "SPDXRef-Package-test-npm-sbom-1.0.0"
+  ],
+  "packages": [
+    {
+      "name": "test-npm-sbom",
+      "SPDXID": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "versionInfo": "1.0.0",
+      "packageFileName": "",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/test-npm-sbom@1.0.0"
+        }
+      ]
+    },
+    {
+      "name": "bar",
+      "SPDXID": "SPDXRef-Package-bar-1.0.0",
+      "versionInfo": "1.0.0",
+      "packageFileName": "node_modules/bar",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/bar@1.0.0"
+        }
+      ]
+    },
+    {
+      "name": "chai",
+      "SPDXID": "SPDXRef-Package-chai-1.0.0",
+      "versionInfo": "1.0.0",
+      "packageFileName": "node_modules/bar/node_modules/chai",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/chai@1.0.0"
+        }
+      ]
+    },
+    {
+      "name": "chai",
+      "SPDXID": "SPDXRef-Package-chai-2.0.0",
+      "versionInfo": "2.0.0",
+      "packageFileName": "node_modules/chai",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/chai@2.0.0"
+        }
+      ]
+    },
+    {
+      "name": "foo",
+      "SPDXID": "SPDXRef-Package-foo-1.0.0",
+      "versionInfo": "1.0.0",
+      "packageFileName": "node_modules/foo",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "homepage": "NOASSERTION",
+      "licenseDeclared": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/foo@1.0.0"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DESCRIBES"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-foo-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-bar-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-2.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-test-npm-sbom-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
+      "relatedSpdxElement": "SPDXRef-Package-bar-1.0.0",
+      "relationshipType": "DEPENDENCY_OF"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-chai-1.0.0",
       "relatedSpdxElement": "SPDXRef-Package-foo-1.0.0",
       "relationshipType": "DEPENDENCY_OF"
     }

@@ -891,11 +891,14 @@ class Graph {
     explicit OperationIterator(OpIndex index, GraphT* graph)
         : index_(index), graph_(graph) {}
     value_type& operator*() { return graph_->Get(index_); }
+    value_type* operator->() { return &graph_->Get(index_); }
     OperationIterator& operator++() {
+      DCHECK_NE(index_, graph_->EndIndex());
       index_ = graph_->NextIndex(index_);
       return *this;
     }
     OperationIterator& operator--() {
+      DCHECK_NE(index_, graph_->BeginIndex());
       index_ = graph_->PreviousIndex(index_);
       return *this;
     }

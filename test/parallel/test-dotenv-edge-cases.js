@@ -170,4 +170,16 @@ describe('.env supports edge cases', () => {
     assert.strictEqual(SingleQuotesChild.stderr, '');
     assert.strictEqual(SingleQuotesChild.code, 0);
   });
+
+  it('should reject invalid env file flag', async () => {
+    const child = await common.spawnPromisified(
+      process.execPath,
+      ['--env-file-ABCD', validEnvFilePath],
+      { cwd: __dirname },
+    );
+
+    assert.strictEqual(child.stdout, '');
+    assert.strictEqual(child.code, 9);
+    assert.match(child.stderr, /bad option: --env-file-ABCD/);
+  });
 });

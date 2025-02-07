@@ -14,7 +14,7 @@ function f() {
   let s1 = 0, s2 = 0;
   for (let i = 0; i < 10; i++) {
     if (i >= 3) {
-      // The inner loop is in a if-else in the outer loop so that the block
+      // The inner loop is in an if-else in the outer loop so that the block
       // containing `arr[2]++` is not among its successors.
       for (let j = 0; j < 10; j++) {
         s1 += arr[1];

@@ -320,7 +320,7 @@ class V8_EXPORT Context : public Data {
    * 'Function' constructor are used an exception will be thrown.
    *
    * If code generation from strings is not allowed the
-   * V8::AllowCodeGenerationFromStrings callback will be invoked if
+   * V8::ModifyCodeGenerationFromStringsCallback callback will be invoked if
    * set before blocking the call to 'eval' or the 'Function'
    * constructor. If that callback returns true, the call will be
    * allowed, otherwise an exception will be thrown. If no callback is

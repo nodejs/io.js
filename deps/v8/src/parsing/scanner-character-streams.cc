@@ -283,7 +283,7 @@ class BufferedCharacterStream : public Utf16CharacterStream {
   ByteStream<uint8_t> byte_stream_;
 };
 
-// Provides a unbuffered utf-16 view on the bytes from the underlying
+// Provides an unbuffered utf-16 view on the bytes from the underlying
 // ByteStream.
 template <template <typename T> class ByteStream>
 class UnbufferedCharacterStream : public Utf16CharacterStream {
@@ -328,7 +328,7 @@ class UnbufferedCharacterStream : public Utf16CharacterStream {
   ByteStream<uint16_t> byte_stream_;
 };
 
-// Provides a unbuffered utf-16 view on the bytes from the underlying
+// Provides an unbuffered utf-16 view on the bytes from the underlying
 // ByteStream.
 class RelocatingCharacterStream final
     : public UnbufferedCharacterStream<OnHeapStream> {

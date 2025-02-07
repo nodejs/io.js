@@ -1128,7 +1128,7 @@ void MacroAssembler::EnterFrame(StackFrame::Type type) {
     Push(Immediate(StackFrame::TypeToMarker(type)));
   }
 #if V8_ENABLE_WEBASSEMBLY
-  if (type == StackFrame::WASM) Push(kWasmInstanceRegister);
+  if (type == StackFrame::WASM) Push(kWasmImplicitArgRegister);
 #endif  // V8_ENABLE_WEBASSEMBLY
 }
 

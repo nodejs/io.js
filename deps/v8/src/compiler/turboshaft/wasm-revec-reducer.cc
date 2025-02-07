@@ -641,11 +641,9 @@ PackNode* SLPTree::BuildTreeRec(const NodeGroup& node_group,
       StoreLoadInfo<LoadOp> info1(&graph_, &load1);
       auto stride = info1 - info0;
       if (stride.has_value()) {
-        const int value = stride.value();
-        if (value == kSimd128Size) {
+        if (const int value = stride.value(); value == kSimd128Size) {
           // TODO(jiepan) Sort load
-          PackNode* p = NewPackNode(node_group);
-          return p;
+          return NewPackNode(node_group);
         } else if (value == 0) {
           return NewForcePackNode(node_group, PackNode::ForcePackType::kSplat,
                                   graph_);
@@ -1033,7 +1031,7 @@ bool WasmRevecAnalyzer::DecideVectorize() {
   int save = 0, cost = 0;
   ForEach(
       [&](PackNode const* pnode) {
-        const NodeGroup& nodes = pnode->Nodes();
+        const NodeGroup& nodes = pnode->nodes();
         // Splat nodes will not cause a saving as it simply extends itself.
         if (!IsSplat(nodes)) {
           save++;
@@ -1059,7 +1057,7 @@ bool WasmRevecAnalyzer::DecideVectorize() {
               TRACE("External use edge: (%d:%s) -> (%d:%s)\n", use.id(),
                     OpcodeName(graph_.Get(use).opcode), nodes[i].id(),
                     OpcodeName(graph_.Get(nodes[i]).opcode));
-              cost++;
+              ++cost;
 
               // We only need one Extract node and all other uses can share.
               break;

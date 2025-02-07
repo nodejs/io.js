@@ -47,6 +47,11 @@ Data types
 
     The `events` parameter is an ORed mask of :c:enum:`uv_fs_event` elements.
 
+.. note::
+   For FreeBSD path could sometimes be `NULL` due to a kernel bug.
+
+    .. _Reference: https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=197695
+
 .. c:enum:: uv_fs_event
 
     Event types that :c:type:`uv_fs_event_t` handles monitor.

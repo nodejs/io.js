@@ -13,20 +13,17 @@ namespace internal {
 
 // static
 MemoryChunkMetadata* MemoryChunkMetadata::FromAddress(Address a) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return MemoryChunk::FromAddress(a)->Metadata();
 }
 
 // static
 MemoryChunkMetadata* MemoryChunkMetadata::FromHeapObject(Tagged<HeapObject> o) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return FromAddress(o.ptr());
 }
 
 // static
 MemoryChunkMetadata* MemoryChunkMetadata::FromHeapObject(
     const HeapObjectLayout* o) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return FromAddress(reinterpret_cast<Address>(o));
 }
 

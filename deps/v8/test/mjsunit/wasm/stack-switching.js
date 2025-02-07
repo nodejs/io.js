@@ -4,6 +4,7 @@
 
 // Flags: --allow-natives-syntax --experimental-wasm-jspi
 // Flags: --expose-gc --wasm-stack-switching-stack-size=100
+// Flags: --experimental-wasm-type-reflection
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 

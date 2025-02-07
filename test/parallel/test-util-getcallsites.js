@@ -79,6 +79,13 @@ const assert = require('node:assert');
   );
 }
 
+// ScriptId is a string.
+{
+  const callSites = getCallSites(1);
+  assert.strictEqual(callSites.length, 1);
+  assert.strictEqual(typeof callSites[0].scriptId, 'string');
+}
+
 // Guarantee [eval] will appear on stacktraces when using -e
 {
   const { status, stderr, stdout } = spawnSync(
@@ -126,6 +133,7 @@ const assert = require('node:assert');
   assert.strictEqual(stderr.toString(), '');
   assert.match(output, /lineNumber: 8/);
   assert.match(output, /column: 18/);
+  assert.match(output, /columnNumber: 18/);
   assert.match(output, /test-get-callsite\.ts/);
   assert.strictEqual(status, 0);
 }
@@ -143,6 +151,7 @@ const assert = require('node:assert');
   // Line should be wrong when sourcemaps are disable
   assert.match(output, /lineNumber: 2/);
   assert.match(output, /column: 18/);
+  assert.match(output, /columnNumber: 18/);
   assert.match(output, /test-get-callsite\.ts/);
   assert.strictEqual(status, 0);
 }
@@ -159,6 +168,7 @@ const assert = require('node:assert');
   assert.strictEqual(stderr.toString(), '');
   assert.match(output, /lineNumber: 2/);
   assert.match(output, /column: 18/);
+  assert.match(output, /columnNumber: 18/);
   assert.match(output, /test-get-callsite-explicit\.ts/);
   assert.strictEqual(status, 0);
 }

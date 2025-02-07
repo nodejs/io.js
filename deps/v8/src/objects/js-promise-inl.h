@@ -23,6 +23,27 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(JSPromise)
 BOOL_ACCESSORS(JSPromise, flags, has_handler, HasHandlerBit::kShift)
 BOOL_ACCESSORS(JSPromise, flags, is_silent, IsSilentBit::kShift)
 
+// static
+uint32_t JSPromise::GetNextAsyncTaskId(uint32_t async_task_id) {
+  do {
+    ++async_task_id;
+    async_task_id &= AsyncTaskIdBits::kMax;
+  } while (async_task_id == kInvalidAsyncTaskId);
+  return async_task_id;
+}
+
+bool JSPromise::has_async_task_id() const {
+  return async_task_id() != kInvalidAsyncTaskId;
+}
+
+uint32_t JSPromise::async_task_id() const {
+  return AsyncTaskIdBits::decode(flags());
+}
+
+void JSPromise::set_async_task_id(uint32_t id) {
+  set_flags(AsyncTaskIdBits::update(flags(), id));
+}
+
 Tagged<Object> JSPromise::result() const {
   DCHECK_NE(Promise::kPending, status());
   return reactions_or_result();

@@ -162,15 +162,14 @@ uint32_t ExternalEntityTable<Entry, size>::AllocateEntry(Space* space) {
   DisallowGarbageCollection no_gc;
 
   FreelistHead freelist;
-  bool success = false;
-  while (!success) {
+  for (;;) {
     // This is essentially DCLP (see
     // https://preshing.com/20130930/double-checked-locking-is-fixed-in-cpp11/)
     // and so requires an acquire load as well as a release store in Grow() to
     // prevent reordering of memory accesses, which could for example cause one
     // thread to read a freelist entry before it has been properly initialized.
     freelist = space->freelist_head_.load(std::memory_order_acquire);
-    if (freelist.is_empty()) {
+    if (V8_UNLIKELY(freelist.is_empty())) {
       // Freelist is empty. Need to take the lock, then attempt to allocate a
       // new segment if no other thread has done it in the meantime.
       base::MutexGuard guard(&space->mutex_);
@@ -186,7 +185,9 @@ uint32_t ExternalEntityTable<Entry, size>::AllocateEntry(Space* space) {
       }
     }
 
-    success = TryAllocateEntryFromFreelist(space, freelist);
+    if (V8_LIKELY(TryAllocateEntryFromFreelist(space, freelist))) {
+      break;
+    }
   }
 
   uint32_t allocated_entry = freelist.next();

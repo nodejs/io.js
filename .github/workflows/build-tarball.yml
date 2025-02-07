@@ -50,9 +50,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Set up sccache
-        uses: mozilla-actions/sccache-action@9e326ebed976843c9932b3aa0e021c6f50310eb4  # v0.0.6
+        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9  # v0.0.7
         with:
-          version: v0.8.1
+          version: v0.9.1
       - name: Environment Information
         run: npx envinfo
       - name: Make tarball
@@ -105,4 +105,4 @@ jobs:
       - name: Test
         run: |
           cd $TAR_DIR
-          make run-ci -j4 V=1 TEST_CI_ARGS="-p dots --node-args='--test-reporter=./test/common/test-error-reporter.js' --measure-flakiness 9"
+          make run-ci -j4 V=1 TEST_CI_ARGS="-p dots  --measure-flakiness 9"

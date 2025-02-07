@@ -119,7 +119,7 @@ static base::LazyInstance<IsolateMapType>::type isolate_map =
     LAZY_INSTANCE_INITIALIZER;
 
 using FilterDataType = std::string;
-// Used when Isolates are created during a ETW tracing session.
+// Used when Isolates are created during an ETW tracing session.
 static base::LazyInstance<FilterDataType>::type etw_filter_payload =
     LAZY_INSTANCE_INITIALIZER;
 

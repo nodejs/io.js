@@ -105,11 +105,11 @@ top level test with two subtests.
 
 ```js
 test('top level test', async (t) => {
-  await t.test('subtest 1', (t) => {
+  t.test('subtest 1', (t) => {
     assert.strictEqual(1, 1);
   });
 
-  await t.test('subtest 2', (t) => {
+  t.test('subtest 2', (t) => {
     assert.strictEqual(2, 2);
   });
 });
@@ -118,12 +118,7 @@ test('top level test', async (t) => {
 > **Note:** `beforeEach` and `afterEach` hooks are triggered
 > between each subtest execution.
 
-In this example, `await` is used to ensure that both subtests have completed.
-This is necessary because tests do not wait for their subtests to
-complete, unlike tests created within suites.
-Any subtests that are still outstanding when their parent finishes
-are cancelled and treated as failures. Any subtest failures cause the parent
-test to fail.
+Any subtest failures cause the parent test to fail.
 
 ## Skipping tests
 
@@ -241,20 +236,20 @@ that are not executed are omitted from the test runner output.
 // The suite's 'only' option is set, so these tests are run.
 test('this test is run', { only: true }, async (t) => {
   // Within this test, all subtests are run by default.
-  await t.test('running subtest');
+  t.test('running subtest');
 
   // The test context can be updated to run subtests with the 'only' option.
   t.runOnly(true);
-  await t.test('this subtest is now skipped');
-  await t.test('this subtest is run', { only: true });
+  t.test('this subtest is now skipped');
+  t.test('this subtest is run', { only: true });
 
   // Switch the context back to execute all tests.
   t.runOnly(false);
-  await t.test('this subtest is now run');
+  t.test('this subtest is now run');
 
   // Explicitly do not run these tests.
-  await t.test('skipped subtest 3', { only: false });
-  await t.test('skipped subtest 4', { skip: true });
+  t.test('skipped subtest 3', { only: false });
+  t.test('skipped subtest 4', { skip: true });
 });
 
 // The 'only' option is not set, so this test is skipped.
@@ -309,13 +304,13 @@ multiple times (e.g. `--test-name-pattern="test 1"`,
 
 ```js
 test('test 1', async (t) => {
-  await t.test('test 2');
-  await t.test('test 3');
+  t.test('test 2');
+  t.test('test 3');
 });
 
 test('Test 4', async (t) => {
-  await t.test('Test 5');
-  await t.test('test 6');
+  t.test('Test 5');
+  t.test('test 6');
 });
 ```
 
@@ -1407,6 +1402,11 @@ run({ files: [path.resolve('./tests/test.js')] })
 added:
   - v22.0.0
   - v20.13.0
+changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
 -->
 
 * `name` {string} The name of the suite, which is displayed when reporting test
@@ -1417,7 +1417,6 @@ added:
 * `fn` {Function|AsyncFunction} The suite function declaring nested tests and
   suites. The first argument to this function is a [`SuiteContext`][] object.
   **Default:** A no-op function.
-* Returns: {Promise} Immediately fulfilled with `undefined`.
 
 The `suite()` function is imported from the `node:test` module.
 
@@ -1461,6 +1460,10 @@ added:
   - v18.0.0
   - v16.17.0
 changes:
+  - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
   - version:
     - v20.2.0
     - v18.17.0
@@ -1510,8 +1513,6 @@ changes:
   to this function is a [`TestContext`][] object. If the test uses callbacks,
   the callback function is passed as the second argument. **Default:** A no-op
   function.
-* Returns: {Promise} Fulfilled with `undefined` once
-  the test completes, or immediately if the test runs within a suite.
 
 The `test()` function is the value imported from the `test` module. Each
 invocation of this function results in reporting the test to the {TestsStream}.
@@ -1519,26 +1520,6 @@ invocation of this function results in reporting the test to the {TestsStream}.
 The `TestContext` object passed to the `fn` argument can be used to perform
 actions related to the current test. Examples include skipping the test, adding
 additional diagnostic information, or creating subtests.
-
-`test()` returns a `Promise` that fulfills once the test completes.
-if `test()` is called within a suite, it fulfills immediately.
-The return value can usually be discarded for top level tests.
-However, the return value from subtests should be used to prevent the parent
-test from finishing first and cancelling the subtest
-as shown in the following example.
-
-```js
-test('top level test', async (t) => {
-  // The setTimeout() in the following subtest would cause it to outlive its
-  // parent test if 'await' is removed on the next line. Once the parent test
-  // completes, it will cancel any outstanding subtests.
-  await t.test('longer running subtest', async (t) => {
-    return new Promise((resolve, reject) => {
-      setTimeout(resolve, 1000);
-    });
-  });
-});
-```
 
 The `timeout` option can be used to fail the test if it takes longer than
 `timeout` milliseconds to complete. However, it is not a reliable mechanism for
@@ -1753,7 +1734,7 @@ describe('tests', async () => {
 ## `assert`
 
 <!-- YAML
-added: REPLACEME
+added: v23.7.0
 -->
 
 An object whose methods are used to configure available assertions on the
@@ -1767,7 +1748,7 @@ preloaded with `--require` or `--import`.
 ### `assert.register(name, fn)`
 
 <!-- YAML
-added: REPLACEME
+added: v23.7.0
 -->
 
 Defines a new assertion function with the provided name and function. If an
@@ -3189,12 +3170,9 @@ before each subtest of the current test.
 ```js
 test('top level test', async (t) => {
   t.beforeEach((t) => t.diagnostic(`about to run ${t.name}`));
-  await t.test(
-    'This is a subtest',
-    (t) => {
-      assert.ok('some relevant assertion here');
-    },
-  );
+  t.test('This is a subtest', (t) => {
+    assert.ok('some relevant assertion here');
+  });
 });
 ```
 
@@ -3252,12 +3230,9 @@ after each subtest of the current test.
 ```js
 test('top level test', async (t) => {
   t.afterEach((t) => t.diagnostic(`finished running ${t.name}`));
-  await t.test(
-    'This is a subtest',
-    (t) => {
-      assert.ok('some relevant assertion here');
-    },
-  );
+  t.test('This is a subtest', (t) => {
+    assert.ok('some relevant assertion here');
+  });
 });
 ```
 
@@ -3283,7 +3258,7 @@ test('test', (t) => {
 #### `context.assert.fileSnapshot(value, path[, options])`
 
 <!-- YAML
-added: REPLACEME
+added: v23.7.0
 -->
 
 * `value` {any} A value to serialize to a string. If Node.js was started with
@@ -3472,10 +3447,8 @@ no-op.
 test('top level test', (t) => {
   // The test context can be set to run subtests with the 'only' option.
   t.runOnly(true);
-  return Promise.all([
-    t.test('this subtest is now skipped'),
-    t.test('this subtest is run', { only: true }),
-  ]);
+  t.test('this subtest is now skipped');
+  t.test('this subtest is run', { only: true });
 });
 ```
 
@@ -3548,6 +3521,10 @@ added:
   - v16.17.0
 changes:
   - version:
+    - REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/56664
+    description: This function no longer returns a `Promise`.
+  - version:
     - v18.8.0
     - v16.18.0
     pr-url: https://github.com/nodejs/node/pull/43554
@@ -3591,14 +3568,13 @@ changes:
   to this function is a [`TestContext`][] object. If the test uses callbacks,
   the callback function is passed as the second argument. **Default:** A no-op
   function.
-* Returns: {Promise} Fulfilled with `undefined` once the test completes.
 
 This function is used to create subtests under the current test. This function
 behaves in the same fashion as the top level [`test()`][] function.
 
 ```js
 test('top level test', async (t) => {
-  await t.test(
+  t.test(
     'This is a subtest',
     { only: false, skip: false, concurrency: 1, todo: false, plan: 1 },
     (t) => {
@@ -3607,6 +3583,27 @@ test('top level test', async (t) => {
   );
 });
 ```
+
+### `context.waitFor(condition[, options])`
+
+<!-- YAML
+added: v23.7.0
+-->
+
+* `condition` {Function|AsyncFunction} An assertion function that is invoked
+  periodically until it completes successfully or the defined polling timeout
+  elapses. Successful completion is defined as not throwing or rejecting. This
+  function does not accept any arguments, and is allowed to return any value.
+* `options` {Object} An optional configuration object for the polling operation.
+  The following properties are supported:
+  * `interval` {number} The number of milliseconds to wait after an unsuccessful
+    invocation of `condition` before trying again. **Default:** `50`.
+  * `timeout` {number} The poll timeout in milliseconds. If `condition` has not
+    succeeded by the time this elapses, an error occurs. **Default:** `1000`.
+* Returns: {Promise} Fulfilled with the value returned by `condition`.
+
+This method polls a `condition` function until that function either returns
+successfully or the operation times out.
 
 ## Class: `SuiteContext`
 

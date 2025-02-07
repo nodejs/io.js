@@ -14,6 +14,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 using compiler::CodeAssemblerTester;
 using compiler::FunctionTester;
 using compiler::Node;
@@ -249,6 +251,8 @@ TEST(TryProbeStubCache) {
   // Ensure we performed both kind of queries.
   CHECK(queried_existing && queried_non_existing);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

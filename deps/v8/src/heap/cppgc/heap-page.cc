@@ -217,8 +217,6 @@ NormalPage::NormalPage(HeapBase& heap, BaseSpace& space)
             static_cast<size_t>(PayloadEnd() - PayloadStart()));
 }
 
-NormalPage::~NormalPage() = default;
-
 NormalPage::iterator NormalPage::begin() {
   const auto& lab = NormalPageSpace::From(space()).linear_allocation_buffer();
   return iterator(reinterpret_cast<HeapObjectHeader*>(PayloadStart()),
@@ -256,8 +254,6 @@ size_t NormalPage::PayloadSize() {
 
 LargePage::LargePage(HeapBase& heap, BaseSpace& space, size_t size)
     : BasePage(heap, space, PageType::kLarge), payload_size_(size) {}
-
-LargePage::~LargePage() = default;
 
 // static
 size_t LargePage::AllocationSize(size_t payload_size) {

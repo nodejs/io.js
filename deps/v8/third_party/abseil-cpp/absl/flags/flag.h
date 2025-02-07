@@ -290,8 +290,7 @@ ABSL_NAMESPACE_END
 // arguments unchanged (unless of course you actually want to retire the flag
 // type at this time as well).
 //
-// `default_value` is only used as a double check on the type. `explanation` is
-// unused.
+// `default_value` and `explanation` are unused.
 // TODO(rogeeff): replace RETIRED_FLAGS with FLAGS once forward declarations of
 // retired flags are cleaned up.
 #define ABSL_RETIRED_FLAG(type, name, default_value, explanation)      \

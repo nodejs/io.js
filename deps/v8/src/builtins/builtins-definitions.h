@@ -618,7 +618,16 @@ namespace internal {
   CPP(DisposableStackPrototypeMove)                                            \
                                                                                \
   /* Async DisposabeStack*/                                                    \
+  CPP(AsyncDisposableStackOnFulfilled)                                         \
+  CPP(AsyncDisposableStackOnRejected)                                          \
   CPP(AsyncDisposeFromSyncDispose)                                             \
+  CPP(AsyncDisposableStackConstructor)                                         \
+  CPP(AsyncDisposableStackPrototypeUse)                                        \
+  CPP(AsyncDisposableStackPrototypeDisposeAsync)                               \
+  CPP(AsyncDisposableStackPrototypeGetDisposed)                                \
+  CPP(AsyncDisposableStackPrototypeAdopt)                                      \
+  CPP(AsyncDisposableStackPrototypeDefer)                                      \
+  CPP(AsyncDisposableStackPrototypeMove)                                       \
                                                                                \
   /* Error */                                                                  \
   CPP(ErrorConstructor)                                                        \
@@ -836,7 +845,7 @@ namespace internal {
   TFC(Decrement_Baseline, UnaryOp_Baseline)                                    \
   TFC(Increment_Baseline, UnaryOp_Baseline)                                    \
   TFC(Negate_Baseline, UnaryOp_Baseline)                                       \
-  TFC(BitwiseNot_WithFeedback, UnaryOp_WithFeedback)                           \
+  IF_TSA(TSC, TFC)(BitwiseNot_WithFeedback, UnaryOp_WithFeedback)              \
   TFC(Decrement_WithFeedback, UnaryOp_WithFeedback)                            \
   TFC(Increment_WithFeedback, UnaryOp_WithFeedback)                            \
   TFC(Negate_WithFeedback, UnaryOp_WithFeedback)                               \
@@ -1155,6 +1164,7 @@ namespace internal {
   IF_WASM(ASM, WasmLiftoffFrameSetup, WasmDummy)                               \
   IF_WASM(ASM, WasmDebugBreak, WasmDummy)                                      \
   IF_WASM(ASM, WasmOnStackReplace, WasmDummy)                                  \
+  IF_WASM(ASM, WasmHandleStackOverflow, WasmHandleStackOverflow)               \
   IF_WASM(TFC, WasmFloat32ToNumber, WasmFloat32ToNumber)                       \
   IF_WASM(TFC, WasmFloat64ToNumber, WasmFloat64ToTagged)                       \
   IF_WASM(TFC, WasmFloat64ToString, WasmFloat64ToTagged)                       \
@@ -1876,7 +1886,8 @@ namespace internal {
   /* Temporal #sec-temporal.calendar.prototype.inleapyear */                   \
   CPP(TemporalCalendarPrototypeInLeapYear)                                     \
   /* Temporal #sec-temporal.calendar.prototype.fields */                       \
-  TFJ(TemporalCalendarPrototypeFields, kJSArgcReceiverSlots, kIterable)        \
+  TFJ(TemporalCalendarPrototypeFields, kJSArgcReceiverSlots + 1, kReceiver,    \
+      kIterable)                                                               \
   /* Temporal #sec-temporal.calendar.prototype.mergefields */                  \
   CPP(TemporalCalendarPrototypeMergeFields)                                    \
   /* Temporal #sec-temporal.calendar.prototype.tostring */                     \
@@ -1887,8 +1898,10 @@ namespace internal {
   CPP(DatePrototypeToTemporalInstant)                                          \
                                                                                \
   /* "Private" (created but not exposed) Bulitins needed by Temporal */        \
-  TFJ(StringFixedArrayFromIterable, kJSArgcReceiverSlots, kIterable)           \
-  TFJ(TemporalInstantFixedArrayFromIterable, kJSArgcReceiverSlots, kIterable)
+  TFJ(StringFixedArrayFromIterable, kJSArgcReceiverSlots + 1, kReceiver,       \
+      kIterable)                                                               \
+  TFJ(TemporalInstantFixedArrayFromIterable, kJSArgcReceiverSlots + 1,         \
+      kReceiver, kIterable)
 
 #define BUILTIN_LIST_BASE(CPP, TSJ, TFJ, TSC, TFC, TFS, TFH, ASM) \
   BUILTIN_LIST_BASE_TIER0(CPP, TFJ, TFC, TFS, TFH, ASM)           \

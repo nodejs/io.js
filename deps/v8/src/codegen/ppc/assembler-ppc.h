@@ -304,18 +304,12 @@ class Assembler : public AssemblerBase {
   static constexpr int kSpecialTargetSize = 0;
 
 // Number of instructions to load an address via a mov sequence.
-#if V8_TARGET_ARCH_PPC64
   static constexpr int kMovInstructionsConstantPool = 1;
   static constexpr int kMovInstructionsNoConstantPool = 5;
 #if defined(V8_PPC_TAGGING_OPT)
   static constexpr int kTaggedLoadInstructions = 1;
 #else
   static constexpr int kTaggedLoadInstructions = 2;
-#endif
-#else
-  static constexpr int kMovInstructionsConstantPool = 1;
-  static constexpr int kMovInstructionsNoConstantPool = 2;
-  static constexpr int kTaggedLoadInstructions = 1;
 #endif
   static constexpr int kMovInstructions = V8_EMBEDDED_CONSTANT_POOL_BOOL
                                               ? kMovInstructionsConstantPool
@@ -397,11 +391,7 @@ class Assembler : public AssemblerBase {
   }
   inline void x_form(Instr instr, CRegister cr, Register s1, Register s2,
                      RCBit rc) {
-#if V8_TARGET_ARCH_PPC64
     int L = 1;
-#else
-    int L = 0;
-#endif
     emit(instr | cr.code() * B23 | L * B21 | s1.code() * B16 | s2.code() * B11 |
          rc);
   }
@@ -420,22 +410,13 @@ class Assembler : public AssemblerBase {
     nor(dst, src, src, rc);
   }
   inline void lwax(Register rt, const MemOperand& src) {
-#if V8_TARGET_ARCH_PPC64
     Register ra = src.ra();
     Register rb = src.rb();
     DCHECK(ra != r0);
     x_form(LWAX, rt, ra, rb, LeaveRC);
-#else
-    lwzx(rt, src);
-#endif
   }
   inline void extsw(Register rs, Register ra, RCBit rc = LeaveRC) {
-#if V8_TARGET_ARCH_PPC64
     emit(EXT2 | EXTSW | ra.code() * B21 | rs.code() * B16 | rc);
-#else
-    // nop on 32-bit
-    DCHECK(rs == ra && rc == LeaveRC);
-#endif
   }
 
 #undef DECLARE_PPC_X_INSTRUCTIONS_A_FORM
@@ -958,7 +939,6 @@ class Assembler : public AssemblerBase {
   void stwu(Register dst, const MemOperand& src);
   void neg(Register rt, Register ra, OEBit o = LeaveOE, RCBit c = LeaveRC);
 
-#if V8_TARGET_ARCH_PPC64
   void ld(Register rd, const MemOperand& src);
   void ldu(Register rd, const MemOperand& src);
   void std(Register rs, const MemOperand& src);
@@ -984,7 +964,6 @@ class Assembler : public AssemblerBase {
             RCBit r = LeaveRC);
   void divdu(Register dst, Register src1, Register src2, OEBit o = LeaveOE,
              RCBit r = LeaveRC);
-#endif
 
   void rlwinm(Register ra, Register rs, int sh, int mb, int me,
               RCBit rc = LeaveRC);
@@ -1046,13 +1025,11 @@ class Assembler : public AssemblerBase {
   void mcrfs(CRegister cr, FPSCRBit bit);
   void mfcr(Register dst);
   void mtcrf(Register src, uint8_t FXM);
-#if V8_TARGET_ARCH_PPC64
   void mffprd(Register dst, DoubleRegister src);
   void mffprwz(Register dst, DoubleRegister src);
   void mtfprd(DoubleRegister dst, Register src);
   void mtfprwz(DoubleRegister dst, Register src);
   void mtfprwa(DoubleRegister dst, Register src);
-#endif
 
   // Exception-generating instructions and debugging support
   void stop(Condition cond = al, int32_t code = kDefaultStopCode,
@@ -1199,19 +1176,11 @@ class Assembler : public AssemblerBase {
   void nop(int type = 0);  // 0 is the default non-marking type.
 
   void push(Register src) {
-#if V8_TARGET_ARCH_PPC64
     stdu(src, MemOperand(sp, -kSystemPointerSize));
-#else
-    stwu(src, MemOperand(sp, -kSystemPointerSize));
-#endif
   }
 
   void pop(Register dst) {
-#if V8_TARGET_ARCH_PPC64
     ld(dst, MemOperand(sp));
-#else
-    lwz(dst, MemOperand(sp));
-#endif
     addi(sp, sp, Operand(kSystemPointerSize));
   }
 
@@ -1294,20 +1263,14 @@ class Assembler : public AssemblerBase {
   static bool IsBranch(Instr instr);
   static Register GetRA(Instr instr);
   static Register GetRB(Instr instr);
-#if V8_TARGET_ARCH_PPC64
   static bool Is64BitLoadIntoR12(Instr instr1, Instr instr2, Instr instr3,
                                  Instr instr4, Instr instr5);
-#else
-  static bool Is32BitLoadIntoR12(Instr instr1, Instr instr2);
-#endif
 
   static bool IsCmpRegister(Instr instr);
   static bool IsCmpImmediate(Instr instr);
   static bool IsRlwinm(Instr instr);
   static bool IsAndi(Instr instr);
-#if V8_TARGET_ARCH_PPC64
   static bool IsRldicl(Instr instr);
-#endif
   static bool IsCrSet(Instr instr);
   static Register GetCmpImmediateRegister(Instr instr);
   static int GetCmpImmediateRawImmediate(Instr instr);

@@ -171,7 +171,7 @@ class Object : public AllStatic {
   static Handle<JSAny> WrapForRead(IsolateT* isolate, Handle<JSAny> object,
                                    Representation representation);
 
-  // Returns true if the object is of the correct type to be used as a
+  // Returns true if the object is of the correct type to be used as an
   // implementation of a JSObject's elements.
   static inline bool HasValidElements(Tagged<Object> obj);
 

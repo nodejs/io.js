@@ -4507,6 +4507,60 @@ TEST_IMPL(fs_open_readonly_acl) {
     MAKE_VALGRIND_HAPPY(loop);
     return 0;
 }
+
+TEST_IMPL(fs_stat_no_permission) {
+    uv_passwd_t pwd;
+    uv_fs_t req;
+    int r;
+    char* filename = "test_file_no_permission.txt";
+
+    /* Setup - clear the ACL and remove the file */
+    loop = uv_default_loop();
+    r = uv_os_get_passwd(&pwd);
+    ASSERT_OK(r);
+    call_icacls("icacls %s /remove *S-1-1-0:(F)", filename);
+    unlink(filename);
+
+    /* Create the file */
+    r = uv_fs_open(loop,
+                   &open_req1,
+                   filename,
+                   UV_FS_O_RDONLY | UV_FS_O_CREAT,
+                   S_IRUSR,
+                   NULL);
+    ASSERT_GE(r, 0);
+    ASSERT_GE(open_req1.result, 0);
+    uv_fs_req_cleanup(&open_req1);
+    r = uv_fs_close(NULL, &close_req, open_req1.result, NULL);
+    ASSERT_OK(r);
+    ASSERT_OK(close_req.result);
+    uv_fs_req_cleanup(&close_req);
+
+    /* Set up ACL */
+    r = call_icacls("icacls %s /deny *S-1-1-0:(F)", filename);
+    if (r != 0) {
+        goto acl_cleanup;
+    }
+
+    /* Read file stats */
+    r = uv_fs_stat(NULL, &req, filename, NULL);
+    if (r != 0) {
+        goto acl_cleanup;
+    }
+
+    uv_fs_req_cleanup(&req);
+
+ acl_cleanup:
+    /* Cleanup */
+    call_icacls("icacls %s /reset", filename);
+    uv_fs_unlink(NULL, &unlink_req, filename, NULL);
+    uv_fs_req_cleanup(&unlink_req);
+    unlink(filename);
+    uv_os_free_passwd(&pwd);
+    ASSERT_OK(r);
+    MAKE_VALGRIND_HAPPY(loop);
+    return 0;
+}
 #endif
 
 #ifdef _WIN32

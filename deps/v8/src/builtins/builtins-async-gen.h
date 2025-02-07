@@ -21,11 +21,17 @@ class AsyncBuiltinsAssembler : public PromiseBuiltinsAssembler {
   // `on_reject` is the SharedFunctioninfo instance used to create the reject
   // closure. `on_resolve` is the SharedFunctioninfo instance used to create the
   // resolve closure. Returns the Promise-wrapped `value`.
+  using CreateClosures =
+      std::function<std::pair<TNode<JSFunction>, TNode<JSFunction>>(
+          TNode<Context>, TNode<NativeContext>)>;
   TNode<Object> Await(TNode<Context> context,
                       TNode<JSGeneratorObject> generator, TNode<Object> value,
                       TNode<JSPromise> outer_promise,
-                      TNode<SharedFunctionInfo> on_resolve_sfi,
-                      TNode<SharedFunctionInfo> on_reject_sfi);
+                      const CreateClosures& CreateClosures);
+  TNode<Object> Await(TNode<Context> context,
+                      TNode<JSGeneratorObject> generator, TNode<Object> value,
+                      TNode<JSPromise> outer_promise, RootIndex on_resolve_sfi,
+                      RootIndex on_reject_sfi);
 
   // Return a new built-in function object as defined in
   // Async Iterator Value Unwrap Functions
@@ -33,10 +39,6 @@ class AsyncBuiltinsAssembler : public PromiseBuiltinsAssembler {
                                         TNode<Boolean> done);
 
  private:
-  void InitializeNativeClosure(TNode<Context> context,
-                               TNode<NativeContext> native_context,
-                               TNode<HeapObject> function,
-                               TNode<SharedFunctionInfo> shared_info);
   TNode<Context> AllocateAsyncIteratorValueUnwrapContext(
       TNode<NativeContext> native_context, TNode<Boolean> done);
 };

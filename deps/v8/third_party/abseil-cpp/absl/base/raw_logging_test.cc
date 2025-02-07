@@ -35,6 +35,10 @@ TEST(RawLoggingCompilationTest, Log) {
   ABSL_RAW_LOG(ERROR, "RAW ERROR: %d", 1);
 }
 
+TEST(RawLoggingCompilationTest, LogWithNulls) {
+  ABSL_RAW_LOG(INFO, "RAW INFO: %s%c%s", "Hello", 0, "World");
+}
+
 TEST(RawLoggingCompilationTest, PassingCheck) {
   ABSL_RAW_CHECK(true, "RAW CHECK");
 }

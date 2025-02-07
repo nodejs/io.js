@@ -27,7 +27,6 @@ class SBOM extends BaseCommand {
     const packageLockOnly = this.npm.config.get('package-lock-only')
 
     if (!sbomFormat) {
-      /* eslint-disable-next-line max-len */
       throw this.usageError(`Must specify --sbom-format flag with one of: ${SBOM_FORMATS.join(', ')}.`)
     }
 
@@ -40,7 +39,6 @@ class SBOM extends BaseCommand {
     const arb = new Arborist(opts)
 
     const tree = packageLockOnly ? await arb.loadVirtual(opts).catch(() => {
-      /* eslint-disable-next-line max-len */
       throw this.usageError('A package lock or shrinkwrap file is required in package-lock-only mode')
     }) : await arb.loadActual(opts)
 

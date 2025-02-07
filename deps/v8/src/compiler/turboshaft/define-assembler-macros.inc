@@ -17,6 +17,16 @@
 
 #define TSA_DCHECK(assembler, condition) \
   (assembler)->Asm().Dcheck(condition, #condition, __FILE__, __LINE__ )
+#ifdef ENABLE_SLOW_DCHECKS
+#define TSA_SLOW_DCHECK(assembler, ...)     \
+  do {                                      \
+    if (v8_flags.enable_slow_asserts) {     \
+        TSA_DCHECK(assembler, __VA_ARGS__); \
+    }                                       \
+  } while(false)
+#else
+#define TSA_SLOW_DCHECK(assembler, ...) ((void)0)
+#endif
 
 #define LIKELY(...) ConditionWithHint(__VA_ARGS__, BranchHint::kTrue)
 #define UNLIKELY(...) ConditionWithHint(__VA_ARGS__, BranchHint::kFalse)

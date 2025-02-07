@@ -53,7 +53,8 @@ void SmiCall(Isolate* isolate, Handle<WasmExportedFunction> exported_function,
   DirectHandle<Object> result =
       Execution::Call(isolate, exported_function, receiver, argc, argv)
           .ToHandleChecked();
-  CHECK(IsSmi(*result) && Smi::ToInt(*result) == expected_result);
+  CHECK(IsSmi(*result));
+  CHECK_EQ(expected_result, Smi::ToInt(*result));
 }
 
 void Cleanup() {
@@ -374,6 +375,85 @@ TEST(WrapperReplacement_IndirectExport) {
     CHECK(IsSpecific(indirect_function_data->wrapper_code(isolate)));
   }
   Cleanup();
+}
+
+TEST(JSToWasmWrapperGarbageCollection) {
+  Isolate* isolate = CcTest::InitIsolateOnce();
+  auto NumCompiledJSToWasmWrappers = [isolate]() {
+    int num_wrappers = 0;
+    Tagged<WeakFixedArray> wrappers = isolate->heap()->js_to_wasm_wrappers();
+    for (int i = 0, e = wrappers->length(); i < e; ++i) {
+      // Entries are either weak code wrappers, cleared entries, or undefined.
+      Tagged<MaybeObject> maybe_wrapper = wrappers->get(i);
+      if (maybe_wrapper.IsCleared()) continue;
+      if (maybe_wrapper.IsStrong()) {
+        CHECK(IsUndefined(maybe_wrapper.GetHeapObjectAssumeStrong()));
+        continue;
+      }
+      CHECK(maybe_wrapper.IsWeak());
+      CHECK(IsCodeWrapper(maybe_wrapper.GetHeapObjectAssumeWeak()));
+      Tagged<Code> code =
+          Cast<CodeWrapper>(maybe_wrapper.GetHeapObjectAssumeWeak())
+              ->code(isolate);
+      CHECK_EQ(CodeKind::JS_TO_WASM_FUNCTION, code->kind());
+      ++num_wrappers;
+    }
+    return num_wrappers;
+  };
+
+  {
+    // Initialize the environment and create a module builder.
+    AccountingAllocator allocator;
+    Zone zone{&allocator, ZONE_NAME};
+    HandleScope scope{isolate};
+    WasmModuleBuilder builder{&zone};
+
+    // Define an exported Wasm function.
+    TestSignatures sigs;
+    WasmFunctionBuilder* f = builder.AddFunction(sigs.i_v());
+    builder.AddExport(base::CStrVector("main"), f);
+    uint8_t code[] = {WASM_ONE, WASM_END};
+    f->EmitCode(code, sizeof(code));
+
+    // Before compilation there should be no compiled wrappers.
+    CHECK_EQ(0, NumCompiledJSToWasmWrappers());
+
+    // Compile the module.
+    Handle<WasmInstanceObject> instance =
+        CompileModule(&zone, isolate, &builder);
+
+    // If the generic wrapper is disabled, this should have compiled a wrapper.
+    CHECK_EQ(v8_flags.wasm_generic_wrapper ? 0 : 1,
+             NumCompiledJSToWasmWrappers());
+
+    // Get the exported function and the function data.
+    Handle<WasmExportedFunction> main_function =
+        testing::GetExportedFunction(isolate, instance, "main")
+            .ToHandleChecked();
+    Handle<WasmExportedFunctionData> main_function_data(
+        main_function->shared()->wasm_exported_function_data(), isolate);
+
+    // Set the remaining generic-wrapper budget for add to 1,
+    // so that the next call to it will cause the function to tier up.
+    main_function_data->wrapper_budget()->set_value(Smi::FromInt(1));
+
+    // Call the Wasm function.
+    SmiCall(isolate, main_function, 0, nullptr, 1);
+
+    // There should be exactly one compiled wrapper now.
+    CHECK_EQ(1, NumCompiledJSToWasmWrappers());
+  }
+
+  // After GC all compiled wrappers must be cleared again.
+  {
+    // Disable stack scanning in case CSS is being used to prevent references
+    // that leaked to the C++ stack from keeping the wrapper alive.
+    DisableConservativeStackScanningScopeForTesting no_stack_scanning(
+        isolate->heap());
+    Cleanup();
+  }
+
+  CHECK_EQ(0, NumCompiledJSToWasmWrappers());
 }
 #endif
 

@@ -6,6 +6,7 @@
 #define V8_SANDBOX_JS_DISPATCH_TABLE_INL_H_
 
 #include "src/common/code-memory-access-inl.h"
+#include "src/objects/objects-inl.h"
 #include "src/sandbox/external-entity-table-inl.h"
 #include "src/sandbox/js-dispatch-table.h"
 
@@ -27,12 +28,12 @@ void JSDispatchEntry::MakeJSDispatchEntry(Address object, Address entrypoint,
 }
 
 Address JSDispatchEntry::GetEntrypoint() const {
-  DCHECK(!IsFreelistEntry());
+  CHECK(!IsFreelistEntry());
   return entrypoint_.load(std::memory_order_relaxed);
 }
 
 Address JSDispatchEntry::GetCodePointer() const {
-  DCHECK(!IsFreelistEntry());
+  CHECK(!IsFreelistEntry());
   // The pointer tag bit (LSB) of the object pointer is used as marking bit,
   // and so may be 0 or 1 here. As the return value is a tagged pointer, the
   // bit must be 1 when returned, so we need to set it here.
@@ -50,15 +51,71 @@ uint16_t JSDispatchEntry::GetParameterCount() const {
   return payload & kParameterCountMask;
 }
 
+Tagged<Code> JSDispatchTable::GetCode(JSDispatchHandle handle) {
+  Address ptr = GetCodeAddress(handle);
+  return Cast<Code>(Tagged<Object>(ptr));
+}
+
+void JSDispatchTable::SetCode(JSDispatchHandle handle, Tagged<Code> new_code) {
+  // The new code must use JS linkage and its parameter count must match that
+  // of the entry, unless the code does not assume a particular parameter count
+  // (so uses the kDontAdaptArgumentsSentinel).
+  CHECK_EQ(new_code->entrypoint_tag(), kJSEntrypointTag);
+  CHECK(new_code->parameter_count() == kDontAdaptArgumentsSentinel ||
+        new_code->parameter_count() == GetParameterCount(handle));
+
+  // The object should be in old space to avoid creating old-to-new references.
+  DCHECK(!Heap::InYoungGeneration(new_code));
+
+  uint32_t index = HandleToIndex(handle);
+  Address new_entrypoint = new_code->instruction_start();
+  CFIMetadataWriteScope write_scope("JSDispatchTable update");
+  at(index).SetCodeAndEntrypointPointer(new_code.ptr(), new_entrypoint);
+}
+
+JSDispatchHandle JSDispatchTable::AllocateAndInitializeEntry(
+    Space* space, uint16_t parameter_count) {
+  DCHECK(space->BelongsTo(this));
+  uint32_t index = AllocateEntry(space);
+  CFIMetadataWriteScope write_scope("JSDispatchTable initialize");
+  at(index).MakeJSDispatchEntry(kNullAddress, kNullAddress, parameter_count,
+                                space->allocate_black());
+  return IndexToHandle(index);
+}
+
+JSDispatchHandle JSDispatchTable::AllocateAndInitializeEntry(
+    Space* space, uint16_t parameter_count, Tagged<Code> new_code) {
+  DCHECK(space->BelongsTo(this));
+  CHECK_EQ(new_code->entrypoint_tag(), kJSEntrypointTag);
+  CHECK(new_code->parameter_count() == kDontAdaptArgumentsSentinel ||
+        new_code->parameter_count() == parameter_count);
+
+  uint32_t index = AllocateEntry(space);
+  JSDispatchEntry& entry = at(index);
+  CFIMetadataWriteScope write_scope("JSDispatchTable initialize");
+  entry.MakeJSDispatchEntry(new_code.address(), new_code->instruction_start(),
+                            parameter_count, space->allocate_black());
+  return IndexToHandle(index);
+}
+
 void JSDispatchEntry::SetCodeAndEntrypointPointer(Address new_object,
                                                   Address new_entrypoint) {
-  // The entry must be alive if it is being set, so make sure that the marking
-  // bit (which is the heap object tag bit) is set. ::Mark relies on this.
-  DCHECK_EQ(new_object & kHeapObjectTag, 1);
+  // We currently need a CAS loop here since this can race with ::Mark() and so
+  // could otherwise lead to us dropping the marking bit of an entry.
+  // TODO(saelo): see if there's a better way to solve this than two CAS loops.
+  bool success;
+  do {
+    Address old_payload = encoded_word_.load(std::memory_order_relaxed);
+    Address marking_bit = old_payload & kMarkingBit;
+    Address parameter_count = old_payload & kParameterCountMask;
+    // We want to preserve the marking bit of the entry. Since that happens to
+    // be the tag bit of the pointer, we need to explicitly clear it here.
+    Address object = (new_object << kObjectPointerShift) & ~kMarkingBit;
+    Address new_payload = object | marking_bit | parameter_count;
+    success = encoded_word_.compare_exchange_strong(old_payload, new_payload,
+                                                    std::memory_order_relaxed);
+  } while (!success);
 
-  uint16_t parameter_count = GetParameterCount();
-  Address payload = (new_object << kObjectPointerShift) | parameter_count;
-  encoded_word_.store(payload, std::memory_order_relaxed);
   entrypoint_.store(new_entrypoint, std::memory_order_relaxed);
 }
 
@@ -78,16 +135,16 @@ uint32_t JSDispatchEntry::GetNextFreelistEntryIndex() const {
 }
 
 void JSDispatchEntry::Mark() {
-  Address old_value = encoded_word_.load(std::memory_order_relaxed);
-  Address new_value = old_value | kMarkingBit;
-
-  // We don't need to perform the CAS in a loop since it can only fail if a new
-  // value has been written into the entry. This, however, will also have set
-  // the marking bit.
-  bool success = encoded_word_.compare_exchange_strong(
-      old_value, new_value, std::memory_order_relaxed);
-  DCHECK(success || (old_value & kMarkingBit) == kMarkingBit);
-  USE(success);
+  // TODO(saelo): we probably don't need this loop: if another thread does a
+  // SetCode in between, then that should trigger a write barrier which will
+  // mark the entry as alive.
+  bool success;
+  do {
+    Address old_value = encoded_word_.load(std::memory_order_relaxed);
+    Address new_value = old_value | kMarkingBit;
+    success = encoded_word_.compare_exchange_strong(old_value, new_value,
+                                                    std::memory_order_relaxed);
+  } while (!success);
 }
 
 void JSDispatchEntry::Unmark() {
@@ -106,6 +163,13 @@ Address JSDispatchTable::GetEntrypoint(JSDispatchHandle handle) {
   return at(index).GetEntrypoint();
 }
 
+Address JSDispatchTable::GetCodeAddress(JSDispatchHandle handle) {
+  uint32_t index = HandleToIndex(handle);
+  Address ptr = at(index).GetCodePointer();
+  DCHECK(Internals::HasHeapObjectTag(ptr));
+  return ptr;
+}
+
 uint16_t JSDispatchTable::GetParameterCount(JSDispatchHandle handle) {
   uint32_t index = HandleToIndex(handle);
   return at(index).GetParameterCount();
@@ -114,8 +178,8 @@ uint16_t JSDispatchTable::GetParameterCount(JSDispatchHandle handle) {
 void JSDispatchTable::Mark(JSDispatchHandle handle) {
   uint32_t index = HandleToIndex(handle);
 
-  // The null entry is immortal and immutable, so no need to mark it as alive.
-  if (handle == kNullJSDispatchHandle) return;
+  // The read-only space is immortal and cannot be written to.
+  if (index < kEndOfInternalReadOnlySegment) return;
 
   CFIMetadataWriteScope write_scope("JSDispatchTable write");
   at(index).Mark();
@@ -147,16 +211,13 @@ void JSDispatchTable::IterateActiveEntriesIn(Space* space, Callback callback) {
   });
 }
 
-uint32_t JSDispatchTable::HandleToIndex(JSDispatchHandle handle) const {
-  uint32_t index = handle >> kJSDispatchHandleShift;
-  DCHECK_EQ(handle, index << kJSDispatchHandleShift);
-  return index;
-}
-
-JSDispatchHandle JSDispatchTable::IndexToHandle(uint32_t index) const {
-  JSDispatchHandle handle = index << kJSDispatchHandleShift;
-  DCHECK_EQ(index, handle >> kJSDispatchHandleShift);
-  return handle;
+template <typename Callback>
+void JSDispatchTable::IterateMarkedEntriesIn(Space* space, Callback callback) {
+  IterateEntriesIn(space, [&](uint32_t index) {
+    if (at(index).IsMarked()) {
+      callback(IndexToHandle(index));
+    }
+  });
 }
 
 }  // namespace internal

@@ -647,17 +647,8 @@ class X64OperandGeneratorT final : public OperandGeneratorT<Adapter> {
     if (!this->IsLoadOrLoadImmutable(input)) return false;
     if (!selector()->CanCover(node, input)) return false;
 
-    if constexpr (Adapter::IsTurboshaft) {
-      // A ProtectedLoad increases the effect level by 1.
-      int effect_level_after_input = selector()->GetEffectLevel(input) +
-                                     (this->IsProtectedLoad(node) ? 1 : 0);
-      if (effect_level != effect_level_after_input) {
-        return false;
-      }
-    } else {
-      if (effect_level != selector()->GetEffectLevel(input)) {
-        return false;
-      }
+    if (effect_level != selector()->GetEffectLevel(input)) {
+      return false;
     }
 
     MachineRepresentation rep =
@@ -3652,6 +3643,7 @@ void VisitFloatBinop(InstructionSelectorT<Adapter>* selector,
   size_t input_count = 0;
   InstructionOperand outputs[1];
   size_t output_count = 0;
+  typename Adapter::node_t trapping_load = {};
 
   if (left == right) {
     // If both inputs refer to the same operand, enforce allocating a register
@@ -3680,7 +3672,8 @@ void VisitFloatBinop(InstructionSelectorT<Adapter>* selector,
       avx_opcode |= AddressingModeField::encode(addressing_mode);
       sse_opcode |= AddressingModeField::encode(addressing_mode);
       if constexpr (Adapter::IsTurboshaft) {
-        if (g.IsProtectedLoad(right)) {
+        if (g.IsProtectedLoad(right) &&
+            selector->CanCoverProtectedLoad(node, right)) {
           // In {CanBeMemoryOperand} we have already checked that
           // CanCover(node, right) succeds, which means that there is no
           // instruction with Effects required_when_unused or
@@ -3693,6 +3686,7 @@ void VisitFloatBinop(InstructionSelectorT<Adapter>* selector,
           sse_opcode |=
               AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
           selector->SetProtectedLoadToRemove(right);
+          trapping_load = right;
         }
       }
     } else {
@@ -3703,17 +3697,16 @@ void VisitFloatBinop(InstructionSelectorT<Adapter>* selector,
 
   DCHECK_NE(0u, input_count);
   DCHECK_GE(arraysize(inputs), input_count);
-
-  if (selector->IsSupported(AVX)) {
-    outputs[output_count++] = g.DefineAsRegister(node);
-    DCHECK_EQ(1u, output_count);
-    DCHECK_GE(arraysize(outputs), output_count);
-    selector->Emit(avx_opcode, output_count, outputs, input_count, inputs);
-  } else {
-    outputs[output_count++] = g.DefineSameAsFirst(node);
-    DCHECK_EQ(1u, output_count);
-    DCHECK_GE(arraysize(outputs), output_count);
-    selector->Emit(sse_opcode, output_count, outputs, input_count, inputs);
+  InstructionCode code = selector->IsSupported(AVX) ? avx_opcode : sse_opcode;
+  outputs[output_count++] = selector->IsSupported(AVX)
+                                ? g.DefineAsRegister(node)
+                                : g.DefineSameAsFirst(node);
+  DCHECK_EQ(1u, output_count);
+  DCHECK_GE(arraysize(outputs), output_count);
+  Instruction* instr =
+      selector->Emit(code, output_count, outputs, input_count, inputs);
+  if (selector->valid(trapping_load)) {
+    selector->UpdateSourcePosition(instr, trapping_load);
   }
 }
 
@@ -7245,7 +7238,14 @@ void InstructionSelectorT<Adapter>::VisitF16x8Pmax(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitF16x8DemoteF64x2Zero(node_t node) {
-  UNREACHABLE();
+  X64OperandGeneratorT<Adapter> g(this);
+  DCHECK_EQ(this->value_input_count(node), 1);
+  InstructionOperand temps[] = {g.TempRegister(), g.TempSimd128Register(),
+                                g.TempSimd128Register()};
+  size_t temp_count = arraysize(temps);
+
+  Emit(kX64F16x8DemoteF64x2Zero, g.DefineAsRegister(node),
+       g.UseUniqueRegister(this->input_at(node, 0)), temp_count, temps);
 }
 
 template <typename Adapter>
@@ -7695,7 +7695,8 @@ InstructionSelector::SupportedMachineOperatorFlags() {
              MachineOperatorBuilder::kFloat64RoundTiesEven;
   }
   if (CpuFeatures::IsSupported(F16C)) {
-    flags |= MachineOperatorBuilder::kFloat16;
+    flags |= MachineOperatorBuilder::kFloat16 |
+             MachineOperatorBuilder::kFloat64ToFloat16;
   }
   return flags;
 }

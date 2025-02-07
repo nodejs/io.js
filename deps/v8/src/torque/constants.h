@@ -131,7 +131,7 @@ static const char* const ANNOTATION_CPP_RELEASE_STORE = "@cppReleaseStore";
 static const char* const ANNOTATION_CPP_ACQUIRE_LOAD = "@cppAcquireLoad";
 // Generate BodyDescriptor using IterateCustomWeakPointers.
 static const char* const ANNOTATION_CUSTOM_WEAK_MARKING = "@customWeakMarking";
-// Do not generate a interface descriptor for this builtin.
+// Do not generate an interface descriptor for this builtin.
 static const char* const ANNOTATION_CUSTOM_INTERFACE_DESCRIPTOR =
     "@customInterfaceDescriptor";
 

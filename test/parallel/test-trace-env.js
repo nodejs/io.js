@@ -18,9 +18,11 @@ spawnSyncAndAssert(process.execPath, ['--trace-env', fixtures.path('empty.js')],
     }
     if (common.hasCrypto) {
       assert.match(output, /get "NODE_EXTRA_CA_CERTS"/);
-    }
-    if (common.hasOpenSSL3) {
-      assert.match(output, /get "OPENSSL_CONF"/);
+
+      const { hasOpenSSL3 } = require('../common/crypto');
+      if (hasOpenSSL3) {
+        assert.match(output, /get "OPENSSL_CONF"/);
+      }
     }
     assert.match(output, /get "NODE_DEBUG_NATIVE"/);
     assert.match(output, /get "NODE_COMPILE_CACHE"/);

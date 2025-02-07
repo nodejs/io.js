@@ -229,7 +229,7 @@ void ContextSerializer::SerializeObjectImpl(Handle<HeapObject> obj,
         if (closure->shared()->HasBaselineCode()) {
           closure->shared()->FlushBaselineCode();
         }
-        closure->set_code(closure->shared()->GetCode(isolate()), kReleaseStore);
+        closure->UpdateCode(closure->shared()->GetCode(isolate()));
       }
     }
   } else if (InstanceTypeChecker::IsEmbedderDataArray(instance_type) &&

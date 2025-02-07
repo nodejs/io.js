@@ -39,8 +39,9 @@ class FeedbackCell : public TorqueGeneratedFeedbackCell<FeedbackCell, Struct> {
   inline void clear_interrupt_budget();
 
 #ifdef V8_ENABLE_LEAPTIERING
-  inline void initialize_dispatch_handle(IsolateForSandbox isolate,
-                                         uint16_t parameter_count);
+  inline void allocate_dispatch_handle(
+      IsolateForSandbox isolate, uint16_t parameter_count, Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
   inline void clear_dispatch_handle();
   inline JSDispatchHandle dispatch_handle() const;
   inline void set_dispatch_handle(JSDispatchHandle new_handle);
@@ -57,6 +58,8 @@ class FeedbackCell : public TorqueGeneratedFeedbackCell<FeedbackCell, Struct> {
   // between zero, one, or many closures. This function records a new closure
   // creation by updating the map.
   inline void IncrementClosureCount(Isolate* isolate);
+
+  DECL_VERIFIER(FeedbackCell)
 
   class BodyDescriptor;
 

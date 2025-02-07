@@ -10,6 +10,11 @@ namespace internal {
 const int Deoptimizer::kEagerDeoptExitSize = 2 * kInstrSize;
 const int Deoptimizer::kLazyDeoptExitSize = 2 * kInstrSize;
 
+// static
+void Deoptimizer::PatchJumpToTrampoline(Address pc, Address new_pc) {
+  UNREACHABLE();
+}
+
 Float32 RegisterValues::GetFloatRegister(unsigned n) const {
   V8_ASSUME(n < arraysize(simd128_registers_));
   return base::ReadUnalignedValue<Float32>(

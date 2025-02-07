@@ -498,21 +498,23 @@ void LiftoffAssembler::CallFrameSetupStub(int declared_function_index) {
 
 void LiftoffAssembler::PrepareTailCall(int num_callee_stack_params,
                                        int stack_param_delta) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
+  {
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
 
-  // Push the return address and frame pointer to complete the stack frame.
-  sub(sp, sp, Operand(8));
-  ldr(scratch, MemOperand(fp, 4));
-  str(scratch, MemOperand(sp, 4));
-  ldr(scratch, MemOperand(fp, 0));
-  str(scratch, MemOperand(sp, 0));
+    // Push the return address and frame pointer to complete the stack frame.
+    sub(sp, sp, Operand(8));
+    ldr(scratch, MemOperand(fp, 4));
+    str(scratch, MemOperand(sp, 4));
+    ldr(scratch, MemOperand(fp, 0));
+    str(scratch, MemOperand(sp, 0));
 
-  // Shift the whole frame upwards.
-  int slot_count = num_callee_stack_params + 2;
-  for (int i = slot_count - 1; i >= 0; --i) {
-    ldr(scratch, MemOperand(sp, i * 4));
-    str(scratch, MemOperand(fp, (i - stack_param_delta) * 4));
+    // Shift the whole frame upwards.
+    int slot_count = num_callee_stack_params + 2;
+    for (int i = slot_count - 1; i >= 0; --i) {
+      ldr(scratch, MemOperand(sp, i * 4));
+      str(scratch, MemOperand(fp, (i - stack_param_delta) * 4));
+    }
   }
 
   // Set the new stack and frame pointer.
@@ -524,7 +526,7 @@ void LiftoffAssembler::AlignFrameSize() {}
 
 void LiftoffAssembler::PatchPrepareStackFrame(
     int offset, SafepointTableBuilder* safepoint_table_builder,
-    bool feedback_vector_slot) {
+    bool feedback_vector_slot, size_t stack_param_slots) {
   // The frame_size includes the frame marker and the instance slot. Both are
   // pushed as part of frame construction, so we don't need to allocate memory
   // for them anymore.
@@ -651,6 +653,13 @@ void LiftoffAssembler::CheckTierUp(int declared_func_index, int budget_used,
     str(budget, budget_addr);
   }
   b(ool_label, mi);
+}
+
+Register LiftoffAssembler::LoadOldFramePointer() { return fp; }
+
+void LiftoffAssembler::CheckStackShrink() {
+  // TODO(irezvov): 42202153
+  UNIMPLEMENTED();
 }
 
 void LiftoffAssembler::LoadConstant(LiftoffRegister reg, WasmValue value) {
@@ -1478,8 +1487,9 @@ void LiftoffAssembler::LoadCallerFrameSlot(LiftoffRegister dst,
 
 void LiftoffAssembler::StoreCallerFrameSlot(LiftoffRegister src,
                                             uint32_t caller_slot_idx,
-                                            ValueKind kind) {
-  MemOperand dst(fp, (caller_slot_idx + 1) * kSystemPointerSize);
+                                            ValueKind kind,
+                                            Register frame_pointer) {
+  MemOperand dst(frame_pointer, (caller_slot_idx + 1) * kSystemPointerSize);
   liftoff::Store(this, src, dst, kind);
 }
 

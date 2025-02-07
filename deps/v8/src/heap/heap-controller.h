@@ -39,13 +39,13 @@ class V8_EXPORT_PRIVATE MemoryController : public AllStatic {
       Heap::HeapGrowingMode growing_mode);
 
   static double GrowingFactor(Heap* heap, size_t max_heap_size, double gc_speed,
-                              double mutator_speed);
+                              double mutator_speed,
+                              Heap::HeapGrowingMode growing_mode);
 
-  static size_t CalculateAllocationLimit(Heap* heap, size_t current_size,
-                                         size_t min_size, size_t max_size,
-                                         size_t new_space_capacity,
-                                         double factor,
-                                         Heap::HeapGrowingMode growing_mode);
+  static size_t BoundAllocationLimit(Heap* heap, size_t current_size,
+                                     size_t limit, size_t min_size,
+                                     size_t max_size, size_t new_space_capacity,
+                                     Heap::HeapGrowingMode growing_mode);
 
  private:
   static double MaxGrowingFactor(size_t max_heap_size);

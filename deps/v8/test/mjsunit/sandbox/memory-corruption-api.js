@@ -43,6 +43,4 @@ assertEquals(instanceType, 'JS_OBJECT_TYPE');
 
 let instanceTypeId = Sandbox.getInstanceTypeIdOf(obj);
 assertSame(typeof instanceTypeId, 'number');
-// We don't want to rely on the specific instance type here, but it should be a
-// 16-bit value.
-assertTrue(instanceTypeId >= 0 && instanceTypeId <= 0xffff);
+assertEquals(instanceTypeId, Sandbox.getInstanceTypeIdFor('JS_OBJECT_TYPE'));

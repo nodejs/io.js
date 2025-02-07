@@ -266,15 +266,6 @@ declare_args() {
   # Enable lazy source positions by default.
   v8_enable_lazy_source_positions = true
 
-  # Enable third party HEAP library
-  v8_enable_third_party_heap = false
-
-  # Libaries used by third party heap
-  v8_third_party_heap_libs = []
-
-  # Source code used by third party heap
-  v8_third_party_heap_files = []
-
   # Disable write barriers when GCs are non-incremental and
   # heap has single generation.
   v8_disable_write_barriers = false
@@ -451,6 +442,12 @@ declare_args() {
   v8_enable_experimental_tsa_builtins = false
 
   v8_dcheck_always_on = dcheck_always_on
+
+  # Remote builds require an explicit dependency on icudat, but
+  # this breaks locally building V8 with ICU support when the file
+  # isn't present, which some embedders rely on. This option controls
+  # the explicit dependency and allows the build to complete.
+  v8_depend_on_icu_data_file = icu_use_data_file
 }
 
 # Derived defaults.
@@ -555,14 +552,6 @@ if (v8_enable_single_generation == "") {
 }
 if (v8_enable_atomic_object_field_writes == "") {
   v8_enable_atomic_object_field_writes = v8_enable_concurrent_marking
-}
-if (v8_enable_third_party_heap) {
-  v8_disable_write_barriers = true
-  v8_enable_single_generation = true
-  v8_enable_shared_ro_heap = false
-  v8_enable_pointer_compression = false
-  v8_enable_pointer_compression_shared_cage = false
-  v8_enable_allocation_folding = false
 }
 if (v8_enable_single_generation) {
   v8_allocation_site_tracking = false
@@ -710,9 +699,6 @@ assert(!v8_enable_sandbox || v8_enable_pointer_compression_shared_cage,
 assert(!v8_enable_sandbox || v8_enable_external_code_space,
        "The sandbox requires the external code space")
 
-assert(!v8_enable_sandbox || !v8_enable_third_party_heap,
-       "The sandbox is incompatible with the third-party heap")
-
 assert(!v8_enable_memory_corruption_api || v8_enable_sandbox,
        "The Memory Corruption API requires the sandbox")
 
@@ -749,6 +735,10 @@ if (v8_enable_single_generation == true) {
 
 assert(!v8_enable_snapshot_compression || v8_use_zlib,
        "Snapshot compression requires zlib")
+
+assert(!v8_enable_cet_shadow_stack ||
+           (v8_target_cpu == "x64" && target_os == "win"),
+       "CET shadow stack is supported only on x64 Windows")
 
 if (v8_expose_public_symbols == "") {
   v8_expose_public_symbols = v8_expose_symbols
@@ -1174,9 +1164,6 @@ config("features") {
   if (v8_disable_write_barriers) {
     defines += [ "V8_DISABLE_WRITE_BARRIERS" ]
   }
-  if (v8_enable_third_party_heap) {
-    defines += [ "V8_ENABLE_THIRD_PARTY_HEAP" ]
-  }
   if (v8_use_external_startup_data) {
     defines += [ "V8_USE_EXTERNAL_STARTUP_DATA" ]
   }
@@ -1212,6 +1199,9 @@ config("features") {
   }
   if (v8_enable_cet_ibt) {
     defines += [ "V8_ENABLE_CET_IBT" ]
+  }
+  if (v8_enable_memory_sealing) {
+    defines += [ "V8_ENABLE_MEMORY_SEALING" ]
   }
   if (v8_enable_wasm_gdb_remote_debugging) {
     defines += [ "V8_ENABLE_WASM_GDB_REMOTE_DEBUGGING" ]
@@ -1438,27 +1428,18 @@ config("toolchain") {
       cflags += [ "-march=z196" ]
     }
   }
-  if (v8_current_cpu == "ppc" || v8_current_cpu == "ppc64") {
-    if (v8_current_cpu == "ppc") {
-      defines += [ "V8_TARGET_ARCH_PPC" ]
-    } else if (v8_current_cpu == "ppc64") {
-      defines += [ "V8_TARGET_ARCH_PPC64" ]
-      cflags += [ "-ffp-contract=off" ]
-    }
-    if (host_byteorder == "little") {
-      defines += [ "V8_TARGET_ARCH_PPC_LE" ]
-    } else if (host_byteorder == "big") {
-      defines += [ "V8_TARGET_ARCH_PPC_BE" ]
-      if (current_os == "aix") {
-        cflags += [
-          # Work around AIX ceil, trunc and round oddities.
-          "-mcpu=power5+",
-          "-mfprnd",
+  if (v8_current_cpu == "ppc64") {
+    defines += [ "V8_TARGET_ARCH_PPC64" ]
+    cflags += [ "-ffp-contract=off" ]
+    if (current_os == "aix") {
+      cflags += [
+        # Work around AIX ceil, trunc and round oddities.
+        "-mcpu=power5+",
+        "-mfprnd",
 
-          # Work around AIX assembler popcntb bug.
-          "-mno-popcntb",
-        ]
-      }
+        # Work around AIX assembler popcntb bug.
+        "-mno-popcntb",
+      ]
     }
   }
 
@@ -2448,12 +2429,17 @@ template("run_mksnapshot") {
   }
   action("run_mksnapshot_" + name) {
     deps = [ ":mksnapshot($v8_snapshot_toolchain)" ]
+    if (v8_verify_deterministic_mksnapshot) {
+      # We archive the snapshot executable when verifying snapshot
+      # determinism to ease debugging.
+      data_deps = [ ":mksnapshot($v8_snapshot_toolchain)" ]
+    }
 
     script = "tools/run.py"
 
     sources = []
 
-    if (icu_use_data_file) {
+    if (v8_depend_on_icu_data_file) {
       deps += [ "//third_party/icu:copy_icudata" ]
       if (host_byteorder == "big") {
         sources += [ "$root_out_dir/icudtb.dat" ]
@@ -2472,7 +2458,20 @@ template("run_mksnapshot") {
       ext = "s"
     }
 
-    args = [
+    args = []
+
+    if (v8_verify_deterministic_mksnapshot) {
+      # Output redirection must be the first argument to run.py. We capture
+      # output when verifying snapshot determinism for debugging.
+      args += [
+        "--redirect-stdout",
+        rebase_path("$root_out_dir/mksnapshot_output${suffix}.log",
+                    root_build_dir),
+      ]
+      data += [ "$root_out_dir/mksnapshot_output${suffix}.log" ]
+    }
+
+    args += [
       "./" + rebase_path(get_label_info(":mksnapshot($v8_snapshot_toolchain)",
                                         "root_out_dir") + "/mksnapshot",
                          root_build_dir),
@@ -2488,7 +2487,24 @@ template("run_mksnapshot") {
 
       "--embedded_src",
       rebase_path("$target_gen_dir/embedded${suffix}.${ext}", root_build_dir),
+
+      # mksnapshot runs in predictable mode to create deterministic snapshots.
+      # Note this flag is also set implicitly by mksnapshot itself (see
+      # mksnapshot.cc). We set it here as well for clarity.
+      "--predictable",
+
+      # Disable ICs globally in mksnapshot to avoid problems with Code handlers.
+      # See https://crbug.com/345280736.
+      # TODO(jgruber): Re-enable once a better fix is available.
+      # Note this flag is also set implicitly by mksnapshot itself (see
+      # mksnapshot.cc). We set it here as well for clarity.
+      "--no-use-ic",
     ]
+
+    if (v8_verify_deterministic_mksnapshot) {
+      # Flags that help debugging snapshot determinism.
+      args += [ "--trace-read-only-promotion" ]
+    }
 
     if (v8_log_builtins_block_count_input != "") {
       args += [
@@ -2635,11 +2651,15 @@ if (v8_verify_deterministic_mksnapshot) {
     }
   }
 
-  action("verify_deterministic_mksnapshot") {
-    deps = []
+  group("snapshot_set") {
+    data_deps = []
     foreach(i, runs) {
-      deps += [ ":run_mksnapshot_$i" ]
+      data_deps += [ ":run_mksnapshot_$i" ]
     }
+  }
+
+  action("verify_deterministic_mksnapshot") {
+    deps = [ ":snapshot_set" ]
     report_file = "$target_gen_dir/mksnapshot_comparison.txt"
     script = "tools/snapshot/compare_mksnapshot_output.py"
     args = [
@@ -2736,9 +2756,13 @@ action("v8_dump_build_config") {
   simulator_run = target_cpu != v8_target_cpu
   use_sanitizer = is_asan || is_cfi || is_msan || is_tsan || is_ubsan
 
+  use_leaptiering = v8_enable_sandbox && !v8_disable_leaptiering
+
   # This lists all build-time switches consumed by the test framework. All
   # switches can be used automatically in the status files as is - no
   # further files need to be modified.
+  # However, the switch also has to be entered in `build_config_content` in
+  # `bazel/defs.bzl` so that the switch also works for tests triggered by bazel.
   #
   # Naming conventions: Keep switch names short and remove unnecessary
   # qualifiers. Drop v8_enable_, v8_, is_ where possible.
@@ -2794,7 +2818,6 @@ action("v8_dump_build_config") {
     "single_generation=$v8_enable_single_generation",
     "slow_dchecks=$v8_enable_slow_dchecks",
     "target_cpu=\"$target_cpu\"",
-    "third_party_heap=$v8_enable_third_party_heap",
     "tsan=$is_tsan",
     "ubsan=$is_ubsan",
     "use_sanitizer=$use_sanitizer",
@@ -2805,6 +2828,10 @@ action("v8_dump_build_config") {
     "verify_heap=$v8_enable_verify_heap",
     "verify_predictable=$v8_enable_verify_predictable",
     "memory_corruption_api=$v8_enable_memory_corruption_api",
+    "leaptiering=$use_leaptiering",
+
+    # Please add new switches also in `build_config_content` in `bazel/defs.bzl`
+    # so that the switches also work for tests triggered by bazel.
   ]
 }
 
@@ -2952,6 +2979,7 @@ v8_source_set("v8_initializers") {
     "src/builtins/builtins-lazy-gen.h",
     "src/builtins/builtins-microtask-queue-gen.cc",
     "src/builtins/builtins-number-gen.cc",
+    "src/builtins/builtins-number-tsa.cc",
     "src/builtins/builtins-object-gen.cc",
     "src/builtins/builtins-object-gen.h",
     "src/builtins/builtins-promise-gen.cc",
@@ -2971,6 +2999,7 @@ v8_source_set("v8_initializers") {
     "src/builtins/builtins-utils-gen.h",
     "src/builtins/growable-fixed-array-gen.cc",
     "src/builtins/growable-fixed-array-gen.h",
+    "src/builtins/number-builtins-reducer-inl.h",
     "src/builtins/profile-data-reader.cc",
     "src/builtins/profile-data-reader.h",
     "src/builtins/setup-builtins-internal.cc",
@@ -2978,8 +3007,12 @@ v8_source_set("v8_initializers") {
     "src/codegen/code-stub-assembler-inl.h",
     "src/codegen/code-stub-assembler.cc",
     "src/codegen/code-stub-assembler.h",
+    "src/codegen/define-code-stub-assembler-macros.inc",
     "src/codegen/heap-object-list.h",
     "src/codegen/turboshaft-builtins-assembler-inl.h",
+    "src/codegen/undef-code-stub-assembler-macros.inc",
+    "src/compiler/turboshaft/builtin-compiler.cc",
+    "src/compiler/turboshaft/builtin-compiler.h",
     "src/heap/setup-heap-internal.cc",
     "src/ic/accessor-assembler.cc",
     "src/ic/accessor-assembler.h",
@@ -2991,6 +3024,8 @@ v8_source_set("v8_initializers") {
     "src/ic/unary-op-assembler.h",
     "src/interpreter/interpreter-assembler.cc",
     "src/interpreter/interpreter-assembler.h",
+    "src/interpreter/interpreter-generator-tsa.cc",
+    "src/interpreter/interpreter-generator-tsa.h",
     "src/interpreter/interpreter-generator.cc",
     "src/interpreter/interpreter-generator.h",
     "src/interpreter/interpreter-intrinsics-generator.cc",
@@ -3045,11 +3080,6 @@ v8_source_set("v8_initializers") {
     sources += [
       ### gcmole(loong64) ###
       "src/builtins/loong64/builtins-loong64.cc",
-    ]
-  } else if (v8_current_cpu == "ppc") {
-    sources += [
-      ### gcmole(ppc) ###
-      "src/builtins/ppc/builtins-ppc.cc",
     ]
   } else if (v8_current_cpu == "ppc64") {
     sources += [
@@ -3531,6 +3561,7 @@ v8_header_set("v8_internal_headers") {
     "src/compiler/turboshaft/explicit-truncation-reducer.h",
     "src/compiler/turboshaft/fast-api-call-lowering-reducer.h",
     "src/compiler/turboshaft/fast-hash.h",
+    "src/compiler/turboshaft/field-macro.inc",
     "src/compiler/turboshaft/graph-builder.h",
     "src/compiler/turboshaft/graph-visualizer.h",
     "src/compiler/turboshaft/graph.h",
@@ -4354,6 +4385,8 @@ v8_header_set("v8_internal_headers") {
       "src/compiler/turboshaft/wasm-assembler-helpers.h",
       "src/compiler/turboshaft/wasm-gc-optimize-phase.h",
       "src/compiler/turboshaft/wasm-gc-typed-optimization-reducer.h",
+      "src/compiler/turboshaft/wasm-in-js-inlining-phase.h",
+      "src/compiler/turboshaft/wasm-in-js-inlining-reducer-inl.h",
       "src/compiler/turboshaft/wasm-js-lowering-reducer.h",
       "src/compiler/turboshaft/wasm-load-elimination-reducer.h",
       "src/compiler/turboshaft/wasm-lowering-phase.h",
@@ -4426,6 +4459,8 @@ v8_header_set("v8_internal_headers") {
       "src/wasm/wasm-arguments.h",
       "src/wasm/wasm-builtin-list.h",
       "src/wasm/wasm-code-manager.h",
+      "src/wasm/wasm-code-pointer-table-inl.h",
+      "src/wasm/wasm-code-pointer-table.h",
       "src/wasm/wasm-debug.h",
       "src/wasm/wasm-deopt-data.h",
       "src/wasm/wasm-disassembler-impl.h",
@@ -4473,12 +4508,6 @@ v8_header_set("v8_internal_headers") {
       "src/compiler/turboshaft/wasm-revec-phase.h",
       "src/compiler/turboshaft/wasm-revec-reducer.h",
     ]
-  }
-
-  if (!v8_enable_third_party_heap) {
-    sources += filter_include(v8_third_party_heap_files, [ "*.h" ])
-  } else {
-    sources += [ "src/heap/third-party/heap-api.h" ]
   }
 
   if (v8_enable_i18n_support) {
@@ -4567,6 +4596,7 @@ v8_header_set("v8_internal_headers") {
       "src/codegen/shared-ia32-x64/macro-assembler-shared-ia32-x64.h",
       "src/codegen/x64/assembler-x64-inl.h",
       "src/codegen/x64/assembler-x64.h",
+      "src/codegen/x64/builtin-jump-table-info-x64.h",
       "src/codegen/x64/constants-x64.h",
       "src/codegen/x64/fma-instr.h",
       "src/codegen/x64/interface-descriptors-x64-inl.h",
@@ -4728,23 +4758,6 @@ v8_header_set("v8_internal_headers") {
         sources += [ "src/trap-handler/trap-handler-simulator.h" ]
       }
     }
-  } else if (v8_current_cpu == "ppc") {
-    sources += [
-      ### gcmole(ppc) ###
-      "src/codegen/ppc/assembler-ppc-inl.h",
-      "src/codegen/ppc/assembler-ppc.h",
-      "src/codegen/ppc/constants-ppc.h",
-      "src/codegen/ppc/interface-descriptors-ppc-inl.h",
-      "src/codegen/ppc/macro-assembler-ppc.h",
-      "src/codegen/ppc/register-ppc.h",
-      "src/codegen/ppc/reglist-ppc.h",
-      "src/compiler/backend/ppc/instruction-codes-ppc.h",
-      "src/compiler/backend/ppc/unwinding-info-writer-ppc.h",
-      "src/execution/ppc/frame-constants-ppc.h",
-      "src/execution/ppc/simulator-ppc.h",
-      "src/regexp/ppc/regexp-macro-assembler-ppc.h",
-      "src/wasm/baseline/ppc/liftoff-assembler-ppc-inl.h",
-    ]
   } else if (v8_current_cpu == "ppc64") {
     sources += [
       ### gcmole(ppc64) ###
@@ -5082,14 +5095,6 @@ if (v8_current_cpu == "x86") {
     "src/compiler/backend/loong64/instruction-scheduler-loong64.cc",
     "src/compiler/backend/loong64/instruction-selector-loong64.cc",
   ]
-} else if (v8_current_cpu == "ppc") {
-  v8_compiler_sources += [
-    ### gcmole(ppc) ###
-    "src/compiler/backend/ppc/code-generator-ppc.cc",
-    "src/compiler/backend/ppc/instruction-scheduler-ppc.cc",
-    "src/compiler/backend/ppc/instruction-selector-ppc.cc",
-    "src/compiler/backend/ppc/unwinding-info-writer-ppc.cc",
-  ]
 } else if (v8_current_cpu == "ppc64") {
   v8_compiler_sources += [
     ### gcmole(ppc64) ###
@@ -5128,6 +5133,7 @@ if (v8_enable_webassembly) {
     "src/compiler/turboshaft/int64-lowering-phase.cc",
     "src/compiler/turboshaft/wasm-gc-optimize-phase.cc",
     "src/compiler/turboshaft/wasm-gc-typed-optimization-reducer.cc",
+    "src/compiler/turboshaft/wasm-in-js-inlining-phase.cc",
     "src/compiler/turboshaft/wasm-lowering-phase.cc",
     "src/compiler/turboshaft/wasm-optimize-phase.cc",
     "src/compiler/turboshaft/wasm-turboshaft-compiler.cc",
@@ -5747,6 +5753,7 @@ v8_source_set("v8_base_without_compiler") {
     "src/runtime/runtime-test.cc",
     "src/runtime/runtime-trace.cc",
     "src/runtime/runtime-typedarray.cc",
+    "src/runtime/runtime-utils.cc",
     "src/runtime/runtime-weak-refs.cc",
     "src/runtime/runtime.cc",
     "src/sandbox/code-pointer-table.cc",
@@ -5895,7 +5902,6 @@ v8_source_set("v8_base_without_compiler") {
       "src/wasm/graph-builder-interface.cc",
       "src/wasm/jump-table-assembler.cc",
       "src/wasm/local-decl-encoder.cc",
-      "src/wasm/memory-tracing.cc",
       "src/wasm/module-compiler.cc",
       "src/wasm/module-decoder.cc",
       "src/wasm/module-instantiate.cc",
@@ -5908,6 +5914,7 @@ v8_source_set("v8_base_without_compiler") {
       "src/wasm/turboshaft-graph-interface.cc",
       "src/wasm/value-type.cc",
       "src/wasm/wasm-code-manager.cc",
+      "src/wasm/wasm-code-pointer-table.cc",
       "src/wasm/wasm-debug.cc",
       "src/wasm/wasm-deopt-data.cc",
       "src/wasm/wasm-disassembler.cc",
@@ -5942,12 +5949,6 @@ v8_source_set("v8_base_without_compiler") {
         "src/wasm/interpreter/wasm-interpreter.cc",
       ]
     }
-  }
-
-  if (v8_enable_third_party_heap) {
-    sources += filter_exclude(v8_third_party_heap_files, [ "*.h" ])
-  } else {
-    sources += [ "src/heap/third-party/heap-api-stub.cc" ]
   }
 
   if (v8_enable_conservative_stack_scanning) {
@@ -5989,6 +5990,7 @@ v8_source_set("v8_base_without_compiler") {
       ### gcmole(x64) ###
       "src/codegen/shared-ia32-x64/macro-assembler-shared-ia32-x64.cc",
       "src/codegen/x64/assembler-x64.cc",
+      "src/codegen/x64/builtin-jump-table-info-x64.cc",
       "src/codegen/x64/cpu-x64.cc",
       "src/codegen/x64/macro-assembler-x64.cc",
       "src/deoptimizer/x64/deoptimizer-x64.cc",
@@ -6122,21 +6124,6 @@ v8_source_set("v8_base_without_compiler") {
         sources += [ "src/trap-handler/handler-outside-simulator.cc" ]
       }
     }
-  } else if (v8_current_cpu == "ppc") {
-    sources += [
-      ### gcmole(ppc) ###
-      "src/codegen/ppc/assembler-ppc.cc",
-      "src/codegen/ppc/constants-ppc.cc",
-      "src/codegen/ppc/cpu-ppc.cc",
-      "src/codegen/ppc/macro-assembler-ppc.cc",
-      "src/deoptimizer/ppc/deoptimizer-ppc.cc",
-      "src/diagnostics/ppc/disasm-ppc.cc",
-      "src/diagnostics/ppc/eh-frame-ppc.cc",
-      "src/diagnostics/ppc/unwinder-ppc.cc",
-      "src/execution/ppc/frame-constants-ppc.cc",
-      "src/execution/ppc/simulator-ppc.cc",
-      "src/regexp/ppc/regexp-macro-assembler-ppc.cc",
-    ]
   } else if (v8_current_cpu == "ppc64") {
     sources += [
       ### gcmole(ppc64) ###
@@ -6260,6 +6247,7 @@ v8_source_set("v8_base_without_compiler") {
     ":v8_tracing",
     ":v8_version",
     "src/inspector:inspector",
+    "//third_party/fast_float",
   ]
 
   public_deps = [
@@ -6323,14 +6311,10 @@ v8_source_set("v8_base_without_compiler") {
 
   libs = []
 
-  if (v8_enable_third_party_heap) {
-    libs += v8_third_party_heap_libs
-  }
-
   # Platforms that don't have CAS support need to link atomic library
   # to implement atomic memory access
   if (v8_current_cpu == "mips64" || v8_current_cpu == "mips64el" ||
-      v8_current_cpu == "ppc" || v8_current_cpu == "ppc64" ||
+      v8_current_cpu == "ppc64" ||
       (current_os != "zos" &&
        (v8_current_cpu == "s390" || v8_current_cpu == "s390x")) ||
       v8_current_cpu == "riscv64" || v8_current_cpu == "riscv32") {

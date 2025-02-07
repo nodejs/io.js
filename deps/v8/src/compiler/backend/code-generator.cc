@@ -237,12 +237,14 @@ void CodeGenerator::AssembleCode() {
 
 #if V8_ENABLE_WEBASSEMBLY
   if (info->code_kind() == CodeKind::WASM_TO_JS_FUNCTION ||
-      info->builtin() == Builtin::kWasmToJsWrapperCSA) {
+      info->builtin() == Builtin::kWasmToJsWrapperCSA ||
+      wasm::BuiltinLookup::IsWasmBuiltinId(info->builtin())) {
     // By default the code generator can convert slot IDs to SP-relative memory
-    // operands depending on the offset. However, the SP may switch to the
-    // central stack at the beginning of the wrapper if the caller is on a
-    // secondary stack, and switch back at the end. So for the whole duration
-    // of the wrapper, only FP-relative addressing is valid.
+    // operands depending on the offset if the encoding is more efficient.
+    // However the SP may switch to the central stack for wasm-to-js wrappers
+    // and wasm builtins, so disable this optimization there.
+    // TODO(thibaudm): Disable this more selectively, only wasm builtins that
+    // call JS builtins can switch, and only around the call site.
     frame_access_state()->SetFPRelativeOnly(true);
   }
 #endif
@@ -537,6 +539,10 @@ MaybeHandle<Code> CodeGenerator::FinalizeCode() {
       .set_stack_slots(frame()->GetTotalFrameSlotCount())
       .set_profiler_data(info()->profiler_data())
       .set_osr_offset(info()->osr_offset());
+
+  if (info()->function_context_specializing()) {
+    builder.set_is_context_specialized();
+  }
 
   if (CodeKindUsesDeoptimizationData(info()->code_kind())) {
     builder.set_deoptimization_data(GenerateDeoptimizationData());
@@ -936,10 +942,12 @@ bool CodeGenerator::GetSlotAboveSPBeforeTailCall(Instruction* instr,
 StubCallMode CodeGenerator::DetermineStubCallMode() const {
 #if V8_ENABLE_WEBASSEMBLY
   CodeKind code_kind = info()->code_kind();
-  if (code_kind == CodeKind::WASM_FUNCTION ||
-      code_kind == CodeKind::WASM_TO_CAPI_FUNCTION ||
-      code_kind == CodeKind::WASM_TO_JS_FUNCTION) {
+  if (code_kind == CodeKind::WASM_FUNCTION) {
     return StubCallMode::kCallWasmRuntimeStub;
+  }
+  if (code_kind == CodeKind::WASM_TO_CAPI_FUNCTION ||
+      code_kind == CodeKind::WASM_TO_JS_FUNCTION) {
+    return StubCallMode::kCallBuiltinPointer;
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
   return StubCallMode::kCallCodeObject;
@@ -1104,6 +1112,12 @@ Label* CodeGenerator::AddJumpTable(Label** targets, size_t target_count) {
   jump_tables_ = zone()->New<JumpTable>(jump_tables_, targets, target_count);
   return jump_tables_->label();
 }
+
+#ifndef V8_TARGET_ARCH_X64
+void CodeGenerator::AssemblePlaceHolderForLazyDeopt(Instruction* instr) {
+  UNREACHABLE();
+}
+#endif
 
 void CodeGenerator::RecordCallPosition(Instruction* instr) {
   const bool needs_frame_state =

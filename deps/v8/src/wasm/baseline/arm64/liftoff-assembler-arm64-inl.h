@@ -6,6 +6,7 @@
 #define V8_WASM_BASELINE_ARM64_LIFTOFF_ASSEMBLER_ARM64_INL_H_
 
 #include "src/codegen/arm64/macro-assembler-arm64-inl.h"
+#include "src/codegen/interface-descriptors-inl.h"
 #include "src/heap/mutable-page-metadata.h"
 #include "src/wasm/baseline/liftoff-assembler.h"
 #include "src/wasm/baseline/parallel-move-inl.h"
@@ -333,7 +334,7 @@ void LiftoffAssembler::AlignFrameSize() {
 
 void LiftoffAssembler::PatchPrepareStackFrame(
     int offset, SafepointTableBuilder* safepoint_table_builder,
-    bool feedback_vector_slot) {
+    bool feedback_vector_slot, size_t stack_param_slots) {
   // The frame_size includes the frame marker and the instance slot. Both are
   // pushed as part of frame construction, so we don't need to allocate memory
   // for them anymore.
@@ -390,11 +391,25 @@ void LiftoffAssembler::PatchPrepareStackFrame(
     B(hs /* higher or same */, &continuation);
   }
 
-  Call(static_cast<Address>(Builtin::kWasmStackOverflow),
-       RelocInfo::WASM_STUB_CALL);
-  // The call will not return; just define an empty safepoint.
-  safepoint_table_builder->DefineSafepoint(this);
-  if (v8_flags.debug_code) Brk(0);
+  if (v8_flags.experimental_wasm_growable_stacks) {
+    LiftoffRegList regs_to_save;
+    regs_to_save.set(WasmHandleStackOverflowDescriptor::GapRegister());
+    regs_to_save.set(WasmHandleStackOverflowDescriptor::FrameBaseRegister());
+    for (auto reg : kGpParamRegisters) regs_to_save.set(reg);
+    PushRegisters(regs_to_save);
+    Mov(WasmHandleStackOverflowDescriptor::GapRegister(), frame_size);
+    Add(WasmHandleStackOverflowDescriptor::FrameBaseRegister(), fp,
+        Operand(stack_param_slots * kStackSlotSize +
+                CommonFrameConstants::kFixedFrameSizeAboveFp));
+    CallBuiltin(Builtin::kWasmHandleStackOverflow);
+    PopRegisters(regs_to_save);
+  } else {
+    Call(static_cast<Address>(Builtin::kWasmStackOverflow),
+         RelocInfo::WASM_STUB_CALL);
+    // The call will not return; just define an empty safepoint.
+    safepoint_table_builder->DefineSafepoint(this);
+    if (v8_flags.debug_code) Brk(0);
+  }
 
   bind(&continuation);
 
@@ -471,6 +486,61 @@ void LiftoffAssembler::CheckTierUp(int declared_func_index, int budget_used,
   AddSub(budget, budget, Operand{budget_used}, SetFlags, SUB);
   str(budget, budget_addr);
   B(ool_label, mi);
+}
+
+Register LiftoffAssembler::LoadOldFramePointer() {
+  if (!v8_flags.experimental_wasm_growable_stacks) {
+    return fp;
+  }
+  LiftoffRegister old_fp = GetUnusedRegister(RegClass::kGpReg, {});
+  Label done, call_runtime;
+  Ldr(old_fp.gp(), MemOperand(fp, TypedFrameConstants::kFrameTypeOffset));
+  Cmp(old_fp.gp(),
+      Operand(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+  B(eq, &call_runtime);
+  Mov(old_fp.gp(), fp);
+  jmp(&done);
+
+  bind(&call_runtime);
+  LiftoffRegList regs_to_save = cache_state()->used_registers;
+  PushRegisters(regs_to_save);
+  Mov(kCArgRegs[0], ExternalReference::isolate_address());
+  CallCFunction(ExternalReference::wasm_load_old_fp(), 1);
+  if (old_fp.gp() != kReturnRegister0) {
+    Mov(old_fp.gp(), kReturnRegister0);
+  }
+  PopRegisters(regs_to_save);
+
+  bind(&done);
+  return old_fp.gp();
+}
+
+void LiftoffAssembler::CheckStackShrink() {
+  {
+    UseScratchRegisterScope temps{this};
+    Register scratch = temps.AcquireX();
+    Ldr(scratch, MemOperand(fp, TypedFrameConstants::kFrameTypeOffset));
+    Cmp(scratch,
+        Operand(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+  }
+  Label done;
+  B(ne, &done);
+  LiftoffRegList regs_to_save;
+  for (auto reg : kGpReturnRegisters) regs_to_save.set(reg);
+  PushRegisters(regs_to_save);
+  Mov(kCArgRegs[0], ExternalReference::isolate_address());
+  CallCFunction(ExternalReference::wasm_shrink_stack(), 1);
+  Mov(fp, kReturnRegister0);
+  PopRegisters(regs_to_save);
+  if (options().enable_simulator_code) {
+    // The next instruction after shrinking stack is leaving the frame.
+    // So SP will be set to old FP there. Switch simulator stack limit here.
+    UseScratchRegisterScope temps{this};
+    temps.Exclude(x16);
+    LoadStackLimit(x16, StackLimitKind::kRealStackLimit);
+    hlt(kImmExceptionIsSwitchStackLimit);
+  }
+  bind(&done);
 }
 
 void LiftoffAssembler::LoadConstant(LiftoffRegister reg, WasmValue value) {
@@ -1207,9 +1277,10 @@ void LiftoffAssembler::LoadCallerFrameSlot(LiftoffRegister dst,
 
 void LiftoffAssembler::StoreCallerFrameSlot(LiftoffRegister src,
                                             uint32_t caller_slot_idx,
-                                            ValueKind kind) {
+                                            ValueKind kind,
+                                            Register frame_pointer) {
   int32_t offset = (caller_slot_idx + 1) * LiftoffAssembler::kStackSlotSize;
-  Str(liftoff::GetRegFromType(src, kind), MemOperand(fp, offset));
+  Str(liftoff::GetRegFromType(src, kind), MemOperand(frame_pointer, offset));
 }
 
 void LiftoffAssembler::LoadReturnStackSlot(LiftoffRegister dst, int offset,

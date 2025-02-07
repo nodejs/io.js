@@ -100,7 +100,7 @@ assert.strictEqual(getNavigatorPlatform('x64', 'openbsd'), 'OpenBSD amd64');
 assert.strictEqual(getNavigatorPlatform('arm64', 'openbsd'), 'OpenBSD arm64');
 assert.strictEqual(getNavigatorPlatform('ia32', 'sunos'), 'SunOS i86pc');
 assert.strictEqual(getNavigatorPlatform('x64', 'sunos'), 'SunOS x64');
-assert.strictEqual(getNavigatorPlatform('ppc', 'aix'), 'AIX');
+assert.strictEqual(getNavigatorPlatform('ppc64', 'aix'), 'AIX');
 assert.strictEqual(getNavigatorPlatform('x64', 'reactos'), 'Reactos x64');
 
 assert.strictEqual(typeof navigator.language, 'string');

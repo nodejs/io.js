@@ -1890,12 +1890,6 @@ WasmError ValidateAndSetBuiltinImports(const WasmModule* module,
 
 namespace {
 
-void RecordStats(Tagged<Code> code, Counters* counters) {
-  if (!code->has_instruction_stream()) return;
-  counters->wasm_generated_code_size()->Increment(code->body_size());
-  counters->wasm_reloc_size()->Increment(code->relocation_size());
-}
-
 enum CompilationExecutionResult : int8_t { kNoMoreUnits, kYield };
 
 const char* GetCompilationEventName(const WasmCompilationUnit& unit,
@@ -2037,13 +2031,12 @@ int AddExportWrapperUnits(Isolate* isolate, NativeModule* native_module,
   for (auto exp : module->export_table) {
     if (exp.kind != kExternalFunction) continue;
     auto& function = module->functions[exp.index];
-    uint32_t canonical_type_index =
-        module->isorecursive_canonical_type_ids[function.sig_index];
-    if (static_cast<int>(canonical_type_index) <
+    uint32_t canonical_sig_id = module->canonical_sig_id(function.sig_index);
+    if (static_cast<int>(canonical_sig_id) <
         isolate->heap()->js_to_wasm_wrappers()->length()) {
       Tagged<MaybeObject> existing_wrapper =
-          isolate->heap()->js_to_wasm_wrappers()->Get(canonical_type_index);
-      if (existing_wrapper.IsStrongOrWeak() &&
+          isolate->heap()->js_to_wasm_wrappers()->get(canonical_sig_id);
+      if (!existing_wrapper.IsCleared() &&
           !IsUndefined(existing_wrapper.GetHeapObject())) {
         DCHECK(IsCodeWrapper(existing_wrapper.GetHeapObject()));
         // Skip wrapper compilation as the wrapper is already cached.
@@ -2052,10 +2045,9 @@ int AddExportWrapperUnits(Isolate* isolate, NativeModule* native_module,
         continue;
       }
     }
-    if (!keys.insert(canonical_type_index).second)
-      continue;  // Already triggered.
+    if (!keys.insert(canonical_sig_id).second) continue;  // Already triggered.
     builder->AddJSToWasmWrapperUnit(JSToWasmWrapperCompilationUnit{
-        isolate, function.sig, canonical_type_index, module,
+        isolate, function.sig, canonical_sig_id, module,
         native_module->enabled_features()});
   }
 
@@ -2892,7 +2884,7 @@ void AsyncCompileJob::Failed() {
                                                    wire_bytes_.module_bytes(),
                                                    job->compile_imports_);
     CHECK(error.has_error());
-    thrower.LinkError("%s", error.message().c_str());
+    thrower.CompileError("%s", error.message().c_str());
   }
   resolver_->OnCompilationFailed(thrower.Reify());
 }
@@ -3112,10 +3104,10 @@ class AsyncCompileJob::DecodeModule : public AsyncCompileJob::CompileStep {
       }
       if (result.ok()) {
         const WasmModule* module = result.value().get();
-        if (WasmError link_error = ValidateAndSetBuiltinImports(
+        if (WasmError error = ValidateAndSetBuiltinImports(
                 module, job->wire_bytes_.module_bytes(),
                 job->compile_imports_)) {
-          result = ModuleResult{std::move(link_error)};
+          result = ModuleResult{std::move(error)};
         }
       }
     }
@@ -4059,18 +4051,18 @@ void CompilationStateImpl::FinalizeJSToWasmWrappers(Isolate* isolate,
                "wasm.FinalizeJSToWasmWrappers", "wrappers",
                js_to_wasm_wrapper_units_.size());
 
-  isolate->heap()->EnsureWasmCanonicalRttsSize(module->MaxCanonicalTypeIndex() +
-                                               1);
+  TypeCanonicalizer::PrepareForCanonicalTypeId(isolate,
+                                               module->MaxCanonicalTypeIndex());
   for (auto& unit : js_to_wasm_wrapper_units_) {
     DCHECK_EQ(isolate, unit.isolate());
-    DirectHandle<Code> code = unit.Finalize();
+    [[maybe_unused]] DirectHandle<Code> code = unit.Finalize();
     // Each JSToWasmWrapperCompilationUnit compiles an actual wrappers and never
     // returns the generic builtin.
     DCHECK(!code->is_builtin());
-    uint32_t index = unit.canonical_sig_index();
-    isolate->heap()->js_to_wasm_wrappers()->Set(index, code->wrapper());
-    RecordStats(*code, isolate->counters());
-    isolate->counters()->wasm_compiled_export_wrapper()->Increment(1);
+    // The compilation unit should have added the code to the per-isolate cache.
+    DCHECK_EQ(MakeWeak(code->wrapper()),
+              isolate->heap()->js_to_wasm_wrappers()->get(
+                  unit.canonical_sig_index()));
   }
   // Clearing needs to hold the mutex to avoid racing with
   // {EstimateCurrentMemoryConsumption}.
@@ -4346,6 +4338,8 @@ void CompilationStateImpl::PublishDetectedFeaturesAfterCompilation(
       {WasmDetectedFeature::multi_memory, Feature::kWasmMultiMemory},
       {WasmDetectedFeature::gc, Feature::kWasmGC},
       {WasmDetectedFeature::imported_strings, Feature::kWasmImportedStrings},
+      {WasmDetectedFeature::imported_strings_utf8,
+       Feature::kWasmImportedStringsUtf8},
       {WasmDetectedFeature::return_call, Feature::kWasmReturnCall},
       {WasmDetectedFeature::extended_const, Feature::kWasmExtendedConst},
       {WasmDetectedFeature::relaxed_simd, Feature::kWasmRelaxedSimd},
@@ -4563,8 +4557,8 @@ class CompileJSToWasmWrapperJob final : public BaseCompileJSToWasmWrapperJob {
 void CompileJsToWasmWrappers(Isolate* isolate, const WasmModule* module) {
   TRACE_EVENT0("v8.wasm", "wasm.CompileJsToWasmWrappers");
 
-  isolate->heap()->EnsureWasmCanonicalRttsSize(module->MaxCanonicalTypeIndex() +
-                                               1);
+  TypeCanonicalizer::PrepareForCanonicalTypeId(isolate,
+                                               module->MaxCanonicalTypeIndex());
 
   JSToWasmWrapperSet set;
   JSToWasmWrapperUnitVector compilation_units;
@@ -4580,22 +4574,21 @@ void CompileJsToWasmWrappers(Isolate* isolate, const WasmModule* module) {
         !function.imported &&
         CanUseGenericJsToWasmWrapper(module, function.sig);
     if (use_generic_wrapper) continue;  // Nothing to compile.
-    uint32_t canonical_type_index =
-        module->isorecursive_canonical_type_ids[function.sig_index];
-    int wrapper_index = canonical_type_index;
+    uint32_t canonical_sig_id = module->canonical_sig_id(function.sig_index);
+    int wrapper_index = canonical_sig_id;
     Tagged<MaybeObject> existing_wrapper =
-        isolate->heap()->js_to_wasm_wrappers()->Get(wrapper_index);
-    if (existing_wrapper.IsStrongOrWeak() &&
+        isolate->heap()->js_to_wasm_wrappers()->get(wrapper_index);
+    if (!existing_wrapper.IsCleared() &&
         !IsUndefined(existing_wrapper.GetHeapObject())) {
       DCHECK(IsCodeWrapper(existing_wrapper.GetHeapObject()));
       continue;
     }
 
-    const auto [it, inserted] = set.insert(canonical_type_index);
+    const auto [it, inserted] = set.insert(canonical_sig_id);
     if (!inserted) continue;  // Compilation already triggered.
     auto unit = std::make_unique<JSToWasmWrapperCompilationUnit>(
-        isolate, function.sig, canonical_type_index, module, enabled_features);
-    compilation_units.emplace_back(canonical_type_index, std::move(unit));
+        isolate, function.sig, canonical_sig_id, module, enabled_features);
+    compilation_units.emplace_back(canonical_sig_id, std::move(unit));
   }
 
   if (compilation_units.empty()) return;
@@ -4618,60 +4611,61 @@ void CompileJsToWasmWrappers(Isolate* isolate, const WasmModule* module) {
   }
 
   // Finalize compilation jobs on the main thread.
-  for (auto& pair : compilation_units) {
-    uint32_t key = pair.first;
-    JSToWasmWrapperCompilationUnit* unit = pair.second.get();
+  for (auto& [canonical_sig_id, unit] : compilation_units) {
     DCHECK_EQ(isolate, unit->isolate());
-    DirectHandle<Code> code = unit->Finalize();
-    DCHECK(!code->is_builtin() || v8_flags.wasm_jitless);
+    [[maybe_unused]] DirectHandle<Code> code = unit->Finalize();
     if (v8_flags.wasm_jitless) continue;
-    isolate->heap()->js_to_wasm_wrappers()->Set(key, code->wrapper());
-    // Do not increase code stats for non-jitted wrappers.
-    RecordStats(*code, isolate->counters());
-    isolate->counters()->wasm_compiled_export_wrapper()->Increment(1);
+    DCHECK(!code->is_builtin());
+    // Each unit should have installed the code in the per-isolate cache.
+    DCHECK_EQ(MakeWeak(code->wrapper()),
+              isolate->heap()->js_to_wasm_wrappers()->get(canonical_sig_id));
   }
 }
 
-WasmCode* CompileImportWrapper(
-    NativeModule* native_module, Counters* counters, ImportCallKind kind,
-    const FunctionSig* sig, uint32_t canonical_type_index, int expected_arity,
-    Suspend suspend, WasmImportWrapperCache::ModificationScope* cache_scope) {
-  // Entry should exist, so that we don't insert a new one and invalidate
-  // other threads' iterators/references, but it should not have been compiled
-  // yet.
-  WasmImportWrapperCache::CacheKey key(kind, canonical_type_index,
-                                       expected_arity, suspend);
-  DCHECK_NULL((*cache_scope)[key]);
+WasmCode* CompileImportWrapperForTest(NativeModule* native_module,
+                                      Counters* counters, ImportCallKind kind,
+                                      const FunctionSig* sig,
+                                      uint32_t canonical_type_index,
+                                      int expected_arity, Suspend suspend) {
   bool source_positions = is_asmjs_module(native_module->module());
-  // Keep the {WasmCode} alive until we explicitly call {IncRef}.
-  WasmCode* published_code = nullptr;
   if (v8_flags.wasm_jitless) {
-    DCHECK_NULL((*cache_scope)[key]);
-  } else {
-    WasmCodeRefScope code_ref_scope;
-    CompilationEnv env = CompilationEnv::ForModule(native_module);
-    WasmCompilationResult result = compiler::CompileWasmImportCallWrapper(
-        &env, kind, sig, source_positions, expected_arity, suspend);
-
-    DCHECK(result.inlining_positions.empty());
-    DCHECK(result.deopt_data.empty());
-
-    std::unique_ptr<WasmCode> wasm_code = native_module->AddCode(
-        result.func_index, result.code_desc, result.frame_slot_count,
-        result.ool_spill_count, result.tagged_parameter_slots,
-        result.protected_instructions_data.as_vector(),
-        result.source_positions.as_vector(),
-        result.inlining_positions.as_vector(), result.deopt_data.as_vector(),
-        GetCodeKind(result), ExecutionTier::kNone, kNotForDebugging);
-    published_code = native_module->PublishCode(std::move(wasm_code));
-    (*cache_scope)[key] = published_code;
-    published_code->IncRef();
-    counters->wasm_generated_code_size()->Increment(
-        published_code->instructions().length());
-    counters->wasm_reloc_size()->Increment(
-        published_code->reloc_info().length());
+    WasmImportWrapperCache::ModificationScope cache_scope(
+        GetWasmImportWrapperCache());
+    WasmImportWrapperCache::CacheKey key(kind, canonical_type_index,
+                                         expected_arity, suspend);
+    DCHECK_NULL(cache_scope[key]);
+    return nullptr;
   }
-  return published_code;
+
+  CompilationEnv env = CompilationEnv::ForModule(native_module);
+  WasmCompilationResult result = compiler::CompileWasmImportCallWrapper(
+      &env, kind, sig, source_positions, expected_arity, suspend);
+
+  DCHECK(result.inlining_positions.empty());
+  DCHECK(result.deopt_data.empty());
+  WasmCode* code;
+  {
+    // There was no cache entry when we called this function, but in the
+    // meantime a different module could have created one. Simply discard the
+    // new wrapper if so.
+    WasmImportWrapperCache::ModificationScope cache_scope(
+        GetWasmImportWrapperCache());
+    WasmImportWrapperCache::CacheKey key(kind, canonical_type_index,
+                                         expected_arity, suspend);
+    if (V8_UNLIKELY(cache_scope[key] != nullptr)) return cache_scope[key];
+    code = cache_scope.AddWrapper(key, std::move(result),
+                                  WasmCode::Kind::kWasmToJsWrapper);
+  }
+  // To avoid lock order inversion, code printing must happen after the
+  // end of the {cache_scope}.
+  code->MaybePrint();
+  counters->wasm_generated_code_size()->Increment(
+      code->instructions().length());
+  counters->wasm_reloc_size()->Increment(code->reloc_info().length());
+  if (native_module->log_code()) {
+    GetWasmEngine()->LogWrapperCode(base::VectorOf(&code, 1));
+  }
+  return code;
 }
 
 }  // namespace v8::internal::wasm

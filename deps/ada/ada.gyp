@@ -1,6 +1,5 @@
 {
   'variables': {
-    'v8_enable_i18n_support%': 1,
     'ada_sources': [ 'ada.cpp' ],
   },
   'targets': [

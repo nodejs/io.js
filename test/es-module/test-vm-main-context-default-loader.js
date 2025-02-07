@@ -3,7 +3,11 @@
 const common = require('../common');
 
 // Can't process.chdir() in worker.
-common.skipIfWorker();
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');

@@ -1290,11 +1290,18 @@ void Builtins::Generate_InterpreterEntryTrampoline(
     __ LoadFeedbackVectorFlagsAndJumpIfNeedsProcessing(
         flags, feedback_vector, CodeKind::BASELINE, &flags_need_processing);
 
+#ifndef V8_ENABLE_LEAPTIERING
+    // TODO(mips64, 42204201): This fastcase is difficult to support with the
+    // sandbox as it requires getting write access to the dispatch table. See
+    // `JSFunction::UpdateCode`. We might want to remove it for all
+    // configurations as it does not seem to be performance sensitive.
+
     // Load the baseline code into the closure.
     __ Move(a2, kInterpreterBytecodeArrayRegister);
     static_assert(kJavaScriptCallCodeStartRegister == a2, "ABI mismatch");
     __ ReplaceClosureCodeWithOptimizedCode(a2, closure, t0, t1);
     __ JumpCodeObject(a2, kJSEntrypointTag);
+#endif  // V8_ENABLE_LEAPTIERING
 
     __ bind(&install_baseline_code);
     __ GenerateTailCallToReturnedCode(Runtime::kInstallBaselineCode);
@@ -1882,8 +1889,9 @@ void OnStackReplacement(MacroAssembler* masm, OsrSourceTier source,
   Label jump_to_optimized_code;
   {
     // If maybe_target_code is not null, no need to call into runtime. A
-    // precondition here is: if maybe_target_code is a InstructionStream object,
-    // it must NOT be marked_for_deoptimization (callers must ensure this).
+    // precondition here is: if maybe_target_code is an InstructionStream
+    // object, it must NOT be marked_for_deoptimization (callers must ensure
+    // this).
     __ Branch(&jump_to_optimized_code, ne, maybe_target_code,
               Operand(Smi::zero()));
   }
@@ -2749,8 +2757,8 @@ constexpr RegList kSavedGpRegs = ([]() constexpr {
     saved_gp_regs.set(gp_param_reg);
   }
 
-  // The instance has already been stored in the fixed part of the frame.
-  saved_gp_regs.clear(kWasmInstanceRegister);
+  // The instance data has already been stored in the fixed part of the frame.
+  saved_gp_regs.clear(kWasmImplicitArgRegister);
   // All set registers were unique.
   CHECK_EQ(saved_gp_regs.Count(), arraysize(wasm::kGpParamRegisters) - 1);
   CHECK_EQ(WasmLiftoffSetupFrameConstants::kNumberOfSavedGpParamRegs,
@@ -2772,16 +2780,16 @@ constexpr DoubleRegList kSavedFpRegs = ([]() constexpr {
 
 // When entering this builtin, we have just created a Wasm stack frame:
 //
-// [   Wasm instance   ]  <-- sp
-// [ WASM frame marker ]
-// [     saved fp      ]  <-- fp
+// [ Wasm instance data ]  <-- sp
+// [ WASM frame marker  ]
+// [     saved fp       ]  <-- fp
 //
 // Add the feedback vector to the stack.
 //
-// [  feedback vector  ]  <-- sp
-// [   Wasm instance   ]
-// [ WASM frame marker ]
-// [     saved fp      ]  <-- fp
+// [  feedback vector   ]  <-- sp
+// [ Wasm instance data ]
+// [ WASM frame marker  ]
+// [     saved fp       ]  <-- fp
 void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   Register func_index = wasm::kLiftoffFrameSetupFunctionReg;
   Register vector = t1;
@@ -2789,7 +2797,7 @@ void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   Label allocate_vector, done;
 
   __ Ld(vector,
-        FieldMemOperand(kWasmInstanceRegister,
+        FieldMemOperand(kWasmImplicitArgRegister,
                         WasmTrustedInstanceData::kFeedbackVectorsOffset));
   __ Dlsa(vector, vector, func_index, kTaggedSizeLog2);
   __ Ld(vector, FieldMemOperand(vector, FixedArray::kHeaderSize));
@@ -2810,10 +2818,10 @@ void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   __ MultiPushFPU(kSavedFpRegs);
   __ Push(ra);
 
-  // Arguments to the runtime function: instance, func_index, and an
+  // Arguments to the runtime function: instance data, func_index, and an
   // additional stack slot for the NativeModule.
   __ SmiTag(func_index);
-  __ Push(kWasmInstanceRegister, func_index, zero_reg);
+  __ Push(kWasmImplicitArgRegister, func_index, zero_reg);
   __ Move(cp, Smi::zero());
   __ CallRuntime(Runtime::kWasmAllocateFeedbackVector, 3);
   __ mov(vector, kReturnRegister0);
@@ -2822,8 +2830,8 @@ void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   __ Pop(ra);
   __ MultiPopFPU(kSavedFpRegs);
   __ MultiPop(kSavedGpRegs);
-  __ Ld(kWasmInstanceRegister,
-        MemOperand(fp, WasmFrameConstants::kWasmInstanceOffset));
+  __ Ld(kWasmImplicitArgRegister,
+        MemOperand(fp, WasmFrameConstants::kWasmInstanceDataOffset));
   __ li(scratch, StackFrame::TypeToMarker(StackFrame::WASM));
   __ Sd(scratch, MemOperand(fp, TypedFrameConstants::kFrameTypeOffset));
   __ Branch(&done);
@@ -2839,7 +2847,7 @@ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
     FrameScope scope(masm, StackFrame::INTERNAL);
 
     // Save registers that we need to keep alive across the runtime call.
-    __ Push(kWasmInstanceRegister);
+    __ Push(kWasmImplicitArgRegister);
     __ MultiPush(kSavedGpRegs);
     // Check if machine has simd enabled, if so push vector registers. If not
     // then only push double registers.
@@ -2863,7 +2871,7 @@ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
     __ Dsubu(sp, sp, kSavedFpRegs.Count() * kDoubleSize);
     __ bind(&simd_pushed);
 
-    __ Push(kWasmInstanceRegister, kWasmCompileLazyFuncIndexRegister);
+    __ Push(kWasmImplicitArgRegister, kWasmCompileLazyFuncIndexRegister);
 
     // Initialize the JavaScript context with 0. CEntry will use it to
     // set the current context on the isolate.
@@ -2888,7 +2896,7 @@ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
     __ MultiPopFPU(kSavedFpRegs);
     __ bind(&simd_popped);
     __ MultiPop(kSavedGpRegs);
-    __ Pop(kWasmInstanceRegister);
+    __ Pop(kWasmImplicitArgRegister);
   }
 
   // Untag the returned Smi, for later use.
@@ -2898,7 +2906,7 @@ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
   // The runtime function returned the jump table slot offset as a Smi (now in
   // t8). Use that to compute the jump target.
   static_assert(!kSavedGpRegs.has(t8));
-  __ Ld(t8, FieldMemOperand(kWasmInstanceRegister,
+  __ Ld(t8, FieldMemOperand(kWasmImplicitArgRegister,
                             WasmTrustedInstanceData::kJumpTableStartOffset));
   __ Daddu(t8, v0, t8);
 
@@ -2949,10 +2957,8 @@ void Builtins::Generate_WasmToJsWrapperAsm(MacroAssembler* masm) {
     __ Sd(wasm::kGpParamRegisters[i],
           MemOperand(sp, (i - 1) * kSystemPointerSize));
   }
-  // Reserve fixed slots for the CSA wrapper.
-  // Two slots for stack-switching (central stack pointer and secondary stack
-  // limit), one for the signature.
-  __ Push(zero_reg, zero_reg, zero_reg);
+  // Reserve a slot for the signature.
+  __ Push(zero_reg);
   __ TailCallBuiltin(Builtin::kWasmToJsWrapperCSA);
 }
 
@@ -3146,6 +3152,12 @@ void Builtins::Generate_CEntry(MacroAssembler* masm, int result_size,
                                           no_reg));
   __ Jump(t9);
 }
+
+#if V8_ENABLE_WEBASSEMBLY
+void Builtins::Generate_WasmHandleStackOverflow(MacroAssembler* masm) {
+  __ Trap();
+}
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 void Builtins::Generate_DoubleToI(MacroAssembler* masm) {
   Label done;

@@ -154,13 +154,11 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
   }
 
   V8_INLINE static MemoryChunk* FromAddress(Address addr) {
-    DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
     return reinterpret_cast<MemoryChunk*>(BaseAddress(addr));
   }
 
   template <typename HeapObject>
   V8_INLINE static MemoryChunk* FromHeapObject(Tagged<HeapObject> object) {
-    DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
     return FromAddress(object.ptr());
   }
 
@@ -180,14 +178,12 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
 
   V8_INLINE bool InYoungGeneration() const {
     UNREACHABLE_WITH_STICKY_MARK_BITS();
-    if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) return false;
     constexpr uintptr_t kYoungGenerationMask = FROM_PAGE | TO_PAGE;
     return GetFlags() & kYoungGenerationMask;
   }
 
   // Checks whether chunk is either in young gen or shared heap.
   V8_INLINE bool IsYoungOrSharedChunk() const {
-    if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) return false;
     constexpr uintptr_t kYoungOrSharedChunkMask =
         FROM_PAGE | TO_PAGE | IN_WRITABLE_SHARED_SPACE;
     return GetFlags() & kYoungOrSharedChunkMask;
@@ -359,9 +355,6 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
 #ifdef V8_ENABLE_SANDBOX
 #ifndef V8_EXTERNAL_CODE_SPACE
 #error The global metadata pointer table requires a single external code space.
-#endif
-#ifdef V8_ENABLE_THIRD_PARTY_HEAP
-#error The global metadata pointer table is incompatible with third party heap.
 #endif
 
   static constexpr size_t kPagesInMainCage =

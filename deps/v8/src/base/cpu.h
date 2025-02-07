@@ -64,17 +64,7 @@ class V8_BASE_EXPORT CPU final {
   static const int kNvidiaDenverV10 = 0x002;
 
   // PPC-specific part codes
-  enum {
-    kPPCPower5,
-    kPPCPower6,
-    kPPCPower7,
-    kPPCPower8,
-    kPPCPower9,
-    kPPCPower10,
-    kPPCG4,
-    kPPCG5,
-    kPPCPA6T
-  };
+  enum { kPPCPower8, kPPCPower9, kPPCPower10 };
 
   // General features
   bool has_fpu() const { return has_fpu_; }
@@ -96,6 +86,7 @@ class V8_BASE_EXPORT CPU final {
   bool has_avx() const { return has_avx_; }
   bool has_avx2() const { return has_avx2_; }
   bool has_avx_vnni() const { return has_avx_vnni_; }
+  bool has_avx_vnni_int8() const { return has_avx_vnni_int8_; }
   bool has_fma3() const { return has_fma3_; }
   bool has_f16c() const { return has_f16c_; }
   bool has_bmi1() const { return has_bmi1_; }
@@ -180,6 +171,7 @@ class V8_BASE_EXPORT CPU final {
   bool has_avx_;
   bool has_avx2_;
   bool has_avx_vnni_;
+  bool has_avx_vnni_int8_;
   bool has_fma3_;
   bool has_f16c_;
   bool has_bmi1_;

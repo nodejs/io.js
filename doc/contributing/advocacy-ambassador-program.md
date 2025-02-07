@@ -94,11 +94,14 @@ process. An ambassador can request promotion of content in the following ways:
 * Posting a link to the content in the "what's new" issue in nodejs/ambassadors
   so that it goes out on the news feed.
 
-Foundation staff will repost the social media post
-without any need for validation based on the request coming from
-an ambassador. These requests can be made through the existing social channel
-in the OpenJS Slack. For that reason and for communication purposes and
-collaboration opportunities, ambassadors should be members of the
+For accounts managed by foundation staff, the staff will repost the social
+media post without any need for validation based on the request coming from
+an ambassador. For accounts managed by the project with an approval process,
+(for example bluesky) documentation for the approval process will indicate
+that repost requests from ambassadors should generally be approved. These
+requests can be made through the existing social channel in the OpenJS Slack.
+For that reason and for communication purposes and collaboration opportunities,
+ambassadors should be members of the
 [OpenJS Slack](https://slack-invite.openjsf.org/).
 
 ## Messages and topics to promote
@@ -218,3 +221,30 @@ Some of the things to highlight include:
 * @marco-ippolito
 
 You can find their contact email in the [`README.md`](../../README.md#tsc-technical-steering-committee)
+
+#### Node.js Type Stripping
+
+##### Goal
+
+The goal is to raise awareness of the Node.js TypeScript Type Stripping in the JavaScript ecosystem.
+Some of the things to highlight include:
+
+* The benefits and limitations of the current implementation.
+* The `tsconfig.json` configuration options to use in combination for type checking.
+* Updates on the implementation advancements.
+
+#### Related Links
+
+<!-- lint disable prohibited-strings remark-lint-->
+
+* <https://github.com/nodejs/typescript>
+* <https://nodejs.org/api/typescript.html>
+* <https://nodejs.org/en/learn/typescript/run-natively>
+* <https://satanacchio.hashnode.dev/everything-you-need-to-know-about-nodejs-type-stripping>
+* <https://github.com/nodejs/amaro>
+
+<!-- lint enable prohibited-strings remark-lint-->
+
+#### Project contacts
+
+* @marco-ippolito

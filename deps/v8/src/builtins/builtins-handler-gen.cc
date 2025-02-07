@@ -13,6 +13,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class HandlerBuiltinsAssembler : public CodeStubAssembler {
  public:
   explicit HandlerBuiltinsAssembler(compiler::CodeAssemblerState* state)
@@ -473,6 +475,8 @@ TF_BUILTIN(HasIndexedInterceptorIC, CodeStubAssembler) {
   TailCallRuntime(Runtime::kKeyedHasIC_Miss, context, receiver, key, slot,
                   vector);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

@@ -1,10 +1,15 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
-if (!common.opensslCli)
+}
+
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('missing openssl cli');
+}
 
 const assert = require('assert');
 const tls = require('tls');
@@ -16,7 +21,7 @@ const KEY = 'd731ef57be09e5204f0b205b60627028';
 const IDENTITY = 'Client_identity';  // Hardcoded by `openssl s_server`
 const useIPv4 = !common.hasIPv6;
 
-const server = spawn(common.opensslCli, [
+const server = spawn(opensslCli, [
   's_server',
   '-accept', common.PORT,
   '-cipher', CIPHERS,

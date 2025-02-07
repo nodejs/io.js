@@ -112,7 +112,7 @@ bool SimulatorHelper::FillRegisters(Isolate* isolate,
   }
   state->sp = reinterpret_cast<void*>(simulator->get_register(Simulator::sp));
   state->fp = reinterpret_cast<void*>(simulator->get_register(Simulator::fp));
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
   if (!simulator->has_bad_pc()) {
     state->pc = reinterpret_cast<void*>(simulator->get_pc());
   }

@@ -1084,8 +1084,10 @@ HeapEntry::Type V8HeapExplorer::GetSystemEntryType(Tagged<HeapObject> object) {
   if (InstanceTypeChecker::IsAllocationSite(type) ||
       InstanceTypeChecker::IsArrayBoilerplateDescription(type) ||
       InstanceTypeChecker::IsBytecodeArray(type) ||
+      InstanceTypeChecker::IsBytecodeWrapper(type) ||
       InstanceTypeChecker::IsClosureFeedbackCellArray(type) ||
       InstanceTypeChecker::IsCode(type) ||
+      InstanceTypeChecker::IsCodeWrapper(type) ||
       InstanceTypeChecker::IsFeedbackCell(type) ||
       InstanceTypeChecker::IsFeedbackMetadata(type) ||
       InstanceTypeChecker::IsFeedbackVector(type) ||
@@ -1240,6 +1242,24 @@ class IndexedReferencesExtractor : public ObjectVisitorWithCageBases {
     // remove the cage_base parameter.
     const PtrComprCageBase unused_cage_base(kNullAddress);
     VisitSlotImpl(unused_cage_base, slot);
+  }
+
+  void VisitJSDispatchTableEntry(Tagged<HeapObject> host,
+                                 JSDispatchHandle handle) override {
+#ifdef V8_ENABLE_LEAPTIERING
+    // TODO(saelo): implement proper support for these fields here, similar to
+    // how we handle indirect pointer or protected pointer fields.
+    // Currently we only expect to see FeedbackCells or JSFunctions here.
+    if (IsJSFunction(host)) {
+      int field_index = JSFunction::kDispatchHandleOffset / kTaggedSize;
+      CHECK(generator_->visited_fields_[field_index]);
+      generator_->visited_fields_[field_index] = false;
+    } else if (IsFeedbackCell(host)) {
+      // Nothing to do: the Code object is tracked as part of the JSFunction.
+    } else {
+      UNREACHABLE();
+    }
+#endif  // V8_ENABLE_LEAPTIERING
   }
 
  private:
@@ -1445,8 +1465,13 @@ void V8HeapExplorer::ExtractJSObjectReferences(HeapEntry* entry,
     TagObject(js_fun->context(), "(context)");
     SetInternalReference(entry, "context", js_fun->context(),
                          JSFunction::kContextOffset);
+#ifdef V8_ENABLE_LEAPTIERING
+    SetInternalReference(entry, "code", js_fun->code(isolate),
+                         JSFunction::kDispatchHandleOffset);
+#else
     SetInternalReference(entry, "code", js_fun->code(isolate),
                          JSFunction::kCodeOffset);
+#endif  // V8_ENABLE_LEAPTIERING
   } else if (IsJSGlobalObject(obj)) {
     Tagged<JSGlobalObject> global_obj = Cast<JSGlobalObject>(obj);
     SetInternalReference(entry, "global_proxy", global_obj->global_proxy(),

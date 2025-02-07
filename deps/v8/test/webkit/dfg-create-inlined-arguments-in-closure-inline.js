@@ -22,7 +22,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 description(
-"Tests that if the DFG tries to create inlined arguments from within a inlined call frame corresponding to a closure call, then we don't crash."
+"Tests that if the DFG tries to create inlined arguments from within an inlined call frame corresponding to a closure call, then we don't crash."
 );
 
 function foo(x, f) {

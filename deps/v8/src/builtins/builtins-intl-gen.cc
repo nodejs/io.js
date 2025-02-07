@@ -17,6 +17,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class IntlBuiltinsAssembler : public CodeStubAssembler {
  public:
   explicit IntlBuiltinsAssembler(compiler::CodeAssemblerState* state)
@@ -288,6 +290,8 @@ TF_BUILTIN(ListFormatPrototypeFormatToParts, IntlBuiltinsAssembler) {
       UncheckedParameter<Int32T>(Descriptor::kJSActualArgumentsCount),
       Runtime::kFormatListToParts, "Intl.ListFormat.prototype.formatToParts");
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

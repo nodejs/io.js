@@ -276,6 +276,12 @@ Handle<Code> JSToWasmWrapperCompilationUnit::Finalize() {
     PROFILE(isolate_, CodeCreateEvent(LogEventListener::CodeTag::kStub,
                                       Cast<AbstractCode>(code), name));
   }
+  isolate_->heap()->js_to_wasm_wrappers()->set(canonical_sig_index_,
+                                               MakeWeak(code->wrapper()));
+  Counters* counters = isolate_->counters();
+  counters->wasm_generated_code_size()->Increment(code->body_size());
+  counters->wasm_reloc_size()->Increment(code->relocation_size());
+  counters->wasm_compiled_export_wrapper()->Increment(1);
   return code;
 }
 

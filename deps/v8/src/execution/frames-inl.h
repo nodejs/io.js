@@ -330,6 +330,10 @@ inline BuiltinFrame::BuiltinFrame(StackFrameIteratorBase* iterator)
 inline WasmFrame::WasmFrame(StackFrameIteratorBase* iterator)
     : TypedFrame(iterator) {}
 
+inline WasmSegmentStartFrame::WasmSegmentStartFrame(
+    StackFrameIteratorBase* iterator)
+    : WasmFrame(iterator) {}
+
 inline WasmExitFrame::WasmExitFrame(StackFrameIteratorBase* iterator)
     : WasmFrame(iterator) {}
 
@@ -438,6 +442,7 @@ inline bool StackFrameIteratorForProfiler::IsValidFrameType(
 #if V8_ENABLE_WEBASSEMBLY
          type == StackFrame::WASM || type == StackFrame::WASM_TO_JS ||
          type == StackFrame::JS_TO_WASM ||
+         type == StackFrame::WASM_SEGMENT_START ||
 #if V8_ENABLE_DRUMBRAKE
          type == StackFrame::WASM_INTERPRETER_ENTRY ||
 #endif  // V8_ENABLE_DRUMBRAKE

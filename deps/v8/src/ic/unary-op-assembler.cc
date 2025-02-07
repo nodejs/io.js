@@ -10,6 +10,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 
 class UnaryOpAssemblerImpl final : public CodeStubAssembler {
@@ -313,6 +315,8 @@ TNode<Object> UnaryOpAssembler::Generate_NegateWithFeedback(
   return a.Negate(context, value, slot, maybe_feedback_vector,
                   update_feedback_mode);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

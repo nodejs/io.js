@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --experimental-wasm-imported-strings
+// Flags: --experimental-wasm-imported-strings-utf8
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 

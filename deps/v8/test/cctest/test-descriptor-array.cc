@@ -17,6 +17,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 
 using Label = compiler::CodeAssemblerLabel;
@@ -420,6 +422,8 @@ TEST(TransitionArrayHashCollision) {
   transition_array->Sort();
   CheckTransitionArrayLookups(isolate, transition_array, maps, csa_lookup);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

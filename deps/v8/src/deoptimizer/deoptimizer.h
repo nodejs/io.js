@@ -159,6 +159,10 @@ class Deoptimizer : public Malloced {
                                                Tagged<SharedFunctionInfo> sfi,
                                                const char* reason);
 
+  // Patch the generated code to jump to a safepoint entry. This is used only
+  // when Shadow Stack is enabled.
+  static void PatchJumpToTrampoline(Address pc, Address new_pc);
+
  private:
   void QueueValueForMaterialization(Address output_address, Tagged<Object> obj,
                                     const TranslatedFrame::iterator& iterator);

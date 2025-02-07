@@ -4256,7 +4256,7 @@ A browser-compatible implementation of [`WebSocket`][].
 [`Headers`]: globals.md#class-headers
 [`TypeError`]: errors.md#class-typeerror
 [`URL`]: url.md#the-whatwg-url-api
-[`WebSocket`]: #websocket
+[`WebSocket`]: https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
 [`agent.createConnection()`]: #agentcreateconnectionoptions-callback
 [`agent.getName()`]: #agentgetnameoptions
 [`destroy()`]: #agentdestroy

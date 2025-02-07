@@ -74,7 +74,8 @@ class StackCheckLoweringReducer : public Next {
   }
 
 #ifdef V8_ENABLE_WEBASSEMBLY
-  V<None> REDUCE(WasmStackCheck)(WasmStackCheckOp::Kind kind) {
+  V<None> REDUCE(WasmStackCheck)(WasmStackCheckOp::Kind kind,
+                                 int parameter_slots) {
     if (kind == WasmStackCheckOp::Kind::kFunctionEntry && __ IsLeafFunction()) {
       return V<None>::Invalid();
     }
@@ -86,24 +87,51 @@ class StackCheckLoweringReducer : public Next {
         MemoryRepresentation::UintPtr(), IsolateData::jslimit_offset());
 
     IF_NOT (LIKELY(__ StackPointerGreaterThan(limit, StackCheckKind::kWasm))) {
+      bool growable_stacks = kind == WasmStackCheckOp::Kind::kFunctionEntry &&
+                             v8_flags.experimental_wasm_growable_stacks;
       // TODO(14108): Cache descriptor.
-      V<WordPtr> builtin =
-          __ RelocatableWasmBuiltinCallTarget(Builtin::kWasmStackGuard);
-      const CallDescriptor* call_descriptor =
-          compiler::Linkage::GetStubCallDescriptor(
-              __ graph_zone(),                      // zone
-              NoContextDescriptor{},                // descriptor
-              0,                                    // stack parameter count
-              CallDescriptor::kNoFlags,             // flags
-              Operator::kNoProperties,              // properties
-              StubCallMode::kCallWasmRuntimeStub);  // stub call mode
-      const TSCallDescriptor* ts_call_descriptor =
-          TSCallDescriptor::Create(call_descriptor, compiler::CanThrow::kNo,
-                                   LazyDeoptOnThrow::kNo, __ graph_zone());
-      // Pass custom effects to the `Call` node to mark it as non-writing.
-      __ Call(
-          builtin, {}, ts_call_descriptor,
-          OpEffects().CanReadMemory().RequiredWhenUnused().CanCreateIdentity());
+      if (growable_stacks) {
+        const CallDescriptor* call_descriptor =
+            compiler::Linkage::GetStubCallDescriptor(
+                __ graph_zone(),                      // zone
+                WasmGrowableStackGuardDescriptor{},   // descriptor
+                0,                                    // stack parameter count
+                CallDescriptor::kNoFlags,             // flags
+                Operator::kNoProperties,              // properties
+                StubCallMode::kCallWasmRuntimeStub);  // stub call mode
+        const TSCallDescriptor* ts_call_descriptor =
+            TSCallDescriptor::Create(call_descriptor, compiler::CanThrow::kNo,
+                                     LazyDeoptOnThrow::kNo, __ graph_zone());
+        V<WordPtr> builtin = __ RelocatableWasmBuiltinCallTarget(
+            Builtin::kWasmGrowableStackGuard);
+        auto param_slots_size =
+            __ IntPtrConstant(parameter_slots * kSystemPointerSize);
+        __ Call(builtin, {param_slots_size}, ts_call_descriptor,
+                OpEffects()
+                    .CanReadMemory()
+                    .RequiredWhenUnused()
+                    .CanCreateIdentity());
+      } else {
+        const CallDescriptor* call_descriptor =
+            compiler::Linkage::GetStubCallDescriptor(
+                __ graph_zone(),                      // zone
+                NoContextDescriptor{},                // descriptor
+                0,                                    // stack parameter count
+                CallDescriptor::kNoFlags,             // flags
+                Operator::kNoProperties,              // properties
+                StubCallMode::kCallWasmRuntimeStub);  // stub call mode
+        const TSCallDescriptor* ts_call_descriptor =
+            TSCallDescriptor::Create(call_descriptor, compiler::CanThrow::kNo,
+                                     LazyDeoptOnThrow::kNo, __ graph_zone());
+        V<WordPtr> builtin =
+            __ RelocatableWasmBuiltinCallTarget(Builtin::kWasmStackGuard);
+        // Pass custom effects to the `Call` node to mark it as non-writing.
+        __ Call(builtin, {}, ts_call_descriptor,
+                OpEffects()
+                    .CanReadMemory()
+                    .RequiredWhenUnused()
+                    .CanCreateIdentity());
+      }
     }
 
     return V<None>::Invalid();

@@ -59,7 +59,7 @@ if WINNT
 uvinclude_HEADERS += include/uv/win.h include/uv/tree.h
 AM_CPPFLAGS += -I$(top_srcdir)/src/win \
                -DWIN32_LEAN_AND_MEAN \
-               -D_WIN32_WINNT=0x0602
+               -D_WIN32_WINNT=0x0A00
 libuv_la_SOURCES += src/win/async.c \
                     src/win/atomicops-inl.h \
                     src/win/core.c \
@@ -294,6 +294,7 @@ test_run_tests_SOURCES = test/blackhole-server.c \
                          test/test-thread-equal.c \
                          test/test-thread.c \
                          test/test-thread-affinity.c \
+                         test/test-thread-name.c \
                          test/test-thread-priority.c \
                          test/test-threadpool-cancel.c \
                          test/test-threadpool.c \

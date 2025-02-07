@@ -63,8 +63,11 @@ macro ConvertToAndFromWasm(context: Context, wasmType: int32, value: JSAny):
 
 extern runtime WasmThrowJSTypeError(Context): never;
 
+// The varargs arguments is just there so that the generated Code has a
+// parameter_count of 0 (kDontAdaptArgumentsSentinel) and so becomes compatible
+// with an existing entry in the JSDispatchTable.
 transitioning javascript builtin JSToJSWrapperInvalidSig(
-    js-implicit context: NativeContext)(): JSAny {
+    js-implicit context: NativeContext)(...arguments): JSAny {
   runtime::WasmThrowJSTypeError(context);
 }
 

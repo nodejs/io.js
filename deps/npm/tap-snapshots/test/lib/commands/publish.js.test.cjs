@@ -6,7 +6,7 @@
  */
 'use strict'
 exports[`test/lib/commands/publish.js TAP _auth config default registry > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP bare _auth and registry config > new package version 1`] = `
@@ -15,15 +15,15 @@ exports[`test/lib/commands/publish.js TAP bare _auth and registry config > new p
 
 exports[`test/lib/commands/publish.js TAP dry-run > must match snapshot 1`] = `
 Array [
-  "package: test-package@1.0.0",
+  "package: @npmcli/test-package@1.0.0",
   "Tarball Contents",
-  "87B package.json",
+  "95B package.json",
   "Tarball Details",
-  "name: test-package",
+  "name: @npmcli/test-package",
   "version: 1.0.0",
-  "filename: test-package-1.0.0.tgz",
+  "filename: npmcli-test-package-1.0.0.tgz",
   "package size: {size}",
-  "unpacked size: 87 B",
+  "unpacked size: 95 B",
   "shasum: {sha}",
   "integrity: {integrity}
   "total files: 1",
@@ -76,7 +76,7 @@ exports[`test/lib/commands/publish.js TAP has token auth for scope configured re
 `
 
 exports[`test/lib/commands/publish.js TAP ignore-scripts > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP json > must match snapshot 1`] = `
@@ -87,14 +87,14 @@ Array [
 
 exports[`test/lib/commands/publish.js TAP json > new package json 1`] = `
 {
-  "id": "test-package@1.0.0",
-  "name": "test-package",
+  "id": "@npmcli/test-package@1.0.0",
+  "name": "@npmcli/test-package",
   "version": "1.0.0",
   "size": "{size}",
-  "unpackedSize": 87,
+  "unpackedSize": 95,
   "shasum": "{sha}",
   "integrity": "{integrity}",
-  "filename": "test-package-1.0.0.tgz",
+  "filename": "npmcli-test-package-1.0.0.tgz",
   "files": [
     {
       "path": "package.json",
@@ -208,6 +208,7 @@ Object {
     "man/man1/npm-team.1",
     "man/man1/npm-test.1",
     "man/man1/npm-token.1",
+    "man/man1/npm-undeprecate.1",
     "man/man1/npm-uninstall.1",
     "man/man1/npm-unpublish.1",
     "man/man1/npm-unstar.1",
@@ -248,7 +249,7 @@ Object {
 `
 
 exports[`test/lib/commands/publish.js TAP no auth dry-run > must match snapshot 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP no auth dry-run > warns about auth being needed 1`] = `
@@ -258,7 +259,7 @@ Array [
 `
 
 exports[`test/lib/commands/publish.js TAP prioritize CLI flags over publishConfig > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP public access > must match snapshot 1`] = `
@@ -284,7 +285,7 @@ exports[`test/lib/commands/publish.js TAP public access > new package version 1`
 `
 
 exports[`test/lib/commands/publish.js TAP re-loads publishConfig.registry if added during script process > new package version 1`] = `
-+ test-package@1.0.0
++ @npmcli/test-package@1.0.0
 `
 
 exports[`test/lib/commands/publish.js TAP respects publishConfig.registry, runs appropriate scripts > new package version 1`] = `

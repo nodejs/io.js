@@ -33,7 +33,7 @@ enum TestAlignment {
 #error "Unknown Architecture"
 #endif
 
-// This is a America!
+// This is America!
 #define A_BILLION 1000000000ULL
 #define A_GIG (1024ULL * 1024ULL * 1024ULL)
 

@@ -130,6 +130,11 @@ class V8_EXPORT ModuleRequest : public Data {
   Local<String> GetSpecifier() const;
 
   /**
+   * Returns the module import phase for this ModuleRequest.
+   */
+  ModuleImportPhase GetPhase() const;
+
+  /**
    * Returns the source code offset of this module request.
    * Use Module::SourceOffsetToLocation to convert this to line/column numbers.
    */
@@ -211,6 +216,9 @@ class V8_EXPORT Module : public Data {
   using ResolveModuleCallback = MaybeLocal<Module> (*)(
       Local<Context> context, Local<String> specifier,
       Local<FixedArray> import_attributes, Local<Module> referrer);
+  using ResolveSourceCallback = MaybeLocal<Object> (*)(
+      Local<Context> context, Local<String> specifier,
+      Local<FixedArray> import_attributes, Local<Module> referrer);
 
   /**
    * Instantiates the module and its dependencies.
@@ -220,7 +228,8 @@ class V8_EXPORT Module : public Data {
    * exception is propagated.)
    */
   V8_WARN_UNUSED_RESULT Maybe<bool> InstantiateModule(
-      Local<Context> context, ResolveModuleCallback callback);
+      Local<Context> context, ResolveModuleCallback module_callback,
+      ResolveSourceCallback source_callback = nullptr);
 
   /**
    * Evaluates the module and its dependencies.

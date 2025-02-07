@@ -167,9 +167,8 @@ void ABSL_ATTRIBUTE_NOINLINE TestWithReturnAddress() {
 #if defined(ABSL_HAVE_ATTRIBUTE_NOINLINE)
   void *return_address = __builtin_return_address(0);
   const char *symbol = TrySymbolize(return_address);
-  CHECK_NE(symbol, nullptr) << "TestWithReturnAddress failed";
-  CHECK_STREQ(symbol, "main") << "TestWithReturnAddress failed";
-  std::cout << "TestWithReturnAddress passed" << std::endl;
+  ASSERT_NE(symbol, nullptr) << "TestWithReturnAddress failed";
+  EXPECT_STREQ(symbol, "main") << "TestWithReturnAddress failed";
 #endif
 }
 
@@ -490,10 +489,9 @@ void ABSL_ATTRIBUTE_NOINLINE TestWithPCInsideNonInlineFunction() {
     (defined(__i386__) || defined(__x86_64__))
   void *pc = non_inline_func();
   const char *symbol = TrySymbolize(pc);
-  CHECK_NE(symbol, nullptr) << "TestWithPCInsideNonInlineFunction failed";
-  CHECK_STREQ(symbol, "non_inline_func")
+  ASSERT_NE(symbol, nullptr) << "TestWithPCInsideNonInlineFunction failed";
+  EXPECT_STREQ(symbol, "non_inline_func")
       << "TestWithPCInsideNonInlineFunction failed";
-  std::cout << "TestWithPCInsideNonInlineFunction passed" << std::endl;
 #endif
 }
 
@@ -502,9 +500,8 @@ void ABSL_ATTRIBUTE_NOINLINE TestWithPCInsideInlineFunction() {
     (defined(__i386__) || defined(__x86_64__))
   void *pc = inline_func();  // Must be inlined.
   const char *symbol = TrySymbolize(pc);
-  CHECK_NE(symbol, nullptr) << "TestWithPCInsideInlineFunction failed";
-  CHECK_STREQ(symbol, __FUNCTION__) << "TestWithPCInsideInlineFunction failed";
-  std::cout << "TestWithPCInsideInlineFunction passed" << std::endl;
+  ASSERT_NE(symbol, nullptr) << "TestWithPCInsideInlineFunction failed";
+  EXPECT_STREQ(symbol, __FUNCTION__) << "TestWithPCInsideInlineFunction failed";
 #endif
 }
 }
@@ -545,9 +542,8 @@ __attribute__((target("arm"))) int ArmThumbOverlapArm(int x) {
 void ABSL_ATTRIBUTE_NOINLINE TestArmThumbOverlap() {
 #if defined(ABSL_HAVE_ATTRIBUTE_NOINLINE)
   const char *symbol = TrySymbolize((void *)&ArmThumbOverlapArm);
-  CHECK_NE(symbol, nullptr) << "TestArmThumbOverlap failed";
-  CHECK_STREQ("ArmThumbOverlapArm()", symbol) << "TestArmThumbOverlap failed";
-  std::cout << "TestArmThumbOverlap passed" << std::endl;
+  ASSERT_NE(symbol, nullptr) << "TestArmThumbOverlap failed";
+  EXPECT_STREQ("ArmThumbOverlapArm()", symbol) << "TestArmThumbOverlap failed";
 #endif
 }
 

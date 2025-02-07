@@ -17,3 +17,8 @@ const { getMaxListeners, EventEmitter, defaultMaxListeners, setMaxListeners } = 
   setMaxListeners(101, et);
   assert.strictEqual(getMaxListeners(et), 101);
 }
+
+{
+  const ac = new AbortController();
+  assert.strictEqual(getMaxListeners(ac.signal), 0);
+}

@@ -9,6 +9,7 @@
 #include "src/common/globals.h"
 #include "src/compiler/access-builder.h"
 #include "src/compiler/turboshaft/index.h"
+#include "src/compiler/type-cache.h"
 
 namespace v8::internal::compiler::turboshaft {
 
@@ -64,6 +65,12 @@ class AccessBuilderTS : public AllStatic {
       WriteBarrierKind write_barrier = kMapWriteBarrier) {
     return FieldAccessTS<Object, Map>(
         compiler::AccessBuilder::ForMap(write_barrier));
+  }
+  static FieldAccessTS<FeedbackVector, Word32> ForFeedbackVectorLength() {
+    return FieldAccessTS<FeedbackVector, Word32>(compiler::FieldAccess{
+        BaseTaggedness::kTaggedBase, FeedbackVector::kLengthOffset,
+        Handle<Name>(), OptionalMapRef(), TypeCache::Get()->kInt32,
+        MachineType::Int32(), WriteBarrierKind::kNoWriteBarrier});
   }
 
 #define TF_ELEMENT_ACCESS(Class, T, name)                                     \

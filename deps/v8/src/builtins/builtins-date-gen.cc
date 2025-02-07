@@ -10,6 +10,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // -----------------------------------------------------------------------------
 // ES6 section 20.3 Date Objects
 
@@ -255,6 +257,8 @@ TF_BUILTIN(DatePrototypeToPrimitive, CodeStubAssembler) {
                    receiver);
   }
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

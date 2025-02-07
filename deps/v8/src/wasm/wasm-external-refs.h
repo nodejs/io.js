@@ -195,10 +195,12 @@ void return_switch(Isolate* isolate, Address continuation);
 
 intptr_t switch_to_the_central_stack(Isolate* isolate, uintptr_t sp);
 void switch_from_the_central_stack(Isolate* isolate);
-intptr_t switch_to_the_central_stack_for_js(Isolate* isolate,
-                                            uintptr_t* stack_limit_slot);
-void switch_from_the_central_stack_for_js(Isolate* isolate,
-                                          uintptr_t stack_limit);
+intptr_t switch_to_the_central_stack_for_js(Isolate* isolate, Address fp);
+void switch_from_the_central_stack_for_js(Isolate* isolate);
+Address grow_stack(Isolate* isolate, void* current_sp, size_t frame_size,
+                   size_t gap, Address current_fp);
+Address shrink_stack(Isolate* isolate);
+Address load_old_fp(Isolate* isolate);
 
 }  // namespace wasm
 }  // namespace internal

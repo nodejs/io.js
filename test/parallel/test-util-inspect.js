@@ -770,23 +770,25 @@ assert.strictEqual(util.inspect(-5e-324), '-5e-324');
 // Note: Symbols are not supported by `Error#toString()` which is called by
 // accessing the `stack` property.
 [
-  [404, '404: foo', '[404]'],
-  [0, '0: foo', '[RangeError: foo]'],
-  [0n, '0: foo', '[RangeError: foo]'],
+  [404, '404 [RangeError]: foo', '[404]'],
+  [0, '0 [RangeError]: foo', '[RangeError: foo]'],
+  [0n, '0 [RangeError]: foo', '[RangeError: foo]'],
   [null, 'null: foo', '[RangeError: foo]'],
   [undefined, 'RangeError: foo', '[RangeError: foo]'],
-  [false, 'false: foo', '[RangeError: foo]'],
+  [false, 'false [RangeError]: foo', '[RangeError: foo]'],
   ['', 'foo', '[RangeError: foo]'],
-  [[1, 2, 3], '1,2,3: foo', '[1,2,3]'],
+  [[1, 2, 3], '1,2,3 [RangeError]: foo', '[[\n  1,\n  2,\n  3\n]]'],
 ].forEach(([value, outputStart, stack]) => {
   let err = new RangeError('foo');
   err.name = value;
+  const result = util.inspect(err);
   assert(
-    util.inspect(err).startsWith(outputStart),
+    result.startsWith(outputStart),
     util.format(
-      'The name set to %o did not result in the expected output "%s"',
+      'The name set to %o did not result in the expected output "%s", got "%s"',
       value,
-      outputStart
+      outputStart,
+      result.split('\n')[0]
     )
   );
 
@@ -1265,9 +1267,9 @@ if (typeof Symbol !== 'undefined') {
 // a bonafide native Promise.
 {
   const oldPromise = Promise;
-  global.Promise = function() { this.bar = 42; };
+  globalThis.Promise = function() { this.bar = 42; };
   assert.strictEqual(util.inspect(new Promise()), '{ bar: 42 }');
-  global.Promise = oldPromise;
+  globalThis.Promise = oldPromise;
 }
 
 // Test Map iterators.
@@ -3181,7 +3183,7 @@ assert.strictEqual(
   }
 
   // Consistency check.
-  assert(fullObjectGraph(global).has(Function.prototype));
+  assert(fullObjectGraph(globalThis).has(Function.prototype));
 }
 
 {
@@ -3425,4 +3427,36 @@ assert.strictEqual(
   for (const [BuiltinPrototype, desc] of descriptors) {
     Object.defineProperty(BuiltinPrototype, 'constructor', desc);
   }
+}
+
+{
+  function f() {}
+  Object.defineProperty(f, 'name', { value: Symbol('f') });
+
+  assert.strictEqual(
+    util.inspect(f),
+    '[Function: Symbol(f)]',
+  );
+}
+
+{
+  const error = new EvalError();
+  const re = /a/g;
+  error.name = re;
+  assert.strictEqual(error.name, re);
+  assert.strictEqual(
+    util.inspect(error),
+    `${re} [EvalError]
+${error.stack.split('\n').slice(1).join('\n')}`,
+  );
+}
+
+{
+  const error = new Error();
+  error.stack = [Symbol('foo')];
+
+  assert.strictEqual(
+    inspect(error),
+    '[[\n  Symbol(foo)\n]]'
+  );
 }

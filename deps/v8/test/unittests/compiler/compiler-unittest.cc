@@ -969,9 +969,9 @@ TEST_F(BackgroundMergeTest, GCDuringMerge) {
   // Compile the script once to warm up the compilation cache.
   Handle<JSFunction> old_g;
   IsCompiledScope old_g_bytecode_keepalive;
-  {
-    // Compile in a new handle scope, so that the script can die while the inner
-    // functions stay alive.
+  ([&]() V8_NOINLINE {
+    // Compile in a new handle scope inside a non-inlined function, so that the
+    // script can die while select inner functions stay alive.
     HandleScope scope(isolate());
     ScriptCompiler::CompilationDetails compilation_details;
     Handle<SharedFunctionInfo> top_level_sfi =
@@ -1028,8 +1028,9 @@ TEST_F(BackgroundMergeTest, GCDuringMerge) {
     SharedFunctionInfo::EnsureOldForTesting(f->shared());
     SharedFunctionInfo::EnsureOldForTesting(g->shared());
     SharedFunctionInfo::EnsureOldForTesting(h->shared());
+
     old_g = scope.CloseAndEscape(g);
-  }
+  })();
   Handle<Script> old_script(Cast<Script>(old_g->shared()->script()), isolate());
 
   // Make sure bytecode is cleared...

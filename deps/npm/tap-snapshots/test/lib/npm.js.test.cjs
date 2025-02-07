@@ -39,7 +39,8 @@ All commands:
     ping, pkg, prefix, profile, prune, publish, query, rebuild,
     repo, restart, root, run-script, sbom, search, set,
     shrinkwrap, star, stars, start, stop, team, test, token,
-    uninstall, unpublish, unstar, update, version, view, whoami
+    undeprecate, uninstall, unpublish, unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -89,9 +90,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -141,9 +143,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -179,7 +182,8 @@ All commands:
     ping, pkg, prefix, profile, prune, publish, query, rebuild,
     repo, restart, root, run-script, sbom, search, set,
     shrinkwrap, star, stars, start, stop, team, test, token,
-    uninstall, unpublish, unstar, update, version, view, whoami
+    undeprecate, uninstall, unpublish, unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -229,9 +233,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -281,9 +286,10 @@ All commands:
     search, set, shrinkwrap,
     star, stars, start,
     stop, team, test, token,
-    uninstall, unpublish,
-    unstar, update, version,
-    view, whoami
+    undeprecate, uninstall,
+    unpublish, unstar,
+    update, version, view,
+    whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -331,10 +337,10 @@ All commands:
     run-script, sbom, search,
     set, shrinkwrap, star,
     stars, start, stop, team,
-    test, token, uninstall,
-    unpublish, unstar,
-    update, version, view,
-    whoami
+    test, token, undeprecate,
+    uninstall, unpublish,
+    unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -370,8 +376,8 @@ All commands:
     ping, pkg, prefix, profile, prune, publish, query, rebuild,
     repo, restart, root, run-script, sbom, search, set,
     shrinkwrap, star, stars, start, stop, team, test, token,
-    uninstall, unpublish, unstar, update, version, view,
-    whoami
+    undeprecate, uninstall, unpublish, unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -407,7 +413,8 @@ All commands:
     ping, pkg, prefix, profile, prune, publish, query, rebuild,
     repo, restart, root, run-script, sbom, search, set,
     shrinkwrap, star, stars, start, stop, team, test, token,
-    uninstall, unpublish, unstar, update, version, view, whoami
+    undeprecate, uninstall, unpublish, unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}
@@ -443,7 +450,8 @@ All commands:
     ping, pkg, prefix, profile, prune, publish, query, rebuild,
     repo, restart, root, run-script, sbom, search, set,
     shrinkwrap, star, stars, start, stop, team, test, token,
-    uninstall, unpublish, unstar, update, version, view, whoami
+    undeprecate, uninstall, unpublish, unstar, update, version,
+    view, whoami
 
 Specify configs in the ini-formatted file:
     {USERCONFIG}

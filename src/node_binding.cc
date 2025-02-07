@@ -4,6 +4,7 @@
 #include "node_builtins.h"
 #include "node_errors.h"
 #include "node_external_reference.h"
+#include "node_url_pattern.h"
 #include "util.h"
 
 #include <string>
@@ -87,6 +88,7 @@
   V(types)                                                                     \
   V(udp_wrap)                                                                  \
   V(url)                                                                       \
+  V(url_pattern)                                                               \
   V(util)                                                                      \
   V(uv)                                                                        \
   V(v8)                                                                        \

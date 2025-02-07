@@ -77,7 +77,6 @@ TEST(WeakReferencesBasic) {
 }
 
 TEST(WeakReferencesOldToOld) {
-  if (v8_flags.enable_third_party_heap) return;
   // Like WeakReferencesBasic, but the updated weak slot is in the old space,
   // and referring to an old space object.
   ManualGCScope manual_gc_scope;

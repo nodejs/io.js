@@ -17,6 +17,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // -----------------------------------------------------------------------------
 // ES6 section 22.2 TypedArray Objects
 
@@ -655,5 +657,8 @@ TF_BUILTIN(TypedArrayPrototypeToStringTag, TypedArrayBuiltinsAssembler) {
   BIND(&return_undefined);
   Return(UndefinedConstant());
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
+
 }  // namespace internal
 }  // namespace v8

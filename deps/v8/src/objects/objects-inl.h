@@ -293,11 +293,10 @@ template <>
 struct CastTraits<DeoptimizationFrameTranslation>
     : public CastTraits<TrustedByteArray> {};
 
-template <class T,
-          typename std::enable_if<(std::is_arithmetic<T>::value ||
-                                   std::is_enum<T>::value) &&
-                                      !std::is_floating_point<T>::value,
-                                  int>::type>
+template <class T, typename std::enable_if_t<
+                       (std::is_arithmetic_v<T> ||
+                        std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                       int>>
 T HeapObject::Relaxed_ReadField(size_t offset) const {
   // Pointer compression causes types larger than kTaggedSize to be
   // unaligned. Atomic loads must be aligned.
@@ -307,11 +306,10 @@ T HeapObject::Relaxed_ReadField(size_t offset) const {
       reinterpret_cast<AtomicT*>(field_address(offset))));
 }
 
-template <class T,
-          typename std::enable_if<(std::is_arithmetic<T>::value ||
-                                   std::is_enum<T>::value) &&
-                                      !std::is_floating_point<T>::value,
-                                  int>::type>
+template <class T, typename std::enable_if_t<
+                       (std::is_arithmetic_v<T> ||
+                        std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                       int>>
 void HeapObject::Relaxed_WriteField(size_t offset, T value) {
   // Pointer compression causes types larger than kTaggedSize to be
   // unaligned. Atomic stores must be aligned.
@@ -320,6 +318,19 @@ void HeapObject::Relaxed_WriteField(size_t offset, T value) {
   base::AsAtomicImpl<AtomicT>::Relaxed_Store(
       reinterpret_cast<AtomicT*>(field_address(offset)),
       static_cast<AtomicT>(value));
+}
+
+template <class T, typename std::enable_if_t<
+                       (std::is_arithmetic_v<T> ||
+                        std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
+                       int>>
+T HeapObject::Acquire_ReadField(size_t offset) const {
+  // Pointer compression causes types larger than kTaggedSize to be
+  // unaligned. Atomic loads must be aligned.
+  DCHECK_IMPLIES(COMPRESS_POINTERS_BOOL, sizeof(T) <= kTaggedSize);
+  using AtomicT = typename base::AtomicTypeFromByteWidth<sizeof(T)>::type;
+  return static_cast<T>(base::AsAtomicImpl<AtomicT>::Acquire_Load(
+      reinterpret_cast<AtomicT*>(field_address(offset))));
 }
 
 // static
@@ -370,6 +381,17 @@ constexpr bool FastInReadOnlySpaceOrSmallSmi(Tagged_t obj) {
 #else   // !V8_STATIC_ROOTS_BOOL
   return false;
 #endif  // !V8_STATIC_ROOTS_BOOL
+}
+
+constexpr bool FastInReadOnlySpaceOrSmallSmi(Tagged<MaybeObject> obj) {
+#ifdef V8_COMPRESS_POINTERS
+  // This check is only valid for objects in the main cage.
+  DCHECK(obj.IsSmi() || obj.IsInMainCageBase());
+  return FastInReadOnlySpaceOrSmallSmi(
+      V8HeapCompressionScheme::CompressAny(obj.ptr()));
+#else   // V8_COMPRESS_POINTERS
+  return false;
+#endif  // V8_COMPRESS_POINTERS
 }
 
 bool OutsideSandboxOrInReadonlySpace(Tagged<HeapObject> obj) {
@@ -1075,21 +1097,24 @@ void HeapObject::WriteCodeEntrypointViaCodePointerField(size_t offset,
   i::WriteCodeEntrypointViaCodePointerField(field_address(offset), value, tag);
 }
 
-void HeapObject::InitJSDispatchHandleField(size_t offset,
-                                           IsolateForSandbox isolate,
-                                           uint16_t parameter_count) {
+void HeapObject::AllocateAndInstallJSDispatchHandle(size_t offset,
+                                                    IsolateForSandbox isolate,
+                                                    uint16_t parameter_count,
+                                                    Tagged<Code> code,
+                                                    WriteBarrierMode mode) {
 #ifdef V8_ENABLE_LEAPTIERING
+  JSDispatchTable* jdt = GetProcessWideJSDispatchTable();
   JSDispatchTable::Space* space =
       isolate.GetJSDispatchTableSpaceFor(field_address(offset));
   JSDispatchHandle handle =
-      GetProcessWideJSDispatchTable()->AllocateAndInitializeEntry(
-          space, parameter_count);
+      jdt->AllocateAndInitializeEntry(space, parameter_count, code);
 
   // Use a Release_Store to ensure that the store of the pointer into the table
   // is not reordered after the store of the handle. Otherwise, other threads
   // may access an uninitialized table entry and crash.
   auto location = reinterpret_cast<JSDispatchHandle*>(field_address(offset));
   base::AsAtomic32::Release_Store(location, handle);
+  CONDITIONAL_JS_DISPATCH_HANDLE_WRITE_BARRIER(*this, handle, mode);
 #else
   UNREACHABLE();
 #endif  // V8_ENABLE_LEAPTIERING
@@ -1352,7 +1377,7 @@ void HeapObject::set_map(Tagged<Map> value, MemoryOrder order,
 #ifndef V8_DISABLE_WRITE_BARRIERS
   if (!value.is_null()) {
     if (emit_write_barrier == EmitWriteBarrier::kYes) {
-      CombinedWriteBarrier(*this, map_slot(), value, UPDATE_WRITE_BARRIER);
+      WriteBarrier::ForValue(*this, map_slot(), value, UPDATE_WRITE_BARRIER);
     } else {
       DCHECK_EQ(emit_write_barrier, EmitWriteBarrier::kNo);
       SLOW_DCHECK(!WriteBarrier::IsRequired(*this, value));
@@ -1373,7 +1398,7 @@ void HeapObject::set_map_after_allocation(Tagged<Map> value,
 #ifndef V8_DISABLE_WRITE_BARRIERS
   if (mode != SKIP_WRITE_BARRIER) {
     DCHECK(!value.is_null());
-    CombinedWriteBarrier(*this, map_slot(), value, mode);
+    WriteBarrier::ForValue(*this, map_slot(), value, mode);
   } else {
     SLOW_DCHECK(
         // We allow writes of a null map before root initialisation.
@@ -1530,12 +1555,12 @@ bool Object::ToIntegerIndex(Tagged<Object> obj, size_t* index) {
 
 WriteBarrierMode HeapObjectLayout::GetWriteBarrierMode(
     const DisallowGarbageCollection& promise) {
-  return GetWriteBarrierModeForObject(this, &promise);
+  return WriteBarrier::GetWriteBarrierModeForObject(this, promise);
 }
 
 WriteBarrierMode HeapObject::GetWriteBarrierMode(
     const DisallowGarbageCollection& promise) {
-  return GetWriteBarrierModeForObject(*this, &promise);
+  return WriteBarrier::GetWriteBarrierModeForObject(*this, promise);
 }
 
 // static

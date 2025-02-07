@@ -11,6 +11,7 @@ const {
 } = require('crypto');
 const {
   testSignVerify,
+  hasOpenSSL3,
 } = require('../common/crypto');
 
 // Passing an empty passphrase string should not cause OpenSSL's default
@@ -40,7 +41,7 @@ for (const type of ['pkcs1', 'pkcs8']) {
     // the key, and not specifying a passphrase should fail when decoding it.
     assert.throws(() => {
       return testSignVerify(publicKey, privateKey);
-    }, common.hasOpenSSL3 ? {
+    }, hasOpenSSL3 ? {
       name: 'Error',
       code: 'ERR_OSSL_CRYPTO_INTERRUPTED_OR_CANCELLED',
       message: 'error:07880109:common libcrypto routines::interrupted or cancelled'

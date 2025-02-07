@@ -22,11 +22,15 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('node compiled without OpenSSL CLI.');
+}
 
 // This is a rather complex test which sets up various TLS servers with node
 // and connects to them using the 'openssl s_client' command line utility
@@ -188,7 +192,7 @@ function runClient(prefix, port, options, cb) {
   }
 
   // To test use: openssl s_client -connect localhost:8000
-  const client = spawn(common.opensslCli, args);
+  const client = spawn(opensslCli, args);
 
   let out = '';
 

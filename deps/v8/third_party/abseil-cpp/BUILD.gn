@@ -57,10 +57,12 @@ component("absl") {
 
 group("absl_component_deps") {
   public_deps = [
+    "//third_party/abseil-cpp/absl/algorithm",
     "//third_party/abseil-cpp/absl/algorithm:container",
     "//third_party/abseil-cpp/absl/base",
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
+    "//third_party/abseil-cpp/absl/base:log_severity",
     "//third_party/abseil-cpp/absl/base:no_destructor",
     "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/abseil-cpp/absl/base:prefetch",
@@ -108,6 +110,16 @@ group("absl_component_deps") {
     "//third_party/abseil-cpp/absl/types:span",
     "//third_party/abseil-cpp/absl/types:variant",
     "//third_party/abseil-cpp/absl/utility",
+  ]
+
+  # Dependencies that preferably shouldn't be public in chromium.
+  public_deps += [
+    # public in abseil, but deprecated in chromium, yet used.
+    "//third_party/abseil-cpp/absl/base:dynamic_annotations",
+
+    # base/logging.cc uses this non-public absl dependency while there no better
+    # alternative to inject abort hook. See notes in `base/logging.cc`.
+    "//third_party/abseil-cpp/absl/base:raw_logging_internal",
   ]
 
   if (is_component_build) {
@@ -277,6 +289,7 @@ if (absl_build_tests) {
         "absl/algorithm:container_test",
         "absl/base:config_test",
         "absl/base:no_destructor_test",
+        "absl/base:nullability_default_nonnull_test",
         "absl/base:nullability_test",
         "absl/base:poison_test",
         "absl/base:prefetch_test",

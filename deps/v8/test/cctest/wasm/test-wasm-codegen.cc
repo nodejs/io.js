@@ -5,8 +5,7 @@
 // Tests effects of (CSP) "unsafe-eval" and "wasm-eval" callback functions.
 //
 // Note: These tests are in a separate test file because the tests dynamically
-// change the isolate in terms of callbacks allow_code_gen_callback and
-// allow_wasm_code_gen_callback.
+// change the isolate in terms of allow_wasm_code_gen_callback.
 
 #include "src/api/api-inl.h"
 #include "src/wasm/wasm-module-builder.h"
@@ -37,12 +36,10 @@ const char* TestValueName[kNumTestValues] = {"null", "false", "true"};
 const TestValue AllTestValues[kNumTestValues] = {
     kTestUsingNull, kTestUsingFalse, kTestUsingTrue};
 
-// This matrix holds the results of setting allow_code_gen_callback
-// (first index) and allow_wasm_code_gen_callback (second index) using
-// TestValue's. The value in the matrix is true if compilation is
+// This list holds the results of setting allow_wasm_code_gen_callback using
+// TestValue's. The value in the list is true if code gen is
 // allowed, and false otherwise.
-const bool ExpectedResults[kNumTestValues][kNumTestValues] = {
-    {true, false, true}, {false, false, true}, {true, false, true}};
+const bool ExpectedResults[kNumTestValues] = {true, false, true};
 
 bool TrueCallback(Local<v8::Context>, Local<v8::String>) { return true; }
 
@@ -101,19 +98,16 @@ TEST(PropertiesOfCodegenCallbacks) {
   BuildTrivialModule(&zone, &buffer);
   v8::MemorySpan<const uint8_t> wire_bytes = {buffer.begin(), buffer.size()};
   Isolate* isolate = CcTest::InitIsolateOnce();
+  v8::Isolate* v8_isolate = CcTest::isolate();
   HandleScope scope(isolate);
 
-  for (TestValue codegen : AllTestValues) {
-    for (TestValue wasm_codegen : AllTestValues) {
-      fprintf(stderr, "Test codegen = %s, wasm_codegen = %s\n",
-              TestValueName[codegen], TestValueName[wasm_codegen]);
-      isolate->set_allow_code_gen_callback(Callback[codegen]);
-      isolate->set_allow_wasm_code_gen_callback(Callback[wasm_codegen]);
-      bool found = TestModule(isolate, wire_bytes);
-      bool expected = ExpectedResults[codegen][wasm_codegen];
-      CHECK_EQ(expected, found);
-      heap::InvokeMemoryReducingMajorGCs(isolate->heap());
-    }
+  for (TestValue wasm_codegen : AllTestValues) {
+    fprintf(stderr, "Test wasm_codegen = %s\n", TestValueName[wasm_codegen]);
+    v8_isolate->SetAllowWasmCodeGenerationCallback(Callback[wasm_codegen]);
+    bool found = TestModule(isolate, wire_bytes);
+    bool expected = ExpectedResults[wasm_codegen];
+    CHECK_EQ(expected, found);
+    heap::InvokeMemoryReducingMajorGCs(isolate->heap());
   }
 }
 

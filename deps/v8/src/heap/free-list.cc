@@ -440,14 +440,14 @@ void FreeList::Reset() {
   available_ = 0;
 }
 
-size_t FreeList::EvictFreeListItems(PageMetadata* page) {
+void FreeList::EvictFreeListItems(PageMetadata* page) {
   size_t sum = 0;
   page->ForAllFreeListCategories([this, &sum](FreeListCategory* category) {
     sum += category->available();
     RemoveCategory(category);
     category->Reset(this);
   });
-  return sum;
+  page->add_wasted_memory(sum);
 }
 
 void FreeList::RepairLists(Heap* heap) {

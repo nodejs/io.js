@@ -3077,7 +3077,7 @@ const icu::BasicTimeZone* CreateBasicTimeZoneFromIndex(
 }
 
 // ICU only support TimeZone information in millisecond but Temporal require
-// nanosecond. For most of the case, we find a approximate millisecond by
+// nanosecond. For most of the case, we find an approximate millisecond by
 // floor to the millisecond just past the nanosecond_epoch. For negative epoch
 // value, the BigInt Divide will floor closer to zero so we need to minus 1 if
 // the remainder is not zero. For the case of finding previous transition, we

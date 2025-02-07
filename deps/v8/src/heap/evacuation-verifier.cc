@@ -16,7 +16,7 @@ EvacuationVerifier::EvacuationVerifier(Heap* heap)
     : ObjectVisitorWithCageBases(heap), heap_(heap) {}
 
 void EvacuationVerifier::Run() {
-  DCHECK(!heap_->sweeping_in_progress());
+  CHECK(!heap_->sweeping_in_progress());
   VerifyRoots();
   VerifyEvacuation(heap_->new_space());
   VerifyEvacuation(heap_->old_space());

@@ -63,7 +63,8 @@ class MockPlatform : public cppgc::Platform {
   PageAllocator* GetPageAllocator() override { return nullptr; }
   double MonotonicallyIncreasingTime() override { return 0.0; }
 
-  std::shared_ptr<TaskRunner> GetForegroundTaskRunner() override {
+  std::shared_ptr<TaskRunner> GetForegroundTaskRunner(
+      TaskPriority priority) override {
     return runner_;
   }
 

@@ -72,7 +72,7 @@ class VariableReducer;
 template <typename>
 class GraphVisitor;
 
-namespace {
+namespace detail {
 
 // Represents an operation of the form `(source & mask) == masked_value`.
 // where each bit set in masked_value also has to be set in mask.
@@ -171,8 +171,7 @@ struct BitfieldCheck {
   }
 };
 
-}  // namespace
-
+}  // namespace detail
 
 template <class Next>
 class MachineOptimizationReducer : public Next {
@@ -364,7 +363,8 @@ class MachineOptimizationReducer : public Next {
       // Try to constant-fold Word constant -> Tagged (Smi).
       if (cst->IsIntegral() && to == RegisterRepresentation::Tagged()) {
         if (Smi::IsValid(cst->integral())) {
-          return __ SmiConstant(static_cast<intptr_t>(cst->integral()));
+          return __ SmiConstant(
+              i::Tagged<Smi>(static_cast<intptr_t>(cst->integral())));
         }
       }
       // Try to constant-fold Smi -> Untagged.
@@ -817,10 +817,10 @@ class MachineOptimizationReducer : public Next {
 
     if (kind == WordBinopOp::Kind::kBitwiseAnd &&
         rep == WordRepresentation::Word32()) {
-      if (auto right_bitfield =
-              BitfieldCheck::Detect(matcher, __ output_graph(), right)) {
-        if (auto left_bitfield =
-                BitfieldCheck::Detect(matcher, __ output_graph(), left)) {
+      if (auto right_bitfield = detail::BitfieldCheck::Detect(
+              matcher, __ output_graph(), right)) {
+        if (auto left_bitfield = detail::BitfieldCheck::Detect(
+                matcher, __ output_graph(), left)) {
           if (auto combined_bitfield =
                   left_bitfield->TryCombine(*right_bitfield)) {
             OpIndex source = combined_bitfield->source;

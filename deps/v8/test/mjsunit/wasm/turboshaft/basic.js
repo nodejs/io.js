@@ -7,17 +7,6 @@
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
-// Make sure turboshaft bails out graciously for non-implemented features.
-(function Bailout() {
-  print(arguments.callee.name);
-  let builder = new WasmModuleBuilder();
-  builder.addFunction("bailout", makeSig([], []))
-    .addBody([kExprNopForTestingUnsupportedInLiftoff])
-    .exportFunc();
-
-  builder.instantiate();
-})();
-
 (function I32Arithmetic() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();

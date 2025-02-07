@@ -525,6 +525,11 @@ class AllocationSite::BodyDescriptor final : public BodyDescriptorBase {
 class JSFunction::BodyDescriptor final : public BodyDescriptorBase {
  public:
   static const int kStartOffset = JSObject::BodyDescriptor::kStartOffset;
+#ifdef V8_ENABLE_LEAPTIERING
+  static const int kCodeFieldOffset = JSFunction::kDispatchHandleOffset;
+#else
+  static const int kCodeFieldOffset = JSFunction::kCodeOffset;
+#endif
 
   template <typename ObjectVisitor>
   static inline void IterateBody(Tagged<Map> map, Tagged<HeapObject> obj,
@@ -532,8 +537,11 @@ class JSFunction::BodyDescriptor final : public BodyDescriptorBase {
     // Iterate JSFunction header fields first.
     int header_size = JSFunction::GetHeaderSize(map->has_prototype_slot());
     DCHECK_GE(object_size, header_size);
-    IteratePointers(obj, kStartOffset, kCodeOffset, v);
+    IteratePointers(obj, kStartOffset, kCodeFieldOffset, v);
 
+#ifdef V8_ENABLE_LEAPTIERING
+    IterateJSDispatchEntry(obj, kDispatchHandleOffset, v);
+#else
     // The code field is treated as a custom weak pointer. This field
     // is visited as a weak pointer if the Code is baseline code
     // and the bytecode array corresponding to this function is old. In the rest
@@ -541,13 +549,10 @@ class JSFunction::BodyDescriptor final : public BodyDescriptorBase {
     // See MarkingVisitorBase::VisitJSFunction.
     IterateCodePointer(obj, kCodeOffset, v, IndirectPointerMode::kCustom);
     DCHECK_GE(header_size, kCodeOffset);
-
-#ifdef V8_ENABLE_LEAPTIERING
-    IterateJSDispatchEntry(obj, kDispatchHandleOffset, v);
-#endif
+#endif  // V8_ENABLE_LEAPTIERING
 
     // Iterate rest of the header fields
-    IteratePointers(obj, kCodeOffset + kTaggedSize, header_size, v);
+    IteratePointers(obj, kCodeFieldOffset + kTaggedSize, header_size, v);
     // Iterate rest of the fields starting after the header.
     IterateJSObjectBodyImpl(map, obj, header_size, object_size, v);
   }
@@ -759,33 +764,6 @@ class BytecodeWrapper::BodyDescriptor final : public BodyDescriptorBase {
 
   static inline int SizeOf(Tagged<Map> map, Tagged<HeapObject> obj) {
     return kSize;
-  }
-};
-
-class ExternalPointerArray::BodyDescriptor final : public BodyDescriptorBase {
- public:
-  template <typename ObjectVisitor>
-  static inline void IterateBody(Tagged<Map> map, Tagged<HeapObject> obj,
-                                 int object_size, ObjectVisitor* v) {
-    Tagged<ExternalPointerArray> array =
-        UncheckedCast<ExternalPointerArray>(obj);
-    for (int i = 0; i < array->length(); i++) {
-      // We don't currently track the (expected) tag of the elements of this
-      // array, so we have to use the generic tag here. This is ok as long as
-      // the visitor does not try to dereference the pointer (which it never
-      // should). The alternative would probably be to store the tag as
-      // additional metadata in the array itself, but then we also need to be
-      // careful since an attacker could then modify the tag.
-      v->VisitExternalPointer(array,
-                              array->RawExternalPointerField(
-                                  ExternalPointerArray::OffsetOfElementAt(i),
-                                  kAnyExternalPointerTag));
-    }
-  }
-
-  static inline int SizeOf(Tagged<Map> map, Tagged<HeapObject> obj) {
-    return ExternalPointerArray::SizeFor(
-        Cast<ExternalPointerArray>(obj)->length(kAcquireLoad));
   }
 };
 
@@ -1145,6 +1123,7 @@ class WasmDispatchTable::BodyDescriptor final : public BodyDescriptorBase {
   template <typename ObjectVisitor>
   static inline void IterateBody(Tagged<Map> map, Tagged<HeapObject> obj,
                                  int object_size, ObjectVisitor* v) {
+    IterateProtectedPointer(obj, kProtectedOffheapDataOffset, v);
     int length = Cast<WasmDispatchTable>(obj)->length(kAcquireLoad);
     for (int i = 0; i < length; ++i) {
       IterateProtectedPointer(obj, OffsetOf(i) + kImplicitArgBias, v);
@@ -1655,8 +1634,6 @@ auto BodyDescriptorApply(InstanceType type, Args&&... args) {
       return CALL_APPLY(SharedFunctionInfo);
     case HEAP_NUMBER_TYPE:
       return CALL_APPLY(HeapNumber);
-    case EXTERNAL_POINTER_ARRAY_TYPE:
-      return CALL_APPLY(ExternalPointerArray);
     case BIGINT_TYPE:
       return CALL_APPLY(BigInt);
     case ALLOCATION_SITE_TYPE:

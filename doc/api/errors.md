@@ -2095,11 +2095,13 @@ does not consist of exactly two elements.
 added:
  - v23.0.0
  - v22.10.0
+changes:
+    - version: v23.7.0
+      pr-url: https://github.com/nodejs/node/pull/56610
+      description: This error is no longer thrown on valid yet unsupported syntax.
 -->
 
-The provided TypeScript syntax is not valid or unsupported.
-This could happen when using TypeScript syntax that requires
-transformation with [type-stripping][].
+The provided TypeScript syntax is not valid.
 
 <a id="ERR_INVALID_URI"></a>
 
@@ -2115,6 +2117,13 @@ An invalid URL was passed to the [WHATWG][WHATWG URL API] [`URL`
 constructor][`new URL(input)`] or the legacy [`url.parse()`][] to be parsed.
 The thrown error object typically has an additional property `'input'` that
 contains the URL that failed to parse.
+
+<a id="ERR_INVALID_URL_PATTERN"></a>
+
+### `ERR_INVALID_URL_PATTERN`
+
+An invalid URLPattern was passed to the [WHATWG][WHATWG URL API] \[`URLPattern`
+constructor]\[`new URLPattern(input)`] to be parsed.
 
 <a id="ERR_INVALID_URL_SCHEME"></a>
 
@@ -2829,25 +2838,6 @@ An unspecified or non-specific system error has occurred within the Node.js
 process. The error object will have an `err.info` object property with
 additional details.
 
-<a id="ERR_TAP_LEXER_ERROR"></a>
-
-### `ERR_TAP_LEXER_ERROR`
-
-An error representing a failing lexer state.
-
-<a id="ERR_TAP_PARSER_ERROR"></a>
-
-### `ERR_TAP_PARSER_ERROR`
-
-An error representing a failing parser state. Additional information about
-the token causing the error is available via the `cause` property.
-
-<a id="ERR_TAP_VALIDATION_ERROR"></a>
-
-### `ERR_TAP_VALIDATION_ERROR`
-
-This error represents a failed TAP validation.
-
 <a id="ERR_TEST_FAILURE"></a>
 
 ### `ERR_TEST_FAILURE`
@@ -3134,6 +3124,18 @@ try {
   console.log(e.code); // ERR_UNSUPPORTED_RESOLVE_REQUEST
 }
 ```
+
+<a id="ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX"></a>
+
+### `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`
+
+<!-- YAML
+added: v23.7.0
+-->
+
+The provided TypeScript syntax is unsupported.
+This could happen when using TypeScript syntax that requires
+transformation with [type-stripping][].
 
 <a id="ERR_USE_AFTER_CLOSE"></a>
 
@@ -3882,6 +3884,25 @@ removed: v10.0.0
 
 Used when an attempt is made to use a readable stream that has not implemented
 [`readable._read()`][].
+
+<a id="ERR_TAP_LEXER_ERROR"></a>
+
+### `ERR_TAP_LEXER_ERROR`
+
+An error representing a failing lexer state.
+
+<a id="ERR_TAP_PARSER_ERROR"></a>
+
+### `ERR_TAP_PARSER_ERROR`
+
+An error representing a failing parser state. Additional information about
+the token causing the error is available via the `cause` property.
+
+<a id="ERR_TAP_VALIDATION_ERROR"></a>
+
+### `ERR_TAP_VALIDATION_ERROR`
+
+This error represents a failed TAP validation.
 
 <a id="ERR_TLS_RENEGOTIATION_FAILED"></a>
 

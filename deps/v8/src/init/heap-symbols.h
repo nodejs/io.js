@@ -232,6 +232,7 @@
   V(_, deleteProperty_string, "deleteProperty")                               \
   V(_, detached_string, "detached")                                           \
   V(_, disjunction_string, "disjunction")                                     \
+  V(_, disposed_string, "disposed")                                           \
   V(_, done_string, "done")                                                   \
   V(_, dot_brand_string, ".brand")                                            \
   V(_, dot_catch_string, ".catch")                                            \
@@ -665,6 +666,7 @@
   F(MC_SWEEP_EXTERNAL_POINTER_TABLE)             \
   F(MC_SWEEP_TRUSTED_POINTER_TABLE)              \
   F(MC_SWEEP_CODE_POINTER_TABLE)                 \
+  F(MC_SWEEP_WASM_CODE_POINTER_TABLE)            \
   F(MC_SWEEP_JS_DISPATCH_TABLE)                  \
   F(MC_COMPLETE_SWEEP_ARRAY_BUFFERS)             \
   F(MC_COMPLETE_SWEEPING)                        \

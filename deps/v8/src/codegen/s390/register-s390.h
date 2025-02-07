@@ -283,7 +283,7 @@ constexpr Register kJavaScriptCallExtraArg1Register = r4;
 constexpr Register kRuntimeCallFunctionRegister = r3;
 constexpr Register kRuntimeCallArgCountRegister = r2;
 constexpr Register kRuntimeCallArgvRegister = r4;
-constexpr Register kWasmInstanceRegister = r6;
+constexpr Register kWasmImplicitArgRegister = r6;
 constexpr Register kWasmCompileLazyFuncIndexRegister = r7;
 
 constexpr DoubleRegister kFPReturnRegister0 = d0;

@@ -36,7 +36,7 @@ V8_BASE_EXPORT bool EnableInProcessStackDumping();
 V8_BASE_EXPORT void DisableSignalStackDump();
 
 // A stacktrace can be helpful in debugging. For example, you can include a
-// stacktrace member in a object (probably around #ifndef NDEBUG) so that you
+// stacktrace member in an object (probably around #ifndef NDEBUG) so that you
 // can later see where the given object was created from.
 class V8_BASE_EXPORT StackTrace {
  public:

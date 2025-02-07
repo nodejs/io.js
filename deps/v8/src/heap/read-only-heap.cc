@@ -15,7 +15,6 @@
 #include "src/heap/memory-chunk-metadata.h"
 #include "src/heap/mutable-page-metadata.h"
 #include "src/heap/read-only-spaces.h"
-#include "src/heap/third-party/heap-api.h"
 #include "src/objects/heap-object-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/smi.h"
@@ -52,6 +51,10 @@ std::shared_ptr<ReadOnlyArtifacts> InitializeSharedReadOnlyArtifacts() {
 ReadOnlyHeap::~ReadOnlyHeap() {
 #ifdef V8_ENABLE_SANDBOX
   GetProcessWideCodePointerTable()->TearDownSpace(&code_pointer_space_);
+#endif
+#ifdef V8_ENABLE_LEAPTIERING
+  GetProcessWideJSDispatchTable()->DetachSpaceFromReadOnlySegment(
+      &js_dispatch_table_space_);
   GetProcessWideJSDispatchTable()->TearDownSpace(&js_dispatch_table_space_);
 #endif
 }
@@ -246,15 +249,19 @@ ReadOnlyHeap::ReadOnlyHeap(ReadOnlySpace* ro_space)
     : read_only_space_(ro_space) {
 #ifdef V8_ENABLE_SANDBOX
   GetProcessWideCodePointerTable()->InitializeSpace(&code_pointer_space_);
+#endif  // V8_ENABLE_SANDBOX
+#ifdef V8_ENABLE_LEAPTIERING
   GetProcessWideJSDispatchTable()->InitializeSpace(&js_dispatch_table_space_);
   // To avoid marking trying to write to these read-only cells they are
   // allocated black. Target code objects in the read-only dispatch table are
   // read-only code objects.
   js_dispatch_table_space_.set_allocate_black(true);
-  // TODO(olivf, 42204201): We should also `AttachSpaceToReadOnlySegment` here,
-  // however that requires a bit of a dance to initialize the dispatch table at
-  // the exact right momemnt in Isolate::Init.
-#endif
+  GetProcessWideJSDispatchTable()->AttachSpaceToReadOnlySegment(
+      &js_dispatch_table_space_);
+  GetProcessWideJSDispatchTable()->PreAllocateEntries(
+      &js_dispatch_table_space_, JSBuiltinDispatchHandleRoot::kCount,
+      Isolate::kBuiltinDispatchHandlesAreStatic);
+#endif  // V8_ENABLE_LEAPTIERING
 }
 
 void ReadOnlyHeap::OnHeapTearDown(Heap* heap) {
@@ -287,11 +294,7 @@ void ReadOnlyHeap::PopulateReadOnlySpaceStatistics(
 
 // static
 bool ReadOnlyHeap::Contains(Address address) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return third_party_heap::Heap::InReadOnlySpace(address);
-  } else {
-    return MemoryChunk::FromAddress(address)->InReadOnlySpace();
-  }
+  return MemoryChunk::FromAddress(address)->InReadOnlySpace();
 }
 
 // static
@@ -318,7 +321,6 @@ ReadOnlyHeapObjectIterator::ReadOnlyHeapObjectIterator(
       current_page_(ro_space->pages().begin()),
       page_iterator_(
           current_page_ == ro_space->pages().end() ? nullptr : *current_page_) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
 }
 
 Tagged<HeapObject> ReadOnlyHeapObjectIterator::Next() {
@@ -348,7 +350,6 @@ ReadOnlyPageObjectIterator::ReadOnlyPageObjectIterator(
     : page_(page),
       current_addr_(current_addr),
       skip_free_space_or_filler_(skip_free_space_or_filler) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   DCHECK_GE(current_addr, page->GetAreaStart());
   DCHECK_LT(current_addr, page->GetAreaStart() + page->area_size());
 }

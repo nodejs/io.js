@@ -19,12 +19,10 @@
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-/* eslint-disable node-core/crypto-check */
 'use strict';
-const process = global.process;  // Some tests tamper with the process global.
+const process = globalThis.process;  // Some tests tamper with the process globalThis.
 
 const assert = require('assert');
-const { exec, execSync, spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const net = require('net');
 // Do not require 'os' until needed so that test-os-checked-function can
@@ -32,7 +30,6 @@ const net = require('net');
 const path = require('path');
 const { inspect, getCallSites } = require('util');
 const { isMainThread } = require('worker_threads');
-const { isModuleNamespaceObject } = require('util/types');
 
 const tmpdir = require('./tmpdir');
 const bits = ['arm64', 'loong64', 'mips', 'mipsel', 'ppc64', 'riscv64', 's390x', 'x64']
@@ -56,25 +53,6 @@ const noop = () => {};
 
 const hasCrypto = Boolean(process.versions.openssl) &&
                   !process.env.NODE_SKIP_CRYPTO;
-
-// Synthesize OPENSSL_VERSION_NUMBER format with the layout 0xMNN00PPSL
-const opensslVersionNumber = (major = 0, minor = 0, patch = 0) => {
-  assert(major >= 0 && major <= 0xf);
-  assert(minor >= 0 && minor <= 0xff);
-  assert(patch >= 0 && patch <= 0xff);
-  return (major << 28) | (minor << 20) | (patch << 4);
-};
-
-let OPENSSL_VERSION_NUMBER;
-const hasOpenSSL = (major = 0, minor = 0, patch = 0) => {
-  if (!hasCrypto) return false;
-  if (OPENSSL_VERSION_NUMBER === undefined) {
-    const regexp = /(?<m>\d+)\.(?<n>\d+)\.(?<p>\d+)/;
-    const { m, n, p } = process.versions.openssl.match(regexp).groups;
-    OPENSSL_VERSION_NUMBER = opensslVersionNumber(m, n, p);
-  }
-  return OPENSSL_VERSION_NUMBER >= opensslVersionNumber(major, minor, patch);
-};
 
 const hasQuic = hasCrypto && !!process.config.variables.openssl_quic;
 
@@ -124,6 +102,7 @@ if (process.argv.length === 2 &&
         inspect(flags),
         'Use NODE_SKIP_FLAG_CHECK to run the test with the original flags.',
       );
+      const { spawnSync } = require('child_process');
       const args = [...flags, ...process.execArgv, ...process.argv.slice(1)];
       const options = { encoding: 'utf8', stdio: 'inherit' };
       const result = spawnSync(process.execPath, args, options);
@@ -158,8 +137,6 @@ const isPi = (() => {
     return false;
   }
 })();
-
-const isDumbTerminal = process.env.TERM === 'dumb';
 
 // When using high concurrency or in the CI we need much more time for each connection attempt
 net.setDefaultAutoSelectFamilyAttemptTimeout(platformTimeout(net.getDefaultAutoSelectFamilyAttemptTimeout() * 10));
@@ -220,7 +197,6 @@ if (process.env.NODE_TEST_WITH_ASYNC_HOOKS) {
   }).enable();
 }
 
-let opensslCli = null;
 let inFreeBSDJail = null;
 let localhostIPv4 = null;
 
@@ -255,6 +231,7 @@ function childShouldThrowAndAbort() {
     // continuous testing and developers' machines
     escapedArgs[0] = 'ulimit -c 0 && ' + escapedArgs[0];
   }
+  const { exec } = require('child_process');
   const child = exec(...escapedArgs);
   child.on('exit', function onExit(exitCode, signal) {
     const errMsg = 'Test should have aborted ' +
@@ -263,13 +240,6 @@ function childShouldThrowAndAbort() {
     assert(nodeProcessAborted(exitCode, signal), errMsg);
   });
 }
-
-function createZeroFilledFile(filename) {
-  const fd = fs.openSync(filename, 'w');
-  fs.ftruncateSync(fd, 10 * 1024 * 1024);
-  fs.closeSync(fd);
-}
-
 
 const pwdCommand = isWindows ?
   ['cmd.exe', ['/d', '/c', 'cd']] :
@@ -296,7 +266,7 @@ function platformTimeout(ms) {
   return ms;
 }
 
-let knownGlobals = [
+const knownGlobals = new Set([
   AbortController,
   atob,
   btoa,
@@ -308,88 +278,59 @@ let knownGlobals = [
   setInterval,
   setTimeout,
   queueMicrotask,
-];
+  structuredClone,
+  fetch,
+]);
 
-if (global.gc) {
-  knownGlobals.push(global.gc);
-}
+['gc',
+ // The following are assumed to be conditionally available in the
+ // global object currently. They can likely be added to the fixed
+ // set of known globals, however.
+ 'navigator',
+ 'Navigator',
+ 'performance',
+ 'Performance',
+ 'PerformanceMark',
+ 'PerformanceMeasure',
+ 'EventSource',
+ 'CustomEvent',
+ 'ReadableStream',
+ 'ReadableStreamDefaultReader',
+ 'ReadableStreamBYOBReader',
+ 'ReadableStreamBYOBRequest',
+ 'ReadableByteStreamController',
+ 'ReadableStreamDefaultController',
+ 'TransformStream',
+ 'TransformStreamDefaultController',
+ 'WritableStream',
+ 'WritableStreamDefaultWriter',
+ 'WritableStreamDefaultController',
+ 'ByteLengthQueuingStrategy',
+ 'CountQueuingStrategy',
+ 'TextEncoderStream',
+ 'TextDecoderStream',
+ 'CompressionStream',
+ 'DecompressionStream',
+ 'Storage',
+ 'localStorage',
+ 'sessionStorage',
+].forEach((i) => {
+  if (globalThis[i] !== undefined) {
+    knownGlobals.add(globalThis[i]);
+  }
+});
 
-if (global.navigator) {
-  knownGlobals.push(global.navigator);
-}
-
-if (global.Navigator) {
-  knownGlobals.push(global.Navigator);
-}
-
-if (global.Performance) {
-  knownGlobals.push(global.Performance);
-}
-if (global.performance) {
-  knownGlobals.push(global.performance);
-}
-if (global.PerformanceMark) {
-  knownGlobals.push(global.PerformanceMark);
-}
-if (global.PerformanceMeasure) {
-  knownGlobals.push(global.PerformanceMeasure);
-}
-
-// TODO(@ethan-arrowood): Similar to previous checks, this can be temporary
-// until v16.x is EOL. Once all supported versions have structuredClone we
-// can add this to the list above instead.
-if (global.structuredClone) {
-  knownGlobals.push(global.structuredClone);
-}
-
-if (global.EventSource) {
-  knownGlobals.push(EventSource);
-}
-
-if (global.fetch) {
-  knownGlobals.push(fetch);
-}
-if (hasCrypto && global.crypto) {
-  knownGlobals.push(global.crypto);
-  knownGlobals.push(global.Crypto);
-  knownGlobals.push(global.CryptoKey);
-  knownGlobals.push(global.SubtleCrypto);
-}
-if (global.CustomEvent) {
-  knownGlobals.push(global.CustomEvent);
-}
-if (global.ReadableStream) {
-  knownGlobals.push(
-    global.ReadableStream,
-    global.ReadableStreamDefaultReader,
-    global.ReadableStreamBYOBReader,
-    global.ReadableStreamBYOBRequest,
-    global.ReadableByteStreamController,
-    global.ReadableStreamDefaultController,
-    global.TransformStream,
-    global.TransformStreamDefaultController,
-    global.WritableStream,
-    global.WritableStreamDefaultWriter,
-    global.WritableStreamDefaultController,
-    global.ByteLengthQueuingStrategy,
-    global.CountQueuingStrategy,
-    global.TextEncoderStream,
-    global.TextDecoderStream,
-    global.CompressionStream,
-    global.DecompressionStream,
-  );
-}
-
-if (global.Storage) {
-  knownGlobals.push(
-    global.localStorage,
-    global.sessionStorage,
-    global.Storage,
-  );
+if (hasCrypto) {
+  knownGlobals.add(globalThis.crypto);
+  knownGlobals.add(globalThis.Crypto);
+  knownGlobals.add(globalThis.CryptoKey);
+  knownGlobals.add(globalThis.SubtleCrypto);
 }
 
 function allowGlobals(...allowlist) {
-  knownGlobals = knownGlobals.concat(allowlist);
+  for (const val of allowlist) {
+    knownGlobals.add(val);
+  }
 }
 
 if (process.env.NODE_TEST_KNOWN_GLOBALS !== '0') {
@@ -401,10 +342,13 @@ if (process.env.NODE_TEST_KNOWN_GLOBALS !== '0') {
   function leakedGlobals() {
     const leaked = [];
 
-    for (const val in global) {
+    for (const val in globalThis) {
       // globalThis.crypto is a getter that throws if Node.js was compiled
-      // without OpenSSL.
-      if (val !== 'crypto' && !knownGlobals.includes(global[val])) {
+      // without OpenSSL so we'll skip it if it is not available.
+      if (val === 'crypto' && !hasCrypto) {
+        continue;
+      }
+      if (!knownGlobals.has(globalThis[val])) {
         leaked.push(val);
       }
     }
@@ -510,15 +454,6 @@ function _mustCallInner(fn, criteria = 1, field) {
   return _return;
 }
 
-function hasMultiLocalhost() {
-  const { internalBinding } = require('internal/test/binding');
-  const { TCP, constants: TCPConstants } = internalBinding('tcp_wrap');
-  const t = new TCP(TCPConstants.SOCKET);
-  const ret = t.bind('127.0.0.2', 0);
-  t.close();
-  return ret === 0;
-}
-
 function skipIfEslintMissing() {
   if (!fs.existsSync(
     path.join(__dirname, '..', '..', 'tools', 'eslint', 'node_modules', 'eslint'),
@@ -539,6 +474,7 @@ function canCreateSymLink() {
                                  'System32', 'whoami.exe');
 
     try {
+      const { execSync } = require('child_process');
       const output = execSync(`${whoamiPath} /priv`, { timeout: 1000 });
       return output.includes('SeCreateSymbolicLinkPrivilege');
     } catch {
@@ -746,12 +682,6 @@ function skipIf32Bits() {
   }
 }
 
-function skipIfWorker() {
-  if (!isMainThread) {
-    skip('This test only works on a main thread');
-  }
-}
-
 function getArrayBufferViews(buf) {
   const { buffer, byteOffset, byteLength } = buf;
 
@@ -836,12 +766,6 @@ function invalidArgTypeHelper(input) {
   return ` Received type ${typeof input} (${inspected})`;
 }
 
-function skipIfDumbTerminal() {
-  if (isDumbTerminal) {
-    skip('skipping - dumb terminal');
-  }
-}
-
 function requireNoPackageJSONAbove(dir = __dirname) {
   let possiblePackage = path.join(dir, '..', 'package.json');
   let lastPackage = null;
@@ -857,6 +781,7 @@ function requireNoPackageJSONAbove(dir = __dirname) {
 }
 
 function spawnPromisified(...args) {
+  const { spawn } = require('child_process');
   let stderr = '';
   let stdout = '';
 
@@ -912,45 +837,6 @@ function escapePOSIXShell(cmdParts, ...args) {
   return [cmd, { env }];
 };
 
-function getPrintedStackTrace(stderr) {
-  const lines = stderr.split('\n');
-
-  let state = 'initial';
-  const result = {
-    message: [],
-    nativeStack: [],
-    jsStack: [],
-  };
-  for (let i = 0; i < lines.length; ++i) {
-    const line = lines[i].trim();
-    if (line.length === 0) {
-      continue;  // Skip empty lines.
-    }
-
-    switch (state) {
-      case 'initial':
-        result.message.push(line);
-        if (line.includes('Native stack trace')) {
-          state = 'native-stack';
-        } else {
-          result.message.push(line);
-        }
-        break;
-      case 'native-stack':
-        if (line.includes('JavaScript stack trace')) {
-          state = 'js-stack';
-        } else {
-          result.nativeStack.push(line);
-        }
-        break;
-      case 'js-stack':
-        result.jsStack.push(line);
-        break;
-    }
-  }
-  return result;
-}
-
 /**
  * Check the exports of require(esm).
  * TODO(joyeecheung): use it in all the test-require-module-* tests to minimize changes
@@ -959,6 +845,7 @@ function getPrintedStackTrace(stderr) {
  * @param {object} expectation shape of expected namespace.
  */
 function expectRequiredModule(mod, expectation, checkESModule = true) {
+  const { isModuleNamespaceObject } = require('util/types');
   const clone = { ...mod };
   if (Object.hasOwn(mod, 'default') && checkESModule) {
     assert.strictEqual(mod.__esModule, true);
@@ -973,7 +860,6 @@ const common = {
   buildType,
   canCreateSymLink,
   childShouldThrowAndAbort,
-  createZeroFilledFile,
   defaultAutoSelectFamilyAttemptTimeout,
   escapePOSIXShell,
   expectsError,
@@ -981,21 +867,16 @@ const common = {
   expectWarning,
   getArrayBufferViews,
   getBufferSources,
-  getPrintedStackTrace,
   getTTYfd,
   hasIntl,
   hasCrypto,
-  hasOpenSSL,
   hasQuic,
-  hasMultiLocalhost,
   invalidArgTypeHelper,
   isAlive,
   isASan,
   isDebug,
-  isDumbTerminal,
   isFreeBSD,
   isLinux,
-  isMainThread,
   isOpenBSD,
   isMacOS,
   isPi,
@@ -1017,18 +898,12 @@ const common = {
   runWithInvalidFD,
   skip,
   skipIf32Bits,
-  skipIfDumbTerminal,
   skipIfEslintMissing,
   skipIfInspectorDisabled,
-  skipIfWorker,
   spawnPromisified,
 
   get enoughTestMem() {
     return require('os').totalmem() > 0x70000000; /* 1.75 Gb */
-  },
-
-  get hasFipsCrypto() {
-    return hasCrypto && require('crypto').getFips();
   },
 
   get hasIPv6() {
@@ -1047,11 +922,8 @@ const common = {
     });
   },
 
-  get hasOpenSSL3() {
-    return hasOpenSSL(3);
-  },
-
   get inFreeBSDJail() {
+    const { execSync } = require('child_process');
     if (inFreeBSDJail !== null) return inFreeBSDJail;
 
     if (exports.isFreeBSD &&
@@ -1072,11 +944,6 @@ const common = {
 
   get isIBMi() {
     return require('os').type() === 'OS400';
-  },
-
-  get isLinuxPPCBE() {
-    return (process.platform === 'linux') && (process.arch === 'ppc64') &&
-           (require('os').endianness() === 'BE');
   },
 
   get localhostIPv4() {
@@ -1100,40 +967,11 @@ const common = {
     return localhostIPv4;
   },
 
-  // opensslCli defined lazily to reduce overhead of spawnSync
-  get opensslCli() {
-    if (opensslCli !== null) return opensslCli;
-
-    if (process.config.variables.node_shared_openssl) {
-      // Use external command
-      opensslCli = 'openssl';
-    } else {
-      // Use command built from sources included in Node.js repository
-      opensslCli = path.join(path.dirname(process.execPath), 'openssl-cli');
-    }
-
-    if (exports.isWindows) opensslCli += '.exe';
-
-    const opensslCmd = spawnSync(opensslCli, ['version']);
-    if (opensslCmd.status !== 0 || opensslCmd.error !== undefined) {
-      // OpenSSL command cannot be executed
-      opensslCli = false;
-    }
-    return opensslCli;
-  },
-
   get PORT() {
     if (+process.env.TEST_PARALLEL) {
       throw new Error('common.PORT cannot be used in a parallelized test');
     }
     return +process.env.NODE_COMMON_PORT || 12346;
-  },
-
-  /**
-   * Returns the EOL character used by this Git checkout.
-   */
-  get checkoutEOL() {
-    return fs.readFileSync(__filename).includes('\r\n') ? '\r\n' : '\n';
   },
 
   get isInsideDirWithUnusualChars() {

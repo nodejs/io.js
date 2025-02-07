@@ -100,6 +100,7 @@ Array [
     team
     test
     token
+    undeprecate
     uninstall
     unpublish
     unstar

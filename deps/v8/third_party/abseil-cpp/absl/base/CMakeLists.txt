@@ -95,6 +95,18 @@ absl_cc_test(
     GTest::gtest_main
 )
 
+absl_cc_test(
+  NAME
+    nullability_default_nonnull_test
+  SRCS
+    "nullability_default_nonnull_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  DEPS
+    absl::nullability
+    GTest::gtest_main
+)
+
 # Internal-only target, do not depend on directly.
 absl_cc_library(
   NAME

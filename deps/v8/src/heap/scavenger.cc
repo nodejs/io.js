@@ -529,8 +529,8 @@ void ScavengerCollector::CollectGarbage() {
 
   // Need to free new space LAB that was allocated during scavenge.
   heap_->allocator()->new_space_allocator()->FreeLinearAllocationArea();
-  // Now that the LAB was freed, set age mark.
-  semi_space_new_space->set_age_mark_to_top();
+
+  new_space->GarbageCollectionEpilogue();
 
   // Since we promote all surviving large objects immediately, all remaining
   // large objects must be dead.

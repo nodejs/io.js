@@ -173,7 +173,10 @@ template("node_gn_build") {
       libs = [ "psapi.lib" ]
     }
     if (is_mac) {
-      frameworks = [ "CoreFoundation.framework" ]
+      frameworks = [
+        "CoreFoundation.framework",
+        "Security.framework",
+      ]
     }
     if (is_posix) {
       configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
@@ -190,6 +193,7 @@ template("node_gn_build") {
     }
     if (node_enable_inspector) {
       deps += [
+        "src/inspector:crdtp",
         "src/inspector:node_protocol_generated_sources",
         "src/inspector:v8_inspector_compress_protocol_json",
       ]
@@ -361,13 +365,26 @@ template("node_gn_build") {
       "$node_simdutf_path",
     ]
 
-    sources = gypi_values.node_cctest_sources
+    sources = [ "src/node_snapshot_stub.cc" ]
+    sources += exec_script("./tools/search_files.py",
+                           [ rebase_path(".", root_build_dir),
+                             rebase_path("test/cctest", root_build_dir),
+                             "cc" ],
+                           "list lines")
+
     if (node_use_openssl) {
       deps += [ "deps/ncrypto" ]
-      sources += gypi_values.node_cctest_openssl_sources
+    } else {
+      sources -= gypi_values.node_cctest_openssl_sources
     }
     if (node_enable_inspector) {
-      sources += gypi_values.node_cctest_inspector_sources
+      deps += [ "src/inspector:crdtp" ]
+      include_dirs = [
+        "$target_gen_dir/src",
+        "$target_gen_dir/src/inspector",
+      ]
+    } else {
+      sources -= gypi_values.node_cctest_inspector_sources
     }
   }
 

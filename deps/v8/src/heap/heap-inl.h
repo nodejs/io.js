@@ -34,7 +34,6 @@
 #include "src/heap/read-only-spaces.h"
 #include "src/heap/safepoint.h"
 #include "src/heap/spaces-inl.h"
-#include "src/heap/third-party/heap-api.h"
 #include "src/objects/allocation-site-inl.h"
 #include "src/objects/cell-inl.h"
 #include "src/objects/descriptor-array.h"
@@ -103,11 +102,7 @@ bool Heap::IsMainThread() const {
   return isolate()->thread_id() == ThreadId::Current();
 }
 
-int64_t Heap::external_memory() { return external_memory_.total(); }
-
-int64_t Heap::update_external_memory(int64_t delta) {
-  return external_memory_.Update(delta);
-}
+int64_t Heap::external_memory() const { return external_memory_.total(); }
 
 RootsTable& Heap::roots_table() { return isolate()->roots_table(); }
 
@@ -180,6 +175,14 @@ void Heap::SetFunctionsMarkedForManualOptimization(Tagged<Object> hash_table) {
       hash_table.ptr();
 }
 
+#if V8_ENABLE_WEBASSEMBLY
+void Heap::SetWasmCanonicalRttsAndJSToWasmWrappers(
+    Tagged<WeakFixedArray> rtts, Tagged<WeakFixedArray> js_to_wasm_wrappers) {
+  set_wasm_canonical_rtts(rtts);
+  set_js_to_wasm_wrappers(js_to_wasm_wrappers);
+}
+#endif  // V8_ENABLE_WEBASSEMBLY
+
 PagedSpace* Heap::paged_space(int idx) const {
   DCHECK(idx == OLD_SPACE || idx == CODE_SPACE || idx == SHARED_SPACE ||
          idx == TRUSTED_SPACE || idx == SHARED_TRUSTED_SPACE);
@@ -209,12 +212,8 @@ Address* Heap::OldSpaceAllocationLimitAddress() {
 }
 
 inline const base::AddressRegion& Heap::code_region() {
-#ifdef V8_ENABLE_THIRD_PARTY_HEAP
-  return tp_heap_->GetCodeRange();
-#else
   static constexpr base::AddressRegion kEmptyRegion;
   return code_range_ ? code_range_->reservation()->region() : kEmptyRegion;
-#endif
 }
 
 Address Heap::code_range_base() {
@@ -222,8 +221,7 @@ Address Heap::code_range_base() {
 }
 
 int Heap::MaxRegularHeapObjectSize(AllocationType allocation) {
-  if (!V8_ENABLE_THIRD_PARTY_HEAP_BOOL &&
-      (allocation == AllocationType::kCode)) {
+  if (allocation == AllocationType::kCode) {
     DCHECK_EQ(MemoryChunkLayout::MaxRegularCodeObjectSize(),
               max_regular_code_object_size_);
     return max_regular_code_object_size_;
@@ -255,14 +253,10 @@ void Heap::RegisterExternalString(Tagged<String> string) {
 void Heap::FinalizeExternalString(Tagged<String> string) {
   DCHECK(IsExternalString(string));
   Tagged<ExternalString> ext_string = Cast<ExternalString>(string);
-
-  if (!v8_flags.enable_third_party_heap) {
-    PageMetadata* page = PageMetadata::FromHeapObject(string);
-    page->DecrementExternalBackingStoreBytes(
-        ExternalBackingStoreType::kExternalString,
-        ext_string->ExternalPayloadSize());
-  }
-
+  PageMetadata* page = PageMetadata::FromHeapObject(string);
+  page->DecrementExternalBackingStoreBytes(
+      ExternalBackingStoreType::kExternalString,
+      ext_string->ExternalPayloadSize());
   ext_string->DisposeResource(isolate());
 }
 
@@ -291,7 +285,6 @@ bool Heap::InYoungGeneration(Tagged<MaybeObject> object) {
 
 // static
 bool Heap::InYoungGeneration(Tagged<HeapObject> heap_object) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) return false;
   if (v8_flags.sticky_mark_bits) {
     return !MemoryChunk::FromHeapObject(heap_object)
                 ->IsOnlyOldOrMajorMarkingOn() &&
@@ -347,19 +340,12 @@ bool Heap::InToPage(Tagged<HeapObject> heap_object) {
 }
 
 bool Heap::InOldSpace(Tagged<Object> object) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return object.IsHeapObject() &&
-           third_party_heap::Heap::InOldSpace(object.ptr());
-  }
   return old_space_->Contains(object) &&
          (!v8_flags.sticky_mark_bits || !Heap::InYoungGeneration(object));
 }
 
 // static
 Heap* Heap::FromWritableHeapObject(Tagged<HeapObject> obj) {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return Heap::GetIsolateFromWritableObject(obj)->heap();
-  }
   MemoryChunkMetadata* chunk = MemoryChunkMetadata::FromHeapObject(obj);
   // RO_SPACE can be shared between heaps, so we can't use RO_SPACE objects to
   // find a heap. The exception is when the ReadOnlySpace is writeable, during
@@ -377,10 +363,6 @@ void Heap::CopyBlock(Address dst, Address src, int byte_size) {
 
 bool Heap::IsPendingAllocationInternal(Tagged<HeapObject> object) {
   DCHECK(deserialization_complete());
-
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return tp_heap_->IsPendingAllocation(object);
-  }
 
   MemoryChunk* chunk = MemoryChunk::FromHeapObject(object);
   if (chunk->InReadOnlySpace()) return false;

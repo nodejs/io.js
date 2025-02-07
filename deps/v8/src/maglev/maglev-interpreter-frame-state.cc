@@ -1209,7 +1209,9 @@ MergePointInterpreterFrameState::MergeVirtualObjectValue(
                     unmerged_aspects, unmerged);
     unmerged = EnsureTagged(builder, unmerged_aspects, unmerged,
                             predecessors_[predecessors_so_far_]);
-    result->set_input(predecessors_so_far_, unmerged);
+    for (int i = predecessors_so_far_; i < predecessor_count_; i++) {
+      result->change_input(i, unmerged);
+    }
     DCHECK_GT(predecessors_so_far_, 0);
     result->merge_type(unmerged_type);
     result->merge_post_loop_type(unmerged_type);
@@ -1238,6 +1240,11 @@ MergePointInterpreterFrameState::MergeVirtualObjectValue(
     return {};
   }
 
+  // We don't have LoopPhis inside a VirtualObject, but this can happen if the
+  // block is a diamond-merge and a loop entry at the same time. For now, we
+  // should escape.
+  if (is_loop()) return {};
+
   result = Node::New<Phi>(builder->zone(), predecessor_count_, this,
                           interpreter::Register::invalid_value());
   if (v8_flags.trace_maglev_graph_building) {
@@ -1261,7 +1268,9 @@ MergePointInterpreterFrameState::MergeVirtualObjectValue(
       builder->broker(), builder->local_isolate(), unmerged_aspects, unmerged);
   unmerged = EnsureTagged(builder, unmerged_aspects, unmerged,
                           predecessors_[predecessors_so_far_]);
-  result->set_input(predecessors_so_far_, unmerged);
+  for (int i = predecessors_so_far_; i < predecessor_count_; i++) {
+    result->set_input(i, unmerged);
+  }
 
   result->set_type(IntersectType(merged_type, unmerged_type));
 

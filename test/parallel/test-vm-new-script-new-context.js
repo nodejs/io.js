@@ -49,43 +49,43 @@ const Script = require('vm').Script;
 }
 
 {
-  global.hello = 5;
+  globalThis.hello = 5;
   const script = new Script('hello = 2');
   script.runInNewContext();
-  assert.strictEqual(global.hello, 5);
+  assert.strictEqual(globalThis.hello, 5);
 
   // Cleanup
-  delete global.hello;
+  delete globalThis.hello;
 }
 
 {
-  global.code = 'foo = 1;' +
+  globalThis.code = 'foo = 1;' +
                 'bar = 2;' +
                 'if (baz !== 3) throw new Error(\'test fail\');';
-  global.foo = 2;
-  global.obj = { foo: 0, baz: 3 };
-  const script = new Script(global.code);
+  globalThis.foo = 2;
+  globalThis.obj = { foo: 0, baz: 3 };
+  const script = new Script(globalThis.code);
   /* eslint-disable no-unused-vars */
-  const baz = script.runInNewContext(global.obj);
+  const baz = script.runInNewContext(globalThis.obj);
   /* eslint-enable no-unused-vars */
-  assert.strictEqual(global.obj.foo, 1);
-  assert.strictEqual(global.obj.bar, 2);
-  assert.strictEqual(global.foo, 2);
+  assert.strictEqual(globalThis.obj.foo, 1);
+  assert.strictEqual(globalThis.obj.bar, 2);
+  assert.strictEqual(globalThis.foo, 2);
 
   // cleanup
-  delete global.code;
-  delete global.foo;
-  delete global.obj;
+  delete globalThis.code;
+  delete globalThis.foo;
+  delete globalThis.obj;
 }
 
 {
   const script = new Script('f()');
-  function changeFoo() { global.foo = 100; }
+  function changeFoo() { globalThis.foo = 100; }
   script.runInNewContext({ f: changeFoo });
-  assert.strictEqual(global.foo, 100);
+  assert.strictEqual(globalThis.foo, 100);
 
   // cleanup
-  delete global.foo;
+  delete globalThis.foo;
 }
 
 {

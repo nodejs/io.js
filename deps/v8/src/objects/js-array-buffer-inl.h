@@ -136,7 +136,7 @@ void JSArrayBuffer::set_extension(ArrayBufferExtension* extension) {
 #else
   base::AsAtomicPointer::Release_Store(extension_location(), extension);
 #endif  // V8_COMPRESS_POINTERS
-  WriteBarrier::Marking(*this, extension);
+  WriteBarrier::ForArrayBufferExtension(*this, extension);
 }
 
 #if V8_COMPRESS_POINTERS

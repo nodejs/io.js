@@ -4,6 +4,7 @@
 
 // Flags: --experimental-wasm-stringref --allow-natives-syntax
 // Flags: --experimental-wasm-imported-strings
+// Flags: --experimental-wasm-imported-strings-utf8
 // Flags: --trace-wasm-inlining --liftoff
 // Also explicitly enable inlining and disable debug code to avoid differences
 // between --future and --no-future or debug and release builds.

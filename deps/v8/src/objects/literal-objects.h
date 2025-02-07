@@ -142,7 +142,7 @@ class ClassBoilerplate : public Struct {
   OBJECT_CONSTRUCTORS(ClassBoilerplate, Struct);
 
  public:
-  enum ValueKind { kData, kGetter, kSetter };
+  enum ValueKind { kData, kGetter, kSetter, kAutoAccessor };
 
   struct ComputedEntryFlags {
 #define COMPUTED_ENTRY_BIT_FIELDS(V, _) \

@@ -32,7 +32,7 @@ InterpreterAssemblerTestState::InterpreterAssemblerTestState(
 
 const interpreter::Bytecode kBytecodes[] = {
 #define DEFINE_BYTECODE(Name, ...) interpreter::Bytecode::k##Name,
-    BYTECODE_LIST(DEFINE_BYTECODE)
+    BYTECODE_LIST(DEFINE_BYTECODE, DEFINE_BYTECODE)
 #undef DEFINE_BYTECODE
 };
 

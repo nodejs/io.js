@@ -100,6 +100,44 @@ if (isMainThread) {
 }
 ```
 
+## `worker.isInternalThread`
+
+<!-- YAML
+added: v23.7.0
+-->
+
+* {boolean}
+
+Is `true` if this code is running inside of an internal [`Worker`][] thread (e.g the loader thread).
+
+```bash
+node --experimental-loader ./loader.js main.js
+```
+
+```cjs
+// loader.js
+const { isInternalThread } = require('node:worker_threads');
+console.log(isInternalThread);  // true
+```
+
+```mjs
+// loader.js
+import { isInternalThread } from 'node:worker_threads';
+console.log(isInternalThread);  // true
+```
+
+```cjs
+// main.js
+const { isInternalThread } = require('node:worker_threads');
+console.log(isInternalThread);  // false
+```
+
+```mjs
+// main.js
+import { isInternalThread } from 'node:worker_threads';
+console.log(isInternalThread);  // false
+```
+
 ## `worker.isMainThread`
 
 <!-- YAML
@@ -1191,9 +1229,18 @@ changes:
       used for generated code.
     * `stackSizeMb` {number} The default maximum stack size for the thread.
       Small values may lead to unusable Worker instances. **Default:** `4`.
-  * `name` {string} An optional `name` to be appended to the worker title
-    for debugging/identification purposes, making the final title as
-    `[worker ${id}] ${name}`. **Default:** `''`.
+  * `name` {string} An optional `name` to be replaced in the thread name
+    and to the worker title for debugging/identification purposes,
+    making the final title as `[worker ${id}] ${name}`.
+    This parameter has a maximum allowed size, depending on the operating
+    system. If the provided name exceeds the limit, it will be truncated
+    * Maximum sizes:
+      * Windows: 32,767 characters
+      * macOS: 64 characters
+      * Linux: 16 characters
+      * NetBSD: limited to `PTHREAD_MAX_NAMELEN_NP`
+      * FreeBSD and OpenBSD: limited to `MAXCOMLEN`
+        **Default:** `'WorkerThread'`.
 
 ### Event: `'error'`
 

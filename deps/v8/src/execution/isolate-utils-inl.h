@@ -14,23 +14,12 @@ namespace v8 {
 namespace internal {
 
 V8_INLINE Heap* GetHeapFromWritableObject(Tagged<HeapObject> object) {
-  // Avoid using the below GetIsolateFromWritableObject because we want to be
-  // able to get the heap, but not the isolate, for off-thread objects.
-
-#if defined V8_ENABLE_THIRD_PARTY_HEAP
-  return Heap::GetIsolateFromWritableObject(object)->heap();
-#else
   MemoryChunk* chunk = MemoryChunk::FromHeapObject(object);
   return chunk->GetHeap();
-#endif  // V8_ENABLE_THIRD_PARTY_HEAP
 }
 
 V8_INLINE Isolate* GetIsolateFromWritableObject(Tagged<HeapObject> object) {
-#ifdef V8_ENABLE_THIRD_PARTY_HEAP
-  return Heap::GetIsolateFromWritableObject(object);
-#else
   return Isolate::FromHeap(GetHeapFromWritableObject(object));
-#endif  // V8_ENABLE_THIRD_PARTY_HEAP
 }
 
 V8_INLINE Heap* GetHeapFromWritableObject(const HeapObjectLayout& object) {
@@ -44,10 +33,6 @@ V8_INLINE Isolate* GetIsolateFromWritableObject(
 
 V8_INLINE bool GetIsolateFromHeapObject(Tagged<HeapObject> object,
                                         Isolate** isolate) {
-#ifdef V8_ENABLE_THIRD_PARTY_HEAP
-  *isolate = Heap::GetIsolateFromWritableObject(object);
-  return true;
-#else
   MemoryChunk* chunk = MemoryChunk::FromHeapObject(object);
   if (chunk->InReadOnlySpace()) {
     *isolate = nullptr;
@@ -55,7 +40,6 @@ V8_INLINE bool GetIsolateFromHeapObject(Tagged<HeapObject> object,
   }
   *isolate = Isolate::FromHeap(chunk->GetHeap());
   return true;
-#endif  // V8_ENABLE_THIRD_PARTY_HEAP
 }
 
 // Use this function instead of Internals::GetIsolateForSandbox for internal

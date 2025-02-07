@@ -11,6 +11,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 
 inline bool IsBigInt64OpSupported(BinaryOpAssembler* assembler, Operation op) {
@@ -1117,6 +1119,8 @@ BinaryOpAssembler::Generate_BitwiseBinaryOpWithSmiOperandAndOptionalFeedback(
   }
   return result.value();
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

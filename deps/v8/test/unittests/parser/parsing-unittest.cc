@@ -5959,6 +5959,33 @@ TEST_F(ParsingTest, PrivateMethodsAndFieldsNoErrors) {
   RunParserSyncTest(context_data, class_body_data, kSuccess);
 }
 
+// Test that public auto-accessors do not parse outside class bodies.
+TEST_F(ParsingTest, PublicAutoAccessorsInNonClassErrors) {
+  FLAG_SCOPE(js_decorators);
+  // clang-format off
+  const char* context_data[][2] = {{"", ""},
+                                   {"({", "})"},
+                                   {"'use strict'; ({", "});"},
+                                   {"function() {", "}"},
+                                   {"() => {", "}"},
+                                   {"class C { test() {", "} }"},
+                                   {"const {", "} = {}"},
+                                   {"({", "} = {})"},
+                                   {nullptr, nullptr}};
+  const char* class_body_data[] = {
+    "accessor a = 1",
+    "accessor a = () => {}",
+    "accessor a",
+    "accessor 0 = 1",
+    "accessor 0 = () => {}",
+    "accessor 0",
+    nullptr
+  };
+  // clang-format on
+
+  RunParserSyncTest(context_data, class_body_data, kError);
+}
+
 // TODO(42202709): Merge with PrivateMethodsAndFieldsNoErrors once the
 // decorators flag is enabled by default.
 TEST_F(ParsingTest, PrivateAutoAccessorsAndFieldsNoErrors) {
@@ -5981,6 +6008,99 @@ TEST_F(ParsingTest, PrivateAutoAccessorsAndFieldsNoErrors) {
     "a;accessor #a = 0;",
     "a = 1;accessor #a;",
     "a = 1;accessor #a = 0;",
+    nullptr
+  };
+  // clang-format on
+
+  RunParserSyncTest(context_data, class_body_data, kSuccess);
+}
+
+TEST_F(ParsingTest, PublicAutoAccessorsInstanceAndStaticNoErrors) {
+  FLAG_SCOPE(js_decorators);
+  // clang-format off
+  // Tests proposed class auto-accessors syntax.
+  const char* context_data[][2] = {{"(class {", "});"},
+                                   {"(class extends Base {", "});"},
+                                   {"class C {", "}"},
+                                   {"class C extends Base {", "}"},
+                                   // static declarations
+                                   {"(class { static ", "});"},
+                                   {"(class extends Base { static ", "});"},
+                                   {"class C { static ", "}"},
+                                   {"class C extends Base { static ", "}"},
+                                   {nullptr, nullptr}};
+  const char* class_body_data[] = {
+    // Basic syntax
+    "accessor a = 0;",
+    "accessor a = 0; b",
+    "accessor a = 0; b(){}",
+    "accessor a = 0; *b(){}",
+    "accessor a = 0; ['b'](){}",
+    "accessor a;",
+    "accessor a; b;",
+    "accessor a; b(){}",
+    "accessor a; *b(){}",
+    "accessor a; ['b'](){}",
+    "accessor ['a'] = 0;",
+    "accessor ['a'] = 0; b",
+    "accessor ['a'] = 0; b(){}",
+    "accessor ['a'] = 0; *b(){}",
+    "accessor ['a'] = 0; ['b'](){}",
+    "accessor ['a'];",
+    "accessor ['a']; b;",
+    "accessor ['a']; b(){}",
+    "accessor ['a']; *b(){}",
+    "accessor ['a']; ['b'](){}",
+
+    "accessor 0 = 0;",
+    "accessor 0;",
+    "accessor 'a' = 0;",
+    "accessor 'a';",
+
+    "accessor c = [c] = c",
+
+    // ASI
+    "accessor a = 0\n",
+    "accessor a = 0\n b",
+    "accessor a = 0\n b(){}",
+    "accessor a\n",
+    "accessor a\n b\n",
+    "accessor a\n b(){}",
+    "accessor a\n *b(){}",
+    "accessor a\n ['b'](){}",
+    "accessor ['a'] = 0\n",
+    "accessor ['a'] = 0\n b",
+    "accessor ['a'] = 0\n b(){}",
+    "accessor ['a']\n",
+    "accessor ['a']\n b\n",
+    "accessor ['a']\n b(){}",
+    "accessor ['a']\n *b(){}",
+    "accessor ['a']\n ['b'](){}",
+
+    // ASI edge cases
+    "accessor a\n get",
+    "accessor get\n *a(){}",
+    "accessor a\n static",
+
+    "accessor a = function t() { arguments; }",
+    "accessor a = () => function() { arguments; }",
+
+    // Misc edge cases
+    "accessor yield",
+    "accessor yield = 0",
+    "accessor yield\n a",
+    "accessor async;",
+    "accessor async = 0;",
+    "accessor async",
+    "accessor async = 0",
+    "accessor async\n a(){}",  // a field named async, and a method named a.
+    "accessor async\n a",
+    "accessor await;",
+    "accessor await = 0;",
+    "accessor await\n a",
+    "accessor accessor;",
+    "accessor accessor = 0;",
+    "accessor accessor\n a",
     nullptr
   };
   // clang-format on
@@ -6091,6 +6211,33 @@ TEST_F(ParsingTest, PrivateAutoAccessorsNestedInObjectLiteralsNoErrors) {
     "a: class { accessor #a = 1 }",
     "a: class { accessor #a = () => {} }",
     "a: class { accessor #a }",
+    nullptr
+  };
+  // clang-format on
+
+  RunParserSyncTest(context_data, class_body_data, kSuccess);
+}
+
+TEST_F(ParsingTest, PublicAutoAccessorsNestedNoErrors) {
+  FLAG_SCOPE(js_decorators);
+  // clang-format off
+  const char* context_data[][2] = {{"({a: ", "})"},
+                                   {"'use strict'; ({a: ", "});"},
+                                   {"(class {a = ", "});"},
+                                   {"(class extends Base {a = ", "});"},
+                                   {"class C {a = ", "}"},
+                                   {"class C extends Base {a = ", "}"},
+                                   {nullptr, nullptr}};
+  const char* class_body_data[] = {
+    "class { accessor a = 1 }",
+    "class { accessor a = () => {} }",
+    "class { accessor a }",
+    "class { accessor 0 = 1 }",
+    "class { accessor 0 = () => {} }",
+    "class { accessor 0 }",
+    "class { accessor ['a'] = 1 }",
+    "class { accessor ['a'] = () => {} }",
+    "class { accessor ['a'] }",
     nullptr
   };
   // clang-format on
@@ -6630,6 +6777,65 @@ TEST_F(ParsingTest, ClassFieldsErrors) {
     "a = 0\n ['b'](){}",
     "get\n a",
     nullptr
+  };
+  // clang-format on
+
+  RunParserSyncTest(context_data, class_body_data, kError);
+}
+
+TEST_F(ParsingTest, PublicAutoAccessorsInstanceAndStaticErrors) {
+  FLAG_SCOPE(js_decorators);
+  // clang-format off
+  // Tests proposed class fields syntax.
+  const char* context_data[][2] = {{"(class {", "});"},
+                                   {"(class extends Base {", "});"},
+                                   {"class C {", "}"},
+                                   {"class C extends Base {", "}"},
+                                   // static declarations
+                                   {"(class { static ", "});"},
+                                   {"(class extends Base { static ", "});"},
+                                   {"class C { static ", "}"},
+                                   {"class C extends Base { static ", "}"},
+                                   {nullptr, nullptr}};
+  const char* class_body_data[] = {
+    "accessor a : 0",
+    "accessor a =",
+    "accessor constructor",
+    "accessor *a = 0",
+    "accessor *a",
+    "accessor get a",
+    "accessor yield a",
+    "accessor async a = 0",
+    "accessor async a",
+
+    "accessor a = arguments",
+    "accessor a = () => arguments",
+    "accessor a = () => { arguments }",
+    "accessor a = arguments[0]",
+    "accessor a = delete arguments[0]",
+    "accessor a = f(arguments)",
+    "accessor a = () => () => arguments",
+
+    // The accessir keyword can only be applied to fields
+    "accessor a() {}",
+    "accessor *a() {}",
+    "accessor async a() {}",
+    "accessor get a() {}",
+    "accessor set a(foo) {}",
+
+    // ASI requires a linebreak
+    "accessor a b",
+    "accessor a = 0 b",
+
+    "accessor c = [1] = [c]",
+
+    // ASI requires that the next token is not part of any legal production
+    "accessor a = 0\n *b(){}",
+    "accessor a = 0\n ['b'](){}",
+    "accessor get\n a",
+    nullptr
+
+    // ASI
   };
   // clang-format on
 

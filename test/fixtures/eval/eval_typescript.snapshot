@@ -20,6 +20,11 @@ Node.js *
 [eval]:1
 const foo;
       ^^^
+  x 'const' declarations must be initialized
+   ,----
+ 1 | const foo;
+   :       ^^^
+   `----
 
 SyntaxError: Missing initializer in const declaration
 
@@ -28,10 +33,15 @@ Node.js *
 undefined
 false
 [eval]:1
-               ;const foo;
-                      ^^^
+interface Foo{};const foo;
+          ^^^
+  x 'const' declarations must be initialized
+   ,----
+ 1 | interface Foo{};const foo;
+   :                       ^^^
+   `----
 
-SyntaxError: Missing initializer in const declaration
+SyntaxError: Unexpected identifier 'Foo'
 
 Node.js *
 [eval]:1
@@ -42,9 +52,6 @@ function foo(){ await Promise.resolve(1)};
  1 | function foo(){ await Promise.resolve(1)};
    :                       ^^^^^^^
    `----
-
-Caused by:
-    failed to parse
 
 SyntaxError: await is only valid in async functions and the top level bodies of modules
 

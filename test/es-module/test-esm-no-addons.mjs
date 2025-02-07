@@ -15,8 +15,7 @@ if (isMainThread) {
     loadFixture('pkgexports/no-addons').then(
       mustCall((module) => {
         const message = module.default;
-
-        if (process.execArgv.length === 0) {
+        if (!process.execArgv.includes('--no-addons')) {
           assert.strictEqual(message, 'using native addons');
         } else {
           assert.strictEqual(message, 'not using native addons');

@@ -13,7 +13,7 @@
 #include "src/codegen/arm64/reglist-arm64.h"
 #elif V8_TARGET_ARCH_ARM
 #include "src/codegen/arm/reglist-arm.h"
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
 #include "src/codegen/ppc/reglist-ppc.h"
 #elif V8_TARGET_ARCH_MIPS64
 #include "src/codegen/mips64/reglist-mips64.h"

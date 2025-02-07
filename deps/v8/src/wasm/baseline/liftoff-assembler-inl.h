@@ -16,7 +16,7 @@
 #include "src/wasm/baseline/arm64/liftoff-assembler-arm64-inl.h"
 #elif V8_TARGET_ARCH_ARM
 #include "src/wasm/baseline/arm/liftoff-assembler-arm-inl.h"
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
 #include "src/wasm/baseline/ppc/liftoff-assembler-ppc-inl.h"
 #elif V8_TARGET_ARCH_MIPS64
 #include "src/wasm/baseline/mips64/liftoff-assembler-mips64-inl.h"

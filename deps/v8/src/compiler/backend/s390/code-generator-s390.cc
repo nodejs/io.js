@@ -594,11 +594,13 @@ static inline int AssembleUnaryOp(Instruction* instr, _R _r, _M _m, _I _i) {
 #define ASSEMBLE_FLOAT_MODULO()                                             \
   do {                                                                      \
     FrameScope scope(masm(), StackFrame::MANUAL);                           \
+    __ Push(r2, r3, r4, r5);                                                \
     __ PrepareCallCFunction(0, 2, kScratchReg);                             \
     __ MovToFloatParameters(i.InputDoubleRegister(0),                       \
                             i.InputDoubleRegister(1));                      \
     __ CallCFunction(ExternalReference::mod_two_doubles_operation(), 0, 2); \
     __ MovFromFloatResult(i.OutputDoubleRegister());                        \
+    __ Pop(r2, r3, r4, r5);                                                 \
   } while (0)
 
 #define ASSEMBLE_IEEE754_UNOP(name)                                            \
@@ -606,11 +608,13 @@ static inline int AssembleUnaryOp(Instruction* instr, _R _r, _M _m, _I _i) {
     /* TODO(bmeurer): We should really get rid of this special instruction, */ \
     /* and generate a CallAddress instruction instead. */                      \
     FrameScope scope(masm(), StackFrame::MANUAL);                              \
+    __ Push(r2, r3, r4, r5);                                                   \
     __ PrepareCallCFunction(0, 1, kScratchReg);                                \
     __ MovToFloatParameter(i.InputDoubleRegister(0));                          \
     __ CallCFunction(ExternalReference::ieee754_##name##_function(), 0, 1);    \
     /* Move the result in the double result register. */                       \
     __ MovFromFloatResult(i.OutputDoubleRegister());                           \
+    __ Pop(r2, r3, r4, r5);                                                    \
   } while (0)
 
 #define ASSEMBLE_IEEE754_BINOP(name)                                           \
@@ -618,12 +622,14 @@ static inline int AssembleUnaryOp(Instruction* instr, _R _r, _M _m, _I _i) {
     /* TODO(bmeurer): We should really get rid of this special instruction, */ \
     /* and generate a CallAddress instruction instead. */                      \
     FrameScope scope(masm(), StackFrame::MANUAL);                              \
+    __ Push(r2, r3, r4, r5);                                                   \
     __ PrepareCallCFunction(0, 2, kScratchReg);                                \
     __ MovToFloatParameters(i.InputDoubleRegister(0),                          \
                             i.InputDoubleRegister(1));                         \
     __ CallCFunction(ExternalReference::ieee754_##name##_function(), 0, 2);    \
     /* Move the result in the double result register. */                       \
     __ MovFromFloatResult(i.OutputDoubleRegister());                           \
+    __ Pop(r2, r3, r4, r5);                                                    \
   } while (0)
 
 //
@@ -3426,22 +3432,11 @@ void CodeGenerator::AssembleConstructFrame() {
           call_descriptor->IsWasmCapiFunction()) {
         // For import wrappers and C-API functions, this stack slot is only used
         // for printing stack traces in V8. Also, it holds a WasmImportData
-        // instead of the instance itself, which is taken care of in the frames
-        // accessors.
-        __ Push(kWasmInstanceRegister);
+        // instead of the trusted instance data, which is taken care of in the
+        // frames accessors.
+        __ Push(kWasmImplicitArgRegister);
       }
-      if (call_descriptor->IsWasmImportWrapper()) {
-        // If the wrapper is running on a secondary stack, it will switch to the
-        // central stack and fill these slots with the central stack pointer and
-        // secondary stack limit. Otherwise the slots remain empty.
-        static_assert(WasmImportWrapperFrameConstants::kCentralStackSPOffset ==
-                      -24);
-        static_assert(
-            WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset == -32);
-        __ mov(r0, Operand(0));
-        __ push(r0);
-        __ push(r0);
-      } else if (call_descriptor->IsWasmCapiFunction()) {
+      if (call_descriptor->IsWasmCapiFunction()) {
         // Reserve space for saving the PC later.
         __ lay(sp, MemOperand(sp, -kSystemPointerSize));
       }

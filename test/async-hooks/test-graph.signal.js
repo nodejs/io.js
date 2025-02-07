@@ -1,10 +1,13 @@
 'use strict';
 
 const common = require('../common');
-if (common.isWindows)
+if (common.isWindows) {
   common.skip('no signals on Windows');
-if (!common.isMainThread)
+}
+const { isMainThread } = require('worker_threads');
+if (!isMainThread) {
   common.skip('No signal handling available in Workers');
+}
 
 const initHooks = require('./init-hooks');
 const verifyGraph = require('./verify-graph');

@@ -9,6 +9,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // ES #sec-isfinite-number
 TF_BUILTIN(GlobalIsFinite, CodeStubAssembler) {
   auto context = Parameter<Context>(Descriptor::kContext);
@@ -105,6 +107,8 @@ TF_BUILTIN(GlobalIsNaN, CodeStubAssembler) {
   BIND(&return_false);
   Return(FalseConstant());
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

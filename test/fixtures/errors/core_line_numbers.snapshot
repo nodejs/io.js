@@ -1,10 +1,10 @@
-node:punycode:49
+node:punycode:54
 	throw new RangeError(errors[type]);
 	^
 
 RangeError: Invalid input
-    at error (node:punycode:49:8)
-    at Object.decode (node:punycode:242:5)
+    at error (node:punycode:54:8)
+    at Object.decode (node:punycode:247:5)
     at Object.<anonymous> (*core_line_numbers.js:13:10)
 
 Node.js *

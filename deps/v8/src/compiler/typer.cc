@@ -1194,7 +1194,55 @@ Type Typer::Visitor::TypeTypedObjectState(Node* node) {
 
 Type Typer::Visitor::TypeCall(Node* node) { return Type::Any(); }
 
-Type Typer::Visitor::TypeFastApiCall(Node* node) { return Type::Any(); }
+Type Typer::Visitor::TypeFastApiCall(Node* node) {
+  FastApiCallParameters const& op_params = FastApiCallParametersOf(node->op());
+  if (op_params.c_functions().empty()) {
+    return Type::Undefined();
+  }
+
+  const CFunctionInfo* c_signature = op_params.c_functions()[0].signature;
+  CTypeInfo return_type = c_signature->ReturnInfo();
+
+  switch (return_type.GetType()) {
+    case CTypeInfo::Type::kBool:
+      return Type::Boolean();
+    case CTypeInfo::Type::kFloat32:
+    case CTypeInfo::Type::kFloat64:
+      return Type::Number();
+    case CTypeInfo::Type::kInt32:
+      return Type::Signed32();
+    case CTypeInfo::Type::kInt64:
+      if (c_signature->GetInt64Representation() ==
+          CFunctionInfo::Int64Representation::kBigInt) {
+        return Type::SignedBigInt64();
+      }
+      DCHECK_EQ(c_signature->GetInt64Representation(),
+                CFunctionInfo::Int64Representation::kNumber);
+      return Type::Number();
+    case CTypeInfo::Type::kSeqOneByteString:
+      return Type::String();
+    case CTypeInfo::Type::kUint32:
+      return Type::Unsigned32();
+    case CTypeInfo::Type::kUint64:
+      if (c_signature->GetInt64Representation() ==
+          CFunctionInfo::Int64Representation::kBigInt) {
+        return Type::UnsignedBigInt64();
+      }
+      DCHECK_EQ(c_signature->GetInt64Representation(),
+                CFunctionInfo::Int64Representation::kNumber);
+      return Type::Number();
+    case CTypeInfo::Type::kUint8:
+      return Type::UnsignedSmall();
+    case CTypeInfo::Type::kAny:
+      // This type is only supposed to be used for parameters, not returns.
+      UNREACHABLE();
+    case CTypeInfo::Type::kPointer:
+    case CTypeInfo::Type::kApiObject:
+    case CTypeInfo::Type::kV8Value:
+    case CTypeInfo::Type::kVoid:
+      return Type::Any();
+  }
+}
 
 #ifdef V8_ENABLE_CONTINUATION_PRESERVED_EMBEDDER_DATA
 Type Typer::Visitor::TypeGetContinuationPreservedEmbedderData(Node* node) {
@@ -1267,7 +1315,7 @@ Type Typer::Visitor::JSStrictEqualTyper(Type lhs, Type rhs, Typer* t) {
   return t->operation_typer()->StrictEqual(lhs, rhs);
 }
 
-// The EcmaScript specification defines the four relational comparison operators
+// The ECMAScript specification defines the four relational comparison operators
 // (<, <=, >=, >) with the help of a single abstract one.  It behaves like <
 // but returns undefined when the inputs cannot be compared.
 // We implement the typing analogously.

@@ -19,7 +19,7 @@ void RuntimeAgent::Wire(UberDispatcher* dispatcher) {
 
 DispatchResponse RuntimeAgent::notifyWhenWaitingForDisconnect(bool enabled) {
   notify_when_waiting_for_disconnect_ = enabled;
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse RuntimeAgent::enable() {
@@ -27,12 +27,12 @@ DispatchResponse RuntimeAgent::enable() {
   if (is_waiting_for_debugger_) {
     frontend_->waitingForDebugger();
   }
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse RuntimeAgent::disable() {
   enabled_ = false;
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 void RuntimeAgent::setWaitingForDebugger() {

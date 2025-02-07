@@ -338,6 +338,8 @@ class V8_EXPORT_PRIVATE Debug {
                               int end_position, bool restrict_to_function,
                               std::vector<BreakLocation>* locations);
 
+  bool IsFunctionBlackboxed(DirectHandle<Script> script, const int start,
+                            const int end);
   bool IsBlackboxed(DirectHandle<SharedFunctionInfo> shared);
   bool ShouldBeSkipped();
 

@@ -1,8 +1,10 @@
 #include "inspector_agent.h"
 
+#include "crdtp/json.h"
 #include "env-inl.h"
 #include "inspector/main_thread_interface.h"
 #include "inspector/network_inspector.h"
+#include "inspector/node_json.h"
 #include "inspector/node_string.h"
 #include "inspector/runtime_agent.h"
 #include "inspector/tracing_agent.h"
@@ -37,15 +39,21 @@
 namespace node {
 namespace inspector {
 namespace {
+
+using crdtp::Dispatchable;
+using crdtp::Serializable;
+using crdtp::UberDispatcher;
+using crdtp::json::ConvertCBORToJSON;
+using crdtp::json::ConvertJSONToCBOR;
 using v8::Context;
 using v8::Function;
 using v8::HandleScope;
 using v8::Isolate;
 using v8::Local;
 using v8::Message;
+using v8::Name;
 using v8::Object;
 using v8::Value;
-
 using v8_inspector::StringBuffer;
 using v8_inspector::StringView;
 using v8_inspector::V8Inspector;
@@ -79,6 +87,7 @@ static void StartIoThreadWakeup(int signo, siginfo_t* info, void* ucontext) {
 }
 
 inline void* StartIoThreadMain(void* unused) {
+  uv_thread_setname("SignalInspector");
   for (;;) {
     uv_sem_wait(&start_io_thread_semaphore);
     Mutex::ScopedLock lock(start_io_thread_async_mutex);
@@ -222,7 +231,7 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
                                   this,
                                   StringView(),
                                   V8Inspector::ClientTrustLevel::kFullyTrusted);
-    node_dispatcher_ = std::make_unique<protocol::UberDispatcher>(this);
+    node_dispatcher_ = std::make_unique<UberDispatcher>(this);
     tracing_agent_ =
         std::make_unique<protocol::TracingAgent>(env, main_thread_);
     tracing_agent_->Wire(node_dispatcher_.get());
@@ -252,8 +261,7 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   void emitNotificationFromBackend(const StringView& event,
                                    const StringView& params) {
     std::unique_ptr<protocol::DictionaryValue> value =
-        protocol::DictionaryValue::cast(
-            protocol::StringUtil::parseJSON(params));
+        protocol::DictionaryValue::cast(JsonUtil::parseJSON(params));
     std::string raw_event = protocol::StringUtil::StringViewToUtf8(event);
     std::string domain_name = raw_event.substr(0, raw_event.find('.'));
     std::string event_name = raw_event.substr(raw_event.find('.') + 1);
@@ -270,19 +278,24 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     per_process::Debug(DebugCategory::INSPECTOR_SERVER,
                        "[inspector received] %s\n",
                        raw_message);
-    std::unique_ptr<protocol::DictionaryValue> value =
-        protocol::DictionaryValue::cast(
-            protocol::StringUtil::parseJSON(message));
-    int call_id;
-    std::string method;
-    node_dispatcher_->parseCommand(value.get(), &call_id, &method);
+
+    std::vector<uint8_t> cbor_buffer;
+    ConvertJSONToCBOR(crdtp::SpanFrom(raw_message), &cbor_buffer);
+    Dispatchable dispatchable(crdtp::SpanFrom(cbor_buffer));
+    crdtp::span<uint8_t> method = dispatchable.Method();
     if (v8_inspector::V8InspectorSession::canDispatchMethod(
-            Utf8ToStringView(method)->string())) {
+            StringView(method.data(), method.size()))) {
       session_->dispatchProtocolMessage(message);
-    } else {
-      node_dispatcher_->dispatch(
-          call_id, method, std::move(value), raw_message);
+      return;
     }
+    UberDispatcher::DispatchResult result =
+        node_dispatcher_->Dispatch(dispatchable);
+    if (!result.MethodFound()) {
+      per_process::Debug(DebugCategory::INSPECTOR_SERVER,
+                         "[inspector] method not found\n");
+      // Fall through to send a method not found error.
+    }
+    result.Run();
   }
 
   void schedulePauseOnNextStatement(const std::string& reason) {
@@ -308,18 +321,23 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   }
 
  private:
+  // v8_inspector::V8Inspector::Channel
   void sendResponse(
       int callId,
       std::unique_ptr<v8_inspector::StringBuffer> message) override {
     sendMessageToFrontend(message->string());
   }
 
+  // v8_inspector::V8Inspector::Channel
   void sendNotification(
       std::unique_ptr<v8_inspector::StringBuffer> message) override {
     sendMessageToFrontend(message->string());
   }
 
+  // v8_inspector::V8Inspector::Channel
   void flushProtocolNotifications() override { }
+  // crdtp::FrontendChannel
+  void FlushProtocolNotifications() override {}
 
   void sendMessageToFrontend(const StringView& message) {
     if (per_process::enabled_debug_list.enabled(
@@ -336,20 +354,34 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     sendMessageToFrontend(Utf8ToStringView(message)->string());
   }
 
-  using Serializable = protocol::Serializable;
-
-  void sendProtocolResponse(int callId,
+  // crdtp::FrontendChannel
+  void SendProtocolResponse(int callId,
                             std::unique_ptr<Serializable> message) override {
-    sendMessageToFrontend(message->serializeToJSON());
-  }
-  void sendProtocolNotification(
-      std::unique_ptr<Serializable> message) override {
-    sendMessageToFrontend(message->serializeToJSON());
+    std::vector<uint8_t> cbor = message->Serialize();
+    std::string json;
+    crdtp::Status status = ConvertCBORToJSON(crdtp::SpanFrom(cbor), &json);
+    DCHECK(status.ok());
+    USE(status);
+
+    sendMessageToFrontend(json);
   }
 
-  void fallThrough(int callId,
-                   const std::string& method,
-                   const std::string& message) override {
+  // crdtp::FrontendChannel
+  void SendProtocolNotification(
+      std::unique_ptr<Serializable> message) override {
+    std::vector<uint8_t> cbor = message->Serialize();
+    std::string json;
+    crdtp::Status status = ConvertCBORToJSON(crdtp::SpanFrom(cbor), &json);
+    DCHECK(status.ok());
+    USE(status);
+
+    sendMessageToFrontend(json);
+  }
+
+  // crdtp::FrontendChannel
+  void FallThrough(int call_id,
+                   crdtp::span<uint8_t> method,
+                   crdtp::span<uint8_t> message) override {
     DCHECK(false);
   }
 
@@ -359,7 +391,7 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   std::unique_ptr<NetworkInspector> network_inspector_;
   std::unique_ptr<InspectorSessionDelegate> delegate_;
   std::unique_ptr<v8_inspector::V8InspectorSession> session_;
-  std::unique_ptr<protocol::UberDispatcher> node_dispatcher_;
+  std::unique_ptr<UberDispatcher> node_dispatcher_;
   bool prevent_shutdown_;
   bool retaining_context_;
 };
@@ -380,12 +412,12 @@ class SameThreadInspectorSession : public InspectorSession {
 void NotifyClusterWorkersDebugEnabled(Environment* env) {
   Isolate* isolate = env->isolate();
   HandleScope handle_scope(isolate);
-  Local<Context> context = env->context();
 
   // Send message to enable debug in cluster workers
-  Local<Object> message = Object::New(isolate);
-  message->Set(context, FIXED_ONE_BYTE_STRING(isolate, "cmd"),
-               FIXED_ONE_BYTE_STRING(isolate, "NODE_DEBUG_ENABLED")).Check();
+  Local<Name> name = FIXED_ONE_BYTE_STRING(isolate, "cmd");
+  Local<Value> value = FIXED_ONE_BYTE_STRING(isolate, "NODE_DEBUG_ENABLED");
+  Local<Object> message =
+      Object::New(isolate, Object::New(isolate), &name, &value, 1);
   ProcessEmit(env, "internalMessage", message);
 }
 
@@ -410,11 +442,13 @@ bool IsFilePath(const std::string& path) {
 void ThrowUninitializedInspectorError(Environment* env) {
   HandleScope scope(env->isolate());
 
-  const char* msg = "This Environment was initialized without a V8::Inspector";
-  Local<Value> exception =
-    v8::String::NewFromUtf8(env->isolate(), msg).ToLocalChecked();
-
-  env->isolate()->ThrowException(exception);
+  std::string_view msg =
+      "This Environment was initialized without a V8::Inspector";
+  Local<Value> exception;
+  if (ToV8Value(env->context(), msg, env->isolate()).ToLocal(&exception)) {
+    env->isolate()->ThrowException(exception);
+  }
+  // V8 will have scheduled a superseding error here.
 }
 
 }  // namespace

@@ -1,15 +1,16 @@
 'use strict';
 
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const { X509Certificate } = require('crypto');
 const tls = require('tls');
 const fixtures = require('../common/fixtures');
 
-const { hasOpenSSL3 } = common;
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // Test that all certificate chains provided by the reporter are rejected.
 {

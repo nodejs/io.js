@@ -13,7 +13,7 @@
 //
 // Note how the truncation is unused (but still required, as the graph builder
 // doesn't know that all of the inputs of the Phi are Smis).  After Phi
-// untagging, the phi will be a Int32, and the truncation is thus not needed
+// untagging, the phi will be an Int32, and the truncation is thus not needed
 // anymore. It's important that it's removed during Phi untagging, because its
 // input is not tagged anymore (since the phi was untagged), and it's not
 // necessary to replace it by something else.
@@ -77,10 +77,10 @@ unused_unneeded_CheckedTruncateNumberToInt32(1.5);
 //
 // Except that Phi untagging will realize that `phi` could be a Float64, and
 // will thus decide that it should be a Float64 Phi. In this case, the
-// conversion should not be dropped, because if the Phi is not a Int32, then it
+// conversion should not be dropped, because if the Phi is not an Int32, then it
 // should not be returned directly, but instead be truncated. In practice
 // though, we'll rather replace it by a CheckedTruncateFloat64ToInt32, which
-// will fail if the Float64 isn't a Int32, causing a deopt, and the reoptimized
+// will fail if the Float64 isn't an Int32, causing a deopt, and the reoptimized
 // code will have a better feedback (this is easier than to try to patch the
 // `Return(1)` to return something else).
 function unused_required_CheckedSmiUntag(x) {
@@ -105,7 +105,7 @@ assertUnoptimized(unused_required_CheckedSmiUntag);
 
 
 // Finally, int this example, during feedback collection, `phi` will always be a
-// Smi, which means that `phi + 2` will be a Int32AddWithOverflow, preceeded by
+// Smi, which means that `phi + 2` will be an Int32AddWithOverflow, preceeded by
 // a CheckedSmiUntag(Phi):
 //
 //    1: Phi(d, #42)

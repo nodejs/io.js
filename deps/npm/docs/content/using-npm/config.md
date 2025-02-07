@@ -360,7 +360,7 @@ are same as `cpu` field of package.json, which comes from `process.arch`.
 
 #### `depth`
 
-* Default: `Infinity` if `--all` is set, otherwise `1`
+* Default: `Infinity` if `--all` is set, otherwise `0`
 * Type: null or Number
 
 The depth to go when recursing packages for `npm ls`.

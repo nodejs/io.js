@@ -20,6 +20,7 @@
 #include "src/compiler/node-origin-table.h"
 #include "src/compiler/osr.h"
 #include "src/compiler/phase.h"
+#include "src/compiler/turboshaft/builtin-compiler.h"
 #include "src/compiler/turboshaft/graph.h"
 #include "src/compiler/turboshaft/sidetable.h"
 #include "src/compiler/turboshaft/zone-with-name.h"
@@ -129,9 +130,12 @@ struct ComponentWithZone {
 
 struct BuiltinComponent {
   const CallDescriptor* call_descriptor;
+  std::optional<BytecodeHandlerData> bytecode_handler_data;
 
-  BuiltinComponent(const CallDescriptor* call_descriptor)
-      : call_descriptor(call_descriptor) {}
+  BuiltinComponent(const CallDescriptor* call_descriptor,
+                   std::optional<BytecodeHandlerData> bytecode_handler_data)
+      : call_descriptor(call_descriptor),
+        bytecode_handler_data(std::move(bytecode_handler_data)) {}
 };
 
 struct GraphComponent : public ComponentWithZone<kGraphZoneName> {
@@ -219,9 +223,12 @@ class V8_EXPORT_PRIVATE PipelineData {
     dependencies_ = dependencies;
   }
 
-  void InitializeBuiltinComponent(const CallDescriptor* call_descriptor) {
+  void InitializeBuiltinComponent(
+      const CallDescriptor* call_descriptor,
+      std::optional<BytecodeHandlerData> bytecode_handler_data = {}) {
     DCHECK(!builtin_component_.has_value());
-    builtin_component_.emplace(call_descriptor);
+    builtin_component_.emplace(call_descriptor,
+                               std::move(bytecode_handler_data));
   }
 
   void InitializeGraphComponent(SourcePositionTable* source_positions) {
@@ -335,6 +342,10 @@ class V8_EXPORT_PRIVATE PipelineData {
   const CallDescriptor* builtin_call_descriptor() const {
     DCHECK(builtin_component_.has_value());
     return builtin_component_->call_descriptor;
+  }
+  std::optional<BytecodeHandlerData>& bytecode_handler_data() {
+    DCHECK(builtin_component_.has_value());
+    return builtin_component_->bytecode_handler_data;
   }
 
   bool has_graph() const {

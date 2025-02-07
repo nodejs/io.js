@@ -77,6 +77,7 @@ static unsigned CpuFeaturesImpliedByCompiler() {
   return answer;
 }
 
+#ifdef USE_SIMULATOR
 static unsigned SimulatorFeatures() {
   unsigned answer = 0;
   answer |= 1u << RISCV_SIMD;
@@ -87,6 +88,7 @@ static unsigned SimulatorFeatures() {
   answer |= 1u << FPU;
   return answer;
 }
+#endif
 
 bool CpuFeatures::SupportsWasmSimd128() { return IsSupported(RISCV_SIMD); }
 
@@ -239,7 +241,8 @@ Assembler::Assembler(const AssemblerOptions& options,
                      std::unique_ptr<AssemblerBuffer> buffer)
     : AssemblerBase(options, std::move(buffer)),
       VU(this),
-      scratch_register_list_({t3, t5}),
+      scratch_register_list_(DefaultTmpList()),
+      scratch_double_register_list_(DefaultFPTmpList()),
       constpool_(this) {
   reloc_info_writer.Reposition(buffer_start_ + buffer_->size(), pc_);
 
@@ -290,8 +293,12 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
   // this point to make CodeDesc initialization less fiddly.
 
   static constexpr int kConstantPoolSize = 0;
+  static constexpr int kBuiltinJumpTableInfoSize = 0;
   const int instruction_size = pc_offset();
-  const int code_comments_offset = instruction_size - code_comments_size;
+  const int builtin_jump_table_info_offset =
+      instruction_size - kBuiltinJumpTableInfoSize;
+  const int code_comments_offset =
+      builtin_jump_table_info_offset - code_comments_size;
   const int constant_pool_offset = code_comments_offset - kConstantPoolSize;
   const int handler_table_offset2 = (handler_table_offset == kNoHandlerTable)
                                         ? constant_pool_offset
@@ -304,7 +311,8 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
       static_cast<int>(reloc_info_writer.pos() - buffer_->start());
   CodeDesc::Initialize(desc, this, safepoint_table_offset,
                        handler_table_offset2, constant_pool_offset,
-                       code_comments_offset, reloc_info_offset);
+                       code_comments_offset, builtin_jump_table_info_offset,
+                       reloc_info_offset);
 }
 
 void Assembler::Align(int m) {
@@ -430,8 +438,9 @@ int Assembler::target_at(int pos, bool is_internal) {
   }
 }
 
-static inline Instr SetBranchOffset(int32_t pos, int32_t target_pos,
-                                    Instr instr) {
+[[nodiscard]] static inline Instr SetBranchOffset(int32_t pos,
+                                                  int32_t target_pos,
+                                                  Instr instr) {
   int32_t imm = target_pos - pos;
   DCHECK_EQ(imm & 1, 0);
   DCHECK(is_intn(imm, Assembler::kBranchOffsetBits));
@@ -445,7 +454,7 @@ static inline Instr SetBranchOffset(int32_t pos, int32_t target_pos,
   return instr | (imm12 & kBImm12Mask);
 }
 
-static inline Instr SetLoadOffset(int32_t offset, Instr instr) {
+[[nodiscard]] static inline Instr SetLoadOffset(int32_t offset, Instr instr) {
 #if V8_TARGET_ARCH_RISCV64
   DCHECK(Assembler::IsLd(instr));
 #elif V8_TARGET_ARCH_RISCV32
@@ -457,14 +466,14 @@ static inline Instr SetLoadOffset(int32_t offset, Instr instr) {
   return instr | (imm12 & kImm12Mask);
 }
 
-static inline Instr SetAuipcOffset(int32_t offset, Instr instr) {
+[[nodiscard]] static inline Instr SetAuipcOffset(int32_t offset, Instr instr) {
   DCHECK(Assembler::IsAuipc(instr));
   DCHECK(is_int20(offset));
   instr = (instr & ~kImm31_12Mask) | ((offset & kImm19_0Mask) << 12);
   return instr;
 }
 
-static inline Instr SetJalrOffset(int32_t offset, Instr instr) {
+[[nodiscard]] static inline Instr SetJalrOffset(int32_t offset, Instr instr) {
   DCHECK(Assembler::IsJalr(instr));
   DCHECK(is_int12(offset));
   instr &= ~kImm12Mask;
@@ -474,7 +483,8 @@ static inline Instr SetJalrOffset(int32_t offset, Instr instr) {
   return instr | (imm12 & kImm12Mask);
 }
 
-static inline Instr SetJalOffset(int32_t pos, int32_t target_pos, Instr instr) {
+[[nodiscard]] static inline Instr SetJalOffset(int32_t pos, int32_t target_pos,
+                                               Instr instr) {
   DCHECK(Assembler::IsJal(instr));
   int32_t imm = target_pos - pos;
   DCHECK_EQ(imm & 1, 0);
@@ -489,8 +499,9 @@ static inline Instr SetJalOffset(int32_t pos, int32_t target_pos, Instr instr) {
   return instr | (imm20 & kImm20Mask);
 }
 
-static inline ShortInstr SetCJalOffset(int32_t pos, int32_t target_pos,
-                                       Instr instr) {
+[[nodiscard]] static inline ShortInstr SetCJalOffset(int32_t pos,
+                                                     int32_t target_pos,
+                                                     Instr instr) {
   DCHECK(Assembler::IsCJal(instr));
   int32_t imm = target_pos - pos;
   DCHECK_EQ(imm & 1, 0);
@@ -504,8 +515,9 @@ static inline ShortInstr SetCJalOffset(int32_t pos, int32_t target_pos,
   DCHECK(Assembler::IsCJal(instr | (imm11 & kImm11Mask)));
   return instr | (imm11 & kImm11Mask);
 }
-static inline Instr SetCBranchOffset(int32_t pos, int32_t target_pos,
-                                     Instr instr) {
+[[nodiscard]] static inline Instr SetCBranchOffset(int32_t pos,
+                                                   int32_t target_pos,
+                                                   Instr instr) {
   DCHECK(Assembler::IsCBranch(instr));
   int32_t imm = target_pos - pos;
   DCHECK_EQ(imm & 1, 0);
@@ -538,8 +550,7 @@ void Assembler::disassembleInstr(uint8_t* pc) {
   DEBUG_PRINTF("%s\n", disasm_buffer.begin());
 }
 
-void Assembler::target_at_put(int pos, int target_pos, bool is_internal,
-                              bool trampoline) {
+void Assembler::target_at_put(int pos, int target_pos, bool is_internal) {
   if (is_internal) {
     uintptr_t imm = reinterpret_cast<uintptr_t>(buffer_start_) + target_pos;
     *reinterpret_cast<uintptr_t*>(buffer_start_ + pos) = imm;
@@ -559,8 +570,29 @@ void Assembler::target_at_put(int pos, int target_pos, bool is_internal,
     } break;
     case JAL: {
       DCHECK(IsJal(instr));
-      instr = SetJalOffset(pos, target_pos, instr);
-      instr_at_put(pos, instr);
+      intptr_t offset = target_pos - pos;
+      if (is_intn(offset, Assembler::kJumpOffsetBits)) {
+        instr = SetJalOffset(pos, target_pos, instr);
+        instr_at_put(pos, instr);
+      } else {
+        Instr instr_I = instr_at(pos + 4);
+        CHECK_EQ(instr_I, kNopByte);
+        CHECK(is_int32(offset + 0x800));
+        Instr instr_auipc = AUIPC | t6.code() << kRdShift;
+        instr_I = RO_JALR | (t6.code() << kRs1Shift) |
+                  (instruction->RdValue() << kRdShift);
+
+        int32_t Hi20 = (((int32_t)offset + 0x800) >> 12);
+        int32_t Lo12 = (int32_t)offset << 20 >> 20;
+
+        instr_auipc = SetAuipcOffset(Hi20, instr_auipc);
+        instr_at_put(pos, instr_auipc);
+
+        instr_I = SetJalrOffset(Lo12, instr_I);
+        instr_at_put(pos + 4, instr_I);
+        DCHECK_EQ(offset, BrachlongOffset(Assembler::instr_at(pos),
+                                          Assembler::instr_at(pos + 4)));
+      }
     } break;
     case LUI: {
       Address pc = reinterpret_cast<Address>(buffer_start_ + pos);
@@ -570,12 +602,19 @@ void Assembler::target_at_put(int pos, int target_pos, bool is_internal,
     case AUIPC: {
       Instr instr_auipc = instr;
       Instr instr_I = instr_at(pos + 4);
+      Instruction* instruction_I = Instruction::At(buffer_start_ + pos + 4);
       DCHECK(IsJalr(instr_I) || IsAddi(instr_I));
 
       intptr_t offset = target_pos - pos;
-      if (is_int21(offset) && IsJalr(instr_I) && trampoline) {
+      if (is_int21(offset) && IsJalr(instr_I) &&
+          (instruction->RdValue() == instruction_I->Rs1Value())) {
+        if (v8_flags.riscv_debug) {
+          disassembleInstr(buffer_start_ + pos);
+          disassembleInstr(buffer_start_ + pos + 4);
+        }
+        DEBUG_PRINTF("\ttarget_at_put: Relpace by JAL pos:(%d) \n", pos);
         DCHECK(is_int21(offset) && ((offset & 1) == 0));
-        Instr instr = JAL;
+        Instr instr = JAL | (instruction_I->RdValue() << kRdShift);
         instr = SetJalOffset(pos, target_pos, instr);
         DCHECK(IsJal(instr));
         DCHECK(JumpOffset(instr) == offset);
@@ -587,8 +626,7 @@ void Assembler::target_at_put(int pos, int target_pos, bool is_internal,
         int32_t Hi20 = (((int32_t)offset + 0x800) >> 12);
         int32_t Lo12 = (int32_t)offset << 20 >> 20;
 
-        instr_auipc =
-            (instr_auipc & ~kImm31_12Mask) | ((Hi20 & kImm19_0Mask) << 12);
+        instr_auipc = SetAuipcOffset(Hi20, instr_auipc);
         instr_at_put(pos, instr_auipc);
 
         const int kImm31_20Mask = ((1 << 12) - 1) << 20;
@@ -676,7 +714,7 @@ void Assembler::bind_to(Label* L, int pos) {
           }
           CHECK((trampoline_pos - fixup_pos) <= kMaxBranchOffset);
           DEBUG_PRINTF("\t\ttrampolining: %d\n", trampoline_pos);
-          target_at_put(fixup_pos, trampoline_pos, false, true);
+          target_at_put(fixup_pos, trampoline_pos, false);
           fixup_pos = trampoline_pos;
         }
         target_at_put(fixup_pos, pos, false);
@@ -688,7 +726,7 @@ void Assembler::bind_to(Label* L, int pos) {
           }
           CHECK((trampoline_pos - fixup_pos) <= kMaxJumpOffset);
           DEBUG_PRINTF("\t\ttrampolining: %d\n", trampoline_pos);
-          target_at_put(fixup_pos, trampoline_pos, false, true);
+          target_at_put(fixup_pos, trampoline_pos, false);
           fixup_pos = trampoline_pos;
         }
         target_at_put(fixup_pos, pos, false);
@@ -776,7 +814,7 @@ int Assembler::PatchBranchlongOffset(Address pc, Instr instr_auipc,
 int32_t Assembler::get_trampoline_entry(int32_t pos) {
   int32_t trampoline_entry = kInvalidSlotPos;
   if (!internal_trampoline_exception_) {
-    DEBUG_PRINTF("\tstart: %d,pos: %d\n", trampoline_.start(), pos);
+    DEBUG_PRINTF("\ttrampoline start: %d,pos: %d\n", trampoline_.start(), pos);
     if (trampoline_.start() > pos) {
       trampoline_entry = trampoline_.take_slot();
     }
@@ -942,7 +980,7 @@ inline int64_t signExtend(uint64_t V, int N) {
 #if V8_TARGET_ARCH_RISCV64
 void Assembler::RV_li(Register rd, int64_t imm) {
   UseScratchRegisterScope temps(this);
-  if (RecursiveLiCount(imm) > GeneralLiCount(imm, temps.hasAvailable())) {
+  if (RecursiveLiCount(imm) > GeneralLiCount(imm, temps.CanAcquire())) {
     GeneralLi(rd, imm);
   } else {
     RecursiveLi(rd, imm);
@@ -995,7 +1033,7 @@ void Assembler::GeneralLi(Register rd, int64_t imm) {
       // No temp register is needed
     } else {
       BlockTrampolinePoolScope block_trampoline_pool(this);
-      temp_reg = temps.hasAvailable() ? temps.Acquire() : no_reg;
+      temp_reg = temps.CanAcquire() ? temps.Acquire() : no_reg;
     }
     if (temp_reg != no_reg) {
       // keep track of hardware behavior for lower part in sim_low
@@ -1710,10 +1748,6 @@ void Assembler::set_target_value_at(Address pc, uint32_t target,
 }
 #endif
 
-bool UseScratchRegisterScope::hasAvailable() const {
-  return !available_->is_empty();
-}
-
 bool Assembler::IsConstantPoolAt(Instruction* instr) {
   // The constant pool marker is made of two instructions. These instructions
   // will never be emitted by the JIT, so checking for the first one is enough:
@@ -2210,5 +2244,8 @@ int Assembler::GeneralLiCount(int64_t imm, bool is_get_temp_reg) {
   return count;
 }
 #endif
+
+RegList Assembler::DefaultTmpList() { return {t3, t5}; }
+DoubleRegList Assembler::DefaultFPTmpList() { return {kScratchDoubleReg}; }
 }  // namespace internal
 }  // namespace v8

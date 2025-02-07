@@ -37,8 +37,9 @@ struct WasmModule;
 }  // namespace wasm
 
 namespace compiler::turboshaft {
-class TurboshaftCompilationJob;
 class Graph;
+class PipelineData;
+class TurboshaftCompilationJob;
 }  // namespace compiler::turboshaft
 
 namespace compiler {
@@ -54,10 +55,6 @@ class SourcePositionTable;
 struct WasmCompilationData;
 class TFPipelineData;
 class ZoneStats;
-
-namespace turboshaft {
-class PipelineData;
-}
 
 struct InstructionRangesAsJSON {
   const InstructionSequence* sequence;

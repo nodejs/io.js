@@ -61,6 +61,7 @@ class WasmModuleObject;
 enum class SharedFlag : uint8_t;
 
 enum class WasmTableFlag : uint8_t { kTable32, kTable64 };
+enum class IsAWrapper : uint8_t { kYes, kMaybe, kNo };
 
 template <typename CppType>
 class Managed;
@@ -119,10 +120,11 @@ class ImportedFunctionEntry {
   // parameter since it allocates a WasmImportData.
   void SetGenericWasmToJs(Isolate*, DirectHandle<JSReceiver> callable,
                           wasm::Suspend suspend, const wasm::FunctionSig* sig);
-  V8_EXPORT_PRIVATE void SetCompiledWasmToJs(
-      Isolate*, DirectHandle<JSReceiver> callable,
-      const wasm::WasmCode* wasm_to_js_wrapper, wasm::Suspend suspend,
-      const wasm::FunctionSig* sig);
+  V8_EXPORT_PRIVATE void SetCompiledWasmToJs(Isolate*,
+                                             DirectHandle<JSReceiver> callable,
+                                             wasm::WasmCode* wasm_to_js_wrapper,
+                                             wasm::Suspend suspend,
+                                             const wasm::FunctionSig* sig);
 
   // Initialize this entry as a Wasm to Wasm call.
   void SetWasmToWasm(Tagged<WasmTrustedInstanceData> target_instance_object,
@@ -137,7 +139,8 @@ class ImportedFunctionEntry {
   Tagged<Object> maybe_callable();
   Tagged<Object> implicit_arg();
   Address target();
-  void set_target(Address new_target);
+  void set_target(Address new_target, wasm::WasmCode* wrapper_if_known,
+                  IsAWrapper contextual_knowledge);
 
 #if V8_ENABLE_DRUMBRAKE
   int function_index_in_called_module();
@@ -703,6 +706,45 @@ class WasmTagObject
   TQ_OBJECT_CONSTRUCTORS(WasmTagObject)
 };
 
+// Off-heap data object owned by a WasmDispatchTable. Currently used for
+// tracking referenced WasmToJS wrappers (shared per process), so we can
+// decrement their refcounts when the WasmDispatchTable is freed.
+class WasmDispatchTableData {
+ public:
+  WasmDispatchTableData() = default;
+  ~WasmDispatchTableData();
+
+  // We need to map {call_target} to a WasmCode* if it is an import wrapper.
+  // Doing that via the wrapper cache has overhead, so as a performance
+  // optimization, callers can avoid that lookup by providing additional
+  // information: a non-nullptr WasmCode* if they have it; and otherwise
+  // {contextual_knowledge == kNo} when they know for sure that {call_target}
+  // does not belong to a wrapper.
+  // Passing {wrapper_if_known == nullptr} and {contextual_knowledge == kMaybe}
+  // is always safe, but might be slower.
+  void Add(Address call_target, wasm::WasmCode* wrapper_if_known,
+           IsAWrapper contextual_knowledge);
+  void Remove(Address call_target);
+
+ private:
+  // The {wrappers_} data structure serves two purposes:
+  // 1) It maps call targets to wrappers.
+  //    When an entry's value is {nullptr}, that means we know for sure it's not
+  //    a wrapper. This duplicates information we could get from
+  //    {wasm::GetWasmImportWrapperCache()->FindWrapper}, but doesn't require
+  //    any locks, which is important for applications with many worker threads.
+  // 2) It keeps track of all wrappers that are currently installed in this
+  //    table, and how often they are stored in this table. The first time a
+  //    wrapper is added to the table, we increment the ref count. When we
+  //    remove the last reference, we decrement the ref count, which potentially
+  //    triggers code GC.
+  struct WrapperEntry {
+    wasm::WasmCode* code;  // {nullptr} if this is not a wrapper.
+    int count = 1;         // irrelevant if this is not a wrapper.
+  };
+  std::unordered_map<Address, WrapperEntry> wrappers_;
+};
+
 // The dispatch table is referenced from a WasmTableObject and from every
 // WasmTrustedInstanceData which uses the table. It is used from generated code
 // for executing indirect calls.
@@ -715,7 +757,10 @@ class WasmDispatchTable : public TrustedObject {
 
   static constexpr size_t kLengthOffset = kHeaderSize;
   static constexpr size_t kCapacityOffset = kLengthOffset + kUInt32Size;
-  static constexpr size_t kEntriesOffset = kCapacityOffset + kUInt32Size;
+  static constexpr size_t kProtectedOffheapDataOffset =
+      kCapacityOffset + kUInt32Size;
+  static constexpr size_t kEntriesOffset =
+      kProtectedOffheapDataOffset + kTaggedSize;
 
   // Entries consist of
   // - target (pointer)
@@ -771,6 +816,10 @@ class WasmDispatchTable : public TrustedObject {
   // The current capacity. Can be bigger than the current length to allow for
   // more efficient growing.
   inline int capacity() const;
+
+  DECL_PROTECTED_POINTER_ACCESSORS(protected_offheap_data,
+                                   TrustedManaged<WasmDispatchTableData>)
+  inline WasmDispatchTableData* offheap_data() const;
 
   // Accessors.
   // {implicit_arg} will be a WasmImportData, a WasmTrustedInstanceData, or
@@ -992,8 +1041,8 @@ class WasmImportData
 
   static constexpr int kInvalidCallOrigin = 0;
 
-  static void SetImportIndexAsCallOrigin(DirectHandle<WasmImportData> ref,
-                                         int entry_index);
+  static void SetImportIndexAsCallOrigin(
+      DirectHandle<WasmImportData> import_data, int entry_index);
 
   static bool CallOriginIsImportIndex(DirectHandle<Object> call_origin);
 
@@ -1001,14 +1050,14 @@ class WasmImportData
 
   static int CallOriginAsIndex(DirectHandle<Object> call_origin);
 
-  static void SetIndexInTableAsCallOrigin(DirectHandle<WasmImportData> ref,
-                                          int entry_index);
+  static void SetIndexInTableAsCallOrigin(
+      DirectHandle<WasmImportData> import_data, int entry_index);
 
   static void SetCrossInstanceTableIndexAsCallOrigin(
-      Isolate* isolate, DirectHandle<WasmImportData> ref,
+      Isolate* isolate, DirectHandle<WasmImportData> import_data,
       DirectHandle<WasmInstanceObject> instance_object, int entry_index);
 
-  static void SetFuncRefAsCallOrigin(DirectHandle<WasmImportData> ref,
+  static void SetFuncRefAsCallOrigin(DirectHandle<WasmImportData> import_data,
                                      DirectHandle<WasmFuncRef> func_ref);
 
   using BodyDescriptor =

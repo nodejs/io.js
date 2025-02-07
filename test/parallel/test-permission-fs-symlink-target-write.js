@@ -2,11 +2,19 @@
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
-if (!common.canCreateSymLink())
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
+
+if (!common.canCreateSymLink()) {
   common.skip('insufficient privileges');
-if (!common.hasCrypto)
+}
+
+if (!common.hasCrypto) {
   common.skip('no crypto');
+}
 
 const assert = require('assert');
 const fs = require('fs');
@@ -15,9 +23,7 @@ const tmpdir = require('../common/tmpdir');
 const fixtures = require('../common/fixtures');
 const { spawnSync } = require('child_process');
 
-{
-  tmpdir.refresh();
-}
+tmpdir.refresh();
 
 const readOnlyFolder = tmpdir.resolve('read-only');
 const readWriteFolder = tmpdir.resolve('read-write');

@@ -97,8 +97,7 @@ int uv__io_fork(uv_loop_t* loop) {
 
 
 int uv__io_check_fd(uv_loop_t* loop, int fd) {
-  struct kevent ev;
-  int rc;
+  struct kevent ev[2];
   struct stat sb;
 #ifdef __APPLE__
   char path[MAXPATHLEN];
@@ -133,17 +132,12 @@ int uv__io_check_fd(uv_loop_t* loop, int fd) {
   }
 #endif
 
-  rc = 0;
-  EV_SET(&ev, fd, EVFILT_READ, EV_ADD, 0, 0, 0);
-  if (kevent(loop->backend_fd, &ev, 1, NULL, 0, NULL))
-    rc = UV__ERR(errno);
+  EV_SET(ev, fd, EVFILT_READ, EV_ADD, 0, 0, 0);
+  EV_SET(ev + 1, fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
+  if (kevent(loop->backend_fd, ev, 2, NULL, 0, NULL))
+    return UV__ERR(errno);
 
-  EV_SET(&ev, fd, EVFILT_READ, EV_DELETE, 0, 0, 0);
-  if (rc == 0)
-    if (kevent(loop->backend_fd, &ev, 1, NULL, 0, NULL))
-      abort();
-
-  return rc;
+  return 0;
 }
 
 
@@ -366,6 +360,17 @@ void uv__io_poll(uv_loop_t* loop, int timeout) {
         uv__kqueue_delete(loop->backend_fd, ev);
         continue;
       }
+
+#if UV__KQUEUE_EVFILT_USER
+      if (ev->filter == EVFILT_USER) {
+        w = &loop->async_io_watcher;
+        assert(fd == w->fd);
+        uv__metrics_update_idle_time(loop);
+        w->cb(loop, w, w->events);
+        nevents++;
+        continue;
+      }
+#endif
 
       if (ev->filter == EVFILT_VNODE) {
         assert(w->events == POLLIN);

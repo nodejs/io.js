@@ -1935,8 +1935,9 @@ void OnStackReplacement(MacroAssembler* masm, OsrSourceTier source,
   Label jump_to_optimized_code;
   {
     // If maybe_target_code is not null, no need to call into runtime. A
-    // precondition here is: if maybe_target_code is a InstructionStream object,
-    // it must NOT be marked_for_deoptimization (callers must ensure this).
+    // precondition here is: if maybe_target_code is an InstructionStream
+    // object, it must NOT be marked_for_deoptimization (callers must ensure
+    // this).
     __ cmp(maybe_target_code, Operand(Smi::zero()));
     __ b(ne, &jump_to_optimized_code);
   }
@@ -2802,10 +2803,10 @@ struct SaveWasmParamsScope {
 
 // This builtin creates the following stack frame:
 //
-// [  feedback vector  ]  <-- sp  // Added by this builtin.
-// [   Wasm instance   ]          // Added by this builtin.
-// [ WASM frame marker ]          // Already there on entry.
-// [     saved fp      ]  <-- fp  // Already there on entry.
+// [  feedback vector   ]  <-- sp  // Added by this builtin.
+// [ Wasm instance data ]          // Added by this builtin.
+// [ WASM frame marker  ]          // Already there on entry.
+// [     saved fp       ]  <-- fp  // Already there on entry.
 void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   Register func_index = wasm::kLiftoffFrameSetupFunctionReg;
   Register vector = r5;
@@ -2813,13 +2814,13 @@ void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   Label allocate_vector, done;
 
   __ ldr(vector,
-         FieldMemOperand(kWasmInstanceRegister,
+         FieldMemOperand(kWasmImplicitArgRegister,
                          WasmTrustedInstanceData::kFeedbackVectorsOffset));
   __ add(vector, vector, Operand(func_index, LSL, kTaggedSizeLog2));
   __ ldr(vector, FieldMemOperand(vector, FixedArray::kHeaderSize));
   __ JumpIfSmi(vector, &allocate_vector);
   __ bind(&done);
-  __ push(kWasmInstanceRegister);
+  __ push(kWasmImplicitArgRegister);
   __ push(vector);
   __ Ret();
 
@@ -2833,8 +2834,8 @@ void Builtins::Generate_WasmLiftoffFrameSetup(MacroAssembler* masm) {
   __ str(scratch, MemOperand(sp));
   {
     SaveWasmParamsScope save_params(masm);
-    // Arguments to the runtime function: instance, func_index.
-    __ push(kWasmInstanceRegister);
+    // Arguments to the runtime function: instance data, func_index.
+    __ push(kWasmImplicitArgRegister);
     __ SmiTag(func_index);
     __ push(func_index);
     // Allocate a stack slot where the runtime function can spill a pointer
@@ -2861,8 +2862,8 @@ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
     {
       SaveWasmParamsScope save_params(masm);
 
-      // Push the Wasm instance as an explicit argument to the runtime function.
-      __ push(kWasmInstanceRegister);
+      // Push the instance data as an explicit argument to the runtime function.
+      __ push(kWasmImplicitArgRegister);
       // Push the function index as second argument.
       __ push(kWasmCompileLazyFuncIndexRegister);
       // Initialize the JavaScript context with 0. CEntry will use it to
@@ -2876,9 +2877,9 @@ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
       // Saved parameters are restored at the end of this block.
     }
 
-    // After the instance register has been restored, we can add the jump table
-    // start to the jump table offset already stored in r8.
-    __ ldr(r9, FieldMemOperand(kWasmInstanceRegister,
+    // After the instance data register has been restored, we can add the jump
+    // table start to the jump table offset already stored in r8.
+    __ ldr(r9, FieldMemOperand(kWasmImplicitArgRegister,
                                WasmTrustedInstanceData::kJumpTableStartOffset));
     __ add(r8, r8, r9);
   }
@@ -3107,7 +3108,7 @@ void RestoreParentSuspender(MacroAssembler* masm, Register tmp1,
 
 void ResetStackSwitchFrameStackSlots(MacroAssembler* masm) {
   __ Zero(MemOperand(fp, StackSwitchFrameConstants::kResultArrayOffset),
-          MemOperand(fp, StackSwitchFrameConstants::kRefOffset));
+          MemOperand(fp, StackSwitchFrameConstants::kImplicitArgOffset));
 }
 
 // TODO(irezvov): Consolidate with arm64 RegisterAllocator.
@@ -3241,19 +3242,21 @@ class RegisterAllocator {
 #define FREE_REG(Name) regs.Free(&Name);
 
 // Loads the context field of the WasmTrustedInstanceData or WasmImportData
-// depending on the ref's type, and places the result in the input register.
-void GetContextFromRef(MacroAssembler* masm, Register ref, Register scratch) {
-  __ LoadTaggedField(scratch, FieldMemOperand(ref, HeapObject::kMapOffset));
+// depending on the data's type, and places the result in the input register.
+void GetContextFromImplicitArg(MacroAssembler* masm, Register data,
+                               Register scratch) {
+  __ LoadTaggedField(scratch, FieldMemOperand(data, HeapObject::kMapOffset));
   __ CompareInstanceType(scratch, scratch, WASM_TRUSTED_INSTANCE_DATA_TYPE);
   Label instance;
   Label end;
   __ b(eq, &instance);
   __ LoadTaggedField(
-      ref, FieldMemOperand(ref, WasmImportData::kNativeContextOffset));
+      data, FieldMemOperand(data, WasmImportData::kNativeContextOffset));
   __ jmp(&end);
   __ bind(&instance);
   __ LoadTaggedField(
-      ref, FieldMemOperand(ref, WasmTrustedInstanceData::kNativeContextOffset));
+      data,
+      FieldMemOperand(data, WasmTrustedInstanceData::kNativeContextOffset));
   __ bind(&end);
 }
 
@@ -3274,14 +3277,7 @@ void Builtins::Generate_WasmToJsWrapperAsm(MacroAssembler* masm) {
   // arbitrarily.
   __ Push(r6, wasm::kGpParamRegisters[3], wasm::kGpParamRegisters[2],
           wasm::kGpParamRegisters[1]);
-  // Reserve fixed slots for the CSA wrapper.
-  // Two slots for stack-switching (central stack pointer and secondary stack
-  // limit):
-  Register scratch = r1;
-  __ mov(scratch, Operand::Zero());
-  __ Push(scratch);
-  __ Push(scratch);
-  // One slot for the signature:
+  // Reserve a slot for the signature.
   __ Push(r0);
   __ TailCallBuiltin(Builtin::kWasmToJsWrapperCSA);
 }
@@ -3649,8 +3645,8 @@ void SwitchBackAndReturnPromise(MacroAssembler* masm, RegisterAllocator& regs,
       promise, FieldMemOperand(promise, WasmSuspenderObject::kPromiseOffset));
 
   __ ldr(kContextRegister,
-         MemOperand(fp, StackSwitchFrameConstants::kRefOffset));
-  GetContextFromRef(masm, kContextRegister, tmp);
+         MemOperand(fp, StackSwitchFrameConstants::kImplicitArgOffset));
+  GetContextFromImplicitArg(masm, kContextRegister, tmp);
 
   ReloadParentContinuation(masm, promise, return_value, kContextRegister, tmp,
                            tmp2, tmp3);
@@ -3698,8 +3694,8 @@ void GenerateExceptionHandlingLandingPad(MacroAssembler* masm,
   DEFINE_SCOPED(tmp2);
   DEFINE_SCOPED(tmp3);
   __ ldr(kContextRegister,
-         MemOperand(fp, StackSwitchFrameConstants::kRefOffset));
-  GetContextFromRef(masm, kContextRegister, tmp);
+         MemOperand(fp, StackSwitchFrameConstants::kImplicitArgOffset));
+  GetContextFromImplicitArg(masm, kContextRegister, tmp);
   ReloadParentContinuation(masm, promise, reason, kContextRegister, tmp, tmp2,
                            tmp3);
   RestoreParentSuspender(masm, tmp, tmp2);
@@ -3727,8 +3723,10 @@ void JSToWasmWrapperHelper(MacroAssembler* masm, bool stack_switch) {
   __ AllocateStackSpace(StackSwitchFrameConstants::kNumSpillSlots *
                         kSystemPointerSize);
 
-  DEFINE_PINNED(ref, kWasmInstanceRegister);
-  __ ldr(ref, MemOperand(fp, JSToWasmWrapperFrameConstants::kRefParamOffset));
+  // Load the implicit argument (instance data or import data) from the frame.
+  DEFINE_PINNED(implicit_arg, kWasmImplicitArgRegister);
+  __ ldr(implicit_arg,
+         MemOperand(fp, JSToWasmWrapperFrameConstants::kImplicitArgOffset));
 
   DEFINE_PINNED(wrapper_buffer,
                 WasmJSToWasmWrapperDescriptor::WrapperBufferRegister());
@@ -3737,20 +3735,22 @@ void JSToWasmWrapperHelper(MacroAssembler* masm, bool stack_switch) {
   Register original_fp = no_reg;
   Register new_wrapper_buffer = no_reg;
   if (stack_switch) {
-    SwitchToAllocatedStack(masm, regs, ref, wrapper_buffer, original_fp,
-                           new_wrapper_buffer, &suspend);
+    SwitchToAllocatedStack(masm, regs, implicit_arg, wrapper_buffer,
+                           original_fp, new_wrapper_buffer, &suspend);
   } else {
     original_fp = fp;
     new_wrapper_buffer = wrapper_buffer;
   }
 
-  regs.ResetExcept(original_fp, wrapper_buffer, ref, new_wrapper_buffer);
+  regs.ResetExcept(original_fp, wrapper_buffer, implicit_arg,
+                   new_wrapper_buffer);
 
   {
     __ str(new_wrapper_buffer,
            MemOperand(fp, JSToWasmWrapperFrameConstants::kWrapperBufferOffset));
     if (stack_switch) {
-      __ str(ref, MemOperand(fp, StackSwitchFrameConstants::kRefOffset));
+      __ str(implicit_arg,
+             MemOperand(fp, StackSwitchFrameConstants::kImplicitArgOffset));
       DEFINE_SCOPED(scratch)
       __ ldr(
           scratch,
@@ -3777,12 +3777,13 @@ void JSToWasmWrapperHelper(MacroAssembler* masm, bool stack_switch) {
   if (stack_switch) {
     FREE_REG(new_wrapper_buffer)
   }
-  FREE_REG(ref)
+  FREE_REG(implicit_arg)
   for (auto reg : wasm::kGpParamRegisters) {
     regs.Reserve(reg);
   }
 
-  // The first GP parameter is the instance, which we handle specially.
+  // The first GP parameter holds the trusted instance data or the import data.
+  // This is handled specially.
   int stack_params_offset =
       (arraysize(wasm::kGpParamRegisters) - 1) * kSystemPointerSize +
       arraysize(wasm::kFpParamRegisters) * kDoubleSize;
@@ -3896,14 +3897,15 @@ void JSToWasmWrapperHelper(MacroAssembler* masm, bool stack_switch) {
   // r2: pointer to the byte buffer which contains all parameters.
   if (stack_switch) {
     __ ldr(r1, MemOperand(fp, StackSwitchFrameConstants::kResultArrayOffset));
-    __ ldr(r0, MemOperand(fp, StackSwitchFrameConstants::kRefOffset));
+    __ ldr(r0, MemOperand(fp, StackSwitchFrameConstants::kImplicitArgOffset));
   } else {
     __ ldr(r1, MemOperand(
                    fp, JSToWasmWrapperFrameConstants::kResultArrayParamOffset));
-    __ ldr(r0, MemOperand(fp, JSToWasmWrapperFrameConstants::kRefParamOffset));
+    __ ldr(r0,
+           MemOperand(fp, JSToWasmWrapperFrameConstants::kImplicitArgOffset));
   }
   Register scratch = r3;
-  GetContextFromRef(masm, r0, scratch);
+  GetContextFromImplicitArg(masm, r0, scratch);
 
   __ CallBuiltin(Builtin::kJSToWasmHandleReturns);
 
@@ -4201,6 +4203,12 @@ void Builtins::Generate_CEntry(MacroAssembler* masm, int result_size,
                       pending_handler_entrypoint_address, no_reg));
   __ Jump(scratch);
 }
+
+#if V8_ENABLE_WEBASSEMBLY
+void Builtins::Generate_WasmHandleStackOverflow(MacroAssembler* masm) {
+  __ Trap();
+}
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 void Builtins::Generate_DoubleToI(MacroAssembler* masm) {
   Label negate, done;

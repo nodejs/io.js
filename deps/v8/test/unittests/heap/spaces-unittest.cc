@@ -55,7 +55,8 @@ TEST_F(SpacesTest, CompactionSpaceMerge) {
 
   CompactionSpace* compaction_space =
       new CompactionSpace(heap, OLD_SPACE, NOT_EXECUTABLE,
-                          CompactionSpaceKind::kCompactionSpaceForMarkCompact);
+                          CompactionSpaceKind::kCompactionSpaceForMarkCompact,
+                          CompactionSpace::DestinationHeap::kSameHeap);
   MainAllocator allocator(heap, compaction_space, MainAllocator::kInGC);
   EXPECT_TRUE(compaction_space != nullptr);
 

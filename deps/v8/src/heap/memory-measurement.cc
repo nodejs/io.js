@@ -14,12 +14,12 @@
 #include "src/logging/counters.h"
 #include "src/objects/js-array-buffer-inl.h"
 #include "src/objects/js-promise-inl.h"
-#include "src/objects/smi.h"
 #include "src/tasks/task-utils.h"
 
 #if V8_ENABLE_WEBASSEMBLY
 #include "src/wasm/wasm-code-manager.h"
 #include "src/wasm/wasm-engine.h"
+#include "src/wasm/wasm-import-wrapper-cache.h"
 #endif
 
 namespace v8 {
@@ -238,7 +238,8 @@ void MemoryMeasurement::FinishProcessing(const NativeContextStats& stats) {
 #if V8_ENABLE_WEBASSEMBLY
   size_t wasm_code = wasm::GetWasmCodeManager()->committed_code_space();
   size_t wasm_metadata =
-      wasm::GetWasmEngine()->EstimateCurrentMemoryConsumption();
+      wasm::GetWasmEngine()->EstimateCurrentMemoryConsumption() +
+      wasm::GetWasmImportWrapperCache()->EstimateCurrentMemoryConsumption();
 #endif
 
   while (!processing_.empty()) {

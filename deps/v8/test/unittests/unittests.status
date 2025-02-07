@@ -223,65 +223,6 @@
   'AssemblerX64Test.*': [SKIP],
 }],  # has_jitless
 
-################################################################################
-['third_party_heap', {
-  # Tests on OptimizingCompileDispatcher
-  'OptimizingCompileDispatcherTest.NonBlockingFlush': [SKIP],
-  'OptimizingCompileDispatcherTest.Construct': [SKIP],
-  # Test V8 stock GC
-  'SpacesTest.CompactionSpaceMerge': [SKIP],
-  # Requires --concurrent_inlining / --finalize_streaming_on_background:
-  'LocalFactoryTest.AstConsString_CreatesConsString': [SKIP],
-  'LocalFactoryTest.AstRawString_IsInternalized': [SKIP],
-  'LocalFactoryTest.EagerFunction': [SKIP],
-  'LocalFactoryTest.EmptyScript': [SKIP],
-  'LocalFactoryTest.GCDuringPublish': [SKIP],
-  'LocalFactoryTest.ImplicitNameFunction': [SKIP],
-  'LocalFactoryTest.LazyFunction': [SKIP],
-  'LocalFactoryTest.OneByteInternalizedString_DuplicateIsDeduplicated': [SKIP],
-  'LocalFactoryTest.OneByteInternalizedString_IsAddedToStringTable': [SKIP],
-  # Requires write barriers
-  'SpacesTest.WriteBarrierInYoungGenerationToSpace': [SKIP],
-  'SpacesTest.WriteBarrierInYoungGenerationFromSpace': [SKIP],
-  # Requires a second isolate
-  'ValueSerializerTest.DecodeArrayBufferOOM': [SKIP],
-  'LogExternalLogEventListenerInnerFunctionTest.ExternalLogEventListenerInnerFunctions': [SKIP],
-  'LogInterpretedFramesNativeStackWithSerializationTest.LogInterpretedFramesNativeStackWithSerialization': [SKIP],
-  'ManagedTest.*': [SKIP],
-
-  # Performs GC
-  'APIExceptionTest.ExceptionMessageDoesNotKeepContextAlive': [SKIP],
-  'GlobalHandlesTest.FinalizerDiesAndKeepsPhantomAliveOnMarkCompact': [SKIP],
-  'GlobalHandlesTest.FinalizerWeakness': [SKIP],
-  'GlobalHandlesTest.GCFromWeakCallbacks': [SKIP],
-  'GlobalHandlesTest.PhantomHandlesWithoutCallbacks': [SKIP],
-  'GlobalHandlesTest.SecondPassPhantomCallbacks': [SKIP],
-  'GlobalHandlesTest.WeakHandleToUnmodifiedJSApiObjectDiesOnMarkCompact': [SKIP],
-  'GlobalHandlesTest.WeakHandleToUnmodifiedJSObjectDiesOnMarkCompact': [SKIP],
-  'LocalHeapTest.GCEpilogue': [SKIP],
-  'UnifiedHeapDetachedTest.AllocationBeforeConfigureHeap': [SKIP],
-  'UnifiedHeapTest.FindingV8ToBlinkReference': [SKIP],
-  'ManagedTest.GCCausesDestruction': [SKIP],
-  'WeakMapsTest.WeakMapsWithChainedEntries': [SKIP],
-  'WeakMapsTest.Weakness': [SKIP],
-  'WeakSetsTest.WeakSet_Weakness': [SKIP],
-
-  # CodeRange tests
-  'CodePagesTest.LargeCodeObjectWithSignalHandler': [SKIP],
-  'CodePagesTest.LargeCodeObject': [SKIP],
-  'CodePagesTest.OptimizedCodeWithCodeRange': [SKIP],
-  'CodePagesTest.Sorted': [SKIP],
-  'CodePagesTest.CodeRangeCorrectContents': [SKIP],
-
-  # Access chunk metadata
-  'RootsTest.TestHeapRootsNotReadOnly': [SKIP],
-  'RootsTest.TestReadOnlyRoots': [SKIP],
-
-  # Expects OOM
-  'FactoryCodeBuilderOOMTest.Factory_CodeBuilder_BuildOOM': [SKIP],
-  'FactoryCodeBuilderOOMTest.Factory_CodeBuilder_TryBuildOOM': [SKIP],
-}], # third_party_heap
-
 ##############################################################################
 ['byteorder == big', {
   # Peephole optimization not supported on big-endian machines.
@@ -394,11 +335,5 @@
   # Too slow tests.
   'LogAllTest.LogAll': [SKIP],
 }],  # 'clang_coverage and mode == debug'
-
-['conservative_stack_scanning', {
-  # Test relies on carefully controlled handle lifetime.
-  # TODO(leszeks): Fix this test.
-  'BackgroundMergeTest.GCDuringMerge': [PASS,FAIL],
-}],
 
 ]

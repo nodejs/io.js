@@ -1,4 +1,3 @@
-/* eslint-disable max-len */
 const { stripVTControlCharacters: strip } = require('node:util')
 const { Minipass } = require('minipass')
 
@@ -82,7 +81,11 @@ class TextOutputStream extends Minipass {
 
   constructor (opts) {
     super()
-    this.#args = opts.args.map(s => s.toLowerCase()).filter(Boolean)
+    // Consider a search for "cowboys" and "boy".  If we highlight "boys" first the "cowboys" string will no longer string match because of the ansi highlighting added to "boys".  If we highlight "boy" second then the ansi reset at the end will make the highlighting only on "cowboy" with a normal "s".  Neither is perfect but at least the first option doesn't do partial highlighting. So, we sort strings smaller to larger
+    this.#args = opts.args
+      .map(s => s.toLowerCase())
+      .filter(Boolean)
+      .sort((a, b) => a.length - b.length)
     this.#chalk = opts.npm.chalk
     this.#exclude = opts.exclude
     this.#parseable = opts.parseable
@@ -124,38 +127,17 @@ class TextOutputStream extends Minipass {
       }
     }).join(' ')
 
-    let description = []
-    for (const arg of this.#args) {
-      const finder = pkg.description.toLowerCase().split(arg.toLowerCase())
-      let p = 0
-      for (const f of finder) {
-        description.push(pkg.description.slice(p, p + f.length))
-        const word = pkg.description.slice(p + f.length, p + f.length + arg.length)
-        description.push(this.#chalk.cyan(word))
-        p += f.length + arg.length
-      }
-    }
-    description = description.filter(Boolean)
-    let name = pkg.name
+    const description = this.#highlight(pkg.description)
+    let name
     if (this.#args.includes(pkg.name)) {
       name = this.#chalk.cyan(pkg.name)
     } else {
-      name = []
-      for (const arg of this.#args) {
-        const finder = pkg.name.toLowerCase().split(arg.toLowerCase())
-        let p = 0
-        for (const f of finder) {
-          name.push(pkg.name.slice(p, p + f.length))
-          const word = pkg.name.slice(p + f.length, p + f.length + arg.length)
-          name.push(this.#chalk.cyan(word))
-          p += f.length + arg.length
-        }
-      }
-      name = this.#chalk.blue(name.join(''))
+      name = this.#highlight(pkg.name)
+      name = this.#chalk.blue(name)
     }
 
     if (description.length) {
-      output = `${name}\n${description.join('')}\n`
+      output = `${name}\n${description}\n`
     } else {
       output = `${name}\n`
     }
@@ -170,5 +152,22 @@ class TextOutputStream extends Minipass {
     }
     output += `${this.#chalk.blue(`https://npm.im/${pkg.name}`)}\n`
     return super.write(output)
+  }
+
+  #highlight (input) {
+    let output = input
+    for (const arg of this.#args) {
+      let i = output.toLowerCase().indexOf(arg)
+      while (i > -1) {
+        const highlit = this.#chalk.cyan(output.slice(i, i + arg.length))
+        output = [
+          output.slice(0, i),
+          highlit,
+          output.slice(i + arg.length),
+        ].join('')
+        i = output.toLowerCase().indexOf(arg, i + highlit.length)
+      }
+    }
+    return output
   }
 }

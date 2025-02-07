@@ -52,7 +52,7 @@ bool ValidateAndDecodeLocalDeclsForTesting(WasmEnabledFeatures enabled,
                                            const WasmModule* module,
                                            bool is_shared, const uint8_t* start,
                                            const uint8_t* end, Zone* zone) {
-  return DecodeLocalDecls<Decoder::BooleanValidationTag>(
+  return DecodeLocalDecls<Decoder::FullValidationTag>(
       enabled, decls, module, is_shared, start, end, zone);
 }
 

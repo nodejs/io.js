@@ -538,8 +538,10 @@ void Float64Modulus::SetValueLocationConstraints() {
 void Float64Modulus::GenerateCode(MaglevAssembler* masm,
                                   const ProcessingState& state) {
   FrameScope scope(masm, StackFrame::MANUAL);
+  __ Push(r2, r3, r4, r5);
   __ PrepareCallCFunction(0, 2);
   __ CallCFunction(ExternalReference::mod_two_doubles_operation(), 0, 2);
+  __ Pop(r2, r3, r4, r5);
 }
 
 void Float64Negate::SetValueLocationConstraints() {
@@ -594,8 +596,10 @@ void Float64Exponentiate::SetValueLocationConstraints() {
 void Float64Exponentiate::GenerateCode(MaglevAssembler* masm,
                                        const ProcessingState& state) {
   FrameScope scope(masm, StackFrame::MANUAL);
+  __ Push(r2, r3, r4, r5);
   __ PrepareCallCFunction(0, 2);
   __ CallCFunction(ExternalReference::ieee754_pow_function(), 0, 2);
+  __ Pop(r2, r3, r4, r5);
 }
 
 int Float64Ieee754Unary::MaxCallStackArgs() const { return 0; }
@@ -606,8 +610,10 @@ void Float64Ieee754Unary::SetValueLocationConstraints() {
 void Float64Ieee754Unary::GenerateCode(MaglevAssembler* masm,
                                        const ProcessingState& state) {
   FrameScope scope(masm, StackFrame::MANUAL);
+  __ Push(r2, r3, r4, r5);
   __ PrepareCallCFunction(0, 1);
   __ CallCFunction(ieee_function_ref(), 0, 1);
+  __ Pop(r2, r3, r4, r5);
 }
 
 void LoadTypedArrayLength::SetValueLocationConstraints() {

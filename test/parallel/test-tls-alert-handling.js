@@ -1,11 +1,14 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
-  common.skip('node compiled without OpenSSL CLI');
+const {
+  hasOpenSSL,
+  hasOpenSSL3,
+} = require('../common/crypto');
 
 const assert = require('assert');
 const net = require('net');
@@ -33,14 +36,14 @@ let iter = 0;
 const errorHandler = common.mustCall((err) => {
   let expectedErrorCode = 'ERR_SSL_WRONG_VERSION_NUMBER';
   let expectedErrorReason = 'wrong version number';
-  if (common.hasOpenSSL(3, 2)) {
+  if (hasOpenSSL(3, 2)) {
     expectedErrorCode = 'ERR_SSL_PACKET_LENGTH_TOO_LONG';
     expectedErrorReason = 'packet length too long';
   };
 
   assert.strictEqual(err.code, expectedErrorCode);
   assert.strictEqual(err.library, 'SSL routines');
-  if (!common.hasOpenSSL3) assert.strictEqual(err.function, 'ssl3_get_record');
+  if (!hasOpenSSL3) assert.strictEqual(err.function, 'ssl3_get_record');
   assert.strictEqual(err.reason, expectedErrorReason);
   errorReceived = true;
   if (canCloseServer())
@@ -96,13 +99,13 @@ function sendBADTLSRecord() {
   client.on('error', common.mustCall((err) => {
     let expectedErrorCode = 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION';
     let expectedErrorReason = 'tlsv1 alert protocol version';
-    if (common.hasOpenSSL(3, 2)) {
+    if (hasOpenSSL(3, 2)) {
       expectedErrorCode = 'ERR_SSL_TLSV1_ALERT_RECORD_OVERFLOW';
       expectedErrorReason = 'tlsv1 alert record overflow';
     }
     assert.strictEqual(err.code, expectedErrorCode);
     assert.strictEqual(err.library, 'SSL routines');
-    if (!common.hasOpenSSL3)
+    if (!hasOpenSSL3)
       assert.strictEqual(err.function, 'ssl3_read_bytes');
     assert.strictEqual(err.reason, expectedErrorReason);
   }));

@@ -305,7 +305,7 @@ void Assembler::set_target_constant32_at(Address pc, uint32_t target,
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc, 2 * kInstrSize);
   }
-  DCHECK_EQ(target_constant32_at(pc), target);
+  DCHECK_EQ(static_cast<uint32_t>(target_constant32_at(pc)), target);
 }
 
 uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {

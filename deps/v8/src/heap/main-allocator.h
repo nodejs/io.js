@@ -248,7 +248,7 @@ class MainAllocator {
 #endif  // DEBUG
 
   // Checks whether the LAB is currently in use.
-  V8_INLINE bool IsLabValid() {
+  V8_INLINE bool IsLabValid() const {
     return allocation_info_->top() != kNullAddress;
   }
 

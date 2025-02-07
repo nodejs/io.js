@@ -137,7 +137,8 @@ class StringBuiltinsReducer : public Next {
 };
 
 class StringBuiltinsAssemblerTS
-    : public TurboshaftBuiltinsAssembler<StringBuiltinsReducer> {
+    : public TurboshaftBuiltinsAssembler<StringBuiltinsReducer,
+                                         NoFeedbackCollectorReducer> {
  public:
   using Base = TurboshaftBuiltinsAssembler;
 

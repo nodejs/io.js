@@ -932,6 +932,152 @@ Maintainers: lukekarrys
 https://npm.im/pkg-no-desc
 `
 
+exports[`test/lib/commands/search.js TAP search multiple terms --color > should have expected search results with color 1`] = `
+[36mlibnpm[39m
+Collection of programmatic APIs for the npm CLI
+Version [34m3.0.1[39m published [34m2019-07-16[39m by [34misaacs[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm api package manager lib
+[34mhttps://npm.im/libnpm[39m
+[34m[36mlibnpm[39m[34maccess[39m
+programmatic library for \`npm access\` commands
+Version [34m4.0.1[39m published [34m2020-11-03[39m by [34mnlf[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: libnpmaccess
+[34mhttps://npm.im/libnpmaccess[39m
+[34m@evocateur/[36mlibnpm[39m[34maccess[39m
+programmatic library for \`npm access\` commands
+Version [34m3.1.2[39m published [34m2019-07-16[39m by [34mevocateur[39m
+Maintainers: evocateur
+[34mhttps://npm.im/@evocateur/libnpmaccess[39m
+[34m@evocateur/[36mlibnpm[39m[34m[36mpublish[39m[34m[39m
+Programmatic API for the bits behind npm [36mpublish[39m and un[36mpublish[39m
+Version [34m1.2.2[39m published [34m2019-07-16[39m by [34mevocateur[39m
+Maintainers: evocateur
+[34mhttps://npm.im/@evocateur/libnpmpublish[39m
+[34m[36mlibnpm[39m[34morg[39m
+Programmatic api for \`npm org\` commands
+Version [34m2.0.1[39m published [34m2020-11-03[39m by [34mnlf[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: [36mlibnpm[39m npm package manager api orgs teams
+[34mhttps://npm.im/libnpmorg[39m
+[34m[36mlibnpm[39m[34msearch[39m
+Programmatic API for searching in npm and compatible registries.
+Version [34m3.1.0[39m published [34m2020-12-08[39m by [34misaacs[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm search api [36mlibnpm[39m
+[34mhttps://npm.im/libnpmsearch[39m
+[34m[36mlibnpm[39m[34mteam[39m
+npm Team management APIs
+Version [34m2.0.2[39m published [34m2020-11-03[39m by [34mnlf[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+[34mhttps://npm.im/libnpmteam[39m
+[34m[36mlibnpm[39m[34m[36mpublish[39m[34m[39m
+Programmatic API for the bits behind npm [36mpublish[39m and un[36mpublish[39m
+Version [34m4.0.0[39m published [34m2020-11-03[39m by [34mnlf[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+[34mhttps://npm.im/libnpmpublish[39m
+[34m[36mlibnpm[39m[34mfund[39m
+Programmatic API for npm fund
+Version [34m1.0.2[39m published [34m2020-12-08[39m by [34misaacs[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm npmcli [36mlibnpm[39m cli git fund gitfund
+[34mhttps://npm.im/libnpmfund[39m
+[34m@npmcli/map-workspaces[39m
+Retrieves a name:pathname Map for a given workspaces config
+Version [34m1.0.1[39m published [34m2020-09-30[39m by [34mruyadorno[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm  bad map npmcli [36mlibnpm[39m cli workspaces map-workspaces
+[34mhttps://npm.im/@npmcli/map-workspaces[39m
+[34m[36mlibnpm[39m[34mversion[39m
+library to do the things that 'npm version' does
+Version [34m1.0.7[39m published [34m2020-11-04[39m by [34misaacs[39m
+Maintainers: nlf ruyadorno darcyclarke isaacs
+[34mhttps://npm.im/libnpmversion[39m
+[34m@types/[36mlibnpm[39m[34msearch[39m
+TypeScript definitions for [36mlibnpm[39msearch
+Version [34m2.0.1[39m published [34m2019-09-26[39m by [34mtypes[39m
+Maintainers: types
+[34mhttps://npm.im/@types/libnpmsearch[39m
+[34mpkg-no-desc[39m
+Version [34m1.0.0[39m published [34m2019-09-26[39m by [34mlukekarrys[39m
+Maintainers: lukekarrys
+[34mhttps://npm.im/pkg-no-desc[39m
+`
+
+exports[`test/lib/commands/search.js TAP search multiple terms text > should have expected search results 1`] = `
+libnpm
+Collection of programmatic APIs for the npm CLI
+Version 3.0.1 published 2019-07-16 by isaacs
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm api package manager lib
+https://npm.im/libnpm
+libnpmaccess
+programmatic library for \`npm access\` commands
+Version 4.0.1 published 2020-11-03 by nlf
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: libnpmaccess
+https://npm.im/libnpmaccess
+@evocateur/libnpmaccess
+programmatic library for \`npm access\` commands
+Version 3.1.2 published 2019-07-16 by evocateur
+Maintainers: evocateur
+https://npm.im/@evocateur/libnpmaccess
+@evocateur/libnpmpublish
+Programmatic API for the bits behind npm publish and unpublish
+Version 1.2.2 published 2019-07-16 by evocateur
+Maintainers: evocateur
+https://npm.im/@evocateur/libnpmpublish
+libnpmorg
+Programmatic api for \`npm org\` commands
+Version 2.0.1 published 2020-11-03 by nlf
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: libnpm npm package manager api orgs teams
+https://npm.im/libnpmorg
+libnpmsearch
+Programmatic API for searching in npm and compatible registries.
+Version 3.1.0 published 2020-12-08 by isaacs
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm search api libnpm
+https://npm.im/libnpmsearch
+libnpmteam
+npm Team management APIs
+Version 2.0.2 published 2020-11-03 by nlf
+Maintainers: nlf ruyadorno darcyclarke isaacs
+https://npm.im/libnpmteam
+libnpmpublish
+Programmatic API for the bits behind npm publish and unpublish
+Version 4.0.0 published 2020-11-03 by nlf
+Maintainers: nlf ruyadorno darcyclarke isaacs
+https://npm.im/libnpmpublish
+libnpmfund
+Programmatic API for npm fund
+Version 1.0.2 published 2020-12-08 by isaacs
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm npmcli libnpm cli git fund gitfund
+https://npm.im/libnpmfund
+@npmcli/map-workspaces
+Retrieves a name:pathname Map for a given workspaces config
+Version 1.0.1 published 2020-09-30 by ruyadorno
+Maintainers: nlf ruyadorno darcyclarke isaacs
+Keywords: npm  bad map npmcli libnpm cli workspaces map-workspaces
+https://npm.im/@npmcli/map-workspaces
+libnpmversion
+library to do the things that 'npm version' does
+Version 1.0.7 published 2020-11-04 by isaacs
+Maintainers: nlf ruyadorno darcyclarke isaacs
+https://npm.im/libnpmversion
+@types/libnpmsearch
+TypeScript definitions for libnpmsearch
+Version 2.0.1 published 2019-09-26 by types
+Maintainers: types
+https://npm.im/@types/libnpmsearch
+pkg-no-desc
+Version 1.0.0 published 2019-09-26 by lukekarrys
+Maintainers: lukekarrys
+https://npm.im/pkg-no-desc
+`
+
 exports[`test/lib/commands/search.js TAP search no publisher > should have filtered expected search results 1`] = `
 custom-registry
 Version 1.0.0 published prehistoric by ???

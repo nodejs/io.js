@@ -19,16 +19,6 @@
   '*': [SKIP],  # only relevant for mjsunit tests.
 }],
 
-################################################################################
-['third_party_heap', {
-  # Requires a second isolate
-  'inspector/empty': [SKIP],
-  'inspector/endless-loop': [SKIP],
-  'inspector/invalid': [SKIP],
-  'inspector/regress-1166549': [SKIP],
-  'inspector/regress-1297964': [SKIP],
-}], # third_party_heap
-
 ##############################################################################
 ['no_simd_hardware == True', {
   'wasm/regress-1464231.wasm': [SKIP],

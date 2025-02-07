@@ -11,6 +11,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 void GrowableFixedArray::Push(const TNode<Object> value) {
   const TNode<IntPtrT> length = var_length_.value();
   const TNode<IntPtrT> capacity = var_capacity_.value();
@@ -99,6 +101,8 @@ TNode<FixedArray> GrowableFixedArray::ResizeFixedArray(
 
   return to_array;
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

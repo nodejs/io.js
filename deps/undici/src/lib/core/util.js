@@ -600,20 +600,25 @@ function ReadableStreamFrom (iterable) {
       async start () {
         iterator = iterable[Symbol.asyncIterator]()
       },
-      async pull (controller) {
-        const { done, value } = await iterator.next()
-        if (done) {
-          queueMicrotask(() => {
-            controller.close()
-            controller.byobRequest?.respond(0)
-          })
-        } else {
-          const buf = Buffer.isBuffer(value) ? value : Buffer.from(value)
-          if (buf.byteLength) {
-            controller.enqueue(new Uint8Array(buf))
+      pull (controller) {
+        async function pull () {
+          const { done, value } = await iterator.next()
+          if (done) {
+            queueMicrotask(() => {
+              controller.close()
+              controller.byobRequest?.respond(0)
+            })
+          } else {
+            const buf = Buffer.isBuffer(value) ? value : Buffer.from(value)
+            if (buf.byteLength) {
+              controller.enqueue(new Uint8Array(buf))
+            } else {
+              return await pull()
+            }
           }
         }
-        return controller.desiredSize > 0
+
+        return pull()
       },
       async cancel () {
         await iterator.return()

@@ -14,7 +14,7 @@ session.connect();
 
 const context = vm.createContext({
   get a() {
-    global.foo = '1';
+    globalThis.foo = '1';
     return 100;
   }
 });

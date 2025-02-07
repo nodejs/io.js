@@ -18,6 +18,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 using IteratorRecord = TorqueStructIteratorRecord;
 
 TNode<Object> IteratorBuiltinsAssembler::GetIteratorMethod(
@@ -534,6 +536,8 @@ TF_BUILTIN(IterableToFixedArrayWithSymbolLookupSlow,
   TailCallBuiltin(Builtin::kIterableToFixedArray, context, iterable,
                   iterator_fn);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

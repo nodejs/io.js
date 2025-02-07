@@ -18,6 +18,7 @@ const {
 
 const assert = require('assert');
 const fixtures = require('../common/fixtures');
+const { hasOpenSSL3 } = require('../common/crypto');
 const { readFileSync } = require('fs');
 
 const cert = readFileSync(fixtures.path('keys', 'agent1-cert.pem'));
@@ -50,7 +51,7 @@ emailAddress=ry@tinyclouds.org`;
 
 let infoAccessCheck = `OCSP - URI:http://ocsp.nodejs.org/
 CA Issuers - URI:http://ca.nodejs.org/ca.cert`;
-if (!common.hasOpenSSL3)
+if (!hasOpenSSL3)
   infoAccessCheck += '\n';
 
 const der = Buffer.from(
@@ -357,7 +358,7 @@ UcXd/5qu2GhokrKU2cPttU+XAN2Om6a0
 
   const cert = new X509Certificate(certPem);
   assert.throws(() => cert.publicKey, {
-    message: common.hasOpenSSL3 ? /decode error/ : /wrong tag/,
+    message: hasOpenSSL3 ? /decode error/ : /wrong tag/,
     name: 'Error'
   });
 

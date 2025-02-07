@@ -530,7 +530,7 @@ TEST_F(BytecodeArrayBuilderTest, AllBytecodesGenerated) {
   if (!Bytecodes::IsDebugBreak(Bytecode::k##Name)) {                     \
     EXPECT_GE(scorecard[Bytecodes::ToByte(Bytecode::k##Name)], 1);       \
   }
-  BYTECODE_LIST(CHECK_BYTECODE_PRESENT)
+  BYTECODE_LIST(CHECK_BYTECODE_PRESENT, CHECK_BYTECODE_PRESENT)
 #undef CHECK_BYTECODE_PRESENT
 }
 

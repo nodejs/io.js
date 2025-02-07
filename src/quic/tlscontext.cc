@@ -20,6 +20,13 @@
 
 namespace node {
 
+using ncrypto::BIOPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::MarkPopErrorOnReturn;
+using ncrypto::SSLCtxPointer;
+using ncrypto::SSLPointer;
+using ncrypto::SSLSessionPointer;
+using ncrypto::X509Pointer;
 using v8::ArrayBuffer;
 using v8::Just;
 using v8::Local;
@@ -27,6 +34,7 @@ using v8::Maybe;
 using v8::MaybeLocal;
 using v8::Nothing;
 using v8::Object;
+using v8::Undefined;
 using v8::Value;
 
 namespace quic {
@@ -43,7 +51,7 @@ namespace {
 //   return 0;
 // }();
 
-void EnableTrace(Environment* env, crypto::BIOPointer* bio, SSL* ssl) {
+void EnableTrace(Environment* env, BIOPointer* bio, SSL* ssl) {
 #if HAVE_SSL_TRACE
   static bool warn_trace_tls = true;
   if (warn_trace_tls) {
@@ -63,7 +71,7 @@ void EnableTrace(Environment* env, crypto::BIOPointer* bio, SSL* ssl) {
            size_t len,
            SSL* ssl,
            void* arg) -> void {
-          crypto::MarkPopErrorOnReturn mark_pop_error_on_return;
+          MarkPopErrorOnReturn mark_pop_error_on_return;
           SSL_trace(write_p, version, content_type, buf, len, ssl, arg);
         });
     SSL_set_msg_callback_arg(ssl, bio->get());
@@ -240,12 +248,12 @@ std::unique_ptr<TLSSession> TLSContext::NewSession(
       session, shared_from_this(), maybeSessionTicket);
 }
 
-crypto::SSLCtxPointer TLSContext::Initialize() {
-  crypto::SSLCtxPointer ctx;
+SSLCtxPointer TLSContext::Initialize() {
+  SSLCtxPointer ctx;
   switch (side_) {
     case Side::SERVER: {
       static constexpr unsigned char kSidCtx[] = "Node.js QUIC Server";
-      ctx = crypto::SSLCtxPointer::NewServer();
+      ctx = SSLCtxPointer::NewServer();
       CHECK_EQ(ngtcp2_crypto_quictls_configure_server_context(ctx.get()), 0);
       CHECK_EQ(SSL_CTX_set_max_early_data(ctx.get(), UINT32_MAX), 1);
       SSL_CTX_set_options(ctx.get(),
@@ -276,7 +284,7 @@ crypto::SSLCtxPointer TLSContext::Initialize() {
       break;
     }
     case Side::CLIENT: {
-      ctx = crypto::SSLCtxPointer::NewClient();
+      ctx = SSLCtxPointer::NewClient();
       CHECK_EQ(ngtcp2_crypto_quictls_configure_client_context(ctx.get()), 0);
 
       SSL_CTX_set_session_cache_mode(
@@ -291,16 +299,16 @@ crypto::SSLCtxPointer TLSContext::Initialize() {
 
   if (SSL_CTX_set_ciphersuites(ctx.get(), options_.ciphers.c_str()) != 1) {
     validation_error_ = "Invalid cipher suite";
-    return crypto::SSLCtxPointer();
+    return SSLCtxPointer();
   }
 
   if (SSL_CTX_set1_groups_list(ctx.get(), options_.groups.c_str()) != 1) {
     validation_error_ = "Invalid cipher groups";
-    return crypto::SSLCtxPointer();
+    return SSLCtxPointer();
   }
 
   {
-    crypto::ClearErrorOnReturn clear_error_on_return;
+    ClearErrorOnReturn clear_error_on_return;
     if (options_.ca.empty()) {
       auto store = crypto::GetOrCreateRootCertStore();
       X509_STORE_up_ref(store);
@@ -313,14 +321,12 @@ crypto::SSLCtxPointer TLSContext::Initialize() {
           X509_STORE_up_ref(store);
           SSL_CTX_set_cert_store(ctx.get(), store);
         } else {
-          crypto::BIOPointer bio = crypto::NodeBIO::NewFixed(buf.base, buf.len);
+          BIOPointer bio = crypto::NodeBIO::NewFixed(buf.base, buf.len);
           CHECK(bio);
           X509_STORE* cert_store = SSL_CTX_get_cert_store(ctx.get());
-          while (crypto::X509Pointer x509 = crypto::X509Pointer(
-                     PEM_read_bio_X509_AUX(bio.get(),
-                                           nullptr,
-                                           crypto::NoPasswordCallback,
-                                           nullptr))) {
+          while (
+              auto x509 = X509Pointer(PEM_read_bio_X509_AUX(
+                  bio.get(), nullptr, crypto::NoPasswordCallback, nullptr))) {
             if (cert_store == crypto::GetOrCreateRootCertStore()) {
               cert_store = crypto::NewRootCertStore();
               SSL_CTX_set_cert_store(ctx.get(), cert_store);
@@ -334,48 +340,48 @@ crypto::SSLCtxPointer TLSContext::Initialize() {
   }
 
   {
-    crypto::ClearErrorOnReturn clear_error_on_return;
+    ClearErrorOnReturn clear_error_on_return;
     for (const auto& cert : options_.certs) {
       uv_buf_t buf = cert;
       if (buf.len > 0) {
-        crypto::BIOPointer bio = crypto::NodeBIO::NewFixed(buf.base, buf.len);
+        BIOPointer bio = crypto::NodeBIO::NewFixed(buf.base, buf.len);
         CHECK(bio);
         cert_.reset();
         issuer_.reset();
         if (crypto::SSL_CTX_use_certificate_chain(
                 ctx.get(), std::move(bio), &cert_, &issuer_) == 0) {
           validation_error_ = "Invalid certificate";
-          return crypto::SSLCtxPointer();
+          return SSLCtxPointer();
         }
       }
     }
   }
 
   {
-    crypto::ClearErrorOnReturn clear_error_on_return;
+    ClearErrorOnReturn clear_error_on_return;
     for (const auto& key : options_.keys) {
       if (key.GetKeyType() != crypto::KeyType::kKeyTypePrivate) {
         validation_error_ = "Invalid key";
-        return crypto::SSLCtxPointer();
+        return SSLCtxPointer();
       }
       if (!SSL_CTX_use_PrivateKey(ctx.get(), key.GetAsymmetricKey().get())) {
         validation_error_ = "Invalid key";
-        return crypto::SSLCtxPointer();
+        return SSLCtxPointer();
       }
     }
   }
 
   {
-    crypto::ClearErrorOnReturn clear_error_on_return;
+    ClearErrorOnReturn clear_error_on_return;
     for (const auto& crl : options_.crl) {
       uv_buf_t buf = crl;
-      crypto::BIOPointer bio = crypto::NodeBIO::NewFixed(buf.base, buf.len);
+      BIOPointer bio = crypto::NodeBIO::NewFixed(buf.base, buf.len);
       DeleteFnPtr<X509_CRL, X509_CRL_free> crlptr(PEM_read_bio_X509_CRL(
           bio.get(), nullptr, crypto::NoPasswordCallback, nullptr));
 
       if (!crlptr) {
         validation_error_ = "Invalid CRL";
-        return crypto::SSLCtxPointer();
+        return SSLCtxPointer();
       }
 
       X509_STORE* cert_store = SSL_CTX_get_cert_store(ctx.get());
@@ -393,11 +399,11 @@ crypto::SSLCtxPointer TLSContext::Initialize() {
   }
 
   {
-    crypto::ClearErrorOnReturn clear_error_on_return;
+    ClearErrorOnReturn clear_error_on_return;
     if (options_.verify_private_key &&
         SSL_CTX_check_private_key(ctx.get()) != 1) {
       validation_error_ = "Invalid private key";
-      return crypto::SSLCtxPointer();
+      return SSLCtxPointer();
     }
   }
 
@@ -514,11 +520,11 @@ bool TLSSession::early_data_was_accepted() const {
   return SSL_get_early_data_status(*this) == SSL_EARLY_DATA_ACCEPTED;
 }
 
-crypto::SSLPointer TLSSession::Initialize(
+SSLPointer TLSSession::Initialize(
     const std::optional<SessionTicket>& maybeSessionTicket) {
   auto& ctx = context();
   auto& options = ctx.options();
-  crypto::SSLPointer ssl(SSL_new(ctx));
+  SSLPointer ssl(SSL_new(ctx));
   SSL_set_app_data(ssl.get(), &ref_);
   ngtcp2_conn_set_tls_native_handle(*session_, ssl.get());
 
@@ -541,7 +547,7 @@ crypto::SSLPointer TLSSession::Initialize(
               reinterpret_cast<const unsigned char*>(options.protocol.data()),
               options.protocol.size()) != 0) {
         validation_error_ = "Invalid ALPN";
-        return crypto::SSLPointer();
+        return SSLPointer();
       }
 
       if (!options.servername.empty()) {
@@ -553,7 +559,7 @@ crypto::SSLPointer TLSSession::Initialize(
       if (maybeSessionTicket.has_value()) {
         auto sessionTicket = maybeSessionTicket.value();
         uv_buf_t buf = sessionTicket.ticket();
-        crypto::SSLSessionPointer ticket = crypto::GetTLSSession(
+        SSLSessionPointer ticket = crypto::GetTLSSession(
             reinterpret_cast<unsigned char*>(buf.base), buf.len);
 
         // The early data will just be ignored if it's invalid.
@@ -584,7 +590,7 @@ crypto::SSLPointer TLSSession::Initialize(
 
 std::optional<TLSSession::PeerIdentityValidationError>
 TLSSession::VerifyPeerIdentity(Environment* env) {
-  int err = crypto::VerifyPeerCertificate(ssl_);
+  int err = ssl_.verifyPeerCertificate().value_or(X509_V_ERR_UNSPECIFIED);
   if (err == X509_V_OK) return std::nullopt;
   Local<Value> reason;
   Local<Value> code;
@@ -614,11 +620,15 @@ MaybeLocal<Object> TLSSession::ephemeral_key(Environment* env) const {
 }
 
 MaybeLocal<Value> TLSSession::cipher_name(Environment* env) const {
-  return crypto::GetCurrentCipherName(env, ssl_);
+  auto name = ssl_.getCipherName();
+  if (!name.has_value()) return Undefined(env->isolate());
+  return OneByteString(env->isolate(), name.value());
 }
 
 MaybeLocal<Value> TLSSession::cipher_version(Environment* env) const {
-  return crypto::GetCurrentCipherVersion(env, ssl_);
+  auto version = ssl_.getCipherVersion();
+  if (!version.has_value()) return Undefined(env->isolate());
+  return OneByteString(env->isolate(), version.value());
 }
 
 const std::string_view TLSSession::servername() const {

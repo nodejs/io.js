@@ -4,7 +4,7 @@ const assert = require('assert');
 const { execFileSync } = require('child_process');
 const { readFileSync, globSync } = require('fs');
 const { path } = require('../common/fixtures');
-
+const { isMainThread } = require('worker_threads');
 
 // This test checks for regressions in environment variable handling and
 // caching, but the localization data originated from ICU might change
@@ -169,7 +169,7 @@ if (isMockable) {
 // Tests with process.env mutated inside
 {
   // process.env.TZ is not intercepted in Workers
-  if (common.isMainThread) {
+  if (isMainThread) {
     assert.strictEqual(
       isSet(zones.map((TZ) => runEnvInside({ TZ }, () => new Date(333333333333).toString()))),
       true

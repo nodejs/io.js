@@ -1688,6 +1688,8 @@ MaglevCodeGenerator::MaglevCodeGenerator(
       graph_(graph),
       deopt_literals_(isolate->heap()->heap()),
       retained_maps_(isolate->heap()),
+      is_context_specialized_(
+          compilation_info->specialize_to_function_context()),
       zone_(compilation_info->zone()) {
   DCHECK(maglev::IsMaglevEnabled());
   DCHECK_IMPLIES(compilation_info->toplevel_is_osr(),
@@ -1910,13 +1912,20 @@ MaybeHandle<Code> MaglevCodeGenerator::BuildCodeObject(
   CodeDesc desc;
   masm()->GetCode(local_isolate, &desc, &safepoint_table_builder_,
                   handler_table_offset_);
-  return Factory::CodeBuilder{local_isolate, desc, CodeKind::MAGLEV}
-      .set_stack_slots(stack_slot_count_with_fixed_frame())
-      .set_parameter_count(parameter_count())
-      .set_deoptimization_data(deopt_data)
-      .set_empty_source_position_table()
-      .set_osr_offset(code_gen_state_.compilation_info()->toplevel_osr_offset())
-      .TryBuild();
+  auto builder =
+      Factory::CodeBuilder{local_isolate, desc, CodeKind::MAGLEV}
+          .set_stack_slots(stack_slot_count_with_fixed_frame())
+          .set_parameter_count(parameter_count())
+          .set_deoptimization_data(deopt_data)
+          .set_empty_source_position_table()
+          .set_osr_offset(
+              code_gen_state_.compilation_info()->toplevel_osr_offset());
+
+  if (is_context_specialized_) {
+    builder.set_is_context_specialized();
+  }
+
+  return builder.TryBuild();
 }
 
 GlobalHandleVector<Map> MaglevCodeGenerator::CollectRetainedMaps(

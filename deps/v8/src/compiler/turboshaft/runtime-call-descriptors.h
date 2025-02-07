@@ -93,6 +93,16 @@ struct RuntimeCallDescriptor {
         Operator::kNoDeopt | Operator::kNoThrow;
   };
 
+  struct BigIntUnaryOp : public Descriptor<BigIntUnaryOp> {
+    static constexpr auto kFunction = Runtime::kBigIntUnaryOp;
+    using arguments_t = std::tuple<V<BigInt>, V<Smi>>;
+    using result_t = V<BigInt>;
+
+    static constexpr bool kNeedsFrameState = false;
+    static constexpr Operator::Properties kProperties =
+        Operator::kNoDeopt | Operator::kNoThrow;
+  };
+
   struct DateCurrentTime : public Descriptor<DateCurrentTime> {
     static constexpr auto kFunction = Runtime::kDateCurrentTime;
     using arguments_t = std::tuple<>;
@@ -150,6 +160,15 @@ struct RuntimeCallDescriptor {
 
     static constexpr bool kNeedsFrameState = true;
     static constexpr Operator::Properties kProperties = Operator::kNoProperties;
+  };
+
+  struct ReThrow : public Descriptor<ReThrow> {
+    static constexpr auto kFunction = Runtime::kReThrow;
+    using arguments_t = std::tuple<V<Object>>;
+    using result_t = Never;
+
+    static constexpr bool kNeedsFrameState = false;
+    static constexpr Operator::Properties kProperties = Operator::kNoThrow;
   };
 
   struct StringCharCodeAt : public Descriptor<StringCharCodeAt> {

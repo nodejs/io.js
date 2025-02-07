@@ -147,7 +147,7 @@ class BaselineCompiler {
 
   // Single bytecode visitors.
 #define DECLARE_VISITOR(name, ...) void Visit##name();
-  BYTECODE_LIST(DECLARE_VISITOR)
+  BYTECODE_LIST(DECLARE_VISITOR, DECLARE_VISITOR)
 #undef DECLARE_VISITOR
 
   // Intrinsic call visitors.

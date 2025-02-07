@@ -25,6 +25,8 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 
 class TestTorqueAssembler : public CodeStubAssembler {
@@ -1015,6 +1017,8 @@ TEST(TestReturnNever_Builtin_Called) {
   CHECK(result.is_null());
   CHECK(isolate->has_exception());
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace compiler
 }  // namespace internal

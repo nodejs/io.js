@@ -17,6 +17,14 @@ const { isErrored, isDisturbed } = require('node:stream')
 const { isArrayBuffer } = require('node:util/types')
 const { serializeAMimeType } = require('./data-url')
 const { multipartFormDataParser } = require('./formdata-parser')
+let random
+
+try {
+  const crypto = require('node:crypto')
+  random = (max) => crypto.randomInt(0, max)
+} catch {
+  random = (max) => Math.floor(Math.random(max))
+}
 
 const textEncoder = new TextEncoder()
 function noop () {}
@@ -110,7 +118,7 @@ function extractBody (object, keepalive = false) {
     // Set source to a copy of the bytes held by object.
     source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength))
   } else if (webidl.is.FormData(object)) {
-    const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, '0')}`
+    const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, '0')}`
     const prefix = `--${boundary}\r\nContent-Disposition: form-data`
 
     /*! formdata-polyfill. MIT License. Jimmy Wärting <https://jimmy.warting.se/opensource> */

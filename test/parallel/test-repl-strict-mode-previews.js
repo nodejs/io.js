@@ -5,7 +5,10 @@
 const common = require('../common');
 
 common.skipIfInspectorDisabled();
-common.skipIfDumbTerminal();
+
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 if (process.argv[2] === 'child') {
   const stream = require('stream');

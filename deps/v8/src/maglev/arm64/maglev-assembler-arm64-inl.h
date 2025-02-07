@@ -861,7 +861,7 @@ inline void MaglevAssembler::LoadByte(Register dst, MemOperand src) {
 
 inline Condition MaglevAssembler::IsCallableAndNotUndetectable(
     Register map, Register scratch) {
-  Ldr(scratch.W(), FieldMemOperand(map, Map::kBitFieldOffset));
+  Ldrb(scratch.W(), FieldMemOperand(map, Map::kBitFieldOffset));
   And(scratch.W(), scratch.W(),
       Map::Bits1::IsUndetectableBit::kMask | Map::Bits1::IsCallableBit::kMask);
   Cmp(scratch.W(), Map::Bits1::IsCallableBit::kMask);
@@ -870,7 +870,7 @@ inline Condition MaglevAssembler::IsCallableAndNotUndetectable(
 
 inline Condition MaglevAssembler::IsNotCallableNorUndetactable(
     Register map, Register scratch) {
-  Ldr(scratch.W(), FieldMemOperand(map, Map::kBitFieldOffset));
+  Ldrb(scratch.W(), FieldMemOperand(map, Map::kBitFieldOffset));
   Tst(scratch.W(), Immediate(Map::Bits1::IsUndetectableBit::kMask |
                              Map::Bits1::IsCallableBit::kMask));
   return kEqual;
@@ -1311,6 +1311,14 @@ inline void MaglevAssembler::TestInt32AndJumpIfAnySet(
   TestAndBranchIfAnySet(value, mask, target);
 }
 
+inline void MaglevAssembler::TestUint8AndJumpIfAnySet(
+    MemOperand operand, uint8_t mask, Label* target, Label::Distance distance) {
+  TemporaryRegisterScope temps(this);
+  Register value = temps.AcquireScratch().W();
+  LoadByte(value, operand);
+  TestAndBranchIfAnySet(value, mask, target);
+}
+
 inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
     Register r1, int32_t mask, Label* target, Label::Distance distance) {
   TestAndBranchIfAllClear(r1.W(), mask, target);
@@ -1321,6 +1329,14 @@ inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
   TemporaryRegisterScope temps(this);
   Register value = temps.AcquireScratch().W();
   Ldr(value, operand);
+  TestAndBranchIfAllClear(value, mask, target);
+}
+
+inline void MaglevAssembler::TestUint8AndJumpIfAllClear(
+    MemOperand operand, uint8_t mask, Label* target, Label::Distance distance) {
+  TemporaryRegisterScope temps(this);
+  Register value = temps.AcquireScratch().W();
+  LoadByte(value, operand);
   TestAndBranchIfAllClear(value, mask, target);
 }
 
@@ -1420,6 +1436,10 @@ inline void MaglevAssembler::MoveRepr(MachineRepresentation repr,
   Register scratch = temps.AcquireScratch();
   MoveRepr(repr, scratch, src);
   MoveRepr(repr, dst, scratch);
+}
+
+inline void MaglevAssembler::MaybeEmitPlaceHolderForDeopt() {
+  // Implemented only for x64.
 }
 
 }  // namespace maglev

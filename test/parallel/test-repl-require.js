@@ -4,9 +4,11 @@ const common = require('../common');
 const fixtures = require('../common/fixtures');
 const assert = require('assert');
 const net = require('net');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread)
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 process.chdir(fixtures.fixturesDir);
 const repl = require('repl');

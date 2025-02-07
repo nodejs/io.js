@@ -14,6 +14,7 @@ import { SymbolsBinding } from './internalBinding/symbols';
 import { TimersBinding } from './internalBinding/timers';
 import { TypesBinding } from './internalBinding/types';
 import { URLBinding } from './internalBinding/url';
+import { URLPatternBinding } from "./internalBinding/url_pattern";
 import { UtilBinding } from './internalBinding/util';
 import { WASIBinding } from './internalBinding/wasi';
 import { WorkerBinding } from './internalBinding/worker';
@@ -38,6 +39,7 @@ interface InternalBindingMap {
   timers: TimersBinding;
   types: TypesBinding;
   url: URLBinding;
+  url_pattern: URLPatternBinding;
   util: UtilBinding;
   wasi: WASIBinding;
   worker: WorkerBinding;

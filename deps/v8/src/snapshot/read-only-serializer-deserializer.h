@@ -93,9 +93,16 @@ class BitSet final {
 // Note this encoding works for all remaining build configs, in particular for
 // all supported kTaggedSize values.
 struct EncodedTagged {
-  static constexpr int kPageIndexBits = 5;  // Max 32 RO pages.
-  static constexpr int kOffsetBits = 27;
+  static constexpr int kOffsetBits = kPageSizeBits;
   static constexpr int kSize = kUInt32Size;
+  static constexpr int kPageIndexBits =
+      kSize * 8 - kOffsetBits;  // Determines max number of RO pages.
+
+  explicit EncodedTagged(unsigned int page_index, unsigned int offset)
+      : page_index(page_index), offset(offset) {
+    DCHECK_LT(page_index, 1UL << kPageIndexBits);
+    DCHECK_LT(offset, 1UL << kOffsetBits);
+  }
 
   uint32_t ToUint32() const {
     static_assert(kSize == kUInt32Size);
@@ -108,8 +115,8 @@ struct EncodedTagged {
     return *reinterpret_cast<EncodedTagged*>(address);
   }
 
-  int page_index : kPageIndexBits;
-  int offset : kOffsetBits;  // Shifted by kTaggedSizeLog2.
+  const unsigned int page_index : kPageIndexBits;
+  const unsigned int offset : kOffsetBits;  // Shifted by kTaggedSizeLog2.
 };
 static_assert(EncodedTagged::kSize == sizeof(EncodedTagged));
 

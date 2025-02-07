@@ -55,8 +55,8 @@ TEST(IgnitionStatisticsExtension) {
 
   // Get the list of all bytecode names into a JavaScript array.
 #define BYTECODE_NAME_WITH_COMMA(Name, ...) "'" #Name "', "
-  const char* kBytecodeNames =
-      "var bytecodeNames = [" BYTECODE_LIST(BYTECODE_NAME_WITH_COMMA) "];";
+  const char* kBytecodeNames = "var bytecodeNames = [" BYTECODE_LIST(
+      BYTECODE_NAME_WITH_COMMA, BYTECODE_NAME_WITH_COMMA) "];";
 #undef BYTECODE_NAME_WITH_COMMA
   CompileRun(kBytecodeNames);
 

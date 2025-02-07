@@ -22,12 +22,11 @@
 'use strict';
 const common = require('../common');
 
-if (!common.opensslCli)
-  common.skip('node compiled without OpenSSL CLI.');
-
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
+const crypto = require('crypto');
 const tls = require('tls');
 const fixtures = require('../common/fixtures');
 
@@ -108,6 +107,6 @@ test({ ocsp: true, response: false });
 test({ ocsp: true, response: 'hello world' });
 test({ ocsp: false });
 
-if (!common.hasFipsCrypto) {
+if (!crypto.getFips()) {
   test({ ocsp: true, response: 'hello pfx', pfx: pfx, passphrase: 'sample' });
 }

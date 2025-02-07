@@ -20,6 +20,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 TNode<RawPtrT> StringBuiltinsAssembler::DirectStringData(
     TNode<String> string, TNode<Word32T> string_instance_type) {
   // Compute the effective offset of the first character.
@@ -2098,6 +2100,8 @@ TNode<String> StringBuiltinsAssembler::SubString(TNode<String> string,
   BIND(&end);
   return var_result.value();
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

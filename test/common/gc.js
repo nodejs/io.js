@@ -3,6 +3,8 @@
 const wait = require('timers/promises').setTimeout;
 const assert = require('assert');
 const common = require('../common');
+// TODO(joyeecheung): rewrite checkIfCollectable to use this too.
+const { setImmediate: setImmediatePromisified } = require('timers/promises');
 const gcTrackerMap = new WeakMap();
 const gcTrackerTag = 'NODE_TEST_COMMON_GC_TRACKER';
 
@@ -40,32 +42,26 @@ function onGC(obj, gcListener) {
 
 /**
  * Repeatedly triggers garbage collection until a specified condition is met or a maximum number of attempts is reached.
+ * This utillity must be run in a Node.js instance that enables --expose-gc.
  * @param {string|Function} [name] - Optional name, used in the rejection message if the condition is not met.
  * @param {Function} condition - A function that returns true when the desired condition is met.
+ * @param {number} maxCount - Maximum number of garbage collections that should be tried.
+ * @param {object} gcOptions - Options to pass into the global gc() function.
  * @returns {Promise} A promise that resolves when the condition is met, or rejects after 10 failed attempts.
  */
-function gcUntil(name, condition) {
-  if (typeof name === 'function') {
-    condition = name;
-    name = undefined;
-  }
-  return new Promise((resolve, reject) => {
-    let count = 0;
-    function gcAndCheck() {
-      setImmediate(() => {
-        count++;
-        global.gc();
-        if (condition()) {
-          resolve();
-        } else if (count < 10) {
-          gcAndCheck();
-        } else {
-          reject(name === undefined ? undefined : 'Test ' + name + ' failed');
-        }
-      });
+async function gcUntil(name, condition, maxCount = 10, gcOptions) {
+  for (let count = 0; count < maxCount; ++count) {
+    await setImmediatePromisified();
+    if (gcOptions) {
+      await global.gc(gcOptions);
+    } else {
+      await global.gc();  // Passing in undefined is not the same as empty.
     }
-    gcAndCheck();
-  });
+    if (condition()) {
+      return;
+    }
+  }
+  throw new Error(`Test ${name} failed`);
 }
 
 // This function can be used to check if an object factor leaks or not,

@@ -805,13 +805,6 @@ double Simulator::get_double_from_register_pair(int reg) {
   DCHECK((reg >= 0) && (reg < kNumGPRs) && ((reg % 2) == 0));
 
   double dm_val = 0.0;
-#if !V8_TARGET_ARCH_PPC64  // doesn't make sense in 64bit mode
-  // Read the bits from the unsigned integer register_[] array
-  // into the double precision floating point value and return it.
-  char buffer[sizeof(fp_registers_[0])];
-  memcpy(buffer, &registers_[reg], 2 * sizeof(registers_[0]));
-  memcpy(&dm_val, buffer, 2 * sizeof(registers_[0]));
-#endif
   return (dm_val);
 }
 
@@ -1732,10 +1725,8 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       uint32_t im_val = instr->Bits(15, 0);
       int cr = instr->Bits(25, 23);
       uint32_t bf = 0;
-#if V8_TARGET_ARCH_PPC64
       int L = instr->Bit(21);
       if (L) {
-#endif
         uintptr_t ra_val = get_register(ra);
         if (ra_val < im_val) {
           bf |= 0x80000000;
@@ -1746,7 +1737,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
         if (ra_val == im_val) {
           bf |= 0x20000000;
         }
-#if V8_TARGET_ARCH_PPC64
       } else {
         uint32_t ra_val = get_register(ra);
         if (ra_val < im_val) {
@@ -1759,7 +1749,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
           bf |= 0x20000000;
         }
       }
-#endif
       uint32_t condition_mask = 0xF0000000U >> (cr * 4);
       uint32_t condition = bf >> (cr * 4);
       condition_reg_ = (condition_reg_ & ~condition_mask) | condition;
@@ -1771,10 +1760,8 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       im_val = SIGN_EXT_IMM16(im_val);
       int cr = instr->Bits(25, 23);
       uint32_t bf = 0;
-#if V8_TARGET_ARCH_PPC64
       int L = instr->Bit(21);
       if (L) {
-#endif
         intptr_t ra_val = get_register(ra);
         if (ra_val < im_val) {
           bf |= 0x80000000;
@@ -1785,7 +1772,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
         if (ra_val == im_val) {
           bf |= 0x20000000;
         }
-#if V8_TARGET_ARCH_PPC64
       } else {
         int32_t ra_val = get_register(ra);
         if (ra_val < im_val) {
@@ -1798,7 +1784,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
           bf |= 0x20000000;
         }
       }
-#endif
       uint32_t condition_mask = 0xF0000000U >> (cr * 4);
       uint32_t condition = bf >> (cr * 4);
       condition_reg_ = (condition_reg_ & ~condition_mask) | condition;
@@ -2052,7 +2037,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case SRDX: {
       int rs = instr->RSValue();
       int ra = instr->RAValue();
@@ -2066,7 +2050,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#endif
     case MODUW: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -2077,7 +2060,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_register(rt, alu_out);
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case MODUD: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -2088,7 +2070,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_register(rt, alu_out);
       break;
     }
-#endif
     case MODSW: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -2102,7 +2083,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_register(rt, alu_out);
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case MODSD: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -2120,7 +2100,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_register(rt, alu_out);
       break;
     }
-#endif
     case SRAW: {
       int rs = instr->RSValue();
       int ra = instr->RAValue();
@@ -2134,7 +2113,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case SRAD: {
       int rs = instr->RSValue();
       int ra = instr->RAValue();
@@ -2148,7 +2126,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#endif
     case SRAWIX: {
       int ra = instr->RAValue();
       int rs = instr->RSValue();
@@ -2161,7 +2138,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case EXTSW: {
       const int shift = kBitsPerSystemPointer - 32;
       int ra = instr->RAValue();
@@ -2174,7 +2150,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#endif
     case EXTSH: {
       const int shift = kBitsPerSystemPointer - 16;
       int ra = instr->RAValue();
@@ -2303,7 +2278,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_register(ra, count);
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case POPCNTD: {
       int rs = instr->RSValue();
       int ra = instr->RAValue();
@@ -2318,7 +2292,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_register(ra, count);
       break;
     }
-#endif
     case SYNC: {
       // todo - simulate sync
       __sync_synchronize();
@@ -2433,10 +2406,8 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       int rb = instr->RBValue();
       int cr = instr->Bits(25, 23);
       uint32_t bf = 0;
-#if V8_TARGET_ARCH_PPC64
       int L = instr->Bit(21);
       if (L) {
-#endif
         intptr_t ra_val = get_register(ra);
         intptr_t rb_val = get_register(rb);
         if (ra_val < rb_val) {
@@ -2448,7 +2419,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
         if (ra_val == rb_val) {
           bf |= 0x20000000;
         }
-#if V8_TARGET_ARCH_PPC64
       } else {
         int32_t ra_val = get_register(ra);
         int32_t rb_val = get_register(rb);
@@ -2462,7 +2432,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
           bf |= 0x20000000;
         }
       }
-#endif
       uint32_t condition_mask = 0xF0000000U >> (cr * 4);
       uint32_t condition = bf >> (cr * 4);
       condition_reg_ = (condition_reg_ & ~condition_mask) | condition;
@@ -2609,12 +2578,8 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       int ra = instr->RAValue();
       intptr_t ra_val = get_register(ra);
       intptr_t alu_out = 1 + ~ra_val;
-#if V8_TARGET_ARCH_PPC64
       intptr_t one = 1;  // work-around gcc
       intptr_t kOverflowVal = (one << 63);
-#else
-      intptr_t kOverflowVal = kMinInt;
-#endif
       set_register(rt, alu_out);
       if (instr->Bit(10)) {  // OE bit set
         if (ra_val == kOverflowVal) {
@@ -2642,7 +2607,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case SLDX: {
       int rs = instr->RSValue();
       int ra = instr->RAValue();
@@ -2724,7 +2688,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_d_register(frt, ra_val);
       break;
     }
-#endif
     case CNTLZWX: {
       int rs = instr->RSValue();
       int ra = instr->RAValue();
@@ -2842,10 +2805,8 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       int rb = instr->RBValue();
       int cr = instr->Bits(25, 23);
       uint32_t bf = 0;
-#if V8_TARGET_ARCH_PPC64
       int L = instr->Bit(21);
       if (L) {
-#endif
         uintptr_t ra_val = get_register(ra);
         uintptr_t rb_val = get_register(rb);
         if (ra_val < rb_val) {
@@ -2857,7 +2818,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
         if (ra_val == rb_val) {
           bf |= 0x20000000;
         }
-#if V8_TARGET_ARCH_PPC64
       } else {
         uint32_t ra_val = get_register(ra);
         uint32_t rb_val = get_register(rb);
@@ -2871,7 +2831,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
           bf |= 0x20000000;
         }
       }
-#endif
       uint32_t condition_mask = 0xF0000000U >> (cr * 4);
       uint32_t condition = bf >> (cr * 4);
       condition_reg_ = (condition_reg_ & ~condition_mask) | condition;
@@ -2934,7 +2893,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       // todo - handle OE bit
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case MULLD: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -2949,7 +2907,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       // todo - handle OE bit
       break;
     }
-#endif
     case DIVW: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -2997,7 +2954,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case DIVD: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -3034,7 +2990,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       // todo - handle OE bit
       break;
     }
-#endif
     case ADDX: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -3177,7 +3132,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#if V8_TARGET_ARCH_PPC64
     case LWAX: {
       int rt = instr->RTValue();
       int ra = instr->RAValue();
@@ -3267,7 +3221,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#endif
     case LBZX:
     case LBZUX: {
       int rt = instr->RTValue();
@@ -4013,8 +3966,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       set_d_register_from_double(frt, frt_val);
       return;
     }
-
-#if V8_TARGET_ARCH_PPC64
     case RLDICL: {
       int ra = instr->RAValue();
       int rs = instr->RSValue();
@@ -4164,8 +4115,6 @@ void Simulator::ExecuteGeneric(Instruction* instr) {
       }
       break;
     }
-#endif
-
     case XSADDDP: {
       int frt = instr->RTValue();
       int fra = instr->RAValue();

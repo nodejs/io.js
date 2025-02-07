@@ -833,9 +833,6 @@ V8 shared library set USING_V8_SHARED.
 #elif defined(__PPC64__) || defined(_ARCH_PPC64)
 #define V8_HOST_ARCH_PPC64 1
 #define V8_HOST_ARCH_64_BIT 1
-#elif defined(__PPC__) || defined(_ARCH_PPC)
-#define V8_HOST_ARCH_PPC 1
-#define V8_HOST_ARCH_32_BIT 1
 #elif defined(__s390__) || defined(__s390x__)
 #define V8_HOST_ARCH_S390 1
 #if defined(__s390x__)
@@ -862,10 +859,10 @@ V8 shared library set USING_V8_SHARED.
 // The macros may be set externally. If not, detect in the same way as the host
 // architecture, that is, target the native environment as presented by the
 // compiler.
-#if !V8_TARGET_ARCH_X64 && !V8_TARGET_ARCH_IA32 && !V8_TARGET_ARCH_ARM &&     \
-    !V8_TARGET_ARCH_ARM64 && !V8_TARGET_ARCH_MIPS64 && !V8_TARGET_ARCH_PPC && \
-    !V8_TARGET_ARCH_PPC64 && !V8_TARGET_ARCH_S390 &&                          \
-    !V8_TARGET_ARCH_RISCV64 && !V8_TARGET_ARCH_LOONG64 &&                     \
+#if !V8_TARGET_ARCH_X64 && !V8_TARGET_ARCH_IA32 && !V8_TARGET_ARCH_ARM && \
+    !V8_TARGET_ARCH_ARM64 && !V8_TARGET_ARCH_MIPS64 &&                    \
+    !V8_TARGET_ARCH_PPC64 && !V8_TARGET_ARCH_S390 &&                      \
+    !V8_TARGET_ARCH_RISCV64 && !V8_TARGET_ARCH_LOONG64 &&                 \
     !V8_TARGET_ARCH_RISCV32
 #if defined(_M_X64) || defined(__x86_64__)
 #define V8_TARGET_ARCH_X64 1
@@ -881,8 +878,6 @@ V8 shared library set USING_V8_SHARED.
 #define V8_TARGET_ARCH_LOONG64 1
 #elif defined(_ARCH_PPC64)
 #define V8_TARGET_ARCH_PPC64 1
-#elif defined(_ARCH_PPC)
-#define V8_TARGET_ARCH_PPC 1
 #elif defined(__s390__)
 #define V8_TARGET_ARCH_S390 1
 #if defined(__s390x__)
@@ -920,8 +915,6 @@ V8 shared library set USING_V8_SHARED.
 #define V8_TARGET_ARCH_64_BIT 1
 #elif V8_TARGET_ARCH_LOONG64
 #define V8_TARGET_ARCH_64_BIT 1
-#elif V8_TARGET_ARCH_PPC
-#define V8_TARGET_ARCH_32_BIT 1
 #elif V8_TARGET_ARCH_PPC64
 #define V8_TARGET_ARCH_64_BIT 1
 #elif V8_TARGET_ARCH_S390
@@ -986,12 +979,12 @@ V8 shared library set USING_V8_SHARED.
 #else
 #define V8_TARGET_LITTLE_ENDIAN 1
 #endif
-#elif defined(__BIG_ENDIAN__)  // FOR PPCGR on AIX
+#elif V8_TARGET_ARCH_PPC64
+#if V8_OS_AIX
 #define V8_TARGET_BIG_ENDIAN 1
-#elif V8_TARGET_ARCH_PPC_LE
+#else
 #define V8_TARGET_LITTLE_ENDIAN 1
-#elif V8_TARGET_ARCH_PPC_BE
-#define V8_TARGET_BIG_ENDIAN 1
+#endif
 #elif V8_TARGET_ARCH_S390
 #if V8_TARGET_ARCH_S390_LE_SIM
 #define V8_TARGET_LITTLE_ENDIAN 1
@@ -1016,6 +1009,11 @@ V8 shared library set USING_V8_SHARED.
 #define V8_STATIC_ROOTS_BOOL false
 #else
 #define V8_STATIC_ROOTS_BOOL true
+#endif
+#ifdef V8_TARGET_BIG_ENDIAN
+#define V8_TARGET_BIG_ENDIAN_BOOL true
+#else
+#define V8_TARGET_BIG_ENDIAN_BOOL false
 #endif
 
 #endif  // V8CONFIG_H_

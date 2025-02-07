@@ -17,9 +17,6 @@ struct WasmToJSResult {
   result3: float64;
 }
 
-extern macro SwitchToTheCentralStackIfNeeded(): RawPtr;
-extern macro SwitchFromTheCentralStack(RawPtr): void;
-
 extern builtin IterableToFixedArrayForWasm(Context, JSAny, Smi): FixedArray;
 
 extern macro StackAlignmentInBytes(): intptr;
@@ -51,28 +48,28 @@ macro HandleF32Returns(
 }
 
 @export
-transitioning macro WasmToJSWrapper(ref: WasmImportData): WasmToJSResult {
+transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
   const oldSP = SwitchToTheCentralStackIfNeeded();
-  dcheck(Is<WasmImportData>(ref));
+  dcheck(Is<WasmImportData>(data));
   // Spill the signature on the stack so that it can be read by the GC. This is
   // done in the very beginning before a GC could be triggered.
   // Caller FP + return address.
   const sigSlot = LoadFramePointer() + kSignatureOffset;
-  *GetRefAt<intptr>(sigSlot, 0) = BitcastTaggedToWord(ref.sig);
+  *GetRefAt<intptr>(sigSlot, 0) = BitcastTaggedToWord(data.sig);
   const alignment: intptr =
       StackAlignmentInBytes() / torque_internal::SizeOf<intptr>();
-  // 3 fixed slots, rounded up to stack alignment.
-  const numFixedSlots = ((2 + alignment) / alignment) * alignment;
+  // 1 fixed slot, rounded up to stack alignment.
+  const numFixedSlots = alignment;
 
   ModifyThreadInWasmFlag(0);
   // Trigger a wrapper tier-up when this function got called often enough.
-  dcheck(ref.wrapper_budget > 0);
-  ref.wrapper_budget = ref.wrapper_budget - 1;
-  if (ref.wrapper_budget == 0) {
-    runtime::TierUpWasmToJSWrapper(kNoContext, ref);
+  dcheck(data.wrapper_budget > 0);
+  data.wrapper_budget = data.wrapper_budget - 1;
+  if (data.wrapper_budget == 0) {
+    runtime::TierUpWasmToJSWrapper(kNoContext, data);
   }
 
-  const signaturePod = &ref.sig.bytes;
+  const signaturePod = &data.sig.bytes;
   const serializedSig = torque_internal::unsafe::NewConstSlice<int32>(
       signaturePod.object, signaturePod.offset,
       signaturePod.length / torque_internal::SizeOf<int32>());
@@ -175,14 +172,14 @@ transitioning macro WasmToJSWrapper(ref: WasmImportData): WasmToJSResult {
         const rawRef = *slot;
         const value = BitcastWordToTagged(rawRef);
         outParams.objects[nextIndex] =
-            WasmToJSObject(ref.native_context, value, paramType);
+            WasmToJSObject(data.native_context, value, paramType);
       }
       nextIndex++;
     }
   }
-  const target = ref.callable;
+  const target = data.callable;
 
-  const context = ref.native_context;
+  const context = data.native_context;
   // Reset the signature on the stack, so that incoming parameters don't get
   // scanned anymore.
   *GetRefAt<intptr>(sigSlot, 0) = 0;
@@ -262,9 +259,9 @@ transitioning macro WasmToJSWrapper(ref: WasmImportData): WasmToJSResult {
     } else {
       const retKind = retType & kValueTypeKindBitsMask;
       dcheck(retKind == ValueKind::kRef || retKind == ValueKind::kRefNull);
-      const trustedData = TaggedIsSmi(ref.instance_data) ?
+      const trustedData = TaggedIsSmi(data.instance_data) ?
           Undefined :
-          UnsafeCast<WasmTrustedInstanceData>(ref.instance_data);
+          UnsafeCast<WasmTrustedInstanceData>(data.instance_data);
       const converted = JSToWasmObject(context, trustedData, retType, retVal);
       if (returnCount == 1) {
         // There are no other values, we can write the object directly into the
@@ -313,9 +310,7 @@ transitioning macro WasmToJSWrapper(ref: WasmImportData): WasmToJSResult {
     result2: *GetRefAt<float64>(fpRegSlots, 0),
     result3: *GetRefAt<float64>(fpRegSlots, torque_internal::SizeOf<float64>())
   };
-  if (Convert<uintptr>(oldSP) != 0) {
-    SwitchFromTheCentralStack(oldSP);
-  }
+  SwitchFromTheCentralStack(oldSP);
   return wasmToJSResult;
 }
 }  // namespace wasm

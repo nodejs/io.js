@@ -13,7 +13,7 @@ template("inspector_gn_build") {
   }
 
   node_gen_dir = get_label_info("../..", "target_gen_dir")
-  protocol_tool_path = "../../tools/inspector_protocol"
+  protocol_tool_path = "../../deps/inspector_protocol"
 
   gypi_values = exec_script(
       "../../tools/gypi_to_gn.py",
@@ -35,6 +35,8 @@ template("inspector_gn_build") {
     ]
 
     args = [
+      "--inspector_protocol_dir",
+      rebase_path(protocol_tool_path, root_build_dir),
       "--jinja_dir",
       # jinja is in third_party.
       rebase_path("//third_party/", root_build_dir),
@@ -71,5 +73,38 @@ template("inspector_gn_build") {
     sources = [ "node_protocol.pdl", v8_inspector_js_protocol ]
     outputs = [ "$node_gen_dir/src/{{source_name_part}}.json" ]
     args = [ "{{source}}" ] + rebase_path(outputs, root_build_dir)
+  }
+
+  config("crdtp_config") {
+    include_dirs = [ protocol_tool_path ]
+  }
+
+  static_library("crdtp") {
+    public_configs = [ ":crdtp_config" ]
+    sources = [
+      "$protocol_tool_path/crdtp/cbor.cc",
+      "$protocol_tool_path/crdtp/cbor.h",
+      "$protocol_tool_path/crdtp/dispatch.cc",
+      "$protocol_tool_path/crdtp/dispatch.h",
+      "$protocol_tool_path/crdtp/error_support.cc",
+      "$protocol_tool_path/crdtp/error_support.h",
+      "$protocol_tool_path/crdtp/export.h",
+      "$protocol_tool_path/crdtp/find_by_first.h",
+      "$protocol_tool_path/crdtp/frontend_channel.h",
+      "$protocol_tool_path/crdtp/glue.h",
+      "$protocol_tool_path/crdtp/json.cc",
+      "$protocol_tool_path/crdtp/json.h",
+      "$protocol_tool_path/crdtp/parser_handler.h",
+      "$protocol_tool_path/crdtp/protocol_core.cc",
+      "$protocol_tool_path/crdtp/protocol_core.h",
+      "$protocol_tool_path/crdtp/serializable.cc",
+      "$protocol_tool_path/crdtp/serializable.h",
+      "$protocol_tool_path/crdtp/span.cc",
+      "$protocol_tool_path/crdtp/span.h",
+      "$protocol_tool_path/crdtp/status.cc",
+      "$protocol_tool_path/crdtp/status.h",
+      "$protocol_tool_path/crdtp/json_platform.cc",
+      "$protocol_tool_path/crdtp/json_platform.h",
+    ]
   }
 }

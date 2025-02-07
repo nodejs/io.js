@@ -282,7 +282,7 @@ except gdb.error:
 end
 
 # Configuring ASLR may not be possible on some platforms, such running via the
-# `rr` debuggger.
+# `rr` debugger.
 python
 try:
   gdb.execute("set disable-randomization off")

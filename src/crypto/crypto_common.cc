@@ -27,16 +27,22 @@
 
 namespace node {
 
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::ECKeyPointer;
+using ncrypto::EVPKeyPointer;
+using ncrypto::SSLPointer;
+using ncrypto::SSLSessionPointer;
 using ncrypto::StackOfX509;
+using ncrypto::X509Pointer;
+using ncrypto::X509View;
 using v8::ArrayBuffer;
-using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Context;
 using v8::EscapableHandleScope;
 using v8::Integer;
 using v8::Local;
 using v8::MaybeLocal;
 using v8::Object;
-using v8::String;
 using v8::Undefined;
 using v8::Value;
 
@@ -46,32 +52,16 @@ SSLSessionPointer GetTLSSession(const unsigned char* buf, size_t length) {
   return SSLSessionPointer(d2i_SSL_SESSION(nullptr, &buf, length));
 }
 
-long VerifyPeerCertificate(  // NOLINT(runtime/int)
-    const SSLPointer& ssl,
-    long def) {  // NOLINT(runtime/int)
-  return ssl.verifyPeerCertificate().value_or(def);
-}
-
-bool UseSNIContext(
-    const SSLPointer& ssl, BaseObjectPtr<SecureContext> context) {
-  return ssl.setSniContext(context->ctx());
-}
-
-bool SetGroups(SecureContext* sc, const char* groups) {
-  return sc->ctx().setGroups(groups);
-}
-
 MaybeLocal<Value> GetValidationErrorReason(Environment* env, int err) {
   auto reason = X509Pointer::ErrorReason(err).value_or("");
   if (reason == "") return Undefined(env->isolate());
-  return OneByteString(env->isolate(), reason.data(), reason.length());
+  return OneByteString(env->isolate(), reason);
 }
 
 MaybeLocal<Value> GetValidationErrorCode(Environment* env, int err) {
-  if (err == 0)
-    return Undefined(env->isolate());
+  if (err == 0) return Undefined(env->isolate());
   auto error = X509Pointer::ErrorCode(err);
-  return OneByteString(env->isolate(), error.data(), error.length());
+  return OneByteString(env->isolate(), error);
 }
 
 MaybeLocal<Value> GetCert(Environment* env, const SSLPointer& ssl) {
@@ -82,35 +72,6 @@ MaybeLocal<Value> GetCert(Environment* env, const SSLPointer& ssl) {
 }
 
 namespace {
-template <typename T>
-bool Set(
-    Local<Context> context,
-    Local<Object> target,
-    Local<Value> name,
-    MaybeLocal<T> maybe_value) {
-  Local<Value> value;
-  if (!maybe_value.ToLocal(&value))
-    return false;
-
-  // Undefined is ignored, but still considered successful
-  if (value->IsUndefined())
-    return true;
-
-  return !target->Set(context, name, value).IsNothing();
-}
-
-template <const char* (*getstr)(const SSL_CIPHER* cipher)>
-MaybeLocal<Value> GetCipherValue(Environment* env, const SSL_CIPHER* cipher) {
-  if (cipher == nullptr)
-    return Undefined(env->isolate());
-
-  return OneByteString(env->isolate(), getstr(cipher));
-}
-
-constexpr auto GetCipherName = GetCipherValue<SSL_CIPHER_get_name>;
-constexpr auto GetCipherStandardName = GetCipherValue<SSL_CIPHER_standard_name>;
-constexpr auto GetCipherVersion = GetCipherValue<SSL_CIPHER_get_version>;
-
 StackOfX509 CloneSSLCerts(X509Pointer&& cert,
                           const STACK_OF(X509)* const ssl_certs) {
   StackOfX509 peer_certs(sk_X509_new(nullptr));
@@ -135,17 +96,17 @@ MaybeLocal<Object> AddIssuerChainToObject(X509Pointer* cert,
   for (;;) {
     int i;
     for (i = 0; i < sk_X509_num(peer_certs.get()); i++) {
-      ncrypto::X509View ca(sk_X509_value(peer_certs.get(), i));
+      X509View ca(sk_X509_value(peer_certs.get(), i));
       if (!cert->view().isIssuedBy(ca)) continue;
 
       Local<Value> ca_info;
       if (!X509Certificate::toObject(env, ca).ToLocal(&ca_info)) return {};
       CHECK(ca_info->IsObject());
-
-      if (!Set<Object>(env->context(),
-                       object,
-                       env->issuercert_string(),
-                       ca_info.As<Object>())) {
+      if (object
+              ->Set(env->context(),
+                    env->issuercert_string(),
+                    ca_info.As<Object>())
+              .IsNothing()) {
         return {};
       }
       object = ca_info.As<Object>();
@@ -177,10 +138,10 @@ MaybeLocal<Object> GetLastIssuedCert(
 
     CHECK(ca_info->IsObject());
 
-    if (!Set<Object>(env->context(),
-                     issuer_chain,
-                     env->issuercert_string(),
-                     ca_info.As<Object>())) {
+    if (issuer_chain
+            ->Set(
+                env->context(), env->issuercert_string(), ca_info.As<Object>())
+            .IsNothing()) {
       return {};
     }
     issuer_chain = ca_info.As<Object>();
@@ -197,41 +158,30 @@ MaybeLocal<Object> GetLastIssuedCert(
   return MaybeLocal<Object>(issuer_chain);
 }
 
+Local<Value> maybeString(Environment* env,
+                         std::optional<std::string_view> value) {
+  if (!value.has_value()) return Undefined(env->isolate());
+  return OneByteString(env->isolate(), value.value());
+}
 }  // namespace
-
-MaybeLocal<Value> GetCurrentCipherName(Environment* env,
-                                       const SSLPointer& ssl) {
-  return GetCipherName(env, ssl.getCipher());
-}
-
-MaybeLocal<Value> GetCurrentCipherVersion(Environment* env,
-                                          const SSLPointer& ssl) {
-  return GetCipherVersion(env, ssl.getCipher());
-}
-
-template <MaybeLocal<Value> (*Get)(Environment* env, const SSL_CIPHER* cipher)>
-MaybeLocal<Value> GetCurrentCipherValue(Environment* env,
-                                        const SSLPointer& ssl) {
-  return Get(env, ssl.getCipher());
-}
 
 MaybeLocal<Object> GetCipherInfo(Environment* env, const SSLPointer& ssl) {
   if (ssl.getCipher() == nullptr) return MaybeLocal<Object>();
   EscapableHandleScope scope(env->isolate());
   Local<Object> info = Object::New(env->isolate());
 
-  if (!Set<Value>(env->context(),
-                  info,
-                  env->name_string(),
-                  GetCurrentCipherValue<GetCipherName>(env, ssl)) ||
-      !Set<Value>(env->context(),
-                  info,
-                  env->standard_name_string(),
-                  GetCurrentCipherValue<GetCipherStandardName>(env, ssl)) ||
-      !Set<Value>(env->context(),
-                  info,
-                  env->version_string(),
-                  GetCurrentCipherValue<GetCipherVersion>(env, ssl))) {
+  if (info->Set(env->context(),
+                env->name_string(),
+                maybeString(env, ssl.getCipherName()))
+          .IsNothing() ||
+      info->Set(env->context(),
+                env->standard_name_string(),
+                maybeString(env, ssl.getCipherStandardName()))
+          .IsNothing() ||
+      info->Set(env->context(),
+                env->version_string(),
+                maybeString(env, ssl.getCipherVersion()))
+          .IsNothing()) {
     return MaybeLocal<Object>();
   }
 
@@ -243,7 +193,7 @@ MaybeLocal<Object> GetEphemeralKey(Environment* env, const SSLPointer& ssl) {
 
   EscapableHandleScope scope(env->isolate());
   Local<Object> info = Object::New(env->isolate());
-  crypto::EVPKeyPointer key = ssl.getPeerTempKey();
+  EVPKeyPointer key = ssl.getPeerTempKey();
   if (!key) return scope.Escape(info);
 
   Local<Context> context = env->context();
@@ -251,11 +201,12 @@ MaybeLocal<Object> GetEphemeralKey(Environment* env, const SSLPointer& ssl) {
   int kid = key.id();
   switch (kid) {
     case EVP_PKEY_DH:
-      if (!Set<String>(context, info, env->type_string(), env->dh_string()) ||
-          !Set<Integer>(context,
-                        info,
-                        env->size_string(),
-                        Integer::New(env->isolate(), key.bits()))) {
+      if (info->Set(context, env->type_string(), env->dh_string())
+              .IsNothing() ||
+          info->Set(context,
+                    env->size_string(),
+                    Integer::New(env->isolate(), key.bits()))
+              .IsNothing()) {
         return MaybeLocal<Object>();
       }
       break;
@@ -265,22 +216,21 @@ MaybeLocal<Object> GetEphemeralKey(Environment* env, const SSLPointer& ssl) {
       {
         const char* curve_name;
         if (kid == EVP_PKEY_EC) {
-          OSSL3_CONST EC_KEY* ec = EVP_PKEY_get0_EC_KEY(key.get());
-          int nid = EC_GROUP_get_curve_name(EC_KEY_get0_group(ec));
+          int nid = ECKeyPointer::GetGroupName(key);
           curve_name = OBJ_nid2sn(nid);
         } else {
           curve_name = OBJ_nid2sn(kid);
         }
-        if (!Set<String>(
-                context, info, env->type_string(), env->ecdh_string()) ||
-            !Set<String>(context,
-                         info,
-                         env->name_string(),
-                         OneByteString(env->isolate(), curve_name)) ||
-            !Set<Integer>(context,
-                          info,
-                          env->size_string(),
-                          Integer::New(env->isolate(), key.bits()))) {
+        if (info->Set(context, env->type_string(), env->ecdh_string())
+                .IsNothing() ||
+            info->Set(context,
+                      env->name_string(),
+                      OneByteString(env->isolate(), curve_name))
+                .IsNothing() ||
+            info->Set(context,
+                      env->size_string(),
+                      Integer::New(env->isolate(), key.bits()))
+                .IsNothing()) {
           return MaybeLocal<Object>();
         }
       }
@@ -301,11 +251,8 @@ MaybeLocal<Object> ECPointToBuffer(Environment* env,
     return MaybeLocal<Object>();
   }
 
-  std::unique_ptr<BackingStore> bs;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs = ArrayBuffer::NewBackingStore(env->isolate(), len);
-  }
+  auto bs = ArrayBuffer::NewBackingStore(
+      env->isolate(), len, BackingStoreInitializationMode::kUninitialized);
 
   len = EC_POINT_point2oct(group,
                            point,
@@ -341,8 +288,8 @@ MaybeLocal<Value> GetPeerCert(
     if (cert) {
       return X509Certificate::toObject(env, cert.view());
     }
-    return X509Certificate::toObject(
-        env, ncrypto::X509View(sk_X509_value(ssl_certs, 0)));
+    return X509Certificate::toObject(env,
+                                     X509View(sk_X509_value(ssl_certs, 0)));
   }
 
   StackOfX509 peer_certs = CloneSSLCerts(std::move(cert), ssl_certs);
@@ -351,7 +298,7 @@ MaybeLocal<Value> GetPeerCert(
 
   // First and main certificate.
   Local<Value> result;
-  ncrypto::X509View first_cert(sk_X509_value(peer_certs.get(), 0));
+  X509View first_cert(sk_X509_value(peer_certs.get(), 0));
   CHECK(first_cert);
   if (!X509Certificate::toObject(env, first_cert).ToLocal(&result)) return {};
   CHECK(result->IsObject());
@@ -375,10 +322,8 @@ MaybeLocal<Value> GetPeerCert(
 
   // Last certificate should be self-signed.
   if (cert.view().isIssuedBy(cert.view()) &&
-      !Set<Object>(env->context(),
-                   issuer_chain,
-                   env->issuercert_string(),
-                   issuer_chain)) {
+      issuer_chain->Set(env->context(), env->issuercert_string(), issuer_chain)
+          .IsNothing()) {
     return {};
   }
 

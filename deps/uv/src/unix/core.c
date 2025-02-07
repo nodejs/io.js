@@ -52,6 +52,8 @@
 #endif
 
 #if defined(__APPLE__)
+# include <mach/mach.h>
+# include <mach/thread_info.h>
 # include <sys/filio.h>
 # include <sys/sysctl.h>
 #endif /* defined(__APPLE__) */
@@ -751,7 +753,7 @@ ssize_t uv__recvmsg(int fd, struct msghdr* msg, int flags) {
 int uv_cwd(char* buffer, size_t* size) {
   char scratch[1 + UV__PATH_MAX];
 
-  if (buffer == NULL || size == NULL)
+  if (buffer == NULL || size == NULL || *size == 0)
     return UV_EINVAL;
 
   /* Try to read directly into the user's buffer first... */
@@ -999,10 +1001,10 @@ int uv__fd_exists(uv_loop_t* loop, int fd) {
 }
 
 
-int uv_getrusage(uv_rusage_t* rusage) {
+static int uv__getrusage(int who, uv_rusage_t* rusage) {
   struct rusage usage;
 
-  if (getrusage(RUSAGE_SELF, &usage))
+  if (getrusage(who, &usage))
     return UV__ERR(errno);
 
   rusage->ru_utime.tv_sec = usage.ru_utime.tv_sec;
@@ -1038,6 +1040,48 @@ int uv_getrusage(uv_rusage_t* rusage) {
 #endif
 
   return 0;
+}
+
+
+int uv_getrusage(uv_rusage_t* rusage) {
+  return uv__getrusage(RUSAGE_SELF, rusage);
+}
+
+
+int uv_getrusage_thread(uv_rusage_t* rusage) {
+#if defined(__APPLE__)
+  mach_msg_type_number_t count;
+  thread_basic_info_data_t info;
+  kern_return_t kr;
+  thread_t thread;
+
+  thread = mach_thread_self();
+  count = THREAD_BASIC_INFO_COUNT;
+  kr = thread_info(thread,
+                   THREAD_BASIC_INFO,
+                   (thread_info_t)&info,
+                   &count);
+
+  if (kr != KERN_SUCCESS) {
+    mach_port_deallocate(mach_task_self(), thread);
+    return UV_EINVAL;
+  }
+
+  memset(rusage, 0, sizeof(*rusage));
+
+  rusage->ru_utime.tv_sec = info.user_time.seconds;
+  rusage->ru_utime.tv_usec = info.user_time.microseconds;
+  rusage->ru_stime.tv_sec = info.system_time.seconds;
+  rusage->ru_stime.tv_usec = info.system_time.microseconds;
+
+  mach_port_deallocate(mach_task_self(), thread);
+
+  return 0;
+
+#elif defined(RUSAGE_THREAD)
+  return uv__getrusage(RUSAGE_THREAD, rusage);
+#endif  /* defined(__APPLE__) */
+  return UV_ENOTSUP;
 }
 
 

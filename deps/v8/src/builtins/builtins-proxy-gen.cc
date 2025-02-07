@@ -17,6 +17,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 TNode<JSProxy> ProxiesCodeStubAssembler::AllocateProxy(
     TNode<Context> context, TNode<JSReceiver> target,
     TNode<JSReceiver> handler) {
@@ -75,11 +77,10 @@ TNode<Context> ProxiesCodeStubAssembler::CreateProxyRevokeFunctionContext(
 TNode<JSFunction> ProxiesCodeStubAssembler::AllocateProxyRevokeFunction(
     TNode<Context> context, TNode<JSProxy> proxy) {
   const TNode<NativeContext> native_context = LoadNativeContext(context);
-
   const TNode<Context> proxy_context =
       CreateProxyRevokeFunctionContext(proxy, native_context);
   return AllocateRootFunctionWithContext(RootIndex::kProxyRevokeSharedFun,
-                                         proxy_context);
+                                         proxy_context, native_context);
 }
 
 TF_BUILTIN(CallProxy, ProxiesCodeStubAssembler) {
@@ -426,6 +427,8 @@ void ProxiesCodeStubAssembler::CheckDeleteTrapResult(TNode<Context> context,
 
   BIND(&check_passed);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

@@ -161,10 +161,47 @@
 #include "absl/base/config.h"
 #include "absl/base/internal/nullability_impl.h"
 
+// ABSL_POINTERS_DEFAULT_NONNULL
+//
+// This macro specifies that all unannotated pointer types within the given
+// file are designated as nonnull (instead of the default "unknown"). This macro
+// exists as a standalone statement and applies default nonnull behavior to all
+// subsequent pointers; as a result, place this macro as the first non-comment,
+// non-`#include` line in a file.
+//
+// Example:
+//
+//     #include "absl/base/nullability.h"
+//
+//     ABSL_POINTERS_DEFAULT_NONNULL
+//
+//     void FillMessage(Message *m);                  // implicitly non-null
+//     absl::Nullable<T*> GetNullablePtr();           // explicitly nullable
+//     absl::NullabilityUnknown<T*> GetUnknownPtr();  // explicitly unknown
+//
+// The macro can be safely used in header files -- it will not affect any files
+// that include it.
+//
+// In files with the macro, plain `T*` syntax means `absl::Nonnull<T*>`, and the
+// exceptions (`Nullable` and `NullabilityUnknown`) must be marked
+// explicitly. The same holds, correspondingly, for smart pointer types.
+//
+// For comparison, without the macro, all unannotated pointers would default to
+// unknown, and otherwise require explicit annotations to change this behavior:
+//
+//     #include "absl/base/nullability.h"
+//
+//     void FillMessage(absl::Nonnull<Message*> m);  // explicitly non-null
+//     absl::Nullable<T*> GetNullablePtr();          // explicitly nullable
+//     T* GetUnknownPtr();                           // implicitly unknown
+//
+// No-op except for being a human readable signal.
+#define ABSL_POINTERS_DEFAULT_NONNULL
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 
-// absl::Nonnull
+// absl::Nonnull (default with `ABSL_POINTERS_DEFAULT_NONNULL`)
 //
 // The indicated pointer is never null. It is the responsibility of the provider
 // of this pointer across an API boundary to ensure that the pointer is never
@@ -197,7 +234,7 @@ using Nonnull = nullability_internal::NonnullImpl<T>;
 template <typename T>
 using Nullable = nullability_internal::NullableImpl<T>;
 
-// absl::NullabilityUnknown (default)
+// absl::NullabilityUnknown (default without `ABSL_POINTERS_DEFAULT_NONNULL`)
 //
 // The indicated pointer has not yet been determined to be definitively
 // "non-null" or "nullable." Providers of such pointers across API boundaries
@@ -208,9 +245,10 @@ using Nullable = nullability_internal::NullableImpl<T>;
 // migrated into one of the above two nullability states: `Nonnull<T>` or
 //  `Nullable<T>`.
 //
-// NOTE: Because this annotation is the global default state, unannotated
-// pointers are assumed to have "unknown" semantics. This assumption is designed
-// to minimize churn and reduce clutter within the codebase.
+// NOTE: For files that do not specify `ABSL_POINTERS_DEFAULT_NONNULL`,
+// because this annotation is the global default state, unannotated pointers are
+// are assumed to have "unknown" semantics. This assumption is designed to
+// minimize churn and reduce clutter within the codebase.
 //
 // Example:
 //

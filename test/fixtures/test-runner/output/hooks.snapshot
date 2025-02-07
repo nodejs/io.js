@@ -576,7 +576,6 @@ not ok 16 - t.after throws - no subtests
         *
         *
         *
-        *
       ...
     1..2
 not ok 17 - t.beforeEach throws
@@ -607,8 +606,6 @@ not ok 17 - t.beforeEach throws
         *
         *
         *
-        *
-        *
       ...
     # Subtest: 2
     not ok 2 - 2
@@ -620,7 +617,6 @@ not ok 17 - t.beforeEach throws
       error: 'afterEach'
       code: 'ERR_TEST_FAILURE'
       stack: |-
-        *
         *
         *
         *
@@ -748,7 +744,6 @@ not ok 21 - afterEach context when test fails
       error: 'afterEach'
       code: 'ERR_TEST_FAILURE'
       stack: |-
-        *
         *
         *
         *

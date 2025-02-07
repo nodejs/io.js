@@ -22,6 +22,6 @@ let asyncId = null;
 }
 
 setImmediate(() => {
-  global.gc();
+  globalThis.gc();
   setImmediate(() => assert.ok(destroyedIds.has(asyncId)));
 });

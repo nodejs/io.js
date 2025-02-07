@@ -162,7 +162,7 @@ void LazyCompileDispatcher::Enqueue(
   SetUncompiledDataJobPointer(isolate, shared_info,
                               reinterpret_cast<Address>(job));
 
-  // Post a a background worker task to perform the compilation on the worker
+  // Post a background worker task to perform the compilation on the worker
   // thread.
   {
     base::MutexGuard lock(&mutex_);

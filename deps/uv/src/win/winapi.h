@@ -4150,40 +4150,35 @@ typedef struct _FILE_STAT_BASIC_INFORMATION {
 } FILE_STAT_BASIC_INFORMATION;
 #endif
 
-/* MinGW already has a definition for REPARSE_DATA_BUFFER, but mingw-w64 does
- * not.
- */
-#if defined(_MSC_VER) || defined(__MINGW64_VERSION_MAJOR)
-  typedef struct _REPARSE_DATA_BUFFER {
-    ULONG  ReparseTag;
-    USHORT ReparseDataLength;
-    USHORT Reserved;
-    union {
-      struct {
-        USHORT SubstituteNameOffset;
-        USHORT SubstituteNameLength;
-        USHORT PrintNameOffset;
-        USHORT PrintNameLength;
-        ULONG Flags;
-        WCHAR PathBuffer[1];
-      } SymbolicLinkReparseBuffer;
-      struct {
-        USHORT SubstituteNameOffset;
-        USHORT SubstituteNameLength;
-        USHORT PrintNameOffset;
-        USHORT PrintNameLength;
-        WCHAR PathBuffer[1];
-      } MountPointReparseBuffer;
-      struct {
-        UCHAR  DataBuffer[1];
-      } GenericReparseBuffer;
-      struct {
-        ULONG StringCount;
-        WCHAR StringList[1];
-      } AppExecLinkReparseBuffer;
-    };
-  } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
-#endif
+typedef struct _REPARSE_DATA_BUFFER {
+  ULONG  ReparseTag;
+  USHORT ReparseDataLength;
+  USHORT Reserved;
+  union {
+    struct {
+      USHORT SubstituteNameOffset;
+      USHORT SubstituteNameLength;
+      USHORT PrintNameOffset;
+      USHORT PrintNameLength;
+      ULONG Flags;
+      WCHAR PathBuffer[1];
+    } SymbolicLinkReparseBuffer;
+    struct {
+      USHORT SubstituteNameOffset;
+      USHORT SubstituteNameLength;
+      USHORT PrintNameOffset;
+      USHORT PrintNameLength;
+      WCHAR PathBuffer[1];
+    } MountPointReparseBuffer;
+    struct {
+      UCHAR  DataBuffer[1];
+    } GenericReparseBuffer;
+    struct {
+      ULONG StringCount;
+      WCHAR StringList[1];
+    } AppExecLinkReparseBuffer;
+  };
+} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
 
 typedef struct _IO_STATUS_BLOCK {
   union {
@@ -4291,6 +4286,22 @@ typedef struct _FILE_BOTH_DIR_INFORMATION {
   WCHAR ShortName[12];
   WCHAR FileName[1];
 } FILE_BOTH_DIR_INFORMATION, *PFILE_BOTH_DIR_INFORMATION;
+
+typedef struct _FILE_ID_FULL_DIR_INFORMATION {
+  ULONG         NextEntryOffset;
+  ULONG         FileIndex;
+  LARGE_INTEGER CreationTime;
+  LARGE_INTEGER LastAccessTime;
+  LARGE_INTEGER LastWriteTime;
+  LARGE_INTEGER ChangeTime;
+  LARGE_INTEGER EndOfFile;
+  LARGE_INTEGER AllocationSize;
+  ULONG         FileAttributes;
+  ULONG         FileNameLength;
+  ULONG         EaSize;
+  LARGE_INTEGER FileId;
+  WCHAR         FileName[1];
+} FILE_ID_FULL_DIR_INFORMATION, *PFILE_ID_FULL_DIR_INFORMATION;
 
 typedef struct _FILE_BASIC_INFORMATION {
   LARGE_INTEGER CreationTime;
@@ -4661,15 +4672,6 @@ typedef NTSTATUS (NTAPI *sNtQueryInformationProcess)
 # define SYMBOLIC_LINK_FLAG_DIRECTORY 0x1
 #endif
 
-#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
-  typedef struct _OVERLAPPED_ENTRY {
-      ULONG_PTR lpCompletionKey;
-      LPOVERLAPPED lpOverlapped;
-      ULONG_PTR Internal;
-      DWORD dwNumberOfBytesTransferred;
-  } OVERLAPPED_ENTRY, *LPOVERLAPPED_ENTRY;
-#endif
-
 /* from wincon.h */
 #ifndef ENABLE_INSERT_MODE
 # define ENABLE_INSERT_MODE 0x20
@@ -4715,14 +4717,6 @@ typedef NTSTATUS (NTAPI *sNtQueryInformationProcess)
 #ifndef ERROR_MUI_FILE_NOT_LOADED
 # define ERROR_MUI_FILE_NOT_LOADED 15105
 #endif
-
-typedef BOOL (WINAPI *sGetQueuedCompletionStatusEx)
-             (HANDLE CompletionPort,
-              LPOVERLAPPED_ENTRY lpCompletionPortEntries,
-              ULONG ulCount,
-              PULONG ulNumEntriesRemoved,
-              DWORD dwMilliseconds,
-              BOOL fAlertable);
 
 /* from powerbase.h */
 #ifndef DEVICE_NOTIFY_CALLBACK
@@ -4818,9 +4812,6 @@ extern sNtQueryDirectoryFile pNtQueryDirectoryFile;
 extern sNtQuerySystemInformation pNtQuerySystemInformation;
 extern sNtQueryInformationProcess pNtQueryInformationProcess;
 
-/* Kernel32 function pointers */
-extern sGetQueuedCompletionStatusEx pGetQueuedCompletionStatusEx;
-
 /* Powrprof.dll function pointer */
 extern sPowerRegisterSuspendResumeNotification pPowerRegisterSuspendResumeNotification;
 
@@ -4836,5 +4827,14 @@ typedef int (WINAPI *uv_sGetHostNameW)
             (PWSTR,
              int);
 extern uv_sGetHostNameW pGetHostNameW;
+
+/* processthreadsapi.h */
+#if defined(__MINGW32__)
+WINBASEAPI
+HRESULT WINAPI GetThreadDescription(HANDLE hThread,
+                                    PWSTR *ppszThreadDescription);
+WINBASEAPI
+HRESULT WINAPI SetThreadDescription(HANDLE hThread, PCWSTR lpThreadDescription);
+#endif
 
 #endif /* UV_WIN_WINAPI_H_ */

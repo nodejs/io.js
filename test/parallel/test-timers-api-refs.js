@@ -4,12 +4,12 @@ const timers = require('timers');
 
 // Delete global APIs to make sure they're not relied on by the internal timers
 // code
-delete global.setTimeout;
-delete global.clearTimeout;
-delete global.setInterval;
-delete global.clearInterval;
-delete global.setImmediate;
-delete global.clearImmediate;
+delete globalThis.setTimeout;
+delete globalThis.clearTimeout;
+delete globalThis.setInterval;
+delete globalThis.clearInterval;
+delete globalThis.setImmediate;
+delete globalThis.clearImmediate;
 
 const timeoutCallback = () => { timers.clearTimeout(timeout); };
 const timeout = timers.setTimeout(common.mustCall(timeoutCallback), 1);

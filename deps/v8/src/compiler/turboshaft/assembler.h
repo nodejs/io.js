@@ -5,7 +5,6 @@
 #ifndef V8_COMPILER_TURBOSHAFT_ASSEMBLER_H_
 #define V8_COMPILER_TURBOSHAFT_ASSEMBLER_H_
 
-#include <concepts>
 #include <cstring>
 #include <iomanip>
 #include <iterator>
@@ -198,8 +197,8 @@ template <typename T>
 class IndexRange : public Range<T> {
  public:
   using base = Range<T>;
-  using value_type = typename base::value_type;
-  using iterator_type = typename base::iterator_type;
+  using value_type = base::value_type;
+  using iterator_type = base::iterator_type;
 
   explicit IndexRange(ConstOrV<T> count) : Range<T>(0, count, 1) {}
 };
@@ -227,8 +226,8 @@ class Sequence : private Range<T> {
   using base = Range<T>;
 
  public:
-  using value_type = typename base::value_type;
-  using iterator_type = typename base::iterator_type;
+  using value_type = base::value_type;
+  using iterator_type = base::iterator_type;
 
   explicit Sequence(ConstOrV<T> begin, ConstOrV<T> stride = 1)
       : base(begin, 0, stride) {}
@@ -732,7 +731,7 @@ struct LoopLabelForHelper<std::tuple<V<Ts>...>> {
 }  // namespace detail
 
 template <typename T>
-using LoopLabelFor = typename detail::LoopLabelForHelper<T>::type;
+using LoopLabelFor = detail::LoopLabelForHelper<T>::type;
 
 Handle<Code> BuiltinCodeHandle(Builtin builtin, Isolate* isolate);
 
@@ -857,13 +856,13 @@ class GenericReducerBase;
 // TURBOSHAFT_REDUCER_GENERIC_BOILERPLATE should almost never be needed: it
 // should only be used by the IR-specific base class, while other reducers
 // should simply use `TURBOSHAFT_REDUCER_BOILERPLATE`.
-#define TURBOSHAFT_REDUCER_GENERIC_BOILERPLATE(Name)                      \
-  using ReducerList = typename Next::ReducerList;                         \
-  using assembler_t = compiler::turboshaft::Assembler<ReducerList>;       \
-  assembler_t& Asm() { return *static_cast<assembler_t*>(this); }         \
-  template <class T>                                                      \
-  using ScopedVar = compiler::turboshaft::ScopedVariable<T, assembler_t>; \
-  using CatchScope = compiler::turboshaft::CatchScopeImpl<assembler_t>;   \
+#define TURBOSHAFT_REDUCER_GENERIC_BOILERPLATE(Name)                    \
+  using ReducerList = typename Next::ReducerList;                       \
+  using assembler_t = compiler::turboshaft::Assembler<ReducerList>;     \
+  assembler_t& Asm() { return *static_cast<assembler_t*>(this); }       \
+  template <class T>                                                    \
+  using ScopedVar = compiler::turboshaft::ScopedVar<T, assembler_t>;    \
+  using CatchScope = compiler::turboshaft::CatchScopeImpl<assembler_t>; \
   static constexpr auto& ReducerName() { return #Name; }
 
 // Defines a few helpers to use the Assembler and its stack in Reducers.
@@ -873,30 +872,28 @@ class GenericReducerBase;
   using block_t = typename Next::block_t;
 
 template <class T, class Assembler>
-class ScopedVariable : Variable {
+class Var : protected Variable {
   using value_type = maybe_const_or_v_t<T>;
 
  public:
   template <typename Reducer>
-  explicit ScopedVariable(Reducer* reducer)
-      : Variable(reducer->Asm().NewVariable(
-            static_cast<const RegisterRepresentation&>(V<T>::rep))),
-        assembler_(reducer->Asm()) {}
+  explicit Var(Reducer* reducer) : Var(reducer->Asm()) {}
+
   template <typename Reducer>
-  ScopedVariable(Reducer* reducer, value_type initial_value)
-      : ScopedVariable(reducer) {
+  Var(Reducer* reducer, value_type initial_value) : Var(reducer) {
     assembler_.SetVariable(*this, assembler_.resolve(initial_value));
   }
 
-  ScopedVariable(const ScopedVariable&) = delete;
-  ScopedVariable(ScopedVariable&&) = delete;
-  ScopedVariable& operator=(const ScopedVariable) = delete;
-  ScopedVariable& operator=(ScopedVariable&&) = delete;
-  ~ScopedVariable() {
-    // Explicitly mark the variable as invalid to avoid the creation of
-    // unnecessary loop phis.
-    assembler_.SetVariable(*this, OpIndex::Invalid());
-  }
+  explicit Var(Assembler& assembler)
+      : Variable(assembler.NewVariable(
+            static_cast<const RegisterRepresentation&>(V<T>::rep))),
+        assembler_(assembler) {}
+
+  Var(const Var&) = delete;
+  Var(Var&&) = delete;
+  Var& operator=(const Var) = delete;
+  Var& operator=(Var&&) = delete;
+  ~Var() = default;
 
   void Set(value_type new_value) {
     assembler_.SetVariable(*this, assembler_.resolve(new_value));
@@ -926,8 +923,23 @@ class ScopedVariable : Variable {
   operator OpIndex() const { return Get(); }
   operator OptionalOpIndex() const { return Get(); }
 
- private:
+ protected:
   Assembler& assembler_;
+};
+
+template <typename T, typename Assembler>
+class ScopedVar : public Var<T, Assembler> {
+  using Base = Var<T, Assembler>;
+
+ public:
+  using Base::Base;
+  ~ScopedVar() {
+    // Explicitly mark the variable as invalid to avoid the creation of
+    // unnecessary loop phis.
+    this->assembler_.SetVariable(*this, OpIndex::Invalid());
+  }
+
+  using Base::operator=;
 };
 
 // LABEL_BLOCK is used in Reducers to have a single call forwarding to the next
@@ -974,7 +986,7 @@ class EmitProjectionReducer
     OpIndex new_idx = Continuation{this}.Reduce(args...);
     const Operation& op = Asm().output_graph().Get(new_idx);
     if constexpr (MayThrow(opcode)) {
-      // Operations that can throw are lowered to a Op+DidntThrow, and what we
+      // Operations that can throw are lowered to an Op+DidntThrow, and what we
       // get from Next::Reduce is the DidntThrow.
       return WrapInTupleIfNeeded(op.Cast<DidntThrowOp>(), new_idx);
     }
@@ -1275,6 +1287,23 @@ class GenericReducerBase : public ReducerBaseForwarder<Next> {
     }
     return ReduceDidntThrow(raw_call, has_catch_block, &descriptor->out_reps,
                             effects);
+  }
+
+  OpIndex REDUCE(FastApiCall)(
+      V<FrameState> frame_state, V<Object> data_argument, V<Context> context,
+      base::Vector<const OpIndex> arguments,
+      const FastApiCallParameters* parameters,
+      base::Vector<const RegisterRepresentation> out_reps) {
+    OpIndex raw_call = Base::ReduceFastApiCall(
+        frame_state, data_argument, context, arguments, parameters, out_reps);
+    bool has_catch_block = CatchIfInCatchScope(raw_call);
+    return ReduceDidntThrow(raw_call, has_catch_block,
+                            &Asm()
+                                 .output_graph()
+                                 .Get(raw_call)
+                                 .template Cast<FastApiCallOp>()
+                                 .out_reps,
+                            OpEffects().CanCallAnything());
   }
 
 #define REDUCE_THROWING_OP(Name)                                             \
@@ -1689,6 +1718,10 @@ class TurboshaftAssemblerOpInterface
   DECL_SINGLE_REP_BINOP_V(Uint64MulOverflownBits, WordBinop,
                           UnsignedMulOverflownBits, Word64)
 
+  V<Word32> Word32BitwiseNot(ConstOrV<Word32> input) {
+    return Word32BitwiseXor(input, static_cast<uint32_t>(-1));
+  }
+
   V<Word> WordBinop(V<Word> left, V<Word> right, WordBinopOp::Kind kind,
                     WordRepresentation rep) {
     return ReduceIfReachableWordBinop(left, right, kind, rep);
@@ -1870,6 +1903,8 @@ class TurboshaftAssemblerOpInterface
                                Word32)
   DECL_SINGLE_REP_COMPARISON_V(Int64LessThanOrEqual, SignedLessThanOrEqual,
                                Word64)
+  DECL_SINGLE_REP_COMPARISON_V(IntPtrLessThanOrEqual, SignedLessThanOrEqual,
+                               WordPtr)
   DECL_MULTI_REP_BINOP(UintLessThanOrEqual, Comparison, RegisterRepresentation,
                        UnsignedLessThanOrEqual)
   DECL_SINGLE_REP_COMPARISON_V(Uint32LessThanOrEqual, UnsignedLessThanOrEqual,
@@ -2290,6 +2325,8 @@ class TurboshaftAssemblerOpInterface
     return UintPtrConstant(static_cast<uintptr_t>(value));
   }
   V<WordPtr> UintPtrConstant(uintptr_t value) { return WordPtrConstant(value); }
+  // TODO(nicohartmann): I would like to get rid of this overload as it is
+  // non-obvious that this doesnt perform Smi-tagging.
   V<Smi> SmiConstant(intptr_t value) {
     return SmiConstant(i::Tagged<Smi>(value));
   }
@@ -3163,8 +3200,8 @@ class TurboshaftAssemblerOpInterface
   }
 
 #if V8_ENABLE_WEBASSEMBLY
-  void WasmStackCheck(WasmStackCheckOp::Kind kind) {
-    ReduceIfReachableWasmStackCheck(kind);
+  void WasmStackCheck(WasmStackCheckOp::Kind kind, int parameter_slots) {
+    ReduceIfReachableWasmStackCheck(kind, parameter_slots);
   }
 #endif
 
@@ -3839,6 +3876,14 @@ class TurboshaftAssemblerOpInterface
     CallRuntime<typename RuntimeCallDescriptor::Abort>(isolate, context,
                                                        {reason});
   }
+  V<BigInt> CallRuntime_BigIntUnaryOp(Isolate* isolate, V<Context> context,
+                                      V<BigInt> input, ::Operation operation) {
+    DCHECK_EQ(operation,
+              any_of(::Operation::kBitwiseNot, ::Operation::kNegate,
+                     ::Operation::kIncrement, ::Operation::kDecrement));
+    return CallRuntime<typename RuntimeCallDescriptor::BigIntUnaryOp>(
+        isolate, context, {input, __ SmiConstant(Smi::FromEnum(operation))});
+  }
   V<Number> CallRuntime_DateCurrentTime(Isolate* isolate, V<Context> context) {
     return CallRuntime<typename RuntimeCallDescriptor::DateCurrentTime>(
         isolate, context, {});
@@ -3975,7 +4020,7 @@ class TurboshaftAssemblerOpInterface
         {object, prototype});
   }
 
-  void TailCall(OpIndex callee, base::Vector<const OpIndex> arguments,
+  void TailCall(V<CallTarget> callee, base::Vector<const OpIndex> arguments,
                 const TSCallDescriptor* descriptor) {
     ReduceIfReachableTailCall(callee, arguments, descriptor);
   }
@@ -4653,9 +4698,10 @@ class TurboshaftAssemblerOpInterface
   OpIndex FastApiCall(V<turboshaft::FrameState> frame_state,
                       V<Object> data_argument, V<Context> context,
                       base::Vector<const OpIndex> arguments,
-                      const FastApiCallParameters* parameters) {
+                      const FastApiCallParameters* parameters,
+                      base::Vector<const RegisterRepresentation> out_reps) {
     return ReduceIfReachableFastApiCall(frame_state, data_argument, context,
-                                        arguments, parameters);
+                                        arguments, parameters, out_reps);
   }
 
   void RuntimeAbort(AbortReason reason) {
@@ -5029,8 +5075,8 @@ class TurboshaftAssemblerOpInterface
 #endif  // V8_TARGET_ARCH_X64
 #endif  // V8_ENABLE_WASM_SIMD256_REVEC
 
-  V<WasmTrustedInstanceData> WasmInstanceParameter() {
-    return Parameter(wasm::kWasmInstanceParameterIndex,
+  V<WasmTrustedInstanceData> WasmInstanceDataParameter() {
+    return Parameter(wasm::kWasmInstanceDataParameterIndex,
                      RegisterRepresentation::Tagged());
   }
 
@@ -5421,7 +5467,7 @@ class Assembler : public AssemblerData,
     intermediate_block->SetOrigin(source->OriginForBlockEnd());
     // Inserting a Goto in {intermediate_block} to {destination}. This will
     // create the edge from {intermediate_block} to {destination}. Note that
-    // this will call AddPredecessor, but we've already removed the eventual
+    // this will call AddPredecessor, but we've already removed the possible
     // edge of {destination} that need splitting, so no risks of infinite
     // recursion here.
     this->Goto(destination);

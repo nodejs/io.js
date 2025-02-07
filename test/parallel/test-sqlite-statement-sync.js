@@ -87,12 +87,14 @@ suite('StatementSync.prototype.all()', () => {
 suite('StatementSync.prototype.iterate()', () => {
   test('executes a query and returns an empty iterator on no results', (t) => {
     const db = new DatabaseSync(nextDb());
+    t.after(() => { db.close(); });
     const stmt = db.prepare('CREATE TABLE storage(key TEXT, val TEXT)');
     t.assert.deepStrictEqual(stmt.iterate().toArray(), []);
   });
 
   test('executes a query and returns all results', (t) => {
     const db = new DatabaseSync(nextDb());
+    t.after(() => { db.close(); });
     let stmt = db.prepare('CREATE TABLE storage(key TEXT, val TEXT)');
     t.assert.deepStrictEqual(stmt.run(), { changes: 0, lastInsertRowid: 0 });
     stmt = db.prepare('INSERT INTO storage (key, val) VALUES (?, ?)');

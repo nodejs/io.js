@@ -250,3 +250,21 @@
     new Set().isDisjointFrom(setLike);
   }, RangeError, '\'-Infinity\' is an invalid size');
 })();
+
+(function TestIsDisjointFromSetLikeWithLargeSize() {
+  let setLike = {
+    size: 2 ** 31,
+    has(v) {
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  const firstSet = new Set();
+  firstSet.add(42);
+  firstSet.add(43);
+
+  assertEquals(firstSet.isDisjointFrom(setLike), false);
+})();

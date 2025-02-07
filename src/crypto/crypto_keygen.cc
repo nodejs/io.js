@@ -12,6 +12,8 @@
 
 namespace node {
 
+using ncrypto::DataPointer;
+using ncrypto::EVPKeyCtxPointer;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
 using v8::JustVoid;
@@ -46,10 +48,8 @@ Maybe<void> NidKeyPairGenTraits::AdditionalConfig(
 }
 
 EVPKeyCtxPointer NidKeyPairGenTraits::Setup(NidKeyPairGenConfig* params) {
-  EVPKeyCtxPointer ctx =
-      EVPKeyCtxPointer(EVP_PKEY_CTX_new_id(params->params.id, nullptr));
-  if (!ctx || EVP_PKEY_keygen_init(ctx.get()) <= 0) return {};
-
+  auto ctx = EVPKeyCtxPointer::NewFromID(params->params.id);
+  if (!ctx || !ctx.initForKeygen()) return {};
   return ctx;
 }
 
@@ -71,21 +71,19 @@ Maybe<void> SecretKeyGenTraits::AdditionalConfig(
 
 KeyGenJobStatus SecretKeyGenTraits::DoKeyGen(Environment* env,
                                              SecretKeyGenConfig* params) {
-  ByteSource::Builder bytes(params->length);
-  if (!ncrypto::CSPRNG(bytes.data<unsigned char>(), params->length))
+  auto bytes = DataPointer::Alloc(params->length);
+  if (!ncrypto::CSPRNG(static_cast<unsigned char*>(bytes.get()),
+                       params->length)) {
     return KeyGenJobStatus::FAILED;
-  params->out = std::move(bytes).release();
+  }
+  params->out = ByteSource::Allocated(bytes.release());
   return KeyGenJobStatus::OK;
 }
 
 MaybeLocal<Value> SecretKeyGenTraits::EncodeKey(Environment* env,
                                                 SecretKeyGenConfig* params) {
   auto data = KeyObjectData::CreateSecret(std::move(params->out));
-  Local<Value> ret;
-  if (!KeyObjectHandle::Create(env, data).ToLocal(&ret)) {
-    return MaybeLocal<Value>();
-  }
-  return ret;
+  return KeyObjectHandle::Create(env, data).FromMaybe(Local<Value>());
 }
 
 namespace Keygen {
@@ -98,7 +96,6 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   NidKeyPairGenJob::RegisterExternalReferences(registry);
   SecretKeyGenJob::RegisterExternalReferences(registry);
 }
-
 }  // namespace Keygen
 }  // namespace crypto
 }  // namespace node

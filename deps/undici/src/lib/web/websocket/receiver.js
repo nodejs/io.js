@@ -7,13 +7,13 @@ const { channels } = require('../../core/diagnostics')
 const {
   isValidStatusCode,
   isValidOpcode,
-  failWebsocketConnection,
   websocketMessageReceived,
   utf8Decode,
   isControlFrame,
   isTextBinaryFrame,
   isContinuationFrame
 } = require('./util')
+const { failWebsocketConnection } = require('./connection')
 const { WebsocketFrameSend } = require('./frame')
 const { PerMessageDeflate } = require('./permessage-deflate')
 
@@ -24,6 +24,7 @@ const { PerMessageDeflate } = require('./permessage-deflate')
 
 class ByteParser extends Writable {
   #buffers = []
+  #fragmentsBytes = 0
   #byteOffset = 0
   #loop = false
 
@@ -208,16 +209,14 @@ class ByteParser extends Writable {
           this.#state = parserStates.INFO
         } else {
           if (!this.#info.compressed) {
-            this.#fragments.push(body)
+            this.writeFragments(body)
 
             // If the frame is not fragmented, a message has been received.
             // If the frame is fragmented, it will terminate with a fin bit set
             // and an opcode of 0 (continuation), therefore we handle that when
             // parsing continuation frames, not here.
             if (!this.#info.fragmented && this.#info.fin) {
-              const fullMessage = Buffer.concat(this.#fragments)
-              websocketMessageReceived(this.#handler, this.#info.binaryType, fullMessage)
-              this.#fragments.length = 0
+              websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments())
             }
 
             this.#state = parserStates.INFO
@@ -228,7 +227,7 @@ class ByteParser extends Writable {
                 return
               }
 
-              this.#fragments.push(data)
+              this.writeFragments(data)
 
               if (!this.#info.fin) {
                 this.#state = parserStates.INFO
@@ -237,11 +236,10 @@ class ByteParser extends Writable {
                 return
               }
 
-              websocketMessageReceived(this.#handler, this.#info.binaryType, Buffer.concat(this.#fragments))
+              websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments())
 
               this.#loop = true
               this.#state = parserStates.INFO
-              this.#fragments.length = 0
               this.run(callback)
             })
 
@@ -265,34 +263,70 @@ class ByteParser extends Writable {
       return emptyBuffer
     }
 
-    if (this.#buffers[0].length === n) {
-      this.#byteOffset -= this.#buffers[0].length
-      return this.#buffers.shift()
-    }
-
-    const buffer = Buffer.allocUnsafe(n)
-    let offset = 0
-
-    while (offset !== n) {
-      const next = this.#buffers[0]
-      const { length } = next
-
-      if (length + offset === n) {
-        buffer.set(this.#buffers.shift(), offset)
-        break
-      } else if (length + offset > n) {
-        buffer.set(next.subarray(0, n - offset), offset)
-        this.#buffers[0] = next.subarray(n - offset)
-        break
-      } else {
-        buffer.set(this.#buffers.shift(), offset)
-        offset += next.length
-      }
-    }
-
     this.#byteOffset -= n
 
-    return buffer
+    const first = this.#buffers[0]
+
+    if (first.length > n) {
+      // replace with remaining buffer
+      this.#buffers[0] = first.subarray(n, first.length)
+      return first.subarray(0, n)
+    } else if (first.length === n) {
+      // prefect match
+      return this.#buffers.shift()
+    } else {
+      let offset = 0
+      // If Buffer.allocUnsafe is used, extra copies will be made because the offset is non-zero.
+      const buffer = Buffer.allocUnsafeSlow(n)
+      while (offset !== n) {
+        const next = this.#buffers[0]
+        const length = next.length
+
+        if (length + offset === n) {
+          buffer.set(this.#buffers.shift(), offset)
+          break
+        } else if (length + offset > n) {
+          buffer.set(next.subarray(0, n - offset), offset)
+          this.#buffers[0] = next.subarray(n - offset)
+          break
+        } else {
+          buffer.set(this.#buffers.shift(), offset)
+          offset += length
+        }
+      }
+
+      return buffer
+    }
+  }
+
+  writeFragments (fragment) {
+    this.#fragmentsBytes += fragment.length
+    this.#fragments.push(fragment)
+  }
+
+  consumeFragments () {
+    const fragments = this.#fragments
+
+    if (fragments.length === 1) {
+      // single fragment
+      this.#fragmentsBytes = 0
+      return fragments.shift()
+    }
+
+    let offset = 0
+    // If Buffer.allocUnsafe is used, extra copies will be made because the offset is non-zero.
+    const output = Buffer.allocUnsafeSlow(this.#fragmentsBytes)
+
+    for (let i = 0; i < fragments.length; ++i) {
+      const buffer = fragments[i]
+      output.set(buffer, offset)
+      offset += buffer.length
+    }
+
+    this.#fragments = []
+    this.#fragmentsBytes = 0
+
+    return output
   }
 
   parseCloseBody (data) {

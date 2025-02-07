@@ -3792,14 +3792,13 @@ bool CanInlineJSToWasmCall(const wasm::FunctionSig* wasm_signature) {
     return false;
   }
 
-  wasm::ValueType externRefNonNull = wasm::kWasmExternRef.AsNonNull();
   for (auto type : wasm_signature->all()) {
 #if defined(V8_TARGET_ARCH_32_BIT)
     if (type == wasm::kWasmI64) return false;
 #endif
     if (type != wasm::kWasmI32 && type != wasm::kWasmI64 &&
         type != wasm::kWasmF32 && type != wasm::kWasmF64 &&
-        type != wasm::kWasmExternRef && type != externRefNonNull) {
+        type != wasm::kWasmExternRef) {
       return false;
     }
   }
@@ -3825,9 +3824,6 @@ Reduction JSCallReducer::ReduceCallWasmFunction(Node* node,
   if (!CanInlineJSToWasmCall(wasm_signature)) {
     return NoChange();
   }
-
-  // Signal TurboFan that it should run the 'wasm-inlining' phase.
-  has_wasm_calls_ = true;
 
   const wasm::WasmModule* wasm_module = shared.wasm_module();
   if (wasm_module_for_inlining_ == nullptr) {
@@ -3885,19 +3881,15 @@ Reduction JSCallReducer::ReduceCallWasmFunction(Node* node,
 // Given a FunctionTemplateInfo, checks whether the fast API call can be
 // optimized, applying the initial step of the overload resolution algorithm:
 // Given an overload set function_template_info.c_signatures, and a list of
-// arguments of size argc:
-// 1. Let max_arg be the length of the longest type list of the entries in
-//    function_template_info.c_signatures.
-// 2. Let argc be the size of the arguments list.
-// 3. Initialize arg_count = min(max_arg, argc).
-// 4. Remove from the set all entries whose type list is not of length
+// arguments of size arg_count:
+// 1. Remove from the set all entries whose type list is not of length
 //    arg_count.
 // Returns an array with the indexes of the remaining entries in S, which
 // represents the set of "optimizable" function overloads.
 
 FastApiCallFunctionVector CanOptimizeFastCall(
     JSHeapBroker* broker, Zone* zone,
-    FunctionTemplateInfoRef function_template_info, size_t argc) {
+    FunctionTemplateInfoRef function_template_info, size_t arg_count) {
   FastApiCallFunctionVector result(zone);
   if (!v8_flags.turbo_fast_api_calls) return result;
 
@@ -3907,18 +3899,6 @@ FastApiCallFunctionVector CanOptimizeFastCall(
   ZoneVector<const CFunctionInfo*> signatures =
       function_template_info.c_signatures(broker);
   const size_t overloads_count = signatures.size();
-
-  // Calculates the length of the longest type list of the entries in
-  // function_template_info.
-  size_t max_arg = 0;
-  for (size_t i = 0; i < overloads_count; i++) {
-    const CFunctionInfo* c_signature = signatures[i];
-    // C arguments should include the receiver at index 0.
-    DCHECK_GE(c_signature->ArgumentCount(), kReceiver);
-    const size_t len = c_signature->ArgumentCount() - kReceiver;
-    if (len > max_arg) max_arg = len;
-  }
-  const size_t arg_count = std::min(max_arg, argc);
 
   // Only considers entries whose type list length matches arg_count.
   for (size_t i = 0; i < overloads_count; i++) {
@@ -5225,7 +5205,8 @@ Reduction JSCallReducer::ReduceJSCall(Node* node,
   }
 
 #if V8_ENABLE_WEBASSEMBLY
-  if ((flags() & kInlineJSToWasmCalls) && shared.wasm_function_signature()) {
+  if ((flags() & kInlineJSToWasmCalls) && shared.wasm_function_signature() &&
+      !shared.is_promising_wasm_export()) {
     return ReduceCallWasmFunction(node, shared);
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -8501,7 +8482,7 @@ Reduction JSCallReducer::ReduceDataViewAccess(Node* node, DataViewAccess access,
     }
   }
 
-  // We need to retain either the {receiver} itself or it's backing
+  // We need to retain either the {receiver} itself or its backing
   // JSArrayBuffer to make sure that the GC doesn't collect the raw
   // memory. We default to {receiver} here, and only use the buffer
   // if we anyways have to load it (to reduce register pressure).

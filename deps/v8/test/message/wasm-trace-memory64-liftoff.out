@@ -1,28 +1,28 @@
-liftoff     func:     0:0x151   load from 0000004294970004 val: i32:0 / 00000000
-liftoff     func:     1:0x15e   load from 0000004294970001 val:  i8:0 / 00
-liftoff     func:     3:0x17a    store to 0000004294970004 val: i32:305419896 / 12345678
-liftoff     func:     0:0x151   load from 0000004294970002 val: i32:1450704896 / 56780000
-liftoff     func:     1:0x15e   load from 0000004294970006 val:  i8:52 / 34
-liftoff     func:     2:0x16b   load from 0000004294970002 val: f32:68169720922112.000000 / 56780000
-liftoff     func:     4:0x188    store to 0000004294970004 val:  i8:171 / ab
-liftoff     func:     0:0x151   load from 0000004294970002 val: i32:1454047232 / 56ab0000
-liftoff     func:     2:0x16b   load from 0000004294970002 val: f32:94008244174848.000000 / 56ab0000
-liftoff     func:     6:0x1a6    store to 0000004294970004 val: s128:48879 48879 48879 48879 / 0000beef 0000beef 0000beef 0000beef
-liftoff     func:     5:0x194   load from 0000004294970002 val: s128:-1091633152 -1091633152 -1091633152 -1091633152 / beef0000 beef0000 beef0000 beef0000
-liftoff     func:     7:0x1b3   load from 0000004294970004 val: i16:48879 / beef
-liftoff     func:     8:0x1c0   load from 0000004294970002 val: i64:-4688528683866062848 / beef0000beef0000
-liftoff     func:     9:0x1cd   load from 0000004294970002 val: f64:-0.000015 / beef0000beef0000
-liftoff     func:    10:0x1da   load from 0000004294970004 val: i32:48879 / 0000beef
-liftoff     func:    11:0x1e3   load from 0000004294970001 val:  i8:0 / 00
-liftoff     func:    13:0x1f7    store to 0000004294970004 val: i32:305419896 / 12345678
-liftoff     func:    10:0x1da   load from 0000004294970002 val: i32:1450704896 / 56780000
-liftoff     func:    11:0x1e3   load from 0000004294970006 val:  i8:52 / 34
-liftoff     func:    12:0x1ec   load from 0000004294970002 val: f32:68169720922112.000000 / 56780000
-liftoff     func:    14:0x201    store to 0000004294970004 val:  i8:171 / ab
-liftoff     func:    10:0x1da   load from 0000004294970002 val: i32:1454047232 / 56ab0000
-liftoff     func:    12:0x1ec   load from 0000004294970002 val: f32:94008244174848.000000 / 56ab0000
-liftoff     func:    16:0x217    store to 0000004294970004 val: s128:48879 48879 48879 48879 / 0000beef 0000beef 0000beef 0000beef
-liftoff     func:    15:0x209   load from 0000004294970002 val: s128:-1091633152 -1091633152 -1091633152 -1091633152 / beef0000 beef0000 beef0000 beef0000
-liftoff     func:    17:0x220   load from 0000004294970004 val: i16:48879 / beef
-liftoff     func:    18:0x229   load from 0000004294970002 val: i64:-4688528683866062848 / beef0000beef0000
-liftoff     func:    19:0x232   load from 0000004294970002 val: f64:-0.000015 / beef0000beef0000
+liftoff     func:     0:0x151  load from 0000004294970004 val:  i32:0 / 00000000
+liftoff     func:     1:0x15e  load from 0000004294970001 val:   i8:0 / 00
+liftoff     func:     3:0x17a   store to 0000004294970004 val:  i32:305419896 / 12345678
+liftoff     func:     0:0x151  load from 0000004294970002 val:  i32:1450704896 / 56780000
+liftoff     func:     1:0x15e  load from 0000004294970006 val:   i8:52 / 34
+liftoff     func:     2:0x16b  load from 0000004294970002 val:  f32:68169720922112.000000 / 56780000
+liftoff     func:     4:0x188   store to 0000004294970004 val:   i8:171 / ab
+liftoff     func:     0:0x151  load from 0000004294970002 val:  i32:1454047232 / 56ab0000
+liftoff     func:     2:0x16b  load from 0000004294970002 val:  f32:94008244174848.000000 / 56ab0000
+liftoff     func:     6:0x1a6   store to 0000004294970004 val: s128:48879 48879 48879 48879 / 0000beef 0000beef 0000beef 0000beef
+liftoff     func:     5:0x194  load from 0000004294970002 val: s128:3203334144 3203334144 3203334144 3203334144 / beef0000 beef0000 beef0000 beef0000
+liftoff     func:     7:0x1b3  load from 0000004294970004 val:  i16:48879 / beef
+liftoff     func:     8:0x1c0  load from 0000004294970002 val:  i64:13758215389843488768 / beef0000beef0000
+liftoff     func:     9:0x1cd  load from 0000004294970002 val:  f64:-0.000015 / beef0000beef0000
+liftoff     func:    10:0x1da  load from 0000004294970004 val:  i32:48879 / 0000beef
+liftoff     func:    11:0x1e3  load from 0000004294970001 val:   i8:0 / 00
+liftoff     func:    13:0x1f7   store to 0000004294970004 val:  i32:305419896 / 12345678
+liftoff     func:    10:0x1da  load from 0000004294970002 val:  i32:1450704896 / 56780000
+liftoff     func:    11:0x1e3  load from 0000004294970006 val:   i8:52 / 34
+liftoff     func:    12:0x1ec  load from 0000004294970002 val:  f32:68169720922112.000000 / 56780000
+liftoff     func:    14:0x201   store to 0000004294970004 val:   i8:171 / ab
+liftoff     func:    10:0x1da  load from 0000004294970002 val:  i32:1454047232 / 56ab0000
+liftoff     func:    12:0x1ec  load from 0000004294970002 val:  f32:94008244174848.000000 / 56ab0000
+liftoff     func:    16:0x217   store to 0000004294970004 val: s128:48879 48879 48879 48879 / 0000beef 0000beef 0000beef 0000beef
+liftoff     func:    15:0x209  load from 0000004294970002 val: s128:3203334144 3203334144 3203334144 3203334144 / beef0000 beef0000 beef0000 beef0000
+liftoff     func:    17:0x220  load from 0000004294970004 val:  i16:48879 / beef
+liftoff     func:    18:0x229  load from 0000004294970002 val:  i64:13758215389843488768 / beef0000beef0000
+liftoff     func:    19:0x232  load from 0000004294970002 val:  f64:-0.000015 / beef0000beef0000

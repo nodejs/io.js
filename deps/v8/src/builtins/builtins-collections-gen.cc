@@ -19,6 +19,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 template <class T>
 using TVariable = compiler::TypedCodeAssemblerVariable<T>;
 
@@ -3046,6 +3048,8 @@ TF_BUILTIN(WeakSetPrototypeHas, WeakCollectionsBuiltinsAssembler) {
   BIND(&return_false);
   Return(FalseConstant());
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

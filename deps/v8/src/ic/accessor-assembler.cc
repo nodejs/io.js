@@ -30,6 +30,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 //////////////////// Private helpers.
 
 #define LOAD_KIND(kind) \
@@ -5391,6 +5393,8 @@ void AccessorAssembler::BranchIfPrototypesHaveNoElements(
 
 #undef LOAD_KIND
 #undef STORE_KIND
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

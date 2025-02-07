@@ -10,6 +10,7 @@
   # Failing WPT tests
   'wpt/exception/type.tentative': [FAIL],
   'wpt/function/constructor.tentative': [FAIL],
+
   # TODO(v8): Should work after
   # https://github.com/WebAssembly/exception-handling/pull/257 landed and the
   # tests have been updated.
@@ -17,8 +18,7 @@
 
   # Failing spec tests after test update
   'proposals/js-types/function/constructor.tentative': [FAIL],
-  'proposals/gc/gc/casts.tentative': [FAIL],
-  'wpt/gc/casts.tentative': [FAIL],
+
   'proposals/memory64/table/constructor': [FAIL],
   'wpt/module/moduleSource': [FAIL],
 
@@ -59,6 +59,21 @@
   # WebAssembly.Function.type. The tests should be updated anyway since they
   # still use the old API (which works but is deprecated).
   'proposals/js-promise-integration/js-promise-integration/js-promise-integration': [FAIL],
+
+  # TODO(https://crbug.com/364913810): Investigate failing exception handling tests.
+  'proposals/exception-handling/exception/identity.tentative': [FAIL],
+  'proposals/exception-handling/exception/jsTag.tentative': [FAIL],
+  'proposals/memory64/exception/identity.tentative': [FAIL],
+  'proposals/memory64/exception/jsTag.tentative': [FAIL],
+  'proposals/exception-handling/exception/basic.tentative': [FAIL],
+
+  # TODO(clemensb): Fix upstream; use kWasmVoid instead of kWasmStmt.
+  # (https://github.com/WebAssembly/memory64/pull/83)
+  'proposals/memory64/module/exports': [FAIL],
+
+  # Already fixed upstream in WPT, waiting on merge to spec repo:
+  # https://github.com/WebAssembly/js-string-builtins/pull/43
+  'wpt/js-string/basic.tentative': [FAIL],
 }], # ALWAYS
 
 ['system == android', {

@@ -43,4 +43,4 @@ async_hooks.createHook({
 
 
 Promise.resolve().then(() => {});
-setImmediate(global.gc);
+setImmediate(globalThis.gc);

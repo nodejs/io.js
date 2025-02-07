@@ -32,12 +32,12 @@
 #define BUFFER_MULTIPLIER 20
 #define MAX_DGRAM_SIZE (64 * 1024)
 #define NUM_SENDS 40
-#define EXPECTED_MMSG_ALLOCS (NUM_SENDS / BUFFER_MULTIPLIER)
 
 static uv_udp_t recver;
 static uv_udp_t sender;
 static int recv_cb_called;
 static int received_datagrams;
+static int read_bytes;
 static int close_cb_called;
 static int alloc_cb_called;
 
@@ -74,6 +74,7 @@ static void recv_cb(uv_udp_t* handle,
                     const struct sockaddr* addr,
                     unsigned flags) {
   ASSERT_GE(nread, 0);
+  read_bytes += nread;
 
   /* free and return if this is a mmsg free-only callback invocation */
   if (flags & UV_UDP_MMSG_FREE) {
@@ -140,7 +141,7 @@ TEST_IMPL(udp_mmsg) {
 
   /* On platforms that don't support mmsg, each recv gets its own alloc */
   if (uv_udp_using_recvmmsg(&recver))
-    ASSERT_EQ(alloc_cb_called, EXPECTED_MMSG_ALLOCS);
+    ASSERT_EQ(read_bytes, NUM_SENDS * 4); /* we're sending 4 bytes per datagram */
   else
     ASSERT_EQ(alloc_cb_called, recv_cb_called);
 

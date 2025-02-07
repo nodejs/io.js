@@ -11,6 +11,7 @@
 #include "src/codegen/assembler.h"
 #include "src/codegen/cpu-features.h"
 #include "src/codegen/external-reference.h"
+#include "src/codegen/interface-descriptors-inl.h"
 #include "src/codegen/macro-assembler.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/codegen/x64/assembler-x64.h"
@@ -29,6 +30,7 @@
 #include "src/objects/smi.h"
 
 #if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-linkage.h"
 #include "src/wasm/wasm-objects.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
@@ -1431,6 +1433,13 @@ bool ShouldClearOutputRegisterBeforeInstruction(CodeGenerator* g,
   return false;
 }
 
+void CodeGenerator::AssemblePlaceHolderForLazyDeopt(Instruction* instr) {
+  if (info()->shadow_stack_compliant_lazy_deopt() &&
+      instr->HasCallDescriptorFlag(CallDescriptor::kNeedsFrameState)) {
+    __ Nop(MacroAssembler::kIntraSegmentJmpInstrSize);
+  }
+}
+
 // Assembles an instruction after register allocation, producing machine code.
 CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     Instruction* instr) {
@@ -1463,6 +1472,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
         __ call(reg);
       }
       RecordCallPosition(instr);
+      AssemblePlaceHolderForLazyDeopt(instr);
       frame_access_state()->ClearSPDelta();
       break;
     }
@@ -1471,6 +1481,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       Register builtin_index = i.InputRegister(0);
       __ CallBuiltinByIndex(builtin_index);
       RecordCallPosition(instr);
+      AssemblePlaceHolderForLazyDeopt(instr);
       frame_access_state()->ClearSPDelta();
       break;
     }
@@ -1488,6 +1499,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
         __ call(i.InputRegister(0));
       }
       RecordCallPosition(instr);
+      AssemblePlaceHolderForLazyDeopt(instr);
       frame_access_state()->ClearSPDelta();
       break;
     }
@@ -1552,6 +1564,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       __ CallJSFunction(func);
       frame_access_state()->ClearSPDelta();
       RecordCallPosition(instr);
+      AssemblePlaceHolderForLazyDeopt(instr);
       break;
     }
     case kArchPrepareCallCFunction: {
@@ -4073,6 +4086,27 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       __ vcvtps2ph(i.OutputSimd128Register(), i.InputSimd128Register(0), 0);
       break;
     }
+    case kX64F16x8DemoteF64x2Zero: {
+      CpuFeatureScope f16c_scope(masm(), F16C);
+      CpuFeatureScope avx_scope(masm(), AVX);
+      Register tmp = i.TempRegister(0);
+      XMMRegister ftmp = i.TempSimd128Register(1);
+      XMMRegister ftmp2 = i.TempSimd128Register(2);
+      XMMRegister dst = i.OutputSimd128Register();
+      XMMRegister src = i.InputSimd128Register(0);
+      __ F64x2ExtractLane(ftmp, src, 1);
+      // Cvtpd2ph requires dst and src to not overlap.
+      __ Cvtpd2ph(ftmp2, ftmp, tmp);
+      __ Cvtpd2ph(dst, src, tmp);
+      __ vmovd(tmp, ftmp2);
+      __ vpinsrw(dst, dst, tmp, 1);
+      // Set ftmp to 0.
+      __ pxor(ftmp, ftmp);
+      // Reset all unaffected lanes.
+      __ F64x2ReplaceLane(dst, dst, ftmp, 1);
+      __ vinsertps(dst, dst, ftmp, (1 << 4) & 0x30);
+      break;
+    }
     case kX64F32x4PromoteLowF16x8: {
       CpuFeatureScope f16c_scope(masm(), F16C);
       __ vcvtph2ps(i.OutputSimd128Register(), i.InputSimd128Register(0));
@@ -5717,7 +5751,8 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       // If AVX_VNNI supported, pass kScratchDoubleReg twice as unused
       // arguments.
       XMMRegister tmp = kScratchDoubleReg;
-      if (!CpuFeatures::IsSupported(AVX_VNNI)) {
+      if (!(CpuFeatures::IsSupported(AVX_VNNI) ||
+            CpuFeatures::IsSupported(AVX_VNNI_INT8))) {
         tmp = i.TempSimd128Register(0);
       }
       __ I32x4DotI8x16I7x16AddS(
@@ -7286,7 +7321,7 @@ void CodeGenerator::AssembleArchDeoptBranch(Instruction* instr,
       __ pushq(rax);
       __ pushq(rbx);
       // Load the address of the counter into rbx.
-      __ movq(rbx, Operand(rbp, WasmFrameConstants::kWasmInstanceOffset));
+      __ movq(rbx, Operand(rbp, WasmFrameConstants::kWasmInstanceDataOffset));
       __ movq(
           rbx,
           Operand(rbx, WasmTrustedInstanceData::kStressDeoptCounterOffset - 1));
@@ -7549,22 +7584,11 @@ void CodeGenerator::AssembleConstructFrame() {
           call_descriptor->IsWasmCapiFunction()) {
         // For import wrappers and C-API functions, this stack slot is only used
         // for printing stack traces in V8. Also, it holds a WasmImportData
-        // instead of the instance itself, which is taken care of in the frames
-        // accessors.
-        __ pushq(kWasmInstanceRegister);
+        // instead of the trusted instance data, which is taken care of in the
+        // frames accessors.
+        __ pushq(kWasmImplicitArgRegister);
       }
-      if (call_descriptor->IsWasmImportWrapper()) {
-        // If the wrapper is running on a secondary stack, it will switch to the
-        // central stack and fill these slots with the central stack pointer and
-        // secondary stack limit. Otherwise the slots remain empty.
-        static_assert(WasmImportWrapperFrameConstants::kCentralStackSPOffset ==
-                      -24);
-        static_assert(
-            WasmImportWrapperFrameConstants::kSecondaryStackLimitOffset == -32);
-        __ pushq(Immediate(kNullAddress));
-        __ pushq(Immediate(kNullAddress));
-
-      } else if (call_descriptor->IsWasmCapiFunction()) {
+      if (call_descriptor->IsWasmCapiFunction()) {
         // Reserve space for saving the PC later.
         __ AllocateStackSpace(kSystemPointerSize);
       }
@@ -7614,13 +7638,31 @@ void CodeGenerator::AssembleConstructFrame() {
         __ j(above_equal, &done, Label::kNear);
       }
 
-      __ near_call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
-                   RelocInfo::WASM_STUB_CALL);
-      // The call does not return, hence we can ignore any references and just
-      // define an empty safepoint.
-      ReferenceMap* reference_map = zone()->New<ReferenceMap>(zone());
-      RecordSafepoint(reference_map);
-      __ AssertUnreachable(AbortReason::kUnexpectedReturnFromWasmTrap);
+      if (v8_flags.experimental_wasm_growable_stacks) {
+        RegList regs_to_save;
+        regs_to_save.set(WasmHandleStackOverflowDescriptor::GapRegister());
+        regs_to_save.set(
+            WasmHandleStackOverflowDescriptor::FrameBaseRegister());
+        for (auto reg : wasm::kGpParamRegisters) regs_to_save.set(reg);
+        __ PushAll(regs_to_save);
+        __ movq(WasmHandleStackOverflowDescriptor::GapRegister(),
+                Immediate(required_slots * kSystemPointerSize));
+        __ movq(WasmHandleStackOverflowDescriptor::FrameBaseRegister(), rbp);
+        __ addq(WasmHandleStackOverflowDescriptor::FrameBaseRegister(),
+                Immediate(static_cast<int32_t>(
+                    call_descriptor->ParameterSlotCount() * kSystemPointerSize +
+                    CommonFrameConstants::kFixedFrameSizeAboveFp)));
+        __ CallBuiltin(Builtin::kWasmHandleStackOverflow);
+        __ PopAll(regs_to_save);
+      } else {
+        __ near_call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
+                     RelocInfo::WASM_STUB_CALL);
+        // The call does not return, hence we can ignore any references and just
+        // define an empty safepoint.
+        ReferenceMap* reference_map = zone()->New<ReferenceMap>(zone());
+        RecordSafepoint(reference_map);
+        __ AssertUnreachable(AbortReason::kUnexpectedReturnFromWasmTrap);
+      }
       __ bind(&done);
     }
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -7708,6 +7750,30 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
       __ Assert(equal, AbortReason::kUnexpectedAdditionalPopValue);
     }
   }
+
+#if V8_ENABLE_WEBASSEMBLY
+  if (call_descriptor->IsWasmFunctionCall() &&
+      v8_flags.experimental_wasm_growable_stacks) {
+    __ movq(kScratchRegister,
+            MemOperand(rbp, TypedFrameConstants::kFrameTypeOffset));
+    __ cmpq(
+        kScratchRegister,
+        Immediate(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+    Label done;
+    __ j(not_equal, &done);
+    RegList regs_to_save;
+    for (auto reg : wasm::kGpReturnRegisters) regs_to_save.set(reg);
+    __ PushAll(regs_to_save);
+    __ PrepareCallCFunction(1);
+    __ LoadAddress(kCArgRegs[0], ExternalReference::isolate_address());
+    __ CallCFunction(ExternalReference::wasm_shrink_stack(), 1);
+    // Restore old FP. We don't need to restore old SP explicitly, because
+    // it will be restored from FP inside of AssembleDeconstructFrame.
+    __ movq(rbp, kReturnRegister0);
+    __ PopAll(regs_to_save);
+    __ bind(&done);
+  }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
   Register argc_reg = rcx;
   // Functions with JS linkage have at least one parameter (the receiver).

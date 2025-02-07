@@ -35,14 +35,9 @@ struct MarkingConfig {
   StackState stack_state = StackState::kMayContainHeapPointers;
   MarkingType marking_type = MarkingType::kIncremental;
   IsForcedGC is_forced_gc = IsForcedGC::kNotForced;
-  v8::base::TimeDelta incremental_task_delay = v8::base::TimeDelta();
   bool bailout_of_marking_when_ahead_of_schedule = false;
 };
 
-enum class SweepingStrategy {
-  kMinimizeMutatorInterference,
-  kMinimizeMemory,
-};
 struct SweepingConfig {
   using SweepingType = cppgc::Heap::SweepingType;
   enum class CompactableSpaceHandling { kSweep, kIgnore };
@@ -52,7 +47,6 @@ struct SweepingConfig {
   CompactableSpaceHandling compactable_space_handling =
       CompactableSpaceHandling::kSweep;
   FreeMemoryHandling free_memory_handling = FreeMemoryHandling::kDoNotDiscard;
-  SweepingStrategy sweeping_strategy = SweepingStrategy::kMinimizeMemory;
 };
 
 struct GCConfig {

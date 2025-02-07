@@ -183,7 +183,7 @@ class MachineLoweringReducer : public Next {
     if (ShouldSkipOptimizationStep()) goto no_change;
     // Block cloning only works for branches, but not for `DeoptimizeIf`. On the
     // other hand, explicit control flow makes the overall pipeline and
-    // escpecially the register allocator slower. So we only switch a
+    // especially the register allocator slower. So we only switch a
     // `DeoptiomizeIf` to a branch if it has a phi input, which indicates that
     // block cloning could be helpful.
     if (__ Get(condition).template Is<PhiOp>()) {

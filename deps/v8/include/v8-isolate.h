@@ -548,6 +548,7 @@ class V8_EXPORT Isolate {
     kDocumentAllLegacyCall = 141,
     kDocumentAllLegacyConstruct = 142,
     kConsoleContext = 143,
+    kWasmImportedStringsUtf8 = 144,
 
     // If you add new values here, you'll also need to update Chromium's:
     // web_feature.mojom, use_counter_callback.cc, and enums.xml. V8 changes to
@@ -1746,7 +1747,7 @@ class V8_EXPORT Isolate {
   friend class PersistentValueMapBase;
 
   internal::Address* GetDataFromSnapshotOnce(size_t index);
-  void ReportExternalAllocationLimitReached();
+  void HandleExternalMemoryInterrupt();
 };
 
 void Isolate::SetData(uint32_t slot, void* data) {

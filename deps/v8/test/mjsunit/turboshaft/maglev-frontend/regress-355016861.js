@@ -18,7 +18,7 @@ function foo(n, r, b) {
     v = 45;
     g(true);
   } catch(e) {
-    // {v} here is a Phi with a Uint32 and a Int32 input.
+    // {v} here is a Phi with a Uint32 and an Int32 input.
     return v + 3;
   }
 }

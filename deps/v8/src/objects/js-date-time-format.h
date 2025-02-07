@@ -132,23 +132,23 @@ class JSDateTimeFormat
   // Bit positions in |flags|.
   DEFINE_TORQUE_GENERATED_JS_DATE_TIME_FORMAT_FLAGS()
 
-  static_assert(HourCycle::kUndefined <= HourCycleBits::kMax);
-  static_assert(HourCycle::kH11 <= HourCycleBits::kMax);
-  static_assert(HourCycle::kH12 <= HourCycleBits::kMax);
-  static_assert(HourCycle::kH23 <= HourCycleBits::kMax);
-  static_assert(HourCycle::kH24 <= HourCycleBits::kMax);
+  static_assert(HourCycleBits::is_valid(HourCycle::kUndefined));
+  static_assert(HourCycleBits::is_valid(HourCycle::kH11));
+  static_assert(HourCycleBits::is_valid(HourCycle::kH12));
+  static_assert(HourCycleBits::is_valid(HourCycle::kH23));
+  static_assert(HourCycleBits::is_valid(HourCycle::kH24));
 
-  static_assert(DateTimeStyle::kUndefined <= DateStyleBits::kMax);
-  static_assert(DateTimeStyle::kFull <= DateStyleBits::kMax);
-  static_assert(DateTimeStyle::kLong <= DateStyleBits::kMax);
-  static_assert(DateTimeStyle::kMedium <= DateStyleBits::kMax);
-  static_assert(DateTimeStyle::kShort <= DateStyleBits::kMax);
+  static_assert(DateStyleBits::is_valid(DateTimeStyle::kUndefined));
+  static_assert(DateStyleBits::is_valid(DateTimeStyle::kFull));
+  static_assert(DateStyleBits::is_valid(DateTimeStyle::kLong));
+  static_assert(DateStyleBits::is_valid(DateTimeStyle::kMedium));
+  static_assert(DateStyleBits::is_valid(DateTimeStyle::kShort));
 
-  static_assert(DateTimeStyle::kUndefined <= TimeStyleBits::kMax);
-  static_assert(DateTimeStyle::kFull <= TimeStyleBits::kMax);
-  static_assert(DateTimeStyle::kLong <= TimeStyleBits::kMax);
-  static_assert(DateTimeStyle::kMedium <= TimeStyleBits::kMax);
-  static_assert(DateTimeStyle::kShort <= TimeStyleBits::kMax);
+  static_assert(TimeStyleBits::is_valid(DateTimeStyle::kUndefined));
+  static_assert(TimeStyleBits::is_valid(DateTimeStyle::kFull));
+  static_assert(TimeStyleBits::is_valid(DateTimeStyle::kLong));
+  static_assert(TimeStyleBits::is_valid(DateTimeStyle::kMedium));
+  static_assert(TimeStyleBits::is_valid(DateTimeStyle::kShort));
 
   DECL_ACCESSORS(icu_locale, Tagged<Managed<icu::Locale>>)
   DECL_ACCESSORS(icu_simple_date_format, Tagged<Managed<icu::SimpleDateFormat>>)

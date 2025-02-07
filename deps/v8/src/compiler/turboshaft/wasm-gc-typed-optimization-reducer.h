@@ -80,6 +80,8 @@ class WasmGCTypeAnalyzer {
   void ProcessPhi(const PhiOp& phi);
   void ProcessTypeAnnotation(const WasmTypeAnnotationOp& type_annotation);
 
+  wasm::ValueType GetTypeForPhiInput(const PhiOp& phi, int input_index);
+
   void CreateMergeSnapshot(const Block& block);
   bool CreateMergeSnapshot(base::Vector<const Snapshot> predecessors,
                            base::Vector<const bool> reachable);

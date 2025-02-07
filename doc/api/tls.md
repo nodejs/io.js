@@ -2400,6 +2400,9 @@ from the bundled Mozilla CA store as supplied by the current Node.js version.
 The bundled CA store, as supplied by Node.js, is a snapshot of Mozilla CA store
 that is fixed at release time. It is identical on all supported platforms.
 
+On macOS if `--use-system-ca` is passed then trusted certificates
+from the user and system keychains are also included.
+
 ## `tls.DEFAULT_ECDH_CURVE`
 
 <!-- YAML

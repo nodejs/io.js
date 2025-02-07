@@ -1,0 +1,39 @@
+{
+  "resources/urlpattern-compare-tests.tentative.js": {
+    "skip": "compareComponent function is not yet included in the URLPattern spec"
+  },
+  "urlpattern-compare.tentative.any.js": {
+    "skip": "compareComponent function is not yet included in the URLPattern spec"
+  },
+  "urlpattern-compare.tentative.https.any.js": {
+    "skip": "compareComponent function is not yet included in the URLPattern spec"
+  },
+  "urlpattern.any.js": {
+    "fail": {
+      "expected": [
+        "Pattern: [{\"protocol\":\"http\",\"port\":\"80 \"}] Inputs: [{\"protocol\":\"http\",\"port\":\"80\"}]",
+        "Pattern: [\"https://{sub.}?example{.com/}foo\"] Inputs: [\"https://example.com/foo\"]",
+        "Pattern: [{\"hostname\":\"bad#hostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad/hostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\\\\\\\hostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\nhostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\rhostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\thostname\"}] Inputs: undefined"
+      ]
+    }
+  },
+  "urlpattern.https.any.js": {
+    "fail": {
+      "expected": [
+        "Pattern: [{\"protocol\":\"http\",\"port\":\"80 \"}] Inputs: [{\"protocol\":\"http\",\"port\":\"80\"}]",
+        "Pattern: [\"https://{sub.}?example{.com/}foo\"] Inputs: [\"https://example.com/foo\"]",
+        "Pattern: [{\"hostname\":\"bad#hostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad/hostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\\\\\\\hostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\nhostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\rhostname\"}] Inputs: undefined",
+        "Pattern: [{\"hostname\":\"bad\\thostname\"}] Inputs: undefined"
+      ]
+    }
+  }
+}

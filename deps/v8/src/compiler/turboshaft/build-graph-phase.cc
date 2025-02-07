@@ -22,6 +22,13 @@ std::optional<BailoutReason> BuildGraphPhase::Run(
   turbofan_data->reset_schedule();
   DCHECK_NOT_NULL(schedule);
 
+  JsWasmCallsSidetable* js_wasm_calls_sidetable =
+#if V8_ENABLE_WEBASSEMBLY
+      turbofan_data->js_wasm_calls_sidetable();
+#else
+      nullptr;
+#endif  // V8_ENABLE_WEBASSEMBLY
+
   UnparkedScopeIfNeeded scope(data->broker());
 
   // Construct a new graph.
@@ -32,8 +39,8 @@ std::optional<BailoutReason> BuildGraphPhase::Run(
   data->InitializeGraphComponentWithGraphZone(turbofan_data->ReleaseGraphZone(),
                                               source_positions, node_origins);
 
-  if (auto bailout =
-          turboshaft::BuildGraph(data, schedule, temp_zone, linkage)) {
+  if (auto bailout = turboshaft::BuildGraph(data, schedule, temp_zone, linkage,
+                                            js_wasm_calls_sidetable)) {
     return bailout;
   }
   return {};

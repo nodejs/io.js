@@ -75,10 +75,8 @@ class VerifySignatures {
     const verifiedBold = this.npm.chalk.bold('verified')
     if (this.verifiedSignatureCount) {
       if (this.verifiedSignatureCount === 1) {
-        /* eslint-disable-next-line max-len */
         output.standard(`${this.verifiedSignatureCount} package has a ${verifiedBold} registry signature`)
       } else {
-        /* eslint-disable-next-line max-len */
         output.standard(`${this.verifiedSignatureCount} packages have ${verifiedBold} registry signatures`)
       }
       output.standard('')
@@ -86,10 +84,8 @@ class VerifySignatures {
 
     if (this.verifiedAttestationCount) {
       if (this.verifiedAttestationCount === 1) {
-        /* eslint-disable-next-line max-len */
         output.standard(`${this.verifiedAttestationCount} package has a ${verifiedBold} attestation`)
       } else {
-        /* eslint-disable-next-line max-len */
         output.standard(`${this.verifiedAttestationCount} packages have ${verifiedBold} attestations`)
       }
       output.standard('')
@@ -98,10 +94,8 @@ class VerifySignatures {
     if (missing.length) {
       const missingClr = this.npm.chalk.redBright('missing')
       if (missing.length === 1) {
-        /* eslint-disable-next-line max-len */
         output.standard(`1 package has a ${missingClr} registry signature but the registry is providing signing keys:`)
       } else {
-        /* eslint-disable-next-line max-len */
         output.standard(`${missing.length} packages have ${missingClr} registry signatures but the registry is providing signing keys:`)
       }
       output.standard('')
@@ -121,7 +115,6 @@ class VerifySignatures {
         if (invalidSignatures.length === 1) {
           output.standard(`1 package has an ${invalidClr} registry signature:`)
         } else {
-          /* eslint-disable-next-line max-len */
           output.standard(`${invalidSignatures.length} packages have ${invalidClr} registry signatures:`)
         }
         output.standard('')
@@ -136,7 +129,6 @@ class VerifySignatures {
         if (invalidAttestations.length === 1) {
           output.standard(`1 package has an ${invalidClr} attestation:`)
         } else {
-          /* eslint-disable-next-line max-len */
           output.standard(`${invalidAttestations.length} packages have ${invalidClr} attestations:`)
         }
         output.standard('')
@@ -147,10 +139,8 @@ class VerifySignatures {
       }
 
       if (invalid.length === 1) {
-        /* eslint-disable-next-line max-len */
         output.standard(`Someone might have tampered with this package since it was published on the registry!`)
       } else {
-        /* eslint-disable-next-line max-len */
         output.standard(`Someone might have tampered with these packages since they were published on the registry!`)
       }
       output.standard('')

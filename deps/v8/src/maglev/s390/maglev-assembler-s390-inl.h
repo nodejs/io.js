@@ -343,9 +343,11 @@ inline void MaglevAssembler::LoadTaggedFieldByIndex(Register result,
                                                     Register object,
                                                     Register index, int scale,
                                                     int offset) {
-  ShiftLeftU64(result, index, Operand(ShiftFromScale(scale)));
-  AddU64(result, result, object);
-  MacroAssembler::LoadTaggedField(result, FieldMemOperand(result, offset));
+  TemporaryRegisterScope temps(this);
+  Register scratch = temps.AcquireScratch();
+  ShiftLeftU64(scratch, index, Operand(ShiftFromScale(scale)));
+  AddU64(scratch, scratch, object);
+  MacroAssembler::LoadTaggedField(result, FieldMemOperand(scratch, offset));
 }
 
 inline void MaglevAssembler::LoadBoundedSizeFromObject(Register result,
@@ -708,8 +710,7 @@ inline void MaglevAssembler::DeoptIfBufferDetached(Register array,
   // loop if we deopt here.
   LoadTaggedField(scratch,
                   FieldMemOperand(array, JSArrayBufferView::kBufferOffset));
-  LoadTaggedField(scratch,
-                  FieldMemOperand(scratch, JSArrayBuffer::kBitFieldOffset));
+  LoadU32(scratch, FieldMemOperand(scratch, JSArrayBuffer::kBitFieldOffset));
   tmll(scratch, Operand(JSArrayBuffer::WasDetachedBit::kMask));
   EmitEagerDeoptIf(ne, DeoptimizeReason::kArrayBufferWasDetached, node);
 }
@@ -720,18 +721,18 @@ inline void MaglevAssembler::LoadByte(Register dst, MemOperand src) {
 
 inline Condition MaglevAssembler::IsCallableAndNotUndetectable(
     Register map, Register scratch) {
-  LoadU32(scratch, FieldMemOperand(map, Map::kBitFieldOffset));
-  AndP(scratch, Operand(Map::Bits1::IsUndetectableBit::kMask |
-                        Map::Bits1::IsCallableBit::kMask));
-  CmpS32(scratch, Operand(Map::Bits1::IsCallableBit::kMask));
+  LoadU8(scratch, FieldMemOperand(map, Map::kBitFieldOffset));
+  And(scratch, Operand(Map::Bits1::IsUndetectableBit::kMask |
+                       Map::Bits1::IsCallableBit::kMask));
+  CmpU32(scratch, Operand(Map::Bits1::IsCallableBit::kMask));
   return eq;
 }
 
 inline Condition MaglevAssembler::IsNotCallableNorUndetactable(
     Register map, Register scratch) {
-  LoadU8(scratch, FieldMemOperand(map, Map::kBitFieldOffset));
-  tmll(scratch, Operand(Map::Bits1::IsUndetectableBit::kMask |
-                        Map::Bits1::IsCallableBit::kMask));
+  tmy(FieldMemOperand(map, Map::kBitFieldOffset),
+      Operand(Map::Bits1::IsUndetectableBit::kMask |
+              Map::Bits1::IsCallableBit::kMask));
   return eq;
 }
 
@@ -1191,6 +1192,12 @@ inline void MaglevAssembler::TestInt32AndJumpIfAnySet(
   bne(target);
 }
 
+inline void MaglevAssembler::TestUint8AndJumpIfAnySet(
+    MemOperand operand, uint8_t mask, Label* target, Label::Distance distance) {
+  tmy(operand, Operand(mask));
+  bne(target, distance);
+}
+
 inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
     Register value, int32_t mask, Label* target, Label::Distance distance) {
   And(r0, value, Operand(mask));
@@ -1202,6 +1209,12 @@ inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
   LoadU32(r0, operand);
   And(r0, Operand(mask));
   beq(target);
+}
+
+inline void MaglevAssembler::TestUint8AndJumpIfAllClear(
+    MemOperand operand, uint8_t mask, Label* target, Label::Distance distance) {
+  tmy(operand, Operand(mask));
+  beq(target, distance);
 }
 
 inline void MaglevAssembler::LoadHeapNumberValue(DoubleRegister result,
@@ -1296,6 +1309,10 @@ inline void MaglevAssembler::MoveRepr(MachineRepresentation repr,
   Register scratch = temps.AcquireScratch();
   MoveRepr(repr, scratch, src);
   MoveRepr(repr, dst, scratch);
+}
+
+inline void MaglevAssembler::MaybeEmitPlaceHolderForDeopt() {
+  // Implemented only for x64.
 }
 
 }  // namespace maglev

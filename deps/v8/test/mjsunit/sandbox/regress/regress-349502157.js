@@ -47,8 +47,9 @@ let { writer, dummy, boom, table_v_ls, table_v_ll } = instance.exports;
 
 // Prepare corruption utilities.
 const kHeapObjectTag = 1;
-const kWasmTableObjectCurrentLengthOffset = 16;
-const kWasmTableObjectMaximumLengthOffset = 20;
+const kWasmTableType = Sandbox.getInstanceTypeIdFor('WASM_TABLE_OBJECT_TYPE');
+const kWasmTableObjectCurrentLengthOffset = Sandbox.getFieldOffset(kWasmTableType, 'current_length');
+const kWasmTableObjectMaximumLengthOffset = Sandbox.getFieldOffset(kWasmTableType, 'maximum_length');
 let memory = new DataView(new Sandbox.MemoryView(0, 0x100000000));
 function getPtr(obj) {
   return Sandbox.getAddressOf(obj) + kHeapObjectTag;

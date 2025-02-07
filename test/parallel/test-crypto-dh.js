@@ -1,13 +1,18 @@
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const crypto = require('crypto');
+const {
+  hasOpenSSL3,
+  hasOpenSSL,
+} = require('../common/crypto');
 
 {
-  const size = common.hasFipsCrypto || common.hasOpenSSL3 ? 1024 : 256;
+  const size = crypto.getFips() || hasOpenSSL3 ? 1024 : 256;
   const dh1 = crypto.createDiffieHellman(size);
   const p1 = dh1.getPrime('buffer');
   const dh2 = crypto.createDiffieHellman(p1, 'buffer');
@@ -53,7 +58,7 @@ const crypto = require('crypto');
   assert.strictEqual(secret1, secret4);
 
   let wrongBlockLength;
-  if (common.hasOpenSSL3) {
+  if (hasOpenSSL3) {
     wrongBlockLength = {
       message: 'error:1C80006B:Provider routines::wrong final block length',
       code: 'ERR_OSSL_WRONG_FINAL_BLOCK_LENGTH',
@@ -87,11 +92,11 @@ const crypto = require('crypto');
 
   {
     // Error message was changed in OpenSSL 3.0.x from 3.0.12, and 3.1.x from 3.1.4.
-    const hasOpenSSL3WithNewErrorMessage = (common.hasOpenSSL(3, 0, 12) && !common.hasOpenSSL(3, 1, 0)) ||
-                                           (common.hasOpenSSL(3, 1, 4));
+    const hasOpenSSL3WithNewErrorMessage = (hasOpenSSL(3, 0, 12) && !hasOpenSSL(3, 1, 0)) ||
+                                           (hasOpenSSL(3, 1, 4));
     assert.throws(() => {
       dh3.computeSecret('');
-    }, { message: common.hasOpenSSL3 && !hasOpenSSL3WithNewErrorMessage ?
+    }, { message: hasOpenSSL3 && !hasOpenSSL3WithNewErrorMessage ?
       'Unspecified validation error' :
       'Supplied key is too small' });
   }

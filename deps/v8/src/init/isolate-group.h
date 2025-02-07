@@ -138,9 +138,9 @@ class V8_EXPORT_PRIVATE IsolateGroup final {
   static void ReleaseGlobal();
 
 #ifdef V8_ENABLE_SANDBOX
-  void Initialize(Sandbox* sandbox);
+  void Initialize(bool process_wide, Sandbox* sandbox);
 #else   // V8_ENABLE_SANDBOX
-  void Initialize();
+  void Initialize(bool process_wide);
 #endif  // V8_ENABLE_SANDBOX
 
 #ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
@@ -165,6 +165,8 @@ class V8_EXPORT_PRIVATE IsolateGroup final {
   std::unique_ptr<CodeRange> code_range_;
   Address external_ref_table_[ExternalReferenceTable::kSizeIsolateIndependent] =
       {0};
+
+  bool process_wide_;
 };
 
 }  // namespace internal

@@ -1,8 +1,15 @@
+// Flags: --expose-internals
 'use strict';
 const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
+// OpenSSL has a set of security levels which affect what algorithms
+// are available by default. Different OpenSSL veresions have different
+// default security levels and we use this value to adjust what a test
+// expects based on the security level. You can read more in
+// https://docs.openssl.org/1.1.1/man3/SSL_CTX_set_security_level/#default-callback-behaviour
+const secLevel = require('internal/crypto/util').getOpenSSLSecLevel();
 const assert = require('assert');
 const tls = require('tls');
 const fixtures = require('../common/fixtures');
@@ -37,8 +44,9 @@ function test(size, err, next) {
   server.listen(0, function() {
     // Client set minimum DH parameter size to 2048 or 3072 bits
     // so that it fails when it makes a connection to the tls
-    // server where is too small
-    const minDHSize = common.hasOpenSSL(3, 2) ? 3072 : 2048;
+    // server where is too small. This depends on the openssl
+    // security level
+    const minDHSize = (secLevel > 1) ? 3072 : 2048;
     const client = tls.connect({
       minDHSize: minDHSize,
       port: this.address().port,
@@ -76,8 +84,8 @@ function testDHE3072() {
   test(3072, false, null);
 }
 
-if (common.hasOpenSSL(3, 2)) {
-  // Minimum size for OpenSSL 3.2 is 2048 by default
+if (secLevel > 1) {
+  // Minimum size for OpenSSL security level 2 and above is 2048 by default
   testDHE2048(true, testDHE3072);
 } else {
   testDHE1024();

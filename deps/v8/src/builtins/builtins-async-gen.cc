@@ -13,6 +13,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 // Describe fields of Context associated with the AsyncIterator unwrap closure.
 class ValueUnwrapContext {
@@ -22,11 +24,27 @@ class ValueUnwrapContext {
 
 }  // namespace
 
+TNode<Object> AsyncBuiltinsAssembler::Await(TNode<Context> context,
+                                            TNode<JSGeneratorObject> generator,
+                                            TNode<Object> value,
+                                            TNode<JSPromise> outer_promise,
+                                            RootIndex on_resolve_sfi,
+                                            RootIndex on_reject_sfi) {
+  return Await(
+      context, generator, value, outer_promise,
+      [&](TNode<Context> context, TNode<NativeContext> native_context) {
+        auto on_resolve = AllocateRootFunctionWithContext(
+            on_resolve_sfi, context, native_context);
+        auto on_reject = AllocateRootFunctionWithContext(on_reject_sfi, context,
+                                                         native_context);
+        return std::make_pair(on_resolve, on_reject);
+      });
+}
+
 TNode<Object> AsyncBuiltinsAssembler::Await(
     TNode<Context> context, TNode<JSGeneratorObject> generator,
     TNode<Object> value, TNode<JSPromise> outer_promise,
-    TNode<SharedFunctionInfo> on_resolve_sfi,
-    TNode<SharedFunctionInfo> on_reject_sfi) {
+    const CreateClosures& CreateClosures) {
   const TNode<NativeContext> native_context = LoadNativeContext(context);
 
   // We do the `PromiseResolve(%Promise%,value)` avoiding to unnecessarily
@@ -103,17 +121,9 @@ TNode<Object> AsyncBuiltinsAssembler::Await(
                                       generator);
   }
 
-  // Allocate and initialize resolve handler
-  TNode<HeapObject> on_resolve =
-      AllocateInNewSpace(JSFunction::kSizeWithoutPrototype);
-  InitializeNativeClosure(closure_context, native_context, on_resolve,
-                          on_resolve_sfi);
-
-  // Allocate and initialize reject handler
-  TNode<HeapObject> on_reject =
-      AllocateInNewSpace(JSFunction::kSizeWithoutPrototype);
-  InitializeNativeClosure(closure_context, native_context, on_reject,
-                          on_reject_sfi);
+  // Allocate and initialize resolve and reject handlers
+  auto [on_resolve, on_reject] =
+      CreateClosures(closure_context, native_context);
 
   // Deal with PromiseHooks and debug support in the runtime. This
   // also allocates the throwaway promise, which is only needed in
@@ -148,52 +158,13 @@ TNode<Object> AsyncBuiltinsAssembler::Await(
                      on_resolve, on_reject, var_throwaway.value());
 }
 
-void AsyncBuiltinsAssembler::InitializeNativeClosure(
-    TNode<Context> context, TNode<NativeContext> native_context,
-    TNode<HeapObject> function, TNode<SharedFunctionInfo> shared_info) {
-  TNode<Map> function_map = CAST(LoadContextElement(
-      native_context, Context::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX));
-  // Ensure that we don't have to initialize prototype_or_initial_map field of
-  // JSFunction.
-  CSA_DCHECK(this,
-             IntPtrEqual(LoadMapInstanceSizeInWords(function_map),
-                         IntPtrConstant(JSFunction::kSizeWithoutPrototype /
-                                        kTaggedSize)));
-  static_assert(JSFunction::kSizeWithoutPrototype ==
-                (7 + V8_ENABLE_LEAPTIERING_BOOL) * kTaggedSize);
-  StoreMapNoWriteBarrier(function, function_map);
-  StoreObjectFieldRoot(function, JSObject::kPropertiesOrHashOffset,
-                       RootIndex::kEmptyFixedArray);
-  StoreObjectFieldRoot(function, JSObject::kElementsOffset,
-                       RootIndex::kEmptyFixedArray);
-  StoreObjectFieldRoot(function, JSFunction::kFeedbackCellOffset,
-                       RootIndex::kManyClosuresCell);
-#ifdef V8_ENABLE_LEAPTIERING
-  // TODO(saelo): obtain an appropriate dispatch handle here.
-  StoreObjectFieldNoWriteBarrier(function, JSFunction::kDispatchHandleOffset,
-                                 Int32Constant(kNullJSDispatchHandle));
-#endif  // V8_ENABLE_LEAPTIERING
-
-  StoreObjectFieldNoWriteBarrier(
-      function, JSFunction::kSharedFunctionInfoOffset, shared_info);
-  StoreObjectFieldNoWriteBarrier(function, JSFunction::kContextOffset, context);
-
-  // For the native closures that are initialized here (for `await`)
-  // we know that their SharedFunctionInfo::function_data(kAcquireLoad) slot
-  // contains a builtin index (as Smi), so there's no need to use
-  // CodeStubAssembler::GetSharedFunctionInfoCode() helper here,
-  // which almost doubles the size of `await` builtins (unnecessarily).
-  TNode<Smi> builtin_id = LoadSharedFunctionInfoBuiltinId(shared_info);
-  TNode<Code> code = LoadBuiltin(builtin_id);
-  StoreCodePointerFieldNoWriteBarrier(function, JSFunction::kCodeOffset, code);
-}
-
 TNode<JSFunction> AsyncBuiltinsAssembler::CreateUnwrapClosure(
     TNode<NativeContext> native_context, TNode<Boolean> done) {
   const TNode<Context> closure_context =
       AllocateAsyncIteratorValueUnwrapContext(native_context, done);
   return AllocateRootFunctionWithContext(
-      RootIndex::kAsyncIteratorValueUnwrapSharedFun, closure_context);
+      RootIndex::kAsyncIteratorValueUnwrapSharedFun, closure_context,
+      native_context);
 }
 
 TNode<Context> AsyncBuiltinsAssembler::AllocateAsyncIteratorValueUnwrapContext(
@@ -220,6 +191,8 @@ TF_BUILTIN(AsyncIteratorValueUnwrap, AsyncBuiltinsAssembler) {
 
   Return(unwrapped_value);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

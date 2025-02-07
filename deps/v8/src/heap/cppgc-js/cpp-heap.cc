@@ -166,13 +166,14 @@ class CppgcPlatformAdapter final : public cppgc::Platform {
     return platform_->MonotonicallyIncreasingTime();
   }
 
-  std::shared_ptr<TaskRunner> GetForegroundTaskRunner() final {
+  std::shared_ptr<TaskRunner> GetForegroundTaskRunner(
+      TaskPriority priority) final {
     // If no Isolate has been set, there's no task runner to leverage for
     // foreground tasks. In detached mode the original platform handles the
     // task runner retrieval.
     if (!isolate_ && !is_in_detached_mode_) return nullptr;
 
-    return platform_->GetForegroundTaskRunner(isolate_);
+    return platform_->GetForegroundTaskRunner(isolate_, priority);
   }
 
   std::unique_ptr<JobHandle> PostJob(TaskPriority priority,
@@ -741,8 +742,6 @@ void CppHeap::InitializeMarking(CollectionType collection_type,
       IsForceGC(current_gc_flags_)
           ? cppgc::internal::MarkingConfig::IsForcedGC::kForced
           : cppgc::internal::MarkingConfig::IsForcedGC::kNotForced,
-      v8::base::TimeDelta::FromMilliseconds(
-          v8_flags.incremental_marking_task_delay_ms),
       v8_flags.incremental_marking_bailout_when_ahead_of_schedule};
   DCHECK_IMPLIES(!isolate_,
                  (MarkingType::kAtomic == marking_config.marking_type) ||
@@ -953,12 +952,7 @@ void CppHeap::CompactAndSweep() {
             ? cppgc::internal::SweepingConfig::FreeMemoryHandling::
                   kDiscardWherePossible
             : cppgc::internal::SweepingConfig::FreeMemoryHandling::
-                  kDoNotDiscard,
-        // CppHeap is initialized before V8 flags are necessarily set which
-        // prohibits us from reading the flag at creation.
-        v8_flags.cppheap_optimize_sweep_for_mutator
-            ? cppgc::internal::SweepingStrategy::kMinimizeMutatorInterference
-            : cppgc::internal::SweepingStrategy::kMinimizeMemory};
+                  kDoNotDiscard};
     DCHECK_IMPLIES(!isolate_,
                    SweepingType::kAtomic == sweeping_config.sweeping_type);
     sweeper().Start(sweeping_config);

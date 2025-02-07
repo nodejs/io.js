@@ -124,8 +124,10 @@ class V8_EXPORT_PRIVATE CodePointerTable
 
  public:
   // Size of a CodePointerTable, for layout computation in IsolateData.
-  static int constexpr kSize = 2 * kSystemPointerSize;
+  static constexpr int kSize = 2 * kSystemPointerSize;
+
   static_assert(kMaxCodePointers == kMaxCapacity);
+  static_assert(!kSupportsCompaction);
 
   CodePointerTable() = default;
   CodePointerTable(const CodePointerTable&) = delete;

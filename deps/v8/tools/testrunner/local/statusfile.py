@@ -60,9 +60,9 @@ for key in [SKIP, FAIL, PASS, CRASH, HEAVY, SLOW, FAIL_OK, NO_VARIANTS,
 VARIABLES = {ALWAYS: True}
 for var in [
     "debug", "release", "big", "little", "android", "arm", "arm64", "ia32",
-    "mips64", "mips64el", "x64", "ppc", "ppc64", "s390", "s390x", "macos",
-    "windows", "linux", "aix", "r1", "r2", "r3", "r5", "r6", "riscv32",
-    "riscv64", "loong64", "zos"
+    "mips64", "mips64el", "x64", "ppc64", "s390", "s390x", "macos", "windows",
+    "linux", "aix", "r1", "r2", "r3", "r5", "r6", "riscv32", "riscv64",
+    "loong64", "zos"
 ]:
   assert var not in VARIABLES
   VARIABLES[var] = var

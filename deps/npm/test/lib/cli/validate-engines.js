@@ -23,7 +23,6 @@ t.test('validate engines', async t => {
     node: 'v4.5.6',
     npm: 'v1.2.3',
     engines: '>=0',
-    /* eslint-disable-next-line max-len */
     unsupportedMessage: 'npm v1.2.3 does not support Node.js v4.5.6. This version of npm supports the following node versions: `>=0`. You can find the latest version at https://nodejs.org/.',
   })
 

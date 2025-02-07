@@ -774,6 +774,13 @@ struct V8_EXPORT_PRIVATE WasmModule {
     return types[index].function_sig;
   }
 
+  uint32_t canonical_sig_id(uint32_t index) const {
+    DCHECK(has_signature(index));
+    size_t num_types = isorecursive_canonical_type_ids.size();
+    V8_ASSUME(index < num_types);
+    return isorecursive_canonical_type_ids[index];
+  }
+
   bool has_struct(uint32_t index) const {
     return index < types.size() && types[index].kind == TypeDefinition::kStruct;
   }

@@ -13,7 +13,6 @@ namespace internal {
 
 // static
 LargePageMetadata* LargePageMetadata::FromHeapObject(Tagged<HeapObject> o) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return cast(MutablePageMetadata::FromHeapObject(o));
 }
 

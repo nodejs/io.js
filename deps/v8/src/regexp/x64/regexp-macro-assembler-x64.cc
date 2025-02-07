@@ -601,6 +601,137 @@ void RegExpMacroAssemblerX64::CheckBitInTable(
   BranchOrBacktrack(not_equal, on_bit_set);
 }
 
+void RegExpMacroAssemblerX64::SkipUntilBitInTable(
+    int cp_offset, Handle<ByteArray> table,
+    Handle<ByteArray> nibble_table_array, int advance_by) {
+  Label cont, scalar_repeat;
+
+  const bool use_simd = SkipUntilBitInTableUseSimd(advance_by);
+  if (use_simd) {
+    DCHECK(!nibble_table_array.is_null());
+    Label simd_repeat, found, scalar;
+    static constexpr int kVectorSize = 16;
+    const int kCharsPerVector = kVectorSize / char_size();
+
+    // Fallback to scalar version if there are less than kCharsPerVector chars
+    // left in the subject.
+    // We subtract 1 because CheckPosition assumes we are reading 1 character
+    // plus cp_offset. So the -1 is the the character that is assumed to be
+    // read by default.
+    CheckPosition(cp_offset + kCharsPerVector - 1, &scalar);
+
+    // Load table and mask constants.
+    // For a description of the table layout, check the comment on
+    // BoyerMooreLookahead::GetSkipTable in regexp-compiler.cc.
+    XMMRegister nibble_table = xmm1;
+    __ Move(r11, nibble_table_array);
+    __ Movdqu(nibble_table, FieldOperand(r11, ByteArray::kHeaderSize));
+    XMMRegister nibble_mask = xmm2;
+    __ Move(r11, 0x0f0f0f0f'0f0f0f0f);
+    __ movq(nibble_mask, r11);
+    __ Movddup(nibble_mask, nibble_mask);
+    XMMRegister hi_nibble_lookup_mask = xmm3;
+    __ Move(r11, 0x80402010'08040201);
+    __ movq(hi_nibble_lookup_mask, r11);
+    __ Movddup(hi_nibble_lookup_mask, hi_nibble_lookup_mask);
+
+    Bind(&simd_repeat);
+    // Load next characters into vector.
+    XMMRegister input_vec = xmm4;
+    __ Movdqu(input_vec, Operand(rsi, rdi, times_1, cp_offset));
+
+    // Extract low nibbles.
+    // lo_nibbles = input & 0x0f
+    XMMRegister lo_nibbles = xmm5;
+    if (CpuFeatures::IsSupported(AVX)) {
+      __ Andps(lo_nibbles, nibble_mask, input_vec);
+    } else {
+      __ Movdqa(lo_nibbles, nibble_mask);
+      __ Andps(lo_nibbles, lo_nibbles, input_vec);
+    }
+    // Extract high nibbles.
+    // hi_nibbles = (input >> 4) & 0x0f
+    __ Psrlw(input_vec, uint8_t{4});
+    XMMRegister hi_nibbles = ReassignRegister(input_vec);
+    __ Andps(hi_nibbles, hi_nibbles, nibble_mask);
+
+    // Get rows of nibbles table based on low nibbles.
+    // row = nibble_table[lo_nibbles]
+    XMMRegister row = xmm6;
+    __ Pshufb(row, nibble_table, lo_nibbles);
+
+    // Check if high nibble is set in row.
+    // bitmask = 1 << (hi_nibbles & 0x7)
+    //         = hi_nibbles_lookup_mask[hi_nibbles] & 0x7
+    // Note: The hi_nibbles & 0x7 part is implicitly executed, as pshufb sets
+    // the result byte to zero if bit 7 is set in the source byte.
+    XMMRegister bitmask = xmm7;
+    __ Pshufb(bitmask, hi_nibble_lookup_mask, hi_nibbles);
+
+    // result = row & bitmask == bitmask
+    XMMRegister result = ReassignRegister(row);
+    __ Andps(result, result, bitmask);
+    __ Pcmpeqb(result, result, bitmask);
+
+    // Check if any bit is set.
+    // Copy the most significant bit of each result byte to r11.
+    __ Pmovmskb(r11, result);
+    __ testl(r11, r11);
+    __ j(not_zero, &found);
+
+    // The maximum lookahead for boyer moore is less than vector size, so we can
+    // ignore advance_by in the vectorized version.
+    AdvanceCurrentPosition(kCharsPerVector);
+    CheckPosition(cp_offset + kCharsPerVector - 1, &scalar);
+    __ jmp(&simd_repeat);
+
+    Bind(&found);
+    // Extract position.
+    __ bsfl(r11, r11);
+    if (mode_ == UC16) {
+      // Make sure that we skip an even number of bytes in 2-byte subjects.
+      // Odd skips can happen if the higher byte produced a match.
+      // False positives should be rare and are no problem in general, as the
+      // following instructions will check for an exact match.
+      __ andl(r11, Immediate(0xfffe));
+    }
+    __ addq(rdi, r11);
+    __ jmp(&cont);
+    Bind(&scalar);
+  }
+
+  // Scalar version.
+  Register table_reg = r9;
+  __ Move(table_reg, table);
+
+  Bind(&scalar_repeat);
+  CheckPosition(cp_offset, &cont);
+  LoadCurrentCharacterUnchecked(cp_offset, 1);
+  Register index = current_character();
+  if (mode_ != LATIN1 || kTableMask != String::kMaxOneByteCharCode) {
+    index = rbx;
+    __ movq(index, current_character());
+    __ andq(index, Immediate(kTableMask));
+  }
+  __ cmpb(FieldOperand(table_reg, index, times_1, ByteArray::kHeaderSize),
+          Immediate(0));
+  __ j(not_equal, &cont);
+  AdvanceCurrentPosition(advance_by);
+  __ jmp(&scalar_repeat);
+
+  __ bind(&cont);
+}
+
+bool RegExpMacroAssemblerX64::SkipUntilBitInTableUseSimd(int advance_by) {
+  // To use the SIMD variant we require SSSE3 as there is no shuffle equivalent
+  // in older extensions.
+  // In addition we only use SIMD instead of the scalar version if we advance by
+  // 1 byte in each iteration. For higher values the scalar version performs
+  // better.
+  return v8_flags.regexp_simd && advance_by * char_size() == 1 &&
+         CpuFeatures::IsSupported(SSSE3);
+}
+
 bool RegExpMacroAssemblerX64::CheckSpecialClassRanges(StandardCharacterSet type,
                                                       Label* on_no_match) {
   // Range checks (c in min..max) are generally implemented by an unsigned
@@ -891,11 +1022,7 @@ Handle<HeapObject> RegExpMacroAssemblerX64::GetCode(Handle<String> source) {
   // (effectively string position -1).
   __ movq(rbx, Operand(rbp, kStartIndexOffset));
   __ negq(rbx);
-  if (mode_ == UC16) {
-    __ leaq(rax, Operand(rdi, rbx, times_2, -char_size()));
-  } else {
-    __ leaq(rax, Operand(rdi, rbx, times_1, -char_size()));
-  }
+  __ leaq(rax, Operand(rdi, rbx, CharSizeScaleFactor(), -char_size()));
   // Store this value in a local variable, for use when clearing
   // position registers.
   __ movq(Operand(rbp, kStringStartMinusOneOffset), rax);
@@ -955,7 +1082,7 @@ Handle<HeapObject> RegExpMacroAssemblerX64::GetCode(Handle<String> source) {
       __ movq(rcx, Operand(rbp, kInputEndOffset));
       __ subq(rcx, Operand(rbp, kInputStartOffset));
       if (mode_ == UC16) {
-        __ leaq(rcx, Operand(rcx, rdx, times_2, 0));
+        __ leaq(rcx, Operand(rcx, rdx, CharSizeScaleFactor(), 0));
       } else {
         __ addq(rcx, rdx);
       }

@@ -8,7 +8,7 @@ const generateReleaseNotes = async ({ github, owner, repo, versionTag, defaultBr
     repo
   })
 
-  const previousRelease = releases.find((r) => r.tag_name.startsWith('v6'))
+  const previousRelease = releases.find((r) => r.tag_name.startsWith('v7'))
 
   const { data: { body } } = await github.rest.repos.generateReleaseNotes({
     owner,

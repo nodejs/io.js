@@ -42,7 +42,11 @@ namespace interpreter {
 // The list of bytecodes which have unique handlers (no other bytecode is
 // executed using identical code).
 // Format is V(<bytecode>, <implicit_register_use>, <operands>).
-#define BYTECODE_LIST_WITH_UNIQUE_HANDLERS(V)                                  \
+// Use V_TSA for bytecode handlers for which a TSA-based (Turboshaft Assembler)
+// alternative implementation exists, which will be used when
+// V8_ENABLE_EXPERIMENTAL_TSA_BUILTINS is set. Otherwise V_TSA is identical to
+// V.
+#define BYTECODE_LIST_WITH_UNIQUE_HANDLERS_IMPL(V, V_TSA)                      \
   /* Extended width operands */                                                \
   V(Wide, ImplicitRegisterUse::kNone)                                          \
   V(ExtraWide, ImplicitRegisterUse::kNone)                                     \
@@ -222,7 +226,8 @@ namespace interpreter {
   V(Inc, ImplicitRegisterUse::kReadWriteAccumulator, OperandType::kIdx)        \
   V(Dec, ImplicitRegisterUse::kReadWriteAccumulator, OperandType::kIdx)        \
   V(Negate, ImplicitRegisterUse::kReadWriteAccumulator, OperandType::kIdx)     \
-  V(BitwiseNot, ImplicitRegisterUse::kReadWriteAccumulator, OperandType::kIdx) \
+  V_TSA(BitwiseNot, ImplicitRegisterUse::kReadWriteAccumulator,                \
+        OperandType::kIdx)                                                     \
   V(ToBooleanLogicalNot, ImplicitRegisterUse::kReadWriteAccumulator)           \
   V(LogicalNot, ImplicitRegisterUse::kReadWriteAccumulator)                    \
   V(TypeOf, ImplicitRegisterUse::kReadWriteAccumulator, OperandType::kIdx)     \
@@ -451,10 +456,19 @@ namespace interpreter {
   /* Execution Abort (internal error) */                                       \
   V(Abort, ImplicitRegisterUse::kNone, OperandType::kIdx)
 
+#ifdef V8_ENABLE_EXPERIMENTAL_TSA_BUILTINS
+#define BYTECODE_LIST_WITH_UNIQUE_HANDLERS(V, V_TSA) \
+  BYTECODE_LIST_WITH_UNIQUE_HANDLERS_IMPL(V, V_TSA)
+#else
+#define BYTECODE_LIST_WITH_UNIQUE_HANDLERS(V, V_TSA) \
+  BYTECODE_LIST_WITH_UNIQUE_HANDLERS_IMPL(V, V)
+#endif
+
 // The list of bytecodes which are interpreted by the interpreter.
-// Format is V(<bytecode>, <implicit_register_use>, <operands>).
-#define BYTECODE_LIST(V)                                             \
-  BYTECODE_LIST_WITH_UNIQUE_HANDLERS(V)                              \
+// Format is V(<bytecode>, <implicit_register_use>, <operands>) and
+// V_TSA(<bytecode>, <implicit_register_use>, <operands>).
+#define BYTECODE_LIST(V, V_TSA)                                      \
+  BYTECODE_LIST_WITH_UNIQUE_HANDLERS(V, V_TSA)                       \
                                                                      \
   /* Special-case Star for common register numbers, to save space */ \
   SHORT_STAR_BYTECODE_LIST(V)                                        \
@@ -560,12 +574,12 @@ namespace interpreter {
 // Enumeration of interpreter bytecodes.
 enum class Bytecode : uint8_t {
 #define DECLARE_BYTECODE(Name, ...) k##Name,
-  BYTECODE_LIST(DECLARE_BYTECODE)
+  BYTECODE_LIST(DECLARE_BYTECODE, DECLARE_BYTECODE)
 #undef DECLARE_BYTECODE
 #define COUNT_BYTECODE(x, ...) +1
   // The COUNT_BYTECODE macro will turn this into kLast = -1 +1 +1... which will
   // evaluate to the same value as the last real bytecode.
-  kLast = -1 BYTECODE_LIST(COUNT_BYTECODE),
+  kLast = -1 BYTECODE_LIST(COUNT_BYTECODE, COUNT_BYTECODE),
   kFirstShortStar = kStar15,
   kLastShortStar = kStar0
 #undef COUNT_BYTECODE

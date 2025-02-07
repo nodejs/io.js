@@ -1,0 +1,57 @@
+.TH "NPM-UNDEPRECATE" "1" "January 2025" "NPM@11.1.0" ""
+.SH "NAME"
+\fBnpm-undeprecate\fR - Undeprecate a version of a package
+.SS "Synopsis"
+.P
+.RS 2
+.nf
+npm undeprecate <package-spec>
+.fi
+.RE
+.P
+Note: This command is unaware of workspaces.
+.SS "Description"
+.P
+This command will update the npm registry entry for a package, removing any deprecation warnings that currently exist.
+.P
+It works in the same way as npm help deprecate, except that this command removes deprecation warnings instead of adding them.
+.SS "Configuration"
+.SS "\fBregistry\fR"
+.RS 0
+.IP \(bu 4
+Default: "https://registry.npmjs.org/"
+.IP \(bu 4
+Type: URL
+.RE 0
+
+.P
+The base URL of the npm registry.
+.SS "\fBotp\fR"
+.RS 0
+.IP \(bu 4
+Default: null
+.IP \(bu 4
+Type: null or String
+.RE 0
+
+.P
+This is a one-time password from a two-factor authenticator. It's needed when publishing or changing package permissions with \fBnpm access\fR.
+.P
+If not set, and a registry response fails with a challenge for a one-time password, npm will prompt on the command line for one.
+.SS "\fBdry-run\fR"
+.RS 0
+.IP \(bu 4
+Default: false
+.IP \(bu 4
+Type: Boolean
+.RE 0
+
+.P
+Indicates that you don't want npm to make any changes and that it should only report what it would have done. This can be passed into any of the commands that modify your local installation, eg, \fBinstall\fR, \fBupdate\fR, \fBdedupe\fR, \fBuninstall\fR, as well as \fBpack\fR and \fBpublish\fR.
+.P
+Note: This is NOT honored by other network related commands, eg \fBdist-tags\fR, \fBowner\fR, etc.
+.SS "See Also"
+.RS 0
+.IP \(bu 4
+npm help deprecate
+.RE 0

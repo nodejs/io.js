@@ -73,9 +73,8 @@ jobs:
       - name: Start git node release prepare
         # The curl command is to make sure we run the version of the script corresponding to the current workflow.
         run: |
-          git update-index --assume-unchanged tools/actions/create-release-proposal.sh
-          curl -fsSLo tools/actions/create-release-proposal.sh https://github.com/${GITHUB_REPOSITORY}/raw/${GITHUB_SHA}/tools/actions/create-release-proposal.sh
-          ./tools/actions/create-release-proposal.sh "${RELEASE_DATE}" "${RELEASE_LINE}" "${GITHUB_ACTOR}"
+          curl -fsSL https://github.com/${GITHUB_REPOSITORY}/raw/${GITHUB_SHA}/tools/actions/create-release-proposal.sh |\
+          sh -s -- "${RELEASE_DATE}" "${RELEASE_LINE}" "${GITHUB_ACTOR}"
         env:
           GH_TOKEN: ${{ github.token }}
           # We want the bot to push the push the release commit so CI runs on it.

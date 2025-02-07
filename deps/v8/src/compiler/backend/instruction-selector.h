@@ -595,6 +595,8 @@ class InstructionSelectorT final : public Adapter {
   // users, and fusing is unlikely to improve performance.
   bool CanCover(node_t user, node_t node) const;
 
+  bool CanCoverProtectedLoad(node_t user, node_t node) const;
+
   // Used in pattern matching during code generation.
   // This function checks that {node} and {user} are in the same basic block,
   // and that {user} is the only user of {node} in this basic block.  This
@@ -685,6 +687,8 @@ class InstructionSelectorT final : public Adapter {
       UNREACHABLE();
     }
   }
+
+  void UpdateSourcePosition(Instruction* instruction, node_t node);
 
  private:
   friend class OperandGeneratorT<Adapter>;

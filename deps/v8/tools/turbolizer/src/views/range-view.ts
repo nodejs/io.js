@@ -1744,7 +1744,7 @@ class DisplayResetter {
 
   public resetFlipped(): void {
     this.updateClassesOnContainer();
-    // Appending the HTMLElement removes it from it's current position.
+    // Appending the HTMLElement removes it from its current position.
     this.view.divs.wholeHeader.appendChild(this.isFlipped ? this.view.divs.registerHeaders
                                                           : this.view.divs.positionHeaders);
     this.view.divs.yAxis.appendChild(this.isFlipped ? this.view.divs.positionHeaders

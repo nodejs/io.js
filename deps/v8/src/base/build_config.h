@@ -58,7 +58,7 @@ constexpr int kReturnAddressStackSlotCount =
     V8_TARGET_ARCH_STORES_RETURN_ADDRESS_ON_STACK ? 1 : 0;
 
 // Number of bits to represent the page size for paged spaces.
-#if (defined(V8_HOST_ARCH_PPC) || defined(V8_HOST_ARCH_PPC64)) && !defined(_AIX)
+#if defined(V8_HOST_ARCH_PPC64) && !defined(V8_OS_AIX)
 // Native PPC linux has large (64KB) physical pages.
 // Simulator (and Aix) need to use the same value as x64.
 constexpr int kPageSizeBits = 19;

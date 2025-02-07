@@ -15,11 +15,11 @@ namespace encoding_binding {
 
 using v8::ArrayBuffer;
 using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::Isolate;
 using v8::Local;
-using v8::MaybeLocal;
 using v8::Object;
 using v8::ObjectTemplate;
 using v8::String;
@@ -124,9 +124,8 @@ void BindingData::EncodeUtf8String(const FunctionCallbackInfo<Value>& args) {
 
   Local<ArrayBuffer> ab;
   {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    std::unique_ptr<BackingStore> bs =
-        ArrayBuffer::NewBackingStore(isolate, length);
+    std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(
+        isolate, length, BackingStoreInitializationMode::kUninitialized);
 
     CHECK(bs);
 
@@ -139,8 +138,7 @@ void BindingData::EncodeUtf8String(const FunctionCallbackInfo<Value>& args) {
     ab = ArrayBuffer::New(isolate, std::move(bs));
   }
 
-  auto array = Uint8Array::New(ab, 0, length);
-  args.GetReturnValue().Set(array);
+  args.GetReturnValue().Set(Uint8Array::New(ab, 0, length));
 }
 
 // Convert the input into an encoded string
@@ -184,11 +182,10 @@ void BindingData::DecodeUTF8(const FunctionCallbackInfo<Value>& args) {
   if (length == 0) return args.GetReturnValue().SetEmptyString();
 
   Local<Value> error;
-  MaybeLocal<Value> maybe_ret =
-      StringBytes::Encode(env->isolate(), data, length, UTF8, &error);
   Local<Value> ret;
 
-  if (!maybe_ret.ToLocal(&ret)) {
+  if (!StringBytes::Encode(env->isolate(), data, length, UTF8, &error)
+           .ToLocal(&ret)) {
     CHECK(!error.IsEmpty());
     env->isolate()->ThrowException(error);
     return;
@@ -204,8 +201,10 @@ void BindingData::ToASCII(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
   Utf8Value input(env->isolate(), args[0]);
   auto out = ada::idna::to_ascii(input.ToStringView());
-  args.GetReturnValue().Set(
-      String::NewFromUtf8(env->isolate(), out.c_str()).ToLocalChecked());
+  Local<Value> ret;
+  if (ToV8Value(env->context(), out, env->isolate()).ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 void BindingData::ToUnicode(const v8::FunctionCallbackInfo<v8::Value>& args) {
@@ -215,8 +214,10 @@ void BindingData::ToUnicode(const v8::FunctionCallbackInfo<v8::Value>& args) {
 
   Utf8Value input(env->isolate(), args[0]);
   auto out = ada::idna::to_unicode(input.ToStringView());
-  args.GetReturnValue().Set(
-      String::NewFromUtf8(env->isolate(), out.c_str()).ToLocalChecked());
+  Local<Value> ret;
+  if (ToV8Value(env->context(), out, env->isolate()).ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 void BindingData::CreatePerIsolateProperties(IsolateData* isolate_data,
@@ -286,11 +287,12 @@ void BindingData::DecodeLatin1(const FunctionCallbackInfo<Value>& args) {
         env->isolate(), "The encoded data was not valid for encoding latin1");
   }
 
-  Local<String> output =
-      String::NewFromUtf8(
-          env->isolate(), result.c_str(), v8::NewStringType::kNormal, written)
-          .ToLocalChecked();
-  args.GetReturnValue().Set(output);
+  std::string_view view(result.c_str(), written);
+
+  Local<Value> ret;
+  if (ToV8Value(env->context(), view, env->isolate()).ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 }  // namespace encoding_binding

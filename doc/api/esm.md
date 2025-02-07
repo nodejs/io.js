@@ -1144,7 +1144,7 @@ resolution for ESM specifiers is [commonjs-extension-resolution-loader][].
 [`process.dlopen`]: process.md#processdlopenmodule-filename-flags
 [`require(esm)`]: modules.md#loading-ecmascript-modules-using-require
 [`url.fileURLToPath()`]: url.md#urlfileurltopathurl-options
-[cjs-module-lexer]: https://github.com/nodejs/cjs-module-lexer/tree/1.2.2
+[cjs-module-lexer]: https://github.com/nodejs/cjs-module-lexer/tree/2.0.0
 [commonjs-extension-resolution-loader]: https://github.com/nodejs/loaders-test/tree/main/commonjs-extension-resolution-loader
 [custom https loader]: module.md#import-from-https
 [import.meta.resolve]: #importmetaresolvespecifier

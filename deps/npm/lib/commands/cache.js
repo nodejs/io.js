@@ -10,7 +10,6 @@ const localeCompare = require('@isaacs/string-locale-compare')('en')
 const { log, output } = require('proc-log')
 
 const searchCachePackage = async (path, parsed, cacheKeys) => {
-  /* eslint-disable-next-line max-len */
   const searchMFH = new RegExp(`^make-fetch-happen:request-cache:.*(?<!/[@a-zA-Z]+)/${parsed.name}/-/(${parsed.name}[^/]+.tgz)$`)
   const searchPack = new RegExp(`^make-fetch-happen:request-cache:.*/${parsed.escapedName}$`)
   const results = new Set()
@@ -181,7 +180,6 @@ class Cache extends BaseCommand {
       output.standard(`Corrupted content removed: ${stats.badContentCount}`)
     }
     if (stats.reclaimedCount) {
-      /* eslint-disable-next-line max-len */
       output.standard(`Content garbage-collected: ${stats.reclaimedCount} (${stats.reclaimedSize} bytes)`)
     }
     if (stats.missingContent) {

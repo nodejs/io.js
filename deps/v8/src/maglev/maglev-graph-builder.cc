@@ -262,14 +262,6 @@ class CallArguments {
 
   ConvertReceiverMode receiver_mode() const { return receiver_mode_; }
 
-  void Truncate(size_t new_args_count) {
-    if (new_args_count >= count()) return;
-    size_t args_to_pop = count() - new_args_count;
-    for (size_t i = 0; i < args_to_pop; i++) {
-      args_.pop_back();
-    }
-  }
-
   void PopArrayLikeArgument() {
     DCHECK_EQ(mode_, kWithArrayLike);
     DCHECK_GT(count(), 0);
@@ -775,6 +767,36 @@ ValueNode* MaglevGraphBuilder::MaglevSubGraphBuilder::get(
 }
 
 template <typename FCond, typename FTrue, typename FFalse>
+ReduceResult MaglevGraphBuilder::MaglevSubGraphBuilder::Branch(
+    std::initializer_list<MaglevSubGraphBuilder::Variable*> vars, FCond cond,
+    FTrue if_true, FFalse if_false) {
+  MaglevSubGraphBuilder::Label else_branch(this, 1);
+  BranchBuilder builder(builder_, this, BranchType::kBranchIfFalse,
+                        &else_branch);
+  BranchResult branch_result = cond(builder);
+  if (branch_result == BranchResult::kAlwaysTrue) {
+    return if_true();
+  }
+  if (branch_result == BranchResult::kAlwaysFalse) {
+    return if_false();
+  }
+  DCHECK(branch_result == BranchResult::kDefault);
+  MaglevSubGraphBuilder::Label done(this, 2, vars);
+  ReduceResult result_if_true = if_true();
+  CHECK(result_if_true.IsDone());
+  GotoOrTrim(&done);
+  Bind(&else_branch);
+  ReduceResult result_if_false = if_false();
+  CHECK(result_if_false.IsDone());
+  if (result_if_true.IsDoneWithAbort() && result_if_false.IsDoneWithAbort()) {
+    return ReduceResult::DoneWithAbort();
+  }
+  GotoOrTrim(&done);
+  Bind(&done);
+  return ReduceResult::Done();
+}
+
+template <typename FCond, typename FTrue, typename FFalse>
 ValueNode* MaglevGraphBuilder::Select(FCond cond, FTrue if_true,
                                       FFalse if_false) {
   MaglevSubGraphBuilder subgraph(this, 1);
@@ -818,14 +840,14 @@ ReduceResult MaglevGraphBuilder::SelectReduction(FCond cond, FTrue if_true,
   MaglevSubGraphBuilder::Variable ret_val(0);
   MaglevSubGraphBuilder::Label done(&subgraph, 2, {&ret_val});
   ReduceResult result_if_true = if_true();
-  DCHECK(result_if_true.IsDone());
+  CHECK(result_if_true.IsDone());
   if (result_if_true.IsDoneWithValue()) {
     subgraph.set(ret_val, result_if_true.value());
   }
   subgraph.GotoOrTrim(&done);
   subgraph.Bind(&else_branch);
   ReduceResult result_if_false = if_false();
-  DCHECK(result_if_false.IsDone());
+  CHECK(result_if_false.IsDone());
   if (result_if_true.IsDoneWithAbort() && result_if_false.IsDoneWithAbort()) {
     return ReduceResult::DoneWithAbort();
   }
@@ -1216,7 +1238,7 @@ MaglevGraphBuilder::GetResultLocationAndSize() const {
   case Bytecode::k##Name:                                         \
     return GetResultLocationAndSizeForBytecode<Bytecode::k##Name, \
                                                __VA_ARGS__>(iterator_);
-    BYTECODE_LIST(CASE)
+    BYTECODE_LIST(CASE, CASE)
 #undef CASE
   }
   UNREACHABLE();
@@ -2264,7 +2286,7 @@ void MaglevGraphBuilder::BuildInt32BinarySmiOperationNode() {
   ValueNode* left = GetAccumulator();
   int32_t constant = iterator_.GetImmediateOperand(0);
   if (std::optional<int>(constant) == Int32Identity<kOperation>()) {
-    // Deopt if {left} is not a Int32.
+    // Deopt if {left} is not an Int32.
     EnsureInt32(left);
     // If the constant is the unit of the operation, it already has the right
     // value, so just return.
@@ -4382,6 +4404,14 @@ bool MaglevGraphBuilder::CanTrackObjectChanges(ValueNode* receiver,
       return false;
     }
     if (alloc->IsEscaping()) return false;
+    // Ensure object is escaped if we are within a try-catch block. This is
+    // crucial because a deoptimization point inside the catch handler could
+    // re-materialize objects differently, depending on whether the throw
+    // occurred before or after this store. We could potentially relax this
+    // requirement by verifying that no throwable nodes have been emitted since
+    // the try-block started,  but for now, err on the side of caution and
+    // always escape.
+    if (IsInsideTryBlock()) return false;
   } else {
     DCHECK_EQ(mode, TrackObjectMode::kLoad);
     if (IsEscaping(graph_, alloc)) return false;
@@ -5168,7 +5198,7 @@ ReduceResult MaglevGraphBuilder::TryBuildNamedAccess(
 
   // Check for monomorphic case.
   if (access_infos.size() == 1) {
-    compiler::PropertyAccessInfo access_info = access_infos.front();
+    compiler::PropertyAccessInfo const& access_info = access_infos.front();
     base::Vector<const compiler::MapRef> maps =
         base::VectorOf(access_info.lookup_start_object_maps());
     if (HasOnlyStringMaps(maps)) {
@@ -5801,8 +5831,6 @@ ReduceResult MaglevGraphBuilder::TryBuildElementAccess(
           ? feedback.Refine(broker(), object_info->possible_maps())
           : feedback;
 
-  // TODO(victorgomes): Add fast path for loading from HeapConstant.
-
   if (refined_feedback.HasOnlyStringMaps(broker())) {
     return TryBuildElementAccessOnString(object, index_object, keyed_mode);
   }
@@ -5857,7 +5885,7 @@ ReduceResult MaglevGraphBuilder::TryBuildElementAccess(
 
   // Check for monomorphic case.
   if (access_infos.size() == 1) {
-    compiler::ElementAccessInfo access_info = access_infos.front();
+    compiler::ElementAccessInfo const& access_info = access_infos.front();
     // TODO(victorgomes): Support RAB/GSAB backed typed arrays.
     if (IsRabGsabTypedArrayElementsKind(access_info.elements_kind())) {
       return ReduceResult::Fail();
@@ -7773,66 +7801,70 @@ ReduceResult MaglevGraphBuilder::TryReduceArrayIteratorPrototypeNext(
   MaglevSubGraphBuilder subgraph(this, 2);
   MaglevSubGraphBuilder::Variable is_done(0);
   MaglevSubGraphBuilder::Variable ret_value(1);
-  MaglevSubGraphBuilder::Label else_branch(&subgraph, 1);
-  MaglevSubGraphBuilder::Label done(&subgraph, 2, {&is_done, &ret_value});
-  subgraph.GotoIfFalse<BranchIfUint32Compare>(
-      &else_branch, {uint32_index, uint32_length}, Operation::kLessThan);
-
-  // Index is below length.
-  ValueNode* int32_index = GetInt32(uint32_index);
-  subgraph.set(is_done, GetBooleanConstant(false));
-  DCHECK(iterator->get(JSArrayIterator::kKindOffset)->Is<Int32Constant>());
-  IterationKind iteration_kind =
-      static_cast<IterationKind>(iterator->get(JSArrayIterator::kKindOffset)
-                                     ->Cast<Int32Constant>()
-                                     ->value());
-  if (iteration_kind == IterationKind::kKeys) {
-    subgraph.set(ret_value, index);
-  } else {
-    ValueNode* value;
-    GET_VALUE_OR_ABORT(
-        value, TryBuildElementLoadOnJSArrayOrJSObject(
-                   iterated_object, int32_index, base::VectorOf(maps),
-                   elements_kind, KeyedAccessLoadMode::kHandleOOBAndHoles));
-    if (iteration_kind == IterationKind::kEntries) {
-      subgraph.set(ret_value, BuildAndAllocateKeyValueArray(index, value));
-    } else {
-      subgraph.set(ret_value, value);
-    }
-  }
-  // Add 1 to index
-  ValueNode* next_index =
-      AddNewNode<Int32AddWithOverflow>({int32_index, GetInt32Constant(1)});
-  EnsureType(next_index, NodeType::kSmi);
-  // Update [[NextIndex]]
-  BuildStoreTaggedFieldNoWriteBarrier(receiver, next_index,
-                                      JSArrayIterator::kNextIndexOffset,
-                                      StoreTaggedMode::kDefault);
-  subgraph.Goto(&done);
-
-  // Index is greater or equal than length.
-  subgraph.Bind(&else_branch);
-  subgraph.set(is_done, GetBooleanConstant(true));
-  subgraph.set(ret_value, GetRootConstant(RootIndex::kUndefinedValue));
-  if (!IsTypedArrayElementsKind(elements_kind)) {
-    // Mark the {iterator} as exhausted by setting the [[NextIndex]] to a
-    // value that will never pass the length check again (aka the maximum
-    // value possible for the specific iterated object). Note that this is
-    // different from what the specification says, which is changing the
-    // [[IteratedObject]] field to undefined, but that makes it difficult
-    // to eliminate the map checks and "length" accesses in for..of loops.
-    //
-    // This is not necessary for JSTypedArray's, since the length of those
-    // cannot change later and so if we were ever out of bounds for them
-    // we will stay out-of-bounds forever.
-    BuildStoreTaggedField(receiver, GetFloat64Constant(kMaxUInt32),
-                          JSArrayIterator::kNextIndexOffset,
-                          StoreTaggedMode::kDefault);
-  }
-  subgraph.Goto(&done);
+  RETURN_IF_ABORT(subgraph.Branch(
+      {&is_done, &ret_value},
+      [&](auto& builder) {
+        return BuildBranchIfUint32Compare(builder, Operation::kLessThan,
+                                          uint32_index, uint32_length);
+      },
+      [&] {
+        ValueNode* int32_index = GetInt32(uint32_index);
+        subgraph.set(is_done, GetBooleanConstant(false));
+        DCHECK(
+            iterator->get(JSArrayIterator::kKindOffset)->Is<Int32Constant>());
+        IterationKind iteration_kind = static_cast<IterationKind>(
+            iterator->get(JSArrayIterator::kKindOffset)
+                ->Cast<Int32Constant>()
+                ->value());
+        if (iteration_kind == IterationKind::kKeys) {
+          subgraph.set(ret_value, index);
+        } else {
+          ValueNode* value;
+          GET_VALUE_OR_ABORT(
+              value,
+              TryBuildElementLoadOnJSArrayOrJSObject(
+                  iterated_object, int32_index, base::VectorOf(maps),
+                  elements_kind, KeyedAccessLoadMode::kHandleOOBAndHoles));
+          if (iteration_kind == IterationKind::kEntries) {
+            subgraph.set(ret_value,
+                         BuildAndAllocateKeyValueArray(index, value));
+          } else {
+            subgraph.set(ret_value, value);
+          }
+        }
+        // Add 1 to index
+        ValueNode* next_index = AddNewNode<Int32AddWithOverflow>(
+            {int32_index, GetInt32Constant(1)});
+        EnsureType(next_index, NodeType::kSmi);
+        // Update [[NextIndex]]
+        BuildStoreTaggedFieldNoWriteBarrier(receiver, next_index,
+                                            JSArrayIterator::kNextIndexOffset,
+                                            StoreTaggedMode::kDefault);
+        return ReduceResult::Done();
+      },
+      [&] {
+        // Index is greater or equal than length.
+        subgraph.set(is_done, GetBooleanConstant(true));
+        subgraph.set(ret_value, GetRootConstant(RootIndex::kUndefinedValue));
+        if (!IsTypedArrayElementsKind(elements_kind)) {
+          // Mark the {iterator} as exhausted by setting the [[NextIndex]] to a
+          // value that will never pass the length check again (aka the maximum
+          // value possible for the specific iterated object). Note that this is
+          // different from what the specification says, which is changing the
+          // [[IteratedObject]] field to undefined, but that makes it difficult
+          // to eliminate the map checks and "length" accesses in for..of loops.
+          //
+          // This is not necessary for JSTypedArray's, since the length of those
+          // cannot change later and so if we were ever out of bounds for them
+          // we will stay out-of-bounds forever.
+          BuildStoreTaggedField(receiver, GetFloat64Constant(kMaxUInt32),
+                                JSArrayIterator::kNextIndexOffset,
+                                StoreTaggedMode::kDefault);
+        }
+        return ReduceResult::Done();
+      }));
 
   // Allocate result object and return.
-  subgraph.Bind(&done);
   compiler::MapRef map =
       broker()->target_native_context().iterator_result_map(broker());
   VirtualObject* iter_result = CreateJSIteratorResult(
@@ -10148,20 +10180,6 @@ ReduceResult MaglevGraphBuilder::TryBuildAndAllocateJSGeneratorObject(
 }
 
 namespace {
-std::optional<int> TryGetArrayContructorLength(CallArguments& args) {
-  if (args.count() != 1) return {};
-  ValueNode* length = args[0];
-  switch (args[0]->opcode()) {
-    case Opcode::kSmiConstant:
-      return length->Cast<SmiConstant>()->value().value();
-    case Opcode::kInt32Constant:
-      return length->Cast<Int32Constant>()->value();
-    case Opcode::kUint32Constant:
-      return length->Cast<Uint32Constant>()->value();
-    default:
-      return {};
-  }
-}
 
 compiler::OptionalMapRef GetArrayConstructorInitialMap(
     compiler::JSHeapBroker* broker, compiler::JSFunctionRef array_function,
@@ -10201,7 +10219,10 @@ ReduceResult MaglevGraphBuilder::TryReduceConstructArrayConstructor(
   if (IsDoubleElementsKind(elements_kind)) return ReduceResult::Fail();
   DCHECK(IsFastElementsKind(elements_kind));
 
-  std::optional<int> maybe_length = TryGetArrayContructorLength(args);
+  std::optional<int> maybe_length;
+  if (args.count() == 1) {
+    maybe_length = TryGetInt32Constant(args[0]);
+  }
   compiler::OptionalMapRef maybe_initial_map = GetArrayConstructorInitialMap(
       broker(), array_function, elements_kind, args.count(), maybe_length);
   if (!maybe_initial_map.has_value()) return ReduceResult::Fail();
@@ -12533,6 +12554,11 @@ MaglevGraphBuilder::BuildBranchIfReferenceEqual(BranchBuilder& builder,
   }
   if (RootConstant* root_constant = lhs->TryCast<RootConstant>()) {
     return builder.Build<BranchIfRootConstant>({rhs}, root_constant->index());
+  }
+  if (InlinedAllocation* alloc_lhs = lhs->TryCast<InlinedAllocation>()) {
+    if (InlinedAllocation* alloc_rhs = rhs->TryCast<InlinedAllocation>()) {
+      return builder.FromBool(alloc_lhs == alloc_rhs);
+    }
   }
 
   return builder.Build<BranchIfReferenceEqual>({lhs, rhs});

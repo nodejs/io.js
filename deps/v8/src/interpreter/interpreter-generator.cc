@@ -9,6 +9,10 @@
 
 #include "src/builtins/builtins-constructor-gen.h"
 #include "src/builtins/profile-data-reader.h"
+#include "src/codegen/interface-descriptors-inl.h"
+#include "src/compiler/linkage.h"
+#include "src/compiler/pipeline.h"
+#include "src/compiler/turboshaft/builtin-compiler.h"
 #include "src/ic/accessor-assembler.h"
 #include "src/ic/binary-op-assembler.h"
 #include "src/ic/ic.h"
@@ -16,6 +20,7 @@
 #include "src/interpreter/bytecode-flags-and-tokens.h"
 #include "src/interpreter/bytecodes.h"
 #include "src/interpreter/interpreter-assembler.h"
+#include "src/interpreter/interpreter-generator-tsa.h"
 #include "src/interpreter/interpreter-intrinsics-generator.h"
 #include "src/objects/cell.h"
 #include "src/objects/js-generator.h"
@@ -29,6 +34,8 @@
 namespace v8 {
 namespace internal {
 namespace interpreter {
+
+#include "src/codegen/define-code-stub-assembler-macros.inc"
 
 namespace {
 
@@ -1144,6 +1151,8 @@ IGNITION_HANDLER(BitwiseAndSmi, InterpreterBitwiseBinaryOpAssembler) {
   BitwiseBinaryOpWithSmi(Operation::kBitwiseAnd);
 }
 
+#ifndef V8_ENABLE_EXPERIMENTAL_TSA_BUILTINS
+
 // BitwiseNot <feedback_slot>
 //
 // Perform bitwise-not on the accumulator.
@@ -1162,6 +1171,8 @@ IGNITION_HANDLER(BitwiseNot, InterpreterAssembler) {
   SetAccumulator(result);
   Dispatch();
 }
+
+#endif
 
 // ShiftLeftSmi <imm>
 //
@@ -3292,6 +3303,11 @@ IGNITION_HANDLER(ResumeGenerator, InterpreterAssembler) {
 
 }  // namespace
 
+void BitwiseNotAssemblerTS_Generate(compiler::turboshaft::PipelineData* data,
+                                    Isolate* isolate,
+                                    compiler::turboshaft::Graph& graph,
+                                    Zone* zone);
+
 Handle<Code> GenerateBytecodeHandler(Isolate* isolate, const char* debug_name,
                                      Bytecode bytecode,
                                      OperandScale operand_scale,
@@ -3302,13 +3318,30 @@ Handle<Code> GenerateBytecodeHandler(Isolate* isolate, const char* debug_name,
       isolate, &zone, InterpreterDispatchDescriptor{},
       CodeKind::BYTECODE_HANDLER, debug_name, builtin);
 
+  const auto descriptor_builder = [](Zone* zone) {
+    InterpreterDispatchDescriptor descriptor{};
+    return compiler::Linkage::GetStubCallDescriptor(
+        zone, descriptor, descriptor.GetStackParameterCount(),
+        compiler::CallDescriptor::kNoFlags, compiler::Operator::kNoProperties);
+  };
+  USE(descriptor_builder);
+
+  Handle<Code> code;
   switch (bytecode) {
 #define CALL_GENERATOR(Name, ...)                     \
   case Bytecode::k##Name:                             \
     Name##Assembler::Generate(&state, operand_scale); \
     break;
-    BYTECODE_LIST_WITH_UNIQUE_HANDLERS(CALL_GENERATOR);
+#define CALL_GENERATOR_TS(Name, ...)                                       \
+  case Bytecode::k##Name:                                                  \
+    code = compiler::turboshaft::BuildWithTurboshaftAssemblerImpl(         \
+        isolate, builtin, &Name##AssemblerTS_Generate, descriptor_builder, \
+        debug_name, options, CodeKind::BYTECODE_HANDLER,                   \
+        BytecodeHandlerData(bytecode, operand_scale));                     \
+    break;
+    BYTECODE_LIST_WITH_UNIQUE_HANDLERS(CALL_GENERATOR, CALL_GENERATOR_TS);
 #undef CALL_GENERATOR
+#undef CALL_GENERATOR_TS
     case Bytecode::kIllegal:
       IllegalAssembler::Generate(&state, operand_scale);
       break;
@@ -3322,8 +3355,10 @@ Handle<Code> GenerateBytecodeHandler(Isolate* isolate, const char* debug_name,
       UNREACHABLE();
   }
 
-  Handle<Code> code = compiler::CodeAssembler::GenerateCode(
-      &state, options, ProfileDataFromFile::TryRead(debug_name));
+  if (code.is_null()) {
+    code = compiler::CodeAssembler::GenerateCode(
+        &state, options, ProfileDataFromFile::TryRead(debug_name));
+  }
 
 #ifdef ENABLE_DISASSEMBLER
   if (v8_flags.trace_ignition_codegen) {
@@ -3335,6 +3370,8 @@ Handle<Code> GenerateBytecodeHandler(Isolate* isolate, const char* debug_name,
 
   return code;
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace interpreter
 }  // namespace internal

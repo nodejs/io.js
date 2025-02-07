@@ -12,7 +12,7 @@ var Proto = new Function(body);
 function A() {}
 A.prototype = new Proto();
 
-// Create a object and add properties that already exist in the prototype.
+// Create an object and add properties that already exist in the prototype.
 // At some point the object will turn into a dictionary mode and one of
 // the fast details from the prototype will be reinterpreted as a details
 // for a new property ...

@@ -47,7 +47,7 @@ Some tips:
   that name already, before you get too attached to it.
   <https://www.npmjs.com/>
 
-A name can be optionally prefixed by a scope, e.g. `@myorg/mypackage`. See
+A name can be optionally prefixed by a scope, e.g. `@npm/example`. See
 [`scope`](/using-npm/scope) for more detail.
 
 ### version
@@ -80,7 +80,7 @@ The URL to the project homepage.
 Example:
 
 ```json
-"homepage": "https://github.com/owner/project#readme"
+"homepage": "https://github.com/npm/example#readme"
 ```
 
 ### bugs
@@ -94,8 +94,8 @@ It should look like this:
 ```json
 {
   "bugs": {
-    "url": "https://github.com/owner/project/issues",
-    "email": "project@hostname.com"
+    "url": "https://github.com/npm/example/issues",
+    "email": "example@npmjs.com"
   }
 }
 ```
@@ -121,7 +121,7 @@ SPDX license identifier for the license you're using, like this:
 ```
 
 You can check [the full list of SPDX license
-IDs](https://spdx.org/licenses/).  Ideally you should pick one that is
+IDs](https://spdx.org/licenses/).  Ideally, you should pick one that is
 [OSI](https://opensource.org/licenses/) approved.
 
 If your package is licensed under multiple common licenses, use an [SPDX
@@ -204,8 +204,8 @@ like this:
 ```json
 {
   "name" : "Barney Rubble",
-  "email" : "b@rubble.com",
-  "url" : "http://barnyrubble.tumblr.com/"
+  "email" : "barney@npmjs.com",
+  "url" : "http://barnyrubble.npmjs.com/"
 }
 ```
 
@@ -214,7 +214,7 @@ you:
 
 ```json
 {
-  "author": "Barney Rubble <b@rubble.com> (http://barnyrubble.tumblr.com/)"
+  "author": "Barney Rubble <barney@npmjs.com> (http://barnyrubble.npmjs.com/)"
 }
 ```
 
@@ -232,7 +232,7 @@ string URL, or an array of objects and string URLs:
 {
   "funding": {
     "type" : "individual",
-    "url" : "http://example.com/donate"
+    "url" : "http://npmjs.com/donate"
   }
 }
 ```
@@ -241,14 +241,14 @@ string URL, or an array of objects and string URLs:
 {
   "funding": {
     "type" : "patreon",
-    "url" : "https://www.patreon.com/my-account"
+    "url" : "https://www.patreon.com/user"
   }
 }
 ```
 
 ```json
 {
-  "funding": "http://example.com/donate"
+  "funding": "http://npmjs.com/donate"
 }
 ```
 
@@ -257,12 +257,12 @@ string URL, or an array of objects and string URLs:
   "funding": [
     {
       "type" : "individual",
-      "url" : "http://example.com/donate"
+      "url" : "http://npmjs.com/donate"
     },
-    "http://example.com/donateAlso",
+    "http://npmjs.com/donate-also",
     {
       "type" : "patreon",
-      "url" : "https://www.patreon.com/my-account"
+      "url" : "https://www.patreon.com/user"
     }
   ]
 }
@@ -539,9 +539,9 @@ same shortcut syntax you use for `npm install`:
 
 ```json
 {
-  "repository": "npm/npm",
+  "repository": "npm/example",
 
-  "repository": "github:user/repo",
+  "repository": "github:npm/example",
 
   "repository": "gist:11081aaa281",
 
@@ -623,7 +623,7 @@ See [semver](https://github.com/npm/node-semver#versions) for more details about
 * `tag` A specific version tagged and published as `tag`  See [`npm
   dist-tag`](/commands/npm-dist-tag)
 * `path/path/path` See [Local Paths](#local-paths) below
-* `npm:@scope/pkg@version` Custom alias for a pacakge See [`package-spec`](/using-npm/package-spec#aliases)
+* `npm:@scope/pkg@version` Custom alias for a package See [`package-spec`](/using-npm/package-spec#aliases)
 
 For example, these are all valid:
 
@@ -635,7 +635,7 @@ For example, these are all valid:
     "baz": ">1.0.2 <=2.3.4",
     "boo": "2.0.1",
     "qux": "<1.0.0 || >=2.3.1 <2.4.5 || >=2.5.2 <3.0.0",
-    "asd": "http://asdf.com/asdf.tar.gz",
+    "asd": "http://npmjs.com/example.tar.gz",
     "til": "~1.2",
     "elf": "~1.2.3",
     "two": "2.x",
@@ -714,7 +714,7 @@ included.  For example:
   "dependencies": {
     "express": "expressjs/express",
     "mocha": "mochajs/mocha#4727d357ea",
-    "module": "user/repo#feature\/branch"
+    "module": "npm/example-github-repo#feature\/branch"
   }
 }
 ```
@@ -773,7 +773,7 @@ For example:
 
 ```json
 {
-  "name": "ethopia-waza",
+  "name": "@npm/ethopia-waza",
   "description": "a delightfully fruity coffee varietal",
   "version": "1.2.3",
   "devDependencies": {
@@ -803,21 +803,21 @@ For example:
 
 ```json
 {
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x"
+    "@npm/tea": "2.x"
   }
 }
 ```
 
-This ensures your package `tea-latte` can be installed *along* with the
-second major version of the host package `tea` only. `npm install
+This ensures your package `@npm/tea-latte` can be installed *along* with the
+second major version of the host package `@npm/tea` only. `npm install
 tea-latte` could possibly yield the following dependency graph:
 
 ```bash
-├── tea-latte@1.3.5
-└── tea@2.2.0
+├── @npm/tea-latte@1.3.5
+└── @npm/tea@2.2.0
 ```
 
 In npm versions 3 through 6, `peerDependencies` were not automatically
@@ -849,14 +849,14 @@ For example:
 
 ```json
 {
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x",
-    "soy-milk": "1.2"
+    "@npm/tea": "2.x",
+    "@npm/soy-milk": "1.2"
   },
   "peerDependenciesMeta": {
-    "soy-milk": {
+    "@npm/soy-milk": {
       "optional": true
     }
   }
@@ -879,17 +879,17 @@ If we define a package.json like this:
 
 ```json
 {
-  "name": "awesome-web-framework",
+  "name": "@npm/awesome-web-framework",
   "version": "1.0.0",
   "bundleDependencies": [
-    "renderized",
-    "super-streams"
+    "@npm/renderized",
+    "@npm/super-streams"
   ]
 }
 ```
 
-we can obtain `awesome-web-framework-1.0.0.tgz` file by running `npm pack`.
-This file contains the dependencies `renderized` and `super-streams` which
+we can obtain `@npm/awesome-web-framework-1.0.0.tgz` file by running `npm pack`.
+This file contains the dependencies `@npm/renderized` and `@npm/super-streams` which
 can be installed in a new project by executing `npm install
 awesome-web-framework-1.0.0.tgz`.  Note that the package names do not
 include any versions, as that information is specified in `dependencies`.
@@ -914,8 +914,8 @@ dependency.  For example, something like this:
 
 ```js
 try {
-  var foo = require('foo')
-  var fooVersion = require('foo/package.json').version
+  var foo = require('@npm/foo')
+  var fooVersion = require('@npm/foo/package.json').version
 } catch (er) {
   foo = null
 }
@@ -957,49 +957,49 @@ what version your dependencies rely on:
 ```json
 {
   "overrides": {
-    "foo": "1.0.0"
+    "@npm/foo": "1.0.0"
   }
 }
 ```
 
 The above is a short hand notation, the full object form can be used to allow
 overriding a package itself as well as a child of the package. This will cause
-`foo` to always be `1.0.0` while also making `bar` at any depth beyond `foo`
+`@npm/foo` to always be `1.0.0` while also making `@npm/bar` at any depth beyond `@npm/foo`
 also `1.0.0`:
 
 ```json
 {
   "overrides": {
-    "foo": {
+    "@npm/foo": {
       ".": "1.0.0",
-      "bar": "1.0.0"
+      "@npm/bar": "1.0.0"
     }
   }
 }
 ```
 
-To only override `foo` to be `1.0.0` when it's a child (or grandchild, or great
+To only override `@npm/foo` to be `1.0.0` when it's a child (or grandchild, or great
 grandchild, etc) of the package `bar`:
 
 ```json
 {
   "overrides": {
-    "bar": {
-      "foo": "1.0.0"
+    "@npm/bar": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
 ```
 
-Keys can be nested to any arbitrary length. To override `foo` only when it's a
-child of `bar` and only when `bar` is a child of `baz`:
+Keys can be nested to any arbitrary length. To override `@npm/foo` only when it's a
+child of `@npm/bar` and only when `@npm/bar` is a child of `@npm/baz`:
 
 ```json
 {
   "overrides": {
-    "baz": {
-      "bar": {
-        "foo": "1.0.0"
+    "@npm/baz": {
+      "@npm/bar": {
+        "@npm/foo": "1.0.0"
       }
     }
   }
@@ -1007,13 +1007,13 @@ child of `bar` and only when `bar` is a child of `baz`:
 ```
 
 The key of an override can also include a version, or range of versions.
-To override `foo` to `1.0.0`, but only when it's a child of `bar@2.0.0`:
+To override `@npm/foo` to `1.0.0`, but only when it's a child of `@npm/bar@2.0.0`:
 
 ```json
 {
   "overrides": {
-    "bar@2.0.0": {
-      "foo": "1.0.0"
+    "@npm/bar@2.0.0": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
@@ -1028,7 +1028,7 @@ package you wish the version to match with a `$`.
 ```json
 {
   "dependencies": {
-    "foo": "^1.0.0"
+    "@npm/foo": "^1.0.0"
   },
   "overrides": {
     // BAD, will throw an EOVERRIDE error
@@ -1036,9 +1036,9 @@ package you wish the version to match with a `$`.
     // GOOD, specs match so override is allowed
     // "foo": "^1.0.0"
     // BEST, the override is defined as a reference to the dependency
-    "foo": "$foo",
+    "@npm/foo": "$foo",
     // the referenced package does not need to match the overridden one
-    "bar": "$foo"
+    "@npm/bar": "$foo"
   }
 }
 ```

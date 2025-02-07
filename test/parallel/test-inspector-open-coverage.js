@@ -7,7 +7,12 @@ const fixtures = require('../common/fixtures');
 const tmpdir = require('../common/tmpdir');
 
 common.skipIfInspectorDisabled();
-common.skipIfWorker();
+
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 tmpdir.refresh();
 

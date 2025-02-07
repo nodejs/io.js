@@ -92,7 +92,8 @@ void ThreadIsolation::Initialize(
 #endif
 
 #if V8_HAS_PKU_JIT_WRITE_PROTECT
-  if (enable && !base::MemoryProtectionKey::HasMemoryProtectionKeySupport()) {
+  if (!v8_flags.memory_protection_keys ||
+      !base::MemoryProtectionKey::HasMemoryProtectionKeySupport()) {
     enable = false;
   }
 #endif

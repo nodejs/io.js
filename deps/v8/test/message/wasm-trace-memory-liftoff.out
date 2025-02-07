@@ -1,14 +1,14 @@
-liftoff     func:     0:0xab    load from 0000000000000004 val: i32:0 / 00000000
-liftoff     func:     1:0xb4    load from 0000000000000001 val:  i8:0 / 00
-liftoff     func:     3:0xc8     store to 0000000000000004 val: i32:305419896 / 12345678
-liftoff     func:     0:0xab    load from 0000000000000002 val: i32:1450704896 / 56780000
-liftoff     func:     1:0xb4    load from 0000000000000006 val:  i8:52 / 34
-liftoff     func:     2:0xbd    load from 0000000000000002 val: f32:68169720922112.000000 / 56780000
-liftoff     func:     4:0xd2     store to 0000000000000004 val:  i8:171 / ab
-liftoff     func:     0:0xab    load from 0000000000000002 val: i32:1454047232 / 56ab0000
-liftoff     func:     2:0xbd    load from 0000000000000002 val: f32:94008244174848.000000 / 56ab0000
-liftoff     func:     6:0xe8     store to 0000000000000004 val: s128:48879 48879 48879 48879 / 0000beef 0000beef 0000beef 0000beef
-liftoff     func:     5:0xda    load from 0000000000000002 val: s128:-1091633152 -1091633152 -1091633152 -1091633152 / beef0000 beef0000 beef0000 beef0000
-liftoff     func:     7:0xf1    load from 0000000000000004 val: i16:48879 / beef
-liftoff     func:     8:0xfa    load from 0000000000000002 val: i64:-4688528683866062848 / beef0000beef0000
-liftoff     func:     9:0x103   load from 0000000000000002 val: f64:-0.000015 / beef0000beef0000
+liftoff     func:     0:0xab   load from 0000000000000004 val:  i32:0 / 00000000
+liftoff     func:     1:0xb4   load from 0000000000000001 val:   i8:0 / 00
+liftoff     func:     3:0xc8    store to 0000000000000004 val:  i32:305419896 / 12345678
+liftoff     func:     0:0xab   load from 0000000000000002 val:  i32:1450704896 / 56780000
+liftoff     func:     1:0xb4   load from 0000000000000006 val:   i8:52 / 34
+liftoff     func:     2:0xbd   load from 0000000000000002 val:  f32:68169720922112.000000 / 56780000
+liftoff     func:     4:0xd2    store to 0000000000000004 val:   i8:171 / ab
+liftoff     func:     0:0xab   load from 0000000000000002 val:  i32:1454047232 / 56ab0000
+liftoff     func:     2:0xbd   load from 0000000000000002 val:  f32:94008244174848.000000 / 56ab0000
+liftoff     func:     6:0xe8    store to 0000000000000004 val: s128:48879 48879 48879 48879 / 0000beef 0000beef 0000beef 0000beef
+liftoff     func:     5:0xda   load from 0000000000000002 val: s128:3203334144 3203334144 3203334144 3203334144 / beef0000 beef0000 beef0000 beef0000
+liftoff     func:     7:0xf1   load from 0000000000000004 val:  i16:48879 / beef
+liftoff     func:     8:0xfa   load from 0000000000000002 val:  i64:13758215389843488768 / beef0000beef0000
+liftoff     func:     9:0x103  load from 0000000000000002 val:  f64:-0.000015 / beef0000beef0000

@@ -74,9 +74,6 @@ Tagged<HeapObject> PagedSpaceObjectIterator::Next() {
 }
 
 bool PagedSpaceBase::Contains(Address addr) const {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) {
-    return true;
-  }
   return PageMetadata::FromAddress(addr)->owner() == this;
 }
 

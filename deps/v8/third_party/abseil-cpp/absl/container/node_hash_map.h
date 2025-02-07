@@ -120,7 +120,7 @@ class NodeHashMapPolicy;
 template <class Key, class Value, class Hash = DefaultHashContainerHash<Key>,
           class Eq = DefaultHashContainerEq<Key>,
           class Alloc = std::allocator<std::pair<const Key, Value>>>
-class ABSL_INTERNAL_ATTRIBUTE_OWNER node_hash_map
+class ABSL_ATTRIBUTE_OWNER node_hash_map
     : public absl::container_internal::raw_hash_map<
           absl::container_internal::NodeHashMapPolicy<Key, Value>, Hash, Eq,
           Alloc> {

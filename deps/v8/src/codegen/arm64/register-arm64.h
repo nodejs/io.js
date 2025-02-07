@@ -267,9 +267,10 @@ static_assert(sizeof(Register) <= sizeof(int),
               "Register can efficiently be passed by value");
 
 // Assign |source| value to |no_reg| and return the |source|'s previous value.
-inline Register ReassignRegister(Register& source) {
-  Register result = source;
-  source = Register::no_reg();
+template <typename RegT>
+inline RegT ReassignRegister(RegT& source) {
+  RegT result = source;
+  source = RegT::no_reg();
   return result;
 }
 
@@ -612,7 +613,7 @@ constexpr Register kJavaScriptCallExtraArg1Register = x2;
 constexpr Register kRuntimeCallFunctionRegister = x1;
 constexpr Register kRuntimeCallArgCountRegister = x0;
 constexpr Register kRuntimeCallArgvRegister = x11;
-constexpr Register kWasmInstanceRegister = x7;
+constexpr Register kWasmImplicitArgRegister = x7;
 constexpr Register kWasmCompileLazyFuncIndexRegister = x8;
 constexpr Register kWasmTrapHandlerFaultAddressRegister = x16;
 constexpr Register kSimulatorHltArgument = x16;

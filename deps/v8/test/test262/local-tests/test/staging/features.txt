@@ -31,12 +31,6 @@ legacy-regexp
 # https://github.com/tc39/proposal-import-attributes/
 import-attributes
 
-# Import Assertions (Normative Optional, Deprecated)
-# This feature should not be implemented, but if it is it must
-# respect the specified behavior
-# https://github.com/tc39/proposal-import-attributes/
-import-assertions
-
 # JSON modules
 # https://github.com/tc39/proposal-json-modules
 json-modules

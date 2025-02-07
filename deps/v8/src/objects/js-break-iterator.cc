@@ -17,10 +17,6 @@
 namespace v8 {
 namespace internal {
 
-namespace {
-enum class Type { CHARACTER, WORD, SENTENCE, LINE };
-}  // anonymous namespace
-
 MaybeHandle<JSV8BreakIterator> JSV8BreakIterator::New(
     Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
     Handle<Object> options_obj, const char* service) {
@@ -56,6 +52,7 @@ MaybeHandle<JSV8BreakIterator> JSV8BreakIterator::New(
   Intl::ResolvedLocale r = maybe_resolve_locale.FromJust();
 
   // Extract type from options
+  enum class Type { CHARACTER, WORD, SENTENCE, LINE };
   Maybe<Type> maybe_type = GetStringOption<Type>(
       isolate, options, "type", service,
       {"word", "character", "sentence", "line"},
@@ -119,60 +116,40 @@ MaybeHandle<JSV8BreakIterator> JSV8BreakIterator::New(
   return break_iterator_holder;
 }
 
-namespace {
-
-Type GetType(icu::BreakIterator* break_iterator) {
-  // Since the developer calling the Intl.v8BreakIterator already know the type,
-  // we usually do not need to know the type unless the resolvedOptions() is
-  // called, we use the following trick to figure out the type instead of
-  // storing it with the JSV8BreakIterator object to save memory.
-  // This routine is not fast but should be seldomly used only.
-
-  // We need to clone a copy of break iteator because we need to setText to it.
-  std::unique_ptr<icu::BreakIterator> cloned_break_iterator(
-      break_iterator->clone());
-  // Use a magic string "He is." to call next().
-  //  character type: will return 1 for "H"
-  //  word type: will return 2 for "He"
-  //  line type: will return 3 for "He "
-  //  sentence type: will return 6 for "He is."
-  icu::UnicodeString data("He is.");
-  cloned_break_iterator->setText(data);
-  switch (cloned_break_iterator->next()) {
-    case 1:  // After "H"
-      return Type::CHARACTER;
-    case 2:  // After "He"
-      return Type::WORD;
-    case 3:  // After "He "
-      return Type::LINE;
-    case 6:  // After "He is."
-      return Type::SENTENCE;
-    default:
-      UNREACHABLE();
-  }
-}
-
-Handle<String> TypeAsString(Isolate* isolate, Type type) {
-  switch (type) {
-    case Type::CHARACTER:
-      return ReadOnlyRoots(isolate).character_string_handle();
-    case Type::WORD:
-      return ReadOnlyRoots(isolate).word_string_handle();
-    case Type::SENTENCE:
-      return ReadOnlyRoots(isolate).sentence_string_handle();
-    case Type::LINE:
-      return ReadOnlyRoots(isolate).line_string_handle();
-  }
-  UNREACHABLE();
-}
-
-}  // anonymous namespace
-
 Handle<JSObject> JSV8BreakIterator::ResolvedOptions(
     Isolate* isolate, DirectHandle<JSV8BreakIterator> break_iterator) {
   Factory* factory = isolate->factory();
+  const auto as_string = [isolate](icu::BreakIterator* break_iterator) {
+    // Since the developer calling the Intl.v8BreakIterator already know the
+    // type, we usually do not need to know the type unless the
+    // resolvedOptions() is called, we use the following trick to figure out the
+    // type instead of storing it with the JSV8BreakIterator object to save
+    // memory. This routine is not fast but should be seldomly used only.
 
-  Type type = GetType(break_iterator->break_iterator()->raw());
+    // We need to clone a copy of break iteator because we need to setText to
+    // it.
+    std::unique_ptr<icu::BreakIterator> cloned_break_iterator(
+        break_iterator->clone());
+    // Use a magic string "He is." to call next().
+    //  character type: will return 1 for "H"
+    //  word type: will return 2 for "He"
+    //  line type: will return 3 for "He "
+    //  sentence type: will return 6 for "He is."
+    icu::UnicodeString data("He is.");
+    cloned_break_iterator->setText(data);
+    switch (cloned_break_iterator->next()) {
+      case 1:  // After "H"
+        return ReadOnlyRoots(isolate).character_string_handle();
+      case 2:  // After "He"
+        return ReadOnlyRoots(isolate).word_string_handle();
+      case 3:  // After "He "
+        return ReadOnlyRoots(isolate).line_string_handle();
+      case 6:  // After "He is."
+        return ReadOnlyRoots(isolate).sentence_string_handle();
+      default:
+        UNREACHABLE();
+    }
+  };
 
   Handle<JSObject> result = factory->NewJSObject(isolate->object_function());
   DirectHandle<String> locale(break_iterator->locale(), isolate);
@@ -180,7 +157,8 @@ Handle<JSObject> JSV8BreakIterator::ResolvedOptions(
   JSObject::AddProperty(isolate, result, factory->locale_string(), locale,
                         NONE);
   JSObject::AddProperty(isolate, result, factory->type_string(),
-                        TypeAsString(isolate, type), NONE);
+                        as_string(break_iterator->break_iterator()->raw()),
+                        NONE);
   return result;
 }
 

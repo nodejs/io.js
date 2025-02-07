@@ -981,7 +981,7 @@ IrregexpInterpreter::Result RawMatch(
     }
     BYTECODE(SKIP_UNTIL_BIT_IN_TABLE) {
       int32_t load_offset = LoadPacked24Signed(insn);
-      int32_t advance = Load16AlignedSigned(pc + 4);
+      int32_t advance = Load32Aligned(pc + 4);
       const uint8_t* table = pc + 8;
       while (IndexIsInBounds(current + load_offset, subject.length())) {
         current_char = subject[current + load_offset];

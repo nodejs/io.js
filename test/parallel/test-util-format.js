@@ -197,9 +197,9 @@ assert.strictEqual(util.format('%s', -Infinity), '-Infinity');
     util.format('%s', Object.setPrototypeOf(new Foo(), null)),
     '[Foo: null prototype] {}'
   );
-  global.Foo = Foo;
+  globalThis.Foo = Foo;
   assert.strictEqual(util.format('%s', new Foo()), 'Bar');
-  delete global.Foo;
+  delete globalThis.Foo;
   class Bar { abc = true; }
   assert.strictEqual(util.format('%s', new Bar()), 'Bar { abc: true }');
   class Foobar extends Array { aaa = true; }

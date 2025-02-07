@@ -426,6 +426,20 @@ API
 
     .. versionchanged:: 1.27.0 added support for connected sockets
 
+.. c:function:: int uv_udp_try_send2(uv_udp_t* handle, unsigned int count, uv_buf_t* bufs[/*count*/], unsigned int nbufs[/*count*/], struct sockaddr* addrs[/*count*/], unsigned int flags)
+
+    Like :c:func:`uv_udp_try_send`, but can send multiple datagrams.
+    Lightweight abstraction around :man:`sendmmsg(2)`, with a :man:`sendmsg(2)`
+    fallback loop for platforms that do not support the former. The handle must
+    be fully initialized; call c:func:`uv_udp_bind` first.
+
+    :returns: >= 0: number of datagrams sent. Zero only if `count` was zero.
+        < 0: negative error code. Only if sending the first datagram fails,
+        otherwise returns a positive send count. ``UV_EAGAIN`` when datagrams
+        cannot be sent right now; fall back to :c:func:`uv_udp_send`.
+
+    .. versionadded:: 1.50.0
+
 .. c:function:: int uv_udp_recv_start(uv_udp_t* handle, uv_alloc_cb alloc_cb, uv_udp_recv_cb recv_cb)
 
     Prepare for receiving data. If the socket has not previously been bound

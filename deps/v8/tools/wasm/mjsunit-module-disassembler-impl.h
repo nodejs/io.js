@@ -803,9 +803,15 @@ class MjsunitImmediatesPrinter {
     out_ << ",";
   }
 
-  // TODO(mliedtke): This is used for br_on_cast[_fail] and currently does not
-  // create a valid br_on_cast instruction.
   void ValueType(HeapTypeImmediate& imm, bool is_nullable) {
+    if (owner_->current_opcode_ == kExprBrOnCast ||
+        owner_->current_opcode_ == kExprBrOnCastFail) {
+      // We somewhat incorrectly use the {ValueType} callback rather than
+      // {HeapType()} for br_on_cast[_fail], because that's convenient
+      // for disassembling to the text format. For module builder output,
+      // fix that hack here, by dispatching back to {HeapType()}.
+      return HeapType(imm);
+    }
     out_ << " ";
     names()->PrintValueType(
         out_,
@@ -813,6 +819,14 @@ class MjsunitImmediatesPrinter {
                                 is_nullable ? kNullable : kNonNullable),
         kEmitWireBytes);
     out_ << ",";
+  }
+
+  void BrOnCastFlags(BrOnCastImmediate& flags) {
+    out_ << " 0b";
+    out_ << ((flags.raw_value & 2) ? "1" : "0");
+    out_ << ((flags.raw_value & 1) ? "1" : "0");
+    out_ << " /* " << (flags.flags.src_is_null ? "" : "non-") << "nullable -> "
+         << (flags.flags.res_is_null ? "" : "non-") << "nullable */,";
   }
 
   void BranchDepth(BranchDepthImmediate& imm) { WriteUnsignedLEB(imm.depth); }

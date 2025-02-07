@@ -33,6 +33,7 @@
 
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
+#include "absl/base/nullability.h"
 #include "absl/base/optimization.h"
 #include "absl/log/internal/nullguard.h"
 #include "absl/log/internal/nullstream.h"
@@ -166,8 +167,9 @@ template <typename T>
 class StatusOr;
 
 namespace status_internal {
-ABSL_ATTRIBUTE_PURE_FUNCTION std::string* MakeCheckFailString(
-    const absl::Status* status, const char* prefix);
+ABSL_ATTRIBUTE_PURE_FUNCTION absl::Nonnull<std::string*> MakeCheckFailString(
+    absl::Nonnull<const absl::Status*> status,
+    absl::Nonnull<const char*> prefix);
 }  // namespace status_internal
 
 namespace log_internal {

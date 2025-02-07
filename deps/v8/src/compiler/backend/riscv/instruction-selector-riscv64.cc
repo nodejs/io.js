@@ -311,11 +311,12 @@ void EmitLoad(InstructionSelectorT<TurboshaftAdapter>* selector,
 }
 
 template <typename Adapter>
-void EmitS128Load(InstructionSelectorT<Adapter>* selector, Node* node,
-                  InstructionCode opcode, VSew sew, Vlmul lmul) {
+void EmitS128Load(InstructionSelectorT<Adapter>* selector,
+                  typename Adapter::node_t node, InstructionCode opcode,
+                  VSew sew, Vlmul lmul) {
   RiscvOperandGeneratorT<Adapter> g(selector);
-  Node* base = selector->input_at(node, 0);
-  Node* index = selector->input_at(node, 1);
+  typename Adapter::node_t base = selector->input_at(node, 0);
+  typename Adapter::node_t index = selector->input_at(node, 1);
   if (g.CanBeImmediate(index, opcode)) {
     selector->Emit(opcode | AddressingModeField::encode(kMode_MRI),
                    g.DefineAsRegister(node), g.UseRegister(base),
@@ -332,94 +333,204 @@ void EmitS128Load(InstructionSelectorT<Adapter>* selector, Node* node,
   }
 }
 
-template <typename Adapter>
-void InstructionSelectorT<Adapter>::VisitStoreLane(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
-    StoreLaneParameters params = StoreLaneParametersOf(node->op());
-    LoadStoreLaneParams f(params.rep, params.laneidx);
-    InstructionCode opcode = kRiscvS128StoreLane;
-    opcode |=
-        LaneSizeField::encode(ElementSizeInBytes(params.rep) * kBitsPerByte);
-    if (params.kind == MemoryAccessKind::kProtected) {
-      opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
-    }
-    RiscvOperandGeneratorT<Adapter> g(this);
-    Node* base = this->input_at(node, 0);
-    Node* index = this->input_at(node, 1);
-    InstructionOperand addr_reg = g.TempRegister();
-    Emit(kRiscvAdd64, addr_reg, g.UseRegister(base), g.UseRegister(index));
-    InstructionOperand inputs[4] = {
-        g.UseRegister(node->InputAt(2)),
-        g.UseImmediate(f.laneidx),
-        addr_reg,
-        g.TempImmediate(0),
-    };
-    opcode |= AddressingModeField::encode(kMode_MRI);
-    Emit(opcode, 0, nullptr, 4, inputs);
+template <>
+void InstructionSelectorT<TurboshaftAdapter>::VisitStoreLane(node_t node) {
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  const Simd128LaneMemoryOp& store = Get(node).Cast<Simd128LaneMemoryOp>();
+  InstructionCode opcode = kRiscvS128StoreLane;
+  opcode |= LaneSizeField::encode(store.lane_size() * kBitsPerByte);
+  if (store.kind.with_trap_handler) {
+    opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
+  }
+
+  RiscvOperandGeneratorT<TurboshaftAdapter> g(this);
+  node_t base = this->input_at(node, 0);
+  node_t index = this->input_at(node, 1);
+  InstructionOperand addr_reg = g.TempRegister();
+  Emit(kRiscvAdd64, addr_reg, g.UseRegister(base), g.UseRegister(index));
+  InstructionOperand inputs[4] = {
+      g.UseRegister(input_at(node, 2)),
+      g.UseImmediate(store.lane),
+      addr_reg,
+      g.TempImmediate(0),
+  };
+  opcode |= AddressingModeField::encode(kMode_MRI);
+  Emit(opcode, 0, nullptr, 4, inputs);
+}
+
+template <>
+void InstructionSelectorT<TurbofanAdapter>::VisitStoreLane(Node* node) {
+  StoreLaneParameters params = StoreLaneParametersOf(node->op());
+  LoadStoreLaneParams f(params.rep, params.laneidx);
+  InstructionCode opcode = kRiscvS128StoreLane;
+  opcode |=
+      LaneSizeField::encode(ElementSizeInBytes(params.rep) * kBitsPerByte);
+  if (params.kind == MemoryAccessKind::kProtected) {
+    opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
+  }
+  RiscvOperandGeneratorT<TurbofanAdapter> g(this);
+  Node* base = this->input_at(node, 0);
+  Node* index = this->input_at(node, 1);
+  InstructionOperand addr_reg = g.TempRegister();
+  Emit(kRiscvAdd64, addr_reg, g.UseRegister(base), g.UseRegister(index));
+  InstructionOperand inputs[4] = {
+      g.UseRegister(this->input_at(node, 2)),
+      g.UseImmediate(f.laneidx),
+      addr_reg,
+      g.TempImmediate(0),
+  };
+  opcode |= AddressingModeField::encode(kMode_MRI);
+  Emit(opcode, 0, nullptr, 4, inputs);
+}
+
+template <>
+void InstructionSelectorT<TurboshaftAdapter>::VisitLoadLane(node_t node) {
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  const Simd128LaneMemoryOp& load = this->Get(node).Cast<Simd128LaneMemoryOp>();
+  InstructionCode opcode = kRiscvS128LoadLane;
+  opcode |= LaneSizeField::encode(load.lane_size() * kBitsPerByte);
+  if (load.kind.with_trap_handler) {
+    opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
+  }
+
+  RiscvOperandGeneratorT<TurboshaftAdapter> g(this);
+  node_t base = this->input_at(node, 0);
+  node_t index = this->input_at(node, 1);
+  InstructionOperand addr_reg = g.TempRegister();
+  Emit(kRiscvAdd64, addr_reg, g.UseRegister(base), g.UseRegister(index));
+  opcode |= AddressingModeField::encode(kMode_MRI);
+  Emit(opcode, g.DefineSameAsFirst(node),
+       g.UseRegister(this->input_at(node, 2)), g.UseImmediate(load.lane),
+       addr_reg, g.TempImmediate(0));
+}
+
+template <>
+void InstructionSelectorT<TurbofanAdapter>::VisitLoadLane(Node* node) {
+  LoadLaneParameters params = LoadLaneParametersOf(node->op());
+  DCHECK(
+      params.rep == MachineType::Int8() || params.rep == MachineType::Int16() ||
+      params.rep == MachineType::Int32() || params.rep == MachineType::Int64());
+  LoadStoreLaneParams f(params.rep.representation(), params.laneidx);
+  InstructionCode opcode = kRiscvS128LoadLane;
+  opcode |= LaneSizeField::encode(params.rep.MemSize() * kBitsPerByte);
+  if (params.kind == MemoryAccessKind::kProtected) {
+    opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
+  }
+  RiscvOperandGeneratorT<TurbofanAdapter> g(this);
+  Node* base = this->input_at(node, 0);
+  Node* index = this->input_at(node, 1);
+  InstructionOperand addr_reg = g.TempRegister();
+  Emit(kRiscvAdd64, addr_reg, g.UseRegister(base), g.UseRegister(index));
+  opcode |= AddressingModeField::encode(kMode_MRI);
+  Emit(opcode, g.DefineSameAsFirst(node), g.UseRegister(node->InputAt(2)),
+       g.UseImmediate(params.laneidx), addr_reg, g.TempImmediate(0));
+}
+
+namespace {
+ArchOpcode GetLoadOpcode(turboshaft::MemoryRepresentation loaded_rep,
+                         turboshaft::RegisterRepresentation result_rep) {
+  // NOTE: The meaning of `loaded_rep` = `MemoryRepresentation::AnyTagged()` is
+  // we are loading a compressed tagged field, while `result_rep` =
+  // `RegisterRepresentation::Tagged()` refers to an uncompressed tagged value.
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  switch (loaded_rep) {
+    case MemoryRepresentation::Int8():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      return kRiscvLb;
+    case MemoryRepresentation::Uint8():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      return kRiscvLbu;
+    case MemoryRepresentation::Int16():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      return kRiscvLh;
+    case MemoryRepresentation::Uint16():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      return kRiscvLhu;
+    case MemoryRepresentation::Int32():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      return kRiscvLw;
+    case MemoryRepresentation::Uint32():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
+      return kRiscvLwu;
+    case MemoryRepresentation::Int64():
+    case MemoryRepresentation::Uint64():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Word64());
+      return kRiscvLd;
+    case MemoryRepresentation::Float16():
+      UNIMPLEMENTED();
+    case MemoryRepresentation::Float32():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Float32());
+      return kRiscvLoadFloat;
+    case MemoryRepresentation::Float64():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Float64());
+      return kRiscvLoadDouble;
+#ifdef V8_COMPRESS_POINTERS
+    case MemoryRepresentation::AnyTagged():
+    case MemoryRepresentation::TaggedPointer():
+      if (result_rep == RegisterRepresentation::Compressed()) {
+        return kRiscvLwu;
+      }
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      return kRiscvLoadDecompressTagged;
+    case MemoryRepresentation::TaggedSigned():
+      if (result_rep == RegisterRepresentation::Compressed()) {
+        return kRiscvLwu;
+      }
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      return kRiscvLoadDecompressTaggedSigned;
+#else
+    case MemoryRepresentation::AnyTagged():
+    case MemoryRepresentation::TaggedPointer():
+    case MemoryRepresentation::TaggedSigned():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      return kRiscvLd;
+#endif
+    case MemoryRepresentation::AnyUncompressedTagged():
+    case MemoryRepresentation::UncompressedTaggedPointer():
+    case MemoryRepresentation::UncompressedTaggedSigned():
+      DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
+      return kRiscvLd;
+    case MemoryRepresentation::ProtectedPointer():
+      CHECK(V8_ENABLE_SANDBOX_BOOL);
+      return kRiscvLoadDecompressProtected;
+    case MemoryRepresentation::IndirectPointer():
+      UNREACHABLE();
+    case MemoryRepresentation::SandboxedPointer():
+      return kRiscvLoadDecodeSandboxedPointer;
+    case MemoryRepresentation::Simd128():
+      return kRiscvRvvLd;
+    case MemoryRepresentation::Simd256():
+      UNREACHABLE();
   }
 }
 
-template <typename Adapter>
-void InstructionSelectorT<Adapter>::VisitLoadLane(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
-    LoadLaneParameters params = LoadLaneParametersOf(node->op());
-    DCHECK(params.rep == MachineType::Int8() ||
-           params.rep == MachineType::Int16() ||
-           params.rep == MachineType::Int32() ||
-           params.rep == MachineType::Int64());
-    LoadStoreLaneParams f(params.rep.representation(), params.laneidx);
-    InstructionCode opcode = kRiscvS128LoadLane;
-    opcode |= LaneSizeField::encode(params.rep.MemSize() * kBitsPerByte);
-    if (params.kind == MemoryAccessKind::kProtected) {
-      opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
-    }
-    RiscvOperandGeneratorT<Adapter> g(this);
-    Node* base = this->input_at(node, 0);
-    Node* index = this->input_at(node, 1);
-    InstructionOperand addr_reg = g.TempRegister();
-    Emit(kRiscvAdd64, addr_reg, g.UseRegister(base), g.UseRegister(index));
-    opcode |= AddressingModeField::encode(kMode_MRI);
-    Emit(opcode, g.DefineSameAsFirst(node), g.UseRegister(node->InputAt(2)),
-         g.UseImmediate(params.laneidx), addr_reg, g.TempImmediate(0));
-  }
-}
-
-template <typename Adapter>
-void InstructionSelectorT<Adapter>::VisitLoad(node_t node) {
-  auto load = this->load_view(node);
-  LoadRepresentation load_rep = load.loaded_rep();
-
-  InstructionCode opcode = kArchNop;
+ArchOpcode GetLoadOpcode(LoadRepresentation load_rep) {
   switch (load_rep.representation()) {
     case MachineRepresentation::kFloat32:
-      opcode = kRiscvLoadFloat;
+      return kRiscvLoadFloat;
       break;
     case MachineRepresentation::kFloat64:
-      opcode = kRiscvLoadDouble;
+      return kRiscvLoadDouble;
       break;
     case MachineRepresentation::kBit:  // Fall through.
     case MachineRepresentation::kWord8:
-      opcode = load_rep.IsUnsigned() ? kRiscvLbu : kRiscvLb;
+      return load_rep.IsUnsigned() ? kRiscvLbu : kRiscvLb;
       break;
     case MachineRepresentation::kWord16:
-      opcode = load_rep.IsUnsigned() ? kRiscvLhu : kRiscvLh;
+      return load_rep.IsUnsigned() ? kRiscvLhu : kRiscvLh;
       break;
     case MachineRepresentation::kWord32:
-      opcode = load_rep.IsUnsigned() ? kRiscvLwu : kRiscvLw;
+      return load_rep.IsUnsigned() ? kRiscvLwu : kRiscvLw;
       break;
 #ifdef V8_COMPRESS_POINTERS
       case MachineRepresentation::kTaggedSigned:
-        opcode = kRiscvLoadDecompressTaggedSigned;
+        return kRiscvLoadDecompressTaggedSigned;
         break;
       case MachineRepresentation::kTaggedPointer:
-        opcode = kRiscvLoadDecompressTagged;
+        return kRiscvLoadDecompressTagged;
         break;
       case MachineRepresentation::kTagged:
-        opcode = kRiscvLoadDecompressTagged;
+        return kRiscvLoadDecompressTagged;
         break;
 #else
       case MachineRepresentation::kTaggedSigned:   // Fall through.
@@ -427,24 +538,24 @@ void InstructionSelectorT<Adapter>::VisitLoad(node_t node) {
       case MachineRepresentation::kTagged:         // Fall through.
 #endif
       case MachineRepresentation::kWord64:
-        opcode = kRiscvLd;
+        return kRiscvLd;
         break;
       case MachineRepresentation::kSimd128:
-        opcode = kRiscvRvvLd;
+        return kRiscvRvvLd;
         break;
       case MachineRepresentation::kCompressedPointer:
       case MachineRepresentation::kCompressed:
 #ifdef V8_COMPRESS_POINTERS
-        opcode = kRiscvLw;
+        return kRiscvLw;
         break;
 #else
 #endif
       case MachineRepresentation::kProtectedPointer:
         CHECK(V8_ENABLE_SANDBOX_BOOL);
-        opcode = kRiscvLoadDecompressProtected;
+        return kRiscvLoadDecompressProtected;
         break;
       case MachineRepresentation::kSandboxedPointer:
-        opcode = kRiscvLoadDecodeSandboxedPointer;
+        return kRiscvLoadDecodeSandboxedPointer;
         break;
       case MachineRepresentation::kSimd256:  // Fall through.
       case MachineRepresentation::kMapWord:  // Fall through.
@@ -453,16 +564,125 @@ void InstructionSelectorT<Adapter>::VisitLoad(node_t node) {
       case MachineRepresentation::kNone:
         UNREACHABLE();
     }
-    bool traps_on_null;
-    if (load.is_protected(&traps_on_null)) {
-      if (traps_on_null) {
-        opcode |=
-            AccessModeField::encode(kMemoryAccessProtectedNullDereference);
-      } else {
-        opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
-      }
+}
+ArchOpcode GetStoreOpcode(turboshaft::MemoryRepresentation stored_rep) {
+  using namespace turboshaft;  // NOLINT(build/namespaces)
+  switch (stored_rep) {
+    case MemoryRepresentation::Int8():
+    case MemoryRepresentation::Uint8():
+      return kRiscvSb;
+    case MemoryRepresentation::Int16():
+    case MemoryRepresentation::Uint16():
+      return kRiscvSh;
+    case MemoryRepresentation::Int32():
+    case MemoryRepresentation::Uint32():
+      return kRiscvSw;
+    case MemoryRepresentation::Int64():
+    case MemoryRepresentation::Uint64():
+      return kRiscvSd;
+    case MemoryRepresentation::Float16():
+      UNIMPLEMENTED();
+    case MemoryRepresentation::Float32():
+      return kRiscvStoreFloat;
+    case MemoryRepresentation::Float64():
+      return kRiscvStoreDouble;
+    case MemoryRepresentation::AnyTagged():
+    case MemoryRepresentation::TaggedPointer():
+    case MemoryRepresentation::TaggedSigned():
+      return kRiscvStoreCompressTagged;
+    case MemoryRepresentation::AnyUncompressedTagged():
+    case MemoryRepresentation::UncompressedTaggedPointer():
+    case MemoryRepresentation::UncompressedTaggedSigned():
+      return kRiscvSd;
+    case MemoryRepresentation::ProtectedPointer():
+      // We never store directly to protected pointers from generated code.
+      UNREACHABLE();
+    case MemoryRepresentation::IndirectPointer():
+      return kRiscvStoreIndirectPointer;
+    case MemoryRepresentation::SandboxedPointer():
+      return kRiscvStoreEncodeSandboxedPointer;
+    case MemoryRepresentation::Simd128():
+      return kRiscvRvvSt;
+    case MemoryRepresentation::Simd256():
+      UNREACHABLE();
+  }
+}
+
+ArchOpcode GetStoreOpcode(MachineRepresentation rep) {
+  switch (rep) {
+    case MachineRepresentation::kFloat32:
+      return kRiscvStoreFloat;
+      break;
+    case MachineRepresentation::kFloat64:
+      return kRiscvStoreDouble;
+      break;
+    case MachineRepresentation::kBit:  // Fall through.
+    case MachineRepresentation::kWord8:
+      return kRiscvSb;
+      break;
+    case MachineRepresentation::kWord16:
+      return kRiscvSh;
+      break;
+    case MachineRepresentation::kWord32:
+      return kRiscvSw;
+      break;
+    case MachineRepresentation::kTaggedSigned:   // Fall through.
+    case MachineRepresentation::kTaggedPointer:  // Fall through.
+    case MachineRepresentation::kTagged:
+#ifdef V8_COMPRESS_POINTERS
+      return kRiscvStoreCompressTagged;
+      break;
+#endif
+    case MachineRepresentation::kWord64:
+      return kRiscvSd;
+      break;
+    case MachineRepresentation::kSimd128:
+      return kRiscvRvvSt;
+      break;
+    case MachineRepresentation::kCompressedPointer:  // Fall through.
+    case MachineRepresentation::kCompressed:
+#ifdef V8_COMPRESS_POINTERS
+      return kRiscvStoreCompressTagged;
+      break;
+#else
+      UNREACHABLE();
+#endif
+    case MachineRepresentation::kSandboxedPointer:
+      return kRiscvStoreEncodeSandboxedPointer;
+      break;
+    case MachineRepresentation::kIndirectPointer:
+      return kRiscvStoreIndirectPointer;
+      break;
+    case MachineRepresentation::kSimd256:  // Fall through.
+    case MachineRepresentation::kMapWord:  // Fall through.
+    case MachineRepresentation::kNone:
+    case MachineRepresentation::kProtectedPointer:
+    case MachineRepresentation::kFloat16:
+      UNREACHABLE();
+  }
+}
+}  // namespace
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitLoad(node_t node) {
+  auto load = this->load_view(node);
+  LoadRepresentation load_rep = load.loaded_rep();
+
+  InstructionCode opcode = kArchNop;
+  if constexpr (Adapter::IsTurboshaft) {
+    opcode = GetLoadOpcode(load.ts_loaded_rep(), load.ts_result_rep());
+  } else {
+    opcode = GetLoadOpcode(load_rep);
+  }
+  bool traps_on_null;
+  if (load.is_protected(&traps_on_null)) {
+    if (traps_on_null) {
+      opcode |= AccessModeField::encode(kMemoryAccessProtectedNullDereference);
+    } else {
+      opcode |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
     }
-    EmitLoad(this, node, opcode);
+  }
+  EmitLoad(this, node, opcode);
 }
 
 template <typename Adapter>
@@ -486,7 +706,7 @@ void InstructionSelectorT<Adapter>::VisitStore(typename Adapter::node_t node) {
 
   WriteBarrierKind write_barrier_kind =
       store_view.stored_rep().write_barrier_kind();
-  MachineRepresentation rep = store_view.stored_rep().representation();
+  const MachineRepresentation rep = store_view.stored_rep().representation();
 
   // TODO(riscv): I guess this could be done in a better way.
   if (write_barrier_kind != kNoWriteBarrier &&
@@ -516,84 +736,40 @@ void InstructionSelectorT<Adapter>::VisitStore(typename Adapter::node_t node) {
       code |= AccessModeField::encode(kMemoryAccessProtectedNullDereference);
     }
     Emit(code, 0, nullptr, input_count, inputs, temp_count, temps);
+    return;
+  }
+
+  MachineRepresentation approx_rep = rep;
+  InstructionCode code;
+  if constexpr (Adapter::IsTurboshaft) {
+    code = GetStoreOpcode(store_view.ts_stored_rep());
   } else {
-    InstructionCode code;
-    switch (rep) {
-      case MachineRepresentation::kFloat32:
-        code = kRiscvStoreFloat;
-        break;
-      case MachineRepresentation::kFloat64:
-        code = kRiscvStoreDouble;
-        break;
-      case MachineRepresentation::kBit:  // Fall through.
-      case MachineRepresentation::kWord8:
-        code = kRiscvSb;
-        break;
-      case MachineRepresentation::kWord16:
-        code = kRiscvSh;
-        break;
-      case MachineRepresentation::kWord32:
-        code = kRiscvSw;
-        break;
-      case MachineRepresentation::kTaggedSigned:   // Fall through.
-      case MachineRepresentation::kTaggedPointer:  // Fall through.
-      case MachineRepresentation::kTagged:
-#ifdef V8_COMPRESS_POINTERS
-        code = kRiscvStoreCompressTagged;
-        break;
-#endif
-      case MachineRepresentation::kWord64:
-        code = kRiscvSd;
-        break;
-      case MachineRepresentation::kSimd128:
-        code = kRiscvRvvSt;
-        break;
-      case MachineRepresentation::kCompressedPointer:  // Fall through.
-      case MachineRepresentation::kCompressed:
-#ifdef V8_COMPRESS_POINTERS
-        code = kRiscvStoreCompressTagged;
-        break;
-#else
-        UNREACHABLE();
-#endif
-      case MachineRepresentation::kSandboxedPointer:
-        code = kRiscvStoreEncodeSandboxedPointer;
-        break;
-      case MachineRepresentation::kIndirectPointer:
-        code = kRiscvStoreIndirectPointer;
-        break;
-      case MachineRepresentation::kSimd256:  // Fall through.
-      case MachineRepresentation::kMapWord:  // Fall through.
-      case MachineRepresentation::kNone:
-      case MachineRepresentation::kProtectedPointer:
-      case MachineRepresentation::kFloat16:
-        UNREACHABLE();
-    }
+    code = GetStoreOpcode(approx_rep);
+  }
 
-    if (this->is_load_root_register(base)) {
-      Emit(code | AddressingModeField::encode(kMode_Root), g.NoOutput(),
-           g.UseRegisterOrImmediateZero(value), g.UseImmediate(index));
-      return;
-    }
+  if (this->is_load_root_register(base)) {
+    Emit(code | AddressingModeField::encode(kMode_Root), g.NoOutput(),
+         g.UseRegisterOrImmediateZero(value), g.UseImmediate(index));
+    return;
+  }
 
-    if (store_view.is_store_trap_on_null()) {
-      code |= AccessModeField::encode(kMemoryAccessProtectedNullDereference);
-    } else if (store_view.access_kind() == MemoryAccessKind::kProtected) {
-      code |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
-    }
+  if (store_view.is_store_trap_on_null()) {
+    code |= AccessModeField::encode(kMemoryAccessProtectedNullDereference);
+  } else if (store_view.access_kind() == MemoryAccessKind::kProtected) {
+    code |= AccessModeField::encode(kMemoryAccessProtectedMemOutOfBounds);
+  }
 
-    if (g.CanBeImmediate(index, code)) {
-      Emit(code | AddressingModeField::encode(kMode_MRI), g.NoOutput(),
-           g.UseRegisterOrImmediateZero(value), g.UseRegister(base),
-           g.UseImmediate(index));
-    } else {
-      InstructionOperand addr_reg = g.TempRegister();
-      Emit(kRiscvAdd64 | AddressingModeField::encode(kMode_None), addr_reg,
-           g.UseRegister(index), g.UseRegister(base));
-      // Emit desired store opcode, using temp addr_reg.
-      Emit(code | AddressingModeField::encode(kMode_MRI), g.NoOutput(),
-           g.UseRegisterOrImmediateZero(value), addr_reg, g.TempImmediate(0));
-    }
+  if (g.CanBeImmediate(index, code)) {
+    Emit(code | AddressingModeField::encode(kMode_MRI), g.NoOutput(),
+         g.UseRegisterOrImmediateZero(value), g.UseRegister(base),
+         g.UseImmediate(index));
+  } else {
+    InstructionOperand addr_reg = g.TempRegister();
+    Emit(kRiscvAdd64 | AddressingModeField::encode(kMode_None), addr_reg,
+         g.UseRegister(index), g.UseRegister(base));
+    // Emit desired store opcode, using temp addr_reg.
+    Emit(code | AddressingModeField::encode(kMode_MRI), g.NoOutput(),
+         g.UseRegisterOrImmediateZero(value), addr_reg, g.TempImmediate(0));
   }
 }
 
@@ -1874,14 +2050,11 @@ void InstructionSelectorT<Adapter>::EmitPrepareArguments(
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitUnalignedLoad(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
     auto load = this->load_view(node);
     LoadRepresentation load_rep = load.loaded_rep();
     RiscvOperandGeneratorT<Adapter> g(this);
-    Node* base = this->input_at(node, 0);
-    Node* index = this->input_at(node, 1);
+    node_t base = this->input_at(node, 0);
+    node_t index = this->input_at(node, 1);
 
     InstructionCode opcode = kArchNop;
     switch (load_rep.representation()) {
@@ -1941,7 +2114,6 @@ void InstructionSelectorT<Adapter>::VisitUnalignedLoad(node_t node) {
       // Emit desired load opcode, using temp addr_reg.
       Emit(opcode | AddressingModeField::encode(kMode_MRI),
            g.DefineAsRegister(node), addr_reg, g.TempImmediate(0));
-    }
   }
 }
 
@@ -2108,10 +2280,10 @@ void VisitWord32Compare(InstructionSelectorT<Adapter>* selector,
     // in those cases. Unfortunately, the solution is not complete because
     // it might skip cases where Word32 full compare is needed, so
     // basically it is a hack.
-    // When call to a host function in simulator, if the function return a
-    // int32 value, the simulator do not sign-extended to int64 because in
-    // simulator we do not know the function whether return a int32 or int64.
-    // so we need do a full word32 compare in this case.
+    // When calling a host function in the simulator, if the function returns an
+    // int32 value, the simulator does not sign-extend it to int64 because in
+    // the simulator we do not know whether the function returns an int32 or
+    // an int64. So we need to do a full word32 compare in this case.
 #ifndef V8_COMPRESS_POINTERS
 #ifndef USE_SIMULATOR
     if (IsNodeUnsigned(selector->input_at(node, 0)) !=
@@ -3404,9 +3576,6 @@ void InstructionSelectorT<Adapter>::VisitSignExtendWord32ToInt64(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitF64x2Min(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
     RiscvOperandGeneratorT<Adapter> g(this);
     InstructionOperand temp1 = g.TempFpRegister(v0);
     InstructionOperand temp2 = g.TempFpRegister(kSimd128ScratchReg);
@@ -3429,14 +3598,10 @@ void InstructionSelectorT<Adapter>::VisitF64x2Min(node_t node) {
                g.UseImmediate(m1), g.UseImmediate(MaskType::Mask));
     this->Emit(kRiscvVmv, g.DefineAsRegister(node), result, g.UseImmediate(E64),
                g.UseImmediate(m1));
-  }
 }
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitF64x2Max(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
     RiscvOperandGeneratorT<Adapter> g(this);
     InstructionOperand temp1 = g.TempFpRegister(v0);
     InstructionOperand temp2 = g.TempFpRegister(kSimd128ScratchReg);
@@ -3459,7 +3624,6 @@ void InstructionSelectorT<Adapter>::VisitF64x2Max(node_t node) {
                g.UseImmediate(m1), g.UseImmediate(MaskType::Mask));
     this->Emit(kRiscvVmv, g.DefineAsRegister(node), result, g.UseImmediate(E64),
                g.UseImmediate(m1));
-  }
 }
 // static
 MachineOperatorBuilder::Flags
@@ -3481,8 +3645,6 @@ InstructionSelector::SupportedMachineOperatorFlags() {
          MachineOperatorBuilder::kFloat64RoundTiesEven |
          MachineOperatorBuilder::kFloat32RoundTiesEven;
 }
-#undef TRACE_UNIMPL
-#undef TRACE
 
 template class EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
     InstructionSelectorT<TurbofanAdapter>;

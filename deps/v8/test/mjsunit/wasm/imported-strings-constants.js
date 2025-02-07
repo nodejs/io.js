@@ -15,7 +15,7 @@ const kRefExtern = wasmRefType(kWasmExternRef);
   assertThrows(
       () => invalid_builder.instantiate(
           {"'": {foo: () => {}}}, {importedStringConstants: "'"}),
-      WebAssembly.LinkError,
+      WebAssembly.CompileError,
       'WebAssembly.Module(): String constant import #0 "foo" must be ' +
           'an immutable global subtyping externref @+17');
 
@@ -25,7 +25,7 @@ const kRefExtern = wasmRefType(kWasmExternRef);
   assertThrows(
       () => invalid_builder2.instantiate(
           {"'": {bar: 42}}, {importedStringConstants: "'"}),
-      WebAssembly.LinkError,
+      WebAssembly.CompileError,
       'WebAssembly.Module(): String constant import #0 "bar" must be ' +
           'an immutable global subtyping externref @+11');
 

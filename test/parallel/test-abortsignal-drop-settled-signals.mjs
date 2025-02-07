@@ -16,7 +16,7 @@ function makeSubsequentCalls(limit, done, holdReferences = false) {
       // This setImmediate is necessary to ensure that in the last iteration the remaining signal is GCed (if not
       // retained)
       setImmediate(() => {
-        global.gc();
+        globalThis.gc();
         done(ac.signal, dependantSymbol);
       });
       return;
@@ -50,7 +50,7 @@ function runShortLivedSourceSignal(limit, done) {
 
   function run(iteration) {
     if (iteration > limit) {
-      global.gc();
+      globalThis.gc();
       done(signalRefs);
       return;
     }
@@ -74,9 +74,9 @@ function runWithOrphanListeners(limit, done) {
     const ac = new AbortController();
     if (iteration > limit) {
       setImmediate(() => {
-        global.gc();
+        globalThis.gc();
         setImmediate(() => {
-          global.gc();
+          globalThis.gc();
 
           done(composedSignalRefs);
         });
@@ -147,7 +147,7 @@ it('drops settled dependant signals when signal is composite', (t, done) => {
   t.assert.strictEqual(controllers[1].signal[kDependantSignals].size, 1);
 
   setImmediate(() => {
-    global.gc({ execution: 'async' }).then(async () => {
+    globalThis.gc({ execution: 'async' }).then(async () => {
       await gcUntil('all signals are GCed', () => {
         const totalDependantSignals = Math.max(
           controllers[0].signal[kDependantSignals].size,

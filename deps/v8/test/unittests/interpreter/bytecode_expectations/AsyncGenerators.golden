@@ -13,7 +13,7 @@ snippet: "
 "
 frame size: 9
 parameter count: 1
-bytecode array length: 135
+bytecode array length: 131
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(1),
                 B(Mov), R(closure), R(1),
@@ -67,8 +67,7 @@ bytecodes: [
                 B(Star3),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorClose), R(0), U8(1),
                 B(Ldar), R(1),
-                B(SwitchOnSmiNoFeedback), U8(5), U8(3), I8(0),
-                B(Jump), U8(24),
+                B(SwitchOnSmiNoFeedback), U8(5), U8(2), I8(1),
                 B(Ldar), R(3),
                 B(SetPendingMessage),
                 B(Ldar), R(2),
@@ -81,8 +80,6 @@ bytecodes: [
                 B(Return),
                 B(Ldar), R(2),
                 B(Return),
-                B(LdaUndefined),
-  /*   22 S> */ B(Return),
 ]
 constant pool: [
   Smi [30],
@@ -90,9 +87,8 @@ constant pool: [
   Smi [10],
   Smi [7],
   SCOPE_INFO_TYPE,
-  Smi [6],
-  Smi [12],
-  Smi [25],
+  Smi [10],
+  Smi [23],
 ]
 handlers: [
   [20, 93, 93],
@@ -106,7 +102,7 @@ snippet: "
 "
 frame size: 9
 parameter count: 1
-bytecode array length: 177
+bytecode array length: 173
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(1),
@@ -177,8 +173,7 @@ bytecodes: [
                 B(Star3),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorClose), R(0), U8(1),
                 B(Ldar), R(1),
-                B(SwitchOnSmiNoFeedback), U8(9), U8(3), I8(0),
-                B(Jump), U8(24),
+                B(SwitchOnSmiNoFeedback), U8(9), U8(2), I8(1),
                 B(Ldar), R(3),
                 B(SetPendingMessage),
                 B(Ldar), R(2),
@@ -191,8 +186,6 @@ bytecodes: [
                 B(Return),
                 B(Ldar), R(2),
                 B(Return),
-                B(LdaUndefined),
-  /*   31 S> */ B(Return),
 ]
 constant pool: [
   Smi [30],
@@ -204,9 +197,8 @@ constant pool: [
   Smi [10],
   Smi [7],
   SCOPE_INFO_TYPE,
-  Smi [6],
-  Smi [12],
-  Smi [25],
+  Smi [10],
+  Smi [23],
 ]
 handlers: [
   [20, 135, 135],
@@ -220,7 +212,7 @@ snippet: "
 "
 frame size: 19
 parameter count: 1
-bytecode array length: 315
+bytecode array length: 311
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(2),
                 B(Mov), R(closure), R(4),
@@ -355,8 +347,7 @@ bytecodes: [
                 B(Star6),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorClose), R(0), U8(1),
                 B(Ldar), R(4),
-                B(SwitchOnSmiNoFeedback), U8(16), U8(3), I8(0),
-                B(Jump), U8(24),
+                B(SwitchOnSmiNoFeedback), U8(16), U8(2), I8(1),
                 B(Ldar), R(6),
                 B(SetPendingMessage),
                 B(Ldar), R(5),
@@ -369,8 +360,6 @@ bytecodes: [
                 B(Return),
                 B(Ldar), R(5),
                 B(Return),
-                B(LdaUndefined),
-  /*   50 S> */ B(Return),
 ]
 constant pool: [
   Smi [30],
@@ -389,9 +378,8 @@ constant pool: [
   Smi [6],
   Smi [12],
   SCOPE_INFO_TYPE,
-  Smi [6],
-  Smi [12],
-  Smi [25],
+  Smi [10],
+  Smi [23],
 ]
 handlers: [
   [20, 273, 273],
@@ -408,7 +396,7 @@ snippet: "
 "
 frame size: 18
 parameter count: 1
-bytecode array length: 429
+bytecode array length: 425
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(5),
                 B(Mov), R(closure), R(1),
@@ -578,8 +566,7 @@ bytecodes: [
                 B(Star3),
                 B(InvokeIntrinsic), U8(Runtime::k_GeneratorClose), R(0), U8(1),
                 B(Ldar), R(1),
-                B(SwitchOnSmiNoFeedback), U8(20), U8(3), I8(0),
-                B(Jump), U8(24),
+                B(SwitchOnSmiNoFeedback), U8(20), U8(2), I8(1),
                 B(Ldar), R(3),
                 B(SetPendingMessage),
                 B(Ldar), R(2),
@@ -592,8 +579,6 @@ bytecodes: [
                 B(Return),
                 B(Ldar), R(2),
                 B(Return),
-                B(LdaUndefined),
-  /*   60 S> */ B(Return),
 ]
 constant pool: [
   Smi [30],
@@ -616,9 +601,8 @@ constant pool: [
   INTERNALIZED_ONE_BYTE_STRING_TYPE ["value"],
   SCOPE_INFO_TYPE,
   Smi [338],
-  Smi [6],
-  Smi [12],
-  Smi [25],
+  Smi [10],
+  Smi [23],
 ]
 handlers: [
   [20, 387, 387],

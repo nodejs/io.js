@@ -247,7 +247,7 @@ class V8_EXPORT_PRIVATE NormalPage final : public BasePage {
 
  private:
   NormalPage(HeapBase& heap, BaseSpace& space);
-  ~NormalPage();
+  ~NormalPage() = default;
 
   size_t allocated_bytes_at_last_gc_ = 0;
   PlatformAwareObjectStartBitmap object_start_bitmap_;
@@ -305,7 +305,7 @@ class V8_EXPORT_PRIVATE LargePage final : public BasePage {
       2 * kAllocationGranularity;
 
   LargePage(HeapBase& heap, BaseSpace& space, size_t);
-  ~LargePage();
+  ~LargePage() = default;
 
   size_t payload_size_;
 };

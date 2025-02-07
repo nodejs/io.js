@@ -27,6 +27,7 @@ using v8::Array;
 using v8::ArrayBuffer;
 using v8::ArrayBufferView;
 using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Boolean;
 using v8::Context;
 using v8::EscapableHandleScope;
@@ -292,11 +293,10 @@ Local<Value> Http2Settings::Pack(
     size_t count,
     const nghttp2_settings_entry* entries) {
   EscapableHandleScope scope(env->isolate());
-  std::unique_ptr<BackingStore> bs;
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs = ArrayBuffer::NewBackingStore(env->isolate(), count * 6);
-  }
+  std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(
+      env->isolate(),
+      count * 6,
+      BackingStoreInitializationMode::kUninitialized);
   if (nghttp2_pack_settings_payload(static_cast<uint8_t*>(bs->Data()),
                                     bs->ByteLength(),
                                     entries,
@@ -457,13 +457,11 @@ Origins::Origins(
     return;
   }
 
-  {
-    NoArrayBufferZeroFillScope no_zero_fill_scope(env->isolate_data());
-    bs_ = ArrayBuffer::NewBackingStore(env->isolate(),
-                                       alignof(nghttp2_origin_entry) - 1 +
-                                       count_ * sizeof(nghttp2_origin_entry) +
-                                       origin_string_len);
-  }
+  bs_ = ArrayBuffer::NewBackingStore(
+      env->isolate(),
+      alignof(nghttp2_origin_entry) - 1 +
+          count_ * sizeof(nghttp2_origin_entry) + origin_string_len,
+      BackingStoreInitializationMode::kUninitialized);
 
   // Make sure the start address is aligned appropriately for an nghttp2_nv*.
   char* start = nbytes::AlignUp(static_cast<char*>(bs_->Data()),
@@ -859,6 +857,7 @@ bool Http2Session::CanAddStream() {
 }
 
 void Http2Session::AddStream(Http2Stream* stream) {
+  Debug(this, "Adding stream: %d", stream->id());
   CHECK_GE(++statistics_.stream_count, 0);
   streams_[stream->id()] = BaseObjectPtr<Http2Stream>(stream);
   size_t size = streams_.size();
@@ -869,6 +868,7 @@ void Http2Session::AddStream(Http2Stream* stream) {
 
 
 BaseObjectPtr<Http2Stream> Http2Session::RemoveStream(int32_t id) {
+  Debug(this, "Removing stream: %d", id);
   BaseObjectPtr<Http2Stream> stream;
   if (streams_.empty())
     return stream;
@@ -1045,6 +1045,7 @@ int Http2Session::OnHeaderCallback(nghttp2_session* handle,
   if (!stream) [[unlikely]]
     return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
 
+  Debug(session, "handling header key/pair for stream %d", id);
   // If the stream has already been destroyed, ignore.
   if (!stream->is_destroyed() && !stream->AddHeader(name, value, flags)) {
     // This will only happen if the connected peer sends us more
@@ -1114,9 +1115,21 @@ int Http2Session::OnInvalidFrame(nghttp2_session* handle,
     return 1;
   }
 
-  // If the error is fatal or if error code is ERR_STREAM_CLOSED... emit error
+  // If the error is fatal or if error code is one of the following
+  // we emit and error:
+  //
+  // ERR_STREAM_CLOSED: An invalid frame has been received in a closed stream.
+  //
+  // ERR_PROTO: The RFC 7540 specifies:
+  // "An endpoint that encounters a connection error SHOULD first send a GOAWAY
+  // frame (Section 6.8) with the stream identifier of the last stream that it
+  // successfully received from its peer.
+  // The GOAWAY frame includes an error code that indicates the type of error"
+  // The GOAWAY frame is already sent by nghttp2. We emit the error
+  // to liberate the Http2Session to destroy.
   if (nghttp2_is_fatal(lib_error_code) ||
-      lib_error_code == NGHTTP2_ERR_STREAM_CLOSED) {
+      lib_error_code == NGHTTP2_ERR_STREAM_CLOSED ||
+      lib_error_code == NGHTTP2_ERR_PROTO) {
     Environment* env = session->env();
     Isolate* isolate = env->isolate();
     HandleScope scope(isolate);
@@ -1179,7 +1192,6 @@ int Http2Session::OnFrameNotSent(nghttp2_session* handle,
   Debug(session, "frame type %d was not sent, code: %d",
         frame->hd.type, error_code);
 
-  // Do not report if the frame was not sent due to the session closing
   if (error_code == NGHTTP2_ERR_SESSION_CLOSING ||
       error_code == NGHTTP2_ERR_STREAM_CLOSED ||
       error_code == NGHTTP2_ERR_STREAM_CLOSING) {
@@ -1188,7 +1200,15 @@ int Http2Session::OnFrameNotSent(nghttp2_session* handle,
     // to destroy the session completely.
     // Further information see: https://github.com/nodejs/node/issues/35233
     session->DecrefHeaders(frame);
-    return 0;
+    // Currently, nghttp2 doesn't not inform us when is the best
+    // time to call session.close(). It relies on a closing connection
+    // from peer. If that doesn't happen, the nghttp2_session will be
+    // closed but the Http2Session will still be up causing a memory leak.
+    // Therefore, if the GOAWAY frame couldn't be send due to
+    // ERR_SESSION_CLOSING we should force close from our side.
+    if (frame->hd.type != 0x03) {
+      return 0;
+    }
   }
 
   Isolate* isolate = env->isolate();
@@ -1254,12 +1274,15 @@ int Http2Session::OnStreamClose(nghttp2_session* handle,
 // ignore these. If this callback was not provided, nghttp2 would handle
 // invalid headers strictly and would shut down the stream. We are intentionally
 // being more lenient here although we may want to revisit this choice later.
-int Http2Session::OnInvalidHeader(nghttp2_session* session,
+int Http2Session::OnInvalidHeader(nghttp2_session* handle,
                                   const nghttp2_frame* frame,
                                   nghttp2_rcbuf* name,
                                   nghttp2_rcbuf* value,
                                   uint8_t flags,
                                   void* user_data) {
+  Http2Session* session = static_cast<Http2Session*>(user_data);
+  int32_t id = GetFrameID(frame);
+  Debug(session, "invalid header received for stream %d", id);
   // Ignore invalid header fields by default.
   return 0;
 }
@@ -1655,6 +1678,7 @@ void Http2Session::HandlePingFrame(const nghttp2_frame* frame) {
 
 // Called by OnFrameReceived when a complete SETTINGS frame has been received.
 void Http2Session::HandleSettingsFrame(const nghttp2_frame* frame) {
+  Debug(this, "handling settings frame");
   bool ack = frame->hd.flags & NGHTTP2_FLAG_ACK;
   if (!ack) {
     js_fields_->bitfield &= ~(1 << kSessionRemoteSettingsIsUpToDate);
@@ -2064,12 +2088,10 @@ void Http2Session::OnStreamRead(ssize_t nread, const uv_buf_t& buf_) {
     // happen, we concatenate the data we received with the already-stored
     // pending input data, slicing off the already processed part.
     size_t pending_len = stream_buf_.len - stream_buf_offset_;
-    std::unique_ptr<BackingStore> new_bs;
-    {
-      NoArrayBufferZeroFillScope no_zero_fill_scope(env()->isolate_data());
-      new_bs = ArrayBuffer::NewBackingStore(env()->isolate(),
-                                            pending_len + nread);
-    }
+    std::unique_ptr<BackingStore> new_bs = ArrayBuffer::NewBackingStore(
+        env()->isolate(),
+        pending_len + nread,
+        BackingStoreInitializationMode::kUninitialized);
     memcpy(static_cast<char*>(new_bs->Data()),
            stream_buf_.base + stream_buf_offset_,
            pending_len);

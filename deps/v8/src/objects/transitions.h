@@ -21,10 +21,6 @@
 
 namespace v8::internal {
 
-namespace third_party_heap {
-class Impl;
-}  // namespace third_party_heap
-
 // Find all transitions with given name and calls the callback.
 using ForEachTransitionCallback = std::function<void(Tagged<Map>)>;
 
@@ -249,7 +245,6 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
 
  private:
   friend class MarkCompactCollector;  // For HasSimpleTransitionTo.
-  friend class third_party_heap::Impl;
   friend class TransitionArray;
 
   static inline Encoding GetEncoding(Isolate* isolate,
@@ -387,7 +382,6 @@ class TransitionArray : public WeakFixedArray {
  private:
   friend class Factory;
   friend class MarkCompactCollector;
-  friend class third_party_heap::Impl;
   friend class TransitionsAccessor;
 
   inline void SetNumberOfTransitions(int number_of_transitions);

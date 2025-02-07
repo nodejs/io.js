@@ -504,11 +504,11 @@ void ReadOnlySpace::VerifyCounters(Heap* heap) const {
     total_allocated += page->allocated_bytes();
     // The real size can be smaller than the accounted size if array trimming,
     // object slack tracking happened after sweeping.
-    DCHECK_LE(real_allocated, accounting_stats_.AllocatedOnPage(page));
-    DCHECK_EQ(page->allocated_bytes(), accounting_stats_.AllocatedOnPage(page));
+    CHECK_LE(real_allocated, accounting_stats_.AllocatedOnPage(page));
+    CHECK_EQ(page->allocated_bytes(), accounting_stats_.AllocatedOnPage(page));
   }
-  DCHECK_EQ(total_capacity, accounting_stats_.Capacity());
-  DCHECK_EQ(total_allocated, accounting_stats_.Size());
+  CHECK_EQ(total_capacity, accounting_stats_.Capacity());
+  CHECK_EQ(total_allocated, accounting_stats_.Size());
 }
 #endif  // DEBUG
 #endif  // VERIFY_HEAP
@@ -600,7 +600,6 @@ Tagged<HeapObject> ReadOnlySpace::TryAllocateLinearlyAligned(
 
 AllocationResult ReadOnlySpace::AllocateRawAligned(
     int size_in_bytes, AllocationAlignment alignment) {
-  DCHECK(!v8_flags.enable_third_party_heap);
   DCHECK(!IsDetached());
   size_in_bytes = ALIGN_TO_ALLOCATION_ALIGNMENT(size_in_bytes);
   int allocation_size = size_in_bytes;
@@ -681,7 +680,6 @@ size_t ReadOnlyPageMetadata::ShrinkToHighWaterMark() {
 }
 
 void ReadOnlySpace::ShrinkPages() {
-  if (V8_ENABLE_THIRD_PARTY_HEAP_BOOL) return;
   MemoryChunkMetadata::UpdateHighWaterMark(top_);
   heap()->CreateFillerObjectAt(top_, static_cast<int>(limit_ - top_));
 

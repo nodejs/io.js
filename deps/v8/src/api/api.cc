@@ -161,11 +161,6 @@
 #endif  // V8_OS_LINUX || V8_OS_DARWIN || V8_OS_FREEBSD
 
 #if V8_OS_WIN
-#include <windows.h>
-
-// This has to come after windows.h.
-#include <versionhelpers.h>
-
 #include "include/v8-wasm-trap-handler-win.h"
 #include "src/trap-handler/handler-inside-win.h"
 #if defined(V8_OS_WIN64)
@@ -414,7 +409,7 @@ class ArrayBufferAllocator : public v8::ArrayBuffer::Allocator {
           backing_memory_base, backing_memory_size, kAllocationGranularity);
       end_of_accessible_region_ = region_alloc_->begin();
 
-      // Install a on-merge callback to discard or decommit unused pages.
+      // Install an on-merge callback to discard or decommit unused pages.
       region_alloc_->set_on_merge_callback([this](i::Address start,
                                                   size_t size) {
         mutex_.AssertHeld();
@@ -2297,6 +2292,11 @@ Local<String> ModuleRequest::GetSpecifier() const {
   return ToApiHandle<String>(i::direct_handle(self->specifier(), i_isolate));
 }
 
+ModuleImportPhase ModuleRequest::GetPhase() const {
+  auto self = Utils::OpenDirectHandle(this);
+  return self->phase();
+}
+
 int ModuleRequest::GetSourceOffset() const {
   return Utils::OpenDirectHandle(this)->position();
 }
@@ -2430,11 +2430,13 @@ int Module::GetIdentityHash() const {
 }
 
 Maybe<bool> Module::InstantiateModule(Local<Context> context,
-                                      Module::ResolveModuleCallback callback) {
+                                      ResolveModuleCallback module_callback,
+                                      ResolveSourceCallback source_callback) {
   auto i_isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
   ENTER_V8(i_isolate, context, Module, InstantiateModule, i::HandleScope);
-  has_exception = !i::Module::Instantiate(i_isolate, Utils::OpenHandle(this),
-                                          context, callback);
+  has_exception =
+      !i::Module::Instantiate(i_isolate, Utils::OpenHandle(this), context,
+                              module_callback, source_callback);
   RETURN_ON_FAILED_EXECUTION_PRIMITIVE(bool);
   return Just(true);
 }
@@ -3717,11 +3719,11 @@ TYPED_ARRAYS_BASE(VALUE_IS_TYPED_ARRAY)
 #undef VALUE_IS_TYPED_ARRAY
 
 bool Value::IsFloat16Array() const {
-  Utils::ApiCheck(i::v8_flags.js_float16array, "Value::IsFloat16Array",
-                  "Float16Array is not supported");
   auto obj = *Utils::OpenDirectHandle(this);
   return i::IsJSTypedArray(obj) &&
-         i::Cast<i::JSTypedArray>(obj)->type() == i::kExternalFloat16Array;
+         i::Cast<i::JSTypedArray>(obj)->type() == i::kExternalFloat16Array &&
+         Utils::ApiCheck(i::v8_flags.js_float16array, "Value::IsFloat16Array",
+                         "Float16Array is not supported");
 }
 
 bool Value::IsDataView() const {
@@ -4184,7 +4186,7 @@ std::unique_ptr<v8::BackingStore> v8::BackingStore::Reallocate(
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(v8_isolate);
   API_RCS_SCOPE(i_isolate, ArrayBuffer, BackingStore_Reallocate);
   Utils::ApiCheck(byte_length <= i::JSArrayBuffer::kMaxByteLength,
-                  "v8::BackingStore::Reallocate", "byte_lenght is too large");
+                  "v8::BackingStore::Reallocate", "byte_length is too large");
   ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
   i::BackingStore* i_backing_store =
       reinterpret_cast<i::BackingStore*>(backing_store.get());
@@ -8197,7 +8199,7 @@ MaybeLocal<v8::Array> v8::Array::New(
     Local<Context> context, size_t length,
     std::function<MaybeLocal<v8::Value>()> next_value_callback) {
   PREPARE_FOR_EXECUTION(context, Array, New);
-  // We should never see a exception here as V8 will not create an
+  // We should never see an exception here as V8 will not create an
   // exception and the callback is invoked by the embedder where the exception
   // is already scheduled.
   USE(has_exception);
@@ -9560,10 +9562,10 @@ void BigInt::ToWordsArray(int* sign_bit, int* word_count,
                                                        words);
 }
 
-void Isolate::ReportExternalAllocationLimitReached() {
+void Isolate::HandleExternalMemoryInterrupt() {
   i::Heap* heap = reinterpret_cast<i::Isolate*>(this)->heap();
   if (heap->gc_state() != i::Heap::NOT_IN_GC) return;
-  heap->ReportExternalMemoryPressure();
+  heap->HandleExternalMemoryInterrupt();
 }
 
 HeapProfiler* Isolate::GetHeapProfiler() {
@@ -10271,20 +10273,19 @@ void Isolate::GetStackSample(const RegisterState& state, void** frames,
 int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
     int64_t change_in_bytes) {
   // Try to check for unreasonably large or small values from the embedder.
-  const int64_t kMaxReasonableBytes = int64_t(1) << 60;
-  const int64_t kMinReasonableBytes = -kMaxReasonableBytes;
+  static constexpr int64_t kMaxReasonableBytes = int64_t(1) << 60;
+  static constexpr int64_t kMinReasonableBytes = -kMaxReasonableBytes;
   static_assert(kMaxReasonableBytes >= i::JSArrayBuffer::kMaxByteLength);
-
   CHECK(kMinReasonableBytes <= change_in_bytes &&
         change_in_bytes < kMaxReasonableBytes);
 
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(this);
-  int64_t amount = i_isolate->heap()->update_external_memory(change_in_bytes);
+  int64_t amount = i_isolate->heap()->UpdateExternalMemory(change_in_bytes);
 
   if (change_in_bytes <= 0) return amount;
 
-  if (amount > i_isolate->heap()->external_memory_limit()) {
-    ReportExternalAllocationLimitReached();
+  if (amount > i_isolate->heap()->external_memory_limit_for_interrupt()) {
+    HandleExternalMemoryInterrupt();
   }
   return amount;
 }

@@ -632,9 +632,6 @@ class ELF {
     V8_TARGET_ARCH_PPC64 && V8_TARGET_LITTLE_ENDIAN
     const uint8_t ident[16] = {0x7F, 'E', 'L', 'F', 2, 1, 1, 0,
                                0,    0,   0,   0,   0, 0, 0, 0};
-#elif V8_TARGET_ARCH_PPC64 && V8_TARGET_BIG_ENDIAN && V8_OS_LINUX
-    const uint8_t ident[16] = {0x7F, 'E', 'L', 'F', 2, 2, 1, 0,
-                               0,    0,   0,   0,   0, 0, 0, 0};
 #elif V8_TARGET_ARCH_S390X
     const uint8_t ident[16] = {0x7F, 'E', 'L', 'F', 2, 2, 1, 3,
                                0,    0,   0,   0,   0, 0, 0, 0};

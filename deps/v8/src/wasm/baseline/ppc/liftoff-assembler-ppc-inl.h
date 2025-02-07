@@ -185,7 +185,7 @@ void LiftoffAssembler::AlignFrameSize() {}
 
 void LiftoffAssembler::PatchPrepareStackFrame(
     int offset, SafepointTableBuilder* safepoint_table_builder,
-    bool feedback_vector_slot) {
+    bool feedback_vector_slot, size_t stack_param_slots) {
   int frame_size =
       GetTotalFrameSize() -
       (V8_EMBEDDED_CONSTANT_POOL_BOOL ? 3 : 2) * kSystemPointerSize;
@@ -311,6 +311,13 @@ void LiftoffAssembler::CheckTierUp(int declared_func_index, int budget_used,
   StoreU32(budget, budget_addr, r0);
   pop(budget);
   blt(ool_label, cr0);
+}
+
+Register LiftoffAssembler::LoadOldFramePointer() { return fp; }
+
+void LiftoffAssembler::CheckStackShrink() {
+  // TODO(irezvov): 42202153
+  UNIMPLEMENTED();
 }
 
 void LiftoffAssembler::LoadConstant(LiftoffRegister reg, WasmValue value) {
@@ -968,7 +975,8 @@ void LiftoffAssembler::LoadCallerFrameSlot(LiftoffRegister dst,
 
 void LiftoffAssembler::StoreCallerFrameSlot(LiftoffRegister src,
                                             uint32_t caller_slot_idx,
-                                            ValueKind kind) {
+                                            ValueKind kind,
+                                            Register frame_pointer) {
   int32_t offset = (caller_slot_idx + 1) * kSystemPointerSize;
   switch (kind) {
     case kI32: {

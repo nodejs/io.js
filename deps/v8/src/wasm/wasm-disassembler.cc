@@ -413,6 +413,11 @@ class ImmediatesPrinter {
     if (imm.type.is_index()) use_type(imm.type.ref_index());
   }
 
+  void BrOnCastFlags(BrOnCastImmediate& flags) {
+    // Ignored here. For printing text format, we do all the work via the
+    // two calls to {ValueType()} that we get for a br_on_cast.
+  }
+
   void BranchDepth(BranchDepthImmediate& imm) { PrintDepthAsLabel(imm.depth); }
 
   void BranchTable(BranchTableImmediate& imm) {

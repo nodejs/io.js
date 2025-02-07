@@ -434,6 +434,7 @@ class SharedFunctionInfo
   inline const wasm::WasmModule* wasm_module() const;
   inline const wasm::FunctionSig* wasm_function_signature() const;
   inline int wasm_function_index() const;
+  inline bool is_promising_wasm_export() const;
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   // builtin corresponds to the auto-generated Builtin enum.
@@ -529,8 +530,6 @@ class SharedFunctionInfo
 
   DECL_BOOLEAN_ACCESSORS(is_sparkplug_compiling)
   DECL_BOOLEAN_ACCESSORS(maglev_compilation_failed)
-
-  DECL_BOOLEAN_ACCESSORS(sparkplug_compiled)
 
   CachedTieringDecision cached_tiering_decision();
   void set_cached_tiering_decision(CachedTieringDecision decision);
@@ -772,12 +771,12 @@ class SharedFunctionInfo
   class BodyDescriptor;
 
   // Bailout reasons must fit in the DisabledOptimizationReason bitfield.
-  static_assert(BailoutReason::kLastErrorMessage <=
-                DisabledOptimizationReasonBits::kMax);
+  static_assert(DisabledOptimizationReasonBits::is_valid(
+      BailoutReason::kLastErrorMessage));
 
-  static_assert(FunctionKind::kLastFunctionKind <= FunctionKindBits::kMax);
-  static_assert(FunctionSyntaxKind::kLastFunctionSyntaxKind <=
-                FunctionSyntaxKindBits::kMax);
+  static_assert(FunctionKindBits::is_valid(FunctionKind::kLastFunctionKind));
+  static_assert(FunctionSyntaxKindBits::is_valid(
+      FunctionSyntaxKind::kLastFunctionSyntaxKind));
 
   // Sets the bytecode in {shared}'s DebugInfo as the bytecode to
   // be returned by following calls to GetActiveBytecodeArray. Stores a

@@ -166,7 +166,6 @@ TEST_F(WeakSetsTest, WeakSet_Shrinking) {
 // by other paths are correctly recorded in the slots buffer.
 TEST_F(WeakSetsTest, WeakSet_Regress2060a) {
   if (!i::v8_flags.compact) return;
-  if (i::v8_flags.enable_third_party_heap) return;
   v8_flags.compact_on_every_full_gc = true;
   v8_flags.stress_concurrent_allocation = false;  // For SimulateFullSpace.
   ManualGCScope manual_gc_scope(i_isolate());
@@ -189,8 +188,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060a) {
       DirectHandle<JSObject> object =
           factory->NewJSObject(function, AllocationType::kOld);
       CHECK(!Heap::InYoungGeneration(*object));
-      CHECK_IMPLIES(!v8_flags.enable_third_party_heap,
-                    !first_page->Contains(object->address()));
+      CHECK(!first_page->Contains(object->address()));
       int32_t hash = Object::GetOrCreateHash(*key, i_isolate()).value();
       JSWeakCollection::Set(weakset, key, object, hash);
     }
@@ -207,7 +205,6 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060a) {
 // other strong paths are correctly recorded in the slots buffer.
 TEST_F(WeakSetsTest, WeakSet_Regress2060b) {
   if (!i::v8_flags.compact) return;
-  if (i::v8_flags.enable_third_party_heap) return;
   v8_flags.compact_on_every_full_gc = true;
 #ifdef VERIFY_HEAP
   v8_flags.verify_heap = true;
@@ -230,8 +227,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060b) {
   for (int i = 0; i < 32; i++) {
     keys[i] = factory->NewJSObject(function, AllocationType::kOld);
     CHECK(!Heap::InYoungGeneration(*keys[i]));
-    CHECK_IMPLIES(!v8_flags.enable_third_party_heap,
-                  !first_page->Contains(keys[i]->address()));
+    CHECK(!first_page->Contains(keys[i]->address()));
   }
   DirectHandle<JSWeakSet> weakset = AllocateJSWeakSet();
   for (int i = 0; i < 32; i++) {

@@ -1130,20 +1130,25 @@ var require_util = __commonJS({
           async start() {
             iterator = iterable[Symbol.asyncIterator]();
           },
-          async pull(controller) {
-            const { done, value } = await iterator.next();
-            if (done) {
-              queueMicrotask(() => {
-                controller.close();
-                controller.byobRequest?.respond(0);
-              });
-            } else {
-              const buf = Buffer.isBuffer(value) ? value : Buffer.from(value);
-              if (buf.byteLength) {
-                controller.enqueue(new Uint8Array(buf));
+          pull(controller) {
+            async function pull() {
+              const { done, value } = await iterator.next();
+              if (done) {
+                queueMicrotask(() => {
+                  controller.close();
+                  controller.byobRequest?.respond(0);
+                });
+              } else {
+                const buf = Buffer.isBuffer(value) ? value : Buffer.from(value);
+                if (buf.byteLength) {
+                  controller.enqueue(new Uint8Array(buf));
+                } else {
+                  return await pull();
+                }
               }
             }
-            return controller.desiredSize > 0;
+            __name(pull, "pull");
+            return pull();
           },
           async cancel() {
             await iterator.return();
@@ -5963,6 +5968,13 @@ var require_body = __commonJS({
     var { isArrayBuffer } = require("node:util/types");
     var { serializeAMimeType } = require_data_url();
     var { multipartFormDataParser } = require_formdata_parser();
+    var random;
+    try {
+      const crypto = require("node:crypto");
+      random = /* @__PURE__ */ __name((max) => crypto.randomInt(0, max), "random");
+    } catch {
+      random = /* @__PURE__ */ __name((max) => Math.floor(Math.random(max)), "random");
+    }
     var textEncoder = new TextEncoder();
     function noop() {
     }
@@ -6013,7 +6025,7 @@ var require_body = __commonJS({
       } else if (ArrayBuffer.isView(object)) {
         source = new Uint8Array(object.buffer.slice(object.byteOffset, object.byteOffset + object.byteLength));
       } else if (webidl.is.FormData(object)) {
-        const boundary = `----formdata-undici-0${`${Math.floor(Math.random() * 1e11)}`.padStart(11, "0")}`;
+        const boundary = `----formdata-undici-0${`${random(1e11)}`.padStart(11, "0")}`;
         const prefix = `--${boundary}\r
 Content-Disposition: form-data`;
         const escape = /* @__PURE__ */ __name((str) => str.replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/"/g, "%22"), "escape");
@@ -12170,6 +12182,195 @@ var require_constants4 = __commonJS({
   }
 });
 
+// lib/web/websocket/util.js
+var require_util3 = __commonJS({
+  "lib/web/websocket/util.js"(exports2, module2) {
+    "use strict";
+    var { states, opcodes } = require_constants4();
+    var { isUtf8 } = require("node:buffer");
+    var { collectASequenceOfCodePointsFast, removeHTTPWhitespace } = require_data_url();
+    function isConnecting(readyState) {
+      return readyState === states.CONNECTING;
+    }
+    __name(isConnecting, "isConnecting");
+    function isEstablished(readyState) {
+      return readyState === states.OPEN;
+    }
+    __name(isEstablished, "isEstablished");
+    function isClosing(readyState) {
+      return readyState === states.CLOSING;
+    }
+    __name(isClosing, "isClosing");
+    function isClosed(readyState) {
+      return readyState === states.CLOSED;
+    }
+    __name(isClosed, "isClosed");
+    function fireEvent(e, target, eventFactory = (type, init) => new Event(type, init), eventInitDict = {}) {
+      const event = eventFactory(e, eventInitDict);
+      target.dispatchEvent(event);
+    }
+    __name(fireEvent, "fireEvent");
+    function websocketMessageReceived(handler, type, data) {
+      handler.onMessage(type, data);
+    }
+    __name(websocketMessageReceived, "websocketMessageReceived");
+    function toArrayBuffer(buffer) {
+      if (buffer.byteLength === buffer.buffer.byteLength) {
+        return buffer.buffer;
+      }
+      return new Uint8Array(buffer).buffer;
+    }
+    __name(toArrayBuffer, "toArrayBuffer");
+    function isValidSubprotocol(protocol) {
+      if (protocol.length === 0) {
+        return false;
+      }
+      for (let i = 0; i < protocol.length; ++i) {
+        const code = protocol.charCodeAt(i);
+        if (code < 33 || // CTL, contains SP (0x20) and HT (0x09)
+        code > 126 || code === 34 || // "
+        code === 40 || // (
+        code === 41 || // )
+        code === 44 || // ,
+        code === 47 || // /
+        code === 58 || // :
+        code === 59 || // ;
+        code === 60 || // <
+        code === 61 || // =
+        code === 62 || // >
+        code === 63 || // ?
+        code === 64 || // @
+        code === 91 || // [
+        code === 92 || // \
+        code === 93 || // ]
+        code === 123 || // {
+        code === 125) {
+          return false;
+        }
+      }
+      return true;
+    }
+    __name(isValidSubprotocol, "isValidSubprotocol");
+    function isValidStatusCode(code) {
+      if (code >= 1e3 && code < 1015) {
+        return code !== 1004 && // reserved
+        code !== 1005 && // "MUST NOT be set as a status code"
+        code !== 1006;
+      }
+      return code >= 3e3 && code <= 4999;
+    }
+    __name(isValidStatusCode, "isValidStatusCode");
+    function isControlFrame(opcode) {
+      return opcode === opcodes.CLOSE || opcode === opcodes.PING || opcode === opcodes.PONG;
+    }
+    __name(isControlFrame, "isControlFrame");
+    function isContinuationFrame(opcode) {
+      return opcode === opcodes.CONTINUATION;
+    }
+    __name(isContinuationFrame, "isContinuationFrame");
+    function isTextBinaryFrame(opcode) {
+      return opcode === opcodes.TEXT || opcode === opcodes.BINARY;
+    }
+    __name(isTextBinaryFrame, "isTextBinaryFrame");
+    function isValidOpcode(opcode) {
+      return isTextBinaryFrame(opcode) || isContinuationFrame(opcode) || isControlFrame(opcode);
+    }
+    __name(isValidOpcode, "isValidOpcode");
+    function parseExtensions(extensions) {
+      const position = { position: 0 };
+      const extensionList = /* @__PURE__ */ new Map();
+      while (position.position < extensions.length) {
+        const pair = collectASequenceOfCodePointsFast(";", extensions, position);
+        const [name, value = ""] = pair.split("=");
+        extensionList.set(
+          removeHTTPWhitespace(name, true, false),
+          removeHTTPWhitespace(value, false, true)
+        );
+        position.position++;
+      }
+      return extensionList;
+    }
+    __name(parseExtensions, "parseExtensions");
+    function isValidClientWindowBits(value) {
+      for (let i = 0; i < value.length; i++) {
+        const byte = value.charCodeAt(i);
+        if (byte < 48 || byte > 57) {
+          return false;
+        }
+      }
+      return true;
+    }
+    __name(isValidClientWindowBits, "isValidClientWindowBits");
+    function getURLRecord(url, baseURL) {
+      let urlRecord;
+      try {
+        urlRecord = new URL(url, baseURL);
+      } catch (e) {
+        throw new DOMException(e, "SyntaxError");
+      }
+      if (urlRecord.protocol === "http:") {
+        urlRecord.protocol = "ws:";
+      } else if (urlRecord.protocol === "https:") {
+        urlRecord.protocol = "wss:";
+      }
+      if (urlRecord.protocol !== "ws:" && urlRecord.protocol !== "wss:") {
+        throw new DOMException("expected a ws: or wss: url", "SyntaxError");
+      }
+      if (urlRecord.hash.length || urlRecord.href.endsWith("#")) {
+        throw new DOMException("hash", "SyntaxError");
+      }
+      return urlRecord;
+    }
+    __name(getURLRecord, "getURLRecord");
+    function validateCloseCodeAndReason(code, reason) {
+      if (code !== null) {
+        if (code !== 1e3 && (code < 3e3 || code > 4999)) {
+          throw new DOMException("invalid code", "InvalidAccessError");
+        }
+      }
+      if (reason !== null) {
+        const reasonBytesLength = Buffer.byteLength(reason);
+        if (reasonBytesLength > 123) {
+          throw new DOMException(`Reason must be less than 123 bytes; received ${reasonBytesLength}`, "SyntaxError");
+        }
+      }
+    }
+    __name(validateCloseCodeAndReason, "validateCloseCodeAndReason");
+    var utf8Decode = (() => {
+      if (typeof process.versions.icu === "string") {
+        const fatalDecoder = new TextDecoder("utf-8", { fatal: true });
+        return fatalDecoder.decode.bind(fatalDecoder);
+      }
+      return function(buffer) {
+        if (isUtf8(buffer)) {
+          return buffer.toString("utf-8");
+        }
+        throw new TypeError("Invalid utf-8 received.");
+      };
+    })();
+    module2.exports = {
+      isConnecting,
+      isEstablished,
+      isClosing,
+      isClosed,
+      fireEvent,
+      isValidSubprotocol,
+      isValidStatusCode,
+      websocketMessageReceived,
+      utf8Decode,
+      isControlFrame,
+      isContinuationFrame,
+      isTextBinaryFrame,
+      isValidOpcode,
+      parseExtensions,
+      isValidClientWindowBits,
+      toArrayBuffer,
+      getURLRecord,
+      validateCloseCodeAndReason
+    };
+  }
+});
+
 // lib/web/websocket/frame.js
 var require_frame = __commonJS({
   "lib/web/websocket/frame.js"(exports2, module2) {
@@ -12289,7 +12490,7 @@ var require_connection = __commonJS({
   "lib/web/websocket/connection.js"(exports2, module2) {
     "use strict";
     var { uid, states, sentCloseFrameState, emptyBuffer, opcodes } = require_constants4();
-    var { failWebsocketConnection, parseExtensions, isClosed, isClosing, isEstablished, validateCloseCodeAndReason } = require_util3();
+    var { parseExtensions, isClosed, isClosing, isEstablished, validateCloseCodeAndReason } = require_util3();
     var { channels } = require_diagnostics();
     var { makeRequest } = require_request2();
     var { fetching } = require_fetch();
@@ -12425,94 +12626,8 @@ var require_connection = __commonJS({
       }
     }
     __name(closeWebSocketConnection, "closeWebSocketConnection");
-    module2.exports = {
-      establishWebSocketConnection,
-      closeWebSocketConnection
-    };
-  }
-});
-
-// lib/web/websocket/util.js
-var require_util3 = __commonJS({
-  "lib/web/websocket/util.js"(exports2, module2) {
-    "use strict";
-    var { states, opcodes } = require_constants4();
-    var { isUtf8 } = require("node:buffer");
-    var { collectASequenceOfCodePointsFast, removeHTTPWhitespace } = require_data_url();
-    function isConnecting(readyState) {
-      return readyState === states.CONNECTING;
-    }
-    __name(isConnecting, "isConnecting");
-    function isEstablished(readyState) {
-      return readyState === states.OPEN;
-    }
-    __name(isEstablished, "isEstablished");
-    function isClosing(readyState) {
-      return readyState === states.CLOSING;
-    }
-    __name(isClosing, "isClosing");
-    function isClosed(readyState) {
-      return readyState === states.CLOSED;
-    }
-    __name(isClosed, "isClosed");
-    function fireEvent(e, target, eventFactory = (type, init) => new Event(type, init), eventInitDict = {}) {
-      const event = eventFactory(e, eventInitDict);
-      target.dispatchEvent(event);
-    }
-    __name(fireEvent, "fireEvent");
-    function websocketMessageReceived(handler, type, data) {
-      handler.onMessage(type, data);
-    }
-    __name(websocketMessageReceived, "websocketMessageReceived");
-    function toArrayBuffer(buffer) {
-      if (buffer.byteLength === buffer.buffer.byteLength) {
-        return buffer.buffer;
-      }
-      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-    }
-    __name(toArrayBuffer, "toArrayBuffer");
-    function isValidSubprotocol(protocol) {
-      if (protocol.length === 0) {
-        return false;
-      }
-      for (let i = 0; i < protocol.length; ++i) {
-        const code = protocol.charCodeAt(i);
-        if (code < 33 || // CTL, contains SP (0x20) and HT (0x09)
-        code > 126 || code === 34 || // "
-        code === 40 || // (
-        code === 41 || // )
-        code === 44 || // ,
-        code === 47 || // /
-        code === 58 || // :
-        code === 59 || // ;
-        code === 60 || // <
-        code === 61 || // =
-        code === 62 || // >
-        code === 63 || // ?
-        code === 64 || // @
-        code === 91 || // [
-        code === 92 || // \
-        code === 93 || // ]
-        code === 123 || // {
-        code === 125) {
-          return false;
-        }
-      }
-      return true;
-    }
-    __name(isValidSubprotocol, "isValidSubprotocol");
-    function isValidStatusCode(code) {
-      if (code >= 1e3 && code < 1015) {
-        return code !== 1004 && // reserved
-        code !== 1005 && // "MUST NOT be set as a status code"
-        code !== 1006;
-      }
-      return code >= 3e3 && code <= 4999;
-    }
-    __name(isValidStatusCode, "isValidStatusCode");
     function failWebsocketConnection(handler, code, reason) {
       if (isEstablished(handler.readyState)) {
-        const { closeWebSocketConnection } = require_connection();
         closeWebSocketConnection(handler, code, reason, false);
       }
       handler.controller.abort();
@@ -12522,114 +12637,10 @@ var require_util3 = __commonJS({
       handler.onFail(code, reason);
     }
     __name(failWebsocketConnection, "failWebsocketConnection");
-    function isControlFrame(opcode) {
-      return opcode === opcodes.CLOSE || opcode === opcodes.PING || opcode === opcodes.PONG;
-    }
-    __name(isControlFrame, "isControlFrame");
-    function isContinuationFrame(opcode) {
-      return opcode === opcodes.CONTINUATION;
-    }
-    __name(isContinuationFrame, "isContinuationFrame");
-    function isTextBinaryFrame(opcode) {
-      return opcode === opcodes.TEXT || opcode === opcodes.BINARY;
-    }
-    __name(isTextBinaryFrame, "isTextBinaryFrame");
-    function isValidOpcode(opcode) {
-      return isTextBinaryFrame(opcode) || isContinuationFrame(opcode) || isControlFrame(opcode);
-    }
-    __name(isValidOpcode, "isValidOpcode");
-    function parseExtensions(extensions) {
-      const position = { position: 0 };
-      const extensionList = /* @__PURE__ */ new Map();
-      while (position.position < extensions.length) {
-        const pair = collectASequenceOfCodePointsFast(";", extensions, position);
-        const [name, value = ""] = pair.split("=");
-        extensionList.set(
-          removeHTTPWhitespace(name, true, false),
-          removeHTTPWhitespace(value, false, true)
-        );
-        position.position++;
-      }
-      return extensionList;
-    }
-    __name(parseExtensions, "parseExtensions");
-    function isValidClientWindowBits(value) {
-      for (let i = 0; i < value.length; i++) {
-        const byte = value.charCodeAt(i);
-        if (byte < 48 || byte > 57) {
-          return false;
-        }
-      }
-      return true;
-    }
-    __name(isValidClientWindowBits, "isValidClientWindowBits");
-    function getURLRecord(url, baseURL) {
-      let urlRecord;
-      try {
-        urlRecord = new URL(url, baseURL);
-      } catch (e) {
-        throw new DOMException(e, "SyntaxError");
-      }
-      if (urlRecord.protocol === "http:") {
-        urlRecord.protocol = "ws:";
-      } else if (urlRecord.protocol === "https:") {
-        urlRecord.protocol = "wss:";
-      }
-      if (urlRecord.protocol !== "ws:" && urlRecord.protocol !== "wss:") {
-        throw new DOMException("expected a ws: or wss: url", "SyntaxError");
-      }
-      if (urlRecord.hash.length || urlRecord.href.endsWith("#")) {
-        throw new DOMException("hash", "SyntaxError");
-      }
-      return urlRecord;
-    }
-    __name(getURLRecord, "getURLRecord");
-    function validateCloseCodeAndReason(code, reason) {
-      if (code !== null) {
-        if (code !== 1e3 && (code < 3e3 || code > 4999)) {
-          throw new DOMException("invalid code", "InvalidAccessError");
-        }
-      }
-      if (reason !== null) {
-        const reasonBytesLength = Buffer.byteLength(reason);
-        if (reasonBytesLength > 123) {
-          throw new DOMException(`Reason must be less than 123 bytes; received ${reasonBytesLength}`, "SyntaxError");
-        }
-      }
-    }
-    __name(validateCloseCodeAndReason, "validateCloseCodeAndReason");
-    var utf8Decode = (() => {
-      if (typeof process.versions.icu === "string") {
-        const fatalDecoder = new TextDecoder("utf-8", { fatal: true });
-        return fatalDecoder.decode.bind(fatalDecoder);
-      }
-      return function(buffer) {
-        if (isUtf8(buffer)) {
-          return buffer.toString("utf-8");
-        }
-        throw new TypeError("Invalid utf-8 received.");
-      };
-    })();
     module2.exports = {
-      isConnecting,
-      isEstablished,
-      isClosing,
-      isClosed,
-      fireEvent,
-      isValidSubprotocol,
-      isValidStatusCode,
+      establishWebSocketConnection,
       failWebsocketConnection,
-      websocketMessageReceived,
-      utf8Decode,
-      isControlFrame,
-      isContinuationFrame,
-      isTextBinaryFrame,
-      isValidOpcode,
-      parseExtensions,
-      isValidClientWindowBits,
-      toArrayBuffer,
-      getURLRecord,
-      validateCloseCodeAndReason
+      closeWebSocketConnection
     };
   }
 });
@@ -12703,13 +12714,13 @@ var require_receiver = __commonJS({
     var {
       isValidStatusCode,
       isValidOpcode,
-      failWebsocketConnection,
       websocketMessageReceived,
       utf8Decode,
       isControlFrame,
       isTextBinaryFrame,
       isContinuationFrame
     } = require_util3();
+    var { failWebsocketConnection } = require_connection();
     var { WebsocketFrameSend } = require_frame();
     var { PerMessageDeflate } = require_permessage_deflate();
     var ByteParser = class extends Writable {
@@ -12717,6 +12728,7 @@ var require_receiver = __commonJS({
         __name(this, "ByteParser");
       }
       #buffers = [];
+      #fragmentsBytes = 0;
       #byteOffset = 0;
       #loop = false;
       #state = parserStates.INFO;
@@ -12846,11 +12858,9 @@ var require_receiver = __commonJS({
               this.#state = parserStates.INFO;
             } else {
               if (!this.#info.compressed) {
-                this.#fragments.push(body);
+                this.writeFragments(body);
                 if (!this.#info.fragmented && this.#info.fin) {
-                  const fullMessage = Buffer.concat(this.#fragments);
-                  websocketMessageReceived(this.#handler, this.#info.binaryType, fullMessage);
-                  this.#fragments.length = 0;
+                  websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments());
                 }
                 this.#state = parserStates.INFO;
               } else {
@@ -12859,17 +12869,16 @@ var require_receiver = __commonJS({
                     failWebsocketConnection(this.#handler, 1007, error.message);
                     return;
                   }
-                  this.#fragments.push(data);
+                  this.writeFragments(data);
                   if (!this.#info.fin) {
                     this.#state = parserStates.INFO;
                     this.#loop = true;
                     this.run(callback);
                     return;
                   }
-                  websocketMessageReceived(this.#handler, this.#info.binaryType, Buffer.concat(this.#fragments));
+                  websocketMessageReceived(this.#handler, this.#info.binaryType, this.consumeFragments());
                   this.#loop = true;
                   this.#state = parserStates.INFO;
-                  this.#fragments.length = 0;
                   this.run(callback);
                 });
                 this.#loop = false;
@@ -12890,29 +12899,54 @@ var require_receiver = __commonJS({
         } else if (n === 0) {
           return emptyBuffer;
         }
-        if (this.#buffers[0].length === n) {
-          this.#byteOffset -= this.#buffers[0].length;
-          return this.#buffers.shift();
-        }
-        const buffer = Buffer.allocUnsafe(n);
-        let offset = 0;
-        while (offset !== n) {
-          const next = this.#buffers[0];
-          const { length } = next;
-          if (length + offset === n) {
-            buffer.set(this.#buffers.shift(), offset);
-            break;
-          } else if (length + offset > n) {
-            buffer.set(next.subarray(0, n - offset), offset);
-            this.#buffers[0] = next.subarray(n - offset);
-            break;
-          } else {
-            buffer.set(this.#buffers.shift(), offset);
-            offset += next.length;
-          }
-        }
         this.#byteOffset -= n;
-        return buffer;
+        const first = this.#buffers[0];
+        if (first.length > n) {
+          this.#buffers[0] = first.subarray(n, first.length);
+          return first.subarray(0, n);
+        } else if (first.length === n) {
+          return this.#buffers.shift();
+        } else {
+          let offset = 0;
+          const buffer = Buffer.allocUnsafeSlow(n);
+          while (offset !== n) {
+            const next = this.#buffers[0];
+            const length = next.length;
+            if (length + offset === n) {
+              buffer.set(this.#buffers.shift(), offset);
+              break;
+            } else if (length + offset > n) {
+              buffer.set(next.subarray(0, n - offset), offset);
+              this.#buffers[0] = next.subarray(n - offset);
+              break;
+            } else {
+              buffer.set(this.#buffers.shift(), offset);
+              offset += length;
+            }
+          }
+          return buffer;
+        }
+      }
+      writeFragments(fragment) {
+        this.#fragmentsBytes += fragment.length;
+        this.#fragments.push(fragment);
+      }
+      consumeFragments() {
+        const fragments = this.#fragments;
+        if (fragments.length === 1) {
+          this.#fragmentsBytes = 0;
+          return fragments.shift();
+        }
+        let offset = 0;
+        const output = Buffer.allocUnsafeSlow(this.#fragmentsBytes);
+        for (let i = 0; i < fragments.length; ++i) {
+          const buffer = fragments[i];
+          output.set(buffer, offset);
+          offset += buffer.length;
+        }
+        this.#fragments = [];
+        this.#fragmentsBytes = 0;
+        return output;
       }
       parseCloseBody(data) {
         assert(data.length !== 1);
@@ -13099,12 +13133,11 @@ var require_websocket = __commonJS({
       isClosing,
       isValidSubprotocol,
       fireEvent,
-      failWebsocketConnection,
       utf8Decode,
       toArrayBuffer,
       getURLRecord
     } = require_util3();
-    var { establishWebSocketConnection, closeWebSocketConnection } = require_connection();
+    var { establishWebSocketConnection, closeWebSocketConnection, failWebsocketConnection } = require_connection();
     var { ByteParser } = require_receiver();
     var { kEnumerableProperty } = require_util();
     var { getGlobalDispatcher: getGlobalDispatcher2 } = require_global2();

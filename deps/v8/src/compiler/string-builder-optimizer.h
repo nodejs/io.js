@@ -252,7 +252,7 @@ class V8_EXPORT_PRIVATE StringBuilderOptimizer final {
   // particular StringBuilder).
   bool IsFirstConcatInStringBuilder(Node* node);
 
-  // Returns a OneOrTwoByteAnalysis::State representing whether the
+  // Returns an OneOrTwoByteAnalysis::State representing whether the
   // StringBuilder that contains {node} is building a 1-byte or a 2-byte.
   OneOrTwoByteAnalysis::State GetOneOrTwoByte(Node* node);
 

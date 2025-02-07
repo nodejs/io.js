@@ -85,9 +85,15 @@ void LiftoffAssembler::CheckTierUp(int declared_func_index, int budget_used,
   Branch(ool_label, lt, budget, Operand{0});
 }
 
+Register LiftoffAssembler::LoadOldFramePointer() { return fp; }
+void LiftoffAssembler::CheckStackShrink() {
+  // TODO(irezvov): 42202153
+  UNIMPLEMENTED();
+}
+
 void LiftoffAssembler::PatchPrepareStackFrame(
     int offset, SafepointTableBuilder* safepoint_table_builder,
-    bool feedback_vector_slot) {
+    bool feedback_vector_slot, size_t stack_param_slots) {
   // The frame_size includes the frame marker and the instance slot. Both are
   // pushed as part of frame construction, so we don't need to allocate memory
   // for them anymore.

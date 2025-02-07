@@ -44,7 +44,8 @@ instance.exports.func0(0);
 
 const kHeapObjectTag = 1;
 const kStructField0Offset = 8;  // 0:map, 4:hash
-const kWasmInternalFunctionOffset = 4;
+const kWasmFuncRefType = Sandbox.getInstanceTypeIdFor('WASM_FUNC_REF_TYPE');
+const kWasmFuncRefInternalOffset = Sandbox.getFieldOffset(kWasmFuncRefType, 'trusted_internal');
 
 let memory = new DataView(new Sandbox.MemoryView(0, 0x100000000));
 
@@ -58,19 +59,13 @@ function setField(obj, offset, value) {
   memory.setUint32(obj + offset - kHeapObjectTag, value, true);
 }
 
-let buf = getPtr(instance.exports.mem0.buffer);
-let membase =
-    (BigInt(getField(buf, 36)) >> 24n) | (BigInt(getField(buf, 40)) << 8n);
-membase += BigInt(Sandbox.base);
-let target = BigInt(Sandbox.targetPage) - membase;
-
 let f0_box = getPtr(instance.exports.get_func0());
 let f0 = getField(f0_box, kStructField0Offset);
-let f0_int = getField(f0, kWasmInternalFunctionOffset);
+let f0_int = getField(f0, kWasmFuncRefInternalOffset);
 
 let f1_box = getPtr(instance.exports.get_func1());
 let f1 = getField(f1_box, kStructField0Offset);
 
-setField(f1, kWasmInternalFunctionOffset, f0_int);
+setField(f1, kWasmFuncRefInternalOffset, f0_int);
 
-assertTraps(kTrapMemOutOfBounds, () => instance.exports.boom(target));
+assertTraps(kTrapMemOutOfBounds, () => instance.exports.boom(0x414141414141n));

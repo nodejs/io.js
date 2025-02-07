@@ -65,9 +65,9 @@ class JSSegmenter : public TorqueGeneratedJSSegmenter<JSSegmenter, JSObject> {
   // Bit positions in |flags|.
   DEFINE_TORQUE_GENERATED_JS_SEGMENTER_FLAGS()
 
-  static_assert(Granularity::GRAPHEME <= GranularityBits::kMax);
-  static_assert(Granularity::WORD <= GranularityBits::kMax);
-  static_assert(Granularity::SENTENCE <= GranularityBits::kMax);
+  static_assert(GranularityBits::is_valid(Granularity::GRAPHEME));
+  static_assert(GranularityBits::is_valid(Granularity::WORD));
+  static_assert(GranularityBits::is_valid(Granularity::SENTENCE));
 
   DECL_PRINTER(JSSegmenter)
 

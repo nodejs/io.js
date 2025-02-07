@@ -175,7 +175,7 @@ void RawLogVA(absl::LogSeverity severity, const char* file, int line,
     } else {
       DoRawLog(&buf, &size, "%s", kTruncated);
     }
-    AsyncSignalSafeWriteError(buffer, strlen(buffer));
+    AsyncSignalSafeWriteError(buffer, static_cast<size_t>(buf - buffer));
   }
 #else
   static_cast<void>(format);

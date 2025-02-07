@@ -321,3 +321,13 @@ test('execute a TypeScript loader and a .js file', async () => {
   match(result.stdout, /Hello, TypeScript!/);
   strictEqual(result.code, 0);
 });
+
+test('execute invalid TypeScript syntax', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    fixtures.path('typescript/ts/test-invalid-syntax.ts'),
+  ]);
+
+  match(result.stderr, /ERR_INVALID_TYPESCRIPT_SYNTAX/);
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 1);
+});

@@ -37,7 +37,6 @@ namespace internal {
   V(DebugInfo)                       \
   V(EmbedderDataArray)               \
   V(EphemeronHashTable)              \
-  V(ExternalPointerArray)            \
   V(ExternalString)                  \
   V(FeedbackCell)                    \
   V(FeedbackMetadata)                \

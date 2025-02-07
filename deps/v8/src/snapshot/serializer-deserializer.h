@@ -37,8 +37,8 @@ class SerializerDeserializer : public RootVisitor {
 
   // clang-format off
 #define UNUSED_SERIALIZER_BYTE_CODES(V)                           \
-  /* Free range 0x20..0x2f */                                     \
-  V(0x20) V(0x21) V(0x22) V(0x23) V(0x24) V(0x25) V(0x26) V(0x27) \
+  /* Free range 0x21..0x2f */                                     \
+          V(0x21) V(0x22) V(0x23) V(0x24) V(0x25) V(0x26) V(0x27) \
   V(0x28) V(0x29) V(0x2a) V(0x2b) V(0x2c) V(0x2d) V(0x2e) V(0x2f) \
   /* Free range 0x30..0x3f */                                     \
   V(0x30) V(0x31) V(0x32) V(0x33) V(0x34) V(0x35) V(0x36) V(0x37) \
@@ -76,7 +76,7 @@ class SerializerDeserializer : public RootVisitor {
   // 32 common raw data lengths.
   static const int kFixedRawDataCount = 0x20;
   // 16 repeats lengths.
-  static const int kFixedRepeatCount = 0x10;
+  static const int kFixedRepeatRootCount = 0x10;
 
   // 8 hot (recently seen or back-referenced) objects with optional skip.
   static const int kHotObjectCount = 8;
@@ -108,8 +108,8 @@ class SerializerDeserializer : public RootVisitor {
     // Examine the build process for architecture, version or configuration
     // mismatches.
     kSynchronize,
-    // Repeats of variable length.
-    kVariableRepeat,
+    // Repeats of variable length of a root.
+    kVariableRepeatRoot,
     // Used for embedder-allocated backing stores for TypedArrays.
     kOffHeapBackingStore,
     kOffHeapResizableBackingStore,
@@ -158,6 +158,10 @@ class SerializerDeserializer : public RootVisitor {
     // that it will be deserialized before any inner objects, which may require
     // the pointer table entry for back reference to the trusted object.
     kInitializeSelfIndirectPointer,
+    // This bytecode instructs the deserializer to allocate an entry in the
+    // JSDispatchTable for the host object and store the corresponding dispatch
+    // handle into the current slot.
+    kAllocateJSDispatchEntry,
     // A prefix indicating that the following object is referenced through a
     // protected pointer, i.e. a pointer from one trusted object to another.
     kProtectedPointerPrefix,
@@ -177,7 +181,7 @@ class SerializerDeserializer : public RootVisitor {
     //
 
     // 0x80..0x8f
-    kFixedRepeat = 0x80,
+    kFixedRepeatRoot = 0x80,
 
     // 0x90..0x97
     kHotObject = 0x90,
@@ -238,30 +242,30 @@ class SerializerDeserializer : public RootVisitor {
                            kLastEncodableFixedRawDataSize>;
 
   // Repeat count encoding helpers.
-  static const int kFirstEncodableRepeatCount = 2;
-  static const int kLastEncodableFixedRepeatCount =
-      kFirstEncodableRepeatCount + kFixedRepeatCount - 1;
-  static const int kFirstEncodableVariableRepeatCount =
-      kLastEncodableFixedRepeatCount + 1;
+  static const int kFirstEncodableRepeatRootCount = 2;
+  static const int kLastEncodableFixedRepeatRootCount =
+      kFirstEncodableRepeatRootCount + kFixedRepeatRootCount - 1;
+  static const int kFirstEncodableVariableRepeatRootCount =
+      kLastEncodableFixedRepeatRootCount + 1;
 
-  using FixedRepeatWithCount =
-      BytecodeValueEncoder<kFixedRepeat, kFirstEncodableRepeatCount,
-                           kLastEncodableFixedRepeatCount>;
+  using FixedRepeatRootWithCount =
+      BytecodeValueEncoder<kFixedRepeatRoot, kFirstEncodableRepeatRootCount,
+                           kLastEncodableFixedRepeatRootCount>;
 
   // Encodes/decodes repeat count into a serialized variable repeat count
   // value.
-  struct VariableRepeatCount {
+  struct VariableRepeatRootCount {
     static constexpr bool IsEncodable(int repeat_count) {
-      return repeat_count >= kFirstEncodableVariableRepeatCount;
+      return repeat_count >= kFirstEncodableVariableRepeatRootCount;
     }
 
     static constexpr int Encode(int repeat_count) {
       DCHECK(IsEncodable(repeat_count));
-      return repeat_count - kFirstEncodableVariableRepeatCount;
+      return repeat_count - kFirstEncodableVariableRepeatRootCount;
     }
 
     static constexpr int Decode(int value) {
-      return value + kFirstEncodableVariableRepeatCount;
+      return value + kFirstEncodableVariableRepeatRootCount;
     }
   };
 

@@ -16,14 +16,19 @@
 #include <winsock2.h>  // for timeval
 #endif
 
+#include "absl/base/config.h"
+
+// For feature testing and determining which headers can be included.
+#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+#include <version>
+#endif
+
 #include <array>
 #include <cfloat>
 #include <chrono>  // NOLINT(build/c++11)
-
-#ifdef __cpp_impl_three_way_comparison
+#ifdef __cpp_lib_three_way_comparison
 #include <compare>
-#endif  // __cpp_impl_three_way_comparison
-
+#endif  // __cpp_lib_three_way_comparison
 #include <cmath>
 #include <cstdint>
 #include <ctime>
@@ -437,14 +442,14 @@ TEST(Duration, InfinityComparison) {
   EXPECT_LT(-inf, inf);
   EXPECT_GT(inf, -inf);
 
-#ifdef __cpp_impl_three_way_comparison
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
   EXPECT_EQ(inf <=> inf, std::strong_ordering::equal);
   EXPECT_EQ(-inf <=> -inf, std::strong_ordering::equal);
   EXPECT_EQ(-inf <=> inf, std::strong_ordering::less);
   EXPECT_EQ(inf <=> -inf, std::strong_ordering::greater);
   EXPECT_EQ(any_dur <=> inf, std::strong_ordering::less);
   EXPECT_EQ(any_dur <=> -inf, std::strong_ordering::greater);
-#endif  // __cpp_impl_three_way_comparison
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 }
 
 TEST(Duration, InfinityAddition) {
@@ -511,18 +516,18 @@ TEST(Duration, InfinitySubtraction) {
   absl::Duration almost_neg_inf = sec_min;
   EXPECT_LT(-inf, almost_neg_inf);
 
-#ifdef __cpp_impl_three_way_comparison
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
   EXPECT_EQ(-inf <=> almost_neg_inf, std::strong_ordering::less);
   EXPECT_EQ(almost_neg_inf <=> -inf, std::strong_ordering::greater);
-#endif  // __cpp_impl_three_way_comparison
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 
   almost_neg_inf -= -absl::Nanoseconds(1);
   EXPECT_LT(-inf, almost_neg_inf);
 
-#ifdef __cpp_impl_three_way_comparison
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
   EXPECT_EQ(-inf <=> almost_neg_inf, std::strong_ordering::less);
   EXPECT_EQ(almost_neg_inf <=> -inf, std::strong_ordering::greater);
-#endif  // __cpp_impl_three_way_comparison
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 
   // For reference: IEEE 754 behavior
   const double dbl_inf = std::numeric_limits<double>::infinity();
@@ -883,7 +888,7 @@ TEST(Duration, Range) {
   EXPECT_LT(neg_full_range, full_range);
   EXPECT_EQ(neg_full_range, -full_range);
 
-#ifdef __cpp_impl_three_way_comparison
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
   EXPECT_EQ(range_future <=> absl::InfiniteDuration(),
             std::strong_ordering::less);
   EXPECT_EQ(range_past <=> -absl::InfiniteDuration(),
@@ -896,7 +901,7 @@ TEST(Duration, Range) {
             std::strong_ordering::greater);
   EXPECT_EQ(neg_full_range <=> full_range, std::strong_ordering::less);
   EXPECT_EQ(neg_full_range <=> -full_range, std::strong_ordering::equal);
-#endif  // __cpp_impl_three_way_comparison
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 }
 
 TEST(Duration, RelationalOperators) {
@@ -920,8 +925,7 @@ TEST(Duration, RelationalOperators) {
 #undef TEST_REL_OPS
 }
 
-
-#ifdef __cpp_impl_three_way_comparison
+#ifdef ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 
 TEST(Duration, SpaceshipOperators) {
 #define TEST_REL_OPS(UNIT)               \
@@ -939,7 +943,7 @@ TEST(Duration, SpaceshipOperators) {
 #undef TEST_REL_OPS
 }
 
-#endif  // __cpp_impl_three_way_comparison
+#endif  // ABSL_INTERNAL_TIME_HAS_THREE_WAY_COMPARISON
 
 TEST(Duration, Addition) {
 #define TEST_ADD_OPS(UNIT)                  \

@@ -304,6 +304,10 @@ void MarkingVisitorBase<ConcreteVisitor>::VisitJSDispatchTableEntry(
 #endif  // DEBUG
 
   table->Mark(handle);
+
+  // The code objects referenced from a dispatch table entry are treated as weak
+  // references for the purpose of bytecode/baseline flushing, so they are not
+  // marked here. See also VisitJSFunction below.
 #endif  // V8_ENABLE_LEAPTIERING
 }
 
@@ -317,23 +321,44 @@ int MarkingVisitorBase<ConcreteVisitor>::VisitJSFunction(
   if (ShouldFlushBaselineCode(js_function)) {
     DCHECK(IsBaselineCodeFlushingEnabled(code_flush_mode_));
     local_weak_objects_->baseline_flushing_candidates_local.Push(js_function);
-  } else {
-#ifdef V8_ENABLE_SANDBOX
-    VisitIndirectPointer(js_function,
-                         js_function->RawIndirectPointerField(
-                             JSFunction::kCodeOffset, kCodeIndirectPointerTag),
-                         IndirectPointerMode::kStrong);
-#else
-    VisitPointer(js_function, js_function->RawField(JSFunction::kCodeOffset));
-#endif  // V8_ENABLE_SANDBOX
-    // TODO(mythria): Consider updating the check for ShouldFlushBaselineCode to
-    // also include cases where there is old bytecode even when there is no
-    // baseline code and remove this check here.
-    if (IsByteCodeFlushingEnabled(code_flush_mode_) &&
-        js_function->NeedsResetDueToFlushedBytecode(heap_->isolate())) {
-      local_weak_objects_->flushed_js_functions_local.Push(js_function);
+    return Base::VisitJSFunction(map, js_function);
+  }
+
+  // We're not flushing the Code, so mark it as alive.
+#ifdef V8_ENABLE_LEAPTIERING
+  // Here we can see JSFunctions that aren't fully initialized (e.g. during
+  // deserialization) so we need to check for the null handle.
+  JSDispatchHandle handle = js_function->Relaxed_ReadField<JSDispatchHandle>(
+      JSFunction::kDispatchHandleOffset);
+  if (handle != kNullJSDispatchHandle) {
+    Tagged<HeapObject> obj = GetProcessWideJSDispatchTable()->GetCode(handle);
+    // TODO(saelo): maybe factor out common code with VisitIndirectPointer
+    // into a helper routine?
+    SynchronizePageAccess(obj);
+    const auto target_worklist = MarkingHelper::ShouldMarkObject(heap_, obj);
+    if (target_worklist) {
+      MarkObject(js_function, obj, target_worklist.value());
     }
   }
+#else
+#ifdef V8_ENABLE_SANDBOX
+  VisitIndirectPointer(js_function,
+                       js_function->RawIndirectPointerField(
+                           JSFunction::kCodeOffset, kCodeIndirectPointerTag),
+                       IndirectPointerMode::kStrong);
+#else
+  VisitPointer(js_function, js_function->RawField(JSFunction::kCodeOffset));
+#endif  // V8_ENABLE_SANDBOX
+#endif  // V8_ENABLE_LEAPTIERING
+
+  // TODO(mythria): Consider updating the check for ShouldFlushBaselineCode to
+  // also include cases where there is old bytecode even when there is no
+  // baseline code and remove this check here.
+  if (IsByteCodeFlushingEnabled(code_flush_mode_) &&
+      js_function->NeedsResetDueToFlushedBytecode(heap_->isolate())) {
+    local_weak_objects_->flushed_js_functions_local.Push(js_function);
+  }
+
   return Base::VisitJSFunction(map, js_function);
 }
 
@@ -580,8 +605,8 @@ int MarkingVisitorBase<ConcreteVisitor>::VisitEphemeronHashTable(
     // WeakMaps and WeakSets and therefore cannot be ephemeron keys. See also
     // MarkCompactCollector::ProcessEphemeron.
     DCHECK(!InWritableSharedSpace(key));
-    if (InReadOnlySpace(key) ||
-        concrete_visitor()->marking_state()->IsMarked(key)) {
+    if (MarkingHelper::IsMarkedOrAlwaysLive(
+            heap_, concrete_visitor()->marking_state(), key)) {
       VisitPointer(table, value_slot);
     } else {
       Tagged<Object> value_obj = table->ValueAt(i);
@@ -619,8 +644,8 @@ int MarkingVisitorBase<ConcreteVisitor>::VisitJSWeakRef(
     SynchronizePageAccess(target);
     concrete_visitor()->AddWeakReferenceForReferenceSummarizer(weak_ref,
                                                                target);
-    if (InReadOnlySpace(target) ||
-        concrete_visitor()->marking_state()->IsMarked(target)) {
+    if (MarkingHelper::IsMarkedOrAlwaysLive(
+            heap_, concrete_visitor()->marking_state(), target)) {
       // Record the slot inside the JSWeakRef, since the VisitJSWeakRef above
       // didn't visit it.
       ObjectSlot slot = weak_ref->RawField(JSWeakRef::kTargetOffset);
@@ -641,10 +666,10 @@ int MarkingVisitorBase<ConcreteVisitor>::VisitWeakCell(
   Tagged<HeapObject> unregister_token = weak_cell->relaxed_unregister_token();
   SynchronizePageAccess(target);
   SynchronizePageAccess(unregister_token);
-  if ((InReadOnlySpace(target) ||
-       concrete_visitor()->marking_state()->IsMarked(target)) &&
-      (InReadOnlySpace(unregister_token) ||
-       concrete_visitor()->marking_state()->IsMarked(unregister_token))) {
+  if (MarkingHelper::IsMarkedOrAlwaysLive(
+          heap_, concrete_visitor()->marking_state(), target) &&
+      MarkingHelper::IsMarkedOrAlwaysLive(
+          heap_, concrete_visitor()->marking_state(), unregister_token)) {
     // Record the slots inside the WeakCell, since its IterateBody doesn't visit
     // it.
     ObjectSlot slot = weak_cell->RawField(WeakCell::kTargetOffset);

@@ -27,7 +27,8 @@ console.log(name);
 EOF
 )"
 
-CURRENT_VERSION=$("$NODE" -p "require('./deps/cjs-module-lexer/package.json').version")
+
+CURRENT_VERSION=$("$NODE" -p "require('./deps/cjs-module-lexer/src/package.json').version")
 
 # This function exit with 0 if new version and current version are the same
 compare_dependency_version "cjs-module-lexer" "$NEW_VERSION" "$CURRENT_VERSION"
@@ -44,15 +45,53 @@ cleanup () {
 
 trap cleanup INT TERM EXIT
 
+CJS_MODULE_LEXER_ZIP="cjs-module-lexer-$NEW_VERSION"
+
+# remove existing source and built files
+rm -rf "$DEPS_DIR/cjs-module-lexer/src"
+rm -rf "$DEPS_DIR/cjs-module-lexer/dist"
+rm "$DEPS_DIR/cjs-module-lexer/lexer.js"
+
 cd "$WORKSPACE"
 
-"$NODE" "$NPM" init --yes
+curl -sL -o "$CJS_MODULE_LEXER_ZIP.zip" "https://github.com/nodejs/cjs-module-lexer/archive/refs/tags/$NEW_VERSION.zip"
 
-"$NODE" "$NPM" install --global-style --no-bin-links --ignore-scripts "cjs-module-lexer@$NEW_VERSION"
+log_and_verify_sha256sum "cjs-module-lexer" "$CJS_MODULE_LEXER_ZIP.zip"
 
-rm -rf "$DEPS_DIR/cjs-module-lexer"
+echo "Unzipping..."
+unzip "$CJS_MODULE_LEXER_ZIP.zip" -d "src"
+mv "src/$CJS_MODULE_LEXER_ZIP" "$DEPS_DIR/cjs-module-lexer/src"
+rm "$CJS_MODULE_LEXER_ZIP.zip"
+cd "$ROOT"
 
-mv node_modules/cjs-module-lexer "$DEPS_DIR/cjs-module-lexer"
+(
+  # remove components we don't need to keep in nodejs/deps
+  # these are files that we don't need to build from source
+  cd "$DEPS_DIR/cjs-module-lexer/src"
+  rm -rf bench
+  rm -rf .github || true 
+  rm -rf test
+  rm .gitignore
+  rm .travis.yml
+  rm CODE_OF_CONDUCT.md
+  rm CONTRIBUTING.md
+
+  # Rebuild components from source
+  rm lib/*.*
+  "$NODE" "$NPM" install --ignore-scripts
+  "$NODE" "$NPM" run build-wasm
+  "$NODE" "$NPM" run build
+  "$NODE" "$NPM" prune --production
+
+  # remove files we don't need in Node.js
+  rm -rf node_modules
+
+  # copy over the built files to the expected locations
+  mv dist ..
+  cp lexer.js ..
+  cp LICENSE ..
+  cp README.md ..
+)
 
 # update cjs_module_lexer_version.h
 cat > "$BASE_DIR/src/cjs_module_lexer_version.h" << EOL

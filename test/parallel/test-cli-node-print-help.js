@@ -26,7 +26,7 @@ function validateNodePrintHelp() {
   const cliHelpOptions = [
     { compileConstant: HAVE_OPENSSL,
       flags: [ '--openssl-config=...', '--tls-cipher-list=...',
-               '--use-bundled-ca', '--use-openssl-ca',
+               '--use-bundled-ca', '--use-openssl-ca', '--use-system-ca',
                '--enable-fips', '--force-fips' ] },
     { compileConstant: NODE_HAVE_I18N_SUPPORT,
       flags: [ '--icu-data-dir=...', 'NODE_ICU_DATA' ] },

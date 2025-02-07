@@ -299,14 +299,13 @@ class V8_EXPORT_PRIVATE NativeModuleSerializer {
   void WriteCode(const WasmCode*, Writer*);
   void WriteTieringBudget(Writer* writer);
 
-  uint32_t CanonicalTypeIdToModuleLocalTypeId(uint32_t canonical_type_id);
+  uint32_t CanonicalSigIdToModuleLocalTypeId(uint32_t canonical_sig_id);
 
   const NativeModule* const native_module_;
   const base::Vector<WasmCode* const> code_table_;
   const base::Vector<WellKnownImport const> import_statuses_;
-  // Map back canonical type IDs to module-local type IDs. Initialized lazily.
-  std::unordered_map<uint32_t, uint32_t>
-      canonical_type_ids_to_module_local_ids_;
+  // Map back canonical signature IDs to module-local IDs. Initialized lazily.
+  std::unordered_map<uint32_t, uint32_t> canonical_sig_ids_to_module_local_ids_;
   bool write_called_ = false;
   size_t total_written_code_ = 0;
   int num_turbofan_functions_ = 0;
@@ -439,9 +438,8 @@ void NativeModuleSerializer::WriteCode(const WasmCode* code, Writer* writer) {
   writer->WriteVector(code->inlining_positions());
   writer->WriteVector(code->deopt_data());
   writer->WriteVector(code->protected_instructions_data());
-#if V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_PPC ||      \
-    V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390X || V8_TARGET_ARCH_RISCV32 || \
-    V8_TARGET_ARCH_RISCV64
+#if V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_PPC64 || \
+    V8_TARGET_ARCH_S390X || V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
   // On platforms that don't support misaligned word stores, copy to an aligned
   // buffer if necessary so we can relocate the serialized code.
   std::unique_ptr<uint8_t[]> aligned_buffer;
@@ -491,7 +489,7 @@ void NativeModuleSerializer::WriteCode(const WasmCode* code, Writer* writer) {
       case RelocInfo::WASM_CANONICAL_SIG_ID: {
         uint32_t canonical_sig_id = orig_iter.rinfo()->wasm_canonical_sig_id();
         uint32_t module_local_sig_id =
-            CanonicalTypeIdToModuleLocalTypeId(canonical_sig_id);
+            CanonicalSigIdToModuleLocalTypeId(canonical_sig_id);
         iter.rinfo()->set_wasm_canonical_sig_id(module_local_sig_id);
       } break;
       case RelocInfo::EXTERNAL_REFERENCE: {
@@ -526,25 +524,26 @@ void NativeModuleSerializer::WriteTieringBudget(Writer* writer) {
   }
 }
 
-uint32_t NativeModuleSerializer::CanonicalTypeIdToModuleLocalTypeId(
-    uint32_t canonical_type_id) {
-  if (canonical_type_ids_to_module_local_ids_.empty()) {
+uint32_t NativeModuleSerializer::CanonicalSigIdToModuleLocalTypeId(
+    uint32_t canonical_sig_id) {
+  if (canonical_sig_ids_to_module_local_ids_.empty()) {
     const WasmModule* module = native_module_->module();
     DCHECK_GE(kMaxUInt32, module->isorecursive_canonical_type_ids.size());
-    uint32_t num_types =
-        static_cast<uint32_t>(module->isorecursive_canonical_type_ids.size());
-    canonical_type_ids_to_module_local_ids_.reserve(num_types);
+    size_t num_types = module->types.size();
+    DCHECK_EQ(num_types, module->isorecursive_canonical_type_ids.size());
     for (uint32_t local_id = 0; local_id < num_types; ++local_id) {
-      uint32_t canonical_id = module->isorecursive_canonical_type_ids[local_id];
+      // Only add function signatures.
+      if (!module->has_signature(local_id)) continue;
+      uint32_t canonical_id = module->canonical_sig_id(local_id);
       // Try to emplace, skip if an entry exists already. It does not matter
       // which local type ID we use if multiple types got canonicalized to the
       // same ID.
-      canonical_type_ids_to_module_local_ids_.emplace(
+      canonical_sig_ids_to_module_local_ids_.emplace(
           std::make_pair(canonical_id, local_id));
     }
   }
-  auto it = canonical_type_ids_to_module_local_ids_.find(canonical_type_id);
-  DCHECK_NE(canonical_type_ids_to_module_local_ids_.end(), it);
+  auto it = canonical_sig_ids_to_module_local_ids_.find(canonical_sig_id);
+  DCHECK_NE(canonical_sig_ids_to_module_local_ids_.end(), it);
   return it->second;
 }
 
@@ -947,8 +946,7 @@ void NativeModuleDeserializer::CopyAndRelocate(
       case RelocInfo::WASM_CANONICAL_SIG_ID: {
         uint32_t module_local_sig_id = iter.rinfo()->wasm_canonical_sig_id();
         uint32_t canonical_sig_id =
-            native_module_->module()
-                ->isorecursive_canonical_type_ids[module_local_sig_id];
+            native_module_->module()->canonical_sig_id(module_local_sig_id);
         iter.rinfo()->set_wasm_canonical_sig_id(canonical_sig_id);
       } break;
       case RelocInfo::EXTERNAL_REFERENCE: {

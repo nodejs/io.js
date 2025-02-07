@@ -36,6 +36,8 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 
 using Label = CodeAssemblerLabel;
@@ -3001,7 +3003,8 @@ TEST(AllocateRootFunctionWithContext) {
   TNode<Context> promise_context = m.CreatePromiseResolvingFunctionsContext(
       context, promise, m.BooleanConstant(false), native_context);
   const TNode<JSFunction> resolve = m.AllocateRootFunctionWithContext(
-      RootIndex::kPromiseCapabilityDefaultResolveSharedFun, promise_context);
+      RootIndex::kPromiseCapabilityDefaultResolveSharedFun, promise_context,
+      native_context);
   m.Return(resolve);
 
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
@@ -4012,8 +4015,8 @@ TEST(TestTailCallBuiltinIndirect) {
 
 TEST(InstructionSchedulingCallerSavedRegisters) {
   // This is a regression test for v8:9775, where TF's instruction scheduler
-  // incorrectly moved pure operations in between a ArchSaveCallerRegisters and
-  // a ArchRestoreCallerRegisters instruction.
+  // incorrectly moved pure operations in between an ArchSaveCallerRegisters and
+  // an ArchRestoreCallerRegisters instruction.
   bool old_turbo_instruction_scheduling = v8_flags.turbo_instruction_scheduling;
   v8_flags.turbo_instruction_scheduling = true;
 
@@ -4439,7 +4442,7 @@ TEST(IntPtrMulHigh) {
   TNode<IntPtrT> res = m.IntPtrMulHigh(a, b);
   m.Return(m.SmiTag(res));
 
-  FunctionTester ft(asm_tester.GenerateCode());
+  FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
   CHECK_EQ(
       -147694,
       (*ft.CallChecked<Smi>(handle(Smi::FromInt(295387), isolate))).value());
@@ -4479,7 +4482,7 @@ TEST(UintPtrMulHigh) {
   TNode<IntPtrT> res = m.Signed(m.UintPtrMulHigh(m.Unsigned(a), m.Unsigned(b)));
   m.Return(m.SmiTag(res));
 
-  FunctionTester ft(asm_tester.GenerateCode());
+  FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
   CHECK_EQ(
       147693,
       (*ft.CallChecked<Smi>(handle(Smi::FromInt(295387), isolate))).value());
@@ -4526,7 +4529,7 @@ TEST(IntPtrMulWithOverflow) {
     TNode<BoolT> overflow = m.Projection<1>(pair);
     m.Return(m.SelectBooleanConstant(overflow));
 
-    FunctionTester ft(asm_tester.GenerateCode());
+    FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
     CHECK(IsTrue(*ft.Call(handle(Smi::FromInt(-1), isolate)).ToHandleChecked(),
                  isolate));
     CHECK(IsFalse(*ft.Call(handle(Smi::FromInt(1), isolate)).ToHandleChecked(),
@@ -4547,7 +4550,7 @@ TEST(IntPtrMulWithOverflow) {
     TNode<BoolT> overflow = m.Projection<1>(pair);
     m.Return(m.SelectBooleanConstant(overflow));
 
-    FunctionTester ft(asm_tester.GenerateCode());
+    FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
     CHECK(IsFalse(*ft.Call(handle(Smi::FromInt(-1), isolate)).ToHandleChecked(),
                   isolate));
     CHECK(IsFalse(*ft.Call(handle(Smi::FromInt(1), isolate)).ToHandleChecked(),
@@ -4556,6 +4559,8 @@ TEST(IntPtrMulWithOverflow) {
                  isolate));
   }
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace compiler
 }  // namespace internal

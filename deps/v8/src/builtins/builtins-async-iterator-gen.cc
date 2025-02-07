@@ -13,6 +13,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 namespace {
 class AsyncFromSyncBuiltinsAssembler : public AsyncBuiltinsAssembler {
  public:
@@ -302,7 +304,7 @@ TNode<JSFunction> AsyncFromSyncBuiltinsAssembler::
                                                               sync_iterator);
   return AllocateRootFunctionWithContext(
       RootIndex::kAsyncFromSyncIteratorCloseSyncAndRethrowSharedFun,
-      closure_context);
+      closure_context, native_context);
 }
 
 TNode<Context> AsyncFromSyncBuiltinsAssembler::
@@ -447,6 +449,8 @@ TF_BUILTIN(AsyncFromSyncIteratorCloseSyncAndRethrow,
   IteratorCloseOnException(context, sync_iterator_record);
   Return(CallRuntime(Runtime::kReThrow, context, error));
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

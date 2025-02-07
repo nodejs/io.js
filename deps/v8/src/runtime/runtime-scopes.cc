@@ -250,8 +250,11 @@ Tagged<Object> AddToDisposableStack(Isolate* isolate,
                                     DisposeMethodHint hint) {
   // a. If V is either null or undefined and hint is sync-dispose, return
   // unused.
-  if (IsNullOrUndefined(*value)) {
+  if (IsNullOrUndefined(*value) && hint == DisposeMethodHint::kSyncDispose) {
     return *value;
+  } else if (IsNullOrUndefined(*value) &&
+             hint == DisposeMethodHint::kAsyncDispose) {
+    value = ReadOnlyRoots(isolate).undefined_value_handle();
   }
 
   Handle<Object> method;
@@ -317,6 +320,23 @@ RUNTIME_FUNCTION(Runtime_DisposeDisposableStack) {
           static_cast<DisposableStackResourcesType>(
               Smi::ToInt(*has_await_using))));
   return *result;
+}
+
+RUNTIME_FUNCTION(Runtime_HandleExceptionsInDisposeDisposableStack) {
+  HandleScope scope(isolate);
+  DCHECK_EQ(2, args.length());
+
+  DirectHandle<JSDisposableStackBase> disposable_stack =
+      args.at<JSDisposableStackBase>(0);
+  Handle<Object> exception = args.at<Object>(1);
+
+  if (!isolate->is_catchable_by_javascript(*exception)) {
+    return isolate->Throw(*exception);
+  }
+
+  JSDisposableStackBase::HandleErrorInDisposal(isolate, disposable_stack,
+                                               exception);
+  return *disposable_stack;
 }
 
 namespace {

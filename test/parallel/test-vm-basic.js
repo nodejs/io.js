@@ -59,9 +59,9 @@ const vm = require('vm');
   const result = vm.runInThisContext(
     'vmResult = "foo"; Object.prototype.toString.call(process);'
   );
-  assert.strictEqual(global.vmResult, 'foo');
+  assert.strictEqual(globalThis.vmResult, 'foo');
   assert.strictEqual(result, '[object process]');
-  delete global.vmResult;
+  delete globalThis.vmResult;
 }
 
 // vm.runInNewContext
@@ -69,7 +69,7 @@ const vm = require('vm');
   const result = vm.runInNewContext(
     'vmResult = "foo"; typeof process;'
   );
-  assert.strictEqual(global.vmResult, undefined);
+  assert.strictEqual(globalThis.vmResult, undefined);
   assert.strictEqual(result, 'undefined');
 }
 

@@ -122,9 +122,6 @@ class RelocInfo {
     EXTERNAL_REFERENCE,  // The address of an external C++ function.
     INTERNAL_REFERENCE,  // An address inside the same function.
 
-    // The relative address (target-table) in the switch table.
-    RELATIVE_SWITCH_TABLE_ENTRY,
-
     // Encoded internal reference, used only on RISCV64, RISCV32, MIPS64
     // and PPC.
     INTERNAL_REFERENCE_ENCODED,
@@ -233,9 +230,6 @@ class RelocInfo {
   static constexpr bool IsInternalReference(Mode mode) {
     return mode == INTERNAL_REFERENCE;
   }
-  static constexpr bool IsRelativeSwitchTableEntry(Mode mode) {
-    return mode == RELATIVE_SWITCH_TABLE_ENTRY;
-  }
   static constexpr bool IsInternalReferenceEncoded(Mode mode) {
     return mode == INTERNAL_REFERENCE_ENCODED;
   }
@@ -262,10 +256,6 @@ class RelocInfo {
     DCHECK_EQ((kApplyMask & ModeMask(EXTERNAL_REFERENCE)), 0);
     return mode == EXTERNAL_REFERENCE || mode == OFF_HEAP_TARGET;
 #endif
-  }
-
-  static bool IsOnlyForDisassembler(Mode mode) {
-    return mode == RELATIVE_SWITCH_TABLE_ENTRY;
   }
 
   static constexpr int ModeMask(Mode mode) { return 1 << mode; }

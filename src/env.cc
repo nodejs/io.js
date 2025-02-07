@@ -39,6 +39,9 @@ namespace node {
 
 using errors::TryCatchScope;
 using v8::Array;
+using v8::ArrayBuffer;
+using v8::BackingStore;
+using v8::BackingStoreInitializationMode;
 using v8::Boolean;
 using v8::Context;
 using v8::CppHeap;
@@ -223,7 +226,12 @@ void AsyncHooks::InstallPromiseHooks(Local<Context> ctx) {
                            : PersistentToLocal::Strong(js_promise_hooks_[3]));
 }
 
+void Environment::PurgeTrackedEmptyContexts() {
+  std::erase_if(contexts_, [&](auto&& el) { return el.IsEmpty(); });
+}
+
 void Environment::TrackContext(Local<Context> context) {
+  PurgeTrackedEmptyContexts();
   size_t id = contexts_.size();
   contexts_.resize(id + 1);
   contexts_[id].Reset(isolate_, context);
@@ -232,7 +240,7 @@ void Environment::TrackContext(Local<Context> context) {
 
 void Environment::UntrackContext(Local<Context> context) {
   HandleScope handle_scope(isolate_);
-  std::erase_if(contexts_, [&](auto&& el) { return el.IsEmpty(); });
+  PurgeTrackedEmptyContexts();
   for (auto it = contexts_.begin(); it != contexts_.end(); it++) {
     if (Local<Context> saved_context = PersistentToLocal::Weak(isolate_, *it);
         saved_context == context) {
@@ -737,17 +745,18 @@ void Environment::add_refs(int64_t diff) {
 }
 
 uv_buf_t Environment::allocate_managed_buffer(const size_t suggested_size) {
-  NoArrayBufferZeroFillScope no_zero_fill_scope(isolate_data());
-  std::unique_ptr<v8::BackingStore> bs =
-      v8::ArrayBuffer::NewBackingStore(isolate(), suggested_size);
+  std::unique_ptr<BackingStore> bs = ArrayBuffer::NewBackingStore(
+      isolate(),
+      suggested_size,
+      BackingStoreInitializationMode::kUninitialized);
   uv_buf_t buf = uv_buf_init(static_cast<char*>(bs->Data()), bs->ByteLength());
   released_allocated_buffers_.emplace(buf.base, std::move(bs));
   return buf;
 }
 
-std::unique_ptr<v8::BackingStore> Environment::release_managed_buffer(
+std::unique_ptr<BackingStore> Environment::release_managed_buffer(
     const uv_buf_t& buf) {
-  std::unique_ptr<v8::BackingStore> bs;
+  std::unique_ptr<BackingStore> bs;
   if (buf.base != nullptr) {
     auto it = released_allocated_buffers_.find(buf.base);
     CHECK_NE(it, released_allocated_buffers_.end());

@@ -257,6 +257,8 @@ void ExternalPointerTable::Evacuate(Space* from_space, Space* to_space,
   DCHECK(from_space->BelongsTo(this));
   DCHECK(to_space->BelongsTo(this));
 
+  CHECK(IsValidHandle(handle));
+
   auto handle_ptr = reinterpret_cast<ExternalPointerHandle*>(handle_location);
 
 #ifdef DEBUG

@@ -1,10 +1,15 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
-if (!common.opensslCli)
+}
+
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('missing openssl cli');
+}
 
 const assert = require('assert');
 
@@ -41,7 +46,7 @@ let sentWorld = false;
 let gotWorld = false;
 
 server.listen(0, () => {
-  const client = spawn(common.opensslCli, [
+  const client = spawn(opensslCli, [
     's_client',
     '-connect', `127.0.0.1:${server.address().port}`,
     '-cipher', CIPHERS,

@@ -29,6 +29,10 @@
 #include "src/runtime/runtime.h"
 #include "src/zone/zone-containers.h"
 
+#if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-builtin-list.h"
+#endif
+
 namespace v8 {
 namespace internal {
 
@@ -1262,16 +1266,42 @@ class V8_EXPORT_PRIVATE CodeAssembler {
                                {implicit_cast<TNode<Object>>(args)...});
   }
 
+  Builtin builtin();
+
+  // If the current code is running on a secondary stack, move the stack pointer
+  // to the central stack (but not the frame pointer) and adjust the stack
+  // limit. Returns the old stack pointer, or nullptr if no switch was
+  // performed.
+  TNode<RawPtrT> SwitchToTheCentralStackIfNeeded();
+  TNode<RawPtrT> SwitchToTheCentralStack();
+  // Switch the SP back to the secondary stack after switching to the central
+  // stack.
+  void SwitchFromTheCentralStack(TNode<RawPtrT> old_sp);
+
   //
   // If context passed to CallBuiltin is nullptr, it won't be passed to the
   // builtin.
   //
-
   template <typename T = Object, class... TArgs>
   TNode<T> CallBuiltin(Builtin id, TNode<Object> context, TArgs... args) {
+    TNode<RawPtrT> old_sp;
+#if V8_ENABLE_WEBASSEMBLY
+    bool maybe_needs_switch = wasm::BuiltinLookup::IsWasmBuiltinId(builtin()) &&
+                              !wasm::BuiltinLookup::IsWasmBuiltinId(id);
+    if (maybe_needs_switch) {
+      old_sp = SwitchToTheCentralStackIfNeeded();
+    }
+#endif
     Callable callable = Builtins::CallableFor(isolate(), id);
     TNode<Code> target = HeapConstantNoHole(callable.code());
-    return CallStub<T>(callable.descriptor(), target, context, args...);
+    TNode<T> call =
+        CallStub<T>(callable.descriptor(), target, context, args...);
+#if V8_ENABLE_WEBASSEMBLY
+    if (maybe_needs_switch) {
+      SwitchFromTheCentralStack(old_sp);
+    }
+#endif
+    return call;
   }
 
   template <class... TArgs>

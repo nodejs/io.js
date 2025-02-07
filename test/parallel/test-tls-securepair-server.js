@@ -21,11 +21,15 @@
 
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
-if (!common.opensslCli)
+const { opensslCli } = require('../common/crypto');
+
+if (!opensslCli) {
   common.skip('missing openssl-cli');
+}
 
 const assert = require('assert');
 const tls = require('tls');
@@ -109,7 +113,7 @@ server.listen(0, common.mustCall(function() {
 
   const args = ['s_client', '-connect', `127.0.0.1:${this.address().port}`];
 
-  const client = spawn(common.opensslCli, args);
+  const client = spawn(opensslCli, args);
 
 
   let out = '';

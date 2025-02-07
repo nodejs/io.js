@@ -133,7 +133,7 @@ TEST(Ieee754, Atanh) {
 
 #if defined(V8_USE_LIBM_TRIG_FUNCTIONS)
 TEST(Ieee754, LibmCos) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(libm_cos(kQNaN), IsNaN());
   EXPECT_THAT(libm_cos(kSNaN), IsNaN());
   EXPECT_THAT(libm_cos(kInfinity), IsNaN());
@@ -179,7 +179,7 @@ TEST(Ieee754, LibmCos) {
 }
 
 TEST(Ieee754, LibmSin) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(libm_sin(kQNaN), IsNaN());
   EXPECT_THAT(libm_sin(kSNaN), IsNaN());
   EXPECT_THAT(libm_sin(kInfinity), IsNaN());
@@ -216,7 +216,7 @@ TEST(Ieee754, LibmSin) {
 }
 
 TEST(Ieee754, FdlibmCos) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(fdlibm_cos(kQNaN), IsNaN());
   EXPECT_THAT(fdlibm_cos(kSNaN), IsNaN());
   EXPECT_THAT(fdlibm_cos(kInfinity), IsNaN());
@@ -262,7 +262,7 @@ TEST(Ieee754, FdlibmCos) {
 }
 
 TEST(Ieee754, FdlibmSin) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(fdlibm_sin(kQNaN), IsNaN());
   EXPECT_THAT(fdlibm_sin(kSNaN), IsNaN());
   EXPECT_THAT(fdlibm_sin(kInfinity), IsNaN());
@@ -301,7 +301,7 @@ TEST(Ieee754, FdlibmSin) {
 #else
 
 TEST(Ieee754, Cos) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(cos(kQNaN), IsNaN());
   EXPECT_THAT(cos(kSNaN), IsNaN());
   EXPECT_THAT(cos(kInfinity), IsNaN());
@@ -347,7 +347,7 @@ TEST(Ieee754, Cos) {
 }
 
 TEST(Ieee754, Sin) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(sin(kQNaN), IsNaN());
   EXPECT_THAT(sin(kSNaN), IsNaN());
   EXPECT_THAT(sin(kInfinity), IsNaN());
@@ -386,7 +386,7 @@ TEST(Ieee754, Sin) {
 #endif
 
 TEST(Ieee754, Cosh) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(cosh(kQNaN), IsNaN());
   EXPECT_THAT(cosh(kSNaN), IsNaN());
   EXPECT_THAT(cosh(kInfinity), kInfinity);
@@ -515,7 +515,7 @@ TEST(Ieee754, Cbrt) {
 }
 
 TEST(Ieee754, Sinh) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(sinh(kQNaN), IsNaN());
   EXPECT_THAT(sinh(kSNaN), IsNaN());
   EXPECT_THAT(sinh(kInfinity), kInfinity);
@@ -525,7 +525,7 @@ TEST(Ieee754, Sinh) {
 }
 
 TEST(Ieee754, Tan) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(tan(kQNaN), IsNaN());
   EXPECT_THAT(tan(kSNaN), IsNaN());
   EXPECT_THAT(tan(kInfinity), IsNaN());
@@ -562,7 +562,7 @@ TEST(Ieee754, Tan) {
 }
 
 TEST(Ieee754, Tanh) {
-  // Test values mentioned in the EcmaScript spec.
+  // Test values mentioned in the ECMAScript spec.
   EXPECT_THAT(tanh(kQNaN), IsNaN());
   EXPECT_THAT(tanh(kSNaN), IsNaN());
   EXPECT_THAT(tanh(kInfinity), 1);

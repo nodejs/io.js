@@ -1,7 +1,7 @@
 'use strict'
 
 const { uid, states, sentCloseFrameState, emptyBuffer, opcodes } = require('./constants')
-const { failWebsocketConnection, parseExtensions, isClosed, isClosing, isEstablished, validateCloseCodeAndReason } = require('./util')
+const { parseExtensions, isClosed, isClosing, isEstablished, validateCloseCodeAndReason } = require('./util')
 const { channels } = require('../../core/diagnostics')
 const { makeRequest } = require('../fetch/request')
 const { fetching } = require('../fetch/index')
@@ -294,7 +294,32 @@ function closeWebSocketConnection (object, code, reason, validate = false) {
   }
 }
 
+/**
+ * @param {import('./websocket').Handler} handler
+ * @param {number} code
+ * @param {string|undefined} reason
+ * @returns {void}
+ */
+function failWebsocketConnection (handler, code, reason) {
+  // If _The WebSocket Connection is Established_ prior to the point where
+  // the endpoint is required to _Fail the WebSocket Connection_, the
+  // endpoint SHOULD send a Close frame with an appropriate status code
+  // (Section 7.4) before proceeding to _Close the WebSocket Connection_.
+  if (isEstablished(handler.readyState)) {
+    closeWebSocketConnection(handler, code, reason, false)
+  }
+
+  handler.controller.abort()
+
+  if (handler.socket?.destroyed === false) {
+    handler.socket.destroy()
+  }
+
+  handler.onFail(code, reason)
+}
+
 module.exports = {
   establishWebSocketConnection,
+  failWebsocketConnection,
   closeWebSocketConnection
 }

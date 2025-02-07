@@ -12,6 +12,7 @@
 #include "src/base/ieee754.h"
 #include "src/base/safe_conversions.h"
 #include "src/common/assert-scope.h"
+#include "src/execution/pointer-authentication.h"
 #include "src/numbers/conversions.h"
 #include "src/roots/roots-inl.h"
 #include "src/utils/memcopy.h"
@@ -948,7 +949,7 @@ void array_fill_wrapper(Address raw_array, uint32_t index, uint32_t length,
     ObjectSlot start(reinterpret_cast<Address>(initial_element_address));
     ObjectSlot end(
         reinterpret_cast<Address>(initial_element_address + bytes_to_set));
-    isolate->heap()->WriteBarrierForRange(array, start, end);
+    WriteBarrier::ForRange(isolate->heap(), array, start, end);
   }
 }
 
@@ -1008,34 +1009,111 @@ void switch_from_the_central_stack(Isolate* isolate) {
   stack_guard->SetStackLimitForStackSwitching(secondary_stack_limit);
 }
 
-intptr_t switch_to_the_central_stack_for_js(Isolate* isolate,
-                                            uintptr_t* stack_limit_slot) {
-  // Set the suspender's {has_js_frames} field. The suspender contains JS
-  // frames iff it is currently on the central stack.
-  // The wasm-to-js wrapper checks this field when calling a suspending import
-  // and traps if the stack contains JS frames.
+intptr_t switch_to_the_central_stack_for_js(Isolate* isolate, Address fp) {
   auto active_suspender =
       Cast<WasmSuspenderObject>(isolate->root(RootIndex::kActiveSuspender));
-  active_suspender->set_has_js_frames(1);
   ThreadLocalTop* thread_local_top = isolate->thread_local_top();
   StackGuard* stack_guard = isolate->stack_guard();
-  *stack_limit_slot = stack_guard->real_jslimit();
+  auto* stack = reinterpret_cast<StackMemory*>(
+      Cast<WasmContinuationObject>(active_suspender->continuation())->stack());
+  stack->set_stack_switch_info(fp, thread_local_top->central_stack_sp_);
   stack_guard->SetStackLimitForStackSwitching(
       thread_local_top->central_stack_limit_);
   thread_local_top->is_on_central_stack_flag_ = true;
   return thread_local_top->central_stack_sp_;
 }
 
-void switch_from_the_central_stack_for_js(Isolate* isolate,
-                                          uintptr_t stack_limit) {
+void switch_from_the_central_stack_for_js(Isolate* isolate) {
   // The stack only contains wasm frames after this JS call.
   auto active_suspender =
       Cast<WasmSuspenderObject>(isolate->root(RootIndex::kActiveSuspender));
-  active_suspender->set_has_js_frames(0);
+  auto* stack = reinterpret_cast<StackMemory*>(
+      Cast<WasmContinuationObject>(active_suspender->continuation())->stack());
+  stack->clear_stack_switch_info();
   ThreadLocalTop* thread_local_top = isolate->thread_local_top();
   thread_local_top->is_on_central_stack_flag_ = false;
   StackGuard* stack_guard = isolate->stack_guard();
-  stack_guard->SetStackLimitForStackSwitching(stack_limit);
+  stack_guard->SetStackLimitForStackSwitching(
+      reinterpret_cast<uintptr_t>(stack->jslimit()));
+}
+
+// frame_size includes param slots area and extra frame slots above FP.
+Address grow_stack(Isolate* isolate, void* current_sp, size_t frame_size,
+                   size_t gap, Address current_fp) {
+  // Check if this is a real stack overflow.
+  StackLimitCheck check(isolate);
+  if (check.WasmHasOverflowed(gap)) {
+    Tagged<WasmContinuationObject> current_continuation =
+        Cast<WasmContinuationObject>(
+            isolate->root(RootIndex::kActiveContinuation));
+    // If there is no parent, then the current stack is the main isolate stack.
+    if (IsUndefined(current_continuation->parent())) {
+      return 0;
+    }
+    auto stack =
+        reinterpret_cast<wasm::StackMemory*>(current_continuation->stack());
+    DCHECK(stack->IsActive());
+    if (!stack->Grow(current_fp)) {
+      return 0;
+    }
+
+    Address new_sp = stack->base() - frame_size;
+    // Here we assume stack values don't refer other moved stack slots.
+    // A stack grow event happens right in the beginning of the function
+    // call so moved slots contain only incoming params and frame header.
+    // So, it is reasonable to assume no self references.
+    std::memcpy(reinterpret_cast<void*>(new_sp), current_sp, frame_size);
+
+#if V8_TARGET_ARCH_ARM64
+    Address new_fp =
+        new_sp + (current_fp - reinterpret_cast<Address>(current_sp));
+    Address old_pc_address = current_fp + CommonFrameConstants::kCallerPCOffset;
+    Address new_pc_address = new_fp + CommonFrameConstants::kCallerPCOffset;
+    Address old_signed_pc = base::Memory<Address>(old_pc_address);
+    Address new_signed_pc = PointerAuthentication::MoveSignedPC(
+        isolate, old_signed_pc, new_pc_address + kSystemPointerSize,
+        old_pc_address + kSystemPointerSize);
+    WriteUnalignedValue<Address>(new_pc_address, new_signed_pc);
+#endif
+
+    isolate->stack_guard()->SetStackLimitForStackSwitching(
+        reinterpret_cast<uintptr_t>(stack->jslimit()));
+    return new_sp;
+  }
+
+  return 0;
+}
+
+Address shrink_stack(Isolate* isolate) {
+  Tagged<WasmContinuationObject> current_continuation =
+      Cast<WasmContinuationObject>(
+          isolate->root(RootIndex::kActiveContinuation));
+  // If there is no parent, then the current stack is the main isolate stack.
+  if (IsUndefined(current_continuation->parent())) {
+    return 0;
+  }
+  auto stack =
+      reinterpret_cast<wasm::StackMemory*>(current_continuation->stack());
+  DCHECK(stack->IsActive());
+  Address old_fp = stack->Shrink();
+
+  isolate->stack_guard()->SetStackLimitForStackSwitching(
+      reinterpret_cast<uintptr_t>(stack->jslimit()));
+  return old_fp;
+}
+
+Address load_old_fp(Isolate* isolate) {
+  Tagged<WasmContinuationObject> current_continuation =
+      Cast<WasmContinuationObject>(
+          isolate->root(RootIndex::kActiveContinuation));
+  // If there is no parent, then the current stack is the main isolate stack.
+  if (IsUndefined(current_continuation->parent())) {
+    return 0;
+  }
+  auto stack =
+      reinterpret_cast<wasm::StackMemory*>(current_continuation->stack());
+  DCHECK_EQ(stack->jmpbuf()->state, wasm::JumpBuffer::Active);
+  return stack->old_fp();
 }
 
 }  // namespace v8::internal::wasm

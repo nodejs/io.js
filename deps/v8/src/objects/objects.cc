@@ -1895,10 +1895,6 @@ int HeapObject::SizeFromMap(Tagged<Map> map) const {
     return BytecodeArray::SizeFor(
         UncheckedCast<BytecodeArray>(*this)->length(kAcquireLoad));
   }
-  if (instance_type == EXTERNAL_POINTER_ARRAY_TYPE) {
-    return ExternalPointerArray::SizeFor(
-        UncheckedCast<ExternalPointerArray>(*this)->length(kAcquireLoad));
-  }
   if (instance_type == FREE_SPACE_TYPE) {
     return UncheckedCast<FreeSpace>(*this)->size(kRelaxedLoad);
   }
@@ -2016,7 +2012,7 @@ bool HeapObject::NeedsRehashing(PtrComprCageBase cage_base) const {
 
 bool HeapObject::NeedsRehashing(InstanceType instance_type) const {
   if (V8_EXTERNAL_CODE_SPACE_BOOL) {
-    // Use map() only when it's guaranteed that it's not a InstructionStream
+    // Use map() only when it's guaranteed that it's not an InstructionStream
     // object.
     DCHECK_IMPLIES(instance_type != INSTRUCTION_STREAM_TYPE,
                    instance_type == map()->instance_type());
@@ -4843,14 +4839,6 @@ const char* JSPromise::Status(v8::Promise::PromiseState status) {
   UNREACHABLE();
 }
 
-int JSPromise::async_task_id() const {
-  return AsyncTaskIdBits::decode(flags());
-}
-
-void JSPromise::set_async_task_id(int id) {
-  set_flags(AsyncTaskIdBits::update(flags(), id));
-}
-
 // static
 Handle<Object> JSPromise::Fulfill(DirectHandle<JSPromise> promise,
                                   DirectHandle<Object> value) {
@@ -6183,8 +6171,11 @@ void JSDisposableStackBase::InitializeJSDisposableStackBase(
     Isolate* isolate, DirectHandle<JSDisposableStackBase> disposable_stack) {
   DirectHandle<FixedArray> array = isolate->factory()->NewFixedArray(0);
   disposable_stack->set_stack(*array);
+  disposable_stack->set_needsAwait(false);
+  disposable_stack->set_hasAwaited(false);
   disposable_stack->set_length(0);
   disposable_stack->set_state(DisposableStackState::kPending);
+  disposable_stack->set_error(*(isolate->factory()->uninitialized_value()));
 }
 
 void PropertyCell::ClearAndInvalidate(ReadOnlyRoots roots) {

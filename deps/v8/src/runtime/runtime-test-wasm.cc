@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <cinttypes>
+#include <type_traits>
 
 #include "include/v8-wasm.h"
 #include "src/base/memory.h"
@@ -434,7 +435,7 @@ RUNTIME_FUNCTION(Runtime_GetWasmExceptionTagId) {
   for (int index = 0; index < tags_table->length(); ++index) {
     if (tags_table->get(index) == *tag) return Smi::FromInt(index);
   }
-  UNREACHABLE();
+  return CrashUnlessFuzzing(isolate);
 }
 
 RUNTIME_FUNCTION(Runtime_GetWasmExceptionValues) {
@@ -493,15 +494,15 @@ RUNTIME_FUNCTION(Runtime_SerializeWasmModule) {
 // Return undefined if unsuccessful.
 RUNTIME_FUNCTION(Runtime_DeserializeWasmModule) {
   HandleScope scope(isolate);
-  if (args.length() != 2 || !IsJSArrayBuffer(args[0]) ||
-      !IsJSTypedArray(args[1])) {
-    return CrashUnlessFuzzing(isolate);
-  }
+  // This isn't exposed to fuzzers so doesn't need to handle invalid arguments.
+  CHECK_EQ(2, args.length());
+  CHECK(IsJSArrayBuffer(args[0]));
+  CHECK(IsJSTypedArray(args[1]));
+
   DirectHandle<JSArrayBuffer> buffer = args.at<JSArrayBuffer>(0);
   DirectHandle<JSTypedArray> wire_bytes = args.at<JSTypedArray>(1);
-  if (buffer->was_detached() || wire_bytes->WasDetached()) {
-    return CrashUnlessFuzzing(isolate);
-  }
+  CHECK(!buffer->was_detached());
+  CHECK(!wire_bytes->WasDetached());
 
   DirectHandle<JSArrayBuffer> wire_bytes_buffer = wire_bytes->GetBuffer();
   base::Vector<const uint8_t> wire_bytes_vec{
@@ -560,6 +561,29 @@ RUNTIME_FUNCTION(Runtime_WasmNumCodeSpaces) {
   return *isolate->factory()->NewNumberFromSize(num_spaces);
 }
 
+namespace {
+
+template <typename T1, typename T2 = T1>
+void PrintRep(Address address, const char* str) {
+  PrintF("%4s:", str);
+  const auto t1 = base::ReadLittleEndianValue<T1>(address);
+  if constexpr (std::is_floating_point_v<T1>) {
+    PrintF("%f", t1);
+  } else if constexpr (sizeof(T1) > sizeof(uint32_t)) {
+    PrintF("%" PRIu64, t1);
+  } else {
+    PrintF("%u", t1);
+  }
+  const auto t2 = base::ReadLittleEndianValue<T2>(address);
+  if constexpr (sizeof(T1) > sizeof(uint32_t)) {
+    PrintF(" / %016" PRIx64 "\n", t2);
+  } else {
+    PrintF(" / %0*x\n", static_cast<int>(2 * sizeof(T2)), t2);
+  }
+}
+
+}  // namespace
+
 RUNTIME_FUNCTION(Runtime_WasmTraceMemory) {
   SealHandleScope scope(isolate);
   if (args.length() != 1 || !IsSmi(args[0])) {
@@ -581,16 +605,54 @@ RUNTIME_FUNCTION(Runtime_WasmTraceMemory) {
 #endif  // V8_ENABLE_DRUMBRAKE
   WasmFrame* frame = WasmFrame::cast(it.frame());
 
+  PrintF("%-11s func:%6d:0x%-4x %s %016" PRIuPTR " val: ",
+         ExecutionTierToString(frame->wasm_code()->is_liftoff()
+                                   ? wasm::ExecutionTier::kLiftoff
+                                   : wasm::ExecutionTier::kTurbofan),
+         frame->function_index(), frame->position(),
+         // Note: The extra leading space makes " store to" the same width as
+         // "load from".
+         info->is_store ? " store to" : "load from", info->offset);
   // TODO(14259): Fix for multi-memory.
-  auto memory_object = frame->trusted_instance_data()->memory_object(0);
-  uint8_t* mem_start = reinterpret_cast<uint8_t*>(
-      memory_object->array_buffer()->backing_store());
-  int func_index = frame->function_index();
-  int pos = frame->position();
-  wasm::ExecutionTier tier = frame->wasm_code()->is_liftoff()
-                                 ? wasm::ExecutionTier::kLiftoff
-                                 : wasm::ExecutionTier::kTurbofan;
-  wasm::TraceMemoryOperation(tier, info, func_index, pos, mem_start);
+  const Address address =
+      reinterpret_cast<Address>(frame->trusted_instance_data()
+                                    ->memory_object(0)
+                                    ->array_buffer()
+                                    ->backing_store()) +
+      info->offset;
+  switch (static_cast<MachineRepresentation>(info->mem_rep)) {
+    case MachineRepresentation::kWord8:
+      PrintRep<uint8_t>(address, "i8");
+      break;
+    case MachineRepresentation::kWord16:
+      PrintRep<uint16_t>(address, "i16");
+      break;
+    case MachineRepresentation::kWord32:
+      PrintRep<uint32_t>(address, "i32");
+      break;
+    case MachineRepresentation::kWord64:
+      PrintRep<uint64_t>(address, "i64");
+      break;
+    case MachineRepresentation::kFloat32:
+      PrintRep<float, uint32_t>(address, "f32");
+      break;
+    case MachineRepresentation::kFloat64:
+      PrintRep<double, uint64_t>(address, "f64");
+      break;
+    case MachineRepresentation::kSimd128: {
+      const auto a = base::ReadLittleEndianValue<uint32_t>(address);
+      const auto b = base::ReadLittleEndianValue<uint32_t>(address + 4);
+      const auto c = base::ReadLittleEndianValue<uint32_t>(address + 8);
+      const auto d = base::ReadLittleEndianValue<uint32_t>(address + 12);
+      PrintF("s128:%u %u %u %u / %08x %08x %08x %08x\n", a, b, c, d, a, b, c,
+             d);
+      break;
+    }
+    default:
+      PrintF("unknown\n");
+      break;
+  }
+
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
@@ -609,6 +671,10 @@ RUNTIME_FUNCTION(Runtime_WasmTierUpFunction) {
   auto func_data = exp_fun->shared()->wasm_exported_function_data();
   Tagged<WasmTrustedInstanceData> trusted_data = func_data->instance_data();
   int func_index = func_data->function_index();
+  if (static_cast<uint32_t>(func_index) <
+      trusted_data->module()->num_imported_functions) {
+    return CrashUnlessFuzzing(isolate);
+  }
   wasm::TierUpNowForTesting(isolate, trusted_data, func_index);
   return ReadOnlyRoots(isolate).undefined_value();
 }
@@ -793,6 +859,10 @@ RUNTIME_FUNCTION(Runtime_IsWasmDebugFunction) {
   auto data = exp_fun->shared()->wasm_exported_function_data();
   wasm::NativeModule* native_module = data->instance_data()->native_module();
   uint32_t func_index = data->function_index();
+  if (static_cast<uint32_t>(func_index) <
+      data->instance_data()->module()->num_imported_functions) {
+    return CrashUnlessFuzzing(isolate);
+  }
   wasm::WasmCodeRefScope code_ref_scope;
   wasm::WasmCode* code = native_module->GetCode(func_index);
   return isolate->heap()->ToBoolean(code && code->is_liftoff() &&
@@ -812,6 +882,10 @@ RUNTIME_FUNCTION(Runtime_IsLiftoffFunction) {
   auto data = exp_fun->shared()->wasm_exported_function_data();
   wasm::NativeModule* native_module = data->instance_data()->native_module();
   uint32_t func_index = data->function_index();
+  if (static_cast<uint32_t>(func_index) <
+      data->instance_data()->module()->num_imported_functions) {
+    return CrashUnlessFuzzing(isolate);
+  }
   wasm::WasmCodeRefScope code_ref_scope;
   wasm::WasmCode* code = native_module->GetCode(func_index);
   return isolate->heap()->ToBoolean(code && code->is_liftoff());
@@ -830,6 +904,10 @@ RUNTIME_FUNCTION(Runtime_IsTurboFanFunction) {
   auto data = exp_fun->shared()->wasm_exported_function_data();
   wasm::NativeModule* native_module = data->instance_data()->native_module();
   uint32_t func_index = data->function_index();
+  if (static_cast<uint32_t>(func_index) <
+      data->instance_data()->module()->num_imported_functions) {
+    return CrashUnlessFuzzing(isolate);
+  }
   wasm::WasmCodeRefScope code_ref_scope;
   wasm::WasmCode* code = native_module->GetCode(func_index);
   return isolate->heap()->ToBoolean(code && code->is_turbofan());
@@ -848,6 +926,10 @@ RUNTIME_FUNCTION(Runtime_IsUncompiledWasmFunction) {
   auto data = exp_fun->shared()->wasm_exported_function_data();
   wasm::NativeModule* native_module = data->instance_data()->native_module();
   uint32_t func_index = data->function_index();
+  if (static_cast<uint32_t>(func_index) <
+      data->instance_data()->module()->num_imported_functions) {
+    return CrashUnlessFuzzing(isolate);
+  }
   return isolate->heap()->ToBoolean(!native_module->HasCode(func_index));
 }
 
@@ -911,13 +993,17 @@ RUNTIME_FUNCTION(Runtime_WasmDeoptsExecutedForFunction) {
   }
   Handle<Object> arg = args.at(0);
   if (!WasmExportedFunction::IsWasmExportedFunction(*arg)) {
-    return Smi::FromInt(-1);
+    return CrashUnlessFuzzing(isolate);
   }
   auto wasm_func = Cast<WasmExportedFunction>(arg);
   auto func_data = wasm_func->shared()->wasm_exported_function_data();
   const wasm::WasmModule* module =
       func_data->instance_data()->native_module()->module();
   uint32_t func_index = func_data->function_index();
+  if (static_cast<uint32_t>(func_index) <
+      func_data->instance_data()->module()->num_imported_functions) {
+    return CrashUnlessFuzzing(isolate);
+  }
   const wasm::TypeFeedbackStorage& feedback = module->type_feedback;
   base::SharedMutexGuard<base::kExclusive> mutex_guard(&feedback.mutex);
   auto entry = feedback.deopt_count_for_function.find(func_index);

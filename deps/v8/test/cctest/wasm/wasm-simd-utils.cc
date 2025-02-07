@@ -960,7 +960,7 @@ void RunI16x16UnOpRevecTest(WasmOpcode opcode, Int16UnOp expected_op,
   if (!CpuFeatures::IsSupported(AVX2)) return;
   WasmRunner<int32_t, int32_t, int32_t> r(TestExecutionTier::kTurbofan);
   int16_t* memory = r.builder().AddMemoryElems<int16_t>(32);
-  // Build fn to load a I16x16 vector with test value, perform unop, and write
+  // Build fn to load an I16x16 vector with test value, perform unop, and write
   // the result to another array.
   uint8_t param1 = 0;
   uint8_t param2 = 1;
@@ -1123,7 +1123,7 @@ void RunI32x8UnOpRevecTest(WasmOpcode opcode, Int32UnOp expected_op,
   if (!CpuFeatures::IsSupported(AVX2)) return;
   WasmRunner<int32_t, int32_t, int32_t> r(TestExecutionTier::kTurbofan);
   int32_t* memory = r.builder().AddMemoryElems<int32_t>(16);
-  // Build fn to load a I32x8 vector with test value, perform unop, and write
+  // Build fn to load an I32x8 vector with test value, perform unop, and write
   // the result to another array.
   uint8_t param1 = 0;
   uint8_t param2 = 1;
@@ -1686,7 +1686,7 @@ void RunI8x32UnOpRevecTest(WasmOpcode opcode, Int8UnOp expected_op,
   if (!CpuFeatures::IsSupported(AVX2)) return;
   WasmRunner<int32_t, int32_t, int32_t> r(TestExecutionTier::kTurbofan);
   int8_t* memory = r.builder().AddMemoryElems<int8_t>(64);
-  // Build fn to load a I8x32 vector with test value, perform unop, and write
+  // Build fn to load an I8x32 vector with test value, perform unop, and write
   // the result to another array.
   uint8_t param1 = 0;
   uint8_t param2 = 1;

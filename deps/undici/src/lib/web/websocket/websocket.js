@@ -10,12 +10,11 @@ const {
   isClosing,
   isValidSubprotocol,
   fireEvent,
-  failWebsocketConnection,
   utf8Decode,
   toArrayBuffer,
   getURLRecord
 } = require('./util')
-const { establishWebSocketConnection, closeWebSocketConnection } = require('./connection')
+const { establishWebSocketConnection, closeWebSocketConnection, failWebsocketConnection } = require('./connection')
 const { ByteParser } = require('./receiver')
 const { kEnumerableProperty } = require('../../core/util')
 const { getGlobalDispatcher } = require('../../global')

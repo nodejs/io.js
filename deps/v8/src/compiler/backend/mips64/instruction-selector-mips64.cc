@@ -17,10 +17,7 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-#define TRACE_UNIMPL() \
-  PrintF("UNIMPLEMENTED instr_sel: %s at line %d\n", __FUNCTION__, __LINE__)
-
-#define TRACE() PrintF("instr_sel: %s at line %d\n", __FUNCTION__, __LINE__)
+#define TRACE(...) PrintF(__VA_ARGS__)
 
 // Adds Mips-specific methods for generating InstructionOperands.
 template <typename Adapter>
@@ -140,7 +137,7 @@ class Mips64OperandGeneratorT final : public OperandGeneratorT<Adapter> {
 
  private:
   bool ImmediateFitsAddrMode1Instruction(int32_t imm) const {
-    TRACE_UNIMPL();
+    TRACE("UNIMPLEMENTED instr_sel: %s at line %d\n", __FUNCTION__, __LINE__);
     return false;
   }
 };
@@ -515,12 +512,9 @@ void InstructionSelectorT<Adapter>::VisitStackSlot(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitAbortCSADcheck(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
-    Mips64OperandGeneratorT<Adapter> g(this);
-    Emit(kArchAbortCSADcheck, g.NoOutput(), g.UseFixed(node->InputAt(0), a0));
-  }
+  Mips64OperandGeneratorT<Adapter> g(this);
+  Emit(kArchAbortCSADcheck, g.NoOutput(),
+       g.UseFixed(this->input_at(node, 0), a0));
 }
 
 template <typename Adapter>
@@ -2256,12 +2250,11 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitTruncateInt64ToInt32(
   auto value = input_at(node, 0);
   if (CanCover(node, value)) {
     if (Get(value).Is<Opmask::kWord64ShiftRightArithmetic>()) {
+      auto shift_value = input_at(value, 1);
       if (CanCover(value, input_at(value, 0)) &&
           TryEmitExtendingLoad(this, value, node)) {
         return;
-      } else {
-        auto shift_value = input_at(value, 1);
-        DCHECK(g.IsIntegerConstant(shift_value));
+      } else if (g.IsIntegerConstant(shift_value)) {
         auto constant = g.GetIntegerConstantValue(constant_view(shift_value));
 
         if (constant >= 32 && constant <= 63) {
@@ -2274,7 +2267,7 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitTruncateInt64ToInt32(
       }
     }
   }
-  Emit(kMips64Shl, g.DefineAsRegister(node), g.UseRegister(input_at(node, 0)),
+  Emit(kMips64Shl, g.DefineAsRegister(node), g.UseRegister(value),
        g.TempImmediate(0));
 }
 
@@ -2957,10 +2950,10 @@ void VisitWord32Compare(InstructionSelectorT<Adapter>* selector,
     // in those cases. Unfortunately, the solution is not complete because
     // it might skip cases where Word32 full compare is needed, so
     // basically it is a hack.
-    // When call to a host function in simulator, if the function return a
-    // int32 value, the simulator do not sign-extended to int64 because in
-    // simulator we do not know the function whether return a int32 or int64.
-    // so we need do a full word32 compare in this case.
+    // When calling a host function in the simulator, if the function returns an
+    // int32 value, the simulator does not sign-extend it to int64 because in
+    // the simulator we do not know whether the function returns an int32 or
+    // an int64. So we need to do a full word32 compare in this case.
 #ifndef USE_SIMULATOR
     if (IsNodeUnsigned(node->InputAt(0)) != IsNodeUnsigned(node->InputAt(1))) {
 #else
@@ -3842,12 +3835,8 @@ void InstructionSelectorT<Adapter>::VisitFloat64InsertHighWord32(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitMemoryBarrier(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
-    Mips64OperandGeneratorT<Adapter> g(this);
-    Emit(kMips64Sync, g.NoOutput());
-  }
+  Mips64OperandGeneratorT<Adapter> g(this);
+  Emit(kMips64Sync, g.NoOutput());
 }
 
 template <typename Adapter>
@@ -4806,7 +4795,6 @@ template class EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
 #undef SIMD_RELAXED_OP_LIST
 #undef SIMD_UNOP_LIST
 #undef SIMD_TYPE_LIST
-#undef TRACE_UNIMPL
 #undef TRACE
 
 }  // namespace compiler

@@ -10,7 +10,6 @@
 #define V8_WASM_MEMORY_TRACING_H_
 
 #include <cstdint>
-#include <optional>
 
 #include "src/codegen/machine-type.h"
 #include "src/wasm/wasm-tier.h"
@@ -32,13 +31,6 @@ struct MemoryTracingInfo {
         is_store(is_store),
         mem_rep(static_cast<uint8_t>(rep)) {}
 };
-
-// Callback for tracing a memory operation for debugging.
-// Triggered by --wasm-trace-memory.
-V8_EXPORT_PRIVATE void TraceMemoryOperation(std::optional<ExecutionTier>,
-                                            const MemoryTracingInfo* info,
-                                            int func_index, int position,
-                                            uint8_t* mem_start);
 
 }  // namespace v8::internal::wasm
 

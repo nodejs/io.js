@@ -40,4 +40,4 @@ jobs:
           name: docs
           path: out/doc
       - name: Test
-        run: NODE=$(command -v node) make test-doc-ci TEST_CI_ARGS="-p actions --node-args='--test-reporter=./test/common/test-error-reporter.js' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
+        run: NODE=$(command -v node) make test-doc-ci TEST_CI_ARGS="-p actions --measure-flakiness 9"

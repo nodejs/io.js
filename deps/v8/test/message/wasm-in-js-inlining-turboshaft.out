@@ -1,0 +1,329 @@
+
+Test: empty
+Considering wasm function [{NUMBER}] empty of module {ADDRESS} for inlining
+- inlining
+
+Test: nop
+Considering wasm function [{NUMBER}] nop of module {ADDRESS} for inlining
+- inlining
+
+Test: i32Const
+Considering wasm function [{NUMBER}] i32Const of module {ADDRESS} for inlining
+- inlining
+
+Test: f32Const
+Considering wasm function [{NUMBER}] f32Const of module {ADDRESS} for inlining
+- inlining
+
+Test: f64Const
+Considering wasm function [{NUMBER}] f64Const of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Eqz
+Considering wasm function [{NUMBER}] I32Eqz of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Abs
+Considering wasm function [{NUMBER}] F32Abs of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Neg
+Considering wasm function [{NUMBER}] F32Neg of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Sqrt
+Considering wasm function [{NUMBER}] F32Sqrt of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Abs
+Considering wasm function [{NUMBER}] F64Abs of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Neg
+Considering wasm function [{NUMBER}] F64Neg of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Sqrt
+Considering wasm function [{NUMBER}] F64Sqrt of module {ADDRESS} for inlining
+- inlining
+
+Test: F64SConvertI32
+Considering wasm function [{NUMBER}] F64SConvertI32 of module {ADDRESS} for inlining
+- inlining
+
+Test: F64UConvertI32
+Considering wasm function [{NUMBER}] F64UConvertI32 of module {ADDRESS} for inlining
+- inlining
+
+Test: F32SConvertI32
+Considering wasm function [{NUMBER}] F32SConvertI32 of module {ADDRESS} for inlining
+- inlining
+
+Test: F32UConvertI32
+Considering wasm function [{NUMBER}] F32UConvertI32 of module {ADDRESS} for inlining
+- inlining
+
+Test: F32ConvertF64
+Considering wasm function [{NUMBER}] F32ConvertF64 of module {ADDRESS} for inlining
+- inlining
+
+Test: F64ConvertF32
+Considering wasm function [{NUMBER}] F64ConvertF32 of module {ADDRESS} for inlining
+- inlining
+
+Test: F32ReinterpretI32
+Considering wasm function [{NUMBER}] F32ReinterpretI32 of module {ADDRESS} for inlining
+- inlining
+
+Test: I32ReinterpretF32
+Considering wasm function [{NUMBER}] I32ReinterpretF32 of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Clz
+Considering wasm function [{NUMBER}] I32Clz of module {ADDRESS} for inlining
+- inlining
+
+Test: I32SExtendI8
+Considering wasm function [{NUMBER}] I32SExtendI8 of module {ADDRESS} for inlining
+- inlining
+
+Test: I32SExtendI16
+Considering wasm function [{NUMBER}] I32SExtendI16 of module {ADDRESS} for inlining
+- inlining
+
+Test: RefIsNull
+Considering wasm function [{NUMBER}] RefIsNull of module {ADDRESS} for inlining
+- inlining
+
+Test: anyConvertExternConvertAny
+Considering wasm function [{NUMBER}] anyConvertExternConvertAny of module {ADDRESS} for inlining
+- not inlining: unsupported operation: any.convert_extern
+
+Test: I32Add
+Considering wasm function [{NUMBER}] I32Add of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Sub
+Considering wasm function [{NUMBER}] I32Sub of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Mul
+Considering wasm function [{NUMBER}] I32Mul of module {ADDRESS} for inlining
+- inlining
+
+Test: I32And
+Considering wasm function [{NUMBER}] I32And of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Ior
+Considering wasm function [{NUMBER}] I32Ior of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Xor
+Considering wasm function [{NUMBER}] I32Xor of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Shl
+Considering wasm function [{NUMBER}] I32Shl of module {ADDRESS} for inlining
+- inlining
+
+Test: I32ShrS
+Considering wasm function [{NUMBER}] I32ShrS of module {ADDRESS} for inlining
+- inlining
+
+Test: I32ShrU
+Considering wasm function [{NUMBER}] I32ShrU of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Ror
+Considering wasm function [{NUMBER}] I32Ror of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Rol
+Considering wasm function [{NUMBER}] I32Rol of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Eq
+Considering wasm function [{NUMBER}] I32Eq of module {ADDRESS} for inlining
+- inlining
+
+Test: I32Ne
+Considering wasm function [{NUMBER}] I32Ne of module {ADDRESS} for inlining
+- inlining
+
+Test: I32LtS
+Considering wasm function [{NUMBER}] I32LtS of module {ADDRESS} for inlining
+- inlining
+
+Test: I32LeS
+Considering wasm function [{NUMBER}] I32LeS of module {ADDRESS} for inlining
+- inlining
+
+Test: I32LtU
+Considering wasm function [{NUMBER}] I32LtU of module {ADDRESS} for inlining
+- inlining
+
+Test: I32LeU
+Considering wasm function [{NUMBER}] I32LeU of module {ADDRESS} for inlining
+- inlining
+
+Test: I32GtS
+Considering wasm function [{NUMBER}] I32GtS of module {ADDRESS} for inlining
+- inlining
+
+Test: I32GeS
+Considering wasm function [{NUMBER}] I32GeS of module {ADDRESS} for inlining
+- inlining
+
+Test: I32GtU
+Considering wasm function [{NUMBER}] I32GtU of module {ADDRESS} for inlining
+- inlining
+
+Test: I32GeU
+Considering wasm function [{NUMBER}] I32GeU of module {ADDRESS} for inlining
+- inlining
+
+Test: F32CopySign
+Considering wasm function [{NUMBER}] F32CopySign of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Add
+Considering wasm function [{NUMBER}] F32Add of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Sub
+Considering wasm function [{NUMBER}] F32Sub of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Mul
+Considering wasm function [{NUMBER}] F32Mul of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Div
+Considering wasm function [{NUMBER}] F32Div of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Eq
+Considering wasm function [{NUMBER}] F32Eq of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Ne
+Considering wasm function [{NUMBER}] F32Ne of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Lt
+Considering wasm function [{NUMBER}] F32Lt of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Le
+Considering wasm function [{NUMBER}] F32Le of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Gt
+Considering wasm function [{NUMBER}] F32Gt of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Ge
+Considering wasm function [{NUMBER}] F32Ge of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Min
+Considering wasm function [{NUMBER}] F32Min of module {ADDRESS} for inlining
+- inlining
+
+Test: F32Max
+Considering wasm function [{NUMBER}] F32Max of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Add
+Considering wasm function [{NUMBER}] F64Add of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Sub
+Considering wasm function [{NUMBER}] F64Sub of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Mul
+Considering wasm function [{NUMBER}] F64Mul of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Div
+Considering wasm function [{NUMBER}] F64Div of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Eq
+Considering wasm function [{NUMBER}] F64Eq of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Ne
+Considering wasm function [{NUMBER}] F64Ne of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Lt
+Considering wasm function [{NUMBER}] F64Lt of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Le
+Considering wasm function [{NUMBER}] F64Le of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Gt
+Considering wasm function [{NUMBER}] F64Gt of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Ge
+Considering wasm function [{NUMBER}] F64Ge of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Min
+Considering wasm function [{NUMBER}] F64Min of module {ADDRESS} for inlining
+- inlining
+
+Test: F64Max
+Considering wasm function [{NUMBER}] F64Max of module {ADDRESS} for inlining
+- inlining
+
+Test: RefEq
+Considering wasm function [{NUMBER}] RefEq of module {ADDRESS} for inlining
+- inlining
+
+Test: passthroughI32
+Considering wasm function [{NUMBER}] passthroughI32 of module {ADDRESS} for inlining
+- inlining
+
+Test: localTee
+Considering wasm function [{NUMBER}] localTee of module {ADDRESS} for inlining
+- inlining
+
+Test: localSwap
+Considering wasm function [{NUMBER}] localSwap of module {ADDRESS} for inlining
+- inlining
+
+Test: globalSetGet
+Considering wasm function [{NUMBER}] globalSetGet of module {ADDRESS} for inlining
+- inlining
+
+Test: createArray
+Considering wasm function [{NUMBER}] createArray of module {ADDRESS} for inlining
+- not inlining: unsupported operation: array.new_default
+
+Test: arrayLen
+Considering wasm function [{NUMBER}] arrayLen of module {ADDRESS} for inlining
+- not inlining: unsupported operation: any.convert_extern
+
+Test: i64Add
+Considering wasm function [{NUMBER}] i64Add of module {ADDRESS} for inlining
+- not inlining: unsupported operation: i64.extend_i32_s
+
+Test: multiValue
+Cannot consider {ADDRESS} {{ADDRESS} <FeedbackCell[many closures]>} for inlining (no feedback vector)
+
+Test: brNoInline
+Considering wasm function [{NUMBER}] brNoInline of module {ADDRESS} for inlining
+- not inlining: unsupported operation: br
+
+Test: trapNoInline
+Cannot consider {ADDRESS} {{ADDRESS} <FeedbackCell[many closures]>} for inlining (no feedback vector)
+Inlinee contains {NUMBER} calls without local exception handler; linking to surrounding exception handler.
+Considering wasm function [{NUMBER}] trapNoInline of module {ADDRESS} for inlining
+- not inlining: unsupported operation: unreachable

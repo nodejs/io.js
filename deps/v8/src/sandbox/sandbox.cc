@@ -266,7 +266,7 @@ void Sandbox::FinishInitialization() {
   // to cause a fault on any accidental access.
   // Further, this also prevents the accidental construction of invalid
   // SandboxedPointers: if an ArrayBuffer is placed right at the end of the
-  // sandbox, a ArrayBufferView could be constructed with byteLength=0 and
+  // sandbox, an ArrayBufferView could be constructed with byteLength=0 and
   // offset=buffer.byteLength, which would lead to a pointer that points just
   // outside of the sandbox.
   size_t allocation_granularity = address_space_->allocation_granularity();

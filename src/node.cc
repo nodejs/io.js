@@ -1165,6 +1165,7 @@ InitializeOncePerProcessInternal(const std::vector<std::string>& args,
   }
 
   if (!(flags & ProcessInitializationFlags::kNoInitializeNodeV8Platform)) {
+    uv_thread_setname("MainThread");
     per_process::v8_platform.Initialize(
         static_cast<int>(per_process::cli_options->v8_thread_pool_size));
     result->platform_ = per_process::v8_platform.Platform();

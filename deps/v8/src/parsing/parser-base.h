@@ -5299,6 +5299,14 @@ void ParserBase<Impl>::ParseClassLiteralBody(ClassInfo& class_info,
       continue;
     }
 
+    if (property_kind == ClassLiteralProperty::Kind::AUTO_ACCESSOR) {
+      // Private auto-accessors are handled above with the other private
+      // properties.
+      DCHECK(!prop_info.is_private);
+      impl()->AddInstanceFieldOrStaticElement(property, &class_info,
+                                              prop_info.is_static);
+    }
+
     impl()->DeclarePublicClassMethod(name, property, is_constructor,
                                      &class_info);
     impl()->InferFunctionName();

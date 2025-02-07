@@ -7,13 +7,20 @@
 #include "memory_tracker-inl.h"
 #include "ncrypto.h"
 #include "node_errors.h"
+#ifndef OPENSSL_IS_BORINGSSL
 #include "openssl/bnerr.h"
+#endif
 #include "openssl/dh.h"
 #include "threadpoolwork-inl.h"
 #include "v8.h"
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::DataPointer;
+using ncrypto::DHPointer;
+using ncrypto::EVPKeyCtxPointer;
+using ncrypto::EVPKeyPointer;
 using v8::ArrayBuffer;
 using v8::ConstructorBehavior;
 using v8::Context;
@@ -47,14 +54,11 @@ void DiffieHellman::MemoryInfo(MemoryTracker* tracker) const {
 }
 
 namespace {
-MaybeLocal<Value> DataPointerToBuffer(Environment* env,
-                                      ncrypto::DataPointer&& data) {
+MaybeLocal<Value> DataPointerToBuffer(Environment* env, DataPointer&& data) {
   auto backing = ArrayBuffer::NewBackingStore(
       data.get(),
       data.size(),
-      [](void* data, size_t len, void* ptr) {
-        ncrypto::DataPointer free_ne(data, len);
-      },
+      [](void* data, size_t len, void* ptr) { DataPointer free_me(data, len); },
       nullptr);
   data.release();
 
@@ -86,11 +90,15 @@ void New(const FunctionCallbackInfo<Value>& args) {
   if (args[0]->IsInt32()) {
     int32_t bits = args[0].As<Int32>()->Value();
     if (bits < 2) {
+#ifndef OPENSSL_IS_BORINGSSL
 #if OPENSSL_VERSION_MAJOR >= 3
       ERR_put_error(ERR_LIB_DH, 0, DH_R_MODULUS_TOO_SMALL, __FILE__, __LINE__);
 #else
       ERR_put_error(ERR_LIB_BN, 0, BN_R_BITS_TOO_SMALL, __FILE__, __LINE__);
-#endif
+#endif  // OPENSSL_VERSION_MAJOR >= 3
+#else   // OPENSSL_IS_BORINGSSL
+      OPENSSL_PUT_ERROR(BN, BN_R_BITS_TOO_SMALL);
+#endif  // OPENSSL_IS_BORINGSSL
       return ThrowCryptoError(env, ERR_get_error(), "Invalid prime length");
     }
 
@@ -103,7 +111,11 @@ void New(const FunctionCallbackInfo<Value>& args) {
     }
     int32_t generator = args[1].As<Int32>()->Value();
     if (generator < 2) {
+#ifndef OPENSSL_IS_BORINGSSL
       ERR_put_error(ERR_LIB_DH, 0, DH_R_BAD_GENERATOR, __FILE__, __LINE__);
+#else
+      OPENSSL_PUT_ERROR(DH, DH_R_BAD_GENERATOR);
+#endif
       return ThrowCryptoError(env, ERR_get_error(), "Invalid generator");
     }
 
@@ -132,12 +144,20 @@ void New(const FunctionCallbackInfo<Value>& args) {
   if (args[1]->IsInt32()) {
     int32_t generator = args[1].As<Int32>()->Value();
     if (generator < 2) {
+#ifndef OPENSSL_IS_BORINGSSL
       ERR_put_error(ERR_LIB_DH, 0, DH_R_BAD_GENERATOR, __FILE__, __LINE__);
+#else
+      OPENSSL_PUT_ERROR(DH, DH_R_BAD_GENERATOR);
+#endif
       return ThrowCryptoError(env, ERR_get_error(), "Invalid generator");
     }
     bn_g = BignumPointer::New();
     if (!bn_g.setWord(generator)) {
+#ifndef OPENSSL_IS_BORINGSSL
       ERR_put_error(ERR_LIB_DH, 0, DH_R_BAD_GENERATOR, __FILE__, __LINE__);
+#else
+      OPENSSL_PUT_ERROR(DH, DH_R_BAD_GENERATOR);
+#endif
       return ThrowCryptoError(env, ERR_get_error(), "Invalid generator");
     }
   } else {
@@ -146,11 +166,19 @@ void New(const FunctionCallbackInfo<Value>& args) {
       return THROW_ERR_OUT_OF_RANGE(env, "generator is too big");
     bn_g = BignumPointer(reinterpret_cast<uint8_t*>(arg1.data()), arg1.size());
     if (!bn_g) {
+#ifndef OPENSSL_IS_BORINGSSL
       ERR_put_error(ERR_LIB_DH, 0, DH_R_BAD_GENERATOR, __FILE__, __LINE__);
+#else
+      OPENSSL_PUT_ERROR(DH, DH_R_BAD_GENERATOR);
+#endif
       return ThrowCryptoError(env, ERR_get_error(), "Invalid generator");
     }
     if (bn_g.getWord() < 2) {
+#ifndef OPENSSL_IS_BORINGSSL
       ERR_put_error(ERR_LIB_DH, 0, DH_R_BAD_GENERATOR, __FILE__, __LINE__);
+#else
+      OPENSSL_PUT_ERROR(DH, DH_R_BAD_GENERATOR);
+#endif
       return ThrowCryptoError(env, ERR_get_error(), "Invalid generator");
     }
   }
@@ -395,31 +423,28 @@ EVPKeyCtxPointer DhKeyGenTraits::Setup(DhKeyPairGenConfig* params) {
     auto dh = DHPointer::New(std::move(prime), std::move(bn_g));
     if (!dh) return {};
 
-    key_params = EVPKeyPointer::New();
-    CHECK(key_params);
-    CHECK_EQ(EVP_PKEY_assign_DH(key_params.get(), dh.release()), 1);
-  } else if (int* prime_size = std::get_if<int>(&params->params.prime)) {
-    EVPKeyCtxPointer param_ctx(EVP_PKEY_CTX_new_id(EVP_PKEY_DH, nullptr));
-    EVP_PKEY* raw_params = nullptr;
-    if (!param_ctx ||
-        EVP_PKEY_paramgen_init(param_ctx.get()) <= 0 ||
-        EVP_PKEY_CTX_set_dh_paramgen_prime_len(
-            param_ctx.get(),
-            *prime_size) <= 0 ||
-        EVP_PKEY_CTX_set_dh_paramgen_generator(
-            param_ctx.get(),
-            params->params.generator) <= 0 ||
-        EVP_PKEY_paramgen(param_ctx.get(), &raw_params) <= 0) {
+    key_params = EVPKeyPointer::NewDH(std::move(dh));
+  } else if (std::get_if<int>(&params->params.prime)) {
+    auto param_ctx = EVPKeyCtxPointer::NewFromID(EVP_PKEY_DH);
+#ifndef OPENSSL_IS_BORINGSSL
+    int* prime_size = std::get_if<int>(&params->params.prime);
+    if (!param_ctx.initForParamgen() ||
+        !param_ctx.setDhParameters(*prime_size, params->params.generator)) {
       return {};
     }
 
-    key_params = EVPKeyPointer(raw_params);
+    key_params = param_ctx.paramgen();
+#else
+    return {};
+#endif
   } else {
     UNREACHABLE();
   }
 
+  if (!key_params) return {};
+
   EVPKeyCtxPointer ctx = key_params.newCtx();
-  if (!ctx || EVP_PKEY_keygen_init(ctx.get()) <= 0) return {};
+  if (!ctx.initForKeygen()) return {};
 
   return ctx;
 }
@@ -530,11 +555,11 @@ bool DHBitsTraits::DeriveBits(
   return true;
 }
 
-Maybe<void> GetDhKeyDetail(Environment* env,
-                           const KeyObjectData& key,
-                           Local<Object> target) {
+bool GetDhKeyDetail(Environment* env,
+                    const KeyObjectData& key,
+                    Local<Object> target) {
   CHECK_EQ(key.GetAsymmetricKey().id(), EVP_PKEY_DH);
-  return JustVoid();
+  return true;
 }
 
 void DiffieHellman::Initialize(Environment* env, Local<Object> target) {

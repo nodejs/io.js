@@ -19,6 +19,7 @@ var pure_function = function(x) { return x * x; };
 var unpure_function = function(x) { array.push(x); };
 var stack = new DisposableStack();
 var regexp = /\d/g;
+var async_stack = new AsyncDisposableStack();
 
 function listener(event, exec_state, event_data, data) {
   if (event != Debug.DebugEvent.Break) return;
@@ -266,6 +267,10 @@ function listener(event, exec_state, event_data, data) {
     // Test DisposableStack functions.
     success({}, `new DisposableStack()`);
     success(false, `stack.disposed`);
+
+    // Test AsyncDisposableStack functions.
+    success({}, `new AsyncDisposableStack()`);
+    success(false, `async_stack.disposed`);
   } catch (e) {
     exception = e;
     print(e, e.stack);

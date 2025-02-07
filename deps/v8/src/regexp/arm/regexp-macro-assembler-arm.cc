@@ -530,6 +530,19 @@ void RegExpMacroAssemblerARM::CheckBitInTable(
   BranchOrBacktrack(ne, on_bit_set);
 }
 
+void RegExpMacroAssemblerARM::SkipUntilBitInTable(
+    int cp_offset, Handle<ByteArray> table, Handle<ByteArray> nibble_table,
+    int advance_by) {
+  // TODO(pthier): Optimize. Table can be loaded outside of the loop.
+  Label cont, again;
+  Bind(&again);
+  LoadCurrentCharacter(cp_offset, &cont, true);
+  CheckBitInTable(table, &cont);
+  AdvanceCurrentPosition(advance_by);
+  GoTo(&again);
+  Bind(&cont);
+}
+
 bool RegExpMacroAssemblerARM::CheckSpecialClassRanges(StandardCharacterSet type,
                                                       Label* on_no_match) {
   // Range checks (c in min..max) are generally implemented by an unsigned

@@ -36,9 +36,9 @@ process.stdout.write = process.stderr.write = common.mustNotCall();
 // Make sure that the "Console" function exists.
 assert.strictEqual(typeof Console, 'function');
 
-assert.strictEqual(requiredConsole, global.console);
+assert.strictEqual(requiredConsole, globalThis.console);
 // Make sure the custom instanceof of Console works
-assert.ok(global.console instanceof Console);
+assert.ok(globalThis.console instanceof Console);
 assert.ok(!({} instanceof Console));
 
 // Make sure that the Console constructor throws

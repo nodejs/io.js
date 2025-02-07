@@ -85,7 +85,7 @@ MaybeHandle<Object> DefineAccessorProperty(Isolate* isolate,
         isolate, getter,
         InstantiateFunction(isolate, Cast<FunctionTemplateInfo>(getter)));
     DirectHandle<Code> trampoline = BUILTIN_CODE(isolate, DebugBreakTrampoline);
-    Cast<JSFunction>(getter)->set_code(*trampoline);
+    Cast<JSFunction>(getter)->UpdateCode(*trampoline);
   }
   if (IsFunctionTemplateInfo(*setter) &&
       Cast<FunctionTemplateInfo>(*setter)->BreakAtEntry(isolate)) {
@@ -93,7 +93,7 @@ MaybeHandle<Object> DefineAccessorProperty(Isolate* isolate,
         isolate, setter,
         InstantiateFunction(isolate, Cast<FunctionTemplateInfo>(setter)));
     DirectHandle<Code> trampoline = BUILTIN_CODE(isolate, DebugBreakTrampoline);
-    Cast<JSFunction>(setter)->set_code(*trampoline);
+    Cast<JSFunction>(setter)->UpdateCode(*trampoline);
   }
   RETURN_ON_EXCEPTION(isolate, JSObject::DefineOwnAccessorIgnoreAttributes(
                                    object, name, getter, setter, attributes));

@@ -825,12 +825,9 @@ t.test('audit signatures', async t => {
       packuments: [{
         version: '1.0.0',
         dist: {
-          // eslint-disable-next-line max-len
           integrity: 'sha512-e+qfbn/zf1+rCza/BhIA//Awmf0v1pa5HQS8Xk8iXrn9bgytytVLqYD0P7NSqZ6IELTgq+tcDvLPkQjNHyWLNg==',
           tarball: 'https://registry.npmjs.org/sigstore/-/sigstore-1.0.0.tgz',
-          // eslint-disable-next-line max-len
           attestations: { url: 'https://registry.npmjs.org/-/npm/v1/attestations/sigstore@1.0.0', provenance: { predicateType: 'https://slsa.dev/provenance/v0.2' } },
-          // eslint-disable-next-line max-len
           signatures: [{ keyid: 'SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA', sig: 'MEQCIBlpcHT68iWOpx8pJr3WUzD1EqQ7tb0CmY36ebbceR6IAiAVGRaxrFoyh0/5B7H1o4VFhfsHw9F8G+AxOZQq87q+lg==' }],
         },
       }],
@@ -844,12 +841,9 @@ t.test('audit signatures', async t => {
       packuments: [{
         version: '1.0.0',
         dist: {
-          // eslint-disable-next-line max-len
           integrity: 'sha512-1dxsQwESDzACJjTdYHQ4wJ1f/of7jALWKfJEHSBWUQB/5UTJUx9SW6GHXp4mZ1KvdBRJCpGjssoPFGi4hvw8/A==',
           tarball: 'https://registry.npmjs.org/tuf-js/-/tuf-js-1.0.0.tgz',
-          // eslint-disable-next-line max-len
           attestations: { url: 'https://registry.npmjs.org/-/npm/v1/attestations/tuf-js@1.0.0', provenance: { predicateType: 'https://slsa.dev/provenance/v0.2' } },
-          // eslint-disable-next-line max-len
           signatures: [{ keyid: 'SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA', sig: 'MEYCIQDgGQeY2QLkLuoO9YxOqFZ+a6zYuaZpXhc77kUfdCUXDQIhAJp/vV+9Xg1bfM5YlTvKIH9agUEOu5T76+tQaHY2vZyO' }],
         },
       }],

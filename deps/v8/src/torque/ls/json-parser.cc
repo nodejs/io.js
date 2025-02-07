@@ -180,7 +180,7 @@ class JsonGrammar : public Grammar {
 
 JsonParserResult ParseJson(const std::string& input) {
   // Torque needs a CurrentSourceFile scope during parsing.
-  // As JSON lives in memory only, a unknown file scope is created.
+  // As JSON lives in memory only, an unknown file scope is created.
   SourceFileMap::Scope source_map_scope("");
   TorqueMessages::Scope messages_scope;
   CurrentSourceFile::Scope unkown_file(SourceFileMap::AddSource("<json>"));

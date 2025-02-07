@@ -2728,7 +2728,7 @@ void Session::EmitVersionNegotiation(const ngtcp2_pkt_hd& hd,
 
   LocalVector<Value> versions(env()->isolate(), nsv);
   for (size_t n = 0; n < nsv; n++) {
-    versions.push_back(Integer::NewFromUnsigned(env()->isolate(), sv[n]));
+    versions[n] = Integer::NewFromUnsigned(env()->isolate(), sv[n]);
   }
 
   // supported are the versions we acutually support expressed as a range.

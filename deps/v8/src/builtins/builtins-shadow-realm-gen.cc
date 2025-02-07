@@ -12,6 +12,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class ShadowRealmBuiltinsAssembler : public CodeStubAssembler {
  public:
   explicit ShadowRealmBuiltinsAssembler(compiler::CodeAssemblerState* state)
@@ -82,7 +84,8 @@ ShadowRealmBuiltinsAssembler::AllocateImportValueFulfilledFunction(
       CreateImportValueFulfilledFunctionContext(caller_context, eval_context,
                                                 specifier, export_name);
   return AllocateRootFunctionWithContext(
-      RootIndex::kShadowRealmImportValueFulfilledSharedFun, function_context);
+      RootIndex::kShadowRealmImportValueFulfilledSharedFun, function_context,
+      {});
 }
 
 void ShadowRealmBuiltinsAssembler::CheckAccessor(TNode<DescriptorArray> array,
@@ -422,6 +425,8 @@ TF_BUILTIN(ShadowRealmImportValueRejected, ShadowRealmBuiltinsAssembler) {
   ShadowRealmThrow(context, MessageTemplate::kImportShadowRealmRejected,
                    exception);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

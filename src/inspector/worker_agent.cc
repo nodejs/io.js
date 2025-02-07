@@ -93,13 +93,13 @@ void WorkerAgent::Wire(UberDispatcher* dispatcher) {
 DispatchResponse WorkerAgent::sendMessageToWorker(const String& message,
                                                   const String& sessionId) {
   workers_->Receive(sessionId, message);
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse WorkerAgent::enable(bool waitForDebuggerOnStart) {
   auto manager = manager_.lock();
   if (!manager) {
-    return DispatchResponse::OK();
+    return DispatchResponse::Success();
   }
   if (!event_handle_) {
     std::unique_ptr<AgentWorkerInspectorDelegate> delegate(
@@ -107,17 +107,17 @@ DispatchResponse WorkerAgent::enable(bool waitForDebuggerOnStart) {
     event_handle_ = manager->SetAutoAttach(std::move(delegate));
   }
   event_handle_->SetWaitOnStart(waitForDebuggerOnStart);
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse WorkerAgent::disable() {
   event_handle_.reset();
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse WorkerAgent::detach(const String& sessionId) {
   workers_->Detached(sessionId);
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 void NodeWorkers::WorkerCreated(const std::string& title,

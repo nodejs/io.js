@@ -1,0 +1,103 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/gclient_args.gni")
+import("//build_overrides/build.gni")
+
+config("fast_float_config") {
+  include_dirs = [ "src/include" ]
+}
+
+source_set("fast_float") {
+  public = [ "src/include/fast_float/fast_float.h" ]
+
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+
+  public_configs = [ ":fast_float_config" ]
+}
+
+if (build_with_chromium) {
+  import("//testing/test.gni")
+
+  test("fast_float_json_fmt_test") {
+    testonly = true
+    sources = [ "src/tests/json_fmt.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_rcppfastfloat_test") {
+    testonly = true
+    sources = [ "src/tests/rcppfastfloat_test.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_example_test") {
+    testonly = true
+    sources = [ "src/tests/example_test.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_example_comma_test") {
+    testonly = true
+    sources = [ "src/tests/example_comma_test.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_long_test") {
+    testonly = true
+    sources = [ "src/tests/long_test.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_powersoffive_hardround_test") {
+    testonly = true
+    sources = [ "src/tests/powersoffive_hardround.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_string_test") {
+    testonly = true
+    sources = [ "src/tests/string_test.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_fast_int_test") {
+    testonly = true
+    sources = [ "src/tests/fast_int.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_fortran_test") {
+    testonly = true
+    sources = [ "src/tests/fortran.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+
+  test("fast_float_fixedwidthtest") {
+    testonly = true
+    sources = [ "src/tests/fixedwidthtest.cpp" ]
+    deps = [ ":fast_float" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]
+    configs += [ "//build/config/compiler:no_chromium_code" ]
+  }
+}

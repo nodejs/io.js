@@ -129,7 +129,7 @@ t.test('deprecates given range', async t => {
 })
 
 t.test('deprecates all versions when no range is specified', async t => {
-  const { npm, joinedOutput } = await loadMockNpm(t, { config: { ...auth } })
+  const { npm, logs, joinedOutput } = await loadMockNpm(t, { config: { ...auth } })
   const registry = new MockRegistry({
     tap: t,
     registry: npm.config.get('registry'),
@@ -151,6 +151,37 @@ t.test('deprecates all versions when no range is specified', async t => {
   }).reply(200, {})
 
   await npm.exec('deprecate', ['foo', message])
+  t.match(logs.notice, [
+    `deprecating foo@1.0.0 with message "${message}"`,
+    `deprecating foo@1.0.1 with message "${message}"`,
+    `deprecating foo@1.0.1-pre with message "${message}"`,
+  ])
+  t.match(joinedOutput(), '')
+})
+
+t.test('dry-run', async t => {
+  const { npm, logs, joinedOutput } = await loadMockNpm(t, { config: {
+    'dry-run': true,
+    ...auth,
+  } })
+  const registry = new MockRegistry({
+    tap: t,
+    registry: npm.config.get('registry'),
+    authorization: token,
+  })
+  const manifest = registry.manifest({
+    name: 'foo',
+    versions,
+  })
+  await registry.package({ manifest, query: { write: true } })
+  const message = 'test deprecation message'
+
+  await npm.exec('deprecate', ['foo', message])
+  t.match(logs.notice, [
+    `deprecating foo@1.0.0 with message "${message}"`,
+    `deprecating foo@1.0.1 with message "${message}"`,
+    `deprecating foo@1.0.1-pre with message "${message}"`,
+  ])
   t.match(joinedOutput(), '')
 })
 

@@ -7,8 +7,11 @@ if (common.isWindows) {
   return;
 }
 
-if (!common.isMainThread)
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   return;
+}
 
 [undefined, null, true, {}, [], () => {}].forEach((val) => {
   assert.throws(

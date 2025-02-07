@@ -143,10 +143,12 @@ void FSPermission::Apply(Environment* env,
 
 void FSPermission::GrantAccess(PermissionScope perm, const std::string& res) {
   const std::string path = WildcardIfDir(res);
-  if (perm == PermissionScope::kFileSystemRead) {
+  if (perm == PermissionScope::kFileSystemRead &&
+      !granted_in_fs_.Lookup(path)) {
     granted_in_fs_.Insert(path);
     deny_all_in_ = false;
-  } else if (perm == PermissionScope::kFileSystemWrite) {
+  } else if (perm == PermissionScope::kFileSystemWrite &&
+             !granted_out_fs_.Lookup(path)) {
     granted_out_fs_.Insert(path);
     deny_all_out_ = false;
   }

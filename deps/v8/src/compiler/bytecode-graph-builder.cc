@@ -446,7 +446,7 @@ class BytecodeGraphBuilder {
   SharedFunctionInfoRef shared_info() const { return shared_info_; }
 
 #define DECLARE_VISIT_BYTECODE(name, ...) void Visit##name();
-  BYTECODE_LIST(DECLARE_VISIT_BYTECODE)
+  BYTECODE_LIST(DECLARE_VISIT_BYTECODE, DECLARE_VISIT_BYTECODE)
 #undef DECLARE_VISIT_BYTECODE
 
   JSHeapBroker* const broker_;
@@ -1467,7 +1467,7 @@ void BytecodeGraphBuilder::VisitSingleBytecode() {
   case interpreter::Bytecode::k##name: \
     Visit##name();                     \
     break;
-      BYTECODE_LIST(BYTECODE_CASE)
+      BYTECODE_LIST(BYTECODE_CASE, BYTECODE_CASE)
 #undef BYTECODE_CASE
     }
   }

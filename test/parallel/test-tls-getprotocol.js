@@ -3,6 +3,8 @@ const common = require('../common');
 if (!common.hasCrypto)
   common.skip('missing crypto');
 
+const { hasOpenSSL } = require('../common/crypto');
+
 // This test ensures that `getProtocol` returns the right protocol
 // from a TLS connection
 
@@ -14,11 +16,11 @@ const clientConfigs = [
   {
     secureProtocol: 'TLSv1_method',
     version: 'TLSv1',
-    ciphers: (common.hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT')
+    ciphers: (hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT')
   }, {
     secureProtocol: 'TLSv1_1_method',
     version: 'TLSv1.1',
-    ciphers: (common.hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT')
+    ciphers: (hasOpenSSL(3, 1) ? 'DEFAULT:@SECLEVEL=0' : 'DEFAULT')
   }, {
     secureProtocol: 'TLSv1_2_method',
     version: 'TLSv1.2'

@@ -562,6 +562,8 @@ void JSFunction::EnsureClosureFeedbackCellArray(
     // would probably require refactoring the way JSFunctions are built so that
     // we always allocate a FeedbackCell up front (if needed).
     DCHECK_NE(function->dispatch_handle(), kNullJSDispatchHandle);
+    // The feedback cell should never contain context specialized code.
+    DCHECK(!function->code(isolate)->is_context_specialized());
     feedback_cell->set_dispatch_handle(function->dispatch_handle());
 #endif  // V8_ENABLE_LEAPTIERING
     function->set_raw_feedback_cell(*feedback_cell, kReleaseStore);
@@ -618,6 +620,20 @@ void JSFunction::CreateAndAttachFeedbackVector(
 
   DCHECK_EQ(v8_flags.log_function_events,
             feedback_vector->log_next_execution());
+
+  if (v8_flags.profile_guided_optimization &&
+      v8_flags.profile_guided_optimization_for_empty_feedback_vector &&
+      function->feedback_vector()->length() == 0) {
+    if (function->shared()->cached_tiering_decision() ==
+        CachedTieringDecision::kEarlyMaglev) {
+      function->MarkForOptimization(isolate, CodeKind::MAGLEV,
+                                    ConcurrencyMode::kConcurrent);
+    } else if (function->shared()->cached_tiering_decision() ==
+               CachedTieringDecision::kEarlyTurbofan) {
+      function->MarkForOptimization(isolate, CodeKind::TURBOFAN,
+                                    ConcurrencyMode::kConcurrent);
+    }
+  }
 }
 
 // static
@@ -652,7 +668,8 @@ void JSFunction::InitializeFeedbackCell(
       // profile and more precise code coverage.
       v8_flags.log_function_events ||
       !isolate->is_best_effort_code_coverage() ||
-      function->shared()->sparkplug_compiled();
+      function->shared()->cached_tiering_decision() !=
+          CachedTieringDecision::kPending;
 
   if (needs_feedback_vector) {
     CreateAndAttachFeedbackVector(isolate, function, is_compiled_scope);
@@ -662,7 +679,8 @@ void JSFunction::InitializeFeedbackCell(
   }
 #ifdef V8_ENABLE_SPARKPLUG
   // TODO(jgruber): Unduplicate these conditions from tiering-manager.cc.
-  if (function->shared()->sparkplug_compiled() &&
+  if (function->shared()->cached_tiering_decision() !=
+          CachedTieringDecision::kPending &&
       CanCompileWithBaseline(isolate, function->shared()) &&
       function->ActiveTierIsIgnition(isolate)) {
     if (v8_flags.baseline_batch_compilation) {
@@ -675,21 +693,6 @@ void JSFunction::InitializeFeedbackCell(
     }
   }
 #endif  // V8_ENABLE_SPARKPLUG
-
-  if (v8_flags.profile_guided_optimization &&
-      v8_flags.profile_guided_optimization_for_empty_feedback_vector &&
-      function->has_feedback_vector() &&
-      function->feedback_vector()->length() == 0) {
-    if (function->shared()->cached_tiering_decision() ==
-        CachedTieringDecision::kEarlyMaglev) {
-      function->MarkForOptimization(isolate, CodeKind::MAGLEV,
-                                    ConcurrencyMode::kConcurrent);
-    } else if (function->shared()->cached_tiering_decision() ==
-               CachedTieringDecision::kEarlyTurbofan) {
-      function->MarkForOptimization(isolate, CodeKind::TURBOFAN,
-                                    ConcurrencyMode::kConcurrent);
-    }
-  }
 }
 
 namespace {

@@ -21,6 +21,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 void Builtins::Generate_ConstructVarargs(MacroAssembler* masm) {
   Generate_CallOrConstructVarargs(masm, Builtin::kConstruct);
 }
@@ -276,8 +278,7 @@ TF_BUILTIN(FastNewClosure, ConstructorBuiltinsAssembler) {
     BIND(&done);
   }
 
-  static_assert(JSFunction::kSizeWithoutPrototype ==
-                (7 + V8_ENABLE_LEAPTIERING_BOOL) * kTaggedSize);
+  static_assert(JSFunction::kSizeWithoutPrototype == 7 * kTaggedSize);
   StoreObjectFieldNoWriteBarrier(result, JSFunction::kFeedbackCellOffset,
                                  feedback_cell);
   StoreObjectFieldNoWriteBarrier(result, JSFunction::kSharedFunctionInfoOffset,
@@ -290,10 +291,11 @@ TF_BUILTIN(FastNewClosure, ConstructorBuiltinsAssembler) {
                                   Int32Constant(kNullJSDispatchHandle)));
   StoreObjectFieldNoWriteBarrier(result, JSFunction::kDispatchHandleOffset,
                                  dispatch_handle);
-#endif  // V8_ENABLE_LEAPTIERING
+#else
   TNode<Code> lazy_builtin =
       HeapConstantNoHole(BUILTIN_CODE(isolate(), CompileLazy));
   StoreCodePointerField(result, JSFunction::kCodeOffset, lazy_builtin);
+#endif  // V8_ENABLE_LEAPTIERING
   Return(result);
 }
 
@@ -760,6 +762,8 @@ void ConstructorBuiltinsAssembler::CopyMutableHeapNumbersInObject(
       },
       kTaggedSize, LoopUnrollingMode::kNo, IndexAdvanceMode::kPost);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

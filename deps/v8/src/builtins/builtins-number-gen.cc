@@ -11,6 +11,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // -----------------------------------------------------------------------------
 // ES6 section 20.1 Number Objects
 
@@ -118,7 +120,9 @@ DEF_BINOP_RHS_SMI(ShiftRightLogicalSmi_Baseline,
                                                                  \
     Return(result);                                              \
   }
+#ifndef V8_ENABLE_EXPERIMENTAL_TSA_BUILTINS
 DEF_UNOP(BitwiseNot_WithFeedback, Generate_BitwiseNotWithFeedback)
+#endif
 DEF_UNOP(Decrement_WithFeedback, Generate_DecrementWithFeedback)
 DEF_UNOP(Increment_WithFeedback, Generate_IncrementWithFeedback)
 DEF_UNOP(Negate_WithFeedback, Generate_NegateWithFeedback)
@@ -292,6 +296,8 @@ TF_BUILTIN(StrictEqual_Baseline, CodeStubAssembler) {
 
   Return(result);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

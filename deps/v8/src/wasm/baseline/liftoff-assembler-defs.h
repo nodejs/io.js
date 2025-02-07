@@ -152,7 +152,7 @@ constexpr DoubleRegList kLiftoffAssemblerFpCacheRegs =
 
 #endif
 
-static_assert(kLiftoffFrameSetupFunctionReg != kWasmInstanceRegister);
+static_assert(kLiftoffFrameSetupFunctionReg != kWasmImplicitArgRegister);
 static_assert(kLiftoffFrameSetupFunctionReg != kRootRegister);
 #ifdef V8_COMPRESS_POINTERS
 static_assert(kLiftoffFrameSetupFunctionReg != kPtrComprCageBaseRegister);

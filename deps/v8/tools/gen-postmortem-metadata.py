@@ -497,7 +497,6 @@ consts_misc = [
 # in this "extras_accessors" table.
 #
 extras_accessors = [
-    'JSFunction, code, Tagged<Code>, kCodeOffset',
     'JSFunction, context, Context, kContextOffset',
     'JSFunction, shared, SharedFunctionInfo, kSharedFunctionInfoOffset',
     'HeapObject, map, Map, kMapOffset',

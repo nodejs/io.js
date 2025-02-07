@@ -186,7 +186,7 @@ class FreeList {
   // Used after booting the VM.
   void RepairLists(Heap* heap);
 
-  V8_EXPORT_PRIVATE size_t EvictFreeListItems(PageMetadata* page);
+  V8_EXPORT_PRIVATE void EvictFreeListItems(PageMetadata* page);
 
   int number_of_categories() { return number_of_categories_; }
   FreeListCategoryType last_category() { return last_category_; }

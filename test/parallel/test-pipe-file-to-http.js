@@ -54,7 +54,12 @@ const server = http.createServer((req, res) => {
 server.listen(0);
 
 server.on('listening', () => {
-  common.createZeroFilledFile(filename);
+
+  // Create a zero-filled file
+  const fd = fs.openSync(filename, 'w');
+  fs.ftruncateSync(fd, 10 * 1024 * 1024);
+  fs.closeSync(fd);
+
   makeRequest();
 });
 

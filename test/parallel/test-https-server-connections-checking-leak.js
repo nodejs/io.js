@@ -25,5 +25,5 @@ for (let i = 0; i < max; i++) {
 }
 
 setImmediate(() => {
-  global.gc();
+  globalThis.gc();
 });

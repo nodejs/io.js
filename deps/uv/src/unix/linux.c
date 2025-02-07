@@ -455,7 +455,7 @@ int uv__io_uring_register(int fd, unsigned opcode, void* arg, unsigned nargs) {
 }
 
 
-static int uv__use_io_uring(void) {
+static int uv__use_io_uring(uint32_t flags) {
 #if defined(__ANDROID_API__)
   return 0;  /* Possibly available but blocked by seccomp. */
 #elif defined(__arm__) && __SIZEOF_POINTER__ == 4
@@ -470,25 +470,27 @@ static int uv__use_io_uring(void) {
   char* val;
   int use;
 
+#if defined(__hppa__)
+  /* io_uring first supported on parisc in 6.1, functional in .51
+   * https://lore.kernel.org/all/cb912694-b1fe-dbb0-4d8c-d608f3526905@gmx.de/
+   */
+  if (uv__kernel_version() < /*6.1.51*/0x060133)
+    return 0;
+#endif
+
+  /* SQPOLL is all kinds of buggy but epoll batching should work fine. */
+  if (0 == (flags & UV__IORING_SETUP_SQPOLL))
+    return 1;
+
+  /* Older kernels have a bug where the sqpoll thread uses 100% CPU. */
+  if (uv__kernel_version() < /*5.10.186*/0x050ABA)
+    return 0;
+
   use = atomic_load_explicit(&use_io_uring, memory_order_relaxed);
 
   if (use == 0) {
-    use = uv__kernel_version() >=
-#if defined(__hppa__)
-    /* io_uring first supported on parisc in 6.1, functional in .51 */
-    /* https://lore.kernel.org/all/cb912694-b1fe-dbb0-4d8c-d608f3526905@gmx.de/ */
-    /* 6.1.51 */ 0x060133
-#else
-    /* Older kernels have a bug where the sqpoll thread uses 100% CPU. */
-    /* 5.10.186 */ 0x050ABA
-#endif
-    ? 1 : -1;
-
-    /* But users can still enable it if they so desire. */
     val = getenv("UV_USE_IO_URING");
-    if (val != NULL)
-      use = atoi(val) ? 1 : -1;
-
+    use = val != NULL && atoi(val) > 0 ? 1 : -1;
     atomic_store_explicit(&use_io_uring, use, memory_order_relaxed);
   }
 
@@ -518,7 +520,7 @@ static void uv__iou_init(int epollfd,
   sq = MAP_FAILED;
   sqe = MAP_FAILED;
 
-  if (!uv__use_io_uring())
+  if (!uv__use_io_uring(flags))
     return;
 
   kernel_version = uv__kernel_version();
@@ -766,14 +768,13 @@ static struct uv__io_uring_sqe* uv__iou_get_sqe(struct uv__iou* iou,
    */
   if (iou->ringfd == -2) {
     /* By default, the SQPOLL is not created. Enable only if the loop is
-     * configured with UV_LOOP_USE_IO_URING_SQPOLL.
+     * configured with UV_LOOP_USE_IO_URING_SQPOLL and the UV_USE_IO_URING
+     * environment variable is unset or a positive number.
      */
-    if ((loop->flags & UV_LOOP_ENABLE_IO_URING_SQPOLL) == 0) {
-      iou->ringfd = -1;
-      return NULL;
-    }
+    if (loop->flags & UV_LOOP_ENABLE_IO_URING_SQPOLL)
+      if (uv__use_io_uring(UV__IORING_SETUP_SQPOLL))
+        uv__iou_init(loop->backend_fd, iou, 64, UV__IORING_SETUP_SQPOLL);
 
-    uv__iou_init(loop->backend_fd, iou, 64, UV__IORING_SETUP_SQPOLL);
     if (iou->ringfd == -2)
       iou->ringfd = -1;  /* "failed" */
   }
@@ -1713,16 +1714,22 @@ int uv_uptime(double* uptime) {
 int uv_cpu_info(uv_cpu_info_t** ci, int* count) {
 #if defined(__PPC__)
   static const char model_marker[] = "cpu\t\t: ";
+  static const char model_marker2[] = "";
 #elif defined(__arm__)
-  static const char model_marker[] = "Processor\t: ";
+  static const char model_marker[] = "model name\t: ";
+  static const char model_marker2[] = "Processor\t: ";
 #elif defined(__aarch64__)
   static const char model_marker[] = "CPU part\t: ";
+  static const char model_marker2[] = "";
 #elif defined(__mips__)
   static const char model_marker[] = "cpu model\t\t: ";
+  static const char model_marker2[] = "";
 #elif defined(__loongarch__)
   static const char model_marker[] = "cpu family\t\t: ";
+  static const char model_marker2[] = "";
 #else
   static const char model_marker[] = "model name\t: ";
+  static const char model_marker2[] = "";
 #endif
   static const char parts[] =
 #ifdef __aarch64__
@@ -1821,14 +1828,22 @@ int uv_cpu_info(uv_cpu_info_t** ci, int* count) {
     if (1 != fscanf(fp, "processor\t: %u\n", &cpu))
       break;  /* Parse error. */
 
-    found = 0;
-    while (!found && fgets(buf, sizeof(buf), fp))
-      found = !strncmp(buf, model_marker, sizeof(model_marker) - 1);
+    while (fgets(buf, sizeof(buf), fp)) {
+      if (!strncmp(buf, model_marker, sizeof(model_marker) - 1)) {
+        p = buf + sizeof(model_marker) - 1;
+        goto parts;
+      }
+      if (!*model_marker2)
+        continue;
+      if (!strncmp(buf, model_marker2, sizeof(model_marker2) - 1)) {
+        p = buf + sizeof(model_marker2) - 1;
+        goto parts;
+      }
+    }
 
-    if (!found)
-      goto next;
+    goto next;  /* Not found. */
 
-    p = buf + sizeof(model_marker) - 1;
+parts:
     n = (int) strcspn(p, "\n");
 
     /* arm64: translate CPU part code to model name. */

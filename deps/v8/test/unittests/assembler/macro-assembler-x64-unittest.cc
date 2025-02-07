@@ -38,6 +38,7 @@
 #include "src/deoptimizer/deoptimizer.h"
 #include "src/execution/simulator.h"
 #include "src/heap/factory.h"
+#include "src/numbers/conversions.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/smi.h"
 #include "src/utils/ostreams.h"
@@ -135,6 +136,7 @@ using F12 = int(uint8_t*, uint16_t*);
 using F13 = int(float*, int32_t*);
 using F14 = int(uint16_t*, int16_t*);
 using F15 = int(uint16_t*, uint16_t*);
+using F16 = int(double*, uint16_t*);
 
 #define __ masm->
 
@@ -2398,6 +2400,101 @@ TEST_F(MacroAssemblerX64Test, I16x8TruncF16x8U) {
     for (int i = 0; i < 8; i++) {
       CHECK_EQ(output[i], convert_to_uint(fp16_ieee_to_fp32_value(input[i])));
     }
+  }
+}
+
+TEST_F(MacroAssemblerX64Test, Cvtpd2ph) {
+  if (!CpuFeatures::IsSupported(F16C) || !CpuFeatures::IsSupported(AVX)) {
+    return;
+  }
+
+  Isolate* isolate = i_isolate();
+  HandleScope handles(isolate);
+  auto buffer = AllocateAssemblerBuffer();
+  MacroAssembler assembler(isolate, v8::internal::CodeObjectRequired::kYes,
+                           buffer->CreateView());
+
+  MacroAssembler* masm = &assembler;
+
+  __ set_root_array_available(false);
+
+  const XMMRegister dst = xmm0;
+  const XMMRegister src = xmm1;
+  const Register tmp = r8;
+
+  CpuFeatureScope f16c_scope(masm, F16C);
+  CpuFeatureScope avx_scope(masm, AVX);
+
+  __ vmovsd(src, Operand(kCArgRegs[0], 0));
+  __ Cvtpd2ph(dst, src, tmp);
+  __ vmovss(Operand(kCArgRegs[1], 0), dst);
+  __ ret(0);
+
+  CodeDesc desc;
+  __ GetCode(i_isolate(), &desc);
+
+  PrintCode(isolate, desc);
+
+  buffer->MakeExecutable();
+  auto f = GeneratedCode<F16>::FromBuffer(i_isolate(), buffer->start());
+
+  std::vector<double> test_cases = {
+      // Float16 subnormal numbers.
+      8.940696716308592e-8, 0.000060945749282836914, 0.00006094574928283692,
+      // Float16 normal numbers.
+      0.000061035154431010596, 0.00006103515625, 0.0000610649585723877,
+      0.00006106495857238771, 0.00006112456321716307, -999.75,
+      // Underflow to zero.
+      2.980232594040899e-8, 2.9802320611338473e-8,
+      // Overflow to infinity.
+      65536,
+      // An integer which rounds down under ties-to-even when cast to
+      // float16.
+      2049,
+      // An integer which rounds up under ties-to-even when cast to
+      // float16.
+      2051,
+      // Smallest normal float16.
+      0.00006103515625,
+      // Largest subnormal float16.
+      0.00006097555160522461,
+      // Smallest float16.
+      5.960464477539063e-8,
+      // Largest double which rounds to 0 when cast to
+      // float16.
+      2.9802322387695312e-8,
+      // Smallest double which does not round to 0 when
+      // cast to float16.
+      2.980232238769532e-8,
+      // A double which rounds up to a subnormal under
+      // ties-to-even when cast to float16.
+      8.940696716308594e-8,
+      // A double which rounds down to a subnormal under
+      // ties-to-even when cast to float16.
+      1.4901161193847656e-7,
+      // The next double above the one on the previous
+      // line one.
+      1.490116119384766e-7,
+      // Max finite float16.
+      65504,
+      // Smallest double which rounds to infinity when cast to float16.
+      65520,
+      // Largest double which does not round to infinity
+      // when cast to float16.
+      65519.99999999999,
+      // Smallest double which rounds to a
+      // non-subnormal when cast to float16.
+      0.000061005353927612305,
+      // Largest double which rounds to a subnormal when
+      // cast to float16.
+      0.0000610053539276123};
+  double input;
+  uint16_t output[2];
+
+  for (const auto& val : test_cases) {
+    input = val;
+    f.Call(&input, output);
+    CHECK_EQ(output[0], DoubleToFloat16(val));
   }
 }
 

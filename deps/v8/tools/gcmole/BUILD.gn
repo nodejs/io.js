@@ -39,6 +39,7 @@ if (v8_gcmole) {
       "../../third_party/wasm-api/wasm.hh",
       "../../third_party/zlib/",
       "../../third_party/inspector_protocol/",
+      "../../third_party/fast_float/",
       "../../third_party/fp16/",
       "../../third_party/v8/codegen/",
       "$target_gen_dir/../../",

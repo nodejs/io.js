@@ -123,12 +123,14 @@
   'octane/typescript': [SKIP],
 
   # https://crbug.com/42203172
+  'kraken/ai-astar': [SKIP],
   'kraken/stanford-crypto-aes': [SKIP],
   'kraken/stanford-crypto-ccm': [SKIP],
   'octane/box2d': [SKIP],
   'octane/crypto': [SKIP],
   'octane/earley-boyer': [SKIP],
   'octane/gbemu-part1': [SKIP],
+  'octane/mandreel': [SKIP],
   'octane/pdfjs': [SKIP],
   'octane/regexp': [SKIP],
 

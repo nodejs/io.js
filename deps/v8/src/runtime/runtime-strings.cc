@@ -9,48 +9,12 @@
 #include "src/objects/objects-inl.h"
 #include "src/objects/slots.h"
 #include "src/objects/smi.h"
+#include "src/runtime/runtime-utils.h"
 #include "src/strings/string-builder-inl.h"
 #include "src/strings/unicode-inl.h"
 
-#if V8_ENABLE_WEBASSEMBLY
-// TODO(chromium:1236668): Drop this when the "SaveAndClearThreadInWasmFlag"
-// approach is no longer needed.
-#include "src/trap-handler/trap-handler.h"
-#endif  // V8_ENABLE_WEBASSEMBLY
-
 namespace v8 {
 namespace internal {
-
-namespace {
-
-#if V8_ENABLE_WEBASSEMBLY
-class V8_NODISCARD SaveAndClearThreadInWasmFlag {
- public:
-  explicit SaveAndClearThreadInWasmFlag(Isolate* isolate) : isolate_(isolate) {
-    if (trap_handler::IsTrapHandlerEnabled()) {
-      if (trap_handler::IsThreadInWasm()) {
-        thread_was_in_wasm_ = true;
-        trap_handler::ClearThreadInWasm();
-      }
-    }
-  }
-  ~SaveAndClearThreadInWasmFlag() {
-    if (thread_was_in_wasm_ && !isolate_->has_exception()) {
-      trap_handler::SetThreadInWasm();
-    }
-  }
-
- private:
-  bool thread_was_in_wasm_{false};
-  Isolate* isolate_;
-};
-#define CLEAR_THREAD_IN_WASM_SCOPE \
-  SaveAndClearThreadInWasmFlag non_wasm_scope(isolate)
-#else
-#define CLEAR_THREAD_IN_WASM_SCOPE (void)0
-#endif  // V8_ENABLE_WEBASSEMBLY
-
-}  // namespace
 
 RUNTIME_FUNCTION(Runtime_GetSubstitution) {
   HandleScope scope(isolate);
@@ -190,7 +154,7 @@ RUNTIME_FUNCTION(Runtime_StringSubstring) {
 
 RUNTIME_FUNCTION(Runtime_StringAdd) {
   // This is used by Wasm stringrefs.
-  CLEAR_THREAD_IN_WASM_SCOPE;
+  SaveAndClearThreadInWasmFlag non_wasm_scope(isolate);
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
   Handle<String> str1 = args.at<String>(0);
@@ -426,7 +390,7 @@ RUNTIME_FUNCTION(Runtime_StringEqual) {
 }
 
 RUNTIME_FUNCTION(Runtime_StringCompare) {
-  CLEAR_THREAD_IN_WASM_SCOPE;
+  SaveAndClearThreadInWasmFlag non_wasm_scope(isolate);
   DCHECK_EQ(2, args.length());
   HandleScope scope(isolate);
   Handle<String> lhs(Cast<String>(args[0]), isolate);

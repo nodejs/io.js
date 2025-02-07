@@ -141,7 +141,7 @@ class CodeEntry {
   }
 
   // Returns whether or not the lifetime of this CodeEntry is reference
-  // counted, and managed by a InstructionStreamMap.
+  // counted, and managed by an InstructionStreamMap.
   bool is_ref_counted() const { return RefCountedField::decode(bit_field_); }
 
   uint32_t GetHash() const;

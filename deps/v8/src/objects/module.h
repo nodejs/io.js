@@ -64,7 +64,8 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
   // exception is propagated.)
   static V8_WARN_UNUSED_RESULT bool Instantiate(
       Isolate* isolate, Handle<Module> module, v8::Local<v8::Context> context,
-      v8::Module::ResolveModuleCallback callback);
+      v8::Module::ResolveModuleCallback module_callback,
+      v8::Module::ResolveSourceCallback source_callback);
 
   // Implementation of spec operation ModuleEvaluation.
   static V8_WARN_UNUSED_RESULT MaybeHandle<Object> Evaluate(
@@ -99,7 +100,8 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
 
   static V8_WARN_UNUSED_RESULT bool PrepareInstantiate(
       Isolate* isolate, Handle<Module> module, v8::Local<v8::Context> context,
-      v8::Module::ResolveModuleCallback callback);
+      v8::Module::ResolveModuleCallback module_callback,
+      v8::Module::ResolveSourceCallback source_callback);
   static V8_WARN_UNUSED_RESULT bool FinishInstantiate(
       Isolate* isolate, Handle<Module> module,
       ZoneForwardList<Handle<SourceTextModule>>* stack, unsigned* dfs_index,

@@ -748,13 +748,9 @@ void InstructionSelectorT<Adapter>::VisitStackSlot(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitAbortCSADcheck(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    // This is currently not used by Turboshaft.
-    UNIMPLEMENTED();
-  } else {
-    ArmOperandGeneratorT<Adapter> g(this);
-    Emit(kArchAbortCSADcheck, g.NoOutput(), g.UseFixed(node->InputAt(0), r1));
-  }
+  ArmOperandGeneratorT<Adapter> g(this);
+  Emit(kArchAbortCSADcheck, g.NoOutput(),
+       g.UseFixed(this->input_at(node, 0), r1));
 }
 
 #if V8_ENABLE_WEBASSEMBLY

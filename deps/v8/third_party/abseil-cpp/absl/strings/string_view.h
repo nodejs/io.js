@@ -159,7 +159,7 @@ ABSL_NAMESPACE_BEGIN
 //
 //   absl::string_view() == absl::string_view("", 0)
 //   absl::string_view(nullptr, 0) == absl::string_view("abcdef"+6, 0)
-class ABSL_INTERNAL_ATTRIBUTE_VIEW string_view {
+class ABSL_ATTRIBUTE_VIEW string_view {
  public:
   using traits_type = std::char_traits<char>;
   using value_type = char;

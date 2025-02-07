@@ -36,7 +36,6 @@ const logTar = (tarball, { unicode = false, json, key } = {}) => {
   log.notice('', `package size: ${formatBytes(tarball.size)}`)
   log.notice('', `unpacked size: ${formatBytes(tarball.unpackedSize)}`)
   log.notice('', `shasum: ${tarball.shasum}`)
-  /* eslint-disable-next-line max-len */
   log.notice('', `integrity: ${tarball.integrity.toString().slice(0, 20)}[...]${tarball.integrity.toString().slice(80)}`)
   if (tarball.bundled.length) {
     log.notice('', `bundled deps: ${tarball.bundled.length}`)

@@ -105,7 +105,8 @@ void ExternalStringTableCleanerVisitor<mode>::VisitRootPointers(
     Tagged<HeapObject> heap_object = Cast<HeapObject>(o);
     // MinorMS doesn't update the young strings set and so it may contain
     // strings that are already in old space.
-    if (!marking_state->IsUnmarked(heap_object)) continue;
+    if (MarkingHelper::IsMarkedOrAlwaysLive(heap_, marking_state, heap_object))
+      continue;
     if ((mode == ExternalStringTableCleaningMode::kYoungOnly) &&
         !Heap::InYoungGeneration(heap_object))
       continue;

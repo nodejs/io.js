@@ -1,62 +1,60 @@
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
+
+// Tests that the AES wrap and unwrap functions are working correctly.
 
 const assert = require('assert');
 const crypto = require('crypto');
 
-const test = [
+const ivShort = Buffer.from('3fd838af', 'hex');
+const ivLong = Buffer.from('3fd838af4093d749', 'hex');
+const key1 = Buffer.from('b26f309fbe57e9b3bb6ae5ef31d54450', 'hex');
+const key2 = Buffer.from('40978085d68091f7dfca0d7dfc7a5ee76d2cc7f2f345a304', 'hex');
+const key3 = Buffer.from('29c9eab5ed5ad44134a1437fe2e673b4d88a5b7c72e68454fea08721392b7323', 'hex');
+
+[
   {
     algorithm: 'aes128-wrap',
-    key: 'b26f309fbe57e9b3bb6ae5ef31d54450',
-    iv: '3fd838af4093d749',
+    key: key1,
+    iv: ivLong,
     text: '12345678123456781234567812345678'
   },
   {
     algorithm: 'id-aes128-wrap-pad',
-    key: 'b26f309fbe57e9b3bb6ae5ef31d54450',
-    iv: '3fd838af',
+    key: key1,
+    iv: ivShort,
     text: '12345678123456781234567812345678123'
   },
   {
     algorithm: 'aes192-wrap',
-    key: '40978085d68091f7dfca0d7dfc7a5ee76d2cc7f2f345a304',
-    iv: '3fd838af4093d749',
+    key: key2,
+    iv: ivLong,
     text: '12345678123456781234567812345678'
   },
   {
     algorithm: 'id-aes192-wrap-pad',
-    key: '40978085d68091f7dfca0d7dfc7a5ee76d2cc7f2f345a304',
-    iv: '3fd838af',
+    key: key2,
+    iv: ivShort,
     text: '12345678123456781234567812345678123'
   },
   {
     algorithm: 'aes256-wrap',
-    key: '29c9eab5ed5ad44134a1437fe2e673b4d88a5b7c72e68454fea08721392b7323',
-    iv: '3fd838af4093d749',
+    key: key3,
+    iv: ivLong,
     text: '12345678123456781234567812345678'
   },
   {
     algorithm: 'id-aes256-wrap-pad',
-    key: '29c9eab5ed5ad44134a1437fe2e673b4d88a5b7c72e68454fea08721392b7323',
-    iv: '3fd838af',
+    key: key3,
+    iv: ivShort,
     text: '12345678123456781234567812345678123'
   },
-];
-
-test.forEach((data) => {
-  const cipher = crypto.createCipheriv(
-    data.algorithm,
-    Buffer.from(data.key, 'hex'),
-    Buffer.from(data.iv, 'hex'));
-  const ciphertext = cipher.update(data.text, 'utf8');
-
-  const decipher = crypto.createDecipheriv(
-    data.algorithm,
-    Buffer.from(data.key, 'hex'),
-    Buffer.from(data.iv, 'hex'));
-  const msg = decipher.update(ciphertext, 'buffer', 'utf8');
-
-  assert.strictEqual(msg, data.text, `${data.algorithm} test case failed`);
+].forEach(({ algorithm, key, iv, text }) => {
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  const decipher = crypto.createDecipheriv(algorithm, key, iv);
+  const msg = decipher.update(cipher.update(text, 'utf8'), 'buffer', 'utf8');
+  assert.strictEqual(msg, text, `${algorithm} test case failed`);
 });

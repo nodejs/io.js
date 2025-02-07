@@ -119,6 +119,8 @@ class V8_BASE_EXPORT BoundedPageAllocator : public v8::PageAllocator {
 
   bool DecommitPages(void* address, size_t size) override;
 
+  bool SealPages(void* address, size_t size) override;
+
   AllocationStatus get_last_allocation_status() const {
     return allocation_status_;
   }

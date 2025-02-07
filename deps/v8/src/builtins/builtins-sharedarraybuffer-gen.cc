@@ -10,6 +10,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class SharedArrayBufferBuiltinsAssembler : public CodeStubAssembler {
  public:
   explicit SharedArrayBufferBuiltinsAssembler(
@@ -816,6 +818,8 @@ void SharedArrayBufferBuiltinsAssembler::AtomicBinopBuiltinCommon(
   BIND(&detached_or_out_of_bounds);
   ThrowTypeError(context, MessageTemplate::kDetachedOperation, method_name);
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

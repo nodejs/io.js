@@ -505,7 +505,6 @@ using DebugObjectCache = std::vector<Handle<HeapObject>>;
   V(FatalErrorCallback, exception_behavior, nullptr)                          \
   V(OOMErrorCallback, oom_behavior, nullptr)                                  \
   V(LogEventCallback, event_logger, nullptr)                                  \
-  V(AllowCodeGenerationFromStringsCallback, allow_code_gen_callback, nullptr) \
   V(ModifyCodeGenerationFromStringsCallback2, modify_code_gen_callback,       \
     nullptr)                                                                  \
   V(AllowWasmCodeGenerationCallback, allow_wasm_code_gen_callback, nullptr)   \
@@ -1260,9 +1259,23 @@ class V8_EXPORT_PRIVATE Isolate final : private HiddenFactory {
   }
 
   Address* builtin_entry_table() { return isolate_data_.builtin_entry_table(); }
+
 #ifdef V8_ENABLE_LEAPTIERING
-  V8_INLINE JSDispatchHandle* builtin_dispatch_table() {
-    return isolate_data_.builtin_dispatch_table();
+  // Predicting the handles using `GetStaticHandleForReadOnlySegmentEntry` is
+  // only possible if we have just one sole read only heap. In case we extend
+  // support to other build configurations we need a table of dispatch entries
+  // per isolate. See https://crrev.com/c/5783686 on how to do that.
+  static constexpr bool kBuiltinDispatchHandlesAreStatic =
+      ReadOnlyHeap::IsReadOnlySpaceShared();
+
+  static V8_INLINE JSDispatchHandle
+  builtin_dispatch_handle(JSBuiltinDispatchHandleRoot::Idx idx) {
+    static_assert(kBuiltinDispatchHandlesAreStatic);
+    return JSDispatchTable::GetStaticHandleForReadOnlySegmentEntry(idx);
+  }
+  V8_INLINE JSDispatchHandle builtin_dispatch_handle(Builtin builtin) {
+    return builtin_dispatch_handle(
+        JSBuiltinDispatchHandleRoot::to_idx(builtin));
   }
 #endif
   V8_INLINE Address* builtin_table() { return isolate_data_.builtin_table(); }
@@ -1360,6 +1373,9 @@ class V8_EXPORT_PRIVATE Isolate final : private HiddenFactory {
   }
   wasm::WasmOrphanedGlobalHandle* NewWasmOrphanedGlobalHandle();
   wasm::StackPool& stack_pool() { return stack_pool_; }
+  Builtins::WasmBuiltinHandleArray& wasm_builtin_code_handles() {
+    return wasm_builtin_code_handles_;
+  }
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   GlobalHandles* global_handles() const { return global_handles_; }
@@ -1993,7 +2009,7 @@ class V8_EXPORT_PRIVATE Isolate final : private HiddenFactory {
     if (V8_UNLIKELY(v8_flags.efficiency_mode.value().has_value())) {
       return *v8_flags.efficiency_mode.value();
     }
-    return is_backgrounded();
+    return priority_ != v8::Isolate::Priority::kUserBlocking;
   }
 
   // This is a temporary api until we use it by default.
@@ -2663,7 +2679,7 @@ class V8_EXPORT_PRIVATE Isolate final : private HiddenFactory {
 
   debug::AsyncEventDelegate* async_event_delegate_ = nullptr;
   uint32_t promise_hook_flags_ = 0;
-  int async_task_count_ = 0;
+  uint32_t current_async_task_id_ = 0;
 
   std::unique_ptr<LocalIsolate> main_thread_local_isolate_;
 
@@ -2736,6 +2752,7 @@ class V8_EXPORT_PRIVATE Isolate final : private HiddenFactory {
 #endif  // V8_ENABLE_DRUMBRAKE
   wasm::WasmOrphanedGlobalHandle* wasm_orphaned_handle_ = nullptr;
   wasm::StackPool stack_pool_;
+  Builtins::WasmBuiltinHandleArray wasm_builtin_code_handles_;
 #endif
 
   // Enables the host application to provide a mechanism for recording a

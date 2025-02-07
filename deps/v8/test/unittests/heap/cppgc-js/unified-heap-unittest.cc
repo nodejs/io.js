@@ -286,8 +286,6 @@ class UnifiedHeapWithCustomSpaceTest : public UnifiedHeapTest {
 }  // namespace
 
 TEST_F(UnifiedHeapWithCustomSpaceTest, CollectCustomSpaceStatisticsAtLastGC) {
-  // TPH does not support kIncrementalAndConcurrent yet.
-  if (v8_flags.enable_third_party_heap) return;
   StatisticsReceiver::num_calls_ = 0;
   // Initial state.
   cpp_heap().CollectCustomSpaceStatisticsAtLastGC(

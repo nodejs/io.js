@@ -84,6 +84,7 @@ TestingModuleBuilder::TestingModuleBuilder(
   trusted_instance_data_->set_tables(*tables);
 
   if (maybe_import) {
+    WasmCodeRefScope code_ref_scope;
     const wasm::FunctionSig* sig = maybe_import->sig;
     // Manually compile an import wrapper and insert it into the instance.
     uint32_t canonical_type_index =
@@ -93,16 +94,13 @@ TestingModuleBuilder::TestingModuleBuilder(
                                 WellKnownImport::kUninstantiated);
     ImportCallKind kind = resolved.kind();
     DirectHandle<JSReceiver> callable = resolved.callable();
-    WasmImportWrapperCache::ModificationScope cache_scope(
-        native_module_->import_wrapper_cache());
-    WasmImportWrapperCache::CacheKey key(
+    WasmCode* import_wrapper = GetWasmImportWrapperCache()->MaybeGet(
         kind, canonical_type_index, static_cast<int>(sig->parameter_count()),
         kNoSuspend);
-    auto import_wrapper = cache_scope[key];
     if (import_wrapper == nullptr) {
-      import_wrapper = CompileImportWrapper(
+      import_wrapper = CompileImportWrapperForTest(
           native_module_, isolate_->counters(), kind, sig, canonical_type_index,
-          static_cast<int>(sig->parameter_count()), kNoSuspend, &cache_scope);
+          static_cast<int>(sig->parameter_count()), kNoSuspend);
     }
 
     ImportedFunctionEntry(trusted_instance_data_, maybe_import_index)
@@ -229,8 +227,8 @@ uint32_t TestingModuleBuilder::AddFunction(const FunctionSig* sig,
 }
 
 void TestingModuleBuilder::InitializeWrapperCache() {
-  isolate_->heap()->EnsureWasmCanonicalRttsSize(
-      test_module_->MaxCanonicalTypeIndex() + 1);
+  TypeCanonicalizer::PrepareForCanonicalTypeId(
+      isolate_, test_module_->MaxCanonicalTypeIndex());
   Handle<FixedArray> maps = isolate_->factory()->NewFixedArray(
       static_cast<int>(test_module_->types.size()));
   for (uint32_t index = 0; index < test_module_->types.size(); index++) {
@@ -298,8 +296,7 @@ void TestingModuleBuilder::AddIndirectFunctionTable(
   if (function_indexes) {
     for (uint32_t i = 0; i < table_size; ++i) {
       WasmFunction& function = test_module_->functions[function_indexes[i]];
-      int sig_id =
-          test_module_->isorecursive_canonical_type_ids[function.sig_index];
+      int sig_id = test_module_->canonical_sig_id(function.sig_index);
       FunctionTargetAndImplicitArg entry(isolate_, trusted_instance_data_,
                                          function.func_index);
 #if !V8_ENABLE_DRUMBRAKE

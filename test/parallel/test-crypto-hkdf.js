@@ -13,6 +13,7 @@ const {
   hkdfSync,
   getHashes
 } = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 {
   assert.throws(() => hkdf(), {
@@ -124,7 +125,7 @@ const algorithms = [
   ['sha256', '', 'salt', '', 10],
   ['sha512', 'secret', 'salt', '', 15],
 ];
-if (!common.hasOpenSSL3)
+if (!hasOpenSSL3)
   algorithms.push(['whirlpool', 'secret', '', 'info', 20]);
 
 algorithms.forEach(([ hash, secret, salt, info, length ]) => {
@@ -215,7 +216,7 @@ algorithms.forEach(([ hash, secret, salt, info, length ]) => {
 });
 
 
-if (!common.hasOpenSSL3) {
+if (!hasOpenSSL3) {
   const kKnownUnsupported = ['shake128', 'shake256'];
   getHashes()
     .filter((hash) => !kKnownUnsupported.includes(hash))

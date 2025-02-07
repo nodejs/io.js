@@ -548,14 +548,10 @@
   'built-ins/Temporal/PlainDate/argument-convert': [FAIL],
   'built-ins/Temporal/PlainDate/prototype/since/roundingincrement-out-of-range': [FAIL],
   'built-ins/Temporal/PlainDate/prototype/until/roundingincrement-out-of-range': [FAIL],
-  'built-ins/Temporal/PlainDate/prototype/with/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainDateTime/prototype/since/roundingincrement-non-integer': [FAIL],
   'built-ins/Temporal/PlainDateTime/prototype/until/roundingincrement-non-integer': [FAIL],
-  'built-ins/Temporal/PlainMonthDay/prototype/with/order-of-operations': [FAIL],
-  'built-ins/Temporal/PlainTime/prototype/with/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainYearMonth/prototype/since/roundingincrement-out-of-range': [FAIL],
   'built-ins/Temporal/PlainYearMonth/prototype/until/roundingincrement-out-of-range': [FAIL],
-  'built-ins/Temporal/PlainYearMonth/prototype/with/order-of-operations': [FAIL],
   'built-ins/Temporal/ZonedDateTime/prototype/since/roundingincrement-non-integer': [FAIL],
   'built-ins/Temporal/ZonedDateTime/prototype/until/roundingincrement-non-integer': [FAIL],
 
@@ -607,7 +603,6 @@
   'built-ins/Temporal/PlainDate/from/argument-propertybag-calendar-string': [FAIL],
   'built-ins/Temporal/PlainDate/from/argument-zoneddatetime': [FAIL],
   'built-ins/Temporal/PlainDate/from/calendar-temporal-object': [FAIL],
-  'built-ins/Temporal/PlainDate/from/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainDate/prototype/add/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainDate/prototype/calendarId/branding': [FAIL],
   'built-ins/Temporal/PlainDate/prototype/calendarId/prop-desc': [FAIL],
@@ -671,7 +666,6 @@
   'built-ins/Temporal/PlainMonthDay/from/calendar-temporal-object': [FAIL],
   'built-ins/Temporal/PlainMonthDay/from/fields-object': [FAIL],
   'built-ins/Temporal/PlainMonthDay/from/fields-string': [FAIL],
-  'built-ins/Temporal/PlainMonthDay/from/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainMonthDay/prototype/calendarId/branding': [FAIL],
   'built-ins/Temporal/PlainMonthDay/prototype/calendarId/prop-desc': [FAIL],
   'built-ins/Temporal/PlainMonthDay/prototype/toString/calendarname-always': [FAIL],
@@ -690,7 +684,6 @@
   'built-ins/Temporal/PlainYearMonth/from/argument-propertybag-calendar-string': [FAIL],
   'built-ins/Temporal/PlainYearMonth/from/argument-string': [FAIL],
   'built-ins/Temporal/PlainYearMonth/from/calendar-temporal-object': [FAIL],
-  'built-ins/Temporal/PlainYearMonth/from/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainYearMonth/prototype/add/order-of-operations': [FAIL],
   'built-ins/Temporal/PlainYearMonth/prototype/calendarId/branding': [FAIL],
   'built-ins/Temporal/PlainYearMonth/prototype/calendarId/prop-desc': [FAIL],
@@ -1005,6 +998,20 @@
   'built-ins/Temporal/ZonedDateTime/prototype/since/round-cross-unit-boundary': [FAIL],
   'built-ins/Temporal/ZonedDateTime/prototype/until/round-cross-unit-boundary': [FAIL],
 
+  'built-ins/Temporal/PlainDate/from/options-wrong-type': [FAIL],
+  'built-ins/Temporal/PlainDateTime/from/options-wrong-type': [FAIL],
+  'built-ins/Temporal/PlainDateTime/prototype/toString/rounding-edge-of-range': [FAIL],
+  'built-ins/Temporal/PlainMonthDay/from/options-wrong-type': [FAIL],
+  'built-ins/Temporal/PlainTime/from/observable-get-overflow-argument-string-invalid': [FAIL],
+  'built-ins/Temporal/PlainTime/from/options-wrong-type': [FAIL],
+  'built-ins/Temporal/PlainYearMonth/from/options-wrong-type': [FAIL],
+  'built-ins/Temporal/ZonedDateTime/from/options-wrong-type': [FAIL],
+  'intl402/Temporal/PlainDate/prototype/with/non-iso-calendar-fields': [FAIL],
+  'intl402/Temporal/PlainDateTime/prototype/with/non-iso-calendar-fields': [FAIL],
+  'intl402/Temporal/PlainMonthDay/prototype/with/non-iso-calendar-fields': [FAIL],
+  'intl402/Temporal/PlainYearMonth/prototype/with/non-iso-calendar-fields': [FAIL],
+  'intl402/Temporal/ZonedDateTime/prototype/with/non-iso-calendar-fields': [FAIL],
+
   'staging/Intl402/Temporal/old/islamic-calendars': [FAIL],
   'staging/Intl402/Temporal/old/persian-calendar': [FAIL],
 
@@ -1036,7 +1043,6 @@
   'language/expressions/class/decorator/syntax/valid/decorator-member-expr-identifier-reference-yield': [FAIL],
   'language/expressions/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference': [FAIL],
   'language/expressions/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference-yield': [FAIL],
-  'language/expressions/class/elements/syntax/valid/grammar-field-accessor': [FAIL],
   'language/statements/class/decorator/syntax/class-valid/decorator-member-expr-private-identifier': [FAIL],
   'language/statements/class/decorator/syntax/valid/decorator-call-expr-identifier-reference': [FAIL],
   'language/statements/class/decorator/syntax/valid/decorator-call-expr-identifier-reference-yield': [FAIL],
@@ -1045,7 +1051,6 @@
   'language/statements/class/decorator/syntax/valid/decorator-member-expr-identifier-reference-yield': [FAIL],
   'language/statements/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference': [FAIL],
   'language/statements/class/decorator/syntax/valid/decorator-parenthesized-expr-identifier-reference-yield': [FAIL],
-  'language/statements/class/elements/syntax/valid/grammar-field-accessor': [FAIL],
 
   # https://bugs.chromium.org/p/v8/issues/detail?id=11989
   'built-ins/ShadowRealm/prototype/evaluate/globalthis-ordinary-object': [FAIL],
@@ -2171,6 +2176,29 @@
   'harness/asyncHelpers-throwsAsync-no-arg': [SKIP],
   'intl402/NumberFormat/prototype/format/useGrouping-extended-en-IN': [SKIP],
   'staging/Intl402/Temporal/old/japanese-before-era': [SKIP],
+}],
+# End roll-watcher patch
+####
+
+####
+# Roll-watcher patch
+[ALWAYS, {
+  'built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-prototype-chain-set': [SKIP],
+  'built-ins/TypedArrayConstructors/internals/Set/BigInt/key-is-canonical-invalid-index-reflect-set': [SKIP],
+  'built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-prototype-chain-set': [SKIP],
+  'built-ins/TypedArrayConstructors/internals/Set/key-is-canonical-invalid-index-reflect-set': [SKIP],
+}],
+# End roll-watcher patch
+####
+
+####
+# Roll-watcher patch
+[ALWAYS, {
+  'built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-object': [SKIP],
+  'built-ins/TypedArrayConstructors/internals/Set/key-is-out-of-bounds-receiver-is-not-typed-array': [SKIP],
+  'language/statements/with/get-mutable-binding-binding-deleted-in-get-unscopables-strict-mode': [SKIP],
+  'language/statements/with/set-mutable-binding-binding-deleted-in-get-unscopables-strict-mode': [SKIP],
+  'language/statements/with/set-mutable-binding-binding-deleted-with-typed-array-in-proto-chain-strict-mode': [SKIP],
 }],
 # End roll-watcher patch
 ####

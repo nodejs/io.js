@@ -15,11 +15,18 @@ const MAX_ENTRY_SIZE = 2 * 1000 * 1000 * 1000
  * @implements {CacheStore}
  *
  * @typedef {{
- *  id: Readonly<number>
- *  headers?: Record<string, string | string[]>
- *  vary?: string | object
- *  body: string
- * } & import('../../types/cache-interceptor.d.ts').default.CacheValue} SqliteStoreValue
+ *  id: Readonly<number>,
+ *  body?: Uint8Array
+ *  statusCode: number
+ *  statusMessage: string
+ *  headers?: string
+ *  vary?: string
+ *  etag?: string
+ *  cacheControlDirectives?: string
+ *  cachedAt: number
+ *  staleAt: number
+ *  deleteAt: number
+ * }} SqliteStoreValue
  */
 module.exports = class SqliteCacheStore {
   #maxEntrySize = MAX_ENTRY_SIZE
@@ -61,7 +68,7 @@ module.exports = class SqliteCacheStore {
   #countEntriesQuery
 
   /**
-   * @type {import('node:sqlite').StatementSync}
+   * @type {import('node:sqlite').StatementSync | null}
    */
   #deleteOldValuesQuery
 
@@ -163,8 +170,7 @@ module.exports = class SqliteCacheStore {
         etag = ?,
         cacheControlDirectives = ?,
         cachedAt = ?,
-        staleAt = ?,
-        deleteAt = ?
+        staleAt = ?
       WHERE
         id = ?
     `)
@@ -182,9 +188,8 @@ module.exports = class SqliteCacheStore {
         cacheControlDirectives,
         vary,
         cachedAt,
-        staleAt,
-        deleteAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        staleAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     this.#deleteByUrlQuery = this.#db.prepare(
@@ -219,36 +224,78 @@ module.exports = class SqliteCacheStore {
 
   /**
    * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
-   * @returns {import('../../types/cache-interceptor.d.ts').default.GetResult | undefined}
+   * @returns {(import('../../types/cache-interceptor.d.ts').default.GetResult & { body?: Buffer }) | undefined}
    */
   get (key) {
     assertCacheKey(key)
 
     const value = this.#findValue(key)
+    return value
+      ? {
+          body: value.body ? Buffer.from(value.body.buffer) : undefined,
+          statusCode: value.statusCode,
+          statusMessage: value.statusMessage,
+          headers: value.headers ? JSON.parse(value.headers) : undefined,
+          etag: value.etag ? value.etag : undefined,
+          vary: value.vary ? JSON.parse(value.vary) : undefined,
+          cacheControlDirectives: value.cacheControlDirectives
+            ? JSON.parse(value.cacheControlDirectives)
+            : undefined,
+          cachedAt: value.cachedAt,
+          staleAt: value.staleAt,
+          deleteAt: value.deleteAt
+        }
+      : undefined
+  }
 
-    if (!value) {
-      return undefined
+  /**
+   * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
+   * @param {import('../../types/cache-interceptor.d.ts').default.CacheValue & { body: null | Buffer | Array<Buffer>}} value
+   */
+  set (key, value) {
+    assertCacheKey(key)
+
+    const url = this.#makeValueUrl(key)
+    const body = Array.isArray(value.body) ? Buffer.concat(value.body) : value.body
+    const size = body?.byteLength
+
+    if (size && size > this.#maxEntrySize) {
+      return
     }
 
-    /**
-     * @type {import('../../types/cache-interceptor.d.ts').default.GetResult}
-     */
-    const result = {
-      body: Buffer.from(value.body),
-      statusCode: value.statusCode,
-      statusMessage: value.statusMessage,
-      headers: value.headers ? JSON.parse(value.headers) : undefined,
-      etag: value.etag ? value.etag : undefined,
-      vary: value.vary ?? undefined,
-      cacheControlDirectives: value.cacheControlDirectives
-        ? JSON.parse(value.cacheControlDirectives)
-        : undefined,
-      cachedAt: value.cachedAt,
-      staleAt: value.staleAt,
-      deleteAt: value.deleteAt
+    const existingValue = this.#findValue(key, true)
+    if (existingValue) {
+      // Updating an existing response, let's overwrite it
+      this.#updateValueQuery.run(
+        body,
+        value.deleteAt,
+        value.statusCode,
+        value.statusMessage,
+        value.headers ? JSON.stringify(value.headers) : null,
+        value.etag ? value.etag : null,
+        value.cacheControlDirectives ? JSON.stringify(value.cacheControlDirectives) : null,
+        value.cachedAt,
+        value.staleAt,
+        existingValue.id
+      )
+    } else {
+      this.#prune()
+      // New response, let's insert it
+      this.#insertValueQuery.run(
+        url,
+        key.method,
+        body,
+        value.deleteAt,
+        value.statusCode,
+        value.statusMessage,
+        value.headers ? JSON.stringify(value.headers) : null,
+        value.etag ? value.etag : null,
+        value.cacheControlDirectives ? JSON.stringify(value.cacheControlDirectives) : null,
+        value.vary ? JSON.stringify(value.vary) : null,
+        value.cachedAt,
+        value.staleAt
+      )
     }
-
-    return result
   }
 
   /**
@@ -260,7 +307,6 @@ module.exports = class SqliteCacheStore {
     assertCacheKey(key)
     assertCacheValue(value)
 
-    const url = this.#makeValueUrl(key)
     let size = 0
     /**
      * @type {Buffer[] | null}
@@ -269,11 +315,8 @@ module.exports = class SqliteCacheStore {
     const store = this
 
     return new Writable({
+      decodeStrings: true,
       write (chunk, encoding, callback) {
-        if (typeof chunk === 'string') {
-          chunk = Buffer.from(chunk, encoding)
-        }
-
         size += chunk.byteLength
 
         if (size < store.#maxEntrySize) {
@@ -285,42 +328,7 @@ module.exports = class SqliteCacheStore {
         callback()
       },
       final (callback) {
-        const existingValue = store.#findValue(key, true)
-        if (existingValue) {
-          // Updating an existing response, let's overwrite it
-          store.#updateValueQuery.run(
-            Buffer.concat(body),
-            value.deleteAt,
-            value.statusCode,
-            value.statusMessage,
-            value.headers ? JSON.stringify(value.headers) : null,
-            value.etag ? value.etag : null,
-            value.cacheControlDirectives ? JSON.stringify(value.cacheControlDirectives) : null,
-            value.cachedAt,
-            value.staleAt,
-            value.deleteAt,
-            existingValue.id
-          )
-        } else {
-          store.#prune()
-          // New response, let's insert it
-          store.#insertValueQuery.run(
-            url,
-            key.method,
-            Buffer.concat(body),
-            value.deleteAt,
-            value.statusCode,
-            value.statusMessage,
-            value.headers ? JSON.stringify(value.headers) : null,
-            value.etag ? value.etag : null,
-            value.cacheControlDirectives ? JSON.stringify(value.cacheControlDirectives) : null,
-            value.vary ? JSON.stringify(value.vary) : null,
-            value.cachedAt,
-            value.staleAt,
-            value.deleteAt
-          )
-        }
-
+        store.set(key, { ...value, body })
         callback()
       }
     })
@@ -344,14 +352,14 @@ module.exports = class SqliteCacheStore {
 
     {
       const removed = this.#deleteExpiredValuesQuery.run(Date.now()).changes
-      if (removed > 0) {
+      if (removed) {
         return removed
       }
     }
 
     {
-      const removed = this.#deleteOldValuesQuery.run(Math.max(Math.floor(this.#maxCount * 0.1), 1)).changes
-      if (removed > 0) {
+      const removed = this.#deleteOldValuesQuery?.run(Math.max(Math.floor(this.#maxCount * 0.1), 1)).changes
+      if (removed) {
         return removed
       }
     }
@@ -379,7 +387,7 @@ module.exports = class SqliteCacheStore {
   /**
    * @param {import('../../types/cache-interceptor.d.ts').default.CacheKey} key
    * @param {boolean} [canBeExpired=false]
-   * @returns {(SqliteStoreValue & { vary?: Record<string, string[]> }) | undefined}
+   * @returns {SqliteStoreValue | undefined}
    */
   #findValue (key, canBeExpired = false) {
     const url = this.#makeValueUrl(key)
@@ -407,10 +415,10 @@ module.exports = class SqliteCacheStore {
           return undefined
         }
 
-        value.vary = JSON.parse(value.vary)
+        const vary = JSON.parse(value.vary)
 
-        for (const header in value.vary) {
-          if (!headerValueEquals(headers[header], value.vary[header])) {
+        for (const header in vary) {
+          if (!headerValueEquals(headers[header], vary[header])) {
             matches = false
             break
           }

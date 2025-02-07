@@ -51,7 +51,7 @@ macro CreateThrowerFunction(
   InitContextSlot(
       throwerContext, PromiseValueThunkOrReasonContextSlot::kValueSlot, reason);
   return AllocateRootFunctionWithContext(
-      kPromiseThrowerFinallySharedFun, throwerContext);
+      kPromiseThrowerFinallySharedFun, throwerContext, nativeContext);
 }
 
 transitioning javascript builtin PromiseCatchFinally(
@@ -98,7 +98,7 @@ macro CreateValueThunkFunction(
       valueThunkContext, PromiseValueThunkOrReasonContextSlot::kValueSlot,
       value);
   return AllocateRootFunctionWithContext(
-      kPromiseValueThunkFinallySharedFun, valueThunkContext);
+      kPromiseValueThunkFinallySharedFun, valueThunkContext, nativeContext);
 }
 
 transitioning javascript builtin PromiseThenFinally(
@@ -152,9 +152,9 @@ macro CreatePromiseFinallyFunctions(
   InitContextSlot(
       promiseContext, PromiseFinallyContextSlot::kConstructorSlot, constructor);
   const thenFinally = AllocateRootFunctionWithContext(
-      kPromiseThenFinallySharedFun, promiseContext);
+      kPromiseThenFinallySharedFun, promiseContext, nativeContext);
   const catchFinally = AllocateRootFunctionWithContext(
-      kPromiseCatchFinallySharedFun, promiseContext);
+      kPromiseCatchFinallySharedFun, promiseContext, nativeContext);
   return PromiseFinallyFunctions{
     then_finally: thenFinally,
     catch_finally: catchFinally

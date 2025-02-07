@@ -151,7 +151,7 @@ ABSL_NAMESPACE_BEGIN
 //   int* my_array = new int[10];
 //   MyRoutine(absl::Span<const int>(my_array, 10));
 template <typename T>
-class ABSL_INTERNAL_ATTRIBUTE_VIEW Span {
+class ABSL_ATTRIBUTE_VIEW Span {
  private:
   // Used to determine whether a Span can be constructed from a container of
   // type C.

@@ -50,6 +50,7 @@ using v8::Isolate;
 using v8::Local;
 using v8::LocalVector;
 using v8::MaybeLocal;
+using v8::Name;
 using v8::NewStringType;
 using v8::Null;
 using v8::Number;
@@ -71,8 +72,10 @@ static void GetHostname(const FunctionCallbackInfo<Value>& args) {
     return args.GetReturnValue().SetUndefined();
   }
 
-  args.GetReturnValue().Set(
-      String::NewFromUtf8(env->isolate(), buf).ToLocalChecked());
+  Local<Value> ret;
+  if (String::NewFromUtf8(env->isolate(), buf).ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
+  }
 }
 
 static void GetOSInformation(const FunctionCallbackInfo<Value>& args) {
@@ -87,15 +90,18 @@ static void GetOSInformation(const FunctionCallbackInfo<Value>& args) {
   }
 
   // [sysname, version, release, machine]
-  Local<Value> osInformation[] = {
-      String::NewFromUtf8(env->isolate(), info.sysname).ToLocalChecked(),
-      String::NewFromUtf8(env->isolate(), info.version).ToLocalChecked(),
-      String::NewFromUtf8(env->isolate(), info.release).ToLocalChecked(),
-      String::NewFromUtf8(env->isolate(), info.machine).ToLocalChecked()};
-
-  args.GetReturnValue().Set(Array::New(env->isolate(),
-                                       osInformation,
-                                       arraysize(osInformation)));
+  Local<Value> osInformation[4];
+  if (String::NewFromUtf8(env->isolate(), info.sysname)
+          .ToLocal(&osInformation[0]) &&
+      String::NewFromUtf8(env->isolate(), info.version)
+          .ToLocal(&osInformation[1]) &&
+      String::NewFromUtf8(env->isolate(), info.release)
+          .ToLocal(&osInformation[2]) &&
+      String::NewFromUtf8(env->isolate(), info.machine)
+          .ToLocal(&osInformation[3])) {
+    args.GetReturnValue().Set(
+        Array::New(env->isolate(), osInformation, arraysize(osInformation)));
+  }
 }
 
 static void GetCPUInfo(const FunctionCallbackInfo<Value>& args) {
@@ -204,7 +210,10 @@ static void GetInterfaceAddresses(const FunctionCallbackInfo<Value>& args) {
     // to assume UTF8 as the default as well. It’s what people will expect if
     // they name the interface from any input that uses UTF-8, which should be
     // the most frequent case by far these days.)
-    name = String::NewFromUtf8(isolate, raw_name).ToLocalChecked();
+    if (!String::NewFromUtf8(isolate, raw_name).ToLocal(&name)) {
+      // Error occurred creating the string.
+      return;
+    }
 
     snprintf(mac.data(),
              mac.size(),
@@ -262,11 +271,11 @@ static void GetHomeDirectory(const FunctionCallbackInfo<Value>& args) {
     return args.GetReturnValue().SetUndefined();
   }
 
-  Local<String> home = String::NewFromUtf8(env->isolate(),
-                                           buf,
-                                           NewStringType::kNormal,
-                                           len).ToLocalChecked();
-  args.GetReturnValue().Set(home);
+  Local<String> home;
+  if (String::NewFromUtf8(env->isolate(), buf, NewStringType::kNormal, len)
+          .ToLocal(&home)) {
+    args.GetReturnValue().Set(home);
+  }
 }
 
 
@@ -311,43 +320,41 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
   Local<Value> gid = Number::New(env->isolate(), pwd.gid);
 #endif
 
-  MaybeLocal<Value> username = StringBytes::Encode(env->isolate(),
-                                                   pwd.username,
-                                                   encoding,
-                                                   &error);
-  MaybeLocal<Value> homedir = StringBytes::Encode(env->isolate(),
-                                                  pwd.homedir,
-                                                  encoding,
-                                                  &error);
-  MaybeLocal<Value> shell;
+  Local<Value> username;
+  if (!StringBytes::Encode(env->isolate(), pwd.username, encoding, &error)
+           .ToLocal(&username)) {
+    CHECK(!error.IsEmpty());
+    env->isolate()->ThrowException(error);
+    return;
+  }
 
-  if (pwd.shell == nullptr)
-    shell = Null(env->isolate());
-  else
-    shell = StringBytes::Encode(env->isolate(), pwd.shell, encoding, &error);
+  Local<Value> homedir;
+  if (!StringBytes::Encode(env->isolate(), pwd.homedir, encoding, &error)
+           .ToLocal(&homedir)) {
+    CHECK(!error.IsEmpty());
+    env->isolate()->ThrowException(error);
+    return;
+  }
 
-  if (username.IsEmpty() || homedir.IsEmpty() || shell.IsEmpty()) {
+  Local<Value> shell = Null(env->isolate());
+  if (pwd.shell != nullptr &&
+      !StringBytes::Encode(env->isolate(), pwd.shell, encoding, &error)
+           .ToLocal(&shell)) {
     CHECK(!error.IsEmpty());
     env->isolate()->ThrowException(error);
     return;
   }
 
   constexpr size_t kRetLength = 5;
-  std::array<Local<v8::Name>, kRetLength> names = {env->uid_string(),
-                                                   env->gid_string(),
-                                                   env->username_string(),
-                                                   env->homedir_string(),
-                                                   env->shell_string()};
-  std::array values = {uid,
-                       gid,
-                       username.ToLocalChecked(),
-                       homedir.ToLocalChecked(),
-                       shell.ToLocalChecked()};
-  args.GetReturnValue().Set(Object::New(env->isolate(),
-                                        Null(env->isolate()),
-                                        names.data(),
-                                        values.data(),
-                                        kRetLength));
+  Local<Name> names[kRetLength] = {env->uid_string(),
+                                   env->gid_string(),
+                                   env->username_string(),
+                                   env->homedir_string(),
+                                   env->shell_string()};
+  Local<Value> values[kRetLength] = {uid, gid, username, homedir, shell};
+
+  args.GetReturnValue().Set(Object::New(
+      env->isolate(), Null(env->isolate()), &names[0], &values[0], kRetLength));
 }
 
 

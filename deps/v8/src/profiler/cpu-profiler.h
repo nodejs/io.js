@@ -263,7 +263,7 @@ class V8_EXPORT_PRIVATE SamplingEventsProcessor
 #endif  // V8_OS_WIN
 };
 
-// Builds and maintains a InstructionStreamMap tracking code objects on the VM
+// Builds and maintains an InstructionStreamMap tracking code objects on the VM
 // heap. While alive, logs generated code, callbacks, and builtins from the
 // isolate. Redirects events to the profiler events processor when present.
 // CodeEntry lifetime is associated with the given CodeEntryStorage.

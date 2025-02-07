@@ -5,7 +5,7 @@
 // Tests Number.prototype.toString for numbers within or near the subnormal
 // range, when the radix argument is 2.
 
-// A JavaScript number is a IEEE 754 binary64 (double-precision floating-point)
+// A JavaScript number is an IEEE 754 binary64 (double-precision floating-point)
 // value, so we should be able to provide a binary string value that is an
 // exact representation.
 

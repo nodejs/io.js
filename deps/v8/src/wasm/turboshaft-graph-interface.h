@@ -41,7 +41,7 @@ class WireBytesStorage;
 class TurboshaftGraphBuildingInterface;
 struct CompilationEnv;
 
-V8_EXPORT_PRIVATE bool BuildTSGraph(
+V8_EXPORT_PRIVATE void BuildTSGraph(
     compiler::turboshaft::PipelineData* data, AccountingAllocator* allocator,
     CompilationEnv* env, WasmDetectedFeatures* detected,
     compiler::turboshaft::Graph& graph, const FunctionBody& func_body,
@@ -63,9 +63,13 @@ class V8_EXPORT_PRIVATE WasmGraphBuilderBase {
       compiler::turboshaft::DataViewLoweringReducer,
       compiler::turboshaft::VariableReducer>;
   template <typename T>
-  using ScopedVar = compiler::turboshaft::ScopedVariable<T, Assembler>;
+  using Var = compiler::turboshaft::Var<T, Assembler>;
+  template <typename T>
+  using ScopedVar = compiler::turboshaft::ScopedVar<T, Assembler>;
   template <typename T, typename A>
-  friend class compiler::turboshaft::ScopedVariable;
+  friend class compiler::turboshaft::Var;
+  template <typename T, typename A>
+  friend class compiler::turboshaft::ScopedVar;
 
  public:
   using OpIndex = compiler::turboshaft::OpIndex;
@@ -90,10 +94,6 @@ class V8_EXPORT_PRIVATE WasmGraphBuilderBase {
   using V = compiler::turboshaft::V<T>;
   template <typename T>
   using ConstOrV = compiler::turboshaft::ConstOrV<T>;
-
-  using ValidationTag = Decoder::FullValidationTag;
-  using FullDecoder =
-      WasmFullDecoder<ValidationTag, TurboshaftGraphBuildingInterface>;
 
   OpIndex CallRuntime(Zone* zone, Runtime::FunctionId f,
                       std::initializer_list<const OpIndex> args,

@@ -22,7 +22,7 @@
 #include "src/codegen/ia32/interface-descriptors-ia32-inl.h"
 #elif V8_TARGET_ARCH_ARM
 #include "src/codegen/arm/interface-descriptors-arm-inl.h"
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
 #include "src/codegen/ppc/interface-descriptors-ppc-inl.h"
 #elif V8_TARGET_ARCH_S390
 #include "src/codegen/s390/interface-descriptors-s390-inl.h"
@@ -455,10 +455,9 @@ constexpr auto LoadWithReceiverBaselineDescriptor::registers() {
 // static
 constexpr auto BaselineOutOfLinePrologueDescriptor::registers() {
   // TODO(v8:11421): Implement on other platforms.
-#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_ARM ||  \
-    V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390 || \
-    V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_MIPS64 ||                   \
-    V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV32
+#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_ARM ||      \
+    V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390 || V8_TARGET_ARCH_RISCV64 || \
+    V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV32
   return RegisterArray(
       kContextRegister, kJSFunctionRegister, kJavaScriptCallArgCountRegister,
       kJavaScriptCallExtraArg1Register, kJavaScriptCallNewTargetRegister,
@@ -476,9 +475,9 @@ constexpr auto BaselineOutOfLinePrologueDescriptor::registers() {
 // static
 constexpr auto BaselineLeaveFrameDescriptor::registers() {
   // TODO(v8:11421): Implement on other platforms.
-#if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 ||      \
-    V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64 ||       \
-    V8_TARGET_ARCH_S390 || V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_MIPS64 || \
+#if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || \
+    V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390 || \
+    V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_MIPS64 ||                   \
     V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV32
   return RegisterArray(ParamsSizeRegister(), WeightRegister());
 #else
@@ -754,6 +753,16 @@ WasmJSToWasmWrapperDescriptor::WrapperBufferRegister() {
   return std::get<kWrapperBuffer>(registers());
 }
 
+// static
+constexpr inline Register
+WasmHandleStackOverflowDescriptor::FrameBaseRegister() {
+  return std::get<kFrameBase>(registers());
+}
+
+constexpr inline Register WasmHandleStackOverflowDescriptor::GapRegister() {
+  return std::get<kGap>(registers());
+}
+
 constexpr auto WasmToJSWrapperDescriptor::registers() {
 #if V8_ENABLE_WEBASSEMBLY
   return RegisterArray(wasm::kGpParamRegisters[0]);
@@ -787,7 +796,8 @@ constexpr auto WasmToJSWrapperDescriptor::return_double_registers() {
   struct CallInterfaceDescriptorFor<Builtin::k##Name> {               \
     using type = DescriptorName##Descriptor;                          \
   };
-BUILTIN_LIST(IGNORE_BUILTIN, IGNORE_BUILTIN, IGNORE_BUILTIN, IGNORE_BUILTIN,
+BUILTIN_LIST(IGNORE_BUILTIN, IGNORE_BUILTIN, IGNORE_BUILTIN,
+             /*TSC*/ DEFINE_STATIC_BUILTIN_DESCRIPTOR_GETTER,
              /*TFC*/ DEFINE_STATIC_BUILTIN_DESCRIPTOR_GETTER, IGNORE_BUILTIN,
              /*TFH*/ DEFINE_STATIC_BUILTIN_DESCRIPTOR_GETTER, IGNORE_BUILTIN,
              /*ASM*/ DEFINE_STATIC_BUILTIN_DESCRIPTOR_GETTER)

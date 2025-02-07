@@ -40,7 +40,7 @@ const kinds = [
     obs.disconnect();
   }));
   obs.observe({ entryTypes: ['gc'] });
-  global.gc();
+  globalThis.gc();
   // Keep the event loop alive to witness the GC async callback happen.
   setImmediate(() => setImmediate(() => 0));
 }
@@ -51,6 +51,6 @@ const kinds = [
   process.on('beforeExit', () => {
     assert(!didCall);
     didCall = true;
-    global.gc();
+    globalThis.gc();
   });
 }

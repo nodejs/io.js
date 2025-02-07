@@ -241,11 +241,7 @@ bool IsWasmCodegenAllowed(Isolate* isolate, Handle<NativeContext> context) {
         v8::Utils::ToLocal(context),
         v8::Utils::ToLocal(isolate->factory()->empty_string()));
   }
-  auto codegen_callback = isolate->allow_code_gen_callback();
-  return codegen_callback == nullptr ||
-         codegen_callback(
-             v8::Utils::ToLocal(context),
-             v8::Utils::ToLocal(isolate->factory()->empty_string()));
+  return true;
 }
 
 DirectHandle<String> ErrorStringForCodegen(Isolate* isolate,

@@ -36,8 +36,9 @@ const crypto = require('crypto');
 [ 'modp1', 'modp2', 'modp5', 'modp14', 'modp15', 'modp16', 'modp17' ]
 .forEach((name) => {
   // modp1 is 768 bits, FIPS requires >= 1024
-  if (name === 'modp1' && common.hasFipsCrypto)
+  if (name === 'modp1' && crypto.getFips()) {
     return;
+  }
   const group1 = crypto.getDiffieHellman(name);
   const group2 = crypto.getDiffieHellman(name);
   group1.generateKeys();

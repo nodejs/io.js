@@ -13,7 +13,7 @@
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 AC_PREREQ(2.57)
-AC_INIT([libuv], [1.49.2], [https://github.com/libuv/libuv/issues])
+AC_INIT([libuv], [1.50.0], [https://github.com/libuv/libuv/issues])
 AC_CONFIG_MACRO_DIR([m4])
 m4_include([m4/libuv-extra-automake-flags.m4])
 m4_include([m4/as_case.m4])

@@ -3,7 +3,9 @@ const common = require('../common');
 const ArrayStream = require('../common/arraystream');
 const assert = require('assert');
 
-common.skipIfDumbTerminal();
+if (process.env.TERM === 'dumb') {
+  common.skip('skipping - dumb terminal');
+}
 
 const readline = require('readline');
 const rli = new readline.Interface({

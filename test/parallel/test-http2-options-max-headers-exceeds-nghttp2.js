@@ -59,6 +59,9 @@ server.listen(0, common.mustCall(() => {
     'session',
     common.mustCall((session) => {
       assert.strictEqual(session instanceof ServerHttp2Session, true);
+      session.on('close', common.mustCall(() => {
+        server.close();
+      }));
     }),
   );
   server.on(
@@ -80,7 +83,6 @@ server.listen(0, common.mustCall(() => {
       assert.strictEqual(err.name, 'Error');
       assert.strictEqual(err.message, 'Session closed with error code 9');
       assert.strictEqual(session instanceof ServerHttp2Session, true);
-      server.close();
     }),
   );
 

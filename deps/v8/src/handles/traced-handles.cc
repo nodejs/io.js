@@ -226,7 +226,7 @@ void TracedHandles::Move(TracedNode& from_node, Address** from, Address** to) {
   if (is_marking_) {
     // Write barrier needs to cover node as well as object.
     to_node->set_markbit();
-    WriteBarrier::MarkingFromGlobalHandle(to_node->object());
+    WriteBarrier::MarkingFromTracedHandle(to_node->object());
   } else if (auto* cpp_heap = GetCppHeapIfUnifiedYoungGC(isolate_)) {
     const bool object_is_young_and_not_yet_recorded =
         !from_node.has_old_host() &&
@@ -616,8 +616,8 @@ Tagged<Object> TracedHandles::MarkConservatively(
   return MarkObject(node.object(), node, mark_mode);
 }
 
-bool TracedHandles::IsValidInUseNode(Address* location) {
-  TracedNode* node = TracedNode::FromLocation(location);
+bool TracedHandles::IsValidInUseNode(const Address* location) {
+  const TracedNode* node = TracedNode::FromLocation(location);
   // This method is called after mark bits have been cleared.
   DCHECK(!node->markbit());
   CHECK_IMPLIES(node->is_in_use(), node->raw_object() != kGlobalHandleZapValue);

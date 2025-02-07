@@ -216,15 +216,6 @@
     # Enable lazy source positions by default.
     'v8_enable_lazy_source_positions%': 1,
 
-    # Enable third party HEAP library
-    'v8_enable_third_party_heap%': 0,
-
-    # Libraries used by third party heap
-    'v8_third_party_heap_libs%': [],
-
-    # Source code used by third party heap
-    'v8_third_party_heap_files%': [],
-
     # Disable write barriers when GCs are non-incremental and
     # heap has single generation.
     'v8_disable_write_barriers%': 0,
@@ -436,9 +427,6 @@
       }],
       ['v8_disable_write_barriers==1', {
         'defines': ['V8_DISABLE_WRITE_BARRIERS',],
-      }],
-      ['v8_enable_third_party_heap==1', {
-        'defines': ['V8_ENABLE_THIRD_PARTY_HEAP',],
       }],
       ['v8_enable_atomic_object_field_writes==1', {
         'defines': ['V8_ATOMIC_OBJECT_FIELD_WRITES',],

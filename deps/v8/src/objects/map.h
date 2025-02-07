@@ -53,7 +53,6 @@ enum InstanceType : uint16_t;
   V(DebugInfo)                       \
   V(EmbedderDataArray)               \
   V(EphemeronHashTable)              \
-  V(ExternalPointerArray)            \
   V(ExternalString)                  \
   V(FeedbackCell)                    \
   V(Foreign)                         \
@@ -656,7 +655,8 @@ class Map : public TorqueGeneratedMap<Map, HeapObject> {
   DECL_ACQUIRE_GETTER(instance_descriptors, Tagged<DescriptorArray>)
   V8_EXPORT_PRIVATE void SetInstanceDescriptors(
       Isolate* isolate, Tagged<DescriptorArray> descriptors,
-      int number_of_own_descriptors);
+      int number_of_own_descriptors,
+      WriteBarrierMode barrier_mode = UPDATE_WRITE_BARRIER);
 
   inline void UpdateDescriptors(Isolate* isolate,
                                 Tagged<DescriptorArray> descriptors,
@@ -684,6 +684,13 @@ class Map : public TorqueGeneratedMap<Map, HeapObject> {
   // Returns true if prototype validity cell value represents "valid" prototype
   // chain state.
   inline bool IsPrototypeValidityCellValid() const;
+
+  // Returns true if this map belongs to the same native context as given map,
+  // i.e. this map's meta map is equal to other_map's meta map.
+  // Returns false if this map is contextless (in case of JSObject map this
+  // means that the object is remote).
+  inline bool BelongsToSameNativeContextAs(Tagged<Map> other_map) const;
+  inline bool BelongsToSameNativeContextAs(Tagged<Context> context) const;
 
   inline Tagged<Name> GetLastDescriptorName(Isolate* isolate) const;
   inline PropertyDetails GetLastDescriptorDetails(Isolate* isolate) const;

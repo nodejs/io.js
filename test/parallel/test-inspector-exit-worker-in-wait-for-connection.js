@@ -3,9 +3,15 @@
 const common = require('../common');
 common.skipIfInspectorDisabled();
 
-const { parentPort, workerData, Worker } = require('node:worker_threads');
-if (!workerData) {
-  common.skipIfWorker();
+const {
+  isMainThread,
+  parentPort,
+  workerData,
+  Worker,
+} = require('node:worker_threads');
+
+if (!workerData && !isMainThread) {
+  common.skip('This test only works on a main thread');
 }
 
 const inspector = require('node:inspector');

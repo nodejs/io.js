@@ -17,6 +17,8 @@ namespace v8 {
 namespace internal {
 namespace test_swiss_hash_table {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // The non-SIMD SwissNameDictionary implementation requires 64 bit integer
 // operations, which CSA/Torque don't offer on 32 bit platforms. Therefore, we
 // cannot run the CSA version of the tests on 32 bit platforms. The only
@@ -471,6 +473,8 @@ const char kCSATestFileName[] = __FILE__;
 SharedSwissTableTests<CSATestRunner, kCSATestFileName> execute_shared_tests_csa;
 
 #endif
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace test_swiss_hash_table
 }  // namespace internal

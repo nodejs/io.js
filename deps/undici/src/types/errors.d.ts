@@ -33,6 +33,22 @@ declare namespace Errors {
     code: 'UND_ERR_BODY_TIMEOUT'
   }
 
+  export class ResponseError extends UndiciError {
+    constructor (
+      message: string,
+      code: number,
+      options: {
+        headers?: IncomingHttpHeaders | string[] | null,
+        body?: null | Record<string, any> | string
+      }
+    )
+    name: 'ResponseError'
+    code: 'UND_ERR_RESPONSE'
+    statusCode: number
+    body: null | Record<string, any> | string
+    headers: IncomingHttpHeaders | string[] | null
+  }
+
   export class ResponseStatusCodeError extends UndiciError {
     constructor (
       message?: string,

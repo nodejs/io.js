@@ -11,8 +11,10 @@
 
 namespace node {
 
+using ncrypto::BignumPointer;
+using ncrypto::ClearErrorOnReturn;
+using ncrypto::DataPointer;
 using v8::ArrayBuffer;
-using v8::BackingStore;
 using v8::Boolean;
 using v8::FunctionCallbackInfo;
 using v8::Int32;
@@ -23,12 +25,12 @@ using v8::MaybeLocal;
 using v8::Nothing;
 using v8::Object;
 using v8::Uint32;
+using v8::Undefined;
 using v8::Value;
 
 namespace crypto {
 namespace {
-ncrypto::BignumPointer::PrimeCheckCallback getPrimeCheckCallback(
-    Environment* env) {
+BignumPointer::PrimeCheckCallback getPrimeCheckCallback(Environment* env) {
   // The callback is used to check if the operation should be stopped.
   // Currently, the only check we perform is if env->is_stopping()
   // is true.
@@ -38,7 +40,7 @@ ncrypto::BignumPointer::PrimeCheckCallback getPrimeCheckCallback(
 }  // namespace
 MaybeLocal<Value> RandomBytesTraits::EncodeOutput(
     Environment* env, const RandomBytesConfig& params, ByteSource* unused) {
-  return v8::Undefined(env->isolate());
+  return Undefined(env->isolate());
 }
 
 Maybe<void> RandomBytesTraits::AdditionalConfig(
@@ -77,14 +79,13 @@ void RandomPrimeConfig::MemoryInfo(MemoryTracker* tracker) const {
 MaybeLocal<Value> RandomPrimeTraits::EncodeOutput(
     Environment* env, const RandomPrimeConfig& params, ByteSource* unused) {
   size_t size = params.prime.byteLength();
-  std::shared_ptr<BackingStore> store =
-      ArrayBuffer::NewBackingStore(env->isolate(), size);
+  auto store = ArrayBuffer::NewBackingStore(env->isolate(), size);
   CHECK_EQ(size,
            BignumPointer::EncodePaddedInto(
                params.prime.get(),
                reinterpret_cast<unsigned char*>(store->Data()),
                size));
-  return ArrayBuffer::New(env->isolate(), store);
+  return ArrayBuffer::New(env->isolate(), std::move(store));
 }
 
 Maybe<void> RandomPrimeTraits::AdditionalConfig(
@@ -103,7 +104,7 @@ Maybe<void> RandomPrimeTraits::AdditionalConfig(
   if (!args[offset + 2]->IsUndefined()) {
     ArrayBufferOrViewContents<unsigned char> add(args[offset + 2]);
     params->add.reset(add.data(), add.size());
-    if (!params->add) {
+    if (!params->add) [[unlikely]] {
       THROW_ERR_CRYPTO_OPERATION_FAILED(env, "could not generate prime");
       return Nothing<void>();
     }
@@ -112,7 +113,7 @@ Maybe<void> RandomPrimeTraits::AdditionalConfig(
   if (!args[offset + 3]->IsUndefined()) {
     ArrayBufferOrViewContents<unsigned char> rem(args[offset + 3]);
     params->rem.reset(rem.data(), rem.size());
-    if (!params->rem) {
+    if (!params->rem) [[unlikely]] {
       THROW_ERR_CRYPTO_OPERATION_FAILED(env, "could not generate prime");
       return Nothing<void>();
     }
@@ -123,7 +124,7 @@ Maybe<void> RandomPrimeTraits::AdditionalConfig(
   CHECK_GT(bits, 0);
 
   if (params->add) {
-    if (BignumPointer::GetBitCount(params->add.get()) > bits) {
+    if (BignumPointer::GetBitCount(params->add.get()) > bits) [[unlikely]] {
       // If we allowed this, the best case would be returning a static prime
       // that wasn't generated randomly. The worst case would be an infinite
       // loop within OpenSSL, blocking the main thread or one of the threads
@@ -132,7 +133,7 @@ Maybe<void> RandomPrimeTraits::AdditionalConfig(
       return Nothing<void>();
     }
 
-    if (params->rem && params->add <= params->rem) {
+    if (params->rem && params->add <= params->rem) [[unlikely]] {
       // This would definitely lead to an infinite loop if allowed since
       // OpenSSL does not check this condition.
       THROW_ERR_OUT_OF_RANGE(env, "invalid options.rem");
@@ -143,7 +144,7 @@ Maybe<void> RandomPrimeTraits::AdditionalConfig(
   params->bits = bits;
   params->safe = safe;
   params->prime = BignumPointer::NewSecure();
-  if (!params->prime) {
+  if (!params->prime) [[unlikely]] {
     THROW_ERR_CRYPTO_OPERATION_FAILED(env, "could not generate prime");
     return Nothing<void>();
   }
@@ -176,6 +177,11 @@ Maybe<void> CheckPrimeTraits::AdditionalConfig(
   ArrayBufferOrViewContents<unsigned char> candidate(args[offset]);
 
   params->candidate = BignumPointer(candidate.data(), candidate.size());
+  if (!params->candidate) {
+    ThrowCryptoError(
+        Environment::GetCurrent(args), ERR_get_error(), "BignumPointer");
+    return Nothing<void>();
+  }
 
   CHECK(args[offset + 1]->IsInt32());  // Checks
   params->checks = args[offset + 1].As<Int32>()->Value();
@@ -189,10 +195,11 @@ bool CheckPrimeTraits::DeriveBits(
     const CheckPrimeConfig& params,
     ByteSource* out) {
   int ret = params.candidate.isPrime(params.checks, getPrimeCheckCallback(env));
-  if (ret < 0) return false;
-  ByteSource::Builder buf(1);
-  buf.data<char>()[0] = ret;
-  *out = std::move(buf).release();
+  if (ret < 0) [[unlikely]]
+    return false;
+  auto buf = DataPointer::Alloc(1);
+  static_cast<char*>(buf.get())[0] = ret;
+  *out = ByteSource::Allocated(buf.release());
   return true;
 }
 

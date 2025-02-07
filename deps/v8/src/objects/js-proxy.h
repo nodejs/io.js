@@ -18,7 +18,7 @@ class KeyAccumulator;
 
 #include "torque-generated/src/objects/js-proxy-tq.inc"
 
-// The JSProxy describes EcmaScript Harmony proxies
+// The JSProxy describes ECMAScript Harmony proxies
 class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
  public:
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSProxy> New(Isolate* isolate,

@@ -1,8 +1,9 @@
 // Flags: --experimental-test-module-mocks --experimental-require-module
 'use strict';
 const common = require('../common');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread) {
+if (!isMainThread) {
   common.skip('registering customization hooks in Workers does not work');
 }
 
@@ -448,13 +449,15 @@ test('mocks are automatically restored', async (t) => {
     assert.strictEqual(mocked.fn(), 43);
   });
 
-  const cjsMock = require(cjsFixture);
-  const esmMock = await import(esmFixture);
+  t.test('checks original behavior', async () => {
+    const cjsMock = require(cjsFixture);
+    const esmMock = await import(esmFixture);
 
-  assert.strictEqual(cjsMock.string, 'original cjs string');
-  assert.strictEqual(cjsMock.fn, undefined);
-  assert.strictEqual(esmMock.string, 'original esm string');
-  assert.strictEqual(esmMock.fn, undefined);
+    assert.strictEqual(cjsMock.string, 'original cjs string');
+    assert.strictEqual(cjsMock.fn, undefined);
+    assert.strictEqual(esmMock.string, 'original esm string');
+    assert.strictEqual(esmMock.fn, undefined);
+  });
 });
 
 test('mocks can be restored independently', async (t) => {
@@ -649,4 +652,45 @@ test('wrong import syntax should throw error after module mocking', async () => 
   assert.strictEqual(stdout, '');
   assert.match(stderr, /Error \[ERR_MODULE_NOT_FOUND\]: Cannot find module/);
   assert.strictEqual(code, 1);
+});
+
+test('should throw ERR_ACCESS_DENIED when permission model is enabled', async (t) => {
+  const cwd = fixtures.path('test-runner');
+  const fixture = fixtures.path('test-runner', 'mock-nm.js');
+  const args = [
+    '--permission',
+    '--allow-fs-read=*',
+    '--experimental-test-module-mocks',
+    fixture,
+  ];
+  const {
+    code,
+    stdout,
+  } = await common.spawnPromisified(process.execPath, args, { cwd });
+
+  assert.strictEqual(code, 1);
+  assert.match(stdout, /Error: Access to this API has been restricted/);
+  assert.match(stdout, /permission: 'WorkerThreads'/);
+});
+
+test('should work when --allow-worker is passed and permission model is enabled', async (t) => {
+  const cwd = fixtures.path('test-runner');
+  const fixture = fixtures.path('test-runner', 'mock-nm.js');
+  const args = [
+    '--permission',
+    '--allow-fs-read=*',
+    '--allow-worker',
+    '--experimental-test-module-mocks',
+    fixture,
+  ];
+  const {
+    code,
+    stdout,
+    stderr,
+    signal,
+  } = await common.spawnPromisified(process.execPath, args, { cwd });
+
+  assert.strictEqual(code, 0, stderr);
+  assert.strictEqual(signal, null);
+  assert.match(stdout, /pass 1/, stderr);
 });

@@ -190,6 +190,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -210,9 +211,11 @@
 #include "absl/container/internal/common.h"  // IWYU pragma: export // for node_handle
 #include "absl/container/internal/compressed_tuple.h"
 #include "absl/container/internal/container_memory.h"
+#include "absl/container/internal/hash_function_defaults.h"
 #include "absl/container/internal/hash_policy_traits.h"
 #include "absl/container/internal/hashtable_debug_hooks.h"
 #include "absl/container/internal/hashtablez_sampler.h"
+#include "absl/hash/hash.h"
 #include "absl/memory/memory.h"
 #include "absl/meta/type_traits.h"
 #include "absl/numeric/bits.h"
@@ -540,8 +543,12 @@ ABSL_DLL extern const ctrl_t kEmptyGroup[32];
 // classes of bugs.
 enum InvalidCapacity : size_t {
   kAboveMaxValidCapacity = ~size_t{} - 100,
-  // Used for reentrancy assertions.
-  kInvalidReentrance,
+  kReentrance,
+  kDestroyed,
+
+  // These two must be last because we use `>= kMovedFrom` to mean moved-from.
+  kMovedFrom,
+  kSelfMovedFrom,
 };
 
 // Returns a pointer to a control byte group that can be used by empty tables.
@@ -1462,7 +1469,7 @@ class CommonFields : public CommonFieldsGenerationInfo {
     return;
 #endif
     const size_t cap = capacity();
-    set_capacity(kInvalidReentrance);
+    set_capacity(InvalidCapacity::kReentrance);
     f();
     set_capacity(cap);
   }
@@ -2399,6 +2406,10 @@ class raw_hash_set {
            alignof(slot_type) <= alignof(HeapOrSoo);
   }
 
+  constexpr static size_t DefaultCapacity() {
+    return SooEnabled() ? SooCapacity() : 0;
+  }
+
   // Whether `size` fits in the SOO capacity of this table.
   bool fits_in_soo(size_t size) const {
     return SooEnabled() && size <= SooCapacity();
@@ -2636,7 +2647,7 @@ class raw_hash_set {
       const allocator_type& alloc = allocator_type())
       : settings_(CommonFields::CreateDefault<SooEnabled()>(), hash, eq,
                   alloc) {
-    if (bucket_count > (SooEnabled() ? SooCapacity() : 0)) {
+    if (bucket_count > DefaultCapacity()) {
       resize(NormalizeCapacity(bucket_count));
     }
   }
@@ -2819,7 +2830,7 @@ class raw_hash_set {
       transfer(soo_slot(), that.soo_slot());
     }
     that.common() = CommonFields::CreateDefault<SooEnabled()>();
-    maybe_increment_generation_or_rehash_on_move();
+    annotate_for_bug_detection_on_move(that);
   }
 
   raw_hash_set(raw_hash_set&& that, const allocator_type& a)
@@ -2827,7 +2838,7 @@ class raw_hash_set {
                   that.eq_ref(), a) {
     if (a == that.alloc_ref()) {
       swap_common(that);
-      maybe_increment_generation_or_rehash_on_move();
+      annotate_for_bug_detection_on_move(that);
     } else {
       move_elements_allocs_unequal(std::move(that));
     }
@@ -2858,7 +2869,12 @@ class raw_hash_set {
         typename AllocTraits::propagate_on_container_move_assignment());
   }
 
-  ~raw_hash_set() { destructor_impl(); }
+  ~raw_hash_set() {
+    destructor_impl();
+#ifndef NDEBUG
+    common().set_capacity(InvalidCapacity::kDestroyed);
+#endif
+  }
 
   iterator begin() ABSL_ATTRIBUTE_LIFETIME_BOUND {
     if (ABSL_PREDICT_FALSE(empty())) return end();
@@ -2888,15 +2904,19 @@ class raw_hash_set {
   size_t size() const { return common().size(); }
   size_t capacity() const {
     const size_t cap = common().capacity();
-    // Compiler complains when using functions in assume so use local variables.
-    ABSL_ATTRIBUTE_UNUSED static constexpr bool kEnabled = SooEnabled();
-    ABSL_ATTRIBUTE_UNUSED static constexpr size_t kCapacity = SooCapacity();
-    ABSL_ASSUME(!kEnabled || cap >= kCapacity);
+    // Compiler complains when using functions in ASSUME so use local variable.
+    ABSL_ATTRIBUTE_UNUSED static constexpr size_t kDefaultCapacity =
+        DefaultCapacity();
+    ABSL_ASSUME(cap >= kDefaultCapacity);
     return cap;
   }
   size_t max_size() const { return (std::numeric_limits<size_t>::max)(); }
 
   ABSL_ATTRIBUTE_REINITIALIZES void clear() {
+    if (SwisstableGenerationsEnabled() &&
+        capacity() >= InvalidCapacity::kMovedFrom) {
+      common().set_capacity(DefaultCapacity());
+    }
     AssertNotDebugCapacity();
     // Iterating over this container is O(bucket_count()). When bucket_count()
     // is much greater than size(), iteration becomes prohibitively expensive.
@@ -3578,6 +3598,10 @@ class raw_hash_set {
   }
 
   inline void destructor_impl() {
+    if (SwisstableGenerationsEnabled() &&
+        capacity() >= InvalidCapacity::kMovedFrom) {
+      return;
+    }
     if (capacity() == 0) return;
     if (is_soo()) {
       if (!empty()) {
@@ -3751,8 +3775,17 @@ class raw_hash_set {
     move_common(that_is_full_soo, that.alloc_ref(), common(), std::move(tmp));
   }
 
-  void maybe_increment_generation_or_rehash_on_move() {
-    if (!SwisstableGenerationsEnabled() || capacity() == 0 || is_soo()) {
+  void annotate_for_bug_detection_on_move(
+      ABSL_ATTRIBUTE_UNUSED raw_hash_set& that) {
+    // We only enable moved-from validation when generations are enabled (rather
+    // than using NDEBUG) to avoid issues in which NDEBUG is enabled in some
+    // translation units but not in others.
+    if (SwisstableGenerationsEnabled()) {
+      that.common().set_capacity(this == &that ? InvalidCapacity::kSelfMovedFrom
+                                               : InvalidCapacity::kMovedFrom);
+    }
+    if (!SwisstableGenerationsEnabled() || capacity() == DefaultCapacity() ||
+        capacity() > kAboveMaxValidCapacity) {
       return;
     }
     common().increment_generation();
@@ -3774,7 +3807,7 @@ class raw_hash_set {
     CopyAlloc(alloc_ref(), that.alloc_ref(),
               std::integral_constant<bool, propagate_alloc>());
     that.common() = CommonFields::CreateDefault<SooEnabled()>();
-    maybe_increment_generation_or_rehash_on_move();
+    annotate_for_bug_detection_on_move(that);
     return *this;
   }
 
@@ -3788,7 +3821,7 @@ class raw_hash_set {
     }
     if (!that.is_soo()) that.dealloc();
     that.common() = CommonFields::CreateDefault<SooEnabled()>();
-    maybe_increment_generation_or_rehash_on_move();
+    annotate_for_bug_detection_on_move(that);
     return *this;
   }
 
@@ -3867,25 +3900,45 @@ class raw_hash_set {
   // Asserts for correctness that we run on find/find_or_prepare_insert.
   template <class K>
   void AssertOnFind(ABSL_ATTRIBUTE_UNUSED const K& key) {
-#ifdef NDEBUG
-    return;
-#endif
     AssertHashEqConsistent(key);
     AssertNotDebugCapacity();
   }
 
   // Asserts that the capacity is not a sentinel invalid value.
-  // TODO(b/296061262): also add asserts for moved-from and destroyed states.
   void AssertNotDebugCapacity() const {
-    assert(capacity() != kInvalidReentrance &&
-           "reentrant container access during element construction/destruction "
+    assert(capacity() != InvalidCapacity::kReentrance &&
+           "Reentrant container access during element construction/destruction "
            "is not allowed.");
+    assert(capacity() != InvalidCapacity::kDestroyed &&
+           "Use of destroyed hash table.");
+    if (SwisstableGenerationsEnabled() &&
+        ABSL_PREDICT_FALSE(capacity() >= InvalidCapacity::kMovedFrom)) {
+      if (capacity() == InvalidCapacity::kSelfMovedFrom) {
+        // If this log triggers, then a hash table was move-assigned to itself
+        // and then used again later without being reinitialized.
+        ABSL_RAW_LOG(FATAL, "Use of self-move-assigned hash table.");
+      }
+      ABSL_RAW_LOG(FATAL, "Use of moved-from hash table.");
+    }
   }
 
   // Asserts that hash and equal functors provided by the user are consistent,
   // meaning that `eq(k1, k2)` implies `hash(k1)==hash(k2)`.
   template <class K>
   void AssertHashEqConsistent(const K& key) {
+#ifdef NDEBUG
+    return;
+#endif
+    // If the hash/eq functors are known to be consistent, then skip validation.
+    if (std::is_same<hasher, absl::container_internal::StringHash>::value &&
+        std::is_same<key_equal, absl::container_internal::StringEq>::value) {
+      return;
+    }
+    if (std::is_scalar<key_type>::value &&
+        std::is_same<hasher, absl::Hash<key_type>>::value &&
+        std::is_same<key_equal, std::equal_to<key_type>>::value) {
+      return;
+    }
     if (empty()) return;
 
     const size_t hash_of_arg = hash_ref()(key);
@@ -3897,21 +3950,8 @@ class raw_hash_set {
 
       const size_t hash_of_slot =
           PolicyTraits::apply(HashElement{hash_ref()}, element);
-      const bool is_hash_equal = hash_of_arg == hash_of_slot;
-      if (!is_hash_equal) {
-        // In this case, we're going to crash. Do a couple of other checks for
-        // idempotence issues. Recalculating hash/eq here is also convenient for
-        // debugging with gdb/lldb.
-        ABSL_ATTRIBUTE_UNUSED const size_t once_more_hash_arg = hash_ref()(key);
-        assert(hash_of_arg == once_more_hash_arg && "hash is not idempotent.");
-        ABSL_ATTRIBUTE_UNUSED const size_t once_more_hash_slot =
-            PolicyTraits::apply(HashElement{hash_ref()}, element);
-        assert(hash_of_slot == once_more_hash_slot &&
-               "hash is not idempotent.");
-        ABSL_ATTRIBUTE_UNUSED const bool once_more_eq =
-            PolicyTraits::apply(EqualElement<K>{key, eq_ref()}, element);
-        assert(is_key_equal == once_more_eq && "equality is not idempotent.");
-      }
+      ABSL_ATTRIBUTE_UNUSED const bool is_hash_equal =
+          hash_of_arg == hash_of_slot;
       assert((!is_key_equal || is_hash_equal) &&
              "eq(k1, k2) must imply that hash(k1) == hash(k2). "
              "hash/eq functors are inconsistent.");

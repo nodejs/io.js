@@ -121,6 +121,9 @@ class V8_EXPORT_PRIVATE HeapAllocator final {
                                 AllocationObserver* new_space_observer);
 
   MainAllocator* new_space_allocator() { return &new_space_allocator_.value(); }
+  const MainAllocator* new_space_allocator() const {
+    return &new_space_allocator_.value();
+  }
   MainAllocator* old_space_allocator() { return &old_space_allocator_.value(); }
   MainAllocator* trusted_space_allocator() {
     return &trusted_space_allocator_.value();

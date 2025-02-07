@@ -97,7 +97,7 @@ class V8_EXPORT_PRIVATE IncrementalMarkingSchedule final {
   // Returns the step info for the current step. This function is most useful
   // after calling `GetNextIncrementalStepDuration()` to report scheduling
   // details.
-  const StepInfo GetCurrentStepInfo() const;
+  StepInfo GetCurrentStepInfo() const;
 
   // Returns whether locally cached ephemerons should be flushed and made
   // available globally. Will only return true once every
@@ -117,7 +117,7 @@ class V8_EXPORT_PRIVATE IncrementalMarkingSchedule final {
  private:
   static constexpr double kEphemeronPairsFlushingRatioIncrements = 0.25;
 
-  IncrementalMarkingSchedule(size_t minimum_marked_bytes_per_step,
+  IncrementalMarkingSchedule(size_t min_marked_bytes_per_step,
                              bool predictable_schedule);
 
   v8::base::TimeDelta GetElapsedTime();

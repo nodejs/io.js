@@ -461,7 +461,7 @@ const definitions = {
   depth: new Definition('depth', {
     default: null,
     defaultDescription: `
-      \`Infinity\` if \`--all\` is set, otherwise \`1\`
+      \`Infinity\` if \`--all\` is set, otherwise \`0\`
     `,
     type: [null, Number],
     description: `

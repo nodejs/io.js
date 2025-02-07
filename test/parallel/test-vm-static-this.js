@@ -33,9 +33,9 @@ assert.throws(function() {
   vm.runInThisContext('throw new Error(\'test\');');
 }, /test/);
 
-global.hello = 5;
+globalThis.hello = 5;
 vm.runInThisContext('hello = 2');
-assert.strictEqual(global.hello, 2);
+assert.strictEqual(globalThis.hello, 2);
 
 
 // pass values
@@ -43,23 +43,23 @@ const code = 'foo = 1;' +
              'bar = 2;' +
              'if (typeof baz !== \'undefined\')' +
              'throw new Error(\'test fail\');';
-global.foo = 2;
-global.obj = { foo: 0, baz: 3 };
+globalThis.foo = 2;
+globalThis.obj = { foo: 0, baz: 3 };
 /* eslint-disable no-unused-vars */
 const baz = vm.runInThisContext(code);
 /* eslint-enable no-unused-vars */
-assert.strictEqual(global.obj.foo, 0);
-assert.strictEqual(global.bar, 2);
-assert.strictEqual(global.foo, 1);
+assert.strictEqual(globalThis.obj.foo, 0);
+assert.strictEqual(globalThis.bar, 2);
+assert.strictEqual(globalThis.foo, 1);
 
 // call a function
-global.f = function() { global.foo = 100; };
+globalThis.f = function() { globalThis.foo = 100; };
 vm.runInThisContext('f()');
-assert.strictEqual(global.foo, 100);
+assert.strictEqual(globalThis.foo, 100);
 
 common.allowGlobals(
-  global.hello,
-  global.foo,
-  global.obj,
-  global.f
+  globalThis.hello,
+  globalThis.foo,
+  globalThis.obj,
+  globalThis.f
 );

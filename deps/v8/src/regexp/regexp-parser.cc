@@ -155,14 +155,10 @@ void RegExpTextBuilder::FlushText() {
 
 void RegExpTextBuilder::AddCharacter(base::uc16 c) {
   FlushPendingSurrogate();
-  if (NeedsDesugaringForIgnoreCase(c)) {
-    AddClassRangesForDesugaring(c);
-  } else {
-    if (characters_ == nullptr) {
-      characters_ = zone()->New<ZoneList<base::uc16>>(4, zone());
-    }
-    characters_->Add(c, zone());
+  if (characters_ == nullptr) {
+    characters_ = zone()->New<ZoneList<base::uc16>>(4, zone());
   }
+  characters_->Add(c, zone());
 }
 
 void RegExpTextBuilder::AddUnicodeCharacter(base::uc32 c) {
@@ -241,6 +237,9 @@ bool RegExpTextBuilder::NeedsDesugaringForUnicode(RegExpClassRanges* cc) {
   return false;
 }
 
+// We only use this for characters made of surrogate pairs.  All other
+// characters outside of character classes are made case independent in the
+// code generation.
 bool RegExpTextBuilder::NeedsDesugaringForIgnoreCase(base::uc32 c) {
 #ifdef V8_INTL_SUPPORT
   if (IsUnicodeMode() && ignore_case()) {

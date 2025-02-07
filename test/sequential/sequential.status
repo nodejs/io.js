@@ -32,6 +32,7 @@ test-single-executable-application-empty: PASS, FLAKY
 test-http-server-request-timeouts-mixed: PASS, FLAKY
 
 [$system==solaris] # Also applies to SmartOS
+test-worker-prof: PASS, FLAKY
 
 [$system==freebsd]
 

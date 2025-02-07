@@ -1,7 +1,11 @@
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 const { spawnSync } = require('node:child_process');
 const assert = require('node:assert');

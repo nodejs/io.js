@@ -104,13 +104,13 @@ void InstructionStream::RelocateFromDescWriteBarriers(
     RelocInfo::Mode mode = it.rinfo()->rmode();
     if (RelocInfo::IsEmbeddedObjectMode(mode)) {
       Tagged<HeapObject> p = it.rinfo()->target_object(heap->isolate());
-      WriteBarrierForCode(*this, it.rinfo(), p, UPDATE_WRITE_BARRIER);
+      WriteBarrier::ForRelocInfo(*this, it.rinfo(), p, UPDATE_WRITE_BARRIER);
       write_barrier_promise.ResolveAddress(it.rinfo()->pc());
     } else if (RelocInfo::IsCodeTargetMode(mode)) {
       Tagged<InstructionStream> target_istream =
           InstructionStream::FromTargetAddress(it.rinfo()->target_address());
-      WriteBarrierForCode(*this, it.rinfo(), target_istream,
-                          UPDATE_WRITE_BARRIER);
+      WriteBarrier::ForRelocInfo(*this, it.rinfo(), target_istream,
+                                 UPDATE_WRITE_BARRIER);
       write_barrier_promise.ResolveAddress(it.rinfo()->pc());
     }
   }

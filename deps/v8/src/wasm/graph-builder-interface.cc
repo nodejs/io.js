@@ -1853,20 +1853,22 @@ class WasmGraphBuildingInterface {
       case HeapType::kNone:
       case HeapType::kNoExtern:
       case HeapType::kNoFunc:
-      case HeapType::kNoExn:
+      case HeapType::kNoExn: {
         DCHECK(null_succeeds);
-        // This is needed for BrOnNull. {value_on_branch} is on the value stack
-        // and BrOnNull interacts with the values on the stack.
-        // TODO(14034): The compiler shouldn't have to access the stack used by
-        // the decoder ideally.
-        // Note: This TypeGuard doesn't add any new type information but we need
-        // a non-const Value that we can return to the decoder for
-        // value_on_branch. The clean solution would be to emit the TypeGuard
-        // with the branch-type in the effect edge of the branch and use
-        // value_on_branch->type as type there.
-        SetAndTypeNode(value_on_branch,
-                       builder_->TypeGuard(object.node, object.type));
-        return BrOnNull(decoder, object, br_depth, true, value_on_branch);
+        SsaEnv* false_env = ssa_env_;
+        SsaEnv* true_env = Split(decoder->zone(), false_env);
+        false_env->SetNotMerged();
+        std::tie(true_env->control, false_env->control) =
+            builder_->BrOnNull(object.node, object.type);
+        builder_->SetControl(false_env->control);
+        {
+          ScopedSsaEnv scoped_env(this, true_env);
+          // Narrow type for the successful cast target branch.
+          Forward(decoder, object, value_on_branch);
+          int drop_values = 0;
+          BrOrRet(decoder, br_depth, drop_values);
+        }
+      } break;
       case HeapType::kAny:
         // Any may never need a cast as it is either implicitly convertible or
         // never convertible for any given type.

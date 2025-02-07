@@ -1074,7 +1074,7 @@ behavior is similar to `cp dir1/ dir2/`.
 <!-- YAML
 added: v22.0.0
 changes:
-  - version: REPLACEME
+  - version: v23.7.0
     pr-url: https://github.com/nodejs/node/pull/56489
     description: Add support for `exclude` option to accept glob patterns.
   - version: v22.2.0
@@ -3124,7 +3124,7 @@ descriptor. See [`fs.utimes()`][].
 <!-- YAML
 added: v22.0.0
 changes:
-  - version: REPLACEME
+  - version: v23.7.0
     pr-url: https://github.com/nodejs/node/pull/56489
     description: Add support for `exclude` option to accept glob patterns.
   - version: v22.2.0
@@ -5664,7 +5664,7 @@ Synchronous version of [`fs.futimes()`][]. Returns `undefined`.
 <!-- YAML
 added: v22.0.0
 changes:
-  - version: REPLACEME
+  - version: v23.7.0
     pr-url: https://github.com/nodejs/node/pull/56489
     description: Add support for `exclude` option to accept glob patterns.
   - version: v22.2.0

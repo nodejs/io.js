@@ -66,7 +66,13 @@ struct JSDispatchEntry {
   // Test whether this entry is currently marked as alive.
   inline bool IsMarked() const;
 
+  // Constants for access from generated code.
+  // These are static_assert'ed to be correct in CheckFieldOffsets().
+  static constexpr uintptr_t kEntrypointOffset = 0;
+  static constexpr uintptr_t kCodeObjectOffset = 8;
   static constexpr uint32_t kObjectPointerShift = 16;
+  static constexpr uint32_t kParameterCountMask = 0xffff;
+  static void CheckFieldOffsets();
 
  private:
   friend class JSDispatchTable;
@@ -75,7 +81,10 @@ struct JSDispatchEntry {
   // bits and are tagged with this tag.
   static constexpr Address kFreeEntryTag = 0xffff000000000000ull;
 
-  // The first word of the entry contains (1) the pointer to the code object
+  // The first word contains the pointer to the (executable) entrypoint.
+  std::atomic<Address> entrypoint_;
+
+  // The second word of the entry contains (1) the pointer to the code object
   // associated with this entry, (2) the marking bit of the entry in the LSB of
   // the object pointer (which must be unused as the address must be aligned),
   // and (3) the 16-bit parameter count. The parameter count is stored in the
@@ -88,11 +97,7 @@ struct JSDispatchEntry {
   // +------------------------+-------------+-----------------+
   //
   static constexpr Address kMarkingBit = 1 << 16;
-  static constexpr uint32_t kParameterCountMask = 0xffff;
   std::atomic<Address> encoded_word_;
-
-  // A pointer to the (executable) entrypoint of the code for this entry.
-  std::atomic<Address> entrypoint_;
 };
 
 static_assert(sizeof(JSDispatchEntry) == kJSDispatchTableEntrySize);
@@ -127,8 +132,10 @@ class V8_EXPORT_PRIVATE JSDispatchTable
 
  public:
   // Size of a JSDispatchTable, for layout computation in IsolateData.
-  static int constexpr kSize = 2 * kSystemPointerSize;
+  static constexpr int kSize = 2 * kSystemPointerSize;
+
   static_assert(kMaxJSDispatchEntries == kMaxCapacity);
+  static_assert(!kSupportsCompaction);
 
   JSDispatchTable() = default;
   JSDispatchTable(const JSDispatchTable&) = delete;
@@ -145,7 +152,10 @@ class V8_EXPORT_PRIVATE JSDispatchTable
   // TODO(saelo): in the future, we might store either a Code or a
   // BytecodeArray in the entries. At that point, this could be changed to
   // return a Tagged<Union<Code, BytecodeArray>>.
-  Tagged<Code> GetCode(JSDispatchHandle handle);
+  inline Tagged<Code> GetCode(JSDispatchHandle handle);
+
+  // Returns the address of the Code object stored in the specified entry.
+  inline Address GetCodeAddress(JSDispatchHandle handle);
 
   // Retrieves the parameter count of the entry referenced by the given handle.
   inline uint16_t GetParameterCount(JSDispatchHandle handle);
@@ -153,14 +163,35 @@ class V8_EXPORT_PRIVATE JSDispatchTable
   // Updates the entry referenced by the given handle to the given Code and its
   // entrypoint. The code must be compatible with the specified entry. In
   // particular, the two must use the same parameter count.
-  void SetCode(JSDispatchHandle handle, Tagged<Code> new_code);
-  bool HasCode(JSDispatchHandle handle);
+  inline void SetCode(JSDispatchHandle handle, Tagged<Code> new_code);
 
   // Allocates a new entry in the table and initialize it.
   //
   // This method is atomic and can be called from background threads.
-  JSDispatchHandle AllocateAndInitializeEntry(Space* space,
-                                              uint16_t parameter_count);
+  inline JSDispatchHandle AllocateAndInitializeEntry(Space* space,
+                                                     uint16_t parameter_count);
+  inline JSDispatchHandle AllocateAndInitializeEntry(Space* space,
+                                                     uint16_t parameter_count,
+                                                     Tagged<Code> code);
+
+  // The following methods are used to pre allocate entries and then initialize
+  // them later.
+  JSDispatchHandle PreAllocateEntries(Space* space, int num,
+                                      bool ensure_static_handles);
+  bool PreAllocatedEntryNeedsInitialization(Space* space,
+                                            JSDispatchHandle handle);
+  void InitializePreAllocatedEntry(Space* space, JSDispatchHandle handle,
+                                   Tagged<Code> code, uint16_t parameter_count);
+
+  // Can be used to statically predict the handles if the pre allocated entries
+  // are in the overall first read only segment of the whole table.
+  static JSDispatchHandle GetStaticHandleForReadOnlySegmentEntry(int index) {
+    return static_cast<JSDispatchHandle>(kInternalNullEntryIndex + 1 + index)
+           << kJSDispatchHandleShift;
+  }
+  static bool InReadOnlySegment(JSDispatchHandle handle) {
+    return HandleToIndex(handle) <= kEndOfInternalReadOnlySegment;
+  }
 
   // Marks the specified entry as alive.
   //
@@ -180,9 +211,11 @@ class V8_EXPORT_PRIVATE JSDispatchTable
   // The callback function will be invoked once for every entry that is
   // currently in use, i.e. has been allocated and not yet freed, and will
   // receive the handle of that entry.
-  // TODO(saelo): does it also need to get the referenced object pointer?
   template <typename Callback>
   void IterateActiveEntriesIn(Space* space, Callback callback);
+
+  template <typename Callback>
+  void IterateMarkedEntriesIn(Space* space, Callback callback);
 
   // The base address of this table, for use in JIT compilers.
   Address base_address() const { return base(); }
@@ -196,32 +229,36 @@ class V8_EXPORT_PRIVATE JSDispatchTable
     instance_nocheck()->Base::Initialize();
   }
 
-  static constexpr uintptr_t kEntryCodeObjectOffset =
-      offsetof(JSDispatchEntry, encoded_word_);
-  static constexpr uintptr_t kEntryEntrypointOffset =
-      offsetof(JSDispatchEntry, entrypoint_);
-
 #ifdef DEBUG
   inline void VerifyEntry(JSDispatchHandle handle, Space* space,
                           Space* ro_space);
 #endif  // DEBUG
 
  private:
+#ifdef DEBUG
+  static std::atomic<bool> initialized_;
+#endif  // DEBUG
+
   static void CheckInitialization(bool is_initializing) {
 #ifdef DEBUG
-    static std::atomic<bool> initialized = false;
-    DCHECK_NE(is_initializing, initialized.load());
-    initialized.store(true);
-#endif
+    DCHECK_NE(is_initializing, initialized_.load());
+    initialized_.store(true);
+#endif  // DEBUG
   }
 
-  static JSDispatchTable* instance_nocheck() {
-    static ::v8::base::LeakyObject<JSDispatchTable> instance;
-    return instance.get();
-  }
+  static base::LeakyObject<JSDispatchTable> instance_;
+  static JSDispatchTable* instance_nocheck() { return instance_.get(); }
 
-  inline uint32_t HandleToIndex(JSDispatchHandle handle) const;
-  inline JSDispatchHandle IndexToHandle(uint32_t index) const;
+  static uint32_t HandleToIndex(JSDispatchHandle handle) {
+    uint32_t index = handle >> kJSDispatchHandleShift;
+    DCHECK_EQ(handle, index << kJSDispatchHandleShift);
+    return index;
+  }
+  static JSDispatchHandle IndexToHandle(uint32_t index) {
+    JSDispatchHandle handle = index << kJSDispatchHandleShift;
+    DCHECK_EQ(index, handle >> kJSDispatchHandleShift);
+    return handle;
+  }
 };
 
 static_assert(sizeof(JSDispatchTable) == JSDispatchTable::kSize);

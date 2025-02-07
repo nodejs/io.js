@@ -130,8 +130,7 @@ class V8_EXPORT_PRIVATE Compiler : public AllStatic {
 
   // Dispose a job without finalization.
   static void DisposeTurbofanCompilationJob(Isolate* isolate,
-                                            TurbofanCompilationJob* job,
-                                            bool restore_function_code);
+                                            TurbofanCompilationJob* job);
 
   // Finalize and install Turbofan code from a previously run job.
   static void FinalizeTurbofanCompilationJob(TurbofanCompilationJob* job,

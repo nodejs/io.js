@@ -128,6 +128,7 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void JumpIfCodeIsTurbofanned(Register code, Register scratch,
                                Label* if_turbofanned);
   void LoadMap(Register destination, Register object);
+  void LoadCompressedMap(Register destination, Register object);
 
   void LoadFeedbackVector(Register dst, Register closure, Register scratch,
                           Label* fbv_undef);

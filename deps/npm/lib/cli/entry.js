@@ -1,5 +1,3 @@
-/* eslint-disable max-len */
-
 // Separated out for easier unit testing
 module.exports = async (process, validateEngines) => {
   // set it here so that regardless of what happens later, we don't

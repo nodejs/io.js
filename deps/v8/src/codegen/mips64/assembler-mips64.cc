@@ -299,8 +299,12 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
   // this point to make CodeDesc initialization less fiddly.
 
   static constexpr int kConstantPoolSize = 0;
+  static constexpr int kBuiltinJumpTableInfoSize = 0;
   const int instruction_size = pc_offset();
-  const int code_comments_offset = instruction_size - code_comments_size;
+  const int builtin_jump_table_info_offset =
+      instruction_size - kBuiltinJumpTableInfoSize;
+  const int code_comments_offset =
+      builtin_jump_table_info_offset - code_comments_size;
   const int constant_pool_offset = code_comments_offset - kConstantPoolSize;
   const int handler_table_offset2 = (handler_table_offset == kNoHandlerTable)
                                         ? constant_pool_offset
@@ -313,7 +317,8 @@ void Assembler::GetCode(LocalIsolate* isolate, CodeDesc* desc,
       static_cast<int>(reloc_info_writer.pos() - buffer_->start());
   CodeDesc::Initialize(desc, this, safepoint_table_offset,
                        handler_table_offset2, constant_pool_offset,
-                       code_comments_offset, reloc_info_offset);
+                       code_comments_offset, builtin_jump_table_info_offset,
+                       reloc_info_offset);
 }
 
 void Assembler::Align(int m) {
@@ -534,7 +539,7 @@ bool Assembler::IsMov(Instr instr, Register rd, Register rs) {
   uint32_t rd_reg = static_cast<uint32_t>(rd.code());
   uint32_t rs_reg = static_cast<uint32_t>(rs.code());
   uint32_t function_field = GetFunctionField(instr);
-  // Checks if the instruction is a OR with zero_reg argument (aka MOV).
+  // Checks if the instruction is an OR with zero_reg argument (aka MOV).
   bool res = opcode == SPECIAL && function_field == OR && rd_field == rd_reg &&
              rs_field == rs_reg && rt_field == 0;
   return res;

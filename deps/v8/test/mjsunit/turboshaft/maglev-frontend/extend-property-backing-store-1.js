@@ -6,7 +6,7 @@
 // Flags: --maglev-extend-properties-backing-store
 
 // TODO(dmercadier): this test is exactly the same as
-// test/mjsunit/maglev/extend-properties-backing-store-1.js, but with a
+// test/mjsunit/maglev/extend-properties-backing-store-1.js, but with an
 // %OptimizeFunctionOnNextCall instead of the %OptimizeMaglevOnNextCall.
 // Consider unifying the 2 tests.
 

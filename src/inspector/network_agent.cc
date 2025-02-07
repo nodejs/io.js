@@ -53,12 +53,12 @@ void NetworkAgent::Wire(UberDispatcher* dispatcher) {
 
 DispatchResponse NetworkAgent::enable() {
   inspector_->Enable();
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 DispatchResponse NetworkAgent::disable() {
   inspector_->Disable();
-  return DispatchResponse::OK();
+  return DispatchResponse::Success();
 }
 
 void NetworkAgent::requestWillBeSent(
@@ -76,9 +76,11 @@ void NetworkAgent::requestWillBeSent(
   request->getString("method", &method);
 
   ErrorSupport errors;
+  errors.Push();
+  errors.SetName("headers");
   auto headers =
       Network::Headers::fromValue(request->getObject("headers"), &errors);
-  if (errors.hasErrors()) {
+  if (!errors.Errors().empty()) {
     headers = std::make_unique<Network::Headers>(DictionaryValue::create());
   }
 
@@ -105,9 +107,11 @@ void NetworkAgent::responseReceived(
   response->getString("statusText", &statusText);
 
   ErrorSupport errors;
+  errors.Push();
+  errors.SetName("headers");
   auto headers =
       Network::Headers::fromValue(response->getObject("headers"), &errors);
-  if (errors.hasErrors()) {
+  if (!errors.Errors().empty()) {
     headers = std::make_unique<Network::Headers>(DictionaryValue::create());
   }
 

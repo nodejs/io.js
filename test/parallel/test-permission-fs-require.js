@@ -2,7 +2,13 @@
 'use strict';
 
 const common = require('../common');
-common.skipIfWorker();
+
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
+
 const fixtures = require('../common/fixtures');
 
 const assert = require('node:assert');

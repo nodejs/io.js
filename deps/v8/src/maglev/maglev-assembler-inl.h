@@ -873,6 +873,34 @@ void MaglevAssembler::LoadMapForCompare(Register dst, Register obj) {
 #endif
 }
 
+inline void MaglevAssembler::DefineLazyDeoptPoint(LazyDeoptInfo* info) {
+  info->set_deopting_call_return_pc(pc_offset_for_safepoint());
+  code_gen_state()->PushLazyDeopt(info);
+  safepoint_table_builder()->DefineSafepoint(this);
+  MaybeEmitPlaceHolderForDeopt();
+}
+
+inline void MaglevAssembler::DefineExceptionHandlerPoint(NodeBase* node) {
+  ExceptionHandlerInfo* info = node->exception_handler_info();
+  if (!info->HasExceptionHandler()) return;
+  info->pc_offset = pc_offset_for_safepoint();
+  code_gen_state()->PushHandlerInfo(node);
+}
+
+inline void MaglevAssembler::DefineExceptionHandlerAndLazyDeoptPoint(
+    NodeBase* node) {
+  DefineExceptionHandlerPoint(node);
+  DefineLazyDeoptPoint(node->lazy_deopt_info());
+}
+
+inline void SaveRegisterStateForCall::DefineSafepointWithLazyDeopt(
+    LazyDeoptInfo* lazy_deopt_info) {
+  lazy_deopt_info->set_deopting_call_return_pc(masm->pc_offset_for_safepoint());
+  masm->code_gen_state()->PushLazyDeopt(lazy_deopt_info);
+  DefineSafepoint();
+  masm->MaybeEmitPlaceHolderForDeopt();
+}
+
 }  // namespace maglev
 }  // namespace internal
 }  // namespace v8

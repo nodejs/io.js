@@ -9,6 +9,7 @@
 </tr>
 <tr>
 <td>
+<a href="#18.20.6">18.20.6</a><br/>
 <a href="#18.20.5">18.20.5</a><br/>
 <a href="#18.20.4">18.20.4</a><br/>
 <a href="#18.20.3">18.20.3</a><br/>
@@ -74,6 +75,31 @@
   * [0.10.x](CHANGELOG_V010.md)
   * [io.js](CHANGELOG_IOJS.md)
   * [Archive](CHANGELOG_ARCHIVE.md)
+
+<a id="18.20.6"></a>
+
+## 2025-01-21, Version 18.20.6 'Hydrogen' (LTS), @RafaelGSS
+
+This is a security release.
+
+### Notable Changes
+
+* CVE-2025-23085 - src: fix HTTP2 mem leak on premature close and ERR\_PROTO (Medium)
+* CVE-2025-23084 - path: fix path traversal in normalize() on Windows (Medium)
+
+Dependency update:
+
+* CVE-2025-22150 - Use of Insufficiently Random Values in undici fetch() (Medium)
+
+### Commits
+
+* \[[`c03ad5ed63`](https://github.com/nodejs/node/commit/c03ad5ed63)] - **build**: use rclone instead of aws CLI (Michaël Zasso) [#55617](https://github.com/nodejs/node/pull/55617)
+* \[[`8232463294`](https://github.com/nodejs/node/commit/8232463294)] - **build, tools**: drop leading `/` from `r2dir` (Richard Lau) [#53951](https://github.com/nodejs/node/pull/53951)
+* \[[`b26bcd3394`](https://github.com/nodejs/node/commit/b26bcd3394)] - **build, tools**: copy release assets to staging R2 bucket once built (flakey5) [#51394](https://github.com/nodejs/node/pull/51394)
+* \[[`56df127b7b`](https://github.com/nodejs/node/commit/56df127b7b)] - **build,tools**: simplify upload of shasum signatures (Michaël Zasso) [#53892](https://github.com/nodejs/node/pull/53892)
+* \[[`a63e9372ed`](https://github.com/nodejs/node/commit/a63e9372ed)] - **(CVE-2025-22150)** **deps**: update undici to v5.28.5 (Matteo Collina) [nodejs-private/node-private#657](https://github.com/nodejs-private/node-private/pull/657)
+* \[[`da2d177f91`](https://github.com/nodejs/node/commit/da2d177f91)] - **(CVE-2025-23084)** **path**: fix path traversal in normalize() on Windows (Tobias Nießen) [nodejs-private/node-private#555](https://github.com/nodejs-private/node-private/pull/555)
+* \[[`6cc8d58e6f`](https://github.com/nodejs/node/commit/6cc8d58e6f)] - **(CVE-2025-23085)** **src**: fix HTTP2 mem leak on premature close and ERR\_PROTO (RafaelGSS) [nodejs-private/node-private#650](https://github.com/nodejs-private/node-private/pull/650)
 
 <a id="18.20.5"></a>
 

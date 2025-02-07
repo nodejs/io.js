@@ -180,7 +180,10 @@ void CodeSerializer::SerializeObjectImpl(Handle<HeapObject> obj,
       }
       if (v8_flags.profile_guided_optimization) {
         cached_tiering_decision = sfi->cached_tiering_decision();
-        sfi->set_cached_tiering_decision(CachedTieringDecision::kPending);
+        if (cached_tiering_decision > CachedTieringDecision::kEarlySparkplug) {
+          sfi->set_cached_tiering_decision(
+              CachedTieringDecision::kEarlySparkplug);
+        }
       }
     }
     SerializeGeneric(obj, slot_type);
@@ -190,7 +193,8 @@ void CodeSerializer::SerializeObjectImpl(Handle<HeapObject> obj,
       sfi->SetActiveBytecodeArray(debug_info->DebugBytecodeArray(isolate()),
                                   isolate());
     }
-    if (v8_flags.profile_guided_optimization) {
+    if (v8_flags.profile_guided_optimization &&
+        cached_tiering_decision > CachedTieringDecision::kEarlySparkplug) {
       sfi->set_cached_tiering_decision(cached_tiering_decision);
     }
     return;
@@ -403,7 +407,8 @@ void BaselineBatchCompileIfSparkplugCompiled(Isolate* isolate,
     SharedFunctionInfo::ScriptIterator iter(isolate, script);
     for (Tagged<SharedFunctionInfo> info = iter.Next(); !info.is_null();
          info = iter.Next()) {
-      if (info->sparkplug_compiled() && CanCompileWithBaseline(isolate, info)) {
+      if (info->cached_tiering_decision() != CachedTieringDecision::kPending &&
+          CanCompileWithBaseline(isolate, info)) {
         isolate->baseline_batch_compiler()->EnqueueSFI(info);
       }
     }

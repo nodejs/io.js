@@ -199,7 +199,8 @@ class VariableReducer : public RequiredOptimizationReducer<AfterNext> {
   void Set(Variable var, V<Rep> value) {
     DCHECK(!is_temporary_);
     if (V8_UNLIKELY(__ generating_unreachable_operations())) return;
-    DCHECK(Rep::allows_representation(RegisterRepresentation(var.data().rep)));
+    DCHECK(
+        V<Rep>::allows_representation(RegisterRepresentation(var.data().rep)));
     table_.Set(var, value);
   }
 

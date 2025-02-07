@@ -11,8 +11,7 @@
 #include "memory_tracker.h"
 #include "v8.h"
 
-namespace node {
-namespace crypto {
+namespace node::crypto {
 namespace Keygen {
 void Initialize(Environment* env, v8::Local<v8::Object> target);
 void RegisterExternalReferences(ExternalReferenceRegistry* registry);
@@ -163,7 +162,7 @@ struct KeyPairGenTraits final {
   static KeyGenJobStatus DoKeyGen(
       Environment* env,
       AdditionalParameters* params) {
-    EVPKeyCtxPointer ctx = KeyPairAlgorithmTraits::Setup(params);
+    ncrypto::EVPKeyCtxPointer ctx = KeyPairAlgorithmTraits::Setup(params);
 
     if (!ctx)
       return KeyGenJobStatus::FAILED;
@@ -174,7 +173,7 @@ struct KeyPairGenTraits final {
       return KeyGenJobStatus::FAILED;
 
     auto data = KeyObjectData::CreateAsymmetric(KeyType::kKeyTypePrivate,
-                                                EVPKeyPointer(pkey));
+                                                ncrypto::EVPKeyPointer(pkey));
     if (!data) [[unlikely]]
       return KeyGenJobStatus::FAILED;
     params->key = std::move(data);
@@ -184,13 +183,11 @@ struct KeyPairGenTraits final {
   static v8::MaybeLocal<v8::Value> EncodeKey(Environment* env,
                                              AdditionalParameters* params) {
     v8::Local<v8::Value> keys[2];
-    if (params->key
-            .ToEncodedPublicKey(env, params->public_key_encoding, &keys[0])
-            .IsNothing() ||
-        params->key
-            .ToEncodedPrivateKey(env, params->private_key_encoding, &keys[1])
-            .IsNothing()) {
-      return v8::MaybeLocal<v8::Value>();
+    if (!params->key.ToEncodedPublicKey(
+            env, params->public_key_encoding, &keys[0]) ||
+        !params->key.ToEncodedPrivateKey(
+            env, params->private_key_encoding, &keys[1])) {
+      return {};
     }
     return v8::Array::New(env->isolate(), keys, arraysize(keys));
   }
@@ -233,11 +230,6 @@ struct KeyPairGenConfig final : public MemoryRetainer {
   AlgorithmParams params;
 
   KeyPairGenConfig() = default;
-  ~KeyPairGenConfig() {
-    if (key) {
-      Mutex::ScopedLock priv_lock(key.mutex());
-    }
-  }
 
   explicit KeyPairGenConfig(KeyPairGenConfig&& other) noexcept
       : public_key_encoding(other.public_key_encoding),
@@ -280,7 +272,7 @@ struct NidKeyPairGenTraits final {
   using AdditionalParameters = NidKeyPairGenConfig;
   static constexpr const char* JobName = "NidKeyPairGenJob";
 
-  static EVPKeyCtxPointer Setup(NidKeyPairGenConfig* params);
+  static ncrypto::EVPKeyCtxPointer Setup(NidKeyPairGenConfig* params);
 
   static v8::Maybe<void> AdditionalConfig(
       CryptoJobMode mode,
@@ -291,8 +283,7 @@ struct NidKeyPairGenTraits final {
 
 using NidKeyPairGenJob = KeyGenJob<KeyPairGenTraits<NidKeyPairGenTraits>>;
 using SecretKeyGenJob = KeyGenJob<SecretKeyGenTraits>;
-}  // namespace crypto
-}  // namespace node
+}  // namespace node::crypto
 
 #endif  // defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 #endif  // SRC_CRYPTO_CRYPTO_KEYGEN_H_

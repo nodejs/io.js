@@ -141,9 +141,9 @@ npm command-line interface
 
 <section id="content">
 <header class="title">
-<h1 id="----packagejson----1100">
+<h1 id="----packagejson----1110">
     <span>package.json</span>
-    <span class="version">@11.0.0</span>
+    <span class="version">@11.1.0</span>
 </h1>
 <span class="description">Specifics of npm's package.json handling</span>
 </header>
@@ -190,7 +190,7 @@ should be something short, but also reasonably descriptive.</li>
 that name already, before you get too attached to it.
 <a href="https://www.npmjs.com/">https://www.npmjs.com/</a></li>
 </ul>
-<p>A name can be optionally prefixed by a scope, e.g. <code>@myorg/mypackage</code>. See
+<p>A name can be optionally prefixed by a scope, e.g. <code>@npm/example</code>. See
 <a href="../using-npm/scope.html"><code>scope</code></a> for more detail.</p>
 <h3 id="version">version</h3>
 <p>If you plan to publish your package, the <em>most</em> important things in your
@@ -211,7 +211,7 @@ your package as it's listed in <code>npm search</code>.</p>
 <h3 id="homepage">homepage</h3>
 <p>The URL to the project homepage.</p>
 <p>Example:</p>
-<pre><code class="language-json">"homepage": "https://github.com/owner/project#readme"
+<pre><code class="language-json">"homepage": "https://github.com/npm/example#readme"
 </code></pre>
 <h3 id="bugs">bugs</h3>
 <p>The URL to your project's issue tracker and / or the email address to which
@@ -220,8 +220,8 @@ issues with your package.</p>
 <p>It should look like this:</p>
 <pre><code class="language-json">{
   "bugs": {
-    "url": "https://github.com/owner/project/issues",
-    "email": "project@hostname.com"
+    "url": "https://github.com/npm/example/issues",
+    "email": "example@npmjs.com"
   }
 }
 </code></pre>
@@ -239,7 +239,7 @@ SPDX license identifier for the license you're using, like this:</p>
 }
 </code></pre>
 <p>You can check <a href="https://spdx.org/licenses/">the full list of SPDX license
-IDs</a>.  Ideally you should pick one that is
+IDs</a>.  Ideally, you should pick one that is
 <a href="https://opensource.org/licenses/">OSI</a> approved.</p>
 <p>If your package is licensed under multiple common licenses, use an <a href="https://spdx.dev/specifications/">SPDX
 license expression syntax version 2.0
@@ -301,14 +301,14 @@ unpublished package under any terms:</p>
 like this:</p>
 <pre><code class="language-json">{
   "name" : "Barney Rubble",
-  "email" : "b@rubble.com",
-  "url" : "http://barnyrubble.tumblr.com/"
+  "email" : "barney@npmjs.com",
+  "url" : "http://barnyrubble.npmjs.com/"
 }
 </code></pre>
 <p>Or you can shorten that all into a single string, and npm will parse it for
 you:</p>
 <pre><code class="language-json">{
-  "author": "Barney Rubble &lt;b@rubble.com&gt; (http://barnyrubble.tumblr.com/)"
+  "author": "Barney Rubble &lt;barney@npmjs.com&gt; (http://barnyrubble.npmjs.com/)"
 }
 </code></pre>
 <p>Both email and url are optional either way.</p>
@@ -320,31 +320,31 @@ string URL, or an array of objects and string URLs:</p>
 <pre><code class="language-json">{
   "funding": {
     "type" : "individual",
-    "url" : "http://example.com/donate"
+    "url" : "http://npmjs.com/donate"
   }
 }
 </code></pre>
 <pre><code class="language-json">{
   "funding": {
     "type" : "patreon",
-    "url" : "https://www.patreon.com/my-account"
+    "url" : "https://www.patreon.com/user"
   }
 }
 </code></pre>
 <pre><code class="language-json">{
-  "funding": "http://example.com/donate"
+  "funding": "http://npmjs.com/donate"
 }
 </code></pre>
 <pre><code class="language-json">{
   "funding": [
     {
       "type" : "individual",
-      "url" : "http://example.com/donate"
+      "url" : "http://npmjs.com/donate"
     },
-    "http://example.com/donateAlso",
+    "http://npmjs.com/donate-also",
     {
       "type" : "patreon",
-      "url" : "https://www.patreon.com/my-account"
+      "url" : "https://www.patreon.com/user"
     }
   ]
 }
@@ -556,9 +556,9 @@ computers.</p>
 <p>For GitHub, GitHub gist, Bitbucket, or GitLab repositories you can use the
 same shortcut syntax you use for <code>npm install</code>:</p>
 <pre><code class="language-json">{
-  "repository": "npm/npm",
+  "repository": "npm/example",
 
-  "repository": "github:user/repo",
+  "repository": "github:npm/example",
 
   "repository": "gist:11081aaa281",
 
@@ -624,7 +624,7 @@ time tools in your <code>dependencies</code> object.</strong>  See <code>devDepe
 <li><code>user/repo</code> See 'GitHub URLs' below</li>
 <li><code>tag</code> A specific version tagged and published as <code>tag</code>  See <a href="../commands/npm-dist-tag.html"><code>npm dist-tag</code></a></li>
 <li><code>path/path/path</code> See <a href="#local-paths">Local Paths</a> below</li>
-<li><code>npm:@scope/pkg@version</code> Custom alias for a pacakge See <a href="../using-npm/package-spec#aliases.html"><code>package-spec</code></a></li>
+<li><code>npm:@scope/pkg@version</code> Custom alias for a package See <a href="../using-npm/package-spec#aliases.html"><code>package-spec</code></a></li>
 </ul>
 <p>For example, these are all valid:</p>
 <pre><code class="language-json">{
@@ -634,7 +634,7 @@ time tools in your <code>dependencies</code> object.</strong>  See <code>devDepe
     "baz": "&gt;1.0.2 &lt;=2.3.4",
     "boo": "2.0.1",
     "qux": "&lt;1.0.0 || &gt;=2.3.1 &lt;2.4.5 || &gt;=2.5.2 &lt;3.0.0",
-    "asd": "http://asdf.com/asdf.tar.gz",
+    "asd": "http://npmjs.com/example.tar.gz",
     "til": "~1.2",
     "elf": "~1.2.3",
     "two": "2.x",
@@ -695,7 +695,7 @@ included.  For example:</p>
   "dependencies": {
     "express": "expressjs/express",
     "mocha": "mochajs/mocha#4727d357ea",
-    "module": "user/repo#feature\/branch"
+    "module": "npm/example-github-repo#feature\/branch"
   }
 }
 </code></pre>
@@ -736,7 +736,7 @@ CoffeeScript or other languages to JavaScript, use the <code>prepare</code> scri
 do this, and make the required package a devDependency.</p>
 <p>For example:</p>
 <pre><code class="language-json">{
-  "name": "ethopia-waza",
+  "name": "@npm/ethopia-waza",
   "description": "a delightfully fruity coffee varietal",
   "version": "1.2.3",
   "devDependencies": {
@@ -760,17 +760,17 @@ exposing a specific interface, expected and specified by the host
 documentation.</p>
 <p>For example:</p>
 <pre><code class="language-json">{
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x"
+    "@npm/tea": "2.x"
   }
 }
 </code></pre>
-<p>This ensures your package <code>tea-latte</code> can be installed <em>along</em> with the
-second major version of the host package <code>tea</code> only. <code>npm install tea-latte</code> could possibly yield the following dependency graph:</p>
-<pre><code class="language-bash">├── tea-latte@1.3.5
-└── tea@2.2.0
+<p>This ensures your package <code>@npm/tea-latte</code> can be installed <em>along</em> with the
+second major version of the host package <code>@npm/tea</code> only. <code>npm install tea-latte</code> could possibly yield the following dependency graph:</p>
+<pre><code class="language-bash">├── @npm/tea-latte@1.3.5
+└── @npm/tea@2.2.0
 </code></pre>
 <p>In npm versions 3 through 6, <code>peerDependencies</code> were not automatically
 installed, and would raise a warning if an invalid version of the peer
@@ -794,14 +794,14 @@ integrate and interact with a variety of host packages without requiring
 all of them to be installed.</p>
 <p>For example:</p>
 <pre><code class="language-json">{
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x",
-    "soy-milk": "1.2"
+    "@npm/tea": "2.x",
+    "@npm/soy-milk": "1.2"
   },
   "peerDependenciesMeta": {
-    "soy-milk": {
+    "@npm/soy-milk": {
       "optional": true
     }
   }
@@ -817,16 +817,16 @@ array and executing <code>npm pack</code>.</p>
 <p>For example:</p>
 <p>If we define a package.json like this:</p>
 <pre><code class="language-json">{
-  "name": "awesome-web-framework",
+  "name": "@npm/awesome-web-framework",
   "version": "1.0.0",
   "bundleDependencies": [
-    "renderized",
-    "super-streams"
+    "@npm/renderized",
+    "@npm/super-streams"
   ]
 }
 </code></pre>
-<p>we can obtain <code>awesome-web-framework-1.0.0.tgz</code> file by running <code>npm pack</code>.
-This file contains the dependencies <code>renderized</code> and <code>super-streams</code> which
+<p>we can obtain <code>@npm/awesome-web-framework-1.0.0.tgz</code> file by running <code>npm pack</code>.
+This file contains the dependencies <code>@npm/renderized</code> and <code>@npm/super-streams</code> which
 can be installed in a new project by executing <code>npm install awesome-web-framework-1.0.0.tgz</code>.  Note that the package names do not
 include any versions, as that information is specified in <code>dependencies</code>.</p>
 <p>If this is spelled <code>"bundledDependencies"</code>, then that is also honored.</p>
@@ -842,8 +842,8 @@ failures do not cause installation to fail.  Running <code>npm install --omit=op
 <p>It is still your program's responsibility to handle the lack of the
 dependency.  For example, something like this:</p>
 <pre><code class="language-js">try {
-  var foo = require('foo')
-  var fooVersion = require('foo/package.json').version
+  var foo = require('@npm/foo')
+  var fooVersion = require('@npm/foo/package.json').version
 } catch (er) {
   foo = null
 }
@@ -877,51 +877,51 @@ dependencies or using an
 what version your dependencies rely on:</p>
 <pre><code class="language-json">{
   "overrides": {
-    "foo": "1.0.0"
+    "@npm/foo": "1.0.0"
   }
 }
 </code></pre>
 <p>The above is a short hand notation, the full object form can be used to allow
 overriding a package itself as well as a child of the package. This will cause
-<code>foo</code> to always be <code>1.0.0</code> while also making <code>bar</code> at any depth beyond <code>foo</code>
+<code>@npm/foo</code> to always be <code>1.0.0</code> while also making <code>@npm/bar</code> at any depth beyond <code>@npm/foo</code>
 also <code>1.0.0</code>:</p>
 <pre><code class="language-json">{
   "overrides": {
-    "foo": {
+    "@npm/foo": {
       ".": "1.0.0",
-      "bar": "1.0.0"
+      "@npm/bar": "1.0.0"
     }
   }
 }
 </code></pre>
-<p>To only override <code>foo</code> to be <code>1.0.0</code> when it's a child (or grandchild, or great
+<p>To only override <code>@npm/foo</code> to be <code>1.0.0</code> when it's a child (or grandchild, or great
 grandchild, etc) of the package <code>bar</code>:</p>
 <pre><code class="language-json">{
   "overrides": {
-    "bar": {
-      "foo": "1.0.0"
+    "@npm/bar": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
 </code></pre>
-<p>Keys can be nested to any arbitrary length. To override <code>foo</code> only when it's a
-child of <code>bar</code> and only when <code>bar</code> is a child of <code>baz</code>:</p>
+<p>Keys can be nested to any arbitrary length. To override <code>@npm/foo</code> only when it's a
+child of <code>@npm/bar</code> and only when <code>@npm/bar</code> is a child of <code>@npm/baz</code>:</p>
 <pre><code class="language-json">{
   "overrides": {
-    "baz": {
-      "bar": {
-        "foo": "1.0.0"
+    "@npm/baz": {
+      "@npm/bar": {
+        "@npm/foo": "1.0.0"
       }
     }
   }
 }
 </code></pre>
 <p>The key of an override can also include a version, or range of versions.
-To override <code>foo</code> to <code>1.0.0</code>, but only when it's a child of <code>bar@2.0.0</code>:</p>
+To override <code>@npm/foo</code> to <code>1.0.0</code>, but only when it's a child of <code>@npm/bar@2.0.0</code>:</p>
 <pre><code class="language-json">{
   "overrides": {
-    "bar@2.0.0": {
-      "foo": "1.0.0"
+    "@npm/bar@2.0.0": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
@@ -933,7 +933,7 @@ reference to a spec for a direct dependency by prefixing the name of the
 package you wish the version to match with a <code>$</code>.</p>
 <pre><code class="language-json">{
   "dependencies": {
-    "foo": "^1.0.0"
+    "@npm/foo": "^1.0.0"
   },
   "overrides": {
     // BAD, will throw an EOVERRIDE error
@@ -941,9 +941,9 @@ package you wish the version to match with a <code>$</code>.</p>
     // GOOD, specs match so override is allowed
     // "foo": "^1.0.0"
     // BEST, the override is defined as a reference to the dependency
-    "foo": "$foo",
+    "@npm/foo": "$foo",
     // the referenced package does not need to match the overridden one
-    "bar": "$foo"
+    "@npm/bar": "$foo"
   }
 }
 </code></pre>

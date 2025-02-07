@@ -22,7 +22,6 @@ class Version extends BaseCommand {
   static workspaces = true
   static ignoreImplicitWorkspace = false
 
-  /* eslint-disable-next-line max-len */
   static usage = ['[<newversion> | major | minor | patch | premajor | preminor | prepatch | prerelease | from-git]']
 
   static async completion (opts) {

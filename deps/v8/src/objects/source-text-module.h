@@ -173,7 +173,8 @@ class SourceTextModule
   static V8_WARN_UNUSED_RESULT bool PrepareInstantiate(
       Isolate* isolate, Handle<SourceTextModule> module,
       v8::Local<v8::Context> context,
-      v8::Module::ResolveModuleCallback callback);
+      v8::Module::ResolveModuleCallback module_callback,
+      v8::Module::ResolveSourceCallback source_callback);
   static V8_WARN_UNUSED_RESULT bool FinishInstantiate(
       Isolate* isolate, Handle<SourceTextModule> module,
       ZoneForwardList<Handle<SourceTextModule>>* stack, unsigned* dfs_index,

@@ -44,7 +44,7 @@ class MockPlatform : public TestPlatform {
   }
 
   std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
-      v8::Isolate* isolate) override {
+      v8::Isolate* isolate, v8::TaskPriority) override {
     return taskrunner_;
   }
 

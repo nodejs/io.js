@@ -86,8 +86,8 @@ Handle<Code> FactoryBase<Impl>::NewCode(const NewCodeOptions& options) {
       AllocateRawWithImmortalMap(size, AllocationType::kTrusted, map));
   DisallowGarbageCollection no_gc;
   code->init_self_indirect_pointer(isolate());
-  code->initialize_flags(options.kind, options.is_turbofanned,
-                         options.stack_slots);
+  code->initialize_flags(options.kind, options.is_context_specialized,
+                         options.is_turbofanned, options.stack_slots);
   code->set_builtin_id(options.builtin);
   code->set_instruction_size(options.instruction_size);
   code->set_metadata_size(options.metadata_size);
@@ -96,6 +96,8 @@ Handle<Code> FactoryBase<Impl>::NewCode(const NewCodeOptions& options) {
   code->set_handler_table_offset(options.handler_table_offset);
   code->set_constant_pool_offset(options.constant_pool_offset);
   code->set_code_comments_offset(options.code_comments_offset);
+  code->set_builtin_jump_table_info_offset(
+      options.builtin_jump_table_info_offset);
   code->set_unwinding_info_offset(options.unwinding_info_offset);
   code->set_parameter_count(options.parameter_count);
 
@@ -174,11 +176,15 @@ Handle<FixedArray> FactoryBase<Impl>::NewFixedArray(int length,
 }
 
 template <typename Impl>
-Handle<TrustedFixedArray> FactoryBase<Impl>::NewTrustedFixedArray(int length) {
+Handle<TrustedFixedArray> FactoryBase<Impl>::NewTrustedFixedArray(
+    int length, AllocationType allocation) {
+  DCHECK(allocation == AllocationType::kTrusted ||
+         allocation == AllocationType::kSharedTrusted);
+
   // TODO(saelo): Move this check to TrustedFixedArray::New once we have a RO
   // trusted space.
   if (length == 0) return empty_trusted_fixed_array();
-  return TrustedFixedArray::New(isolate(), length);
+  return TrustedFixedArray::New(isolate(), length, allocation);
 }
 
 template <typename Impl>
@@ -295,30 +301,6 @@ Handle<TrustedByteArray> FactoryBase<Impl>::NewTrustedByteArray(
 }
 
 template <typename Impl>
-Handle<ExternalPointerArray> FactoryBase<Impl>::NewExternalPointerArray(
-    int length, AllocationType allocation) {
-  if (length < 0 || length > ExternalPointerArray::kMaxLength) {
-    FATAL("Fatal JavaScript invalid size error %d", length);
-    UNREACHABLE();
-  }
-  if (length == 0) return impl()->empty_external_pointer_array();
-  int size =
-      ALIGN_TO_ALLOCATION_ALIGNMENT(ExternalPointerArray::SizeFor(length));
-  Tagged<HeapObject> result = AllocateRawWithImmortalMap(
-      size, allocation, read_only_roots().external_pointer_array_map());
-  DisallowGarbageCollection no_gc;
-  Tagged<ExternalPointerArray> array = Cast<ExternalPointerArray>(result);
-  // ExternalPointerArrays must be initialized to zero so that when the sandbox
-  // is enabled, they contain all kNullExternalPointerHandle values.
-  static_assert(kNullExternalPointerHandle == 0);
-  Address data_start = array.address() + ExternalPointerArray::kHeaderSize;
-  size_t byte_length = length * kExternalPointerSlotSize;
-  memset(reinterpret_cast<uint8_t*>(data_start), 0, byte_length);
-  array->set_length(length);
-  return handle(array, isolate());
-}
-
-template <typename Impl>
 Handle<DeoptimizationLiteralArray>
 FactoryBase<Impl>::NewDeoptimizationLiteralArray(int length) {
   return Cast<DeoptimizationLiteralArray>(NewTrustedWeakFixedArray(length));
@@ -335,7 +317,9 @@ Handle<BytecodeArray> FactoryBase<Impl>::NewBytecodeArray(
     int length, const uint8_t* raw_bytecodes, int frame_size,
     uint16_t parameter_count, uint16_t max_arguments,
     DirectHandle<TrustedFixedArray> constant_pool,
-    DirectHandle<TrustedByteArray> handler_table) {
+    DirectHandle<TrustedByteArray> handler_table, AllocationType allocation) {
+  DCHECK(allocation == AllocationType::kTrusted ||
+         allocation == AllocationType::kSharedTrusted);
   if (length < 0 || length > BytecodeArray::kMaxLength) {
     FATAL("Fatal JavaScript invalid size error %d", length);
     UNREACHABLE();
@@ -343,7 +327,7 @@ Handle<BytecodeArray> FactoryBase<Impl>::NewBytecodeArray(
   DirectHandle<BytecodeWrapper> wrapper = NewBytecodeWrapper();
   int size = BytecodeArray::SizeFor(length);
   Tagged<HeapObject> result = AllocateRawWithImmortalMap(
-      size, AllocationType::kTrusted, read_only_roots().bytecode_array_map());
+      size, allocation, read_only_roots().bytecode_array_map());
   DisallowGarbageCollection no_gc;
   Tagged<BytecodeArray> instance = Cast<BytecodeArray>(result);
   instance->init_self_indirect_pointer(isolate());
@@ -365,10 +349,14 @@ Handle<BytecodeArray> FactoryBase<Impl>::NewBytecodeArray(
 }
 
 template <typename Impl>
-Handle<BytecodeWrapper> FactoryBase<Impl>::NewBytecodeWrapper() {
+Handle<BytecodeWrapper> FactoryBase<Impl>::NewBytecodeWrapper(
+    AllocationType allocation) {
+  DCHECK(allocation == AllocationType::kOld ||
+         allocation == AllocationType::kSharedOld);
+
   Handle<BytecodeWrapper> wrapper(
       Cast<BytecodeWrapper>(NewWithImmortalMap(
-          read_only_roots().bytecode_wrapper_map(), AllocationType::kOld)),
+          read_only_roots().bytecode_wrapper_map(), allocation)),
       isolate());
   // The BytecodeWrapper is typically created before the BytecodeArray it
   // wraps, so the bytecode field cannot yet be set. However, as a heap
@@ -1227,8 +1215,7 @@ template <typename Impl>
 Tagged<HeapObject> FactoryBase<Impl>::AllocateRawArray(
     int size, AllocationType allocation) {
   Tagged<HeapObject> result = AllocateRaw(size, allocation);
-  if (!V8_ENABLE_THIRD_PARTY_HEAP_BOOL &&
-      (size >
+  if ((size >
        isolate()->heap()->AsHeap()->MaxRegularHeapObjectSize(allocation)) &&
       v8_flags.use_marking_progress_bar) {
     LargePageMetadata::FromHeapObject(result)->ProgressBar().Enable();
@@ -1266,7 +1253,7 @@ template <typename Impl>
 Tagged<HeapObject> FactoryBase<Impl>::AllocateRawWithImmortalMap(
     int size, AllocationType allocation, Tagged<Map> map,
     AllocationAlignment alignment) {
-  // TODO(delphick): Potentially you could also pass a immortal immovable Map
+  // TODO(delphick): Potentially you could also pass an immortal immovable Map
   // from OLD_SPACE here, like external_map or message_object_map, but currently
   // no one does so this check is sufficient.
   DCHECK(ReadOnlyHeap::Contains(map));

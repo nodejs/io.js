@@ -47,7 +47,7 @@ parser = argparse.ArgumentParser()
 
 valid_os = ('win', 'mac', 'solaris', 'freebsd', 'openbsd', 'linux',
             'android', 'aix', 'cloudabi', 'os400', 'ios')
-valid_arch = ('arm', 'arm64', 'ia32', 'mips', 'mipsel', 'mips64el', 'ppc',
+valid_arch = ('arm', 'arm64', 'ia32', 'mips', 'mipsel', 'mips64el',
               'ppc64', 'x64', 'x86', 'x86_64', 's390x', 'riscv64', 'loong64')
 valid_arm_float_abi = ('soft', 'softfp', 'hard')
 valid_arm_fpu = ('vfp', 'vfpv3', 'vfpv3-d16', 'neon')
@@ -148,6 +148,12 @@ parser.add_argument('--error-on-warn',
     dest='error_on_warn',
     default=None,
     help='Turn compiler warnings into errors for node core sources.')
+
+parser.add_argument('--suppress-all-error-on-warn',
+    action='store_true',
+    dest='suppress_all_error_on_warn',
+    default=False,
+    help='Suppress cases where compiler warnings are turned into errors by default.')
 
 parser.add_argument('--gdb',
     action='store_true',
@@ -1394,6 +1400,11 @@ def gcc_version_ge(version_checked):
 def configure_node_lib_files(o):
   o['variables']['node_library_files'] = SearchFiles('lib', 'js')
 
+def configure_node_cctest_sources(o):
+  o['variables']['node_cctest_sources'] = [ 'src/node_snapshot_stub.cc' ] + \
+    SearchFiles('test/cctest', 'cc') + \
+    SearchFiles('test/cctest', 'h')
+
 def configure_node(o):
   if options.dest_os == 'android':
     o['variables']['OS'] = 'android'
@@ -1404,7 +1415,10 @@ def configure_node(o):
   o['variables']['node_use_amaro'] = b(not options.without_amaro)
   o['variables']['debug_node'] = b(options.debug_node)
   o['default_configuration'] = 'Debug' if options.debug else 'Release'
+  if options.error_on_warn and options.suppress_all_error_on_warn:
+    raise Exception('--error_on_warn is incompatible with --suppress_all_error_on_warn.')
   o['variables']['error_on_warn'] = b(options.error_on_warn)
+  o['variables']['suppress_all_error_on_warn'] = b(options.suppress_all_error_on_warn)
   o['variables']['use_prefix_to_find_headers'] = b(options.use_prefix_to_find_headers)
 
   host_arch = host_arch_win() if os.name == 'nt' else host_arch_cc()
@@ -2150,7 +2164,7 @@ def make_bin_override():
   if sys.platform == 'win32':
     raise Exception('make_bin_override should not be called on win32.')
   # If the system python is not the python we are running (which should be
-  # python 3.8+), then create a directory with a symlink called `python` to our
+  # python 3.9+), then create a directory with a symlink called `python` to our
   # sys.executable. This directory will be prefixed to the PATH, so that
   # other tools that shell out to `python` will use the appropriate python
 
@@ -2205,6 +2219,7 @@ flavor = GetFlavor(flavor_params)
 
 configure_node(output)
 configure_node_lib_files(output)
+configure_node_cctest_sources(output)
 configure_napi(output)
 configure_library('zlib', output)
 configure_library('http_parser', output)

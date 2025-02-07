@@ -7,8 +7,11 @@ const assert = require('assert');
 const { builtinModules } = require('module');
 const publicUnprefixedModules = builtinModules.filter((lib) => !lib.startsWith('_') && !lib.startsWith('node:'));
 
-if (!common.isMainThread)
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
   common.skip('process.chdir is not available in Workers');
+}
 
 // We have to change the directory to ../fixtures before requiring repl
 // in order to make the tests for completion of node_modules work properly

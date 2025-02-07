@@ -98,6 +98,9 @@ struct ReadOnlySegmentForSerialization {
         tagged_slots(segment_size / kTaggedSize) {
     // .. because tagged_slots records a bit for each slot:
     DCHECK(IsAligned(segment_size, kTaggedSize));
+    // Ensure incoming pointers to this page are representable.
+    CHECK_LT(isolate->read_only_heap()->read_only_space()->IndexOf(page),
+             1UL << ro::EncodedTagged::kPageIndexBits);
 
     MemCopy(contents.get(), reinterpret_cast<void*>(segment_start),
             segment_size);
@@ -140,17 +143,12 @@ ro::EncodedTagged Encode(Isolate* isolate, Tagged<HeapObject> o) {
   Address o_address = o.address();
   MemoryChunkMetadata* chunk = MemoryChunkMetadata::FromAddress(o_address);
 
-  ro::EncodedTagged encoded;
   ReadOnlySpace* ro_space = isolate->read_only_heap()->read_only_space();
   int index = static_cast<int>(ro_space->IndexOf(chunk));
-  DCHECK_LT(index, 1UL << ro::EncodedTagged::kPageIndexBits);
-  encoded.page_index = index;
   uint32_t offset = static_cast<int>(chunk->Offset(o_address));
   DCHECK(IsAligned(offset, kTaggedSize));
-  DCHECK_LT(offset / kTaggedSize, 1UL << ro::EncodedTagged::kOffsetBits);
-  encoded.offset = offset / kTaggedSize;
 
-  return encoded;
+  return ro::EncodedTagged(index, offset / kTaggedSize);
 }
 
 // If relocations are needed, this class

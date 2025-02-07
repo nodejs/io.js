@@ -23,7 +23,7 @@
 require('../common');
 
 const vm = require('vm');
-const ctx = vm.createContext(global);
+const ctx = vm.createContext(globalThis);
 
 // Should not throw.
 vm.runInContext('!function() { var x = console.log; }()', ctx);

@@ -2055,7 +2055,55 @@ class RepresentationSelector {
 
     // Effect and Control.
     ProcessRemainingInputs<T>(node, value_input_count);
-    SetOutput<T>(node, MachineRepresentation::kTagged);
+    if (op_params.c_functions().empty()) {
+      SetOutput<T>(node, MachineRepresentation::kTagged);
+      return;
+    }
+
+    CTypeInfo return_type = op_params.c_functions()[0].signature->ReturnInfo();
+    switch (return_type.GetType()) {
+      case CTypeInfo::Type::kBool:
+        SetOutput<T>(node, MachineRepresentation::kBit);
+        return;
+      case CTypeInfo::Type::kFloat32:
+        SetOutput<T>(node, MachineRepresentation::kFloat32);
+        return;
+      case CTypeInfo::Type::kFloat64:
+        SetOutput<T>(node, MachineRepresentation::kFloat64);
+        return;
+      case CTypeInfo::Type::kInt32:
+        SetOutput<T>(node, MachineRepresentation::kWord32);
+        return;
+      case CTypeInfo::Type::kInt64:
+      case CTypeInfo::Type::kUint64:
+        if (c_signature->GetInt64Representation() ==
+            CFunctionInfo::Int64Representation::kBigInt) {
+          SetOutput<T>(node, MachineRepresentation::kWord64);
+          return;
+        }
+        DCHECK_EQ(c_signature->GetInt64Representation(),
+                  CFunctionInfo::Int64Representation::kNumber);
+        SetOutput<T>(node, MachineRepresentation::kFloat64);
+        return;
+      case CTypeInfo::Type::kSeqOneByteString:
+        SetOutput<T>(node, MachineRepresentation::kTagged);
+        return;
+      case CTypeInfo::Type::kUint32:
+        SetOutput<T>(node, MachineRepresentation::kWord32);
+        return;
+      case CTypeInfo::Type::kUint8:
+        SetOutput<T>(node, MachineRepresentation::kWord8);
+        return;
+      case CTypeInfo::Type::kAny:
+        // This type is only supposed to be used for parameters, not returns.
+        UNREACHABLE();
+      case CTypeInfo::Type::kPointer:
+      case CTypeInfo::Type::kApiObject:
+      case CTypeInfo::Type::kV8Value:
+      case CTypeInfo::Type::kVoid:
+        SetOutput<T>(node, MachineRepresentation::kTagged);
+        return;
+    }
   }
 
   template <Phase T>

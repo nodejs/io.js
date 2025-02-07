@@ -346,14 +346,13 @@ void RegExpMacroAssemblerARM64::CheckNotBackReferenceIgnoreCase(
     Label loop_check;
 
     Register capture_start_address = x12;
-    Register capture_end_addresss = x13;
+    Register capture_end_address = x13;
     Register current_position_address = x14;
 
     __ Add(capture_start_address,
            input_end(),
            Operand(capture_start_offset, SXTW));
-    __ Add(capture_end_addresss,
-           capture_start_address,
+    __ Add(capture_end_address, capture_start_address,
            Operand(capture_length, SXTW));
     __ Add(current_position_address,
            input_end(),
@@ -386,7 +385,7 @@ void RegExpMacroAssemblerARM64::CheckNotBackReferenceIgnoreCase(
     __ B(eq, &fail);  // Weren't Latin-1 letters.
 
     __ Bind(&loop_check);
-    __ Cmp(capture_start_address, capture_end_addresss);
+    __ Cmp(capture_start_address, capture_end_address);
     __ B(lt, &loop);
     __ B(&success);
 
@@ -637,6 +636,131 @@ void RegExpMacroAssemblerARM64::CheckBitInTable(
   }
   __ Ldrb(w11, MemOperand(x11, w10, UXTW));
   CompareAndBranchOrBacktrack(w11, 0, ne, on_bit_set);
+}
+
+void RegExpMacroAssemblerARM64::SkipUntilBitInTable(
+    int cp_offset, Handle<ByteArray> table,
+    Handle<ByteArray> nibble_table_array, int advance_by) {
+  Label cont, scalar_repeat;
+
+  const bool use_simd = SkipUntilBitInTableUseSimd(advance_by);
+  if (use_simd) {
+    DCHECK(!nibble_table_array.is_null());
+    Label simd_repeat, found, scalar;
+    static constexpr int kVectorSize = 16;
+    const int kCharsPerVector = kVectorSize / char_size();
+
+    // Fallback to scalar version if there are less than kCharsPerVector chars
+    // left in the subject.
+    // We subtract 1 because CheckPosition assumes we are reading 1 character
+    // plus cp_offset. So the -1 is the the character that is assumed to be
+    // read by default.
+    CheckPosition(cp_offset + kCharsPerVector - 1, &scalar);
+
+    // Load table and mask constants.
+    // For a description of the table layout, check the comment on
+    // BoyerMooreLookahead::GetSkipTable in regexp-compiler.cc.
+    VRegister nibble_table = v0;
+    __ Mov(x8, Operand(nibble_table_array));
+    __ Add(x8, x8, ByteArray::kHeaderSize - kHeapObjectTag);
+    __ Ld1(nibble_table.V16B(), MemOperand(x8));
+    VRegister nibble_mask = v1;
+    const uint64_t nibble_mask_imm = 0x0f0f0f0f'0f0f0f0f;
+    __ Movi(nibble_mask.V16B(), nibble_mask_imm, nibble_mask_imm);
+    VRegister hi_nibble_lookup_mask = v2;
+    const uint64_t hi_nibble_mask_imm = 0x80402010'08040201;
+    __ Movi(hi_nibble_lookup_mask.V16B(), hi_nibble_mask_imm,
+            hi_nibble_mask_imm);
+
+    Bind(&simd_repeat);
+    // Load next characters into vector.
+    VRegister input_vec = v3;
+    __ Add(x8, input_end(), Operand(current_input_offset(), SXTW));
+    __ Add(x8, x8, cp_offset * char_size());
+    __ Ld1(input_vec.V16B(), MemOperand(x8));
+
+    // Extract low nibbles.
+    // lo_nibbles = input & 0x0f
+    VRegister lo_nibbles = v4;
+    __ And(lo_nibbles.V16B(), nibble_mask.V16B(), input_vec.V16B());
+    // Extract high nibbles.
+    // hi_nibbles = (input >> 4) & 0x0f
+    VRegister hi_nibbles = v5;
+    __ Ushr(hi_nibbles.V16B(), input_vec.V16B(), 4);
+    __ And(hi_nibbles.V16B(), hi_nibbles.V16B(), nibble_mask.V16B());
+
+    // Get rows of nibbles table based on low nibbles.
+    // row = nibble_table[lo_nibbles]
+    VRegister row = v6;
+    __ Tbl(row.V16B(), nibble_table.V16B(), lo_nibbles.V16B());
+
+    // Check if high nibble is set in row.
+    // bitmask = 1 << (hi_nibbles & 0x7)
+    //         = hi_nibbles_lookup_mask[hi_nibbles] & 0x7
+    // Note: The hi_nibbles & 0x7 part is implicitly executed, as tbl sets
+    // the result byte to zero if the lookup index is out of range.
+    VRegister bitmask = v7;
+    __ Tbl(bitmask.V16B(), hi_nibble_lookup_mask.V16B(), hi_nibbles.V16B());
+
+    // result = row & bitmask != 0
+    VRegister result = ReassignRegister(lo_nibbles);
+    __ Cmtst(result.V16B(), row.V16B(), bitmask.V16B());
+
+    // Narrow the result to 64 bit.
+    __ Shrn(result.V8B(), result.V8H(), 4);
+    __ Umov(x8, result.V1D(), 0);
+    __ Cbnz(x8, &found);
+
+    // The maximum lookahead for boyer moore is less than vector size, so we can
+    // ignore advance_by in the vectorized version.
+    AdvanceCurrentPosition(kCharsPerVector);
+    CheckPosition(cp_offset + kCharsPerVector - 1, &scalar);
+    __ B(&simd_repeat);
+
+    Bind(&found);
+    // Extract position.
+    __ Rbit(x8, x8);
+    __ Clz(x8, x8);
+    __ Lsr(x8, x8, 2);
+    if (mode_ == UC16) {
+      // Make sure that we skip an even number of bytes in 2-byte subjects.
+      // Odd skips can happen if the higher byte produced a match.
+      // False positives should be rare and are no problem in general, as the
+      // following instructions will check for an exact match.
+      __ And(x8, x8, Immediate(0xfffe));
+    }
+    __ Add(current_input_offset(), current_input_offset(), w8);
+    __ B(&cont);
+    Bind(&scalar);
+  }
+
+  // Scalar version.
+  Register table_reg = x9;
+  __ Mov(table_reg, Operand(table));
+
+  Bind(&scalar_repeat);
+  CheckPosition(cp_offset, &cont);
+  LoadCurrentCharacterUnchecked(cp_offset, 1);
+  Register index = w10;
+  if ((mode_ != LATIN1) || (kTableMask != String::kMaxOneByteCharCode)) {
+    __ And(index, current_character(), kTableMask);
+    __ Add(index, index, ByteArray::kHeaderSize - kHeapObjectTag);
+  } else {
+    __ Add(index, current_character(), ByteArray::kHeaderSize - kHeapObjectTag);
+  }
+  Register found_in_table = w11;
+  __ Ldrb(found_in_table, MemOperand(table_reg, index, UXTW));
+  __ Cbnz(found_in_table, &cont);
+  AdvanceCurrentPosition(advance_by);
+  __ B(&scalar_repeat);
+
+  Bind(&cont);
+}
+
+bool RegExpMacroAssemblerARM64::SkipUntilBitInTableUseSimd(int advance_by) {
+  // We only use SIMD instead of the scalar version if we advance by 1 byte
+  // in each iteration. For higher values the scalar version performs better.
+  return v8_flags.regexp_simd && advance_by * char_size() == 1;
 }
 
 bool RegExpMacroAssemblerARM64::CheckSpecialClassRanges(

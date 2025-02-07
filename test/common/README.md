@@ -102,10 +102,6 @@ symlinks
 ([SeCreateSymbolicLinkPrivilege](https://msdn.microsoft.com/en-us/library/windows/desktop/bb530716\(v=vs.85\).aspx)).
 On non-Windows platforms, this always returns `true`.
 
-### `createZeroFilledFile(filename)`
-
-Creates a 10 MiB file of all null characters.
-
 ### `enoughTestMem`
 
 * [\<boolean>][<boolean>]
@@ -226,17 +222,6 @@ The TTY file descriptor is assumed to be capable of being writable.
 
 Indicates whether OpenSSL is available.
 
-### `hasFipsCrypto`
-
-* [\<boolean>][<boolean>]
-
-Indicates that Node.js has been linked with a FIPS compatible OpenSSL library,
-and that FIPS as been enabled using `--enable-fips`.
-
-To only detect if the OpenSSL library is FIPS compatible, regardless if it has
-been enabled or not, then `process.config.variables.openssl_is_fips` can be
-used to determine that situation.
-
 ### `hasIntl`
 
 * [\<boolean>][<boolean>]
@@ -248,12 +233,6 @@ Indicates if [internationalization][] is supported.
 * [\<boolean>][<boolean>]
 
 Indicates whether `IPv6` is supported on this platform.
-
-### `hasMultiLocalhost`
-
-* [\<boolean>][<boolean>]
-
-Indicates if there are multiple localhosts available.
 
 ### `inFreeBSDJail`
 
@@ -274,10 +253,6 @@ Platform check for Advanced Interactive eXecutive (AIX).
 
 Attempts to 'kill' `pid`
 
-### `isDumbTerminal`
-
-* [\<boolean>][<boolean>]
-
 ### `isFreeBSD`
 
 * [\<boolean>][<boolean>]
@@ -295,12 +270,6 @@ Platform check for IBMi.
 * [\<boolean>][<boolean>]
 
 Platform check for Linux.
-
-### `isLinuxPPCBE`
-
-* [\<boolean>][<boolean>]
-
-Platform check for Linux on PowerPC.
 
 ### `isMacOS`
 
@@ -417,12 +386,6 @@ Returns `true` if the exit code `exitCode` and/or signal name `signal` represent
 the exit code and/or signal name of a node process that aborted, `false`
 otherwise.
 
-### `opensslCli`
-
-* [\<boolean>][<boolean>]
-
-Indicates whether 'opensslCli' is supported.
-
 ### `platformTimeout(ms)`
 
 * `ms` [\<number>][<number>] | [\<bigint>][<bigint>]
@@ -485,10 +448,6 @@ will not be run.
 
 Logs '1..0 # Skipped: ' + `msg` and exits with exit code `0`.
 
-### `skipIfDumbTerminal()`
-
-Skip the rest of the tests if the current terminal is a dumb terminal
-
 ### `skipIfEslintMissing()`
 
 Skip the rest of the tests in the current file when `ESLint` is not available
@@ -503,11 +462,6 @@ was disabled at compile time.
 
 Skip the rest of the tests in the current file when the Node.js executable
 was compiled with a pointer size smaller than 64 bits.
-
-### `skipIfWorker()`
-
-Skip the rest of the tests in the current file when not running on a main
-thread.
 
 ## ArrayStream module
 

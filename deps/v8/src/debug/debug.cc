@@ -1568,6 +1568,7 @@ void Debug::PrepareStep(StepAction step_action) {
           // Handle stepping out into Wasm.
           WasmFrame* wasm_frame = WasmFrame::cast(frames_it.frame());
           auto* debug_info = wasm_frame->native_module()->GetDebugInfo();
+          if (debug_info->IsFrameBlackboxed(wasm_frame)) continue;
           debug_info->PrepareStepOutTo(wasm_frame);
           return;
         }
@@ -1756,7 +1757,7 @@ void Debug::DiscardBaselineCode(Tagged<SharedFunctionInfo> shared) {
     if (IsJSFunction(obj)) {
       Tagged<JSFunction> fun = Cast<JSFunction>(obj);
       if (fun->shared() == shared && fun->ActiveTierIsBaseline(isolate_)) {
-        fun->set_code(*trampoline);
+        fun->UpdateCode(*trampoline);
       }
     }
   }
@@ -1774,7 +1775,7 @@ void Debug::DiscardAllBaselineCode() {
     if (IsJSFunction(obj)) {
       Tagged<JSFunction> fun = Cast<JSFunction>(obj);
       if (fun->ActiveTierIsBaseline(isolate_)) {
-        fun->set_code(*trampoline);
+        fun->UpdateCode(*trampoline);
       }
     } else if (IsSharedFunctionInfo(obj)) {
       Tagged<SharedFunctionInfo> shared = Cast<SharedFunctionInfo>(obj);
@@ -1895,7 +1896,7 @@ void Debug::InstallDebugBreakTrampoline() {
         if (!fun->is_compiled(isolate_)) {
           needs_compile.push_back(handle(fun, isolate_));
         } else {
-          fun->set_code(*trampoline);
+          fun->UpdateCode(*trampoline);
         }
       } else if (IsJSObject(obj)) {
         Tagged<JSObject> object = Cast<JSObject>(obj);
@@ -1932,13 +1933,13 @@ void Debug::InstallDebugBreakTrampoline() {
     Handle<Object> getter = AccessorPair::GetComponent(
         isolate_, native_context, accessor_pair, ACCESSOR_GETTER);
     if (IsJSFunctionAndNeedsTrampoline(isolate_, *getter)) {
-      Cast<JSFunction>(getter)->set_code(*trampoline);
+      Cast<JSFunction>(getter)->UpdateCode(*trampoline);
     }
 
     DirectHandle<Object> setter = AccessorPair::GetComponent(
         isolate_, native_context, accessor_pair, ACCESSOR_SETTER);
     if (IsJSFunctionAndNeedsTrampoline(isolate_, *setter)) {
-      Cast<JSFunction>(setter)->set_code(*trampoline);
+      Cast<JSFunction>(setter)->UpdateCode(*trampoline);
     }
   }
 
@@ -1949,7 +1950,7 @@ void Debug::InstallDebugBreakTrampoline() {
     Compiler::Compile(isolate_, fun, Compiler::CLEAR_EXCEPTION,
                       &is_compiled_scope);
     DCHECK(is_compiled_scope.is_compiled());
-    fun->set_code(*trampoline);
+    fun->UpdateCode(*trampoline);
   }
 }
 
@@ -2655,6 +2656,14 @@ debug::Location GetDebugLocation(DirectHandle<Script> script,
 }
 }  // namespace
 
+bool Debug::IsFunctionBlackboxed(DirectHandle<Script> script, const int start,
+                                 const int end) {
+  debug::Location start_location = GetDebugLocation(script, start);
+  debug::Location end_location = GetDebugLocation(script, end);
+  return debug_delegate_->IsFunctionBlackboxed(
+      ToApiHandle<debug::Script>(script), start_location, end_location);
+}
+
 bool Debug::IsBlackboxed(DirectHandle<SharedFunctionInfo> shared) {
   RCS_SCOPE(isolate_, RuntimeCallCounterId::kDebugger);
   if (!debug_delegate_) return !shared->IsSubjectToDebugging();
@@ -2670,12 +2679,10 @@ bool Debug::IsBlackboxed(DirectHandle<SharedFunctionInfo> shared) {
       DCHECK(IsScript(shared->script()));
       DirectHandle<Script> script(Cast<Script>(shared->script()), isolate_);
       DCHECK(script->IsUserJavaScript());
-      debug::Location start = GetDebugLocation(script, shared->StartPosition());
-      debug::Location end = GetDebugLocation(script, shared->EndPosition());
       {
         RCS_SCOPE(isolate_, RuntimeCallCounterId::kDebuggerCallback);
-        is_blackboxed = debug_delegate_->IsFunctionBlackboxed(
-            ToApiHandle<debug::Script>(script), start, end);
+        is_blackboxed = this->IsFunctionBlackboxed(
+            script, shared->StartPosition(), shared->EndPosition());
       }
     }
     debug_info->set_debug_is_blackboxed(is_blackboxed);

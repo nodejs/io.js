@@ -115,7 +115,6 @@ class Install extends ArboristWorkspaceCmd {
         if (forced) {
           log.warn(
             'install',
-            /* eslint-disable-next-line max-len */
             `Forcing global npm install with incompatible version ${npmManifest.version} into node ${process.version}`
           )
         } else {

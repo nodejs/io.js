@@ -661,7 +661,7 @@ def BuildGraphConfigs(suite, parent, arch):
 
   - GraphConfig:
     - Can have arbitrary children
-    - can be used to store properties used by it's children
+    - can be used to store properties used by its children
 
   - VariantConfig
     - Has variants of the same (any) type as children

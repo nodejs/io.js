@@ -90,7 +90,7 @@ declare namespace CacheHandler {
     headers: Record<string, string | string[]>
     vary?: Record<string, string | string[]>
     etag?: string
-    body: null | Readable | Iterable<Buffer> | AsyncIterable<Buffer> | Buffer | Iterable<string> | AsyncIterable<string> | string
+    body?: Readable | Iterable<Buffer> | AsyncIterable<Buffer> | Buffer | Iterable<string> | AsyncIterable<string> | string
     cacheControlDirectives: CacheControlDirectives,
     cachedAt: number
     staleAt: number

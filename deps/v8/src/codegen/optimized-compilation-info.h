@@ -56,27 +56,28 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
   // Various configuration flags for a compilation, as well as some properties
   // of the compiled code produced by a compilation.
 
-#define FLAGS(V)                                                     \
-  V(FunctionContextSpecializing, function_context_specializing, 0)   \
-  V(Inlining, inlining, 1)                                           \
-  V(DisableFutureOptimization, disable_future_optimization, 2)       \
-  V(Splitting, splitting, 3)                                         \
-  V(SourcePositions, source_positions, 4)                            \
-  V(BailoutOnUninitialized, bailout_on_uninitialized, 5)             \
-  V(LoopPeeling, loop_peeling, 6)                                    \
-  V(SwitchJumpTable, switch_jump_table, 7)                           \
-  V(CalledWithCodeStartRegister, called_with_code_start_register, 8) \
-  V(AllocationFolding, allocation_folding, 9)                        \
-  V(AnalyzeEnvironmentLiveness, analyze_environment_liveness, 10)    \
-  V(TraceTurboJson, trace_turbo_json, 11)                            \
-  V(TraceTurboGraph, trace_turbo_graph, 12)                          \
-  V(TraceTurboScheduled, trace_turbo_scheduled, 13)                  \
-  V(TraceTurboAllocation, trace_turbo_allocation, 14)                \
-  V(TraceHeapBroker, trace_heap_broker, 15)                          \
-  V(DiscardResultForTesting, discard_result_for_testing, 16)         \
-  V(InlineJSWasmCalls, inline_js_wasm_calls, 17)                     \
-  V(TurboshaftTraceReduction, turboshaft_trace_reduction, 18)        \
-  V(CouldNotInlineAllCandidates, could_not_inline_all_candidates, 19)
+#define FLAGS(V)                                                      \
+  V(FunctionContextSpecializing, function_context_specializing, 0)    \
+  V(Inlining, inlining, 1)                                            \
+  V(DisableFutureOptimization, disable_future_optimization, 2)        \
+  V(Splitting, splitting, 3)                                          \
+  V(SourcePositions, source_positions, 4)                             \
+  V(BailoutOnUninitialized, bailout_on_uninitialized, 5)              \
+  V(LoopPeeling, loop_peeling, 6)                                     \
+  V(SwitchJumpTable, switch_jump_table, 7)                            \
+  V(CalledWithCodeStartRegister, called_with_code_start_register, 8)  \
+  V(AllocationFolding, allocation_folding, 9)                         \
+  V(AnalyzeEnvironmentLiveness, analyze_environment_liveness, 10)     \
+  V(TraceTurboJson, trace_turbo_json, 11)                             \
+  V(TraceTurboGraph, trace_turbo_graph, 12)                           \
+  V(TraceTurboScheduled, trace_turbo_scheduled, 13)                   \
+  V(TraceTurboAllocation, trace_turbo_allocation, 14)                 \
+  V(TraceHeapBroker, trace_heap_broker, 15)                           \
+  V(DiscardResultForTesting, discard_result_for_testing, 16)          \
+  V(InlineJSWasmCalls, inline_js_wasm_calls, 17)                      \
+  V(TurboshaftTraceReduction, turboshaft_trace_reduction, 18)         \
+  V(CouldNotInlineAllCandidates, could_not_inline_all_candidates, 19) \
+  V(ShadowStackCompliantLazyDeopt, shadow_stack_compliant_lazy_deopt, 20)
 
   enum Flag {
 #define DEF_ENUM(Camel, Lower, Bit) k##Camel = 1 << Bit,

@@ -249,7 +249,7 @@ class Serializer : public SerializerDeserializer {
                         SerializerReference reference);
   void PutAttachedReference(SerializerReference reference);
   void PutNextChunk(SnapshotSpace space);
-  void PutRepeat(int repeat_count);
+  void PutRepeatRoot(int repeat_count, RootIndex root_index);
 
   // Emit a marker noting that this slot is a forward reference to the an
   // object which has not yet been serialized.

@@ -14,7 +14,7 @@
 #include <string>
 
 #include "v8-source-location.h"  // NOLINT(build/include_directory)
-#include "v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"            // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -79,9 +79,8 @@ class TaskRunner {
    *
    * Embedders should override PostTaskImpl instead of this.
    */
-  void PostTask(
-      std::unique_ptr<Task> task,
-      const SourceLocation& location = SourceLocation::Current()) {
+  void PostTask(std::unique_ptr<Task> task,
+                const SourceLocation& location = SourceLocation::Current()) {
     PostTaskImpl(std::move(task), location);
   }
 
@@ -552,6 +551,19 @@ class PageAllocator {
    * call to AllocatePages. Returns true on success, false otherwise.
    */
   virtual bool DecommitPages(void* address, size_t size) = 0;
+
+  /**
+   * Block any modifications to the given mapping such as changing permissions
+   * or unmapping the pages on supported platforms.
+   * The address space reservation will exist until the process ends, but it's
+   * possible to release the memory using DiscardSystemPages. Note that this
+   * might require write permissions to the page as e.g. on Linux, mseal will
+   * block discarding sealed anonymous memory.
+   */
+  virtual bool SealPages(void* address, size_t length) {
+    // TODO(360048056): make it pure once it's implemented on Chromium side.
+    return false;
+  }
 
   /**
    * INTERNAL ONLY: This interface has not been stabilised and may change
@@ -1086,11 +1098,8 @@ class Platform {
    * Returns a TaskRunner which can be used to post a task on the foreground.
    * The TaskRunner's NonNestableTasksEnabled() must be true. This function
    * should only be called from a foreground thread.
-   * TODO(chromium:1448758): Deprecate once |GetForegroundTaskRunner(Isolate*,
-   * TaskPriority)| is ready.
    */
-  virtual std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
-      Isolate* isolate) {
+  std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(Isolate* isolate) {
     return GetForegroundTaskRunner(isolate, TaskPriority::kUserBlocking);
   }
 
@@ -1098,12 +1107,9 @@ class Platform {
    * Returns a TaskRunner with a specific |priority| which can be used to post a
    * task on the foreground thread. The TaskRunner's NonNestableTasksEnabled()
    * must be true. This function should only be called from a foreground thread.
-   * TODO(chromium:1448758): Make pure virtual once embedders implement it.
    */
   virtual std::shared_ptr<v8::TaskRunner> GetForegroundTaskRunner(
-      Isolate* isolate, TaskPriority priority) {
-    return nullptr;
-  }
+      Isolate* isolate, TaskPriority priority) = 0;
 
   /**
    * Schedules a task to be invoked on a worker thread.

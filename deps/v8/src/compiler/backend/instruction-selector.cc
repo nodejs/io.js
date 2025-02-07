@@ -359,21 +359,33 @@ bool InstructionSelectorT<Adapter>::CanCover(node_t user, node_t node) const {
   }
 
   // 3. Otherwise, the {node}'s effect level must match the {user}'s.
-  if constexpr (Adapter::IsTurboshaft) {
-    // A ProtectedLoad node itself increases effect_level by one.
-    int effect_level_after_node =
-        GetEffectLevel(node) + (this->IsProtectedLoad(node) ? 1 : 0);
-    if (current_effect_level_ != effect_level_after_node) {
-      return false;
-    }
-  } else {
-    if (GetEffectLevel(node) != current_effect_level_) {
-      return false;
-    }
+  if (GetEffectLevel(node) != current_effect_level_) {
+    return false;
   }
 
   // 4. Only {node} must have value edges pointing to {user}.
   return this->is_exclusive_user_of(user, node);
+}
+
+template <typename Adapter>
+bool InstructionSelectorT<Adapter>::CanCoverProtectedLoad(node_t user,
+                                                          node_t node) const {
+  if constexpr (Adapter::IsTurboshaft) {
+    DCHECK(CanCover(user, node));
+    const turboshaft::Graph* graph = this->turboshaft_graph();
+    for (turboshaft::OpIndex next = graph->NextIndex(node); next.valid();
+         next = graph->NextIndex(next)) {
+      if (next == user) break;
+      const turboshaft::Operation& op = graph->Get(next);
+      turboshaft::OpEffects effects = op.Effects();
+      if (effects.produces.control_flow || effects.required_when_unused) {
+        return false;
+      }
+    }
+    return true;
+  } else {
+    UNREACHABLE();
+  }
 }
 
 template <typename Adapter>
@@ -1668,6 +1680,16 @@ void InstructionSelectorT<Adapter>::InitializeCallBuffer(
 }
 
 template <typename Adapter>
+void InstructionSelectorT<Adapter>::UpdateSourcePosition(
+    Instruction* instruction, node_t node) {
+  if constexpr (Adapter::IsTurboshaft) {
+    sequence()->SetSourcePosition(instruction, (*source_positions_)[node]);
+  } else {
+    UNREACHABLE();
+  }
+}
+
+template <typename Adapter>
 bool InstructionSelectorT<Adapter>::IsSourcePositionUsed(node_t node) {
   if (source_position_mode_ == InstructionSelector::kAllSourcePositions) {
     return true;
@@ -1782,9 +1804,7 @@ bool increment_effect_level_for_node(TurboshaftAdapter* adapter,
     return false;
   }
   return (op.Effects().consumes.bits() & kTurboshaftEffectLevelMask.bits()) !=
-             0 ||
-         op.Effects().required_when_unused ||
-         op.Effects().produces.control_flow;
+         0;
 }
 }  // namespace
 

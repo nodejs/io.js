@@ -88,16 +88,6 @@ Local<String> BuiltinLoader::GetConfigString(Isolate* isolate) {
   return config_.ToStringChecked(isolate);
 }
 
-std::vector<std::string_view> BuiltinLoader::GetBuiltinIds() const {
-  std::vector<std::string_view> ids;
-  auto source = source_.read();
-  ids.reserve(source->size());
-  for (auto const& x : *source) {
-    ids.emplace_back(x.first);
-  }
-  return ids;
-}
-
 BuiltinLoader::BuiltinCategories BuiltinLoader::GetBuiltinCategories() const {
   BuiltinCategories builtin_categories;
 
@@ -515,26 +505,25 @@ bool BuiltinLoader::CompileAllBuiltinsAndCopyCodeCache(
     Local<Context> context,
     const std::vector<std::string>& eager_builtins,
     std::vector<CodeCacheInfo>* out) {
-  std::vector<std::string_view> ids = GetBuiltinIds();
+  auto ids = GetBuiltinIds();
   bool all_succeeded = true;
-  std::string v8_tools_prefix = "internal/deps/v8/tools/";
-  std::string primordial_prefix = "internal/per_context/";
-  std::string bootstrap_prefix = "internal/bootstrap/";
-  std::string main_prefix = "internal/main/";
-  to_eager_compile_ = std::unordered_set<std::string>(eager_builtins.begin(),
-                                                      eager_builtins.end());
+  constexpr std::string_view v8_tools_prefix = "internal/deps/v8/tools/";
+  constexpr std::string_view primordial_prefix = "internal/per_context/";
+  constexpr std::string_view bootstrap_prefix = "internal/bootstrap/";
+  constexpr std::string_view main_prefix = "internal/main/";
+  to_eager_compile_ =
+      std::unordered_set(eager_builtins.begin(), eager_builtins.end());
 
   for (const auto& id : ids) {
-    if (id.compare(0, v8_tools_prefix.size(), v8_tools_prefix) == 0) {
+    if (id.starts_with(v8_tools_prefix)) {
       // No need to generate code cache for v8 scripts.
       continue;
     }
 
     // Eagerly compile primordials/boostrap/main scripts during code cache
     // generation.
-    if (id.compare(0, primordial_prefix.size(), primordial_prefix) == 0 ||
-        id.compare(0, bootstrap_prefix.size(), bootstrap_prefix) == 0 ||
-        id.compare(0, main_prefix.size(), main_prefix) == 0) {
+    if (id.starts_with(primordial_prefix) || id.starts_with(bootstrap_prefix) ||
+        id.starts_with(main_prefix)) {
       to_eager_compile_.emplace(id);
     }
 
@@ -554,8 +543,8 @@ bool BuiltinLoader::CompileAllBuiltinsAndCopyCodeCache(
   }
 
   RwLock::ScopedReadLock lock(code_cache_->mutex);
-  for (auto const& item : code_cache_->map) {
-    out->push_back({item.first, item.second});
+  for (const auto& [id, data] : code_cache_->map) {
+    out->push_back({id, data});
   }
   return all_succeeded;
 }
@@ -564,8 +553,8 @@ void BuiltinLoader::RefreshCodeCache(const std::vector<CodeCacheInfo>& in) {
   RwLock::ScopedLock lock(code_cache_->mutex);
   code_cache_->map.reserve(in.size());
   DCHECK(code_cache_->map.empty());
-  for (auto const& item : in) {
-    auto result = code_cache_->map.emplace(item.id, item.data);
+  for (auto const& [id, data] : in) {
+    auto result = code_cache_->map.emplace(id, data);
     USE(result.second);
     DCHECK(result.second);
   }
@@ -665,7 +654,7 @@ void BuiltinLoader::BuiltinIdsGetter(Local<Name> property,
   Environment* env = Environment::GetCurrent(info);
   Isolate* isolate = env->isolate();
 
-  std::vector<std::string_view> ids = env->builtin_loader()->GetBuiltinIds();
+  auto ids = env->builtin_loader()->GetBuiltinIds();
   info.GetReturnValue().Set(
       ToV8Value(isolate->GetCurrentContext(), ids).ToLocalChecked());
 }

@@ -32,7 +32,7 @@ class DNSInstance {
 
     // If full, we just return the origin
     if (ips == null && this.full) {
-      cb(null, origin.origin)
+      cb(null, origin)
       return
     }
 
@@ -74,9 +74,9 @@ class DNSInstance {
 
         cb(
           null,
-          `${origin.protocol}//${
+          new URL(`${origin.protocol}//${
             ip.family === 6 ? `[${ip.address}]` : ip.address
-          }${port}`
+          }${port}`)
         )
       })
     } else {
@@ -105,9 +105,9 @@ class DNSInstance {
 
       cb(
         null,
-        `${origin.protocol}//${
+        new URL(`${origin.protocol}//${
           ip.family === 6 ? `[${ip.address}]` : ip.address
-        }${port}`
+        }${port}`)
       )
     }
   }
@@ -192,6 +192,38 @@ class DNSInstance {
     return ip
   }
 
+  pickFamily (origin, ipFamily) {
+    const records = this.#records.get(origin.hostname)?.records
+    if (!records) {
+      return null
+    }
+
+    const family = records[ipFamily]
+    if (!family) {
+      return null
+    }
+
+    if (family.offset == null || family.offset === maxInt) {
+      family.offset = 0
+    } else {
+      family.offset++
+    }
+
+    const position = family.offset % family.ips.length
+    const ip = family.ips[position] ?? null
+    if (ip == null) {
+      return ip
+    }
+
+    if (Date.now() - ip.timestamp > ip.ttl) { // record TTL is already in ms
+      // We delete expired records
+      // It is possible that they have different TTL, so we manage them individually
+      family.ips.splice(position, 1)
+    }
+
+    return ip
+  }
+
   setRecords (origin, addresses) {
     const timestamp = Date.now()
     const records = { records: { 4: null, 6: null } }
@@ -228,10 +260,13 @@ class DNSDispatchHandler extends DecoratorHandler {
   #dispatch = null
   #origin = null
   #controller = null
+  #newOrigin = null
+  #firstTry = true
 
-  constructor (state, { origin, handler, dispatch }, opts) {
+  constructor (state, { origin, handler, dispatch, newOrigin }, opts) {
     super(handler)
     this.#origin = origin
+    this.#newOrigin = newOrigin
     this.#opts = { ...opts }
     this.#state = state
     this.#dispatch = dispatch
@@ -242,21 +277,36 @@ class DNSDispatchHandler extends DecoratorHandler {
       case 'ETIMEDOUT':
       case 'ECONNREFUSED': {
         if (this.#state.dualStack) {
-          // We delete the record and retry
-          this.#state.runLookup(this.#origin, this.#opts, (err, newOrigin) => {
-            if (err) {
-              super.onResponseError(controller, err)
-              return
-            }
+          if (!this.#firstTry) {
+            super.onResponseError(controller, err)
+            return
+          }
+          this.#firstTry = false
 
-            const dispatchOpts = {
-              ...this.#opts,
-              origin: newOrigin
-            }
+          // Pick an ip address from the other family
+          const otherFamily = this.#newOrigin.hostname[0] === '[' ? 4 : 6
+          const ip = this.#state.pickFamily(this.#origin, otherFamily)
+          if (ip == null) {
+            super.onResponseError(controller, err)
+            return
+          }
 
-            this.#dispatch(dispatchOpts, this)
-          })
+          let port
+          if (typeof ip.port === 'number') {
+            port = `:${ip.port}`
+          } else if (this.#origin.port !== '') {
+            port = `:${this.#origin.port}`
+          } else {
+            port = ''
+          }
 
+          const dispatchOpts = {
+            ...this.#opts,
+            origin: `${this.#origin.protocol}//${
+                ip.family === 6 ? `[${ip.address}]` : ip.address
+              }${port}`
+          }
+          this.#dispatch(dispatchOpts, this)
           return
         }
 
@@ -266,7 +316,8 @@ class DNSDispatchHandler extends DecoratorHandler {
       }
       case 'ENOTFOUND':
         this.#state.deleteRecords(this.#origin)
-      // eslint-disable-next-line no-fallthrough
+        super.onResponseError(controller, err)
+        break
       default:
         super.onResponseError(controller, err)
         break
@@ -353,14 +404,13 @@ module.exports = interceptorOpts => {
 
       instance.runLookup(origin, origDispatchOpts, (err, newOrigin) => {
         if (err) {
-          return handler.onError(err)
+          return handler.onResponseError(null, err)
         }
 
-        let dispatchOpts = null
-        dispatchOpts = {
+        const dispatchOpts = {
           ...origDispatchOpts,
           servername: origin.hostname, // For SNI on TLS
-          origin: newOrigin,
+          origin: newOrigin.origin,
           headers: {
             host: origin.host,
             ...origDispatchOpts.headers
@@ -369,7 +419,10 @@ module.exports = interceptorOpts => {
 
         dispatch(
           dispatchOpts,
-          instance.getHandler({ origin, dispatch, handler }, origDispatchOpts)
+          instance.getHandler(
+            { origin, dispatch, handler, newOrigin },
+            origDispatchOpts
+          )
         )
       })
 

@@ -726,7 +726,7 @@ inline void MaglevAssembler::LoadByte(Register dst, MemOperand src) {
 
 inline Condition MaglevAssembler::IsCallableAndNotUndetectable(
     Register map, Register scratch) {
-  movl(scratch, FieldOperand(map, Map::kBitFieldOffset));
+  movb(scratch, FieldOperand(map, Map::kBitFieldOffset));
   andl(scratch, Immediate(Map::Bits1::IsUndetectableBit::kMask |
                           Map::Bits1::IsCallableBit::kMask));
   cmpl(scratch, Immediate(Map::Bits1::IsCallableBit::kMask));
@@ -735,7 +735,7 @@ inline Condition MaglevAssembler::IsCallableAndNotUndetectable(
 
 inline Condition MaglevAssembler::IsNotCallableNorUndetactable(
     Register map, Register scratch) {
-  testl(FieldOperand(map, Map::kBitFieldOffset),
+  testb(FieldOperand(map, Map::kBitFieldOffset),
         Immediate(Map::Bits1::IsUndetectableBit::kMask |
                   Map::Bits1::IsCallableBit::kMask));
   return kEqual;
@@ -1186,6 +1186,12 @@ inline void MaglevAssembler::TestInt32AndJumpIfAnySet(
   JumpIf(kNotZero, target, distance);
 }
 
+inline void MaglevAssembler::TestUint8AndJumpIfAnySet(
+    MemOperand operand, uint8_t mask, Label* target, Label::Distance distance) {
+  testb(operand, Immediate(mask));
+  JumpIf(kNotZero, target, distance);
+}
+
 inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
     Register r1, int32_t mask, Label* target, Label::Distance distance) {
   testl(r1, Immediate(mask));
@@ -1195,6 +1201,12 @@ inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
 inline void MaglevAssembler::TestInt32AndJumpIfAllClear(
     MemOperand operand, int32_t mask, Label* target, Label::Distance distance) {
   testl(operand, Immediate(mask));
+  JumpIf(kZero, target, distance);
+}
+
+inline void MaglevAssembler::TestUint8AndJumpIfAllClear(
+    MemOperand operand, uint8_t mask, Label* target, Label::Distance distance) {
+  testb(operand, Immediate(mask));
   JumpIf(kZero, target, distance);
 }
 
@@ -1269,6 +1281,12 @@ inline void MaglevAssembler::MoveRepr(MachineRepresentation repr,
                                       MemOperand dst, MemOperand src) {
   MoveRepr(repr, kScratchRegister, src);
   MoveRepr(repr, dst, kScratchRegister);
+}
+
+inline void MaglevAssembler::MaybeEmitPlaceHolderForDeopt() {
+  if (v8_flags.cet_compatible) {
+    Nop(Assembler::kIntraSegmentJmpInstrSize);
+  }
 }
 
 }  // namespace maglev

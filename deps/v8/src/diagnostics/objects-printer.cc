@@ -1097,12 +1097,6 @@ void RegExpMatchInfo::RegExpMatchInfoPrint(std::ostream& os) {
   os << "\n";
 }
 
-void ExternalPointerArray::ExternalPointerArrayPrint(std::ostream& os) {
-  PrintHeader(os, "ExternalPointerArray");
-  os << "\n - length: " << length();
-  os << "\n";
-}
-
 void SloppyArgumentsElements::SloppyArgumentsElementsPrint(std::ostream& os) {
   PrintHeader(os, "SloppyArgumentsElements");
   os << "\n - length: " << length();
@@ -1474,14 +1468,14 @@ void FixedDoubleArray::FixedDoubleArrayPrint(std::ostream& os) {
 
 void WeakFixedArray::WeakFixedArrayPrint(std::ostream& os) {
   PrintHeader(os, "WeakFixedArray");
-  os << "\n - length: " << length() << "\n";
+  os << "\n - length: " << length();
   PrintWeakArrayElements(os, this);
   os << "\n";
 }
 
 void TrustedWeakFixedArray::TrustedWeakFixedArrayPrint(std::ostream& os) {
   PrintHeader(os, "TrustedWeakFixedArray");
-  os << "\n - length: " << length() << "\n";
+  os << "\n - length: " << length();
   PrintWeakArrayElements(os, this);
   os << "\n";
 }
@@ -1489,7 +1483,7 @@ void TrustedWeakFixedArray::TrustedWeakFixedArrayPrint(std::ostream& os) {
 void WeakArrayList::WeakArrayListPrint(std::ostream& os) {
   PrintHeader(os, "WeakArrayList");
   os << "\n - capacity: " << capacity();
-  os << "\n - length: " << length() << "\n";
+  os << "\n - length: " << length();
   PrintWeakArrayElements(os, this);
   os << "\n";
 }
@@ -1497,6 +1491,7 @@ void WeakArrayList::WeakArrayListPrint(std::ostream& os) {
 void TransitionArray::TransitionArrayPrint(std::ostream& os) {
   PrintHeader(os, "TransitionArray");
   PrintInternal(os);
+  os << "\n";
 }
 
 void FeedbackCell::FeedbackCellPrint(std::ostream& os) {
@@ -1983,6 +1978,9 @@ void JSDisposableStackBase::JSDisposableStackBasePrint(std::ostream& os) {
   os << "\n - stack: " << Brief(stack());
   os << "\n - length: " << length();
   os << "\n - state: " << state();
+  os << "\n - needsAwait: " << needsAwait();
+  os << "\n - hasAwaited: " << hasAwaited();
+  os << "\n - error: " << error();
   JSObjectPrintBody(os, *this);
 }
 
@@ -1991,6 +1989,9 @@ void JSAsyncDisposableStack::JSAsyncDisposableStackPrint(std::ostream& os) {
   os << "\n - stack: " << Brief(stack());
   os << "\n - length: " << length();
   os << "\n - state: " << state();
+  os << "\n - needsAwait: " << needsAwait();
+  os << "\n - hasAwaited: " << hasAwaited();
+  os << "\n - error: " << error();
   JSObjectPrintBody(os, *this);
 }
 
@@ -2324,6 +2325,7 @@ void Code::CodePrint(std::ostream& os, const char* name, Address current_pc) {
   os << "\n - deoptimization_data_or_interpreter_data: "
      << Brief(raw_deoptimization_data_or_interpreter_data());
   os << "\n - position_table: " << Brief(raw_position_table());
+  os << "\n - parameter_count: " << parameter_count();
   os << "\n - instruction_stream: " << Brief(raw_instruction_stream());
   os << "\n - instruction_start: "
      << reinterpret_cast<void*>(instruction_start());
@@ -2369,7 +2371,8 @@ void Code::CodePrint(std::ostream& os, const char* name, Address current_pc) {
 
 void CodeWrapper::CodeWrapperPrint(std::ostream& os) {
   PrintHeader(os, "CodeWrapper");
-  os << "\n    code: " << Brief(code(Isolate::Current()));
+  os << "\n - code: " << Brief(code(Isolate::Current()));
+  os << "\n";
 }
 
 void Foreign::ForeignPrint(std::ostream& os) {
@@ -2639,7 +2642,6 @@ void WasmSuspenderObject::WasmSuspenderObjectPrint(std::ostream& os) {
   os << "\n - resume: " << resume();
   os << "\n - reject: " << reject();
   os << "\n - state: " << state();
-  os << "\n - has_js_frames: " << has_js_frames();
   os << "\n";
 }
 
@@ -3356,13 +3358,12 @@ void HeapObject::HeapObjectShortPrint(std::ostream& os) {
     case BYTECODE_ARRAY_TYPE:
       os << "<BytecodeArray[" << Cast<BytecodeArray>(*this)->length() << "]>";
       break;
-    case EXTERNAL_POINTER_ARRAY_TYPE:
-      os << "<ExternalPointerArray["
-         << Cast<ExternalPointerArray>(*this)->length() << "]>";
-      break;
     case DESCRIPTOR_ARRAY_TYPE:
       os << "<DescriptorArray["
          << Cast<DescriptorArray>(*this)->number_of_descriptors() << "]>";
+      break;
+    case WEAK_FIXED_ARRAY_TYPE:
+      os << "<WeakFixedArray[" << Cast<WeakFixedArray>(*this)->length() << "]>";
       break;
     case TRANSITION_ARRAY_TYPE:
       os << "<TransitionArray[" << Cast<TransitionArray>(*this)->length()
@@ -3729,7 +3730,8 @@ void Map::MapPrint(std::ostream& os) {
     Isolate* isolate = GetIsolateFromWritableObject(*this);
     TransitionsAccessor transitions(isolate, *this);
     int nof_transitions = transitions.NumberOfTransitions();
-    if (nof_transitions > 0) {
+    if (nof_transitions > 0 || transitions.HasPrototypeTransitions() ||
+        transitions.HasSideStepTransitions()) {
       os << "\n - transitions #" << nof_transitions << ": ";
       Tagged<HeapObject> heap_object;
       Tagged<Smi> smi;
@@ -3846,7 +3848,7 @@ void TransitionsAccessor::PrintOneTransition(std::ostream& os, Tagged<Name> key,
 void TransitionArray::PrintInternal(std::ostream& os) {
   {
     int num_transitions = number_of_transitions();
-    os << "   Transition array #" << num_transitions << ":";
+    os << "\n   Transitions #" << num_transitions << ":";
     for (int i = 0; i < num_transitions; i++) {
       Tagged<Name> key = GetKey(i);
       Tagged<Map> target;
@@ -3858,7 +3860,8 @@ void TransitionArray::PrintInternal(std::ostream& os) {
   if (HasPrototypeTransitions()) {
     auto prototype_transitions = GetPrototypeTransitions();
     int num_transitions = NumberOfPrototypeTransitions(prototype_transitions);
-    os << "\n   Prototype transitions #" << num_transitions << ":";
+    os << "\n   Prototype transitions #" << num_transitions << ": "
+       << Brief(prototype_transitions);
     for (int i = 0; i < num_transitions; i++) {
       auto maybe = prototype_transitions->get(
           TransitionArray::kProtoTransitionHeaderSize + i);
@@ -3868,6 +3871,18 @@ void TransitionArray::PrintInternal(std::ostream& os) {
         os << "\n     " << Brief(map->prototype()) << " -> "
            << Brief(Cast<Map>(target));
       }
+    }
+  }
+
+  if (HasSideStepTransitions()) {
+    auto sidestep_transitions = GetSideStepTransitions();
+    int num_transitions = sidestep_transitions->length();
+    os << "\n   Sidestep transitions #" << num_transitions << ": "
+       << Brief(sidestep_transitions);
+    for (int i = 0; i < num_transitions; i++) {
+      SideStepTransition::Kind kind = static_cast<SideStepTransition::Kind>(i);
+      auto maybe_target = sidestep_transitions->get(i);
+      os << "\n     " << kind << " -> " << Brief(maybe_target);
     }
   }
 }
@@ -3886,7 +3901,6 @@ void TransitionsAccessor::PrintTransitions(std::ostream& os) {
       break;
     }
     case kFullTransitionArray:
-      std::cout << "\n";
       return transitions()->PrintInternal(os);
   }
 }
@@ -3962,10 +3976,6 @@ void TransitionsAccessor::PrintTransitionTree(
         std::stringstream ss;
         ss << Brief(side_step);
         os << std::left << std::setw(50) << ss.str() << ": sidestep " << kind;
-        if (!side_step.IsSmi()) {
-          TransitionsAccessor transitions(isolate_, Cast<Map>(side_step));
-          transitions.PrintTransitionTree(os, level + 1, no_gc);
-        }
       });
 }
 

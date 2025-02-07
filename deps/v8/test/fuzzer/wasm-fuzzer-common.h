@@ -47,13 +47,15 @@ void GenerateTestCase(Isolate* isolate, ModuleWireBytes wire_bytes,
 // process anyway, so this should not interfere with anything.
 void EnableExperimentalWasmFeatures(v8::Isolate* isolate);
 
+constexpr int kMaxFuzzerInputSize = 512;
+
 class WasmExecutionFuzzer {
  public:
   virtual ~WasmExecutionFuzzer() = default;
   void FuzzWasmModule(base::Vector<const uint8_t> data,
                       bool require_valid = false);
 
-  virtual size_t max_input_size() const { return 512; }
+  virtual size_t max_input_size() const { return kMaxFuzzerInputSize; }
 
  protected:
   virtual bool GenerateModule(Isolate* isolate, Zone* zone,

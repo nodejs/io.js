@@ -72,7 +72,7 @@ var testCasesUT = [
     '[Saturday] Jan 01 08:00:00 UT 2000',
     'Ignore all of this stuff because it is annoying 01 Jan 2000 08:00:00 UT',
     '[Saturday] Jan 01 2000 08:00:00 UT',
-    'All of this stuff is really annnoying, so it will be ignored Jan 01 2000 08:00:00 UT',
+    'All of this stuff is really annoying, so it will be ignored Jan 01 2000 08:00:00 UT',
     // If the three first letters of the month is a
     // month name we are happy - ignore the rest.
     'Sat, 01-Janisamonth-2000 08:00:00 UT',

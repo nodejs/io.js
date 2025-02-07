@@ -23,7 +23,7 @@ X509_STORE* NewRootCertStore();
 
 X509_STORE* GetOrCreateRootCertStore();
 
-BIOPointer LoadBIO(Environment* env, v8::Local<v8::Value> v);
+ncrypto::BIOPointer LoadBIO(Environment* env, v8::Local<v8::Value> v);
 
 class SecureContext final : public BaseObject {
  public:
@@ -41,27 +41,27 @@ class SecureContext final : public BaseObject {
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
   static SecureContext* Create(Environment* env);
 
-  const SSLCtxPointer& ctx() const { return ctx_; }
+  const ncrypto::SSLCtxPointer& ctx() const { return ctx_; }
 
   // Non-const ctx() that allows for non-default initialization of
   // the SecureContext.
-  SSLCtxPointer& ctx() { return ctx_; }
+  ncrypto::SSLCtxPointer& ctx() { return ctx_; }
 
-  SSLPointer CreateSSL();
+  ncrypto::SSLPointer CreateSSL();
 
   void SetGetSessionCallback(GetSessionCb cb);
   void SetKeylogCallback(KeylogCb cb);
   void SetNewSessionCallback(NewSessionCb cb);
   void SetSelectSNIContextCallback(SelectSNIContextCb cb);
 
-  inline const X509Pointer& issuer() const { return issuer_; }
-  inline const X509Pointer& cert() const { return cert_; }
+  inline const ncrypto::X509Pointer& issuer() const { return issuer_; }
+  inline const ncrypto::X509Pointer& cert() const { return cert_; }
 
-  v8::Maybe<void> AddCert(Environment* env, BIOPointer&& bio);
-  v8::Maybe<void> SetCRL(Environment* env, const BIOPointer& bio);
+  v8::Maybe<void> AddCert(Environment* env, ncrypto::BIOPointer&& bio);
+  v8::Maybe<void> SetCRL(Environment* env, const ncrypto::BIOPointer& bio);
   v8::Maybe<void> UseKey(Environment* env, const KeyObjectData& key);
 
-  void SetCACert(const BIOPointer& bio);
+  void SetCACert(const ncrypto::BIOPointer& bio);
   void SetRootCerts();
 
   void SetX509StoreFlag(unsigned long flags);  // NOLINT(runtime/int)
@@ -144,9 +144,9 @@ class SecureContext final : public BaseObject {
   void Reset();
 
  private:
-  SSLCtxPointer ctx_;
-  X509Pointer cert_;
-  X509Pointer issuer_;
+  ncrypto::SSLCtxPointer ctx_;
+  ncrypto::X509Pointer cert_;
+  ncrypto::X509Pointer issuer_;
   // Non-owning cache for SSL_CTX_get_cert_store(ctx_.get())
   X509_STORE* own_cert_store_cache_ = nullptr;
 #ifndef OPENSSL_NO_ENGINE
@@ -160,9 +160,9 @@ class SecureContext final : public BaseObject {
 };
 
 int SSL_CTX_use_certificate_chain(SSL_CTX* ctx,
-                                  BIOPointer&& in,
-                                  X509Pointer* cert,
-                                  X509Pointer* issuer);
+                                  ncrypto::BIOPointer&& in,
+                                  ncrypto::X509Pointer* cert,
+                                  ncrypto::X509Pointer* issuer);
 
 }  // namespace crypto
 }  // namespace node

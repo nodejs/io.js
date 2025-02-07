@@ -22,8 +22,9 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread) {
+if (!isMainThread) {
   assert.strictEqual(typeof process.umask(), 'number');
   assert.throws(() => {
     process.umask('0664');

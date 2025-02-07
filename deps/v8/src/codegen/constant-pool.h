@@ -81,7 +81,7 @@ class ConstantPoolEntry {
   enum { SHARING_PROHIBITED = -2, SHARING_ALLOWED = -1 };
 };
 
-#if defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64)
+#if defined(V8_TARGET_ARCH_PPC64)
 
 // -----------------------------------------------------------------------------
 // Embedded constant pool support
@@ -161,7 +161,7 @@ class ConstantPoolBuilder {
   PerTypeEntryInfo info_[ConstantPoolEntry::NUMBER_OF_TYPES];
 };
 
-#endif  // defined(V8_TARGET_ARCH_PPC) || defined(V8_TARGET_ARCH_PPC64)
+#endif  // defined(V8_TARGET_ARCH_PPC64)
 
 #if defined(V8_TARGET_ARCH_ARM64) || defined(V8_TARGET_ARCH_RISCV64) || \
     defined(V8_TARGET_ARCH_RISCV32)
@@ -276,7 +276,7 @@ class ConstantPool {
   V8_EXPORT_PRIVATE void MaybeCheck();
   void Clear();
 
-  // Constant pool emisssion can be blocked temporarily.
+  // Constant pool emission can be blocked temporarily.
   bool IsBlocked() const;
 
   // Repeated checking whether the constant pool should be emitted is expensive;

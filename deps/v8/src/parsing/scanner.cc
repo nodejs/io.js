@@ -370,7 +370,7 @@ Token::Value Scanner::ScanHtmlComment() {
 
 #ifdef DEBUG
 void Scanner::SanityCheckTokenDesc(const TokenDesc& token) const {
-  // Only TEMPLATE_* tokens can have a invalid_template_escape_message.
+  // Only TEMPLATE_* tokens can have an invalid_template_escape_message.
   // kIllegal and kUninitialized can have garbage for the field.
 
   switch (token.token) {

@@ -15,40 +15,40 @@ namespace interpreter {
 // clang-format off
 const OperandType* const Bytecodes::kOperandTypes[] = {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kOperandTypes,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
 };
 
 const OperandTypeInfo* const Bytecodes::kOperandTypeInfos[] = {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kOperandTypeInfos,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
 };
 
 const int Bytecodes::kOperandCount[] = {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kOperandCount,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
 };
 
 const ImplicitRegisterUse Bytecodes::kImplicitRegisterUse[] = {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kImplicitRegisterUse,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
 };
 
 const uint8_t Bytecodes::kBytecodeSizes[3][kBytecodeCount] = {
   {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kSingleScaleSize,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }, {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kDoubleScaleSize,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }, {
 #define ENTRY(Name, ...) BytecodeTraits<__VA_ARGS__>::kQuadrupleScaleSize,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }
 };
@@ -57,17 +57,17 @@ const OperandSize* const Bytecodes::kOperandSizes[3][kBytecodeCount] = {
   {
 #define ENTRY(Name, ...)  \
     BytecodeTraits<__VA_ARGS__>::kSingleScaleOperandSizes,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }, {
 #define ENTRY(Name, ...)  \
     BytecodeTraits<__VA_ARGS__>::kDoubleScaleOperandSizes,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }, {
 #define ENTRY(Name, ...)  \
     BytecodeTraits<__VA_ARGS__>::kQuadrupleScaleOperandSizes,
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }
 };
@@ -76,17 +76,17 @@ const int* const Bytecodes::kOperandOffsets[3][kBytecodeCount] = {
   {
 #define ENTRY(Name, ...)  \
     BytecodeTraits<__VA_ARGS__>::kSingleScaleOperandOffsets.data(),
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }, {
 #define ENTRY(Name, ...)  \
     BytecodeTraits<__VA_ARGS__>::kDoubleScaleOperandOffsets.data(),
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }, {
 #define ENTRY(Name, ...)  \
     BytecodeTraits<__VA_ARGS__>::kQuadrupleScaleOperandOffsets.data(),
-  BYTECODE_LIST(ENTRY)
+  BYTECODE_LIST(ENTRY, ENTRY)
 #undef ENTRY
   }
 };
@@ -125,7 +125,7 @@ const char* Bytecodes::ToString(Bytecode bytecode) {
 #define CASE(Name, ...)   \
   case Bytecode::k##Name: \
     return #Name;
-    BYTECODE_LIST(CASE)
+    BYTECODE_LIST(CASE, CASE)
 #undef CASE
   }
   UNREACHABLE();

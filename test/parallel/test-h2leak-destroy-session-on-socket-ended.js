@@ -31,8 +31,8 @@ server.on('secureConnection', (s) => {
     firstServerStream = null;
 
     setImmediate(() => {
-      global.gc();
-      global.gc();
+      globalThis.gc();
+      globalThis.gc();
 
       server.close();
     });

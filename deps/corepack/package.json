@@ -1,6 +1,6 @@
 {
   "name": "corepack",
-  "version": "0.30.0",
+  "version": "0.31.0",
   "homepage": "https://github.com/nodejs/corepack#readme",
   "bugs": {
     "url": "https://github.com/nodejs/corepack/issues"
@@ -10,7 +10,7 @@
     "url": "https://github.com/nodejs/corepack.git"
   },
   "engines": {
-    "node": "^18.17.1 || >=20.10.0"
+    "node": "^18.17.1 || ^20.10.0 || >=22.11.0"
   },
   "exports": {
     "./package.json": "./package.json"
@@ -26,7 +26,7 @@
     "@yarnpkg/eslint-config": "^2.0.0",
     "@yarnpkg/fslib": "^3.0.0-rc.48",
     "@zkochan/cmd-shim": "^6.0.0",
-    "better-sqlite3": "^10.0.0",
+    "better-sqlite3": "^11.7.2",
     "clipanion": "patch:clipanion@npm%3A3.2.1#~/.yarn/patches/clipanion-npm-3.2.1-fc9187f56c.patch",
     "debug": "^4.1.1",
     "esbuild": "^0.21.0",

@@ -1,8 +1,9 @@
 'use strict';
 const common = require('../common');
 
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const { spawn } = require('child_process');
@@ -198,7 +199,7 @@ function TestFatalAlert() {
 
       // OpenSSL's s_client should output the TLS alert number, which is 120
       // for the 'no_application_protocol' alert.
-      const { opensslCli } = common;
+      const { opensslCli } = require('../common/crypto');
       if (opensslCli) {
         const addr = `${serverIP}:${port}`;
         let stderr = '';

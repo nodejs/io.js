@@ -129,7 +129,7 @@ class SnapshotFileWriter {
   const char* snapshot_blob_path_ = nullptr;
 };
 
-char* GetExtraCode(char* filename, const char* description) {
+std::unique_ptr<char[]> GetExtraCode(char* filename, const char* description) {
   if (filename == nullptr || strlen(filename) == 0) return nullptr;
   ::printf("Loading script for %s: %s\n", description, filename);
   FILE* file = v8::base::OS::FOpen(filename, "rb");
@@ -151,7 +151,7 @@ char* GetExtraCode(char* filename, const char* description) {
     i += read;
   }
   v8::base::Fclose(file);
-  return chars;
+  return std::unique_ptr<char[]>(chars);
 }
 
 v8::StartupData CreateSnapshotDataBlob(v8::SnapshotCreator& snapshot_creator,
@@ -226,6 +226,11 @@ int main(int argc, char** argv) {
   // Make mksnapshot runs predictable to create reproducible snapshots.
   i::v8_flags.predictable = true;
 
+  // Disable ICs globally in mksnapshot to avoid problems with Code handlers.
+  // See https://crbug.com/345280736.
+  // TODO(jgruber): Re-enable once a better fix is available.
+  i::v8_flags.use_ic = false;
+
   // Print the usage if an error occurs when parsing the command line
   // flags or if the help flag is set.
   using HelpOptions = i::FlagList::HelpOptions;
@@ -258,10 +263,10 @@ int main(int argc, char** argv) {
     embedded_writer.SetTargetArch(i::v8_flags.target_arch);
     embedded_writer.SetTargetOs(i::v8_flags.target_os);
 
-    std::unique_ptr<char> embed_script(
-        GetExtraCode(argc >= 2 ? argv[1] : nullptr, "embedding"));
-    std::unique_ptr<char> warmup_script(
-        GetExtraCode(argc >= 3 ? argv[2] : nullptr, "warm up"));
+    std::unique_ptr<char[]> embed_script =
+        GetExtraCode(argc >= 2 ? argv[1] : nullptr, "embedding");
+    std::unique_ptr<char[]> warmup_script =
+        GetExtraCode(argc >= 3 ? argv[2] : nullptr, "warm up");
 
     v8::StartupData blob;
     {

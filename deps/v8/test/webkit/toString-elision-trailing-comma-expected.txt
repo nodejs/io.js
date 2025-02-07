@@ -21,7 +21,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-This test checks that toString() round-trip on a function that has a array with elision does not remove a comma.
+This test checks that toString() round-trip on a function that has an array with elision does not remove a comma.
 
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 

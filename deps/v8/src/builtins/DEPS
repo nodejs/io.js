@@ -5,7 +5,11 @@
 specific_include_rules = {
   "setup-builtins-internal.cc": [
     "+src/compiler/pipeline.h",
+    "+src/compiler/turboshaft/builtin-compiler.h",
     "+src/compiler/turboshaft/phase.h",
+  ],
+  "number-builtins-reducer-inl.h": [
+    "+src/compiler",
   ],
   ".*-tsa.cc": [
     "+src/compiler",

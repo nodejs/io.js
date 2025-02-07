@@ -228,6 +228,8 @@ void GCTracer::StartCycle(GarbageCollector collector,
   DCHECK(!young_gc_while_full_gc_);
 
   young_gc_while_full_gc_ = current_.state != Event::State::NOT_RUNNING;
+  CHECK_IMPLIES(v8_flags.separate_gc_phases && young_gc_while_full_gc_,
+                current_.state == Event::State::SWEEPING);
   if (young_gc_while_full_gc_) {
     // The cases for interruption are: Scavenger, MinorMS interrupting sweeping.
     // In both cases we are fine with fetching background counters now and

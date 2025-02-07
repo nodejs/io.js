@@ -1,4 +1,4 @@
-.TH "NPM-DEPRECATE" "1" "December 2024" "NPM@11.0.0" ""
+.TH "NPM-DEPRECATE" "1" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBnpm-deprecate\fR - Deprecate a version of a package
 .SS "Synopsis"
@@ -58,6 +58,18 @@ Type: null or String
 This is a one-time password from a two-factor authenticator. It's needed when publishing or changing package permissions with \fBnpm access\fR.
 .P
 If not set, and a registry response fails with a challenge for a one-time password, npm will prompt on the command line for one.
+.SS "\fBdry-run\fR"
+.RS 0
+.IP \(bu 4
+Default: false
+.IP \(bu 4
+Type: Boolean
+.RE 0
+
+.P
+Indicates that you don't want npm to make any changes and that it should only report what it would have done. This can be passed into any of the commands that modify your local installation, eg, \fBinstall\fR, \fBupdate\fR, \fBdedupe\fR, \fBuninstall\fR, as well as \fBpack\fR and \fBpublish\fR.
+.P
+Note: This is NOT honored by other network related commands, eg \fBdist-tags\fR, \fBowner\fR, etc.
 .SS "See Also"
 .RS 0
 .IP \(bu 4

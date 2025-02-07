@@ -69,7 +69,7 @@ server.listen(0, common.mustCall(function() {
     req.destroy = function(...args) {
       // Schedule a garbage collection event at the end of the current
       // MakeCallback() run.
-      process.nextTick(global.gc);
+      process.nextTick(globalThis.gc);
       return origDestroy.call(this, ...args);
     };
 

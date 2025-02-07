@@ -33,25 +33,9 @@
 #include "darwin-stub.h"
 #endif
 
-
-static int uv__pthread_setname_np(const char* name) {
-  char namebuf[64];  /* MAXTHREADNAMESIZE */
-  int err;
-
-  strncpy(namebuf, name, sizeof(namebuf) - 1);
-  namebuf[sizeof(namebuf) - 1] = '\0';
-
-  err = pthread_setname_np(namebuf);
-  if (err)
-    return UV__ERR(err);
-
-  return 0;
-}
-
-
 int uv__set_process_title(const char* title) {
 #if TARGET_OS_IPHONE
-  return uv__pthread_setname_np(title);
+  return uv__thread_setname(title);
 #else
   CFStringRef (*pCFStringCreateWithCString)(CFAllocatorRef,
                                             const char*,
@@ -177,7 +161,7 @@ int uv__set_process_title(const char* title) {
     goto out;
   }
 
-  uv__pthread_setname_np(title);  /* Don't care if it fails. */
+  uv__thread_setname(title);  /* Don't care if it fails. */
   err = 0;
 
 out:

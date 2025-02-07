@@ -20,7 +20,7 @@
  */
 
 #ifndef _WIN32_WINNT
-# define _WIN32_WINNT   0x0600
+# define _WIN32_WINNT   0x0A00
 #endif
 
 #if !defined(_SSIZE_T_) && !defined(_SSIZE_T_DEFINED)
@@ -31,14 +31,6 @@ typedef intptr_t ssize_t;
 #endif
 
 #include <winsock2.h>
-
-#if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
-typedef struct pollfd {
-  SOCKET fd;
-  short  events;
-  short  revents;
-} WSAPOLLFD, *PWSAPOLLFD, *LPWSAPOLLFD;
-#endif
 
 #ifndef LOCALE_INVARIANT
 # define LOCALE_INVARIANT 0x007f

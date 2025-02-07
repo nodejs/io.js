@@ -390,7 +390,7 @@ class BytecodeNodeBuilder {
     BytecodeNode node(Create##name##Node(operands...));               \
     WriteJump(&node, label);                                          \
   }
-BYTECODE_LIST(DEFINE_BYTECODE_OUTPUT)
+BYTECODE_LIST(DEFINE_BYTECODE_OUTPUT, DEFINE_BYTECODE_OUTPUT)
 #undef DEFINE_BYTECODE_OUTPUT
 
 void BytecodeArrayBuilder::OutputJumpLoop(BytecodeLoopHeader* loop_header,

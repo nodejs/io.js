@@ -43,7 +43,7 @@ class WasmLiftoffSetupFrameConstants : public TypedFrameConstants {
       TYPED_FRAME_PUSHED_VALUE_OFFSET(3), TYPED_FRAME_PUSHED_VALUE_OFFSET(2)};
 
   // SP-relative.
-  static constexpr int kWasmInstanceOffset = 2 * kSystemPointerSize;
+  static constexpr int kWasmInstanceDataOffset = 2 * kSystemPointerSize;
   static constexpr int kDeclaredFunctionIndexOffset = 1 * kSystemPointerSize;
   static constexpr int kNativeModuleOffset = 0;
 };

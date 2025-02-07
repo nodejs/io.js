@@ -22,7 +22,6 @@ on:
           - cjs-module-lexer
           - corepack
           - doc
-          - github_reporter
           - googletest
           - gyp-next
           - histogram
@@ -135,14 +134,6 @@ jobs:
                 npm install --ignore-scripts $NEW_VERSION
                 npm install --ignore-scripts
               fi
-          - id: github_reporter
-            subsystem: tools
-            label: tools
-            run: |
-              ./tools/dep_updaters/update-github-reporter.sh > temp-output
-              cat temp-output
-              tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
-              rm temp-output
           - id: googletest
             subsystem: deps
             label: dependencies, test
@@ -293,6 +284,10 @@ jobs:
               tail -n1 temp-output | grep "NEW_VERSION=" >> "$GITHUB_ENV" || true
               rm temp-output
     steps:
+      - name: Setup Git config
+        run: |
+           git config --global user.name "Node.js GitHub Bot"
+           git config --global user.email "github-bot@iojs.org"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         if: github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id
         with:
@@ -310,17 +305,15 @@ jobs:
         if: env.COMMIT_MSG == '' && (github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id)
         run: |
           echo "COMMIT_MSG=${{ matrix.subsystem }}: update ${{ matrix.id }} to ${{ env.NEW_VERSION }}" >> "$GITHUB_ENV"
-      - uses: gr2m/create-or-update-pull-request-action@86ec1766034c8173518f61d2075cc2a173fb8c97  # v1.9.4
+      - uses: peter-evans/create-pull-request@5e914681df9dc83aa4e4905692ca88beb2f9e91f  # v7.0.5
         if: github.event_name == 'schedule' || inputs.id == 'all' || inputs.id == matrix.id
         # Creates a PR or update the Action's existing PR, or
         # no-op if the base branch is already up-to-date.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_USER_TOKEN }}
         with:
-          author: Node.js GitHub Bot <github-bot@iojs.org>
-          body: This is an automated update of ${{ matrix.id }} to ${{ env.NEW_VERSION }}.
+          token: ${{ secrets.GH_USER_TOKEN }}
           branch: actions/tools-update-${{ matrix.id }}  # Custom branch *just* for this Action.
+          delete-branch: true
           commit-message: ${{ env.COMMIT_MSG }}
           labels: ${{ matrix.label }}
           title: '${{ matrix.subsystem }}: update ${{ matrix.id }} to ${{ env.NEW_VERSION }}'
-          update-pull-request-title-and-body: true
+          body: This is an automated update of ${{ matrix.id }} to ${{ env.NEW_VERSION }}.

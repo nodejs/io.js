@@ -8,8 +8,8 @@ const script = `
   'use strict';
   const assert = require('assert');
   const vm = require('vm');
-  global.outer = true;
-  global.inner = false;
+  globalThis.outer = true;
+  globalThis.inner = false;
   const context = vm.createContext({
     outer: false,
     inner: true

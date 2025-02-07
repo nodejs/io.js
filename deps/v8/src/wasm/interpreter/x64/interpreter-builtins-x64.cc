@@ -320,7 +320,7 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // Load the Wasm exported function data and the Wasm instance.
   // -------------------------------------------
   Register function_data = rdi;
-  Register wasm_instance = kWasmInstanceRegister;  // rsi
+  Register wasm_instance = kWasmImplicitArgRegister;  // rsi
   LoadFunctionDataAndWasmInstance(masm, function_data, wasm_instance);
 
   // -------------------------------------------

@@ -63,6 +63,7 @@ cc_library(
         ":strip",
         "//absl/base:config",
         "//absl/base:core_headers",
+        "//absl/base:nullability",
         "//absl/strings",
     ],
 )

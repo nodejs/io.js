@@ -64,6 +64,10 @@ class PreFinalizerHandler;
 class StatsCollector;
 
 enum class HeapObjectNameForUnnamedObject : uint8_t;
+enum class StickyBits : uint8_t {
+  kDisabled,
+  kEnabled,
+};
 
 class MoveListener {
  public:
@@ -217,6 +221,11 @@ class V8_EXPORT_PRIVATE HeapBase : public cppgc::HeapHandle {
     DCHECK_IMPLIES(supported, YoungGenerationEnabler::IsEnabled());
 #endif  // defined(CPPGC_YOUNG_GENERATION)
     return supported;
+  }
+
+  StickyBits sticky_bits() const {
+    return generational_gc_supported() ? StickyBits::kEnabled
+                                       : StickyBits::kDisabled;
   }
 
   // Returns whether objects should derive their name from C++ class names. Also

@@ -320,6 +320,30 @@ void SandboxGetInstanceTypeIdOfObjectAt(
   SandboxGetInstanceTypeIdOfImpl(info, &GetArgumentObjectPassedAsAddress);
 }
 
+// Sandbox.getInstanceTypeIdFor(String) -> Number
+void SandboxGetInstanceTypeIdFor(
+    const v8::FunctionCallbackInfo<v8::Value>& info) {
+  DCHECK(ValidateCallbackInfo(info));
+  v8::Isolate* isolate = info.GetIsolate();
+
+  v8::String::Utf8Value type_name(isolate, info[0]);
+  if (!*type_name) {
+    isolate->ThrowError("First argument must be a string");
+    return;
+  }
+
+  auto& all_types = SandboxTesting::GetInstanceTypeMap();
+  if (all_types.find(*type_name) == all_types.end()) {
+    isolate->ThrowError(
+        "Unknown type name. If needed, add it in "
+        "SandboxTesting::GetInstanceTypeMap");
+    return;
+  }
+
+  InstanceType type_id = all_types[*type_name];
+  info.GetReturnValue().Set(type_id);
+}
+
 // Obtain the offset of a field in an object.
 //
 // This can be used to obtain the offsets of internal object fields in order to
@@ -328,17 +352,30 @@ void SandboxGetInstanceTypeIdOfObjectAt(
 // that is that testcases continue to work if the field offset changes.
 // Additionally, if a field is removed, testcases that use it will fail and can
 // then be deleted if they are no longer useful.
-void SandboxGetFieldOffsetImpl(
-    const v8::FunctionCallbackInfo<v8::Value>& info,
-    ArgumentObjectExtractorFunction getArgumentObject) {
+//
+// TODO(saelo): instead of this, consider adding an API like
+// `Sandbox.getTypeDescriptor(Number|String) -> Object` which, given an
+// instance type id or name, returns an object containing the offset constants
+// as properties as well as potentially other information such as the types of
+// the object's fields.
+//
+// Sandbox.getFieldOffset(Number, String) -> Number
+void SandboxGetFieldOffset(const v8::FunctionCallbackInfo<v8::Value>& info) {
   DCHECK(ValidateCallbackInfo(info));
   v8::Isolate* isolate = info.GetIsolate();
+  Local<v8::Context> context = isolate->GetCurrentContext();
 
-  Tagged<HeapObject> obj;
-  if (!getArgumentObject(info, &obj)) {
+  if (!info[0]->IsInt32()) {
+    isolate->ThrowError("Second argument must be an integer");
     return;
   }
-  InstanceType instance_type = Cast<HeapObject>(*obj)->map()->instance_type();
+
+  int raw_type = info[0]->Int32Value(context).FromMaybe(-1);
+  if (raw_type < FIRST_TYPE || raw_type > LAST_TYPE) {
+    isolate->ThrowError("Invalid instance type");
+    return;
+  }
+  InstanceType instance_type = static_cast<InstanceType>(raw_type);
 
   v8::String::Utf8Value field_name(isolate, info[1]);
   if (!*field_name) {
@@ -364,17 +401,6 @@ void SandboxGetFieldOffsetImpl(
 
   int offset = obj_fields[*field_name];
   info.GetReturnValue().Set(offset);
-}
-
-// Sandbox.getFieldOffsetOf(Object, String) -> Number
-void SandboxGetFieldOffsetOf(const v8::FunctionCallbackInfo<v8::Value>& info) {
-  SandboxGetFieldOffsetImpl(info, &GetArgumentObjectPassedAsReference);
-}
-
-// Sandbox.getFieldOffsetOfObjectAt(Number, String) -> Number
-void SandboxGetFieldOffsetOfObjectAt(
-    const v8::FunctionCallbackInfo<v8::Value>& info) {
-  SandboxGetFieldOffsetImpl(info, &GetArgumentObjectPassedAsAddress);
 }
 
 // Sandbox.targetPage
@@ -478,10 +504,9 @@ void SandboxTesting::InstallMemoryCorruptionApiIfEnabled(Isolate* isolate) {
                   "getInstanceTypeIdOf", 1);
   InstallFunction(isolate, sandbox, SandboxGetInstanceTypeIdOfObjectAt,
                   "getInstanceTypeIdOfObjectAt", 1);
-  InstallFunction(isolate, sandbox, SandboxGetFieldOffsetOf, "getFieldOffsetOf",
-                  2);
-  InstallFunction(isolate, sandbox, SandboxGetFieldOffsetOfObjectAt,
-                  "getFieldOffsetOfObjectAt", 2);
+  InstallFunction(isolate, sandbox, SandboxGetInstanceTypeIdFor,
+                  "getInstanceTypeIdFor", 1);
+  InstallFunction(isolate, sandbox, SandboxGetFieldOffset, "getFieldOffset", 2);
 
   if (mode() == Mode::kForTesting) {
     InstallGetter(isolate, sandbox, SandboxGetTargetPage, "targetPage");
@@ -819,6 +844,31 @@ bool SandboxTesting::IsInsideTargetPage(Address faultaddr) {
                                  target_page_base() + target_page_size());
 }
 
+SandboxTesting::InstanceTypeMap& SandboxTesting::GetInstanceTypeMap() {
+  // This mechanism is currently very crude and needs to be manually maintained
+  // and extended (e.g. when adding a js test for the sandbox). In the future,
+  // it would be nice to somehow automatically generate this map from the
+  // object definitions and also support the class inheritance hierarchy.
+  static base::LeakyObject<InstanceTypeMap> g_known_instance_types;
+  auto& types = *g_known_instance_types.get();
+  bool is_initialized = types.size() != 0;
+  if (!is_initialized) {
+    types["JS_OBJECT_TYPE"] = JS_OBJECT_TYPE;
+    types["JS_FUNCTION_TYPE"] = JS_FUNCTION_TYPE;
+    types["JS_ARRAY_TYPE"] = JS_ARRAY_TYPE;
+    types["SLICED_ONE_BYTE_STRING_TYPE"] = SLICED_ONE_BYTE_STRING_TYPE;
+    types["SHARED_FUNCTION_INFO_TYPE"] = SHARED_FUNCTION_INFO_TYPE;
+    types["SCRIPT_TYPE"] = SCRIPT_TYPE;
+#ifdef V8_ENABLE_WEBASSEMBLY
+    types["WASM_MODULE_OBJECT_TYPE"] = WASM_MODULE_OBJECT_TYPE;
+    types["WASM_INSTANCE_OBJECT_TYPE"] = WASM_INSTANCE_OBJECT_TYPE;
+    types["WASM_FUNC_REF_TYPE"] = WASM_FUNC_REF_TYPE;
+    types["WASM_TABLE_OBJECT_TYPE"] = WASM_TABLE_OBJECT_TYPE;
+#endif  // V8_ENABLE_WEBASSEMBLY
+  }
+  return types;
+}
+
 SandboxTesting::FieldOffsetMap& SandboxTesting::GetFieldOffsetMap() {
   // This mechanism is currently very crude and needs to be manually maintained
   // and extended (e.g. when adding a js test for the sandbox). In the future,
@@ -828,9 +878,35 @@ SandboxTesting::FieldOffsetMap& SandboxTesting::GetFieldOffsetMap() {
   auto& fields = *g_known_fields.get();
   bool is_initialized = fields.size() != 0;
   if (!is_initialized) {
+#ifdef V8_ENABLE_LEAPTIERING
+    fields[JS_FUNCTION_TYPE]["dispatch_handle"] =
+        JSFunction::kDispatchHandleOffset;
+#endif  // V8_ENABLE_LEAPTIERING
+    fields[JS_FUNCTION_TYPE]["shared_function_info"] =
+        JSFunction::kSharedFunctionInfoOffset;
     fields[JS_ARRAY_TYPE]["length"] = JSArray::kLengthOffset;
     fields[SLICED_ONE_BYTE_STRING_TYPE]["parent"] =
         offsetof(SlicedString, parent_);
+    fields[SHARED_FUNCTION_INFO_TYPE]["trusted_function_data"] =
+        SharedFunctionInfo::kTrustedFunctionDataOffset;
+    fields[SCRIPT_TYPE]["wasm_managed_native_module"] =
+        Script::kEvalFromPositionOffset;
+#ifdef V8_ENABLE_WEBASSEMBLY
+    fields[WASM_MODULE_OBJECT_TYPE]["managed_native_module"] =
+        WasmModuleObject::kManagedNativeModuleOffset;
+    fields[WASM_MODULE_OBJECT_TYPE]["script"] = WasmModuleObject::kScriptOffset;
+    fields[WASM_INSTANCE_OBJECT_TYPE]["module_object"] =
+        WasmInstanceObject::kModuleObjectOffset;
+    fields[WASM_FUNC_REF_TYPE]["trusted_internal"] =
+        WasmFuncRef::kTrustedInternalOffset;
+    fields[WASM_TABLE_OBJECT_TYPE]["entries"] = WasmTableObject::kEntriesOffset;
+    fields[WASM_TABLE_OBJECT_TYPE]["current_length"] =
+        WasmTableObject::kCurrentLengthOffset;
+    fields[WASM_TABLE_OBJECT_TYPE]["maximum_length"] =
+        WasmTableObject::kMaximumLengthOffset;
+    fields[WASM_TABLE_OBJECT_TYPE]["raw_type"] =
+        WasmTableObject::kRawTypeOffset;
+#endif  // V8_ENABLE_WEBASSEMBLY
   }
   return fields;
 }

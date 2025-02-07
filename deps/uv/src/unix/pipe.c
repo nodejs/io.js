@@ -360,6 +360,9 @@ static int uv__pipe_getsockpeername(const uv_pipe_t* handle,
   char* p;
   int err;
 
+  if (buffer == NULL || size == NULL || *size == 0)
+    return UV_EINVAL;
+
   addrlen = sizeof(sa);
   memset(&sa, 0, addrlen);
   err = uv__getsockpeername((const uv_handle_t*) handle,
@@ -444,7 +447,7 @@ uv_handle_type uv_pipe_pending_type(uv_pipe_t* handle) {
 int uv_pipe_chmod(uv_pipe_t* handle, int mode) {
   unsigned desired_mode;
   struct stat pipe_stat;
-  char* name_buffer;
+  char name_buffer[1 + UV__PATH_MAX];
   size_t name_len;
   int r;
 
@@ -457,26 +460,14 @@ int uv_pipe_chmod(uv_pipe_t* handle, int mode) {
     return UV_EINVAL;
 
   /* Unfortunately fchmod does not work on all platforms, we will use chmod. */
-  name_len = 0;
-  r = uv_pipe_getsockname(handle, NULL, &name_len);
-  if (r != UV_ENOBUFS)
-    return r;
-
-  name_buffer = uv__malloc(name_len);
-  if (name_buffer == NULL)
-    return UV_ENOMEM;
-
+  name_len = sizeof(name_buffer);
   r = uv_pipe_getsockname(handle, name_buffer, &name_len);
-  if (r != 0) {
-    uv__free(name_buffer);
+  if (r != 0)
     return r;
-  }
 
   /* stat must be used as fstat has a bug on Darwin */
-  if (uv__stat(name_buffer, &pipe_stat) == -1) {
-    uv__free(name_buffer);
-    return -errno;
-  }
+  if (uv__stat(name_buffer, &pipe_stat) == -1)
+    return UV__ERR(errno);
 
   desired_mode = 0;
   if (mode & UV_READABLE)
@@ -485,15 +476,12 @@ int uv_pipe_chmod(uv_pipe_t* handle, int mode) {
     desired_mode |= S_IWUSR | S_IWGRP | S_IWOTH;
 
   /* Exit early if pipe already has desired mode. */
-  if ((pipe_stat.st_mode & desired_mode) == desired_mode) {
-    uv__free(name_buffer);
+  if ((pipe_stat.st_mode & desired_mode) == desired_mode)
     return 0;
-  }
 
   pipe_stat.st_mode |= desired_mode;
 
   r = chmod(name_buffer, pipe_stat.st_mode);
-  uv__free(name_buffer);
 
   return r != -1 ? 0 : UV__ERR(errno);
 }

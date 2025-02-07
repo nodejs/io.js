@@ -263,8 +263,10 @@ class MaglevGraphBuilder {
   void BuildBody() {
     while (!source_position_iterator_.done() &&
            source_position_iterator_.code_offset() < entrypoint_) {
+      current_source_position_ = SourcePosition(
+          source_position_iterator_.source_position().ScriptOffset(),
+          inlining_id_);
       source_position_iterator_.Advance();
-      UpdateSourceAndBytecodePosition(source_position_iterator_.code_offset());
     }
     for (iterator_.SetOffset(entrypoint_); !iterator_.done();
          iterator_.Advance()) {
@@ -401,8 +403,6 @@ class MaglevGraphBuilder {
 
     MaglevSubGraphBuilder(MaglevGraphBuilder* builder, int variable_count);
     LoopLabel BeginLoop(std::initializer_list<Variable*> loop_vars);
-    // TODO(victorgomes): Change GotoIFXXX to get a lambda returning a
-    // BranchResult.
     template <typename ControlNodeT, typename... Args>
     void GotoIfTrue(Label* true_target,
                     std::initializer_list<ValueNode*> control_inputs,
@@ -419,6 +419,10 @@ class MaglevGraphBuilder {
     V8_NODISCARD ReduceResult TrimPredecessorsAndBind(Label* label);
     void set(Variable& var, ValueNode* value);
     ValueNode* get(const Variable& var) const;
+
+    template <typename FCond, typename FTrue, typename FFalse>
+    ReduceResult Branch(std::initializer_list<Variable*> vars, FCond cond,
+                        FTrue if_true, FFalse if_false);
 
     void MergeIntoLabel(Label* label, BasicBlock* predecessor);
 
@@ -554,13 +558,12 @@ class MaglevGraphBuilder {
     // cached directly on the builder instead of on the merge states.
     ResetBuilderCachedState();
 
-    // TODO(victorgomes:349923027): Remove these checks after bug is fixed.
     if (merge_state.is_loop()) {
-      CHECK_EQ(merge_state.predecessors_so_far(),
-               merge_state.predecessor_count() - 1);
+      DCHECK_EQ(merge_state.predecessors_so_far(),
+                merge_state.predecessor_count() - 1);
     } else {
-      CHECK_EQ(merge_state.predecessors_so_far(),
-               merge_state.predecessor_count());
+      DCHECK_EQ(merge_state.predecessors_so_far(),
+                merge_state.predecessor_count());
     }
 
     if (merge_state.predecessor_count() == 1) return;
@@ -856,13 +859,13 @@ class MaglevGraphBuilder {
   case interpreter::Bytecode::k##name: \
     Visit##name();                     \
     break;
-      BYTECODE_LIST(BYTECODE_CASE)
+      BYTECODE_LIST(BYTECODE_CASE, BYTECODE_CASE)
 #undef BYTECODE_CASE
     }
   }
 
 #define BYTECODE_VISITOR(name, ...) void Visit##name();
-  BYTECODE_LIST(BYTECODE_VISITOR)
+  BYTECODE_LIST(BYTECODE_VISITOR, BYTECODE_VISITOR)
 #undef BYTECODE_VISITOR
 
 #define DECLARE_VISITOR(name, ...) \
@@ -1246,8 +1249,10 @@ class MaglevGraphBuilder {
   ValueNode* BuildToString(ValueNode* value, ToString::ConversionMode mode);
 
   constexpr bool RuntimeFunctionCanThrow(Runtime::FunctionId function_id) {
-#define BAILOUT(name, ...) \
-  if (function_id == Runtime::k##name) return true;
+#define BAILOUT(name, ...)               \
+  if (function_id == Runtime::k##name) { \
+    return true;                         \
+  }
     FOR_EACH_THROWING_INTRINSIC(BAILOUT)
 #undef BAILOUT
     return false;

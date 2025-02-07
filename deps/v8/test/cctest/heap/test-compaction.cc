@@ -407,7 +407,7 @@ HEAP_TEST(CompactionPartiallyAbortedPageWithRememberedSetEntries) {
       // object.
       Address broken_address = holder->address() + 2 * kTaggedSize + 1;
       // Convert it to a vector to create a string from it.
-      base::Vector<const uint8_t> string_to_broken_addresss(
+      base::Vector<const uint8_t> string_to_broken_address(
           reinterpret_cast<const uint8_t*>(&broken_address), kTaggedSize);
 
       IndirectHandle<String> string;
@@ -418,7 +418,7 @@ HEAP_TEST(CompactionPartiallyAbortedPageWithRememberedSetEntries) {
         // the first word in the string. Since the first object definitely
         // migrated we can just allocate until we hit the aborted page.
         string = isolate->factory()
-                     ->NewStringFromOneByte(string_to_broken_addresss,
+                     ->NewStringFromOneByte(string_to_broken_address,
                                             AllocationType::kOld)
                      .ToHandleChecked();
       } while (PageMetadata::FromHeapObject(*string) != to_be_aborted_page);

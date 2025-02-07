@@ -19,11 +19,19 @@ test-fs-read-stream-concurrent-reads: PASS, FLAKY
 # https://github.com/nodejs/build/issues/3043
 test-snapshot-incompatible: SKIP
 
+# Requires manual setup for certificates to be trusted by the system
+test-native-certs-macos: SKIP
+
 [$system==win32]
 # https://github.com/nodejs/node/issues/54808
 test-async-context-frame: PASS, FLAKY
 # https://github.com/nodejs/node/issues/54534
 test-runner-run-watch: PASS, FLAKY
+# https://github.com/nodejs/node/issues/56794
+test-fs-cp: PASS, FLAKY
+
+# https://github.com/nodejs/node/issues/56751
+test-without-async-context-frame: PASS, FLAKY
 
 # Windows on ARM
 [$system==win32 && $arch==arm64]
@@ -66,12 +74,20 @@ test-domain-no-error-handler-abort-on-uncaught-8: PASS, FLAKY
 test-domain-no-error-handler-abort-on-uncaught-9: PASS, FLAKY
 test-domain-throw-error-then-throw-from-uncaught-exception-handler: PASS, FLAKY
 test-domain-with-abort-on-uncaught-exception: PASS, FLAKY
+# https://github.com/nodejs/node/issues/54346
+test-esm-loader-hooks-inspect-wait: PASS, FLAKY
 # https://github.com/nodejs/node/issues/50050
 test-tick-processor-arguments: SKIP
 # https://github.com/nodejs/node/issues/54534
 test-runner-run-watch: PASS, FLAKY
 
 [$system==freebsd]
+# https://github.com/nodejs/node/issues/54346
+test-esm-loader-hooks-inspect-wait: PASS, FLAKY
+
+[$system==aix]
+# https://github.com/nodejs/node/issues/54346
+test-esm-loader-hooks-inspect-wait: PASS, FLAKY
 
 [$system==ibmi]
 # https://github.com/nodejs/node/pull/30819

@@ -9,6 +9,7 @@
 
 #include "src/codegen/assembler.h"
 #include "src/codegen/cpu-features.h"
+#include "src/codegen/interface-descriptors-inl.h"
 #include "src/codegen/machine-type.h"
 #include "src/codegen/x64/assembler-x64.h"
 #include "src/codegen/x64/register-x64.h"
@@ -53,6 +54,8 @@ constexpr Operand kInstanceDataOperand =
 
 constexpr Operand kOSRTargetSlot = GetStackSlot(kOSRTargetOffset);
 
+// Note: The returned Operand might contain {kScratchRegister2}; make sure not
+// to clobber that until after the last use of the Operand.
 inline Operand GetMemOp(LiftoffAssembler* assm, Register addr,
                         Register offset_reg, uintptr_t offset_imm,
                         ScaleFactor scale_factor = times_1) {
@@ -63,7 +66,7 @@ inline Operand GetMemOp(LiftoffAssembler* assm, Register addr,
                : Operand(addr, offset_reg, scale_factor, offset_imm32);
   }
   // Offset immediate does not fit in 31 bits.
-  Register scratch = kScratchRegister;
+  Register scratch = kScratchRegister2;
   assm->MacroAssembler::Move(scratch, offset_imm);
   if (offset_reg != no_reg) assm->addq(scratch, offset_reg);
   return Operand(addr, scratch, scale_factor, 0);
@@ -233,7 +236,7 @@ void LiftoffAssembler::AlignFrameSize() {
 
 void LiftoffAssembler::PatchPrepareStackFrame(
     int offset, SafepointTableBuilder* safepoint_table_builder,
-    bool feedback_vector_slot) {
+    bool feedback_vector_slot, size_t stack_param_slots) {
   // The frame_size includes the frame marker and the instance slot. Both are
   // pushed as part of frame construction, so we don't need to allocate memory
   // for them anymore.
@@ -291,11 +294,28 @@ void LiftoffAssembler::PatchPrepareStackFrame(
     j(above_equal, &continuation, Label::kNear);
   }
 
-  near_call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
-            RelocInfo::WASM_STUB_CALL);
-  // The call will not return; just define an empty safepoint.
-  safepoint_table_builder->DefineSafepoint(this);
-  AssertUnreachable(AbortReason::kUnexpectedReturnFromWasmTrap);
+  if (v8_flags.experimental_wasm_growable_stacks) {
+    LiftoffRegList regs_to_save;
+    regs_to_save.set(WasmHandleStackOverflowDescriptor::GapRegister());
+    regs_to_save.set(WasmHandleStackOverflowDescriptor::FrameBaseRegister());
+    for (auto reg : kGpParamRegisters) regs_to_save.set(reg);
+    PushRegisters(regs_to_save);
+    movq(WasmHandleStackOverflowDescriptor::GapRegister(),
+         Immediate(frame_size));
+    movq(WasmHandleStackOverflowDescriptor::FrameBaseRegister(), rbp);
+    addq(WasmHandleStackOverflowDescriptor::FrameBaseRegister(),
+         Immediate(static_cast<int32_t>(
+             stack_param_slots * kStackSlotSize +
+             CommonFrameConstants::kFixedFrameSizeAboveFp)));
+    CallBuiltin(Builtin::kWasmHandleStackOverflow);
+    PopRegisters(regs_to_save);
+  } else {
+    near_call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
+              RelocInfo::WASM_STUB_CALL);
+    // The call will not return; just define an empty safepoint.
+    safepoint_table_builder->DefineSafepoint(this);
+    AssertUnreachable(AbortReason::kUnexpectedReturnFromWasmTrap);
+  }
 
   bind(&continuation);
 
@@ -344,6 +364,54 @@ void LiftoffAssembler::CheckTierUp(int declared_func_index, int budget_used,
   int offset = kInt32Size * declared_func_index;
   subl(Operand{budget_array, offset}, Immediate(budget_used));
   j(negative, ool_label);
+}
+
+Register LiftoffAssembler::LoadOldFramePointer() {
+  if (!v8_flags.experimental_wasm_growable_stacks) {
+    return rbp;
+  }
+  LiftoffRegister old_fp = GetUnusedRegister(RegClass::kGpReg, {});
+  Label done, call_runtime;
+  movq(old_fp.gp(), MemOperand(rbp, TypedFrameConstants::kFrameTypeOffset));
+  cmpq(old_fp.gp(),
+       Immediate(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+  j(equal, &call_runtime);
+  movq(old_fp.gp(), rbp);
+  jmp(&done);
+
+  bind(&call_runtime);
+  LiftoffRegList regs_to_save = cache_state()->used_registers;
+  PushRegisters(regs_to_save);
+  PrepareCallCFunction(1);
+  LoadAddress(kCArgRegs[0], ExternalReference::isolate_address());
+  CallCFunction(ExternalReference::wasm_load_old_fp(), 1);
+  if (old_fp.gp() != kReturnRegister0) {
+    movq(old_fp.gp(), kReturnRegister0);
+  }
+  PopRegisters(regs_to_save);
+
+  bind(&done);
+  return old_fp.gp();
+}
+
+void LiftoffAssembler::CheckStackShrink() {
+  movq(kScratchRegister,
+       MemOperand(rbp, TypedFrameConstants::kFrameTypeOffset));
+  cmpq(kScratchRegister,
+       Immediate(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+  Label done;
+  j(not_equal, &done);
+  LiftoffRegList regs_to_save;
+  for (auto reg : kGpReturnRegisters) regs_to_save.set(reg);
+  PushRegisters(regs_to_save);
+  PrepareCallCFunction(1);
+  LoadAddress(kCArgRegs[0], ExternalReference::isolate_address());
+  CallCFunction(ExternalReference::wasm_shrink_stack(), 1);
+  // Restore old FP. We don't need to restore old SP explicitly, because
+  // it will be restored from FP in LeaveFrame before return.
+  movq(rbp, kReturnRegister0);
+  PopRegisters(regs_to_save);
+  bind(&done);
 }
 
 void LiftoffAssembler::LoadConstant(LiftoffRegister reg, WasmValue value) {
@@ -946,8 +1014,9 @@ void LiftoffAssembler::LoadCallerFrameSlot(LiftoffRegister dst,
 
 void LiftoffAssembler::StoreCallerFrameSlot(LiftoffRegister src,
                                             uint32_t caller_slot_idx,
-                                            ValueKind kind) {
-  Operand dst(rbp, kSystemPointerSize * (caller_slot_idx + 1));
+                                            ValueKind kind,
+                                            Register frame_pointer) {
+  Operand dst(frame_pointer, kSystemPointerSize * (caller_slot_idx + 1));
   liftoff::StoreToMemory(this, dst, src, kind);
 }
 
@@ -3375,7 +3444,8 @@ void LiftoffAssembler::emit_i32x4_dot_i8x16_i7x16_add_s(LiftoffRegister dst,
                                                         LiftoffRegister lhs,
                                                         LiftoffRegister rhs,
                                                         LiftoffRegister acc) {
-  if (CpuFeatures::IsSupported(AVX_VNNI)) {
+  if (CpuFeatures::IsSupported(AVX_VNNI) ||
+      CpuFeatures::IsSupported(AVX_VNNI_INT8)) {
     I32x4DotI8x16I7x16AddS(dst.fp(), lhs.fp(), rhs.fp(), acc.fp(),
                            kScratchDoubleReg, kScratchDoubleReg);
   } else {
@@ -4405,10 +4475,15 @@ bool F16x8BinOpViaF32(LiftoffAssembler* assm, LiftoffRegister dst,
   }
   CpuFeatureScope f16c_scope(assm, F16C);
   CpuFeatureScope avx_scope(assm, AVX);
+  static constexpr RegClass res_rc = reg_class_for(kS128);
+  LiftoffRegister tmp =
+      assm->GetUnusedRegister(res_rc, LiftoffRegList{dst, lhs, rhs});
+  YMMRegister ytmp = YMMRegister::from_code(tmp.fp().code());
   YMMRegister ydst = YMMRegister::from_code(dst.fp().code());
-  assm->vcvtph2ps(ydst, lhs.fp());
+  // dst can overlap with rhs or lhs, so cannot be used as temporary reg.
+  assm->vcvtph2ps(ytmp, lhs.fp());
   assm->vcvtph2ps(kScratchSimd256Reg, rhs.fp());
-  (assm->*avx_op)(ydst, ydst, kScratchSimd256Reg);
+  (assm->*avx_op)(ydst, ytmp, kScratchSimd256Reg);
   assm->vcvtps2ph(dst.fp(), ydst, 0);
   return true;
 }
@@ -4552,7 +4627,34 @@ bool LiftoffAssembler::emit_f16x8_demote_f32x4_zero(LiftoffRegister dst,
 
 bool LiftoffAssembler::emit_f16x8_demote_f64x2_zero(LiftoffRegister dst,
                                                     LiftoffRegister src) {
-  return false;
+  if (!CpuFeatures::IsSupported(F16C) || !CpuFeatures::IsSupported(AVX)) {
+    return false;
+  }
+
+  CpuFeatureScope avx_scope(this, AVX);
+  CpuFeatureScope f16c_scope(this, F16C);
+  LiftoffRegister tmp = GetUnusedRegister(RegClass::kGpReg, {});
+  LiftoffRegister ftmp =
+      GetUnusedRegister(RegClass::kFpReg, LiftoffRegList{dst, src});
+  LiftoffRegister ftmp2 =
+      GetUnusedRegister(RegClass::kFpReg, LiftoffRegList{dst, src, ftmp});
+  F64x2ExtractLane(ftmp.fp(), src.fp(), 1);
+  Cvtpd2ph(ftmp2.fp(), ftmp.fp(), tmp.gp());
+  // Cvtpd2ph requires dst and src to not overlap.
+  if (dst == src) {
+    Move(ftmp.fp(), src.fp(), kF64);
+    Cvtpd2ph(dst.fp(), ftmp.fp(), tmp.gp());
+  } else {
+    Cvtpd2ph(dst.fp(), src.fp(), tmp.gp());
+  }
+  vmovd(tmp.gp(), ftmp2.fp());
+  vpinsrw(dst.fp(), dst.fp(), tmp.gp(), 1);
+  // Set ftmp to 0.
+  pxor(ftmp.fp(), ftmp.fp());
+  // Reset all unaffected lanes.
+  F64x2ReplaceLane(dst.fp(), dst.fp(), ftmp.fp(), 1);
+  vinsertps(dst.fp(), dst.fp(), ftmp.fp(), (1 << 4) & 0x30);
+  return true;
 }
 
 bool LiftoffAssembler::emit_f32x4_promote_low_f16x8(LiftoffRegister dst,

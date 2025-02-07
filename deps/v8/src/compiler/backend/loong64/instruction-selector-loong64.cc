@@ -18,10 +18,7 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-#define TRACE_UNIMPL() \
-  PrintF("UNIMPLEMENTED instr_sel: %s at line %d\n", __FUNCTION__, __LINE__)
-
-#define TRACE() PrintF("instr_sel: %s at line %d\n", __FUNCTION__, __LINE__)
+#define TRACE(...) PrintF(__VA_ARGS__)
 
 // Adds loong64-specific methods for generating InstructionOperands.
 template <typename Adapter>
@@ -160,7 +157,7 @@ class Loong64OperandGeneratorT final : public OperandGeneratorT<Adapter> {
 
  private:
   bool ImmediateFitsAddrMode1Instruction(int32_t imm) const {
-    TRACE_UNIMPL();
+    TRACE("UNIMPLEMENTED instr_sel: %s at line %d\n", __FUNCTION__, __LINE__);
     return false;
   }
 };
@@ -527,12 +524,9 @@ void InstructionSelectorT<Adapter>::VisitStackSlot(node_t node) {
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitAbortCSADcheck(node_t node) {
-  if constexpr (Adapter::IsTurboshaft) {
-    UNIMPLEMENTED();
-  } else {
-    Loong64OperandGeneratorT<Adapter> g(this);
-    Emit(kArchAbortCSADcheck, g.NoOutput(), g.UseFixed(node->InputAt(0), a0));
-  }
+  Loong64OperandGeneratorT<Adapter> g(this);
+  Emit(kArchAbortCSADcheck, g.NoOutput(),
+       g.UseFixed(this->input_at(node, 0), a0));
 }
 
 template <typename Adapter>
@@ -2426,12 +2420,11 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitTruncateInt64ToInt32(
   auto value = input_at(node, 0);
   if (CanCover(node, value)) {
     if (Get(value).Is<Opmask::kWord64ShiftRightArithmetic>()) {
+      auto shift_value = input_at(value, 1);
       if (CanCover(value, input_at(value, 0)) &&
           TryEmitExtendingLoad(this, value, node)) {
         return;
-      } else {
-        auto shift_value = input_at(value, 1);
-        DCHECK(g.IsIntegerConstant(shift_value));
+      } else if (g.IsIntegerConstant(shift_value)) {
         auto constant = g.GetIntegerConstantValue(constant_view(shift_value));
 
         if (constant >= 32 && constant <= 63) {
@@ -2443,8 +2436,8 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitTruncateInt64ToInt32(
       }
     }
   }
-  Emit(kLoong64Sll_w, g.DefineAsRegister(node),
-       g.UseRegister(input_at(node, 0)), g.TempImmediate(0));
+  Emit(kLoong64Sll_w, g.DefineAsRegister(node), g.UseRegister(value),
+       g.TempImmediate(0));
 }
 
 template <typename Adapter>
@@ -3017,7 +3010,7 @@ void VisitWord32Compare(InstructionSelectorT<Adapter>* selector,
 #ifdef USE_SIMULATOR
     // When call to a host function in simulator, if the function return a
     // int32 value, the simulator do not sign-extended to int64 because in
-    // simulator we do not know the function whether return a int32 or int64.
+    // simulator we do not know the function whether return an int32 or int64.
     // so we need do a full word32 compare in this case.
     if (node->InputAt(0)->opcode() == IrOpcode::kCall ||
         node->InputAt(1)->opcode() == IrOpcode::kCall) {
@@ -4924,7 +4917,6 @@ template class EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
 #undef SIMD_SHIFT_OP_LIST
 #undef SIMD_UNOP_LIST
 #undef SIMD_TYPE_LIST
-#undef TRACE_UNIMPL
 #undef TRACE
 
 }  // namespace compiler

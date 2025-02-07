@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    [
+      "@babel/plugin-transform-modules-commonjs",
+      {
+        "strict": true
+      },
+    ]
+  ]
+}

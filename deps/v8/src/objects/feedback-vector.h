@@ -226,7 +226,7 @@ class FeedbackVector
   NEVER_READ_ONLY_SPACE
   DEFINE_TORQUE_GENERATED_OSR_STATE()
   DEFINE_TORQUE_GENERATED_FEEDBACK_VECTOR_FLAGS()
-  static_assert(TieringState::kLastTieringState <= TieringStateBits::kMax);
+  static_assert(TieringStateBits::is_valid(TieringState::kLastTieringState));
 
   static constexpr uint32_t kFlagsMaybeHasTurbofanCode =
       FeedbackVector::MaybeHasTurbofanCodeBit::kMask;
@@ -239,6 +239,9 @@ class FeedbackVector
       kNoneOrInProgressMask << FeedbackVector::TieringStateBits::kShift;
   static constexpr uint32_t kFlagsLogNextExecution =
       FeedbackVector::LogNextExecutionBit::kMask;
+
+  static constexpr inline uint32_t FlagMaskForNeedsProcessingCheckFrom(
+      CodeKind code_kind);
 
   inline bool is_empty() const;
 
@@ -262,7 +265,7 @@ class FeedbackVector
   // the function becomes hotter. When the current loop depth is less than the
   // osr_urgency, JumpLoop calls into runtime to attempt OSR optimization.
   static constexpr int kMaxOsrUrgency = 6;
-  static_assert(kMaxOsrUrgency <= OsrUrgencyBits::kMax);
+  static_assert(OsrUrgencyBits::is_valid(kMaxOsrUrgency));
   inline int osr_urgency() const;
   inline void set_osr_urgency(int urgency);
   inline void reset_osr_urgency();

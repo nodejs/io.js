@@ -11,10 +11,8 @@ const npm = `v${version}`
 module.exports = (process, getCli) => {
   const node = process.version
 
-  /* eslint-disable-next-line max-len */
   const unsupportedMessage = `npm ${npm} does not support Node.js ${node}. This version of npm supports the following node versions: \`${engines}\`. You can find the latest version at https://nodejs.org/.`
 
-  /* eslint-disable-next-line max-len */
   const brokenMessage = `ERROR: npm ${npm} is known not to run on Node.js ${node}.  This version of npm supports the following node versions: \`${engines}\`. You can find the latest version at https://nodejs.org/.`
 
   // coverage ignored because this is only hit in very unsupported node versions

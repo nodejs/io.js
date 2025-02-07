@@ -93,13 +93,6 @@ DECLARE_EXPORTED_FUNCTION(i64_square, sigs.l_l(),
 DECLARE_EXPORTED_FUNCTION(externref_null_id, sigs.a_a(),
                           WASM_CODE({WASM_LOCAL_GET(0)}))
 
-static constexpr ValueType extern_extern_types[] = {kWasmExternRef.AsNonNull(),
-                                                    kWasmExternRef.AsNonNull()};
-static constexpr FunctionSig sig_extern_extern(1, 1, extern_extern_types);
-
-DECLARE_EXPORTED_FUNCTION(externref_id, &sig_extern_extern,
-                          WASM_CODE({WASM_LOCAL_GET(0)}))
-
 DECLARE_EXPORTED_FUNCTION(f32_square, sigs.f_f(),
                           WASM_CODE({WASM_LOCAL_GET(0), WASM_LOCAL_GET(0),
                                      kExprF32Mul}))
@@ -860,19 +853,6 @@ TEST(TestFastJSWasmCall_ExternrefNullArg) {
   auto str = v8_str("test");
   auto args4 = v8::to_array<v8::Local<v8::Value>>({str});
   tester.CallAndCheckWasmFunction("externref_null_id", args4, str);
-}
-
-TEST(TestFastJSWasmCall_ExternrefArg) {
-  v8::HandleScope scope(CcTest::isolate());
-  FastJSWasmCallTester tester;
-  tester.AddExportedFunction(k_externref_id);
-  auto args1 = v8::to_array<v8::Local<v8::Value>>({v8_num(42)});
-  tester.CallAndCheckWasmFunction("externref_id", args1, 42);
-  auto args2 = v8::to_array<v8::Local<v8::Value>>({v8_bigint(42)});
-  tester.CallAndCheckWasmFunctionBigInt("externref_id", args2, v8_bigint(42));
-  auto str = v8_str("test");
-  auto args3 = v8::to_array<v8::Local<v8::Value>>({str});
-  tester.CallAndCheckWasmFunction("externref_id", args3, str);
 }
 
 TEST(TestFastJSWasmCall_MultipleArgs) {

@@ -915,7 +915,7 @@ class V8_EXPORT_PRIVATE DeclarationScope : public Scope {
     // so we don't care that it calls sloppy eval.
     if (is_script_scope()) return;
 
-    // Sloppy eval in a eval scope can only introduce variables into the outer
+    // Sloppy eval in an eval scope can only introduce variables into the outer
     // (non-eval) declaration scope, not into this eval scope.
     if (is_eval_scope()) {
 #ifdef DEBUG

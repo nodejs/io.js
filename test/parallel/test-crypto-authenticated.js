@@ -21,13 +21,17 @@
 // Flags: --no-warnings
 'use strict';
 const common = require('../common');
-if (!common.hasCrypto)
+if (!common.hasCrypto) {
   common.skip('missing crypto');
+}
 
 const assert = require('assert');
 const crypto = require('crypto');
 const { inspect } = require('util');
 const fixtures = require('../common/fixtures');
+const { hasOpenSSL3 } = require('../common/crypto');
+
+const isFipsEnabled = crypto.getFips();
 
 //
 // Test authenticated encryption modes.
@@ -53,7 +57,7 @@ for (const test of TEST_CASES) {
     continue;
   }
 
-  if (common.hasFipsCrypto && test.iv.length < 24) {
+  if (isFipsEnabled && test.iv.length < 24) {
     common.printSkipMessage('IV len < 12 bytes unsupported in FIPS mode');
     continue;
   }
@@ -95,7 +99,7 @@ for (const test of TEST_CASES) {
   }
 
   {
-    if (isCCM && common.hasFipsCrypto) {
+    if (isCCM && isFipsEnabled) {
       assert.throws(() => {
         crypto.createDecipheriv(test.algo,
                                 Buffer.from(test.key, 'hex'),
@@ -286,7 +290,7 @@ for (const test of TEST_CASES) {
                             });
     }, errMessages.authTagLength);
 
-    if (!common.hasFipsCrypto) {
+    if (!isFipsEnabled) {
       assert.throws(() => {
         crypto.createDecipheriv('aes-256-ccm',
                                 'FxLKsqdmv0E9xrQhp0b1ZgI0K7JFZJM8',
@@ -312,7 +316,7 @@ for (const test of TEST_CASES) {
     });
 
     // CCM decryption and create(De|C)ipher are unsupported in FIPS mode.
-    if (!common.hasFipsCrypto) {
+    if (!isFipsEnabled) {
       assert.throws(() => {
         crypto.createDecipheriv(`aes-256-${mode}`,
                                 'FxLKsqdmv0E9xrQhp0b1ZgI0K7JFZJM8',
@@ -388,7 +392,7 @@ for (const test of TEST_CASES) {
     cipher.setAAD(Buffer.from('0123456789', 'hex'));
   }, /options\.plaintextLength required for CCM mode with AAD/);
 
-  if (!common.hasFipsCrypto) {
+  if (!isFipsEnabled) {
     assert.throws(() => {
       const cipher = crypto.createDecipheriv('aes-256-ccm',
                                              'FxLKsqdmv0E9xrQhp0b1ZgI0K7JFZJM8',
@@ -403,7 +407,7 @@ for (const test of TEST_CASES) {
 
 // Test that final() throws in CCM mode when no authentication tag is provided.
 {
-  if (!common.hasFipsCrypto) {
+  if (!isFipsEnabled) {
     const key = Buffer.from('1ed2233fa2223ef5d7df08546049406c', 'hex');
     const iv = Buffer.from('7305220bca40d4c90e1791e9', 'hex');
     const ct = Buffer.from('8beba09d4d4d861f957d51c0794f4abf8030848e', 'hex');
@@ -562,7 +566,7 @@ for (const test of TEST_CASES) {
   ]) {
     assert.throws(() => {
       cipher.final();
-    }, common.hasOpenSSL3 ? {
+    }, hasOpenSSL3 ? {
       code: 'ERR_OSSL_TAG_NOT_SET'
     } : {
       message: /Unsupported state/

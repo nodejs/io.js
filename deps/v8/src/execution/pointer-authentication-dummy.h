@@ -41,7 +41,8 @@ V8_INLINE Address PointerAuthentication::SignAndCheckPC(Isolate*, Address pc,
 V8_INLINE Address PointerAuthentication::MoveSignedPC(Isolate*, Address pc,
                                                       Address, Address) {
 #if V8_ENABLE_WEBASSEMBLY
-  CHECK(v8_flags.wasm_deopt);  // Only used by wasm deoptimizations.
+  // Only used by wasm deoptimizations and growable stacks.
+  CHECK(v8_flags.wasm_deopt || v8_flags.experimental_wasm_growable_stacks);
   return pc;
 #else
   UNREACHABLE();

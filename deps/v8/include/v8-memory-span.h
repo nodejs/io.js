@@ -13,6 +13,40 @@
 
 #include "v8config.h"  // NOLINT(build/include_directory)
 
+// TODO(pkasting): Use <compare>/spaceship unconditionally after dropping
+// support for old libstdc++ versions.
+#if __has_include(<version>)
+#include <version>
+#endif
+#if defined(__cpp_lib_three_way_comparison) && \
+    __cpp_lib_three_way_comparison >= 201711L
+#define V8_HAVE_SPACESHIP_OPERATOR 1
+#else
+#define V8_HAVE_SPACESHIP_OPERATOR 0
+#endif
+
+// TODO(pkasting): Make this block unconditional after dropping support for old
+// libstdc++ versions.
+#if __has_include(<ranges>)
+#include <ranges>
+
+namespace v8 {
+
+template <typename T>
+class V8_EXPORT MemorySpan;
+
+}  // namespace v8
+
+// Mark `MemorySpan` as satisfying the `view` and `borrowed_range` concepts.
+// This should be done before the definition of `MemorySpan`, so that any
+// inlined calls to range functionality use the correct specializations.
+template <typename T>
+inline constexpr bool std::ranges::enable_view<v8::MemorySpan<T>> = true;
+template <typename T>
+inline constexpr bool std::ranges::enable_borrowed_range<v8::MemorySpan<T>> =
+    true;
+#endif
+
 namespace v8 {
 
 /**
@@ -53,13 +87,13 @@ class V8_EXPORT MemorySpan {
       is_compatible_iterator<It>::value;
 
   template <typename U>
-  static constexpr U* to_address(U* p) noexcept {
+  [[nodiscard]] static constexpr U* to_address(U* p) noexcept {
     return p;
   }
 
   template <typename It,
             typename = std::void_t<decltype(std::declval<It&>().operator->())>>
-  static constexpr auto to_address(It it) noexcept {
+  [[nodiscard]] static constexpr auto to_address(It it) noexcept {
     return it.operator->();
   }
 
@@ -108,50 +142,139 @@ class V8_EXPORT MemorySpan {
       : data_(a.data()), size_{N} {}
 
   /** Returns a pointer to the beginning of the buffer. */
-  constexpr T* data() const { return data_; }
+  [[nodiscard]] constexpr T* data() const { return data_; }
   /** Returns the number of elements that the buffer holds. */
-  constexpr size_t size() const { return size_; }
+  [[nodiscard]] constexpr size_t size() const { return size_; }
 
-  constexpr T& operator[](size_t i) const { return data_[i]; }
+  [[nodiscard]] constexpr T& operator[](size_t i) const { return data_[i]; }
 
   /** Returns true if the buffer is empty. */
-  constexpr bool empty() const { return size() == 0; }
+  [[nodiscard]] constexpr bool empty() const { return size() == 0; }
 
   class Iterator {
    public:
-    using iterator_category = std::forward_iterator_tag;
-    using value_type = T;
     using difference_type = std::ptrdiff_t;
+    using value_type = T;
     using pointer = value_type*;
     using reference = value_type&;
+    using iterator_category = std::random_access_iterator_tag;
+    // There seems to be no feature-test macro covering this, so use the
+    // presence of `<ranges>` as a crude proxy, since it was added to the
+    // standard as part of the Ranges papers.
+    // TODO(pkasting): Add this unconditionally after dropping support for old
+    // libstdc++ versions.
+#if __has_include(<ranges>)
+    using iterator_concept = std::contiguous_iterator_tag;
+#endif
 
-    T& operator*() const { return *ptr_; }
-    T* operator->() const { return ptr_; }
+    // Required to satisfy `std::semiregular<>`.
+    constexpr Iterator() = default;
 
-    bool operator==(Iterator other) const { return ptr_ == other.ptr_; }
-    bool operator!=(Iterator other) const { return !(*this == other); }
+    [[nodiscard]] friend constexpr bool operator==(const Iterator& a,
+                                                   const Iterator& b) {
+      // TODO(pkasting): Replace this body with `= default` after dropping
+      // support for old gcc versions.
+      return a.ptr_ == b.ptr_;
+    }
+#if V8_HAVE_SPACESHIP_OPERATOR
+    [[nodiscard]] friend constexpr auto operator<=>(const Iterator&,
+                                                    const Iterator&) = default;
+#else
+    // Assume that if spaceship isn't present, operator rewriting might not be
+    // either.
+    [[nodiscard]] friend constexpr bool operator!=(const Iterator& a,
+                                                   const Iterator& b) {
+      return a.ptr_ != b.ptr_;
+    }
 
-    Iterator& operator++() {
+    [[nodiscard]] friend constexpr bool operator<(const Iterator& a,
+                                                  const Iterator& b) {
+      return a.ptr_ < b.ptr_;
+    }
+    [[nodiscard]] friend constexpr bool operator<=(const Iterator& a,
+                                                   const Iterator& b) {
+      return a.ptr_ <= b.ptr_;
+    }
+    [[nodiscard]] friend constexpr bool operator>(const Iterator& a,
+                                                  const Iterator& b) {
+      return a.ptr_ > b.ptr_;
+    }
+    [[nodiscard]] friend constexpr bool operator>=(const Iterator& a,
+                                                   const Iterator& b) {
+      return a.ptr_ >= b.ptr_;
+    }
+#endif
+
+    constexpr Iterator& operator++() {
       ++ptr_;
       return *this;
     }
 
-    Iterator operator++(int) {
-      Iterator temp(*this);
-      ++(*this);
+    constexpr Iterator operator++(int) {
+      Iterator temp = *this;
+      ++*this;
       return temp;
+    }
+
+    constexpr Iterator& operator--() {
+      --ptr_;
+      return *this;
+    }
+
+    constexpr Iterator operator--(int) {
+      Iterator temp = *this;
+      --*this;
+      return temp;
+    }
+
+    constexpr Iterator& operator+=(difference_type rhs) {
+      ptr_ += rhs;
+      return this;
+    }
+
+    [[nodiscard]] friend constexpr Iterator operator+(Iterator lhs,
+                                                      difference_type rhs) {
+      lhs += rhs;
+      return lhs;
+    }
+
+    [[nodiscard]] friend constexpr Iterator operator+(difference_type lhs,
+                                                      const Iterator& rhs) {
+      return rhs + lhs;
+    }
+
+    constexpr Iterator& operator-=(difference_type rhs) {
+      ptr_ -= rhs;
+      return this;
+    }
+
+    [[nodiscard]] friend constexpr Iterator operator-(Iterator lhs,
+                                                      difference_type rhs) {
+      lhs -= rhs;
+      return lhs;
+    }
+
+    [[nodiscard]] friend constexpr difference_type operator-(
+        const Iterator& lhs, const Iterator& rhs) {
+      return lhs.ptr_ - rhs.ptr_;
+    }
+
+    [[nodiscard]] constexpr reference operator*() const { return *ptr_; }
+    [[nodiscard]] constexpr pointer operator->() const { return ptr_; }
+    [[nodiscard]] constexpr reference operator[](size_t offset) const {
+      return ptr_[offset];
     }
 
    private:
     friend class MemorySpan<T>;
 
-    explicit Iterator(T* ptr) : ptr_(ptr) {}
+    constexpr explicit Iterator(T* ptr) : ptr_(ptr) {}
 
     T* ptr_ = nullptr;
   };
 
-  Iterator begin() const { return Iterator(data_); }
-  Iterator end() const { return Iterator(data_ + size_); }
+  [[nodiscard]] Iterator begin() const { return Iterator(data_); }
+  [[nodiscard]] Iterator end() const { return Iterator(data_ + size_); }
 
  private:
   T* data_ = nullptr;
@@ -171,25 +294,26 @@ class V8_EXPORT MemorySpan {
 
 namespace detail {
 template <class T, std::size_t N, std::size_t... I>
-constexpr std::array<std::remove_cv_t<T>, N> to_array_lvalue_impl(
+[[nodiscard]] constexpr std::array<std::remove_cv_t<T>, N> to_array_lvalue_impl(
     T (&a)[N], std::index_sequence<I...>) {
   return {{a[I]...}};
 }
 
 template <class T, std::size_t N, std::size_t... I>
-constexpr std::array<std::remove_cv_t<T>, N> to_array_rvalue_impl(
+[[nodiscard]] constexpr std::array<std::remove_cv_t<T>, N> to_array_rvalue_impl(
     T (&&a)[N], std::index_sequence<I...>) {
   return {{std::move(a[I])...}};
 }
 }  // namespace detail
 
 template <class T, std::size_t N>
-constexpr std::array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) {
+[[nodiscard]] constexpr std::array<std::remove_cv_t<T>, N> to_array(T (&a)[N]) {
   return detail::to_array_lvalue_impl(a, std::make_index_sequence<N>{});
 }
 
 template <class T, std::size_t N>
-constexpr std::array<std::remove_cv_t<T>, N> to_array(T (&&a)[N]) {
+[[nodiscard]] constexpr std::array<std::remove_cv_t<T>, N> to_array(
+    T (&&a)[N]) {
   return detail::to_array_rvalue_impl(std::move(a),
                                       std::make_index_sequence<N>{});
 }

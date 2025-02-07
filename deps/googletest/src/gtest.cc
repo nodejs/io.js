@@ -4012,16 +4012,11 @@ class XmlUnitTestResultPrinter : public EmptyTestEventListener {
   static void PrintXmlUnitTest(::std::ostream* stream,
                                const UnitTest& unit_test);
 
-  // Produces a string representing the test properties in a result as space
-  // delimited XML attributes based on the property key="value" pairs.
-  // When the std::string is not empty, it includes a space at the beginning,
-  // to delimit this attribute from prior attributes.
-  static std::string TestPropertiesAsXmlAttributes(const TestResult& result);
-
   // Streams an XML representation of the test properties of a TestResult
   // object.
   static void OutputXmlTestProperties(std::ostream* stream,
-                                      const TestResult& result);
+                                      const TestResult& result,
+                                      const std::string& indent);
 
   // The output file.
   const std::string output_file_;
@@ -4355,7 +4350,7 @@ void XmlUnitTestResultPrinter::OutputXmlTestResult(::std::ostream* stream,
     if (failures == 0 && skips == 0) {
       *stream << ">\n";
     }
-    OutputXmlTestProperties(stream, result);
+    OutputXmlTestProperties(stream, result, /*indent=*/"      ");
     *stream << "    </testcase>\n";
   }
 }
@@ -4384,9 +4379,10 @@ void XmlUnitTestResultPrinter::PrintXmlTestSuite(std::ostream* stream,
     OutputXmlAttribute(
         stream, kTestsuite, "timestamp",
         FormatEpochTimeInMillisAsIso8601(test_suite.start_timestamp()));
-    *stream << TestPropertiesAsXmlAttributes(test_suite.ad_hoc_test_result());
   }
   *stream << ">\n";
+  OutputXmlTestProperties(stream, test_suite.ad_hoc_test_result(),
+                          /*indent=*/"    ");
   for (int i = 0; i < test_suite.total_test_count(); ++i) {
     if (test_suite.GetTestInfo(i)->is_reportable())
       OutputXmlTestInfo(stream, test_suite.name(), *test_suite.GetTestInfo(i));
@@ -4424,11 +4420,12 @@ void XmlUnitTestResultPrinter::PrintXmlUnitTest(std::ostream* stream,
     OutputXmlAttribute(stream, kTestsuites, "random_seed",
                        StreamableToString(unit_test.random_seed()));
   }
-  *stream << TestPropertiesAsXmlAttributes(unit_test.ad_hoc_test_result());
 
   OutputXmlAttribute(stream, kTestsuites, "name", "AllTests");
   *stream << ">\n";
 
+  OutputXmlTestProperties(stream, unit_test.ad_hoc_test_result(),
+                          /*indent=*/"  ");
   for (int i = 0; i < unit_test.total_test_suite_count(); ++i) {
     if (unit_test.GetTestSuite(i)->reportable_test_count() > 0)
       PrintXmlTestSuite(stream, *unit_test.GetTestSuite(i));
@@ -4465,21 +4462,8 @@ void XmlUnitTestResultPrinter::PrintXmlTestsList(
   *stream << "</" << kTestsuites << ">\n";
 }
 
-// Produces a string representing the test properties in a result as space
-// delimited XML attributes based on the property key="value" pairs.
-std::string XmlUnitTestResultPrinter::TestPropertiesAsXmlAttributes(
-    const TestResult& result) {
-  Message attributes;
-  for (int i = 0; i < result.test_property_count(); ++i) {
-    const TestProperty& property = result.GetTestProperty(i);
-    attributes << " " << property.key() << "=" << "\""
-               << EscapeXmlAttribute(property.value()) << "\"";
-  }
-  return attributes.GetString();
-}
-
 void XmlUnitTestResultPrinter::OutputXmlTestProperties(
-    std::ostream* stream, const TestResult& result) {
+    std::ostream* stream, const TestResult& result, const std::string& indent) {
   const std::string kProperties = "properties";
   const std::string kProperty = "property";
 
@@ -4487,15 +4471,15 @@ void XmlUnitTestResultPrinter::OutputXmlTestProperties(
     return;
   }
 
-  *stream << "      <" << kProperties << ">\n";
+  *stream << indent << "<" << kProperties << ">\n";
   for (int i = 0; i < result.test_property_count(); ++i) {
     const TestProperty& property = result.GetTestProperty(i);
-    *stream << "        <" << kProperty;
+    *stream << indent << "  <" << kProperty;
     *stream << " name=\"" << EscapeXmlAttribute(property.key()) << "\"";
     *stream << " value=\"" << EscapeXmlAttribute(property.value()) << "\"";
     *stream << "/>\n";
   }
-  *stream << "      </" << kProperties << ">\n";
+  *stream << indent << "</" << kProperties << ">\n";
 }
 
 // End XmlUnitTestResultPrinter

@@ -238,13 +238,13 @@ class MemoryOptimizationReducer : public Next {
       // Wasm mode: producing isolate-independent code, loading the isolate
       // address at runtime.
 #if V8_ENABLE_WEBASSEMBLY
-      V<WasmTrustedInstanceData> instance_node = __ WasmInstanceParameter();
+      V<WasmTrustedInstanceData> instance_data = __ WasmInstanceDataParameter();
       int top_address_offset =
           type == AllocationType::kYoung
               ? WasmTrustedInstanceData::kNewAllocationTopAddressOffset
               : WasmTrustedInstanceData::kOldAllocationTopAddressOffset;
       top_address =
-          __ Load(instance_node, LoadOp::Kind::TaggedBase().Immutable(),
+          __ Load(instance_data, LoadOp::Kind::TaggedBase().Immutable(),
                   MemoryRepresentation::UintPtr(), top_address_offset);
 #else
       UNREACHABLE();
@@ -484,7 +484,7 @@ class MemoryOptimizationReducer : public Next {
       // Wasm mode: producing isolate-independent code, loading the isolate
       // address at runtime.
 #if V8_ENABLE_WEBASSEMBLY
-      V<WasmTrustedInstanceData> instance_node = __ WasmInstanceParameter();
+      V<WasmTrustedInstanceData> instance_node = __ WasmInstanceDataParameter();
       int limit_address_offset =
           type == AllocationType::kYoung
               ? WasmTrustedInstanceData::kNewAllocationLimitAddressOffset

@@ -478,7 +478,7 @@ FUNCTION_REFERENCE(delete_handle_scope_extensions,
                    HandleScope::DeleteExtensions)
 
 FUNCTION_REFERENCE(ephemeron_key_write_barrier_function,
-                   Heap::EphemeronKeyWriteBarrierFromCode)
+                   WriteBarrier::EphemeronKeyWriteBarrierFromCode)
 
 ExternalPointerHandle AllocateAndInitializeYoungExternalPointerTableEntry(
     Isolate* isolate, Address pointer) {
@@ -549,6 +549,9 @@ FUNCTION_REFERENCE(wasm_switch_to_the_central_stack_for_js,
                    wasm::switch_to_the_central_stack_for_js)
 FUNCTION_REFERENCE(wasm_switch_from_the_central_stack_for_js,
                    wasm::switch_from_the_central_stack_for_js)
+FUNCTION_REFERENCE(wasm_grow_stack, wasm::grow_stack)
+FUNCTION_REFERENCE(wasm_shrink_stack, wasm::shrink_stack)
+FUNCTION_REFERENCE(wasm_load_old_fp, wasm::load_old_fp)
 FUNCTION_REFERENCE(wasm_f32_trunc, wasm::f32_trunc_wrapper)
 FUNCTION_REFERENCE(wasm_f32_floor, wasm::f32_floor_wrapper)
 FUNCTION_REFERENCE(wasm_f32_ceil, wasm::f32_ceil_wrapper)
@@ -1010,7 +1013,7 @@ ExternalReference ExternalReference::invoke_accessor_getter_callback() {
 #define re_stack_check_func RegExpMacroAssemblerARM64::CheckStackGuardState
 #elif V8_TARGET_ARCH_ARM
 #define re_stack_check_func RegExpMacroAssemblerARM::CheckStackGuardState
-#elif V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#elif V8_TARGET_ARCH_PPC64
 #define re_stack_check_func RegExpMacroAssemblerPPC::CheckStackGuardState
 #elif V8_TARGET_ARCH_MIPS64
 #define re_stack_check_func RegExpMacroAssemblerMIPS::CheckStackGuardState

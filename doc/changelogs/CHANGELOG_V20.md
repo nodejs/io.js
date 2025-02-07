@@ -9,6 +9,7 @@
 </tr>
 <tr>
 <td>
+<a href="#20.18.2">20.18.2</a><br/>
 <a href="#20.18.1">20.18.1</a><br/>
 <a href="#20.18.0">20.18.0</a><br/>
 <a href="#20.17.0">20.17.0</a><br/>
@@ -68,6 +69,29 @@
   * [0.10.x](CHANGELOG_V010.md)
   * [io.js](CHANGELOG_IOJS.md)
   * [Archive](CHANGELOG_ARCHIVE.md)
+
+<a id="20.18.2"></a>
+
+## 2025-01-21, Version 20.18.2 'Iron' (LTS), @RafaelGSS
+
+This is a security release.
+
+### Notable Changes
+
+* CVE-2025-23083 - throw on InternalWorker use when permission model is enabled (High)
+* CVE-2025-23085 - src: fix HTTP2 mem leak on premature close and ERR\_PROTO (Medium)
+* CVE-2025-23084 - path: fix path traversal in normalize() on Windows (Medium)
+
+Dependency update:
+
+* CVE-2025-22150 - Use of Insufficiently Random Values in undici fetch() (Medium)
+
+### Commits
+
+* \[[`df8b9f2c3e`](https://github.com/nodejs/node/commit/df8b9f2c3e)] - **(CVE-2025-22150)** **deps**: update undici to v6.21.1 (Matteo Collina) [nodejs-private/node-private#663](https://github.com/nodejs-private/node-private/pull/663)
+* \[[`42d5821873`](https://github.com/nodejs/node/commit/42d5821873)] - **(CVE-2025-23084)** **path**: fix path traversal in normalize() on Windows (Tobias Nießen) [nodejs-private/node-private#555](https://github.com/nodejs-private/node-private/pull/555)
+* \[[`8187a4b9bb`](https://github.com/nodejs/node/commit/8187a4b9bb)] - **src**: fix HTTP2 mem leak on premature close and ERR\_PROTO (RafaelGSS)
+* \[[`389f239a28`](https://github.com/nodejs/node/commit/389f239a28)] - **(CVE-2025-23083)** **src,loader,permission**: throw on InternalWorker use (RafaelGSS) [nodejs-private/node-private#652](https://github.com/nodejs-private/node-private/pull/652)
 
 <a id="20.18.1"></a>
 

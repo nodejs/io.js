@@ -235,7 +235,7 @@ struct Flag {
 
   void ReleaseDynamicAllocations();
 
-  // Set a flag back to it's default value.
+  // Set a flag back to its default value.
   V8_EXPORT_PRIVATE void Reset();
 
   void AllowOverwriting() { set_by_ = SetBy::kDefault; }

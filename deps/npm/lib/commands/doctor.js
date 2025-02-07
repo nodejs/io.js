@@ -128,7 +128,6 @@ class Doctor extends BaseCommand {
 
     if (!allOk) {
       if (this.npm.silent) {
-        /* eslint-disable-next-line max-len */
         throw new Error('Some problems found. Check logs or disable silent mode for recommendations.')
       } else {
         throw new Error('Some problems found. See above for recommendations.')

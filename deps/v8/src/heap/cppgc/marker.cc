@@ -119,9 +119,6 @@ MarkerBase::IncrementalMarkingTask::Post(cppgc::TaskRunner* runner,
                      HeapBase::StackSupport::kSupportsConservativeStackScan,
                  runner->NonNestableTasksEnabled());
 
-  const bool should_use_delayed_task =
-      !marker->config_.incremental_task_delay.IsZero() &&
-      marker->IsAheadOfSchedule();
   const bool non_nestable_tasks_enabled = runner->NonNestableTasksEnabled();
 
   auto task = std::make_unique<IncrementalMarkingTask>(
@@ -129,19 +126,9 @@ MarkerBase::IncrementalMarkingTask::Post(cppgc::TaskRunner* runner,
                                          : StackState::kMayContainHeapPointers);
   auto handle = task->handle_;
   if (non_nestable_tasks_enabled) {
-    if (should_use_delayed_task) {
-      runner->PostNonNestableDelayedTask(
-          std::move(task), marker->config_.incremental_task_delay.InSecondsF());
-    } else {
-      runner->PostNonNestableTask(std::move(task));
-    }
+    runner->PostNonNestableTask(std::move(task));
   } else {
-    if (should_use_delayed_task) {
-      runner->PostDelayedTask(
-          std::move(task), marker->config_.incremental_task_delay.InSecondsF());
-    } else {
-      runner->PostTask(std::move(task));
-    }
+    runner->PostTask(std::move(task));
   }
   return handle;
 }

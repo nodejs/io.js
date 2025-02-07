@@ -175,11 +175,11 @@ void VerifyPointersVisitor::VerifyPointersImpl(TSlot start, TSlot end) {
 void VerifyPointersVisitor::VerifyPointers(Tagged<HeapObject> host,
                                            MaybeObjectSlot start,
                                            MaybeObjectSlot end) {
-  // If this DCHECK fires then you probably added a pointer field
+  // If this CHECK fires then you probably added a pointer field
   // to one of objects in DATA_ONLY_VISITOR_ID_LIST. You can fix
   // this by moving that object to POINTER_VISITOR_ID_LIST.
-  DCHECK_EQ(ObjectFields::kMaybePointers,
-            Map::ObjectFieldsFrom(host->map(cage_base())->visitor_id()));
+  CHECK_EQ(ObjectFields::kMaybePointers,
+           Map::ObjectFieldsFrom(host->map(cage_base())->visitor_id()));
   VerifyPointersImpl(start, end);
 }
 
@@ -225,8 +225,8 @@ class VerifySharedHeapObjectVisitor : public VerifyPointersVisitor {
         shared_trusted_space_(heap->shared_trusted_space()),
         shared_lo_space_(heap->shared_lo_space()),
         shared_trusted_lo_space_(heap->shared_trusted_lo_space()) {
-    DCHECK_NOT_NULL(shared_space_);
-    DCHECK_NOT_NULL(shared_lo_space_);
+    CHECK_NOT_NULL(shared_space_);
+    CHECK_NOT_NULL(shared_lo_space_);
   }
 
  protected:
@@ -345,6 +345,34 @@ void HeapVerification::Verify() {
           ->NormalizedMapCacheVerify(isolate());
     }
   }
+
+#if V8_ENABLE_WEBASSEMBLY
+  // wasm_canonical_rtts holds weak references to maps or (strong) undefined.
+  Tagged<WeakFixedArray> canonical_rtts = heap()->wasm_canonical_rtts();
+  for (int i = 0, e = canonical_rtts->length(); i < e; ++i) {
+    Tagged<MaybeObject> maybe_rtt = canonical_rtts->get(i);
+    if (maybe_rtt.IsStrong()) {
+      CHECK(IsUndefined(maybe_rtt.GetHeapObjectAssumeStrong()));
+    } else if (maybe_rtt.IsWeak()) {
+      CHECK(IsMap(maybe_rtt.GetHeapObjectAssumeWeak()));
+    } else {
+      CHECK(maybe_rtt.IsCleared());
+    }
+  }
+
+  // js_to_wasm_wrappers holds weak references to code or (strong) undefined.
+  Tagged<WeakFixedArray> wrappers = heap()->js_to_wasm_wrappers();
+  for (int i = 0, e = wrappers->length(); i < e; ++i) {
+    Tagged<MaybeObject> maybe_wrapper = wrappers->get(i);
+    if (maybe_wrapper.IsStrong()) {
+      CHECK(IsUndefined(maybe_wrapper.GetHeapObjectAssumeStrong()));
+    } else if (maybe_wrapper.IsWeak()) {
+      CHECK(IsCodeWrapper(maybe_wrapper.GetHeapObjectAssumeWeak()));
+    } else {
+      CHECK(maybe_wrapper.IsCleared());
+    }
+  }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
   // The heap verifier can't deal with partially deserialized objects, so
   // disable it if a deserializer is active.
@@ -580,9 +608,9 @@ class OldToNewSlotVerifyingVisitor : public SlotVerifyingVisitor {
   bool ShouldHaveBeenRecorded(Tagged<HeapObject> host,
                               Tagged<MaybeObject> target) override {
     // Heap::InToPage() is not available with sticky mark-bits.
-    DCHECK_IMPLIES(!v8_flags.sticky_mark_bits && target.IsStrongOrWeak() &&
-                       Heap::InYoungGeneration(target),
-                   Heap::InToPage(target));
+    CHECK_IMPLIES(!v8_flags.sticky_mark_bits && target.IsStrongOrWeak() &&
+                      Heap::InYoungGeneration(target),
+                  Heap::InToPage(target));
     return target.IsStrongOrWeak() && Heap::InYoungGeneration(target) &&
            !Heap::InYoungGeneration(host);
   }
@@ -786,7 +814,7 @@ void HeapVerifier::VerifyObjectLayoutChangeIsAllowed(
     Heap* heap, Tagged<HeapObject> object) {
   if (InWritableSharedSpace(object)) {
     // Out of objects in the shared heap, only strings can change layout.
-    DCHECK(IsString(object));
+    CHECK(IsString(object));
     // Shared strings only change layout under GC, never concurrently.
     if (IsShared(object)) {
       Isolate* isolate = heap->isolate();
@@ -804,7 +832,7 @@ void HeapVerifier::VerifyObjectLayoutChangeIsAllowed(
 void HeapVerifier::SetPendingLayoutChangeObject(Heap* heap,
                                                 Tagged<HeapObject> object) {
   VerifyObjectLayoutChangeIsAllowed(heap, object);
-  DCHECK(pending_layout_change_object.is_null());
+  CHECK(pending_layout_change_object.is_null());
   pending_layout_change_object = object;
 }
 
@@ -813,7 +841,7 @@ void HeapVerifier::VerifyObjectLayoutChange(Heap* heap,
                                             Tagged<HeapObject> object,
                                             Tagged<Map> new_map) {
   // Object layout changes are currently not supported on background threads.
-  DCHECK_NULL(LocalHeap::Current());
+  CHECK_NULL(LocalHeap::Current());
 
   if (!v8_flags.verify_heap) return;
 
@@ -828,7 +856,7 @@ void HeapVerifier::VerifyObjectLayoutChange(Heap* heap,
   if (pending_layout_change_object.is_null()) {
     VerifySafeMapTransition(heap, object, new_map);
   } else {
-    DCHECK_EQ(pending_layout_change_object, object);
+    CHECK_EQ(pending_layout_change_object, object);
     pending_layout_change_object = HeapObject();
   }
 }
@@ -859,7 +887,7 @@ void HeapVerifier::VerifySafeMapTransition(Heap* heap,
     //
     // When sharing the string table, the setting and re-setting of maps below
     // can race when there are parallel internalization operations, causing
-    // DCHECKs to fail.
+    // CHECKs to fail.
     return;
   }
 
@@ -873,15 +901,15 @@ void HeapVerifier::VerifySafeMapTransition(Heap* heap,
   object->IterateFast(cage_base, &new_visitor);
   // Restore the old map.
   object->set_map_word(old_map_word.ToMap(), kRelaxedStore);
-  DCHECK_EQ(new_visitor.number_of_slots(), old_visitor.number_of_slots());
+  CHECK_EQ(new_visitor.number_of_slots(), old_visitor.number_of_slots());
   for (int i = 0; i < new_visitor.number_of_slots(); i++) {
-    DCHECK_EQ(new_visitor.slot(i), old_visitor.slot(i));
+    CHECK_EQ(new_visitor.slot(i), old_visitor.slot(i));
   }
 #ifdef V8_EXTERNAL_CODE_SPACE
-  DCHECK_EQ(new_visitor.number_of_code_slots(),
-            old_visitor.number_of_code_slots());
+  CHECK_EQ(new_visitor.number_of_code_slots(),
+           old_visitor.number_of_code_slots());
   for (int i = 0; i < new_visitor.number_of_code_slots(); i++) {
-    DCHECK_EQ(new_visitor.code_slot(i), old_visitor.code_slot(i));
+    CHECK_EQ(new_visitor.code_slot(i), old_visitor.code_slot(i));
   }
 #endif  // V8_EXTERNAL_CODE_SPACE
 }

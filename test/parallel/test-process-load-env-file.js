@@ -5,6 +5,7 @@ const fixtures = require('../../test/common/fixtures');
 const assert = require('node:assert');
 const { describe, it } = require('node:test');
 const { join } = require('node:path');
+const { isMainThread } = require('worker_threads');
 
 const basicValidEnvFilePath = fixtures.path('dotenv/basic-valid.env');
 const validEnvFilePath = fixtures.path('dotenv/valid.env');
@@ -58,7 +59,7 @@ describe('process.loadEnvFile()', () => {
     const originalCwd = process.cwd();
 
     try {
-      if (common.isMainThread) {
+      if (isMainThread) {
         process.chdir(join(originalCwd, 'lib'));
       }
 
@@ -66,7 +67,7 @@ describe('process.loadEnvFile()', () => {
         process.loadEnvFile();
       }, { code: 'ENOENT', syscall: 'open', path: '.env' });
     } finally {
-      if (common.isMainThread) {
+      if (isMainThread) {
         process.chdir(originalCwd);
       }
     }

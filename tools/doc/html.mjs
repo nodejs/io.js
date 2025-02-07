@@ -527,11 +527,11 @@ function altDocs(filename, docCreated, versions) {
 
   return list ? `
     <li class="picker-header">
-      <a href="#">
+      <a href="#alt-docs" aria-controls="alt-docs">
         <span class="picker-arrow"></span>
         Other versions
       </a>
-      <div class="picker"><ol id="alt-docs">${list}</ol></div>
+      <div class="picker" tabindex="-1"><ol id="alt-docs">${list}</ol></div>
     </li>
   ` : '';
 }
@@ -557,12 +557,12 @@ function gtocPicker(id) {
 
   return `
     <li class="picker-header">
-      <a href="#">
+      <a href="#gtoc-picker" aria-controls="gtoc-picker">
         <span class="picker-arrow"></span>
         Index
       </a>
 
-      <div class="picker">${gtoc}</div>
+      <div class="picker" tabindex="-1" id="gtoc-picker">${gtoc}</div>
     </li>
   `;
 }
@@ -574,12 +574,12 @@ function tocPicker(id, content) {
 
   return `
     <li class="picker-header">
-      <a href="#">
+      <a href="#toc-picker" aria-controls="toc-picker">
         <span class="picker-arrow"></span>
         Table of contents
       </a>
 
-      <div class="picker">${content.tocPicker}</div>
+      <div class="picker" tabindex="-1">${content.tocPicker.replace('<ul', '<ul id="toc-picker"')}</div>
     </li>
   `;
 }

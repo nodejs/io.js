@@ -63,7 +63,7 @@ class JsonStringifier {
                              Handle<Object>(Smi::FromInt(i), isolate));
   }
 
-  // Serialize a object property.
+  // Serialize an object property.
   // The key may or may not be serialized depending on the property.
   // The key may also serve as argument for the toJSON function.
   V8_INLINE Result SerializeProperty(Handle<Object> object, bool deferred_comma,

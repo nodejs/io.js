@@ -150,7 +150,7 @@ void RestoreAfterWasmToJsConversionBuiltinCall(
 
 void Builtins::Generate_WasmInterpreterEntry(MacroAssembler* masm) {
   // Input registers:
-  //  x7 (kWasmInstanceRegister): wasm_instance
+  //  x7 (kWasmImplicitArgRegister): wasm_instance
   //  x12: array_start
   //  w15: function_index
   Register array_start = x12;
@@ -163,9 +163,9 @@ void Builtins::Generate_WasmInterpreterEntry(MacroAssembler* masm) {
   // fp       Old RBP
   __ EnterFrame(StackFrame::WASM_INTERPRETER_ENTRY);
 
-  __ Str(kWasmInstanceRegister, MemOperand(sp, 0));
+  __ Str(kWasmImplicitArgRegister, MemOperand(sp, 0));
   __ Push(function_index, array_start);
-  __ Mov(kWasmInstanceRegister, xzr);
+  __ Mov(kWasmImplicitArgRegister, xzr);
   __ CallRuntime(Runtime::kWasmRunInterpreter, 3);
 
   // Deconstruct the stack frame.
@@ -434,7 +434,7 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // Load the Wasm exported function data and the Wasm instance.
   // -------------------------------------------
   DEFINE_PINNED(function_data, kJSFunctionRegister);    // x1
-  DEFINE_PINNED(wasm_instance, kWasmInstanceRegister);  // x7
+  DEFINE_PINNED(wasm_instance, kWasmImplicitArgRegister);  // x7
   LoadFunctionDataAndWasmInstance(masm, function_data, wasm_instance);
 
   regs.ResetExcept(function_data, wasm_instance);

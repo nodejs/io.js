@@ -123,7 +123,7 @@ FullObjectSlot TracedHandles::Create(
     DCHECK(block->InYoungList());
   }
   if (needs_black_allocation) {
-    WriteBarrier::MarkingFromGlobalHandle(object);
+    WriteBarrier::MarkingFromTracedHandle(object);
   }
 #ifdef VERIFY_HEAP
   if (i::v8_flags.verify_heap) {

@@ -27,6 +27,7 @@
 #include <cmath>
 #include <cstring>
 #include <locale>
+#include <ranges>
 #include <regex>  // NOLINT(build/c++11)
 #include "node_revert.h"
 #include "util.h"
@@ -379,6 +380,25 @@ v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
   return set_js;
 }
 
+template <typename T, std::size_t U>
+v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
+                                    const std::ranges::elements_view<T, U>& vec,
+                                    v8::Isolate* isolate) {
+  if (isolate == nullptr) isolate = context->GetIsolate();
+  v8::EscapableHandleScope handle_scope(isolate);
+
+  MaybeStackBuffer<v8::Local<v8::Value>, 128> arr(vec.size());
+  arr.SetLength(vec.size());
+  auto it = vec.begin();
+  for (size_t i = 0; i < vec.size(); ++i) {
+    if (!ToV8Value(context, *it, isolate).ToLocal(&arr[i]))
+      return v8::MaybeLocal<v8::Value>();
+    std::advance(it, 1);
+  }
+
+  return handle_scope.Escape(v8::Array::New(isolate, arr.out(), arr.length()));
+}
+
 template <typename T, typename U>
 v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
                                     const std::unordered_map<T, U>& map,
@@ -561,6 +581,22 @@ bool IsWindowsBatchFile(const char* filename) {
   return false;
 #endif  // _WIN32
 }
+
+#ifdef _WIN32
+inline std::wstring ConvertToWideString(const std::string& str,
+                                        UINT code_page) {
+  int size_needed = MultiByteToWideChar(
+      code_page, 0, &str[0], static_cast<int>(str.size()), nullptr, 0);
+  std::wstring wstrTo(size_needed, 0);
+  MultiByteToWideChar(code_page,
+                      0,
+                      &str[0],
+                      static_cast<int>(str.size()),
+                      &wstrTo[0],
+                      size_needed);
+  return wstrTo;
+}
+#endif  // _WIN32
 
 }  // namespace node
 

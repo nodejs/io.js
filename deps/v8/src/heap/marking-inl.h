@@ -400,6 +400,26 @@ MarkingHelper::LivenessMode MarkingHelper::GetLivenessMode(
 }
 
 // static
+template <typename MarkingStateT>
+bool MarkingHelper::IsMarkedOrAlwaysLive(Heap* heap,
+                                         MarkingStateT* marking_state,
+                                         Tagged<HeapObject> object) {
+  return (MarkingHelper::GetLivenessMode(heap, object) ==
+          MarkingHelper::LivenessMode::kAlwaysLive) ||
+         marking_state->IsMarked(object);
+}
+
+// static
+template <typename MarkingStateT>
+bool MarkingHelper::IsUnmarkedAndNotAlwaysLive(Heap* heap,
+                                               MarkingStateT* marking_state,
+                                               Tagged<HeapObject> object) {
+  return (MarkingHelper::GetLivenessMode(heap, object) !=
+          MarkingHelper::LivenessMode::kAlwaysLive) &&
+         marking_state->IsUnmarked(object);
+}
+
+// static
 template <typename MarkingState>
 bool MarkingHelper::TryMarkAndPush(Heap* heap,
                                    MarkingWorklists::Local* marking_worklist,

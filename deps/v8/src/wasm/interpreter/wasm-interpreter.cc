@@ -6836,7 +6836,7 @@ uint32_t WasmBytecodeGenerator::ScanConstInstructions() const {
       const_slots_size += sizeof(uint64_t) / kSlotSize;
     } else if (opcode == kSimdPrefix) {
       auto [opcode_index, opcode_len] =
-          decoder.read_u32v<Decoder::BooleanValidationTag>(
+          decoder.read_u32v<Decoder::FullValidationTag>(
               wasm_code_->start + pc + 1, "prefixed opcode index");
       opcode = (kSimdPrefix << 8) | opcode_index;
       if (opcode == kExprS128Const || opcode == kExprI8x16Shuffle) {

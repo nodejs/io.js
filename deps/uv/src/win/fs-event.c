@@ -253,6 +253,8 @@ short_path_done:
     }
 
     dir_to_watch = dir;
+    uv__free(short_path);
+    short_path = NULL;
     uv__free(pathw);
     pathw = NULL;
   }
@@ -577,6 +579,8 @@ void uv__process_fs_event_req(uv_loop_t* loop, uv_req_t* req,
         info.DeletePending) {
       uv__convert_utf16_to_utf8(handle->dirw, -1, &filename);
       handle->cb(handle, filename, UV_RENAME, 0);
+      uv__free(filename);
+      filename = NULL;
     } else {
       handle->cb(handle, NULL, 0, uv_translate_sys_error(err));
     }

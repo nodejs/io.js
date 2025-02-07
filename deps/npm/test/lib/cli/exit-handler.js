@@ -46,7 +46,6 @@ t.cleanSnapshot = (path) => cleanDate(cleanCwd(path))
 mockGlobals(t, {
   process: Object.assign(new EventEmitter(), {
     // these are process properties that are needed in the running code and tests
-    // eslint-disable-next-line max-len
     ...pick(process, 'version', 'execPath', 'stdout', 'stderr', 'stdin', 'cwd', 'chdir', 'env', 'umask'),
     pid: 123456,
     argv: ['/node', ...process.argv.slice(1)],

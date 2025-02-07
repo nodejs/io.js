@@ -383,6 +383,17 @@ class DebugInfoImpl {
     per_isolate_data_[frame->isolate()].stepping_frame = frame->id();
   }
 
+  bool IsFrameBlackboxed(WasmFrame* frame) {
+    NativeModule* native_module = frame->native_module();
+    int func_index = frame->function_index();
+    WireBytesRef func_code =
+        native_module->module()->functions[func_index].code;
+    Isolate* isolate = frame->isolate();
+    DirectHandle<Script> script(Cast<Script>(frame->script()), isolate);
+    return isolate->debug()->IsFunctionBlackboxed(script, func_code.offset(),
+                                                  func_code.end_offset());
+  }
+
   bool PrepareStep(WasmFrame* frame) {
     WasmCodeRefScope wasm_code_ref_scope;
     wasm::WasmCode* code = frame->wasm_code();
@@ -818,6 +829,10 @@ const wasm::WasmFunction& DebugInfo::GetFunctionAtAddress(Address pc,
 void DebugInfo::SetBreakpoint(int func_index, int offset,
                               Isolate* current_isolate) {
   impl_->SetBreakpoint(func_index, offset, current_isolate);
+}
+
+bool DebugInfo::IsFrameBlackboxed(WasmFrame* frame) {
+  return impl_->IsFrameBlackboxed(frame);
 }
 
 bool DebugInfo::PrepareStep(WasmFrame* frame) {

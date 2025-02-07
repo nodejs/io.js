@@ -24,6 +24,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 // Tail calls the regular expression interpreter.
 // static
 void Builtins::Generate_RegExpInterpreterTrampoline(MacroAssembler* masm) {
@@ -1701,6 +1703,8 @@ TNode<JSArray> RegExpBuiltinsAssembler::RegExpPrototypeSplitBody(
   BIND(&done);
   return var_result.value();
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

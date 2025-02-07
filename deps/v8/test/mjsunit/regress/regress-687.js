@@ -26,7 +26,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // This regression includes a number of cases where we did not correctly
-// update a accessor property to a data property using Object.defineProperty.
+// update an accessor property to a data property using Object.defineProperty.
 
 var obj = { get value() {}, set value (v) { throw "Error";} };
 Object.defineProperty(obj, "value",

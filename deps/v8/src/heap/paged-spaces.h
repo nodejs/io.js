@@ -376,16 +376,28 @@ class V8_EXPORT_PRIVATE PagedSpace : public PagedSpaceBase {
 
 class V8_EXPORT_PRIVATE CompactionSpace final : public PagedSpace {
  public:
+  // Specifies to which heap the compaction space should be merged.
+  enum class DestinationHeap {
+    // Should be merged to the same heap.
+    kSameHeap,
+    // Should be merged to the main isolate shared space.
+    kSharedSpaceHeap
+  };
+
   CompactionSpace(Heap* heap, AllocationSpace id, Executability executable,
-                  CompactionSpaceKind compaction_space_kind)
+                  CompactionSpaceKind compaction_space_kind,
+                  DestinationHeap destination_heap)
       : PagedSpace(heap, id, executable, FreeList::CreateFreeList(),
-                   compaction_space_kind) {
+                   compaction_space_kind),
+        destination_heap_(destination_heap) {
     DCHECK(is_compaction_space());
   }
 
   const std::vector<PageMetadata*>& GetNewPages() { return new_pages_; }
 
   void RefillFreeList() final;
+
+  DestinationHeap destination_heap() const { return destination_heap_; }
 
  protected:
   void NotifyNewPage(PageMetadata* page) final;
@@ -395,6 +407,7 @@ class V8_EXPORT_PRIVATE CompactionSpace final : public PagedSpace {
   // Pages that were allocated in this local space and need to be merged
   // to the main space.
   std::vector<PageMetadata*> new_pages_;
+  const DestinationHeap destination_heap_;
 };
 
 // A collection of |CompactionSpace|s used by a single compaction task.

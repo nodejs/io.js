@@ -3,7 +3,11 @@
 
 const common = require('../common');
 const path = require('path');
-common.skipIfWorker();
+const { isMainThread } = require('worker_threads');
+
+if (!isMainThread) {
+  common.skip('This test only works on a main thread');
+}
 
 const assert = require('assert');
 const { spawnSync } = require('child_process');

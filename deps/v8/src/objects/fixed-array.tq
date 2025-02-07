@@ -56,11 +56,6 @@ extern class TrustedByteArray extends TrustedObject {
   bytes[length]: uint8;
 }
 
-@cppObjectDefinition
-extern class ExternalPointerArray extends FixedArrayBase {
-  pointers[length]: ExternalPointer;
-}
-
 extern macro CodeStubAssembler::AllocateByteArray(uintptr): ByteArray;
 
 @cppObjectDefinition

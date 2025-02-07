@@ -52,6 +52,7 @@ enum class Builtin;
 //  |           ...            |  <-- MS + handler_table_offset()
 //  |                          |  <-- MS + constant_pool_offset()
 //  |                          |  <-- MS + code_comments_offset()
+//  |                          |  <-- MS + builtin_jump_table_info_offset()
 //  |                          |  <-- MS + unwinding_info_offset()
 //  +--------------------------+  <-- MetadataEnd()
 //
@@ -101,8 +102,8 @@ class Code : public ExposedTrustedObject {
   inline void UpdateInstructionStart(IsolateForSandbox isolate,
                                      Tagged<InstructionStream> istream);
 
-  inline void initialize_flags(CodeKind kind, bool is_turbofanned,
-                               int stack_slots);
+  inline void initialize_flags(CodeKind kind, bool is_context_specialized,
+                               bool is_turbofanned, int stack_slots);
 
   // Clear uninitialized padding space. This ensures that the snapshot content
   // is deterministic.
@@ -119,6 +120,8 @@ class Code : public ExposedTrustedObject {
   // [handler_table_offset]: The offset where the exception handler table
   // starts.
   DECL_PRIMITIVE_ACCESSORS(handler_table_offset, int)
+  // [builtin_jump_table_info offset]: Offset of the builtin jump table info.
+  DECL_PRIMITIVE_ACCESSORS(builtin_jump_table_info_offset, int32_t)
   // [unwinding_info_offset]: Offset of the unwinding info section.
   DECL_PRIMITIVE_ACCESSORS(unwinding_info_offset, int32_t)
   // [deoptimization_data]: Array containing data for deopt for non-baseline
@@ -208,6 +211,10 @@ class Code : public ExposedTrustedObject {
   // TurboFan optimizing compiler.
   inline bool is_turbofanned() const;
 
+  // [is_context_specialized]: Tells whether the code object was specialized to
+  // a constant context.
+  inline bool is_context_specialized() const;
+
   // [uses_safepoint_table]: Whether this InstructionStream object uses
   // safepoint tables (note the table may still be empty, see
   // has_safepoint_table).
@@ -237,6 +244,10 @@ class Code : public ExposedTrustedObject {
   inline Address code_comments() const;
   inline int code_comments_size() const;
   inline bool has_code_comments() const;
+
+  inline Address builtin_jump_table_info() const;
+  inline int builtin_jump_table_info_size() const;
+  inline bool has_builtin_jump_table_info() const;
 
   inline Address unwinding_info_start() const;
   inline Address unwinding_info_end() const;
@@ -387,6 +398,8 @@ class Code : public ExposedTrustedObject {
   V(kUnwindingInfoOffsetOffset, kInt32Size)                                    \
   V(kConstantPoolOffsetOffset, V8_EMBEDDED_CONSTANT_POOL_BOOL ? kIntSize : 0)  \
   V(kCodeCommentsOffsetOffset, kIntSize)                                       \
+  V(kBuiltinJumpTableInfoOffsetOffset,                                         \
+    V8_BUILTIN_JUMP_TABLE_INFO_BOOL ? kInt32Size : 0)                          \
   /* This field is currently only used during deoptimization. If this space */ \
   /* is ever needed for other purposes, it would probably be possible to */    \
   /* obtain the parameter count from the BytecodeArray instead. */             \
@@ -417,8 +430,9 @@ class Code : public ExposedTrustedObject {
 #define FLAGS_BIT_FIELDS(V, _)                \
   V(KindField, CodeKind, 4, _)                \
   V(IsTurbofannedField, bool, 1, _)           \
+  V(IsContextSpecializedField, bool, 1, _)    \
   /* Steal bits from here if needed: */       \
-  V(StackSlotsField, int, 24, _)              \
+  V(StackSlotsField, int, 23, _)              \
   V(MarkedForDeoptimizationField, bool, 1, _) \
   V(EmbeddedObjectsClearedField, bool, 1, _)  \
   V(CanHaveWeakObjectsField, bool, 1, _)

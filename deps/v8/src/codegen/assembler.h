@@ -308,7 +308,8 @@ class SlotDescriptor {
   }
 
  private:
-  SlotDescriptor(IndirectPointerTag tag) : indirect_pointer_tag_(tag) {}
+  explicit SlotDescriptor(IndirectPointerTag tag)
+      : indirect_pointer_tag_(tag) {}
 
   // If the tag is null, this object describes a direct pointer slot.
   IndirectPointerTag indirect_pointer_tag_;
@@ -526,13 +527,6 @@ class V8_EXPORT_PRIVATE AssemblerBase : public Malloced {
         !options().record_reloc_info_for_serialization &&
         !v8_flags.debug_code) {
       return false;
-    }
-    if (RelocInfo::IsOnlyForDisassembler(rmode)) {
-#ifdef ENABLE_DISASSEMBLER
-      return true;
-#else
-      return false;
-#endif  // ENABLE_DISASSEMBLER
     }
     return true;
   }

@@ -12,20 +12,17 @@ namespace v8 {
 
 namespace internal {
 
-// All Maps have a field instance_type containing a InstanceType.
+// All Maps have a field instance_type containing an InstanceType.
 // It describes the type of the instances.
 //
 // As an example, a JavaScript object is a heap object and its map
 // instance_type is JS_OBJECT_TYPE.
 //
-// The names of the string instance types are intended to systematically
-// mirror their encoding in the instance_type field of the map.  The default
-// encoding is considered TWO_BYTE.  It is not mentioned in the name.  ONE_BYTE
-// encoding is mentioned explicitly in the name.  Likewise, the default
-// representation is considered sequential.  It is not mentioned in the
-// name.  The other representations (e.g. CONS, EXTERNAL) are explicitly
-// mentioned.  Finally, the string is either a STRING_TYPE (if it is a normal
-// string) or a INTERNALIZED_STRING_TYPE (if it is a internalized string).
+// The names of the string instance types are intended to systematically mirror
+// their encoding in the instance_type field of the map.  The other
+// representations (e.g. CONS, EXTERNAL) are explicitly mentioned.  Finally,
+// the string is either a STRING_TYPE (if it is a normal string) or an
+// INTERNALIZED_STRING_TYPE (if it is an internalized string).
 //
 // NOTE: The following things are some that depend on the string types having
 // instance_types that are less than those of all other types:

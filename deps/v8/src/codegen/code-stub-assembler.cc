@@ -43,6 +43,15 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
+#ifdef DEBUG
+#define CSA_DCHECK_BRANCH(csa, gen, ...) \
+  (csa)->Dcheck(gen, #gen, __FILE__, __LINE__, CSA_DCHECK_ARGS(__VA_ARGS__))
+#else
+#define CSA_DCHECK_BRANCH(csa, ...) ((void)0)
+#endif
+
 namespace {
 
 Builtin BigIntComparisonBuiltinOf(Operation const& op) {
@@ -1912,8 +1921,8 @@ TNode<Code> CodeStubAssembler::ResolveJSDispatchHandle(
   TNode<RawPtrT> table =
       ExternalConstant(ExternalReference::js_dispatch_table_address());
   TNode<UintPtrT> offset = ComputeJSDispatchTableEntryOffset(handle);
-  offset = UintPtrAdd(offset,
-                      UintPtrConstant(JSDispatchTable::kEntryCodeObjectOffset));
+  offset =
+      UintPtrAdd(offset, UintPtrConstant(JSDispatchEntry::kCodeObjectOffset));
   TNode<UintPtrT> value = Load<UintPtrT>(table, offset);
   // The LSB is used as marking bit by the js dispatch table, so here we have
   // to set it using a bitwise OR as it may or may not be set.
@@ -3489,7 +3498,13 @@ TNode<HeapObject> CodeStubAssembler::LoadJSFunctionPrototype(
 }
 
 TNode<Code> CodeStubAssembler::LoadJSFunctionCode(TNode<JSFunction> function) {
+#ifdef V8_ENABLE_LEAPTIERING
+  TNode<JSDispatchHandleT> dispatch_handle = LoadObjectField<JSDispatchHandleT>(
+      function, JSFunction::kDispatchHandleOffset);
+  return ResolveJSDispatchHandle(dispatch_handle);
+#else
   return LoadCodePointerFromObject(function, JSFunction::kCodeOffset);
+#endif  // V8_ENABLE_LEAPTIERING
 }
 
 TNode<Object> CodeStubAssembler::LoadSharedFunctionInfoTrustedData(
@@ -12255,7 +12270,7 @@ TNode<ClosureFeedbackCellArray> CodeStubAssembler::LoadClosureFeedbackArray(
   TVARIABLE(HeapObject, feedback_cell_array, LoadFeedbackCellValue(closure));
   Label end(this);
 
-  // When feedback vectors are not yet allocated feedback cell contains a
+  // When feedback vectors are not yet allocated feedback cell contains
   // an array of feedback cells used by create closures.
   GotoIf(HasInstanceType(feedback_cell_array.value(),
                          CLOSURE_FEEDBACK_CELL_ARRAY_TYPE),
@@ -13509,14 +13524,12 @@ void CodeStubAssembler::TrapAllocationMemento(TNode<JSObject> object,
 
 TNode<IntPtrT> CodeStubAssembler::MemoryChunkFromAddress(
     TNode<IntPtrT> address) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return WordAnd(address,
                  IntPtrConstant(~MemoryChunk::GetAlignmentMaskForAssembler()));
 }
 
 TNode<IntPtrT> CodeStubAssembler::PageMetadataFromMemoryChunk(
     TNode<IntPtrT> address) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
 #ifdef V8_ENABLE_SANDBOX
   TNode<RawPtrT> table = ExternalConstant(
       ExternalReference::memory_chunk_metadata_table_address());
@@ -13541,7 +13554,6 @@ TNode<IntPtrT> CodeStubAssembler::PageMetadataFromMemoryChunk(
 
 TNode<IntPtrT> CodeStubAssembler::PageMetadataFromAddress(
     TNode<IntPtrT> address) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return PageMetadataFromMemoryChunk(MemoryChunkFromAddress(address));
 }
 
@@ -16942,28 +16954,11 @@ TNode<Code> CodeStubAssembler::LoadBuiltin(TNode<Smi> builtin_id) {
 
 #ifdef V8_ENABLE_LEAPTIERING
 TNode<JSDispatchHandleT> CodeStubAssembler::LoadBuiltinDispatchHandle(
-    Builtin builtin) {
-  return LoadBuiltinDispatchHandle(
-      SmiConstant(JSBuiltinDispatchHandleRoot::to_idx(builtin)));
-}
-
-TNode<JSDispatchHandleT> CodeStubAssembler::LoadBuiltinDispatchHandle(
-    RootIndex root_idx) {
-  return LoadBuiltinDispatchHandle(
-      SmiConstant(JSBuiltinDispatchHandleRoot::to_idx(root_idx)));
-}
-
-TNode<JSDispatchHandleT> CodeStubAssembler::LoadBuiltinDispatchHandle(
-    TNode<Smi> builtin_id) {
-  CSA_DCHECK(this, SmiBelow(builtin_id, SmiConstant(Builtins::kBuiltinCount)));
-
-  TNode<IntPtrT> offset =
-      ElementOffsetFromIndex(SmiToBInt(builtin_id), PACKED_SMI_ELEMENTS);
-
-  TNode<ExternalReference> table =
-      IsolateField(IsolateFieldId::kBuiltinDispatchTable);
-
-  return Load<JSDispatchHandleT>(table, offset);
+    JSBuiltinDispatchHandleRoot::Idx dispatch_root_idx) {
+  static_assert(Isolate::kBuiltinDispatchHandlesAreStatic);
+  DCHECK_LT(dispatch_root_idx, JSBuiltinDispatchHandleRoot::Idx::kCount);
+  return ReinterpretCast<JSDispatchHandleT>(
+      Uint32Constant(isolate()->builtin_dispatch_handle(dispatch_root_idx)));
 }
 #endif  // V8_ENABLE_LEAPTIERING
 
@@ -17144,19 +17139,23 @@ TNode<BoolT> CodeStubAssembler::IsMarkedForDeoptimization(TNode<Code> code) {
       LoadObjectField<Int32T>(code, Code::kFlagsOffset));
 }
 
-TNode<JSFunction> CodeStubAssembler::AllocateFunctionWithContext(
-    TNode<SharedFunctionInfo> shared_info,
-#ifdef V8_ENABLE_LEAPTIERING
-    TNode<JSDispatchHandleT> dispatch_handle,
-#endif
-    TNode<Context> context) {
-  const TNode<Code> code = GetSharedFunctionInfoCode(shared_info);
-  const TNode<Map> map = CAST(
-      LoadContextElement(LoadNativeContext(context),
-                         Context::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX));
+TNode<JSFunction> CodeStubAssembler::AllocateRootFunctionWithContext(
+    RootIndex function, TNode<Context> context,
+    std::optional<TNode<NativeContext>> maybe_native_context) {
+  DCHECK_GE(function, RootIndex::kFirstBuiltinWithSfiRoot);
+  DCHECK_LE(function, RootIndex::kLastBuiltinWithSfiRoot);
+  DCHECK(v8::internal::IsSharedFunctionInfo(
+      isolate()->root(function).GetHeapObject()));
+  Tagged<SharedFunctionInfo> sfi = v8::internal::Cast<SharedFunctionInfo>(
+      isolate()->root(function).GetHeapObject());
+  const TNode<SharedFunctionInfo> sfi_obj =
+      UncheckedCast<SharedFunctionInfo>(LoadRoot(function));
+  const TNode<NativeContext> native_context =
+      maybe_native_context ? *maybe_native_context : LoadNativeContext(context);
+  const TNode<Map> map = CAST(LoadContextElement(
+      native_context, Context::STRICT_FUNCTION_WITHOUT_PROTOTYPE_MAP_INDEX));
   const TNode<HeapObject> fun = Allocate(JSFunction::kSizeWithoutPrototype);
-  static_assert(JSFunction::kSizeWithoutPrototype ==
-                (7 + V8_ENABLE_LEAPTIERING_BOOL) * kTaggedSize);
+  static_assert(JSFunction::kSizeWithoutPrototype == 7 * kTaggedSize);
   StoreMapNoWriteBarrier(fun, map);
   StoreObjectFieldRoot(fun, JSObject::kPropertiesOrHashOffset,
                        RootIndex::kEmptyFixedArray);
@@ -17165,13 +17164,23 @@ TNode<JSFunction> CodeStubAssembler::AllocateFunctionWithContext(
   StoreObjectFieldRoot(fun, JSFunction::kFeedbackCellOffset,
                        RootIndex::kManyClosuresCell);
   StoreObjectFieldNoWriteBarrier(fun, JSFunction::kSharedFunctionInfoOffset,
-                                 shared_info);
+                                 sfi_obj);
   StoreObjectFieldNoWriteBarrier(fun, JSFunction::kContextOffset, context);
-  StoreCodePointerFieldNoWriteBarrier(fun, JSFunction::kCodeOffset, code);
+  // For the native closures that are initialized here we statically know their
+  // builtin id, so there's no need to use
+  // CodeStubAssembler::GetSharedFunctionInfoCode().
+  DCHECK(sfi->HasBuiltinId());
 #ifdef V8_ENABLE_LEAPTIERING
-  CSA_DCHECK(this, TaggedEqual(code, ResolveJSDispatchHandle(dispatch_handle)));
+  const TNode<JSDispatchHandleT> dispatch_handle =
+      LoadBuiltinDispatchHandle(function);
+  CSA_DCHECK(this, TaggedEqual(LoadBuiltin(SmiConstant(sfi->builtin_id())),
+                               ResolveJSDispatchHandle(dispatch_handle)));
   StoreObjectFieldNoWriteBarrier(fun, JSFunction::kDispatchHandleOffset,
                                  dispatch_handle);
+  USE(sfi);
+#else
+  const TNode<Code> code = LoadBuiltin(SmiConstant(sfi->builtin_id()));
+  StoreCodePointerFieldNoWriteBarrier(fun, JSFunction::kCodeOffset, code);
 #endif  // V8_ENABLE_LEAPTIERING
 
   return CAST(fun);
@@ -18595,64 +18604,6 @@ TNode<FixedArray> CodeStubAssembler::ArrayListElements(TNode<ArrayList> array) {
   return elements;
 }
 
-#if V8_ENABLE_WEBASSEMBLY
-TNode<RawPtrT> CodeStubAssembler::SwitchToTheCentralStack() {
-  TNode<WordT> stack_limit_slot = IntPtrAdd(
-      LoadFramePointer(),
-      IntPtrConstant(WasmToJSWrapperConstants::kSecondaryStackLimitOffset));
-
-  TNode<ExternalReference> do_switch = ExternalConstant(
-      ExternalReference::wasm_switch_to_the_central_stack_for_js());
-  TNode<RawPtrT> central_stack_sp = TNode<RawPtrT>::UncheckedCast(CallCFunction(
-      do_switch, MachineType::Pointer(),
-      std::make_pair(MachineType::Pointer(),
-                     ExternalConstant(ExternalReference::isolate_address())),
-      std::make_pair(MachineType::Pointer(), stack_limit_slot)));
-
-  TNode<RawPtrT> old_sp = LoadStackPointer();
-  SetStackPointer(central_stack_sp);
-  StoreNoWriteBarrier(
-      MachineType::PointerRepresentation(), LoadFramePointer(),
-      IntPtrConstant(WasmToJSWrapperConstants::kCentralStackSPOffset),
-      central_stack_sp);
-  return old_sp;
-}
-
-void CodeStubAssembler::SwitchFromTheCentralStack(TNode<RawPtrT> old_sp) {
-  TNode<WordT> stack_limit = Load<RawPtrT>(
-      LoadFramePointer(),
-      IntPtrConstant(WasmToJSWrapperConstants::kSecondaryStackLimitOffset));
-
-  TNode<ExternalReference> do_switch = ExternalConstant(
-      ExternalReference::wasm_switch_from_the_central_stack_for_js());
-  CallCFunction(
-      do_switch, MachineType::Pointer(),
-      std::make_pair(MachineType::Pointer(),
-                     ExternalConstant(ExternalReference::isolate_address())),
-      std::make_pair(MachineType::Pointer(), stack_limit));
-
-  StoreNoWriteBarrier(
-      MachineType::PointerRepresentation(), LoadFramePointer(),
-      IntPtrConstant(WasmToJSWrapperConstants::kCentralStackSPOffset),
-      IntPtrConstant(0));
-  SetStackPointer(old_sp);
-}
-
-TNode<RawPtrT> CodeStubAssembler::SwitchToTheCentralStackIfNeeded() {
-  TVARIABLE(RawPtrT, old_sp, PointerConstant(nullptr));
-  Label no_switch(this);
-  Label end(this);  // -> return value of the call (kTaggedPointer)
-  TNode<Uint8T> is_on_central_stack_flag = LoadUint8FromRootRegister(
-      IntPtrConstant(IsolateData::is_on_central_stack_flag_offset()));
-  GotoIf(is_on_central_stack_flag, &no_switch);
-  old_sp = SwitchToTheCentralStack();
-  Goto(&no_switch);
-  Bind(&no_switch);
-  return old_sp.value();
-}
-
-#endif
-
 TNode<BoolT> CodeStubAssembler::IsMarked(TNode<Object> object) {
   TNode<IntPtrT> cell;
   TNode<IntPtrT> mask;
@@ -18691,6 +18642,10 @@ void CodeStubAssembler::GetMarkBit(TNode<IntPtrT> object, TNode<IntPtrT>* cell,
     *mask = WordShl(IntPtrConstant(1), r1);
   }
 }
+
+#undef CSA_DCHECK_BRANCH
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
 
 }  // namespace internal
 }  // namespace v8

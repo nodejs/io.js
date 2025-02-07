@@ -35,6 +35,10 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#if defined(__APPLE__) || defined(__DragonFly__) || \
+    defined(__FreeBSD__) || defined(__NetBSD__)
+#include <sys/event.h>
+#endif
 
 #define uv__msan_unpoison(p, n)                                               \
   do {                                                                        \
@@ -323,6 +327,8 @@ void uv__prepare_close(uv_prepare_t* handle);
 void uv__process_close(uv_process_t* handle);
 void uv__stream_close(uv_stream_t* handle);
 void uv__tcp_close(uv_tcp_t* handle);
+int uv__thread_setname(const char* name);
+int uv__thread_getname(uv_thread_t* tid, char* name, size_t size);
 size_t uv__thread_stack_size(void);
 void uv__udp_close(uv_udp_t* handle);
 void uv__udp_finish_close(uv_udp_t* handle);
@@ -502,6 +508,24 @@ int uv__get_constrained_cpu(uv__cpu_constraint* constraint);
 #else
 #define UV__SOLARIS_11_4 (0)
 #endif
+#endif
+
+#if defined(EVFILT_USER) && defined(NOTE_TRIGGER)
+/* EVFILT_USER is available since OS X 10.6, DragonFlyBSD 4.0,
+ * FreeBSD 8.1, and NetBSD 10.0.
+ *
+ * Note that even though EVFILT_USER is defined on the current system,
+ * it may still fail to work at runtime somehow. In that case, we fall
+ * back to pipe-based signaling.
+ */
+#define UV__KQUEUE_EVFILT_USER 1
+/* Magic number of identifier used for EVFILT_USER during runtime detection.
+ * There are no Google hits for this number when I create it. That way,
+ * people will be directed here if this number gets printed due to some
+ * kqueue error and they google for help. */
+#define UV__KQUEUE_EVFILT_USER_IDENT 0x1e7e7711
+#else
+#define UV__KQUEUE_EVFILT_USER 0
 #endif
 
 #endif /* UV_UNIX_INTERNAL_H_ */

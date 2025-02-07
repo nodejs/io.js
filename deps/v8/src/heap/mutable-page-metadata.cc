@@ -27,6 +27,7 @@ void MutablePageMetadata::DiscardUnusedMemory(Address addr, size_t size) {
     MemoryAllocator* memory_allocator = heap_->memory_allocator();
     v8::PageAllocator* page_allocator =
         memory_allocator->page_allocator(owner_identity());
+    DiscardSealedMemoryScope discard_scope("Discard unused memory");
     CHECK(page_allocator->DiscardSystemPages(
         reinterpret_cast<void*>(memory_area.begin()), memory_area.size()));
   }

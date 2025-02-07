@@ -1,6 +1,6 @@
 {
     "protocol": {
-        "path": "node_protocol.json",
+        "path": "node_protocol.pdl",
         "package": "src/node/inspector/protocol",
         "output": "node/inspector/protocol",
         "namespace": ["node", "inspector", "protocol"]
@@ -18,5 +18,8 @@
         "package": "src/node/inspector/protocol",
         "output": "node/inspector/protocol",
         "string_header": "inspector/node_string.h"
+    },
+    "crdtp": {
+      "dir": "crdtp"
     }
 }

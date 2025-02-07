@@ -42,6 +42,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -732,6 +733,12 @@ template <typename T, typename U>
 inline v8::MaybeLocal<v8::Value> ToV8Value(v8::Local<v8::Context> context,
                                            const std::unordered_map<T, U>& map,
                                            v8::Isolate* isolate = nullptr);
+
+template <typename T, std::size_t U>
+inline v8::MaybeLocal<v8::Value> ToV8Value(
+    v8::Local<v8::Context> context,
+    const std::ranges::elements_view<T, U>& vec,
+    v8::Isolate* isolate = nullptr);
 
 // These macros expects a `Isolate* isolate` and a `Local<Context> context`
 // to be in the scope.

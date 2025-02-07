@@ -30,6 +30,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: '3.12'
+  XCODE_VERSION: '16.1'
   FLAKY_TESTS: keep_retrying
 
 permissions:
@@ -40,9 +41,7 @@ jobs:
     if: github.event.pull_request.draft == false
     strategy:
       fail-fast: false
-      matrix:
-        macos-version: [macos-13, macos-14]
-    runs-on: ${{ matrix.macos-version }}
+    runs-on: macos-14
     env:
       CC: sccache gcc
       CXX: sccache g++
@@ -56,10 +55,12 @@ jobs:
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Set up Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
       - name: Set up sccache
-        uses: mozilla-actions/sccache-action@9e326ebed976843c9932b3aa0e021c6f50310eb4  # v0.0.6
+        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9  # v0.0.7
         with:
-          version: v0.8.1
+          version: v0.9.1
       - name: Environment Information
         run: npx envinfo
       # The `npm ci` for this step fails a lot as part of the Test step. Run it
@@ -89,7 +90,7 @@ jobs:
       - name: Free Space After Build
         run: df -h
       - name: Test
-        run: make -C node run-ci -j$(getconf _NPROCESSORS_ONLN) V=1 TEST_CI_ARGS="-p actions --node-args='--test-reporter=./test/common/test-error-reporter.js' --node-args='--test-reporter-destination=stdout' --measure-flakiness 9"
+        run: make -C node run-ci -j$(getconf _NPROCESSORS_ONLN) V=1 TEST_CI_ARGS="-p actions --measure-flakiness 9"
       - name: Re-run test in a folder whose name contains unusual chars
         run: |
           mv node "$DIR"

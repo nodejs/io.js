@@ -40,6 +40,8 @@
 // last . and everything after it) is stripped from each filename prior to
 // matching, as is the special suffix "-inl".
 //
+// Example: --vmodule=module_a=1,module_b=2
+//
 // Files are matched against globs in `--vmodule` in order, and the first match
 // determines the verbosity level.
 //

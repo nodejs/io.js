@@ -21260,7 +21260,7 @@ function String2(descriptor, ...args) {
 }
 
 // package.json
-var version = "0.30.0";
+var version = "0.31.0";
 
 // sources/Engine.ts
 var import_fs9 = __toESM(require("fs"));
@@ -21274,7 +21274,7 @@ var import_valid3 = __toESM(require_valid2());
 var config_default = {
   definitions: {
     npm: {
-      default: "10.9.1+sha1.ab141c1229765c11c8c59060fc9cf450a2207bd6",
+      default: "11.0.0+sha1.7bba7c80740ef1f5b2c5d4cecc55e94912faa5e6",
       fetchLatestFrom: {
         type: "npm",
         package: "npm"
@@ -21311,7 +21311,7 @@ var config_default = {
       }
     },
     pnpm: {
-      default: "9.14.2+sha1.5202b50ab92394b3c922d2e293f196e2df6d441b",
+      default: "9.15.4+sha1.ffa0b5c573381e8035b354028ccff97c8e452047",
       fetchLatestFrom: {
         type: "npm",
         package: "pnpm"
@@ -21375,7 +21375,7 @@ var config_default = {
         package: "yarn"
       },
       transparent: {
-        default: "4.5.2+sha224.c2e2e9ed3cdadd6ec250589b3393f71ae56d5ec297af11cec1eba3b4",
+        default: "4.6.0+sha224.acd0786f07ffc6c933940eb65fc1d627131ddf5455bddcc295dc90fd",
         commands: [
           [
             "yarn",
@@ -21438,11 +21438,18 @@ var config_default = {
   keys: {
     npm: [
       {
-        expires: null,
+        expires: "2025-01-29T00:00:00.000Z",
         keyid: "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
         keytype: "ecdsa-sha2-nistp256",
         scheme: "ecdsa-sha2-nistp256",
         key: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1Olb3zMAFFxXKHiIkQO5cJ3Yhl5i6UPp+IhuteBJbuHcA5UogKo0EWtlWwW6KSaKoTNEYL7JlCQiVnkhBktUgg=="
+      },
+      {
+        expires: null,
+        keyid: "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+        keytype: "ecdsa-sha2-nistp256",
+        scheme: "ecdsa-sha2-nistp256",
+        key: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY6Ya7W++7aUPzvMTrezH6Ycx3c+HOKYCcNGybJZSCJq/fd7Qa8uuAKtdIkUQtQiEKERhAmE5lMMJhP8OkDOa2g=="
       }
     ]
   }
@@ -23099,10 +23106,18 @@ async function runMain(argv) {
       process.exitCode ??= code2;
     }
   } else {
-    await engine.executePackageManagerRequest(request, {
-      cwd: process.cwd(),
-      args: restArgs
-    });
+    try {
+      await engine.executePackageManagerRequest(request, {
+        cwd: process.cwd(),
+        args: restArgs
+      });
+    } catch (error) {
+      if (error?.name === `UsageError`) {
+        console.error(error.message);
+        process.exit(1);
+      }
+      throw error;
+    }
   }
 }
 // Annotate the CommonJS export names for ESM import in node:

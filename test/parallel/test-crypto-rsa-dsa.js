@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const constants = crypto.constants;
 
 const fixtures = require('../common/fixtures');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // Test certificates
 const certPem = fixtures.readKey('rsa_cert.crt');
@@ -36,11 +37,11 @@ const openssl1DecryptError = {
   library: 'digital envelope routines',
 };
 
-const decryptError = common.hasOpenSSL3 ?
+const decryptError = hasOpenSSL3 ?
   { message: 'error:1C800064:Provider routines::bad decrypt' } :
   openssl1DecryptError;
 
-const decryptPrivateKeyError = common.hasOpenSSL3 ? {
+const decryptPrivateKeyError = hasOpenSSL3 ? {
   message: 'error:1C800064:Provider routines::bad decrypt',
 } : openssl1DecryptError;
 
@@ -146,7 +147,7 @@ function getBufferCopy(buf) {
   // Now with RSA_NO_PADDING. Plaintext needs to match key size.
   // OpenSSL 3.x has a rsa_check_padding that will cause an error if
   // RSA_NO_PADDING is used.
-  if (!common.hasOpenSSL3) {
+  if (!hasOpenSSL3) {
     {
       const plaintext = 'x'.repeat(rsaKeySize / 8);
       encryptedBuffer = crypto.privateEncrypt({

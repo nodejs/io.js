@@ -1531,7 +1531,7 @@ void MacroAssembler::EnterFrame(StackFrame::Type type,
   }
   PushCommonFrame(scratch);
 #if V8_ENABLE_WEBASSEMBLY
-  if (type == StackFrame::WASM) Push(kWasmInstanceRegister);
+  if (type == StackFrame::WASM) Push(kWasmImplicitArgRegister);
 #endif  // V8_ENABLE_WEBASSEMBLY
 }
 
@@ -2338,6 +2338,11 @@ void MacroAssembler::Abort(AbortReason reason) {
     }
   }
   // will not return here
+}
+
+void MacroAssembler::LoadCompressedMap(Register destination, Register object) {
+  CHECK(COMPRESS_POINTERS_BOOL);
+  LoadU32(destination, FieldMemOperand(object, HeapObject::kMapOffset));
 }
 
 void MacroAssembler::LoadMap(Register destination, Register object) {

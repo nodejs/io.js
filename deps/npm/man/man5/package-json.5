@@ -1,4 +1,4 @@
-.TH "PACKAGE.JSON" "5" "December 2024" "NPM@11.0.0" ""
+.TH "PACKAGE.JSON" "5" "January 2025" "NPM@11.1.0" ""
 .SH "NAME"
 \fBpackage.json\fR - Specifics of npm's package.json handling
 .SS "Description"
@@ -38,7 +38,7 @@ You may want to check the npm registry to see if there's something by that name 
 .RE 0
 
 .P
-A name can be optionally prefixed by a scope, e.g. \fB@myorg/mypackage\fR. See npm help scope for more detail.
+A name can be optionally prefixed by a scope, e.g. \fB@npm/example\fR. See npm help scope for more detail.
 .SS "version"
 .P
 If you plan to publish your package, the \fImost\fR important things in your package.json are the name and version fields as they will be required. The name and version together form an identifier that is assumed to be completely unique. Changes to the package should come along with changes to the version. If you don't plan to publish your package, the name and version fields are optional.
@@ -58,7 +58,7 @@ Example:
 .P
 .RS 2
 .nf
-"homepage": "https://github.com/owner/project#readme"
+"homepage": "https://github.com/npm/example#readme"
 .fi
 .RE
 .SS "bugs"
@@ -71,8 +71,8 @@ It should look like this:
 .nf
 {
   "bugs": {
-    "url": "https://github.com/owner/project/issues",
-    "email": "project@hostname.com"
+    "url": "https://github.com/npm/example/issues",
+    "email": "example@npmjs.com"
   }
 }
 .fi
@@ -95,7 +95,7 @@ If you're using a common license such as BSD-2-Clause or MIT, add a current SPDX
 .fi
 .RE
 .P
-You can check \fBthe full list of SPDX license IDs\fR \fI\(lahttps://spdx.org/licenses/\(ra\fR. Ideally you should pick one that is \fBOSI\fR \fI\(lahttps://opensource.org/licenses/\(ra\fR approved.
+You can check \fBthe full list of SPDX license IDs\fR \fI\(lahttps://spdx.org/licenses/\(ra\fR. Ideally, you should pick one that is \fBOSI\fR \fI\(lahttps://opensource.org/licenses/\(ra\fR approved.
 .P
 If your package is licensed under multiple common licenses, use an \fBSPDX license expression syntax version 2.0 string\fR \fI\(lahttps://spdx.dev/specifications/\(ra\fR, like this:
 .P
@@ -184,8 +184,8 @@ The "author" is one person. "contributors" is an array of people. A "person" is 
 .nf
 {
   "name" : "Barney Rubble",
-  "email" : "b@rubble.com",
-  "url" : "http://barnyrubble.tumblr.com/"
+  "email" : "barney@npmjs.com",
+  "url" : "http://barnyrubble.npmjs.com/"
 }
 .fi
 .RE
@@ -195,7 +195,7 @@ Or you can shorten that all into a single string, and npm will parse it for you:
 .RS 2
 .nf
 {
-  "author": "Barney Rubble <b@rubble.com> (http://barnyrubble.tumblr.com/)"
+  "author": "Barney Rubble <barney@npmjs.com> (http://barnyrubble.npmjs.com/)"
 }
 .fi
 .RE
@@ -212,7 +212,7 @@ You can specify an object containing a URL that provides up-to-date information 
 {
   "funding": {
     "type" : "individual",
-    "url" : "http://example.com/donate"
+    "url" : "http://npmjs.com/donate"
   }
 }
 .fi
@@ -223,7 +223,7 @@ You can specify an object containing a URL that provides up-to-date information 
 {
   "funding": {
     "type" : "patreon",
-    "url" : "https://www.patreon.com/my-account"
+    "url" : "https://www.patreon.com/user"
   }
 }
 .fi
@@ -232,7 +232,7 @@ You can specify an object containing a URL that provides up-to-date information 
 .RS 2
 .nf
 {
-  "funding": "http://example.com/donate"
+  "funding": "http://npmjs.com/donate"
 }
 .fi
 .RE
@@ -243,12 +243,12 @@ You can specify an object containing a URL that provides up-to-date information 
   "funding": \[lB]
     {
       "type" : "individual",
-      "url" : "http://example.com/donate"
+      "url" : "http://npmjs.com/donate"
     },
-    "http://example.com/donateAlso",
+    "http://npmjs.com/donate-also",
     {
       "type" : "patreon",
-      "url" : "https://www.patreon.com/my-account"
+      "url" : "https://www.patreon.com/user"
     }
   \[rB]
 }
@@ -503,9 +503,9 @@ For GitHub, GitHub gist, Bitbucket, or GitLab repositories you can use the same 
 .RS 2
 .nf
 {
-  "repository": "npm/npm",
+  "repository": "npm/example",
 
-  "repository": "github:user/repo",
+  "repository": "github:npm/example",
 
   "repository": "gist:11081aaa281",
 
@@ -593,7 +593,7 @@ See \fBsemver\fR \fI\(lahttps://github.com/npm/node-semver#versions\(ra\fR for m
 .IP \(bu 4
 \fBpath/path/path\fR See \fBLocal Paths\fR \fI(Local Paths)\fR below
 .IP \(bu 4
-\fBnpm:@scope/pkg@version\fR Custom alias for a pacakge See \fB\fBpackage-spec\fR\fR \fI\(la/using-npm/package-spec#aliases\(ra\fR
+\fBnpm:@scope/pkg@version\fR Custom alias for a package See \fB\fBpackage-spec\fR\fR \fI\(la/using-npm/package-spec#aliases\(ra\fR
 .RE 0
 
 .P
@@ -608,7 +608,7 @@ For example, these are all valid:
     "baz": ">1.0.2 <=2.3.4",
     "boo": "2.0.1",
     "qux": "<1.0.0 || >=2.3.1 <2.4.5 || >=2.5.2 <3.0.0",
-    "asd": "http://asdf.com/asdf.tar.gz",
+    "asd": "http://npmjs.com/example.tar.gz",
     "til": "~1.2",
     "elf": "~1.2.3",
     "two": "2.x",
@@ -682,7 +682,7 @@ As of version 1.1.65, you can refer to GitHub URLs as just "foo": "user/foo-proj
   "dependencies": {
     "express": "expressjs/express",
     "mocha": "mochajs/mocha#4727d357ea",
-    "module": "user/repo#feature\[rs]/branch"
+    "module": "npm/example-github-repo#feature\[rs]/branch"
   }
 }
 .fi
@@ -732,7 +732,7 @@ For example:
 .RS 2
 .nf
 {
-  "name": "ethopia-waza",
+  "name": "@npm/ethopia-waza",
   "description": "a delightfully fruity coffee varietal",
   "version": "1.2.3",
   "devDependencies": {
@@ -756,22 +756,22 @@ For example:
 .RS 2
 .nf
 {
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x"
+    "@npm/tea": "2.x"
   }
 }
 .fi
 .RE
 .P
-This ensures your package \fBtea-latte\fR can be installed \fIalong\fR with the second major version of the host package \fBtea\fR only. \fBnpm install
+This ensures your package \fB@npm/tea-latte\fR can be installed \fIalong\fR with the second major version of the host package \fB@npm/tea\fR only. \fBnpm install
 tea-latte\fR could possibly yield the following dependency graph:
 .P
 .RS 2
 .nf
-├── tea-latte@1.3.5
-└── tea@2.2.0
+├── @npm/tea-latte@1.3.5
+└── @npm/tea@2.2.0
 .fi
 .RE
 .P
@@ -789,14 +789,14 @@ For example:
 .RS 2
 .nf
 {
-  "name": "tea-latte",
+  "name": "@npm/tea-latte",
   "version": "1.3.5",
   "peerDependencies": {
-    "tea": "2.x",
-    "soy-milk": "1.2"
+    "@npm/tea": "2.x",
+    "@npm/soy-milk": "1.2"
   },
   "peerDependenciesMeta": {
-    "soy-milk": {
+    "@npm/soy-milk": {
       "optional": true
     }
   }
@@ -816,17 +816,17 @@ If we define a package.json like this:
 .RS 2
 .nf
 {
-  "name": "awesome-web-framework",
+  "name": "@npm/awesome-web-framework",
   "version": "1.0.0",
   "bundleDependencies": \[lB]
-    "renderized",
-    "super-streams"
+    "@npm/renderized",
+    "@npm/super-streams"
   \[rB]
 }
 .fi
 .RE
 .P
-we can obtain \fBawesome-web-framework-1.0.0.tgz\fR file by running \fBnpm pack\fR. This file contains the dependencies \fBrenderized\fR and \fBsuper-streams\fR which can be installed in a new project by executing \fBnpm install
+we can obtain \fB@npm/awesome-web-framework-1.0.0.tgz\fR file by running \fBnpm pack\fR. This file contains the dependencies \fB@npm/renderized\fR and \fB@npm/super-streams\fR which can be installed in a new project by executing \fBnpm install
 awesome-web-framework-1.0.0.tgz\fR. Note that the package names do not include any versions, as that information is specified in \fBdependencies\fR.
 .P
 If this is spelled \fB"bundledDependencies"\fR, then that is also honored.
@@ -842,8 +842,8 @@ It is still your program's responsibility to handle the lack of the dependency. 
 .RS 2
 .nf
 try {
-  var foo = require('foo')
-  var fooVersion = require('foo/package.json').version
+  var foo = require('@npm/foo')
+  var fooVersion = require('@npm/foo/package.json').version
 } catch (er) {
   foo = null
 }
@@ -874,50 +874,50 @@ To make sure the package \fBfoo\fR is always installed as version \fB1.0.0\fR no
 .nf
 {
   "overrides": {
-    "foo": "1.0.0"
+    "@npm/foo": "1.0.0"
   }
 }
 .fi
 .RE
 .P
-The above is a short hand notation, the full object form can be used to allow overriding a package itself as well as a child of the package. This will cause \fBfoo\fR to always be \fB1.0.0\fR while also making \fBbar\fR at any depth beyond \fBfoo\fR also \fB1.0.0\fR:
+The above is a short hand notation, the full object form can be used to allow overriding a package itself as well as a child of the package. This will cause \fB@npm/foo\fR to always be \fB1.0.0\fR while also making \fB@npm/bar\fR at any depth beyond \fB@npm/foo\fR also \fB1.0.0\fR:
 .P
 .RS 2
 .nf
 {
   "overrides": {
-    "foo": {
+    "@npm/foo": {
       ".": "1.0.0",
-      "bar": "1.0.0"
+      "@npm/bar": "1.0.0"
     }
   }
 }
 .fi
 .RE
 .P
-To only override \fBfoo\fR to be \fB1.0.0\fR when it's a child (or grandchild, or great grandchild, etc) of the package \fBbar\fR:
+To only override \fB@npm/foo\fR to be \fB1.0.0\fR when it's a child (or grandchild, or great grandchild, etc) of the package \fBbar\fR:
 .P
 .RS 2
 .nf
 {
   "overrides": {
-    "bar": {
-      "foo": "1.0.0"
+    "@npm/bar": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
 .fi
 .RE
 .P
-Keys can be nested to any arbitrary length. To override \fBfoo\fR only when it's a child of \fBbar\fR and only when \fBbar\fR is a child of \fBbaz\fR:
+Keys can be nested to any arbitrary length. To override \fB@npm/foo\fR only when it's a child of \fB@npm/bar\fR and only when \fB@npm/bar\fR is a child of \fB@npm/baz\fR:
 .P
 .RS 2
 .nf
 {
   "overrides": {
-    "baz": {
-      "bar": {
-        "foo": "1.0.0"
+    "@npm/baz": {
+      "@npm/bar": {
+        "@npm/foo": "1.0.0"
       }
     }
   }
@@ -925,14 +925,14 @@ Keys can be nested to any arbitrary length. To override \fBfoo\fR only when it's
 .fi
 .RE
 .P
-The key of an override can also include a version, or range of versions. To override \fBfoo\fR to \fB1.0.0\fR, but only when it's a child of \fBbar@2.0.0\fR:
+The key of an override can also include a version, or range of versions. To override \fB@npm/foo\fR to \fB1.0.0\fR, but only when it's a child of \fB@npm/bar@2.0.0\fR:
 .P
 .RS 2
 .nf
 {
   "overrides": {
-    "bar@2.0.0": {
-      "foo": "1.0.0"
+    "@npm/bar@2.0.0": {
+      "@npm/foo": "1.0.0"
     }
   }
 }
@@ -945,7 +945,7 @@ You may not set an override for a package that you directly depend on unless bot
 .nf
 {
   "dependencies": {
-    "foo": "^1.0.0"
+    "@npm/foo": "^1.0.0"
   },
   "overrides": {
     // BAD, will throw an EOVERRIDE error
@@ -953,9 +953,9 @@ You may not set an override for a package that you directly depend on unless bot
     // GOOD, specs match so override is allowed
     // "foo": "^1.0.0"
     // BEST, the override is defined as a reference to the dependency
-    "foo": "$foo",
+    "@npm/foo": "$foo",
     // the referenced package does not need to match the overridden one
-    "bar": "$foo"
+    "@npm/bar": "$foo"
   }
 }
 .fi

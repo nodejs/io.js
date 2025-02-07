@@ -49,7 +49,7 @@ const gcListener = { ongc() { collected = true; } };
 }
 
 function done(sock) {
-  global.gc();
+  globalThis.gc();
   setImmediate(() => {
     assert.strictEqual(collected, true);
     sock.end();

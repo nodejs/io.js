@@ -27,7 +27,7 @@ class JSCollection
   TQ_OBJECT_CONSTRUCTORS(JSCollection)
 };
 
-// The JSSet describes EcmaScript Harmony sets
+// The JSSet describes ECMAScript Harmony sets
 class JSSet : public TorqueGeneratedJSSet<JSSet, JSCollection> {
  public:
   static void Initialize(DirectHandle<JSSet> set, Isolate* isolate);
@@ -52,7 +52,7 @@ class JSSetIterator
                       OrderedHashTableIterator<JSSetIterator, OrderedHashSet>);
 };
 
-// The JSMap describes EcmaScript Harmony maps
+// The JSMap describes ECMAScript Harmony maps
 class JSMap : public TorqueGeneratedJSMap<JSMap, JSCollection> {
  public:
   static void Initialize(DirectHandle<JSMap> map, Isolate* isolate);
@@ -108,7 +108,7 @@ class JSWeakCollection
   TQ_OBJECT_CONSTRUCTORS(JSWeakCollection)
 };
 
-// The JSWeakMap describes EcmaScript Harmony weak maps
+// The JSWeakMap describes ECMAScript Harmony weak maps
 class JSWeakMap : public TorqueGeneratedJSWeakMap<JSWeakMap, JSWeakCollection> {
  public:
   // Dispatched behavior.
@@ -119,7 +119,7 @@ class JSWeakMap : public TorqueGeneratedJSWeakMap<JSWeakMap, JSWeakCollection> {
   TQ_OBJECT_CONSTRUCTORS(JSWeakMap)
 };
 
-// The JSWeakSet describes EcmaScript Harmony weak sets
+// The JSWeakSet describes ECMAScript Harmony weak sets
 class JSWeakSet : public TorqueGeneratedJSWeakSet<JSWeakSet, JSWeakCollection> {
  public:
   // Dispatched behavior.

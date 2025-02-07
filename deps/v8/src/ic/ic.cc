@@ -5,6 +5,7 @@
 #include "src/ic/ic.h"
 
 #include <optional>
+#include <tuple>
 
 #include "src/api/api-arguments-inl.h"
 #include "src/ast/ast.h"
@@ -380,6 +381,7 @@ void IC::ConfigureVectorState(Handle<Name> name, MapHandlesSpan maps,
                               MaybeObjectHandles* handlers) {
   DCHECK(!IsGlobalIC());
   std::vector<MapAndHandler> maps_and_handlers;
+  maps_and_handlers.reserve(maps.size());
   DCHECK_EQ(maps.size(), handlers->size());
   for (size_t i = 0; i < maps.size(); i++) {
     maps_and_handlers.push_back(MapAndHandler(maps[i], handlers->at(i)));
@@ -2457,10 +2459,11 @@ void KeyedStoreIC::StoreElementPolymorphicHandlers(
     std::vector<MapAndHandler>* receiver_maps_and_handlers,
     KeyedAccessStoreMode store_mode) {
   std::vector<Handle<Map>> receiver_maps;
-  for (size_t i = 0; i < receiver_maps_and_handlers->size(); i++) {
-    receiver_maps.push_back(receiver_maps_and_handlers->at(i).first);
+  receiver_maps.reserve(receiver_maps_and_handlers->size());
+  for (auto& [map, handler] : *receiver_maps_and_handlers) {
+    receiver_maps.push_back(map);
+    USE(handler);
   }
-
   for (size_t i = 0; i < receiver_maps_and_handlers->size(); i++) {
     Handle<Map> receiver_map = receiver_maps_and_handlers->at(i).first;
     DCHECK(!receiver_map->is_deprecated());
@@ -3247,11 +3250,13 @@ enum class FastCloneObjectMode {
   kDifferentMap,
   // The source map is to complicated to handle.
   kNotSupported,
+  // Returned by PreCheck
+  kMaybeSupported
 };
 
-FastCloneObjectMode GetCloneModeForMap(DirectHandle<Map> map,
-                                       bool null_proto_literal,
-                                       Isolate* isolate) {
+FastCloneObjectMode GetCloneModeForMapPreCheck(DirectHandle<Map> map,
+                                               bool null_proto_literal,
+                                               Isolate* isolate) {
   DisallowGarbageCollection no_gc;
   if (!IsJSObjectMap(*map)) {
     // Everything that produces the empty object literal can be supported since
@@ -3272,8 +3277,20 @@ FastCloneObjectMode GetCloneModeForMap(DirectHandle<Map> map,
   }
 
   // TODO(olivf): Think about cases where cross-context copies are safe.
-  if (*map->map()->native_context() != *isolate->native_context()) {
+  if (!map->BelongsToSameNativeContextAs(isolate->context())) {
     return FastCloneObjectMode::kNotSupported;
+  }
+
+  return FastCloneObjectMode::kMaybeSupported;
+}
+
+FastCloneObjectMode GetCloneModeForMap(DirectHandle<Map> map,
+                                       bool null_proto_literal,
+                                       Isolate* isolate) {
+  FastCloneObjectMode pre_check =
+      GetCloneModeForMapPreCheck(map, null_proto_literal, isolate);
+  if (pre_check != FastCloneObjectMode::kMaybeSupported) {
+    return pre_check;
   }
 
   // The clone must always start from an object literal map, it must be an
@@ -3282,7 +3299,7 @@ FastCloneObjectMode GetCloneModeForMap(DirectHandle<Map> map,
   // directly use it as the target map.
   FastCloneObjectMode mode =
       map->instance_type() == JS_OBJECT_TYPE &&
-              !IsAnyNonextensibleElementsKind(elements_kind) &&
+              !IsAnyNonextensibleElementsKind(map->elements_kind()) &&
               map->GetConstructor() == *isolate->object_function() &&
               map->prototype() == *isolate->object_function_prototype() &&
               !map->is_prototype_map()
@@ -3325,8 +3342,7 @@ bool CanCacheCloneTargetMapTransition(
   // TODO(olivf): Either remove that dcheck or move it to GetCloneModeForMap.
   DCHECK(!InReadOnlySpace(*source_map));
   if (InReadOnlySpace(*source_map) || source_map->is_deprecated() ||
-      source_map->is_prototype_map() ||
-      !TransitionsAccessor::CanHaveMoreTransitions(isolate, source_map)) {
+      source_map->is_prototype_map()) {
     return false;
   }
   if (!target_map) {
@@ -3533,14 +3549,22 @@ Tagged<Object> GetCloneTargetMap(Isolate* isolate, DirectHandle<Map> source_map,
                                  DirectHandle<Map> override_map) {
   static_assert(kind == SideStepTransition::Kind::kObjectAssign ||
                 kind == SideStepTransition::Kind::kCloneObject);
-  if (!v8_flags.clone_object_sidestep_transitions) return {};
+  if (!v8_flags.clone_object_sidestep_transitions) {
+    return SideStepTransition::Empty;
+  }
+
+  // Ensure we can follow the sidestep transition NativeContext-wise.
+  if (!source_map->BelongsToSameNativeContextAs(isolate->context())) {
+    return SideStepTransition::Empty;
+  }
   Tagged<Object> result = SideStepTransition::Empty;
   TransitionsAccessor transitions(isolate, *source_map);
   if (transitions.HasSideStepTransitions()) {
     result = transitions.GetSideStepTransition(kind);
     if (result.IsHeapObject()) {
       // Exclude deprecated maps.
-      bool is_valid = !Cast<Map>(result.GetHeapObject())->is_deprecated();
+      auto map = Cast<Map>(result.GetHeapObject());
+      bool is_valid = !map->is_deprecated();
       // In the case of object assign we need to check the prototype validity
       // cell on the override map. If the override map changed we cannot assume
       // that it is correct to set all properties without any getter/setter in
@@ -3555,7 +3579,12 @@ Tagged<Object> GetCloneTargetMap(Isolate* isolate, DirectHandle<Map> source_map,
                          Map::kPrototypeChainValid;
         }
       }
-      if (V8_UNLIKELY(!is_valid)) {
+      if (V8_LIKELY(is_valid)) {
+        if (result.IsHeapObject()) {
+          CHECK_EQ(GetCloneModeForMapPreCheck(source_map, false, isolate),
+                   FastCloneObjectMode::kMaybeSupported);
+        }
+      } else {
         result = SideStepTransition::Empty;
       }
     }
@@ -3572,6 +3601,8 @@ Tagged<Object> GetCloneTargetMap(Isolate* isolate, DirectHandle<Map> source_map,
       case FastCloneObjectMode::kIdenticalMap:
         DCHECK_EQ(kind, SideStepTransition::Kind::kObjectAssign);
         break;
+      case FastCloneObjectMode::kMaybeSupported:
+        UNREACHABLE();
     }
   } else if (result != SideStepTransition::Empty) {
     Tagged<Map> target = Cast<Map>(result.GetHeapObject());
@@ -3748,6 +3779,8 @@ RUNTIME_FUNCTION(Runtime_CloneObjectIC_Miss) {
           case FastCloneObjectMode::kNotSupported: {
             break;
           }
+          case FastCloneObjectMode::kMaybeSupported:
+            UNREACHABLE();
         }
         DCHECK(clone_mode == FastCloneObjectMode::kNotSupported);
         if (nexus) {
@@ -3799,6 +3832,7 @@ bool MaybeCanCloneObjectForObjectAssign(Handle<JSReceiver> source,
     case FastCloneObjectMode::kNotSupported:
       return false;
     case FastCloneObjectMode::kEmptyObject:
+    case FastCloneObjectMode::kMaybeSupported:
       // Cannot happen since we should only be called with JSObjects.
       UNREACHABLE();
   }
@@ -3853,6 +3887,7 @@ RUNTIME_FUNCTION(Runtime_ObjectAssignTryFastcase) {
   DCHECK(!target_map->is_deprecated());
   DCHECK(target_map->is_extensible());
   DCHECK(!IsUndefined(*source, isolate) && !IsNull(*source, isolate));
+  DCHECK(source_map->BelongsToSameNativeContextAs(isolate->context()));
 
   ReadOnlyRoots roots(isolate);
   {
@@ -3874,8 +3909,10 @@ RUNTIME_FUNCTION(Runtime_ObjectAssignTryFastcase) {
     }
   };
   auto UpdateCacheNotClonable = [&]() {
-    SetCloneTargetMapUnsupported<SideStepTransition::Kind::kObjectAssign>(
-        isolate, source_map, target_map);
+    if (CanCacheCloneTargetMapTransition(source_map, {}, false, isolate)) {
+      SetCloneTargetMapUnsupported<SideStepTransition::Kind::kObjectAssign>(
+          isolate, source_map, target_map);
+    }
   };
 
   // In case we are still slack tracking let's defer a decision. The fast case

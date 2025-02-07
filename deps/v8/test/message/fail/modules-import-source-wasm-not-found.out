@@ -1,0 +1,5 @@
+undefined:0: Error: d8: Error reading module from */not-found.wasm
+    imported by *%(basename)s
+
+Error: d8: Error reading module from */not-found.wasm
+    imported by *%(basename)s

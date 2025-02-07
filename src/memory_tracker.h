@@ -138,6 +138,33 @@ class MemoryRetainer {
   }
 };
 
+/**
+ * MemoryRetainerTraits allows defining a custom memory info for a
+ * class that can not be modified to implement the MemoryRetainer interface.
+ *
+ * Example:
+ *
+ * template <>
+ * struct MemoryRetainerTraits<ExampleRetainer> {
+ *   static void MemoryInfo(MemoryTracker* tracker,
+ *                         const ExampleRetainer& value) {
+ *     tracker->TrackField("another_retainer", value.another_retainer_);
+ *   }
+ *   static const char* MemoryInfoName(const ExampleRetainer& value) {
+ *     return "ExampleRetainer";
+ *   }
+ *   static size_t SelfSize(const ExampleRetainer& value) {
+ *     return sizeof(value);
+ *   }
+ * };
+ *
+ * This creates the following graph:
+ *   Node / ExampleRetainer
+ *    |> another_retainer :: Node / AnotherRetainerClass
+ */
+template <typename T, typename = void>
+struct MemoryRetainerTraits {};
+
 class MemoryTracker {
  public:
   // Used to specify node name and size explicitly
@@ -252,6 +279,13 @@ class MemoryTracker {
   // Reduce the size of memory from the container so as to avoid
   // duplication in accounting.
   inline void TrackInlineField(const MemoryRetainer* retainer,
+                               const char* edge_name = nullptr);
+
+  // MemoryRetainerTraits implementation helpers.
+  template <typename T>
+  inline void TraitTrack(const T& retainer, const char* edge_name = nullptr);
+  template <typename T>
+  inline void TraitTrackInline(const T& retainer,
                                const char* edge_name = nullptr);
 
   inline v8::EmbedderGraph* graph() { return graph_; }

@@ -188,11 +188,12 @@ void CallAndPauseOnStart(const FunctionCallbackInfo<v8::Value>& args) {
   CHECK(args[0]->IsFunction());
   SlicedArguments call_args(args, /* start */ 2);
   env->inspector_agent()->PauseOnNextJavascriptStatement("Break on start");
-  v8::MaybeLocal<v8::Value> retval =
-      args[0].As<v8::Function>()->Call(env->context(), args[1],
-                                       call_args.length(), call_args.out());
-  if (!retval.IsEmpty()) {
-    args.GetReturnValue().Set(retval.ToLocalChecked());
+  Local<Value> ret;
+  if (args[0]
+          .As<v8::Function>()
+          ->Call(env->context(), args[1], call_args.length(), call_args.out())
+          .ToLocal(&ret)) {
+    args.GetReturnValue().Set(ret);
   }
 }
 

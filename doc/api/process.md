@@ -892,7 +892,7 @@ added: v0.5.0
 
 The operating system CPU architecture for which the Node.js binary was compiled.
 Possible values are: `'arm'`, `'arm64'`, `'ia32'`, `'loong64'`, `'mips'`,
-`'mipsel'`, `'ppc'`, `'ppc64'`, `'riscv64'`, `'s390'`, `'s390x'`, and `'x64'`.
+`'mipsel'`, `'ppc64'`, `'riscv64'`, `'s390'`, `'s390x'`, and `'x64'`.
 
 ```mjs
 import { arch } from 'node:process';
@@ -3020,34 +3020,40 @@ function definitelyAsync(arg, cb) {
 
 ### When to use `queueMicrotask()` vs. `process.nextTick()`
 
-The [`queueMicrotask()`][] API is an alternative to `process.nextTick()` that
-also defers execution of a function using the same microtask queue used to
-execute the then, catch, and finally handlers of resolved promises. Within
-Node.js, every time the "next tick queue" is drained, the microtask queue
+The [`queueMicrotask()`][] API is an alternative to `process.nextTick()` that instead of using the
+"next tick queue" defers execution of a function using the same microtask queue used to execute the
+then, catch, and finally handlers of resolved promises.
+
+Within Node.js, every time the "next tick queue" is drained, the microtask queue
 is drained immediately after.
+
+So in CJS modules `process.nextTick()` callbacks are always run before `queueMicrotask()` ones.
+However since ESM modules are processed already as part of the microtask queue, there
+`queueMicrotask()` callbacks are always exectued before `process.nextTick()` ones since Node.js
+is already in the process of draining the microtask queue.
 
 ```mjs
 import { nextTick } from 'node:process';
 
-Promise.resolve().then(() => console.log(2));
-queueMicrotask(() => console.log(3));
-nextTick(() => console.log(1));
+Promise.resolve().then(() => console.log('resolve'));
+queueMicrotask(() => console.log('microtask'));
+nextTick(() => console.log('nextTick'));
 // Output:
-// 1
-// 2
-// 3
+// resolve
+// microtask
+// nextTick
 ```
 
 ```cjs
 const { nextTick } = require('node:process');
 
-Promise.resolve().then(() => console.log(2));
-queueMicrotask(() => console.log(3));
-nextTick(() => console.log(1));
+Promise.resolve().then(() => console.log('resolve'));
+queueMicrotask(() => console.log('microtask'));
+nextTick(() => console.log('nextTick'));
 // Output:
-// 1
-// 2
-// 3
+// nextTick
+// resolve
+// microtask
 ```
 
 For _most_ userland use cases, the `queueMicrotask()` API provides a portable
@@ -3997,7 +4003,7 @@ added:
   - v14.18.0
 -->
 
-> Stability: 1 - Experimental
+> Stability: 1 - Experimental: Use [`module.setSourceMapsSupport()`][] instead.
 
 * `val` {boolean}
 
@@ -4009,6 +4015,9 @@ It provides same features as launching Node.js process with commandline options
 
 Only source maps in JavaScript files that are loaded after source maps has been
 enabled will be parsed and loaded.
+
+This implies calling `module.setSourceMapsSupport()` with an option
+`{ nodeModules: true, generatedCode: true }`.
 
 ## `process.setUncaughtExceptionCaptureCallback(fn)`
 
@@ -4044,7 +4053,7 @@ added:
   - v18.19.0
 -->
 
-> Stability: 1 - Experimental
+> Stability: 1 - Experimental: Use [`module.getSourceMapsSupport()`][] instead.
 
 * {boolean}
 
@@ -4511,7 +4520,9 @@ cases:
 [`console.error()`]: console.md#consoleerrordata-args
 [`console.log()`]: console.md#consolelogdata-args
 [`domain`]: domain.md
+[`module.getSourceMapsSupport()`]: module.md#modulegetsourcemapssupport
 [`module.isBuiltin(id)`]: module.md#moduleisbuiltinmodulename
+[`module.setSourceMapsSupport()`]: module.md#modulesetsourcemapssupportenabled-options
 [`net.Server`]: net.md#class-netserver
 [`net.Socket`]: net.md#class-netsocket
 [`os.constants.dlopen`]: os.md#dlopen-constants

@@ -103,7 +103,7 @@ common.expectWarning({
       });
 
       await setTimeout(0);
-      global.gc();
+      globalThis.gc();
     }
   })().then(common.mustCall(), common.mustNotCall());
 }

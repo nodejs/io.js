@@ -18,6 +18,7 @@ namespace {
 
 #define CHECK_SELF_OR_THROW_FAST_OPTIONS(return_value)                      \
   if (!self) {                                                              \
+    HandleScope handle_scope(options.isolate);                              \
     options.isolate->ThrowError(                                            \
         "This method is not defined on objects inheriting from FastCAPI."); \
     return return_value;                                                    \
@@ -52,6 +53,9 @@ class FastCApiObject {
 
   static int ThrowNoFallbackFastCallback(Local<Object> receiver) {
     FastCApiObject* self = UnwrapObject(receiver);
+    if (!self) {
+      self = &FastCApiObject::instance();
+    }
     self->fast_call_count_++;
     v8::Isolate* isolate = receiver->GetIsolate();
     v8::HandleScope scope(isolate);
@@ -145,21 +149,9 @@ class FastCApiObject {
                                             int32_t arg_i32, uint32_t arg_u32,
                                             int64_t arg_i64, uint64_t arg_u64,
                                             float arg_f32, double arg_f64) {
-    FastCApiObject* self;
-
-    // For Wasm call, we don't pass FastCApiObject as the receiver, so we need
-    // to retrieve the FastCApiObject instance from a static variable.
-    if (IsJSGlobalProxy(*Utils::OpenDirectHandle(*receiver)) ||
-        IsUndefined(*Utils::OpenDirectHandle(*receiver))) {
-      // Note: FastCApiObject::instance() returns the reference of an object
-      // allocated in thread-local storage, its value cannot be stored in a
-      // static variable here.
+    FastCApiObject* self = UnwrapObject(receiver);
+    if (!self) {
       self = &FastCApiObject::instance();
-    } else {
-      // Fuzzing code can call this function from JS; in this case the receiver
-      // should be a FastCApiObject.
-      self = UnwrapObject(receiver);
-      CHECK_NOT_NULL(self);
     }
     self->fast_call_count_++;
 

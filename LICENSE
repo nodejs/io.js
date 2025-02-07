@@ -2098,7 +2098,7 @@ The externally maintained libraries used by Node.js are:
     OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   """
 
-- inspector_protocol, located at tools/inspector_protocol, is licensed as follows:
+- inspector_protocol, located at deps/inspector_protocol, is licensed as follows:
   """
     // Copyright 2016 The Chromium Authors. All rights reserved.
     //

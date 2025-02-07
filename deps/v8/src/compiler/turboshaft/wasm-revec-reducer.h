@@ -9,6 +9,9 @@
 #ifndef V8_COMPILER_TURBOSHAFT_WASM_REVEC_REDUCER_H_
 #define V8_COMPILER_TURBOSHAFT_WASM_REVEC_REDUCER_H_
 
+#include <algorithm>
+
+#include "src/base/safe_conversions.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/phase.h"
@@ -224,16 +227,8 @@ class NodeGroup {
     return indexes_[0] != other.indexes_[0] || indexes_[1] != other.indexes_[1];
   }
 
-  template <typename T>
-  struct Iterator {
-    T* p;
-    T& operator*() { return *p; }
-    bool operator!=(const Iterator& rhs) { return p != rhs.p; }
-    void operator++() { ++p; }
-  };
-
-  auto begin() const { return Iterator<const OpIndex>{indexes_}; }
-  auto end() const { return Iterator<const OpIndex>{indexes_ + kSize}; }
+  const OpIndex* begin() const { return indexes_; }
+  const OpIndex* end() const { return indexes_ + kSize; }
 
  private:
   OpIndex indexes_[kSize];
@@ -254,7 +249,7 @@ class PackNode : public NON_EXPORTED_BASE(ZoneObject) {
       : nodes_(node_group),
         revectorized_node_(),
         force_pack_right_inputs_(zone) {}
-  NodeGroup Nodes() const { return nodes_; }
+  const NodeGroup& nodes() const { return nodes_; }
   bool IsSame(const NodeGroup& node_group) const {
     return nodes_ == node_group;
   }
@@ -484,9 +479,8 @@ class WasmRevecAnalyzer {
   const Operation& GetStartOperation(const PackNode* pnode, const OpIndex node,
                                      const Operation& op) {
     DCHECK(pnode);
-    OpIndex start = pnode->Nodes()[0];
-    if (start == node) return op;
-    return graph_.Get(start);
+    const OpIndex start = pnode->nodes()[0];
+    return (start == node) ? op : graph_.Get(start);
   }
 
   base::Vector<const OpIndex> uses(OpIndex node) {
@@ -519,10 +513,9 @@ class WasmRevecReducer : public UniformReducerAdapter<WasmRevecReducer, Next> {
 
   OpIndex GetExtractOpIfNeeded(PackNode* pnode, OpIndex ig_index,
                                OpIndex og_index) {
-    uint8_t lane = 0;
-    for (; lane < static_cast<uint8_t>(pnode->Nodes().size()); lane++) {
-      if (pnode->Nodes()[lane] == ig_index) break;
-    }
+    const auto lane = base::checked_cast<uint8_t>(
+        std::find(pnode->nodes().begin(), pnode->nodes().end(), ig_index) -
+        pnode->nodes().begin());
 
     for (auto use : analyzer_.uses(ig_index)) {
       if (!analyzer_.GetPackNode(use)) {
@@ -544,7 +537,7 @@ class WasmRevecReducer : public UniformReducerAdapter<WasmRevecReducer, Next> {
       V<Simd256> og_index = pnode->RevectorizedNode();
       // Skip revectorized node.
       if (!og_index.valid()) {
-        NodeGroup inputs = pnode->Nodes();
+        NodeGroup inputs = pnode->nodes();
         const Simd128ConstantOp& op0 =
             __ input_graph().Get(inputs[0]).template Cast<Simd128ConstantOp>();
         const Simd128ConstantOp& op1 =
@@ -935,7 +928,7 @@ class WasmRevecReducer : public UniformReducerAdapter<WasmRevecReducer, Next> {
                   idx, current_input_block);
             }
 
-            OpIndex right_ig_index = pnode->Nodes()[1];
+            OpIndex right_ig_index = pnode->nodes()[1];
             const Op& right_ig_op =
                 Asm().input_graph().Get(right_ig_index).template Cast<Op>();
             OpIndex og_right = Continuation{this}.ReduceInputGraph(

@@ -1146,7 +1146,7 @@ WASM_EXEC_TEST(I16x8Splat) {
     }
   }
 
-  // Test values that do not fit in a int16.
+  // Test values that do not fit in an int16.
   FOR_INT32_INPUTS(x) {
     r.Call(x);
     int16_t expected = truncate_to_int16(x);
@@ -1283,7 +1283,7 @@ WASM_EXEC_TEST(I8x16Splat) {
     }
   }
 
-  // Test values that do not fit in a int16.
+  // Test values that do not fit in an int16.
   FOR_INT16_INPUTS(x) {
     r.Call(x);
     int8_t expected = truncate_to_int8(x);

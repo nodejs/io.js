@@ -8,6 +8,7 @@ const assert = require('assert');
 const {
   generateKeyPair,
 } = require('crypto');
+const { hasOpenSSL3 } = require('../common/crypto');
 
 // This tests check that generateKeyPair returns correct bit length in
 // KeyObject's asymmetricKeyDetails.
@@ -27,7 +28,7 @@ const {
     assert.strictEqual(publicKey.asymmetricKeyDetails.modulusLength, 513);
   }));
 
-  if (common.hasOpenSSL3) {
+  if (hasOpenSSL3) {
     generateKeyPair('dsa', {
       modulusLength: 2049,
       divisorLength: 256,

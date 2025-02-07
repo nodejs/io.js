@@ -26,7 +26,8 @@ proposal_flags = [
     },
     {
         'name': 'memory64',
-        'flags': ['--experimental-wasm-memory64']
+        # The memory64 repository is rebased on exnref, so also enable that.
+        'flags': ['--experimental-wasm-memory64', '--experimental-wasm-exnref']
     },
     {
         'name': 'extended-const',

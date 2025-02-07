@@ -1864,7 +1864,6 @@ TEST(NativeSnapshotObjectId) {
 }
 
 TEST(NativeSnapshotObjectIdMoving) {
-  if (i::v8_flags.enable_third_party_heap) return;
   // Required to allow moving specific objects.
   i::ManualGCScope manual_gc_scope;
   i::heap::ManualEvacuationCandidatesSelectionScope

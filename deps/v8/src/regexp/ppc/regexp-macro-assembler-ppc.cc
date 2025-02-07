@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#if V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#if V8_TARGET_ARCH_PPC64
 
 #include "src/regexp/ppc/regexp-macro-assembler-ppc.h"
 
@@ -562,6 +562,19 @@ void RegExpMacroAssemblerPPC::CheckBitInTable(Handle<ByteArray> table,
   __ lbzx(r3, MemOperand(r3, r4));
   __ cmpi(r3, Operand::Zero());
   BranchOrBacktrack(ne, on_bit_set);
+}
+
+void RegExpMacroAssemblerPPC::SkipUntilBitInTable(
+    int cp_offset, Handle<ByteArray> table, Handle<ByteArray> nibble_table,
+    int advance_by) {
+  // TODO(pthier): Optimize. Table can be loaded outside of the loop.
+  Label cont, again;
+  Bind(&again);
+  LoadCurrentCharacter(cp_offset, &cont, true);
+  CheckBitInTable(table, &cont);
+  AdvanceCurrentPosition(advance_by);
+  GoTo(&again);
+  Bind(&cont);
 }
 
 bool RegExpMacroAssemblerPPC::CheckSpecialClassRanges(StandardCharacterSet type,
@@ -1485,4 +1498,4 @@ void RegExpMacroAssemblerPPC::LoadCurrentCharacterUnchecked(int cp_offset,
 }  // namespace internal
 }  // namespace v8
 
-#endif  //  V8_TARGET_ARCH_PPC || V8_TARGET_ARCH_PPC64
+#endif  //  V8_TARGET_ARCH_PPC64

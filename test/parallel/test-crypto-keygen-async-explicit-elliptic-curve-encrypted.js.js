@@ -12,6 +12,7 @@ const {
   testSignVerify,
   spkiExp,
   sec1EncExp,
+  hasOpenSSL3,
 } = require('../common/crypto');
 
 {
@@ -38,7 +39,7 @@ const {
 
     // Since the private key is encrypted, signing shouldn't work anymore.
     assert.throws(() => testSignVerify(publicKey, privateKey),
-                  common.hasOpenSSL3 ? {
+                  hasOpenSSL3 ? {
                     message: 'error:07880109:common libcrypto ' +
                              'routines::interrupted or cancelled'
                   } : {

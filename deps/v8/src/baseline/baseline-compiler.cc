@@ -60,6 +60,14 @@ namespace v8 {
 namespace internal {
 namespace baseline {
 
+#define __ basm_.
+
+#define RCS_BASELINE_SCOPE(rcs)                               \
+  RCS_SCOPE(stats_,                                           \
+            local_isolate_->is_main_thread()                  \
+                ? RuntimeCallCounterId::kCompileBaseline##rcs \
+                : RuntimeCallCounterId::kCompileBackgroundBaseline##rcs)
+
 template <typename IsolateT>
 Handle<TrustedByteArray> BytecodeOffsetTableBuilder::ToBytecodeOffsetTable(
     IsolateT* isolate) {
@@ -294,14 +302,6 @@ BaselineCompiler::BaselineCompiler(
       base::bits::RoundUpToPowerOfTwo(16 + bytecode_->Size() / 4));
 }
 
-#define __ basm_.
-
-#define RCS_BASELINE_SCOPE(rcs)                               \
-  RCS_SCOPE(stats_,                                           \
-            local_isolate_->is_main_thread()                  \
-                ? RuntimeCallCounterId::kCompileBaseline##rcs \
-                : RuntimeCallCounterId::kCompileBackgroundBaseline##rcs)
-
 void BaselineCompiler::GenerateCode() {
   {
     RCS_BASELINE_SCOPE(PreVisit);
@@ -521,7 +521,7 @@ void BaselineCompiler::VisitSingleBytecode() {
   case interpreter::Bytecode::k##name: \
     Visit##name();                     \
     break;
-      BYTECODE_LIST(BYTECODE_CASE)
+      BYTECODE_LIST(BYTECODE_CASE, BYTECODE_CASE)
 #undef BYTECODE_CASE
     }
   }
@@ -570,7 +570,7 @@ void BaselineCompiler::TraceBytecode(Runtime::FunctionId function_id) {
 #endif
 
 #define DECLARE_VISITOR(name, ...) void Visit##name();
-BYTECODE_LIST(DECLARE_VISITOR)
+BYTECODE_LIST(DECLARE_VISITOR, DECLARE_VISITOR)
 #undef DECLARE_VISITOR
 
 #define DECLARE_VISITOR(name, ...) \
@@ -2412,6 +2412,9 @@ SaveAccumulatorScope::~SaveAccumulatorScope() {
   ASM_CODE_COMMENT(assembler_->masm());
   assembler_->Pop(kInterpreterAccumulatorRegister);
 }
+
+#undef RCS_BASELINE_SCOPE
+#undef __
 
 }  // namespace baseline
 }  // namespace internal

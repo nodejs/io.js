@@ -222,7 +222,7 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
 
   FunctionKind function_kind() const;
 
-  // Returns true if this ScopeInfo is linked to a outer ScopeInfo.
+  // Returns true if this ScopeInfo is linked to an outer ScopeInfo.
   bool HasOuterScopeInfo() const;
 
   // Returns true if this ScopeInfo was created for a debug-evaluate scope.
@@ -284,7 +284,7 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   };
 
   static_assert(LanguageModeSize == 1 << LanguageModeBit::kSize);
-  static_assert(FunctionKind::kLastFunctionKind <= FunctionKindBits::kMax);
+  static_assert(FunctionKindBits::is_valid(FunctionKind::kLastFunctionKind));
 
   bool IsEmpty() const;
 

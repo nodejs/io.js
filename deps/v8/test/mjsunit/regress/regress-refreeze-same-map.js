@@ -36,5 +36,5 @@ assertTrue(%HaveSameMap(Object.freeze([1,2]),  Object.seal( Object.freeze([1,2])
 // freezing a sealed empty is idempotent
 assertTrue(%HaveSameMap(Object.freeze(Object.seal({})), Object.seal({})));
 
-// sealing a unextensible empty object is idempotent
+// sealing an unextensible empty object is idempotent
 assertTrue(%HaveSameMap(Object.seal(Object.preventExtensions({})), Object.preventExtensions({})));

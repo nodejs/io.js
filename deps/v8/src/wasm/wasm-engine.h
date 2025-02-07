@@ -252,7 +252,7 @@ class V8_EXPORT_PRIVATE WasmEngine {
 
   // Prints the gathered compilation statistics, then resets them.
   void DumpAndResetTurboStatistics();
-  // Same, but no reset.
+  // Prints the gathered compilation statistics (without resetting them).
   void DumpTurboStatistics();
 
   // Used to redirect tracing output from {stdout} to a file.
@@ -289,6 +289,10 @@ class V8_EXPORT_PRIVATE WasmEngine {
   // access to the NativeModule containing this code. This method can be called
   // from background threads.
   void LogCode(base::Vector<WasmCode*>);
+  // Trigger code logging for the given code objects, which must be wrappers
+  // that are shared engine-wide. This method can be called from background
+  // threads.
+  void LogWrapperCode(base::Vector<WasmCode*>);
 
   // Enable code logging for the given Isolate. Initially, code logging is
   // enabled if {WasmCode::ShouldBeLogged(Isolate*)} returns true during
@@ -378,8 +382,8 @@ class V8_EXPORT_PRIVATE WasmEngine {
 
   // Free dead code.
   using DeadCodeMap = std::unordered_map<NativeModule*, std::vector<WasmCode*>>;
-  void FreeDeadCode(const DeadCodeMap&);
-  void FreeDeadCodeLocked(const DeadCodeMap&);
+  void FreeDeadCode(const DeadCodeMap&, std::vector<WasmCode*>&);
+  void FreeDeadCodeLocked(const DeadCodeMap&, std::vector<WasmCode*>&);
 
   Handle<Script> GetOrCreateScript(Isolate*,
                                    const std::shared_ptr<NativeModule>&,
@@ -502,6 +506,10 @@ V8_EXPORT_PRIVATE WasmEngine* GetWasmEngine();
 
 // Returns a reference to the WasmCodeManager shared by the entire process.
 V8_EXPORT_PRIVATE WasmCodeManager* GetWasmCodeManager();
+
+// Returns a reference to the WasmImportWrapperCache shared by the entire
+// process.
+V8_EXPORT_PRIVATE WasmImportWrapperCache* GetWasmImportWrapperCache();
 
 }  // namespace wasm
 }  // namespace internal

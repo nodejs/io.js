@@ -34,7 +34,7 @@ class ConservativeTracedHandlesMarkingVisitor final
   const TracedHandles::MarkMode mark_mode_;
 };
 
-#endif  // V8_HEAP_TRACED_HANDLES_MARKING_VISITOR_H_
-
 }  // namespace internal
 }  // namespace v8
+
+#endif  // V8_HEAP_TRACED_HANDLES_MARKING_VISITOR_H_

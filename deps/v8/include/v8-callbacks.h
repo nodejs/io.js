@@ -254,15 +254,7 @@ using AddCrashKeyCallback = void (*)(CrashKeyId id, const std::string& value);
 using BeforeCallEnteredCallback = void (*)(Isolate*);
 using CallCompletedCallback = void (*)(Isolate*);
 
-// --- AllowCodeGenerationFromStrings callbacks ---
-
-/**
- * Callback to check if code generation from strings is allowed. See
- * Context::AllowCodeGenerationFromStrings.
- */
-using AllowCodeGenerationFromStringsCallback = bool (*)(Local<Context> context,
-                                                        Local<String> source);
-
+// --- Modify Code Generation From Strings Callback ---
 struct ModifyCodeGenerationFromStringsResult {
   // If true, proceed with the codegen algorithm. Otherwise, block it.
   bool codegen_allowed = false;
@@ -271,22 +263,6 @@ struct ModifyCodeGenerationFromStringsResult {
   // This field is considered only if codegen_allowed is true.
   MaybeLocal<String> modified_source;
 };
-
-/**
- * Access type specification.
- */
-enum AccessType {
-  ACCESS_GET,
-  ACCESS_SET,
-  ACCESS_HAS,
-  ACCESS_DELETE,
-  ACCESS_KEYS
-};
-
-// --- Failed Access Check Callback ---
-
-using FailedAccessCheckCallback = void (*)(Local<Object> target,
-                                           AccessType type, Local<Value> data);
 
 /**
  * Callback to check if codegen is allowed from a source object, and convert
@@ -299,6 +275,22 @@ using ModifyCodeGenerationFromStringsCallback2 =
     ModifyCodeGenerationFromStringsResult (*)(Local<Context> context,
                                               Local<Value> source,
                                               bool is_code_like);
+
+// --- Failed Access Check Callback ---
+
+/**
+ * Access type specification.
+ */
+enum AccessType {
+  ACCESS_GET,
+  ACCESS_SET,
+  ACCESS_HAS,
+  ACCESS_DELETE,
+  ACCESS_KEYS
+};
+
+using FailedAccessCheckCallback = void (*)(Local<Object> target,
+                                           AccessType type, Local<Value> data);
 
 // --- WebAssembly compilation callbacks ---
 using ExtensionCallback = bool (*)(const FunctionCallbackInfo<Value>&);

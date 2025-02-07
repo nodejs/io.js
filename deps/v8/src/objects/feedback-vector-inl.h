@@ -59,6 +59,25 @@ void FeedbackMetadata::set(int index, int32_t value) {
   WriteField<int32_t>(offset, value);
 }
 
+// static
+constexpr uint32_t FeedbackVector::FlagMaskForNeedsProcessingCheckFrom(
+    CodeKind code_kind) {
+  DCHECK(CodeKindCanTierUp(code_kind));
+  // TODO(olivf): investigate whether we can drop
+  // kFlagsTieringStateIsAnyRequested here as well when leaptiering is enabled.
+  uint32_t flag_mask = FeedbackVector::kFlagsTieringStateIsAnyRequested |
+                       FeedbackVector::kFlagsLogNextExecution;
+  // When leaptiering is enabled, we don't load optimized code from the
+  // FeedbackVector, so we don't check for these flags.
+  if (!V8_ENABLE_LEAPTIERING_BOOL) {
+    flag_mask |= FeedbackVector::kFlagsMaybeHasTurbofanCode;
+  }
+  if (code_kind != CodeKind::MAGLEV && !V8_ENABLE_LEAPTIERING_BOOL) {
+    flag_mask |= FeedbackVector::kFlagsMaybeHasMaglevCode;
+  }
+  return flag_mask;
+}
+
 bool FeedbackMetadata::is_empty() const {
   DCHECK_IMPLIES(slot_count() == 0, create_closure_slot_count() == 0);
   return slot_count() == 0;

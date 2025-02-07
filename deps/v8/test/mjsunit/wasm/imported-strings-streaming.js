@@ -8,7 +8,7 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 let bad_builder = new WasmModuleBuilder();
 let good_builder = new WasmModuleBuilder();
-// This intentionally uses an incorrect return type to test LinkErrors.
+// This intentionally uses an incorrect return type to test CompileErrors.
 bad_builder.addImport('wasm:js-string', 'charCodeAt',
                       makeSig([kWasmExternRef, kWasmI32], [kWasmI64]));
 let charCodeAt = good_builder.addImport('wasm:js-string', 'charCodeAt',
@@ -36,7 +36,7 @@ assertPromiseResult(
     assertUnreachable);
 assertThrowsAsync(
     WebAssembly.compileStreaming(Promise.resolve(bad), kBuiltins),
-    WebAssembly.LinkError, message);
+    WebAssembly.CompileError, message);
 
 // WebAssembly.instantiateStreaming
 assertPromiseResult(
@@ -45,4 +45,4 @@ assertPromiseResult(
     assertUnreachable);
 assertThrowsAsync(
     WebAssembly.instantiateStreaming(Promise.resolve(bad), {}, kBuiltins),
-    WebAssembly.LinkError, message);
+    WebAssembly.CompileError, message);

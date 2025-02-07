@@ -244,6 +244,10 @@ bool BoundedPageAllocator::DecommitPages(void* address, size_t size) {
   return page_allocator_->DecommitPages(address, size);
 }
 
+bool BoundedPageAllocator::SealPages(void* address, size_t size) {
+  return page_allocator_->SealPages(address, size);
+}
+
 const char* BoundedPageAllocator::AllocationStatusToString(
     AllocationStatus allocation_status) {
   switch (allocation_status) {

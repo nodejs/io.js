@@ -38,6 +38,7 @@
 #include <vector>
 
 namespace node {
+
 namespace crypto {
 // Currently known sizes of commonly used OpenSSL struct sizes.
 // OpenSSL considers it's various structs to be opaque and the
@@ -53,33 +54,6 @@ constexpr size_t kSizeOf_EVP_PKEY = 72;
 constexpr size_t kSizeOf_EVP_PKEY_CTX = 80;
 constexpr size_t kSizeOf_HMAC_CTX = 32;
 
-// Define smart pointers for the most commonly used OpenSSL types:
-using X509Pointer = ncrypto::X509Pointer;
-using BIOPointer = ncrypto::BIOPointer;
-using SSLCtxPointer = ncrypto::SSLCtxPointer;
-using SSLSessionPointer = ncrypto::SSLSessionPointer;
-using SSLPointer = ncrypto::SSLPointer;
-using PKCS8Pointer = ncrypto::PKCS8Pointer;
-using EVPKeyPointer = ncrypto::EVPKeyPointer;
-using EVPKeyCtxPointer = ncrypto::EVPKeyCtxPointer;
-using EVPMDCtxPointer = ncrypto::EVPMDCtxPointer;
-using RSAPointer = ncrypto::RSAPointer;
-using ECPointer = ncrypto::ECPointer;
-using BignumPointer = ncrypto::BignumPointer;
-using NetscapeSPKIPointer = ncrypto::NetscapeSPKIPointer;
-using ECGroupPointer = ncrypto::ECGroupPointer;
-using ECPointPointer = ncrypto::ECPointPointer;
-using ECKeyPointer = ncrypto::ECKeyPointer;
-using DHPointer = ncrypto::DHPointer;
-using ECDSASigPointer = ncrypto::ECDSASigPointer;
-using HMACCtxPointer = ncrypto::HMACCtxPointer;
-using CipherCtxPointer = ncrypto::CipherCtxPointer;
-using DsaPointer = ncrypto::DSAPointer;
-using DsaSigPointer = ncrypto::DSASigPointer;
-
-using ClearErrorOnReturn = ncrypto::ClearErrorOnReturn;
-using MarkPopErrorOnReturn = ncrypto::MarkPopErrorOnReturn;
-
 bool ProcessFipsOptions();
 
 bool InitCryptoOnce(v8::Isolate* isolate);
@@ -87,10 +61,9 @@ void InitCryptoOnce();
 
 void InitCrypto(v8::Local<v8::Object> target);
 
-extern void UseExtraCaCerts(const std::string& file);
+extern void UseExtraCaCerts(std::string_view file);
 
 int PasswordCallback(char* buf, int size, int rwflag, void* u);
-
 int NoPasswordCallback(char* buf, int size, int rwflag, void* u);
 
 // Decode is used by the various stream-based crypto utilities to decode
@@ -191,55 +164,8 @@ T* MallocOpenSSL(size_t count) {
 
 // A helper class representing a read-only byte array. When deallocated, its
 // contents are zeroed.
-class ByteSource {
+class ByteSource final {
  public:
-  class Builder {
-   public:
-    // Allocates memory using OpenSSL's memory allocator.
-    explicit Builder(size_t size)
-        : data_(MallocOpenSSL<char>(size)), size_(size) {}
-
-    Builder(Builder&& other) = delete;
-    Builder& operator=(Builder&& other) = delete;
-    Builder(const Builder&) = delete;
-    Builder& operator=(const Builder&) = delete;
-
-    ~Builder() { OPENSSL_clear_free(data_, size_); }
-
-    // Returns the underlying non-const pointer.
-    template <typename T>
-    T* data() {
-      return reinterpret_cast<T*>(data_);
-    }
-
-    // Returns the (allocated) size in bytes.
-    size_t size() const { return size_; }
-
-    // Returns if (allocated) size is zero.
-    bool empty() const { return size_ == 0; }
-
-    // Finalizes the Builder and returns a read-only view that is optionally
-    // truncated.
-    ByteSource release(std::optional<size_t> resize = std::nullopt) && {
-      if (resize) {
-        CHECK_LE(*resize, size_);
-        if (*resize == 0) {
-          OPENSSL_clear_free(data_, size_);
-          data_ = nullptr;
-        }
-        size_ = *resize;
-      }
-      ByteSource out = ByteSource::Allocated(data_, size_);
-      data_ = nullptr;
-      size_ = 0;
-      return out;
-    }
-
-   private:
-    void* data_;
-    size_t size_;
-  };
-
   ByteSource() = default;
   ByteSource(ByteSource&& other) noexcept;
   ~ByteSource();
@@ -250,18 +176,26 @@ class ByteSource {
   ByteSource& operator=(const ByteSource&) = delete;
 
   template <typename T = void>
-  const T* data() const {
+  inline const T* data() const {
     return reinterpret_cast<const T*>(data_);
   }
 
-  size_t size() const { return size_; }
+  template <typename T = void>
+  operator ncrypto::Buffer<const T>() const {
+    return ncrypto::Buffer<const T>{
+        .data = data<T>(),
+        .len = size(),
+    };
+  }
 
-  bool empty() const { return size_ == 0; }
+  inline size_t size() const { return size_; }
 
-  operator bool() const { return data_ != nullptr; }
+  inline bool empty() const { return size_ == 0; }
 
-  BignumPointer ToBN() const {
-    return BignumPointer(data<unsigned char>(), size());
+  inline operator bool() const { return data_ != nullptr; }
+
+  inline ncrypto::BignumPointer ToBN() const {
+    return ncrypto::BignumPointer(data<unsigned char>(), size());
   }
 
   // Creates a v8::BackingStore that takes over responsibility for
@@ -296,7 +230,7 @@ class ByteSource {
   static ByteSource FromBuffer(v8::Local<v8::Value> buffer,
                                bool ntc = false);
 
-  static ByteSource FromBIO(const BIOPointer& bio);
+  static ByteSource FromBIO(const ncrypto::BIOPointer& bio);
 
   static ByteSource NullTerminatedCopy(Environment* env,
                                        v8::Local<v8::Value> value);
@@ -544,7 +478,7 @@ void ThrowCryptoError(Environment* env,
                       unsigned long err,  // NOLINT(runtime/int)
                       const char* message = nullptr);
 
-class CipherPushContext {
+class CipherPushContext final {
  public:
   inline explicit CipherPushContext(Environment* env)
       : list_(env->isolate()), env_(env) {}
@@ -572,16 +506,13 @@ void array_push_back(const TypeName* evp_ref,
                      const char* from,
                      const char* to,
                      void* arg) {
-  if (!from)
-    return;
+  if (!from) return;
 
   const TypeName* real_instance = getbyname(from);
-  if (!real_instance)
-    return;
+  if (!real_instance) return;
 
   const char* real_name = getname(real_instance);
-  if (!real_name)
-    return;
+  if (!real_name) return;
 
   // EVP_*_fetch() does not support alias names, so we need to pass it the
   // real/original algorithm name.
@@ -590,8 +521,7 @@ void array_push_back(const TypeName* evp_ref,
   // algorithms are used internally by OpenSSL and are also passed to this
   // callback).
   TypeName* fetched = fetch_type(nullptr, real_name, nullptr);
-  if (!fetched)
-    return;
+  if (!fetched) return;
 
   free_type(fetched);
   static_cast<CipherPushContext*>(arg)->push_back(from);
@@ -602,8 +532,7 @@ void array_push_back(const TypeName* evp_ref,
                      const char* from,
                      const char* to,
                      void* arg) {
-  if (!from)
-    return;
+  if (!from) return;
   static_cast<CipherPushContext*>(arg)->push_back(from);
 }
 #endif
@@ -616,7 +545,7 @@ inline bool IsAnyBufferSource(v8::Local<v8::Value> arg) {
 }
 
 template <typename T>
-class ArrayBufferOrViewContents {
+class ArrayBufferOrViewContents final {
  public:
   ArrayBufferOrViewContents() = default;
   ArrayBufferOrViewContents(const ArrayBufferOrViewContents&) = delete;
@@ -675,18 +604,18 @@ class ArrayBufferOrViewContents {
   }
 
   inline ByteSource ToCopy() const {
-    if (empty()) return ByteSource();
-    ByteSource::Builder buf(size());
-    memcpy(buf.data<void>(), data(), size());
-    return std::move(buf).release();
+    if (empty()) return {};
+    auto buf = ncrypto::DataPointer::Alloc(size());
+    memcpy(buf.get(), data(), size());
+    return ByteSource::Allocated(buf.release());
   }
 
   inline ByteSource ToNullTerminatedCopy() const {
-    if (empty()) return ByteSource();
-    ByteSource::Builder buf(size() + 1);
-    memcpy(buf.data<void>(), data(), size());
-    buf.data<char>()[size()] = 0;
-    return std::move(buf).release(size());
+    if (empty()) return {};
+    auto buf = ncrypto::DataPointer::Alloc(size() + 1);
+    memcpy(buf.get(), data(), size());
+    static_cast<char*>(buf.get())[size()] = 0;
+    return ByteSource::Allocated(buf.release());
   }
 
   inline ncrypto::DataPointer ToDataPointer() const {
@@ -733,7 +662,7 @@ v8::Maybe<void> SetEncodedValue(Environment* env,
                                 const BIGNUM* bn,
                                 int size = 0);
 
-bool SetRsaOaepLabel(const EVPKeyCtxPointer& rsa, const ByteSource& label);
+bool SetRsaOaepLabel(ncrypto::EVPKeyCtxPointer* rsa, const ByteSource& label);
 
 namespace Util {
 void Initialize(Environment* env, v8::Local<v8::Object> target);

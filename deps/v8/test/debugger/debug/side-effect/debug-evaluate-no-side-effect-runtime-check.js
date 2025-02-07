@@ -254,6 +254,68 @@ success(42, `(() => {
   return 42;
 })()`);
 
+// AsyncDisposableStack use().
+let async_disposable_stack = new AsyncDisposableStack();
+fail(`(() => {
+  const async_disposable = {
+    value: 1,
+    [Symbol.asyncDispose]() {
+      return 43;
+    }
+  };
+  async_disposable_stack.use(async_disposable);
+})()`);
+success(42, `(() => {
+  let stack = new AsyncDisposableStack();
+  const async_disposable = {
+    value: 1,
+    [Symbol.asyncDispose]() {
+      return 43;
+    }
+  };
+  stack.use(async_disposable);
+  return 42;
+})()`)
+
+// AsyncDisposableStack disposeAsync().
+fail(`async_disposable_stack.disposeAsync()`);
+success(42, `(() => {
+  let stack = new AsyncDisposableStack();
+  stack.disposeAsync();
+  return 42;
+})()`);
+
+// AsyncDisposableStack adopt().
+fail(`async_disposable_stack.adopt(42, function(v) {return v})`);
+success(42, `(() => {
+  let stack = new AsyncDisposableStack();
+  stack.adopt(42, function(v) {return v});
+  return 42;
+})()`);
+
+// AsyncDisposableStack defer().
+fail(`async_disposable_stack.defer(() => console.log(42))`);
+success(42, `(() => {
+  let stack = new AsyncDisposableStack();
+  stack.defer(() => console.log(42));
+  return 42;
+})()`);
+
+// AsyncDisposableStack move().
+fail(`let new_async_Sdisposable_stack = async_disposable_stack.move()`);
+success(42, `(() => {
+  let stack = new AsyncDisposableStack();
+  const async_disposable = {
+    value: 1,
+    [Symbol.asyncDispose]() {
+      return 43;
+    }
+  };
+  stack.use(async_disposable);
+  let new_async_disposable_stack = stack.move()
+  return 42;
+})()`);
+
 function success(expectation, source) {
   const result = Debug.evaluateGlobal(source, true).value();
   if (expectation !== undefined) assertEquals(expectation, result);

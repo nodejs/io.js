@@ -70,7 +70,7 @@ class ElementsAccessor {
 
   // Modifies the length data property as specified for JSArrays and resizes the
   // underlying backing store accordingly. The method honors the semantics of
-  // changing array sizes as defined in EcmaScript 5.1 15.4.5.2, i.e. array that
+  // changing array sizes as defined in ECMAScript 5.1 15.4.5.2, i.e. array that
   // have non-deletable elements can only be shrunk to the size of highest
   // element that is non-deletable.
   V8_WARN_UNUSED_RESULT virtual Maybe<bool> SetLength(Handle<JSArray> holder,

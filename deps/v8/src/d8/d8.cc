@@ -728,13 +728,42 @@ class ModuleEmbedderData {
   static constexpr i::ExternalPointerTag kManagedTag = i::kGenericManagedTag;
 
   explicit ModuleEmbedderData(Isolate* isolate)
-      : module_to_specifier_map(10, ModuleGlobalHash(isolate)),
+      : isolate_(isolate),
+        module_to_specifier_map(10, ModuleGlobalHash(isolate)),
         json_module_to_parsed_json_map(
             10, module_to_specifier_map.hash_function()) {}
 
-  static ModuleType ModuleTypeFromImportAttributes(
-      Local<Context> context, Local<FixedArray> import_attributes,
-      bool hasPositions) {
+  std::string GetModuleSpecifier(Local<Module> module) {
+    Global<Module> global_module(isolate_, module);
+    auto specifier_it = module_to_specifier_map.find(global_module);
+    CHECK(specifier_it != module_to_specifier_map.end());
+    return specifier_it->second;
+  }
+
+  Local<Module> GetModule(
+      std::pair<std::string, ModuleType> module_specifier_and_type) {
+    auto module_it = module_map.find(module_specifier_and_type);
+    CHECK(module_it != module_map.end());
+    return module_it->second.Get(isolate_);
+  }
+
+  Local<Object> GetModuleSource(
+      std::pair<std::string, ModuleType> module_specifier_and_type) {
+    auto module_source_it = module_source_map.find(module_specifier_and_type);
+    CHECK(module_source_it != module_source_map.end());
+    return module_source_it->second.Get(isolate_);
+  }
+
+  Local<Value> GetJsonModuleValue(Local<Module> module) {
+    auto json_value_it =
+        json_module_to_parsed_json_map.find(Global<Module>(isolate_, module));
+    CHECK(json_value_it != json_module_to_parsed_json_map.end());
+    return json_value_it->second.Get(isolate_);
+  }
+
+  static ModuleType ModuleTypeFromImportSpecifierAndAttributes(
+      Local<Context> context, const std::string& specifier,
+      Local<FixedArray> import_attributes, bool hasPositions) {
     Isolate* isolate = context->GetIsolate();
     const int kV8AssertionEntrySize = hasPositions ? 3 : 2;
     for (int i = 0; i < import_attributes->Length();
@@ -750,18 +779,25 @@ class ModuleEmbedderData {
         if (assertion_value == "json") {
           return ModuleType::kJSON;
         } else {
-          // JSON is currently the only supported non-JS type
+          // JSON and WebAssembly are currently the only supported non-JS types
           return ModuleType::kInvalid;
         }
       }
     }
 
-    // If no type is asserted, default to JS.
+    // If no type is asserted, check for the extension. Otherwise default to JS.
+    if (specifier.ends_with(".wasm")) {
+      return ModuleType::kWebAssembly;
+    }
     return ModuleType::kJavaScript;
   }
 
+  Isolate* isolate_;
   // Map from (normalized module specifier, module type) pair to Module.
   std::map<std::pair<std::string, ModuleType>, Global<Module>> module_map;
+  // Map from (normalized module specifier, module type) pair to ModuleSource.
+  std::map<std::pair<std::string, ModuleType>, Global<Object>>
+      module_source_map;
   // Map from Module to its URL as defined in the ScriptOrigin
   std::unordered_map<Global<Module>, std::string, ModuleGlobalHash>
       module_to_specifier_map;
@@ -839,6 +875,7 @@ class D8WasmAsyncResolvePromiseTask : public v8::Task {
   void Run() override {
     v8::HandleScope scope(isolate_);
     v8::Local<v8::Context> context = context_.Get(isolate_);
+    v8::Context::Scope context_scope(context);
     MicrotasksScope microtasks_scope(context,
                                      MicrotasksScope::kDoNotRunMicrotasks);
     v8::Local<v8::Promise::Resolver> resolver = resolver_.Get(isolate_);
@@ -1079,20 +1116,83 @@ MaybeLocal<Module> ResolveModuleCallback(Local<Context> context,
   Isolate* isolate = context->GetIsolate();
   std::shared_ptr<ModuleEmbedderData> module_data =
       GetModuleDataFromContext(context);
-  auto specifier_it = module_data->module_to_specifier_map.find(
-      Global<Module>(isolate, referrer));
-  CHECK(specifier_it != module_data->module_to_specifier_map.end());
-  std::string absolute_path = NormalizeModuleSpecifier(
-      ToSTLString(isolate, specifier), DirName(specifier_it->second));
-  ModuleType module_type = ModuleEmbedderData::ModuleTypeFromImportAttributes(
-      context, import_attributes, true);
-  auto module_it =
-      module_data->module_map.find(std::make_pair(absolute_path, module_type));
-  CHECK(module_it != module_data->module_map.end());
-  return module_it->second.Get(isolate);
+  std::string referrer_specifier = module_data->GetModuleSpecifier(referrer);
+
+  std::string stl_specifier = ToSTLString(isolate, specifier);
+  std::string absolute_path =
+      NormalizeModuleSpecifier(stl_specifier, DirName(referrer_specifier));
+  ModuleType module_type =
+      ModuleEmbedderData::ModuleTypeFromImportSpecifierAndAttributes(
+          context, stl_specifier, import_attributes, true);
+  return module_data->GetModule(std::make_pair(absolute_path, module_type));
+}
+
+MaybeLocal<Object> ResolveModuleSourceCallback(
+    Local<Context> context, Local<String> specifier,
+    Local<FixedArray> import_attributes, Local<Module> referrer) {
+  Isolate* isolate = context->GetIsolate();
+  std::shared_ptr<ModuleEmbedderData> module_data =
+      GetModuleDataFromContext(context);
+  std::string referrer_specifier = module_data->GetModuleSpecifier(referrer);
+
+  std::string stl_specifier = ToSTLString(isolate, specifier);
+  std::string absolute_path =
+      NormalizeModuleSpecifier(stl_specifier, DirName(referrer_specifier));
+  ModuleType module_type =
+      ModuleEmbedderData::ModuleTypeFromImportSpecifierAndAttributes(
+          context, stl_specifier, import_attributes, true);
+
+  return module_data->GetModuleSource(
+      std::make_pair(absolute_path, module_type));
 }
 
 }  // anonymous namespace
+
+MaybeLocal<Object> Shell::FetchModuleSource(Local<Module> referrer,
+                                            Local<Context> context,
+                                            const std::string& module_specifier,
+                                            ModuleType module_type) {
+  Isolate* isolate = context->GetIsolate();
+  DCHECK(IsAbsolutePath(module_specifier));
+  auto file = ReadFileData(isolate, module_specifier.c_str());
+
+  std::shared_ptr<ModuleEmbedderData> module_data =
+      GetModuleDataFromContext(context);
+  if (!file) {
+    std::string msg = "d8: Error reading module from " + module_specifier;
+    if (!referrer.IsEmpty()) {
+      std::string referrer_specifier =
+          module_data->GetModuleSpecifier(referrer);
+      msg += "\n    imported by " + referrer_specifier;
+    }
+    ThrowError(isolate,
+               v8::String::NewFromUtf8(isolate, msg.c_str()).ToLocalChecked());
+    return MaybeLocal<Object>();
+  }
+
+  Local<Object> module_source;
+  switch (module_type) {
+    case ModuleType::kWebAssembly: {
+      if (!v8::WasmModuleObject::Compile(
+               isolate,
+               MemorySpan<const uint8_t>(static_cast<uint8_t*>(file->memory()),
+                                         file->size()))
+               .ToLocal(&module_source)) {
+        return MaybeLocal<Object>();
+      }
+      break;
+    }
+    default:
+      UNREACHABLE();
+  }
+
+  CHECK(
+      module_data->module_source_map
+          .insert(std::make_pair(std::make_pair(module_specifier, module_type),
+                                 Global<Object>(isolate, module_source)))
+          .second);
+  return module_source;
+}
 
 // file_name must be either an absolute path to the filesystem or a data URL.
 MaybeLocal<Module> Shell::FetchModuleTree(Local<Module> referrer,
@@ -1123,10 +1223,9 @@ MaybeLocal<Module> Shell::FetchModuleTree(Local<Module> referrer,
   if (source_text.IsEmpty()) {
     std::string msg = "d8: Error reading module from " + module_specifier;
     if (!referrer.IsEmpty()) {
-      auto specifier_it = module_data->module_to_specifier_map.find(
-          Global<Module>(isolate, referrer));
-      CHECK(specifier_it != module_data->module_to_specifier_map.end());
-      msg += "\n    imported by " + specifier_it->second;
+      std::string referrer_specifier =
+          module_data->GetModuleSpecifier(referrer);
+      msg += "\n    imported by " + referrer_specifier;
     }
     ThrowError(isolate,
                v8::String::NewFromUtf8(isolate, msg.c_str()).ToLocalChecked());
@@ -1188,28 +1287,42 @@ MaybeLocal<Module> Shell::FetchModuleTree(Local<Module> referrer,
   for (int i = 0, length = module_requests->Length(); i < length; ++i) {
     Local<ModuleRequest> module_request =
         module_requests->Get(context, i).As<ModuleRequest>();
-    Local<String> name = module_request->GetSpecifier();
+    std::string specifier =
+        ToSTLString(isolate, module_request->GetSpecifier());
     std::string normalized_specifier =
-        NormalizeModuleSpecifier(ToSTLString(isolate, name), dir_name);
+        NormalizeModuleSpecifier(specifier, dir_name);
     Local<FixedArray> import_attributes = module_request->GetImportAttributes();
     ModuleType request_module_type =
-        ModuleEmbedderData::ModuleTypeFromImportAttributes(
-            context, import_attributes, true);
+        ModuleEmbedderData::ModuleTypeFromImportSpecifierAndAttributes(
+            context, normalized_specifier, import_attributes, true);
 
     if (request_module_type == ModuleType::kInvalid) {
       ThrowError(isolate, "Invalid module type was asserted");
       return MaybeLocal<Module>();
     }
 
-    if (module_data->module_map.count(
-            std::make_pair(normalized_specifier, request_module_type))) {
-      continue;
-    }
+    if (module_request->GetPhase() == ModuleImportPhase::kSource) {
+      if (module_data->module_source_map.count(
+              std::make_pair(normalized_specifier, request_module_type))) {
+        continue;
+      }
 
-    if (FetchModuleTree(module, context, normalized_specifier,
-                        request_module_type)
-            .IsEmpty()) {
-      return MaybeLocal<Module>();
+      if (FetchModuleSource(module, context, normalized_specifier,
+                            request_module_type)
+              .IsEmpty()) {
+        return MaybeLocal<Module>();
+      }
+    } else {
+      if (module_data->module_map.count(
+              std::make_pair(normalized_specifier, request_module_type))) {
+        continue;
+      }
+
+      if (FetchModuleTree(module, context, normalized_specifier,
+                          request_module_type)
+              .IsEmpty()) {
+        return MaybeLocal<Module>();
+      }
     }
   }
 
@@ -1222,10 +1335,7 @@ MaybeLocal<Value> Shell::JSONModuleEvaluationSteps(Local<Context> context,
 
   std::shared_ptr<ModuleEmbedderData> module_data =
       GetModuleDataFromContext(context);
-  auto json_value_it = module_data->json_module_to_parsed_json_map.find(
-      Global<Module>(isolate, module));
-  CHECK(json_value_it != module_data->json_module_to_parsed_json_map.end());
-  Local<Value> json_value = json_value_it->second.Get(isolate);
+  Local<Value> json_value = module_data->GetJsonModuleValue(module);
 
   TryCatch try_catch(isolate);
   Maybe<bool> result = module->SetSyntheticModuleExport(
@@ -1357,14 +1467,12 @@ void Shell::HostInitializeImportMetaObject(Local<Context> context,
 
   std::shared_ptr<ModuleEmbedderData> module_data =
       GetModuleDataFromContext(context);
-  auto specifier_it = module_data->module_to_specifier_map.find(
-      Global<Module>(isolate, module));
-  CHECK(specifier_it != module_data->module_to_specifier_map.end());
+  std::string specifier = module_data->GetModuleSpecifier(module);
 
   Local<String> url_key =
       String::NewFromUtf8Literal(isolate, "url", NewStringType::kInternalized);
-  Local<String> url = String::NewFromUtf8(isolate, specifier_it->second.c_str())
-                          .ToLocalChecked();
+  Local<String> url =
+      String::NewFromUtf8(isolate, specifier.c_str()).ToLocalChecked();
   meta->CreateDataProperty(context, url_key, url).ToChecked();
 }
 
@@ -1401,7 +1509,7 @@ void Shell::DoHostImportModuleDynamically(void* import_data) {
     HandleScope handle_scope(isolate);
     Local<Context> realm = import_data_->context.Get(isolate);
     Local<Value> referrer = import_data_->referrer.Get(isolate);
-    Local<String> specifier = import_data_->specifier.Get(isolate);
+    Local<String> v8_specifier = import_data_->specifier.Get(isolate);
     Local<FixedArray> import_attributes =
         import_data_->import_attributes.Get(isolate);
     Local<Promise::Resolver> resolver = import_data_->resolver.Get(isolate);
@@ -1413,9 +1521,11 @@ void Shell::DoHostImportModuleDynamically(void* import_data) {
     data->DeleteDynamicImportData(import_data_);
 
     Context::Scope context_scope(realm);
+    std::string specifier = ToSTLString(isolate, v8_specifier);
 
-    ModuleType module_type = ModuleEmbedderData::ModuleTypeFromImportAttributes(
-        realm, import_attributes, false);
+    ModuleType module_type =
+        ModuleEmbedderData::ModuleTypeFromImportSpecifierAndAttributes(
+            realm, specifier, import_attributes, false);
 
     if (module_type == ModuleType::kInvalid) {
       ThrowError(isolate, "Invalid module type was asserted");
@@ -1432,8 +1542,7 @@ void Shell::DoHostImportModuleDynamically(void* import_data) {
                                  : ToSTLString(isolate, referrer.As<String>());
     std::string dir_name =
         DirName(NormalizePath(source_url, GetWorkingDirectory()));
-    std::string file_name = ToSTLString(isolate, specifier);
-    std::string absolute_path = NormalizeModuleSpecifier(file_name, dir_name);
+    std::string absolute_path = NormalizeModuleSpecifier(specifier, dir_name);
 
     Local<Module> root_module;
     auto module_it = module_data->module_map.find(
@@ -1453,7 +1562,9 @@ void Shell::DoHostImportModuleDynamically(void* import_data) {
     }
     global_root_module.Reset(isolate, root_module);
 
-    if (root_module->InstantiateModule(realm, ResolveModuleCallback)
+    if (root_module
+            ->InstantiateModule(realm, ResolveModuleCallback,
+                                ResolveModuleSourceCallback)
             .FromMaybe(false)) {
       MaybeLocal<Value> maybe_result = root_module->Evaluate(realm);
       CHECK(!maybe_result.IsEmpty());
@@ -1546,7 +1657,9 @@ bool Shell::ExecuteModule(Isolate* isolate, const char* file_name) {
     module_data->origin = absolute_path;
 
     MaybeLocal<Value> maybe_result;
-    if (root_module->InstantiateModule(realm, ResolveModuleCallback)
+    if (root_module
+            ->InstantiateModule(realm, ResolveModuleCallback,
+                                ResolveModuleSourceCallback)
             .FromMaybe(false)) {
       maybe_result = root_module->Evaluate(realm);
       CHECK(!maybe_result.IsEmpty());
@@ -2487,7 +2600,7 @@ void Shell::SetPromiseHooks(const v8::FunctionCallbackInfo<v8::Value>& info) {
   DCHECK(i::ValidateCallbackInfo(info));
   Isolate* isolate = info.GetIsolate();
   if (i::v8_flags.correctness_fuzzer_suppressions) {
-    // Setting promise hoooks dynamically has unexpected timing side-effects
+    // Setting promise hooks dynamically has unexpected timing side-effects
     // with certain promise optimizations. We might not get all callbacks for
     // previously scheduled Promises or optimized code-paths that skip Promise
     // creation.
@@ -4374,9 +4487,9 @@ void Shell::ReadLine(const v8::FunctionCallbackInfo<v8::Value>& info) {
   info.GetReturnValue().Set(ReadFromStdin(info.GetIsolate()));
 }
 
-// Reads a file into a v8 string.
-MaybeLocal<String> Shell::ReadFile(Isolate* isolate, const char* name,
-                                   bool should_throw) {
+// Reads a file into a memory blob.
+std::unique_ptr<base::OS::MemoryMappedFile> Shell::ReadFileData(
+    Isolate* isolate, const char* name, bool should_throw) {
   std::unique_ptr<base::OS::MemoryMappedFile> file(
       base::OS::MemoryMappedFile::open(
           name, base::OS::MemoryMappedFile::FileMode::kReadOnly));
@@ -4389,9 +4502,18 @@ MaybeLocal<String> Shell::ReadFile(Isolate* isolate, const char* name,
                      isolate, oss.str().substr(0, String::kMaxLength).c_str())
                      .ToLocalChecked());
     }
+    return nullptr;
+  }
+  return file;
+}
+
+// Reads a file into a v8 string.
+MaybeLocal<String> Shell::ReadFile(Isolate* isolate, const char* name,
+                                   bool should_throw) {
+  auto file = ReadFileData(isolate, name, should_throw);
+  if (!file) {
     return MaybeLocal<String>();
   }
-
   int size = static_cast<int>(file->size());
   char* chars = static_cast<char*>(file->memory());
   if (i::v8_flags.use_external_strings && i::String::IsAscii(chars, size)) {

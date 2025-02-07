@@ -8,8 +8,9 @@
 // 3. Deprecated modules are properly deprecated.
 
 const common = require('../common');
+const { isMainThread } = require('worker_threads');
 
-if (!common.isMainThread) {
+if (!isMainThread) {
   common.skip('Cannot test the existence of --expose-internals from worker');
 }
 

@@ -340,3 +340,17 @@ test({0:0,1:0}, idView);
   new F3();
   new F3();
 })();
+
+(function() {
+  var r = Realm.createAllowCrossRealmAccess();
+  var [is_same, x] = Realm.eval(r, `
+    var is_same = true;
+    function f(x) {
+      is_same = is_same && %HaveSameMap(x, {...x});
+    }
+    var x = {};
+    for (var i = 0; i < 10; ++i) f(x);
+    [is_same, x];`);
+  assertTrue(is_same);
+  assertFalse(%HaveSameMap(x, {...x}));
+})();

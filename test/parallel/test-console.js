@@ -31,10 +31,12 @@ const {
   restoreStderr
 } = require('../common/hijackstdio');
 
+const { isMainThread } = require('worker_threads');
+
 assert.ok(process.stdout.writable);
 assert.ok(process.stderr.writable);
 // Support legacy API
-if (common.isMainThread) {
+if (isMainThread) {
   assert.strictEqual(typeof process.stdout.fd, 'number');
   assert.strictEqual(typeof process.stderr.fd, 'number');
 }

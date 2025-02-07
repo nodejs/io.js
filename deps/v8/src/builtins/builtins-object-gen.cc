@@ -24,6 +24,8 @@
 namespace v8 {
 namespace internal {
 
+#include "src/codegen/define-code-stub-assembler-macros.inc"
+
 class ObjectEntriesValuesBuiltinsAssembler : public ObjectBuiltinsAssembler {
  public:
   explicit ObjectEntriesValuesBuiltinsAssembler(
@@ -430,7 +432,36 @@ TF_BUILTIN(ObjectAssign, ObjectBuiltinsAssembler) {
     TNode<JSReceiver> from = ToObject_Inline(context, source);
 
     TNode<Map> from_map = LoadMap(from);
+    // For the fast case we want the source to be a JSObject.
+    GotoIfNot(IsJSObjectMap(from_map), &slow_path);
+
     TNode<Map> to_map = LoadMap(to);
+
+    // Chances that the fast cloning is possible is very low in case source
+    // and target maps belong to different native contexts (the only case
+    // it'd work is if the |from| object doesn't have enumerable properties)
+    // or if one of them is a remote JS object.
+    // TODO(olivf): Re-Evaluate this once we have a representation for "no
+    // enumerable properties" state in an Object.assign sidestep transition.
+    {
+      TNode<Map> to_meta_map = LoadMap(to_map);
+      GotoIfNot(TaggedEqual(LoadMap(from_map), to_meta_map), &slow_path);
+
+      // For the fast case we want the target to be a fresh empty object
+      // literal from current context.
+      // TODO(olivf): consider extending the fast path to a case when source
+      // and target objects are from the same context but not necessarily from
+      // current one.
+      TNode<NativeContext> native_context = LoadNativeContext(context);
+      TNode<Map> empty_object_literal_map =
+          LoadObjectFunctionInitialMap(native_context);
+      GotoIfNot(TaggedEqual(to_map, empty_object_literal_map), &slow_path);
+      // Double-check that the meta map is not contextless.
+      CSA_DCHECK(this,
+                 TaggedEqual(native_context,
+                             LoadMapConstructorOrBackPointerOrNativeContext(
+                                 to_meta_map)));
+    }
 
     // Chances are very slim that cloning is possible if we have different
     // instance sizes.
@@ -461,14 +492,6 @@ TF_BUILTIN(ObjectAssign, ObjectBuiltinsAssembler) {
             Word32And(target_field3, field3_descriptors_and_extensible_mask)),
         &slow_path);
 
-    // For the fastcase we want the source to be a JSObject and the target a
-    // fresh empty object literal.
-    TNode<NativeContext> native_context = LoadNativeContext(context);
-    TNode<Map> empty_object_literal_map =
-        LoadObjectFunctionInitialMap(native_context);
-    GotoIfNot(TaggedEqual(to_map, empty_object_literal_map), &slow_path);
-    GotoIfNot(IsJSObjectMap(from_map), &slow_path);
-
     // Check that the source is in fastmode, not a prototype and not deprecated.
     TNode<Uint32T> source_field3 = LoadMapBitField3(from_map);
     TNode<Uint32T> field3_exclusion_mask_const =
@@ -488,12 +511,19 @@ TF_BUILTIN(ObjectAssign, ObjectBuiltinsAssembler) {
     GotoIfNot(TaggedEqual(LoadElements(CAST(to)), EmptyFixedArrayConstant()),
               &slow_path);
 
+    // Ensure the properties field is not used to store a hash.
+    TNode<Object> properties = LoadJSReceiverPropertiesOrHash(to);
+    GotoIf(TaggedIsSmi(properties), &slow_path);
+    CSA_DCHECK(this,
+               Word32Or(TaggedEqual(properties, EmptyFixedArrayConstant()),
+                        IsPropertyArray(CAST(properties))));
+
     Label continue_fast_path(this), runtime_map_lookup(this, Label::kDeferred);
 
     // Check if our particular source->target combination is fast clonable.
     // E.g., this ensures that we only have fast properties and in general that
     // the binary layout is compatible for `FastCloneJSObject`.
-    // If suche a clone map exists then it can be found in the transition array
+    // If such a clone map exists then it can be found in the transition array
     // with object_assign_clone_transition_symbol as a key. If this transition
     // slot is cleared, then the map is not clonable. If the key is missing
     // from the transitions we rely on the runtime function
@@ -1712,5 +1742,8 @@ TNode<HeapObject> ObjectBuiltinsAssembler::GetAccessorOrUndefined(
   BIND(&return_result);
   return result.value();
 }
+
+#include "src/codegen/undef-code-stub-assembler-macros.inc"
+
 }  // namespace internal
 }  // namespace v8

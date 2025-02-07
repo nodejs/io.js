@@ -156,7 +156,6 @@ class RootVisitor;
   V(Map, ephemeron_hash_table_map, EphemeronHashTableMap)                      \
   V(Map, embedder_data_array_map, EmbedderDataArrayMap)                        \
   V(Map, weak_cell_map, WeakCellMap)                                           \
-  V(Map, external_pointer_array_map, ExternalPointerArrayMap)                  \
   V(Map, trusted_fixed_array_map, TrustedFixedArrayMap)                        \
   V(Map, trusted_weak_fixed_array_map, TrustedWeakFixedArrayMap)               \
   V(Map, trusted_byte_array_map, TrustedByteArrayMap)                          \
@@ -208,8 +207,6 @@ class RootVisitor;
   V(EnumCache, empty_enum_cache, EmptyEnumCache)                               \
   V(PropertyArray, empty_property_array, EmptyPropertyArray)                   \
   V(ByteArray, empty_byte_array, EmptyByteArray)                               \
-  V(ExternalPointerArray, empty_external_pointer_array,                        \
-    EmptyExternalPointerArray)                                                 \
   V(ObjectBoilerplateDescription, empty_object_boilerplate_description,        \
     EmptyObjectBoilerplateDescription)                                         \
   V(ArrayBoilerplateDescription, empty_array_boilerplate_description,          \
@@ -264,6 +261,22 @@ class RootVisitor;
   APPLY(V, ProxyRevoke, proxy_revoke)                                          \
   APPLY(V, AsyncFromSyncIteratorCloseSyncAndRethrow,                           \
         async_from_sync_iterator_close_sync_and_rethrow)                       \
+  APPLY(V, AsyncFunctionAwaitRejectClosure,                                    \
+        async_function_await_reject_closure)                                   \
+  APPLY(V, AsyncFunctionAwaitResolveClosure,                                   \
+        async_function_await_resolve_closure)                                  \
+  APPLY(V, AsyncGeneratorAwaitRejectClosure,                                   \
+        async_generator_await_reject_closure)                                  \
+  APPLY(V, AsyncGeneratorAwaitResolveClosure,                                  \
+        async_generator_await_resolve_closure)                                 \
+  APPLY(V, AsyncGeneratorYieldWithAwaitResolveClosure,                         \
+        async_generator_yield_with_await_resolve_closure)                      \
+  APPLY(V, AsyncGeneratorReturnClosedResolveClosure,                           \
+        async_generator_return_closed_resolve_closure)                         \
+  APPLY(V, AsyncGeneratorReturnClosedRejectClosure,                            \
+        async_generator_return_closed_reject_closure)                          \
+  APPLY(V, AsyncGeneratorReturnResolveClosure,                                 \
+        async_generator_return_resolve_closure)                                \
   APPLY(V, AsyncIteratorValueUnwrap, async_iterator_value_unwrap)              \
   APPLY(V, ArrayFromAsyncArrayLikeOnFulfilled,                                 \
         array_from_async_array_like_on_fulfilled)                              \
@@ -339,22 +352,6 @@ class RootVisitor;
   /* Indirection lists for isolate-independent builtins */                     \
   V(FixedArray, builtins_constants_table, BuiltinsConstantsTable)              \
   /* Internal SharedFunctionInfos */                                           \
-  V(SharedFunctionInfo, async_function_await_reject_shared_fun,                \
-    AsyncFunctionAwaitRejectSharedFun)                                         \
-  V(SharedFunctionInfo, async_function_await_resolve_shared_fun,               \
-    AsyncFunctionAwaitResolveSharedFun)                                        \
-  V(SharedFunctionInfo, async_generator_await_reject_shared_fun,               \
-    AsyncGeneratorAwaitRejectSharedFun)                                        \
-  V(SharedFunctionInfo, async_generator_await_resolve_shared_fun,              \
-    AsyncGeneratorAwaitResolveSharedFun)                                       \
-  V(SharedFunctionInfo, async_generator_yield_with_await_resolve_shared_fun,   \
-    AsyncGeneratorYieldWithAwaitResolveSharedFun)                              \
-  V(SharedFunctionInfo, async_generator_return_resolve_shared_fun,             \
-    AsyncGeneratorReturnResolveSharedFun)                                      \
-  V(SharedFunctionInfo, async_generator_return_closed_reject_shared_fun,       \
-    AsyncGeneratorReturnClosedRejectSharedFun)                                 \
-  V(SharedFunctionInfo, async_generator_return_closed_resolve_shared_fun,      \
-    AsyncGeneratorReturnClosedResolveSharedFun)                                \
   V(SharedFunctionInfo, source_text_module_execute_async_module_fulfilled_sfi, \
     SourceTextModuleExecuteAsyncModuleFulfilledSFI)                            \
   V(SharedFunctionInfo, source_text_module_execute_async_module_rejected_sfi,  \
@@ -365,6 +362,10 @@ class RootVisitor;
     AtomicsMutexAsyncUnlockRejectHandlerSFI)                                   \
   V(SharedFunctionInfo, atomics_condition_acquire_lock_sfi,                    \
     AtomicsConditionAcquireLockSFI)                                            \
+  V(SharedFunctionInfo, async_disposable_stack_on_fulfilled_shared_fun,        \
+    AsyncDisposableStackOnFulfilledSharedFun)                                  \
+  V(SharedFunctionInfo, async_disposable_stack_on_rejected_shared_fun,         \
+    AsyncDisposableStackOnRejectedSharedFun)                                   \
   V(SharedFunctionInfo, async_dispose_from_sync_dispose_shared_fun,            \
     AsyncDisposeFromSyncDisposeSharedFun)                                      \
   BUILTINS_WITH_SFI_ROOTS_LIST(V)                                              \
@@ -399,8 +400,8 @@ class RootVisitor;
   V(HeapObject, locals_block_list_cache, DebugLocalsBlockListCache)         \
   IF_WASM(V, HeapObject, active_continuation, ActiveContinuation)           \
   IF_WASM(V, HeapObject, active_suspender, ActiveSuspender)                 \
-  IF_WASM(V, WeakArrayList, js_to_wasm_wrappers, JSToWasmWrappers)          \
-  IF_WASM(V, WeakArrayList, wasm_canonical_rtts, WasmCanonicalRtts)         \
+  IF_WASM(V, WeakFixedArray, js_to_wasm_wrappers, JSToWasmWrappers)         \
+  IF_WASM(V, WeakFixedArray, wasm_canonical_rtts, WasmCanonicalRtts)        \
   /* Internal SharedFunctionInfos */                                        \
   V(FunctionTemplateInfo, error_stack_getter_fun_template,                  \
     ErrorStackGetterSharedFun)                                              \
@@ -527,7 +528,10 @@ enum class RootIndex : uint16_t {
       kFirstImmortalImmovableRoot + kImmortalImmovableRootsCount - 1,
 
   kFirstSmiRoot = kLastStrongRoot + 1,
-  kLastSmiRoot = kLastRoot
+  kLastSmiRoot = kLastRoot,
+
+  kFirstBuiltinWithSfiRoot = kProxyRevokeSharedFun,
+  kLastBuiltinWithSfiRoot = kFirstBuiltinWithSfiRoot + BUILTINS_WITH_SFI_ROOTS_LIST(COUNT_ROOT) - 1,
 #undef COUNT_ROOT
 };
 // clang-format on

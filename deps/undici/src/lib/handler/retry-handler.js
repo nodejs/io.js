@@ -133,7 +133,7 @@ class RetryHandler {
         ? Math.min(retryAfterHeader, maxTimeout)
         : Math.min(minTimeout * timeoutFactor ** (counter - 1), maxTimeout)
 
-    setTimeout(() => cb(null), retryTimeout).unref()
+    setTimeout(() => cb(null), retryTimeout)
   }
 
   onResponseStart (controller, statusCode, headers, statusMessage) {
@@ -277,7 +277,7 @@ class RetryHandler {
   }
 
   onResponseError (controller, err) {
-    if (!controller || controller.aborted || isDisturbed(this.opts.body)) {
+    if (controller?.aborted || isDisturbed(this.opts.body)) {
       this.handler.onResponseError?.(controller, err)
       return
     }

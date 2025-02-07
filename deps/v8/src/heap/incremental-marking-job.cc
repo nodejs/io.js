@@ -44,48 +44,45 @@ class IncrementalMarkingJob::Task final : public CancelableTask {
 };
 
 IncrementalMarkingJob::IncrementalMarkingJob(Heap* heap)
-    : heap_(heap), foreground_task_runner_(heap->GetForegroundTaskRunner()) {
+    : heap_(heap),
+      user_blocking_task_runner_(
+          heap->GetForegroundTaskRunner(TaskPriority::kUserBlocking)),
+      user_visible_task_runner_(
+          heap->GetForegroundTaskRunner(TaskPriority::kUserVisible)) {
   CHECK(v8_flags.incremental_marking_task);
 }
 
-void IncrementalMarkingJob::ScheduleTask(TaskType task_type) {
+void IncrementalMarkingJob::ScheduleTask(TaskPriority priority) {
   base::MutexGuard guard(&mutex_);
 
-  if (pending_task_.has_value() || heap_->IsTearingDown()) {
+  if (pending_task_ || heap_->IsTearingDown()) {
     return;
   }
 
+  IncrementalMarking* incremental_marking = heap_->incremental_marking();
+  v8::TaskRunner* task_runner =
+      v8_flags.incremental_marking_start_user_visible &&
+              incremental_marking->IsStopped() &&
+              (priority != TaskPriority::kUserBlocking)
+          ? user_visible_task_runner_.get()
+          : user_blocking_task_runner_.get();
   const bool non_nestable_tasks_enabled =
-      foreground_task_runner_->NonNestableTasksEnabled();
+      task_runner->NonNestableTasksEnabled();
   auto task = std::make_unique<Task>(heap_->isolate(), this,
                                      non_nestable_tasks_enabled
                                          ? StackState::kNoHeapPointers
                                          : StackState::kMayContainHeapPointers);
   if (non_nestable_tasks_enabled) {
-    if (task_type == TaskType::kNormal) {
-      foreground_task_runner_->PostNonNestableTask(std::move(task));
-    } else {
-      foreground_task_runner_->PostNonNestableDelayedTask(
-          std::move(task), v8::base::TimeDelta::FromMilliseconds(
-                               v8_flags.incremental_marking_task_delay_ms)
-                               .InSecondsF());
-    }
+    task_runner->PostNonNestableTask(std::move(task));
   } else {
-    if (task_type == TaskType::kNormal) {
-      foreground_task_runner_->PostTask(std::move(task));
-    } else {
-      foreground_task_runner_->PostDelayedTask(
-          std::move(task), v8::base::TimeDelta::FromMilliseconds(
-                               v8_flags.incremental_marking_task_delay_ms)
-                               .InSecondsF());
-    }
+    task_runner->PostTask(std::move(task));
   }
 
-  pending_task_.emplace(task_type);
+  pending_task_ = true;
   scheduled_time_ = v8::base::TimeTicks::Now();
   if (V8_UNLIKELY(v8_flags.trace_incremental_marking)) {
     heap_->isolate()->PrintWithTimestamp(
-        "[IncrementalMarking] Job: Schedule (%s)\n", ToString(task_type));
+        "[IncrementalMarking] Job: Schedule\n");
   }
 }
 
@@ -129,28 +126,19 @@ void IncrementalMarkingJob::Task::RunInternal() {
     base::MutexGuard guard(&job_->mutex_);
     if (V8_UNLIKELY(v8_flags.trace_incremental_marking)) {
       job_->heap_->isolate()->PrintWithTimestamp(
-          "[IncrementalMarking] Job: Run (%s)\n",
-          ToString(job_->pending_task_.value()));
+          "[IncrementalMarking] Job: Run\n");
     }
-    job_->pending_task_.reset();
+    job_->pending_task_ = false;
   }
 
   if (incremental_marking->IsMajorMarking()) {
     heap->incremental_marking()->AdvanceAndFinalizeIfComplete();
     if (incremental_marking->IsMajorMarking()) {
-      TaskType task_type;
-      if (v8_flags.incremental_marking_task_delay_ms > 0) {
-        task_type = heap->incremental_marking()->IsAheadOfSchedule()
-                        ? TaskType::kPending
-                        : TaskType::kNormal;
-      } else {
-        task_type = TaskType::kNormal;
-        if (V8_UNLIKELY(v8_flags.trace_incremental_marking)) {
-          isolate()->PrintWithTimestamp(
-              "[IncrementalMarking] Using regular task based on flags\n");
-        }
+      if (V8_UNLIKELY(v8_flags.trace_incremental_marking)) {
+        isolate()->PrintWithTimestamp(
+            "[IncrementalMarking] Using regular task based on flags\n");
       }
-      job_->ScheduleTask(task_type);
+      job_->ScheduleTask();
     }
   }
 }
@@ -158,19 +146,10 @@ void IncrementalMarkingJob::Task::RunInternal() {
 std::optional<base::TimeDelta> IncrementalMarkingJob::CurrentTimeToTask()
     const {
   std::optional<base::TimeDelta> current_time_to_task;
-  if (pending_task_.has_value()) {
+  if (pending_task_) {
     const auto now = base::TimeTicks::Now();
-    if (pending_task_.value() == TaskType::kNormal) {
-      DCHECK_GE(now, scheduled_time_);
-      current_time_to_task.emplace(now - scheduled_time_);
-    } else {
-      const auto delta = (now - scheduled_time_) -
-                         base::TimeDelta::FromMilliseconds(
-                             v8_flags.incremental_marking_task_delay_ms);
-      if (delta > base::TimeDelta::FromMilliseconds(0)) {
-        current_time_to_task.emplace(delta);
-      }
-    }
+    DCHECK_GE(now, scheduled_time_);
+    current_time_to_task.emplace(now - scheduled_time_);
   }
   return current_time_to_task;
 }

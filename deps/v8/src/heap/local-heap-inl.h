@@ -36,7 +36,6 @@ Tagged<HeapObject> LocalHeap::AllocateRawWith(int object_size,
                                               AllocationOrigin origin,
                                               AllocationAlignment alignment) {
   object_size = ALIGN_TO_ALLOCATION_ALIGNMENT(object_size);
-  DCHECK(!v8_flags.enable_third_party_heap);
   return heap_allocator_.AllocateRawWith<mode>(object_size, type, origin,
                                                alignment);
 }

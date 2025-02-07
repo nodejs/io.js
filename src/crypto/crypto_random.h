@@ -45,9 +45,9 @@ struct RandomBytesTraits final {
 using RandomBytesJob = DeriveBitsJob<RandomBytesTraits>;
 
 struct RandomPrimeConfig final : public MemoryRetainer {
-  BignumPointer prime;
-  BignumPointer rem;
-  BignumPointer add;
+  ncrypto::BignumPointer prime;
+  ncrypto::BignumPointer rem;
+  ncrypto::BignumPointer add;
   int bits;
   bool safe;
   void MemoryInfo(MemoryTracker* tracker) const override;
@@ -80,7 +80,7 @@ struct RandomPrimeTraits final {
 using RandomPrimeJob = DeriveBitsJob<RandomPrimeTraits>;
 
 struct CheckPrimeConfig final : public MemoryRetainer {
-  BignumPointer candidate;
+  ncrypto::BignumPointer candidate;
   int checks = 1;
 
   void MemoryInfo(MemoryTracker* tracker) const override;

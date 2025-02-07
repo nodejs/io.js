@@ -3137,6 +3137,21 @@
     "search": "",
     "hash": ""
   },
+  {
+    "input": "https://example.com/aaa/bbb/%2e%2e?query",
+    "base": null,
+    "href": "https://example.com/aaa/?query",
+    "origin": "https://example.com",
+    "protocol": "https:",
+    "username": "",
+    "password": "",
+    "host": "example.com",
+    "hostname": "example.com",
+    "port": "",
+    "pathname": "/aaa/",
+    "search": "?query",
+    "hash": ""
+  },
   "# Based on http://trac.webkit.org/browser/trunk/LayoutTests/fast/url/segments-userinfo-vs-host.html",
   {
     "input": "http:@www.example.com",

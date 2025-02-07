@@ -14,15 +14,6 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-#ifdef DEBUG
-#define TRACE(...)                                        \
-  do {                                                    \
-    if (v8_flags.trace_turbo_escape) PrintF(__VA_ARGS__); \
-  } while (false)
-#else
-#define TRACE(...)
-#endif  // DEBUG
-
 EscapeAnalysisReducer::EscapeAnalysisReducer(
     Editor* editor, JSGraph* jsgraph, JSHeapBroker* broker,
     EscapeAnalysisResult analysis_result, Zone* zone)
@@ -440,8 +431,6 @@ Node* NodeHashCache::Constructor::MutableNode() {
   }
   return tmp_;
 }
-
-#undef TRACE
 
 }  // namespace compiler
 }  // namespace internal

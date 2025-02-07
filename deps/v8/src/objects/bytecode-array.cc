@@ -84,10 +84,10 @@ void BytecodeArray::PrintJson(std::ostream& os) {
 
   os << "]";
 
-  int constant_pool_lenght = constant_pool()->length();
-  if (constant_pool_lenght > 0) {
+  int constant_pool_length = constant_pool()->length();
+  if (constant_pool_length > 0) {
     os << ", \"constantPool\": [";
-    for (int i = 0; i < constant_pool_lenght; i++) {
+    for (int i = 0; i < constant_pool_length; i++) {
       Tagged<Object> object = constant_pool()->get(i);
       if (i > 0) os << ", ";
       os << "\"" << object << "\"";

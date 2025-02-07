@@ -615,7 +615,7 @@ class V8_EXPORT_PRIVATE BytecodeArrayBuilder final {
   V8_INLINE void Output##Name(Operands... operands);               \
   template <typename... Operands>                                  \
   V8_INLINE void Output##Name(BytecodeLabel* label, Operands... operands);
-  BYTECODE_LIST(DECLARE_BYTECODE_OUTPUT)
+  BYTECODE_LIST(DECLARE_BYTECODE_OUTPUT, DECLARE_BYTECODE_OUTPUT)
 #undef DECLARE_OPERAND_TYPE_INFO
 
   V8_INLINE void OutputJumpLoop(BytecodeLoopHeader* loop_header, int loop_depth,

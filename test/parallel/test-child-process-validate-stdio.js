@@ -43,7 +43,9 @@ assert.throws(() => getValidStdio(stdio2, true),
   assert.throws(() => getValidStdio(stdio), expectedError);
 }
 
-if (common.isMainThread) {
+const { isMainThread } = require('worker_threads');
+
+if (isMainThread) {
   const stdio3 = [process.stdin, process.stdout, process.stderr];
   const result = getValidStdio(stdio3, false);
   assert.deepStrictEqual(result, {

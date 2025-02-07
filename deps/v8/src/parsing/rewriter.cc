@@ -394,9 +394,8 @@ bool Rewriter::Rewrite(ParseInfo* info) {
   DCHECK_NOT_NULL(scope);
   DCHECK_EQ(scope, scope->GetClosureScope());
 
-  if (scope->is_repl_mode_scope()) return true;
-  if (!(scope->is_script_scope() || scope->is_eval_scope() ||
-        scope->is_module_scope())) {
+  if (scope->is_repl_mode_scope() ||
+      !(scope->is_script_scope() || scope->is_eval_scope())) {
     return true;
   }
 
@@ -410,7 +409,6 @@ std::optional<VariableProxy*> Rewriter::RewriteBody(
   DisallowHandleAllocation no_handles;
   DisallowHandleDereference no_deref;
 
-  DCHECK_IMPLIES(scope->is_module_scope(), !body->is_empty());
   if (!body->is_empty()) {
     Variable* result = scope->AsDeclarationScope()->NewTemporary(
         info->ast_value_factory()->dot_result_string());
@@ -418,23 +416,14 @@ std::optional<VariableProxy*> Rewriter::RewriteBody(
                         result, info->ast_value_factory(), info->zone());
     processor.Process(body);
 
-    DCHECK_IMPLIES(scope->is_module_scope(), processor.result_assigned());
     if (processor.result_assigned()) {
       int pos = kNoSourcePosition;
       VariableProxy* result_value =
           processor.factory()->NewVariableProxy(result, pos);
       if (!info->flags().is_repl_mode()) {
         Statement* result_statement;
-        if (scope->is_module_scope() &&
-            IsModuleWithTopLevelAwait(
-                scope->AsDeclarationScope()->function_kind())) {
-          result_statement = processor.factory()->NewAsyncReturnStatement(
-              result_value, pos,
-              ReturnStatement::kFunctionLiteralReturnPosition);
-        } else {
-          result_statement =
-              processor.factory()->NewReturnStatement(result_value, pos);
-        }
+        result_statement =
+            processor.factory()->NewReturnStatement(result_value, pos);
         body->Add(result_statement, info->zone());
       }
       return result_value;

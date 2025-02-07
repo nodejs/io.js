@@ -117,12 +117,6 @@
   'wasm-trace-memory64-liftoff': [SKIP],
 }],  # no_simd_hardware == True
 
-################################################################################
-['third_party_heap', {
-  # Performs GC
-  'weakref-finalizationregistry-error': [SKIP],
-}], # third_party_heap
-
 ##############################################################################
 ['not (arch == x64 and mode == release)', {
   # Only run these known slow tests on bots that we think to be reasonably
@@ -150,6 +144,7 @@
 ['variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)', {
   # Maglev doesn't support inlining of Wasm code.
   'wasm-inlining-into-js': [FAIL],
+  'wasm-in-js-inlining-turboshaft': [FAIL],
 }],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
 
 ##############################################################################

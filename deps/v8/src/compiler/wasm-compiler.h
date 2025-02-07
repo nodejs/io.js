@@ -77,14 +77,13 @@ V8_EXPORT_PRIVATE wasm::WasmCompilationResult CompileWasmImportCallWrapper(
     bool source_positions, int expected_arity, wasm::Suspend);
 
 // Compiles a host call wrapper, which allows Wasm to call host functions.
-wasm::WasmCode* CompileWasmCapiCallWrapper(wasm::NativeModule*,
-                                           const wasm::FunctionSig*);
+wasm::WasmCompilationResult CompileWasmCapiCallWrapper(
+    wasm::NativeModule*, const wasm::FunctionSig*);
 
 bool IsFastCallSupportedSignature(const v8::CFunctionInfo*);
 // Compiles a wrapper to call a Fast API function from Wasm.
-wasm::WasmCode* CompileWasmJSFastCallWrapper(wasm::NativeModule*,
-                                             const wasm::FunctionSig*,
-                                             Handle<JSReceiver> callable);
+wasm::WasmCompilationResult CompileWasmJSFastCallWrapper(
+    wasm::NativeModule*, const wasm::FunctionSig*, Handle<JSReceiver> callable);
 
 // Returns an TurbofanCompilationJob or TurboshaftCompilationJob object
 // (depending on the --turboshaft-wasm-wrappers flag) for a JS to Wasm wrapper.

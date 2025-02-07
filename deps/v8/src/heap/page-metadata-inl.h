@@ -15,20 +15,17 @@ namespace internal {
 
 // static
 PageMetadata* PageMetadata::FromAddress(Address addr) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return reinterpret_cast<PageMetadata*>(
       MemoryChunk::FromAddress(addr)->Metadata());
 }
 
 // static
 PageMetadata* PageMetadata::FromHeapObject(Tagged<HeapObject> o) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return FromAddress(o.ptr());
 }
 
 // static
 PageMetadata* PageMetadata::FromAllocationAreaAddress(Address address) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
   return PageMetadata::FromAddress(address - kTaggedSize);
 }
 

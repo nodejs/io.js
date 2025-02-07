@@ -11,6 +11,8 @@ const {
   getCurves,
 } = require('crypto');
 
+const { hasOpenSSL3 } = require('../common/crypto');
+
 // This test creates EC key pairs on curves without associated OIDs.
 // Specifying a key encoding should not crash.
 {
@@ -20,7 +22,7 @@ const {
         continue;
 
       const expectedErrorCode =
-        common.hasOpenSSL3 ? 'ERR_OSSL_MISSING_OID' : 'ERR_OSSL_EC_MISSING_OID';
+        hasOpenSSL3 ? 'ERR_OSSL_MISSING_OID' : 'ERR_OSSL_EC_MISSING_OID';
       const params = {
         namedCurve,
         publicKeyEncoding: {

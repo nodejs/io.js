@@ -6,7 +6,7 @@ const Arborist = require('@npmcli/arborist')
 const path = require('node:path')
 const fs = require('node:fs')
 
-const pkg = 'test-package'
+const pkg = '@npmcli/test-package'
 const token = 'test-auth-token'
 const auth = { '//registry.npmjs.org/:_authToken': token }
 const alternateRegistry = 'https://other.registry.npmjs.org'
@@ -238,8 +238,7 @@ t.test('throws when invalid tag when not url encodable', async t => {
   await t.rejects(
     npm.exec('publish', []),
     {
-      /* eslint-disable-next-line max-len */
-      message: 'Invalid tag name "@test" of package "test-package@@test": Tags may not have any characters that encodeURIComponent encodes.',
+      message: `Invalid tag name "@test" of package "${pkg}@@test": Tags may not have any characters that encodeURIComponent encodes.`,
     }
   )
 })
@@ -854,11 +853,33 @@ t.test('prerelease dist tag', (t) => {
     await npm.exec('publish', [])
   })
 
+  t.test('does not abort when prerelease and force', async t => {
+    const packageJson = {
+      ...pkgJson,
+      version: '1.0.0-0',
+      publishConfig: { registry: alternateRegistry },
+    }
+    const { npm, registry } = await loadNpmWithRegistry(t, {
+      config: {
+        loglevel: 'silent',
+        force: true,
+        [`${alternateRegistry.slice(6)}/:_authToken`]: 'test-other-token',
+      },
+      prefixDir: {
+        'package.json': JSON.stringify(packageJson, null, 2),
+      },
+      registry: alternateRegistry,
+      authorization: 'test-other-token',
+    })
+    registry.publish(pkg, { noGet: true, packageJson })
+    await npm.exec('publish', [])
+  })
+
   t.end()
 })
 
-t.test('latest dist tag', (t) => {
-  const init = (version) => ({
+t.test('semver highest dist tag', async t => {
+  const init = ({ version, pkgExtra = {} }) => ({
     config: {
       loglevel: 'silent',
       ...auth,
@@ -866,6 +887,7 @@ t.test('latest dist tag', (t) => {
     prefixDir: {
       'package.json': JSON.stringify({
         ...pkgJson,
+        ...pkgExtra,
         version,
       }, null, 2),
     },
@@ -876,49 +898,89 @@ t.test('latest dist tag', (t) => {
     // this needs more than one item in it to cover the sort logic
     { version: '50.0.0' },
     { version: '100.0.0' },
+    { version: '102.0.0', deprecated: 'oops' },
     { version: '105.0.0-pre' },
   ]
 
-  t.test('PREVENTS publish when latest version is HIGHER than publishing version', async t => {
+  await t.test('PREVENTS publish when highest version is HIGHER than publishing version', async t => {
     const version = '99.0.0'
-    const { npm, registry } = await loadNpmWithRegistry(t, init(version))
+    const { npm, registry } = await loadNpmWithRegistry(t, init({ version }))
     registry.publish(pkg, { noPut: true, packuments })
     await t.rejects(async () => {
       await npm.exec('publish', [])
-      /* eslint-disable-next-line max-len */
-    }, new Error('Cannot implicitly apply the "latest" tag because published version 100.0.0 is higher than the new version 99.0.0. You must specify a tag using --tag.'))
+    }, new Error('Cannot implicitly apply the "latest" tag because previously published version 100.0.0 is higher than the new version 99.0.0. You must specify a tag using --tag.'))
   })
 
-  t.test('ALLOWS publish when latest is HIGHER than publishing version and flag', async t => {
+  await t.test('ALLOWS publish when highest is HIGHER than publishing version and flag', async t => {
     const version = '99.0.0'
     const { npm, registry } = await loadNpmWithRegistry(t, {
-      ...init(version),
+      ...init({ version }),
       argv: ['--tag', 'latest'],
     })
     registry.publish(pkg, { packuments })
     await npm.exec('publish', [])
   })
 
-  t.test('ALLOWS publish when latest versions are LOWER than publishing version', async t => {
+  await t.test('ALLOWS publish when highest versions are LOWER than publishing version', async t => {
     const version = '101.0.0'
-    const { npm, registry } = await loadNpmWithRegistry(t, init(version))
+    const { npm, registry } = await loadNpmWithRegistry(t, init({ version }))
     registry.publish(pkg, { packuments })
     await npm.exec('publish', [])
   })
 
-  t.test('ALLOWS publish when packument has empty versions (for coverage)', async t => {
+  await t.test('ALLOWS publish when packument has empty versions (for coverage)', async t => {
     const version = '1.0.0'
-    const { npm, registry } = await loadNpmWithRegistry(t, init(version))
+    const { npm, registry } = await loadNpmWithRegistry(t, init({ version }))
     registry.publish(pkg, { manifest: { versions: { } } })
     await npm.exec('publish', [])
   })
 
-  t.test('ALLOWS publish when packument has empty manifest (for coverage)', async t => {
+  await t.test('ALLOWS publish when packument has empty manifest (for coverage)', async t => {
     const version = '1.0.0'
-    const { npm, registry } = await loadNpmWithRegistry(t, init(version))
+    const { npm, registry } = await loadNpmWithRegistry(t, init({ version }))
     registry.publish(pkg, { manifest: {} })
     await npm.exec('publish', [])
   })
 
-  t.end()
+  await t.test('ALLOWS publish when highest version is HIGHER than publishing version with publishConfig', async t => {
+    const version = '99.0.0'
+    const { npm, registry } = await loadNpmWithRegistry(t, init({
+      version,
+      pkgExtra: {
+        publishConfig: {
+          tag: 'next',
+        },
+      },
+    }))
+    registry.publish(pkg, { packuments })
+    await npm.exec('publish', [])
+  })
+
+  await t.test('PREVENTS publish when latest version is SAME AS publishing version', async t => {
+    const version = '100.0.0'
+    const { npm, registry } = await loadNpmWithRegistry(t, init({ version }))
+    registry.publish(pkg, { noPut: true, packuments })
+    await t.rejects(async () => {
+      await npm.exec('publish', [])
+    }, new Error('You cannot publish over the previously published versions: 100.0.0.'))
+  })
+
+  await t.test('PREVENTS publish when publishing version EXISTS ALREADY in the registry', async t => {
+    const version = '50.0.0'
+    const { npm, registry } = await loadNpmWithRegistry(t, init({ version }))
+    registry.publish(pkg, { noPut: true, packuments })
+    await t.rejects(async () => {
+      await npm.exec('publish', [])
+    }, new Error('You cannot publish over the previously published versions: 50.0.0.'))
+  })
+
+  await t.test('ALLOWS publish when latest is HIGHER than publishing version and flag --force', async t => {
+    const version = '99.0.0'
+    const { npm, registry } = await loadNpmWithRegistry(t, {
+      ...init({ version }),
+      argv: ['--force'],
+    })
+    registry.publish(pkg, { noGet: true, packuments })
+    await npm.exec('publish', [])
+  })
 })

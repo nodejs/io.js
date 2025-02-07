@@ -3,11 +3,12 @@
 // found in the LICENSE file.
 
 #include "src/compiler/turboshaft/operations.h"
-#define TURBOSHAFT_OPMASK_EXPORT_FIELD_MACRO_FOR_UNITTESTS
 #include "src/compiler/turboshaft/opmasks.h"
 #include "testing/gtest-support.h"
 
 namespace v8::internal::compiler::turboshaft {
+
+#include "src/compiler/turboshaft/field-macro.inc"
 
 struct MyFakeOp;
 
@@ -120,5 +121,7 @@ TEST_F(OpmaskTest, PartialMask) {
     ASSERT_TRUE(op.Is<kC>());
   }
 }
+
+#undef FIELD
 
 }  // namespace v8::internal::compiler::turboshaft
