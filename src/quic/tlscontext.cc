@@ -82,9 +82,9 @@ void EnableTrace(Environment* env, BIOPointer* bio, SSL* ssl) {
 template <typename T, typename Opt, std::vector<T> Opt::*member>
 bool SetOption(Environment* env,
                Opt* options,
-               const v8::Local<v8::Object>& object,
-               const v8::Local<v8::String>& name) {
-  v8::Local<v8::Value> value;
+               const Local<Object>& object,
+               const Local<v8::String>& name) {
+  Local<Value> value;
   if (!object->Get(env->context(), name).ToLocal(&value)) return false;
 
   if (value->IsUndefined()) return true;
@@ -96,7 +96,7 @@ bool SetOption(Environment* env,
     auto values = value.As<v8::Array>();
     uint32_t count = values->Length();
     for (uint32_t n = 0; n < count; n++) {
-      v8::Local<v8::Value> item;
+      Local<Value> item;
       if (!values->Get(context, n).ToLocal(&item)) {
         return false;
       }
@@ -115,7 +115,7 @@ bool SetOption(Environment* env,
         if (item->IsArrayBufferView()) {
           (options->*member).emplace_back(item.As<v8::ArrayBufferView>());
         } else if (item->IsArrayBuffer()) {
-          (options->*member).emplace_back(item.As<v8::ArrayBuffer>());
+          (options->*member).emplace_back(item.As<ArrayBuffer>());
         } else {
           Utf8Value namestr(env->isolate(), name);
           THROW_ERR_INVALID_ARG_TYPE(
@@ -140,7 +140,7 @@ bool SetOption(Environment* env,
       if (value->IsArrayBufferView()) {
         (options->*member).emplace_back(value.As<v8::ArrayBufferView>());
       } else if (value->IsArrayBuffer()) {
-        (options->*member).emplace_back(value.As<v8::ArrayBuffer>());
+        (options->*member).emplace_back(value.As<ArrayBuffer>());
       } else {
         Utf8Value namestr(env->isolate(), name);
         THROW_ERR_INVALID_ARG_TYPE(
@@ -424,7 +424,7 @@ Maybe<TLSContext::Options> TLSContext::Options::From(Environment* env,
   auto& state = BindingData::Get(env);
 
   if (value->IsUndefined()) {
-    return Just(TLSContext::Options::kDefault);
+    return Just(kDefault);
   }
 
   if (!value->IsObject()) {

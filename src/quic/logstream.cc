@@ -28,14 +28,14 @@ Local<FunctionTemplate> LogStream::GetConstructorTemplate(Environment* env) {
     tmpl->InstanceTemplate()->SetInternalFieldCount(
         StreamBase::kInternalFieldCount);
     tmpl->SetClassName(state.logstream_string());
-    StreamBase::AddMethods(env, tmpl);
+    AddMethods(env, tmpl);
     state.set_logstream_constructor_template(tmpl);
   }
   return tmpl;
 }
 
 BaseObjectPtr<LogStream> LogStream::Create(Environment* env) {
-  v8::Local<v8::Object> obj;
+  Local<Object> obj;
   if (!GetConstructorTemplate(env)
            ->InstanceTemplate()
            ->NewInstance(env->context())
@@ -46,9 +46,9 @@ BaseObjectPtr<LogStream> LogStream::Create(Environment* env) {
 }
 
 LogStream::LogStream(Environment* env, Local<Object> obj)
-    : AsyncWrap(env, obj, AsyncWrap::PROVIDER_QUIC_LOGSTREAM), StreamBase(env) {
+    : AsyncWrap(env, obj, PROVIDER_QUIC_LOGSTREAM), StreamBase(env) {
   MakeWeak();
-  StreamBase::AttachToObject(GetObject());
+  AttachToObject(GetObject());
 }
 
 void LogStream::Emit(const uint8_t* data, size_t len, EmitOption option) {

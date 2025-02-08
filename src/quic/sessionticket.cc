@@ -38,7 +38,7 @@ SessionTicket::SessionTicket(Store&& ticket, Store&& transport_params)
       transport_params_(std::move(transport_params)) {}
 
 Maybe<SessionTicket> SessionTicket::FromV8Value(Environment* env,
-                                                v8::Local<v8::Value> value) {
+                                                Local<Value> value) {
   if (!value->IsArrayBufferView()) {
     THROW_ERR_INVALID_ARG_TYPE(env, "The ticket must be an ArrayBufferView.");
     return Nothing<SessionTicket>();
@@ -110,7 +110,7 @@ void SessionTicket::MemoryInfo(MemoryTracker* tracker) const {
 }
 
 int SessionTicket::GenerateCallback(SSL* ssl, void* arg) {
-  SessionTicket::AppData::Collect(ssl);
+  AppData::Collect(ssl);
   return 1;
 }
 
@@ -130,8 +130,7 @@ SSL_TICKET_RETURN SessionTicket::DecryptedCallback(SSL* ssl,
     case SSL_TICKET_SUCCESS_RENEW:
       [[fallthrough]];
     case SSL_TICKET_SUCCESS:
-      return static_cast<SSL_TICKET_RETURN>(
-          SessionTicket::AppData::Extract(ssl));
+      return static_cast<SSL_TICKET_RETURN>(AppData::Extract(ssl));
   }
 }
 
@@ -155,7 +154,7 @@ std::optional<const uv_buf_t> SessionTicket::AppData::Get() const {
 }
 
 void SessionTicket::AppData::Collect(SSL* ssl) {
-  SessionTicket::AppData app_data(ssl);
+  AppData app_data(ssl);
   if (auto source = GetAppDataSource(ssl)) {
     source->CollectSessionTicketAppData(&app_data);
   }
@@ -164,7 +163,7 @@ void SessionTicket::AppData::Collect(SSL* ssl) {
 SessionTicket::AppData::Status SessionTicket::AppData::Extract(SSL* ssl) {
   auto source = GetAppDataSource(ssl);
   if (source != nullptr) {
-    SessionTicket::AppData app_data(ssl);
+    AppData app_data(ssl);
     return source->ExtractSessionTicketAppData(app_data);
   }
   return Status::TICKET_IGNORE;

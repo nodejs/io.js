@@ -88,14 +88,14 @@ Store::Store(std::unique_ptr<v8::BackingStore> store,
   CHECK_LE(length_, store_->ByteLength() - offset_);
 }
 
-Store::Store(v8::Local<v8::ArrayBuffer> buffer, Option option)
+Store::Store(Local<v8::ArrayBuffer> buffer, Option option)
     : Store(buffer->GetBackingStore(), buffer->ByteLength()) {
   if (option == Option::DETACH) {
     USE(buffer->Detach(Local<Value>()));
   }
 }
 
-Store::Store(v8::Local<v8::ArrayBufferView> view, Option option)
+Store::Store(Local<v8::ArrayBufferView> view, Option option)
     : Store(view->Buffer()->GetBackingStore(),
             view->ByteLength(),
             view->ByteOffset()) {
@@ -104,7 +104,7 @@ Store::Store(v8::Local<v8::ArrayBufferView> view, Option option)
   }
 }
 
-v8::Local<v8::Uint8Array> Store::ToUint8Array(Environment* env) const {
+Local<Uint8Array> Store::ToUint8Array(Environment* env) const {
   return !store_
              ? Uint8Array::New(v8::ArrayBuffer::New(env->isolate(), 0), 0, 0)
              : Uint8Array::New(v8::ArrayBuffer::New(env->isolate(), store_),
@@ -257,11 +257,9 @@ std::optional<int> QuicError::crypto_error() const {
 }
 
 MaybeLocal<Value> QuicError::ToV8Value(Environment* env) const {
-  if ((type() == QuicError::Type::TRANSPORT && code() == NGTCP2_NO_ERROR) ||
-      (type() == QuicError::Type::APPLICATION &&
-       code() == NGTCP2_APP_NOERROR) ||
-      (type() == QuicError::Type::APPLICATION &&
-       code() == NGHTTP3_H3_NO_ERROR)) {
+  if ((type() == Type::TRANSPORT && code() == NGTCP2_NO_ERROR) ||
+      (type() == Type::APPLICATION && code() == NGTCP2_APP_NOERROR) ||
+      (type() == Type::APPLICATION && code() == NGHTTP3_H3_NO_ERROR)) {
     return Undefined(env->isolate());
   }
 
@@ -331,14 +329,11 @@ QuicError QuicError::FromConnectionClose(ngtcp2_conn* session) {
   return QuicError(ngtcp2_conn_get_ccerr(session));
 }
 
-QuicError QuicError::TRANSPORT_NO_ERROR =
-    QuicError::ForTransport(QuicError::QUIC_NO_ERROR);
-QuicError QuicError::APPLICATION_NO_ERROR =
-    QuicError::ForApplication(QuicError::QUIC_APP_NO_ERROR);
-QuicError QuicError::VERSION_NEGOTIATION = QuicError::ForVersionNegotiation();
-QuicError QuicError::IDLE_CLOSE = QuicError::ForIdleClose();
-QuicError QuicError::INTERNAL_ERROR =
-    QuicError::ForNgtcp2Error(NGTCP2_ERR_INTERNAL);
+QuicError QuicError::TRANSPORT_NO_ERROR = ForTransport(QUIC_NO_ERROR);
+QuicError QuicError::APPLICATION_NO_ERROR = ForApplication(QUIC_APP_NO_ERROR);
+QuicError QuicError::VERSION_NEGOTIATION = ForVersionNegotiation();
+QuicError QuicError::IDLE_CLOSE = ForIdleClose();
+QuicError QuicError::INTERNAL_ERROR = ForNgtcp2Error(NGTCP2_ERR_INTERNAL);
 
 }  // namespace quic
 }  // namespace node
