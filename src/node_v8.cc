@@ -248,6 +248,8 @@ static const char* GetGCTypeName(v8::GCType gc_type) {
       return "IncrementalMarking";
     case v8::GCType::kGCTypeProcessWeakCallbacks:
       return "ProcessWeakCallbacks";
+    case v8::GCType::kGCTypeMinorMarkCompact:
+      return "MinorMarkCompact";
     default:
       return "Unknown";
   }
