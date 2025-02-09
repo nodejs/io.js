@@ -2989,6 +2989,28 @@ changes:
   * `stats` {fs.Stats}
 
 Invokes the callback with the {fs.Stats} for the file descriptor.
+return an object with the following values:
+```js
+{
+dev: 2114, # ID of the device containing file
+ino: 48064969, # inode number
+mode: 33188, # (type and permissions
+nlink: 1, # number of hard links
+uid: 85, # user ID of owner
+gid: 100, # group ID of owner
+rdev: 0, # device ID (if special file
+size: 527, # total size in bytes
+blksize: 4096, # blocksize for filesystem I/O
+blocks: 8, # number of 512B blocks allocated
+atimeMs: 1318289051000.1, # last access in ms
+mtimeMs: 1318289051000.1, # last modification in ms
+ctimeMs: 1318289051000.1, # last  creation time in ms
+birthtimeMs: 1318289051000.1, #  creation time in ms
+atime: new Date('Mon, 10 Oct 2011 23:24:11 GMT'), # last access time
+mtime: new Date('Mon, 10 Oct 2011 23:24:11 GMT'), # last modify time
+ctime: new Date('Mon, 10 Oct 2011 23:24:11 GMT'), # last creation time
+birthtime: new Date('Mon, 10 Oct 2011 23:24:11 GMT') # last creation time
+}```
 
 See the POSIX fstat(2) documentation for more detail.
 
