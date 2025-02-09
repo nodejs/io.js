@@ -43,6 +43,7 @@ The following special commands are supported by all REPL instances:
   further input or processing of that expression.
 * `.clear`: Resets the REPL `context` to an empty object and clears any
   multi-line expression being input.
+* `.cls`: Clear the screen (or press <kbd>Ctrl</kbd>+<kbd>L</kbd>).
 * `.exit`: Close the I/O stream, causing the REPL to exit.
 * `.help`: Show this list of special commands.
 * `.save`: Save the current REPL session to a file:
