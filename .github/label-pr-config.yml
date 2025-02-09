@@ -53,7 +53,7 @@ subSystemLabels:
   /^(?:android-)?configure|node\.gyp|common\.gypi$/: build, needs-ci
   # More specific tools
   /^tools\/gyp/: tools, build, gyp, needs-ci
-  /^tools\/doc\//: tools, doc
+  /^tools\/doc\//: tools, doc, needs-ci
   /^tools\/icu\//: tools, i18n-api, icu, needs-ci
   /^tools\/osx-/: tools, macos
   /^tools\/test-npm/: tools, test, npm
