@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import sys
+import subprocess
 
 try:
     # for utf-8 on Python 2
@@ -143,21 +144,23 @@ if not options.outfile.endswith(".dat"):
 dataname=options.outfile[0:-4]
 
 
-## TODO: need to improve this. Quotes, etc.
-def runcmd(tool, cmd, doContinue=False):
-    if(options.toolpath):
-        cmd = os.path.join(options.toolpath, tool) + " " + cmd
-    else:
-        cmd = tool + " " + cmd
+def runcmd(tool, cmd, do_continue=False):
+  if options.toolpath:
+      cmd = os.path.join(options.toolpath, tool) + " " + cmd
+  else:
+      cmd = tool + " " + cmd
 
-    if(options.verbose>4):
-        print("# " + cmd)
+  if options.verbose > 4:
+      print("# " + cmd)
 
-    rc = os.system(cmd)
-    if rc != 0 and not doContinue:
-        print("FAILED: %s" % cmd)
-        sys.exit(1)
-    return rc
+  try:
+      subprocess.check_call(cmd, shell=True)
+  except subprocess.CalledProcessError as e:
+      print("FAILED: %s" % cmd)
+      if not do_continue:
+          sys.exit(e.returncode)
+      return e.returncode
+  return 0
 
 ## STEP 0 - read in json config
 with io.open(options.filterfile, encoding='utf-8') as fi:
