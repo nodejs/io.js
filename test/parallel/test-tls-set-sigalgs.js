@@ -45,13 +45,15 @@ function test(csigalgs, ssigalgs, shared_sigalgs, cerr, serr) {
       );
     } else {
       if (serr) {
-        assert(pair.server.err);
-        assert.strictEqual(pair.server.err.code, serr);
+        assert(pair.server.err.cause);
+        assert.strictEqual(pair.server.err.code, 'ECONNRESET');
+        assert.strictEqual(pair.server.err.cause.code, serr);
       }
 
       if (cerr) {
-        assert(pair.client.err);
-        assert.strictEqual(pair.client.err.code, cerr);
+        assert(pair.client.err.cause);
+        assert.strictEqual(pair.client.err.code, 'ECONNRESET');
+        assert.strictEqual(pair.client.err.cause.code, cerr);
       }
     }
 

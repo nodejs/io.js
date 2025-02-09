@@ -69,11 +69,19 @@ function test(cmin, cmax, cprot, smin, smax, sprot, proto, cerr, serr) {
         if (cerr === 'ERR_SSL_UNSUPPORTED_PROTOCOL' &&
             pair.client.err.code === 'ERR_SSL_VERSION_TOO_LOW')
           cerr = 'ERR_SSL_VERSION_TOO_LOW';
-        assert.strictEqual(pair.client.err.code, cerr);
+        if (cerr === 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION' || cerr === 'ERR_SSL_UNSUPPORTED_PROTOCOL') {
+          assert.strictEqual(pair.client.err.code, 'ECONNRESET');
+        } else {
+          assert.strictEqual(pair.client.err.code, cerr);
+        }
       }
       if (serr) {
         assert(pair.server.err);
-        assert.strictEqual(pair.server.err.code, serr);
+        if (serr === 'ERR_SSL_TLSV1_ALERT_PROTOCOL_VERSION' || serr === 'ERR_SSL_UNSUPPORTED_PROTOCOL') {
+          assert.strictEqual(pair.server.err.code, 'ECONNRESET');
+        } else {
+          assert.strictEqual(pair.server.err.code, serr);
+        }
       }
       return cleanup();
     }

@@ -25,7 +25,7 @@ function test(options) {
   const server = tls.createServer(serverOptions, common.mustNotCall());
 
   server.on('tlsClientError', common.mustCall((err, socket) => {
-    assert.strictEqual(err.message, 'Invalid SNI context');
+    assert.strictEqual(err.cause.message, 'Invalid SNI context');
     // The `servername` should match.
     assert.strictEqual(socket.servername, options.servername);
   }));
