@@ -4345,6 +4345,17 @@ process has been running.
 The return value includes fractions of a second. Use `Math.floor()` to get whole
 seconds.
 
+## `process._getActiveHandles()`
+<!-- YAML
+added: REPLACEME
+-->
+
+* Returns: {Array}
+
+The `process.getActiveHandles` method returns the list of handles that are
+currently opened up by the process. These can be open file descriptors,
+conenction, resources that are actively being held by the process.
+
 ## `process.version`
 
 <!-- YAML
