@@ -945,6 +945,8 @@ changes:
     primary's `process.debugPort`.
   * `windowsHide` {boolean} Hide the forked processes console window that would
     normally be created on Windows systems. **Default:** `false`.
+  * `schedulingPolicy` {string} policy to distribute load among the
+    secondary processes.
 
 After calling [`.setupPrimary()`][] (or [`.fork()`][]) this settings object will
 contain the settings, including the default values.
