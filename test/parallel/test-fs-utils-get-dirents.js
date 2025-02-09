@@ -5,11 +5,13 @@ const common = require('../common');
 const { getDirents, getDirent } = require('internal/fs/utils');
 const assert = require('assert');
 const { internalBinding } = require('internal/test/binding');
-const { UV_DIRENT_UNKNOWN } = internalBinding('constants').fs;
+const { UV_DIRENT_UNKNOWN, UV_DIRENT_FILE } = internalBinding('constants').fs;
 const fs = require('fs');
+const { resolve } = require('path');
 
 const tmpdir = require('../common/tmpdir');
 const filename = 'foo';
+const nonExistentPath = resolve(tmpdir.path, 'does-not-exist');
 
 {
   // setup
@@ -62,6 +64,18 @@ const filename = 'foo';
           'The "path" argument must be of type string or an ' +
           'instance of Buffer. Received type number (42)',
         ].join(''));
+    },
+    ));
+}
+{
+  // Intentional error in lstat
+  getDirents(
+    Buffer.from(nonExistentPath),
+    [[Buffer.from(filename)], [UV_DIRENT_UNKNOWN]],
+    common.mustCall((err) => {
+      assert.match(
+        err.code, /ENOTDIR|ENOENT/
+      );
     },
     ));
 }
@@ -133,6 +147,31 @@ const filename = 'foo';
           'The "path" argument must be of type string or an ' +
           'instance of Buffer. Received type number (42)',
         ].join(''));
+    },
+    ));
+}
+{
+  // When type != UV_DIRENT_UNKNOWN
+  getDirent(
+    tmpdir.path,
+    filename,
+    UV_DIRENT_FILE,
+    common.mustCall((err, dirent) => {
+      assert.strictEqual(err, null);
+      assert.strictEqual(dirent.name, filename);
+    },
+    ));
+}
+{
+  // Intentional error in lstat
+  getDirent(
+    nonExistentPath,
+    filename,
+    UV_DIRENT_UNKNOWN,
+    common.mustCall((err) => {
+      assert.match(
+        err.code, /ENOTDIR|ENOENT/
+      );
     },
     ));
 }
