@@ -137,18 +137,40 @@ describe('.env supports edge cases', () => {
     assert.strictEqual(child.code, 0);
   });
 
-  it('should handle when --env-file is passed along with --', async () => {
-    const child = await common.spawnPromisified(
-      process.execPath,
-      [
-        '--eval', `require('assert').strictEqual(process.env.BASIC, undefined);`,
-        '--', '--env-file', validEnvFilePath,
-      ],
-      { cwd: __dirname },
-    );
-    assert.strictEqual(child.stdout, '');
-    assert.strictEqual(child.stderr, '');
-    assert.strictEqual(child.code, 0);
+  // Ref: https://github.com/nodejs/node/pull/54913
+  it('should handle CLI edge cases', async () => {
+    const edgeCases = [
+      {
+        // If the flag is passed AFTER the script, ignore it
+        flags: [fixtures.path('empty.js'), '--env-file=nonexistent.env'],
+      },
+      {
+        // If the flag is passed AFTER '--', ignore it
+        flags: ['--eval=""', '--', '--env-file=nonexistent.env'],
+      },
+      {
+        // If the flag is passed AFTER an invalid argument, check the argument first
+        flags: ['--invalid-argument', '--env-file=nonexistent.env'],
+        error: 'bad option: --invalid-argument',
+      },
+      {
+        // If the flag is passed as an invalid argument, check the argument first
+        flags: ['--env-file-ABCD=nonexistent.env'],
+        error: 'bad option: --env-file-ABCD=nonexistent.env'
+      },
+    ];
+    for (const { flags, error } of edgeCases) {
+      const child = await common.spawnPromisified(process.execPath, flags);
+      if (error) {
+        assert.notStrictEqual(child.code, 0);
+        // Remove the leading '<path>: '
+        assert.strictEqual(child.stderr.substring(process.execPath.length + 2).trim(), error);
+      } else {
+        assert.strictEqual(child.code, 0);
+        assert.strictEqual(child.stderr, '');
+        assert.strictEqual(child.stdout, '');
+      }
+    }
   });
 
   it('should handle file without a final newline', async () => {

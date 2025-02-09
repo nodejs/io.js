@@ -94,6 +94,22 @@ void OptionsParser<Options>::AddOption(
 }
 
 template <typename Options>
+void OptionsParser<Options>::AddOption(
+    const char* name,
+    const char* help_text,
+    std::vector<DetailedOption> Options::*field,
+    OptionEnvvarSettings env_setting) {
+  options_.emplace(
+      name,
+      OptionInfo{
+          kDetailedStringList,
+          std::make_shared<SimpleOptionField<std::vector<DetailedOption>>>(
+              field),
+          env_setting,
+          help_text});
+}
+
+template <typename Options>
 void OptionsParser<Options>::AddOption(const char* name,
                                        const char* help_text,
                                        HostPort Options::* field,
@@ -465,6 +481,10 @@ void OptionsParser<Options>::Parse(
       case kStringList:
         Lookup<std::vector<std::string>>(info.field, options)
             ->emplace_back(std::move(value));
+        break;
+      case kDetailedStringList:
+        Lookup<std::vector<DetailedOption>>(info.field, options)
+            ->emplace_back(DetailedOption{value, name});
         break;
       case kHostPort:
         Lookup<HostPort>(info.field, options)

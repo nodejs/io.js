@@ -665,11 +665,11 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
       "[has_env_file_string]", "", &EnvironmentOptions::has_env_file_string);
   AddOption("--env-file",
             "set environment variables from supplied file",
-            &EnvironmentOptions::env_file);
+            &EnvironmentOptions::env_files);
   Implies("--env-file", "[has_env_file_string]");
   AddOption("--env-file-if-exists",
             "set environment variables from supplied file",
-            &EnvironmentOptions::optional_env_file);
+            &EnvironmentOptions::env_files);
   Implies("--env-file-if-exists", "[has_env_file_string]");
   AddOption("--test",
             "launch test runner on startup",
@@ -1394,6 +1394,38 @@ void GetCLIOptionsValues(const FunctionCallbackInfo<Value>& args) {
           return;
         }
         break;
+      case kDetailedStringList: {
+        const std::vector<DetailedOption>& detailed_options =
+            *_ppop_instance.Lookup<std::vector<DetailedOption>>(field, opts);
+        v8::Local<v8::Array> value_arr =
+            v8::Array::New(isolate, detailed_options.size());
+        for (size_t i = 0; i < detailed_options.size(); ++i) {
+          // Create a new V8 object for each DetailedOption
+          v8::Local<v8::Object> option_object = v8::Object::New(isolate);
+
+          option_object
+              ->Set(isolate->GetCurrentContext(),
+                    v8::String::NewFromUtf8(isolate, "flag").ToLocalChecked(),
+                    v8::String::NewFromUtf8(isolate,
+                                            detailed_options[i].flag.c_str())
+                        .ToLocalChecked())
+              .Check();
+
+          option_object
+              ->Set(isolate->GetCurrentContext(),
+                    v8::String::NewFromUtf8(isolate, "value").ToLocalChecked(),
+                    v8::String::NewFromUtf8(isolate,
+                                            detailed_options[i].value.c_str())
+                        .ToLocalChecked())
+              .Check();
+
+          // Add the object to the array at the current index
+          value_arr->Set(isolate->GetCurrentContext(), i, option_object)
+              .Check();
+        }
+        value = value_arr;
+        break;
+      }
       case kHostPort: {
         const HostPort& host_port =
             *_ppop_instance.Lookup<HostPort>(field, opts);

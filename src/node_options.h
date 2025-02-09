@@ -44,6 +44,15 @@ class HostPort {
   uint16_t port_;
 };
 
+class DetailedOption {
+ public:
+  DetailedOption(const std::string& value, std::string flag)
+      : value(value), flag(flag) {}
+
+  std::string value;
+  std::string flag;
+};
+
 class Options {
  public:
   virtual void CheckOptions(std::vector<std::string>* errors,
@@ -179,8 +188,7 @@ class EnvironmentOptions : public Options {
 #endif  // HAVE_INSPECTOR
   std::string redirect_warnings;
   std::string diagnostic_dir;
-  std::string env_file;
-  std::string optional_env_file;
+  std::vector<DetailedOption> env_files;
   bool has_env_file_string = false;
   bool test_runner = false;
   uint64_t test_runner_concurrency = 0;
@@ -387,6 +395,7 @@ enum OptionType {
   kString,
   kHostPort,
   kStringList,
+  kDetailedStringList,
 };
 
 template <typename Options>
@@ -422,6 +431,10 @@ class OptionsParser {
   void AddOption(const char* name,
                  const char* help_text,
                  std::vector<std::string> Options::*field,
+                 OptionEnvvarSettings env_setting = kDisallowedInEnvvar);
+  void AddOption(const char* name,
+                 const char* help_text,
+                 std::vector<DetailedOption> Options::*field,
                  OptionEnvvarSettings env_setting = kDisallowedInEnvvar);
   void AddOption(const char* name,
                  const char* help_text,

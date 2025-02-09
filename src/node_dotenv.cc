@@ -11,54 +11,6 @@ using v8::NewStringType;
 using v8::Object;
 using v8::String;
 
-std::vector<Dotenv::env_file_data> Dotenv::GetDataFromArgs(
-    const std::vector<std::string>& args) {
-  const std::string_view optional_env_file_flag = "--env-file-if-exists";
-
-  const auto find_match = [](const std::string& arg) {
-    return arg == "--" || arg == "--env-file" ||
-           arg.starts_with("--env-file=") || arg == "--env-file-if-exists" ||
-           arg.starts_with("--env-file-if-exists=");
-  };
-
-  std::vector<Dotenv::env_file_data> env_files;
-  // This will be an iterator, pointing to args.end() if no matches are found
-  auto matched_arg = std::find_if(args.begin(), args.end(), find_match);
-
-  while (matched_arg != args.end()) {
-    if (*matched_arg == "--") {
-      return env_files;
-    }
-
-    auto equal_char_index = matched_arg->find('=');
-
-    if (equal_char_index != std::string::npos) {
-      // `--env-file=path`
-      auto flag = matched_arg->substr(0, equal_char_index);
-      auto file_path = matched_arg->substr(equal_char_index + 1);
-
-      struct env_file_data env_file_data = {
-          file_path, flag.starts_with(optional_env_file_flag)};
-      env_files.push_back(env_file_data);
-    } else {
-      // `--env-file path`
-      auto file_path = std::next(matched_arg);
-
-      if (file_path == args.end()) {
-        return env_files;
-      }
-
-      struct env_file_data env_file_data = {
-          *file_path, matched_arg->starts_with(optional_env_file_flag)};
-      env_files.push_back(env_file_data);
-    }
-
-    matched_arg = std::find_if(++matched_arg, args.end(), find_match);
-  }
-
-  return env_files;
-}
-
 void Dotenv::SetEnvironment(node::Environment* env) {
   auto isolate = env->isolate();
 
@@ -283,12 +235,9 @@ Dotenv::ParseResult Dotenv::ParsePath(const std::string_view path) {
   return ParseResult::Valid;
 }
 
-void Dotenv::AssignNodeOptionsIfAvailable(std::string* node_options) const {
-  auto match = store_.find("NODE_OPTIONS");
-
-  if (match != store_.end()) {
-    *node_options = match->second;
-  }
+std::string Dotenv::GetNodeOptions() const {
+  auto it = store_.find("NODE_OPTIONS");
+  return (it != store_.end()) ? it->second : "";
 }
 
 }  // namespace node

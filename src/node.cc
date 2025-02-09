@@ -804,6 +804,49 @@ int ProcessGlobalArgs(std::vector<std::string>* args,
 
 static std::atomic_bool init_called{false};
 
+static ExitCode ProcessEnvFiles(std::vector<std::string>* errors) {
+  std::vector<DetailedOption>& env_files =
+      per_process::cli_options->per_isolate->per_env->env_files;
+  if (env_files.empty()) return ExitCode::kNoFailure;
+
+  CHECK(!per_process::v8_initialized);
+
+  for (const auto& env_file : env_files) {
+    switch (per_process::dotenv_file.ParsePath(env_file.value)) {
+      case Dotenv::ParseResult::Valid:
+        break;
+      case Dotenv::ParseResult::InvalidContent:
+        errors->emplace_back(env_file.value + ": invalid format");
+        break;
+      case Dotenv::ParseResult::FileError:
+        if (env_file.flag == "--env-file-if-exists") {
+          fprintf(stderr,
+                  "%s not found. Continuing without it.\n",
+                  env_file.value.c_str());
+        } else {
+          errors->emplace_back(env_file.value + ": not found");
+        }
+        break;
+      default:
+        UNREACHABLE();
+    }
+  }
+
+#if !defined(NODE_WITHOUT_NODE_OPTIONS)
+  // Parse and process Node.js options from the environment
+  std::vector<std::string> env_argv =
+      ParseNodeOptionsEnvVar(per_process::dotenv_file.GetNodeOptions(), errors);
+  env_argv.insert(env_argv.begin(), per_process::cli_options->cmdline.at(0));
+
+  // Process global arguments
+  const ExitCode exit_code =
+      ProcessGlobalArgsInternal(&env_argv, nullptr, errors, kAllowedInEnvvar);
+  if (exit_code != ExitCode::kNoFailure) return exit_code;
+#endif
+
+  return ExitCode::kNoFailure;
+}
+
 // TODO(addaleax): Turn this into a wrapper around InitializeOncePerProcess()
 // (with the corresponding additional flags set), then eventually remove this.
 static ExitCode InitializeNodeWithArgsInternal(
@@ -855,35 +898,6 @@ static ExitCode InitializeNodeWithArgsInternal(
   HandleEnvOptions(per_process::cli_options->per_isolate->per_env);
 
   std::string node_options;
-  auto env_files = node::Dotenv::GetDataFromArgs(*argv);
-
-  if (!env_files.empty()) {
-    CHECK(!per_process::v8_initialized);
-
-    for (const auto& file_data : env_files) {
-      switch (per_process::dotenv_file.ParsePath(file_data.path)) {
-        case Dotenv::ParseResult::Valid:
-          break;
-        case Dotenv::ParseResult::InvalidContent:
-          errors->push_back(file_data.path + ": invalid format");
-          break;
-        case Dotenv::ParseResult::FileError:
-          if (file_data.is_optional) {
-            fprintf(stderr,
-                    "%s not found. Continuing without it.\n",
-                    file_data.path.c_str());
-            continue;
-          }
-          errors->push_back(file_data.path + ": not found");
-          break;
-        default:
-          UNREACHABLE();
-      }
-    }
-
-    per_process::dotenv_file.AssignNodeOptionsIfAvailable(&node_options);
-  }
-
 #if !defined(NODE_WITHOUT_NODE_OPTIONS)
   if (!(flags & ProcessInitializationFlags::kDisableNodeOptionsEnv)) {
     // NODE_OPTIONS environment variable is preferred over the file one.
@@ -918,6 +932,9 @@ static ExitCode InitializeNodeWithArgsInternal(
         ProcessGlobalArgsInternal(argv, exec_argv, errors, kDisallowedInEnvvar);
     if (exit_code != ExitCode::kNoFailure) return exit_code;
   }
+
+  const ExitCode exit_code = ProcessEnvFiles(errors);
+  if (exit_code != ExitCode::kNoFailure) return exit_code;
 
   // Set the process.title immediately after processing argv if --title is set.
   if (!per_process::cli_options->title.empty())

@@ -27,12 +27,9 @@ class Dotenv {
 
   void ParseContent(const std::string_view content);
   ParseResult ParsePath(const std::string_view path);
-  void AssignNodeOptionsIfAvailable(std::string* node_options) const;
+  std::string GetNodeOptions() const;
   void SetEnvironment(Environment* env);
   v8::Local<v8::Object> ToObject(Environment* env) const;
-
-  static std::vector<env_file_data> GetDataFromArgs(
-      const std::vector<std::string>& args);
 
  private:
   std::map<std::string, std::string> store_;
