@@ -177,7 +177,7 @@ changes:
     while the `'lifo'` scheduling will keep it as low as possible.
     **Default:** `'lifo'`.
   * `timeout` {number} Socket timeout in milliseconds.
-    This will set the timeout when the socket is created.
+    This will immediately set the timeout when the socket is created.
 
 `options` in [`socket.connect()`][] are also supported.
 
@@ -1297,8 +1297,12 @@ changes:
   Same as binding to the `'timeout'` event.
 * Returns: {http.ClientRequest}
 
-Once a socket is assigned to this request and is connected
-[`socket.setTimeout()`][] will be called.
+Calls [`socket.setTimeout()`][] on the socket assigned to this request
+after that socket emits the `'connect'` event.
+
+Unlike the `timeout` option of [`http.Agent`][] and `http.request()`, the
+`request.setTimeout()` method disregards the socket connection time
+as the timeout starts _after_ the socket connection has been established.
 
 ### `request.socket`
 
@@ -3859,8 +3863,9 @@ changes:
     request.
   * `socketPath` {string} Unix domain socket. Cannot be used if one of `host`
     or `port` is specified, as those specify a TCP Socket.
-  * `timeout` {number}: A number specifying the socket timeout in milliseconds.
-    This will set the timeout before the socket is connected.
+  * `timeout` {number}: Socket timeout in milliseconds.
+    This is forwarded to the [`http.Agent`][], which will set the timeout
+    immediately when the socket is created.
   * `uniqueHeaders` {Array} A list of request headers that should be sent
     only once. If the header's value is an array, the items will be joined
     using `; `.
