@@ -2,14 +2,14 @@
 
 const assert = require('assert');
 const { spawnSync, execFileSync } = require('child_process');
-const common = require('./');
-const util = require('util');
+const { platformTimeout, isWindows } = require('./');
+let inspect;
 
 // Workaround for Windows Server 2008R2
 // When CMD is used to launch a process and CMD is killed too quickly, the
 // process can stay behind running in suspended state, never completing.
 function cleanupStaleProcess(filename) {
-  if (!common.isWindows) {
+  if (!isWindows) {
     return;
   }
   process.once('beforeExit', () => {
@@ -30,7 +30,7 @@ function cleanupStaleProcess(filename) {
 
 // This should keep the child process running long enough to expire
 // the timeout.
-const kExpiringChildRunTime = common.platformTimeout(20 * 1000);
+const kExpiringChildRunTime = platformTimeout(20 * 1000);
 const kExpiringParentTimer = 1;
 assert(kExpiringChildRunTime > kExpiringParentTimer);
 
@@ -43,9 +43,10 @@ function logAfterTime(time) {
 }
 
 function checkOutput(str, check) {
+  inspect ??= require('util').inspect;
   if ((check instanceof RegExp && !check.test(str)) ||
     (typeof check === 'string' && check !== str)) {
-    return { passed: false, reason: `did not match ${util.inspect(check)}` };
+    return { passed: false, reason: `did not match ${inspect(check)}` };
   }
   if (typeof check === 'function') {
     try {
@@ -53,7 +54,7 @@ function checkOutput(str, check) {
     } catch (error) {
       return {
         passed: false,
-        reason: `did not match expectation, checker throws:\n${util.inspect(error)}`,
+        reason: `did not match expectation, checker throws:\n${inspect(error)}`,
       };
     }
   }

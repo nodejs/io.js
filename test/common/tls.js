@@ -2,11 +2,11 @@
 
 'use strict';
 const crypto = require('crypto');
-const net = require('net');
+const { Socket } = require('net');
 
 exports.ccs = Buffer.from('140303000101', 'hex');
 
-class TestTLSSocket extends net.Socket {
+class TestTLSSocket extends Socket {
   constructor(server_cert) {
     super();
     this.server_cert = server_cert;

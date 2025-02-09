@@ -1,12 +1,11 @@
 'use strict';
 
-const common = require('../common');
-if (!common.hasCrypto) {
-  common.skip('missing crypto');
+const { hasCrypto, skip } = require('../common');
+if (!hasCrypto) {
+  skip('missing crypto');
 }
 
 const assert = require('assert');
-const crypto = require('crypto');
 const {
   createSign,
   createVerify,
@@ -14,7 +13,7 @@ const {
   privateDecrypt,
   sign,
   verify,
-} = crypto;
+} = require('crypto');  /* eslint-disable-line node-core/crypto-check */
 
 // The values below (modp2/modp2buf) are for a 1024 bits long prime from
 // RFC 2412 E.2, see https://tools.ietf.org/html/rfc2412. */
@@ -109,7 +108,7 @@ const opensslVersionNumber = (major = 0, minor = 0, patch = 0) => {
 
 let OPENSSL_VERSION_NUMBER;
 const hasOpenSSL = (major = 0, minor = 0, patch = 0) => {
-  if (!common.hasCrypto) return false;
+  if (!hasCrypto) return false;
   if (OPENSSL_VERSION_NUMBER === undefined) {
     const regexp = /(?<m>\d+)\.(?<n>\d+)\.(?<p>\d+)/;
     const { m, n, p } = process.versions.openssl.match(regexp).groups;

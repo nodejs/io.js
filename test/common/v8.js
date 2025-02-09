@@ -1,15 +1,16 @@
 'use strict';
 const assert = require('assert');
-const { GCProfiler } = require('v8');
+let GCProfiler;
 
 function collectGCProfile({ duration }) {
-  return new Promise((resolve) => {
-    const profiler = new GCProfiler();
-    profiler.start();
-    setTimeout(() => {
-      resolve(profiler.stop());
-    }, duration);
-  });
+  GCProfiler ??= require('v8').GCProfiler;
+  const { promise, resolve } = Promise.withResolvers();
+  const profiler = new GCProfiler();
+  profiler.start();
+  setTimeout(() => {
+    resolve(profiler.stop());
+  }, duration);
+  return promise;
 }
 
 function checkGCProfile(data) {

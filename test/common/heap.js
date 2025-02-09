@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('assert');
-const util = require('util');
+const { inspect } = require('util');
 
 let _buildEmbedderGraph;
 function buildEmbedderGraph() {
@@ -91,7 +91,7 @@ function readHeapInfo(raw, fields, types, strings) {
 }
 
 function inspectNode(snapshot) {
-  return util.inspect(snapshot, { depth: 4 });
+  return inspect(snapshot, { depth: 4 });
 }
 
 function isEdge(edge, { node_name, edge_name }) {
@@ -144,7 +144,7 @@ class State {
           if (!hasChild) {
             throw new Error(
               'expected to find child ' +
-              `${util.inspect(expectedEdge)} in ${inspectNode(rootNodes)}`);
+              `${inspect(expectedEdge)} in ${inspectNode(rootNodes)}`);
           }
         }
       }
@@ -196,7 +196,7 @@ class State {
           if (!hasChild) {
             throw new Error(
               'expected to find child ' +
-              `${util.inspect(expectedEdge)} in ${inspectNode(rootNodes)}`);
+              `${inspect(expectedEdge)} in ${inspectNode(rootNodes)}`);
           }
         }
       }
@@ -269,7 +269,7 @@ function findByRetainingPath(rootName, retainingPath) {
     }
 
     if (newHaystack.length === 0) {
-      const format = (val) => util.inspect(val, { breakLength: 128, depth: 3 });
+      const format = (val) => inspect(val, { breakLength: 128, depth: 3 });
       console.error('#');
       console.error('# Retaining path to search for:');
       for (let j = 0; j < retainingPath.length; ++j) {

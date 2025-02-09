@@ -1,8 +1,8 @@
 'use strict';
 
 const assert = require('assert');
-const os = require('os');
-const { isIP } = require('net');
+let endianness;
+let isIP;
 
 const types = {
   A: 1,
@@ -284,11 +284,13 @@ function writeDNSPacket(parsed) {
     }
   }
 
+  endianness ??= require('os').endianness();
+
   return Buffer.concat(buffers.map((typedArray) => {
     const buf = Buffer.from(typedArray.buffer,
                             typedArray.byteOffset,
                             typedArray.byteLength);
-    if (os.endianness() === 'LE') {
+    if (endianness === 'LE') {
       if (typedArray.BYTES_PER_ELEMENT === 2) buf.swap16();
       if (typedArray.BYTES_PER_ELEMENT === 4) buf.swap32();
     }
@@ -311,6 +313,7 @@ function errorLookupMock(code = mockedErrorCode, syscall = mockedSysCall) {
 }
 
 function createMockedLookup(...addresses) {
+  isIP ??= require('net').isIP;
   addresses = addresses.map((address) => ({ address: address, family: isIP(address) }));
 
   // Create a DNS server which replies with a AAAA and a A record for the same host
