@@ -1,4 +1,12 @@
 "use strict";
+
+const {
+  globalThis,
+} = primordials;
+const { AbortController } = require('internal/abort_controller');
+const { URL } = require('internal/url');
+const { WebAssembly } = globalThis;
+
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
