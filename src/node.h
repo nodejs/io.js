@@ -86,8 +86,8 @@
 // We cannot use __POSIX__ in this header because that's only defined when
 // building Node.js.
 #ifndef _WIN32
-#include <signal.h>
-#endif  // _WIN32
+#include <csignal>
+#endif  // !_WIN32
 
 #define NODE_MAKE_VERSION(major, minor, patch)                                \
   ((major) * 0x1000 + (minor) * 0x100 + (patch))
