@@ -339,6 +339,28 @@ FSReqBase* AsyncCall(Environment* env,
                        after, fn, fn_args...);
 }
 
+template <typename Func, typename... Args>
+int AsyncCallAndThrowOnError(Environment* env,
+                             FSReqBase* req_wrap,
+                             const v8::FunctionCallbackInfo<v8::Value>& args,
+                             const char* syscall,
+                             enum encoding enc,
+                             uv_fs_cb after,
+                             Func fn,
+                             Args... fn_args) {
+  CHECK_NOT_NULL(req_wrap);
+  req_wrap->Init(syscall, nullptr, 0, enc);
+  int err = req_wrap->Dispatch(fn, fn_args..., after);
+  if (err < 0) {
+    auto exception =
+        UVException(env->isolate(), err, syscall, nullptr, nullptr);
+    req_wrap->Reject(exception);
+  } else {
+    req_wrap->SetReturnValue(args);
+  }
+  return err;
+}
+
 // Template counterpart of SYNC_CALL, except that it only puts
 // the error number and the syscall in the context instead of
 // creating an error in the C++ land.
