@@ -1,5 +1,9 @@
 'use strict';
 const common = require('../common');
+
+if (process.features.debug)
+  common.skip('cannot reliably test this in debug builds');
+
 const tmpdir = require('../common/tmpdir');
 const fs = require('fs');
 const assert = require('assert');
