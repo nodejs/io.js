@@ -954,11 +954,20 @@ void ZlibContext::Close() {
   CHECK_LE(mode_, UNZIP);
 
   int status = Z_OK;
-  if (mode_ == DEFLATE || mode_ == GZIP || mode_ == DEFLATERAW) {
-    status = deflateEnd(&strm_);
-  } else if (mode_ == INFLATE || mode_ == GUNZIP || mode_ == INFLATERAW ||
-             mode_ == UNZIP) {
-    status = inflateEnd(&strm_);
+  switch (mode_) {
+    case DEFLATE:
+    case GZIP:
+    case DEFLATERAW:
+      status = deflateEnd(&strm_);
+      break;
+    case INFLATE:
+    case GUNZIP:
+    case INFLATERAW:
+    case UNZIP:
+      status = inflateEnd(&strm_);
+      break;
+    default:
+      break;
   }
 
   CHECK(status == Z_OK || status == Z_DATA_ERROR);
