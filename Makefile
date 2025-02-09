@@ -94,8 +94,8 @@ V ?= 0
 
 # Use -e to double check in case it's a broken link
 available-node = \
-	if [ -x "$(NODE)" ] && [ -e "$(NODE)" ]; then \
-		"$(NODE)" $(1); \
+	if [ -x $(NODE) ] && [ -e $(NODE) ]; then \
+		$(NODE) $(1); \
 	elif [ -x `command -v node` ] && [ -e `command -v node` ] && [ `command -v node` ]; then \
 		`command -v node` $(1); \
 	else \
@@ -824,7 +824,7 @@ out/doc/api/assets/%: doc/api_assets/% | out/doc/api/assets
 	@cp $< $@ ; $(RM) out/doc/api/assets/README.md
 
 
-run-npm-ci = $(PWD)/$(NPM) ci
+run-npm-ci = "$(PWD)/$(NPM)" ci
 
 LINK_DATA = out/doc/apilinks.json
 VERSIONS_DATA = out/previous-doc-versions.json
