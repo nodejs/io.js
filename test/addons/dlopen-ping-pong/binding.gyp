@@ -13,7 +13,12 @@
         # Enable the shared object to be linked by runtime linker
         ['OS in "aix os400"', {
           'ldflags': [ '-Wl,-G' ]
-        }]],
+        }],
+        # Avoid excessive LTO
+        ['enable_lto=="true"', {
+          'ldflags': [ '-fno-lto' ],
+        }],
+      ],
     },
     {
       'target_name': 'binding',

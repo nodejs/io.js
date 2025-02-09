@@ -19,6 +19,10 @@
             ]
           },
         }],
+        # Avoid excessive LTO
+        ['enable_lto=="true"', {
+          'ldflags': [ '-fno-lto' ],
+        }],
       ]
     }
   ]
