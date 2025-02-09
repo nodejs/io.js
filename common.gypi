@@ -13,6 +13,7 @@
     'enable_pgo_generate%': '0',
     'enable_pgo_use%': '0',
     'python%': 'python',
+    'emulator%': [],
 
     'node_shared%': 'false',
     'force_dynamic_crt%': 0,
