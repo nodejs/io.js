@@ -173,6 +173,10 @@ async function ordinaryTests() {
       '3',
       'undefined',
     ]],
+    ['const k = await Promise.resolve(123)'],
+    ['k', '123'],
+    ['k = await Promise.resolve(234)', '234'],
+    ['k', '234'],
     // Regression test for https://github.com/nodejs/node/issues/43777.
     ['await Promise.resolve(123), Promise.resolve(456)', 'Promise {', { line: 0 }],
     ['await Promise.resolve(123), await Promise.resolve(456)', '456'],
