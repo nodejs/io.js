@@ -750,8 +750,8 @@ void ChannelWrap::StartTimer() {
   }
   int timeout = timeout_;
   if (timeout == 0) timeout = 1;
-  if (timeout < 0 || timeout > 1000) timeout = 1000;
-  uv_timer_start(timer_handle_, AresTimeout, timeout, timeout);
+  if (timeout < 0 || timeout >= 500) timeout = 500;
+  uv_timer_start(timer_handle_, AresTimeout, 0, timeout);
 }
 
 void ChannelWrap::CloseTimer() {
