@@ -67,7 +67,7 @@ assert.throws(
 );
 
 // Zero length target because default for targetEnd <= targetSource
-assert.strictEqual(a.compare(b, 0xff), 1);
+assert.strictEqual(a.compare(b, 1, 0), 1);
 
 assert.throws(
   () => a.compare(b, '0xff'),
@@ -81,7 +81,9 @@ assert.throws(
 const oor = { code: 'ERR_OUT_OF_RANGE' };
 
 assert.throws(() => a.compare(b, 0, 100, 0), oor);
+assert.throws(() => a.compare(b, 100), oor);
 assert.throws(() => a.compare(b, 0, 1, 0, 100), oor);
+assert.throws(() => a.compare(b, 0, 1, 100), oor);
 assert.throws(() => a.compare(b, -1), oor);
 assert.throws(() => a.compare(b, 0, Infinity), oor);
 assert.throws(() => a.compare(b, 0, 1, -1), oor);

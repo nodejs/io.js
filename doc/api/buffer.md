@@ -1732,7 +1732,9 @@ console.log(buf1.compare(buf2, 5, 6, 5));
 ```
 
 [`ERR_OUT_OF_RANGE`][] is thrown if `targetStart < 0`, `sourceStart < 0`,
-`targetEnd > target.byteLength`, or `sourceEnd > source.byteLength`.
+`targetStart > target.byteLength`, `sourceStart > source.byteLength`,
+`targetEnd < 0`, `sourceEnd < 0`, `targetEnd > target.byteLength`,
+or `sourceEnd > source.byteLength`.
 
 ### `buf.copy(target[, targetStart[, sourceStart[, sourceEnd]]])`
 
