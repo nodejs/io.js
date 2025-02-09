@@ -25,6 +25,7 @@
 #include "node_external_reference.h"
 #include "node_internals.h"
 #include "string_bytes.h"
+#include "tracing/trace_event.h"
 #include "util-inl.h"
 
 #include <cstring>
@@ -520,8 +521,21 @@ Maybe<void> SyncProcessRunner::TryInitializeAndRunLoop(Local<Value> options) {
       }
     }
   }
+  if (*TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
+          TRACING_CATEGORY_NODE2(process, sync)) != 0) {
+    TRACE_EVENT_BEGIN1(TRACING_CATEGORY_NODE2(process, sync),
+                       "spawnSync",
+                       "file",
+                       TRACE_STR_COPY(uv_process_options_.file));
+  }
 
   r = uv_run(uv_loop_, UV_RUN_DEFAULT);
+
+  if (*TRACE_EVENT_API_GET_CATEGORY_GROUP_ENABLED(
+          TRACING_CATEGORY_NODE2(process, sync)) != 0) {
+    TRACE_EVENT_END0(TRACING_CATEGORY_NODE2(process, sync), "spawnSync");
+  }
+
   if (r < 0)
     // We can't handle uv_run failure.
     ABORT();

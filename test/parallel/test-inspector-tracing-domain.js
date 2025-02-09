@@ -64,6 +64,7 @@ async function test() {
     'node.perf',
     'node.perf.timerify',
     'node.perf.usertiming',
+    'node.process.sync',
     'node.promises.rejections',
     'node.threadpoolwork.async',
     'node.threadpoolwork.sync',

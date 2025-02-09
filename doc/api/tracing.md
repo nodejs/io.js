@@ -40,6 +40,8 @@ The available categories are:
     measures and marks.
   * `node.perf.timerify`: Enables capture of only Performance API timerify
     measurements.
+* `node.process.sync`: Enables capture of trace data for the sync APIs of
+  process module.
 * `node.promises.rejections`: Enables capture of trace data tracking the number
   of unhandled Promise rejections and handled-after-rejections.
 * `node.vm.script`: Enables capture of trace data for the `node:vm` module's
