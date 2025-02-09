@@ -118,6 +118,8 @@ class SignalWrap : public HandleWrap {
       }
     }
 #endif
+    // Save the old signum
+    int old_signum = wrap->handle_.signum;
     int err = uv_signal_start(
         &wrap->handle_,
         [](uv_signal_t* handle, int signum) {
@@ -131,7 +133,10 @@ class SignalWrap : public HandleWrap {
         signum);
 
     if (err == 0) {
-      CHECK(!wrap->active_);
+      // Subtract 1 if previously registered
+      if (wrap->active_) {
+        DecreaseSignalHandlerCount(old_signum);
+      }
       wrap->active_ = true;
       Mutex::ScopedLock lock(handled_signals_mutex);
       handled_signals[signum]++;
