@@ -1,0 +1,169 @@
+name: Backport Commit Queue
+
+on:
+  schedule:
+    # Run twice a week at 00:15 AM UTC on Sunday and Thursday.
+    - cron: 15 0 * * 0,4
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}
+
+env:
+  NODE_VERSION: lts/*
+  PYTHON_VERSION: '3.12'
+  FLAKY_TESTS: keep_retrying
+  CC: sccache clang
+  CXX: sccache clang++
+  SCCACHE_GHA_ENABLED: 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  commitQueue:
+    runs-on: ubuntu-latest
+    if: github.repository == 'nodejs/node' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        branch:
+          - { release-line: v23.x, base-branch: main }
+          - { release-line: v22.x, base-branch: v23.x }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          # Needs the whole git history for ncu to work
+          # See https://github.com/nodejs/node-core-utils/pull/486
+          fetch-depth: 0
+          ref: ${{ matrix.branch.release-line }}-staging
+          # A personal token is required because pushing changes to `.github`
+          # with default token will be blocked. It needs
+          # to be set here because `checkout` configures GitHub authentication
+          # for push as well.
+          token: ${{ secrets.GH_USER_TOKEN }}
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Install dependencies
+      - name: Install Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af  # v4.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install branch-diff
+        run: npm install -g branch-diff
+
+      - name: Setup git author
+        run: |
+          git config --local user.email "github-bot@iojs.org"
+          git config --local user.name "Node.js GitHub Bot"
+
+      - name: Set up ghauth config (Ubuntu)
+        run: |
+          mkdir -p "${XDG_CONFIG_HOME:-~/.config}/changelog-maker"
+          echo '{}' | jq '{user: env.USERNAME, token: env.TOKEN}' > "${XDG_CONFIG_HOME:-~/.config}/changelog-maker/config.json"
+        env:
+          USERNAME: ${{ secrets.JENKINS_USER }}
+          TOKEN: ${{ github.token }}
+
+      - name: Fetch base branch
+        run: |
+          git remote set-branches --add origin "$BASE_BRANCH"
+          git fetch origin "$BASE_BRANCH"
+        env:
+          BASE_BRANCH: ${{ matrix.branch.base-branch }}
+
+      - name: Fetch auto-backport branch if it exists
+        id: fetch
+        run: |
+          if git fetch origin "$BACKPORT_BRANCH"; then
+            STAGING_BRANCH_TIP="$(git rev-parse HEAD)"
+            WORKING_BRANCH_TIP="$(git rev-parse FETCH_HEAD)"
+            echo "WORKING_BRANCH_TIP=$WORKING_BRANCH_TIP" >> "$GITHUB_OUTPUT"
+            if [ "$WORKING_BRANCH_TIP" != "$STAGING_BRANCH_TIP" ]; then
+                git reset  "$WORKING_BRANCH_TIP" --hard
+                git rebase "$STAGING_BRANCH_TIP" --empty=drop || git reset "$STAGING_BRANCH_TIP" --hard
+            fi
+          else
+            echo "Branch doesn't exist yet"
+          fi
+        env:
+          BACKPORT_BRANCH: ${{ matrix.branch.release-line }}-staging-auto-backport
+
+      - name: Run the queue
+        id: queue
+        run: |
+          set -xe
+
+          NODE="$(command -v node)"
+
+          backport() {
+            git cherry-pick "$1" && \
+            make lint-js NODE="$NODE" && \
+            make test-doc -j4 NODE="$NODE"
+          }
+
+          mkdir -p out/Release
+          ln -s "$NODE" out/Release/node
+
+          branch-diff "${CURRENT_RELEASE_LINE}-staging" "$BASE_REF" \
+            --exclude-label="semver-major,dont-land-on-${CURRENT_RELEASE_LINE},backport-requested-${CURRENT_RELEASE_LINE},backport-blocked-${CURRENT_RELEASE_LINE},backport-open-${CURRENT_RELEASE_LINE},backported-to-${CURRENT_RELEASE_LINE}"\
+            --filter-release --format=sha --reverse | while read -r COMMIT ; do
+            if backport "$COMMIT" 2>&1 >output; then
+              MAX_COMMITS="$((MAX_COMMITS-1))"
+            else
+              {
+                EOF="$(node -p 'crypto.randomUUID()')"
+                echo "$COMMIT<<$EOF"
+                echo "…"
+                tail output # Cutting the output to avoid exceeding memory.
+                echo "$EOF"
+              } >> "$GITHUB_OUTPUT"
+              git cherry-pick --skip || git reset HEAD^ --hard
+            fi
+            cat output
+            [ "$MAX_COMMITS" = "0" ] && break || true
+          done
+          rm -f output
+        env:
+          MAX_COMMITS: 99 # backport commits 99 at a time to limit the risk of timeout
+          CURRENT_RELEASE_LINE: ${{ matrix.branch.release-line }}
+          BASE_REF: origin/${{ matrix.branch.base-branch }}
+          BACKPORT_BRANCH: ${{ matrix.branch.release-line }}-staging-auto-backport
+
+      - name: Get local HEAD
+        id: head
+        run: echo "HEAD=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push to working branch
+        if: ${{ steps.fetch.outputs.WORKING_BRANCH_TIP != steps.head.outputs.HEAD }}
+        run: git push origin "HEAD:refs/heads/$BACKPORT_BRANCH" --force
+        env:
+          BACKPORT_BRANCH: ${{ matrix.branch.release-line }}-staging-auto-backport
+
+      - name: Report errors
+        if: ${{
+            steps.fetch.outputs.WORKING_BRANCH_TIP != steps.head.outputs.HEAD &&
+            toJson(steps.queue.outputs) != '{}'
+            }}
+        run: |
+          node -<<'EOF' | gh issue create --repo "$GITHUB_REPOSITORY_OWNER/Release"\
+            -t "Autobackport is failing on $CURRENT_RELEASE_LINE" \
+            --label 'Release-agenda' --body-file -
+          console.log(`Workflow URL: <${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}>`);
+          console.log('\n<ul>');
+          for (const [sha, output] of Object.entries(JSON.parse(process.env.FAILED_BACKPORTS))) {
+            console.log('<li><details>');
+            console.log(`<summary><code>${sha}</code></summary>`);
+            console.log(`\n${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/commit/${sha}\n\n${'```'}\n${output}\n${'```'}\n`);
+            console.log('</details></li>');
+          }
+          console.log('</ul>');
+          console.log('Try to cherry-pick the commit manually or add `backport-requested` label and leave a comment on the associated PR.')
+          EOF
+        env:
+          GH_TOKEN: ${{ secrets.GH_USER_TOKEN }}
+          FAILED_BACKPORTS: ${{ toJson(steps.queue.outputs) }}
+          CURRENT_RELEASE_LINE: ${{ matrix.branch.release-line }}
