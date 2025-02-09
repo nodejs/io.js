@@ -1657,22 +1657,19 @@ const options = {
 const { values, tokens } = parseArgs({ options, tokens: true });
 
 // Reprocess the option tokens and overwrite the returned values.
-tokens
+const { color, logfile = 'default.log' } = tokens
   .filter((token) => token.kind === 'option')
-  .forEach((token) => {
-    if (token.name.startsWith('no-')) {
-      // Store foo:false for --no-foo
-      const positiveName = token.name.slice(3);
-      values[positiveName] = false;
-      delete values[token.name];
-    } else {
-      // Resave value so last one wins if both --foo and --no-foo.
-      values[token.name] = token.value ?? true;
-    }
-  });
+  .reduce((acc, { name, value }) => {
 
-const color = values.color;
-const logfile = values.logfile ?? 'default.log';
+    const { [name]: _, ...rest } = acc;
+
+    const negate = name.startsWith('no-');
+    const k = negate ? name.slice(3) : name;
+    const v = negate ? false : (value ?? true);
+
+    return { ...rest, [k]: v };
+
+  }, values);
 
 console.log({ logfile, color });
 ```
@@ -1689,22 +1686,19 @@ const options = {
 const { values, tokens } = parseArgs({ options, tokens: true });
 
 // Reprocess the option tokens and overwrite the returned values.
-tokens
+const { color, logfile = 'default.log' } = tokens
   .filter((token) => token.kind === 'option')
-  .forEach((token) => {
-    if (token.name.startsWith('no-')) {
-      // Store foo:false for --no-foo
-      const positiveName = token.name.slice(3);
-      values[positiveName] = false;
-      delete values[token.name];
-    } else {
-      // Resave value so last one wins if both --foo and --no-foo.
-      values[token.name] = token.value ?? true;
-    }
-  });
+  .reduce((acc, { name, value }) => {
 
-const color = values.color;
-const logfile = values.logfile ?? 'default.log';
+    const { [name]: _, ...rest } = acc;
+
+    const negate = name.startsWith('no-');
+    const k = negate ? name.slice(3) : name;
+    const v = negate ? false : (value ?? true);
+
+    return { ...rest, [k]: v };
+
+  }, values);
 
 console.log({ logfile, color });
 ```
