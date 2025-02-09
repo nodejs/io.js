@@ -139,6 +139,28 @@ request. Interesting things to notice:
   exit gracefully. Remember that for a test to succeed, it must exit with a
   status code of 0.
 
+## Running tests
+
+All tests can be executed by running the `jstest` target:
+
+```bash
+make jstest
+```
+
+A filter can be applied to only run specific tests:
+
+```bash
+make jstest test/parallel/test-debugger-pid.js test/sequential/test-debugger-pid.js test/sequential/test-debugger-launch.mjs
+```
+
+A filter can be applied to skip certain single/multiple test cases:
+
+```bash
+make jstest CI_SKIP_TESTS=parallel/test-cluster-bind-privileged-port.js,...
+```
+
+Note that test paths must be relative to the project and cannot be absolute file paths.
+
 ## General recommendations
 
 ### Timers
