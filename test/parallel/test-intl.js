@@ -104,6 +104,12 @@ if (!common.hasIntl) {
     const numberFormat = new Intl.NumberFormat(['en']).format(12345.67890);
     assert.strictEqual(numberFormat, '12,345.679');
   }
+
+  // Regression test for https://github.com/nodejs/node/issues/51752
+  {
+    assert(new Intl.Segmenter().segment());
+  }
+
   // If list is specified and doesn't contain 'en-US' then return.
   if (process.config.variables.icu_locales && !haveLocale('en-US')) {
     common.printSkipMessage('detailed Intl tests because American English is ' +
