@@ -347,7 +347,6 @@ declare namespace primordials {
   export import RegExp = globalThis.RegExp;
   export const RegExpPrototype: typeof RegExp.prototype
   export const RegExpPrototypeExec: UncurryThis<typeof RegExp.prototype.exec>
-  export const RegExpPrototypeCompile: UncurryThis<typeof RegExp.prototype.compile>
   export const RegExpPrototypeToString: UncurryThis<typeof RegExp.prototype.toString>
   export const RegExpPrototypeTest: UncurryThis<typeof RegExp.prototype.test>
   export const RegExpPrototypeGetDotAll: UncurryGetter<typeof RegExp.prototype, "dotAll">;
@@ -380,23 +379,14 @@ declare namespace primordials {
   export const StringFromCodePoint: typeof String.fromCodePoint
   export const StringFromCodePointApply: StaticApply<typeof String.fromCodePoint>
   export const StringRaw: typeof String.raw
-  export const StringPrototypeAnchor: UncurryThis<typeof String.prototype.anchor>
-  export const StringPrototypeBig: UncurryThis<typeof String.prototype.big>
-  export const StringPrototypeBlink: UncurryThis<typeof String.prototype.blink>
-  export const StringPrototypeBold: UncurryThis<typeof String.prototype.bold>
   export const StringPrototypeCharAt: UncurryThis<typeof String.prototype.charAt>
   export const StringPrototypeCharCodeAt: UncurryThis<typeof String.prototype.charCodeAt>
   export const StringPrototypeCodePointAt: UncurryThis<typeof String.prototype.codePointAt>
   export const StringPrototypeConcat: UncurryThis<typeof String.prototype.concat>
   export const StringPrototypeEndsWith: UncurryThis<typeof String.prototype.endsWith>
-  export const StringPrototypeFontcolor: UncurryThis<typeof String.prototype.fontcolor>
-  export const StringPrototypeFontsize: UncurryThis<typeof String.prototype.fontsize>
-  export const StringPrototypeFixed: UncurryThis<typeof String.prototype.fixed>
   export const StringPrototypeIncludes: UncurryThis<typeof String.prototype.includes>
   export const StringPrototypeIndexOf: UncurryThis<typeof String.prototype.indexOf>
-  export const StringPrototypeItalics: UncurryThis<typeof String.prototype.italics>
   export const StringPrototypeLastIndexOf: UncurryThis<typeof String.prototype.lastIndexOf>
-  export const StringPrototypeLink: UncurryThis<typeof String.prototype.link>
   export const StringPrototypeLocaleCompare: UncurryThis<typeof String.prototype.localeCompare>
   export const StringPrototypeMatch: UncurryThis<typeof String.prototype.match>
   export const StringPrototypeMatchAll: UncurryThis<typeof String.prototype.matchAll>
@@ -407,20 +397,13 @@ declare namespace primordials {
   export const StringPrototypeReplace: UncurryThis<typeof String.prototype.replace>
   export const StringPrototypeSearch: UncurryThis<typeof String.prototype.search>
   export const StringPrototypeSlice: UncurryThis<typeof String.prototype.slice>
-  export const StringPrototypeSmall: UncurryThis<typeof String.prototype.small>
   export const StringPrototypeSplit: UncurryThis<typeof String.prototype.split>
-  export const StringPrototypeStrike: UncurryThis<typeof String.prototype.strike>
-  export const StringPrototypeSub: UncurryThis<typeof String.prototype.sub>
-  export const StringPrototypeSubstr: UncurryThis<typeof String.prototype.substr>
   export const StringPrototypeSubstring: UncurryThis<typeof String.prototype.substring>
-  export const StringPrototypeSup: UncurryThis<typeof String.prototype.sup>
   export const StringPrototypeStartsWith: UncurryThis<typeof String.prototype.startsWith>
   export const StringPrototypeToString: UncurryThis<typeof String.prototype.toString>
   export const StringPrototypeTrim: UncurryThis<typeof String.prototype.trim>
   export const StringPrototypeTrimStart: UncurryThis<typeof String.prototype.trimStart>
-  export const StringPrototypeTrimLeft: UncurryThis<typeof String.prototype.trimLeft>
   export const StringPrototypeTrimEnd: UncurryThis<typeof String.prototype.trimEnd>
-  export const StringPrototypeTrimRight: UncurryThis<typeof String.prototype.trimRight>
   export const StringPrototypeToLocaleLowerCase: UncurryThis<typeof String.prototype.toLocaleLowerCase>
   export const StringPrototypeToLocaleUpperCase: UncurryThis<typeof String.prototype.toLocaleUpperCase>
   export const StringPrototypeToLowerCase: UncurryThis<typeof String.prototype.toLowerCase>
