@@ -977,7 +977,7 @@ changes:
   operation. It is possible to create a mask consisting of the bitwise OR of
   two or more values (e.g.
   `fs.constants.COPYFILE_EXCL | fs.constants.COPYFILE_FICLONE`)
-  **Default:** `0`.
+  **Default:** `fs.constants.COPYFILE_FICLONE`.
   * `fs.constants.COPYFILE_EXCL`: The copy operation will fail if `dest`
     already exists.
   * `fs.constants.COPYFILE_FICLONE`: The copy operation will attempt to create
@@ -5441,7 +5441,7 @@ changes:
 
 * `src` {string|Buffer|URL} source filename to copy
 * `dest` {string|Buffer|URL} destination filename of the copy operation
-* `mode` {integer} modifiers for copy operation. **Default:** `0`.
+* `mode` {integer} modifiers for copy operation. **Default:** `fs.constants.COPYFILE_FICLONE`.
 
 Synchronously copies `src` to `dest`. By default, `dest` is overwritten if it
 already exists. Returns `undefined`. Node.js makes no guarantees about the

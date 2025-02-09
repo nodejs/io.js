@@ -6,6 +6,7 @@ const tmpdir = require('../common/tmpdir');
 const assert = require('assert');
 const fs = require('fs');
 const { internalBinding } = require('internal/test/binding');
+const { getValidMode } = require('internal/fs/utils');
 const {
   UV_ENOENT,
   UV_EEXIST
@@ -59,6 +60,9 @@ verify(src, dest);
 fs.unlinkSync(dest);
 fs.copyFileSync(src, dest, UV_FS_COPYFILE_FICLONE);
 verify(src, dest);
+
+// Verify that default mode is COPYFILE_FICLONE.
+assert.strictEqual(getValidMode(null, 'copyFile'), COPYFILE_FICLONE);
 
 // Verify that COPYFILE_FICLONE_FORCE can be used.
 try {
