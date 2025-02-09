@@ -1278,6 +1278,34 @@ def cc_macros(cc=None):
       key = lst[1]
       val = lst[2]
       k[key] = val
+
+  try:
+    p = subprocess.Popen(shlex.split('uname') + ['-v'],
+                         stdin=subprocess.PIPE,
+                         stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE)
+  except OSError:
+    pass # ignore on systems not supporting uname
+
+  out = to_utf8(p.communicate()[0])
+
+  # edge-case check: trying to compile on Apple Silicon M1
+  # using a toolchain that is dual-arch (arm64e and x86_64)
+  # (transpiled by Rosetta 2) will set __x86_64__ = 1
+  # however the true host arch is indeed arm64 instead
+  # uname -v reveals the kernel version string
+  # which includes the version ARM64 tag which
+  # gives us certainty that this script is running
+  # on an ARM platform in reality.
+  # Handling this edge case is important because
+  # false-positive cross-compilation would lead v8
+  # to assume an x86_64 host which breaks the compilation
+  # as v8 will try to compile the wrong inline
+  # assembly code branch for the actual ARM based host CPU.
+  if 'Darwin' in out and 'ARM64' in out:
+    k['__x86_64__'] = '0'
+    k['__aarch64__'] = '1'
+
   return k
 
 
