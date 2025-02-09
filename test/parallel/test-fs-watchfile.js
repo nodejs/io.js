@@ -26,6 +26,26 @@ assert.throws(
     name: 'TypeError'
   });
 
+assert.throws(
+  () => {
+    fs.watchFile('./another-file', 'bad listener');
+  },
+  {
+    code: 'ERR_INVALID_ARG_TYPE',
+    message: `The "listener" argument must be of type function. Received type string ('bad listener')`,
+    name: 'TypeError'
+  });
+
+assert.throws(
+  () => {
+    fs.watchFile('./another-file', 'bad options', () => {});
+  },
+  {
+    code: 'ERR_INVALID_ARG_TYPE',
+    message: `The "options" argument must be of type object. Received type string ('bad options')`,
+    name: 'TypeError'
+  });
+
 assert.throws(() => {
   fs.watchFile(new Object(), common.mustNotCall());
 }, { code: 'ERR_INVALID_ARG_TYPE', name: 'TypeError' });
