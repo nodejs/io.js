@@ -5,7 +5,7 @@ const fs = require('fs');
 const http = require('http');
 const fixtures = require('../common/fixtures');
 const { spawn } = require('child_process');
-const { URL, pathToFileURL } = require('url');
+const { pathToFileURL } = require('url');
 const { EventEmitter, once } = require('events');
 
 const _MAINSCRIPT = fixtures.path('loop.js');

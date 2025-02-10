@@ -6,11 +6,12 @@ const fs = require('fs');
 const fsPromises = fs.promises;
 const path = require('path');
 const events = require('events');
-const os = require('os');
 const { inspect } = require('util');
 const { Worker } = require('worker_threads');
 
 const workerPath = path.join(__dirname, 'wpt/worker.js');
+
+let osType;
 
 function getBrowserProperties() {
   const { node: version } = process.versions; // e.g. 18.13.0, 20.0.0-nightly202302078e6e215481
@@ -28,7 +29,8 @@ function getBrowserProperties() {
  * https://github.com/web-platform-tests/wpt/blob/1c6ff12/tools/wptrunner/wptrunner/tests/test_update.py#L953-L958
  */
 function getOs() {
-  switch (os.type()) {
+  osType ??= require('os').type();
+  switch (osType) {
     case 'Linux':
       return 'linux';
     case 'Darwin':
@@ -512,10 +514,10 @@ const limit = (concurrency) => {
 };
 
 class WPTRunner {
-  constructor(path, { concurrency = os.availableParallelism() - 1 || 1 } = {}) {
+  constructor(path, { concurrency } = {}) {
     this.path = path;
     this.resource = new ResourceLoader(path);
-    this.concurrency = concurrency;
+    this.concurrency = concurrency ?? (require('os').availableParallelism() - 1 || 1);
 
     this.flags = [];
     this.globalThisInitScripts = [];

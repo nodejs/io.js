@@ -24,7 +24,10 @@ const process = globalThis.process;  // Some tests tamper with the process globa
 
 const assert = require('assert');
 const fs = require('fs');
-const net = require('net');
+const {
+  getDefaultAutoSelectFamilyAttemptTimeout,
+  setDefaultAutoSelectFamilyAttemptTimeout,
+} = require('net');
 // Do not require 'os' until needed so that test-os-checked-function can
 // monkey patch it. If 'os' is required here, that test will fail.
 const path = require('path');
@@ -139,8 +142,8 @@ function isPi() {
 }
 
 // When using high concurrency or in the CI we need much more time for each connection attempt
-net.setDefaultAutoSelectFamilyAttemptTimeout(platformTimeout(net.getDefaultAutoSelectFamilyAttemptTimeout() * 10));
-const defaultAutoSelectFamilyAttemptTimeout = net.getDefaultAutoSelectFamilyAttemptTimeout();
+const defaultAutoSelectFamilyAttemptTimeout = platformTimeout(getDefaultAutoSelectFamilyAttemptTimeout() * 10);
+setDefaultAutoSelectFamilyAttemptTimeout(defaultAutoSelectFamilyAttemptTimeout);
 
 const buildType = process.config.target_defaults ?
   process.config.target_defaults.default_configuration :

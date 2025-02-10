@@ -1,11 +1,11 @@
 'use strict';
-const net = require('net');
-
 const options = { port: 0, reusePort: true };
+let createServer;
 
 function checkSupportReusePort() {
+  createServer ??= require('net').createServer;
   return new Promise((resolve, reject) => {
-    const server = net.createServer().listen(options);
+    const server = createServer().listen(options);
     server.on('listening', () => {
       server.close(resolve);
     });

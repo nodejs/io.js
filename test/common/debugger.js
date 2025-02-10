@@ -1,18 +1,18 @@
 'use strict';
-const common = require('../common');
-const spawn = require('child_process').spawn;
+const { isWindows, platformTimeout } = require('../common');
+const { spawn } = require('child_process');
 
 const BREAK_MESSAGE = new RegExp('(?:' + [
   'assert', 'break', 'break on start', 'debugCommand',
   'exception', 'other', 'promiseRejection', 'step',
 ].join('|') + ') in', 'i');
 
-let TIMEOUT = common.platformTimeout(5000);
-if (common.isWindows) {
+let TIMEOUT = platformTimeout(5000);
+if (isWindows) {
   // Some of the windows machines in the CI need more time to receive
   // the outputs from the client.
   // https://github.com/nodejs/build/issues/3014
-  TIMEOUT = common.platformTimeout(15000);
+  TIMEOUT = platformTimeout(15000);
 }
 
 function isPreBreak(output) {
