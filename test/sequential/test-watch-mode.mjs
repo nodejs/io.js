@@ -285,9 +285,7 @@ describe('watch mode', { concurrency: !process.env.TEST_PARALLEL, timeout: 60_00
     ]);
   });
 
-  it('should watch changes to a file with watch-path', {
-    skip: !supportsRecursive,
-  }, async () => {
+  it('should watch changes to a file with watch-path', async () => {
     const dir = tmpdir.resolve('subdir1');
     mkdirSync(dir);
     const file = createTmpFile();
@@ -306,9 +304,7 @@ describe('watch mode', { concurrency: !process.env.TEST_PARALLEL, timeout: 60_00
     assert.strictEqual(stderr, '');
   });
 
-  it('should watch when running an non-existing file - when specified under --watch-path', {
-    skip: !supportsRecursive
-  }, async () => {
+  it('should watch when running an non-existing file - when specified under --watch-path', async () => {
     const dir = tmpdir.resolve('subdir2');
     mkdirSync(dir);
     const file = path.join(dir, 'non-existing.js');
@@ -330,9 +326,7 @@ describe('watch mode', { concurrency: !process.env.TEST_PARALLEL, timeout: 60_00
     ]);
   });
 
-  it('should watch when running an non-existing file - when specified under --watch-path with equals', {
-    skip: !supportsRecursive
-  }, async () => {
+  it('should watch when running an non-existing file - when specified under --watch-path with equals', async () => {
     const dir = tmpdir.resolve('subdir3');
     mkdirSync(dir);
     const file = path.join(dir, 'non-existing.js');
@@ -479,17 +473,12 @@ console.log(values.random);
     ]);
   });
 
-  // TODO: Remove skip after https://github.com/nodejs/node/pull/45271 lands
-  it('should not watch when running an missing file', {
-    skip: !supportsRecursive
-  }, async () => {
+  it('should not watch when running an missing file', async () => {
     const nonExistingfile = tmpdir.resolve(`${tmpFiles++}.js`);
     await failWriteSucceed({ file: nonExistingfile, watchedFile: nonExistingfile });
   });
 
-  it('should not watch when running an missing mjs file', {
-    skip: !supportsRecursive
-  }, async () => {
+  it('should not watch when running an missing mjs file', async () => {
     const nonExistingfile = tmpdir.resolve(`${tmpFiles++}.mjs`);
     await failWriteSucceed({ file: nonExistingfile, watchedFile: nonExistingfile });
   });
@@ -543,9 +532,7 @@ console.log(values.random);
     ]);
   });
 
-  it('should run when `--watch-path=./foo --require ./bar.js`', {
-    skip: !supportsRecursive,
-  }, async () => {
+  it('should run when `--watch-path=./foo --require ./bar.js`', async () => {
     const projectDir = tmpdir.resolve('project2');
     mkdirSync(projectDir);
 
@@ -575,9 +562,7 @@ console.log(values.random);
     ]);
   });
 
-  it('should run when `--watch-path=./foo --require=./bar.js`', {
-    skip: !supportsRecursive,
-  }, async () => {
+  it('should run when `--watch-path=./foo --require=./bar.js`', async () => {
     const projectDir = tmpdir.resolve('project3');
     mkdirSync(projectDir);
 
@@ -607,9 +592,7 @@ console.log(values.random);
     ]);
   });
 
-  it('should run when `--watch-path ./foo --require ./bar.js`', {
-    skip: !supportsRecursive,
-  }, async () => {
+  it('should run when `--watch-path ./foo --require ./bar.js`', async () => {
     const projectDir = tmpdir.resolve('project5');
     mkdirSync(projectDir);
 
@@ -639,9 +622,7 @@ console.log(values.random);
     ]);
   });
 
-  it('should run when `--watch-path=./foo --require=./bar.js`', {
-    skip: !supportsRecursive,
-  }, async () => {
+  it('should run when `--watch-path=./foo --require=./bar.js`', async () => {
     const projectDir = tmpdir.resolve('project6');
     mkdirSync(projectDir);
 

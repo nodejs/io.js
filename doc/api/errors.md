@@ -1252,17 +1252,6 @@ for the JS engine are not set up properly.
 A `Promise` that was callbackified via `util.callbackify()` was rejected with a
 falsy value.
 
-<a id="ERR_FEATURE_UNAVAILABLE_ON_PLATFORM"></a>
-
-### `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM`
-
-<!-- YAML
-added: v14.0.0
--->
-
-Used when a feature that is not available
-to the current platform which is running Node.js is used.
-
 <a id="ERR_FS_CP_DIR_TO_NON_DIR"></a>
 
 ### `ERR_FS_CP_DIR_TO_NON_DIR`
@@ -3456,6 +3445,18 @@ removed: v23.0.0
 An incompatible combination of options was passed to [`crypto.scrypt()`][] or
 [`crypto.scryptSync()`][]. New versions of Node.js use the error code
 [`ERR_INCOMPATIBLE_OPTION_PAIR`][] instead, which is consistent with other APIs.
+
+<a id="ERR_FEATURE_UNAVAILABLE_ON_PLATFORM"></a>
+
+### `ERR_FEATURE_UNAVAILABLE_ON_PLATFORM`
+
+<!-- YAML
+added: v14.0.0
+removed: v19.1.0
+-->
+
+Used when a feature that is not available
+to the current platform which is running Node.js is used.
 
 <a id="ERR_FS_INVALID_SYMLINK_TYPE"></a>
 
