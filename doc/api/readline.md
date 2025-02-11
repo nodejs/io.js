@@ -698,6 +698,7 @@ added: v17.0.0
     **Default:** `500`.
   * `tabSize` {integer} The number of spaces a tab is equal to (minimum 1).
     **Default:** `8`.
+  * `signal` {AbortSignal} Allows closing the interface using an AbortSignal.
 * Returns: {readlinePromises.Interface}
 
 The `readlinePromises.createInterface()` method creates a new `readlinePromises.Interface`
