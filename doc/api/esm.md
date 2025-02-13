@@ -670,7 +670,7 @@ imported from the same path.
 <!-- YAML
 changes:
   - version:
-    - v24.0.0
+    - REPLACEME
     pr-url: https://github.com/nodejs/node/pull/57038
     description: Wasm modules no longer require the `--experimental-wasm-modules` flag.
 -->
