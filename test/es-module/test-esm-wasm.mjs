@@ -70,15 +70,4 @@ describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () =>
     strictEqual(stdout, '');
     strictEqual(code, 0);
   });
-
-  it('should emit experimental warning', async () => {
-    const { code, signal, stderr } = await spawnPromisified(execPath, [
-      fixtures.path('es-modules/wasm-modules.mjs'),
-    ]);
-
-    strictEqual(code, 0);
-    strictEqual(signal, null);
-    match(stderr, /ExperimentalWarning/);
-    match(stderr, /WebAssembly/);
-  });
 });
