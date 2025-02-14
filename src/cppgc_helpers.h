@@ -6,13 +6,17 @@
 #include <type_traits>  // std::remove_reference
 #include "cppgc/garbage-collected.h"
 #include "cppgc/name-provider.h"
-#include "env.h"
 #include "memory_tracker.h"
+#include "util.h"
 #include "v8-cppgc.h"
 #include "v8-sandbox.h"
 #include "v8.h"
 
 namespace node {
+
+class Environment;
+class Realm;
+class CppgcWrapperList;
 
 /**
  * This is a helper mixin with a BaseObject-like interface to help
@@ -47,8 +51,7 @@ namespace node {
  *     // Do cleanup that relies on a living Environemnt.
  *   }
  */
-class CppgcMixin : public cppgc::GarbageCollectedMixin,
-                   public CppgcWrapperListNode {
+class CppgcMixin : public cppgc::GarbageCollectedMixin, public MemoryRetainer {
  public:
   // To help various callbacks access wrapper objects with different memory
   // management, cppgc-managed objects share the same layout as BaseObjects.
@@ -58,40 +61,16 @@ class CppgcMixin : public cppgc::GarbageCollectedMixin,
   // invoked from the child class constructor, per cppgc::GarbageCollectedMixin
   // rules.
   template <typename T>
-  static void Wrap(T* ptr, Environment* env, v8::Local<v8::Object> obj) {
-    CHECK_GE(obj->InternalFieldCount(), T::kInternalFieldCount);
-    ptr->env_ = env;
-    v8::Isolate* isolate = env->isolate();
-    ptr->traced_reference_ = v8::TracedReference<v8::Object>(isolate, obj);
-    v8::Object::Wrap<v8::CppHeapPointerTag::kDefaultTag>(isolate, obj, ptr);
-    // Keep the layout consistent with BaseObjects.
-    obj->SetAlignedPointerInInternalField(
-        kEmbedderType, env->isolate_data()->embedder_id_for_cppgc());
-    obj->SetAlignedPointerInInternalField(kSlot, ptr);
-    env->cppgc_wrapper_list()->PushFront(ptr);
-  }
+  static inline void Wrap(T* ptr, Realm* realm, v8::Local<v8::Object> obj);
+  template <typename T>
+  static inline void Wrap(T* ptr, Environment* env, v8::Local<v8::Object> obj);
 
-  v8::Local<v8::Object> object() const {
-    return traced_reference_.Get(env_->isolate());
-  }
-
-  Environment* env() const { return env_; }
+  inline v8::Local<v8::Object> object() const;
+  inline Environment* env() const;
+  inline v8::Local<v8::Object> WrappedObject() const override;
 
   template <typename T>
-  static T* Unwrap(v8::Local<v8::Object> obj) {
-    // We are not using v8::Object::Unwrap currently because that requires
-    // access to isolate which the ASSIGN_OR_RETURN_UNWRAP macro that we'll shim
-    // with ASSIGN_OR_RETURN_UNWRAP_GC doesn't take, and we also want a
-    // signature consistent with BaseObject::Unwrap() to avoid churn. Since
-    // cppgc-managed objects share the same layout as BaseObjects, just unwrap
-    // from the pointer in the internal field, which should be valid as long as
-    // the object is still alive.
-    if (obj->InternalFieldCount() != T::kInternalFieldCount) {
-      return nullptr;
-    }
-    T* ptr = static_cast<T*>(obj->GetAlignedPointerFromInternalField(T::kSlot));
-    return ptr;
-  }
+  static inline T* Unwrap(v8::Local<v8::Object> obj);
 
   // Subclasses are expected to invoke CppgcMixin::Trace() in their own Trace()
   // methods.
@@ -99,30 +78,35 @@ class CppgcMixin : public cppgc::GarbageCollectedMixin,
     visitor->Trace(traced_reference_);
   }
 
-  // This implements CppgcWrapperListNode::Clean and is run for all the
-  // remaining Cppgc wrappers tracked in the Environment during Environment
-  // shutdown. The destruction of the wrappers would happen later, when the
-  // final garbage collection is triggered when CppHeap is torn down as part of
-  // the Isolate teardown. If subclasses of CppgcMixin wish to perform cleanups
-  // that depend on the Environment during destruction, they should implment it
-  // in a CleanEnvResource() override, and then call this->Clean() from their
+  // TODO(joyeecheung): use ObjectSizeTrait;
+  inline size_t SelfSize() const override { return sizeof(*this); }
+
+  // This is run for all the remaining Cppgc wrappers tracked in the Realm
+  // during Realm shutdown. The destruction of the wrappers would happen later,
+  // when the final garbage collection is triggered when CppHeap is torn down as
+  // part of the Isolate teardown. If subclasses of CppgcMixin wish to perform
+  // cleanups that depend on the Realm during destruction, they should implment
+  // it in a CleanEnvResource() override, and then call this->Clean() from their
   // destructor. Outside of CleanEnvResource(), subclasses should avoid calling
   // into JavaScript or perform any operation that can trigger garbage
   // collection during the destruction.
-  void Clean() override {
-    if (env_ == nullptr) return;
-    this->CleanEnvResource(env_);
-    env_ = nullptr;
+  void Clean() {
+    if (realm_ == nullptr) return;
+    this->CleanEnvResource(realm_);
+    realm_ = nullptr;
   }
 
   // The default implementation of CleanEnvResource() is a no-op. Subclasses
-  // should override it to perform cleanup that require a living Environment,
+  // should override it to perform cleanup that require a living Realm,
   // instead of doing these cleanups directly in the destructor.
-  virtual void CleanEnvResource(Environment* env) {}
+  virtual void CleanEnvResource(Realm* realm) {}
+
+  friend class CppgcWrapperList;
 
  private:
-  Environment* env_ = nullptr;
+  Realm* realm_ = nullptr;
   v8::TracedReference<v8::Object> traced_reference_;
+  ListNode<CppgcMixin> wrapper_list_node_;
 };
 
 // If the class doesn't have additional owned traceable data, use this macro to
@@ -137,6 +121,9 @@ class CppgcMixin : public cppgc::GarbageCollectedMixin,
 #define SET_CPPGC_NAME(Klass)                                                  \
   inline const char* GetHumanReadableName() const final {                      \
     return "Node / " #Klass;                                                   \
+  }                                                                            \
+  inline const char* MemoryInfoName() const override {                         \
+    return #Klass;                                                             \
   }
 
 /**

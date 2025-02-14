@@ -1299,8 +1299,6 @@ void Environment::RunCleanup() {
     CleanupHandles();
   }
 
-  for (CppgcWrapperListNode* handle : cppgc_wrapper_list_) handle->Clean();
-
   for (const int fd : unmanaged_fds_) {
     uv_fs_t close_req;
     uv_fs_close(nullptr, &close_req, fd, nullptr);
