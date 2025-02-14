@@ -1,6 +1,8 @@
 #include "crypto/crypto_hash.h"
 #include "async_wrap-inl.h"
 #include "base_object-inl.h"
+#include "cppgc/allocation.h"
+#include "cppgc_helpers-inl.h"
 #include "env-inl.h"
 #include "memory_tracker-inl.h"
 #include "string_bytes.h"
@@ -31,9 +33,18 @@ using v8::Object;
 using v8::Uint32;
 using v8::Value;
 
+#ifdef ASSIGN_OR_RETURN_UNWRAP
+#undef ASSIGN_OR_RETURN_UNWRAP
+#endif
+
+#define ASSIGN_OR_RETURN_UNWRAP ASSIGN_OR_RETURN_UNWRAP_CPPGC
 namespace crypto {
-Hash::Hash(Environment* env, Local<Object> wrap) : BaseObject(env, wrap) {
-  MakeWeak();
+Hash::Hash(Environment* env, Local<Object> wrap) {
+  CppgcMixin::Wrap(this, env, wrap);
+}
+
+void Hash::Trace(cppgc::Visitor* visitor) const {
+  CppgcMixin::Trace(visitor);
 }
 
 void Hash::MemoryInfo(MemoryTracker* tracker) const {
@@ -322,7 +333,8 @@ void Hash::New(const FunctionCallbackInfo<Value>& args) {
     xof_md_len = Just<unsigned int>(args[1].As<Uint32>()->Value());
   }
 
-  Hash* hash = new Hash(env, args.This());
+  Hash* hash = cppgc::MakeGarbageCollected<Hash>(
+      env->isolate()->GetCppHeap()->GetAllocationHandle(), env, args.This());
   if (md == nullptr || !hash->HashInit(md, xof_md_len)) {
     return ThrowCryptoError(env, ERR_get_error(),
                             "Digest method not supported");
