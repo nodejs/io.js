@@ -207,7 +207,7 @@ describe('.env supports edge cases', () => {
       const { parseEnv } = require('node:util');
 
       const input = fs.readFileSync(${JSON.stringify(invalidEnvFilePath)}, 'utf8');
-      const result = parseEnv(input);
+
       assert.deepStrictEqual(util.parseEnv(input), {
         baz: 'whatever',
         VALID_AFTER_INVALID: 'test',
@@ -217,7 +217,6 @@ describe('.env supports edge cases', () => {
     const child = await common.spawnPromisified(
       process.execPath,
       [ '--eval', code ],
-      { cwd: __dirname },
     );
     assert.strictEqual(child.stderr, '');
     assert.strictEqual(child.stdout, '');
