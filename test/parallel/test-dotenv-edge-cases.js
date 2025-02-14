@@ -208,14 +208,11 @@ describe('.env supports edge cases', () => {
 
       const input = fs.readFileSync(${JSON.stringify(invalidEnvFilePath)}, 'utf8');
       const result = parseEnv(input);
-      assert.strictEqual(Object.keys(result).length, 3);
-      assert.strictEqual(result.baz, 'whatever');
-      assert.strictEqual(result.VALID_AFTER_INVALID, 'test');
-      assert.strictEqual(result.ANOTHER_VALID, 'value');
-      assert.strictEqual(result.foo, undefined);
-      assert.strictEqual(result.bar, undefined);
-      assert.strictEqual(result.multiple_invalid, undefined);
-      assert.strictEqual(result.lines_without_equals, undefined);
+      assert.deepStrictEqual(util.parseEnv(input), {
+        baz: 'whatever',
+        VALID_AFTER_INVALID: 'test',
+        ANOTHER_VALID: 'value',
+      });
     `.trim();
     const child = await common.spawnPromisified(
       process.execPath,
