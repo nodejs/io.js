@@ -1,5 +1,8 @@
 name: Close stale pull requests
 on:
+  schedule:
+    # Run every day at 1:00 AM UTC.
+    - cron: 0 1 * * *
   workflow_dispatch:
     inputs:
       endDate:
