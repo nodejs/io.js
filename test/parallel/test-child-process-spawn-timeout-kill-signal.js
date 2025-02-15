@@ -36,6 +36,17 @@ const aliveForeverFile = 'child-process-stay-alive-forever.js';
 }
 
 {
+  // Verify timedOut flag is set true
+  const cp = spawn(process.execPath, [fixtures.path(aliveForeverFile)], {
+    timeout: 6,
+  });
+  strictEqual(cp.timedOut, false);
+  cp.on('exit', mustCall(() => {
+    strictEqual(cp.timedOut, true);
+  }));
+}
+
+{
   // Verify abort signal gets unregistered
   const controller = new AbortController();
   const { signal } = controller;
