@@ -19,7 +19,9 @@ class Benchmark {
     this._time = 0n;
 
     // Use the file name as the name of the benchmark
-    this.name = require.main.filename.slice(__dirname.length + 1);
+    // For esm, require.main is undefined so use options.filename
+    this.filename = options.filename || require.main?.filename
+    this.name = this.filename.replace(/.*\//, '')
 
     // Execution arguments i.e. flags used to run the jobs
     this.flags = process.env.NODE_BENCHMARK_FLAGS?.split(/\s+/) ?? [];
@@ -222,7 +224,7 @@ class Benchmark {
         childArgs.push(`${key}=${value}`);
       }
 
-      const child = child_process.fork(require.main.filename, childArgs, {
+      const child = child_process.fork(this.filename, childArgs, {
         env: childEnv,
         execArgv: this.flags.concat(process.execArgv),
       });
