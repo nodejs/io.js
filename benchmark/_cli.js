@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
+const kEmptyObject = Object.freeze({ __proto__: null });
 // Create an object of all benchmark scripts
 const benchmarks = {};
 fs.readdirSync(__dirname)
@@ -15,7 +16,7 @@ fs.readdirSync(__dirname)
       .filter((filename) => filename[0] !== '.' && filename[0] !== '_');
   });
 
-function CLI(usage, settings) {
+function CLI(usage, settings = kEmptyObject) {
   if (process.argv.length < 3) {
     this.abort(usage); // Abort will exit the process
   }
@@ -25,8 +26,10 @@ function CLI(usage, settings) {
   this.items = [];
   this.test = false;
 
-  for (const argName of settings.arrayArgs) {
-    this.optional[argName] = [];
+  if (settings.arrayArgs) {
+    for (const argName of settings.arrayArgs) {
+      this.optional[argName] = [];
+    }
   }
 
   let currentOptional = null;
@@ -40,13 +43,9 @@ function CLI(usage, settings) {
     } else if (mode === 'both' && arg[0] === '-') {
       // Optional arguments declaration
 
-      if (arg[1] === '-') {
-        currentOptional = arg.slice(2);
-      } else {
-        currentOptional = arg.slice(1);
-      }
+      currentOptional = arg.slice(arg[1] === '-' ? 2 : 1);
 
-      if (settings.boolArgs && settings.boolArgs.includes(currentOptional)) {
+      if (settings.boolArgs?.includes(currentOptional)) {
         this.optional[currentOptional] = true;
         mode = 'both';
       } else {
@@ -56,7 +55,7 @@ function CLI(usage, settings) {
     } else if (mode === 'option') {
       // Optional arguments value
 
-      if (settings.arrayArgs.includes(currentOptional)) {
+      if (settings.arrayArgs?.includes(currentOptional)) {
         this.optional[currentOptional].push(arg);
       } else {
         this.optional[currentOptional] = arg;
