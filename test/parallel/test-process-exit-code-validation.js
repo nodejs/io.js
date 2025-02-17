@@ -110,17 +110,14 @@ if (process.argv[2] === undefined) {
 
   // Check process.exitCode
   for (const arg of invalids) {
-    debug(`invaild code: ${inspect(arg.code)}`);
+    debug(`invalid code: ${inspect(arg.code)}`);
     throws(() => (process.exitCode = arg.code), new RegExp(arg.pattern));
   }
   for (const arg of valids) {
-    debug(`vaild code: ${inspect(arg.code)}`);
+    debug(`valid code: ${inspect(arg.code)}`);
     process.exitCode = arg.code;
   }
 
-  throws(() => {
-    delete process.exitCode;
-  }, /Cannot delete property 'exitCode' of #<process>/);
   process.exitCode = 0;
 
   // Check process.exit([code])
@@ -140,4 +137,11 @@ if (process.argv[2] === undefined) {
   } else {
     process.exit(args[index].code);
   }
+}
+
+const origExitCode = Object.getOwnPropertyDescriptor(process, 'exitCode');
+try {
+  delete process.exitCode;
+} finally {
+  Object.defineProperty(process, 'exitCode', origExitCode);
 }
