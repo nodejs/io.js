@@ -284,6 +284,14 @@ void Transcode(const FunctionCallbackInfo<Value>&args) {
   const enum encoding toEncoding = ParseEncoding(isolate, args[2], BUFFER);
 
   if (SupportedEncoding(fromEncoding) && SupportedEncoding(toEncoding)) {
+    // If encodings are the same then there is nothing to transcode and we can
+    // just copy the buffer
+    if (fromEncoding == toEncoding) {
+      MaybeStackBuffer<char> stackbuf(input.length());
+      memcpy(stackbuf.out(), input.data(), input.length());
+      args.GetReturnValue().Set(Buffer::New(env, &stackbuf).ToLocalChecked());
+      return;
+    }
     TranscodeFunc tfn = &Transcode;
     switch (fromEncoding) {
       case ASCII:
