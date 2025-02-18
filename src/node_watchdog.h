@@ -42,24 +42,40 @@ enum class SignalPropagation {
   kStopPropagation,
 };
 
+struct WatchdogTimer {
+  v8::Isolate* isolate;
+  uint64_t expires_at_hrtime;
+  bool* timed_out;
+};
+
+class WatchdogService {
+ public:
+  ~WatchdogService();
+  void SetTimer(std::shared_ptr<WatchdogTimer> watchdog_timer);
+  void ClearTimer(std::shared_ptr<WatchdogTimer> watchdog_timer);
+
+ private:
+  std::multimap<uint64_t, std::shared_ptr<WatchdogTimer>> watchdog_timers_;
+  uint64_t sleep_until_hrtime_;
+  uv_mutex_t mutex_;
+  uv_cond_t cond_;
+  uv_thread_t thread_;
+  bool initialized_;
+  bool should_destroy_;
+  void Init();
+  static void Run(void* arg);
+};
+
 class Watchdog {
  public:
   explicit Watchdog(v8::Isolate* isolate,
                     uint64_t ms,
                     bool* timed_out = nullptr);
   ~Watchdog();
-  v8::Isolate* isolate() { return isolate_; }
+  v8::Isolate* isolate() { return watchdog_timer_->isolate; }
 
  private:
-  static void Run(void* arg);
-  static void Timer(uv_timer_t* timer);
-
-  v8::Isolate* isolate_;
-  uv_thread_t thread_;
-  uv_loop_t loop_;
-  uv_async_t async_;
-  uv_timer_t timer_;
-  bool* timed_out_;
+  std::shared_ptr<WatchdogTimer> watchdog_timer_;
 };
 
 class SigintWatchdogBase {

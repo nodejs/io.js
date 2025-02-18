@@ -39,65 +39,100 @@ using v8::Local;
 using v8::Object;
 using v8::Value;
 
-Watchdog::Watchdog(v8::Isolate* isolate, uint64_t ms, bool* timed_out)
-    : isolate_(isolate), timed_out_(timed_out) {
+void WatchdogService::Init() {
+  if (!initialized_) {
+    initialized_ = true;
+    sleep_until_hrtime_ = std::numeric_limits<uint64_t>::max();
 
-  int rc;
-  rc = uv_loop_init(&loop_);
-  if (rc != 0) {
-    UNREACHABLE("Failed to initialize uv loop.");
+    int rc = uv_mutex_init(&mutex_);
+    CHECK_EQ(0, rc);
+
+    rc = uv_cond_init(&cond_);
+    CHECK_EQ(0, rc);
+
+    rc = uv_thread_create(&thread_, &WatchdogService::Run, this);
+    CHECK_EQ(0, rc);
   }
-
-  rc = uv_async_init(&loop_, &async_, [](uv_async_t* signal) {
-    Watchdog* w = ContainerOf(&Watchdog::async_, signal);
-    uv_stop(&w->loop_);
-  });
-
-  CHECK_EQ(0, rc);
-
-  rc = uv_timer_init(&loop_, &timer_);
-  CHECK_EQ(0, rc);
-
-  rc = uv_timer_start(&timer_, &Watchdog::Timer, ms, 0);
-  CHECK_EQ(0, rc);
-
-  rc = uv_thread_create(&thread_, &Watchdog::Run, this);
-  CHECK_EQ(0, rc);
 }
 
+void WatchdogService::Run(void* arg) {
+  WatchdogService* ws = static_cast<WatchdogService*>(arg);
+
+  uv_mutex_lock(&ws->mutex_);
+  while (!ws->should_destroy_) {
+    const uint64_t hrtime = uv_hrtime();
+    while (!ws->watchdog_timers_.empty() &&
+           ws->watchdog_timers_.begin()->first <= hrtime) {
+      auto element = ws->watchdog_timers_.begin();
+      std::shared_ptr<WatchdogTimer> watchdog_timer = element->second;
+      ws->watchdog_timers_.erase(element);
+
+      *watchdog_timer->timed_out = true;
+      watchdog_timer->isolate->TerminateExecution();
+    }
+
+    ws->sleep_until_hrtime_ = std::numeric_limits<uint64_t>::max();
+    if (!ws->watchdog_timers_.empty()) {
+      ws->sleep_until_hrtime_ = ws->watchdog_timers_.begin()->first;
+    }
+
+    uint64_t sleep_nanos = ws->sleep_until_hrtime_ - hrtime;
+    uv_cond_timedwait(&ws->cond_, &ws->mutex_, sleep_nanos);
+  }
+  uv_mutex_unlock(&ws->mutex_);
+}
+
+void WatchdogService::SetTimer(std::shared_ptr<WatchdogTimer> watchdog_timer) {
+  Init();
+  uv_mutex_lock(&mutex_);
+  watchdog_timers_.insert({watchdog_timer->expires_at_hrtime, watchdog_timer});
+  if (sleep_until_hrtime_ > watchdog_timer->expires_at_hrtime) {
+    uv_cond_signal(&cond_);
+  }
+  uv_mutex_unlock(&mutex_);
+}
+
+void WatchdogService::ClearTimer(
+    std::shared_ptr<WatchdogTimer> watchdog_timer) {
+  Init();
+  uv_mutex_lock(&mutex_);
+  auto bucket = watchdog_timers_.equal_range(watchdog_timer->expires_at_hrtime);
+  for (auto it = bucket.first; it != bucket.second; it++) {
+    if (it->second == watchdog_timer) {
+      watchdog_timers_.erase(it);
+      break;
+    }
+  }
+  uv_mutex_unlock(&mutex_);
+}
+
+WatchdogService::~WatchdogService() {
+  if (initialized_) {
+    uv_mutex_lock(&mutex_);
+    should_destroy_ = true;
+    uv_cond_signal(&cond_);
+    uv_mutex_unlock(&mutex_);
+    uv_thread_join(&thread_);
+    uv_cond_destroy(&cond_);
+    uv_mutex_destroy(&mutex_);
+    initialized_ = false;
+  }
+}
+
+thread_local WatchdogService watchdog_service;
+
+Watchdog::Watchdog(v8::Isolate* isolate, uint64_t ms, bool* timed_out)
+    : watchdog_timer_(std::make_shared<WatchdogTimer>()) {
+  watchdog_timer_->isolate = isolate;
+  watchdog_timer_->timed_out = timed_out;
+  watchdog_timer_->expires_at_hrtime = uv_hrtime() + ms * 1000000;
+
+  watchdog_service.SetTimer(watchdog_timer_);
+}
 
 Watchdog::~Watchdog() {
-  uv_async_send(&async_);
-  uv_thread_join(&thread_);
-
-  uv_close(reinterpret_cast<uv_handle_t*>(&async_), nullptr);
-
-  // UV_RUN_DEFAULT so that libuv has a chance to clean up.
-  uv_run(&loop_, UV_RUN_DEFAULT);
-
-  CheckedUvLoopClose(&loop_);
+  watchdog_service.ClearTimer(watchdog_timer_);
 }
-
-
-void Watchdog::Run(void* arg) {
-  Watchdog* wd = static_cast<Watchdog*>(arg);
-
-  // UV_RUN_DEFAULT the loop will be stopped either by the async or the
-  // timer handle.
-  uv_run(&wd->loop_, UV_RUN_DEFAULT);
-
-  // Loop ref count reaches zero when both handles are closed.
-  // Close the timer handle on this side and let ~Watchdog() close async_
-  uv_close(reinterpret_cast<uv_handle_t*>(&wd->timer_), nullptr);
-}
-
-void Watchdog::Timer(uv_timer_t* timer) {
-  Watchdog* w = ContainerOf(&Watchdog::timer_, timer);
-  *w->timed_out_ = true;
-  w->isolate()->TerminateExecution();
-  uv_stop(&w->loop_);
-}
-
 
 SigintWatchdog::SigintWatchdog(
   v8::Isolate* isolate, bool* received_signal)
