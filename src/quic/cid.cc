@@ -103,7 +103,7 @@ class RandomCIDFactory : public CID::Factory {
   CID Generate(size_t length_hint) const override {
     DCHECK_GE(length_hint, CID::kMinLength);
     DCHECK_LE(length_hint, CID::kMaxLength);
-    Mutex::ScopedLock lock(mutex_);
+    std::lock_guard<Mutex> lock(mutex_);
     maybe_refresh_pool(length_hint);
     auto start = pool_ + pos_;
     pos_ += length_hint;
@@ -114,7 +114,7 @@ class RandomCIDFactory : public CID::Factory {
                    size_t length_hint = CID::kMaxLength) const override {
     DCHECK_GE(length_hint, CID::kMinLength);
     DCHECK_LE(length_hint, CID::kMaxLength);
-    Mutex::ScopedLock lock(mutex_);
+    std::lock_guard<Mutex> lock(mutex_);
     maybe_refresh_pool(length_hint);
     auto start = pool_ + pos_;
     pos_ += length_hint;
