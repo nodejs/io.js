@@ -1661,10 +1661,7 @@
         '<!@pymod_do_main(GN-scraper "<(V8_ROOT)/BUILD.gn"  "\\"v8_libplatform.*?sources = ")',
       ],
       'conditions': [
-        ['component=="shared_library"', {
-          'direct_dependent_settings': {
-            'defines': ['USING_V8_PLATFORM_SHARED'],
-          },
+        ['is_component_build', {
           'defines': ['BUILDING_V8_PLATFORM_SHARED'],
         }],
         ['v8_use_perfetto==1', {
