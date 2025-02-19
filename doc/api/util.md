@@ -302,7 +302,13 @@ corresponding argument. Supported specifiers are:
 * `%O`: `Object`. A string representation of an object with generic JavaScript
   object formatting. Similar to `util.inspect()` without options. This will show
   the full object not including non-enumerable properties and proxies.
-* `%c`: `CSS`. This specifier is ignored and will skip any CSS passed in.
+* `%c`: `CSS`. Will parse basic CSS from the substitution subject like
+  `color: red` into ANSI color codes. These codes will then be placed where the
+  `%c` specifier is. Supported CSS properties are `color`, `background-color`,
+  `font-weight`, `font-style`, `text-decoration`, `text-decoration-color`, and
+  `text-decoration-line`. Unsupported CSS properties are ignored. An empty
+  `%c` CSS string substitution will become an ANSI style reset. If color is
+  disabled, `%c` is ignored.
 * `%%`: single percent sign (`'%'`). This does not consume an argument.
 * Returns: {string} The formatted string
 
