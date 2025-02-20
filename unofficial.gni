@@ -151,10 +151,6 @@ template("node_gn_build") {
     ]
     deps = [
       ":run_node_js2c",
-      "deps/brotli",
-      "deps/cares",
-      "deps/histogram",
-      "deps/llhttp",
       "deps/nbytes",
       "deps/nghttp2",
       "deps/ngtcp2",
@@ -184,7 +180,17 @@ template("node_gn_build") {
       configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
       configs += [ "//build/config/gcc:symbol_visibility_default" ]
     }
-
+    if (use_system_llhttp) {
+      libs += [ "llhttp" ]
+    } else {
+      deps += [ "deps/llhttp" ]
+    }
+    if (use_system_histogram) {
+      libs += [ "hdr_histogram" ]
+      include_dirs += [ "/usr/include/hdr" ]
+    } else {
+      deps += [ "deps/histogram" ]
+    }
     if (v8_enable_i18n_support) {
       deps += [ "//third_party/icu" ]
     }
@@ -211,6 +217,19 @@ template("node_gn_build") {
           [ "src/inspector/node_inspector.gypi" ])
       sources += node_inspector.node_inspector_sources +
                  node_inspector.node_inspector_generated_sources
+    }
+    if (is_linux) {
+      import("//build/config/linux/pkg_config.gni")
+        if (use_system_cares) {
+          pkg_config("cares") {
+            packages = [ "libcares" ]
+          }
+        }
+      if (use_system_nghttp2) {
+        pkg_config("nghttp2") {
+          packages = [ "libnghttp2" ]
+        }
+      }
     }
   }
 
