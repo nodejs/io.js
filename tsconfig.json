@@ -34,6 +34,7 @@
       "buffer": ["./lib/buffer.js"],
       "child_process": ["./lib/child_process.js"],
       "cluster": ["./lib/cluster.js"],
+      "codeintegrity": ["./lib/codeintegrity.js"],
       "console": ["./lib/console.js"],
       "constants": ["./lib/constants.js"],
       "crypto": ["./lib/crypto.js"],

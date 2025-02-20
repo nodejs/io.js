@@ -447,6 +447,14 @@
       }, {
         'use_openssl_def%': 0,
       }],
+      # Only compile node_code_integrity on Windows
+      [ 'OS=="win"', {
+        'node_sources': [
+          '<(node_sources)',
+          'src/node_code_integrity.cc',
+          'src/node_code_integrity.h',
+        ],
+      }],
     ],
   },
 

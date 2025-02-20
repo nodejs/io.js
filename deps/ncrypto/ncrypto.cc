@@ -204,7 +204,7 @@ bool testFipsEnabled() {
 #else
 #ifdef OPENSSL_FIPS
   const auto enabled = FIPS_selftest() ? 1 : 0;
-#else  // OPENSSL_FIPS
+#else   // OPENSSL_FIPS
   const auto enabled = 0;
 #endif  // OPENSSL_FIPS
 #endif

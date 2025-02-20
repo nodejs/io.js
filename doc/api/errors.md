@@ -789,6 +789,22 @@ changes:
 There was an attempt to use a `MessagePort` instance in a closed
 state, usually after `.close()` has been called.
 
+<a id="ERR_CODE_INTEGRITY_BLOCKED"></a>
+
+### `ERR_CODE_INTEGRITY_BLOCKED`
+
+> Stability: 1.1 - Active development
+
+Feature has been disabled due to OS Code Integrity policy.
+
+<a id="ERR_CODE_INTEGRITY_VIOLATION"></a>
+
+### `ERR_CODE_INTEGRITY_VIOLATION`
+
+> Stability: 1.1 - Active development
+
+JavaScript code intended to be executed was rejected by system code integrity policy.
+
 <a id="ERR_CONSOLE_WRITABLE_STREAM"></a>
 
 ### `ERR_CONSOLE_WRITABLE_STREAM`
