@@ -12,13 +12,10 @@ const server = http2.createServer();
 
 server.listen(0, common.mustCall(() => {
   const port = server.address().port;
-  server.close(() => {
+  server.close(common.mustCall(() => {
     const connect = util.promisify(http2.connect);
-    connect(`http://localhost:${port}`)
-      .then(common.mustNotCall('Promise should not be resolved'))
-      .catch(common.mustCall((err) => {
-        assert(err instanceof Error);
-        assert.strictEqual(err.code, 'ECONNREFUSED');
-      }));
-  });
+    assert.rejects(connect(`http://localhost:${port}`), {
+      code: 'ECONNREFUSED'
+    }).then(common.mustCall());
+  }));
 }));
