@@ -481,12 +481,20 @@ if (isGitPresent) {
   // IBMi has a different access permission mechanism
   // This test should not be run as `root`
   if (!common.isIBMi && (common.isWindows || process.getuid() !== 0)) {
-    function makeDirectoryReadOnly(dir, mode) {
+    function makeDirectoryReadOnly(dir, allowExecute) {
       let accessErrorCode = 'EACCES';
+      if (common.isMacOS && allowExecute) {
+        accessErrorCode = 'ENOTEMPTY';
+      }
       if (common.isWindows) {
         accessErrorCode = 'EPERM';
-        execSync(`icacls ${dir} /deny "everyone:(OI)(CI)(DE,DC)"`);
+        const permissions = ['DE', 'DC'];
+        if (!allowExecute) {
+          permissions.push('X');
+        }
+        execSync(`icacls ${dir} /deny "everyone:(OI)(CI)(${permissions.join(',')})"`);
       } else {
+        const mode = allowExecute ? 0o555 : 0o444;
         fs.chmodSync(dir, mode);
       }
       return accessErrorCode;
@@ -510,7 +518,7 @@ if (isGitPresent) {
       try {
         fs.mkdirSync(dirname, common.mustNotMutateObjectDeep({ recursive: true }));
         fs.writeFileSync(filePath, 'hello');
-        const code = makeDirectoryReadOnly(dirname, 0o444);
+        const code = makeDirectoryReadOnly(dirname, false);
         assert.throws(() => {
           fs.rmSync(filePath, common.mustNotMutateObjectDeep({ force: true }));
         }, {
@@ -532,7 +540,7 @@ if (isGitPresent) {
       fs.mkdirSync(middle);
       fs.mkdirSync(path.join(middle, 'leaf')); // Make `middle` non-empty
       try {
-        const code = makeDirectoryReadOnly(middle, 0o555);
+        const code = makeDirectoryReadOnly(middle, true);
         try {
           assert.throws(() => {
             fs.rmSync(root, common.mustNotMutateObjectDeep({ recursive: true }));

@@ -1705,7 +1705,8 @@ static void RmSync(const FunctionCallbackInfo<Value>& args) {
     return env->ThrowErrnoException(EPERM, "rm", message.c_str(), path_c_str);
   } else if (error == std::errc::directory_not_empty) {
     std::string message = "Directory not empty: " + file_path_str;
-    return env->ThrowErrnoException(EACCES, "rm", message.c_str(), path_c_str);
+    return env->ThrowErrnoException(
+        ENOTEMPTY, "rm", message.c_str(), path_c_str);
   } else if (error == std::errc::not_a_directory) {
     std::string message = "Not a directory: " + file_path_str;
     return env->ThrowErrnoException(ENOTDIR, "rm", message.c_str(), path_c_str);
