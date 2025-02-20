@@ -2,26 +2,56 @@
 
 const common = require('../common');
 const fixtures = require('../common/fixtures');
-const fs = require('fs');
-const read = require('util').promisify(fs.read);
-const assert = require('assert');
-const filepath = fixtures.path('x.txt');
-const fd = fs.openSync(filepath, 'r');
+const fs = require('node:fs');
+const fsPromises = require('node:fs/promises');
+const read = require('node:util').promisify(fs.read);
+const assert = require('node:assert');
+const { describe, test } = require('node:test');
 
-const expected = Buffer.from('xyz\n');
-const defaultBufferAsync = Buffer.alloc(16384);
-const bufferAsOption = Buffer.allocUnsafe(expected.byteLength);
+describe('fs promises read with optional parameters', async () => {
+  const filepath = fixtures.path('x.txt');
 
-read(fd, common.mustNotMutateObjectDeep({}))
-  .then(function({ bytesRead, buffer }) {
+  const expected = Buffer.from('xyz\n');
+  const defaultBufferAsync = Buffer.alloc(16384);
+  const bufferAsOption = Buffer.allocUnsafe(expected.byteLength);
+
+  test('should read the file with default buffer (promisified)', async () => {
+    const fd = fs.openSync(filepath, 'r');
+    const { bytesRead, buffer } = await read(
+      fd,
+      common.mustNotMutateObjectDeep({})
+    );
     assert.strictEqual(bytesRead, expected.byteLength);
     assert.deepStrictEqual(defaultBufferAsync.byteLength, buffer.byteLength);
-  })
-  .then(common.mustCall());
+  });
 
-read(fd, bufferAsOption, common.mustNotMutateObjectDeep({ position: 0 }))
-  .then(function({ bytesRead, buffer }) {
+  test('should read the file with buffer as option (promisified)', async () => {
+    const fd = fs.openSync(filepath, 'r');
+    const { bytesRead, buffer } = await read(
+      fd,
+      bufferAsOption,
+      common.mustNotMutateObjectDeep({ position: 0 })
+    );
     assert.strictEqual(bytesRead, expected.byteLength);
     assert.deepStrictEqual(bufferAsOption.byteLength, buffer.byteLength);
-  })
-  .then(common.mustCall());
+  });
+
+  test('should read the file with default buffer (fd)', async () => {
+    const fd = await fsPromises.open(filepath, 'r');
+    const { bytesRead, buffer } = await fd.read(
+      common.mustNotMutateObjectDeep({})
+    );
+    assert.strictEqual(bytesRead, expected.byteLength);
+    assert.deepStrictEqual(defaultBufferAsync.byteLength, buffer.byteLength);
+  });
+
+  test('should read the file with buffer as option (fd)', async () => {
+    const fd = await fsPromises.open(filepath, 'r');
+    const { bytesRead, buffer } = await fd.read(
+      bufferAsOption,
+      common.mustNotMutateObjectDeep({ position: 0 })
+    );
+    assert.strictEqual(bytesRead, expected.byteLength);
+    assert.deepStrictEqual(bufferAsOption.byteLength, buffer.byteLength);
+  });
+});
