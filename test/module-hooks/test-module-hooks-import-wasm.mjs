@@ -1,6 +1,5 @@
-// Flags: --no-experimental-wasm-modules
 // This tests that module.registerHooks() can be used to support unknown formats, like
-// import(wasm) (without --experimental-wasm-modules).
+// import(wasm)
 import '../common/index.mjs';
 
 import assert from 'node:assert';
