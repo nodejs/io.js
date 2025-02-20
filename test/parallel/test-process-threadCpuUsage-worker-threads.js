@@ -7,9 +7,11 @@ if (!hasCrypto) {
 };
 
 // This block can be removed once SmartOS support is fixed in
-// https://github.com/nodejs/node/pull/56467#issuecomment-2628877767
+// https://github.com/libuv/libuv/issues/4706
+// The behavior on SunOS is tested in
+// test/parallel/test-process-threadCpuUsage-main-thread.js
 if (isSunOS) {
-  skip('Operation not supported on SmartOS');
+  skip('Operation not supported yet on SmartOS');
 }
 
 const { ok, deepStrictEqual } = require('assert');

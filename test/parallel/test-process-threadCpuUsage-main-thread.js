@@ -16,8 +16,7 @@ function validateResult(result) {
 
 // Test that process.threadCpuUsage() works on the main thread
 // The if check and the else branch should be removed once SmartOS support is fixed in
-// https://github.com/nodejs/node/pull/56467#issuecomment-2628877767
-
+// https://github.com/libuv/libuv/issues/4706
 if (!isSunOS) {
   const result = process.threadCpuUsage();
 
@@ -41,9 +40,9 @@ if (!isSunOS) {
   throws(
     () => process.threadCpuUsage(),
     {
-      code: 'ENOTSUP',
+      code: 'ERR_OPERATION_FAILED',
       name: 'Error',
-      message: 'ENOTSUP: operation not supported on socket, uv_getrusage_thread'
+      message: 'ERR_OPERATION_FAILED: threadCpuUsage is not available on SunOS'
     }
   );
 }
