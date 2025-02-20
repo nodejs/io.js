@@ -123,11 +123,9 @@ void PendingStream::reject(QuicError error) {
 
 struct Stream::PendingHeaders {
   HeadersKind kind;
-  v8::Global<v8::Array> headers;
+  Global<Array> headers;
   HeadersFlags flags;
-  PendingHeaders(HeadersKind kind_,
-                 v8::Global<v8::Array> headers_,
-                 HeadersFlags flags_)
+  PendingHeaders(HeadersKind kind_, Global<Array> headers_, HeadersFlags flags_)
       : kind(kind_), headers(std::move(headers_)), flags(flags_) {}
   DISALLOW_COPY_AND_MOVE(PendingHeaders)
 };
@@ -299,7 +297,7 @@ struct Stream::Impl {
         static_cast<StreamPriorityFlags>(args[1].As<Uint32>()->Value());
 
     if (stream->is_pending()) {
-      stream->pending_priority_ = Stream::PendingPriority{
+      stream->pending_priority_ = PendingPriority{
           .priority = priority,
           .flags = flags,
       };
@@ -708,8 +706,7 @@ Local<FunctionTemplate> Stream::GetConstructorTemplate(Environment* env) {
     tmpl = NewFunctionTemplate(isolate, IllegalConstructor);
     tmpl->SetClassName(state.stream_string());
     tmpl->Inherit(AsyncWrap::GetConstructorTemplate(env));
-    tmpl->InstanceTemplate()->SetInternalFieldCount(
-        Stream::kInternalFieldCount);
+    tmpl->InstanceTemplate()->SetInternalFieldCount(kInternalFieldCount);
 #define V(name, key, no_side_effect)                                           \
   if (no_side_effect) {                                                        \
     SetProtoMethodNoSideEffect(isolate, tmpl, #key, Impl::name);               \
@@ -813,10 +810,10 @@ BaseObjectPtr<Stream> Stream::Create(Session* session,
 }
 
 Stream::Stream(BaseObjectWeakPtr<Session> session,
-               v8::Local<v8::Object> object,
+               Local<Object> object,
                int64_t id,
                std::shared_ptr<DataQueue> source)
-    : AsyncWrap(session->env(), object, AsyncWrap::PROVIDER_QUIC_STREAM),
+    : AsyncWrap(session->env(), object, PROVIDER_QUIC_STREAM),
       stats_(env()->isolate()),
       state_(env()->isolate()),
       session_(std::move(session)),
@@ -846,10 +843,10 @@ Stream::Stream(BaseObjectWeakPtr<Session> session,
 }
 
 Stream::Stream(BaseObjectWeakPtr<Session> session,
-               v8::Local<v8::Object> object,
+               Local<Object> object,
                Direction direction,
                std::shared_ptr<DataQueue> source)
-    : AsyncWrap(session->env(), object, AsyncWrap::PROVIDER_QUIC_STREAM),
+    : AsyncWrap(session->env(), object, PROVIDER_QUIC_STREAM),
       stats_(env()->isolate()),
       state_(env()->isolate()),
       session_(std::move(session)),
@@ -1297,7 +1294,7 @@ void Stream::EmitWantTrailers() {
 
 // ============================================================================
 
-void Stream::Schedule(Stream::Queue* queue) {
+void Stream::Schedule(Queue* queue) {
   // If this stream is not already in the queue to send data, add it.
   Debug(this, "Scheduled");
   if (outbound_ && stream_queue_.IsEmpty()) queue->PushBack(this);

@@ -155,7 +155,7 @@ bool Session::Application::CanAddHeader(size_t current_count,
 
 bool Session::Application::SendHeaders(const Stream& stream,
                                        HeadersKind kind,
-                                       const v8::Local<v8::Array>& headers,
+                                       const Local<v8::Array>& headers,
                                        HeadersFlags flags) {
   // By default do nothing.
   return false;
@@ -184,10 +184,9 @@ void Session::Application::CollectSessionTicketAppData(
 
 SessionTicket::AppData::Status
 Session::Application::ExtractSessionTicketAppData(
-    const SessionTicket::AppData& app_data,
-    SessionTicket::AppData::Source::Flag flag) {
+    const SessionTicket::AppData& app_data, Flag flag) {
   // By default we do not have any application data to retrieve.
-  return flag == SessionTicket::AppData::Source::Flag::STATUS_RENEW
+  return flag == Flag::STATUS_RENEW
              ? SessionTicket::AppData::Status::TICKET_USE_RENEW
              : SessionTicket::AppData::Status::TICKET_USE;
 }
@@ -285,7 +284,7 @@ void Session::Application::SendPendingData() {
       Debug(session_, "Failed to create packet for stream data");
       // Doh! Could not create a packet. Time to bail.
       session_->SetLastError(QuicError::ForNgtcp2Error(NGTCP2_ERR_INTERNAL));
-      return session_->Close(Session::CloseMethod::SILENT);
+      return session_->Close(CloseMethod::SILENT);
     }
 
     // The stream_data is the next block of data from the application stream.
@@ -293,7 +292,7 @@ void Session::Application::SendPendingData() {
       Debug(session_, "Application failed to get stream data");
       packet->Done(UV_ECANCELED);
       session_->SetLastError(QuicError::ForNgtcp2Error(NGTCP2_ERR_INTERNAL));
-      return session_->Close(Session::CloseMethod::SILENT);
+      return session_->Close(CloseMethod::SILENT);
     }
 
     // If we got here, we were at least successful in checking for stream data.
@@ -374,7 +373,7 @@ void Session::Application::SendPendingData() {
             ngtcp2_strerror(nwrite));
       packet->Done(UV_ECANCELED);
       session_->SetLastError(QuicError::ForNgtcp2Error(nwrite));
-      return session_->Close(Session::CloseMethod::SILENT);
+      return session_->Close(CloseMethod::SILENT);
     } else if (ndatalen >= 0 && !StreamCommit(&stream_data, ndatalen)) {
       packet->Done(UV_ECANCELED);
       session_->SetLastError(QuicError::ForNgtcp2Error(NGTCP2_ERR_INTERNAL));
@@ -601,13 +600,13 @@ class DefaultApplication final : public Session::Application {
 };
 
 std::unique_ptr<Session::Application> Session::SelectApplication(
-    Session* session, const Session::Config& config) {
+    Session* session, const Config& config) {
   if (config.options.application_provider) {
     return config.options.application_provider->Create(session);
   }
 
-  return std::make_unique<DefaultApplication>(
-      session, Session::Application_Options::kDefault);
+  return std::make_unique<DefaultApplication>(session,
+                                              Application_Options::kDefault);
 }
 
 }  // namespace quic

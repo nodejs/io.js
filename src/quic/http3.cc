@@ -42,8 +42,7 @@ Local<FunctionTemplate> Http3Application::GetConstructorTemplate(
     auto isolate = env->isolate();
     tmpl = NewFunctionTemplate(isolate, New);
     tmpl->SetClassName(state.http3application_string());
-    tmpl->InstanceTemplate()->SetInternalFieldCount(
-        Http3Application::kInternalFieldCount);
+    tmpl->InstanceTemplate()->SetInternalFieldCount(kInternalFieldCount);
     state.set_http3application_constructor_template(tmpl);
   }
   return tmpl;
@@ -169,8 +168,7 @@ using Http3Header = NgHeader<Http3HeaderTraits>;
 // Implements the low-level HTTP/3 Application semantics.
 class Http3ApplicationImpl final : public Session::Application {
  public:
-  Http3ApplicationImpl(Session* session,
-                       const Session::Application::Options& options)
+  Http3ApplicationImpl(Session* session, const Options& options)
       : Application(session, options),
         allocator_(BindingData::Get(env())),
         options_(options),
@@ -403,7 +401,7 @@ class Http3ApplicationImpl final : public Session::Application {
 
   bool SendHeaders(const Stream& stream,
                    HeadersKind kind,
-                   const v8::Local<v8::Array>& headers,
+                   const Local<v8::Array>& headers,
                    HeadersFlags flags = HeadersFlags::NONE) override {
     Session::SendPendingDataScope send_scope(&session());
     Http3Headers nva(env(), headers);
@@ -728,7 +726,7 @@ class Http3ApplicationImpl final : public Session::Application {
 
   bool started_ = false;
   nghttp3_mem allocator_;
-  Session::Application::Options options_;
+  Options options_;
   Http3ConnectionPointer conn_;
   int64_t control_stream_id_ = -1;
   int64_t qpack_dec_stream_id_ = -1;
