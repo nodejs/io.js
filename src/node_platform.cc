@@ -630,7 +630,7 @@ template <class T>
 void TaskQueue<T>::NotifyOfCompletion() {
   Mutex::ScopedLock scoped_lock(lock_);
   if (--outstanding_tasks_ == 0) {
-    tasks_drained_.Broadcast(scoped_lock);
+    tasks_drained_.Signal(scoped_lock);
   }
 }
 
