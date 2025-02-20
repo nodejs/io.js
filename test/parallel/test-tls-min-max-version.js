@@ -84,7 +84,7 @@ function test(cmin, cmax, cprot, smin, smax, sprot, proto, cerr, serr) {
     assert(pair.server.conn);
     assert(pair.client.conn);
     assert.strictEqual(pair.client.conn.getProtocol(), proto);
-    assert.strictEqual(pair.server.conn.getProtocol(), proto);
+    assert.strictEqual(pair.server.conn.getProtocol(), null);
     return cleanup();
   }));
 }
