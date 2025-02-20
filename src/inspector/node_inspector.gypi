@@ -21,6 +21,7 @@
       'src/inspector/node_json.h',
       'src/inspector/node_string.cc',
       'src/inspector/node_string.h',
+      'src/inspector/protocol_helper.h',
       'src/inspector/runtime_agent.cc',
       'src/inspector/runtime_agent.h',
       'src/inspector/tracing_agent.cc',

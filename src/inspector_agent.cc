@@ -6,6 +6,7 @@
 #include "inspector/network_inspector.h"
 #include "inspector/node_json.h"
 #include "inspector/node_string.h"
+#include "inspector/protocol_helper.h"
 #include "inspector/runtime_agent.h"
 #include "inspector/tracing_agent.h"
 #include "inspector/worker_agent.h"
@@ -68,12 +69,6 @@ static uv_async_t start_io_thread_async;
 static std::atomic_bool start_io_thread_async_initialized { false };
 // Protects the Agent* stored in start_io_thread_async.data.
 static Mutex start_io_thread_async_mutex;
-
-std::unique_ptr<StringBuffer> ToProtocolString(Isolate* isolate,
-                                               Local<Value> value) {
-  TwoByteValue buffer(isolate, value);
-  return StringBuffer::create(StringView(*buffer, buffer.length()));
-}
 
 // Called on the main thread.
 void StartIoThreadAsyncCallback(uv_async_t* handle) {
@@ -259,16 +254,15 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     network_inspector_.reset();  // Dispose before the dispatchers
   }
 
-  void emitNotificationFromBackend(const StringView& event,
-                                   const StringView& params) {
-    std::unique_ptr<protocol::DictionaryValue> value =
-        protocol::DictionaryValue::cast(JsonUtil::parseJSON(params));
+  void emitNotificationFromBackend(v8::Local<v8::Context> context,
+                                   const StringView& event,
+                                   Local<Object> params) {
     std::string raw_event = protocol::StringUtil::StringViewToUtf8(event);
     std::string domain_name = raw_event.substr(0, raw_event.find('.'));
     std::string event_name = raw_event.substr(raw_event.find('.') + 1);
     if (network_inspector_->canEmit(domain_name)) {
       network_inspector_->emitNotification(
-          domain_name, event_name, std::move(value));
+          context, domain_name, event_name, params);
     } else {
       UNREACHABLE("Unknown domain for emitNotificationFromBackend");
     }
@@ -619,8 +613,8 @@ class NodeInspectorClient : public V8InspectorClient {
         context,
         StringView(DETAILS, sizeof(DETAILS) - 1),
         error,
-        ToProtocolString(isolate, message->Get())->string(),
-        ToProtocolString(isolate, message->GetScriptResourceName())->string(),
+        ToInspectorString(isolate, message->Get())->string(),
+        ToInspectorString(isolate, message->GetScriptResourceName())->string(),
         message->GetLineNumber(context).FromMaybe(0),
         message->GetStartColumn(context).FromMaybe(0),
         client_->createStackTrace(stack_trace),
@@ -688,9 +682,11 @@ class NodeInspectorClient : public V8InspectorClient {
     return retaining_context;
   }
 
-  void emitNotification(const StringView& event, const StringView& params) {
+  void emitNotification(v8::Local<v8::Context> context,
+                        const StringView& event,
+                        Local<Object> params) {
     for (const auto& id_channel : channels_) {
-      id_channel.second->emitNotificationFromBackend(event, params);
+      id_channel.second->emitNotificationFromBackend(context, event, params);
     }
   }
 
@@ -907,10 +903,11 @@ std::unique_ptr<InspectorSession> Agent::ConnectToMainThread(
                                  prevent_shutdown);
 }
 
-void Agent::EmitProtocolEvent(const StringView& event,
-                              const StringView& params) {
+void Agent::EmitProtocolEvent(v8::Local<v8::Context> context,
+                              const StringView& event,
+                              Local<Object> params) {
   if (!env()->options()->experimental_network_inspection) return;
-  client_->emitNotification(event, params);
+  client_->emitNotification(context, event, params);
 }
 
 void Agent::SetupNetworkTracking(Local<Function> enable_function,

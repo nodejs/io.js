@@ -16,6 +16,7 @@ const EXPECTED_EVENTS = {
         request: {
           url: 'https://nodejs.org/en',
           method: 'GET',
+          headers: {},
         },
         timestamp: 1000,
         wallTime: 1000,
@@ -25,7 +26,7 @@ const EXPECTED_EVENTS = {
         request: {
           url: 'https://nodejs.org/en',
           method: 'GET',
-          headers: {} // Headers should be an empty object if not provided.
+          headers: {},
         },
         timestamp: 1000,
         wallTime: 1000,
@@ -40,6 +41,7 @@ const EXPECTED_EVENTS = {
         response: {
           url: 'https://nodejs.org/en',
           status: 200,
+          statusText: '',
           headers: { host: 'nodejs.org' }
         }
       },
@@ -50,7 +52,7 @@ const EXPECTED_EVENTS = {
         response: {
           url: 'https://nodejs.org/en',
           status: 200,
-          statusText: '', // Status text should be an empty string if not provided.
+          statusText: '',
           headers: { host: 'nodejs.org' }
         }
       }
@@ -104,6 +106,11 @@ const runAsyncTest = async () => {
   for (const [domain, events] of Object.entries(EXPECTED_EVENTS)) {
     for (const event of events) {
       session.on(`${domain}.${event.name}`, common.mustCall(({ params }) => {
+        if (event.name === 'requestWillBeSent') {
+          // Initiator is automatically captured and contains caller info.
+          // No need to validate it.
+          delete params.initiator;
+        }
         assert.deepStrictEqual(params, event.expected ?? event.params);
       }));
       inspector[domain][event.name](event.params);

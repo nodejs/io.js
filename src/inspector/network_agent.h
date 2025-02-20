@@ -6,44 +6,46 @@
 #include <unordered_map>
 
 namespace node {
-
 namespace inspector {
+
 class NetworkInspector;
 
-namespace protocol {
-
-class NetworkAgent : public Network::Backend {
+class NetworkAgent : public protocol::Network::Backend {
  public:
   explicit NetworkAgent(NetworkInspector* inspector,
                         v8_inspector::V8Inspector* v8_inspector);
 
-  void Wire(UberDispatcher* dispatcher);
+  void Wire(protocol::UberDispatcher* dispatcher);
 
-  DispatchResponse enable() override;
+  protocol::DispatchResponse enable() override;
 
-  DispatchResponse disable() override;
+  protocol::DispatchResponse disable() override;
 
-  void emitNotification(const String& event,
-                        std::unique_ptr<protocol::DictionaryValue> params);
+  void emitNotification(v8::Local<v8::Context> context,
+                        const protocol::String& event,
+                        v8::Local<v8::Object> params);
 
-  void requestWillBeSent(std::unique_ptr<protocol::DictionaryValue> params);
+  void requestWillBeSent(v8::Local<v8::Context> context,
+                         v8::Local<v8::Object> params);
 
-  void responseReceived(std::unique_ptr<protocol::DictionaryValue> params);
+  void responseReceived(v8::Local<v8::Context> context,
+                        v8::Local<v8::Object> params);
 
-  void loadingFailed(std::unique_ptr<protocol::DictionaryValue> params);
+  void loadingFailed(v8::Local<v8::Context> context,
+                     v8::Local<v8::Object> params);
 
-  void loadingFinished(std::unique_ptr<protocol::DictionaryValue> params);
+  void loadingFinished(v8::Local<v8::Context> context,
+                       v8::Local<v8::Object> params);
 
  private:
   NetworkInspector* inspector_;
   v8_inspector::V8Inspector* v8_inspector_;
-  std::shared_ptr<Network::Frontend> frontend_;
-  using EventNotifier =
-      void (NetworkAgent::*)(std::unique_ptr<protocol::DictionaryValue>);
-  std::unordered_map<String, EventNotifier> event_notifier_map_;
+  std::shared_ptr<protocol::Network::Frontend> frontend_;
+  using EventNotifier = void (NetworkAgent::*)(v8::Local<v8::Context> context,
+                                               v8::Local<v8::Object>);
+  std::unordered_map<protocol::String, EventNotifier> event_notifier_map_;
 };
 
-}  // namespace protocol
 }  // namespace inspector
 }  // namespace node
 
