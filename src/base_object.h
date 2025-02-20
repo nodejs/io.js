@@ -288,6 +288,9 @@ class BaseObjectPtrImpl final {
   inline BaseObjectPtrImpl(BaseObjectPtrImpl&& other);
   inline BaseObjectPtrImpl& operator=(BaseObjectPtrImpl&& other);
 
+  inline BaseObjectPtrImpl(std::nullptr_t);
+  inline BaseObjectPtrImpl& operator=(std::nullptr_t);
+
   inline void reset(T* ptr = nullptr);
   inline T* get() const;
   inline T& operator*() const;
@@ -308,6 +311,13 @@ class BaseObjectPtrImpl final {
   inline BaseObject* get_base_object() const;
   inline BaseObject::PointerData* pointer_data() const;
 };
+
+template <typename T, bool kIsWeak>
+inline static bool operator==(const BaseObjectPtrImpl<T, kIsWeak>,
+                              const std::nullptr_t);
+template <typename T, bool kIsWeak>
+inline static bool operator==(const std::nullptr_t,
+                              const BaseObjectPtrImpl<T, kIsWeak>);
 
 template <typename T>
 using BaseObjectPtr = BaseObjectPtrImpl<T, false>;

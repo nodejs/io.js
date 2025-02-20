@@ -1977,7 +1977,7 @@ BaseObjectPtr<StatementSync> StatementSync::Create(
            ->InstanceTemplate()
            ->NewInstance(env->context())
            .ToLocal(&obj)) {
-    return BaseObjectPtr<StatementSync>();
+    return nullptr;
   }
 
   return MakeBaseObject<StatementSync>(env, obj, std::move(db), stmt);
@@ -2005,7 +2005,7 @@ BaseObjectPtr<Session> Session::Create(Environment* env,
            ->InstanceTemplate()
            ->NewInstance(env->context())
            .ToLocal(&obj)) {
-    return BaseObjectPtr<Session>();
+    return nullptr;
   }
 
   return MakeBaseObject<Session>(env, obj, std::move(database), session);
