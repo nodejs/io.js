@@ -161,7 +161,7 @@ void BindingData::PathToFileURL(const FunctionCallbackInfo<Value>& args) {
       ada::parse<ada::url_aggregator>(EncodePathChars(input_str, os), nullptr);
 
   if (!out) {
-    return ThrowInvalidURL(realm->env(), input.ToStringView(), nullptr);
+    return ThrowInvalidURL(realm->env(), input.ToStringView(), std::nullopt);
   }
 
   if (os == OS::WINDOWS && args.Length() > 2 && !args[2]->IsUndefined())
