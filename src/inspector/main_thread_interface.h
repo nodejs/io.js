@@ -57,6 +57,10 @@ class MainThreadHandle : public std::enable_shared_from_this<MainThreadHandle> {
   std::unique_ptr<InspectorSessionDelegate> MakeDelegateThreadSafe(
       std::unique_ptr<InspectorSessionDelegate> delegate);
   bool Expired();
+  void SetTargetSessionId(int target_session_id) {
+    target_session_id_ = target_session_id;
+  }
+  std::optional<int> GetTargetSessionId() { return target_session_id_; }
 
  private:
   void Reset();
@@ -65,6 +69,7 @@ class MainThreadHandle : public std::enable_shared_from_this<MainThreadHandle> {
   Mutex block_lock_;
   int next_session_id_ = 0;
   std::atomic_int next_object_id_ = {1};
+  std::optional<int> target_session_id_ = std::nullopt;
 
   friend class MainThreadInterface;
 };

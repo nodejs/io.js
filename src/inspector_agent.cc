@@ -7,6 +7,7 @@
 #include "inspector/node_json.h"
 #include "inspector/node_string.h"
 #include "inspector/runtime_agent.h"
+#include "inspector/target_agent.h"
 #include "inspector/tracing_agent.h"
 #include "inspector/worker_agent.h"
 #include "inspector/worker_inspector.h"
@@ -223,9 +224,11 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
                        const std::unique_ptr<V8Inspector>& inspector,
                        std::shared_ptr<WorkerManager> worker_manager,
                        std::unique_ptr<InspectorSessionDelegate> delegate,
-                       std::shared_ptr<MainThreadHandle> main_thread_,
+                       std::shared_ptr<MainThreadHandle> main_thread,
                        bool prevent_shutdown)
-      : delegate_(std::move(delegate)), prevent_shutdown_(prevent_shutdown),
+      : delegate_(std::move(delegate)),
+        main_thread_(main_thread),
+        prevent_shutdown_(prevent_shutdown),
         retaining_context_(false) {
     session_ = inspector->connect(CONTEXT_GROUP_ID,
                                   this,
@@ -244,6 +247,11 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     network_inspector_ =
         std::make_unique<NetworkInspector>(env, inspector.get());
     network_inspector_->Wire(node_dispatcher_.get());
+    if (env->options()->experimental_worker_inspection) {
+      target_agent_ = std::make_shared<protocol::TargetAgent>();
+      target_agent_->Wire(node_dispatcher_.get());
+      target_agent_->listenWorker(worker_manager);
+    }
   }
 
   ~ChannelImpl() override {
@@ -257,6 +265,9 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
     runtime_agent_.reset();  // Dispose before the dispatchers
     network_inspector_->Disable();
     network_inspector_.reset();  // Dispose before the dispatchers
+    if (target_agent_) {
+      target_agent_->reset();
+    }
   }
 
   void emitNotificationFromBackend(const StringView& event,
@@ -340,6 +351,15 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   // crdtp::FrontendChannel
   void FlushProtocolNotifications() override {}
 
+  std::string serializeToJSON(std::unique_ptr<Serializable> message) {
+    std::vector<uint8_t> cbor = message->Serialize();
+    std::string json;
+    crdtp::Status status = ConvertCBORToJSON(crdtp::SpanFrom(cbor), &json);
+    DCHECK(status.ok());
+    USE(status);
+    return json;
+  }
+
   void sendMessageToFrontend(const StringView& message) {
     if (per_process::enabled_debug_list.enabled(
             DebugCategory::INSPECTOR_SERVER)) {
@@ -348,7 +368,18 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
                          "[inspector send] %s\n",
                          raw_message);
     }
-    delegate_->SendMessageToFrontend(message);
+    std::optional<int> target_session_id = main_thread_->GetTargetSessionId();
+    if (target_session_id.has_value()) {
+      std::string raw_message = protocol::StringUtil::StringViewToUtf8(message);
+      std::unique_ptr<protocol::DictionaryValue> value =
+          protocol::DictionaryValue::cast(JsonUtil::parseJSON(raw_message));
+      std::string target_session_id_str = std::to_string(*target_session_id);
+      value->setString("sessionId", target_session_id_str);
+      std::string json = serializeToJSON(std::move(value));
+      delegate_->SendMessageToFrontend(Utf8ToStringView(json)->string());
+    } else {
+      delegate_->SendMessageToFrontend(message);
+    }
   }
 
   void sendMessageToFrontend(const std::string& message) {
@@ -358,24 +389,14 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   // crdtp::FrontendChannel
   void SendProtocolResponse(int callId,
                             std::unique_ptr<Serializable> message) override {
-    std::vector<uint8_t> cbor = message->Serialize();
-    std::string json;
-    crdtp::Status status = ConvertCBORToJSON(crdtp::SpanFrom(cbor), &json);
-    DCHECK(status.ok());
-    USE(status);
-
+    std::string json = serializeToJSON(std::move(message));
     sendMessageToFrontend(json);
   }
 
   // crdtp::FrontendChannel
   void SendProtocolNotification(
       std::unique_ptr<Serializable> message) override {
-    std::vector<uint8_t> cbor = message->Serialize();
-    std::string json;
-    crdtp::Status status = ConvertCBORToJSON(crdtp::SpanFrom(cbor), &json);
-    DCHECK(status.ok());
-    USE(status);
-
+    std::string json = serializeToJSON(std::move(message));
     sendMessageToFrontend(json);
   }
 
@@ -389,10 +410,12 @@ class ChannelImpl final : public v8_inspector::V8Inspector::Channel,
   std::unique_ptr<protocol::RuntimeAgent> runtime_agent_;
   std::unique_ptr<protocol::TracingAgent> tracing_agent_;
   std::unique_ptr<protocol::WorkerAgent> worker_agent_;
+  std::shared_ptr<protocol::TargetAgent> target_agent_;
   std::unique_ptr<NetworkInspector> network_inspector_;
   std::unique_ptr<InspectorSessionDelegate> delegate_;
   std::unique_ptr<v8_inspector::V8InspectorSession> session_;
   std::unique_ptr<UberDispatcher> node_dispatcher_;
+  std::shared_ptr<MainThreadHandle> main_thread_;
   bool prevent_shutdown_;
   bool retaining_context_;
 };

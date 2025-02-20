@@ -173,6 +173,7 @@ class EnvironmentOptions : public Options {
   std::string cpu_prof_name;
   bool cpu_prof = false;
   bool experimental_network_inspection = false;
+  bool experimental_worker_inspection = false;
   std::string heap_prof_dir;
   std::string heap_prof_name;
   static const uint64_t kDefaultHeapProfInterval = 512 * 1024;
