@@ -1039,6 +1039,10 @@ columnNumber)`
 
 #### `sourceMap.findOrigin(lineNumber, columnNumber)`
 
+<!-- YAML
+added: v18.18.0
+-->
+
 * `lineNumber` {number} The 1-indexed line number of the call
   site in the generated source
 * `columnOffset` {number} The 1-indexed column number
